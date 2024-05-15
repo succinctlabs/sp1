@@ -106,25 +106,26 @@ pub struct Builder<C: Config> {
 
 impl<C: Config> Builder<C> {
     /// Creates a new builder with a given number of counts for each type.
-    pub fn new(
+    pub fn new_sub_builder(
         var_count: u32,
         felt_count: u32,
         ext_count: u32,
         nb_public_values: Option<Var<C::N>>,
         debug: bool,
-        is_sub_builder: bool,
     ) -> Self {
         Self {
             felt_count,
             ext_count,
             var_count,
+            // Witness counts are only used when the target is a gnark circuit.  And sub-builders are
+            // not used when the target is a gnark circuit, so it's fine to set the witness counts to 0.
             witness_var_count: 0,
             witness_felt_count: 0,
             witness_ext_count: 0,
             operations: Default::default(),
             nb_public_values,
             debug,
-            is_sub_builder,
+            is_sub_builder: true,
         }
     }
 
@@ -506,13 +507,12 @@ impl<'a, C: Config> IfBuilder<'a, C> {
         let condition = self.condition();
 
         // Execute the `then` block and collect the instructions.
-        let mut f_builder = Builder::<C>::new(
+        let mut f_builder = Builder::<C>::new_sub_builder(
             self.builder.var_count,
             self.builder.felt_count,
             self.builder.ext_count,
             self.builder.nb_public_values,
             self.builder.debug,
-            true,
         );
         f(&mut f_builder);
         let then_instructions = f_builder.operations;
@@ -555,26 +555,24 @@ impl<'a, C: Config> IfBuilder<'a, C> {
     ) {
         // Get the condition reduced from the expressions for lhs and rhs.
         let condition = self.condition();
-        let mut then_builder = Builder::<C>::new(
+        let mut then_builder = Builder::<C>::new_sub_builder(
             self.builder.var_count,
             self.builder.felt_count,
             self.builder.ext_count,
             self.builder.nb_public_values,
             self.builder.debug,
-            true,
         );
 
         // Execute the `then` and `else_then` blocks and collect the instructions.
         then_f(&mut then_builder);
         let then_instructions = then_builder.operations;
 
-        let mut else_builder = Builder::<C>::new(
+        let mut else_builder = Builder::<C>::new_sub_builder(
             self.builder.var_count,
             self.builder.felt_count,
             self.builder.ext_count,
             self.builder.nb_public_values,
             self.builder.debug,
-            true,
         );
         else_f(&mut else_builder);
         let else_instructions = else_builder.operations;
@@ -703,13 +701,12 @@ impl<'a, C: Config> RangeBuilder<'a, C> {
     pub fn for_each(self, mut f: impl FnMut(Var<C::N>, &mut Builder<C>)) {
         let step_size = C::N::from_canonical_usize(self.step_size);
         let loop_variable: Var<C::N> = self.builder.uninit();
-        let mut loop_body_builder = Builder::<C>::new(
+        let mut loop_body_builder = Builder::<C>::new_sub_builder(
             self.builder.var_count,
             self.builder.felt_count,
             self.builder.ext_count,
             self.builder.nb_public_values,
             self.builder.debug,
-            true,
         );
 
         f(loop_variable, &mut loop_body_builder);
