@@ -249,13 +249,13 @@ pub enum DslIr<C: Config> {
 
     // FRI specific instructions.
     FriFold(Var<C::N>, Array<C, FriFoldInput<C>>),
-    /// Select's a variable based on a condition.  output (4th field) = select(cond (1st field), true_val (2nd field), false_val (3rd field)).
+    /// Select's a variable based on a condition. (select(cond, true_val, false_val) => output).
     /// Should only be used when target is a gnark circuit.
     CircuitSelectV(Var<C::N>, Var<C::N>, Var<C::N>, Var<C::N>),
-    /// Select's a field element based on a condition.  output (4th field) = select(cond (1st field), true_val (2nd field), false_val (3rd field)).
+    /// Select's a field element based on a condition. (select(cond, true_val, false_val) => output).
     /// Should only be used when target is a gnark circuit.
     CircuitSelectF(Var<C::N>, Felt<C::F>, Felt<C::F>, Felt<C::F>),
-    /// Select's an extension field element based on a condition.  output (4th field) = select(cond (1st field), true_val (2nd field), false_val (3rd field)).
+    /// Select's an extension field element based on a condition. (select(cond, true_val, false_val) => output).
     /// Should only be used when target is a gnark circuit.
     CircuitSelectE(
         Var<C::N>,
