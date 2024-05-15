@@ -7,19 +7,33 @@ mod bind {
 
 use bind::*;
 
-pub fn prove_groth_16(data_dir: &str, witness_path: &str) -> Groth16Proof {
+pub fn prove_groth16(data_dir: &str, witness_path: &str) -> Groth16Proof {
     let data_dir = CString::new(data_dir).expect("CString::new failed");
     let witness_path = CString::new(witness_path).expect("CString::new failed");
 
+    println!("proving");
     let proof = unsafe {
         let proof = bind::ProveGroth16(
             data_dir.as_ptr() as *mut i8,
             witness_path.as_ptr() as *mut i8,
-        );
+        ) as *mut C_Groth16Proof;
+        println!("proof: {:?}", proof);
+        println!("got proof");
         unsafe { *proof }
     };
+    println!("done proving");
 
-    proof.into()
+    let result = proof.into();
+    println!("result: {:?}", result);
+    result
+}
+
+pub fn build_groth16(data_dir: &str) {
+    let data_dir = CString::new(data_dir).expect("CString::new failed");
+
+    unsafe {
+        bind::BuildGroth16(data_dir.as_ptr() as *mut i8);
+    }
 }
 
 fn string_to_c_char_ptr(input: String) -> *mut c_char {

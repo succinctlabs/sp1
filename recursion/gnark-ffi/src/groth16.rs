@@ -7,7 +7,10 @@ use std::{
     process::{Command, Stdio},
 };
 
-use crate::{ffi::prove_groth_16, witness::GnarkWitness};
+use crate::{
+    ffi::{build_groth16, prove_groth16},
+    witness::GnarkWitness,
+};
 
 use p3_field::PrimeField;
 use serde::{Deserialize, Serialize};
@@ -99,33 +102,35 @@ impl Groth16Prover {
         let serialized = serde_json::to_string(&gnark_witness).unwrap();
         file.write_all(serialized.as_bytes()).unwrap();
 
+        build_groth16(build_dir.to_str().unwrap());
+
         // Run `make`.
-        Self::run_make(&gnark_dir);
+        // Self::run_make(&gnark_dir);
 
-        // Run the build script.
-        Self::run_cmd(
-            &gnark_dir,
-            "build".to_string(),
-            vec![
-                "--data".to_string(),
-                cwd.join(&build_dir).to_str().unwrap().to_string(),
-            ],
-        );
+        // // Run the build script.
+        // Self::run_cmd(
+        //     &gnark_dir,
+        //     "build".to_string(),
+        //     vec![
+        //         "--data".to_string(),
+        //         cwd.join(&build_dir).to_str().unwrap().to_string(),
+        //     ],
+        // );
 
-        // Extend the built verifier with the sp1 verifier contract.
-        let sp1_verifier_contract_path = build_dir.join("SP1Verifier.sol");
+        // // Extend the built verifier with the sp1 verifier contract.
+        // let sp1_verifier_contract_path = build_dir.join("SP1Verifier.sol");
 
-        // Open the file in append mode.
-        let mut sp1_verifier_contract = OpenOptions::new()
-            .append(true)
-            .open(sp1_verifier_contract_path)
-            .expect("failed to open file");
+        // // Open the file in append mode.
+        // let mut sp1_verifier_contract = OpenOptions::new()
+        //     .append(true)
+        //     .open(sp1_verifier_contract_path)
+        //     .expect("failed to open file");
 
-        // Write the string to the file
-        let sp1_verifier_str = include_str!("../assets/SP1Verifier.txt");
-        sp1_verifier_contract
-            .write_all(sp1_verifier_str.as_bytes())
-            .expect("Failed to write to file");
+        // // Write the string to the file
+        // let sp1_verifier_str = include_str!("../assets/SP1Verifier.txt");
+        // sp1_verifier_contract
+        //     .write_all(sp1_verifier_str.as_bytes())
+        //     .expect("Failed to write to file");
     }
 
     /// Generates a Groth16 proof by sending a request to the Gnark server.
@@ -135,15 +140,14 @@ impl Groth16Prover {
         // let cwd = std::env::current_dir().unwrap();
 
         // Write witness.
-        let mut witness_file = tempfile::NamedTempFile::new().unwrap();
+        // let mut witness_file = tempfile::NamedTempFile::new().unwrap();
+        let mut witness_file = File::create("witness_groth16.json").unwrap();
+        let witness_path = "witness_groth16.json";
         let gnark_witness = GnarkWitness::new(witness);
         let serialized = serde_json::to_string(&gnark_witness).unwrap();
         witness_file.write_all(serialized.as_bytes()).unwrap();
 
-        prove_groth_16(
-            build_dir.to_str().unwrap(),
-            witness_file.path().to_str().unwrap(),
-        )
+        prove_groth16(build_dir.to_str().unwrap(), &witness_path)
 
         // // Run `make`.
         // Self::run_make(&gnark_dir);
