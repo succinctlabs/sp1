@@ -8,7 +8,6 @@ use crate::operations::field::params::{NumLimbs, NumWords};
 use crate::runtime::SyscallContext;
 use crate::utils::ec::weierstrass::bls12_381::bls12381_decompress;
 use crate::utils::ec::weierstrass::secp256k1::secp256k1_decompress;
-use crate::utils::ec::weierstrass::secp256r1::secp256r1_decompress;
 use crate::utils::ec::CurveType;
 use crate::utils::ec::{AffinePoint, EllipticCurve};
 use crate::utils::{bytes_to_words_le_vec, words_to_bytes_le_vec};
@@ -160,7 +159,6 @@ pub fn create_ec_decompress_event<E: EllipticCurve>(
     let decompress_fn = match E::CURVE_TYPE {
         CurveType::Secp256k1 => secp256k1_decompress::<E>,
         CurveType::Bls12381 => bls12381_decompress::<E>,
-        CurveType::Secp256r1 => secp256r1_decompress::<E>,
         _ => panic!("Unsupported curve"),
     };
 

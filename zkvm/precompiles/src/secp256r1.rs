@@ -188,20 +188,3 @@ pub fn unconstrained_ecrecover(sig: &[u8; 65], msg_hash: &[u8; 32]) -> ([u8; 33]
 
     (recovered_bytes, s_inverse)
 }
-
-/// Given a signature and a message hash, returns the public key that signed the message.
-pub fn ecrecover(sig: &[u8; 65], msg_hash: &[u8; 32]) -> Result<[u8; 65]> {
-    let (pubkey, s_inv) = unconstrained_ecrecover(sig, msg_hash);
-    let pubkey = decompress_pubkey(&pubkey).context("decompress pubkey failed")?;
-    let verified = verify_signature(
-        &pubkey,
-        msg_hash,
-        &Signature::from_slice(&sig[..64]).unwrap(),
-        Some(&s_inv),
-    );
-    if verified {
-        Ok(pubkey)
-    } else {
-        Err(anyhow!("failed to verify signature"))
-    }
-}

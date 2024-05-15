@@ -3,13 +3,10 @@
 
 use std::str::FromStr;
 
-use elliptic_curve::sec1::ToEncodedPoint;
-use elliptic_curve::subtle::Choice;
 use generic_array::GenericArray;
 use num::traits::FromBytes;
 use num::traits::ToBytes;
 use num::BigUint;
-use p256::elliptic_curve::point::DecompressPoint;
 use p256::FieldElement;
 use serde::{Deserialize, Serialize};
 use typenum::{U32, U62};
@@ -17,9 +14,7 @@ use typenum::{U32, U62};
 use super::{SwCurve, WeierstrassParameters};
 use crate::operations::field::params::FieldParameters;
 use crate::operations::field::params::NumLimbs;
-use crate::utils::ec::AffinePoint;
 use crate::utils::ec::CurveType;
-use crate::utils::ec::EllipticCurve;
 use crate::utils::ec::EllipticCurveParameters;
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
