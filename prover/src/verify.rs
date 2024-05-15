@@ -226,7 +226,7 @@ impl SP1Prover {
     }
 }
 
-/// Verify the vk and public_values in the public inputs of the Groth16Proof match the expected values.
+/// Verify the vk_hash and public_values_hash in the public inputs of the Groth16Proof match the expected values.
 pub fn verify_groth16_public_inputs(
     vk: &SP1VerifyingKey,
     public_values: &SP1PublicValues,
