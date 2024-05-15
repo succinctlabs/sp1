@@ -212,7 +212,7 @@ impl SP1Prover {
         Ok(())
     }
 
-    /// Verifies a Groth16 proof.
+    /// Verifies a Groth16 proof using the circuit artifacts in the build directory.
     pub fn verify_groth16(&self, proof: &Groth16Proof, build_dir: &PathBuf) -> Result<()> {
         let prover = Groth16Prover::new();
 
