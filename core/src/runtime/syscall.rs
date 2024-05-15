@@ -281,7 +281,6 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Rc<dyn Syscall>> {
         SyscallCode::SECP256K1_DOUBLE,
         Rc::new(WeierstrassDoubleAssignChip::<Secp256k1>::new()),
     );
-    syscall_map.insert(SyscallCode::SHA_COMPRESS, Rc::new(ShaCompressChip::new()));
     syscall_map.insert(
         SyscallCode::SECP256K1_DECOMPRESS,
         Rc::new(WeierstrassDecompressChip::<Secp256k1>::new()),
