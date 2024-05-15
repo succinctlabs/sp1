@@ -2,7 +2,7 @@ use p3_air::AirBuilder;
 use p3_field::{AbstractField, Field};
 
 use crate::{
-    air::SP1RecursionAirBuilder,
+    air::{BlockBuilder, SP1RecursionAirBuilder},
     cpu::{CpuChip, CpuCols},
     memory::MemoryCols,
     runtime::DIGEST_SIZE,
@@ -41,16 +41,10 @@ impl<F: Field> CpuChip<F> {
         for (i, bit) in public_values_cols.idx_bitmap.iter().enumerate() {
             builder
                 .when(*bit * is_commit_instruction.clone())
-                .assert_eq(
-                    local.b.prev_value()[0],
-                    AB::Expr::from_canonical_u32(i as u32),
+                .assert_block_eq(
+                    *local.b.prev_value(),
+                    AB::Expr::from_canonical_u32(i as u32).into(),
                 );
-        }
-        // Verify that the 3 upper bytes of the block are 0.
-        for i in 0..3 {
-            builder
-                .when(is_commit_instruction.clone())
-                .assert_zero(local.b.prev_value()[i + 1]);
         }
 
         // Retrieve the expected public values digest word to check against the one passed into the
@@ -66,12 +60,6 @@ impl<F: Field> CpuChip<F> {
         // Verify the public_values_digest_word.
         builder
             .when(is_commit_instruction.clone())
-            .assert_eq(expected_pv_digest_element, digest_element[0]);
-
-        for i in 0..3 {
-            builder
-                .when(is_commit_instruction.clone())
-                .assert_zero(digest_element[i + 1]);
-        }
+            .assert_block_eq(expected_pv_digest_element.into(), *digest_element);
     }
 }
