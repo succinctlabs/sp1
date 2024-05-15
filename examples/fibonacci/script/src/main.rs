@@ -7,6 +7,8 @@ fn main() {
     // Setup logging.
     utils::setup_logger();
 
+    sp1_sdk::artifacts::try_install_groth16_artifacts();
+
     // Create an input stream and write '500' to it.
     let n = 500u32;
 
@@ -16,7 +18,7 @@ fn main() {
     // Generate the proof for the given program and input.
     let client = ProverClient::new();
     let (pk, vk) = client.setup(ELF);
-    let mut proof = client.prove(&pk, stdin).unwrap();
+    let mut proof = client.prove_groth16(&pk, stdin).unwrap();
 
     println!("generated proof");
 
@@ -29,7 +31,9 @@ fn main() {
     println!("b: {}", b);
 
     // Verify proof and public values
-    client.verify(&proof, &vk).expect("verification failed");
+    client
+        .verify_groth16(&proof, &vk)
+        .expect("verification failed");
 
     // Save the proof.
     proof

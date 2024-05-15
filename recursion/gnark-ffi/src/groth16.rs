@@ -7,7 +7,7 @@ use std::{
     process::{Command, Stdio},
 };
 
-use crate::witness::GnarkWitness;
+use crate::{ffi::prove_groth_16, witness::GnarkWitness};
 
 use p3_field::PrimeField;
 use serde::{Deserialize, Serialize};
@@ -38,7 +38,7 @@ impl Groth16Prover {
     pub fn test<C: Config>(constraints: Vec<Constraint>, witness: Witness<C>) {
         let serialized = serde_json::to_string(&constraints).unwrap();
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let gnark_dir = manifest_dir.join("../gnark");
+        let gnark_dir = manifest_dir.join("./go");
 
         // Write constraints.
         let mut constraints_file = tempfile::NamedTempFile::new().unwrap();
@@ -84,7 +84,7 @@ impl Groth16Prover {
     pub fn build<C: Config>(constraints: Vec<Constraint>, witness: Witness<C>, build_dir: PathBuf) {
         let serialized = serde_json::to_string(&constraints).unwrap();
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let gnark_dir = manifest_dir.join("../gnark");
+        let gnark_dir = manifest_dir.join("./go");
         let cwd = std::env::current_dir().unwrap();
 
         // Write constraints.
@@ -130,9 +130,9 @@ impl Groth16Prover {
 
     /// Generates a Groth16 proof by sending a request to the Gnark server.
     pub fn prove<C: Config>(&self, witness: Witness<C>, build_dir: PathBuf) -> Groth16Proof {
-        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let gnark_dir = manifest_dir.join("../gnark");
-        let cwd = std::env::current_dir().unwrap();
+        // let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        // let gnark_dir = manifest_dir.join("../gnark");
+        // let cwd = std::env::current_dir().unwrap();
 
         // Write witness.
         let mut witness_file = tempfile::NamedTempFile::new().unwrap();
@@ -140,37 +140,42 @@ impl Groth16Prover {
         let serialized = serde_json::to_string(&gnark_witness).unwrap();
         witness_file.write_all(serialized.as_bytes()).unwrap();
 
-        // Run `make`.
-        Self::run_make(&gnark_dir);
+        prove_groth_16(
+            build_dir.to_str().unwrap(),
+            witness_file.path().to_str().unwrap(),
+        )
 
-        // Run the build script.
-        let proof_file = tempfile::NamedTempFile::new().unwrap();
-        Self::run_cmd(
-            &gnark_dir,
-            "prove".to_string(),
-            vec![
-                "--data".to_string(),
-                cwd.join(build_dir).to_str().unwrap().to_string(),
-                "--witness".to_string(),
-                witness_file.path().to_str().unwrap().to_string(),
-                "--proof".to_string(),
-                proof_file.path().to_str().unwrap().to_string(),
-            ],
-        );
+        // // Run `make`.
+        // Self::run_make(&gnark_dir);
 
-        // Read the contents back from the tempfile.
-        let mut buffer = String::new();
-        proof_file
-            .reopen()
-            .unwrap()
-            .read_to_string(&mut buffer)
-            .unwrap();
+        // // Run the build script.
+        // let proof_file = tempfile::NamedTempFile::new().unwrap();
+        // Self::run_cmd(
+        //     &gnark_dir,
+        //     "prove".to_string(),
+        //     vec![
+        //         "--data".to_string(),
+        //         cwd.join(build_dir).to_str().unwrap().to_string(),
+        //         "--witness".to_string(),
+        //         witness_file.path().to_str().unwrap().to_string(),
+        //         "--proof".to_string(),
+        //         proof_file.path().to_str().unwrap().to_string(),
+        //     ],
+        // );
 
-        // Deserialize the JSON string back to a Groth16Proof instance
-        let deserialized: Groth16Proof =
-            serde_json::from_str(&buffer).expect("Error deserializing the proof");
+        // // Read the contents back from the tempfile.
+        // let mut buffer = String::new();
+        // proof_file
+        //     .reopen()
+        //     .unwrap()
+        //     .read_to_string(&mut buffer)
+        //     .unwrap();
 
-        deserialized
+        // // Deserialize the JSON string back to a Groth16Proof instance
+        // let deserialized: Groth16Proof =
+        //     serde_json::from_str(&buffer).expect("Error deserializing the proof");
+
+        // deserialized
     }
 
     pub fn verify<C: Config>(

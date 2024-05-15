@@ -46,5 +46,9 @@ thiserror = "1.0.60"
 name = "build_groth16"
 path = "scripts/build_groth16.rs"
 
+[[bin]]
+name = "e2e"
+path = "scripts/e2e.rs"
+
 [features]
 neon = ["sp1-core/neon"]

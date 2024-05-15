@@ -2,6 +2,7 @@ use std::env;
 use std::path::PathBuf;
 use std::process::Command;
 
+#[allow(deprecated)]
 use bindgen::CargoCallbacks;
 
 fn main() {
@@ -46,6 +47,7 @@ fn main() {
     let bindings = bindgen::Builder::default()
         .header(header_path.to_str().unwrap())
         .parse_callbacks(Box::new(CargoCallbacks::new()))
+        .no_copy("FFIGroth16Proof")
         .generate()
         .expect("Unable to generate bindings");
 
