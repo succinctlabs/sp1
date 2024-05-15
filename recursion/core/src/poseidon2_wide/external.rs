@@ -564,7 +564,7 @@ mod tests {
 
     #[test]
     #[should_panic]
-    fn poseidon2_wide_prove_babybear_fail() {
+    fn poseidon2_wide_prove_babybear_failure() {
         let rng = &mut rand::thread_rng();
 
         let test_inputs = (0..1000)
