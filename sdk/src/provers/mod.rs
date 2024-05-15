@@ -71,6 +71,7 @@ pub trait Prover: Send + Sync {
 
         // Verify the public inputs of the inner Groth16 proof match the expected values.
         verify_groth16_public_inputs(vkey, &proof.public_values, &proof.proof.public_inputs)?;
+
         Ok(())
     }
 
