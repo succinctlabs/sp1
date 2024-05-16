@@ -1,4 +1,8 @@
-use std::{fs::File, io::Write, path::PathBuf};
+use std::{
+    fs::File,
+    io::Write,
+    path::{Path, PathBuf},
+};
 
 use crate::{
     ffi::{build_groth16, prove_groth16, test_groth16, verify_groth16},
@@ -73,12 +77,14 @@ impl Groth16Prover {
     pub fn prove<C: Config>(&self, witness: Witness<C>, build_dir: PathBuf) -> Groth16Proof {
         // Write witness.
         let mut witness_file = tempfile::NamedTempFile::new().unwrap();
-        let witness_path = "witness_groth16.json";
         let gnark_witness = GnarkWitness::new(witness);
         let serialized = serde_json::to_string(&gnark_witness).unwrap();
         witness_file.write_all(serialized.as_bytes()).unwrap();
 
-        prove_groth16(build_dir.to_str().unwrap(), witness_path)
+        prove_groth16(
+            build_dir.to_str().unwrap(),
+            witness_file.path().to_str().unwrap(),
+        )
     }
 
     pub fn verify(

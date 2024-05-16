@@ -1,4 +1,8 @@
-use std::{borrow::Borrow, path::PathBuf, str::FromStr};
+use std::{
+    borrow::Borrow,
+    path::{Path},
+    str::FromStr,
+};
 
 use anyhow::Result;
 use num_bigint::BigUint;
@@ -208,7 +212,7 @@ impl SP1Prover {
         &self,
         proof: &Groth16Proof,
         vk: &SP1VerifyingKey,
-        build_dir: &PathBuf,
+        build_dir: &Path,
     ) -> Result<()> {
         let prover = Groth16Prover::new();
 
