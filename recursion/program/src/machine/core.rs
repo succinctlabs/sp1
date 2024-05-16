@@ -27,7 +27,7 @@ use crate::types::ShardProofVariable;
 use crate::types::VerifyingKeyVariable;
 use crate::utils::{const_fri_config, felt2var, get_challenger_public_values, hash_vkey, var2felt};
 
-use super::utils::assert_complete;
+use super::utils::{assert_complete, commit_public_values};
 
 /// A program for recursively verifying a batch of SP1 proofs.
 #[derive(Debug, Clone, Copy)]
@@ -319,24 +319,7 @@ where
             assert_complete(builder, recursion_public_values, &reconstruct_challenger)
         });
 
-        let pv_elms_no_digest =
-            &recursion_public_values_stream[0..RECURSIVE_PROOF_NUM_PV_ELTS - DIGEST_SIZE];
-
-        for value in pv_elms_no_digest.iter() {
-            builder.label_public_value(*value);
-        }
-
-        // Hash the public values.
-        let mut poseidon_inputs = builder.array(RECURSIVE_PROOF_NUM_PV_ELTS - DIGEST_SIZE);
-        for (i, value) in pv_elms_no_digest.iter().enumerate() {
-            builder.set(&mut poseidon_inputs, i, *value);
-        }
-
-        let pv_digest = builder.poseidon2_hash(&poseidon_inputs);
-        for i in 0..DIGEST_SIZE {
-            let digest_element = builder.get(&pv_digest, i);
-            builder.commit_public_value(digest_element);
-        }
+        commit_public_values(builder, recursion_public_values);
 
         builder.halt();
     }

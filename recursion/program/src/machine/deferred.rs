@@ -27,7 +27,7 @@ use crate::types::ShardProofVariable;
 use crate::types::VerifyingKeyVariable;
 use crate::utils::{const_fri_config, get_challenger_public_values, hash_vkey, var2felt};
 
-use super::utils::verify_public_values_hash;
+use super::utils::{commit_public_values, verify_public_values_hash};
 
 #[derive(Debug, Clone, Copy)]
 pub struct SP1DeferredVerifier<C: Config, SC: StarkGenericConfig, A> {
@@ -288,24 +288,7 @@ where
         // Set the is_complete flag.
         deferred_public_values.is_complete = var2felt(builder, is_complete);
 
-        let pv_elms_no_digest =
-            &deferred_public_values_stream[0..RECURSIVE_PROOF_NUM_PV_ELTS - DIGEST_SIZE];
-
-        for value in pv_elms_no_digest.iter() {
-            builder.label_public_value(*value);
-        }
-
-        // Hash the public values.
-        let mut poseidon_inputs = builder.array(RECURSIVE_PROOF_NUM_PV_ELTS - DIGEST_SIZE);
-        for (i, value) in pv_elms_no_digest.iter().enumerate() {
-            builder.set(&mut poseidon_inputs, i, *value);
-        }
-
-        let pv_digest = builder.poseidon2_hash(&poseidon_inputs);
-        for i in 0..DIGEST_SIZE {
-            let digest_element = builder.get(&pv_digest, i);
-            builder.commit_public_value(digest_element);
-        }
+        commit_public_values(builder, deferred_public_values);
 
         builder.halt();
     }

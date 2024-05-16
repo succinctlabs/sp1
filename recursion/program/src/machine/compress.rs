@@ -33,7 +33,7 @@ use crate::utils::{
     get_challenger_public_values, hash_vkey,
 };
 
-use super::utils::{proof_data_from_vk, verify_public_values_hash};
+use super::utils::{commit_public_values, proof_data_from_vk, verify_public_values_hash};
 
 /// A program to verify a batch of recursive proofs and aggregate their public values.
 #[derive(Debug, Clone, Copy)]
@@ -471,24 +471,7 @@ where
             },
         );
 
-        let pv_elms_no_digest =
-            &reduce_public_values_stream[0..RECURSIVE_PROOF_NUM_PV_ELTS - DIGEST_SIZE];
-
-        for value in pv_elms_no_digest.iter() {
-            builder.label_public_value(*value);
-        }
-
-        // Hash the public values.
-        let mut poseidon_inputs = builder.array(RECURSIVE_PROOF_NUM_PV_ELTS - DIGEST_SIZE);
-        for (i, value) in pv_elms_no_digest.iter().enumerate() {
-            builder.set(&mut poseidon_inputs, i, *value);
-        }
-
-        let pv_digest = builder.poseidon2_hash(&poseidon_inputs);
-        for i in 0..DIGEST_SIZE {
-            let digest_element = builder.get(&pv_digest, i);
-            builder.commit_public_value(digest_element);
-        }
+        commit_public_values(builder, reduce_public_values);
 
         builder.halt();
     }

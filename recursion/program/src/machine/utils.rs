@@ -8,7 +8,7 @@ use sp1_core::{
     air::MachineAir,
     stark::{Com, StarkGenericConfig, StarkMachine, StarkVerifyingKey},
 };
-use sp1_recursion_compiler::ir::{Builder, Config, Felt, Var};
+use sp1_recursion_compiler::ir::{Array, Builder, Config, Felt, Var};
 use sp1_recursion_core::{
     air::{RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS},
     runtime::DIGEST_SIZE,
@@ -121,23 +121,50 @@ where
     }
 }
 
-/// Verifies the digest of a recursive public values struct.
-pub(crate) fn verify_public_values_hash<C: Config>(
+pub(crate) fn calculate_public_values_digest<C: Config>(
     builder: &mut Builder<C>,
     public_values: &RecursionPublicValues<Felt<C::F>>,
-) {
-    // Check that the public values digest is correct.
+) -> Array<C, Felt<C::F>> {
     let pv_elements: [Felt<_>; RECURSIVE_PROOF_NUM_PV_ELTS] = unsafe { transmute(*public_values) };
     const NUM_ELMS_TO_HASH: usize = RECURSIVE_PROOF_NUM_PV_ELTS - DIGEST_SIZE;
     let mut poseidon_inputs = builder.array(NUM_ELMS_TO_HASH);
     for (i, elm) in pv_elements[0..NUM_ELMS_TO_HASH].iter().enumerate() {
         builder.set(&mut poseidon_inputs, i, *elm);
     }
-    let calculated_digest = builder.poseidon2_hash(&poseidon_inputs);
+    builder.poseidon2_hash(&poseidon_inputs)
+}
+
+/// Verifies the digest of a recursive public values struct.
+pub(crate) fn verify_public_values_hash<C: Config>(
+    builder: &mut Builder<C>,
+    public_values: &RecursionPublicValues<Felt<C::F>>,
+) {
+    // Check that the public values digest is correct.
+    let calculated_digest = calculate_public_values_digest(builder, public_values);
 
     let expected_digest = public_values.digest;
     for (i, expected_elm) in expected_digest.iter().enumerate() {
         let calculated_elm = builder.get(&calculated_digest, i);
         builder.assert_felt_eq(*expected_elm, calculated_elm);
+    }
+}
+
+pub(crate) fn commit_public_values<C: Config>(
+    builder: &mut Builder<C>,
+    public_values: &RecursionPublicValues<Felt<C::F>>,
+) {
+    let pv_elements: [Felt<_>; RECURSIVE_PROOF_NUM_PV_ELTS] = unsafe { transmute(*public_values) };
+    const NUM_ELMS_TO_HASH: usize = RECURSIVE_PROOF_NUM_PV_ELTS - DIGEST_SIZE;
+    let pv_elms_no_digest = &pv_elements[0..NUM_ELMS_TO_HASH];
+
+    for value in pv_elms_no_digest.iter() {
+        builder.label_public_value(*value);
+    }
+
+    // Hash the public values.
+    let pv_digest = calculate_public_values_digest(builder, public_values);
+    for i in 0..DIGEST_SIZE {
+        let digest_element = builder.get(&pv_digest, i);
+        builder.commit_public_value(digest_element);
     }
 }
