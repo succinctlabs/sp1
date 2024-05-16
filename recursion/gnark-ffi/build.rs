@@ -8,14 +8,13 @@ use bindgen::CargoCallbacks;
 fn main() {
     println!("cargo:rerun-if-changed=go");
     println!("cargo:rerun-if-changed=src");
-    println!("cargo:warning=Building Go library");
     // Define the output directory
     let out_dir = env::var("OUT_DIR").unwrap();
     let dest_path = PathBuf::from(&out_dir);
     let lib_name = "sp1gnark";
     let dest = dest_path.join(format!("lib{}.a", lib_name));
 
-    println!("cargo:warning=Building Go library at {}", dest.display());
+    println!("Building Go library at {}", dest.display());
 
     // Run the go build command
     let status = Command::new("go")
@@ -51,7 +50,7 @@ fn main() {
         .write_to_file(dest_path.join("bindings.rs"))
         .expect("Couldn't write bindings!");
 
-    println!("cargo:warning=Go library built");
+    println!("Go library built");
 
     // Link the Go library
     println!("cargo:rustc-link-search=native={}", dest_path.display());

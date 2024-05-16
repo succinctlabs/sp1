@@ -25,7 +25,6 @@ func ProveGroth16(dataDir string, witnessPath string) Groth16Proof {
 	}
 	r1cs := groth16.NewCS(ecc.BN254)
 	r1cs.ReadFrom(r1csFile)
-	println("loaded r1cs")
 
 	// Read the proving key.
 	pkFile, err := os.Open(dataDir + "/" + PK_PATH)
@@ -34,7 +33,6 @@ func ProveGroth16(dataDir string, witnessPath string) Groth16Proof {
 	}
 	pk := groth16.NewProvingKey(ecc.BN254)
 	pk.ReadDump(pkFile)
-	println("loaded pk")
 
 	// Read the verifier key.
 	vkFile, err := os.Open(dataDir + "/" + VK_PATH)
@@ -43,7 +41,6 @@ func ProveGroth16(dataDir string, witnessPath string) Groth16Proof {
 	}
 	vk := groth16.NewVerifyingKey(ecc.BN254)
 	vk.ReadFrom(vkFile)
-	println("loaded vk")
 
 	// Read the file.
 	data, err := os.ReadFile(witnessPath)

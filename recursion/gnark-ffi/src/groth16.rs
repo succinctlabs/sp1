@@ -5,7 +5,7 @@ use crate::{
     witness::GnarkWitness,
 };
 
-use p3_field::PrimeField;
+use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
 use sp1_recursion_compiler::{
     constraints::Constraint,
@@ -60,18 +60,18 @@ impl Groth16Prover {
         prove_groth16(build_dir.to_str().unwrap(), witness_path)
     }
 
-    pub fn verify<C: Config>(
+    pub fn verify(
         &self,
-        proof: Groth16Proof,
-        vkey_hash: C::N,
-        commited_values_digest: C::N,
-        build_dir: PathBuf,
+        proof: &Groth16Proof,
+        vkey_hash: &BigUint,
+        commited_values_digest: &BigUint,
+        build_dir: &PathBuf,
     ) {
         verify_groth16(
             build_dir.to_str().unwrap(),
             &proof.raw_proof,
-            &vkey_hash.as_canonical_biguint().to_string(),
-            &commited_values_digest.as_canonical_biguint().to_string(),
+            &vkey_hash.to_string(),
+            &commited_values_digest.to_string(),
         )
         .expect("failed to verify proof")
     }

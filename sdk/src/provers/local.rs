@@ -69,7 +69,7 @@ impl Prover for LocalProver {
         } else {
             sp1_prover::build::try_install_groth16_artifacts()
         };
-        let proof = self.prover.wrap_groth16(outer_proof, groth16_aritfacts);
+        let proof = self.prover.wrap_groth16(outer_proof, &groth16_aritfacts);
         Ok(SP1ProofWithPublicValues {
             proof,
             stdin,

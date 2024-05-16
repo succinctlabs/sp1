@@ -15,6 +15,7 @@ rand = "0.8"
 crossbeam = "0.8"
 subtle-encoding = "0.5.1"
 log = "0.4.21"
+num-bigint = "0.4.5"
 
 [build-dependencies]
 bindgen = "0.69.4"
