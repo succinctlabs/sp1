@@ -121,6 +121,7 @@ where
     }
 }
 
+/// Calculates the digest of the recursion public values.
 pub(crate) fn calculate_public_values_digest<C: Config>(
     builder: &mut Builder<C>,
     public_values: &RecursionPublicValues<Felt<C::F>>,
@@ -149,6 +150,7 @@ pub(crate) fn verify_public_values_hash<C: Config>(
     }
 }
 
+/// Register and commits the recursion public values.
 pub(crate) fn commit_public_values<C: Config>(
     builder: &mut Builder<C>,
     public_values: &RecursionPublicValues<Felt<C::F>>,
