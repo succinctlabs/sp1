@@ -73,16 +73,16 @@ impl<T> From<[T; D]> for Block<T> {
     }
 }
 
+impl<T: AbstractField> From<T> for Block<T> {
+    fn from(value: T) -> Self {
+        Self([value, T::zero(), T::zero(), T::zero()])
+    }
+}
+
 impl<T: Copy> From<&[T]> for Block<T> {
     fn from(slice: &[T]) -> Self {
         let arr: [T; D] = slice.try_into().unwrap();
         Self(arr)
-    }
-}
-
-impl<T: AbstractField> From<T> for Block<T> {
-    fn from(block: T) -> Self {
-        Self([block, T::zero(), T::zero(), T::zero()])
     }
 }
 
