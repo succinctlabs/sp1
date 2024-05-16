@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 
 use num::BigUint;
+use num::Zero;
 use p3_air::AirBuilder;
 use p3_field::PrimeField32;
 use sp1_derive::AlignedBorrow;
@@ -117,8 +118,6 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
         modulus: &BigUint,
         op: FieldOperation,
     ) -> BigUint {
-        // Note: Zero-padded rows are handled by builder_is_real checks in the eval function.
-
         let result = match op {
             // If doing the subtraction operation, a - b = result, equivalent to a = result + b.
             FieldOperation::Sub => {
