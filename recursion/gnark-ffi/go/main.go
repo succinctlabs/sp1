@@ -70,14 +70,25 @@ func VerifyGroth16(dataDir *C.char, proof *C.char, vkeyHash *C.char, commitedVal
 	return nil
 }
 
+//export TestInit
+func TestInit() {
+	testing.Init()
+}
+
 //export TestGroth16
-func TestGroth16() {
+func TestGroth16(witnessPath *C.char, constraintsJson *C.char) {
+	witnessPathString := C.GoString(witnessPath)
+	constraintsJsonString := C.GoString(constraintsJson)
+	os.Setenv("WITNESS_JSON", witnessPathString)
+	os.Setenv("CONSTRAINTS_JSON", constraintsJsonString)
+	testing.Init()
 	testing.Main(
-		nil,
+		func(pat, str string) (bool, error) { return true, nil },
 		[]testing.InternalTest{
 			{"TestGroth16", TestMain},
 		},
-		nil, nil,
+		[]testing.InternalBenchmark{},
+		[]testing.InternalExample{},
 	)
 }
 

@@ -47,12 +47,10 @@ impl Groth16Prover {
         let serialized = serde_json::to_string(&gnark_witness).unwrap();
         witness_file.write_all(serialized.as_bytes()).unwrap();
 
-        std::env::set_var("WITNESS_JSON", witness_file.path().to_str().unwrap());
-        std::env::set_var(
-            "CONSTRAINTS_JSON",
+        test_groth16(
+            witness_file.path().to_str().unwrap(),
             constraints_file.path().to_str().unwrap(),
         );
-        test_groth16();
     }
 
     pub fn build<C: Config>(constraints: Vec<Constraint>, witness: Witness<C>, build_dir: PathBuf) {
