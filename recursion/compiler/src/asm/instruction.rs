@@ -853,7 +853,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 "".to_string(),
             ),
             AsmInstruction::LabelPublicValue(val) => Instruction::new(
-                Opcode::Commit,
+                Opcode::LabelPublicValue,
                 i32_f(val),
                 f_u32(F::zero()),
                 f_u32(F::zero()),

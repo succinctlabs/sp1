@@ -801,7 +801,7 @@ where
 
                     (a, b, c) = (a_val, b_val, c_val);
                 }
-                Opcode::PublicValue => {
+                Opcode::LabelPublicValue => {
                     let (a_val, b_val, c_val) = self.all_rr(&instruction);
                     self.record.public_values.push(a_val[0]);
 

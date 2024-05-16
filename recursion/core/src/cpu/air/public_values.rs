@@ -53,8 +53,8 @@ impl<F: Field> CpuChip<F> {
         let digest_element = local.a.prev_value();
 
         // Verify the public_values_digest_word.
-        // builder
-        //     .when(is_commit_instruction.clone())
-        //     .assert_block_eq(expected_pv_digest_element.into(), *digest_element);
+        builder
+            .when(is_commit_instruction.clone())
+            .assert_block_eq(expected_pv_digest_element.into(), *digest_element);
     }
 }
