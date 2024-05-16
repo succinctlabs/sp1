@@ -47,7 +47,7 @@ pub enum Opcode {
     Hint = 38,
     BNEINC = 40,
     Commit = 41,
-    LabelPublicValue = 42,
+    RegisterPublicValue = 42,
     LessThanF = 43,
     CycleTracker = 44,
 }

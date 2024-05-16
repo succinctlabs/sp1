@@ -174,8 +174,8 @@ pub enum AsmInstruction<F, EF> {
     // Commit(val, index).
     Commit(i32, i32),
 
-    // LabelPublicValue(val).
-    LabelPublicValue(i32),
+    // RegisterPublicValue(val).
+    RegisterPublicValue(i32),
 
     LessThan(i32, i32, i32),
 
@@ -852,8 +852,8 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 true,
                 "".to_string(),
             ),
-            AsmInstruction::LabelPublicValue(val) => Instruction::new(
-                Opcode::LabelPublicValue,
+            AsmInstruction::RegisterPublicValue(val) => Instruction::new(
+                Opcode::RegisterPublicValue,
                 i32_f(val),
                 f_u32(F::zero()),
                 f_u32(F::zero()),
@@ -1129,8 +1129,8 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
             AsmInstruction::Commit(val, index) => {
                 write!(f, "commit ({})fp ({})fp", val, index)
             }
-            AsmInstruction::LabelPublicValue(val) => {
-                write!(f, "label_public_value ({})fp", val)
+            AsmInstruction::RegisterPublicValue(val) => {
+                write!(f, "register_public_value ({})fp", val)
             }
             AsmInstruction::CycleTracker(name) => {
                 write!(f, "cycle-tracker {}", name)

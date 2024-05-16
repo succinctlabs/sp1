@@ -155,7 +155,7 @@ pub enum DslIr<C: Config> {
     WitnessFelt(Felt<C::F>, u32),
     WitnessExt(Ext<C::F, C::EF>, u32),
     Commit(Felt<C::F>, Var<C::N>),
-    LabelPublicValue(Felt<C::F>),
+    RegisterPublicValue(Felt<C::F>),
     Halt,
 
     // Public inputs for circuits.
