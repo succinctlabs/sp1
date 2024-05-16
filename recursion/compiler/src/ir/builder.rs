@@ -425,7 +425,7 @@ impl<C: Config> Builder<C> {
     }
 
     /// Register a felt as public value.  This is append to the proof's public values buffer.
-    pub fn label_public_value(&mut self, val: Felt<C::F>) {
+    pub fn register_public_value(&mut self, val: Felt<C::F>) {
         self.operations.push(DslIr::RegisterPublicValue(val));
     }
 

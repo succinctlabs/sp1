@@ -160,7 +160,7 @@ pub(crate) fn commit_public_values<C: Config>(
     let pv_elms_no_digest = &pv_elements[0..NUM_ELMS_TO_HASH];
 
     for value in pv_elms_no_digest.iter() {
-        builder.label_public_value(*value);
+        builder.register_public_value(*value);
     }
 
     // Hash the public values.
