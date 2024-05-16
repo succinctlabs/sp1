@@ -95,7 +95,7 @@ where
         );
 
         // HALT ecall and UNIMPL instruction.
-        self.eval_halt_unimpl(builder, local, next);
+        self.eval_halt_unimpl(builder, local, next, &public_values);
 
         // Check that the shard and clk is updated correctly.
         self.eval_shard_clk(builder, local, next);
