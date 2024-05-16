@@ -283,6 +283,10 @@ impl MachineRecord for ExecutionRecord {
             .append(&mut other.secp256k1_add_events);
         self.secp256k1_double_events
             .append(&mut other.secp256k1_double_events);
+        self.secp384r1_add_events
+            .append(&mut other.secp384r1_add_events);
+        self.secp384r1_double_events
+            .append(&mut other.secp384r1_double_events);
         self.bn254_add_events.append(&mut other.bn254_add_events);
         self.bn254_double_events
             .append(&mut other.bn254_double_events);
@@ -466,6 +470,26 @@ impl MachineRecord for ExecutionRecord {
             shard
                 .secp256k1_double_events
                 .extend_from_slice(secp256k1_double_chunk);
+        }
+
+        // secp384r1 curve add events.
+        for (secp384r1_add_chunk, shard) in take(&mut self.secp384r1_add_events)
+            .chunks_mut(config.secp384r1_add_len)
+            .zip(shards.iter_mut())
+        {
+            shard
+                .secp384r1_add_events
+                .extend_from_slice(secp384r1_add_chunk);
+        }
+
+        // secp384r1 curve double events.
+        for (secp384r1_double_chunk, shard) in take(&mut self.secp384r1_double_events)
+            .chunks_mut(config.secp384r1_double_len)
+            .zip(shards.iter_mut())
+        {
+            shard
+                .secp384r1_double_events
+                .extend_from_slice(secp384r1_double_chunk);
         }
 
         // bn254 curve add events.
