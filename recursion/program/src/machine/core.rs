@@ -327,8 +327,12 @@ where
         }
 
         // Hash the public values.
-        let elms_to_hash = builder.vec(pv_elms_no_digest.to_vec());
-        let pv_digest = builder.poseidon2_hash(&elms_to_hash);
+        let mut poseidon_inputs = builder.array(RECURSIVE_PROOF_NUM_PV_ELTS - DIGEST_SIZE);
+        for (i, value) in pv_elms_no_digest.iter().enumerate() {
+            builder.set(&mut poseidon_inputs, i, *value);
+        }
+
+        let pv_digest = builder.poseidon2_hash(&poseidon_inputs);
         for i in 0..DIGEST_SIZE {
             let digest_element = builder.get(&pv_digest, i);
             builder.commit_public_value(digest_element);
