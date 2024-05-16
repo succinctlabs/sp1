@@ -11,8 +11,8 @@ use crate::{
 impl<F: Field> CpuChip<F> {
     /// Eval the COMMIT instructions.
     ///
-    /// This method will verify the fp column values and add to the `next_pc` expression.
-    pub fn eval_public_values<AB>(
+    /// This method will verify the committed public value.
+    pub fn eval_commit<AB>(
         &self,
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
@@ -23,21 +23,20 @@ impl<F: Field> CpuChip<F> {
         let public_values_cols = local.opcode_specific.public_values();
         let is_commit_instruction = self.is_commit_instruction::<AB>(local);
 
-        // Verify the index bitmap.
+        // Verify all elements in the index bitmap are bools.
         let mut bitmap_sum = AB::Expr::zero();
-        // They should all be bools.
         for bit in public_values_cols.idx_bitmap.iter() {
             builder
                 .when(is_commit_instruction.clone())
                 .assert_bool(*bit);
             bitmap_sum += (*bit).into();
         }
-        // When the instruction is COMMIT there should be one set bit.
+        // When the instruction is COMMIT there should be exactly one set bit.
         builder
             .when(is_commit_instruction.clone())
             .assert_one(bitmap_sum.clone());
 
-        // Verify that word_idx corresponds to the set bit in index bitmap.
+        // Verify that idx passed in the b operand corresponds to the set bit in index bitmap.
         for (i, bit) in public_values_cols.idx_bitmap.iter().enumerate() {
             builder
                 .when(*bit * is_commit_instruction.clone())
@@ -47,12 +46,14 @@ impl<F: Field> CpuChip<F> {
                 );
         }
 
+        // Calculated the expected public value.
         let expected_pv_digest_element =
             builder.index_array(&commit_digest, &public_values_cols.idx_bitmap);
 
+        // Get the committed public value in the program from operand a.
         let digest_element = local.a.prev_value();
 
-        // Verify the public_values_digest_word.
+        // Verify the public value element.
         builder
             .when(is_commit_instruction.clone())
             .assert_block_eq(expected_pv_digest_element.into(), *digest_element);

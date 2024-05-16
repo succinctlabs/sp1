@@ -81,7 +81,7 @@ where
         builder.send_table(local.instruction.opcode, &operands, send_syscall);
 
         // Constrain the public values digest.
-        self.eval_public_values(builder, local, public_values.digest.clone());
+        self.eval_commit(builder, local, public_values.digest.clone());
 
         // Constrain the clk.
         self.eval_clk(builder, local, next);
