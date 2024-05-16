@@ -8,7 +8,6 @@ typedef struct {
 	char *EncodedProof;
 	char *RawProof;
 } C_Groth16Proof;
-
 */
 import "C"
 import (
@@ -25,8 +24,6 @@ import (
 )
 
 func main() {}
-
-var CircuitDataMap = make(map[uint32]groth16.ProvingKey)
 
 //export ProveGroth16
 func ProveGroth16(dataDir *C.char, witnessPath *C.char) *C.C_Groth16Proof {
@@ -70,19 +67,18 @@ func VerifyGroth16(dataDir *C.char, proof *C.char, vkeyHash *C.char, commitedVal
 	return nil
 }
 
-// Mutex
-var mutex = &sync.Mutex{}
+var testMutex = &sync.Mutex{}
 
 //export TestGroth16
 func TestGroth16(witnessPath *C.char, constraintsJson *C.char) *C.char {
-	mutex.Lock()
-	// Because of the env variables we need to lock this function
+	// Because of the global env variables used here, we need to lock this function
+	testMutex.Lock()
 	witnessPathString := C.GoString(witnessPath)
 	constraintsJsonString := C.GoString(constraintsJson)
 	os.Setenv("WITNESS_JSON", witnessPathString)
 	os.Setenv("CONSTRAINTS_JSON", constraintsJsonString)
 	err := TestMain()
-	mutex.Unlock()
+	testMutex.Unlock()
 	if err != nil {
 		return C.CString(err.Error())
 	}

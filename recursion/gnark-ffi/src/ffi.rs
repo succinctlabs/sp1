@@ -1,3 +1,8 @@
+//! FFI bindings for the Go code. The functions exported in this module are safe to call from Rust.
+//! All C strings and other C memory should be freed in Rust, including C Strings returned by Go.
+//! Although we cast to *mut c_char because the Go signatures can't be immutable, the Go functions
+//! should not modify the strings.
+
 use crate::Groth16Proof;
 use std::ffi::{c_char, CString};
 
@@ -16,11 +21,10 @@ pub fn prove_groth16(data_dir: &str, witness_path: &str) -> Groth16Proof {
             witness_path.as_ptr() as *mut c_char,
         ) as *mut C_Groth16Proof;
         // Safety: The pointer is returned from the go code and is guaranteed to be valid.
-        unsafe { *proof }
+        *proof
     };
 
     let result = proof.into_rust();
-    println!("result: {:?}", result);
     result
 }
 
@@ -80,7 +84,7 @@ pub fn test_groth16(witness_json: &str, constraints_json: &str) {
 /// Converts a C string into a Rust String.
 ///
 /// # Safety
-/// This function consumes the input pointer, so the caller must ensure that the pointer is not used
+/// This function frees the string memory, so the caller must ensure that the pointer is not used
 /// after this function is called.
 unsafe fn c_char_ptr_to_string(input: *mut c_char) -> String {
     unsafe {
@@ -91,6 +95,7 @@ unsafe fn c_char_ptr_to_string(input: *mut c_char) -> String {
 }
 
 impl C_Groth16Proof {
+    /// Converts a C Groth16Proof into a Rust Groth16Proof, freeing the C strings.
     fn into_rust(self) -> Groth16Proof {
         // Safety: The raw pointers are not used anymore after converted into Rust strings.
         unsafe {

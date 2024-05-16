@@ -5,9 +5,9 @@ use std::process::Command;
 #[allow(deprecated)]
 use bindgen::CargoCallbacks;
 
+/// Build the go library, generate Rust bindings for the exposed functions, and link the library.
 fn main() {
     println!("cargo:rerun-if-changed=go");
-    println!("cargo:rerun-if-changed=src");
     // Define the output directory
     let out_dir = env::var("OUT_DIR").unwrap();
     let dest_path = PathBuf::from(&out_dir);
@@ -33,7 +33,7 @@ fn main() {
         panic!("Go build failed");
     }
 
-    // Copy go/lib/babybear.h to OUT_DIR/babybear.h
+    // Copy go/babybear.h to OUT_DIR/babybear.h
     let header_src = PathBuf::from("go/babybear.h");
     let header_dest = dest_path.join("babybear.h");
     std::fs::copy(header_src, header_dest).unwrap();
