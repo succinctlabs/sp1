@@ -15,8 +15,8 @@ pub fn prove_groth16(data_dir: &str, witness_path: &str) -> Groth16Proof {
 
     let proof = unsafe {
         let proof = bind::ProveGroth16(
-            data_dir.as_ptr() as *mut i8,
-            witness_path.as_ptr() as *mut i8,
+            data_dir.as_ptr() as *mut c_char,
+            witness_path.as_ptr() as *mut c_char,
         ) as *mut C_Groth16Proof;
         // Safety: The pointer is returned from the go code and is guaranteed to be valid.
         unsafe { *proof }
@@ -31,7 +31,7 @@ pub fn build_groth16(data_dir: &str) {
     let data_dir = CString::new(data_dir).expect("CString::new failed");
 
     unsafe {
-        bind::BuildGroth16(data_dir.as_ptr() as *mut i8);
+        bind::BuildGroth16(data_dir.as_ptr() as *mut c_char);
     }
 }
 
@@ -49,10 +49,10 @@ pub fn verify_groth16(
 
     let err_ptr = unsafe {
         bind::VerifyGroth16(
-            data_dir.as_ptr() as *mut i8,
-            proof.as_ptr() as *mut i8,
-            vkey_hash.as_ptr() as *mut i8,
-            committed_values_digest.as_ptr() as *mut i8,
+            data_dir.as_ptr() as *mut c_char,
+            proof.as_ptr() as *mut c_char,
+            vkey_hash.as_ptr() as *mut c_char,
+            committed_values_digest.as_ptr() as *mut c_char,
         )
     };
     if err_ptr.is_null() {
@@ -70,8 +70,8 @@ pub fn test_groth16(witness_json: &str, constraints_json: &str) {
     let build_dir = CString::new(constraints_json).expect("CString::new failed");
     unsafe {
         bind::TestGroth16(
-            witness_json.as_ptr() as *mut i8,
-            build_dir.as_ptr() as *mut i8,
+            witness_json.as_ptr() as *mut c_char,
+            build_dir.as_ptr() as *mut c_char,
         );
     }
 }
