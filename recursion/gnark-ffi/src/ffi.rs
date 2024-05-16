@@ -1,8 +1,5 @@
 use crate::Groth16Proof;
-use std::{
-    ffi::{c_char, CString},
-    sync::Mutex,
-};
+use std::ffi::{c_char, CString};
 
 mod bind {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
@@ -65,28 +62,13 @@ pub fn verify_groth16(
 }
 
 pub fn test_groth16(witness_json: &str, constraints_json: &str) {
-    test_init();
-    let witness_json = CString::new(witness_json).expect("CString::new failed");
-    let build_dir = CString::new(constraints_json).expect("CString::new failed");
     unsafe {
+        let witness_json = CString::new(witness_json).expect("CString::new failed");
+        let build_dir = CString::new(constraints_json).expect("CString::new failed");
         bind::TestGroth16(
             witness_json.as_ptr() as *mut c_char,
             build_dir.as_ptr() as *mut c_char,
         );
-    }
-}
-
-// Global test init semaphore to ensure that the test is only initialized once, but must be finished
-// at least once
-static mut TEST_INIT_LOCK: Mutex<bool> = Mutex::new(false);
-
-fn test_init() {
-    unsafe {
-        let mut lock = TEST_INIT_LOCK.lock().unwrap();
-        if !*lock {
-            bind::TestInit();
-            *lock = true;
-        }
     }
 }
 

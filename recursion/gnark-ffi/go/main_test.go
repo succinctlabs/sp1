@@ -5,5 +5,5 @@ import (
 )
 
 func TestCircuit(t *testing.T) {
-	TestMain(t)
+	TestMain()
 }

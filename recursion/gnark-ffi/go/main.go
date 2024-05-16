@@ -15,7 +15,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"testing"
+	"sync"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/groth16"
@@ -70,29 +70,22 @@ func VerifyGroth16(dataDir *C.char, proof *C.char, vkeyHash *C.char, commitedVal
 	return nil
 }
 
-//export TestInit
-func TestInit() {
-	testing.Init()
-}
+// Mutex
+var mutex = &sync.Mutex{}
 
 //export TestGroth16
 func TestGroth16(witnessPath *C.char, constraintsJson *C.char) {
+	mutex.Lock()
+	// Because of the env variables we need to lock this function
 	witnessPathString := C.GoString(witnessPath)
 	constraintsJsonString := C.GoString(constraintsJson)
 	os.Setenv("WITNESS_JSON", witnessPathString)
 	os.Setenv("CONSTRAINTS_JSON", constraintsJsonString)
-	testing.Init()
-	testing.Main(
-		func(pat, str string) (bool, error) { return true, nil },
-		[]testing.InternalTest{
-			{"TestGroth16", TestMain},
-		},
-		[]testing.InternalBenchmark{},
-		[]testing.InternalExample{},
-	)
+	TestMain()
+	mutex.Unlock()
 }
 
-func TestMain(t *testing.T) {
+func TestMain() {
 	// Get the file name from an environment variable.
 	fileName := os.Getenv("WITNESS_JSON")
 	if fileName == "" {
