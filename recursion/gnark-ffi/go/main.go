@@ -74,18 +74,22 @@ func VerifyGroth16(dataDir *C.char, proof *C.char, vkeyHash *C.char, commitedVal
 var mutex = &sync.Mutex{}
 
 //export TestGroth16
-func TestGroth16(witnessPath *C.char, constraintsJson *C.char) {
+func TestGroth16(witnessPath *C.char, constraintsJson *C.char) *C.char {
 	mutex.Lock()
 	// Because of the env variables we need to lock this function
 	witnessPathString := C.GoString(witnessPath)
 	constraintsJsonString := C.GoString(constraintsJson)
 	os.Setenv("WITNESS_JSON", witnessPathString)
 	os.Setenv("CONSTRAINTS_JSON", constraintsJsonString)
-	TestMain()
+	err := TestMain()
 	mutex.Unlock()
+	if err != nil {
+		return C.CString(err.Error())
+	}
+	return nil
 }
 
-func TestMain() {
+func TestMain() error {
 	// Get the file name from an environment variable.
 	fileName := os.Getenv("WITNESS_JSON")
 	if fileName == "" {
@@ -95,14 +99,14 @@ func TestMain() {
 	// Read the file.
 	data, err := os.ReadFile(fileName)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	// Deserialize the JSON data into a slice of Instruction structs
 	var inputs sp1.WitnessInput
 	err = json.Unmarshal(data, &inputs)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	// Compile the circuit.
@@ -110,7 +114,7 @@ func TestMain() {
 	builder := r1cs.NewBuilder
 	r1cs, err := frontend.Compile(ecc.BN254.ScalarField(), builder, &circuit)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	fmt.Println("[sp1] groth16 verifier constraints:", r1cs.GetNbConstraints())
 
@@ -118,20 +122,21 @@ func TestMain() {
 	var pk groth16.ProvingKey
 	pk, err = groth16.DummySetup(r1cs)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	// Generate witness.
 	assignment := sp1.NewCircuit(inputs)
 	witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	// Generate the proof.
 	_, err = groth16.Prove(r1cs, pk, witness)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
+	return nil
 }

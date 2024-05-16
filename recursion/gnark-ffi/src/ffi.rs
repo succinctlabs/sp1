@@ -65,10 +65,15 @@ pub fn test_groth16(witness_json: &str, constraints_json: &str) {
     unsafe {
         let witness_json = CString::new(witness_json).expect("CString::new failed");
         let build_dir = CString::new(constraints_json).expect("CString::new failed");
-        bind::TestGroth16(
+        let err_ptr = bind::TestGroth16(
             witness_json.as_ptr() as *mut c_char,
             build_dir.as_ptr() as *mut c_char,
         );
+        if !err_ptr.is_null() {
+            // Safety: The error message is returned from the go code and is guaranteed to be valid.
+            let err = CString::from_raw(err_ptr);
+            panic!("TestGroth16 failed: {}", err.into_string().unwrap());
+        }
     }
 }
 
