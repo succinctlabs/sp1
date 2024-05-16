@@ -27,6 +27,8 @@ use crate::types::ShardProofVariable;
 use crate::types::VerifyingKeyVariable;
 use crate::utils::{const_fri_config, get_challenger_public_values, hash_vkey, var2felt};
 
+use super::utils::verify_public_values_hash;
+
 #[derive(Debug, Clone, Copy)]
 pub struct SP1DeferredVerifier<C: Config, SC: StarkGenericConfig, A> {
     _phantom: PhantomData<(C, SC, A)>,
@@ -202,18 +204,7 @@ where
                 current_public_values_elements.as_slice().borrow();
 
             // Check that the public values digest is correct.
-            let digest = current_public_values.digest;
-            let mut poseidon_inputs = builder.array(RECURSIVE_PROOF_NUM_PV_ELTS - DIGEST_SIZE);
-            for (i, value) in current_public_values_elements.iter().enumerate() {
-                if i < RECURSIVE_PROOF_NUM_PV_ELTS - DIGEST_SIZE {
-                    builder.set(&mut poseidon_inputs, i, *value);
-                }
-            }
-            let calculated_digest = builder.poseidon2_hash(&poseidon_inputs);
-            for i in 0..DIGEST_SIZE {
-                let digest_element = builder.get(&calculated_digest, i);
-                builder.assert_felt_eq(digest[i], digest_element);
-            }
+            verify_public_values_hash(builder, current_public_values);
 
             // Assert that the proof is complete.
             builder.assert_felt_eq(current_public_values.is_complete, C::F::one());
