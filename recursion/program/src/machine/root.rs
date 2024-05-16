@@ -131,9 +131,19 @@ where
             }
         }
 
-        // Commit to the public values, broadcasting the same ones.
-        for value in public_values_elements {
-            builder.commit_public_value(value);
+        let pv_elms_no_digest =
+            &public_values_elements[0..RECURSIVE_PROOF_NUM_PV_ELTS - DIGEST_SIZE];
+
+        for value in pv_elms_no_digest.iter() {
+            builder.label_public_value(*value);
+        }
+
+        // Hash the public values.
+        let elms_to_hash = builder.vec(pv_elms_no_digest.to_vec());
+        let pv_digest = builder.poseidon2_hash(&elms_to_hash);
+        for i in 0..DIGEST_SIZE {
+            let digest_element = builder.get(&pv_digest, i);
+            builder.commit_public_value(digest_element);
         }
 
         builder.halt();

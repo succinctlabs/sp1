@@ -9,7 +9,7 @@ use crate::{
 };
 
 impl<F: Field> CpuChip<F> {
-    /// Eval the JUMP instructions.
+    /// Eval the COMMIT instructions.
     ///
     /// This method will verify the fp column values and add to the `next_pc` expression.
     pub fn eval_public_values<AB>(
@@ -47,15 +47,10 @@ impl<F: Field> CpuChip<F> {
                 );
         }
 
-        // Retrieve the expected public values digest word to check against the one passed into the
-        // commit ecall. Note that for the interaction builder, it will not have any digest words, since
-        // it's used during AIR compilation time to parse for all send/receives. Since that interaction
-        // builder will ignore the other constraints of the air, it is safe to not include the
-        // verification check of the expected public values digest word.
         let expected_pv_digest_element =
             builder.index_array(&commit_digest, &public_values_cols.idx_bitmap);
 
-        let digest_element = local.c.prev_value();
+        let digest_element = local.a.prev_value();
 
         // Verify the public_values_digest_word.
         builder

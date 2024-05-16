@@ -99,4 +99,7 @@ pub struct RecursionPublicValues<T> {
 
     /// Whether the proof completely proves the program execution.
     pub is_complete: T,
+
+    /// The digest of all the public values elements.
+    pub digest: [T; DIGEST_SIZE],
 }

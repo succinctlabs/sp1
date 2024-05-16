@@ -424,7 +424,12 @@ impl<C: Config> Builder<C> {
         }
     }
 
-    /// Commits a felt in public values.
+    /// Label a felt as public value.
+    pub fn label_public_value(&mut self, val: Felt<C::F>) {
+        self.operations.push(DslIr::LabelPublicValue(val));
+    }
+
+    /// Commits a felt in public values.  This value will be constrained.
     pub fn commit_public_value(&mut self, val: Felt<C::F>) {
         if self.nb_public_values.is_none() {
             self.nb_public_values = Some(self.eval(C::N::zero()));

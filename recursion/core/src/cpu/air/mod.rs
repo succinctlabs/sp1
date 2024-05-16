@@ -8,13 +8,14 @@ mod system;
 
 use std::borrow::Borrow;
 
+use itertools::Itertools;
 use p3_air::{Air, AirBuilder};
 use p3_field::{AbstractField, Field};
 use p3_matrix::Matrix;
 use sp1_core::air::BaseAirBuilder;
 
 use crate::{
-    air::SP1RecursionAirBuilder,
+    air::{RecursionPublicValues, SP1RecursionAirBuilder},
     cpu::{CpuChip, CpuCols},
     memory::MemoryCols,
 };
@@ -28,6 +29,13 @@ where
         let (local, next) = (main.row_slice(0), main.row_slice(1));
         let local: &CpuCols<AB::Var> = (*local).borrow();
         let next: &CpuCols<AB::Var> = (*next).borrow();
+        let binding = builder
+            .public_values()
+            .iter()
+            .map(|elm| (*elm).into())
+            .collect_vec();
+        let public_values: &RecursionPublicValues<AB::Expr> = binding.as_slice().borrow();
+
         let zero = AB::Expr::zero();
         let one = AB::Expr::one();
 
@@ -74,6 +82,9 @@ where
             local.c.value()[0] + local.instruction.offset_imm,
         ];
         builder.send_table(local.instruction.opcode, &operands, send_syscall);
+
+        // Constrain the public values digest.
+        self.eval_public_values(builder, local, public_values.digest.clone());
 
         // Constrain the clk.
         self.eval_clk(builder, local, next);
