@@ -28,7 +28,7 @@ use p3_challenger::CanObserve;
 use p3_field::{AbstractField, PrimeField};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use rayon::prelude::*;
-use sp1_core::air::PublicValues;
+use sp1_core::air::{PublicValues, Word};
 pub use sp1_core::io::{SP1PublicValues, SP1Stdin};
 use sp1_core::runtime::{ExecutionError, Runtime};
 use sp1_core::stark::{Challenge, StarkProvingKey};
@@ -247,25 +247,19 @@ impl SP1Prover {
         })
     }
 
-    /// Generate the inputs for the first layer of recursive proofs.
-    #[allow(clippy::type_complexity)]
-    pub fn get_first_layer_inputs<'a>(
+    pub fn get_recursion_core_inputs<'a>(
         &'a self,
         vk: &'a SP1VerifyingKey,
-        leaf_challenger: &'a Challenger<InnerSC>,
-        shard_proofs: &[ShardProof<InnerSC>],
-        deferred_proofs: &[ShardProof<InnerSC>],
+        leaf_challenger: &'a Challenger<CoreSC>,
+        shard_proofs: &[ShardProof<CoreSC>],
         batch_size: usize,
-    ) -> (
-        Vec<SP1RecursionMemoryLayout<'a, InnerSC, RiscvAir<BabyBear>>>,
-        Vec<SP1DeferredMemoryLayout<'a, InnerSC, RecursionAir<BabyBear, 3>>>,
-    ) {
+        is_complete: bool,
+    ) -> Vec<SP1RecursionMemoryLayout<'a, CoreSC, RiscvAir<BabyBear>>> {
         let mut core_inputs = Vec::new();
         let mut reconstruct_challenger = self.core_machine.config().challenger();
         vk.vk.observe_into(&mut reconstruct_challenger);
 
         // Prepare the inputs for the recursion programs.
-        let is_complete = shard_proofs.len() == 1 && deferred_proofs.is_empty();
         for batch in shard_proofs.chunks(batch_size) {
             let proofs = batch.to_vec();
 
@@ -285,9 +279,6 @@ impl SP1Prover {
             }
         }
 
-        let last_proof_input =
-            PublicValues::from_vec(shard_proofs.last().unwrap().public_values.clone());
-
         // Check that the leaf challenger is the same as the reconstruct challenger.
         assert_eq!(
             reconstruct_challenger.sponge_state,
@@ -301,12 +292,20 @@ impl SP1Prover {
             reconstruct_challenger.output_buffer,
             leaf_challenger.output_buffer
         );
+        core_inputs
+    }
 
+    pub fn get_recursion_deferred_inputs<'a>(
+        &'a self,
+        vk: &'a SP1VerifyingKey,
+        leaf_challenger: &'a Challenger<InnerSC>,
+        last_proof_pv: &PublicValues<Word<BabyBear>, BabyBear>,
+        deferred_proofs: &[ShardProof<InnerSC>],
+        batch_size: usize,
+    ) -> Vec<SP1DeferredMemoryLayout<'a, InnerSC, RecursionAir<BabyBear, 3>>> {
         // Prepare the inputs for the deferred proofs recursive verification.
         let mut deferred_digest = [Val::<InnerSC>::zero(); DIGEST_SIZE];
         let mut deferred_inputs = Vec::new();
-
-        let is_deferred_complete = shard_proofs.is_empty() && deferred_proofs.len() == 1;
 
         for batch in deferred_proofs.chunks(batch_size) {
             let proofs = batch.to_vec();
@@ -316,19 +315,51 @@ impl SP1Prover {
                 machine: &self.compress_machine,
                 proofs,
                 start_reconstruct_deferred_digest: deferred_digest.to_vec(),
-                is_complete: is_deferred_complete,
+                is_complete: false,
                 sp1_vk: &vk.vk,
                 sp1_machine: &self.core_machine,
                 end_pc: Val::<InnerSC>::zero(),
-                end_shard: Val::<InnerSC>::from_canonical_usize(shard_proofs.len()),
+                end_shard: last_proof_pv.shard,
                 leaf_challenger: leaf_challenger.clone(),
-                committed_value_digest: last_proof_input.committed_value_digest.to_vec(),
-                deferred_proofs_digest: last_proof_input.deferred_proofs_digest.to_vec(),
+                committed_value_digest: last_proof_pv.committed_value_digest.to_vec(),
+                deferred_proofs_digest: last_proof_pv.deferred_proofs_digest.to_vec(),
             });
 
             deferred_digest = Self::hash_deferred_proofs(deferred_digest, batch);
         }
+        deferred_inputs
+    }
 
+    /// Generate the inputs for the first layer of recursive proofs.
+    #[allow(clippy::type_complexity)]
+    pub fn get_first_layer_inputs<'a>(
+        &'a self,
+        vk: &'a SP1VerifyingKey,
+        leaf_challenger: &'a Challenger<InnerSC>,
+        shard_proofs: &[ShardProof<InnerSC>],
+        deferred_proofs: &[ShardProof<InnerSC>],
+        batch_size: usize,
+    ) -> (
+        Vec<SP1RecursionMemoryLayout<'a, InnerSC, RiscvAir<BabyBear>>>,
+        Vec<SP1DeferredMemoryLayout<'a, InnerSC, RecursionAir<BabyBear, 3>>>,
+    ) {
+        let is_complete = shard_proofs.len() == 1 && deferred_proofs.is_empty();
+        let core_inputs = self.get_recursion_core_inputs(
+            vk,
+            leaf_challenger,
+            shard_proofs,
+            batch_size,
+            is_complete,
+        );
+        let last_proof_pv =
+            PublicValues::from_vec(shard_proofs.last().unwrap().public_values.clone());
+        let deferred_inputs = self.get_recursion_deferred_inputs(
+            vk,
+            leaf_challenger,
+            &last_proof_pv,
+            deferred_proofs,
+            batch_size,
+        );
         (core_inputs, deferred_inputs)
     }
 
