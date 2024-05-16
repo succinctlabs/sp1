@@ -1,8 +1,4 @@
-use std::{
-    borrow::Borrow,
-    path::{Path},
-    str::FromStr,
-};
+use std::{borrow::Borrow, path::Path, str::FromStr};
 
 use anyhow::Result;
 use num_bigint::BigUint;
