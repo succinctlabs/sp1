@@ -6,6 +6,7 @@
 use crate::Groth16Proof;
 use std::ffi::{c_char, CString};
 
+#[allow(warnings, clippy::all)]
 mod bind {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }
@@ -19,13 +20,12 @@ pub fn prove_groth16(data_dir: &str, witness_path: &str) -> Groth16Proof {
         let proof = bind::ProveGroth16(
             data_dir.as_ptr() as *mut c_char,
             witness_path.as_ptr() as *mut c_char,
-        ) as *mut C_Groth16Proof;
+        );
         // Safety: The pointer is returned from the go code and is guaranteed to be valid.
         *proof
     };
 
-    let result = proof.into_rust();
-    result
+    proof.into_rust()
 }
 
 pub fn build_groth16(data_dir: &str) {

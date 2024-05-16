@@ -1,5 +1,4 @@
 mod babybear;
-#[allow(warnings, clippy::all)]
 pub mod ffi;
 pub mod groth16;
 pub mod plonk_bn254;
