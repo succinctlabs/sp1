@@ -61,6 +61,12 @@ pub fn verify_groth16(
     }
 }
 
+pub fn test_groth16() {
+    unsafe {
+        bind::TestGroth16();
+    }
+}
+
 /// Converts a C string into a Rust String.
 ///
 /// # Safety

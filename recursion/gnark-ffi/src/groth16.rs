@@ -1,7 +1,7 @@
 use std::{fs::File, io::Write, path::PathBuf};
 
 use crate::{
-    ffi::{build_groth16, prove_groth16, verify_groth16},
+    ffi::{build_groth16, prove_groth16, test_groth16, verify_groth16},
     witness::GnarkWitness,
 };
 
@@ -28,6 +28,27 @@ impl Groth16Prover {
     /// Creates a new [Groth16Prover].
     pub fn new() -> Self {
         Self
+    }
+    /// Executes the prover in testing mode with a circuit definition and witness.
+    pub fn test<C: Config>(constraints: Vec<Constraint>, witness: Witness<C>) {
+        let serialized = serde_json::to_string(&constraints).unwrap();
+
+        // Write constraints.
+        let mut constraints_file = tempfile::NamedTempFile::new().unwrap();
+        constraints_file.write_all(serialized.as_bytes()).unwrap();
+
+        // Write witness.
+        let mut witness_file = tempfile::NamedTempFile::new().unwrap();
+        let gnark_witness = GnarkWitness::new(witness);
+        let serialized = serde_json::to_string(&gnark_witness).unwrap();
+        witness_file.write_all(serialized.as_bytes()).unwrap();
+
+        std::env::set_var("WITNESS_JSON", witness_file.path().to_str().unwrap());
+        std::env::set_var(
+            "CONSTRAINTS_JSON",
+            constraints_file.path().to_str().unwrap(),
+        );
+        test_groth16();
     }
 
     pub fn build<C: Config>(constraints: Vec<Constraint>, witness: Witness<C>, build_dir: PathBuf) {
