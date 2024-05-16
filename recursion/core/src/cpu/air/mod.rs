@@ -87,7 +87,7 @@ where
         self.eval_clk(builder, local, next);
 
         // Constrain the system instructions (TRAP, HALT).
-        self.eval_system_instructions(builder, local, next);
+        self.eval_system_instructions(builder, local, next, public_values);
 
         // Constrain the is_real_flag.
         self.eval_is_real(builder, local, next);
