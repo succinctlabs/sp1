@@ -86,7 +86,7 @@ impl Groth16Prover {
         proof: &Groth16Proof,
         vkey_hash: &BigUint,
         commited_values_digest: &BigUint,
-        build_dir: &PathBuf,
+        build_dir: &Path,
     ) {
         verify_groth16(
             build_dir.to_str().unwrap(),
