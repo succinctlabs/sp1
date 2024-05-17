@@ -9,11 +9,6 @@ use crate::{
 
 impl<F: Field> CpuChip<F> {
     /// Eval the system instructions (TRAP, HALT).
-    ///
-    /// This method will contrain the following:
-    /// 1) Ensure that the last instruction is either TRAP or HALT.
-    /// 2) No other instructions are TRAP or HALT.
-    /// 2) Ensure that the exit code is 0 if HALT or 1 if TRAP.
     pub fn eval_system_instructions<AB>(
         &self,
         builder: &mut AB,
@@ -23,21 +18,27 @@ impl<F: Field> CpuChip<F> {
     ) where
         AB: SP1RecursionAirBuilder,
     {
+        // Verify that the last real row is either TRAP or HALT.
+        // We also verify below that the last row is not real.
         builder
             .when_transition()
             .when(local.is_real)
             .when_not(next.is_real)
             .assert_one(local.selectors.is_trap + local.selectors.is_halt);
 
-        // Ensure last row is not real.
-        builder.when_last_row().assert_zero(local.is_real);
+        builder
+            .when_last_row()
+            .when(local.is_real)
+            .assert_one(local.selectors.is_trap + local.selectors.is_halt);
 
+        // Verify that all other real rows are not TRAP or HALT.
         builder
             .when_transition()
             .when(local.is_real)
             .when(next.is_real)
             .assert_zero(local.selectors.is_trap + local.selectors.is_halt);
 
+        // Verify the correct public value exit code.
         builder
             .when(local.selectors.is_trap)
             .assert_one(public_values.exit_code.clone());
