@@ -18,7 +18,7 @@ use crate::{
     challenger::DuplexChallengerVariable,
     fri::TwoAdicMultiplicativeCosetVariable,
     types::VerifyingKeyVariable,
-    utils::{assert_challenger_eq_pv, get_preprocessed_data},
+    utils::{assert_challenger_eq_pv, felt2var, get_preprocessed_data},
 };
 
 /// Assertions on the public values describing a complete recursive proof state.
@@ -127,7 +127,7 @@ pub(crate) fn calculate_public_values_digest<C: Config>(
     public_values: &RecursionPublicValues<Felt<C::F>>,
 ) -> Array<C, Felt<C::F>> {
     let pv_elements: [Felt<_>; RECURSIVE_PROOF_NUM_PV_ELTS] = unsafe { transmute(*public_values) };
-    const NUM_ELMS_TO_HASH: usize = RECURSIVE_PROOF_NUM_PV_ELTS - DIGEST_SIZE;
+    const NUM_ELMS_TO_HASH: usize = RECURSIVE_PROOF_NUM_PV_ELTS - DIGEST_SIZE - 1;
     let mut poseidon_inputs = builder.array(NUM_ELMS_TO_HASH);
     for (i, elm) in pv_elements[0..NUM_ELMS_TO_HASH].iter().enumerate() {
         builder.set(&mut poseidon_inputs, i, *elm);
@@ -140,14 +140,17 @@ pub(crate) fn verify_public_values_hash<C: Config>(
     builder: &mut Builder<C>,
     public_values: &RecursionPublicValues<Felt<C::F>>,
 ) {
-    // Check that the public values digest is correct.
-    let calculated_digest = calculate_public_values_digest(builder, public_values);
+    let var_exit_code = felt2var(builder, public_values.exit_code);
+    // Check that the public values digest is correct if the exit_code is 0.
+    builder.if_eq(var_exit_code, C::N::zero()).then(|builder| {
+        let calculated_digest = calculate_public_values_digest(builder, public_values);
 
-    let expected_digest = public_values.digest;
-    for (i, expected_elm) in expected_digest.iter().enumerate() {
-        let calculated_elm = builder.get(&calculated_digest, i);
-        builder.assert_felt_eq(*expected_elm, calculated_elm);
-    }
+        let expected_digest = public_values.digest;
+        for (i, expected_elm) in expected_digest.iter().enumerate() {
+            let calculated_elm = builder.get(&calculated_digest, i);
+            builder.assert_felt_eq(*expected_elm, calculated_elm);
+        }
+    });
 }
 
 /// Register and commits the recursion public values.
@@ -156,7 +159,7 @@ pub(crate) fn commit_public_values<C: Config>(
     public_values: &RecursionPublicValues<Felt<C::F>>,
 ) {
     let pv_elements: [Felt<_>; RECURSIVE_PROOF_NUM_PV_ELTS] = unsafe { transmute(*public_values) };
-    const NUM_ELMS_TO_HASH: usize = RECURSIVE_PROOF_NUM_PV_ELTS - DIGEST_SIZE;
+    const NUM_ELMS_TO_HASH: usize = RECURSIVE_PROOF_NUM_PV_ELTS - DIGEST_SIZE - 1;
     let pv_elms_no_digest = &pv_elements[0..NUM_ELMS_TO_HASH];
 
     for value in pv_elms_no_digest.iter() {
