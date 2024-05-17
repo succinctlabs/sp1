@@ -8,7 +8,6 @@ pub use local::LocalProver;
 pub use mock::MockProver;
 pub use network::NetworkProver;
 use sp1_core::stark::MachineVerificationError;
-use sp1_prover::verify::verify_groth16_public_inputs;
 use sp1_prover::CoreSC;
 use sp1_prover::SP1CoreProofData;
 use sp1_prover::SP1Prover;
@@ -67,10 +66,7 @@ pub trait Prover: Send + Sync {
         } else {
             sp1_prover::build::groth16_artifacts_dir()
         };
-        sp1_prover.verify_groth16(&proof.proof, &groth16_aritfacts)?;
-
-        // Verify the public inputs of the inner Groth16 proof match the expected values.
-        verify_groth16_public_inputs(vkey, &proof.public_values, &proof.proof.public_inputs)?;
+        sp1_prover.verify_groth16(&proof.proof, vkey, &proof.public_values, &groth16_aritfacts)?;
 
         Ok(())
     }

@@ -213,7 +213,13 @@ impl SP1Prover {
     }
 
     /// Verifies a Groth16 proof using the circuit artifacts in the build directory.
-    pub fn verify_groth16(&self, proof: &Groth16Proof, build_dir: &PathBuf) -> Result<()> {
+    pub fn verify_groth16(
+        &self,
+        proof: &Groth16Proof,
+        vk: &SP1VerifyingKey,
+        public_values: &SP1PublicValues,
+        build_dir: &PathBuf,
+    ) -> Result<()> {
         let prover = Groth16Prover::new();
 
         let vkey_hash = BigUint::from_str(&proof.public_inputs[0])?;
@@ -221,6 +227,8 @@ impl SP1Prover {
 
         // Verify the proof with the corresponding public inputs.
         prover.verify(proof, &vkey_hash, &committed_values_digest, build_dir);
+
+        verify_groth16_public_inputs(vk, public_values, &proof.public_inputs)?;
 
         Ok(())
     }
@@ -235,27 +243,11 @@ pub fn verify_groth16_public_inputs(
     let expected_vk_hash = BigUint::from_str(&groth16_public_inputs[0])?;
     let expected_public_values_hash = BigUint::from_str(&groth16_public_inputs[1])?;
 
-    verify_vkey_hash(vk, expected_vk_hash)?;
-    verify_public_values(public_values, expected_public_values_hash)?;
-
-    Ok(())
-}
-
-/// Verify that the hash of vk matches the expected vk hash.
-fn verify_vkey_hash(vk: &SP1VerifyingKey, expected_vk_hash: BigUint) -> Result<()> {
     let vk_hash = vk.hash_bn254().as_canonical_biguint();
     if vk_hash != expected_vk_hash {
         return Err(Groth16VerificationError::InvalidVerificationKey.into());
     }
 
-    Ok(())
-}
-
-/// Verify that the hash of the public values matches the expected public values hash.
-fn verify_public_values(
-    public_values: &SP1PublicValues,
-    expected_public_values_hash: BigUint,
-) -> Result<()> {
     let public_values_hash = public_values.hash();
     if public_values_hash != expected_public_values_hash {
         return Err(Groth16VerificationError::InvalidPublicValues.into());

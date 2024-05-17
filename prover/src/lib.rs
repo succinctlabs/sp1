@@ -699,6 +699,7 @@ mod tests {
         tracing::info!("prove core");
         let stdin = SP1Stdin::new();
         let core_proof = prover.prove_core(&pk, &stdin)?;
+        let public_values = core_proof.public_values.clone();
 
         tracing::info!("verify core");
         prover.verify(&core_proof.proof, &vk)?;
@@ -747,7 +748,7 @@ mod tests {
         let groth16_proof = prover.wrap_groth16(wrapped_bn254_proof, &artifacts_dir);
         println!("{:?}", groth16_proof);
 
-        prover.verify_groth16(&groth16_proof, &artifacts_dir)?;
+        prover.verify_groth16(&groth16_proof, &vk, &public_values, &artifacts_dir)?;
 
         Ok(())
     }
