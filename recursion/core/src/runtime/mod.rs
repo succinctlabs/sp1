@@ -18,7 +18,7 @@ use p3_symmetric::Permutation;
 pub use program::*;
 pub use record::*;
 
-use crate::air::{Block, RECURSION_PUBLIC_VALUES_COL_MAP};
+use crate::air::{Block, RECURSION_PUBLIC_VALUES_COL_MAP, RECURSIVE_PROOF_NUM_PV_ELTS};
 use crate::cpu::CpuEvent;
 use crate::fri_fold::FriFoldEvent;
 use crate::memory::MemoryRecord;
@@ -567,6 +567,9 @@ where
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::TRAP => {
+                    self.record
+                        .public_values
+                        .resize(RECURSIVE_PROOF_NUM_PV_ELTS, F::zero());
                     self.record.public_values[RECURSION_PUBLIC_VALUES_COL_MAP.exit_code] = F::one();
 
                     let (a_val, b_val, c_val) = self.all_rr(&instruction);
@@ -592,6 +595,9 @@ where
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::HALT => {
+                    self.record
+                        .public_values
+                        .resize(RECURSIVE_PROOF_NUM_PV_ELTS, F::zero());
                     self.record.public_values[RECURSION_PUBLIC_VALUES_COL_MAP.exit_code] =
                         F::zero();
 
