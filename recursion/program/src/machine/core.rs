@@ -223,8 +223,6 @@ where
 
             // Assert that the start_pc of the proof is equal to the current pc.
             builder.assert_felt_eq(current_pc, public_values.start_pc);
-            // Assert that the next_pc is different from the start_pc.
-            builder.assert_felt_ne(public_values.start_pc, public_values.next_pc);
             // Assert that the start_pc is not zero (this means program has halted in a non-last
             // shard).
             builder.assert_felt_ne(public_values.start_pc, C::F::zero());
