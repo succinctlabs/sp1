@@ -10,7 +10,7 @@ use sp1_core::{
 };
 use sp1_recursion_compiler::ir::{Array, Builder, Config, Felt, Var};
 use sp1_recursion_core::{
-    air::{RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS},
+    air::{RecursionPublicValues, NUM_PV_ELMS_TO_HASH, RECURSIVE_PROOF_NUM_PV_ELTS},
     runtime::DIGEST_SIZE,
 };
 
@@ -127,9 +127,8 @@ pub(crate) fn calculate_public_values_digest<C: Config>(
     public_values: &RecursionPublicValues<Felt<C::F>>,
 ) -> Array<C, Felt<C::F>> {
     let pv_elements: [Felt<_>; RECURSIVE_PROOF_NUM_PV_ELTS] = unsafe { transmute(*public_values) };
-    const NUM_ELMS_TO_HASH: usize = RECURSIVE_PROOF_NUM_PV_ELTS - DIGEST_SIZE - 1;
-    let mut poseidon_inputs = builder.array(NUM_ELMS_TO_HASH);
-    for (i, elm) in pv_elements[0..NUM_ELMS_TO_HASH].iter().enumerate() {
+    let mut poseidon_inputs = builder.array(NUM_PV_ELMS_TO_HASH);
+    for (i, elm) in pv_elements[0..NUM_PV_ELMS_TO_HASH].iter().enumerate() {
         builder.set(&mut poseidon_inputs, i, *elm);
     }
     builder.poseidon2_hash(&poseidon_inputs)
@@ -159,8 +158,7 @@ pub(crate) fn commit_public_values<C: Config>(
     public_values: &RecursionPublicValues<Felt<C::F>>,
 ) {
     let pv_elements: [Felt<_>; RECURSIVE_PROOF_NUM_PV_ELTS] = unsafe { transmute(*public_values) };
-    const NUM_ELMS_TO_HASH: usize = RECURSIVE_PROOF_NUM_PV_ELTS - DIGEST_SIZE - 1;
-    let pv_elms_no_digest = &pv_elements[0..NUM_ELMS_TO_HASH];
+    let pv_elms_no_digest = &pv_elements[0..NUM_PV_ELMS_TO_HASH];
 
     for value in pv_elms_no_digest.iter() {
         builder.register_public_value(*value);
