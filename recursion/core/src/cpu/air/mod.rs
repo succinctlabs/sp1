@@ -192,4 +192,12 @@ impl<F: Field> CpuChip<F> {
     {
         local.selectors.is_commit.into()
     }
+
+    /// Expr to check for system instructions.
+    pub fn is_system_instruction<AB>(&self, local: &CpuCols<AB::Var>) -> AB::Expr
+    where
+        AB: SP1RecursionAirBuilder<F = F>,
+    {
+        local.selectors.is_trap + local.selectors.is_halt
+    }
 }

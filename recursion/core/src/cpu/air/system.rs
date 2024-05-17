@@ -16,27 +16,29 @@ impl<F: Field> CpuChip<F> {
         next: &CpuCols<AB::Var>,
         public_values: &RecursionPublicValues<AB::Expr>,
     ) where
-        AB: SP1RecursionAirBuilder,
+        AB: SP1RecursionAirBuilder<F = F>,
     {
+        let is_system_instruction = self.is_system_instruction::<AB>(local);
+
         // Verify that the last real row is either TRAP or HALT.
         // We also verify below that the last row is not real.
         builder
             .when_transition()
             .when(local.is_real)
             .when_not(next.is_real)
-            .assert_one(local.selectors.is_trap + local.selectors.is_halt);
+            .assert_one(is_system_instruction.clone());
 
         builder
             .when_last_row()
             .when(local.is_real)
-            .assert_one(local.selectors.is_trap + local.selectors.is_halt);
+            .assert_one(is_system_instruction.clone());
 
         // Verify that all other real rows are not TRAP or HALT.
         builder
             .when_transition()
             .when(local.is_real)
             .when(next.is_real)
-            .assert_zero(local.selectors.is_trap + local.selectors.is_halt);
+            .assert_zero(is_system_instruction);
 
         // Verify the correct public value exit code.
         builder
