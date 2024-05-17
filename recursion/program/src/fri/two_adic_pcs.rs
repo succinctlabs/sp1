@@ -282,6 +282,7 @@ pub mod tests {
     use rand::rngs::OsRng;
     use sp1_core::utils::baby_bear_poseidon2::compressed_fri_config;
     use sp1_core::utils::inner_perm;
+    use sp1_core::utils::inner_perm16;
     use sp1_core::utils::InnerChallenge;
     use sp1_core::utils::InnerChallenger;
     use sp1_core::utils::InnerCompress;
@@ -307,9 +308,10 @@ pub mod tests {
         let mut rng = &mut OsRng;
         let log_degrees = &[nb_log2_rows];
         let perm = inner_perm();
+        let perm16 = inner_perm16();
         let fri_config = compressed_fri_config();
         let hash = InnerHash::new(perm.clone());
-        let compress = InnerCompress::new(perm.clone());
+        let compress = InnerCompress::new(perm16.clone());
         let val_mmcs = InnerValMmcs::new(hash, compress);
         let dft = InnerDft {};
         let pcs_val: InnerPcs = InnerPcs::new(

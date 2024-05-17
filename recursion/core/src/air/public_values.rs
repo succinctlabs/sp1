@@ -15,7 +15,7 @@ use std::mem::size_of;
 
 pub const PV_DIGEST_NUM_WORDS: usize = 8;
 
-pub const CHALLENGER_STATE_NUM_ELTS: usize = 50;
+pub const CHALLENGER_STATE_NUM_ELTS: usize = PERMUTATION_WIDTH * 3 + 2;
 
 pub const RECURSIVE_PROOF_NUM_PV_ELTS: usize = size_of::<RecursionPublicValues<u8>>();
 
