@@ -172,7 +172,7 @@ jobs:
         run: |
           cd fibonacci
           cd program
-          cargo add sp1-zkvm --path $GITHUB_WORKSPACE/zkvm
+          cargo add sp1-zkvm --path $GITHUB_WORKSPACE/zkvm/entrypoint
           cargo prove build
           cd ../script
           cargo add sp1-sdk --path $GITHUB_WORKSPACE/sdk
