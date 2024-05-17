@@ -20,9 +20,9 @@ use crate::{
 
 #[derive(Error, Debug)]
 pub enum Groth16VerificationError {
-    #[error("The verifying key does not match the inner Groth16 proof's committed verifying key.")]
+    #[error("the verifying key does not match the inner groth16 proof's committed verifying key")]
     InvalidVerificationKey,
-    #[error("The public values in the SP1 proof do not match the public values in the inner Groth16 proof.")]
+    #[error("the public values in the sp1 proof do not match the public values in the inner groth16 proof")]
     InvalidPublicValues,
 }
 
