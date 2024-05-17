@@ -2,14 +2,11 @@ mod local;
 mod mock;
 mod network;
 
-use std::str::FromStr;
-
 use crate::{SP1CompressedProof, SP1Groth16Proof, SP1PlonkProof, SP1Proof};
 use anyhow::Result;
 pub use local::LocalProver;
 pub use mock::MockProver;
 pub use network::NetworkProver;
-use num_bigint::BigUint;
 use sp1_core::stark::MachineVerificationError;
 use sp1_prover::CoreSC;
 use sp1_prover::SP1CoreProofData;
@@ -59,7 +56,7 @@ pub trait Prover: Send + Sync {
             .map_err(|e| e.into())
     }
 
-    /// Verify that a SP1 Groth16 proof is valid. Additionally, verify the public inputs of the Groth16Proof match
+    /// Verify that a SP1 Groth16 proof is valid. Verify that the public inputs of the Groth16Proof match
     /// the hash of the VK and the committed public values of the SP1ProofWithPublicValues.
     fn verify_groth16(&self, proof: &SP1Groth16Proof, vkey: &SP1VerifyingKey) -> Result<()> {
         let sp1_prover = self.sp1_prover();
@@ -69,16 +66,7 @@ pub trait Prover: Send + Sync {
         } else {
             sp1_prover::build::groth16_artifacts_dir()
         };
-        sp1_prover.verify_groth16(&proof.proof, vkey, &groth16_aritfacts)?;
-
-        // Verify that the public values of the SP1ProofWithPublicValues match the committed public
-        // values of the Groth16 proof.
-        let pv_biguint = proof.public_values.hash();
-        let committed_values_digest = BigUint::from_str(&proof.proof.public_inputs[1])?;
-
-        if pv_biguint != committed_values_digest {
-            return Err(anyhow::Error::msg("public values hash mismatch"));
-        }
+        sp1_prover.verify_groth16(&proof.proof, vkey, &proof.public_values, &groth16_aritfacts)?;
 
         Ok(())
     }
