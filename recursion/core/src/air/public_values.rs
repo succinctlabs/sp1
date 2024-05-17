@@ -8,16 +8,26 @@ use serde::{Deserialize, Serialize};
 use sp1_core::{
     air::{Word, POSEIDON_NUM_WORDS},
     stark::PROOF_MAX_NUM_PVS,
+    utils::indices_arr,
 };
 use sp1_derive::AlignedBorrow;
 use static_assertions::const_assert_eq;
-use std::mem::size_of;
+use std::mem::{size_of, transmute};
 
 pub const PV_DIGEST_NUM_WORDS: usize = 8;
 
 pub const CHALLENGER_STATE_NUM_ELTS: usize = 50;
 
 pub const RECURSIVE_PROOF_NUM_PV_ELTS: usize = size_of::<RecursionPublicValues<u8>>();
+
+const fn make_col_map() -> RecursionPublicValues<usize> {
+    let indices_arr = indices_arr::<RECURSIVE_PROOF_NUM_PV_ELTS>();
+    unsafe {
+        transmute::<[usize; RECURSIVE_PROOF_NUM_PV_ELTS], RecursionPublicValues<usize>>(indices_arr)
+    }
+}
+
+pub(crate) const RECURSION_PUBLIC_VALUES_COL_MAP: RecursionPublicValues<usize> = make_col_map();
 
 // Recursive proof has more public values than core proof, so the max number constant defined in
 // sp1_core should be set to `RECURSIVE_PROOF_NUM_PV_ELTS`.
@@ -64,9 +74,6 @@ pub struct RecursionPublicValues<T> {
     /// The expected start pc for the next shard.
     pub next_pc: T,
 
-    /// The exit code of the program.
-    pub exit_code: T,
-
     /// First shard being proven.
     pub start_shard: T,
 
@@ -100,6 +107,10 @@ pub struct RecursionPublicValues<T> {
     /// Whether the proof completely proves the program execution.
     pub is_complete: T,
 
-    /// The digest of all the public values elements.
+    /// The digest of all the previous public values elements.
     pub digest: [T; DIGEST_SIZE],
+
+    /// The exit code of the program.  Note that this is not part of the public values digest, since
+    /// it's value will be individually constrained.
+    pub exit_code: T,
 }
