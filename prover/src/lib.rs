@@ -249,7 +249,7 @@ impl SP1Prover {
 
     pub fn get_recursion_core_inputs<'a>(
         &'a self,
-        vk: &'a SP1VerifyingKey,
+        vk: &'a StarkVerifyingKey<CoreSC>,
         leaf_challenger: &'a Challenger<CoreSC>,
         shard_proofs: &[ShardProof<CoreSC>],
         batch_size: usize,
@@ -257,14 +257,14 @@ impl SP1Prover {
     ) -> Vec<SP1RecursionMemoryLayout<'a, CoreSC, RiscvAir<BabyBear>>> {
         let mut core_inputs = Vec::new();
         let mut reconstruct_challenger = self.core_machine.config().challenger();
-        vk.vk.observe_into(&mut reconstruct_challenger);
+        vk.observe_into(&mut reconstruct_challenger);
 
         // Prepare the inputs for the recursion programs.
         for batch in shard_proofs.chunks(batch_size) {
             let proofs = batch.to_vec();
 
             core_inputs.push(SP1RecursionMemoryLayout {
-                vk: &vk.vk,
+                vk: &vk,
                 machine: &self.core_machine,
                 shard_proofs: proofs,
                 leaf_challenger,
@@ -297,7 +297,7 @@ impl SP1Prover {
 
     pub fn get_recursion_deferred_inputs<'a>(
         &'a self,
-        vk: &'a SP1VerifyingKey,
+        vk: &'a StarkVerifyingKey<CoreSC>,
         leaf_challenger: &'a Challenger<InnerSC>,
         last_proof_pv: &PublicValues<Word<BabyBear>, BabyBear>,
         deferred_proofs: &[ShardProof<InnerSC>],
@@ -316,7 +316,7 @@ impl SP1Prover {
                 proofs,
                 start_reconstruct_deferred_digest: deferred_digest.to_vec(),
                 is_complete: false,
-                sp1_vk: &vk.vk,
+                sp1_vk: &vk,
                 sp1_machine: &self.core_machine,
                 end_pc: Val::<InnerSC>::zero(),
                 end_shard: last_proof_pv.shard,
@@ -345,7 +345,7 @@ impl SP1Prover {
     ) {
         let is_complete = shard_proofs.len() == 1 && deferred_proofs.is_empty();
         let core_inputs = self.get_recursion_core_inputs(
-            vk,
+            &vk.vk,
             leaf_challenger,
             shard_proofs,
             batch_size,
@@ -354,7 +354,7 @@ impl SP1Prover {
         let last_proof_pv =
             PublicValues::from_vec(shard_proofs.last().unwrap().public_values.clone());
         let deferred_inputs = self.get_recursion_deferred_inputs(
-            vk,
+            &vk.vk,
             leaf_challenger,
             &last_proof_pv,
             deferred_proofs,
