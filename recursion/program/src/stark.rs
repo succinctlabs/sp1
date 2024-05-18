@@ -396,11 +396,13 @@ where
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use std::borrow::BorrowMut;
     use std::time::Instant;
 
     use crate::challenger::CanObserveVariable;
     use crate::challenger::FeltChallenger;
     use crate::hints::Hintable;
+    use crate::machine::commit_public_values;
     use crate::stark::DuplexChallengerVariable;
     use crate::stark::Ext;
     use crate::stark::ShardProofHint;
@@ -408,8 +410,10 @@ pub(crate) mod tests {
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_field::AbstractField;
     use rand::Rng;
+    use sp1_core::air::POSEIDON_NUM_WORDS;
     use sp1_core::io::SP1Stdin;
     use sp1_core::runtime::Program;
+    use sp1_core::stark::LocalProver;
     use sp1_core::utils::setup_logger;
     use sp1_core::utils::InnerChallenge;
     use sp1_core::utils::InnerVal;
@@ -419,6 +423,7 @@ pub(crate) mod tests {
     };
     use sp1_recursion_compiler::config::InnerConfig;
     use sp1_recursion_compiler::ir::Array;
+    use sp1_recursion_compiler::ir::Config;
     use sp1_recursion_compiler::ir::Felt;
     use sp1_recursion_compiler::prelude::Usize;
     use sp1_recursion_compiler::{
@@ -426,12 +431,19 @@ pub(crate) mod tests {
         ir::{Builder, ExtConst},
     };
 
+    use sp1_recursion_core::air::RecursionPublicValues;
+    use sp1_recursion_core::air::RECURSION_PUBLIC_VALUES_COL_MAP;
+    use sp1_recursion_core::air::RECURSIVE_PROOF_NUM_PV_ELTS;
+    use sp1_recursion_core::runtime::RecursionProgram;
+    use sp1_recursion_core::runtime::Runtime;
     use sp1_recursion_core::runtime::DIGEST_SIZE;
 
     use sp1_recursion_core::stark::utils::run_test_recursion;
     use sp1_recursion_core::stark::utils::TestConfig;
+    use sp1_recursion_core::stark::RecursionAir;
 
     type SC = BabyBearPoseidon2;
+    type Challenge = <SC as StarkGenericConfig>::Challenge;
     type F = InnerVal;
     type EF = InnerChallenge;
     type C = InnerConfig;
@@ -501,6 +513,66 @@ pub(crate) mod tests {
 
         let program = builder.compile_program();
         run_test_recursion(program, Some(witness_stream.into()), TestConfig::All);
+    }
+
+    fn test_public_values_program() -> RecursionProgram<InnerVal> {
+        let mut builder = Builder::<InnerConfig>::default();
+
+        let mut public_values_stream: Vec<Felt<_>> = (0..RECURSIVE_PROOF_NUM_PV_ELTS)
+            .map(|_| builder.uninit())
+            .collect();
+
+        let public_values: &mut RecursionPublicValues<_> =
+            public_values_stream.as_mut_slice().borrow_mut();
+
+        public_values.sp1_vk_digest = [builder.constant(<C as Config>::F::zero()); DIGEST_SIZE];
+        public_values.next_pc = builder.constant(<C as Config>::F::one());
+        public_values.next_shard = builder.constant(<C as Config>::F::two());
+        public_values.end_reconstruct_deferred_digest =
+            [builder.constant(<C as Config>::F::from_canonical_usize(3)); POSEIDON_NUM_WORDS];
+
+        public_values.deferred_proofs_digest =
+            [builder.constant(<C as Config>::F::from_canonical_usize(4)); POSEIDON_NUM_WORDS];
+
+        public_values.cumulative_sum =
+            [builder.constant(<C as Config>::F::from_canonical_usize(5)); 4];
+
+        commit_public_values(&mut builder, public_values);
+        builder.halt();
+
+        builder.compile_program()
+    }
+
+    #[test]
+    fn test_public_values_failure() {
+        let program = test_public_values_program();
+
+        let config = SC::default();
+
+        let mut runtime = Runtime::<InnerVal, Challenge, _>::new(&program, config.perm.clone());
+        runtime.run();
+
+        let machine = RecursionAir::<_, 3>::machine(SC::default());
+        let (pk, vk) = machine.setup(&program);
+        let record = runtime.record.clone();
+
+        let mut challenger = machine.config().challenger();
+        let mut proof =
+            machine.prove::<LocalProver<SC, RecursionAir<_, 3>>>(&pk, record, &mut challenger);
+
+        let mut challenger = machine.config().challenger();
+        let verification_result = machine.verify(&vk, &proof, &mut challenger);
+        if verification_result.is_err() {
+            panic!("Proof should verify successfully");
+        }
+
+        // Corrupt the public values.
+        proof.shard_proofs[0].public_values[RECURSION_PUBLIC_VALUES_COL_MAP.digest[0]] =
+            InnerVal::zero();
+        let verification_result = machine.verify(&vk, &proof, &mut challenger);
+        if verification_result.is_ok() {
+            panic!("Proof should not verify successfully");
+        }
     }
 
     #[test]

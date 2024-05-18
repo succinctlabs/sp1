@@ -795,13 +795,9 @@ where
                     next_clk = timestamp;
                     (a, b, c) = (a_val, b_val, c_val);
                 }
-                Opcode::Commit => {
+                // For both the Commit and RegisterPublicValue opcodes, we record the public value
+                Opcode::Commit | Opcode::RegisterPublicValue => {
                     let (a_val, b_val, c_val) = self.all_rr(&instruction);
-
-                    // Ensure that writes are in order (index should == public_values.len)
-                    let index = b_val[0].as_canonical_u32() as usize;
-                    debug_assert_eq!(index, self.record.public_values.len());
-
                     self.record.public_values.push(a_val[0]);
 
                     (a, b, c) = (a_val, b_val, c_val);
