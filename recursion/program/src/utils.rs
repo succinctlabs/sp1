@@ -147,26 +147,6 @@ pub fn assign_challenger_from_pv<C: Config>(
     }
 }
 
-/// Commits a challenger variable to public values.
-pub fn commit_challenger<C: Config>(builder: &mut Builder<C>, var: &DuplexChallengerVariable<C>) {
-    for i in 0..PERMUTATION_WIDTH {
-        let element = builder.get(&var.sponge_state, i);
-        builder.commit_public_value(element);
-    }
-    let num_inputs_felt = var2felt(builder, var.nb_inputs);
-    builder.commit_public_value(num_inputs_felt);
-    for i in 0..PERMUTATION_WIDTH {
-        let element = builder.get(&var.input_buffer, i);
-        builder.commit_public_value(element);
-    }
-    let num_outputs_felt = var2felt(builder, var.nb_outputs);
-    builder.commit_public_value(num_outputs_felt);
-    for i in 0..PERMUTATION_WIDTH {
-        let element = builder.get(&var.output_buffer, i);
-        builder.commit_public_value(element);
-    }
-}
-
 pub fn get_challenger_public_values<C: Config>(
     builder: &mut Builder<C>,
     var: &DuplexChallengerVariable<C>,

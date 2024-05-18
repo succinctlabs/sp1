@@ -10,6 +10,7 @@ mod instruction;
 mod memory;
 mod opcode;
 mod opcode_specific;
+mod public_values;
 
 pub use instruction::*;
 pub use opcode::*;
