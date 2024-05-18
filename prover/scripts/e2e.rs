@@ -2,9 +2,11 @@
 #![allow(incomplete_features)]
 
 use std::borrow::Borrow;
+use std::path::PathBuf;
 
 use clap::Parser;
 use p3_baby_bear::BabyBear;
+use p3_field::PrimeField;
 use sp1_core::io::SP1Stdin;
 use sp1_prover::utils::{babybear_bytes_to_bn254, babybears_to_bn254, words_to_bytes};
 use sp1_prover::SP1Prover;
@@ -27,6 +29,7 @@ pub fn main() {
     std::env::set_var("RECONSTRUCT_COMMITMENTS", "false");
 
     let args = Args::parse();
+    let build_dir: PathBuf = args.build_dir.into();
 
     let elf = include_bytes!("../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
 
@@ -70,38 +73,24 @@ pub fn main() {
     Groth16Prover::test(constraints.clone(), witness.clone());
 
     tracing::info!("sanity check gnark build");
-    Groth16Prover::build(
-        constraints.clone(),
-        witness.clone(),
-        args.build_dir.clone().into(),
-    );
+    Groth16Prover::build(constraints.clone(), witness.clone(), build_dir.clone());
 
     tracing::info!("sanity check gnark prove");
     let groth16_prover = Groth16Prover::new();
 
     tracing::info!("gnark prove");
-    let proof = groth16_prover.prove(witness.clone(), args.build_dir.clone().into());
+    let proof = groth16_prover.prove(witness.clone(), build_dir.clone());
 
-    // tracing::info!("verify gnark proof");
-    // let verified = verify(proof.clone(), &args.build_dir.clone().into());
-    // assert!(verified);
-
-    // tracing::info!("convert gnark proof");
-    // let solidity_proof = convert(proof.clone(), &args.build_dir.clone().into());
-
-    // tracing::info!("sanity check plonk bn254 build");
-    // PlonkBn254Prover::build(
-    //     constraints.clone(),
-    //     witness.clone(),
-    //     args.build_dir.clone().into(),
-    // );
-
-    // tracing::info!("sanity check plonk bn254 prove");
-    // let proof = PlonkBn254Prover::prove(witness.clone(), args.build_dir.clone().into());
+    tracing::info!("verify gnark proof");
+    groth16_prover.verify(
+        &proof,
+        &vkey_hash.as_canonical_biguint(),
+        &committed_values_digest.as_canonical_biguint(),
+        &build_dir,
+    );
 
     println!(
         "{:?}",
         String::from_utf8(hex::encode(proof.encoded_proof)).unwrap()
     );
-    // println!("solidity proof: {:?}", solidity_proof);
 }
