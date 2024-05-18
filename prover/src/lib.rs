@@ -264,7 +264,7 @@ impl SP1Prover {
             let proofs = batch.to_vec();
 
             core_inputs.push(SP1RecursionMemoryLayout {
-                vk: &vk,
+                vk,
                 machine: &self.core_machine,
                 shard_proofs: proofs,
                 leaf_challenger,
@@ -316,7 +316,7 @@ impl SP1Prover {
                 proofs,
                 start_reconstruct_deferred_digest: deferred_digest.to_vec(),
                 is_complete: false,
-                sp1_vk: &vk,
+                sp1_vk: vk,
                 sp1_machine: &self.core_machine,
                 end_pc: Val::<InnerSC>::zero(),
                 end_shard: last_proof_pv.shard,
