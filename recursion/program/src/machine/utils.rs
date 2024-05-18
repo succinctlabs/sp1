@@ -151,7 +151,7 @@ pub(crate) fn verify_public_values_hash<C: Config>(
 }
 
 /// Register and commits the recursion public values.
-pub(crate) fn commit_public_values<C: Config>(
+pub fn commit_public_values<C: Config>(
     builder: &mut Builder<C>,
     public_values: &RecursionPublicValues<Felt<C::F>>,
 ) {

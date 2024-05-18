@@ -8,16 +8,29 @@ use serde::{Deserialize, Serialize};
 use sp1_core::{
     air::{Word, POSEIDON_NUM_WORDS},
     stark::PROOF_MAX_NUM_PVS,
+    utils::indices_arr,
 };
 use sp1_derive::AlignedBorrow;
 use static_assertions::const_assert_eq;
-use std::mem::size_of;
+use std::mem::{size_of, transmute};
 
 pub const PV_DIGEST_NUM_WORDS: usize = 8;
 
 pub const CHALLENGER_STATE_NUM_ELTS: usize = 50;
 
 pub const RECURSIVE_PROOF_NUM_PV_ELTS: usize = size_of::<RecursionPublicValues<u8>>();
+
+const fn make_col_map() -> RecursionPublicValues<usize> {
+    let indices_arr = indices_arr::<RECURSIVE_PROOF_NUM_PV_ELTS>();
+    unsafe {
+        transmute::<[usize; RECURSIVE_PROOF_NUM_PV_ELTS], RecursionPublicValues<usize>>(indices_arr)
+    }
+}
+
+pub const RECURSION_PUBLIC_VALUES_COL_MAP: RecursionPublicValues<usize> = make_col_map();
+
+// All the fields before `digest` are hashed to produce the digest.
+pub const NUM_PV_ELMS_TO_HASH: usize = RECURSION_PUBLIC_VALUES_COL_MAP.digest[0];
 
 // Recursive proof has more public values than core proof, so the max number constant defined in
 // sp1_core should be set to `RECURSIVE_PROOF_NUM_PV_ELTS`.

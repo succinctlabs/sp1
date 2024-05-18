@@ -8,6 +8,7 @@ pub use compress::*;
 pub use core::*;
 pub use deferred::*;
 pub use root::*;
+pub use utils::*;
 
 #[cfg(test)]
 mod tests {
