@@ -3,6 +3,7 @@ mod branch;
 mod jump;
 mod memory;
 mod operands;
+mod public_values;
 mod system;
 
 use std::borrow::Borrow;
@@ -13,7 +14,7 @@ use p3_matrix::Matrix;
 use sp1_core::air::BaseAirBuilder;
 
 use crate::{
-    air::SP1RecursionAirBuilder,
+    air::{RecursionPublicValues, SP1RecursionAirBuilder, RECURSIVE_PROOF_NUM_PV_ELTS},
     cpu::{CpuChip, CpuCols},
     memory::MemoryCols,
 };
@@ -27,6 +28,11 @@ where
         let (local, next) = (main.row_slice(0), main.row_slice(1));
         let local: &CpuCols<AB::Var> = (*local).borrow();
         let next: &CpuCols<AB::Var> = (*next).borrow();
+        let pv = builder.public_values();
+        let pv_elms: [AB::Expr; RECURSIVE_PROOF_NUM_PV_ELTS] =
+            core::array::from_fn(|i| pv[i].into());
+        let public_values: &RecursionPublicValues<AB::Expr> = pv_elms.as_slice().borrow();
+
         let zero = AB::Expr::zero();
         let one = AB::Expr::one();
 
@@ -73,6 +79,9 @@ where
             local.c.value()[0] + local.instruction.offset_imm,
         ];
         builder.send_table(local.instruction.opcode, &operands, send_syscall);
+
+        // Constrain the public values digest.
+        self.eval_commit(builder, local, public_values.digest.clone());
 
         // Constrain the clk.
         self.eval_clk(builder, local, next);
@@ -174,5 +183,13 @@ impl<F: Field> CpuChip<F> {
             + local.selectors.is_fri_fold
             + local.selectors.is_poseidon
             + local.selectors.is_store
+    }
+
+    /// Expr to check for instructions that are commit instructions.
+    pub fn is_commit_instruction<AB>(&self, local: &CpuCols<AB::Var>) -> AB::Expr
+    where
+        AB: SP1RecursionAirBuilder<F = F>,
+    {
+        local.selectors.is_commit.into()
     }
 }

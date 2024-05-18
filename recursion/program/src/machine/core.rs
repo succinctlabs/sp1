@@ -27,7 +27,7 @@ use crate::types::ShardProofVariable;
 use crate::types::VerifyingKeyVariable;
 use crate::utils::{const_fri_config, felt2var, get_challenger_public_values, hash_vkey, var2felt};
 
-use super::utils::assert_complete;
+use super::utils::{assert_complete, commit_public_values};
 
 /// A program for recursively verifying a batch of SP1 proofs.
 #[derive(Debug, Clone, Copy)]
@@ -317,10 +317,7 @@ where
             assert_complete(builder, recursion_public_values, &reconstruct_challenger)
         });
 
-        // Commit to the public values.
-        for value in recursion_public_values_stream {
-            builder.commit_public_value(value);
-        }
+        commit_public_values(builder, recursion_public_values);
 
         builder.halt();
     }

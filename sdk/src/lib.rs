@@ -525,4 +525,17 @@ mod tests {
         let proof = client.prove(&pk, stdin).unwrap();
         client.verify(&proof, &vk).unwrap();
     }
+
+    #[test]
+    fn test_e2e_prove_groth16_mock() {
+        utils::setup_logger();
+        let client = ProverClient::mock();
+        let elf =
+            include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+        let (pk, vk) = client.setup(elf);
+        let mut stdin = SP1Stdin::new();
+        stdin.write(&10usize);
+        let proof = client.prove_groth16(&pk, stdin).unwrap();
+        client.verify_groth16(&proof, &vk).unwrap();
+    }
 }

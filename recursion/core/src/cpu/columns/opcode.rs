@@ -71,6 +71,7 @@ impl<F: Field> OpcodeSelectorCols<F> {
             Opcode::PrintF => self.is_noop = F::one(),
             Opcode::PrintE => self.is_noop = F::one(),
             Opcode::Commit => self.is_commit = F::one(),
+            Opcode::RegisterPublicValue => self.is_noop = F::one(),
             _ => {}
         }
 
