@@ -27,7 +27,7 @@ const fn make_col_map() -> RecursionPublicValues<usize> {
     }
 }
 
-pub(crate) const RECURSION_PUBLIC_VALUES_COL_MAP: RecursionPublicValues<usize> = make_col_map();
+pub const RECURSION_PUBLIC_VALUES_COL_MAP: RecursionPublicValues<usize> = make_col_map();
 
 // All the fields before `digest` are hashed to produce the digest.
 pub const NUM_PV_ELMS_TO_HASH: usize = RECURSION_PUBLIC_VALUES_COL_MAP.digest[0];
