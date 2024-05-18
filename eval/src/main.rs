@@ -17,6 +17,7 @@ use std::{fs, time::Instant};
 #[derive(clap::ValueEnum, Clone)]
 enum HashFnId {
     Sha256,
+    Sha512,
     Poseidon,
     Blake3,
     Keccak256,
@@ -26,6 +27,7 @@ impl fmt::Display for HashFnId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let hash_fn_str = match self {
             HashFnId::Sha256 => "sha-256",
+            HashFnId::Sha512 => "sha-512",
             HashFnId::Poseidon => "poseidon",
             HashFnId::Blake3 => "blake3",
             HashFnId::Keccak256 => "keccak256",

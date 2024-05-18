@@ -27,6 +27,8 @@ pub(crate) mod riscv_chips {
     pub use crate::syscall::precompiles::keccak256::KeccakPermuteChip;
     pub use crate::syscall::precompiles::sha256::ShaCompressChip;
     pub use crate::syscall::precompiles::sha256::ShaExtendChip;
+    pub use crate::syscall::precompiles::sha512::Sha512CompressChip;
+    pub use crate::syscall::precompiles::sha512::Sha512ExtendChip;
     pub use crate::syscall::precompiles::uint256::Uint256MulChip;
     pub use crate::syscall::precompiles::weierstrass::WeierstrassAddAssignChip;
     pub use crate::syscall::precompiles::weierstrass::WeierstrassDecompressChip;
@@ -76,6 +78,10 @@ pub enum RiscvAir<F: PrimeField32> {
     Sha256Extend(ShaExtendChip),
     /// A precompile for sha256 compress.
     Sha256Compress(ShaCompressChip),
+    /// A precompile for sha512 extend.
+    Sha512Extend(Sha512ExtendChip),
+    /// A precompile for sha512 compress.
+    Sha512Compress(Sha512CompressChip),
     /// A precompile for addition on the Elliptic curve ed25519.
     Ed25519Add(EdAddAssignChip<EdwardsCurve<Ed25519Parameters>>),
     /// A precompile for decompressing a point on the Edwards curve ed25519.
@@ -127,6 +133,10 @@ impl<F: PrimeField32> RiscvAir<F> {
         chips.push(RiscvAir::Sha256Extend(sha_extend));
         let sha_compress = ShaCompressChip::default();
         chips.push(RiscvAir::Sha256Compress(sha_compress));
+        let sha512_extend = Sha512ExtendChip::default();
+        chips.push(RiscvAir::Sha512Extend(sha512_extend));
+        let sha512_compress = Sha512CompressChip::default();
+        chips.push(RiscvAir::Sha512Compress(sha512_compress));
         let ed_add_assign = EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>>::new();
         chips.push(RiscvAir::Ed25519Add(ed_add_assign));
         let ed_decompress = EdDecompressChip::<Ed25519Parameters>::default();

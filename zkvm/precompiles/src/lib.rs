@@ -18,6 +18,8 @@ extern "C" {
     pub fn syscall_read(fd: u32, read_buf: *mut u8, nbytes: usize);
     pub fn syscall_sha256_extend(w: *mut u32);
     pub fn syscall_sha256_compress(w: *mut u32, state: *mut u32);
+    pub fn syscall_sha512_extend(w: *mut u32);
+    pub fn syscall_sha512_compress(w: *mut u32, state: *mut u32);
     pub fn syscall_ed_add(p: *mut u32, q: *mut u32);
     pub fn syscall_ed_decompress(point: &mut [u8; 64]);
     pub fn syscall_secp256k1_add(p: *mut u32, q: *const u32);
