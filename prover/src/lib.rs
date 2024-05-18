@@ -20,7 +20,7 @@ pub mod verify;
 
 use std::borrow::Borrow;
 use std::env;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::utils::RECONSTRUCT_COMMITMENTS_ENV_VAR;
 use p3_baby_bear::BabyBear;
@@ -610,11 +610,7 @@ impl SP1Prover {
 
     /// Wrap the STARK proven over a SNARK-friendly field into a Groth16 proof.
     #[instrument(name = "wrap_groth16", level = "info", skip_all)]
-    pub fn wrap_groth16(
-        &self,
-        proof: SP1ReduceProof<OuterSC>,
-        build_dir: &PathBuf,
-    ) -> Groth16Proof {
+    pub fn wrap_groth16(&self, proof: SP1ReduceProof<OuterSC>, build_dir: &Path) -> Groth16Proof {
         let vkey_digest = proof.sp1_vkey_digest_bn254();
         let commited_values_digest = proof.sp1_commited_values_digest_bn254();
 
@@ -624,7 +620,7 @@ impl SP1Prover {
         witness.write_vkey_hash(vkey_digest);
 
         let prover = Groth16Prover::new();
-        let proof = prover.prove(witness, build_dir.clone());
+        let proof = prover.prove(witness, build_dir.to_path_buf());
 
         // Verify the proof.
         prover.verify(
