@@ -62,11 +62,11 @@ fn main() {
 
     let client = ProverClient::new();
     let (pk, vk) = client.setup(TENDERMINT_ELF);
-        let proof = client.prove(&pk, stdin).expect("proving failed");
+        let proof = client.prove_compressed(&pk, stdin).expect("proving failed");
 
     // Verify proof.
     client
-        .verify(&proof, &vk)
+        .verify_compressed(&proof, &vk)
         .expect("verification failed");
 
     // Verify the public values
