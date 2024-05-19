@@ -184,7 +184,7 @@ impl CpuChip {
         builder.when(is_halt.clone()).assert_zero(local.next_pc);
 
         builder.when(is_halt.clone()).assert_eq(
-            local.op_a_access.prev_value().reduce::<AB>(),
+            local.op_b_access.value().reduce::<AB>(),
             public_values.exit_code.clone(),
         );
     }
