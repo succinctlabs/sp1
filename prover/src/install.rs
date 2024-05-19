@@ -10,7 +10,7 @@ use crate::utils::block_on;
 pub const GROTH16_ARTIFACTS_URL_BASE: &str = "https://sp1-circuits.s3-us-east-2.amazonaws.com";
 
 /// The current version of the groth16 artifacts.
-pub const GROTH16_ARTIFACTS_COMMIT: &str = "1eee43b6";
+pub const GROTH16_ARTIFACTS_COMMIT: &str = "9f43e920";
 
 /// Install the latest groth16 artifacts.
 ///
