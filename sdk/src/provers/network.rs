@@ -11,6 +11,7 @@ use crate::{
 };
 use anyhow::{Context, Result};
 use serde::de::DeserializeOwned;
+use sp1_prover::utils::block_on;
 use sp1_prover::{SP1Prover, SP1Stdin};
 use tokio::{runtime, time::sleep};
 
@@ -153,26 +154,19 @@ impl Prover for NetworkProver {
     }
 
     fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Proof> {
-        let rt = tokio::runtime::Runtime::new()?;
-        rt.block_on(async { self.prove_async(&pk.elf, stdin, ProofMode::Core).await })
+        block_on(self.prove_async(&pk.elf, stdin, ProofMode::Core))
     }
 
     fn prove_compressed(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1CompressedProof> {
-        let rt = tokio::runtime::Runtime::new()?;
-        rt.block_on(async {
-            self.prove_async(&pk.elf, stdin, ProofMode::Compressed)
-                .await
-        })
+        block_on(self.prove_async(&pk.elf, stdin, ProofMode::Compressed))
     }
 
     fn prove_groth16(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Groth16Proof> {
-        let rt = tokio::runtime::Runtime::new()?;
-        rt.block_on(async { self.prove_async(&pk.elf, stdin, ProofMode::Groth16).await })
+        block_on(self.prove_async(&pk.elf, stdin, ProofMode::Groth16))
     }
 
     fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkProof> {
-        let rt = tokio::runtime::Runtime::new()?;
-        rt.block_on(async { self.prove_async(&pk.elf, stdin, ProofMode::Plonk).await })
+        block_on(self.prove_async(&pk.elf, stdin, ProofMode::Plonk))
     }
 }
 

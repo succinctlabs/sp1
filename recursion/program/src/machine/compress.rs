@@ -8,6 +8,7 @@ use p3_air::Air;
 use p3_baby_bear::BabyBear;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::{AbstractField, PrimeField32, TwoAdicField};
+use serde::{Deserialize, Serialize};
 use sp1_core::air::MachineAir;
 use sp1_core::air::{Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS};
 use sp1_core::stark::StarkMachine;
@@ -32,7 +33,7 @@ use crate::utils::{
     get_challenger_public_values, hash_vkey,
 };
 
-use super::utils::proof_data_from_vk;
+use super::utils::{commit_public_values, proof_data_from_vk, verify_public_values_hash};
 
 /// A program to verify a batch of recursive proofs and aggregate their public values.
 #[derive(Debug, Clone, Copy)]
@@ -41,7 +42,7 @@ pub struct SP1CompressVerifier<C: Config, SC: StarkGenericConfig, A> {
 }
 
 /// The different types of programs that can be verified by the `SP1ReduceVerifier`.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum ReduceProgramType {
     /// A batch of proofs that are all SP1 Core proofs.
     Core = 0,
@@ -249,6 +250,9 @@ where
 
             let current_public_values: &RecursionPublicValues<Felt<C::F>> =
                 current_public_values_elements.as_slice().borrow();
+
+            // Check that the public values digest is correct.
+            verify_public_values_hash(builder, current_public_values);
 
             // If the proof is the first proof, initialize the values.
             builder.if_eq(i, C::N::zero()).then(|builder| {
@@ -467,10 +471,7 @@ where
             },
         );
 
-        // Commit the public values.
-        for value in reduce_public_values_stream {
-            builder.commit_public_value(value);
-        }
+        commit_public_values(builder, reduce_public_values);
 
         builder.halt();
     }

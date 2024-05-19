@@ -2,7 +2,7 @@ name: PR
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   pull_request:
     branches:
       - "**"
@@ -132,7 +132,7 @@ jobs:
       - name: Install SP1 CLI
         run: |
           cd cli
-          cargo install --locked --path .
+          cargo install --force --locked --path .
           cd ~
 
       - name: Run cargo check
@@ -161,7 +161,7 @@ jobs:
       - name: Install SP1 CLI
         run: |
           cd cli
-          cargo install --locked --path .
+          cargo install --force --locked --path .
           cd ~
 
       - name: Run cargo prove new

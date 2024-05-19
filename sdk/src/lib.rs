@@ -26,8 +26,8 @@ pub use provers::{LocalProver, MockProver, NetworkProver, Prover};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sp1_core::stark::{MachineVerificationError, ShardProof};
 pub use sp1_prover::{
-    CoreSC, Groth16Proof, HashableKey, InnerSC, PlonkBn254Proof, SP1CoreProof, SP1Prover,
-    SP1ProvingKey, SP1PublicValues, SP1Stdin, SP1VerifyingKey,
+    CoreSC, Groth16Proof, HashableKey, InnerSC, OuterSC, PlonkBn254Proof, SP1Prover, SP1ProvingKey,
+    SP1PublicValues, SP1Stdin, SP1VerifyingKey,
 };
 
 /// A client for interacting with SP1.
@@ -173,7 +173,7 @@ impl ProverClient {
     /// let public_values = client.execute(elf, stdin).unwrap();
     /// ```
     pub fn execute(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1PublicValues> {
-        Ok(SP1Prover::execute(elf, &stdin))
+        Ok(SP1Prover::execute(elf, &stdin)?)
     }
 
     /// Setup a program to be proven and verified by the SP1 RISC-V zkVM by computing the proving
@@ -473,7 +473,18 @@ mod tests {
             include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
-        let _ = client.execute(elf, stdin).unwrap();
+        client.execute(elf, stdin).unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_execute_panic() {
+        utils::setup_logger();
+        let client = ProverClient::local();
+        let elf = include_bytes!("../../tests/panic/elf/riscv32im-succinct-zkvm-elf");
+        let mut stdin = SP1Stdin::new();
+        stdin.write(&10usize);
+        client.execute(elf, stdin).unwrap();
     }
 
     #[test]
@@ -513,5 +524,18 @@ mod tests {
         stdin.write(&10usize);
         let proof = client.prove(&pk, stdin).unwrap();
         client.verify(&proof, &vk).unwrap();
+    }
+
+    #[test]
+    fn test_e2e_prove_groth16_mock() {
+        utils::setup_logger();
+        let client = ProverClient::mock();
+        let elf =
+            include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+        let (pk, vk) = client.setup(elf);
+        let mut stdin = SP1Stdin::new();
+        stdin.write(&10usize);
+        let proof = client.prove_groth16(&pk, stdin).unwrap();
+        client.verify_groth16(&proof, &vk).unwrap();
     }
 }

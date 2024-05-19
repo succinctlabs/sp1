@@ -1,7 +1,7 @@
 package babybear
 
 /*
-#include "../../lib/babybear.h"
+#include "../../babybear.h"
 */
 import "C"
 

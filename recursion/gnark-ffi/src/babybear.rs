@@ -1,6 +1,3 @@
-extern crate p3_baby_bear;
-extern crate p3_field;
-
 use p3_baby_bear::BabyBear;
 use p3_field::PrimeField32;
 use p3_field::{extension::BinomialExtensionField, AbstractExtensionField, AbstractField, Field};
@@ -24,7 +21,7 @@ pub extern "C" fn babybearinv(a: u32) -> u32 {
 
 #[cfg(test)]
 pub mod test {
-    use crate::babybearextinv;
+    use super::babybearextinv;
 
     #[test]
     fn test_babybearextinv() {
