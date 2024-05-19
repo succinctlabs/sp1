@@ -1,5 +1,5 @@
 use std::{
-    fs::File,
+    fs::{File, OpenOptions},
     io::Write,
     path::{Path, PathBuf},
 };
@@ -69,6 +69,21 @@ impl Groth16Prover {
         file.write_all(serialized.as_bytes()).unwrap();
 
         build_groth16(build_dir.to_str().unwrap());
+
+        // Extend the built verifier with the sp1 verifier contract.
+        let groth16_verifier_path = build_dir.join("SP1Verifier.sol");
+
+        // Open the file in append mode.
+        let mut groth16_verifier_file = OpenOptions::new()
+            .append(true)
+            .open(groth16_verifier_path)
+            .expect("failed to open file");
+
+        // Write the string to the file
+        let sp1_verifier_str = include_str!("../assets/SP1Verifier.txt");
+        groth16_verifier_file
+            .write_all(sp1_verifier_str.as_bytes())
+            .expect("Failed to write to file");
     }
 
     /// Generates a Groth16 proof by sending a request to the Gnark server.
