@@ -202,7 +202,8 @@ impl<C: Config> Builder<C> {
     /// Converts an ext to a slice of felts.
     pub fn ext2felt(&mut self, value: Ext<C::F, C::EF>) -> Array<C, Felt<C::F>> {
         let result = self.dyn_array(4);
-        self.operations.push(DslIr::Ext2Felt(result.clone(), value));
+        self.operations
+            .push(DslIr::HintExt2Felt(result.clone(), value));
         result
     }
 
