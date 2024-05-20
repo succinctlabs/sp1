@@ -1,6 +1,9 @@
 use std::{env, time::Duration};
 
-use crate::auth::NetworkAuth;
+use crate::{
+    auth::NetworkAuth,
+    proto::network::{UnclaimProofRequest, UnclaimReason},
+};
 use anyhow::{Context, Ok, Result};
 use futures::future::join_all;
 use reqwest::{Client as HttpClient, Url};
@@ -108,7 +111,7 @@ impl NetworkClient {
                 println!("Proof request fulfilled");
                 let proof_bytes = self
                     .http
-                    .get(res.proof_url.clone())
+                    .get(res.proof_url.as_ref().expect("no proof url"))
                     .send()
                     .await
                     .context("Failed to send HTTP request for proof")?
@@ -232,6 +235,24 @@ impl NetworkClient {
             .await?;
 
         Ok(res)
+    }
+
+    // Unclaim a proof that was claimed. This should only be called if the proof has not been
+    // fulfilled yet. Returns an error if the proof is not in a PROOF_CLAIMED state or if the caller
+    // is not the claimer.
+    pub async fn unclaim_proof(&self, proof_id: &str, reason: UnclaimReason) -> Result<()> {
+        let nonce = self.get_nonce().await;
+        let signature = self.auth.sign_claim_proof_message(nonce, proof_id).await?;
+        self.rpc
+            .unclaim_proof(UnclaimProofRequest {
+                signature,
+                nonce,
+                proof_id: proof_id.to_string(),
+                reason: reason.into(),
+            })
+            .await?;
+
+        Ok(())
     }
 
     // Fulfill a proof. Should only be called after the proof has been uploaded. Returns an error

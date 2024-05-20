@@ -65,7 +65,7 @@ impl NetworkProver {
                         is_claimed = true;
                     }
                 }
-                ProofStatus::ProofFailed => {
+                ProofStatus::ProofUnclaimed => {
                     return Err(anyhow::anyhow!("Proof generation failed"));
                 }
                 _ => {
