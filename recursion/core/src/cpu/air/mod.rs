@@ -87,7 +87,7 @@ where
         self.eval_clk(builder, local, next);
 
         // Constrain the system instructions (TRAP, HALT).
-        self.eval_system_instructions(builder, local, next);
+        self.eval_system_instructions(builder, local, next, public_values);
 
         // Constrain the is_real_flag.
         self.eval_is_real(builder, local, next);
@@ -191,5 +191,13 @@ impl<F: Field> CpuChip<F> {
         AB: SP1RecursionAirBuilder<F = F>,
     {
         local.selectors.is_commit.into()
+    }
+
+    /// Expr to check for system instructions.
+    pub fn is_system_instruction<AB>(&self, local: &CpuCols<AB::Var>) -> AB::Expr
+    where
+        AB: SP1RecursionAirBuilder<F = F>,
+    {
+        local.selectors.is_trap + local.selectors.is_halt
     }
 }

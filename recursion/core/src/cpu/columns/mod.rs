@@ -14,6 +14,7 @@ mod public_values;
 
 pub use instruction::*;
 pub use opcode::*;
+pub use public_values::*;
 
 use self::opcode_specific::OpcodeSpecificCols;
 

@@ -18,7 +18,7 @@ use p3_symmetric::Permutation;
 pub use program::*;
 pub use record::*;
 
-use crate::air::Block;
+use crate::air::{Block, RECURSION_PUBLIC_VALUES_COL_MAP, RECURSIVE_PROOF_NUM_PV_ELTS};
 use crate::cpu::CpuEvent;
 use crate::fri_fold::FriFoldEvent;
 use crate::memory::MemoryRecord;
@@ -567,6 +567,12 @@ where
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::TRAP => {
+                    self.record
+                        .public_values
+                        .resize(RECURSIVE_PROOF_NUM_PV_ELTS, F::zero());
+                    self.record.public_values[RECURSION_PUBLIC_VALUES_COL_MAP.exit_code] = F::one();
+
+                    let (a_val, b_val, c_val) = self.all_rr(&instruction);
                     let trap_pc = self.pc.as_canonical_u32() as usize;
                     let trace = self.program.traces[trap_pc].clone();
                     if let Some(mut trace) = trace {
@@ -586,9 +592,15 @@ where
                         }
                         eprintln!("TRAP encountered. No backtrace available");
                     }
-                    exit(1);
+                    (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::HALT => {
+                    self.record
+                        .public_values
+                        .resize(RECURSIVE_PROOF_NUM_PV_ELTS, F::zero());
+                    self.record.public_values[RECURSION_PUBLIC_VALUES_COL_MAP.exit_code] =
+                        F::zero();
+
                     let (a_val, b_val, c_val) = self.all_rr(&instruction);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
@@ -823,7 +835,10 @@ where
             self.timestamp += 1;
             self.access = CpuRecord::default();
 
-            if self.timestamp >= early_exit_ts || instruction.opcode == Opcode::HALT {
+            if self.timestamp >= early_exit_ts
+                || instruction.opcode == Opcode::HALT
+                || instruction.opcode == Opcode::TRAP
+            {
                 break;
             }
         }
