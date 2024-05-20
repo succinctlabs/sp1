@@ -14,7 +14,7 @@ twirp = { git = "https://github.com/github/twirp-rs.git", rev = "c85f31f9c549573
 async-trait = "0.1.80"
 reqwest-middleware = "0.3.1"
 reqwest = { version = "0.12.4", features = ["rustls-tls", "trust-dns", "stream"] }
-anyhow = "1.0.83"
+anyhow = "1.0.86"
 sp1-prover = { path = "../prover" }
 sp1-core = { path = "../core" }
 futures = "0.3.30"
