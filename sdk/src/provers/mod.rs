@@ -7,13 +7,11 @@ use anyhow::Result;
 pub use local::LocalProver;
 pub use mock::MockProver;
 pub use network::NetworkProver;
-use sha2::{Digest, Sha256};
-use sp1_core::air::PublicValues;
-use sp1_core::stark::MachineProof;
 use sp1_core::stark::MachineVerificationError;
-use sp1_core::stark::StarkGenericConfig;
 use sp1_prover::CoreSC;
+use sp1_prover::SP1CoreProofData;
 use sp1_prover::SP1Prover;
+use sp1_prover::SP1ReduceProof;
 use sp1_prover::{SP1ProvingKey, SP1Stdin, SP1VerifyingKey};
 
 /// An implementation of [crate::ProverClient].
@@ -42,36 +40,34 @@ pub trait Prover: Send + Sync {
         proof: &SP1Proof,
         vkey: &SP1VerifyingKey,
     ) -> Result<(), MachineVerificationError<CoreSC>> {
-        let pv = PublicValues::from_vec(proof.proof[0].public_values.clone());
-        let pv_digest: [u8; 32] = Sha256::digest(proof.public_values.as_slice()).into();
-        if pv_digest != *pv.commit_digest_bytes() {
-            return Err(MachineVerificationError::InvalidPublicValuesDigest);
-        }
-        let machine_proof = MachineProof {
-            shard_proofs: proof.proof.clone(),
-        };
-        let sp1_prover = self.sp1_prover();
-        let mut challenger = sp1_prover.core_machine.config().challenger();
-        sp1_prover
-            .core_machine
-            .verify(&vkey.vk, &machine_proof, &mut challenger)
+        self.sp1_prover()
+            .verify(&SP1CoreProofData(proof.proof.clone()), vkey)
     }
 
     /// Verify that a compressed SP1 proof is valid given its vkey and metadata.
     fn verify_compressed(&self, proof: &SP1CompressedProof, vkey: &SP1VerifyingKey) -> Result<()> {
-        // TODO: implement verification of the digest of the public values matching
-        let sp1_prover = self.sp1_prover();
-        let machine_proof = MachineProof {
-            shard_proofs: vec![proof.proof.clone()],
-        };
-        let mut challenger = sp1_prover.compress_machine.config().challenger();
-        Ok(sp1_prover
-            .compress_machine
-            .verify(&vkey.vk, &machine_proof, &mut challenger)?)
+        self.sp1_prover()
+            .verify_compressed(
+                &SP1ReduceProof {
+                    proof: proof.proof.clone(),
+                },
+                vkey,
+            )
+            .map_err(|e| e.into())
     }
 
-    /// Verify that a SP1 Groth16 proof is valid given its vkey and metadata.
-    fn verify_groth16(&self, _proof: &SP1Groth16Proof, _vkey: &SP1VerifyingKey) -> Result<()> {
+    /// Verify that a SP1 Groth16 proof is valid. Verify that the public inputs of the Groth16Proof match
+    /// the hash of the VK and the committed public values of the SP1ProofWithPublicValues.
+    fn verify_groth16(&self, proof: &SP1Groth16Proof, vkey: &SP1VerifyingKey) -> Result<()> {
+        let sp1_prover = self.sp1_prover();
+
+        let groth16_aritfacts = if sp1_prover::build::sp1_dev_mode() {
+            sp1_prover::build::groth16_artifacts_dev_dir()
+        } else {
+            sp1_prover::build::groth16_artifacts_dir()
+        };
+        sp1_prover.verify_groth16(&proof.proof, vkey, &proof.public_values, &groth16_aritfacts)?;
+
         Ok(())
     }
 

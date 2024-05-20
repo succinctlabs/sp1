@@ -1,3 +1,4 @@
+use std::borrow::Borrow;
 use std::{fs::File, path::Path};
 
 use anyhow::Result;
@@ -8,14 +9,14 @@ use p3_field::PrimeField;
 use p3_field::{AbstractField, PrimeField32, TwoAdicField};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sp1_core::{
-    air::{PublicValues, Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS},
     io::{SP1PublicValues, SP1Stdin},
-    stark::{ShardProof, StarkGenericConfig, StarkProvingKey, StarkVerifyingKey, Val},
+    stark::{ShardProof, StarkGenericConfig, StarkProvingKey, StarkVerifyingKey},
     utils::DIGEST_SIZE,
 };
 use sp1_primitives::poseidon2_hash;
 use sp1_recursion_core::{air::RecursionPublicValues, stark::config::BabyBearPoseidon2Outer};
 use sp1_recursion_gnark_ffi::{plonk_bn254::PlonkBn254Proof, Groth16Proof};
+use thiserror::Error;
 
 use crate::utils::words_to_bytes_be;
 use crate::{utils::babybear_bytes_to_bn254, words_to_bytes};
@@ -30,14 +31,18 @@ pub struct SP1ProvingKey {
 }
 
 /// The information necessary to verify a proof for a given RISC-V program.
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct SP1VerifyingKey {
     pub vk: StarkVerifyingKey<CoreSC>,
 }
 
 /// A trait for keys that can be hashed into a digest.
 pub trait HashableKey {
-    fn hash_babybear(&self) -> [BabyBear; 8];
+    /// Hash the key into a digest of BabyBear elements.
+    fn hash_babybear(&self) -> [BabyBear; DIGEST_SIZE];
+
+    /// Hash the key into a digest of  u32 elements.
+    fn hash_u32(&self) -> [u32; DIGEST_SIZE];
 
     fn hash_bn254(&self) -> Bn254Fr {
         babybears_to_bn254(&self.hash_babybear())
@@ -51,20 +56,18 @@ pub trait HashableKey {
         )
     }
 
-    fn hash_u32(&self) -> [u32; 8];
-
-    /// Hash the key into a digest of 8 u32 elements.
-    fn hash_bytes(&self) -> [u8; 32] {
+    /// Hash the key into a digest of bytes elements.
+    fn hash_bytes(&self) -> [u8; DIGEST_SIZE * 4] {
         words_to_bytes_be(&self.hash_u32())
     }
 }
 
 impl HashableKey for SP1VerifyingKey {
-    fn hash_babybear(&self) -> [BabyBear; 8] {
+    fn hash_babybear(&self) -> [BabyBear; DIGEST_SIZE] {
         self.vk.hash_babybear()
     }
 
-    fn hash_u32(&self) -> [u32; 8] {
+    fn hash_u32(&self) -> [u32; DIGEST_SIZE] {
         self.vk.hash_u32()
     }
 }
@@ -74,7 +77,7 @@ impl<SC: StarkGenericConfig<Val = BabyBear, Domain = TwoAdicMultiplicativeCoset<
 where
     <SC::Pcs as Pcs<SC::Challenge, SC::Challenger>>::Commitment: AsRef<[BabyBear; DIGEST_SIZE]>,
 {
-    fn hash_babybear(&self) -> [BabyBear; 8] {
+    fn hash_babybear(&self) -> [BabyBear; DIGEST_SIZE] {
         let prep_domains = self.chip_information.iter().map(|(_, domain, _)| domain);
         let num_inputs = DIGEST_SIZE + 1 + (4 * prep_domains.len());
         let mut inputs = Vec::with_capacity(num_inputs);
@@ -157,36 +160,17 @@ pub struct SP1Groth16ProofData(pub Groth16Proof);
 pub struct SP1PlonkProofData(pub PlonkBn254Proof);
 
 /// An intermediate proof which proves the execution over a range of shards.
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(bound(serialize = "ShardProof<SC>: Serialize"))]
 #[serde(bound(deserialize = "ShardProof<SC>: Deserialize<'de>"))]
 pub struct SP1ReduceProof<SC: StarkGenericConfig> {
     pub proof: ShardProof<SC>,
 }
 
-/// A proof that can be reduced along with other proofs into one proof.
-#[derive(Serialize, Deserialize)]
-pub enum SP1ReduceProofWrapper {
-    Core(SP1ReduceProof<CoreSC>),
-    Recursive(SP1ReduceProof<InnerSC>),
-}
-
-/// Represents the state of reducing proofs together. This is used to track the current values since
-/// some reduce batches may have only deferred proofs.
-#[derive(Clone)]
-pub(crate) struct ReduceState {
-    pub committed_values_digest: [Word<Val<CoreSC>>; PV_DIGEST_NUM_WORDS],
-    pub deferred_proofs_digest: [Val<CoreSC>; POSEIDON_NUM_WORDS],
-    pub start_pc: Val<CoreSC>,
-    pub exit_code: Val<CoreSC>,
-    pub start_shard: Val<CoreSC>,
-    pub reconstruct_deferred_digest: [Val<CoreSC>; POSEIDON_NUM_WORDS],
-}
-
 impl SP1ReduceProof<BabyBearPoseidon2Outer> {
     pub fn sp1_vkey_digest_babybear(&self) -> [BabyBear; 8] {
         let proof = &self.proof;
-        let pv = RecursionPublicValues::from_vec(proof.public_values.clone());
+        let pv: &RecursionPublicValues<BabyBear> = proof.public_values.as_slice().borrow();
         pv.sp1_vk_digest
     }
 
@@ -196,7 +180,7 @@ impl SP1ReduceProof<BabyBearPoseidon2Outer> {
 
     pub fn sp1_commited_values_digest_bn254(&self) -> Bn254Fr {
         let proof = &self.proof;
-        let pv = RecursionPublicValues::from_vec(proof.public_values.clone());
+        let pv: &RecursionPublicValues<BabyBear> = proof.public_values.as_slice().borrow();
         let committed_values_digest_bytes: [BabyBear; 32] =
             words_to_bytes(&pv.committed_value_digest)
                 .try_into()
@@ -205,46 +189,12 @@ impl SP1ReduceProof<BabyBearPoseidon2Outer> {
     }
 }
 
-impl ReduceState {
-    pub fn from_reduce_end_state<SC: StarkGenericConfig<Val = BabyBear>>(
-        state: &SP1ReduceProof<SC>,
-    ) -> Self {
-        let pv = RecursionPublicValues::from_vec(state.proof.public_values.clone());
-        Self {
-            committed_values_digest: pv.committed_value_digest,
-            deferred_proofs_digest: pv.deferred_proofs_digest,
-            start_pc: pv.next_pc,
-            exit_code: pv.exit_code,
-            start_shard: pv.next_shard,
-            reconstruct_deferred_digest: pv.end_reconstruct_deferred_digest,
-        }
-    }
-
-    pub fn from_reduce_start_state<SC: StarkGenericConfig<Val = BabyBear>>(
-        state: &SP1ReduceProof<SC>,
-    ) -> Self {
-        let pv = RecursionPublicValues::from_vec(state.proof.public_values.clone());
-        Self {
-            committed_values_digest: pv.committed_value_digest,
-            deferred_proofs_digest: pv.deferred_proofs_digest,
-            start_pc: pv.start_pc,
-            exit_code: pv.exit_code,
-            start_shard: pv.start_shard,
-            reconstruct_deferred_digest: pv.start_reconstruct_deferred_digest,
-        }
-    }
-
-    pub fn from_core_start_state(state: &ShardProof<CoreSC>) -> Self {
-        let pv =
-            PublicValues::<Word<Val<CoreSC>>, Val<CoreSC>>::from_vec(state.public_values.clone());
-        Self {
-            committed_values_digest: pv.committed_value_digest,
-            deferred_proofs_digest: pv.deferred_proofs_digest,
-            start_pc: pv.start_pc,
-            exit_code: pv.exit_code,
-            start_shard: pv.shard,
-            // TODO: we assume that core proofs aren't in a later batch than one with a deferred proof
-            reconstruct_deferred_digest: [BabyBear::zero(); 8],
-        }
-    }
+/// A proof that can be reduced along with other proofs into one proof.
+#[derive(Serialize, Deserialize, Clone)]
+pub enum SP1ReduceProofWrapper {
+    Core(SP1ReduceProof<CoreSC>),
+    Recursive(SP1ReduceProof<InnerSC>),
 }
+
+#[derive(Error, Debug)]
+pub enum SP1RecursionProverError {}

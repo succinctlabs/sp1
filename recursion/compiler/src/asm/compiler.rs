@@ -529,6 +529,9 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                 DslIr::Commit(val, index) => {
                     self.push(AsmInstruction::Commit(val.fp(), index.fp()), trace);
                 }
+                DslIr::RegisterPublicValue(val) => {
+                    self.push(AsmInstruction::RegisterPublicValue(val.fp()), trace);
+                }
                 DslIr::LessThan(dst, left, right) => {
                     self.push(
                         AsmInstruction::LessThan(dst.fp(), left.fp(), right.fp()),
@@ -537,6 +540,9 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                 }
                 DslIr::CycleTracker(name) => {
                     self.push(AsmInstruction::CycleTracker(name.clone()), trace);
+                }
+                DslIr::Halt => {
+                    self.push(AsmInstruction::Halt, trace);
                 }
                 _ => unimplemented!(),
             }

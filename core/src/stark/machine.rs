@@ -254,9 +254,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
 
         // Display some statistics about the workload.
         let stats = record.stats();
-        for (k, v) in stats {
-            log::info!("{} = {}", k, v);
-        }
+        log::info!("Shard: {:?}", stats);
 
         // For each chip, shard the events into segments.
         record.shard(config)
@@ -511,8 +509,6 @@ impl<SC: StarkGenericConfig> std::error::Error for MachineVerificationError<SC> 
 #[allow(non_snake_case)]
 pub mod tests {
 
-    use serial_test::serial;
-
     use crate::io::SP1Stdin;
     use crate::runtime::tests::fibonacci_program;
     use crate::runtime::tests::simple_memory_program;
@@ -522,7 +518,7 @@ pub mod tests {
     use crate::runtime::Opcode;
     use crate::runtime::Program;
     use crate::utils;
-    use crate::utils::run_and_prove;
+    use crate::utils::prove;
     use crate::utils::run_test;
     use crate::utils::setup_logger;
     use crate::utils::BabyBearPoseidon2;
@@ -662,7 +658,6 @@ pub mod tests {
     }
 
     #[test]
-    #[serial]
     fn test_fibonacci_prove() {
         setup_logger();
         let program = fibonacci_program();
@@ -670,18 +665,11 @@ pub mod tests {
     }
 
     #[test]
-    #[serial]
     fn test_fibonacci_prove_batch() {
-        std::env::set_var("SHARD_BATCH_SIZE", "1");
-        std::env::set_var("SHARD_SIZE", "16384");
-
         setup_logger();
         let program = fibonacci_program();
         let stdin = SP1Stdin::new();
-        run_and_prove(program, &stdin, BabyBearPoseidon2::new());
-
-        std::env::remove_var("SHARD_BATCH_SIZE");
-        std::env::remove_var("SHARD_SIZE");
+        prove(program, &stdin, BabyBearPoseidon2::new()).unwrap();
     }
 
     #[test]

@@ -454,12 +454,12 @@ mod tests {
     use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
     use p3_field::AbstractField;
     use p3_matrix::dense::RowMajorMatrix;
-    use p3_matrix::Matrix;
     use p3_poseidon2::{Poseidon2, Poseidon2ExternalMatrixGeneral};
     use p3_symmetric::Permutation;
     use sp1_core::air::MachineAir;
     use sp1_core::stark::StarkGenericConfig;
     use sp1_core::utils::{inner_perm, uni_stark_prove, uni_stark_verify, BabyBearPoseidon2};
+    use zkhash::ark_ff::UniformRand;
 
     fn generate_trace_degree<const DEGREE: usize>() {
         let chip = Poseidon2WideChip::<DEGREE> {
@@ -493,10 +493,8 @@ mod tests {
                 .push(Poseidon2Event::dummy_from_input(input, output));
         }
 
-        let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());
-
-        assert_eq!(trace.height(), test_inputs.len());
+        // Generate trace will assert for the expected outputs.
+        chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());
     }
 
     /// A test generating a trace for a single permutation that checks that the output is correct
@@ -506,46 +504,24 @@ mod tests {
         generate_trace_degree::<7>();
     }
 
-    fn poseidon2_wide_prove_babybear_degree<const DEGREE: usize>() {
-        const DEGREE: usize = 7;
-
-        let config = BabyBearPoseidon2::compressed();
-        let mut challenger = config.challenger();
-
+    fn poseidon2_wide_prove_babybear_degree<const DEGREE: usize>(
+        inputs: Vec<[BabyBear; 16]>,
+        outputs: Vec<[BabyBear; 16]>,
+    ) {
         let chip = Poseidon2WideChip::<DEGREE> {
             fixed_log2_rows: None,
         };
-
-        let test_inputs = (0..1000)
-            .map(|i| [BabyBear::from_canonical_u32(i); WIDTH])
-            .collect_vec();
-
-        let gt: Poseidon2<
-            BabyBear,
-            Poseidon2ExternalMatrixGeneral,
-            DiffusionMatrixBabyBear,
-            16,
-            7,
-        > = inner_perm();
-
-        let expected_outputs = test_inputs
-            .iter()
-            .map(|input| gt.permute(*input))
-            .collect::<Vec<_>>();
-
         let mut input_exec = ExecutionRecord::<BabyBear>::default();
-        for (input, output) in test_inputs.into_iter().zip_eq(expected_outputs) {
+        for (input, output) in inputs.into_iter().zip_eq(outputs) {
             input_exec
                 .poseidon2_events
                 .push(Poseidon2Event::dummy_from_input(input, output));
         }
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());
-        println!(
-            "trace dims is width: {:?}, height: {:?}",
-            trace.width(),
-            trace.height()
-        );
+
+        let config = BabyBearPoseidon2::compressed();
+        let mut challenger = config.challenger();
 
         let start = Instant::now();
         let proof = uni_stark_prove(&config, &chip, &mut challenger, trace);
@@ -562,8 +538,44 @@ mod tests {
     }
 
     #[test]
-    fn poseidon2_wide_prove_babybear() {
-        poseidon2_wide_prove_babybear_degree::<3>();
-        poseidon2_wide_prove_babybear_degree::<7>();
+    fn poseidon2_wide_prove_babybear_success() {
+        let rng = &mut rand::thread_rng();
+
+        let test_inputs: Vec<[BabyBear; 16]> = (0..1000)
+            .map(|_| core::array::from_fn(|_| BabyBear::rand(rng)))
+            .collect_vec();
+
+        let gt: Poseidon2<
+            BabyBear,
+            Poseidon2ExternalMatrixGeneral,
+            DiffusionMatrixBabyBear,
+            16,
+            7,
+        > = inner_perm();
+
+        let expected_outputs = test_inputs
+            .iter()
+            .map(|input| gt.permute(*input))
+            .collect::<Vec<_>>();
+
+        poseidon2_wide_prove_babybear_degree::<3>(test_inputs.clone(), expected_outputs.clone());
+        poseidon2_wide_prove_babybear_degree::<7>(test_inputs, expected_outputs);
+    }
+
+    #[test]
+    #[should_panic]
+    fn poseidon2_wide_prove_babybear_failure() {
+        let rng = &mut rand::thread_rng();
+
+        let test_inputs = (0..1000)
+            .map(|i| [BabyBear::from_canonical_u32(i); WIDTH])
+            .collect_vec();
+
+        let bad_outputs: Vec<[BabyBear; 16]> = (0..1000)
+            .map(|_| core::array::from_fn(|_| BabyBear::rand(rng)))
+            .collect_vec();
+
+        poseidon2_wide_prove_babybear_degree::<3>(test_inputs.clone(), bad_outputs.clone());
+        poseidon2_wide_prove_babybear_degree::<7>(test_inputs, bad_outputs);
     }
 }

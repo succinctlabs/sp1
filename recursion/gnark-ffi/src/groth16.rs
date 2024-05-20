@@ -1,15 +1,15 @@
 use std::{
-    env,
     fs::{File, OpenOptions},
-    io::{Read, Write},
-    panic,
-    path::PathBuf,
-    process::{Command, Stdio},
+    io::Write,
+    path::{Path, PathBuf},
 };
 
-use crate::witness::GnarkWitness;
+use crate::{
+    ffi::{build_groth16, prove_groth16, test_groth16, verify_groth16},
+    witness::GnarkWitness,
+};
 
-use p3_field::PrimeField;
+use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
 use sp1_recursion_compiler::{
     constraints::Constraint,
@@ -33,12 +33,9 @@ impl Groth16Prover {
     pub fn new() -> Self {
         Self
     }
-
     /// Executes the prover in testing mode with a circuit definition and witness.
     pub fn test<C: Config>(constraints: Vec<Constraint>, witness: Witness<C>) {
         let serialized = serde_json::to_string(&constraints).unwrap();
-        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let gnark_dir = manifest_dir.join("../gnark");
 
         // Write constraints.
         let mut constraints_file = tempfile::NamedTempFile::new().unwrap();
@@ -50,42 +47,14 @@ impl Groth16Prover {
         let serialized = serde_json::to_string(&gnark_witness).unwrap();
         witness_file.write_all(serialized.as_bytes()).unwrap();
 
-        // Run `make`.
-        Self::run_make(&gnark_dir);
-
-        let result = Command::new("go")
-            .args([
-                "test",
-                "-tags=release_checks",
-                "-v",
-                "-timeout",
-                "100000s",
-                "-run",
-                "^TestMain$",
-                "github.com/succinctlabs/sp1-recursion-gnark",
-            ])
-            .current_dir(gnark_dir)
-            .env("WITNESS_JSON", witness_file.path().to_str().unwrap())
-            .env(
-                "CONSTRAINTS_JSON",
-                constraints_file.path().to_str().unwrap(),
-            )
-            .stderr(Stdio::inherit())
-            .stdout(Stdio::inherit())
-            .stdin(Stdio::inherit())
-            .output()
-            .unwrap();
-
-        if !result.status.success() {
-            panic!("failed to run test circuit");
-        }
+        test_groth16(
+            witness_file.path().to_str().unwrap(),
+            constraints_file.path().to_str().unwrap(),
+        );
     }
 
     pub fn build<C: Config>(constraints: Vec<Constraint>, witness: Witness<C>, build_dir: PathBuf) {
         let serialized = serde_json::to_string(&constraints).unwrap();
-        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let gnark_dir = manifest_dir.join("../gnark");
-        let cwd = std::env::current_dir().unwrap();
 
         // Write constraints.
         let constraints_path = build_dir.join("constraints_groth16.json");
@@ -99,146 +68,52 @@ impl Groth16Prover {
         let serialized = serde_json::to_string(&gnark_witness).unwrap();
         file.write_all(serialized.as_bytes()).unwrap();
 
-        // Run `make`.
-        Self::run_make(&gnark_dir);
-
-        // Run the build script.
-        Self::run_cmd(
-            &gnark_dir,
-            "build".to_string(),
-            vec![
-                "--data".to_string(),
-                cwd.join(&build_dir).to_str().unwrap().to_string(),
-            ],
-        );
+        build_groth16(build_dir.to_str().unwrap());
 
         // Extend the built verifier with the sp1 verifier contract.
-        let sp1_verifier_contract_path = build_dir.join("SP1Verifier.sol");
+        let groth16_verifier_path = build_dir.join("SP1Verifier.sol");
 
         // Open the file in append mode.
-        let mut sp1_verifier_contract = OpenOptions::new()
+        let mut groth16_verifier_file = OpenOptions::new()
             .append(true)
-            .open(sp1_verifier_contract_path)
+            .open(groth16_verifier_path)
             .expect("failed to open file");
 
         // Write the string to the file
         let sp1_verifier_str = include_str!("../assets/SP1Verifier.txt");
-        sp1_verifier_contract
+        groth16_verifier_file
             .write_all(sp1_verifier_str.as_bytes())
             .expect("Failed to write to file");
     }
 
     /// Generates a Groth16 proof by sending a request to the Gnark server.
     pub fn prove<C: Config>(&self, witness: Witness<C>, build_dir: PathBuf) -> Groth16Proof {
-        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let gnark_dir = manifest_dir.join("../gnark");
-        let cwd = std::env::current_dir().unwrap();
-
         // Write witness.
         let mut witness_file = tempfile::NamedTempFile::new().unwrap();
         let gnark_witness = GnarkWitness::new(witness);
         let serialized = serde_json::to_string(&gnark_witness).unwrap();
         witness_file.write_all(serialized.as_bytes()).unwrap();
 
-        // Run `make`.
-        Self::run_make(&gnark_dir);
-
-        // Run the build script.
-        let proof_file = tempfile::NamedTempFile::new().unwrap();
-        Self::run_cmd(
-            &gnark_dir,
-            "prove".to_string(),
-            vec![
-                "--data".to_string(),
-                cwd.join(build_dir).to_str().unwrap().to_string(),
-                "--witness".to_string(),
-                witness_file.path().to_str().unwrap().to_string(),
-                "--proof".to_string(),
-                proof_file.path().to_str().unwrap().to_string(),
-            ],
-        );
-
-        // Read the contents back from the tempfile.
-        let mut buffer = String::new();
-        proof_file
-            .reopen()
-            .unwrap()
-            .read_to_string(&mut buffer)
-            .unwrap();
-
-        // Deserialize the JSON string back to a Groth16Proof instance
-        let deserialized: Groth16Proof =
-            serde_json::from_str(&buffer).expect("Error deserializing the proof");
-
-        deserialized
+        prove_groth16(
+            build_dir.to_str().unwrap(),
+            witness_file.path().to_str().unwrap(),
+        )
     }
 
-    pub fn verify<C: Config>(
+    pub fn verify(
         &self,
-        proof: Groth16Proof,
-        vkey_hash: C::N,
-        commited_values_digest: C::N,
-        build_dir: PathBuf,
+        proof: &Groth16Proof,
+        vkey_hash: &BigUint,
+        commited_values_digest: &BigUint,
+        build_dir: &Path,
     ) {
-        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let gnark_dir = manifest_dir.join("../gnark");
-        let cwd = std::env::current_dir().unwrap();
-
-        // Run `make`.
-        Self::run_make(&gnark_dir);
-
-        // Run the build script.
-        Self::run_cmd(
-            &gnark_dir,
-            "verify".to_string(),
-            vec![
-                "--data".to_string(),
-                cwd.join(build_dir).to_str().unwrap().to_string(),
-                "--proof".to_string(),
-                proof.raw_proof,
-                "--vkey-hash".to_string(),
-                vkey_hash.as_canonical_biguint().to_string(),
-                "--commited-values-digest".to_string(),
-                commited_values_digest.as_canonical_biguint().to_string(),
-            ],
-        );
-    }
-
-    /// Runs the `make` command to generate the Go bindings for the Gnark library for FFI.
-    fn run_make(gnark_dir: &PathBuf) {
-        let make = Command::new("make")
-            .current_dir(gnark_dir)
-            .stderr(Stdio::inherit())
-            .stdin(Stdio::inherit())
-            .output()
-            .unwrap();
-        if !make.status.success() {
-            panic!("failed to run make");
-        }
-    }
-
-    /// Runs the FFI command to interface with the Gnark library. Command is one of the commands
-    /// defined in recursion/gnark/main.go.
-    fn run_cmd(gnark_dir: &PathBuf, command: String, args: Vec<String>) {
-        let mut command_args = vec!["run".to_string(), "main.go".to_string(), command.clone()];
-
-        command_args.extend(args);
-
-        let result = Command::new("go")
-            .args(command_args)
-            .current_dir(gnark_dir)
-            .stderr(Stdio::inherit())
-            .stdout(Stdio::inherit())
-            .stdin(Stdio::inherit())
-            .output()
-            .unwrap();
-
-        if !result.status.success() {
-            panic!(
-                "failed to run script for {:?}: {:?}",
-                command, result.status
-            );
-        }
+        verify_groth16(
+            build_dir.to_str().unwrap(),
+            &proof.raw_proof,
+            &vkey_hash.to_string(),
+            &commited_values_digest.to_string(),
+        )
+        .expect("failed to verify proof")
     }
 }
 

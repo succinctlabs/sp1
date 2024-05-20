@@ -3,6 +3,8 @@ mod branch;
 mod jump;
 mod memory;
 mod operands;
+mod public_values;
+mod system;
 
 use std::borrow::Borrow;
 
@@ -12,7 +14,7 @@ use p3_matrix::Matrix;
 use sp1_core::air::BaseAirBuilder;
 
 use crate::{
-    air::SP1RecursionAirBuilder,
+    air::{RecursionPublicValues, SP1RecursionAirBuilder, RECURSIVE_PROOF_NUM_PV_ELTS},
     cpu::{CpuChip, CpuCols},
     memory::MemoryCols,
 };
@@ -26,6 +28,11 @@ where
         let (local, next) = (main.row_slice(0), main.row_slice(1));
         let local: &CpuCols<AB::Var> = (*local).borrow();
         let next: &CpuCols<AB::Var> = (*next).borrow();
+        let pv = builder.public_values();
+        let pv_elms: [AB::Expr; RECURSIVE_PROOF_NUM_PV_ELTS] =
+            core::array::from_fn(|i| pv[i].into());
+        let public_values: &RecursionPublicValues<AB::Expr> = pv_elms.as_slice().borrow();
+
         let zero = AB::Expr::zero();
         let one = AB::Expr::one();
 
@@ -73,8 +80,17 @@ where
         ];
         builder.send_table(local.instruction.opcode, &operands, send_syscall);
 
+        // Constrain the public values digest.
+        self.eval_commit(builder, local, public_values.digest.clone());
+
         // Constrain the clk.
         self.eval_clk(builder, local, next);
+
+        // Constrain the system instructions (TRAP, HALT).
+        self.eval_system_instructions(builder, local, next);
+
+        // Constrain the is_real_flag.
+        self.eval_is_real(builder, local, next);
     }
 }
 
@@ -99,6 +115,27 @@ impl<F: Field> CpuChip<F> {
             .when(next.is_real)
             .when(local.selectors.is_fri_fold)
             .assert_eq(local.clk.into() + local.a.value()[0], next.clk);
+    }
+
+    /// Eval the is_real flag.
+    pub fn eval_is_real<AB>(
+        &self,
+        builder: &mut AB,
+        local: &CpuCols<AB::Var>,
+        next: &CpuCols<AB::Var>,
+    ) where
+        AB: SP1RecursionAirBuilder,
+    {
+        builder.assert_bool(local.is_real);
+
+        // First row should be real.
+        builder.when_first_row().assert_one(local.is_real);
+
+        // Once rows transition to not real, then they should stay not real.
+        builder
+            .when_transition()
+            .when_not(local.is_real)
+            .assert_zero(next.is_real);
     }
 
     /// Expr to check for alu instructions.
@@ -146,5 +183,13 @@ impl<F: Field> CpuChip<F> {
             + local.selectors.is_fri_fold
             + local.selectors.is_poseidon
             + local.selectors.is_store
+    }
+
+    /// Expr to check for instructions that are commit instructions.
+    pub fn is_commit_instruction<AB>(&self, local: &CpuCols<AB::Var>) -> AB::Expr
+    where
+        AB: SP1RecursionAirBuilder<F = F>,
+    {
+        local.selectors.is_commit.into()
     }
 }

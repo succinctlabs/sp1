@@ -1,0 +1,13 @@
+[package]
+version = "0.1.0"
+name = "sp1-aggregation-example-script"
+edition = "2021"
+default-run = "sp1-aggregation-example-script"
+
+[dependencies]
+hex = "0.4.3"
+sp1-sdk = { path = "../../../sdk" }
+tracing = "0.1.40"
+
+[build-dependencies]
+sp1-helper = { path = "../../../helper" }

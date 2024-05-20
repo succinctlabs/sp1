@@ -1,5 +1,6 @@
-use crate::runtime::MAX_SHARD_CLK;
 use crate::utils::log2_strict_usize;
+
+pub const MAX_SHARD_CLK: usize = (1 << 24) - 1;
 
 /// Gets the number of rows which by default should be used for each chip to maximize padding.
 pub fn shard_size() -> usize {
@@ -42,6 +43,6 @@ pub fn reconstruct_commitments() -> bool {
 pub fn shard_batch_size() -> u32 {
     match std::env::var("SHARD_BATCH_SIZE") {
         Ok(val) => val.parse().unwrap(),
-        Err(_) => 0,
+        Err(_) => 128,
     }
 }

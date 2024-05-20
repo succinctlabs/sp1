@@ -4,29 +4,19 @@ use futures::StreamExt;
 use indicatif::{ProgressBar, ProgressStyle};
 use reqwest::Client;
 
+use crate::utils::block_on;
+
 /// The base URL for the S3 bucket containing the groth16 artifacts.
 pub const GROTH16_ARTIFACTS_URL_BASE: &str = "https://sp1-circuits.s3-us-east-2.amazonaws.com";
 
 /// The current version of the groth16 artifacts.
-pub const GROTH16_ARTIFACTS_COMMIT: &str = "49fedbe4";
+pub const GROTH16_ARTIFACTS_COMMIT: &str = "9f43e920";
 
 /// Install the latest groth16 artifacts.
 ///
 /// This function will download the latest groth16 artifacts from the S3 bucket and extract them to
 /// the directory specified by [groth16_artifacts_dir()].
 pub fn install_groth16_artifacts(build_dir: PathBuf) {
-    // If build directory already exists, skip the download.
-    if build_dir.exists() {
-        println!("[sp1] groth16 artifacts already seem to exist at {}. if you want to re-download them, delete the directory", build_dir.display());
-        return;
-    } else {
-        println!(
-            "[sp1] groth16 artifacts for commit {} do not exist at {}. downloading...",
-            GROTH16_ARTIFACTS_COMMIT,
-            build_dir.display()
-        );
-    }
-
     // Create the build directory.
     std::fs::create_dir_all(&build_dir).expect("failed to create build directory");
 
@@ -37,11 +27,10 @@ pub fn install_groth16_artifacts(build_dir: PathBuf) {
     );
     let mut artifacts_tar_gz_file =
         tempfile::NamedTempFile::new().expect("failed to create tempfile");
-    let rt = tokio::runtime::Runtime::new().expect("failed to create tokio runtime");
     let client = Client::builder()
         .build()
         .expect("failed to create reqwest client");
-    rt.block_on(download_file(
+    block_on(download_file(
         &client,
         &download_url,
         &mut artifacts_tar_gz_file,

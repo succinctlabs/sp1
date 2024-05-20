@@ -1,8 +1,8 @@
-[workspace]
 [package]
 version = "0.1.0"
 name = "fibonacci-script"
 edition = "2021"
+default-run = "fibonacci-script"
 
 [dependencies]
 itertools = "0.12.1"
@@ -23,3 +23,7 @@ path = "bin/compressed.rs"
 [[bin]]
 name = "execute"
 path = "bin/execute.rs"
+
+[[bin]]
+name = "fibonacci-script"
+path = "src/main.rs"

@@ -134,6 +134,9 @@ pub enum AsmInstruction<F, EF> {
     /// Trap.
     Trap,
 
+    /// Halt.
+    Halt,
+
     /// Break(label)
     Break(F),
 
@@ -170,6 +173,9 @@ pub enum AsmInstruction<F, EF> {
 
     // Commit(val, index).
     Commit(i32, i32),
+
+    // RegisterPublicValue(val).
+    RegisterPublicValue(i32),
 
     LessThan(i32, i32, i32),
 
@@ -703,6 +709,17 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 false,
                 "".to_string(),
             ),
+            AsmInstruction::Halt => Instruction::new(
+                Opcode::HALT,
+                F::zero(),
+                zero,
+                zero,
+                F::zero(),
+                F::zero(),
+                false,
+                false,
+                "".to_string(),
+            ),
             AsmInstruction::HintBits(dst, src) => Instruction::new(
                 Opcode::HintBits,
                 i32_f(dst),
@@ -828,6 +845,17 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 Opcode::Commit,
                 i32_f(val),
                 i32_f_arr(index),
+                f_u32(F::zero()),
+                F::zero(),
+                F::zero(),
+                false,
+                true,
+                "".to_string(),
+            ),
+            AsmInstruction::RegisterPublicValue(val) => Instruction::new(
+                Opcode::RegisterPublicValue,
+                i32_f(val),
+                f_u32(F::zero()),
                 f_u32(F::zero()),
                 F::zero(),
                 F::zero(),
@@ -1071,6 +1099,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 )
             }
             AsmInstruction::Trap => write!(f, "trap"),
+            AsmInstruction::Halt => write!(f, "halt"),
             AsmInstruction::HintBits(dst, src) => write!(f, "hint_bits ({})fp, ({})fp", dst, src),
             AsmInstruction::Poseidon2Permute(dst, src) => {
                 write!(f, "poseidon2_permute ({})fp, ({})fp", dst, src)
@@ -1099,6 +1128,9 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
             }
             AsmInstruction::Commit(val, index) => {
                 write!(f, "commit ({})fp ({})fp", val, index)
+            }
+            AsmInstruction::RegisterPublicValue(val) => {
+                write!(f, "register_public_value ({})fp", val)
             }
             AsmInstruction::CycleTracker(name) => {
                 write!(f, "cycle-tracker {}", name)

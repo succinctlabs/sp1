@@ -5,7 +5,7 @@ name = "unnamed-script"
 edition = "2021"
 
 [dependencies]
-sp1-sdk = { git = "https://github.com/succinctlabs/sp1.git", rev = "v1.0.0-testnet" }
+sp1-sdk = { git = "https://github.com/succinctlabs/sp1.git", branch = "main" }
 
 [build-dependencies]
-sp1-helper = { git = "https://github.com/succinctlabs/sp1.git", rev = "v1.0.0-testnet"  }
+sp1-helper = { git = "https://github.com/succinctlabs/sp1.git", branch = "main" }

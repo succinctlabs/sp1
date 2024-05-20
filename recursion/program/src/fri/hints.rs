@@ -27,7 +27,7 @@ impl Hintable<C> for InnerDigest {
     }
 
     fn write(&self) -> Vec<Vec<Block<InnerVal>>> {
-        let h: [InnerVal; DIGEST_SIZE] = (*self).into();
+        let h: [InnerVal; DIGEST_SIZE] = *self;
         vec![h.iter().map(|x| Block::from(*x)).collect()]
     }
 }

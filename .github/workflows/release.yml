@@ -6,18 +6,15 @@ on:
   push:
     tags:
       - "v*.*.*"
-  schedule:
-    - cron: "0 0 * * *"
   workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
-  IS_NIGHTLY: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
 
 jobs:
   prepare:
     name: Prepare release
-    runs-on: ubuntu-latest
+    runs-on: runs-on,runner=8cpu-linux-x64
     timeout-minutes: 30
     outputs:
       tag_name: ${{ steps.release_info.outputs.tag_name }}
@@ -67,9 +64,6 @@ jobs:
           toTag: ${{ steps.release_info.outputs.tag_name }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-
-
 
   release:
     name: ${{ matrix.target }} (${{ matrix.runner }})

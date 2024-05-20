@@ -30,6 +30,7 @@ pub enum Opcode {
 
     // System instructions.
     TRAP = 30,
+    HALT = 31,
 
     // Hash instructions.
     Poseidon2Compress = 39,
@@ -46,8 +47,9 @@ pub enum Opcode {
     Hint = 38,
     BNEINC = 40,
     Commit = 41,
-    LessThanF = 42,
-    CycleTracker = 43,
+    RegisterPublicValue = 42,
+    LessThanF = 43,
+    CycleTracker = 44,
 }
 
 impl Opcode {

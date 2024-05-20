@@ -588,6 +588,10 @@ where
                     }
                     exit(1);
                 }
+                Opcode::HALT => {
+                    let (a_val, b_val, c_val) = self.all_rr(&instruction);
+                    (a, b, c) = (a_val, b_val, c_val);
+                }
                 Opcode::Ext2Felt => {
                     let (a_val, b_val, c_val) = self.all_rr(&instruction);
                     let dst = a_val[0].as_canonical_u32() as usize;
@@ -791,13 +795,9 @@ where
                     next_clk = timestamp;
                     (a, b, c) = (a_val, b_val, c_val);
                 }
-                Opcode::Commit => {
+                // For both the Commit and RegisterPublicValue opcodes, we record the public value
+                Opcode::Commit | Opcode::RegisterPublicValue => {
                     let (a_val, b_val, c_val) = self.all_rr(&instruction);
-
-                    // Ensure that writes are in order (index should == public_values.len)
-                    let index = b_val[0].as_canonical_u32() as usize;
-                    debug_assert_eq!(index, self.record.public_values.len());
-
                     self.record.public_values.push(a_val[0]);
 
                     (a, b, c) = (a_val, b_val, c_val);
@@ -808,7 +808,7 @@ where
                 clk: self.clk,
                 pc: self.pc,
                 fp: self.fp,
-                instruction,
+                instruction: instruction.clone(),
                 a,
                 a_record: self.access.a,
                 b,
@@ -823,7 +823,7 @@ where
             self.timestamp += 1;
             self.access = CpuRecord::default();
 
-            if self.timestamp >= early_exit_ts {
+            if self.timestamp >= early_exit_ts || instruction.opcode == Opcode::HALT {
                 break;
             }
         }

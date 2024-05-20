@@ -284,7 +284,7 @@ mod tests {
         let (_, vk) = machine.setup(&Program::from(elf));
         let mut challenger = machine.config().challenger();
         let (proof, _) =
-            sp1_core::utils::run_and_prove(Program::from(elf), &SP1Stdin::new(), SC::default());
+            sp1_core::utils::prove(Program::from(elf), &SP1Stdin::new(), SC::default()).unwrap();
         machine.verify(&vk, &proof, &mut challenger).unwrap();
 
         println!("Proof generated and verified successfully");
@@ -345,6 +345,7 @@ mod tests {
             }
             break;
         }
+        builder.halt();
 
         let program = builder.compile_program();
         run_test_recursion(program, None, TestConfig::All);

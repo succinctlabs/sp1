@@ -30,7 +30,7 @@ impl<F: PrimeField32> Poseidon2Event<F> {
             MemoryRecord::new_read(F::zero(), Block::from(input[i]), F::one(), F::zero())
         });
         let output_records: [MemoryRecord<F>; WIDTH] = core::array::from_fn(|i| {
-            MemoryRecord::new_read(F::zero(), Block::from(output[i]), F::one(), F::zero())
+            MemoryRecord::new_read(F::zero(), Block::from(output[i]), F::two(), F::zero())
         });
 
         Self {

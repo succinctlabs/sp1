@@ -1,0 +1,13 @@
+[workspace]
+[package]
+version = "0.1.0"
+name = "aggregation-program"
+edition = "2021"
+
+[dependencies]
+hex = "0.4.3"
+sha2 = "0.10.8"
+sp1-zkvm = { git = "https://github.com/succinctlabs/sp1.git", features = ["verify"], rev = "v1.0.0-testnet" }
+
+[patch.crates-io]
+sha2-v0-10-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes.git", package = "sha2", branch = "patch-v0.10.8" }

@@ -35,6 +35,7 @@ pub struct OpcodeSelectorCols<T> {
     // System instructions.
     pub is_trap: T,
     pub is_noop: T,
+    pub is_halt: T,
 
     pub is_poseidon: T,
     pub is_fri_fold: T,
@@ -61,6 +62,7 @@ impl<F: Field> OpcodeSelectorCols<F> {
             Opcode::JAL => self.is_jal = F::one(),
             Opcode::JALR => self.is_jalr = F::one(),
             Opcode::TRAP => self.is_trap = F::one(),
+            Opcode::HALT => self.is_halt = F::one(),
             Opcode::FRIFold => self.is_fri_fold = F::one(),
             Opcode::Poseidon2Compress => self.is_poseidon = F::one(),
             // TODO: Double-check that `is_noop` is constrained properly in the CPU air.
@@ -69,6 +71,7 @@ impl<F: Field> OpcodeSelectorCols<F> {
             Opcode::PrintF => self.is_noop = F::one(),
             Opcode::PrintE => self.is_noop = F::one(),
             Opcode::Commit => self.is_commit = F::one(),
+            Opcode::RegisterPublicValue => self.is_noop = F::one(),
             _ => {}
         }
 
@@ -101,6 +104,7 @@ impl<T: Copy> IntoIterator for &OpcodeSelectorCols<T> {
             self.is_jal,
             self.is_jalr,
             self.is_trap,
+            self.is_halt,
             self.is_noop,
             self.is_poseidon,
             self.is_fri_fold,

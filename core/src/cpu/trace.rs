@@ -595,8 +595,12 @@ impl CpuChip {
 
     fn pad_to_power_of_two<F: PrimeField>(values: &mut Vec<F>) {
         let n_real_rows = values.len() / NUM_CPU_COLS;
-
-        values.resize(n_real_rows.next_power_of_two() * NUM_CPU_COLS, F::zero());
+        let padded_nb_rows = if n_real_rows < 16 {
+            16
+        } else {
+            n_real_rows.next_power_of_two()
+        };
+        values.resize(padded_nb_rows * NUM_CPU_COLS, F::zero());
 
         // Interpret values as a slice of arrays of length `NUM_CPU_COLS`
         let rows = unsafe {
@@ -658,7 +662,7 @@ mod tests {
     fn generate_trace_simple_program() {
         let program = simple_program();
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         let chip = CpuChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&runtime.record, &mut ExecutionRecord::default());

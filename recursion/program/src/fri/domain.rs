@@ -215,7 +215,7 @@ pub(crate) mod tests {
         // Initialize a builder.
         let mut builder = AsmBuilder::<F, EF>::default();
 
-        let config_var = const_fri_config(&mut builder, inner_fri_config());
+        let config_var = const_fri_config(&mut builder, &inner_fri_config());
         for i in 0..5 {
             let log_d_val = 10 + i;
 
@@ -267,6 +267,7 @@ pub(crate) mod tests {
                 domain_assertions(&mut builder, &dom, dom_val, zeta_val);
             }
         }
+        builder.halt();
 
         let program = builder.compile_program();
         run_test_recursion(program, None, TestConfig::All);
