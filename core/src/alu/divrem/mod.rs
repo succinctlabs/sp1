@@ -682,7 +682,7 @@ where
                 local.abs_remainder,
                 local.max_abs_c_or_1,
                 local.shard,
-                local.is_real,
+                local.is_real * local.is_c_0.result,
             );
         }
 
