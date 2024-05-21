@@ -57,3 +57,4 @@ path = "scripts/e2e.rs"
 
 [features]
 neon = ["sp1-core/neon"]
+groth16 = ["sp1-recursion-gnark-ffi/groth16"]

@@ -6,6 +6,7 @@ use std::process::Command;
 use bindgen::CargoCallbacks;
 
 /// Build the go library, generate Rust bindings for the exposed functions, and link the library.
+#[cfg(feature = "groth16")]
 fn main() {
     println!("cargo:rerun-if-changed=go");
     // Define the output directory
