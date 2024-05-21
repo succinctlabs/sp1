@@ -1,6 +1,5 @@
 mod alu;
 mod branch;
-mod hint;
 mod jump;
 mod memory;
 mod operands;
@@ -70,9 +69,6 @@ where
                 .when(next.is_real)
                 .assert_eq(next_pc, next.pc);
         }
-
-        // Constrain HintExt2Felt instruction.
-        self.eval_hint_ext2felt(builder, local);
 
         // Constrain the syscalls.
         let send_syscall = local.selectors.is_poseidon + local.selectors.is_fri_fold;

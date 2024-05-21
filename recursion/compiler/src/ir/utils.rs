@@ -204,6 +204,17 @@ impl<C: Config> Builder<C> {
         let result = self.dyn_array(4);
         self.operations
             .push(DslIr::HintExt2Felt(result.clone(), value));
+
+        // Verify that the decomposed extension element is correct.
+        let mut reconstructed_ext: Ext<C::F, C::EF> = self.constant(C::EF::zero());
+        for i in 0..4 {
+            let felt = self.get(&result, i);
+            let monomial: Ext<C::F, C::EF> = self.constant(C::EF::monomial(i));
+            reconstructed_ext = self.eval(reconstructed_ext + monomial * felt);
+        }
+
+        self.assert_ext_eq(reconstructed_ext, value);
+
         result
     }
 
