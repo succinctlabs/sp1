@@ -3,6 +3,23 @@ use crate::{
     utils::{BabyBearPoseidon2, Buffer},
 };
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use std::{convert::TryInto, io::Read};
+
+// Serialize and align data to u32 boundaries
+fn serialize_to_u32_aligned<T: Serialize>(data: &T) -> Vec<u8> {
+    let serialized = bincode::serialize(data).expect("Failed to serialize data");
+    let padding_size = (4 - serialized.len() % 4) % 4;
+    let mut aligned_data = serialized;
+    aligned_data.resize(aligned_data.len() + padding_size, 0); // Add padding
+    aligned_data
+}
+
+// Deserialize data assuming it is u32 aligned
+fn deserialize_from_u32_aligned<T: DeserializeOwned>(data: &[u8]) -> T {
+    let actual_length = data.len() - (data.len() % 4);
+    let aligned_data = &data[..actual_length];
+    bincode::deserialize(aligned_data).expect("Failed to deserialize data")
+}
 
 /// Standard input for the prover.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -44,10 +61,9 @@ impl SP1Stdin {
 
     /// Read a value from the buffer.
     pub fn read<T: Serialize + DeserializeOwned>(&mut self) -> T {
-        let result: T =
-            bincode::deserialize(&self.buffer[self.ptr]).expect("failed to deserialize");
-        self.ptr += 1;
-        result
+        let data = &self.buffer[self.ptr];
+        self.ptr += 1; // Increment the pointer after reading
+        deserialize_from_u32_aligned(data)
     }
 
     /// Read a slice of bytes from the buffer.
