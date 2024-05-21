@@ -61,9 +61,10 @@ impl SP1Stdin {
 
     /// Read a value from the buffer.
     pub fn read<T: Serialize + DeserializeOwned>(&mut self) -> T {
-        let data = &self.buffer[self.ptr];
-        self.ptr += 1; // Increment the pointer after reading
-        deserialize_from_u32_aligned(data)
+        let result: T =
+            bincode::deserialize(&self.buffer[self.ptr]).expect("failed to deserialize");
+        self.ptr += 1;
+        result
     }
 
     /// Read a slice of bytes from the buffer.
