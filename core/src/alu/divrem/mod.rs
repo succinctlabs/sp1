@@ -183,6 +183,9 @@ pub struct DivRemCols<T> {
 
     /// Selector to know whether this row is enabled.
     pub is_real: T,
+
+    /// Column to modify multiplicity for remainder range check event.
+    pub remainder_check_multiplicity: T,
 }
 
 impl<F: PrimeField> MachineAir<F> for DivRemChip {
@@ -269,6 +272,11 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                     }
                     output.add_byte_lookup_events(blu_events);
                 }
+            }
+
+            // Calculate the modified multiplicity
+            {
+                cols.remainder_check_multiplicity = cols.is_real * cols.is_c_0.result;
             }
 
             // Calculate c * quotient + remainder.
@@ -364,7 +372,9 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                             clk: event.clk,
                         }
                     };
-                    output.add_lt_event(lt_event);
+                    if cols.remainder_check_multiplicity == F::one() {
+                        output.add_lt_event(lt_event);
+                    }
                 }
 
                 // Range check.
@@ -674,6 +684,12 @@ where
                 is_signed * slt + is_unsigned * sltu
             };
 
+            // Check that the event multiplicity column is computed correctly.
+            builder.assert_eq(
+                local.remainder_check_multiplicity,
+                local.is_c_0.result * local.is_real,
+            );
+
             // Dispatch abs(remainder) < max(abs(c), 1), this is equivalent to abs(remainder) <
             // abs(c) if not division by 0.
             builder.send_alu(
@@ -682,7 +698,7 @@ where
                 local.abs_remainder,
                 local.max_abs_c_or_1,
                 local.shard,
-                local.is_real * local.is_c_0.result,
+                local.remainder_check_multiplicity,
             );
         }
 
