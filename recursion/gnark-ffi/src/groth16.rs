@@ -36,7 +36,6 @@ macro_rules! cfg_groth16 {
 
             #[cfg(not(feature = "groth16"))]
             {
-                #[allow(dead_code)]
                 fn $item() {
                     panic!("groth16 feature not enabled");
                 }
