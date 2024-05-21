@@ -136,3 +136,9 @@ impl Groth16Prover {
         }
     }
 }
+
+impl Default for Groth16Prover {
+    fn default() -> Self {
+        Self::new()
+    }
+}
