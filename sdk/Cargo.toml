@@ -3,6 +3,10 @@ name = "sp1-sdk"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "export_verifier"
+path = "src/bin/export_verifier.rs"
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
@@ -13,7 +17,11 @@ serde_json = "1.0.117"
 twirp = { git = "https://github.com/github/twirp-rs.git", rev = "c85f31f9c54957374e7dcb3534fc52cff0aa2dc5" }
 async-trait = "0.1.80"
 reqwest-middleware = "0.3.1"
-reqwest = { version = "0.12.4", features = ["rustls-tls", "trust-dns", "stream"] }
+reqwest = { version = "0.12.4", features = [
+    "rustls-tls",
+    "trust-dns",
+    "stream",
+] }
 anyhow = "1.0.83"
 sp1-prover = { path = "../prover" }
 sp1-core = { path = "../core" }
@@ -32,6 +40,7 @@ alloy = { git = "https://github.com/alloy-rs/alloy", rev = "bfd0fda", features =
     "contract",
     "signer-wallet",
 ] }
+clap = { version = "4.5.4", features = ["derive", "env"] }
 dotenv = "0.15.0"
 sha2 = "0.10.8"
 dirs = "5.0.1"

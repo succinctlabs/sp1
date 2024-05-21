@@ -4709,6 +4709,7 @@ dependencies = [
  "async-trait",
  "axum",
  "bincode",
+ "clap",
  "dirs",
  "dotenv",
  "futures",
