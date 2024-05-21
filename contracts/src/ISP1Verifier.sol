@@ -1,6 +1,9 @@
-/// @title SP1 Verifier
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.17;
+
+/// @title SP1 Verifier Interface
 /// @author Succinct Labs
-/// @notice This contracts implements a solidity verifier for SP1.
+/// @notice This contract is the interface for the SP1 Verifier.
 interface ISP1Verifier {
     /// @notice Verifies a proof with given public values and vkey.
     /// @param vkey The verification key for the RISC-V program.

@@ -53,6 +53,7 @@ impl Groth16Prover {
         );
     }
 
+    /// Builds the verifier with the given constraints and witness.
     pub fn build<C: Config>(constraints: Vec<Constraint>, witness: Witness<C>, build_dir: PathBuf) {
         let serialized = serde_json::to_string(&constraints).unwrap();
 
