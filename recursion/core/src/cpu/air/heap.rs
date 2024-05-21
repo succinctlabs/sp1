@@ -15,7 +15,7 @@ impl<F: Field> CpuChip<F> {
     where
         AB: SP1RecursionAirBuilder<F = F>,
     {
-        let heap_columns = local.opcode_specific.heap_increment();
+        let heap_columns = local.opcode_specific.heap_expand();
 
         let heap_size = local.a.value()[0] - AB::Expr::from_canonical_usize(STACK_SIZE + 4);
 

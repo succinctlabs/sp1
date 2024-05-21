@@ -6,7 +6,7 @@ use sp1_core::utils::indices_arr;
 use sp1_derive::AlignedBorrow;
 
 mod branch;
-mod heap_increment;
+mod heap_expand;
 mod instruction;
 mod memory;
 mod opcode;
