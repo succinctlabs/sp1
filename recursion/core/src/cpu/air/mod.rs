@@ -1,5 +1,6 @@
 mod alu;
 mod branch;
+mod heap;
 mod jump;
 mod memory;
 mod operands;
@@ -88,6 +89,9 @@ where
 
         // Constrain the system instructions (TRAP, HALT).
         self.eval_system_instructions(builder, local, next, public_values);
+
+        // Constrain the heap ptr value.
+        self.eval_heap_ptr(builder, local);
 
         // Constrain the is_real_flag.
         self.eval_is_real(builder, local, next);
