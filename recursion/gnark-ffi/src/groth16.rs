@@ -16,8 +16,6 @@ use sp1_recursion_compiler::{
     ir::{Config, Witness},
 };
 
-use cfg_if::cfg_if;
-
 /// A prover that can generate proofs with the Groth16 protocol using bindings to Gnark.
 #[derive(Debug, Clone)]
 pub struct Groth16Prover;
@@ -97,8 +95,6 @@ impl Groth16Prover {
         let gnark_witness = GnarkWitness::new(witness);
         let serialized = serde_json::to_string(&gnark_witness).unwrap();
         witness_file.write_all(serialized.as_bytes()).unwrap();
-
-        let serialized = serde_json::to_string(&gnark_witness).unwrap();
 
         prove_groth16(
             build_dir.to_str().unwrap(),
