@@ -121,6 +121,7 @@ unsafe fn c_char_ptr_to_string(input: *mut c_char) -> String {
     }
 }
 
+#[cfg(feature = "groth16")]
 impl C_Groth16Proof {
     /// Converts a C Groth16Proof into a Rust Groth16Proof, freeing the C strings.
     fn into_rust(self) -> Groth16Proof {
