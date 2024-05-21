@@ -1,11 +1,12 @@
-use crate::runtime::MAX_SHARD_CLK;
 use crate::utils::log2_strict_usize;
+
+pub const MAX_SHARD_CLK: usize = (1 << 24) - 1;
 
 /// Gets the number of rows which by default should be used for each chip to maximize padding.
 pub fn shard_size() -> usize {
     let value = match std::env::var("SHARD_SIZE") {
         Ok(val) => val.parse().unwrap(),
-        Err(_) => 1 << 19,
+        Err(_) => 1 << 22,
     };
 
     if value > MAX_SHARD_CLK {
@@ -19,11 +20,11 @@ pub fn shard_size() -> usize {
     value
 }
 
-/// Gets the number of shards after which we should save the shard commits to disk.
-pub fn save_disk_threshold() -> usize {
-    match std::env::var("SAVE_DISK_THRESHOLD") {
+/// A constant used to determine how many shards get chunked per core on the CPU.
+pub fn shard_chunking_multiplier() -> usize {
+    match std::env::var("SHARD_CHUNKING_MULTIPLIER") {
         Ok(val) => val.parse().unwrap(),
-        Err(_) => 256,
+        Err(_) => 1,
     }
 }
 
@@ -42,6 +43,6 @@ pub fn reconstruct_commitments() -> bool {
 pub fn shard_batch_size() -> u32 {
     match std::env::var("SHARD_BATCH_SIZE") {
         Ok(val) => val.parse().unwrap(),
-        Err(_) => 0,
+        Err(_) => 128,
     }
 }

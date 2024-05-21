@@ -4,8 +4,8 @@ use p3_field::AbstractField;
 use sp1_core::stark::StarkGenericConfig;
 use sp1_core::utils::BabyBearPoseidon2;
 use sp1_recursion_compiler::asm::AsmBuilder;
-use sp1_recursion_compiler::ir::ExtConst;
-use sp1_recursion_compiler::ir::{Ext, Felt};
+use sp1_recursion_compiler::ir::{Ext, Felt, SymbolicExt};
+use sp1_recursion_compiler::ir::{ExtConst, Var};
 use sp1_recursion_core::runtime::Runtime;
 
 #[test]
@@ -33,24 +33,46 @@ fn test_compiler_arithmetic() {
     builder.assert_ext_eq(one_ext - one_ext, EF::zero().cons());
 
     for _ in 0..num_tests {
-        let a_val = rng.gen::<F>();
-        let b_val = rng.gen::<F>();
-        let a: Felt<_> = builder.eval(a_val);
-        let b: Felt<_> = builder.eval(b_val);
-        builder.assert_felt_eq(a + b, a_val + b_val);
-        builder.assert_felt_eq(a + b, a + b_val);
-        builder.assert_felt_eq(a * b, a_val * b_val);
-        builder.assert_felt_eq(a - b, a_val - b_val);
-        builder.assert_felt_eq(a / b, a_val / b_val);
+        let a_var_val = rng.gen::<F>();
+        let b_var_val = rng.gen::<F>();
+        let a_var: Var<_> = builder.eval(a_var_val);
+        let b_var: Var<_> = builder.eval(b_var_val);
+        builder.assert_var_eq(a_var + b_var, a_var_val + b_var_val);
+        builder.assert_var_eq(a_var * b_var, a_var_val * b_var_val);
+        builder.assert_var_eq(a_var - b_var, a_var_val - b_var_val);
+        builder.assert_var_eq(-a_var, -a_var_val);
+
+        let a_felt_val = rng.gen::<F>();
+        let b_felt_val = rng.gen::<F>();
+        let a: Felt<_> = builder.eval(a_felt_val);
+        let b: Felt<_> = builder.eval(b_felt_val);
+        builder.assert_felt_eq(a + b, a_felt_val + b_felt_val);
+        builder.assert_felt_eq(a + b, a + b_felt_val);
+        builder.assert_felt_eq(a * b, a_felt_val * b_felt_val);
+        builder.assert_felt_eq(a - b, a_felt_val - b_felt_val);
+        builder.assert_felt_eq(a / b, a_felt_val / b_felt_val);
+        builder.assert_felt_eq(-a, -a_felt_val);
 
         let a_ext_val = rng.gen::<EF>();
         let b_ext_val = rng.gen::<EF>();
         let a_ext: Ext<_, _> = builder.eval(a_ext_val.cons());
         let b_ext: Ext<_, _> = builder.eval(b_ext_val.cons());
         builder.assert_ext_eq(a_ext + b_ext, (a_ext_val + b_ext_val).cons());
+        builder.assert_ext_eq(
+            -a_ext / b_ext + (a_ext * b_ext) * (a_ext * b_ext),
+            (-a_ext_val / b_ext_val + (a_ext_val * b_ext_val) * (a_ext_val * b_ext_val)).cons(),
+        );
+        let mut a_expr = SymbolicExt::from(a_ext);
+        let mut a_val = a_ext_val;
+        for _ in 0..10 {
+            a_expr += b_ext * a_val + EF::one();
+            a_val += b_ext_val * a_val + EF::one();
+            builder.assert_ext_eq(a_expr.clone(), a_val.cons())
+        }
         builder.assert_ext_eq(a_ext * b_ext, (a_ext_val * b_ext_val).cons());
         builder.assert_ext_eq(a_ext - b_ext, (a_ext_val - b_ext_val).cons());
         builder.assert_ext_eq(a_ext / b_ext, (a_ext_val / b_ext_val).cons());
+        builder.assert_ext_eq(-a_ext, (-a_ext_val).cons());
     }
 
     let program = builder.compile_program();

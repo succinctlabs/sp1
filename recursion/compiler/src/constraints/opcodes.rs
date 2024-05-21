@@ -13,6 +13,7 @@ pub enum ConstraintOpcode {
     SubV,
     SubF,
     SubE,
+    SubEF,
     MulV,
     MulF,
     MulE,
@@ -42,4 +43,7 @@ pub enum ConstraintOpcode {
     WitnessV,
     WitnessF,
     WitnessE,
+    CommitVkeyHash,
+    CommitCommitedValuesDigest,
+    CircuitFelts2Ext,
 }

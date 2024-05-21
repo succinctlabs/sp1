@@ -40,19 +40,13 @@ impl<F: Field> IsEqualWordOperation<F> {
 
         // Calculate differences in limbs.
         let diff = Word([
-            a[0].clone() - b.0[0].clone(),
-            a[1].clone() - b.0[1].clone(),
-            a[2].clone() - b.0[2].clone(),
-            a[3].clone() - b.0[3].clone(),
+            a[0].clone() - b[0].clone(),
+            a[1].clone() - b[1].clone(),
+            a[2].clone() - b[2].clone(),
+            a[3].clone() - b[3].clone(),
         ]);
 
         // Check if the difference is 0.
         IsZeroWordOperation::<AB::F>::eval(builder, diff, cols.is_diff_zero, is_real.clone());
-
-        // Degree 3 constraint to avoid "OodEvaluationMismatch".
-        builder.assert_zero(
-            is_real.clone() * is_real.clone() * is_real.clone()
-                - is_real.clone() * is_real.clone() * is_real.clone(),
-        );
     }
 }

@@ -7,7 +7,7 @@ const JSON_ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkv
 
 fn main() {
     // setup tracer for logging.
-    utils::setup_tracer();
+    utils::setup_logger();
 
     // Generate proof.
     let mut stdin = SP1Stdin::new();
@@ -46,7 +46,8 @@ fn main() {
     stdin.write(&transactions);
 
     let client = ProverClient::new();
-    let mut proof = client.prove(JSON_ELF, stdin).expect("proving failed");
+    let (pk, vk) = client.setup(JSON_ELF);
+    let mut proof = client.prove(&pk, stdin).expect("proving failed");
 
     // Read output.
     let val = proof.public_values.read::<String>();
@@ -59,9 +60,7 @@ fn main() {
     );
 
     // Verify proof.
-    client
-        .verify(JSON_ELF, &proof)
-        .expect("verification failed");
+    client.verify(&proof, &vk).expect("verification failed");
 
     // Save proof.
     proof

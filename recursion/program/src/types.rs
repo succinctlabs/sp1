@@ -1,7 +1,7 @@
 use p3_air::BaseAir;
 use p3_field::{AbstractExtensionField, AbstractField};
 use sp1_core::{
-    air::MachineAir,
+    air::{MachineAir, Word, PV_DIGEST_NUM_WORDS, WORD_SIZE},
     stark::{AirOpenedValues, Chip, ChipOpenedValues},
 };
 use sp1_recursion_compiler::prelude::*;
@@ -13,11 +13,24 @@ use crate::fri::TwoAdicMultiplicativeCosetVariable;
 /// Reference: [sp1_core::stark::ShardProof]
 #[derive(DslVariable, Clone)]
 pub struct ShardProofVariable<C: Config> {
-    pub index: Var<C::N>,
     pub commitment: ShardCommitmentVariable<C>,
     pub opened_values: ShardOpenedValuesVariable<C>,
     pub opening_proof: TwoAdicPcsProofVariable<C>,
     pub public_values: Array<C, Felt<C::F>>,
+    pub quotient_data: Array<C, QuotientData<C>>,
+    pub sorted_idxs: Array<C, Var<C::N>>,
+}
+
+#[derive(DslVariable, Clone, Copy)]
+pub struct QuotientData<C: Config> {
+    pub log_quotient_degree: Var<C::N>,
+    pub quotient_size: Var<C::N>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct QuotientDataValues {
+    pub log_quotient_degree: usize,
+    pub quotient_size: usize,
 }
 
 /// Reference: [sp1_core::stark::VerifyingKey]
@@ -25,6 +38,8 @@ pub struct ShardProofVariable<C: Config> {
 pub struct VerifyingKeyVariable<C: Config> {
     pub commitment: DigestVariable<C>,
     pub pc_start: Felt<C::F>,
+    pub preprocessed_sorted_idxs: Array<C, Var<C::N>>,
+    pub prep_domains: Array<C, TwoAdicMultiplicativeCosetVariable<C>>,
 }
 
 /// Reference: [sp1_core::stark::ShardCommitment]
@@ -70,7 +85,32 @@ pub struct AirOpenedValuesVariable<C: Config> {
     pub next: Array<C, Ext<C::F, C::EF>>,
 }
 
+#[derive(DslVariable, Debug, Clone)]
+pub struct Sha256DigestVariable<C: Config> {
+    pub bytes: Array<C, Felt<C::F>>,
+}
+
+impl<C: Config> Sha256DigestVariable<C> {
+    pub fn from_words(builder: &mut Builder<C>, words: &[Word<Felt<C::F>>]) -> Self {
+        let mut bytes = builder.array(PV_DIGEST_NUM_WORDS * WORD_SIZE);
+        for (i, word) in words.iter().enumerate() {
+            for j in 0..WORD_SIZE {
+                let byte = word[j];
+                builder.set(&mut bytes, i * WORD_SIZE + j, byte);
+            }
+        }
+        Sha256DigestVariable { bytes }
+    }
+}
+
 impl<C: Config> ChipOpening<C> {
+    /// Collect opening values from a dynamic array into vectors.
+    ///
+    /// This method is used to convert a `ChipOpenedValuesVariable` into a `ChipOpenedValues`, which
+    /// are the same values but with each opening converted from a dynamic array into a Rust vector.
+    ///
+    /// *Safety*: This method also verifies that the legnth of the dynamic arrays match the expected
+    /// length of the vectors.
     pub fn from_variable<A>(
         builder: &mut Builder<C>,
         chip: &Chip<C::F, A>,
@@ -83,8 +123,11 @@ impl<C: Config> ChipOpening<C> {
             local: vec![],
             next: vec![],
         };
-
         let preprocessed_width = chip.preprocessed_width();
+        // Assert that the length of the dynamic arrays match the expected length of the vectors.
+        builder.assert_usize_eq(preprocessed_width, opening.preprocessed.local.len());
+        builder.assert_usize_eq(preprocessed_width, opening.preprocessed.next.len());
+        // Collect the preprocessed values into vectors.
         for i in 0..preprocessed_width {
             preprocessed
                 .local
@@ -99,6 +142,10 @@ impl<C: Config> ChipOpening<C> {
             next: vec![],
         };
         let main_width = chip.width();
+        // Assert that the length of the dynamic arrays match the expected length of the vectors.
+        builder.assert_usize_eq(main_width, opening.main.local.len());
+        builder.assert_usize_eq(main_width, opening.main.next.len());
+        // Collect the main values into vectors.
         for i in 0..main_width {
             main.local.push(builder.get(&opening.main.local, i));
             main.next.push(builder.get(&opening.main.next, i));
@@ -108,8 +155,11 @@ impl<C: Config> ChipOpening<C> {
             local: vec![],
             next: vec![],
         };
-        let permutation_width =
-            C::EF::D * ((chip.num_interactions() + 1) / chip.logup_batch_size() + 1);
+        let permutation_width = C::EF::D * chip.permutation_width();
+        // Assert that the length of the dynamic arrays match the expected length of the vectors.
+        builder.assert_usize_eq(permutation_width, opening.permutation.local.len());
+        builder.assert_usize_eq(permutation_width, opening.permutation.next.len());
+        // Collect the permutation values into vectors.
         for i in 0..permutation_width {
             permutation
                 .local
@@ -120,10 +170,15 @@ impl<C: Config> ChipOpening<C> {
         }
 
         let num_quotient_chunks = 1 << chip.log_quotient_degree();
-
         let mut quotient = vec![];
+        // Assert that the length of the quotient chunk arrays match the expected length.
+        builder.assert_usize_eq(num_quotient_chunks, opening.quotient.len());
+        // Collect the quotient values into vectors.
         for i in 0..num_quotient_chunks {
             let chunk = builder.get(&opening.quotient, i);
+            // Assert that the chunk length matches the expected length.
+            builder.assert_usize_eq(C::EF::D, chunk.len());
+            // Collect the quotient values into vectors.
             let mut quotient_vals = vec![];
             for j in 0..C::EF::D {
                 let value = builder.get(&chunk, j);

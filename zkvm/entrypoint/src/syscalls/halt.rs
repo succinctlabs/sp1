@@ -1,11 +1,17 @@
-cfg_if::cfg_if! {
+use cfg_if::cfg_if;
+
+cfg_if! {
     if #[cfg(target_os = "zkvm")] {
         use core::arch::asm;
-        use p3_field::PrimeField32;
         use sha2::Digest;
-        use crate::syscalls::PV_DIGEST_NUM_WORDS;
-        use crate::syscalls::POSEIDON_NUM_WORDS;
         use crate::zkvm;
+        use crate::{PV_DIGEST_NUM_WORDS, POSEIDON_NUM_WORDS};
+    }
+}
+
+cfg_if! {
+    if #[cfg(all(target_os = "zkvm", feature = "verify"))] {
+        use p3_field::PrimeField32;
     }
 }
 
@@ -37,16 +43,22 @@ pub extern "C" fn syscall_halt(exit_code: u8) -> ! {
             asm!("ecall", in("t0") crate::syscalls::COMMIT, in("a0") i, in("a1") pv_digest_words[i]);
         }
 
-        let deferred_proofs_digest;
-        unsafe {
-            deferred_proofs_digest = zkvm::DEFERRED_PROOFS_DIGEST.as_mut().unwrap();
-        }
-        let deferred_proofs_digest_words = deferred_proofs_digest
-            .iter()
-            .map(|baby_bear| baby_bear.as_canonical_u32());
+        cfg_if! {
+            if #[cfg(feature = "verify")] {
+                let deferred_proofs_digest = zkvm::DEFERRED_PROOFS_DIGEST.as_mut().unwrap();
+                let deferred_proofs_digest_words = deferred_proofs_digest
+                    .iter()
+                    .map(|baby_bear| baby_bear.as_canonical_u32())
+                    .collect::<Vec<_>>();
 
-        for i in 0..POSEIDON_NUM_WORDS {
-            asm!("ecall", in("t0") crate::syscalls::COMMIT_DEFERRED_PROOFS, in("a0") i, in("a1") pv_digest_words[i]);
+                for i in 0..POSEIDON_NUM_WORDS {
+                    asm!("ecall", in("t0") crate::syscalls::COMMIT_DEFERRED_PROOFS, in("a0") i, in("a1") deferred_proofs_digest_words[i]);
+                }
+            } else {
+                for i in 0..POSEIDON_NUM_WORDS {
+                    asm!("ecall", in("t0") crate::syscalls::COMMIT_DEFERRED_PROOFS, in("a0") i, in("a1") 0);
+                }
+            }
         }
 
         asm!(

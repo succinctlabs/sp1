@@ -16,7 +16,14 @@ pub trait PolynomialSpaceVariable<C: Config>: Sized + FromConstant<C> {
 
     fn zp_at_point(&self, builder: &mut Builder<C>, point: Ext<C::F, C::EF>) -> Ext<C::F, C::EF>;
 
-    fn split_domains(&self, builder: &mut Builder<C>, log_num_chunks: usize) -> Vec<Self>;
+    fn split_domains(
+        &self,
+        builder: &mut Builder<C>,
+        log_num_chunks: impl Into<Usize<C::N>>,
+        num_chunks: impl Into<Usize<C::N>>,
+    ) -> Array<C, Self>;
+
+    fn split_domains_const(&self, _: &mut Builder<C>, log_num_chunks: usize) -> Vec<Self>;
 
     fn create_disjoint_domain(
         &self,

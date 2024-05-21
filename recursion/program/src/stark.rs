@@ -4,19 +4,27 @@ use p3_field::AbstractField;
 use p3_field::TwoAdicField;
 use sp1_core::air::MachineAir;
 use sp1_core::stark::Com;
+use sp1_core::stark::GenericVerifierConstraintFolder;
+use sp1_core::stark::ShardProof;
 use sp1_core::stark::StarkGenericConfig;
 use sp1_core::stark::StarkMachine;
+
+use sp1_core::stark::StarkVerifyingKey;
 use sp1_recursion_compiler::ir::Array;
 use sp1_recursion_compiler::ir::Ext;
+use sp1_recursion_compiler::ir::ExtConst;
+use sp1_recursion_compiler::ir::SymbolicExt;
+use sp1_recursion_compiler::ir::SymbolicVar;
 use sp1_recursion_compiler::ir::Var;
 use sp1_recursion_compiler::ir::{Builder, Config, Usize};
+use sp1_recursion_compiler::prelude::Felt;
+
 use sp1_recursion_core::runtime::DIGEST_SIZE;
 
 use crate::challenger::CanObserveVariable;
 use crate::challenger::DuplexChallengerVariable;
 use crate::challenger::FeltChallenger;
 use crate::commit::PolynomialSpaceVariable;
-use crate::folder::RecursiveVerifierConstraintFolder;
 use crate::fri::types::TwoAdicPcsMatsVariable;
 use crate::fri::types::TwoAdicPcsRoundVariable;
 use crate::fri::TwoAdicMultiplicativeCosetVariable;
@@ -24,12 +32,118 @@ use crate::types::ShardCommitmentVariable;
 use crate::types::VerifyingKeyVariable;
 use crate::{commit::PcsVariable, fri::TwoAdicFriPcsVariable, types::ShardProofVariable};
 
+use crate::types::QuotientData;
+
 pub const EMPTY: usize = 0x_1111_1111;
+
+pub trait StarkRecursiveVerifier<C: Config> {
+    fn verify_shard(
+        &self,
+        builder: &mut Builder<C>,
+        vk: &VerifyingKeyVariable<C>,
+        pcs: &TwoAdicFriPcsVariable<C>,
+        challenger: &mut DuplexChallengerVariable<C>,
+        proof: &ShardProofVariable<C>,
+        is_complete: impl Into<SymbolicVar<C::N>>,
+    );
+
+    fn verify_shards(
+        &self,
+        builder: &mut Builder<C>,
+        vk: &VerifyingKeyVariable<C>,
+        pcs: &TwoAdicFriPcsVariable<C>,
+        challenger: &mut DuplexChallengerVariable<C>,
+        proofs: &Array<C, ShardProofVariable<C>>,
+        is_complete: impl Into<SymbolicVar<C::N>> + Clone,
+    ) {
+        // Assert that the number of shards is not zero.
+        builder.assert_usize_ne(proofs.len(), 0);
+
+        // Verify each shard.
+        builder.range(0, proofs.len()).for_each(|i, builder| {
+            let proof = builder.get(proofs, i);
+            self.verify_shard(builder, vk, pcs, challenger, &proof, is_complete.clone());
+        });
+    }
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct StarkVerifier<C: Config, SC: StarkGenericConfig> {
     _phantom: std::marker::PhantomData<(C, SC)>,
 }
+
+pub struct ShardProofHint<'a, SC: StarkGenericConfig, A> {
+    pub machine: &'a StarkMachine<SC, A>,
+    pub proof: &'a ShardProof<SC>,
+}
+
+impl<'a, SC: StarkGenericConfig, A: MachineAir<SC::Val>> ShardProofHint<'a, SC, A> {
+    pub fn new(machine: &'a StarkMachine<SC, A>, proof: &'a ShardProof<SC>) -> Self {
+        Self { machine, proof }
+    }
+}
+
+pub struct VerifyingKeyHint<'a, SC: StarkGenericConfig, A> {
+    pub machine: &'a StarkMachine<SC, A>,
+    pub vk: &'a StarkVerifyingKey<SC>,
+}
+
+impl<'a, SC: StarkGenericConfig, A: MachineAir<SC::Val>> VerifyingKeyHint<'a, SC, A> {
+    pub fn new(machine: &'a StarkMachine<SC, A>, vk: &'a StarkVerifyingKey<SC>) -> Self {
+        Self { machine, vk }
+    }
+}
+
+impl<C: Config, SC: StarkGenericConfig, A> StarkRecursiveVerifier<C> for StarkMachine<SC, A>
+where
+    C::F: TwoAdicField,
+    SC: StarkGenericConfig<
+        Val = C::F,
+        Challenge = C::EF,
+        Domain = TwoAdicMultiplicativeCoset<C::F>,
+    >,
+    A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
+    C::F: TwoAdicField,
+    C::EF: TwoAdicField,
+    Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
+{
+    fn verify_shard(
+        &self,
+        builder: &mut Builder<C>,
+        vk: &VerifyingKeyVariable<C>,
+        pcs: &TwoAdicFriPcsVariable<C>,
+        challenger: &mut DuplexChallengerVariable<C>,
+        proof: &ShardProofVariable<C>,
+        is_complete: impl Into<SymbolicVar<<C as Config>::N>>,
+    ) {
+        // Verify the shard proof.
+        StarkVerifier::<C, SC>::verify_shard(builder, vk, pcs, self, challenger, proof);
+
+        // Verify that the cumulative sum of the chip is zero if the shard is complete.
+        let cumulative_sum: Ext<_, _> = builder.uninit();
+        builder
+            .range(0, proof.opened_values.chips.len())
+            .for_each(|i, builder| {
+                let values = builder.get(&proof.opened_values.chips, i);
+                builder.assign(cumulative_sum, cumulative_sum + values.cumulative_sum);
+            });
+
+        builder
+            .if_eq(is_complete.into(), C::N::one())
+            .then(|builder| {
+                builder.assert_ext_eq(cumulative_sum, C::EF::zero().cons());
+            });
+    }
+}
+
+pub type RecursiveVerifierConstraintFolder<'a, C> = GenericVerifierConstraintFolder<
+    'a,
+    <C as Config>::F,
+    <C as Config>::EF,
+    Felt<<C as Config>::F>,
+    Ext<<C as Config>::F, <C as Config>::EF>,
+    SymbolicExt<<C as Config>::F, <C as Config>::EF>,
+>;
 
 impl<C: Config, SC: StarkGenericConfig> StarkVerifier<C, SC>
 where
@@ -47,9 +161,6 @@ where
         machine: &StarkMachine<SC, A>,
         challenger: &mut DuplexChallengerVariable<C>,
         proof: &ShardProofVariable<C>,
-        chip_sorted_idxs: Array<C, Var<C::N>>,
-        preprocessed_sorted_idxs: Array<C, Var<C::N>>,
-        prep_domains: Array<C, TwoAdicMultiplicativeCosetVariable<C>>,
     ) where
         A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
         C::F: TwoAdicField,
@@ -70,7 +181,6 @@ where
             quotient_commit,
         } = commitment;
 
-        #[allow(unused_variables)]
         let permutation_challenges = (0..2)
             .map(|_| challenger.sample_ext(builder))
             .collect::<Vec<_>>();
@@ -90,13 +200,6 @@ where
         let mut quotient_domains =
             builder.dyn_array::<TwoAdicMultiplicativeCosetVariable<_>>(num_shard_chips);
 
-        // TODO: note hardcoding of log_quotient_degree. The value comes from:
-        //         let max_constraint_degree = 3;
-        //         let log_quotient_degree = log2_ceil_usize(max_constraint_degree - 1);
-        let log_quotient_degree_val = 1;
-        let log_quotient_degree = C::N::from_canonical_usize(log_quotient_degree_val);
-        let num_quotient_chunks_val = 1 << log_quotient_degree_val;
-
         let num_preprocessed_chips = machine.preprocessed_chip_ids().len();
 
         let mut prep_mats: Array<_, TwoAdicPcsMatsVariable<_>> =
@@ -104,7 +207,12 @@ where
         let mut main_mats: Array<_, TwoAdicPcsMatsVariable<_>> = builder.dyn_array(num_shard_chips);
         let mut perm_mats: Array<_, TwoAdicPcsMatsVariable<_>> = builder.dyn_array(num_shard_chips);
 
-        let num_quotient_mats: Usize<_> = builder.eval(num_shard_chips * num_quotient_chunks_val);
+        let num_quotient_mats: Var<_> = builder.eval(C::N::zero());
+        builder.range(0, num_shard_chips).for_each(|i, builder| {
+            let num_quotient_chunks = builder.get(&proof.quotient_data, i).quotient_size;
+            builder.assign(num_quotient_mats, num_quotient_mats + num_quotient_chunks);
+        });
+
         let mut quotient_mats: Array<_, TwoAdicPcsMatsVariable<_>> =
             builder.dyn_array(num_quotient_mats);
 
@@ -114,12 +222,12 @@ where
         // Iterate through machine.chips filtered for preprocessed chips.
         for (preprocessed_id, chip_id) in machine.preprocessed_chip_ids().into_iter().enumerate() {
             // Get index within sorted preprocessed chips.
-            let preprocessed_sorted_id = builder.get(&preprocessed_sorted_idxs, preprocessed_id);
+            let preprocessed_sorted_id = builder.get(&vk.preprocessed_sorted_idxs, preprocessed_id);
             // Get domain from witnessed domains. Array is ordered by machine.chips ordering.
-            let domain = builder.get(&prep_domains, preprocessed_id);
+            let domain = builder.get(&vk.prep_domains, preprocessed_id);
 
             // Get index within all sorted chips.
-            let chip_sorted_id = builder.get(&chip_sorted_idxs, chip_id);
+            let chip_sorted_id = builder.get(&proof.sorted_idxs, chip_id);
             // Get opening from proof.
             let opening = builder.get(&opened_values.chips, chip_sorted_id);
 
@@ -140,8 +248,13 @@ where
             builder.set_value(&mut prep_mats, preprocessed_sorted_id, main_mat);
         }
 
+        let qc_index: Var<_> = builder.eval(C::N::zero());
         builder.range(0, num_shard_chips).for_each(|i, builder| {
             let opening = builder.get(&opened_values.chips, i);
+            let QuotientData {
+                log_quotient_degree,
+                quotient_size,
+            } = builder.get(&proof.quotient_data, i);
             let domain = pcs.natural_domain_for_log_degree(builder, Usize::Var(opening.log_degree));
             builder.set_value(&mut trace_domains, i, domain.clone());
 
@@ -151,7 +264,7 @@ where
                 domain.create_disjoint_domain(builder, log_quotient_size, Some(pcs.config.clone()));
             builder.set_value(&mut quotient_domains, i, quotient_domain.clone());
 
-            // let trace_opening_points
+            // Get trace_opening_points.
 
             let mut trace_points = builder.dyn_array::<Ext<_, _>>(2);
             let zeta_next = domain.next_point(builder, zeta);
@@ -182,9 +295,11 @@ where
 
             // Get the quotient matrices and values.
 
-            let qc_domains = quotient_domain.split_domains(builder, log_quotient_degree_val);
-            let num_quotient_chunks = C::N::from_canonical_usize(1 << log_quotient_degree_val);
-            for (j, qc_dom) in qc_domains.into_iter().enumerate() {
+            let qc_domains =
+                quotient_domain.split_domains(builder, log_quotient_degree, quotient_size);
+
+            builder.range(0, qc_domains.len()).for_each(|j, builder| {
+                let qc_dom = builder.get(&qc_domains, j);
                 let qc_vals_array = builder.get(&opening.quotient, j);
                 let mut qc_values = builder.dyn_array::<Array<C, _>>(1);
                 builder.set_value(&mut qc_values, 0, qc_vals_array);
@@ -193,10 +308,9 @@ where
                     values: qc_values,
                     points: qc_points.clone(),
                 };
-                let j_n = C::N::from_canonical_usize(j);
-                let index: Var<_> = builder.eval(i * num_quotient_chunks + j_n);
-                builder.set_value(&mut quotient_mats, index, qc_mat);
-            }
+                builder.set_value(&mut quotient_mats, qc_index, qc_mat);
+                builder.assign(qc_index, qc_index + C::N::one());
+            });
         });
 
         // Create the pcs rounds.
@@ -232,7 +346,9 @@ where
         // TODO CONSTRAIN: that the preprocessed chips get called with verify_constraints.
         builder.cycle_tracker("stage-e-verify-constraints");
         for (i, chip) in machine.chips().iter().enumerate() {
-            let index = builder.get(&chip_sorted_idxs, i);
+            let chip_name = chip.name();
+            tracing::debug!("verifying constraints for chip: {}", chip_name);
+            let index = builder.get(&proof.sorted_idxs, i);
 
             if chip.preprocessed_width() > 0 {
                 builder.assert_var_ne(index, C::N::from_canonical_usize(EMPTY));
@@ -245,8 +361,22 @@ where
                     let trace_domain = builder.get(&trace_domains, index);
                     let quotient_domain: TwoAdicMultiplicativeCosetVariable<_> =
                         builder.get(&quotient_domains, index);
+
+                    // Check that the quotient data matches the chip's data.
+                    let log_quotient_degree = chip.log_quotient_degree();
+
+                    let quotient_size = 1 << log_quotient_degree;
+                    let chip_quotient_data = builder.get(&proof.quotient_data, index);
+                    builder.assert_usize_eq(
+                        chip_quotient_data.log_quotient_degree,
+                        log_quotient_degree,
+                    );
+                    builder.assert_usize_eq(chip_quotient_data.quotient_size, quotient_size);
+
+                    // Get the domains from the chip itself.
                     let qc_domains =
-                        quotient_domain.split_domains(builder, chip.log_quotient_degree());
+                        quotient_domain.split_domains_const(builder, log_quotient_degree);
+
                     Self::verify_constraints(
                         builder,
                         chip,
@@ -266,17 +396,21 @@ where
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use std::borrow::BorrowMut;
     use std::time::Instant;
 
     use crate::challenger::CanObserveVariable;
     use crate::challenger::FeltChallenger;
     use crate::hints::Hintable;
+    use crate::machine::commit_public_values;
     use crate::stark::DuplexChallengerVariable;
     use crate::stark::Ext;
+    use crate::stark::ShardProofHint;
     use crate::types::ShardCommitmentVariable;
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_field::AbstractField;
     use rand::Rng;
+    use sp1_core::air::POSEIDON_NUM_WORDS;
     use sp1_core::io::SP1Stdin;
     use sp1_core::runtime::Program;
     use sp1_core::stark::LocalProver;
@@ -284,11 +418,12 @@ pub(crate) mod tests {
     use sp1_core::utils::InnerChallenge;
     use sp1_core::utils::InnerVal;
     use sp1_core::{
-        stark::{RiscvAir, ShardProof, StarkGenericConfig},
+        stark::{RiscvAir, StarkGenericConfig},
         utils::BabyBearPoseidon2,
     };
     use sp1_recursion_compiler::config::InnerConfig;
     use sp1_recursion_compiler::ir::Array;
+    use sp1_recursion_compiler::ir::Config;
     use sp1_recursion_compiler::ir::Felt;
     use sp1_recursion_compiler::prelude::Usize;
     use sp1_recursion_compiler::{
@@ -296,11 +431,19 @@ pub(crate) mod tests {
         ir::{Builder, ExtConst},
     };
 
-    use sp1_recursion_core::runtime::{Runtime, DIGEST_SIZE};
+    use sp1_recursion_core::air::RecursionPublicValues;
+    use sp1_recursion_core::air::RECURSION_PUBLIC_VALUES_COL_MAP;
+    use sp1_recursion_core::air::RECURSIVE_PROOF_NUM_PV_ELTS;
+    use sp1_recursion_core::runtime::RecursionProgram;
+    use sp1_recursion_core::runtime::Runtime;
+    use sp1_recursion_core::runtime::DIGEST_SIZE;
 
+    use sp1_recursion_core::stark::utils::run_test_recursion;
+    use sp1_recursion_core::stark::utils::TestConfig;
     use sp1_recursion_core::stark::RecursionAir;
 
     type SC = BabyBearPoseidon2;
+    type Challenge = <SC as StarkGenericConfig>::Challenge;
     type F = InnerVal;
     type EF = InnerChallenge;
     type C = InnerConfig;
@@ -310,17 +453,13 @@ pub(crate) mod tests {
     fn test_permutation_challenges() {
         // Generate a dummy proof.
         sp1_core::utils::setup_logger();
-        let elf =
-            include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+        let elf = include_bytes!("../../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
 
         let machine = A::machine(SC::default());
         let (_, vk) = machine.setup(&Program::from(elf));
         let mut challenger_val = machine.config().challenger();
-        let (proof, _) = sp1_core::utils::run_and_prove(
-            Program::from(elf),
-            &SP1Stdin::new().buffer,
-            SC::default(),
-        );
+        let (proof, _) =
+            sp1_core::utils::prove(Program::from(elf), &SP1Stdin::new(), SC::default()).unwrap();
         let proofs = proof.shard_proofs;
         println!("Proof generated successfully");
 
@@ -346,8 +485,9 @@ pub(crate) mod tests {
 
         let mut witness_stream = Vec::new();
         for proof in proofs {
-            witness_stream.extend(proof.write());
-            let proof = ShardProof::<BabyBearPoseidon2>::read(&mut builder);
+            let proof_hint = ShardProofHint::new(&machine, &proof);
+            witness_stream.extend(proof_hint.write());
+            let proof = ShardProofHint::<SC, A>::read(&mut builder);
             let ShardCommitmentVariable { main_commit, .. } = proof.commitment;
             challenger.observe(&mut builder, main_commit);
             let pv_slice = proof.public_values.slice(
@@ -369,16 +509,70 @@ pub(crate) mod tests {
                 permutation_challenges[i].cons(),
             );
         }
+        builder.halt();
 
         let program = builder.compile_program();
+        run_test_recursion(program, Some(witness_stream.into()), TestConfig::All);
+    }
 
-        let mut runtime = Runtime::<F, EF, _>::new(&program, machine.config().perm.clone());
-        runtime.witness_stream = witness_stream.into();
+    fn test_public_values_program() -> RecursionProgram<InnerVal> {
+        let mut builder = Builder::<InnerConfig>::default();
+
+        let mut public_values_stream: Vec<Felt<_>> = (0..RECURSIVE_PROOF_NUM_PV_ELTS)
+            .map(|_| builder.uninit())
+            .collect();
+
+        let public_values: &mut RecursionPublicValues<_> =
+            public_values_stream.as_mut_slice().borrow_mut();
+
+        public_values.sp1_vk_digest = [builder.constant(<C as Config>::F::zero()); DIGEST_SIZE];
+        public_values.next_pc = builder.constant(<C as Config>::F::one());
+        public_values.next_shard = builder.constant(<C as Config>::F::two());
+        public_values.end_reconstruct_deferred_digest =
+            [builder.constant(<C as Config>::F::from_canonical_usize(3)); POSEIDON_NUM_WORDS];
+
+        public_values.deferred_proofs_digest =
+            [builder.constant(<C as Config>::F::from_canonical_usize(4)); POSEIDON_NUM_WORDS];
+
+        public_values.cumulative_sum =
+            [builder.constant(<C as Config>::F::from_canonical_usize(5)); 4];
+
+        commit_public_values(&mut builder, public_values);
+        builder.halt();
+
+        builder.compile_program()
+    }
+
+    #[test]
+    fn test_public_values_failure() {
+        let program = test_public_values_program();
+
+        let config = SC::default();
+
+        let mut runtime = Runtime::<InnerVal, Challenge, _>::new(&program, config.perm.clone());
         runtime.run();
-        println!(
-            "The program executed successfully, number of cycles: {}",
-            runtime.timestamp
-        );
+
+        let machine = RecursionAir::<_, 3>::machine(SC::default());
+        let (pk, vk) = machine.setup(&program);
+        let record = runtime.record.clone();
+
+        let mut challenger = machine.config().challenger();
+        let mut proof =
+            machine.prove::<LocalProver<SC, RecursionAir<_, 3>>>(&pk, record, &mut challenger);
+
+        let mut challenger = machine.config().challenger();
+        let verification_result = machine.verify(&vk, &proof, &mut challenger);
+        if verification_result.is_err() {
+            panic!("Proof should verify successfully");
+        }
+
+        // Corrupt the public values.
+        proof.shard_proofs[0].public_values[RECURSION_PUBLIC_VALUES_COL_MAP.digest[0]] =
+            InnerVal::zero();
+        let verification_result = machine.verify(&vk, &proof, &mut challenger);
+        if verification_result.is_ok() {
+            panic!("Proof should not verify successfully");
+        }
     }
 
     #[test]
@@ -400,35 +594,12 @@ pub(crate) mod tests {
         let a_plus_b_ext = builder.eval(a_ext + b_ext);
         builder.print_f(a_plus_b);
         builder.print_e(a_plus_b_ext);
+        builder.halt();
 
         let program = builder.compile_program();
         let elapsed = time.elapsed();
         println!("Building took: {:?}", elapsed);
 
-        let machine = A::machine(SC::default());
-        let mut runtime = Runtime::<F, EF, _>::new(&program, machine.config().perm.clone());
-
-        let time = Instant::now();
-        runtime.run();
-        let elapsed = time.elapsed();
-        runtime.print_stats();
-        println!("Execution took: {:?}", elapsed);
-
-        let config = BabyBearPoseidon2::new();
-        let machine = RecursionAir::machine(config);
-        let (pk, vk) = machine.setup(&program);
-        let mut challenger = machine.config().challenger();
-
-        let record_clone = runtime.record.clone();
-        machine.debug_constraints(&pk, record_clone, &mut challenger);
-
-        let start = Instant::now();
-        let mut challenger = machine.config().challenger();
-        let proof = machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger);
-        let duration = start.elapsed().as_secs();
-
-        let mut challenger = machine.config().challenger();
-        machine.verify(&vk, &proof, &mut challenger).unwrap();
-        println!("proving duration = {}", duration);
+        run_test_recursion(program, None, TestConfig::All);
     }
 }

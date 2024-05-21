@@ -9,7 +9,6 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::*;
 use sp1_derive::AlignedBorrow;
-use tracing::instrument;
 
 use crate::air::{BaseAirBuilder, MachineAir};
 use crate::air::{SP1AirBuilder, Word};
@@ -99,7 +98,6 @@ impl<F: PrimeField32> MachineAir<F> for LtChip {
         "Lt".to_string()
     }
 
-    #[instrument(name = "generate lt trace", level = "debug", skip_all)]
     fn generate_trace(
         &self,
         input: &ExecutionRecord,
@@ -239,11 +237,6 @@ where
         let local: &LtCols<AB::Var> = (*local).borrow();
 
         let is_real = local.is_slt + local.is_sltu;
-
-        // Dummy degree 3 constraint to avoid "OodEvaluationMismatch".
-        builder.assert_zero(
-            local.a[0] * local.b[0] * local.c[0] - local.a[0] * local.b[0] * local.c[0],
-        );
 
         // We can compute the signed set-less-than as follows:
         // SLT (signed) = b_s * (1 - c_s) + (b_s == c_s) * SLTU(b_<s, c_<s)

@@ -20,3 +20,8 @@ benchmark.csv
 
 # Environment
 .env
+
+# Build Artifacts
+recursion/gnark-ffi/build
+prover/build
+prover/*.tar.gz

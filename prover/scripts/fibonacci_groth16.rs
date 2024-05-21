@@ -43,7 +43,7 @@ fn main() {
     let iterations = [480000u32];
     let shard_sizes = [1 << 22];
     let batch_sizes = [2];
-    let elf = include_bytes!("../../examples/fibonacci-io/program/elf/riscv32im-succinct-zkvm-elf");
+    let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
     let (pk, vk) = prover.setup(elf);
 
     for (shard_size, iterations, batch_size) in iproduct!(shard_sizes, iterations, batch_sizes) {
@@ -59,15 +59,16 @@ fn main() {
         let stdin = SP1Stdin {
             buffer: vec![bincode::serialize::<u32>(&iterations).unwrap()],
             ptr: 0,
+            proofs: vec![],
         };
         let leaf_proving_start = Instant::now();
-        let proof = prover.prove_core(&pk, &stdin);
+        let proof = prover.prove_core(&pk, &stdin).unwrap();
         let leaf_proving_duration = leaf_proving_start.elapsed().as_secs_f64();
         tracing::info!("leaf_proving_duration={}", leaf_proving_duration);
 
         tracing::info!("proving inner");
         let recursion_proving_start = Instant::now();
-        let _ = prover.reduce(&vk, proof);
+        let _ = prover.compress(&vk, proof, vec![]);
         let recursion_proving_duration = recursion_proving_start.elapsed().as_secs_f64();
         tracing::info!("recursion_proving_duration={}", recursion_proving_duration);
     }

@@ -9,10 +9,13 @@ fn main() {
 
     let stdin = SP1Stdin::new();
     let client = ProverClient::new();
-    let proof = client.prove(ELF, stdin).expect("proving failed");
+    let (pk, vk) = client.setup(ELF);
+    let proof = client.prove_compressed(&pk, stdin).expect("proving failed");
 
     // Verify proof.
-    client.verify(ELF, &proof).expect("verification failed");
+    client
+        .verify_compressed(&proof, &vk)
+        .expect("verification failed");
 
     // Save proof.
     proof

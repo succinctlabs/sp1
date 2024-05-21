@@ -1,10 +1,8 @@
 #![no_main]
 sp1_zkvm::entrypoint!(main);
 
-use core::panic::AssertUnwindSafe;
 use num::BigUint;
 use rand::Rng;
-use std::panic;
 
 use sp1_zkvm::precompiles::uint256_div::uint256_div;
 

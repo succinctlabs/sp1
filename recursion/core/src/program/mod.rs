@@ -1,13 +1,14 @@
+use crate::air::SP1RecursionAirBuilder;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
-use sp1_core::air::{AirInteraction, MachineAir, SP1AirBuilder};
-use sp1_core::lookup::InteractionKind;
-use sp1_core::utils::pad_to_power_of_two;
+use sp1_core::air::MachineAir;
+use sp1_core::utils::pad_rows_fixed;
 use std::collections::HashMap;
+use tracing::instrument;
 
 use sp1_derive::AlignedBorrow;
 
@@ -58,39 +59,48 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
     }
 
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
-        let rows = program.instructions[0..32]
+        let max_program_size = match std::env::var("MAX_RECURSION_PROGRAM_SIZE") {
+            Ok(value) => value.parse().unwrap(),
+            Err(_) => std::cmp::min(1048576, program.instructions.len()),
+        };
+        let mut rows = program.instructions[0..max_program_size]
             .iter()
             .enumerate()
             .map(|(i, instruction)| {
-                let pc = i as u32 * 4;
+                let pc = i as u32;
                 let mut row = [F::zero(); NUM_PROGRAM_PREPROCESSED_COLS];
                 let cols: &mut ProgramPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
                 cols.pc = F::from_canonical_u32(pc);
                 cols.selectors.populate(instruction);
-                cols.instruction.populate(instruction.clone());
+                cols.instruction.populate(instruction);
                 row
             })
             .collect::<Vec<_>>();
 
-        // Convert the trace to a row major matrix.
-        let mut trace = RowMajorMatrix::new(
-            rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_PROGRAM_PREPROCESSED_COLS,
+        // Pad the trace to a power of two.
+        pad_rows_fixed(
+            &mut rows,
+            || [F::zero(); NUM_PROGRAM_PREPROCESSED_COLS],
+            None,
         );
 
-        // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_PROGRAM_PREPROCESSED_COLS, F>(&mut trace.values);
-
-        Some(trace)
+        // Convert the trace to a row major matrix.
+        Some(RowMajorMatrix::new(
+            rows.into_iter().flatten().collect::<Vec<_>>(),
+            NUM_PROGRAM_PREPROCESSED_COLS,
+        ))
     }
 
+    fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {
+        // This is a no-op.
+    }
+
+    #[instrument(name = "generate program trace", level = "debug", skip_all, fields(rows = input.program.instructions.len()))]
     fn generate_trace(
         &self,
         input: &ExecutionRecord<F>,
         _output: &mut ExecutionRecord<F>,
     ) -> RowMajorMatrix<F> {
-        // Generate the trace rows for each event.
-
         // Collect the number of times each instruction is called from the cpu events.
         // Store it as a map of PC -> count.
         let mut instruction_counts = HashMap::new();
@@ -102,7 +112,11 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
                 .or_insert(1);
         });
 
-        let rows = input.program.instructions[0..32]
+        let max_program_size = match std::env::var("MAX_RECURSION_PROGRAM_SIZE") {
+            Ok(value) => value.parse().unwrap(),
+            Err(_) => std::cmp::min(1048576, input.program.instructions.len()),
+        };
+        let mut rows = input.program.instructions[0..max_program_size]
             .iter()
             .enumerate()
             .map(|(i, _)| {
@@ -115,16 +129,14 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
             })
             .collect::<Vec<_>>();
 
+        // Pad the trace to a power of two.
+        pad_rows_fixed(&mut rows, || [F::zero(); NUM_PROGRAM_MULT_COLS], None);
+
         // Convert the trace to a row major matrix.
-        let mut trace = RowMajorMatrix::new(
+        RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_PROGRAM_MULT_COLS,
-        );
-
-        // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_PROGRAM_MULT_COLS, F>(&mut trace.values);
-
-        trace
+        )
     }
 
     fn included(&self, _: &Self::Record) -> bool {
@@ -140,7 +152,7 @@ impl<F> BaseAir<F> for ProgramChip {
 
 impl<AB> Air<AB> for ProgramChip
 where
-    AB: SP1AirBuilder + PairBuilder,
+    AB: SP1RecursionAirBuilder + PairBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
@@ -151,29 +163,11 @@ where
         let mult_local = main.row_slice(0);
         let mult_local: &ProgramMultiplicityCols<AB::Var> = (*mult_local).borrow();
 
-        // Dummy constraint of degree 3.
-        builder.assert_eq(
-            prep_local.pc * prep_local.pc * prep_local.pc,
-            prep_local.pc * prep_local.pc * prep_local.pc,
+        builder.receive_program(
+            prep_local.pc,
+            prep_local.instruction,
+            prep_local.selectors,
+            mult_local.multiplicity,
         );
-
-        let mut interaction_vals: Vec<AB::Expr> = vec![prep_local.instruction.opcode.into()];
-        interaction_vals.push(prep_local.instruction.op_a.into());
-        interaction_vals.extend_from_slice(&prep_local.instruction.op_b.map(|x| x.into()).0);
-        interaction_vals.extend_from_slice(&prep_local.instruction.op_c.map(|x| x.into()).0);
-        interaction_vals.push(prep_local.instruction.imm_b.into());
-        interaction_vals.push(prep_local.instruction.imm_c.into());
-        interaction_vals.extend_from_slice(
-            &prep_local
-                .selectors
-                .into_iter()
-                .map(|x| x.into())
-                .collect::<Vec<_>>(),
-        );
-        builder.receive(AirInteraction::new(
-            interaction_vals,
-            mult_local.multiplicity.into(),
-            InteractionKind::Program,
-        ));
     }
 }

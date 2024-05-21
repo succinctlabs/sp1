@@ -1,8 +1,7 @@
-[workspace]
 [package]
 version = "0.1.0"
 name = "is-prime-script"
 edition = "2021"
 
 [dependencies]
-sp1-core = { git = "https://github.com/succinctlabs/sp1.git" }
+sp1-sdk = { path = "../../../sdk" }

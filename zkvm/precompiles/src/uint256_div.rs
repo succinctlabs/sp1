@@ -1,6 +1,7 @@
 #![allow(unused_imports)]
+use crate::bigint_mulmod::sys_bigint;
 use crate::io;
-use crate::syscall_uint256_mul;
+use crate::syscall_uint256_mulmod;
 use crate::unconstrained;
 use num::{BigUint, Integer};
 
@@ -10,6 +11,7 @@ use num::{BigUint, Integer};
 /// represented as arrays of bytes in little-endian order. It returns the quotient
 /// of the division as a 256-bit unsigned integer in the same byte array format.
 pub fn uint256_div(x: &mut [u8; 32], y: &[u8; 32]) -> [u8; 32] {
+    // TODO: this will panic now.
     // Assert that the divisor is not zero.
     assert!(y != &[0; 32], "division by zero");
     cfg_if::cfg_if! {
@@ -29,19 +31,25 @@ pub fn uint256_div(x: &mut [u8; 32], y: &[u8; 32]) -> [u8; 32] {
                 io::hint_slice(&remainder_bytes);
             };
 
-            let mut quotient_bytes: [u8; 32] = io::read_vec().try_into().unwrap();
+            let quotient_bytes: [u8; 32] = io::read_vec().try_into().unwrap();
 
-            let mut remainder_bytes: [u8; 32] = io::read_vec().try_into().unwrap();
+            let remainder_bytes: [u8; 32] = io::read_vec().try_into().unwrap();
 
             let remainder = BigUint::from_bytes_le(&remainder_bytes);
 
             *x = quotient_bytes;
 
-            unsafe {
-                syscall_uint256_mul(quotient_bytes.as_mut_ptr() as *mut u32, y.as_ptr() as *const u32);
-            }
+            let mut quotient_times_y = [0u8; 32];
+            let zero = [0u32; 8];
+            sys_bigint(
+                quotient_times_y.as_mut_ptr() as *mut [u32; 8],
+                0,
+                quotient_bytes.as_ptr() as *const [u32; 8],
+                y.as_ptr() as *const [u32; 8],
+                zero.as_ptr() as *const [u32; 8]
+            );
 
-            let quotient_times_divisor = BigUint::from_bytes_le(&quotient_bytes);
+            let quotient_times_divisor = BigUint::from_bytes_le(&quotient_times_y);
             assert_eq!(quotient_times_divisor, dividend - remainder);
 
             *x

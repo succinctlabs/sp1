@@ -1,8 +1,8 @@
-use std::ops::{Add, Mul, Neg, Sub};
+use std::ops::{Add, Div, Mul, Neg, Sub};
 
 use p3_field::{
     extension::{BinomialExtensionField, BinomiallyExtendable},
-    AbstractExtensionField, AbstractField,
+    AbstractExtensionField, AbstractField, Field,
 };
 use sp1_derive::AlignedBorrow;
 
@@ -21,18 +21,23 @@ impl<T> BinomialExtension<T> {
         arr[0] = b;
         Self(arr)
     }
+
+    pub fn as_base_slice(&self) -> &[T] {
+        &self.0
+    }
+
+    pub fn from<S: Into<T> + Clone>(from: BinomialExtension<S>) -> Self {
+        BinomialExtension(core::array::from_fn(|i| from.0[i].clone().into()))
+    }
 }
 
 impl<T: Add<Output = T> + Clone> Add for BinomialExtension<T> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
-        Self([
-            self.0[0].clone() + rhs.0[0].clone(),
-            self.0[1].clone() + rhs.0[1].clone(),
-            self.0[2].clone() + rhs.0[2].clone(),
-            self.0[3].clone() + rhs.0[3].clone(),
-        ])
+        Self(core::array::from_fn(|i| {
+            self.0[i].clone() + rhs.0[i].clone()
+        }))
     }
 }
 
@@ -40,12 +45,9 @@ impl<T: Sub<Output = T> + Clone> Sub for BinomialExtension<T> {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        Self([
-            self.0[0].clone() - rhs.0[0].clone(),
-            self.0[1].clone() - rhs.0[1].clone(),
-            self.0[2].clone() - rhs.0[2].clone(),
-            self.0[3].clone() - rhs.0[3].clone(),
-        ])
+        Self(core::array::from_fn(|i| {
+            self.0[i].clone() - rhs.0[i].clone()
+        }))
     }
 }
 
@@ -67,6 +69,31 @@ impl<T: Add<Output = T> + Mul<Output = T> + AbstractField> Mul for BinomialExten
         }
 
         Self(result)
+    }
+}
+
+impl<F> Div for BinomialExtension<F>
+where
+    F: BinomiallyExtendable<DEGREE>,
+{
+    type Output = Self;
+
+    fn div(self, rhs: Self) -> Self::Output {
+        let p3_ef_lhs = BinomialExtensionField::from_base_slice(&self.0);
+        let p3_ef_rhs = BinomialExtensionField::from_base_slice(&rhs.0);
+        let p3_ef_result = p3_ef_lhs / p3_ef_rhs;
+        Self(p3_ef_result.as_base_slice().try_into().unwrap())
+    }
+}
+
+impl<F> BinomialExtension<F>
+where
+    F: BinomiallyExtendable<DEGREE>,
+{
+    pub fn inverse(&self) -> Self {
+        let p3_ef = BinomialExtensionField::from_base_slice(&self.0);
+        let p3_ef_inverse = p3_ef.inverse();
+        Self(p3_ef_inverse.as_base_slice().try_into().unwrap())
     }
 }
 

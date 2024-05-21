@@ -29,8 +29,11 @@ pub fn verify_two_adic_pcs<C: Config>(
     C::F: TwoAdicField,
     C::EF: TwoAdicField,
 {
-    let log_blowup = C::N::from_canonical_usize(config.log_blowup);
-    let blowup = C::N::from_canonical_usize(1 << config.log_blowup);
+    let mut input_ptr = builder.array::<FriFoldInput<_>>(1);
+    let g = builder.generator();
+
+    let log_blowup = config.log_blowup;
+    let blowup = config.log_blowup;
     let alpha = challenger.sample_ext(builder);
 
     builder.cycle_tracker("stage-d-1-verify-shape-and-sample-challenges");
@@ -115,19 +118,19 @@ pub fn verify_two_adic_pcs<C: Config>(
                             builder.eval(log_global_max_height - log_height);
                         let index_bits_shifted = index_bits.shift(builder, bits_reduced);
 
-                        let g = builder.generator();
                         let two_adic_generator = config.get_two_adic_generator(builder, log_height);
+                        builder.cycle_tracker("exp_reverse_bits_len");
                         let two_adic_generator_exp = builder.exp_reverse_bits_len(
                             two_adic_generator,
                             &index_bits_shifted,
                             log_height,
                         );
+                        builder.cycle_tracker("exp_reverse_bits_len");
                         let x: Felt<C::F> = builder.eval(two_adic_generator_exp * g);
 
                         builder.range(0, mat_points.len()).for_each(|l, builder| {
                             let z: Ext<C::F, C::EF> = builder.get(&mat_points, l);
                             let ps_at_z = builder.get(&mat_values, l);
-
                             let input = FriFoldInput {
                                 z,
                                 alpha,
@@ -138,13 +141,10 @@ pub fn verify_two_adic_pcs<C: Config>(
                                 alpha_pow: alpha_pow.clone(),
                                 ro: ro.clone(),
                             };
-
-                            let mut input_ptr = builder.array::<FriFoldInput<_>>(1);
                             builder.set_value(&mut input_ptr, 0, input);
 
-                            builder.range(0, ps_at_z.len()).for_each(|m, builder| {
-                                builder.push(DslIr::FriFold(m, input_ptr.clone()));
-                            });
+                            let ps_at_z_len = ps_at_z.len().materialize(builder);
+                            builder.push(DslIr::FriFold(ps_at_z_len, input_ptr.clone()));
                         });
                     });
             });
@@ -221,6 +221,7 @@ where
     }
 }
 
+#[derive(DslVariable, Clone)]
 pub struct TwoAdicFriPcsVariable<C: Config> {
     pub config: FriConfigVariable<C>,
 }
@@ -264,10 +265,12 @@ pub mod tests {
     use crate::challenger::CanObserveVariable;
     use crate::challenger::DuplexChallengerVariable;
     use crate::challenger::FeltChallenger;
-    use crate::fri::types::FriConfigVariable;
+    use crate::commit::PcsVariable;
     use crate::fri::types::TwoAdicPcsRoundVariable;
+    use crate::fri::TwoAdicFriPcsVariable;
     use crate::fri::TwoAdicMultiplicativeCosetVariable;
     use crate::hints::Hintable;
+    use crate::utils::const_fri_config;
     use itertools::Itertools;
     use p3_baby_bear::BabyBear;
     use p3_challenger::CanObserve;
@@ -275,14 +278,11 @@ pub mod tests {
     use p3_commit::Pcs;
     use p3_commit::TwoAdicMultiplicativeCoset;
     use p3_field::AbstractField;
-    use p3_field::TwoAdicField;
-    use p3_fri::FriConfig;
     use p3_matrix::dense::RowMajorMatrix;
     use rand::rngs::OsRng;
-    use sp1_core::utils::inner_fri_config;
+    use sp1_core::utils::baby_bear_poseidon2::compressed_fri_config;
     use sp1_core::utils::inner_perm;
     use sp1_core::utils::InnerChallenge;
-    use sp1_core::utils::InnerChallengeMmcs;
     use sp1_core::utils::InnerChallenger;
     use sp1_core::utils::InnerCompress;
     use sp1_core::utils::InnerDft;
@@ -300,37 +300,6 @@ pub mod tests {
     use sp1_recursion_core::runtime::RecursionProgram;
     use sp1_recursion_core::runtime::DIGEST_SIZE;
 
-    use crate::commit::PcsVariable;
-    use crate::fri::TwoAdicFriPcsVariable;
-
-    pub fn const_fri_config(
-        builder: &mut Builder<InnerConfig>,
-        config: FriConfig<InnerChallengeMmcs>,
-    ) -> FriConfigVariable<InnerConfig> {
-        let two_addicity = InnerVal::TWO_ADICITY;
-        let mut generators = builder.dyn_array(two_addicity);
-        let mut subgroups = builder.dyn_array(two_addicity);
-        for i in 0..two_addicity {
-            let constant_generator = InnerVal::two_adic_generator(i);
-            builder.set(&mut generators, i, constant_generator);
-
-            let constant_domain = TwoAdicMultiplicativeCoset {
-                log_n: i,
-                shift: InnerVal::one(),
-            };
-            let domain_value: TwoAdicMultiplicativeCosetVariable<_> =
-                builder.constant(constant_domain);
-            builder.set(&mut subgroups, i, domain_value);
-        }
-        FriConfigVariable {
-            log_blowup: config.log_blowup,
-            num_queries: config.num_queries,
-            proof_of_work_bits: config.proof_of_work_bits,
-            subgroups,
-            generators,
-        }
-    }
-
     pub fn build_test_fri_with_cols_and_log2_rows(
         nb_cols: usize,
         nb_log2_rows: usize,
@@ -338,7 +307,7 @@ pub mod tests {
         let mut rng = &mut OsRng;
         let log_degrees = &[nb_log2_rows];
         let perm = inner_perm();
-        let fri_config = inner_fri_config();
+        let fri_config = compressed_fri_config();
         let hash = InnerHash::new(perm.clone());
         let compress = InnerCompress::new(perm.clone());
         let val_mmcs = InnerValMmcs::new(hash, compress);
@@ -395,7 +364,7 @@ pub mod tests {
 
         // Test the recursive Pcs.
         let mut builder = Builder::<InnerConfig>::default();
-        let config = const_fri_config(&mut builder, inner_fri_config());
+        let config = const_fri_config(&mut builder, &compressed_fri_config());
         let pcs = TwoAdicFriPcsVariable { config };
         let rounds =
             builder.constant::<Array<_, TwoAdicPcsRoundVariable<_>>>(vec![(commit, os.clone())]);
@@ -425,6 +394,7 @@ pub mod tests {
         challenger.observe(&mut builder, commit);
         challenger.sample_ext(&mut builder);
         pcs.verify(&mut builder, rounds, proofvar, &mut challenger);
+        builder.halt();
 
         let program = builder.compile_program();
         let mut witness_stream = VecDeque::new();
@@ -434,11 +404,8 @@ pub mod tests {
 
     #[test]
     fn test_two_adic_fri_pcs_single_batch() {
-        use sp1_recursion_core::runtime::Runtime;
+        use sp1_recursion_core::stark::utils::{run_test_recursion, TestConfig};
         let (program, witness) = build_test_fri_with_cols_and_log2_rows(10, 16);
-        let mut runtime = Runtime::<InnerVal, InnerChallenge, _>::new(&program, inner_perm());
-        runtime.witness_stream = witness;
-        runtime.run();
-        runtime.print_stats();
+        run_test_recursion(program, Some(witness), TestConfig::All);
     }
 }

@@ -20,6 +20,7 @@ pub fn compute_root_quotient_and_shift<F: PrimeField32>(
     p_vanishing: &Polynomial<F>,
     offset: usize,
     nb_bits_per_limb: u32,
+    nb_limbs: usize,
 ) -> Vec<F> {
     // Evaluate the vanishing polynomial at x = 2^nb_bits_per_limb.
     let p_vanishing_eval = p_vanishing
@@ -47,11 +48,13 @@ pub fn compute_root_quotient_and_shift<F: PrimeField32>(
     let x_minus_root = Polynomial::<F>::from_coefficients(&[-root_monomial, F::one()]);
     debug_assert_eq!((&p_quotient * &x_minus_root), *p_vanishing);
 
+    let mut p_quotient_coefficients = p_quotient.as_coefficients();
+    p_quotient_coefficients.resize(nb_limbs, F::zero());
+
     // Shifting the witness polynomial to make it positive
-    p_quotient
-        .coefficients()
-        .iter()
-        .map(|x| *x + F::from_canonical_u64(offset_u64))
+    p_quotient_coefficients
+        .into_iter()
+        .map(|x| x + F::from_canonical_u64(offset_u64))
         .collect::<Vec<F>>()
 }
 

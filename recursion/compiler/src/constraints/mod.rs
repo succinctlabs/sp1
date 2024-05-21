@@ -1,4 +1,4 @@
-pub mod groth16_ffi;
+// pub mod groth16_ffi;
 pub mod opcodes;
 
 use core::fmt::Debug;
@@ -162,6 +162,10 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
                 }),
                 DslIr::SubE(a, b, c) => constraints.push(Constraint {
                     opcode: ConstraintOpcode::SubE,
+                    args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
+                }),
+                DslIr::SubEF(a, b, c) => constraints.push(Constraint {
+                    opcode: ConstraintOpcode::SubEF,
                     args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
                 }),
                 DslIr::SubEI(a, b, c) => {
@@ -333,72 +337,27 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
                     opcode: ConstraintOpcode::WitnessE,
                     args: vec![vec![a.id()], vec![b.to_string()]],
                 }),
+                DslIr::CircuitCommitVkeyHash(a) => constraints.push(Constraint {
+                    opcode: ConstraintOpcode::CommitVkeyHash,
+                    args: vec![vec![a.id()]],
+                }),
+                DslIr::CircuitCommitCommitedValuesDigest(a) => constraints.push(Constraint {
+                    opcode: ConstraintOpcode::CommitCommitedValuesDigest,
+                    args: vec![vec![a.id()]],
+                }),
+                DslIr::CircuitFelts2Ext(a, b) => constraints.push(Constraint {
+                    opcode: ConstraintOpcode::CircuitFelts2Ext,
+                    args: vec![
+                        vec![b.id()],
+                        vec![a[0].id()],
+                        vec![a[1].id()],
+                        vec![a[2].id()],
+                        vec![a[3].id()],
+                    ],
+                }),
                 _ => panic!("unsupported {:?}", instruction),
             };
         }
-        println!("number of meta constraints: {}", constraints.len());
         constraints
-    }
-}
-
-#[cfg(test)]
-mod tests {
-
-    use p3_baby_bear::BabyBear;
-    use p3_bn254_fr::Bn254Fr;
-    use p3_field::{extension::BinomialExtensionField, AbstractField};
-    use serial_test::serial;
-
-    use super::*;
-    use crate::{
-        config::OuterConfig,
-        ir::{Builder, Ext, Felt, Var},
-        prelude::Witness,
-    };
-
-    #[test]
-    #[serial]
-    fn test_imm() {
-        let program = vec![
-            DslIr::ImmV(Var::new(0), Bn254Fr::zero()),
-            DslIr::ImmF(Felt::new(1), BabyBear::one()),
-            DslIr::ImmE(Ext::new(2), BinomialExtensionField::<BabyBear, 4>::one()),
-            DslIr::PrintV(Var::new(0)),
-            DslIr::PrintF(Felt::new(1)),
-            DslIr::PrintE(Ext::new(2)),
-        ];
-        let mut backend = ConstraintCompiler::<OuterConfig>::default();
-        let constraints = backend.emit(program.into());
-        groth16_ffi::prove::<OuterConfig>(constraints, Witness::default());
-    }
-
-    #[test]
-    #[serial]
-    fn test_basic_program() {
-        let mut builder = Builder::<OuterConfig>::default();
-        let a: Var<_> = builder.eval(Bn254Fr::two());
-        let b: Var<_> = builder.eval(Bn254Fr::from_canonical_u32(100));
-        let c: Var<_> = builder.eval(a * b);
-        builder.assert_var_eq(c, Bn254Fr::from_canonical_u32(200));
-
-        let mut backend = ConstraintCompiler::<OuterConfig>::default();
-        let constraints = backend.emit(builder.operations);
-        groth16_ffi::prove::<OuterConfig>(constraints, Witness::default());
-    }
-
-    #[test]
-    #[serial]
-    fn test_num2bits_v() {
-        let mut builder = Builder::<OuterConfig>::default();
-        let value_u32 = 100;
-        let a: Var<_> = builder.eval(Bn254Fr::from_canonical_u32(value_u32));
-        let bits = builder.num2bits_v_circuit(a, 32);
-        for i in 0..32 {
-            builder.assert_var_eq(bits[i], Bn254Fr::from_canonical_u32((value_u32 >> i) & 1));
-        }
-
-        let mut backend = ConstraintCompiler::<OuterConfig>::default();
-        let constraints = backend.emit(builder.operations);
-        groth16_ffi::prove::<OuterConfig>(constraints, Witness::default());
     }
 }

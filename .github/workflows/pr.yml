@@ -1,19 +1,179 @@
-name: PR Lint
+name: PR
 
 on:
-  pull_request_target:
-    types:
-      - opened
-      - edited
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches:
+      - "**"
+    paths:
+      - "cli/**"
+      - "core/**"
+      - "prover/**"
+      - "recursion/**"
+      - "derive/**"
+      - "sdk/**"
+      - ".github/workflows/**"
+  merge_group:
 
-permissions:
-  pull-requests: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  main:
-    name: Title
-    runs-on: warp-ubuntu-latest-arm64-4x
+  test-x86:
+    name: Test (x86-64)
+    runs-on: runs-on,runner=64cpu-linux-x64
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
-      - uses: amannn/action-semantic-pull-request@v5
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
+
+      - name: Run cargo check
+        uses: actions-rs/cargo@v1
+        with:
+          command: check
+          toolchain: nightly-2024-04-17
+          args: --all-targets --all-features
+
+      - name: Run cargo test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          toolchain: nightly-2024-04-17
+          args: --release -- --nocapture
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
+          RUST_BACKTRACE: 1
+          FRI_QUERIES: 1
+          SP1_DEV: 1
+
+  test-arm:
+    name: Test (ARM)
+    runs-on: runs-on,runner=64cpu-linux-arm64
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
+
+      - name: Run cargo check
+        uses: actions-rs/cargo@v1
+        with:
+          command: check
+          toolchain: nightly-2024-04-17
+          args: --all-targets --all-features
+
+      - name: Run cargo test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          toolchain: nightly-2024-04-17
+          args: --release
+        env:
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
+          RUST_BACKTRACE: 1
+          FRI_QUERIES: 1
+          SP1_DEV: 1
+
+  lint:
+    name: Formatting & Clippy
+    runs-on: runs-on,runner=8cpu-linux-x64
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
+
+      - name: Run cargo fmt
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check
+        env:
+          CARGO_INCREMENTAL: 1
+
+      - name: Run cargo clippy
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --all-features --all-targets -- -D warnings -A incomplete-features
+        env:
+          CARGO_INCREMENTAL: 1
+
+  examples:
+    name: Examples
+    runs-on: runs-on,runner=8cpu-linux-x64
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
+
+      - name: Install SP1 toolchain
+        run: |
+          curl -L https://sp1.succinct.xyz | bash
+          ~/.sp1/bin/sp1up 
+          ~/.sp1/bin/cargo-prove prove --version
+
+      - name: Install SP1 CLI
+        run: |
+          cd cli
+          cargo install --force --locked --path .
+          cd ~
+
+      - name: Run cargo check
+        run: |
+          RUSTFLAGS="-Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native" \
+          cargo check --manifest-path examples/Cargo.toml --all-targets --all-features
+
+  cli:
+    name: CLI
+    runs-on: runs-on,runner=8cpu-linux-x64
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
+
+      - name: Install SP1 toolchain
+        run: |
+          curl -L https://sp1.succinct.xyz | bash
+          ~/.sp1/bin/sp1up 
+          ~/.sp1/bin/cargo-prove prove --version
+
+      - name: Install SP1 CLI
+        run: |
+          cd cli
+          cargo install --force --locked --path .
+          cd ~
+
+      - name: Run cargo prove new
+        run: |
+          cargo prove new fibonacci
+
+      - name: Build program and run script
+        run: |
+          cd fibonacci
+          cd program
+          cargo add sp1-zkvm --path $GITHUB_WORKSPACE/zkvm/entrypoint
+          cargo prove build
+          cd ../script
+          cargo add sp1-sdk --path $GITHUB_WORKSPACE/sdk
+          SP1_DEV=1 RUST_LOG=info cargo run --release

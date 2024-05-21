@@ -1,57 +1,92 @@
 pub mod config;
 pub mod poseidon2;
+pub mod utils;
 
 use crate::{
-    cpu::CpuChip,
-    memory::{MemoryChipKind, MemoryGlobalChip},
-    program::ProgramChip,
+    cpu::CpuChip, fri_fold::FriFoldChip, memory::MemoryGlobalChip, multi::MultiChip,
+    poseidon2::Poseidon2Chip, poseidon2_wide::Poseidon2WideChip, program::ProgramChip,
+    range_check::RangeCheckChip,
 };
+use core::iter::once;
 use p3_field::{extension::BinomiallyExtendable, PrimeField32};
-use sp1_core::stark::{Chip, StarkGenericConfig, StarkMachine};
+use sp1_core::stark::{Chip, StarkGenericConfig, StarkMachine, PROOF_MAX_NUM_PVS};
 use sp1_derive::MachineAir;
+use std::marker::PhantomData;
 
-use crate::runtime::{D, DIGEST_SIZE};
+use crate::runtime::D;
+
+pub type RecursionAirWideDeg3<F> = RecursionAir<F, 3>;
+pub type RecursionAirSkinnyDeg7<F> = RecursionAir<F, 7>;
 
 #[derive(MachineAir)]
 #[sp1_core_path = "sp1_core"]
 #[execution_record_path = "crate::runtime::ExecutionRecord<F>"]
 #[program_path = "crate::runtime::RecursionProgram<F>"]
-pub enum RecursionAir<F: PrimeField32 + BinomiallyExtendable<D>> {
+#[builder_path = "crate::air::SP1RecursionAirBuilder<F = F>"]
+pub enum RecursionAir<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> {
     Program(ProgramChip),
     Cpu(CpuChip<F>),
-    MemoryInit(MemoryGlobalChip),
-    MemoryFinalize(MemoryGlobalChip),
-    // Poseidon2(Poseidon2WideChip),
-    // Poseidon2(Poseidon2Chip),
+    MemoryGlobal(MemoryGlobalChip),
+    Poseidon2Wide(Poseidon2WideChip<DEGREE>),
+    Poseidon2Skinny(Poseidon2Chip),
+    FriFold(FriFoldChip<DEGREE>),
+    RangeCheck(RangeCheckChip<F>),
+    Multi(MultiChip<DEGREE>),
 }
 
-impl<F: PrimeField32 + BinomiallyExtendable<D>> RecursionAir<F> {
+impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAir<F, DEGREE> {
+    /// A recursion machine that can have dynamic trace sizes.
     pub fn machine<SC: StarkGenericConfig<Val = F>>(config: SC) -> StarkMachine<SC, Self> {
         let chips = Self::get_all()
             .into_iter()
             .map(Chip::new)
             .collect::<Vec<_>>();
-        StarkMachine::new(config, chips, DIGEST_SIZE)
+        StarkMachine::new(config, chips, PROOF_MAX_NUM_PVS)
+    }
+
+    /// A recursion machine with fixed trace sizes tuned to work specifically for the wrap layer.
+    pub fn wrap_machine<SC: StarkGenericConfig<Val = F>>(config: SC) -> StarkMachine<SC, Self> {
+        let chips = Self::get_wrap_all()
+            .into_iter()
+            .map(Chip::new)
+            .collect::<Vec<_>>();
+        StarkMachine::new(config, chips, PROOF_MAX_NUM_PVS)
     }
 
     pub fn get_all() -> Vec<Self> {
-        let mut chips = vec![];
-        let program = ProgramChip;
-        chips.push(RecursionAir::Program(program));
-        let cpu = CpuChip::default();
-        chips.push(RecursionAir::Cpu(cpu));
-        let memory_init = MemoryGlobalChip {
-            kind: MemoryChipKind::Init,
-        };
-        chips.push(RecursionAir::MemoryInit(memory_init));
-        let memory_finalize = MemoryGlobalChip {
-            kind: MemoryChipKind::Finalize,
-        };
-        chips.push(RecursionAir::MemoryFinalize(memory_finalize));
-        // let poseidon_wide2 = Poseidon2WideChip {};
-        // chips.push(RecursionAir::Poseidon2(poseidon_wide2));
-        // let poseidon2 = Poseidon2Chip {};
-        // chips.push(RecursionAir::Poseidon2(poseidon2));
-        chips
+        once(RecursionAir::Program(ProgramChip))
+            .chain(once(RecursionAir::Cpu(CpuChip {
+                fixed_log2_rows: None,
+                _phantom: PhantomData,
+            })))
+            .chain(once(RecursionAir::MemoryGlobal(MemoryGlobalChip {
+                fixed_log2_rows: None,
+            })))
+            .chain(once(RecursionAir::Poseidon2Wide(Poseidon2WideChip::<
+                DEGREE,
+            > {
+                fixed_log2_rows: None,
+            })))
+            .chain(once(RecursionAir::FriFold(FriFoldChip::<DEGREE> {
+                fixed_log2_rows: None,
+            })))
+            .chain(once(RecursionAir::RangeCheck(RangeCheckChip::default())))
+            .collect()
+    }
+
+    pub fn get_wrap_all() -> Vec<Self> {
+        once(RecursionAir::Program(ProgramChip))
+            .chain(once(RecursionAir::Cpu(CpuChip {
+                fixed_log2_rows: Some(20),
+                _phantom: PhantomData,
+            })))
+            .chain(once(RecursionAir::MemoryGlobal(MemoryGlobalChip {
+                fixed_log2_rows: Some(20),
+            })))
+            .chain(once(RecursionAir::Multi(MultiChip {
+                fixed_log2_rows: Some(20),
+            })))
+            .chain(once(RecursionAir::RangeCheck(RangeCheckChip::default())))
+            .collect()
     }
 }

@@ -1,20 +1,28 @@
-use crate::utils::Buffer;
+use crate::{
+    stark::{ShardProof, StarkVerifyingKey},
+    utils::{BabyBearPoseidon2, Buffer},
+};
+use k256::sha2::{Digest, Sha256};
+use num_bigint::BigUint;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 /// Standard input for the prover.
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SP1Stdin {
     /// Input stored as a vec of vec of bytes. It's stored this way because the read syscall reads
     /// a vec of bytes at a time.
     pub buffer: Vec<Vec<u8>>,
     pub ptr: usize,
+    pub proofs: Vec<(
+        ShardProof<BabyBearPoseidon2>,
+        StarkVerifyingKey<BabyBearPoseidon2>,
+    )>,
 }
 
 /// Public values for the prover.
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SP1PublicValues {
-    // TODO: fix
-    pub buffer: Buffer,
+    buffer: Buffer,
 }
 
 impl SP1Stdin {
@@ -23,6 +31,7 @@ impl SP1Stdin {
         Self {
             buffer: Vec::new(),
             ptr: 0,
+            proofs: Vec::new(),
         }
     }
 
@@ -31,6 +40,7 @@ impl SP1Stdin {
         Self {
             buffer: vec![data.to_vec()],
             ptr: 0,
+            proofs: Vec::new(),
         }
     }
 
@@ -63,6 +73,14 @@ impl SP1Stdin {
     pub fn write_vec(&mut self, vec: Vec<u8>) {
         self.buffer.push(vec);
     }
+
+    pub fn write_proof(
+        &mut self,
+        proof: ShardProof<BabyBearPoseidon2>,
+        vk: StarkVerifyingKey<BabyBearPoseidon2>,
+    ) {
+        self.proofs.push((proof, vk));
+    }
 }
 
 impl SP1PublicValues {
@@ -73,11 +91,23 @@ impl SP1PublicValues {
         }
     }
 
+    pub fn bytes(&self) -> String {
+        format!("0x{}", hex::encode(self.buffer.data.clone()))
+    }
+
     /// Create a `SP1PublicValues` from a slice of bytes.
     pub fn from(data: &[u8]) -> Self {
         Self {
             buffer: Buffer::from(data),
         }
+    }
+
+    pub fn as_slice(&self) -> &[u8] {
+        self.buffer.data.as_slice()
+    }
+
+    pub fn to_vec(&self) -> Vec<u8> {
+        self.buffer.data.clone()
     }
 
     /// Read a value from the buffer.    
@@ -98,6 +128,26 @@ impl SP1PublicValues {
     /// Write a slice of bytes to the buffer.
     pub fn write_slice(&mut self, slice: &[u8]) {
         self.buffer.write_slice(slice);
+    }
+
+    /// Hash the public values, mask the top 3 bits and return a BigUint. Matches the implementation
+    /// of `hashPublicValues` in the Solidity verifier.
+    ///
+    /// ```solidity
+    /// sha256(publicValues) & bytes32(uint256((1 << 253) - 1));
+    /// ```
+    pub fn hash(&self) -> BigUint {
+        // Hash the public values.
+        let mut hasher = Sha256::new();
+        hasher.update(self.buffer.data.as_slice());
+        let hash_result = hasher.finalize();
+        let mut hash = hash_result.to_vec();
+
+        // Mask the top 3 bits.
+        hash[0] &= 0b00011111;
+
+        // Return the masked hash as a BigUint.
+        BigUint::from_bytes_be(&hash)
     }
 }
 
@@ -142,5 +192,25 @@ pub mod proof_serde {
         } else {
             MachineProof::<SC>::deserialize(deserializer)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_hash_public_values() {
+        let test_hex = "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
+        let test_bytes = hex::decode(test_hex).unwrap();
+
+        let mut public_values = SP1PublicValues::new();
+        public_values.write_slice(&test_bytes);
+        let hash = public_values.hash();
+
+        let expected_hash = "1ce987d0a7fcc2636fe87e69295ba12b1cc46c256b369ae7401c51b805ee91bd";
+        let expected_hash_biguint = BigUint::from_bytes_be(&hex::decode(expected_hash).unwrap());
+
+        assert_eq!(hash, expected_hash_biguint);
     }
 }

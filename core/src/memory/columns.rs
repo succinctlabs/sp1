@@ -141,3 +141,12 @@ impl<T> MemoryCols<T> for MemoryReadWriteCols<T> {
         &mut self.access.value
     }
 }
+
+/// A utility method to convert a slice of memory access columns into a vector of values.
+/// This is useful for comparing the values of a memory access to limbs.
+pub fn value_as_limbs<T: Clone, M: MemoryCols<T>>(memory: &[M]) -> Vec<T> {
+    memory
+        .iter()
+        .flat_map(|m| m.value().clone().into_iter())
+        .collect()
+}

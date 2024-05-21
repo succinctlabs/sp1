@@ -305,7 +305,6 @@ impl Witnessable<C> for ShardProof<BabyBearPoseidon2Outer> {
         let public_values = builder.vec(public_values);
 
         RecursionShardProofVariable {
-            index: self.index,
             commitment,
             opened_values,
             opening_proof,
@@ -331,16 +330,15 @@ mod tests {
     use p3_baby_bear::BabyBear;
     use p3_bn254_fr::Bn254Fr;
     use p3_field::AbstractField;
-    use serial_test::serial;
     use sp1_recursion_compiler::{
         config::OuterConfig,
-        constraints::{groth16_ffi, ConstraintCompiler},
+        constraints::ConstraintCompiler,
         ir::{Builder, ExtConst, Witness},
     };
     use sp1_recursion_core::stark::config::OuterChallenge;
+    use sp1_recursion_gnark_ffi::Groth16Prover;
 
     #[test]
-    #[serial]
     fn test_witness_simple() {
         let mut builder = Builder::<OuterConfig>::default();
         let a = builder.witness_var();
@@ -366,12 +364,14 @@ mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        groth16_ffi::prove::<OuterConfig>(
+        Groth16Prover::test::<OuterConfig>(
             constraints,
             Witness {
                 vars: vec![Bn254Fr::one(), Bn254Fr::two()],
                 felts: vec![BabyBear::one(), BabyBear::two()],
                 exts: vec![OuterChallenge::one(), OuterChallenge::two()],
+                vkey_hash: Bn254Fr::one(),
+                commited_values_digest: Bn254Fr::one(),
             },
         );
     }

@@ -16,17 +16,18 @@ p3-util = { workspace = true }
 sp1-recursion-core = { path = "../core" }
 sp1-core = { path = "../../core" }
 itertools = "0.12.1"
-serde = { version = "1.0.197", features = ["derive"] }
+serde = { version = "1.0.201", features = ["derive"] }
 sp1-recursion-derive = { path = "../derive" }
-serde_json = "1.0.115"
+serde_json = "1.0.117"
 p3-bn254-fr = { workspace = true }
 p3-baby-bear = { workspace = true }
-serial_test = "3.0.0"
+serial_test = "3.1.1"
 p3-poseidon2 = { workspace = true }
 backtrace = "0.3.71"
+tracing = "0.1.40"
 
 [dev-dependencies]
 p3-challenger = { workspace = true }
 p3-dft = { workspace = true }
 p3-merkle-tree = { workspace = true }
-rand = "0.8.4"
+rand = "0.8.5"

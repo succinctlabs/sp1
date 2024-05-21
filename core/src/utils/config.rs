@@ -1,5 +1,5 @@
 use crate::stark::StarkGenericConfig;
-use p3_baby_bear::{BabyBear, DiffusionMatrixBabybear};
+use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
 use p3_challenger::DuplexChallenger;
 use p3_commit::ExtensionMmcs;
 use p3_dft::Radix2DitParallel;
@@ -15,15 +15,15 @@ use p3_symmetric::Hash;
 use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
 use serde::Deserialize;
 use serde::Serialize;
-use sp1_primitives::RC_16_30;
+use sp1_primitives::poseidon2_init;
 
-const DIGEST_SIZE: usize = 8;
+pub const DIGEST_SIZE: usize = 8;
 
 /// A configuration for inner recursion.
 pub type InnerVal = BabyBear;
 pub type InnerChallenge = BinomialExtensionField<InnerVal, 4>;
 pub type InnerPerm =
-    Poseidon2<InnerVal, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabybear, 16, 7>;
+    Poseidon2<InnerVal, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 16, 7>;
 pub type InnerHash = PaddingFreeSponge<InnerPerm, 16, 8, 8>;
 pub type InnerDigestHash = Hash<InnerVal, InnerVal, DIGEST_SIZE>;
 pub type InnerDigest = [InnerVal; DIGEST_SIZE];
@@ -48,24 +48,7 @@ pub type InnerPcsProof =
 
 /// The permutation for inner recursion.
 pub fn inner_perm() -> InnerPerm {
-    const ROUNDS_F: usize = 8;
-    const ROUNDS_P: usize = 22;
-    let mut round_constants = RC_16_30.to_vec();
-    let internal_start = ROUNDS_F / 2;
-    let internal_end = (ROUNDS_F / 2) + ROUNDS_P;
-    let internal_round_constants = round_constants
-        .drain(internal_start..internal_end)
-        .map(|vec| vec[0])
-        .collect::<Vec<_>>();
-    let external_round_constants = round_constants;
-    InnerPerm::new(
-        ROUNDS_F,
-        external_round_constants,
-        Poseidon2ExternalMatrixGeneral,
-        ROUNDS_P,
-        internal_round_constants,
-        DiffusionMatrixBabybear,
-    )
+    poseidon2_init()
 }
 
 /// The FRI config for sp1 proofs.

@@ -387,9 +387,10 @@ mod tests {
 
             let inputs = SP1Stdin::from(&compressed);
 
-            let mut proof = run_test_io(Program::from(SECP256K1_DECOMPRESS_ELF), inputs).unwrap();
+            let mut public_values =
+                run_test_io(Program::from(SECP256K1_DECOMPRESS_ELF), inputs).unwrap();
             let mut result = [0; 65];
-            proof.buffer.read_slice(&mut result);
+            public_values.read_slice(&mut result);
             assert_eq!(result, decompressed);
         }
     }

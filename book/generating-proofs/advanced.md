@@ -6,75 +6,24 @@ We recommend that during development of large programs (> 1 million cycles) that
 Instead, you should have your script only execute the program with the RISC-V runtime and read `public_values`. Here is an example:
 
 ```rust,noplayground
-use sp1_sdk::{ProverClient, SP1Stdin};
-
-// The ELF file with the RISC-V bytecode of the program from above.
-const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
-
-fn main() {
-    let mut stdin = SP1Stdin::new();
-    let n = 5000u32;
-    stdin.write(&n);
-    let client = ProverClient::new();
-    let mut public_values = client.execute(ELF, stdin).expect("execution failed");
-    let a = public_values.read::<u32>();
-    let b = public_values.read::<u32>();
-
-    // Print the program's outputs in our script.
-    println!("a: {}", a);
-    println!("b: {}", b);
-    println!("successfully executed the program!")
-}
+{{#include ../../examples/fibonacci/script/bin/execute.rs}}
 ```
 
 If execution of your program succeeds, then proof generation should succeed as well! (Unless there is a bug in our zkVM implementation.)
 
-## Performance
+## Compressed Proofs
 
-For maximal performance, you should run proof generation with the following command and vary your `shard_size` depending on your program's number of cycles.
-
-```rust,noplayground
-SHARD_SIZE=4194304 RUST_LOG=info RUSTFLAGS='-C target-cpu=native' cargo run --release
-```
-
-You can also use the `SAVE_DISK_THRESHOLD` env variable to control whether shards are saved to disk or not.
-This is useful for controlling memory usage.
+With the `ProverClient`, the default `prove` function generates a proof that is succinct, but can have size that scales with the number of cycles of the program. To generate a compressed proof of constant size, you can use the `prove_compressed` function instead. This will use STARK recursion to generate a proof that is constant size (around 7Kb), but will be slower than just calling `prove`, as it will use recursion to combine the core SP1 proof into a single constant-sized proof.
 
 ```rust,noplayground
-SAVE_DISK_THRESHOLD=64 SHARD_SIZE=2097152 RUST_LOG=info RUSTFLAGS='-C target-cpu=native' cargo run --release
+{{#include ../../examples/fibonacci/script/bin/compressed.rs}}
 ```
 
-#### Blake3 on ARM machines
-
-Blake3 on ARM machines requires using the `neon` feature of `sp1-core`. For examples in the sp1-core repo, you can use:
-
-```rust,noplayground
-SHARD_SIZE=2097152 RUST_LOG=info RUSTFLAGS='-C target-cpu=native' cargo run --release --features neon
-```
-
-Otherwise, make sure to include the "neon" feature when importing `sp1-zkvm` in your `Cargo.toml`:
-
-```toml,noplayground
-sp1-sdk = { git = "https://github.com/succinctlabs/sp1.git", features = [ "neon" ] }
-```
+You can run the above script with `RUST_LOG=info cargo run --bin compressed --release` from `examples/fibonacci/script`.
 
 ## Logging and Tracing Information
 
-You can either use `utils::setup_logger()` or `utils::setup_tracer()` to enable logging and tracing information respectively. You should only use one or the other of these functions.
-
-**Tracing:**
-
-Tracing will show more detailed timing information.
-
-```rust,noplayground
-utils::setup_tracer();
-```
-
-You must run your command with:
-
-```bash
-RUST_TRACER=info cargo run --release
-```
+You can use `utils::setup_logger()` to enable logging information respectively. You should only use one or the other of these functions.
 
 **Logging:**
 
@@ -86,4 +35,35 @@ You must run your command with:
 
 ```bash
 RUST_LOG=info cargo run --release
+```
+
+## CPU Acceleration
+
+To enable CPU acceleration, you can use the `RUSTFLAGS` environment variable to enable the `target-cpu=native` flag when running your script. This will enable the compiler to generate code that is optimized for your CPU.
+
+```bash
+RUSTFLAGS='-C target-cpu=native' cargo run --release
+```
+
+Currently there is support for AVX512 and NEON SIMD instructions. For NEON, you must also enable the `sp1-sdk` feature `neon` in your script crate's `Cargo.toml` file.
+
+```toml
+sp1-sdk = { git = "https://github.com/succinctlabs/sp1", features = ["neon"] }
+```
+
+## Performance
+
+For maximal performance, you should run proof generation with the following command and vary your `shard_size` depending on your program's number of cycles.
+
+```rust,noplayground
+SHARD_SIZE=4194304 RUST_LOG=info RUSTFLAGS='-C target-cpu=native' cargo run --release
+```
+
+## Memory Usage
+
+To reduce memory usage, set the `SHARD_BATCH_SIZE` enviroment variable depending on how much RAM
+your machine has. A higher number will use more memory, but will be faster.
+
+```rust,noplayground
+SHARD_BATCH_SIZE=1 SHARD_SIZE=2097152 RUST_LOG=info RUSTFLAGS='-C target-cpu=native' cargo run --release
 ```

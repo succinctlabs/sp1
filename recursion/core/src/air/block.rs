@@ -2,8 +2,8 @@ use p3_air::AirBuilder;
 use p3_field::AbstractField;
 use p3_field::ExtensionField;
 use p3_field::Field;
-use p3_field::PrimeField32;
 use serde::{Deserialize, Serialize};
+use sp1_core::air::ExtensionAirBuilder;
 use sp1_core::air::{BinomialExtension, SP1AirBuilder};
 use sp1_derive::AlignedBorrow;
 
@@ -23,7 +23,7 @@ pub trait BlockBuilder: AirBuilder {
     fn assert_block_eq<Lhs: Into<Self::Expr>, Rhs: Into<Self::Expr>>(
         &mut self,
         lhs: Block<Lhs>,
-        rhs: Block<Lhs>,
+        rhs: Block<Rhs>,
     ) {
         for (l, r) in lhs.0.into_iter().zip(rhs.0) {
             self.assert_eq(l, r);
@@ -51,7 +51,7 @@ impl<T> Block<T> {
 }
 
 impl<T: Clone> Block<T> {
-    pub fn as_extension<AB: SP1AirBuilder<Var = T>>(&self) -> BinomialExtension<AB::Expr> {
+    pub fn as_extension<AB: ExtensionAirBuilder<Var = T>>(&self) -> BinomialExtension<AB::Expr> {
         let arr: [AB::Expr; 4] = self.0.clone().map(|x| AB::Expr::zero() + x);
         BinomialExtension(arr)
     }
@@ -73,9 +73,9 @@ impl<T> From<[T; D]> for Block<T> {
     }
 }
 
-impl<F: PrimeField32> From<F> for Block<F> {
-    fn from(value: F) -> Self {
-        Self([value, F::zero(), F::zero(), F::zero()])
+impl<T: AbstractField> From<T> for Block<T> {
+    fn from(value: T) -> Self {
+        Self([value, T::zero(), T::zero(), T::zero()])
     }
 }
 

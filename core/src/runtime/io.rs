@@ -1,7 +1,7 @@
 use std::io::Read;
 
-use crate::stark::{MachineProof, StarkVerifyingKey};
-use crate::utils::BabyBearPoseidon2Inner;
+use crate::stark::{ShardProof, StarkVerifyingKey};
+use crate::utils::BabyBearPoseidon2;
 
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -34,8 +34,8 @@ impl Runtime {
 
     pub fn write_proof(
         &mut self,
-        proof: MachineProof<BabyBearPoseidon2Inner>,
-        vk: StarkVerifyingKey<BabyBearPoseidon2Inner>,
+        proof: ShardProof<BabyBearPoseidon2>,
+        vk: StarkVerifyingKey<BabyBearPoseidon2>,
     ) {
         self.state.proof_stream.push((proof, vk));
     }
@@ -60,7 +60,7 @@ pub mod tests {
     use super::*;
     use crate::runtime::Program;
     use crate::utils::tests::IO_ELF;
-    use crate::utils::{self, prove_core, BabyBearBlake3};
+    use crate::utils::{self, prove_simple, BabyBearBlake3};
     use serde::Deserialize;
 
     #[derive(Serialize, Deserialize, Debug, PartialEq)]
@@ -93,7 +93,7 @@ pub mod tests {
         let points = points();
         runtime.write_stdin(&points.0);
         runtime.write_stdin(&points.1);
-        runtime.run();
+        runtime.run().unwrap();
         let added_point = runtime.read_public_values::<MyPointUnaligned>();
         assert_eq!(
             added_point,
@@ -113,8 +113,8 @@ pub mod tests {
         let points = points();
         runtime.write_stdin(&points.0);
         runtime.write_stdin(&points.1);
-        runtime.run();
+        runtime.run().unwrap();
         let config = BabyBearBlake3::new();
-        prove_core(config, runtime);
+        prove_simple(config, runtime).unwrap();
     }
 }

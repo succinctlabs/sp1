@@ -12,7 +12,6 @@ use crate::DIGEST_SIZE;
 pub type OuterDigestVariable<C: Config> = [Var<C::N>; DIGEST_SIZE];
 
 pub struct RecursionShardProofVariable<C: Config> {
-    pub index: usize,
     pub commitment: ShardCommitment<OuterDigestVariable<C>>,
     pub opened_values: RecursionShardOpenedValuesVariable<C>,
     pub opening_proof: TwoAdicPcsProofVariable<C>,
@@ -168,8 +167,7 @@ impl<C: Config> ChipOpening<C> {
             local: vec![],
             next: vec![],
         };
-        let permutation_width =
-            C::EF::D * ((chip.num_interactions() + 1) / chip.logup_batch_size() + 1);
+        let permutation_width = C::EF::D * chip.permutation_width();
 
         for i in 0..permutation_width {
             permutation.local.push(opening.permutation.local[i]);

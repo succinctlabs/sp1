@@ -1,5 +1,6 @@
 use core::fmt::Debug;
 use core::mem::size_of;
+use std::array;
 use std::iter::once;
 
 use itertools::Itertools;
@@ -26,10 +27,7 @@ pub struct PublicValues<W, T> {
     /// The hash of all deferred proofs that have been witnessed in the VM. It will be rebuilt in
     /// recursive verification as the proofs get verified. The hash itself is a rolling poseidon2
     /// hash of each proof+vkey hash and the previous hash which is initially zero.
-    pub deferred_proofs_digest: [W; POSEIDON_NUM_WORDS],
-
-    /// The shard number.
-    pub shard: T,
+    pub deferred_proofs_digest: [T; POSEIDON_NUM_WORDS],
 
     /// The shard's start program counter.
     pub start_pc: T,
@@ -39,6 +37,9 @@ pub struct PublicValues<W, T> {
 
     /// The exit code of the program.  Only valid if halt has been executed.
     pub exit_code: T,
+
+    /// The shard number.
+    pub shard: T,
 }
 
 impl PublicValues<u32, u32> {
@@ -52,12 +53,13 @@ impl PublicValues<u32, u32> {
             .chain(
                 self.deferred_proofs_digest
                     .iter()
-                    .flat_map(|w| Word::<F>::from(*w).into_iter()),
+                    .cloned()
+                    .map(F::from_canonical_u32),
             )
-            .chain(once(F::from_canonical_u32(self.shard)))
             .chain(once(F::from_canonical_u32(self.start_pc)))
             .chain(once(F::from_canonical_u32(self.next_pc)))
             .chain(once(F::from_canonical_u32(self.exit_code)))
+            .chain(once(F::from_canonical_u32(self.shard)))
             .collect_vec();
 
         assert!(
@@ -77,15 +79,14 @@ impl<T: Clone + Debug> PublicValues<Word<T>, T> {
     pub fn from_vec(data: Vec<T>) -> Self {
         let mut iter = data.iter().cloned();
 
-        let mut committed_value_digest = Vec::new();
-        for _ in 0..PV_DIGEST_NUM_WORDS {
-            committed_value_digest.push(Word::from_iter(&mut iter));
-        }
+        let committed_value_digest = array::from_fn(|_| Word::from_iter(&mut iter));
 
-        let mut deferred_proofs_digest = Vec::new();
-        for _ in 0..POSEIDON_NUM_WORDS {
-            deferred_proofs_digest.push(Word::from_iter(&mut iter));
-        }
+        let deferred_proofs_digest = iter
+            .by_ref()
+            .take(POSEIDON_NUM_WORDS)
+            .collect_vec()
+            .try_into()
+            .unwrap();
 
         // Collecting the remaining items into a tuple.  Note that it is only getting the first
         // four items, as the rest would be padded values.
@@ -94,18 +95,18 @@ impl<T: Clone + Debug> PublicValues<Word<T>, T> {
             panic!("Invalid number of items in the serialized vector.");
         }
 
-        let [shard, start_pc, next_pc, exit_code] = match &remaining_items.as_slice()[0..4] {
-            [shard, start_pc, next_pc, exit_code] => [shard, start_pc, next_pc, exit_code],
+        let [start_pc, next_pc, exit_code, shard] = match &remaining_items.as_slice()[0..4] {
+            [start_pc, next_pc, exit_code, shard] => [start_pc, next_pc, exit_code, shard],
             _ => unreachable!(),
         };
 
         Self {
-            committed_value_digest: committed_value_digest.try_into().unwrap(),
-            deferred_proofs_digest: deferred_proofs_digest.try_into().unwrap(),
-            shard: shard.to_owned(),
+            committed_value_digest,
+            deferred_proofs_digest,
             start_pc: start_pc.to_owned(),
             next_pc: next_pc.to_owned(),
             exit_code: exit_code.to_owned(),
+            shard: shard.to_owned(),
         }
     }
 }
@@ -129,7 +130,7 @@ mod tests {
     fn test_public_values_digest_num_words_consistency_zkvm() {
         assert_eq!(
             public_values::PV_DIGEST_NUM_WORDS,
-            sp1_zkvm::syscalls::PV_DIGEST_NUM_WORDS
+            sp1_zkvm::PV_DIGEST_NUM_WORDS
         );
     }
 }

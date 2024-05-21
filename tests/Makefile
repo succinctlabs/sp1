@@ -1,13 +1,11 @@
 SHELL := /bin/bash
+.SHELLFLAGS = -e
 
 all:
 	@for dir in */ ; do \
-		if [ -d "$${dir}" ]; then \
-			echo "Building in $${dir}program..."; \
-			cd $${dir} && cargo clean && cargo prove build && cd ../; \
-		else \
-			echo "No program directory in $${dir}, skipping..."; \
-		fi; \
+		echo "Building in $${dir}..."; \
+		cd $${dir} && cargo prove build || { echo "Failed at command: cd $${dir} && cargo prove build"; exit 1; }; \
+		cd ..; \
 	done
 
 .PHONY: all

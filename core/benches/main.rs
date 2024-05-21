@@ -1,6 +1,7 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use sp1_core::io::SP1Stdin;
 use sp1_core::runtime::{Program, Runtime};
-use sp1_core::utils::{run_and_prove, BabyBearPoseidon2};
+use sp1_core::utils::{prove, BabyBearPoseidon2};
 
 #[allow(unreachable_code)]
 pub fn criterion_benchmark(c: &mut Criterion) {
@@ -12,17 +13,16 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         let program = Program::from_elf(&elf_path);
         let cycles = {
             let mut runtime = Runtime::new(program.clone());
-            runtime.run();
+            runtime.run().unwrap();
             runtime.state.global_clk
         };
         group.bench_function(
             format!("main:{}:{}", p.split('/').last().unwrap(), cycles),
             |b| {
                 b.iter(|| {
-                    run_and_prove(
+                    prove(
                         black_box(program.clone()),
-                        #[allow(deprecated)]
-                        &[],
+                        &SP1Stdin::new(),
                         BabyBearPoseidon2::new(),
                     )
                 })

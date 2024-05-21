@@ -1,4 +1,3 @@
-use rsa::PublicKey;
 use rsa::{
     pkcs8::{DecodePrivateKey, DecodePublicKey},
     RsaPrivateKey, RsaPublicKey,
@@ -7,14 +6,14 @@ use sp1_sdk::{utils, ProverClient, SP1Stdin};
 use std::vec;
 
 /// The ELF we want to execute inside the zkVM.
-const REGEX_IO_ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
+const RSA_ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
 
 const RSA_2048_PRIV_DER: &[u8] = include_bytes!("rsa2048-priv.der");
 const RSA_2048_PUB_DER: &[u8] = include_bytes!("rsa2048-pub.der");
 
 fn main() {
     // Setup a tracer for logging.
-    utils::setup_tracer();
+    utils::setup_logger();
 
     // Create a new stdin with the input for the program.
     let mut stdin = SP1Stdin::new();
@@ -54,12 +53,11 @@ fn main() {
 
     // Generate the proof for the given program and input.
     let client = ProverClient::new();
-    let proof = client.prove(REGEX_IO_ELF, stdin).expect("proving failed");
+    let (pk, vk) = client.setup(RSA_ELF);
+    let proof = client.prove(&pk, stdin).expect("proving failed");
 
     // Verify proof.
-    client
-        .verify(REGEX_IO_ELF, &proof)
-        .expect("verification failed");
+    client.verify(&proof, &vk).expect("verification failed");
 
     // Save the proof.
     proof

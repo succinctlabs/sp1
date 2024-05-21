@@ -45,8 +45,6 @@ pub fn populate_permutation_row<F: PrimeField, EF: ExtensionField<F>>(
         .map(|int| (int, true))
         .chain(receives.iter().map(|int| (int, false)))
         .chunks(batch_size);
-    let num_chunks = (sends.len() + receives.len() + 1) / batch_size;
-    debug_assert_eq!(num_chunks + 1, row.len());
     // Compute the denominators \prod_{i\in B} row_fingerprint(alpha, beta).
     for (value, chunk) in row.iter_mut().zip(interaction_chunks) {
         *value = chunk
@@ -69,6 +67,11 @@ pub fn populate_permutation_row<F: PrimeField, EF: ExtensionField<F>>(
             })
             .sum();
     }
+}
+
+#[inline]
+pub const fn permutation_trace_width(num_interactions: usize, batch_size: usize) -> usize {
+    num_interactions.div_ceil(batch_size) + 1
 }
 
 /// Generates the permutation trace for the given chip and main trace based on a variant of LogUp.
@@ -96,7 +99,7 @@ pub(crate) fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
     //
     // where f_{i, c_k} is the value at row i for column c_k. The computed value is essentially a
     // fingerprint for the interaction.
-    let permutation_trace_width = (sends.len() + receives.len() + 1) / batch_size + 1;
+    let permutation_trace_width = permutation_trace_width(sends.len() + receives.len(), batch_size);
     let height = main.height();
 
     let mut permutation_trace = RowMajorMatrix::new(
@@ -214,7 +217,25 @@ pub fn eval_permutation_constraints<F, AB>(
         .map(|int| (int, true))
         .chain(receives.iter().map(|int| (int, false)))
         .chunks(batch_size);
-    for (entry, chunk) in perm_local.iter().zip(interaction_chunks) {
+
+    assert_eq!(
+        interaction_chunks.into_iter().count(),
+        perm_width - 1,
+        "Number of sends: {}, receives: {}, batch size: {}, perm width: {}",
+        sends.len(),
+        receives.len(),
+        batch_size,
+        perm_width - 1
+    );
+    assert_eq!(
+        perm_width,
+        permutation_trace_width(sends.len() + receives.len(), batch_size)
+    );
+
+    for (entry, chunk) in perm_local[0..perm_local.len() - 1]
+        .iter()
+        .zip(interaction_chunks)
+    {
         // Assert that the i-eth entry is equal to the sum_i m_i/rlc_i by constraints:
         // entry * \prod_i rlc_i = \sum_i m_i * \prod_{j!=i} rlc_j.
 

@@ -32,8 +32,8 @@ pub const fn indices_arr<const N: usize>() -> [usize; N] {
 pub fn pad_to_power_of_two<const N: usize, T: Clone + Default>(values: &mut Vec<T>) {
     debug_assert!(values.len() % N == 0);
     let mut n_real_rows = values.len() / N;
-    if n_real_rows == 0 || n_real_rows == 1 {
-        n_real_rows = 8;
+    if n_real_rows < 16 {
+        n_real_rows = 16;
     }
     values.resize(n_real_rows.next_power_of_two() * N, T::default());
 }
@@ -67,14 +67,49 @@ pub fn limbs_from_access<T: Copy, N: ArrayLength, M: MemoryCols<T>>(cols: &[M]) 
 pub fn pad_rows<T: Clone, const N: usize>(rows: &mut Vec<[T; N]>, row_fn: impl Fn() -> [T; N]) {
     let nb_rows = rows.len();
     let mut padded_nb_rows = nb_rows.next_power_of_two();
-    if padded_nb_rows == 2 || padded_nb_rows == 1 {
-        padded_nb_rows = 4;
+    if padded_nb_rows < 16 {
+        padded_nb_rows = 16;
     }
     if padded_nb_rows == nb_rows {
         return;
     }
     let dummy_row = row_fn();
     rows.resize(padded_nb_rows, dummy_row);
+}
+
+pub fn pad_rows_fixed<R: Clone>(
+    rows: &mut Vec<R>,
+    row_fn: impl Fn() -> R,
+    size_log2: Option<usize>,
+) {
+    let nb_rows = rows.len();
+    let dummy_row = row_fn();
+    match size_log2 {
+        Some(size_log2) => {
+            let padded_nb_rows = 1 << size_log2;
+            if nb_rows * 2 < padded_nb_rows {
+                tracing::warn!(
+                    "fixed log2 rows can be potentially reduced: got {}, expected {}",
+                    nb_rows,
+                    padded_nb_rows
+                );
+            }
+            if nb_rows > padded_nb_rows {
+                panic!(
+                    "fixed log2 rows is too small: got {}, expected {}",
+                    nb_rows, padded_nb_rows
+                );
+            }
+            rows.resize(padded_nb_rows, dummy_row);
+        }
+        None => {
+            let mut padded_nb_rows = nb_rows.next_power_of_two();
+            if padded_nb_rows < 16 {
+                padded_nb_rows = 16;
+            }
+            rows.resize(padded_nb_rows, dummy_row);
+        }
+    }
 }
 
 /// Converts a slice of words to a slice of bytes in little endian.

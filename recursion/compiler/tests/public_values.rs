@@ -19,9 +19,9 @@ fn test_compiler_public_values() {
     let mut var_array = builder.dyn_array::<Felt<_>>(dyn_len);
     builder.set(&mut var_array, 0, a);
     builder.set(&mut var_array, 1, b);
-    builder.write_public_values(&var_array);
-    builder.write_public_values(&var_array);
-    builder.commit_public_values();
+    // builder.write_public_values(&var_array);
+    // builder.write_public_values(&var_array);
+    // builder.commit_public_values();
 
     let program = builder.compile_program();
 

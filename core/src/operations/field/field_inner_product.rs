@@ -76,6 +76,7 @@ impl<F: PrimeField32, P: FieldParameters> FieldInnerProductCols<F, P> {
             &p_vanishing,
             P::WITNESS_OFFSET,
             P::NB_BITS_PER_LIMB as u32,
+            P::NB_WITNESS_LIMBS,
         );
         let (p_witness_low, p_witness_high) = split_u16_limbs_to_u8_limbs(&p_witness);
 
@@ -269,12 +270,6 @@ mod tests {
             local
                 .a_ip_b
                 .eval(builder, &local.a, &local.b, AB::F::one(), AB::F::one());
-
-            // A dummy constraint to keep the degree 3.
-            builder.assert_zero(
-                local.a[0][0] * local.b[0][0] * local.a[0][0]
-                    - local.a[0][0] * local.b[0][0] * local.a[0][0],
-            )
         }
     }
 

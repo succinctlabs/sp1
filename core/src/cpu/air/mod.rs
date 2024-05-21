@@ -7,6 +7,7 @@ use core::borrow::Borrow;
 use itertools::Itertools;
 use p3_air::Air;
 use p3_air::AirBuilder;
+use p3_air::AirBuilderWithPublicValues;
 use p3_air::BaseAir;
 use p3_field::AbstractField;
 use p3_matrix::Matrix;
@@ -25,7 +26,7 @@ use crate::runtime::Opcode;
 
 impl<AB> Air<AB> for CpuChip
 where
-    AB: SP1AirBuilder,
+    AB: SP1AirBuilder + AirBuilderWithPublicValues,
 {
     #[inline(never)]
     fn eval(&self, builder: &mut AB) {
@@ -237,6 +238,9 @@ impl CpuChip {
         // Verify that the clk increments are correct.  Most clk increment should be 4, but for some
         // precompiles, there are additional cycles.
         let num_extra_cycles = self.get_num_extra_ecall_cycles::<AB>(local);
+
+        // We already assert that `local.clk < 2^24`. `num_extra_cycles` is an entry of a word and
+        // therefore less than `2^8`, this means that the sum cannot overflow in a 31 bit field.
         let expected_next_clk =
             local.clk + AB::Expr::from_canonical_u32(4) + num_extra_cycles.clone();
 

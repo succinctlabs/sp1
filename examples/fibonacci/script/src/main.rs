@@ -4,18 +4,34 @@ use sp1_sdk::{utils, ProverClient, SP1Stdin};
 const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
 
 fn main() {
-    // Setup a tracer for logging.
+    // Setup logging.
     utils::setup_logger();
 
-    // Create an input stream.
-    let stdin = SP1Stdin::new();
+    // Create an input stream and write '500' to it.
+    let n = 500u32;
 
-    // Generate the proof for the given program.
+    let mut stdin = SP1Stdin::new();
+    stdin.write(&n);
+
+    // Generate the proof for the given program and input.
     let client = ProverClient::new();
-    let proof = client.prove(ELF, stdin).expect("proving failed");
+    let (pk, vk) = client.setup(ELF);
+    let mut proof = client.prove_compressed(&pk, stdin).unwrap();
 
-    // Verify proof.
-    client.verify(ELF, &proof).expect("verification failed");
+    println!("generated proof");
+
+    // Read and verify the output.
+    let _ = proof.public_values.read::<u32>();
+    let a = proof.public_values.read::<u32>();
+    let b = proof.public_values.read::<u32>();
+
+    println!("a: {}", a);
+    println!("b: {}", b);
+
+    // Verify proof and public values
+    client
+        .verify_compressed(&proof, &vk)
+        .expect("verification failed");
 
     // Save the proof.
     proof

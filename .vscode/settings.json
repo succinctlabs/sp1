@@ -24,12 +24,8 @@
         // // Examples.
         // "examples/chess/program/Cargo.toml",
         // "examples/chess/script/Cargo.toml",
-        // "examples/ed25519/script/Cargo.toml",
-        // "examples/ed25519/program/Cargo.toml",
         // "examples/fibonacci/program/Cargo.toml",
         // "examples/fibonacci/script/Cargo.toml",
-        // "examples/fibonacci-io/program/Cargo.toml",
-        // "examples/fibonacci-io/script/Cargo.toml",
         // "examples/io/program/Cargo.toml",
         // "examples/io/script/Cargo.toml",
         // "examples/json/program/Cargo.toml",
@@ -43,6 +39,7 @@
         // "examples/tendermint/program/Cargo.toml",
         // "examples/tendermint/script/Cargo.toml",
         // // Tests.
+        // "examples/ed25519/Cargo.toml",
         // "tests/blake3-compress/Cargo.toml",
         // "tests/cycle-tracker/Cargo.toml",
         // "tests/ecrecover/Cargo.toml",
@@ -56,6 +53,7 @@
         // "tests/sha-compress/Cargo.toml",
         // "tests/sha-extend/Cargo.toml",
         // "tests/sha2/Cargo.toml",
+        // "tests/verify-proof/Cargo.toml",
         // // Eval.
         // "eval/Cargo.toml"
     ],

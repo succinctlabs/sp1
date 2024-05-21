@@ -15,7 +15,7 @@ sp1-derive = { path = "../../derive" }
 sp1-primitives = { path = "../../primitives" }
 tracing = "0.1.40"
 sp1-core = { path = "../../core" }
-hashbrown = "0.14.3"
+hashbrown = "0.14.5"
 itertools = "0.12.1"
 p3-bn254-fr = { workspace = true }
 p3-merkle-tree = { workspace = true }
@@ -26,6 +26,10 @@ p3-fri = { workspace = true }
 zkhash = { git = "https://github.com/HorizenLabs/poseidon2" }
 ff = { version = "0.13", features = ["derive", "derive_bits"] }
 serde = { version = "1.0", features = ["derive", "rc"] }
-serde_with = "3.6.1"
-backtrace = "0.3.71"
-arrayref = "0.3.6"
+serde_with = "3.8.1"
+backtrace = { version = "0.3.71", features = ["serde"] }
+arrayref = "0.3.7"
+static_assertions = "1.1.0"
+
+[dev-dependencies]
+rand = "0.8.5"

@@ -18,12 +18,13 @@ use serde::Serialize;
 use sp1_core::stark::StarkGenericConfig;
 
 use super::poseidon2::bn254_poseidon2_rc3;
+use super::utils;
 
 /// A configuration for outer recursion.
 pub type OuterVal = BabyBear;
 pub type OuterChallenge = BinomialExtensionField<OuterVal, 4>;
 pub type OuterPerm = Poseidon2<Bn254Fr, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBN254, 3, 5>;
-pub type OuterHash = MultiField32PaddingFreeSponge<OuterVal, Bn254Fr, OuterPerm, 3, 8, 1>;
+pub type OuterHash = MultiField32PaddingFreeSponge<OuterVal, Bn254Fr, OuterPerm, 3, 16, 1>;
 pub type OuterDigestHash = Hash<Bn254Fr, Bn254Fr, 1>;
 pub type OuterDigest = [Bn254Fr; 1];
 pub type OuterCompress = TruncatedPermutation<OuterPerm, 2, 1, 3>;
@@ -68,12 +69,16 @@ pub fn outer_fri_config() -> FriConfig<OuterChallengeMmcs> {
     let hash = OuterHash::new(perm.clone()).unwrap();
     let compress = OuterCompress::new(perm.clone());
     let challenge_mmcs = OuterChallengeMmcs::new(OuterValMmcs::new(hash, compress));
-    let num_queries = match std::env::var("FRI_QUERIES") {
-        Ok(value) => value.parse().unwrap(),
-        Err(_) => 33,
+    let num_queries = if utils::sp1_dev_mode() {
+        1
+    } else {
+        match std::env::var("FRI_QUERIES") {
+            Ok(value) => value.parse().unwrap(),
+            Err(_) => 50,
+        }
     };
     FriConfig {
-        log_blowup: 3,
+        log_blowup: 2,
         num_queries,
         proof_of_work_bits: 16,
         mmcs: challenge_mmcs,

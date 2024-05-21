@@ -57,10 +57,11 @@ impl<F: PrimeField> MachineAir<F> for MemoryChip {
         input: &ExecutionRecord,
         _output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        let memory_events = match self.kind {
-            MemoryChipType::Initialize => &input.memory_initialize_events,
-            MemoryChipType::Finalize => &input.memory_finalize_events,
+        let mut memory_events = match self.kind {
+            MemoryChipType::Initialize => input.memory_initialize_events.clone(),
+            MemoryChipType::Finalize => input.memory_finalize_events.clone(),
         };
+        memory_events.sort_by_key(|event| event.addr);
         let rows: Vec<[F; 8]> = (0..memory_events.len()) // TODO: change this back to par_iter
             .map(|i| {
                 let MemoryInitializeFinalizeEvent {
@@ -130,12 +131,6 @@ where
         let local = main.row_slice(0);
         let local: &MemoryInitCols<AB::Var> = (*local).borrow();
 
-        // Dummy constraint of degree 3.
-        builder.assert_eq(
-            local.is_real * local.is_real * local.is_real,
-            local.is_real * local.is_real * local.is_real,
-        );
-
         if self.kind == MemoryChipType::Initialize {
             let mut values = vec![AB::Expr::zero(), AB::Expr::zero(), local.addr.into()];
             values.extend(local.value.map(Into::into));
@@ -163,7 +158,9 @@ where
         // and Finalize global memory chip is for register %x0 (i.e. addr = 0x0), and that those rows
         // have a value of 0.  Additionally, in the CPU air, we ensure that whenever op_a is set to
         // %x0, its value is 0.
-        if self.kind == MemoryChipType::Initialize || self.kind == MemoryChipType::Finalize {
+        //
+        // TODO: Add a similar check for MemoryChipType::Initialize.
+        if self.kind == MemoryChipType::Finalize {
             builder.when_first_row().assert_zero(local.addr);
             builder.when_first_row().assert_word_zero(local.value);
         }
@@ -188,7 +185,7 @@ mod tests {
     fn test_memory_generate_trace() {
         let program = simple_program();
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         let shard = runtime.record.clone();
 
         let chip: MemoryChip = MemoryChip::new(MemoryChipType::Initialize);
@@ -214,7 +211,7 @@ mod tests {
 
         let program = simple_program();
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
 
         let chip = MemoryChip::new(MemoryChipType::Initialize);
 
@@ -232,7 +229,7 @@ mod tests {
         let program = sha_extend_program();
         let program_clone = program.clone();
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         let machine: crate::stark::StarkMachine<BabyBearPoseidon2, RiscvAir<BabyBear>> =
             RiscvAir::machine(BabyBearPoseidon2::new());
         let (pkey, _) = machine.setup(&program_clone);
@@ -255,7 +252,7 @@ mod tests {
         let program = sha_extend_program();
         let program_clone = program.clone();
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         let machine = RiscvAir::machine(BabyBearPoseidon2::new());
         let (pkey, _) = machine.setup(&program_clone);
         let shards = machine.shard(
