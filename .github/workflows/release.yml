@@ -119,6 +119,15 @@ jobs:
         with:
           key: ${{ matrix.target }}
           cache-on-failure: true
+      
+      - name: Install go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '^1.22.1'
+        
+      - name: Check go installation
+        run: |
+          go version
 
       - name: Set up git private repo access
         run: |
