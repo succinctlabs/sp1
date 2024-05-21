@@ -5,7 +5,7 @@ import {Verifier} from "./Verifier.sol";
 /// @title SP1 Verifier
 /// @author Succinct Labs
 /// @notice This contract implements the SP1 Verifier.
-contract SP1Verifier is ISP1Verifier, Verifier {
+contract SP1Groth16Verifier is ISP1Verifier, Verifier {
     /// @notice Deserializes a proof from the given bytes.
     /// @param proofBytes The proof bytes.
     function deserializeProof(

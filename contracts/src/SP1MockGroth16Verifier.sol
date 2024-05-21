@@ -6,7 +6,7 @@ import {ISP1Verifier} from "./ISP1Verifier.sol";
 /// @title SP1 Mock Verifier
 /// @author Succinct Labs
 /// @notice This contracts implements a Mock solidity verifier for SP1.
-contract SP1MockVerifier is ISP1Verifier {
+contract SP1MockGroth16Verifier is ISP1Verifier {
     /// @notice Verifies a proof with given public values and vkey.
     /// @param vkey The verification key for the RISC-V program.
     /// @param publicValues The public values encoded as bytes.
