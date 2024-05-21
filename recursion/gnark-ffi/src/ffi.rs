@@ -9,6 +9,7 @@ use std::ffi::{c_char, CString};
 
 #[allow(warnings, clippy::all)]
 mod bind {
+    #[cfg(feature = "groth16")]
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }
 use bind::*;
