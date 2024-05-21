@@ -36,6 +36,7 @@ impl Groth16Prover {
         Self
     }
 
+    /// Executes the prover in testing mode with a circuit definition and witness.
     pub fn test<C: Config>(constraints: Vec<Constraint>, witness: Witness<C>) {
         cfg_if! {
             if #[cfg(feature = "groth16")] {
