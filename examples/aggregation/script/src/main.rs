@@ -11,7 +11,7 @@ const FIBONACCI_ELF: &[u8] =
     include_bytes!("../../programs/fibonacci/elf/riscv32im-succinct-zkvm-elf");
 
 /// An input to the aggregation program.
-/// 
+///
 /// Consists of a proof and a verification key.
 struct AggregationInput {
     pub proof: SP1CompressedProof,
@@ -26,7 +26,7 @@ fn main() {
     let client = ProverClient::new();
 
     // Setup the proving and verifying keys.
-    let (aggregation_pk, _) = client.setup(AGGREGATION_ELF);
+    let (aggregation_pk, aggregation_vk) = client.setup(AGGREGATION_ELF);
     let (fibonacci_pk, fibonacci_vk) = client.setup(FIBONACCI_ELF);
 
     // Generate the fibonacci proofs.
@@ -79,10 +79,11 @@ fn main() {
         stdin.write::<Vec<[u32; 8]>>(&vkeys);
 
         // Write the public values.
-        let public_values = inputs
+        let mut public_values = inputs
             .iter()
             .map(|input| input.proof.public_values.to_vec())
             .collect::<Vec<_>>();
+        public_values[0][0] = 3;
         stdin.write::<Vec<Vec<u8>>>(&public_values);
 
         // Write the proofs.
@@ -94,8 +95,12 @@ fn main() {
         }
 
         // Generate the groth16 proof.
-        client
+        let proof = client
             .prove_groth16(&aggregation_pk, stdin)
             .expect("proving failed");
-    }); 
+
+        client
+            .verify_groth16(&proof, &aggregation_vk)
+            .expect("verification failed");
+    });
 }

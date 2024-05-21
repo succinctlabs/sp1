@@ -34,4 +34,6 @@ pub fn main() {
     // outputs to the prover.
     sp1_zkvm::io::commit(&a);
     sp1_zkvm::io::commit(&b);
+
+    panic!("wtf");
 }
