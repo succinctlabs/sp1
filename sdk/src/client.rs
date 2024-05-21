@@ -241,7 +241,10 @@ impl NetworkClient {
     // is not the claimer.
     pub async fn unclaim_proof(&self, proof_id: &str, reason: UnclaimReason) -> Result<()> {
         let nonce = self.get_nonce().await?;
-        let signature = self.auth.sign_claim_proof_message(nonce, proof_id).await?;
+        let signature = self
+            .auth
+            .sign_unclaim_proof_message(nonce, proof_id, reason)
+            .await?;
         self.rpc
             .unclaim_proof(UnclaimProofRequest {
                 signature,
