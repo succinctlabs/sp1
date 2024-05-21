@@ -22,4 +22,5 @@ bindgen = "0.69.4"
 cc = "1.0"
 
 [features]
+default = ["groth16"]
 groth16 = []
