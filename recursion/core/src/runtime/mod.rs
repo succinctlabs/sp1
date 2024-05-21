@@ -2,6 +2,7 @@ mod instruction;
 mod opcode;
 mod program;
 mod record;
+mod utils;
 
 use std::collections::VecDeque;
 use std::process::exit;
@@ -17,6 +18,7 @@ use p3_symmetric::CryptographicPermutation;
 use p3_symmetric::Permutation;
 pub use program::*;
 pub use record::*;
+pub use utils::*;
 
 use crate::air::{Block, RECURSION_PUBLIC_VALUES_COL_MAP, RECURSIVE_PROOF_NUM_PV_ELTS};
 use crate::cpu::CpuEvent;
@@ -27,6 +29,9 @@ use crate::range_check::{RangeCheckEvent, RangeCheckOpcode};
 
 use p3_field::{ExtensionField, PrimeField32};
 use sp1_core::runtime::MemoryAccessPosition;
+
+/// The heap pointer address.
+pub const HEAP_PTR: i32 = -4;
 
 pub const STACK_SIZE: usize = 1 << 24;
 pub const MEMORY_SIZE: usize = 1 << 28;

@@ -11,7 +11,9 @@ use tracing::instrument;
 use crate::{
     air::BinomialExtensionUtils,
     memory::MemoryCols,
-    runtime::{ExecutionRecord, Opcode, RecursionProgram, D},
+    runtime::{
+        canonical_i32_to_field, ExecutionRecord, Opcode, RecursionProgram, D, HEAP_PTR, STACK_SIZE,
+    },
 };
 
 use super::{CpuChip, CpuCols, CPU_COL_MAP, NUM_CPU_COLS};
@@ -67,6 +69,21 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for CpuChip<F> {
                     let memory_cols = cols.opcode_specific.memory_mut();
                     memory_cols.memory.populate(record);
                     memory_cols.memory_addr = record.addr;
+                }
+
+                // Populate the heap columns.
+                if matches!(event.instruction.opcode, Opcode::ADD)
+                    && event.instruction.op_a == canonical_i32_to_field(HEAP_PTR)
+                {
+                    let heap_cols = cols.opcode_specific.heap_increment_mut();
+                    let heap_ptr_diff = (cols.a.value()[0]
+                        - F::from_canonical_usize(STACK_SIZE + 4))
+                    .as_canonical_u32();
+                    let diff_16bit_limb = heap_ptr_diff & 0xffff;
+                    let diff_12bit_limb = (heap_ptr_diff >> 16) & 0xfff;
+
+                    heap_cols.diff_16bit_limb = F::from_canonical_u32(diff_16bit_limb);
+                    heap_cols.diff_12bit_limb = F::from_canonical_u32(diff_12bit_limb);
                 }
 
                 // Populate the branch columns.

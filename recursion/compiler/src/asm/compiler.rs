@@ -1,6 +1,7 @@
 use alloc::collections::BTreeMap;
 use alloc::vec;
 use backtrace::Backtrace;
+use sp1_recursion_core::runtime::HEAP_PTR;
 use std::collections::BTreeSet;
 
 use p3_field::ExtensionField;
@@ -24,9 +25,6 @@ pub(crate) const ZERO: i32 = 0;
 
 /// The offset which the stack starts.
 pub(crate) const STACK_START_OFFSET: i32 = 16;
-
-/// The heap pointer address.
-pub(crate) const HEAP_PTR: i32 = -4;
 
 /// The address of A0.
 pub(crate) const A0: i32 = -8;
