@@ -1,8 +1,7 @@
 [package]
 version = "0.1.0"
-name = "sp1-aggregation-example-script"
+name = "aggregation-script"
 edition = "2021"
-default-run = "sp1-aggregation-example-script"
 
 [dependencies]
 hex = "0.4.3"

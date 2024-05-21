@@ -1,8 +1,0 @@
-[workspace]
-[package]
-version = "0.1.0"
-name = "fibonacci-program"
-edition = "2021"
-
-[dependencies]
-sp1-zkvm = { git = "https://github.com/succinctlabs/sp1.git", rev = "v1.0.0-testnet" }
