@@ -90,7 +90,7 @@ where
         // Constrain the system instructions (TRAP, HALT).
         self.eval_system_instructions(builder, local, next, public_values);
 
-        // Constrain the heap ptr value.
+        // Verify the heap size.
         self.eval_heap_ptr(builder, local);
 
         // Constrain the is_real_flag.
