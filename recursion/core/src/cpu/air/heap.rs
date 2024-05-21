@@ -23,7 +23,7 @@ impl<F: Field> CpuChip<F> {
             heap_size,
             heap_columns.diff_16bit_limb,
             heap_columns.diff_12bit_limb,
-            local.selectors.is_heap_increment,
+            local.selectors.is_heap_expand,
         );
     }
 }

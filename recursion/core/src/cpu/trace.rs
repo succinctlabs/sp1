@@ -12,8 +12,8 @@ use crate::{
     air::BinomialExtensionUtils,
     memory::MemoryCols,
     runtime::{
-        canonical_i32_to_field, get_heap_size_range_check_events, ExecutionRecord, Opcode,
-        RecursionProgram, D, HEAP_PTR,
+        get_heap_size_range_check_events, instruction_is_heap_expand, ExecutionRecord, Opcode,
+        RecursionProgram, D,
     },
 };
 
@@ -73,16 +73,13 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for CpuChip<F> {
                 }
 
                 // Populate the heap columns.
-                if matches!(event.instruction.opcode, Opcode::ADD)
-                    && event.instruction.op_a == canonical_i32_to_field(HEAP_PTR)
-                {
+                if instruction_is_heap_expand(&event.instruction) {
                     let (u16_range_check, u12_range_check) =
                         get_heap_size_range_check_events(cols.a.value()[0]);
 
                     let heap_cols = cols.opcode_specific.heap_increment_mut();
                     heap_cols.diff_16bit_limb = F::from_canonical_u16(u16_range_check.val);
                     heap_cols.diff_12bit_limb = F::from_canonical_u16(u12_range_check.val);
-                    cols.selectors.is_heap_increment = F::one();
                 }
 
                 // Populate the branch columns.

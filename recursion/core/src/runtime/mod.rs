@@ -448,7 +448,7 @@ where
 
                     // If the instruction is a heap increment, we need to add a range check event to
                     // ensure that the heap size never goes above 2^28.
-                    if instruction.op_a == canonical_i32_to_field(HEAP_PTR) {
+                    if instruction_is_heap_expand(&instruction) {
                         let (u16_range_check, u12_range_check) =
                             get_heap_size_range_check_events(a_val[0]);
                         self.record

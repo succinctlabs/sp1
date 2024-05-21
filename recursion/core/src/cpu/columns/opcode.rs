@@ -1,7 +1,10 @@
-use p3_field::Field;
+use p3_field::PrimeField32;
 use sp1_derive::AlignedBorrow;
 
-use crate::{cpu::Instruction, runtime::Opcode};
+use crate::{
+    cpu::Instruction,
+    runtime::{instruction_is_heap_expand, Opcode},
+};
 
 const OPCODE_COUNT: usize = core::mem::size_of::<OpcodeSelectorCols<u8>>();
 
@@ -41,10 +44,10 @@ pub struct OpcodeSelectorCols<T> {
     pub is_fri_fold: T,
     pub is_commit: T,
 
-    pub is_heap_increment: T,
+    pub is_heap_expand: T,
 }
 
-impl<F: Field> OpcodeSelectorCols<F> {
+impl<F: PrimeField32> OpcodeSelectorCols<F> {
     /// Populates the opcode columns with the given instruction.
     ///
     /// The opcode flag should be set to 1 for the relevant opcode and 0 for the rest. We already
@@ -83,6 +86,10 @@ impl<F: Field> OpcodeSelectorCols<F> {
         ) {
             self.is_ext = F::one();
         }
+
+        if instruction_is_heap_expand(instruction) {
+            self.is_heap_expand = F::one();
+        }
     }
 }
 
@@ -111,7 +118,7 @@ impl<T: Copy> IntoIterator for &OpcodeSelectorCols<T> {
             self.is_poseidon,
             self.is_fri_fold,
             self.is_commit,
-            self.is_heap_increment,
+            self.is_heap_expand,
         ]
         .into_iter()
     }
