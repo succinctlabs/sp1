@@ -44,15 +44,16 @@ impl NetworkProver {
     ) -> Result<P> {
         let client = &self.client;
         // Execute the runtime before creating the proof request.
-        // TODO: Maybe we don't want to always do this locally, with large programs.
-        // let program = Program::from(elf);
-        // let mut runtime = Runtime::new(program);
-        // runtime.write_vecs(&stdin.buffer);
-        // for (proof, vkey) in stdin.proofs.iter() {
-        //     runtime.write_proof(proof.clone(), vkey.clone());
-        // }
-        // runtime.run_untraced()?;
-        // log::info!("Simulation complete, cycles: {}", runtime.state.global_clk);
+        let program = Program::from(elf);
+        let mut runtime = Runtime::new(program);
+        runtime.write_vecs(&stdin.buffer);
+        for (proof, vkey) in stdin.proofs.iter() {
+            runtime.write_proof(proof.clone(), vkey.clone());
+        }
+        runtime
+            .run_untraced()
+            .context("Failed to execute program")?;
+        log::info!("Simulation complete, cycles: {}", runtime.state.global_clk);
 
         let proof_id = client.create_proof(elf, &stdin, mode).await?;
         log::info!("Created {}", proof_id);
