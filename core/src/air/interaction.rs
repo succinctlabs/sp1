@@ -9,7 +9,7 @@ pub struct AirInteraction<E> {
 
 impl<E> AirInteraction<E> {
     /// Create a new interaction.
-    pub fn new(values: Vec<E>, multiplicity: E, kind: InteractionKind) -> Self {
+    pub const fn new(values: Vec<E>, multiplicity: E, kind: InteractionKind) -> Self {
         Self {
             values,
             multiplicity,

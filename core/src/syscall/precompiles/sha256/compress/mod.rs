@@ -42,7 +42,7 @@ pub struct ShaCompressEvent {
 pub struct ShaCompressChip;
 
 impl ShaCompressChip {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {}
     }
 }

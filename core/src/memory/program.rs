@@ -44,7 +44,7 @@ pub struct MemoryProgramMultCols<T> {
 pub struct MemoryProgramChip;
 
 impl MemoryProgramChip {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {}
     }
 }

@@ -69,7 +69,7 @@ impl Display for Opcode {
 }
 
 impl Opcode {
-    pub fn mnemonic(&self) -> &str {
+    pub const fn mnemonic(&self) -> &str {
         match self {
             Opcode::ADD => "add",
             Opcode::SUB => "sub",

@@ -28,15 +28,15 @@ pub struct FixedRotateRightOperation<T> {
 }
 
 impl<F: Field> FixedRotateRightOperation<F> {
-    pub fn nb_bytes_to_shift(rotation: usize) -> usize {
+    pub const fn nb_bytes_to_shift(rotation: usize) -> usize {
         rotation / 8
     }
 
-    pub fn nb_bits_to_shift(rotation: usize) -> usize {
+    pub const fn nb_bits_to_shift(rotation: usize) -> usize {
         rotation % 8
     }
 
-    pub fn carry_multiplier(rotation: usize) -> u32 {
+    pub const fn carry_multiplier(rotation: usize) -> u32 {
         let nb_bits_to_shift = Self::nb_bits_to_shift(rotation);
         1 << (8 - nb_bits_to_shift)
     }

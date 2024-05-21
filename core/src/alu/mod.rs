@@ -42,7 +42,7 @@ pub struct AluEvent {
 
 impl AluEvent {
     /// Creates a new `AluEvent`.
-    pub fn new(shard: u32, clk: u32, opcode: Opcode, a: u32, b: u32, c: u32) -> Self {
+    pub const fn new(shard: u32, clk: u32, opcode: Opcode, a: u32, b: u32, c: u32) -> Self {
         Self {
             shard,
             clk,
