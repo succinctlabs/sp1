@@ -239,18 +239,24 @@ impl NetworkClient {
     // Unclaim a proof that was claimed. This should only be called if the proof has not been
     // fulfilled yet. Returns an error if the proof is not in a PROOF_CLAIMED state or if the caller
     // is not the claimer.
-    pub async fn unclaim_proof(&self, proof_id: &str, reason: UnclaimReason) -> Result<()> {
+    pub async fn unclaim_proof(
+        &self,
+        proof_id: String,
+        reason: UnclaimReason,
+        description: String,
+    ) -> Result<()> {
         let nonce = self.get_nonce().await?;
         let signature = self
             .auth
-            .sign_unclaim_proof_message(nonce, proof_id, reason)
+            .sign_unclaim_proof_message(nonce, proof_id.clone(), reason, description.clone())
             .await?;
         self.rpc
             .unclaim_proof(UnclaimProofRequest {
                 signature,
                 nonce,
-                proof_id: proof_id.to_string(),
+                proof_id,
                 reason: reason.into(),
+                description,
             })
             .await?;
 

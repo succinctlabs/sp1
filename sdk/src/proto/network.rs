@@ -104,6 +104,9 @@ pub struct UnclaimProofRequest {
     /// The reason for unclaiming the proof.
     #[prost(enumeration = "UnclaimReason", tag = "4")]
     pub reason: i32,
+    /// The description for the reason.
+    #[prost(string, tag = "5")]
+    pub description: ::prost::alloc::string::String,
 }
 /// The response for unclaiming a proof, empty on success.
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -212,8 +215,11 @@ pub struct GetProofStatusResponse {
     #[prost(string, optional, tag = "2")]
     pub proof_url: ::core::option::Option<::prost::alloc::string::String>,
     /// If the proof was unclaimed, the reason why.
-    #[prost(string, optional, tag = "3")]
-    pub unclaimed_reason: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(enumeration = "UnclaimReason", optional, tag = "3")]
+    pub unclaim_reason: ::core::option::Option<i32>,
+    /// If the proof was unclaimed, the description detailing why.
+    #[prost(string, optional, tag = "4")]
+    pub unclaim_description: ::core::option::Option<::prost::alloc::string::String>,
 }
 /// The request to get proof requests by a given status.
 #[derive(serde::Serialize, serde::Deserialize)]

@@ -29,6 +29,7 @@ sol! {
         uint64 nonce;
         string proof_id;
         uint8 reason;
+        string description;
     }
 
     struct FulfillProof {
@@ -122,13 +123,15 @@ impl NetworkAuth {
     pub async fn sign_unclaim_proof_message(
         &self,
         nonce: u64,
-        proof_id: &str,
+        proof_id: String,
         reason: UnclaimReason,
+        description: String,
     ) -> Result<Vec<u8>> {
         let type_struct = UnclaimProof {
             nonce,
-            proof_id: proof_id.to_string(),
+            proof_id,
             reason: reason as u8,
+            description,
         };
         self.sign_message(type_struct).await
     }
