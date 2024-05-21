@@ -446,7 +446,7 @@ where
                     a_val[0] = b_val[0] + c_val[0];
                     self.mw_cpu(a_ptr, a_val, MemoryAccessPosition::A);
 
-                    // If the instruction is a heap increment, we need to add a range check event to
+                    // If the instruction is a heap expansion, we need to add a range check event to
                     // ensure that the heap size never goes above 2^28.
                     if instruction_is_heap_expand(&instruction) {
                         let (u16_range_check, u12_range_check) =
