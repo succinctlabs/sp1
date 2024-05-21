@@ -1,6 +1,9 @@
 use std::{env, time::Duration};
 
-use crate::auth::NetworkAuth;
+use crate::{
+    auth::NetworkAuth,
+    proto::network::{UnclaimProofRequest, UnclaimReason},
+};
 use anyhow::{Context, Ok, Result};
 use futures::future::join_all;
 use reqwest::{Client as HttpClient, Url};
@@ -73,15 +76,14 @@ impl NetworkClient {
     }
 
     /// Gets the latest nonce for this auth's account.
-    pub async fn get_nonce(&self) -> u64 {
+    pub async fn get_nonce(&self) -> Result<u64> {
         let res = self
             .rpc
             .get_nonce(GetNonceRequest {
                 address: self.auth.get_address().to_vec(),
             })
-            .await
-            .unwrap();
-        res.nonce
+            .await?;
+        Ok(res.nonce)
     }
 
     // Upload a file to the specified url.
@@ -105,10 +107,10 @@ impl NetworkClient {
 
         let proof = match res.status() {
             ProofStatus::ProofFulfilled => {
-                println!("Proof request fulfilled");
+                log::info!("Proof request fulfilled");
                 let proof_bytes = self
                     .http
-                    .get(res.proof_url.clone())
+                    .get(res.proof_url.as_ref().expect("no proof url"))
                     .send()
                     .await
                     .context("Failed to send HTTP request for proof")?
@@ -177,7 +179,7 @@ impl NetworkClient {
             .expect("Invalid start time");
         let deadline = since_the_epoch.as_secs() + 1000;
 
-        let nonce = self.get_nonce().await;
+        let nonce = self.get_nonce().await?;
         let create_proof_signature = self
             .auth
             .sign_create_proof_message(nonce, deadline, mode.into())
@@ -201,7 +203,7 @@ impl NetworkClient {
         results.pop().expect("Failed to upload stdin")?;
         results.pop().expect("Failed to upload program")?;
 
-        let nonce = self.get_nonce().await;
+        let nonce = self.get_nonce().await?;
         let submit_proof_signature = self
             .auth
             .sign_submit_proof_message(nonce, &res.proof_id)
@@ -220,7 +222,7 @@ impl NetworkClient {
     // Claim a proof that was requested. This commits to generating a proof and fulfilling it.
     // Returns an error if the proof is not in a PROOF_REQUESTED state.
     pub async fn claim_proof(&self, proof_id: &str) -> Result<ClaimProofResponse> {
-        let nonce = self.get_nonce().await;
+        let nonce = self.get_nonce().await?;
         let signature = self.auth.sign_claim_proof_message(nonce, proof_id).await?;
         let res = self
             .rpc
@@ -234,10 +236,37 @@ impl NetworkClient {
         Ok(res)
     }
 
+    // Unclaim a proof that was claimed. This should only be called if the proof has not been
+    // fulfilled yet. Returns an error if the proof is not in a PROOF_CLAIMED state or if the caller
+    // is not the claimer.
+    pub async fn unclaim_proof(
+        &self,
+        proof_id: String,
+        reason: UnclaimReason,
+        description: String,
+    ) -> Result<()> {
+        let nonce = self.get_nonce().await?;
+        let signature = self
+            .auth
+            .sign_unclaim_proof_message(nonce, proof_id.clone(), reason, description.clone())
+            .await?;
+        self.rpc
+            .unclaim_proof(UnclaimProofRequest {
+                signature,
+                nonce,
+                proof_id,
+                reason: reason.into(),
+                description,
+            })
+            .await?;
+
+        Ok(())
+    }
+
     // Fulfill a proof. Should only be called after the proof has been uploaded. Returns an error
     // if the proof is not in a PROOF_CLAIMED state or if the caller is not the claimer.
     pub async fn fulfill_proof(&self, proof_id: &str) -> Result<FulfillProofResponse> {
-        let nonce = self.get_nonce().await;
+        let nonce = self.get_nonce().await?;
         let signature = self
             .auth
             .sign_fulfill_proof_message(nonce, proof_id)
@@ -263,7 +292,7 @@ impl NetworkClient {
         callback: [u8; 20],
         callback_data: &[u8],
     ) -> Result<String> {
-        let nonce = self.get_nonce().await;
+        let nonce = self.get_nonce().await?;
         let signature = self
             .auth
             .sign_relay_proof_message(nonce, proof_id, chain_id, verifier, callback, callback_data)
