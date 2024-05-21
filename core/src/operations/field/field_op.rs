@@ -13,7 +13,7 @@ use crate::air::SP1AirBuilder;
 use crate::bytes::event::ByteRecord;
 use typenum::Unsigned;
 
-/// Airthmetic operation for emulating modular arithmetic.
+/// Arithmetic operation for emulating modular arithmetic.
 #[derive(PartialEq, Copy, Clone, Debug)]
 pub enum FieldOperation {
     Add,
