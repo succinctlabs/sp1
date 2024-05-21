@@ -72,7 +72,10 @@ impl NetworkProver {
                     }
                 }
                 ProofStatus::ProofUnclaimed => {
-                    return Err(anyhow::anyhow!("Proof generation failed"));
+                    return Err(anyhow::anyhow!(
+                        "Proof generation failed: {}",
+                        status.unclaim_description()
+                    ));
                 }
                 _ => {
                     sleep(Duration::from_secs(1)).await;

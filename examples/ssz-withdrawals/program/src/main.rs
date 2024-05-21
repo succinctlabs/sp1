@@ -62,4 +62,5 @@ fn main() {
     }
 
     println!("sum: {}", sum);
+    panic!("wtf");
 }
