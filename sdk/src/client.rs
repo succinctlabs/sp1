@@ -83,7 +83,7 @@ impl NetworkClient {
                 address: self.auth.get_address().to_vec(),
             })
             .await?;
-        res.nonce
+        Ok(res.nonce)
     }
 
     // Upload a file to the specified url.
