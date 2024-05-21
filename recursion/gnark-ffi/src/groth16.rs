@@ -103,6 +103,7 @@ impl Groth16Prover {
         }
     }
 
+    /// Generates a Groth16 proof by sending a request to the Gnark server.
     pub fn prove<C: Config>(&self, witness: Witness<C>, build_dir: PathBuf) -> Groth16Proof {
         cfg_if! {
             if #[cfg(feature = "groth16")] {
