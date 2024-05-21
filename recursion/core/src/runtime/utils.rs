@@ -17,8 +17,7 @@ pub fn canonical_i32_to_field<F: PrimeField32>(x: i32) -> F {
 pub fn get_heap_size_range_check_events<F: PrimeField32>(
     end_heap_address: F,
 ) -> (RangeCheckEvent, RangeCheckEvent) {
-    let heap_size =
-        (end_heap_address - -F::from_canonical_usize(STACK_SIZE + 4)).as_canonical_u32();
+    let heap_size = (end_heap_address - F::from_canonical_usize(STACK_SIZE + 4)).as_canonical_u32();
     let diff_16bit_limb = heap_size & 0xffff;
     let diff_12bit_limb = (heap_size >> 16) & 0xfff;
 

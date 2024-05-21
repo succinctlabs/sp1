@@ -858,12 +858,6 @@ where
             }
         }
 
-        let entry = self
-            .memory
-            .entry((self.fp + canonical_i32_to_field::<F>(HEAP_PTR)).as_canonical_u32() as usize)
-            .or_default();
-        println!("heap ptr entry is {:?}", entry);
-
         let zero_block = Block::from(F::zero());
         // Collect all used memory addresses.
         for (addr, entry) in self.memory.iter() {
