@@ -2,6 +2,7 @@ use std::fmt::{Debug, Formatter};
 use std::mem::{size_of, transmute};
 
 use super::branch::BranchCols;
+use super::heap_increment::HeapIncrementCols;
 use super::memory::MemoryCols;
 use super::public_values::PublicValuesCols;
 
@@ -14,6 +15,7 @@ pub union OpcodeSpecificCols<T: Copy> {
     branch: BranchCols<T>,
     memory: MemoryCols<T>,
     public_values: PublicValuesCols<T>,
+    heap_increment: HeapIncrementCols<T>,
 }
 
 impl<T: Copy + Default> Default for OpcodeSpecificCols<T> {
@@ -55,5 +57,13 @@ impl<T: Copy> OpcodeSpecificCols<T> {
 
     pub fn public_values_mut(&mut self) -> &mut PublicValuesCols<T> {
         unsafe { &mut self.public_values }
+    }
+
+    pub fn heap_increment(&self) -> &HeapIncrementCols<T> {
+        unsafe { &self.heap_increment }
+    }
+
+    pub fn heap_increment_mut(&mut self) -> &mut HeapIncrementCols<T> {
+        unsafe { &mut self.heap_increment }
     }
 }

@@ -40,6 +40,8 @@ pub struct OpcodeSelectorCols<T> {
     pub is_poseidon: T,
     pub is_fri_fold: T,
     pub is_commit: T,
+
+    pub is_heap_increment: T,
 }
 
 impl<F: Field> OpcodeSelectorCols<F> {
@@ -109,6 +111,7 @@ impl<T: Copy> IntoIterator for &OpcodeSelectorCols<T> {
             self.is_poseidon,
             self.is_fri_fold,
             self.is_commit,
+            self.is_heap_increment,
         ]
         .into_iter()
     }
