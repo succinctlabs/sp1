@@ -84,6 +84,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for CpuChip<F> {
 
                     heap_cols.diff_16bit_limb = F::from_canonical_u32(diff_16bit_limb);
                     heap_cols.diff_12bit_limb = F::from_canonical_u32(diff_12bit_limb);
+                    cols.selectors.is_heap_increment = F::one();
                 }
 
                 // Populate the branch columns.

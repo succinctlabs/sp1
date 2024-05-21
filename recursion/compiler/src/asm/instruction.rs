@@ -4,10 +4,9 @@ use core::fmt;
 
 use p3_field::{ExtensionField, PrimeField32};
 use sp1_recursion_core::cpu::Instruction;
-use sp1_recursion_core::runtime::{Opcode, PERMUTATION_WIDTH};
+use sp1_recursion_core::runtime::{canonical_i32_to_field, Opcode, PERMUTATION_WIDTH};
 
 use super::A0;
-use crate::util::canonical_i32_to_field;
 
 #[derive(Debug, Clone)]
 pub enum AsmInstruction<F, EF> {
