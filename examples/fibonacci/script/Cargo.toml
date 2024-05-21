@@ -6,7 +6,7 @@ default-run = "fibonacci-script"
 
 [dependencies]
 itertools = "0.12.1"
-sp1-sdk = { path = "../../../sdk", default-features = false }
+sp1-sdk = { path = "../../../sdk" }
 sha2 = "0.10.8"
 
 [build-dependencies]
