@@ -76,14 +76,13 @@ impl NetworkClient {
     }
 
     /// Gets the latest nonce for this auth's account.
-    pub async fn get_nonce(&self) -> u64 {
+    pub async fn get_nonce(&self) -> Result<u64> {
         let res = self
             .rpc
             .get_nonce(GetNonceRequest {
                 address: self.auth.get_address().to_vec(),
             })
-            .await
-            .unwrap();
+            .await?;
         res.nonce
     }
 
@@ -180,7 +179,7 @@ impl NetworkClient {
             .expect("Invalid start time");
         let deadline = since_the_epoch.as_secs() + 1000;
 
-        let nonce = self.get_nonce().await;
+        let nonce = self.get_nonce().await?;
         let create_proof_signature = self
             .auth
             .sign_create_proof_message(nonce, deadline, mode.into())
@@ -204,7 +203,7 @@ impl NetworkClient {
         results.pop().expect("Failed to upload stdin")?;
         results.pop().expect("Failed to upload program")?;
 
-        let nonce = self.get_nonce().await;
+        let nonce = self.get_nonce().await?;
         let submit_proof_signature = self
             .auth
             .sign_submit_proof_message(nonce, &res.proof_id)
@@ -223,7 +222,7 @@ impl NetworkClient {
     // Claim a proof that was requested. This commits to generating a proof and fulfilling it.
     // Returns an error if the proof is not in a PROOF_REQUESTED state.
     pub async fn claim_proof(&self, proof_id: &str) -> Result<ClaimProofResponse> {
-        let nonce = self.get_nonce().await;
+        let nonce = self.get_nonce().await?;
         let signature = self.auth.sign_claim_proof_message(nonce, proof_id).await?;
         let res = self
             .rpc
@@ -241,7 +240,7 @@ impl NetworkClient {
     // fulfilled yet. Returns an error if the proof is not in a PROOF_CLAIMED state or if the caller
     // is not the claimer.
     pub async fn unclaim_proof(&self, proof_id: &str, reason: UnclaimReason) -> Result<()> {
-        let nonce = self.get_nonce().await;
+        let nonce = self.get_nonce().await?;
         let signature = self.auth.sign_claim_proof_message(nonce, proof_id).await?;
         self.rpc
             .unclaim_proof(UnclaimProofRequest {
@@ -258,7 +257,7 @@ impl NetworkClient {
     // Fulfill a proof. Should only be called after the proof has been uploaded. Returns an error
     // if the proof is not in a PROOF_CLAIMED state or if the caller is not the claimer.
     pub async fn fulfill_proof(&self, proof_id: &str) -> Result<FulfillProofResponse> {
-        let nonce = self.get_nonce().await;
+        let nonce = self.get_nonce().await?;
         let signature = self
             .auth
             .sign_fulfill_proof_message(nonce, proof_id)
@@ -284,7 +283,7 @@ impl NetworkClient {
         callback: [u8; 20],
         callback_data: &[u8],
     ) -> Result<String> {
-        let nonce = self.get_nonce().await;
+        let nonce = self.get_nonce().await?;
         let signature = self
             .auth
             .sign_relay_proof_message(nonce, proof_id, chain_id, verifier, callback, callback_data)
