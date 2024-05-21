@@ -445,6 +445,16 @@ where
                     let mut a_val = Block::default();
                     a_val[0] = b_val[0] + c_val[0];
                     self.mw_cpu(a_ptr, a_val, MemoryAccessPosition::A);
+
+                    // If the instruction is a heap increment, we need to add a range check event to
+                    // ensure that the heap size never goes above 2^28.
+                    if instruction.op_a == canonical_i32_to_field(HEAP_PTR) {
+                        let (u16_range_check, u12_range_check) =
+                            get_heap_size_range_check_events(a_val[0]);
+                        self.record
+                            .add_range_check_events(&[u16_range_check, u12_range_check]);
+                    }
+
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::LessThanF => {
@@ -847,6 +857,12 @@ where
                 break;
             }
         }
+
+        let entry = self
+            .memory
+            .entry((self.fp + canonical_i32_to_field::<F>(HEAP_PTR)).as_canonical_u32() as usize)
+            .or_default();
+        println!("heap ptr entry is {:?}", entry);
 
         let zero_block = Block::from(F::zero());
         // Collect all used memory addresses.
