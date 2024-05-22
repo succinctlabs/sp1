@@ -2,13 +2,13 @@ use alloc::collections::BTreeMap;
 use alloc::vec;
 use backtrace::Backtrace;
 use sp1_recursion_core::runtime::HEAP_PTR;
+use sp1_recursion_core::runtime::HEAP_START_ADDRESS;
 use std::collections::BTreeSet;
 
 use p3_field::ExtensionField;
 use p3_field::PrimeField32;
 use p3_field::TwoAdicField;
 use sp1_recursion_core::runtime::RecursionProgram;
-use sp1_recursion_core::runtime::STACK_SIZE;
 
 use super::config::AsmConfig;
 use super::IndexTriple;
@@ -94,7 +94,7 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
     pub fn build(&mut self, operations: TracedVec<DslIr<AsmConfig<F, EF>>>) {
         // Set the heap pointer value according to stack size.
         if self.block_label().is_zero() {
-            let stack_size = F::from_canonical_usize(STACK_SIZE + 4);
+            let stack_size = F::from_canonical_usize(HEAP_START_ADDRESS);
             self.push(AsmInstruction::AddFI(HEAP_PTR, ZERO, stack_size), None);
         }
 

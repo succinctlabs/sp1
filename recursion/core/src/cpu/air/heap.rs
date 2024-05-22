@@ -4,12 +4,12 @@ use crate::{
     air::SP1RecursionAirBuilder,
     cpu::{CpuChip, CpuCols},
     memory::MemoryCols,
-    runtime::STACK_SIZE,
+    runtime::HEAP_START_ADDRESS,
 };
 
 impl<F: Field> CpuChip<F> {
     /// Eval the heap ptr.
-    ///
+    ///s
     /// This function will ensure that the heap size never goes above 2^28.
     pub fn eval_heap_ptr<AB>(&self, builder: &mut AB, local: &CpuCols<AB::Var>)
     where
@@ -17,7 +17,7 @@ impl<F: Field> CpuChip<F> {
     {
         let heap_columns = local.opcode_specific.heap_expand();
 
-        let heap_size = local.a.value()[0] - AB::Expr::from_canonical_usize(STACK_SIZE + 4);
+        let heap_size = local.a.value()[0] - AB::Expr::from_canonical_usize(HEAP_START_ADDRESS);
 
         builder.eval_range_check_28bits(
             heap_size,

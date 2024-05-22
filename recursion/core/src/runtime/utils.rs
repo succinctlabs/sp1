@@ -2,7 +2,7 @@ use p3_field::PrimeField32;
 
 use crate::range_check::{RangeCheckEvent, RangeCheckOpcode};
 
-use super::{Instruction, Opcode, HEAP_PTR, STACK_SIZE};
+use super::{Instruction, Opcode, HEAP_PTR, HEAP_START_ADDRESS};
 
 pub fn canonical_i32_to_field<F: PrimeField32>(x: i32) -> F {
     let modulus = F::ORDER_U32;
@@ -17,7 +17,8 @@ pub fn canonical_i32_to_field<F: PrimeField32>(x: i32) -> F {
 pub fn get_heap_size_range_check_events<F: PrimeField32>(
     end_heap_address: F,
 ) -> (RangeCheckEvent, RangeCheckEvent) {
-    let heap_size = (end_heap_address - F::from_canonical_usize(STACK_SIZE + 4)).as_canonical_u32();
+    let heap_size =
+        (end_heap_address - F::from_canonical_usize(HEAP_START_ADDRESS)).as_canonical_u32();
     let diff_16bit_limb = heap_size & 0xffff;
     let diff_12bit_limb = (heap_size >> 16) & 0xfff;
 
