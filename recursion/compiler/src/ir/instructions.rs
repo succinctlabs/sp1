@@ -146,7 +146,7 @@ pub enum DslIr<C: Config> {
     TwoAdicGenerator(Felt<C::F>, Usize<C::N>),
     ExpUsizeV(Var<C::N>, Var<C::N>, Usize<C::N>),
     ExpUsizeF(Felt<C::F>, Felt<C::F>, Usize<C::N>),
-    Ext2Felt(Array<C, Felt<C::F>>, Ext<C::F, C::EF>),
+    HintExt2Felt(Array<C, Felt<C::F>>, Ext<C::F, C::EF>),
     HintLen(Var<C::N>),
     HintVars(Array<C, Var<C::N>>),
     HintFelts(Array<C, Felt<C::F>>),
