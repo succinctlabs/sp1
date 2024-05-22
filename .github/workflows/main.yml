@@ -39,8 +39,13 @@ jobs:
             env:
               RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
               RUST_BACKTRACE: 1
-          - name: Export Solidity Verifier
+          - name: Check groth16 verifier in contracts is up to date
             run: |
-              bash sdk/export_verifier.sh
-              diff -q contracts/src/Verifier.sol contracts/Verifier.sol          
+              TEMP_DIR=$(mktemp -d)
+              bash sdk/export_verifier.sh > $TEMP_DIR/Groth16Verifier.sol
+              if ! diff -q $TEMP_DIR/Groth16Verifier.sol contracts/src/Groth16Verifier.sol; then
+                echo "Verifier files differ! To regenerate the Groth16Verifier.sol file, run 'make' in the sdk directory."
+                exit 1
+              fi
+              rm -rf $TEMP_DIR          
 
