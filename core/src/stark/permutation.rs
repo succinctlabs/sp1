@@ -9,25 +9,6 @@ use rayon_scan::ScanParallelIterator;
 
 use crate::{air::MultiTableAirBuilder, lookup::Interaction};
 
-/// Generates powers of a random element based on how many interactions there are in the chip.
-///
-/// These elements are used to uniquely fingerprint each interaction.
-#[inline]
-pub fn generate_interaction_rlc_elements<F: Field, AF: AbstractField>(
-    sends: &[Interaction<F>],
-    receives: &[Interaction<F>],
-    random_element: AF,
-) -> Vec<AF> {
-    let n = sends
-        .iter()
-        .chain(receives.iter())
-        .map(|interaction| interaction.argument_index())
-        .max()
-        .unwrap_or(0)
-        + 1;
-    random_element.powers().skip(1).take(n).collect::<Vec<_>>()
-}
-
 #[inline]
 #[allow(clippy::too_many_arguments)]
 pub fn populate_permutation_row<F: PrimeField, EF: ExtensionField<F>>(
@@ -36,7 +17,7 @@ pub fn populate_permutation_row<F: PrimeField, EF: ExtensionField<F>>(
     main_row: &[F],
     sends: &[Interaction<F>],
     receives: &[Interaction<F>],
-    alphas: &[EF],
+    alpha: EF,
     betas: Powers<EF>,
     batch_size: usize,
 ) {
@@ -50,9 +31,11 @@ pub fn populate_permutation_row<F: PrimeField, EF: ExtensionField<F>>(
         *value = chunk
             .into_iter()
             .map(|(interaction, is_send)| {
-                let alpha = alphas[interaction.argument_index()];
                 let mut denominator = alpha;
-                for (columns, beta) in interaction.values.iter().zip(betas.clone()) {
+                let mut betas = betas.clone();
+                denominator +=
+                    betas.next().unwrap() * EF::from_canonical_usize(interaction.argument_index());
+                for (columns, beta) in interaction.values.iter().zip(betas) {
                     denominator += beta * columns.apply::<F, F>(preprocessed_row, main_row)
                 }
                 let mut mult = interaction
@@ -87,7 +70,7 @@ pub(crate) fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
     batch_size: usize,
 ) -> RowMajorMatrix<EF> {
     // Generate the RLC elements to uniquely identify each interaction.
-    let alphas = generate_interaction_rlc_elements(sends, receives, random_elements[0]);
+    let alpha = random_elements[0];
 
     // Generate the RLC elements to uniquely identify each item in the looked up tuple.
     let betas = random_elements[1].powers();
@@ -122,7 +105,7 @@ pub(crate) fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
                         main_row.collect::<Vec<_>>().as_slice(),
                         sends,
                         receives,
-                        &alphas,
+                        alpha,
                         betas.clone(),
                         batch_size,
                     )
@@ -139,7 +122,7 @@ pub(crate) fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
                         main_row,
                         sends,
                         receives,
-                        &alphas,
+                        alpha,
                         betas.clone(),
                         batch_size,
                     )
@@ -208,9 +191,6 @@ pub fn eval_permutation_constraints<F, AB>(
     let perm_next = perm.row_slice(1);
     let perm_next: &[AB::VarEF] = (*perm_next).borrow();
 
-    let alphas = generate_interaction_rlc_elements(sends, receives, alpha);
-    let betas = beta.powers();
-
     // Ensure that each batch sum m_i/f_i is computed correctly.
     let interaction_chunks = &sends
         .iter()
@@ -244,12 +224,14 @@ pub fn eval_permutation_constraints<F, AB>(
         let mut rlcs: Vec<AB::ExprEF> = Vec::with_capacity(batch_size);
         let mut multiplicities: Vec<AB::Expr> = Vec::with_capacity(batch_size);
         for (interaction, is_send) in chunk {
-            let mut rlc = AB::ExprEF::zero();
+            let mut rlc = alpha.clone();
+            let mut betas = beta.powers();
+            rlc += betas.next().unwrap()
+                * AB::ExprEF::from_canonical_usize(interaction.argument_index());
             for (field, beta) in interaction.values.iter().zip(betas.clone()) {
                 let elem = field.apply::<AB::Expr, AB::Var>(&preprocessed_local, main_local);
                 rlc += beta * elem;
             }
-            rlc += alphas[interaction.argument_index()].clone();
             rlcs.push(rlc);
 
             let send_factor = if is_send { AB::F::one() } else { -AB::F::one() };
