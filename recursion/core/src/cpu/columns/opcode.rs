@@ -44,7 +44,7 @@ pub struct OpcodeSelectorCols<T> {
     pub is_fri_fold: T,
     pub is_commit: T,
     pub is_ext_to_felt: T,
-  
+
     pub is_heap_expand: T,
 }
 
