@@ -39,3 +39,8 @@ jobs:
             env:
               RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
               RUST_BACKTRACE: 1
+          - name: Export Solidity Verifier
+            run: |
+              bash sdk/export_verifier.sh
+              diff -q contracts/src/Verifier.sol contracts/Verifier.sol          
+
