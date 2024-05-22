@@ -2,6 +2,7 @@ mod instruction;
 mod opcode;
 mod program;
 mod record;
+mod utils;
 
 use std::collections::VecDeque;
 use std::process::exit;
@@ -17,6 +18,7 @@ use p3_symmetric::CryptographicPermutation;
 use p3_symmetric::Permutation;
 pub use program::*;
 pub use record::*;
+pub use utils::*;
 
 use crate::air::{Block, RECURSION_PUBLIC_VALUES_COL_MAP, RECURSIVE_PROOF_NUM_PV_ELTS};
 use crate::cpu::CpuEvent;
@@ -27,6 +29,10 @@ use crate::range_check::{RangeCheckEvent, RangeCheckOpcode};
 
 use p3_field::{ExtensionField, PrimeField32};
 use sp1_core::runtime::MemoryAccessPosition;
+
+/// The heap pointer address.
+pub const HEAP_PTR: i32 = -4;
+pub const HEAP_START_ADDRESS: usize = STACK_SIZE + 4;
 
 pub const STACK_SIZE: usize = 1 << 24;
 pub const MEMORY_SIZE: usize = 1 << 28;
@@ -440,6 +446,16 @@ where
                     let mut a_val = Block::default();
                     a_val[0] = b_val[0] + c_val[0];
                     self.mw_cpu(a_ptr, a_val, MemoryAccessPosition::A);
+
+                    // If the instruction is a heap expansion, we need to add a range check event to
+                    // ensure that the heap size never goes above 2^28.
+                    if instruction_is_heap_expand(&instruction) {
+                        let (u16_range_check, u12_range_check) =
+                            get_heap_size_range_check_events(a_val[0]);
+                        self.record
+                            .add_range_check_events(&[u16_range_check, u12_range_check]);
+                    }
+
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::LessThanF => {
