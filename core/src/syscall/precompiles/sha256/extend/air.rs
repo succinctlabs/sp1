@@ -198,6 +198,8 @@ where
             local.is_real,
         );
 
+        builder.assert_word_eq(*local.w_i.value(), local.s2.value);
+
         // Receive syscall event in first row of 48-cycle.
         builder.receive_syscall(
             local.shard,
