@@ -95,6 +95,14 @@ impl CpuChip {
             &memory_columns.memory_access,
             is_memory_instruction.clone(),
         );
+
+        // On memory load instructions, make sure that the memory value is not changed.
+        builder
+            .when(self.is_load_instruction::<AB>(&local.selectors))
+            .assert_word_eq(
+                *memory_columns.memory_access.value(),
+                *memory_columns.memory_access.prev_value(),
+            );
     }
 
     /// Evaluates constraints related to loading from memory.
@@ -142,7 +150,7 @@ impl CpuChip {
             local.mem_value_is_neg,
         );
 
-        // When the memory value is not negaitve, assert that op_a value is equal to the unsigned
+        // When the memory value is not negative, assert that op_a value is equal to the unsigned
         // memory value.
         builder
             .when(is_load)
