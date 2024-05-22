@@ -107,13 +107,13 @@ impl ShaExtendChip {
 
         // cycle_48_start == start of 16-cycle AND first 16-cycle within 48-cycle AND is_real.
         builder.assert_eq(
-            local.cycle_16_start.result * local.cycle_48[0] * local.is_real,
+            local.cycle_16_start.result * local.cycle_48[0],
             local.cycle_48_start,
         );
 
         // cycle_48_end == end of 16-cycle AND last 16-cycle within 48-cycle AND is_real.
         builder.assert_eq(
-            local.cycle_16_end.result * local.cycle_48[2] * local.is_real,
+            local.cycle_16_end.result * local.cycle_48[2],
             local.cycle_48_end,
         );
 
