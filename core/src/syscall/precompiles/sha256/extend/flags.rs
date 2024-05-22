@@ -126,7 +126,7 @@ impl ShaExtendChip {
         // When it's not the end of a 16-cycle, the next `i` must be the current plus one.
         builder
             .when_transition()
-            .when(one.clone() - local.cycle_16_end.result)
+            .when(one.clone() - local.cycle_48_end)
             .assert_eq(local.i + one.clone(), next.i);
     }
 }
