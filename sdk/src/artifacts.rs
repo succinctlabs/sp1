@@ -6,7 +6,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 use reqwest::Client;
 pub use sp1_prover::build::{build_groth16_artifacts_with_dummy, try_install_groth16_artifacts};
 
-/// Exports the soliditiy verifier for Groth16 proofs to the specified output directory.
+/// Exports the solidity verifier for Groth16 proofs to the specified output directory.
 ///
 /// WARNING: If you are on development mode, this function assumes that the Groth16 artifacts have
 /// already been built.
