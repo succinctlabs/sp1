@@ -98,6 +98,13 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for CpuChip<F> {
                     };
                 }
 
+                // Populate the public values columns.
+                if event.instruction.opcode == Opcode::Commit {
+                    let public_values_cols = cols.opcode_specific.public_values_mut();
+                    let idx = cols.b.prev_value()[0].as_canonical_u32() as usize;
+                    public_values_cols.idx_bitmap[idx] = F::one();
+                }
+
                 cols.is_real = F::one();
                 row
             })

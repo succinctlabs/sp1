@@ -4,7 +4,10 @@ use crate::{
     SP1ProofVerificationError, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
 };
 use anyhow::Result;
-use sp1_prover::{SP1Prover, SP1Stdin};
+use p3_field::PrimeField;
+use sp1_prover::{
+    verify::verify_groth16_public_inputs, Groth16Proof, HashableKey, SP1Prover, SP1Stdin,
+};
 
 /// An implementation of [crate::ProverClient] that can generate mock proofs.
 pub struct MockProver {
@@ -33,7 +36,7 @@ impl Prover for MockProver {
     }
 
     fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Proof> {
-        let public_values = SP1Prover::execute(&pk.elf, &stdin);
+        let public_values = SP1Prover::execute(&pk.elf, &stdin)?;
         Ok(SP1ProofWithPublicValues {
             proof: vec![],
             stdin,
@@ -50,7 +53,19 @@ impl Prover for MockProver {
     }
 
     fn prove_groth16(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Groth16Proof> {
-        todo!()
+        let public_values = SP1Prover::execute(&pk.elf, &stdin)?;
+        Ok(SP1Groth16Proof {
+            proof: Groth16Proof {
+                public_inputs: [
+                    pk.vk.hash_bn254().as_canonical_biguint().to_string(),
+                    public_values.hash().to_string(),
+                ],
+                encoded_proof: "".to_string(),
+                raw_proof: "".to_string(),
+            },
+            stdin,
+            public_values,
+        })
     }
 
     fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkProof> {
@@ -73,7 +88,8 @@ impl Prover for MockProver {
         Ok(())
     }
 
-    fn verify_groth16(&self, _proof: &SP1Groth16Proof, _vkey: &SP1VerifyingKey) -> Result<()> {
+    fn verify_groth16(&self, proof: &SP1Groth16Proof, vkey: &SP1VerifyingKey) -> Result<()> {
+        verify_groth16_public_inputs(vkey, &proof.public_values, &proof.proof.public_inputs)?;
         Ok(())
     }
 

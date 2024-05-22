@@ -56,8 +56,18 @@ pub trait Prover: Send + Sync {
             .map_err(|e| e.into())
     }
 
-    /// Verify that a SP1 Groth16 proof is valid given its vkey and metadata.
-    fn verify_groth16(&self, _proof: &SP1Groth16Proof, _vkey: &SP1VerifyingKey) -> Result<()> {
+    /// Verify that a SP1 Groth16 proof is valid. Verify that the public inputs of the Groth16Proof match
+    /// the hash of the VK and the committed public values of the SP1ProofWithPublicValues.
+    fn verify_groth16(&self, proof: &SP1Groth16Proof, vkey: &SP1VerifyingKey) -> Result<()> {
+        let sp1_prover = self.sp1_prover();
+
+        let groth16_aritfacts = if sp1_prover::build::sp1_dev_mode() {
+            sp1_prover::build::groth16_artifacts_dev_dir()
+        } else {
+            sp1_prover::build::groth16_artifacts_dir()
+        };
+        sp1_prover.verify_groth16(&proof.proof, vkey, &proof.public_values, &groth16_aritfacts)?;
+
         Ok(())
     }
 

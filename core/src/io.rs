@@ -2,24 +2,11 @@ use crate::{
     stark::{ShardProof, StarkVerifyingKey},
     utils::{BabyBearPoseidon2, Buffer},
 };
+use k256::sha2::{Digest, Sha256};
+use num_bigint::BigUint;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use std::{convert::TryInto, io::Read};
-
-// Serialize and align data to u32 boundaries
-fn serialize_to_u32_aligned<T: Serialize>(data: &T) -> Vec<u8> {
-    let serialized = bincode::serialize(data).expect("Failed to serialize data");
-    let padding_size = (4 - serialized.len() % 4) % 4;
-    let mut aligned_data = serialized;
-    aligned_data.resize(aligned_data.len() + padding_size, 0); // Add padding
-    aligned_data
-}
-
-// Deserialize data assuming it is u32 aligned
-fn deserialize_from_u32_aligned<T: DeserializeOwned>(data: &[u8]) -> T {
-    let actual_length = data.len() - (data.len() % 4);
-    let aligned_data = &data[..actual_length];
-    bincode::deserialize(aligned_data).expect("Failed to deserialize data")
-}
+use serde_json;
+use std::io;
 
 /// Standard input for the prover.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -38,6 +25,51 @@ pub struct SP1Stdin {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SP1PublicValues {
     buffer: Buffer,
+}
+
+/// serialize data from u32-aligned bytes
+fn _serialize_u32_aligned<T>(data: &T) -> io::Result<Vec<u8>>
+where
+    T: Serialize + ?Sized,
+{
+    // Serialize the data using serde to a Vec<u8>
+    let mut vec = serde_json::to_vec(data).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+
+    // Ensure the buffer is aligned to 4 bytes
+    let padding_size = (4 - vec.len() % 4) % 4;
+    vec.resize(vec.len() + padding_size, 0);
+
+    Ok(vec)
+}
+
+///  serialize data from u32-aligned bytes(with a different method)
+fn serialize_into_aligned<T>(data: &T) -> io::Result<Vec<u8>>
+where
+    T: Serialize,
+{
+    let mut vec = Vec::new();
+    // Use serde_json to serialize data directly into vec
+    serde_json::to_writer(&mut vec, data).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+
+    // Ensure alignment to 4 bytes
+    let padding_size = (4 - vec.len() % 4) % 4;
+    vec.resize(vec.len() + padding_size, 0);
+
+    Ok(vec)
+}
+
+/// Deserializes data from u32-aligned bytes
+fn _deserialize_u32_aligned<T>(data: &[u8]) -> io::Result<T>
+where
+    T: serde::de::DeserializeOwned,
+{
+    // Assuming the data might include padding bytes at the end, which should be ignored during deserialization.
+    // Calculate actual data length excluding padding
+    let actual_length = data.len() - (data.len() % 4);
+
+    // Deserialize the actual data using serde_json
+    serde_json::from_slice(&data[..actual_length])
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
 }
 
 impl SP1Stdin {
@@ -59,12 +91,29 @@ impl SP1Stdin {
         }
     }
 
-    /// Read a value from the buffer.
-    pub fn read<T: Serialize + DeserializeOwned>(&mut self) -> T {
-        let result: T =
-            bincode::deserialize(&self.buffer[self.ptr]).expect("failed to deserialize");
-        self.ptr += 1;
-        result
+    pub fn read<T>(&mut self) -> io::Result<T>
+    where
+        T: Serialize + DeserializeOwned,
+    {
+        // Check if `self.buffer` is indeed a Vec<Vec<u8>>, and if `self.ptr` points to a valid index
+        if self.ptr >= self.buffer.len() {
+            return Err(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                "Buffer pointer out of range",
+            ));
+        }
+
+        // Correct access to the byte slice
+        let data_slice = &self.buffer[self.ptr];
+
+        // Deserialize from the slice
+        let deserialized_data = serde_json::from_slice::<T>(data_slice)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e));
+
+        // Assuming you want to update `self.ptr` here to point to the next element, if needed
+        // self.ptr += 1; // or adjust based on the actual size of T, if known
+
+        deserialized_data
     }
 
     /// Read a slice of bytes from the buffer.
@@ -75,8 +124,7 @@ impl SP1Stdin {
 
     /// Write a value to the buffer.
     pub fn write<T: Serialize>(&mut self, data: &T) {
-        let mut tmp = Vec::new();
-        bincode::serialize_into(&mut tmp, data).expect("serialization failed");
+        let tmp = serialize_into_aligned(data).expect("serialization failed");
         self.buffer.push(tmp);
     }
 
@@ -144,6 +192,26 @@ impl SP1PublicValues {
     pub fn write_slice(&mut self, slice: &[u8]) {
         self.buffer.write_slice(slice);
     }
+
+    /// Hash the public values, mask the top 3 bits and return a BigUint. Matches the implementation
+    /// of `hashPublicValues` in the Solidity verifier.
+    ///
+    /// ```solidity
+    /// sha256(publicValues) & bytes32(uint256((1 << 253) - 1));
+    /// ```
+    pub fn hash(&self) -> BigUint {
+        // Hash the public values.
+        let mut hasher = Sha256::new();
+        hasher.update(self.buffer.data.as_slice());
+        let hash_result = hasher.finalize();
+        let mut hash = hash_result.to_vec();
+
+        // Mask the top 3 bits.
+        hash[0] &= 0b00011111;
+
+        // Return the masked hash as a BigUint.
+        BigUint::from_bytes_be(&hash)
+    }
 }
 
 impl AsRef<[u8]> for SP1PublicValues {
@@ -187,5 +255,25 @@ pub mod proof_serde {
         } else {
             MachineProof::<SC>::deserialize(deserializer)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_hash_public_values() {
+        let test_hex = "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
+        let test_bytes = hex::decode(test_hex).unwrap();
+
+        let mut public_values = SP1PublicValues::new();
+        public_values.write_slice(&test_bytes);
+        let hash = public_values.hash();
+
+        let expected_hash = "1ce987d0a7fcc2636fe87e69295ba12b1cc46c256b369ae7401c51b805ee91bd";
+        let expected_hash_biguint = BigUint::from_bytes_be(&hex::decode(expected_hash).unwrap());
+
+        assert_eq!(hash, expected_hash_biguint);
     }
 }

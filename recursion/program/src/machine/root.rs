@@ -24,6 +24,8 @@ use crate::stark::{RecursiveVerifierConstraintFolder, ShardProofHint, StarkVerif
 use crate::types::ShardProofVariable;
 use crate::utils::{const_fri_config, hash_vkey};
 
+use super::utils::{commit_public_values, verify_public_values_hash};
+
 /// The program that gets a final verifier at the root of the tree.
 #[derive(Debug, Clone, Copy)]
 pub struct SP1RootVerifier<C: Config, SC: StarkGenericConfig, A> {
@@ -114,6 +116,9 @@ where
         let public_values: &RecursionPublicValues<Felt<C::F>> =
             public_values_elements.as_slice().borrow();
 
+        // Check that the public values digest is correct.
+        verify_public_values_hash(builder, public_values);
+
         // Assert that the proof is complete.
         //
         // *Remark*: here we are assuming on that the program we are verifying indludes the check
@@ -131,10 +136,7 @@ where
             }
         }
 
-        // Commit to the public values, broadcasting the same ones.
-        for value in public_values_elements {
-            builder.commit_public_value(value);
-        }
+        commit_public_values(builder, public_values);
 
         builder.halt();
     }

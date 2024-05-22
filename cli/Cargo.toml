@@ -29,7 +29,7 @@ indicatif = "0.17.8"
 tokio = { version = "1", features = ["full"] }
 tar = "0.4"
 flate2 = "1.0"
-dirs = "4.0"
+dirs = "5.0"
 serde = { version = "1", features = ["derive"] }
 rand = "0.8"
 downloader = { version = "0.2", default-features = false, features = [

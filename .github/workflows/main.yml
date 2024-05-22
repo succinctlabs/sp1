@@ -1,17 +1,17 @@
 name: Main
 
 on:
-    pull_request:
-      branches:
-        - main
-      paths:
-        - "cli/**"
-        - "core/**"
-        - "prover/**"
-        - "recursion/**"
-        - "derive/**"
-        - "sdk/**"
-        - ".github/workflows/**"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "cli/**"
+      - "core/**"
+      - "prover/**"
+      - "recursion/**"
+      - "derive/**"
+      - "sdk/**"
+      - ".github/workflows/**"
 
 concurrency:
     group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
