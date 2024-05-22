@@ -856,7 +856,7 @@ dependencies = [
  "bitflags 2.5.0",
  "cexpr",
  "clang-sys",
- "itertools 0.10.5",
+ "itertools 0.12.1",
  "lazy_static",
  "lazycell",
  "log",
@@ -3520,7 +3520,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "81bddcdb20abf9501610992b6759a4c888aef7d1a7247ef75e2404275ac24af1"
 dependencies = [
  "anyhow",
- "itertools 0.10.5",
+ "itertools 0.12.1",
  "proc-macro2",
  "quote",
  "syn 2.0.65",
@@ -4679,6 +4679,7 @@ version = "0.1.0"
 dependencies = [
  "bindgen",
  "cc",
+ "cfg-if",
  "crossbeam",
  "log",
  "num-bigint 0.4.5",
@@ -4729,6 +4730,7 @@ dependencies = [
  "async-trait",
  "axum",
  "bincode",
+ "cfg-if",
  "dirs",
  "dotenv",
  "futures",
