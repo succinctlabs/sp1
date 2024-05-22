@@ -2,7 +2,7 @@
 pragma solidity ^0.8.17;
 
 import {ISP1Verifier} from "./ISP1Verifier.sol";
-import {Verifier} from "./Verifier.sol";
+import {Verifier} from "./Groth16Verifier.sol";
 
 /// @title SP1 Verifier
 /// @author Succinct Labs

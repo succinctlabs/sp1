@@ -7,4 +7,4 @@ OUTPUT_DIR="../contracts/src"
 # Call the Rust function to export the verifier
 cargo run --package sp1-sdk --bin export_verifier --release -- --output-dir $OUTPUT_DIR
 
-echo "Verifier exported to $OUTPUT_DIR/Verifier.sol"
+echo "Verifier exported to $OUTPUT_DIR/Groth16Verifier.sol"
