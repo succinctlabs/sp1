@@ -107,13 +107,11 @@ impl SP1Stdin {
         let data_slice = &self.buffer[self.ptr];
 
         // Deserialize from the slice
-        let deserialized_data = serde_json::from_slice::<T>(data_slice)
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e));
+        serde_json::from_slice::<T>(data_slice)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
 
         // Assuming you want to update `self.ptr` here to point to the next element, if needed
         // self.ptr += 1; // or adjust based on the actual size of T, if known
-
-        deserialized_data
     }
 
     /// Read a slice of bytes from the buffer.
