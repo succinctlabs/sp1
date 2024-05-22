@@ -27,7 +27,7 @@ use crate::types::ShardProofVariable;
 use crate::types::VerifyingKeyVariable;
 use crate::utils::{const_fri_config, felt2var, get_challenger_public_values, hash_vkey, var2felt};
 
-use super::utils::assert_complete;
+use super::utils::{assert_complete, commit_public_values};
 
 /// A program for recursively verifying a batch of SP1 proofs.
 #[derive(Debug, Clone, Copy)]
@@ -223,8 +223,6 @@ where
 
             // Assert that the start_pc of the proof is equal to the current pc.
             builder.assert_felt_eq(current_pc, public_values.start_pc);
-            // Assert that the next_pc is different from the start_pc.
-            builder.assert_felt_ne(public_values.start_pc, public_values.next_pc);
             // Assert that the start_pc is not zero (this means program has halted in a non-last
             // shard).
             builder.assert_felt_ne(public_values.start_pc, C::F::zero());
@@ -307,7 +305,6 @@ where
         recursion_public_values.cumulative_sum = cumulative_sum_arrray;
         recursion_public_values.start_reconstruct_deferred_digest = start_deferred_digest;
         recursion_public_values.end_reconstruct_deferred_digest = end_deferred_digest;
-        recursion_public_values.exit_code = zero;
         recursion_public_values.is_complete = is_complete_felt;
 
         // If the proof represents a complete proof, make completeness assertions.
@@ -319,10 +316,7 @@ where
             assert_complete(builder, recursion_public_values, &reconstruct_challenger)
         });
 
-        // Commit to the public values.
-        for value in recursion_public_values_stream {
-            builder.commit_public_value(value);
-        }
+        commit_public_values(builder, recursion_public_values);
 
         builder.halt();
     }

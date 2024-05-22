@@ -40,15 +40,16 @@ pub enum Opcode {
 
     PrintF = 33,
     PrintE = 34,
-    Ext2Felt = 35,
+    HintExt2Felt = 35,
 
     FRIFold = 36,
     HintLen = 37,
     Hint = 38,
     BNEINC = 40,
     Commit = 41,
-    LessThanF = 42,
-    CycleTracker = 43,
+    RegisterPublicValue = 42,
+    LessThanF = 43,
+    CycleTracker = 44,
 }
 
 impl Opcode {

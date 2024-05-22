@@ -217,10 +217,10 @@ pub enum DslIr<C: Config> {
     PrintE(Ext<C::F, C::EF>),
     /// Throws an error.
     Error(),
-    /// Converts an ext to a slice of felts.
-    Ext2Felt(Array<C, Felt<C::F>>, Ext<C::F, C::EF>),
 
-    /// Hint the length of the next array.
+    /// Converts an ext to a slice of felts.  
+    HintExt2Felt(Array<C, Felt<C::F>>, Ext<C::F, C::EF>),
+    /// Hint the length of the next array.  
     HintLen(Var<C::N>),
     /// Hint an array of variables.
     HintVars(Array<C, Var<C::N>>),
@@ -236,7 +236,9 @@ pub enum DslIr<C: Config> {
     WitnessExt(Ext<C::F, C::EF>, u32),
     /// Label a field element as the ith public input.
     Commit(Felt<C::F>, Var<C::N>),
-    /// Operation to halt the program. Should be the last instruction in the program.
+    /// Registers a field element to the public inputs.
+    RegisterPublicValue(Felt<C::F>),
+    /// Operation to halt the program. Should be the last instruction in the program.  
     Halt,
 
     // Public inputs for circuits.

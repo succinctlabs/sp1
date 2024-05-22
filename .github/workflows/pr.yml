@@ -2,7 +2,7 @@ name: PR
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   pull_request:
     branches:
       - "**"
@@ -45,7 +45,7 @@ jobs:
         with:
           command: test
           toolchain: nightly-2024-04-17
-          args: --release -- --nocapture
+          args: --release --features groth16
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_BACKTRACE: 1
@@ -76,7 +76,7 @@ jobs:
         with:
           command: test
           toolchain: nightly-2024-04-17
-          args: --release
+          args: --release --features groth16
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_BACKTRACE: 1
@@ -172,6 +172,7 @@ jobs:
         run: |
           cd fibonacci
           cd program
+          cargo add sp1-zkvm --path $GITHUB_WORKSPACE/zkvm/entrypoint
           cargo prove build
           cd ../script
           cargo add sp1-sdk --path $GITHUB_WORKSPACE/sdk

@@ -6,13 +6,16 @@ use sp1_core::utils::indices_arr;
 use sp1_derive::AlignedBorrow;
 
 mod branch;
+mod heap_expand;
 mod instruction;
 mod memory;
 mod opcode;
 mod opcode_specific;
+mod public_values;
 
 pub use instruction::*;
 pub use opcode::*;
+pub use public_values::*;
 
 use self::opcode_specific::OpcodeSpecificCols;
 

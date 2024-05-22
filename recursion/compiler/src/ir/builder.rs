@@ -424,7 +424,12 @@ impl<C: Config> Builder<C> {
         }
     }
 
-    /// Commits a felt in public values.
+    /// Register a felt as public value.  This is append to the proof's public values buffer.
+    pub fn register_public_value(&mut self, val: Felt<C::F>) {
+        self.operations.push(DslIr::RegisterPublicValue(val));
+    }
+
+    /// Register and commits a felt as public value.  This value will be constrained when verified.
     pub fn commit_public_value(&mut self, val: Felt<C::F>) {
         if self.nb_public_values.is_none() {
             self.nb_public_values = Some(self.eval(C::N::zero()));
