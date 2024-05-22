@@ -41,6 +41,7 @@ sha2 = "0.10.8"
 dirs = "5.0.1"
 tempfile = "3.10.1"
 num-bigint = "0.4.5"
+cfg-if = "1.0"
 
 [features]
 neon = ["sp1-core/neon"]
