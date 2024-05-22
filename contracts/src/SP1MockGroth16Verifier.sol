@@ -7,15 +7,13 @@ import {ISP1Verifier} from "./ISP1Verifier.sol";
 /// @author Succinct Labs
 /// @notice This contracts implements a Mock solidity verifier for SP1.
 contract SP1MockGroth16Verifier is ISP1Verifier {
-    /// @notice Verifies a proof with given public values and vkey.
-    /// @param vkey The verification key for the RISC-V program.
-    /// @param publicValues The public values encoded as bytes.
+    /// @notice Verifies a mock proof with given public values and vkey.
     /// @param proofBytes The proof of the program execution the SP1 zkVM encoded as bytes.
     function verifyProof(
-        bytes32 vkey,
-        bytes memory publicValues,
+        bytes32,
+        bytes memory,
         bytes memory proofBytes
-    ) external view {
+    ) external pure {
         assert(proofBytes.length == 0);
     }
 }
