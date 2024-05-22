@@ -187,6 +187,8 @@ impl<F: Field> CpuChip<F> {
             + local.selectors.is_fri_fold
             + local.selectors.is_poseidon
             + local.selectors.is_store
+            + local.selectors.is_noop
+            + local.selectors.is_ext_to_felt
     }
 
     /// Expr to check for instructions that are commit instructions.

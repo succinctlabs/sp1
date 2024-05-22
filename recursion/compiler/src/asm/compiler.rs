@@ -483,9 +483,9 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                 DslIr::PrintF(dst) => self.push(AsmInstruction::PrintF(dst.fp()), trace),
                 DslIr::PrintV(dst) => self.push(AsmInstruction::PrintV(dst.fp()), trace),
                 DslIr::PrintE(dst) => self.push(AsmInstruction::PrintE(dst.fp()), trace),
-                DslIr::Ext2Felt(dst, src) => match (dst, src) {
+                DslIr::HintExt2Felt(dst, src) => match (dst, src) {
                     (Array::Dyn(dst, _), src) => {
-                        self.push(AsmInstruction::Ext2Felt(dst.fp(), src.fp()), trace)
+                        self.push(AsmInstruction::HintExt2Felt(dst.fp(), src.fp()), trace)
                     }
                     _ => unimplemented!(),
                 },

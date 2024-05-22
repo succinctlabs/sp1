@@ -43,7 +43,8 @@ pub struct OpcodeSelectorCols<T> {
     pub is_poseidon: T,
     pub is_fri_fold: T,
     pub is_commit: T,
-
+    pub is_ext_to_felt: T,
+  
     pub is_heap_expand: T,
 }
 
@@ -70,14 +71,19 @@ impl<F: PrimeField32> OpcodeSelectorCols<F> {
             Opcode::HALT => self.is_halt = F::one(),
             Opcode::FRIFold => self.is_fri_fold = F::one(),
             Opcode::Poseidon2Compress => self.is_poseidon = F::one(),
-            // TODO: Double-check that `is_noop` is constrained properly in the CPU air.
-            Opcode::Ext2Felt => self.is_noop = F::one(),
-            Opcode::HintBits => self.is_noop = F::one(),
-            Opcode::PrintF => self.is_noop = F::one(),
-            Opcode::PrintE => self.is_noop = F::one(),
             Opcode::Commit => self.is_commit = F::one(),
-            Opcode::RegisterPublicValue => self.is_noop = F::one(),
-            _ => {}
+            Opcode::HintExt2Felt => self.is_ext_to_felt = F::one(),
+
+            Opcode::Hint
+            | Opcode::HintBits
+            | Opcode::PrintF
+            | Opcode::PrintE
+            | Opcode::RegisterPublicValue
+            | Opcode::CycleTracker => {
+                self.is_noop = F::one();
+            }
+
+            Opcode::HintLen | Opcode::LessThanF => {}
         }
 
         if matches!(
@@ -118,6 +124,7 @@ impl<T: Copy> IntoIterator for &OpcodeSelectorCols<T> {
             self.is_poseidon,
             self.is_fri_fold,
             self.is_commit,
+            self.is_ext_to_felt,
             self.is_heap_expand,
         ]
         .into_iter()

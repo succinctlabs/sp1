@@ -620,10 +620,9 @@ where
                     let (a_val, b_val, c_val) = self.all_rr(&instruction);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
-                Opcode::Ext2Felt => {
+                Opcode::HintExt2Felt => {
                     let (a_val, b_val, c_val) = self.all_rr(&instruction);
                     let dst = a_val[0].as_canonical_u32() as usize;
-                    // TODO: this should be a hint and perhaps the compiler needs to change to make it a hint?
                     self.mw_uninitialized(dst, Block::from(b_val[0]));
                     self.mw_uninitialized(dst + 1, Block::from(b_val[1]));
                     self.mw_uninitialized(dst + 2, Block::from(b_val[2]));
