@@ -45,7 +45,7 @@ jobs:
         with:
           command: test
           toolchain: nightly-2024-04-17
-          args: --release -- --nocapture
+          args: --release --features groth16
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_BACKTRACE: 1
@@ -76,7 +76,7 @@ jobs:
         with:
           command: test
           toolchain: nightly-2024-04-17
-          args: --release
+          args: --release --features groth16
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_BACKTRACE: 1
