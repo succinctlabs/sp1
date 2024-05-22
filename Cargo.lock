@@ -4434,6 +4434,7 @@ dependencies = [
  "rayon-scan",
  "rrs-lib",
  "serde",
+ "serde_json",
  "serde_with",
  "serial_test",
  "size",
