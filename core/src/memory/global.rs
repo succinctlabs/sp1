@@ -29,7 +29,7 @@ pub struct MemoryChip {
 
 impl MemoryChip {
     /// Creates a new memory chip with a certain type.
-    pub fn new(kind: MemoryChipType) -> Self {
+    pub const fn new(kind: MemoryChipType) -> Self {
         Self { kind }
     }
 }

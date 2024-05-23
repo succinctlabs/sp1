@@ -33,7 +33,7 @@ impl<T> From<Vec<T>> for TracedVec<T> {
 }
 
 impl<T> TracedVec<T> {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             vec: Vec::new(),
             traces: Vec::new(),
@@ -698,7 +698,7 @@ pub struct RangeBuilder<'a, C: Config> {
 }
 
 impl<'a, C: Config> RangeBuilder<'a, C> {
-    pub fn step_by(mut self, step_size: usize) -> Self {
+    pub const fn step_by(mut self, step_size: usize) -> Self {
         self.step_size = step_size;
         self
     }

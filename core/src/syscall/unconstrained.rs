@@ -5,7 +5,7 @@ use crate::runtime::{ForkState, Syscall, SyscallContext};
 pub struct SyscallEnterUnconstrained;
 
 impl SyscallEnterUnconstrained {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self
     }
 }
@@ -33,7 +33,7 @@ impl Syscall for SyscallEnterUnconstrained {
 pub struct SyscallExitUnconstrained;
 
 impl SyscallExitUnconstrained {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self
     }
 }

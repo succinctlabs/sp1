@@ -351,7 +351,7 @@ impl Poseidon2Chip {
         );
     }
 
-    pub fn do_receive_table<T: Copy>(local: &Poseidon2Cols<T>) -> T {
+    pub const fn do_receive_table<T: Copy>(local: &Poseidon2Cols<T>) -> T {
         local.rounds[0]
     }
 
