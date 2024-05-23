@@ -8,8 +8,8 @@ edition = "2021"
 sp1-zkvm = { path = "../../../zkvm/entrypoint" }
 digest = "0.10.7"
 rand = "0.8.5"
-rsa = "0.6" # Check for the latest version
-sha2 = "0.9.8" # Check for the latest version
+rsa = "0.6"                                      # Check for the latest version
+sha2 = "0.9.8"                                   # Check for the latest version
 
 [patch.crates-io]
 # Patch sha2 so we can use sha precompiles
