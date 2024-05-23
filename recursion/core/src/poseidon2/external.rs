@@ -98,6 +98,8 @@ impl Poseidon2Chip {
                     .when_transition()
                     .assert_eq(local.rounds[i], next.rounds[i + 1]);
 
+                // Verify that the clk, dst_input, left_input, and right_input values are the same
+                // within a permutation.
                 builder
                     .when_transition()
                     .when(local.rounds[i])
