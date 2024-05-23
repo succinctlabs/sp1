@@ -87,9 +87,33 @@ impl Poseidon2Chip {
 
         self.eval_syscall(builder, local, receive_table);
 
-        // Range check all flags.
-        for i in 0..local.rounds.len() {
+        let num_total_rounds = local.rounds.len();
+        for i in 0..num_total_rounds {
+            // Verify that the round flags are correct.
             builder.assert_bool(local.rounds[i]);
+
+            if i != num_total_rounds - 1 {
+                builder
+                    .when_transition()
+                    .assert_eq(local.rounds[i], next.rounds[i + 1]);
+
+                builder
+                    .when_transition()
+                    .when(local.rounds[i])
+                    .assert_eq(local.clk, next.clk);
+                builder
+                    .when_transition()
+                    .when(local.rounds[i])
+                    .assert_eq(local.dst_input, next.dst_input);
+                builder
+                    .when_transition()
+                    .when(local.rounds[i])
+                    .assert_eq(local.left_input, next.left_input);
+                builder
+                    .when_transition()
+                    .when(local.rounds[i])
+                    .assert_eq(local.right_input, next.right_input);
+            }
         }
         builder.assert_bool(
             is_memory_read + is_initial + is_external_layer + is_internal_layer + is_memory_write,
@@ -132,6 +156,10 @@ impl Poseidon2Chip {
                 addr,
                 &memory_access_cols.mem_access[i],
                 memory_access.clone(),
+            );
+            builder.when(is_memory_read).assert_eq(
+                *memory_access_cols.mem_access[i].value(),
+                *memory_access_cols.mem_access[i].prev_value(),
             );
         }
 
