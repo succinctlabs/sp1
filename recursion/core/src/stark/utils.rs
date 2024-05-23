@@ -77,7 +77,7 @@ pub fn run_test_recursion(
 /// Returns whether the `SP1_DEV` environment variable is enabled or disabled.
 ///
 /// This variable controls whether a smaller version of the circuit will be used for generating the
-/// Groth16 proofs. This is useful for development and testing purposes.
+/// PLONK proofs. This is useful for development and testing purposes.
 ///
 /// By default, the variable is disabled.
 pub fn sp1_dev_mode() -> bool {

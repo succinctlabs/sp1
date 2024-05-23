@@ -76,5 +76,5 @@ func Prove(dataDir string, witnessPath string) Proof {
 		panic(err)
 	}
 
-	return NewSP1Groth16Proof(&proof, witnessInput)
+	return NewSP1PlonkBn254Proof(&proof, witnessInput)
 }

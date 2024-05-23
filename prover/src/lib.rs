@@ -5,7 +5,7 @@
 //! 1. Generate shard proofs which split up and prove the valid execution of a RISC-V program.
 //! 2. Compress shard proofs into a single shard proof.
 //! 3. Wrap the shard proof into a SNARK-friendly field.
-//! 4. Wrap the last shard proof, proven over the SNARK-friendly field, into a Groth16/PLONK proof.
+//! 4. Wrap the last shard proof, proven over the SNARK-friendly field, into a PLONK proof.
 
 #![allow(incomplete_features)]
 #![feature(generic_const_exprs)]
@@ -637,9 +637,9 @@ impl SP1Prover {
         })
     }
 
-    /// Wrap the STARK proven over a SNARK-friendly field into a Groth16 proof.
-    #[instrument(name = "wrap_groth16", level = "info", skip_all)]
-    pub fn wrap_groth16(
+    /// Wrap the STARK proven over a SNARK-friendly field into a PLONK proof.
+    #[instrument(name = "wrap_plonk_bn254", level = "info", skip_all)]
+    pub fn wrap_plonk_bn254(
         &self,
         proof: SP1ReduceProof<OuterSC>,
         build_dir: &Path,
@@ -704,7 +704,7 @@ mod tests {
     /// pipeline.
     ///
     /// Add `FRI_QUERIES`=1 to your environment for faster execution. Should only take a few minutes
-    /// on a Mac M2. Note: This test always re-builds the groth16 artifacts, so setting SP1_DEV is
+    /// on a Mac M2. Note: This test always re-builds the plonk bn254 artifacts, so setting SP1_DEV is
     /// not needed.
     #[test]
     #[serial]
@@ -764,13 +764,13 @@ mod tests {
         let vk_digest_bn254 = wrapped_bn254_proof.sp1_vkey_digest_bn254();
         assert_eq!(vk_digest_bn254, vk.hash_bn254());
 
-        tracing::info!("generate groth16 proof");
+        tracing::info!("generate plonk bn254 proof");
         let artifacts_dir =
             try_build_plonk_bn254_artifacts_dev(&prover.wrap_vk, &wrapped_bn254_proof.proof);
-        let plonk_bn254_proof = prover.wrap_groth16(wrapped_bn254_proof, &artifacts_dir);
+        let plonk_bn254_proof = prover.wrap_plonk_bn254(wrapped_bn254_proof, &artifacts_dir);
         println!("{:?}", plonk_bn254_proof);
 
-        prover.verify_groth16(&plonk_bn254_proof, &vk, &public_values, &artifacts_dir)?;
+        prover.verify_plonk_bn254(&plonk_bn254_proof, &vk, &public_values, &artifacts_dir)?;
 
         Ok(())
     }

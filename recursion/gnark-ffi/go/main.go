@@ -31,7 +31,7 @@ func ProvePlonkBn254(dataDir *C.char, witnessPath *C.char) *C.C_PlonkBn254Proof 
 	dataDirString := C.GoString(dataDir)
 	witnessPathString := C.GoString(witnessPath)
 
-	sp1Groth16Proof := sp1.Prove(dataDirString, witnessPathString)
+	sp1PlonkBn254Proof := sp1.Prove(dataDirString, witnessPathString)
 
 	ms := C.malloc(C.sizeof_C_PlonkBn254Proof)
 	if ms == nil {
@@ -39,10 +39,10 @@ func ProvePlonkBn254(dataDir *C.char, witnessPath *C.char) *C.C_PlonkBn254Proof 
 	}
 
 	structPtr := (*C.C_PlonkBn254Proof)(ms)
-	structPtr.PublicInputs[0] = C.CString(sp1Groth16Proof.PublicInputs[0])
-	structPtr.PublicInputs[1] = C.CString(sp1Groth16Proof.PublicInputs[1])
-	structPtr.EncodedProof = C.CString(sp1Groth16Proof.EncodedProof)
-	structPtr.RawProof = C.CString(sp1Groth16Proof.RawProof)
+	structPtr.PublicInputs[0] = C.CString(sp1PlonkBn254Proof.PublicInputs[0])
+	structPtr.PublicInputs[1] = C.CString(sp1PlonkBn254Proof.PublicInputs[1])
+	structPtr.EncodedProof = C.CString(sp1PlonkBn254Proof.EncodedProof)
+	structPtr.RawProof = C.CString(sp1PlonkBn254Proof.RawProof)
 	return structPtr
 }
 
@@ -61,7 +61,7 @@ func VerifyPlonkBn254(dataDir *C.char, proof *C.char, vkeyHash *C.char, commited
 	vkeyHashString := C.GoString(vkeyHash)
 	commitedValuesDigestString := C.GoString(commitedValuesDigest)
 
-	err := sp1.VerifyGroth16(dataDirString, proofString, vkeyHashString, commitedValuesDigestString)
+	err := sp1.Verify(dataDirString, proofString, vkeyHashString, commitedValuesDigestString)
 	if err != nil {
 		return C.CString(err.Error())
 	}

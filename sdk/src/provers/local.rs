@@ -3,8 +3,8 @@ use cfg_if::cfg_if;
 use sp1_prover::{SP1Prover, SP1Stdin};
 
 use crate::{
-    Prover, SP1CompressedProof, SP1Groth16Proof, SP1PlonkProof, SP1Proof, SP1ProofWithPublicValues,
-    SP1ProvingKey, SP1VerifyingKey,
+    Prover, SP1CompressedProof, SP1PlonkBn254Proof, SP1PlonkProof, SP1Proof,
+    SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
 };
 
 /// An implementation of [crate::ProverClient] that can generate end-to-end proofs locally.
@@ -54,7 +54,7 @@ impl Prover for LocalProver {
         })
     }
 
-    fn prove_groth16(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Groth16Proof> {
+    fn prove_plonk_bn254(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkBn254Proof> {
         cfg_if! {
             if #[cfg(feature = "plonk_bn254")] {
 
@@ -73,7 +73,7 @@ impl Prover for LocalProver {
                 } else {
                     sp1_prover::build::try_install_plonk_bn254_artifacts()
                 };
-                let proof = self.prover.wrap_groth16(outer_proof, &plonk_bn254_aritfacts);
+                let proof = self.prover.wrap_plonk_bn254(outer_proof, &plonk_bn254_aritfacts);
                 Ok(SP1ProofWithPublicValues {
                     proof,
                     stdin,

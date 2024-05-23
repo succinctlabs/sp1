@@ -19,11 +19,13 @@ use crate::{
 };
 
 #[derive(Error, Debug)]
-pub enum Groth16VerificationError {
-    #[error("the verifying key does not match the inner groth16 proof's committed verifying key")]
+pub enum PlonkVerificationError {
+    #[error(
+        "the verifying key does not match the inner plonk bn254 proof's committed verifying key"
+    )]
     InvalidVerificationKey,
     #[error(
-        "the public values in the sp1 proof do not match the public values in the inner groth16 proof"
+        "the public values in the sp1 proof do not match the public values in the inner plonk bn254 proof"
     )]
     InvalidPublicValues,
 }
@@ -214,8 +216,8 @@ impl SP1Prover {
         Ok(())
     }
 
-    /// Verifies a Groth16 proof using the circuit artifacts in the build directory.
-    pub fn verify_groth16(
+    /// Verifies a PLONK proof using the circuit artifacts in the build directory.
+    pub fn verify_plonk_bn254(
         &self,
         proof: &PlonkBn254Proof,
         vk: &SP1VerifyingKey,
@@ -236,7 +238,7 @@ impl SP1Prover {
     }
 }
 
-/// Verify the vk_hash and public_values_hash in the public inputs of the Groth16Proof match the expected values.
+/// Verify the vk_hash and public_values_hash in the public inputs of the PlonkBn254Proof match the expected values.
 pub fn verify_plonk_bn254_public_inputs(
     vk: &SP1VerifyingKey,
     public_values: &SP1PublicValues,
@@ -247,12 +249,12 @@ pub fn verify_plonk_bn254_public_inputs(
 
     let vk_hash = vk.hash_bn254().as_canonical_biguint();
     if vk_hash != expected_vk_hash {
-        return Err(Groth16VerificationError::InvalidVerificationKey.into());
+        return Err(PlonkVerificationError::InvalidVerificationKey.into());
     }
 
     let public_values_hash = public_values.hash();
     if public_values_hash != expected_public_values_hash {
-        return Err(Groth16VerificationError::InvalidPublicValues.into());
+        return Err(PlonkVerificationError::InvalidPublicValues.into());
     }
 
     Ok(())

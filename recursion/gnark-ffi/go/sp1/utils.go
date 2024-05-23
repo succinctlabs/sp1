@@ -9,7 +9,7 @@ import (
 	"github.com/succinctlabs/sp1-recursion-gnark/sp1/babybear"
 )
 
-func NewSP1Groth16Proof(proof *plonk.Proof, witnessInput WitnessInput) Proof {
+func NewSP1PlonkBn254Proof(proof *plonk.Proof, witnessInput WitnessInput) Proof {
 	var buf bytes.Buffer
 	(*proof).WriteRawTo(&buf)
 	proofBytes := buf.Bytes()

@@ -2,7 +2,7 @@ mod local;
 mod mock;
 mod network;
 
-use crate::{SP1CompressedProof, SP1Groth16Proof, SP1PlonkProof, SP1Proof};
+use crate::{SP1CompressedProof, SP1PlonkBn254Proof, SP1PlonkProof, SP1Proof};
 use anyhow::Result;
 pub use local::LocalProver;
 pub use mock::MockProver;
@@ -29,7 +29,7 @@ pub trait Prover: Send + Sync {
     fn prove_compressed(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1CompressedProof>;
 
     /// Given an SP1 program and input, generate a Groth16 proof that can be verified on-chain.
-    fn prove_groth16(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Groth16Proof>;
+    fn prove_plonk_bn254(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkBn254Proof>;
 
     /// Given an SP1 program and input, generate a PLONK proof that can be verified on-chain.
     fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkProof>;
@@ -58,7 +58,7 @@ pub trait Prover: Send + Sync {
 
     /// Verify that a SP1 Groth16 proof is valid. Verify that the public inputs of the Groth16Proof match
     /// the hash of the VK and the committed public values of the SP1ProofWithPublicValues.
-    fn verify_groth16(&self, proof: &SP1Groth16Proof, vkey: &SP1VerifyingKey) -> Result<()> {
+    fn verify_plonk_bn254(&self, proof: &SP1PlonkBn254Proof, vkey: &SP1VerifyingKey) -> Result<()> {
         let sp1_prover = self.sp1_prover();
 
         let plonk_bn254_aritfacts = if sp1_prover::build::sp1_dev_mode() {
@@ -66,7 +66,7 @@ pub trait Prover: Send + Sync {
         } else {
             sp1_prover::build::plonk_bn254_artifacts_dir()
         };
-        sp1_prover.verify_groth16(
+        sp1_prover.verify_plonk_bn254(
             &proof.proof,
             vkey,
             &proof.public_values,

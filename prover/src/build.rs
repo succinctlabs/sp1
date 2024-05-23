@@ -12,23 +12,23 @@ use sp1_recursion_core::air::RecursionPublicValues;
 pub use sp1_recursion_core::stark::utils::sp1_dev_mode;
 use sp1_recursion_gnark_ffi::PlonkBn254Prover;
 
-use crate::install::{install_plonk_bn254_artifacts, GROTH16_ARTIFACTS_COMMIT};
+use crate::install::{install_plonk_bn254_artifacts, PLONK_BN254_ARTIFACTS_COMMIT};
 use crate::utils::{babybear_bytes_to_bn254, babybears_to_bn254, words_to_bytes};
 use crate::{OuterSC, SP1Prover};
 
-/// Tries to install the Groth16 artifacts if they are not already installed.
+/// Tries to install the PLONK artifacts if they are not already installed.
 pub fn try_install_plonk_bn254_artifacts() -> PathBuf {
     let build_dir = plonk_bn254_artifacts_dir();
 
     if build_dir.exists() {
         println!(
-            "[sp1] groth16 artifacts already seem to exist at {}. if you want to re-download them, delete the directory",
+            "[sp1] plonk bn254 artifacts already seem to exist at {}. if you want to re-download them, delete the directory",
             build_dir.display()
         );
     } else {
         println!(
-            "[sp1] groth16 artifacts for commit {} do not exist at {}. downloading...",
-            GROTH16_ARTIFACTS_COMMIT,
+            "[sp1] plonk bn254 artifacts for commit {} do not exist at {}. downloading...",
+            PLONK_BN254_ARTIFACTS_COMMIT,
             build_dir.display()
         );
         install_plonk_bn254_artifacts(build_dir.clone());
@@ -36,7 +36,7 @@ pub fn try_install_plonk_bn254_artifacts() -> PathBuf {
     build_dir
 }
 
-/// Tries to build the Groth16 artifacts inside the development directory.
+/// Tries to build the PLONK artifacts inside the development directory.
 ///
 /// TODO: Maybe add some additional logic here to handle rebuilding the artifacts if they are
 /// already built.
@@ -45,22 +45,22 @@ pub fn try_build_plonk_bn254_artifacts_dev(
     template_proof: &ShardProof<OuterSC>,
 ) -> PathBuf {
     let build_dir = plonk_bn254_artifacts_dev_dir();
-    println!("[sp1] building groth16 artifacts in development mode");
+    println!("[sp1] building plonk bn254 artifacts in development mode");
     build_plonk_bn254_artifacts(template_vk, template_proof, &build_dir);
     build_dir
 }
 
-/// Gets the directory where the Groth16 artifacts are installed.
+/// Gets the directory where the PLONK artifacts are installed.
 pub fn plonk_bn254_artifacts_dir() -> PathBuf {
     dirs::home_dir()
         .unwrap()
         .join(".sp1")
         .join("circuits")
         .join("plonk_bn254")
-        .join(GROTH16_ARTIFACTS_COMMIT)
+        .join(PLONK_BN254_ARTIFACTS_COMMIT)
 }
 
-/// Gets the directory where the Groth16 artifacts are installed in development mode.
+/// Gets the directory where the PLONK artifacts are installed in development mode.
 pub fn plonk_bn254_artifacts_dev_dir() -> PathBuf {
     dirs::home_dir()
         .unwrap()
@@ -70,7 +70,7 @@ pub fn plonk_bn254_artifacts_dev_dir() -> PathBuf {
         .join("dev")
 }
 
-/// Build the groth16 artifacts to the given directory for the given verification key and template
+/// Build the plonk bn254 artifacts to the given directory for the given verification key and template
 /// proof.
 pub fn build_plonk_bn254_artifacts(
     template_vk: &StarkVerifyingKey<OuterSC>,
@@ -83,7 +83,7 @@ pub fn build_plonk_bn254_artifacts(
     PlonkBn254Prover::build(constraints, witness, build_dir);
 }
 
-/// Builds the groth16 artifacts to the given directory.
+/// Builds the plonk bn254 artifacts to the given directory.
 ///
 /// This may take a while as it needs to first generate a dummy proof and then it needs to compile
 /// the circuit.

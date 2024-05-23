@@ -6,15 +6,15 @@ use reqwest::Client;
 
 use crate::utils::block_on;
 
-/// The base URL for the S3 bucket containing the groth16 artifacts.
-pub const GROTH16_ARTIFACTS_URL_BASE: &str = "https://sp1-circuits.s3-us-east-2.amazonaws.com";
+/// The base URL for the S3 bucket containing the plonk bn254 artifacts.
+pub const PLONK_BN254_ARTIFACTS_URL_BASE: &str = "https://sp1-circuits.s3-us-east-2.amazonaws.com";
 
-/// The current version of the groth16 artifacts.
-pub const GROTH16_ARTIFACTS_COMMIT: &str = "9f43e920";
+/// The current version of the plonk bn254 artifacts.
+pub const PLONK_BN254_ARTIFACTS_COMMIT: &str = "9f43e920";
 
-/// Install the latest groth16 artifacts.
+/// Install the latest plonk bn254 artifacts.
 ///
-/// This function will download the latest groth16 artifacts from the S3 bucket and extract them to
+/// This function will download the latest plonk bn254 artifacts from the S3 bucket and extract them to
 /// the directory specified by [plonk_bn254_artifacts_dir()].
 pub fn install_plonk_bn254_artifacts(build_dir: PathBuf) {
     // Create the build directory.
@@ -23,7 +23,7 @@ pub fn install_plonk_bn254_artifacts(build_dir: PathBuf) {
     // Download the artifacts.
     let download_url = format!(
         "{}/{}.tar.gz",
-        GROTH16_ARTIFACTS_URL_BASE, GROTH16_ARTIFACTS_COMMIT
+        PLONK_BN254_ARTIFACTS_URL_BASE, PLONK_BN254_ARTIFACTS_COMMIT
     );
     let mut artifacts_tar_gz_file =
         tempfile::NamedTempFile::new().expect("failed to create tempfile");
@@ -56,14 +56,14 @@ pub fn install_plonk_bn254_artifacts(build_dir: PathBuf) {
     );
 }
 
-/// The directory where the groth16 artifacts will be stored based on [GROTH16_ARTIFACTS_VERSION]
-/// and [GROTH16_ARTIFACTS_URL_BASE].
+/// The directory where the plonk bn254 artifacts will be stored based on [PLONK_BN254_ARTIFACTS_VERSION]
+/// and [PLONK_BN254_ARTIFACTS_URL_BASE].
 pub fn install_plonk_bn254_artifacts_dir() -> PathBuf {
     dirs::home_dir()
         .unwrap()
         .join(".sp1")
         .join("circuits")
-        .join(GROTH16_ARTIFACTS_COMMIT)
+        .join(PLONK_BN254_ARTIFACTS_COMMIT)
 }
 
 /// Download the file with a progress bar that indicates the progress.

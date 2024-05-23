@@ -8,9 +8,9 @@ pub use sp1_prover::build::{
     build_plonk_bn254_artifacts_with_dummy, try_install_plonk_bn254_artifacts,
 };
 
-/// Exports the soliditiy verifier for Groth16 proofs to the specified output directory.
+/// Exports the soliditiy verifier for PLONK proofs to the specified output directory.
 ///
-/// WARNING: If you are on development mode, this function assumes that the Groth16 artifacts have
+/// WARNING: If you are on development mode, this function assumes that the PLONK artifacts have
 /// already been built.
 pub fn export_solidity_plonk_bn254_verifier(output_dir: impl Into<PathBuf>) -> Result<()> {
     let output_dir: PathBuf = output_dir.into();

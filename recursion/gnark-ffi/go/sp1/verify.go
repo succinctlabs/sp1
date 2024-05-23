@@ -11,7 +11,7 @@ import (
 	"github.com/succinctlabs/sp1-recursion-gnark/sp1/babybear"
 )
 
-func VerifyGroth16(verifyCmdDataDir string, verifyCmdProof string, verifyCmdVkeyHash string, verifyCmdCommitedValuesDigest string) error {
+func Verify(verifyCmdDataDir string, verifyCmdProof string, verifyCmdVkeyHash string, verifyCmdCommitedValuesDigest string) error {
 	// Sanity check the required arguments have been provided.
 	if verifyCmdDataDir == "" {
 		panic("--data is required")

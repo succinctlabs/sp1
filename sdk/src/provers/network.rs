@@ -7,7 +7,7 @@ use crate::{
     Prover,
 };
 use crate::{
-    SP1CompressedProof, SP1Groth16Proof, SP1PlonkProof, SP1Proof, SP1ProvingKey, SP1VerifyingKey,
+    SP1CompressedProof, SP1PlonkBn254Proof, SP1PlonkProof, SP1Proof, SP1ProvingKey, SP1VerifyingKey,
 };
 use anyhow::{Context, Result};
 use serde::de::DeserializeOwned;
@@ -161,7 +161,7 @@ impl Prover for NetworkProver {
         block_on(self.prove_async(&pk.elf, stdin, ProofMode::Compressed))
     }
 
-    fn prove_groth16(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Groth16Proof> {
+    fn prove_plonk_bn254(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkBn254Proof> {
         block_on(self.prove_async(&pk.elf, stdin, ProofMode::Groth16))
     }
 

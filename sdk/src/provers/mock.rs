@@ -1,6 +1,6 @@
 #![allow(unused_variables)]
 use crate::{
-    Prover, SP1CompressedProof, SP1Groth16Proof, SP1PlonkProof, SP1Proof,
+    Prover, SP1CompressedProof, SP1PlonkBn254Proof, SP1PlonkProof, SP1Proof,
     SP1ProofVerificationError, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
 };
 use anyhow::Result;
@@ -52,9 +52,9 @@ impl Prover for MockProver {
         unimplemented!()
     }
 
-    fn prove_groth16(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Groth16Proof> {
+    fn prove_plonk_bn254(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkBn254Proof> {
         let public_values = SP1Prover::execute(&pk.elf, &stdin)?;
-        Ok(SP1Groth16Proof {
+        Ok(SP1PlonkBn254Proof {
             proof: PlonkBn254Proof {
                 public_inputs: [
                     pk.vk.hash_bn254().as_canonical_biguint().to_string(),
@@ -88,7 +88,7 @@ impl Prover for MockProver {
         Ok(())
     }
 
-    fn verify_groth16(&self, proof: &SP1Groth16Proof, vkey: &SP1VerifyingKey) -> Result<()> {
+    fn verify_plonk_bn254(&self, proof: &SP1PlonkBn254Proof, vkey: &SP1VerifyingKey) -> Result<()> {
         verify_plonk_bn254_public_inputs(vkey, &proof.public_values, &proof.proof.public_inputs)?;
         Ok(())
     }

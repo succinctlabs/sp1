@@ -281,7 +281,7 @@ impl ProofMode {
             ProofMode::Core => "PROOF_MODE_CORE",
             ProofMode::Compressed => "PROOF_MODE_COMPRESSED",
             ProofMode::Plonk => "PROOF_MODE_PLONK",
-            ProofMode::Groth16 => "PROOF_MODE_GROTH16",
+            ProofMode::Groth16 => "PROOF_MODE_PLONK_BN254",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -291,7 +291,7 @@ impl ProofMode {
             "PROOF_MODE_CORE" => Some(Self::Core),
             "PROOF_MODE_COMPRESSED" => Some(Self::Compressed),
             "PROOF_MODE_PLONK" => Some(Self::Plonk),
-            "PROOF_MODE_GROTH16" => Some(Self::Groth16),
+            "PROOF_MODE_PLONK_BN254" => Some(Self::Groth16),
             _ => None,
         }
     }
@@ -543,7 +543,7 @@ pub trait NetworkServiceClient: Send + Sync + std::fmt::Debug {
         req: RelayProofRequest,
     ) -> Result<RelayProofResponse, twirp::ClientError>;
     async fn get_nonce(&self, req: GetNonceRequest)
-        -> Result<GetNonceResponse, twirp::ClientError>;
+    -> Result<GetNonceResponse, twirp::ClientError>;
     async fn get_proof_status(
         &self,
         req: GetProofStatusRequest,
