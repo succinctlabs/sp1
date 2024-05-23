@@ -14,6 +14,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
+jobs:
  # Upload the Groth16Verifier, ISP1Verifier, SP1Verifier and SP1MockVerifier to contracts/src
  update_artifacts:
     name: Open a PR to update the contracts artifacts in sp1-contracts
