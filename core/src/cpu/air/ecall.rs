@@ -1,7 +1,7 @@
 use p3_air::AirBuilder;
 use p3_field::AbstractField;
 
-use crate::air::{BaseAirBuilder, WordAirBuilder};
+use crate::air::{BaseAirBuilder, PublicValues, WordAirBuilder};
 use crate::cpu::air::{Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS};
 use crate::cpu::columns::{CpuCols, OpcodeSelectorCols};
 use crate::memory::MemoryCols;
@@ -41,6 +41,7 @@ impl CpuChip {
             .assert_eq(send_to_table, local.ecall_mul_send_to_table);
         builder.send_syscall(
             local.shard,
+            local.channel,
             local.clk,
             syscall_id,
             local.op_b_val().reduce::<AB>(),
@@ -171,6 +172,7 @@ impl CpuChip {
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
         next: &CpuCols<AB::Var>,
+        public_values: &PublicValues<Word<AB::Expr>, AB::Expr>,
     ) {
         let is_halt = self.get_is_halt_syscall(builder, local);
 
@@ -181,6 +183,11 @@ impl CpuChip {
             .assert_zero(next.is_real);
 
         builder.when(is_halt.clone()).assert_zero(local.next_pc);
+
+        builder.when(is_halt.clone()).assert_eq(
+            local.op_b_access.value().reduce::<AB>(),
+            public_values.exit_code.clone(),
+        );
     }
 
     /// Returns a boolean expression indicating whether the instruction is a HALT instruction.

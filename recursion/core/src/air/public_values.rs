@@ -77,9 +77,6 @@ pub struct RecursionPublicValues<T> {
     /// The expected start pc for the next shard.
     pub next_pc: T,
 
-    /// The exit code of the program.
-    pub exit_code: T,
-
     /// First shard being proven.
     pub start_shard: T,
 
@@ -113,6 +110,10 @@ pub struct RecursionPublicValues<T> {
     /// Whether the proof completely proves the program execution.
     pub is_complete: T,
 
-    /// The digest of all the public values elements.
+    /// The digest of all the previous public values elements.
     pub digest: [T; DIGEST_SIZE],
+
+    /// The exit code of the program.  Note that this is not part of the public values digest, since
+    /// it's value will be individually constrained.
+    pub exit_code: T,
 }

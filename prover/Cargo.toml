@@ -3,8 +3,6 @@ name = "sp1-prover"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 sp1-recursion-program = { path = "../recursion/program" }
 sp1-recursion-circuit = { path = "../recursion/circuit" }
@@ -36,9 +34,9 @@ dirs = "5.0.1"
 tempfile = "3.10.1"
 tokio = { version = "1.37.0", features = ["full"] }
 reqwest = { version = "0.12.4", features = [
-    "rustls-tls",
-    "trust-dns",
-    "stream",
+  "rustls-tls",
+  "trust-dns",
+  "stream",
 ] }
 indicatif = "0.17.8"
 futures = "0.3.30"
@@ -56,4 +54,7 @@ name = "e2e"
 path = "scripts/e2e.rs"
 
 [features]
+default = ["groth16"]
+
 neon = ["sp1-core/neon"]
+groth16 = ["sp1-recursion-gnark-ffi/groth16"]

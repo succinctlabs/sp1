@@ -24,6 +24,8 @@ use crate::cpu::columns::{CpuCols, NUM_CPU_COLS};
 use crate::cpu::CpuChip;
 use crate::runtime::Opcode;
 
+use super::columns::eval_channel_selectors;
+
 impl<AB> Air<AB> for CpuChip
 where
     AB: SP1AirBuilder + AirBuilderWithPublicValues,
@@ -64,6 +66,16 @@ where
         self.eval_memory_load::<AB>(builder, local);
         self.eval_memory_store::<AB>(builder, local);
 
+        // Channel constraints.
+        eval_channel_selectors(
+            builder,
+            &local.channel_selectors,
+            &next.channel_selectors,
+            local.channel,
+            local.is_real,
+            next.is_real,
+        );
+
         // ALU instructions.
         builder.send_alu(
             local.instruction.opcode,
@@ -71,6 +83,7 @@ where
             local.op_b_val(),
             local.op_c_val(),
             local.shard,
+            local.channel,
             is_alu_instruction,
         );
 
@@ -95,7 +108,7 @@ where
         );
 
         // HALT ecall and UNIMPL instruction.
-        self.eval_halt_unimpl(builder, local, next);
+        self.eval_halt_unimpl(builder, local, next, &public_values);
 
         // Check that the shard and clk is updated correctly.
         self.eval_shard_clk(builder, local, next);
@@ -169,6 +182,7 @@ impl CpuChip {
             jump_columns.pc,
             local.op_b_val(),
             local.shard,
+            local.channel,
             local.selectors.is_jal,
         );
 
@@ -179,6 +193,7 @@ impl CpuChip {
             local.op_b_val(),
             local.op_c_val(),
             local.shard,
+            local.channel,
             local.selectors.is_jalr,
         );
     }
@@ -200,6 +215,7 @@ impl CpuChip {
             auipc_columns.pc,
             local.op_b_val(),
             local.shard,
+            local.channel,
             local.selectors.is_auipc,
         );
     }
@@ -229,6 +245,7 @@ impl CpuChip {
             AB::Expr::zero(),
             AB::Expr::zero(),
             local.shard,
+            local.channel,
             local.is_real,
         );
 
@@ -255,6 +272,7 @@ impl CpuChip {
             local.clk_16bit_limb,
             local.clk_8bit_limb,
             local.shard,
+            local.channel,
             local.is_real,
         );
     }

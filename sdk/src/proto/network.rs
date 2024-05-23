@@ -86,6 +86,33 @@ pub struct ClaimProofResponse {
     #[prost(string, tag = "3")]
     pub proof_artifact_id: ::prost::alloc::string::String,
 }
+/// The request to unclaim a proof, which cancels the claim to fulfill the proof. MUST be called
+/// when the proof is in a PROOF_CLAIMED state and MUST be called by the prover who claimed it.
+#[derive(serde::Serialize, serde::Deserialize)]
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct UnclaimProofRequest {
+    /// The signature of the message.
+    #[prost(bytes = "vec", tag = "1")]
+    pub signature: ::prost::alloc::vec::Vec<u8>,
+    /// The nonce for the account.
+    #[prost(uint64, tag = "2")]
+    pub nonce: u64,
+    /// The proof identifier.
+    #[prost(string, tag = "3")]
+    pub proof_id: ::prost::alloc::string::String,
+    /// The reason for unclaiming the proof.
+    #[prost(enumeration = "UnclaimReason", tag = "4")]
+    pub reason: i32,
+    /// The description for the reason.
+    #[prost(string, tag = "5")]
+    pub description: ::prost::alloc::string::String,
+}
+/// The response for unclaiming a proof, empty on success.
+#[derive(serde::Serialize, serde::Deserialize)]
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct UnclaimProofResponse {}
 /// The request to fulfill a proof. MUST be called after the proof has been uploaded and MUST be called
 /// when the proof is in a PROOF_CLAIMED state.
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -185,8 +212,14 @@ pub struct GetProofStatusResponse {
     pub status: i32,
     /// Optional proof URL, where you can download the result of the proof request. Only included if
     /// the proof has been fulfilled.
-    #[prost(string, tag = "2")]
-    pub proof_url: ::prost::alloc::string::String,
+    #[prost(string, optional, tag = "2")]
+    pub proof_url: ::core::option::Option<::prost::alloc::string::String>,
+    /// If the proof was unclaimed, the reason why.
+    #[prost(enumeration = "UnclaimReason", optional, tag = "3")]
+    pub unclaim_reason: ::core::option::Option<i32>,
+    /// If the proof was unclaimed, the description detailing why.
+    #[prost(string, optional, tag = "4")]
+    pub unclaim_description: ::core::option::Option<::prost::alloc::string::String>,
 }
 /// The request to get proof requests by a given status.
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -320,10 +353,10 @@ pub enum ProofStatus {
     ProofRequested = 2,
     /// The proof request has been claimed and is awaiting a prover to fulfill it.
     ProofClaimed = 3,
+    /// The proof request was previously claimed but has now been unclaimed.
+    ProofUnclaimed = 4,
     /// The proof request has been fulfilled and is available for download.
-    ProofFulfilled = 4,
-    /// The proof request failed and will need to be re-created.
-    ProofFailed = 5,
+    ProofFulfilled = 5,
 }
 impl ProofStatus {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -336,8 +369,8 @@ impl ProofStatus {
             ProofStatus::ProofPreparing => "PROOF_PREPARING",
             ProofStatus::ProofRequested => "PROOF_REQUESTED",
             ProofStatus::ProofClaimed => "PROOF_CLAIMED",
+            ProofStatus::ProofUnclaimed => "PROOF_UNCLAIMED",
             ProofStatus::ProofFulfilled => "PROOF_FULFILLED",
-            ProofStatus::ProofFailed => "PROOF_FAILED",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -347,8 +380,8 @@ impl ProofStatus {
             "PROOF_PREPARING" => Some(Self::ProofPreparing),
             "PROOF_REQUESTED" => Some(Self::ProofRequested),
             "PROOF_CLAIMED" => Some(Self::ProofClaimed),
+            "PROOF_UNCLAIMED" => Some(Self::ProofUnclaimed),
             "PROOF_FULFILLED" => Some(Self::ProofFulfilled),
-            "PROOF_FAILED" => Some(Self::ProofFailed),
             _ => None,
         }
     }
@@ -410,6 +443,50 @@ impl TransactionStatus {
         }
     }
 }
+#[derive(
+    serde::Serialize,
+    serde::Deserialize,
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    ::prost::Enumeration,
+)]
+#[repr(i32)]
+pub enum UnclaimReason {
+    /// Unspecified reason.
+    Unspecified = 0,
+    /// The prover claims the request is invalid and cannot be fulfilled.
+    Invalid = 1,
+    /// The prover is unable to fulfill the proof due to any other reason.
+    Abandoned = 2,
+}
+impl UnclaimReason {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            UnclaimReason::Unspecified => "UNCLAIM_REASON_UNSPECIFIED",
+            UnclaimReason::Invalid => "UNCLAIM_REASON_INVALID",
+            UnclaimReason::Abandoned => "UNCLAIM_REASON_ABANDONED",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "UNCLAIM_REASON_UNSPECIFIED" => Some(Self::Unspecified),
+            "UNCLAIM_REASON_INVALID" => Some(Self::Invalid),
+            "UNCLAIM_REASON_ABANDONED" => Some(Self::Abandoned),
+            _ => None,
+        }
+    }
+}
 pub const SERVICE_FQN: &str = "/network.NetworkService";
 #[twirp::async_trait::async_trait]
 pub trait NetworkService {
@@ -428,6 +505,11 @@ pub trait NetworkService {
         ctx: twirp::Context,
         req: ClaimProofRequest,
     ) -> Result<ClaimProofResponse, twirp::TwirpErrorResponse>;
+    async fn unclaim_proof(
+        &self,
+        ctx: twirp::Context,
+        req: UnclaimProofRequest,
+    ) -> Result<UnclaimProofResponse, twirp::TwirpErrorResponse>;
     async fn fulfill_proof(
         &self,
         ctx: twirp::Context,
@@ -483,6 +565,12 @@ where
             },
         )
         .route(
+            "/UnclaimProof",
+            |api: std::sync::Arc<T>, ctx: twirp::Context, req: UnclaimProofRequest| async move {
+                api.unclaim_proof(ctx, req).await
+            },
+        )
+        .route(
             "/FulfillProof",
             |api: std::sync::Arc<T>, ctx: twirp::Context, req: FulfillProofRequest| async move {
                 api.fulfill_proof(ctx, req).await
@@ -534,6 +622,10 @@ pub trait NetworkServiceClient: Send + Sync + std::fmt::Debug {
         &self,
         req: ClaimProofRequest,
     ) -> Result<ClaimProofResponse, twirp::ClientError>;
+    async fn unclaim_proof(
+        &self,
+        req: UnclaimProofRequest,
+    ) -> Result<UnclaimProofResponse, twirp::ClientError>;
     async fn fulfill_proof(
         &self,
         req: FulfillProofRequest,
@@ -578,6 +670,13 @@ impl NetworkServiceClient for twirp::client::Client {
         req: ClaimProofRequest,
     ) -> Result<ClaimProofResponse, twirp::ClientError> {
         let url = self.base_url.join("network.NetworkService/ClaimProof")?;
+        self.request(url, req).await
+    }
+    async fn unclaim_proof(
+        &self,
+        req: UnclaimProofRequest,
+    ) -> Result<UnclaimProofResponse, twirp::ClientError> {
+        let url = self.base_url.join("network.NetworkService/UnclaimProof")?;
         self.request(url, req).await
     }
     async fn fulfill_proof(
