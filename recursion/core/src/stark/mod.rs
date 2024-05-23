@@ -25,8 +25,7 @@ pub type RecursionAirSkinnyDeg7<F> = RecursionAir<F, 7>;
 #[builder_path = "crate::air::SP1RecursionAirBuilder<F = F>"]
 pub enum RecursionAir<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> {
     Program(ProgramChip),
-    CpuDeg3(CpuChip<F, 3>),
-    CpuDeg9(CpuChip<F, 9>),
+    Cpu(CpuChip<F, DEGREE>),
     MemoryGlobal(MemoryGlobalChip),
     Poseidon2Wide(Poseidon2WideChip<DEGREE>),
     Poseidon2Skinny(Poseidon2Chip),
@@ -56,7 +55,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
 
     pub fn get_all() -> Vec<Self> {
         once(RecursionAir::Program(ProgramChip))
-            .chain(once(RecursionAir::CpuDeg3(CpuChip {
+            .chain(once(RecursionAir::Cpu(CpuChip {
                 fixed_log2_rows: None,
                 _phantom: PhantomData,
             })))
@@ -77,7 +76,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
 
     pub fn get_wrap_all() -> Vec<Self> {
         once(RecursionAir::Program(ProgramChip))
-            .chain(once(RecursionAir::CpuDeg9(CpuChip {
+            .chain(once(RecursionAir::Cpu(CpuChip {
                 fixed_log2_rows: Some(21),
                 _phantom: PhantomData,
             })))

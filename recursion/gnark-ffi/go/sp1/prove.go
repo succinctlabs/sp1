@@ -9,7 +9,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 )
 
-func ProveGroth16(dataDir string, witnessPath string) Groth16Proof {
+func Prove(dataDir string, witnessPath string) Proof {
 	// Sanity check the required arguments have been provided.
 	if dataDir == "" {
 		panic("dataDirStr is required")

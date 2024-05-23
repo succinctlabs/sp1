@@ -14,7 +14,7 @@ import (
 	"github.com/succinctlabs/sp1-recursion-gnark/sp1/trusted_setup"
 )
 
-func BuildGroth16(dataDir string) {
+func Build(dataDir string) {
 	// Set the enviroment variable for the constraints file.
 	//
 	// TODO: There might be some non-determinism if a single processe is running this command

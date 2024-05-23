@@ -96,6 +96,7 @@ where
         // Constrain the is_real_flag.
         self.eval_is_real(builder, local, next);
 
+        // Create a dummy constraint of the given degree to compress the permutation columns.
         let mut expr = local.is_real * local.is_real;
         for _ in 0..(L - 2) {
             expr *= local.is_real.into();

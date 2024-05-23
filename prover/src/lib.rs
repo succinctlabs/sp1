@@ -77,7 +77,7 @@ pub type OuterSC = BabyBearPoseidon2Outer;
 
 const REDUCE_DEGREE: usize = 3;
 const COMPRESS_DEGREE: usize = 9;
-const WRAP_DEGREE: usize = 5;
+const WRAP_DEGREE: usize = 9;
 
 pub type ReduceAir<F> = RecursionAir<F, REDUCE_DEGREE>;
 pub type CompressAir<F> = RecursionAir<F, COMPRESS_DEGREE>;
@@ -616,9 +616,6 @@ impl SP1Prover {
             runtime.record,
             &mut wrap_challenger,
         );
-        // let mut wrap_challenger = self.wrap_machine.config().challenger();
-        // self.wrap_machine
-        //     .debug_constraints(&self.wrap_pk, runtime.record, &mut wrap_challenger);
         let elapsed = time.elapsed();
         tracing::debug!("Wrap proving time: {:?}", elapsed);
         let mut wrap_challenger = self.wrap_machine.config().challenger();

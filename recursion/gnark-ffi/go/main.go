@@ -30,7 +30,7 @@ func ProveGroth16(dataDir *C.char, witnessPath *C.char) *C.C_Groth16Proof {
 	dataDirString := C.GoString(dataDir)
 	witnessPathString := C.GoString(witnessPath)
 
-	sp1Groth16Proof := sp1.ProveGroth16(dataDirString, witnessPathString)
+	sp1Groth16Proof := sp1.Prove(dataDirString, witnessPathString)
 
 	ms := C.malloc(C.sizeof_C_Groth16Proof)
 	if ms == nil {
@@ -50,7 +50,7 @@ func BuildGroth16(dataDir *C.char) {
 	// Sanity check the required arguments have been provided.
 	dataDirString := C.GoString(dataDir)
 
-	sp1.BuildGroth16(dataDirString)
+	sp1.Build(dataDirString)
 }
 
 //export VerifyGroth16
