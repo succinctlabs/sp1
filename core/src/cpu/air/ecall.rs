@@ -37,7 +37,9 @@ impl CpuChip {
 
         // When is_ecall_instruction == true AND send_to_table == true, ecall_mul_send_to_table should be true.
         builder.assert_bool(local.ecall_mul_send_to_table);
-        builder.assert_bool(send_to_table);
+        builder
+            .when(is_ecall_instruction.clone())
+            .assert_bool(send_to_table);
         builder
             .when(local.ecall_mul_send_to_table)
             .assert_one(send_to_table * is_ecall_instruction.clone());
