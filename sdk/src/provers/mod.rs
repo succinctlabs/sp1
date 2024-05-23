@@ -64,7 +64,7 @@ pub trait Prover: Send + Sync {
         let groth16_aritfacts = if sp1_prover::build::sp1_dev_mode() {
             sp1_prover::build::groth16_artifacts_dev_dir()
         } else {
-            sp1_prover::build::groth16_artifacts_dir()
+            sp1_prover::build::try_install_groth16_artifacts()
         };
         sp1_prover.verify_groth16(&proof.proof, vkey, &proof.public_values, &groth16_aritfacts)?;
 
