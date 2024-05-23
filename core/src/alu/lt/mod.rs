@@ -120,7 +120,6 @@ impl<F: PrimeField32> MachineAir<F> for LtChip {
 
                 cols.shard = F::from_canonical_u32(event.shard);
                 cols.channel = F::from_canonical_u32(event.channel);
-                cols.channel = F::from_canonical_u32(event.channel);
                 cols.a = Word(a.map(F::from_canonical_u8));
                 cols.b = Word(b.map(F::from_canonical_u8));
                 cols.c = Word(c.map(F::from_canonical_u8));
