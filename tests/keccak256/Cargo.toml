@@ -6,4 +6,6 @@ edition = "2021"
 
 [dependencies]
 sp1-zkvm = { path = "../../zkvm/entrypoint" }
-tiny-keccak = { git = "https://github.com/sp1-patches/tiny-keccak", branch="patch-v2.0.2", features = ["keccak"] }
+tiny-keccak = { git = "https://github.com/sp1-patches/tiny-keccak", branch = "patch-v2.0.2", features = [
+  "keccak",
+] }
