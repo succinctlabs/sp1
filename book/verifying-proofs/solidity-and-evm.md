@@ -18,10 +18,10 @@ sp1-sdk = { features = ["plonk_bn254"] }
 ### Example
 
 ```rust,noplayground
-{{#include ../../examples/fibonacci/script/bin/groth16.rs}}
+{{#include ../../examples/fibonacci/script/bin/plonk_bn254.rs}}
 ```
 
-You can run the above script with `RUST_LOG=info cargo run --bin groth16 --release` in `examples/fibonacci/script`.
+You can run the above script with `RUST_LOG=info cargo run --bin plonk_bn254 --release` in `examples/fibonacci/script`.
 
 ## Exporting the Verifier Contract
 
