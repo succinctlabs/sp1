@@ -17,7 +17,7 @@ use sp1_core::{
 };
 use sp1_recursion_compiler::config::OuterConfig;
 use sp1_recursion_compiler::constraints::{Constraint, ConstraintCompiler};
-use sp1_recursion_compiler::ir::{Builder, Config, Felt, Var};
+use sp1_recursion_compiler::ir::{Builder, Config, Ext, Felt, Var};
 use sp1_recursion_compiler::ir::{Usize, Witness};
 use sp1_recursion_compiler::prelude::SymbolicVar;
 use sp1_recursion_core::air::RecursionPublicValues;
@@ -39,11 +39,7 @@ pub struct StarkVerifierCircuit<C: Config, SC: StarkGenericConfig> {
 
 impl<C: Config, SC: StarkGenericConfig> StarkVerifierCircuit<C, SC>
 where
-    SC: StarkGenericConfig<
-        Val = C::F,
-        Challenge = C::EF,
-        Domain = TwoAdicMultiplicativeCoset<C::F>,
-    >,
+    SC: StarkGenericConfig<Val = C::F, Challenge = C::EF, Domain = TwoAdicMultiplicativeCoset<C::F>>,
 {
     pub fn verify_shard<A>(
         builder: &mut Builder<C>,
@@ -340,13 +336,12 @@ pub fn build_wrap_circuit(
         sorted_indices,
     );
 
-    // TODO: Ensure lookup bus is zero.
-    // let zero_ext: Ext<_, _> = builder.constant(EF::zero());
-    // let cumulative_sum: Ext<_, _> = builder.eval(zero_ext);
-    // for chip in proof.opened_values.chips {
-    //     builder.assign(cumulative_sum, cumulative_sum + chip.cumulative_sum);
-    // }
-    // builder.assert_ext_eq(cumulative_sum, zero_ext);
+    let zero_ext: Ext<_, _> = builder.constant(<OuterConfig as Config>::EF::zero());
+    let cumulative_sum: Ext<_, _> = builder.eval(zero_ext);
+    for chip in proof.opened_values.chips {
+        builder.assign(cumulative_sum, cumulative_sum + chip.cumulative_sum);
+    }
+    builder.assert_ext_eq(cumulative_sum, zero_ext);
 
     let mut backend = ConstraintCompiler::<OuterConfig>::default();
     backend.emit(builder.operations)
