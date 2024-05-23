@@ -45,15 +45,15 @@ num-bigint = "0.4.5"
 thiserror = "1.0.60"
 
 [[bin]]
-name = "build_groth16"
-path = "scripts/build_groth16.rs"
+name = "build_plonk_bn254"
+path = "scripts/build_plonk_bn254.rs"
 
 [[bin]]
 name = "e2e"
 path = "scripts/e2e.rs"
 
 [features]
-default = ["groth16"]
+default = ["plonk_bn254"]
 
 neon = ["sp1-core/neon"]
-groth16 = ["sp1-recursion-gnark-ffi/groth16"]
+plonk_bn254 = ["sp1-recursion-gnark-ffi/plonk_bn254"]

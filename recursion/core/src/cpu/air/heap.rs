@@ -7,7 +7,7 @@ use crate::{
     runtime::HEAP_START_ADDRESS,
 };
 
-impl<F: Field> CpuChip<F> {
+impl<F: Field, const L: usize> CpuChip<F, L> {
     /// Eval the heap ptr.
     ///s
     /// This function will ensure that the heap size never goes above 2^28.
