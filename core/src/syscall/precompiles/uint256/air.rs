@@ -331,7 +331,6 @@ where
             &x_limbs,
             &y_limbs,
             &p_modulus,
-            // &modulus_limbs,
             FieldOperation::Mul,
             local.shard,
             local.channel,

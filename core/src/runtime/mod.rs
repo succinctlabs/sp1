@@ -862,11 +862,15 @@ impl Runtime {
         // Update the clk to the next cycle.
         self.state.clk += 4;
 
+        let channel = self.channel();
+        // Update the channel to the next cycle.
+        self.state.channel += 1;
+        self.state.channel %= NUM_BYTE_LOOKUP_CHANNELS;
         // Emit the CPU event for this cycle.
         if self.emit_events {
             self.emit_cpu(
                 self.shard(),
-                self.channel(),
+                channel,
                 clk,
                 pc,
                 next_pc,
@@ -879,11 +883,6 @@ impl Runtime {
                 exit_code,
             );
         };
-
-        // Update the channel to the next cycle.
-        self.state.channel += 1;
-        self.state.channel %= NUM_BYTE_LOOKUP_CHANNELS;
-
         Ok(())
     }
 

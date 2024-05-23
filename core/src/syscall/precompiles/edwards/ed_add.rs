@@ -107,7 +107,7 @@ impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
         );
         let x1_mul_y1 =
             cols.x1_mul_y1
-                .populate(record, channel, shard, &p_x, &p_y, FieldOperation::Mul);
+                .populate(record, shard, channel, &p_x, &p_y, FieldOperation::Mul);
         let x2_mul_y2 =
             cols.x2_mul_y2
                 .populate(record, shard, channel, &q_x, &q_y, FieldOperation::Mul);
