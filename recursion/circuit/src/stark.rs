@@ -376,7 +376,7 @@ pub(crate) mod tests {
             "".to_string(),
         )];
         instructions.resize(
-            32,
+            31,
             Instruction::new(
                 Opcode::ADD,
                 F::from_canonical_u32(3),
@@ -389,6 +389,17 @@ pub(crate) mod tests {
                 "".to_string(),
             ),
         );
+        instructions.push(Instruction::new(
+            Opcode::HALT,
+            F::zero(),
+            zero,
+            zero,
+            F::zero(),
+            F::zero(),
+            true,
+            true,
+            "".to_string(),
+        ));
         RecursionProgram::<F> {
             instructions,
             traces: vec![None],

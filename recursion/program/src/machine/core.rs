@@ -305,7 +305,6 @@ where
         recursion_public_values.cumulative_sum = cumulative_sum_arrray;
         recursion_public_values.start_reconstruct_deferred_digest = start_deferred_digest;
         recursion_public_values.end_reconstruct_deferred_digest = end_deferred_digest;
-        recursion_public_values.exit_code = zero;
         recursion_public_values.is_complete = is_complete_felt;
 
         // If the proof represents a complete proof, make completeness assertions.

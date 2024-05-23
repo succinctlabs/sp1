@@ -33,6 +33,7 @@ impl Groth16Prover {
     pub fn new() -> Self {
         Self
     }
+
     /// Executes the prover in testing mode with a circuit definition and witness.
     pub fn test<C: Config>(constraints: Vec<Constraint>, witness: Witness<C>) {
         let serialized = serde_json::to_string(&constraints).unwrap();
@@ -53,6 +54,7 @@ impl Groth16Prover {
         );
     }
 
+    /// Builds the groth16 circuit locally.
     pub fn build<C: Config>(constraints: Vec<Constraint>, witness: Witness<C>, build_dir: PathBuf) {
         let serialized = serde_json::to_string(&constraints).unwrap();
 
@@ -107,18 +109,19 @@ impl Groth16Prover {
         )
     }
 
+    /// Verify a Groth16 proof and verify that the supplied vkey_hash and committed_values_digest match.
     pub fn verify(
         &self,
         proof: &Groth16Proof,
         vkey_hash: &BigUint,
-        commited_values_digest: &BigUint,
+        committed_values_digest: &BigUint,
         build_dir: &Path,
     ) {
         verify_groth16(
             build_dir.to_str().unwrap(),
             &proof.raw_proof,
             &vkey_hash.to_string(),
-            &commited_values_digest.to_string(),
+            &committed_values_digest.to_string(),
         )
         .expect("failed to verify proof")
     }

@@ -1,7 +1,10 @@
-use p3_field::Field;
+use p3_field::PrimeField32;
 use sp1_derive::AlignedBorrow;
 
-use crate::{cpu::Instruction, runtime::Opcode};
+use crate::{
+    cpu::Instruction,
+    runtime::{instruction_is_heap_expand, Opcode},
+};
 
 const OPCODE_COUNT: usize = core::mem::size_of::<OpcodeSelectorCols<u8>>();
 
@@ -40,9 +43,12 @@ pub struct OpcodeSelectorCols<T> {
     pub is_poseidon: T,
     pub is_fri_fold: T,
     pub is_commit: T,
+    pub is_ext_to_felt: T,
+
+    pub is_heap_expand: T,
 }
 
-impl<F: Field> OpcodeSelectorCols<F> {
+impl<F: PrimeField32> OpcodeSelectorCols<F> {
     /// Populates the opcode columns with the given instruction.
     ///
     /// The opcode flag should be set to 1 for the relevant opcode and 0 for the rest. We already
@@ -65,14 +71,19 @@ impl<F: Field> OpcodeSelectorCols<F> {
             Opcode::HALT => self.is_halt = F::one(),
             Opcode::FRIFold => self.is_fri_fold = F::one(),
             Opcode::Poseidon2Compress => self.is_poseidon = F::one(),
-            // TODO: Double-check that `is_noop` is constrained properly in the CPU air.
-            Opcode::Ext2Felt => self.is_noop = F::one(),
-            Opcode::HintBits => self.is_noop = F::one(),
-            Opcode::PrintF => self.is_noop = F::one(),
-            Opcode::PrintE => self.is_noop = F::one(),
             Opcode::Commit => self.is_commit = F::one(),
-            Opcode::RegisterPublicValue => self.is_noop = F::one(),
-            _ => {}
+            Opcode::HintExt2Felt => self.is_ext_to_felt = F::one(),
+
+            Opcode::Hint
+            | Opcode::HintBits
+            | Opcode::PrintF
+            | Opcode::PrintE
+            | Opcode::RegisterPublicValue
+            | Opcode::CycleTracker => {
+                self.is_noop = F::one();
+            }
+
+            Opcode::HintLen | Opcode::LessThanF => {}
         }
 
         if matches!(
@@ -80,6 +91,10 @@ impl<F: Field> OpcodeSelectorCols<F> {
             Opcode::EADD | Opcode::ESUB | Opcode::EMUL | Opcode::EDIV
         ) {
             self.is_ext = F::one();
+        }
+
+        if instruction_is_heap_expand(instruction) {
+            self.is_heap_expand = F::one();
         }
     }
 }
@@ -109,6 +124,8 @@ impl<T: Copy> IntoIterator for &OpcodeSelectorCols<T> {
             self.is_poseidon,
             self.is_fri_fold,
             self.is_commit,
+            self.is_ext_to_felt,
+            self.is_heap_expand,
         ]
         .into_iter()
     }
