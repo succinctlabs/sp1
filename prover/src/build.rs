@@ -48,7 +48,7 @@ pub fn try_build_groth16_artifacts_dev(
 }
 
 /// Gets the directory where the Groth16 artifacts are installed.
-pub fn groth16_artifacts_dir() -> PathBuf {
+fn groth16_artifacts_dir() -> PathBuf {
     dirs::home_dir()
         .unwrap()
         .join(".sp1")
