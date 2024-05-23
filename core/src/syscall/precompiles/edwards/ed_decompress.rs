@@ -54,6 +54,7 @@ use super::{WordsFieldElement, WORDS_FIELD_ELEMENT};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EdDecompressEvent {
     pub shard: u32,
+    pub channel: u32,
     pub clk: u32,
     pub ptr: u32,
     pub sign: bool,
@@ -75,6 +76,7 @@ pub const NUM_ED_DECOMPRESS_COLS: usize = size_of::<EdDecompressCols<u8>>();
 pub struct EdDecompressCols<T> {
     pub is_real: T,
     pub shard: T,
+    pub channel: T,
     pub clk: T,
     pub ptr: T,
     pub sign: T,
@@ -99,16 +101,25 @@ impl<F: PrimeField32> EdDecompressCols<F> {
         let mut new_byte_lookup_events = Vec::new();
         self.is_real = F::from_bool(true);
         self.shard = F::from_canonical_u32(event.shard);
+        self.channel = F::from_canonical_u32(event.channel);
         self.clk = F::from_canonical_u32(event.clk);
         self.ptr = F::from_canonical_u32(event.ptr);
         self.sign = F::from_bool(event.sign);
         for i in 0..8 {
-            self.x_access[i].populate(event.x_memory_records[i], &mut new_byte_lookup_events);
-            self.y_access[i].populate(event.y_memory_records[i], &mut new_byte_lookup_events);
+            self.x_access[i].populate(
+                event.channel,
+                event.x_memory_records[i],
+                &mut new_byte_lookup_events,
+            );
+            self.y_access[i].populate(
+                event.channel,
+                event.y_memory_records[i],
+                &mut new_byte_lookup_events,
+            );
         }
 
         let y = &BigUint::from_bytes_le(&event.y_bytes);
-        self.populate_field_ops::<E>(&mut new_byte_lookup_events, event.shard, y);
+        self.populate_field_ops::<E>(&mut new_byte_lookup_events, event.shard, event.channel, y);
 
         record.add_byte_lookup_events(new_byte_lookup_events);
     }
@@ -117,28 +128,42 @@ impl<F: PrimeField32> EdDecompressCols<F> {
         &mut self,
         blu_events: &mut Vec<ByteLookupEvent>,
         shard: u32,
+        channel: u32,
         y: &BigUint,
     ) {
         let one = BigUint::one();
-        self.y_range.populate(blu_events, shard, y);
+        self.y_range.populate(blu_events, shard, channel, y);
         let yy = self
             .yy
-            .populate(blu_events, shard, y, y, FieldOperation::Mul);
+            .populate(blu_events, shard, channel, y, y, FieldOperation::Mul);
         let u = self
             .u
-            .populate(blu_events, shard, &yy, &one, FieldOperation::Sub);
-        let dyy = self
-            .dyy
-            .populate(blu_events, shard, &E::d_biguint(), &yy, FieldOperation::Mul);
+            .populate(blu_events, shard, channel, &yy, &one, FieldOperation::Sub);
+        let dyy = self.dyy.populate(
+            blu_events,
+            shard,
+            channel,
+            &E::d_biguint(),
+            &yy,
+            FieldOperation::Mul,
+        );
         let v = self
             .v
-            .populate(blu_events, shard, &one, &dyy, FieldOperation::Add);
-        let u_div_v = self
-            .u_div_v
-            .populate(blu_events, shard, &u, &v, FieldOperation::Div);
-        let x = self.x.populate(blu_events, shard, &u_div_v, ed25519_sqrt);
-        self.neg_x
-            .populate(blu_events, shard, &BigUint::zero(), &x, FieldOperation::Sub);
+            .populate(blu_events, shard, channel, &one, &dyy, FieldOperation::Add);
+        let u_div_v =
+            self.u_div_v
+                .populate(blu_events, shard, channel, &u, &v, FieldOperation::Div);
+        let x = self
+            .x
+            .populate(blu_events, shard, channel, &u_div_v, ed25519_sqrt);
+        self.neg_x.populate(
+            blu_events,
+            shard,
+            channel,
+            &BigUint::zero(),
+            &x,
+            FieldOperation::Sub,
+        );
     }
 }
 
@@ -152,13 +177,15 @@ impl<V: Copy> EdDecompressCols<V> {
         builder.assert_bool(self.sign);
 
         let y: Limbs<V, U32> = limbs_from_prev_access(&self.y_access);
-        self.y_range.eval(builder, &y, self.shard, self.is_real);
+        self.y_range
+            .eval(builder, &y, self.shard, self.channel, self.is_real);
         self.yy.eval(
             builder,
             &y,
             &y,
             FieldOperation::Mul,
             self.shard,
+            self.channel,
             self.is_real,
         );
         self.u.eval(
@@ -167,6 +194,7 @@ impl<V: Copy> EdDecompressCols<V> {
             &[AB::Expr::one()].iter(),
             FieldOperation::Sub,
             self.shard,
+            self.channel,
             self.is_real,
         );
         let d_biguint = E::d_biguint();
@@ -177,6 +205,7 @@ impl<V: Copy> EdDecompressCols<V> {
             &self.yy.result,
             FieldOperation::Mul,
             self.shard,
+            self.channel,
             self.is_real,
         );
         self.v.eval(
@@ -185,6 +214,7 @@ impl<V: Copy> EdDecompressCols<V> {
             &self.dyy.result,
             FieldOperation::Add,
             self.shard,
+            self.channel,
             self.is_real,
         );
         self.u_div_v.eval(
@@ -193,6 +223,7 @@ impl<V: Copy> EdDecompressCols<V> {
             &self.v.result,
             FieldOperation::Div,
             self.shard,
+            self.channel,
             self.is_real,
         );
         self.x.eval(
@@ -200,6 +231,7 @@ impl<V: Copy> EdDecompressCols<V> {
             &self.u_div_v.result,
             AB::F::zero(),
             self.shard,
+            self.channel,
             self.is_real,
         );
         self.neg_x.eval(
@@ -208,11 +240,13 @@ impl<V: Copy> EdDecompressCols<V> {
             &self.x.multiplication.result,
             FieldOperation::Sub,
             self.shard,
+            self.channel,
             self.is_real,
         );
 
         builder.eval_memory_access_slice(
             self.shard,
+            self.channel,
             self.clk,
             self.ptr,
             &self.x_access,
@@ -220,6 +254,7 @@ impl<V: Copy> EdDecompressCols<V> {
         );
         builder.eval_memory_access_slice(
             self.shard,
+            self.channel,
             self.clk,
             self.ptr.into() + AB::F::from_canonical_u32(32),
             &self.y_access,
@@ -239,6 +274,7 @@ impl<V: Copy> EdDecompressCols<V> {
 
         builder.receive_syscall(
             self.shard,
+            self.channel,
             self.clk,
             AB::F::from_canonical_u32(SyscallCode::ED_DECOMPRESS.syscall_id()),
             self.ptr,
@@ -291,10 +327,12 @@ impl<E: EdwardsParameters> Syscall for EdDecompressChip<E> {
         let x_memory_records: [MemoryWriteRecord; 8] = x_memory_records_vec.try_into().unwrap();
 
         let shard = rt.current_shard();
+        let channel = rt.current_channel();
         rt.record_mut()
             .ed_decompress_events
             .push(EdDecompressEvent {
                 shard,
+                channel,
                 clk: start_clk,
                 ptr: slice_ptr,
                 sign: sign_bool,
@@ -312,7 +350,7 @@ impl<E: EdwardsParameters> Syscall for EdDecompressChip<E> {
 }
 
 impl<E: EdwardsParameters> EdDecompressChip<E> {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             _phantom: PhantomData,
         }
@@ -348,7 +386,7 @@ impl<F: PrimeField32, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E
             let mut row = [F::zero(); NUM_ED_DECOMPRESS_COLS];
             let cols: &mut EdDecompressCols<F> = row.as_mut_slice().borrow_mut();
             let zero = BigUint::zero();
-            cols.populate_field_ops::<E>(&mut vec![], 0, &zero);
+            cols.populate_field_ops::<E>(&mut vec![], 0, 0, &zero);
             row
         });
 

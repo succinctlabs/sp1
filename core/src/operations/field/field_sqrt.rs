@@ -41,6 +41,7 @@ impl<F: PrimeField32, P: FieldParameters> FieldSqrtCols<F, P> {
         &mut self,
         record: &mut impl ByteRecord,
         shard: u32,
+        channel: u32,
         a: &BigUint,
         sqrt_fn: impl Fn(&BigUint) -> BigUint,
     ) -> BigUint {
@@ -52,6 +53,7 @@ impl<F: PrimeField32, P: FieldParameters> FieldSqrtCols<F, P> {
         let sqrt_squared = self.multiplication.populate(
             record,
             shard,
+            channel,
             &sqrt,
             &sqrt,
             super::field_op::FieldOperation::Mul,
@@ -65,13 +67,14 @@ impl<F: PrimeField32, P: FieldParameters> FieldSqrtCols<F, P> {
         self.multiplication.result = P::to_limbs_field::<F, _>(&sqrt);
 
         // Populate the range columns.
-        self.range.populate(record, shard, &sqrt);
+        self.range.populate(record, shard, channel, &sqrt);
 
         let sqrt_bytes = P::to_limbs(&sqrt);
         self.lsb = F::from_canonical_u8(sqrt_bytes[0] & 1);
 
         let and_event = ByteLookupEvent {
             shard,
+            channel,
             opcode: ByteOpcode::AND,
             a1: self.lsb.as_canonical_u32(),
             a2: 0,
@@ -89,18 +92,14 @@ where
     Limbs<V, P::Limbs>: Copy,
 {
     /// Calculates the square root of `a`.
-    pub fn eval<
-        AB: SP1AirBuilder<Var = V>,
-        ER: Into<AB::Expr> + Clone,
-        EOdd: Into<AB::Expr>,
-        EShard: Into<AB::Expr> + Clone,
-    >(
+    pub fn eval<AB: SP1AirBuilder<Var = V>>(
         &self,
         builder: &mut AB,
         a: &Limbs<AB::Var, P::Limbs>,
-        is_odd: EOdd,
-        shard: EShard,
-        is_real: ER,
+        is_odd: impl Into<AB::Expr>,
+        shard: impl Into<AB::Expr> + Clone,
+        channel: impl Into<AB::Expr> + Clone,
+        is_real: impl Into<AB::Expr> + Clone,
     ) where
         V: Into<AB::Expr>,
     {
@@ -118,11 +117,17 @@ where
             &sqrt,
             super::field_op::FieldOperation::Mul,
             shard.clone(),
+            channel.clone(),
             is_real.clone(),
         );
 
-        self.range
-            .eval(builder, &sqrt, shard.clone(), is_real.clone());
+        self.range.eval(
+            builder,
+            &sqrt,
+            shard.clone(),
+            channel.clone(),
+            is_real.clone(),
+        );
 
         // Assert that the square root is the positive one, i.e., with least significant bit 0.
         // This is done by computing LSB = least_significant_byte & 1.
@@ -134,6 +139,7 @@ where
             sqrt[0],
             AB::F::one(),
             shard,
+            channel,
             is_real,
         );
     }
@@ -181,7 +187,7 @@ mod tests {
     }
 
     impl<P: FieldParameters> EdSqrtChip<P> {
-        pub fn new() -> Self {
+        pub const fn new() -> Self {
             Self {
                 _phantom: std::marker::PhantomData,
             }
@@ -224,7 +230,7 @@ mod tests {
                     let mut row = [F::zero(); NUM_TEST_COLS];
                     let cols: &mut TestCols<F, P> = row.as_mut_slice().borrow_mut();
                     cols.a = P::to_limbs_field::<F, _>(a);
-                    cols.sqrt.populate(&mut blu_events, 1, a, ed25519_sqrt);
+                    cols.sqrt.populate(&mut blu_events, 1, 0, a, ed25519_sqrt);
                     output.add_byte_lookup_events(blu_events);
                     row
                 })
@@ -263,9 +269,14 @@ mod tests {
             let local: &TestCols<AB::Var, P> = (*local).borrow();
 
             // eval verifies that local.sqrt.result is indeed the square root of local.a.
-            local
-                .sqrt
-                .eval(builder, &local.a, AB::F::zero(), AB::F::one(), AB::F::one());
+            local.sqrt.eval(
+                builder,
+                &local.a,
+                AB::F::zero(),
+                AB::F::one(),
+                AB::F::zero(),
+                AB::F::one(),
+            );
         }
     }
 

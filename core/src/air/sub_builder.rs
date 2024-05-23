@@ -12,7 +12,7 @@ pub struct SubMatrixRowSlices<M: Matrix<T>, T: Send + Sync> {
 }
 
 impl<M: Matrix<T>, T: Send + Sync> SubMatrixRowSlices<M, T> {
-    pub fn new(inner: M, column_range: Range<usize>) -> Self {
+    pub const fn new(inner: M, column_range: Range<usize>) -> Self {
         Self {
             inner,
             column_range,

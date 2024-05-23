@@ -56,7 +56,7 @@ impl InteractionKind {
 
 impl<F: Field> Interaction<F> {
     /// Create a new interaction.
-    pub fn new(
+    pub const fn new(
         values: Vec<VirtualPairCol<F>>,
         multiplicity: VirtualPairCol<F>,
         kind: InteractionKind,
@@ -69,7 +69,7 @@ impl<F: Field> Interaction<F> {
     }
 
     /// The index of the argument in the lookup table.
-    pub fn argument_index(&self) -> usize {
+    pub const fn argument_index(&self) -> usize {
         self.kind as usize
     }
 }

@@ -10,7 +10,7 @@ use crate::runtime::{Instruction, Program};
 
 impl Program {
     /// Create a new program.
-    pub fn new(instructions: Vec<Instruction>, pc_start: u32, pc_base: u32) -> Self {
+    pub const fn new(instructions: Vec<Instruction>, pc_start: u32, pc_base: u32) -> Self {
         Self {
             instructions,
             pc_start,

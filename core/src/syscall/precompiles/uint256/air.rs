@@ -34,6 +34,7 @@ const NUM_COLS: usize = size_of::<Uint256MulCols<u8>>();
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Uint256MulEvent {
     pub shard: u32,
+    pub channel: u32,
     pub clk: u32,
     pub x_ptr: u32,
     pub x: Vec<u32>,
@@ -49,7 +50,7 @@ pub struct Uint256MulEvent {
 pub struct Uint256MulChip;
 
 impl Uint256MulChip {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self
     }
 }
@@ -63,6 +64,9 @@ const WORDS_FIELD_ELEMENT: usize = WordsFieldElement::USIZE;
 pub struct Uint256MulCols<T> {
     /// The shard number of the syscall.
     pub shard: T,
+
+    /// The byte lookup channel.
+    pub channel: T,
 
     /// The clock cycle of the syscall.
     pub clk: T,
@@ -124,17 +128,25 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
                         // Assign basic values to the columns.
                         cols.is_real = F::one();
                         cols.shard = F::from_canonical_u32(event.shard);
+                        cols.channel = F::from_canonical_u32(event.channel);
                         cols.clk = F::from_canonical_u32(event.clk);
                         cols.x_ptr = F::from_canonical_u32(event.x_ptr);
                         cols.y_ptr = F::from_canonical_u32(event.y_ptr);
 
                         // Populate memory columns.
                         for i in 0..WORDS_FIELD_ELEMENT {
-                            cols.x_memory[i]
-                                .populate(event.x_memory_records[i], &mut new_byte_lookup_events);
-                            cols.y_memory[i]
-                                .populate(event.y_memory_records[i], &mut new_byte_lookup_events);
+                            cols.x_memory[i].populate(
+                                event.channel,
+                                event.x_memory_records[i],
+                                &mut new_byte_lookup_events,
+                            );
+                            cols.y_memory[i].populate(
+                                event.channel,
+                                event.y_memory_records[i],
+                                &mut new_byte_lookup_events,
+                            );
                             cols.modulus_memory[i].populate(
+                                event.channel,
                                 event.modulus_memory_records[i],
                                 &mut new_byte_lookup_events,
                             );
@@ -153,6 +165,7 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
                         cols.output.populate_with_modulus(
                             &mut new_byte_lookup_events,
                             event.shard,
+                            event.channel,
                             &x,
                             &y,
                             &effective_modulus,
@@ -182,7 +195,7 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
             let x = BigUint::zero();
             let y = BigUint::zero();
             cols.output
-                .populate(&mut vec![], 0, &x, &y, FieldOperation::Mul);
+                .populate(&mut vec![], 0, 0, &x, &y, FieldOperation::Mul);
 
             row
         });
@@ -245,9 +258,11 @@ impl Syscall for Uint256MulChip {
         let x_memory_records = rt.mw_slice(x_ptr, &result);
 
         let shard = rt.current_shard();
+        let channel = rt.current_channel();
         let clk = rt.clk;
         rt.record_mut().uint256_mul_events.push(Uint256MulEvent {
             shard,
+            channel,
             clk,
             x_ptr,
             x,
@@ -316,9 +331,9 @@ where
             &x_limbs,
             &y_limbs,
             &p_modulus,
-            // &modulus_limbs,
             FieldOperation::Mul,
             local.shard,
+            local.channel,
             local.is_real,
         );
 
@@ -330,6 +345,7 @@ where
         // Read and write x.
         builder.eval_memory_access_slice(
             local.shard,
+            local.channel,
             local.clk.into(),
             local.x_ptr,
             &local.x_memory,
@@ -340,6 +356,7 @@ where
         // we read it contiguously from the y_ptr memory location.
         builder.eval_memory_access_slice(
             local.shard,
+            local.channel,
             local.clk.into(),
             local.y_ptr,
             &[local.y_memory, local.modulus_memory].concat(),
@@ -349,6 +366,7 @@ where
         // Receive the arguments.
         builder.receive_syscall(
             local.shard,
+            local.channel,
             local.clk,
             AB::F::from_canonical_u32(SyscallCode::UINT256_MUL.syscall_id()),
             local.x_ptr,

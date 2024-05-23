@@ -15,15 +15,15 @@ pub struct TwoAdicMultiplicativeCosetVariable<C: Config> {
 }
 
 impl<C: Config> TwoAdicMultiplicativeCosetVariable<C> {
-    pub fn size(&self) -> Var<C::N> {
+    pub const fn size(&self) -> Var<C::N> {
         self.size
     }
 
-    pub fn first_point(&self) -> Felt<C::F> {
+    pub const fn first_point(&self) -> Felt<C::F> {
         self.shift
     }
 
-    pub fn gen(&self) -> Felt<C::F> {
+    pub const fn gen(&self) -> Felt<C::F> {
         self.g
     }
 }

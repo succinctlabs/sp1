@@ -3,8 +3,6 @@ name = "sp1-recursion-compiler"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 p3-air = { workspace = true }
 p3-field = { workspace = true }
@@ -18,10 +16,8 @@ sp1-core = { path = "../../core" }
 itertools = "0.12.1"
 serde = { version = "1.0.201", features = ["derive"] }
 sp1-recursion-derive = { path = "../derive" }
-serde_json = "1.0.117"
 p3-bn254-fr = { workspace = true }
 p3-baby-bear = { workspace = true }
-serial_test = "3.1.1"
 p3-poseidon2 = { workspace = true }
 backtrace = "0.3.71"
 tracing = "0.1.40"

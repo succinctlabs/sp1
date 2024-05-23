@@ -33,6 +33,7 @@ impl<F: PrimeField32, P: FieldParameters> FieldDenCols<F, P> {
         &mut self,
         record: &mut impl ByteRecord,
         shard: u32,
+        channel: u32,
         a: &BigUint,
         b: &BigUint,
         sign: bool,
@@ -84,10 +85,10 @@ impl<F: PrimeField32, P: FieldParameters> FieldDenCols<F, P> {
         self.witness_high = Limbs(p_witness_high.try_into().unwrap());
 
         // Range checks
-        record.add_u8_range_checks_field(shard, &self.result.0);
-        record.add_u8_range_checks_field(shard, &self.carry.0);
-        record.add_u8_range_checks_field(shard, &self.witness_low.0);
-        record.add_u8_range_checks_field(shard, &self.witness_high.0);
+        record.add_u8_range_checks_field(shard, channel, &self.result.0);
+        record.add_u8_range_checks_field(shard, channel, &self.carry.0);
+        record.add_u8_range_checks_field(shard, channel, &self.witness_low.0);
+        record.add_u8_range_checks_field(shard, channel, &self.witness_high.0);
 
         result
     }
@@ -97,18 +98,16 @@ impl<V: Copy, P: FieldParameters> FieldDenCols<V, P>
 where
     Limbs<V, P::Limbs>: Copy,
 {
-    pub fn eval<
-        AB: SP1AirBuilder<Var = V>,
-        EShard: Into<AB::Expr> + Clone,
-        ER: Into<AB::Expr> + Clone,
-    >(
+    #[allow(clippy::too_many_arguments)]
+    pub fn eval<AB: SP1AirBuilder<Var = V>>(
         &self,
         builder: &mut AB,
         a: &Limbs<AB::Var, P::Limbs>,
         b: &Limbs<AB::Var, P::Limbs>,
         sign: bool,
-        shard: EShard,
-        is_real: ER,
+        shard: impl Into<AB::Expr> + Clone,
+        channel: impl Into<AB::Expr> + Clone,
+        is_real: impl Into<AB::Expr> + Clone,
     ) where
         V: Into<AB::Expr>,
     {
@@ -139,10 +138,25 @@ where
         eval_field_operation::<AB, P>(builder, &p_vanishing, &p_witness_low, &p_witness_high);
 
         // Range checks for the result, carry, and witness columns.
-        builder.slice_range_check_u8(&self.result.0, shard.clone(), is_real.clone());
-        builder.slice_range_check_u8(&self.carry.0, shard.clone(), is_real.clone());
-        builder.slice_range_check_u8(&self.witness_low.0, shard.clone(), is_real.clone());
-        builder.slice_range_check_u8(&self.witness_high.0, shard, is_real);
+        builder.slice_range_check_u8(
+            &self.result.0,
+            shard.clone(),
+            channel.clone(),
+            is_real.clone(),
+        );
+        builder.slice_range_check_u8(
+            &self.carry.0,
+            shard.clone(),
+            channel.clone(),
+            is_real.clone(),
+        );
+        builder.slice_range_check_u8(
+            &self.witness_low.0,
+            shard.clone(),
+            channel.clone(),
+            is_real.clone(),
+        );
+        builder.slice_range_check_u8(&self.witness_high.0, shard, channel.clone(), is_real);
     }
 }
 
@@ -189,7 +203,7 @@ mod tests {
     }
 
     impl<P: FieldParameters> FieldDenChip<P> {
-        pub fn new(sign: bool) -> Self {
+        pub const fn new(sign: bool) -> Self {
             Self {
                 sign,
                 _phantom: std::marker::PhantomData,
@@ -238,7 +252,7 @@ mod tests {
                     let cols: &mut TestCols<F, P> = row.as_mut_slice().borrow_mut();
                     cols.a = P::to_limbs_field::<F, _>(a);
                     cols.b = P::to_limbs_field::<F, _>(b);
-                    cols.a_den_b.populate(output, 1, a, b, self.sign);
+                    cols.a_den_b.populate(output, 1, 0, a, b, self.sign);
                     row
                 })
                 .collect::<Vec<_>>();
@@ -278,6 +292,7 @@ mod tests {
                 &local.b,
                 self.sign,
                 AB::F::one(),
+                AB::F::zero(),
                 AB::F::one(),
             );
         }
