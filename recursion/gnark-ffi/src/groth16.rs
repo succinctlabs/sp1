@@ -59,12 +59,12 @@ impl Groth16Prover {
         let serialized = serde_json::to_string(&constraints).unwrap();
 
         // Write constraints.
-        let constraints_path = build_dir.join("constraints_groth16.json");
+        let constraints_path = build_dir.join("constraints.json");
         let mut file = File::create(constraints_path).unwrap();
         file.write_all(serialized.as_bytes()).unwrap();
 
         // Write witness.
-        let witness_path = build_dir.join("witness_groth16.json");
+        let witness_path = build_dir.join("witness.json");
         let gnark_witness = GnarkWitness::new(witness);
         let mut file = File::create(witness_path).unwrap();
         let serialized = serde_json::to_string(&gnark_witness).unwrap();

@@ -22,7 +22,7 @@ func Build(dataDir string) {
 	os.Setenv("CONSTRAINTS_JSON", dataDir+"/"+CONSTRAINTS_JSON_FILE)
 
 	// Read the file.
-	witnessInputPath := dataDir + "/witness_groth16.json"
+	witnessInputPath := dataDir + "/witness.json"
 	data, err := os.ReadFile(witnessInputPath)
 	if err != nil {
 		panic(err)

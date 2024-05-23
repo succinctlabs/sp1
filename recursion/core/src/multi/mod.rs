@@ -74,7 +74,10 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for MultiChip<DEGREE> {
         let mut rows = fri_fold_trace
             .clone()
             .rows_mut()
-            .chain(poseidon2_trace.rows_mut())
+            .chain(
+                poseidon2_trace
+                    .rows_mut()
+            )
             .enumerate()
             .map(|(i, instruction_row)| {
                 let mut row = [F::zero(); NUM_MULTI_COLS];
