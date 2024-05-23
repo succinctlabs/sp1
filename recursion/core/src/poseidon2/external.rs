@@ -89,10 +89,11 @@ impl Poseidon2Chip {
 
         let num_total_rounds = local.rounds.len();
         for i in 0..num_total_rounds {
-            // Verify that the round flags are correct.
+            // Verify that the round flags are boolean.
             builder.assert_bool(local.rounds[i]);
 
             if i != num_total_rounds - 1 {
+                // Verify that the round flags cycle.
                 builder
                     .when_transition()
                     .assert_eq(local.rounds[i], next.rounds[i + 1]);
@@ -115,6 +116,15 @@ impl Poseidon2Chip {
                     .assert_eq(local.right_input, next.right_input);
             }
         }
+
+        // Ensure that at most one of the round flags is set.
+        let round_acc = local
+            .rounds
+            .iter()
+            .fold(AB::Expr::zero(), |acc, round_flag| acc + *round_flag);
+        builder.assert_bool(round_acc);
+
+        // Ensure that at most one of the round type flags are set.
         builder.assert_bool(
             is_memory_read + is_initial + is_external_layer + is_internal_layer + is_memory_write,
         );
