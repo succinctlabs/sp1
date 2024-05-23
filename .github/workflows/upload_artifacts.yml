@@ -35,7 +35,7 @@ jobs:
           git clone https://x-access-token:${{ secrets.SUCCINCT_PR_BOT }}@github.com/succinctlabs/sp1-contracts.git
           cd sp1-contracts
           git fetch
-          git checkout ratan/fix-verifier-export
+          git checkout ratan/init-contracts
           git checkout -b update-artifacts
 
       - name: Build artifacts binary
@@ -60,6 +60,7 @@ jobs:
           token: ${{ secrets.SUCCINCT_PR_BOT }}
           commit-message: Update SP1Verifier.sol
           branch: update-artifacts
+          base: ratan/init-contracts
           title: Update contract artifacts for release ${{ needs.prepare.outputs.tag_name }}
           body: This PR updates the contract artifacts for release ${{ needs.prepare.outputs.tag_name }}.
             Ensure that you update the TODO flag in SP1Verifier.sol and SP1MockVerifier.sol before
