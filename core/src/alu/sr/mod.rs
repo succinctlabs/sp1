@@ -495,6 +495,8 @@ where
         builder.assert_bool(local.is_sra);
         builder.assert_bool(local.is_real);
 
+        builder.assert_eq(local.is_srl + local.is_sra, local.is_real);
+
         // Receive the arguments.
         builder.receive_alu(
             local.is_srl * AB::F::from_canonical_u32(Opcode::SRL as u32)
