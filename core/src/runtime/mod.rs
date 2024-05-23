@@ -1512,13 +1512,7 @@ pub mod tests {
     fn neg(a: u32) -> u32 {
         u32::MAX - a + 1
     }
-
-    #[test]
-    fn just_run_div() {
-        println!("{}", u32::MAX - 1 + 1);
-        println!("{}", 1 << 31);
-        println!("{}", (u32::MAX - 1 + 1) / (1 << 31));
-    }
+    
     #[test]
     fn division_tests() {
         simple_op_code_test(Opcode::DIVU, 3, 20, 6);
