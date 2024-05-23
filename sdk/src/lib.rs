@@ -8,6 +8,7 @@
 #![allow(incomplete_features)]
 #![feature(generic_const_exprs)]
 
+#[rustfmt::skip]
 pub mod proto {
     pub mod network;
 }
