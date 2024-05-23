@@ -80,13 +80,10 @@ main() {
 
   # Install by downloading binaries
   if [[ "$SP1UP_REPO" == "succinctlabs/sp1" && -z "$SP1UP_BRANCH" && -z "$SP1UP_COMMIT" ]]; then
-    SP1UP_VERSION=${SP1UP_VERSION:-nightly}
+    SP1UP_VERSION=${SP1UP_VERSION:-main}
     SP1UP_TAG=$SP1UP_VERSION
 
-    # Normalize versions (handle channels, versions without v prefix
-    if [[ "$SP1UP_VERSION" =~ ^nightly ]]; then
-      SP1UP_VERSION="nightly"
-    elif [[ "$SP1UP_VERSION" == [[:digit:]]* ]]; then
+    if [[ "$SP1UP_VERSION" == [[:digit:]]* ]]; then
       # Add v prefix
       SP1UP_VERSION="v${SP1UP_VERSION}"
       SP1UP_TAG="${SP1UP_VERSION}"
