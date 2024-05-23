@@ -261,3 +261,6 @@ jobs:
         with:
           update_existing: true
           filename: .github/RELEASE_FAILURE_ISSUE_TEMPLATE.md
+  
+
+  # Upload the Groth16Verifier, ISP1Verifier, SP1Verifier and SP1MockVerifier to contracts/src
