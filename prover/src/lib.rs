@@ -145,7 +145,7 @@ pub struct SP1Prover {
 
 impl SP1Prover {
     /// Initializes a new [SP1Prover].
-    #[instrument(name = "initialize prover", level = "info", skip_all)]
+    #[instrument(name = "initialize prover", level = "debug", skip_all)]
     pub fn new() -> Self {
         let core_machine = RiscvAir::machine(CoreSC::default());
 
@@ -202,7 +202,7 @@ impl SP1Prover {
     }
 
     /// Creates a proving key and a verifying key for a given RISC-V ELF.
-    #[instrument(name = "setup", level = "info", skip_all)]
+    #[instrument(name = "setup", level = "debug", skip_all)]
     pub fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
         let program = Program::from(elf);
         let (pk, vk) = self.core_machine.setup(&program);
