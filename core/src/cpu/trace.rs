@@ -49,22 +49,22 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
         rows_with_events.sort_unstable_by_key(|(event, _, _)| event[CPU_COL_MAP.clk]);
 
         let mut rows = Vec::<F>::new();
-        rows_with_events.into_iter().for_each(|row_with_events| {
+        for row_with_events in rows_with_events {
             let (row, alu_events, blu_events) = row_with_events;
             rows.extend(row);
             for (key, value) in alu_events {
                 new_alu_events
                     .entry(key)
                     .and_modify(|op_new_events: &mut Vec<AluEvent>| {
-                        op_new_events.extend(value.clone())
+                        op_new_events.extend(value.clone());
                     })
                     .or_insert(value);
             }
             new_blu_events.extend(blu_events);
-        });
+        }
 
         // Add the dependency events to the shard.
-        for (_, value) in new_alu_events.iter_mut() {
+        for (_, value) in &mut new_alu_events {
             value.sort_unstable_by_key(|event| event.clk);
         }
         new_blu_events.sort_unstable_by_key(|event| event.a1);
@@ -90,28 +90,26 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
             .map(|ops: &[CpuEvent]| {
                 let mut alu = HashMap::new();
                 let mut blu: Vec<_> = Vec::default();
-                ops.iter().for_each(|op| {
+                for op in ops {
                     let (_, alu_events, blu_events) = self.event_to_row::<F>(*op);
-                    alu_events.into_iter().for_each(|(key, value)| {
+                    for (key, value) in alu_events {
                         alu.entry(key).or_insert(Vec::default()).extend(value);
-                    });
+                    }
                     blu.extend(blu_events);
-                });
+                }
                 (alu, blu)
             })
             .collect::<Vec<_>>();
 
-        events
-            .into_iter()
-            .for_each(|(mut alu_events, mut blu_events)| {
-                for (_, value) in alu_events.iter_mut() {
-                    value.sort_unstable_by_key(|event| event.clk);
-                }
-                // Add the dependency events to the shard.
-                output.add_alu_events(alu_events);
-                blu_events.sort_unstable_by_key(|event| event.a1);
-                output.add_byte_lookup_events(blu_events);
-            });
+        for (mut alu_events, mut blu_events) in events {
+            for (_, value) in &mut alu_events {
+                value.sort_unstable_by_key(|event| event.clk);
+            }
+            // Add the dependency events to the shard.
+            output.add_alu_events(alu_events);
+            blu_events.sort_unstable_by_key(|event| event.a1);
+            output.add_byte_lookup_events(blu_events);
+        }
     }
 
     fn included(&self, _: &Self::Record) -> bool {
@@ -149,13 +147,13 @@ impl CpuChip {
 
         // Populate memory accesses for a, b, and c.
         if let Some(record) = event.a_record {
-            cols.op_a_access.populate(record, &mut new_blu_events)
+            cols.op_a_access.populate(record, &mut new_blu_events);
         }
         if let Some(MemoryRecordEnum::Read(record)) = event.b_record {
-            cols.op_b_access.populate(record, &mut new_blu_events)
+            cols.op_b_access.populate(record, &mut new_blu_events);
         }
         if let Some(MemoryRecordEnum::Read(record)) = event.c_record {
-            cols.op_c_access.populate(record, &mut new_blu_events)
+            cols.op_c_access.populate(record, &mut new_blu_events);
         }
 
         // Populate memory accesses for reading from memory.
@@ -164,7 +162,7 @@ impl CpuChip {
         if let Some(record) = event.memory_record {
             memory_columns
                 .memory_access
-                .populate(record, &mut new_blu_events)
+                .populate(record, &mut new_blu_events);
         }
 
         // Populate memory, branch, jump, and auipc specific fields.
@@ -287,12 +285,12 @@ impl CpuChip {
             match event.instruction.opcode {
                 Opcode::LB | Opcode::LBU => {
                     cols.unsigned_mem_val =
-                        (mem_value.to_le_bytes()[addr_offset as usize] as u32).into();
+                        u32::from(mem_value.to_le_bytes()[addr_offset as usize]).into();
                 }
                 Opcode::LH | Opcode::LHU => {
                     let value = match (addr_offset >> 1) % 2 {
-                        0 => mem_value & 0x0000FFFF,
-                        1 => (mem_value & 0xFFFF0000) >> 16,
+                        0 => mem_value & 0x0000_FFFF,
+                        1 => (mem_value & 0xFFFF_0000) >> 16,
                         _ => unreachable!(),
                     };
                     cols.unsigned_mem_val = value.into();
@@ -347,8 +345,8 @@ impl CpuChip {
                 opcode: ByteOpcode::U8Range,
                 a1: 0,
                 a2: 0,
-                b: byte_pair[0] as u32,
-                c: byte_pair[1] as u32,
+                b: u32::from(byte_pair[0]),
+                c: u32::from(byte_pair[1]),
             });
         }
     }
@@ -389,7 +387,7 @@ impl CpuChip {
                 shard: event.shard,
                 clk: event.clk,
                 opcode: alu_op_code,
-                a: a_lt_b as u32,
+                a: u32::from(a_lt_b),
                 b: event.a,
                 c: event.b,
             };
@@ -403,7 +401,7 @@ impl CpuChip {
                 shard: event.shard,
                 clk: event.clk,
                 opcode: alu_op_code,
-                a: a_gt_b as u32,
+                a: u32::from(a_gt_b),
                 b: event.b,
                 c: event.a,
             };
@@ -605,7 +603,7 @@ impl CpuChip {
         // Interpret values as a slice of arrays of length `NUM_CPU_COLS`
         let rows = unsafe {
             core::slice::from_raw_parts_mut(
-                values.as_mut_ptr() as *mut [F; NUM_CPU_COLS],
+                values.as_mut_ptr().cast::<[F; NUM_CPU_COLS]>(),
                 values.len() / NUM_CPU_COLS,
             )
         };
@@ -667,9 +665,9 @@ mod tests {
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&runtime.record, &mut ExecutionRecord::default());
         for cpu_event in runtime.record.cpu_events {
-            println!("{:?}", cpu_event);
+            println!("{cpu_event:?}");
         }
-        println!("{:?}", trace.values)
+        println!("{:?}", trace.values);
     }
 
     #[test]

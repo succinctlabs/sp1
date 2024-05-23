@@ -12,6 +12,7 @@ pub struct Polynomial<T> {
 
 impl<T> Polynomial<T> {
     /// Create a new polynomial from a vector of coefficients.
+    #[must_use]
     pub fn new(coefficients: Vec<T>) -> Self {
         Self { coefficients }
     }
@@ -27,16 +28,19 @@ impl<T> Polynomial<T> {
     }
 
     /// Gets the coefficients of the polynomial.
+    #[must_use]
     pub fn as_coefficients(self) -> Vec<T> {
         self.coefficients
     }
 
     /// Gets the coefficients of the polynomial.
+    #[must_use]
     pub fn coefficients(&self) -> &[T] {
         &self.coefficients
     }
 
     /// Gets the degree of the polynomial.
+    #[must_use]
     pub fn degree(&self) -> usize {
         self.coefficients.len() - 1
     }
@@ -271,6 +275,7 @@ impl<T: Eq + AbstractField> PartialEq<Polynomial<T>> for Polynomial<T> {
 }
 
 impl Polynomial<u8> {
+    #[must_use]
     pub fn as_field<F: Field>(self) -> Polynomial<F> {
         Polynomial {
             coefficients: self

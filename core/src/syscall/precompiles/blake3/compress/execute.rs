@@ -32,7 +32,7 @@ impl Syscall for Blake3CompressInnerChip {
                 let mut input = vec![];
                 // Read the input to g.
                 {
-                    for index in state_index.iter() {
+                    for index in &state_index {
                         input.push(rt.word_unsafe(state_ptr + (*index as u32) * 4));
                     }
                     for i in 0..NUM_MSG_WORDS_PER_CALL {

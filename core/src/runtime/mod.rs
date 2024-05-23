@@ -39,7 +39,7 @@ use crate::{alu::AluEvent, cpu::CpuEvent};
 /// during execution (i.e., memory reads, alu operations, etc).
 ///
 /// For more information on the RV32IM instruction set, see the following:
-/// https://www.cs.sfu.ca/~ashriram/Courses/CS295/assets/notebooks/RISCV/RISCV_CARD.pdf
+/// https://www.cs.sfu.ca/~`ashriram/Courses/CS295/assets/notebooks/RISCV/RISCV_CARD.pdf`
 pub struct Runtime {
     /// The program.
     pub program: Arc<Program>,
@@ -98,6 +98,7 @@ pub enum ExecutionError {
 
 impl Runtime {
     // Create a new runtime from a program.
+    #[must_use]
     pub fn new(program: Program) -> Self {
         // Create a shared reference to the program.
         let program = Arc::new(program);
@@ -144,10 +145,11 @@ impl Runtime {
     }
 
     /// Recover runtime state from a program and existing execution state.
+    #[must_use]
     pub fn recover(program: Program, state: ExecutionState) -> Self {
         let mut runtime = Self::new(program);
         runtime.state = state;
-        let index: u32 = (runtime.state.global_clk / (runtime.shard_size / 4) as u64)
+        let index: u32 = (runtime.state.global_clk / u64::from(runtime.shard_size / 4))
             .try_into()
             .unwrap();
         runtime.record.index = index + 1;
@@ -155,6 +157,7 @@ impl Runtime {
     }
 
     /// Get the current values of the registers.
+    #[must_use]
     pub fn registers(&self) -> [u32; 32] {
         let mut registers = [0; 32];
         for i in 0..32 {
@@ -168,6 +171,7 @@ impl Runtime {
     }
 
     /// Get the current value of a register.
+    #[must_use]
     pub fn register(&self, register: Register) -> u32 {
         let addr = register as u32;
         match self.state.memory.get(&addr) {
@@ -177,6 +181,7 @@ impl Runtime {
     }
 
     /// Get the current value of a word.
+    #[must_use]
     pub fn word(&self, addr: u32) -> u32 {
         match self.state.memory.get(&addr) {
             Some(record) => record.value,
@@ -185,17 +190,20 @@ impl Runtime {
     }
 
     /// Get the current value of a byte.
+    #[must_use]
     pub fn byte(&self, addr: u32) -> u8 {
         let word = self.word(addr - addr % 4);
         (word >> ((addr % 4) * 8)) as u8
     }
 
     /// Get the current timestamp for a given memory access position.
+    #[must_use]
     pub fn timestamp(&self, position: &MemoryAccessPosition) -> u32 {
         self.state.clk + *position as u32
     }
 
     /// Get the current shard.
+    #[must_use]
     pub fn shard(&self) -> u32 {
         self.state.current_shard
     }
@@ -368,7 +376,7 @@ impl Runtime {
         if register == Register::X0 {
             self.mw_cpu(register as u32, 0, MemoryAccessPosition::A);
         } else {
-            self.mw_cpu(register as u32, value, MemoryAccessPosition::A)
+            self.mw_cpu(register as u32, value, MemoryAccessPosition::A);
         }
     }
 
@@ -570,12 +578,12 @@ impl Runtime {
             }
             Opcode::SLT => {
                 (rd, b, c) = self.alu_rr(instruction);
-                a = if (b as i32) < (c as i32) { 1 } else { 0 };
+                a = u32::from((b as i32) < (c as i32));
                 self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::SLTU => {
                 (rd, b, c) = self.alu_rr(instruction);
-                a = if b < c { 1 } else { 0 };
+                a = u32::from(b < c);
                 self.alu_rw(instruction, rd, a, b, c);
             }
 
@@ -583,7 +591,7 @@ impl Runtime {
             Opcode::LB => {
                 (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
                 let value = (memory_read_value).to_le_bytes()[(addr % 4) as usize];
-                a = ((value as i8) as i32) as u32;
+                a = i32::from(value as i8) as u32;
                 memory_store_value = Some(memory_read_value);
                 self.rw(rd, a);
             }
@@ -593,11 +601,11 @@ impl Runtime {
                     return Err(ExecutionError::InvalidMemoryAccess(Opcode::LH, addr));
                 }
                 let value = match (addr >> 1) % 2 {
-                    0 => memory_read_value & 0x0000FFFF,
-                    1 => (memory_read_value & 0xFFFF0000) >> 16,
+                    0 => memory_read_value & 0x0000_FFFF,
+                    1 => (memory_read_value & 0xFFFF_0000) >> 16,
                     _ => unreachable!(),
                 };
-                a = ((value as i16) as i32) as u32;
+                a = i32::from(value as i16) as u32;
                 memory_store_value = Some(memory_read_value);
                 self.rw(rd, a);
             }
@@ -613,7 +621,7 @@ impl Runtime {
             Opcode::LBU => {
                 (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
                 let value = (memory_read_value).to_le_bytes()[(addr % 4) as usize];
-                a = value as u32;
+                a = u32::from(value);
                 memory_store_value = Some(memory_read_value);
                 self.rw(rd, a);
             }
@@ -623,11 +631,11 @@ impl Runtime {
                     return Err(ExecutionError::InvalidMemoryAccess(Opcode::LHU, addr));
                 }
                 let value = match (addr >> 1) % 2 {
-                    0 => memory_read_value & 0x0000FFFF,
-                    1 => (memory_read_value & 0xFFFF0000) >> 16,
+                    0 => memory_read_value & 0x0000_FFFF,
+                    1 => (memory_read_value & 0xFFFF_0000) >> 16,
                     _ => unreachable!(),
                 };
-                a = (value as u16) as u32;
+                a = u32::from(value as u16);
                 memory_store_value = Some(memory_read_value);
                 self.rw(rd, a);
             }
@@ -636,10 +644,10 @@ impl Runtime {
             Opcode::SB => {
                 (a, b, c, addr, memory_read_value) = self.store_rr(instruction);
                 let value = match addr % 4 {
-                    0 => (a & 0x000000FF) + (memory_read_value & 0xFFFFFF00),
-                    1 => ((a & 0x000000FF) << 8) + (memory_read_value & 0xFFFF00FF),
-                    2 => ((a & 0x000000FF) << 16) + (memory_read_value & 0xFF00FFFF),
-                    3 => ((a & 0x000000FF) << 24) + (memory_read_value & 0x00FFFFFF),
+                    0 => (a & 0x0000_00FF) + (memory_read_value & 0xFFFF_FF00),
+                    1 => ((a & 0x0000_00FF) << 8) + (memory_read_value & 0xFFFF_00FF),
+                    2 => ((a & 0x0000_00FF) << 16) + (memory_read_value & 0xFF00_FFFF),
+                    3 => ((a & 0x0000_00FF) << 24) + (memory_read_value & 0x00FF_FFFF),
                     _ => unreachable!(),
                 };
                 memory_store_value = Some(value);
@@ -651,8 +659,8 @@ impl Runtime {
                     return Err(ExecutionError::InvalidMemoryAccess(Opcode::SH, addr));
                 }
                 let value = match (addr >> 1) % 2 {
-                    0 => (a & 0x0000FFFF) + (memory_read_value & 0xFFFF0000),
-                    1 => ((a & 0x0000FFFF) << 16) + (memory_read_value & 0x0000FFFF),
+                    0 => (a & 0x0000_FFFF) + (memory_read_value & 0xFFFF_0000),
+                    1 => ((a & 0x0000_FFFF) << 16) + (memory_read_value & 0x0000_FFFF),
                     _ => unreachable!(),
                 };
                 memory_store_value = Some(value);
@@ -790,17 +798,17 @@ impl Runtime {
             }
             Opcode::MULH => {
                 (rd, b, c) = self.alu_rr(instruction);
-                a = (((b as i32) as i64).wrapping_mul((c as i32) as i64) >> 32) as u32;
+                a = (i64::from(b as i32).wrapping_mul(i64::from(c as i32)) >> 32) as u32;
                 self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::MULHU => {
                 (rd, b, c) = self.alu_rr(instruction);
-                a = ((b as u64).wrapping_mul(c as u64) >> 32) as u32;
+                a = (u64::from(b).wrapping_mul(u64::from(c)) >> 32) as u32;
                 self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::MULHSU => {
                 (rd, b, c) = self.alu_rr(instruction);
-                a = (((b as i32) as i64).wrapping_mul(c as i64) >> 32) as u32;
+                a = (i64::from(b as i32).wrapping_mul(i64::from(c)) >> 32) as u32;
                 self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::DIV => {
@@ -917,7 +925,7 @@ impl Runtime {
         self.state.clk = 0;
 
         tracing::info!("loading memory image");
-        for (addr, value) in self.program.memory_image.iter() {
+        for (addr, value) in &self.program.memory_image {
             self.state.memory.insert(
                 *addr,
                 MemoryRecord {
@@ -993,14 +1001,14 @@ impl Runtime {
             self.state.pc
         );
         // Flush remaining stdout/stderr
-        for (fd, buf) in self.io_buf.iter() {
+        for (fd, buf) in &self.io_buf {
             if !buf.is_empty() {
                 match fd {
                     1 => {
-                        println!("stdout: {}", buf);
+                        println!("stdout: {buf}");
                     }
                     2 => {
-                        println!("stderr: {}", buf);
+                        println!("stderr: {buf}");
                     }
                     _ => {}
                 }
@@ -1060,6 +1068,7 @@ pub mod tests {
 
     use super::{Instruction, Opcode, Program, Runtime};
 
+    #[must_use]
     pub fn simple_program() -> Program {
         let instructions = vec![
             Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
@@ -1069,14 +1078,17 @@ pub mod tests {
         Program::new(instructions, 0, 0)
     }
 
+    #[must_use]
     pub fn fibonacci_program() -> Program {
         Program::from(FIBONACCI_ELF)
     }
 
+    #[must_use]
     pub fn ssz_withdrawals_program() -> Program {
         Program::from(SSZ_WITHDRAWALS_ELF)
     }
 
+    #[must_use]
     pub fn panic_program() -> Program {
         Program::from(PANIC_ELF)
     }
@@ -1292,7 +1304,7 @@ pub mod tests {
         //     addi x31, x30, 4
         let instructions = vec![
             Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
-            Instruction::new(Opcode::ADD, 30, 29, 0xffffffff, false, true),
+            Instruction::new(Opcode::ADD, 30, 29, 0xffff_ffff, false, true),
             Instruction::new(Opcode::ADD, 31, 30, 4, false, true),
         ];
         let program = Program::new(instructions, 0, 0);
@@ -1454,59 +1466,59 @@ pub mod tests {
 
     #[test]
     fn multiplication_tests() {
-        simple_op_code_test(Opcode::MULHU, 0x00000000, 0x00000000, 0x00000000);
-        simple_op_code_test(Opcode::MULHU, 0x00000000, 0x00000001, 0x00000001);
-        simple_op_code_test(Opcode::MULHU, 0x00000000, 0x00000003, 0x00000007);
-        simple_op_code_test(Opcode::MULHU, 0x00000000, 0x00000000, 0xffff8000);
-        simple_op_code_test(Opcode::MULHU, 0x00000000, 0x80000000, 0x00000000);
-        simple_op_code_test(Opcode::MULHU, 0x7fffc000, 0x80000000, 0xffff8000);
-        simple_op_code_test(Opcode::MULHU, 0x0001fefe, 0xaaaaaaab, 0x0002fe7d);
-        simple_op_code_test(Opcode::MULHU, 0x0001fefe, 0x0002fe7d, 0xaaaaaaab);
-        simple_op_code_test(Opcode::MULHU, 0xfe010000, 0xff000000, 0xff000000);
-        simple_op_code_test(Opcode::MULHU, 0xfffffffe, 0xffffffff, 0xffffffff);
-        simple_op_code_test(Opcode::MULHU, 0x00000000, 0xffffffff, 0x00000001);
-        simple_op_code_test(Opcode::MULHU, 0x00000000, 0x00000001, 0xffffffff);
+        simple_op_code_test(Opcode::MULHU, 0x0000_0000, 0x0000_0000, 0x0000_0000);
+        simple_op_code_test(Opcode::MULHU, 0x0000_0000, 0x0000_0001, 0x0000_0001);
+        simple_op_code_test(Opcode::MULHU, 0x0000_0000, 0x0000_0003, 0x0000_0007);
+        simple_op_code_test(Opcode::MULHU, 0x0000_0000, 0x0000_0000, 0xffff_8000);
+        simple_op_code_test(Opcode::MULHU, 0x0000_0000, 0x8000_0000, 0x0000_0000);
+        simple_op_code_test(Opcode::MULHU, 0x7fff_c000, 0x8000_0000, 0xffff_8000);
+        simple_op_code_test(Opcode::MULHU, 0x0001_fefe, 0xaaaa_aaab, 0x0002_fe7d);
+        simple_op_code_test(Opcode::MULHU, 0x0001_fefe, 0x0002_fe7d, 0xaaaa_aaab);
+        simple_op_code_test(Opcode::MULHU, 0xfe01_0000, 0xff00_0000, 0xff00_0000);
+        simple_op_code_test(Opcode::MULHU, 0xffff_fffe, 0xffff_ffff, 0xffff_ffff);
+        simple_op_code_test(Opcode::MULHU, 0x0000_0000, 0xffff_ffff, 0x0000_0001);
+        simple_op_code_test(Opcode::MULHU, 0x0000_0000, 0x0000_0001, 0xffff_ffff);
 
-        simple_op_code_test(Opcode::MULHSU, 0x00000000, 0x00000000, 0x00000000);
-        simple_op_code_test(Opcode::MULHSU, 0x00000000, 0x00000001, 0x00000001);
-        simple_op_code_test(Opcode::MULHSU, 0x00000000, 0x00000003, 0x00000007);
-        simple_op_code_test(Opcode::MULHSU, 0x00000000, 0x00000000, 0xffff8000);
-        simple_op_code_test(Opcode::MULHSU, 0x00000000, 0x80000000, 0x00000000);
-        simple_op_code_test(Opcode::MULHSU, 0x80004000, 0x80000000, 0xffff8000);
-        simple_op_code_test(Opcode::MULHSU, 0xffff0081, 0xaaaaaaab, 0x0002fe7d);
-        simple_op_code_test(Opcode::MULHSU, 0x0001fefe, 0x0002fe7d, 0xaaaaaaab);
-        simple_op_code_test(Opcode::MULHSU, 0xff010000, 0xff000000, 0xff000000);
-        simple_op_code_test(Opcode::MULHSU, 0xffffffff, 0xffffffff, 0xffffffff);
-        simple_op_code_test(Opcode::MULHSU, 0xffffffff, 0xffffffff, 0x00000001);
-        simple_op_code_test(Opcode::MULHSU, 0x00000000, 0x00000001, 0xffffffff);
+        simple_op_code_test(Opcode::MULHSU, 0x0000_0000, 0x0000_0000, 0x0000_0000);
+        simple_op_code_test(Opcode::MULHSU, 0x0000_0000, 0x0000_0001, 0x0000_0001);
+        simple_op_code_test(Opcode::MULHSU, 0x0000_0000, 0x0000_0003, 0x0000_0007);
+        simple_op_code_test(Opcode::MULHSU, 0x0000_0000, 0x0000_0000, 0xffff_8000);
+        simple_op_code_test(Opcode::MULHSU, 0x0000_0000, 0x8000_0000, 0x0000_0000);
+        simple_op_code_test(Opcode::MULHSU, 0x8000_4000, 0x8000_0000, 0xffff_8000);
+        simple_op_code_test(Opcode::MULHSU, 0xffff_0081, 0xaaaa_aaab, 0x0002_fe7d);
+        simple_op_code_test(Opcode::MULHSU, 0x0001_fefe, 0x0002_fe7d, 0xaaaa_aaab);
+        simple_op_code_test(Opcode::MULHSU, 0xff01_0000, 0xff00_0000, 0xff00_0000);
+        simple_op_code_test(Opcode::MULHSU, 0xffff_ffff, 0xffff_ffff, 0xffff_ffff);
+        simple_op_code_test(Opcode::MULHSU, 0xffff_ffff, 0xffff_ffff, 0x0000_0001);
+        simple_op_code_test(Opcode::MULHSU, 0x0000_0000, 0x0000_0001, 0xffff_ffff);
 
-        simple_op_code_test(Opcode::MULH, 0x00000000, 0x00000000, 0x00000000);
-        simple_op_code_test(Opcode::MULH, 0x00000000, 0x00000001, 0x00000001);
-        simple_op_code_test(Opcode::MULH, 0x00000000, 0x00000003, 0x00000007);
-        simple_op_code_test(Opcode::MULH, 0x00000000, 0x00000000, 0xffff8000);
-        simple_op_code_test(Opcode::MULH, 0x00000000, 0x80000000, 0x00000000);
-        simple_op_code_test(Opcode::MULH, 0x00000000, 0x80000000, 0x00000000);
-        simple_op_code_test(Opcode::MULH, 0xffff0081, 0xaaaaaaab, 0x0002fe7d);
-        simple_op_code_test(Opcode::MULH, 0xffff0081, 0x0002fe7d, 0xaaaaaaab);
-        simple_op_code_test(Opcode::MULH, 0x00010000, 0xff000000, 0xff000000);
-        simple_op_code_test(Opcode::MULH, 0x00000000, 0xffffffff, 0xffffffff);
-        simple_op_code_test(Opcode::MULH, 0xffffffff, 0xffffffff, 0x00000001);
-        simple_op_code_test(Opcode::MULH, 0xffffffff, 0x00000001, 0xffffffff);
+        simple_op_code_test(Opcode::MULH, 0x0000_0000, 0x0000_0000, 0x0000_0000);
+        simple_op_code_test(Opcode::MULH, 0x0000_0000, 0x0000_0001, 0x0000_0001);
+        simple_op_code_test(Opcode::MULH, 0x0000_0000, 0x0000_0003, 0x0000_0007);
+        simple_op_code_test(Opcode::MULH, 0x0000_0000, 0x0000_0000, 0xffff_8000);
+        simple_op_code_test(Opcode::MULH, 0x0000_0000, 0x8000_0000, 0x0000_0000);
+        simple_op_code_test(Opcode::MULH, 0x0000_0000, 0x8000_0000, 0x0000_0000);
+        simple_op_code_test(Opcode::MULH, 0xffff_0081, 0xaaaa_aaab, 0x0002_fe7d);
+        simple_op_code_test(Opcode::MULH, 0xffff_0081, 0x0002_fe7d, 0xaaaa_aaab);
+        simple_op_code_test(Opcode::MULH, 0x0001_0000, 0xff00_0000, 0xff00_0000);
+        simple_op_code_test(Opcode::MULH, 0x0000_0000, 0xffff_ffff, 0xffff_ffff);
+        simple_op_code_test(Opcode::MULH, 0xffff_ffff, 0xffff_ffff, 0x0000_0001);
+        simple_op_code_test(Opcode::MULH, 0xffff_ffff, 0x0000_0001, 0xffff_ffff);
 
-        simple_op_code_test(Opcode::MUL, 0x00001200, 0x00007e00, 0xb6db6db7);
-        simple_op_code_test(Opcode::MUL, 0x00001240, 0x00007fc0, 0xb6db6db7);
-        simple_op_code_test(Opcode::MUL, 0x00000000, 0x00000000, 0x00000000);
-        simple_op_code_test(Opcode::MUL, 0x00000001, 0x00000001, 0x00000001);
-        simple_op_code_test(Opcode::MUL, 0x00000015, 0x00000003, 0x00000007);
-        simple_op_code_test(Opcode::MUL, 0x00000000, 0x00000000, 0xffff8000);
-        simple_op_code_test(Opcode::MUL, 0x00000000, 0x80000000, 0x00000000);
-        simple_op_code_test(Opcode::MUL, 0x00000000, 0x80000000, 0xffff8000);
-        simple_op_code_test(Opcode::MUL, 0x0000ff7f, 0xaaaaaaab, 0x0002fe7d);
-        simple_op_code_test(Opcode::MUL, 0x0000ff7f, 0x0002fe7d, 0xaaaaaaab);
-        simple_op_code_test(Opcode::MUL, 0x00000000, 0xff000000, 0xff000000);
-        simple_op_code_test(Opcode::MUL, 0x00000001, 0xffffffff, 0xffffffff);
-        simple_op_code_test(Opcode::MUL, 0xffffffff, 0xffffffff, 0x00000001);
-        simple_op_code_test(Opcode::MUL, 0xffffffff, 0x00000001, 0xffffffff);
+        simple_op_code_test(Opcode::MUL, 0x0000_1200, 0x0000_7e00, 0xb6db_6db7);
+        simple_op_code_test(Opcode::MUL, 0x0000_1240, 0x0000_7fc0, 0xb6db_6db7);
+        simple_op_code_test(Opcode::MUL, 0x0000_0000, 0x0000_0000, 0x0000_0000);
+        simple_op_code_test(Opcode::MUL, 0x0000_0001, 0x0000_0001, 0x0000_0001);
+        simple_op_code_test(Opcode::MUL, 0x0000_0015, 0x0000_0003, 0x0000_0007);
+        simple_op_code_test(Opcode::MUL, 0x0000_0000, 0x0000_0000, 0xffff_8000);
+        simple_op_code_test(Opcode::MUL, 0x0000_0000, 0x8000_0000, 0x0000_0000);
+        simple_op_code_test(Opcode::MUL, 0x0000_0000, 0x8000_0000, 0xffff_8000);
+        simple_op_code_test(Opcode::MUL, 0x0000_ff7f, 0xaaaa_aaab, 0x0002_fe7d);
+        simple_op_code_test(Opcode::MUL, 0x0000_ff7f, 0x0002_fe7d, 0xaaaa_aaab);
+        simple_op_code_test(Opcode::MUL, 0x0000_0000, 0xff00_0000, 0xff00_0000);
+        simple_op_code_test(Opcode::MUL, 0x0000_0001, 0xffff_ffff, 0xffff_ffff);
+        simple_op_code_test(Opcode::MUL, 0xffff_ffff, 0xffff_ffff, 0x0000_0001);
+        simple_op_code_test(Opcode::MUL, 0xffff_ffff, 0x0000_0001, 0xffff_ffff);
     }
 
     fn neg(a: u32) -> u32 {
@@ -1516,7 +1528,7 @@ pub mod tests {
     #[test]
     fn division_tests() {
         simple_op_code_test(Opcode::DIVU, 3, 20, 6);
-        simple_op_code_test(Opcode::DIVU, 715827879, u32::MAX - 20 + 1, 6);
+        simple_op_code_test(Opcode::DIVU, 715_827_879, u32::MAX - 20 + 1, 6);
         simple_op_code_test(Opcode::DIVU, 0, 20, u32::MAX - 6 + 1);
         simple_op_code_test(Opcode::DIVU, 0, u32::MAX - 20 + 1, u32::MAX - 6 + 1);
 
@@ -1560,104 +1572,105 @@ pub mod tests {
 
     #[test]
     fn shift_tests() {
-        simple_op_code_test(Opcode::SLL, 0x00000001, 0x00000001, 0);
-        simple_op_code_test(Opcode::SLL, 0x00000002, 0x00000001, 1);
-        simple_op_code_test(Opcode::SLL, 0x00000080, 0x00000001, 7);
-        simple_op_code_test(Opcode::SLL, 0x00004000, 0x00000001, 14);
-        simple_op_code_test(Opcode::SLL, 0x80000000, 0x00000001, 31);
-        simple_op_code_test(Opcode::SLL, 0xffffffff, 0xffffffff, 0);
-        simple_op_code_test(Opcode::SLL, 0xfffffffe, 0xffffffff, 1);
-        simple_op_code_test(Opcode::SLL, 0xffffff80, 0xffffffff, 7);
-        simple_op_code_test(Opcode::SLL, 0xffffc000, 0xffffffff, 14);
-        simple_op_code_test(Opcode::SLL, 0x80000000, 0xffffffff, 31);
-        simple_op_code_test(Opcode::SLL, 0x21212121, 0x21212121, 0);
-        simple_op_code_test(Opcode::SLL, 0x42424242, 0x21212121, 1);
-        simple_op_code_test(Opcode::SLL, 0x90909080, 0x21212121, 7);
-        simple_op_code_test(Opcode::SLL, 0x48484000, 0x21212121, 14);
-        simple_op_code_test(Opcode::SLL, 0x80000000, 0x21212121, 31);
-        simple_op_code_test(Opcode::SLL, 0x21212121, 0x21212121, 0xffffffe0);
-        simple_op_code_test(Opcode::SLL, 0x42424242, 0x21212121, 0xffffffe1);
-        simple_op_code_test(Opcode::SLL, 0x90909080, 0x21212121, 0xffffffe7);
-        simple_op_code_test(Opcode::SLL, 0x48484000, 0x21212121, 0xffffffee);
-        simple_op_code_test(Opcode::SLL, 0x00000000, 0x21212120, 0xffffffff);
+        simple_op_code_test(Opcode::SLL, 0x0000_0001, 0x0000_0001, 0);
+        simple_op_code_test(Opcode::SLL, 0x0000_0002, 0x0000_0001, 1);
+        simple_op_code_test(Opcode::SLL, 0x0000_0080, 0x0000_0001, 7);
+        simple_op_code_test(Opcode::SLL, 0x0000_4000, 0x0000_0001, 14);
+        simple_op_code_test(Opcode::SLL, 0x8000_0000, 0x0000_0001, 31);
+        simple_op_code_test(Opcode::SLL, 0xffff_ffff, 0xffff_ffff, 0);
+        simple_op_code_test(Opcode::SLL, 0xffff_fffe, 0xffff_ffff, 1);
+        simple_op_code_test(Opcode::SLL, 0xffff_ff80, 0xffff_ffff, 7);
+        simple_op_code_test(Opcode::SLL, 0xffff_c000, 0xffff_ffff, 14);
+        simple_op_code_test(Opcode::SLL, 0x8000_0000, 0xffff_ffff, 31);
+        simple_op_code_test(Opcode::SLL, 0x2121_2121, 0x2121_2121, 0);
+        simple_op_code_test(Opcode::SLL, 0x4242_4242, 0x2121_2121, 1);
+        simple_op_code_test(Opcode::SLL, 0x9090_9080, 0x2121_2121, 7);
+        simple_op_code_test(Opcode::SLL, 0x4848_4000, 0x2121_2121, 14);
+        simple_op_code_test(Opcode::SLL, 0x8000_0000, 0x2121_2121, 31);
+        simple_op_code_test(Opcode::SLL, 0x2121_2121, 0x2121_2121, 0xffff_ffe0);
+        simple_op_code_test(Opcode::SLL, 0x4242_4242, 0x2121_2121, 0xffff_ffe1);
+        simple_op_code_test(Opcode::SLL, 0x9090_9080, 0x2121_2121, 0xffff_ffe7);
+        simple_op_code_test(Opcode::SLL, 0x4848_4000, 0x2121_2121, 0xffff_ffee);
+        simple_op_code_test(Opcode::SLL, 0x0000_0000, 0x2121_2120, 0xffff_ffff);
 
-        simple_op_code_test(Opcode::SRL, 0xffff8000, 0xffff8000, 0);
-        simple_op_code_test(Opcode::SRL, 0x7fffc000, 0xffff8000, 1);
-        simple_op_code_test(Opcode::SRL, 0x01ffff00, 0xffff8000, 7);
-        simple_op_code_test(Opcode::SRL, 0x0003fffe, 0xffff8000, 14);
-        simple_op_code_test(Opcode::SRL, 0x0001ffff, 0xffff8001, 15);
-        simple_op_code_test(Opcode::SRL, 0xffffffff, 0xffffffff, 0);
-        simple_op_code_test(Opcode::SRL, 0x7fffffff, 0xffffffff, 1);
-        simple_op_code_test(Opcode::SRL, 0x01ffffff, 0xffffffff, 7);
-        simple_op_code_test(Opcode::SRL, 0x0003ffff, 0xffffffff, 14);
-        simple_op_code_test(Opcode::SRL, 0x00000001, 0xffffffff, 31);
-        simple_op_code_test(Opcode::SRL, 0x21212121, 0x21212121, 0);
-        simple_op_code_test(Opcode::SRL, 0x10909090, 0x21212121, 1);
-        simple_op_code_test(Opcode::SRL, 0x00424242, 0x21212121, 7);
-        simple_op_code_test(Opcode::SRL, 0x00008484, 0x21212121, 14);
-        simple_op_code_test(Opcode::SRL, 0x00000000, 0x21212121, 31);
-        simple_op_code_test(Opcode::SRL, 0x21212121, 0x21212121, 0xffffffe0);
-        simple_op_code_test(Opcode::SRL, 0x10909090, 0x21212121, 0xffffffe1);
-        simple_op_code_test(Opcode::SRL, 0x00424242, 0x21212121, 0xffffffe7);
-        simple_op_code_test(Opcode::SRL, 0x00008484, 0x21212121, 0xffffffee);
-        simple_op_code_test(Opcode::SRL, 0x00000000, 0x21212121, 0xffffffff);
+        simple_op_code_test(Opcode::SRL, 0xffff_8000, 0xffff_8000, 0);
+        simple_op_code_test(Opcode::SRL, 0x7fff_c000, 0xffff_8000, 1);
+        simple_op_code_test(Opcode::SRL, 0x01ff_ff00, 0xffff_8000, 7);
+        simple_op_code_test(Opcode::SRL, 0x0003_fffe, 0xffff_8000, 14);
+        simple_op_code_test(Opcode::SRL, 0x0001_ffff, 0xffff_8001, 15);
+        simple_op_code_test(Opcode::SRL, 0xffff_ffff, 0xffff_ffff, 0);
+        simple_op_code_test(Opcode::SRL, 0x7fff_ffff, 0xffff_ffff, 1);
+        simple_op_code_test(Opcode::SRL, 0x01ff_ffff, 0xffff_ffff, 7);
+        simple_op_code_test(Opcode::SRL, 0x0003_ffff, 0xffff_ffff, 14);
+        simple_op_code_test(Opcode::SRL, 0x0000_0001, 0xffff_ffff, 31);
+        simple_op_code_test(Opcode::SRL, 0x2121_2121, 0x2121_2121, 0);
+        simple_op_code_test(Opcode::SRL, 0x1090_9090, 0x2121_2121, 1);
+        simple_op_code_test(Opcode::SRL, 0x0042_4242, 0x2121_2121, 7);
+        simple_op_code_test(Opcode::SRL, 0x0000_8484, 0x2121_2121, 14);
+        simple_op_code_test(Opcode::SRL, 0x0000_0000, 0x2121_2121, 31);
+        simple_op_code_test(Opcode::SRL, 0x2121_2121, 0x2121_2121, 0xffff_ffe0);
+        simple_op_code_test(Opcode::SRL, 0x1090_9090, 0x2121_2121, 0xffff_ffe1);
+        simple_op_code_test(Opcode::SRL, 0x0042_4242, 0x2121_2121, 0xffff_ffe7);
+        simple_op_code_test(Opcode::SRL, 0x0000_8484, 0x2121_2121, 0xffff_ffee);
+        simple_op_code_test(Opcode::SRL, 0x0000_0000, 0x2121_2121, 0xffff_ffff);
 
-        simple_op_code_test(Opcode::SRA, 0x00000000, 0x00000000, 0);
-        simple_op_code_test(Opcode::SRA, 0xc0000000, 0x80000000, 1);
-        simple_op_code_test(Opcode::SRA, 0xff000000, 0x80000000, 7);
-        simple_op_code_test(Opcode::SRA, 0xfffe0000, 0x80000000, 14);
-        simple_op_code_test(Opcode::SRA, 0xffffffff, 0x80000001, 31);
-        simple_op_code_test(Opcode::SRA, 0x7fffffff, 0x7fffffff, 0);
-        simple_op_code_test(Opcode::SRA, 0x3fffffff, 0x7fffffff, 1);
-        simple_op_code_test(Opcode::SRA, 0x00ffffff, 0x7fffffff, 7);
-        simple_op_code_test(Opcode::SRA, 0x0001ffff, 0x7fffffff, 14);
-        simple_op_code_test(Opcode::SRA, 0x00000000, 0x7fffffff, 31);
-        simple_op_code_test(Opcode::SRA, 0x81818181, 0x81818181, 0);
-        simple_op_code_test(Opcode::SRA, 0xc0c0c0c0, 0x81818181, 1);
-        simple_op_code_test(Opcode::SRA, 0xff030303, 0x81818181, 7);
-        simple_op_code_test(Opcode::SRA, 0xfffe0606, 0x81818181, 14);
-        simple_op_code_test(Opcode::SRA, 0xffffffff, 0x81818181, 31);
+        simple_op_code_test(Opcode::SRA, 0x0000_0000, 0x0000_0000, 0);
+        simple_op_code_test(Opcode::SRA, 0xc000_0000, 0x8000_0000, 1);
+        simple_op_code_test(Opcode::SRA, 0xff00_0000, 0x8000_0000, 7);
+        simple_op_code_test(Opcode::SRA, 0xfffe_0000, 0x8000_0000, 14);
+        simple_op_code_test(Opcode::SRA, 0xffff_ffff, 0x8000_0001, 31);
+        simple_op_code_test(Opcode::SRA, 0x7fff_ffff, 0x7fff_ffff, 0);
+        simple_op_code_test(Opcode::SRA, 0x3fff_ffff, 0x7fff_ffff, 1);
+        simple_op_code_test(Opcode::SRA, 0x00ff_ffff, 0x7fff_ffff, 7);
+        simple_op_code_test(Opcode::SRA, 0x0001_ffff, 0x7fff_ffff, 14);
+        simple_op_code_test(Opcode::SRA, 0x0000_0000, 0x7fff_ffff, 31);
+        simple_op_code_test(Opcode::SRA, 0x8181_8181, 0x8181_8181, 0);
+        simple_op_code_test(Opcode::SRA, 0xc0c0_c0c0, 0x8181_8181, 1);
+        simple_op_code_test(Opcode::SRA, 0xff03_0303, 0x8181_8181, 7);
+        simple_op_code_test(Opcode::SRA, 0xfffe_0606, 0x8181_8181, 14);
+        simple_op_code_test(Opcode::SRA, 0xffff_ffff, 0x8181_8181, 31);
     }
 
+    #[must_use]
     pub fn simple_memory_program() -> Program {
         let instructions = vec![
-            Instruction::new(Opcode::ADD, 29, 0, 0x12348765, false, true),
+            Instruction::new(Opcode::ADD, 29, 0, 0x1234_8765, false, true),
             // SW and LW
-            Instruction::new(Opcode::SW, 29, 0, 0x27654320, false, true),
-            Instruction::new(Opcode::LW, 28, 0, 0x27654320, false, true),
+            Instruction::new(Opcode::SW, 29, 0, 0x2765_4320, false, true),
+            Instruction::new(Opcode::LW, 28, 0, 0x2765_4320, false, true),
             // LBU
-            Instruction::new(Opcode::LBU, 27, 0, 0x27654320, false, true),
-            Instruction::new(Opcode::LBU, 26, 0, 0x27654321, false, true),
-            Instruction::new(Opcode::LBU, 25, 0, 0x27654322, false, true),
-            Instruction::new(Opcode::LBU, 24, 0, 0x27654323, false, true),
+            Instruction::new(Opcode::LBU, 27, 0, 0x2765_4320, false, true),
+            Instruction::new(Opcode::LBU, 26, 0, 0x2765_4321, false, true),
+            Instruction::new(Opcode::LBU, 25, 0, 0x2765_4322, false, true),
+            Instruction::new(Opcode::LBU, 24, 0, 0x2765_4323, false, true),
             // LB
-            Instruction::new(Opcode::LB, 23, 0, 0x27654320, false, true),
-            Instruction::new(Opcode::LB, 22, 0, 0x27654321, false, true),
+            Instruction::new(Opcode::LB, 23, 0, 0x2765_4320, false, true),
+            Instruction::new(Opcode::LB, 22, 0, 0x2765_4321, false, true),
             // LHU
-            Instruction::new(Opcode::LHU, 21, 0, 0x27654320, false, true),
-            Instruction::new(Opcode::LHU, 20, 0, 0x27654322, false, true),
+            Instruction::new(Opcode::LHU, 21, 0, 0x2765_4320, false, true),
+            Instruction::new(Opcode::LHU, 20, 0, 0x2765_4322, false, true),
             // LU
-            Instruction::new(Opcode::LH, 19, 0, 0x27654320, false, true),
-            Instruction::new(Opcode::LH, 18, 0, 0x27654322, false, true),
+            Instruction::new(Opcode::LH, 19, 0, 0x2765_4320, false, true),
+            Instruction::new(Opcode::LH, 18, 0, 0x2765_4322, false, true),
             // SB
-            Instruction::new(Opcode::ADD, 17, 0, 0x38276525, false, true),
+            Instruction::new(Opcode::ADD, 17, 0, 0x3827_6525, false, true),
             // Save the value 0x12348765 into address 0x43627530
-            Instruction::new(Opcode::SW, 29, 0, 0x43627530, false, true),
-            Instruction::new(Opcode::SB, 17, 0, 0x43627530, false, true),
-            Instruction::new(Opcode::LW, 16, 0, 0x43627530, false, true),
-            Instruction::new(Opcode::SB, 17, 0, 0x43627531, false, true),
-            Instruction::new(Opcode::LW, 15, 0, 0x43627530, false, true),
-            Instruction::new(Opcode::SB, 17, 0, 0x43627532, false, true),
-            Instruction::new(Opcode::LW, 14, 0, 0x43627530, false, true),
-            Instruction::new(Opcode::SB, 17, 0, 0x43627533, false, true),
-            Instruction::new(Opcode::LW, 13, 0, 0x43627530, false, true),
+            Instruction::new(Opcode::SW, 29, 0, 0x4362_7530, false, true),
+            Instruction::new(Opcode::SB, 17, 0, 0x4362_7530, false, true),
+            Instruction::new(Opcode::LW, 16, 0, 0x4362_7530, false, true),
+            Instruction::new(Opcode::SB, 17, 0, 0x4362_7531, false, true),
+            Instruction::new(Opcode::LW, 15, 0, 0x4362_7530, false, true),
+            Instruction::new(Opcode::SB, 17, 0, 0x4362_7532, false, true),
+            Instruction::new(Opcode::LW, 14, 0, 0x4362_7530, false, true),
+            Instruction::new(Opcode::SB, 17, 0, 0x4362_7533, false, true),
+            Instruction::new(Opcode::LW, 13, 0, 0x4362_7530, false, true),
             // SH
             // Save the value 0x12348765 into address 0x43627530
-            Instruction::new(Opcode::SW, 29, 0, 0x43627530, false, true),
-            Instruction::new(Opcode::SH, 17, 0, 0x43627530, false, true),
-            Instruction::new(Opcode::LW, 12, 0, 0x43627530, false, true),
-            Instruction::new(Opcode::SH, 17, 0, 0x43627532, false, true),
-            Instruction::new(Opcode::LW, 11, 0, 0x43627530, false, true),
+            Instruction::new(Opcode::SW, 29, 0, 0x4362_7530, false, true),
+            Instruction::new(Opcode::SH, 17, 0, 0x4362_7530, false, true),
+            Instruction::new(Opcode::LW, 12, 0, 0x4362_7530, false, true),
+            Instruction::new(Opcode::SH, 17, 0, 0x4362_7532, false, true),
+            Instruction::new(Opcode::LW, 11, 0, 0x4362_7530, false, true),
         ];
         Program::new(instructions, 0, 0)
     }
@@ -1669,7 +1682,7 @@ pub mod tests {
         runtime.run().unwrap();
 
         // Assert SW & LW case
-        assert_eq!(runtime.register(Register::X28), 0x12348765);
+        assert_eq!(runtime.register(Register::X28), 0x1234_8765);
 
         // Assert LBU cases
         assert_eq!(runtime.register(Register::X27), 0x65);
@@ -1679,24 +1692,24 @@ pub mod tests {
 
         // Assert LB cases
         assert_eq!(runtime.register(Register::X23), 0x65);
-        assert_eq!(runtime.register(Register::X22), 0xffffff87);
+        assert_eq!(runtime.register(Register::X22), 0xffff_ff87);
 
         // Assert LHU cases
         assert_eq!(runtime.register(Register::X21), 0x8765);
         assert_eq!(runtime.register(Register::X20), 0x1234);
 
         // Assert LH cases
-        assert_eq!(runtime.register(Register::X19), 0xffff8765);
+        assert_eq!(runtime.register(Register::X19), 0xffff_8765);
         assert_eq!(runtime.register(Register::X18), 0x1234);
 
         // Assert SB cases
-        assert_eq!(runtime.register(Register::X16), 0x12348725);
-        assert_eq!(runtime.register(Register::X15), 0x12342525);
-        assert_eq!(runtime.register(Register::X14), 0x12252525);
-        assert_eq!(runtime.register(Register::X13), 0x25252525);
+        assert_eq!(runtime.register(Register::X16), 0x1234_8725);
+        assert_eq!(runtime.register(Register::X15), 0x1234_2525);
+        assert_eq!(runtime.register(Register::X14), 0x1225_2525);
+        assert_eq!(runtime.register(Register::X13), 0x2525_2525);
 
         // Assert SH cases
-        assert_eq!(runtime.register(Register::X12), 0x12346525);
-        assert_eq!(runtime.register(Register::X11), 0x65256525);
+        assert_eq!(runtime.register(Register::X12), 0x1234_6525);
+        assert_eq!(runtime.register(Register::X11), 0x6525_6525);
     }
 }

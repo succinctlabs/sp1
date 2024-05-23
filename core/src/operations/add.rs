@@ -33,23 +33,24 @@ impl<F: Field> AddOperation<F> {
         let b = b_u32.to_le_bytes();
 
         let mut carry = [0u8, 0u8, 0u8];
-        if (a[0] as u32) + (b[0] as u32) > 255 {
+        if u32::from(a[0]) + u32::from(b[0]) > 255 {
             carry[0] = 1;
             self.carry[0] = F::one();
         }
-        if (a[1] as u32) + (b[1] as u32) + (carry[0] as u32) > 255 {
+        if u32::from(a[1]) + u32::from(b[1]) + u32::from(carry[0]) > 255 {
             carry[1] = 1;
             self.carry[1] = F::one();
         }
-        if (a[2] as u32) + (b[2] as u32) + (carry[1] as u32) > 255 {
+        if u32::from(a[2]) + u32::from(b[2]) + u32::from(carry[1]) > 255 {
             carry[2] = 1;
             self.carry[2] = F::one();
         }
 
         let base = 256u32;
-        let overflow = a[0]
-            .wrapping_add(b[0])
-            .wrapping_sub(expected.to_le_bytes()[0]) as u32;
+        let overflow = u32::from(
+            a[0].wrapping_add(b[0])
+                .wrapping_sub(expected.to_le_bytes()[0]),
+        );
         debug_assert_eq!(overflow.wrapping_mul(overflow.wrapping_sub(base)), 0);
 
         // Range check

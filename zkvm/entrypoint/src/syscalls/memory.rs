@@ -30,7 +30,7 @@ pub unsafe extern "C" fn sys_alloc_aligned(bytes: usize, align: usize) -> *mut u
     let mut heap_pos = unsafe { HEAP_POS };
 
     if heap_pos == 0 {
-        heap_pos = unsafe { (&_end) as *const u8 as usize };
+        heap_pos = unsafe { std::ptr::from_ref::<u8>(&_end) as usize };
     }
 
     let offset = heap_pos & (align - 1);
@@ -42,9 +42,7 @@ pub unsafe extern "C" fn sys_alloc_aligned(bytes: usize, align: usize) -> *mut u
     heap_pos += bytes;
 
     // Check to make sure heap doesn't collide with SYSTEM memory.
-    if SYSTEM_START < heap_pos {
-        panic!();
-    }
+    assert!(SYSTEM_START >= heap_pos,);
 
     unsafe { HEAP_POS = heap_pos };
     ptr

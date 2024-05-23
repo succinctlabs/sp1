@@ -30,6 +30,7 @@ pub struct ShaExtendEvent {
 pub struct ShaExtendChip;
 
 impl ShaExtendChip {
+    #[must_use]
     pub fn new() -> Self {
         Self {}
     }
@@ -62,6 +63,7 @@ pub mod extend_tests {
 
     use super::ShaExtendChip;
 
+    #[must_use]
     pub fn sha_extend_program() -> Program {
         let w_ptr = 100;
         let mut instructions = vec![Instruction::new(Opcode::ADD, 29, 0, 5, false, true)];
@@ -94,7 +96,7 @@ pub mod extend_tests {
         let chip = ShaExtendChip::new();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
-        println!("{:?}", trace.values)
+        println!("{:?}", trace.values);
     }
 
     #[test]

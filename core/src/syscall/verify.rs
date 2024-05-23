@@ -6,10 +6,11 @@ use crate::{
 
 /// Verifies an SP1 recursive verifier proof. Note that this syscall only verifies the proof during
 /// runtime. The actual constraint-level verification is deferred to the recursive layer, where
-/// proofs are witnessed and verified in order to reconstruct the deferred_proofs_digest.
+/// proofs are witnessed and verified in order to reconstruct the `deferred_proofs_digest`.
 pub struct SyscallVerifySP1Proof;
 
 impl SyscallVerifySP1Proof {
+    #[must_use]
     pub fn new() -> Self {
         Self
     }

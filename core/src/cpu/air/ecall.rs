@@ -22,7 +22,7 @@ impl CpuChip {
     ///
     /// This method will do the following:
     /// 1. Send the syscall to the precompile table, if needed.
-    /// 2. Check for valid op_a values.
+    /// 2. Check for valid `op_a` values.
     pub(crate) fn eval_ecall<AB: SP1AirBuilder>(&self, builder: &mut AB, local: &CpuCols<AB::Var>) {
         let ecall_cols = local.opcode_specific_columns.ecall();
         let is_ecall_instruction = self.is_ecall_instruction::<AB>(&local.selectors);
@@ -84,7 +84,7 @@ impl CpuChip {
             .assert_word_eq(local.op_a_val(), local.op_a_access.prev_value);
     }
 
-    /// Constraints related to the COMMIT and COMMIT_DEFERRED_PROOFS instructions.
+    /// Constraints related to the COMMIT and `COMMIT_DEFERRED_PROOFS` instructions.
     pub(crate) fn eval_commit<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
@@ -101,7 +101,7 @@ impl CpuChip {
         // Verify the index bitmap.
         let mut bitmap_sum = AB::Expr::zero();
         // They should all be bools.
-        for bit in ecall_columns.index_bitmap.iter() {
+        for bit in &ecall_columns.index_bitmap {
             builder.when(local.selectors.is_ecall).assert_bool(*bit);
             bitmap_sum += (*bit).into();
         }
@@ -217,7 +217,7 @@ impl CpuChip {
         is_halt * is_ecall_instruction
     }
 
-    /// Returns two boolean expression indicating whether the instruction is a COMMIT or COMMIT_DEFERRED_PROOFS instruction.
+    /// Returns two boolean expression indicating whether the instruction is a COMMIT or `COMMIT_DEFERRED_PROOFS` instruction.
     pub(crate) fn get_is_commit_related_syscall<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,

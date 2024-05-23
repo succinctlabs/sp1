@@ -16,6 +16,7 @@ pub struct Instruction {
 
 impl Instruction {
     /// Create a new instruction.
+    #[must_use]
     pub fn new(opcode: Opcode, op_a: u32, op_b: u32, op_c: u32, imm_b: bool, imm_c: bool) -> Self {
         Self {
             opcode,
@@ -28,6 +29,7 @@ impl Instruction {
     }
 
     /// Returns if the instruction is an ALU instruction.
+    #[must_use]
     pub fn is_alu_instruction(&self) -> bool {
         matches!(
             self.opcode,
@@ -53,11 +55,13 @@ impl Instruction {
     }
 
     /// Returns if the instruction is a ecall instruction.
+    #[must_use]
     pub fn is_ecall_instruction(&self) -> bool {
         self.opcode == Opcode::ECALL
     }
 
     /// Returns if the instruction is a memory instruction.
+    #[must_use]
     pub fn is_memory_instruction(&self) -> bool {
         matches!(
             self.opcode,
@@ -73,6 +77,7 @@ impl Instruction {
     }
 
     /// Returns if the instruction is a branch instruction.
+    #[must_use]
     pub fn is_branch_instruction(&self) -> bool {
         matches!(
             self.opcode,
@@ -81,6 +86,7 @@ impl Instruction {
     }
 
     /// Returns if the instruction is a jump instruction.
+    #[must_use]
     pub fn is_jump_instruction(&self) -> bool {
         matches!(self.opcode, Opcode::JAL | Opcode::JALR)
     }
@@ -104,12 +110,7 @@ impl Debug for Instruction {
         let width = 10;
         write!(
             f,
-            "{:<width$} {:<width$} {:<width$} {:<width$}",
-            mnemonic,
-            op_a_formatted,
-            op_b_formatted,
-            op_c_formatted,
-            width = width
+            "{mnemonic:<width$} {op_a_formatted:<width$} {op_b_formatted:<width$} {op_c_formatted:<width$}"
         )
     }
 }

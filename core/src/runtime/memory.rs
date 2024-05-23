@@ -53,6 +53,7 @@ pub struct MemoryWriteRecord {
 }
 
 impl MemoryRecordEnum {
+    #[must_use]
     pub fn value(&self) -> u32 {
         match self {
             MemoryRecordEnum::Read(record) => record.value,
@@ -74,6 +75,7 @@ impl From<MemoryWriteRecord> for MemoryRecordEnum {
 }
 
 impl MemoryReadRecord {
+    #[must_use]
     pub fn new(
         value: u32,
         shard: u32,
@@ -94,6 +96,7 @@ impl MemoryReadRecord {
 }
 
 impl MemoryWriteRecord {
+    #[must_use]
     pub fn new(
         value: u32,
         shard: u32,

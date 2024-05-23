@@ -69,7 +69,7 @@ pub(crate) fn assert_complete<C: Config>(
     }
 
     // Assert that the cumulative sum is zero.
-    for b in cumulative_sum.iter() {
+    for b in cumulative_sum {
         builder.assert_felt_eq(*b, C::F::zero());
     }
 }
@@ -160,7 +160,7 @@ pub fn commit_public_values<C: Config>(
     let pv_elements: [Felt<_>; RECURSIVE_PROOF_NUM_PV_ELTS] = unsafe { transmute(*public_values) };
     let pv_elms_no_digest = &pv_elements[0..NUM_PV_ELMS_TO_HASH];
 
-    for value in pv_elms_no_digest.iter() {
+    for value in pv_elms_no_digest {
         builder.register_public_value(*value);
     }
 

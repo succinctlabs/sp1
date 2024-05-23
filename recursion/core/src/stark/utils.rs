@@ -24,7 +24,7 @@ type Val = <BabyBearPoseidon2 as StarkGenericConfig>::Val;
 type Challenge = <BabyBearPoseidon2 as StarkGenericConfig>::Challenge;
 
 /// Takes in a program and runs it with the given witness and generates a proof with a variety of
-/// machines depending on the provided test_config.
+/// machines depending on the provided `test_config`.
 pub fn run_test_recursion(
     program: RecursionProgram<Val>,
     witness: Option<VecDeque<Vec<Block<BabyBear>>>>,
@@ -49,7 +49,7 @@ pub fn run_test_recursion(
         let record = runtime.record.clone();
         let result = run_test_machine(record, machine, pk, vk);
         if let Err(e) = result {
-            panic!("Verification failed: {:?}", e);
+            panic!("Verification failed: {e:?}");
         }
     }
 
@@ -59,7 +59,7 @@ pub fn run_test_recursion(
         let record = runtime.record.clone();
         let result = run_test_machine(record, machine, pk, vk);
         if let Err(e) = result {
-            panic!("Verification failed: {:?}", e);
+            panic!("Verification failed: {e:?}");
         }
     }
 
@@ -69,7 +69,7 @@ pub fn run_test_recursion(
         let record = runtime.record.clone();
         let result = run_test_machine(record, machine, pk, vk);
         if let Err(e) = result {
-            panic!("Verification failed: {:?}", e);
+            panic!("Verification failed: {e:?}");
         }
     }
 }

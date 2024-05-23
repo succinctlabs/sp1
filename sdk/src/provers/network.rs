@@ -17,14 +17,15 @@ use tokio::{runtime, time::sleep};
 
 use super::LocalProver;
 
-/// An implementation of [crate::ProverClient] that can generate proofs on a remote RPC server.
+/// An implementation of [`crate::ProverClient`] that can generate proofs on a remote RPC server.
 pub struct NetworkProver {
     client: NetworkClient,
     local_prover: LocalProver,
 }
 
 impl NetworkProver {
-    /// Creates a new [NetworkProver].
+    /// Creates a new [`NetworkProver`].
+    #[must_use]
     pub fn new() -> Self {
         let private_key = env::var("SP1_PRIVATE_KEY")
             .unwrap_or_else(|_| panic!("SP1_PRIVATE_KEY must be set for remote proving"));
@@ -49,7 +50,7 @@ impl NetworkProver {
         println!("Simulation complete");
 
         let proof_id = client.create_proof(elf, &stdin, mode).await?;
-        println!("Proof request ID: {:?}", proof_id);
+        println!("Proof request ID: {proof_id:?}");
 
         let mut is_claimed = false;
         loop {
@@ -98,13 +99,13 @@ impl NetworkProver {
                     let tx_id = client
                         .relay_proof(proof_id, chain_id, verifier, *callback, callback_data)
                         .await
-                        .with_context(|| format!("Failed to relay proof to chain {}", chain_id))?;
+                        .with_context(|| format!("Failed to relay proof to chain {chain_id}"))?;
                     tx_details.push((tx_id.clone(), chain_id));
                 }
             }
 
             let mut tx_ids = Vec::new();
-            for (tx_id, chain_id) in tx_details.iter() {
+            for (tx_id, chain_id) in &tx_details {
                 loop {
                     let (status_res, maybe_tx_hash, maybe_simulation_url) =
                         client.get_relay_status(tx_id).await?;

@@ -40,6 +40,7 @@ pub enum InteractionKind {
 }
 
 impl InteractionKind {
+    #[must_use]
     pub fn all_kinds() -> Vec<InteractionKind> {
         vec![
             InteractionKind::Memory,

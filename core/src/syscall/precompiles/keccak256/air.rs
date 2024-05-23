@@ -117,7 +117,7 @@ where
                     local
                         .keccak
                         .a_prime_prime_prime(x_idx as usize, y_idx as usize, i),
-                )
+                );
             }
         }
 
@@ -162,7 +162,7 @@ mod test {
 
         let mut stdin = SP1Stdin::new();
         stdin.write(&NUM_TEST_CASES);
-        for input in inputs.iter() {
+        for input in &inputs {
             stdin.write(&input);
         }
 

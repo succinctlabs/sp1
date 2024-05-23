@@ -34,7 +34,7 @@ pub struct SP1DeferredVerifier<C: Config, SC: StarkGenericConfig, A> {
     _phantom: PhantomData<(C, SC, A)>,
 }
 
-/// Inputs that are hinted to the [SP1DeferredVerifier] program.
+/// Inputs that are hinted to the [`SP1DeferredVerifier`] program.
 pub struct SP1DeferredMemoryLayout<'a, SC: StarkGenericConfig, A: MachineAir<SC::Val>>
 where
     SC::Val: PrimeField32,
@@ -56,7 +56,7 @@ where
     pub end_shard: SC::Val,
 }
 
-/// A variable version of the [SP1DeferredMemoryLayout] struct.
+/// A variable version of the [`SP1DeferredMemoryLayout`] struct.
 #[derive(DslVariable, Clone)]
 pub struct SP1DeferredMemoryLayoutVariable<C: Config> {
     pub compress_vk: VerifyingKeyVariable<C>,
@@ -79,7 +79,8 @@ impl<A> SP1DeferredVerifier<InnerConfig, BabyBearPoseidon2, A>
 where
     A: MachineAir<BabyBear> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, InnerConfig>>,
 {
-    /// Create a new instance of the program for the [BabyBearPoseidon2] config.
+    /// Create a new instance of the program for the [`BabyBearPoseidon2`] config.
+    #[must_use]
     pub fn build(machine: &StarkMachine<BabyBearPoseidon2, A>) -> RecursionProgram<BabyBear> {
         let mut builder = Builder::<InnerConfig>::default();
         let input: SP1DeferredMemoryLayoutVariable<_> = builder.uninit();

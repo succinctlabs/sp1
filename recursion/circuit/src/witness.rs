@@ -261,7 +261,7 @@ impl Witnessable<C> for OuterFriProof {
     fn write(&self, witness: &mut Witness<C>) {
         self.commit_phase_commits.iter().for_each(|commit| {
             let commit: OuterDigest = (*commit).into();
-            commit.write(witness)
+            commit.write(witness);
         });
         self.query_proofs.write(witness);
         self.final_poly.write(witness);

@@ -7,6 +7,7 @@ use crate::runtime::{Instruction, Opcode, Register};
 
 impl Instruction {
     /// Create a new instruction from an R-type instruction.
+    #[must_use]
     pub fn from_r_type(opcode: Opcode, dec_insn: RType) -> Self {
         Self::new(
             opcode,
@@ -19,6 +20,7 @@ impl Instruction {
     }
 
     /// Create a new instruction from an I-type instruction.
+    #[must_use]
     pub fn from_i_type(opcode: Opcode, dec_insn: IType) -> Self {
         Self::new(
             opcode,
@@ -31,6 +33,7 @@ impl Instruction {
     }
 
     /// Create a new instruction from an I-type instruction with a shamt.
+    #[must_use]
     pub fn from_i_type_shamt(opcode: Opcode, dec_insn: ITypeShamt) -> Self {
         Self::new(
             opcode,
@@ -43,6 +46,7 @@ impl Instruction {
     }
 
     /// Create a new instruction from an S-type instruction.
+    #[must_use]
     pub fn from_s_type(opcode: Opcode, dec_insn: SType) -> Self {
         Self::new(
             opcode,
@@ -55,6 +59,7 @@ impl Instruction {
     }
 
     /// Create a new instruction from a B-type instruction.
+    #[must_use]
     pub fn from_b_type(opcode: Opcode, dec_insn: BType) -> Self {
         Self::new(
             opcode,
@@ -67,24 +72,28 @@ impl Instruction {
     }
 
     /// Create a new instruction that is not implemented.
+    #[must_use]
     pub fn unimp() -> Self {
         Self::new(Opcode::UNIMP, 0, 0, 0, true, true)
     }
 
     /// Returns if the instruction is an R-type instruction.
     #[inline(always)]
+    #[must_use]
     pub fn is_r_type(&self) -> bool {
         !self.imm_c
     }
 
     /// Returns whether the instruction is an I-type instruction.
     #[inline(always)]
+    #[must_use]
     pub fn is_i_type(&self) -> bool {
         self.imm_c
     }
 
     /// Decode the instruction in the R-type format.
     #[inline(always)]
+    #[must_use]
     pub fn r_type(&self) -> (Register, Register, Register) {
         (
             Register::from_u32(self.op_a),
@@ -95,6 +104,7 @@ impl Instruction {
 
     /// Decode the instruction in the I-type format.
     #[inline(always)]
+    #[must_use]
     pub fn i_type(&self) -> (Register, Register, u32) {
         (
             Register::from_u32(self.op_a),
@@ -105,6 +115,7 @@ impl Instruction {
 
     /// Decode the instruction in the S-type format.
     #[inline(always)]
+    #[must_use]
     pub fn s_type(&self) -> (Register, Register, u32) {
         (
             Register::from_u32(self.op_a),
@@ -115,6 +126,7 @@ impl Instruction {
 
     /// Decode the instruction in the B-type format.
     #[inline(always)]
+    #[must_use]
     pub fn b_type(&self) -> (Register, Register, u32) {
         (
             Register::from_u32(self.op_a),
@@ -125,12 +137,14 @@ impl Instruction {
 
     /// Decode the instruction in the J-type format.
     #[inline(always)]
+    #[must_use]
     pub fn j_type(&self) -> (Register, u32) {
         (Register::from_u32(self.op_a), self.op_b)
     }
 
     /// Decode the instruction in the U-type format.
     #[inline(always)]
+    #[must_use]
     pub fn u_type(&self) -> (Register, u32) {
         (Register::from_u32(self.op_a), self.op_b)
     }
@@ -296,8 +310,8 @@ impl InstructionProcessor for InstructionTranspiler {
         )
     }
 
-    /// LUI instructions are converted to an SLL instruction with imm_b and imm_c turned on.
-    /// Additionally the op_c should be set to 12.
+    /// LUI instructions are converted to an SLL instruction with `imm_b` and `imm_c` turned on.
+    /// Additionally the `op_c` should be set to 12.
     fn process_lui(&mut self, dec_insn: UType) -> Self::InstructionResult {
         Instruction::new(
             Opcode::ADD,
@@ -406,6 +420,7 @@ impl InstructionProcessor for InstructionTranspiler {
 }
 
 /// Transpile the instructions from the 32-bit encoded instructions.
+#[must_use]
 pub fn transpile(instructions_u32: &[u32]) -> Vec<Instruction> {
     let mut instructions = Vec::new();
     let mut transpiler = InstructionTranspiler;

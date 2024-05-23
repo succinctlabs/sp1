@@ -8,7 +8,7 @@ fn biguint_to_field<F: PrimeField32>(num: BigUint) -> F {
     let mut power = F::from_canonical_u32(1u32);
     let base = F::from_canonical_u64((1 << 32) % F::ORDER_U64);
     let digits = num.iter_u32_digits();
-    for digit in digits.into_iter() {
+    for digit in digits {
         x += F::from_canonical_u32(digit) * power;
         power *= base;
     }
@@ -16,6 +16,7 @@ fn biguint_to_field<F: PrimeField32>(num: BigUint) -> F {
 }
 
 #[inline]
+#[must_use]
 pub fn compute_root_quotient_and_shift<F: PrimeField32>(
     p_vanishing: &Polynomial<F>,
     offset: usize,
@@ -40,7 +41,7 @@ pub fn compute_root_quotient_and_shift<F: PrimeField32>(
 
     // Sanity Check #1: For all i, |w_i| < 2^20 to prevent overflows.
     let offset_u64 = offset as u64;
-    for c in p_quotient.coefficients().iter() {
+    for c in p_quotient.coefficients() {
         debug_assert!(c.neg().as_canonical_u64() < offset_u64 || c.as_canonical_u64() < offset_u64);
     }
 

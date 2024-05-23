@@ -48,7 +48,8 @@ impl<A> SP1RootVerifier<InnerConfig, BabyBearPoseidon2, A>
 where
     A: MachineAir<BabyBear> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, InnerConfig>>,
 {
-    /// Create a new instance of the program for the [BabyBearPoseidon2] config.
+    /// Create a new instance of the program for the [`BabyBearPoseidon2`] config.
+    #[must_use]
     pub fn build(
         machine: &StarkMachine<BabyBearPoseidon2, A>,
         vk: &StarkVerifyingKey<BabyBearPoseidon2>,
@@ -81,7 +82,7 @@ where
 {
     /// Verify a proof with given vk and aggregate their public values.
     ///
-    /// is_reduce : if the proof is a reduce proof, we will assert that the given vk indentifies
+    /// `is_reduce` : if the proof is a reduce proof, we will assert that the given vk indentifies
     /// with the reduce vk digest of public inputs.
     pub fn verify(
         builder: &mut Builder<C>,

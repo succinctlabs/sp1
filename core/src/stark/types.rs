@@ -122,7 +122,7 @@ pub struct ShardOpenedValues<T: Serialize> {
 }
 
 /// The maximum number of elements that can be stored in the public values vec.  Both SP1 and recursive
-/// proofs need to pad their public_values vec to this length.  This is required since the recursion
+/// proofs need to pad their `public_values` vec to this length.  This is required since the recursion
 /// verification program expects the public values vec to be fixed length.
 pub const PROOF_MAX_NUM_PVS: usize = 240;
 
@@ -143,6 +143,7 @@ impl<SC: StarkGenericConfig> Debug for ShardProof<SC> {
 }
 
 impl<T: Send + Sync + Clone> AirOpenedValues<T> {
+    #[must_use]
     pub fn view(&self) -> VerticalPair<RowMajorMatrixView<'_, T>, RowMajorMatrixView<'_, T>> {
         let a = RowMajorMatrixView::new_row(&self.local);
         let b = RowMajorMatrixView::new_row(&self.next);
@@ -174,7 +175,7 @@ impl<SC: StarkGenericConfig> Debug for MachineProof<SC> {
     }
 }
 
-/// PublicValuesDigest is a hash of all the public values that a zkvm program has committed to.
+/// `PublicValuesDigest` is a hash of all the public values that a zkvm program has committed to.
 pub struct PublicValuesDigest(pub [u8; 32]);
 
 impl From<[u32; 8]> for PublicValuesDigest {
@@ -187,7 +188,7 @@ impl From<[u32; 8]> for PublicValuesDigest {
     }
 }
 
-/// DeferredDigest is a hash of all the deferred proofs that have been witnessed in the VM.
+/// `DeferredDigest` is a hash of all the deferred proofs that have been witnessed in the VM.
 pub struct DeferredDigest(pub [u8; 32]);
 
 impl From<[u32; 8]> for DeferredDigest {

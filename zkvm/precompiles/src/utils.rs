@@ -14,6 +14,7 @@ pub struct AffinePoint<C: CurveOperations<NUM_WORDS>, const NUM_WORDS: usize> {
 impl<C: CurveOperations<NUM_WORDS> + Copy, const NUM_WORDS: usize> AffinePoint<C, NUM_WORDS> {
     const GENERATOR: [u32; NUM_WORDS] = C::GENERATOR;
 
+    #[must_use]
     pub const fn generator_in_affine() -> Self {
         Self {
             limbs: Self::GENERATOR,
@@ -21,6 +22,7 @@ impl<C: CurveOperations<NUM_WORDS> + Copy, const NUM_WORDS: usize> AffinePoint<C
         }
     }
 
+    #[must_use]
     pub fn new(limbs: [u32; NUM_WORDS]) -> Self {
         Self {
             limbs,
@@ -28,6 +30,7 @@ impl<C: CurveOperations<NUM_WORDS> + Copy, const NUM_WORDS: usize> AffinePoint<C
         }
     }
 
+    #[must_use]
     pub fn from(x_bytes: [u8; NUM_WORDS * 2], y_bytes: [u8; NUM_WORDS * 2]) -> Self
     where
         [(); NUM_WORDS / 2]:,
@@ -52,7 +55,7 @@ impl<C: CurveOperations<NUM_WORDS> + Copy, const NUM_WORDS: usize> AffinePoint<C
         let mut res: Option<Self> = None;
         let mut temp = *self;
 
-        for &words in scalar.iter() {
+        for &words in scalar {
             for i in 0..32 {
                 if (words >> i) & 1 == 1 {
                     match res.as_mut() {
@@ -68,6 +71,7 @@ impl<C: CurveOperations<NUM_WORDS> + Copy, const NUM_WORDS: usize> AffinePoint<C
         *self = res.unwrap();
     }
 
+    #[must_use]
     pub fn from_le_bytes(limbs: [u8; NUM_WORDS * 4]) -> Self {
         let u32_limbs = bytes_to_words_le::<{ NUM_WORDS }>(&limbs);
         Self {
@@ -76,12 +80,14 @@ impl<C: CurveOperations<NUM_WORDS> + Copy, const NUM_WORDS: usize> AffinePoint<C
         }
     }
 
+    #[must_use]
     pub fn to_le_bytes(&self) -> [u8; NUM_WORDS * 4] {
         words_to_bytes_le::<{ NUM_WORDS * 4 }>(&self.limbs)
     }
 }
 
 /// Converts a slice of words to a byte array in little endian.
+#[must_use]
 pub fn words_to_bytes_le<const B: usize>(words: &[u32]) -> [u8; B] {
     debug_assert_eq!(words.len() * 4, B);
     words
@@ -93,6 +99,7 @@ pub fn words_to_bytes_le<const B: usize>(words: &[u32]) -> [u8; B] {
 }
 
 /// Converts a byte array in little endian to a slice of words.
+#[must_use]
 pub fn bytes_to_words_le<const W: usize>(bytes: &[u8]) -> [u32; W] {
     debug_assert_eq!(bytes.len(), W * 4);
     bytes

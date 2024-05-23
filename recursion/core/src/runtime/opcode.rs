@@ -53,6 +53,7 @@ pub enum Opcode {
 }
 
 impl Opcode {
+    #[must_use]
     pub fn as_field<F: AbstractField>(&self) -> F {
         F::from_canonical_u32(*self as u32)
     }

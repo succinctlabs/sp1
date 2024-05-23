@@ -221,7 +221,7 @@ impl SP1Prover {
         let program = Program::from(elf);
         let mut runtime = Runtime::new(program);
         runtime.write_vecs(&stdin.buffer);
-        for (proof, vkey) in stdin.proofs.iter() {
+        for (proof, vkey) in &stdin.proofs {
             runtime.write_proof(proof.clone(), vkey.clone());
         }
         runtime.run_untraced()?;
@@ -247,6 +247,7 @@ impl SP1Prover {
         })
     }
 
+    #[must_use]
     pub fn get_recursion_core_inputs<'a>(
         &'a self,
         vk: &'a StarkVerifyingKey<CoreSC>,
@@ -272,7 +273,7 @@ impl SP1Prover {
                 is_complete,
             });
 
-            for proof in batch.iter() {
+            for proof in batch {
                 reconstruct_challenger.observe(proof.commitment.main_commit);
                 reconstruct_challenger
                     .observe_slice(&proof.public_values[0..self.core_machine.num_pv_elts()]);
@@ -295,6 +296,7 @@ impl SP1Prover {
         core_inputs
     }
 
+    #[must_use]
     pub fn get_recursion_deferred_inputs<'a>(
         &'a self,
         vk: &'a StarkVerifyingKey<CoreSC>,
@@ -332,6 +334,7 @@ impl SP1Prover {
 
     /// Generate the inputs for the first layer of recursive proofs.
     #[allow(clippy::type_complexity)]
+    #[must_use]
     pub fn get_first_layer_inputs<'a>(
         &'a self,
         vk: &'a SP1VerifyingKey,
@@ -378,10 +381,10 @@ impl SP1Prover {
         // Get the leaf challenger.
         let mut leaf_challenger = self.core_machine.config().challenger();
         vk.vk.observe_into(&mut leaf_challenger);
-        shard_proofs.iter().for_each(|proof| {
+        for proof in shard_proofs {
             leaf_challenger.observe(proof.commitment.main_commit);
             leaf_challenger.observe_slice(&proof.public_values[0..self.core_machine.num_pv_elts()]);
-        });
+        }
 
         // Setup the reconstruct commitments flags to false and save its state.
         let rc = env::var(RECONSTRUCT_COMMITMENTS_ENV_VAR).unwrap_or_default();
@@ -623,11 +626,11 @@ impl SP1Prover {
             .wrap_machine
             .verify(&self.wrap_vk, &wrap_proof, &mut wrap_challenger);
         match result {
-            Ok(_) => tracing::info!("Proof verified successfully"),
+            Ok(()) => tracing::info!("Proof verified successfully"),
             Err(MachineVerificationError::NonZeroCumulativeSum) => {
-                tracing::info!("Proof verification failed: NonZeroCumulativeSum")
+                tracing::info!("Proof verification failed: NonZeroCumulativeSum");
             }
-            e => panic!("Proof verification failed: {:?}", e),
+            e => panic!("Proof verification failed: {e:?}"),
         }
         tracing::info!("Wrapping successful");
 
@@ -664,6 +667,7 @@ impl SP1Prover {
         proof
     }
 
+    #[must_use]
     pub fn wrap_plonk(&self, proof: ShardProof<OuterSC>, build_dir: PathBuf) -> PlonkBn254Proof {
         let mut witness = Witness::default();
         proof.write(&mut witness);
@@ -672,12 +676,13 @@ impl SP1Prover {
     }
 
     /// Accumulate deferred proofs into a single digest.
+    #[must_use]
     pub fn hash_deferred_proofs(
         prev_digest: [Val<CoreSC>; DIGEST_SIZE],
         deferred_proofs: &[ShardProof<InnerSC>],
     ) -> [Val<CoreSC>; 8] {
         let mut digest = prev_digest;
-        for proof in deferred_proofs.iter() {
+        for proof in deferred_proofs {
             let pv: &RecursionPublicValues<Val<CoreSC>> = proof.public_values.as_slice().borrow();
             let committed_values_digest = words_to_bytes(&pv.committed_value_digest);
             digest = hash_deferred_proof(
@@ -700,7 +705,7 @@ mod tests {
     use super::*;
 
     use anyhow::Result;
-    use p3_field::PrimeField32;
+
     use serial_test::serial;
     use sp1_core::io::SP1Stdin;
     use sp1_core::utils::setup_logger;
@@ -773,7 +778,7 @@ mod tests {
         let artifacts_dir =
             try_build_groth16_artifacts_dev(&prover.wrap_vk, &wrapped_bn254_proof.proof);
         let groth16_proof = prover.wrap_groth16(wrapped_bn254_proof, &artifacts_dir);
-        println!("{:?}", groth16_proof);
+        println!("{groth16_proof:?}");
 
         prover.verify_groth16(&groth16_proof, &vk, &public_values, &artifacts_dir)?;
 
@@ -832,7 +837,7 @@ mod tests {
         let vkey_digest = keccak_vk.hash_babybear();
         let vkey_digest: [u32; 8] = vkey_digest
             .iter()
-            .map(|n| n.as_canonical_u32())
+            .map(p3_field::PrimeField32::as_canonical_u32)
             .collect::<Vec<_>>()
             .try_into()
             .unwrap();

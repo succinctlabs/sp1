@@ -19,11 +19,11 @@ impl<F: Field> CpuChip<F> {
 
         // Convert operand values from Block<Var> to BinomialExtension<Expr>.
         let a_ext: BinomialExtension<AB::Expr> =
-            BinomialExtensionUtils::from_block(local.a.value().map(|x| x.into()));
+            BinomialExtensionUtils::from_block(local.a.value().map(std::convert::Into::into));
         let b_ext: BinomialExtension<AB::Expr> =
-            BinomialExtensionUtils::from_block(local.b.value().map(|x| x.into()));
+            BinomialExtensionUtils::from_block(local.b.value().map(std::convert::Into::into));
         let c_ext: BinomialExtension<AB::Expr> =
-            BinomialExtensionUtils::from_block(local.c.value().map(|x| x.into()));
+            BinomialExtensionUtils::from_block(local.c.value().map(std::convert::Into::into));
 
         // Verify that the b and c registers are base elements for field operations.
         builder

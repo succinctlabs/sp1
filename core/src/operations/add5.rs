@@ -63,10 +63,13 @@ impl<F: Field> Add5Operation<F> {
         let base = 256;
         let mut carry = [0u8, 0u8, 0u8, 0u8, 0u8];
         for i in 0..WORD_SIZE {
-            let mut res =
-                (a[i] as u32) + (b[i] as u32) + (c[i] as u32) + (d[i] as u32) + (e[i] as u32);
+            let mut res = u32::from(a[i])
+                + u32::from(b[i])
+                + u32::from(c[i])
+                + u32::from(d[i])
+                + u32::from(e[i]);
             if i > 0 {
-                res += carry[i - 1] as u32;
+                res += u32::from(carry[i - 1]);
             }
             carry[i] = (res / base) as u8;
             self.is_carry_0[i] = F::from_bool(carry[i] == 0);

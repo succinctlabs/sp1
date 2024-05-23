@@ -46,27 +46,27 @@ pub struct SP1ProofWithPublicValues<P> {
     pub public_values: SP1PublicValues,
 }
 
-/// A [SP1ProofWithPublicValues] generated with [ProverClient::prove].
+/// A [`SP1ProofWithPublicValues`] generated with [`ProverClient::prove`].
 pub type SP1Proof = SP1ProofWithPublicValues<Vec<ShardProof<CoreSC>>>;
 pub type SP1ProofVerificationError = MachineVerificationError<CoreSC>;
 
-/// A [SP1ProofWithPublicValues] generated with [ProverClient::prove_compressed].
+/// A [`SP1ProofWithPublicValues`] generated with [`ProverClient::prove_compressed`].
 pub type SP1CompressedProof = SP1ProofWithPublicValues<ShardProof<InnerSC>>;
 pub type SP1CompressedProofVerificationError = MachineVerificationError<InnerSC>;
 
-/// A [SP1ProofWithPublicValues] generated with [ProverClient::prove_groth16].
+/// A [`SP1ProofWithPublicValues`] generated with [`ProverClient::prove_groth16`].
 pub type SP1Groth16Proof = SP1ProofWithPublicValues<Groth16Proof>;
 
-/// A [SP1ProofWithPublicValues] generated with [ProverClient::prove_plonk].
+/// A [`SP1ProofWithPublicValues`] generated with [`ProverClient::prove_plonk`].
 pub type SP1PlonkProof = SP1ProofWithPublicValues<PlonkBn254Proof>;
 
 impl ProverClient {
-    /// Creates a new [ProverClient].
+    /// Creates a new [`ProverClient`].
     ///
     /// Setting the `SP1_PROVER` enviroment variable can change the prover used under the hood.
-    /// - `local` (default): Uses [LocalProver]. Recommended for proving end-to-end locally.
-    /// - `mock`: Uses [MockProver]. Recommended for testing and development.
-    /// - `remote`: Uses [NetworkProver]. Recommended for outsourcing proof generation to an RPC.
+    /// - `local` (default): Uses [`LocalProver`]. Recommended for proving end-to-end locally.
+    /// - `mock`: Uses [`MockProver`]. Recommended for testing and development.
+    /// - `remote`: Uses [`NetworkProver`]. Recommended for outsourcing proof generation to an RPC.
     ///
     /// ### Examples
     ///
@@ -76,6 +76,7 @@ impl ProverClient {
     /// std::env::set_var("SP1_PROVER", "local");
     /// let client = ProverClient::new();
     /// ```
+    #[must_use]
     pub fn new() -> Self {
         match env::var("SP1_PROVER")
             .unwrap_or("local".to_string())
@@ -97,9 +98,9 @@ impl ProverClient {
         }
     }
 
-    /// Creates a new [ProverClient] with the mock prover.
+    /// Creates a new [`ProverClient`] with the mock prover.
     ///
-    /// Recommended for testing and development. You can also use [ProverClient::new] to set the
+    /// Recommended for testing and development. You can also use [`ProverClient::new`] to set the
     /// prover to `mock` with the `SP1_PROVER` enviroment variable.
     ///
     /// ### Examples
@@ -109,15 +110,16 @@ impl ProverClient {
     ///
     /// let client = ProverClient::mock();
     /// ```
+    #[must_use]
     pub fn mock() -> Self {
         Self {
             prover: Box::new(MockProver::new()),
         }
     }
 
-    /// Creates a new [ProverClient] with the local prover.
+    /// Creates a new [`ProverClient`] with the local prover.
     ///
-    /// Recommended for proving end-to-end locally. You can also use [ProverClient::new] to set the
+    /// Recommended for proving end-to-end locally. You can also use [`ProverClient::new`] to set the
     /// prover to `local` with the `SP1_PROVER` enviroment variable.
     ///
     /// ### Examples
@@ -127,15 +129,16 @@ impl ProverClient {
     ///
     /// let client = ProverClient::local();
     /// ```
+    #[must_use]
     pub fn local() -> Self {
         Self {
             prover: Box::new(LocalProver::new()),
         }
     }
 
-    /// Creates a new [ProverClient] with the network prover.
+    /// Creates a new [`ProverClient`] with the network prover.
     ///
-    /// Recommended for outsourcing proof generation to an RPC. You can also use [ProverClient::new]
+    /// Recommended for outsourcing proof generation to an RPC. You can also use [`ProverClient::new`]
     ///
     /// ### Examples
     ///
@@ -144,6 +147,7 @@ impl ProverClient {
     ///
     /// let client = ProverClient::remote();
     /// ```
+    #[must_use]
     pub fn remote() -> Self {
         Self {
             prover: Box::new(NetworkProver::new()),
@@ -192,6 +196,7 @@ impl ProverClient {
     /// stdin.write(&10usize);
     /// let (pk, vk) = client.setup(elf);
     /// ```
+    #[must_use]
     pub fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
         self.prover.setup(elf)
     }
@@ -199,8 +204,8 @@ impl ProverClient {
     /// Proves the execution of the given program with the given input in the default mode.
     ///
     /// Returns a proof of the program's execution. By default the proof generated will not be
-    /// compressed to constant size. To create a more succinct proof, use the [Self::prove_compressed],
-    /// [Self::prove_groth16], or [Self::prove_plonk] methods.
+    /// compressed to constant size. To create a more succinct proof, use the [`Self::prove_compressed`],
+    /// [`Self::prove_groth16`], or [`Self::prove_plonk`] methods.
     ///
     /// ### Examples
     /// ```no_run
@@ -319,7 +324,7 @@ impl ProverClient {
     }
 
     /// Verifies that the given proof is valid and matches the given verification key produced by
-    /// [Self::setup].
+    /// [`Self::setup`].
     ///
     /// ### Examples
     /// ```no_run
@@ -342,7 +347,7 @@ impl ProverClient {
     }
 
     /// Verifies that the given compressed proof is valid and matches the given verification key
-    /// produced by [Self::setup].
+    /// produced by [`Self::setup`].
     ///
     /// ### Examples
     /// ```no_run
@@ -374,7 +379,7 @@ impl ProverClient {
     }
 
     /// Verifies that the given groth16 proof is valid and matches the given verification key
-    /// produced by [Self::setup].
+    /// produced by [`Self::setup`].
     ///
     /// ### Examples
     /// ```no_run
@@ -404,7 +409,7 @@ impl ProverClient {
     }
 
     /// Verifies that the given plonk proof is valid and matches the given verification key
-    /// produced by [Self::setup].
+    /// produced by [`Self::setup`].
     ///
     /// ### Examples
     /// ```no_run
@@ -455,6 +460,7 @@ impl<P: Debug + Clone + Serialize + DeserializeOwned> SP1ProofWithPublicValues<P
 }
 
 impl SP1Groth16Proof {
+    #[must_use]
     pub fn bytes(&self) -> String {
         format!("0x{}", self.proof.encoded_proof.clone())
     }

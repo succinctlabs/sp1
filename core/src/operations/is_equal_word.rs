@@ -26,7 +26,7 @@ impl<F: Field> IsEqualWordOperation<F> {
             F::from_canonical_u8(a[3]) - F::from_canonical_u8(b[3]),
         ]);
         self.is_diff_zero.populate_from_field_element(diff);
-        (a_u32 == b_u32) as u32
+        u32::from(a_u32 == b_u32)
     }
 
     pub fn eval<AB: SP1AirBuilder>(

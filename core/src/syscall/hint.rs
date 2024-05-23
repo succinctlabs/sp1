@@ -2,8 +2,9 @@ use crate::runtime::{Syscall, SyscallContext};
 
 pub struct SyscallHintLen;
 
-/// SyscallHintLen returns the length of the next slice in the hint input stream.
+/// `SyscallHintLen` returns the length of the next slice in the hint input stream.
 impl SyscallHintLen {
+    #[must_use]
     pub fn new() -> Self {
         Self
     }
@@ -11,17 +12,19 @@ impl SyscallHintLen {
 
 impl Syscall for SyscallHintLen {
     fn execute(&self, ctx: &mut SyscallContext, _arg1: u32, _arg2: u32) -> Option<u32> {
-        if ctx.rt.state.input_stream_ptr >= ctx.rt.state.input_stream.len() {
-            panic!("not enough vecs in hint input stream");
-        }
+        assert!(
+            ctx.rt.state.input_stream_ptr < ctx.rt.state.input_stream.len(),
+            "not enough vecs in hint input stream"
+        );
         Some(ctx.rt.state.input_stream[ctx.rt.state.input_stream_ptr].len() as u32)
     }
 }
 
 pub struct SyscallHintRead;
 
-/// SyscallHintRead returns the length of the next slice in the hint input stream.
+/// `SyscallHintRead` returns the length of the next slice in the hint input stream.
 impl SyscallHintRead {
+    #[must_use]
     pub fn new() -> Self {
         Self
     }
@@ -29,9 +32,10 @@ impl SyscallHintRead {
 
 impl Syscall for SyscallHintRead {
     fn execute(&self, ctx: &mut SyscallContext, ptr: u32, len: u32) -> Option<u32> {
-        if ctx.rt.state.input_stream_ptr >= ctx.rt.state.input_stream.len() {
-            panic!("not enough vecs in hint input stream");
-        }
+        assert!(
+            ctx.rt.state.input_stream_ptr < ctx.rt.state.input_stream.len(),
+            "not enough vecs in hint input stream"
+        );
         let vec = &ctx.rt.state.input_stream[ctx.rt.state.input_stream_ptr];
         ctx.rt.state.input_stream_ptr += 1;
         assert!(

@@ -312,6 +312,7 @@ impl<E: EdwardsParameters> Syscall for EdDecompressChip<E> {
 }
 
 impl<E: EdwardsParameters> EdDecompressChip<E> {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             _phantom: PhantomData,

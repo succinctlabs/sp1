@@ -33,8 +33,8 @@ pub fn verify_batch<C: Config, const D: usize>(
         .collect::<Vec<_>>();
     let felt_slice: Vec<Felt<C::F>> = ext_slice
         .iter()
-        .flat_map(|ext| ext.as_slice())
-        .cloned()
+        .flat_map(std::vec::Vec::as_slice)
+        .copied()
         .collect::<Vec<_>>();
     let mut root = builder.p2_hash(&felt_slice);
 
@@ -59,8 +59,8 @@ pub fn verify_batch<C: Config, const D: usize>(
                 .collect::<Vec<_>>();
             let felt_slice: Vec<Felt<C::F>> = ext_slice
                 .iter()
-                .flat_map(|ext| ext.as_slice())
-                .cloned()
+                .flat_map(std::vec::Vec::as_slice)
+                .copied()
                 .collect::<Vec<_>>();
             let next_height_openings_digest = builder.p2_hash(&felt_slice);
             root = builder.p2_compress([root, next_height_openings_digest]);

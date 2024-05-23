@@ -55,7 +55,7 @@
 //! elif c > 0:
 //!    assert 0 <= remainder < c
 //!
-//! if is_c_0:
+//! if `is_c_0`:
 //!    # if division by 0, then quotient = 0xffffffff per RISC-V spec. This needs special care since
 //!    # b = 0 * quotient + b is satisfied by any quotient.
 //!    assert quotient = 0xffffffff
@@ -202,7 +202,7 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
         // Generate the trace rows for each event.
         let mut rows: Vec<[F; NUM_DIVREM_COLS]> = vec![];
         let divrem_events = input.divrem_events.clone();
-        for event in divrem_events.iter() {
+        for event in &divrem_events {
             assert!(
                 event.opcode == Opcode::DIVU
                     || event.opcode == Opcode::REMU
@@ -256,14 +256,14 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                 {
                     let words = [event.b, event.c, remainder];
                     let mut blu_events: Vec<ByteLookupEvent> = vec![];
-                    for word in words.iter() {
+                    for word in &words {
                         let most_significant_byte = word.to_le_bytes()[WORD_SIZE - 1];
                         blu_events.push(ByteLookupEvent {
                             shard: event.shard,
                             opcode: ByteOpcode::MSB,
-                            a1: get_msb(*word) as u32,
+                            a1: u32::from(get_msb(*word)),
                             a2: 0,
-                            b: most_significant_byte as u32,
+                            b: u32::from(most_significant_byte),
                             c: 0,
                         });
                     }
@@ -275,18 +275,18 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
             {
                 let c_times_quotient = {
                     if is_signed_operation(event.opcode) {
-                        (((quotient as i32) as i64) * ((event.c as i32) as i64)).to_le_bytes()
+                        (i64::from(quotient as i32) * i64::from(event.c as i32)).to_le_bytes()
                     } else {
-                        ((quotient as u64) * (event.c as u64)).to_le_bytes()
+                        (u64::from(quotient) * u64::from(event.c)).to_le_bytes()
                     }
                 };
                 cols.c_times_quotient = c_times_quotient.map(F::from_canonical_u8);
 
                 let remainder_bytes = {
                     if is_signed_operation(event.opcode) {
-                        ((remainder as i32) as i64).to_le_bytes()
+                        i64::from(remainder as i32).to_le_bytes()
                     } else {
-                        (remainder as u64).to_le_bytes()
+                        u64::from(remainder).to_le_bytes()
                     }
                 };
 
@@ -294,7 +294,7 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                 let mut carry = [0u32; 8];
                 let base = 1 << BYTE_SIZE;
                 for i in 0..LONG_WORD_SIZE {
-                    let mut x = c_times_quotient[i] as u32 + remainder_bytes[i] as u32;
+                    let mut x = u32::from(c_times_quotient[i]) + u32::from(remainder_bytes[i]);
                     if i > 0 {
                         x += carry[i - 1];
                     }
@@ -310,12 +310,12 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                 {
                     let mut lower_word = 0;
                     for i in 0..WORD_SIZE {
-                        lower_word += (c_times_quotient[i] as u32) << (i * BYTE_SIZE);
+                        lower_word += u32::from(c_times_quotient[i]) << (i * BYTE_SIZE);
                     }
 
                     let mut upper_word = 0;
                     for i in 0..WORD_SIZE {
-                        upper_word += (c_times_quotient[WORD_SIZE + i] as u32) << (i * BYTE_SIZE);
+                        upper_word += u32::from(c_times_quotient[WORD_SIZE + i]) << (i * BYTE_SIZE);
                     }
 
                     let lower_multiplication = AluEvent {
@@ -443,7 +443,7 @@ where
                 (local.c_msb, local.c_neg),
             ];
 
-            for msb_sign_pair in msb_sign_pairs.iter() {
+            for msb_sign_pair in &msb_sign_pairs {
                 let msb = msb_sign_pair.0;
                 let is_negative = msb_sign_pair.1;
                 builder.assert_eq(msb * is_signed_type.clone(), is_negative);
@@ -498,7 +498,7 @@ where
         {
             IsEqualWordOperation::<AB::F>::eval(
                 builder,
-                local.b.map(|x| x.into()),
+                local.b.map(std::convert::Into::into),
                 Word::from(i32::MIN as u32).map(|x: AB::F| x.into()),
                 local.is_overflow_b,
                 local.is_real.into(),
@@ -506,7 +506,7 @@ where
 
             IsEqualWordOperation::<AB::F>::eval(
                 builder,
-                local.c.map(|x| x.into()),
+                local.c.map(std::convert::Into::into),
                 Word::from(-1i32 as u32).map(|x: AB::F| x.into()),
                 local.is_overflow_c,
                 local.is_real.into(),
@@ -618,7 +618,7 @@ where
             // Calculate whether c is 0.
             IsZeroWordOperation::<AB::F>::eval(
                 builder,
-                local.c.map(|x| x.into()),
+                local.c.map(std::convert::Into::into),
                 local.is_c_0,
                 local.is_real.into(),
             );
@@ -694,7 +694,7 @@ where
                 (local.rem_msb, local.remainder[WORD_SIZE - 1]),
             ];
             let opcode = AB::F::from_canonical_u32(ByteOpcode::MSB as u32);
-            for msb_pair in msb_pairs.iter() {
+            for msb_pair in &msb_pairs {
                 let msb = msb_pair.0;
                 let byte = msb_pair.1;
                 builder.send_byte(opcode, msb, byte, zero.clone(), local.shard, local.is_real);
@@ -730,7 +730,7 @@ where
                 local.is_real,
             ];
 
-            for flag in bool_flags.iter() {
+            for flag in &bool_flags {
                 builder.assert_bool(*flag);
             }
         }
@@ -793,7 +793,7 @@ mod tests {
         let chip = DivRemChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
-        println!("{:?}", trace.values)
+        println!("{:?}", trace.values);
     }
 
     fn neg(a: u32) -> u32 {
@@ -809,7 +809,7 @@ mod tests {
 
         let divrems: Vec<(Opcode, u32, u32, u32)> = vec![
             (Opcode::DIVU, 3, 20, 6),
-            (Opcode::DIVU, 715827879, neg(20), 6),
+            (Opcode::DIVU, 715_827_879, neg(20), 6),
             (Opcode::DIVU, 0, 20, neg(6)),
             (Opcode::DIVU, 0, neg(20), neg(6)),
             (Opcode::DIVU, 1 << 31, 1 << 31, 1),
@@ -833,7 +833,7 @@ mod tests {
             (Opcode::REM, 5, 5, 0),
             (Opcode::REM, neg(5), neg(5), 0),
             (Opcode::REM, 0, 0, 0),
-            (Opcode::REM, 0, 0x80000001, neg(1)),
+            (Opcode::REM, 0, 0x8000_0001, neg(1)),
             (Opcode::DIV, 3, 18, 6),
             (Opcode::DIV, neg(6), neg(24), 4),
             (Opcode::DIV, neg(2), 16, neg(8)),
@@ -841,7 +841,7 @@ mod tests {
             (Opcode::DIV, 1 << 31, 1 << 31, neg(1)),
             (Opcode::REM, 0, 1 << 31, neg(1)),
         ];
-        for t in divrems.iter() {
+        for t in &divrems {
             divrem_events.push(AluEvent::new(0, 0, t.0, t.1, t.2, t.3));
         }
 

@@ -29,6 +29,7 @@ pub struct KeccakPermuteChip {
 }
 
 impl KeccakPermuteChip {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             p3_keccak: KeccakAir {},
@@ -45,6 +46,7 @@ pub mod permute_tests {
         utils::{self, tests::KECCAK_PERMUTE_ELF},
     };
 
+    #[must_use]
     pub fn keccak_permute_program() -> Program {
         let digest_ptr = 100;
         let mut instructions = vec![Instruction::new(Opcode::ADD, 29, 0, 1, false, true)];

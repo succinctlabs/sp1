@@ -9,6 +9,7 @@ pub struct Buffer {
 }
 
 impl Buffer {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             data: Vec::new(),
@@ -16,6 +17,7 @@ impl Buffer {
         }
     }
 
+    #[must_use]
     pub fn from(data: &[u8]) -> Self {
         Self {
             data: data.to_vec(),

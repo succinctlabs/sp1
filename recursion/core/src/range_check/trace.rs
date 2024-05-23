@@ -46,7 +46,7 @@ impl<F: PrimeField32> MachineAir<F> for RangeCheckChip<F> {
             NUM_RANGE_CHECK_MULT_COLS,
         );
 
-        for (lookup, mult) in input.range_check_events.iter() {
+        for (lookup, mult) in &input.range_check_events {
             let (row, index) = event_map[lookup];
             let cols: &mut RangeCheckMultCols<F> = trace.row_mut(row).borrow_mut();
 

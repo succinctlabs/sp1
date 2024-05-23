@@ -282,7 +282,7 @@ pub fn verify_batch<C: Config, const D: usize>(
                     &next_height_openings_digest,
                 );
             });
-        })
+        });
     });
 
     // Assert that the commitments match.

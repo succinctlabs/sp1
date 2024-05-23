@@ -4,31 +4,31 @@
 //!
 //! The shift amount c is decomposed into two components:
 //!
-//! - num_bits_to_shift = c % 8: Represents the fine-grained bit-level shift.
-//! - num_bytes_to_shift = c // 8: Represents the coarser byte-level shift.
+//! - `num_bits_to_shift` = c % 8: Represents the fine-grained bit-level shift.
+//! - `num_bytes_to_shift` = c // 8: Represents the coarser byte-level shift.
 //!
-//! Bit shifting is done by multiplying b by 2^num_bits_to_shift. Byte shifting is done by shifting
+//! Bit shifting is done by multiplying b by `2^num_bits_to_shift`. Byte shifting is done by shifting
 //! words. The logic looks as follows:
 //!
 //! c = take the least significant 5 bits of c
-//! num_bytes_to_shift = c // 8
-//! num_bits_to_shift = c % 8
+//! `num_bytes_to_shift` = c // 8
+//! `num_bits_to_shift` = c % 8
 //!
 //! # "Bit shift"
-//! bit_shift_multiplier = pow(2, num_bits_to_shift)
-//! bit_shift_result = bit_shift_multiplier * b
+//! `bit_shift_multiplier` = pow(2, `num_bits_to_shift`)
+//! `bit_shift_result` = `bit_shift_multiplier` * b
 //!
 //! # "Byte shift"
-//! for i in range(WORD_SIZE):
-//!     if i < num_bytes_to_shift:
+//! for i in `range(WORD_SIZE)`:
+//!     if i < `num_bytes_to_shift`:
 //!         assert(a[i] == 0)
 //!     else:
-//!         assert(a[i] == bit_shift_result[i - num_bytes_to_shift])
+//!         assert(a[i] == `bit_shift_result`[i - `num_bytes_to_shift`])
 //!
 //! Notes:
 //!
 //! - Ideally, we would calculate b * pow(2, c), but pow(2, c) could overflow in F.
-//! - Shifting by a multiple of 8 bits is easy (=num_bytes_to_shift) since we just shift words.
+//! - Shifting by a multiple of 8 bits is easy (=`num_bytes_to_shift`) since we just shift words.
 
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
@@ -111,7 +111,7 @@ impl<F: PrimeField> MachineAir<F> for ShiftLeft {
         // Generate the trace rows for each event.
         let mut rows: Vec<[F; NUM_SHIFT_LEFT_COLS]> = vec![];
         let shift_left_events = input.shift_left_events.clone();
-        for event in shift_left_events.iter() {
+        for event in &shift_left_events {
             let mut row = [F::zero(); NUM_SHIFT_LEFT_COLS];
             let cols: &mut ShiftLeftCols<F> = row.as_mut_slice().borrow_mut();
             let a = event.a.to_le_bytes();
@@ -140,7 +140,7 @@ impl<F: PrimeField> MachineAir<F> for ShiftLeft {
             let mut bit_shift_result = [0u8; WORD_SIZE];
             let mut bit_shift_result_carry = [0u8; WORD_SIZE];
             for i in 0..WORD_SIZE {
-                let v = b[i] as u32 * bit_shift_multiplier + carry;
+                let v = u32::from(b[i]) * bit_shift_multiplier + carry;
                 carry = v / base;
                 bit_shift_result[i] = (v % base) as u8;
                 bit_shift_result_carry[i] = carry as u8;
@@ -297,11 +297,11 @@ where
         }
 
         // Step 3: Misc checks such as range checks & bool checks.
-        for bit in local.c_least_sig_byte.iter() {
+        for bit in &local.c_least_sig_byte {
             builder.assert_bool(*bit);
         }
 
-        for shift in local.shift_by_n_bits.iter() {
+        for shift in &local.shift_by_n_bits {
             builder.assert_bool(*shift);
         }
         builder.assert_eq(
@@ -318,7 +318,7 @@ where
             builder.slice_range_check_u8(&local.bit_shift_result_carry, local.shard, local.is_real);
         }
 
-        for shift in local.shift_by_n_bytes.iter() {
+        for shift in &local.shift_by_n_bytes {
             builder.assert_bool(*shift);
         }
 
@@ -370,7 +370,7 @@ mod tests {
         let chip = ShiftLeft::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
-        println!("{:?}", trace.values)
+        println!("{:?}", trace.values);
     }
 
     #[test]
@@ -380,27 +380,27 @@ mod tests {
 
         let mut shift_events: Vec<AluEvent> = Vec::new();
         let shift_instructions: Vec<(Opcode, u32, u32, u32)> = vec![
-            (Opcode::SLL, 0x00000002, 0x00000001, 1),
-            (Opcode::SLL, 0x00000080, 0x00000001, 7),
-            (Opcode::SLL, 0x00004000, 0x00000001, 14),
-            (Opcode::SLL, 0x80000000, 0x00000001, 31),
-            (Opcode::SLL, 0xffffffff, 0xffffffff, 0),
-            (Opcode::SLL, 0xfffffffe, 0xffffffff, 1),
-            (Opcode::SLL, 0xffffff80, 0xffffffff, 7),
-            (Opcode::SLL, 0xffffc000, 0xffffffff, 14),
-            (Opcode::SLL, 0x80000000, 0xffffffff, 31),
-            (Opcode::SLL, 0x21212121, 0x21212121, 0),
-            (Opcode::SLL, 0x42424242, 0x21212121, 1),
-            (Opcode::SLL, 0x90909080, 0x21212121, 7),
-            (Opcode::SLL, 0x48484000, 0x21212121, 14),
-            (Opcode::SLL, 0x80000000, 0x21212121, 31),
-            (Opcode::SLL, 0x21212121, 0x21212121, 0xffffffe0),
-            (Opcode::SLL, 0x42424242, 0x21212121, 0xffffffe1),
-            (Opcode::SLL, 0x90909080, 0x21212121, 0xffffffe7),
-            (Opcode::SLL, 0x48484000, 0x21212121, 0xffffffee),
-            (Opcode::SLL, 0x00000000, 0x21212120, 0xffffffff),
+            (Opcode::SLL, 0x0000_0002, 0x0000_0001, 1),
+            (Opcode::SLL, 0x0000_0080, 0x0000_0001, 7),
+            (Opcode::SLL, 0x0000_4000, 0x0000_0001, 14),
+            (Opcode::SLL, 0x8000_0000, 0x0000_0001, 31),
+            (Opcode::SLL, 0xffff_ffff, 0xffff_ffff, 0),
+            (Opcode::SLL, 0xffff_fffe, 0xffff_ffff, 1),
+            (Opcode::SLL, 0xffff_ff80, 0xffff_ffff, 7),
+            (Opcode::SLL, 0xffff_c000, 0xffff_ffff, 14),
+            (Opcode::SLL, 0x8000_0000, 0xffff_ffff, 31),
+            (Opcode::SLL, 0x2121_2121, 0x2121_2121, 0),
+            (Opcode::SLL, 0x4242_4242, 0x2121_2121, 1),
+            (Opcode::SLL, 0x9090_9080, 0x2121_2121, 7),
+            (Opcode::SLL, 0x4848_4000, 0x2121_2121, 14),
+            (Opcode::SLL, 0x8000_0000, 0x2121_2121, 31),
+            (Opcode::SLL, 0x2121_2121, 0x2121_2121, 0xffff_ffe0),
+            (Opcode::SLL, 0x4242_4242, 0x2121_2121, 0xffff_ffe1),
+            (Opcode::SLL, 0x9090_9080, 0x2121_2121, 0xffff_ffe7),
+            (Opcode::SLL, 0x4848_4000, 0x2121_2121, 0xffff_ffee),
+            (Opcode::SLL, 0x0000_0000, 0x2121_2120, 0xffff_ffff),
         ];
-        for t in shift_instructions.iter() {
+        for t in &shift_instructions {
             shift_events.push(AluEvent::new(0, 0, t.0, t.1, t.2, t.3));
         }
 

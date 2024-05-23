@@ -30,6 +30,7 @@ pub struct Elf {
 
 impl Elf {
     /// Create a new ELF file.
+    #[must_use]
     pub fn new(
         instructions: Vec<u32>,
         pc_start: u32,
@@ -47,6 +48,7 @@ impl Elf {
     /// Parse the ELF file into a vector of 32-bit encoded instructions and the first memory address.
     ///
     /// Reference: https://en.wikipedia.org/wiki/Executable_and_Linkable_Format
+    #[must_use]
     pub fn decode(input: &[u8]) -> Self {
         let mut image: BTreeMap<u32, u32> = BTreeMap::new();
         // Parse the ELF file assuming that it is little-endian..
@@ -69,15 +71,14 @@ impl Elf {
             .expect("e_entry was larger than 32 bits");
 
         // Make sure the entrypoint is valid.
-        if entry == MAXIMUM_MEMORY_SIZE || entry % WORD_SIZE as u32 != 0 {
-            panic!("invalid entrypoint");
-        }
+        assert!(
+            !(entry == MAXIMUM_MEMORY_SIZE || entry % WORD_SIZE as u32 != 0),
+            "invalid entrypoint"
+        );
 
         // Get the segments of the ELF file.
         let segments = elf.segments().expect("failed to get segments");
-        if segments.len() > 256 {
-            panic!("too many program headers");
-        }
+        assert!(segments.len() <= 256, "too many program headers");
 
         let mut instructions: Vec<u32> = Vec::new();
         let mut base_address = u32::MAX;
@@ -89,27 +90,27 @@ impl Elf {
                 .p_filesz
                 .try_into()
                 .expect("filesize was larger than 32 bits");
-            if file_size == MAXIMUM_MEMORY_SIZE {
-                panic!("invalid segment file_size");
-            }
+            assert!(
+                file_size != MAXIMUM_MEMORY_SIZE,
+                "invalid segment file_size"
+            );
 
             // Get the memory size of the segment as an u32.
             let mem_size: u32 = segment
                 .p_memsz
                 .try_into()
                 .expect("mem_size was larger than 32 bits");
-            if mem_size == MAXIMUM_MEMORY_SIZE {
-                panic!("Invalid segment mem_size");
-            }
+            assert!(mem_size != MAXIMUM_MEMORY_SIZE, "Invalid segment mem_size");
 
             // Get the virtual address of the segment as an u32.
             let vaddr: u32 = segment
                 .p_vaddr
                 .try_into()
                 .expect("vaddr was larger than 32 bits");
-            if vaddr % WORD_SIZE as u32 != 0 {
-                panic!("vaddr {vaddr:08x} is unaligned");
-            }
+            assert!(
+                vaddr % WORD_SIZE as u32 == 0,
+                "vaddr {vaddr:08x} is unaligned"
+            );
 
             // If the virtual address is less than the first memory address, then update the first
             // memory address.
@@ -126,9 +127,7 @@ impl Elf {
             // Read the segment and decode each word as an instruction.
             for i in (0..mem_size).step_by(WORD_SIZE) {
                 let addr = vaddr.checked_add(i).expect("invalid segment vaddr");
-                if addr == MAXIMUM_MEMORY_SIZE {
-                    panic!("address [0x{addr:08x}] exceeds maximum address for guest programs [0x{MAXIMUM_MEMORY_SIZE:08x}]");
-                }
+                assert!(addr != MAXIMUM_MEMORY_SIZE, "address [0x{addr:08x}] exceeds maximum address for guest programs [0x{MAXIMUM_MEMORY_SIZE:08x}]");
 
                 // If we are reading past the end of the file, then break.
                 if i >= file_size {
@@ -142,7 +141,7 @@ impl Elf {
                 for j in 0..len {
                     let offset = (offset + i + j) as usize;
                     let byte = input.get(offset).expect("invalid segment offset");
-                    word |= (*byte as u32) << (j * 8);
+                    word |= u32::from(*byte) << (j * 8);
                 }
                 image.insert(addr, word);
                 if (segment.p_flags & PF_X) != 0 {

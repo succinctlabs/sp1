@@ -11,6 +11,6 @@ pub struct JumpCols<T> {
     /// The current program counter.
     pub pc: Word<T>,
 
-    /// THe next program counter.
+    /// `THe` next program counter.
     pub next_pc: Word<T>,
 }

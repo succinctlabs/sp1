@@ -41,7 +41,7 @@ impl<C: Config> MultiField32ChallengerVariable<C> {
         builder.p2_permute_mut(self.sponge_state);
 
         self.output_buffer.clear();
-        for &pf_val in self.sponge_state.iter() {
+        for &pf_val in &self.sponge_state {
             let f_vals = split_32(builder, pf_val, self.num_f_elms);
             for f_val in f_vals {
                 self.output_buffer.push(f_val);
@@ -67,9 +67,9 @@ impl<C: Config> MultiField32ChallengerVariable<C> {
                 });
             }
             Array::Fixed(values) => {
-                values.iter().for_each(|value| {
+                for value in &values {
                     self.observe(builder, *value);
-                });
+                }
             }
         }
     }
@@ -121,7 +121,7 @@ impl<C: Config> MultiField32ChallengerVariable<C> {
 pub fn reduce_32<C: Config>(builder: &mut Builder<C>, vals: &[Felt<C::F>]) -> Var<C::N> {
     let mut power = C::N::one();
     let result: Var<C::N> = builder.eval(C::N::zero());
-    for val in vals.iter() {
+    for val in vals {
         let bits = builder.num2bits_f_circuit(*val);
         let val = builder.bits2num_v_circuit(&bits);
         builder.assign(result, result + val * power);
@@ -172,7 +172,7 @@ mod tests {
     #[test]
     fn test_num2bits_v() {
         let mut builder = Builder::<OuterConfig>::default();
-        let mut value_u32 = 1345237507;
+        let mut value_u32 = 1_345_237_507;
         let value = builder.eval(Bn254Fr::from_canonical_u32(value_u32));
         let result = builder.num2bits_v_circuit(value, 32);
         for i in 0..result.len() {
@@ -187,8 +187,8 @@ mod tests {
 
     #[test]
     fn test_reduce_32() {
-        let value_1 = BabyBear::from_canonical_u32(1345237507);
-        let value_2 = BabyBear::from_canonical_u32(1000001);
+        let value_1 = BabyBear::from_canonical_u32(1_345_237_507);
+        let value_2 = BabyBear::from_canonical_u32(1_000_001);
         let gt: Bn254Fr = reduce_32_gt(&[value_1, value_2]);
 
         let mut builder = Builder::<OuterConfig>::default();
@@ -204,7 +204,7 @@ mod tests {
 
     #[test]
     fn test_split_32() {
-        let value = Bn254Fr::from_canonical_u32(1345237507);
+        let value = Bn254Fr::from_canonical_u32(1_345_237_507);
         let gt: Vec<BabyBear> = split_32_gt(value, 3);
 
         let mut builder = Builder::<OuterConfig>::default();

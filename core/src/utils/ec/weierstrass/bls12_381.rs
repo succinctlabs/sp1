@@ -109,6 +109,7 @@ impl WeierstrassParameters for Bls12381Parameters {
     }
 }
 
+#[must_use]
 pub fn bls12381_decompress<E: EllipticCurve>(bytes_be: &[u8], is_odd: u32) -> AffinePoint<E> {
     let mut g1_bytes_be: [u8; 48] = bytes_be.try_into().unwrap();
     let mut flags = COMPRESION_FLAG;
@@ -128,6 +129,7 @@ pub fn bls12381_decompress<E: EllipticCurve>(bytes_be: &[u8], is_odd: u32) -> Af
     AffinePoint::new(x, y)
 }
 
+#[must_use]
 pub fn bls12381_sqrt(a: &BigUint) -> BigUint {
     let a_big = Big::from_bytes(a.to_bytes_be().as_slice());
 

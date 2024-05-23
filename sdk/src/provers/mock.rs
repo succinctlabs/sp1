@@ -9,13 +9,14 @@ use sp1_prover::{
     verify::verify_groth16_public_inputs, Groth16Proof, HashableKey, SP1Prover, SP1Stdin,
 };
 
-/// An implementation of [crate::ProverClient] that can generate mock proofs.
+/// An implementation of [`crate::ProverClient`] that can generate mock proofs.
 pub struct MockProver {
     pub(crate) prover: SP1Prover,
 }
 
 impl MockProver {
-    /// Creates a new [MockProver].
+    /// Creates a new [`MockProver`].
+    #[must_use]
     pub fn new() -> Self {
         let prover = SP1Prover::new();
         Self { prover }
@@ -60,8 +61,8 @@ impl Prover for MockProver {
                     pk.vk.hash_bn254().as_canonical_biguint().to_string(),
                     public_values.hash().to_string(),
                 ],
-                encoded_proof: "".to_string(),
-                raw_proof: "".to_string(),
+                encoded_proof: String::new(),
+                raw_proof: String::new(),
             },
             stdin,
             public_values,

@@ -28,6 +28,7 @@ impl SP1CoreProofData {
 }
 
 /// Get the number of cycles for a given program.
+#[must_use]
 pub fn get_cycles(elf: &[u8], stdin: &SP1Stdin) -> u64 {
     let program = Program::from(elf);
     let mut runtime = Runtime::new(program);
@@ -47,11 +48,12 @@ pub fn words_to_bytes<T: Copy>(words: &[Word<T>]) -> Vec<T> {
     return words.iter().flat_map(|word| word.0).collect();
 }
 
-/// Convert 8 BabyBear words into a Bn254Fr field element by shifting by 31 bits each time. The last
+/// Convert 8 `BabyBear` words into a `Bn254Fr` field element by shifting by 31 bits each time. The last
 /// word becomes the least significant bits.
+#[must_use]
 pub fn babybears_to_bn254(digest: &[BabyBear; 8]) -> Bn254Fr {
     let mut result = Bn254Fr::zero();
-    for word in digest.iter() {
+    for word in digest {
         // Since BabyBear prime is less than 2^31, we can shift by 31 bits each time and still be
         // within the Bn254Fr field, so we don't have to truncate the top 3 bits.
         result *= Bn254Fr::from_canonical_u64(1 << 31);
@@ -60,8 +62,9 @@ pub fn babybears_to_bn254(digest: &[BabyBear; 8]) -> Bn254Fr {
     result
 }
 
-/// Convert 32 BabyBear bytes into a Bn254Fr field element. The first byte's most significant 3 bits
+/// Convert 32 `BabyBear` bytes into a `Bn254Fr` field element. The first byte's most significant 3 bits
 /// (which would become the 3 most significant bits) are truncated.
+#[must_use]
 pub fn babybear_bytes_to_bn254(bytes: &[BabyBear; 32]) -> Bn254Fr {
     let mut result = Bn254Fr::zero();
     for (i, byte) in bytes.iter().enumerate() {
@@ -78,6 +81,7 @@ pub fn babybear_bytes_to_bn254(bytes: &[BabyBear; 32]) -> Bn254Fr {
 }
 
 /// Utility method for converting u32 words to bytes in big endian.
+#[must_use]
 pub fn words_to_bytes_be(words: &[u32; 8]) -> [u8; 32] {
     let mut bytes = [0u8; 32];
     for i in 0..8 {

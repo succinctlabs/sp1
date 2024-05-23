@@ -4,8 +4,8 @@
 //! calculate the un-carried product and propagate the carry. Finally, we check that the appropriate
 //! bits of the product match the result.
 //!
-//! b_64 = sign_extend(b) if signed operation else b
-//! c_64 = sign_extend(c) if signed operation else c
+//! `b_64` = `sign_extend(b`) if signed operation else b
+//! `c_64` = `sign_extend(c`) if signed operation else c
 //!
 //! m = []
 //! # 64-bit integers have 8 limbs.
@@ -13,7 +13,7 @@
 //! for i in 0..8:
 //!     for j in 0..8:
 //!         if i + j < 8:
-//!             m[i + j] += b_64[i] * c_64[j]
+//!             m[i + j] += `b_64`[i] * `c_64`[j]
 //!
 //! # Propagate carry
 //! for i in 0..8:
@@ -23,10 +23,10 @@
 //!     carry[i] = x / 256
 //!     m[i] = x % 256
 //!
-//! if upper_half:
-//!     assert_eq(a, m[4..8])
-//! if lower_half:
-//!     assert_eq(a, m[0..4])
+//! if `upper_half`:
+//!     `assert_eq(a`, m[4..8])
+//! if `lower_half`:
+//!     `assert_eq(a`, m[0..4])
 
 mod utils;
 
@@ -192,9 +192,9 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
                                     blu_events.push(ByteLookupEvent {
                                         shard: event.shard,
                                         opcode: ByteOpcode::MSB,
-                                        a1: get_msb(*word) as u32,
+                                        a1: u32::from(get_msb(*word)),
                                         a2: 0,
-                                        b: most_significant_byte as u32,
+                                        b: u32::from(most_significant_byte),
                                         c: 0,
                                     });
                                 }
@@ -206,7 +206,7 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
                         for i in 0..b.len() {
                             for j in 0..c.len() {
                                 if i + j < PRODUCT_SIZE {
-                                    product[i + j] += (b[i] as u32) * (c[j] as u32);
+                                    product[i + j] += u32::from(b[i]) * u32::from(c[j]);
                                 }
                             }
                         }
@@ -296,7 +296,7 @@ where
                 (local.c_msb, local.c[WORD_SIZE - 1]),
             ];
             let opcode = AB::F::from_canonical_u32(ByteOpcode::MSB as u32);
-            for msb_pair in msb_pairs.iter() {
+            for msb_pair in &msb_pairs {
                 let msb = msb_pair.0;
                 let byte = msb_pair.1;
                 builder.send_byte(opcode, msb, byte, zero.clone(), local.shard, local.is_real);
@@ -382,7 +382,7 @@ where
                 local.is_mulhsu,
                 local.is_real,
             ];
-            for boolean in booleans.iter() {
+            for boolean in &booleans {
                 builder.assert_bool(*boolean);
             }
         }
@@ -472,9 +472,9 @@ mod tests {
                 0,
                 0,
                 Opcode::MULHSU,
-                0x80004000,
-                0x80000000,
-                0xffff8000,
+                0x8000_4000,
+                0x8000_0000,
+                0xffff_8000,
             ));
         }
         shard.mul_events = mul_events;
@@ -492,58 +492,58 @@ mod tests {
         let mut mul_events: Vec<AluEvent> = Vec::new();
 
         let mul_instructions: Vec<(Opcode, u32, u32, u32)> = vec![
-            (Opcode::MUL, 0x00001200, 0x00007e00, 0xb6db6db7),
-            (Opcode::MUL, 0x00001240, 0x00007fc0, 0xb6db6db7),
-            (Opcode::MUL, 0x00000000, 0x00000000, 0x00000000),
-            (Opcode::MUL, 0x00000001, 0x00000001, 0x00000001),
-            (Opcode::MUL, 0x00000015, 0x00000003, 0x00000007),
-            (Opcode::MUL, 0x00000000, 0x00000000, 0xffff8000),
-            (Opcode::MUL, 0x00000000, 0x80000000, 0x00000000),
-            (Opcode::MUL, 0x00000000, 0x80000000, 0xffff8000),
-            (Opcode::MUL, 0x0000ff7f, 0xaaaaaaab, 0x0002fe7d),
-            (Opcode::MUL, 0x0000ff7f, 0x0002fe7d, 0xaaaaaaab),
-            (Opcode::MUL, 0x00000000, 0xff000000, 0xff000000),
-            (Opcode::MUL, 0x00000001, 0xffffffff, 0xffffffff),
-            (Opcode::MUL, 0xffffffff, 0xffffffff, 0x00000001),
-            (Opcode::MUL, 0xffffffff, 0x00000001, 0xffffffff),
-            (Opcode::MULHU, 0x00000000, 0x00000000, 0x00000000),
-            (Opcode::MULHU, 0x00000000, 0x00000001, 0x00000001),
-            (Opcode::MULHU, 0x00000000, 0x00000003, 0x00000007),
-            (Opcode::MULHU, 0x00000000, 0x00000000, 0xffff8000),
-            (Opcode::MULHU, 0x00000000, 0x80000000, 0x00000000),
-            (Opcode::MULHU, 0x7fffc000, 0x80000000, 0xffff8000),
-            (Opcode::MULHU, 0x0001fefe, 0xaaaaaaab, 0x0002fe7d),
-            (Opcode::MULHU, 0x0001fefe, 0x0002fe7d, 0xaaaaaaab),
-            (Opcode::MULHU, 0xfe010000, 0xff000000, 0xff000000),
-            (Opcode::MULHU, 0xfffffffe, 0xffffffff, 0xffffffff),
-            (Opcode::MULHU, 0x00000000, 0xffffffff, 0x00000001),
-            (Opcode::MULHU, 0x00000000, 0x00000001, 0xffffffff),
-            (Opcode::MULHSU, 0x00000000, 0x00000000, 0x00000000),
-            (Opcode::MULHSU, 0x00000000, 0x00000001, 0x00000001),
-            (Opcode::MULHSU, 0x00000000, 0x00000003, 0x00000007),
-            (Opcode::MULHSU, 0x00000000, 0x00000000, 0xffff8000),
-            (Opcode::MULHSU, 0x00000000, 0x80000000, 0x00000000),
-            (Opcode::MULHSU, 0x80004000, 0x80000000, 0xffff8000),
-            (Opcode::MULHSU, 0xffff0081, 0xaaaaaaab, 0x0002fe7d),
-            (Opcode::MULHSU, 0x0001fefe, 0x0002fe7d, 0xaaaaaaab),
-            (Opcode::MULHSU, 0xff010000, 0xff000000, 0xff000000),
-            (Opcode::MULHSU, 0xffffffff, 0xffffffff, 0xffffffff),
-            (Opcode::MULHSU, 0xffffffff, 0xffffffff, 0x00000001),
-            (Opcode::MULHSU, 0x00000000, 0x00000001, 0xffffffff),
-            (Opcode::MULH, 0x00000000, 0x00000000, 0x00000000),
-            (Opcode::MULH, 0x00000000, 0x00000001, 0x00000001),
-            (Opcode::MULH, 0x00000000, 0x00000003, 0x00000007),
-            (Opcode::MULH, 0x00000000, 0x00000000, 0xffff8000),
-            (Opcode::MULH, 0x00000000, 0x80000000, 0x00000000),
-            (Opcode::MULH, 0x00000000, 0x80000000, 0x00000000),
-            (Opcode::MULH, 0xffff0081, 0xaaaaaaab, 0x0002fe7d),
-            (Opcode::MULH, 0xffff0081, 0x0002fe7d, 0xaaaaaaab),
-            (Opcode::MULH, 0x00010000, 0xff000000, 0xff000000),
-            (Opcode::MULH, 0x00000000, 0xffffffff, 0xffffffff),
-            (Opcode::MULH, 0xffffffff, 0xffffffff, 0x00000001),
-            (Opcode::MULH, 0xffffffff, 0x00000001, 0xffffffff),
+            (Opcode::MUL, 0x0000_1200, 0x0000_7e00, 0xb6db_6db7),
+            (Opcode::MUL, 0x0000_1240, 0x0000_7fc0, 0xb6db_6db7),
+            (Opcode::MUL, 0x0000_0000, 0x0000_0000, 0x0000_0000),
+            (Opcode::MUL, 0x0000_0001, 0x0000_0001, 0x0000_0001),
+            (Opcode::MUL, 0x0000_0015, 0x0000_0003, 0x0000_0007),
+            (Opcode::MUL, 0x0000_0000, 0x0000_0000, 0xffff_8000),
+            (Opcode::MUL, 0x0000_0000, 0x8000_0000, 0x0000_0000),
+            (Opcode::MUL, 0x0000_0000, 0x8000_0000, 0xffff_8000),
+            (Opcode::MUL, 0x0000_ff7f, 0xaaaa_aaab, 0x0002_fe7d),
+            (Opcode::MUL, 0x0000_ff7f, 0x0002_fe7d, 0xaaaa_aaab),
+            (Opcode::MUL, 0x0000_0000, 0xff00_0000, 0xff00_0000),
+            (Opcode::MUL, 0x0000_0001, 0xffff_ffff, 0xffff_ffff),
+            (Opcode::MUL, 0xffff_ffff, 0xffff_ffff, 0x0000_0001),
+            (Opcode::MUL, 0xffff_ffff, 0x0000_0001, 0xffff_ffff),
+            (Opcode::MULHU, 0x0000_0000, 0x0000_0000, 0x0000_0000),
+            (Opcode::MULHU, 0x0000_0000, 0x0000_0001, 0x0000_0001),
+            (Opcode::MULHU, 0x0000_0000, 0x0000_0003, 0x0000_0007),
+            (Opcode::MULHU, 0x0000_0000, 0x0000_0000, 0xffff_8000),
+            (Opcode::MULHU, 0x0000_0000, 0x8000_0000, 0x0000_0000),
+            (Opcode::MULHU, 0x7fff_c000, 0x8000_0000, 0xffff_8000),
+            (Opcode::MULHU, 0x0001_fefe, 0xaaaa_aaab, 0x0002_fe7d),
+            (Opcode::MULHU, 0x0001_fefe, 0x0002_fe7d, 0xaaaa_aaab),
+            (Opcode::MULHU, 0xfe01_0000, 0xff00_0000, 0xff00_0000),
+            (Opcode::MULHU, 0xffff_fffe, 0xffff_ffff, 0xffff_ffff),
+            (Opcode::MULHU, 0x0000_0000, 0xffff_ffff, 0x0000_0001),
+            (Opcode::MULHU, 0x0000_0000, 0x0000_0001, 0xffff_ffff),
+            (Opcode::MULHSU, 0x0000_0000, 0x0000_0000, 0x0000_0000),
+            (Opcode::MULHSU, 0x0000_0000, 0x0000_0001, 0x0000_0001),
+            (Opcode::MULHSU, 0x0000_0000, 0x0000_0003, 0x0000_0007),
+            (Opcode::MULHSU, 0x0000_0000, 0x0000_0000, 0xffff_8000),
+            (Opcode::MULHSU, 0x0000_0000, 0x8000_0000, 0x0000_0000),
+            (Opcode::MULHSU, 0x8000_4000, 0x8000_0000, 0xffff_8000),
+            (Opcode::MULHSU, 0xffff_0081, 0xaaaa_aaab, 0x0002_fe7d),
+            (Opcode::MULHSU, 0x0001_fefe, 0x0002_fe7d, 0xaaaa_aaab),
+            (Opcode::MULHSU, 0xff01_0000, 0xff00_0000, 0xff00_0000),
+            (Opcode::MULHSU, 0xffff_ffff, 0xffff_ffff, 0xffff_ffff),
+            (Opcode::MULHSU, 0xffff_ffff, 0xffff_ffff, 0x0000_0001),
+            (Opcode::MULHSU, 0x0000_0000, 0x0000_0001, 0xffff_ffff),
+            (Opcode::MULH, 0x0000_0000, 0x0000_0000, 0x0000_0000),
+            (Opcode::MULH, 0x0000_0000, 0x0000_0001, 0x0000_0001),
+            (Opcode::MULH, 0x0000_0000, 0x0000_0003, 0x0000_0007),
+            (Opcode::MULH, 0x0000_0000, 0x0000_0000, 0xffff_8000),
+            (Opcode::MULH, 0x0000_0000, 0x8000_0000, 0x0000_0000),
+            (Opcode::MULH, 0x0000_0000, 0x8000_0000, 0x0000_0000),
+            (Opcode::MULH, 0xffff_0081, 0xaaaa_aaab, 0x0002_fe7d),
+            (Opcode::MULH, 0xffff_0081, 0x0002_fe7d, 0xaaaa_aaab),
+            (Opcode::MULH, 0x0001_0000, 0xff00_0000, 0xff00_0000),
+            (Opcode::MULH, 0x0000_0000, 0xffff_ffff, 0xffff_ffff),
+            (Opcode::MULH, 0xffff_ffff, 0xffff_ffff, 0x0000_0001),
+            (Opcode::MULH, 0xffff_ffff, 0x0000_0001, 0xffff_ffff),
         ];
-        for t in mul_instructions.iter() {
+        for t in &mul_instructions {
             mul_events.push(AluEvent::new(0, 0, t.0, t.1, t.2, t.3));
         }
 

@@ -1,6 +1,6 @@
 //! FFI bindings for the Go code. The functions exported in this module are safe to call from Rust.
 //! All C strings and other C memory should be freed in Rust, including C Strings returned by Go.
-//! Although we cast to *mut c_char because the Go signatures can't be immutable, the Go functions
+//! Although we cast to *mut `c_char` because the Go signatures can't be immutable, the Go functions
 //! should not modify the strings.
 
 use crate::Groth16Proof;
@@ -12,8 +12,9 @@ mod bind {
     #[cfg(feature = "groth16")]
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }
-use bind::*;
+use bind::C_Groth16Proof;
 
+#[must_use]
 pub fn prove_groth16(data_dir: &str, witness_path: &str) -> Groth16Proof {
     cfg_if! {
         if #[cfg(feature = "groth16")] {
@@ -22,8 +23,8 @@ pub fn prove_groth16(data_dir: &str, witness_path: &str) -> Groth16Proof {
 
             let proof = unsafe {
                 let proof = bind::ProveGroth16(
-                    data_dir.as_ptr() as *mut c_char,
-                    witness_path.as_ptr() as *mut c_char,
+                    data_dir.as_ptr().cast_mut(),
+                    witness_path.as_ptr().cast_mut(),
                 );
                 // Safety: The pointer is returned from the go code and is guaranteed to be valid.
                 *proof
@@ -42,7 +43,7 @@ pub fn build_groth16(data_dir: &str) {
             let data_dir = CString::new(data_dir).expect("CString::new failed");
 
             unsafe {
-                bind::BuildGroth16(data_dir.as_ptr() as *mut c_char);
+                bind::BuildGroth16(data_dir.as_ptr().cast_mut());
             }
         } else {
             panic!("groth16 feature not enabled");
@@ -67,10 +68,10 @@ pub fn verify_groth16(
 
             let err_ptr = unsafe {
                 bind::VerifyGroth16(
-                    data_dir.as_ptr() as *mut c_char,
-                    proof.as_ptr() as *mut c_char,
-                    vkey_hash.as_ptr() as *mut c_char,
-                    committed_values_digest.as_ptr() as *mut c_char,
+                    data_dir.as_ptr().cast_mut(),
+                    proof.as_ptr().cast_mut(),
+                    vkey_hash.as_ptr().cast_mut(),
+                    committed_values_digest.as_ptr().cast_mut(),
                 )
             };
             if err_ptr.is_null() {
@@ -93,8 +94,8 @@ pub fn test_groth16(witness_json: &str, constraints_json: &str) {
                 let witness_json = CString::new(witness_json).expect("CString::new failed");
                 let build_dir = CString::new(constraints_json).expect("CString::new failed");
                 let err_ptr = bind::TestGroth16(
-                    witness_json.as_ptr() as *mut c_char,
-                    build_dir.as_ptr() as *mut c_char,
+                    witness_json.as_ptr().cast_mut(),
+                    build_dir.as_ptr().cast_mut(),
                 );
                 if !err_ptr.is_null() {
                     // Safety: The error message is returned from the go code and is guaranteed to be valid.
@@ -123,7 +124,7 @@ unsafe fn c_char_ptr_to_string(input: *mut c_char) -> String {
 
 #[cfg(feature = "groth16")]
 impl C_Groth16Proof {
-    /// Converts a C Groth16Proof into a Rust Groth16Proof, freeing the C strings.
+    /// Converts a C `Groth16Proof` into a Rust `Groth16Proof`, freeing the C strings.
     fn into_rust(self) -> Groth16Proof {
         // Safety: The raw pointers are not used anymore after converted into Rust strings.
         unsafe {

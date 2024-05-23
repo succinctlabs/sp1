@@ -85,10 +85,10 @@ impl<F: PrimeField> MachineAir<F> for BitwiseChip {
                     let byte_event = ByteLookupEvent {
                         shard: event.shard,
                         opcode: ByteOpcode::from(event.opcode),
-                        a1: b_a as u32,
+                        a1: u32::from(b_a),
                         a2: 0,
-                        b: b_b as u32,
-                        c: b_c as u32,
+                        b: u32::from(b_b),
+                        c: u32::from(b_c),
                     };
                     output.add_byte_lookup_event(byte_event);
                 }
@@ -184,7 +184,7 @@ mod tests {
         let chip = BitwiseChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
-        println!("{:?}", trace.values)
+        println!("{:?}", trace.values);
     }
 
     #[test]

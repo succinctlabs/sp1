@@ -39,6 +39,7 @@ use crate::utils::ec::EllipticCurve;
 use crate::utils::limbs_from_prev_access;
 use crate::utils::pad_rows;
 
+#[must_use]
 pub const fn num_weierstrass_add_cols<P: FieldParameters + NumWords>() -> usize {
     size_of::<WeierstrassAddAssignCols<u8, P>>()
 }
@@ -91,6 +92,7 @@ impl<E: EllipticCurve> Syscall for WeierstrassAddAssignChip<E> {
 }
 
 impl<E: EllipticCurve> WeierstrassAddAssignChip<E> {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             _marker: PhantomData,

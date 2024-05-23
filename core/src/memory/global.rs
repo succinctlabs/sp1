@@ -29,6 +29,7 @@ pub struct MemoryChip {
 
 impl MemoryChip {
     /// Creates a new memory chip with a certain type.
+    #[must_use]
     pub fn new(kind: MemoryChipType) -> Self {
         Self { kind }
     }
@@ -200,7 +201,7 @@ mod tests {
         println!("{:?}", trace.values);
 
         for mem_event in shard.memory_finalize_events {
-            println!("{:?}", mem_event);
+            println!("{mem_event:?}");
         }
     }
 

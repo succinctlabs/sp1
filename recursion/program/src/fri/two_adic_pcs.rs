@@ -253,7 +253,7 @@ where
         proof: Self::Proof,
         challenger: &mut DuplexChallengerVariable<C>,
     ) {
-        verify_two_adic_pcs(builder, &self.config, rounds, proof, challenger)
+        verify_two_adic_pcs(builder, &self.config, rounds, proof, challenger);
     }
 }
 
@@ -370,7 +370,7 @@ pub mod tests {
             builder.constant::<Array<_, TwoAdicPcsRoundVariable<_>>>(vec![(commit, os.clone())]);
 
         // Test natural domain for degree.
-        for log_d_val in log_degrees.iter() {
+        for log_d_val in log_degrees {
             let log_d: Var<_> = builder.eval(InnerVal::from_canonical_usize(*log_d_val));
             let domain = pcs.natural_domain_for_log_degree(&mut builder, Usize::Var(log_d));
 

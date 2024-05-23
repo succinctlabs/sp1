@@ -15,6 +15,7 @@ pub enum RangeCheckOpcode {
 
 impl RangeCheckOpcode {
     /// Get all the range check opcodes.
+    #[must_use]
     pub fn all() -> Vec<Self> {
         let opcodes = vec![RangeCheckOpcode::U12, RangeCheckOpcode::U16];
         assert_eq!(opcodes.len(), NUM_RANGE_CHECK_OPS);
@@ -22,6 +23,7 @@ impl RangeCheckOpcode {
     }
 
     /// Convert the opcode to a field element.
+    #[must_use]
     pub fn as_field<F: Field>(self) -> F {
         F::from_canonical_u8(self as u8)
     }

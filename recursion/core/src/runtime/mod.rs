@@ -182,6 +182,7 @@ where
         }
     }
 
+    #[must_use]
     pub fn new_no_perm(program: &RecursionProgram<F>) -> Self {
         let record = ExecutionRecord::<F> {
             program: Arc::new(program.clone()),
@@ -252,7 +253,7 @@ where
             });
     }
 
-    /// Given a MemoryRecord event, track the range checks for the memory access.
+    /// Given a `MemoryRecord` event, track the range checks for the memory access.
     /// This will be used later to set the multiplicities in the range check table.
     fn track_memory_range_checks(&mut self, record: &MemoryRecord<F>) {
         let diff_16bit_limb_event = RangeCheckEvent::new(
@@ -423,7 +424,7 @@ where
                 Opcode::PrintE => {
                     self.nb_print_e += 1;
                     let (a_val, b_val, c_val) = self.all_rr(&instruction);
-                    println!("PRINTEF={:?}", a_val);
+                    println!("PRINTEF={a_val:?}");
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::CycleTracker => {
@@ -593,15 +594,14 @@ where
                     let trace = self.program.traces[trap_pc].clone();
                     if let Some(mut trace) = trace {
                         trace.resolve();
-                        eprintln!("TRAP encountered. Backtrace:\n{:?}", trace);
+                        eprintln!("TRAP encountered. Backtrace:\n{trace:?}");
                     } else {
                         for nearby_pc in (0..trap_pc).rev() {
                             let trace = self.program.traces[nearby_pc].clone();
                             if let Some(mut trace) = trace {
                                 trace.resolve();
                                 eprintln!(
-                                    "TRAP encountered at pc={}. Nearest trace at pc={}: {:?}",
-                                    trap_pc, nearby_pc, trace
+                                    "TRAP encountered at pc={trap_pc}. Nearest trace at pc={nearby_pc}: {trace:?}"
                                 );
                                 exit(1);
                             }
@@ -860,7 +860,7 @@ where
 
         let zero_block = Block::from(F::zero());
         // Collect all used memory addresses.
-        for (addr, entry) in self.memory.iter() {
+        for (addr, entry) in &self.memory {
             // Get the initial value of the memory address from either the uninitialized memory
             // or set it as a default to 0.
             let init_value = self.uninitialized_memory.get(addr).unwrap_or(&zero_block);
@@ -872,7 +872,7 @@ where
                 F::from_canonical_usize(*addr),
                 entry.timestamp,
                 entry.value,
-            ))
+            ));
         }
     }
 }
@@ -908,7 +908,7 @@ mod tests {
                     zero,
                     false,
                     false,
-                    "".to_string(),
+                    String::new(),
                 ),
                 Instruction::new(
                     Opcode::PrintF,
@@ -919,7 +919,7 @@ mod tests {
                     zero,
                     false,
                     false,
-                    "".to_string(),
+                    String::new(),
                 ),
             ],
         };

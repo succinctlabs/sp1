@@ -22,9 +22,7 @@ impl Syscall for KeccakPermuteChip {
     fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
         let start_clk = rt.clk;
         let state_ptr = arg1;
-        if arg2 != 0 {
-            panic!("Expected arg2 to be 0, got {}", arg2);
-        }
+        assert!(arg2 == 0, "Expected arg2 to be 0, got {arg2}");
 
         let mut state_read_records = Vec::new();
         let mut state_write_records = Vec::new();
@@ -37,7 +35,7 @@ impl Syscall for KeccakPermuteChip {
         for values in state_values.chunks_exact(2) {
             let least_sig = values[0];
             let most_sig = values[1];
-            state.push(least_sig as u64 + ((most_sig as u64) << 32));
+            state.push(u64::from(least_sig) + (u64::from(most_sig) << 32));
         }
 
         let saved_state = state.clone();
@@ -87,8 +85,8 @@ impl Syscall for KeccakPermuteChip {
         rt.clk += 1;
         let mut values_to_write = Vec::new();
         for i in 0..STATE_SIZE {
-            let most_sig = ((state[i] >> 32) & 0xFFFFFFFF) as u32;
-            let least_sig = (state[i] & 0xFFFFFFFF) as u32;
+            let most_sig = ((state[i] >> 32) & 0xFFFF_FFFF) as u32;
+            let least_sig = (state[i] & 0xFFFF_FFFF) as u32;
             values_to_write.push(least_sig);
             values_to_write.push(most_sig);
         }

@@ -54,6 +54,7 @@ impl<T: AbstractField> Word<T> {
     }
 
     /// Returns a word with all zero expressions.
+    #[must_use]
     pub fn zero<AB: SP1AirBuilder<Expr = T>>() -> Word<T> {
         Word([
             AB::Expr::zero(),

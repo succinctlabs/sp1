@@ -30,10 +30,10 @@ impl<F: Field> XorOperation<F> {
             let byte_event = ByteLookupEvent {
                 shard,
                 opcode: ByteOpcode::XOR,
-                a1: xor as u32,
+                a1: u32::from(xor),
                 a2: 0,
-                b: x_bytes[i] as u32,
-                c: y_bytes[i] as u32,
+                b: u32::from(x_bytes[i]),
+                c: u32::from(y_bytes[i]),
             };
             record.add_byte_lookup_event(byte_event);
         }

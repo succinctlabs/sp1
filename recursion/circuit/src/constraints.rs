@@ -353,7 +353,7 @@ mod tests {
                     zeta,
                     alpha,
                     &permutation_challenges,
-                )
+                );
             }
         }
 

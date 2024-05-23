@@ -31,9 +31,9 @@ impl<F: Field> CpuChip<F> {
         // Convert operand values from Block<Var> to BinomialExtension<Expr>.  Note that it gets the
         // previous value of the `a` and `b` operands, since BNENIC will modify `a`.
         let a_ext: BinomialExtension<AB::Expr> =
-            BinomialExtensionUtils::from_block(local.a.value().map(|x| x.into()));
+            BinomialExtensionUtils::from_block(local.a.value().map(std::convert::Into::into));
         let b_ext: BinomialExtension<AB::Expr> =
-            BinomialExtensionUtils::from_block(local.b.value().map(|x| x.into()));
+            BinomialExtensionUtils::from_block(local.b.value().map(std::convert::Into::into));
 
         let comparison_diff = a_ext - b_ext;
 

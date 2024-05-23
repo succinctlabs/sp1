@@ -21,7 +21,11 @@ use sp1_recursion_core::runtime::PERMUTATION_WIDTH;
 
 use crate::challenger::DuplexChallengerVariable;
 use crate::fri::TwoAdicMultiplicativeCosetVariable;
-use crate::machine::*;
+use crate::machine::{
+    SP1DeferredMemoryLayout, SP1DeferredMemoryLayoutVariable, SP1RecursionMemoryLayout,
+    SP1RecursionMemoryLayoutVariable, SP1ReduceMemoryLayout, SP1ReduceMemoryLayoutVariable,
+    SP1RootMemoryLayout, SP1RootMemoryLayoutVariable,
+};
 use crate::stark::{ShardProofHint, VerifyingKeyHint};
 use crate::types::{
     AirOpenedValuesVariable, ChipOpenedValuesVariable, Sha256DigestVariable,
@@ -189,10 +193,10 @@ impl<I: VecAutoHintable<C>> Hintable<C> for Vec<I> {
         let len = InnerVal::from_canonical_usize(self.len());
         stream.push(vec![len.into()]);
 
-        self.iter().for_each(|i| {
+        for i in self {
             let comm = I::write(i);
             stream.extend(comm);
-        });
+        }
 
         stream
     }
@@ -276,10 +280,10 @@ impl Hintable<C> for Vec<Vec<InnerChallenge>> {
         let len = InnerVal::from_canonical_usize(self.len());
         stream.push(vec![len.into()]);
 
-        self.iter().for_each(|arr| {
+        for arr in self {
             let comm = Vec::<InnerChallenge>::write(arr);
             stream.extend(comm);
-        });
+        }
 
         stream
     }
@@ -336,10 +340,10 @@ impl Hintable<C> for Vec<ChipOpenedValues<InnerChallenge>> {
         let len = InnerVal::from_canonical_usize(self.len());
         stream.push(vec![len.into()]);
 
-        self.iter().for_each(|arr| {
+        for arr in self {
             let comm = ChipOpenedValues::<InnerChallenge>::write(arr);
             stream.extend(comm);
-        });
+        }
 
         stream
     }
@@ -408,11 +412,11 @@ impl Hintable<C> for DuplexChallenger<InnerVal, InnerPerm, 16> {
         let mut stream = Vec::new();
         stream.extend(self.sponge_state.to_vec().write());
         stream.extend(self.input_buffer.len().write());
-        let mut input_padded = self.input_buffer.to_vec();
+        let mut input_padded = self.input_buffer.clone();
         input_padded.resize(PERMUTATION_WIDTH, InnerVal::zero());
         stream.extend(input_padded.write());
         stream.extend(self.output_buffer.len().write());
-        let mut output_padded = self.output_buffer.to_vec();
+        let mut output_padded = self.output_buffer.clone();
         output_padded.resize(PERMUTATION_WIDTH, InnerVal::zero());
         stream.extend(output_padded.write());
         stream
@@ -542,7 +546,7 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
         stream.extend(proof_hints.write());
         stream.extend(self.leaf_challenger.write());
         stream.extend(self.initial_reconstruct_challenger.write());
-        stream.extend((self.is_complete as usize).write());
+        stream.extend(usize::from(self.is_complete).write());
 
         stream
     }
@@ -584,7 +588,7 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C> for SP1ReduceMemoryLayout<'a, Baby
         stream.extend(compress_vk_hint.write());
         stream.extend(proof_hints.write());
         stream.extend(kinds.write());
-        stream.extend((self.is_complete as usize).write());
+        stream.extend(usize::from(self.is_complete).write());
 
         stream
     }
@@ -606,7 +610,7 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C> for SP1RootMemoryLayout<'a, BabyBe
         let proof_hint = ShardProofHint::<BabyBearPoseidon2, A>::new(self.machine, &self.proof);
 
         stream.extend(proof_hint.write());
-        stream.extend((self.is_reduce as usize).write());
+        stream.extend(usize::from(self.is_reduce).write());
 
         stream
     }
@@ -668,7 +672,7 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
         stream.extend(compress_vk_hint.write());
         stream.extend(proof_hints.write());
         stream.extend(self.start_reconstruct_deferred_digest.write());
-        stream.extend((self.is_complete as usize).write());
+        stream.extend(usize::from(self.is_complete).write());
 
         stream.extend(sp1_vk_hint.write());
         stream.extend(committed_value_digest.write());

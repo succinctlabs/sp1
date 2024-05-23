@@ -17,6 +17,7 @@ use crate::utils::{babybear_bytes_to_bn254, babybears_to_bn254, words_to_bytes};
 use crate::{OuterSC, SP1Prover};
 
 /// Tries to install the Groth16 artifacts if they are not already installed.
+#[must_use]
 pub fn try_install_groth16_artifacts() -> PathBuf {
     let build_dir = groth16_artifacts_dir();
 
@@ -37,6 +38,7 @@ pub fn try_install_groth16_artifacts() -> PathBuf {
 ///
 /// TODO: Maybe add some additional logic here to handle rebuilding the artifacts if they are
 /// already built.
+#[must_use]
 pub fn try_build_groth16_artifacts_dev(
     template_vk: &StarkVerifyingKey<OuterSC>,
     template_proof: &ShardProof<OuterSC>,
@@ -48,6 +50,7 @@ pub fn try_build_groth16_artifacts_dev(
 }
 
 /// Gets the directory where the Groth16 artifacts are installed.
+#[must_use]
 pub fn groth16_artifacts_dir() -> PathBuf {
     dirs::home_dir()
         .unwrap()
@@ -58,6 +61,7 @@ pub fn groth16_artifacts_dir() -> PathBuf {
 }
 
 /// Gets the directory where the Groth16 artifacts are installed in development mode.
+#[must_use]
 pub fn groth16_artifacts_dev_dir() -> PathBuf {
     dirs::home_dir()
         .unwrap()

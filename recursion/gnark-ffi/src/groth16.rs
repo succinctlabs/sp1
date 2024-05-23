@@ -29,7 +29,8 @@ pub struct Groth16Proof {
 }
 
 impl Groth16Prover {
-    /// Creates a new [Groth16Prover].
+    /// Creates a new [`Groth16Prover`].
+    #[must_use]
     pub fn new() -> Self {
         Self
     }
@@ -102,7 +103,7 @@ impl Groth16Prover {
         )
     }
 
-    /// Verify a Groth16 proof and verify that the supplied vkey_hash and committed_values_digest match.
+    /// Verify a Groth16 proof and verify that the supplied `vkey_hash` and `committed_values_digest` match.
     pub fn verify(
         &self,
         proof: &Groth16Proof,
@@ -116,7 +117,7 @@ impl Groth16Prover {
             &vkey_hash.to_string(),
             &committed_values_digest.to_string(),
         )
-        .expect("failed to verify proof")
+        .expect("failed to verify proof");
     }
 }
 

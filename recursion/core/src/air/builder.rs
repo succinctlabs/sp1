@@ -121,7 +121,7 @@ pub trait RecursionMemoryAirBuilder: RecursionInteractionAirBuilder {
     ///
     /// This method verifies that the inputted is less than 2^24 by doing a 16 bit and 12 bit range
     /// check on it's limbs.  It will also verify that the limbs are correct.  This method is needed
-    /// since the memory access timestamp check (see [Self::eval_memory_access_timestamp]) needs to assume
+    /// since the memory access timestamp check (see [`Self::eval_memory_access_timestamp`]) needs to assume
     /// the clk is within 28 bits.
     fn eval_range_check_28bits(
         &mut self,
@@ -148,7 +148,7 @@ pub trait RecursionMemoryAirBuilder: RecursionInteractionAirBuilder {
             Self::Expr::from_canonical_u8(RangeCheckOpcode::U12 as u8),
             limb_12,
             is_real,
-        )
+        );
     }
 }
 
@@ -190,8 +190,8 @@ pub trait RecursionInteractionAirBuilder: BaseAirBuilder {
         is_real: impl Into<Self::Expr>,
     ) {
         let program_interaction_vals = once(pc.into())
-            .chain(instruction.into_iter().map(|x| x.into()))
-            .chain(selectors.into_iter().map(|x| x.into()))
+            .chain(instruction.into_iter().map(std::convert::Into::into))
+            .chain(selectors.into_iter().map(std::convert::Into::into))
             .collect::<Vec<_>>();
         self.send(AirInteraction::new(
             program_interaction_vals,
@@ -208,8 +208,8 @@ pub trait RecursionInteractionAirBuilder: BaseAirBuilder {
         is_real: impl Into<Self::Expr>,
     ) {
         let program_interaction_vals = once(pc.into())
-            .chain(instruction.into_iter().map(|x| x.into()))
-            .chain(selectors.into_iter().map(|x| x.into()))
+            .chain(instruction.into_iter().map(std::convert::Into::into))
+            .chain(selectors.into_iter().map(std::convert::Into::into))
             .collect::<Vec<_>>();
         self.receive(AirInteraction::new(
             program_interaction_vals,

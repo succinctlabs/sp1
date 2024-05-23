@@ -15,7 +15,7 @@ use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
 
 use super::folder::VerifierConstraintFolder;
-use super::types::*;
+use super::types::{AirOpenedValues, ChipOpenedValues, ShardCommitment, ShardProof};
 use super::Domain;
 use super::OpeningError;
 use super::StarkGenericConfig;
@@ -419,36 +419,28 @@ impl Debug for OpeningShapeError {
             OpeningShapeError::PreprocessedWidthMismatch(expected, actual) => {
                 write!(
                     f,
-                    "Preprocessed width mismatch: expected {}, got {}",
-                    expected, actual
+                    "Preprocessed width mismatch: expected {expected}, got {actual}"
                 )
             }
             OpeningShapeError::MainWidthMismatch(expected, actual) => {
-                write!(
-                    f,
-                    "Main width mismatch: expected {}, got {}",
-                    expected, actual
-                )
+                write!(f, "Main width mismatch: expected {expected}, got {actual}")
             }
             OpeningShapeError::PermutationWidthMismatch(expected, actual) => {
                 write!(
                     f,
-                    "Permutation width mismatch: expected {}, got {}",
-                    expected, actual
+                    "Permutation width mismatch: expected {expected}, got {actual}"
                 )
             }
             OpeningShapeError::QuotientWidthMismatch(expected, actual) => {
                 write!(
                     f,
-                    "Quotient width mismatch: expected {}, got {}",
-                    expected, actual
+                    "Quotient width mismatch: expected {expected}, got {actual}"
                 )
             }
             OpeningShapeError::QuotientChunkSizeMismatch(expected, actual) => {
                 write!(
                     f,
-                    "Quotient chunk size mismatch: expected {}, got {}",
-                    expected, actual
+                    "Quotient chunk size mismatch: expected {expected}, got {actual}"
                 )
             }
         }
@@ -458,7 +450,7 @@ impl Debug for OpeningShapeError {
 impl Display for OpeningShapeError {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         // use the debug implementation
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 
@@ -466,13 +458,13 @@ impl<SC: StarkGenericConfig> Debug for VerificationError<SC> {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         match self {
             VerificationError::InvalidopeningArgument(e) => {
-                write!(f, "Invalid opening argument: {:?}", e)
+                write!(f, "Invalid opening argument: {e:?}")
             }
             VerificationError::OodEvaluationMismatch(chip) => {
-                write!(f, "Out-of-domain evaluation mismatch on chip {}", chip)
+                write!(f, "Out-of-domain evaluation mismatch on chip {chip}")
             }
             VerificationError::OpeningShapeError(chip, e) => {
-                write!(f, "Invalid opening shape for chip {}: {:?}", chip, e)
+                write!(f, "Invalid opening shape for chip {chip}: {e:?}")
             }
         }
     }
@@ -485,10 +477,10 @@ impl<SC: StarkGenericConfig> Display for VerificationError<SC> {
                 write!(f, "Invalid opening argument")
             }
             VerificationError::OodEvaluationMismatch(chip) => {
-                write!(f, "Out-of-domain evaluation mismatch on chip {}", chip)
+                write!(f, "Out-of-domain evaluation mismatch on chip {chip}")
             }
             VerificationError::OpeningShapeError(chip, e) => {
-                write!(f, "Invalid opening shape for chip {}: {}", chip, e)
+                write!(f, "Invalid opening shape for chip {chip}: {e}")
             }
         }
     }

@@ -43,6 +43,7 @@ pub struct ProgramMultiplicityCols<T> {
 pub struct ProgramChip;
 
 impl ProgramChip {
+    #[must_use]
     pub fn new() -> Self {
         Self {}
     }
@@ -215,6 +216,6 @@ mod tests {
         let chip = ProgramChip::new();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
-        println!("{:?}", trace.values)
+        println!("{:?}", trace.values);
     }
 }

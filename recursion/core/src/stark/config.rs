@@ -42,6 +42,7 @@ pub type OuterPcsProof =
     TwoAdicFriPcsProof<OuterVal, OuterChallenge, OuterValMmcs, OuterChallengeMmcs>;
 
 /// The permutation for outer recursion.
+#[must_use]
 pub fn outer_perm() -> OuterPerm {
     const ROUNDS_F: usize = 8;
     const ROUNDS_P: usize = 56;
@@ -64,6 +65,7 @@ pub fn outer_perm() -> OuterPerm {
 }
 
 /// The FRI config for outer recursion.
+#[must_use]
 pub fn outer_fri_config() -> FriConfig<OuterChallengeMmcs> {
     let perm = outer_perm();
     let hash = OuterHash::new(perm.clone()).unwrap();
@@ -114,6 +116,7 @@ impl From<std::marker::PhantomData<BabyBearPoseidon2Outer>> for BabyBearPoseidon
 }
 
 impl BabyBearPoseidon2Outer {
+    #[must_use]
     pub fn new() -> Self {
         let perm = outer_perm();
         let hash = OuterHash::new(perm.clone()).unwrap();
@@ -122,7 +125,7 @@ impl BabyBearPoseidon2Outer {
         let dft = OuterDft {};
         let fri_config = outer_fri_config();
         let pcs = OuterPcs::new(27, dft, val_mmcs, fri_config);
-        Self { pcs, perm }
+        Self { perm, pcs }
     }
 }
 
@@ -149,6 +152,7 @@ impl StarkGenericConfig for BabyBearPoseidon2Outer {
 }
 
 /// The FRI config for testing recursion.
+#[must_use]
 pub fn test_fri_config() -> FriConfig<OuterChallengeMmcs> {
     let perm = outer_perm();
     let hash = OuterHash::new(perm.clone()).unwrap();

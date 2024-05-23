@@ -27,6 +27,7 @@ pub struct SP1PublicValues {
 
 impl SP1Stdin {
     /// Create a new `SP1Stdin`.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             buffer: Vec::new(),
@@ -36,6 +37,7 @@ impl SP1Stdin {
     }
 
     /// Create a `SP1Stdin` from a slice of bytes.
+    #[must_use]
     pub fn from(data: &[u8]) -> Self {
         Self {
             buffer: vec![data.to_vec()],
@@ -85,27 +87,32 @@ impl SP1Stdin {
 
 impl SP1PublicValues {
     /// Create a new `SP1PublicValues`.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             buffer: Buffer::new(),
         }
     }
 
+    #[must_use]
     pub fn bytes(&self) -> String {
         format!("0x{}", hex::encode(self.buffer.data.clone()))
     }
 
     /// Create a `SP1PublicValues` from a slice of bytes.
+    #[must_use]
     pub fn from(data: &[u8]) -> Self {
         Self {
             buffer: Buffer::from(data),
         }
     }
 
+    #[must_use]
     pub fn as_slice(&self) -> &[u8] {
         self.buffer.data.as_slice()
     }
 
+    #[must_use]
     pub fn to_vec(&self) -> Vec<u8> {
         self.buffer.data.clone()
     }
@@ -130,12 +137,13 @@ impl SP1PublicValues {
         self.buffer.write_slice(slice);
     }
 
-    /// Hash the public values, mask the top 3 bits and return a BigUint. Matches the implementation
+    /// Hash the public values, mask the top 3 bits and return a `BigUint`. Matches the implementation
     /// of `hashPublicValues` in the Solidity verifier.
     ///
     /// ```solidity
     /// sha256(publicValues) & bytes32(uint256((1 << 253) - 1));
     /// ```
+    #[must_use]
     pub fn hash(&self) -> BigUint {
         // Hash the public values.
         let mut hasher = Sha256::new();
@@ -144,7 +152,7 @@ impl SP1PublicValues {
         let mut hash = hash_result.to_vec();
 
         // Mask the top 3 bits.
-        hash[0] &= 0b00011111;
+        hash[0] &= 0b0001_1111;
 
         // Return the masked hash as a BigUint.
         BigUint::from_bytes_be(&hash)

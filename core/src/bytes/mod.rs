@@ -37,6 +37,7 @@ impl<F: Field> ByteChip<F> {
     ///  - `trace` is a matrix containing all possible byte operations.
     /// - `map` is a map from a byte lookup to the corresponding row it appears in the table and
     /// the index of the result in the array of multiplicities.
+    #[must_use]
     pub fn trace_and_map(
         shard: u32,
     ) -> (RowMajorMatrix<F>, BTreeMap<ByteLookupEvent, (usize, usize)>) {
@@ -69,25 +70,53 @@ impl<F: Field> ByteChip<F> {
                     ByteOpcode::AND => {
                         let and = b & c;
                         col.and = F::from_canonical_u8(and);
-                        ByteLookupEvent::new(shard, *opcode, and as u32, 0, b as u32, c as u32)
+                        ByteLookupEvent::new(
+                            shard,
+                            *opcode,
+                            u32::from(and),
+                            0,
+                            u32::from(b),
+                            u32::from(c),
+                        )
                     }
                     ByteOpcode::OR => {
                         let or = b | c;
                         col.or = F::from_canonical_u8(or);
-                        ByteLookupEvent::new(shard, *opcode, or as u32, 0, b as u32, c as u32)
+                        ByteLookupEvent::new(
+                            shard,
+                            *opcode,
+                            u32::from(or),
+                            0,
+                            u32::from(b),
+                            u32::from(c),
+                        )
                     }
                     ByteOpcode::XOR => {
                         let xor = b ^ c;
                         col.xor = F::from_canonical_u8(xor);
-                        ByteLookupEvent::new(shard, *opcode, xor as u32, 0, b as u32, c as u32)
+                        ByteLookupEvent::new(
+                            shard,
+                            *opcode,
+                            u32::from(xor),
+                            0,
+                            u32::from(b),
+                            u32::from(c),
+                        )
                     }
                     ByteOpcode::SLL => {
                         let sll = b << (c & 7);
                         col.sll = F::from_canonical_u8(sll);
-                        ByteLookupEvent::new(shard, *opcode, sll as u32, 0, b as u32, c as u32)
+                        ByteLookupEvent::new(
+                            shard,
+                            *opcode,
+                            u32::from(sll),
+                            0,
+                            u32::from(b),
+                            u32::from(c),
+                        )
                     }
                     ByteOpcode::U8Range => {
-                        ByteLookupEvent::new(shard, *opcode, 0, 0, b as u32, c as u32)
+                        ByteLookupEvent::new(shard, *opcode, 0, 0, u32::from(b), u32::from(c))
                     }
                     ByteOpcode::ShrCarry => {
                         let (res, carry) = shr_carry(b, c);
@@ -96,24 +125,38 @@ impl<F: Field> ByteChip<F> {
                         ByteLookupEvent::new(
                             shard,
                             *opcode,
-                            res as u32,
-                            carry as u32,
-                            b as u32,
-                            c as u32,
+                            u32::from(res),
+                            u32::from(carry),
+                            u32::from(b),
+                            u32::from(c),
                         )
                     }
                     ByteOpcode::LTU => {
                         let ltu = b < c;
                         col.ltu = F::from_bool(ltu);
-                        ByteLookupEvent::new(shard, *opcode, ltu as u32, 0, b as u32, c as u32)
+                        ByteLookupEvent::new(
+                            shard,
+                            *opcode,
+                            u32::from(ltu),
+                            0,
+                            u32::from(b),
+                            u32::from(c),
+                        )
                     }
                     ByteOpcode::MSB => {
                         let msb = (b & 0b1000_0000) != 0;
                         col.msb = F::from_bool(msb);
-                        ByteLookupEvent::new(shard, *opcode, msb as u32, 0, b as u32, 0 as u32)
+                        ByteLookupEvent::new(
+                            shard,
+                            *opcode,
+                            u32::from(msb),
+                            0,
+                            u32::from(b),
+                            0 as u32,
+                        )
                     }
                     ByteOpcode::U16Range => {
-                        let v = ((b as u32) << 8) + c as u32;
+                        let v = (u32::from(b) << 8) + u32::from(c);
                         col.value_u16 = F::from_canonical_u32(v);
                         ByteLookupEvent::new(shard, *opcode, v, 0, 0, 0)
                     }

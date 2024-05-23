@@ -35,8 +35,8 @@ mod tests {
     #[test]
     fn test_base_babybear() {
         let mut builder = Builder::<OuterConfig>::default();
-        let a_val = BabyBear::from_wrapped_u32(3124235823);
-        let b_val = BabyBear::from_wrapped_u32(3252375321);
+        let a_val = BabyBear::from_wrapped_u32(3_124_235_823);
+        let b_val = BabyBear::from_wrapped_u32(3_252_375_321);
         let a: Felt<_> = builder.eval(a_val);
         let b: Felt<_> = builder.eval(b_val);
 
@@ -75,8 +75,8 @@ mod tests {
     fn test_extension_babybear() {
         let mut builder = Builder::<OuterConfig>::default();
         let one_val = <OuterConfig as Config>::EF::from_wrapped_u32(1);
-        let a_val = <OuterConfig as Config>::EF::from_wrapped_u32(3124235823);
-        let b_val = <OuterConfig as Config>::EF::from_wrapped_u32(3252375321);
+        let a_val = <OuterConfig as Config>::EF::from_wrapped_u32(3_124_235_823);
+        let b_val = <OuterConfig as Config>::EF::from_wrapped_u32(3_252_375_321);
         let one: Ext<_, _> = builder.eval(BabyBear::one());
         let a: Ext<_, _> = builder.eval(a_val.cons());
         let b: Ext<_, _> = builder.eval(b_val.cons());
@@ -129,7 +129,7 @@ mod tests {
     #[test]
     fn test_commit() {
         let mut builder = Builder::<OuterConfig>::default();
-        let vkey_hash_bn254 = Bn254Fr::from_canonical_u32(1345237507);
+        let vkey_hash_bn254 = Bn254Fr::from_canonical_u32(1_345_237_507);
         let commited_values_digest_bn254 = Bn254Fr::from_canonical_u32(102);
         let vkey_hash = builder.eval(vkey_hash_bn254);
         let commited_values_digest = builder.eval(commited_values_digest_bn254);
@@ -150,7 +150,7 @@ mod tests {
     #[should_panic]
     fn test_commit_vkey_fail() {
         let mut builder = Builder::<OuterConfig>::default();
-        let vkey_hash_bn254 = Bn254Fr::from_canonical_u32(1345237507);
+        let vkey_hash_bn254 = Bn254Fr::from_canonical_u32(1_345_237_507);
         let commited_values_digest_bn254 = Bn254Fr::from_canonical_u32(102);
         let vkey_hash = builder.eval(vkey_hash_bn254);
         let commited_values_digest = builder.eval(commited_values_digest_bn254);
@@ -170,7 +170,7 @@ mod tests {
     #[should_panic]
     fn test_commit_commited_values_digest_fail() {
         let mut builder = Builder::<OuterConfig>::default();
-        let vkey_hash_bn254 = Bn254Fr::from_canonical_u32(1345237507);
+        let vkey_hash_bn254 = Bn254Fr::from_canonical_u32(1_345_237_507);
         let commited_values_digest_bn254 = Bn254Fr::from_canonical_u32(102);
         let vkey_hash = builder.eval(vkey_hash_bn254);
         let commited_values_digest = builder.eval(commited_values_digest_bn254);

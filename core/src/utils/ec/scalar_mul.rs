@@ -7,6 +7,7 @@ use super::AffinePoint;
 use super::EllipticCurve;
 
 impl<E: EllipticCurve> AffinePoint<E> {
+    #[must_use]
     pub fn scalar_mul(&self, scalar: &BigUint) -> Self {
         let power_two_modulus = BigUint::one() << E::nb_scalar_bits();
         let scalar = scalar % &power_two_modulus;

@@ -81,8 +81,14 @@ impl WeierstrassParameters for Secp256k1Parameters {
 
     fn prime_group_order() -> num::BigUint {
         BigUint::from_slice(&[
-            0xD0364141, 0xBFD25E8C, 0xAF48A03B, 0xBAAEDCE6, 0xFFFFFFFE, 0xFFFFFFFF, 0xFFFFFFFF,
-            0xFFFFFFFF,
+            0xD036_4141,
+            0xBFD2_5E8C,
+            0xAF48_A03B,
+            0xBAAE_DCE6,
+            0xFFFF_FFFE,
+            0xFFFF_FFFF,
+            0xFFFF_FFFF,
+            0xFFFF_FFFF,
         ])
     }
 
@@ -95,6 +101,7 @@ impl WeierstrassParameters for Secp256k1Parameters {
     }
 }
 
+#[must_use]
 pub fn secp256k1_decompress<E: EllipticCurve>(bytes_be: &[u8], sign: u32) -> AffinePoint<E> {
     let computed_point =
         k256::AffinePoint::decompress(bytes_be.into(), Choice::from(sign as u8)).unwrap();
@@ -105,6 +112,7 @@ pub fn secp256k1_decompress<E: EllipticCurve>(bytes_be: &[u8], sign: u32) -> Aff
     AffinePoint::<E>::new(x, y)
 }
 
+#[must_use]
 pub fn secp256k1_sqrt(n: &BigUint) -> BigUint {
     let be_bytes = n.to_be_bytes();
     let mut bytes = [0_u8; 32];
@@ -140,7 +148,7 @@ mod tests {
             let x_2 = (&x * &x) % Secp256k1BaseField::modulus();
             let sqrt = secp256k1_sqrt(&x_2);
 
-            println!("sqrt: {}", sqrt);
+            println!("sqrt: {sqrt}");
 
             let sqrt_2 = (&sqrt * &sqrt) % Secp256k1BaseField::modulus();
 

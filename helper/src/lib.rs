@@ -11,7 +11,7 @@ fn current_datetime() -> String {
 }
 
 pub fn build_program(path: &str) {
-    println!("path: {:?}", path);
+    println!("path: {path:?}");
     let program_dir = std::path::Path::new(path);
 
     // Tell cargo to rerun the script only if program/{src, Cargo.toml, Cargo.lock} changes
@@ -31,10 +31,7 @@ pub fn build_program(path: &str) {
     let mut metadata_cmd = cargo_metadata::MetadataCommand::new();
     let metadata = metadata_cmd.manifest_path(metadata_file).exec().unwrap();
     let root_package = metadata.root_package();
-    let root_package_name = root_package
-        .as_ref()
-        .map(|p| p.name.as_str())
-        .unwrap_or("Program");
+    let root_package_name = root_package.as_ref().map_or("Program", |p| p.name.as_str());
     println!(
         "cargo:warning={} built at {}",
         root_package_name,
@@ -42,10 +39,8 @@ pub fn build_program(path: &str) {
     );
 
     let status = execute_build_cmd(&program_dir)
-        .unwrap_or_else(|_| panic!("Failed to build `{}`.", root_package_name));
-    if !status.success() {
-        panic!("Failed to build `{}`.", root_package_name);
-    }
+        .unwrap_or_else(|_| panic!("Failed to build `{root_package_name}`."));
+    assert!(status.success(), "Failed to build `{root_package_name}`.");
 }
 
 /// Executes the `cargo prove build` command in the program directory

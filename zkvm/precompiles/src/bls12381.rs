@@ -14,10 +14,30 @@ impl CurveOperations<NUM_WORDS> for Bls12381 {
     // The generator has been taken from py_ecc python library by Ethereum Foundation.
     // https://github.com/ethereum/py_ecc/blob/7b9e1b3/py_ecc/bls12_381/bls12_381_curve.py#L38-L45
     const GENERATOR: [u32; NUM_WORDS] = [
-        3676489403, 4214943754, 4185529071, 1817569343, 387689560, 2706258495, 2541009157,
-        3278408783, 1336519695, 647324556, 832034708, 401724327, 1187375073, 212476713, 2726857444,
-        3493644100, 738505709, 14358731, 3587181302, 4243972245, 1948093156, 2694721773,
-        3819610353, 146011265,
+        3_676_489_403,
+        4_214_943_754,
+        4_185_529_071,
+        1_817_569_343,
+        387_689_560,
+        2_706_258_495,
+        2_541_009_157,
+        3_278_408_783,
+        1_336_519_695,
+        647_324_556,
+        832_034_708,
+        401_724_327,
+        1_187_375_073,
+        212_476_713,
+        2_726_857_444,
+        3_493_644_100,
+        738_505_709,
+        14_358_731,
+        3_587_181_302,
+        4_243_972_245,
+        1_948_093_156,
+        2_694_721_773,
+        3_819_610_353,
+        146_011_265,
     ];
 
     fn add_assign(limbs: &mut [u32; NUM_WORDS], other: &[u32; NUM_WORDS]) {
@@ -33,7 +53,7 @@ impl CurveOperations<NUM_WORDS> for Bls12381 {
     }
 }
 
-/// Decompresses a compressed public key using bls12381_decompress precompile.
+/// Decompresses a compressed public key using `bls12381_decompress` precompile.
 pub fn decompress_pubkey(compressed_key: &[u8; 48]) -> Result<[u8; 96]> {
     cfg_if::cfg_if! {
         if #[cfg(all(target_os = "zkvm", target_vendor = "succinct"))] {

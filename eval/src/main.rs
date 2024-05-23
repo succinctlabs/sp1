@@ -30,7 +30,7 @@ impl fmt::Display for HashFnId {
             HashFnId::Blake3 => "blake3",
             HashFnId::Keccak256 => "keccak256",
         };
-        write!(f, "{}", hash_fn_str)
+        write!(f, "{hash_fn_str}")
     }
 }
 
@@ -128,7 +128,7 @@ fn main() {
 
     // Write the report.
     if let Err(e) = write_report(report, &args.benchmark_path) {
-        eprintln!("Failed to write report: {}", e);
+        eprintln!("Failed to write report: {e}");
     }
 }
 

@@ -333,9 +333,9 @@ impl CpuChip {
             .assert_eq(public_values.next_pc.clone(), local.next_pc);
     }
 
-    /// Constraints related to the is_real column.
+    /// Constraints related to the `is_real` column.
     ///
-    /// This method checks that the is_real column is a boolean.  It also checks that the first row
+    /// This method checks that the `is_real` column is a boolean.  It also checks that the first row
     /// is 1 and once its 0, it never changes value.
     pub(crate) fn eval_is_real<AB: SP1AirBuilder>(
         &self,

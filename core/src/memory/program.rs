@@ -39,11 +39,12 @@ pub struct MemoryProgramMultCols<T> {
 
 /// Chip that initializes memory that is provided from the program. The table is preprocessed and
 /// receives each row in the first shard. This prevents any of these addresses from being
-/// overwritten through the normal MemoryInit.
+/// overwritten through the normal `MemoryInit`.
 #[derive(Default)]
 pub struct MemoryProgramChip;
 
 impl MemoryProgramChip {
+    #[must_use]
     pub fn new() -> Self {
         Self {}
     }

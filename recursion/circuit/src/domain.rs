@@ -45,6 +45,7 @@ where
     }
 }
 
+#[must_use]
 pub fn new_coset<C: Config>(
     _: &mut Builder<C>,
     log_degree: usize,

@@ -75,7 +75,7 @@ impl<F: PrimeField32, P: FieldParameters> FieldSqrtCols<F, P> {
             opcode: ByteOpcode::AND,
             a1: self.lsb.as_canonical_u32(),
             a2: 0,
-            b: sqrt_bytes[0] as u32,
+            b: u32::from(sqrt_bytes[0]),
             c: 1,
         };
         record.add_byte_lookup_event(and_event);

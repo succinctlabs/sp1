@@ -36,6 +36,7 @@ pub enum ByteOpcode {
 
 impl ByteOpcode {
     /// Get all the byte opcodes.
+    #[must_use]
     pub fn all() -> Vec<Self> {
         let opcodes = vec![
             ByteOpcode::AND,
@@ -53,6 +54,7 @@ impl ByteOpcode {
     }
 
     /// Convert the opcode to a field element.
+    #[must_use]
     pub fn as_field<F: Field>(self) -> F {
         F::from_canonical_u8(self as u8)
     }
@@ -66,7 +68,7 @@ impl From<Opcode> for ByteOpcode {
             Opcode::OR => Self::OR,
             Opcode::XOR => Self::XOR,
             Opcode::SLL => Self::SLL,
-            _ => panic!("Invalid opcode for ByteChip: {:?}", value),
+            _ => panic!("Invalid opcode for ByteChip: {value:?}"),
         }
     }
 }

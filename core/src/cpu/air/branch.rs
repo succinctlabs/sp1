@@ -24,9 +24,9 @@ impl CpuChip {
     /// It does this in few parts:
     /// 1. It verifies that the next pc is correct based on the branching column.  That column
     ///    is a boolean that indicates whether the branch condition is true.
-    /// 2. It verifies the correct value of branching based on the helper bool columns (a_eq_b,
-    ///    a_gt_b, a_lt_b).
-    /// 3. It verifier the correct values of the helper bool columns based on op_a and op_b.
+    /// 2. It verifies the correct value of branching based on the helper bool columns (`a_eq_b`,
+    ///    `a_gt_b`, `a_lt_b`).
+    /// 3. It verifier the correct values of the helper bool columns based on `op_a` and `op_b`.
     pub(crate) fn eval_branch_ops<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,

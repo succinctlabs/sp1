@@ -248,7 +248,7 @@ where
     where
         I: Into<Self::ExprEF>,
     {
-        self.assert_zero(x)
+        self.assert_zero(x);
     }
 }
 

@@ -43,10 +43,10 @@ impl CpuChip {
         opcode_selectors.is_sb + opcode_selectors.is_sh + opcode_selectors.is_sw
     }
 
-    /// Constrains the addr_aligned, addr_offset, and addr_word memory columns.
+    /// Constrains the `addr_aligned`, `addr_offset`, and `addr_word` memory columns.
     ///
     /// This method will do the following:
-    /// 1. Calculate that the unaligned address is correctly computed to be op_b.value + op_c.value.
+    /// 1. Calculate that the unaligned address is correctly computed to be `op_b.value` + `op_c.value`.
     /// 2. Calculate that the address offset is address % 4.
     /// 3. Assert the validity of the aligned address given the address offset and the unaligned address.
     pub(crate) fn eval_memory_address_and_access<AB: SP1AirBuilder>(
@@ -182,9 +182,10 @@ impl CpuChip {
             a_val[0] * memory_columns.offset_is_three
                 + (one.clone() - memory_columns.offset_is_three) * prev_mem_val[3],
         ]);
-        builder
-            .when(local.selectors.is_sb)
-            .assert_word_eq(mem_val.map(|x| x.into()), sb_expected_stored_value);
+        builder.when(local.selectors.is_sb).assert_word_eq(
+            mem_val.map(std::convert::Into::into),
+            sb_expected_stored_value,
+        );
 
         // When the instruction is SH, make sure both offset one and three are off.
         builder
@@ -201,14 +202,16 @@ impl CpuChip {
             a_val[0] * a_is_upper_half + (one.clone() - a_is_upper_half) * prev_mem_val[2],
             a_val[1] * a_is_upper_half + (one.clone() - a_is_upper_half) * prev_mem_val[3],
         ]);
-        builder
-            .when(local.selectors.is_sh)
-            .assert_word_eq(mem_val.map(|x| x.into()), sh_expected_stored_value);
+        builder.when(local.selectors.is_sh).assert_word_eq(
+            mem_val.map(std::convert::Into::into),
+            sh_expected_stored_value,
+        );
 
         // When the instruction is SW, just use the word without masking.
-        builder
-            .when(local.selectors.is_sw)
-            .assert_word_eq(mem_val.map(|x| x.into()), a_val.map(|x| x.into()));
+        builder.when(local.selectors.is_sw).assert_word_eq(
+            mem_val.map(std::convert::Into::into),
+            a_val.map(std::convert::Into::into),
+        );
     }
 
     /// This function is used to evaluate the unsigned memory value for the load memory instructions.
@@ -237,7 +240,10 @@ impl CpuChip {
         // When the instruciton is LB or LBU, just use the lower byte.
         builder
             .when(local.selectors.is_lb + local.selectors.is_lbu)
-            .assert_word_eq(byte_value, local.unsigned_mem_val.map(|x| x.into()));
+            .assert_word_eq(
+                byte_value,
+                local.unsigned_mem_val.map(std::convert::Into::into),
+            );
 
         // When the instruction is LH or LHU, use the lower half.
         builder
@@ -253,7 +259,10 @@ impl CpuChip {
         ]);
         builder
             .when(local.selectors.is_lh + local.selectors.is_lhu)
-            .assert_word_eq(half_value, local.unsigned_mem_val.map(|x| x.into()));
+            .assert_word_eq(
+                half_value,
+                local.unsigned_mem_val.map(std::convert::Into::into),
+            );
 
         // When the instruction is LW, just use the word.
         builder

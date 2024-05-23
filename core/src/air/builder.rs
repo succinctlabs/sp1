@@ -64,8 +64,8 @@ pub trait BaseAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr>
         condition.clone().into() * a.into() + (Self::Expr::one() - condition.into()) * b.into()
     }
 
-    /// Index an array of expressions using an index bitmap.  This function assumes that the EIndex
-    /// type is a boolean and that index_bitmap's entries sum to 1.
+    /// Index an array of expressions using an index bitmap.  This function assumes that the `EIndex`
+    /// type is a boolean and that `index_bitmap`'s entries sum to 1.
     fn index_array(
         &mut self,
         array: &[impl Into<Self::Expr> + Clone],
@@ -93,7 +93,7 @@ pub trait ByteAirBuilder: BaseAirBuilder {
         shard: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
-        self.send_byte_pair(opcode, a, Self::Expr::zero(), b, c, shard, multiplicity)
+        self.send_byte_pair(opcode, a, Self::Expr::zero(), b, c, shard, multiplicity);
     }
 
     /// Sends a byte operation with two outputs to be processed.
@@ -132,7 +132,7 @@ pub trait ByteAirBuilder: BaseAirBuilder {
         shard: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
-        self.receive_byte_pair(opcode, a, Self::Expr::zero(), b, c, shard, multiplicity)
+        self.receive_byte_pair(opcode, a, Self::Expr::zero(), b, c, shard, multiplicity);
     }
 
     /// Receives a byte operation with two outputs to be processed.
@@ -252,7 +252,7 @@ pub trait WordAirBuilder: ByteAirBuilder {
         shard: impl Into<Self::Expr> + Clone,
         mult: impl Into<Self::Expr> + Clone,
     ) {
-        input.iter().for_each(|limb| {
+        for limb in input {
             self.send_byte(
                 Self::Expr::from_canonical_u8(ByteOpcode::U16Range as u8),
                 *limb,
@@ -261,7 +261,7 @@ pub trait WordAirBuilder: ByteAirBuilder {
                 shard.clone(),
                 mult.clone(),
             );
-        });
+        }
     }
 }
 
@@ -495,7 +495,7 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
     ///
     /// This method verifies that the inputted is less than 2^24 by doing a 16 bit and 8 bit range
     /// check on it's limbs.  It will also verify that the limbs are correct.  This method is needed
-    /// since the memory access timestamp check (see [Self::verify_mem_access_ts]) needs to assume
+    /// since the memory access timestamp check (see [`Self::verify_mem_access_ts`]) needs to assume
     /// the clk is within 24 bits.
     fn eval_range_check_24bits(
         &mut self,
@@ -529,7 +529,7 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
             limb_8,
             shard.clone(),
             do_check,
-        )
+        );
     }
 }
 
@@ -546,8 +546,8 @@ pub trait ProgramAirBuilder: BaseAirBuilder {
     ) {
         let values = once(pc.into())
             .chain(once(instruction.opcode.into()))
-            .chain(instruction.into_iter().map(|x| x.into()))
-            .chain(selectors.into_iter().map(|x| x.into()))
+            .chain(instruction.into_iter().map(std::convert::Into::into))
+            .chain(selectors.into_iter().map(std::convert::Into::into))
             .chain(once(shard.into()))
             .collect();
 
@@ -569,8 +569,8 @@ pub trait ProgramAirBuilder: BaseAirBuilder {
     ) {
         let values: Vec<<Self as AirBuilder>::Expr> = once(pc.into())
             .chain(once(instruction.opcode.into()))
-            .chain(instruction.into_iter().map(|x| x.into()))
-            .chain(selectors.into_iter().map(|x| x.into()))
+            .chain(instruction.into_iter().map(std::convert::Into::into))
+            .chain(selectors.into_iter().map(std::convert::Into::into))
             .chain(once(shard.into()))
             .collect();
 

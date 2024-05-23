@@ -177,7 +177,7 @@ where
     }
 
     fn generate_dependencies(&self, input: &A::Record, output: &mut A::Record) {
-        self.air.generate_dependencies(input, output)
+        self.air.generate_dependencies(input, output);
     }
 
     fn included(&self, shard: &Self::Record) -> bool {

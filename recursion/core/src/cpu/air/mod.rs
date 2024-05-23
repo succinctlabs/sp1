@@ -102,7 +102,7 @@ impl<F: Field> CpuChip<F> {
     /// Eval the clk.
     ///
     /// For all instructions except for FRI fold, the next clk is the current clk + 4.
-    /// For FRI fold, the next clk is the current clk + number of FRI_FOLD iterations.  That value
+    /// For FRI fold, the next clk is the current clk + number of `FRI_FOLD` iterations.  That value
     /// is stored in the `a` operand.
     pub fn eval_clk<AB>(&self, builder: &mut AB, local: &CpuCols<AB::Var>, next: &CpuCols<AB::Var>)
     where
@@ -121,7 +121,7 @@ impl<F: Field> CpuChip<F> {
             .assert_eq(local.clk.into() + local.a.value()[0], next.clk);
     }
 
-    /// Eval the is_real flag.
+    /// Eval the `is_real` flag.
     pub fn eval_is_real<AB>(
         &self,
         builder: &mut AB,

@@ -52,7 +52,7 @@ impl<F: Field> MachineAir<F> for ByteChip<F> {
             NUM_BYTE_MULT_COLS,
         );
 
-        for (lookup, mult) in input.byte_lookups[&shard].iter() {
+        for (lookup, mult) in &input.byte_lookups[&shard] {
             let (row, index) = event_map[lookup];
             let cols: &mut ByteMultCols<F> = trace.row_mut(row).borrow_mut();
 

@@ -28,14 +28,17 @@ pub struct FixedRotateRightOperation<T> {
 }
 
 impl<F: Field> FixedRotateRightOperation<F> {
+    #[must_use]
     pub fn nb_bytes_to_shift(rotation: usize) -> usize {
         rotation / 8
     }
 
+    #[must_use]
     pub fn nb_bits_to_shift(rotation: usize) -> usize {
         rotation % 8
     }
 
+    #[must_use]
     pub fn carry_multiplier(rotation: usize) -> u32 {
         let nb_bits_to_shift = Self::nb_bits_to_shift(rotation);
         1 << (8 - nb_bits_to_shift)
@@ -77,10 +80,10 @@ impl<F: Field> FixedRotateRightOperation<F> {
             let byte_event = ByteLookupEvent {
                 shard,
                 opcode: ByteOpcode::ShrCarry,
-                a1: shift as u32,
-                a2: carry as u32,
-                b: b as u32,
-                c: c as u32,
+                a1: u32::from(shift),
+                a2: u32::from(carry),
+                b: u32::from(b),
+                c: u32::from(c),
             };
             record.add_byte_lookup_event(byte_event);
 

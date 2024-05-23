@@ -18,7 +18,7 @@ pub const PV_DIGEST_NUM_WORDS: usize = 8;
 
 pub const POSEIDON_NUM_WORDS: usize = 8;
 
-/// The PublicValues struct is used to store all of a shard proof's public values.
+/// The `PublicValues` struct is used to store all of a shard proof's public values.
 #[derive(Serialize, Deserialize, Clone, Copy, Default, Debug)]
 pub struct PublicValues<W, T> {
     /// The hash of all the bytes that the guest program has written to public values.
@@ -53,7 +53,7 @@ impl PublicValues<u32, u32> {
             .chain(
                 self.deferred_proofs_digest
                     .iter()
-                    .cloned()
+                    .copied()
                     .map(F::from_canonical_u32),
             )
             .chain(once(F::from_canonical_u32(self.start_pc)))
@@ -75,7 +75,8 @@ impl PublicValues<u32, u32> {
 }
 
 impl<T: Clone + Debug> PublicValues<Word<T>, T> {
-    /// Convert a vector of field elements into a PublicValues struct.
+    /// Convert a vector of field elements into a `PublicValues` struct.
+    #[must_use]
     pub fn from_vec(data: Vec<T>) -> Self {
         let mut iter = data.iter().cloned();
 
@@ -91,9 +92,10 @@ impl<T: Clone + Debug> PublicValues<Word<T>, T> {
         // Collecting the remaining items into a tuple.  Note that it is only getting the first
         // four items, as the rest would be padded values.
         let remaining_items = iter.collect_vec();
-        if remaining_items.len() < 4 {
-            panic!("Invalid number of items in the serialized vector.");
-        }
+        assert!(
+            remaining_items.len() >= 4,
+            "Invalid number of items in the serialized vector."
+        );
 
         let [start_pc, next_pc, exit_code, shard] = match &remaining_items.as_slice()[0..4] {
             [start_pc, next_pc, exit_code, shard] => [start_pc, next_pc, exit_code, shard],
@@ -125,7 +127,7 @@ impl<F: PrimeField32> PublicValues<Word<F>, F> {
 mod tests {
     use crate::air::public_values;
 
-    /// Check that the PI_DIGEST_NUM_WORDS number match the zkVM crate's.
+    /// Check that the `PI_DIGEST_NUM_WORDS` number match the zkVM crate's.
     #[test]
     fn test_public_values_digest_num_words_consistency_zkvm() {
         assert_eq!(

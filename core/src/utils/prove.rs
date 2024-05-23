@@ -96,7 +96,7 @@ where
     // Execute the program.
     let mut runtime = Runtime::new(program.clone());
     runtime.write_vecs(&stdin.buffer);
-    for proof in stdin.proofs.iter() {
+    for proof in &stdin.proofs {
         runtime.write_proof(proof.0.clone(), proof.1.clone());
     }
 
@@ -156,7 +156,7 @@ where
     let mut shard_main_datas = Vec::new();
     let mut challenger = machine.config().challenger();
     vk.observe_into(&mut challenger);
-    for checkpoint_file in checkpoints.iter_mut() {
+    for checkpoint_file in &mut checkpoints {
         let mut record = trace_checkpoint(program.clone(), checkpoint_file);
         record.public_values = public_values;
         reset_seek(&mut *checkpoint_file);
@@ -179,7 +179,7 @@ where
 
     // For each checkpoint, generate events and shard again, then prove the shards.
     let mut shard_proofs = Vec::<ShardProof<SC>>::new();
-    for mut checkpoint_file in checkpoints.into_iter() {
+    for mut checkpoint_file in checkpoints {
         let checkpoint_shards = {
             let mut events = trace_checkpoint(program.clone(), &checkpoint_file);
             events.public_values = public_values;
@@ -197,7 +197,7 @@ where
                 let ordered_chips = machine
                     .shard_chips_ordered(&chip_ordering)
                     .collect::<Vec<_>>()
-                    .to_vec();
+                    .clone();
                 LocalProver::prove_shard(
                     config,
                     &pk,
@@ -438,6 +438,7 @@ pub mod baby_bear_poseidon2 {
     pub type Challenger = DuplexChallenger<Val, Perm, 16>;
     type Pcs = TwoAdicFriPcs<Val, Dft, ValMmcs, ChallengeMmcs>;
 
+    #[must_use]
     pub fn my_perm() -> Perm {
         const ROUNDS_F: usize = 8;
         const ROUNDS_P: usize = 13;
@@ -459,6 +460,7 @@ pub mod baby_bear_poseidon2 {
         )
     }
 
+    #[must_use]
     pub fn default_fri_config() -> FriConfig<ChallengeMmcs> {
         let perm = my_perm();
         let hash = MyHash::new(perm.clone());
@@ -476,6 +478,7 @@ pub mod baby_bear_poseidon2 {
         }
     }
 
+    #[must_use]
     pub fn compressed_fri_config() -> FriConfig<ChallengeMmcs> {
         let perm = my_perm();
         let hash = MyHash::new(perm.clone());
@@ -507,6 +510,7 @@ pub mod baby_bear_poseidon2 {
     }
 
     impl BabyBearPoseidon2 {
+        #[must_use]
         pub fn new() -> Self {
             let perm = my_perm();
             let hash = MyHash::new(perm.clone());
@@ -522,6 +526,7 @@ pub mod baby_bear_poseidon2 {
             }
         }
 
+        #[must_use]
         pub fn compressed() -> Self {
             let perm = my_perm();
             let hash = MyHash::new(perm.clone());
@@ -644,6 +649,7 @@ pub(super) mod baby_bear_keccak {
 
     impl BabyBearKeccak {
         #[allow(dead_code)]
+        #[must_use]
         pub fn new() -> Self {
             let byte_hash = ByteHash {};
             let field_hash = FieldHash::new(byte_hash);
@@ -764,6 +770,7 @@ pub(super) mod baby_bear_blake3 {
     }
 
     impl BabyBearBlake3 {
+        #[must_use]
         pub fn new() -> Self {
             let byte_hash = ByteHash {};
             let field_hash = FieldHash::new(byte_hash);

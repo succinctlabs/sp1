@@ -1,7 +1,7 @@
 use p3_air::{AirBuilder, ExtensionBuilder, FilteredAirBuilder, PermutationAirBuilder};
 use sp1_core::air::MessageBuilder;
 
-/// The MultiBuilder is used for the multi table.  It is used to create a virtual builder for one of
+/// The `MultiBuilder` is used for the multi table.  It is used to create a virtual builder for one of
 /// the sub tables in the multi table.
 pub struct MultiBuilder<'a, AB: AirBuilder> {
     inner: FilteredAirBuilder<'a, AB>,

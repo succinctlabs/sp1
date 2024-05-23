@@ -15,7 +15,7 @@ fn main() {
             let out_dir = env::var("OUT_DIR").unwrap();
             let dest_path = PathBuf::from(&out_dir);
             let lib_name = "sp1gnark";
-            let dest = dest_path.join(format!("lib{}.a", lib_name));
+            let dest = dest_path.join(format!("lib{lib_name}.a"));
 
             println!("Building Go library at {}", dest.display());
 
@@ -32,9 +32,7 @@ fn main() {
                 ])
                 .status()
                 .expect("Failed to build Go library");
-            if !status.success() {
-                panic!("Go build failed");
-            }
+            assert!(status.success(), "Go build failed");
 
             // Copy go/babybear.h to OUT_DIR/babybear.h
             let header_src = PathBuf::from("go/babybear.h");
@@ -42,7 +40,7 @@ fn main() {
             std::fs::copy(header_src, header_dest).unwrap();
 
             // Generate bindings using bindgen
-            let header_path = dest_path.join(format!("lib{}.h", lib_name));
+            let header_path = dest_path.join(format!("lib{lib_name}.h"));
             let bindings = bindgen::Builder::default()
                 .header(header_path.to_str().unwrap())
                 .parse_callbacks(Box::new(CargoCallbacks::new()))
@@ -57,7 +55,7 @@ fn main() {
 
             // Link the Go library
             println!("cargo:rustc-link-search=native={}", dest_path.display());
-            println!("cargo:rustc-link-lib=static={}", lib_name);
+            println!("cargo:rustc-link-lib=static={lib_name}");
         }
     }
 }

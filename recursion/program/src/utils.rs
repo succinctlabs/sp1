@@ -167,7 +167,7 @@ pub fn get_challenger_public_values<C: Config>(
 }
 
 /// Hash the verifying key + prep domains into a single digest.
-/// poseidon2( commit[0..8] || pc_start || prep_domains[N].{log_n, .size, .shift, .g})
+/// poseidon2( commit[0..8] || `pc_start` || `prep_domains`[N].{`log_n`, .size, .shift, .g})
 pub fn hash_vkey<C: Config>(
     builder: &mut Builder<C>,
     vk: &VerifyingKeyVariable<C>,

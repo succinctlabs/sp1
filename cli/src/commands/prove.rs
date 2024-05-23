@@ -1,4 +1,4 @@
-use anstyle::*;
+use anstyle::{AnsiColor, Effects};
 use anyhow::Result;
 use clap::Parser;
 use sp1_core::utils::{setup_logger, setup_tracer};
@@ -125,11 +125,7 @@ impl ProveCmd {
 
         let elapsed = elapsed(start_time.elapsed());
         let green = AnsiColor::Green.on_default().effects(Effects::BOLD);
-        write_status(
-            &green,
-            "Finished",
-            format!("proving in {}", elapsed).as_str(),
-        );
+        write_status(&green, "Finished", format!("proving in {elapsed}").as_str());
 
         Ok(())
     }

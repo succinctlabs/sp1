@@ -23,6 +23,7 @@ pub trait EdwardsParameters: EllipticCurveParameters {
         modulus
     }
 
+    #[must_use]
     fn neutral() -> (BigUint, BigUint) {
         (BigUint::from(0u32), BigUint::from(1u32))
     }
@@ -58,10 +59,12 @@ impl<E: EdwardsParameters> EllipticCurveParameters for EdwardsCurve<E> {
 }
 
 impl<E: EdwardsParameters> EdwardsCurve<E> {
+    #[must_use]
     pub fn prime_group_order() -> BigUint {
         E::prime_group_order()
     }
 
+    #[must_use]
     pub fn neutral() -> AffinePoint<Self> {
         let (x, y) = E::neutral();
         AffinePoint::new(x, y)
@@ -145,7 +148,7 @@ mod tests {
 
         let d = Ed25519Parameters::d_biguint();
         let p = <E as EllipticCurveParameters>::BaseField::modulus();
-        assert_eq!((d * 121666u32) % &p, (&p - 121665u32) % &p);
+        assert_eq!((d * 121_666_u32) % &p, (&p - 121_665_u32) % &p);
 
         let mut rng = thread_rng();
         for _ in 0..10 {
@@ -160,7 +163,7 @@ mod tests {
         }
 
         let order = BigUint::from(2u32).pow(252)
-            + BigUint::from(27742317777372353535851937790883648493u128);
+            + BigUint::from(27_742_317_777_372_353_535_851_937_790_883_648_493_u128);
         assert_eq!(base, &base + &(&base * &order));
     }
 }

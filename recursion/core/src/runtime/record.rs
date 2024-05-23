@@ -69,8 +69,7 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
             .append(&mut other.last_memory_record);
 
         // Merge the range check lookups.
-        for (range_check_event, count) in std::mem::take(&mut other.range_check_events).into_iter()
-        {
+        for (range_check_event, count) in std::mem::take(&mut other.range_check_events) {
             *self
                 .range_check_events
                 .entry(range_check_event)
@@ -78,7 +77,7 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
         }
     }
 
-    fn shard(self, _: &Self::Config) -> Vec<Self> {
+    fn shard(self, (): &Self::Config) -> Vec<Self> {
         vec![self]
     }
 
