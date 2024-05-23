@@ -6,9 +6,7 @@ use crate::{
     proto::network::{ProofStatus, TransactionStatus},
     Prover,
 };
-use crate::{
-    SP1CompressedProof, SP1PlonkBn254Proof, SP1PlonkProof, SP1Proof, SP1ProvingKey, SP1VerifyingKey,
-};
+use crate::{SP1CompressedProof, SP1PlonkBn254Proof, SP1Proof, SP1ProvingKey, SP1VerifyingKey};
 use anyhow::{Context, Result};
 use serde::de::DeserializeOwned;
 use sp1_prover::utils::block_on;
@@ -162,10 +160,6 @@ impl Prover for NetworkProver {
     }
 
     fn prove_plonk_bn254(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkBn254Proof> {
-        block_on(self.prove_async(&pk.elf, stdin, ProofMode::Groth16))
-    }
-
-    fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkProof> {
         block_on(self.prove_async(&pk.elf, stdin, ProofMode::Plonk))
     }
 }

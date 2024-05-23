@@ -3,8 +3,8 @@ use cfg_if::cfg_if;
 use sp1_prover::{SP1Prover, SP1Stdin};
 
 use crate::{
-    Prover, SP1CompressedProof, SP1PlonkBn254Proof, SP1PlonkProof, SP1Proof,
-    SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
+    Prover, SP1CompressedProof, SP1PlonkBn254Proof, SP1Proof, SP1ProofWithPublicValues,
+    SP1ProvingKey, SP1VerifyingKey,
 };
 
 /// An implementation of [crate::ProverClient] that can generate end-to-end proofs locally.
@@ -83,22 +83,6 @@ impl Prover for LocalProver {
                 panic!("groth16 feature not enabled")
             }
         }
-    }
-
-    fn prove_plonk(&self, _pk: &SP1ProvingKey, _stdin: SP1Stdin) -> Result<SP1PlonkProof> {
-        // let proof = self.prover.prove_core(pk, &stdin);
-        // let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
-        // let public_values = proof.public_values.clone();
-        // let reduce_proof = self.prover.compress(&pk.vk, proof, deferred_proofs);
-        // let compress_proof = self.prover.shrink(&pk.vk, reduce_proof);
-        // let outer_proof = self.prover.wrap_bn254(&pk.vk, compress_proof);
-        // let proof = self.prover.wrap_plonk(outer_proof, artifacts_dir);
-        // Ok(SP1ProofWithPublicValues {
-        //     proof,
-        //     stdin,
-        //     public_values,
-        // })
-        todo!()
     }
 }
 

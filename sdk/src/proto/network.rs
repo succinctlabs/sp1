@@ -267,8 +267,6 @@ pub enum ProofMode {
     Compressed = 2,
     /// The proof mode for a PlonK proof.
     Plonk = 3,
-    /// The proof mode for a Groth16 proof.
-    Groth16 = 4,
 }
 impl ProofMode {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -281,7 +279,6 @@ impl ProofMode {
             ProofMode::Core => "PROOF_MODE_CORE",
             ProofMode::Compressed => "PROOF_MODE_COMPRESSED",
             ProofMode::Plonk => "PROOF_MODE_PLONK",
-            ProofMode::Groth16 => "PROOF_MODE_PLONK_BN254",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -291,7 +288,6 @@ impl ProofMode {
             "PROOF_MODE_CORE" => Some(Self::Core),
             "PROOF_MODE_COMPRESSED" => Some(Self::Compressed),
             "PROOF_MODE_PLONK" => Some(Self::Plonk),
-            "PROOF_MODE_PLONK_BN254" => Some(Self::Groth16),
             _ => None,
         }
     }

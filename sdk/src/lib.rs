@@ -57,9 +57,6 @@ pub type SP1CompressedProofVerificationError = MachineVerificationError<InnerSC>
 /// A [SP1ProofWithPublicValues] generated with [ProverClient::prove_plonk_bn254].
 pub type SP1PlonkBn254Proof = SP1ProofWithPublicValues<PlonkBn254Proof>;
 
-/// A [SP1ProofWithPublicValues] generated with [ProverClient::prove_plonk].
-pub type SP1PlonkProof = SP1ProofWithPublicValues<PlonkBn254Proof>;
-
 impl ProverClient {
     /// Creates a new [ProverClient].
     ///
@@ -293,35 +290,6 @@ impl ProverClient {
         self.prover.prove_plonk_bn254(pk, stdin)
     }
 
-    /// Proves the execution of the given program with the given input in the plonk mode.
-    ///
-    /// Returns a proof of the program's execution in the plonk format. The proof is a succinct
-    /// proof that is of constant size and friendly for on-chain verification.
-    ///
-    /// ### Examples
-    /// ```no_run
-    /// use sp1_sdk::{ProverClient, SP1Stdin};
-    ///
-    /// // Load the program.
-    /// let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
-    ///
-    /// // Initialize the prover client.
-    /// let client = ProverClient::new();
-    ///
-    /// // Setup the program.
-    /// let (pk, vk) = client.setup(elf);
-    ///
-    /// // Setup the inputs.
-    /// let mut stdin = SP1Stdin::new();
-    /// stdin.write(&10usize);
-    ///
-    /// // Generate the proof.
-    /// let proof = client.prove_plonk(&pk, stdin).unwrap();
-    /// ```
-    pub fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkProof> {
-        self.prover.prove_plonk(pk, stdin)
-    }
-
     /// Verifies that the given proof is valid and matches the given verification key produced by
     /// [Self::setup].
     ///
@@ -409,36 +377,6 @@ impl ProverClient {
         vkey: &SP1VerifyingKey,
     ) -> Result<()> {
         self.prover.verify_plonk_bn254(proof, vkey)
-    }
-
-    /// Verifies that the given plonk proof is valid and matches the given verification key
-    /// produced by [Self::setup].
-    ///
-    /// ### Examples
-    /// ```no_run
-    /// use sp1_sdk::{ProverClient, SP1Stdin};
-    ///
-    /// // Load the program.
-    /// let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
-    ///
-    /// // Initialize the prover client.
-    /// let client = ProverClient::new();
-    ///
-    /// // Setup the program.
-    /// let (pk, vk) = client.setup(elf);
-    ///
-    /// // Setup the inputs.
-    /// let mut stdin = SP1Stdin::new();
-    /// stdin.write(&10usize);
-    ///
-    /// // Generate the proof.
-    /// let proof = client.prove_plonk(&pk, stdin).unwrap();
-    ///
-    /// // Verify the proof.
-    /// client.verify_plonk(&proof, &vk).unwrap();
-    /// ```
-    pub fn verify_plonk(&self, proof: &SP1PlonkProof, vkey: &SP1VerifyingKey) -> Result<()> {
-        self.prover.verify_plonk(proof, vkey)
     }
 }
 

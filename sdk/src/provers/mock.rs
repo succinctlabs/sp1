@@ -1,7 +1,7 @@
 #![allow(unused_variables)]
 use crate::{
-    Prover, SP1CompressedProof, SP1PlonkBn254Proof, SP1PlonkProof, SP1Proof,
-    SP1ProofVerificationError, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
+    Prover, SP1CompressedProof, SP1PlonkBn254Proof, SP1Proof, SP1ProofVerificationError,
+    SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
 };
 use anyhow::Result;
 use p3_field::PrimeField;
@@ -68,10 +68,6 @@ impl Prover for MockProver {
         })
     }
 
-    fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkProof> {
-        todo!()
-    }
-
     fn verify(
         &self,
         _proof: &SP1Proof,
@@ -90,10 +86,6 @@ impl Prover for MockProver {
 
     fn verify_plonk_bn254(&self, proof: &SP1PlonkBn254Proof, vkey: &SP1VerifyingKey) -> Result<()> {
         verify_plonk_bn254_public_inputs(vkey, &proof.public_values, &proof.proof.public_inputs)?;
-        Ok(())
-    }
-
-    fn verify_plonk(&self, _proof: &SP1PlonkProof, _vkey: &SP1VerifyingKey) -> Result<()> {
         Ok(())
     }
 }
