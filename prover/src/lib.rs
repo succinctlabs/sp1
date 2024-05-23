@@ -616,6 +616,9 @@ impl SP1Prover {
             runtime.record,
             &mut wrap_challenger,
         );
+        // let mut wrap_challenger = self.wrap_machine.config().challenger();
+        // self.wrap_machine
+        //     .debug_constraints(&self.wrap_pk, runtime.record, &mut wrap_challenger);
         let elapsed = time.elapsed();
         tracing::debug!("Wrap proving time: {:?}", elapsed);
         let mut wrap_challenger = self.wrap_machine.config().challenger();

@@ -11,6 +11,8 @@ import (
 	"github.com/succinctlabs/sp1-recursion-gnark/sp1/poseidon2"
 )
 
+var SRS_FILE string = "srs.bin"
+var SRS_LAGRANGE_FILE string = "srs_lagrange.bin"
 var CONSTRAINTS_JSON_FILE string = "constraints_groth16.json"
 var WITNESS_JSON_FILE string = "witness_groth16.json"
 var VERIFIER_CONTRACT_PATH string = "SP1Verifier.sol"

@@ -196,12 +196,13 @@ impl Poseidon2Chip {
             let sbox_deg_3 = computation_cols.add_rc[i]
                 * computation_cols.add_rc[i]
                 * computation_cols.add_rc[i];
-            builder
-                .when(is_initial.clone() + is_external_layer.clone() + is_internal_layer.clone())
-                .assert_eq(sbox_deg_3, computation_cols.sbox_deg_3[i]);
-            let sbox_deg_7 = computation_cols.sbox_deg_3[i]
-                * computation_cols.sbox_deg_3[i]
-                * computation_cols.add_rc[i];
+            let sbox_deg_7 = sbox_deg_3.clone() * sbox_deg_3.clone() * computation_cols.add_rc[i];
+            // builder
+            //     .when(is_initial.clone() + is_external_layer.clone() + is_internal_layer.clone())
+            //     .assert_eq(sbox_deg_3, computation_cols.sbox_deg_3[i]);
+            // let sbox_deg_7 = computation_cols.sbox_deg_3[i]
+            //     * computation_cols.sbox_deg_3[i]
+            //     * computation_cols.add_rc[i];
             builder
                 .when(is_initial.clone() + is_external_layer.clone() + is_internal_layer.clone())
                 .assert_eq(sbox_deg_7, computation_cols.sbox_deg_7[i]);

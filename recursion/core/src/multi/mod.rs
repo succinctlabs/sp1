@@ -196,6 +196,12 @@ where
             local.poseidon2_receive_table,
             local.poseidon2_memory_access.into(),
         );
+
+        let mut expr = local.is_fri_fold * local.is_fri_fold;
+        for _ in 0..7 {
+            expr *= local.is_fri_fold.into();
+        }
+        builder.assert_eq(expr.clone(), expr.clone());
     }
 }
 // SAFETY: Each view is a valid interpretation of the underlying array.
