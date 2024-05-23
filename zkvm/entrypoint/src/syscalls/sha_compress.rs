@@ -3,7 +3,7 @@ use core::arch::asm;
 
 #[allow(unused_variables)]
 #[no_mangle]
-pub const extern "C" fn syscall_sha256_compress(w: *mut u32, state: *mut u32) {
+pub extern "C" fn syscall_sha256_compress(w: *mut u32, state: *mut u32) {
     #[cfg(target_os = "zkvm")]
     unsafe {
         asm!(

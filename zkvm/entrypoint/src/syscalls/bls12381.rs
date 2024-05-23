@@ -26,7 +26,7 @@ pub extern "C" fn syscall_bls12381_add(p: *mut u32, q: *const u32) {
 /// The result is stored in the first point.
 #[allow(unused_variables)]
 #[no_mangle]
-pub const extern "C" fn syscall_bls12381_double(p: *mut u32) {
+pub extern "C" fn syscall_bls12381_double(p: *mut u32) {
     #[cfg(target_os = "zkvm")]
     unsafe {
         asm!(

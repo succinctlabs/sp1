@@ -21,6 +21,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ECAddEvent {
     pub shard: u32,
+    pub channel: u32,
     pub clk: u32,
     pub p_ptr: u32,
     pub p: Vec<u32>,
@@ -68,6 +69,7 @@ pub fn create_ec_add_event<E: EllipticCurve>(
 
     ECAddEvent {
         shard: rt.current_shard(),
+        channel: rt.current_channel(),
         clk: start_clk,
         p_ptr,
         p,
@@ -82,6 +84,7 @@ pub fn create_ec_add_event<E: EllipticCurve>(
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ECDoubleEvent {
     pub shard: u32,
+    pub channel: u32,
     pub clk: u32,
     pub p_ptr: u32,
     pub p: Vec<u32>,
@@ -117,6 +120,7 @@ pub fn create_ec_double_event<E: EllipticCurve>(
 
     ECDoubleEvent {
         shard: rt.current_shard(),
+        channel: rt.current_channel(),
         clk: start_clk,
         p_ptr,
         p,
@@ -128,6 +132,7 @@ pub fn create_ec_double_event<E: EllipticCurve>(
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ECDecompressEvent {
     pub shard: u32,
+    pub channel: u32,
     pub clk: u32,
     pub ptr: u32,
     pub is_odd: bool,
@@ -172,6 +177,7 @@ pub fn create_ec_decompress_event<E: EllipticCurve>(
 
     ECDecompressEvent {
         shard: rt.current_shard(),
+        channel: rt.current_channel(),
         clk: start_clk,
         ptr: slice_ptr,
         is_odd: is_odd != 0,
