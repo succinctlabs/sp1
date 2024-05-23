@@ -4,7 +4,7 @@ pub struct SyscallHintLen;
 
 /// SyscallHintLen returns the length of the next slice in the hint input stream.
 impl SyscallHintLen {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self
     }
 }
@@ -22,7 +22,7 @@ pub struct SyscallHintRead;
 
 /// SyscallHintRead returns the length of the next slice in the hint input stream.
 impl SyscallHintRead {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self
     }
 }

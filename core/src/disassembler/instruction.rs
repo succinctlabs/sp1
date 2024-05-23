@@ -7,7 +7,7 @@ use crate::runtime::{Instruction, Opcode, Register};
 
 impl Instruction {
     /// Create a new instruction from an R-type instruction.
-    pub fn from_r_type(opcode: Opcode, dec_insn: RType) -> Self {
+    pub const fn from_r_type(opcode: Opcode, dec_insn: RType) -> Self {
         Self::new(
             opcode,
             dec_insn.rd as u32,
@@ -19,7 +19,7 @@ impl Instruction {
     }
 
     /// Create a new instruction from an I-type instruction.
-    pub fn from_i_type(opcode: Opcode, dec_insn: IType) -> Self {
+    pub const fn from_i_type(opcode: Opcode, dec_insn: IType) -> Self {
         Self::new(
             opcode,
             dec_insn.rd as u32,
@@ -31,7 +31,7 @@ impl Instruction {
     }
 
     /// Create a new instruction from an I-type instruction with a shamt.
-    pub fn from_i_type_shamt(opcode: Opcode, dec_insn: ITypeShamt) -> Self {
+    pub const fn from_i_type_shamt(opcode: Opcode, dec_insn: ITypeShamt) -> Self {
         Self::new(
             opcode,
             dec_insn.rd as u32,
@@ -43,7 +43,7 @@ impl Instruction {
     }
 
     /// Create a new instruction from an S-type instruction.
-    pub fn from_s_type(opcode: Opcode, dec_insn: SType) -> Self {
+    pub const fn from_s_type(opcode: Opcode, dec_insn: SType) -> Self {
         Self::new(
             opcode,
             dec_insn.rs2 as u32,
@@ -55,7 +55,7 @@ impl Instruction {
     }
 
     /// Create a new instruction from a B-type instruction.
-    pub fn from_b_type(opcode: Opcode, dec_insn: BType) -> Self {
+    pub const fn from_b_type(opcode: Opcode, dec_insn: BType) -> Self {
         Self::new(
             opcode,
             dec_insn.rs1 as u32,
@@ -67,19 +67,19 @@ impl Instruction {
     }
 
     /// Create a new instruction that is not implemented.
-    pub fn unimp() -> Self {
+    pub const fn unimp() -> Self {
         Self::new(Opcode::UNIMP, 0, 0, 0, true, true)
     }
 
     /// Returns if the instruction is an R-type instruction.
     #[inline(always)]
-    pub fn is_r_type(&self) -> bool {
+    pub const fn is_r_type(&self) -> bool {
         !self.imm_c
     }
 
     /// Returns whether the instruction is an I-type instruction.
     #[inline(always)]
-    pub fn is_i_type(&self) -> bool {
+    pub const fn is_i_type(&self) -> bool {
         self.imm_c
     }
 

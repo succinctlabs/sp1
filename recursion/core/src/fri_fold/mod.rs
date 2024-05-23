@@ -359,11 +359,11 @@ impl<const DEGREE: usize> FriFoldChip<DEGREE> {
         );
     }
 
-    pub fn do_receive_table<T: Copy>(local: &FriFoldCols<T>) -> T {
+    pub const fn do_receive_table<T: Copy>(local: &FriFoldCols<T>) -> T {
         local.is_last_iteration
     }
 
-    pub fn do_memory_access<T: Copy>(local: &FriFoldCols<T>) -> T {
+    pub const fn do_memory_access<T: Copy>(local: &FriFoldCols<T>) -> T {
         local.is_real
     }
 }

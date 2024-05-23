@@ -89,7 +89,7 @@ impl<E: EllipticCurve> Syscall for WeierstrassDecompressChip<E> {
 }
 
 impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDecompressChip<E> {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             _marker: PhantomData::<E>,
         }

@@ -311,7 +311,7 @@ mod tests {
     }
 
     impl<P: FieldParameters> FieldOpChip<P> {
-        pub fn new(operation: FieldOperation) -> Self {
+        pub const fn new(operation: FieldOperation) -> Self {
             Self {
                 operation,
                 _phantom: std::marker::PhantomData,

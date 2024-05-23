@@ -21,7 +21,7 @@ impl<C: CurveOperations<NUM_WORDS> + Copy, const NUM_WORDS: usize> AffinePoint<C
         }
     }
 
-    pub fn new(limbs: [u32; NUM_WORDS]) -> Self {
+    pub const fn new(limbs: [u32; NUM_WORDS]) -> Self {
         Self {
             limbs,
             _marker: std::marker::PhantomData,

@@ -50,7 +50,7 @@ pub struct Uint256MulEvent {
 pub struct Uint256MulChip;
 
 impl Uint256MulChip {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self
     }
 }

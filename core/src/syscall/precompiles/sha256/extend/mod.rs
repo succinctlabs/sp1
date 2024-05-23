@@ -31,7 +31,7 @@ pub struct ShaExtendEvent {
 pub struct ShaExtendChip;
 
 impl ShaExtendChip {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {}
     }
 }

@@ -72,7 +72,7 @@ pub(crate) const G_INDEX: [[usize; NUM_STATE_WORDS_PER_CALL]; OPERATION_COUNT] =
     [3, 4, 9, 14],
 ];
 
-pub(crate) fn g_func(input: [u32; 6]) -> [u32; 4] {
+pub(crate) const fn g_func(input: [u32; 6]) -> [u32; 4] {
     let mut a = input[0];
     let mut b = input[1];
     let mut c = input[2];
@@ -105,7 +105,7 @@ pub struct Blake3CompressInnerEvent {
 pub struct Blake3CompressInnerChip {}
 
 impl Blake3CompressInnerChip {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {}
     }
 }

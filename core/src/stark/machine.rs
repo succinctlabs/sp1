@@ -55,7 +55,7 @@ pub struct StarkMachine<SC: StarkGenericConfig, A> {
 }
 
 impl<SC: StarkGenericConfig, A> StarkMachine<SC, A> {
-    pub fn new(config: SC, chips: Vec<Chip<Val<SC>, A>>, num_pv_elts: usize) -> Self {
+    pub const fn new(config: SC, chips: Vec<Chip<Val<SC>, A>>, num_pv_elts: usize) -> Self {
         Self {
             config,
             chips,
@@ -111,7 +111,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         &self.chips
     }
 
-    pub fn num_pv_elts(&self) -> usize {
+    pub const fn num_pv_elts(&self) -> usize {
         self.num_pv_elts
     }
 

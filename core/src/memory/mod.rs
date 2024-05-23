@@ -21,7 +21,7 @@ pub struct MemoryInitializeFinalizeEvent {
 }
 
 impl MemoryInitializeFinalizeEvent {
-    pub fn initialize(addr: u32, value: u32, used: bool) -> Self {
+    pub const fn initialize(addr: u32, value: u32, used: bool) -> Self {
         // All memory initialization happen at shard 0, timestamp 0.
         Self {
             addr,
@@ -32,7 +32,7 @@ impl MemoryInitializeFinalizeEvent {
         }
     }
 
-    pub fn finalize_from_record(addr: u32, record: &MemoryRecord) -> Self {
+    pub const fn finalize_from_record(addr: u32, record: &MemoryRecord) -> Self {
         Self {
             addr,
             value: record.value,
