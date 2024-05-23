@@ -131,6 +131,8 @@ where
         let local = main.row_slice(0);
         let local: &MemoryInitCols<AB::Var> = (*local).borrow();
 
+        builder.assert_bool(local.is_real);
+
         if self.kind == MemoryChipType::Initialize {
             let mut values = vec![AB::Expr::zero(), AB::Expr::zero(), local.addr.into()];
             values.extend(local.value.map(Into::into));
@@ -158,9 +160,7 @@ where
         // and Finalize global memory chip is for register %x0 (i.e. addr = 0x0), and that those rows
         // have a value of 0.  Additionally, in the CPU air, we ensure that whenever op_a is set to
         // %x0, its value is 0.
-        //
-        // TODO: Add a similar check for MemoryChipType::Initialize.
-        if self.kind == MemoryChipType::Finalize {
+        if self.kind == MemoryChipType::Initialize || self.kind == MemoryChipType::Finalize {
             builder.when_first_row().assert_zero(local.addr);
             builder.when_first_row().assert_word_zero(local.value);
         }
