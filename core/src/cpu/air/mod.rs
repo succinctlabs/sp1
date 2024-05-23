@@ -24,6 +24,8 @@ use crate::cpu::columns::{CpuCols, NUM_CPU_COLS};
 use crate::cpu::CpuChip;
 use crate::runtime::Opcode;
 
+use super::columns::eval_channel_selectors;
+
 impl<AB> Air<AB> for CpuChip
 where
     AB: SP1AirBuilder + AirBuilderWithPublicValues,
@@ -63,6 +65,16 @@ where
         self.eval_memory_address_and_access::<AB>(builder, local, is_memory_instruction.clone());
         self.eval_memory_load::<AB>(builder, local);
         self.eval_memory_store::<AB>(builder, local);
+
+        // Channel constraints.
+        eval_channel_selectors(
+            builder,
+            &local.channel_selectors,
+            &next.channel_selectors,
+            local.channel,
+            local.is_real,
+            next.is_real,
+        );
 
         // ALU instructions.
         builder.send_alu(

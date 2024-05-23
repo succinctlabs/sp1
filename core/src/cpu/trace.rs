@@ -191,7 +191,7 @@ impl CpuChip {
         (row, new_alu_events, new_blu_events)
     }
 
-    /// Populates the shard and clk related rows.
+    /// Populates the shard, channel, and clk related rows.
     fn populate_shard_clk<F: PrimeField>(
         &self,
         cols: &mut CpuCols<F>,
@@ -200,6 +200,7 @@ impl CpuChip {
     ) {
         cols.shard = F::from_canonical_u32(event.shard);
         cols.channel = F::from_canonical_u32(event.channel);
+        cols.channel_selectors.populate(event.channel);
         new_blu_events.push(ByteLookupEvent::new(
             event.shard,
             event.channel,
