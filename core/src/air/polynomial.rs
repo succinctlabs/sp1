@@ -12,7 +12,7 @@ pub struct Polynomial<T> {
 
 impl<T> Polynomial<T> {
     /// Create a new polynomial from a vector of coefficients.
-    pub fn new(coefficients: Vec<T>) -> Self {
+    pub const fn new(coefficients: Vec<T>) -> Self {
         Self { coefficients }
     }
 

@@ -30,7 +30,7 @@ pub struct Groth16Proof {
 
 impl Groth16Prover {
     /// Creates a new [Groth16Prover].
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self
     }
 

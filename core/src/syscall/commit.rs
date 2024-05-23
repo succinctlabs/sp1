@@ -4,7 +4,7 @@ use crate::runtime::{Syscall, SyscallContext};
 pub struct SyscallCommit;
 
 impl SyscallCommit {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self
     }
 }
@@ -29,7 +29,7 @@ impl Syscall for SyscallCommit {
 pub struct SyscallCommitDeferred;
 
 impl SyscallCommitDeferred {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self
     }
 }

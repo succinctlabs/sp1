@@ -203,7 +203,7 @@ mod tests {
     }
 
     impl<P: FieldParameters> FieldDenChip<P> {
-        pub fn new(sign: bool) -> Self {
+        pub const fn new(sign: bool) -> Self {
             Self {
                 sign,
                 _phantom: std::marker::PhantomData,

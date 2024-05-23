@@ -187,7 +187,7 @@ mod tests {
     }
 
     impl<P: FieldParameters> EdSqrtChip<P> {
-        pub fn new() -> Self {
+        pub const fn new() -> Self {
             Self {
                 _phantom: std::marker::PhantomData,
             }

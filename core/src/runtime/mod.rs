@@ -192,7 +192,7 @@ impl Runtime {
     }
 
     /// Get the current timestamp for a given memory access position.
-    pub fn timestamp(&self, position: &MemoryAccessPosition) -> u32 {
+    pub const fn timestamp(&self, position: &MemoryAccessPosition) -> u32 {
         self.state.clk + *position as u32
     }
 
