@@ -78,7 +78,7 @@ pub struct ShardProofHint<'a, SC: StarkGenericConfig, A> {
 }
 
 impl<'a, SC: StarkGenericConfig, A: MachineAir<SC::Val>> ShardProofHint<'a, SC, A> {
-    pub fn new(machine: &'a StarkMachine<SC, A>, proof: &'a ShardProof<SC>) -> Self {
+    pub const fn new(machine: &'a StarkMachine<SC, A>, proof: &'a ShardProof<SC>) -> Self {
         Self { machine, proof }
     }
 }
@@ -89,7 +89,7 @@ pub struct VerifyingKeyHint<'a, SC: StarkGenericConfig, A> {
 }
 
 impl<'a, SC: StarkGenericConfig, A: MachineAir<SC::Val>> VerifyingKeyHint<'a, SC, A> {
-    pub fn new(machine: &'a StarkMachine<SC, A>, vk: &'a StarkVerifyingKey<SC>) -> Self {
+    pub const fn new(machine: &'a StarkMachine<SC, A>, vk: &'a StarkVerifyingKey<SC>) -> Self {
         Self { machine, vk }
     }
 }

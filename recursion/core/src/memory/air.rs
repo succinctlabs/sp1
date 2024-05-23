@@ -18,7 +18,7 @@ pub(crate) const NUM_MEMORY_INIT_COLS: usize = size_of::<MemoryInitCols<u8>>();
 
 #[allow(dead_code)]
 impl MemoryGlobalChip {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             fixed_log2_rows: None,
         }

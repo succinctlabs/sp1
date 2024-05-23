@@ -51,7 +51,7 @@ impl<T: Clone> Poseidon2ColType<T> {
     }
 
     /// Returns the external sbox columns for the given round.
-    pub fn get_external_sbox(&self, round: usize) -> Option<&[T; WIDTH]> {
+    pub const fn get_external_sbox(&self, round: usize) -> Option<&[T; WIDTH]> {
         match self {
             Poseidon2ColType::Wide(cols) => Some(&cols.external_rounds_sbox[round]),
             Poseidon2ColType::Narrow(_) => None,
@@ -59,7 +59,7 @@ impl<T: Clone> Poseidon2ColType<T> {
     }
 
     /// Returns the internal sbox columns.
-    pub fn get_internal_sbox(&self) -> Option<&[T; NUM_INTERNAL_ROUNDS]> {
+    pub const fn get_internal_sbox(&self) -> Option<&[T; NUM_INTERNAL_ROUNDS]> {
         match self {
             Poseidon2ColType::Wide(cols) => Some(&cols.internal_rounds_sbox),
             Poseidon2ColType::Narrow(_) => None,

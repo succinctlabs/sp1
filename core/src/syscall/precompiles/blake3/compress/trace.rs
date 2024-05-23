@@ -37,6 +37,7 @@ impl<F: PrimeField32> MachineAir<F> for Blake3CompressInnerChip {
         for i in 0..input.blake3_compress_inner_events.len() {
             let event = input.blake3_compress_inner_events[i].clone();
             let shard = event.shard;
+            let channel = event.channel;
             let mut clk = event.clk;
             for round in 0..ROUND_COUNT {
                 for operation in 0..OPERATION_COUNT {
@@ -46,6 +47,7 @@ impl<F: PrimeField32> MachineAir<F> for Blake3CompressInnerChip {
                     // Assign basic values to the columns.
                     {
                         cols.shard = F::from_canonical_u32(event.shard);
+                        cols.channel = F::from_canonical_u32(event.channel);
                         cols.clk = F::from_canonical_u32(clk);
 
                         cols.round_index = F::from_canonical_u32(round as u32);
@@ -73,6 +75,7 @@ impl<F: PrimeField32> MachineAir<F> for Blake3CompressInnerChip {
                         cols.message_ptr = F::from_canonical_u32(event.message_ptr);
                         for i in 0..NUM_MSG_WORDS_PER_CALL {
                             cols.message_reads[i].populate(
+                                channel,
                                 event.message_reads[round][operation][i],
                                 &mut new_byte_lookup_events,
                             );
@@ -81,6 +84,7 @@ impl<F: PrimeField32> MachineAir<F> for Blake3CompressInnerChip {
                         cols.state_ptr = F::from_canonical_u32(event.state_ptr);
                         for i in 0..NUM_STATE_WORDS_PER_CALL {
                             cols.state_reads_writes[i].populate(
+                                channel,
                                 MemoryRecordEnum::Write(event.state_writes[round][operation][i]),
                                 &mut new_byte_lookup_events,
                             );
@@ -98,7 +102,7 @@ impl<F: PrimeField32> MachineAir<F> for Blake3CompressInnerChip {
                             event.message_reads[round][operation][1].value,
                         ];
 
-                        cols.g.populate(output, shard, input);
+                        cols.g.populate(output, shard, channel, input);
                     }
 
                     clk += 1;

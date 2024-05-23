@@ -23,6 +23,7 @@ use crate::{utils::babybear_bytes_to_bn254, words_to_bytes};
 use crate::{utils::babybears_to_bn254, CoreSC, InnerSC};
 
 /// The information necessary to generate a proof for a given RISC-V program.
+#[derive(Clone, Serialize, Deserialize)]
 pub struct SP1ProvingKey {
     pub pk: StarkProvingKey<CoreSC>,
     pub elf: Vec<u8>,

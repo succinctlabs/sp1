@@ -40,7 +40,7 @@ pub enum Opcode {
 
     PrintF = 33,
     PrintE = 34,
-    Ext2Felt = 35,
+    HintExt2Felt = 35,
 
     FRIFold = 36,
     HintLen = 37,

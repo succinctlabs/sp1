@@ -30,7 +30,7 @@ pub struct Elf {
 
 impl Elf {
     /// Create a new ELF file.
-    pub fn new(
+    pub const fn new(
         instructions: Vec<u32>,
         pc_start: u32,
         pc_base: u32,
