@@ -104,6 +104,9 @@ pub struct DivRemCols<T> {
     /// The shard number, used for byte lookup table.
     pub shard: T,
 
+    /// The channel number, used for byte lookup table.
+    pub channel: T,
+
     /// The output operand.
     pub a: Word<T>,
 
@@ -233,6 +236,7 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                 cols.b = Word::from(event.b);
                 cols.c = Word::from(event.c);
                 cols.shard = F::from_canonical_u32(event.shard);
+                cols.channel = F::from_canonical_u32(event.channel);
                 cols.is_real = F::one();
                 cols.is_divu = F::from_bool(event.opcode == Opcode::DIVU);
                 cols.is_remu = F::from_bool(event.opcode == Opcode::REMU);
@@ -286,6 +290,7 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                         let most_significant_byte = word.to_le_bytes()[WORD_SIZE - 1];
                         blu_events.push(ByteLookupEvent {
                             shard: event.shard,
+                            channel: event.channel,
                             opcode: ByteOpcode::MSB,
                             a1: get_msb(*word) as u32,
                             a2: 0,
@@ -351,6 +356,7 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
 
                     let lower_multiplication = AluEvent {
                         shard: event.shard,
+                        channel: event.channel,
                         clk: event.clk,
                         opcode: Opcode::MUL,
                         a: lower_word,
@@ -361,6 +367,7 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
 
                     let upper_multiplication = AluEvent {
                         shard: event.shard,
+                        channel: event.channel,
                         clk: event.clk,
                         opcode: {
                             if is_signed_operation(event.opcode) {
@@ -379,6 +386,7 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                     let lt_event = if is_signed_operation(event.opcode) {
                         AluEvent {
                             shard: event.shard,
+                            channel: event.channel,
                             opcode: Opcode::SLT,
                             a: 1,
                             b: (remainder as i32).abs() as u32,
@@ -388,6 +396,7 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                     } else {
                         AluEvent {
                             shard: event.shard,
+                            channel: event.channel,
                             opcode: Opcode::SLTU,
                             a: 1,
                             b: remainder,
@@ -402,9 +411,13 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
 
                 // Range check.
                 {
-                    output.add_u8_range_checks(event.shard, &quotient.to_le_bytes());
-                    output.add_u8_range_checks(event.shard, &remainder.to_le_bytes());
-                    output.add_u8_range_checks(event.shard, &c_times_quotient);
+                    output.add_u8_range_checks(event.shard, event.channel, &quotient.to_le_bytes());
+                    output.add_u8_range_checks(
+                        event.shard,
+                        event.channel,
+                        &remainder.to_le_bytes(),
+                    );
+                    output.add_u8_range_checks(event.shard, event.channel, &c_times_quotient);
                 }
             }
 
@@ -499,6 +512,7 @@ where
                 local.quotient,
                 local.c,
                 local.shard,
+                local.channel,
                 local.is_real,
             );
 
@@ -523,6 +537,7 @@ where
                 local.quotient,
                 local.c,
                 local.shard,
+                local.channel,
                 local.is_real,
             );
         }
@@ -752,7 +767,8 @@ where
                 local.abs_remainder,
                 local.max_abs_c_or_1,
                 local.shard,
-                local.remainder_check_multiplicity,
+                local.channel,
+                local.is_real,
             );
         }
 
@@ -767,20 +783,43 @@ where
             for msb_pair in msb_pairs.iter() {
                 let msb = msb_pair.0;
                 let byte = msb_pair.1;
-                builder.send_byte(opcode, msb, byte, zero.clone(), local.shard, local.is_real);
+                builder.send_byte(
+                    opcode,
+                    msb,
+                    byte,
+                    zero.clone(),
+                    local.shard,
+                    local.channel,
+                    local.is_real,
+                );
             }
         }
 
         // Range check all the bytes.
         {
-            builder.slice_range_check_u8(&local.quotient.0, local.shard, local.is_real);
-            builder.slice_range_check_u8(&local.remainder.0, local.shard, local.is_real);
+            builder.slice_range_check_u8(
+                &local.quotient.0,
+                local.shard,
+                local.channel,
+                local.is_real,
+            );
+            builder.slice_range_check_u8(
+                &local.remainder.0,
+                local.shard,
+                local.channel,
+                local.is_real,
+            );
 
             local.carry.iter().for_each(|carry| {
                 builder.assert_bool(*carry);
             });
 
-            builder.slice_range_check_u8(&local.c_times_quotient, local.shard, local.is_real);
+            builder.slice_range_check_u8(
+                &local.c_times_quotient,
+                local.shard,
+                local.channel,
+                local.is_real,
+            );
         }
 
         // Check that the flags are boolean.
@@ -831,6 +870,7 @@ where
                 local.b,
                 local.c,
                 local.shard,
+                local.channel,
                 local.is_real,
             );
         }
@@ -859,7 +899,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.divrem_events = vec![AluEvent::new(0, 0, Opcode::DIVU, 2, 17, 3)];
+        shard.divrem_events = vec![AluEvent::new(0, 0, 0, Opcode::DIVU, 2, 17, 3)];
         let chip = DivRemChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
@@ -913,12 +953,12 @@ mod tests {
             (Opcode::REM, 0, 1 << 8, neg(256)),
         ];
         for t in divrems.iter() {
-            divrem_events.push(AluEvent::new(0, 0, t.0, t.1, t.2, t.3));
+            divrem_events.push(AluEvent::new(0, 9, 0, t.0, t.1, t.2, t.3));
         }
 
         // Append more events until we have 1000 tests.
         for _ in 0..(1000 - divrems.len()) {
-            divrem_events.push(AluEvent::new(0, 0, Opcode::DIVU, 1, 1, 1));
+            divrem_events.push(AluEvent::new(0, 0, 0, Opcode::DIVU, 1, 1, 1));
         }
 
         let mut shard = ExecutionRecord::default();
