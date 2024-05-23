@@ -25,7 +25,8 @@ pub struct ExecutionState {
     /// executed in this shard.
     pub clk: u32,
 
-    /// The channel alternates between 0 and 1, used to controll byte lookup multiplicity.
+    /// The channel alternates between 0 and [crate::bytes::NUM_BYTE_LOOKUP_CHANNELS],
+    /// used to controll byte lookup multiplicity.
     pub channel: u32,
 
     /// The program counter.
