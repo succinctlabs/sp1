@@ -5,7 +5,6 @@ edition = "2021"
 
 [dependencies]
 prost = "0.12"
-prost-types = "0.12"
 serde = { version = "1.0.201", features = ["derive"] }
 serde_json = "1.0.117"
 twirp = { git = "https://github.com/github/twirp-rs.git", rev = "c85f31f9c54957374e7dcb3534fc52cff0aa2dc5" }
@@ -34,7 +33,6 @@ alloy = { git = "https://github.com/alloy-rs/alloy", rev = "bfd0fda", features =
   "contract",
   "signer-wallet",
 ] }
-dotenv = "0.15.0"
 sha2 = "0.10.8"
 dirs = "5.0.1"
 tempfile = "3.10.1"
