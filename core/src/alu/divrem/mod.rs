@@ -222,6 +222,7 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                 cols.c = Word::from(event.c);
                 cols.shard = F::from_canonical_u32(event.shard);
                 cols.channel = F::from_canonical_u32(event.channel);
+                cols.channel = F::from_canonical_u32(event.channel);
                 cols.is_real = F::one();
                 cols.is_divu = F::from_bool(event.opcode == Opcode::DIVU);
                 cols.is_remu = F::from_bool(event.opcode == Opcode::REMU);

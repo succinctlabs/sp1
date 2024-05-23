@@ -98,6 +98,7 @@ impl<V: Copy, P: FieldParameters> FieldDenCols<V, P>
 where
     Limbs<V, P::Limbs>: Copy,
 {
+    #[allow(clippy::too_many_arguments)]
     pub fn eval<AB: SP1AirBuilder<Var = V>>(
         &self,
         builder: &mut AB,

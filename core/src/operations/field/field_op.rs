@@ -108,6 +108,7 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
 
     /// Populate these columns with a specified modulus. This is useful in the `mulmod` precompile
     /// as an example.
+    #[allow(clippy::too_many_arguments)]
     pub fn populate_with_modulus(
         &mut self,
         record: &mut impl ByteRecord,
@@ -244,6 +245,7 @@ impl<V: Copy, P: FieldParameters> FieldOpCols<V, P> {
         );
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn eval<AB: SP1AirBuilder<Var = V>>(
         &self,
         builder: &mut AB,

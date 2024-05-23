@@ -113,7 +113,7 @@ impl<F: Field> FixedRotateRightOperation<F> {
         rotation: usize,
         cols: FixedRotateRightOperation<AB::Var>,
         shard: AB::Var,
-        channel: impl Into<AB::Expr> + Copy,
+        channel: impl Into<AB::Expr> + Clone,
         is_real: AB::Var,
     ) {
         // Compute some constants with respect to the rotation needed for the rotation.
@@ -141,7 +141,7 @@ impl<F: Field> FixedRotateRightOperation<F> {
                 input_bytes_rotated[i],
                 AB::F::from_canonical_usize(nb_bits_to_shift),
                 shard,
-                channel,
+                channel.clone(),
                 is_real,
             );
 

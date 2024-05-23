@@ -29,6 +29,7 @@ use std::sync::Arc;
 
 use thiserror::Error;
 
+use crate::bytes::NUM_BYTE_LOOKUP_CHANNELS;
 use crate::memory::MemoryInitializeFinalizeEvent;
 use crate::utils::env;
 use crate::{alu::AluEvent, cpu::CpuEvent};
@@ -196,8 +197,14 @@ impl Runtime {
     }
 
     /// Get the current shard.
+    #[inline]
     pub fn shard(&self) -> u32 {
         self.state.current_shard
+    }
+
+    #[inline]
+    pub fn channel(&self) -> u32 {
+        self.state.channel
     }
 
     /// Read a word from memory and create an access record.
@@ -377,6 +384,7 @@ impl Runtime {
     fn emit_cpu(
         &mut self,
         shard: u32,
+        channel: u32,
         clk: u32,
         pc: u32,
         next_pc: u32,
@@ -390,6 +398,7 @@ impl Runtime {
     ) {
         let cpu_event = CpuEvent {
             shard,
+            channel,
             clk,
             pc,
             next_pc,
@@ -853,10 +862,15 @@ impl Runtime {
         // Update the clk to the next cycle.
         self.state.clk += 4;
 
+        // Update the channel to the next cycle.
+        self.state.channel += 1;
+        self.state.channel %= NUM_BYTE_LOOKUP_CHANNELS;
+
         // Emit the CPU event for this cycle.
         if self.emit_events {
             self.emit_cpu(
                 self.shard(),
+                self.channel(),
                 clk,
                 pc,
                 next_pc,
@@ -893,6 +907,7 @@ impl Runtime {
         if !self.unconstrained && self.max_syscall_cycles + self.state.clk >= self.shard_size {
             self.state.current_shard += 1;
             self.state.clk = 0;
+            self.state.channel = 0;
         }
 
         Ok(self.state.pc.wrapping_sub(self.program.pc_base)
@@ -916,6 +931,7 @@ impl Runtime {
 
     fn initialize(&mut self) {
         self.state.clk = 0;
+        self.state.channel = 0;
 
         tracing::info!("loading memory image");
         for (addr, value) in self.program.memory_image.iter() {

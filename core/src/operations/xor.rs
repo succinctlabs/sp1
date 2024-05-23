@@ -55,7 +55,7 @@ impl<F: Field> XorOperation<F> {
         b: Word<AB::Var>,
         cols: XorOperation<AB::Var>,
         shard: AB::Var,
-        channel: impl Into<AB::Expr> + Copy,
+        channel: impl Into<AB::Expr> + Clone,
         is_real: AB::Var,
     ) {
         for i in 0..WORD_SIZE {
@@ -65,7 +65,7 @@ impl<F: Field> XorOperation<F> {
                 a[i],
                 b[i],
                 shard,
-                channel,
+                channel.clone(),
                 is_real,
             );
         }

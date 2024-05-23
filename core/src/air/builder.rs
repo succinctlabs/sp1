@@ -84,6 +84,7 @@ pub trait BaseAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr>
 /// A trait which contains methods for byte interactions in an AIR.
 pub trait ByteAirBuilder: BaseAirBuilder {
     /// Sends a byte operation to be processed.
+    #[allow(clippy::too_many_arguments)]
     fn send_byte(
         &mut self,
         opcode: impl Into<Self::Expr>,
@@ -135,6 +136,7 @@ pub trait ByteAirBuilder: BaseAirBuilder {
     }
 
     /// Receives a byte operation to be processed.
+    #[allow(clippy::too_many_arguments)]
     fn receive_byte(
         &mut self,
         opcode: impl Into<Self::Expr>,
@@ -152,8 +154,8 @@ pub trait ByteAirBuilder: BaseAirBuilder {
             b,
             c,
             shard,
-            multiplicity,
             channel,
+            multiplicity,
         )
     }
 
@@ -345,9 +347,11 @@ pub trait AluAirBuilder: BaseAirBuilder {
     }
 
     /// Sends an syscall operation to be processed (with "ECALL" opcode).
+    #[allow(clippy::too_many_arguments)]
     fn send_syscall(
         &mut self,
         shard: impl Into<Self::Expr> + Clone,
+        channel: impl Into<Self::Expr> + Clone,
         clk: impl Into<Self::Expr> + Clone,
         syscall_id: impl Into<Self::Expr> + Clone,
         arg1: impl Into<Self::Expr> + Clone,
@@ -357,6 +361,7 @@ pub trait AluAirBuilder: BaseAirBuilder {
         self.send(AirInteraction::new(
             vec![
                 shard.clone().into(),
+                channel.clone().into(),
                 clk.clone().into(),
                 syscall_id.clone().into(),
                 arg1.clone().into(),
@@ -368,9 +373,11 @@ pub trait AluAirBuilder: BaseAirBuilder {
     }
 
     /// Receives a syscall operation to be processed.
+    #[allow(clippy::too_many_arguments)]
     fn receive_syscall(
         &mut self,
         shard: impl Into<Self::Expr> + Clone,
+        channel: impl Into<Self::Expr> + Clone,
         clk: impl Into<Self::Expr> + Clone,
         syscall_id: impl Into<Self::Expr> + Clone,
         arg1: impl Into<Self::Expr> + Clone,
@@ -380,6 +387,7 @@ pub trait AluAirBuilder: BaseAirBuilder {
         self.receive(AirInteraction::new(
             vec![
                 shard.clone().into(),
+                channel.clone().into(),
                 clk.clone().into(),
                 syscall_id.clone().into(),
                 arg1.clone().into(),

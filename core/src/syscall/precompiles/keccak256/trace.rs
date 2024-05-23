@@ -56,6 +56,7 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
                         let event = &input.keccak_permute_events[*event_index];
                         let start_clk = event.clk;
                         let shard = event.shard;
+                        let channel = event.channel;
 
                         // Create all the rows for the permutation.
                         for i in 0..NUM_ROUNDS {
@@ -76,8 +77,11 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
                             if i == 0 {
                                 for (j, read_record) in event.state_read_records.iter().enumerate()
                                 {
-                                    cols.state_mem[j]
-                                        .populate_read(*read_record, &mut new_byte_lookup_events);
+                                    cols.state_mem[j].populate_read(
+                                        channel,
+                                        *read_record,
+                                        &mut new_byte_lookup_events,
+                                    );
                                 }
 
                                 cols.do_memory_check = F::one();
@@ -89,8 +93,11 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
                                 for (j, write_record) in
                                     event.state_write_records.iter().enumerate()
                                 {
-                                    cols.state_mem[j]
-                                        .populate_write(*write_record, &mut new_byte_lookup_events);
+                                    cols.state_mem[j].populate_write(
+                                        channel,
+                                        *write_record,
+                                        &mut new_byte_lookup_events,
+                                    );
                                 }
 
                                 cols.do_memory_check = F::one();

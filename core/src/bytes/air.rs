@@ -28,27 +28,31 @@ impl<AB: SP1AirBuilder + PairBuilder> Air<AB> for ByteChip<AB::F> {
 
         // Send all the lookups for each operation.
         for channel in 0..NUM_BYTE_LOOKUP_CHANNELS {
-            let channel = AB::F::from_canonical_u32(channel);
+            let channel_f = AB::F::from_canonical_u32(channel);
+            let channel = channel as usize;
             for (i, opcode) in ByteOpcode::all().iter().enumerate() {
                 let field_op = opcode.as_field::<AB::F>();
-                let mult = local_mult.multiplicities[i];
+                let mult = local_mult.mult_channels[channel].multiplicities[i];
                 let shard = local_mult.shard;
                 match opcode {
-                    ByteOpcode::AND => builder
-                        .receive_byte(field_op, local.and, local.b, local.c, shard, channel, mult),
+                    ByteOpcode::AND => builder.receive_byte(
+                        field_op, local.and, local.b, local.c, shard, channel_f, mult,
+                    ),
                     ByteOpcode::OR => builder
-                        .receive_byte(field_op, local.or, local.b, local.c, shard, channel, mult),
-                    ByteOpcode::XOR => builder
-                        .receive_byte(field_op, local.xor, local.b, local.c, shard, channel, mult),
-                    ByteOpcode::SLL => builder
-                        .receive_byte(field_op, local.sll, local.b, local.c, shard, channel, mult),
+                        .receive_byte(field_op, local.or, local.b, local.c, shard, channel_f, mult),
+                    ByteOpcode::XOR => builder.receive_byte(
+                        field_op, local.xor, local.b, local.c, shard, channel_f, mult,
+                    ),
+                    ByteOpcode::SLL => builder.receive_byte(
+                        field_op, local.sll, local.b, local.c, shard, channel_f, mult,
+                    ),
                     ByteOpcode::U8Range => builder.receive_byte(
                         field_op,
                         AB::F::zero(),
                         local.b,
                         local.c,
                         shard,
-                        channel,
+                        channel_f,
                         mult,
                     ),
                     ByteOpcode::ShrCarry => builder.receive_byte_pair(
@@ -58,18 +62,19 @@ impl<AB: SP1AirBuilder + PairBuilder> Air<AB> for ByteChip<AB::F> {
                         local.b,
                         local.c,
                         shard,
-                        channel,
+                        channel_f,
                         mult,
                     ),
-                    ByteOpcode::LTU => builder
-                        .receive_byte(field_op, local.ltu, local.b, local.c, shard, channel, mult),
+                    ByteOpcode::LTU => builder.receive_byte(
+                        field_op, local.ltu, local.b, local.c, shard, channel_f, mult,
+                    ),
                     ByteOpcode::MSB => builder.receive_byte(
                         field_op,
                         local.msb,
                         local.b,
                         AB::F::zero(),
                         shard,
-                        channel,
+                        channel_f,
                         mult,
                     ),
                     ByteOpcode::U16Range => builder.receive_byte(
@@ -78,7 +83,7 @@ impl<AB: SP1AirBuilder + PairBuilder> Air<AB> for ByteChip<AB::F> {
                         AB::F::zero(),
                         AB::F::zero(),
                         shard,
-                        channel,
+                        channel_f,
                         mult,
                     ),
                 }

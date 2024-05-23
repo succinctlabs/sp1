@@ -46,12 +46,12 @@ pub trait ByteRecord {
     fn add_u8_range_check(&mut self, shard: u32, channel: u32, a: u8, b: u8) {
         self.add_byte_lookup_event(ByteLookupEvent {
             shard,
+            channel,
             opcode: ByteOpcode::U8Range,
             a1: 0,
             a2: 0,
             b: a as u32,
             c: b as u32,
-            channel,
         });
     }
 

@@ -35,6 +35,8 @@ pub const CPU_COL_MAP: CpuCols<usize> = make_col_map();
 pub struct CpuCols<T: Copy> {
     /// The current shard.
     pub shard: T,
+    /// The channel value, used for byte lookup multiplicity.
+    pub channel: T,
 
     /// The clock cycle value.  This should be within 24 bits.
     pub clk: T,
