@@ -3,8 +3,6 @@ name = "sp1-prover"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 sp1-recursion-program = { path = "../recursion/program" }
 sp1-recursion-circuit = { path = "../recursion/circuit" }
@@ -25,7 +23,6 @@ rayon = "1.10.0"
 itertools = "0.12.1"
 tracing = "0.1.40"
 tracing-subscriber = "0.3.18"
-tracing-appender = "0.2.3"
 serde_json = "1.0.117"
 clap = { version = "4.5.4", features = ["derive", "env"] }
 sha2 = "0.10.8"
@@ -36,9 +33,9 @@ dirs = "5.0.1"
 tempfile = "3.10.1"
 tokio = { version = "1.37.0", features = ["full"] }
 reqwest = { version = "0.12.4", features = [
-    "rustls-tls",
-    "trust-dns",
-    "stream",
+  "rustls-tls",
+  "trust-dns",
+  "stream",
 ] }
 indicatif = "0.17.8"
 futures = "0.3.30"
@@ -48,15 +45,15 @@ num-bigint = "0.4.5"
 thiserror = "1.0.60"
 
 [[bin]]
-name = "build_groth16"
-path = "scripts/build_groth16.rs"
+name = "build_plonk_bn254"
+path = "scripts/build_plonk_bn254.rs"
 
 [[bin]]
 name = "e2e"
 path = "scripts/e2e.rs"
 
 [features]
-default = ["groth16"]
+default = ["plonk_bn254"]
 
 neon = ["sp1-core/neon"]
-groth16 = ["sp1-recursion-gnark-ffi/groth16"]
+plonk_bn254 = ["sp1-recursion-gnark-ffi/plonk_bn254"]

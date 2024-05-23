@@ -16,6 +16,7 @@ const STATE_NUM_WORDS: usize = STATE_SIZE * 2;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KeccakPermuteEvent {
     pub shard: u32,
+    pub channel: u32,
     pub clk: u32,
     pub pre_state: [u64; STATE_SIZE],
     pub post_state: [u64; STATE_SIZE],
@@ -29,7 +30,7 @@ pub struct KeccakPermuteChip {
 }
 
 impl KeccakPermuteChip {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             p3_keccak: KeccakAir {},
         }

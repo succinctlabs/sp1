@@ -19,7 +19,7 @@ use crate::{
 
 use super::{CpuChip, CpuCols, CPU_COL_MAP, NUM_CPU_COLS};
 
-impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for CpuChip<F> {
+impl<F: PrimeField32 + BinomiallyExtendable<D>, const L: usize> MachineAir<F> for CpuChip<F, L> {
     type Record = ExecutionRecord<F>;
     type Program = RecursionProgram<F>;
 

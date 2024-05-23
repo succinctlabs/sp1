@@ -41,6 +41,7 @@ impl CpuChip {
             .assert_eq(send_to_table, local.ecall_mul_send_to_table);
         builder.send_syscall(
             local.shard,
+            local.channel,
             local.clk,
             syscall_id,
             local.op_b_val().reduce::<AB>(),

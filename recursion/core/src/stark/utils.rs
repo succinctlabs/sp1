@@ -7,7 +7,7 @@ use crate::air::Block;
 use crate::runtime::RecursionProgram;
 use crate::runtime::Runtime;
 use crate::stark::RecursionAir;
-use crate::stark::RecursionAirSkinnyDeg7;
+use crate::stark::RecursionAirSkinnyDeg9;
 use p3_field::PrimeField32;
 use sp1_core::utils::run_test_machine;
 use std::collections::VecDeque;
@@ -54,7 +54,7 @@ pub fn run_test_recursion(
     }
 
     if test_config == TestConfig::All || test_config == TestConfig::SkinnyDeg7 {
-        let machine = RecursionAirSkinnyDeg7::machine(BabyBearPoseidon2::compressed());
+        let machine = RecursionAirSkinnyDeg9::machine(BabyBearPoseidon2::compressed());
         let (pk, vk) = machine.setup(&program);
         let record = runtime.record.clone();
         let result = run_test_machine(record, machine, pk, vk);
@@ -64,7 +64,7 @@ pub fn run_test_recursion(
     }
 
     if test_config == TestConfig::All || test_config == TestConfig::SkinnyDeg7Wrap {
-        let machine = RecursionAirSkinnyDeg7::wrap_machine(BabyBearPoseidon2::compressed());
+        let machine = RecursionAirSkinnyDeg9::wrap_machine(BabyBearPoseidon2::compressed());
         let (pk, vk) = machine.setup(&program);
         let record = runtime.record.clone();
         let result = run_test_machine(record, machine, pk, vk);
@@ -77,7 +77,7 @@ pub fn run_test_recursion(
 /// Returns whether the `SP1_DEV` environment variable is enabled or disabled.
 ///
 /// This variable controls whether a smaller version of the circuit will be used for generating the
-/// Groth16 proofs. This is useful for development and testing purposes.
+/// PLONK proofs. This is useful for development and testing purposes.
 ///
 /// By default, the variable is disabled.
 pub fn sp1_dev_mode() -> bool {

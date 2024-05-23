@@ -29,7 +29,7 @@ pub fn get_quotient_and_remainder(b: u32, c: u32, opcode: Opcode) -> (u32, u32) 
 }
 
 /// Calculate the most significant bit of the given 32-bit integer `a`, and returns it as a u8.
-pub fn get_msb(a: u32) -> u8 {
+pub const fn get_msb(a: u32) -> u8 {
     ((a >> 31) & 1) as u8
 }
 

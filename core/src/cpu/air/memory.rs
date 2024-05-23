@@ -65,6 +65,7 @@ impl CpuChip {
             local.op_b_val(),
             local.op_c_val(),
             local.shard,
+            local.channel,
             is_memory_instruction.clone(),
         );
 
@@ -72,6 +73,7 @@ impl CpuChip {
         builder.slice_range_check_u8(
             &memory_columns.addr_word.0,
             local.shard,
+            local.channel,
             is_memory_instruction.clone(),
         );
 
@@ -90,6 +92,7 @@ impl CpuChip {
         // value into the memory columns.
         builder.eval_memory_access(
             local.shard,
+            local.channel,
             local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::Memory as u32),
             memory_columns.addr_aligned,
             &memory_columns.memory_access,
@@ -139,6 +142,7 @@ impl CpuChip {
             local.unsigned_mem_val,
             signed_value,
             local.shard,
+            local.channel,
             local.mem_value_is_neg,
         );
 
