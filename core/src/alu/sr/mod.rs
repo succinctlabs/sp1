@@ -153,7 +153,6 @@ impl<F: PrimeField> MachineAir<F> for ShiftRightChip {
             {
                 cols.shard = F::from_canonical_u32(event.shard);
                 cols.channel = F::from_canonical_u32(event.channel);
-                cols.channel = F::from_canonical_u32(event.channel);
                 cols.a = Word::from(event.a);
                 cols.b = Word::from(event.b);
                 cols.c = Word::from(event.c);
@@ -477,7 +476,7 @@ where
             ];
 
             for long_word in long_words.iter() {
-                builder.slice_range_check_u8(long_word, local.shard, local.is_real, local.channel);
+                builder.slice_range_check_u8(long_word, local.shard, local.channel, local.is_real);
             }
         }
 
