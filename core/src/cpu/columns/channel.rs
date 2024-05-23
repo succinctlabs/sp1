@@ -39,7 +39,7 @@ pub fn eval_channel_selectors<AB: SP1AirBuilder>(
         // Accumulate the reconstructed channel.
         reconstruct_channel += selector.into() * AB::Expr::from_canonical_u32(i as u32);
     }
-    // Asser that the reconstructed channel is the same as the channel.
+    // Assert that the reconstructed channel is the same as the channel.
     builder.assert_eq(reconstruct_channel, channel.clone());
     // For disjointness, assert the sum of the selectors is 1.
     builder
