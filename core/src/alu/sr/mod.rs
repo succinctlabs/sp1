@@ -348,6 +348,16 @@ where
                     .assert_eq(num_bits_to_shift.clone(), AB::F::from_canonical_usize(i));
             }
 
+            // Bool check c_least_sig_bytes elements.
+            for bit in local.c_least_sig_byte.iter() {
+                builder.assert_bool(*bit);
+            }
+
+            // Bool check shift_by_n_bits elements.
+            for shift in local.shift_by_n_bits.iter() {
+                builder.assert_bool(*shift);
+            }
+
             // Exactly one of the shift_by_n_bits must be 1.
             builder.assert_eq(
                 local
