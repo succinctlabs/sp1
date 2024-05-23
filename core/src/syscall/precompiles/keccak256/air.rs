@@ -54,6 +54,7 @@ where
 
             builder.eval_memory_access(
                 local.shard,
+                local.channel,
                 local.clk + final_step, // The clk increments by 1 after a final step
                 local.state_addr + AB::Expr::from_canonical_u32(i * 4),
                 &local.state_mem[i as usize],
@@ -65,6 +66,7 @@ where
         builder.assert_eq(local.receive_ecall, first_step * local.is_real);
         builder.receive_syscall(
             local.shard,
+            local.channel,
             local.clk,
             AB::F::from_canonical_u32(SyscallCode::KECCAK_PERMUTE.syscall_id()),
             local.state_addr,
