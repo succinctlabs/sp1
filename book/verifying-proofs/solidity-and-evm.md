@@ -41,7 +41,7 @@ use std::path::PathBuf;
 
 fn main() {
     let contracts_src_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../contracts/src");
-    sp1_sdk::artifacts::export_solidity_groth16_verifier(contracts_src_dir)
+    sp1_sdk::artifacts::export_solidity_plonk_bn254_verifier(contracts_src_dir)
         .expect("failed to export verifier");
 }
 ```

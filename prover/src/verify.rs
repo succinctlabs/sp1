@@ -22,7 +22,9 @@ use crate::{
 pub enum Groth16VerificationError {
     #[error("the verifying key does not match the inner groth16 proof's committed verifying key")]
     InvalidVerificationKey,
-    #[error("the public values in the sp1 proof do not match the public values in the inner groth16 proof")]
+    #[error(
+        "the public values in the sp1 proof do not match the public values in the inner groth16 proof"
+    )]
     InvalidPublicValues,
 }
 
@@ -228,20 +230,20 @@ impl SP1Prover {
         // Verify the proof with the corresponding public inputs.
         prover.verify(proof, &vkey_hash, &committed_values_digest, build_dir);
 
-        verify_groth16_public_inputs(vk, public_values, &proof.public_inputs)?;
+        verify_plonk_bn254_public_inputs(vk, public_values, &proof.public_inputs)?;
 
         Ok(())
     }
 }
 
 /// Verify the vk_hash and public_values_hash in the public inputs of the Groth16Proof match the expected values.
-pub fn verify_groth16_public_inputs(
+pub fn verify_plonk_bn254_public_inputs(
     vk: &SP1VerifyingKey,
     public_values: &SP1PublicValues,
-    groth16_public_inputs: &[String],
+    plonk_bn254_public_inputs: &[String],
 ) -> Result<()> {
-    let expected_vk_hash = BigUint::from_str(&groth16_public_inputs[0])?;
-    let expected_public_values_hash = BigUint::from_str(&groth16_public_inputs[1])?;
+    let expected_vk_hash = BigUint::from_str(&plonk_bn254_public_inputs[0])?;
+    let expected_public_values_hash = BigUint::from_str(&plonk_bn254_public_inputs[1])?;
 
     let vk_hash = vk.hash_bn254().as_canonical_biguint();
     if vk_hash != expected_vk_hash {

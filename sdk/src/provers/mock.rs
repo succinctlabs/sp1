@@ -6,7 +6,7 @@ use crate::{
 use anyhow::Result;
 use p3_field::PrimeField;
 use sp1_prover::{
-    verify::verify_groth16_public_inputs, HashableKey, PlonkBn254Proof, SP1Prover, SP1Stdin,
+    verify::verify_plonk_bn254_public_inputs, HashableKey, PlonkBn254Proof, SP1Prover, SP1Stdin,
 };
 
 /// An implementation of [crate::ProverClient] that can generate mock proofs.
@@ -89,7 +89,7 @@ impl Prover for MockProver {
     }
 
     fn verify_groth16(&self, proof: &SP1Groth16Proof, vkey: &SP1VerifyingKey) -> Result<()> {
-        verify_groth16_public_inputs(vkey, &proof.public_values, &proof.proof.public_inputs)?;
+        verify_plonk_bn254_public_inputs(vkey, &proof.public_values, &proof.proof.public_inputs)?;
         Ok(())
     }
 

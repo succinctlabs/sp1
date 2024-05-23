@@ -61,12 +61,12 @@ pub trait Prover: Send + Sync {
     fn verify_groth16(&self, proof: &SP1Groth16Proof, vkey: &SP1VerifyingKey) -> Result<()> {
         let sp1_prover = self.sp1_prover();
 
-        let groth16_aritfacts = if sp1_prover::build::sp1_dev_mode() {
-            sp1_prover::build::groth16_artifacts_dev_dir()
+        let plonk_bn254_aritfacts = if sp1_prover::build::sp1_dev_mode() {
+            sp1_prover::build::plonk_bn254_artifacts_dev_dir()
         } else {
-            sp1_prover::build::groth16_artifacts_dir()
+            sp1_prover::build::plonk_bn254_artifacts_dir()
         };
-        sp1_prover.verify_groth16(&proof.proof, vkey, &proof.public_values, &groth16_aritfacts)?;
+        sp1_prover.verify_groth16(&proof.proof, vkey, &proof.public_values, &plonk_bn254_aritfacts)?;
 
         Ok(())
     }

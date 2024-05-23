@@ -15,8 +15,8 @@ pub const GROTH16_ARTIFACTS_COMMIT: &str = "9f43e920";
 /// Install the latest groth16 artifacts.
 ///
 /// This function will download the latest groth16 artifacts from the S3 bucket and extract them to
-/// the directory specified by [groth16_artifacts_dir()].
-pub fn install_groth16_artifacts(build_dir: PathBuf) {
+/// the directory specified by [plonk_bn254_artifacts_dir()].
+pub fn install_plonk_bn254_artifacts(build_dir: PathBuf) {
     // Create the build directory.
     std::fs::create_dir_all(&build_dir).expect("failed to create build directory");
 
@@ -58,7 +58,7 @@ pub fn install_groth16_artifacts(build_dir: PathBuf) {
 
 /// The directory where the groth16 artifacts will be stored based on [GROTH16_ARTIFACTS_VERSION]
 /// and [GROTH16_ARTIFACTS_URL_BASE].
-pub fn install_groth16_artifacts_dir() -> PathBuf {
+pub fn install_plonk_bn254_artifacts_dir() -> PathBuf {
     dirs::home_dir()
         .unwrap()
         .join(".sp1")

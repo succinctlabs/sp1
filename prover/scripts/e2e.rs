@@ -76,13 +76,13 @@ pub fn main() {
     PlonkBn254Prover::build(constraints.clone(), witness.clone(), build_dir.clone());
 
     tracing::info!("sanity check gnark prove");
-    let groth16_prover = PlonkBn254Prover::new();
+    let plonk_bn254_prover = PlonkBn254Prover::new();
 
     tracing::info!("gnark prove");
-    let proof = groth16_prover.prove(witness.clone(), build_dir.clone());
+    let proof = plonk_bn254_prover.prove(witness.clone(), build_dir.clone());
 
     tracing::info!("verify gnark proof");
-    groth16_prover.verify(
+    plonk_bn254_prover.verify(
         &proof,
         &vkey_hash.as_canonical_biguint(),
         &committed_values_digest.as_canonical_biguint(),

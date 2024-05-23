@@ -17,9 +17,10 @@ import (
 	"sync"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend/groth16"
+	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/frontend/cs/scs"
+	"github.com/consensys/gnark/test/unsafekzg"
 	"github.com/succinctlabs/sp1-recursion-gnark/sp1"
 )
 
@@ -107,16 +108,20 @@ func TestMain() error {
 
 	// Compile the circuit.
 	circuit := sp1.NewCircuit(inputs)
-	builder := r1cs.NewBuilder
-	r1cs, err := frontend.Compile(ecc.BN254.ScalarField(), builder, &circuit)
+	builder := scs.NewBuilder
+	scs, err := frontend.Compile(ecc.BN254.ScalarField(), builder, &circuit)
 	if err != nil {
 		return err
 	}
-	fmt.Println("[sp1] groth16 verifier constraints:", r1cs.GetNbConstraints())
+	fmt.Println("[sp1] groth16 verifier constraints:", scs.GetNbConstraints())
 
 	// Run the dummy setup.
-	var pk groth16.ProvingKey
-	pk, err = groth16.DummySetup(r1cs)
+	srs, srsLagrange, err := unsafekzg.NewSRS(scs)
+	if err != nil {
+		return err
+	}
+	var pk plonk.ProvingKey
+	pk, _, err = plonk.Setup(scs, srs, srsLagrange)
 	if err != nil {
 		return err
 	}
@@ -129,7 +134,7 @@ func TestMain() error {
 	}
 
 	// Generate the proof.
-	_, err = groth16.Prove(r1cs, pk, witness)
+	_, err = plonk.Prove(scs, pk, witness)
 	if err != nil {
 		return err
 	}

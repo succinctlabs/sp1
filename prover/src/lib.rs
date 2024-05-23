@@ -691,7 +691,7 @@ mod tests {
     use std::fs::File;
     use std::io::{Read, Write};
 
-    use self::build::try_build_groth16_artifacts_dev;
+    use self::build::try_build_plonk_bn254_artifacts_dev;
     use super::*;
 
     use anyhow::Result;
@@ -766,11 +766,11 @@ mod tests {
 
         tracing::info!("generate groth16 proof");
         let artifacts_dir =
-            try_build_groth16_artifacts_dev(&prover.wrap_vk, &wrapped_bn254_proof.proof);
-        let groth16_proof = prover.wrap_groth16(wrapped_bn254_proof, &artifacts_dir);
-        println!("{:?}", groth16_proof);
+            try_build_plonk_bn254_artifacts_dev(&prover.wrap_vk, &wrapped_bn254_proof.proof);
+        let plonk_bn254_proof = prover.wrap_groth16(wrapped_bn254_proof, &artifacts_dir);
+        println!("{:?}", plonk_bn254_proof);
 
-        prover.verify_groth16(&groth16_proof, &vk, &public_values, &artifacts_dir)?;
+        prover.verify_groth16(&plonk_bn254_proof, &vk, &public_values, &artifacts_dir)?;
 
         Ok(())
     }

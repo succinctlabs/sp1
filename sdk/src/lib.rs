@@ -527,7 +527,7 @@ mod tests {
     }
 
     #[test]
-    fn test_e2e_prove_groth16_mock() {
+    fn test_e2e_prove_plonk_bn254_mock() {
         utils::setup_logger();
         let client = ProverClient::mock();
         let elf =
