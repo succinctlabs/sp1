@@ -539,7 +539,7 @@ pub trait NetworkServiceClient: Send + Sync + std::fmt::Debug {
         req: RelayProofRequest,
     ) -> Result<RelayProofResponse, twirp::ClientError>;
     async fn get_nonce(&self, req: GetNonceRequest)
-    -> Result<GetNonceResponse, twirp::ClientError>;
+        -> Result<GetNonceResponse, twirp::ClientError>;
     async fn get_proof_status(
         &self,
         req: GetProofStatusRequest,
