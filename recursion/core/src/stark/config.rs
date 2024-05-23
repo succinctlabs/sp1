@@ -70,7 +70,7 @@ pub fn outer_fri_config() -> FriConfig<OuterChallengeMmcs> {
     let compress = OuterCompress::new(perm.clone());
     let challenge_mmcs = OuterChallengeMmcs::new(OuterValMmcs::new(hash, compress));
     let num_queries = if utils::sp1_dev_mode() {
-        25
+        1
     } else {
         match std::env::var("FRI_QUERIES") {
             Ok(value) => value.parse().unwrap(),

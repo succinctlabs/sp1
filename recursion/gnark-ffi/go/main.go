@@ -113,7 +113,7 @@ func TestMain() error {
 	if err != nil {
 		return err
 	}
-	fmt.Println("[sp1] groth16 verifier constraints:", scs.GetNbConstraints())
+	fmt.Println("[sp1] gnark verifier constraints:", scs.GetNbConstraints())
 
 	// Run the dummy setup.
 	srs, srsLagrange, err := unsafekzg.NewSRS(scs)

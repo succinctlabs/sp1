@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/kzg"
 	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
+	"github.com/consensys/gnark/test/unsafekzg"
 	"github.com/succinctlabs/sp1-recursion-gnark/sp1/trusted_setup"
 )
 
@@ -45,35 +47,69 @@ func Build(dataDir string) {
 	}
 
 	// Download the trusted setup.
-	srsFileName := dataDir + "/" + SRS_FILE
-	if _, err := os.Stat(srsFileName); os.IsNotExist(err) {
-		fmt.Println("downloading aztec ignition srs")
-		trusted_setup.DownloadAndSaveAztecIgnitionSrs(174, srsFileName)
-	}
-
 	var srs kzg.SRS = kzg.NewSRS(ecc.BN254)
-	srsFile, err := os.Open(srsFileName)
-	if err != nil {
-		panic(err)
-	}
-	_, err = srs.ReadFrom(srsFile)
-	srsFile.Close()
-	if err != nil {
-		panic(err)
-	}
-
+	var srsLagrange kzg.SRS = kzg.NewSRS(ecc.BN254)
+	srsFileName := dataDir + "/" + SRS_FILE
 	srsLagrangeFileName := dataDir + "/" + SRS_LAGRANGE_FILE
-	srsLagrange := trusted_setup.ToLagrange(scs, srs)
+
 	srsLagrangeFile, err := os.Create(srsLagrangeFileName)
 	if err != nil {
 		log.Fatal("error creating srs file: ", err)
 		panic(err)
 	}
 	defer srsLagrangeFile.Close()
-	_, err = srsLagrange.WriteTo(srsLagrangeFile)
-	if err != nil {
-		log.Fatal("error writing srs file: ", err)
-		panic(err)
+
+	if !strings.Contains(dataDir, "dev") {
+		if _, err := os.Stat(srsFileName); os.IsNotExist(err) {
+			fmt.Println("downloading aztec ignition srs")
+			trusted_setup.DownloadAndSaveAztecIgnitionSrs(174, srsFileName)
+
+			srsLagrange = trusted_setup.ToLagrange(scs, srs)
+			_, err = srsLagrange.WriteTo(srsLagrangeFile)
+			if err != nil {
+				panic(err)
+			}
+		}
+
+		srsFile, err := os.Open(srsFileName)
+		if err != nil {
+			panic(err)
+		}
+		defer srsFile.Close()
+
+		_, err = srs.ReadFrom(srsFile)
+		srsFile.Close()
+		if err != nil {
+			panic(err)
+		}
+
+		_, err = srsLagrange.ReadFrom(srsLagrangeFile)
+		srsLagrangeFile.Close()
+		if err != nil {
+			panic(err)
+		}
+	} else {
+		srs, srsLagrange, err = unsafekzg.NewSRS(scs)
+		if err != nil {
+			panic(err)
+		}
+
+		srsFile, err := os.Create(srsFileName)
+		if err != nil {
+			panic(err)
+		}
+		defer srsFile.Close()
+
+		_, err = srs.WriteTo(srsFile)
+		if err != nil {
+			panic(err)
+		}
+
+		_, err = srsLagrange.WriteTo(srsLagrangeFile)
+		if err != nil {
+			panic(err)
+		}
+
 	}
 
 	// Generate the proving and verifying key.
