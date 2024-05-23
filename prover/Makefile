@@ -3,10 +3,10 @@ all:
 	make tendermint-sweep
 	make fibonacci-groth16
 
-build-groth16:
+build-plonk-bn254:
 	mkdir -p build && \
 	RUSTFLAGS='-C target-cpu=native' \
-	cargo run -p sp1-prover --release --bin build_groth16 -- \
+	cargo run -p sp1-prover --release --bin build_plonk_bn254 -- \
 	--build-dir=./build
 
 release-groth16:

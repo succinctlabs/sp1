@@ -63,15 +63,15 @@ pub fn run_test_recursion(
         }
     }
 
-    // if test_config == TestConfig::All || test_config == TestConfig::SkinnyDeg7Wrap {
-    //     let machine = RecursionAirSkinnyDeg9::wrap_machine(BabyBearPoseidon2::compressed());
-    //     let (pk, vk) = machine.setup(&program);
-    //     let record = runtime.record.clone();
-    //     let result = run_test_machine(record, machine, pk, vk);
-    //     if let Err(e) = result {
-    //         panic!("Verification failed: {:?}", e);
-    //     }
-    // }
+    if test_config == TestConfig::All || test_config == TestConfig::SkinnyDeg7Wrap {
+        let machine = RecursionAirSkinnyDeg9::wrap_machine(BabyBearPoseidon2::compressed());
+        let (pk, vk) = machine.setup(&program);
+        let record = runtime.record.clone();
+        let result = run_test_machine(record, machine, pk, vk);
+        if let Err(e) = result {
+            panic!("Verification failed: {:?}", e);
+        }
+    }
 }
 
 /// Returns whether the `SP1_DEV` environment variable is enabled or disabled.

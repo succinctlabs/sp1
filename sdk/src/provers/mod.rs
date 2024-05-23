@@ -28,7 +28,7 @@ pub trait Prover: Send + Sync {
     /// Generate a compressed proof of the execution of a RISCV ELF with the given inputs.
     fn prove_compressed(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1CompressedProof>;
 
-    /// Given an SP1 program and input, generate a Groth16 proof that can be verified on-chain.
+    /// Given an SP1 program and input, generate a PLONK proof that can be verified on-chain.
     fn prove_plonk_bn254(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkBn254Proof>;
 
     /// Verify that an SP1 proof is valid given its vkey and metadata.
@@ -53,7 +53,7 @@ pub trait Prover: Send + Sync {
             .map_err(|e| e.into())
     }
 
-    /// Verify that a SP1 Groth16 proof is valid. Verify that the public inputs of the Groth16Proof match
+    /// Verify that a SP1 PLONK proof is valid. Verify that the public inputs of the PlonkBn254 proof match
     /// the hash of the VK and the committed public values of the SP1ProofWithPublicValues.
     fn verify_plonk_bn254(&self, proof: &SP1PlonkBn254Proof, vkey: &SP1VerifyingKey) -> Result<()> {
         let sp1_prover = self.sp1_prover();
