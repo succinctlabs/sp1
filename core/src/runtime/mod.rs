@@ -865,17 +865,8 @@ impl Runtime {
         let channel = self.channel();
 
         // Update the channel to the next cycle.
-        self.state.channel += 1;
-        self.state.channel %= NUM_BYTE_LOOKUP_CHANNELS;
-
-        if clk == 81608 || clk == 81612 {
-            println!(
-                "Opcode = {}, channel = {}, next_channel = {}, clk = {}",
-                instruction.opcode,
-                channel,
-                self.channel(),
-                clk
-            );
+        if !self.unconstrained {
+            self.state.channel = (self.state.channel + 1) % NUM_BYTE_LOOKUP_CHANNELS;
         }
 
         // Emit the CPU event for this cycle.
