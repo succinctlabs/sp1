@@ -759,6 +759,12 @@ where
                 local.is_c_0.result * local.is_real,
             );
 
+            // Check that the event multiplicity column is computed correctly.
+            builder.assert_eq(
+                local.remainder_check_multiplicity,
+                local.is_c_0.result * local.is_real,
+            );
+
             // Dispatch abs(remainder) < max(abs(c), 1), this is equivalent to abs(remainder) <
             // abs(c) if not division by 0.
             builder.send_alu(
@@ -768,7 +774,7 @@ where
                 local.max_abs_c_or_1,
                 local.shard,
                 local.channel,
-                local.is_real,
+                local.remainder_check_multiplicity,
             );
         }
 
