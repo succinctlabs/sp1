@@ -68,6 +68,22 @@ pub fn eval_abs_value<AB>(
                 0xff
             }
         });
+        let exp_sum_if_neg_mult_256 = AB::Expr::from_canonical_u32({
+            if i == 0 {
+                0x00
+            } else if i == 1 {
+                0xff + 1
+            } else {
+                0xff
+            }
+        });
+        let exp_value_if_min = AB::Expr::from_canonical_u32({
+            if i != WORD_SIZE - 1 {
+                0x00
+            } else {
+                1 << 7
+            }
+        });
 
         // Excluding the special case when value is a negative multiple of 256, we check that the sum of the limbs is `exp_sum_if_negative` if `is_negative` and otherwise check that the limbs are equal.
         builder
@@ -75,26 +91,21 @@ pub fn eval_abs_value<AB>(
             .when(*is_negative)
             .assert_eq(value[i] + abs_value[i], exp_sum_if_negative.clone());
 
+        // In the special case that the value is a negative multiple of 256 (but not -2^31), we check that the first byte of the absolute value is 0,
+        // and the sum of the remaining bytes in abs_value and value is as expected.
+        builder
+            .when(*is_neg_mult_256)
+            .when(*is_negative)
+            .assert_eq(value[i] + abs_value[i], exp_sum_if_neg_mult_256.clone());
+
+        // In the further special case that the value is the minimum i32 value, we further need to check that the absolute value is again the minimum i32 value.
+        builder
+            .when(*is_min)
+            .when(*is_negative)
+            .assert_eq(abs_value[i], exp_value_if_min.clone());
+
         builder
             .when_not(*is_negative)
             .assert_eq(value[i], abs_value[i]);
     }
-
-    // In the special case that the value is a negative multiple of 256, we check that the first byte of the absolute value is 9.
-    builder
-        .when(*is_neg_mult_256)
-        .when(*is_negative)
-        .assert_eq(abs_value[0], AB::Expr::from_canonical_u32(0));
-
-    // In the further special case that the value is the minimum i32 value, we further need to check that the absolute value is again the minimum i32 value.
-    for i in 0..WORD_SIZE - 1 {
-        builder
-            .when(*is_min)
-            .when(*is_negative)
-            .assert_eq(abs_value[i], AB::Expr::from_canonical_u32(0));
-    }
-    builder
-        .when(*is_min)
-        .when(*is_negative)
-        .assert_eq(abs_value[WORD_SIZE - 1], AB::Expr::from_canonical_u32(1));
 }

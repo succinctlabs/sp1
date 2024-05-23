@@ -181,10 +181,10 @@ pub struct DivRemCols<T> {
     /// Flag to indicate whether `c` is negative.
     pub c_neg: T,
 
-    /// Flag to indicate whether `c` is a multiple of 256.
+    /// Flag to indicate whether `c` is a multiple of 256, but not -2^31.
     pub c_neg_mult_256: T,
 
-    /// Flag to indicate whether `rem` is a multiple of -256.
+    /// Flag to indicate whether `rem` is a multiple of -256, but not -2^31.
     pub rem_neg_mult_256: T,
 
     /// Flag to indicate whether `c` is min value
@@ -271,8 +271,12 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                 cols.is_c_min.populate(event.c, i32::MIN as u32);
                 cols.is_rem_min.populate(remainder, i32::MIN as u32);
 
-                cols.rem_neg_mult_256 = F::from_bool(remainder % 256 == 0) * cols.rem_neg;
-                cols.c_neg_mult_256 = F::from_bool(event.c % 256 == 0) * cols.c_neg;
+                cols.rem_neg_mult_256 = F::from_bool(remainder % 256 == 0)
+                    * cols.rem_neg
+                    * F::from_bool(remainder != 1 << 31);
+                cols.c_neg_mult_256 = F::from_bool(event.c % 256 == 0)
+                    * cols.c_neg
+                    * F::from_bool(remainder != 1 << 31);
 
                 // Insert the MSB lookup events.
                 {
@@ -688,6 +692,14 @@ where
                 .when(local.rem_neg_mult_256)
                 .assert_zero(local.remainder[0]);
 
+            builder
+                .when(local.c_neg_mult_256)
+                .assert_zero(local.is_c_min.is_diff_zero.result);
+
+            builder
+                .when(local.rem_neg_mult_256)
+                .assert_zero(local.is_rem_min.is_diff_zero.result);
+
             eval_abs_value(
                 builder,
                 local.remainder.borrow(),
@@ -724,13 +736,7 @@ where
                 builder.assert_eq(local.max_abs_c_or_1[i], max_abs_c_or_1[i].clone());
             }
 
-            let opcode = {
-                let is_signed = local.is_div + local.is_rem;
-                let is_unsigned = local.is_divu + local.is_remu;
-                let slt = AB::Expr::from_canonical_u32(Opcode::SLT as u32);
-                let sltu = AB::Expr::from_canonical_u32(Opcode::SLTU as u32);
-                is_signed * slt + is_unsigned * sltu
-            };
+            let opcode = AB::Expr::from_canonical_u32(Opcode::SLTU as u32);
 
             // Check that the event multiplicity column is computed correctly.
             builder.assert_eq(
