@@ -2,6 +2,7 @@ use p3_air::AirBuilder;
 use p3_field::AbstractField;
 
 use crate::air::{SP1AirBuilder, Word, WORD_SIZE};
+use crate::operations::IsEqualWordOperation;
 use crate::runtime::Opcode;
 
 /// Returns `true` if the given `opcode` is a signed operation.
@@ -55,6 +56,8 @@ pub fn eval_abs_value<AB>(
     value: &Word<AB::Var>,
     abs_value: &Word<AB::Var>,
     is_negative: &AB::Var,
+    is_min: &AB::Var,
+    is_neg_mult_256: &AB::Var,
 ) where
     AB: SP1AirBuilder,
 {
@@ -67,7 +70,9 @@ pub fn eval_abs_value<AB>(
             }
         });
 
+        // Excluding the special case when value is a negative multiple of 256, we check that the sum of the limbs is `exp_sum_if_negative` if `is_negative` and otherwise check that the limbs are equal.
         builder
+            .when_not(*is_neg_mult_256)
             .when(*is_negative)
             .assert_eq(value[i] + abs_value[i], exp_sum_if_negative.clone());
 
@@ -75,4 +80,22 @@ pub fn eval_abs_value<AB>(
             .when_not(*is_negative)
             .assert_eq(value[i], abs_value[i]);
     }
+
+    // In the special case that the value is a negative multiple of 256, we check that the first byte of the absolute value is 9.
+    builder
+        .when(*is_neg_mult_256)
+        .when(*is_negative)
+        .assert_eq(abs_value[0], AB::Expr::from_canonical_u32(0));
+
+    // In the further special case that the value is the minimum i32 value, we further need to check that the absolute value is again the minimum i32 value.
+    for i in 0..WORD_SIZE - 1 {
+        builder
+            .when(*is_min)
+            .when(*is_negative)
+            .assert_eq(abs_value[i], AB::Expr::from_canonical_u32(0));
+    }
+    builder
+        .when(*is_min)
+        .when(*is_negative)
+        .assert_eq(abs_value[WORD_SIZE - 1], AB::Expr::from_canonical_u32(1));
 }

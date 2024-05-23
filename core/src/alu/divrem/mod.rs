@@ -181,6 +181,18 @@ pub struct DivRemCols<T> {
     /// Flag to indicate whether `c` is negative.
     pub c_neg: T,
 
+    /// Flag to indicate whether `c` is a multiple of 256.
+    pub c_neg_mult_256: T,
+
+    /// Flag to indicate whether `rem` is a multiple of -256.
+    pub rem_neg_mult_256: T,
+
+    /// Flag to indicate whether `c` is min value
+    pub is_c_min: IsEqualWordOperation<T>,
+
+    /// Flag to indicate whether `rem` is min value
+    pub is_rem_min: IsEqualWordOperation<T>,
+
     /// Selector to know whether this row is enabled.
     pub is_real: T,
 
@@ -254,6 +266,13 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                     cols.abs_c = cols.c;
                     cols.max_abs_c_or_1 = Word::from(u32::max(1, event.c));
                 }
+
+                //Flags for absolute value special cases.
+                cols.is_c_min.populate(event.c, i32::MIN as u32);
+                cols.is_rem_min.populate(remainder, i32::MIN as u32);
+
+                cols.rem_neg_mult_256 = F::from_bool(remainder % 256 == 0) * cols.rem_neg;
+                cols.c_neg_mult_256 = F::from_bool(event.c % 256 == 0) * cols.c_neg;
 
                 // Insert the MSB lookup events.
                 {
@@ -644,11 +663,38 @@ where
 
         // Range check remainder. (i.e., |remainder| < |c| when not is_c_0)
         {
+            // Calculate the extra flags for absolute value special cases.
+            IsEqualWordOperation::<AB::F>::eval(
+                builder,
+                local.c.map(|x| x.into()),
+                Word::from(i32::MIN as u32).map(|x: AB::F| x.into()),
+                local.is_c_min,
+                local.is_real.into(),
+            );
+
+            IsEqualWordOperation::<AB::F>::eval(
+                builder,
+                local.remainder.map(|x| x.into()),
+                Word::from(i32::MIN as u32).map(|x: AB::F| x.into()),
+                local.is_rem_min,
+                local.is_real.into(),
+            );
+
+            builder.assert_bool(local.c_neg_mult_256);
+            builder.assert_bool(local.rem_neg_mult_256);
+
+            builder.when(local.c_neg_mult_256).assert_zero(local.c[0]);
+            builder
+                .when(local.rem_neg_mult_256)
+                .assert_zero(local.remainder[0]);
+
             eval_abs_value(
                 builder,
                 local.remainder.borrow(),
                 local.abs_remainder.borrow(),
                 local.rem_neg.borrow(),
+                local.is_rem_min.is_diff_zero.result.borrow(),
+                local.rem_neg_mult_256.borrow(),
             );
 
             eval_abs_value(
@@ -656,6 +702,8 @@ where
                 local.c.borrow(),
                 local.abs_c.borrow(),
                 local.c_neg.borrow(),
+                local.is_c_min.is_diff_zero.result.borrow(),
+                local.c_neg_mult_256.borrow(),
             );
 
             // max(abs(c), 1) = abs(c) * (1 - is_c_0) + 1 * is_c_0
@@ -856,6 +904,7 @@ mod tests {
             (Opcode::DIV, neg(1), 0, 0),
             (Opcode::DIV, 1 << 31, 1 << 31, neg(1)),
             (Opcode::REM, 0, 1 << 31, neg(1)),
+            (Opcode::REM, 0, 1 << 8, neg(256)),
         ];
         for t in divrems.iter() {
             divrem_events.push(AluEvent::new(0, 0, t.0, t.1, t.2, t.3));

@@ -1514,6 +1514,12 @@ pub mod tests {
     }
 
     #[test]
+    fn just_run_div() {
+        println!("{}", u32::MAX - 1 + 1);
+        println!("{}", 1 << 31);
+        println!("{}", (u32::MAX - 1 + 1) / (1 << 31));
+    }
+    #[test]
     fn division_tests() {
         simple_op_code_test(Opcode::DIVU, 3, 20, 6);
         simple_op_code_test(Opcode::DIVU, 715827879, u32::MAX - 20 + 1, 6);
@@ -1521,6 +1527,7 @@ pub mod tests {
         simple_op_code_test(Opcode::DIVU, 0, u32::MAX - 20 + 1, u32::MAX - 6 + 1);
 
         simple_op_code_test(Opcode::DIVU, 1 << 31, 1 << 31, 1);
+        // println!("{} {} {}", u32::MAX, 1 << 31, u32::MAX - 1 + 1);
         simple_op_code_test(Opcode::DIVU, 0, 1 << 31, u32::MAX - 1 + 1);
 
         simple_op_code_test(Opcode::DIVU, u32::MAX, 1 << 31, 0);
