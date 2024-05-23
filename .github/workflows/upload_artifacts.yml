@@ -18,7 +18,7 @@ jobs:
  # Upload the Groth16Verifier, ISP1Verifier, SP1Verifier and SP1MockVerifier to contracts/src
  update_artifacts:
     name: Open a PR to update the contracts artifacts in sp1-contracts
-    runs-on: runs-on,hdd=80,image=ubuntu22-full-x64
+    runs-on: runs-on,ram=20,hdd=80,image=ubuntu22-full-x64
     steps:
       - name: Set up Rust
         uses: actions-rs/toolchain@v1
