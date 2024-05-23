@@ -74,10 +74,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for MultiChip<DEGREE> {
         let mut rows = fri_fold_trace
             .clone()
             .rows_mut()
-            .chain(
-                poseidon2_trace
-                    .rows_mut()
-            )
+            .chain(poseidon2_trace.rows_mut())
             .enumerate()
             .map(|(i, instruction_row)| {
                 let mut row = [F::zero(); NUM_MULTI_COLS];
@@ -127,6 +124,13 @@ where
         let (local, next) = (main.row_slice(0), main.row_slice(1));
         let local: &MultiCols<AB::Var> = (*local).borrow();
         let next: &MultiCols<AB::Var> = (*next).borrow();
+
+        // Add some dummy constraints to compress the interactions.
+        let mut expr = local.is_fri_fold * local.is_fri_fold;
+        for _ in 0..(DEGREE - 2) {
+            expr *= local.is_fri_fold.into();
+        }
+        builder.assert_eq(expr.clone(), expr.clone());
 
         let next_is_real = next.is_fri_fold + next.is_poseidon2;
         let local_is_real = local.is_fri_fold + local.is_poseidon2;
@@ -199,12 +203,6 @@ where
             local.poseidon2_receive_table,
             local.poseidon2_memory_access.into(),
         );
-
-        let mut expr = local.is_fri_fold * local.is_fri_fold;
-        for _ in 0..7 {
-            expr *= local.is_fri_fold.into();
-        }
-        builder.assert_eq(expr.clone(), expr.clone());
     }
 }
 // SAFETY: Each view is a valid interpretation of the underlying array.
