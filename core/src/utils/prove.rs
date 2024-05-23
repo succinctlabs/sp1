@@ -24,12 +24,12 @@ use crate::stark::Val;
 use crate::stark::VerifierConstraintFolder;
 use crate::stark::{Com, PcsProverData, RiscvAir, ShardProof, StarkProvingKey, UniConfig};
 use crate::stark::{MachineRecord, StarkMachine};
-use crate::utils::env;
 use crate::{
     runtime::{Program, Runtime},
     stark::StarkGenericConfig,
     stark::{LocalProver, OpeningProof, ShardMainData},
 };
+use crate::
 
 const LOG_DEGREE_BOUND: usize = 31;
 
@@ -104,8 +104,10 @@ where
     let machine = RiscvAir::machine(config);
     let (pk, vk) = machine.setup(runtime.program.as_ref());
 
+    let prover_config = ();
+
     // If we don't need to batch, we can just run the program normally and prove it.
-    if env::shard_batch_size() == 0 {
+    if prover_config.shard_batch_size == 0 {
         // Execute the runtime and collect all the events..
         runtime.run().map_err(SP1CoreProverError::ExecutionError)?;
 

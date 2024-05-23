@@ -1,7 +1,6 @@
 mod buffer;
 mod config;
 pub mod ec;
-pub mod env;
 mod logger;
 mod programs;
 mod prove;

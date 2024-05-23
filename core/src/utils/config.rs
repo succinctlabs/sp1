@@ -1,4 +1,5 @@
 use crate::stark::StarkGenericConfig;
+use crate::utils::log2_strict_usize;
 use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
 use p3_challenger::DuplexChallenger;
 use p3_commit::ExtensionMmcs;
@@ -45,6 +46,46 @@ pub type InnerFriProof = FriProof<InnerChallenge, InnerChallengeMmcs, InnerVal>;
 pub type InnerBatchOpening = BatchOpening<InnerVal, InnerValMmcs>;
 pub type InnerPcsProof =
     TwoAdicFriPcsProof<InnerVal, InnerChallenge, InnerValMmcs, InnerChallengeMmcs>;
+
+struct ProverConfig {
+    pub shard_size: usize,
+    pub shard_batch_size: u32,
+    pub shard_chunking_multiplier: usize,
+    pub reconstruct_commitments: bool,
+}
+
+pub const MAX_SHARD_CLK: usize = (1 << 24) - 1;
+
+/// The prover config for SP1 core proofs.
+pub fn sp1_prover_config() -> ProverConfig {
+    let mut config = ProverConfig {
+        shard_size: 1 << 22,
+        shard_batch_size: 128,
+        shard_chunking_multiplier: 1,
+        reconstruct_commitments: true,
+    };
+    if let Ok(value) = std::env::var("SHARD_SIZE") {
+        config.shard_size = value.parse().unwrap();
+    }
+    if let Ok(value) = std::env::var("SHARD_BATCH_SIZE") {
+        config.shard_batch_size = value.parse().unwrap();
+    }
+    if let Ok(value) = std::env::var("SHARD_CHUNKING_MULTIPLIER") {
+        config.shard_chunking_multiplier = value.parse().unwrap();
+    }
+    if let Ok(value) = std::env::var("RECONSTRUCT_COMMITMENTS") {
+        config.reconstruct_commitments = value.to_lowercase() == "true";
+    }
+
+    if config.shard_size > MAX_SHARD_CLK {
+        panic!(
+            "Shard size must be at most 2^{} - 1",
+            log2_strict_usize(MAX_SHARD_CLK + 1)
+        );
+    }
+
+    config
+}
 
 /// The permutation for inner recursion.
 pub fn inner_perm() -> InnerPerm {
