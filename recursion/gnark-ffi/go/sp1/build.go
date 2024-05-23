@@ -64,29 +64,47 @@ func Build(dataDir string) {
 			fmt.Println("downloading aztec ignition srs")
 			trusted_setup.DownloadAndSaveAztecIgnitionSrs(174, srsFileName)
 
+			srsFile, err := os.Open(srsFileName)
+			if err != nil {
+				panic(err)
+			}
+			defer srsFile.Close()
+
+			_, err = srs.ReadFrom(srsFile)
+			srsFile.Close()
+			if err != nil {
+				panic(err)
+			}
+
 			srsLagrange = trusted_setup.ToLagrange(scs, srs)
 			_, err = srsLagrange.WriteTo(srsLagrangeFile)
 			if err != nil {
 				panic(err)
 			}
-		}
+		} else {
+			srsFile, err := os.Open(srsFileName)
+			if err != nil {
+				panic(err)
+			}
+			defer srsFile.Close()
 
-		srsFile, err := os.Open(srsFileName)
-		if err != nil {
-			panic(err)
-		}
-		defer srsFile.Close()
+			_, err = srs.ReadFrom(srsFile)
+			srsFile.Close()
+			if err != nil {
+				panic(err)
+			}
 
-		_, err = srs.ReadFrom(srsFile)
-		srsFile.Close()
-		if err != nil {
-			panic(err)
-		}
+			srsLagrangeFile, err := os.Open(srsLagrangeFileName)
+			if err != nil {
+				panic(err)
+			}
+			defer srsLagrangeFile.Close()
 
-		_, err = srsLagrange.ReadFrom(srsLagrangeFile)
-		srsLagrangeFile.Close()
-		if err != nil {
-			panic(err)
+			_, err = srsLagrange.ReadFrom(srsLagrangeFile)
+			srsLagrangeFile.Close()
+			if err != nil {
+				panic(err)
+			}
 		}
 	} else {
 		srs, srsLagrange, err = unsafekzg.NewSRS(scs)
@@ -109,7 +127,6 @@ func Build(dataDir string) {
 		if err != nil {
 			panic(err)
 		}
-
 	}
 
 	// Generate the proving and verifying key.
