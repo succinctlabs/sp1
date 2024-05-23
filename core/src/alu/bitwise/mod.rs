@@ -165,6 +165,7 @@ where
             local.b,
             local.c,
             local.shard,
+            local.channel,
             local.is_xor + local.is_or + local.is_and,
         );
 

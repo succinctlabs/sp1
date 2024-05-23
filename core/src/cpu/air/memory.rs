@@ -65,6 +65,7 @@ impl CpuChip {
             local.op_b_val(),
             local.op_c_val(),
             local.shard,
+            local.channel,
             is_memory_instruction.clone(),
         );
 
@@ -141,6 +142,7 @@ impl CpuChip {
             local.unsigned_mem_val,
             signed_value,
             local.shard,
+            local.channel,
             local.mem_value_is_neg,
         );
 

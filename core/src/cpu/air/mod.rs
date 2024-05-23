@@ -71,6 +71,7 @@ where
             local.op_b_val(),
             local.op_c_val(),
             local.shard,
+            local.channel,
             is_alu_instruction,
         );
 
@@ -169,6 +170,7 @@ impl CpuChip {
             jump_columns.pc,
             local.op_b_val(),
             local.shard,
+            local.channel,
             local.selectors.is_jal,
         );
 
@@ -179,6 +181,7 @@ impl CpuChip {
             local.op_b_val(),
             local.op_c_val(),
             local.shard,
+            local.channel,
             local.selectors.is_jalr,
         );
     }
@@ -200,6 +203,7 @@ impl CpuChip {
             auipc_columns.pc,
             local.op_b_val(),
             local.shard,
+            local.channel,
             local.selectors.is_auipc,
         );
     }

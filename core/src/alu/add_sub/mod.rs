@@ -92,7 +92,6 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
                         let is_add = event.opcode == Opcode::ADD;
                         cols.shard = F::from_canonical_u32(event.shard);
                         cols.channel = F::from_canonical_u32(event.channel);
-                        cols.channel = F::from_canonical_u32(event.channel);
                         cols.is_add = F::from_bool(is_add);
                         cols.is_sub = F::from_bool(!is_add);
 
@@ -172,6 +171,7 @@ where
             local.operand_1,
             local.operand_2,
             local.shard,
+            local.channel,
             local.is_add,
         );
 
@@ -182,6 +182,7 @@ where
             local.add_operation.value,
             local.operand_2,
             local.shard,
+            local.channel,
             local.is_sub,
         );
 

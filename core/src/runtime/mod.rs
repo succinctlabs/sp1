@@ -422,7 +422,7 @@ impl Runtime {
         let event = AluEvent {
             shard: self.shard(),
             clk,
-            channel: self.state.channel,
+            channel: self.channel(),
             opcode,
             a,
             b,
@@ -862,10 +862,6 @@ impl Runtime {
         // Update the clk to the next cycle.
         self.state.clk += 4;
 
-        // Update the channel to the next cycle.
-        self.state.channel += 1;
-        self.state.channel %= NUM_BYTE_LOOKUP_CHANNELS;
-
         // Emit the CPU event for this cycle.
         if self.emit_events {
             self.emit_cpu(
@@ -883,6 +879,10 @@ impl Runtime {
                 exit_code,
             );
         };
+
+        // Update the channel to the next cycle.
+        self.state.channel += 1;
+        self.state.channel %= NUM_BYTE_LOOKUP_CHANNELS;
 
         Ok(())
     }

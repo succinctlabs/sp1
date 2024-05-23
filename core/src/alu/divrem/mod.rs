@@ -222,7 +222,6 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                 cols.c = Word::from(event.c);
                 cols.shard = F::from_canonical_u32(event.shard);
                 cols.channel = F::from_canonical_u32(event.channel);
-                cols.channel = F::from_canonical_u32(event.channel);
                 cols.is_real = F::one();
                 cols.is_divu = F::from_bool(event.opcode == Opcode::DIVU);
                 cols.is_remu = F::from_bool(event.opcode == Opcode::REMU);
@@ -480,6 +479,7 @@ where
                 local.quotient,
                 local.c,
                 local.shard,
+                local.channel,
                 local.is_real,
             );
 
@@ -504,6 +504,7 @@ where
                 local.quotient,
                 local.c,
                 local.shard,
+                local.channel,
                 local.is_real,
             );
         }
@@ -696,6 +697,7 @@ where
                 local.abs_remainder,
                 local.max_abs_c_or_1,
                 local.shard,
+                local.channel,
                 local.is_real,
             );
         }
@@ -798,6 +800,7 @@ where
                 local.b,
                 local.c,
                 local.shard,
+                local.channel,
                 local.is_real,
             );
         }
@@ -809,7 +812,6 @@ mod tests {
 
     use crate::{
         air::MachineAir,
-        bytes::NUM_BYTE_LOOKUP_CHANNELS,
         stark::StarkGenericConfig,
         utils::{uni_stark_prove as prove, uni_stark_verify as verify},
     };
@@ -879,29 +881,13 @@ mod tests {
             (Opcode::DIV, 1 << 31, 1 << 31, neg(1)),
             (Opcode::REM, 0, 1 << 31, neg(1)),
         ];
-        for (i, t) in divrems.iter().enumerate() {
-            divrem_events.push(AluEvent::new(
-                0,
-                i as u32 % NUM_BYTE_LOOKUP_CHANNELS,
-                0,
-                t.0,
-                t.1,
-                t.2,
-                t.3,
-            ));
+        for t in divrems.iter() {
+            divrem_events.push(AluEvent::new(0, 9, 0, t.0, t.1, t.2, t.3));
         }
 
         // Append more events until we have 1000 tests.
-        for i in 0..(1000 - divrems.len()) {
-            divrem_events.push(AluEvent::new(
-                0,
-                i as u32 % NUM_BYTE_LOOKUP_CHANNELS,
-                0,
-                Opcode::DIVU,
-                1,
-                1,
-                1,
-            ));
+        for _ in 0..(1000 - divrems.len()) {
+            divrem_events.push(AluEvent::new(0, 0, 0, Opcode::DIVU, 1, 1, 1));
         }
 
         let mut shard = ExecutionRecord::default();

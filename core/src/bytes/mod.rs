@@ -23,7 +23,7 @@ use crate::bytes::trace::NUM_ROWS;
 /// The number of different byte operations.
 pub const NUM_BYTE_OPS: usize = 9;
 
-pub const NUM_BYTE_LOOKUP_CHANNELS: u32 = 2;
+pub const NUM_BYTE_LOOKUP_CHANNELS: u32 = 1;
 
 /// A chip for computing byte operations.
 ///

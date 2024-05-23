@@ -299,6 +299,7 @@ pub trait WordAirBuilder: ByteAirBuilder {
 /// A trait which contains methods related to ALU interactions in an AIR.
 pub trait AluAirBuilder: BaseAirBuilder {
     /// Sends an ALU operation to be processed.
+    #[allow(clippy::too_many_arguments)]
     fn send_alu(
         &mut self,
         opcode: impl Into<Self::Expr>,
@@ -306,6 +307,7 @@ pub trait AluAirBuilder: BaseAirBuilder {
         b: Word<impl Into<Self::Expr>>,
         c: Word<impl Into<Self::Expr>>,
         shard: impl Into<Self::Expr>,
+        channel: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
         let values = once(opcode.into())
@@ -313,6 +315,7 @@ pub trait AluAirBuilder: BaseAirBuilder {
             .chain(b.0.into_iter().map(Into::into))
             .chain(c.0.into_iter().map(Into::into))
             .chain(once(shard.into()))
+            .chain(once(channel.into()))
             .collect();
 
         self.send(AirInteraction::new(
@@ -323,6 +326,7 @@ pub trait AluAirBuilder: BaseAirBuilder {
     }
 
     /// Receives an ALU operation to be processed.
+    #[allow(clippy::too_many_arguments)]
     fn receive_alu(
         &mut self,
         opcode: impl Into<Self::Expr>,
@@ -330,6 +334,7 @@ pub trait AluAirBuilder: BaseAirBuilder {
         b: Word<impl Into<Self::Expr>>,
         c: Word<impl Into<Self::Expr>>,
         shard: impl Into<Self::Expr>,
+        channel: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
         let values = once(opcode.into())
@@ -337,6 +342,7 @@ pub trait AluAirBuilder: BaseAirBuilder {
             .chain(b.0.into_iter().map(Into::into))
             .chain(c.0.into_iter().map(Into::into))
             .chain(once(shard.into()))
+            .chain(once(channel.into()))
             .collect();
 
         self.receive(AirInteraction::new(
@@ -416,7 +422,7 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
     ) {
         let do_check: Self::Expr = do_check.into();
         let shard: Self::Expr = shard.into();
-        let channel = channel.into();
+        let channel: Self::Expr = channel.into();
         let clk: Self::Expr = clk.into();
         let mem_access = memory_access.access();
 
@@ -535,8 +541,8 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
             mem_access.diff_16bit_limb.clone(),
             mem_access.diff_8bit_limb.clone(),
             shard.clone(),
-            do_check,
             channel.clone(),
+            do_check,
         );
     }
 

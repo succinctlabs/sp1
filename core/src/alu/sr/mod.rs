@@ -498,6 +498,7 @@ where
             local.b,
             local.c,
             local.shard,
+            local.channel,
             local.is_real,
         );
     }
