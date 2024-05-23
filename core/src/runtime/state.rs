@@ -59,6 +59,7 @@ pub struct ExecutionState {
 }
 
 impl ExecutionState {
+    #[must_use]
     pub fn new(pc_start: u32) -> Self {
         Self {
             global_clk: 0,
@@ -81,7 +82,7 @@ impl ExecutionState {
 /// Holds data to track changes made to the runtime since a fork point.
 #[derive(Debug, Clone, Default)]
 pub(crate) struct ForkState {
-    /// Original global_clk
+    /// Original `global_clk`
     pub(crate) global_clk: u64,
 
     /// Original clk

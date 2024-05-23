@@ -18,7 +18,13 @@ use p3_maybe_rayon::prelude::*;
 use p3_util::log2_strict_usize;
 
 use super::{quotient_values, PcsProverData, StarkMachine, Val};
-use super::{types::*, StarkGenericConfig};
+use super::{
+    types::{
+        AirOpenedValues, ChipOpenedValues, MachineProof, ShardCommitment, ShardMainData,
+        ShardMainDataWrapper, ShardOpenedValues, ShardProof,
+    },
+    StarkGenericConfig,
+};
 use super::{Com, OpeningProof};
 use super::{StarkProvingKey, VerifierConstraintFolder};
 use crate::air::MachineAir;
@@ -242,7 +248,7 @@ where
 
         let degrees = traces
             .iter()
-            .map(|trace| trace.height())
+            .map(p3_matrix::Matrix::height)
             .collect::<Vec<_>>();
 
         let log_degrees = degrees
@@ -321,7 +327,7 @@ where
                     .zip(trace_domains.iter())
                     .map(|(perm_trace, domain)| {
                         let trace = perm_trace.flatten_to_base();
-                        (*domain, trace.to_owned())
+                        (*domain, trace.clone())
                     })
                     .collect::<Vec<_>>()
             });
@@ -490,7 +496,7 @@ where
             })
             .collect::<Vec<_>>();
         let mut quotient_opened_values = Vec::with_capacity(log_quotient_degrees.len());
-        for log_quotient_degree in log_quotient_degrees.iter() {
+        for log_quotient_degree in &log_quotient_degrees {
             let degree = 1 << *log_quotient_degree;
             let slice = quotient_values.drain(0..degree);
             quotient_opened_values.push(slice.map(|mut op| op.pop().unwrap()).collect::<Vec<_>>());
@@ -505,14 +511,13 @@ where
             .enumerate()
             .map(
                 |(i, ((((main, permutation), quotient), cumulative_sum), log_degree))| {
-                    let preprocessed = pk
-                        .chip_ordering
-                        .get(&chips[i].name())
-                        .map(|&index| preprocessed_opened_values[index].clone())
-                        .unwrap_or(AirOpenedValues {
+                    let preprocessed = pk.chip_ordering.get(&chips[i].name()).map_or(
+                        AirOpenedValues {
                             local: vec![],
                             next: vec![],
-                        });
+                        },
+                        |&index| preprocessed_opened_values[index].clone(),
+                    );
                     ChipOpenedValues {
                         preprocessed,
                         main,

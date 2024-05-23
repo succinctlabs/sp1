@@ -9,7 +9,7 @@ use sp1_recursion_core::runtime::{DIGEST_SIZE, PERMUTATION_WIDTH};
 use crate::fri::types::DigestVariable;
 use crate::types::VerifyingKeyVariable;
 
-/// Reference: [p3_challenger::CanObserve].
+/// Reference: [`p3_challenger::CanObserve`].
 pub trait CanObserveVariable<C: Config, V> {
     fn observe(&mut self, builder: &mut Builder<C>, value: V);
 
@@ -20,7 +20,7 @@ pub trait CanSampleVariable<C: Config, V> {
     fn sample(&mut self, builder: &mut Builder<C>) -> V;
 }
 
-/// Reference: [p3_challenger::FieldChallenger].
+/// Reference: [`p3_challenger::FieldChallenger`].
 pub trait FeltChallenger<C: Config>:
     CanObserveVariable<C, Felt<C::F>> + CanSampleVariable<C, Felt<C::F>> + CanSampleBitsVariable<C>
 {
@@ -35,7 +35,7 @@ pub trait CanSampleBitsVariable<C: Config> {
     ) -> Array<C, Var<C::N>>;
 }
 
-/// Reference: [p3_challenger::DuplexChallenger]
+/// Reference: [`p3_challenger::DuplexChallenger`]
 #[derive(Clone, DslVariable)]
 pub struct DuplexChallengerVariable<C: Config> {
     pub sponge_state: Array<C, Felt<C::F>>,
@@ -153,7 +153,7 @@ impl<C: Config> DuplexChallengerVariable<C> {
             )
             .then(|builder| {
                 self.duplexing(builder);
-            })
+            });
     }
 
     fn observe_commitment(&mut self, builder: &mut Builder<C>, commitment: DigestVariable<C>) {
@@ -233,9 +233,9 @@ impl<C: Config> CanObserveVariable<C, Felt<C::F>> for DuplexChallengerVariable<C
                 });
             }
             Array::Fixed(values) => {
-                values.iter().for_each(|value| {
+                for value in &values {
                     self.observe(builder, *value);
-                });
+                }
             }
         }
     }
@@ -270,7 +270,7 @@ impl<C: Config> CanObserveVariable<C, DigestVariable<C>> for DuplexChallengerVar
 impl<C: Config> CanObserveVariable<C, VerifyingKeyVariable<C>> for DuplexChallengerVariable<C> {
     fn observe(&mut self, builder: &mut Builder<C>, value: VerifyingKeyVariable<C>) {
         self.observe_commitment(builder, value.commitment);
-        self.observe(builder, value.pc_start)
+        self.observe(builder, value.pc_start);
     }
 
     fn observe_slice(
@@ -319,7 +319,7 @@ mod tests {
         challenger.observe(F::two());
         challenger.observe(F::two());
         let result: F = challenger.sample();
-        println!("expected result: {}", result);
+        println!("expected result: {result}");
 
         let mut builder = AsmBuilder::<F, EF>::default();
 

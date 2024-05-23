@@ -37,6 +37,7 @@ pub trait WeierstrassParameters: EllipticCurveParameters {
         modulus
     }
 
+    #[must_use]
     fn nb_scalar_bits() -> usize {
         Self::BaseField::NB_LIMBS * 16
     }
@@ -104,22 +105,26 @@ impl<E: WeierstrassParameters> EllipticCurve for SwCurve<E> {
 }
 
 impl<E: WeierstrassParameters> SwCurve<E> {
+    #[must_use]
     pub fn generator() -> AffinePoint<SwCurve<E>> {
         let (x, y) = E::generator();
 
         AffinePoint::new(x, y)
     }
 
+    #[must_use]
     pub fn a_int() -> BigUint {
         E::a_int()
     }
 
+    #[must_use]
     pub fn b_int() -> BigUint {
         E::b_int()
     }
 }
 
 impl<E: WeierstrassParameters> AffinePoint<SwCurve<E>> {
+    #[must_use]
     pub fn sw_scalar_mul(&self, scalar: &BigUint) -> Self {
         let mut result: Option<AffinePoint<SwCurve<E>>> = None;
         let mut temp = self.clone();
@@ -135,10 +140,12 @@ impl<E: WeierstrassParameters> AffinePoint<SwCurve<E>> {
 }
 
 impl<E: WeierstrassParameters> AffinePoint<SwCurve<E>> {
+    #[must_use]
     pub fn sw_add(&self, other: &AffinePoint<SwCurve<E>>) -> AffinePoint<SwCurve<E>> {
-        if self.x == other.x && self.y == other.y {
-            panic!("Error: Points are the same. Use sw_double instead.");
-        }
+        assert!(
+            !(self.x == other.x && self.y == other.y),
+            "Error: Points are the same. Use sw_double instead."
+        );
         let p = E::BaseField::modulus();
         let slope_numerator = (&p + &other.y - &self.y) % &p;
         let slope_denominator = (&p + &other.x - &self.x) % &p;
@@ -151,6 +158,7 @@ impl<E: WeierstrassParameters> AffinePoint<SwCurve<E>> {
         AffinePoint::new(x_3n, y_3n)
     }
 
+    #[must_use]
     pub fn sw_double(&self) -> AffinePoint<SwCurve<E>> {
         let p = E::BaseField::modulus();
         let a = E::a_int();

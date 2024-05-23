@@ -26,10 +26,10 @@ fn test_compiler_conditionals() {
                 builder.if_eq(three, three).then(|builder| {
                     builder
                         .if_eq(four, four)
-                        .then(|builder| builder.assign(c, F::one()))
-                })
-            })
-        })
+                        .then(|builder| builder.assign(c, F::one()));
+                });
+            });
+        });
     });
     builder.assert_var_eq(c, F::one());
 
@@ -39,19 +39,19 @@ fn test_compiler_conditionals() {
             builder.if_eq(one, one).then(|builder| {
                 builder
                     .if_eq(two, two)
-                    .then(|builder| builder.assign(c, F::one()))
-            })
+                    .then(|builder| builder.assign(c, F::one()));
+            });
         },
         |builder| {
             builder
                 .if_ne(three, four)
-                .then_or_else(|_| {}, |builder| builder.assign(c, F::zero()))
+                .then_or_else(|_| {}, |builder| builder.assign(c, F::zero()));
         },
     );
     builder.assert_var_eq(c, F::zero());
 
     let code = builder.compile_asm();
-    println!("{}", code);
+    println!("{code}");
     // let program = builder.compile();
     let program = code.machine_code();
 
@@ -80,14 +80,14 @@ fn test_compiler_conditionals_v2() {
                 builder.if_eq(three, three).then(|builder| {
                     builder
                         .if_eq(four, four)
-                        .then(|builder| builder.assign(c, F::one()))
-                })
-            })
-        })
+                        .then(|builder| builder.assign(c, F::one()));
+                });
+            });
+        });
     });
 
     let code = builder.compile_asm();
-    println!("{}", code);
+    println!("{code}");
     // let program = builder.compile();
     let program = code.machine_code();
 

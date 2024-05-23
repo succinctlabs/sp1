@@ -3,6 +3,7 @@ use std::io::Write;
 use super::{Instruction, Runtime};
 use crate::runtime::Register;
 
+#[must_use]
 pub fn align(addr: u32) -> u32 {
     addr - addr % 4
 }

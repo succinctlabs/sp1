@@ -75,7 +75,7 @@ fn test_compiler_poseidon2_hash() {
     let mut builder = AsmBuilder::<F, EF>::default();
 
     let random_state_vals: [F; 42] = rng.gen();
-    println!("{:?}", random_state_vals);
+    println!("{random_state_vals:?}");
 
     let mut random_state_v1 = builder.dyn_array(random_state_vals.len());
     for (i, val) in random_state_vals.iter().enumerate() {

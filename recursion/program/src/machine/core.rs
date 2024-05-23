@@ -57,7 +57,8 @@ pub struct SP1RecursionMemoryLayoutVariable<C: Config> {
 }
 
 impl SP1RecursiveVerifier<InnerConfig, BabyBearPoseidon2> {
-    /// Create a new instance of the program for the [BabyBearPoseidon2] config.
+    /// Create a new instance of the program for the [`BabyBearPoseidon2`] config.
+    #[must_use]
     pub fn build(
         machine: &StarkMachine<BabyBearPoseidon2, RiscvAir<BabyBear>>,
     ) -> RecursionProgram<BabyBear> {
@@ -313,7 +314,7 @@ where
         // no deferred proofs to verify. However, the completeness check is independent of these
         // facts.
         builder.if_eq(is_complete, C::N::one()).then(|builder| {
-            assert_complete(builder, recursion_public_values, &reconstruct_challenger)
+            assert_complete(builder, recursion_public_values, &reconstruct_challenger);
         });
 
         commit_public_values(builder, recursion_public_values);

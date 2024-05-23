@@ -41,7 +41,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
     type Program = RecursionProgram<F>;
 
     fn name(&self) -> String {
-        format!("Poseidon2Wide {}", DEGREE)
+        format!("Poseidon2Wide {DEGREE}")
     }
 
     fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {
@@ -329,7 +329,7 @@ fn eval_internal_rounds<AB: SP1AirBuilder>(
 
     let external_state = poseidon2_cols.external_rounds_state[NUM_EXTERNAL_ROUNDS / 2];
     for i in 0..WIDTH {
-        builder.assert_eq(external_state[i], state[i].clone())
+        builder.assert_eq(external_state[i], state[i].clone());
     }
 }
 
@@ -526,7 +526,7 @@ mod tests {
         let start = Instant::now();
         let proof = uni_stark_prove(&config, &chip, &mut challenger, trace);
         let duration = start.elapsed().as_secs_f64();
-        println!("proof duration = {:?}", duration);
+        println!("proof duration = {duration:?}");
 
         let mut challenger = config.challenger();
         let start = Instant::now();
@@ -534,7 +534,7 @@ mod tests {
             .expect("expected proof to be valid");
 
         let duration = start.elapsed().as_secs_f64();
-        println!("verify duration = {:?}", duration);
+        println!("verify duration = {duration:?}");
     }
 
     #[test]

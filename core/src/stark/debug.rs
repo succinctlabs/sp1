@@ -65,7 +65,7 @@ pub fn debug_constraints<SC, A>(
         let perm_next = perm.row_slice(i_next);
         let perm_next = &(*perm_next);
 
-        let public_values = public_values.to_vec();
+        let public_values = public_values.clone();
         let mut builder = DebugConstraintBuilder {
             preprocessed: VerticalPair::new(
                 RowMajorMatrixView::new_row(&preprocessed_local),
@@ -97,8 +97,8 @@ pub fn debug_constraints<SC, A>(
             chip.eval(&mut builder);
         }));
         if result.is_err() {
-            eprintln!("local: {:?}", main_local);
-            eprintln!("next:  {:?}", main_next);
+            eprintln!("local: {main_local:?}");
+            eprintln!("next:  {main_next:?}");
             eprintln!("failed at row {} of chip {}", i, chip.name());
             exit(1);
         }
@@ -191,7 +191,7 @@ where
     fn debug_constraint(&self, x: F, y: F) {
         if x != y {
             let backtrace = std::backtrace::Backtrace::force_capture();
-            eprintln!("constraint failed: {:?} != {:?}\n{}", x, y, backtrace);
+            eprintln!("constraint failed: {x:?} != {y:?}\n{backtrace}");
             panic!();
         }
     }
@@ -244,7 +244,7 @@ where
         let x = x.into();
         if x != F::zero() && x != F::one() {
             let backtrace = std::backtrace::Backtrace::force_capture();
-            eprintln!("constraint failed: {:?} is not a bool\n{}", x, backtrace);
+            eprintln!("constraint failed: {x:?} is not a bool\n{backtrace}");
             panic!();
         }
     }

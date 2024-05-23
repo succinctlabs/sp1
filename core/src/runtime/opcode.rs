@@ -69,6 +69,7 @@ impl Display for Opcode {
 }
 
 impl Opcode {
+    #[must_use]
     pub fn mnemonic(&self) -> &str {
         match self {
             Opcode::ADD => "add",
@@ -114,6 +115,7 @@ impl Opcode {
 }
 
 impl Opcode {
+    #[must_use]
     pub fn as_field<F: Field>(self) -> F {
         F::from_canonical_u32(self as u32)
     }

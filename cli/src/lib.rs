@@ -37,6 +37,7 @@ pub async fn url_exists(client: &Client, url: &str) -> bool {
     res.is_ok()
 }
 
+#[must_use]
 pub fn get_target() -> String {
     target_lexicon::HOST.to_string()
 }
@@ -55,8 +56,7 @@ pub async fn get_toolchain_download_url(client: &Client, target: String) -> Stri
     let tag = json["tag_name"].as_str().unwrap();
 
     let url = format!(
-        "https://github.com/succinctlabs/rust/releases/download/{}/rust-toolchain-{}.tar.gz",
-        tag, target
+        "https://github.com/succinctlabs/rust/releases/download/{tag}/rust-toolchain-{target}.tar.gz"
     );
 
     url

@@ -21,8 +21,8 @@ pub const NB_BITS_PER_LIMB: usize = 8;
 
 /// An array representing N limbs of T.
 ///
-/// GenericArray allows us to constrain the correct array lengths so we can have # of limbs and # of
-/// witness limbs associated in NumLimbs / FieldParameters.
+/// `GenericArray` allows us to constrain the correct array lengths so we can have # of limbs and # of
+/// witness limbs associated in `NumLimbs` / `FieldParameters`.
 /// See: https://github.com/RustCrypto/traits/issues/1481
 #[derive(Debug, Clone)]
 pub struct Limbs<T, N: ArrayLength>(pub GenericArray<T, N>);
@@ -38,14 +38,17 @@ pub trait FieldParameters:
     /// The bytes of the modulus in little-endian order.
     const MODULUS: &'static [u8];
 
+    #[must_use]
     fn modulus() -> BigUint {
         biguint_from_limbs(Self::MODULUS)
     }
 
+    #[must_use]
     fn nb_bits() -> usize {
         Self::NB_BITS_PER_LIMB * Self::NB_LIMBS
     }
 
+    #[must_use]
     fn modulus_field_iter<F: Field>() -> impl Iterator<Item = F> {
         Self::MODULUS
             .iter()
@@ -53,14 +56,16 @@ pub trait FieldParameters:
             .take(Self::NB_LIMBS)
     }
 
-    /// Convert a BigUint to a Vec of u8 limbs (with len NB_LIMBS).
+    /// Convert a `BigUint` to a Vec of u8 limbs (with len `NB_LIMBS`).
+    #[must_use]
     fn to_limbs(x: &BigUint) -> Vec<u8> {
         let mut bytes = x.to_bytes_le();
         bytes.resize(Self::NB_LIMBS, 0u8);
         bytes
     }
 
-    /// Convert a BigUint to a Vec of F limbs (with len NB_LIMBS).
+    /// Convert a `BigUint` to a Vec of F limbs (with len `NB_LIMBS`).
+    #[must_use]
     fn to_limbs_field_vec<E: From<F>, F: Field>(x: &BigUint) -> Vec<E> {
         Self::to_limbs(x)
             .into_iter()
@@ -68,13 +73,15 @@ pub trait FieldParameters:
             .collect::<Vec<_>>()
     }
 
-    /// Convert a BigUint to Limbs<F, Self::Limbs>.
+    /// Convert a `BigUint` to Limbs<F, `Self::Limbs`>.
+    #[must_use]
     fn to_limbs_field<E: From<F>, F: Field>(x: &BigUint) -> Limbs<E, Self::Limbs> {
         limbs_from_vec(Self::to_limbs_field_vec(x))
     }
 }
 
 /// Convert a vec of u8 limbs to a Limbs of N length.
+#[must_use]
 pub fn limbs_from_vec<E: From<F>, N: ArrayLength, F: Field>(limbs: Vec<E>) -> Limbs<E, N> {
     debug_assert_eq!(limbs.len(), N::USIZE);
     let mut result = GenericArray::<E, N>::generate(|_i| F::zero().into());
@@ -98,7 +105,7 @@ pub trait NumWords: Clone + Debug {
     type WordsCurvePoint: ArrayLength + Debug;
 }
 
-/// Implement NumWords for NumLimbs where # Limbs is divisible by 4.
+/// Implement `NumWords` for `NumLimbs` where # Limbs is divisible by 4.
 ///
 /// Using typenum we can do N/4 and N/2 in type-level arithmetic. Having it as a separate trait
 /// avoids needing the Div where clauses everywhere.
@@ -153,7 +160,13 @@ impl<Var: Into<Expr> + Clone, N: ArrayLength, Expr: Clone> From<Limbs<Var, N>>
     for Polynomial<Expr>
 {
     fn from(value: Limbs<Var, N>) -> Self {
-        Polynomial::from_coefficients(&value.0.into_iter().map(|x| x.into()).collect::<Vec<_>>())
+        Polynomial::from_coefficients(
+            &value
+                .0
+                .into_iter()
+                .map(std::convert::Into::into)
+                .collect::<Vec<_>>(),
+        )
     }
 }
 

@@ -6,6 +6,7 @@ use crate::{
 pub struct SyscallWrite;
 
 impl SyscallWrite {
+    #[must_use]
     pub fn new() -> Self {
         Self
     }
@@ -58,7 +59,7 @@ impl Syscall for SyscallWrite {
                     if !flush_s.is_empty() {
                         flush_s
                             .into_iter()
-                            .for_each(|line| println!("stdout: {}", line));
+                            .for_each(|line| println!("stdout: {line}"));
                     }
                 }
             } else if fd == 2 {
@@ -67,7 +68,7 @@ impl Syscall for SyscallWrite {
                 if !flush_s.is_empty() {
                     flush_s
                         .into_iter()
-                        .for_each(|line| println!("stderr: {}", line));
+                        .for_each(|line| println!("stderr: {line}"));
                 }
             } else if fd == 3 {
                 rt.state.public_values_stream.extend_from_slice(slice);
@@ -93,7 +94,7 @@ pub fn update_io_buf(ctx: &mut SyscallContext, fd: u32, s: &str) -> Vec<String> 
         *entry = last.to_string();
         lines
             .into_iter()
-            .map(|line| line.to_string())
+            .map(std::string::ToString::to_string)
             .collect::<Vec<String>>()
     } else {
         vec![]

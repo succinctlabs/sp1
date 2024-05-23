@@ -35,7 +35,7 @@ impl<T> Poseidon2ColTypeMut<'_, T> {
     }
 }
 
-/// An immutable version of Poseidon2ColTypeMut.
+/// An immutable version of `Poseidon2ColTypeMut`.
 pub(crate) enum Poseidon2ColType<T> {
     Wide(Poseidon2SBoxCols<T>),
     Narrow(Poseidon2Cols<T>),

@@ -73,7 +73,8 @@ impl<A> SP1CompressVerifier<InnerConfig, BabyBearPoseidon2, A>
 where
     A: MachineAir<BabyBear> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, InnerConfig>>,
 {
-    /// Create a new instance of the program for the [BabyBearPoseidon2] config.
+    /// Create a new instance of the program for the [`BabyBearPoseidon2`] config.
+    #[must_use]
     pub fn build(
         machine: &StarkMachine<BabyBearPoseidon2, A>,
         recursive_vk: &StarkVerifyingKey<BabyBearPoseidon2>,
@@ -122,7 +123,7 @@ where
     ///   by `deferred_vk`.
     /// - Compress proofs: these are proofs which refer to a prove of this program. The key for
     ///   it is part of public values will be propagated accross all levels of recursion and will
-    ///   be checked against itself as in [sp1_prover::Prover] or as in [super::SP1RootVerifier].
+    ///   be checked against itself as in [`sp1_prover::Prover`] or as in [`super::SP1RootVerifier`].
     pub fn verify(
         builder: &mut Builder<C>,
         pcs: &TwoAdicFriPcsVariable<C>,
@@ -463,7 +464,7 @@ where
         builder.if_eq(is_complete, C::N::one()).then_or_else(
             |builder| {
                 builder.assign(reduce_public_values.is_complete, C::F::one());
-                assert_complete(builder, reduce_public_values, &reconstruct_challenger)
+                assert_complete(builder, reduce_public_values, &reconstruct_challenger);
             },
             |builder| {
                 builder.assert_var_eq(is_complete, C::N::zero());

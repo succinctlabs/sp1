@@ -19,6 +19,7 @@ pub struct InteractionData<F: Field> {
     pub multiplicity: F,
 }
 
+#[must_use]
 pub fn vec_to_string<F: Field>(vec: Vec<F>) -> String {
     let mut result = String::from("(");
     for (i, value) in vec.iter().enumerate() {
@@ -140,13 +141,13 @@ where
     let mut total = SC::Val::zero();
 
     let chips = machine.chips();
-    for chip in chips.iter() {
+    for chip in chips {
         let mut total_events = 0;
         for shard in shards {
             let (_, count) =
                 debug_interactions::<SC, A>(chip, pkey, shard, interaction_kinds.clone());
             total_events += count.len();
-            for (key, value) in count.iter() {
+            for (key, value) in &count {
                 let entry = final_map
                     .entry(key.clone())
                     .or_insert((SC::Val::zero(), BTreeMap::new()));

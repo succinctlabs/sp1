@@ -4,6 +4,7 @@ use crate::range_check::{RangeCheckEvent, RangeCheckOpcode};
 
 use super::{Instruction, Opcode, HEAP_PTR, HEAP_START_ADDRESS};
 
+#[must_use]
 pub fn canonical_i32_to_field<F: PrimeField32>(x: i32) -> F {
     let modulus = F::ORDER_U32;
     assert!(x < modulus as i32 && x >= -(modulus as i32));

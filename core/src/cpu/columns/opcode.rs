@@ -11,10 +11,10 @@ pub const NUM_OPCODE_SELECTOR_COLS: usize = size_of::<OpcodeSelectorCols<u8>>();
 #[derive(AlignedBorrow, Clone, Copy, Default, Debug)]
 #[repr(C)]
 pub struct OpcodeSelectorCols<T> {
-    /// Whether op_b is an immediate value.
+    /// Whether `op_b` is an immediate value.
     pub imm_b: T,
 
-    /// Whether op_c is an immediate value.
+    /// Whether `op_c` is an immediate value.
     pub imm_c: T,
 
     /// Table selectors for opcodes.

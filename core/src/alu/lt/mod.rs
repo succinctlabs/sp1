@@ -53,16 +53,16 @@ pub struct LtCols<T> {
     pub b_masked: T,
     /// The masking c[3] & 0x7F.
     pub c_masked: T,
-    /// An inverse of differing byte if c_comp != b_comp.
+    /// An inverse of differing byte if `c_comp` != `b_comp`.
     pub not_eq_inv: T,
 
     /// The most significant bit of operand b.
     pub msb_b: T,
     /// The most significant bit of operand c.
     pub msb_c: T,
-    /// The multiplication msb_b * is_slt.
+    /// The multiplication `msb_b` * `is_slt`.
     pub bit_b: T,
-    /// The multiplication msb_c * is_slt.
+    /// The multiplication `msb_c` * `is_slt`.
     pub bit_c: T,
 
     /// The result of the intermediate SLTU operation `b_comp < c_comp`.
@@ -81,7 +81,7 @@ impl LtCols<u32> {
     pub fn from_trace_row<F: PrimeField32>(row: &[F]) -> Self {
         let sized: [u32; NUM_LT_COLS] = row
             .iter()
-            .map(|x| x.as_canonical_u32())
+            .map(p3_field::PrimeField32::as_canonical_u32)
             .collect::<Vec<u32>>()
             .try_into()
             .unwrap();
@@ -130,17 +130,17 @@ impl<F: PrimeField32> MachineAir<F> for LtChip {
                 new_byte_lookup_events.add_byte_lookup_event(ByteLookupEvent {
                     shard: event.shard,
                     opcode: ByteOpcode::AND,
-                    a1: masked_b as u32,
+                    a1: u32::from(masked_b),
                     a2: 0,
-                    b: b[3] as u32,
+                    b: u32::from(b[3]),
                     c: 0x7f as u32,
                 });
                 new_byte_lookup_events.add_byte_lookup_event(ByteLookupEvent {
                     shard: event.shard,
                     opcode: ByteOpcode::AND,
-                    a1: masked_c as u32,
+                    a1: u32::from(masked_c),
                     a2: 0,
-                    b: c[3] as u32,
+                    b: u32::from(c[3]),
                     c: 0x7f as u32,
                 });
 
@@ -255,8 +255,8 @@ where
         // SLT = b_bit * (1 - c_bit) + (b_bit == c_bit) * SLTU(b_comp, c_comp)
 
         // First, we set up the values of `b_comp` and `c_comp`.
-        let mut b_comp: Word<AB::Expr> = local.b.map(|x| x.into());
-        let mut c_comp: Word<AB::Expr> = local.c.map(|x| x.into());
+        let mut b_comp: Word<AB::Expr> = local.b.map(std::convert::Into::into);
+        let mut c_comp: Word<AB::Expr> = local.c.map(std::convert::Into::into);
 
         b_comp[3] = local.b[3] * local.is_sltu + local.b_masked * local.is_slt;
         c_comp[3] = local.c[3] * local.is_sltu + local.c_masked * local.is_slt;
@@ -451,7 +451,7 @@ mod tests {
         let chip = LtChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
-        println!("{:?}", trace.values)
+        println!("{:?}", trace.values);
     }
 
     fn prove_babybear_template(shard: &mut ExecutionRecord) {
@@ -471,8 +471,8 @@ mod tests {
     fn prove_babybear_slt() {
         let mut shard = ExecutionRecord::default();
 
-        const NEG_3: u32 = 0b11111111111111111111111111111101;
-        const NEG_4: u32 = 0b11111111111111111111111111111100;
+        const NEG_3: u32 = 0b1111_1111_1111_1111_1111_1111_1111_1101;
+        const NEG_4: u32 = 0b1111_1111_1111_1111_1111_1111_1111_1100;
         shard.lt_events = vec![
             // 0 == 3 < 2
             AluEvent::new(0, 0, Opcode::SLT, 0, 3, 2),
@@ -499,7 +499,7 @@ mod tests {
     fn prove_babybear_sltu() {
         let mut shard = ExecutionRecord::default();
 
-        const LARGE: u32 = 0b11111111111111111111111111111101;
+        const LARGE: u32 = 0b1111_1111_1111_1111_1111_1111_1111_1101;
         shard.lt_events = vec![
             // 0 == 3 < 2
             AluEvent::new(0, 0, Opcode::SLTU, 0, 3, 2),

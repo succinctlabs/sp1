@@ -42,6 +42,7 @@ use crate::utils::limbs_from_access;
 use crate::utils::limbs_from_prev_access;
 use crate::utils::pad_rows;
 
+#[must_use]
 pub const fn num_weierstrass_decompress_cols<P: FieldParameters + NumWords>() -> usize {
     size_of::<WeierstrassDecompressCols<u8, P>>()
 }
@@ -88,6 +89,7 @@ impl<E: EllipticCurve> Syscall for WeierstrassDecompressChip<E> {
 }
 
 impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDecompressChip<E> {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             _marker: PhantomData::<E>,
@@ -167,7 +169,7 @@ where
             cols.shard = F::from_canonical_u32(event.shard);
             cols.clk = F::from_canonical_u32(event.clk);
             cols.ptr = F::from_canonical_u32(event.ptr);
-            cols.is_odd = F::from_canonical_u32(event.is_odd as u32);
+            cols.is_odd = F::from_canonical_u32(u32::from(event.is_odd));
 
             let x = BigUint::from_bytes_le(&event.x_bytes);
             Self::populate_field_ops(&mut new_byte_lookup_events, event.shard, cols, x);

@@ -14,6 +14,7 @@ pub struct RangeCheckEvent {
 
 impl RangeCheckEvent {
     /// Creates a new `RangeCheckEvent`.
+    #[must_use]
     pub fn new(opcode: RangeCheckOpcode, val: u16) -> Self {
         Self { opcode, val }
     }

@@ -104,6 +104,7 @@ pub struct Blake3CompressInnerEvent {
 pub struct Blake3CompressInnerChip {}
 
 impl Blake3CompressInnerChip {
+    #[must_use]
     pub fn new() -> Self {
         Self {}
     }
@@ -122,6 +123,7 @@ pub mod compress_tests {
     /// The number of `Word`s in the state of the compress inner operation.
     const STATE_SIZE: usize = 16;
 
+    #[must_use]
     pub fn blake3_compress_internal_program() -> Program {
         let state_ptr = 100;
         let msg_ptr = 500;

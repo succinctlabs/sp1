@@ -47,11 +47,13 @@ pub type InnerPcsProof =
     TwoAdicFriPcsProof<InnerVal, InnerChallenge, InnerValMmcs, InnerChallengeMmcs>;
 
 /// The permutation for inner recursion.
+#[must_use]
 pub fn inner_perm() -> InnerPerm {
     poseidon2_init()
 }
 
 /// The FRI config for sp1 proofs.
+#[must_use]
 pub fn sp1_fri_config() -> FriConfig<InnerChallengeMmcs> {
     let perm = inner_perm();
     let hash = InnerHash::new(perm.clone());
@@ -70,6 +72,7 @@ pub fn sp1_fri_config() -> FriConfig<InnerChallengeMmcs> {
 }
 
 /// The FRI config for inner recursion.
+#[must_use]
 pub fn inner_fri_config() -> FriConfig<InnerChallengeMmcs> {
     let perm = inner_perm();
     let hash = InnerHash::new(perm.clone());
@@ -117,6 +120,7 @@ impl From<std::marker::PhantomData<BabyBearPoseidon2Inner>> for BabyBearPoseidon
 }
 
 impl BabyBearPoseidon2Inner {
+    #[must_use]
     pub fn new() -> Self {
         let perm = inner_perm();
         let hash = InnerHash::new(perm.clone());
@@ -125,7 +129,7 @@ impl BabyBearPoseidon2Inner {
         let dft = InnerDft {};
         let fri_config = inner_fri_config();
         let pcs = InnerPcs::new(27, dft, val_mmcs, fri_config);
-        Self { pcs, perm }
+        Self { perm, pcs }
     }
 }
 

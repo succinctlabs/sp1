@@ -48,8 +48,8 @@ impl<F: PrimeField32, P: FieldParameters> FieldRangeCols<F, P> {
                     shard,
                     a1: 1,
                     a2: 0,
-                    b: *byte as u32,
-                    c: *modulus_byte as u32,
+                    b: u32::from(*byte),
+                    c: u32::from(*modulus_byte),
                 });
                 break;
             }
@@ -89,7 +89,7 @@ impl<V: Copy, P: FieldParameters> FieldRangeCols<V, P> {
 
         // Verrify that only one flag is set to one.
         let mut sum_flags: AB::Expr = AB::Expr::zero();
-        for &flag in self.byte_flags.0.iter() {
+        for &flag in &self.byte_flags.0 {
             // Assert that the flag is boolean.
             builder.assert_bool(flag);
             // Add the flag to the sum.
@@ -138,6 +138,6 @@ impl<V: Copy, P: FieldParameters> FieldRangeCols<V, P> {
             modulus_comparison_byte,
             shard,
             is_real,
-        )
+        );
     }
 }

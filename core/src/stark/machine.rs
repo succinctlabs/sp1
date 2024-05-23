@@ -151,7 +151,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
     pub fn chips_sorted_indices(&self, proof: &ShardProof<SC>) -> Vec<Option<usize>> {
         self.chips()
             .iter()
-            .map(|chip| proof.chip_ordering.get(&chip.name()).cloned())
+            .map(|chip| proof.chip_ordering.get(&chip.name()).copied())
             .collect()
     }
 
@@ -168,7 +168,8 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                     .map(|chip| {
                         let prep_trace = chip.generate_preprocessed_trace(program);
                         // Assert that the chip width data is correct.
-                        let expected_width = prep_trace.as_ref().map(|t| t.width()).unwrap_or(0);
+                        let expected_width =
+                            prep_trace.as_ref().map_or(0, p3_matrix::Matrix::width);
                         assert_eq!(
                             expected_width,
                             chip.preprocessed_width(),
@@ -248,12 +249,12 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
 
         // Generate the trace for each chip to collect events emitted from chips with dependencies.
         tracing::debug_span!("collect record events from chips").in_scope(|| {
-            chips.iter().for_each(|chip| {
+            for chip in chips {
                 let mut output = A::Record::default();
                 output.set_index(record.index());
                 chip.generate_dependencies(&record, &mut output);
                 record.append(&mut output);
-            })
+            }
         });
 
         // Display some statistics about the workload.
@@ -340,7 +341,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         // Verify the cumulative sum is 0.
         tracing::debug_span!("verify cumulative sum is 0").in_scope(|| {
             let mut sum = SC::Challenge::zero();
-            for proof in proof.shard_proofs.iter() {
+            for proof in &proof.shard_proofs {
                 sum += proof.cumulative_sum();
             }
             match sum.is_zero() {
@@ -366,7 +367,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         tracing::debug!("checking constraints for each shard");
 
         let mut cumulative_sum = SC::Challenge::zero();
-        for shard in shards.iter() {
+        for shard in &shards {
             // Filter the chips based on what is used.
             let chips = self.shard_chips(shard).collect::<Vec<_>>();
 
@@ -477,10 +478,10 @@ impl<SC: StarkGenericConfig> Debug for MachineVerificationError<SC> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             MachineVerificationError::InvalidSegmentProof(e) => {
-                write!(f, "Invalid segment proof: {:?}", e)
+                write!(f, "Invalid segment proof: {e:?}")
             }
             MachineVerificationError::InvalidGlobalProof(e) => {
-                write!(f, "Invalid global proof: {:?}", e)
+                write!(f, "Invalid global proof: {e:?}")
             }
             MachineVerificationError::NonZeroCumulativeSum => {
                 write!(f, "Non-zero cumulative sum")
@@ -495,7 +496,7 @@ impl<SC: StarkGenericConfig> Debug for MachineVerificationError<SC> {
                 write!(f, "Debug interactions failed")
             }
             MachineVerificationError::InvalidPublicValues(s) => {
-                write!(f, "Invalid public values: {}", s)
+                write!(f, "Invalid public values: {s}")
             }
         }
     }
@@ -548,8 +549,8 @@ pub mod tests {
             (u32::MAX - 1, u32::MAX),
             (u32::MAX, 0),
         ];
-        for shift_op in shift_ops.iter() {
-            for op in operands.iter() {
+        for shift_op in &shift_ops {
+            for op in &operands {
                 let instructions = vec![
                     Instruction::new(Opcode::ADD, 29, 0, op.0, false, true),
                     Instruction::new(Opcode::ADD, 30, 0, op.1, false, true),
@@ -596,8 +597,8 @@ pub mod tests {
             (0xffff, 0xffff - 1),
             (u32::MAX - 1, u32::MAX),
         ];
-        for mul_op in mul_ops.iter() {
-            for operand in operands.iter() {
+        for mul_op in &mul_ops {
+            for operand in &operands {
                 let instructions = vec![
                     Instruction::new(Opcode::ADD, 29, 0, operand.0, false, true),
                     Instruction::new(Opcode::ADD, 30, 0, operand.1, false, true),
@@ -613,7 +614,7 @@ pub mod tests {
     fn test_lt_prove() {
         setup_logger();
         let less_than = [Opcode::SLT, Opcode::SLTU];
-        for lt_op in less_than.iter() {
+        for lt_op in &less_than {
             let instructions = vec![
                 Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
                 Instruction::new(Opcode::ADD, 30, 0, 8, false, true),
@@ -629,7 +630,7 @@ pub mod tests {
         setup_logger();
         let bitwise_opcodes = [Opcode::XOR, Opcode::OR, Opcode::AND];
 
-        for bitwise_op in bitwise_opcodes.iter() {
+        for bitwise_op in &bitwise_opcodes {
             let instructions = vec![
                 Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
                 Instruction::new(Opcode::ADD, 30, 0, 8, false, true),
@@ -651,8 +652,8 @@ pub mod tests {
             (0xffff * (0xffff - 1), 0xffff),
             (u32::MAX - 5, u32::MAX - 7),
         ];
-        for div_rem_op in div_rem_ops.iter() {
-            for op in operands.iter() {
+        for div_rem_op in &div_rem_ops {
+            for op in &operands {
                 let instructions = vec![
                     Instruction::new(Opcode::ADD, 29, 0, op.0, false, true),
                     Instruction::new(Opcode::ADD, 30, 0, op.1, false, true),

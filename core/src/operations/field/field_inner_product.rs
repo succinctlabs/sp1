@@ -279,7 +279,7 @@ mod tests {
         let chip: FieldIpChip<Ed25519BaseField> = FieldIpChip::new();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
-        println!("{:?}", trace.values)
+        println!("{:?}", trace.values);
     }
 
     #[test]

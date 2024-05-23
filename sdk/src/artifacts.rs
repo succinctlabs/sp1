@@ -56,7 +56,7 @@ pub async fn download_file(
     pb.set_style(ProgressStyle::default_bar()
         .template("{msg}\n{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec}, {eta})").unwrap()
         .progress_chars("#>-"));
-    println!("Downloading {}", url);
+    println!("Downloading {url}");
 
     let mut downloaded: u64 = 0;
     let mut stream = res.bytes_stream();
@@ -70,7 +70,7 @@ pub async fn download_file(
         pb.set_position(new);
     }
 
-    let msg = format!("Downloaded {} to {:?}", url, file);
+    let msg = format!("Downloaded {url} to {file:?}");
     pb.finish_with_message(msg);
     Ok(())
 }

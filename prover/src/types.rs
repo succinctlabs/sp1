@@ -39,7 +39,7 @@ pub struct SP1VerifyingKey {
 
 /// A trait for keys that can be hashed into a digest.
 pub trait HashableKey {
-    /// Hash the key into a digest of BabyBear elements.
+    /// Hash the key into a digest of `BabyBear` elements.
     fn hash_babybear(&self) -> [BabyBear; DIGEST_SIZE];
 
     /// Hash the key into a digest of  u32 elements.
@@ -169,16 +169,19 @@ pub struct SP1ReduceProof<SC: StarkGenericConfig> {
 }
 
 impl SP1ReduceProof<BabyBearPoseidon2Outer> {
+    #[must_use]
     pub fn sp1_vkey_digest_babybear(&self) -> [BabyBear; 8] {
         let proof = &self.proof;
         let pv: &RecursionPublicValues<BabyBear> = proof.public_values.as_slice().borrow();
         pv.sp1_vk_digest
     }
 
+    #[must_use]
     pub fn sp1_vkey_digest_bn254(&self) -> Bn254Fr {
         babybears_to_bn254(&self.sp1_vkey_digest_babybear())
     }
 
+    #[must_use]
     pub fn sp1_commited_values_digest_bn254(&self) -> Bn254Fr {
         let proof = &self.proof;
         let pv: &RecursionPublicValues<BabyBear> = proof.public_values.as_slice().borrow();

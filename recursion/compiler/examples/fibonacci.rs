@@ -45,7 +45,7 @@ fn main() {
     builder.assert_felt_eq(a, expected_value);
 
     let code = builder.compile_asm();
-    println!("{}", code);
+    println!("{code}");
 
     let program = code.machine_code();
     println!("Program size = {}", program.instructions.len());

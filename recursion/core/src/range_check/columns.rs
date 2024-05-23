@@ -19,7 +19,7 @@ pub struct RangeCheckPreprocessedCols<T> {
     pub u12_out_range: T,
 }
 
-/// For each byte operation in the preprocessed table, a corresponding RangeCheckMultCols row tracks the
+/// For each byte operation in the preprocessed table, a corresponding `RangeCheckMultCols` row tracks the
 /// number of times the operation is used.
 #[derive(Debug, Clone, Copy, AlignedBorrow)]
 #[repr(C)]

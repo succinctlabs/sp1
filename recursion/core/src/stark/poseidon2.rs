@@ -26,11 +26,12 @@ fn bn254_from_ark_ff(input: ark_FpBN256) -> Bn254Fr {
     }
 }
 
+#[must_use]
 pub fn bn254_poseidon2_rc3() -> Vec<[Bn254Fr; 3]> {
     RC3.iter()
         .map(|vec| {
             vec.iter()
-                .cloned()
+                .copied()
                 .map(bn254_from_ark_ff)
                 .collect::<Vec<_>>()
                 .try_into()
@@ -39,12 +40,13 @@ pub fn bn254_poseidon2_rc3() -> Vec<[Bn254Fr; 3]> {
         .collect()
 }
 
+#[must_use]
 pub fn bn254_poseidon2_rc4() -> Vec<[Bn254Fr; 4]> {
     RC3.iter()
         .map(|vec| {
             let result: [Bn254Fr; 3] = vec
                 .iter()
-                .cloned()
+                .copied()
                 .map(bn254_from_ark_ff)
                 .collect::<Vec<_>>()
                 .try_into()

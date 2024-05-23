@@ -9,7 +9,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     group.sample_size(10);
     let programs = ["fibonacci"];
     for p in programs {
-        let elf_path = format!("../programs/demo/{}/elf/riscv32im-succinct-zkvm-elf", p);
+        let elf_path = format!("../programs/demo/{p}/elf/riscv32im-succinct-zkvm-elf");
         let program = Program::from_elf(&elf_path);
         let cycles = {
             let mut runtime = Runtime::new(program.clone());
@@ -25,7 +25,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
                         &SP1Stdin::new(),
                         BabyBearPoseidon2::new(),
                     )
-                })
+                });
             },
         );
     }

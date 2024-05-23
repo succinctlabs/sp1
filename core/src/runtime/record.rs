@@ -127,6 +127,7 @@ pub struct ShardingConfig {
 }
 
 impl ShardingConfig {
+    #[must_use]
     pub const fn shard_size(&self) -> usize {
         self.shard_size
     }
@@ -284,11 +285,11 @@ impl MachineRecord for ExecutionRecord {
             .append(&mut other.bls12381_decompress_events);
 
         // Merge the byte lookups.
-        for (shard, events_map) in std::mem::take(&mut other.byte_lookups).into_iter() {
+        for (shard, events_map) in std::mem::take(&mut other.byte_lookups) {
             match self.byte_lookups.get_mut(&shard) {
                 Some(existing) => {
                     // If there's already a map for this shard, update counts for each event.
-                    for (event, count) in events_map.iter() {
+                    for (event, count) in &events_map {
                         *existing.entry(*event).or_insert(0) += count;
                     }
                 }
@@ -538,6 +539,7 @@ impl MachineRecord for ExecutionRecord {
 }
 
 impl ExecutionRecord {
+    #[must_use]
     pub fn new(index: u32, program: Arc<Program>) -> Self {
         Self {
             index,
@@ -582,7 +584,7 @@ impl ExecutionRecord {
                     self.lt_events.extend_from_slice(&alu_events[opcode]);
                 }
                 _ => {
-                    panic!("Invalid opcode: {:?}", opcode);
+                    panic!("Invalid opcode: {opcode:?}");
                 }
             }
         }
@@ -596,7 +598,7 @@ impl ByteRecord for ExecutionRecord {
             .entry(blu_event.shard)
             .or_default()
             .entry(blu_event)
-            .or_insert(0) += 1
+            .or_insert(0) += 1;
     }
 }
 

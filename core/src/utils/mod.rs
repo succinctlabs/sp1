@@ -19,6 +19,7 @@ pub use programs::*;
 use crate::{memory::MemoryCols, operations::field::params::Limbs};
 use generic_array::ArrayLength;
 
+#[must_use]
 pub const fn indices_arr<const N: usize>() -> [usize; N] {
     let mut indices_arr = [0; N];
     let mut i = 0;
@@ -94,12 +95,10 @@ pub fn pad_rows_fixed<R: Clone>(
                     padded_nb_rows
                 );
             }
-            if nb_rows > padded_nb_rows {
-                panic!(
-                    "fixed log2 rows is too small: got {}, expected {}",
-                    nb_rows, padded_nb_rows
-                );
-            }
+            assert!(
+                nb_rows <= padded_nb_rows,
+                "fixed log2 rows is too small: got {nb_rows}, expected {padded_nb_rows}"
+            );
             rows.resize(padded_nb_rows, dummy_row);
         }
         None => {
@@ -113,6 +112,7 @@ pub fn pad_rows_fixed<R: Clone>(
 }
 
 /// Converts a slice of words to a slice of bytes in little endian.
+#[must_use]
 pub fn words_to_bytes_le<const B: usize>(words: &[u32]) -> [u8; B] {
     debug_assert_eq!(words.len() * 4, B);
     words
@@ -124,6 +124,7 @@ pub fn words_to_bytes_le<const B: usize>(words: &[u32]) -> [u8; B] {
 }
 
 /// Converts a slice of words to a byte vector in little endian.
+#[must_use]
 pub fn words_to_bytes_le_vec(words: &[u32]) -> Vec<u8> {
     words
         .iter()
@@ -132,6 +133,7 @@ pub fn words_to_bytes_le_vec(words: &[u32]) -> Vec<u8> {
 }
 
 /// Converts a byte array in little endian to a slice of words.
+#[must_use]
 pub fn bytes_to_words_le<const W: usize>(bytes: &[u8]) -> [u32; W] {
     debug_assert_eq!(bytes.len(), W * 4);
     bytes
@@ -143,6 +145,7 @@ pub fn bytes_to_words_le<const W: usize>(bytes: &[u8]) -> [u32; W] {
 }
 
 /// Converts a byte array in little endian to a vector of words.
+#[must_use]
 pub fn bytes_to_words_le_vec(bytes: &[u8]) -> Vec<u32> {
     bytes
         .chunks_exact(4)
@@ -166,6 +169,7 @@ pub fn num_to_comma_separated<T: ToString>(value: T) -> String {
         .collect()
 }
 
+#[must_use]
 pub fn chunk_vec<T>(mut vec: Vec<T>, chunk_size: usize) -> Vec<Vec<T>> {
     let mut result = Vec::new();
     while !vec.is_empty() {
@@ -177,6 +181,7 @@ pub fn chunk_vec<T>(mut vec: Vec<T>, chunk_size: usize) -> Vec<Vec<T>> {
 }
 
 #[inline]
+#[must_use]
 pub fn log2_strict_usize(n: usize) -> usize {
     let res = n.trailing_zeros();
     assert_eq!(n.wrapping_shr(res), 1, "Not a power of two: {n}");

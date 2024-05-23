@@ -44,7 +44,7 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
         let rounds_p_beginning = 2 + rounds_f / 2;
         let p_end = rounds_p_beginning + rounds_p;
 
-        for poseidon2_event in input.poseidon2_events.iter() {
+        for poseidon2_event in &input.poseidon2_events {
             let mut round_input = Default::default();
             for r in 0..rounds {
                 let mut row = [F::zero(); NUM_POSEIDON2_COLS];
@@ -57,19 +57,14 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
                 let is_internal_layer = r >= rounds_p_beginning && r < p_end;
                 let is_memory_write = r == rounds - 1;
 
-                let sum = (is_memory_read as u32)
-                    + (is_initial_layer as u32)
-                    + (is_external_layer as u32)
-                    + (is_internal_layer as u32)
-                    + (is_memory_write as u32);
+                let sum = u32::from(is_memory_read)
+                    + u32::from(is_initial_layer)
+                    + u32::from(is_external_layer)
+                    + u32::from(is_internal_layer)
+                    + u32::from(is_memory_write);
                 assert!(
                     sum == 0 || sum == 1,
-                    "{} {} {} {} {}",
-                    is_memory_read,
-                    is_initial_layer,
-                    is_external_layer,
-                    is_internal_layer,
-                    is_memory_write
+                    "{is_memory_read} {is_initial_layer} {is_external_layer} {is_internal_layer} {is_memory_write}"
                 );
 
                 cols.clk = poseidon2_event.clk;
@@ -151,7 +146,7 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
                     if is_initial_layer || is_external_layer {
                         external_linear_layer(&mut state);
                     } else if is_internal_layer {
-                        internal_linear_layer(&mut state)
+                        internal_linear_layer(&mut state);
                     }
 
                     // Copy the state to the output.

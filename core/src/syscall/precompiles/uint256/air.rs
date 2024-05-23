@@ -28,7 +28,7 @@ use std::borrow::{Borrow, BorrowMut};
 use std::mem::size_of;
 use typenum::Unsigned;
 
-/// The number of columns in the Uint256MulCols.
+/// The number of columns in the `Uint256MulCols`.
 const NUM_COLS: usize = size_of::<Uint256MulCols<u8>>();
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -49,6 +49,7 @@ pub struct Uint256MulEvent {
 pub struct Uint256MulChip;
 
 impl Uint256MulChip {
+    #[must_use]
     pub fn new() -> Self {
         Self
     }
@@ -57,7 +58,7 @@ impl Uint256MulChip {
 type WordsFieldElement = <U256Field as NumWords>::WordsFieldElement;
 const WORDS_FIELD_ELEMENT: usize = WordsFieldElement::USIZE;
 
-/// A set of columns for the Uint256Mul operation.
+/// A set of columns for the `Uint256Mul` operation.
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
 pub struct Uint256MulCols<T> {
@@ -141,7 +142,8 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
                         }
 
                         let modulus_bytes = words_to_bytes_le_vec(&event.modulus);
-                        let modulus_byte_sum = modulus_bytes.iter().map(|b| *b as u32).sum::<u32>();
+                        let modulus_byte_sum =
+                            modulus_bytes.iter().map(|b| u32::from(*b)).sum::<u32>();
                         IsZeroOperation::populate(&mut cols.modulus_is_zero, modulus_byte_sum);
 
                         // Populate the output column.
@@ -203,13 +205,9 @@ impl Syscall for Uint256MulChip {
 
     fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
         let x_ptr = arg1;
-        if x_ptr % 4 != 0 {
-            panic!();
-        }
+        assert!(x_ptr % 4 == 0,);
         let y_ptr = arg2;
-        if y_ptr % 4 != 0 {
-            panic!();
-        }
+        assert!(y_ptr % 4 == 0,);
 
         // First read the words for the x value. We can read a slice_unsafe here because we write
         // the computed result to x later.

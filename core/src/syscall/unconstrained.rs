@@ -5,6 +5,7 @@ use crate::runtime::{ForkState, Syscall, SyscallContext};
 pub struct SyscallEnterUnconstrained;
 
 impl SyscallEnterUnconstrained {
+    #[must_use]
     pub fn new() -> Self {
         Self
     }
@@ -12,9 +13,10 @@ impl SyscallEnterUnconstrained {
 
 impl Syscall for SyscallEnterUnconstrained {
     fn execute(&self, ctx: &mut SyscallContext, _: u32, _: u32) -> Option<u32> {
-        if ctx.rt.unconstrained {
-            panic!("Unconstrained block is already active.");
-        }
+        assert!(
+            !ctx.rt.unconstrained,
+            "Unconstrained block is already active."
+        );
         ctx.rt.unconstrained = true;
         ctx.rt.unconstrained_state = ForkState {
             global_clk: ctx.rt.state.global_clk,
@@ -33,6 +35,7 @@ impl Syscall for SyscallEnterUnconstrained {
 pub struct SyscallExitUnconstrained;
 
 impl SyscallExitUnconstrained {
+    #[must_use]
     pub fn new() -> Self {
         Self
     }

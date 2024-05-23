@@ -48,7 +48,8 @@ impl EdwardsParameters for Ed25519Parameters {
     ]);
 
     fn prime_group_order() -> BigUint {
-        BigUint::from(2u32).pow(252) + BigUint::from(27742317777372353535851937790883648493u128)
+        BigUint::from(2u32).pow(252)
+            + BigUint::from(27_742_317_777_372_353_535_851_937_790_883_648_493_u128)
     }
 
     fn generator() -> (BigUint, BigUint) {
@@ -70,6 +71,7 @@ impl EdwardsParameters for Ed25519Parameters {
 ///
 /// This function always returns the nonnegative square root, in the sense that the least
 /// significant bit of the result is always 0.
+#[must_use]
 pub fn ed25519_sqrt(a: &BigUint) -> BigUint {
     // Here is a description of how to calculate sqrt in the Curve25519 base field:
     // ssh://git@github.com/succinctlabs/curve25519-dalek/blob/e2d1bd10d6d772af07cac5c8161cd7655016af6d/curve25519-dalek/src/field.rs#L256
@@ -102,9 +104,10 @@ pub fn ed25519_sqrt(a: &BigUint) -> BigUint {
     let correct_sign_sqrt = &beta_squared == a;
     let flipped_sign_sqrt = beta_squared == neg_a;
 
-    if !correct_sign_sqrt && !flipped_sign_sqrt {
-        panic!("a is not a square");
-    }
+    assert!(
+        !(!correct_sign_sqrt && !flipped_sign_sqrt),
+        "a is not a square"
+    );
 
     let beta_bytes = beta.to_bytes_le();
     if (beta_bytes[0] & 1) == 1 {
@@ -114,6 +117,7 @@ pub fn ed25519_sqrt(a: &BigUint) -> BigUint {
     beta
 }
 
+#[must_use]
 pub fn decompress(compressed_point: &CompressedEdwardsY) -> AffinePoint<Ed25519> {
     let mut point_bytes = *compressed_point.as_bytes();
     let sign = point_bytes[31] >> 7 == 1;

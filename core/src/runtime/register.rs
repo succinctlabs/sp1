@@ -37,6 +37,7 @@ pub enum Register {
 
 impl Register {
     #[inline(always)]
+    #[must_use]
     pub fn from_u32(value: u32) -> Self {
         match value {
             0 => Register::X0,
@@ -71,7 +72,7 @@ impl Register {
             29 => Register::X29,
             30 => Register::X30,
             31 => Register::X31,
-            _ => panic!("invalid register {}", value),
+            _ => panic!("invalid register {value}"),
         }
     }
 }

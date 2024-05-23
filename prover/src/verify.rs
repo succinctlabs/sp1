@@ -36,7 +36,7 @@ impl SP1Prover {
     ) -> Result<(), MachineVerificationError<CoreSC>> {
         let mut challenger = self.core_machine.config().challenger();
         let machine_proof = MachineProof {
-            shard_proofs: proof.0.to_vec(),
+            shard_proofs: proof.0.clone(),
         };
         self.core_machine
             .verify(&vk.vk, &machine_proof, &mut challenger)?;
@@ -234,7 +234,7 @@ impl SP1Prover {
     }
 }
 
-/// Verify the vk_hash and public_values_hash in the public inputs of the Groth16Proof match the expected values.
+/// Verify the `vk_hash` and `public_values_hash` in the public inputs of the `Groth16Proof` match the expected values.
 pub fn verify_groth16_public_inputs(
     vk: &SP1VerifyingKey,
     public_values: &SP1PublicValues,

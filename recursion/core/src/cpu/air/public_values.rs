@@ -25,7 +25,7 @@ impl<F: Field> CpuChip<F> {
 
         // Verify all elements in the index bitmap are bools.
         let mut bitmap_sum = AB::Expr::zero();
-        for bit in public_values_cols.idx_bitmap.iter() {
+        for bit in &public_values_cols.idx_bitmap {
             builder
                 .when(is_commit_instruction.clone())
                 .assert_bool(*bit);

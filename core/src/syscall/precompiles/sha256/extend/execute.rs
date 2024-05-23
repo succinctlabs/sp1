@@ -13,9 +13,7 @@ impl Syscall for ShaExtendChip {
     fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
         let clk_init = rt.clk;
         let w_ptr = arg1;
-        if arg2 != 0 {
-            panic!("arg2 must be 0")
-        }
+        assert!(arg2 == 0, "arg2 must be 0");
 
         let w_ptr_init = w_ptr;
         let mut w_i_minus_15_reads = Vec::new();

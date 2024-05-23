@@ -21,6 +21,7 @@ pub struct InteractionBuilder<F: Field> {
 
 impl<F: Field> InteractionBuilder<F> {
     /// Creates a new `InteractionBuilder` with the given width.
+    #[must_use]
     pub fn new(preprocessed_width: usize, main_width: usize) -> Self {
         let preprocessed_width = preprocessed_width.max(1);
         let prep_values = [0, 1]
@@ -50,6 +51,7 @@ impl<F: Field> InteractionBuilder<F> {
     }
 
     /// Returns the sends and receives.
+    #[must_use]
     pub fn interactions(self) -> (Vec<Interaction<F>>, Vec<Interaction<F>>) {
         (self.sends, self.receives)
     }
@@ -127,9 +129,10 @@ impl<F: Field> AirBuilderWithPublicValues for InteractionBuilder<F> {
 }
 
 fn symbolic_to_virtual_pair<F: Field>(expression: &SymbolicExpression<F>) -> VirtualPairCol<F> {
-    if expression.degree_multiple() > 1 {
-        panic!("degree multiple is too high");
-    }
+    assert!(
+        expression.degree_multiple() <= 1,
+        "degree multiple is too high"
+    );
 
     let (column_weights, constant) = eval_symbolic_to_virtual_pair(expression);
 
@@ -176,9 +179,10 @@ fn eval_symbolic_to_virtual_pair<F: Field>(
             v.extend(v_l.iter().map(|(c, w)| (*c, *w * c_r)));
             v.extend(v_r.iter().map(|(c, w)| (*c, *w * c_l)));
 
-            if !v_l.is_empty() && !v_r.is_empty() {
-                panic!("Not an affine expression")
-            }
+            assert!(
+                !(!v_l.is_empty() && !v_r.is_empty()),
+                "Not an affine expression"
+            );
 
             (v, c_l * c_r)
         }
@@ -218,8 +222,8 @@ mod tests {
         let z = x + y;
 
         let (column_weights, constant) = super::eval_symbolic_to_virtual_pair(&z);
-        println!("column_weights: {:?}", column_weights);
-        println!("constant: {:?}", constant);
+        println!("column_weights: {column_weights:?}");
+        println!("constant: {constant:?}");
 
         let column_weights = column_weights.into_iter().collect::<Vec<_>>();
 
@@ -227,7 +231,7 @@ mod tests {
 
         let expr: F = z.apply(&[], &[F::one(), F::one()]);
 
-        println!("expr: {}", expr);
+        println!("expr: {expr}");
     }
 
     pub struct LookupTestAir;
@@ -287,7 +291,7 @@ mod tests {
                     &[],
                     main.row_mut(0),
                 );
-                print!("{:?}, ", expr);
+                print!("{expr:?}, ");
             }
 
             let multiplicity = interaction
@@ -297,7 +301,7 @@ mod tests {
                     main.row_mut(0),
                 );
 
-            println!(", multiplicity: {:?}", multiplicity);
+            println!(", multiplicity: {multiplicity:?}");
         }
 
         for interaction in sends {
@@ -307,7 +311,7 @@ mod tests {
                     &[],
                     main.row_mut(0),
                 );
-                print!("{:?}, ", expr);
+                print!("{expr:?}, ");
             }
 
             let multiplicity = interaction
@@ -317,7 +321,7 @@ mod tests {
                     main.row_mut(0),
                 );
 
-            println!(", multiplicity: {:?}", multiplicity);
+            println!(", multiplicity: {multiplicity:?}");
         }
     }
 }

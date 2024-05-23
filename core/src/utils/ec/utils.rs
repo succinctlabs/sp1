@@ -1,5 +1,6 @@
 use num::BigUint;
 
+#[must_use]
 pub fn biguint_to_bits_le(integer: &BigUint, num_bits: usize) -> Vec<bool> {
     let byte_vec = integer.to_bytes_le();
     let mut bits = Vec::new();
@@ -16,6 +17,7 @@ pub fn biguint_to_bits_le(integer: &BigUint, num_bits: usize) -> Vec<bool> {
     bits
 }
 
+#[must_use]
 pub fn biguint_to_limbs<const N: usize>(integer: &BigUint) -> [u8; N] {
     let mut bytes = integer.to_bytes_le();
     debug_assert!(bytes.len() <= N, "Number too large to fit in {N} limbs");
@@ -26,6 +28,7 @@ pub fn biguint_to_limbs<const N: usize>(integer: &BigUint) -> [u8; N] {
 }
 
 #[inline]
+#[must_use]
 pub fn biguint_from_limbs(limbs: &[u8]) -> BigUint {
     BigUint::from_bytes_le(limbs)
 }

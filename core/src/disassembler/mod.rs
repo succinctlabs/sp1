@@ -10,6 +10,7 @@ use crate::runtime::{Instruction, Program};
 
 impl Program {
     /// Create a new program.
+    #[must_use]
     pub fn new(instructions: Vec<Instruction>, pc_start: u32, pc_base: u32) -> Self {
         Self {
             instructions,
@@ -20,6 +21,7 @@ impl Program {
     }
 
     /// Disassemble a RV32IM ELF to a program that be executed by the VM.
+    #[must_use]
     pub fn from(input: &[u8]) -> Self {
         // Decode the bytes as an ELF.
         let elf = Elf::decode(input);
@@ -37,6 +39,7 @@ impl Program {
     }
 
     /// Disassemble a RV32IM ELF to a program that be executed by the VM from a file path.
+    #[must_use]
     pub fn from_elf(path: &str) -> Self {
         let mut elf_code = Vec::new();
         File::open(path)

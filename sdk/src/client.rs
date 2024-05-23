@@ -32,6 +32,7 @@ pub struct NetworkClient {
 
 impl NetworkClient {
     // Create a new NetworkClient with the given private key for authentication.
+    #[must_use]
     pub fn new(private_key: &str) -> Self {
         let auth = NetworkAuth::new(private_key);
 
@@ -61,6 +62,7 @@ impl NetworkClient {
     }
 
     // Get the address for the SP1 Verifier contract.
+    #[must_use]
     pub fn get_sp1_verifier_address() -> [u8; 20] {
         let verifier_hex = env::var("SP1_VERIFIER_ADDRESS")
             .unwrap_or_else(|_| DEFAULT_SP1_VERIFIER_ADDRESS.to_string());
@@ -185,7 +187,7 @@ impl NetworkClient {
         let res = self
             .rpc
             .create_proof(CreateProofRequest {
-                signature: create_proof_signature.to_vec(),
+                signature: create_proof_signature.clone(),
                 nonce,
                 deadline,
                 mode: mode.into(),
@@ -208,7 +210,7 @@ impl NetworkClient {
             .await?;
         self.rpc
             .submit_proof(SubmitProofRequest {
-                signature: submit_proof_signature.to_vec(),
+                signature: submit_proof_signature.clone(),
                 nonce,
                 proof_id: res.proof_id.clone(),
             })

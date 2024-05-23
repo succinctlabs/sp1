@@ -6,7 +6,7 @@ pub fn batch_multiplicative_inverse_inplace<F: Field>(values: &mut [F]) {
     // Check if values are zero and construct a new vector with only nonzero values.
     let mut nonzero_values = Vec::with_capacity(values.len());
     let mut indices = Vec::with_capacity(values.len());
-    for (i, value) in values.iter().cloned().enumerate() {
+    for (i, value) in values.iter().copied().enumerate() {
         if value.is_zero() {
             continue;
         }

@@ -33,7 +33,7 @@ pub struct CreateProofResponse {
     pub stdin_url: ::prost::alloc::string::String,
 }
 /// The request to submit a proof, the second step in requesting a proof. MUST be called when the
-/// proof is in a PROOF_REQUESTED state and MUST be called after uploading the program and stdin to
+/// proof is in a `PROOF_REQUESTED` state and MUST be called after uploading the program and stdin to
 /// the URLs provided during create proof.
 #[derive(serde::Serialize, serde::Deserialize)]
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -55,7 +55,7 @@ pub struct SubmitProofRequest {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SubmitProofResponse {}
 /// The request to claim a proof, which agrees to fulfill the proof by the deadline. MUST be called
-/// when the proof is in a PROOF_REQUESTED state.
+/// when the proof is in a `PROOF_REQUESTED` state.
 #[derive(serde::Serialize, serde::Deserialize)]
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -87,7 +87,7 @@ pub struct ClaimProofResponse {
     pub proof_artifact_id: ::prost::alloc::string::String,
 }
 /// The request to fulfill a proof. MUST be called after the proof has been uploaded and MUST be called
-/// when the proof is in a PROOF_CLAIMED state.
+/// when the proof is in a `PROOF_CLAIMED` state.
 #[derive(serde::Serialize, serde::Deserialize)]
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -111,8 +111,8 @@ pub struct FulfillProofResponse {
     #[prost(uint64, tag = "1")]
     pub proving_seconds: u64,
 }
-/// The request to relay a proof through the NetworkGateway on a given chain. MUST be called when the
-/// proof is in a PROOF_FULFILLED state.
+/// The request to relay a proof through the `NetworkGateway` on a given chain. MUST be called when the
+/// proof is in a `PROOF_FULFILLED` state.
 #[derive(serde::Serialize, serde::Deserialize)]
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -265,16 +265,17 @@ pub enum ProofMode {
     Core = 1,
     /// The proof mode for a compressed proof.
     Compressed = 2,
-    /// The proof mode for a PlonK proof.
+    /// The proof mode for a `PlonK` proof.
     Plonk = 3,
     /// The proof mode for a Groth16 proof.
     Groth16 = 4,
 }
 impl ProofMode {
-    /// String value of the enum field names used in the ProtoBuf definition.
+    /// String value of the enum field names used in the `ProtoBuf` definition.
     ///
     /// The values are not transformed in any way and thus are considered stable
-    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    /// (if the `ProtoBuf` definition does not change) and safe for programmatic use.
+    #[must_use]
     pub fn as_str_name(&self) -> &'static str {
         match self {
             ProofMode::Unspecified => "PROOF_MODE_UNSPECIFIED",
@@ -284,7 +285,8 @@ impl ProofMode {
             ProofMode::Groth16 => "PROOF_MODE_GROTH16",
         }
     }
-    /// Creates an enum from field names used in the ProtoBuf definition.
+    /// Creates an enum from field names used in the `ProtoBuf` definition.
+    #[must_use]
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
             "PROOF_MODE_UNSPECIFIED" => Some(Self::Unspecified),
@@ -326,10 +328,11 @@ pub enum ProofStatus {
     ProofFailed = 5,
 }
 impl ProofStatus {
-    /// String value of the enum field names used in the ProtoBuf definition.
+    /// String value of the enum field names used in the `ProtoBuf` definition.
     ///
     /// The values are not transformed in any way and thus are considered stable
-    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    /// (if the `ProtoBuf` definition does not change) and safe for programmatic use.
+    #[must_use]
     pub fn as_str_name(&self) -> &'static str {
         match self {
             ProofStatus::ProofUnspecifiedStatus => "PROOF_UNSPECIFIED_STATUS",
@@ -340,7 +343,8 @@ impl ProofStatus {
             ProofStatus::ProofFailed => "PROOF_FAILED",
         }
     }
-    /// Creates an enum from field names used in the ProtoBuf definition.
+    /// Creates an enum from field names used in the `ProtoBuf` definition.
+    #[must_use]
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
             "PROOF_UNSPECIFIED_STATUS" => Some(Self::ProofUnspecifiedStatus),
@@ -383,10 +387,11 @@ pub enum TransactionStatus {
     TransactionFinalized = 5,
 }
 impl TransactionStatus {
-    /// String value of the enum field names used in the ProtoBuf definition.
+    /// String value of the enum field names used in the `ProtoBuf` definition.
     ///
     /// The values are not transformed in any way and thus are considered stable
-    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    /// (if the `ProtoBuf` definition does not change) and safe for programmatic use.
+    #[must_use]
     pub fn as_str_name(&self) -> &'static str {
         match self {
             TransactionStatus::TransactionUnspecifiedStatus => "TRANSACTION_UNSPECIFIED_STATUS",
@@ -397,7 +402,8 @@ impl TransactionStatus {
             TransactionStatus::TransactionFinalized => "TRANSACTION_FINALIZED",
         }
     }
-    /// Creates an enum from field names used in the ProtoBuf definition.
+    /// Creates an enum from field names used in the `ProtoBuf` definition.
+    #[must_use]
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
             "TRANSACTION_UNSPECIFIED_STATUS" => Some(Self::TransactionUnspecifiedStatus),

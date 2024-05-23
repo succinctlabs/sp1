@@ -2,44 +2,44 @@
 //!
 //! Implements verification for a = b >> c, decomposing the shift into bit and byte components:
 //!
-//! 1. num_bits_to_shift = c % 8: Bit-level shift, achieved by using ShrCarry.
-//! 2. num_bytes_to_shift = c // 8: Byte-level shift, shifting entire bytes or words in b.
+//! 1. `num_bits_to_shift` = c % 8: Bit-level shift, achieved by using `ShrCarry`.
+//! 2. `num_bytes_to_shift` = c // 8: Byte-level shift, shifting entire bytes or words in b.
 //!
-//! The right shift is verified by reformulating it as (b >> c) = (b >> (num_bytes_to_shift * 8)) >>
-//! num_bits_to_shift.
+//! The right shift is verified by reformulating it as (b >> c) = (b >> (`num_bytes_to_shift` * 8)) >>
+//! `num_bits_to_shift`.
 //!
 //! The correct leading bits of logical and arithmetic right shifts are verified by sign extending b
 //! to 64 bits.
 //!
 //! c = take the least significant 5 bits of c
-//! num_bytes_to_shift = c // 8
-//! num_bits_to_shift = c % 8
+//! `num_bytes_to_shift` = c // 8
+//! `num_bits_to_shift` = c % 8
 //!
 //! # Sign extend b to 64 bits if SRA.
 //! if opcode == SRA:
-//!    b = sign_extend_32_bits_to_64_bits(b)
+//!    b = `sign_extend_32_bits_to_64_bits(b`)
 //! else:
-//!    b = zero_extend_32_bits_to_64_bits(b)
+//!    b = `zero_extend_32_bits_to_64_bits(b`)
 //!
 //!
-//! # Byte shift. Leave the num_bytes_to_shift most significant bytes of b 0 for simplicity as it
+//! # Byte shift. Leave the `num_bytes_to_shift` most significant bytes of b 0 for simplicity as it
 //! # doesn't affect the correctness of the result.
-//! result = [0; LONG_WORD_SIZE]
-//! for i in range(LONG_WORD_SIZE - num_bytes_to_shift):
-//!     result[i] = b[i + num_bytes_to_shift]
+//! result = [0; `LONG_WORD_SIZE`]
+//! for i in `range(LONG_WORD_SIZE` - `num_bytes_to_shift)`:
+//!     result[i] = b[i + `num_bytes_to_shift`]
 //!
 //! # Bit shift.
-//! carry_multiplier = 1 << (8 - num_bits_to_shift)
-//! last_carry = 0
-//! for i in reversed(range(LONG_WORD_SIZE)):
+//! `carry_multiplier` = 1 << (8 - `num_bits_to_shift`)
+//! `last_carry` = 0
+//! for i in `reversed(range(LONG_WORD_SIZE))`:
 //!     # Shifts a byte to the right and returns both the shifted byte and the bits that carried.
-//!     (shifted_byte[i], carry) = shr_carry(result[i], num_bits_to_shift)
-//!     result[i] = shifted_byte[i] + last_carry * carry_multiplier
-//!     last_carry = carry
+//!     (`shifted_byte`[i], carry) = `shr_carry(result`[i], `num_bits_to_shift`)
+//!     result[i] = `shifted_byte`[i] + `last_carry` * `carry_multiplier`
+//!     `last_carry` = carry
 //!
 //! # The 4 least significant bytes must match a. The 4 most significant bytes of result may be
 //! # inaccurate.
-//! assert a = result[0..WORD_SIZE]
+//! assert a = result[`0..WORD_SIZE`]
 
 mod utils;
 
@@ -142,7 +142,7 @@ impl<F: PrimeField> MachineAir<F> for ShiftRightChip {
         // Generate the trace rows for each event.
         let mut rows: Vec<[F; NUM_SHIFT_RIGHT_COLS]> = Vec::new();
         let sr_events = input.shift_right_events.clone();
-        for event in sr_events.iter() {
+        for event in &sr_events {
             assert!(event.opcode == Opcode::SRL || event.opcode == Opcode::SRA);
             let mut row = [F::zero(); NUM_SHIFT_RIGHT_COLS];
             let cols: &mut ShiftRightCols<F> = row.as_mut_slice().borrow_mut();
@@ -169,9 +169,9 @@ impl<F: PrimeField> MachineAir<F> for ShiftRightChip {
                 output.add_byte_lookup_events(vec![ByteLookupEvent {
                     shard: event.shard,
                     opcode: ByteOpcode::MSB,
-                    a1: ((most_significant_byte >> 7) & 1) as u32,
+                    a1: u32::from((most_significant_byte >> 7) & 1),
                     a2: 0,
-                    b: most_significant_byte as u32,
+                    b: u32::from(most_significant_byte),
                     c: 0,
                 }]);
             }
@@ -188,9 +188,9 @@ impl<F: PrimeField> MachineAir<F> for ShiftRightChip {
                 let sign_extended_b = {
                     if event.opcode == Opcode::SRA {
                         // Sign extension is necessary only for arithmetic right shift.
-                        ((event.b as i32) as i64).to_le_bytes()
+                        i64::from(event.b as i32).to_le_bytes()
                     } else {
-                        (event.b as u64).to_le_bytes()
+                        u64::from(event.b).to_le_bytes()
                     }
                 };
 
@@ -218,9 +218,9 @@ impl<F: PrimeField> MachineAir<F> for ShiftRightChip {
                     let byte_event = ByteLookupEvent {
                         shard: event.shard,
                         opcode: ByteOpcode::ShrCarry,
-                        a1: shift as u32,
-                        a2: carry as u32,
-                        b: byte_shift_result[i] as u32,
+                        a1: u32::from(shift),
+                        a2: u32::from(carry),
+                        b: u32::from(byte_shift_result[i]),
                         c: num_bits_to_shift as u32,
                     };
                     output.add_byte_lookup_event(byte_event);
@@ -228,8 +228,8 @@ impl<F: PrimeField> MachineAir<F> for ShiftRightChip {
                     shr_carry_output_carry[i] = carry;
                     shr_carry_output_shifted_byte[i] = shift;
                     bit_shift_result[i] =
-                        ((shift as u32 + last_carry * carry_multiplier) & 0xff) as u8;
-                    last_carry = carry as u32;
+                        ((u32::from(shift) + last_carry * carry_multiplier) & 0xff) as u8;
+                    last_carry = u32::from(carry);
                 }
                 cols.bit_shift_result = bit_shift_result.map(F::from_canonical_u8);
                 cols.shr_carry_output_carry = shr_carry_output_carry.map(F::from_canonical_u8);
@@ -436,13 +436,13 @@ where
         // Check that the flags are indeed boolean.
         {
             let flags = [local.is_srl, local.is_sra, local.is_real, local.b_msb];
-            for flag in flags.iter() {
+            for flag in &flags {
                 builder.assert_bool(*flag);
             }
-            for shift_by_n_byte in local.shift_by_n_bytes.iter() {
+            for shift_by_n_byte in &local.shift_by_n_bytes {
                 builder.assert_bool(*shift_by_n_byte);
             }
-            for shift_by_n_bit in local.shift_by_n_bits.iter() {
+            for shift_by_n_bit in &local.shift_by_n_bits {
                 builder.assert_bool(*shift_by_n_bit);
             }
         }
@@ -508,7 +508,7 @@ mod tests {
         let chip = ShiftRightChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
-        println!("{:?}", trace.values)
+        println!("{:?}", trace.values);
     }
 
     #[test]
@@ -517,44 +517,44 @@ mod tests {
         let mut challenger = config.challenger();
 
         let shifts = vec![
-            (Opcode::SRL, 0xffff8000, 0xffff8000, 0),
-            (Opcode::SRL, 0x7fffc000, 0xffff8000, 1),
-            (Opcode::SRL, 0x01ffff00, 0xffff8000, 7),
-            (Opcode::SRL, 0x0003fffe, 0xffff8000, 14),
-            (Opcode::SRL, 0x0001ffff, 0xffff8001, 15),
-            (Opcode::SRL, 0xffffffff, 0xffffffff, 0),
-            (Opcode::SRL, 0x7fffffff, 0xffffffff, 1),
-            (Opcode::SRL, 0x01ffffff, 0xffffffff, 7),
-            (Opcode::SRL, 0x0003ffff, 0xffffffff, 14),
-            (Opcode::SRL, 0x00000001, 0xffffffff, 31),
-            (Opcode::SRL, 0x21212121, 0x21212121, 0),
-            (Opcode::SRL, 0x10909090, 0x21212121, 1),
-            (Opcode::SRL, 0x00424242, 0x21212121, 7),
-            (Opcode::SRL, 0x00008484, 0x21212121, 14),
-            (Opcode::SRL, 0x00000000, 0x21212121, 31),
-            (Opcode::SRL, 0x21212121, 0x21212121, 0xffffffe0),
-            (Opcode::SRL, 0x10909090, 0x21212121, 0xffffffe1),
-            (Opcode::SRL, 0x00424242, 0x21212121, 0xffffffe7),
-            (Opcode::SRL, 0x00008484, 0x21212121, 0xffffffee),
-            (Opcode::SRL, 0x00000000, 0x21212121, 0xffffffff),
-            (Opcode::SRA, 0x00000000, 0x00000000, 0),
-            (Opcode::SRA, 0xc0000000, 0x80000000, 1),
-            (Opcode::SRA, 0xff000000, 0x80000000, 7),
-            (Opcode::SRA, 0xfffe0000, 0x80000000, 14),
-            (Opcode::SRA, 0xffffffff, 0x80000001, 31),
-            (Opcode::SRA, 0x7fffffff, 0x7fffffff, 0),
-            (Opcode::SRA, 0x3fffffff, 0x7fffffff, 1),
-            (Opcode::SRA, 0x00ffffff, 0x7fffffff, 7),
-            (Opcode::SRA, 0x0001ffff, 0x7fffffff, 14),
-            (Opcode::SRA, 0x00000000, 0x7fffffff, 31),
-            (Opcode::SRA, 0x81818181, 0x81818181, 0),
-            (Opcode::SRA, 0xc0c0c0c0, 0x81818181, 1),
-            (Opcode::SRA, 0xff030303, 0x81818181, 7),
-            (Opcode::SRA, 0xfffe0606, 0x81818181, 14),
-            (Opcode::SRA, 0xffffffff, 0x81818181, 31),
+            (Opcode::SRL, 0xffff_8000, 0xffff_8000, 0),
+            (Opcode::SRL, 0x7fff_c000, 0xffff_8000, 1),
+            (Opcode::SRL, 0x01ff_ff00, 0xffff_8000, 7),
+            (Opcode::SRL, 0x0003_fffe, 0xffff_8000, 14),
+            (Opcode::SRL, 0x0001_ffff, 0xffff_8001, 15),
+            (Opcode::SRL, 0xffff_ffff, 0xffff_ffff, 0),
+            (Opcode::SRL, 0x7fff_ffff, 0xffff_ffff, 1),
+            (Opcode::SRL, 0x01ff_ffff, 0xffff_ffff, 7),
+            (Opcode::SRL, 0x0003_ffff, 0xffff_ffff, 14),
+            (Opcode::SRL, 0x0000_0001, 0xffff_ffff, 31),
+            (Opcode::SRL, 0x2121_2121, 0x2121_2121, 0),
+            (Opcode::SRL, 0x1090_9090, 0x2121_2121, 1),
+            (Opcode::SRL, 0x0042_4242, 0x2121_2121, 7),
+            (Opcode::SRL, 0x0000_8484, 0x2121_2121, 14),
+            (Opcode::SRL, 0x0000_0000, 0x2121_2121, 31),
+            (Opcode::SRL, 0x2121_2121, 0x2121_2121, 0xffff_ffe0),
+            (Opcode::SRL, 0x1090_9090, 0x2121_2121, 0xffff_ffe1),
+            (Opcode::SRL, 0x0042_4242, 0x2121_2121, 0xffff_ffe7),
+            (Opcode::SRL, 0x0000_8484, 0x2121_2121, 0xffff_ffee),
+            (Opcode::SRL, 0x0000_0000, 0x2121_2121, 0xffff_ffff),
+            (Opcode::SRA, 0x0000_0000, 0x0000_0000, 0),
+            (Opcode::SRA, 0xc000_0000, 0x8000_0000, 1),
+            (Opcode::SRA, 0xff00_0000, 0x8000_0000, 7),
+            (Opcode::SRA, 0xfffe_0000, 0x8000_0000, 14),
+            (Opcode::SRA, 0xffff_ffff, 0x8000_0001, 31),
+            (Opcode::SRA, 0x7fff_ffff, 0x7fff_ffff, 0),
+            (Opcode::SRA, 0x3fff_ffff, 0x7fff_ffff, 1),
+            (Opcode::SRA, 0x00ff_ffff, 0x7fff_ffff, 7),
+            (Opcode::SRA, 0x0001_ffff, 0x7fff_ffff, 14),
+            (Opcode::SRA, 0x0000_0000, 0x7fff_ffff, 31),
+            (Opcode::SRA, 0x8181_8181, 0x8181_8181, 0),
+            (Opcode::SRA, 0xc0c0_c0c0, 0x8181_8181, 1),
+            (Opcode::SRA, 0xff03_0303, 0x8181_8181, 7),
+            (Opcode::SRA, 0xfffe_0606, 0x8181_8181, 14),
+            (Opcode::SRA, 0xffff_ffff, 0x8181_8181, 31),
         ];
         let mut shift_events: Vec<AluEvent> = Vec::new();
-        for t in shifts.iter() {
+        for t in &shifts {
             shift_events.push(AluEvent::new(0, 0, t.0, t.1, t.2, t.3));
         }
         let mut shard = ExecutionRecord::default();

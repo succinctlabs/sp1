@@ -117,7 +117,7 @@ mod tests {
                 is_complete,
             });
 
-            for proof in batch.iter() {
+            for proof in batch {
                 reconstruct_challenger.observe(proof.commitment.main_commit);
                 reconstruct_challenger
                     .observe_slice(&proof.public_values[0..machine.num_pv_elts()]);
@@ -173,16 +173,16 @@ mod tests {
         tracing::info!("Recursive first layer proving time: {:?}", elapsed);
 
         // Verify the recursive proofs.
-        for rec_proof in recursive_proofs.iter() {
+        for rec_proof in &recursive_proofs {
             let mut recursive_challenger = recursive_machine.config().challenger();
             let result = recursive_machine.verify(&rec_vk, rec_proof, &mut recursive_challenger);
 
             match result {
-                Ok(_) => tracing::info!("Proof verified successfully"),
+                Ok(()) => tracing::info!("Proof verified successfully"),
                 Err(MachineVerificationError::NonZeroCumulativeSum) => {
-                    tracing::info!("Proof verification failed: NonZeroCumulativeSum")
+                    tracing::info!("Proof verification failed: NonZeroCumulativeSum");
                 }
-                e => panic!("Proof verification failed: {:?}", e),
+                e => panic!("Proof verification failed: {e:?}"),
             }
         }
         if let Test::Recursion = test {
@@ -244,11 +244,11 @@ mod tests {
                         recursive_machine.verify(&compress_vk, &proof, &mut recursive_challenger);
 
                     match result {
-                        Ok(_) => tracing::info!("Proof verified successfully"),
+                        Ok(()) => tracing::info!("Proof verified successfully"),
                         Err(MachineVerificationError::NonZeroCumulativeSum) => {
-                            tracing::info!("Proof verification failed: NonZeroCumulativeSum")
+                            tracing::info!("Proof verification failed: NonZeroCumulativeSum");
                         }
-                        e => panic!("Proof verification failed: {:?}", e),
+                        e => panic!("Proof verification failed: {e:?}"),
                     }
 
                     assert_eq!(proof.shard_proofs.len(), 1);
@@ -304,11 +304,11 @@ mod tests {
         let result =
             compress_machine.verify(&compress_vk, &compress_proof, &mut compress_challenger);
         match result {
-            Ok(_) => tracing::info!("Proof verified successfully"),
+            Ok(()) => tracing::info!("Proof verified successfully"),
             Err(MachineVerificationError::NonZeroCumulativeSum) => {
-                tracing::info!("Proof verification failed: NonZeroCumulativeSum")
+                tracing::info!("Proof verification failed: NonZeroCumulativeSum");
             }
-            e => panic!("Proof verification failed: {:?}", e),
+            e => panic!("Proof verification failed: {e:?}"),
         }
 
         if let Test::Compress = test {
@@ -348,11 +348,11 @@ mod tests {
         let mut wrap_challenger = wrap_machine.config().challenger();
         let result = wrap_machine.verify(&wrap_vk, &wrap_proof, &mut wrap_challenger);
         match result {
-            Ok(_) => tracing::info!("Proof verified successfully"),
+            Ok(()) => tracing::info!("Proof verified successfully"),
             Err(MachineVerificationError::NonZeroCumulativeSum) => {
-                tracing::info!("Proof verification failed: NonZeroCumulativeSum")
+                tracing::info!("Proof verification failed: NonZeroCumulativeSum");
             }
-            e => panic!("Proof verification failed: {:?}", e),
+            e => panic!("Proof verification failed: {e:?}"),
         }
         tracing::info!("Wrapping successful");
     }
@@ -360,28 +360,28 @@ mod tests {
     #[test]
     fn test_sp1_recursive_machine_verify_fibonacci() {
         let elf = include_bytes!("../../../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
-        test_sp1_recursive_machine_verify(Program::from(elf), 1, Test::Recursion)
+        test_sp1_recursive_machine_verify(Program::from(elf), 1, Test::Recursion);
     }
 
     #[test]
     #[ignore]
     fn test_sp1_reduce_machine_verify_fibonacci() {
         let elf = include_bytes!("../../../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
-        test_sp1_recursive_machine_verify(Program::from(elf), 1, Test::Reduce)
+        test_sp1_recursive_machine_verify(Program::from(elf), 1, Test::Reduce);
     }
 
     #[test]
     #[ignore]
     fn test_sp1_compress_machine_verify_fibonacci() {
         let elf = include_bytes!("../../../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
-        test_sp1_recursive_machine_verify(Program::from(elf), 1, Test::Compress)
+        test_sp1_recursive_machine_verify(Program::from(elf), 1, Test::Compress);
     }
 
     #[test]
     #[ignore]
     fn test_sp1_wrap_machine_verify_fibonacci() {
         let elf = include_bytes!("../../../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
-        test_sp1_recursive_machine_verify(Program::from(elf), 1, Test::Wrap)
+        test_sp1_recursive_machine_verify(Program::from(elf), 1, Test::Wrap);
     }
 
     #[test]
@@ -390,7 +390,7 @@ mod tests {
         let elf = include_bytes!(
             "../../../../tests/tendermint-benchmark/elf/riscv32im-succinct-zkvm-elf"
         );
-        test_sp1_recursive_machine_verify(Program::from(elf), 2, Test::Reduce)
+        test_sp1_recursive_machine_verify(Program::from(elf), 2, Test::Reduce);
     }
 
     #[test]
@@ -399,7 +399,7 @@ mod tests {
         let elf = include_bytes!(
             "../../../../tests/tendermint-benchmark/elf/riscv32im-succinct-zkvm-elf"
         );
-        test_sp1_recursive_machine_verify(Program::from(elf), 2, Test::Recursion)
+        test_sp1_recursive_machine_verify(Program::from(elf), 2, Test::Recursion);
     }
 
     #[test]
@@ -408,7 +408,7 @@ mod tests {
         let elf = include_bytes!(
             "../../../../tests/tendermint-benchmark/elf/riscv32im-succinct-zkvm-elf"
         );
-        test_sp1_recursive_machine_verify(Program::from(elf), 2, Test::Compress)
+        test_sp1_recursive_machine_verify(Program::from(elf), 2, Test::Compress);
     }
 
     #[test]
@@ -417,6 +417,6 @@ mod tests {
         let elf = include_bytes!(
             "../../../../tests/tendermint-benchmark/elf/riscv32im-succinct-zkvm-elf"
         );
-        test_sp1_recursive_machine_verify(Program::from(elf), 2, Test::Wrap)
+        test_sp1_recursive_machine_verify(Program::from(elf), 2, Test::Wrap);
     }
 }

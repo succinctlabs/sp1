@@ -5,7 +5,7 @@ use sp1_recursion_compiler::prelude::*;
 use super::types::FriConfigVariable;
 use crate::commit::PolynomialSpaceVariable;
 
-/// Reference: [p3_commit::TwoAdicMultiplicativeCoset]
+/// Reference: [`p3_commit::TwoAdicMultiplicativeCoset`]
 #[derive(DslVariable, Clone, Copy)]
 pub struct TwoAdicMultiplicativeCosetVariable<C: Config> {
     pub log_n: Var<C::N>,
@@ -15,14 +15,17 @@ pub struct TwoAdicMultiplicativeCosetVariable<C: Config> {
 }
 
 impl<C: Config> TwoAdicMultiplicativeCosetVariable<C> {
+    #[must_use]
     pub fn size(&self) -> Var<C::N> {
         self.size
     }
 
+    #[must_use]
     pub fn first_point(&self) -> Felt<C::F> {
         self.shift
     }
 
+    #[must_use]
     pub fn gen(&self) -> Felt<C::F> {
         self.g
     }
@@ -252,7 +255,7 @@ pub(crate) mod tests {
 
             // Now try splited domains
             let qc_domains_val = disjoint_domain_val.split_domains(1 << log_quotient_degree);
-            for dom_val in qc_domains_val.iter() {
+            for dom_val in &qc_domains_val {
                 let dom = builder.constant(*dom_val);
                 domain_assertions(&mut builder, &dom, dom_val, zeta_val);
             }

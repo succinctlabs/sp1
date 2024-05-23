@@ -1,4 +1,5 @@
 /// Shifts a byte to the right and returns both the shifted byte and the bits that carried.
+#[must_use]
 pub fn shr_carry(input: u8, rotation: u8) -> (u8, u8) {
     let c_mod = rotation & 0x7;
     if c_mod != 0 {

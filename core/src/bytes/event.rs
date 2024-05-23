@@ -34,7 +34,7 @@ pub trait ByteRecord {
 
     /// Adds a list of `ByteLookupEvent`s to the record.
     fn add_byte_lookup_events(&mut self, blu_events: Vec<ByteLookupEvent>) {
-        for blu_event in blu_events.iter() {
+        for blu_event in &blu_events {
             self.add_byte_lookup_event(*blu_event);
         }
     }
@@ -46,8 +46,8 @@ pub trait ByteRecord {
             opcode: ByteOpcode::U8Range,
             a1: 0,
             a2: 0,
-            b: a as u32,
-            c: b as u32,
+            b: u32::from(a),
+            c: u32::from(b),
         });
     }
 
@@ -98,16 +98,17 @@ pub trait ByteRecord {
         self.add_byte_lookup_event(ByteLookupEvent {
             shard,
             opcode: ByteOpcode::OR,
-            a1: (b | c) as u32,
+            a1: u32::from(b | c),
             a2: 0,
-            b: b as u32,
-            c: c as u32,
+            b: u32::from(b),
+            c: u32::from(c),
         });
     }
 }
 
 impl ByteLookupEvent {
     /// Creates a new `ByteLookupEvent`.
+    #[must_use]
     pub fn new(shard: u32, opcode: ByteOpcode, a1: u32, a2: u32, b: u32, c: u32) -> Self {
         Self {
             shard,
@@ -132,6 +133,6 @@ impl ByteRecord for BTreeMap<u32, BTreeMap<ByteLookupEvent, usize>> {
             .entry(blu_event.shard)
             .or_default()
             .entry(blu_event)
-            .or_insert(0) += 1
+            .or_insert(0) += 1;
     }
 }

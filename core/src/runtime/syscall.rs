@@ -106,6 +106,7 @@ pub enum SyscallCode {
 
 impl SyscallCode {
     /// Create a syscall from a u32.
+    #[must_use]
     pub fn from_u32(value: u32) -> Self {
         match value {
             0x00_00_00_00 => SyscallCode::HALT,
@@ -132,18 +133,21 @@ impl SyscallCode {
             0x00_00_00_F1 => SyscallCode::HINT_READ,
             0x00_00_01_1D => SyscallCode::UINT256_MUL,
             0x00_00_01_1C => SyscallCode::BLS12381_DECOMPRESS,
-            _ => panic!("invalid syscall number: {}", value),
+            _ => panic!("invalid syscall number: {value}"),
         }
     }
 
+    #[must_use]
     pub fn syscall_id(&self) -> u32 {
         (*self as u32).to_le_bytes()[0].into()
     }
 
+    #[must_use]
     pub fn should_send(&self) -> u32 {
         (*self as u32).to_le_bytes()[1].into()
     }
 
+    #[must_use]
     pub fn num_cycles(&self) -> u32 {
         (*self as u32).to_le_bytes()[2].into()
     }
@@ -170,7 +174,7 @@ pub struct SyscallContext<'a> {
     pub clk: u32,
 
     pub(crate) next_pc: u32,
-    /// This is the exit_code used for the HALT syscall
+    /// This is the `exit_code` used for the HALT syscall
     pub(crate) exit_code: u32,
     pub(crate) rt: &'a mut Runtime,
 }
@@ -192,6 +196,7 @@ impl<'a> SyscallContext<'a> {
         &mut self.rt.record
     }
 
+    #[must_use]
     pub fn current_shard(&self) -> u32 {
         self.rt.state.current_shard
     }
@@ -227,18 +232,22 @@ impl<'a> SyscallContext<'a> {
 
     /// Get the current value of a register, but doesn't use a memory record.
     /// This is generally unconstrained, so you must be careful using it.
+    #[must_use]
     pub fn register_unsafe(&self, register: Register) -> u32 {
         self.rt.register(register)
     }
 
+    #[must_use]
     pub fn byte_unsafe(&self, addr: u32) -> u8 {
         self.rt.byte(addr)
     }
 
+    #[must_use]
     pub fn word_unsafe(&self, addr: u32) -> u32 {
         self.rt.word(addr)
     }
 
+    #[must_use]
     pub fn slice_unsafe(&self, addr: u32, len: usize) -> Vec<u32> {
         let mut values = Vec::new();
         for i in 0..len {
@@ -256,6 +265,7 @@ impl<'a> SyscallContext<'a> {
     }
 }
 
+#[must_use]
 pub fn default_syscall_map() -> HashMap<SyscallCode, Arc<dyn Syscall>> {
     let mut syscall_map = HashMap::<SyscallCode, Arc<dyn Syscall>>::default();
     syscall_map.insert(SyscallCode::HALT, Arc::new(SyscallHalt {}));
@@ -358,7 +368,7 @@ mod tests {
 
     #[test]
     fn test_syscall_num_cycles_encoding() {
-        for (syscall_code, syscall_impl) in default_syscall_map().iter() {
+        for (syscall_code, syscall_impl) in &default_syscall_map() {
             let encoded_num_cycles = syscall_code.num_cycles();
             assert_eq!(syscall_impl.num_extra_cycles(), encoded_num_cycles);
         }
@@ -366,7 +376,7 @@ mod tests {
 
     #[test]
     fn test_encoding_roundtrip() {
-        for (syscall_code, _) in default_syscall_map().iter() {
+        for (syscall_code, _) in &default_syscall_map() {
             assert_eq!(SyscallCode::from_u32(*syscall_code as u32), *syscall_code);
         }
     }
@@ -379,58 +389,58 @@ mod tests {
                 SyscallCode::HALT => assert_eq!(code as u32, sp1_zkvm::syscalls::HALT),
                 SyscallCode::WRITE => assert_eq!(code as u32, sp1_zkvm::syscalls::WRITE),
                 SyscallCode::ENTER_UNCONSTRAINED => {
-                    assert_eq!(code as u32, sp1_zkvm::syscalls::ENTER_UNCONSTRAINED)
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::ENTER_UNCONSTRAINED);
                 }
                 SyscallCode::EXIT_UNCONSTRAINED => {
-                    assert_eq!(code as u32, sp1_zkvm::syscalls::EXIT_UNCONSTRAINED)
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::EXIT_UNCONSTRAINED);
                 }
                 SyscallCode::SHA_EXTEND => assert_eq!(code as u32, sp1_zkvm::syscalls::SHA_EXTEND),
                 SyscallCode::SHA_COMPRESS => {
-                    assert_eq!(code as u32, sp1_zkvm::syscalls::SHA_COMPRESS)
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::SHA_COMPRESS);
                 }
                 SyscallCode::ED_ADD => assert_eq!(code as u32, sp1_zkvm::syscalls::ED_ADD),
                 SyscallCode::ED_DECOMPRESS => {
-                    assert_eq!(code as u32, sp1_zkvm::syscalls::ED_DECOMPRESS)
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::ED_DECOMPRESS);
                 }
                 SyscallCode::KECCAK_PERMUTE => {
-                    assert_eq!(code as u32, sp1_zkvm::syscalls::KECCAK_PERMUTE)
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::KECCAK_PERMUTE);
                 }
                 SyscallCode::SECP256K1_ADD => {
-                    assert_eq!(code as u32, sp1_zkvm::syscalls::SECP256K1_ADD)
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::SECP256K1_ADD);
                 }
                 SyscallCode::SECP256K1_DOUBLE => {
-                    assert_eq!(code as u32, sp1_zkvm::syscalls::SECP256K1_DOUBLE)
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::SECP256K1_DOUBLE);
                 }
                 SyscallCode::BLAKE3_COMPRESS_INNER => {
-                    assert_eq!(code as u32, sp1_zkvm::syscalls::BLAKE3_COMPRESS_INNER)
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::BLAKE3_COMPRESS_INNER);
                 }
                 SyscallCode::BLS12381_ADD => {
-                    assert_eq!(code as u32, sp1_zkvm::syscalls::BLS12381_ADD)
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::BLS12381_ADD);
                 }
                 SyscallCode::BLS12381_DOUBLE => {
-                    assert_eq!(code as u32, sp1_zkvm::syscalls::BLS12381_DOUBLE)
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::BLS12381_DOUBLE);
                 }
                 SyscallCode::SECP256K1_DECOMPRESS => {
-                    assert_eq!(code as u32, sp1_zkvm::syscalls::SECP256K1_DECOMPRESS)
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::SECP256K1_DECOMPRESS);
                 }
                 SyscallCode::BN254_ADD => assert_eq!(code as u32, sp1_zkvm::syscalls::BN254_ADD),
                 SyscallCode::BN254_DOUBLE => {
-                    assert_eq!(code as u32, sp1_zkvm::syscalls::BN254_DOUBLE)
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::BN254_DOUBLE);
                 }
                 SyscallCode::UINT256_MUL => {
-                    assert_eq!(code as u32, sp1_zkvm::syscalls::UINT256_MUL)
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::UINT256_MUL);
                 }
                 SyscallCode::COMMIT => assert_eq!(code as u32, sp1_zkvm::syscalls::COMMIT),
                 SyscallCode::COMMIT_DEFERRED_PROOFS => {
-                    assert_eq!(code as u32, sp1_zkvm::syscalls::COMMIT_DEFERRED_PROOFS)
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::COMMIT_DEFERRED_PROOFS);
                 }
                 SyscallCode::VERIFY_SP1_PROOF => {
-                    assert_eq!(code as u32, sp1_zkvm::syscalls::VERIFY_SP1_PROOF)
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::VERIFY_SP1_PROOF);
                 }
                 SyscallCode::HINT_LEN => assert_eq!(code as u32, sp1_zkvm::syscalls::HINT_LEN),
                 SyscallCode::HINT_READ => assert_eq!(code as u32, sp1_zkvm::syscalls::HINT_READ),
                 SyscallCode::BLS12381_DECOMPRESS => {
-                    assert_eq!(code as u32, sp1_zkvm::syscalls::BLS12381_DECOMPRESS)
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::BLS12381_DECOMPRESS);
                 }
             }
         }

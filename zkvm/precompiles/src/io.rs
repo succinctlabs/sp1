@@ -28,6 +28,7 @@ impl std::io::Write for SyscallWriter {
     }
 }
 
+#[must_use]
 pub fn read_vec() -> Vec<u8> {
     let len = unsafe { syscall_hint_len() };
     // Round up to the nearest multiple of 4 so that the memory allocated is in whole words
@@ -52,6 +53,7 @@ pub fn read_vec() -> Vec<u8> {
     vec
 }
 
+#[must_use]
 pub fn read<T: DeserializeOwned>() -> T {
     let vec = read_vec();
     bincode::deserialize(&vec).expect("deserialization failed")

@@ -51,7 +51,7 @@ impl<M: Matrix<T>, T: Send + Sync> Matrix<T> for SubMatrixRowSlices<M, T> {
 
 /// A builder used to eval a sub-air.  This will handle enforcing constraints for a subset of a
 /// trace matrix.  E.g. if a particular air needs to be enforced for a subset of the columns of
-/// the trace, then the SubAirBuilder can be used.
+/// the trace, then the `SubAirBuilder` can be used.
 pub struct SubAirBuilder<'a, AB: AirBuilder, SubAir: BaseAir<T>, T> {
     inner: &'a mut AB,
     column_range: Range<usize>,

@@ -61,7 +61,7 @@ impl Blake3CompressInnerChip {
         let mut acc: AB::Expr = AB::F::zero().into();
         for i in 0..selector.len() {
             acc += selector[i].into();
-            builder.assert_bool(selector[i])
+            builder.assert_bool(selector[i]);
         }
         builder
             .when(is_real)

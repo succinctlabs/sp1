@@ -121,7 +121,7 @@ where
         )
     }
 
-    /// Reference: [sp1_core::stark::Verifier::verify_constraints]
+    /// Reference: [`sp1_core::stark::Verifier::verify_constraints`]
     pub fn verify_constraints<A>(
         builder: &mut Builder<C>,
         chip: &MachineChip<SC, A>,
@@ -341,7 +341,7 @@ mod tests {
                     zeta,
                     alpha,
                     &permutation_challenges,
-                )
+                );
             }
             break;
         }

@@ -61,6 +61,7 @@ impl<F: PrimeField32> Instruction<F> {
         }
     }
 
+    #[must_use]
     pub fn dummy() -> Self {
         Instruction::new(
             Opcode::ADD,
@@ -71,7 +72,7 @@ impl<F: PrimeField32> Instruction<F> {
             F::zero(),
             false,
             false,
-            "".to_string(),
+            String::new(),
         )
     }
 }

@@ -51,10 +51,10 @@ impl Hintable<C> for Vec<InnerDigest> {
         let len = InnerVal::from_canonical_usize(self.len());
         stream.push(vec![len.into()]);
 
-        self.iter().for_each(|arr| {
+        for arr in self.iter() {
             let comm = InnerDigest::write(arr);
             stream.extend(comm);
-        });
+        }
 
         stream
     }
@@ -104,10 +104,10 @@ impl Hintable<C> for Vec<InnerCommitPhaseStep> {
         let len = InnerVal::from_canonical_usize(self.len());
         stream.push(vec![len.into()]);
 
-        self.iter().for_each(|arr| {
+        for arr in self {
             let comm = InnerCommitPhaseStep::write(arr);
             stream.extend(comm);
-        });
+        }
 
         stream
     }
@@ -153,10 +153,10 @@ impl Hintable<C> for Vec<InnerQueryProof> {
         let len = InnerVal::from_canonical_usize(self.len());
         stream.push(vec![len.into()]);
 
-        self.iter().for_each(|arr| {
+        for arr in self {
             let comm = InnerQueryProof::write(arr);
             stream.extend(comm);
-        });
+        }
 
         stream
     }
@@ -244,10 +244,10 @@ impl Hintable<C> for Vec<InnerBatchOpening> {
         let len = InnerVal::from_canonical_usize(self.len());
         stream.push(vec![len.into()]);
 
-        self.iter().for_each(|arr| {
+        for arr in self {
             let comm = InnerBatchOpening::write(arr);
             stream.extend(comm);
-        });
+        }
 
         stream
     }
@@ -272,10 +272,10 @@ impl Hintable<C> for Vec<Vec<InnerBatchOpening>> {
         let len = InnerVal::from_canonical_usize(self.len());
         stream.push(vec![len.into()]);
 
-        self.iter().for_each(|arr| {
+        for arr in self {
             let comm = Vec::<InnerBatchOpening>::write(arr);
             stream.extend(comm);
-        });
+        }
 
         stream
     }

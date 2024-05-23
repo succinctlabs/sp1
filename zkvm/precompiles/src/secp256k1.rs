@@ -25,9 +25,22 @@ pub struct Secp256k1Operations;
 impl CurveOperations<NUM_WORDS> for Secp256k1Operations {
     // The values are taken from https://en.bitcoin.it/wiki/Secp256k1.
     const GENERATOR: [u32; NUM_WORDS] = [
-        385357720, 1509065051, 768485593, 43777243, 3464956679, 1436574357, 4191992748, 2042521214,
-        4212184248, 2621952143, 2793755673, 4246189128, 235997352, 1571093500, 648266853,
-        1211816567,
+        385_357_720,
+        1_509_065_051,
+        768_485_593,
+        43_777_243,
+        3_464_956_679,
+        1_436_574_357,
+        4_191_992_748,
+        2_042_521_214,
+        4_212_184_248,
+        2_621_952_143,
+        2_793_755_673,
+        4_246_189_128,
+        235_997_352,
+        1_571_093_500,
+        648_266_853,
+        1_211_816_567,
     ];
     fn add_assign(limbs: &mut [u32; NUM_WORDS], other: &[u32; NUM_WORDS]) {
         unsafe {
@@ -42,7 +55,7 @@ impl CurveOperations<NUM_WORDS> for Secp256k1Operations {
     }
 }
 
-/// Decompresses a compressed public key using secp256k1_decompress precompile.
+/// Decompresses a compressed public key using `secp256k1_decompress` precompile.
 pub fn decompress_pubkey(compressed_key: &[u8; 33]) -> Result<[u8; 65]> {
     cfg_if::cfg_if! {
         if #[cfg(all(target_os = "zkvm", target_vendor = "succinct"))] {
@@ -71,11 +84,12 @@ pub fn decompress_pubkey(compressed_key: &[u8; 33]) -> Result<[u8; 65]> {
     }
 }
 
-/// Verifies a secp256k1 signature using the public key and the message hash. If the s_inverse is
+/// Verifies a secp256k1 signature using the public key and the message hash. If the `s_inverse` is
 /// provided, it will be validated and used to verify the signature. Otherwise, the inverse of s
 /// will be computed and used.
 ///
 /// Warning: this function does not check if the key is actually on the curve.
+#[must_use]
 pub fn verify_signature(
     pubkey: &[u8; 65],
     msg_hash: &[u8; 32],
@@ -183,11 +197,12 @@ fn double_and_add_base(
     res
 }
 
-/// Outside of the VM, computes the pubkey and s_inverse value from a signature and a message hash.
+/// Outside of the VM, computes the pubkey and `s_inverse` value from a signature and a message hash.
 ///
 /// WARNING: The values are read from outside of the VM and are not constrained to be correct.
 /// Either use `decompress_pubkey` and `verify_signature` to verify the results of this function, or
 /// use `ecrecover`.
+#[must_use]
 pub fn unconstrained_ecrecover(sig: &[u8; 65], msg_hash: &[u8; 32]) -> ([u8; 33], Scalar) {
     unconstrained! {
         let mut recovery_id = sig[64];
@@ -195,7 +210,7 @@ pub fn unconstrained_ecrecover(sig: &[u8; 65], msg_hash: &[u8; 32]) -> ([u8; 33]
 
         if let Some(sig_normalized) = sig.normalize_s() {
             sig = sig_normalized;
-            recovery_id ^= 1
+            recovery_id ^= 1;
         };
         let recid = RecoveryId::from_byte(recovery_id).expect("Recovery ID is valid");
 

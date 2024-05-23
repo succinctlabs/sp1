@@ -465,10 +465,10 @@ pub(crate) mod tests {
 
         challenger_val.observe(vk.commit);
 
-        proofs.iter().for_each(|proof| {
+        for proof in &proofs {
             challenger_val.observe(proof.commitment.main_commit);
             challenger_val.observe_slice(&proof.public_values[0..machine.num_pv_elts()]);
-        });
+        }
 
         let permutation_challenges = (0..2)
             .map(|_| challenger_val.sample_ext_element::<EF>())
@@ -562,17 +562,19 @@ pub(crate) mod tests {
 
         let mut challenger = machine.config().challenger();
         let verification_result = machine.verify(&vk, &proof, &mut challenger);
-        if verification_result.is_err() {
-            panic!("Proof should verify successfully");
-        }
+        assert!(
+            verification_result.is_ok(),
+            "Proof should verify successfully"
+        );
 
         // Corrupt the public values.
         proof.shard_proofs[0].public_values[RECURSION_PUBLIC_VALUES_COL_MAP.digest[0]] =
             InnerVal::zero();
         let verification_result = machine.verify(&vk, &proof, &mut challenger);
-        if verification_result.is_ok() {
-            panic!("Proof should not verify successfully");
-        }
+        assert!(
+            verification_result.is_err(),
+            "Proof should not verify successfully"
+        );
     }
 
     #[test]
@@ -598,7 +600,7 @@ pub(crate) mod tests {
 
         let program = builder.compile_program();
         let elapsed = time.elapsed();
-        println!("Building took: {:?}", elapsed);
+        println!("Building took: {elapsed:?}");
 
         run_test_recursion(program, None, TestConfig::All);
     }

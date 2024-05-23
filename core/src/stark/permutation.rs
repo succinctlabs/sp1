@@ -36,7 +36,7 @@ pub fn populate_permutation_row<F: PrimeField, EF: ExtensionField<F>>(
                 denominator +=
                     betas.next().unwrap() * EF::from_canonical_usize(interaction.argument_index());
                 for (columns, beta) in interaction.values.iter().zip(betas) {
-                    denominator += beta * columns.apply::<F, F>(preprocessed_row, main_row)
+                    denominator += beta * columns.apply::<F, F>(preprocessed_row, main_row);
                 }
                 let mut mult = interaction
                     .multiplicity
@@ -53,13 +53,14 @@ pub fn populate_permutation_row<F: PrimeField, EF: ExtensionField<F>>(
 }
 
 #[inline]
+#[must_use]
 pub const fn permutation_trace_width(num_interactions: usize, batch_size: usize) -> usize {
     num_interactions.div_ceil(batch_size) + 1
 }
 
-/// Generates the permutation trace for the given chip and main trace based on a variant of LogUp.
+/// Generates the permutation trace for the given chip and main trace based on a variant of `LogUp`.
 ///
-/// The permutation trace has (N+1)*EF::NUM_COLS columns, where N is the number of interactions in
+/// The permutation trace has (N+1)*`EF::NUM_COLS` columns, where N is the number of interactions in
 /// the chip.
 pub(crate) fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
     sends: &[Interaction<F>],
@@ -108,7 +109,7 @@ pub(crate) fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
                         alpha,
                         betas.clone(),
                         batch_size,
-                    )
+                    );
                 });
         }
         None => {
@@ -125,7 +126,7 @@ pub(crate) fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
                         alpha,
                         betas.clone(),
                         batch_size,
-                    )
+                    );
                 });
         }
     }

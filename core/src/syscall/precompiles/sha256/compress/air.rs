@@ -84,7 +84,7 @@ impl ShaCompressChip {
                 .when_transition()
                 .when(next.is_real)
                 .when(local.octet[i])
-                .assert_one(next.octet[(i + 1) % 8])
+                .assert_one(next.octet[(i + 1) % 8]);
         }
 
         // Verify that all of the octet_num columns are bool.
@@ -570,9 +570,10 @@ impl ShaCompressChip {
             }
         }
 
-        builder
-            .when(is_finalize)
-            .assert_word_eq(filtered_operand, local.finalized_operand.map(|x| x.into()));
+        builder.when(is_finalize).assert_word_eq(
+            filtered_operand,
+            local.finalized_operand.map(std::convert::Into::into),
+        );
 
         // finalize_add.result = h[i] + finalized_operand
         AddOperation::<AB::F>::eval(

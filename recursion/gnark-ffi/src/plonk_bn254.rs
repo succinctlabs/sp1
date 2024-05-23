@@ -25,6 +25,7 @@ pub struct PlonkBn254Proof {
 
 impl PlonkBn254Prover {
     /// Creates a new prover.
+    #[must_use]
     pub fn new() -> Self {
         PlonkBn254Prover
     }
@@ -55,9 +56,7 @@ impl PlonkBn254Prover {
             .stdin(Stdio::inherit())
             .output()
             .unwrap();
-        if !make.status.success() {
-            panic!("failed to run make");
-        }
+        assert!(make.status.success(), "failed to run make");
 
         // Run the build script.
         let result = Command::new("go")
@@ -75,9 +74,7 @@ impl PlonkBn254Prover {
             .output()
             .unwrap();
 
-        if !result.status.success() {
-            panic!("failed to run build script");
-        }
+        assert!(result.status.success(), "failed to run build script");
     }
 
     pub fn prove<C: Config>(witness: Witness<C>, build_dir: PathBuf) -> PlonkBn254Proof {
@@ -99,9 +96,7 @@ impl PlonkBn254Prover {
             .stdin(Stdio::inherit())
             .output()
             .unwrap();
-        if !make.status.success() {
-            panic!("failed to run make");
-        }
+        assert!(make.status.success(), "failed to run make");
 
         // Run the prove script.
         let proof_file = tempfile::NamedTempFile::new().unwrap();
@@ -124,9 +119,7 @@ impl PlonkBn254Prover {
             .output()
             .unwrap();
 
-        if !result.status.success() {
-            panic!("failed to run build script");
-        }
+        assert!(result.status.success(), "failed to run build script");
 
         // Read the contents back from the tempfile.
         let mut buffer = String::new();

@@ -370,7 +370,7 @@ pub mod tests {
         let commit: OuterDigestVariable<OuterConfig> = [builder.eval(commit[0])];
 
         let mut mats = Vec::new();
-        for (domain, poly) in os.into_iter() {
+        for (domain, poly) in os {
             let points: Vec<Ext<OuterVal, OuterChallenge>> = poly
                 .iter()
                 .map(|(p, _)| builder.eval(SymbolicExt::from_f(*p)))

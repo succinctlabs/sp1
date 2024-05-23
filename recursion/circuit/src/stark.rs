@@ -97,7 +97,7 @@ where
 
         let qc_points = vec![zeta];
 
-        for (name, domain, _) in vk.chip_information.iter() {
+        for (name, domain, _) in &vk.chip_information {
             let chip_idx = machine
                 .chips()
                 .iter()
@@ -238,6 +238,7 @@ type OuterSC = BabyBearPoseidon2Outer;
 type OuterF = <BabyBearPoseidon2Outer as StarkGenericConfig>::Val;
 type OuterC = OuterConfig;
 
+#[must_use]
 pub fn build_wrap_circuit(
     wrap_vk: &StarkVerifyingKey<OuterSC>,
     template_proof: ShardProof<OuterSC>,
@@ -294,7 +295,7 @@ pub fn build_wrap_circuit(
 
     let chips = outer_machine
         .shard_chips_ordered(&template_proof.chip_ordering)
-        .map(|chip| chip.name())
+        .map(sp1_core::air::MachineAir::name)
         .collect::<Vec<_>>();
 
     let sorted_indices = outer_machine
@@ -373,7 +374,7 @@ pub(crate) mod tests {
             F::zero(),
             false,
             true,
-            "".to_string(),
+            String::new(),
         )];
         instructions.resize(
             31,
@@ -386,7 +387,7 @@ pub(crate) mod tests {
                 F::zero(),
                 false,
                 true,
-                "".to_string(),
+                String::new(),
             ),
         );
         instructions.push(Instruction::new(
@@ -398,7 +399,7 @@ pub(crate) mod tests {
             F::zero(),
             true,
             true,
-            "".to_string(),
+            String::new(),
         ));
         RecursionProgram::<F> {
             instructions,

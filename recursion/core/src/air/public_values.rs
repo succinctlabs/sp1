@@ -61,7 +61,7 @@ impl<T: Clone + Debug> ChallengerPublicValues<T> {
     }
 }
 
-/// The PublicValues struct is used to store all of a reduce proof's public values.
+/// The `PublicValues` struct is used to store all of a reduce proof's public values.
 #[derive(AlignedBorrow, Serialize, Deserialize, Clone, Copy, Default, Debug)]
 #[repr(C)]
 pub struct RecursionPublicValues<T> {
@@ -83,16 +83,16 @@ pub struct RecursionPublicValues<T> {
     /// Next shard that should be proven, or 0 if the program halted.
     pub next_shard: T,
 
-    /// Start state of reconstruct_challenger.
+    /// Start state of `reconstruct_challenger`.
     pub start_reconstruct_challenger: ChallengerPublicValues<T>,
 
-    /// End state of reconstruct_challenger.
+    /// End state of `reconstruct_challenger`.
     pub end_reconstruct_challenger: ChallengerPublicValues<T>,
 
-    /// Start state of reconstruct_deferred_digest.
+    /// Start state of `reconstruct_deferred_digest`.
     pub start_reconstruct_deferred_digest: [T; POSEIDON_NUM_WORDS],
 
-    /// End state of reconstruct_deferred_digest.
+    /// End state of `reconstruct_deferred_digest`.
     pub end_reconstruct_deferred_digest: [T; POSEIDON_NUM_WORDS],
 
     /// The commitment to the sp1 program being proven.

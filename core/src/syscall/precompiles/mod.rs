@@ -41,13 +41,9 @@ pub fn create_ec_add_event<E: EllipticCurve>(
 ) -> ECAddEvent {
     let start_clk = rt.clk;
     let p_ptr = arg1;
-    if p_ptr % 4 != 0 {
-        panic!();
-    }
+    assert!(p_ptr % 4 == 0,);
     let q_ptr = arg2;
-    if q_ptr % 4 != 0 {
-        panic!();
-    }
+    assert!(q_ptr % 4 == 0,);
 
     let num_words = <E::BaseField as NumWords>::WordsCurvePoint::USIZE;
 
@@ -99,9 +95,7 @@ pub fn create_ec_double_event<E: EllipticCurve>(
 ) -> ECDoubleEvent {
     let start_clk = rt.clk;
     let p_ptr = arg1;
-    if p_ptr % 4 != 0 {
-        panic!();
-    }
+    assert!(p_ptr % 4 == 0,);
 
     let num_words = <E::BaseField as NumWords>::WordsCurvePoint::USIZE;
 
@@ -175,7 +169,7 @@ pub fn create_ec_decompress_event<E: EllipticCurve>(
         clk: start_clk,
         ptr: slice_ptr,
         is_odd: is_odd != 0,
-        x_bytes: x_bytes.to_vec(),
+        x_bytes: x_bytes.clone(),
         decompressed_y_bytes,
         x_memory_records,
         y_memory_records,

@@ -90,7 +90,7 @@ pub struct CpuCols<T: Copy> {
     /// memory opcodes (i.e. LB, LH, LW, LBU, and LHU).
     pub unsigned_mem_val: Word<T>,
 
-    /// The result of selectors.is_ecall * the send_to_table column for the ECALL opcode.
+    /// The result of `selectors.is_ecall` * the `send_to_table` column for the ECALL opcode.
     pub ecall_mul_send_to_table: T,
 
     /// This is true for all instructions that are not jumps, branches, and halt.  Those instructions

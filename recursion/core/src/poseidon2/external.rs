@@ -439,7 +439,7 @@ mod tests {
         let mut challenger = config.challenger();
         let proof = uni_stark_prove(&config, &chip, &mut challenger, trace);
         let duration = start.elapsed().as_secs_f64();
-        println!("proof duration = {:?}", duration);
+        println!("proof duration = {duration:?}");
 
         let mut challenger: p3_challenger::DuplexChallenger<
             BabyBear,
@@ -451,7 +451,7 @@ mod tests {
             .expect("expected proof to be valid");
 
         let duration = start.elapsed().as_secs_f64();
-        println!("verify duration = {:?}", duration);
+        println!("verify duration = {duration:?}");
     }
 
     #[test]
@@ -475,7 +475,7 @@ mod tests {
             .map(|input| gt.permute(*input))
             .collect::<Vec<_>>();
 
-        prove_babybear(test_inputs, expected_outputs)
+        prove_babybear(test_inputs, expected_outputs);
     }
 
     #[test]
@@ -490,6 +490,6 @@ mod tests {
             .map(|_| core::array::from_fn(|_| BabyBear::rand(rng)))
             .collect_vec();
 
-        prove_babybear(test_inputs, bad_outputs)
+        prove_babybear(test_inputs, bad_outputs);
     }
 }

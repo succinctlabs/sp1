@@ -24,7 +24,7 @@ pub struct InstructionCols<T> {
     /// The third operand for this instruction.
     pub op_c: Word<T>,
 
-    /// Flags to indicate if op_a is register 0.
+    /// Flags to indicate if `op_a` is register 0.
     pub op_a_0: T,
 }
 

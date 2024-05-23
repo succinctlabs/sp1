@@ -80,7 +80,7 @@ fn test_compiler_nested_array_loop() {
 
     let code = builder.compile_asm();
 
-    println!("{}", code);
+    println!("{code}");
 
     let program = code.machine_code();
 
@@ -107,7 +107,7 @@ fn test_compiler_break() {
 
         builder
             .if_eq(i, break_len)
-            .then(|builder| builder.break_loop());
+            .then(sp1_recursion_compiler::ir::Builder::break_loop);
     });
 
     // Test that the array is correctly initialized.
@@ -143,7 +143,7 @@ fn test_compiler_break() {
             builder.assign(counter, counter + F::one());
             builder
                 .if_eq(counter, break_len)
-                .then(|builder| builder.break_loop());
+                .then(sp1_recursion_compiler::ir::Builder::break_loop);
         });
 
         builder.set(&mut array, i, counter);
@@ -164,7 +164,7 @@ fn test_compiler_break() {
 
     let code = builder.compile_asm();
 
-    println!("{}", code);
+    println!("{code}");
 
     let program = code.machine_code();
 
@@ -219,7 +219,7 @@ fn test_compiler_bneinc() {
 
     let code = builder.clone().compile_asm();
 
-    println!("{}", code);
+    println!("{code}");
 
     let program = builder.compile_program();
 

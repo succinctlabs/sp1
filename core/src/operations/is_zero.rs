@@ -37,7 +37,7 @@ impl<F: Field> IsZeroOperation<F> {
         }
         let prod = self.inverse * a;
         debug_assert!(prod == F::one() || prod == F::zero());
-        (a == F::zero()) as u32
+        u32::from(a == F::zero())
     }
 
     pub fn eval<AB: SP1AirBuilder>(

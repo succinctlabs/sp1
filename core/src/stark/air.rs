@@ -94,9 +94,9 @@ pub enum RiscvAir<F: PrimeField32> {
     Bn254Add(WeierstrassAddAssignChip<SwCurve<Bn254Parameters>>),
     /// A precompile for doubling a point on the Elliptic curve bn254.
     Bn254Double(WeierstrassDoubleAssignChip<SwCurve<Bn254Parameters>>),
-    /// A precompile for addition on the Elliptic curve bls12_381.
+    /// A precompile for addition on the Elliptic curve `bls12_381`.
     Bls12381Add(WeierstrassAddAssignChip<SwCurve<Bls12381Parameters>>),
-    /// A precompile for doubling a point on the Elliptic curve bls12_381.
+    /// A precompile for doubling a point on the Elliptic curve `bls12_381`.
     Bls12381Double(WeierstrassDoubleAssignChip<SwCurve<Bls12381Parameters>>),
     /// A precompile for uint256 mul.
     Uint256Mul(Uint256MulChip),
@@ -115,6 +115,7 @@ impl<F: PrimeField32> RiscvAir<F> {
     }
 
     /// Get all the different RISC-V AIRs.
+    #[must_use]
     pub fn get_all() -> Vec<Self> {
         // The order of the chips is important, as it is used to determine the order of trace
         // generation. In the future, we will detect that order automatically.

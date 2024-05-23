@@ -131,7 +131,7 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
             rows.append(
                 &mut dummy_rows
                     .iter()
-                    .cloned()
+                    .copied()
                     .cycle()
                     .take(padded_nb_rows - nb_rows)
                     .collect::<Vec<_>>(),

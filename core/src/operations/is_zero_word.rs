@@ -44,7 +44,7 @@ impl<F: Field> IsZeroWordOperation<F> {
         self.is_lower_half_zero = self.is_zero_byte[0].result * self.is_zero_byte[1].result;
         self.is_upper_half_zero = self.is_zero_byte[2].result * self.is_zero_byte[3].result;
         self.result = F::from_bool(is_zero);
-        is_zero as u32
+        u32::from(is_zero)
     }
 
     pub fn eval<AB: SP1AirBuilder>(

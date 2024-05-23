@@ -50,6 +50,7 @@ pub struct AffinePoint<E> {
 
 impl<E: EllipticCurveParameters> AffinePoint<E> {
     #[allow(dead_code)]
+    #[must_use]
     pub fn new(x: BigUint, y: BigUint) -> Self {
         Self {
             x,
@@ -58,6 +59,7 @@ impl<E: EllipticCurveParameters> AffinePoint<E> {
         }
     }
 
+    #[must_use]
     pub fn from_words_le(words: &[u32]) -> Self {
         let x_bytes = words[0..words.len() / 2]
             .iter()
@@ -76,6 +78,7 @@ impl<E: EllipticCurveParameters> AffinePoint<E> {
         }
     }
 
+    #[must_use]
     pub fn to_words_le(&self) -> Vec<u32> {
         let num_words = <E::BaseField as NumWords>::WordsCurvePoint::USIZE;
         let num_bytes = num_words * 4;
@@ -142,6 +145,7 @@ pub trait EllipticCurve: EllipticCurveParameters {
     fn ec_neg(p: &AffinePoint<Self>) -> AffinePoint<Self>;
 
     /// Returns the number of bits needed to represent a scalar in the group.
+    #[must_use]
     fn nb_scalar_bits() -> usize {
         Self::BaseField::NB_LIMBS * Self::BaseField::NB_BITS_PER_LIMB
     }
