@@ -413,6 +413,7 @@ impl Runtime {
         let event = AluEvent {
             shard: self.shard(),
             clk,
+            channel: self.state.channel,
             opcode,
             a,
             b,
