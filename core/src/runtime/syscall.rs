@@ -196,6 +196,10 @@ impl<'a> SyscallContext<'a> {
         self.rt.state.current_shard
     }
 
+    pub fn current_channel(&self) -> u32 {
+        self.rt.state.channel
+    }
+
     pub fn mr(&mut self, addr: u32) -> (MemoryReadRecord, u32) {
         let record = self.rt.mr(addr, self.current_shard, self.clk);
         (record, record.value)

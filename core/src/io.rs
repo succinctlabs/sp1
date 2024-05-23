@@ -27,7 +27,7 @@ pub struct SP1PublicValues {
 
 impl SP1Stdin {
     /// Create a new `SP1Stdin`.
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             buffer: Vec::new(),
             ptr: 0,
@@ -85,7 +85,7 @@ impl SP1Stdin {
 
 impl SP1PublicValues {
     /// Create a new `SP1PublicValues`.
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             buffer: Buffer::new(),
         }

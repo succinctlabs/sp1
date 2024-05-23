@@ -54,10 +54,11 @@ impl<F: Field> MachineAir<F> for ByteChip<F> {
 
         for (lookup, mult) in input.byte_lookups[&shard].iter() {
             let (row, index) = event_map[lookup];
+            let channel = lookup.channel as usize;
             let cols: &mut ByteMultCols<F> = trace.row_mut(row).borrow_mut();
 
             // Update the trace multiplicity
-            cols.multiplicities[index] += F::from_canonical_usize(*mult);
+            cols.mult_channels[channel].multiplicities[index] += F::from_canonical_usize(*mult);
 
             // Set the shard column as the current shard.
             cols.shard = F::from_canonical_u32(shard);

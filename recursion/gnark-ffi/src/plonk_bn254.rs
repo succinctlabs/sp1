@@ -29,7 +29,7 @@ pub struct PlonkBn254Proof {
 }
 
 impl PlonkBn254Prover {
-    /// Creates a new [PLONKProver].
+    /// Creates a new [PlonkBn254Prover].
     pub fn new() -> Self {
         Self
     }
