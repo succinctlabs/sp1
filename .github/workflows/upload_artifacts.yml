@@ -20,9 +20,6 @@ jobs:
     name: Open a PR to update the contracts artifacts in sp1-contracts
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
-
       - name: Set up Rust
         uses: actions-rs/toolchain@v1
         with:
