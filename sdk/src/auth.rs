@@ -6,6 +6,8 @@ use alloy::sol;
 use alloy::sol_types::{Eip712Domain, SolStruct};
 use anyhow::Result;
 
+use crate::proto::network::UnclaimReason;
+
 sol! {
     struct CreateProof {
         uint64 nonce;
@@ -21,6 +23,13 @@ sol! {
     struct ClaimProof {
         uint64 nonce;
         string proof_id;
+    }
+
+    struct UnclaimProof {
+        uint64 nonce;
+        string proof_id;
+        uint8 reason;
+        string description;
     }
 
     struct FulfillProof {
@@ -106,6 +115,23 @@ impl NetworkAuth {
         let type_struct = ClaimProof {
             nonce,
             proof_id: proof_id.to_string(),
+        };
+        self.sign_message(type_struct).await
+    }
+
+    /// Signs a message to unclaim a proof that was previously claimed.
+    pub async fn sign_unclaim_proof_message(
+        &self,
+        nonce: u64,
+        proof_id: String,
+        reason: UnclaimReason,
+        description: String,
+    ) -> Result<Vec<u8>> {
+        let type_struct = UnclaimProof {
+            nonce,
+            proof_id,
+            reason: reason as u8,
+            description,
         };
         self.sign_message(type_struct).await
     }

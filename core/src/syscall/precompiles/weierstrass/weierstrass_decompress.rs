@@ -53,6 +53,7 @@ pub const fn num_weierstrass_decompress_cols<P: FieldParameters + NumWords>() ->
 pub struct WeierstrassDecompressCols<T, P: FieldParameters + NumWords> {
     pub is_real: T,
     pub shard: T,
+    pub channel: T,
     pub clk: T,
     pub ptr: T,
     pub is_odd: T,
@@ -97,32 +98,40 @@ impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDecompressChip<E> {
     fn populate_field_ops<F: PrimeField32>(
         record: &mut impl ByteRecord,
         shard: u32,
+        channel: u32,
         cols: &mut WeierstrassDecompressCols<F, E::BaseField>,
         x: BigUint,
     ) {
         // Y = sqrt(x^3 + b)
-        cols.range_x.populate(record, shard, &x);
-        let x_2 = cols
-            .x_2
-            .populate(record, shard, &x.clone(), &x.clone(), FieldOperation::Mul);
+        cols.range_x.populate(record, shard, channel, &x);
+        let x_2 = cols.x_2.populate(
+            record,
+            shard,
+            channel,
+            &x.clone(),
+            &x.clone(),
+            FieldOperation::Mul,
+        );
         let x_3 = cols
             .x_3
-            .populate(record, shard, &x_2, &x, FieldOperation::Mul);
+            .populate(record, shard, channel, &x_2, &x, FieldOperation::Mul);
         let b = E::b_int();
-        let x_3_plus_b = cols
-            .x_3_plus_b
-            .populate(record, shard, &x_3, &b, FieldOperation::Add);
+        let x_3_plus_b =
+            cols.x_3_plus_b
+                .populate(record, shard, channel, &x_3, &b, FieldOperation::Add);
 
         let sqrt_fn = match E::CURVE_TYPE {
             CurveType::Secp256k1 => secp256k1_sqrt,
             CurveType::Bls12381 => bls12381_sqrt,
             _ => panic!("Unsupported curve"),
         };
-        let y = cols.y.populate(record, shard, &x_3_plus_b, sqrt_fn);
+        let y = cols
+            .y
+            .populate(record, shard, channel, &x_3_plus_b, sqrt_fn);
 
         let zero = BigUint::zero();
         cols.neg_y
-            .populate(record, shard, &zero, &y, FieldOperation::Sub);
+            .populate(record, shard, channel, &zero, &y, FieldOperation::Sub);
     }
 }
 
@@ -165,19 +174,34 @@ where
 
             cols.is_real = F::from_bool(true);
             cols.shard = F::from_canonical_u32(event.shard);
+            cols.channel = F::from_canonical_u32(event.channel);
+            cols.channel = F::from_canonical_u32(event.channel);
             cols.clk = F::from_canonical_u32(event.clk);
             cols.ptr = F::from_canonical_u32(event.ptr);
             cols.is_odd = F::from_canonical_u32(event.is_odd as u32);
 
             let x = BigUint::from_bytes_le(&event.x_bytes);
-            Self::populate_field_ops(&mut new_byte_lookup_events, event.shard, cols, x);
+            Self::populate_field_ops(
+                &mut new_byte_lookup_events,
+                event.shard,
+                event.channel,
+                cols,
+                x,
+            );
 
             for i in 0..cols.x_access.len() {
-                cols.x_access[i].populate(event.x_memory_records[i], &mut new_byte_lookup_events);
+                cols.x_access[i].populate(
+                    event.channel,
+                    event.x_memory_records[i],
+                    &mut new_byte_lookup_events,
+                );
             }
             for i in 0..cols.y_access.len() {
-                cols.y_access[i]
-                    .populate_write(event.y_memory_records[i], &mut new_byte_lookup_events);
+                cols.y_access[i].populate_write(
+                    event.channel,
+                    event.y_memory_records[i],
+                    &mut new_byte_lookup_events,
+                );
             }
 
             rows.push(row);
@@ -197,7 +221,7 @@ where
                 cols.x_access[i].access.value = words[i].into();
             }
 
-            Self::populate_field_ops(&mut vec![], 0, cols, dummy_value);
+            Self::populate_field_ops(&mut vec![], 0, 0, cols, dummy_value);
             row
         });
 
@@ -239,15 +263,24 @@ where
 
         let x: Limbs<AB::Var, <E::BaseField as NumLimbs>::Limbs> =
             limbs_from_prev_access(&row.x_access);
-        row.range_x.eval(builder, &x, row.shard, row.is_real);
-        row.x_2
-            .eval(builder, &x, &x, FieldOperation::Mul, row.shard, row.is_real);
+        row.range_x
+            .eval(builder, &x, row.shard, row.channel, row.is_real);
+        row.x_2.eval(
+            builder,
+            &x,
+            &x,
+            FieldOperation::Mul,
+            row.shard,
+            row.channel,
+            row.is_real,
+        );
         row.x_3.eval(
             builder,
             &row.x_2.result,
             &x,
             FieldOperation::Mul,
             row.shard,
+            row.channel,
             row.is_real,
         );
         let b = E::b_int();
@@ -258,6 +291,7 @@ where
             &b_const,
             FieldOperation::Add,
             row.shard,
+            row.channel,
             row.is_real,
         );
 
@@ -267,6 +301,7 @@ where
             &row.y.multiplication.result,
             FieldOperation::Sub,
             row.shard,
+            row.channel,
             row.is_real,
         );
 
@@ -278,6 +313,7 @@ where
             &row.x_3_plus_b.result,
             row.y.lsb,
             row.shard,
+            row.channel,
             row.is_real,
         );
 
@@ -295,6 +331,7 @@ where
         for i in 0..num_words_field_element {
             builder.eval_memory_access(
                 row.shard,
+                row.channel,
                 row.clk,
                 row.ptr.into() + AB::F::from_canonical_u32((i as u32) * 4 + num_limbs as u32),
                 &row.x_access[i],
@@ -304,6 +341,7 @@ where
         for i in 0..num_words_field_element {
             builder.eval_memory_access(
                 row.shard,
+                row.channel,
                 row.clk,
                 row.ptr.into() + AB::F::from_canonical_u32((i as u32) * 4),
                 &row.y_access[i],
@@ -323,6 +361,7 @@ where
 
         builder.receive_syscall(
             row.shard,
+            row.channel,
             row.clk,
             syscall_id,
             row.ptr,

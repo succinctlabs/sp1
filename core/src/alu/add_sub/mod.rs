@@ -35,6 +35,9 @@ pub struct AddSubCols<T> {
     /// The shard number, used for byte lookup table.
     pub shard: T,
 
+    /// The channel number, used for byte lookup table.
+    pub channel: T,
+
     /// Instance of `AddOperation` to handle addition logic in `AddSubChip`'s ALU operations.
     /// It's result will be `a` for the add operation and `b` for the sub operation.
     pub add_operation: AddOperation<T>,
@@ -88,14 +91,20 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
                         let cols: &mut AddSubCols<F> = row.as_mut_slice().borrow_mut();
                         let is_add = event.opcode == Opcode::ADD;
                         cols.shard = F::from_canonical_u32(event.shard);
+                        cols.channel = F::from_canonical_u32(event.channel);
                         cols.is_add = F::from_bool(is_add);
                         cols.is_sub = F::from_bool(!is_add);
 
                         let operand_1 = if is_add { event.b } else { event.a };
                         let operand_2 = event.c;
 
-                        cols.add_operation
-                            .populate(&mut record, event.shard, operand_1, operand_2);
+                        cols.add_operation.populate(
+                            &mut record,
+                            event.shard,
+                            event.channel,
+                            operand_1,
+                            operand_2,
+                        );
                         cols.operand_1 = Word::from(operand_1);
                         cols.operand_2 = Word::from(operand_2);
                         row
@@ -150,6 +159,7 @@ where
             local.operand_2,
             local.add_operation,
             local.shard,
+            local.channel,
             local.is_add + local.is_sub,
         );
 
@@ -161,6 +171,7 @@ where
             local.operand_1,
             local.operand_2,
             local.shard,
+            local.channel,
             local.is_add,
         );
 
@@ -171,6 +182,7 @@ where
             local.add_operation.value,
             local.operand_2,
             local.shard,
+            local.channel,
             local.is_sub,
         );
 
@@ -203,7 +215,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.add_events = vec![AluEvent::new(0, 0, Opcode::ADD, 14, 8, 6)];
+        shard.add_events = vec![AluEvent::new(0, 0, 0, Opcode::ADD, 14, 8, 6)];
         let chip = AddSubChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
@@ -216,12 +228,13 @@ mod tests {
         let mut challenger = config.challenger();
 
         let mut shard = ExecutionRecord::default();
-        for _ in 0..1000 {
+        for i in 0..1000 {
             let operand_1 = thread_rng().gen_range(0..u32::MAX);
             let operand_2 = thread_rng().gen_range(0..u32::MAX);
             let result = operand_1.wrapping_add(operand_2);
             shard.add_events.push(AluEvent::new(
                 0,
+                i % 2,
                 0,
                 Opcode::ADD,
                 result,
@@ -229,12 +242,13 @@ mod tests {
                 operand_2,
             ));
         }
-        for _ in 0..1000 {
+        for i in 0..1000 {
             let operand_1 = thread_rng().gen_range(0..u32::MAX);
             let operand_2 = thread_rng().gen_range(0..u32::MAX);
             let result = operand_1.wrapping_sub(operand_2);
             shard.add_events.push(AluEvent::new(
                 0,
+                i % 2,
                 0,
                 Opcode::SUB,
                 result,

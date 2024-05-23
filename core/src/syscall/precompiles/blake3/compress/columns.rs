@@ -17,6 +17,7 @@ pub const NUM_BLAKE3_COMPRESS_INNER_COLS: usize = size_of::<Blake3CompressInnerC
 #[repr(C)]
 pub struct Blake3CompressInnerCols<T> {
     pub shard: T,
+    pub channel: T,
     pub clk: T,
     pub ecall_receive: T,
 

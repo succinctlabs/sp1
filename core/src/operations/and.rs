@@ -19,7 +19,14 @@ pub struct AndOperation<T> {
 }
 
 impl<F: Field> AndOperation<F> {
-    pub fn populate(&mut self, record: &mut ExecutionRecord, shard: u32, x: u32, y: u32) -> u32 {
+    pub fn populate(
+        &mut self,
+        record: &mut ExecutionRecord,
+        shard: u32,
+        channel: u32,
+        x: u32,
+        y: u32,
+    ) -> u32 {
         let expected = x & y;
         let x_bytes = x.to_le_bytes();
         let y_bytes = y.to_le_bytes();
@@ -29,6 +36,7 @@ impl<F: Field> AndOperation<F> {
 
             let byte_event = ByteLookupEvent {
                 shard,
+                channel,
                 opcode: ByteOpcode::AND,
                 a1: and as u32,
                 a2: 0,
@@ -47,6 +55,7 @@ impl<F: Field> AndOperation<F> {
         b: Word<AB::Var>,
         cols: AndOperation<AB::Var>,
         shard: AB::Var,
+        channel: impl Into<AB::Expr> + Copy,
         is_real: AB::Var,
     ) {
         for i in 0..WORD_SIZE {
@@ -56,6 +65,7 @@ impl<F: Field> AndOperation<F> {
                 a[i],
                 b[i],
                 shard,
+                channel,
                 is_real,
             );
         }

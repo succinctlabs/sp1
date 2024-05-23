@@ -8,8 +8,8 @@ edition = "2021"
 sp1-zkvm = { path = "../../../zkvm/entrypoint" }
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 serde = { version = "1.0", default-features = false, features = ["derive"] }
-tendermint-light-client-verifier = { git = "https://github.com/i-m-aditya/tendermint-rs.git", branch = "i-m-aditya/break-loop-on-having-enough-voting-power",  default-features = false, features = [
-    "rust-crypto",
+tendermint-light-client-verifier = { git = "https://github.com/i-m-aditya/tendermint-rs.git", branch = "i-m-aditya/break-loop-on-having-enough-voting-power", default-features = false, features = [
+  "rust-crypto",
 ] }
 # tendermint-light-client-verifier = { version = "0.34.0", default-features = false, features = [
 #    "rust-crypto",
