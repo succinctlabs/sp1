@@ -13,7 +13,7 @@ import (
 
 var CONSTRAINTS_JSON_FILE string = "constraints_groth16.json"
 var WITNESS_JSON_FILE string = "witness_groth16.json"
-var VERIFIER_CONTRACT_PATH string = "SP1Verifier.sol"
+var VERIFIER_CONTRACT_PATH string = "Groth16Verifier.sol"
 var CIRCUIT_PATH string = "circuit_groth16.bin"
 var VK_PATH string = "vk_groth16.bin"
 var PK_PATH string = "pk_groth16.bin"

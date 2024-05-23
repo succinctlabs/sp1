@@ -1,7 +1,6 @@
 all:
-	make fibonacci-sweep
-	make tendermint-sweep
-	make fibonacci-groth16
+	make build-groth16
+	make release-groth16
 
 build-groth16:
 	mkdir -p build && \

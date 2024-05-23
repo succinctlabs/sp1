@@ -1,8 +1,17 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.25;
+
+import {ISP1Verifier} from "./ISP1Verifier.sol";
+import {Verifier} from "./Groth16Verifier.sol";
 
 /// @title SP1 Verifier
 /// @author Succinct Labs
 /// @notice This contracts implements a solidity verifier for SP1.
-contract SP1Verifier is Verifier {
+contract SP1Verifier is Verifier, ISP1Verifier {
+    function VERSION() external pure returns (string memory) {
+        return "TODO";
+    }
+
     /// @notice Deserializes a proof from the given bytes.
     /// @param proofBytes The proof bytes.
     function deserializeProof(
@@ -73,7 +82,7 @@ contract SP1Verifier is Verifier {
     /// @param publicValues The public values encoded as bytes.
     /// @param proofBytes The proof of the program execution the SP1 zkVM encoded as bytes.
     function verifyProof(
-        bytes32 vkey, 
+        bytes32 vkey,
         bytes memory publicValues,
         bytes memory proofBytes
     ) public view {
@@ -83,10 +92,7 @@ contract SP1Verifier is Verifier {
             uint256[2] memory commitmentPok
         ) = deserializeProof(proofBytes);
         bytes32 publicValuesDigest = hashPublicValues(publicValues);
-        uint256[2] memory inputs = [
-            uint256(vkey),
-            uint256(publicValuesDigest)
-        ];
+        uint256[2] memory inputs = [uint256(vkey), uint256(publicValuesDigest)];
         this.verifyProof(proof, commitments, commitmentPok, inputs);
     }
 }

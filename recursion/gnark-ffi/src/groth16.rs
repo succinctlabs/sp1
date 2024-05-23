@@ -1,5 +1,5 @@
 use std::{
-    fs::{File, OpenOptions},
+    fs::File,
     io::Write,
     path::{Path, PathBuf},
 };
@@ -70,20 +70,27 @@ impl Groth16Prover {
 
         build_groth16(build_dir.to_str().unwrap());
 
-        // Extend the built verifier with the sp1 verifier contract.
-        let groth16_verifier_path = build_dir.join("SP1Verifier.sol");
+        // Write the corresponding asset files to the build dir.
+        let sp1_mock_verifier_path = build_dir.join("SP1MockVerifier.sol");
+        let sp1_mock_verifier_str = include_str!("../assets/SP1MockVerifier.txt");
+        let mut mock_verifier_file = File::create(sp1_mock_verifier_path).unwrap();
+        mock_verifier_file
+            .write_all(sp1_mock_verifier_str.as_bytes())
+            .unwrap();
 
-        // Open the file in append mode.
-        let mut groth16_verifier_file = OpenOptions::new()
-            .append(true)
-            .open(groth16_verifier_path)
-            .expect("failed to open file");
-
-        // Write the string to the file
+        let sp1_verifier_path = build_dir.join("SP1Verifier.sol");
         let sp1_verifier_str = include_str!("../assets/SP1Verifier.txt");
-        groth16_verifier_file
+        let mut sp1_verifier_file = File::create(sp1_verifier_path).unwrap();
+        sp1_verifier_file
             .write_all(sp1_verifier_str.as_bytes())
-            .expect("Failed to write to file");
+            .unwrap();
+
+        let interface_sp1_verifier_path = build_dir.join("ISP1Verifier.sol");
+        let interface_sp1_verifier_str = include_str!("../assets/ISP1Verifier.txt");
+        let mut interface_sp1_verifier_file = File::create(interface_sp1_verifier_path).unwrap();
+        interface_sp1_verifier_file
+            .write_all(interface_sp1_verifier_str.as_bytes())
+            .unwrap();
     }
 
     /// Generates a Groth16 proof by sending a request to the Gnark server.
