@@ -199,7 +199,7 @@ impl CpuChip {
             .when(local.selectors.is_sh)
             .assert_zero(memory_columns.offset_is_one + memory_columns.offset_is_three);
 
-        // When the instruction is SW, make that the offset is 0.
+        // When the instruction is SW, ensure that the offset is 0.
         builder
             .when(local.selectors.is_sw)
             .assert_one(offset_is_zero.clone());
@@ -257,7 +257,7 @@ impl CpuChip {
             .when(local.selectors.is_lh + local.selectors.is_lhu)
             .assert_zero(memory_columns.offset_is_one + memory_columns.offset_is_three);
 
-        // When the instruction is LW, ensure the offset is zero.
+        // When the instruction is LW, ensure that the offset is zero.
         builder
             .when(local.selectors.is_lw)
             .assert_one(offset_is_zero.clone());
