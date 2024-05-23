@@ -11,7 +11,7 @@ use sp1_core::{
     utils::BabyBearPoseidon2,
 };
 use sp1_recursion_core::{air::RecursionPublicValues, stark::config::BabyBearPoseidon2Outer};
-use sp1_recursion_gnark_ffi::{Groth16Proof, Groth16Prover};
+use sp1_recursion_gnark_ffi::{PlonkBn254Proof, PlonkBn254Prover};
 use thiserror::Error;
 
 use crate::{
@@ -215,12 +215,12 @@ impl SP1Prover {
     /// Verifies a Groth16 proof using the circuit artifacts in the build directory.
     pub fn verify_groth16(
         &self,
-        proof: &Groth16Proof,
+        proof: &PlonkBn254Proof,
         vk: &SP1VerifyingKey,
         public_values: &SP1PublicValues,
         build_dir: &Path,
     ) -> Result<()> {
-        let prover = Groth16Prover::new();
+        let prover = PlonkBn254Prover::new();
 
         let vkey_hash = BigUint::from_str(&proof.public_inputs[0])?;
         let committed_values_digest = BigUint::from_str(&proof.public_inputs[1])?;

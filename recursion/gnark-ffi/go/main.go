@@ -7,7 +7,7 @@ typedef struct {
 	char *PublicInputs[2];
 	char *EncodedProof;
 	char *RawProof;
-} C_Groth16Proof;
+} C_PlonkBn254Proof;
 */
 import "C"
 import (
@@ -25,19 +25,19 @@ import (
 
 func main() {}
 
-//export ProveGroth16
-func ProveGroth16(dataDir *C.char, witnessPath *C.char) *C.C_Groth16Proof {
+//export ProvePlonkBn254
+func ProvePlonkBn254(dataDir *C.char, witnessPath *C.char) *C.C_PlonkBn254Proof {
 	dataDirString := C.GoString(dataDir)
 	witnessPathString := C.GoString(witnessPath)
 
 	sp1Groth16Proof := sp1.Prove(dataDirString, witnessPathString)
 
-	ms := C.malloc(C.sizeof_C_Groth16Proof)
+	ms := C.malloc(C.sizeof_C_PlonkBn254Proof)
 	if ms == nil {
 		return nil
 	}
 
-	structPtr := (*C.C_Groth16Proof)(ms)
+	structPtr := (*C.C_PlonkBn254Proof)(ms)
 	structPtr.PublicInputs[0] = C.CString(sp1Groth16Proof.PublicInputs[0])
 	structPtr.PublicInputs[1] = C.CString(sp1Groth16Proof.PublicInputs[1])
 	structPtr.EncodedProof = C.CString(sp1Groth16Proof.EncodedProof)
@@ -45,16 +45,16 @@ func ProveGroth16(dataDir *C.char, witnessPath *C.char) *C.C_Groth16Proof {
 	return structPtr
 }
 
-//export BuildGroth16
-func BuildGroth16(dataDir *C.char) {
+//export BuildPlonkBn254
+func BuildPlonkBn254(dataDir *C.char) {
 	// Sanity check the required arguments have been provided.
 	dataDirString := C.GoString(dataDir)
 
 	sp1.Build(dataDirString)
 }
 
-//export VerifyGroth16
-func VerifyGroth16(dataDir *C.char, proof *C.char, vkeyHash *C.char, commitedValuesDigest *C.char) *C.char {
+//export VerifyPlonkBn254
+func VerifyPlonkBn254(dataDir *C.char, proof *C.char, vkeyHash *C.char, commitedValuesDigest *C.char) *C.char {
 	dataDirString := C.GoString(dataDir)
 	proofString := C.GoString(proof)
 	vkeyHashString := C.GoString(vkeyHash)
@@ -69,8 +69,8 @@ func VerifyGroth16(dataDir *C.char, proof *C.char, vkeyHash *C.char, commitedVal
 
 var testMutex = &sync.Mutex{}
 
-//export TestGroth16
-func TestGroth16(witnessPath *C.char, constraintsJson *C.char) *C.char {
+//export TestPlonkBn254
+func TestPlonkBn254(witnessPath *C.char, constraintsJson *C.char) *C.char {
 	// Because of the global env variables used here, we need to lock this function
 	testMutex.Lock()
 	witnessPathString := C.GoString(witnessPath)

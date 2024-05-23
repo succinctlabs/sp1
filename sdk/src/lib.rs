@@ -26,7 +26,7 @@ pub use provers::{LocalProver, MockProver, NetworkProver, Prover};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sp1_core::stark::{MachineVerificationError, ShardProof};
 pub use sp1_prover::{
-    CoreSC, Groth16Proof, HashableKey, InnerSC, OuterSC, PlonkBn254Proof, SP1Prover, SP1ProvingKey,
+    CoreSC, HashableKey, InnerSC, OuterSC, PlonkBn254Proof, SP1Prover, SP1ProvingKey,
     SP1PublicValues, SP1Stdin, SP1VerifyingKey,
 };
 
@@ -55,7 +55,7 @@ pub type SP1CompressedProof = SP1ProofWithPublicValues<ShardProof<InnerSC>>;
 pub type SP1CompressedProofVerificationError = MachineVerificationError<InnerSC>;
 
 /// A [SP1ProofWithPublicValues] generated with [ProverClient::prove_groth16].
-pub type SP1Groth16Proof = SP1ProofWithPublicValues<Groth16Proof>;
+pub type SP1Groth16Proof = SP1ProofWithPublicValues<PlonkBn254Proof>;
 
 /// A [SP1ProofWithPublicValues] generated with [ProverClient::prove_plonk].
 pub type SP1PlonkProof = SP1ProofWithPublicValues<PlonkBn254Proof>;

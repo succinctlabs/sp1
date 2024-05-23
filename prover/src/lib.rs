@@ -20,7 +20,7 @@ pub mod verify;
 
 use std::borrow::Borrow;
 use std::env;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use crate::utils::RECONSTRUCT_COMMITMENTS_ENV_VAR;
 use p3_baby_bear::BabyBear;
@@ -52,8 +52,6 @@ use sp1_recursion_core::{
 };
 pub use sp1_recursion_gnark_ffi::plonk_bn254::PlonkBn254Proof;
 use sp1_recursion_gnark_ffi::plonk_bn254::PlonkBn254Prover;
-pub use sp1_recursion_gnark_ffi::Groth16Proof;
-use sp1_recursion_gnark_ffi::Groth16Prover;
 use sp1_recursion_program::hints::Hintable;
 pub use sp1_recursion_program::machine::ReduceProgramType;
 use sp1_recursion_program::machine::{
@@ -641,7 +639,11 @@ impl SP1Prover {
 
     /// Wrap the STARK proven over a SNARK-friendly field into a Groth16 proof.
     #[instrument(name = "wrap_groth16", level = "info", skip_all)]
-    pub fn wrap_groth16(&self, proof: SP1ReduceProof<OuterSC>, build_dir: &Path) -> Groth16Proof {
+    pub fn wrap_groth16(
+        &self,
+        proof: SP1ReduceProof<OuterSC>,
+        build_dir: &Path,
+    ) -> PlonkBn254Proof {
         let vkey_digest = proof.sp1_vkey_digest_bn254();
         let commited_values_digest = proof.sp1_commited_values_digest_bn254();
 
@@ -650,7 +652,7 @@ impl SP1Prover {
         witness.write_commited_values_digest(commited_values_digest);
         witness.write_vkey_hash(vkey_digest);
 
-        let prover = Groth16Prover::new();
+        let prover = PlonkBn254Prover::new();
         let proof = prover.prove(witness, build_dir.to_path_buf());
 
         // Verify the proof.
@@ -662,13 +664,6 @@ impl SP1Prover {
         );
 
         proof
-    }
-
-    pub fn wrap_plonk(&self, proof: ShardProof<OuterSC>, build_dir: PathBuf) -> PlonkBn254Proof {
-        let mut witness = Witness::default();
-        proof.write(&mut witness);
-        // TODO: write pv and vkey into witness
-        PlonkBn254Prover::prove(witness, build_dir)
     }
 
     /// Accumulate deferred proofs into a single digest.

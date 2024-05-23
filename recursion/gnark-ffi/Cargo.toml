@@ -24,6 +24,6 @@ cc = "1.0"
 cfg-if = "1.0"
 
 [features]
-default = ["groth16"]
+default = ["plonk_bn254"]
 
-groth16 = []
+plonk_bn254 = []

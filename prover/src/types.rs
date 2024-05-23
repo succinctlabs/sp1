@@ -15,7 +15,7 @@ use sp1_core::{
 };
 use sp1_primitives::poseidon2_hash;
 use sp1_recursion_core::{air::RecursionPublicValues, stark::config::BabyBearPoseidon2Outer};
-use sp1_recursion_gnark_ffi::{plonk_bn254::PlonkBn254Proof, Groth16Proof};
+use sp1_recursion_gnark_ffi::plonk_bn254::PlonkBn254Proof;
 use thiserror::Error;
 
 use crate::utils::words_to_bytes_be;
@@ -155,7 +155,7 @@ pub struct SP1CoreProofData(pub Vec<ShardProof<CoreSC>>);
 pub struct SP1ReducedProofData(pub ShardProof<InnerSC>);
 
 #[derive(Serialize, Deserialize, Clone)]
-pub struct SP1Groth16ProofData(pub Groth16Proof);
+pub struct SP1Groth16ProofData(pub PlonkBn254Proof);
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct SP1PlonkProofData(pub PlonkBn254Proof);

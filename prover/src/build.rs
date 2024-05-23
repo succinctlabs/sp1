@@ -10,7 +10,7 @@ pub use sp1_recursion_compiler::ir::Witness;
 use sp1_recursion_compiler::{config::OuterConfig, constraints::Constraint};
 use sp1_recursion_core::air::RecursionPublicValues;
 pub use sp1_recursion_core::stark::utils::sp1_dev_mode;
-use sp1_recursion_gnark_ffi::Groth16Prover;
+use sp1_recursion_gnark_ffi::PlonkBn254Prover;
 
 use crate::install::{install_groth16_artifacts, GROTH16_ARTIFACTS_COMMIT};
 use crate::utils::{babybear_bytes_to_bn254, babybears_to_bn254, words_to_bytes};
@@ -21,7 +21,10 @@ pub fn try_install_groth16_artifacts() -> PathBuf {
     let build_dir = groth16_artifacts_dir();
 
     if build_dir.exists() {
-        println!("[sp1] groth16 artifacts already seem to exist at {}. if you want to re-download them, delete the directory", build_dir.display());
+        println!(
+            "[sp1] groth16 artifacts already seem to exist at {}. if you want to re-download them, delete the directory",
+            build_dir.display()
+        );
     } else {
         println!(
             "[sp1] groth16 artifacts for commit {} do not exist at {}. downloading...",
@@ -77,7 +80,7 @@ pub fn build_groth16_artifacts(
     let build_dir = build_dir.into();
     std::fs::create_dir_all(&build_dir).expect("failed to create build directory");
     let (constraints, witness) = build_constraints_and_witness(template_vk, template_proof);
-    Groth16Prover::build(constraints, witness, build_dir);
+    PlonkBn254Prover::build(constraints, witness, build_dir);
 }
 
 /// Builds the groth16 artifacts to the given directory.

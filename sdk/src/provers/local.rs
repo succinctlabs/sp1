@@ -56,7 +56,7 @@ impl Prover for LocalProver {
 
     fn prove_groth16(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Groth16Proof> {
         cfg_if! {
-            if #[cfg(feature = "groth16")] {
+            if #[cfg(feature = "plonk_bn254")] {
 
                 let proof = self.prover.prove_core(pk, &stdin)?;
                 let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
