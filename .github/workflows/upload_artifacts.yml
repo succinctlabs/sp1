@@ -26,6 +26,11 @@ jobs:
           toolchain: nightly-2024-04-17
           profile: minimal
           override: true
+          
+      - name: Install go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '^1.22.1'
 
       - name: Clone sp1-contracts
         run: |
