@@ -22,7 +22,7 @@ jobs:
  # Upload the Groth16Verifier, ISP1Verifier, SP1Verifier and SP1MockVerifier to contracts/src
  update_artifacts:
     name: Open a PR to update the contracts artifacts in sp1-contracts
-    runs-on: runs-on,cpu=4,ram=16,family=m7a+m7i-flex,hdd=80,image=ubuntu22-full-x64
+    runs-on: runs-on,cpu=64,ram=256,family=m7i+m7a,hdd=80,image=ubuntu22-full-x64
     steps:
       - name: Set up Rust
         uses: actions-rs/toolchain@v1
@@ -56,9 +56,9 @@ jobs:
           cd sp1-contracts
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git add contracts/src/SP1Verifier.sol
-          git commit -m "Update SP1Verifier.sol"
-          git push origin update-verifier
+          git add contracts/src
+          git commit -m "Update artifacts"
+          git push https://x-access-token:${{ secrets.SUCCINCT_PR_BOT }}@github.com/succinctlabs/sp1-contracts.git update-artifacts
 
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v3
