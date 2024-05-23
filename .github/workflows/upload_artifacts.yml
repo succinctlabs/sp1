@@ -32,13 +32,11 @@ jobs:
 
       - name: Clone sp1-contracts
         run: |
-          git clone https://github.com/succinctlabs/sp1-contracts.git
+          git clone https://x-access-token:${{ secrets.SUCCINCT_PR_BOT }}@github.com/succinctlabs/sp1-contracts.git
           cd sp1-contracts
           git fetch
-          git checkout ratan/init-contracts
+          git checkout ratan/fix-verifier-export
           git checkout -b update-artifacts
-        env: 
-          GITHUB_TOKEN: ${{ secrets.SUCCINCT_PR_BOT }}
 
       - name: Build artifacts binary
         run: |
