@@ -66,7 +66,12 @@ pub trait Prover: Send + Sync {
         } else {
             sp1_prover::build::plonk_bn254_artifacts_dir()
         };
-        sp1_prover.verify_groth16(&proof.proof, vkey, &proof.public_values, &plonk_bn254_aritfacts)?;
+        sp1_prover.verify_groth16(
+            &proof.proof,
+            vkey,
+            &proof.public_values,
+            &plonk_bn254_aritfacts,
+        )?;
 
         Ok(())
     }
