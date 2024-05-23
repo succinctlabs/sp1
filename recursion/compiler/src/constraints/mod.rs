@@ -1,4 +1,3 @@
-// pub mod plonk_bn254_ffi;
 pub mod opcodes;
 
 use core::fmt::Debug;
