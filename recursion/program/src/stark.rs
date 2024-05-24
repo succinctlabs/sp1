@@ -97,7 +97,11 @@ impl<'a, SC: StarkGenericConfig, A: MachineAir<SC::Val>> VerifyingKeyHint<'a, SC
 impl<C: Config, SC: StarkGenericConfig, A> StarkRecursiveVerifier<C> for StarkMachine<SC, A>
 where
     C::F: TwoAdicField,
-    SC: StarkGenericConfig<Val = C::F, Challenge = C::EF, Domain = TwoAdicMultiplicativeCoset<C::F>>,
+    SC: StarkGenericConfig<
+        Val = C::F,
+        Challenge = C::EF,
+        Domain = TwoAdicMultiplicativeCoset<C::F>,
+    >,
     A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
     C::F: TwoAdicField,
     C::EF: TwoAdicField,
@@ -144,7 +148,11 @@ pub type RecursiveVerifierConstraintFolder<'a, C> = GenericVerifierConstraintFol
 impl<C: Config, SC: StarkGenericConfig> StarkVerifier<C, SC>
 where
     C::F: TwoAdicField,
-    SC: StarkGenericConfig<Val = C::F, Challenge = C::EF, Domain = TwoAdicMultiplicativeCoset<C::F>>,
+    SC: StarkGenericConfig<
+        Val = C::F,
+        Challenge = C::EF,
+        Domain = TwoAdicMultiplicativeCoset<C::F>,
+    >,
 {
     pub fn verify_shard<A>(
         builder: &mut Builder<C>,
