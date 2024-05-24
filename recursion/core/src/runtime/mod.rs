@@ -107,7 +107,7 @@ pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
 
     /// Uninitialized memory addresses that have a specific value they should be initialized with.
     /// The Opcodes that start with Hint* utilize this to set memory values.
-    pub uninitialized_memory: HashMap<usize, Block<F>>, // TODO: add "HashNoHasher" back to this
+    pub uninitialized_memory: HashMap<usize, Block<F>>,
 
     /// The execution record.
     pub record: ExecutionRecord<F>,
@@ -653,8 +653,8 @@ where
                         let f_i = F::from_canonical_u32(i as u32);
                         let left_val = self.mr(left + f_i, timestamp);
                         let right_val = self.mr(right + f_i, timestamp);
-                        left_array[i] = left_val.1 .0[0];
-                        right_array[i] = right_val.1 .0[0];
+                        left_array[i] = left_val.1.0[0];
+                        right_array[i] = right_val.1.0[0];
                         left_records.push(left_val.0);
                         right_records.push(right_val.0);
                     }

@@ -3,7 +3,6 @@ use sp1_core::air::Word;
 use sp1_recursion_compiler::ir::{Builder, Config, Felt, Var};
 use sp1_recursion_core::runtime::DIGEST_SIZE;
 
-// TODO: this can be done much more efficiently, but in the meantime this should work
 pub fn felt2var<C: Config>(builder: &mut Builder<C>, felt: Felt<C::F>) -> Var<C::N> {
     let bits = builder.num2bits_f(felt);
     builder.bits2num_v(&bits)
