@@ -36,7 +36,7 @@ pub type InnerValMmcs = FieldMerkleTreeMmcs<
     8,
 >;
 pub type InnerChallengeMmcs = ExtensionMmcs<InnerVal, InnerChallenge, InnerValMmcs>;
-pub type InnerChallenger = DuplexChallenger<InnerVal, InnerPerm, 16>;
+pub type InnerChallenger = DuplexChallenger<InnerVal, InnerPerm, 16, 8>;
 pub type InnerDft = Radix2DitParallel;
 pub type InnerPcs = TwoAdicFriPcs<InnerVal, InnerDft, InnerValMmcs, InnerChallengeMmcs>;
 pub type InnerQueryProof = QueryProof<InnerChallenge, InnerChallengeMmcs>;
