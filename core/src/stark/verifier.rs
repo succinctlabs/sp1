@@ -176,7 +176,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             .map_err(|e| VerificationError::InvalidopeningArgument(e))?;
 
         // Verify the constrtaint evaluations.
-
         for (chip, trace_domain, qc_domains, values) in izip!(
             chips.iter(),
             trace_domains,
@@ -199,6 +198,12 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             )
             .map_err(|_| VerificationError::OodEvaluationMismatch(chip.name()))?;
         }
+
+        let nb_cpu_chips = chips.iter().filter(|chip| chip.name() == "CPU").count();
+        if nb_cpu_chips != 1 {
+            return Err(VerificationError::MissingCpuChip);
+        }
+
         Ok(())
     }
 
@@ -411,6 +416,7 @@ pub enum VerificationError<SC: StarkGenericConfig> {
     OodEvaluationMismatch(String),
     /// The shape of the opening arguments is invalid.
     OpeningShapeError(String, OpeningShapeError),
+    MissingCpuChip,
 }
 
 impl Debug for OpeningShapeError {
@@ -474,6 +480,9 @@ impl<SC: StarkGenericConfig> Debug for VerificationError<SC> {
             VerificationError::OpeningShapeError(chip, e) => {
                 write!(f, "Invalid opening shape for chip {}: {:?}", chip, e)
             }
+            VerificationError::MissingCpuChip => {
+                write!(f, "Missing CPU chip")
+            }
         }
     }
 }
@@ -489,6 +498,9 @@ impl<SC: StarkGenericConfig> Display for VerificationError<SC> {
             }
             VerificationError::OpeningShapeError(chip, e) => {
                 write!(f, "Invalid opening shape for chip {}: {}", chip, e)
+            }
+            VerificationError::MissingCpuChip => {
+                write!(f, "Missing CPU chip in shard")
             }
         }
     }
