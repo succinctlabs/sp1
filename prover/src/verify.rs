@@ -11,7 +11,7 @@ use sp1_core::{
     utils::BabyBearPoseidon2,
 };
 use sp1_recursion_core::{air::RecursionPublicValues, stark::config::BabyBearPoseidon2Outer};
-use sp1_recursion_gnark_ffi::{Groth16Proof, Groth16Prover};
+use sp1_recursion_gnark_ffi::{PlonkBn254Proof, PlonkBn254Prover};
 use thiserror::Error;
 
 use crate::{
@@ -19,10 +19,14 @@ use crate::{
 };
 
 #[derive(Error, Debug)]
-pub enum Groth16VerificationError {
-    #[error("the verifying key does not match the inner groth16 proof's committed verifying key")]
+pub enum PlonkVerificationError {
+    #[error(
+        "the verifying key does not match the inner plonk bn254 proof's committed verifying key"
+    )]
     InvalidVerificationKey,
-    #[error("the public values in the sp1 proof do not match the public values in the inner groth16 proof")]
+    #[error(
+        "the public values in the sp1 proof do not match the public values in the inner plonk bn254 proof"
+    )]
     InvalidPublicValues,
 }
 
@@ -212,15 +216,15 @@ impl SP1Prover {
         Ok(())
     }
 
-    /// Verifies a Groth16 proof using the circuit artifacts in the build directory.
-    pub fn verify_groth16(
+    /// Verifies a PLONK proof using the circuit artifacts in the build directory.
+    pub fn verify_plonk_bn254(
         &self,
-        proof: &Groth16Proof,
+        proof: &PlonkBn254Proof,
         vk: &SP1VerifyingKey,
         public_values: &SP1PublicValues,
         build_dir: &Path,
     ) -> Result<()> {
-        let prover = Groth16Prover::new();
+        let prover = PlonkBn254Prover::new();
 
         let vkey_hash = BigUint::from_str(&proof.public_inputs[0])?;
         let committed_values_digest = BigUint::from_str(&proof.public_inputs[1])?;
@@ -228,29 +232,29 @@ impl SP1Prover {
         // Verify the proof with the corresponding public inputs.
         prover.verify(proof, &vkey_hash, &committed_values_digest, build_dir);
 
-        verify_groth16_public_inputs(vk, public_values, &proof.public_inputs)?;
+        verify_plonk_bn254_public_inputs(vk, public_values, &proof.public_inputs)?;
 
         Ok(())
     }
 }
 
-/// Verify the vk_hash and public_values_hash in the public inputs of the Groth16Proof match the expected values.
-pub fn verify_groth16_public_inputs(
+/// Verify the vk_hash and public_values_hash in the public inputs of the PlonkBn254Proof match the expected values.
+pub fn verify_plonk_bn254_public_inputs(
     vk: &SP1VerifyingKey,
     public_values: &SP1PublicValues,
-    groth16_public_inputs: &[String],
+    plonk_bn254_public_inputs: &[String],
 ) -> Result<()> {
-    let expected_vk_hash = BigUint::from_str(&groth16_public_inputs[0])?;
-    let expected_public_values_hash = BigUint::from_str(&groth16_public_inputs[1])?;
+    let expected_vk_hash = BigUint::from_str(&plonk_bn254_public_inputs[0])?;
+    let expected_public_values_hash = BigUint::from_str(&plonk_bn254_public_inputs[1])?;
 
     let vk_hash = vk.hash_bn254().as_canonical_biguint();
     if vk_hash != expected_vk_hash {
-        return Err(Groth16VerificationError::InvalidVerificationKey.into());
+        return Err(PlonkVerificationError::InvalidVerificationKey.into());
     }
 
     let public_values_hash = public_values.hash();
     if public_values_hash != expected_public_values_hash {
-        return Err(Groth16VerificationError::InvalidPublicValues.into());
+        return Err(PlonkVerificationError::InvalidPublicValues.into());
     }
 
     Ok(())

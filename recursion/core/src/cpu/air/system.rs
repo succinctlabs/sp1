@@ -7,7 +7,7 @@ use crate::{
     cpu::{CpuChip, CpuCols},
 };
 
-impl<F: Field> CpuChip<F> {
+impl<F: Field, const L: usize> CpuChip<F, L> {
     /// Eval the system instructions (TRAP, HALT).
     pub fn eval_system_instructions<AB>(
         &self,

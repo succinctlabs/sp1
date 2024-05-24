@@ -55,7 +55,7 @@ pub struct StarkMachine<SC: StarkGenericConfig, A> {
 }
 
 impl<SC: StarkGenericConfig, A> StarkMachine<SC, A> {
-    pub fn new(config: SC, chips: Vec<Chip<Val<SC>, A>>, num_pv_elts: usize) -> Self {
+    pub const fn new(config: SC, chips: Vec<Chip<Val<SC>, A>>, num_pv_elts: usize) -> Self {
         Self {
             config,
             chips,
@@ -111,7 +111,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         &self.chips
     }
 
-    pub fn num_pv_elts(&self) -> usize {
+    pub const fn num_pv_elts(&self) -> usize {
         self.num_pv_elts
     }
 
@@ -258,7 +258,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
 
         // Display some statistics about the workload.
         let stats = record.stats();
-        log::info!("Shard: {:?}", stats);
+        log::info!("shard: {:?}", stats);
 
         // For each chip, shard the events into segments.
         record.shard(config)
@@ -423,12 +423,12 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                 let permutation_width = permutation_traces[i].width();
                 let total_width = trace_width + permutation_width;
                 tracing::debug!(
-                "{:<11} | Main Cols = {:<5} | Perm Cols = {:<5} | Rows = {:<10} | Cells = {:<10}",
-                chips[i].name(),
-                trace_width,
-                permutation_width,
-                traces[i].0.height(),
-                total_width * traces[i].0.height(),
+                    "{:<11} | Main Cols = {:<5} | Perm Cols = {:<5} | Rows = {:<10} | Cells = {:<10}",
+                    chips[i].name(),
+                    trace_width,
+                    permutation_width,
+                    traces[i].0.height(),
+                    total_width * traces[i].0.height(),
                 );
             }
 

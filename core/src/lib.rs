@@ -1,5 +1,4 @@
 #![allow(
-    clippy::eq_op,
     clippy::new_without_default,
     clippy::field_reassign_with_default,
     clippy::unnecessary_cast,

@@ -21,7 +21,7 @@ fi
 # Create archive named after the commit hash
 ARCHIVE_NAME="${COMMIT_HASH}.tar.gz"
 cd $FILE_TO_UPLOAD
-tar -czvf "../$ARCHIVE_NAME" .
+tar --exclude='srs.bin' --exclude='srs_lagrange.bin' -czvf "../$ARCHIVE_NAME" .
 cd -
 if [ $? -ne 0 ]; then
     echo "Failed to create archive."

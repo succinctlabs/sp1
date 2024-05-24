@@ -30,7 +30,7 @@ const fn make_col_map() -> CpuCols<usize> {
 
 pub(crate) const CPU_COL_MAP: CpuCols<usize> = make_col_map();
 
-impl<F: Send + Sync> BaseAir<F> for CpuChip<F> {
+impl<F: Send + Sync, const L: usize> BaseAir<F> for CpuChip<F, L> {
     fn width(&self) -> usize {
         NUM_CPU_COLS
     }

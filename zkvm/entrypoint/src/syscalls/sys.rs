@@ -9,7 +9,7 @@ pub unsafe extern "C" fn sys_panic(msg_ptr: *const u8, len: usize) -> ! {
 
 #[allow(unused_variables)]
 #[no_mangle]
-pub fn sys_getenv(
+pub const fn sys_getenv(
     recv_buf: *mut u32,
     words: usize,
     varname: *const u8,
@@ -20,7 +20,7 @@ pub fn sys_getenv(
 
 #[allow(unused_variables)]
 #[no_mangle]
-pub fn sys_alloc_words(nwords: usize) -> *mut u32 {
+pub const fn sys_alloc_words(nwords: usize) -> *mut u32 {
     core::ptr::null_mut()
 }
 

@@ -57,11 +57,13 @@ impl Syscall for Blake3CompressInnerChip {
         }
 
         let shard = rt.current_shard();
+        let channel = rt.current_channel();
 
         rt.record_mut()
             .blake3_compress_inner_events
             .push(Blake3CompressInnerEvent {
                 shard,
+                channel,
                 clk: start_clk,
                 state_ptr,
                 message_reads,

@@ -25,6 +25,10 @@ pub struct ExecutionState {
     /// executed in this shard.
     pub clk: u32,
 
+    /// The channel alternates between 0 and [crate::bytes::NUM_BYTE_LOOKUP_CHANNELS],
+    /// used to controll byte lookup multiplicity.
+    pub channel: u32,
+
     /// The program counter.
     pub pc: u32,
 
@@ -65,6 +69,7 @@ impl ExecutionState {
             // Start at shard 1 since shard 0 is reserved for memory initialization.
             current_shard: 1,
             clk: 0,
+            channel: 0,
             pc: pc_start,
             memory: HashMap::default(),
             uninitialized_memory: HashMap::default(),
