@@ -857,7 +857,6 @@ impl<C: Config> MemVariable<C> for Felt<C::F> {
 }
 
 impl<F: Field, EF: ExtensionField<F>> Ext<F, EF> {
-    // Todo: refactor base
     fn assign_with_caches<C: Config<F = F, EF = EF>>(
         &self,
         src: SymbolicExt<F, EF>,
