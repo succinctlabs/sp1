@@ -230,18 +230,11 @@ where
         // Assert that is_real is a bool.
         builder.assert_bool(local.is_real);
 
-        // If this row is real and not the last cycle, then next row should also be real.
+        // Ensure that all rows in a 48 row cycle has the same `is_real` values.
         builder
             .when_transition()
-            .when(local.is_real)
             .when_not(local.cycle_48_end)
-            .assert_one(next.is_real);
-
-        builder
-            .when_transition()
-            .when_not(local.is_real)
-            .when_not(local.cycle_48_end)
-            .assert_zero(next.is_real);
+            .assert_eq(local.is_real, next.is_real);
 
         // Assert that the table ends in nonreal columns. Since each extend ecall is 48 cycles and
         // the table is padded to a power of 2, the last row of the table should always be padding.
