@@ -287,6 +287,7 @@ mod tests {
             BabyBear,
             Poseidon2<BabyBear, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 16, 7>,
             16,
+            8,
         > = config.challenger();
         let start = Instant::now();
         uni_stark_verify(&config, &chip, &mut challenger, &proof)

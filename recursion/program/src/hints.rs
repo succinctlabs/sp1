@@ -90,10 +90,11 @@ impl Hintable<C> for [Word<BabyBear>; PV_DIGEST_NUM_WORDS] {
     }
 
     fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
-        vec![self
-            .iter()
-            .flat_map(|w| w.0.iter().map(|f| Block::from(*f)))
-            .collect::<Vec<_>>()]
+        vec![
+            self.iter()
+                .flat_map(|w| w.0.iter().map(|f| Block::from(*f)))
+                .collect::<Vec<_>>(),
+        ]
     }
 }
 
@@ -206,10 +207,11 @@ impl Hintable<C> for Vec<usize> {
     }
 
     fn write(&self) -> Vec<Vec<Block<InnerVal>>> {
-        vec![self
-            .iter()
-            .map(|x| Block::from(InnerVal::from_canonical_usize(*x)))
-            .collect()]
+        vec![
+            self.iter()
+                .map(|x| Block::from(InnerVal::from_canonical_usize(*x)))
+                .collect(),
+        ]
     }
 }
 
@@ -233,10 +235,11 @@ impl Hintable<C> for Vec<InnerChallenge> {
     }
 
     fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
-        vec![self
-            .iter()
-            .map(|x| Block::from((*x).as_base_slice()))
-            .collect()]
+        vec![
+            self.iter()
+                .map(|x| Block::from((*x).as_base_slice()))
+                .collect(),
+        ]
     }
 }
 
@@ -386,7 +389,7 @@ impl Hintable<C> for ShardCommitment<InnerDigestHash> {
     }
 }
 
-impl Hintable<C> for DuplexChallenger<InnerVal, InnerPerm, 16> {
+impl Hintable<C> for DuplexChallenger<InnerVal, InnerPerm, 16, 8> {
     type HintVariable = DuplexChallengerVariable<C>;
 
     fn read(builder: &mut Builder<C>) -> Self::HintVariable {
@@ -420,14 +423,14 @@ impl Hintable<C> for DuplexChallenger<InnerVal, InnerPerm, 16> {
 }
 
 impl<
-        'a,
-        SC: StarkGenericConfig<
+    'a,
+    SC: StarkGenericConfig<
             Pcs = <BabyBearPoseidon2 as StarkGenericConfig>::Pcs,
             Challenge = <BabyBearPoseidon2 as StarkGenericConfig>::Challenge,
             Challenger = <BabyBearPoseidon2 as StarkGenericConfig>::Challenger,
         >,
-        A: MachineAir<SC::Val>,
-    > Hintable<C> for VerifyingKeyHint<'a, SC, A>
+    A: MachineAir<SC::Val>,
+> Hintable<C> for VerifyingKeyHint<'a, SC, A>
 {
     type HintVariable = VerifyingKeyVariable<C>;
 
@@ -459,14 +462,14 @@ impl<
 
 // Implement Hintable<C> for ShardProof where SC is equivalent to BabyBearPoseidon2
 impl<
-        'a,
-        SC: StarkGenericConfig<
+    'a,
+    SC: StarkGenericConfig<
             Pcs = <BabyBearPoseidon2 as StarkGenericConfig>::Pcs,
             Challenge = <BabyBearPoseidon2 as StarkGenericConfig>::Challenge,
             Challenger = <BabyBearPoseidon2 as StarkGenericConfig>::Challenger,
         >,
-        A: MachineAir<SC::Val>,
-    > Hintable<C> for ShardProofHint<'a, SC, A>
+    A: MachineAir<SC::Val>,
+> Hintable<C> for ShardProofHint<'a, SC, A>
 where
     ShardCommitment<Com<SC>>: Hintable<C>,
 {
@@ -513,9 +516,9 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
     fn read(builder: &mut Builder<C>) -> Self::HintVariable {
         let vk = VerifyingKeyHint::<'a, BabyBearPoseidon2, A>::read(builder);
         let shard_proofs = Vec::<ShardProofHint<'a, BabyBearPoseidon2, A>>::read(builder);
-        let leaf_challenger = DuplexChallenger::<InnerVal, InnerPerm, 16>::read(builder);
+        let leaf_challenger = DuplexChallenger::<InnerVal, InnerPerm, 16, 8>::read(builder);
         let initial_reconstruct_challenger =
-            DuplexChallenger::<InnerVal, InnerPerm, 16>::read(builder);
+            DuplexChallenger::<InnerVal, InnerPerm, 16, 8>::read(builder);
         let is_complete = builder.hint_var();
 
         SP1RecursionMemoryLayoutVariable {
@@ -626,7 +629,7 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
         let sp1_vk = VerifyingKeyHint::<'a, BabyBearPoseidon2, RiscvAir<_>>::read(builder);
         let committed_value_digest = Vec::<Vec<InnerVal>>::read(builder);
         let deferred_proofs_digest = Vec::<InnerVal>::read(builder);
-        let leaf_challenger = DuplexChallenger::<InnerVal, InnerPerm, 16>::read(builder);
+        let leaf_challenger = DuplexChallenger::<InnerVal, InnerPerm, 16, 8>::read(builder);
         let end_pc = InnerVal::read(builder);
         let end_shard = InnerVal::read(builder);
 
