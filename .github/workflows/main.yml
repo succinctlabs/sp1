@@ -18,14 +18,14 @@ concurrency:
     cancel-in-progress: true
 
 jobs:
-    groth16:
-        name: Groth16
+    plonk:
+        name: Plonk
         runs-on: runs-on,cpu=64,ram=256,family=m7i+m7a,hdd=80,image=ubuntu22-full-x64
         env:
           CARGO_NET_GIT_FETCH_WITH_CLI: "true"
         steps:
           - name: Checkout sources
-            uses: actions/checkout@v2
+            uses: actions/checkout@v4
     
           - name: Setup CI
             uses: ./.github/actions/setup
@@ -35,7 +35,7 @@ jobs:
             with:
               command: test
               toolchain: nightly-2024-04-17
-              args: --release -p sp1-sdk --features groth16 -- test_e2e_prove_groth16 --nocapture
+              args: --release -p sp1-sdk --features plonk_bn254 -- test_e2e_prove_plonk_bn254 --nocapture
             env:
               RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
               RUST_BACKTRACE: 1

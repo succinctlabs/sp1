@@ -30,7 +30,7 @@ pub struct ShardMainData<SC: StarkGenericConfig> {
 }
 
 impl<SC: StarkGenericConfig> ShardMainData<SC> {
-    pub fn new(
+    pub const fn new(
         traces: Vec<RowMajorMatrix<Val<SC>>>,
         main_commit: Com<SC>,
         main_data: PcsProverData<SC>,
@@ -64,7 +64,7 @@ impl<SC: StarkGenericConfig> ShardMainData<SC> {
         Ok(ShardMainDataWrapper::TempFile(file, bytes_written))
     }
 
-    pub fn to_in_memory(self) -> ShardMainDataWrapper<SC> {
+    pub const fn to_in_memory(self) -> ShardMainDataWrapper<SC> {
         ShardMainDataWrapper::InMemory(self)
     }
 }

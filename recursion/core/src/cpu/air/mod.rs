@@ -20,7 +20,7 @@ use crate::{
     memory::MemoryCols,
 };
 
-impl<AB> Air<AB> for CpuChip<AB::F>
+impl<AB, const L: usize> Air<AB> for CpuChip<AB::F, L>
 where
     AB: SP1RecursionAirBuilder,
 {
@@ -95,10 +95,17 @@ where
 
         // Constrain the is_real_flag.
         self.eval_is_real(builder, local, next);
+
+        // Create a dummy constraint of the given degree to compress the permutation columns.
+        let mut expr = local.is_real * local.is_real;
+        for _ in 0..(L - 2) {
+            expr *= local.is_real.into();
+        }
+        builder.assert_eq(expr.clone(), expr.clone());
     }
 }
 
-impl<F: Field> CpuChip<F> {
+impl<F: Field, const L: usize> CpuChip<F, L> {
     /// Eval the clk.
     ///
     /// For all instructions except for FRI fold, the next clk is the current clk + 4.

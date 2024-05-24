@@ -64,7 +64,7 @@ pub mod tests {
     use sp1_recursion_compiler::constraints::ConstraintCompiler;
     use sp1_recursion_compiler::ir::{Builder, Felt, Var, Witness};
     use sp1_recursion_core::stark::config::{outer_perm, OuterCompress, OuterHash};
-    use sp1_recursion_gnark_ffi::Groth16Prover;
+    use sp1_recursion_gnark_ffi::PlonkBn254Prover;
 
     use crate::poseidon2::Poseidon2CircuitBuilder;
     use crate::types::OuterDigestVariable;
@@ -92,7 +92,7 @@ pub mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        Groth16Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
+        PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
     }
 
     #[test]
@@ -125,7 +125,7 @@ pub mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        Groth16Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
+        PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
     }
 
     #[test]
@@ -145,6 +145,6 @@ pub mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        Groth16Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
+        PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
     }
 }

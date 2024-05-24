@@ -8,6 +8,8 @@ github.com/consensys/gnark v0.10.1-0.20240504023521-d9bfacd7cb60 h1:+m2KO2BeqBkH
 github.com/consensys/gnark v0.10.1-0.20240504023521-d9bfacd7cb60/go.mod h1:DU7zXvIuOqheiS3EgVdD7ydbXDiLh71FkaArWPxwJqY=
 github.com/consensys/gnark-crypto v0.12.2-0.20240504013751-564b6f724c3b h1:tu0NaVr64o6vXzy9rYSK/LCZXmS+u/k9eP1F8OtRUWQ=
 github.com/consensys/gnark-crypto v0.12.2-0.20240504013751-564b6f724c3b/go.mod h1:wKqwsieaKPThcFkHe0d0zMsbHEUWFmZcG7KBCse210o=
+github.com/consensys/gnark-ignition-verifier v0.0.0-20230527014722-10693546ab33 h1:z42ewLaLxoTYeQ17arcF4WExZc/eSaN3YVlF7eEaPt4=
+github.com/consensys/gnark-ignition-verifier v0.0.0-20230527014722-10693546ab33/go.mod h1:JdKor28c/KR4BbznP88bz8AAvnCgovzrB3KWsiR7lwk=
 github.com/coreos/go-systemd/v22 v22.5.0/go.mod h1:Y58oyj3AT4RCenI/lSvhwexgC+NSVTIJ3seZv2GcEnc=
 github.com/cpuguy83/go-md2man/v2 v2.0.3/go.mod h1:tgQtvFlXSQOSOSIRvRPT7W67SCa46tRHOmNcaadrF8o=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=

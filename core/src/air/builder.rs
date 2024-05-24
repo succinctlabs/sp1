@@ -84,6 +84,7 @@ pub trait BaseAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr>
 /// A trait which contains methods for byte interactions in an AIR.
 pub trait ByteAirBuilder: BaseAirBuilder {
     /// Sends a byte operation to be processed.
+    #[allow(clippy::too_many_arguments)]
     fn send_byte(
         &mut self,
         opcode: impl Into<Self::Expr>,
@@ -91,9 +92,19 @@ pub trait ByteAirBuilder: BaseAirBuilder {
         b: impl Into<Self::Expr>,
         c: impl Into<Self::Expr>,
         shard: impl Into<Self::Expr>,
+        channel: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
-        self.send_byte_pair(opcode, a, Self::Expr::zero(), b, c, shard, multiplicity)
+        self.send_byte_pair(
+            opcode,
+            a,
+            Self::Expr::zero(),
+            b,
+            c,
+            shard,
+            channel,
+            multiplicity,
+        )
     }
 
     /// Sends a byte operation with two outputs to be processed.
@@ -106,6 +117,7 @@ pub trait ByteAirBuilder: BaseAirBuilder {
         b: impl Into<Self::Expr>,
         c: impl Into<Self::Expr>,
         shard: impl Into<Self::Expr>,
+        channel: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
         self.send(AirInteraction::new(
@@ -116,6 +128,7 @@ pub trait ByteAirBuilder: BaseAirBuilder {
                 b.into(),
                 c.into(),
                 shard.into(),
+                channel.into(),
             ],
             multiplicity.into(),
             InteractionKind::Byte,
@@ -123,6 +136,7 @@ pub trait ByteAirBuilder: BaseAirBuilder {
     }
 
     /// Receives a byte operation to be processed.
+    #[allow(clippy::too_many_arguments)]
     fn receive_byte(
         &mut self,
         opcode: impl Into<Self::Expr>,
@@ -130,9 +144,19 @@ pub trait ByteAirBuilder: BaseAirBuilder {
         b: impl Into<Self::Expr>,
         c: impl Into<Self::Expr>,
         shard: impl Into<Self::Expr>,
+        channel: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
-        self.receive_byte_pair(opcode, a, Self::Expr::zero(), b, c, shard, multiplicity)
+        self.receive_byte_pair(
+            opcode,
+            a,
+            Self::Expr::zero(),
+            b,
+            c,
+            shard,
+            channel,
+            multiplicity,
+        )
     }
 
     /// Receives a byte operation with two outputs to be processed.
@@ -145,6 +169,7 @@ pub trait ByteAirBuilder: BaseAirBuilder {
         b: impl Into<Self::Expr>,
         c: impl Into<Self::Expr>,
         shard: impl Into<Self::Expr>,
+        channel: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
         self.receive(AirInteraction::new(
@@ -155,6 +180,7 @@ pub trait ByteAirBuilder: BaseAirBuilder {
                 b.into(),
                 c.into(),
                 shard.into(),
+                channel.into(),
             ],
             multiplicity.into(),
             InteractionKind::Byte,
@@ -219,6 +245,7 @@ pub trait WordAirBuilder: ByteAirBuilder {
         &mut self,
         input: &[impl Into<Self::Expr> + Clone],
         shard: impl Into<Self::Expr> + Clone,
+        channel: impl Into<Self::Expr> + Clone,
         mult: impl Into<Self::Expr> + Clone,
     ) {
         let mut index = 0;
@@ -229,6 +256,7 @@ pub trait WordAirBuilder: ByteAirBuilder {
                 input[index].clone(),
                 input[index + 1].clone(),
                 shard.clone(),
+                channel.clone(),
                 mult.clone(),
             );
             index += 2;
@@ -240,6 +268,7 @@ pub trait WordAirBuilder: ByteAirBuilder {
                 input[index].clone(),
                 Self::Expr::zero(),
                 shard.clone(),
+                channel.clone(),
                 mult.clone(),
             );
         }
@@ -250,6 +279,7 @@ pub trait WordAirBuilder: ByteAirBuilder {
         &mut self,
         input: &[impl Into<Self::Expr> + Copy],
         shard: impl Into<Self::Expr> + Clone,
+        channel: impl Into<Self::Expr> + Clone,
         mult: impl Into<Self::Expr> + Clone,
     ) {
         input.iter().for_each(|limb| {
@@ -259,6 +289,7 @@ pub trait WordAirBuilder: ByteAirBuilder {
                 Self::Expr::zero(),
                 Self::Expr::zero(),
                 shard.clone(),
+                channel.clone(),
                 mult.clone(),
             );
         });
@@ -268,6 +299,7 @@ pub trait WordAirBuilder: ByteAirBuilder {
 /// A trait which contains methods related to ALU interactions in an AIR.
 pub trait AluAirBuilder: BaseAirBuilder {
     /// Sends an ALU operation to be processed.
+    #[allow(clippy::too_many_arguments)]
     fn send_alu(
         &mut self,
         opcode: impl Into<Self::Expr>,
@@ -275,6 +307,7 @@ pub trait AluAirBuilder: BaseAirBuilder {
         b: Word<impl Into<Self::Expr>>,
         c: Word<impl Into<Self::Expr>>,
         shard: impl Into<Self::Expr>,
+        channel: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
         let values = once(opcode.into())
@@ -282,6 +315,7 @@ pub trait AluAirBuilder: BaseAirBuilder {
             .chain(b.0.into_iter().map(Into::into))
             .chain(c.0.into_iter().map(Into::into))
             .chain(once(shard.into()))
+            .chain(once(channel.into()))
             .collect();
 
         self.send(AirInteraction::new(
@@ -292,6 +326,7 @@ pub trait AluAirBuilder: BaseAirBuilder {
     }
 
     /// Receives an ALU operation to be processed.
+    #[allow(clippy::too_many_arguments)]
     fn receive_alu(
         &mut self,
         opcode: impl Into<Self::Expr>,
@@ -299,6 +334,7 @@ pub trait AluAirBuilder: BaseAirBuilder {
         b: Word<impl Into<Self::Expr>>,
         c: Word<impl Into<Self::Expr>>,
         shard: impl Into<Self::Expr>,
+        channel: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
         let values = once(opcode.into())
@@ -306,6 +342,7 @@ pub trait AluAirBuilder: BaseAirBuilder {
             .chain(b.0.into_iter().map(Into::into))
             .chain(c.0.into_iter().map(Into::into))
             .chain(once(shard.into()))
+            .chain(once(channel.into()))
             .collect();
 
         self.receive(AirInteraction::new(
@@ -316,9 +353,11 @@ pub trait AluAirBuilder: BaseAirBuilder {
     }
 
     /// Sends an syscall operation to be processed (with "ECALL" opcode).
+    #[allow(clippy::too_many_arguments)]
     fn send_syscall(
         &mut self,
         shard: impl Into<Self::Expr> + Clone,
+        channel: impl Into<Self::Expr> + Clone,
         clk: impl Into<Self::Expr> + Clone,
         syscall_id: impl Into<Self::Expr> + Clone,
         arg1: impl Into<Self::Expr> + Clone,
@@ -328,6 +367,7 @@ pub trait AluAirBuilder: BaseAirBuilder {
         self.send(AirInteraction::new(
             vec![
                 shard.clone().into(),
+                channel.clone().into(),
                 clk.clone().into(),
                 syscall_id.clone().into(),
                 arg1.clone().into(),
@@ -339,9 +379,11 @@ pub trait AluAirBuilder: BaseAirBuilder {
     }
 
     /// Receives a syscall operation to be processed.
+    #[allow(clippy::too_many_arguments)]
     fn receive_syscall(
         &mut self,
         shard: impl Into<Self::Expr> + Clone,
+        channel: impl Into<Self::Expr> + Clone,
         clk: impl Into<Self::Expr> + Clone,
         syscall_id: impl Into<Self::Expr> + Clone,
         arg1: impl Into<Self::Expr> + Clone,
@@ -351,6 +393,7 @@ pub trait AluAirBuilder: BaseAirBuilder {
         self.receive(AirInteraction::new(
             vec![
                 shard.clone().into(),
+                channel.clone().into(),
                 clk.clone().into(),
                 syscall_id.clone().into(),
                 arg1.clone().into(),
@@ -371,6 +414,7 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
     fn eval_memory_access<E: Into<Self::Expr> + Clone>(
         &mut self,
         shard: impl Into<Self::Expr>,
+        channel: impl Into<Self::Expr>,
         clk: impl Into<Self::Expr>,
         addr: impl Into<Self::Expr>,
         memory_access: &impl MemoryCols<E>,
@@ -378,13 +422,20 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
     ) {
         let do_check: Self::Expr = do_check.into();
         let shard: Self::Expr = shard.into();
+        let channel: Self::Expr = channel.into();
         let clk: Self::Expr = clk.into();
         let mem_access = memory_access.access();
 
         self.assert_bool(do_check.clone());
 
         // Verify that the current memory access time is greater than the previous's.
-        self.eval_memory_access_timestamp(mem_access, do_check.clone(), shard.clone(), clk.clone());
+        self.eval_memory_access_timestamp(
+            mem_access,
+            do_check.clone(),
+            shard.clone(),
+            channel,
+            clk.clone(),
+        );
 
         // Add to the memory argument.
         let addr = addr.into();
@@ -420,6 +471,7 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
     fn eval_memory_access_slice<E: Into<Self::Expr> + Copy>(
         &mut self,
         shard: impl Into<Self::Expr> + Copy,
+        channel: impl Into<Self::Expr> + Clone,
         clk: impl Into<Self::Expr> + Clone,
         initial_addr: impl Into<Self::Expr> + Clone,
         memory_access_slice: &[impl MemoryCols<E>],
@@ -428,6 +480,7 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
         for (i, access_slice) in memory_access_slice.iter().enumerate() {
             self.eval_memory_access(
                 shard,
+                channel.clone(),
                 clk.clone(),
                 initial_addr.clone().into() + Self::Expr::from_canonical_usize(i * 4),
                 access_slice,
@@ -447,6 +500,7 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
         mem_access: &MemoryAccessCols<impl Into<Self::Expr> + Clone>,
         do_check: impl Into<Self::Expr>,
         shard: impl Into<Self::Expr> + Clone,
+        channel: impl Into<Self::Expr> + Clone,
         clk: impl Into<Self::Expr>,
     ) {
         let do_check: Self::Expr = do_check.into();
@@ -487,6 +541,7 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
             mem_access.diff_16bit_limb.clone(),
             mem_access.diff_8bit_limb.clone(),
             shard.clone(),
+            channel.clone(),
             do_check,
         );
     }
@@ -503,6 +558,7 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
         limb_16: impl Into<Self::Expr> + Clone,
         limb_8: impl Into<Self::Expr> + Clone,
         shard: impl Into<Self::Expr> + Clone,
+        channel: impl Into<Self::Expr> + Clone,
         do_check: impl Into<Self::Expr> + Clone,
     ) {
         // Verify that value = limb_16 + limb_8 * 2^16.
@@ -519,6 +575,7 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
             Self::Expr::zero(),
             Self::Expr::zero(),
             shard.clone(),
+            channel.clone(),
             do_check.clone(),
         );
 
@@ -528,6 +585,7 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
             Self::Expr::zero(),
             limb_8,
             shard.clone(),
+            channel.clone(),
             do_check,
         )
     }

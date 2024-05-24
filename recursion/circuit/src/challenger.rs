@@ -162,7 +162,7 @@ mod tests {
     use sp1_recursion_compiler::ir::SymbolicExt;
     use sp1_recursion_compiler::ir::{Builder, Witness};
     use sp1_recursion_core::stark::config::{outer_perm, OuterChallenger};
-    use sp1_recursion_gnark_ffi::Groth16Prover;
+    use sp1_recursion_gnark_ffi::PlonkBn254Prover;
 
     use super::reduce_32;
     use super::split_32;
@@ -182,7 +182,7 @@ mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        Groth16Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
+        PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
     }
 
     #[test]
@@ -199,7 +199,7 @@ mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        Groth16Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
+        PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
     }
 
     #[test]
@@ -217,7 +217,7 @@ mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        Groth16Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
+        PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
     }
 
     #[test]
@@ -254,7 +254,7 @@ mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        Groth16Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
+        PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
     }
 
     #[test]
@@ -296,6 +296,6 @@ mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        Groth16Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
+        PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
     }
 }

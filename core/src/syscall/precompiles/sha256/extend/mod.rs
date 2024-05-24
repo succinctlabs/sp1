@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShaExtendEvent {
     pub shard: u32,
+    pub channel: u32,
     pub clk: u32,
     pub w_ptr: u32,
     pub w_i_minus_15_reads: Vec<MemoryReadRecord>,
@@ -30,7 +31,7 @@ pub struct ShaExtendEvent {
 pub struct ShaExtendChip;
 
 impl ShaExtendChip {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {}
     }
 }
@@ -90,7 +91,7 @@ pub mod extend_tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.add_events = vec![AluEvent::new(0, 0, Opcode::ADD, 14, 8, 6)];
+        shard.add_events = vec![AluEvent::new(0, 0, 0, Opcode::ADD, 14, 8, 6)];
         let chip = ShaExtendChip::new();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());

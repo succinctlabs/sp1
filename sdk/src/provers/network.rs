@@ -6,11 +6,10 @@ use crate::{
     proto::network::{ProofStatus, TransactionStatus},
     Prover,
 };
-use crate::{
-    SP1CompressedProof, SP1Groth16Proof, SP1PlonkProof, SP1Proof, SP1ProvingKey, SP1VerifyingKey,
-};
+use crate::{SP1CompressedProof, SP1PlonkBn254Proof, SP1Proof, SP1ProvingKey, SP1VerifyingKey};
 use anyhow::{Context, Result};
 use serde::de::DeserializeOwned;
+use sp1_core::runtime::{Program, Runtime};
 use sp1_prover::utils::block_on;
 use sp1_prover::{SP1Prover, SP1Stdin};
 use tokio::{runtime, time::sleep};
@@ -43,13 +42,19 @@ impl NetworkProver {
     ) -> Result<P> {
         let client = &self.client;
         // Execute the runtime before creating the proof request.
-        // TODO: Maybe we don't want to always do this locally, with large programs. Or we may want
-        // to disable events at least.
-        let _public_values = SP1Prover::execute(elf, &stdin);
-        println!("Simulation complete");
+        let program = Program::from(elf);
+        let mut runtime = Runtime::new(program);
+        runtime.write_vecs(&stdin.buffer);
+        for (proof, vkey) in stdin.proofs.iter() {
+            runtime.write_proof(proof.clone(), vkey.clone());
+        }
+        runtime
+            .run_untraced()
+            .context("Failed to execute program")?;
+        log::info!("Simulation complete, cycles: {}", runtime.state.global_clk);
 
         let proof_id = client.create_proof(elf, &stdin, mode).await?;
-        println!("Proof request ID: {:?}", proof_id);
+        log::info!("Created {}", proof_id);
 
         let mut is_claimed = false;
         loop {
@@ -61,12 +66,15 @@ impl NetworkProver {
                 }
                 ProofStatus::ProofClaimed => {
                     if !is_claimed {
-                        println!("Proof request claimed, proving...");
+                        log::info!("Proof request claimed, proving...");
                         is_claimed = true;
                     }
                 }
-                ProofStatus::ProofFailed => {
-                    return Err(anyhow::anyhow!("Proof generation failed"));
+                ProofStatus::ProofUnclaimed => {
+                    return Err(anyhow::anyhow!(
+                        "Proof generation failed: {}",
+                        status.unclaim_description()
+                    ));
                 }
                 _ => {
                     sleep(Duration::from_secs(1)).await;
@@ -161,11 +169,7 @@ impl Prover for NetworkProver {
         block_on(self.prove_async(&pk.elf, stdin, ProofMode::Compressed))
     }
 
-    fn prove_groth16(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Groth16Proof> {
-        block_on(self.prove_async(&pk.elf, stdin, ProofMode::Groth16))
-    }
-
-    fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkProof> {
+    fn prove_plonk_bn254(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkBn254Proof> {
         block_on(self.prove_async(&pk.elf, stdin, ProofMode::Plonk))
     }
 }

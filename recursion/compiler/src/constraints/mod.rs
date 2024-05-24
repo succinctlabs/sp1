@@ -1,4 +1,3 @@
-// pub mod groth16_ffi;
 pub mod opcodes;
 
 use core::fmt::Debug;

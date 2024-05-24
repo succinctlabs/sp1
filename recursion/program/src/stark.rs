@@ -78,7 +78,7 @@ pub struct ShardProofHint<'a, SC: StarkGenericConfig, A> {
 }
 
 impl<'a, SC: StarkGenericConfig, A: MachineAir<SC::Val>> ShardProofHint<'a, SC, A> {
-    pub fn new(machine: &'a StarkMachine<SC, A>, proof: &'a ShardProof<SC>) -> Self {
+    pub const fn new(machine: &'a StarkMachine<SC, A>, proof: &'a ShardProof<SC>) -> Self {
         Self { machine, proof }
     }
 }
@@ -89,7 +89,7 @@ pub struct VerifyingKeyHint<'a, SC: StarkGenericConfig, A> {
 }
 
 impl<'a, SC: StarkGenericConfig, A: MachineAir<SC::Val>> VerifyingKeyHint<'a, SC, A> {
-    pub fn new(machine: &'a StarkMachine<SC, A>, vk: &'a StarkVerifyingKey<SC>) -> Self {
+    pub const fn new(machine: &'a StarkMachine<SC, A>, vk: &'a StarkVerifyingKey<SC>) -> Self {
         Self { machine, vk }
     }
 }
@@ -343,7 +343,6 @@ where
         pcs.verify(builder, rounds, opening_proof.clone(), challenger);
         builder.cycle_tracker("stage-d-verify-pcs");
 
-        // TODO CONSTRAIN: that the preprocessed chips get called with verify_constraints.
         builder.cycle_tracker("stage-e-verify-constraints");
         for (i, chip) in machine.chips().iter().enumerate() {
             let chip_name = chip.name();

@@ -9,7 +9,7 @@ pub struct Buffer {
 }
 
 impl Buffer {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             data: Vec::new(),
             ptr: 0,

@@ -52,6 +52,7 @@ pub const NUM_ED_ADD_COLS: usize = size_of::<EdAddAssignCols<u8>>();
 pub struct EdAddAssignCols<T> {
     pub is_real: T,
     pub shard: T,
+    pub channel: T,
     pub clk: T,
     pub p_ptr: T,
     pub q_ptr: T,
@@ -73,14 +74,17 @@ pub struct EdAddAssignChip<E> {
 }
 
 impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             _marker: PhantomData,
         }
     }
+
+    #[allow(clippy::too_many_arguments)]
     fn populate_field_ops<F: PrimeField32>(
         record: &mut impl ByteRecord,
         shard: u32,
+        channel: u32,
         cols: &mut EdAddAssignCols<F>,
         p_x: BigUint,
         p_y: BigUint,
@@ -90,34 +94,41 @@ impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
         let x3_numerator = cols.x3_numerator.populate(
             record,
             shard,
+            channel,
             &[p_x.clone(), q_x.clone()],
             &[q_y.clone(), p_y.clone()],
         );
         let y3_numerator = cols.y3_numerator.populate(
             record,
             shard,
+            channel,
             &[p_y.clone(), p_x.clone()],
             &[q_y.clone(), q_x.clone()],
         );
-        let x1_mul_y1 = cols
-            .x1_mul_y1
-            .populate(record, shard, &p_x, &p_y, FieldOperation::Mul);
-        let x2_mul_y2 = cols
-            .x2_mul_y2
-            .populate(record, shard, &q_x, &q_y, FieldOperation::Mul);
-        let f = cols
-            .f
-            .populate(record, shard, &x1_mul_y1, &x2_mul_y2, FieldOperation::Mul);
+        let x1_mul_y1 =
+            cols.x1_mul_y1
+                .populate(record, shard, channel, &p_x, &p_y, FieldOperation::Mul);
+        let x2_mul_y2 =
+            cols.x2_mul_y2
+                .populate(record, shard, channel, &q_x, &q_y, FieldOperation::Mul);
+        let f = cols.f.populate(
+            record,
+            shard,
+            channel,
+            &x1_mul_y1,
+            &x2_mul_y2,
+            FieldOperation::Mul,
+        );
 
         let d = E::d_biguint();
         let d_mul_f = cols
             .d_mul_f
-            .populate(record, shard, &f, &d, FieldOperation::Mul);
+            .populate(record, shard, channel, &f, &d, FieldOperation::Mul);
 
         cols.x3_ins
-            .populate(record, shard, &x3_numerator, &d_mul_f, true);
+            .populate(record, shard, channel, &x3_numerator, &d_mul_f, true);
         cols.y3_ins
-            .populate(record, shard, &y3_numerator, &d_mul_f, false);
+            .populate(record, shard, channel, &y3_numerator, &d_mul_f, false);
     }
 }
 
@@ -168,6 +179,7 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
                 // Populate basic columns.
                 cols.is_real = F::one();
                 cols.shard = F::from_canonical_u32(event.shard);
+                cols.channel = F::from_canonical_u32(event.channel);
                 cols.clk = F::from_canonical_u32(event.clk);
                 cols.p_ptr = F::from_canonical_u32(event.p_ptr);
                 cols.q_ptr = F::from_canonical_u32(event.q_ptr);
@@ -176,6 +188,7 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
                 Self::populate_field_ops(
                     &mut new_byte_lookup_events,
                     event.shard,
+                    event.channel,
                     cols,
                     p_x,
                     p_y,
@@ -185,12 +198,18 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
 
                 // Populate the memory access columns.
                 for i in 0..WORDS_CURVE_POINT {
-                    cols.q_access[i]
-                        .populate(event.q_memory_records[i], &mut new_byte_lookup_events);
+                    cols.q_access[i].populate(
+                        event.channel,
+                        event.q_memory_records[i],
+                        &mut new_byte_lookup_events,
+                    );
                 }
                 for i in 0..WORDS_CURVE_POINT {
-                    cols.p_access[i]
-                        .populate(event.p_memory_records[i], &mut new_byte_lookup_events);
+                    cols.p_access[i].populate(
+                        event.channel,
+                        event.p_memory_records[i],
+                        &mut new_byte_lookup_events,
+                    );
                 }
 
                 (row, new_byte_lookup_events)
@@ -207,6 +226,7 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
             let zero = BigUint::zero();
             Self::populate_field_ops(
                 &mut vec![],
+                0,
                 0,
                 cols,
                 zero.clone(),
@@ -250,12 +270,24 @@ where
         let y2 = limbs_from_prev_access(&row.q_access[8..16]);
 
         // x3_numerator = x1 * y2 + x2 * y1.
-        row.x3_numerator
-            .eval(builder, &[x1, x2], &[y2, y1], row.shard, row.is_real);
+        row.x3_numerator.eval(
+            builder,
+            &[x1, x2],
+            &[y2, y1],
+            row.shard,
+            row.channel,
+            row.is_real,
+        );
 
         // y3_numerator = y1 * y2 + x1 * x2.
-        row.y3_numerator
-            .eval(builder, &[y1, x1], &[y2, x2], row.shard, row.is_real);
+        row.y3_numerator.eval(
+            builder,
+            &[y1, x1],
+            &[y2, x2],
+            row.shard,
+            row.channel,
+            row.is_real,
+        );
 
         // f = x1 * x2 * y1 * y2.
         row.x1_mul_y1.eval(
@@ -264,6 +296,7 @@ where
             &y1,
             FieldOperation::Mul,
             row.shard,
+            row.channel,
             row.is_real,
         );
         row.x2_mul_y2.eval(
@@ -272,6 +305,7 @@ where
             &y2,
             FieldOperation::Mul,
             row.shard,
+            row.channel,
             row.is_real,
         );
 
@@ -283,6 +317,7 @@ where
             &x2_mul_y2,
             FieldOperation::Mul,
             row.shard,
+            row.channel,
             row.is_real,
         );
 
@@ -296,6 +331,7 @@ where
             &d_const,
             FieldOperation::Mul,
             row.shard,
+            row.channel,
             row.is_real,
         );
 
@@ -308,6 +344,7 @@ where
             &d_mul_f,
             true,
             row.shard,
+            row.channel,
             row.is_real,
         );
 
@@ -318,6 +355,7 @@ where
             &d_mul_f,
             false,
             row.shard,
+            row.channel,
             row.is_real,
         );
 
@@ -334,6 +372,7 @@ where
 
         builder.eval_memory_access_slice(
             row.shard,
+            row.channel,
             row.clk.into(),
             row.q_ptr,
             &row.q_access,
@@ -342,6 +381,7 @@ where
 
         builder.eval_memory_access_slice(
             row.shard,
+            row.channel,
             row.clk + AB::F::from_canonical_u32(1),
             row.p_ptr,
             &row.p_access,
@@ -350,6 +390,7 @@ where
 
         builder.receive_syscall(
             row.shard,
+            row.channel,
             row.clk,
             AB::F::from_canonical_u32(SyscallCode::ED_ADD.syscall_id()),
             row.p_ptr,
