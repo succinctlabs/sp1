@@ -1,0 +1,73 @@
+
+# Reference: https://github.com/foundry-rs/foundry/blob/master/.github/workflows/release.yml
+
+name: upload artifacts
+
+on:
+  push:
+    branches:
+      - ratan/fix-verifier-export
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+concurrency:
+    group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+    cancel-in-progress: true
+
+jobs:
+ # Upload the PlonkVerifier, ISP1Verifier, SP1Verifier and SP1MockVerifier to contracts/src
+ update_artifacts:
+    name: Open a PR to update the contracts artifacts in sp1-contracts
+    runs-on: runs-on,cpu=64,ram=256,family=m7i+m7a,hdd=80,image=ubuntu22-full-x64
+    steps:
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly-2024-04-17
+          profile: minimal
+          override: true
+
+      - name: Install go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '^1.22.1'
+
+      - name: Clone sp1-contracts
+        run: |
+          git clone https://x-access-token:${{ secrets.SUCCINCT_PR_BOT }}@github.com/succinctlabs/sp1-contracts.git
+          cd sp1-contracts
+          git fetch
+          git checkout ratan/init-contracts
+          git checkout -b update-artifacts
+
+      - name: Build artifacts binary
+        run: |
+          cd sp1-contracts
+          cargo update
+          cargo build --release
+          cargo run --bin artifacts 
+
+      - name: Commit and push changes
+        run: |
+          cd sp1-contracts
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add contracts/src
+          git commit -m "Update artifacts"
+          git push https://x-access-token:${{ secrets.SUCCINCT_PR_BOT }}@github.com/succinctlabs/sp1-contracts.git update-artifacts
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v3
+        with:
+          token: ${{ secrets.SUCCINCT_PR_BOT }}
+          commit-message: Update SP1Verifier.sol
+          branch: update-artifacts
+          base: ratan/init-contracts
+          title: Update contract artifacts for release ${{ needs.prepare.outputs.tag_name }}
+          body: This PR updates the contract artifacts for release ${{ needs.prepare.outputs.tag_name }}.
+            Ensure that you update the TODO flag in SP1Verifier.sol and SP1MockVerifier.sol before
+            merging.
