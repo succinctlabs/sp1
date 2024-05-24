@@ -15,7 +15,7 @@ pub fn main() {
         0, 0, 0, 0,
     ];
 
-    let mut a_point = AffinePoint::<Bn254, 16>::from_le_bytes(a);
+    let mut a_point = AffinePoint::<Bn254, 16>::from_le_bytes(&a);
 
     // scalar.
     // 3
