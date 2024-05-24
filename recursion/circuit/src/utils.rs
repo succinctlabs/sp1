@@ -25,18 +25,6 @@ pub fn babybears_to_bn254<C: Config>(
         }
     }
     result
-
-    // TODO: Add this back.
-    // for i in 0..8 {
-    //     let pv_word = pv.sp1_vk_digest[i];
-    //     let pv_word_bits = builder.num2bits_f_circuit(pv_word);
-    //     let pv_word_var = builder.bits2num_v_circuit(&pv_word_bits);
-    //     if i == 0 {
-    //         builder.assign(pv_vkey_hash, pv_word_var);
-    //     } else {
-    //         builder.assign(pv_vkey_hash, pv_vkey_hash * var_2_31 + pv_word_var);
-    //     }
-    // }
 }
 
 pub fn babybear_bytes_to_bn254<C: Config>(
