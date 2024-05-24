@@ -343,7 +343,6 @@ where
         pcs.verify(builder, rounds, opening_proof.clone(), challenger);
         builder.cycle_tracker("stage-d-verify-pcs");
 
-        // TODO CONSTRAIN: that the preprocessed chips get called with verify_constraints.
         builder.cycle_tracker("stage-e-verify-constraints");
         for (i, chip) in machine.chips().iter().enumerate() {
             let chip_name = chip.name();
