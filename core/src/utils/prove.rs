@@ -435,7 +435,7 @@ pub mod baby_bear_poseidon2 {
     >;
     pub type ChallengeMmcs = ExtensionMmcs<Val, Challenge, ValMmcs>;
     pub type Dft = Radix2DitParallel;
-    pub type Challenger = DuplexChallenger<Val, Perm, 16>;
+    pub type Challenger = DuplexChallenger<Val, Perm, 16, 8>;
     type Pcs = TwoAdicFriPcs<Val, Dft, ValMmcs, ChallengeMmcs>;
 
     pub fn my_perm() -> Perm {

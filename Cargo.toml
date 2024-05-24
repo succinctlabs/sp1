@@ -30,26 +30,26 @@ debug = true
 debug-assertions = true
 
 [workspace.dependencies]
-p3-air = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
-p3-field = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
-p3-commit = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
-p3-matrix = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
+p3-air = { git = "https://github.com/Plonky3/Plonky3.git", rev = "3b5265f9d5af36534a46caebf0617595cfb42c5a" }
+p3-field = { git = "https://github.com/Plonky3/Plonky3.git", rev = "3b5265f9d5af36534a46caebf0617595cfb42c5a" }
+p3-commit = { git = "https://github.com/Plonky3/Plonky3.git", rev = "3b5265f9d5af36534a46caebf0617595cfb42c5a" }
+p3-matrix = { git = "https://github.com/Plonky3/Plonky3.git", rev = "3b5265f9d5af36534a46caebf0617595cfb42c5a" }
 p3-baby-bear = { git = "https://github.com/Plonky3/Plonky3.git", features = [
   "nightly-features",
-], branch = "sp1" }
-p3-util = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
-p3-challenger = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
-p3-dft = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
-p3-fri = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
-p3-keccak = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
-p3-keccak-air = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
-p3-blake3 = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
-p3-merkle-tree = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
-p3-poseidon2 = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
-p3-symmetric = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
-p3-uni-stark = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
-p3-maybe-rayon = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
-p3-bn254-fr = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
+], rev = "3b5265f9d5af36534a46caebf0617595cfb42c5a" }
+p3-util = { git = "https://github.com/Plonky3/Plonky3.git", rev = "3b5265f9d5af36534a46caebf0617595cfb42c5a" }
+p3-challenger = { git = "https://github.com/Plonky3/Plonky3.git", rev = "3b5265f9d5af36534a46caebf0617595cfb42c5a" }
+p3-dft = { git = "https://github.com/Plonky3/Plonky3.git", rev = "3b5265f9d5af36534a46caebf0617595cfb42c5a" }
+p3-fri = { git = "https://github.com/Plonky3/Plonky3.git", rev = "3b5265f9d5af36534a46caebf0617595cfb42c5a" }
+p3-keccak = { git = "https://github.com/Plonky3/Plonky3.git", rev = "3b5265f9d5af36534a46caebf0617595cfb42c5a" }
+p3-keccak-air = { git = "https://github.com/Plonky3/Plonky3.git", rev = "3b5265f9d5af36534a46caebf0617595cfb42c5a" }
+p3-blake3 = { git = "https://github.com/Plonky3/Plonky3.git", rev = "3b5265f9d5af36534a46caebf0617595cfb42c5a" }
+p3-merkle-tree = { git = "https://github.com/Plonky3/Plonky3.git", rev = "3b5265f9d5af36534a46caebf0617595cfb42c5a" }
+p3-poseidon2 = { git = "https://github.com/Plonky3/Plonky3.git", rev = "3b5265f9d5af36534a46caebf0617595cfb42c5a" }
+p3-symmetric = { git = "https://github.com/Plonky3/Plonky3.git", rev = "3b5265f9d5af36534a46caebf0617595cfb42c5a" }
+p3-uni-stark = { git = "https://github.com/Plonky3/Plonky3.git", rev = "3b5265f9d5af36534a46caebf0617595cfb42c5a" }
+p3-maybe-rayon = { git = "https://github.com/Plonky3/Plonky3.git", rev = "3b5265f9d5af36534a46caebf0617595cfb42c5a" }
+p3-bn254-fr = { git = "https://github.com/Plonky3/Plonky3.git", rev = "3b5265f9d5af36534a46caebf0617595cfb42c5a" }
 
 # For local development. 
 
