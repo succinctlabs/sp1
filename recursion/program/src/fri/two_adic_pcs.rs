@@ -245,7 +245,6 @@ where
         self.config.get_subgroup(builder, log_degree)
     }
 
-    // Todo: change TwoAdicPcsRoundVariable to RoundVariable
     fn verify(
         &self,
         builder: &mut Builder<C>,
