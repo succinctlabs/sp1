@@ -70,7 +70,7 @@ impl ShaExtendChip {
             builder,
             local.cycle_16 - AB::Expr::from(g),
             local.cycle_16_start,
-            local.is_real.into(),
+            one.clone(),
         );
 
         // Constrain `cycle_16_end.result` to be `cycle_16 - 1 == 0`. Intuitively g^16 is 1.
@@ -78,7 +78,7 @@ impl ShaExtendChip {
             builder,
             local.cycle_16 - AB::Expr::one(),
             local.cycle_16_end,
-            local.is_real.into(),
+            one.clone(),
         );
 
         // Constrain `cycle_48` to be [1, 0, 0] in the first row.
