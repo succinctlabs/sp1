@@ -7,6 +7,7 @@ use p3_field::PrimeField32;
 use p3_field::TwoAdicField;
 use p3_matrix::Matrix;
 
+use crate::air::BaseAirBuilder;
 use crate::air::SP1AirBuilder;
 use crate::operations::IsZeroOperation;
 
@@ -123,10 +124,10 @@ impl ShaExtendChip {
             .when(local.cycle_16_end.result * local.cycle_48[2])
             .assert_eq(next.i, AB::F::from_canonical_u32(16));
 
-        // When it's not the end of a 16-cycle, the next `i` must be the current plus one.
+        // When it's not the end of a 48-cycle, the next `i` must be the current plus one.
         builder
             .when_transition()
-            .when(one.clone() - local.cycle_48_end)
+            .when_not(local.cycle_16_end.result * local.cycle_48[2])
             .assert_eq(local.i + one.clone(), next.i);
     }
 }
