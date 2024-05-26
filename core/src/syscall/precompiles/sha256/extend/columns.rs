@@ -36,8 +36,9 @@ pub struct ShaExtendCols<T> {
     /// Flags for when in the first, second, or third 16-row cycle.
     pub cycle_48: [T; 3],
 
-    /// Whether the current row is the first of a 48-row cycle.
+    /// Whether the current row is the first of a 48-row cycle and is real.
     pub cycle_48_start: T,
+    /// Whether the current row is the end of a 48-row cycle and is real.
     pub cycle_48_end: T,
 
     /// Inputs to `s0`.
