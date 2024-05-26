@@ -62,6 +62,8 @@
 
 mod utils;
 
+use std::collections::HashMap;
+
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 
@@ -184,12 +186,6 @@ pub struct DivRemCols<T> {
     /// Flag to indicate whether `c` is negative.
     pub c_neg: T,
 
-    /// Flag to indicate whether `c` is a multiple of 256, but not -2^31.
-    pub c_neg_mult_256: T,
-
-    /// Flag to indicate whether `rem` is a multiple of -256, but not -2^31.
-    pub rem_neg_mult_256: T,
-
     /// Flag to indicate whether `c` is min value
     pub is_c_min: IsEqualWordOperation<T>,
 
@@ -274,13 +270,6 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                 //Flags for absolute value special cases.
                 cols.is_c_min.populate(event.c, i32::MIN as u32);
                 cols.is_rem_min.populate(remainder, i32::MIN as u32);
-
-                cols.rem_neg_mult_256 = F::from_bool(remainder % 256 == 0)
-                    * cols.rem_neg
-                    * F::from_bool(remainder != 1 << 31);
-                cols.c_neg_mult_256 = F::from_bool(event.c % 256 == 0)
-                    * cols.c_neg
-                    * F::from_bool(remainder != 1 << 31);
 
                 // Insert the MSB lookup events.
                 {
@@ -406,6 +395,35 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                     };
                     if cols.remainder_check_multiplicity == F::one() {
                         output.add_lt_event(lt_event);
+                    }
+                    if cols.is_rem_min.is_diff_zero.result == F::zero() && cols.rem_neg == F::one()
+                    {
+                        let mut alu_events = HashMap::<Opcode, Vec<AluEvent>>::new();
+                        let single_event = AluEvent::new(
+                            event.shard,
+                            event.channel,
+                            event.clk,
+                            Opcode::ADD,
+                            0,
+                            remainder,
+                            (remainder as i32).abs() as u32,
+                        );
+                        alu_events.insert(Opcode::ADD, vec![single_event]);
+                        output.add_alu_events(alu_events)
+                    }
+                    if cols.is_c_min.is_diff_zero.result == F::zero() && cols.c_neg == F::one() {
+                        let mut alu_events = HashMap::<Opcode, Vec<AluEvent>>::new();
+                        let single_event = AluEvent::new(
+                            event.shard,
+                            event.channel,
+                            event.clk,
+                            Opcode::ADD,
+                            0,
+                            event.c,
+                            (event.c as i32).abs() as u32,
+                        );
+                        alu_events.insert(Opcode::ADD, vec![single_event]);
+                        output.add_alu_events(alu_events)
                     }
                 }
 
@@ -699,38 +717,24 @@ where
                 local.is_real.into(),
             );
 
-            builder.assert_bool(local.c_neg_mult_256);
-            builder.assert_bool(local.rem_neg_mult_256);
-
-            builder.when(local.c_neg_mult_256).assert_zero(local.c[0]);
-            builder
-                .when(local.rem_neg_mult_256)
-                .assert_zero(local.remainder[0]);
-
-            builder
-                .when(local.c_neg_mult_256)
-                .assert_zero(local.is_c_min.is_diff_zero.result);
-
-            builder
-                .when(local.rem_neg_mult_256)
-                .assert_zero(local.is_rem_min.is_diff_zero.result);
-
             eval_abs_value(
                 builder,
+                local.shard.borrow(),
+                local.channel.borrow(),
                 local.remainder.borrow(),
                 local.abs_remainder.borrow(),
                 local.rem_neg.borrow(),
                 local.is_rem_min.is_diff_zero.result.borrow(),
-                local.rem_neg_mult_256.borrow(),
             );
 
             eval_abs_value(
                 builder,
+                local.shard.borrow(),
+                local.channel.borrow(),
                 local.c.borrow(),
                 local.abs_c.borrow(),
                 local.c_neg.borrow(),
                 local.is_c_min.is_diff_zero.result.borrow(),
-                local.c_neg_mult_256.borrow(),
             );
 
             // max(abs(c), 1) = abs(c) * (1 - is_c_0) + 1 * is_c_0
@@ -957,6 +961,7 @@ mod tests {
             (Opcode::DIV, 1 << 31, 1 << 31, neg(1)),
             (Opcode::REM, 0, 1 << 31, neg(1)),
             (Opcode::REM, 0, 1 << 8, neg(256)),
+            (Opcode::REM, 0, 1 << 16, neg(256)),
         ];
         for t in divrems.iter() {
             divrem_events.push(AluEvent::new(0, 9, 0, t.0, t.1, t.2, t.3));
