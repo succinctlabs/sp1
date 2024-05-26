@@ -24,19 +24,24 @@ impl<F: Field> CpuChip<F> {
         let is_branch_instruction = self.is_branch_instruction::<AB>(local);
         let one = AB::Expr::one();
 
-        // If the instruction is a BNEINC, verify that the a value is incremented by one.
-        let expected_a_val = local.a.prev_value()[0] + one.clone();
-        builder
-            .when(local.is_real)
-            .when(local.selectors.is_bneinc)
-            .assert_block_eq(*local.a.value(), Block::from(expected_a_val));
-
-        // Convert operand values from Block<Var> to BinomialExtension<Expr>.  Note that the BNEINC
-        // operation will use the post incremented a_operand value for the comparison check.
+        // Convert operand values from Block<Var> to BinomialExtension<Expr>.  Note that it gets the
+        // previous value of the `a` and `b` operands, since BNENIC will modify `a`.
+        let a_prev_ext: BinomialExtension<AB::Expr> =
+            BinomialExtensionUtils::from_block(local.a.prev_value().map(|x| x.into()));
         let a_ext: BinomialExtension<AB::Expr> =
             BinomialExtensionUtils::from_block(local.a.value().map(|x| x.into()));
         let b_ext: BinomialExtension<AB::Expr> =
             BinomialExtensionUtils::from_block(local.b.value().map(|x| x.into()));
+        let one_ext: BinomialExtension<AB::Expr> =
+            BinomialExtensionUtils::from_block(Block::from(one.clone()));
+
+        let expected_a_ext = a_prev_ext + one_ext;
+
+        // If the instruction is a BNEINC, verify that the a value is incremented by one.
+        builder
+            .when(local.is_real)
+            .when(local.selectors.is_bneinc)
+            .assert_block_eq(a_ext.as_block(), expected_a_ext.as_block());
 
         let comparison_diff = a_ext - b_ext;
 
