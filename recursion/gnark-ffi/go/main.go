@@ -7,7 +7,7 @@ typedef struct {
 	char *PublicInputs[2];
 	char *EncodedProof;
 	char *RawProof;
-} C_Groth16Proof;
+} C_PlonkBn254Proof;
 */
 import "C"
 import (
@@ -17,50 +17,51 @@ import (
 	"sync"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend/groth16"
+	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/frontend/cs/scs"
+	"github.com/consensys/gnark/test/unsafekzg"
 	"github.com/succinctlabs/sp1-recursion-gnark/sp1"
 )
 
 func main() {}
 
-//export ProveGroth16
-func ProveGroth16(dataDir *C.char, witnessPath *C.char) *C.C_Groth16Proof {
+//export ProvePlonkBn254
+func ProvePlonkBn254(dataDir *C.char, witnessPath *C.char) *C.C_PlonkBn254Proof {
 	dataDirString := C.GoString(dataDir)
 	witnessPathString := C.GoString(witnessPath)
 
-	sp1Groth16Proof := sp1.ProveGroth16(dataDirString, witnessPathString)
+	sp1PlonkBn254Proof := sp1.Prove(dataDirString, witnessPathString)
 
-	ms := C.malloc(C.sizeof_C_Groth16Proof)
+	ms := C.malloc(C.sizeof_C_PlonkBn254Proof)
 	if ms == nil {
 		return nil
 	}
 
-	structPtr := (*C.C_Groth16Proof)(ms)
-	structPtr.PublicInputs[0] = C.CString(sp1Groth16Proof.PublicInputs[0])
-	structPtr.PublicInputs[1] = C.CString(sp1Groth16Proof.PublicInputs[1])
-	structPtr.EncodedProof = C.CString(sp1Groth16Proof.EncodedProof)
-	structPtr.RawProof = C.CString(sp1Groth16Proof.RawProof)
+	structPtr := (*C.C_PlonkBn254Proof)(ms)
+	structPtr.PublicInputs[0] = C.CString(sp1PlonkBn254Proof.PublicInputs[0])
+	structPtr.PublicInputs[1] = C.CString(sp1PlonkBn254Proof.PublicInputs[1])
+	structPtr.EncodedProof = C.CString(sp1PlonkBn254Proof.EncodedProof)
+	structPtr.RawProof = C.CString(sp1PlonkBn254Proof.RawProof)
 	return structPtr
 }
 
-//export BuildGroth16
-func BuildGroth16(dataDir *C.char) {
+//export BuildPlonkBn254
+func BuildPlonkBn254(dataDir *C.char) {
 	// Sanity check the required arguments have been provided.
 	dataDirString := C.GoString(dataDir)
 
-	sp1.BuildGroth16(dataDirString)
+	sp1.Build(dataDirString)
 }
 
-//export VerifyGroth16
-func VerifyGroth16(dataDir *C.char, proof *C.char, vkeyHash *C.char, commitedValuesDigest *C.char) *C.char {
+//export VerifyPlonkBn254
+func VerifyPlonkBn254(dataDir *C.char, proof *C.char, vkeyHash *C.char, commitedValuesDigest *C.char) *C.char {
 	dataDirString := C.GoString(dataDir)
 	proofString := C.GoString(proof)
 	vkeyHashString := C.GoString(vkeyHash)
 	commitedValuesDigestString := C.GoString(commitedValuesDigest)
 
-	err := sp1.VerifyGroth16(dataDirString, proofString, vkeyHashString, commitedValuesDigestString)
+	err := sp1.Verify(dataDirString, proofString, vkeyHashString, commitedValuesDigestString)
 	if err != nil {
 		return C.CString(err.Error())
 	}
@@ -69,8 +70,8 @@ func VerifyGroth16(dataDir *C.char, proof *C.char, vkeyHash *C.char, commitedVal
 
 var testMutex = &sync.Mutex{}
 
-//export TestGroth16
-func TestGroth16(witnessPath *C.char, constraintsJson *C.char) *C.char {
+//export TestPlonkBn254
+func TestPlonkBn254(witnessPath *C.char, constraintsJson *C.char) *C.char {
 	// Because of the global env variables used here, we need to lock this function
 	testMutex.Lock()
 	witnessPathString := C.GoString(witnessPath)
@@ -107,16 +108,20 @@ func TestMain() error {
 
 	// Compile the circuit.
 	circuit := sp1.NewCircuit(inputs)
-	builder := r1cs.NewBuilder
-	r1cs, err := frontend.Compile(ecc.BN254.ScalarField(), builder, &circuit)
+	builder := scs.NewBuilder
+	scs, err := frontend.Compile(ecc.BN254.ScalarField(), builder, &circuit)
 	if err != nil {
 		return err
 	}
-	fmt.Println("[sp1] groth16 verifier constraints:", r1cs.GetNbConstraints())
+	fmt.Println("[sp1] gnark verifier constraints:", scs.GetNbConstraints())
 
 	// Run the dummy setup.
-	var pk groth16.ProvingKey
-	pk, err = groth16.DummySetup(r1cs)
+	srs, srsLagrange, err := unsafekzg.NewSRS(scs)
+	if err != nil {
+		return err
+	}
+	var pk plonk.ProvingKey
+	pk, _, err = plonk.Setup(scs, srs, srsLagrange)
 	if err != nil {
 		return err
 	}
@@ -129,7 +134,7 @@ func TestMain() error {
 	}
 
 	// Generate the proof.
-	_, err = groth16.Prove(r1cs, pk, witness)
+	_, err = plonk.Prove(scs, pk, witness)
 	if err != nil {
 		return err
 	}

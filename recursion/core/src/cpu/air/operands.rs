@@ -7,7 +7,7 @@ use crate::{
     memory::MemoryCols,
 };
 
-impl<F: Field> CpuChip<F> {
+impl<F: Field, const L: usize> CpuChip<F, L> {
     /// Eval the operands.
     pub fn eval_operands<AB>(&self, builder: &mut AB, local: &CpuCols<AB::Var>)
     where

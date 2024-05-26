@@ -41,7 +41,7 @@ cfg-if = "1.0"
 
 [features]
 neon = ["sp1-core/neon"]
-groth16 = ["sp1-prover/groth16"]
+plonk_bn254= ["sp1-prover/plonk_bn254"]
 
 [build-dependencies]
 vergen = { version = "8", default-features = false, features = [

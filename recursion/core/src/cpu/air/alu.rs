@@ -8,7 +8,7 @@ use crate::{
     memory::MemoryCols,
 };
 
-impl<F: Field> CpuChip<F> {
+impl<F: Field, const L: usize> CpuChip<F, L> {
     /// Eval the ALU instructions.
     pub fn eval_alu<AB>(&self, builder: &mut AB, local: &CpuCols<AB::Var>)
     where

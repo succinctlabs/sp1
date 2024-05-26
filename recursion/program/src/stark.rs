@@ -343,14 +343,16 @@ where
         pcs.verify(builder, rounds, opening_proof.clone(), challenger);
         builder.cycle_tracker("stage-d-verify-pcs");
 
-        // TODO CONSTRAIN: that the preprocessed chips get called with verify_constraints.
         builder.cycle_tracker("stage-e-verify-constraints");
         for (i, chip) in machine.chips().iter().enumerate() {
-            let chip_name = chip.name();
-            tracing::debug!("verifying constraints for chip: {}", chip_name);
+            tracing::debug!("verifying constraints for chip: {}", chip.name());
             let index = builder.get(&proof.sorted_idxs, i);
 
             if chip.preprocessed_width() > 0 {
+                builder.assert_var_ne(index, C::N::from_canonical_usize(EMPTY));
+            }
+
+            if chip.name() == "CPU" {
                 builder.assert_var_ne(index, C::N::from_canonical_usize(EMPTY));
             }
 

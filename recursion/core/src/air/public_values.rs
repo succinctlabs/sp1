@@ -1,4 +1,4 @@
-use crate::runtime::{DIGEST_SIZE, PERMUTATION_WIDTH};
+use crate::runtime::{DIGEST_SIZE, HASH_RATE, PERMUTATION_WIDTH};
 
 use core::fmt::Debug;
 use p3_challenger::DuplexChallenger;
@@ -49,7 +49,7 @@ pub struct ChallengerPublicValues<T> {
 impl<T: Clone + Debug> ChallengerPublicValues<T> {
     pub fn set_challenger<P: CryptographicPermutation<[T; PERMUTATION_WIDTH]>>(
         &self,
-        challenger: &mut DuplexChallenger<T, P, PERMUTATION_WIDTH>,
+        challenger: &mut DuplexChallenger<T, P, PERMUTATION_WIDTH, HASH_RATE>,
     ) where
         T: PrimeField32,
     {

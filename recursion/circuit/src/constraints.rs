@@ -182,7 +182,7 @@ mod tests {
         runtime::Runtime,
         stark::{config::BabyBearPoseidon2Outer, RecursionAirWideDeg3},
     };
-    use sp1_recursion_gnark_ffi::Groth16Prover;
+    use sp1_recursion_gnark_ffi::PlonkBn254Prover;
 
     use crate::stark::{tests::basic_program, StarkVerifierCircuit};
 
@@ -359,6 +359,6 @@ mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        Groth16Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
+        PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
     }
 }

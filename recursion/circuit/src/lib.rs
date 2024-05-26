@@ -30,7 +30,7 @@ mod tests {
     use sp1_recursion_compiler::ir::Ext;
     use sp1_recursion_compiler::ir::ExtConst;
     use sp1_recursion_compiler::ir::{Builder, Felt, Witness};
-    use sp1_recursion_gnark_ffi::Groth16Prover;
+    use sp1_recursion_gnark_ffi::PlonkBn254Prover;
 
     #[test]
     fn test_base_babybear() {
@@ -68,7 +68,7 @@ mod tests {
         let constraints = backend.emit(builder.operations);
 
         let witness = Witness::default();
-        Groth16Prover::test::<OuterConfig>(constraints.clone(), witness);
+        PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), witness);
     }
 
     #[test]
@@ -123,7 +123,7 @@ mod tests {
         let constraints = backend.emit(builder.operations);
 
         let witness = Witness::default();
-        Groth16Prover::test::<OuterConfig>(constraints.clone(), witness);
+        PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), witness);
     }
 
     #[test]
@@ -143,7 +143,7 @@ mod tests {
         witness.write_vkey_hash(vkey_hash_bn254);
         witness.write_commited_values_digest(commited_values_digest_bn254);
 
-        Groth16Prover::test::<OuterConfig>(constraints.clone(), witness);
+        PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), witness);
     }
 
     #[test]
@@ -163,7 +163,7 @@ mod tests {
         let mut witness = Witness::default();
         witness.write_commited_values_digest(commited_values_digest_bn254);
 
-        Groth16Prover::test::<OuterConfig>(constraints.clone(), witness);
+        PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), witness);
     }
 
     #[test]
@@ -183,6 +183,6 @@ mod tests {
         let mut witness = Witness::default();
         witness.write_vkey_hash(vkey_hash_bn254);
 
-        Groth16Prover::test::<OuterConfig>(constraints.clone(), witness);
+        PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), witness);
     }
 }

@@ -440,6 +440,13 @@ where
         for r in NUM_EXTERNAL_ROUNDS / 2..NUM_EXTERNAL_ROUNDS {
             eval_external_round(builder, &cols, r, memory.is_real);
         }
+
+        // Make the degree equivalent to WIDTH to compress the interaction columns.
+        let mut dummy = memory.is_real * memory.is_real;
+        for _ in 0..(DEGREE - 2) {
+            dummy *= memory.is_real.into();
+        }
+        builder.assert_eq(dummy.clone(), dummy.clone());
     }
 }
 
