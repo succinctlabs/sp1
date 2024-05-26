@@ -412,14 +412,6 @@ where
             .when(local.c_sign_extend)
             .assert_eq(local.c_msb, one.clone());
 
-        // If the opcode doesn't allow sign extension for an operand, we must not extend their sign.
-        builder
-            .when(local.is_mul + local.is_mulhu)
-            .assert_zero(local.b_sign_extend + local.c_sign_extend);
-        builder
-            .when(local.is_mul + local.is_mulhsu + local.is_mulhsu)
-            .assert_zero(local.c_sign_extend);
-
         // Calculate the opcode.
         let opcode = {
             // Exactly one of the op codes must be on.
