@@ -54,7 +54,11 @@ impl Prover for LocalProver {
         })
     }
 
-    fn prove_plonk_bn254(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkBn254Proof> {
+    fn prove_plonk_bn254(
+        &self,
+        _pk: &SP1ProvingKey,
+        _stdin: SP1Stdin,
+    ) -> Result<SP1PlonkBn254Proof> {
         cfg_if! {
             if #[cfg(feature = "plonk_bn254")] {
 

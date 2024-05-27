@@ -73,7 +73,6 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use sp1_derive::AlignedBorrow;
 
-use self::utils::eval_abs_value;
 use crate::air::MachineAir;
 use crate::air::{SP1AirBuilder, Word};
 use crate::alu::divrem::utils::{get_msb, get_quotient_and_remainder, is_signed_operation};
