@@ -14,7 +14,7 @@ getrandom = { version = "0.2.14", features = ["custom"] }
 hex = "0.4.3"
 k256 = { version = "0.13.3", features = ["ecdsa", "std", "bits"] }
 rand = "0.8.5"
-serde = { version = "1.0.201", features = ["derive"] }
+serde = { version = "1.0.203", features = ["derive"] }
 num = { version = "0.4.3" }
 
 [features]

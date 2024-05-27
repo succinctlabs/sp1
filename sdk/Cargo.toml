@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 prost = "0.12"
-serde = { version = "1.0.201", features = ["derive"] }
+serde = { version = "1.0.203", features = ["derive"] }
 serde_json = "1.0.117"
 twirp = { git = "https://github.com/github/twirp-rs.git", rev = "c85f31f9c54957374e7dcb3534fc52cff0aa2dc5" }
 async-trait = "0.1.80"
