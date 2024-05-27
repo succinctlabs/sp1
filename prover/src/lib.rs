@@ -568,7 +568,7 @@ impl SP1Prover {
         tracing::debug!("Compress program executed successfully");
 
         // Prove the compress program.
-        let opts = SP1CoreOpts::default();
+        let opts = SP1CoreOpts::recursion();
         let mut compress_challenger = self.shrink_machine.config().challenger();
         let mut compress_proof = self.shrink_machine.prove::<LocalProver<_, _>>(
             &self.shrink_pk,
