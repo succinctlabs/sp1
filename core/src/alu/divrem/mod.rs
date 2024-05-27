@@ -764,14 +764,6 @@ where
                 builder.assert_eq(local.max_abs_c_or_1[i], max_abs_c_or_1[i].clone());
             }
 
-            let opcode = {
-                let is_signed = local.is_div + local.is_rem;
-                let is_unsigned = local.is_divu + local.is_remu;
-                let slt = AB::Expr::from_canonical_u32(Opcode::SLT as u32);
-                let sltu = AB::Expr::from_canonical_u32(Opcode::SLTU as u32);
-                is_signed * slt + is_unsigned * sltu
-            };
-
             // Check that the event multiplicity column is computed correctly.
             builder.assert_eq(
                 local.remainder_check_multiplicity,
@@ -785,7 +777,7 @@ where
             // Dispatch abs(remainder) < max(abs(c), 1), this is equivalent to abs(remainder) <
             // abs(c) if not division by 0.
             builder.send_alu(
-                opcode,
+                Opcode::SLTU,
                 Word([one.clone(), zero.clone(), zero.clone(), zero.clone()]),
                 local.abs_remainder,
                 local.max_abs_c_or_1,
