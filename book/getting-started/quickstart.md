@@ -35,7 +35,7 @@ There are 2 directories (each a crate) in the project:
 We recommend you install the [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer) extension.
 Note that if you use `cargo prove new` inside a monorepo, you will need to add the manifest file to `rust-analyzer.linkedProjects` to get full IDE support.
 
-## Generate a Proof
+## Generate Proof
 
 The program simply computes the `n`-th Fibonacci number.
 
