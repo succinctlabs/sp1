@@ -75,7 +75,7 @@ mod tests {
     use crate::{
         io::SP1Stdin,
         runtime::Program,
-        utils::{prove, setup_logger, BabyBearPoseidon2},
+        utils::{prove, setup_logger, BabyBearPoseidon2, SP1CoreOpts},
     };
 
     const HINT_IO_ELF: &[u8] =
@@ -96,6 +96,6 @@ mod tests {
         let program = Program::from(HINT_IO_ELF);
 
         let config = BabyBearPoseidon2::new();
-        prove(program, &stdin, config).unwrap();
+        prove(program, &stdin, config, SP1CoreOpts::default()).unwrap();
     }
 }

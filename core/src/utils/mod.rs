@@ -1,8 +1,8 @@
 mod buffer;
 mod config;
 pub mod ec;
-pub mod env;
 mod logger;
+mod options;
 mod programs;
 mod prove;
 mod tracer;
@@ -10,6 +10,7 @@ mod tracer;
 pub use buffer::*;
 pub use config::*;
 pub use logger::*;
+pub use options::*;
 pub use prove::*;
 pub use tracer::*;
 

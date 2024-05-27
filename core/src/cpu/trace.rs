@@ -641,7 +641,7 @@ mod tests {
     use super::*;
 
     use crate::runtime::{tests::simple_program, Instruction, Runtime};
-    use crate::utils::{run_test, setup_logger};
+    use crate::utils::{run_test, setup_logger, SP1CoreOpts};
 
     #[test]
     fn generate_trace() {
@@ -679,7 +679,7 @@ mod tests {
     #[test]
     fn generate_trace_simple_program() {
         let program = simple_program();
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, SP1CoreOpts::default());
         runtime.run().unwrap();
         let chip = CpuChip::default();
         let trace: RowMajorMatrix<BabyBear> =
