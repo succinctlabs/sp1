@@ -184,12 +184,6 @@ pub struct DivRemCols<T> {
     /// Flag to indicate whether `c` is negative.
     pub c_neg: T,
 
-    /// Flag to indicate whether `c` is i32::MIN.
-    pub is_c_min: IsEqualWordOperation<T>,
-
-    /// Flag to indicate whether `rem` is i32::MIN.
-    pub is_rem_min: IsEqualWordOperation<T>,
-
     /// Selector to determine whether an ALU Event is sent for absolute value computation of `c`.
     pub abs_c_alu_event: T,
 
@@ -270,10 +264,6 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                     cols.abs_c = cols.c;
                     cols.max_abs_c_or_1 = Word::from(u32::max(1, event.c));
                 }
-
-                // Populate the `is_min` selectors.
-                cols.is_c_min.populate(event.c, i32::MIN as u32);
-                cols.is_rem_min.populate(remainder, i32::MIN as u32);
 
                 // Set the `alu_event` flags.
                 cols.abs_c_alu_event = cols.c_neg * cols.is_real;
@@ -717,12 +707,6 @@ where
                     .assert_eq(local.c[i], local.abs_c[i]);
                 builder
                     .when_not(local.rem_neg)
-                    .assert_eq(local.remainder[i], local.abs_remainder[i]);
-                builder
-                    .when(local.is_c_min.is_diff_zero.result)
-                    .assert_eq(local.c[i], local.abs_c[i]);
-                builder
-                    .when(local.is_rem_min.is_diff_zero.result)
                     .assert_eq(local.remainder[i], local.abs_remainder[i]);
             }
             // In the case that `c` or `rem` is negative, instead check that their sum is zero by
