@@ -146,10 +146,7 @@ where
     }
 }
 
-pub struct LocalProver<SC, A> {
-    pub opts: SP1CoreOpts,
-    pub _phantom: PhantomData<(SC, A)>,
-}
+pub struct LocalProver<SC, A>(PhantomData<SC>, PhantomData<A>);
 
 impl<SC, A> LocalProver<SC, A>
 where
