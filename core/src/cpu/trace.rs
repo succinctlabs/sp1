@@ -447,8 +447,8 @@ impl CpuChip {
                 let next_pc = event.pc.wrapping_add(event.c);
 
                 cols.branching = F::one();
-                branch_columns.pc = event.pc.into();
-                branch_columns.next_pc = next_pc.into();
+                branch_columns.pc.populate(event.pc);
+                branch_columns.next_pc.populate(next_pc);
 
                 let add_event = AluEvent {
                     shard: event.shard,
@@ -483,8 +483,8 @@ impl CpuChip {
             match event.instruction.opcode {
                 Opcode::JAL => {
                     let next_pc = event.pc.wrapping_add(event.b);
-                    jump_columns.pc = event.pc.into();
-                    jump_columns.next_pc = next_pc.into();
+                    jump_columns.pc.populate(event.pc);
+                    jump_columns.next_pc.populate(next_pc);
 
                     let add_event = AluEvent {
                         shard: event.shard,
@@ -503,7 +503,7 @@ impl CpuChip {
                 }
                 Opcode::JALR => {
                     let next_pc = event.b.wrapping_add(event.c);
-                    jump_columns.next_pc = next_pc.into();
+                    jump_columns.next_pc.populate(next_pc);
 
                     let add_event = AluEvent {
                         shard: event.shard,
@@ -535,7 +535,7 @@ impl CpuChip {
         if matches!(event.instruction.opcode, Opcode::AUIPC) {
             let auipc_columns = cols.opcode_specific_columns.auipc_mut();
 
-            auipc_columns.pc = event.pc.into();
+            auipc_columns.pc.populate(event.pc);
 
             let add_event = AluEvent {
                 shard: event.shard,

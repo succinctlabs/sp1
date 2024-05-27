@@ -1,7 +1,7 @@
 use sp1_derive::AlignedBorrow;
 use std::mem::size_of;
 
-use crate::air::Word;
+use crate::operations::BabyBearWord;
 
 pub const NUM_BRANCH_COLS: usize = size_of::<BranchCols<u8>>();
 
@@ -10,10 +10,10 @@ pub const NUM_BRANCH_COLS: usize = size_of::<BranchCols<u8>>();
 #[repr(C)]
 pub struct BranchCols<T> {
     /// The current program counter.
-    pub pc: Word<T>,
+    pub pc: BabyBearWord<T>,
 
     /// The next program counter.
-    pub next_pc: Word<T>,
+    pub next_pc: BabyBearWord<T>,
 
     /// Whether a equals b.
     pub a_eq_b: T,

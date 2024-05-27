@@ -22,6 +22,7 @@ use crate::bytes::ByteOpcode;
 use crate::cpu::columns::OpcodeSelectorCols;
 use crate::cpu::columns::{CpuCols, NUM_CPU_COLS};
 use crate::cpu::CpuChip;
+use crate::operations::BabyBearWord;
 use crate::runtime::Opcode;
 
 use super::columns::eval_channel_selectors;
@@ -160,26 +161,34 @@ impl CpuChip {
         // Verify that the word form of local.pc is correct for JAL instructions.
         builder
             .when(local.selectors.is_jal)
-            .assert_eq(jump_columns.pc.reduce::<AB>(), local.pc);
+            .assert_eq(jump_columns.pc.value.reduce::<AB>(), local.pc);
 
         // Verify that the word form of next.pc is correct for both jump instructions.
         builder
             .when_transition()
             .when(next.is_real)
             .when(is_jump_instruction.clone())
-            .assert_eq(jump_columns.next_pc.reduce::<AB>(), next.pc);
+            .assert_eq(jump_columns.next_pc.value.reduce::<AB>(), next.pc);
 
         // When the last row is real and it's a jump instruction, assert that local.next_pc <==> jump_column.next_pc
         builder
             .when(local.is_real)
             .when(is_jump_instruction.clone())
-            .assert_eq(jump_columns.next_pc.reduce::<AB>(), local.next_pc);
+            .assert_eq(jump_columns.next_pc.value.reduce::<AB>(), local.next_pc);
+
+        // Range check pc and next_pc
+        BabyBearWord::<AB::F>::range_check(builder, jump_columns.pc, local.selectors.is_jal.into());
+        BabyBearWord::<AB::F>::range_check(
+            builder,
+            jump_columns.next_pc,
+            is_jump_instruction.clone(),
+        );
 
         // Verify that the new pc is calculated correctly for JAL instructions.
         builder.send_alu(
             AB::Expr::from_canonical_u32(Opcode::ADD as u32),
-            jump_columns.next_pc,
-            jump_columns.pc,
+            jump_columns.next_pc.value,
+            jump_columns.pc.value,
             local.op_b_val(),
             local.shard,
             local.channel,
@@ -189,7 +198,7 @@ impl CpuChip {
         // Verify that the new pc is calculated correctly for JALR instructions.
         builder.send_alu(
             AB::Expr::from_canonical_u32(Opcode::ADD as u32),
-            jump_columns.next_pc,
+            jump_columns.next_pc.value,
             local.op_b_val(),
             local.op_c_val(),
             local.shard,
@@ -206,13 +215,20 @@ impl CpuChip {
         // Verify that the word form of local.pc is correct.
         builder
             .when(local.selectors.is_auipc)
-            .assert_eq(auipc_columns.pc.reduce::<AB>(), local.pc);
+            .assert_eq(auipc_columns.pc.value.reduce::<AB>(), local.pc);
+
+        // Range check the pc.
+        BabyBearWord::<AB::F>::range_check(
+            builder,
+            auipc_columns.pc,
+            local.selectors.is_auipc.into(),
+        );
 
         // Verify that op_a == pc + op_b.
         builder.send_alu(
             AB::Expr::from_canonical_u32(Opcode::ADD as u32),
             local.op_a_val(),
-            auipc_columns.pc,
+            auipc_columns.pc.value,
             local.op_b_val(),
             local.shard,
             local.channel,
