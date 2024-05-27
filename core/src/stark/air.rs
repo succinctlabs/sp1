@@ -152,12 +152,12 @@ impl<F: PrimeField32> RiscvAir<F> {
         chips.push(RiscvAir::Uint256Mul(uint256_mul));
         let bls12381_decompress = WeierstrassDecompressChip::<SwCurve<Bls12381Parameters>>::new();
         chips.push(RiscvAir::Bls12381Decompress(bls12381_decompress));
+        let div_rem = DivRemChip::default();
+        chips.push(RiscvAir::DivRem(div_rem));
         let add = AddSubChip::default();
         chips.push(RiscvAir::Add(add));
         let bitwise = BitwiseChip::default();
         chips.push(RiscvAir::Bitwise(bitwise));
-        let div_rem = DivRemChip::default();
-        chips.push(RiscvAir::DivRem(div_rem));
         let mul = MulChip::default();
         chips.push(RiscvAir::Mul(mul));
         let shift_right = ShiftRightChip::default();

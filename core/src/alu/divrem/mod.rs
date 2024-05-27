@@ -64,6 +64,7 @@ mod utils;
 
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
+use std::collections::HashMap;
 
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
@@ -184,6 +185,18 @@ pub struct DivRemCols<T> {
     /// Flag to indicate whether `c` is negative.
     pub c_neg: T,
 
+    /// Flag to indicate whether `c` is i32::MIN.
+    pub is_c_min: IsEqualWordOperation<T>,
+
+    /// Flag to indicate whether `rem` is i32::MIN.
+    pub is_rem_min: IsEqualWordOperation<T>,
+
+    /// Selector to determine whether an ALU Event is sent for absolute value computation of `c`.
+    pub abs_c_alu_event: T,
+
+    /// Selector to determine whether an ALU Event is sent for absolute value computation of `rem`.
+    pub abs_rem_alu_event: T,
+
     /// Selector to know whether this row is enabled.
     pub is_real: T,
 
@@ -259,6 +272,14 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                     cols.max_abs_c_or_1 = Word::from(u32::max(1, event.c));
                 }
 
+                // Populate the `is_min` selectors.
+                cols.is_c_min.populate(event.c, i32::MIN as u32);
+                cols.is_rem_min.populate(remainder, i32::MIN as u32);
+
+                // Set the `alu_event` flags.
+                cols.abs_c_alu_event = cols.c_neg * cols.is_real;
+                cols.abs_rem_alu_event = cols.rem_neg * cols.is_real;
+
                 // Insert the MSB lookup events.
                 {
                     let words = [event.b, event.c, remainder];
@@ -321,6 +342,36 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                 // mul and LT upon which div depends. This ordering is critical as mul and LT
                 // require all the mul and LT events be added before we can call generate_trace.
                 {
+                    // Insert the absolute value computation events.
+                    {
+                        let mut add_events: Vec<AluEvent> = vec![];
+                        if cols.abs_c_alu_event == F::one() {
+                            add_events.push(AluEvent {
+                                shard: event.shard,
+                                channel: event.channel,
+                                clk: event.clk,
+                                opcode: Opcode::ADD,
+                                a: 0,
+                                b: event.c,
+                                c: (event.c as i32).abs() as u32,
+                            })
+                        }
+                        if cols.abs_rem_alu_event == F::one() {
+                            add_events.push(AluEvent {
+                                shard: event.shard,
+                                channel: event.channel,
+                                clk: event.clk,
+                                opcode: Opcode::ADD,
+                                a: 0,
+                                b: remainder,
+                                c: (remainder as i32).abs() as u32,
+                            })
+                        }
+                        let mut alu_events = HashMap::new();
+                        alu_events.insert(Opcode::ADD, add_events);
+                        output.add_alu_events(alu_events);
+                    }
+
                     let mut lower_word = 0;
                     for i in 0..WORD_SIZE {
                         lower_word += (c_times_quotient[i] as u32) << (i * BYTE_SIZE);
@@ -659,18 +710,41 @@ where
 
         // Range check remainder. (i.e., |remainder| < |c| when not is_c_0)
         {
-            eval_abs_value(
-                builder,
-                local.remainder.borrow(),
-                local.abs_remainder.borrow(),
-                local.rem_neg.borrow(),
+            // For each of `c` and `rem`, assert that the absolute value is equal to the original value,
+            // if the original value is non-negative or the minimum i32.
+            for i in 0..WORD_SIZE {
+                builder
+                    .when_not(local.c_neg)
+                    .assert_eq(local.c[i], local.abs_c[i]);
+                builder
+                    .when_not(local.rem_neg)
+                    .assert_eq(local.remainder[i], local.abs_remainder[i]);
+                builder
+                    .when(local.is_c_min.is_diff_zero.result)
+                    .assert_eq(local.c[i], local.abs_c[i]);
+                builder
+                    .when(local.is_rem_min.is_diff_zero.result)
+                    .assert_eq(local.remainder[i], local.abs_remainder[i]);
+            }
+            // In the case that `c` or `rem` is negative, instead check that their sum is zero by
+            // sending an AddEvent.
+            builder.send_alu(
+                AB::Expr::from_canonical_u32(Opcode::ADD as u32),
+                Word([zero.clone(), zero.clone(), zero.clone(), zero.clone()]),
+                local.c,
+                local.abs_c,
+                local.shard,
+                local.channel,
+                local.abs_c_alu_event,
             );
-
-            eval_abs_value(
-                builder,
-                local.c.borrow(),
-                local.abs_c.borrow(),
-                local.c_neg.borrow(),
+            builder.send_alu(
+                AB::Expr::from_canonical_u32(Opcode::ADD as u32),
+                Word([zero.clone(), zero.clone(), zero.clone(), zero.clone()]),
+                local.remainder,
+                local.abs_remainder,
+                local.shard,
+                local.channel,
+                local.abs_rem_alu_event,
             );
 
             // max(abs(c), 1) = abs(c) * (1 - is_c_0) + 1 * is_c_0
@@ -704,6 +778,10 @@ where
                 local.remainder_check_multiplicity,
                 local.is_c_0.result * local.is_real,
             );
+
+            // Check that the absolute value selector columns are computed correctly.
+            builder.assert_eq(local.abs_c_alu_event, local.c_neg * local.is_real);
+            builder.assert_eq(local.abs_rem_alu_event, local.rem_neg * local.is_real);
 
             // Dispatch abs(remainder) < max(abs(c), 1), this is equivalent to abs(remainder) <
             // abs(c) if not division by 0.
@@ -783,6 +861,8 @@ where
                 local.rem_neg,
                 local.c_neg,
                 local.is_real,
+                local.abs_c_alu_event,
+                local.abs_rem_alu_event,
             ];
 
             for flag in bool_flags.iter() {
