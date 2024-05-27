@@ -97,11 +97,7 @@ impl<'a, SC: StarkGenericConfig, A: MachineAir<SC::Val>> VerifyingKeyHint<'a, SC
 impl<C: Config, SC: StarkGenericConfig, A> StarkRecursiveVerifier<C> for StarkMachine<SC, A>
 where
     C::F: TwoAdicField,
-    SC: StarkGenericConfig<
-        Val = C::F,
-        Challenge = C::EF,
-        Domain = TwoAdicMultiplicativeCoset<C::F>,
-    >,
+    SC: StarkGenericConfig<Val = C::F, Challenge = C::EF, Domain = TwoAdicMultiplicativeCoset<C::F>>,
     A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
     C::F: TwoAdicField,
     C::EF: TwoAdicField,
@@ -148,11 +144,7 @@ pub type RecursiveVerifierConstraintFolder<'a, C> = GenericVerifierConstraintFol
 impl<C: Config, SC: StarkGenericConfig> StarkVerifier<C, SC>
 where
     C::F: TwoAdicField,
-    SC: StarkGenericConfig<
-        Val = C::F,
-        Challenge = C::EF,
-        Domain = TwoAdicMultiplicativeCoset<C::F>,
-    >,
+    SC: StarkGenericConfig<Val = C::F, Challenge = C::EF, Domain = TwoAdicMultiplicativeCoset<C::F>>,
 {
     pub fn verify_shard<A>(
         builder: &mut Builder<C>,
@@ -419,6 +411,7 @@ pub(crate) mod tests {
     use sp1_core::utils::setup_logger;
     use sp1_core::utils::InnerChallenge;
     use sp1_core::utils::InnerVal;
+    use sp1_core::utils::SP1CoreOpts;
     use sp1_core::{
         stark::{RiscvAir, StarkGenericConfig},
         utils::BabyBearPoseidon2,
@@ -460,8 +453,13 @@ pub(crate) mod tests {
         let machine = A::machine(SC::default());
         let (_, vk) = machine.setup(&Program::from(elf));
         let mut challenger_val = machine.config().challenger();
-        let (proof, _) =
-            sp1_core::utils::prove(Program::from(elf), &SP1Stdin::new(), SC::default()).unwrap();
+        let (proof, _) = sp1_core::utils::prove(
+            Program::from(elf),
+            &SP1Stdin::new(),
+            SC::default(),
+            SP1CoreOpts::default(),
+        )
+        .unwrap();
         let proofs = proof.shard_proofs;
         println!("Proof generated successfully");
 
@@ -559,8 +557,12 @@ pub(crate) mod tests {
         let record = runtime.record.clone();
 
         let mut challenger = machine.config().challenger();
-        let mut proof =
-            machine.prove::<LocalProver<SC, RecursionAir<_, 3>>>(&pk, record, &mut challenger);
+        let mut proof = machine.prove::<LocalProver<SC, RecursionAir<_, 3>>>(
+            &pk,
+            record,
+            &mut challenger,
+            SP1CoreOpts::recursion(),
+        );
 
         let mut challenger = machine.config().challenger();
         let verification_result = machine.verify(&vk, &proof, &mut challenger);
