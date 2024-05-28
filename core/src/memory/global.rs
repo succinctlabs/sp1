@@ -183,6 +183,12 @@ where
             .when(next.is_real)
             .assert_eq(addr_increasing_check, next.addr - local.addr - AB::F::one());
 
+        if self.kind == MemoryChipType::Initialize {
+            builder
+                .when(local.is_real)
+                .assert_eq(local.timestamp, AB::F::one());
+        }
+
         // Register %x0 should always be 0. See 2.6 Load and Store Instruction on
         // P.18 of the RISC-V spec.  To ensure that, we expect that the first row of the Initialize
         // and Finalize global memory chip is for register %x0 (i.e. addr = 0x0), and that those rows

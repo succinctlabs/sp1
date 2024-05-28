@@ -1042,7 +1042,7 @@ impl Runtime {
             None => &MemoryRecord {
                 value: 0,
                 shard: 0,
-                timestamp: 0,
+                timestamp: 1,
             },
         };
         memory_finalize_events.push(MemoryInitializeFinalizeEvent::finalize_from_record(
