@@ -203,6 +203,11 @@ impl CpuChip {
             .when(local.selectors.is_sh)
             .assert_zero(memory_columns.offset_is_one + memory_columns.offset_is_three);
 
+        // When the instruction is SW, make that the offset is 0.
+        builder
+            .when(local.selectors.is_sw)
+            .assert_one(offset_is_zero.clone());
+
         // Compute the expected stored value for a SH instruction.
         let a_is_lower_half = offset_is_zero;
         let a_is_upper_half = memory_columns.offset_is_two;
@@ -255,6 +260,12 @@ impl CpuChip {
         builder
             .when(local.selectors.is_lh + local.selectors.is_lhu)
             .assert_zero(memory_columns.offset_is_one + memory_columns.offset_is_three);
+
+        // When the instruction is LW, ensure the offset is zero.
+        builder
+            .when(local.selectors.is_lw)
+            .assert_one(offset_is_zero.clone());
+
         let use_lower_half = offset_is_zero;
         let use_upper_half = memory_columns.offset_is_two;
         let half_value = Word([
