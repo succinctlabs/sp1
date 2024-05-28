@@ -10,7 +10,6 @@ use crate::utils::block_on;
 pub const PLONK_BN254_ARTIFACTS_URL_BASE: &str = "https://sp1-circuits.s3-us-east-2.amazonaws.com";
 
 /// The current version of the plonk bn254 artifacts.
-/// TODO: Update with artifacts that include SP1Verifier.txt, SP1MockVerifier.txt, etc.
 pub const PLONK_BN254_ARTIFACTS_COMMIT: &str = "c0ae98fe";
 
 /// Install the latest plonk bn254 artifacts.
