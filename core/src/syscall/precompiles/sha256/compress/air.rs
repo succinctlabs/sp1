@@ -71,19 +71,15 @@ impl ShaCompressChip {
         for i in 0..8 {
             octet_sum += local.octet[i].into();
         }
-        builder.when(local.is_real).assert_one(octet_sum);
+        builder.assert_one(octet_sum);
 
         // Verify that the first row's octet value is correct.
-        builder
-            .when_first_row()
-            .when(local.is_real)
-            .assert_one(local.octet[0]);
+        builder.when_first_row().assert_one(local.octet[0]);
 
         // Verify correct transition for octet column.
         for i in 0..8 {
             builder
                 .when_transition()
-                .when(next.is_real)
                 .when(local.octet[i])
                 .assert_one(next.octet[(i + 1) % 8])
         }
@@ -98,19 +94,15 @@ impl ShaCompressChip {
         for i in 0..10 {
             octet_num_sum += local.octet_num[i].into();
         }
-        builder.when(local.is_real).assert_one(octet_num_sum);
+        builder.assert_one(octet_num_sum);
 
         // The first row should have octet_num[0] = 1 if it's real.
-        builder
-            .when_first_row()
-            .when(local.is_real)
-            .assert_one(local.octet_num[0]);
+        builder.when_first_row().assert_one(local.octet_num[0]);
 
         // If current row is not last of an octet and next row is real, octet_num should be the same.
         for i in 0..10 {
             builder
                 .when_transition()
-                .when(next.is_real)
                 .when_not(local.octet[7])
                 .assert_eq(local.octet_num[i], next.octet_num[i]);
         }
@@ -119,7 +111,6 @@ impl ShaCompressChip {
         for i in 0..10 {
             builder
                 .when_transition()
-                .when(next.is_real)
                 .when(local.octet[7])
                 .assert_eq(local.octet_num[i], next.octet_num[(i + 1) % 10]);
         }
@@ -146,18 +137,25 @@ impl ShaCompressChip {
                 .assert_word_eq(*var, *local.mem.value());
         }
 
+        // Assert that the is_initialize flag is correct.
+        builder.assert_eq(local.is_initialize, local.octet_num[0] * local.is_real);
+
         // Assert that the is_compression flag is correct.
         builder.assert_eq(
             local.is_compression,
-            local.octet_num[1]
+            (local.octet_num[1]
                 + local.octet_num[2]
                 + local.octet_num[3]
                 + local.octet_num[4]
                 + local.octet_num[5]
                 + local.octet_num[6]
                 + local.octet_num[7]
-                + local.octet_num[8],
+                + local.octet_num[8])
+                * local.is_real,
         );
+
+        // Assert that the is_finalize flag is correct.
+        builder.assert_eq(local.is_finalize, local.octet_num[9] * local.is_real);
 
         builder.assert_eq(
             local.is_last_row.into(),
@@ -209,15 +207,13 @@ impl ShaCompressChip {
 
     /// Constrains that memory address is correct and that memory is correctly written/read.
     fn eval_memory<AB: SP1AirBuilder>(&self, builder: &mut AB, local: &ShaCompressCols<AB::Var>) {
-        let is_initialize = local.octet_num[0];
-        let is_finalize = local.octet_num[9];
         builder.eval_memory_access(
             local.shard,
             local.channel,
-            local.clk + is_finalize,
+            local.clk + local.is_finalize,
             local.mem_addr,
             &local.mem,
-            is_initialize + local.is_compression + is_finalize,
+            local.is_initialize + local.is_compression + local.is_finalize,
         );
 
         // Calculate the current cycle_num.
@@ -233,7 +229,7 @@ impl ShaCompressChip {
         }
 
         // Verify correct mem address for initialize phase
-        builder.when(is_initialize).assert_eq(
+        builder.when(local.is_initialize).assert_eq(
             local.mem_addr,
             local.h_ptr + cycle_step.clone() * AB::Expr::from_canonical_u32(4),
         );
@@ -248,7 +244,7 @@ impl ShaCompressChip {
         );
 
         // Verify correct mem address for finalize phase
-        builder.when(is_finalize).assert_eq(
+        builder.when(local.is_finalize).assert_eq(
             local.mem_addr,
             local.h_ptr + cycle_step.clone() * AB::Expr::from_canonical_u32(4),
         );
@@ -260,11 +256,11 @@ impl ShaCompressChip {
         ];
         for (i, var) in vars.iter().enumerate() {
             builder
-                .when(is_initialize)
+                .when(local.is_initialize)
                 .when(local.octet[i])
                 .assert_word_eq(*var, *local.mem.prev_value());
             builder
-                .when(is_initialize)
+                .when(local.is_initialize)
                 .when(local.octet[i])
                 .assert_word_eq(*var, *local.mem.value());
         }
@@ -276,7 +272,7 @@ impl ShaCompressChip {
 
         // In the finalize phase, verify that the correct value is written to memory.
         builder
-            .when(is_finalize)
+            .when(local.is_finalize)
             .assert_word_eq(*local.mem.value(), local.finalize_add.value);
     }
 
@@ -588,7 +584,6 @@ impl ShaCompressChip {
         builder: &mut AB,
         local: &ShaCompressCols<AB::Var>,
     ) {
-        let is_finalize = local.octet_num[9];
         // In the finalize phase, need to execute h[0] + a, h[1] + b, ..., h[7] + h, for each of the
         // phase's 8 rows.
         // We can get the needed operand (a,b,c,...,h) by doing an inner product between octet and
@@ -605,7 +600,7 @@ impl ShaCompressChip {
         }
 
         builder
-            .when(is_finalize)
+            .when(local.is_finalize)
             .assert_word_eq(filtered_operand, local.finalized_operand.map(|x| x.into()));
 
         // finalize_add.result = h[i] + finalized_operand
@@ -616,7 +611,7 @@ impl ShaCompressChip {
             local.finalize_add,
             local.shard,
             local.channel,
-            is_finalize.into(),
+            local.is_finalize.into(),
         );
 
         // Memory write is constrained in constrain_memory.
