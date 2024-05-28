@@ -37,6 +37,9 @@ impl<C: CurveOperations<NUM_WORDS> + Copy, const NUM_WORDS: usize> AffinePoint<C
         let mut limbs = [0u32; NUM_WORDS];
         let x = bytes_to_words_le(x_bytes);
         let y = bytes_to_words_le(y_bytes);
+        assert!(x.len() == NUM_WORDS / 2);
+        assert!(y.len() == NUM_WORDS / 2);
+
         limbs[..(NUM_WORDS / 2)].copy_from_slice(&x);
         limbs[(NUM_WORDS / 2)..].copy_from_slice(&y);
         Self::new(limbs)
