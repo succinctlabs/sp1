@@ -62,7 +62,7 @@ impl<F: PrimeField> MachineAir<F> for MemoryChip {
             MemoryChipType::Finalize => input.memory_finalize_events.clone(),
         };
         memory_events.sort_by_key(|event| event.addr);
-        let rows: Vec<[F; 8]> = (0..memory_events.len()) // TODO: change this back to par_iter
+        let rows: Vec<[F; NUM_MEMORY_INIT_COLS]> = (0..memory_events.len()) // TODO: change this back to par_iter
             .map(|i| {
                 let MemoryInitializeFinalizeEvent {
                     addr,
@@ -71,6 +71,7 @@ impl<F: PrimeField> MachineAir<F> for MemoryChip {
                     timestamp,
                     used,
                 } = memory_events[i];
+
                 let mut row = [F::zero(); NUM_MEMORY_INIT_COLS];
                 let cols: &mut MemoryInitCols<F> = row.as_mut_slice().borrow_mut();
                 cols.addr = F::from_canonical_u32(addr);
@@ -78,6 +79,16 @@ impl<F: PrimeField> MachineAir<F> for MemoryChip {
                 cols.timestamp = F::from_canonical_u32(timestamp);
                 cols.value = value.into();
                 cols.is_real = F::from_canonical_u32(used);
+
+                if i != memory_events.len() - 1 {
+                    let next_addr = memory_events[i + 1].addr;
+                    let addr_increasing_check = next_addr - addr - 1;
+                    assert_ne!(next_addr, addr);
+                    for j in 0..cols.addr_increasing_check.len() {
+                        cols.addr_increasing_check[j] =
+                            F::from_canonical_u32((addr_increasing_check >> j) & 1);
+                    }
+                }
 
                 row
             })
@@ -113,6 +124,10 @@ pub struct MemoryInitCols<T> {
     /// The address of the memory access.
     pub addr: T,
 
+    /// A bit decomposition of `next.addr - local.addr - 1` to ensure a strict increase in
+    /// addresses.
+    pub addr_increasing_check: [T; 30],
+
     /// The value of the memory access.
     pub value: Word<T>,
 
@@ -130,6 +145,8 @@ where
         let main = builder.main();
         let local = main.row_slice(0);
         let local: &MemoryInitCols<AB::Var> = (*local).borrow();
+        let next = main.row_slice(1);
+        let next: &MemoryInitCols<AB::Var> = (*next).borrow();
 
         builder.assert_bool(local.is_real);
 
@@ -154,6 +171,17 @@ where
                 crate::lookup::InteractionKind::Memory,
             ));
         }
+
+        let addr_increasing_check = local
+            .addr_increasing_check
+            .iter()
+            .enumerate()
+            .map(|(i, x)| *x * AB::F::from_canonical_u32(1 << i))
+            .sum::<AB::Expr>();
+        builder
+            .when_transition()
+            .when(next.is_real)
+            .assert_eq(addr_increasing_check, next.addr - local.addr - AB::F::one());
 
         // Register %x0 should always be 0. See 2.6 Load and Store Instruction on
         // P.18 of the RISC-V spec.  To ensure that, we expect that the first row of the Initialize

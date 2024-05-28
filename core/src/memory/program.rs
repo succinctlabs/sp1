@@ -181,10 +181,12 @@ where
 
         // Multiplicity must be either 0 or 1.
         builder.assert_bool(mult_local.multiplicity);
+
         // If first shard and preprocessed is real, multiplicity must be one.
         builder
             .when(is_first_shard * prep_local.is_real)
             .assert_one(mult_local.multiplicity);
+
         // If not first shard or preprocessed is not real, multiplicity must be zero.
         builder
             .when((AB::Expr::one() - is_first_shard) + (AB::Expr::one() - prep_local.is_real))
