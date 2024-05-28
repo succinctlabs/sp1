@@ -98,6 +98,14 @@ impl CpuChip {
             &memory_columns.memory_access,
             is_memory_instruction.clone(),
         );
+
+        // On memory load instructions, make sure that the memory value is not changed.
+        builder
+            .when(self.is_load_instruction::<AB>(&local.selectors))
+            .assert_word_eq(
+                *memory_columns.memory_access.value(),
+                *memory_columns.memory_access.prev_value(),
+            );
     }
 
     /// Evaluates constraints related to loading from memory.
