@@ -261,4 +261,3 @@ jobs:
         with:
           update_existing: true
           filename: .github/RELEASE_FAILURE_ISSUE_TEMPLATE.md
-  
