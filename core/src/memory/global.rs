@@ -10,7 +10,7 @@ use p3_matrix::Matrix;
 use sp1_derive::AlignedBorrow;
 
 use super::MemoryInitializeFinalizeEvent;
-use crate::air::{AirInteraction, SP1AirBuilder, Word};
+use crate::air::{AirInteraction, BaseAirBuilder, SP1AirBuilder, Word};
 use crate::air::{MachineAir, WordAirBuilder};
 use crate::runtime::{ExecutionRecord, Program};
 use crate::utils::pad_to_power_of_two;
@@ -172,6 +172,7 @@ where
             ));
         }
 
+        // Assert that the addresses are increasing.
         let addr_increasing_check = local
             .addr_increasing_check
             .iter()
@@ -182,6 +183,12 @@ where
             .when_transition()
             .when(next.is_real)
             .assert_eq(addr_increasing_check, next.addr - local.addr - AB::F::one());
+
+        // Assert that the real rows are all padded to the top.
+        builder
+            .when_transition()
+            .when_not(local.is_real)
+            .assert_zero(next.is_real);
 
         if self.kind == MemoryChipType::Initialize {
             builder
