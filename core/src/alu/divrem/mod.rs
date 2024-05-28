@@ -291,7 +291,7 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
 
             // Calculate the modified multiplicity
             {
-                cols.remainder_check_multiplicity = cols.is_real * cols.is_c_0.result;
+                cols.remainder_check_multiplicity = cols.is_real * (F::one() - cols.is_c_0.result);
             }
 
             // Calculate c * quotient + remainder.
@@ -751,7 +751,7 @@ where
             // Check that the event multiplicity column is computed correctly.
             builder.assert_eq(
                 local.remainder_check_multiplicity,
-                local.is_c_0.result * local.is_real,
+                local.is_c_0.result * (AB::Expr::one() - local.is_real),
             );
 
             // Check that the absolute value selector columns are computed correctly.
