@@ -5,7 +5,9 @@ use std::{
 };
 
 use crate::{
-    ffi::{build_plonk_bn254, prove_plonk_bn254, test_plonk_bn254, verify_plonk_bn254},
+    ffi::{
+        build_plonk_bn254_ffi, prove_plonk_bn254_ffi, test_plonk_bn254_ffi, verify_plonk_bn254_ffi,
+    },
     witness::GnarkWitness,
 };
 
@@ -48,7 +50,7 @@ impl PlonkBn254Prover {
         let serialized = serde_json::to_string(&gnark_witness).unwrap();
         witness_file.write_all(serialized.as_bytes()).unwrap();
 
-        test_plonk_bn254(
+        test_plonk_bn254_ffi(
             witness_file.path().to_str().unwrap(),
             constraints_file.path().to_str().unwrap(),
         );
@@ -70,7 +72,7 @@ impl PlonkBn254Prover {
         let serialized = serde_json::to_string(&gnark_witness).unwrap();
         file.write_all(serialized.as_bytes()).unwrap();
 
-        build_plonk_bn254(build_dir.to_str().unwrap());
+        build_plonk_bn254_ffi(build_dir.to_str().unwrap());
 
         // Extend the built verifier with the sp1 verifier contract.
         let plonk_bn254_verifier_path = build_dir.join("SP1Verifier.sol");
@@ -96,7 +98,7 @@ impl PlonkBn254Prover {
         let serialized = serde_json::to_string(&gnark_witness).unwrap();
         witness_file.write_all(serialized.as_bytes()).unwrap();
 
-        prove_plonk_bn254(
+        prove_plonk_bn254_ffi(
             build_dir.to_str().unwrap(),
             witness_file.path().to_str().unwrap(),
         )
@@ -110,7 +112,7 @@ impl PlonkBn254Prover {
         committed_values_digest: &BigUint,
         build_dir: &Path,
     ) {
-        verify_plonk_bn254(
+        verify_plonk_bn254_ffi(
             build_dir.to_str().unwrap(),
             &proof.raw_proof,
             &vkey_hash.to_string(),

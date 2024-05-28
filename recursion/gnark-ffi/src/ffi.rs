@@ -14,7 +14,7 @@ mod bind {
 }
 use bind::*;
 
-pub fn prove_plonk_bn254(data_dir: &str, witness_path: &str) -> PlonkBn254Proof {
+pub fn prove_plonk_bn254_ffi(data_dir: &str, witness_path: &str) -> PlonkBn254Proof {
     cfg_if! {
         if #[cfg(feature = "plonk_bn254")] {
             let data_dir = CString::new(data_dir).expect("CString::new failed");
@@ -29,14 +29,14 @@ pub fn prove_plonk_bn254(data_dir: &str, witness_path: &str) -> PlonkBn254Proof 
                 *proof
             };
 
-                proof.into_rust()
+            proof.into_rust()
         } else {
             panic!("plonk_bn254 feature not enabled");
         }
     }
 }
 
-pub fn build_plonk_bn254(data_dir: &str) {
+pub fn build_plonk_bn254_ffi(data_dir: &str) {
     cfg_if! {
         if #[cfg(feature = "plonk_bn254")] {
             let data_dir = CString::new(data_dir).expect("CString::new failed");
@@ -46,12 +46,11 @@ pub fn build_plonk_bn254(data_dir: &str) {
             }
         } else {
             panic!("plonk_bn254 feature not enabled");
-
         }
     }
 }
 
-pub fn verify_plonk_bn254(
+pub fn verify_plonk_bn254_ffi(
     data_dir: &str,
     proof: &str,
     vkey_hash: &str,
@@ -86,7 +85,7 @@ pub fn verify_plonk_bn254(
     }
 }
 
-pub fn test_plonk_bn254(witness_json: &str, constraints_json: &str) {
+pub fn test_plonk_bn254_ffi(witness_json: &str, constraints_json: &str) {
     cfg_if! {
         if #[cfg(feature = "plonk_bn254")] {
             unsafe {
