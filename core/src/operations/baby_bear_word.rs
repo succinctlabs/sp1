@@ -44,29 +44,29 @@ impl<F: Field> BabyBearWord<F> {
             .assert_eq(recomposed_byte, cols.value[3]);
 
         // Range check that value is less than baby bear modulus.  To do this, it is sufficient
-        // to just do comparisons for the most significant byte.  BabyBear's modulus is (in big endian binary)
-        // 1111000_00000000_00000000_00000001.  So we need to check the following conditions:
-        // 1) if most_sig_byte > 1111000, then fail.
-        // 2) if most_sig_byte == 11110000, then value's lower sig bytes must all be 0.
-        // 3) if most_sig_byte < 11110000, then pass.
-
-        // Flag to see if the four most significant bits of value's most significant byte is set.
-        let most_sig_bits: AB::Expr = cols.most_sig_byte_decomp[4..8]
+        // to just do comparisons for the most significant byte. BabyBear's modulus is (in big endian binary)
+        // 01111000_00000000_00000000_00000001.  So we need to check the following conditions:
+        // 1) if most_sig_byte > 01111000, then fail.
+        // 2) if most_sig_byte == 01111000, then value's lower sig bytes must all be 0.
+        // 3) if most_sig_byte < 01111000, then pass.
+        builder
+            .when(is_real.clone())
+            .assert_bool(cols.most_sig_byte_decomp[7]);
+        let top_bits: AB::Expr = cols.most_sig_byte_decomp[3..7]
             .iter()
             .map(|bit| (*bit).into())
             .sum();
-        // Flag to see if the four least significant bits of value's most significant byte is set.
-        let least_sig_bits: AB::Expr = cols.most_sig_byte_decomp[0..4]
+        let bottom_bits: AB::Expr = cols.most_sig_byte_decomp[0..3]
             .iter()
             .map(|bit| (*bit).into())
             .sum();
         builder
             .when(is_real.clone())
-            .when(most_sig_bits.clone())
-            .assert_zero(least_sig_bits);
+            .when(top_bits.clone())
+            .assert_zero(bottom_bits);
         builder
             .when(is_real)
-            .when(most_sig_bits)
+            .when(top_bits)
             .assert_zero(cols.value[0] + cols.value[1] + cols.value[2]);
     }
 }
