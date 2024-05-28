@@ -399,12 +399,11 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                     };
 
                     output.add_mul_event(upper_multiplication);
-
                     let lt_event = if is_signed_operation(event.opcode) {
                         AluEvent {
                             shard: event.shard,
                             channel: event.channel,
-                            opcode: Opcode::SLT,
+                            opcode: Opcode::SLTU,
                             a: 1,
                             b: (remainder as i32).abs() as u32,
                             c: u32::max(1, (event.c as i32).abs() as u32),
@@ -421,6 +420,7 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                             clk: event.clk,
                         }
                     };
+
                     if cols.remainder_check_multiplicity == F::one() {
                         output.add_lt_event(lt_event);
                     }
@@ -749,10 +749,9 @@ where
             }
 
             // Check that the event multiplicity column is computed correctly.
-            builder.assert_eq(
-                local.remainder_check_multiplicity,
-                (AB::Expr::one() - local.is_c_0.result) * local.is_real,
-            );
+            builder
+                .when_not(local.is_c_0.result)
+                .assert_eq(local.remainder_check_multiplicity, local.is_real);
 
             // Check that the absolute value selector columns are computed correctly.
             builder.assert_eq(local.abs_c_alu_event, local.c_neg * local.is_real);
