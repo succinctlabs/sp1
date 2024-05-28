@@ -51,7 +51,7 @@ pub fn try_build_plonk_bn254_artifacts_dev(
 }
 
 /// Gets the directory where the PLONK artifacts are installed.
-pub fn plonk_bn254_artifacts_dir() -> PathBuf {
+fn plonk_bn254_artifacts_dir() -> PathBuf {
     dirs::home_dir()
         .unwrap()
         .join(".sp1")
