@@ -44,6 +44,7 @@ where
         );
         builder.receive_syscall(
             local.shard,
+            local.channel,
             local.clk,
             AB::F::from_canonical_u32(SyscallCode::SHA_COMPRESS.syscall_id()),
             local.w_ptr,
@@ -203,6 +204,7 @@ impl ShaCompressChip {
         let is_finalize = local.octet_num[9];
         builder.eval_memory_access(
             local.shard,
+            local.channel,
             local.clk + is_finalize,
             local.mem_addr,
             &local.mem,
@@ -292,6 +294,7 @@ impl ShaCompressChip {
             6,
             local.e_rr_6,
             local.shard,
+            local.channel,
             local.is_compression,
         );
         // Calculate e rightrotate 11.
@@ -301,6 +304,7 @@ impl ShaCompressChip {
             11,
             local.e_rr_11,
             local.shard,
+            local.channel,
             local.is_compression,
         );
         // Calculate e rightrotate 25.
@@ -310,6 +314,7 @@ impl ShaCompressChip {
             25,
             local.e_rr_25,
             local.shard,
+            local.channel,
             local.is_compression,
         );
         // Calculate (e rightrotate 6) xor (e rightrotate 11).
@@ -319,6 +324,7 @@ impl ShaCompressChip {
             local.e_rr_11.value,
             local.s1_intermediate,
             local.shard,
+            local.channel,
             local.is_compression,
         );
         // Calculate S1 := ((e rightrotate 6) xor (e rightrotate 11)) xor (e rightrotate 25).
@@ -328,6 +334,7 @@ impl ShaCompressChip {
             local.e_rr_25.value,
             local.s1,
             local.shard,
+            local.channel,
             local.is_compression,
         );
 
@@ -339,6 +346,7 @@ impl ShaCompressChip {
             local.f,
             local.e_and_f,
             local.shard,
+            local.channel,
             local.is_compression,
         );
         // Calculate not e.
@@ -347,6 +355,7 @@ impl ShaCompressChip {
             local.e,
             local.e_not,
             local.shard,
+            local.channel,
             local.is_compression,
         );
         // Calculate (not e) and g.
@@ -356,6 +365,7 @@ impl ShaCompressChip {
             local.g,
             local.e_not_and_g,
             local.shard,
+            local.channel,
             local.is_compression,
         );
         // Calculate ch := (e and f) xor ((not e) and g).
@@ -365,6 +375,7 @@ impl ShaCompressChip {
             local.e_not_and_g.value,
             local.ch,
             local.shard,
+            local.channel,
             local.is_compression,
         );
 
@@ -379,6 +390,7 @@ impl ShaCompressChip {
                 local.mem.access.value,
             ],
             local.shard,
+            local.channel,
             local.is_compression,
             local.temp1,
         );
@@ -391,6 +403,7 @@ impl ShaCompressChip {
             2,
             local.a_rr_2,
             local.shard,
+            local.channel,
             local.is_compression,
         );
         // Calculate a rightrotate 13.
@@ -400,6 +413,7 @@ impl ShaCompressChip {
             13,
             local.a_rr_13,
             local.shard,
+            local.channel,
             local.is_compression,
         );
         // Calculate a rightrotate 22.
@@ -409,6 +423,7 @@ impl ShaCompressChip {
             22,
             local.a_rr_22,
             local.shard,
+            local.channel,
             local.is_compression,
         );
         // Calculate (a rightrotate 2) xor (a rightrotate 13).
@@ -418,6 +433,7 @@ impl ShaCompressChip {
             local.a_rr_13.value,
             local.s0_intermediate,
             local.shard,
+            local.channel,
             local.is_compression,
         );
         // Calculate S0 := ((a rightrotate 2) xor (a rightrotate 13)) xor (a rightrotate 22).
@@ -427,6 +443,7 @@ impl ShaCompressChip {
             local.a_rr_22.value,
             local.s0,
             local.shard,
+            local.channel,
             local.is_compression,
         );
 
@@ -438,6 +455,7 @@ impl ShaCompressChip {
             local.b,
             local.a_and_b,
             local.shard,
+            local.channel,
             local.is_compression,
         );
         // Calculate a and c.
@@ -447,6 +465,7 @@ impl ShaCompressChip {
             local.c,
             local.a_and_c,
             local.shard,
+            local.channel,
             local.is_compression,
         );
         // Calculate b and c.
@@ -456,6 +475,7 @@ impl ShaCompressChip {
             local.c,
             local.b_and_c,
             local.shard,
+            local.channel,
             local.is_compression,
         );
         // Calculate (a and b) xor (a and c).
@@ -465,6 +485,7 @@ impl ShaCompressChip {
             local.a_and_c.value,
             local.maj_intermediate,
             local.shard,
+            local.channel,
             local.is_compression,
         );
         // Calculate maj := ((a and b) xor (a and c)) xor (b and c).
@@ -474,6 +495,7 @@ impl ShaCompressChip {
             local.b_and_c.value,
             local.maj,
             local.shard,
+            local.channel,
             local.is_compression,
         );
 
@@ -484,6 +506,7 @@ impl ShaCompressChip {
             local.maj.value,
             local.temp2,
             local.shard,
+            local.channel,
             local.is_compression.into(),
         );
 
@@ -494,6 +517,7 @@ impl ShaCompressChip {
             local.temp1.value,
             local.d_add_temp1,
             local.shard,
+            local.channel,
             local.is_compression.into(),
         );
 
@@ -504,6 +528,7 @@ impl ShaCompressChip {
             local.temp2.value,
             local.temp1_add_temp2,
             local.shard,
+            local.channel,
             local.is_compression.into(),
         );
 
@@ -581,6 +606,7 @@ impl ShaCompressChip {
             local.finalized_operand,
             local.finalize_add,
             local.shard,
+            local.channel,
             is_finalize.into(),
         );
 

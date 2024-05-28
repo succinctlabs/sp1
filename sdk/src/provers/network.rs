@@ -6,12 +6,11 @@ use crate::{
     proto::network::{ProofStatus, TransactionStatus},
     Prover,
 };
-use crate::{
-    SP1CompressedProof, SP1Groth16Proof, SP1PlonkProof, SP1Proof, SP1ProvingKey, SP1VerifyingKey,
-};
+use crate::{SP1CompressedProof, SP1PlonkBn254Proof, SP1Proof, SP1ProvingKey, SP1VerifyingKey};
 use anyhow::{Context, Result};
 use serde::de::DeserializeOwned;
 use sp1_core::runtime::{Program, Runtime};
+use sp1_core::utils::SP1CoreOpts;
 use sp1_prover::utils::block_on;
 use sp1_prover::{SP1Prover, SP1Stdin};
 use tokio::{runtime, time::sleep};
@@ -45,7 +44,8 @@ impl NetworkProver {
         let client = &self.client;
         // Execute the runtime before creating the proof request.
         let program = Program::from(elf);
-        let mut runtime = Runtime::new(program);
+        let opts = SP1CoreOpts::default();
+        let mut runtime = Runtime::new(program, opts);
         runtime.write_vecs(&stdin.buffer);
         for (proof, vkey) in stdin.proofs.iter() {
             runtime.write_proof(proof.clone(), vkey.clone());
@@ -171,11 +171,7 @@ impl Prover for NetworkProver {
         block_on(self.prove_async(&pk.elf, stdin, ProofMode::Compressed))
     }
 
-    fn prove_groth16(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Groth16Proof> {
-        block_on(self.prove_async(&pk.elf, stdin, ProofMode::Groth16))
-    }
-
-    fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkProof> {
+    fn prove_plonk_bn254(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkBn254Proof> {
         block_on(self.prove_async(&pk.elf, stdin, ProofMode::Plonk))
     }
 }

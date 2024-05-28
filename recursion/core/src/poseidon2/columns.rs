@@ -45,7 +45,6 @@ impl<T: Copy> RoundSpecificCols<T> {
 pub struct ComputationCols<T> {
     pub input: [T; WIDTH],
     pub add_rc: [T; WIDTH],
-    pub sbox_deg_3: [T; WIDTH],
     pub sbox_deg_7: [T; WIDTH],
     pub output: [T; WIDTH],
 }

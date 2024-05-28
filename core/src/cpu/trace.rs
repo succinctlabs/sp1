@@ -149,13 +149,16 @@ impl CpuChip {
 
         // Populate memory accesses for a, b, and c.
         if let Some(record) = event.a_record {
-            cols.op_a_access.populate(record, &mut new_blu_events)
+            cols.op_a_access
+                .populate(event.channel, record, &mut new_blu_events)
         }
         if let Some(MemoryRecordEnum::Read(record)) = event.b_record {
-            cols.op_b_access.populate(record, &mut new_blu_events)
+            cols.op_b_access
+                .populate(event.channel, record, &mut new_blu_events)
         }
         if let Some(MemoryRecordEnum::Read(record)) = event.c_record {
-            cols.op_c_access.populate(record, &mut new_blu_events)
+            cols.op_c_access
+                .populate(event.channel, record, &mut new_blu_events)
         }
 
         // Populate memory accesses for reading from memory.
@@ -164,7 +167,7 @@ impl CpuChip {
         if let Some(record) = event.memory_record {
             memory_columns
                 .memory_access
-                .populate(record, &mut new_blu_events)
+                .populate(event.channel, record, &mut new_blu_events)
         }
 
         // Populate memory, branch, jump, and auipc specific fields.
@@ -188,7 +191,7 @@ impl CpuChip {
         (row, new_alu_events, new_blu_events)
     }
 
-    /// Populates the shard and clk related rows.
+    /// Populates the shard, channel, and clk related rows.
     fn populate_shard_clk<F: PrimeField>(
         &self,
         cols: &mut CpuCols<F>,
@@ -196,8 +199,11 @@ impl CpuChip {
         new_blu_events: &mut Vec<ByteLookupEvent>,
     ) {
         cols.shard = F::from_canonical_u32(event.shard);
+        cols.channel = F::from_canonical_u32(event.channel);
+        cols.channel_selectors.populate(event.channel);
         new_blu_events.push(ByteLookupEvent::new(
             event.shard,
+            event.channel,
             U16Range,
             event.shard,
             0,
@@ -212,6 +218,7 @@ impl CpuChip {
         cols.clk_8bit_limb = F::from_canonical_u32(clk_8bit_limb);
         new_blu_events.push(ByteLookupEvent::new(
             event.shard,
+            event.channel,
             U16Range,
             clk_16bit_limb,
             0,
@@ -220,6 +227,7 @@ impl CpuChip {
         ));
         new_blu_events.push(ByteLookupEvent::new(
             event.shard,
+            event.channel,
             U8Range,
             0,
             0,
@@ -260,6 +268,7 @@ impl CpuChip {
         // Add event to ALU check to check that addr == b + c
         let add_event = AluEvent {
             shard: event.shard,
+            channel: event.channel,
             clk: event.clk,
             opcode: Opcode::ADD,
             a: memory_addr,
@@ -323,6 +332,7 @@ impl CpuChip {
                 if memory_columns.most_sig_byte_decomp[7] == F::one() {
                     cols.mem_value_is_neg = F::one();
                     let sub_event = AluEvent {
+                        channel: event.channel,
                         shard: event.shard,
                         clk: event.clk,
                         opcode: Opcode::SUB,
@@ -344,6 +354,7 @@ impl CpuChip {
         for byte_pair in addr_bytes.chunks_exact(2) {
             new_blu_events.push(ByteLookupEvent {
                 shard: event.shard,
+                channel: event.channel,
                 opcode: ByteOpcode::U8Range,
                 a1: 0,
                 a2: 0,
@@ -387,6 +398,7 @@ impl CpuChip {
             // Add the ALU events for the comparisons
             let lt_comp_event = AluEvent {
                 shard: event.shard,
+                channel: event.channel,
                 clk: event.clk,
                 opcode: alu_op_code,
                 a: a_lt_b as u32,
@@ -401,6 +413,7 @@ impl CpuChip {
 
             let gt_comp_event = AluEvent {
                 shard: event.shard,
+                channel: event.channel,
                 clk: event.clk,
                 opcode: alu_op_code,
                 a: a_gt_b as u32,
@@ -434,6 +447,7 @@ impl CpuChip {
 
                 let add_event = AluEvent {
                     shard: event.shard,
+                    channel: event.channel,
                     clk: event.clk,
                     opcode: Opcode::ADD,
                     a: next_pc,
@@ -469,6 +483,7 @@ impl CpuChip {
 
                     let add_event = AluEvent {
                         shard: event.shard,
+                        channel: event.channel,
                         clk: event.clk,
                         opcode: Opcode::ADD,
                         a: next_pc,
@@ -487,6 +502,7 @@ impl CpuChip {
 
                     let add_event = AluEvent {
                         shard: event.shard,
+                        channel: event.channel,
                         clk: event.clk,
                         opcode: Opcode::ADD,
                         a: next_pc,
@@ -518,6 +534,7 @@ impl CpuChip {
 
             let add_event = AluEvent {
                 shard: event.shard,
+                channel: event.channel,
                 clk: event.clk,
                 opcode: Opcode::ADD,
                 a: event.a,
@@ -624,13 +641,14 @@ mod tests {
     use super::*;
 
     use crate::runtime::{tests::simple_program, Instruction, Runtime};
-    use crate::utils::{run_test, setup_logger};
+    use crate::utils::{run_test, setup_logger, SP1CoreOpts};
 
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
         shard.cpu_events = vec![CpuEvent {
             shard: 1,
+            channel: 0,
             clk: 6,
             pc: 1,
             next_pc: 5,
@@ -661,7 +679,7 @@ mod tests {
     #[test]
     fn generate_trace_simple_program() {
         let program = simple_program();
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, SP1CoreOpts::default());
         runtime.run().unwrap();
         let chip = CpuChip::default();
         let trace: RowMajorMatrix<BabyBear> =

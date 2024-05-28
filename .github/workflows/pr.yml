@@ -28,7 +28,7 @@ jobs:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Setup CI
         uses: ./.github/actions/setup
@@ -45,7 +45,7 @@ jobs:
         with:
           command: test
           toolchain: nightly-2024-04-17
-          args: --release -- --nocapture
+          args: --release --features plonk_bn254
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_BACKTRACE: 1
@@ -59,7 +59,7 @@ jobs:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Setup CI
         uses: ./.github/actions/setup
@@ -76,7 +76,7 @@ jobs:
         with:
           command: test
           toolchain: nightly-2024-04-17
-          args: --release
+          args: --release --features plonk_bn254
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_BACKTRACE: 1
@@ -90,7 +90,7 @@ jobs:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Setup CI
         uses: ./.github/actions/setup
@@ -118,7 +118,7 @@ jobs:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Setup CI
         uses: ./.github/actions/setup
@@ -147,7 +147,7 @@ jobs:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Setup CI
         uses: ./.github/actions/setup

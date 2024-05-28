@@ -125,6 +125,13 @@ where
         let local: &MultiCols<AB::Var> = (*local).borrow();
         let next: &MultiCols<AB::Var> = (*next).borrow();
 
+        // Add some dummy constraints to compress the interactions.
+        let mut expr = local.is_fri_fold * local.is_fri_fold;
+        for _ in 0..(DEGREE - 2) {
+            expr *= local.is_fri_fold.into();
+        }
+        builder.assert_eq(expr.clone(), expr.clone());
+
         let next_is_real = next.is_fri_fold + next.is_poseidon2;
         let local_is_real = local.is_fri_fold + local.is_poseidon2;
 
@@ -280,6 +287,7 @@ mod tests {
             BabyBear,
             Poseidon2<BabyBear, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 16, 7>,
             16,
+            8,
         > = config.challenger();
         let start = Instant::now();
         uni_stark_verify(&config, &chip, &mut challenger, &proof)

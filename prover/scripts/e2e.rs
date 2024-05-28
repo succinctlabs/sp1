@@ -14,7 +14,7 @@ use sp1_recursion_circuit::stark::build_wrap_circuit;
 use sp1_recursion_circuit::witness::Witnessable;
 use sp1_recursion_compiler::ir::Witness;
 use sp1_recursion_core::air::RecursionPublicValues;
-use sp1_recursion_gnark_ffi::Groth16Prover;
+use sp1_recursion_gnark_ffi::PlonkBn254Prover;
 use subtle_encoding::hex;
 
 #[derive(Parser, Debug)]
@@ -70,19 +70,19 @@ pub fn main() {
     witness.write_vkey_hash(vkey_hash);
 
     tracing::info!("sanity check gnark test");
-    Groth16Prover::test(constraints.clone(), witness.clone());
+    PlonkBn254Prover::test(constraints.clone(), witness.clone());
 
     tracing::info!("sanity check gnark build");
-    Groth16Prover::build(constraints.clone(), witness.clone(), build_dir.clone());
+    PlonkBn254Prover::build(constraints.clone(), witness.clone(), build_dir.clone());
 
     tracing::info!("sanity check gnark prove");
-    let groth16_prover = Groth16Prover::new();
+    let plonk_bn254_prover = PlonkBn254Prover::new();
 
     tracing::info!("gnark prove");
-    let proof = groth16_prover.prove(witness.clone(), build_dir.clone());
+    let proof = plonk_bn254_prover.prove(witness.clone(), build_dir.clone());
 
     tracing::info!("verify gnark proof");
-    groth16_prover.verify(
+    plonk_bn254_prover.verify(
         &proof,
         &vkey_hash.as_canonical_biguint(),
         &committed_values_digest.as_canonical_biguint(),

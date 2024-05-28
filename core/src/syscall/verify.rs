@@ -10,7 +10,7 @@ use crate::{
 pub struct SyscallVerifySP1Proof;
 
 impl SyscallVerifySP1Proof {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self
     }
 }

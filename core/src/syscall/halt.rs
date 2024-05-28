@@ -3,7 +3,7 @@ use crate::runtime::{Syscall, SyscallContext};
 pub struct SyscallHalt;
 
 impl SyscallHalt {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self
     }
 }

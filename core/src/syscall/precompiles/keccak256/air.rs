@@ -54,6 +54,7 @@ where
 
             builder.eval_memory_access(
                 local.shard,
+                local.channel,
                 local.clk + final_step, // The clk increments by 1 after a final step
                 local.state_addr + AB::Expr::from_canonical_u32(i * 4),
                 &local.state_mem[i as usize],
@@ -65,6 +66,7 @@ where
         builder.assert_eq(local.receive_ecall, first_step * local.is_real);
         builder.receive_syscall(
             local.shard,
+            local.channel,
             local.clk,
             AB::F::from_canonical_u32(SyscallCode::KECCAK_PERMUTE.syscall_id()),
             local.state_addr,
@@ -134,6 +136,7 @@ mod test {
     use crate::io::{SP1PublicValues, SP1Stdin};
     use crate::runtime::Program;
     use crate::stark::{RiscvAir, StarkGenericConfig};
+    use crate::utils::SP1CoreOpts;
     use crate::utils::{prove, setup_logger, tests::KECCAK256_ELF, BabyBearPoseidon2};
 
     use rand::Rng;
@@ -169,7 +172,8 @@ mod test {
         let config = BabyBearPoseidon2::new();
 
         let program = Program::from(KECCAK256_ELF);
-        let (proof, public_values) = prove(program, &stdin, config).unwrap();
+        let (proof, public_values) =
+            prove(program, &stdin, config, SP1CoreOpts::default()).unwrap();
         let mut public_values = SP1PublicValues::from(&public_values);
 
         let config = BabyBearPoseidon2::new();

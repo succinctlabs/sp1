@@ -39,6 +39,7 @@ where
         // TODO: constraint clk column to increment by 1 within same invocation of syscall.
         builder.receive_syscall(
             local.shard,
+            local.channel,
             local.clk,
             AB::F::from_canonical_u32(SyscallCode::BLAKE3_COMPRESS_INNER.syscall_id()),
             local.state_ptr,
@@ -145,6 +146,7 @@ impl Blake3CompressInnerChip {
         for i in 0..NUM_STATE_WORDS_PER_CALL {
             builder.eval_memory_access(
                 local.shard,
+                local.channel,
                 local.clk,
                 local.state_ptr + local.state_index[i] * AB::F::from_canonical_usize(WORD_SIZE),
                 &local.state_reads_writes[i],
@@ -181,6 +183,7 @@ impl Blake3CompressInnerChip {
         for i in 0..NUM_MSG_WORDS_PER_CALL {
             builder.eval_memory_access(
                 local.shard,
+                local.channel,
                 local.clk,
                 local.message_ptr + local.msg_schedule[i] * AB::F::from_canonical_usize(WORD_SIZE),
                 &local.message_reads[i],
@@ -209,7 +212,14 @@ impl Blake3CompressInnerChip {
             ];
 
             // Call the g function.
-            GOperation::<AB::F>::eval(builder, input, local.g, local.shard, local.is_real);
+            GOperation::<AB::F>::eval(
+                builder,
+                input,
+                local.g,
+                local.shard,
+                local.channel,
+                local.is_real,
+            );
 
             // Finally, the results of the g function should be written to the memory.
             for i in 0..NUM_STATE_WORDS_PER_CALL {

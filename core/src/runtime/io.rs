@@ -60,7 +60,7 @@ pub mod tests {
     use super::*;
     use crate::runtime::Program;
     use crate::utils::tests::IO_ELF;
-    use crate::utils::{self, prove_simple, BabyBearBlake3};
+    use crate::utils::{self, prove_simple, BabyBearBlake3, SP1CoreOpts};
     use serde::Deserialize;
 
     #[derive(Serialize, Deserialize, Debug, PartialEq)]
@@ -89,7 +89,7 @@ pub mod tests {
     fn test_io_run() {
         utils::setup_logger();
         let program = Program::from(IO_ELF);
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, SP1CoreOpts::default());
         let points = points();
         runtime.write_stdin(&points.0);
         runtime.write_stdin(&points.1);
@@ -109,7 +109,7 @@ pub mod tests {
     fn test_io_prove() {
         utils::setup_logger();
         let program = Program::from(IO_ELF);
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, SP1CoreOpts::default());
         let points = points();
         runtime.write_stdin(&points.0);
         runtime.write_stdin(&points.1);

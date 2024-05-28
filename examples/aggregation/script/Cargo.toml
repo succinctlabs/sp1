@@ -6,7 +6,7 @@ default-run = "sp1-aggregation-example-script"
 
 [dependencies]
 hex = "0.4.3"
-sp1-sdk = { path = "../../../sdk" }
+sp1-sdk = { path = "../../../sdk", features = ["plonk_bn254"] }
 tracing = "0.1.40"
 
 [build-dependencies]
