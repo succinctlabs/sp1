@@ -464,6 +464,9 @@ where
             for shift_by_n_bit in local.shift_by_n_bits.iter() {
                 builder.assert_bool(*shift_by_n_bit);
             }
+            for bit in local.c_least_sig_byte.iter() {
+                builder.assert_bool(*bit);
+            }
         }
 
         // Range check bytes.
