@@ -177,13 +177,11 @@ impl CpuChip {
         self.populate_auipc(cols, event, &mut new_alu_events);
         let is_halt = self.populate_ecall(cols, event);
 
-        if !event.instruction.is_branch_instruction()
-            && !event.instruction.is_jump_instruction()
-            && !event.instruction.is_ecall_instruction()
-            && !is_halt
-        {
-            cols.is_sequential_instr = F::one();
-        }
+        cols.is_sequential_instr = F::from_bool(
+            !event.instruction.is_branch_instruction()
+                && !event.instruction.is_jump_instruction()
+                && !is_halt,
+        );
 
         // Assert that the instruction is not a no-op.
         cols.is_real = F::one();

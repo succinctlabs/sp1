@@ -83,6 +83,17 @@ impl CpuChip {
                 .when(local.is_real)
                 .when(local.not_branching)
                 .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), local.next_pc);
+
+            // Assert that either we are branching or not branching when the instruction is a branch.
+            builder
+                .when(is_branch_instruction.clone())
+                .assert_one(local.branching + local.not_branching);
+            builder
+                .when(is_branch_instruction.clone())
+                .assert_bool(local.branching);
+            builder
+                .when(is_branch_instruction.clone())
+                .assert_bool(local.not_branching);
         }
 
         // Evaluate branching value constraints.
