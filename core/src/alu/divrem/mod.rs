@@ -751,7 +751,7 @@ where
             // Check that the event multiplicity column is computed correctly.
             builder.assert_eq(
                 local.remainder_check_multiplicity,
-                local.is_c_0.result * (AB::Expr::one() - local.is_real),
+                (AB::Expr::one()-local.is_c_0.result) * local.is_real,
             );
 
             // Check that the absolute value selector columns are computed correctly.
