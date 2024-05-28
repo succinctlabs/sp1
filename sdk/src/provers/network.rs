@@ -10,6 +10,7 @@ use crate::{SP1CompressedProof, SP1PlonkBn254Proof, SP1Proof, SP1ProvingKey, SP1
 use anyhow::{Context, Result};
 use serde::de::DeserializeOwned;
 use sp1_core::runtime::{Program, Runtime};
+use sp1_core::utils::SP1CoreOpts;
 use sp1_prover::utils::block_on;
 use sp1_prover::{SP1Prover, SP1Stdin};
 use tokio::{runtime, time::sleep};
@@ -43,7 +44,8 @@ impl NetworkProver {
         let client = &self.client;
         // Execute the runtime before creating the proof request.
         let program = Program::from(elf);
-        let mut runtime = Runtime::new(program);
+        let opts = SP1CoreOpts::default();
+        let mut runtime = Runtime::new(program, opts);
         runtime.write_vecs(&stdin.buffer);
         for (proof, vkey) in stdin.proofs.iter() {
             runtime.write_proof(proof.clone(), vkey.clone());

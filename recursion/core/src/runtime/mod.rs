@@ -107,7 +107,7 @@ pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
 
     /// Uninitialized memory addresses that have a specific value they should be initialized with.
     /// The Opcodes that start with Hint* utilize this to set memory values.
-    pub uninitialized_memory: HashMap<usize, Block<F>>, // TODO: add "HashNoHasher" back to this
+    pub uninitialized_memory: HashMap<usize, Block<F>>,
 
     /// The execution record.
     pub record: ExecutionRecord<F>,

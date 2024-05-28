@@ -27,7 +27,7 @@ use crate::stark::record::MachineRecord;
 use crate::stark::MachineChip;
 use crate::stark::PackedChallenge;
 use crate::stark::ProverConstraintFolder;
-use crate::utils::env;
+use crate::utils::SP1CoreOpts;
 
 fn chunk_vec<T>(mut vec: Vec<T>, chunk_size: usize) -> Vec<Vec<T>> {
     let mut result = Vec::new();
@@ -45,6 +45,7 @@ pub trait Prover<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> {
         pk: &StarkProvingKey<SC>,
         shards: Vec<A::Record>,
         challenger: &mut SC::Challenger,
+        opts: SP1CoreOpts,
     ) -> MachineProof<SC>
     where
         A: for<'a> Air<ProverConstraintFolder<'a, SC>>
@@ -68,6 +69,7 @@ where
         pk: &StarkProvingKey<SC>,
         shards: Vec<A::Record>,
         challenger: &mut SC::Challenger,
+        opts: SP1CoreOpts,
     ) -> MachineProof<SC>
     where
         A: for<'a> Air<ProverConstraintFolder<'a, SC>>
@@ -77,7 +79,7 @@ where
         // Observe the preprocessed commitment.
         pk.observe_into(challenger);
         // Generate and commit the traces for each segment.
-        let (shard_commits, shard_data) = Self::commit_shards(machine, &shards);
+        let (shard_commits, shard_data) = Self::commit_shards(machine, &shards, opts);
 
         // Observe the challenges for each segment.
         tracing::debug_span!("observing all challenges").in_scope(|| {
@@ -95,10 +97,10 @@ where
 
         // Generate a proof for each segment. Note that we clone the challenger so we can observe
         // identical global challenges across the segments.
-        let chunking_multiplier = env::shard_chunking_multiplier();
+        let chunking_multiplier = opts.shard_chunking_multiplier;
         let chunk_size = std::cmp::max(chunking_multiplier * shards.len() / num_cpus::get(), 1);
         let config = machine.config();
-        let reconstruct_commitments = env::reconstruct_commitments();
+        let reconstruct_commitments = opts.reconstruct_commitments;
         let shard_data_chunks = chunk_vec(shard_data, chunk_size);
         let shard_chunks = chunk_vec(shards, chunk_size);
         let parent_span = tracing::debug_span!("open_shards");
@@ -543,6 +545,7 @@ where
     pub fn commit_shards<F, EF>(
         machine: &StarkMachine<SC, A>,
         shards: &[A::Record],
+        opts: SP1CoreOpts,
     ) -> (Vec<Com<SC>>, Vec<ShardMainDataWrapper<SC>>)
     where
         F: PrimeField32,
@@ -556,7 +559,7 @@ where
 
         // Get the number of shards that is the threshold for saving shards to disk instead of
         // keeping all the shards in memory.
-        let reconstruct_commitments = env::reconstruct_commitments();
+        let reconstruct_commitments = opts.reconstruct_commitments;
         let finished = AtomicU32::new(0);
         let chunk_size = std::cmp::max(shards.len() / num_cpus::get(), 1);
         let parent_span = tracing::debug_span!("commit to all shards");

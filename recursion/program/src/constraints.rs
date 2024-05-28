@@ -166,7 +166,7 @@ mod tests {
             Chip, Com, Dom, OpeningProof, PcsProverData, RiscvAir, ShardCommitment, ShardMainData,
             ShardProof, StarkGenericConfig, StarkMachine,
         },
-        utils::BabyBearPoseidon2,
+        utils::{BabyBearPoseidon2, SP1CoreOpts},
     };
     use sp1_recursion_core::stark::utils::{run_test_recursion, TestConfig};
 
@@ -283,8 +283,13 @@ mod tests {
         let machine = A::machine(SC::default());
         let (_, vk) = machine.setup(&Program::from(elf));
         let mut challenger = machine.config().challenger();
-        let (proof, _) =
-            sp1_core::utils::prove(Program::from(elf), &SP1Stdin::new(), SC::default()).unwrap();
+        let (proof, _) = sp1_core::utils::prove(
+            Program::from(elf),
+            &SP1Stdin::new(),
+            SC::default(),
+            SP1CoreOpts::default(),
+        )
+        .unwrap();
         machine.verify(&vk, &proof, &mut challenger).unwrap();
 
         println!("Proof generated and verified successfully");
