@@ -5,7 +5,9 @@ use clap::{command, Parser};
 use csv::WriterBuilder;
 use serde::Serialize;
 use sp1_core::runtime::{Program, Runtime};
-use sp1_core::utils::{prove_simple, BabyBearBlake3, BabyBearKeccak, BabyBearPoseidon2};
+use sp1_core::utils::{
+    prove_simple, BabyBearBlake3, BabyBearKeccak, BabyBearPoseidon2, SP1CoreOpts,
+};
 use sp1_prover::utils::get_cycles;
 use sp1_prover::SP1Stdin;
 use std::fmt;
@@ -137,7 +139,8 @@ fn run_evaluation(hashfn: &HashFnId, program: &Program, _elf: &[u8]) -> (f64, f6
     // or end to end proving as we only support Poseidon for now.
     match hashfn {
         HashFnId::Blake3 => {
-            let mut runtime = Runtime::new(program.clone());
+            let opts = SP1CoreOpts::default();
+            let mut runtime = Runtime::new(program.clone(), opts);
             let execution_start = Instant::now();
             runtime.run().unwrap();
             let execution_duration = execution_start.elapsed().as_secs_f64();
@@ -154,7 +157,8 @@ fn run_evaluation(hashfn: &HashFnId, program: &Program, _elf: &[u8]) -> (f64, f6
             (execution_duration, prove_duration, verify_duration)
         }
         HashFnId::Poseidon => {
-            let mut runtime = Runtime::new(program.clone());
+            let opts = SP1CoreOpts::default();
+            let mut runtime = Runtime::new(program.clone(), opts);
             let execution_start = Instant::now();
             runtime.run().unwrap();
             let execution_duration = execution_start.elapsed().as_secs_f64();
@@ -171,7 +175,8 @@ fn run_evaluation(hashfn: &HashFnId, program: &Program, _elf: &[u8]) -> (f64, f6
             (execution_duration, prove_duration, verify_duration)
         }
         HashFnId::Keccak256 => {
-            let mut runtime = Runtime::new(program.clone());
+            let opts = SP1CoreOpts::default();
+            let mut runtime = Runtime::new(program.clone(), opts);
             let execution_start = Instant::now();
             runtime.run().unwrap();
             let execution_duration = execution_start.elapsed().as_secs_f64();
