@@ -18,6 +18,8 @@ pub struct MemoryColumns<T> {
     // Note that this all needs to be verified in the AIR
     pub addr_word: Word<T>,
     pub addr_aligned: T,
+    /// The LE bit decomp of the least significant byte of address aligned.
+    pub aa_least_sig_byte_decomp: [T; 6],
     pub addr_offset: T,
     pub memory_access: MemoryReadWriteCols<T>,
 
