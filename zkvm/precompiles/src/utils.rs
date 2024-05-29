@@ -31,14 +31,14 @@ impl<C: CurveOperations<NUM_WORDS> + Copy, const NUM_WORDS: usize> AffinePoint<C
     /// x_bytes and y_bytes are the concatenated little endian representations of the x and y coordinates.
     /// The length of x_bytes and y_bytes must each be NUM_WORDS * 2.
     pub fn from(x_bytes: &[u8], y_bytes: &[u8]) -> Self {
-        assert!(x_bytes.len() == NUM_WORDS * 2);
-        assert!(y_bytes.len() == NUM_WORDS * 2);
+        debug_assert!(x_bytes.len() == NUM_WORDS * 2);
+        debug_assert!(y_bytes.len() == NUM_WORDS * 2);
 
         let mut limbs = [0u32; NUM_WORDS];
         let x = bytes_to_words_le(x_bytes);
         let y = bytes_to_words_le(y_bytes);
-        assert!(x.len() == NUM_WORDS / 2);
-        assert!(y.len() == NUM_WORDS / 2);
+        debug_assert!(x.len() == NUM_WORDS / 2);
+        debug_assert!(y.len() == NUM_WORDS / 2);
 
         limbs[..(NUM_WORDS / 2)].copy_from_slice(&x);
         limbs[(NUM_WORDS / 2)..].copy_from_slice(&y);
@@ -54,7 +54,7 @@ impl<C: CurveOperations<NUM_WORDS> + Copy, const NUM_WORDS: usize> AffinePoint<C
     }
 
     pub fn mul_assign(&mut self, scalar: &[u32]) {
-        assert!(scalar.len() == NUM_WORDS / 2);
+        debug_assert!(scalar.len() == NUM_WORDS / 2);
 
         let mut res: Option<Self> = None;
         let mut temp = *self;
@@ -77,7 +77,7 @@ impl<C: CurveOperations<NUM_WORDS> + Copy, const NUM_WORDS: usize> AffinePoint<C
 
     pub fn from_le_bytes(limbs: &[u8]) -> Self {
         let u32_limbs = bytes_to_words_le(limbs);
-        assert!(u32_limbs.len() == NUM_WORDS);
+        debug_assert!(u32_limbs.len() == NUM_WORDS);
 
         Self {
             limbs: u32_limbs.try_into().unwrap(),
@@ -87,7 +87,7 @@ impl<C: CurveOperations<NUM_WORDS> + Copy, const NUM_WORDS: usize> AffinePoint<C
 
     pub fn to_le_bytes(&self) -> Vec<u8> {
         let le_bytes = words_to_bytes_le(&self.limbs);
-        assert!(le_bytes.len() == NUM_WORDS * 4);
+        debug_assert!(le_bytes.len() == NUM_WORDS * 4);
         le_bytes
     }
 }
