@@ -47,8 +47,8 @@ pub enum MetricRetrievalError {
 /// assert_eq!(*add_count, 3);
 ///
 /// // You can also get a count of all opcode occurences by category
-/// let memory_operations_count = res.get_total_for_category("Arithmetic").unwrap_or(0);
-/// assert_eq!(memory_operations_count, 3,);
+/// let add_operations_count = res.get_total_for_category("Arithmetic").unwrap_or(0);
+/// assert_eq!(add_operations_count, 3,);
 /// ```
 #[derive(Debug)]
 pub struct ExecutionReport {
@@ -163,8 +163,8 @@ mod tests {
         assert_eq!(res.cycles, 12);
         assert_eq!(res.total_instruction_count, 3);
 
-        // You can also get a count of all opcode occurences by category
-        let memory_operations_count = res.get_total_for_category("Arithmetic").unwrap_or(0);
-        assert_eq!(memory_operations_count, 3,);
+        // You can also get a count of all instruction/opcode occurences by category
+        let add_operations_count = res.get_total_for_category("Arithmetic").unwrap_or(0);
+        assert_eq!(add_operations_count, 3,);
     }
 }
