@@ -15,6 +15,7 @@ on:
       - "sdk/**"
       - "zkvm/**"
       - "tests/**"
+      - "examples/**"
       - ".github/workflows/**"
   merge_group:
 
