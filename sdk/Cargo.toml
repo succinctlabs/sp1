@@ -29,19 +29,18 @@ tracing = "0.1.40"
 hex = "0.4.3"
 log = "0.4.21"
 axum = "=0.7.5"
-alloy = { git = "https://github.com/alloy-rs/alloy", rev = "bfd0fda", features = [
-  "contract",
-  "signer-wallet",
-] }
+alloy-primitives = "0.7.0"
+alloy-sol-types = "0.7.0"
 sha2 = "0.10.8"
 dirs = "5.0.1"
 tempfile = "3.10.1"
 num-bigint = "0.4.5"
 cfg-if = "1.0"
+ethers = { version = "2", default-features = false }
 
 [features]
 neon = ["sp1-core/neon"]
-plonk_bn254= ["sp1-prover/plonk_bn254"]
+plonk = ["sp1-prover/plonk"]
 
 [build-dependencies]
 vergen = { version = "8", default-features = false, features = [

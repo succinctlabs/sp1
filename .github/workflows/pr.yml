@@ -45,7 +45,7 @@ jobs:
         with:
           command: test
           toolchain: nightly-2024-04-17
-          args: --release --features plonk_bn254
+          args: --release --features plonk
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_BACKTRACE: 1
@@ -76,7 +76,7 @@ jobs:
         with:
           command: test
           toolchain: nightly-2024-04-17
-          args: --release --features plonk_bn254
+          args: --release --features plonk
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_BACKTRACE: 1
