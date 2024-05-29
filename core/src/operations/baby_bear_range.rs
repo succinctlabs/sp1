@@ -42,7 +42,7 @@ impl<F: Field> BabyBearBitDecomposition<F> {
         let mut reconstructed_value = AB::Expr::zero();
         for (i, bit) in cols.bits.iter().enumerate() {
             builder.when(is_real.clone()).assert_bool(*bit);
-            reconstructed_value += AB::Expr::from_canonical_usize(1 << i) * *bit;
+            reconstructed_value += AB::Expr::from_wrapped_u32(1 << i) * *bit;
         }
 
         // Assert that bits2num(bits) == value.
