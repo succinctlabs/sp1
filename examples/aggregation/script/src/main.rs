@@ -95,7 +95,7 @@ fn main() {
 
         // Generate the plonk bn254 proof.
         client
-            .prove_plonk_bn254(&aggregation_pk, stdin)
+            .prove_plonk(&aggregation_pk, stdin)
             .expect("proving failed");
     });
 }

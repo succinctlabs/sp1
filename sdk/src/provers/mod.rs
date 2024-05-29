@@ -29,7 +29,7 @@ pub trait Prover: Send + Sync {
     fn prove_compressed(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1CompressedProof>;
 
     /// Given an SP1 program and input, generate a PLONK proof that can be verified on-chain.
-    fn prove_plonk_bn254(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkBn254Proof>;
+    fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkBn254Proof>;
 
     /// Verify that an SP1 proof is valid given its vkey and metadata.
     fn verify(
@@ -55,7 +55,7 @@ pub trait Prover: Send + Sync {
 
     /// Verify that a SP1 PLONK proof is valid. Verify that the public inputs of the PlonkBn254 proof match
     /// the hash of the VK and the committed public values of the SP1ProofWithPublicValues.
-    fn verify_plonk_bn254(&self, proof: &SP1PlonkBn254Proof, vkey: &SP1VerifyingKey) -> Result<()> {
+    fn verify_plonk(&self, proof: &SP1PlonkBn254Proof, vkey: &SP1VerifyingKey) -> Result<()> {
         let sp1_prover = self.sp1_prover();
 
         let plonk_bn254_aritfacts = if sp1_prover::build::sp1_dev_mode() {
