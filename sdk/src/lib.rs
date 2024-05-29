@@ -25,7 +25,7 @@ use anyhow::{Ok, Result};
 pub use provers::{LocalProver, MockProver, NetworkProver, Prover};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sp1_core::stark::{MachineVerificationError, ShardProof};
-use sp1_prover::ExecutionResult;
+use sp1_core::utils::result::ExecutionResult;
 pub use sp1_prover::{
     CoreSC, HashableKey, InnerSC, OuterSC, PlonkBn254Proof, SP1Prover, SP1ProvingKey,
     SP1PublicValues, SP1Stdin, SP1VerifyingKey,
