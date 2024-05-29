@@ -111,11 +111,6 @@ impl CpuChip {
 
         // Evaluate branching value constraints.
         {
-            // Assert that local.is_branching is a bit.
-            builder
-                .when(is_branch_instruction.clone())
-                .assert_bool(local.branching);
-
             // When the opcode is BEQ and we are branching, assert that a_eq_b is true.
             builder
                 .when(local.selectors.is_beq * local.branching)
