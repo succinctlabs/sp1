@@ -22,7 +22,7 @@ impl<T> BinomialExtension<T> {
         Self(arr)
     }
 
-    pub fn as_base_slice(&self) -> &[T] {
+    pub const fn as_base_slice(&self) -> &[T] {
         &self.0
     }
 

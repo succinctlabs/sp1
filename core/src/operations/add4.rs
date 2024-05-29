@@ -33,10 +33,12 @@ pub struct Add4Operation<T> {
 }
 
 impl<F: Field> Add4Operation<F> {
+    #[allow(clippy::too_many_arguments)]
     pub fn populate(
         &mut self,
         record: &mut ExecutionRecord,
         shard: u32,
+        channel: u32,
         a_u32: u32,
         b_u32: u32,
         c_u32: u32,
@@ -71,11 +73,11 @@ impl<F: Field> Add4Operation<F> {
 
         // Range check.
         {
-            record.add_u8_range_checks(shard, &a);
-            record.add_u8_range_checks(shard, &b);
-            record.add_u8_range_checks(shard, &c);
-            record.add_u8_range_checks(shard, &d);
-            record.add_u8_range_checks(shard, &expected.to_le_bytes());
+            record.add_u8_range_checks(shard, channel, &a);
+            record.add_u8_range_checks(shard, channel, &b);
+            record.add_u8_range_checks(shard, channel, &c);
+            record.add_u8_range_checks(shard, channel, &d);
+            record.add_u8_range_checks(shard, channel, &expected.to_le_bytes());
         }
         expected
     }
@@ -88,16 +90,17 @@ impl<F: Field> Add4Operation<F> {
         c: Word<AB::Var>,
         d: Word<AB::Var>,
         shard: AB::Var,
+        channel: impl Into<AB::Expr> + Copy,
         is_real: AB::Var,
         cols: Add4Operation<AB::Var>,
     ) {
         // Range check each byte.
         {
-            builder.slice_range_check_u8(&a.0, shard, is_real);
-            builder.slice_range_check_u8(&b.0, shard, is_real);
-            builder.slice_range_check_u8(&c.0, shard, is_real);
-            builder.slice_range_check_u8(&d.0, shard, is_real);
-            builder.slice_range_check_u8(&cols.value.0, shard, is_real);
+            builder.slice_range_check_u8(&a.0, shard, channel, is_real);
+            builder.slice_range_check_u8(&b.0, shard, channel, is_real);
+            builder.slice_range_check_u8(&c.0, shard, channel, is_real);
+            builder.slice_range_check_u8(&d.0, shard, channel, is_real);
+            builder.slice_range_check_u8(&cols.value.0, shard, channel, is_real);
         }
 
         builder.assert_bool(is_real);

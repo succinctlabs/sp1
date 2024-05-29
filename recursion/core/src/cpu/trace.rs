@@ -11,12 +11,15 @@ use tracing::instrument;
 use crate::{
     air::BinomialExtensionUtils,
     memory::MemoryCols,
-    runtime::{ExecutionRecord, Opcode, RecursionProgram, D},
+    runtime::{
+        get_heap_size_range_check_events, instruction_is_heap_expand, ExecutionRecord, Opcode,
+        RecursionProgram, D,
+    },
 };
 
 use super::{CpuChip, CpuCols, CPU_COL_MAP, NUM_CPU_COLS};
 
-impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for CpuChip<F> {
+impl<F: PrimeField32 + BinomiallyExtendable<D>, const L: usize> MachineAir<F> for CpuChip<F, L> {
     type Record = ExecutionRecord<F>;
     type Program = RecursionProgram<F>;
 
@@ -67,6 +70,16 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for CpuChip<F> {
                     let memory_cols = cols.opcode_specific.memory_mut();
                     memory_cols.memory.populate(record);
                     memory_cols.memory_addr = record.addr;
+                }
+
+                // Populate the heap columns.
+                if instruction_is_heap_expand(&event.instruction) {
+                    let (u16_range_check, u12_range_check) =
+                        get_heap_size_range_check_events(cols.a.value()[0]);
+
+                    let heap_cols = cols.opcode_specific.heap_expand_mut();
+                    heap_cols.diff_16bit_limb = F::from_canonical_u16(u16_range_check.val);
+                    heap_cols.diff_12bit_limb = F::from_canonical_u16(u12_range_check.val);
                 }
 
                 // Populate the branch columns.

@@ -2,7 +2,7 @@ mod local;
 mod mock;
 mod network;
 
-use crate::{SP1CompressedProof, SP1Groth16Proof, SP1PlonkProof, SP1Proof};
+use crate::{SP1CompressedProof, SP1PlonkBn254Proof, SP1Proof};
 use anyhow::Result;
 pub use local::LocalProver;
 pub use mock::MockProver;
@@ -28,11 +28,8 @@ pub trait Prover: Send + Sync {
     /// Generate a compressed proof of the execution of a RISCV ELF with the given inputs.
     fn prove_compressed(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1CompressedProof>;
 
-    /// Given an SP1 program and input, generate a Groth16 proof that can be verified on-chain.
-    fn prove_groth16(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Groth16Proof>;
-
     /// Given an SP1 program and input, generate a PLONK proof that can be verified on-chain.
-    fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkProof>;
+    fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkBn254Proof>;
 
     /// Verify that an SP1 proof is valid given its vkey and metadata.
     fn verify(
@@ -56,23 +53,23 @@ pub trait Prover: Send + Sync {
             .map_err(|e| e.into())
     }
 
-    /// Verify that a SP1 Groth16 proof is valid. Verify that the public inputs of the Groth16Proof match
+    /// Verify that a SP1 PLONK proof is valid. Verify that the public inputs of the PlonkBn254 proof match
     /// the hash of the VK and the committed public values of the SP1ProofWithPublicValues.
-    fn verify_groth16(&self, proof: &SP1Groth16Proof, vkey: &SP1VerifyingKey) -> Result<()> {
+    fn verify_plonk(&self, proof: &SP1PlonkBn254Proof, vkey: &SP1VerifyingKey) -> Result<()> {
         let sp1_prover = self.sp1_prover();
 
-        let groth16_aritfacts = if sp1_prover::build::sp1_dev_mode() {
-            sp1_prover::build::groth16_artifacts_dev_dir()
+        let plonk_bn254_aritfacts = if sp1_prover::build::sp1_dev_mode() {
+            sp1_prover::build::plonk_bn254_artifacts_dev_dir()
         } else {
-            sp1_prover::build::groth16_artifacts_dir()
+            sp1_prover::build::try_install_plonk_bn254_artifacts()
         };
-        sp1_prover.verify_groth16(&proof.proof, vkey, &proof.public_values, &groth16_aritfacts)?;
+        sp1_prover.verify_plonk_bn254(
+            &proof.proof,
+            vkey,
+            &proof.public_values,
+            &plonk_bn254_aritfacts,
+        )?;
 
-        Ok(())
-    }
-
-    /// Verify that a SP1 PLONK proof is valid given its vkey and metadata.
-    fn verify_plonk(&self, _proof: &SP1PlonkProof, _vkey: &SP1VerifyingKey) -> Result<()> {
         Ok(())
     }
 }

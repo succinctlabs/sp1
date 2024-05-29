@@ -21,20 +21,25 @@ impl<C: CurveOperations<NUM_WORDS> + Copy, const NUM_WORDS: usize> AffinePoint<C
         }
     }
 
-    pub fn new(limbs: [u32; NUM_WORDS]) -> Self {
+    pub const fn new(limbs: [u32; NUM_WORDS]) -> Self {
         Self {
             limbs,
             _marker: std::marker::PhantomData,
         }
     }
 
-    pub fn from(x_bytes: [u8; NUM_WORDS * 2], y_bytes: [u8; NUM_WORDS * 2]) -> Self
-    where
-        [(); NUM_WORDS / 2]:,
-    {
+    /// x_bytes and y_bytes are the concatenated little endian representations of the x and y coordinates.
+    /// The length of x_bytes and y_bytes must each be NUM_WORDS * 2.
+    pub fn from(x_bytes: &[u8], y_bytes: &[u8]) -> Self {
+        debug_assert!(x_bytes.len() == NUM_WORDS * 2);
+        debug_assert!(y_bytes.len() == NUM_WORDS * 2);
+
         let mut limbs = [0u32; NUM_WORDS];
-        let x = bytes_to_words_le::<{ NUM_WORDS / 2 }>(&x_bytes);
-        let y = bytes_to_words_le::<{ NUM_WORDS / 2 }>(&y_bytes);
+        let x = bytes_to_words_le(x_bytes);
+        let y = bytes_to_words_le(y_bytes);
+        debug_assert!(x.len() == NUM_WORDS / 2);
+        debug_assert!(y.len() == NUM_WORDS / 2);
+
         limbs[..(NUM_WORDS / 2)].copy_from_slice(&x);
         limbs[(NUM_WORDS / 2)..].copy_from_slice(&y);
         Self::new(limbs)
@@ -48,7 +53,9 @@ impl<C: CurveOperations<NUM_WORDS> + Copy, const NUM_WORDS: usize> AffinePoint<C
         C::double(&mut self.limbs);
     }
 
-    pub fn mul_assign(&mut self, scalar: &[u32; NUM_WORDS / 2]) {
+    pub fn mul_assign(&mut self, scalar: &[u32]) {
+        debug_assert!(scalar.len() == NUM_WORDS / 2);
+
         let mut res: Option<Self> = None;
         let mut temp = *self;
 
@@ -68,37 +75,35 @@ impl<C: CurveOperations<NUM_WORDS> + Copy, const NUM_WORDS: usize> AffinePoint<C
         *self = res.unwrap();
     }
 
-    pub fn from_le_bytes(limbs: [u8; NUM_WORDS * 4]) -> Self {
-        let u32_limbs = bytes_to_words_le::<{ NUM_WORDS }>(&limbs);
+    pub fn from_le_bytes(limbs: &[u8]) -> Self {
+        let u32_limbs = bytes_to_words_le(limbs);
+        debug_assert!(u32_limbs.len() == NUM_WORDS);
+
         Self {
-            limbs: u32_limbs,
+            limbs: u32_limbs.try_into().unwrap(),
             _marker: std::marker::PhantomData,
         }
     }
 
-    pub fn to_le_bytes(&self) -> [u8; NUM_WORDS * 4] {
-        words_to_bytes_le::<{ NUM_WORDS * 4 }>(&self.limbs)
+    pub fn to_le_bytes(&self) -> Vec<u8> {
+        let le_bytes = words_to_bytes_le(&self.limbs);
+        debug_assert!(le_bytes.len() == NUM_WORDS * 4);
+        le_bytes
     }
 }
 
 /// Converts a slice of words to a byte array in little endian.
-pub fn words_to_bytes_le<const B: usize>(words: &[u32]) -> [u8; B] {
-    debug_assert_eq!(words.len() * 4, B);
+pub fn words_to_bytes_le(words: &[u32]) -> Vec<u8> {
     words
         .iter()
         .flat_map(|word| word.to_le_bytes().to_vec())
         .collect::<Vec<_>>()
-        .try_into()
-        .unwrap()
 }
 
 /// Converts a byte array in little endian to a slice of words.
-pub fn bytes_to_words_le<const W: usize>(bytes: &[u8]) -> [u32; W] {
-    debug_assert_eq!(bytes.len(), W * 4);
+pub fn bytes_to_words_le(bytes: &[u8]) -> Vec<u32> {
     bytes
         .chunks_exact(4)
         .map(|chunk| u32::from_le_bytes(chunk.try_into().unwrap()))
         .collect::<Vec<_>>()
-        .try_into()
-        .unwrap()
 }

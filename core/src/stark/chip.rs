@@ -127,12 +127,12 @@ where
     }
 
     #[inline]
-    pub fn quotient_width(&self) -> usize {
+    pub const fn quotient_width(&self) -> usize {
         1 << self.log_quotient_degree
     }
 
     #[inline]
-    pub fn logup_batch_size(&self) -> usize {
+    pub const fn logup_batch_size(&self) -> usize {
         1 << self.log_quotient_degree
     }
 }

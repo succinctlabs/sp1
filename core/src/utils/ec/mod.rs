@@ -50,7 +50,7 @@ pub struct AffinePoint<E> {
 
 impl<E: EllipticCurveParameters> AffinePoint<E> {
     #[allow(dead_code)]
-    pub fn new(x: BigUint, y: BigUint) -> Self {
+    pub const fn new(x: BigUint, y: BigUint) -> Self {
         Self {
             x,
             y,

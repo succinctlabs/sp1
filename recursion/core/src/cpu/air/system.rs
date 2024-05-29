@@ -3,32 +3,49 @@ use p3_field::Field;
 use sp1_core::air::BaseAirBuilder;
 
 use crate::{
-    air::SP1RecursionAirBuilder,
+    air::{RecursionPublicValues, SP1RecursionAirBuilder},
     cpu::{CpuChip, CpuCols},
 };
 
-impl<F: Field> CpuChip<F> {
+impl<F: Field, const L: usize> CpuChip<F, L> {
     /// Eval the system instructions (TRAP, HALT).
-    ///
-    /// This method will contrain the following:
-    /// 1) Ensure that none of the instructions are TRAP.
-    /// 2) Ensure that the last real instruction is a HALT.
     pub fn eval_system_instructions<AB>(
         &self,
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
         next: &CpuCols<AB::Var>,
+        public_values: &RecursionPublicValues<AB::Expr>,
     ) where
-        AB: SP1RecursionAirBuilder,
+        AB: SP1RecursionAirBuilder<F = F>,
     {
-        builder
-            .when(local.is_real)
-            .assert_zero(local.selectors.is_trap);
+        let is_system_instruction = self.is_system_instruction::<AB>(local);
 
+        // Verify that the last real row is either TRAP or HALT.
         builder
             .when_transition()
             .when(local.is_real)
             .when_not(next.is_real)
-            .assert_one(local.selectors.is_halt);
+            .assert_one(is_system_instruction.clone());
+
+        builder
+            .when_last_row()
+            .when(local.is_real)
+            .assert_one(is_system_instruction.clone());
+
+        // Verify that all other real rows are not TRAP or HALT.
+        builder
+            .when_transition()
+            .when(local.is_real)
+            .when(next.is_real)
+            .assert_zero(is_system_instruction);
+
+        // Verify the correct public value exit code.
+        builder
+            .when(local.selectors.is_trap)
+            .assert_one(public_values.exit_code.clone());
+
+        builder
+            .when(local.selectors.is_halt)
+            .assert_zero(public_values.exit_code.clone());
     }
 }

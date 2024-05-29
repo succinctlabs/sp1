@@ -26,7 +26,7 @@ pub use provers::{LocalProver, MockProver, NetworkProver, Prover};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sp1_core::stark::{MachineVerificationError, ShardProof};
 pub use sp1_prover::{
-    CoreSC, Groth16Proof, HashableKey, InnerSC, OuterSC, PlonkBn254Proof, SP1Prover, SP1ProvingKey,
+    CoreSC, HashableKey, InnerSC, OuterSC, PlonkBn254Proof, SP1Prover, SP1ProvingKey,
     SP1PublicValues, SP1Stdin, SP1VerifyingKey,
 };
 
@@ -54,11 +54,8 @@ pub type SP1ProofVerificationError = MachineVerificationError<CoreSC>;
 pub type SP1CompressedProof = SP1ProofWithPublicValues<ShardProof<InnerSC>>;
 pub type SP1CompressedProofVerificationError = MachineVerificationError<InnerSC>;
 
-/// A [SP1ProofWithPublicValues] generated with [ProverClient::prove_groth16].
-pub type SP1Groth16Proof = SP1ProofWithPublicValues<Groth16Proof>;
-
 /// A [SP1ProofWithPublicValues] generated with [ProverClient::prove_plonk].
-pub type SP1PlonkProof = SP1ProofWithPublicValues<PlonkBn254Proof>;
+pub type SP1PlonkBn254Proof = SP1ProofWithPublicValues<PlonkBn254Proof>;
 
 impl ProverClient {
     /// Creates a new [ProverClient].
@@ -200,7 +197,7 @@ impl ProverClient {
     ///
     /// Returns a proof of the program's execution. By default the proof generated will not be
     /// compressed to constant size. To create a more succinct proof, use the [Self::prove_compressed],
-    /// [Self::prove_groth16], or [Self::prove_plonk] methods.
+    /// [Self::prove_plonk], or [Self::prove_plonk] methods.
     ///
     /// ### Examples
     /// ```no_run
@@ -259,39 +256,9 @@ impl ProverClient {
         self.prover.prove_compressed(pk, stdin)
     }
 
-    /// Proves the execution of the given program with the given input in the groth16 mode.
+    /// Proves the execution of the given program with the given input in the plonk bn254 mode.
     ///
-    /// Returns a proof of the program's execution in the groth16 format. The proof is a succinct
-    /// proof that is of constant size and friendly for on-chain verification.
-    ///
-    /// ### Examples
-    /// ```no_run
-    /// use sp1_sdk::{ProverClient, SP1Stdin};
-    ///
-    /// // Load the program.
-    /// let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
-    ///
-    /// // Initialize the prover client.
-    /// let client = ProverClient::new();
-    ///
-    /// // Setup the program.
-    /// let (pk, vk) = client.setup(elf);
-    ///
-    /// // Setup the inputs.
-    /// let mut stdin = SP1Stdin::new();
-    /// stdin.write(&10usize);
-    ///
-    /// // Generate the proof.
-    /// let proof = client.prove_groth16(&pk, stdin).unwrap();
-    /// ```
-    /// Generates a groth16 proof, verifiable onchain, of the given elf and stdin.
-    pub fn prove_groth16(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Groth16Proof> {
-        self.prover.prove_groth16(pk, stdin)
-    }
-
-    /// Proves the execution of the given program with the given input in the plonk mode.
-    ///
-    /// Returns a proof of the program's execution in the plonk format. The proof is a succinct
+    /// Returns a proof of the program's execution in the plonk bn254format. The proof is a succinct
     /// proof that is of constant size and friendly for on-chain verification.
     ///
     /// ### Examples
@@ -314,7 +281,8 @@ impl ProverClient {
     /// // Generate the proof.
     /// let proof = client.prove_plonk(&pk, stdin).unwrap();
     /// ```
-    pub fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkProof> {
+    /// Generates a plonk bn254 proof, verifiable onchain, of the given elf and stdin.
+    pub fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkBn254Proof> {
         self.prover.prove_plonk(pk, stdin)
     }
 
@@ -373,37 +341,7 @@ impl ProverClient {
         self.prover.verify_compressed(proof, vkey)
     }
 
-    /// Verifies that the given groth16 proof is valid and matches the given verification key
-    /// produced by [Self::setup].
-    ///
-    /// ### Examples
-    /// ```no_run
-    /// use sp1_sdk::{ProverClient, SP1Stdin};
-    ///
-    /// // Load the program.
-    /// let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
-    ///
-    /// // Initialize the prover client.
-    /// let client = ProverClient::new();
-    ///
-    /// // Setup the program.
-    /// let (pk, vk) = client.setup(elf);
-    ///
-    /// // Setup the inputs.
-    /// let mut stdin = SP1Stdin::new();
-    /// stdin.write(&10usize);
-    ///
-    /// // Generate the proof.
-    /// let proof = client.prove_groth16(&pk, stdin).unwrap();
-    ///
-    /// // Verify the proof.
-    /// client.verify_groth16(&proof, &vk).unwrap();
-    /// ```
-    pub fn verify_groth16(&self, proof: &SP1Groth16Proof, vkey: &SP1VerifyingKey) -> Result<()> {
-        self.prover.verify_groth16(proof, vkey)
-    }
-
-    /// Verifies that the given plonk proof is valid and matches the given verification key
+    /// Verifies that the given plonk bn254 proof is valid and matches the given verification key
     /// produced by [Self::setup].
     ///
     /// ### Examples
@@ -429,7 +367,7 @@ impl ProverClient {
     /// // Verify the proof.
     /// client.verify_plonk(&proof, &vk).unwrap();
     /// ```
-    pub fn verify_plonk(&self, proof: &SP1PlonkProof, vkey: &SP1VerifyingKey) -> Result<()> {
+    pub fn verify_plonk(&self, proof: &SP1PlonkBn254Proof, vkey: &SP1VerifyingKey) -> Result<()> {
         self.prover.verify_plonk(proof, vkey)
     }
 }
@@ -454,7 +392,7 @@ impl<P: Debug + Clone + Serialize + DeserializeOwned> SP1ProofWithPublicValues<P
     }
 }
 
-impl SP1Groth16Proof {
+impl SP1PlonkBn254Proof {
     pub fn bytes(&self) -> String {
         format!("0x{}", self.proof.encoded_proof.clone())
     }
@@ -501,7 +439,7 @@ mod tests {
     }
 
     #[test]
-    fn test_e2e_prove_groth16() {
+    fn test_e2e_prove_plonk() {
         utils::setup_logger();
         let client = ProverClient::local();
         let elf =
@@ -509,8 +447,8 @@ mod tests {
         let (pk, vk) = client.setup(elf);
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
-        let proof = client.prove_groth16(&pk, stdin).unwrap();
-        client.verify_groth16(&proof, &vk).unwrap();
+        let proof = client.prove_plonk(&pk, stdin).unwrap();
+        client.verify_plonk(&proof, &vk).unwrap();
     }
 
     #[test]
@@ -527,7 +465,7 @@ mod tests {
     }
 
     #[test]
-    fn test_e2e_prove_groth16_mock() {
+    fn test_e2e_prove_plonk_mock() {
         utils::setup_logger();
         let client = ProverClient::mock();
         let elf =
@@ -535,7 +473,7 @@ mod tests {
         let (pk, vk) = client.setup(elf);
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
-        let proof = client.prove_groth16(&pk, stdin).unwrap();
-        client.verify_groth16(&proof, &vk).unwrap();
+        let proof = client.prove_plonk(&pk, stdin).unwrap();
+        client.verify_plonk(&proof, &vk).unwrap();
     }
 }

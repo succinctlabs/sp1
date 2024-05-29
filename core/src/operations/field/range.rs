@@ -28,7 +28,13 @@ pub struct FieldRangeCols<T, P: FieldParameters> {
 }
 
 impl<F: PrimeField32, P: FieldParameters> FieldRangeCols<F, P> {
-    pub fn populate(&mut self, record: &mut impl ByteRecord, shard: u32, value: &BigUint) {
+    pub fn populate(
+        &mut self,
+        record: &mut impl ByteRecord,
+        shard: u32,
+        channel: u32,
+        value: &BigUint,
+    ) {
         let value_limbs = P::to_limbs(value);
         let modulus_limbs = P::to_limbs(&P::modulus());
 
@@ -46,6 +52,7 @@ impl<F: PrimeField32, P: FieldParameters> FieldRangeCols<F, P> {
                 record.add_byte_lookup_event(ByteLookupEvent {
                     opcode: ByteOpcode::LTU,
                     shard,
+                    channel,
                     a1: 1,
                     a2: 0,
                     b: *byte as u32,
@@ -62,17 +69,13 @@ impl<F: PrimeField32, P: FieldParameters> FieldRangeCols<F, P> {
 }
 
 impl<V: Copy, P: FieldParameters> FieldRangeCols<V, P> {
-    pub fn eval<
-        AB: SP1AirBuilder<Var = V>,
-        E: Into<Polynomial<AB::Expr>> + Clone,
-        EShard: Into<AB::Expr> + Clone,
-        ER: Into<AB::Expr> + Clone,
-    >(
+    pub fn eval<AB: SP1AirBuilder<Var = V>, E: Into<Polynomial<AB::Expr>> + Clone>(
         &self,
         builder: &mut AB,
         element: &E,
-        shard: EShard,
-        is_real: ER,
+        shard: impl Into<AB::Expr> + Clone,
+        channel: impl Into<AB::Expr> + Clone,
+        is_real: impl Into<AB::Expr> + Clone,
     ) where
         V: Into<AB::Expr>,
         Limbs<V, P::Limbs>: Copy,
@@ -137,6 +140,7 @@ impl<V: Copy, P: FieldParameters> FieldRangeCols<V, P> {
             self.comparison_byte,
             modulus_comparison_byte,
             shard,
+            channel,
             is_real,
         )
     }

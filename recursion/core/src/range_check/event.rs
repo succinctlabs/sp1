@@ -14,7 +14,7 @@ pub struct RangeCheckEvent {
 
 impl RangeCheckEvent {
     /// Creates a new `RangeCheckEvent`.
-    pub fn new(opcode: RangeCheckOpcode, val: u16) -> Self {
+    pub const fn new(opcode: RangeCheckOpcode, val: u16) -> Self {
         Self { opcode, val }
     }
 }
