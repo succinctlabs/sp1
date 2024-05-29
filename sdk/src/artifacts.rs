@@ -8,7 +8,7 @@ pub use sp1_prover::build::{
     build_plonk_bn254_artifacts_with_dummy, try_install_plonk_bn254_artifacts,
 };
 
-/// Exports the soliditiy verifier for PLONK proofs to the specified output directory.
+/// Exports the solidity verifier for PLONK proofs to the specified output directory.
 ///
 /// WARNING: If you are on development mode, this function assumes that the PLONK artifacts have
 /// already been built.

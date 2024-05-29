@@ -35,7 +35,7 @@ jobs:
             with:
               command: test
               toolchain: nightly-2024-04-17
-              args: --release -p sp1-sdk --features plonk_bn254 -- test_e2e_prove_plonk_bn254 --nocapture
+              args: --release -p sp1-sdk --features plonk -- test_e2e_prove_plonk --nocapture
             env:
               RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
               RUST_BACKTRACE: 1
