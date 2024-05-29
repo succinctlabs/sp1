@@ -31,7 +31,7 @@ pub fn prove_plonk_bn254(data_dir: &str, witness_path: &str) -> PlonkBn254Proof 
 
                 proof.into_rust()
         } else {
-            panic!("plonk_bn254 feature not enabled");
+            panic!("plonk feature not enabled");
         }
     }
 }
@@ -45,7 +45,7 @@ pub fn build_plonk_bn254(data_dir: &str) {
                 bind::BuildPlonkBn254(data_dir.as_ptr() as *mut c_char);
             }
         } else {
-            panic!("plonk_bn254 feature not enabled");
+            panic!("plonk feature not enabled");
 
         }
     }
@@ -81,7 +81,7 @@ pub fn verify_plonk_bn254(
                 Err(err.into_string().unwrap())
             }
         } else {
-            panic!("plonk_bn254 feature not enabled");
+            panic!("plonk feature not enabled");
         }
     }
 }
@@ -103,7 +103,7 @@ pub fn test_plonk_bn254(witness_json: &str, constraints_json: &str) {
                 }
             }
         } else {
-            panic!("plonk_bn254 feature not enabled");
+            panic!("plonk feature not enabled");
         }
     }
 }

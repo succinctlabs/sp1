@@ -52,7 +52,7 @@ impl Prover for MockProver {
         unimplemented!()
     }
 
-    fn prove_plonk_bn254(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkBn254Proof> {
+    fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkBn254Proof> {
         let public_values = SP1Prover::execute(&pk.elf, &stdin)?;
         Ok(SP1PlonkBn254Proof {
             proof: PlonkBn254Proof {
@@ -84,7 +84,7 @@ impl Prover for MockProver {
         Ok(())
     }
 
-    fn verify_plonk_bn254(&self, proof: &SP1PlonkBn254Proof, vkey: &SP1VerifyingKey) -> Result<()> {
+    fn verify_plonk(&self, proof: &SP1PlonkBn254Proof, vkey: &SP1VerifyingKey) -> Result<()> {
         verify_plonk_bn254_public_inputs(vkey, &proof.public_values, &proof.proof.public_inputs)?;
         Ok(())
     }

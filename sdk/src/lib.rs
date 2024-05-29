@@ -54,7 +54,7 @@ pub type SP1ProofVerificationError = MachineVerificationError<CoreSC>;
 pub type SP1CompressedProof = SP1ProofWithPublicValues<ShardProof<InnerSC>>;
 pub type SP1CompressedProofVerificationError = MachineVerificationError<InnerSC>;
 
-/// A [SP1ProofWithPublicValues] generated with [ProverClient::prove_plonk_bn254].
+/// A [SP1ProofWithPublicValues] generated with [ProverClient::prove_plonk].
 pub type SP1PlonkBn254Proof = SP1ProofWithPublicValues<PlonkBn254Proof>;
 
 impl ProverClient {
@@ -197,7 +197,7 @@ impl ProverClient {
     ///
     /// Returns a proof of the program's execution. By default the proof generated will not be
     /// compressed to constant size. To create a more succinct proof, use the [Self::prove_compressed],
-    /// [Self::prove_plonk_bn254], or [Self::prove_plonk] methods.
+    /// [Self::prove_plonk], or [Self::prove_plonk] methods.
     ///
     /// ### Examples
     /// ```no_run
@@ -279,15 +279,11 @@ impl ProverClient {
     /// stdin.write(&10usize);
     ///
     /// // Generate the proof.
-    /// let proof = client.prove_plonk_bn254(&pk, stdin).unwrap();
+    /// let proof = client.prove_plonk(&pk, stdin).unwrap();
     /// ```
     /// Generates a plonk bn254 proof, verifiable onchain, of the given elf and stdin.
-    pub fn prove_plonk_bn254(
-        &self,
-        pk: &SP1ProvingKey,
-        stdin: SP1Stdin,
-    ) -> Result<SP1PlonkBn254Proof> {
-        self.prover.prove_plonk_bn254(pk, stdin)
+    pub fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkBn254Proof> {
+        self.prover.prove_plonk(pk, stdin)
     }
 
     /// Verifies that the given proof is valid and matches the given verification key produced by
@@ -366,17 +362,13 @@ impl ProverClient {
     /// stdin.write(&10usize);
     ///
     /// // Generate the proof.
-    /// let proof = client.prove_plonk_bn254(&pk, stdin).unwrap();
+    /// let proof = client.prove_plonk(&pk, stdin).unwrap();
     ///
     /// // Verify the proof.
-    /// client.verify_plonk_bn254(&proof, &vk).unwrap();
+    /// client.verify_plonk(&proof, &vk).unwrap();
     /// ```
-    pub fn verify_plonk_bn254(
-        &self,
-        proof: &SP1PlonkBn254Proof,
-        vkey: &SP1VerifyingKey,
-    ) -> Result<()> {
-        self.prover.verify_plonk_bn254(proof, vkey)
+    pub fn verify_plonk(&self, proof: &SP1PlonkBn254Proof, vkey: &SP1VerifyingKey) -> Result<()> {
+        self.prover.verify_plonk(proof, vkey)
     }
 }
 
@@ -447,7 +439,7 @@ mod tests {
     }
 
     #[test]
-    fn test_e2e_prove_plonk_bn254() {
+    fn test_e2e_prove_plonk() {
         utils::setup_logger();
         let client = ProverClient::local();
         let elf =
@@ -455,8 +447,8 @@ mod tests {
         let (pk, vk) = client.setup(elf);
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
-        let proof = client.prove_plonk_bn254(&pk, stdin).unwrap();
-        client.verify_plonk_bn254(&proof, &vk).unwrap();
+        let proof = client.prove_plonk(&pk, stdin).unwrap();
+        client.verify_plonk(&proof, &vk).unwrap();
     }
 
     #[test]
@@ -473,7 +465,7 @@ mod tests {
     }
 
     #[test]
-    fn test_e2e_prove_plonk_bn254_mock() {
+    fn test_e2e_prove_plonk_mock() {
         utils::setup_logger();
         let client = ProverClient::mock();
         let elf =
@@ -481,7 +473,7 @@ mod tests {
         let (pk, vk) = client.setup(elf);
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
-        let proof = client.prove_plonk_bn254(&pk, stdin).unwrap();
-        client.verify_plonk_bn254(&proof, &vk).unwrap();
+        let proof = client.prove_plonk(&pk, stdin).unwrap();
+        client.verify_plonk(&proof, &vk).unwrap();
     }
 }
