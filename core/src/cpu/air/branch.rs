@@ -3,7 +3,7 @@ use p3_field::AbstractField;
 
 use crate::air::{BaseAirBuilder, SP1AirBuilder, Word, WordAirBuilder};
 use crate::cpu::columns::{CpuCols, OpcodeSelectorCols};
-use crate::operations::BabyBearWord;
+use crate::operations::BabyBearRangeChecker;
 use crate::{cpu::CpuChip, runtime::Opcode};
 
 impl CpuChip {
@@ -43,38 +43,46 @@ impl CpuChip {
             // When we are branching, assert local.pc <==> branch_cols.pc as Word.
             builder
                 .when(local.branching)
-                .assert_eq(branch_cols.pc.value.reduce::<AB>(), local.pc);
+                .assert_eq(branch_cols.pc.reduce::<AB>(), local.pc);
 
             // When we are branching, assert that next.pc <==> branch_columns.next_pc as Word.
             builder
                 .when_transition()
                 .when(next.is_real)
                 .when(local.branching)
-                .assert_eq(branch_cols.next_pc.value.reduce::<AB>(), next.pc);
+                .assert_eq(branch_cols.next_pc.reduce::<AB>(), next.pc);
 
             // When the current row is real and local.branching, assert that local.next_pc <==> branch_columns.next_pc as Word.
             builder
                 .when(local.is_real)
                 .when(local.branching)
-                .assert_eq(branch_cols.next_pc.value.reduce::<AB>(), local.next_pc);
+                .assert_eq(branch_cols.next_pc.reduce::<AB>(), local.next_pc);
 
             // Range check branch_cols.pc and branch_cols.next_pc.
-            BabyBearWord::<AB::F>::range_check(
+            BabyBearRangeChecker::<AB::F>::range_check(
                 builder,
-                branch_cols.pc,
+                local.op_a_val(),
+                branch_cols.op_a_range_checker,
                 is_branch_instruction.clone(),
             );
-            BabyBearWord::<AB::F>::range_check(
+            BabyBearRangeChecker::<AB::F>::range_check(
+                builder,
+                branch_cols.pc,
+                branch_cols.pc_range_checker,
+                is_branch_instruction.clone(),
+            );
+            BabyBearRangeChecker::<AB::F>::range_check(
                 builder,
                 branch_cols.next_pc,
+                branch_cols.next_pc_range_checker,
                 is_branch_instruction.clone(),
             );
 
             // When we are branching, calculate branch_cols.next_pc <==> branch_cols.pc + c.
             builder.send_alu(
                 Opcode::ADD.as_field::<AB::F>(),
-                branch_cols.next_pc.value,
-                branch_cols.pc.value,
+                branch_cols.next_pc,
+                branch_cols.pc,
                 local.op_c_val(),
                 local.shard,
                 local.channel,

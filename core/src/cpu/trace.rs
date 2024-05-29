@@ -12,6 +12,7 @@ use tracing::instrument;
 use super::columns::{CPU_COL_MAP, NUM_CPU_COLS};
 use super::{CpuChip, CpuEvent};
 use crate::air::MachineAir;
+use crate::air::Word;
 use crate::alu::{self, AluEvent};
 use crate::bytes::event::ByteRecord;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
@@ -447,8 +448,11 @@ impl CpuChip {
                 let next_pc = event.pc.wrapping_add(event.c);
 
                 cols.branching = F::one();
-                branch_columns.pc.populate(event.pc);
-                branch_columns.next_pc.populate(next_pc);
+                branch_columns.pc = Word::from(event.pc);
+                branch_columns.pc_range_checker.populate(event.pc);
+                branch_columns.next_pc = Word::from(next_pc);
+                branch_columns.next_pc_range_checker.populate(next_pc);
+                // branch_columns.op_a_range_checker.populate(event.a);
 
                 let add_event = AluEvent {
                     shard: event.shard,
@@ -483,8 +487,10 @@ impl CpuChip {
             match event.instruction.opcode {
                 Opcode::JAL => {
                     let next_pc = event.pc.wrapping_add(event.b);
-                    jump_columns.pc.populate(event.pc);
-                    jump_columns.next_pc.populate(next_pc);
+                    jump_columns.pc = Word::from(event.pc);
+                    jump_columns.pc_range_checker.populate(event.pc);
+                    jump_columns.next_pc = Word::from(next_pc);
+                    jump_columns.next_pc_range_checker.populate(next_pc);
 
                     let add_event = AluEvent {
                         shard: event.shard,
@@ -503,7 +509,8 @@ impl CpuChip {
                 }
                 Opcode::JALR => {
                     let next_pc = event.b.wrapping_add(event.c);
-                    jump_columns.next_pc.populate(next_pc);
+                    jump_columns.next_pc = Word::from(next_pc);
+                    jump_columns.next_pc_range_checker.populate(next_pc);
 
                     let add_event = AluEvent {
                         shard: event.shard,
@@ -535,7 +542,8 @@ impl CpuChip {
         if matches!(event.instruction.opcode, Opcode::AUIPC) {
             let auipc_columns = cols.opcode_specific_columns.auipc_mut();
 
-            auipc_columns.pc.populate(event.pc);
+            auipc_columns.pc = Word::from(event.pc);
+            auipc_columns.pc_range_checker.populate(event.pc);
 
             let add_event = AluEvent {
                 shard: event.shard,
