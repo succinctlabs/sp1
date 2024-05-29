@@ -42,18 +42,28 @@ impl NetworkProver {
         mode: ProofMode,
     ) -> Result<P> {
         let client = &self.client;
-        // Execute the runtime before creating the proof request.
-        let program = Program::from(elf);
-        let opts = SP1CoreOpts::default();
-        let mut runtime = Runtime::new(program, opts);
-        runtime.write_vecs(&stdin.buffer);
-        for (proof, vkey) in stdin.proofs.iter() {
-            runtime.write_proof(proof.clone(), vkey.clone());
+
+        let skip_simulation = env::var("SKIP_SIMULATION")
+            .map(|val| val == "true")
+            .unwrap_or(false);
+
+        // If the simulation is not skipped, execute the runtime before creating the proof request.
+        if !skip_simulation {
+            let program = Program::from(elf);
+            let opts = SP1CoreOpts::default();
+            let mut runtime = Runtime::new(program, opts);
+            runtime.write_vecs(&stdin.buffer);
+            for (proof, vkey) in stdin.proofs.iter() {
+                runtime.write_proof(proof.clone(), vkey.clone());
+            }
+            runtime
+                .run_untraced()
+                .context("Failed to execute program")?;
+
+            log::info!("Simulation complete, cycles: {}", runtime.state.global_clk);
+        } else {
+            log::info!("Skipping simulation");
         }
-        runtime
-            .run_untraced()
-            .context("Failed to execute program")?;
-        log::info!("Simulation complete, cycles: {}", runtime.state.global_clk);
 
         let proof_id = client.create_proof(elf, &stdin, mode).await?;
         log::info!("Created {}", proof_id);
