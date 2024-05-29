@@ -56,7 +56,7 @@ impl Prover for LocalProver {
 
     fn prove_plonk_bn254(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkBn254Proof> {
         cfg_if! {
-            if #[cfg(feature = "plonk_bn254")] {
+            if #[cfg(feature = "plonk")] {
 
                 let proof = self.prover.prove_core(pk, &stdin)?;
                 let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();

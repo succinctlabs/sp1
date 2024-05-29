@@ -9,14 +9,14 @@ use std::ffi::{c_char, CString};
 
 #[allow(warnings, clippy::all)]
 mod bind {
-    #[cfg(feature = "plonk_bn254")]
+    #[cfg(feature = "plonk")]
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }
 use bind::*;
 
 pub fn prove_plonk_bn254(data_dir: &str, witness_path: &str) -> PlonkBn254Proof {
     cfg_if! {
-        if #[cfg(feature = "plonk_bn254")] {
+        if #[cfg(feature = "plonk")] {
             let data_dir = CString::new(data_dir).expect("CString::new failed");
             let witness_path = CString::new(witness_path).expect("CString::new failed");
 
@@ -38,7 +38,7 @@ pub fn prove_plonk_bn254(data_dir: &str, witness_path: &str) -> PlonkBn254Proof 
 
 pub fn build_plonk_bn254(data_dir: &str) {
     cfg_if! {
-        if #[cfg(feature = "plonk_bn254")] {
+        if #[cfg(feature = "plonk")] {
             let data_dir = CString::new(data_dir).expect("CString::new failed");
 
             unsafe {
@@ -58,7 +58,7 @@ pub fn verify_plonk_bn254(
     committed_values_digest: &str,
 ) -> Result<(), String> {
     cfg_if! {
-        if #[cfg(feature = "plonk_bn254")] {
+        if #[cfg(feature = "plonk")] {
             let data_dir = CString::new(data_dir).expect("CString::new failed");
             let proof = CString::new(proof).expect("CString::new failed");
             let vkey_hash = CString::new(vkey_hash).expect("CString::new failed");
@@ -88,7 +88,7 @@ pub fn verify_plonk_bn254(
 
 pub fn test_plonk_bn254(witness_json: &str, constraints_json: &str) {
     cfg_if! {
-        if #[cfg(feature = "plonk_bn254")] {
+        if #[cfg(feature = "plonk")] {
             unsafe {
                 let witness_json = CString::new(witness_json).expect("CString::new failed");
                 let build_dir = CString::new(constraints_json).expect("CString::new failed");
@@ -121,7 +121,7 @@ unsafe fn c_char_ptr_to_string(input: *mut c_char) -> String {
     }
 }
 
-#[cfg(feature = "plonk_bn254")]
+#[cfg(feature = "plonk")]
 impl C_PlonkBn254Proof {
     /// Converts a C PlonkBn254Proof into a Rust PlonkBn254Proof, freeing the C strings.
     fn into_rust(self) -> PlonkBn254Proof {
