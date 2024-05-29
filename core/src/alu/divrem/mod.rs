@@ -748,10 +748,16 @@ where
                 builder.assert_eq(local.max_abs_c_or_1[i], max_abs_c_or_1[i].clone());
             }
 
-            // Check that the event multiplicity column is computed correctly.
-            builder
-                .when_not(local.is_c_0.result)
-                .assert_eq(local.remainder_check_multiplicity, local.is_real);
+            // Handle cases:
+            // - If is_real == 0 then remainder_check_multiplicity == 0 is forced.
+            // - If is_real == 1 then is_c_0_result must be the expected one, so
+            //   remainder_check_multiplicity = (1 - is_c_0_result) * is_real.
+            builder.assert_eq(
+                (AB::Expr::one() - local.is_c_0.result) * local.is_real,
+                local.remainder_check_multiplicity,
+            );
+
+            // the cleaner idea is simply remainder_check_multiplicity == (1 - is_c_0_result) * is_real
 
             // Check that the absolute value selector columns are computed correctly.
             builder.assert_eq(local.abs_c_alu_event, local.c_neg * local.is_real);
