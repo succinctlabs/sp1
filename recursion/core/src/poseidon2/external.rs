@@ -100,11 +100,12 @@ impl Poseidon2Chip {
             // Verify that the round flags are correct.
             builder.assert_bool(local.rounds[i]);
 
-            if i != num_total_rounds - 1 {
-                builder
-                    .when_transition()
-                    .assert_eq(local.rounds[i], next.rounds[i + 1]);
+            // Assert that the next round is correct.
+            builder
+                .when_transition()
+                .assert_eq(local.rounds[i], next.rounds[(i + 1) % num_total_rounds]);
 
+            if i != num_total_rounds - 1 {
                 builder
                     .when_transition()
                     .when(local.rounds[i])
@@ -123,6 +124,7 @@ impl Poseidon2Chip {
                     .assert_eq(local.right_input, next.right_input);
             }
         }
+
         // Ensure that at most one of the round flags is set.
         let round_acc = local
             .rounds
@@ -131,13 +133,16 @@ impl Poseidon2Chip {
         builder.assert_bool(round_acc);
 
         // Verify the do_memory flag.
-        builder
-            .when(local.is_real)
-            .assert_eq(local.do_memory, local.rounds[0] + local.rounds[23]);
+        builder.assert_eq(
+            local.do_memory,
+            local.is_real * (local.rounds[0] + local.rounds[23]),
+        );
+
         // Verify the do_receive flag.
         builder
             .when(local.is_real)
-            .assert_eq(local.do_receive, local.rounds[0]);
+            .assert_eq(local.do_receive, local.is_real * local.rounds[0]);
+
         // Verify the first row starts at round 0.
         builder.when_first_row().assert_one(local.rounds[0]);
         // The round count is not a power of 2, so the last row should not be real.
