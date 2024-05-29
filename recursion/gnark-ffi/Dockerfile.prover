@@ -1,0 +1,20 @@
+# Use an official Rust image as a parent image
+FROM rust:latest
+
+# Set the working directory
+WORKDIR /usr/src/app
+
+# Copy the local code to the container
+COPY . .
+
+# Install any needed packages specified in Cargo.toml
+RUN cargo install --path .
+
+# Make port 80 available to the world outside this container
+EXPOSE 80
+
+# Define environment variable
+ENV NAME World
+
+# Run the application when the container launches
+CMD ["cargo", "run"]
