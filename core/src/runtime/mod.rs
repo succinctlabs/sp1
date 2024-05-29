@@ -534,10 +534,10 @@ impl Runtime {
 
     /// Execute the given instruction over the current state of the runtime.
     fn execute_instruction(&mut self, instruction: Instruction) -> Result<(), ExecutionError> {
-        // Don't log syscalls into the opcodes list, they are counted seperately.
+        // Don't log syscalls into the opcodes counter, they are counted seperately.
         let ignored_opcodes = [Opcode::ECALL];
 
-        // Only log the opcode if it is not in the ignored list.
+        // Increment the opcode counter.
         if !ignored_opcodes.contains(&instruction.opcode) {
             *self.opcode_log.entry(instruction.opcode).or_insert(0) += 1;
         }
