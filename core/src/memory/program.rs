@@ -138,8 +138,8 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
         trace
     }
 
-    fn included(&self, _: &Self::Record) -> bool {
-        true
+    fn included(&self, record: &Self::Record) -> bool {
+        record.index == 1
     }
 }
 

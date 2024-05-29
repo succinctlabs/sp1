@@ -473,6 +473,7 @@ pub enum MachineVerificationError<SC: StarkGenericConfig> {
     DebugInteractionsFailed,
     EmptyProof,
     InvalidPublicValues(&'static str),
+    InvalidChipOccurence(String),
 }
 
 impl<SC: StarkGenericConfig> Debug for MachineVerificationError<SC> {
@@ -498,6 +499,9 @@ impl<SC: StarkGenericConfig> Debug for MachineVerificationError<SC> {
             }
             MachineVerificationError::InvalidPublicValues(s) => {
                 write!(f, "Invalid public values: {}", s)
+            }
+            MachineVerificationError::InvalidChipOccurence(s) => {
+                write!(f, "Invalid chip occurence: {}", s)
             }
         }
     }

@@ -4,6 +4,7 @@ use anyhow::Result;
 use num_bigint::BigUint;
 use p3_baby_bear::BabyBear;
 use p3_field::{AbstractField, PrimeField};
+use sp1_core::air::MachineAir;
 use sp1_core::{
     air::PublicValues,
     io::SP1PublicValues,
@@ -45,7 +46,7 @@ impl SP1Prover {
         self.core_machine
             .verify(&vk.vk, &machine_proof, &mut challenger)?;
 
-        // Verify shard transitions
+        // Verify shard transitions.
         for (i, shard_proof) in proof.0.iter().enumerate() {
             let public_values = PublicValues::from_vec(shard_proof.public_values.clone());
             // Verify shard transitions
@@ -97,6 +98,56 @@ impl SP1Prover {
                         "non-last shard is halted",
                     ));
                 }
+            }
+        }
+
+        // Verify that the `MemoryInit` and `MemoryFinalize` chips are the last chips in the proof.
+        for (i, shard_proof) in proof.0.iter().enumerate() {
+            let chips = self
+                .core_machine
+                .shard_chips_ordered(&shard_proof.chip_ordering)
+                .collect::<Vec<_>>();
+            let program_memory_init_exists = chips
+                .clone()
+                .into_iter()
+                .filter(|chip| chip.name() == "MemoryProgram")
+                .count()
+                > 0;
+            let memory_init_exists = chips
+                .clone()
+                .into_iter()
+                .filter(|chip| chip.name() != "MemoryInit")
+                .count()
+                > 0;
+            let memory_final_exists = chips
+                .into_iter()
+                .filter(|chip| chip.name() != "MemoryFinalize")
+                .count()
+                > 0;
+
+            // Assert that the `MemoryProgram` chip only exists in the first shard.
+            if i == 0 && !program_memory_init_exists {
+                return Err(MachineVerificationError::InvalidChipOccurence(
+                    "memory program should exist in the first chip".to_string(),
+                ));
+            }
+            if i != 0 && program_memory_init_exists {
+                return Err(MachineVerificationError::InvalidChipOccurence(
+                    "memory program should not exist in the first chip".to_string(),
+                ));
+            }
+
+            // Assert that the `MemoryInit` and `MemoryFinalize` chips only exist in the last shard.
+            if i != proof.0.len() - 1 && (memory_final_exists || memory_init_exists) {
+                return Err(MachineVerificationError::InvalidChipOccurence(
+                    "memory init and finalize should not eixst anywhere but the last chip"
+                        .to_string(),
+                ));
+            }
+            if i == proof.0.len() - 1 && (!memory_init_exists || !memory_final_exists) {
+                return Err(MachineVerificationError::InvalidChipOccurence(
+                    "memory init and finalize should exist the last chip".to_string(),
+                ));
             }
         }
 
