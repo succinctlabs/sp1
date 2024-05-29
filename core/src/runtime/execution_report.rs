@@ -1,7 +1,45 @@
-use super::Runtime;
-use std::{any::Any, collections::HashMap};
-
+use super::{Opcode, Runtime, SyscallCode};
+use std::collections::HashMap;
 use thiserror::Error;
+
+/// A report containing useful information about the execution of a program.
+/// It stores useful information about the resource footprint of a provable
+/// RISCV program, including the count of each operation and syscall that
+/// occurred during execution.
+///
+/// ### Usage:
+/// ```
+/// use sp1_core::{
+/// runtime::{Instruction, Opcode, Program, Register, Runtime},
+/// utils::SP1CoreOpts,
+/// };
+/// let instructions = vec![
+///     Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
+///     Instruction::new(Opcode::ADD, 30, 0, 37, false, true),
+///     Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
+/// ];
+///
+/// // Setup a program and a runtime
+/// let program = Program::new(instructions, 0, 0);
+/// let mut runtime = Runtime::new(program, SP1CoreOpts::default());
+/// // Runtime must execute before reporting statistics
+/// let report = runtime.dry_run().unwrap();
+/// // Check that the count of ADD instructions is exactly 3
+/// let add_count = report
+/// .total_instruction_count
+/// .get(&Opcode::ADD)
+/// .unwrap_or(&0);
+/// assert_eq!(*add_count, 3, "The count of ADD instructions should be 3");
+/// // Verify successful ADD operations
+/// assert_eq!(runtime.register(Register::X31), 42);
+/// ```
+#[derive(Debug)]
+pub struct ExecutionReport {
+    /// Total number of instructions occurred during program execution
+    pub total_instruction_count: HashMap<Opcode, usize>,
+    /// Total number of syscalls occurred during program execution
+    pub total_syscall_count: HashMap<SyscallCode, usize>,
+}
 
 #[derive(Error, Debug)]
 /// Errors which may occur when querying an execution report for
@@ -17,122 +55,27 @@ pub enum MetricRetrievalError {
     DataTypeMismatch,
 }
 
-/// A report containing useful information about the execution of a program.
-/// It stores useful information about the resource footprint of a provable
-/// RISCV program, including number of cycles, instruction count, and syscall
-/// count.
-///
-/// ### Custom Metrics:
-/// An execution report contains a rich set of metrics and granular details
-/// that can be easily accessed. You can, for example, count the total
-/// number of ADD instructions that occurred during a program run:
-/// ```
-/// use sp1_core::{
-///     runtime::{Instruction, Opcode, Program, Register, Runtime},
-///     utils::SP1CoreOpts,
-/// };
-///
-/// let instructions = vec![
-///     Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
-///     Instruction::new(Opcode::ADD, 30, 0, 37, false, true),
-///     Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
-/// ];
-///
-/// // Setup a program and a runtime
-/// let program = Program::new(instructions, 0, 0);
-/// let mut runtime = Runtime::new(program, SP1CoreOpts::default());
-/// // Runtime must execute before reporting statistics
-/// let report = runtime.dry_run().unwrap();
-/// assert_eq!(runtime.register(Register::X31), 42);
-///
-/// // Retrieve the number of ADD operations
-/// let add_count = &report.get_metric("Arithmetic", "ADD").unwrap_or(0);
-/// assert_eq!(*add_count, 3);
-/// assert_eq!(report.cycles, 12);
-/// assert_eq!(report.total_instruction_count, 3);
-///
-/// // You can also get a count of all instruction/opcode occurrences by category
-/// let add_operations_count = report.get_total_for_category("Arithmetic").unwrap_or(0);
-/// assert_eq!(add_operations_count, 3,);
-/// ```
-#[derive(Debug)]
-pub struct ExecutionReport {
-    /// Total number of cycles occurred during program execution
-    pub cycles: u32,
-    /// Total number of instructions occurred during program execution
-    pub total_instruction_count: usize,
-    /// Total number of syscalls occurred during program execution
-    pub syscall_count: usize,
-    /// Contains precise counts of each individual instruction,
-    /// as well as counts of instruction by category. See [ExecutionReport] Usage for
-    /// more details
-    pub custom_metrics: HashMap<String, Box<dyn Any>>,
-}
-
 impl ExecutionReport {
     /// Accept a runtime from a program which has already executed
     /// and extract some useful information from it.
     pub fn new(runtime: &Runtime) -> Self {
-        let total_instruction_count = runtime
-            .instruction_log
-            .values()
-            .map(|counts| counts.values().sum::<u64>() as usize)
-            .sum();
+        let mut total_instruction_count = HashMap::new();
+        let mut total_syscall_count = HashMap::new();
 
-        let syscall_count = runtime
-            .instruction_log
-            .get("Syscalls")
-            .map_or(0, |counts| counts.values().sum::<u64>() as usize);
+        // Populate the total_instruction_count from the opcode log
+        runtime.opcode_log.iter().for_each(|(&opcode, &count)| {
+            *total_instruction_count.entry(opcode).or_insert(0) += count as usize;
+        });
 
-        let mut custom_metrics = HashMap::new();
-        for (category, counts) in &runtime.instruction_log {
-            // Convert the inner HashMap to a format that can be boxed as `dyn Any`
-            let metrics: HashMap<_, _> = counts
-                .iter()
-                .map(|(opcode, count)| (format!("{:?}", opcode), *count))
-                .collect();
-            custom_metrics.insert(category.clone(), Box::new(metrics) as Box<dyn Any>);
-        }
+        // Populate the total_syscall_count from the syscall log
+        runtime.syscall_log.iter().for_each(|(&syscall, &count)| {
+            *total_syscall_count.entry(syscall).or_insert(0) += count as usize;
+        });
 
-        Self {
-            cycles: runtime.state.clk,
+        ExecutionReport {
             total_instruction_count,
-            syscall_count,
-            custom_metrics,
+            total_syscall_count,
         }
-    }
-
-    /// Retrieve specific metric based on category and opcode.
-    pub fn get_metric(&self, category: &str, opcode: &str) -> Result<u64, MetricRetrievalError> {
-        let boxed_map = self
-            .custom_metrics
-            .get(category)
-            .ok_or(MetricRetrievalError::CategoryNotFound)?;
-
-        let map = boxed_map
-            .downcast_ref::<HashMap<String, u64>>()
-            .ok_or(MetricRetrievalError::DataTypeMismatch)?;
-
-        let count = map
-            .get(opcode)
-            .copied()
-            .ok_or(MetricRetrievalError::OpcodeNotFound)?;
-
-        Ok(count)
-    }
-
-    /// Retrieve the total count of all operations for a given category.
-    pub fn get_total_for_category(&self, category: &str) -> Result<u64, MetricRetrievalError> {
-        let boxed_map = self
-            .custom_metrics
-            .get(category)
-            .ok_or(MetricRetrievalError::CategoryNotFound)?;
-
-        let map = boxed_map
-            .downcast_ref::<HashMap<String, u64>>()
-            .ok_or(MetricRetrievalError::DataTypeMismatch)?;
-
-        Ok(map.values().sum())
     }
 }
 
@@ -156,16 +99,13 @@ mod tests {
         let mut runtime = Runtime::new(program, SP1CoreOpts::default());
         // Runtime must execute before reporting statistics
         let report = runtime.dry_run().unwrap();
+        // Check that the count of ADD instructions is exactly 3
+        let add_count = report
+            .total_instruction_count
+            .get(&Opcode::ADD)
+            .unwrap_or(&0);
+        assert_eq!(*add_count, 3, "The count of ADD instructions should be 3");
+        // Verify successful ADD operations
         assert_eq!(runtime.register(Register::X31), 42);
-
-        // Retrieve the number of ADD operations
-        let add_count = &report.get_metric("Arithmetic", "ADD").unwrap_or(0);
-        assert_eq!(*add_count, 3);
-        assert_eq!(report.cycles, 12);
-        assert_eq!(report.total_instruction_count, 3);
-
-        // You can also get a count of all instruction/opcode occurrences by category
-        let add_operations_count = report.get_total_for_category("Arithmetic").unwrap_or(0);
-        assert_eq!(add_operations_count, 3,);
     }
 }

@@ -80,6 +80,14 @@ pub type ReduceAir<F> = RecursionAir<F, REDUCE_DEGREE>;
 pub type CompressAir<F> = RecursionAir<F, COMPRESS_DEGREE>;
 pub type WrapAir<F> = RecursionAir<F, WRAP_DEGREE>;
 
+/// Contains result of execution along with an [ExecutionReport].
+pub struct ExecutionResult {
+    /// Public values for Prover.
+    pub values: SP1PublicValues,
+    /// Statistics of program execution.
+    pub report: ExecutionReport,
+}
+
 /// A end-to-end prover implementation for the SP1 RISC-V zkVM.
 pub struct SP1Prover {
     /// The program that can recursively verify a set of proofs into a single proof.
@@ -214,10 +222,7 @@ impl SP1Prover {
 
     /// Generate a proof of an SP1 program with the specified inputs.
     #[instrument(name = "execute", level = "info", skip_all)]
-    pub fn execute(
-        elf: &[u8],
-        stdin: &SP1Stdin,
-    ) -> Result<(SP1PublicValues, ExecutionReport), ExecutionError> {
+    pub fn execute(elf: &[u8], stdin: &SP1Stdin) -> Result<ExecutionResult, ExecutionError> {
         let program = Program::from(elf);
         let opts = SP1CoreOpts::default();
         let mut runtime = Runtime::new(program, opts);
@@ -227,10 +232,10 @@ impl SP1Prover {
             runtime.write_proof(proof.clone(), vkey.clone());
         }
         runtime.run_untraced()?;
-        Ok((
-            SP1PublicValues::from(&runtime.state.public_values_stream),
+        Ok(ExecutionResult {
+            values: SP1PublicValues::from(&runtime.state.public_values_stream),
             report,
-        ))
+        })
     }
 
     /// Generate shard proofs which split up and prove the valid execution of a RISC-V program with

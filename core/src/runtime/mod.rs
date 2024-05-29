@@ -84,9 +84,12 @@ pub struct Runtime {
 
     pub emit_events: bool,
 
-    /// A detailed collection of each occurance of instructions during
+    /// A detailed collection of each occurance of opcodes during
     /// program execution
-    pub instruction_log: HashMap<String, HashMap<Opcode, u64>>,
+    pub opcode_log: HashMap<Opcode, u64>,
+    /// A detailed collection of each occurance of syscalls during
+    /// program execution
+    pub syscall_log: HashMap<SyscallCode, u64>,
 }
 
 #[derive(Error, Debug)]
@@ -146,7 +149,8 @@ impl Runtime {
             syscall_map,
             emit_events: true,
             max_syscall_cycles,
-            instruction_log: HashMap::new(),
+            opcode_log: HashMap::new(),
+            syscall_log: HashMap::new(),
         }
     }
 
@@ -536,29 +540,6 @@ impl Runtime {
 
         let mut next_pc = self.state.pc.wrapping_add(4);
 
-        // Determine the category based on opcode for logging purposes
-        let category = match instruction.opcode {
-            Opcode::ADD
-            | Opcode::SUB
-            | Opcode::XOR
-            | Opcode::OR
-            | Opcode::AND
-            | Opcode::SLL
-            | Opcode::SRL
-            | Opcode::SRA => "Arithmetic",
-            Opcode::ECALL | Opcode::EBREAK => "Syscalls",
-            Opcode::LB | Opcode::LH | Opcode::LW | Opcode::SB | Opcode::SH | Opcode::SW => "Memory",
-            // We can add other instruction categories as needed
-            _ => "Other",
-        };
-
-        // Increment the count for the opcode under its category
-        let category_counts = self
-            .instruction_log
-            .entry(category.to_string())
-            .or_default();
-        *category_counts.entry(instruction.opcode).or_insert(0) += 1;
-
         let rd: Register;
         let (a, b, c): (u32, u32, u32);
         let (addr, memory_read_value): (u32, u32);
@@ -568,51 +549,62 @@ impl Runtime {
         match instruction.opcode {
             // Arithmetic instructions.
             Opcode::ADD => {
+                *self.opcode_log.entry(Opcode::ADD).or_insert(0) += 1;
+
                 (rd, b, c) = self.alu_rr(instruction);
                 a = b.wrapping_add(c);
                 self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::SUB => {
+                *self.opcode_log.entry(Opcode::SUB).or_insert(0) += 1;
                 (rd, b, c) = self.alu_rr(instruction);
                 a = b.wrapping_sub(c);
                 self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::XOR => {
+                *self.opcode_log.entry(Opcode::XOR).or_insert(0) += 1;
                 (rd, b, c) = self.alu_rr(instruction);
                 a = b ^ c;
                 self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::OR => {
+                *self.opcode_log.entry(Opcode::OR).or_insert(0) += 1;
                 (rd, b, c) = self.alu_rr(instruction);
                 a = b | c;
                 self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::AND => {
+                *self.opcode_log.entry(Opcode::AND).or_insert(0) += 1;
                 (rd, b, c) = self.alu_rr(instruction);
                 a = b & c;
                 self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::SLL => {
+                *self.opcode_log.entry(Opcode::SLL).or_insert(0) += 1;
                 (rd, b, c) = self.alu_rr(instruction);
                 a = b.wrapping_shl(c);
                 self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::SRL => {
+                *self.opcode_log.entry(Opcode::SRL).or_insert(0) += 1;
                 (rd, b, c) = self.alu_rr(instruction);
                 a = b.wrapping_shr(c);
                 self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::SRA => {
+                *self.opcode_log.entry(Opcode::SRA).or_insert(0) += 1;
                 (rd, b, c) = self.alu_rr(instruction);
                 a = (b as i32).wrapping_shr(c) as u32;
                 self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::SLT => {
+                *self.opcode_log.entry(Opcode::SLT).or_insert(0) += 1;
                 (rd, b, c) = self.alu_rr(instruction);
                 a = if (b as i32) < (c as i32) { 1 } else { 0 };
                 self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::SLTU => {
+                *self.opcode_log.entry(Opcode::SLTU).or_insert(0) += 1;
                 (rd, b, c) = self.alu_rr(instruction);
                 a = if b < c { 1 } else { 0 };
                 self.alu_rw(instruction, rd, a, b, c);
@@ -620,6 +612,7 @@ impl Runtime {
 
             // Load instructions.
             Opcode::LB => {
+                *self.opcode_log.entry(Opcode::LB).or_insert(0) += 1;
                 (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
                 let value = (memory_read_value).to_le_bytes()[(addr % 4) as usize];
                 a = ((value as i8) as i32) as u32;
@@ -627,6 +620,7 @@ impl Runtime {
                 self.rw(rd, a);
             }
             Opcode::LH => {
+                *self.opcode_log.entry(Opcode::LH).or_insert(0) += 1;
                 (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
                 if addr % 2 != 0 {
                     return Err(ExecutionError::InvalidMemoryAccess(Opcode::LH, addr));
@@ -641,6 +635,7 @@ impl Runtime {
                 self.rw(rd, a);
             }
             Opcode::LW => {
+                *self.opcode_log.entry(Opcode::LW).or_insert(0) += 1;
                 (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
                 if addr % 4 != 0 {
                     return Err(ExecutionError::InvalidMemoryAccess(Opcode::LW, addr));
@@ -650,6 +645,7 @@ impl Runtime {
                 self.rw(rd, a);
             }
             Opcode::LBU => {
+                *self.opcode_log.entry(Opcode::LBU).or_insert(0) += 1;
                 (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
                 let value = (memory_read_value).to_le_bytes()[(addr % 4) as usize];
                 a = value as u32;
@@ -657,6 +653,7 @@ impl Runtime {
                 self.rw(rd, a);
             }
             Opcode::LHU => {
+                *self.opcode_log.entry(Opcode::LHU).or_insert(0) += 1;
                 (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
                 if addr % 2 != 0 {
                     return Err(ExecutionError::InvalidMemoryAccess(Opcode::LHU, addr));
@@ -673,6 +670,7 @@ impl Runtime {
 
             // Store instructions.
             Opcode::SB => {
+                *self.opcode_log.entry(Opcode::SB).or_insert(0) += 1;
                 (a, b, c, addr, memory_read_value) = self.store_rr(instruction);
                 let value = match addr % 4 {
                     0 => (a & 0x000000FF) + (memory_read_value & 0xFFFFFF00),
@@ -685,6 +683,7 @@ impl Runtime {
                 self.mw_cpu(align(addr), value, MemoryAccessPosition::Memory);
             }
             Opcode::SH => {
+                *self.opcode_log.entry(Opcode::SH).or_insert(0) += 1;
                 (a, b, c, addr, memory_read_value) = self.store_rr(instruction);
                 if addr % 2 != 0 {
                     return Err(ExecutionError::InvalidMemoryAccess(Opcode::SH, addr));
@@ -698,6 +697,7 @@ impl Runtime {
                 self.mw_cpu(align(addr), value, MemoryAccessPosition::Memory);
             }
             Opcode::SW => {
+                *self.opcode_log.entry(Opcode::SW).or_insert(0) += 1;
                 (a, b, c, addr, _) = self.store_rr(instruction);
                 if addr % 4 != 0 {
                     return Err(ExecutionError::InvalidMemoryAccess(Opcode::SW, addr));
@@ -709,36 +709,42 @@ impl Runtime {
 
             // B-type instructions.
             Opcode::BEQ => {
+                *self.opcode_log.entry(Opcode::BEQ).or_insert(0) += 1;
                 (a, b, c) = self.branch_rr(instruction);
                 if a == b {
                     next_pc = self.state.pc.wrapping_add(c);
                 }
             }
             Opcode::BNE => {
+                *self.opcode_log.entry(Opcode::BNE).or_insert(0) += 1;
                 (a, b, c) = self.branch_rr(instruction);
                 if a != b {
                     next_pc = self.state.pc.wrapping_add(c);
                 }
             }
             Opcode::BLT => {
+                *self.opcode_log.entry(Opcode::BLT).or_insert(0) += 1;
                 (a, b, c) = self.branch_rr(instruction);
                 if (a as i32) < (b as i32) {
                     next_pc = self.state.pc.wrapping_add(c);
                 }
             }
             Opcode::BGE => {
+                *self.opcode_log.entry(Opcode::BGE).or_insert(0) += 1;
                 (a, b, c) = self.branch_rr(instruction);
                 if (a as i32) >= (b as i32) {
                     next_pc = self.state.pc.wrapping_add(c);
                 }
             }
             Opcode::BLTU => {
+                *self.opcode_log.entry(Opcode::BLTU).or_insert(0) += 1;
                 (a, b, c) = self.branch_rr(instruction);
                 if a < b {
                     next_pc = self.state.pc.wrapping_add(c);
                 }
             }
             Opcode::BGEU => {
+                *self.opcode_log.entry(Opcode::BGEU).or_insert(0) += 1;
                 (a, b, c) = self.branch_rr(instruction);
                 if a >= b {
                     next_pc = self.state.pc.wrapping_add(c);
@@ -747,6 +753,7 @@ impl Runtime {
 
             // Jump instructions.
             Opcode::JAL => {
+                *self.opcode_log.entry(Opcode::JAL).or_insert(0) += 1;
                 let (rd, imm) = instruction.j_type();
                 (b, c) = (imm, 0);
                 a = self.state.pc + 4;
@@ -754,6 +761,7 @@ impl Runtime {
                 next_pc = self.state.pc.wrapping_add(imm);
             }
             Opcode::JALR => {
+                *self.opcode_log.entry(Opcode::JALR).or_insert(0) += 1;
                 let (rd, rs1, imm) = instruction.i_type();
                 (b, c) = (self.rr(rs1, MemoryAccessPosition::B), imm);
                 a = self.state.pc + 4;
@@ -763,6 +771,7 @@ impl Runtime {
 
             // Upper immediate instructions.
             Opcode::AUIPC => {
+                *self.opcode_log.entry(Opcode::AUIPC).or_insert(0) += 1;
                 let (rd, imm) = instruction.u_type();
                 (b, c) = (imm, imm);
                 a = self.state.pc.wrapping_add(b);
@@ -771,6 +780,7 @@ impl Runtime {
 
             // System instructions.
             Opcode::ECALL => {
+                *self.opcode_log.entry(Opcode::ECALL).or_insert(0) += 1;
                 // We peek at register x5 to get the syscall id. The reason we don't `self.rr` this
                 // register is that we write to it later.
                 let t0 = Register::X5;
@@ -778,6 +788,7 @@ impl Runtime {
                 c = self.rr(Register::X11, MemoryAccessPosition::C);
                 b = self.rr(Register::X10, MemoryAccessPosition::B);
                 let syscall = SyscallCode::from_u32(syscall_id);
+                *self.syscall_log.entry(syscall).or_insert(0) += 1;
 
                 let syscall_impl = self.get_syscall(syscall).cloned();
                 let mut precompile_rt = SyscallContext::new(self);
@@ -818,31 +829,37 @@ impl Runtime {
                 exit_code = returned_exit_code;
             }
             Opcode::EBREAK => {
+                *self.opcode_log.entry(Opcode::EBREAK).or_insert(0) += 1;
                 return Err(ExecutionError::Breakpoint());
             }
 
             // Multiply instructions.
             Opcode::MUL => {
+                *self.opcode_log.entry(Opcode::MUL).or_insert(0) += 1;
                 (rd, b, c) = self.alu_rr(instruction);
                 a = b.wrapping_mul(c);
                 self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::MULH => {
+                *self.opcode_log.entry(Opcode::MULH).or_insert(0) += 1;
                 (rd, b, c) = self.alu_rr(instruction);
                 a = (((b as i32) as i64).wrapping_mul((c as i32) as i64) >> 32) as u32;
                 self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::MULHU => {
+                *self.opcode_log.entry(Opcode::MULHU).or_insert(0) += 1;
                 (rd, b, c) = self.alu_rr(instruction);
                 a = ((b as u64).wrapping_mul(c as u64) >> 32) as u32;
                 self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::MULHSU => {
+                *self.opcode_log.entry(Opcode::MULHSU).or_insert(0) += 1;
                 (rd, b, c) = self.alu_rr(instruction);
                 a = (((b as i32) as i64).wrapping_mul(c as i64) >> 32) as u32;
                 self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::DIV => {
+                *self.opcode_log.entry(Opcode::DIV).or_insert(0) += 1;
                 (rd, b, c) = self.alu_rr(instruction);
                 if c == 0 {
                     a = u32::MAX;
@@ -852,6 +869,7 @@ impl Runtime {
                 self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::DIVU => {
+                *self.opcode_log.entry(Opcode::DIVU).or_insert(0) += 1;
                 (rd, b, c) = self.alu_rr(instruction);
                 if c == 0 {
                     a = u32::MAX;
@@ -861,6 +879,7 @@ impl Runtime {
                 self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::REM => {
+                *self.opcode_log.entry(Opcode::REM).or_insert(0) += 1;
                 (rd, b, c) = self.alu_rr(instruction);
                 if c == 0 {
                     a = b;
@@ -870,6 +889,7 @@ impl Runtime {
                 self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::REMU => {
+                *self.opcode_log.entry(Opcode::REMU).or_insert(0) += 1;
                 (rd, b, c) = self.alu_rr(instruction);
                 if c == 0 {
                     a = b;
@@ -881,6 +901,7 @@ impl Runtime {
 
             // See https://github.com/riscv-non-isa/riscv-asm-manual/blob/master/riscv-asm.md#instruction-aliases
             Opcode::UNIMP => {
+                *self.opcode_log.entry(Opcode::UNIMP).or_insert(0) += 1;
                 return Err(ExecutionError::Unimplemented());
             }
         }

@@ -31,7 +31,7 @@ pub fn get_cycles(elf: &[u8], stdin: &SP1Stdin) -> u64 {
     let program = Program::from(elf);
     let mut runtime = Runtime::new(program, SP1CoreOpts::default());
     runtime.write_vecs(&stdin.buffer);
-    let _ = runtime.dry_run();
+    runtime.dry_run().unwrap();
     runtime.state.global_clk
 }
 
