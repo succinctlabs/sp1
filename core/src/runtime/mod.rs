@@ -534,7 +534,13 @@ impl Runtime {
 
     /// Execute the given instruction over the current state of the runtime.
     fn execute_instruction(&mut self, instruction: Instruction) -> Result<(), ExecutionError> {
-        *self.opcode_log.entry(instruction.opcode).or_insert(0) += 1;
+        // Don't log syscalls into the opcodes list, they are counted seperately.
+        let ignored_opcodes = [Opcode::ECALL];
+
+        // Only log the opcode if it is not in the ignored list.
+        if !ignored_opcodes.contains(&instruction.opcode) {
+            *self.opcode_log.entry(instruction.opcode).or_insert(0) += 1;
+        }
 
         let mut pc = self.state.pc;
         let mut clk = self.state.clk;
@@ -765,7 +771,6 @@ impl Runtime {
 
                 let syscall_impl = self.get_syscall(syscall).cloned();
                 let mut precompile_rt = SyscallContext::new(self);
-
                 let (precompile_next_pc, precompile_cycles, returned_exit_code) =
                     if let Some(syscall_impl) = syscall_impl {
                         // Executing a syscall optionally returns a value to write to the t0 register.
