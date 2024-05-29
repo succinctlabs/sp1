@@ -5,6 +5,7 @@ mod logger;
 mod options;
 mod programs;
 mod prove;
+pub mod result;
 mod tracer;
 
 pub use buffer::*;

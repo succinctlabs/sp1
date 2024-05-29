@@ -32,6 +32,7 @@ use sp1_core::runtime::execution_report::ExecutionReport;
 use sp1_core::runtime::{ExecutionError, Runtime};
 use sp1_core::stark::{Challenge, StarkProvingKey};
 use sp1_core::stark::{Challenger, MachineVerificationError};
+use sp1_core::utils::result::ExecutionResult;
 use sp1_core::utils::{SP1CoreOpts, DIGEST_SIZE};
 use sp1_core::{
     runtime::Program,
@@ -79,14 +80,6 @@ const WRAP_DEGREE: usize = 9;
 pub type ReduceAir<F> = RecursionAir<F, REDUCE_DEGREE>;
 pub type CompressAir<F> = RecursionAir<F, COMPRESS_DEGREE>;
 pub type WrapAir<F> = RecursionAir<F, WRAP_DEGREE>;
-
-/// Contains result of execution along with an [ExecutionReport].
-pub struct ExecutionResult {
-    /// Public values for Prover.
-    pub values: SP1PublicValues,
-    /// Statistics of program execution.
-    pub report: ExecutionReport,
-}
 
 /// A end-to-end prover implementation for the SP1 RISC-V zkVM.
 pub struct SP1Prover {
