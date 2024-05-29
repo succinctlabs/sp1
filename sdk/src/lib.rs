@@ -24,7 +24,10 @@ use std::{env, fmt::Debug, fs::File, path::Path};
 use anyhow::{Ok, Result};
 pub use provers::{LocalProver, MockProver, NetworkProver, Prover};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use sp1_core::stark::{MachineVerificationError, ShardProof};
+use sp1_core::{
+    runtime::execution_report::ExecutionReport,
+    stark::{MachineVerificationError, ShardProof},
+};
 pub use sp1_prover::{
     CoreSC, HashableKey, InnerSC, OuterSC, PlonkBn254Proof, SP1Prover, SP1ProvingKey,
     SP1PublicValues, SP1Stdin, SP1VerifyingKey,
@@ -169,8 +172,13 @@ impl ProverClient {
     /// // Execute the program on the inputs.
     /// let public_values = client.execute(elf, stdin).unwrap();
     /// ```
-    pub fn execute(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1PublicValues> {
-        Ok(SP1Prover::execute(elf, &stdin)?)
+    pub fn execute(
+        &self,
+        elf: &[u8],
+        stdin: SP1Stdin,
+    ) -> Result<(SP1PublicValues, ExecutionReport)> {
+        let result = SP1Prover::execute(elf, &stdin)?;
+        Ok(result)
     }
 
     /// Setup a program to be proven and verified by the SP1 RISC-V zkVM by computing the proving

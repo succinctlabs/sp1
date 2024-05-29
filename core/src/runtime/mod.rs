@@ -9,7 +9,9 @@ mod state;
 mod syscall;
 #[macro_use]
 mod utils;
+pub mod execution_report;
 
+use execution_report::ExecutionReport;
 pub use instruction::*;
 pub use memory::*;
 pub use opcode::*;
@@ -81,6 +83,10 @@ pub struct Runtime {
     pub max_syscall_cycles: u32,
 
     pub emit_events: bool,
+
+    /// A detailed collection of each occurance of instructions during
+    /// program execution
+    pub instruction_log: HashMap<String, HashMap<Opcode, u64>>,
 }
 
 #[derive(Error, Debug)]
@@ -140,6 +146,7 @@ impl Runtime {
             syscall_map,
             emit_events: true,
             max_syscall_cycles,
+            instruction_log: HashMap::new(),
         }
     }
 
@@ -528,6 +535,29 @@ impl Runtime {
         let mut exit_code = 0u32;
 
         let mut next_pc = self.state.pc.wrapping_add(4);
+
+        // Determine the category based on opcode for logging purposes
+        let category = match instruction.opcode {
+            Opcode::ADD
+            | Opcode::SUB
+            | Opcode::XOR
+            | Opcode::OR
+            | Opcode::AND
+            | Opcode::SLL
+            | Opcode::SRL
+            | Opcode::SRA => "Arithmetic",
+            Opcode::ECALL | Opcode::EBREAK => "Syscalls",
+            Opcode::LB | Opcode::LH | Opcode::LW | Opcode::SB | Opcode::SH | Opcode::SW => "Memory",
+            // We can add other instruction categories as needed
+            _ => "Other",
+        };
+
+        // Increment the count for the opcode under its category
+        let category_counts = self
+            .instruction_log
+            .entry(category.to_string())
+            .or_default();
+        *category_counts.entry(instruction.opcode).or_insert(0) += 1;
 
         let rd: Register;
         let (a, b, c): (u32, u32, u32);
@@ -960,15 +990,16 @@ impl Runtime {
         Ok(())
     }
 
-    pub fn run(&mut self) -> Result<(), ExecutionError> {
+    pub fn run(&mut self) -> Result<ExecutionReport, ExecutionError> {
         self.emit_events = true;
         while !self.execute()? {}
-        Ok(())
+        Ok(ExecutionReport::new(self))
     }
 
-    pub fn dry_run(&mut self) {
+    pub fn dry_run(&mut self) -> Result<ExecutionReport, ExecutionError> {
         self.emit_events = false;
-        while !self.execute().unwrap() {}
+        while !self.execute()? {}
+        Ok(ExecutionReport::new(self))
     }
 
     /// Executes up to `self.shard_batch_size` cycles of the program, returning whether the program has finished.
