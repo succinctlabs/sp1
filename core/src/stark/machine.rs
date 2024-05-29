@@ -30,6 +30,7 @@ use crate::stark::DebugConstraintBuilder;
 use crate::stark::ProverConstraintFolder;
 use crate::stark::ShardProof;
 use crate::stark::VerifierConstraintFolder;
+use crate::utils::SP1CoreOpts;
 
 use super::Chip;
 use super::Com;
@@ -159,7 +160,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
     ///
     /// Given a program, this function generates the proving and verifying keys. The keys correspond
     /// to the program code and other preprocessed colunms such as lookup tables.
-    #[instrument("setup machine", level = "info", skip_all)]
+    #[instrument("setup machine", level = "debug", skip_all)]
     pub fn setup(&self, program: &A::Program) -> (StarkProvingKey<SC>, StarkVerifyingKey<SC>) {
         let mut named_preprocessed_traces = tracing::debug_span!("generate preprocessed traces")
             .in_scope(|| {
@@ -273,6 +274,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         pk: &StarkProvingKey<SC>,
         record: A::Record,
         challenger: &mut SC::Challenger,
+        opts: SP1CoreOpts,
     ) -> MachineProof<SC>
     where
         A: for<'a> Air<ProverConstraintFolder<'a, SC>>
@@ -284,7 +286,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             .in_scope(|| self.shard(record, &<A::Record as MachineRecord>::Config::default()));
 
         tracing::info_span!("prove_shards")
-            .in_scope(|| P::prove_shards(self, pk, shards, challenger))
+            .in_scope(|| P::prove_shards(self, pk, shards, challenger, opts))
     }
 
     pub const fn config(&self) -> &SC {
@@ -529,6 +531,7 @@ pub mod tests {
     use crate::utils::run_test;
     use crate::utils::setup_logger;
     use crate::utils::BabyBearPoseidon2;
+    use crate::utils::SP1CoreOpts;
 
     #[test]
     fn test_simple_prove() {
@@ -676,7 +679,13 @@ pub mod tests {
         setup_logger();
         let program = fibonacci_program();
         let stdin = SP1Stdin::new();
-        prove(program, &stdin, BabyBearPoseidon2::new()).unwrap();
+        prove(
+            program,
+            &stdin,
+            BabyBearPoseidon2::new(),
+            SP1CoreOpts::default(),
+        )
+        .unwrap();
     }
 
     #[test]

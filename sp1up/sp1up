@@ -80,7 +80,7 @@ main() {
 
   # Install by downloading binaries
   if [[ "$SP1UP_REPO" == "succinctlabs/sp1" && -z "$SP1UP_BRANCH" && -z "$SP1UP_COMMIT" ]]; then
-    SP1UP_VERSION=${SP1UP_VERSION:-main}
+    SP1UP_VERSION=${SP1UP_VERSION:-latest}
     SP1UP_TAG=$SP1UP_VERSION
 
     if [[ "$SP1UP_VERSION" == [[:digit:]]* ]]; then

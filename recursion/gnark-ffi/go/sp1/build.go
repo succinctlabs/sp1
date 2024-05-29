@@ -19,7 +19,7 @@ import (
 func Build(dataDir string) {
 	// Set the enviroment variable for the constraints file.
 	//
-	// TODO: There might be some non-determinism if a single processe is running this command
+	// TODO: There might be some non-determinism if a single process is running this command
 	// multiple times.
 	os.Setenv("CONSTRAINTS_JSON", dataDir+"/"+CONSTRAINTS_JSON_FILE)
 

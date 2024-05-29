@@ -1,10 +1,12 @@
 use std::borrow::Cow;
 use std::str::FromStr;
 
-use alloy::signers::{wallet::LocalWallet, Signer};
-use alloy::sol;
-use alloy::sol_types::{Eip712Domain, SolStruct};
+use alloy_sol_types::{sol, Eip712Domain, SolStruct};
 use anyhow::Result;
+use ethers::{
+    signers::{LocalWallet, Signer},
+    types::H256,
+};
 
 use crate::proto::network::UnclaimReason;
 
@@ -75,15 +77,15 @@ impl NetworkAuth {
 
     /// Gets the address of the auth's account, derived from the secp256k1 private key.
     pub fn get_address(&self) -> [u8; 20] {
-        *self.wallet.address().0
+        self.wallet.address().0
     }
 
     // Generic function to sign a message based on the SolStruct.
     async fn sign_message<T: SolStruct>(&self, type_struct: T) -> Result<Vec<u8>> {
         let domain_separator = Self::get_domain_separator();
         let message_hash = type_struct.eip712_signing_hash(&domain_separator);
-        let signature = self.wallet.sign_hash(&message_hash).await?;
-        Ok(signature.as_bytes().to_vec())
+        let signature = self.wallet.sign_hash(H256(message_hash.0))?;
+        Ok(signature.to_vec())
     }
 
     /// Signs a message to to request ot create a proof.

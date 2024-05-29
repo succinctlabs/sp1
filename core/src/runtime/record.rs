@@ -24,7 +24,7 @@ use crate::syscall::precompiles::sha256::{ShaCompressEvent, ShaExtendEvent};
 use crate::syscall::precompiles::uint256::Uint256MulEvent;
 use crate::syscall::precompiles::ECDecompressEvent;
 use crate::syscall::precompiles::{ECAddEvent, ECDoubleEvent};
-use crate::utils::env;
+use crate::utils::SP1CoreOpts;
 
 /// A record of the execution of a program. Contains event data for everything that happened during
 /// the execution of the shard.
@@ -134,7 +134,7 @@ impl ShardingConfig {
 
 impl Default for ShardingConfig {
     fn default() -> Self {
-        let shard_size = env::shard_size();
+        let shard_size = SP1CoreOpts::default().shard_size;
         Self {
             shard_size,
             add_len: shard_size,

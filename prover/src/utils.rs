@@ -12,12 +12,11 @@ use sp1_core::{
     air::Word,
     io::SP1Stdin,
     runtime::{Program, Runtime},
+    utils::SP1CoreOpts,
 };
 use tokio::{runtime, task::block_in_place};
 
 use crate::SP1CoreProofData;
-
-pub const RECONSTRUCT_COMMITMENTS_ENV_VAR: &str = "RECONSTRUCT_COMMITMENTS";
 
 impl SP1CoreProofData {
     pub fn save(&self, path: &str) -> Result<(), std::io::Error> {
@@ -30,7 +29,7 @@ impl SP1CoreProofData {
 /// Get the number of cycles for a given program.
 pub fn get_cycles(elf: &[u8], stdin: &SP1Stdin) -> u64 {
     let program = Program::from(elf);
-    let mut runtime = Runtime::new(program);
+    let mut runtime = Runtime::new(program, SP1CoreOpts::default());
     runtime.write_vecs(&stdin.buffer);
     runtime.dry_run();
     runtime.state.global_clk
