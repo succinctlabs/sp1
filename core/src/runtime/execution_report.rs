@@ -27,9 +27,11 @@ pub enum MetricRetrievalError {
 /// that can be easily accessed. You can, for example, count the total
 /// number of ADD instructions that occurred during a program run:
 /// ```
-/// use sp1_core::runtime::{Instruction, Opcode, Program, Register, Runtime, SP1CoreOpts};
+/// use sp1_core::{
+///     runtime::{Instruction, Opcode, Program, Register, Runtime},
+///     utils::SP1CoreOpts,
+/// };
 ///
-/// // Simple program to test the ADD instruction
 /// let instructions = vec![
 ///     Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
 ///     Instruction::new(Opcode::ADD, 30, 0, 37, false, true),
@@ -39,15 +41,18 @@ pub enum MetricRetrievalError {
 /// // Setup a program and a runtime
 /// let program = Program::new(instructions, 0, 0);
 /// let mut runtime = Runtime::new(program, SP1CoreOpts::default());
-/// // Runtime must execute to produce runtime statistics
-/// let mut res = runtime.run().unwrap();
+/// // Runtime must execute before reporting statistics
+/// let report = runtime.dry_run().unwrap();
+/// assert_eq!(runtime.register(Register::X31), 42);
 ///
 /// // Retrieve the number of ADD operations
-/// let add_count = &res.get_metric("Arithmetic", "ADD").unwrap_or(0);
+/// let add_count = &report.get_metric("Arithmetic", "ADD").unwrap_or(0);
 /// assert_eq!(*add_count, 3);
+/// assert_eq!(report.cycles, 12);
+/// assert_eq!(report.total_instruction_count, 3);
 ///
-/// // You can also get a count of all opcode occurences by category
-/// let add_operations_count = res.get_total_for_category("Arithmetic").unwrap_or(0);
+/// // You can also get a count of all instruction/opcode occurrences by category
+/// let add_operations_count = report.get_total_for_category("Arithmetic").unwrap_or(0);
 /// assert_eq!(add_operations_count, 3,);
 /// ```
 #[derive(Debug)]
@@ -140,10 +145,6 @@ mod tests {
 
     #[test]
     fn test_logging() {
-        // main:
-        //     addi x29, x0, 5
-        //     addi x30, x0, 37
-        //     add x31, x30, x29
         let instructions = vec![
             Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
             Instruction::new(Opcode::ADD, 30, 0, 37, false, true),
@@ -153,18 +154,18 @@ mod tests {
         // Setup a program and a runtime
         let program = Program::new(instructions, 0, 0);
         let mut runtime = Runtime::new(program, SP1CoreOpts::default());
-        // Runtime must execute to report runtime statistics
-        let res = runtime.dry_run().unwrap();
+        // Runtime must execute before reporting statistics
+        let report = runtime.dry_run().unwrap();
         assert_eq!(runtime.register(Register::X31), 42);
 
         // Retrieve the number of ADD operations
-        let add_count = &res.get_metric("Arithmetic", "ADD").unwrap_or(0);
+        let add_count = &report.get_metric("Arithmetic", "ADD").unwrap_or(0);
         assert_eq!(*add_count, 3);
-        assert_eq!(res.cycles, 12);
-        assert_eq!(res.total_instruction_count, 3);
+        assert_eq!(report.cycles, 12);
+        assert_eq!(report.total_instruction_count, 3);
 
-        // You can also get a count of all instruction/opcode occurences by category
-        let add_operations_count = res.get_total_for_category("Arithmetic").unwrap_or(0);
+        // You can also get a count of all instruction/opcode occurrences by category
+        let add_operations_count = report.get_total_for_category("Arithmetic").unwrap_or(0);
         assert_eq!(add_operations_count, 3,);
     }
 }
