@@ -92,9 +92,9 @@ fn main() {
             stdin.write_proof(input.proof.proof, input.vk.vk);
         }
 
-        // Generate the groth16 proof.
+        // Generate the plonk bn254 proof.
         client
-            .prove_groth16(&aggregation_pk, stdin)
+            .prove_plonk(&aggregation_pk, stdin)
             .expect("proving failed");
     });
 }

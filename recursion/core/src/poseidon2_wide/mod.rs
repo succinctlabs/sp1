@@ -16,7 +16,6 @@ pub struct Poseidon2Event<F> {
     pub input: [F; WIDTH],
 }
 
-// TODO: Make this public inside Plonky3 and import directly.
 pub fn apply_m_4<AF>(x: &mut [AF])
 where
     AF: AbstractField,

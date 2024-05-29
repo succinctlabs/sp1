@@ -13,8 +13,8 @@ sha2 = "0.10.8"
 sp1-helper = { path = "../../../helper" }
 
 [[bin]]
-name = "groth16"
-path = "bin/groth16.rs"
+name = "plonk_bn254"
+path = "bin/plonk_bn254.rs"
 
 [[bin]]
 name = "compressed"

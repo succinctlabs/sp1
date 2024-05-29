@@ -16,7 +16,7 @@ fn main() {
     // Generate the proof for the given program and input.
     let client = ProverClient::new();
     let (pk, vk) = client.setup(ELF);
-    let mut proof = client.prove_groth16(&pk, stdin).unwrap();
+    let mut proof = client.prove_plonk(&pk, stdin).unwrap();
 
     println!("generated proof");
 
@@ -29,7 +29,7 @@ fn main() {
 
     // Verify proof and public values
     client
-        .verify_groth16(&proof, &vk)
+        .verify_plonk(&proof, &vk)
         .expect("verification failed");
 
     // Save the proof.
