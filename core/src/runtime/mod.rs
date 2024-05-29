@@ -535,6 +535,10 @@ impl Runtime {
         let mut memory_store_value: Option<u32> = None;
         self.memory_accesses = MemoryAccessRecord::default();
 
+        if self.state.global_clk == 170676 {
+            println!("{:?}", instruction);
+        }
+
         match instruction.opcode {
             // Arithmetic instructions.
             Opcode::ADD => {

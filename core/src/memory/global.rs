@@ -12,6 +12,7 @@ use sp1_derive::AlignedBorrow;
 use super::MemoryInitializeFinalizeEvent;
 use crate::air::{AirInteraction, BaseAirBuilder, SP1AirBuilder, Word};
 use crate::air::{MachineAir, WordAirBuilder};
+use crate::operations::BabyBearBitDecomposition;
 use crate::runtime::{ExecutionRecord, Program};
 use crate::utils::pad_to_power_of_two;
 
@@ -75,6 +76,7 @@ impl<F: PrimeField> MachineAir<F> for MemoryChip {
                 let mut row = [F::zero(); NUM_MEMORY_INIT_COLS];
                 let cols: &mut MemoryInitCols<F> = row.as_mut_slice().borrow_mut();
                 cols.addr = F::from_canonical_u32(addr);
+                cols.addr_bits.populate(addr);
                 cols.shard = F::from_canonical_u32(shard);
                 cols.timestamp = F::from_canonical_u32(timestamp);
                 cols.value = value.into();
@@ -82,12 +84,22 @@ impl<F: PrimeField> MachineAir<F> for MemoryChip {
 
                 if i != memory_events.len() - 1 {
                     let next_addr = memory_events[i + 1].addr;
-                    let addr_increasing_check = next_addr - addr - 1;
                     assert_ne!(next_addr, addr);
-                    for j in 0..cols.addr_increasing_check.len() {
-                        cols.addr_increasing_check[j] =
-                            F::from_canonical_u32((addr_increasing_check >> j) & 1);
+
+                    cols.addr_bits.populate(addr);
+
+                    for j in (0..32).rev() {
+                        let next_bit = (next_addr >> j) & 1;
+                        let local_bit = (addr >> j) & 1;
+                        if j == 31 {
+                            cols.seen_larger_bit[j] = F::from_bool(next_bit > local_bit);
+                        } else {
+                            cols.seen_larger_bit[j] = cols.seen_larger_bit[j + 1]
+                                + (F::one() - cols.seen_larger_bit[j + 1])
+                                    * F::from_bool(next_bit > local_bit);
+                        }
                     }
+                    assert_eq!(cols.seen_larger_bit[0], F::one());
                 }
 
                 row
@@ -124,9 +136,11 @@ pub struct MemoryInitCols<T> {
     /// The address of the memory access.
     pub addr: T,
 
-    /// A bit decomposition of `next.addr - local.addr - 1` to ensure a strict increase in
-    /// addresses.
-    pub addr_increasing_check: [T; 30],
+    /// A bit decomposition of `addr`.
+    pub addr_bits: BabyBearBitDecomposition<T>,
+
+    // Whether we've seen a larger bit.
+    pub seen_larger_bit: [T; 32],
 
     /// The value of the memory access.
     pub value: Word<T>,
@@ -172,17 +186,40 @@ where
             ));
         }
 
-        // Assert that the addresses are increasing.
-        let addr_increasing_check = local
-            .addr_increasing_check
-            .iter()
-            .enumerate()
-            .map(|(i, x)| *x * AB::F::from_canonical_u32(1 << i))
-            .sum::<AB::Expr>();
+        // Calculate whether we've seen a larger bit.
+        for i in (0..local.addr_bits.bits.len()).rev() {
+            // If we're in the first iteration, just compute whether next > local.
+            if i == 31 {
+                builder.when_transition().assert_eq(
+                    local.seen_larger_bit[i],
+                    next.addr_bits.bits[i] * (AB::Expr::one() - local.addr_bits.bits[i]),
+                );
+            // If we're in any other iteration, compute whether seen_larger_bit_prev +
+            // (1-seen_larger_bit_prev) * (next > local).
+            } else {
+                builder.when_transition().assert_eq(
+                    local.seen_larger_bit[i],
+                    local.seen_larger_bit[i + 1]
+                        + (AB::Expr::one() - local.seen_larger_bit[i + 1])
+                            * next.addr_bits.bits[i]
+                            * (AB::Expr::one() - local.addr_bits.bits[i]),
+                );
+            }
+        }
+
+        // Assert that the address must be increasing for rows that have a next row.
         builder
             .when_transition()
             .when(next.is_real)
-            .assert_eq(addr_increasing_check, next.addr - local.addr - AB::F::one());
+            .assert_eq(local.seen_larger_bit[0], AB::Expr::one());
+
+        // Canonically decompose the address into bits so we can do comparisons.
+        BabyBearBitDecomposition::<AB::F>::range_check(
+            builder,
+            local.addr,
+            local.addr_bits,
+            local.is_real.into(),
+        );
 
         // Assert that the real rows are all padded to the top.
         builder

@@ -444,15 +444,14 @@ impl CpuChip {
                 _ => unreachable!(),
             };
 
-            if branching {
-                let next_pc = event.pc.wrapping_add(event.c);
+            let next_pc = event.pc.wrapping_add(event.c);
+            branch_columns.pc = Word::from(event.pc);
+            branch_columns.next_pc = Word::from(next_pc);
+            branch_columns.pc_range_checker.populate(event.pc);
+            branch_columns.next_pc_range_checker.populate(next_pc);
 
+            if branching {
                 cols.branching = F::one();
-                branch_columns.pc = Word::from(event.pc);
-                branch_columns.pc_range_checker.populate(event.pc);
-                branch_columns.next_pc = Word::from(next_pc);
-                branch_columns.next_pc_range_checker.populate(next_pc);
-                // branch_columns.op_a_range_checker.populate(event.a);
 
                 let add_event = AluEvent {
                     shard: event.shard,
@@ -487,6 +486,7 @@ impl CpuChip {
             match event.instruction.opcode {
                 Opcode::JAL => {
                     let next_pc = event.pc.wrapping_add(event.b);
+                    jump_columns.op_a_range_checker.populate(event.a);
                     jump_columns.pc = Word::from(event.pc);
                     jump_columns.pc_range_checker.populate(event.pc);
                     jump_columns.next_pc = Word::from(next_pc);
@@ -509,6 +509,7 @@ impl CpuChip {
                 }
                 Opcode::JALR => {
                     let next_pc = event.b.wrapping_add(event.c);
+                    jump_columns.op_a_range_checker.populate(event.a);
                     jump_columns.next_pc = Word::from(next_pc);
                     jump_columns.next_pc_range_checker.populate(next_pc);
 

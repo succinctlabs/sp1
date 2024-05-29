@@ -4,14 +4,13 @@ use p3_air::AirBuilder;
 use p3_field::{AbstractField, Field};
 use sp1_derive::AlignedBorrow;
 
-use crate::{air::Word, stark::SP1AirBuilder};
+use crate::stark::SP1AirBuilder;
 
-/// A set of columns needed to compute the add of two words.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct BabyBearWordRangeChecker<T> {
-    /// Most sig byte LE bit decomposition.
-    pub most_sig_byte_decomp: [T; 8],
+pub struct BabyBearBitDecomposition<T> {
+    /// The bit decoposition of the`value`.
+    pub bits: [T; 32],
 
     /// The product of the the bits 3 to 5 in `most_sig_byte_decomp`.
     pub and_most_sig_byte_decomp_3_to_5: T,
@@ -23,36 +22,33 @@ pub struct BabyBearWordRangeChecker<T> {
     pub and_most_sig_byte_decomp_3_to_7: T,
 }
 
-impl<F: Field> BabyBearWordRangeChecker<F> {
+impl<F: Field> BabyBearBitDecomposition<F> {
     pub fn populate(&mut self, value: u32) {
-        self.most_sig_byte_decomp = array::from_fn(|i| F::from_bool(value & (1 << (i + 24)) != 0));
-        self.and_most_sig_byte_decomp_3_to_5 =
-            self.most_sig_byte_decomp[3] * self.most_sig_byte_decomp[4];
+        self.bits = array::from_fn(|i| F::from_canonical_u32((value >> i) & 1));
+        let most_sig_byte_decomp = &self.bits[24..32];
+        self.and_most_sig_byte_decomp_3_to_5 = most_sig_byte_decomp[3] * most_sig_byte_decomp[4];
         self.and_most_sig_byte_decomp_3_to_6 =
-            self.and_most_sig_byte_decomp_3_to_5 * self.most_sig_byte_decomp[5];
+            self.and_most_sig_byte_decomp_3_to_5 * most_sig_byte_decomp[5];
         self.and_most_sig_byte_decomp_3_to_7 =
-            self.and_most_sig_byte_decomp_3_to_6 * self.most_sig_byte_decomp[6];
+            self.and_most_sig_byte_decomp_3_to_6 * most_sig_byte_decomp[6];
     }
 
     pub fn range_check<AB: SP1AirBuilder>(
         builder: &mut AB,
-        value: Word<AB::Var>,
-        cols: BabyBearWordRangeChecker<AB::Var>,
+        value: AB::Var,
+        cols: BabyBearBitDecomposition<AB::Var>,
         is_real: AB::Expr,
     ) {
-        let mut recomposed_byte = AB::Expr::zero();
-        cols.most_sig_byte_decomp
-            .iter()
-            .enumerate()
-            .for_each(|(i, value)| {
-                builder.when(is_real.clone()).assert_bool(*value);
-                recomposed_byte =
-                    recomposed_byte.clone() + AB::Expr::from_canonical_usize(1 << i) * *value;
-            });
+        let mut reconstructed_value = AB::Expr::zero();
+        for (i, bit) in cols.bits.iter().enumerate() {
+            builder.when(is_real.clone()).assert_bool(*bit);
+            reconstructed_value += AB::Expr::from_canonical_usize(1 << i) * *bit;
+        }
 
+        // Assert that bits2num(bits) == value.
         builder
             .when(is_real.clone())
-            .assert_eq(recomposed_byte, value[3]);
+            .assert_eq(reconstructed_value, value);
 
         // Range check that value is less than baby bear modulus.  To do this, it is sufficient
         // to just do comparisons for the most significant byte. BabyBear's modulus is (in big endian binary)
@@ -60,35 +56,33 @@ impl<F: Field> BabyBearWordRangeChecker<F> {
         // 1) if most_sig_byte > 01111000, then fail.
         // 2) if most_sig_byte == 01111000, then value's lower sig bytes must all be 0.
         // 3) if most_sig_byte < 01111000, then pass.
+        let most_sig_byte_decomp = &cols.bits[24..32];
         builder
             .when(is_real.clone())
-            .assert_zero(cols.most_sig_byte_decomp[7]);
+            .assert_zero(most_sig_byte_decomp[7]);
 
         // Compute the product of the "top bits".
         builder.when(is_real.clone()).assert_eq(
             cols.and_most_sig_byte_decomp_3_to_5,
-            cols.most_sig_byte_decomp[3] * cols.most_sig_byte_decomp[4],
+            most_sig_byte_decomp[3] * most_sig_byte_decomp[4],
         );
         builder.when(is_real.clone()).assert_eq(
             cols.and_most_sig_byte_decomp_3_to_6,
-            cols.and_most_sig_byte_decomp_3_to_5 * cols.most_sig_byte_decomp[5],
+            cols.and_most_sig_byte_decomp_3_to_5 * most_sig_byte_decomp[5],
         );
         builder.when(is_real.clone()).assert_eq(
             cols.and_most_sig_byte_decomp_3_to_7,
-            cols.and_most_sig_byte_decomp_3_to_6 * cols.most_sig_byte_decomp[6],
+            cols.and_most_sig_byte_decomp_3_to_6 * most_sig_byte_decomp[6],
         );
 
-        let bottom_bits: AB::Expr = cols.most_sig_byte_decomp[0..3]
-            .iter()
-            .map(|bit| (*bit).into())
-            .sum();
-        builder
-            .when(is_real.clone())
-            .when(cols.and_most_sig_byte_decomp_3_to_7)
-            .assert_zero(bottom_bits);
+        // If the top bits are all 0, then the lower bits must all be 0.
+        let mut lower_bits_sum: AB::Expr = AB::Expr::zero();
+        for bit in cols.bits[0..27].iter() {
+            lower_bits_sum = lower_bits_sum + *bit;
+        }
         builder
             .when(is_real)
             .when(cols.and_most_sig_byte_decomp_3_to_7)
-            .assert_zero(value[0] + value[1] + value[2]);
+            .assert_zero(lower_bits_sum);
     }
 }

@@ -3,7 +3,7 @@ use p3_field::AbstractField;
 
 use crate::air::{BaseAirBuilder, SP1AirBuilder, Word, WordAirBuilder};
 use crate::cpu::columns::{CpuCols, OpcodeSelectorCols};
-use crate::operations::BabyBearRangeChecker;
+use crate::operations::BabyBearWordRangeChecker;
 use crate::{cpu::CpuChip, runtime::Opcode};
 
 impl CpuChip {
@@ -59,19 +59,13 @@ impl CpuChip {
                 .assert_eq(branch_cols.next_pc.reduce::<AB>(), local.next_pc);
 
             // Range check branch_cols.pc and branch_cols.next_pc.
-            BabyBearRangeChecker::<AB::F>::range_check(
-                builder,
-                local.op_a_val(),
-                branch_cols.op_a_range_checker,
-                is_branch_instruction.clone(),
-            );
-            BabyBearRangeChecker::<AB::F>::range_check(
+            BabyBearWordRangeChecker::<AB::F>::range_check(
                 builder,
                 branch_cols.pc,
                 branch_cols.pc_range_checker,
                 is_branch_instruction.clone(),
             );
-            BabyBearRangeChecker::<AB::F>::range_check(
+            BabyBearWordRangeChecker::<AB::F>::range_check(
                 builder,
                 branch_cols.next_pc,
                 branch_cols.next_pc_range_checker,
