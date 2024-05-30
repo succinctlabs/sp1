@@ -82,22 +82,42 @@ pub struct Runtime {
 
     pub emit_events: bool,
 
-    /// Report of instruction calls.
-    pub report: InstructionReport,
+    /// Report of the program execution.
+    pub report: ExecutionReport,
 
     /// Whether we should write to the report.
     pub should_report: bool,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
-pub struct InstructionReport {
-    pub instruction_counts: HashMap<Opcode, u32>,
-    pub syscall_counts: HashMap<SyscallCode, u32>,
+pub struct ExecutionReport {
+    pub instruction_counts: HashMap<Opcode, u64>,
+    pub syscall_counts: HashMap<SyscallCode, u64>,
 }
 
-impl InstructionReport {
-    pub fn total_instruction_count(&self) -> u32 {
+impl ExecutionReport {
+    pub fn total_instruction_count(&self) -> u64 {
         self.instruction_counts.values().sum()
+    }
+}
+
+impl Display for ExecutionReport {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        write!(f, "Instruction Report:\n")?;
+        write!(f, "Instruction Counts:\n")?;
+        for (opcode, count) in &self.instruction_counts {
+            write!(f, "  {}: {}\n", opcode, count)?;
+        }
+        write!(
+            f,
+            "Total Instructions: {}\n",
+            self.total_instruction_count()
+        )?;
+        write!(f, "Syscall Counts:\n")?;
+        for (syscall, count) in &self.syscall_counts {
+            write!(f, "  {}: {}\n", syscall, count)?;
+        }
+        Ok(())
     }
 }
 
@@ -990,18 +1010,18 @@ impl Runtime {
         tracing::info!("starting execution");
     }
 
-    pub fn run_untraced(&mut self) -> Result<&InstructionReport, ExecutionError> {
+    pub fn run_untraced(&mut self) -> Result<(), ExecutionError> {
         self.emit_events = false;
         self.should_report = true;
         while !self.execute()? {}
-        Ok(&self.report)
+        Ok(())
     }
 
-    pub fn run(&mut self) -> Result<&InstructionReport, ExecutionError> {
+    pub fn run(&mut self) -> Result<(), ExecutionError> {
         self.emit_events = true;
         self.should_report = true;
         while !self.execute()? {}
-        Ok(&self.report)
+        Ok(())
     }
 
     pub fn dry_run(&mut self) {
@@ -1156,7 +1176,7 @@ pub mod tests {
         assert_eq!(runtime.report, {
             use super::Opcode::*;
             use super::SyscallCode::*;
-            super::InstructionReport {
+            super::ExecutionReport {
                 instruction_counts: [
                     (LB, 10723),
                     (DIVU, 6),

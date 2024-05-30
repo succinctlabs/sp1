@@ -24,7 +24,10 @@ use std::{env, fmt::Debug, fs::File, path::Path};
 use anyhow::{Ok, Result};
 pub use provers::{LocalProver, MockProver, NetworkProver, Prover};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use sp1_core::stark::{MachineVerificationError, ShardProof};
+use sp1_core::{
+    runtime::ExecutionReport,
+    stark::{MachineVerificationError, ShardProof},
+};
 pub use sp1_prover::{
     CoreSC, HashableKey, InnerSC, OuterSC, PlonkBn254Proof, SP1Prover, SP1ProvingKey,
     SP1PublicValues, SP1Stdin, SP1VerifyingKey,
@@ -150,7 +153,7 @@ impl ProverClient {
 
     /// Executes the given program on the given input (without generating a proof).
     ///
-    /// Returns the public values of the program after it has been executed.
+    /// Returns the public values and instruction report of the program after it has been executed.
     ///
     ///
     /// ### Examples
@@ -168,9 +171,13 @@ impl ProverClient {
     /// stdin.write(&10usize);
     ///
     /// // Execute the program on the inputs.
-    /// let public_values = client.execute(elf, stdin).unwrap();
+    /// let (public_values, report) = client.execute(elf, stdin).unwrap();
     /// ```
-    pub fn execute(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1PublicValues> {
+    pub fn execute(
+        &self,
+        elf: &[u8],
+        stdin: SP1Stdin,
+    ) -> Result<(SP1PublicValues, ExecutionReport)> {
         Ok(SP1Prover::execute(elf, &stdin)?)
     }
 
