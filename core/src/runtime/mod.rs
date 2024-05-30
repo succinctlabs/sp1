@@ -106,7 +106,8 @@ impl Display for ExecutionReport {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         writeln!(f, "Instruction Counts:")?;
         let mut sorted_instructions = self.instruction_counts.iter().collect::<Vec<_>>();
-        // Sort by converting opcode to string
+
+        // Sort instructions by opcode name
         sorted_instructions.sort_by_key(|&(opcode, _)| opcode.to_string());
         for (opcode, count) in sorted_instructions {
             writeln!(f, "  {}: {}", opcode, count)?;
@@ -115,11 +116,14 @@ impl Display for ExecutionReport {
 
         writeln!(f, "Syscall Counts:")?;
         let mut sorted_syscalls = self.syscall_counts.iter().collect::<Vec<_>>();
-        // Sort by converting syscall code to string representation
-        sorted_syscalls.sort_by_key(|&(syscall, _)| syscall.syscall_id().to_string());
+
+        // Sort syscalls by syscall name
+        sorted_syscalls.sort_by_key(|&(syscall, _)| format!("{:?}", syscall));
         for (syscall, count) in sorted_syscalls {
-            writeln!(f, "  {}: {}", syscall.syscall_id(), count)?;
+            writeln!(f, "  {}: {}", format!("{:?}", syscall), count)?;
         }
+        writeln!(f, "Total Syscall Count: {}", self.total_syscall_count())?;
+
         Ok(())
     }
 }
