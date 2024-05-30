@@ -19,7 +19,13 @@ pub mod utils {
     pub use sp1_core::utils::setup_logger;
 }
 
-use std::{env, fmt::Debug, fs::File, path::Path};
+use std::{
+    any::{Any, TypeId},
+    env,
+    fmt::Debug,
+    fs::File,
+    path::Path,
+};
 
 use anyhow::{Ok, Result};
 pub use provers::{LocalProver, MockProver, NetworkProver, Prover};
@@ -29,11 +35,19 @@ pub use sp1_prover::{
     CoreSC, HashableKey, InnerSC, OuterSC, PlonkBn254Proof, SP1Prover, SP1ProvingKey,
     SP1PublicValues, SP1Stdin, SP1VerifyingKey,
 };
+use strum_macros::EnumString;
 
 /// A client for interacting with SP1.
 pub struct ProverClient {
     /// The underlying prover implementation.
     pub prover: Box<dyn Prover>,
+}
+
+#[derive(Debug, PartialEq, EnumString)]
+pub enum ProverType {
+    Local,
+    Mock,
+    Network,
 }
 
 /// A proof generated with SP1.
@@ -144,6 +158,19 @@ impl ProverClient {
     pub fn remote() -> Self {
         Self {
             prover: Box::new(NetworkProver::new()),
+        }
+    }
+
+    pub fn prover_type(&self) -> ProverType {
+        let prover_type_id = (*self.prover).type_id();
+        if prover_type_id == TypeId::of::<LocalProver>() {
+            ProverType::Local
+        } else if prover_type_id == TypeId::of::<MockProver>() {
+            ProverType::Mock
+        } else if prover_type_id == TypeId::of::<NetworkProver>() {
+            ProverType::Network
+        } else {
+            panic!("invalid prover type")
         }
     }
 
