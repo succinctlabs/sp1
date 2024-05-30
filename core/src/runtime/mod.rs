@@ -1228,7 +1228,6 @@ pub mod tests {
                 .into(),
             }
         });
-        println!("{}", runtime.report);
         assert_eq!(runtime.report.total_instruction_count(), 2757356);
     }
 
