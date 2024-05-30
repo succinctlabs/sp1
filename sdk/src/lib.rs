@@ -153,7 +153,7 @@ impl ProverClient {
 
     /// Executes the given program on the given input (without generating a proof).
     ///
-    /// Returns the public values and instruction report of the program after it has been executed.
+    /// Returns the public values and execution report of the program after it has been executed.
     ///
     ///
     /// ### Examples
