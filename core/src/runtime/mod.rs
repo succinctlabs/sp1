@@ -113,7 +113,7 @@ impl Display for ExecutionReport {
 
         // Sort instructions by opcode name
         sorted_instructions.sort_by_key(|&(opcode, _)| opcode.to_string());
-        for (opcode, count) in sorted_instructions {
+        for (opcode, count) in &sorted_instructions {
             writeln!(f, "  {}: {}", opcode, count)?;
         }
         writeln!(f, "Total Instructions: {}", self.total_instruction_count())?;
@@ -122,9 +122,9 @@ impl Display for ExecutionReport {
         let mut sorted_syscalls = self.syscall_counts.iter().collect::<Vec<_>>();
 
         // Sort syscalls by syscall name
-        sorted_syscalls.sort_by_key(|&(syscall, _)| format!("{:?}", syscall));
-        for (syscall, count) in sorted_syscalls {
-            writeln!(f, "  {}: {}", format!("{:?}", syscall), count)?;
+        sorted_syscalls.sort_by_key(|&(syscall, _)| syscall.to_string());
+        for (syscall, count) in &sorted_syscalls {
+            writeln!(f, "  {}: {}", syscall, count)?;
         }
         writeln!(f, "Total Syscall Count: {}", self.total_syscall_count())?;
 
