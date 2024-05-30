@@ -241,6 +241,9 @@ pub struct RequestedProof {
     /// The mode for proof generation.
     #[prost(enumeration = "ProofMode", tag = "2")]
     pub mode: i32,
+    /// Proof requester's address.
+    #[prost(bytes = "vec", tag = "3")]
+    pub requester: ::prost::alloc::vec::Vec<u8>,
 }
 /// The response for getting proof requests by a given status.
 #[derive(serde::Serialize, serde::Deserialize)]
