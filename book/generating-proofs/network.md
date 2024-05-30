@@ -12,7 +12,7 @@ To use the prover network to generate a proof, you can run your program as you w
 SP1_PROVER=network SP1_PRIVATE_KEY=... cargo run --release
 ```
 
-- `SP1_PROVER` can be set to `network` or `local`, and defaults to local.
+- `SP1_PROVER` should be set to `network` when using the prover network.
 
 - `SP1_PRIVATE_KEY` is your secp256k1 private key for signing messages on the network. The balance of
   the address corresponding to this private key will be used to pay for the proof request.
