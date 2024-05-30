@@ -22,6 +22,7 @@ pub use utils::*;
 
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::fs::File;
 use std::io::BufWriter;
 use std::io::Write;
@@ -103,7 +104,6 @@ impl ExecutionReport {
 
 impl Display for ExecutionReport {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        write!(f, "Instruction Report:\n")?;
         write!(f, "Instruction Counts:\n")?;
         for (opcode, count) in &self.instruction_counts {
             write!(f, "  {}: {}\n", opcode, count)?;
@@ -115,7 +115,7 @@ impl Display for ExecutionReport {
         )?;
         write!(f, "Syscall Counts:\n")?;
         for (syscall, count) in &self.syscall_counts {
-            write!(f, "  {}: {}\n", syscall, count)?;
+            write!(f, "  {}: {}\n", syscall.syscall_id(), count)?;
         }
         Ok(())
     }

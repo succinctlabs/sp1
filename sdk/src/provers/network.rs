@@ -9,8 +9,6 @@ use crate::{
 use crate::{SP1CompressedProof, SP1PlonkBn254Proof, SP1Proof, SP1ProvingKey, SP1VerifyingKey};
 use anyhow::{Context, Result};
 use serde::de::DeserializeOwned;
-use sp1_core::runtime::{Program, Runtime};
-use sp1_core::utils::SP1CoreOpts;
 use sp1_prover::utils::block_on;
 use sp1_prover::{SP1Prover, SP1Stdin};
 use tokio::{runtime, time::sleep};
