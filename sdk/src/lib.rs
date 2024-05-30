@@ -483,9 +483,8 @@ mod tests {
         let client = ProverClient::local();
         let elf =
             include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
-        let (pk, vk) = client.setup(elf);
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
-        let cycles = client.simulate(elf, &stdin).unwrap();
+        let _ = client.simulate(elf, stdin).unwrap();
     }
 }
