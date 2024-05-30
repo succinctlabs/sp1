@@ -391,10 +391,10 @@ impl ProverClient {
     /// stdin.write(&10usize);
     ///
     /// // Simulate the execution of the program.
-    /// let cycles = client.simulate(elf, &stdin).unwrap();
+    /// let cycles = client.simulate(elf, stdin).unwrap();
     /// ```
-    pub fn simulate(&self, elf_bytes: &[u8], stdin: &SP1Stdin) -> Result<u64> {
-        self.prover.simulate(elf_bytes, stdin)
+    pub fn simulate(&self, elf: &[u8], stdin: SP1Stdin) -> Result<u64> {
+        self.prover.simulate(elf, stdin)
     }
 }
 

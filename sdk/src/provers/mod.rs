@@ -76,9 +76,10 @@ pub trait Prover: Send + Sync {
     }
 
     // Simulates the execution of a program with the given input, and return the number of cycles.
-    fn simulate(&self, elf_bytes: &[u8], stdin: &SP1Stdin) -> Result<u64> {
-        let program = Program::from(elf_bytes);
+    fn simulate(&self, elf: &[u8], stdin: SP1Stdin) -> Result<u64> {
+        let program = Program::from(elf);
         let mut runtime = Runtime::new(program, SP1CoreOpts::default());
+
         runtime.write_vecs(&stdin.buffer);
         for (proof, vkey) in stdin.proofs.iter() {
             runtime.write_proof(proof.clone(), vkey.clone());
