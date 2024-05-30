@@ -5,6 +5,7 @@ mod opcode;
 mod program;
 mod record;
 mod register;
+mod report;
 mod state;
 mod syscall;
 #[macro_use]
@@ -16,6 +17,7 @@ pub use opcode::*;
 pub use program::*;
 pub use record::*;
 pub use register::*;
+pub use report::*;
 pub use state::*;
 pub use syscall::*;
 pub use utils::*;
@@ -890,12 +892,14 @@ impl Runtime {
 
     /// Executes one cycle of the program, returning whether the program has finished.
     #[inline]
-    fn execute_cycle(&mut self) -> Result<bool, ExecutionError> {
+    fn execute_cycle(&mut self, report: &mut ExecutionReport) -> Result<bool, ExecutionError> {
         // Fetch the instruction at the current program counter.
         let instruction = self.fetch();
 
         // Log the current state of the runtime.
         self.log(&instruction);
+
+        report.update(&instruction, self);
 
         // Execute the instruction.
         self.execute_instruction(instruction)?;
@@ -917,16 +921,18 @@ impl Runtime {
 
     /// Execute up to `self.shard_batch_size` cycles, returning the events emitted and whether the program ended.
     pub fn execute_record(&mut self) -> Result<(ExecutionRecord, bool), ExecutionError> {
+        let mut report = ExecutionReport::new();
         self.emit_events = true;
-        let done = self.execute()?;
+        let done = self.execute(&mut report)?;
         Ok((std::mem::take(&mut self.record), done))
     }
 
     /// Execute up to `self.shard_batch_size` cycles, returning a copy of the prestate and whether the program ended.
     pub fn execute_state(&mut self) -> Result<(ExecutionState, bool), ExecutionError> {
+        let mut report = ExecutionReport::new();
         self.emit_events = false;
         let state = self.state.clone();
-        let done = self.execute()?;
+        let done = self.execute(&mut report)?;
         Ok((state, done))
     }
 
@@ -954,25 +960,28 @@ impl Runtime {
         tracing::info!("starting execution");
     }
 
-    pub fn run_untraced(&mut self) -> Result<(), ExecutionError> {
+    pub fn run_untraced(&mut self) -> Result<ExecutionReport, ExecutionError> {
+        let mut report = ExecutionReport::new();
         self.emit_events = false;
-        while !self.execute()? {}
-        Ok(())
+        while !self.execute(&mut report)? {}
+        Ok(report)
     }
 
-    pub fn run(&mut self) -> Result<(), ExecutionError> {
+    pub fn run(&mut self) -> Result<ExecutionReport, ExecutionError> {
+        let mut report = ExecutionReport::new();
         self.emit_events = true;
-        while !self.execute()? {}
-        Ok(())
+        while !self.execute(&mut report)? {}
+        Ok(report)
     }
 
     pub fn dry_run(&mut self) {
+        let mut report = ExecutionReport::new();
         self.emit_events = false;
-        while !self.execute().unwrap() {}
+        while !self.execute(&mut report).unwrap() {}
     }
 
     /// Executes up to `self.shard_batch_size` cycles of the program, returning whether the program has finished.
-    fn execute(&mut self) -> Result<bool, ExecutionError> {
+    fn execute(&mut self, report: &mut ExecutionReport) -> Result<bool, ExecutionError> {
         // If it's the first cycle, initialize the program.
         if self.state.global_clk == 0 {
             self.initialize();
@@ -983,7 +992,7 @@ impl Runtime {
         let mut current_shard = self.state.current_shard;
         let mut num_shards_executed = 0;
         loop {
-            if self.execute_cycle()? {
+            if self.execute_cycle(report)? {
                 done = true;
                 break;
             }
