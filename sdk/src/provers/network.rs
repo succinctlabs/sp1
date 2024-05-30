@@ -46,7 +46,7 @@ impl NetworkProver {
             .unwrap_or(false);
 
         if !skip_simulation {
-            let (_, report) = self.local_prover.execute(elf, stdin.clone())?;
+            let (_, report) = SP1Prover::execute(elf, &stdin)?;
             log::info!(
                 "Simulation complete, cycles: {}",
                 report.total_instruction_count()
@@ -172,6 +172,7 @@ impl Prover for NetworkProver {
     }
 
     fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkBn254Proof> {
+        self.sp1_prover().compress_machine_proof(input, program, pk)
         block_on(self.prove_async(&pk.elf, stdin, ProofMode::Plonk))
     }
 }
