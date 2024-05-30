@@ -104,18 +104,14 @@ impl ExecutionReport {
 
 impl Display for ExecutionReport {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        write!(f, "Instruction Counts:\n")?;
+        writeln!(f, "Instruction Counts:")?;
         for (opcode, count) in &self.instruction_counts {
-            write!(f, "  {}: {}\n", opcode, count)?;
+            writeln!(f, "  {}: {}", opcode, count)?;
         }
-        write!(
-            f,
-            "Total Instructions: {}\n",
-            self.total_instruction_count()
-        )?;
-        write!(f, "Syscall Counts:\n")?;
+        writeln!(f, "Total Instructions: {}", self.total_instruction_count())?;
+        writeln!(f, "Syscall Counts:")?;
         for (syscall, count) in &self.syscall_counts {
-            write!(f, "  {}: {}\n", syscall.syscall_id(), count)?;
+            writeln!(f, "  {}: {}", syscall.syscall_id(), count)?;
         }
         Ok(())
     }
