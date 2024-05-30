@@ -43,6 +43,7 @@ pub struct ProverClient {
     pub prover: Box<dyn Prover>,
 }
 
+/// The type of prover used by the [ProverClient].
 #[derive(Debug, PartialEq, EnumString)]
 pub enum ProverType {
     Local,
@@ -161,6 +162,17 @@ impl ProverClient {
         }
     }
 
+    /// Returns the type of prover used by the [ProverClient].
+    ///
+    /// ### Examples
+    ///
+    /// ```no_run
+    /// use sp1_sdk::ProverClient;
+    ///
+    /// let client = ProverClient::local();
+    /// let prover_type = client.prover_type();
+    /// assert_eq!(prover_type, ProverType::Local);
+    /// ```
     pub fn prover_type(&self) -> ProverType {
         let prover_type_id = (*self.prover).type_id();
         if prover_type_id == TypeId::of::<LocalProver>() {
