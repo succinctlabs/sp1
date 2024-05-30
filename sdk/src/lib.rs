@@ -19,13 +19,7 @@ pub mod utils {
     pub use sp1_core::utils::setup_logger;
 }
 
-use std::{
-    any::{Any, TypeId},
-    env,
-    fmt::Debug,
-    fs::File,
-    path::Path,
-};
+use std::{env, fmt::Debug, fs::File, path::Path};
 
 use anyhow::{Ok, Result};
 pub use provers::{LocalProver, MockProver, NetworkProver, Prover};
