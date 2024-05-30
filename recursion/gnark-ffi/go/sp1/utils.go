@@ -19,7 +19,7 @@ func NewSP1PlonkBn254Proof(proof *plonk.Proof, witnessInput WitnessInput) Proof 
 	publicInputs[0] = witnessInput.VkeyHash
 	publicInputs[1] = witnessInput.CommitedValuesDigest
 
-	// Cast plonk proof into plonk_bn254 proof.
+	// Cast plonk proof into plonk_bn254 proof so we can call MarshalSolidity.
 	p := (*proof).(*plonk_bn254.Proof)
 
 	encodedProof := p.MarshalSolidity()
