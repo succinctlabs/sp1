@@ -15,7 +15,7 @@ use sp1_prover::utils::block_on;
 use sp1_prover::{SP1Prover, SP1Stdin};
 use tokio::{runtime, time::sleep};
 
-use super::LocalProver;
+use super::{LocalProver, ProverType};
 
 /// An implementation of [crate::ProverClient] that can generate proofs on a remote RPC server.
 pub struct NetworkProver {
@@ -151,8 +151,8 @@ impl NetworkProver {
 }
 
 impl Prover for NetworkProver {
-    fn id(&self) -> String {
-        "remote".to_string()
+    fn id(&self) -> ProverType {
+        ProverType::Network
     }
 
     fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
