@@ -124,7 +124,7 @@ impl Display for ExecutionReport {
         // Sort syscalls by syscall name
         sorted_syscalls.sort_by_key(|&(syscall, _)| format!("{:?}", syscall));
         for (syscall, count) in sorted_syscalls {
-            writeln!(f, "  {}: {}", syscall.syscall_id(), count)?;
+            writeln!(f, "  {}: {}", syscall, count)?;
         }
         writeln!(f, "Total Syscall Count: {}", self.total_syscall_count())?;
 
@@ -1228,6 +1228,7 @@ pub mod tests {
                 .into(),
             }
         });
+        println!("{}", runtime.report);
         assert_eq!(runtime.report.total_instruction_count(), 2757356);
     }
 

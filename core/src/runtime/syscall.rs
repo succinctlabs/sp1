@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt;
 use std::sync::Arc;
 
 use strum_macros::EnumIter;
@@ -146,6 +147,12 @@ impl SyscallCode {
 
     pub fn num_cycles(&self) -> u32 {
         (*self as u32).to_le_bytes()[2].into()
+    }
+}
+
+impl fmt::Display for SyscallCode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self)
     }
 }
 
