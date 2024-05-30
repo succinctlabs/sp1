@@ -100,6 +100,10 @@ impl ExecutionReport {
     pub fn total_instruction_count(&self) -> u64 {
         self.instruction_counts.values().sum()
     }
+
+    pub fn total_syscall_count(&self) -> u64 {
+        self.syscall_counts.values().sum()
+    }
 }
 
 impl Display for ExecutionReport {
@@ -582,7 +586,7 @@ impl Runtime {
         let mut memory_store_value: Option<u32> = None;
         self.memory_accesses = MemoryAccessRecord::default();
 
-        if self.should_report {
+        if self.should_report && !self.unconstrained {
             self.report
                 .instruction_counts
                 .entry(instruction.opcode)
@@ -804,7 +808,7 @@ impl Runtime {
                 b = self.rr(Register::X10, MemoryAccessPosition::B);
                 let syscall = SyscallCode::from_u32(syscall_id);
 
-                if self.should_report {
+                if self.should_report && !self.unconstrained {
                     self.report
                         .syscall_counts
                         .entry(syscall)
