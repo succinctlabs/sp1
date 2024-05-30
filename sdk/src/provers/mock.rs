@@ -9,6 +9,8 @@ use sp1_prover::{
     verify::verify_plonk_bn254_public_inputs, HashableKey, PlonkBn254Proof, SP1Prover, SP1Stdin,
 };
 
+use super::ProverType;
+
 /// An implementation of [crate::ProverClient] that can generate mock proofs.
 pub struct MockProver {
     pub(crate) prover: SP1Prover,
@@ -23,8 +25,8 @@ impl MockProver {
 }
 
 impl Prover for MockProver {
-    fn id(&self) -> String {
-        "mock".to_string()
+    fn id(&self) -> ProverType {
+        ProverType::Mock
     }
 
     fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
