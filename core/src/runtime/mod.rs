@@ -81,6 +81,24 @@ pub struct Runtime {
     pub max_syscall_cycles: u32,
 
     pub emit_events: bool,
+
+    /// Report of instruction calls.
+    pub report: InstructionReport,
+
+    /// Whether we should write to the report.
+    pub should_report: bool,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
+pub struct InstructionReport {
+    pub instruction_counts: HashMap<Opcode, u32>,
+    pub syscall_counts: HashMap<SyscallCode, u32>,
+}
+
+impl InstructionReport {
+    pub fn total_instruction_count(&self) -> u32 {
+        self.instruction_counts.values().sum()
+    }
 }
 
 #[derive(Error, Debug)]
@@ -140,6 +158,8 @@ impl Runtime {
             syscall_map,
             emit_events: true,
             max_syscall_cycles,
+            report: Default::default(),
+            should_report: false,
         }
     }
 
@@ -535,6 +555,14 @@ impl Runtime {
         let mut memory_store_value: Option<u32> = None;
         self.memory_accesses = MemoryAccessRecord::default();
 
+        if self.should_report {
+            self.report
+                .instruction_counts
+                .entry(instruction.opcode)
+                .and_modify(|c| *c += 1)
+                .or_insert(1);
+        }
+
         match instruction.opcode {
             // Arithmetic instructions.
             Opcode::ADD => {
@@ -749,6 +777,14 @@ impl Runtime {
                 b = self.rr(Register::X10, MemoryAccessPosition::B);
                 let syscall = SyscallCode::from_u32(syscall_id);
 
+                if self.should_report {
+                    self.report
+                        .syscall_counts
+                        .entry(syscall)
+                        .and_modify(|c| *c += 1)
+                        .or_insert(1);
+                }
+
                 let syscall_impl = self.get_syscall(syscall).cloned();
                 let mut precompile_rt = SyscallContext::new(self);
                 let (precompile_next_pc, precompile_cycles, returned_exit_code) =
@@ -954,16 +990,18 @@ impl Runtime {
         tracing::info!("starting execution");
     }
 
-    pub fn run_untraced(&mut self) -> Result<(), ExecutionError> {
+    pub fn run_untraced(&mut self) -> Result<&InstructionReport, ExecutionError> {
         self.emit_events = false;
+        self.should_report = true;
         while !self.execute()? {}
-        Ok(())
+        Ok(&self.report)
     }
 
-    pub fn run(&mut self) -> Result<(), ExecutionError> {
+    pub fn run(&mut self) -> Result<&InstructionReport, ExecutionError> {
         self.emit_events = true;
+        self.should_report = true;
         while !self.execute()? {}
-        Ok(())
+        Ok(&self.report)
     }
 
     pub fn dry_run(&mut self) {
@@ -1108,6 +1146,58 @@ pub mod tests {
         let mut runtime = Runtime::new(program, SP1CoreOpts::default());
         runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 42);
+    }
+
+    #[test]
+    fn test_ssz_withdrawals_program_run_report() {
+        let program = ssz_withdrawals_program();
+        let mut runtime = Runtime::new(program, SP1CoreOpts::default());
+        runtime.run().unwrap();
+        assert_eq!(runtime.report, {
+            use super::Opcode::*;
+            use super::SyscallCode::*;
+            super::InstructionReport {
+                instruction_counts: [
+                    (LB, 10723),
+                    (DIVU, 6),
+                    (LW, 237094),
+                    (JALR, 38749),
+                    (XOR, 242242),
+                    (BEQ, 26917),
+                    (AND, 151701),
+                    (SB, 58448),
+                    (MUL, 4036),
+                    (SLTU, 16766),
+                    (ADD, 583439),
+                    (JAL, 5372),
+                    (LBU, 57950),
+                    (SRL, 293010),
+                    (SW, 312781),
+                    (ECALL, 2264),
+                    (BLTU, 43457),
+                    (BGEU, 5917),
+                    (BLT, 1141),
+                    (SUB, 12382),
+                    (BGE, 237),
+                    (MULHU, 1152),
+                    (BNE, 51442),
+                    (AUIPC, 19488),
+                    (OR, 301944),
+                    (SLL, 278698),
+                ]
+                .into(),
+                syscall_counts: [
+                    (COMMIT_DEFERRED_PROOFS, 8),
+                    (SHA_EXTEND, 1091),
+                    (COMMIT, 8),
+                    (WRITE, 65),
+                    (SHA_COMPRESS, 1091),
+                    (HALT, 1),
+                ]
+                .into(),
+            }
+        });
+        assert_eq!(runtime.report.total_instruction_count(), 2757356);
     }
 
     #[test]
