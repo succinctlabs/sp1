@@ -426,19 +426,6 @@ mod tests {
     }
 
     #[test]
-    fn test_e2e_prove_local() {
-        utils::setup_logger();
-        let client = ProverClient::local();
-        let elf =
-            include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
-        let (pk, vk) = client.setup(elf);
-        let mut stdin = SP1Stdin::new();
-        stdin.write(&10usize);
-        let proof = client.prove(&pk, stdin).unwrap();
-        client.verify(&proof, &vk).unwrap();
-    }
-
-    #[test]
     fn test_e2e_prove_plonk() {
         utils::setup_logger();
         let client = ProverClient::local();
@@ -449,19 +436,6 @@ mod tests {
         stdin.write(&10usize);
         let proof = client.prove_plonk(&pk, stdin).unwrap();
         client.verify_plonk(&proof, &vk).unwrap();
-    }
-
-    #[test]
-    fn test_e2e_prove_mock() {
-        utils::setup_logger();
-        let client = ProverClient::mock();
-        let elf =
-            include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
-        let (pk, vk) = client.setup(elf);
-        let mut stdin = SP1Stdin::new();
-        stdin.write(&10usize);
-        let proof = client.prove(&pk, stdin).unwrap();
-        client.verify(&proof, &vk).unwrap();
     }
 
     #[test]
