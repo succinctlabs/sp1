@@ -370,6 +370,32 @@ impl ProverClient {
     pub fn verify_plonk(&self, proof: &SP1PlonkBn254Proof, vkey: &SP1VerifyingKey) -> Result<()> {
         self.prover.verify_plonk(proof, vkey)
     }
+
+    /// Simulates the execution of a program with the given input, and return the number of cycles.
+    ///
+    /// ### Examples
+    /// ```no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin};
+    ///
+    /// // Load the program.
+    /// let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+    ///
+    /// // Initialize the prover client.
+    /// let client = ProverClient::new();
+    ///
+    /// // Setup the program.
+    /// let (pk, vk) = client.setup(elf);
+    ///
+    /// // Setup the inputs.
+    /// let mut stdin = SP1Stdin::new();
+    /// stdin.write(&10usize);
+    ///
+    /// // Simulate the execution of the program.
+    /// let cycles = client.simulate(elf, &stdin).unwrap();
+    /// ```
+    pub fn simulate(&self, elf_bytes: &[u8], stdin: &SP1Stdin) -> Result<u64> {
+        self.prover.simulate(elf_bytes, stdin)
+    }
 }
 
 impl Default for ProverClient {
@@ -449,5 +475,17 @@ mod tests {
         stdin.write(&10usize);
         let proof = client.prove_plonk(&pk, stdin).unwrap();
         client.verify_plonk(&proof, &vk).unwrap();
+    }
+
+    #[test]
+    fn test_simulate() {
+        utils::setup_logger();
+        let client = ProverClient::local();
+        let elf =
+            include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+        let (pk, vk) = client.setup(elf);
+        let mut stdin = SP1Stdin::new();
+        stdin.write(&10usize);
+        let cycles = client.simulate(elf, &stdin).unwrap();
     }
 }
