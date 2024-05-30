@@ -7,10 +7,12 @@ use anyhow::Result;
 pub use local::LocalProver;
 pub use mock::MockProver;
 pub use network::NetworkProver;
+use sp1_core::runtime::ExecutionReport;
 use sp1_core::stark::MachineVerificationError;
 use sp1_prover::CoreSC;
 use sp1_prover::SP1CoreProofData;
 use sp1_prover::SP1Prover;
+use sp1_prover::SP1PublicValues;
 use sp1_prover::SP1ReduceProof;
 use sp1_prover::{SP1ProvingKey, SP1Stdin, SP1VerifyingKey};
 use strum_macros::EnumString;
@@ -30,6 +32,11 @@ pub trait Prover: Send + Sync {
     fn sp1_prover(&self) -> &SP1Prover;
 
     fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey);
+
+    /// Execute the given program with the given input.
+    fn execute(&self, elf: &[u8], stdin: SP1Stdin) -> Result<(SP1PublicValues, ExecutionReport)> {
+        self.execute(elf, stdin)
+    }
 
     /// Prove the execution of a RISCV ELF with the given inputs.
     fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Proof>;

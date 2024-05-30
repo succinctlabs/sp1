@@ -41,6 +41,20 @@ impl NetworkProver {
     ) -> Result<P> {
         let client = &self.client;
 
+        let skip_simulation = env::var("SKIP_SIMULATION")
+            .map(|val| val == "true")
+            .unwrap_or(false);
+
+        if !skip_simulation {
+            let (_, report) = self.local_prover.execute(elf, stdin.clone())?;
+            log::info!(
+                "Simulation complete, cycles: {}",
+                report.total_instruction_count()
+            );
+        } else {
+            log::info!("Skipping simulation");
+        }
+
         let proof_id = client.create_proof(elf, &stdin, mode).await?;
         log::info!("Created {}", proof_id);
 
