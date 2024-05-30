@@ -154,9 +154,9 @@ impl ProverClient {
     /// ```no_run
     /// use sp1_sdk::ProverClient;
     ///
-    /// let client = ProverClient::remote();
+    /// let client = ProverClient::network();
     /// ```
-    pub fn remote() -> Self {
+    pub fn network() -> Self {
         Self {
             prover: Box::new(NetworkProver::new()),
             prover_type: ProverType::Network,
