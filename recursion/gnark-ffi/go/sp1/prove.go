@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend/plonk"
+	plonk "github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/frontend"
 )
 
