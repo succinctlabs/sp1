@@ -43,28 +43,6 @@ impl NetworkProver {
     ) -> Result<P> {
         let client = &self.client;
 
-        let skip_simulation = env::var("SKIP_SIMULATION")
-            .map(|val| val == "true")
-            .unwrap_or(false);
-
-        // If the simulation is not skipped, execute the runtime before creating the proof request.
-        if !skip_simulation {
-            let program = Program::from(elf);
-            let opts = SP1CoreOpts::default();
-            let mut runtime = Runtime::new(program, opts);
-            runtime.write_vecs(&stdin.buffer);
-            for (proof, vkey) in stdin.proofs.iter() {
-                runtime.write_proof(proof.clone(), vkey.clone());
-            }
-            runtime
-                .run_untraced()
-                .context("Failed to execute program")?;
-
-            log::info!("Simulation complete, cycles: {}", runtime.state.global_clk);
-        } else {
-            log::info!("Skipping simulation");
-        }
-
         let proof_id = client.create_proof(elf, &stdin, mode).await?;
         log::info!("Created {}", proof_id);
 
@@ -174,14 +152,17 @@ impl Prover for NetworkProver {
     }
 
     fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Proof> {
+        let _ = self.simulate(&pk.elf, &stdin);
         block_on(self.prove_async(&pk.elf, stdin, ProofMode::Core))
     }
 
     fn prove_compressed(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1CompressedProof> {
+        let _ = self.simulate(&pk.elf, &stdin);
         block_on(self.prove_async(&pk.elf, stdin, ProofMode::Compressed))
     }
 
     fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkBn254Proof> {
+        let _ = self.simulate(&pk.elf, &stdin);
         block_on(self.prove_async(&pk.elf, stdin, ProofMode::Plonk))
     }
 }

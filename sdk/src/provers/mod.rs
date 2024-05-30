@@ -7,7 +7,9 @@ use anyhow::Result;
 pub use local::LocalProver;
 pub use mock::MockProver;
 pub use network::NetworkProver;
+use sp1_core::runtime::{Program, Runtime};
 use sp1_core::stark::MachineVerificationError;
+use sp1_core::utils::SP1CoreOpts;
 use sp1_prover::CoreSC;
 use sp1_prover::SP1CoreProofData;
 use sp1_prover::SP1Prover;
@@ -71,5 +73,27 @@ pub trait Prover: Send + Sync {
         )?;
 
         Ok(())
+    }
+
+    // Simulate the execution of a program with the given input, and return the number of cycles.
+    fn simulate(&self, elf_bytes: &[u8], stdin: &SP1Stdin) -> Result<u64> {
+        let program = Program::from(elf_bytes);
+        let mut runtime = Runtime::new(program, SP1CoreOpts::default());
+        runtime.write_vecs(&stdin.buffer);
+        for (proof, vkey) in stdin.proofs.iter() {
+            runtime.write_proof(proof.clone(), vkey.clone());
+        }
+
+        match runtime.run_untraced() {
+            Ok(_) => {
+                let cycles = runtime.state.global_clk;
+                log::info!("Simulation complete, cycles: {}", cycles);
+                Ok(cycles)
+            }
+            Err(e) => {
+                log::error!("Failed to simulate program: {}", e);
+                Err(e.into())
+            }
+        }
     }
 }
