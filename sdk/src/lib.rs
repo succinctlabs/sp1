@@ -29,21 +29,11 @@ pub use sp1_prover::{
     CoreSC, HashableKey, InnerSC, OuterSC, PlonkBn254Proof, SP1Prover, SP1ProvingKey,
     SP1PublicValues, SP1Stdin, SP1VerifyingKey,
 };
-use strum_macros::EnumString;
 
 /// A client for interacting with SP1.
 pub struct ProverClient {
     /// The underlying prover implementation.
     pub prover: Box<dyn Prover>,
-    pub prover_type: ProverType,
-}
-
-/// The type of prover used by the [ProverClient].
-#[derive(Debug, PartialEq, EnumString)]
-pub enum ProverType {
-    Local,
-    Mock,
-    Network,
 }
 
 /// A proof generated with SP1.
@@ -91,15 +81,12 @@ impl ProverClient {
         {
             "mock" => Self {
                 prover: Box::new(MockProver::new()),
-                prover_type: ProverType::Mock,
             },
             "local" => Self {
                 prover: Box::new(LocalProver::new()),
-                prover_type: ProverType::Local,
             },
             "network" => Self {
                 prover: Box::new(NetworkProver::new()),
-                prover_type: ProverType::Network,
             },
             _ => panic!(
                 "invalid value for SP1_PROVER enviroment variable: expected 'local', 'mock', or 'remote'"
@@ -122,7 +109,6 @@ impl ProverClient {
     pub fn mock() -> Self {
         Self {
             prover: Box::new(MockProver::new()),
-            prover_type: ProverType::Mock,
         }
     }
 
@@ -141,7 +127,6 @@ impl ProverClient {
     pub fn local() -> Self {
         Self {
             prover: Box::new(LocalProver::new()),
-            prover_type: ProverType::Local,
         }
     }
 
@@ -159,7 +144,6 @@ impl ProverClient {
     pub fn remote() -> Self {
         Self {
             prover: Box::new(NetworkProver::new()),
-            prover_type: ProverType::Network,
         }
     }
 
