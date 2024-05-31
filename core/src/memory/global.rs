@@ -88,18 +88,19 @@ impl<F: PrimeField> MachineAir<F> for MemoryChip {
 
                     cols.addr_bits.populate(addr);
 
-                    for j in (0..32).rev() {
-                        let next_bit = (next_addr >> j) & 1;
-                        let local_bit = (addr >> j) & 1;
-                        if j == 31 {
-                            cols.seen_larger_bit[j] = F::from_bool(next_bit > local_bit);
-                        } else {
-                            cols.seen_larger_bit[j] = cols.seen_larger_bit[j + 1]
-                                + (F::one() - cols.seen_larger_bit[j + 1])
-                                    * F::from_bool(next_bit > local_bit);
-                        }
+                    cols.seen_diff_bits[0] = F::zero();
+                    for j in 0..32 {
+                        let rev_j = 32 - j - 1;
+                        let next_bit = ((next_addr >> rev_j) & 1) == 1;
+                        let local_bit = ((addr >> rev_j) & 1) == 1;
+                        cols.match_bits[j] =
+                            F::from_bool((local_bit && next_bit) || (!local_bit && !next_bit));
+                        cols.seen_diff_bits[j + 1] = cols.seen_diff_bits[j]
+                            + (F::one() - cols.seen_diff_bits[j]) * (F::one() - cols.match_bits[j]);
+                        cols.not_match_and_not_seen_diff_bits[j] =
+                            (F::one() - cols.match_bits[j]) * (F::one() - cols.seen_diff_bits[j]);
                     }
-                    assert_eq!(cols.seen_larger_bit[0], F::one());
+                    assert_eq!(cols.seen_diff_bits[cols.seen_diff_bits.len() - 1], F::one());
                 }
 
                 row
@@ -124,7 +125,7 @@ impl<F: PrimeField> MachineAir<F> for MemoryChip {
     }
 }
 
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct MemoryInitCols<T> {
     /// The shard number of the memory access.
@@ -139,8 +140,14 @@ pub struct MemoryInitCols<T> {
     /// A bit decomposition of `addr`.
     pub addr_bits: BabyBearBitDecomposition<T>,
 
-    // Whether we've seen a larger bit.
-    pub seen_larger_bit: [T; 32],
+    // Whether the i'th bit matches the next addr's bit.
+    pub match_bits: [T; 32],
+
+    // Whether we've seen a different bit in the comparison.
+    pub seen_diff_bits: [T; 33],
+
+    // Whether the i'th bit doesn't match the next addr's bit and we haven't seen a diff bitn yet.
+    pub not_match_and_not_seen_diff_bits: [T; 32],
 
     /// The value of the memory access.
     pub value: Word<T>,
@@ -186,32 +193,75 @@ where
             ));
         }
 
-        // Calculate whether we've seen a larger bit.
-        for i in (0..local.addr_bits.bits.len()).rev() {
-            // If we're in the first iteration, just compute whether next > local.
-            if i == 31 {
-                builder.when_transition().assert_eq(
-                    local.seen_larger_bit[i],
-                    next.addr_bits.bits[i] * (AB::Expr::one() - local.addr_bits.bits[i]),
-                );
-            // If we're in any other iteration, compute whether seen_larger_bit_prev +
-            // (1-seen_larger_bit_prev) * (next > local).
-            } else {
-                builder.when_transition().assert_eq(
-                    local.seen_larger_bit[i],
-                    local.seen_larger_bit[i + 1]
-                        + (AB::Expr::one() - local.seen_larger_bit[i + 1])
-                            * next.addr_bits.bits[i]
-                            * (AB::Expr::one() - local.addr_bits.bits[i]),
-                );
-            }
+        // We want to assert addr < addr'. Assume seen_diff_0 = 0.
+        //
+        // match_i = (addr_i & addr'_i) || (!addr_i & !addr'_i)
+        // =>
+        // match_i == addr_i * addr_i + (1 - addr_i) * (1 - addr'_i)
+        //
+        // when !match_i and !seen_diff_i, then enforce (addr_i == 0) and (addr'_i == 1).
+        // if seen_diff_i:
+        //     seen_diff_{i+1} = 1
+        // else:
+        //     seen_diff_{i+1} = !match_i
+        // =>
+        // builder.when(!match_i * !seen_diff_i).assert_zero(addr_i)
+        // builder.when(!match_i * !seen_diff_i).assert_one(addr'_i)
+        // seen_diff_bit_{i+1} == seen_diff_i + (1-seen_diff_i) * (1 - match_i)
+        //
+        // at the end of the algorithm, assert that we've seen a diff bit.
+        // =>
+        // seen_diff_bit_{last} == 1
+
+        // Assert that we start with assuming that we haven't seen a diff bit.
+        builder.assert_zero(local.seen_diff_bits[0]);
+
+        for i in 0..local.addr_bits.bits.len() {
+            // Compute the i'th msb bit's index.
+            let rev_i = local.addr_bits.bits.len() - i - 1;
+
+            // Compute whether the i'th msb bit matches.
+            let match_i = local.addr_bits.bits[rev_i] * next.addr_bits.bits[rev_i]
+                + (AB::Expr::one() - local.addr_bits.bits[rev_i])
+                    * (AB::Expr::one() - next.addr_bits.bits[rev_i]);
+            builder
+                .when_transition()
+                .when(next.is_real)
+                .assert_eq(match_i.clone(), local.match_bits[i]);
+
+            // Compute whether it's not a match and we haven't seen a diff bit.
+            let not_match_and_not_seen_diff_i = (AB::Expr::one() - local.match_bits[i])
+                * (AB::Expr::one() - local.seen_diff_bits[i]);
+            builder.when_transition().when(next.is_real).assert_eq(
+                local.not_match_and_not_seen_diff_bits[i],
+                not_match_and_not_seen_diff_i,
+            );
+
+            // If the i'th msb bit doesn't match and it's the first time we've seen a diff bit,
+            // then enforce that the next bit is one and the current bit is zero.
+            builder
+                .when_transition()
+                .when(local.not_match_and_not_seen_diff_bits[i])
+                .when(next.is_real)
+                .assert_zero(local.addr_bits.bits[rev_i]);
+            builder
+                .when_transition()
+                .when(local.not_match_and_not_seen_diff_bits[i])
+                .when(next.is_real)
+                .assert_one(next.addr_bits.bits[rev_i]);
+
+            // Update the seen diff bits.
+            builder.when_transition().assert_eq(
+                local.seen_diff_bits[i + 1],
+                local.seen_diff_bits[i] + local.not_match_and_not_seen_diff_bits[i],
+            );
         }
 
-        // Assert that the address must be increasing for rows that have a next row.
+        // Assert that on rows where the next row is real, we've seen a diff bit.
         builder
             .when_transition()
             .when(next.is_real)
-            .assert_eq(local.seen_larger_bit[0], AB::Expr::one());
+            .assert_one(local.seen_diff_bits[local.addr_bits.bits.len()]);
 
         // Canonically decompose the address into bits so we can do comparisons.
         BabyBearBitDecomposition::<AB::F>::range_check(

@@ -139,9 +139,7 @@ impl Poseidon2Chip {
         );
 
         // Verify the do_receive flag.
-        builder
-            .when(local.is_real)
-            .assert_eq(local.do_receive, local.is_real * local.rounds[0]);
+        builder.assert_eq(local.do_receive, local.is_real * local.rounds[0]);
 
         // Verify the first row starts at round 0.
         builder.when_first_row().assert_one(local.rounds[0]);
