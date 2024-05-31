@@ -220,8 +220,6 @@ impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDoubleAssignChip<E> {
 
 impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
     for WeierstrassDoubleAssignChip<E>
-where
-    [(); num_weierstrass_double_cols::<E::BaseField>()]:,
 {
     type Record = ExecutionRecord;
     type Program = Program;
