@@ -45,3 +45,7 @@ fn main() {
         .expect("failed to export verifier");
 }
 ```
+
+## Installing SP1 Contracts
+
+To install the SP1 contracts with [Foundry](https://github.com/foundry-rs/foundry), follow the instructions in the [SP1 Contracts README](https://github.com/succinctlabs/sp1-contracts).
