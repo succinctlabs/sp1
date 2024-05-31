@@ -473,6 +473,7 @@ pub enum MachineVerificationError<SC: StarkGenericConfig> {
     DebugInteractionsFailed,
     EmptyProof,
     InvalidPublicValues(&'static str),
+    TooManyShards,
 }
 
 impl<SC: StarkGenericConfig> Debug for MachineVerificationError<SC> {
@@ -498,6 +499,9 @@ impl<SC: StarkGenericConfig> Debug for MachineVerificationError<SC> {
             }
             MachineVerificationError::InvalidPublicValues(s) => {
                 write!(f, "Invalid public values: {}", s)
+            }
+            MachineVerificationError::TooManyShards => {
+                write!(f, "Too many shards")
             }
         }
     }

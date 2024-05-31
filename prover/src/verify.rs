@@ -100,6 +100,11 @@ impl SP1Prover {
             }
         }
 
+        // Verify that the number of shards is not too large.
+        if proof.0.len() > 1 << 16 {
+            return Err(MachineVerificationError::TooManyShards);
+        }
+
         Ok(())
     }
 
