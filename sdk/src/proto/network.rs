@@ -312,7 +312,7 @@ impl ProofMode {
     ///
     /// The values are not transformed in any way and thus are considered stable
     /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    pub fn as_str_name(&self) -> &'static str {
+    pub const fn as_str_name(&self) -> &'static str {
         match self {
             ProofMode::Unspecified => "PROOF_MODE_UNSPECIFIED",
             ProofMode::Core => "PROOF_MODE_CORE",
@@ -365,7 +365,7 @@ impl ProofStatus {
     ///
     /// The values are not transformed in any way and thus are considered stable
     /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    pub fn as_str_name(&self) -> &'static str {
+    pub const fn as_str_name(&self) -> &'static str {
         match self {
             ProofStatus::ProofUnspecifiedStatus => "PROOF_UNSPECIFIED_STATUS",
             ProofStatus::ProofPreparing => "PROOF_PREPARING",
@@ -422,7 +422,7 @@ impl TransactionStatus {
     ///
     /// The values are not transformed in any way and thus are considered stable
     /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    pub fn as_str_name(&self) -> &'static str {
+    pub const fn as_str_name(&self) -> &'static str {
         match self {
             TransactionStatus::TransactionUnspecifiedStatus => "TRANSACTION_UNSPECIFIED_STATUS",
             TransactionStatus::TransactionScheduled => "TRANSACTION_SCHEDULED",
