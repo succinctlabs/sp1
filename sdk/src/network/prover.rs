@@ -2,7 +2,7 @@ use std::{env, time::Duration};
 
 use crate::proto::network::ProofMode;
 use crate::{
-    client::NetworkClient,
+    network::client::NetworkClient,
     proto::network::{ProofStatus, TransactionStatus},
     Prover,
 };
@@ -13,7 +13,7 @@ use sp1_prover::utils::block_on;
 use sp1_prover::{SP1Prover, SP1Stdin};
 use tokio::{runtime, time::sleep};
 
-use super::{LocalProver, ProverType};
+use crate::provers::{LocalProver, ProverType};
 
 /// An implementation of [crate::ProverClient] that can generate proofs on a remote RPC server.
 pub struct NetworkProver {
