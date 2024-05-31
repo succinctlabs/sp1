@@ -24,4 +24,4 @@ You can run the above script with `RUST_LOG=info cargo run --bin plonk_bn254 --r
 
 ## Install SP1 Contracts
 
-To install the SP1 contracts with [Foundry](https://github.com/foundry-rs/foundry), follow the instructions in the [sp1-contracts repo](https://github.com/succinctlabs/sp1-contracts).
+https://github.com/succinctlabs/sp1-contracts/blob/f74ad2963bbb09ac283af8d10152765ab8e07111/README.md?plain=1#L1-L34
