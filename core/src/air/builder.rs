@@ -308,6 +308,7 @@ pub trait AluAirBuilder: BaseAirBuilder {
         c: Word<impl Into<Self::Expr>>,
         shard: impl Into<Self::Expr>,
         channel: impl Into<Self::Expr>,
+        nonce: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
         let values = once(opcode.into())
@@ -316,6 +317,7 @@ pub trait AluAirBuilder: BaseAirBuilder {
             .chain(c.0.into_iter().map(Into::into))
             .chain(once(shard.into()))
             .chain(once(channel.into()))
+            .chain(once(nonce.into()))
             .collect();
 
         self.send(AirInteraction::new(
@@ -335,6 +337,7 @@ pub trait AluAirBuilder: BaseAirBuilder {
         c: Word<impl Into<Self::Expr>>,
         shard: impl Into<Self::Expr>,
         channel: impl Into<Self::Expr>,
+        nonce: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
         let values = once(opcode.into())
@@ -343,6 +346,7 @@ pub trait AluAirBuilder: BaseAirBuilder {
             .chain(c.0.into_iter().map(Into::into))
             .chain(once(shard.into()))
             .chain(once(channel.into()))
+            .chain(once(nonce.into()))
             .collect();
 
         self.receive(AirInteraction::new(

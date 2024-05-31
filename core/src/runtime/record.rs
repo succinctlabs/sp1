@@ -103,6 +103,8 @@ pub struct ExecutionRecord {
 
     /// The public values.
     pub public_values: PublicValues<u32, u32>,
+
+    pub nonce_lookup: HashMap<usize, u32>,
 }
 
 pub struct ShardingConfig {
@@ -356,22 +358,15 @@ impl MachineRecord for ExecutionRecord {
             }
         }
 
-        // Shard all the other events according to the configuration.
-
         // Shard the ADD events.
         for (add_chunk, shard) in take(&mut self.add_events)
             .chunks_mut(config.add_len)
             .zip(shards.iter_mut())
         {
             shard.add_events.extend_from_slice(add_chunk);
-        }
-
-        // Shard the MUL events.
-        for (mul_chunk, shard) in take(&mut self.mul_events)
-            .chunks_mut(config.mul_len)
-            .zip(shards.iter_mut())
-        {
-            shard.mul_events.extend_from_slice(mul_chunk);
+            for (i, event) in add_chunk.iter().enumerate() {
+                self.nonce_lookup.insert(event.lookup_id, i as u32);
+            }
         }
 
         // Shard the SUB events.
@@ -380,6 +375,21 @@ impl MachineRecord for ExecutionRecord {
             .zip(shards.iter_mut())
         {
             shard.sub_events.extend_from_slice(sub_chunk);
+            for (i, event) in sub_chunk.iter().enumerate() {
+                self.nonce_lookup
+                    .insert(event.lookup_id, shard.add_events.len() as u32 + i as u32);
+            }
+        }
+
+        // Shard the MUL events.
+        for (mul_chunk, shard) in take(&mut self.mul_events)
+            .chunks_mut(config.mul_len)
+            .zip(shards.iter_mut())
+        {
+            shard.mul_events.extend_from_slice(mul_chunk);
+            for (i, event) in mul_chunk.iter().enumerate() {
+                self.nonce_lookup.insert(event.lookup_id, i as u32);
+            }
         }
 
         // Shard the bitwise events.
@@ -388,6 +398,9 @@ impl MachineRecord for ExecutionRecord {
             .zip(shards.iter_mut())
         {
             shard.bitwise_events.extend_from_slice(bitwise_chunk);
+            for (i, event) in bitwise_chunk.iter().enumerate() {
+                self.nonce_lookup.insert(event.lookup_id, i as u32);
+            }
         }
 
         // Shard the shift left events.
@@ -396,6 +409,9 @@ impl MachineRecord for ExecutionRecord {
             .zip(shards.iter_mut())
         {
             shard.shift_left_events.extend_from_slice(shift_left_chunk);
+            for (i, event) in shift_left_chunk.iter().enumerate() {
+                self.nonce_lookup.insert(event.lookup_id, i as u32);
+            }
         }
 
         // Shard the shift right events.
@@ -406,6 +422,9 @@ impl MachineRecord for ExecutionRecord {
             shard
                 .shift_right_events
                 .extend_from_slice(shift_right_chunk);
+            for (i, event) in shift_right_chunk.iter().enumerate() {
+                self.nonce_lookup.insert(event.lookup_id, i as u32);
+            }
         }
 
         // Shard the divrem events.
@@ -414,6 +433,9 @@ impl MachineRecord for ExecutionRecord {
             .zip(shards.iter_mut())
         {
             shard.divrem_events.extend_from_slice(divrem_chunk);
+            for (i, event) in divrem_chunk.iter().enumerate() {
+                self.nonce_lookup.insert(event.lookup_id, i as u32);
+            }
         }
 
         // Shard the LT events.
@@ -422,6 +444,9 @@ impl MachineRecord for ExecutionRecord {
             .zip(shards.iter_mut())
         {
             shard.lt_events.extend_from_slice(lt_chunk);
+            for (i, event) in lt_chunk.iter().enumerate() {
+                self.nonce_lookup.insert(event.lookup_id, i as u32);
+            }
         }
 
         // Keccak-256 permute events.
@@ -526,6 +551,11 @@ impl MachineRecord for ExecutionRecord {
         last_shard
             .memory_finalize_events
             .extend_from_slice(&self.memory_finalize_events);
+
+        // Copy the nonce lookup to all shards.
+        for shard in shards.iter_mut() {
+            shard.nonce_lookup.clone_from(&self.nonce_lookup);
+        }
 
         shards
     }

@@ -11,6 +11,7 @@ pub use bitwise::*;
 pub use divrem::*;
 pub use lt::*;
 pub use mul::*;
+use rand::Rng;
 pub use sll::*;
 pub use sr::*;
 
@@ -21,6 +22,9 @@ use crate::runtime::Opcode;
 /// A standard format for describing ALU operations that need to be proven.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct AluEvent {
+    /// The lookup id of the event.
+    pub lookup_id: usize,
+
     /// The shard number, used for byte lookup table.
     pub shard: u32,
 
@@ -41,12 +45,18 @@ pub struct AluEvent {
 
     // The second input operand.
     pub c: u32,
+
+    pub sub_lookup_id_1: usize,
+    pub sub_lookup_id_2: usize,
+    pub sub_lookup_id_3: usize,
+    pub sub_lookup_id_4: usize,
 }
 
 impl AluEvent {
     /// Creates a new `AluEvent`.
     pub fn new(shard: u32, channel: u32, clk: u32, opcode: Opcode, a: u32, b: u32, c: u32) -> Self {
         Self {
+            lookup_id: 0,
             shard,
             channel,
             clk,
@@ -54,6 +64,15 @@ impl AluEvent {
             a,
             b,
             c,
+            sub_lookup_id_1: create_alu_lookup_id(),
+            sub_lookup_id_2: create_alu_lookup_id(),
+            sub_lookup_id_3: create_alu_lookup_id(),
+            sub_lookup_id_4: create_alu_lookup_id(),
         }
     }
+}
+
+pub fn create_alu_lookup_id() -> usize {
+    let mut rng = rand::thread_rng();
+    rng.gen()
 }
