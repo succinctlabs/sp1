@@ -37,8 +37,7 @@ use crate::utils::ec::weierstrass::WeierstrassParameters;
 use crate::utils::ec::AffinePoint;
 use crate::utils::ec::CurveType;
 use crate::utils::ec::EllipticCurve;
-use crate::utils::limbs_from_prev_access;
-use crate::utils::pad_rows;
+use crate::utils::{limbs_from_prev_access, pad_rows_vec};
 
 pub const fn num_weierstrass_double_cols<P: FieldParameters + NumWords>() -> usize {
     size_of::<WeierstrassDoubleAssignCols<u8, P>>()
@@ -261,7 +260,8 @@ where
                 let rows = events
                     .iter()
                     .map(|event| {
-                        let mut row = [F::zero(); num_weierstrass_double_cols::<E::BaseField>()];
+                        let mut row = Vec::new();
+                        row.resize(num_weierstrass_double_cols::<E::BaseField>(), F::zero());
                         let cols: &mut WeierstrassDoubleAssignCols<F, E::BaseField> =
                             row.as_mut_slice().borrow_mut();
 
@@ -309,8 +309,9 @@ where
             output.append(&mut row_and_record.1);
         }
 
-        pad_rows(&mut rows, || {
-            let mut row = [F::zero(); num_weierstrass_double_cols::<E::BaseField>()];
+        pad_rows_vec(&mut rows, || {
+            let mut row = Vec::new();
+            row.resize(num_weierstrass_double_cols::<E::BaseField>(), F::zero());
             let cols: &mut WeierstrassDoubleAssignCols<F, E::BaseField> =
                 row.as_mut_slice().borrow_mut();
             let zero = BigUint::zero();

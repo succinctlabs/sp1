@@ -78,6 +78,19 @@ pub fn pad_rows<T: Clone, const N: usize>(rows: &mut Vec<[T; N]>, row_fn: impl F
     rows.resize(padded_nb_rows, dummy_row);
 }
 
+pub fn pad_rows_vec<T: Clone>(rows: &mut Vec<Vec<T>>, row_fn: impl Fn() -> Vec<T>) {
+    let nb_rows = rows.len();
+    let mut padded_nb_rows = nb_rows.next_power_of_two();
+    if padded_nb_rows < 16 {
+        padded_nb_rows = 16;
+    }
+    if padded_nb_rows == nb_rows {
+        return;
+    }
+    let dummy_row = row_fn();
+    rows.resize(padded_nb_rows, dummy_row);
+}
+
 pub fn pad_rows_fixed<R: Clone>(
     rows: &mut Vec<R>,
     row_fn: impl Fn() -> R,
