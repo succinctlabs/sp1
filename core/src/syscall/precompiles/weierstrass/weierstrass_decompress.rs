@@ -165,8 +165,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
         for i in 0..events.len() {
             let event = events[i].clone();
-            let mut row = Vec::new();
-            row.resize(num_weierstrass_decompress_cols::<E::BaseField>(), F::zero());
+            let mut row = vec![F::zero(); num_weierstrass_decompress_cols::<E::BaseField>()];
             let cols: &mut WeierstrassDecompressCols<F, E::BaseField> =
                 row.as_mut_slice().borrow_mut();
 
@@ -207,8 +206,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         output.add_byte_lookup_events(new_byte_lookup_events);
 
         pad_rows(&mut rows, || {
-            let mut row = Vec::new();
-            row.resize(num_weierstrass_decompress_cols::<E::BaseField>(), F::zero());
+            let mut row = vec![F::zero(); num_weierstrass_decompress_cols::<E::BaseField>()];
             let cols: &mut WeierstrassDecompressCols<F, E::BaseField> =
                 row.as_mut_slice().borrow_mut();
 

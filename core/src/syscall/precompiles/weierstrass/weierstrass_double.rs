@@ -258,8 +258,8 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
                 let rows = events
                     .iter()
                     .map(|event| {
-                        let mut row = Vec::new();
-                        row.resize(num_weierstrass_double_cols::<E::BaseField>(), F::zero());
+                        let mut row =
+                            vec![F::zero(); num_weierstrass_double_cols::<E::BaseField>()];
                         let cols: &mut WeierstrassDoubleAssignCols<F, E::BaseField> =
                             row.as_mut_slice().borrow_mut();
 
@@ -308,8 +308,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         }
 
         pad_rows(&mut rows, || {
-            let mut row = Vec::new();
-            row.resize(num_weierstrass_double_cols::<E::BaseField>(), F::zero());
+            let mut row = vec![F::zero(); num_weierstrass_double_cols::<E::BaseField>()];
             let cols: &mut WeierstrassDoubleAssignCols<F, E::BaseField> =
                 row.as_mut_slice().borrow_mut();
             let zero = BigUint::zero();
