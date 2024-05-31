@@ -1,5 +1,4 @@
-#![feature(generic_const_exprs)]
-#![allow(incomplete_features)]
+
 
 use clap::{command, Parser};
 use csv::WriterBuilder;

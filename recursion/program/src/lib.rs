@@ -1,5 +1,4 @@
-#![feature(generic_const_exprs)]
-#![allow(incomplete_features)]
+
 #![allow(type_alias_bounds)]
 #![allow(clippy::type_complexity)]
 #![allow(clippy::too_many_arguments)]

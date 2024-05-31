@@ -5,9 +5,6 @@
 //! Visit the [Getting Started](https://succinctlabs.github.io/sp1/getting-started.html) section
 //! in the official SP1 documentation for a quick start guide.
 
-#![allow(incomplete_features)]
-#![feature(generic_const_exprs)]
-
 #[rustfmt::skip]
 pub mod proto {
     pub mod network;
