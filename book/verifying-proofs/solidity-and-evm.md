@@ -23,29 +23,6 @@ sp1-sdk = { features = ["plonk"] }
 
 You can run the above script with `RUST_LOG=info cargo run --bin plonk_bn254 --release` in `examples/fibonacci/script`.
 
-## Exporting the Verifier Contract
-
-To export the verifier contract, you can use the export function in the `sp1_sdk` crate.
-
-### Example
-
-```rust,noplayground
-//! Builds the proving artifacts and exports the solidity verifier.
-//!
-//! You can run this script using the following command:
-//! ```shell
-//! RUST_LOG=info cargo run --package fibonacci-script --bin artifacts --release
-//! ```
-
-use std::path::PathBuf;
-
-fn main() {
-    let contracts_src_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../contracts/src");
-    sp1_sdk::artifacts::export_solidity_plonk_bn254_verifier(contracts_src_dir)
-        .expect("failed to export verifier");
-}
-```
-
 ## Installing SP1 Contracts
 
 To install the SP1 contracts with [Foundry](https://github.com/foundry-rs/foundry), follow the instructions in the [SP1 Contracts README](https://github.com/succinctlabs/sp1-contracts).
