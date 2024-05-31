@@ -219,6 +219,7 @@ where
             local.shard,
             local.channel,
             local.clk,
+            local.nonce,
             AB::F::from_canonical_u32(SyscallCode::SHA_EXTEND.syscall_id()),
             local.w_ptr,
             AB::Expr::zero(),

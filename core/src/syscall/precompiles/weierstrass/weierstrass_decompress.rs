@@ -55,6 +55,7 @@ pub struct WeierstrassDecompressCols<T, P: FieldParameters + NumWords> {
     pub shard: T,
     pub channel: T,
     pub clk: T,
+    pub nonce: T,
     pub ptr: T,
     pub is_odd: T,
     pub x_access: GenericArray<MemoryReadCols<T>, P::WordsFieldElement>,
@@ -225,10 +226,21 @@ where
             row
         });
 
-        RowMajorMatrix::new(
+        let mut trace = RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
             num_weierstrass_decompress_cols::<E::BaseField>(),
-        )
+        );
+
+        // Write the nonces to the trace.
+        for i in 0..trace.height() {
+            let cols: &mut WeierstrassDecompressCols<F, E::BaseField> = trace.values[i
+                * num_weierstrass_decompress_cols::<E::BaseField>()
+                ..(i + 1) * num_weierstrass_decompress_cols::<E::BaseField>()]
+                .borrow_mut();
+            cols.nonce = F::from_canonical_usize(i);
+        }
+
+        trace
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -363,6 +375,7 @@ where
             row.shard,
             row.channel,
             row.clk,
+            row.nonce,
             syscall_id,
             row.ptr,
             row.is_odd,

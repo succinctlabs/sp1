@@ -56,12 +56,14 @@ impl Syscall for Blake3CompressInnerChip {
             }
         }
 
+        let lookup_id = rt.syscall_lookup_id;
         let shard = rt.current_shard();
         let channel = rt.current_channel();
 
         rt.record_mut()
             .blake3_compress_inner_events
             .push(Blake3CompressInnerEvent {
+                lookup_id,
                 shard,
                 channel,
                 clk: start_clk,

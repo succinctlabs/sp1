@@ -46,6 +46,7 @@ where
             local.shard,
             local.channel,
             local.clk,
+            local.nonce,
             AB::F::from_canonical_u32(SyscallCode::SHA_COMPRESS.syscall_id()),
             local.w_ptr,
             local.h_ptr,

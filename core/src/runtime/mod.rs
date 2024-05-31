@@ -396,6 +396,7 @@ impl Runtime {
         record: MemoryAccessRecord,
         exit_code: u32,
         lookup_id: usize,
+        syscall_lookup_id: usize,
     ) {
         let cpu_event = CpuEvent {
             shard,
@@ -414,6 +415,7 @@ impl Runtime {
             memory_record: record.memory,
             exit_code,
             alu_lookup_id: lookup_id,
+            syscall_lookup_id,
             memory_add_lookup_id: create_alu_lookup_id(),
             memory_sub_lookup_id: create_alu_lookup_id(),
             branch_lt_lookup_id: create_alu_lookup_id(),
@@ -560,6 +562,7 @@ impl Runtime {
         self.memory_accesses = MemoryAccessRecord::default();
 
         let lookup_id = create_alu_lookup_id();
+        let syscall_lookup_id = create_alu_lookup_id();
         match instruction.opcode {
             // Arithmetic instructions.
             Opcode::ADD => {
@@ -776,6 +779,7 @@ impl Runtime {
 
                 let syscall_impl = self.get_syscall(syscall).cloned();
                 let mut precompile_rt = SyscallContext::new(self);
+                precompile_rt.syscall_lookup_id = syscall_lookup_id;
                 let (precompile_next_pc, precompile_cycles, returned_exit_code) =
                     if let Some(syscall_impl) = syscall_impl {
                         // Executing a syscall optionally returns a value to write to the t0 register.
@@ -909,6 +913,7 @@ impl Runtime {
                 self.memory_accesses,
                 exit_code,
                 lookup_id,
+                syscall_lookup_id,
             );
         };
         Ok(())

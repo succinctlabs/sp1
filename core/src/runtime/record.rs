@@ -455,6 +455,9 @@ impl MachineRecord for ExecutionRecord {
             .zip(shards.iter_mut())
         {
             shard.keccak_permute_events.extend_from_slice(keccak_chunk);
+            for (i, event) in keccak_chunk.iter().enumerate() {
+                self.nonce_lookup.insert(event.lookup_id, (i * 24) as u32);
+            }
         }
 
         // secp256k1 curve add events.
@@ -465,6 +468,9 @@ impl MachineRecord for ExecutionRecord {
             shard
                 .secp256k1_add_events
                 .extend_from_slice(secp256k1_add_chunk);
+            for (i, event) in secp256k1_add_chunk.iter().enumerate() {
+                self.nonce_lookup.insert(event.lookup_id, i as u32);
+            }
         }
 
         // secp256k1 curve double events.
@@ -475,6 +481,9 @@ impl MachineRecord for ExecutionRecord {
             shard
                 .secp256k1_double_events
                 .extend_from_slice(secp256k1_double_chunk);
+            for (i, event) in secp256k1_double_chunk.iter().enumerate() {
+                self.nonce_lookup.insert(event.lookup_id, i as u32);
+            }
         }
 
         // bn254 curve add events.
@@ -483,6 +492,9 @@ impl MachineRecord for ExecutionRecord {
             .zip(shards.iter_mut())
         {
             shard.bn254_add_events.extend_from_slice(bn254_add_chunk);
+            for (i, event) in bn254_add_chunk.iter().enumerate() {
+                self.nonce_lookup.insert(event.lookup_id, i as u32);
+            }
         }
 
         // bn254 curve double events.
@@ -493,6 +505,9 @@ impl MachineRecord for ExecutionRecord {
             shard
                 .bn254_double_events
                 .extend_from_slice(bn254_double_chunk);
+            for (i, event) in bn254_double_chunk.iter().enumerate() {
+                self.nonce_lookup.insert(event.lookup_id, i as u32);
+            }
         }
 
         // BLS12-381 curve add events.
@@ -503,6 +518,9 @@ impl MachineRecord for ExecutionRecord {
             shard
                 .bls12381_add_events
                 .extend_from_slice(bls12381_add_chunk);
+            for (i, event) in bls12381_add_chunk.iter().enumerate() {
+                self.nonce_lookup.insert(event.lookup_id, i as u32);
+            }
         }
 
         // BLS12-381 curve double events.
@@ -513,6 +531,9 @@ impl MachineRecord for ExecutionRecord {
             shard
                 .bls12381_double_events
                 .extend_from_slice(bls12381_double_chunk);
+            for (i, event) in bls12381_double_chunk.iter().enumerate() {
+                self.nonce_lookup.insert(event.lookup_id, i as u32);
+            }
         }
 
         // Put the precompile events in the first shard.
@@ -520,27 +541,51 @@ impl MachineRecord for ExecutionRecord {
 
         // SHA-256 extend events.
         first.sha_extend_events = std::mem::take(&mut self.sha_extend_events);
+        for (i, event) in first.sha_extend_events.iter().enumerate() {
+            self.nonce_lookup.insert(event.lookup_id, (i * 48) as u32);
+        }
 
         // SHA-256 compress events.
         first.sha_compress_events = std::mem::take(&mut self.sha_compress_events);
+        for (i, event) in first.sha_compress_events.iter().enumerate() {
+            self.nonce_lookup.insert(event.lookup_id, (i * 24) as u32);
+        }
 
         // Edwards curve add events.
         first.ed_add_events = std::mem::take(&mut self.ed_add_events);
+        for (i, event) in first.ed_add_events.iter().enumerate() {
+            self.nonce_lookup.insert(event.lookup_id, i as u32);
+        }
 
         // Edwards curve decompress events.
         first.ed_decompress_events = std::mem::take(&mut self.ed_decompress_events);
+        for (i, event) in first.ed_decompress_events.iter().enumerate() {
+            self.nonce_lookup.insert(event.lookup_id, i as u32);
+        }
 
         // K256 curve decompress events.
         first.k256_decompress_events = std::mem::take(&mut self.k256_decompress_events);
+        for (i, event) in first.k256_decompress_events.iter().enumerate() {
+            self.nonce_lookup.insert(event.lookup_id, i as u32);
+        }
 
         // Blake3 compress events .
         first.blake3_compress_inner_events = std::mem::take(&mut self.blake3_compress_inner_events);
+        for (i, event) in first.blake3_compress_inner_events.iter().enumerate() {
+            self.nonce_lookup.insert(event.lookup_id, i as u32);
+        }
 
         // Uint256 mul arithmetic events.
         first.uint256_mul_events = std::mem::take(&mut self.uint256_mul_events);
+        for (i, event) in first.uint256_mul_events.iter().enumerate() {
+            self.nonce_lookup.insert(event.lookup_id, i as u32);
+        }
 
         // Bls12-381 decompress events .
         first.bls12381_decompress_events = std::mem::take(&mut self.bls12381_decompress_events);
+        for (i, event) in first.bls12381_decompress_events.iter().enumerate() {
+            self.nonce_lookup.insert(event.lookup_id, i as u32);
+        }
 
         // Put the memory records in the last shard.
         let last_shard = shards.last_mut().unwrap();

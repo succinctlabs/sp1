@@ -19,6 +19,7 @@ pub struct Blake3CompressInnerCols<T> {
     pub shard: T,
     pub channel: T,
     pub clk: T,
+    pub nonce: T,
     pub ecall_receive: T,
 
     /// The pointer to the state.

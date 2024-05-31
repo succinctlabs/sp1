@@ -41,8 +41,6 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
         let mut new_alu_events = HashMap::new();
         let mut new_blu_events = Vec::new();
 
-        println!("nonce_lookup: {:?}", input.nonce_lookup);
-
         // Generate the trace rows for each event.
         let mut rows_with_events = input
             .cpu_events
@@ -151,8 +149,6 @@ impl CpuChip {
                 .copied()
                 .unwrap_or_default(),
         );
-        println!("alu lookup id: {}", event.alu_lookup_id);
-        println!("cpu nonce: {}", cols.nonce);
 
         // Populate basic fields.
         cols.pc = F::from_canonical_u32(event.pc);
@@ -197,7 +193,7 @@ impl CpuChip {
         self.populate_branch(cols, event, &mut new_alu_events, nonce_lookup);
         self.populate_jump(cols, event, &mut new_alu_events, nonce_lookup);
         self.populate_auipc(cols, event, &mut new_alu_events, nonce_lookup);
-        let is_halt = self.populate_ecall(cols, event);
+        let is_halt = self.populate_ecall(cols, event, nonce_lookup);
 
         cols.is_sequential_instr = F::from_bool(
             !event.instruction.is_branch_instruction()
@@ -677,7 +673,12 @@ impl CpuChip {
     }
 
     /// Populate columns related to ECALL.
-    fn populate_ecall<F: PrimeField>(&self, cols: &mut CpuCols<F>, _: CpuEvent) -> bool {
+    fn populate_ecall<F: PrimeField>(
+        &self,
+        cols: &mut CpuCols<F>,
+        event: CpuEvent,
+        nonce_lookup: &HashMap<usize, u32>,
+    ) -> bool {
         let mut is_halt = false;
 
         if cols.selectors.is_ecall == F::one() {
@@ -730,6 +731,14 @@ impl CpuChip {
                 let digest_idx = cols.op_b_access.value().to_u32() as usize;
                 ecall_cols.index_bitmap[digest_idx] = F::one();
             }
+
+            // Write the syscall nonce.
+            ecall_cols.syscall_nonce = F::from_canonical_u32(
+                nonce_lookup
+                    .get(&event.syscall_lookup_id)
+                    .copied()
+                    .unwrap_or_default(),
+            );
 
             is_halt = syscall_id == F::from_canonical_u32(SyscallCode::HALT.syscall_id());
         }

@@ -54,6 +54,7 @@ pub struct EdAddAssignCols<T> {
     pub shard: T,
     pub channel: T,
     pub clk: T,
+    pub nonce: T,
     pub p_ptr: T,
     pub q_ptr: T,
     pub p_access: [MemoryWriteCols<T>; WORDS_CURVE_POINT],
@@ -238,10 +239,19 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
         });
 
         // Convert the trace to a row major matrix.
-        RowMajorMatrix::new(
+        let mut trace = RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_ED_ADD_COLS,
-        )
+        );
+
+        // Write the nonces to the trace.
+        for i in 0..trace.height() {
+            let cols: &mut EdAddAssignCols<F> =
+                trace.values[i * NUM_ED_ADD_COLS..(i + 1) * NUM_ED_ADD_COLS].borrow_mut();
+            cols.nonce = F::from_canonical_usize(i);
+        }
+
+        trace
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -392,6 +402,7 @@ where
             row.shard,
             row.channel,
             row.clk,
+            row.nonce,
             AB::F::from_canonical_u32(SyscallCode::ED_ADD.syscall_id()),
             row.p_ptr,
             row.q_ptr,

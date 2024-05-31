@@ -2,6 +2,7 @@ use std::borrow::BorrowMut;
 
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
+use p3_matrix::Matrix;
 
 use super::columns::Blake3CompressInnerCols;
 use super::{
@@ -119,10 +120,20 @@ impl<F: PrimeField32> MachineAir<F> for Blake3CompressInnerChip {
         pad_rows(&mut rows, || [F::zero(); NUM_BLAKE3_COMPRESS_INNER_COLS]);
 
         // Convert the trace to a row major matrix.
-        RowMajorMatrix::new(
+        let mut trace = RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_BLAKE3_COMPRESS_INNER_COLS,
-        )
+        );
+
+        // Write the nonces to the trace.
+        for i in 0..trace.height() {
+            let cols: &mut Blake3CompressInnerCols<F> = trace.values
+                [i * NUM_BLAKE3_COMPRESS_INNER_COLS..(i + 1) * NUM_BLAKE3_COMPRESS_INNER_COLS]
+                .borrow_mut();
+            cols.nonce = F::from_canonical_usize(i);
+        }
+
+        trace
     }
 
     fn included(&self, shard: &Self::Record) -> bool {

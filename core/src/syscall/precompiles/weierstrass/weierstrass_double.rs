@@ -54,6 +54,7 @@ pub struct WeierstrassDoubleAssignCols<T, P: FieldParameters + NumWords> {
     pub is_real: T,
     pub shard: T,
     pub channel: T,
+    pub nonce: T,
     pub clk: T,
     pub p_ptr: T,
     pub p_access: GenericArray<MemoryWriteCols<T>, P::WordsCurvePoint>,
@@ -319,10 +320,21 @@ where
         });
 
         // Convert the trace to a row major matrix.
-        RowMajorMatrix::new(
+        let mut trace = RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
             num_weierstrass_double_cols::<E::BaseField>(),
-        )
+        );
+
+        // Write the nonces to the trace.
+        for i in 0..trace.height() {
+            let cols: &mut WeierstrassDoubleAssignCols<F, E::BaseField> = trace.values[i
+                * num_weierstrass_double_cols::<E::BaseField>()
+                ..(i + 1) * num_weierstrass_double_cols::<E::BaseField>()]
+                .borrow_mut();
+            cols.nonce = F::from_canonical_usize(i);
+        }
+
+        trace
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -518,6 +530,7 @@ where
             row.shard,
             row.channel,
             row.clk,
+            row.nonce,
             syscall_id_felt,
             row.p_ptr,
             AB::Expr::zero(),

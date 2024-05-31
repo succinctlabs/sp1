@@ -53,6 +53,7 @@ pub struct CpuEvent {
     pub exit_code: u32,
 
     pub alu_lookup_id: usize,
+    pub syscall_lookup_id: usize,
     pub memory_add_lookup_id: usize,
     pub memory_sub_lookup_id: usize,
     pub branch_gt_lookup_id: usize,

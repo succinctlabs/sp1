@@ -68,6 +68,7 @@ where
             local.shard,
             local.channel,
             local.clk,
+            local.nonce,
             AB::F::from_canonical_u32(SyscallCode::KECCAK_PERMUTE.syscall_id()),
             local.state_addr,
             AB::Expr::zero(),
