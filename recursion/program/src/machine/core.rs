@@ -263,8 +263,6 @@ where
             // Assert that exit code is the same for all proofs.
             builder.assert_felt_eq(exit_code, public_values.exit_code);
 
-            // Assert that the committed value digests are all the same.
-
             // Assert that the deferred proof digest is the same for all proofs.
             for (digest, current_digest) in deferred_proofs_digest
                 .iter()
