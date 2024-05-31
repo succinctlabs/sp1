@@ -32,6 +32,9 @@ use crate::runtime::Syscall;
 use crate::runtime::SyscallCode;
 use crate::syscall::precompiles::create_ec_add_event;
 use crate::syscall::precompiles::SyscallContext;
+use crate::utils::ec::weierstrass::bls12_381::Bls12381BaseField;
+use crate::utils::ec::weierstrass::bn254::Bn254BaseField;
+use crate::utils::ec::weierstrass::secp256k1::Secp256k1BaseField;
 use crate::utils::ec::weierstrass::WeierstrassParameters;
 use crate::utils::ec::AffinePoint;
 use crate::utils::ec::CurveType;
@@ -42,6 +45,13 @@ use crate::utils::pad_rows;
 pub const fn num_weierstrass_add_cols<P: FieldParameters + NumWords>() -> usize {
     size_of::<WeierstrassAddAssignCols<u8, P>>()
 }
+
+pub const NUM_WEIERSTRASS_ADD_ASSIGN_COLS_SECP256K1: usize =
+    num_weierstrass_add_cols::<Secp256k1BaseField>();
+pub const NUM_WEIERSTRASS_ADD_ASSIGN_COLS_BN254: usize =
+    num_weierstrass_add_cols::<Bn254BaseField>();
+pub const NUM_WEIERSTRASS_ADD_ASSIGN_COLS_BLS12381: usize =
+    num_weierstrass_add_cols::<Bls12381BaseField>();
 
 /// A set of columns to compute `WeierstrassAdd` that add two points on a Weierstrass curve.
 ///
@@ -70,11 +80,11 @@ pub struct WeierstrassAddAssignCols<T, P: FieldParameters + NumWords> {
 }
 
 #[derive(Default)]
-pub struct WeierstrassAddAssignChip<E> {
+pub struct WeierstrassAddAssignChip<E, const COLS: usize> {
     _marker: PhantomData<E>,
 }
 
-impl<E: EllipticCurve> Syscall for WeierstrassAddAssignChip<E> {
+impl<E: EllipticCurve, const COLS: usize> Syscall for WeierstrassAddAssignChip<E, COLS> {
     fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
         let event = create_ec_add_event::<E>(rt, arg1, arg2);
         match E::CURVE_TYPE {
@@ -91,7 +101,7 @@ impl<E: EllipticCurve> Syscall for WeierstrassAddAssignChip<E> {
     }
 }
 
-impl<E: EllipticCurve> WeierstrassAddAssignChip<E> {
+impl<E: EllipticCurve, const COLS: usize> WeierstrassAddAssignChip<E, COLS> {
     pub const fn new() -> Self {
         Self {
             _marker: PhantomData,
@@ -200,10 +210,10 @@ impl<E: EllipticCurve> WeierstrassAddAssignChip<E> {
     }
 }
 
-impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
-    for WeierstrassAddAssignChip<E>
+impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters, const COLS: usize> MachineAir<F>
+    for WeierstrassAddAssignChip<E, COLS>
 where
-    [(); num_weierstrass_add_cols::<E::BaseField>()]:,
+    [(); COLS]: Sized,
 {
     type Record = ExecutionRecord;
     type Program = Program;
@@ -235,7 +245,7 @@ where
 
         for i in 0..events.len() {
             let event = &events[i];
-            let mut row = [F::zero(); num_weierstrass_add_cols::<E::BaseField>()];
+            let mut row = [F::zero(); COLS];
             let cols: &mut WeierstrassAddAssignCols<F, E::BaseField> =
                 row.as_mut_slice().borrow_mut();
 
@@ -287,7 +297,7 @@ where
         output.add_byte_lookup_events(new_byte_lookup_events);
 
         pad_rows(&mut rows, || {
-            let mut row = [F::zero(); num_weierstrass_add_cols::<E::BaseField>()];
+            let mut row = [F::zero(); COLS];
             let cols: &mut WeierstrassAddAssignCols<F, E::BaseField> =
                 row.as_mut_slice().borrow_mut();
             let zero = BigUint::zero();
@@ -305,10 +315,7 @@ where
         });
 
         // Convert the trace to a row major matrix.
-        RowMajorMatrix::new(
-            rows.into_iter().flatten().collect::<Vec<_>>(),
-            num_weierstrass_add_cols::<E::BaseField>(),
-        )
+        RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), COLS)
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -321,13 +328,13 @@ where
     }
 }
 
-impl<F, E: EllipticCurve> BaseAir<F> for WeierstrassAddAssignChip<E> {
+impl<F, E: EllipticCurve, const COLS: usize> BaseAir<F> for WeierstrassAddAssignChip<E, COLS> {
     fn width(&self) -> usize {
-        num_weierstrass_add_cols::<E::BaseField>()
+        COLS
     }
 }
 
-impl<AB, E: EllipticCurve> Air<AB> for WeierstrassAddAssignChip<E>
+impl<AB, E: EllipticCurve, const COLS: usize> Air<AB> for WeierstrassAddAssignChip<E, COLS>
 where
     AB: SP1AirBuilder,
     Limbs<AB::Var, <E::BaseField as NumLimbs>::Limbs>: Copy,

@@ -22,6 +22,13 @@ use crate::utils::ec::weierstrass::bls12_381::Bls12381;
 use crate::utils::ec::weierstrass::{bn254::Bn254, secp256k1::Secp256k1};
 use crate::{runtime::ExecutionRecord, runtime::MemoryReadRecord, runtime::MemoryWriteRecord};
 
+use crate::syscall::precompiles::weierstrass::{
+    NUM_WEIERSTRASS_ADD_ASSIGN_COLS_BLS12381, NUM_WEIERSTRASS_ADD_ASSIGN_COLS_BN254,
+    NUM_WEIERSTRASS_ADD_ASSIGN_COLS_SECP256K1, NUM_WEIERSTRASS_DECOMPRESS_COLS_BLS12381,
+    NUM_WEIERSTRASS_DECOMPRESS_COLS_SECP256K1, NUM_WEIERSTRASS_DOUBLE_COLS_BLS12381,
+    NUM_WEIERSTRASS_DOUBLE_COLS_BN254, NUM_WEIERSTRASS_DOUBLE_COLS_SECP256K1,
+};
+
 /// A system call is invoked by the the `ecall` instruction with a specific value in register t0.
 /// The syscall number is a 32-bit integer, with the following layout (in litte-endian format)
 /// - The first byte is the syscall id.
@@ -279,23 +286,38 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Arc<dyn Syscall>> {
     );
     syscall_map.insert(
         SyscallCode::SECP256K1_ADD,
-        Arc::new(WeierstrassAddAssignChip::<Secp256k1>::new()),
+        Arc::new(WeierstrassAddAssignChip::<
+            Secp256k1,
+            NUM_WEIERSTRASS_ADD_ASSIGN_COLS_SECP256K1,
+        >::new()),
     );
     syscall_map.insert(
         SyscallCode::SECP256K1_DOUBLE,
-        Arc::new(WeierstrassDoubleAssignChip::<Secp256k1>::new()),
+        Arc::new(WeierstrassDoubleAssignChip::<
+            Secp256k1,
+            NUM_WEIERSTRASS_DOUBLE_COLS_SECP256K1,
+        >::new()),
     );
     syscall_map.insert(
         SyscallCode::SECP256K1_DECOMPRESS,
-        Arc::new(WeierstrassDecompressChip::<Secp256k1>::new()),
+        Arc::new(WeierstrassDecompressChip::<
+            Secp256k1,
+            NUM_WEIERSTRASS_DECOMPRESS_COLS_SECP256K1,
+        >::new()),
     );
     syscall_map.insert(
         SyscallCode::BN254_ADD,
-        Arc::new(WeierstrassAddAssignChip::<Bn254>::new()),
+        Arc::new(WeierstrassAddAssignChip::<
+            Bn254,
+            NUM_WEIERSTRASS_ADD_ASSIGN_COLS_BN254,
+        >::new()),
     );
     syscall_map.insert(
         SyscallCode::BN254_DOUBLE,
-        Arc::new(WeierstrassDoubleAssignChip::<Bn254>::new()),
+        Arc::new(WeierstrassDoubleAssignChip::<
+            Bn254,
+            NUM_WEIERSTRASS_DOUBLE_COLS_BN254,
+        >::new()),
     );
     syscall_map.insert(
         SyscallCode::BLAKE3_COMPRESS_INNER,
@@ -303,11 +325,17 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Arc<dyn Syscall>> {
     );
     syscall_map.insert(
         SyscallCode::BLS12381_ADD,
-        Arc::new(WeierstrassAddAssignChip::<Bls12381>::new()),
+        Arc::new(WeierstrassAddAssignChip::<
+            Bls12381,
+            NUM_WEIERSTRASS_ADD_ASSIGN_COLS_BLS12381,
+        >::new()),
     );
     syscall_map.insert(
         SyscallCode::BLS12381_DOUBLE,
-        Arc::new(WeierstrassDoubleAssignChip::<Bls12381>::new()),
+        Arc::new(WeierstrassDoubleAssignChip::<
+            Bls12381,
+            NUM_WEIERSTRASS_DOUBLE_COLS_BLS12381,
+        >::new()),
     );
     syscall_map.insert(
         SyscallCode::BLAKE3_COMPRESS_INNER,
@@ -336,7 +364,10 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Arc<dyn Syscall>> {
     syscall_map.insert(SyscallCode::HINT_READ, Arc::new(SyscallHintRead::new()));
     syscall_map.insert(
         SyscallCode::BLS12381_DECOMPRESS,
-        Arc::new(WeierstrassDecompressChip::<Bls12381>::new()),
+        Arc::new(WeierstrassDecompressChip::<
+            Bls12381,
+            NUM_WEIERSTRASS_DECOMPRESS_COLS_BLS12381,
+        >::new()),
     );
     syscall_map.insert(SyscallCode::UINT256_MUL, Arc::new(Uint256MulChip::new()));
 

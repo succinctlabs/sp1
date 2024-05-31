@@ -33,8 +33,9 @@ use crate::runtime::SyscallCode;
 use crate::syscall::precompiles::create_ec_decompress_event;
 use crate::syscall::precompiles::SyscallContext;
 use crate::utils::bytes_to_words_le_vec;
-use crate::utils::ec::weierstrass::bls12_381::bls12381_sqrt;
-use crate::utils::ec::weierstrass::secp256k1::secp256k1_sqrt;
+use crate::utils::ec::weierstrass::bls12_381::{bls12381_sqrt, Bls12381BaseField};
+use crate::utils::ec::weierstrass::bn254::Bn254BaseField;
+use crate::utils::ec::weierstrass::secp256k1::{secp256k1_sqrt, Secp256k1BaseField};
 use crate::utils::ec::weierstrass::WeierstrassParameters;
 use crate::utils::ec::CurveType;
 use crate::utils::ec::EllipticCurve;
@@ -45,6 +46,13 @@ use crate::utils::pad_rows;
 pub const fn num_weierstrass_decompress_cols<P: FieldParameters + NumWords>() -> usize {
     size_of::<WeierstrassDecompressCols<u8, P>>()
 }
+
+pub const NUM_WEIERSTRASS_DECOMPRESS_COLS_SECP256K1: usize =
+    num_weierstrass_decompress_cols::<Secp256k1BaseField>();
+pub const NUM_WEIERSTRASS_DECOMPRESS_COLS_BN254: usize =
+    num_weierstrass_decompress_cols::<Bn254BaseField>();
+pub const NUM_WEIERSTRASS_DECOMPRESS_COLS_BLS12381: usize =
+    num_weierstrass_decompress_cols::<Bls12381BaseField>();
 
 /// A set of columns to compute `WeierstrassDecompress` that decompresses a point on a Weierstrass
 /// curve.
@@ -68,11 +76,11 @@ pub struct WeierstrassDecompressCols<T, P: FieldParameters + NumWords> {
 }
 
 #[derive(Default)]
-pub struct WeierstrassDecompressChip<E> {
+pub struct WeierstrassDecompressChip<E, const COLS: usize> {
     _marker: PhantomData<E>,
 }
 
-impl<E: EllipticCurve> Syscall for WeierstrassDecompressChip<E> {
+impl<E: EllipticCurve, const COLS: usize> Syscall for WeierstrassDecompressChip<E, COLS> {
     fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
         let event = create_ec_decompress_event::<E>(rt, arg1, arg2);
         match E::CURVE_TYPE {
@@ -88,7 +96,9 @@ impl<E: EllipticCurve> Syscall for WeierstrassDecompressChip<E> {
     }
 }
 
-impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDecompressChip<E> {
+impl<E: EllipticCurve + WeierstrassParameters, const COLS: usize>
+    WeierstrassDecompressChip<E, COLS>
+{
     pub const fn new() -> Self {
         Self {
             _marker: PhantomData::<E>,
@@ -135,10 +145,10 @@ impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDecompressChip<E> {
     }
 }
 
-impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
-    for WeierstrassDecompressChip<E>
+impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters, const COLS: usize> MachineAir<F>
+    for WeierstrassDecompressChip<E, COLS>
 where
-    [(); num_weierstrass_decompress_cols::<E::BaseField>()]:,
+    [(); COLS]:,
 {
     type Record = ExecutionRecord;
     type Program = Program;
@@ -168,7 +178,7 @@ where
 
         for i in 0..events.len() {
             let event = events[i].clone();
-            let mut row = [F::zero(); num_weierstrass_decompress_cols::<E::BaseField>()];
+            let mut row = [F::zero(); COLS];
             let cols: &mut WeierstrassDecompressCols<F, E::BaseField> =
                 row.as_mut_slice().borrow_mut();
 
@@ -209,7 +219,7 @@ where
         output.add_byte_lookup_events(new_byte_lookup_events);
 
         pad_rows(&mut rows, || {
-            let mut row = [F::zero(); num_weierstrass_decompress_cols::<E::BaseField>()];
+            let mut row = [F::zero(); COLS];
             let cols: &mut WeierstrassDecompressCols<F, E::BaseField> =
                 row.as_mut_slice().borrow_mut();
 
@@ -225,10 +235,7 @@ where
             row
         });
 
-        RowMajorMatrix::new(
-            rows.into_iter().flatten().collect::<Vec<_>>(),
-            num_weierstrass_decompress_cols::<E::BaseField>(),
-        )
+        RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), COLS)
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -240,13 +247,14 @@ where
     }
 }
 
-impl<F, E: EllipticCurve> BaseAir<F> for WeierstrassDecompressChip<E> {
+impl<F, E: EllipticCurve, const COLS: usize> BaseAir<F> for WeierstrassDecompressChip<E, COLS> {
     fn width(&self) -> usize {
-        num_weierstrass_decompress_cols::<E::BaseField>()
+        COLS
     }
 }
 
-impl<AB, E: EllipticCurve + WeierstrassParameters> Air<AB> for WeierstrassDecompressChip<E>
+impl<AB, E: EllipticCurve + WeierstrassParameters, const COLS: usize> Air<AB>
+    for WeierstrassDecompressChip<E, COLS>
 where
     AB: SP1AirBuilder,
     Limbs<AB::Var, <E::BaseField as NumLimbs>::Limbs>: Copy,

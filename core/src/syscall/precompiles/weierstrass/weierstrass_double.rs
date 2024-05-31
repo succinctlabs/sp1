@@ -33,6 +33,9 @@ use crate::runtime::SyscallCode;
 use crate::stark::MachineRecord;
 use crate::syscall::precompiles::create_ec_double_event;
 use crate::syscall::precompiles::SyscallContext;
+use crate::utils::ec::weierstrass::bls12_381::Bls12381BaseField;
+use crate::utils::ec::weierstrass::bn254::Bn254BaseField;
+use crate::utils::ec::weierstrass::secp256k1::Secp256k1BaseField;
 use crate::utils::ec::weierstrass::WeierstrassParameters;
 use crate::utils::ec::AffinePoint;
 use crate::utils::ec::CurveType;
@@ -43,6 +46,13 @@ use crate::utils::pad_rows;
 pub const fn num_weierstrass_double_cols<P: FieldParameters + NumWords>() -> usize {
     size_of::<WeierstrassDoubleAssignCols<u8, P>>()
 }
+
+pub const NUM_WEIERSTRASS_DOUBLE_COLS_SECP256K1: usize =
+    num_weierstrass_double_cols::<Secp256k1BaseField>();
+pub const NUM_WEIERSTRASS_DOUBLE_COLS_BN254: usize =
+    num_weierstrass_double_cols::<Bn254BaseField>();
+pub const NUM_WEIERSTRASS_DOUBLE_COLS_BLS12381: usize =
+    num_weierstrass_double_cols::<Bls12381BaseField>();
 
 /// A set of columns to double a point on a Weierstrass curve.
 ///
@@ -71,11 +81,13 @@ pub struct WeierstrassDoubleAssignCols<T, P: FieldParameters + NumWords> {
 }
 
 #[derive(Default)]
-pub struct WeierstrassDoubleAssignChip<E> {
+pub struct WeierstrassDoubleAssignChip<E, const COLS: usize> {
     _marker: PhantomData<E>,
 }
 
-impl<E: EllipticCurve + WeierstrassParameters> Syscall for WeierstrassDoubleAssignChip<E> {
+impl<E: EllipticCurve + WeierstrassParameters, const COLS: usize> Syscall
+    for WeierstrassDoubleAssignChip<E, COLS>
+{
     fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
         let event = create_ec_double_event::<E>(rt, arg1, arg2);
         match E::CURVE_TYPE {
@@ -92,7 +104,9 @@ impl<E: EllipticCurve + WeierstrassParameters> Syscall for WeierstrassDoubleAssi
     }
 }
 
-impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDoubleAssignChip<E> {
+impl<E: EllipticCurve + WeierstrassParameters, const COLS: usize>
+    WeierstrassDoubleAssignChip<E, COLS>
+{
     pub const fn new() -> Self {
         Self {
             _marker: PhantomData,
@@ -219,10 +233,10 @@ impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDoubleAssignChip<E> {
     }
 }
 
-impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
-    for WeierstrassDoubleAssignChip<E>
+impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters, const COLS: usize> MachineAir<F>
+    for WeierstrassDoubleAssignChip<E, COLS>
 where
-    [(); num_weierstrass_double_cols::<E::BaseField>()]:,
+    [(); COLS]:,
 {
     type Record = ExecutionRecord;
     type Program = Program;
@@ -261,7 +275,7 @@ where
                 let rows = events
                     .iter()
                     .map(|event| {
-                        let mut row = [F::zero(); num_weierstrass_double_cols::<E::BaseField>()];
+                        let mut row = [F::zero(); COLS];
                         let cols: &mut WeierstrassDoubleAssignCols<F, E::BaseField> =
                             row.as_mut_slice().borrow_mut();
 
@@ -310,7 +324,7 @@ where
         }
 
         pad_rows(&mut rows, || {
-            let mut row = [F::zero(); num_weierstrass_double_cols::<E::BaseField>()];
+            let mut row = [F::zero(); COLS];
             let cols: &mut WeierstrassDoubleAssignCols<F, E::BaseField> =
                 row.as_mut_slice().borrow_mut();
             let zero = BigUint::zero();
@@ -319,10 +333,7 @@ where
         });
 
         // Convert the trace to a row major matrix.
-        RowMajorMatrix::new(
-            rows.into_iter().flatten().collect::<Vec<_>>(),
-            num_weierstrass_double_cols::<E::BaseField>(),
-        )
+        RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), COLS)
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -335,13 +346,18 @@ where
     }
 }
 
-impl<F, E: EllipticCurve + WeierstrassParameters> BaseAir<F> for WeierstrassDoubleAssignChip<E> {
+impl<F, E: EllipticCurve + WeierstrassParameters, const COLS: usize> BaseAir<F>
+    for WeierstrassDoubleAssignChip<E, COLS>
+where
+    [(); COLS]:,
+{
     fn width(&self) -> usize {
         num_weierstrass_double_cols::<E::BaseField>()
     }
 }
 
-impl<AB, E: EllipticCurve + WeierstrassParameters> Air<AB> for WeierstrassDoubleAssignChip<E>
+impl<AB, E: EllipticCurve + WeierstrassParameters, const COLS: usize> Air<AB>
+    for WeierstrassDoubleAssignChip<E, COLS>
 where
     AB: SP1AirBuilder,
     Limbs<AB::Var, <E::BaseField as NumLimbs>::Limbs>: Copy,
