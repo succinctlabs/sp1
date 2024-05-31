@@ -57,6 +57,10 @@ impl NetworkProver {
 
         let proof_id = client.create_proof(elf, &stdin, mode).await?;
         log::info!("Created {}", proof_id);
+        log::info!(
+            "View in explorer: https://explorer.succinct.xyz/{}",
+            proof_id.split('_').last().unwrap_or(&proof_id)
+        );
 
         let mut is_claimed = false;
         loop {
