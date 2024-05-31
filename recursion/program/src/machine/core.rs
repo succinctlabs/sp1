@@ -78,11 +78,7 @@ impl SP1RecursiveVerifier<InnerConfig, BabyBearPoseidon2> {
 impl<C: Config, SC: StarkGenericConfig> SP1RecursiveVerifier<C, SC>
 where
     C::F: PrimeField32 + TwoAdicField,
-    SC: StarkGenericConfig<
-        Val = C::F,
-        Challenge = C::EF,
-        Domain = TwoAdicMultiplicativeCoset<C::F>,
-    >,
+    SC: StarkGenericConfig<Val = C::F, Challenge = C::EF, Domain = TwoAdicMultiplicativeCoset<C::F>>,
     Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
 {
     /// Verify a batch of SP1 shard proofs and aggregate their public values.
@@ -232,6 +228,9 @@ where
 
             // Assert that exit code is the same for all proofs.
             builder.assert_felt_eq(exit_code, public_values.exit_code);
+
+            // Assert tha the exit code is zero (success) for all proofs.
+            builder.assert_felt_eq(exit_code, C::F::zero());
 
             // Assert that the committed value digests are all the same.
 
