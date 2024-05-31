@@ -22,6 +22,7 @@ pub use utils::*;
 
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::fs::File;
 use std::io::BufWriter;
 use std::io::Write;
@@ -82,22 +83,52 @@ pub struct Runtime {
 
     pub emit_events: bool,
 
-    /// Report of instruction calls.
-    pub report: InstructionReport,
+    /// Report of the program execution.
+    pub report: ExecutionReport,
 
     /// Whether we should write to the report.
     pub should_report: bool,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
-pub struct InstructionReport {
-    pub instruction_counts: HashMap<Opcode, u32>,
-    pub syscall_counts: HashMap<SyscallCode, u32>,
+pub struct ExecutionReport {
+    pub instruction_counts: HashMap<Opcode, u64>,
+    pub syscall_counts: HashMap<SyscallCode, u64>,
 }
 
-impl InstructionReport {
-    pub fn total_instruction_count(&self) -> u32 {
+impl ExecutionReport {
+    pub fn total_instruction_count(&self) -> u64 {
         self.instruction_counts.values().sum()
+    }
+
+    pub fn total_syscall_count(&self) -> u64 {
+        self.syscall_counts.values().sum()
+    }
+}
+
+impl Display for ExecutionReport {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        writeln!(f, "Instruction Counts:")?;
+        let mut sorted_instructions = self.instruction_counts.iter().collect::<Vec<_>>();
+
+        // Sort instructions by opcode name
+        sorted_instructions.sort_by_key(|&(opcode, _)| opcode.to_string());
+        for (opcode, count) in sorted_instructions {
+            writeln!(f, "  {}: {}", opcode, count)?;
+        }
+        writeln!(f, "Total Instructions: {}", self.total_instruction_count())?;
+
+        writeln!(f, "Syscall Counts:")?;
+        let mut sorted_syscalls = self.syscall_counts.iter().collect::<Vec<_>>();
+
+        // Sort syscalls by syscall name
+        sorted_syscalls.sort_by_key(|&(syscall, _)| format!("{:?}", syscall));
+        for (syscall, count) in sorted_syscalls {
+            writeln!(f, "  {}: {}", syscall, count)?;
+        }
+        writeln!(f, "Total Syscall Count: {}", self.total_syscall_count())?;
+
+        Ok(())
     }
 }
 
@@ -555,7 +586,7 @@ impl Runtime {
         let mut memory_store_value: Option<u32> = None;
         self.memory_accesses = MemoryAccessRecord::default();
 
-        if self.should_report {
+        if self.should_report && !self.unconstrained {
             self.report
                 .instruction_counts
                 .entry(instruction.opcode)
@@ -777,7 +808,7 @@ impl Runtime {
                 b = self.rr(Register::X10, MemoryAccessPosition::B);
                 let syscall = SyscallCode::from_u32(syscall_id);
 
-                if self.should_report {
+                if self.should_report && !self.unconstrained {
                     self.report
                         .syscall_counts
                         .entry(syscall)
@@ -990,18 +1021,18 @@ impl Runtime {
         tracing::info!("starting execution");
     }
 
-    pub fn run_untraced(&mut self) -> Result<&InstructionReport, ExecutionError> {
+    pub fn run_untraced(&mut self) -> Result<(), ExecutionError> {
         self.emit_events = false;
         self.should_report = true;
         while !self.execute()? {}
-        Ok(&self.report)
+        Ok(())
     }
 
-    pub fn run(&mut self) -> Result<&InstructionReport, ExecutionError> {
+    pub fn run(&mut self) -> Result<(), ExecutionError> {
         self.emit_events = true;
         self.should_report = true;
         while !self.execute()? {}
-        Ok(&self.report)
+        Ok(())
     }
 
     pub fn dry_run(&mut self) {
@@ -1156,7 +1187,7 @@ pub mod tests {
         assert_eq!(runtime.report, {
             use super::Opcode::*;
             use super::SyscallCode::*;
-            super::InstructionReport {
+            super::ExecutionReport {
                 instruction_counts: [
                     (LB, 10723),
                     (DIVU, 6),

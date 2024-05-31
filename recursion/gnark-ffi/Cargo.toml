@@ -21,6 +21,4 @@ cc = "1.0"
 cfg-if = "1.0"
 
 [features]
-default = ["plonk"]
-
 plonk = []

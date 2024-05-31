@@ -4956,6 +4956,8 @@ dependencies = [
  "sha2 0.10.8",
  "sp1-core",
  "sp1-prover",
+ "strum",
+ "strum_macros",
  "tempfile",
  "tokio",
  "tracing",
