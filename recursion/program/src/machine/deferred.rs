@@ -98,11 +98,7 @@ where
 impl<C: Config, SC, A> SP1DeferredVerifier<C, SC, A>
 where
     C::F: PrimeField32 + TwoAdicField,
-    SC: StarkGenericConfig<
-        Val = C::F,
-        Challenge = C::EF,
-        Domain = TwoAdicMultiplicativeCoset<C::F>,
-    >,
+    SC: StarkGenericConfig<Val = C::F, Challenge = C::EF, Domain = TwoAdicMultiplicativeCoset<C::F>>,
     A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
     Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
 {
@@ -185,7 +181,9 @@ where
                 let element = builder.get(&proof.public_values, j);
                 challenger.observe(builder, element);
             }
-            // verify the proof.
+
+            // Verify the proof.
+            let shard_idx = builder.eval(C::N::one());
             StarkVerifier::<C, SC>::verify_shard(
                 builder,
                 &compress_vk,
@@ -193,6 +191,7 @@ where
                 machine,
                 &mut challenger,
                 &proof,
+                shard_idx,
             );
 
             // Load the public values from the proof.
