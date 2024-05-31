@@ -1,8 +1,5 @@
 //! Tests end-to-end performance of wrapping a recursion proof to PLONK.
 
-
-
-
 use std::time::Instant;
 
 use itertools::iproduct;

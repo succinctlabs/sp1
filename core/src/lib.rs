@@ -11,7 +11,6 @@
     deprecated,
     incomplete_features
 )]
-
 #![warn(unused_extern_crates)]
 
 extern crate alloc;

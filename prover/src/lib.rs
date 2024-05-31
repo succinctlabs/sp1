@@ -7,8 +7,6 @@
 //! 3. Wrap the shard proof into a SNARK-friendly field.
 //! 4. Wrap the last shard proof, proven over the SNARK-friendly field, into a PLONK proof.
 
-
-
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::new_without_default)]
 

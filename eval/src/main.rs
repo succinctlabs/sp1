@@ -1,6 +1,3 @@
-
-
-
 use clap::{command, Parser};
 use csv::WriterBuilder;
 use serde::Serialize;
