@@ -21,13 +21,17 @@ RUN CGO_ENABLED=1 GOOS=linux go build -o libsp1gnark.a -buildmode=c-archive .
 FROM rust:1.78-bookworm AS rust
 
 COPY --from=go /build/libsp1gnark.a /usr/lib/
+COPY --from=go /build/libsp1gnark.h /usr/include/
+COPY --from=go /build/babybear.h    /usr/include/
+
+RUN apt-get update
+RUN apt-get install -y clang
 
 WORKDIR /build
 
 COPY gnark-cli/build.rs   ./
 COPY gnark-cli/src        ./src/
 COPY gnark-cli/Cargo.toml ./
-COPY gnark-cli/Cargo.lock ./
 
 RUN cargo install --path . --root /usr
 

@@ -8,5 +8,10 @@ p3-field = { git = "https://github.com/Plonky3/Plonky3.git", rev = "3b5265f9d5af
 p3-baby-bear = { git = "https://github.com/Plonky3/Plonky3.git", features = [
     "nightly-features",
 ], rev = "3b5265f9d5af36534a46caebf0617595cfb42c5a" }
+clap = { version = "4.5.4", features = ["derive"] }
+log = "0.4.21"
+
+[build-dependencies]
+bindgen = "0.69.4"
 
 [workspace]
