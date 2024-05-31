@@ -22,6 +22,7 @@ pub use utils::*;
 
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::fmt::Display;
 use std::fs::File;
 use std::io::BufWriter;
 use std::io::Write;
@@ -81,6 +82,47 @@ pub struct Runtime {
     pub max_syscall_cycles: u32,
 
     pub emit_events: bool,
+
+    pub execution_report: ExecutionReport,
+}
+
+#[derive(Clone, Debug)]
+pub struct ExecutionReport {
+    opcodes: HashMap<Opcode, u32>,
+    syscalls: HashMap<SyscallCode, u32>,
+}
+
+impl Default for ExecutionReport {
+    fn default() -> Self {
+        Self {
+            opcodes: HashMap::new(),
+            syscalls: HashMap::new(),
+        }
+    }
+}
+
+impl ExecutionReport {
+    pub fn opcode(&mut self, opcode: Opcode) {
+        *self.opcodes.entry(opcode).or_insert(0) += 1;
+    }
+
+    pub fn syscall(&mut self, syscall: SyscallCode) {
+        *self.syscalls.entry(syscall).or_insert(0) += 1;
+    }
+}
+
+impl Display for ExecutionReport {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "Opcodes:")?;
+        for (opcode, count) in &self.opcodes {
+            writeln!(f, "  {}: {}", opcode, count)?;
+        }
+        writeln!(f, "Syscalls:")?;
+        for (syscall, count) in &self.syscalls {
+            writeln!(f, "  {:?}: {}", syscall, count)?;
+        }
+        Ok(())
+    }
 }
 
 #[derive(Error, Debug)]
@@ -140,6 +182,7 @@ impl Runtime {
             syscall_map,
             emit_events: true,
             max_syscall_cycles,
+            execution_report: ExecutionReport::default(),
         }
     }
 
@@ -888,6 +931,20 @@ impl Runtime {
         Ok(())
     }
 
+    #[inline]
+    fn report_instruction(&mut self, instruction: Instruction) -> Result<(), ExecutionError> {
+        let opcode = instruction.opcode;
+        self.execution_report.opcode(opcode);
+
+        if opcode == Opcode::ECALL {
+            let syscall_id = self.register(Register::X5);
+            self.execution_report
+                .syscall(SyscallCode::from_u32(syscall_id));
+        }
+
+        Ok(())
+    }
+
     /// Executes one cycle of the program, returning whether the program has finished.
     #[inline]
     fn execute_cycle(&mut self) -> Result<bool, ExecutionError> {
@@ -899,6 +956,9 @@ impl Runtime {
 
         // Execute the instruction.
         self.execute_instruction(instruction)?;
+
+        // Report the instruction.
+        self.report_instruction(instruction)?;
 
         // Increment the clock.
         self.state.global_clk += 1;
@@ -960,10 +1020,10 @@ impl Runtime {
         Ok(())
     }
 
-    pub fn run(&mut self) -> Result<(), ExecutionError> {
+    pub fn run(&mut self) -> Result<ExecutionReport, ExecutionError> {
         self.emit_events = true;
         while !self.execute()? {}
-        Ok(())
+        Ok(self.execution_report.clone())
     }
 
     pub fn dry_run(&mut self) {
@@ -1072,7 +1132,7 @@ impl Runtime {
 pub mod tests {
 
     use crate::{
-        runtime::Register,
+        runtime::{instruction, Register},
         utils::{
             tests::{FIBONACCI_ELF, PANIC_ELF, SSZ_WITHDRAWALS_ELF},
             SP1CoreOpts,
@@ -1131,8 +1191,11 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
         let mut runtime = Runtime::new(program, SP1CoreOpts::default());
-        runtime.run().unwrap();
+        let execution_report = runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 42);
+
+        // Check that the number of instructions executed is as expected.
+        assert_eq!(execution_report.opcodes.get(&Opcode::ADD), Some(&3));
     }
 
     #[test]
@@ -1148,8 +1211,12 @@ pub mod tests {
         let program = Program::new(instructions, 0, 0);
 
         let mut runtime = Runtime::new(program, SP1CoreOpts::default());
-        runtime.run().unwrap();
+        let execution_report = runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 32);
+
+        // Check that the number of instructions executed is as expected.
+        assert_eq!(execution_report.opcodes.get(&Opcode::ADD), Some(&2));
+        assert_eq!(execution_report.opcodes.get(&Opcode::SUB), Some(&1));
     }
 
     #[test]
@@ -1165,8 +1232,12 @@ pub mod tests {
         let program = Program::new(instructions, 0, 0);
 
         let mut runtime = Runtime::new(program, SP1CoreOpts::default());
-        runtime.run().unwrap();
+        let execution_report = runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 32);
+
+        // Check that the number of instructions executed is as expected.
+        assert_eq!(execution_report.opcodes.get(&Opcode::ADD), Some(&2));
+        assert_eq!(execution_report.opcodes.get(&Opcode::XOR), Some(&1));
     }
 
     #[test]
@@ -1182,9 +1253,12 @@ pub mod tests {
         let program = Program::new(instructions, 0, 0);
 
         let mut runtime = Runtime::new(program, SP1CoreOpts::default());
-
-        runtime.run().unwrap();
+        let execution_report = runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 37);
+
+        // Check that the number of instructions executed is as expected.
+        assert_eq!(execution_report.opcodes.get(&Opcode::ADD), Some(&2));
+        assert_eq!(execution_report.opcodes.get(&Opcode::OR), Some(&1));
     }
 
     #[test]
@@ -1200,8 +1274,12 @@ pub mod tests {
         let program = Program::new(instructions, 0, 0);
 
         let mut runtime = Runtime::new(program, SP1CoreOpts::default());
-        runtime.run().unwrap();
+        let execution_report = runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 5);
+
+        // Check that the number of instructions executed is as expected.
+        assert_eq!(execution_report.opcodes.get(&Opcode::ADD), Some(&2));
+        assert_eq!(execution_report.opcodes.get(&Opcode::AND), Some(&1));
     }
 
     #[test]
@@ -1217,8 +1295,12 @@ pub mod tests {
         let program = Program::new(instructions, 0, 0);
 
         let mut runtime = Runtime::new(program, SP1CoreOpts::default());
-        runtime.run().unwrap();
+        let execution_report = runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 1184);
+
+        // Check that the number of instructions executed is as expected.
+        assert_eq!(execution_report.opcodes.get(&Opcode::ADD), Some(&2));
+        assert_eq!(execution_report.opcodes.get(&Opcode::SLL), Some(&1));
     }
 
     #[test]
@@ -1234,8 +1316,12 @@ pub mod tests {
         let program = Program::new(instructions, 0, 0);
 
         let mut runtime = Runtime::new(program, SP1CoreOpts::default());
-        runtime.run().unwrap();
+        let execution_report = runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 1);
+
+        // Check that the number of instructions executed is as expected.
+        assert_eq!(execution_report.opcodes.get(&Opcode::ADD), Some(&2));
+        assert_eq!(execution_report.opcodes.get(&Opcode::SRL), Some(&1));
     }
 
     #[test]
@@ -1251,8 +1337,12 @@ pub mod tests {
         let program = Program::new(instructions, 0, 0);
 
         let mut runtime = Runtime::new(program, SP1CoreOpts::default());
-        runtime.run().unwrap();
+        let execution_report = runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 1);
+
+        // Check that the number of instructions executed is as expected.
+        assert_eq!(execution_report.opcodes.get(&Opcode::ADD), Some(&2));
+        assert_eq!(execution_report.opcodes.get(&Opcode::SRA), Some(&1));
     }
 
     #[test]
@@ -1268,8 +1358,12 @@ pub mod tests {
         let program = Program::new(instructions, 0, 0);
 
         let mut runtime = Runtime::new(program, SP1CoreOpts::default());
-        runtime.run().unwrap();
+        let execution_report = runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 0);
+
+        // Check that the number of instructions executed is as expected.
+        assert_eq!(execution_report.opcodes.get(&Opcode::ADD), Some(&2));
+        assert_eq!(execution_report.opcodes.get(&Opcode::SLT), Some(&1));
     }
 
     #[test]
@@ -1285,8 +1379,12 @@ pub mod tests {
         let program = Program::new(instructions, 0, 0);
 
         let mut runtime = Runtime::new(program, SP1CoreOpts::default());
-        runtime.run().unwrap();
+        let execution_report = runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 0);
+
+        // Check that the number of instructions executed is as expected.
+        assert_eq!(execution_report.opcodes.get(&Opcode::ADD), Some(&2));
+        assert_eq!(execution_report.opcodes.get(&Opcode::SLTU), Some(&1));
     }
 
     #[test]
@@ -1302,8 +1400,11 @@ pub mod tests {
         let program = Program::new(instructions, 0, 0);
 
         let mut runtime = Runtime::new(program, SP1CoreOpts::default());
-        runtime.run().unwrap();
+        let execution_report = runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 84);
+
+        // Check that the number of instructions executed is as expected.
+        assert_eq!(execution_report.opcodes.get(&Opcode::ADD), Some(&3));
     }
 
     #[test]
@@ -1318,8 +1419,11 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
         let mut runtime = Runtime::new(program, SP1CoreOpts::default());
-        runtime.run().unwrap();
+        let execution_report = runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 5 - 1 + 4);
+
+        // Check that the number of instructions executed is as expected.
+        assert_eq!(execution_report.opcodes.get(&Opcode::ADD), Some(&3));
     }
 
     #[test]
@@ -1334,8 +1438,12 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
         let mut runtime = Runtime::new(program, SP1CoreOpts::default());
-        runtime.run().unwrap();
+        let execution_report = runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 10);
+
+        // Check that the number of instructions executed is as expected.
+        assert_eq!(execution_report.opcodes.get(&Opcode::ADD), Some(&1));
+        assert_eq!(execution_report.opcodes.get(&Opcode::XOR), Some(&2));
     }
 
     #[test]
@@ -1350,8 +1458,12 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
         let mut runtime = Runtime::new(program, SP1CoreOpts::default());
-        runtime.run().unwrap();
+        let execution_report = runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 47);
+
+        // Check that the number of instructions executed is as expected.
+        assert_eq!(execution_report.opcodes.get(&Opcode::ADD), Some(&1));
+        assert_eq!(execution_report.opcodes.get(&Opcode::OR), Some(&2));
     }
 
     #[test]
@@ -1366,8 +1478,12 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
         let mut runtime = Runtime::new(program, SP1CoreOpts::default());
-        runtime.run().unwrap();
+        let execution_report = runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 0);
+
+        // Check that the number of instructions executed is as expected.
+        assert_eq!(execution_report.opcodes.get(&Opcode::ADD), Some(&1));
+        assert_eq!(execution_report.opcodes.get(&Opcode::AND), Some(&2));
     }
 
     #[test]
@@ -1380,8 +1496,12 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
         let mut runtime = Runtime::new(program, SP1CoreOpts::default());
-        runtime.run().unwrap();
+        let execution_report = runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 80);
+
+        // Check that the number of instructions executed is as expected.
+        assert_eq!(execution_report.opcodes.get(&Opcode::ADD), Some(&1));
+        assert_eq!(execution_report.opcodes.get(&Opcode::SLL), Some(&1));
     }
 
     #[test]
@@ -1394,8 +1514,12 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
         let mut runtime = Runtime::new(program, SP1CoreOpts::default());
-        runtime.run().unwrap();
+        let execution_report = runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 2);
+
+        // Check that the number of instructions executed is as expected.
+        assert_eq!(execution_report.opcodes.get(&Opcode::ADD), Some(&1));
+        assert_eq!(execution_report.opcodes.get(&Opcode::SRL), Some(&1));
     }
 
     #[test]
@@ -1408,8 +1532,12 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
         let mut runtime = Runtime::new(program, SP1CoreOpts::default());
-        runtime.run().unwrap();
+        let execution_report = runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 2);
+
+        // Check that the number of instructions executed is as expected.
+        assert_eq!(execution_report.opcodes.get(&Opcode::ADD), Some(&1));
+        assert_eq!(execution_report.opcodes.get(&Opcode::SRA), Some(&1));
     }
 
     #[test]
@@ -1422,8 +1550,12 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
         let mut runtime = Runtime::new(program, SP1CoreOpts::default());
-        runtime.run().unwrap();
+        let execution_report = runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 0);
+
+        // Check that the number of instructions executed is as expected.
+        assert_eq!(execution_report.opcodes.get(&Opcode::ADD), Some(&1));
+        assert_eq!(execution_report.opcodes.get(&Opcode::SLT), Some(&1));
     }
 
     #[test]
@@ -1436,8 +1568,12 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
         let mut runtime = Runtime::new(program, SP1CoreOpts::default());
-        runtime.run().unwrap();
+        let execution_report = runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 0);
+
+        // Check that the number of instructions executed is as expected.
+        assert_eq!(execution_report.opcodes.get(&Opcode::ADD), Some(&1));
+        assert_eq!(execution_report.opcodes.get(&Opcode::SLTU), Some(&1));
     }
 
     #[test]
@@ -1455,10 +1591,15 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
         let mut runtime = Runtime::new(program, SP1CoreOpts::default());
-        runtime.run().unwrap();
+        let execution_report = runtime.run().unwrap();
+
         assert_eq!(runtime.registers()[Register::X5 as usize], 8);
         assert_eq!(runtime.registers()[Register::X11 as usize], 100);
         assert_eq!(runtime.state.pc, 108);
+
+        // Check that the number of instructions executed is as expected.
+        assert_eq!(execution_report.opcodes.get(&Opcode::ADD), Some(&1));
+        assert_eq!(execution_report.opcodes.get(&Opcode::JALR), Some(&1));
     }
 
     fn simple_op_code_test(opcode: Opcode, expected: u32, a: u32, b: u32) {
@@ -1469,8 +1610,13 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
         let mut runtime = Runtime::new(program, SP1CoreOpts::default());
-        runtime.run().unwrap();
+        let execution_report = runtime.run().unwrap();
+
         assert_eq!(runtime.registers()[Register::X12 as usize], expected);
+
+        // Check that the number of instructions executed is as expected.
+        assert_eq!(execution_report.opcodes.get(&Opcode::ADD), Some(&2));
+        assert_eq!(execution_report.opcodes.get(&opcode), Some(&1));
     }
 
     #[test]
