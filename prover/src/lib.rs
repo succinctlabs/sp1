@@ -213,7 +213,10 @@ impl SP1Prover {
 
     /// Generate a proof of an SP1 program with the specified inputs.
     #[instrument(name = "execute", level = "info", skip_all)]
-    pub fn execute(elf: &[u8], stdin: &SP1Stdin) -> Result<(SP1PublicValues, ExecutionReport), ExecutionError> {
+    pub fn execute(
+        elf: &[u8],
+        stdin: &SP1Stdin,
+    ) -> Result<(SP1PublicValues, ExecutionReport), ExecutionError> {
         let program = Program::from(elf);
         let opts = SP1CoreOpts::default();
         let mut runtime = Runtime::new(program, opts);
@@ -222,7 +225,10 @@ impl SP1Prover {
             runtime.write_proof(proof.clone(), vkey.clone());
         }
         let report = runtime.run_untraced()?;
-        Ok((SP1PublicValues::from(&runtime.state.public_values_stream), report))
+        Ok((
+            SP1PublicValues::from(&runtime.state.public_values_stream),
+            report,
+        ))
     }
 
     /// Generate shard proofs which split up and prove the valid execution of a RISC-V program with

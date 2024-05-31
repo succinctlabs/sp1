@@ -171,7 +171,11 @@ impl ProverClient {
     /// // Execute the program on the inputs.
     /// let public_values = client.execute(elf, stdin).unwrap();
     /// ```
-    pub fn execute(&self, elf: &[u8], stdin: SP1Stdin) -> Result<(SP1PublicValues, ExecutionReport)> {
+    pub fn execute(
+        &self,
+        elf: &[u8],
+        stdin: SP1Stdin,
+    ) -> Result<(SP1PublicValues, ExecutionReport)> {
         Ok(SP1Prover::execute(elf, &stdin)?)
     }
 
