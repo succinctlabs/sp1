@@ -27,7 +27,7 @@ const DEFAULT_PROVER_NETWORK_RPC: &str = "https://rpc.succinct.xyz/";
 /// The default SP1 Verifier address on all chains.
 const DEFAULT_SP1_VERIFIER_ADDRESS: &str = "0xed2107448519345059eab9cddab42ddc78fbebe9";
 
-/// The timeout for a request to the network.
+/// The timeout for a proof request to be fulfilled.
 const TIMEOUT: Duration = Duration::from_secs(60 * 60);
 
 pub struct NetworkClient {
