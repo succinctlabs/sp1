@@ -42,7 +42,7 @@ impl ExecutionReport {
             .entry(instruction.opcode)
             .and_modify(|c| *c += 1);
 
-        if instruction.opcode == Opcode::ECALL {
+        if instruction.is_ecall_instruction() {
             let syscall = SyscallCode::from_u32(runtime.register(Register::X5));
             self.syscall_counts.entry(syscall).and_modify(|c| *c += 1);
         }
