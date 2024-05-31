@@ -25,13 +25,13 @@ impl ExecutionReport {
     }
 
     /// The number of times `op` instructions have been executed.
-    pub fn opcode_count(&self, op: &Opcode) -> u64 {
-        *self.opcode_counts.get(op).unwrap()
+    pub fn opcode_count(&self, op: Opcode) -> u64 {
+        *self.opcode_counts.get(&op).unwrap()
     }
 
     /// The number of times `syscall` calls have been made.
-    pub fn syscall_count(&self, syscall: &SyscallCode) -> u64 {
-        *self.syscall_counts.get(syscall).unwrap()
+    pub fn syscall_count(&self, syscall: SyscallCode) -> u64 {
+        *self.syscall_counts.get(&syscall).unwrap()
     }
 
     /// Update the report statistics when a new instruction is dispatched.

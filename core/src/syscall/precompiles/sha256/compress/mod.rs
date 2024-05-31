@@ -50,10 +50,9 @@ impl ShaCompressChip {
 
 #[cfg(test)]
 pub mod compress_tests {
-
     use crate::{
-        runtime::{Instruction, Opcode, Program, SyscallCode},
-        utils::{run_test, setup_logger, tests::SHA_COMPRESS_ELF},
+        runtime::{Instruction, Opcode, Program, Runtime, SyscallCode},
+        utils::{run_test, setup_logger, tests::SHA_COMPRESS_ELF, SP1CoreOpts},
     };
 
     pub fn sha_compress_program() -> Program {
@@ -100,5 +99,17 @@ pub mod compress_tests {
         setup_logger();
         let program = Program::from(SHA_COMPRESS_ELF);
         run_test(program).unwrap();
+    }
+
+    #[test]
+    fn test_sha_compress_program_execute() {
+        setup_logger();
+
+        let program = sha_compress_program();
+        let mut runtime = Runtime::new(program, SP1CoreOpts::default());
+        let report = runtime.run().unwrap();
+
+        assert_eq!(report.opcode_count(Opcode::ECALL), 1);
+        assert_eq!(report.syscall_count(SyscallCode::SHA_COMPRESS), 1);
     }
 }

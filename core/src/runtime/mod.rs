@@ -1079,7 +1079,6 @@ impl Runtime {
 
 #[cfg(test)]
 pub mod tests {
-
     use crate::{
         runtime::Register,
         utils::{
@@ -1087,8 +1086,9 @@ pub mod tests {
             SP1CoreOpts,
         },
     };
+    use strum::IntoEnumIterator;
 
-    use super::{Instruction, Opcode, Program, Runtime};
+    use super::{Instruction, Opcode, Program, Runtime, SyscallCode};
 
     pub fn simple_program() -> Program {
         let instructions = vec![
@@ -1478,8 +1478,19 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
         let mut runtime = Runtime::new(program, SP1CoreOpts::default());
-        runtime.run().unwrap();
+        let report = runtime.run().unwrap();
         assert_eq!(runtime.registers()[Register::X12 as usize], expected);
+
+        assert_eq!(report.cycles, 3);
+
+        if opcode == Opcode::ADD {
+            assert_eq!(report.opcode_count(Opcode::ADD), 3);
+        } else {
+            assert_eq!(report.opcode_count(Opcode::ADD), 2);
+            assert_eq!(report.opcode_count(opcode), 1);
+        }
+
+        assert!(SyscallCode::iter().all(|s| report.syscall_count(s) == 0));
     }
 
     #[test]
@@ -1696,7 +1707,7 @@ pub mod tests {
     fn test_simple_memory_program_run() {
         let program = simple_memory_program();
         let mut runtime = Runtime::new(program, SP1CoreOpts::default());
-        runtime.run().unwrap();
+        let report = runtime.run().unwrap();
 
         // Assert SW & LW case
         assert_eq!(runtime.register(Register::X28), 0x12348765);
@@ -1728,5 +1739,18 @@ pub mod tests {
         // Assert SH cases
         assert_eq!(runtime.register(Register::X12), 0x12346525);
         assert_eq!(runtime.register(Register::X11), 0x65256525);
+
+        // Assert report statistics
+        assert_eq!(report.cycles, 28);
+        assert_eq!(report.opcode_count(Opcode::ADD), 2);
+        assert_eq!(report.opcode_count(Opcode::SW), 3);
+        assert_eq!(report.opcode_count(Opcode::LW), 7);
+        assert_eq!(report.opcode_count(Opcode::LBU), 4);
+        assert_eq!(report.opcode_count(Opcode::LB), 2);
+        assert_eq!(report.opcode_count(Opcode::LHU), 2);
+        assert_eq!(report.opcode_count(Opcode::LH), 2);
+        assert_eq!(report.opcode_count(Opcode::SB), 4);
+        assert_eq!(report.opcode_count(Opcode::SH), 2);
+        assert!(SyscallCode::iter().all(|s| report.syscall_count(s) == 0));
     }
 }
