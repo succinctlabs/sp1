@@ -2,9 +2,12 @@ use std::fmt::Display;
 
 use p3_field::Field;
 use serde::{Deserialize, Serialize};
+use strum_macros::EnumIter;
 
 /// An opcode specifies which operation to execute.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord, EnumIter,
+)]
 #[allow(non_camel_case_types)]
 pub enum Opcode {
     // Arithmetic instructions.

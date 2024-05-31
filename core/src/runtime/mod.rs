@@ -899,7 +899,7 @@ impl Runtime {
         // Log the current state of the runtime.
         self.log(&instruction);
 
-        report.update(&instruction, self);
+        report.update(self, &instruction);
 
         // Execute the instruction.
         self.execute_instruction(instruction)?;
