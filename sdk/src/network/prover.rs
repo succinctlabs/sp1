@@ -85,10 +85,9 @@ impl NetworkProver {
                         status.unclaim_description()
                     ));
                 }
-                _ => {
-                    sleep(Duration::from_secs(1)).await;
-                }
+                _ => {}
             }
+            sleep(Duration::from_secs(2)).await;
         }
     }
 
