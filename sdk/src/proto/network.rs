@@ -113,6 +113,29 @@ pub struct UnclaimProofRequest {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct UnclaimProofResponse {}
+/// The request to update the metadata of a proof. MUST be called when the proof is in a PROOF_CLAIMED state and MUST be called by the prover who claimed it.
+#[derive(serde::Serialize, serde::Deserialize)]
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct UpdateProofMetadataRequest {
+    /// The signature of the message.
+    #[prost(bytes = "vec", tag = "1")]
+    pub signature: ::prost::alloc::vec::Vec<u8>,
+    /// The nonce for the account.
+    #[prost(uint64, tag = "2")]
+    pub nonce: u64,
+    /// The proof identifier.
+    #[prost(string, tag = "3")]
+    pub proof_id: ::prost::alloc::string::String,
+    /// The number of cycles used by the program.
+    #[prost(uint64, tag = "4")]
+    pub cpu_cycles: u64,
+}
+/// The response for updating the metadata of a proof, empty on success.
+#[derive(serde::Serialize, serde::Deserialize)]
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct UpdateProofMetadataResponse {}
 /// The request to fulfill a proof. MUST be called after the proof has been uploaded and MUST be called
 /// when the proof is in a PROOF_CLAIMED state.
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -309,7 +332,7 @@ impl ProofMode {
     ///
     /// The values are not transformed in any way and thus are considered stable
     /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    pub const fn as_str_name(&self) -> &'static str {
+    pub fn as_str_name(&self) -> &'static str {
         match self {
             ProofMode::Unspecified => "PROOF_MODE_UNSPECIFIED",
             ProofMode::Core => "PROOF_MODE_CORE",
@@ -362,7 +385,7 @@ impl ProofStatus {
     ///
     /// The values are not transformed in any way and thus are considered stable
     /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    pub const fn as_str_name(&self) -> &'static str {
+    pub fn as_str_name(&self) -> &'static str {
         match self {
             ProofStatus::ProofUnspecifiedStatus => "PROOF_UNSPECIFIED_STATUS",
             ProofStatus::ProofPreparing => "PROOF_PREPARING",
@@ -419,7 +442,7 @@ impl TransactionStatus {
     ///
     /// The values are not transformed in any way and thus are considered stable
     /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    pub const fn as_str_name(&self) -> &'static str {
+    pub fn as_str_name(&self) -> &'static str {
         match self {
             TransactionStatus::TransactionUnspecifiedStatus => "TRANSACTION_UNSPECIFIED_STATUS",
             TransactionStatus::TransactionScheduled => "TRANSACTION_SCHEDULED",
@@ -509,6 +532,11 @@ pub trait NetworkService {
         ctx: twirp::Context,
         req: UnclaimProofRequest,
     ) -> Result<UnclaimProofResponse, twirp::TwirpErrorResponse>;
+    async fn update_proof_metadata(
+        &self,
+        ctx: twirp::Context,
+        req: UpdateProofMetadataRequest,
+    ) -> Result<UpdateProofMetadataResponse, twirp::TwirpErrorResponse>;
     async fn fulfill_proof(
         &self,
         ctx: twirp::Context,
@@ -570,6 +598,14 @@ where
             },
         )
         .route(
+            "/UpdateProofMetadata",
+            |
+                api: std::sync::Arc<T>,
+                ctx: twirp::Context,
+                req: UpdateProofMetadataRequest|
+            async move { api.update_proof_metadata(ctx, req).await },
+        )
+        .route(
             "/FulfillProof",
             |api: std::sync::Arc<T>, ctx: twirp::Context, req: FulfillProofRequest| async move {
                 api.fulfill_proof(ctx, req).await
@@ -625,6 +661,10 @@ pub trait NetworkServiceClient: Send + Sync + std::fmt::Debug {
         &self,
         req: UnclaimProofRequest,
     ) -> Result<UnclaimProofResponse, twirp::ClientError>;
+    async fn update_proof_metadata(
+        &self,
+        req: UpdateProofMetadataRequest,
+    ) -> Result<UpdateProofMetadataResponse, twirp::ClientError>;
     async fn fulfill_proof(
         &self,
         req: FulfillProofRequest,
@@ -676,6 +716,15 @@ impl NetworkServiceClient for twirp::client::Client {
         req: UnclaimProofRequest,
     ) -> Result<UnclaimProofResponse, twirp::ClientError> {
         let url = self.base_url.join("network.NetworkService/UnclaimProof")?;
+        self.request(url, req).await
+    }
+    async fn update_proof_metadata(
+        &self,
+        req: UpdateProofMetadataRequest,
+    ) -> Result<UpdateProofMetadataResponse, twirp::ClientError> {
+        let url = self
+            .base_url
+            .join("network.NetworkService/UpdateProofMetadata")?;
         self.request(url, req).await
     }
     async fn fulfill_proof(

@@ -34,6 +34,12 @@ sol! {
         string description;
     }
 
+    struct UpdateProofMetadata {
+        uint64 nonce;
+        string proof_id;
+        uint64 cpu_cycles;
+    }
+
     struct FulfillProof {
         uint64 nonce;
         string proof_id;
@@ -134,6 +140,21 @@ impl NetworkAuth {
             proof_id,
             reason: reason as u8,
             description,
+        };
+        self.sign_message(type_struct).await
+    }
+
+    /// Signs a message to update the metadata of a proof.
+    pub async fn sign_update_proof_metadata_message(
+        &self,
+        nonce: u64,
+        proof_id: String,
+        cpu_cycles: u64,
+    ) -> Result<Vec<u8>> {
+        let type_struct = UpdateProofMetadata {
+            nonce,
+            proof_id,
+            cpu_cycles,
         };
         self.sign_message(type_struct).await
     }

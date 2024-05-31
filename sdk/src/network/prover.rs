@@ -1,9 +1,8 @@
 use std::{env, time::Duration};
 
-use crate::client::DEFAULT_PROVER_NETWORK_RPC;
 use crate::proto::network::ProofMode;
 use crate::{
-    network::client::NetworkClient,
+    network::client::{NetworkClient, DEFAULT_PROVER_NETWORK_RPC},
     proto::network::{ProofStatus, TransactionStatus},
     Prover,
 };

@@ -2,7 +2,9 @@ use std::{env, time::Duration};
 
 use crate::{
     network::auth::NetworkAuth,
-    proto::network::{UnclaimProofRequest, UnclaimReason},
+    proto::network::{
+        UnclaimProofRequest, UnclaimReason, UpdateProofMetadataRequest, UpdateProofMetadataResponse,
+    },
 };
 use anyhow::{Context, Ok, Result};
 use futures::future::join_all;
@@ -263,6 +265,28 @@ impl NetworkClient {
             .await?;
 
         Ok(())
+    }
+
+    // Update the metadata of a proof.
+    pub async fn update_proof_metadata(
+        &self,
+        proof_id: String,
+        cpu_cycles: u64,
+    ) -> Result<UpdateProofMetadataResponse> {
+        let nonce = self.get_nonce().await?;
+        let signature = self
+            .auth
+            .sign_update_proof_metadata_message(nonce, proof_id.clone(), cpu_cycles)
+            .await?;
+        self.rpc
+            .update_proof_metadata(UpdateProofMetadataRequest {
+                signature,
+                nonce,
+                proof_id,
+                cpu_cycles,
+            })
+            .await
+            .map_err(|e| e.into())
     }
 
     // Fulfill a proof. Should only be called after the proof has been uploaded. Returns an error
