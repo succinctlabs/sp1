@@ -1,8 +1,5 @@
 //! Sweeps end-to-end prover performance across a wide range of parameters for Fibonacci.
 
-#![feature(generic_const_exprs)]
-#![allow(incomplete_features)]
-
 use std::{fs::File, io::BufWriter, io::Write, time::Instant};
 
 use itertools::iproduct;
