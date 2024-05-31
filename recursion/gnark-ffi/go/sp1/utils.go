@@ -4,7 +4,8 @@ import (
 	"bytes"
 	"encoding/hex"
 
-	"github.com/consensys/gnark/backend/plonk"
+	plonk "github.com/consensys/gnark/backend/plonk"
+	plonk_bn254 "github.com/consensys/gnark/backend/plonk/bn254"
 	"github.com/consensys/gnark/frontend"
 	"github.com/succinctlabs/sp1-recursion-gnark/sp1/babybear"
 )
@@ -17,11 +18,15 @@ func NewSP1PlonkBn254Proof(proof *plonk.Proof, witnessInput WitnessInput) Proof 
 	var publicInputs [2]string
 	publicInputs[0] = witnessInput.VkeyHash
 	publicInputs[1] = witnessInput.CommitedValuesDigest
-	encodedProof := hex.EncodeToString(proofBytes)
+
+	// Cast plonk proof into plonk_bn254 proof so we can call MarshalSolidity.
+	p := (*proof).(*plonk_bn254.Proof)
+
+	encodedProof := p.MarshalSolidity()
 
 	return Proof{
 		PublicInputs: publicInputs,
-		EncodedProof: encodedProof,
+		EncodedProof: hex.EncodeToString(encodedProof),
 		RawProof:     hex.EncodeToString(proofBytes),
 	}
 }

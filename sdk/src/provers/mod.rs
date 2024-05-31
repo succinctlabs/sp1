@@ -1,22 +1,29 @@
 mod local;
 mod mock;
-mod network;
 
 use crate::{SP1CompressedProof, SP1PlonkBn254Proof, SP1Proof};
 use anyhow::Result;
 pub use local::LocalProver;
 pub use mock::MockProver;
-pub use network::NetworkProver;
 use sp1_core::stark::MachineVerificationError;
 use sp1_prover::CoreSC;
 use sp1_prover::SP1CoreProofData;
 use sp1_prover::SP1Prover;
 use sp1_prover::SP1ReduceProof;
 use sp1_prover::{SP1ProvingKey, SP1Stdin, SP1VerifyingKey};
+use strum_macros::EnumString;
+
+/// The type of prover.
+#[derive(Debug, PartialEq, EnumString)]
+pub enum ProverType {
+    Local,
+    Mock,
+    Network,
+}
 
 /// An implementation of [crate::ProverClient].
 pub trait Prover: Send + Sync {
-    fn id(&self) -> String;
+    fn id(&self) -> ProverType;
 
     fn sp1_prover(&self) -> &SP1Prover;
 
@@ -29,7 +36,7 @@ pub trait Prover: Send + Sync {
     fn prove_compressed(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1CompressedProof>;
 
     /// Given an SP1 program and input, generate a PLONK proof that can be verified on-chain.
-    fn prove_plonk_bn254(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkBn254Proof>;
+    fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkBn254Proof>;
 
     /// Verify that an SP1 proof is valid given its vkey and metadata.
     fn verify(
@@ -55,7 +62,7 @@ pub trait Prover: Send + Sync {
 
     /// Verify that a SP1 PLONK proof is valid. Verify that the public inputs of the PlonkBn254 proof match
     /// the hash of the VK and the committed public values of the SP1ProofWithPublicValues.
-    fn verify_plonk_bn254(&self, proof: &SP1PlonkBn254Proof, vkey: &SP1VerifyingKey) -> Result<()> {
+    fn verify_plonk(&self, proof: &SP1PlonkBn254Proof, vkey: &SP1VerifyingKey) -> Result<()> {
         let sp1_prover = self.sp1_prover();
 
         let plonk_bn254_aritfacts = if sp1_prover::build::sp1_dev_mode() {

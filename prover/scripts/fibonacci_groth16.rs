@@ -1,8 +1,5 @@
 //! Tests end-to-end performance of wrapping a recursion proof to PLONK.
 
-#![feature(generic_const_exprs)]
-#![allow(incomplete_features)]
-
 use std::time::Instant;
 
 use itertools::iproduct;

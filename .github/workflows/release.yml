@@ -32,12 +32,17 @@ jobs:
         with:
           pull_token: ${{ secrets.PULL_TOKEN }}
 
+      # If it's a nightly release, tag with the release time. If the tag is `main`, we want to use 
+      # `latest` as the tag name. Else, use the tag name as is.
       - name: Compute release name and tag
         id: release_info
         run: |
           if [[ $IS_NIGHTLY ]]; then
             echo "tag_name=nightly-${GITHUB_SHA}" >> $GITHUB_OUTPUT
             echo "release_name=Nightly ($(date '+%Y-%m-%d'))" >> $GITHUB_OUTPUT
+          elif [[ "${GITHUB_REF_NAME}" == "main" ]]; then
+            echo "tag_name=latest" >> $GITHUB_OUTPUT
+            echo "release_name=Latest" >> $GITHUB_OUTPUT
           else
             echo "tag_name=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
             echo "release_name=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
@@ -200,14 +205,14 @@ jobs:
         with:
           name: ${{ needs.prepare.outputs.release_name }}
           tag_name: ${{ needs.prepare.outputs.tag_name }}
-          prerelease: ${{ env.IS_NIGHTLY }}
+          prerelease: ${{ env.IS_NIGHTLY || needs.prepare.outputs.tag_name == 'latest' }}
           body: ${{ needs.prepare.outputs.changelog }}
           files: |
             ${{ steps.artifacts.outputs.file_name }}
             ${{ steps.man.outputs.cargo_prove_man }}
 
       # If this is a nightly release, it also updates the release
-      # tagged `nightly` for compatibility with `foundryup`
+      # tagged `nightly` for compatibility with `sp1up`
       - name: Update nightly release
         if: ${{ env.IS_NIGHTLY }}
         uses: softprops/action-gh-release@v1

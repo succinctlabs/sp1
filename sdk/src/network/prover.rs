@@ -2,20 +2,18 @@ use std::{env, time::Duration};
 
 use crate::proto::network::ProofMode;
 use crate::{
-    client::NetworkClient,
+    network::client::NetworkClient,
     proto::network::{ProofStatus, TransactionStatus},
     Prover,
 };
 use crate::{SP1CompressedProof, SP1PlonkBn254Proof, SP1Proof, SP1ProvingKey, SP1VerifyingKey};
 use anyhow::{Context, Result};
 use serde::de::DeserializeOwned;
-use sp1_core::runtime::{Program, Runtime};
-use sp1_core::utils::SP1CoreOpts;
 use sp1_prover::utils::block_on;
 use sp1_prover::{SP1Prover, SP1Stdin};
 use tokio::{runtime, time::sleep};
 
-use super::LocalProver;
+use crate::provers::{LocalProver, ProverType};
 
 /// An implementation of [crate::ProverClient] that can generate proofs on a remote RPC server.
 pub struct NetworkProver {
@@ -42,18 +40,20 @@ impl NetworkProver {
         mode: ProofMode,
     ) -> Result<P> {
         let client = &self.client;
-        // Execute the runtime before creating the proof request.
-        let program = Program::from(elf);
-        let opts = SP1CoreOpts::default();
-        let mut runtime = Runtime::new(program, opts);
-        runtime.write_vecs(&stdin.buffer);
-        for (proof, vkey) in stdin.proofs.iter() {
-            runtime.write_proof(proof.clone(), vkey.clone());
+
+        let skip_simulation = env::var("SKIP_SIMULATION")
+            .map(|val| val == "true")
+            .unwrap_or(false);
+
+        if !skip_simulation {
+            let (_, report) = SP1Prover::execute(elf, &stdin)?;
+            log::info!(
+                "Simulation complete, cycles: {}",
+                report.total_instruction_count()
+            );
+        } else {
+            log::info!("Skipping simulation");
         }
-        runtime
-            .run_untraced()
-            .context("Failed to execute program")?;
-        log::info!("Simulation complete, cycles: {}", runtime.state.global_clk);
 
         let proof_id = client.create_proof(elf, &stdin, mode).await?;
         log::info!("Created {}", proof_id);
@@ -151,8 +151,8 @@ impl NetworkProver {
 }
 
 impl Prover for NetworkProver {
-    fn id(&self) -> String {
-        "remote".to_string()
+    fn id(&self) -> ProverType {
+        ProverType::Network
     }
 
     fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
@@ -171,7 +171,7 @@ impl Prover for NetworkProver {
         block_on(self.prove_async(&pk.elf, stdin, ProofMode::Compressed))
     }
 
-    fn prove_plonk_bn254(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkBn254Proof> {
+    fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkBn254Proof> {
         block_on(self.prove_async(&pk.elf, stdin, ProofMode::Plonk))
     }
 }

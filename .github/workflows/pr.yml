@@ -2,7 +2,7 @@ name: PR
 
 on:
   push:
-    branches: [main, dev]
+    branches: [main]
   pull_request:
     branches:
       - "**"
@@ -13,6 +13,9 @@ on:
       - "recursion/**"
       - "derive/**"
       - "sdk/**"
+      - "zkvm/**"
+      - "tests/**"
+      - "examples/**"
       - ".github/workflows/**"
   merge_group:
 
@@ -45,7 +48,7 @@ jobs:
         with:
           command: test
           toolchain: nightly-2024-04-17
-          args: --release --features plonk_bn254
+          args: --release --features plonk
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_BACKTRACE: 1
@@ -76,7 +79,7 @@ jobs:
         with:
           command: test
           toolchain: nightly-2024-04-17
-          args: --release --features plonk_bn254
+          args: --release --features plonk
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_BACKTRACE: 1

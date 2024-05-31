@@ -3,12 +3,11 @@
 use sp1_sdk::{HashableKey, ProverClient, SP1CompressedProof, SP1Stdin, SP1VerifyingKey};
 
 /// A program that aggregates the proofs of the simple program.
-const AGGREGATION_ELF: &[u8] =
-    include_bytes!("../../programs/aggregation/elf/riscv32im-succinct-zkvm-elf");
+const AGGREGATION_ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
 
 /// A program that just runs a simple computation.
 const FIBONACCI_ELF: &[u8] =
-    include_bytes!("../../programs/fibonacci/elf/riscv32im-succinct-zkvm-elf");
+    include_bytes!("../../../fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
 
 /// An input to the aggregation program.
 ///
@@ -95,7 +94,7 @@ fn main() {
 
         // Generate the plonk bn254 proof.
         client
-            .prove_plonk_bn254(&aggregation_pk, stdin)
+            .prove_plonk(&aggregation_pk, stdin)
             .expect("proving failed");
     });
 }
