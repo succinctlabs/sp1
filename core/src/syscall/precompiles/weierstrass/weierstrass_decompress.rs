@@ -39,7 +39,7 @@ use crate::utils::ec::CurveType;
 use crate::utils::ec::EllipticCurve;
 use crate::utils::limbs_from_access;
 use crate::utils::limbs_from_prev_access;
-use crate::utils::{bytes_to_words_le_vec, pad_rows_vec};
+use crate::utils::{bytes_to_words_le_vec, pad_rows};
 
 pub const fn num_weierstrass_decompress_cols<P: FieldParameters + NumWords>() -> usize {
     size_of::<WeierstrassDecompressCols<u8, P>>()
@@ -206,7 +206,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         }
         output.add_byte_lookup_events(new_byte_lookup_events);
 
-        pad_rows_vec(&mut rows, || {
+        pad_rows(&mut rows, || {
             let mut row = Vec::new();
             row.resize(num_weierstrass_decompress_cols::<E::BaseField>(), F::zero());
             let cols: &mut WeierstrassDecompressCols<F, E::BaseField> =

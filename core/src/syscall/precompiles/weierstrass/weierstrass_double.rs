@@ -37,7 +37,7 @@ use crate::utils::ec::weierstrass::WeierstrassParameters;
 use crate::utils::ec::AffinePoint;
 use crate::utils::ec::CurveType;
 use crate::utils::ec::EllipticCurve;
-use crate::utils::{limbs_from_prev_access, pad_rows_vec};
+use crate::utils::{limbs_from_prev_access, pad_rows};
 
 pub const fn num_weierstrass_double_cols<P: FieldParameters + NumWords>() -> usize {
     size_of::<WeierstrassDoubleAssignCols<u8, P>>()
@@ -307,7 +307,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
             output.append(&mut row_and_record.1);
         }
 
-        pad_rows_vec(&mut rows, || {
+        pad_rows(&mut rows, || {
             let mut row = Vec::new();
             row.resize(num_weierstrass_double_cols::<E::BaseField>(), F::zero());
             let cols: &mut WeierstrassDoubleAssignCols<F, E::BaseField> =
