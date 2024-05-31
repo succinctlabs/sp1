@@ -14,7 +14,6 @@ To use PLONK proving & verification locally, enable the `plonk` feature flag in 
 sp1-sdk = { features = ["plonk"] }
 ```
 
-
 ### Example
 
 ```rust,noplayground
@@ -23,6 +22,6 @@ sp1-sdk = { features = ["plonk"] }
 
 You can run the above script with `RUST_LOG=info cargo run --bin plonk_bn254 --release` in `examples/fibonacci/script`.
 
-## Installing SP1 Contracts
+## Install SP1 Contracts
 
 To install the SP1 contracts with [Foundry](https://github.com/foundry-rs/foundry), follow the instructions in the [SP1 Contracts README](https://github.com/succinctlabs/sp1-contracts).
