@@ -16,6 +16,9 @@ pub struct CreateProofRequest {
     /// The deadline for the proof request, signifying the latest time a fulfillment would be valid.
     #[prost(uint64, tag = "4")]
     pub deadline: u64,
+    /// The client version used, in the form of an 8-character git commit hash.
+    #[prost(string, tag = "5")]
+    pub version: ::prost::alloc::string::String,
 }
 /// The response for creating a proof.
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -303,18 +306,21 @@ pub enum ProofMode {
     Compressed = 2,
     /// The proof mode for a PlonK proof.
     Plonk = 3,
+    /// The proof mode for a Groth16 proof.
+    Groth16 = 4,
 }
 impl ProofMode {
     /// String value of the enum field names used in the ProtoBuf definition.
     ///
     /// The values are not transformed in any way and thus are considered stable
     /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    pub const fn as_str_name(&self) -> &'static str {
+    pub fn as_str_name(&self) -> &'static str {
         match self {
             ProofMode::Unspecified => "PROOF_MODE_UNSPECIFIED",
             ProofMode::Core => "PROOF_MODE_CORE",
             ProofMode::Compressed => "PROOF_MODE_COMPRESSED",
             ProofMode::Plonk => "PROOF_MODE_PLONK",
+            ProofMode::Groth16 => "PROOF_MODE_GROTH16",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -324,6 +330,7 @@ impl ProofMode {
             "PROOF_MODE_CORE" => Some(Self::Core),
             "PROOF_MODE_COMPRESSED" => Some(Self::Compressed),
             "PROOF_MODE_PLONK" => Some(Self::Plonk),
+            "PROOF_MODE_GROTH16" => Some(Self::Groth16),
             _ => None,
         }
     }
@@ -362,7 +369,7 @@ impl ProofStatus {
     ///
     /// The values are not transformed in any way and thus are considered stable
     /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    pub const fn as_str_name(&self) -> &'static str {
+    pub fn as_str_name(&self) -> &'static str {
         match self {
             ProofStatus::ProofUnspecifiedStatus => "PROOF_UNSPECIFIED_STATUS",
             ProofStatus::ProofPreparing => "PROOF_PREPARING",
@@ -419,7 +426,7 @@ impl TransactionStatus {
     ///
     /// The values are not transformed in any way and thus are considered stable
     /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    pub const fn as_str_name(&self) -> &'static str {
+    pub fn as_str_name(&self) -> &'static str {
         match self {
             TransactionStatus::TransactionUnspecifiedStatus => "TRANSACTION_UNSPECIFIED_STATUS",
             TransactionStatus::TransactionScheduled => "TRANSACTION_SCHEDULED",

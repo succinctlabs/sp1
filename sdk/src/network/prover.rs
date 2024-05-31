@@ -55,7 +55,10 @@ impl NetworkProver {
             log::info!("Skipping simulation");
         }
 
-        let proof_id = client.create_proof(elf, &stdin, mode).await?;
+        let version = sp1_prover::install::PLONK_BN254_ARTIFACTS_COMMIT;
+        log::info!("Client version {}", version);
+
+        let proof_id = client.create_proof(elf, &stdin, mode, version).await?;
         log::info!("Created {}", proof_id);
 
         let mut is_claimed = false;
