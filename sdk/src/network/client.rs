@@ -2,9 +2,7 @@ use std::{env, time::Duration};
 
 use crate::{
     network::auth::NetworkAuth,
-    proto::network::{
-        UnclaimProofRequest, UnclaimReason, UpdateProofMetadataRequest, UpdateProofMetadataResponse,
-    },
+    proto::network::{UnclaimProofRequest, UnclaimReason},
 };
 use anyhow::{Context, Ok, Result};
 use futures::future::join_all;
