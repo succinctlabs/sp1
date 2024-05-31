@@ -44,7 +44,7 @@ default = ["network"]
 
 neon = ["sp1-core/neon"]
 plonk = ["sp1-prover/plonk"]
-# TODO: Once alloy has a 1.* release, we can likely remove this flag, as there will be less 
+# TODO: Once alloy has a 1.* release, we can likely remove this feature flag, as there will be less 
 # dependency resolution issues.
 network = ["dep:alloy-sol-types"]
 
