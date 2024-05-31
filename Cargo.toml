@@ -15,7 +15,10 @@ members = [
   "sdk",
   "zkvm/*",
 ]
-exclude = ["examples/target"]
+exclude = [
+  "examples/target",
+  "recursion/gnark-ffi/gnark-cli",
+]
 resolver = "2"
 
 [profile.release]
