@@ -32,6 +32,12 @@ where
         let local: &KeccakMemCols<AB::Var> = (*local).borrow();
         let next: &KeccakMemCols<AB::Var> = (*next).borrow();
 
+        // Constrain the incrementing nonce.
+        builder.when_first_row().assert_zero(local.nonce);
+        builder
+            .when_transition()
+            .assert_eq(local.nonce + AB::Expr::one(), next.nonce);
+
         let first_step = local.keccak.step_flags[0];
         let final_step = local.keccak.step_flags[NUM_ROUNDS - 1];
         let not_final_step = AB::Expr::one() - final_step;

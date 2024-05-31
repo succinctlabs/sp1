@@ -237,7 +237,7 @@ where
         let one: AB::Expr = AB::F::one().into();
         let base: AB::Expr = AB::F::from_canonical_u32(1 << BYTE_SIZE).into();
 
-        // Constraint the incrementing nonce.
+        // Constrain the incrementing nonce.
         builder.when_first_row().assert_zero(local.nonce);
         builder
             .when_transition()

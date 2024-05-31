@@ -525,7 +525,7 @@ where
         let one: AB::Expr = AB::F::one().into();
         let zero: AB::Expr = AB::F::zero().into();
 
-        // Constraint the incrementing nonce.
+        // Constrain the incrementing nonce.
         builder.when_first_row().assert_zero(local.nonce);
         builder
             .when_transition()

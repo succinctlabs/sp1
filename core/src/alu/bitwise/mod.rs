@@ -147,7 +147,7 @@ where
         let next = main.row_slice(1);
         let next: &BitwiseCols<AB::Var> = (*next).borrow();
 
-        // Constraint the incrementing nonce.
+        // Constrain the incrementing nonce.
         builder.when_first_row().assert_zero(local.nonce);
         builder
             .when_transition()

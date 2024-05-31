@@ -310,7 +310,7 @@ where
         let one: AB::Expr = AB::F::one().into();
         let byte_mask = AB::F::from_canonical_u8(BYTE_MASK);
 
-        // Constraint the incrementing nonce.
+        // Constrain the incrementing nonce.
         builder.when_first_row().assert_zero(local.nonce);
         builder
             .when_transition()

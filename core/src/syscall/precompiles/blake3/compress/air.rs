@@ -29,6 +29,12 @@ where
         let local: &Blake3CompressInnerCols<AB::Var> = (*local).borrow();
         let next: &Blake3CompressInnerCols<AB::Var> = (*next).borrow();
 
+        // Constrain the incrementing nonce.
+        builder.when_first_row().assert_zero(local.nonce);
+        builder
+            .when_transition()
+            .assert_eq(local.nonce + AB::Expr::one(), next.nonce);
+
         self.constrain_control_flow_flags(builder, local, next);
 
         self.constrain_memory(builder, local);

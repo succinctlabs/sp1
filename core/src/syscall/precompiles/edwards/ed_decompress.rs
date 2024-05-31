@@ -428,9 +428,18 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let row = main.row_slice(0);
-        let row: &EdDecompressCols<AB::Var> = (*row).borrow();
-        row.eval::<AB, E::BaseField, E>(builder);
+        let local = main.row_slice(0);
+        let local: &EdDecompressCols<AB::Var> = (*local).borrow();
+        let next = main.row_slice(1);
+        let next: &EdDecompressCols<AB::Var> = (*next).borrow();
+
+        // Constrain the incrementing nonce.
+        builder.when_first_row().assert_zero(local.nonce);
+        builder
+            .when_transition()
+            .assert_eq(local.nonce + AB::Expr::one(), next.nonce);
+
+        local.eval::<AB, E::BaseField, E>(builder);
     }
 }
 

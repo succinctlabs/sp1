@@ -17,6 +17,7 @@ use crate::utils::{
 use generic_array::GenericArray;
 use num::Zero;
 use num::{BigUint, One};
+use p3_air::AirBuilder;
 use p3_air::{Air, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField32;
@@ -309,6 +310,14 @@ where
         let main = builder.main();
         let local = main.row_slice(0);
         let local: &Uint256MulCols<AB::Var> = (*local).borrow();
+        let next = main.row_slice(1);
+        let next: &Uint256MulCols<AB::Var> = (*next).borrow();
+
+        // Constrain the incrementing nonce.
+        builder.when_first_row().assert_zero(local.nonce);
+        builder
+            .when_transition()
+            .assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         // We are computing (x * y) % modulus. The value of x is stored in the "prev_value" of
         // the x_memory, since we write to it later.
