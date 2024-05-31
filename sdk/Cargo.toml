@@ -29,8 +29,7 @@ tracing = "0.1.40"
 hex = "0.4.3"
 log = "0.4.21"
 axum = "=0.7.5"
-alloy-primitives = "0.7.0"
-alloy-sol-types = "0.7.0"
+alloy-sol-types = { version = "0.7.0", optional = true }
 sha2 = "0.10.8"
 dirs = "5.0.1"
 tempfile = "3.10.1"
@@ -41,8 +40,13 @@ strum_macros = "0.26.2"
 strum = "0.26.2"
 
 [features]
+default = ["network"]
+
 neon = ["sp1-core/neon"]
 plonk = ["sp1-prover/plonk"]
+# TODO: Once alloy has a 1.* release, we can likely remove this feature flag, as there will be less 
+# dependency resolution issues.
+network = ["dep:alloy-sol-types"]
 
 [build-dependencies]
 vergen = { version = "8", default-features = false, features = [

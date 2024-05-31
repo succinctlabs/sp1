@@ -1,7 +1,7 @@
 use std::{env, time::Duration};
 
 use crate::{
-    auth::NetworkAuth,
+    network::auth::NetworkAuth,
     proto::network::{UnclaimProofRequest, UnclaimReason},
 };
 use anyhow::{Context, Ok, Result};
