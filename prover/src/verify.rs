@@ -115,17 +115,17 @@ impl SP1Prover {
             let memory_init_count = chips
                 .clone()
                 .into_iter()
-                .filter(|chip| chip.name() != "MemoryInit")
+                .filter(|chip| chip.name() == "MemoryInit")
                 .count();
             let memory_final_count = chips
                 .into_iter()
-                .filter(|chip| chip.name() != "MemoryFinalize")
+                .filter(|chip| chip.name() == "MemoryFinalize")
                 .count();
 
             // Assert that the `MemoryProgram` chip only exists in the first shard.
             if i == 0 && program_memory_init_count != 1 {
                 return Err(MachineVerificationError::InvalidChipOccurence(
-                    "memory program should exist in the first chip".to_string(),
+                    "memory should exist in the first chip".to_string(),
                 ));
             }
             if i != 0 && program_memory_init_count > 0 {
