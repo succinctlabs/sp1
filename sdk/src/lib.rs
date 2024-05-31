@@ -14,9 +14,10 @@ pub mod proto {
 }
 pub mod artifacts;
 #[cfg(feature = "network")]
-pub mod auth;
+pub mod network;
 #[cfg(feature = "network")]
-pub mod client;
+pub use crate::network::prover::NetworkProver;
+
 pub mod provers;
 pub mod utils {
     pub use sp1_core::utils::setup_logger;
@@ -27,8 +28,6 @@ use std::{env, fmt::Debug, fs::File, path::Path};
 
 use anyhow::{Ok, Result};
 
-#[cfg(feature = "network")]
-pub use provers::NetworkProver;
 pub use provers::{LocalProver, MockProver, Prover};
 
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
