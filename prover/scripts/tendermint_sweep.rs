@@ -1,7 +1,5 @@
 //! Sweeps end-to-end prover performance across a wide range of parameters for Tendermint.
 
-
-
 use std::{fs::File, io::BufWriter, io::Write, time::Instant};
 
 use itertools::iproduct;
