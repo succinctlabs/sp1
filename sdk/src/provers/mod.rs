@@ -1,11 +1,13 @@
 mod local;
 mod mock;
+#[cfg(feature = "network")]
 mod network;
 
 use crate::{SP1CompressedProof, SP1PlonkBn254Proof, SP1Proof};
 use anyhow::Result;
 pub use local::LocalProver;
 pub use mock::MockProver;
+#[cfg(feature = "network")]
 pub use network::NetworkProver;
 use sp1_core::stark::MachineVerificationError;
 use sp1_prover::CoreSC;

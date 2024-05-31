@@ -13,17 +13,24 @@ pub mod proto {
     pub mod network;
 }
 pub mod artifacts;
+#[cfg(feature = "network")]
 pub mod auth;
+#[cfg(feature = "network")]
 pub mod client;
 pub mod provers;
 pub mod utils {
     pub use sp1_core::utils::setup_logger;
 }
 
+use cfg_if::cfg_if;
 use std::{env, fmt::Debug, fs::File, path::Path};
 
 use anyhow::{Ok, Result};
-pub use provers::{LocalProver, MockProver, NetworkProver, Prover};
+
+#[cfg(feature = "network")]
+pub use provers::NetworkProver;
+pub use provers::{LocalProver, MockProver, Prover};
+
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sp1_core::stark::{MachineVerificationError, ShardProof};
 pub use sp1_prover::{
@@ -86,8 +93,16 @@ impl ProverClient {
             "local" => Self {
                 prover: Box::new(LocalProver::new()),
             },
-            "network" => Self {
-                prover: Box::new(NetworkProver::new()),
+            "network" => {
+                cfg_if! {
+                    if #[cfg(feature = "network")] {
+                        Self {
+                            prover: Box::new(NetworkProver::new()),
+                        }
+                    } else {
+                        panic!("network prover is not enabled")
+                    }
+                }
             },
             _ => panic!(
                 "invalid value for SP1_PROVER enviroment variable: expected 'local', 'mock', or 'network'"
@@ -144,8 +159,14 @@ impl ProverClient {
     /// let client = ProverClient::network();
     /// ```
     pub fn network() -> Self {
-        Self {
-            prover: Box::new(NetworkProver::new()),
+        cfg_if! {
+            if #[cfg(feature = "network")] {
+                Self {
+                    prover: Box::new(NetworkProver::new()),
+                }
+            } else {
+                panic!("network prover is not enabled")
+            }
         }
     }
 
