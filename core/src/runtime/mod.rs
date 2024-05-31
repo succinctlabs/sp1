@@ -9,6 +9,7 @@ mod state;
 mod syscall;
 #[macro_use]
 mod utils;
+mod result;
 
 pub use instruction::*;
 pub use memory::*;
@@ -16,6 +17,7 @@ pub use opcode::*;
 pub use program::*;
 pub use record::*;
 pub use register::*;
+pub use result::*;
 pub use state::*;
 pub use syscall::*;
 pub use utils::*;
@@ -50,6 +52,9 @@ pub struct Runtime {
 
     /// The trace of the execution.
     pub record: ExecutionRecord,
+
+    /// The result of the execution.
+    pub result: ExecutionResult,
 
     /// The memory accesses for the current cycle.
     pub memory_accesses: MemoryAccessRecord,
@@ -129,6 +134,7 @@ impl Runtime {
             record,
             state: ExecutionState::new(program.pc_start),
             program,
+            result: ExecutionResult::new(),
             memory_accesses: MemoryAccessRecord::default(),
             shard_size: (opts.shard_size as u32) * 4,
             shard_batch_size: opts.shard_batch_size as u32,
@@ -786,6 +792,9 @@ impl Runtime {
                 next_pc = precompile_next_pc;
                 self.state.clk += precompile_cycles;
                 exit_code = returned_exit_code;
+
+                // Update syscall count
+                self.result.add_to_syscall_count(syscall);
             }
             Opcode::EBREAK => {
                 return Err(ExecutionError::Breakpoint());
@@ -885,6 +894,10 @@ impl Runtime {
                 exit_code,
             );
         };
+
+        // Update the execution result.
+        self.result.add_to_opcode_count(instruction.opcode);
+
         Ok(())
     }
 
@@ -960,15 +973,16 @@ impl Runtime {
         Ok(())
     }
 
-    pub fn run(&mut self) -> Result<(), ExecutionError> {
+    pub fn run(&mut self) -> Result<ExecutionResult, ExecutionError> {
         self.emit_events = true;
         while !self.execute()? {}
-        Ok(())
+        Ok(self.result.clone())
     }
 
-    pub fn dry_run(&mut self) {
+    pub fn dry_run(&mut self) -> ExecutionResult {
         self.emit_events = false;
         while !self.execute().unwrap() {}
+        self.result.clone()
     }
 
     /// Executes up to `self.shard_batch_size` cycles of the program, returning whether the program has finished.
@@ -1000,6 +1014,8 @@ impl Runtime {
         if done {
             self.postprocess();
         }
+
+        self.result.global_clk = self.state.global_clk;
 
         Ok(done)
     }
