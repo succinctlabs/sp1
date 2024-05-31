@@ -100,7 +100,7 @@ impl ProverClient {
                             prover: Box::new(NetworkProver::new()),
                         }
                     } else {
-                        panic!("network prover is not enabled")
+                        panic!("network feature is not enabled")
                     }
                 }
             },
@@ -165,7 +165,7 @@ impl ProverClient {
                     prover: Box::new(NetworkProver::new()),
                 }
             } else {
-                panic!("network prover is not enabled")
+                panic!("network feature is not enabled")
             }
         }
     }
