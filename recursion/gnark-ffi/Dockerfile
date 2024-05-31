@@ -32,6 +32,7 @@ WORKDIR /build
 COPY gnark-cli/build.rs   ./
 COPY gnark-cli/src        ./src/
 COPY gnark-cli/Cargo.toml ./
+COPY src/babybear.rs      ./src/
 
 RUN cargo install --path . --root /usr
 
