@@ -967,10 +967,10 @@ impl Runtime {
         tracing::info!("starting execution");
     }
 
-    pub fn run_untraced(&mut self) -> Result<(), ExecutionError> {
+    pub fn run_untraced(&mut self) -> Result<ExecutionResult, ExecutionError> {
         self.emit_events = false;
         while !self.execute()? {}
-        Ok(())
+        Ok(self.result.clone())
     }
 
     pub fn run(&mut self) -> Result<ExecutionResult, ExecutionError> {
@@ -1015,6 +1015,7 @@ impl Runtime {
             self.postprocess();
         }
 
+        // Update global_clk in the result.
         self.result.global_clk = self.state.global_clk;
 
         Ok(done)
