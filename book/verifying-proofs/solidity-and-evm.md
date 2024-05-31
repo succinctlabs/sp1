@@ -24,4 +24,39 @@ You can run the above script with `RUST_LOG=info cargo run --bin plonk_bn254 --r
 
 ## Install SP1 Contracts
 
-https://github.com/succinctlabs/sp1-contracts/blob/f74ad2963bbb09ac283af8d10152765ab8e07111/README.md?plain=1#L1-L34
+# SP1 Contracts
+
+This repository contains the smart contracts for verifying [SP1](https://github.com/succinctlabs/sp1) EVM proofs.
+
+## Installation
+
+> [!WARNING]
+> [Foundry](https://github.com/foundry-rs/foundry) installs the latest release version initially, but subsequent `forge update` commands will use the `main` branch. This branch is the development branch and should be avoided in favor of tagged releases. The release process matches a specific SP1 version.
+
+To install the latest release version:
+
+```bash
+forge install succinctlabs/sp1-contracts
+```
+
+To install a specific version:
+```bash
+forge install succinctlabs/sp1-contracts@<version>
+```
+
+Add `@sp1-contracts/=lib/sp1-contracts/contracts/src/` in `remappings.txt.`
+
+### Usage
+
+Once installed, you can use the contracts in the library by importing them:
+
+```solidity
+pragma solidity ^0.8.25;
+
+import {SP1Verifier} from "@sp1-contracts/SP1Verifier.sol";
+
+contract MyContract is SP1Verifier {
+}
+```
+
+For more details on the contracts, refer to the [sp1-contracts](https://github.com/succinctlabs/sp1-contracts) repo.
