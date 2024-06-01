@@ -1,22 +1,29 @@
 mod local;
 mod mock;
-mod network;
 
 use crate::{SP1CompressedProof, SP1PlonkBn254Proof, SP1Proof};
 use anyhow::Result;
 pub use local::LocalProver;
 pub use mock::MockProver;
-pub use network::NetworkProver;
 use sp1_core::stark::MachineVerificationError;
 use sp1_prover::CoreSC;
 use sp1_prover::SP1CoreProofData;
 use sp1_prover::SP1Prover;
 use sp1_prover::SP1ReduceProof;
 use sp1_prover::{SP1ProvingKey, SP1Stdin, SP1VerifyingKey};
+use strum_macros::EnumString;
+
+/// The type of prover.
+#[derive(Debug, PartialEq, EnumString)]
+pub enum ProverType {
+    Local,
+    Mock,
+    Network,
+}
 
 /// An implementation of [crate::ProverClient].
 pub trait Prover: Send + Sync {
-    fn id(&self) -> String;
+    fn id(&self) -> ProverType;
 
     fn sp1_prover(&self) -> &SP1Prover;
 

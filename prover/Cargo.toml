@@ -53,7 +53,5 @@ name = "e2e"
 path = "scripts/e2e.rs"
 
 [features]
-default = ["plonk"]
-
 neon = ["sp1-core/neon"]
 plonk = ["sp1-recursion-gnark-ffi/plonk"]

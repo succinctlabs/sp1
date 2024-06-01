@@ -12,7 +12,7 @@ impl Default for SP1CoreOpts {
             shard_size: 1 << 22,
             shard_batch_size: 16,
             shard_chunking_multiplier: 1,
-            reconstruct_commitments: false,
+            reconstruct_commitments: true,
         }
     }
 }

@@ -7,6 +7,8 @@ use crate::{
     SP1ProvingKey, SP1VerifyingKey,
 };
 
+use super::ProverType;
+
 /// An implementation of [crate::ProverClient] that can generate end-to-end proofs locally.
 pub struct LocalProver {
     prover: SP1Prover,
@@ -21,8 +23,8 @@ impl LocalProver {
 }
 
 impl Prover for LocalProver {
-    fn id(&self) -> String {
-        "local".to_string()
+    fn id(&self) -> ProverType {
+        ProverType::Local
     }
 
     fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
@@ -54,6 +56,7 @@ impl Prover for LocalProver {
         })
     }
 
+    #[allow(unused)]
     fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkBn254Proof> {
         cfg_if! {
             if #[cfg(feature = "plonk")] {

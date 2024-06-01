@@ -16,6 +16,9 @@ pub struct CreateProofRequest {
     /// The deadline for the proof request, signifying the latest time a fulfillment would be valid.
     #[prost(uint64, tag = "4")]
     pub deadline: u64,
+    /// The client version used, in the form of an 8-character git commit hash.
+    #[prost(string, tag = "5")]
+    pub version: ::prost::alloc::string::String,
 }
 /// The response for creating a proof.
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -241,6 +244,9 @@ pub struct RequestedProof {
     /// The mode for proof generation.
     #[prost(enumeration = "ProofMode", tag = "2")]
     pub mode: i32,
+    /// Proof requester's address.
+    #[prost(bytes = "vec", tag = "3")]
+    pub requester: ::prost::alloc::vec::Vec<u8>,
 }
 /// The response for getting proof requests by a given status.
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -306,7 +312,7 @@ impl ProofMode {
     ///
     /// The values are not transformed in any way and thus are considered stable
     /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    pub const fn as_str_name(&self) -> &'static str {
+    pub fn as_str_name(&self) -> &'static str {
         match self {
             ProofMode::Unspecified => "PROOF_MODE_UNSPECIFIED",
             ProofMode::Core => "PROOF_MODE_CORE",
@@ -359,7 +365,7 @@ impl ProofStatus {
     ///
     /// The values are not transformed in any way and thus are considered stable
     /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    pub const fn as_str_name(&self) -> &'static str {
+    pub fn as_str_name(&self) -> &'static str {
         match self {
             ProofStatus::ProofUnspecifiedStatus => "PROOF_UNSPECIFIED_STATUS",
             ProofStatus::ProofPreparing => "PROOF_PREPARING",
@@ -416,7 +422,7 @@ impl TransactionStatus {
     ///
     /// The values are not transformed in any way and thus are considered stable
     /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    pub const fn as_str_name(&self) -> &'static str {
+    pub fn as_str_name(&self) -> &'static str {
         match self {
             TransactionStatus::TransactionUnspecifiedStatus => "TRANSACTION_UNSPECIFIED_STATUS",
             TransactionStatus::TransactionScheduled => "TRANSACTION_SCHEDULED",

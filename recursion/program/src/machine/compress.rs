@@ -96,6 +96,8 @@ where
             deferred_vk,
         );
 
+        builder.halt();
+
         builder.compile_program()
     }
 }
@@ -472,7 +474,5 @@ where
         );
 
         commit_public_values(builder, reduce_public_values);
-
-        builder.halt();
     }
 }
