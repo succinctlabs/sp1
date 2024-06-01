@@ -2,7 +2,7 @@ use std::{env, time::Duration};
 
 use crate::proto::network::ProofMode;
 use crate::{
-    network::client::NetworkClient,
+    network::client::{NetworkClient, DEFAULT_PROVER_NETWORK_RPC},
     proto::network::{ProofStatus, TransactionStatus},
     Prover,
 };
@@ -62,6 +62,13 @@ impl NetworkProver {
         let proof_id = client.create_proof(elf, &stdin, mode, version).await?;
         log::info!("Created {}", proof_id);
 
+        if NetworkClient::rpc_url() == DEFAULT_PROVER_NETWORK_RPC {
+            log::info!(
+                "View in explorer: https://explorer.succinct.xyz/{}",
+                proof_id.split('_').last().unwrap_or(&proof_id)
+            );
+        }
+
         let mut is_claimed = false;
         loop {
             let (status, maybe_proof) = client.get_proof_status::<P>(&proof_id).await?;
@@ -82,10 +89,9 @@ impl NetworkProver {
                         status.unclaim_description()
                     ));
                 }
-                _ => {
-                    sleep(Duration::from_secs(1)).await;
-                }
+                _ => {}
             }
+            sleep(Duration::from_secs(2)).await;
         }
     }
 
