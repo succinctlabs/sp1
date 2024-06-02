@@ -64,7 +64,12 @@ fn main() {
         proof: proof_3,
         vk: fibonacci_vk.clone(),
     };
-    let inputs = vec![input_1, input_2, input_3];
+    let inputs = vec![
+        input_1, input_2, input_3, input_1, input_2, input_3, input_1, input_2, input_3, input_1,
+        input_2, input_3, input_1, input_2, input_3, input_1, input_2, input_3, input_1, input_2,
+        input_3, input_1, input_2, input_3, input_1, input_2, input_3, input_1, input_2, input_3,
+        input_1, input_2, input_3,
+    ];
 
     // Aggregate the proofs.
     tracing::info_span!("aggregate the proofs").in_scope(|| {
@@ -92,9 +97,15 @@ fn main() {
             stdin.write_proof(input.proof.proof, input.vk.vk);
         }
 
-        // Generate the plonk bn254 proof.
-        client
-            .prove_plonk(&aggregation_pk, stdin)
-            .expect("proving failed");
+        // Write SP1Stdin to a file.
+        let stdin_path = "stdin.bin";
+        stdin
+            .write_to_file(stdin_path)
+            .expect("failed to write stdin");
+
+        // // Generate the plonk bn254 proof.
+        // client
+        //     .prove_plonk(&aggregation_pk, stdin)
+        //     .expect("proving failed");
     });
 }
