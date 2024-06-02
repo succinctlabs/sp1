@@ -15,6 +15,7 @@ const STATE_NUM_WORDS: usize = STATE_SIZE * 2;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KeccakPermuteEvent {
+    pub lookup_id: usize,
     pub shard: u32,
     pub channel: u32,
     pub clk: u32,

@@ -40,6 +40,8 @@ pub struct CpuCols<T: Copy> {
     /// The channel value, used for byte lookup multiplicity.
     pub channel: T,
 
+    pub nonce: T,
+
     /// The clock cycle value.  This should be within 24 bits.
     pub clk: T,
     /// The least significant 16 bit limb of clk.
@@ -96,6 +98,8 @@ pub struct CpuCols<T: Copy> {
     /// The unsigned memory value is the value after the offset logic is applied. Used for the load
     /// memory opcodes (i.e. LB, LH, LW, LBU, and LHU).
     pub unsigned_mem_val: Word<T>,
+
+    pub unsigned_mem_val_nonce: T,
 
     /// The result of selectors.is_ecall * the send_to_table column for the ECALL opcode.
     pub ecall_mul_send_to_table: T,

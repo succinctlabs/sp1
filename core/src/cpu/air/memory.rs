@@ -67,6 +67,7 @@ impl CpuChip {
             local.op_c_val(),
             local.shard,
             local.channel,
+            memory_columns.addr_word_nonce,
             is_memory_instruction.clone(),
         );
 
@@ -188,6 +189,7 @@ impl CpuChip {
             signed_value,
             local.shard,
             local.channel,
+            local.unsigned_mem_val_nonce,
             local.mem_value_is_neg,
         );
 
@@ -329,9 +331,12 @@ impl CpuChip {
         local: &CpuCols<AB::Var>,
         unsigned_mem_val: &Word<AB::Var>,
     ) {
+        let is_mem = self.is_memory_instruction::<AB>(&local.selectors);
         let mut recomposed_byte = AB::Expr::zero();
         for i in 0..8 {
-            builder.assert_bool(memory_columns.most_sig_byte_decomp[i]);
+            builder
+                .when(is_mem.clone())
+                .assert_bool(memory_columns.most_sig_byte_decomp[i]);
             recomposed_byte +=
                 memory_columns.most_sig_byte_decomp[i] * AB::Expr::from_canonical_u8(1 << i);
         }

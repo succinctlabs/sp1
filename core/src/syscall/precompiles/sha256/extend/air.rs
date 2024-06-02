@@ -27,6 +27,13 @@ where
         let (local, next) = (main.row_slice(0), main.row_slice(1));
         let local: &ShaExtendCols<AB::Var> = (*local).borrow();
         let next: &ShaExtendCols<AB::Var> = (*next).borrow();
+
+        // Constrain the incrementing nonce.
+        builder.when_first_row().assert_zero(local.nonce);
+        builder
+            .when_transition()
+            .assert_eq(local.nonce + AB::Expr::one(), next.nonce);
+
         let i_start = AB::F::from_canonical_u32(16);
         let nb_bytes_in_word = AB::F::from_canonical_u32(4);
 
@@ -225,6 +232,7 @@ where
             local.shard,
             local.channel,
             local.clk,
+            local.nonce,
             AB::F::from_canonical_u32(SyscallCode::SHA_EXTEND.syscall_id()),
             local.w_ptr,
             AB::Expr::zero(),

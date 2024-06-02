@@ -47,6 +47,7 @@ impl CpuChip {
             local.shard,
             local.channel,
             local.clk,
+            ecall_cols.syscall_nonce,
             syscall_id,
             local.op_b_val().reduce::<AB>(),
             local.op_c_val().reduce::<AB>(),

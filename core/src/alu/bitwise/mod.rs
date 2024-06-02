@@ -1,7 +1,9 @@
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 
+use p3_air::AirBuilder;
 use p3_air::{Air, BaseAir};
+use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
@@ -30,6 +32,9 @@ pub struct BitwiseCols<T> {
 
     /// The channel number, used for byte lookup table.
     pub channel: T,
+
+    /// The nonce of the operation.
+    pub nonce: T,
 
     /// The output operand.
     pub a: Word<T>,
@@ -111,6 +116,12 @@ impl<F: PrimeField> MachineAir<F> for BitwiseChip {
         // Pad the trace to a power of two.
         pad_to_power_of_two::<NUM_BITWISE_COLS, F>(&mut trace.values);
 
+        for i in 0..trace.height() {
+            let cols: &mut BitwiseCols<F> =
+                trace.values[i * NUM_BITWISE_COLS..(i + 1) * NUM_BITWISE_COLS].borrow_mut();
+            cols.nonce = F::from_canonical_usize(i);
+        }
+
         trace
     }
 
@@ -133,6 +144,14 @@ where
         let main = builder.main();
         let local = main.row_slice(0);
         let local: &BitwiseCols<AB::Var> = (*local).borrow();
+        let next = main.row_slice(1);
+        let next: &BitwiseCols<AB::Var> = (*next).borrow();
+
+        // Constrain the incrementing nonce.
+        builder.when_first_row().assert_zero(local.nonce);
+        builder
+            .when_transition()
+            .assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         // Get the opcode for the operation.
         let opcode = local.is_xor * ByteOpcode::XOR.as_field::<AB::F>()
@@ -166,6 +185,7 @@ where
             local.c,
             local.shard,
             local.channel,
+            local.nonce,
             local.is_xor + local.is_or + local.is_and,
         );
 

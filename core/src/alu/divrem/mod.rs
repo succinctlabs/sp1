@@ -76,7 +76,7 @@ use sp1_derive::AlignedBorrow;
 use crate::air::MachineAir;
 use crate::air::{SP1AirBuilder, Word};
 use crate::alu::divrem::utils::{get_msb, get_quotient_and_remainder, is_signed_operation};
-use crate::alu::AluEvent;
+use crate::alu::{create_alu_lookups, AluEvent};
 use crate::bytes::event::ByteRecord;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::disassembler::WORD_SIZE;
@@ -106,6 +106,9 @@ pub struct DivRemCols<T> {
 
     /// The channel number, used for byte lookup table.
     pub channel: T,
+
+    /// The nonce of the operation.
+    pub nonce: T,
 
     /// The output operand.
     pub a: Word<T>,
@@ -184,11 +187,22 @@ pub struct DivRemCols<T> {
     /// Flag to indicate whether `c` is negative.
     pub c_neg: T,
 
+    /// The lower nonce of the operation.
+    pub lower_nonce: T,
+
+    /// The upper nonce of the operation.
+    pub upper_nonce: T,
+
+    /// The absolute nonce of the operation.
+    pub abs_nonce: T,
+
     /// Selector to determine whether an ALU Event is sent for absolute value computation of `c`.
     pub abs_c_alu_event: T,
+    pub abs_c_alu_event_nonce: T,
 
     /// Selector to determine whether an ALU Event is sent for absolute value computation of `rem`.
     pub abs_rem_alu_event: T,
+    pub abs_rem_alu_event_nonce: T,
 
     /// Selector to know whether this row is enabled.
     pub is_real: T,
@@ -267,7 +281,21 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
 
                 // Set the `alu_event` flags.
                 cols.abs_c_alu_event = cols.c_neg * cols.is_real;
+                cols.abs_c_alu_event_nonce = F::from_canonical_u32(
+                    input
+                        .nonce_lookup
+                        .get(&event.sub_lookups[4])
+                        .copied()
+                        .unwrap_or_default(),
+                );
                 cols.abs_rem_alu_event = cols.rem_neg * cols.is_real;
+                cols.abs_rem_alu_event_nonce = F::from_canonical_u32(
+                    input
+                        .nonce_lookup
+                        .get(&event.sub_lookups[5])
+                        .copied()
+                        .unwrap_or_default(),
+                );
 
                 // Insert the MSB lookup events.
                 {
@@ -336,6 +364,7 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                         let mut add_events: Vec<AluEvent> = vec![];
                         if cols.abs_c_alu_event == F::one() {
                             add_events.push(AluEvent {
+                                lookup_id: event.sub_lookups[4],
                                 shard: event.shard,
                                 channel: event.channel,
                                 clk: event.clk,
@@ -343,10 +372,12 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                                 a: 0,
                                 b: event.c,
                                 c: (event.c as i32).abs() as u32,
+                                sub_lookups: create_alu_lookups(),
                             })
                         }
                         if cols.abs_rem_alu_event == F::one() {
                             add_events.push(AluEvent {
+                                lookup_id: event.sub_lookups[5],
                                 shard: event.shard,
                                 channel: event.channel,
                                 clk: event.clk,
@@ -354,6 +385,7 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                                 a: 0,
                                 b: remainder,
                                 c: (remainder as i32).abs() as u32,
+                                sub_lookups: create_alu_lookups(),
                             })
                         }
                         let mut alu_events = HashMap::new();
@@ -372,6 +404,7 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                     }
 
                     let lower_multiplication = AluEvent {
+                        lookup_id: event.sub_lookups[0],
                         shard: event.shard,
                         channel: event.channel,
                         clk: event.clk,
@@ -379,10 +412,19 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                         a: lower_word,
                         c: event.c,
                         b: quotient,
+                        sub_lookups: create_alu_lookups(),
                     };
+                    cols.lower_nonce = F::from_canonical_u32(
+                        input
+                            .nonce_lookup
+                            .get(&event.sub_lookups[0])
+                            .copied()
+                            .unwrap_or_default(),
+                    );
                     output.add_mul_event(lower_multiplication);
 
                     let upper_multiplication = AluEvent {
+                        lookup_id: event.sub_lookups[1],
                         shard: event.shard,
                         channel: event.channel,
                         clk: event.clk,
@@ -396,11 +438,26 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                         a: upper_word,
                         c: event.c,
                         b: quotient,
+                        sub_lookups: create_alu_lookups(),
                     };
-
+                    cols.upper_nonce = F::from_canonical_u32(
+                        input
+                            .nonce_lookup
+                            .get(&event.sub_lookups[1])
+                            .copied()
+                            .unwrap_or_default(),
+                    );
                     output.add_mul_event(upper_multiplication);
                     let lt_event = if is_signed_operation(event.opcode) {
+                        cols.abs_nonce = F::from_canonical_u32(
+                            input
+                                .nonce_lookup
+                                .get(&event.sub_lookups[2])
+                                .copied()
+                                .unwrap_or_default(),
+                        );
                         AluEvent {
+                            lookup_id: event.sub_lookups[2],
                             shard: event.shard,
                             channel: event.channel,
                             opcode: Opcode::SLTU,
@@ -408,9 +465,18 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                             b: (remainder as i32).abs() as u32,
                             c: u32::max(1, (event.c as i32).abs() as u32),
                             clk: event.clk,
+                            sub_lookups: create_alu_lookups(),
                         }
                     } else {
+                        cols.abs_nonce = F::from_canonical_u32(
+                            input
+                                .nonce_lookup
+                                .get(&event.sub_lookups[3])
+                                .copied()
+                                .unwrap_or_default(),
+                        );
                         AluEvent {
+                            lookup_id: event.sub_lookups[3],
                             shard: event.shard,
                             channel: event.channel,
                             opcode: Opcode::SLTU,
@@ -418,6 +484,7 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                             b: remainder,
                             c: u32::max(1, event.c),
                             clk: event.clk,
+                            sub_lookups: create_alu_lookups(),
                         }
                     };
 
@@ -470,6 +537,13 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
             trace.values[i] = padded_row_template[i % NUM_DIVREM_COLS];
         }
 
+        // Write the nonces to the trace.
+        for i in 0..trace.height() {
+            let cols: &mut DivRemCols<F> =
+                trace.values[i * NUM_DIVREM_COLS..(i + 1) * NUM_DIVREM_COLS].borrow_mut();
+            cols.nonce = F::from_canonical_usize(i);
+        }
+
         trace
     }
 
@@ -492,9 +566,17 @@ where
         let main = builder.main();
         let local = main.row_slice(0);
         let local: &DivRemCols<AB::Var> = (*local).borrow();
+        let next = main.row_slice(1);
+        let next: &DivRemCols<AB::Var> = (*next).borrow();
         let base = AB::F::from_canonical_u32(1 << 8);
         let one: AB::Expr = AB::F::one().into();
         let zero: AB::Expr = AB::F::zero().into();
+
+        // Constrain the incrementing nonce.
+        builder.when_first_row().assert_zero(local.nonce);
+        builder
+            .when_transition()
+            .assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         // Calculate whether b, remainder, and c are negative.
         {
@@ -530,6 +612,7 @@ where
                 local.c,
                 local.shard,
                 local.channel,
+                local.lower_nonce,
                 local.is_real,
             );
 
@@ -555,6 +638,7 @@ where
                 local.c,
                 local.shard,
                 local.channel,
+                local.upper_nonce,
                 local.is_real,
             );
         }
@@ -718,6 +802,7 @@ where
                 local.abs_c,
                 local.shard,
                 local.channel,
+                local.abs_c_alu_event_nonce,
                 local.abs_c_alu_event,
             );
             builder.send_alu(
@@ -727,6 +812,7 @@ where
                 local.abs_remainder,
                 local.shard,
                 local.channel,
+                local.abs_rem_alu_event_nonce,
                 local.abs_rem_alu_event,
             );
 
@@ -772,6 +858,7 @@ where
                 local.max_abs_c_or_1,
                 local.shard,
                 local.channel,
+                local.abs_nonce,
                 local.remainder_check_multiplicity,
             );
         }
@@ -877,6 +964,7 @@ where
                 local.c,
                 local.shard,
                 local.channel,
+                local.nonce,
                 local.is_real,
             );
         }

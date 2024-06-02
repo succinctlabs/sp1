@@ -29,6 +29,12 @@ where
         let local: &Blake3CompressInnerCols<AB::Var> = (*local).borrow();
         let next: &Blake3CompressInnerCols<AB::Var> = (*next).borrow();
 
+        // Constrain the incrementing nonce.
+        builder.when_first_row().assert_zero(local.nonce);
+        builder
+            .when_transition()
+            .assert_eq(local.nonce + AB::Expr::one(), next.nonce);
+
         self.constrain_control_flow_flags(builder, local, next);
 
         self.constrain_memory(builder, local);
@@ -41,6 +47,7 @@ where
             local.shard,
             local.channel,
             local.clk,
+            local.nonce,
             AB::F::from_canonical_u32(SyscallCode::BLAKE3_COMPRESS_INNER.syscall_id()),
             local.state_ptr,
             local.message_ptr,

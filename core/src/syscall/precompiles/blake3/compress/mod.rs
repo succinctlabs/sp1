@@ -92,6 +92,7 @@ pub(crate) const fn g_func(input: [u32; 6]) -> [u32; 4] {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Blake3CompressInnerEvent {
+    pub lookup_id: usize,
     pub clk: u32,
     pub shard: u32,
     pub channel: u32,

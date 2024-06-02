@@ -101,6 +101,11 @@ impl SP1Prover {
             }
         }
 
+        // Verify that the number of shards is not too large.
+        if proof.0.len() > 1 << 16 {
+            return Err(MachineVerificationError::TooManyShards);
+        }
+
         // Verify that the `MemoryInit` and `MemoryFinalize` chips are the last chips in the proof.
         for (i, shard_proof) in proof.0.iter().enumerate() {
             let chips = self
