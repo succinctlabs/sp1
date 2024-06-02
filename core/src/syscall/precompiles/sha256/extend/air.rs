@@ -45,6 +45,10 @@ where
         builder
             .when_transition()
             .when_not(local.cycle_16_end.result * local.cycle_48[2])
+            .assert_eq(local.channel, next.channel);
+        builder
+            .when_transition()
+            .when_not(local.cycle_16_end.result * local.cycle_48[2])
             .assert_eq(local.w_ptr, next.w_ptr);
 
         // Read w[i-15].
