@@ -13,6 +13,7 @@ const FIBONACCI_ELF: &[u8] =
 /// An input to the aggregation program.
 ///
 /// Consists of a proof and a verification key.
+#[derive(Clone)]
 struct AggregationInput {
     pub proof: SP1CompressedProof,
     pub vk: SP1VerifyingKey,
