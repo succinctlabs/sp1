@@ -53,6 +53,7 @@ dependencies = [
 name = "aggregation-script"
 version = "0.1.0"
 dependencies = [
+ "bincode",
  "hex",
  "sp1-helper",
  "sp1-sdk",

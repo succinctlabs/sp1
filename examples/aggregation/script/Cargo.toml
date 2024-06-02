@@ -4,6 +4,7 @@ name = "aggregation-script"
 edition = "2021"
 
 [dependencies]
+bincode = "1.3.3"
 hex = "0.4.3"
 sp1-sdk = { path = "../../../sdk", features = ["plonk"] }
 tracing = "0.1.40"
