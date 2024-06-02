@@ -1,7 +1,7 @@
 use sp1_derive::AlignedBorrow;
 use std::mem::size_of;
 
-use crate::{air::Word, memory::MemoryReadWriteCols};
+use crate::{air::Word, memory::MemoryReadWriteCols, operations::BabyBearWordRangeChecker};
 
 pub const NUM_MEMORY_COLUMNS: usize = size_of::<MemoryColumns<u8>>();
 
@@ -17,6 +17,8 @@ pub struct MemoryColumns<T> {
     // addr_offset = addr_word % 4
     // Note that this all needs to be verified in the AIR
     pub addr_word: Word<T>,
+    pub addr_word_range_check: BabyBearWordRangeChecker<T>,
+
     pub addr_aligned: T,
     /// The LE bit decomp of the least significant byte of address aligned.
     pub aa_least_sig_byte_decomp: [T; 6],
