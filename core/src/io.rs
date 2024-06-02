@@ -20,7 +20,7 @@ pub struct SP1Stdin {
 }
 
 /// Public values for the prover.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SP1PublicValues {
     buffer: Buffer,
 }
