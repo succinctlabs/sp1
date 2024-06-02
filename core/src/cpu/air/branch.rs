@@ -167,6 +167,11 @@ impl CpuChip {
             .when(is_branch_instruction.clone() * branch_cols.a_eq_b)
             .assert_word_eq(local.op_a_val(), local.op_b_val());
 
+        //  To prevent this ALU send to be arbitrarily large when is_branch_instruction is false.
+        builder
+            .when_not(is_branch_instruction.clone())
+            .assert_zero(local.branching);
+
         // Calculate a_lt_b <==> a < b (using appropriate signedness).
         let use_signed_comparison = local.selectors.is_blt + local.selectors.is_bge;
         builder.send_alu(
