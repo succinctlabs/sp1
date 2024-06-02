@@ -96,6 +96,8 @@ where
             deferred_vk,
         );
 
+        builder.halt();
+
         builder.compile_program()
     }
 }
@@ -234,6 +236,7 @@ where
                 challenger.observe(builder, element);
             }
             // verify proof.
+            let shard_idx = builder.eval(C::N::one());
             StarkVerifier::<C, SC>::verify_shard(
                 builder,
                 &vk,
@@ -241,6 +244,7 @@ where
                 machine,
                 &mut challenger,
                 &proof,
+                shard_idx,
             );
 
             // Load the public values from the proof.
@@ -472,7 +476,5 @@ where
         );
 
         commit_public_values(builder, reduce_public_values);
-
-        builder.halt();
     }
 }

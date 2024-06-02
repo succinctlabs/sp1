@@ -57,6 +57,15 @@ impl CpuChip {
             local.is_real,
         );
 
+        // Always range check the word value in `op_a`, as JUMP instructions may witness
+        // an invalid word and write it to memory.
+        builder.slice_range_check_u8(
+            &local.op_a_access.access.value.0,
+            local.shard,
+            local.channel,
+            local.is_real,
+        );
+
         // If we are performing a branch or a store, then the value of `a` is the previous value.
         builder
             .when(is_branch_instruction.clone() + self.is_store_instruction::<AB>(&local.selectors))

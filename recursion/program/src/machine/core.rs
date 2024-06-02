@@ -71,6 +71,8 @@ impl SP1RecursiveVerifier<InnerConfig, BabyBearPoseidon2> {
         };
         SP1RecursiveVerifier::verify(&mut builder, &pcs, machine, input);
 
+        builder.halt();
+
         builder.compile_program()
     }
 }
@@ -78,11 +80,7 @@ impl SP1RecursiveVerifier<InnerConfig, BabyBearPoseidon2> {
 impl<C: Config, SC: StarkGenericConfig> SP1RecursiveVerifier<C, SC>
 where
     C::F: PrimeField32 + TwoAdicField,
-    SC: StarkGenericConfig<
-        Val = C::F,
-        Challenge = C::EF,
-        Domain = TwoAdicMultiplicativeCoset<C::F>,
-    >,
+    SC: StarkGenericConfig<Val = C::F, Challenge = C::EF, Domain = TwoAdicMultiplicativeCoset<C::F>>,
     Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
 {
     /// Verify a batch of SP1 shard proofs and aggregate their public values.
@@ -90,13 +88,39 @@ where
     /// This program represents a first recursive step in the verification of an SP1 proof
     /// consisting of one or more shards. Each shard proof is verified and its public values are
     /// aggregated into a single set representing the start and end state of the program execution
-    /// across all shards.  
+    /// across all shards.
+    ///
+    /// # Constraints
+    ///
+    /// ## Verifying the STARK proofs.
+    /// For each shard, the verifier asserts the correctness of the STARK proof which is composed
+    /// of verifying the FRI proof for openings and verifying the constraints.
+    ///
+    /// ## Aggregating the shard public values.
+    ///
+    /// See [SP1Prover::verify] for the verification algorithm of a complete SP1 proof. In this
+    /// function, we are aggregating several shard proofs and attesting to an aggregated state which
+    /// reprersents all the shards. The consistency conditions of the aggregated state are
+    /// asserted in the following way:
+    ///
+    /// - Start pc for every shardf should be what the next pc declared in the previous shard was.
+    /// - Public input, deferred proof digests, and exit code should be the same in all shards.
+    ///
+    /// ## The leaf challenger.
+    /// A key difference between the recursive tree verification and the complete one in
+    /// [SP1Prover::verify] is that the recursive verifier has no way of reconstructiing the
+    /// chanllenger only from a part of the shard proof. Therefoee, the value of the leaf challenger
+    /// is witnessed in the program and the verifier assertds correctness given this challenger.
+    /// In the course of the recursive verification, the challenger is reconstructed by observing
+    /// the commitments one by one, and in the final step, the challenger is asserted to be the same
+    /// as the one witnessed here.
     pub fn verify(
         builder: &mut Builder<C>,
         pcs: &TwoAdicFriPcsVariable<C>,
         machine: &StarkMachine<SC, RiscvAir<SC::Val>>,
         input: SP1RecursionMemoryLayoutVariable<C>,
     ) {
+        // Read input.
         let SP1RecursionMemoryLayoutVariable {
             vk,
             shard_proofs,
@@ -132,12 +156,18 @@ where
         let cumulative_sum: Ext<_, _> = builder.eval(C::EF::zero().cons());
         let current_pc: Felt<_> = builder.uninit();
         let exit_code: Felt<_> = builder.uninit();
+
+        // Range check that the number of proofs is sufficiently small.
+        let num_shard_proofs: Var<_> = shard_proofs.len().materialize(builder);
+        builder.range_check_v(num_shard_proofs, 16);
+
         // Verify proofs, validate transitions, and update accumulation variables.
         builder.range(0, shard_proofs.len()).for_each(|i, builder| {
             // Load the proof.
             let proof = builder.get(&shard_proofs, i);
 
             // Verify the shard proof.
+            let shard_idx = builder.eval(i + C::N::one());
             let mut challenger = leaf_challenger.copy(builder);
             StarkVerifier::<C, SC>::verify_shard(
                 builder,
@@ -146,6 +176,7 @@ where
                 machine,
                 &mut challenger,
                 &proof,
+                shard_idx,
             );
 
             // Extract public values.
@@ -212,6 +243,8 @@ where
             });
 
             // Assert compatibility of the shard values.
+
+            // Assert that the committed value digests are all the same.
             for (word, current_word) in committed_value_digest
                 .iter()
                 .zip_eq(public_values.committed_value_digest.iter())
@@ -233,7 +266,8 @@ where
             // Assert that exit code is the same for all proofs.
             builder.assert_felt_eq(exit_code, public_values.exit_code);
 
-            // Assert that the committed value digests are all the same.
+            // Assert that the exit code is zero (success) for all proofs.
+            builder.assert_felt_eq(exit_code, C::F::zero());
 
             // Assert that the deferred proof digest is the same for all proofs.
             for (digest, current_digest) in deferred_proofs_digest
@@ -243,15 +277,18 @@ where
                 builder.assert_felt_eq(*digest, *current_digest);
             }
 
-            // Update the reconstruct challenger, cumulative sum, shard number, and program counter.
+            // Update the loop variables: the reconstruct challenger, cumulative sum, shard number,
+            // and program counter.
+
+            // Increment the shard index by one.
+            builder.assign(current_shard, current_shard + C::F::one());
+
+            // Update the reconstruct challenger.
             reconstruct_challenger.observe(builder, proof.commitment.main_commit);
             for j in 0..machine.num_pv_elts() {
                 let element = builder.get(&proof.public_values, j);
                 reconstruct_challenger.observe(builder, element);
             }
-
-            // Increment the shard count by one.
-            builder.assign(current_shard, current_shard + C::F::one());
 
             // Update current_pc to be the end_pc of the current proof.
             builder.assign(current_pc, public_values.next_pc);
@@ -267,6 +304,8 @@ where
                 });
         });
 
+        // Write all values to the public values struct and commit to them.
+
         // Compute vk digest.
         let vk_digest = hash_vkey(builder, &vk);
         let vk_digest: [Felt<_>; DIGEST_SIZE] = array::from_fn(|i| builder.get(&vk_digest, i));
@@ -281,6 +320,7 @@ where
         let cumulative_sum_arrray = array::from_fn(|i| builder.get(&cumulative_sum_arrray, i));
 
         let zero: Felt<_> = builder.eval(C::F::zero());
+
         // Initialize the public values we will commit to.
         let mut recursion_public_values_stream = [zero; RECURSIVE_PROOF_NUM_PV_ELTS];
 
@@ -317,7 +357,5 @@ where
         });
 
         commit_public_values(builder, recursion_public_values);
-
-        builder.halt();
     }
 }

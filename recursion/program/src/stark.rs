@@ -12,7 +12,6 @@ use sp1_core::stark::StarkMachine;
 use sp1_core::stark::StarkVerifyingKey;
 use sp1_recursion_compiler::ir::Array;
 use sp1_recursion_compiler::ir::Ext;
-use sp1_recursion_compiler::ir::ExtConst;
 use sp1_recursion_compiler::ir::SymbolicExt;
 use sp1_recursion_compiler::ir::SymbolicVar;
 use sp1_recursion_compiler::ir::Var;
@@ -94,48 +93,6 @@ impl<'a, SC: StarkGenericConfig, A: MachineAir<SC::Val>> VerifyingKeyHint<'a, SC
     }
 }
 
-impl<C: Config, SC: StarkGenericConfig, A> StarkRecursiveVerifier<C> for StarkMachine<SC, A>
-where
-    C::F: TwoAdicField,
-    SC: StarkGenericConfig<
-        Val = C::F,
-        Challenge = C::EF,
-        Domain = TwoAdicMultiplicativeCoset<C::F>,
-    >,
-    A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
-    C::F: TwoAdicField,
-    C::EF: TwoAdicField,
-    Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
-{
-    fn verify_shard(
-        &self,
-        builder: &mut Builder<C>,
-        vk: &VerifyingKeyVariable<C>,
-        pcs: &TwoAdicFriPcsVariable<C>,
-        challenger: &mut DuplexChallengerVariable<C>,
-        proof: &ShardProofVariable<C>,
-        is_complete: impl Into<SymbolicVar<<C as Config>::N>>,
-    ) {
-        // Verify the shard proof.
-        StarkVerifier::<C, SC>::verify_shard(builder, vk, pcs, self, challenger, proof);
-
-        // Verify that the cumulative sum of the chip is zero if the shard is complete.
-        let cumulative_sum: Ext<_, _> = builder.uninit();
-        builder
-            .range(0, proof.opened_values.chips.len())
-            .for_each(|i, builder| {
-                let values = builder.get(&proof.opened_values.chips, i);
-                builder.assign(cumulative_sum, cumulative_sum + values.cumulative_sum);
-            });
-
-        builder
-            .if_eq(is_complete.into(), C::N::one())
-            .then(|builder| {
-                builder.assert_ext_eq(cumulative_sum, C::EF::zero().cons());
-            });
-    }
-}
-
 pub type RecursiveVerifierConstraintFolder<'a, C> = GenericVerifierConstraintFolder<
     'a,
     <C as Config>::F,
@@ -161,6 +118,7 @@ where
         machine: &StarkMachine<SC, A>,
         challenger: &mut DuplexChallengerVariable<C>,
         proof: &ShardProofVariable<C>,
+        shard_idx: Var<C::N>,
     ) where
         A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
         C::F: TwoAdicField,
@@ -354,6 +312,39 @@ where
 
             if chip.name() == "CPU" {
                 builder.assert_var_ne(index, C::N::from_canonical_usize(EMPTY));
+            }
+
+            if chip.name() == "MemoryProgram" {
+                builder.if_eq(shard_idx, C::N::one()).then_or_else(
+                    |builder| {
+                        builder.assert_var_ne(index, C::N::from_canonical_usize(EMPTY));
+                    },
+                    |builder| {
+                        builder.assert_var_eq(index, C::N::from_canonical_usize(EMPTY));
+                    },
+                );
+            }
+
+            if chip.name() == "MemoryInit" {
+                builder.if_eq(shard_idx, C::N::one()).then_or_else(
+                    |builder| {
+                        builder.assert_var_ne(index, C::N::from_canonical_usize(EMPTY));
+                    },
+                    |builder| {
+                        builder.assert_var_eq(index, C::N::from_canonical_usize(EMPTY));
+                    },
+                );
+            }
+
+            if chip.name() == "MemoryFinalize" {
+                builder.if_eq(shard_idx, C::N::one()).then_or_else(
+                    |builder| {
+                        builder.assert_var_ne(index, C::N::from_canonical_usize(EMPTY));
+                    },
+                    |builder| {
+                        builder.assert_var_eq(index, C::N::from_canonical_usize(EMPTY));
+                    },
+                );
             }
 
             builder

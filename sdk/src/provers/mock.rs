@@ -9,6 +9,8 @@ use sp1_prover::{
     verify::verify_plonk_bn254_public_inputs, HashableKey, PlonkBn254Proof, SP1Prover, SP1Stdin,
 };
 
+use super::ProverType;
+
 /// An implementation of [crate::ProverClient] that can generate mock proofs.
 pub struct MockProver {
     pub(crate) prover: SP1Prover,
@@ -23,8 +25,8 @@ impl MockProver {
 }
 
 impl Prover for MockProver {
-    fn id(&self) -> String {
-        "mock".to_string()
+    fn id(&self) -> ProverType {
+        ProverType::Mock
     }
 
     fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
@@ -36,7 +38,7 @@ impl Prover for MockProver {
     }
 
     fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Proof> {
-        let public_values = SP1Prover::execute(&pk.elf, &stdin)?;
+        let (public_values, _) = SP1Prover::execute(&pk.elf, &stdin)?;
         Ok(SP1ProofWithPublicValues {
             proof: vec![],
             stdin,
@@ -52,8 +54,8 @@ impl Prover for MockProver {
         unimplemented!()
     }
 
-    fn prove_plonk_bn254(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkBn254Proof> {
-        let public_values = SP1Prover::execute(&pk.elf, &stdin)?;
+    fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkBn254Proof> {
+        let (public_values, _) = SP1Prover::execute(&pk.elf, &stdin)?;
         Ok(SP1PlonkBn254Proof {
             proof: PlonkBn254Proof {
                 public_inputs: [
@@ -84,7 +86,7 @@ impl Prover for MockProver {
         Ok(())
     }
 
-    fn verify_plonk_bn254(&self, proof: &SP1PlonkBn254Proof, vkey: &SP1VerifyingKey) -> Result<()> {
+    fn verify_plonk(&self, proof: &SP1PlonkBn254Proof, vkey: &SP1VerifyingKey) -> Result<()> {
         verify_plonk_bn254_public_inputs(vkey, &proof.public_values, &proof.proof.public_inputs)?;
         Ok(())
     }

@@ -32,7 +32,6 @@ use crate::runtime::Syscall;
 use crate::runtime::SyscallCode;
 use crate::syscall::precompiles::create_ec_decompress_event;
 use crate::syscall::precompiles::SyscallContext;
-use crate::utils::bytes_to_words_le_vec;
 use crate::utils::ec::weierstrass::bls12_381::bls12381_sqrt;
 use crate::utils::ec::weierstrass::secp256k1::secp256k1_sqrt;
 use crate::utils::ec::weierstrass::WeierstrassParameters;
@@ -40,7 +39,7 @@ use crate::utils::ec::CurveType;
 use crate::utils::ec::EllipticCurve;
 use crate::utils::limbs_from_access;
 use crate::utils::limbs_from_prev_access;
-use crate::utils::pad_rows;
+use crate::utils::{bytes_to_words_le_vec, pad_rows};
 
 pub const fn num_weierstrass_decompress_cols<P: FieldParameters + NumWords>() -> usize {
     size_of::<WeierstrassDecompressCols<u8, P>>()
@@ -138,8 +137,6 @@ impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDecompressChip<E> {
 
 impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
     for WeierstrassDecompressChip<E>
-where
-    [(); num_weierstrass_decompress_cols::<E::BaseField>()]:,
 {
     type Record = ExecutionRecord;
     type Program = Program;
@@ -169,7 +166,7 @@ where
 
         for i in 0..events.len() {
             let event = events[i].clone();
-            let mut row = [F::zero(); num_weierstrass_decompress_cols::<E::BaseField>()];
+            let mut row = vec![F::zero(); num_weierstrass_decompress_cols::<E::BaseField>()];
             let cols: &mut WeierstrassDecompressCols<F, E::BaseField> =
                 row.as_mut_slice().borrow_mut();
 
@@ -210,7 +207,7 @@ where
         output.add_byte_lookup_events(new_byte_lookup_events);
 
         pad_rows(&mut rows, || {
-            let mut row = [F::zero(); num_weierstrass_decompress_cols::<E::BaseField>()];
+            let mut row = vec![F::zero(); num_weierstrass_decompress_cols::<E::BaseField>()];
             let cols: &mut WeierstrassDecompressCols<F, E::BaseField> =
                 row.as_mut_slice().borrow_mut();
 

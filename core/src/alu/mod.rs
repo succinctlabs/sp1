@@ -46,10 +46,7 @@ pub struct AluEvent {
     // The second input operand.
     pub c: u32,
 
-    pub sub_lookup_id_1: usize,
-    pub sub_lookup_id_2: usize,
-    pub sub_lookup_id_3: usize,
-    pub sub_lookup_id_4: usize,
+    pub sub_lookups: [usize; 6],
 }
 
 impl AluEvent {
@@ -64,10 +61,7 @@ impl AluEvent {
             a,
             b,
             c,
-            sub_lookup_id_1: create_alu_lookup_id(),
-            sub_lookup_id_2: create_alu_lookup_id(),
-            sub_lookup_id_3: create_alu_lookup_id(),
-            sub_lookup_id_4: create_alu_lookup_id(),
+            sub_lookups: create_alu_lookups(),
         }
     }
 }
@@ -75,4 +69,16 @@ impl AluEvent {
 pub fn create_alu_lookup_id() -> usize {
     let mut rng = rand::thread_rng();
     rng.gen()
+}
+
+pub fn create_alu_lookups() -> [usize; 6] {
+    let mut rng = rand::thread_rng();
+    [
+        rng.gen(),
+        rng.gen(),
+        rng.gen(),
+        rng.gen(),
+        rng.gen(),
+        rng.gen(),
+    ]
 }

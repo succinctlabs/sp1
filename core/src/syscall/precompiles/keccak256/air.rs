@@ -86,6 +86,7 @@ where
         let mut transition_not_final_builder = transition_builder.when(not_final_step);
         transition_not_final_builder.assert_eq(local.shard, next.shard);
         transition_not_final_builder.assert_eq(local.clk, next.clk);
+        transition_not_final_builder.assert_eq(local.channel, next.channel);
         transition_not_final_builder.assert_eq(local.state_addr, next.state_addr);
         transition_not_final_builder.assert_eq(local.is_real, next.is_real);
 

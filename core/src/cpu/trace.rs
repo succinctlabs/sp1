@@ -13,7 +13,7 @@ use super::columns::{CPU_COL_MAP, NUM_CPU_COLS};
 use super::{CpuChip, CpuEvent};
 use crate::air::MachineAir;
 use crate::air::Word;
-use crate::alu::create_alu_lookup_id;
+use crate::alu::create_alu_lookups;
 use crate::alu::{self, AluEvent};
 use crate::bytes::event::ByteRecord;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
@@ -162,16 +162,44 @@ impl CpuChip {
         // Populate memory accesses for a, b, and c.
         if let Some(record) = event.a_record {
             cols.op_a_access
-                .populate(event.channel, record, &mut new_blu_events)
+                .populate(event.channel, record, &mut new_blu_events);
         }
         if let Some(MemoryRecordEnum::Read(record)) = event.b_record {
             cols.op_b_access
-                .populate(event.channel, record, &mut new_blu_events)
+                .populate(event.channel, record, &mut new_blu_events);
         }
         if let Some(MemoryRecordEnum::Read(record)) = event.c_record {
             cols.op_c_access
-                .populate(event.channel, record, &mut new_blu_events)
+                .populate(event.channel, record, &mut new_blu_events);
         }
+
+        // Populate range checks for a.
+        let a_bytes = cols
+            .op_a_access
+            .access
+            .value
+            .0
+            .iter()
+            .map(|x| x.as_canonical_u32())
+            .collect::<Vec<_>>();
+        new_blu_events.push(ByteLookupEvent {
+            shard: event.shard,
+            channel: event.channel,
+            opcode: ByteOpcode::U8Range,
+            a1: 0,
+            a2: 0,
+            b: a_bytes[0],
+            c: a_bytes[1],
+        });
+        new_blu_events.push(ByteLookupEvent {
+            shard: event.shard,
+            channel: event.channel,
+            opcode: ByteOpcode::U8Range,
+            a1: 0,
+            a2: 0,
+            b: a_bytes[2],
+            c: a_bytes[3],
+        });
 
         // Populate memory accesses for reading from memory.
         assert_eq!(event.memory_record.is_some(), event.memory.is_some());
@@ -280,6 +308,7 @@ impl CpuChip {
         let memory_addr = event.b.wrapping_add(event.c);
         let aligned_addr = memory_addr - memory_addr % WORD_SIZE as u32;
         memory_columns.addr_word = memory_addr.into();
+        memory_columns.addr_word_range_checker.populate(memory_addr);
         memory_columns.addr_aligned = F::from_canonical_u32(aligned_addr);
 
         // Populate the aa_least_sig_byte_decomp columns.
@@ -298,10 +327,7 @@ impl CpuChip {
             a: memory_addr,
             b: event.b,
             c: event.c,
-            sub_lookup_id_1: create_alu_lookup_id(),
-            sub_lookup_id_2: create_alu_lookup_id(),
-            sub_lookup_id_3: create_alu_lookup_id(),
-            sub_lookup_id_4: create_alu_lookup_id(),
+            sub_lookups: create_alu_lookups(),
         };
         new_alu_events
             .entry(Opcode::ADD)
@@ -374,10 +400,7 @@ impl CpuChip {
                         a: event.a,
                         b: cols.unsigned_mem_val.to_u32(),
                         c: sign_value,
-                        sub_lookup_id_1: create_alu_lookup_id(),
-                        sub_lookup_id_2: create_alu_lookup_id(),
-                        sub_lookup_id_3: create_alu_lookup_id(),
-                        sub_lookup_id_4: create_alu_lookup_id(),
+                        sub_lookups: create_alu_lookups(),
                     };
                     cols.unsigned_mem_val_nonce = F::from_canonical_u32(
                         nonce_lookup
@@ -452,10 +475,7 @@ impl CpuChip {
                 a: a_lt_b as u32,
                 b: event.a,
                 c: event.b,
-                sub_lookup_id_1: create_alu_lookup_id(),
-                sub_lookup_id_2: create_alu_lookup_id(),
-                sub_lookup_id_3: create_alu_lookup_id(),
-                sub_lookup_id_4: create_alu_lookup_id(),
+                sub_lookups: create_alu_lookups(),
             };
             branch_columns.a_lt_b_nonce = F::from_canonical_u32(
                 nonce_lookup
@@ -478,10 +498,7 @@ impl CpuChip {
                 a: a_gt_b as u32,
                 b: event.b,
                 c: event.a,
-                sub_lookup_id_1: create_alu_lookup_id(),
-                sub_lookup_id_2: create_alu_lookup_id(),
-                sub_lookup_id_3: create_alu_lookup_id(),
-                sub_lookup_id_4: create_alu_lookup_id(),
+                sub_lookups: create_alu_lookups(),
             };
             branch_columns.a_gt_b_nonce = F::from_canonical_u32(
                 nonce_lookup
@@ -525,10 +542,7 @@ impl CpuChip {
                     a: next_pc,
                     b: event.pc,
                     c: event.c,
-                    sub_lookup_id_1: create_alu_lookup_id(),
-                    sub_lookup_id_2: create_alu_lookup_id(),
-                    sub_lookup_id_3: create_alu_lookup_id(),
-                    sub_lookup_id_4: create_alu_lookup_id(),
+                    sub_lookups: create_alu_lookups(),
                 };
                 branch_columns.next_pc_nonce = F::from_canonical_u32(
                     nonce_lookup
@@ -576,10 +590,7 @@ impl CpuChip {
                         a: next_pc,
                         b: event.pc,
                         c: event.b,
-                        sub_lookup_id_1: create_alu_lookup_id(),
-                        sub_lookup_id_2: create_alu_lookup_id(),
-                        sub_lookup_id_3: create_alu_lookup_id(),
-                        sub_lookup_id_4: create_alu_lookup_id(),
+                        sub_lookups: create_alu_lookups(),
                     };
                     jump_columns.jal_nonce = F::from_canonical_u32(
                         nonce_lookup
@@ -608,10 +619,7 @@ impl CpuChip {
                         a: next_pc,
                         b: event.b,
                         c: event.c,
-                        sub_lookup_id_1: create_alu_lookup_id(),
-                        sub_lookup_id_2: create_alu_lookup_id(),
-                        sub_lookup_id_3: create_alu_lookup_id(),
-                        sub_lookup_id_4: create_alu_lookup_id(),
+                        sub_lookups: create_alu_lookups(),
                     };
                     jump_columns.jalr_nonce = F::from_canonical_u32(
                         nonce_lookup
@@ -653,10 +661,7 @@ impl CpuChip {
                 a: event.a,
                 b: event.pc,
                 c: event.b,
-                sub_lookup_id_1: create_alu_lookup_id(),
-                sub_lookup_id_2: create_alu_lookup_id(),
-                sub_lookup_id_3: create_alu_lookup_id(),
-                sub_lookup_id_4: create_alu_lookup_id(),
+                sub_lookups: create_alu_lookups(),
             };
             auipc_columns.auipc_nonce = F::from_canonical_u32(
                 nonce_lookup

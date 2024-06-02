@@ -22,6 +22,7 @@ pub use utils::*;
 
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::fs::File;
 use std::io::BufWriter;
 use std::io::Write;
@@ -30,6 +31,7 @@ use std::sync::Arc;
 use thiserror::Error;
 
 use crate::alu::create_alu_lookup_id;
+use crate::alu::create_alu_lookups;
 use crate::bytes::NUM_BYTE_LOOKUP_CHANNELS;
 use crate::memory::MemoryInitializeFinalizeEvent;
 use crate::utils::SP1CoreOpts;
@@ -82,6 +84,54 @@ pub struct Runtime {
     pub max_syscall_cycles: u32,
 
     pub emit_events: bool,
+
+    /// Report of the program execution.
+    pub report: ExecutionReport,
+
+    /// Whether we should write to the report.
+    pub should_report: bool,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
+pub struct ExecutionReport {
+    pub instruction_counts: HashMap<Opcode, u64>,
+    pub syscall_counts: HashMap<SyscallCode, u64>,
+}
+
+impl ExecutionReport {
+    pub fn total_instruction_count(&self) -> u64 {
+        self.instruction_counts.values().sum()
+    }
+
+    pub fn total_syscall_count(&self) -> u64 {
+        self.syscall_counts.values().sum()
+    }
+}
+
+impl Display for ExecutionReport {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        writeln!(f, "Instruction Counts:")?;
+        let mut sorted_instructions = self.instruction_counts.iter().collect::<Vec<_>>();
+
+        // Sort instructions by opcode name
+        sorted_instructions.sort_by_key(|&(opcode, _)| opcode.to_string());
+        for (opcode, count) in sorted_instructions {
+            writeln!(f, "  {}: {}", opcode, count)?;
+        }
+        writeln!(f, "Total Instructions: {}", self.total_instruction_count())?;
+
+        writeln!(f, "Syscall Counts:")?;
+        let mut sorted_syscalls = self.syscall_counts.iter().collect::<Vec<_>>();
+
+        // Sort syscalls by syscall name
+        sorted_syscalls.sort_by_key(|&(syscall, _)| format!("{:?}", syscall));
+        for (syscall, count) in sorted_syscalls {
+            writeln!(f, "  {}: {}", syscall, count)?;
+        }
+        writeln!(f, "Total Syscall Count: {}", self.total_syscall_count())?;
+
+        Ok(())
+    }
 }
 
 #[derive(Error, Debug)]
@@ -141,6 +191,8 @@ impl Runtime {
             syscall_map,
             emit_events: true,
             max_syscall_cycles,
+            report: Default::default(),
+            should_report: false,
         }
     }
 
@@ -440,10 +492,7 @@ impl Runtime {
             a,
             b,
             c,
-            sub_lookup_id_1: create_alu_lookup_id(),
-            sub_lookup_id_2: create_alu_lookup_id(),
-            sub_lookup_id_3: create_alu_lookup_id(),
-            sub_lookup_id_4: create_alu_lookup_id(),
+            sub_lookups: create_alu_lookups(),
         };
         match opcode {
             Opcode::ADD => {
@@ -563,6 +612,15 @@ impl Runtime {
 
         let lookup_id = create_alu_lookup_id();
         let syscall_lookup_id = create_alu_lookup_id();
+
+        if self.should_report && !self.unconstrained {
+            self.report
+                .instruction_counts
+                .entry(instruction.opcode)
+                .and_modify(|c| *c += 1)
+                .or_insert(1);
+        }
+
         match instruction.opcode {
             // Arithmetic instructions.
             Opcode::ADD => {
@@ -777,6 +835,14 @@ impl Runtime {
                 b = self.rr(Register::X10, MemoryAccessPosition::B);
                 let syscall = SyscallCode::from_u32(syscall_id);
 
+                if self.should_report && !self.unconstrained {
+                    self.report
+                        .syscall_counts
+                        .entry(syscall)
+                        .and_modify(|c| *c += 1)
+                        .or_insert(1);
+                }
+
                 let syscall_impl = self.get_syscall(syscall).cloned();
                 let mut precompile_rt = SyscallContext::new(self);
                 precompile_rt.syscall_lookup_id = syscall_lookup_id;
@@ -987,12 +1053,14 @@ impl Runtime {
 
     pub fn run_untraced(&mut self) -> Result<(), ExecutionError> {
         self.emit_events = false;
+        self.should_report = true;
         while !self.execute()? {}
         Ok(())
     }
 
     pub fn run(&mut self) -> Result<(), ExecutionError> {
         self.emit_events = true;
+        self.should_report = true;
         while !self.execute()? {}
         Ok(())
     }
@@ -1139,6 +1207,58 @@ pub mod tests {
         let mut runtime = Runtime::new(program, SP1CoreOpts::default());
         runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 42);
+    }
+
+    #[test]
+    fn test_ssz_withdrawals_program_run_report() {
+        let program = ssz_withdrawals_program();
+        let mut runtime = Runtime::new(program, SP1CoreOpts::default());
+        runtime.run().unwrap();
+        assert_eq!(runtime.report, {
+            use super::Opcode::*;
+            use super::SyscallCode::*;
+            super::ExecutionReport {
+                instruction_counts: [
+                    (LB, 10723),
+                    (DIVU, 6),
+                    (LW, 237094),
+                    (JALR, 38749),
+                    (XOR, 242242),
+                    (BEQ, 26917),
+                    (AND, 151701),
+                    (SB, 58448),
+                    (MUL, 4036),
+                    (SLTU, 16766),
+                    (ADD, 583439),
+                    (JAL, 5372),
+                    (LBU, 57950),
+                    (SRL, 293010),
+                    (SW, 312781),
+                    (ECALL, 2264),
+                    (BLTU, 43457),
+                    (BGEU, 5917),
+                    (BLT, 1141),
+                    (SUB, 12382),
+                    (BGE, 237),
+                    (MULHU, 1152),
+                    (BNE, 51442),
+                    (AUIPC, 19488),
+                    (OR, 301944),
+                    (SLL, 278698),
+                ]
+                .into(),
+                syscall_counts: [
+                    (COMMIT_DEFERRED_PROOFS, 8),
+                    (SHA_EXTEND, 1091),
+                    (COMMIT, 8),
+                    (WRITE, 65),
+                    (SHA_COMPRESS, 1091),
+                    (HALT, 1),
+                ]
+                .into(),
+            }
+        });
+        assert_eq!(runtime.report.total_instruction_count(), 2757356);
     }
 
     #[test]

@@ -64,6 +64,7 @@ mod utils;
 
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
+use std::collections::HashMap;
 
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
@@ -72,11 +73,10 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use sp1_derive::AlignedBorrow;
 
-use self::utils::eval_abs_value;
 use crate::air::MachineAir;
 use crate::air::{SP1AirBuilder, Word};
 use crate::alu::divrem::utils::{get_msb, get_quotient_and_remainder, is_signed_operation};
-use crate::alu::{create_alu_lookup_id, AluEvent};
+use crate::alu::{create_alu_lookups, AluEvent};
 use crate::bytes::event::ByteRecord;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::disassembler::WORD_SIZE;
@@ -196,6 +196,14 @@ pub struct DivRemCols<T> {
     /// The absolute nonce of the operation.
     pub abs_nonce: T,
 
+    /// Selector to determine whether an ALU Event is sent for absolute value computation of `c`.
+    pub abs_c_alu_event: T,
+    pub abs_c_alu_event_nonce: T,
+
+    /// Selector to determine whether an ALU Event is sent for absolute value computation of `rem`.
+    pub abs_rem_alu_event: T,
+    pub abs_rem_alu_event_nonce: T,
+
     /// Selector to know whether this row is enabled.
     pub is_real: T,
 
@@ -271,6 +279,24 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                     cols.max_abs_c_or_1 = Word::from(u32::max(1, event.c));
                 }
 
+                // Set the `alu_event` flags.
+                cols.abs_c_alu_event = cols.c_neg * cols.is_real;
+                cols.abs_c_alu_event_nonce = F::from_canonical_u32(
+                    input
+                        .nonce_lookup
+                        .get(&event.sub_lookups[4])
+                        .copied()
+                        .unwrap_or_default(),
+                );
+                cols.abs_rem_alu_event = cols.rem_neg * cols.is_real;
+                cols.abs_rem_alu_event_nonce = F::from_canonical_u32(
+                    input
+                        .nonce_lookup
+                        .get(&event.sub_lookups[5])
+                        .copied()
+                        .unwrap_or_default(),
+                );
+
                 // Insert the MSB lookup events.
                 {
                     let words = [event.b, event.c, remainder];
@@ -293,7 +319,7 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
 
             // Calculate the modified multiplicity
             {
-                cols.remainder_check_multiplicity = cols.is_real * cols.is_c_0.result;
+                cols.remainder_check_multiplicity = cols.is_real * (F::one() - cols.is_c_0.result);
             }
 
             // Calculate c * quotient + remainder.
@@ -333,6 +359,40 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                 // mul and LT upon which div depends. This ordering is critical as mul and LT
                 // require all the mul and LT events be added before we can call generate_trace.
                 {
+                    // Insert the absolute value computation events.
+                    {
+                        let mut add_events: Vec<AluEvent> = vec![];
+                        if cols.abs_c_alu_event == F::one() {
+                            add_events.push(AluEvent {
+                                lookup_id: event.sub_lookups[4],
+                                shard: event.shard,
+                                channel: event.channel,
+                                clk: event.clk,
+                                opcode: Opcode::ADD,
+                                a: 0,
+                                b: event.c,
+                                c: (event.c as i32).abs() as u32,
+                                sub_lookups: create_alu_lookups(),
+                            })
+                        }
+                        if cols.abs_rem_alu_event == F::one() {
+                            add_events.push(AluEvent {
+                                lookup_id: event.sub_lookups[5],
+                                shard: event.shard,
+                                channel: event.channel,
+                                clk: event.clk,
+                                opcode: Opcode::ADD,
+                                a: 0,
+                                b: remainder,
+                                c: (remainder as i32).abs() as u32,
+                                sub_lookups: create_alu_lookups(),
+                            })
+                        }
+                        let mut alu_events = HashMap::new();
+                        alu_events.insert(Opcode::ADD, add_events);
+                        output.add_alu_events(alu_events);
+                    }
+
                     let mut lower_word = 0;
                     for i in 0..WORD_SIZE {
                         lower_word += (c_times_quotient[i] as u32) << (i * BYTE_SIZE);
@@ -344,7 +404,7 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                     }
 
                     let lower_multiplication = AluEvent {
-                        lookup_id: event.sub_lookup_id_1,
+                        lookup_id: event.sub_lookups[0],
                         shard: event.shard,
                         channel: event.channel,
                         clk: event.clk,
@@ -352,22 +412,19 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                         a: lower_word,
                         c: event.c,
                         b: quotient,
-                        sub_lookup_id_1: create_alu_lookup_id(),
-                        sub_lookup_id_2: create_alu_lookup_id(),
-                        sub_lookup_id_3: create_alu_lookup_id(),
-                        sub_lookup_id_4: create_alu_lookup_id(),
+                        sub_lookups: create_alu_lookups(),
                     };
                     cols.lower_nonce = F::from_canonical_u32(
                         input
                             .nonce_lookup
-                            .get(&event.sub_lookup_id_1)
+                            .get(&event.sub_lookups[0])
                             .copied()
                             .unwrap_or_default(),
                     );
                     output.add_mul_event(lower_multiplication);
 
                     let upper_multiplication = AluEvent {
-                        lookup_id: event.sub_lookup_id_2,
+                        lookup_id: event.sub_lookups[1],
                         shard: event.shard,
                         channel: event.channel,
                         clk: event.clk,
@@ -381,52 +438,45 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                         a: upper_word,
                         c: event.c,
                         b: quotient,
-                        sub_lookup_id_1: create_alu_lookup_id(),
-                        sub_lookup_id_2: create_alu_lookup_id(),
-                        sub_lookup_id_3: create_alu_lookup_id(),
-                        sub_lookup_id_4: create_alu_lookup_id(),
+                        sub_lookups: create_alu_lookups(),
                     };
                     cols.upper_nonce = F::from_canonical_u32(
                         input
                             .nonce_lookup
-                            .get(&event.sub_lookup_id_2)
+                            .get(&event.sub_lookups[1])
                             .copied()
                             .unwrap_or_default(),
                     );
                     output.add_mul_event(upper_multiplication);
-
                     let lt_event = if is_signed_operation(event.opcode) {
                         cols.abs_nonce = F::from_canonical_u32(
                             input
                                 .nonce_lookup
-                                .get(&event.sub_lookup_id_3)
+                                .get(&event.sub_lookups[2])
                                 .copied()
                                 .unwrap_or_default(),
                         );
                         AluEvent {
-                            lookup_id: event.sub_lookup_id_3,
+                            lookup_id: event.sub_lookups[2],
                             shard: event.shard,
                             channel: event.channel,
-                            opcode: Opcode::SLT,
+                            opcode: Opcode::SLTU,
                             a: 1,
                             b: (remainder as i32).abs() as u32,
                             c: u32::max(1, (event.c as i32).abs() as u32),
                             clk: event.clk,
-                            sub_lookup_id_1: create_alu_lookup_id(),
-                            sub_lookup_id_2: create_alu_lookup_id(),
-                            sub_lookup_id_3: create_alu_lookup_id(),
-                            sub_lookup_id_4: create_alu_lookup_id(),
+                            sub_lookups: create_alu_lookups(),
                         }
                     } else {
                         cols.abs_nonce = F::from_canonical_u32(
                             input
                                 .nonce_lookup
-                                .get(&event.sub_lookup_id_4)
+                                .get(&event.sub_lookups[3])
                                 .copied()
                                 .unwrap_or_default(),
                         );
                         AluEvent {
-                            lookup_id: event.sub_lookup_id_4,
+                            lookup_id: event.sub_lookups[3],
                             shard: event.shard,
                             channel: event.channel,
                             opcode: Opcode::SLTU,
@@ -434,10 +484,7 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                             b: remainder,
                             c: u32::max(1, event.c),
                             clk: event.clk,
-                            sub_lookup_id_1: create_alu_lookup_id(),
-                            sub_lookup_id_2: create_alu_lookup_id(),
-                            sub_lookup_id_3: create_alu_lookup_id(),
-                            sub_lookup_id_4: create_alu_lookup_id(),
+                            sub_lookups: create_alu_lookups(),
                         }
                     };
 
@@ -736,18 +783,37 @@ where
 
         // Range check remainder. (i.e., |remainder| < |c| when not is_c_0)
         {
-            eval_abs_value(
-                builder,
-                local.remainder.borrow(),
-                local.abs_remainder.borrow(),
-                local.rem_neg.borrow(),
+            // For each of `c` and `rem`, assert that the absolute value is equal to the original value,
+            // if the original value is non-negative or the minimum i32.
+            for i in 0..WORD_SIZE {
+                builder
+                    .when_not(local.c_neg)
+                    .assert_eq(local.c[i], local.abs_c[i]);
+                builder
+                    .when_not(local.rem_neg)
+                    .assert_eq(local.remainder[i], local.abs_remainder[i]);
+            }
+            // In the case that `c` or `rem` is negative, instead check that their sum is zero by
+            // sending an AddEvent.
+            builder.send_alu(
+                AB::Expr::from_canonical_u32(Opcode::ADD as u32),
+                Word([zero.clone(), zero.clone(), zero.clone(), zero.clone()]),
+                local.c,
+                local.abs_c,
+                local.shard,
+                local.channel,
+                local.abs_c_alu_event_nonce,
+                local.abs_c_alu_event,
             );
-
-            eval_abs_value(
-                builder,
-                local.c.borrow(),
-                local.abs_c.borrow(),
-                local.c_neg.borrow(),
+            builder.send_alu(
+                AB::Expr::from_canonical_u32(Opcode::ADD as u32),
+                Word([zero.clone(), zero.clone(), zero.clone(), zero.clone()]),
+                local.remainder,
+                local.abs_remainder,
+                local.shard,
+                local.channel,
+                local.abs_rem_alu_event_nonce,
+                local.abs_rem_alu_event,
             );
 
             // max(abs(c), 1) = abs(c) * (1 - is_c_0) + 1 * is_c_0
@@ -768,24 +834,25 @@ where
                 builder.assert_eq(local.max_abs_c_or_1[i], max_abs_c_or_1[i].clone());
             }
 
-            let opcode = {
-                let is_signed = local.is_div + local.is_rem;
-                let is_unsigned = local.is_divu + local.is_remu;
-                let slt = AB::Expr::from_canonical_u32(Opcode::SLT as u32);
-                let sltu = AB::Expr::from_canonical_u32(Opcode::SLTU as u32);
-                is_signed * slt + is_unsigned * sltu
-            };
-
-            // Check that the event multiplicity column is computed correctly.
+            // Handle cases:
+            // - If is_real == 0 then remainder_check_multiplicity == 0 is forced.
+            // - If is_real == 1 then is_c_0_result must be the expected one, so
+            //   remainder_check_multiplicity = (1 - is_c_0_result) * is_real.
             builder.assert_eq(
+                (AB::Expr::one() - local.is_c_0.result) * local.is_real,
                 local.remainder_check_multiplicity,
-                local.is_c_0.result * local.is_real,
             );
+
+            // the cleaner idea is simply remainder_check_multiplicity == (1 - is_c_0_result) * is_real
+
+            // Check that the absolute value selector columns are computed correctly.
+            builder.assert_eq(local.abs_c_alu_event, local.c_neg * local.is_real);
+            builder.assert_eq(local.abs_rem_alu_event, local.rem_neg * local.is_real);
 
             // Dispatch abs(remainder) < max(abs(c), 1), this is equivalent to abs(remainder) <
             // abs(c) if not division by 0.
             builder.send_alu(
-                opcode,
+                AB::Expr::from_canonical_u32(Opcode::SLTU as u32),
                 Word([one.clone(), zero.clone(), zero.clone(), zero.clone()]),
                 local.abs_remainder,
                 local.max_abs_c_or_1,
@@ -861,6 +928,8 @@ where
                 local.rem_neg,
                 local.c_neg,
                 local.is_real,
+                local.abs_c_alu_event,
+                local.abs_rem_alu_event,
             ];
 
             for flag in bool_flags.iter() {

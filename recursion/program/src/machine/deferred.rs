@@ -91,6 +91,8 @@ where
 
         SP1DeferredVerifier::verify(&mut builder, &pcs, machine, input);
 
+        builder.halt();
+
         builder.compile_program()
     }
 }
@@ -114,7 +116,7 @@ where
     /// - Asserts that each of these proofs is valid as a `compress` proof.
     /// - Asserts that each of these proofs is complete by checking the `is_complete` flag in the
     ///  proof's public values.
-    /// - Aggregates the proof information into an accumulated deferred digest.
+    /// - Aggregates the proof information into the accumulated deferred digest.
     pub fn verify(
         builder: &mut Builder<C>,
         pcs: &TwoAdicFriPcsVariable<C>,
@@ -185,7 +187,9 @@ where
                 let element = builder.get(&proof.public_values, j);
                 challenger.observe(builder, element);
             }
-            // verify the proof.
+
+            // Verify the proof.
+            let shard_idx = builder.eval(C::N::one());
             StarkVerifier::<C, SC>::verify_shard(
                 builder,
                 &compress_vk,
@@ -193,6 +197,7 @@ where
                 machine,
                 &mut challenger,
                 &proof,
+                shard_idx,
             );
 
             // Load the public values from the proof.
@@ -289,7 +294,5 @@ where
         deferred_public_values.is_complete = var2felt(builder, is_complete);
 
         commit_public_values(builder, deferred_public_values);
-
-        builder.halt();
     }
 }

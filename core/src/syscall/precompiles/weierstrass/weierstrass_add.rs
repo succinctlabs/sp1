@@ -36,8 +36,7 @@ use crate::utils::ec::weierstrass::WeierstrassParameters;
 use crate::utils::ec::AffinePoint;
 use crate::utils::ec::CurveType;
 use crate::utils::ec::EllipticCurve;
-use crate::utils::limbs_from_prev_access;
-use crate::utils::pad_rows;
+use crate::utils::{limbs_from_prev_access, pad_rows};
 
 pub const fn num_weierstrass_add_cols<P: FieldParameters + NumWords>() -> usize {
     size_of::<WeierstrassAddAssignCols<u8, P>>()
@@ -203,8 +202,6 @@ impl<E: EllipticCurve> WeierstrassAddAssignChip<E> {
 
 impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
     for WeierstrassAddAssignChip<E>
-where
-    [(); num_weierstrass_add_cols::<E::BaseField>()]:,
 {
     type Record = ExecutionRecord;
     type Program = Program;
@@ -236,7 +233,7 @@ where
 
         for i in 0..events.len() {
             let event = &events[i];
-            let mut row = [F::zero(); num_weierstrass_add_cols::<E::BaseField>()];
+            let mut row = vec![F::zero(); num_weierstrass_add_cols::<E::BaseField>()];
             let cols: &mut WeierstrassAddAssignCols<F, E::BaseField> =
                 row.as_mut_slice().borrow_mut();
 
@@ -288,7 +285,7 @@ where
         output.add_byte_lookup_events(new_byte_lookup_events);
 
         pad_rows(&mut rows, || {
-            let mut row = [F::zero(); num_weierstrass_add_cols::<E::BaseField>()];
+            let mut row = vec![F::zero(); num_weierstrass_add_cols::<E::BaseField>()];
             let cols: &mut WeierstrassAddAssignCols<F, E::BaseField> =
                 row.as_mut_slice().borrow_mut();
             let zero = BigUint::zero();

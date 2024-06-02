@@ -5,6 +5,7 @@ use crate::air::{BaseAirBuilder, SP1AirBuilder, Word, WordAirBuilder};
 use crate::cpu::columns::{CpuCols, MemoryColumns, OpcodeSelectorCols};
 use crate::cpu::CpuChip;
 use crate::memory::MemoryCols;
+use crate::operations::BabyBearWordRangeChecker;
 use crate::runtime::{MemoryAccessPosition, Opcode};
 
 impl CpuChip {
@@ -67,6 +68,14 @@ impl CpuChip {
             local.shard,
             local.channel,
             memory_columns.addr_word_nonce,
+            is_memory_instruction.clone(),
+        );
+
+        // Range check the addr_word to be a valid babybear word.
+        BabyBearWordRangeChecker::<AB::F>::range_check(
+            builder,
+            memory_columns.addr_word,
+            memory_columns.addr_word_range_checker,
             is_memory_instruction.clone(),
         );
 
@@ -159,12 +168,11 @@ impl CpuChip {
 
         // Assert that if `is_lb` and `is_lh` are both true, then the most significant byte
         // matches the value of `local.mem_value_is_neg`.
-        builder
-            .when(local.selectors.is_lb + local.selectors.is_lh)
-            .assert_eq(
-                local.mem_value_is_neg,
-                memory_columns.most_sig_byte_decomp[7],
-            );
+        builder.assert_eq(
+            local.mem_value_is_neg,
+            (local.selectors.is_lb + local.selectors.is_lh)
+                * memory_columns.most_sig_byte_decomp[7],
+        );
 
         // When the memory value is negative, use the SUB opcode to compute the signed value of
         // the memory value and verify that the op_a value is correct.

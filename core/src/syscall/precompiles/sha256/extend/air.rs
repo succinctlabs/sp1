@@ -52,6 +52,10 @@ where
         builder
             .when_transition()
             .when_not(local.cycle_16_end.result * local.cycle_48[2])
+            .assert_eq(local.channel, next.channel);
+        builder
+            .when_transition()
+            .when_not(local.cycle_16_end.result * local.cycle_48[2])
             .assert_eq(local.w_ptr, next.w_ptr);
 
         // Read w[i-15].
@@ -221,6 +225,8 @@ where
             local.is_real,
         );
 
+        builder.assert_word_eq(*local.w_i.value(), local.s2.value);
+
         // Receive syscall event in first row of 48-cycle.
         builder.receive_syscall(
             local.shard,
@@ -233,11 +239,14 @@ where
             local.cycle_48_start,
         );
 
-        // If this row is real and not the last cycle, then next row should also be real.
+        // Assert that is_real is a bool.
+        builder.assert_bool(local.is_real);
+
+        // Ensure that all rows in a 48 row cycle has the same `is_real` values.
         builder
             .when_transition()
-            .when(local.is_real - local.cycle_48_end)
-            .assert_one(next.is_real);
+            .when_not(local.cycle_48_end)
+            .assert_eq(local.is_real, next.is_real);
 
         // Assert that the table ends in nonreal columns. Since each extend ecall is 48 cycles and
         // the table is padded to a power of 2, the last row of the table should always be padding.
