@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use cfg_if::cfg_if;
 use std::env;
 use std::path::PathBuf;
