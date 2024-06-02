@@ -114,6 +114,7 @@ impl SP1PublicValues {
     pub fn read<T: Serialize + DeserializeOwned>(&mut self) -> T {
         self.buffer.read()
     }
+
     /// Read a slice of bytes from the buffer.
     pub fn read_slice(&mut self, slice: &mut [u8]) {
         self.buffer.read_slice(slice);
