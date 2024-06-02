@@ -7,7 +7,7 @@ use num_bigint::BigUint;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 /// Standard input for the prover.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SP1Stdin {
     /// Input stored as a vec of vec of bytes. It's stored this way because the read syscall reads
     /// a vec of bytes at a time.
