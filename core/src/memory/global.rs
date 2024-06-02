@@ -1,5 +1,6 @@
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
+use std::array;
 
 use p3_air::BaseAir;
 use p3_air::{Air, AirBuilder};
@@ -10,8 +11,8 @@ use p3_matrix::Matrix;
 use sp1_derive::AlignedBorrow;
 
 use super::MemoryInitializeFinalizeEvent;
-use crate::air::{AirInteraction, BaseAirBuilder, SP1AirBuilder, Word};
-use crate::air::{MachineAir, WordAirBuilder};
+use crate::air::MachineAir;
+use crate::air::{AirInteraction, BaseAirBuilder, SP1AirBuilder};
 use crate::operations::BabyBearBitDecomposition;
 use crate::runtime::{ExecutionRecord, Program};
 use crate::utils::pad_to_power_of_two;
@@ -79,7 +80,7 @@ impl<F: PrimeField> MachineAir<F> for MemoryChip {
                 cols.addr_bits.populate(addr);
                 cols.shard = F::from_canonical_u32(shard);
                 cols.timestamp = F::from_canonical_u32(timestamp);
-                cols.value = value.into();
+                cols.value = array::from_fn(|i| F::from_canonical_u32((value >> i) & 1));
                 cols.is_real = F::from_canonical_u32(used);
 
                 if i != memory_events.len() - 1 {
@@ -150,7 +151,7 @@ pub struct MemoryInitCols<T> {
     pub not_match_and_not_seen_diff_bits: [T; 32],
 
     /// The value of the memory access.
-    pub value: Word<T>,
+    pub value: [T; 32],
 
     /// Whether the memory access is a real access.
     pub is_real: T,
@@ -170,6 +171,9 @@ where
         let next: &MemoryInitCols<AB::Var> = (*next).borrow();
 
         builder.assert_bool(local.is_real);
+        for i in 0..32 {
+            builder.assert_bool(local.value[i]);
+        }
 
         if self.kind == MemoryChipType::Initialize {
             let mut values = vec![AB::Expr::zero(), AB::Expr::zero(), local.addr.into()];
@@ -185,7 +189,17 @@ where
                 local.timestamp.into(),
                 local.addr.into(),
             ];
-            values.extend(local.value.map(Into::into));
+            let mut byte1 = AB::Expr::zero();
+            let mut byte2 = AB::Expr::zero();
+            let mut byte3 = AB::Expr::zero();
+            let mut byte4 = AB::Expr::zero();
+            for i in 0..8 {
+                byte1 += local.value[i].into() * AB::F::from_canonical_u8(1 << i);
+                byte2 += local.value[i + 8].into() * AB::F::from_canonical_u8(1 << i);
+                byte3 += local.value[i + 16].into() * AB::F::from_canonical_u8(1 << i);
+                byte4 += local.value[i + 24].into() * AB::F::from_canonical_u8(1 << i);
+            }
+            values.extend([byte1, byte2, byte3, byte4]);
             builder.send(AirInteraction::new(
                 values,
                 local.is_real.into(),
@@ -290,7 +304,9 @@ where
         // %x0, its value is 0.
         if self.kind == MemoryChipType::Initialize || self.kind == MemoryChipType::Finalize {
             builder.when_first_row().assert_zero(local.addr);
-            builder.when_first_row().assert_word_zero(local.value);
+            for i in 0..32 {
+                builder.when_first_row().assert_zero(local.value[i]);
+            }
         }
     }
 }
