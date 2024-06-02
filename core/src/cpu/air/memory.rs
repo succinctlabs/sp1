@@ -158,12 +158,11 @@ impl CpuChip {
 
         // Assert that if `is_lb` and `is_lh` are both true, then the most significant byte
         // matches the value of `local.mem_value_is_neg`.
-        builder
-            .when(local.selectors.is_lb + local.selectors.is_lh)
-            .assert_eq(
-                local.mem_value_is_neg,
-                memory_columns.most_sig_byte_decomp[7],
-            );
+        builder.assert_eq(
+            local.mem_value_is_neg,
+            (local.selectors.is_lb + local.selectors.is_lh)
+                * memory_columns.most_sig_byte_decomp[7],
+        );
 
         // When the memory value is negative, use the SUB opcode to compute the signed value of
         // the memory value and verify that the op_a value is correct.
