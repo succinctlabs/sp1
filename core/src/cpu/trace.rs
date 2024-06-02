@@ -152,16 +152,44 @@ impl CpuChip {
         // Populate memory accesses for a, b, and c.
         if let Some(record) = event.a_record {
             cols.op_a_access
-                .populate(event.channel, record, &mut new_blu_events)
+                .populate(event.channel, record, &mut new_blu_events);
         }
         if let Some(MemoryRecordEnum::Read(record)) = event.b_record {
             cols.op_b_access
-                .populate(event.channel, record, &mut new_blu_events)
+                .populate(event.channel, record, &mut new_blu_events);
         }
         if let Some(MemoryRecordEnum::Read(record)) = event.c_record {
             cols.op_c_access
-                .populate(event.channel, record, &mut new_blu_events)
+                .populate(event.channel, record, &mut new_blu_events);
         }
+
+        // Populate range checks for a.
+        let a_bytes = cols
+            .op_a_access
+            .access
+            .value
+            .0
+            .iter()
+            .map(|x| x.as_canonical_u32())
+            .collect::<Vec<_>>();
+        new_blu_events.push(ByteLookupEvent {
+            shard: event.shard,
+            channel: event.channel,
+            opcode: ByteOpcode::U8Range,
+            a1: 0,
+            a2: 0,
+            b: a_bytes[0],
+            c: a_bytes[1],
+        });
+        new_blu_events.push(ByteLookupEvent {
+            shard: event.shard,
+            channel: event.channel,
+            opcode: ByteOpcode::U8Range,
+            a1: 0,
+            a2: 0,
+            b: a_bytes[2],
+            c: a_bytes[3],
+        });
 
         // Populate memory accesses for reading from memory.
         assert_eq!(event.memory_record.is_some(), event.memory.is_some());

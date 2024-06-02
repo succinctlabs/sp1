@@ -175,9 +175,21 @@ where
             builder.assert_bool(local.value[i]);
         }
 
+        let mut byte1 = AB::Expr::zero();
+        let mut byte2 = AB::Expr::zero();
+        let mut byte3 = AB::Expr::zero();
+        let mut byte4 = AB::Expr::zero();
+        for i in 0..8 {
+            byte1 += local.value[i].into() * AB::F::from_canonical_u8(1 << i);
+            byte2 += local.value[i + 8].into() * AB::F::from_canonical_u8(1 << i);
+            byte3 += local.value[i + 16].into() * AB::F::from_canonical_u8(1 << i);
+            byte4 += local.value[i + 24].into() * AB::F::from_canonical_u8(1 << i);
+        }
+        let value = [byte1, byte2, byte3, byte4];
+
         if self.kind == MemoryChipType::Initialize {
             let mut values = vec![AB::Expr::zero(), AB::Expr::zero(), local.addr.into()];
-            values.extend(local.value.map(Into::into));
+            values.extend(value.map(Into::into));
             builder.receive(AirInteraction::new(
                 values,
                 local.is_real.into(),
@@ -189,17 +201,7 @@ where
                 local.timestamp.into(),
                 local.addr.into(),
             ];
-            let mut byte1 = AB::Expr::zero();
-            let mut byte2 = AB::Expr::zero();
-            let mut byte3 = AB::Expr::zero();
-            let mut byte4 = AB::Expr::zero();
-            for i in 0..8 {
-                byte1 += local.value[i].into() * AB::F::from_canonical_u8(1 << i);
-                byte2 += local.value[i + 8].into() * AB::F::from_canonical_u8(1 << i);
-                byte3 += local.value[i + 16].into() * AB::F::from_canonical_u8(1 << i);
-                byte4 += local.value[i + 24].into() * AB::F::from_canonical_u8(1 << i);
-            }
-            values.extend([byte1, byte2, byte3, byte4]);
+            values.extend(value);
             builder.send(AirInteraction::new(
                 values,
                 local.is_real.into(),
