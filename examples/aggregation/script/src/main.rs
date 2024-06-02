@@ -99,9 +99,8 @@ fn main() {
 
         // Write SP1Stdin to a file.
         let stdin_path = "stdin.bin";
-        stdin
-            .write_to_file(stdin_path)
-            .expect("failed to write stdin");
+        let file = File::create(stdin_path).expect("failed to create stdin file");
+        bincode::serialize_into(file, &stdin).expect("failed to write stdin");
 
         // // Generate the plonk bn254 proof.
         // client
