@@ -5,6 +5,7 @@ use crate::air::{BaseAirBuilder, SP1AirBuilder, Word, WordAirBuilder};
 use crate::cpu::columns::{CpuCols, MemoryColumns, OpcodeSelectorCols};
 use crate::cpu::CpuChip;
 use crate::memory::MemoryCols;
+use crate::operations::BabyBearWordRangeChecker;
 use crate::runtime::{MemoryAccessPosition, Opcode};
 
 impl CpuChip {
@@ -66,6 +67,14 @@ impl CpuChip {
             local.op_c_val(),
             local.shard,
             local.channel,
+            is_memory_instruction.clone(),
+        );
+
+        // Range check the addr_word to be a valid babybear word.
+        BabyBearWordRangeChecker::<AB::F>::range_check(
+            builder,
+            memory_columns.addr_word,
+            memory_columns.addr_word_range_checker,
             is_memory_instruction.clone(),
         );
 

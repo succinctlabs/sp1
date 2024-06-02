@@ -291,7 +291,7 @@ impl CpuChip {
         let memory_addr = event.b.wrapping_add(event.c);
         let aligned_addr = memory_addr - memory_addr % WORD_SIZE as u32;
         memory_columns.addr_word = memory_addr.into();
-        memory_columns.addr_word_range_check.populate(memory_addr);
+        memory_columns.addr_word_range_checker.populate(memory_addr);
         memory_columns.addr_aligned = F::from_canonical_u32(aligned_addr);
 
         // Populate the aa_least_sig_byte_decomp columns.
