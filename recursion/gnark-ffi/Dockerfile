@@ -41,5 +41,9 @@ RUN cargo install --path . --root /usr
 
 FROM debian:bookworm
 
+RUN apt-get update
+RUN apt-get install -y ca-certificates
+
 COPY --from=rust /usr/bin/gnark-cli /usr/bin/
+WORKDIR /root
 ENTRYPOINT ["/usr/bin/gnark-cli"]

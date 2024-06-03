@@ -1,5 +1,6 @@
 mod babybear;
 
+use std::ffi::{c_char, CString};
 use clap::{Args, Parser, Subcommand};
 
 #[allow(warnings, clippy::all)]
@@ -48,8 +49,11 @@ struct TestArgs {
 }
 
 fn run_build(args: BuildArgs) {
-    dbg!(args);
-    todo!();
+    let c_str = CString::new(args.data_dir).expect("CString::new failed");
+
+    unsafe {
+        bind::BuildPlonkBn254(c_str.as_ptr() as *mut c_char);
+    }
 }
 
 fn run_prove(args: ProveArgs) {
