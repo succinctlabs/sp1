@@ -278,7 +278,7 @@ impl<V: Copy> EdDecompressCols<V> {
             self.shard,
             self.channel,
             self.clk,
-            AB::F::zero(),
+            self.nonce,
             AB::F::from_canonical_u32(SyscallCode::ED_DECOMPRESS.syscall_id()),
             self.ptr,
             self.sign,
