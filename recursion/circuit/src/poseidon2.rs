@@ -81,7 +81,7 @@ pub mod tests {
     use p3_bn254_fr::Bn254Fr;
     use p3_field::AbstractField;
     use p3_symmetric::{CryptographicHasher, Permutation, PseudoCompressionFunction};
-    use sp1_core::utils::inner_perm;
+    use sp1_core::utils::{inner_perm, InnerHash};
     use sp1_recursion_compiler::config::OuterConfig;
     use sp1_recursion_compiler::constraints::ConstraintCompiler;
     use sp1_recursion_compiler::ir::{Builder, Felt, Var, Witness};
@@ -182,6 +182,39 @@ pub mod tests {
         let b: OuterDigestVariable<OuterConfig> = [builder.eval(b[0])];
         let result = builder.p2_compress([a, b]);
         builder.assert_var_eq(result[0], gt[0]);
+
+        let mut backend = ConstraintCompiler::<OuterConfig>::default();
+        let constraints = backend.emit(builder.operations);
+        PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
+    }
+
+    #[test]
+    fn test_p2_babybear_hash() {
+        let perm = inner_perm();
+        let hasher = InnerHash::new(perm.clone());
+
+        let input: [BabyBear; 7] = [
+            BabyBear::from_canonical_u32(0),
+            BabyBear::from_canonical_u32(1),
+            BabyBear::from_canonical_u32(2),
+            BabyBear::from_canonical_u32(2),
+            BabyBear::from_canonical_u32(2),
+            BabyBear::from_canonical_u32(2),
+            BabyBear::from_canonical_u32(2),
+        ];
+        let output = hasher.hash_iter(input);
+
+        let mut builder = Builder::<OuterConfig>::default();
+        let a: Felt<_> = builder.eval(input[0]);
+        let b: Felt<_> = builder.eval(input[1]);
+        let c: Felt<_> = builder.eval(input[2]);
+        let d: Felt<_> = builder.eval(input[3]);
+        let e: Felt<_> = builder.eval(input[4]);
+        let f: Felt<_> = builder.eval(input[5]);
+        let g: Felt<_> = builder.eval(input[6]);
+        let result = builder.p2_babybear_hash(&[a, b, c, d, e, f, g]);
+
+        builder.assert_felt_eq(result[0], output[0]);
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
