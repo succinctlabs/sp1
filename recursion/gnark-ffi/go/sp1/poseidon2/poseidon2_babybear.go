@@ -11,33 +11,14 @@ const BABYBEAR_NUM_INTERNAL_ROUNDS = 13
 const BABYBEAR_DEGREE = 7
 
 type Poseidon2BabyBearChip struct {
-	api                 frontend.API
-	fieldApi            *babybear.Chip
-	internalLinearLayer [BABYBEAR_WIDTH]babybear.Variable
+	api      frontend.API
+	fieldApi *babybear.Chip
 }
 
 func NewPoseidon2BabyBearChip(api frontend.API) *Poseidon2BabyBearChip {
 	return &Poseidon2BabyBearChip{
 		api:      api,
 		fieldApi: babybear.NewChip(api),
-		internalLinearLayer: [BABYBEAR_WIDTH]babybear.Variable{
-			babybear.NewF("2013265919"),
-			babybear.NewF("1"),
-			babybear.NewF("2"),
-			babybear.NewF("4"),
-			babybear.NewF("8"),
-			babybear.NewF("16"),
-			babybear.NewF("32"),
-			babybear.NewF("64"),
-			babybear.NewF("128"),
-			babybear.NewF("256"),
-			babybear.NewF("512"),
-			babybear.NewF("1024"),
-			babybear.NewF("2048"),
-			babybear.NewF("4096"),
-			babybear.NewF("8192"),
-			babybear.NewF("32768"),
-		},
 	}
 }
 
@@ -46,31 +27,28 @@ func (p *Poseidon2BabyBearChip) PermuteMut(state *[BABYBEAR_WIDTH]babybear.Varia
 	p.externalLinearLayer(state)
 
 	// The first half of the external rounds.
-	// rounds := BABYBEAR_NUM_EXTERNAL_ROUNDS + BABYBEAR_NUM_INTERNAL_ROUNDS
+	rounds := BABYBEAR_NUM_EXTERNAL_ROUNDS + BABYBEAR_NUM_INTERNAL_ROUNDS
 	roundsFBeggining := BABYBEAR_NUM_EXTERNAL_ROUNDS / 2
 	for r := 0; r < roundsFBeggining; r++ {
 		p.addRc(state, RC16[r])
 		p.sbox(state)
 		p.externalLinearLayer(state)
-		if r == 0 {
-			break
-		}
 	}
 
-	// // The internal rounds.
-	// p_end := roundsFBeggining + BABYBEAR_NUM_INTERNAL_ROUNDS
-	// for r := roundsFBeggining; r < p_end; r++ {
-	// 	state[0] = p.fieldApi.AddF(state[0], RC16[r][0])
-	// 	state[0] = p.sboxP(state[0])
-	// 	p.diffusionPermuteMut(state)
-	// }
+	// The internal rounds.
+	p_end := roundsFBeggining + BABYBEAR_NUM_INTERNAL_ROUNDS
+	for r := roundsFBeggining; r < p_end; r++ {
+		state[0] = p.fieldApi.AddF(state[0], RC16[r][0])
+		state[0] = p.sboxP(state[0])
+		p.diffusionPermuteMut(state)
+	}
 
-	// // The second half of the external rounds.
-	// for r := p_end; r < rounds; r++ {
-	// 	p.addRc(state, RC16[r])
-	// 	p.sbox(state)
-	// 	p.matrixPermuteMut(state)
-	// }
+	// The second half of the external rounds.
+	for r := p_end; r < rounds; r++ {
+		p.addRc(state, RC16[r])
+		p.sbox(state)
+		p.externalLinearLayer(state)
+	}
 }
 
 func (p *Poseidon2BabyBearChip) addRc(state *[BABYBEAR_WIDTH]babybear.Variable, rc [BABYBEAR_WIDTH]babybear.Variable) {
@@ -80,14 +58,19 @@ func (p *Poseidon2BabyBearChip) addRc(state *[BABYBEAR_WIDTH]babybear.Variable, 
 }
 
 func (p *Poseidon2BabyBearChip) sboxP(input babybear.Variable) babybear.Variable {
-	if BABYBEAR_DEGREE != 7 {
-		panic("DEGREE is assumed to be 7")
-	}
-
-	squared := p.fieldApi.MulF(input, input)
-	input4 := p.fieldApi.MulF(squared, squared)
-	input6 := p.fieldApi.MulF(squared, input4)
-	return p.fieldApi.MulF(input6, input)
+	zero := babybear.NewF("0")
+	inputCpy := p.fieldApi.AddF(input, zero)
+	inputCpy = p.fieldApi.ReduceSlow(inputCpy)
+	inputValue := inputCpy.Value
+	i2 := p.api.Mul(inputValue, inputValue)
+	i4 := p.api.Mul(i2, i2)
+	i6 := p.api.Mul(i4, i2)
+	i7 := p.api.Mul(i6, inputValue)
+	i7bb := p.fieldApi.ReduceSlow(babybear.Variable{
+		Value:  i7,
+		NbBits: 31 * 7,
+	})
+	return i7bb
 }
 
 func (p *Poseidon2BabyBearChip) sbox(state *[BABYBEAR_WIDTH]babybear.Variable) {
@@ -132,13 +115,43 @@ func (p *Poseidon2BabyBearChip) externalLinearLayer(state *[BABYBEAR_WIDTH]babyb
 }
 
 func (p *Poseidon2BabyBearChip) diffusionPermuteMut(state *[BABYBEAR_WIDTH]babybear.Variable) {
+	matInternalDiagM1 := [BABYBEAR_WIDTH]babybear.Variable{
+		babybear.NewF("2013265919"),
+		babybear.NewF("1"),
+		babybear.NewF("2"),
+		babybear.NewF("4"),
+		babybear.NewF("8"),
+		babybear.NewF("16"),
+		babybear.NewF("32"),
+		babybear.NewF("64"),
+		babybear.NewF("128"),
+		babybear.NewF("256"),
+		babybear.NewF("512"),
+		babybear.NewF("1024"),
+		babybear.NewF("2048"),
+		babybear.NewF("4096"),
+		babybear.NewF("8192"),
+		babybear.NewF("32768"),
+	}
+	montyInverse := babybear.NewF("943718400")
+	p.matmulInternal(state, &matInternalDiagM1)
+	for i := 0; i < BABYBEAR_WIDTH; i++ {
+		state[i] = p.fieldApi.MulF(state[i], montyInverse)
+	}
+
+}
+
+func (p *Poseidon2BabyBearChip) matmulInternal(
+	state *[BABYBEAR_WIDTH]babybear.Variable,
+	matInternalDiagM1 *[BABYBEAR_WIDTH]babybear.Variable,
+) {
 	sum := babybear.NewF("0")
 	for i := 0; i < BABYBEAR_WIDTH; i++ {
 		sum = p.fieldApi.AddF(sum, state[i])
 	}
 
 	for i := 0; i < BABYBEAR_WIDTH; i++ {
-		state[i] = p.fieldApi.MulF(state[i], p.internalLinearLayer[i])
+		state[i] = p.fieldApi.MulF(state[i], matInternalDiagM1[i])
 		state[i] = p.fieldApi.AddF(state[i], sum)
 	}
 }

@@ -168,22 +168,22 @@ func TestPoseidonBabyBear2() *C.char {
 	}
 
 	expectedOutput := [poseidon2.BABYBEAR_WIDTH]babybear.Variable{
-		babybear.NewF("1170476166"),
-		babybear.NewF("74941348"),
-		babybear.NewF("915274506"),
-		babybear.NewF("666211844"),
-		babybear.NewF("826407734"),
-		babybear.NewF("1137896222"),
-		babybear.NewF("1714044489"),
-		babybear.NewF("163469768"),
-		babybear.NewF("112105412"),
-		babybear.NewF("306380490"),
-		babybear.NewF("1843385155"),
-		babybear.NewF("364391011"),
-		babybear.NewF("1730704381"),
-		babybear.NewF("1821778723"),
-		babybear.NewF("1877910637"),
-		babybear.NewF("110155944"),
+		babybear.NewF("348670919"),
+		babybear.NewF("1568590631"),
+		babybear.NewF("1535107508"),
+		babybear.NewF("186917780"),
+		babybear.NewF("587749971"),
+		babybear.NewF("1827585060"),
+		babybear.NewF("1218809104"),
+		babybear.NewF("691692291"),
+		babybear.NewF("1480664293"),
+		babybear.NewF("1491566329"),
+		babybear.NewF("366224457"),
+		babybear.NewF("490018300"),
+		babybear.NewF("732772134"),
+		babybear.NewF("560796067"),
+		babybear.NewF("484676252"),
+		babybear.NewF("405025962"),
 	}
 
 	circuit := sp1.TestPoseidon2BabyBearCircuit{Input: input, ExpectedOutput: expectedOutput}
