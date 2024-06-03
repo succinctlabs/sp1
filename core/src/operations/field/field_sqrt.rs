@@ -83,20 +83,6 @@ impl<F: PrimeField32, P: FieldParameters> FieldSqrtCols<F, P> {
         };
         record.add_byte_lookup_event(and_event);
 
-        // Add the byte range check for `sqrt`.
-        record.add_u8_range_checks(
-            shard,
-            channel,
-            self.multiplication
-                .result
-                .0
-                .as_slice()
-                .iter()
-                .map(|x| x.as_canonical_u32() as u8)
-                .collect::<Vec<_>>()
-                .as_slice(),
-        );
-
         sqrt
     }
 }
@@ -138,14 +124,6 @@ where
         self.range.eval(
             builder,
             &sqrt,
-            shard.clone(),
-            channel.clone(),
-            is_real.clone(),
-        );
-
-        // Range check that `sqrt` limbs are bytes.
-        builder.slice_range_check_u8(
-            sqrt.0.as_slice(),
             shard.clone(),
             channel.clone(),
             is_real.clone(),

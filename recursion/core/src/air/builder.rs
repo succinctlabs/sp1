@@ -30,8 +30,6 @@ pub trait RecursionMemoryAirBuilder: RecursionInteractionAirBuilder {
         is_real: impl Into<Self::Expr>,
     ) {
         let is_real: Self::Expr = is_real.into();
-        self.assert_bool(is_real.clone());
-
         let timestamp: Self::Expr = timestamp.into();
         let mem_access = memory_access.access();
 
@@ -68,8 +66,6 @@ pub trait RecursionMemoryAirBuilder: RecursionInteractionAirBuilder {
         is_real: impl Into<Self::Expr>,
     ) {
         let is_real: Self::Expr = is_real.into();
-        self.assert_bool(is_real.clone());
-
         let timestamp: Self::Expr = timestamp.into();
         let mem_access = memory_access.access();
 

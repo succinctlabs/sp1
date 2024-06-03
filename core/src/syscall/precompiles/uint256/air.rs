@@ -17,7 +17,6 @@ use crate::utils::{
 use generic_array::GenericArray;
 use num::Zero;
 use num::{BigUint, One};
-use p3_air::AirBuilder;
 use p3_air::{Air, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField32;
@@ -34,7 +33,6 @@ const NUM_COLS: usize = size_of::<Uint256MulCols<u8>>();
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Uint256MulEvent {
-    pub lookup_id: usize,
     pub shard: u32,
     pub channel: u32,
     pub clk: u32,
@@ -72,9 +70,6 @@ pub struct Uint256MulCols<T> {
 
     /// The clock cycle of the syscall.
     pub clk: T,
-
-    /// The none of the operation.
-    pub nonce: T,
 
     /// The pointer to the first input.
     pub x_ptr: T,
@@ -206,17 +201,7 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
         });
 
         // Convert the trace to a row major matrix.
-        let mut trace =
-            RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_COLS);
-
-        // Write the nonces to the trace.
-        for i in 0..trace.height() {
-            let cols: &mut Uint256MulCols<F> =
-                trace.values[i * NUM_COLS..(i + 1) * NUM_COLS].borrow_mut();
-            cols.nonce = F::from_canonical_usize(i);
-        }
-
-        trace
+        RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_COLS)
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -272,12 +257,10 @@ impl Syscall for Uint256MulChip {
         // Write the result to x and keep track of the memory records.
         let x_memory_records = rt.mw_slice(x_ptr, &result);
 
-        let lookup_id = rt.syscall_lookup_id;
         let shard = rt.current_shard();
         let channel = rt.current_channel();
         let clk = rt.clk;
         rt.record_mut().uint256_mul_events.push(Uint256MulEvent {
-            lookup_id,
             shard,
             channel,
             clk,
@@ -310,14 +293,6 @@ where
         let main = builder.main();
         let local = main.row_slice(0);
         let local: &Uint256MulCols<AB::Var> = (*local).borrow();
-        let next = main.row_slice(1);
-        let next: &Uint256MulCols<AB::Var> = (*next).borrow();
-
-        // Constrain the incrementing nonce.
-        builder.when_first_row().assert_zero(local.nonce);
-        builder
-            .when_transition()
-            .assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         // We are computing (x * y) % modulus. The value of x is stored in the "prev_value" of
         // the x_memory, since we write to it later.
@@ -393,7 +368,6 @@ where
             local.shard,
             local.channel,
             local.clk,
-            local.nonce,
             AB::F::from_canonical_u32(SyscallCode::UINT256_MUL.syscall_id()),
             local.x_ptr,
             local.y_ptr,

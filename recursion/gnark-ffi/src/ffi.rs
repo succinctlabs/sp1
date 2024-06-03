@@ -110,23 +110,6 @@ pub fn test_plonk_bn254(witness_json: &str, constraints_json: &str) {
     }
 }
 
-pub fn test_babybear_poseidon2() {
-    cfg_if! {
-        if #[cfg(feature = "plonk")] {
-            unsafe {
-                let err_ptr = bind::TestPoseidonBabyBear2();
-                if !err_ptr.is_null() {
-                    // Safety: The error message is returned from the go code and is guaranteed to be valid.
-                    let err = CString::from_raw(err_ptr);
-                    panic!("TestPlonkBn254 failed: {}", err.into_string().unwrap());
-                }
-            }
-        } else {
-            panic!("plonk feature not enabled");
-        }
-    }
-}
-
 /// Converts a C string into a Rust String.
 ///
 /// # Safety
@@ -155,22 +138,5 @@ impl C_PlonkBn254Proof {
                 raw_proof: c_char_ptr_to_string(self.RawProof),
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use p3_baby_bear::BabyBear;
-    use p3_field::AbstractField;
-    use p3_symmetric::Permutation;
-
-    #[cfg(feature = "plonk")]
-    #[test]
-    pub fn test_babybear_poseidon2() {
-        let perm = sp1_core::utils::inner_perm();
-        let zeros = [BabyBear::zero(); 16];
-        let result = perm.permute(zeros);
-        println!("{:?}", result);
-        super::test_babybear_poseidon2();
     }
 }
