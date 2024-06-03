@@ -13,15 +13,16 @@ type TestPoseidon2BabyBearCircuit struct {
 
 func (circuit *TestPoseidon2BabyBearCircuit) Define(api frontend.API) error {
 	poseidon2BabyBearChip := poseidon2.NewPoseidon2BabyBearChip(api)
+	fieldApi := babybear.NewChip(api)
 
+	zero := babybear.NewF("0")
 	input := [poseidon2.BABYBEAR_WIDTH]babybear.Variable{}
 	for i := 0; i < poseidon2.BABYBEAR_WIDTH; i++ {
-		input[i] = circuit.Input[i]
+		input[i] = fieldApi.AddF(circuit.Input[i], zero)
 	}
 
 	poseidon2BabyBearChip.PermuteMut(&input)
 
-	fieldApi := babybear.NewChip(api)
 	for i := 0; i < poseidon2.BABYBEAR_WIDTH; i++ {
 		fieldApi.AssertIsEqualF(circuit.ExpectedOutput[i], input[i])
 	}

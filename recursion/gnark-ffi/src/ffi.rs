@@ -164,7 +164,7 @@ mod tests {
     use p3_field::AbstractField;
     use p3_symmetric::Permutation;
 
-    // #[cfg(feature = "plonk")]
+    #[cfg(feature = "plonk")]
     #[test]
     pub fn test_babybear_poseidon2() {
         let perm = sp1_core::utils::inner_perm();
