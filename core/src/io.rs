@@ -7,7 +7,7 @@ use num_bigint::BigUint;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 /// Standard input for the prover.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SP1Stdin {
     /// Input stored as a vec of vec of bytes. It's stored this way because the read syscall reads
     /// a vec of bytes at a time.
@@ -20,7 +20,7 @@ pub struct SP1Stdin {
 }
 
 /// Public values for the prover.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SP1PublicValues {
     buffer: Buffer,
 }
@@ -45,7 +45,7 @@ impl SP1Stdin {
     }
 
     /// Read a value from the buffer.
-    pub fn read<T: Serialize + DeserializeOwned>(&mut self) -> T {
+    pub fn read<T: DeserializeOwned>(&mut self) -> T {
         let result: T =
             bincode::deserialize(&self.buffer[self.ptr]).expect("failed to deserialize");
         self.ptr += 1;
@@ -121,7 +121,7 @@ impl SP1PublicValues {
     }
 
     /// Write a value to the buffer.
-    pub fn write<T: Serialize + DeserializeOwned>(&mut self, data: &T) {
+    pub fn write<T: Serialize>(&mut self, data: &T) {
         self.buffer.write(data);
     }
 
