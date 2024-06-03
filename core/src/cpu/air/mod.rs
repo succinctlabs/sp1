@@ -26,10 +26,12 @@ use crate::operations::BabyBearWordRangeChecker;
 use crate::runtime::Opcode;
 
 use super::columns::eval_channel_selectors;
+use super::columns::OPCODE_SELECTORS_COL_MAP;
 
 impl<AB> Air<AB> for CpuChip
 where
     AB: SP1AirBuilder + AirBuilderWithPublicValues,
+    AB::Var: Sized,
 {
     #[inline(never)]
     fn eval(&self, builder: &mut AB) {
@@ -123,6 +125,27 @@ where
 
         // Check that the is_real flag is correct.
         self.eval_is_real(builder, local, next);
+
+        // Check that when `is_real=0` that all flags that send interactions are zero.
+        local
+            .selectors
+            .into_iter()
+            .enumerate()
+            .for_each(|(i, selector)| {
+                if i == OPCODE_SELECTORS_COL_MAP.imm_b {
+                    builder
+                        .when(AB::Expr::one() - local.is_real)
+                        .assert_one(local.selectors.imm_b);
+                } else if i == OPCODE_SELECTORS_COL_MAP.imm_c {
+                    builder
+                        .when(AB::Expr::one() - local.is_real)
+                        .assert_one(local.selectors.imm_c);
+                } else {
+                    builder
+                        .when(AB::Expr::one() - local.is_real)
+                        .assert_zero(selector);
+                }
+            });
     }
 }
 
