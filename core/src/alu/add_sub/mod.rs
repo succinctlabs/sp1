@@ -1,7 +1,8 @@
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 
-use p3_air::{Air, BaseAir};
+use p3_air::{Air, AirBuilder, BaseAir};
+use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
@@ -37,6 +38,9 @@ pub struct AddSubCols<T> {
 
     /// The channel number, used for byte lookup table.
     pub channel: T,
+
+    /// The nonce of the operation.
+    pub nonce: T,
 
     /// Instance of `AddOperation` to handle addition logic in `AddSubChip`'s ALU operations.
     /// It's result will be `a` for the add operation and `b` for the sub operation.
@@ -129,6 +133,13 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
         // Pad the trace to a power of two.
         pad_to_power_of_two::<NUM_ADD_SUB_COLS, F>(&mut trace.values);
 
+        // Write the nonces to the trace.
+        for i in 0..trace.height() {
+            let cols: &mut AddSubCols<F> =
+                trace.values[i * NUM_ADD_SUB_COLS..(i + 1) * NUM_ADD_SUB_COLS].borrow_mut();
+            cols.nonce = F::from_canonical_usize(i);
+        }
+
         trace
     }
 
@@ -151,6 +162,14 @@ where
         let main = builder.main();
         let local = main.row_slice(0);
         let local: &AddSubCols<AB::Var> = (*local).borrow();
+        let next = main.row_slice(1);
+        let next: &AddSubCols<AB::Var> = (*next).borrow();
+
+        // Constrain the incrementing nonce.
+        builder.when_first_row().assert_zero(local.nonce);
+        builder
+            .when_transition()
+            .assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         // Evaluate the addition operation.
         AddOperation::<AB::F>::eval(
@@ -172,6 +191,7 @@ where
             local.operand_2,
             local.shard,
             local.channel,
+            local.nonce,
             local.is_add,
         );
 
@@ -183,6 +203,7 @@ where
             local.operand_2,
             local.shard,
             local.channel,
+            local.nonce,
             local.is_sub,
         );
 

@@ -10,8 +10,6 @@ use crate::disassembler::WORD_SIZE;
 use crate::runtime::ExecutionRecord;
 
 /// A set of columns needed to compute the or of two words.
-///
-/// TODO: This is currently not in use, and thus not tested thoroughly yet.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct OrOperation<T> {

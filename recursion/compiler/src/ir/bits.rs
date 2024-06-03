@@ -26,6 +26,15 @@ impl<C: Config> Builder<C> {
         output
     }
 
+    /// Range checks a variable to a certain number of bits.
+    pub fn range_check_v(&mut self, num: Var<C::N>, num_bits: usize) {
+        let bits = self.num2bits_v(num);
+        self.range(num_bits, bits.len()).for_each(|i, builder| {
+            let bit = builder.get(&bits, i);
+            builder.assert_var_eq(bit, C::N::zero());
+        });
+    }
+
     /// Converts a variable to bits inside a circuit.
     pub fn num2bits_v_circuit(&mut self, num: Var<C::N>, bits: usize) -> Vec<Var<C::N>> {
         let mut output = Vec::new();

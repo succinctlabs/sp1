@@ -35,14 +35,19 @@ impl CpuChip {
         let syscall_id = syscall_code[0];
         let send_to_table = syscall_code[1];
 
-        // When is_ecall_instruction == true AND sent_to_table == true, ecall_mul_send_to_table should be true.
-        builder
-            .when(is_ecall_instruction.clone())
-            .assert_eq(send_to_table, local.ecall_mul_send_to_table);
+        // Handle cases:
+        // - is_ecall_instruction = 1 => ecall_mul_send_to_table == send_to_table
+        // - is_ecall_instruction = 0 => ecall_mul_send_to_table == 0
+        builder.assert_eq(
+            local.ecall_mul_send_to_table,
+            send_to_table * is_ecall_instruction.clone(),
+        );
+
         builder.send_syscall(
             local.shard,
             local.channel,
             local.clk,
+            ecall_cols.syscall_nonce,
             syscall_id,
             local.op_b_val().reduce::<AB>(),
             local.op_c_val().reduce::<AB>(),
