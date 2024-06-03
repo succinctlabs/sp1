@@ -8,63 +8,28 @@ use std::process::Command;
 #[allow(deprecated)]
 use bindgen::CargoCallbacks;
 
-/// Build the go library, generate Rust bindings for the exposed functions, and link the library.
+/// Build the Docker image containing the GNARK bindings CLI application.
 fn main() {
     cfg_if! {
         if #[cfg(feature = "plonk")] {
             println!("cargo:rerun-if-changed=go");
-            // Define the output directory
-            let out_dir = env::var("OUT_DIR").unwrap();
-            let dest_path = PathBuf::from(&out_dir);
-            let lib_name = "sp1gnark";
-            let dest = dest_path.join(format!("lib{}.a", lib_name));
+            println!("cargo:rerun-if-changed=gnark-cli");
 
-            println!("Building Go library at {}", dest.display());
+            println!("Building Docker image");
 
             // Run the go build command
-            let status = Command::new("go")
-                .current_dir("go")
-                .env("CGO_ENABLED", "1")
+            let status = Command::new("docker")
                 .args([
                     "build",
-                    "-o",
-                    dest.to_str().unwrap(),
-                    "-buildmode=c-archive",
+                    "-t",
+                    "gnark-cli",
                     ".",
                 ])
                 .status()
-                .expect("Failed to build Go library");
+                .expect("Failed to build Docker image");
+
             if !status.success() {
-                panic!("Go build failed");
-            }
-
-            // Copy go/babybear.h to OUT_DIR/babybear.h
-            let header_src = PathBuf::from("go/babybear.h");
-            let header_dest = dest_path.join("babybear.h");
-            std::fs::copy(header_src, header_dest).unwrap();
-
-            // Generate bindings using bindgen
-            let header_path = dest_path.join(format!("lib{}.h", lib_name));
-            let bindings = bindgen::Builder::default()
-                .header(header_path.to_str().unwrap())
-                .parse_callbacks(Box::new(CargoCallbacks::new()))
-                .generate()
-                .expect("Unable to generate bindings");
-
-            bindings
-                .write_to_file(dest_path.join("bindings.rs"))
-                .expect("Couldn't write bindings!");
-
-            println!("Go library built");
-
-            // Link the Go library
-            println!("cargo:rustc-link-search=native={}", dest_path.display());
-            println!("cargo:rustc-link-lib=static={}", lib_name);
-
-            // Static linking doesn't really work on macos, so we need to link some system libs
-            if cfg!(target_os = "macos") {
-                println!("cargo:rustc-link-lib=framework=CoreFoundation");
-                println!("cargo:rustc-link-lib=framework=Security");
+                panic!("Docker image build failed");
             }
         }
     }
