@@ -37,9 +37,6 @@ pub fn try_install_plonk_bn254_artifacts() -> PathBuf {
 }
 
 /// Tries to build the PLONK artifacts inside the development directory.
-///
-/// TODO: Maybe add some additional logic here to handle rebuilding the artifacts if they are
-/// already built.
 pub fn try_build_plonk_bn254_artifacts_dev(
     template_vk: &StarkVerifyingKey<OuterSC>,
     template_proof: &ShardProof<OuterSC>,

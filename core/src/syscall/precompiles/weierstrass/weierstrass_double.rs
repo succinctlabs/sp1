@@ -373,8 +373,7 @@ where
         let p_x = limbs_from_prev_access(&local.p_access[0..num_words_field_element]);
         let p_y = limbs_from_prev_access(&local.p_access[num_words_field_element..]);
 
-        // a in the Weierstrass form: y^2 = x^3 + a * x + b.
-        // TODO: U32 can't be hardcoded here?
+        // `a` in the Weierstrass form: y^2 = x^3 + a * x + b.
         let a = E::BaseField::to_limbs_field::<AB::Expr, _>(&E::a_int());
 
         // slope = slope_numerator / slope_denominator.

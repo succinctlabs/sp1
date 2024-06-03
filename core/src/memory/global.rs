@@ -64,7 +64,7 @@ impl<F: PrimeField> MachineAir<F> for MemoryChip {
             MemoryChipType::Finalize => input.memory_finalize_events.clone(),
         };
         memory_events.sort_by_key(|event| event.addr);
-        let rows: Vec<[F; NUM_MEMORY_INIT_COLS]> = (0..memory_events.len()) // TODO: change this back to par_iter
+        let rows: Vec<[F; NUM_MEMORY_INIT_COLS]> = (0..memory_events.len()) // OPT: change this to par_iter
             .map(|i| {
                 let MemoryInitializeFinalizeEvent {
                     addr,

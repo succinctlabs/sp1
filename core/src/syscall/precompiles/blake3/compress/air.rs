@@ -41,8 +41,6 @@ where
 
         self.constrain_g_operation(builder, local);
 
-        // TODO: constraint ecall_receive column.
-        // TODO: constraint clk column to increment by 1 within same invocation of syscall.
         builder.receive_syscall(
             local.shard,
             local.channel,
