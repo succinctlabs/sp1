@@ -22,6 +22,8 @@ import (
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/test/unsafekzg"
 	"github.com/succinctlabs/sp1-recursion-gnark/sp1"
+	"github.com/succinctlabs/sp1-recursion-gnark/sp1/babybear"
+	"github.com/succinctlabs/sp1-recursion-gnark/sp1/poseidon2"
 )
 
 func main() {}
@@ -137,6 +139,81 @@ func TestMain() error {
 	_, err = plonk.Prove(scs, pk, witness)
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+//export TestPoseidonBabyBear2
+func TestPoseidonBabyBear2() *C.char {
+	input := [poseidon2.BABYBEAR_WIDTH]babybear.Variable{
+		babybear.NewF("894848333"),
+		babybear.NewF("1437655012"),
+		babybear.NewF("1200606629"),
+		babybear.NewF("1690012884"),
+		babybear.NewF("71131202"),
+		babybear.NewF("1749206695"),
+		babybear.NewF("1717947831"),
+		babybear.NewF("120589055"),
+		babybear.NewF("19776022"),
+		babybear.NewF("42382981"),
+		babybear.NewF("1831865506"),
+		babybear.NewF("724844064"),
+		babybear.NewF("171220207"),
+		babybear.NewF("1299207443"),
+		babybear.NewF("227047920"),
+		babybear.NewF("1783754913"),
+	}
+
+	expected_output := [poseidon2.BABYBEAR_WIDTH]babybear.Variable{
+		babybear.NewF("512585766"),
+		babybear.NewF("975869435"),
+		babybear.NewF("1921378527"),
+		babybear.NewF("1238606951"),
+		babybear.NewF("899635794"),
+		babybear.NewF("132650430"),
+		babybear.NewF("1426417547"),
+		babybear.NewF("1734425242"),
+		babybear.NewF("57415409"),
+		babybear.NewF("67173027"),
+		babybear.NewF("1535042492"),
+		babybear.NewF("1318033394"),
+		babybear.NewF("1070659233"),
+		babybear.NewF("17258943"),
+		babybear.NewF("856719028"),
+		babybear.NewF("1500534995"),
+	}
+
+	circuit := sp1.TestPoseidon2BabyBearCircuit{Input: input, ExpectedOutput: expected_output}
+	assignment := sp1.TestPoseidon2BabyBearCircuit{Input: input, ExpectedOutput: expected_output}
+
+	builder := scs.NewBuilder
+	scs, err := frontend.Compile(ecc.BN254.ScalarField(), builder, &circuit)
+	if err != nil {
+		return C.CString(err.Error())
+	}
+
+	// Run the dummy setup.
+	srs, srsLagrange, err := unsafekzg.NewSRS(scs)
+	if err != nil {
+		return C.CString(err.Error())
+	}
+	var pk plonk.ProvingKey
+	pk, _, err = plonk.Setup(scs, srs, srsLagrange)
+	if err != nil {
+		return C.CString(err.Error())
+	}
+
+	// Generate witness.
+	witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
+	if err != nil {
+		return C.CString(err.Error())
+	}
+
+	// Generate the proof.
+	_, err = plonk.Prove(scs, pk, witness)
+	if err != nil {
+		return C.CString(err.Error())
 	}
 
 	return nil

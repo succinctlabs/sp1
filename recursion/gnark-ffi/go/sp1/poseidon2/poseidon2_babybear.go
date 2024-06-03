@@ -11,15 +11,15 @@ const BABYBEAR_NUM_INTERNAL_ROUNDS = 13
 const BABYBEAR_DEGREE = 7
 
 type Poseidon2BabyBearChip struct {
-	fieldApi              *babybear.Chip
-	internal_linear_layer [BABYBEAR_WIDTH]babybear.Variable
-	zero, one             babybear.Variable
+	fieldApi            *babybear.Chip
+	internalLinearLayer [BABYBEAR_WIDTH]babybear.Variable
+	zero, one           babybear.Variable
 }
 
 func NewPoseidon2BabyBearChip(api frontend.API) *Poseidon2BabyBearChip {
 	return &Poseidon2BabyBearChip{
 		fieldApi: babybear.NewChip(api),
-		internal_linear_layer: [BABYBEAR_WIDTH]babybear.Variable{
+		internalLinearLayer: [BABYBEAR_WIDTH]babybear.Variable{
 			babybear.NewF("2013265919"),
 			babybear.NewF("1"),
 			babybear.NewF("2"),
@@ -44,61 +44,61 @@ func NewPoseidon2BabyBearChip(api frontend.API) *Poseidon2BabyBearChip {
 
 func (p *Poseidon2BabyBearChip) PermuteMut(state *[BABYBEAR_WIDTH]babybear.Variable) {
 	// The initial linear layer.
-	p.matrix_permute_mut(state)
+	p.matrixPermuteMut(state)
 
 	// The first half of the external rounds.
 	rounds := BABYBEAR_NUM_EXTERNAL_ROUNDS + BABYBEAR_NUM_INTERNAL_ROUNDS
-	rounds_f_beginning := BABYBEAR_NUM_EXTERNAL_ROUNDS / 2
-	for r := 0; r < rounds_f_beginning; r++ {
-		p.add_rc(state, RC16[r])
+	roundsFBeggining := BABYBEAR_NUM_EXTERNAL_ROUNDS / 2
+	for r := 0; r < roundsFBeggining; r++ {
+		p.addRc(state, RC16[r])
 		p.sbox(state)
-		p.matrix_permute_mut(state)
+		p.matrixPermuteMut(state)
 	}
 
 	// The internal rounds.
-	p_end := rounds_f_beginning + BABYBEAR_NUM_INTERNAL_ROUNDS
-	for r := rounds_f_beginning; r < p_end; r++ {
+	p_end := roundsFBeggining + BABYBEAR_NUM_INTERNAL_ROUNDS
+	for r := roundsFBeggining; r < p_end; r++ {
 		state[0] = p.fieldApi.AddF(state[0], RC16[r][0])
-		state[0] = p.sbox_p(state[0])
-		p.diffusion_permute_mut(state)
+		state[0] = p.sboxP(state[0])
+		p.diffusionPermuteMut(state)
 	}
 
 	// The second half of the external rounds.
 	for r := p_end; r < rounds; r++ {
-		p.add_rc(state, RC16[r])
+		p.addRc(state, RC16[r])
 		p.sbox(state)
-		p.matrix_permute_mut(state)
+		p.matrixPermuteMut(state)
 	}
 }
 
-func (p *Poseidon2BabyBearChip) add_rc(state *[BABYBEAR_WIDTH]babybear.Variable, rc [BABYBEAR_WIDTH]babybear.Variable) {
+func (p *Poseidon2BabyBearChip) addRc(state *[BABYBEAR_WIDTH]babybear.Variable, rc [BABYBEAR_WIDTH]babybear.Variable) {
 	for i := 0; i < BABYBEAR_WIDTH; i++ {
 		state[i] = p.fieldApi.AddF(state[i], rc[i])
 	}
 }
 
-func (p *Poseidon2BabyBearChip) sbox_p(input babybear.Variable) babybear.Variable {
+func (p *Poseidon2BabyBearChip) sboxP(input babybear.Variable) babybear.Variable {
 	if BABYBEAR_DEGREE != 7 {
 		panic("DEGREE is assumed to be 7")
 	}
 
 	squared := p.fieldApi.MulF(input, input)
-	input_4 := p.fieldApi.MulF(squared, squared)
-	input_6 := p.fieldApi.MulF(squared, input_4)
-	return p.fieldApi.MulF(input_6, input)
+	input4 := p.fieldApi.MulF(squared, squared)
+	input6 := p.fieldApi.MulF(squared, input4)
+	return p.fieldApi.MulF(input6, input)
 }
 
 func (p *Poseidon2BabyBearChip) sbox(state *[BABYBEAR_WIDTH]babybear.Variable) {
 	for i := 0; i < BABYBEAR_WIDTH; i++ {
-		state[i] = p.sbox_p(state[i])
+		state[i] = p.sboxP(state[i])
 	}
 }
 
-func (p *Poseidon2BabyBearChip) matrix_permute_mut(state *[BABYBEAR_WIDTH]babybear.Variable) {
+func (p *Poseidon2BabyBearChip) matrixPermuteMut(state *[BABYBEAR_WIDTH]babybear.Variable) {
 	// First, we apply M_4 to each consecutive four elements of the state.
 	// In Appendix B's terminology, this replaces each x_i with x_i'.
 	for i := 0; i < BABYBEAR_WIDTH; i += 4 {
-		p.apply_m_4(state[i : i+4])
+		p.applyM4(state[i : i+4])
 	}
 
 	// Now, we apply the outer circulant matrix (to compute the y_i values).
@@ -120,7 +120,7 @@ func (p *Poseidon2BabyBearChip) matrix_permute_mut(state *[BABYBEAR_WIDTH]babybe
 
 // Multiply a 4-element vector x by M_4, in place.
 // This uses the formula from the start of Appendix B, with multiplications unrolled into additions.
-func (p *Poseidon2BabyBearChip) apply_m_4(x []babybear.Variable) {
+func (p *Poseidon2BabyBearChip) applyM4(x []babybear.Variable) {
 	t0 := p.fieldApi.AddF(x[0], x[1])
 	t1 := p.fieldApi.AddF(x[2], x[3])
 	t2 := p.fieldApi.AddF(x[1], x[1])
@@ -143,14 +143,14 @@ func (p *Poseidon2BabyBearChip) apply_m_4(x []babybear.Variable) {
 	x[3] = t4
 }
 
-func (p *Poseidon2BabyBearChip) diffusion_permute_mut(state *[BABYBEAR_WIDTH]babybear.Variable) {
+func (p *Poseidon2BabyBearChip) diffusionPermuteMut(state *[BABYBEAR_WIDTH]babybear.Variable) {
 	sum := p.zero
 	for i := 0; i < BABYBEAR_WIDTH; i++ {
 		sum = p.fieldApi.AddF(sum, state[i])
 	}
 
 	for i := 0; i < BABYBEAR_WIDTH; i++ {
-		state[i] = p.fieldApi.MulF(state[i], p.internal_linear_layer[i])
+		state[i] = p.fieldApi.MulF(state[i], p.internalLinearLayer[i])
 		state[i] = p.fieldApi.AddF(state[i], sum)
 	}
 }

@@ -110,6 +110,23 @@ pub fn test_plonk_bn254(witness_json: &str, constraints_json: &str) {
     }
 }
 
+pub fn test_babybear_poseidon2() {
+    cfg_if! {
+        if #[cfg(feature = "plonk")] {
+            unsafe {
+                let err_ptr = bind::TestPoseidonBabyBear2();
+                if !err_ptr.is_null() {
+                    // Safety: The error message is returned from the go code and is guaranteed to be valid.
+                    let err = CString::from_raw(err_ptr);
+                    panic!("TestPlonkBn254 failed: {}", err.into_string().unwrap());
+                }
+            }
+        } else {
+            panic!("plonk feature not enabled");
+        }
+    }
+}
+
 /// Converts a C string into a Rust String.
 ///
 /// # Safety
@@ -138,5 +155,14 @@ impl C_PlonkBn254Proof {
                 raw_proof: c_char_ptr_to_string(self.RawProof),
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[cfg(feature = "plonk")]
+    #[test]
+    pub fn test_babybear_poseidon2() {
+        super::test_babybear_poseidon2();
     }
 }
