@@ -1,5 +1,7 @@
 //! An implementation of Poseidon2 over BN254.
 
+use std::array;
+
 use itertools::Itertools;
 use p3_field::AbstractField;
 use p3_field::Field;
@@ -60,7 +62,16 @@ impl<C: Config> Poseidon2CircuitBuilder<C> for Builder<C> {
     }
 
     fn p2_babybear_hash(&mut self, input: &[Felt<C::F>]) -> [Felt<C::F>; 8] {
-        todo!()
+        let mut state: [Felt<C::F>; 16] = [self.eval(C::F::zero()); 16];
+
+        for block_chunk in &input.iter().chunks(8) {
+            for (element_id, element) in block_chunk.into_iter().enumerate() {
+                state[element_id] = *element;
+            }
+            self.p2_babybear_permute_mut(state);
+        }
+
+        array::from_fn(|i| state[i])
     }
 }
 
