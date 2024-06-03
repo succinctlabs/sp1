@@ -160,9 +160,17 @@ impl C_PlonkBn254Proof {
 
 #[cfg(test)]
 mod tests {
-    #[cfg(feature = "plonk")]
+    use p3_baby_bear::BabyBear;
+    use p3_field::AbstractField;
+    use p3_symmetric::Permutation;
+
+    // #[cfg(feature = "plonk")]
     #[test]
     pub fn test_babybear_poseidon2() {
+        let perm = sp1_core::utils::inner_perm();
+        let zeros = [BabyBear::zero(); 16];
+        let result = perm.permute(zeros);
+        println!("{:?}", result);
         super::test_babybear_poseidon2();
     }
 }

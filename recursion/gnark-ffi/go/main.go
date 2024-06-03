@@ -147,22 +147,22 @@ func TestMain() error {
 //export TestPoseidonBabyBear2
 func TestPoseidonBabyBear2() *C.char {
 	input := [poseidon2.BABYBEAR_WIDTH]babybear.Variable{
-		babybear.NewF("894848333"),
-		babybear.NewF("1437655012"),
-		babybear.NewF("1200606629"),
-		babybear.NewF("1690012884"),
-		babybear.NewF("71131202"),
-		babybear.NewF("1749206695"),
-		babybear.NewF("1717947831"),
-		babybear.NewF("120589055"),
-		babybear.NewF("19776022"),
-		babybear.NewF("42382981"),
-		babybear.NewF("1831865506"),
-		babybear.NewF("724844064"),
-		babybear.NewF("171220207"),
-		babybear.NewF("1299207443"),
-		babybear.NewF("227047920"),
-		babybear.NewF("1783754913"),
+		babybear.NewF("0"),
+		babybear.NewF("0"),
+		babybear.NewF("0"),
+		babybear.NewF("0"),
+		babybear.NewF("0"),
+		babybear.NewF("0"),
+		babybear.NewF("0"),
+		babybear.NewF("0"),
+		babybear.NewF("0"),
+		babybear.NewF("0"),
+		babybear.NewF("0"),
+		babybear.NewF("0"),
+		babybear.NewF("0"),
+		babybear.NewF("0"),
+		babybear.NewF("0"),
+		babybear.NewF("0"),
 	}
 
 	expected_output := [poseidon2.BABYBEAR_WIDTH]babybear.Variable{

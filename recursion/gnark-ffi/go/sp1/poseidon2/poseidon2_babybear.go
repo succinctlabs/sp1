@@ -11,13 +11,14 @@ const BABYBEAR_NUM_INTERNAL_ROUNDS = 13
 const BABYBEAR_DEGREE = 7
 
 type Poseidon2BabyBearChip struct {
+	api                 frontend.API
 	fieldApi            *babybear.Chip
 	internalLinearLayer [BABYBEAR_WIDTH]babybear.Variable
-	zero, one           babybear.Variable
 }
 
 func NewPoseidon2BabyBearChip(api frontend.API) *Poseidon2BabyBearChip {
 	return &Poseidon2BabyBearChip{
+		api:      api,
 		fieldApi: babybear.NewChip(api),
 		internalLinearLayer: [BABYBEAR_WIDTH]babybear.Variable{
 			babybear.NewF("2013265919"),
@@ -37,8 +38,6 @@ func NewPoseidon2BabyBearChip(api frontend.API) *Poseidon2BabyBearChip {
 			babybear.NewF("8192"),
 			babybear.NewF("32768"),
 		},
-		zero: babybear.NewF("0"),
-		one:  babybear.NewF("1"),
 	}
 }
 
@@ -69,6 +68,7 @@ func (p *Poseidon2BabyBearChip) PermuteMut(state *[BABYBEAR_WIDTH]babybear.Varia
 		p.sbox(state)
 		p.matrixPermuteMut(state)
 	}
+
 }
 
 func (p *Poseidon2BabyBearChip) addRc(state *[BABYBEAR_WIDTH]babybear.Variable, rc [BABYBEAR_WIDTH]babybear.Variable) {
@@ -104,7 +104,7 @@ func (p *Poseidon2BabyBearChip) matrixPermuteMut(state *[BABYBEAR_WIDTH]babybear
 	// Now, we apply the outer circulant matrix (to compute the y_i values).
 
 	// We first precompute the four sums of every four elements.
-	sums := [4]babybear.Variable{p.zero, p.zero, p.zero, p.zero}
+	sums := [4]babybear.Variable{babybear.NewF("0"), babybear.NewF("0"), babybear.NewF("0"), babybear.NewF("0")}
 	for i := 0; i < 4; i++ {
 		for j := 0; j < BABYBEAR_WIDTH; j += 4 {
 			sums[i] = p.fieldApi.AddF(sums[i], state[i+j])
@@ -144,7 +144,7 @@ func (p *Poseidon2BabyBearChip) applyM4(x []babybear.Variable) {
 }
 
 func (p *Poseidon2BabyBearChip) diffusionPermuteMut(state *[BABYBEAR_WIDTH]babybear.Variable) {
-	sum := p.zero
+	sum := babybear.NewF("0")
 	for i := 0; i < BABYBEAR_WIDTH; i++ {
 		sum = p.fieldApi.AddF(sum, state[i])
 	}

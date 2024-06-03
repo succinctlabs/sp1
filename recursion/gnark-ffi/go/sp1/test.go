@@ -7,7 +7,8 @@ import (
 )
 
 type TestPoseidon2BabyBearCircuit struct {
-	Input, ExpectedOutput [poseidon2.BABYBEAR_WIDTH]babybear.Variable `gnark:",public"`
+	Input          [poseidon2.BABYBEAR_WIDTH]babybear.Variable `gnark:",public"`
+	ExpectedOutput [poseidon2.BABYBEAR_WIDTH]babybear.Variable `gnark:",public"`
 }
 
 func (circuit *TestPoseidon2BabyBearCircuit) Define(api frontend.API) error {
