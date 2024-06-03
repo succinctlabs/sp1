@@ -182,7 +182,7 @@ impl ShaCompressChip {
             .assert_eq(local.clk, next.clk);
         builder
             .when_transition()
-            .when_not(local.is_real)
+            .when_not(local.is_last_row)
             .assert_eq(local.channel, next.channel);
         builder
             .when_transition()
