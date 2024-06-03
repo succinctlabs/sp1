@@ -131,6 +131,16 @@ where
             }
         }
 
+        // Range check all the values in `state_mem` to be bytes.
+        for i in 0..STATE_NUM_WORDS {
+            builder.slice_range_check_u8(
+                &local.state_mem[i].value().0,
+                local.shard,
+                local.channel,
+                local.do_memory_check,
+            );
+        }
+
         let mut sub_builder =
             SubAirBuilder::<AB, KeccakAir, AB::Var>::new(builder, 0..NUM_KECCAK_COLS);
 

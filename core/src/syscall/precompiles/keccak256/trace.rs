@@ -83,8 +83,12 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
                                         *read_record,
                                         &mut new_byte_lookup_events,
                                     );
+                                    new_byte_lookup_events.add_u8_range_checks(
+                                        shard,
+                                        channel,
+                                        &read_record.value.to_le_bytes(),
+                                    );
                                 }
-
                                 cols.do_memory_check = F::one();
                                 cols.receive_ecall = F::one();
                             }
@@ -99,8 +103,12 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
                                         *write_record,
                                         &mut new_byte_lookup_events,
                                     );
+                                    new_byte_lookup_events.add_u8_range_checks(
+                                        shard,
+                                        channel,
+                                        &write_record.value.to_le_bytes(),
+                                    );
                                 }
-
                                 cols.do_memory_check = F::one();
                             }
 
