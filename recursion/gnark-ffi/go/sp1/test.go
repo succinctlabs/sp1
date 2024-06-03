@@ -12,7 +12,7 @@ type TestPoseidon2BabyBearCircuit struct {
 }
 
 func (circuit *TestPoseidon2BabyBearCircuit) Define(api frontend.API) error {
-	poseidon2BabyBearChip := poseidon2.NewPoseidon2BabyBearChip(api)
+	poseidon2BabyBearChip := poseidon2.NewBabyBearChip(api)
 	fieldApi := babybear.NewChip(api)
 
 	zero := babybear.NewF("0")

@@ -68,6 +68,7 @@ func (circuit *Circuit) Define(api frontend.API) error {
 	}
 
 	hashAPI := poseidon2.NewChip(api)
+	hashBabyBearAPI := poseidon2.NewBabyBearChip(api)
 	fieldAPI := babybear.NewChip(api)
 	vars := make(map[string]frontend.Variable)
 	felts := make(map[string]babybear.Variable)
@@ -132,6 +133,15 @@ func (circuit *Circuit) Define(api frontend.API) error {
 			vars[cs.Args[0][0]] = state[0]
 			vars[cs.Args[1][0]] = state[1]
 			vars[cs.Args[2][0]] = state[2]
+		case "PermuteBabyBear":
+			var state [16]babybear.Variable
+			for i := 0; i < 16; i++ {
+				state[i] = felts[cs.Args[i][0]]
+			}
+			hashBabyBearAPI.PermuteMut(&state)
+			for i := 0; i < 16; i++ {
+				felts[cs.Args[i][0]] = state[i]
+			}
 		case "SelectV":
 			vars[cs.Args[0][0]] = api.Select(vars[cs.Args[1][0]], vars[cs.Args[2][0]], vars[cs.Args[3][0]])
 		case "SelectF":

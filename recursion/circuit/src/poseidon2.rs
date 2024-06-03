@@ -16,6 +16,7 @@ pub trait Poseidon2CircuitBuilder<C: Config> {
     fn p2_permute_mut(&mut self, state: [Var<C::N>; SPONGE_SIZE]);
     fn p2_hash(&mut self, input: &[Felt<C::F>]) -> OuterDigestVariable<C>;
     fn p2_compress(&mut self, input: [OuterDigestVariable<C>; 2]) -> OuterDigestVariable<C>;
+    fn p2_babybear_permute_mut(&mut self, state: [Felt<C::F>; 16]);
     fn p2_babybear_hash(&mut self, input: &[Felt<C::F>]) -> [Felt<C::F>; 8];
 }
 
@@ -54,7 +55,13 @@ impl<C: Config> Poseidon2CircuitBuilder<C> for Builder<C> {
         [state[0]; DIGEST_SIZE]
     }
 
-    fn p2_babybear_hash(&mut self, input: &[Felt<C::F>]) -> [Felt<C::F>; 8] {}
+    fn p2_babybear_permute_mut(&mut self, state: [Felt<C::F>; 16]) {
+        self.push(DslIr::CircuitPoseidon2PermuteBabyBear(state));
+    }
+
+    fn p2_babybear_hash(&mut self, input: &[Felt<C::F>]) -> [Felt<C::F>; 8] {
+        todo!()
+    }
 }
 
 #[cfg(test)]
@@ -63,6 +70,7 @@ pub mod tests {
     use p3_bn254_fr::Bn254Fr;
     use p3_field::AbstractField;
     use p3_symmetric::{CryptographicHasher, Permutation, PseudoCompressionFunction};
+    use sp1_core::utils::inner_perm;
     use sp1_recursion_compiler::config::OuterConfig;
     use sp1_recursion_compiler::constraints::ConstraintCompiler;
     use sp1_recursion_compiler::ir::{Builder, Felt, Var, Witness};
@@ -92,6 +100,24 @@ pub mod tests {
         builder.assert_var_eq(a, output[0]);
         builder.assert_var_eq(b, output[1]);
         builder.assert_var_eq(c, output[2]);
+
+        let mut backend = ConstraintCompiler::<OuterConfig>::default();
+        let constraints = backend.emit(builder.operations);
+        PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
+    }
+
+    #[test]
+    fn test_p2_babybear_permute_mut() {
+        let mut builder = Builder::<OuterConfig>::default();
+        let input: [BabyBear; 16] = [BabyBear::one(); 16];
+        let input_vars: [Felt<_>; 16] = input.map(|x| builder.eval(x));
+        builder.p2_babybear_permute_mut(input_vars);
+
+        let perm = inner_perm();
+        let result = perm.permute(input);
+        for i in 0..16 {
+            builder.assert_felt_eq(input_vars[i], result[i]);
+        }
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);

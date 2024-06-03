@@ -15,7 +15,7 @@ type Poseidon2BabyBearChip struct {
 	fieldApi *babybear.Chip
 }
 
-func NewPoseidon2BabyBearChip(api frontend.API) *Poseidon2BabyBearChip {
+func NewBabyBearChip(api frontend.API) *Poseidon2BabyBearChip {
 	return &Poseidon2BabyBearChip{
 		api:      api,
 		fieldApi: babybear.NewChip(api),
