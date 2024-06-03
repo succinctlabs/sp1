@@ -141,11 +141,18 @@ pub mod tests {
 
     #[test]
     fn test_p2_hash() {
-        let mut rng = thread_rng();
         let perm = outer_perm();
         let hasher = OuterHash::new(perm.clone()).unwrap();
 
-        let input: [BabyBear; 102] = std::array::from_fn(|_| rng.gen());
+        let input: [BabyBear; 7] = [
+            BabyBear::from_canonical_u32(0),
+            BabyBear::from_canonical_u32(1),
+            BabyBear::from_canonical_u32(2),
+            BabyBear::from_canonical_u32(2),
+            BabyBear::from_canonical_u32(2),
+            BabyBear::from_canonical_u32(2),
+            BabyBear::from_canonical_u32(2),
+        ];
         let output = hasher.hash_iter(input);
 
         let mut builder = Builder::<OuterConfig>::default();
