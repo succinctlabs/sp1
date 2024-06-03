@@ -4896,7 +4896,6 @@ dependencies = [
 name = "sp1-sdk"
 version = "0.1.0"
 dependencies = [
- "alloy-primitives",
  "alloy-sol-types",
  "anyhow",
  "async-trait",
@@ -4921,6 +4920,8 @@ dependencies = [
  "sha2",
  "sp1-core",
  "sp1-prover",
+ "strum",
+ "strum_macros",
  "tempfile",
  "tokio",
  "tracing",

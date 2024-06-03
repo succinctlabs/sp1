@@ -14,7 +14,6 @@ To use PLONK proving & verification locally, enable the `plonk` feature flag in 
 sp1-sdk = { features = ["plonk"] }
 ```
 
-
 ### Example
 
 ```rust,noplayground
@@ -23,25 +22,41 @@ sp1-sdk = { features = ["plonk"] }
 
 You can run the above script with `RUST_LOG=info cargo run --bin plonk_bn254 --release` in `examples/fibonacci/script`.
 
-## Exporting the Verifier Contract
+## Install SP1 Contracts
 
-To export the verifier contract, you can use the export function in the `sp1_sdk` crate.
+# SP1 Contracts
 
-### Example
+This repository contains the smart contracts for verifying [SP1](https://github.com/succinctlabs/sp1) EVM proofs.
 
-```rust,noplayground
-//! Builds the proving artifacts and exports the solidity verifier.
-//!
-//! You can run this script using the following command:
-//! ```shell
-//! RUST_LOG=info cargo run --package fibonacci-script --bin artifacts --release
-//! ```
+## Installation
 
-use std::path::PathBuf;
+> [!WARNING]
+> [Foundry](https://github.com/foundry-rs/foundry) installs the latest release version initially, but subsequent `forge update` commands will use the `main` branch. This branch is the development branch and should be avoided in favor of tagged releases. The release process matches a specific SP1 version.
 
-fn main() {
-    let contracts_src_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../contracts/src");
-    sp1_sdk::artifacts::export_solidity_plonk_bn254_verifier(contracts_src_dir)
-        .expect("failed to export verifier");
+To install the latest release version:
+
+```bash
+forge install succinctlabs/sp1-contracts
+```
+
+To install a specific version:
+```bash
+forge install succinctlabs/sp1-contracts@<version>
+```
+
+Add `@sp1-contracts/=lib/sp1-contracts/contracts/src/` in `remappings.txt.`
+
+### Usage
+
+Once installed, you can use the contracts in the library by importing them:
+
+```solidity
+pragma solidity ^0.8.25;
+
+import {SP1Verifier} from "@sp1-contracts/SP1Verifier.sol";
+
+contract MyContract is SP1Verifier {
 }
 ```
+
+For more details on the contracts, refer to the [sp1-contracts](https://github.com/succinctlabs/sp1-contracts) repo.

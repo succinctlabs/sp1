@@ -39,3 +39,12 @@ jobs:
             env:
               RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
               RUST_BACKTRACE: 1
+    check-branch:
+        name: Check branch
+        runs-on: ubuntu-latest
+        steps:
+          - name: Check branch
+            if: github.head_ref != 'dev'
+            run: |
+              echo "ERROR: You can only merge to main from dev."
+              exit 1

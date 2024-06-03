@@ -22,6 +22,8 @@ use crate::{
 };
 
 /// Assertions on the public values describing a complete recursive proof state.
+///
+/// See [SP1Prover::verify] for the verification algorithm of a complete SP1 proof.
 pub(crate) fn assert_complete<C: Config>(
     builder: &mut Builder<C>,
     public_values: &RecursionPublicValues<Felt<C::F>>,

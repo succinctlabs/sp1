@@ -1,7 +1,7 @@
 use std::{env, time::Duration};
 
 use crate::{
-    auth::NetworkAuth,
+    network::auth::NetworkAuth,
     proto::network::{UnclaimProofRequest, UnclaimReason},
 };
 use anyhow::{Context, Ok, Result};
@@ -22,10 +22,13 @@ use crate::proto::network::{
 };
 
 /// The default RPC endpoint for the Succinct prover network.
-const DEFAULT_PROVER_NETWORK_RPC: &str = "https://rpc.succinct.xyz/";
+pub const DEFAULT_PROVER_NETWORK_RPC: &str = "https://rpc.succinct.xyz/";
 
 /// The default SP1 Verifier address on all chains.
 const DEFAULT_SP1_VERIFIER_ADDRESS: &str = "0xed2107448519345059eab9cddab42ddc78fbebe9";
+
+/// The timeout for a proof request to be fulfilled.
+const TIMEOUT: Duration = Duration::from_secs(60 * 60);
 
 pub struct NetworkClient {
     pub rpc: TwirpClient,
@@ -34,12 +37,13 @@ pub struct NetworkClient {
 }
 
 impl NetworkClient {
+    pub fn rpc_url() -> String {
+        env::var("PROVER_NETWORK_RPC").unwrap_or_else(|_| DEFAULT_PROVER_NETWORK_RPC.to_string())
+    }
+
     // Create a new NetworkClient with the given private key for authentication.
     pub fn new(private_key: &str) -> Self {
         let auth = NetworkAuth::new(private_key);
-
-        let rpc_url = env::var("PROVER_NETWORK_RPC")
-            .unwrap_or_else(|_| DEFAULT_PROVER_NETWORK_RPC.to_string());
 
         let twirp_http_client = HttpClient::builder()
             .pool_max_idle_per_host(0)
@@ -47,6 +51,7 @@ impl NetworkClient {
             .build()
             .unwrap();
 
+        let rpc_url = Self::rpc_url();
         let rpc =
             TwirpClient::new(Url::parse(&rpc_url).unwrap(), twirp_http_client, vec![]).unwrap();
 
@@ -172,17 +177,18 @@ impl NetworkClient {
         elf: &[u8],
         stdin: &SP1Stdin,
         mode: ProofMode,
+        version: &str,
     ) -> Result<String> {
         let start = SystemTime::now();
         let since_the_epoch = start
             .duration_since(UNIX_EPOCH)
             .expect("Invalid start time");
-        let deadline = since_the_epoch.as_secs() + 1000;
+        let deadline = since_the_epoch.as_secs() + TIMEOUT.as_secs();
 
         let nonce = self.get_nonce().await?;
         let create_proof_signature = self
             .auth
-            .sign_create_proof_message(nonce, deadline, mode.into())
+            .sign_create_proof_message(nonce, deadline, mode.into(), version)
             .await?;
         let res = self
             .rpc
@@ -191,6 +197,7 @@ impl NetworkClient {
                 nonce,
                 deadline,
                 mode: mode.into(),
+                version: version.to_string(),
             })
             .await?;
 

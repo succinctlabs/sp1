@@ -5,26 +5,33 @@
 //! Visit the [Getting Started](https://succinctlabs.github.io/sp1/getting-started.html) section
 //! in the official SP1 documentation for a quick start guide.
 
-#![allow(incomplete_features)]
-#![feature(generic_const_exprs)]
-
+#[rustfmt::skip]
 pub mod proto {
     pub mod network;
 }
 pub mod artifacts;
-pub mod auth;
-pub mod client;
+#[cfg(feature = "network")]
+pub mod network;
+#[cfg(feature = "network")]
+pub use crate::network::prover::NetworkProver;
+
 pub mod provers;
 pub mod utils {
     pub use sp1_core::utils::setup_logger;
 }
 
+use cfg_if::cfg_if;
 use std::{env, fmt::Debug, fs::File, path::Path};
 
 use anyhow::{Ok, Result};
-pub use provers::{LocalProver, MockProver, NetworkProver, Prover};
+
+pub use provers::{LocalProver, MockProver, Prover};
+
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use sp1_core::stark::{MachineVerificationError, ShardProof};
+use sp1_core::{
+    runtime::ExecutionReport,
+    stark::{MachineVerificationError, ShardProof},
+};
 pub use sp1_prover::{
     CoreSC, HashableKey, InnerSC, OuterSC, PlonkBn254Proof, SP1Prover, SP1ProvingKey,
     SP1PublicValues, SP1Stdin, SP1VerifyingKey,
@@ -85,8 +92,16 @@ impl ProverClient {
             "local" => Self {
                 prover: Box::new(LocalProver::new()),
             },
-            "network" => Self {
-                prover: Box::new(NetworkProver::new()),
+            "network" => {
+                cfg_if! {
+                    if #[cfg(feature = "network")] {
+                        Self {
+                            prover: Box::new(NetworkProver::new()),
+                        }
+                    } else {
+                        panic!("network feature is not enabled")
+                    }
+                }
             },
             _ => panic!(
                 "invalid value for SP1_PROVER enviroment variable: expected 'local', 'mock', or 'network'"
@@ -143,14 +158,20 @@ impl ProverClient {
     /// let client = ProverClient::network();
     /// ```
     pub fn network() -> Self {
-        Self {
-            prover: Box::new(NetworkProver::new()),
+        cfg_if! {
+            if #[cfg(feature = "network")] {
+                Self {
+                    prover: Box::new(NetworkProver::new()),
+                }
+            } else {
+                panic!("network feature is not enabled")
+            }
         }
     }
 
     /// Executes the given program on the given input (without generating a proof).
     ///
-    /// Returns the public values of the program after it has been executed.
+    /// Returns the public values and execution report of the program after it has been executed.
     ///
     ///
     /// ### Examples
@@ -168,9 +189,13 @@ impl ProverClient {
     /// stdin.write(&10usize);
     ///
     /// // Execute the program on the inputs.
-    /// let public_values = client.execute(elf, stdin).unwrap();
+    /// let (public_values, report) = client.execute(elf, stdin).unwrap();
     /// ```
-    pub fn execute(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1PublicValues> {
+    pub fn execute(
+        &self,
+        elf: &[u8],
+        stdin: SP1Stdin,
+    ) -> Result<(SP1PublicValues, ExecutionReport)> {
         Ok(SP1Prover::execute(elf, &stdin)?)
     }
 
