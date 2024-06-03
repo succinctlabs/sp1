@@ -249,6 +249,10 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
                     opcode: ConstraintOpcode::Permute,
                     args: state.iter().map(|x| vec![x.id()]).collect(),
                 }),
+                DslIr::CircuitPoseidon2PermuteBabyBear(state) => constraints.push(Constraint {
+                    opcode: ConstraintOpcode::PermuteBabyBear,
+                    args: state.iter().map(|x| vec![x.id()]).collect(),
+                }),
                 DslIr::CircuitSelectV(cond, a, b, out) => {
                     constraints.push(Constraint {
                         opcode: ConstraintOpcode::SelectV,

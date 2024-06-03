@@ -3,11 +3,22 @@ package poseidon2
 
 import (
 	"github.com/consensys/gnark/frontend"
+	"github.com/succinctlabs/sp1-recursion-gnark/sp1/babybear"
 )
 
+// Poseidon2 round constants for a state consisting of three BN254 field elements.
 var RC3 [NUM_EXTERNAL_ROUNDS + NUM_INTERNAL_ROUNDS][WIDTH]frontend.Variable
 
+// Poseidon2 round constaints for a state consisting of 16 BabyBear field elements.
+
+var RC16 [30][BABYBEAR_WIDTH]babybear.Variable
+
 func init() {
+	init_rc3()
+	init_rc16()
+}
+
+func init_rc3() {
 	round := 0
 
 	RC3[round] = [WIDTH]frontend.Variable{
@@ -455,5 +466,582 @@ func init() {
 		frontend.Variable("0x01fd6af15956294f9dfe38c0d976a088b21c21e4a1c2e823f912f44961f9a9ce"),
 		frontend.Variable("0x18e5abedd626ec307bca190b8b2cab1aaee2e62ed229ba5a5ad8518d4e5f2a57"),
 		frontend.Variable("0x0fc1bbceba0590f5abbdffa6d3b35e3297c021a3a409926d0e2d54dc1c84fda6"),
+	}
+}
+
+func init_rc16() {
+	round := 0
+
+	RC16[round] = [BABYBEAR_WIDTH]babybear.Variable{
+		babybear.NewF("2110014213"),
+		babybear.NewF("3964964605"),
+		babybear.NewF("2190662774"),
+		babybear.NewF("2732996483"),
+		babybear.NewF("640767983"),
+		babybear.NewF("3403899136"),
+		babybear.NewF("1716033721"),
+		babybear.NewF("1606702601"),
+		babybear.NewF("3759873288"),
+		babybear.NewF("1466015491"),
+		babybear.NewF("1498308946"),
+		babybear.NewF("2844375094"),
+		babybear.NewF("3042463841"),
+		babybear.NewF("1969905919"),
+		babybear.NewF("4109944726"),
+		babybear.NewF("3925048366"),
+	}
+
+	round += 1
+	RC16[round] = [BABYBEAR_WIDTH]babybear.Variable{
+		babybear.NewF("3706859504"),
+		babybear.NewF("759122502"),
+		babybear.NewF("3167665446"),
+		babybear.NewF("1131812921"),
+		babybear.NewF("1080754908"),
+		babybear.NewF("4080114493"),
+		babybear.NewF("893583089"),
+		babybear.NewF("2019677373"),
+		babybear.NewF("3128604556"),
+		babybear.NewF("580640471"),
+		babybear.NewF("3277620260"),
+		babybear.NewF("842931656"),
+		babybear.NewF("548879852"),
+		babybear.NewF("3608554714"),
+		babybear.NewF("3575647916"),
+		babybear.NewF("81826002"),
+	}
+
+	round += 1
+	RC16[round] = [BABYBEAR_WIDTH]babybear.Variable{
+		babybear.NewF("4289086263"),
+		babybear.NewF("1563933798"),
+		babybear.NewF("1440025885"),
+		babybear.NewF("184445025"),
+		babybear.NewF("2598651360"),
+		babybear.NewF("1396647410"),
+		babybear.NewF("1575877922"),
+		babybear.NewF("3303853401"),
+		babybear.NewF("137125468"),
+		babybear.NewF("765010148"),
+		babybear.NewF("633675867"),
+		babybear.NewF("2037803363"),
+		babybear.NewF("2573389828"),
+		babybear.NewF("1895729703"),
+		babybear.NewF("541515871"),
+		babybear.NewF("1783382863"),
+	}
+
+	round += 1
+	RC16[round] = [BABYBEAR_WIDTH]babybear.Variable{
+		babybear.NewF("2641856484"),
+		babybear.NewF("3035743342"),
+		babybear.NewF("3672796326"),
+		babybear.NewF("245668751"),
+		babybear.NewF("2025460432"),
+		babybear.NewF("201609705"),
+		babybear.NewF("286217151"),
+		babybear.NewF("4093475563"),
+		babybear.NewF("2519572182"),
+		babybear.NewF("3080699870"),
+		babybear.NewF("2762001832"),
+		babybear.NewF("1244250808"),
+		babybear.NewF("606038199"),
+		babybear.NewF("3182740831"),
+		babybear.NewF("73007766"),
+		babybear.NewF("2572204153"),
+	}
+	round += 1
+	RC16[round] = [BABYBEAR_WIDTH]babybear.Variable{
+		babybear.NewF("1196780786"),
+		babybear.NewF("3447394443"),
+		babybear.NewF("747167305"),
+		babybear.NewF("2968073607"),
+		babybear.NewF("1053214930"),
+		babybear.NewF("1074411832"),
+		babybear.NewF("4016794508"),
+		babybear.NewF("1570312929"),
+		babybear.NewF("113576933"),
+		babybear.NewF("4042581186"),
+		babybear.NewF("3634515733"),
+		babybear.NewF("1032701597"),
+		babybear.NewF("2364839308"),
+		babybear.NewF("3840286918"),
+		babybear.NewF("888378655"),
+		babybear.NewF("2520191583"),
+	}
+	round += 1
+	RC16[round] = [BABYBEAR_WIDTH]babybear.Variable{
+		babybear.NewF("36046858"),
+		babybear.NewF("2927525953"),
+		babybear.NewF("3912129105"),
+		babybear.NewF("4004832531"),
+		babybear.NewF("193772436"),
+		babybear.NewF("1590247392"),
+		babybear.NewF("4125818172"),
+		babybear.NewF("2516251696"),
+		babybear.NewF("4050945750"),
+		babybear.NewF("269498914"),
+		babybear.NewF("1973292656"),
+		babybear.NewF("891403491"),
+		babybear.NewF("1845429189"),
+		babybear.NewF("2611996363"),
+		babybear.NewF("2310542653"),
+		babybear.NewF("4071195740"),
+	}
+	round += 1
+	RC16[round] = [BABYBEAR_WIDTH]babybear.Variable{
+		babybear.NewF("3505307391"),
+		babybear.NewF("786445290"),
+		babybear.NewF("3815313971"),
+		babybear.NewF("1111591756"),
+		babybear.NewF("4233279834"),
+		babybear.NewF("2775453034"),
+		babybear.NewF("1991257625"),
+		babybear.NewF("2940505809"),
+		babybear.NewF("2751316206"),
+		babybear.NewF("1028870679"),
+		babybear.NewF("1282466273"),
+		babybear.NewF("1059053371"),
+		babybear.NewF("834521354"),
+		babybear.NewF("138721483"),
+		babybear.NewF("3100410803"),
+		babybear.NewF("3843128331"),
+	}
+	round += 1
+	RC16[round] = [BABYBEAR_WIDTH]babybear.Variable{
+		babybear.NewF("3878220780"),
+		babybear.NewF("4058162439"),
+		babybear.NewF("1478942487"),
+		babybear.NewF("799012923"),
+		babybear.NewF("496734827"),
+		babybear.NewF("3521261236"),
+		babybear.NewF("755421082"),
+		babybear.NewF("1361409515"),
+		babybear.NewF("392099473"),
+		babybear.NewF("3178453393"),
+		babybear.NewF("4068463721"),
+		babybear.NewF("7935614"),
+		babybear.NewF("4140885645"),
+		babybear.NewF("2150748066"),
+		babybear.NewF("1685210312"),
+		babybear.NewF("3852983224"),
+	}
+	round += 1
+	RC16[round] = [BABYBEAR_WIDTH]babybear.Variable{
+		babybear.NewF("2896943075"),
+		babybear.NewF("3087590927"),
+		babybear.NewF("992175959"),
+		babybear.NewF("970216228"),
+		babybear.NewF("3473630090"),
+		babybear.NewF("3899670400"),
+		babybear.NewF("3603388822"),
+		babybear.NewF("2633488197"),
+		babybear.NewF("2479406964"),
+		babybear.NewF("2420952999"),
+		babybear.NewF("1852516800"),
+		babybear.NewF("4253075697"),
+		babybear.NewF("979699862"),
+		babybear.NewF("1163403191"),
+		babybear.NewF("1608599874"),
+		babybear.NewF("3056104448"),
+	}
+	round += 1
+	RC16[round] = [BABYBEAR_WIDTH]babybear.Variable{
+		babybear.NewF("3779109343"),
+		babybear.NewF("536205958"),
+		babybear.NewF("4183458361"),
+		babybear.NewF("1649720295"),
+		babybear.NewF("1444912244"),
+		babybear.NewF("3122230878"),
+		babybear.NewF("384301396"),
+		babybear.NewF("4228198516"),
+		babybear.NewF("1662916865"),
+		babybear.NewF("4082161114"),
+		babybear.NewF("2121897314"),
+		babybear.NewF("1706239958"),
+		babybear.NewF("4166959388"),
+		babybear.NewF("1626054781"),
+		babybear.NewF("3005858978"),
+		babybear.NewF("1431907253"),
+	}
+	round += 1
+	RC16[round] = [BABYBEAR_WIDTH]babybear.Variable{
+		babybear.NewF("1418914503"),
+		babybear.NewF("1365856753"),
+		babybear.NewF("3942715745"),
+		babybear.NewF("1429155552"),
+		babybear.NewF("3545642795"),
+		babybear.NewF("3772474257"),
+		babybear.NewF("1621094396"),
+		babybear.NewF("2154399145"),
+		babybear.NewF("826697382"),
+		babybear.NewF("1700781391"),
+		babybear.NewF("3539164324"),
+		babybear.NewF("652815039"),
+		babybear.NewF("442484755"),
+		babybear.NewF("2055299391"),
+		babybear.NewF("1064289978"),
+		babybear.NewF("1152335780"),
+	}
+	round += 1
+	RC16[round] = [BABYBEAR_WIDTH]babybear.Variable{
+		babybear.NewF("3417648695"),
+		babybear.NewF("186040114"),
+		babybear.NewF("3475580573"),
+		babybear.NewF("2113941250"),
+		babybear.NewF("1779573826"),
+		babybear.NewF("1573808590"),
+		babybear.NewF("3235694804"),
+		babybear.NewF("2922195281"),
+		babybear.NewF("1119462702"),
+		babybear.NewF("3688305521"),
+		babybear.NewF("1849567013"),
+		babybear.NewF("667446787"),
+		babybear.NewF("753897224"),
+		babybear.NewF("1896396780"),
+		babybear.NewF("3143026334"),
+		babybear.NewF("3829603876"),
+	}
+	round += 1
+	RC16[round] = [BABYBEAR_WIDTH]babybear.Variable{
+		babybear.NewF("859661334"),
+		babybear.NewF("3898844357"),
+		babybear.NewF("180258337"),
+		babybear.NewF("2321867017"),
+		babybear.NewF("3599002504"),
+		babybear.NewF("2886782421"),
+		babybear.NewF("3038299378"),
+		babybear.NewF("1035366250"),
+		babybear.NewF("2038912197"),
+		babybear.NewF("2920174523"),
+		babybear.NewF("1277696101"),
+		babybear.NewF("2785700290"),
+		babybear.NewF("3806504335"),
+		babybear.NewF("3518858933"),
+		babybear.NewF("654843672"),
+		babybear.NewF("2127120275"),
+	}
+	round += 1
+	RC16[round] = [BABYBEAR_WIDTH]babybear.Variable{
+		babybear.NewF("1548195514"),
+		babybear.NewF("2378056027"),
+		babybear.NewF("390914568"),
+		babybear.NewF("1472049779"),
+		babybear.NewF("1552596765"),
+		babybear.NewF("1905886441"),
+		babybear.NewF("1611959354"),
+		babybear.NewF("3653263304"),
+		babybear.NewF("3423946386"),
+		babybear.NewF("340857935"),
+		babybear.NewF("2208879480"),
+		babybear.NewF("139364268"),
+		babybear.NewF("3447281773"),
+		babybear.NewF("3777813707"),
+		babybear.NewF("55640413"),
+		babybear.NewF("4101901741"),
+	}
+	round += 1
+	RC16[round] = [BABYBEAR_WIDTH]babybear.Variable{
+		babybear.NewF("104929687"),
+		babybear.NewF("1459980974"),
+		babybear.NewF("1831234737"),
+		babybear.NewF("457139004"),
+		babybear.NewF("2581487628"),
+		babybear.NewF("2112044563"),
+		babybear.NewF("3567013861"),
+		babybear.NewF("2792004347"),
+		babybear.NewF("576325418"),
+		babybear.NewF("41126132"),
+		babybear.NewF("2713562324"),
+		babybear.NewF("151213722"),
+		babybear.NewF("2891185935"),
+		babybear.NewF("546846420"),
+		babybear.NewF("2939794919"),
+		babybear.NewF("2543469905"),
+	}
+	round += 1
+	RC16[round] = [BABYBEAR_WIDTH]babybear.Variable{
+		babybear.NewF("2191909784"),
+		babybear.NewF("3315138460"),
+		babybear.NewF("530414574"),
+		babybear.NewF("1242280418"),
+		babybear.NewF("1211740715"),
+		babybear.NewF("3993672165"),
+		babybear.NewF("2505083323"),
+		babybear.NewF("3845798801"),
+		babybear.NewF("538768466"),
+		babybear.NewF("2063567560"),
+		babybear.NewF("3366148274"),
+		babybear.NewF("1449831887"),
+		babybear.NewF("2408012466"),
+		babybear.NewF("294726285"),
+		babybear.NewF("3943435493"),
+		babybear.NewF("924016661"),
+	}
+	round += 1
+	RC16[round] = [BABYBEAR_WIDTH]babybear.Variable{
+		babybear.NewF("3633138367"),
+		babybear.NewF("3222789372"),
+		babybear.NewF("809116305"),
+		babybear.NewF("30100013"),
+		babybear.NewF("2655172876"),
+		babybear.NewF("2564247117"),
+		babybear.NewF("2478649732"),
+		babybear.NewF("4113689151"),
+		babybear.NewF("4120146082"),
+		babybear.NewF("2512308515"),
+		babybear.NewF("650406041"),
+		babybear.NewF("4240012393"),
+		babybear.NewF("2683508708"),
+		babybear.NewF("951073977"),
+		babybear.NewF("3460081988"),
+		babybear.NewF("339124269"),
+	}
+	round += 1
+	RC16[round] = [BABYBEAR_WIDTH]babybear.Variable{
+		babybear.NewF("130182653"),
+		babybear.NewF("2755946749"),
+		babybear.NewF("542600513"),
+		babybear.NewF("2816103022"),
+		babybear.NewF("1931786340"),
+		babybear.NewF("2044470840"),
+		babybear.NewF("1709908013"),
+		babybear.NewF("2938369043"),
+		babybear.NewF("3640399693"),
+		babybear.NewF("1374470239"),
+		babybear.NewF("2191149676"),
+		babybear.NewF("2637495682"),
+		babybear.NewF("4236394040"),
+		babybear.NewF("2289358846"),
+		babybear.NewF("3833368530"),
+		babybear.NewF("974546524"),
+	}
+	round += 1
+	RC16[round] = [BABYBEAR_WIDTH]babybear.Variable{
+		babybear.NewF("3306659113"),
+		babybear.NewF("2234814261"),
+		babybear.NewF("1188782305"),
+		babybear.NewF("223782844"),
+		babybear.NewF("2248980567"),
+		babybear.NewF("2309786141"),
+		babybear.NewF("2023401627"),
+		babybear.NewF("3278877413"),
+		babybear.NewF("2022138149"),
+		babybear.NewF("575851471"),
+		babybear.NewF("1612560780"),
+		babybear.NewF("3926656936"),
+		babybear.NewF("3318548977"),
+		babybear.NewF("2591863678"),
+		babybear.NewF("188109355"),
+		babybear.NewF("4217723909"),
+	}
+	round += 1
+	RC16[round] = [BABYBEAR_WIDTH]babybear.Variable{
+		babybear.NewF("1564209905"),
+		babybear.NewF("2154197895"),
+		babybear.NewF("2459687029"),
+		babybear.NewF("2870634489"),
+		babybear.NewF("1375012945"),
+		babybear.NewF("1529454825"),
+		babybear.NewF("306140690"),
+		babybear.NewF("2855578299"),
+		babybear.NewF("1246997295"),
+		babybear.NewF("3024298763"),
+		babybear.NewF("1915270363"),
+		babybear.NewF("1218245412"),
+		babybear.NewF("2479314020"),
+		babybear.NewF("2989827755"),
+		babybear.NewF("814378556"),
+		babybear.NewF("4039775921"),
+	}
+	round += 1
+	RC16[round] = [BABYBEAR_WIDTH]babybear.Variable{
+		babybear.NewF("1165280628"),
+		babybear.NewF("1203983801"),
+		babybear.NewF("3814740033"),
+		babybear.NewF("1919627044"),
+		babybear.NewF("600240215"),
+		babybear.NewF("773269071"),
+		babybear.NewF("486685186"),
+		babybear.NewF("4254048810"),
+		babybear.NewF("1415023565"),
+		babybear.NewF("502840102"),
+		babybear.NewF("4225648358"),
+		babybear.NewF("510217063"),
+		babybear.NewF("166444818"),
+		babybear.NewF("1430745893"),
+		babybear.NewF("1376516190"),
+		babybear.NewF("1775891321"),
+	}
+	round += 1
+	RC16[round] = [BABYBEAR_WIDTH]babybear.Variable{
+		babybear.NewF("1170945922"),
+		babybear.NewF("1105391877"),
+		babybear.NewF("261536467"),
+		babybear.NewF("1401687994"),
+		babybear.NewF("1022529847"),
+		babybear.NewF("2476446456"),
+		babybear.NewF("2603844878"),
+		babybear.NewF("3706336043"),
+		babybear.NewF("3463053714"),
+		babybear.NewF("1509644517"),
+		babybear.NewF("588552318"),
+		babybear.NewF("65252581"),
+		babybear.NewF("3696502656"),
+		babybear.NewF("2183330763"),
+		babybear.NewF("3664021233"),
+		babybear.NewF("1643809916"),
+	}
+	round += 1
+	RC16[round] = [BABYBEAR_WIDTH]babybear.Variable{
+		babybear.NewF("2922875898"),
+		babybear.NewF("3740690643"),
+		babybear.NewF("3932461140"),
+		babybear.NewF("161156271"),
+		babybear.NewF("2619943483"),
+		babybear.NewF("4077039509"),
+		babybear.NewF("2921201703"),
+		babybear.NewF("2085619718"),
+		babybear.NewF("2065264646"),
+		babybear.NewF("2615693812"),
+		babybear.NewF("3116555433"),
+		babybear.NewF("246100007"),
+		babybear.NewF("4281387154"),
+		babybear.NewF("4046141001"),
+		babybear.NewF("4027749321"),
+		babybear.NewF("111611860"),
+	}
+	round += 1
+	RC16[round] = [BABYBEAR_WIDTH]babybear.Variable{
+		babybear.NewF("2066954820"),
+		babybear.NewF("2502099969"),
+		babybear.NewF("2915053115"),
+		babybear.NewF("2362518586"),
+		babybear.NewF("366091708"),
+		babybear.NewF("2083204932"),
+		babybear.NewF("4138385632"),
+		babybear.NewF("3195157567"),
+		babybear.NewF("1318086382"),
+		babybear.NewF("521723799"),
+		babybear.NewF("702443405"),
+		babybear.NewF("2507670985"),
+		babybear.NewF("1760347557"),
+		babybear.NewF("2631999893"),
+		babybear.NewF("1672737554"),
+		babybear.NewF("1060867760"),
+	}
+	round += 1
+	RC16[round] = [BABYBEAR_WIDTH]babybear.Variable{
+		babybear.NewF("2359801781"),
+		babybear.NewF("2800231467"),
+		babybear.NewF("3010357035"),
+		babybear.NewF("1035997899"),
+		babybear.NewF("1210110952"),
+		babybear.NewF("1018506770"),
+		babybear.NewF("2799468177"),
+		babybear.NewF("1479380761"),
+		babybear.NewF("1536021911"),
+		babybear.NewF("358993854"),
+		babybear.NewF("579904113"),
+		babybear.NewF("3432144800"),
+		babybear.NewF("3625515809"),
+		babybear.NewF("199241497"),
+		babybear.NewF("4058304109"),
+		babybear.NewF("2590164234"),
+	}
+	round += 1
+	RC16[round] = [BABYBEAR_WIDTH]babybear.Variable{
+		babybear.NewF("1688530738"),
+		babybear.NewF("1580733335"),
+		babybear.NewF("2443981517"),
+		babybear.NewF("2206270565"),
+		babybear.NewF("2780074229"),
+		babybear.NewF("2628739677"),
+		babybear.NewF("2940123659"),
+		babybear.NewF("4145206827"),
+		babybear.NewF("3572278009"),
+		babybear.NewF("2779607509"),
+		babybear.NewF("1098718697"),
+		babybear.NewF("1424913749"),
+		babybear.NewF("2224415875"),
+		babybear.NewF("1108922178"),
+		babybear.NewF("3646272562"),
+		babybear.NewF("3935186184"),
+	}
+	round += 1
+	RC16[round] = [BABYBEAR_WIDTH]babybear.Variable{
+		babybear.NewF("820046587"),
+		babybear.NewF("1393386250"),
+		babybear.NewF("2665818575"),
+		babybear.NewF("2231782019"),
+		babybear.NewF("672377010"),
+		babybear.NewF("1920315467"),
+		babybear.NewF("1913164407"),
+		babybear.NewF("2029526876"),
+		babybear.NewF("2629271820"),
+		babybear.NewF("384320012"),
+		babybear.NewF("4112320585"),
+		babybear.NewF("3131824773"),
+		babybear.NewF("2347818197"),
+		babybear.NewF("2220997386"),
+		babybear.NewF("1772368609"),
+		babybear.NewF("2579960095"),
+	}
+	round += 1
+	RC16[round] = [BABYBEAR_WIDTH]babybear.Variable{
+		babybear.NewF("3544930873"),
+		babybear.NewF("225847443"),
+		babybear.NewF("3070082278"),
+		babybear.NewF("95643305"),
+		babybear.NewF("3438572042"),
+		babybear.NewF("3312856509"),
+		babybear.NewF("615850007"),
+		babybear.NewF("1863868773"),
+		babybear.NewF("803582265"),
+		babybear.NewF("3461976859"),
+		babybear.NewF("2903025799"),
+		babybear.NewF("1482092434"),
+		babybear.NewF("3902972499"),
+		babybear.NewF("3872341868"),
+		babybear.NewF("1530411808"),
+		babybear.NewF("2214923584"),
+	}
+	round += 1
+	RC16[round] = [BABYBEAR_WIDTH]babybear.Variable{
+		babybear.NewF("3118792481"),
+		babybear.NewF("2241076515"),
+		babybear.NewF("3983669831"),
+		babybear.NewF("3180915147"),
+		babybear.NewF("3838626501"),
+		babybear.NewF("1921630011"),
+		babybear.NewF("3415351771"),
+		babybear.NewF("2249953859"),
+		babybear.NewF("3755081630"),
+		babybear.NewF("486327260"),
+		babybear.NewF("1227575720"),
+		babybear.NewF("3643869379"),
+		babybear.NewF("2982026073"),
+		babybear.NewF("2466043731"),
+		babybear.NewF("1982634375"),
+		babybear.NewF("3769609014"),
+	}
+	round += 1
+	RC16[round] = [BABYBEAR_WIDTH]babybear.Variable{
+		babybear.NewF("2195455495"),
+		babybear.NewF("2596863283"),
+		babybear.NewF("4244994973"),
+		babybear.NewF("1983609348"),
+		babybear.NewF("4019674395"),
+		babybear.NewF("3469982031"),
+		babybear.NewF("1458697570"),
+		babybear.NewF("1593516217"),
+		babybear.NewF("1963896497"),
+		babybear.NewF("3115309118"),
+		babybear.NewF("1659132465"),
+		babybear.NewF("2536770756"),
+		babybear.NewF("3059294171"),
+		babybear.NewF("2618031334"),
+		babybear.NewF("2040903247"),
+		babybear.NewF("3799795076"),
 	}
 }

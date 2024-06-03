@@ -27,6 +27,13 @@ where
         let (local, next) = (main.row_slice(0), main.row_slice(1));
         let local: &ShaExtendCols<AB::Var> = (*local).borrow();
         let next: &ShaExtendCols<AB::Var> = (*next).borrow();
+
+        // Constrain the incrementing nonce.
+        builder.when_first_row().assert_zero(local.nonce);
+        builder
+            .when_transition()
+            .assert_eq(local.nonce + AB::Expr::one(), next.nonce);
+
         let i_start = AB::F::from_canonical_u32(16);
         let nb_bytes_in_word = AB::F::from_canonical_u32(4);
 
@@ -42,6 +49,10 @@ where
             .when_transition()
             .when_not(local.cycle_16_end.result * local.cycle_48[2])
             .assert_eq(local.clk, next.clk);
+        builder
+            .when_transition()
+            .when_not(local.cycle_16_end.result * local.cycle_48[2])
+            .assert_eq(local.channel, next.channel);
         builder
             .when_transition()
             .when_not(local.cycle_16_end.result * local.cycle_48[2])
@@ -214,22 +225,28 @@ where
             local.is_real,
         );
 
+        builder.assert_word_eq(*local.w_i.value(), local.s2.value);
+
         // Receive syscall event in first row of 48-cycle.
         builder.receive_syscall(
             local.shard,
             local.channel,
             local.clk,
+            local.nonce,
             AB::F::from_canonical_u32(SyscallCode::SHA_EXTEND.syscall_id()),
             local.w_ptr,
             AB::Expr::zero(),
             local.cycle_48_start,
         );
 
-        // If this row is real and not the last cycle, then next row should also be real.
+        // Assert that is_real is a bool.
+        builder.assert_bool(local.is_real);
+
+        // Ensure that all rows in a 48 row cycle has the same `is_real` values.
         builder
             .when_transition()
-            .when(local.is_real - local.cycle_48_end)
-            .assert_one(next.is_real);
+            .when_not(local.cycle_48_end)
+            .assert_eq(local.is_real, next.is_real);
 
         // Assert that the table ends in nonreal columns. Since each extend ecall is 48 cycles and
         // the table is padded to a power of 2, the last row of the table should always be padding.
