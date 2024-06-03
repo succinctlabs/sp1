@@ -539,7 +539,7 @@ impl MachineRecord for ExecutionRecord {
         // SHA-256 compress events.
         first.sha_compress_events = std::mem::take(&mut self.sha_compress_events);
         for (i, event) in first.sha_compress_events.iter().enumerate() {
-            self.nonce_lookup.insert(event.lookup_id, (i * 24) as u32);
+            self.nonce_lookup.insert(event.lookup_id, (i * 80) as u32);
         }
 
         // Edwards curve add events.
