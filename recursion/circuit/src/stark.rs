@@ -1,5 +1,6 @@
 use std::borrow::Borrow;
 use std::marker::PhantomData;
+use std::mem::transmute;
 
 use crate::fri::verify_two_adic_pcs;
 use crate::types::OuterDigestVariable;
@@ -20,7 +21,9 @@ use sp1_recursion_compiler::constraints::{Constraint, ConstraintCompiler};
 use sp1_recursion_compiler::ir::{Builder, Config, Ext, Felt, Var};
 use sp1_recursion_compiler::ir::{Usize, Witness};
 use sp1_recursion_compiler::prelude::SymbolicVar;
-use sp1_recursion_core::air::RecursionPublicValues;
+use sp1_recursion_core::air::{
+    RecursionPublicValues, NUM_PV_ELMS_TO_HASH, RECURSIVE_PROOF_NUM_PV_ELTS,
+};
 use sp1_recursion_core::stark::config::{outer_fri_config, BabyBearPoseidon2Outer};
 use sp1_recursion_core::stark::RecursionAirSkinnyDeg9;
 use sp1_recursion_program::commit::PolynomialSpaceVariable;
@@ -270,7 +273,22 @@ pub fn build_wrap_circuit(
         let element = builder.get(&proof.public_values, i);
         pv_elements.push(element);
     }
+
     let pv: &RecursionPublicValues<_> = pv_elements.as_slice().borrow();
+
+    // Verify the public values digest.
+    let pv_elements: [Felt<_>; RECURSIVE_PROOF_NUM_PV_ELTS] = unsafe { transmute(*pv) };
+    let mut poseidon_inputs = builder.array(NUM_PV_ELMS_TO_HASH);
+    for (i, elm) in pv_elements[0..NUM_PV_ELMS_TO_HASH].iter().enumerate() {
+        builder.set(&mut poseidon_inputs, i, *elm);
+    }
+    let calculated_digest = builder.poseidon2_hash(&poseidon_inputs);
+    let expected_digest = pv.digest;
+    for (i, expected_elm) in expected_digest.iter().enumerate() {
+        let calculated_elm = builder.get(&calculated_digest, i);
+        builder.assert_felt_eq(*expected_elm, calculated_elm);
+    }
+
     let one_felt: Felt<_> = builder.constant(BabyBear::one());
     // Proof must be complete. In the reduce program, this will ensure that the SP1 proof has been
     // fully accumulated.

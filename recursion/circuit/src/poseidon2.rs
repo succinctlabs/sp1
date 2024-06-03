@@ -16,6 +16,7 @@ pub trait Poseidon2CircuitBuilder<C: Config> {
     fn p2_permute_mut(&mut self, state: [Var<C::N>; SPONGE_SIZE]);
     fn p2_hash(&mut self, input: &[Felt<C::F>]) -> OuterDigestVariable<C>;
     fn p2_compress(&mut self, input: [OuterDigestVariable<C>; 2]) -> OuterDigestVariable<C>;
+    fn p2_babybear_hash(&mut self, input: &[Felt<C::F>]) -> [Felt<C::F>; 8];
 }
 
 impl<C: Config> Poseidon2CircuitBuilder<C> for Builder<C> {
@@ -52,6 +53,8 @@ impl<C: Config> Poseidon2CircuitBuilder<C> for Builder<C> {
         self.p2_permute_mut(state);
         [state[0]; DIGEST_SIZE]
     }
+
+    fn p2_babybear_hash(&mut self, input: &[Felt<C::F>]) -> [Felt<C::F>; 8] {}
 }
 
 #[cfg(test)]
