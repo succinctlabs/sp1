@@ -11,7 +11,7 @@ var RC3 [NUM_EXTERNAL_ROUNDS + NUM_INTERNAL_ROUNDS][WIDTH]frontend.Variable
 
 // Poseidon2 round constaints for a state consisting of 16 BabyBear field elements.
 
-var RC16 [BABYBEAR_NUM_EXTERNAL_ROUNDS + BABYBEAR_NUM_INTERNAL_ROUNDS][BABYBEAR_WIDTH]babybear.Variable
+var RC16 [30][BABYBEAR_WIDTH]babybear.Variable
 
 func init() {
 	init_rc3()
