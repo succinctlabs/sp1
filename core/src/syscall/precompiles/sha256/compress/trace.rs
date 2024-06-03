@@ -275,6 +275,8 @@ impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
             if octet == 0 {
                 octet_num = (octet_num + 1) % 10;
             }
+
+            cols.is_last_row = cols.octet[7] * cols.octet_num[9];
         }
 
         // Convert the trace to a row major matrix.
