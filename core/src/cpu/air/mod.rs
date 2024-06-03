@@ -134,14 +134,16 @@ where
             .for_each(|(i, selector)| {
                 if i == OPCODE_SELECTORS_COL_MAP.imm_b {
                     builder
-                        .when_not(local.is_real)
+                        .when(AB::Expr::one() - local.is_real)
                         .assert_one(local.selectors.imm_b);
                 } else if i == OPCODE_SELECTORS_COL_MAP.imm_c {
                     builder
-                        .when_not(local.is_real)
+                        .when(AB::Expr::one() - local.is_real)
                         .assert_one(local.selectors.imm_c);
                 } else {
-                    builder.when_not(local.is_real).assert_zero(selector);
+                    builder
+                        .when(AB::Expr::one() - local.is_real)
+                        .assert_zero(selector);
                 }
             });
     }
