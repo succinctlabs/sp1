@@ -1,10 +1,7 @@
 package poseidon2
 
 import (
-	"math/big"
-
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/succinctlabs/sp1-recursion-gnark/sp1/babybear"
 )
 
@@ -97,33 +94,33 @@ func (p *Poseidon2BabyBearChip) sbox(state *[BABYBEAR_WIDTH]babybear.Variable) {
 	}
 }
 
-func (p *Poseidon2BabyBearChip) matrix_permute_mut(state []*babybear.Variable) {
+func (p *Poseidon2BabyBearChip) matrix_permute_mut(state *[BABYBEAR_WIDTH]babybear.Variable) {
 	// First, we apply M_4 to each consecutive four elements of the state.
 	// In Appendix B's terminology, this replaces each x_i with x_i'.
-	for i := 0; i < p.width; i += 4 {
+	for i := 0; i < BABYBEAR_WIDTH; i += 4 {
 		p.apply_m_4(state[i : i+4])
 	}
 
 	// Now, we apply the outer circulant matrix (to compute the y_i values).
 
 	// We first precompute the four sums of every four elements.
-	sums := [4]*emulated.Element[FP]{p.fieldApi.Zero(), p.fieldApi.Zero(), p.fieldApi.Zero(), p.fieldApi.Zero()}
+	sums := [4]babybear.Variable{p.zero, p.zero, p.zero, p.zero}
 	for i := 0; i < 4; i++ {
-		for j := 0; j < p.width; j += 4 {
+		for j := 0; j < BABYBEAR_WIDTH; j += 4 {
 			sums[i] = p.fieldApi.AddF(sums[i], state[i+j])
 		}
 	}
 
 	// The formula for each y_i involves 2x_i' term and x_j' terms for each j that equals i mod 4.
 	// In other words, we can add a single copy of x_i' to the appropriate one of our precomputed sums
-	for i := 0; i < p.width; i++ {
+	for i := 0; i < BABYBEAR_WIDTH; i++ {
 		state[i] = p.fieldApi.AddF(state[i], sums[i%4])
 	}
 }
 
 // Multiply a 4-element vector x by M_4, in place.
 // This uses the formula from the start of Appendix B, with multiplications unrolled into additions.
-func (p *Poseidon2BabyBearChip) apply_m_4(x []*babybear.Variable) {
+func (p *Poseidon2BabyBearChip) apply_m_4(x []babybear.Variable) {
 	t0 := p.fieldApi.AddF(x[0], x[1])
 	t1 := p.fieldApi.AddF(x[2], x[3])
 	t2 := p.fieldApi.AddF(x[1], x[1])
@@ -146,14 +143,14 @@ func (p *Poseidon2BabyBearChip) apply_m_4(x []*babybear.Variable) {
 	x[3] = t4
 }
 
-func (p *Poseidon2BabyBearChip) diffusion_permute_mut(state []*babybear.Variable) {
-	sum := p.fieldApi.Zero()
-	for i := 0; i < p.width; i++ {
+func (p *Poseidon2BabyBearChip) diffusion_permute_mut(state *[BABYBEAR_WIDTH]babybear.Variable) {
+	sum := p.zero
+	for i := 0; i < BABYBEAR_WIDTH; i++ {
 		sum = p.fieldApi.AddF(sum, state[i])
 	}
 
-	for i := 0; i < p.width; i++ {
-		state[i] = p.fieldApi.MulConst(state[i], big.NewInt(int64(p.internal_linear_layer[i])))
+	for i := 0; i < BABYBEAR_WIDTH; i++ {
+		state[i] = p.fieldApi.MulF(state[i], p.internal_linear_layer[i])
 		state[i] = p.fieldApi.AddF(state[i], sum)
 	}
 }
