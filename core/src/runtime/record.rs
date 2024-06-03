@@ -17,7 +17,6 @@ use crate::cpu::CpuEvent;
 use crate::runtime::MemoryInitializeFinalizeEvent;
 use crate::runtime::MemoryRecordEnum;
 use crate::stark::MachineRecord;
-use crate::syscall::precompiles::blake3::Blake3CompressInnerEvent;
 use crate::syscall::precompiles::edwards::EdDecompressEvent;
 use crate::syscall::precompiles::keccak256::KeccakPermuteEvent;
 use crate::syscall::precompiles::sha256::{ShaCompressEvent, ShaExtendEvent};
@@ -86,8 +85,6 @@ pub struct ExecutionRecord {
     pub bn254_double_events: Vec<ECDoubleEvent>,
 
     pub k256_decompress_events: Vec<ECDecompressEvent>,
-
-    pub blake3_compress_inner_events: Vec<Blake3CompressInnerEvent>,
 
     pub bls12381_add_events: Vec<ECAddEvent>,
 
@@ -223,10 +220,6 @@ impl MachineRecord for ExecutionRecord {
             self.k256_decompress_events.len(),
         );
         stats.insert(
-            "blake3_compress_inner_events".to_string(),
-            self.blake3_compress_inner_events.len(),
-        );
-        stats.insert(
             "bls12381_add_events".to_string(),
             self.bls12381_add_events.len(),
         );
@@ -274,8 +267,6 @@ impl MachineRecord for ExecutionRecord {
             .append(&mut other.bn254_double_events);
         self.k256_decompress_events
             .append(&mut other.k256_decompress_events);
-        self.blake3_compress_inner_events
-            .append(&mut other.blake3_compress_inner_events);
         self.bls12381_add_events
             .append(&mut other.bls12381_add_events);
         self.bls12381_double_events
@@ -566,12 +557,6 @@ impl MachineRecord for ExecutionRecord {
         // K256 curve decompress events.
         first.k256_decompress_events = std::mem::take(&mut self.k256_decompress_events);
         for (i, event) in first.k256_decompress_events.iter().enumerate() {
-            self.nonce_lookup.insert(event.lookup_id, i as u32);
-        }
-
-        // Blake3 compress events .
-        first.blake3_compress_inner_events = std::mem::take(&mut self.blake3_compress_inner_events);
-        for (i, event) in first.blake3_compress_inner_events.iter().enumerate() {
             self.nonce_lookup.insert(event.lookup_id, i as u32);
         }
 

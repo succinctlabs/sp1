@@ -21,7 +21,6 @@ pub(crate) mod riscv_chips {
     pub use crate::cpu::CpuChip;
     pub use crate::memory::MemoryChip;
     pub use crate::program::ProgramChip;
-    pub use crate::syscall::precompiles::blake3::Blake3CompressInnerChip;
     pub use crate::syscall::precompiles::edwards::EdAddAssignChip;
     pub use crate::syscall::precompiles::edwards::EdDecompressChip;
     pub use crate::syscall::precompiles::keccak256::KeccakPermuteChip;
@@ -88,8 +87,6 @@ pub enum RiscvAir<F: PrimeField32> {
     Secp256k1Double(WeierstrassDoubleAssignChip<SwCurve<Secp256k1Parameters>>),
     /// A precompile for the Keccak permutation.
     KeccakP(KeccakPermuteChip),
-    /// A precompile for the Blake3 compression function. (Disabled by default.)
-    Blake3Compress(Blake3CompressInnerChip),
     /// A precompile for addition on the Elliptic curve bn254.
     Bn254Add(WeierstrassAddAssignChip<SwCurve<Bn254Parameters>>),
     /// A precompile for doubling a point on the Elliptic curve bn254.
