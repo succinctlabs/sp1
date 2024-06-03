@@ -78,9 +78,6 @@ where
             air.name(),
             nb_byte_sends + nb_byte_receives
         );
-        if nb_byte_sends + nb_byte_receives > 1 << 11 {
-            panic!("too many byte interactions : {}", air.name());
-        }
 
         let mut max_constraint_degree =
             get_max_constraint_degree(&air, air.preprocessed_width(), PROOF_MAX_NUM_PVS);
