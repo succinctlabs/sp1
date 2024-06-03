@@ -147,10 +147,19 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
         }
 
         // Convert the trace to a row major matrix.
-        RowMajorMatrix::new(
+        let mut trace = RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_KECCAK_MEM_COLS,
-        )
+        );
+
+        // Write the nonce to the trace.
+        for i in 0..trace.height() {
+            let cols: &mut KeccakMemCols<F> =
+                trace.values[i * NUM_KECCAK_MEM_COLS..(i + 1) * NUM_KECCAK_MEM_COLS].borrow_mut();
+            cols.nonce = F::from_canonical_usize(i);
+        }
+
+        trace
     }
 
     fn included(&self, shard: &Self::Record) -> bool {

@@ -52,6 +52,7 @@ pub struct WeierstrassAddAssignCols<T, P: FieldParameters + NumWords> {
     pub is_real: T,
     pub shard: T,
     pub channel: T,
+    pub nonce: T,
     pub clk: T,
     pub p_ptr: T,
     pub q_ptr: T,
@@ -302,10 +303,21 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         });
 
         // Convert the trace to a row major matrix.
-        RowMajorMatrix::new(
+        let mut trace = RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
             num_weierstrass_add_cols::<E::BaseField>(),
-        )
+        );
+
+        // Write the nonces to the trace.
+        for i in 0..trace.height() {
+            let cols: &mut WeierstrassAddAssignCols<F, E::BaseField> = trace.values[i
+                * num_weierstrass_add_cols::<E::BaseField>()
+                ..(i + 1) * num_weierstrass_add_cols::<E::BaseField>()]
+                .borrow_mut();
+            cols.nonce = F::from_canonical_usize(i);
+        }
+
+        trace
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -331,117 +343,125 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let row = main.row_slice(0);
-        let row: &WeierstrassAddAssignCols<AB::Var, E::BaseField> = (*row).borrow();
+        let local = main.row_slice(0);
+        let local: &WeierstrassAddAssignCols<AB::Var, E::BaseField> = (*local).borrow();
+        let next = main.row_slice(1);
+        let next: &WeierstrassAddAssignCols<AB::Var, E::BaseField> = (*next).borrow();
+
+        // Constrain the incrementing nonce.
+        builder.when_first_row().assert_zero(local.nonce);
+        builder
+            .when_transition()
+            .assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         let num_words_field_element = <E::BaseField as NumLimbs>::Limbs::USIZE / 4;
 
-        let p_x = limbs_from_prev_access(&row.p_access[0..num_words_field_element]);
-        let p_y = limbs_from_prev_access(&row.p_access[num_words_field_element..]);
+        let p_x = limbs_from_prev_access(&local.p_access[0..num_words_field_element]);
+        let p_y = limbs_from_prev_access(&local.p_access[num_words_field_element..]);
 
-        let q_x = limbs_from_prev_access(&row.q_access[0..num_words_field_element]);
-        let q_y = limbs_from_prev_access(&row.q_access[num_words_field_element..]);
+        let q_x = limbs_from_prev_access(&local.q_access[0..num_words_field_element]);
+        let q_y = limbs_from_prev_access(&local.q_access[num_words_field_element..]);
 
         // slope = (q.y - p.y) / (q.x - p.x).
         let slope = {
-            row.slope_numerator.eval(
+            local.slope_numerator.eval(
                 builder,
                 &q_y,
                 &p_y,
                 FieldOperation::Sub,
-                row.shard,
-                row.channel,
-                row.is_real,
+                local.shard,
+                local.channel,
+                local.is_real,
             );
 
-            row.slope_denominator.eval(
+            local.slope_denominator.eval(
                 builder,
                 &q_x,
                 &p_x,
                 FieldOperation::Sub,
-                row.shard,
-                row.channel,
-                row.is_real,
+                local.shard,
+                local.channel,
+                local.is_real,
             );
 
-            row.slope.eval(
+            local.slope.eval(
                 builder,
-                &row.slope_numerator.result,
-                &row.slope_denominator.result,
+                &local.slope_numerator.result,
+                &local.slope_denominator.result,
                 FieldOperation::Div,
-                row.shard,
-                row.channel,
-                row.is_real,
+                local.shard,
+                local.channel,
+                local.is_real,
             );
 
-            &row.slope.result
+            &local.slope.result
         };
 
         // x = slope * slope - self.x - other.x.
         let x = {
-            row.slope_squared.eval(
+            local.slope_squared.eval(
                 builder,
                 slope,
                 slope,
                 FieldOperation::Mul,
-                row.shard,
-                row.channel,
-                row.is_real,
+                local.shard,
+                local.channel,
+                local.is_real,
             );
 
-            row.p_x_plus_q_x.eval(
+            local.p_x_plus_q_x.eval(
                 builder,
                 &p_x,
                 &q_x,
                 FieldOperation::Add,
-                row.shard,
-                row.channel,
-                row.is_real,
+                local.shard,
+                local.channel,
+                local.is_real,
             );
 
-            row.x3_ins.eval(
+            local.x3_ins.eval(
                 builder,
-                &row.slope_squared.result,
-                &row.p_x_plus_q_x.result,
+                &local.slope_squared.result,
+                &local.p_x_plus_q_x.result,
                 FieldOperation::Sub,
-                row.shard,
-                row.channel,
-                row.is_real,
+                local.shard,
+                local.channel,
+                local.is_real,
             );
 
-            &row.x3_ins.result
+            &local.x3_ins.result
         };
 
         // y = slope * (p.x - x_3n) - q.y.
         {
-            row.p_x_minus_x.eval(
+            local.p_x_minus_x.eval(
                 builder,
                 &p_x,
                 x,
                 FieldOperation::Sub,
-                row.shard,
-                row.channel,
-                row.is_real,
+                local.shard,
+                local.channel,
+                local.is_real,
             );
 
-            row.slope_times_p_x_minus_x.eval(
+            local.slope_times_p_x_minus_x.eval(
                 builder,
                 slope,
-                &row.p_x_minus_x.result,
+                &local.p_x_minus_x.result,
                 FieldOperation::Mul,
-                row.shard,
-                row.channel,
-                row.is_real,
+                local.shard,
+                local.channel,
+                local.is_real,
             );
 
-            row.y3_ins.eval(
+            local.y3_ins.eval(
                 builder,
-                &row.slope_times_p_x_minus_x.result,
+                &local.slope_times_p_x_minus_x.result,
                 &p_y,
                 FieldOperation::Sub,
-                row.shard,
-                row.channel,
-                row.is_real,
+                local.shard,
+                local.channel,
+                local.is_real,
             );
         }
 
@@ -449,29 +469,29 @@ where
         // ensure that p_access is updated with the new value.
         for i in 0..E::BaseField::NB_LIMBS {
             builder
-                .when(row.is_real)
-                .assert_eq(row.x3_ins.result[i], row.p_access[i / 4].value()[i % 4]);
-            builder.when(row.is_real).assert_eq(
-                row.y3_ins.result[i],
-                row.p_access[num_words_field_element + i / 4].value()[i % 4],
+                .when(local.is_real)
+                .assert_eq(local.x3_ins.result[i], local.p_access[i / 4].value()[i % 4]);
+            builder.when(local.is_real).assert_eq(
+                local.y3_ins.result[i],
+                local.p_access[num_words_field_element + i / 4].value()[i % 4],
             );
         }
 
         builder.eval_memory_access_slice(
-            row.shard,
-            row.channel,
-            row.clk.into(),
-            row.q_ptr,
-            &row.q_access,
-            row.is_real,
+            local.shard,
+            local.channel,
+            local.clk.into(),
+            local.q_ptr,
+            &local.q_access,
+            local.is_real,
         );
         builder.eval_memory_access_slice(
-            row.shard,
-            row.channel,
-            row.clk + AB::F::from_canonical_u32(1), // We read p at +1 since p, q could be the same.
-            row.p_ptr,
-            &row.p_access,
-            row.is_real,
+            local.shard,
+            local.channel,
+            local.clk + AB::F::from_canonical_u32(1), // We read p at +1 since p, q could be the same.
+            local.p_ptr,
+            &local.p_access,
+            local.is_real,
         );
 
         // Fetch the syscall id for the curve type.
@@ -487,13 +507,14 @@ where
         };
 
         builder.receive_syscall(
-            row.shard,
-            row.channel,
-            row.clk,
+            local.shard,
+            local.channel,
+            local.clk,
+            local.nonce,
             syscall_id_felt,
-            row.p_ptr,
-            row.q_ptr,
-            row.is_real,
+            local.p_ptr,
+            local.q_ptr,
+            local.is_real,
         );
     }
 }

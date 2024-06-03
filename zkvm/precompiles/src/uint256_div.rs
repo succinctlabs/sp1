@@ -11,7 +11,6 @@ use num::{BigUint, Integer};
 /// represented as arrays of bytes in little-endian order. It returns the quotient
 /// of the division as a 256-bit unsigned integer in the same byte array format.
 pub fn uint256_div(x: &mut [u8; 32], y: &[u8; 32]) -> [u8; 32] {
-    // TODO: this will panic now.
     // Assert that the divisor is not zero.
     assert!(y != &[0; 32], "division by zero");
     cfg_if::cfg_if! {

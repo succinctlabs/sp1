@@ -34,6 +34,9 @@ pub struct LtCols<T> {
     /// The channel number, used for byte lookup table.
     pub channel: T,
 
+    /// The nonce of the operation.
+    pub nonce: T,
+
     /// If the opcode is SLT.
     pub is_slt: T,
 
@@ -220,6 +223,13 @@ impl<F: PrimeField32> MachineAir<F> for LtChip {
         // Pad the trace to a power of two.
         pad_to_power_of_two::<NUM_LT_COLS, F>(&mut trace.values);
 
+        // Write the nonces to the trace.
+        for i in 0..trace.height() {
+            let cols: &mut LtCols<F> =
+                trace.values[i * NUM_LT_COLS..(i + 1) * NUM_LT_COLS].borrow_mut();
+            cols.nonce = F::from_canonical_usize(i);
+        }
+
         trace
     }
 
@@ -242,6 +252,14 @@ where
         let main = builder.main();
         let local = main.row_slice(0);
         let local: &LtCols<AB::Var> = (*local).borrow();
+        let next = main.row_slice(1);
+        let next: &LtCols<AB::Var> = (*next).borrow();
+
+        // Constrain the incrementing nonce.
+        builder.when_first_row().assert_zero(local.nonce);
+        builder
+            .when_transition()
+            .assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         let is_real = local.is_slt + local.is_sltu;
 
@@ -431,6 +449,7 @@ where
             local.c,
             local.shard,
             local.channel,
+            local.nonce,
             is_real,
         );
     }

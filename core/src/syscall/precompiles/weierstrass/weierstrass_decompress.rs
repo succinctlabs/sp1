@@ -54,6 +54,7 @@ pub struct WeierstrassDecompressCols<T, P: FieldParameters + NumWords> {
     pub shard: T,
     pub channel: T,
     pub clk: T,
+    pub nonce: T,
     pub ptr: T,
     pub is_odd: T,
     pub x_access: GenericArray<MemoryReadCols<T>, P::WordsFieldElement>,
@@ -222,10 +223,21 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
             row
         });
 
-        RowMajorMatrix::new(
+        let mut trace = RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
             num_weierstrass_decompress_cols::<E::BaseField>(),
-        )
+        );
+
+        // Write the nonces to the trace.
+        for i in 0..trace.height() {
+            let cols: &mut WeierstrassDecompressCols<F, E::BaseField> = trace.values[i
+                * num_weierstrass_decompress_cols::<E::BaseField>()
+                ..(i + 1) * num_weierstrass_decompress_cols::<E::BaseField>()]
+                .borrow_mut();
+            cols.nonce = F::from_canonical_usize(i);
+        }
+
+        trace
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -250,99 +262,108 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let row = main.row_slice(0);
-        let row: &WeierstrassDecompressCols<AB::Var, E::BaseField> = (*row).borrow();
+        let local = main.row_slice(0);
+        let local: &WeierstrassDecompressCols<AB::Var, E::BaseField> = (*local).borrow();
+        let next = main.row_slice(1);
+        let next: &WeierstrassDecompressCols<AB::Var, E::BaseField> = (*next).borrow();
+
+        // Constrain the incrementing nonce.
+        builder.when_first_row().assert_zero(local.nonce);
+        builder
+            .when_transition()
+            .assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         let num_limbs = <E::BaseField as NumLimbs>::Limbs::USIZE;
         let num_words_field_element = num_limbs / 4;
 
-        builder.assert_bool(row.is_odd);
+        builder.assert_bool(local.is_odd);
 
         let x: Limbs<AB::Var, <E::BaseField as NumLimbs>::Limbs> =
-            limbs_from_prev_access(&row.x_access);
-        row.range_x
-            .eval(builder, &x, row.shard, row.channel, row.is_real);
-        row.x_2.eval(
+            limbs_from_prev_access(&local.x_access);
+        local
+            .range_x
+            .eval(builder, &x, local.shard, local.channel, local.is_real);
+        local.x_2.eval(
             builder,
             &x,
             &x,
             FieldOperation::Mul,
-            row.shard,
-            row.channel,
-            row.is_real,
+            local.shard,
+            local.channel,
+            local.is_real,
         );
-        row.x_3.eval(
+        local.x_3.eval(
             builder,
-            &row.x_2.result,
+            &local.x_2.result,
             &x,
             FieldOperation::Mul,
-            row.shard,
-            row.channel,
-            row.is_real,
+            local.shard,
+            local.channel,
+            local.is_real,
         );
         let b = E::b_int();
         let b_const = E::BaseField::to_limbs_field::<AB::F, _>(&b);
-        row.x_3_plus_b.eval(
+        local.x_3_plus_b.eval(
             builder,
-            &row.x_3.result,
+            &local.x_3.result,
             &b_const,
             FieldOperation::Add,
-            row.shard,
-            row.channel,
-            row.is_real,
+            local.shard,
+            local.channel,
+            local.is_real,
         );
 
-        row.neg_y.eval(
+        local.neg_y.eval(
             builder,
             &[AB::Expr::zero()].iter(),
-            &row.y.multiplication.result,
+            &local.y.multiplication.result,
             FieldOperation::Sub,
-            row.shard,
-            row.channel,
-            row.is_real,
+            local.shard,
+            local.channel,
+            local.is_real,
         );
 
         // Interpret the lowest bit of Y as whether it is odd or not.
-        let y_is_odd = row.y.lsb;
+        let y_is_odd = local.y.lsb;
 
-        row.y.eval(
+        local.y.eval(
             builder,
-            &row.x_3_plus_b.result,
-            row.y.lsb,
-            row.shard,
-            row.channel,
-            row.is_real,
+            &local.x_3_plus_b.result,
+            local.y.lsb,
+            local.shard,
+            local.channel,
+            local.is_real,
         );
 
         let y_limbs: Limbs<AB::Var, <E::BaseField as NumLimbs>::Limbs> =
-            limbs_from_access(&row.y_access);
+            limbs_from_access(&local.y_access);
         builder
-            .when(row.is_real)
-            .when_ne(y_is_odd, AB::Expr::one() - row.is_odd)
-            .assert_all_eq(row.y.multiplication.result, y_limbs);
+            .when(local.is_real)
+            .when_ne(y_is_odd, AB::Expr::one() - local.is_odd)
+            .assert_all_eq(local.y.multiplication.result, y_limbs);
         builder
-            .when(row.is_real)
-            .when_ne(y_is_odd, row.is_odd)
-            .assert_all_eq(row.neg_y.result, y_limbs);
+            .when(local.is_real)
+            .when_ne(y_is_odd, local.is_odd)
+            .assert_all_eq(local.neg_y.result, y_limbs);
 
         for i in 0..num_words_field_element {
             builder.eval_memory_access(
-                row.shard,
-                row.channel,
-                row.clk,
-                row.ptr.into() + AB::F::from_canonical_u32((i as u32) * 4 + num_limbs as u32),
-                &row.x_access[i],
-                row.is_real,
+                local.shard,
+                local.channel,
+                local.clk,
+                local.ptr.into() + AB::F::from_canonical_u32((i as u32) * 4 + num_limbs as u32),
+                &local.x_access[i],
+                local.is_real,
             );
         }
         for i in 0..num_words_field_element {
             builder.eval_memory_access(
-                row.shard,
-                row.channel,
-                row.clk,
-                row.ptr.into() + AB::F::from_canonical_u32((i as u32) * 4),
-                &row.y_access[i],
-                row.is_real,
+                local.shard,
+                local.channel,
+                local.clk,
+                local.ptr.into() + AB::F::from_canonical_u32((i as u32) * 4),
+                &local.y_access[i],
+                local.is_real,
             );
         }
 
@@ -357,13 +378,14 @@ where
         };
 
         builder.receive_syscall(
-            row.shard,
-            row.channel,
-            row.clk,
+            local.shard,
+            local.channel,
+            local.clk,
+            local.nonce,
             syscall_id,
-            row.ptr,
-            row.is_odd,
-            row.is_real,
+            local.ptr,
+            local.is_odd,
+            local.is_real,
         );
     }
 }

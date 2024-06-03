@@ -11,7 +11,10 @@ pub struct Poseidon2Cols<T: Copy> {
     pub left_input: T,
     pub right_input: T,
     pub rounds: [T; 24], // 1 round for memory input; 1 round for initialize; 8 rounds for external; 13 rounds for internal; 1 round for memory output
+    pub do_receive: T,
+    pub do_memory: T,
     pub round_specific_cols: RoundSpecificCols<T>,
+    pub is_real: T,
 }
 
 #[derive(AlignedBorrow, Clone, Copy)]
@@ -45,6 +48,7 @@ impl<T: Copy> RoundSpecificCols<T> {
 pub struct ComputationCols<T> {
     pub input: [T; WIDTH],
     pub add_rc: [T; WIDTH],
+    pub sbox_deg_3: [T; WIDTH],
     pub sbox_deg_7: [T; WIDTH],
     pub output: [T; WIDTH],
 }

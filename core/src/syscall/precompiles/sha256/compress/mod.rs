@@ -20,6 +20,7 @@ pub const SHA_COMPRESS_K: [u32; 64] = [
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShaCompressEvent {
+    pub lookup_id: usize,
     pub shard: u32,
     pub channel: u32,
     pub clk: u32,

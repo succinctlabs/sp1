@@ -22,6 +22,7 @@ use crate::bytes::ByteOpcode;
 use crate::cpu::columns::OpcodeSelectorCols;
 use crate::cpu::columns::{CpuCols, NUM_CPU_COLS};
 use crate::cpu::CpuChip;
+use crate::operations::BabyBearWordRangeChecker;
 use crate::runtime::Opcode;
 
 use super::columns::eval_channel_selectors;
@@ -84,6 +85,7 @@ where
             local.op_c_val(),
             local.shard,
             local.channel,
+            local.nonce,
             is_alu_instruction,
         );
 
@@ -175,6 +177,26 @@ impl CpuChip {
             .when(is_jump_instruction.clone())
             .assert_eq(jump_columns.next_pc.reduce::<AB>(), local.next_pc);
 
+        // Range check op_a, pc, and next_pc.
+        BabyBearWordRangeChecker::<AB::F>::range_check(
+            builder,
+            local.op_a_val(),
+            jump_columns.op_a_range_checker,
+            is_jump_instruction.clone(),
+        );
+        BabyBearWordRangeChecker::<AB::F>::range_check(
+            builder,
+            jump_columns.pc,
+            jump_columns.pc_range_checker,
+            local.selectors.is_jal.into(),
+        );
+        BabyBearWordRangeChecker::<AB::F>::range_check(
+            builder,
+            jump_columns.next_pc,
+            jump_columns.next_pc_range_checker,
+            is_jump_instruction.clone(),
+        );
+
         // Verify that the new pc is calculated correctly for JAL instructions.
         builder.send_alu(
             AB::Expr::from_canonical_u32(Opcode::ADD as u32),
@@ -183,6 +205,7 @@ impl CpuChip {
             local.op_b_val(),
             local.shard,
             local.channel,
+            jump_columns.jal_nonce,
             local.selectors.is_jal,
         );
 
@@ -194,6 +217,7 @@ impl CpuChip {
             local.op_c_val(),
             local.shard,
             local.channel,
+            jump_columns.jalr_nonce,
             local.selectors.is_jalr,
         );
     }
@@ -208,6 +232,14 @@ impl CpuChip {
             .when(local.selectors.is_auipc)
             .assert_eq(auipc_columns.pc.reduce::<AB>(), local.pc);
 
+        // Range check the pc.
+        BabyBearWordRangeChecker::<AB::F>::range_check(
+            builder,
+            auipc_columns.pc,
+            auipc_columns.pc_range_checker,
+            local.selectors.is_auipc.into(),
+        );
+
         // Verify that op_a == pc + op_b.
         builder.send_alu(
             AB::Expr::from_canonical_u32(Opcode::ADD as u32),
@@ -216,6 +248,7 @@ impl CpuChip {
             local.op_b_val(),
             local.shard,
             local.channel,
+            auipc_columns.auipc_nonce,
             local.selectors.is_auipc,
         );
     }
@@ -288,17 +321,16 @@ impl CpuChip {
         next: &CpuCols<AB::Var>,
         is_branch_instruction: AB::Expr,
     ) {
-        // Verify that if is_sequential_instr is true, assert that local.is_real is true.
-        // This is needed for the following constraint, which is already degree 3.
-        builder
-            .when(local.is_sequential_instr)
-            .assert_one(local.is_real);
-
         // When is_sequential_instr is true, assert that instruction is not branch, jump, or halt.
         // Note that the condition `when(local_is_real)` is implied from the previous constraint.
         let is_halt = self.get_is_halt_syscall::<AB>(builder, local);
-        builder.when(local.is_sequential_instr).assert_zero(
-            is_branch_instruction + local.selectors.is_jal + local.selectors.is_jalr + is_halt,
+        builder.when(local.is_real).assert_eq(
+            local.is_sequential_instr,
+            AB::Expr::one()
+                - (is_branch_instruction
+                    + local.selectors.is_jal
+                    + local.selectors.is_jalr
+                    + is_halt),
         );
 
         // Verify that the pc increments by 4 for all instructions except branch, jump and halt instructions.
