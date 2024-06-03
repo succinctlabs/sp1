@@ -106,6 +106,13 @@ impl<F: PrimeField32> EdDecompressCols<F> {
         self.channel = F::from_canonical_u32(event.channel);
         self.clk = F::from_canonical_u32(event.clk);
         self.ptr = F::from_canonical_u32(event.ptr);
+        self.nonce = F::from_canonical_u32(
+            record
+                .nonce_lookup
+                .get(&event.lookup_id)
+                .copied()
+                .unwrap_or_default(),
+        );
         self.sign = F::from_bool(event.sign);
         for i in 0..8 {
             self.x_access[i].populate(
