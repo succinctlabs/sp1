@@ -78,7 +78,7 @@ pub fn outer_fri_config() -> FriConfig<OuterChallengeMmcs> {
         }
     };
     FriConfig {
-        log_blowup: 4,
+        log_blowup: 3,
         num_queries,
         proof_of_work_bits: 16,
         mmcs: challenge_mmcs,

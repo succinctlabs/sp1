@@ -65,7 +65,10 @@ impl<C: Config> Poseidon2CircuitBuilder<C> for Builder<C> {
         let mut state: [Felt<C::F>; 16] = array::from_fn(|_| self.eval(C::F::zero()));
 
         for block_chunk in &input.iter().chunks(8) {
-            state.iter_mut().zip(block_chunk).for_each(|(s, i)| *s = *i);
+            state
+                .iter_mut()
+                .zip(block_chunk)
+                .for_each(|(s, i)| *s = self.eval(*i));
             self.p2_babybear_permute_mut(state);
         }
 
@@ -75,8 +78,6 @@ impl<C: Config> Poseidon2CircuitBuilder<C> for Builder<C> {
 
 #[cfg(test)]
 pub mod tests {
-
-    use ff::derive::bitvec::array;
     use p3_baby_bear::BabyBear;
     use p3_bn254_fr::Bn254Fr;
     use p3_field::AbstractField;

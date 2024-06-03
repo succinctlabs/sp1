@@ -40,11 +40,7 @@ pub struct StarkVerifierCircuit<C: Config, SC: StarkGenericConfig> {
 
 impl<C: Config, SC: StarkGenericConfig> StarkVerifierCircuit<C, SC>
 where
-    SC: StarkGenericConfig<
-        Val = C::F,
-        Challenge = C::EF,
-        Domain = TwoAdicMultiplicativeCoset<C::F>,
-    >,
+    SC: StarkGenericConfig<Val = C::F, Challenge = C::EF, Domain = TwoAdicMultiplicativeCoset<C::F>>,
 {
     pub fn verify_shard<A>(
         builder: &mut Builder<C>,
@@ -274,13 +270,6 @@ pub fn build_wrap_circuit(
 
     let pv: &RecursionPublicValues<_> = pv_elements.as_slice().borrow();
 
-    // Verify the public values digest.
-    let calculated_digest = builder.p2_babybear_hash(&pv_elements[0..NUM_PV_ELMS_TO_HASH]);
-    let expected_digest = pv.digest;
-    for (calculated_elm, expected_elm) in calculated_digest.iter().zip(expected_digest.iter()) {
-        builder.assert_felt_eq(*expected_elm, *calculated_elm);
-    }
-
     let one_felt: Felt<_> = builder.constant(BabyBear::one());
     // Proof must be complete. In the reduce program, this will ensure that the SP1 proof has been
     // fully accumulated.
@@ -356,6 +345,13 @@ pub fn build_wrap_circuit(
         builder.assign(cumulative_sum, cumulative_sum + chip.cumulative_sum);
     }
     builder.assert_ext_eq(cumulative_sum, zero_ext);
+
+    // Verify the public values digest.
+    let calculated_digest = builder.p2_babybear_hash(&pv_elements[0..NUM_PV_ELMS_TO_HASH]);
+    let expected_digest = pv.digest;
+    for (calculated_elm, expected_elm) in calculated_digest.iter().zip(expected_digest.iter()) {
+        builder.assert_felt_eq(*expected_elm, *calculated_elm);
+    }
 
     let mut backend = ConstraintCompiler::<OuterConfig>::default();
     backend.emit(builder.operations)
