@@ -1,6 +1,6 @@
 use crate::{
     runtime::{Syscall, SyscallContext},
-    stark::{RiscvAir, StarkGenericConfig},
+    stark::StarkGenericConfig,
     utils::BabyBearPoseidon2Inner,
 };
 
