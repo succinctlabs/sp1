@@ -7,7 +7,6 @@ use p3_field::PrimeField32;
 use p3_field::TwoAdicField;
 use p3_matrix::Matrix;
 
-use crate::air::BaseAirBuilder;
 use crate::air::SP1AirBuilder;
 use crate::operations::IsZeroOperation;
 
@@ -71,7 +70,7 @@ impl ShaExtendChip {
             builder,
             local.cycle_16 - AB::Expr::from(g),
             local.cycle_16_start,
-            one.clone(),
+            local.is_real.into(),
         );
 
         // Constrain `cycle_16_end.result` to be `cycle_16 - 1 == 0`. Intuitively g^16 is 1.
@@ -79,7 +78,7 @@ impl ShaExtendChip {
             builder,
             local.cycle_16 - AB::Expr::one(),
             local.cycle_16_end,
-            one.clone(),
+            local.is_real.into(),
         );
 
         // Constrain `cycle_48` to be [1, 0, 0] in the first row.
@@ -124,10 +123,10 @@ impl ShaExtendChip {
             .when(local.cycle_16_end.result * local.cycle_48[2])
             .assert_eq(next.i, AB::F::from_canonical_u32(16));
 
-        // When it's not the end of a 48-cycle, the next `i` must be the current plus one.
+        // When it's not the end of a 16-cycle, the next `i` must be the current plus one.
         builder
             .when_transition()
-            .when_not(local.cycle_16_end.result * local.cycle_48[2])
+            .when(one.clone() - local.cycle_16_end.result)
             .assert_eq(local.i + one.clone(), next.i);
     }
 }

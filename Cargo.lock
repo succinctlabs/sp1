@@ -4859,11 +4859,9 @@ dependencies = [
  "num-bigint 0.4.5",
  "p3-baby-bear",
  "p3-field",
- "p3-symmetric",
  "rand",
  "serde",
  "serde_json",
- "sp1-core",
  "sp1-recursion-compiler",
  "tempfile",
 ]

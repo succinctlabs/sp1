@@ -1,6 +1,6 @@
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
-use p3_air::{Air, AirBuilderWithPublicValues, BaseAir, PairBuilder};
+use p3_air::{Air, AirBuilder, AirBuilderWithPublicValues, BaseAir, PairBuilder};
 use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
@@ -10,6 +10,7 @@ use sp1_derive::AlignedBorrow;
 
 use crate::air::{AirInteraction, PublicValues, SP1AirBuilder};
 use crate::air::{MachineAir, Word};
+use crate::operations::IsZeroOperation;
 use crate::runtime::{ExecutionRecord, Program};
 use crate::utils::pad_to_power_of_two;
 
@@ -30,10 +31,10 @@ pub struct MemoryProgramPreprocessedCols<T> {
 #[derive(AlignedBorrow, Clone, Copy, Default)]
 #[repr(C)]
 pub struct MemoryProgramMultCols<T> {
-    /// The multiplicity of the event.
-    ///
-    /// This column is technically redundant with `is_real`, but it's included for clarity.
+    /// The multiplicity of the event, must be 1 in the first shard and 0 otherwise.
     pub multiplicity: T,
+    /// Columns to see if current shard is 1.
+    pub is_first_shard: IsZeroOperation<T>,
 }
 
 /// Chip that initializes memory that is provided from the program. The table is preprocessed and
@@ -119,6 +120,8 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
                 let mut row = [F::zero(); NUM_MEMORY_PROGRAM_MULT_COLS];
                 let cols: &mut MemoryProgramMultCols<F> = row.as_mut_slice().borrow_mut();
                 cols.multiplicity = mult;
+                IsZeroOperation::populate(&mut cols.is_first_shard, input.index - 1);
+
                 row
             })
             .collect::<Vec<_>>();
@@ -135,8 +138,8 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
         trace
     }
 
-    fn included(&self, record: &Self::Record) -> bool {
-        record.index == 1
+    fn included(&self, _: &Self::Record) -> bool {
+        true
     }
 }
 
@@ -168,15 +171,24 @@ where
                 .map(|elm| (*elm).into())
                 .collect::<Vec<_>>(),
         );
+        IsZeroOperation::<AB::F>::eval(
+            builder,
+            public_values.shard - AB::Expr::one(),
+            mult_local.is_first_shard,
+            prep_local.is_real.into(),
+        );
+        let is_first_shard = mult_local.is_first_shard.result;
 
         // Multiplicity must be either 0 or 1.
         builder.assert_bool(mult_local.multiplicity);
-
         // If first shard and preprocessed is real, multiplicity must be one.
-        builder.assert_eq(mult_local.multiplicity, prep_local.is_real.into());
-
-        // The shard this chip is contained in must be one.
-        builder.assert_one(public_values.shard);
+        builder
+            .when(is_first_shard * prep_local.is_real)
+            .assert_one(mult_local.multiplicity);
+        // If not first shard or preprocessed is not real, multiplicity must be zero.
+        builder
+            .when((AB::Expr::one() - is_first_shard) + (AB::Expr::one() - prep_local.is_real))
+            .assert_zero(mult_local.multiplicity);
 
         let mut values = vec![AB::Expr::zero(), AB::Expr::zero(), prep_local.addr.into()];
         values.extend(prep_local.value.map(Into::into));

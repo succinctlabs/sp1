@@ -3,9 +3,7 @@ use p3_field::{AbstractField, Field};
 use sp1_core::air::{BinomialExtension, ExtensionAirBuilder};
 
 use crate::{
-    air::{
-        BinomialExtensionUtils, Block, BlockBuilder, IsExtZeroOperation, SP1RecursionAirBuilder,
-    },
+    air::{BinomialExtensionUtils, IsExtZeroOperation, SP1RecursionAirBuilder},
     cpu::{CpuChip, CpuCols},
     memory::MemoryCols,
 };
@@ -24,24 +22,18 @@ impl<F: Field, const L: usize> CpuChip<F, L> {
         let is_branch_instruction = self.is_branch_instruction::<AB>(local);
         let one = AB::Expr::one();
 
-        // Convert operand values from Block<Var> to BinomialExtension<Expr>.  Note that it gets the
-        // previous value of the `a` and `b` operands, since BNENIC will modify `a`.
-        let a_prev_ext: BinomialExtension<AB::Expr> =
-            BinomialExtensionUtils::from_block(local.a.prev_value().map(|x| x.into()));
-        let a_ext: BinomialExtension<AB::Expr> =
-            BinomialExtensionUtils::from_block(local.a.value().map(|x| x.into()));
-        let b_ext: BinomialExtension<AB::Expr> =
-            BinomialExtensionUtils::from_block(local.b.value().map(|x| x.into()));
-        let one_ext: BinomialExtension<AB::Expr> =
-            BinomialExtensionUtils::from_block(Block::from(one.clone()));
-
-        let expected_a_ext = a_prev_ext + one_ext;
-
         // If the instruction is a BNEINC, verify that the a value is incremented by one.
         builder
             .when(local.is_real)
             .when(local.selectors.is_bneinc)
-            .assert_block_eq(a_ext.as_block(), expected_a_ext.as_block());
+            .assert_eq(local.a.value()[0], local.a.prev_value()[0] + one.clone());
+
+        // Convert operand values from Block<Var> to BinomialExtension<Expr>.  Note that it gets the
+        // previous value of the `a` and `b` operands, since BNENIC will modify `a`.
+        let a_ext: BinomialExtension<AB::Expr> =
+            BinomialExtensionUtils::from_block(local.a.value().map(|x| x.into()));
+        let b_ext: BinomialExtension<AB::Expr> =
+            BinomialExtensionUtils::from_block(local.b.value().map(|x| x.into()));
 
         let comparison_diff = a_ext - b_ext;
 

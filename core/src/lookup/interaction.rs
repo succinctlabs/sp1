@@ -74,6 +74,7 @@ impl<F: Field> Interaction<F> {
     }
 }
 
+// TODO: add debug for VirtualPairCol so that we can derive Debug for Interaction.
 impl<F: Field> Debug for Interaction<F> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Interaction")
