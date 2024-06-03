@@ -17,11 +17,15 @@ import (
 	"sync"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/test/unsafekzg"
 	"github.com/succinctlabs/sp1-recursion-gnark/sp1"
+	"github.com/succinctlabs/sp1-recursion-gnark/sp1/babybear"
+	"github.com/succinctlabs/sp1-recursion-gnark/sp1/poseidon2"
 )
 
 func main() {}
@@ -137,6 +141,76 @@ func TestMain() error {
 	_, err = plonk.Prove(scs, pk, witness)
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+//export TestPoseidonBabyBear2
+func TestPoseidonBabyBear2() *C.char {
+	input := [poseidon2.BABYBEAR_WIDTH]babybear.Variable{
+		babybear.NewF("0"),
+		babybear.NewF("0"),
+		babybear.NewF("0"),
+		babybear.NewF("0"),
+		babybear.NewF("0"),
+		babybear.NewF("0"),
+		babybear.NewF("0"),
+		babybear.NewF("0"),
+		babybear.NewF("0"),
+		babybear.NewF("0"),
+		babybear.NewF("0"),
+		babybear.NewF("0"),
+		babybear.NewF("0"),
+		babybear.NewF("0"),
+		babybear.NewF("0"),
+		babybear.NewF("0"),
+	}
+
+	expectedOutput := [poseidon2.BABYBEAR_WIDTH]babybear.Variable{
+		babybear.NewF("348670919"),
+		babybear.NewF("1568590631"),
+		babybear.NewF("1535107508"),
+		babybear.NewF("186917780"),
+		babybear.NewF("587749971"),
+		babybear.NewF("1827585060"),
+		babybear.NewF("1218809104"),
+		babybear.NewF("691692291"),
+		babybear.NewF("1480664293"),
+		babybear.NewF("1491566329"),
+		babybear.NewF("366224457"),
+		babybear.NewF("490018300"),
+		babybear.NewF("732772134"),
+		babybear.NewF("560796067"),
+		babybear.NewF("484676252"),
+		babybear.NewF("405025962"),
+	}
+
+	circuit := sp1.TestPoseidon2BabyBearCircuit{Input: input, ExpectedOutput: expectedOutput}
+	assignment := sp1.TestPoseidon2BabyBearCircuit{Input: input, ExpectedOutput: expectedOutput}
+
+	builder := r1cs.NewBuilder
+	r1cs, err := frontend.Compile(ecc.BN254.ScalarField(), builder, &circuit)
+	if err != nil {
+		return C.CString(err.Error())
+	}
+
+	var pk groth16.ProvingKey
+	pk, err = groth16.DummySetup(r1cs)
+	if err != nil {
+		return C.CString(err.Error())
+	}
+
+	// Generate witness.
+	witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
+	if err != nil {
+		return C.CString(err.Error())
+	}
+
+	// Generate the proof.
+	_, err = groth16.Prove(r1cs, pk, witness)
+	if err != nil {
+		return C.CString(err.Error())
 	}
 
 	return nil

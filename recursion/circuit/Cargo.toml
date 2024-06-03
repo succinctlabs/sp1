@@ -31,3 +31,6 @@ p3-poseidon2 = { workspace = true }
 zkhash = { git = "https://github.com/HorizenLabs/poseidon2" }
 rand = "0.8.5"
 sp1-recursion-gnark-ffi = { path = "../gnark-ffi" }
+
+[features]
+plonk = ["sp1-recursion-gnark-ffi/plonk"]
