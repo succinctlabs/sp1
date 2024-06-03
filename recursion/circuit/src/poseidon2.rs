@@ -62,7 +62,7 @@ impl<C: Config> Poseidon2CircuitBuilder<C> for Builder<C> {
     }
 
     fn p2_babybear_hash(&mut self, input: &[Felt<C::F>]) -> [Felt<C::F>; 8] {
-        let mut state: [Felt<C::F>; 16] = [self.eval(C::F::zero()); 16];
+        let mut state: [Felt<C::F>; 16] = array::from_fn(|_| self.eval(C::F::zero()));
 
         for block_chunk in &input.iter().chunks(8) {
             state.iter_mut().zip(block_chunk).for_each(|(s, i)| *s = *i);
@@ -75,10 +75,14 @@ impl<C: Config> Poseidon2CircuitBuilder<C> for Builder<C> {
 
 #[cfg(test)]
 pub mod tests {
+
+    use ff::derive::bitvec::array;
     use p3_baby_bear::BabyBear;
     use p3_bn254_fr::Bn254Fr;
     use p3_field::AbstractField;
     use p3_symmetric::{CryptographicHasher, Permutation, PseudoCompressionFunction};
+    use rand::thread_rng;
+    use rand::Rng;
     use sp1_core::utils::{inner_perm, InnerHash};
     use sp1_recursion_compiler::config::OuterConfig;
     use sp1_recursion_compiler::constraints::ConstraintCompiler;
@@ -117,8 +121,9 @@ pub mod tests {
 
     #[test]
     fn test_p2_babybear_permute_mut() {
+        let mut rng = thread_rng();
         let mut builder = Builder::<OuterConfig>::default();
-        let input: [BabyBear; 16] = [BabyBear::one(); 16];
+        let input: [BabyBear; 16] = [rng.gen(); 16];
         let input_vars: [Felt<_>; 16] = input.map(|x| builder.eval(x));
         builder.p2_babybear_permute_mut(input_vars);
 
@@ -135,18 +140,11 @@ pub mod tests {
 
     #[test]
     fn test_p2_hash() {
+        let mut rng = thread_rng();
         let perm = outer_perm();
         let hasher = OuterHash::new(perm.clone()).unwrap();
 
-        let input: [BabyBear; 7] = [
-            BabyBear::from_canonical_u32(0),
-            BabyBear::from_canonical_u32(1),
-            BabyBear::from_canonical_u32(2),
-            BabyBear::from_canonical_u32(2),
-            BabyBear::from_canonical_u32(2),
-            BabyBear::from_canonical_u32(2),
-            BabyBear::from_canonical_u32(2),
-        ];
+        let input: [BabyBear; 102] = std::array::from_fn(|_| rng.gen());
         let output = hasher.hash_iter(input);
 
         let mut builder = Builder::<OuterConfig>::default();
