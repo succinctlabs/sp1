@@ -1,6 +1,6 @@
 #![allow(unused_imports)]
-use crate::bigint_mulmod::sys_bigint;
 use crate::io;
+use crate::sys_bigint;
 use crate::syscall_uint256_mulmod;
 use crate::unconstrained;
 use num::{BigUint, Integer};
