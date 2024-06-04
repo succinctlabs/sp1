@@ -33,4 +33,4 @@ rand = "0.8.5"
 sp1-recursion-gnark-ffi = { path = "../gnark-ffi" }
 
 [features]
-plonk = ["sp1-recursion-gnark-ffi/plonk"]
+native-gnark = ["sp1-recursion-gnark-ffi/native"]

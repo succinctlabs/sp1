@@ -54,4 +54,4 @@ path = "scripts/e2e.rs"
 
 [features]
 neon = ["sp1-core/neon"]
-plonk = ["sp1-recursion-gnark-ffi/plonk"]
+native-gnark = ["sp1-recursion-gnark-ffi/native"]

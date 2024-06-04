@@ -10,6 +10,7 @@ members = [
   "recursion/circuit",
   "recursion/compiler",
   "recursion/core",
+  "recursion/gnark-cli",
   "recursion/gnark-ffi",
   "recursion/program",
   "sdk",

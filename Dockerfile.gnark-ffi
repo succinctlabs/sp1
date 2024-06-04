@@ -1,0 +1,29 @@
+FROM golang:1.22 AS go-builder
+
+FROM rustlang/rust:nightly-bullseye-slim AS rust-builder
+
+# Dependencies
+RUN apt update && apt install -y clang
+
+# Install Go 1.22
+COPY --from=go-builder /usr/local/go /usr/local/go
+ENV PATH="/usr/local/go/bin:$PATH"
+
+WORKDIR /sp1
+
+# Install Rust toolchain
+COPY ./rust-toolchain /sp1/rust-toolchain
+RUN rustup show
+
+# Copy repo
+COPY . /sp1
+
+# Build the gnark-ffi CLI
+WORKDIR /sp1/recursion/gnark-ffi
+
+RUN cargo build --release --features native --bin cli
+
+FROM rustlang/rust:nightly-bullseye-slim
+COPY --from=rust-builder /sp1/target/release/cli /gnark-ffi
+
+ENTRYPOINT ["/gnark-ffi"]
