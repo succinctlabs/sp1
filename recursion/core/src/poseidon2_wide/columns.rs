@@ -67,44 +67,33 @@ impl<T: Clone> Poseidon2ColType<T> {
     }
 }
 
-/// Memory columns for Poseidon2.
-#[derive(AlignedBorrow, Clone, Copy)]
-#[repr(C)]
-pub struct Poseidon2MemCols<T> {
-    pub timestamp: T,
-    pub dst: T,
-    pub left: T,
-    pub right: T,
-    pub input: [MemoryReadSingleCols<T>; WIDTH],
-    pub output: [MemoryReadWriteSingleCols<T>; WIDTH],
-    pub is_real: T,
-}
-
 pub const NUM_POSEIDON2_COLS: usize = size_of::<Poseidon2Cols<u8>>();
 
-/// Columns for the "narrow" Poseidon2 chip.
-///
-/// As an optimization, we can represent all of the internal rounds without columns for intermediate
-/// states except for the 0th element. This is because the linear layer that comes after the sbox is
-/// degree 1, so all state elements at the end can be expressed as a degree-3 polynomial of:
-/// 1) the 0th state element at rounds prior to the current round
-/// 2) the rest of the state elements at the beginning of the internal rounds
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
 pub struct Poseidon2Cols<T> {
-    pub(crate) memory: Poseidon2MemCols<T>,
+    pub parameters_cols: Poseidon2Parameters<T>,
+    pub memory_cols: [MemoryReadSingleCols<T>; WIDTH],
+    pub permute_cols: Poseidon2PermuteCols<T>,
+    pub is_real: T,
+}
+
+#[derive(AlignedBorrow, Clone, Copy)]
+#[repr(C)]
+pub struct Poseidon2Parameters<T> {
+    pub timestamp: T,
+    pub operation_type: T, // 0 for hash, 1 for compress
+    pub arg_0: T,          // input ptr for hash, left ptr for compress
+    pub arg_1: T,          // len for hash, right ptr for compress
+    pub output_ptr: T,
+}
+
+#[derive(AlignedBorrow, Clone, Copy)]
+#[repr(C)]
+pub struct Poseidon2PermuteCols<T> {
     pub(crate) external_rounds_state: [[T; WIDTH]; NUM_EXTERNAL_ROUNDS],
     pub(crate) internal_rounds_state: [T; WIDTH],
     pub(crate) internal_rounds_s0: [T; NUM_INTERNAL_ROUNDS - 1],
-}
-
-pub const NUM_POSEIDON2_SBOX_COLS: usize = size_of::<Poseidon2SBoxCols<u8>>();
-
-/// Columns for the "wide" Poseidon2 chip.
-#[derive(AlignedBorrow, Clone, Copy)]
-#[repr(C)]
-pub struct Poseidon2SBoxCols<T> {
-    pub(crate) poseidon2_cols: Poseidon2Cols<T>,
     pub(crate) external_rounds_sbox: [[T; WIDTH]; NUM_EXTERNAL_ROUNDS],
     pub(crate) internal_rounds_sbox: [T; NUM_INTERNAL_ROUNDS],
 }
