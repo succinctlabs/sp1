@@ -78,6 +78,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
             })))
             .chain(once(RecursionAir::FriFold(FriFoldChip::<DEGREE> {
                 fixed_log2_rows: None,
+                pad: true,
             })))
             .chain(once(RecursionAir::RangeCheck(RangeCheckChip::default())))
             .collect()
