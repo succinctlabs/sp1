@@ -14,7 +14,7 @@ pub use options::*;
 pub use prove::*;
 pub use tracer::*;
 
-#[cfg(test)]
+#[cfg(any(test, feature = "programs"))]
 pub use programs::*;
 
 use crate::{memory::MemoryCols, operations::field::params::Limbs};
