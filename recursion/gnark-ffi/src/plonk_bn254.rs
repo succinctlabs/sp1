@@ -103,6 +103,12 @@ impl PlonkBn254Prover {
         let serialized = serde_json::to_string(&gnark_witness).unwrap();
         witness_file.write_all(serialized.as_bytes()).unwrap();
 
+        // Also write to a file in current dir
+        let mut file = File::create("witness.json").unwrap();
+        file.write(serialized.as_bytes()).unwrap();
+
+        println!("data_dir: {:?}", build_dir);
+
         prove_plonk_bn254(
             build_dir.to_str().unwrap(),
             witness_file.path().to_str().unwrap(),
