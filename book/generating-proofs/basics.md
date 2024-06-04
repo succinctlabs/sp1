@@ -43,4 +43,3 @@ If you run `RUST_LOG=info cargo run --release -vv`, you will see the following o
 [fibonacci-script 0.1.0] [sp1]     Finished release [optimized] target(s) in 0.15s
 warning: fibonacci-script@0.1.0: fibonacci-program built at 2024-03-02 22:01:26```
 ````
-
