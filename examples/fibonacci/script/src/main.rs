@@ -2,6 +2,20 @@ use sp1_sdk::{utils, ProverClient, SP1Stdin};
 
 /// The ELF we want to execute inside the zkVM.
 const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
+use peak_alloc::PeakAlloc;
+
+#[global_allocator]
+static PEAK_ALLOC: PeakAlloc = PeakAlloc;
+
+#[no_mangle]
+extern "Rust" fn print_memory(message: &str) {
+    let current_mb = PEAK_ALLOC.current_usage_as_mb();
+    let peak_mb = PEAK_ALLOC.peak_usage_as_mb();
+    println!(
+        "[mem] {}: current {} MB, peak {} MB",
+        message, current_mb, peak_mb
+    );
+}
 
 fn main() {
     // Setup logging.
@@ -16,7 +30,9 @@ fn main() {
     // Generate the proof for the given program and input.
     let client = ProverClient::new();
     let (pk, vk) = client.setup(ELF);
+    print_memory("before");
     let mut proof = client.prove_compressed(&pk, stdin).unwrap();
+    print_memory("after");
 
     println!("generated proof");
 

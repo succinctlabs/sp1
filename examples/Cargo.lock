@@ -1713,6 +1713,7 @@ name = "fibonacci-script"
 version = "0.1.0"
 dependencies = [
  "itertools 0.12.1",
+ "peak_alloc",
  "sha2 0.10.8",
  "sp1-helper",
  "sp1-sdk",
@@ -3438,6 +3439,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "peak_alloc"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "29c4e8e2dd832fd76346468f822e4e600d30ba4e5aa545a128abf12cfae7ea3e"
+
+[[package]]
 name = "pem"
 version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4708,6 +4715,7 @@ dependencies = [
  "p3-symmetric",
  "p3-uni-stark",
  "p3-util",
+ "rand",
  "rayon-scan",
  "rrs-lib",
  "serde",
@@ -4894,9 +4902,11 @@ dependencies = [
  "num-bigint 0.4.5",
  "p3-baby-bear",
  "p3-field",
+ "p3-symmetric",
  "rand",
  "serde",
  "serde_json",
+ "sp1-core",
  "sp1-recursion-compiler",
  "tempfile",
 ]
@@ -4931,7 +4941,6 @@ dependencies = [
 name = "sp1-sdk"
 version = "0.1.0"
 dependencies = [
- "alloy-primitives",
  "alloy-sol-types",
  "anyhow",
  "async-trait",

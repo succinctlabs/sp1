@@ -8,6 +8,7 @@ default-run = "fibonacci-script"
 itertools = "0.12.1"
 sp1-sdk = { path = "../../../sdk" }
 sha2 = "0.10.8"
+peak_alloc = "0.2.1"
 
 [build-dependencies]
 sp1-helper = { path = "../../../helper" }
