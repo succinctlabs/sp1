@@ -151,7 +151,6 @@ where
         // all the fri fold rows are first, then the posiedon2 rows, and finally any padded (non-real) rows.
 
         // First verify that all real rows are contiguous.
-        builder.when_first_row().assert_one(local_is_real.clone());
         builder
             .when_transition()
             .when_not(local_is_real.clone())
