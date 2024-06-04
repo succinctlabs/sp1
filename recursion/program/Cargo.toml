@@ -24,3 +24,6 @@ itertools = "0.12.1"
 serde = { version = "1.0.201", features = ["derive"] }
 rand = "0.8.5"
 tracing = "0.1.40"
+
+[features]
+debug = ["sp1-core/debug"]
