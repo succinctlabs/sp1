@@ -1,7 +1,7 @@
 [workspace]
 [package]
 version = "0.1.0"
-name = "fibonacci-program"
+name = "fibonacci-program-tests"
 edition = "2021"
 
 [dependencies]
