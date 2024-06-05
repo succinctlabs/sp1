@@ -699,6 +699,11 @@ where
                         let (_, state) = self.mr(state_ptr, timestamp);
                         let (_, state_idx) = self.mr(state_ptr + F::two(), timestamp);
 
+                        println!(
+                            "absorb called with state_ptr={}, state={:?}, state_idx={:?}, input={}, input_size={}",
+                            state_ptr, state, state_idx, input, input_size
+                        );
+
                         let state = state[0];
                         let mut state_idx = state_idx[0].as_canonical_u32() as usize;
 
@@ -736,6 +741,10 @@ where
                             if state_idx == 0 {
                                 self.perm.as_ref().unwrap().permute_mut(&mut state_array);
                             }
+                        }
+
+                        if state_idx != 0 {
+                            self.perm.as_ref().unwrap().permute_mut(&mut state_array);
                         }
 
                         state_array.iter().enumerate().for_each(|(i, value)| {

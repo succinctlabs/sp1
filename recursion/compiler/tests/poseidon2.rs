@@ -74,19 +74,32 @@ fn test_compiler_poseidon2_hash() {
 
     let mut builder = AsmBuilder::<F, EF>::default();
 
-    let random_state_vals: [F; 42] = rng.gen();
-    println!("{:?}", random_state_vals);
+    let random_state_vals_1: [F; 42] = rng.gen();
+    println!("{:?}", random_state_vals_1);
+    let random_state_vals_2: [F; 42] = rng.gen();
+    println!("{:?}", random_state_vals_2);
 
-    let mut random_state_v1 = builder.dyn_array(random_state_vals.len());
-    for (i, val) in random_state_vals.iter().enumerate() {
+    let mut random_state_v1 =
+        builder.dyn_array(random_state_vals_1.len() + random_state_vals_2.len());
+    for (i, val) in random_state_vals_1.iter().enumerate() {
         builder.set(&mut random_state_v1, i, *val);
     }
-    let mut random_state_v2 = builder.dyn_array(random_state_vals.len());
-    for (i, val) in random_state_vals.iter().enumerate() {
-        builder.set(&mut random_state_v2, i, *val);
+    for (i, val) in random_state_vals_2.iter().enumerate() {
+        builder.set(&mut random_state_v1, i + random_state_vals_1.len(), *val);
     }
-    let mut nested_random_state = builder.dyn_array(1);
-    builder.set(&mut nested_random_state, 0, random_state_v2.clone());
+
+    let mut random_state_v2_1 = builder.dyn_array(random_state_vals_1.len());
+    for (i, val) in random_state_vals_1.iter().enumerate() {
+        builder.set(&mut random_state_v2_1, i, *val);
+    }
+    let mut random_state_v2_2 = builder.dyn_array(random_state_vals_2.len());
+    for (i, val) in random_state_vals_2.iter().enumerate() {
+        builder.set(&mut random_state_v2_2, i, *val);
+    }
+
+    let mut nested_random_state = builder.dyn_array(2);
+    builder.set(&mut nested_random_state, 0, random_state_v2_1.clone());
+    builder.set(&mut nested_random_state, 1, random_state_v2_2.clone());
 
     let result = builder.poseidon2_hash(&random_state_v1);
     let result_x = builder.poseidon2_hash_x(&nested_random_state);

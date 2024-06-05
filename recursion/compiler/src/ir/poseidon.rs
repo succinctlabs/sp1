@@ -12,7 +12,7 @@ use super::{Array, Builder, Config, DslIr, Ext, Felt, Usize, Var};
 #[derive(DslVariable, Debug, Clone)]
 pub struct Poseidon2State<C: Config> {
     pub state: Array<C, Felt<C::F>>,
-    pub state_idx: Felt<C::F>,
+    pub state_idx: Var<C::N>,
 }
 
 impl<C: Config> Builder<C> {
@@ -128,31 +128,47 @@ impl<C: Config> Builder<C> {
     ) -> Array<C, Felt<C::F>> {
         self.cycle_tracker("poseidon2-hash");
         let state: Array<C, Felt<C::F>> = self.dyn_array(PERMUTATION_WIDTH);
-        let state_idx: Felt<_> = self.eval(C::F::zero());
-        let rate: Felt<_> = self.constant(C::F::from_canonical_usize(HASH_RATE));
         let mut state_ptr = self.array::<Poseidon2State<_>>(1);
 
+        let state_input = Poseidon2State {
+            state: state.clone(),
+            state_idx: self.eval(C::N::zero()),
+        };
+        self.set_value(&mut state_ptr, 0, state_input);
+
+        let num_elements_absorbed: Var<_> = self.eval(C::N::zero());
         self.range(0, array.len()).for_each(|i, builder| {
             let subarray = builder.get(array, i);
 
-            let state_input = Poseidon2State {
-                state: state.clone(),
-                state_idx,
-            };
-            builder.set_value(&mut state_ptr, 0, state_input);
-
             builder.poseidon2_absorb_mut(&state_ptr, &subarray);
 
-            let subarray_len = subarray.len();
-            if let Usize::Var(len) = subarray_len {
-                // TODO:  Fix this hack.
-                let bits = builder.num2bits_v(len);
-                let len = builder.bits2num_f(&bits);
-                builder.assign(state_idx, state_idx + len);
-                let rm = builder.rem(state_idx, rate);
-                builder.assign(state_idx, rm);
-            } else {
-                unimplemented!();
+            builder.assign(
+                num_elements_absorbed,
+                num_elements_absorbed + subarray.len(),
+            );
+
+            let bits = builder.num2bits_v(num_elements_absorbed);
+
+            // The least significant 3 bits will be the new state_idx.
+            let bit_0 = builder.get(&bits, 0);
+            let bit_1 = builder.get(&bits, 1);
+            let bit_2 = builder.get(&bits, 2);
+
+            if let Array::Dyn(ptr, _) = state_ptr {
+                let value: Var<_> = builder.eval(
+                    bit_0
+                        + bit_1 * C::N::from_canonical_u32(2)
+                        + bit_2 * C::N::from_canonical_u32(4),
+                );
+                builder.store(
+                    ptr,
+                    MemIndex {
+                        index: Usize::Const(0),
+                        offset: 2,
+                        size: 1,
+                    },
+                    value,
+                );
             }
         });
 

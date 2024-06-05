@@ -153,8 +153,12 @@ impl<C: Config> Builder<C> {
 
     /// Calcluates the remainder of num / den.
     pub fn rem(&mut self, num: Felt<C::F>, den: Felt<C::F>) -> Felt<C::F> {
+        self.print_f(num);
+        self.print_f(den);
         let quotient: Felt<_> = self.eval(num / den);
+        self.print_f(quotient);
         let product: Felt<_> = self.eval(quotient * den);
+        self.print_f(product);
 
         self.eval(num - product)
     }
