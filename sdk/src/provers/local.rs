@@ -1,5 +1,4 @@
 use anyhow::Result;
-use cfg_if::cfg_if;
 use sp1_prover::{SP1Prover, SP1Stdin};
 
 use crate::{

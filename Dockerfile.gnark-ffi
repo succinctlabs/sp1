@@ -21,7 +21,9 @@ COPY . /sp1
 # Build the gnark-ffi CLI
 WORKDIR /sp1/recursion/gnark-cli
 
-RUN cargo build --release
+RUN \
+  --mount=type=cache,target=target \
+  cargo build --release
 
 FROM rustlang/rust:nightly-bullseye-slim
 COPY --from=rust-builder /sp1/target/release/sp1-recursion-gnark-cli /gnark-cli
