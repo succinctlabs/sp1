@@ -733,6 +733,9 @@ mod tests {
 
         tracing::info!("compress");
         let compressed_proof = prover.compress(&vk, core_proof, vec![])?;
+        let compressed_bytes = bincode::serialize(&compressed_proof).unwrap();
+        let mut file = File::create("compressed-proof-with-pis.json").unwrap();
+        file.write_all(compressed_bytes.as_slice()).unwrap();
 
         tracing::info!("verify compressed");
         prover.verify_compressed(&compressed_proof, &vk)?;
