@@ -1,3 +1,4 @@
+use core::num;
 use std::{iter::Zip, vec::IntoIter};
 
 use backtrace::Backtrace;
@@ -149,6 +150,13 @@ impl<C: Config> Builder<C> {
         let dst = V::uninit(self);
         dst.assign(expr.into(), self);
         dst
+    }
+
+    /// Calcluates the remainder of num / den.
+    pub fn rem<V: Variable<C>>(&mut self, num: V, den: V) -> V {
+        let quotient = self.eval(num / dev);
+        let result = self.eval(num - quotient * den);
+        result
     }
 
     /// Evaluates a constant expression and returns a variable.

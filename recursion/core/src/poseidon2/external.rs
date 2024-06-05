@@ -380,7 +380,7 @@ impl Poseidon2Chip {
             local.right_input.into(),
         ];
         builder.receive_table(
-            Opcode::Poseidon2Compress.as_field::<AB::F>(),
+            Opcode::Poseidon2.as_field::<AB::F>(),
             &operands,
             receive_table,
         );

@@ -507,16 +507,29 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                     match (result, left, right) {
                         (Array::Dyn(result, _), Array::Dyn(left, _), Array::Dyn(right, _)) => self
                             .push(
-                                AsmInstruction::Poseidon2Compress(
+                                AsmInstruction::Poseidon2(
                                     result.fp(),
                                     left.fp(),
                                     right.fp(),
+                                    F::zero(),
                                 ),
                                 trace,
                             ),
                         _ => unimplemented!(),
                     }
                 }
+                DslIr::Poseidon2AbsorbBabyBear(state_ptr, input) => match (state_ptr, input) {
+                    (Array::Dyn(state_ptr, _), Array::Dyn(input, input_size)) => self.push(
+                        AsmInstruction::Poseidon2(
+                            state_ptr.fp(),
+                            input.fp(),
+                            input_size.fp(),
+                            F::one(),
+                        ),
+                        trace,
+                    ),
+                    _ => unimplemented!(),
+                },
 
                 DslIr::Commit(val, index) => {
                     self.push(AsmInstruction::Commit(val.fp(), index.fp()), trace);

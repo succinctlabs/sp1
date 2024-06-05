@@ -3,6 +3,12 @@ use sp1_recursion_core::runtime::{DIGEST_SIZE, HASH_RATE, PERMUTATION_WIDTH};
 
 use super::{Array, Builder, Config, DslIr, Ext, Felt, Usize, Var};
 
+#[derive(DslVariable, Debug, Clone)]
+pub struct Poseidon2State<C: Config> {
+    pub state: Array<C, Ext<C::F, C::EF>>,
+    pub state_idx: Variable<C::N>,
+}
+
 impl<C: Config> Builder<C> {
     /// Applies the Poseidon2 permutation to the given array.
     ///
@@ -29,6 +35,17 @@ impl<C: Config> Builder<C> {
         self.operations.push(DslIr::Poseidon2PermuteBabyBear(
             array.clone(),
             array.clone(),
+        ));
+    }
+
+    pub fn poseidon2_absorb_mut(
+        &mut self,
+        state_ptr: &Array<C, Posedion2State<C>>,
+        input: &Array<C, Felt<C::F>>,
+    ) {
+        self.operations.push(DslIr::Poseidon2AbsorbBabyBear(
+            state_ptr.clone(),
+            index.clone(),
         ));
     }
 
@@ -105,27 +122,21 @@ impl<C: Config> Builder<C> {
     ) -> Array<C, Felt<C::F>> {
         self.cycle_tracker("poseidon2-hash");
         let mut state: Array<C, Felt<C::F>> = self.dyn_array(PERMUTATION_WIDTH);
+        let mut state_idx: Var<_> = self.eval(C::N::zero());
+        let mut rate: Var<_> = self.constant(C::N::from_canonical_usize(HASH_RATE));
+        let mut state_ptr = builder.array::<Poseidon2State<_>>(1);
 
         let idx: Var<_> = self.eval(C::N::zero());
         self.range(0, array.len()).for_each(|i, builder| {
             let subarray = builder.get(array, i);
-            builder.range(0, subarray.len()).for_each(|j, builder| {
-                builder.cycle_tracker("poseidon2-hash-setup");
-                let element = builder.get(&subarray, j);
-                builder.set_value(&mut state, idx, element);
-                builder.assign(idx, idx + C::N::one());
-                builder.cycle_tracker("poseidon2-hash-setup");
-                builder
-                    .if_eq(idx, C::N::from_canonical_usize(HASH_RATE))
-                    .then(|builder| {
-                        builder.poseidon2_permute_mut(&state);
-                        builder.assign(idx, C::N::zero());
-                    });
-            });
-        });
 
-        self.if_ne(idx, C::N::zero()).then(|builder| {
-            builder.poseidon2_permute_mut(&state);
+            let state_input = Poseidon2State { state, state_idx };
+            builder.set_value(&mut state_ptr, 0, state_input);
+
+            builder.poseidon2_absorb_mut(&state_ptr, &subarray);
+            builder.assign(state_idx, state_idx + subarray.len());
+            let rem = builder.rem(state_idx, rate);
+            builder.assign(state_idx, rem);
         });
 
         state.truncate(self, Usize::Const(DIGEST_SIZE));

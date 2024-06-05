@@ -147,7 +147,9 @@ pub enum AsmInstruction<F, EF> {
 
     /// Perform a permutation of the Poseidon2 hash function on the array specified by the ptr.
     Poseidon2Permute(i32, i32),
-    Poseidon2Compress(i32, i32, i32),
+
+    /// Perform either a Poseidon2 compress or Poseidon2 absorb.
+    Poseidon2(i32, i32, i32, F),
 
     /// Print a variable.
     PrintV(i32),
@@ -731,7 +733,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 "".to_string(),
             ),
             AsmInstruction::Poseidon2Permute(dst, src) => Instruction::new(
-                Opcode::Poseidon2Compress,
+                Opcode::Poseidon2,
                 i32_f(dst),
                 i32_f_arr(src),
                 i32_f_arr(src),
@@ -829,13 +831,13 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 true,
                 "".to_string(),
             ),
-            AsmInstruction::Poseidon2Compress(result, src1, src2) => Instruction::new(
-                Opcode::Poseidon2Compress,
+            AsmInstruction::Poseidon2(result, op_1, op_2, operation) => Instruction::new(
+                Opcode::Poseidon2,
                 i32_f(result),
                 i32_f_arr(src1),
                 i32_f_arr(src2),
                 F::zero(),
-                F::zero(),
+                operation,
                 false,
                 false,
                 "".to_string(),
