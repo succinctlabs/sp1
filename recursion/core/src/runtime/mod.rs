@@ -131,6 +131,10 @@ pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
         >,
     >,
 
+    p2_hash_state: [F; PERMUTATION_WIDTH],
+
+    p2_hash_state_cursor: usize,
+
     _marker: PhantomData<EF>,
 }
 
@@ -179,6 +183,8 @@ where
             access: CpuRecord::default(),
             witness_stream: VecDeque::new(),
             cycle_tracker: HashMap::new(),
+            p2_hash_state: [F::zero(); PERMUTATION_WIDTH],
+            p2_hash_state_cursor: 0,
             _marker: PhantomData,
         }
     }
@@ -209,6 +215,8 @@ where
             access: CpuRecord::default(),
             witness_stream: VecDeque::new(),
             cycle_tracker: HashMap::new(),
+            p2_hash_state: [F::zero(); PERMUTATION_WIDTH],
+            p2_hash_state_cursor: 0,
             _marker: PhantomData,
         }
     }
@@ -689,24 +697,11 @@ where
                         //     input_records,
                         //     result_records: result_records.try_into().unwrap(),
                         // });
-                    } else {
+                    } else if instruction.size_imm == F::one() {
                         // Handle absorb
-                        let state_ptr = a_val[0];
                         let input = b_val[0];
                         let input_size = c_val[0].as_canonical_u32() as usize;
                         let timestamp = self.clk;
-
-                        let (_, state) = self.mr(state_ptr, timestamp);
-                        let (_, state_idx) = self.mr(state_ptr + F::two(), timestamp);
-
-                        let state = state[0];
-                        let mut state_idx = state_idx[0].as_canonical_u32() as usize;
-
-                        // Load the state into an array.
-                        let mut state_array: [F; PERMUTATION_WIDTH] = array::from_fn(|i| {
-                            let i = F::from_canonical_u32(i as u32);
-                            self.mr(state + i, timestamp).1 .0[0]
-                        });
 
                         // Load the input into an array.
                         let mut input_array = Vec::new();
@@ -716,34 +711,60 @@ where
                             input_array.push(val.1 .0[0]);
                         });
 
-                        assert!(state_idx < 8);
                         // Handle the first permutation.
-                        let first_permutation_input_size = 8 - state_idx;
-                        state_array[state_idx..state_idx + first_permutation_input_size]
+                        let first_permutation_input_size = 8 - self.p2_hash_state_cursor;
+                        self.p2_hash_state[self.p2_hash_state_cursor
+                            ..self.p2_hash_state_cursor + first_permutation_input_size]
                             .copy_from_slice(&input_array[..first_permutation_input_size]);
-                        state_idx += first_permutation_input_size;
-                        state_idx %= 8;
-                        if state_idx == 0 {
-                            self.perm.as_ref().unwrap().permute_mut(&mut state_array);
+                        self.p2_hash_state_cursor += first_permutation_input_size;
+                        self.p2_hash_state_cursor %= 8;
+                        if self.p2_hash_state_cursor == 0 {
+                            self.perm
+                                .as_ref()
+                                .unwrap()
+                                .permute_mut(&mut self.p2_hash_state);
                         }
 
                         // Handle the remaining chunks.
                         for input_chunk in input_array[first_permutation_input_size..].chunks(8) {
-                            state_array[state_idx..state_idx + input_chunk.len()]
+                            self.p2_hash_state[self.p2_hash_state_cursor
+                                ..self.p2_hash_state_cursor + input_chunk.len()]
                                 .copy_from_slice(input_chunk);
-                            state_idx += input_chunk.len();
-                            state_idx %= 8;
-                            if state_idx == 0 {
-                                self.perm.as_ref().unwrap().permute_mut(&mut state_array);
+                            self.p2_hash_state_cursor += input_chunk.len();
+                            self.p2_hash_state_cursor %= 8;
+                            if self.p2_hash_state_cursor == 0 {
+                                self.perm
+                                    .as_ref()
+                                    .unwrap()
+                                    .permute_mut(&mut self.p2_hash_state);
                             }
                         }
 
-                        state_array.iter().enumerate().for_each(|(i, value)| {
-                            self.mw(
-                                state + F::from_canonical_usize(i),
-                                Block::from(*value),
-                                timestamp + F::one(),
-                            );
+                        // self.record.poseidon2_events.push(Poseidon2Event {
+                        //     clk: timestamp,
+                        //     dst,
+                        //     left: F::zero(),
+                        //     right: F::zero(),
+                        //     input: input_array,
+                        //     result_array: result,
+                        //     input_records,
+                        //     result_records: result_records.try_into().unwrap(),
+                        // });
+                    } else if instruction.size_imm == F::two() {
+                        // Handle finalize
+                        let output = a_val[0];
+                        let timestamp = self.clk;
+
+                        if self.p2_hash_state_cursor != 0 {
+                            self.perm
+                                .as_ref()
+                                .unwrap()
+                                .permute_mut(&mut self.p2_hash_state);
+                        }
+
+                        (0..DIGEST_SIZE).for_each(|i| {
+                            let i_f = F::from_canonical_u32(i as u32);
+                            self.mw(output + i_f, self.p2_hash_state[i], timestamp);
                         });
 
                         // self.record.poseidon2_events.push(Poseidon2Event {

@@ -1,4 +1,3 @@
-use super::poseidon::Poseidon2State;
 use super::{Array, FriFoldInput, MemIndex, Ptr, TracedVec};
 use super::{Config, Ext, Felt, Usize, Var};
 
@@ -199,7 +198,8 @@ pub enum DslIr<C: Config> {
         Array<C, Felt<C::F>>,
         Array<C, Felt<C::F>>,
     ),
-    Poseidon2AbsorbBabyBear(Array<C, Poseidon2State<C>>, Array<C, Felt<C::F>>),
+    Poseidon2AbsorbBabyBear(Array<C, Felt<C::F>>),
+    Poseidon2FinalizeBabyBear(Array<C, Felt<C::F>>),
     /// Permutes an array of Bn254 elements using Poseidon2 (output = p2_permute(array)). Should only
     /// be used when target is a gnark circuit.
     CircuitPoseidon2Permute([Var<C::N>; 3]),

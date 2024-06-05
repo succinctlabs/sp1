@@ -44,15 +44,14 @@ impl<C: Config> Builder<C> {
         ));
     }
 
-    pub fn poseidon2_absorb_mut(
-        &mut self,
-        state_ptr: &Array<C, Poseidon2State<C>>,
-        input: &Array<C, Felt<C::F>>,
-    ) {
-        self.operations.push(DslIr::Poseidon2AbsorbBabyBear(
-            state_ptr.clone(),
-            input.clone(),
-        ));
+    pub fn poseidon2_absorb_mut(&mut self, input: &Array<C, Felt<C::F>>) {
+        self.operations
+            .push(DslIr::Poseidon2AbsorbBabyBear(input.clone()));
+    }
+
+    pub fn poseidon2_finalize_mut(&mut self, output: &Array<C, Felt<C::F>>) {
+        self.operations
+            .push(DslIr::Poseidon2FinalizeBabyBear(output.clone()));
     }
 
     /// Applies the Poseidon2 compression function to the given array.
@@ -122,64 +121,56 @@ impl<C: Config> Builder<C> {
         state
     }
 
+    pub fn poseidon2_hash_x_orig(
+        &mut self,
+        array: &Array<C, Array<C, Felt<C::F>>>,
+    ) -> Array<C, Felt<C::F>> {
+        self.cycle_tracker("poseidon2-hash-orig");
+        let mut state: Array<C, Felt<C::F>> = self.dyn_array(PERMUTATION_WIDTH);
+
+        let idx: Var<_> = self.eval(C::N::zero());
+        self.range(0, array.len()).for_each(|i, builder| {
+            let subarray = builder.get(array, i);
+            builder.range(0, subarray.len()).for_each(|j, builder| {
+                builder.cycle_tracker("poseidon2-hash-setup");
+                let element = builder.get(&subarray, j);
+                builder.set_value(&mut state, idx, element);
+                builder.assign(idx, idx + C::N::one());
+                builder.cycle_tracker("poseidon2-hash-setup");
+                builder
+                    .if_eq(idx, C::N::from_canonical_usize(HASH_RATE))
+                    .then(|builder| {
+                        builder.poseidon2_permute_mut(&state);
+                        builder.assign(idx, C::N::zero());
+                    });
+            });
+        });
+
+        self.if_ne(idx, C::N::zero()).then(|builder| {
+            builder.poseidon2_permute_mut(&state);
+        });
+
+        state.truncate(self, Usize::Const(DIGEST_SIZE));
+        self.cycle_tracker("poseidon2-hash-orig");
+        state
+    }
+
     pub fn poseidon2_hash_x(
         &mut self,
         array: &Array<C, Array<C, Felt<C::F>>>,
     ) -> Array<C, Felt<C::F>> {
         self.cycle_tracker("poseidon2-hash");
-        let state: Array<C, Felt<C::F>> = self.dyn_array(PERMUTATION_WIDTH);
-        let mut state_ptr = self.array::<Poseidon2State<_>>(1);
 
-        let state_input = Poseidon2State {
-            state: state.clone(),
-            state_idx: self.eval(C::N::zero()),
-        };
-        self.set_value(&mut state_ptr, 0, state_input);
-
-        let num_elements_absorbed: Var<_> = self.eval(C::N::zero());
         self.range(0, array.len()).for_each(|i, builder| {
             let subarray = builder.get(array, i);
-
-            builder.poseidon2_absorb_mut(&state_ptr, &subarray);
-
-            builder.assign(
-                num_elements_absorbed,
-                num_elements_absorbed + subarray.len(),
-            );
-
-            let bits = builder.num2bits_v(num_elements_absorbed);
-
-            // The least significant 3 bits will be the new state_idx.
-            let bit_0 = builder.get(&bits, 0);
-            let bit_1 = builder.get(&bits, 1);
-            let bit_2 = builder.get(&bits, 2);
-
-            if let Array::Dyn(ptr, _) = state_ptr {
-                let value: Var<_> = builder.eval(
-                    bit_0
-                        + bit_1 * C::N::from_canonical_u32(2)
-                        + bit_2 * C::N::from_canonical_u32(4),
-                );
-                builder.store(
-                    ptr,
-                    MemIndex {
-                        index: Usize::Const(0),
-                        offset: 2,
-                        size: 1,
-                    },
-                    value,
-                );
-            }
+            builder.poseidon2_absorb_mut(&subarray);
         });
 
-        let state_idx = self.get(&state_ptr, 0).state_idx;
-        self.if_ne(state_idx, C::N::zero()).then(|builder| {
-            builder.poseidon2_permute_mut(&state);
-        });
+        let output: Array<C, Felt<C::F>> = self.dyn_array(DIGEST_SIZE);
+        self.poseidon2_finalize_mut(&output);
 
-        state.truncate(self, Usize::Const(DIGEST_SIZE));
         self.cycle_tracker("poseidon2-hash");
-        state
+        output
     }
 
     pub fn poseidon2_hash_ext(
