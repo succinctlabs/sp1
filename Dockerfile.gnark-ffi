@@ -28,4 +28,6 @@ RUN \
 FROM rustlang/rust:nightly-bullseye-slim
 COPY --from=rust-builder /sp1/target/release/sp1-recursion-gnark-cli /gnark-cli
 
+LABEL org.opencontainers.image.source=https://github.com/succinctlabs/sp1
+
 ENTRYPOINT ["/gnark-cli"]
