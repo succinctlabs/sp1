@@ -687,16 +687,16 @@ where
                             ));
                         }
 
-                        // self.record.poseidon2_events.push(Poseidon2Event {
-                        //     clk: timestamp,
-                        //     dst,
-                        //     left,
-                        //     right,
-                        //     input: array,
-                        //     result_array: result,
-                        //     input_records,
-                        //     result_records: result_records.try_into().unwrap(),
-                        // });
+                        self.record.poseidon2_events.push(Poseidon2Event {
+                            clk: timestamp,
+                            dst,
+                            left,
+                            right,
+                            input: array,
+                            result_array: result,
+                            input_records,
+                            result_records: result_records.try_into().unwrap(),
+                        });
                     } else if instruction.size_imm == F::one() {
                         // Handle absorb
                         let input = b_val[0];

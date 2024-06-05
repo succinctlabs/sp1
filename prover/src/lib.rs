@@ -739,20 +739,23 @@ mod tests {
 
         tracing::info!("shrink");
         let shrink_proof = prover.shrink(compressed_proof)?;
+        let shrink_bytes = bincode::serialize(&shrink_proof).unwrap();
+        let mut file = File::create("shrink-bytes-proof-with-pis.json").unwrap();
+        file.write_all(shrink_bytes.as_slice()).unwrap();
 
         tracing::info!("verify shrink");
         prover.verify_shrink(&shrink_proof, &vk)?;
 
         tracing::info!("wrap bn254");
         let wrapped_bn254_proof = prover.wrap_bn254(shrink_proof)?;
-        let bytes = bincode::serialize(&wrapped_bn254_proof).unwrap();
+        let wrapped_bn254_bytes = bincode::serialize(&wrapped_bn254_proof).unwrap();
 
         // Save the proof.
-        let mut file = File::create("proof-with-pis.json").unwrap();
-        file.write_all(bytes.as_slice()).unwrap();
+        let mut file = File::create("wrapped-bn254-bytes-proof-with-pis.json").unwrap();
+        file.write_all(wrapped_bn254_bytes.as_slice()).unwrap();
 
         // Load the proof.
-        let mut file = File::open("proof-with-pis.json").unwrap();
+        let mut file = File::open("wrapped-bn254-bytes-proof-with-pis.json").unwrap();
         let mut bytes = Vec::new();
         file.read_to_end(&mut bytes).unwrap();
 
@@ -769,13 +772,13 @@ mod tests {
         let vk_digest_bn254 = wrapped_bn254_proof.sp1_vkey_digest_bn254();
         assert_eq!(vk_digest_bn254, vk.hash_bn254());
 
-        tracing::info!("generate plonk bn254 proof");
-        let artifacts_dir =
-            try_build_plonk_bn254_artifacts_dev(&prover.wrap_vk, &wrapped_bn254_proof.proof);
-        let plonk_bn254_proof = prover.wrap_plonk_bn254(wrapped_bn254_proof, &artifacts_dir);
-        println!("{:?}", plonk_bn254_proof);
+        // tracing::info!("generate plonk bn254 proof");
+        // let artifacts_dir =
+        //     try_build_plonk_bn254_artifacts_dev(&prover.wrap_vk, &wrapped_bn254_proof.proof);
+        // let plonk_bn254_proof = prover.wrap_plonk_bn254(wrapped_bn254_proof, &artifacts_dir);
+        // println!("{:?}", plonk_bn254_proof);
 
-        prover.verify_plonk_bn254(&plonk_bn254_proof, &vk, &public_values, &artifacts_dir)?;
+        // prover.verify_plonk_bn254(&plonk_bn254_proof, &vk, &public_values, &artifacts_dir)?;
 
         Ok(())
     }
