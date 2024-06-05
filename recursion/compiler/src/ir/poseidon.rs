@@ -142,6 +142,7 @@ impl<C: Config> Builder<C> {
             builder.set_value(&mut state_ptr, 0, state_input);
 
             builder.poseidon2_absorb_mut(&state_ptr, &subarray);
+
             let subarray_len = subarray.len();
             if let Usize::Var(len) = subarray_len {
                 // TODO:  Fix this hack.

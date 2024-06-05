@@ -697,7 +697,7 @@ where
                         let timestamp = self.clk;
 
                         let (_, state) = self.mr(state_ptr, timestamp);
-                        let (_, state_idx) = self.mr(state_ptr + F::one(), timestamp);
+                        let (_, state_idx) = self.mr(state_ptr + F::two(), timestamp);
 
                         let state = state[0];
                         let mut state_idx = state_idx[0].as_canonical_u32() as usize;
@@ -716,9 +716,10 @@ where
                             input_array.push(val.1 .0[0]);
                         });
 
+                        assert!(state_idx < 8);
                         // Handle the first permutation.
                         let first_permutation_input_size = 8 - state_idx;
-                        state_array[state_idx..]
+                        state_array[state_idx..state_idx + first_permutation_input_size]
                             .copy_from_slice(&input_array[..first_permutation_input_size]);
                         state_idx += first_permutation_input_size;
                         state_idx %= 8;
@@ -728,7 +729,8 @@ where
 
                         // Handle the remaining chunks.
                         for input_chunk in input_array[first_permutation_input_size..].chunks(8) {
-                            state_array[state_idx..].copy_from_slice(input_chunk);
+                            state_array[state_idx..state_idx + input_chunk.len()]
+                                .copy_from_slice(input_chunk);
                             state_idx += input_chunk.len();
                             state_idx %= 8;
                             if state_idx == 0 {
