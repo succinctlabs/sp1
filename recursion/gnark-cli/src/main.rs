@@ -1,3 +1,6 @@
+//! A simple CLI that wraps the gnark-ffi crate. This is called using Docker in gnark-ffi when the
+//! native feature is disabled.
+
 use sp1_recursion_gnark_ffi::ffi::{
     build_plonk_bn254, prove_plonk_bn254, test_plonk_bn254, verify_plonk_bn254,
 };
@@ -14,6 +17,7 @@ struct Cli {
     command: Command,
 }
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Debug, Subcommand)]
 enum Command {
     BuildPlonk(BuildArgs),
@@ -60,6 +64,7 @@ fn run_prove(args: ProveArgs) {
 }
 
 fn run_verify(args: VerifyArgs) {
+    // For proof, we read the string from file since it can be large.
     let file = File::open(&args.proof_path).unwrap();
     let proof = read_to_string(file).unwrap();
     let result = verify_plonk_bn254(

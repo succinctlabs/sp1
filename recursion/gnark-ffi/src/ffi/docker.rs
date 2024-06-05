@@ -61,6 +61,7 @@ pub fn verify_plonk_bn254(
     vkey_hash: &str,
     committed_values_digest: &str,
 ) -> Result<(), String> {
+    // Write proof string to a file since it can be large.
     let mut proof_file = tempfile::NamedTempFile::new().unwrap();
     proof_file.write_all(proof.as_bytes()).unwrap();
     let output_file = tempfile::NamedTempFile::new().unwrap();
