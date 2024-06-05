@@ -24,13 +24,14 @@ fn get_docker_image() -> String {
 fn call_docker(args: &[&str], mounts: &[(&str, &str)]) -> anyhow::Result<()> {
     log::info!("Running {} in docker", args[0]);
     let mut cmd = Command::new("docker");
-    cmd.args(["run", "--rm", "-it"]);
+    cmd.args(["run", "--rm"]);
     for (src, dest) in mounts {
         cmd.arg("-v").arg(format!("{}:{}", src, dest));
     }
     cmd.arg(get_docker_image());
     cmd.args(args);
     if !cmd.status()?.success() {
+        log::error!("Failed to run `docker run`: {:?}", cmd);
         return Err(anyhow::anyhow!("docker command failed"));
     }
     Ok(())
