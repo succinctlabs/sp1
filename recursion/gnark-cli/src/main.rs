@@ -1,10 +1,12 @@
-use sp1_recursion_gnark_ffi::ffi::{prove_plonk_bn254, verify_plonk_bn254};
+use sp1_recursion_gnark_ffi::ffi::{
+    build_plonk_bn254, prove_plonk_bn254, test_plonk_bn254, verify_plonk_bn254,
+};
 
 use clap::{Args, Parser, Subcommand};
 use std::{
     ffi::{c_char, CString},
     fs::File,
-    io::Write,
+    io::{read_to_string, Read, Write},
 };
 
 #[derive(Debug, Parser)]
@@ -36,7 +38,7 @@ struct ProveArgs {
 #[derive(Debug, Args)]
 struct VerifyArgs {
     data_dir: String,
-    proof: String,
+    proof_path: String,
     vkey_hash: String,
     committed_values_digest: String,
     output_path: String,
@@ -49,7 +51,7 @@ struct TestArgs {
 }
 
 fn run_build(args: BuildArgs) {
-    todo!();
+    build_plonk_bn254(&args.data_dir);
 }
 
 fn run_prove(args: ProveArgs) {
@@ -59,11 +61,11 @@ fn run_prove(args: ProveArgs) {
 }
 
 fn run_verify(args: VerifyArgs) {
-    // dbg!(args);
-    // todo!();
+    let file = File::open(&args.proof_path).unwrap();
+    let proof = read_to_string(file).unwrap();
     let result = verify_plonk_bn254(
         &args.data_dir,
-        &args.proof,
+        &proof,
         &args.vkey_hash,
         &args.committed_values_digest,
     );
@@ -76,8 +78,7 @@ fn run_verify(args: VerifyArgs) {
 }
 
 fn run_test(args: TestArgs) {
-    dbg!(args);
-    todo!();
+    test_plonk_bn254(&args.witness_json, &args.constraints_json);
 }
 
 fn main() {

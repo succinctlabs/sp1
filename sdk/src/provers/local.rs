@@ -58,34 +58,29 @@ impl Prover for LocalProver {
 
     #[allow(unused)]
     fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkBn254Proof> {
-        cfg_if! {
-            if #[cfg(feature = "native")] {
+        let proof = self.prover.prove_core(pk, &stdin)?;
+        let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
+        let public_values = proof.public_values.clone();
+        let reduce_proof = self.prover.compress(&pk.vk, proof, deferred_proofs)?;
+        let compress_proof = self.prover.shrink(reduce_proof)?;
+        let outer_proof = self.prover.wrap_bn254(compress_proof)?;
 
-                let proof = self.prover.prove_core(pk, &stdin)?;
-                let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
-                let public_values = proof.public_values.clone();
-                let reduce_proof = self.prover.compress(&pk.vk, proof, deferred_proofs)?;
-                let compress_proof = self.prover.shrink(reduce_proof)?;
-                let outer_proof = self.prover.wrap_bn254(compress_proof)?;
-
-                let plonk_bn254_aritfacts = if sp1_prover::build::sp1_dev_mode() {
-                    sp1_prover::build::try_build_plonk_bn254_artifacts_dev(
-                        &self.prover.wrap_vk,
-                        &outer_proof.proof,
-                    )
-                } else {
-                    sp1_prover::build::try_install_plonk_bn254_artifacts()
-                };
-                let proof = self.prover.wrap_plonk_bn254(outer_proof, &plonk_bn254_aritfacts);
-                Ok(SP1ProofWithPublicValues {
-                    proof,
-                    stdin,
-                    public_values,
-                })
-            } else {
-                panic!("plonk feature not enabled")
-            }
-        }
+        let plonk_bn254_aritfacts = if sp1_prover::build::sp1_dev_mode() {
+            sp1_prover::build::try_build_plonk_bn254_artifacts_dev(
+                &self.prover.wrap_vk,
+                &outer_proof.proof,
+            )
+        } else {
+            sp1_prover::build::try_install_plonk_bn254_artifacts()
+        };
+        let proof = self
+            .prover
+            .wrap_plonk_bn254(outer_proof, &plonk_bn254_aritfacts);
+        Ok(SP1ProofWithPublicValues {
+            proof,
+            stdin,
+            public_values,
+        })
     }
 }
 

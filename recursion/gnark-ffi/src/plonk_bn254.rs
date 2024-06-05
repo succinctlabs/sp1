@@ -4,10 +4,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::{
-    ffi::{build_plonk_bn254, prove_plonk_bn254, test_plonk_bn254, verify_plonk_bn254},
-    witness::GnarkWitness,
-};
+use crate::ffi::{build_plonk_bn254, prove_plonk_bn254, test_plonk_bn254, verify_plonk_bn254};
+use crate::witness::GnarkWitness;
 
 use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
@@ -102,12 +100,6 @@ impl PlonkBn254Prover {
         let gnark_witness = GnarkWitness::new(witness);
         let serialized = serde_json::to_string(&gnark_witness).unwrap();
         witness_file.write_all(serialized.as_bytes()).unwrap();
-
-        // Also write to a file in current dir
-        let mut file = File::create("witness.json").unwrap();
-        file.write(serialized.as_bytes()).unwrap();
-
-        println!("data_dir: {:?}", build_dir);
 
         prove_plonk_bn254(
             build_dir.to_str().unwrap(),
