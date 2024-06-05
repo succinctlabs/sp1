@@ -1,4 +1,3 @@
-use core::num;
 use std::{iter::Zip, vec::IntoIter};
 
 use backtrace::Backtrace;
@@ -153,10 +152,11 @@ impl<C: Config> Builder<C> {
     }
 
     /// Calcluates the remainder of num / den.
-    pub fn rem<V: Variable<C>>(&mut self, num: V, den: V) -> V {
-        let quotient = self.eval(num / dev);
-        let result = self.eval(num - quotient * den);
-        result
+    pub fn rem(&mut self, num: Felt<C::F>, den: Felt<C::F>) -> Felt<C::F> {
+        let quotient: Felt<_> = self.eval(num / den);
+        let product: Felt<_> = self.eval(quotient * den);
+
+        self.eval(num - product)
     }
 
     /// Evaluates a constant expression and returns a variable.

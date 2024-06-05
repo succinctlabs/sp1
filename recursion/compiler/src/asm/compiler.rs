@@ -519,15 +519,21 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                     }
                 }
                 DslIr::Poseidon2AbsorbBabyBear(state_ptr, input) => match (state_ptr, input) {
-                    (Array::Dyn(state_ptr, _), Array::Dyn(input, input_size)) => self.push(
-                        AsmInstruction::Poseidon2(
-                            state_ptr.fp(),
-                            input.fp(),
-                            input_size.fp(),
-                            F::one(),
-                        ),
-                        trace,
-                    ),
+                    (Array::Dyn(state_ptr, _), Array::Dyn(input, input_size)) => {
+                        if let Usize::Var(input_size) = input_size {
+                            self.push(
+                                AsmInstruction::Poseidon2(
+                                    state_ptr.fp(),
+                                    input.fp(),
+                                    input_size.fp(),
+                                    F::one(),
+                                ),
+                                trace,
+                            );
+                        } else {
+                            unimplemented!();
+                        }
+                    }
                     _ => unimplemented!(),
                 },
 

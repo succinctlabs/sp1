@@ -374,7 +374,7 @@ fn eval_mem<AB: SP1RecursionAirBuilder>(builder: &mut AB, local: &Poseidon2MemCo
         local.right.into(),
     ];
     builder.receive_table(
-        Opcode::Poseidon2Compress.as_field::<AB::F>(),
+        Opcode::Poseidon2.as_field::<AB::F>(),
         &operands,
         local.is_real,
     );

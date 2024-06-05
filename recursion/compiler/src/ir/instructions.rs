@@ -1,3 +1,4 @@
+use super::poseidon::Poseidon2State;
 use super::{Array, FriFoldInput, MemIndex, Ptr, TracedVec};
 use super::{Config, Ext, Felt, Usize, Var};
 

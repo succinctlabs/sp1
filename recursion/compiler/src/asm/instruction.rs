@@ -834,8 +834,8 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
             AsmInstruction::Poseidon2(result, op_1, op_2, operation) => Instruction::new(
                 Opcode::Poseidon2,
                 i32_f(result),
-                i32_f_arr(src1),
-                i32_f_arr(src2),
+                i32_f_arr(op_1),
+                i32_f_arr(op_2),
                 F::zero(),
                 operation,
                 false,
@@ -1122,11 +1122,11 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
             AsmInstruction::FriFold(m, input_ptr) => {
                 write!(f, "fri_fold ({})fp, ({})fp", m, input_ptr)
             }
-            AsmInstruction::Poseidon2Compress(result, src1, src2) => {
+            AsmInstruction::Poseidon2(result, op_1, op_2, operation) => {
                 write!(
                     f,
-                    "poseidon2_compress ({})fp, {})fp, {})fp",
-                    result, src1, src2
+                    "poseidon2_compress ({})fp, {})fp, ({})fp, {}",
+                    result, op_1, op_2, operation,
                 )
             }
             AsmInstruction::Commit(val, index) => {
