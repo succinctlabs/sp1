@@ -172,6 +172,11 @@ impl<C: Config> Builder<C> {
             }
         });
 
+        let state_idx = self.get(&state_ptr, 0).state_idx;
+        self.if_ne(state_idx, C::N::zero()).then(|builder| {
+            builder.poseidon2_permute_mut(&state);
+        });
+
         state.truncate(self, Usize::Const(DIGEST_SIZE));
         self.cycle_tracker("poseidon2-hash");
         state
