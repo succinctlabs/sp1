@@ -13,3 +13,4 @@ members = [
   "ssz-withdrawals/script",
   "tendermint/script",
 ]
+resolver = "2"

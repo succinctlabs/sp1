@@ -1031,7 +1031,7 @@ impl Runtime {
         self.state.clk = 0;
         self.state.channel = 0;
 
-        tracing::info!("loading memory image");
+        tracing::debug!("loading memory image");
         for (addr, value) in self.program.memory_image.iter() {
             self.state.memory.insert(
                 *addr,
