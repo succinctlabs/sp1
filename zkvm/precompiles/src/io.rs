@@ -60,7 +60,7 @@ pub fn read<T: DeserializeOwned>() -> T {
     let deserialized: Vec<u8> = bincode::deserialize(&mut serialized).unwrap();
     println!("{:?}", deserialized);
     unimplemented!();
-    bincode::deserialize(&vec).expect("deserialization failed")
+    // bincode::deserialize(vec).expect("deserialization failed")
 }
 
 pub fn commit<T: Serialize>(value: &T) {
