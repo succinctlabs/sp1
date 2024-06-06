@@ -4683,16 +4683,8 @@ dependencies = [
 name = "sp1-precompiles"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "bincode",
- "cfg-if",
- "getrandom",
- "hex",
- "k256",
- "num",
- "rand",
  "serde",
- "snowbridge-amcl",
 ]
 
 [[package]]
