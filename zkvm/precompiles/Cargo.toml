@@ -23,4 +23,4 @@ serde = { version = "1.0.201", features = ["derive"] }
 
 [features]
 verify = []
-bls = ["dep:amcl", "dep:k256", "dep:getrandom", "dep:rand"]
+# bls = ["dep:amcl", "dep:k256", "dep:getrandom", "dep:rand"]
