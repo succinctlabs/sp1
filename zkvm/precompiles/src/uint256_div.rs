@@ -1,6 +1,6 @@
 #![allow(unused_imports)]
-use crate::bigint_mulmod::sys_bigint;
 use crate::io;
+use crate::sys_bigint;
 use crate::syscall_uint256_mulmod;
 use crate::unconstrained;
 use num::{BigUint, Integer};
@@ -40,13 +40,15 @@ pub fn uint256_div(x: &mut [u8; 32], y: &[u8; 32]) -> [u8; 32] {
 
             let mut quotient_times_y = [0u8; 32];
             let zero = [0u32; 8];
-            sys_bigint(
-                quotient_times_y.as_mut_ptr() as *mut [u32; 8],
-                0,
-                quotient_bytes.as_ptr() as *const [u32; 8],
-                y.as_ptr() as *const [u32; 8],
-                zero.as_ptr() as *const [u32; 8]
-            );
+            unsafe {
+                sys_bigint(
+                    quotient_times_y.as_mut_ptr() as *mut [u32; 8],
+                    0,
+                    quotient_bytes.as_ptr() as *const [u32; 8],
+                    y.as_ptr() as *const [u32; 8],
+                    zero.as_ptr() as *const [u32; 8]
+                );
+            }
 
             let quotient_times_divisor = BigUint::from_bytes_le(&quotient_times_y);
             assert_eq!(quotient_times_divisor, dividend - remainder);

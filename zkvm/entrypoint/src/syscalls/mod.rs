@@ -1,3 +1,4 @@
+mod bigint;
 mod blake3_compress;
 mod bls12381;
 mod bn254;
