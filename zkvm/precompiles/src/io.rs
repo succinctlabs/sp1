@@ -53,12 +53,12 @@ pub fn read_vec() -> Vec<u8> {
 }
 
 pub fn read<T: DeserializeOwned>() -> T {
-    // let vec = read_vec();
-    // println!("vec: {:?}", vec);
-    let mut serialized = bincode::serialize(&vec![1, 2, 3]).unwrap();
-    println!("{:?}", serialized);
-    let deserialized: Vec<u8> = bincode::deserialize(&mut serialized).unwrap();
-    println!("{:?}", deserialized);
+    let vec = read_vec();
+    println!("vec: {:?}", vec.len());
+    // let mut serialized = bincode::serialize(&vec![1, 2, 3]).unwrap();
+    // println!("{:?}", serialized);
+    // let deserialized: Vec<u8> = bincode::deserialize(&mut serialized).unwrap();
+    // println!("{:?}", deserialized);
     unimplemented!();
     // bincode::deserialize(vec).expect("deserialization failed")
 }
