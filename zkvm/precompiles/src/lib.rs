@@ -1,8 +1,10 @@
 pub mod bigint_mulmod;
 #[cfg(feature = "bls")]
 pub mod bls12381;
+#[cfg(feature = "bls")]
 pub mod bn254;
 pub mod io;
+#[cfg(feature = "bls")]
 pub mod secp256k1;
 pub mod uint256_div;
 pub mod unconstrained;
