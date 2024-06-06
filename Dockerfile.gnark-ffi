@@ -23,10 +23,10 @@ WORKDIR /sp1/recursion/gnark-cli
 
 RUN \
   --mount=type=cache,target=target \
-  cargo build --release
+  cargo build --release && cp target/release/sp1-recursion-gnark-cli /gnark-cli
 
 FROM rustlang/rust:nightly-bullseye-slim
-COPY --from=rust-builder /sp1/recursion/gnark-cli/target/release/sp1-recursion-gnark-cli /gnark-cli
+COPY --from=rust-builder /gnark-cli /gnark-cli
 
 LABEL org.opencontainers.image.source=https://github.com/succinctlabs/sp1
 
