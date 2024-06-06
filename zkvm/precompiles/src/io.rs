@@ -54,6 +54,7 @@ pub fn read_vec() -> Vec<u8> {
 
 pub fn read<T: DeserializeOwned>() -> T {
     let vec = read_vec();
+    unimplemented!();
     bincode::deserialize(&vec).expect("deserialization failed")
 }
 
