@@ -53,11 +53,13 @@ pub fn read_vec() -> Vec<u8> {
 }
 
 pub fn read<T: DeserializeOwned>() -> T {
+    unimplemented!();
     let vec = read_vec();
     bincode::deserialize(&vec).expect("deserialization failed")
 }
 
 pub fn commit<T: Serialize>(value: &T) {
+    unimplemented!();
     let writer = SyscallWriter {
         fd: FD_PUBLIC_VALUES,
     };
