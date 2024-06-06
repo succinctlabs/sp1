@@ -107,16 +107,7 @@ where
             challenger.observe(builder, element);
         }
         // verify proof.
-        let shard_idx = builder.eval(C::N::one());
-        StarkVerifier::<C, SC>::verify_shard(
-            builder,
-            &vk,
-            pcs,
-            machine,
-            &mut challenger,
-            proof,
-            shard_idx,
-        );
+        StarkVerifier::<C, SC>::verify_shard(builder, &vk, pcs, machine, &mut challenger, proof);
 
         // Get the public inputs from the proof.
         let public_values_elements = (0..RECURSIVE_PROOF_NUM_PV_ELTS)

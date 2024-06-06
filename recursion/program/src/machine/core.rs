@@ -160,18 +160,12 @@ where
         let cumulative_sum: Ext<_, _> = builder.eval(C::EF::zero().cons());
         let current_pc: Felt<_> = builder.uninit();
         let exit_code: Felt<_> = builder.uninit();
-
-        // Range check that the number of proofs is sufficiently small.
-        let num_shard_proofs: Var<_> = shard_proofs.len().materialize(builder);
-        builder.range_check_v(num_shard_proofs, 16);
-
         // Verify proofs, validate transitions, and update accumulation variables.
         builder.range(0, shard_proofs.len()).for_each(|i, builder| {
             // Load the proof.
             let proof = builder.get(&shard_proofs, i);
 
             // Verify the shard proof.
-            let shard_idx = builder.eval(i + C::N::one());
             let mut challenger = leaf_challenger.copy(builder);
             StarkVerifier::<C, SC>::verify_shard(
                 builder,
@@ -180,7 +174,6 @@ where
                 machine,
                 &mut challenger,
                 &proof,
-                shard_idx,
             );
 
             // Extract public values.
@@ -269,9 +262,6 @@ where
 
             // Assert that exit code is the same for all proofs.
             builder.assert_felt_eq(exit_code, public_values.exit_code);
-
-            // Assert that the exit code is zero (success) for all proofs.
-            builder.assert_felt_eq(exit_code, C::F::zero());
 
             // Assert that the deferred proof digest is the same for all proofs.
             for (digest, current_digest) in deferred_proofs_digest

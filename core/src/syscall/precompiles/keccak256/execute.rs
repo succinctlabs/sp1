@@ -99,11 +99,9 @@ impl Syscall for KeccakPermuteChip {
         // Push the Keccak permute event.
         let shard = rt.current_shard();
         let channel = rt.current_channel();
-        let lookup_id = rt.syscall_lookup_id;
         rt.record_mut()
             .keccak_permute_events
             .push(KeccakPermuteEvent {
-                lookup_id,
                 shard,
                 channel,
                 clk: start_clk,

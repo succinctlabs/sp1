@@ -83,12 +83,8 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
                                         *read_record,
                                         &mut new_byte_lookup_events,
                                     );
-                                    new_byte_lookup_events.add_u8_range_checks(
-                                        shard,
-                                        channel,
-                                        &read_record.value.to_le_bytes(),
-                                    );
                                 }
+
                                 cols.do_memory_check = F::one();
                                 cols.receive_ecall = F::one();
                             }
@@ -103,12 +99,8 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
                                         *write_record,
                                         &mut new_byte_lookup_events,
                                     );
-                                    new_byte_lookup_events.add_u8_range_checks(
-                                        shard,
-                                        channel,
-                                        &write_record.value.to_le_bytes(),
-                                    );
                                 }
+
                                 cols.do_memory_check = F::one();
                             }
 
@@ -155,19 +147,10 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
         }
 
         // Convert the trace to a row major matrix.
-        let mut trace = RowMajorMatrix::new(
+        RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_KECCAK_MEM_COLS,
-        );
-
-        // Write the nonce to the trace.
-        for i in 0..trace.height() {
-            let cols: &mut KeccakMemCols<F> =
-                trace.values[i * NUM_KECCAK_MEM_COLS..(i + 1) * NUM_KECCAK_MEM_COLS].borrow_mut();
-            cols.nonce = F::from_canonical_usize(i);
-        }
-
-        trace
+        )
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
