@@ -162,8 +162,8 @@ where
     let mut shard_main_datas = Vec::new();
     let mut challenger = machine.config().challenger();
     vk.observe_into(&mut challenger);
-    for checkpoint_file in checkpoints.iter_mut() {
-        let mut record = tracing::info_span!("execute_checkpoints")
+    for (num, checkpoint_file) in checkpoints.iter_mut().enumerate() {
+        let mut record = tracing::info_span!("commit_checkpoint", num)
             .in_scope(|| trace_checkpoint(program.clone(), checkpoint_file, opts));
         record.public_values = public_values;
         reset_seek(&mut *checkpoint_file);
@@ -186,9 +186,9 @@ where
 
     // For each checkpoint, generate events and shard again, then prove the shards.
     let mut shard_proofs = Vec::<ShardProof<SC>>::new();
-    for mut checkpoint_file in checkpoints.into_iter() {
+    for (num, mut checkpoint_file) in checkpoints.into_iter().enumerate() {
         let checkpoint_shards = {
-            let mut events = tracing::info_span!("prove_shards")
+            let mut events = tracing::info_span!("prove_checkpoint", num)
                 .in_scope(|| trace_checkpoint(program.clone(), &checkpoint_file, opts));
             events.public_values = public_values;
             reset_seek(&mut checkpoint_file);
