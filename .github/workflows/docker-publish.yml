@@ -5,6 +5,8 @@ on:
   push:
     tags:
       - "v*.*.*"
+    branches:
+      - chris/ffi-docker
   schedule:
     - cron: "0 0 * * *"
   # Trigger without any parameters a proactive rebuild

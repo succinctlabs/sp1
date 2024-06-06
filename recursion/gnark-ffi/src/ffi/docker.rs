@@ -51,9 +51,14 @@ pub fn prove_plonk_bn254(data_dir: &str, witness_path: &str) -> PlonkBn254Proof 
 }
 
 pub fn build_plonk_bn254(data_dir: &str) {
-    let mounts = [(data_dir, "/circuit")];
+    let circuit_dir = if data_dir.ends_with("dev") {
+        "/circuit_dev"
+    } else {
+        "/circuit"
+    };
+    let mounts = [(data_dir, circuit_dir)];
     assert_docker();
-    call_docker(&["build-plonk", "/circuit"], &mounts).expect("failed to build with docker");
+    call_docker(&["build-plonk", circuit_dir], &mounts).expect("failed to build with docker");
 }
 
 pub fn verify_plonk_bn254(
