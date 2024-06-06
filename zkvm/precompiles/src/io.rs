@@ -63,6 +63,7 @@ pub fn commit<T: Serialize>(value: &T) {
     let writer = SyscallWriter {
         fd: FD_PUBLIC_VALUES,
     };
+    let _ = writer;
     unimplemented!();
     bincode::serialize_into(writer, value).expect("serialization failed");
 }
