@@ -1,20 +1,4 @@
-#[cfg(feature = "bls")]
-pub mod bigint_mulmod;
-#[cfg(feature = "bls")]
-pub mod bls12381;
-#[cfg(feature = "bls")]
-pub mod bn254;
 pub mod io;
-#[cfg(feature = "bls")]
-pub mod secp256k1;
-#[cfg(feature = "bls")]
-pub mod uint256_div;
-#[cfg(feature = "bls")]
-pub mod unconstrained;
-#[cfg(feature = "bls")]
-pub mod utils;
-#[cfg(feature = "verify")]
-pub mod verify;
 
 extern "C" {
     pub fn syscall_halt(exit_code: u8) -> !;
