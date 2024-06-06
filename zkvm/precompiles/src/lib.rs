@@ -1,4 +1,5 @@
 pub mod bigint_mulmod;
+#[cfg(feature = "bls")]
 pub mod bls12381;
 pub mod bn254;
 pub mod io;
