@@ -257,10 +257,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             })
         });
 
-        // Display some statistics about the workload.
-        let stats = record.stats();
-        log::info!("shard: {:?}", stats);
-
         // For each chip, shard the events into segments.
         record.shard(config)
     }
