@@ -14,7 +14,7 @@ use thiserror::Error;
 use crate::air::MachineAir;
 use crate::io::{SP1PublicValues, SP1Stdin};
 use crate::lookup::InteractionBuilder;
-use crate::runtime::ExecutionError;
+use crate::runtime::{DeferredProofVerifyFn, ExecutionError};
 use crate::runtime::{ExecutionRecord, ExecutionReport, ShardingConfig};
 use crate::stark::DebugConstraintBuilder;
 use crate::stark::MachineProof;
@@ -97,6 +97,24 @@ where
     ShardMainData<SC>: Serialize + DeserializeOwned,
     <SC as StarkGenericConfig>::Val: PrimeField32,
 {
+    prove_with_deferred(program, stdin, config, opts, None)
+}
+
+pub fn prove_with_deferred<SC: StarkGenericConfig + Send + Sync>(
+    program: Program,
+    stdin: &SP1Stdin,
+    config: SC,
+    opts: SP1CoreOpts,
+    deferred_fn: Option<DeferredProofVerifyFn>,
+) -> Result<(MachineProof<SC>, Vec<u8>), SP1CoreProverError>
+where
+    SC::Challenger: Clone,
+    OpeningProof<SC>: Send + Sync,
+    Com<SC>: Send + Sync,
+    PcsProverData<SC>: Send + Sync,
+    ShardMainData<SC>: Serialize + DeserializeOwned,
+    <SC as StarkGenericConfig>::Val: PrimeField32,
+{
     let proving_start = Instant::now();
 
     // Execute the program.
@@ -104,6 +122,9 @@ where
     runtime.write_vecs(&stdin.buffer);
     for proof in stdin.proofs.iter() {
         runtime.write_proof(proof.0.clone(), proof.1.clone());
+    }
+    if let Some(deferred_fn) = deferred_fn {
+        runtime.deferred_proof_verifier = deferred_fn;
     }
 
     // Setup the machine.

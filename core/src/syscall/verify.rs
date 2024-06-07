@@ -1,8 +1,4 @@
-use crate::{
-    runtime::{Syscall, SyscallContext},
-    stark::StarkGenericConfig,
-    utils::BabyBearPoseidon2Inner,
-};
+use crate::runtime::{Syscall, SyscallContext};
 
 /// Verifies an SP1 recursive verifier proof. Note that this syscall only verifies the proof during
 /// runtime. The actual constraint-level verification is deferred to the recursive layer, where
@@ -16,7 +12,6 @@ impl SyscallVerifySP1Proof {
 }
 
 impl Syscall for SyscallVerifySP1Proof {
-    #[allow(unused_variables, unused_mut)]
     fn execute(&self, ctx: &mut SyscallContext, vkey_ptr: u32, pv_digest_ptr: u32) -> Option<u32> {
         let rt = &mut ctx.rt;
 
@@ -33,11 +28,15 @@ impl Syscall for SyscallVerifySP1Proof {
             .map(|i| rt.word(pv_digest_ptr + i * 4))
             .collect::<Vec<u32>>();
 
-        let (proof, proof_vk) = &rt.state.proof_stream[rt.state.proof_stream_ptr];
+        let proof_index = rt.state.proof_stream_ptr;
+        let (proof, proof_vk) = &rt.state.proof_stream[proof_index].clone();
         rt.state.proof_stream_ptr += 1;
 
-        let config = BabyBearPoseidon2Inner::new();
-        let mut challenger = config.challenger();
+        let vkey_bytes: [u32; 8] = vkey.try_into().unwrap();
+        let pv_digest_bytes: [u32; 8] = pv_digest.try_into().unwrap();
+
+        (ctx.rt.deferred_proof_verifier)(proof, proof_vk, vkey_bytes, pv_digest_bytes)
+            .unwrap_or_else(|e| panic!("Failed to verify proof {proof_index}: {}", e));
 
         None
     }

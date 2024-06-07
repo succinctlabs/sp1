@@ -35,7 +35,8 @@ use crate::alu::create_alu_lookup_id;
 use crate::alu::create_alu_lookups;
 use crate::bytes::NUM_BYTE_LOOKUP_CHANNELS;
 use crate::memory::MemoryInitializeFinalizeEvent;
-use crate::utils::SP1CoreOpts;
+use crate::stark::{MachineVerificationError, ShardProof, StarkVerifyingKey};
+use crate::utils::{BabyBearPoseidon2, SP1CoreOpts};
 use crate::{alu::AluEvent, cpu::CpuEvent};
 
 /// An implementation of a runtime for the SP1 RISC-V zkVM.
@@ -45,7 +46,7 @@ use crate::{alu::AluEvent, cpu::CpuEvent};
 ///
 /// For more information on the RV32IM instruction set, see the following:
 /// https://www.cs.sfu.ca/~ashriram/Courses/CS295/assets/notebooks/RISCV/RISCV_CARD.pdf
-pub struct Runtime {
+pub struct Runtime<'a> {
     /// The program.
     pub program: Arc<Program>,
 
@@ -91,6 +92,60 @@ pub struct Runtime {
 
     /// Whether we should write to the report.
     pub print_report: bool,
+
+    pub deferred_proof_verifier: DeferredProofVerifyFn<'a>,
+}
+
+pub type DeferredProofVerifyFn<'a> = Box<
+    dyn Fn(
+            &ShardProof<BabyBearPoseidon2>,
+            &StarkVerifyingKey<BabyBearPoseidon2>,
+            [u32; 8],
+            [u32; 8],
+        ) -> Result<(), MachineVerificationError<BabyBearPoseidon2>>
+        + 'a,
+>;
+
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
+pub struct ExecutionReport {
+    pub instruction_counts: HashMap<Opcode, u64>,
+    pub syscall_counts: HashMap<SyscallCode, u64>,
+}
+
+impl ExecutionReport {
+    pub fn total_instruction_count(&self) -> u64 {
+        self.instruction_counts.values().sum()
+    }
+
+    pub fn total_syscall_count(&self) -> u64 {
+        self.syscall_counts.values().sum()
+    }
+}
+
+impl Display for ExecutionReport {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        writeln!(f, "Instruction Counts:")?;
+        let mut sorted_instructions = self.instruction_counts.iter().collect::<Vec<_>>();
+
+        // Sort instructions by opcode name
+        sorted_instructions.sort_by_key(|&(opcode, _)| opcode.to_string());
+        for (opcode, count) in sorted_instructions {
+            writeln!(f, "  {}: {}", opcode, count)?;
+        }
+        writeln!(f, "Total Instructions: {}", self.total_instruction_count())?;
+
+        writeln!(f, "Syscall Counts:")?;
+        let mut sorted_syscalls = self.syscall_counts.iter().collect::<Vec<_>>();
+
+        // Sort syscalls by syscall name
+        sorted_syscalls.sort_by_key(|&(syscall, _)| format!("{:?}", syscall));
+        for (syscall, count) in sorted_syscalls {
+            writeln!(f, "  {}: {}", syscall, count)?;
+        }
+        writeln!(f, "Total Syscall Count: {}", self.total_syscall_count())?;
+
+        Ok(())
+    }
 }
 
 #[derive(Error, Debug)]
@@ -107,7 +162,7 @@ pub enum ExecutionError {
     Unimplemented(),
 }
 
-impl Runtime {
+impl<'a> Runtime<'a> {
     // Create a new runtime from a program.
     pub fn new(program: Program, opts: SP1CoreOpts) -> Self {
         // Create a shared reference to the program.
@@ -152,6 +207,7 @@ impl Runtime {
             max_syscall_cycles,
             report: Default::default(),
             print_report: false,
+            deferred_proof_verifier: (|_, _, _, _| Ok(())),
         }
     }
 

@@ -249,8 +249,23 @@ impl SP1Prover {
     ) -> Result<SP1CoreProof, SP1CoreProverError> {
         let config = CoreSC::default();
         let program = Program::from(&pk.elf);
-        let (proof, public_values_stream) =
-            sp1_core::utils::prove(program, stdin, config, self.core_opts)?;
+        let opts = SP1CoreOpts::default();
+        let (proof, public_values_stream) = sp1_core::utils::prove_with_deferred(
+            program,
+            stdin,
+            config,
+            self.core_opts,
+            Some(|proof, vkey, pv, committed_value_digest| {
+                //
+                self.verify_compressed(
+                    &SP1ReduceProof {
+                        proof: proof.clone(),
+                    },
+                    &SP1VerifyingKey { vk: vkey.clone() },
+                );
+                Ok(())
+            }),
+        )?;
         let public_values = SP1PublicValues::from(&public_values_stream);
         Ok(SP1CoreProof {
             proof: SP1CoreProofData(proof.shard_proofs),
