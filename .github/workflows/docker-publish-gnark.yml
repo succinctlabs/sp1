@@ -5,6 +5,8 @@ on:
   push:
     tags:
       - "v*.*.*"
+    branches:
+      - chris/ffi-docker
   schedule:
     - cron: "0 0 * * *"
   # Trigger without any parameters a proactive rebuild
@@ -86,6 +88,7 @@ jobs:
         with:
           context: .
           file: ./Dockerfile.gnark-ffi
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.docker_tagging.outputs.docker_tags }}
           labels: ${{ steps.meta.outputs.labels }}
