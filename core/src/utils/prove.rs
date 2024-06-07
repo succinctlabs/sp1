@@ -226,15 +226,28 @@ where
         report_aggregate.total_syscall_count()
     );
     tracing::info!("execution report (syscall counts):");
-    let mut sorted_syscalls = report_aggregate
-        .syscall_counts
-        .iter()
-        .map(|(syscall, ct)| (syscall.to_string(), *ct))
-        .collect::<Vec<_>>();
-    // Sort syscalls by syscall name
-    sorted_syscalls.sort_unstable();
-    for (syscall, count) in sorted_syscalls {
-        tracing::info!("  {}: {}", syscall, count);
+    // Print the syscall count table like `du`: sorted by count and with the count in the first column.
+    // The following section can be extracted and reused to print other tables, if desired.
+    let table_to_log = report_aggregate.syscall_counts.iter().collect::<Vec<_>>();
+    {
+        let mut sorted_table = table_to_log;
+        // Sort syscalls by count (descending), then their enum order (ascending).
+        sorted_table.sort_unstable_by(|a, b| a.1.cmp(b.1).reverse().then_with(|| a.0.cmp(b.0)));
+        // Convert counts to `String`s to prepare them for printing and to measure their width.
+        let table_with_string_counts = sorted_table
+            .into_iter()
+            .map(|(label, ct)| (label, ct.to_string()))
+            .collect::<Vec<_>>();
+        // Calculate width for padding the counts.
+        let width = table_with_string_counts
+            .iter()
+            .map(|(_, b)| b.len())
+            .max()
+            .unwrap_or(0);
+        for (syscall, count) in table_with_string_counts {
+            // Indent and separate with a space for visual clarity.
+            tracing::info!("  {count:<width$} {syscall}");
+        }
     }
 
     let proof = MachineProof::<SC> { shard_proofs };
