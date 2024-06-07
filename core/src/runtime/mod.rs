@@ -1202,6 +1202,14 @@ pub mod tests {
     }
 
     #[test]
+    fn test_write_program() {
+        let write_elf = include_bytes!("../../../tests/write/elf/riscv32im-succinct-zkvm-elf");
+        let program = Program::from(write_elf);
+        let mut runtime = Runtime::new(program, SP1CoreOpts::default());
+        runtime.run().unwrap();
+    }
+
+    #[test]
     fn test_simple_program_run() {
         let program = simple_program();
         let mut runtime = Runtime::new(program, SP1CoreOpts::default());
@@ -1213,6 +1221,7 @@ pub mod tests {
     fn test_ssz_withdrawals_program_run_report() {
         let program = ssz_withdrawals_program();
         let mut runtime = Runtime::new(program, SP1CoreOpts::default());
+        // runtime.register_hook(10, || {});
         runtime.run().unwrap();
         assert_eq!(runtime.report, {
             use super::Opcode::*;
