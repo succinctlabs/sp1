@@ -104,8 +104,6 @@ jobs:
           command: test
           toolchain: nightly-2024-04-17
           args: --release -p sp1-prover -- --exact tests::test_e2e
-          env:
-            SP1_GNARK_IMAGE: succinctlabs/sp1-gnark:ffi-docker
 
   lint:
     name: Formatting & Clippy
