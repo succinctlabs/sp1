@@ -1,0 +1,40 @@
+name: checks
+run-name: Execution precheckin for change by ${{ github.actor }}
+on:
+  pull_request:
+  push:
+    branches:
+      - chris/test-ci
+
+jobs:
+  test-prove:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: rust-cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+            ~/.rustup/
+          key: rust-nightly-2024-04-17-${{ hashFiles('**/Cargo.toml') }}
+          restore-keys: rust-nightly-2024-04-17-
+
+      - name: Setup toolchain
+        id: rustc-toolchain
+        shell: bash
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain nightly-2024-04-17 -y
+
+      - name: Install SP1
+        run: |
+          curl -L https://sp1.succinct.xyz | bash
+          echo $XDG_CONFIG_HOME
+          ls -a ~
+          ls -a ~/.sp1
+          ls -a ~/.sp1/bin
+          ~/.sp1/bin/sp1up 
+          ~/.sp1/bin/cargo-prove prove --version
