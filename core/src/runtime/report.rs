@@ -62,7 +62,7 @@ impl Display for ExecutionReport {
             .map(|(opcode, ct)| (opcode.to_string(), *ct))
             .collect::<Vec<_>>();
 
-        // Sort instructions by opcode name
+        // Sort instructions by opcode name.
         sorted_instructions.sort_unstable();
         for (opcode, count) in sorted_instructions {
             writeln!(f, "  {}: {}", opcode, count)?;
@@ -76,7 +76,7 @@ impl Display for ExecutionReport {
             .map(|(syscall, ct)| (syscall.to_string(), *ct))
             .collect::<Vec<_>>();
 
-        // Sort syscalls by syscall name
+        // Sort syscalls by syscall name.
         sorted_syscalls.sort_unstable();
         for (syscall, count) in sorted_syscalls {
             writeln!(f, "  {}: {}", syscall, count)?;
