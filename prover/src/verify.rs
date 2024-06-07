@@ -112,11 +112,6 @@ impl SP1Prover {
                 .core_machine
                 .shard_chips_ordered(&shard_proof.chip_ordering)
                 .collect::<Vec<_>>();
-            let program_memory_init_count = chips
-                .clone()
-                .into_iter()
-                .filter(|chip| chip.name() == "MemoryProgram")
-                .count();
             let memory_init_count = chips
                 .clone()
                 .into_iter()
@@ -126,18 +121,6 @@ impl SP1Prover {
                 .into_iter()
                 .filter(|chip| chip.name() == "MemoryFinalize")
                 .count();
-
-            // Assert that the `MemoryProgram` chip only exists in the first shard.
-            if i == 0 && program_memory_init_count != 1 {
-                return Err(MachineVerificationError::InvalidChipOccurence(
-                    "memory should exist in the first chip".to_string(),
-                ));
-            }
-            if i != 0 && program_memory_init_count > 0 {
-                return Err(MachineVerificationError::InvalidChipOccurence(
-                    "memory program should not exist in the first chip".to_string(),
-                ));
-            }
 
             // Assert that the `MemoryInit` and `MemoryFinalize` chips only exist in the last shard.
             if i != proof.0.len() - 1 && (memory_final_count > 0 || memory_init_count > 0) {
