@@ -80,11 +80,7 @@ impl SP1RecursiveVerifier<InnerConfig, BabyBearPoseidon2> {
 impl<C: Config, SC: StarkGenericConfig> SP1RecursiveVerifier<C, SC>
 where
     C::F: PrimeField32 + TwoAdicField,
-    SC: StarkGenericConfig<
-        Val = C::F,
-        Challenge = C::EF,
-        Domain = TwoAdicMultiplicativeCoset<C::F>,
-    >,
+    SC: StarkGenericConfig<Val = C::F, Challenge = C::EF, Domain = TwoAdicMultiplicativeCoset<C::F>>,
     Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
 {
     /// Verify a batch of SP1 shard proofs and aggregate their public values.
@@ -171,7 +167,6 @@ where
             let proof = builder.get(&shard_proofs, i);
 
             // Verify the shard proof.
-            let shard_idx = builder.eval(i + C::N::one());
             let mut challenger = leaf_challenger.copy(builder);
             StarkVerifier::<C, SC>::verify_shard(
                 builder,
@@ -180,7 +175,6 @@ where
                 machine,
                 &mut challenger,
                 &proof,
-                shard_idx,
             );
 
             // Extract public values.
