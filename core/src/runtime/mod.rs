@@ -24,8 +24,10 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::fs::File;
+use std::hash::Hash;
 use std::io::BufWriter;
 use std::io::Write;
+use std::ops::{Add, AddAssign};
 use std::sync::Arc;
 
 use thiserror::Error;
@@ -92,19 +94,56 @@ pub struct Runtime {
     pub should_report: bool,
 }
 
+/// Integer type used to count instructions and syscalls for `ExecutionReport`.
+type Count = u64;
+
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct ExecutionReport {
-    pub instruction_counts: HashMap<Opcode, u64>,
-    pub syscall_counts: HashMap<SyscallCode, u64>,
+    pub instruction_counts: HashMap<Opcode, Count>,
+    pub syscall_counts: HashMap<SyscallCode, Count>,
 }
 
 impl ExecutionReport {
-    pub fn total_instruction_count(&self) -> u64 {
+    pub fn total_instruction_count(&self) -> Count {
         self.instruction_counts.values().sum()
     }
 
-    pub fn total_syscall_count(&self) -> u64 {
+    pub fn total_syscall_count(&self) -> Count {
         self.syscall_counts.values().sum()
+    }
+}
+
+/// Helper function. "Derives" `+=` if the value type of a `HashMap` supports it.
+fn hashmap_add_assign<K, V>(lhs: &mut HashMap<K, V>, rhs: HashMap<K, V>)
+where
+    K: Eq + Hash,
+    V: AddAssign,
+{
+    for (k, v) in rhs.into_iter() {
+        // Can't use `and_modify(...).or_insert(...)` because we want to use `v` in both places.
+        match lhs.entry(k) {
+            Entry::Occupied(e) => *e.into_mut() += v,
+            Entry::Vacant(e) => drop(e.insert(v)),
+        }
+    }
+}
+
+// Used to concatenate two `ExecutionReport`s.
+impl AddAssign for ExecutionReport {
+    fn add_assign(&mut self, rhs: Self) {
+        hashmap_add_assign(&mut self.instruction_counts, rhs.instruction_counts);
+        hashmap_add_assign(&mut self.syscall_counts, rhs.syscall_counts);
+    }
+}
+
+// Used to concatenate two `ExecutionReport`s.
+// `AddAssign` will probably be used more. `Add` is here for completeness.
+impl Add for ExecutionReport {
+    type Output = Self;
+
+    fn add(mut self, rhs: Self) -> Self::Output {
+        self += rhs;
+        self
     }
 }
 
@@ -1015,6 +1054,7 @@ impl Runtime {
     /// Execute up to `self.shard_batch_size` cycles, returning the events emitted and whether the program ended.
     pub fn execute_record(&mut self) -> Result<(ExecutionRecord, bool), ExecutionError> {
         self.emit_events = true;
+        self.should_report = true;
         let done = self.execute()?;
         Ok((std::mem::take(&mut self.record), done))
     }
@@ -1022,6 +1062,7 @@ impl Runtime {
     /// Execute up to `self.shard_batch_size` cycles, returning a copy of the prestate and whether the program ended.
     pub fn execute_state(&mut self) -> Result<(ExecutionState, bool), ExecutionError> {
         self.emit_events = false;
+        self.should_report = false;
         let state = self.state.clone();
         let done = self.execute()?;
         Ok((state, done))
