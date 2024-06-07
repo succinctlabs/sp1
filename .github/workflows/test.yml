@@ -13,9 +13,7 @@ jobs:
       - name: Install SP1
         run: |
           curl -L https://sp1.succinct.xyz | bash
-          export BASE_DIR=${XDG_CONFIG_HOME:-$HOME} 
-          export SP1_DIR=$BASE_DIR/.sp1
+          export SP1_DIR=${XDG_CONFIG_HOME:-$HOME}/.sp1
           echo "SP1_DIR=$SP1_DIR" >> $GITHUB_ENV
-          echo "SP1_DIR=$SP1_DIR"
           $SP1_DIR/bin/sp1up
           $SP1_DIR/bin/cargo-prove prove --version
