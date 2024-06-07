@@ -9,7 +9,7 @@ pub struct SP1CoreOpts {
 impl Default for SP1CoreOpts {
     fn default() -> Self {
         Self {
-            shard_size: 4096,
+            shard_size: 1 << 22,
             shard_batch_size: 16,
             shard_chunking_multiplier: 1,
             reconstruct_commitments: true,
