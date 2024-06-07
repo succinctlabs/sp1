@@ -588,12 +588,11 @@ where
                         .resize(RECURSIVE_PROOF_NUM_PV_ELTS, F::zero());
                     self.record.public_values[RECURSION_PUBLIC_VALUES_COL_MAP.exit_code] = F::one();
 
-                    let (a_val, b_val, c_val) = self.all_rr(&instruction);
                     let trap_pc = self.pc.as_canonical_u32() as usize;
                     let trace = self.program.traces[trap_pc].clone();
                     if let Some(mut trace) = trace {
                         trace.resolve();
-                        eprintln!("TRAP encountered. Backtrace:\n{:?}", trace);
+                        panic!("TRAP encountered. Backtrace:\n{:?}", trace);
                     } else {
                         for nearby_pc in (0..trap_pc).rev() {
                             let trace = self.program.traces[nearby_pc].clone();
@@ -606,9 +605,8 @@ where
                                 exit(1);
                             }
                         }
-                        eprintln!("TRAP encountered. No backtrace available");
+                        panic!("TRAP encountered. No backtrace available");
                     }
-                    (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::HALT => {
                     self.record

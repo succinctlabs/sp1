@@ -572,13 +572,10 @@ impl MachineRecord for ExecutionRecord {
             self.nonce_lookup.insert(event.lookup_id, i as u32);
         }
 
-        // Put the memory records in the last shard.
-        let last_shard = shards.last_mut().unwrap();
-
-        last_shard
+        first
             .memory_initialize_events
             .extend_from_slice(&self.memory_initialize_events);
-        last_shard
+        first
             .memory_finalize_events
             .extend_from_slice(&self.memory_finalize_events);
 
