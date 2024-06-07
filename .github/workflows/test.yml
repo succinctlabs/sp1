@@ -36,8 +36,5 @@ jobs:
           export SP1_DIR=$BASE_DIR/.sp1
           echo "SP1_DIR=$SP1_DIR" >> $GITHUB_ENV
           echo "SP1_DIR=$SP1_DIR"
-          ls -a ~
-          ls -a ~/.sp1
-          ls -a ~/.sp1/bin
           $SP1_DIR/bin/sp1up
           $SP1_DIR/bin/cargo-prove prove --version
