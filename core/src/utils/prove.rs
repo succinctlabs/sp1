@@ -132,8 +132,8 @@ where
     let mut checkpoints = Vec::new();
     let (public_values_stream, public_values) = loop {
         // Execute the runtime until we reach a checkpoint.
-        let (checkpoint, done) = runtime
-            .execute_state()
+        let (checkpoint, done) = tracing::info_span!("collect_checkpoints")
+            .in_scope(|| runtime.execute_state())
             .map_err(SP1CoreProverError::ExecutionError)?;
 
         // Save the checkpoint to a temp file.
@@ -162,8 +162,9 @@ where
     let mut shard_main_datas = Vec::new();
     let mut challenger = machine.config().challenger();
     vk.observe_into(&mut challenger);
-    for checkpoint_file in checkpoints.iter_mut() {
-        let mut record = trace_checkpoint(program.clone(), checkpoint_file, opts);
+    for (num, checkpoint_file) in checkpoints.iter_mut().enumerate() {
+        let mut record = tracing::info_span!("commit_checkpoint", num)
+            .in_scope(|| trace_checkpoint(program.clone(), checkpoint_file, opts));
         record.public_values = public_values;
         reset_seek(&mut *checkpoint_file);
 
@@ -185,9 +186,10 @@ where
 
     // For each checkpoint, generate events and shard again, then prove the shards.
     let mut shard_proofs = Vec::<ShardProof<SC>>::new();
-    for mut checkpoint_file in checkpoints.into_iter() {
+    for (num, mut checkpoint_file) in checkpoints.into_iter().enumerate() {
         let checkpoint_shards = {
-            let mut events = trace_checkpoint(program.clone(), &checkpoint_file, opts);
+            let mut events = tracing::info_span!("prove_checkpoint", num)
+                .in_scope(|| trace_checkpoint(program.clone(), &checkpoint_file, opts));
             events.public_values = public_values;
             reset_seek(&mut checkpoint_file);
             tracing::debug_span!("shard").in_scope(|| machine.shard(events, &sharding_config))
@@ -215,6 +217,7 @@ where
             .collect::<Vec<_>>();
         shard_proofs.append(&mut checkpoint_proofs);
     }
+
     let proof = MachineProof::<SC> { shard_proofs };
 
     // Print the summary.
