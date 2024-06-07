@@ -221,7 +221,7 @@ where
     }
     // Log some of the `ExecutionReport` information.
     tracing::info!(
-        "execution report (totals): instructions={}, syscalls={}",
+        "execution report (totals): total_cycles={}, total_syscall_cycles={}",
         report_aggregate.total_instruction_count(),
         report_aggregate.total_syscall_count()
     );
