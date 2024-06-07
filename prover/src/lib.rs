@@ -60,6 +60,8 @@ use tracing::instrument;
 pub use types::*;
 use utils::words_to_bytes;
 
+pub const SP1_CIRCUIT_VERSION: &str = "v1.0.7-testnet";
+
 /// The configuration for the core prover.
 pub type CoreSC = BabyBearPoseidon2;
 

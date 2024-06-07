@@ -9,9 +9,8 @@ use crate::{
 use crate::{SP1CompressedProof, SP1PlonkBn254Proof, SP1Proof, SP1ProvingKey, SP1VerifyingKey};
 use anyhow::{Context, Result};
 use serde::de::DeserializeOwned;
-use sp1_prover::install::PLONK_BN254_ARTIFACTS_COMMIT;
 use sp1_prover::utils::block_on;
-use sp1_prover::{SP1Prover, SP1Stdin};
+use sp1_prover::{SP1Prover, SP1Stdin, SP1_CIRCUIT_VERSION};
 use tokio::{runtime, time::sleep};
 
 use crate::provers::{LocalProver, ProverType};
@@ -56,7 +55,7 @@ impl NetworkProver {
             log::info!("Skipping simulation");
         }
 
-        let version = PLONK_BN254_ARTIFACTS_COMMIT;
+        let version = SP1_CIRCUIT_VERSION;
         log::info!("Client version {}", version);
 
         let proof_id = client.create_proof(elf, &stdin, mode, version).await?;
