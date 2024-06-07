@@ -27,7 +27,7 @@ impl MemoryInitializeFinalizeEvent {
             addr,
             value,
             shard: 0,
-            timestamp: 1,
+            timestamp: 0,
             used: if used { 1 } else { 0 },
         }
     }
