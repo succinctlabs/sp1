@@ -4888,6 +4888,8 @@ dependencies = [
 name = "sp1-recursion-gnark-ffi"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "bincode",
  "bindgen",
  "cc",
  "cfg-if",
