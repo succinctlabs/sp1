@@ -20,9 +20,6 @@ impl ExecutionReport {
 
     /// Compute the total number of syscalls made during the execution.
     pub fn total_syscall_count(&self) -> u64 {
-        // This should be the same as the cheaper
-        // `self.opcode_counts.get(Opcode::ECALL).cloned().unwrap_or_default()`,
-        // but this alternative is more fragile.
         self.syscall_counts.values().sum()
     }
 
