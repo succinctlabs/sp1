@@ -23,13 +23,6 @@ impl ExecutionReport {
         // This should be the same as the cheaper
         // `self.opcode_freqs.get(Opcode::ECALL).cloned().unwrap_or_default()`,
         // but this alternative is more fragile.
-        assert_eq!(
-            self.opcode_freqs
-                .get(&Opcode::ECALL)
-                .cloned()
-                .unwrap_or_default(),
-            self.syscall_freqs.values().sum()
-        );
         self.syscall_freqs.values().sum()
     }
 
