@@ -60,8 +60,7 @@ use tracing::instrument;
 pub use types::*;
 use utils::words_to_bytes;
 
-/// The global version for all components of SP1.
-pub const SP1_CIRCUIT_VERSION: &str = "v1.0.7-testnet";
+pub use sp1_core::SP1_CIRCUIT_VERSION;
 
 /// The configuration for the core prover.
 pub type CoreSC = BabyBearPoseidon2;
