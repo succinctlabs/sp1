@@ -32,6 +32,8 @@
 
 - [Advanced](./generating-proofs/advanced.md)
 
+- [Network](./generating-proofs/network.md)
+
 # Verifying Proofs
 
 - [Solidity & EVM](./verifying-proofs/solidity-and-evm.md)
