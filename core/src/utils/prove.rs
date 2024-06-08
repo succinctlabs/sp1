@@ -228,7 +228,7 @@ where
     tracing::info!("execution report (syscall counts):");
     // Print the syscall count table like `du`: sorted by count and with the count in the first column.
     // The following section can be extracted and reused to print other tables, if desired.
-    for line in ExecutionReport::freq_table_lines(&report_aggregate.syscall_freqs) {
+    for line in ExecutionReport::sorted_table_lines(&report_aggregate.syscall_counts) {
         tracing::info!("  {line}");
     }
 

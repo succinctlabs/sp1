@@ -8,30 +8,31 @@ use super::*;
 
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct ExecutionReport {
-    pub opcode_freqs: HashMap<Opcode, u64>,
-    pub syscall_freqs: HashMap<SyscallCode, u64>,
+    pub opcode_counts: HashMap<Opcode, u64>,
+    pub syscall_counts: HashMap<SyscallCode, u64>,
 }
 
 impl ExecutionReport {
     /// Compute the total number of instructions run during the execution.
     pub fn total_instruction_count(&self) -> u64 {
-        self.opcode_freqs.values().sum()
+        self.opcode_counts.values().sum()
     }
 
     /// Compute the total number of syscalls made during the execution.
     pub fn total_syscall_count(&self) -> u64 {
         // This should be the same as the cheaper
-        // `self.opcode_freqs.get(Opcode::ECALL).cloned().unwrap_or_default()`,
+        // `self.opcode_counts.get(Opcode::ECALL).cloned().unwrap_or_default()`,
         // but this alternative is more fragile.
-        self.syscall_freqs.values().sum()
+        self.syscall_counts.values().sum()
     }
 
-    /// Returns sorted and formatted rows of a frequency table (e.g. `opcode_freqs`).
+    /// Returns sorted and formatted rows of a table of counts (e.g. `opcode_counts`).
     ///
-    /// The table is sorted first by frequency (descending) and then by label.
-    /// The first column consists of the frequencies, is right-justified, and is padded
+    /// The table is sorted first by count (descending) and then by label (ascending).
+    /// The first column consists of the counts, is right-justified, and is padded precisely
     /// enough to fit all the numbers. The second column consists of the labels (e.g. `OpCode`s).
-    pub fn freq_table_lines<K, V>(table: &HashMap<K, V>) -> Vec<String>
+    /// The columns are separated by a single space character.
+    pub fn sorted_table_lines<K, V>(table: &HashMap<K, V>) -> Vec<String>
     where
         K: Ord + Display,
         V: Ord + Display,
@@ -77,8 +78,8 @@ where
 
 impl AddAssign for ExecutionReport {
     fn add_assign(&mut self, rhs: Self) {
-        hashmap_add_assign(&mut self.opcode_freqs, rhs.opcode_freqs);
-        hashmap_add_assign(&mut self.syscall_freqs, rhs.syscall_freqs);
+        hashmap_add_assign(&mut self.opcode_counts, rhs.opcode_counts);
+        hashmap_add_assign(&mut self.syscall_counts, rhs.syscall_counts);
     }
 }
 
@@ -98,7 +99,7 @@ impl Display for ExecutionReport {
             "opcode counts ({} total instructions):",
             self.total_instruction_count()
         )?;
-        for line in Self::freq_table_lines(&self.opcode_freqs) {
+        for line in Self::sorted_table_lines(&self.opcode_counts) {
             writeln!(f, "  {line}")?;
         }
 
@@ -107,7 +108,7 @@ impl Display for ExecutionReport {
             "syscall counts ({} total syscall instructions):",
             self.total_syscall_count()
         )?;
-        for line in Self::freq_table_lines(&self.syscall_freqs) {
+        for line in Self::sorted_table_lines(&self.syscall_counts) {
             writeln!(f, "  {line}")?;
         }
 
