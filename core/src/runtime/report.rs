@@ -8,17 +8,62 @@ use super::*;
 
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct ExecutionReport {
-    pub opcode_counts: HashMap<Opcode, u64>,
-    pub syscall_counts: HashMap<SyscallCode, u64>,
+    pub opcode_freqs: HashMap<Opcode, u64>,
+    pub syscall_freqs: HashMap<SyscallCode, u64>,
 }
 
 impl ExecutionReport {
+    /// Compute the total number of instructions run during the execution.
     pub fn total_instruction_count(&self) -> u64 {
-        self.opcode_counts.values().sum()
+        self.opcode_freqs.values().sum()
     }
 
+    /// Compute the total number of syscalls made during the execution.
     pub fn total_syscall_count(&self) -> u64 {
-        self.syscall_counts.values().sum()
+        // This should be the same as the cheaper
+        // `self.opcode_freqs.get(Opcode::ECALL).cloned().unwrap_or_default()`,
+        // but this alternative is more fragile.
+        assert_eq!(
+            self.opcode_freqs
+                .get(&Opcode::ECALL)
+                .cloned()
+                .unwrap_or_default(),
+            self.syscall_freqs.values().sum()
+        );
+        self.syscall_freqs.values().sum()
+    }
+
+    /// Returns sorted and formatted rows of a frequency table (e.g. `opcode_freqs`).
+    ///
+    /// The table is sorted first by frequency (descending) and then by label.
+    /// The first column consists of the frequencies, is right-justified, and is padded
+    /// enough to fit all the numbers. The second column consists of the labels (e.g. `OpCode`s).
+    pub fn freq_table_lines<K, V>(table: &HashMap<K, V>) -> Vec<String>
+    where
+        K: Ord + Display,
+        V: Ord + Display,
+    {
+        // This function could be optimized here and there,
+        // for example by pre-allocating all `Vec`s, or by using less memory.
+        let mut lines = Vec::with_capacity(table.len());
+        let mut entries = table.iter().collect::<Vec<_>>();
+        // Sort table by count (descending), then the name order (ascending).
+        entries.sort_unstable_by(|a, b| a.1.cmp(b.1).reverse().then_with(|| a.0.cmp(b.0)));
+        // Convert counts to `String`s to prepare them for printing and to measure their width.
+        let table_with_string_counts = entries
+            .into_iter()
+            .map(|(label, ct)| (label, ct.to_string()))
+            .collect::<Vec<_>>();
+        // Calculate width for padding the counts.
+        let width = table_with_string_counts
+            .iter()
+            .map(|(_, b)| b.len())
+            .max()
+            .unwrap_or_default();
+        for (label, count) in table_with_string_counts {
+            lines.push(format!("{count:>width$} {label}"));
+        }
+        lines
     }
 }
 
@@ -39,8 +84,8 @@ where
 
 impl AddAssign for ExecutionReport {
     fn add_assign(&mut self, rhs: Self) {
-        hashmap_add_assign(&mut self.opcode_counts, rhs.opcode_counts);
-        hashmap_add_assign(&mut self.syscall_counts, rhs.syscall_counts);
+        hashmap_add_assign(&mut self.opcode_freqs, rhs.opcode_freqs);
+        hashmap_add_assign(&mut self.syscall_freqs, rhs.syscall_freqs);
     }
 }
 
@@ -55,33 +100,23 @@ impl Add for ExecutionReport {
 
 impl Display for ExecutionReport {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        writeln!(f, "Instruction Counts:")?;
-        let mut sorted_instructions = self
-            .opcode_counts
-            .iter()
-            .map(|(opcode, ct)| (opcode.to_string(), *ct))
-            .collect::<Vec<_>>();
-
-        // Sort instructions by opcode name.
-        sorted_instructions.sort_unstable();
-        for (opcode, count) in sorted_instructions {
-            writeln!(f, "  {}: {}", opcode, count)?;
+        writeln!(
+            f,
+            "opcode counts ({} total instructions):",
+            self.total_instruction_count()
+        )?;
+        for line in Self::freq_table_lines(&self.opcode_freqs) {
+            writeln!(f, "  {line}")?;
         }
-        writeln!(f, "Total Instructions: {}", self.total_instruction_count())?;
 
-        writeln!(f, "Syscall Counts:")?;
-        let mut sorted_syscalls = self
-            .syscall_counts
-            .iter()
-            .map(|(syscall, ct)| (syscall.to_string(), *ct))
-            .collect::<Vec<_>>();
-
-        // Sort syscalls by syscall name.
-        sorted_syscalls.sort_unstable();
-        for (syscall, count) in sorted_syscalls {
-            writeln!(f, "  {}: {}", syscall, count)?;
+        writeln!(
+            f,
+            "syscall counts ({} total syscall instructions):",
+            self.total_syscall_count()
+        )?;
+        for line in Self::freq_table_lines(&self.syscall_freqs) {
+            writeln!(f, "  {line}")?;
         }
-        writeln!(f, "Total Syscall Count: {}", self.total_syscall_count())?;
 
         Ok(())
     }

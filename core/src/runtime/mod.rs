@@ -574,7 +574,7 @@ impl Runtime {
 
         if self.print_report && !self.unconstrained {
             self.report
-                .opcode_counts
+                .opcode_freqs
                 .entry(instruction.opcode)
                 .and_modify(|c| *c += 1)
                 .or_insert(1);
@@ -796,7 +796,7 @@ impl Runtime {
 
                 if self.print_report && !self.unconstrained {
                     self.report
-                        .syscall_counts
+                        .syscall_freqs
                         .entry(syscall)
                         .and_modify(|c| *c += 1)
                         .or_insert(1);
@@ -1179,7 +1179,7 @@ pub mod tests {
             use super::Opcode::*;
             use super::SyscallCode::*;
             super::ExecutionReport {
-                opcode_counts: [
+                opcode_freqs: [
                     (LB, 10723),
                     (DIVU, 6),
                     (LW, 237094),
@@ -1208,7 +1208,7 @@ pub mod tests {
                     (SLL, 278698),
                 ]
                 .into(),
-                syscall_counts: [
+                syscall_freqs: [
                     (COMMIT_DEFERRED_PROOFS, 8),
                     (SHA_EXTEND, 1091),
                     (COMMIT, 8),
