@@ -507,7 +507,7 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                     match (result, left, right) {
                         (Array::Dyn(result, _), Array::Dyn(left, _), Array::Dyn(right, _)) => self
                             .push(
-                                AsmInstruction::Poseidon2(
+                                AsmInstruction::Poseidon2Compress(
                                     result.fp(),
                                     left.fp(),
                                     right.fp(),
@@ -518,11 +518,15 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                         _ => unimplemented!(),
                     }
                 }
-                DslIr::Poseidon2AbsorbBabyBear(input) => match input {
+                DslIr::Poseidon2AbsorbBabyBear(p2_hash_num, input) => match input {
                     Array::Dyn(input, input_size) => {
                         if let Usize::Var(input_size) = input_size {
                             self.push(
-                                AsmInstruction::Poseidon2(0, input.fp(), input_size.fp(), F::one()),
+                                AsmInstruction::Poseidon2Absorb(
+                                    p2_hash_num.fp(),
+                                    input.fp(),
+                                    input_size.fp(),
+                                ),
                                 trace,
                             );
                         } else {
@@ -532,10 +536,10 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                     _ => unimplemented!(),
                 },
 
-                DslIr::Poseidon2FinalizeBabyBear(output) => match output {
+                DslIr::Poseidon2FinalizeBabyBear(p2_hash_num, output) => match output {
                     Array::Dyn(output, _) => {
                         self.push(
-                            AsmInstruction::Poseidon2(output.fp(), 0, 0, F::two()),
+                            AsmInstruction::Poseidon2Finalize(p2_hash_num.fp(), output.fp()),
                             trace,
                         );
                     }

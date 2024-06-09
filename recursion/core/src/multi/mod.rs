@@ -234,7 +234,7 @@ mod tests {
     };
 
     use crate::multi::MultiChip;
-    use crate::{poseidon2::Poseidon2Event, runtime::ExecutionRecord};
+    use crate::{poseidon2::Poseidon2CompressEvent, runtime::ExecutionRecord};
     use p3_symmetric::Permutation;
 
     #[test]
@@ -267,7 +267,7 @@ mod tests {
         for (input, output) in test_inputs.into_iter().zip_eq(expected_outputs) {
             input_exec
                 .poseidon2_events
-                .push(Poseidon2Event::dummy_from_input(input, output));
+                .push(Poseidon2CompressEvent::dummy_from_input(input, output));
         }
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());

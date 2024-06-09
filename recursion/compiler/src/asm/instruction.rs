@@ -148,8 +148,14 @@ pub enum AsmInstruction<F, EF> {
     /// Perform a permutation of the Poseidon2 hash function on the array specified by the ptr.
     Poseidon2Permute(i32, i32),
 
-    /// Perform either a Poseidon2 compress or Poseidon2 absorb.
-    Poseidon2(i32, i32, i32, F),
+    /// Perform a Poseidon2 compress.
+    Poseidon2Compress(i32, i32, i32, F),
+
+    /// Performs a Posedion2 absorb.
+    Poseidon2Absorb(i32, i32, i32),
+
+    /// Perform a Poseidon2 finalize.
+    Poseidon2Finalize(i32, i32),
 
     /// Print a variable.
     PrintV(i32),
@@ -831,7 +837,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 true,
                 "".to_string(),
             ),
-            AsmInstruction::Poseidon2(result, op_1, op_2, operation) => Instruction::new(
+            AsmInstruction::Poseidon2Compress(result, op_1, op_2, operation) => Instruction::new(
                 Opcode::Poseidon2,
                 i32_f(result),
                 i32_f_arr(op_1),
@@ -842,6 +848,29 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 false,
                 "".to_string(),
             ),
+            AsmInstruction::Poseidon2Absorb(hash_num, input_ptr, input_len) => Instruction::new(
+                Opcode::Poseidon2Absorb,
+                i32_f(hash_num),
+                i32_f_arr(input_ptr),
+                i32_f_arr(hash_len),
+                F::zero(),
+                F::zero(),
+                false,
+                false,
+                "".to_string(),
+            ),
+            AsmInstruction::Poseidon2Finalize(hash_num, output_ptr) => Instruction::new(
+                Opcode::Poseidon2Finalize,
+                i32_f(hash_num),
+                i32_f_arr(output_ptr),
+                i32_f_arr(F::zero()),
+                F::zero(),
+                operation,
+                false,
+                false,
+                "".to_string(),
+            ),
+
             AsmInstruction::Commit(val, index) => Instruction::new(
                 Opcode::Commit,
                 i32_f(val),
@@ -1122,13 +1151,24 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
             AsmInstruction::FriFold(m, input_ptr) => {
                 write!(f, "fri_fold ({})fp, ({})fp", m, input_ptr)
             }
-            AsmInstruction::Poseidon2(result, op_1, op_2, operation) => {
+            AsmInstruction::Poseidon2Compress(result, op_1, op_2, operation) => {
                 write!(
                     f,
                     "poseidon2_compress ({})fp, {})fp, ({})fp, {}",
                     result, op_1, op_2, operation,
                 )
             }
+            AsmInstruction::Poseidon2Absorb(hash_num, input_ptr, input_len) => {
+                write!(
+                    f,
+                    "poseidon2_absorb ({})fp, {})fp, ({})fp",
+                    hash_num, input_ptr, input_len,
+                )
+            }
+            AsmInstruction::Poseidon2Finalize(hash_num, output_ptr) => {
+                write!(f, "poseidon2_finalize ({})fp, {})fp", hash_num, output_ptr,)
+            }
+
             AsmInstruction::Commit(val, index) => {
                 write!(f, "commit ({})fp ({})fp", val, index)
             }

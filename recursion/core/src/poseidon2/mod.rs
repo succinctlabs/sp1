@@ -12,7 +12,14 @@ pub use columns::Poseidon2Cols;
 pub use external::Poseidon2Chip;
 
 #[derive(Debug, Clone)]
-pub struct Poseidon2Event<F> {
+pub enum Poseidon2Event<F> {
+    Compress(Poseidon2CompressEvent<F>),
+    Absorb(Poseidon2AbsorbEvent<F>),
+    Finalize(Poseidon2FinalizeEvent<F>),
+}
+
+#[derive(Debug, Clone)]
+pub struct Poseidon2CompressEvent<F> {
     pub clk: F,
     pub dst: F,   // from a_val
     pub left: F,  // from b_val
@@ -23,7 +30,7 @@ pub struct Poseidon2Event<F> {
     pub result_records: [MemoryRecord<F>; WIDTH],
 }
 
-impl<F: PrimeField32> Poseidon2Event<F> {
+impl<F: PrimeField32> Poseidon2CompressEvent<F> {
     /// A way to construct a dummy event from an input array, used for testing.
     pub fn dummy_from_input(input: [F; WIDTH], output: [F; WIDTH]) -> Self {
         let input_records = core::array::from_fn(|i| {
@@ -44,4 +51,23 @@ impl<F: PrimeField32> Poseidon2Event<F> {
             result_records: output_records,
         }
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct Poseidon2AbsorbEvent<F> {
+    pub clk: F,
+    pub hash_num: F,  // from a_val
+    pub input_ptr: F, // from b_val
+    pub len: F,       // from c_val
+    pub input: [F; WIDTH / 2],
+    pub input_records: [MemoryRecord<F>; WIDTH / 2],
+}
+
+#[derive(Debug, Clone)]
+pub struct Poseidon2FinalizeEvent<F> {
+    pub clk: F,
+    pub hash_num: F,   // from a_val
+    pub output_ptr: F, // from b_val
+    pub output_array: [F; WIDTH],
+    pub output_records: [MemoryRecord<F>; WIDTH],
 }

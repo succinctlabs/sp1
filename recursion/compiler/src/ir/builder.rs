@@ -100,6 +100,7 @@ pub struct Builder<C: Config> {
     pub(crate) witness_var_count: u32,
     pub(crate) witness_felt_count: u32,
     pub(crate) witness_ext_count: u32,
+    pub(crate) p2_hash_num: Option<Var<C::N>>,
     pub(crate) debug: bool,
     pub(crate) is_sub_builder: bool,
 }
@@ -111,6 +112,7 @@ impl<C: Config> Builder<C> {
         felt_count: u32,
         ext_count: u32,
         nb_public_values: Option<Var<C::N>>,
+        p2_hash_num: Option<Var<C::N>>,
         debug: bool,
     ) -> Self {
         Self {
@@ -124,6 +126,7 @@ impl<C: Config> Builder<C> {
             witness_ext_count: 0,
             operations: Default::default(),
             nb_public_values,
+            p2_hash_num,
             debug,
             is_sub_builder: true,
         }
@@ -529,6 +532,7 @@ impl<'a, C: Config> IfBuilder<'a, C> {
             self.builder.felt_count,
             self.builder.ext_count,
             self.builder.nb_public_values,
+            self.builder.p2_hash_num,
             self.builder.debug,
         );
         f(&mut f_builder);
@@ -577,6 +581,7 @@ impl<'a, C: Config> IfBuilder<'a, C> {
             self.builder.felt_count,
             self.builder.ext_count,
             self.builder.nb_public_values,
+            self.builder.p2_hash_num,
             self.builder.debug,
         );
 
@@ -589,6 +594,7 @@ impl<'a, C: Config> IfBuilder<'a, C> {
             self.builder.felt_count,
             self.builder.ext_count,
             self.builder.nb_public_values,
+            self.builder.p2_hash_num,
             self.builder.debug,
         );
         else_f(&mut else_builder);
@@ -723,6 +729,7 @@ impl<'a, C: Config> RangeBuilder<'a, C> {
             self.builder.felt_count,
             self.builder.ext_count,
             self.builder.nb_public_values,
+            self.builder.p2_hash_num,
             self.builder.debug,
         );
 

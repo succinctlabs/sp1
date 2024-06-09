@@ -44,14 +44,22 @@ impl<C: Config> Builder<C> {
         ));
     }
 
-    pub fn poseidon2_absorb(&mut self, input: &Array<C, Felt<C::F>>) {
-        self.operations
-            .push(DslIr::Poseidon2AbsorbBabyBear(input.clone()));
+    pub fn poseidon2_absorb(&mut self, p2_hash_num: &Var<C::N>, input: &Array<C, Felt<C::F>>) {
+        self.operations.push(DslIr::Poseidon2AbsorbBabyBear(
+            p2_hash_num.clone(),
+            input.clone(),
+        ));
     }
 
-    pub fn poseidon2_finalize_mut(&mut self, output: &Array<C, Felt<C::F>>) {
-        self.operations
-            .push(DslIr::Poseidon2FinalizeBabyBear(output.clone()));
+    pub fn poseidon2_finalize_mut(
+        &mut self,
+        p2_hash_num: &Var<C::N>,
+        output: &Array<C, Felt<C::F>>,
+    ) {
+        self.operations.push(DslIr::Poseidon2FinalizeBabyBear(
+            p2_hash_num,
+            output.clone(),
+        ));
     }
 
     /// Applies the Poseidon2 compression function to the given array.
@@ -161,13 +169,22 @@ impl<C: Config> Builder<C> {
     ) -> Array<C, Felt<C::F>> {
         self.cycle_tracker("poseidon2-hash");
 
+        if self.p2_hash_num.is_none() {
+            self.p2_hash_num = Some(self.eval(C::N::zero()));
+        }
+
+        let p2_hash_num = self.p2_hash_num.unwrap();
+
         self.range(0, array.len()).for_each(|i, builder| {
             let subarray = builder.get(array, i);
-            builder.poseidon2_absorb(&subarray);
+            builder.poseidon2_absorb(&p2_hash_num, &subarray);
         });
 
         let output: Array<C, Felt<C::F>> = self.dyn_array(DIGEST_SIZE);
-        self.poseidon2_finalize_mut(&output);
+        self.poseidon2_finalize_mut(&p2_hash_num, &output);
+
+        let p2_hash_num = *self.p2_hash_num.as_ref().unwrap();
+        self.assign(p2_hash_num, p2_hash_num + C::N::one());
 
         self.cycle_tracker("poseidon2-hash");
         output

@@ -25,7 +25,9 @@ use crate::air::{Block, RECURSION_PUBLIC_VALUES_COL_MAP, RECURSIVE_PROOF_NUM_PV_
 use crate::cpu::CpuEvent;
 use crate::fri_fold::FriFoldEvent;
 use crate::memory::MemoryRecord;
-use crate::poseidon2::Poseidon2Event;
+use crate::poseidon2::{
+    Poseidon2AbsorbEvent, Poseidon2CompressEvent, Poseidon2Event, Poseidon2FinalizeEvent,
+};
 use crate::range_check::{RangeCheckEvent, RangeCheckOpcode};
 
 use p3_field::{ExtensionField, PrimeField32};
@@ -650,58 +652,56 @@ where
                     self.mw_uninitialized(dst + 3, Block::from(b_val[3]));
                     (a, b, c) = (a_val, b_val, c_val);
                 }
-                Opcode::Poseidon2 => {
+                Opcode::Poseidon2Compress => {
                     self.nb_poseidons += 1;
-
                     let (a_val, b_val, c_val) = self.all_rr(&instruction);
 
-                    // Handle compress
-                    if instruction.size_imm == F::zero() {
-                        // Get the dst array ptr.
-                        let dst = a_val[0];
-                        // Get the src array ptr.
-                        let left = b_val[0];
-                        let right = c_val[0] + instruction.offset_imm;
+                    // Get the dst array ptr.
+                    let dst = a_val[0];
+                    // Get the src array ptr.
+                    let left = b_val[0];
+                    let right = c_val[0] + instruction.offset_imm;
 
-                        let timestamp = self.clk;
+                    let timestamp = self.clk;
 
-                        let mut left_records = vec![];
-                        let mut right_records = vec![];
-                        let mut left_array: [F; PERMUTATION_WIDTH / 2] =
-                            [F::zero(); PERMUTATION_WIDTH / 2];
-                        let mut right_array: [F; PERMUTATION_WIDTH / 2] =
-                            [F::zero(); PERMUTATION_WIDTH / 2];
+                    let mut left_records = vec![];
+                    let mut right_records = vec![];
+                    let mut left_array: [F; PERMUTATION_WIDTH / 2] =
+                        [F::zero(); PERMUTATION_WIDTH / 2];
+                    let mut right_array: [F; PERMUTATION_WIDTH / 2] =
+                        [F::zero(); PERMUTATION_WIDTH / 2];
 
-                        for i in 0..PERMUTATION_WIDTH / 2 {
-                            let f_i = F::from_canonical_u32(i as u32);
-                            let left_val = self.mr(left + f_i, timestamp);
-                            let right_val = self.mr(right + f_i, timestamp);
-                            left_array[i] = left_val.1 .0[0];
-                            right_array[i] = right_val.1 .0[0];
-                            left_records.push(left_val.0);
-                            right_records.push(right_val.0);
-                        }
-                        let array: [_; PERMUTATION_WIDTH] =
-                            [left_array, right_array].concat().try_into().unwrap();
-                        let input_records: [_; PERMUTATION_WIDTH] =
-                            [left_records, right_records].concat().try_into().unwrap();
+                    for i in 0..PERMUTATION_WIDTH / 2 {
+                        let f_i = F::from_canonical_u32(i as u32);
+                        let left_val = self.mr(left + f_i, timestamp);
+                        let right_val = self.mr(right + f_i, timestamp);
+                        left_array[i] = left_val.1 .0[0];
+                        right_array[i] = right_val.1 .0[0];
+                        left_records.push(left_val.0);
+                        right_records.push(right_val.0);
+                    }
+                    let array: [_; PERMUTATION_WIDTH] =
+                        [left_array, right_array].concat().try_into().unwrap();
+                    let input_records: [_; PERMUTATION_WIDTH] =
+                        [left_records, right_records].concat().try_into().unwrap();
 
-                        // Perform the permutation.
-                        let result = self.perm.as_ref().unwrap().permute(array);
+                    // Perform the permutation.
+                    let result = self.perm.as_ref().unwrap().permute(array);
 
-                        // Write the value back to the array at ptr.
-                        let mut result_records = vec![];
-                        for (i, value) in result.iter().enumerate() {
-                            result_records.push(self.mw(
-                                dst + F::from_canonical_usize(i),
-                                Block::from(*value),
-                                timestamp + F::one(),
-                            ));
-                        }
+                    // Write the value back to the array at ptr.
+                    let mut result_records = vec![];
+                    for (i, value) in result.iter().enumerate() {
+                        result_records.push(self.mw(
+                            dst + F::from_canonical_usize(i),
+                            Block::from(*value),
+                            timestamp + F::one(),
+                        ));
+                    }
 
-                        self.num_perms += 1;
+                    self.num_perms += 1;
 
-                        self.record.poseidon2_events.push(Poseidon2Event {
+                    self.record.poseidon2_events.push(Poseidon2Event::Compress(
+                        Poseidon2CompressEvent {
                             clk: timestamp,
                             dst,
                             left,
@@ -710,28 +710,50 @@ where
                             result_array: result,
                             input_records,
                             result_records: result_records.try_into().unwrap(),
-                        });
-                    } else if instruction.size_imm == F::one() {
-                        // Handle absorb
-                        let input = b_val[0];
-                        let input_size = c_val[0].as_canonical_u32() as usize;
-                        let timestamp = self.clk;
+                        },
+                    ));
 
-                        // Load the input into an array.
-                        let mut input_array = Vec::new();
-                        (0..input_size).for_each(|i| {
-                            let i = F::from_canonical_u32(i as u32);
-                            let val = self.mr(input + i, timestamp);
-                            input_array.push(val.1 .0[0]);
-                        });
+                    (a, b, c) = (a_val, b_val, c_val);
+                }
 
-                        // Handle the first permutation.
-                        let first_permutation_input_size =
-                            min(8 - self.p2_hash_state_cursor, input_size);
+                Opcode::Poseidon2Absorb => {
+                    self.nb_poseidons += 1;
+                    let (a_val, b_val, c_val) = self.all_rr(&instruction);
+
+                    let p2_hash_num = a_val[0];
+                    let input = b_val[0];
+                    let input_size = c_val[0].as_canonical_u32() as usize;
+                    let timestamp = self.clk;
+
+                    // Load the input into an array.
+                    let mut input_array = Vec::new();
+                    (0..input_size).for_each(|i| {
+                        let i = F::from_canonical_u32(i as u32);
+                        let val = self.mr(input + i, timestamp);
+                        input_array.push(val.1 .0[0]);
+                    });
+
+                    // Handle the first permutation.
+                    let first_permutation_input_size =
+                        min(8 - self.p2_hash_state_cursor, input_size);
+                    self.p2_hash_state[self.p2_hash_state_cursor
+                        ..self.p2_hash_state_cursor + first_permutation_input_size]
+                        .copy_from_slice(&input_array[..first_permutation_input_size]);
+                    self.p2_hash_state_cursor += first_permutation_input_size;
+                    self.p2_hash_state_cursor %= 8;
+                    if self.p2_hash_state_cursor == 0 {
+                        self.perm
+                            .as_ref()
+                            .unwrap()
+                            .permute_mut(&mut self.p2_hash_state);
+                    }
+
+                    // Handle the remaining chunks.
+                    for input_chunk in input_array[first_permutation_input_size..].chunks(8) {
                         self.p2_hash_state[self.p2_hash_state_cursor
-                            ..self.p2_hash_state_cursor + first_permutation_input_size]
-                            .copy_from_slice(&input_array[..first_permutation_input_size]);
-                        self.p2_hash_state_cursor += first_permutation_input_size;
+                            ..self.p2_hash_state_cursor + input_chunk.len()]
+                            .copy_from_slice(input_chunk);
+                        self.p2_hash_state_cursor += input_chunk.len();
                         self.p2_hash_state_cursor %= 8;
                         if self.p2_hash_state_cursor == 0 {
                             self.perm
@@ -739,70 +761,60 @@ where
                                 .unwrap()
                                 .permute_mut(&mut self.p2_hash_state);
                         }
-
-                        // Handle the remaining chunks.
-                        for input_chunk in input_array[first_permutation_input_size..].chunks(8) {
-                            self.p2_hash_state[self.p2_hash_state_cursor
-                                ..self.p2_hash_state_cursor + input_chunk.len()]
-                                .copy_from_slice(input_chunk);
-                            self.p2_hash_state_cursor += input_chunk.len();
-                            self.p2_hash_state_cursor %= 8;
-                            if self.p2_hash_state_cursor == 0 {
-                                self.perm
-                                    .as_ref()
-                                    .unwrap()
-                                    .permute_mut(&mut self.p2_hash_state);
-                            }
-                        }
-
-                        self.num_absorb_rows += input_size / 8;
-                        if (self.num_absorb_rows % 8) != 0 {
-                            self.num_absorb_rows += 1;
-                        }
-
-                        // self.record.poseidon2_events.push(Poseidon2Event {
-                        //     clk: timestamp,
-                        //     dst,
-                        //     left: F::zero(),
-                        //     right: F::zero(),
-                        //     input: input_array,
-                        //     result_array: result,
-                        //     input_records,
-                        //     result_records: result_records.try_into().unwrap(),
-                        // });
-                    } else if instruction.size_imm == F::two() {
-                        // Handle finalize
-                        let output = a_val[0];
-                        let timestamp = self.clk;
-
-                        if self.p2_hash_state_cursor != 0 {
-                            self.perm
-                                .as_ref()
-                                .unwrap()
-                                .permute_mut(&mut self.p2_hash_state);
-                        }
-
-                        (0..DIGEST_SIZE).for_each(|i| {
-                            let i_f = F::from_canonical_u32(i as u32);
-                            self.mw(output + i_f, self.p2_hash_state[i], timestamp);
-                        });
-
-                        self.p2_hash_state_cursor = 0;
-                        self.p2_hash_state = [F::zero(); PERMUTATION_WIDTH];
-
-                        self.num_finalizes += 1;
-
-                        // self.record.poseidon2_events.push(Poseidon2Event {
-                        //     clk: timestamp,
-                        //     dst,
-                        //     left: F::zero(),
-                        //     right: F::zero(),
-                        //     input: input_array,
-                        //     result_array: result,
-                        //     input_records,
-                        //     result_records: result_records.try_into().unwrap(),
-                        // });
                     }
+
+                    self.num_absorb_rows += input_size / 8;
+                    if (self.num_absorb_rows % 8) != 0 {
+                        self.num_absorb_rows += 1;
+                    }
+
+                    self.record.poseidon2_events.push(Poseidon2Event::Absorb(
+                        Poseidon2AbsorbEvent {
+                            clk: timestamp,
+                            hash_num: p2_hash_num,
+                            input_ptr: input,
+                            len,
+                            input_array,
+                            input_records,
+                        },
+                    ));
+
+                    (a, b, c) = (a_val, b_val, c_val);
+                }
+
+                Opcode::Poseidon2Finalize => {
+                    self.nb_poseidons += 1;
+                    let (a_val, b_val, c_val) = self.all_rr(&instruction);
+
+                    let output = a_val[0];
+                    let timestamp = self.clk;
+
+                    if self.p2_hash_state_cursor != 0 {
+                        self.perm
+                            .as_ref()
+                            .unwrap()
+                            .permute_mut(&mut self.p2_hash_state);
+                    }
+
+                    (0..DIGEST_SIZE).for_each(|i| {
+                        let i_f = F::from_canonical_u32(i as u32);
+                        self.mw(output + i_f, self.p2_hash_state[i], timestamp);
+                    });
+
+                    self.p2_hash_state_cursor = 0;
+                    self.p2_hash_state = [F::zero(); PERMUTATION_WIDTH];
+
+                    self.num_finalizes += 1;
+
+                    self.record.poseidon2_events.push(Poseidon2Event::Finalize(
+                        Poseidon2FinalizeEvent {
+                            clk: timestamp,
+                            hash_num: absorb_num,
+                            output_ptr,
+                            output,
+                            output_records,
+                        },
+                    ));
 
                     (a, b, c) = (a_val, b_val, c_val);
                 }
