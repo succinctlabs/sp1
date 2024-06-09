@@ -44,7 +44,7 @@ impl<C: Config> Builder<C> {
         ));
     }
 
-    pub fn poseidon2_absorb_mut(&mut self, input: &Array<C, Felt<C::F>>) {
+    pub fn poseidon2_absorb(&mut self, input: &Array<C, Felt<C::F>>) {
         self.operations
             .push(DslIr::Poseidon2AbsorbBabyBear(input.clone()));
     }
@@ -163,7 +163,7 @@ impl<C: Config> Builder<C> {
 
         self.range(0, array.len()).for_each(|i, builder| {
             let subarray = builder.get(array, i);
-            builder.poseidon2_absorb_mut(&subarray);
+            builder.poseidon2_absorb(&subarray);
         });
 
         let output: Array<C, Felt<C::F>> = self.dyn_array(DIGEST_SIZE);

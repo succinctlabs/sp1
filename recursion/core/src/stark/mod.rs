@@ -71,11 +71,11 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
             .chain(once(RecursionAir::MemoryGlobal(MemoryGlobalChip {
                 fixed_log2_rows: None,
             })))
-            .chain(once(RecursionAir::Poseidon2Wide(Poseidon2WideChip::<
-                DEGREE,
-            > {
-                fixed_log2_rows: None,
-            })))
+            // .chain(once(RecursionAir::Poseidon2Wide(Poseidon2WideChip::<
+            //     DEGREE,
+            // > {
+            //     fixed_log2_rows: None,
+            // })))
             .chain(once(RecursionAir::FriFold(FriFoldChip::<DEGREE> {
                 fixed_log2_rows: None,
             })))

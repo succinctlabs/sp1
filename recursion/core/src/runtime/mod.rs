@@ -4,7 +4,7 @@ mod program;
 mod record;
 mod utils;
 
-use std::array;
+use std::cmp::min;
 use std::collections::VecDeque;
 use std::process::exit;
 use std::{marker::PhantomData, sync::Arc};
@@ -135,6 +135,12 @@ pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
 
     p2_hash_state_cursor: usize,
 
+    num_perms: usize,
+
+    num_absorb_rows: usize,
+
+    num_finalizes: usize,
+
     _marker: PhantomData<EF>,
 }
 
@@ -185,6 +191,9 @@ where
             cycle_tracker: HashMap::new(),
             p2_hash_state: [F::zero(); PERMUTATION_WIDTH],
             p2_hash_state_cursor: 0,
+            num_perms: 0,
+            num_absorb_rows: 0,
+            num_finalizes: 0,
             _marker: PhantomData,
         }
     }
@@ -217,6 +226,9 @@ where
             cycle_tracker: HashMap::new(),
             p2_hash_state: [F::zero(); PERMUTATION_WIDTH],
             p2_hash_state_cursor: 0,
+            num_perms: 0,
+            num_absorb_rows: 0,
+            num_finalizes: 0,
             _marker: PhantomData,
         }
     }
@@ -687,6 +699,8 @@ where
                             ));
                         }
 
+                        self.num_perms += 1;
+
                         self.record.poseidon2_events.push(Poseidon2Event {
                             clk: timestamp,
                             dst,
@@ -712,7 +726,8 @@ where
                         });
 
                         // Handle the first permutation.
-                        let first_permutation_input_size = 8 - self.p2_hash_state_cursor;
+                        let first_permutation_input_size =
+                            min(8 - self.p2_hash_state_cursor, input_size);
                         self.p2_hash_state[self.p2_hash_state_cursor
                             ..self.p2_hash_state_cursor + first_permutation_input_size]
                             .copy_from_slice(&input_array[..first_permutation_input_size]);
@@ -738,6 +753,11 @@ where
                                     .unwrap()
                                     .permute_mut(&mut self.p2_hash_state);
                             }
+                        }
+
+                        self.num_absorb_rows += input_size / 8;
+                        if (self.num_absorb_rows % 8) != 0 {
+                            self.num_absorb_rows += 1;
                         }
 
                         // self.record.poseidon2_events.push(Poseidon2Event {
@@ -766,6 +786,11 @@ where
                             let i_f = F::from_canonical_u32(i as u32);
                             self.mw(output + i_f, self.p2_hash_state[i], timestamp);
                         });
+
+                        self.p2_hash_state_cursor = 0;
+                        self.p2_hash_state = [F::zero(); PERMUTATION_WIDTH];
+
+                        self.num_finalizes += 1;
 
                         // self.record.poseidon2_events.push(Poseidon2Event {
                         //     clk: timestamp,
@@ -950,6 +975,10 @@ where
                 break;
             }
         }
+
+        println!("num_perms: {}", self.num_perms);
+        println!("num_absorbs: {}", self.num_absorb_rows);
+        println!("num_finalizes: {}", self.num_finalizes);
 
         let zero_block = Block::from(F::zero());
         // Collect all used memory addresses.

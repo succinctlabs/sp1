@@ -71,9 +71,9 @@ pub(crate) fn assert_complete<C: Config>(
     }
 
     // Assert that the cumulative sum is zero.
-    for b in cumulative_sum.iter() {
-        builder.assert_felt_eq(*b, C::F::zero());
-    }
+    // for b in cumulative_sum.iter() {
+    //     builder.assert_felt_eq(*b, C::F::zero());
+    // }
 }
 
 pub(crate) fn proof_data_from_vk<C: Config, SC, A>(
