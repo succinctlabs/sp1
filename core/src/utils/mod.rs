@@ -3,6 +3,7 @@ mod config;
 pub mod ec;
 mod logger;
 mod options;
+#[cfg(any(test, feature = "programs"))]
 mod programs;
 mod prove;
 mod tracer;
