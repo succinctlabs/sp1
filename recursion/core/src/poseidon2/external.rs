@@ -435,6 +435,7 @@ mod tests {
         utils::{uni_stark_prove, uni_stark_verify, BabyBearPoseidon2},
     };
 
+    use crate::poseidon2::Poseidon2Event;
     use crate::{
         poseidon2::{Poseidon2Chip, Poseidon2CompressEvent},
         runtime::ExecutionRecord,
@@ -472,9 +473,9 @@ mod tests {
 
         let mut input_exec = ExecutionRecord::<BabyBear>::default();
         for (input, output) in test_inputs.into_iter().zip_eq(expected_outputs.clone()) {
-            input_exec
-                .poseidon2_events
-                .push(Poseidon2CompressEvent::dummy_from_input(input, output));
+            input_exec.poseidon2_events.push(Poseidon2Event::Compress(
+                Poseidon2CompressEvent::dummy_from_input(input, output),
+            ));
         }
 
         let trace: RowMajorMatrix<BabyBear> =
@@ -491,9 +492,9 @@ mod tests {
     fn prove_babybear(inputs: Vec<[BabyBear; 16]>, outputs: Vec<[BabyBear; 16]>) {
         let mut input_exec = ExecutionRecord::<BabyBear>::default();
         for (input, output) in inputs.into_iter().zip_eq(outputs) {
-            input_exec
-                .poseidon2_events
-                .push(Poseidon2CompressEvent::dummy_from_input(input, output));
+            input_exec.poseidon2_events.push(Poseidon2Event::Compress(
+                Poseidon2CompressEvent::dummy_from_input(input, output),
+            ));
         }
 
         let chip = Poseidon2Chip {
