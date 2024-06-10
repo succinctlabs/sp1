@@ -56,11 +56,11 @@ impl<F: PrimeField32> Poseidon2CompressEvent<F> {
 #[derive(Debug, Clone)]
 pub struct Poseidon2AbsorbEvent<F> {
     pub clk: F,
-    pub hash_num: F,  // from a_val
-    pub input_ptr: F, // from b_val
-    pub len: F,       // from c_val
-    pub input: [F; WIDTH / 2],
-    pub input_records: [MemoryRecord<F>; WIDTH / 2],
+    pub hash_num: F,      // from a_val
+    pub input_ptr: F,     // from b_val
+    pub input_len: usize, // from c_val
+    pub input: Vec<F>,
+    pub input_records: Vec<MemoryRecord<F>>,
 }
 
 #[derive(Debug, Clone)]
@@ -68,6 +68,6 @@ pub struct Poseidon2FinalizeEvent<F> {
     pub clk: F,
     pub hash_num: F,   // from a_val
     pub output_ptr: F, // from b_val
-    pub output_array: [F; WIDTH],
+    pub output: [F; WIDTH],
     pub output_records: [MemoryRecord<F>; WIDTH],
 }

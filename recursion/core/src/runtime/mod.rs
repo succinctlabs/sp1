@@ -4,6 +4,7 @@ mod program;
 mod record;
 mod utils;
 
+use std::array;
 use std::cmp::min;
 use std::collections::VecDeque;
 use std::process::exit;
@@ -721,24 +722,26 @@ where
                     let (a_val, b_val, c_val) = self.all_rr(&instruction);
 
                     let p2_hash_num = a_val[0];
-                    let input = b_val[0];
-                    let input_size = c_val[0].as_canonical_u32() as usize;
+                    let input_ptr = b_val[0];
+                    let input_len = c_val[0].as_canonical_u32() as usize;
                     let timestamp = self.clk;
 
                     // Load the input into an array.
-                    let mut input_array = Vec::new();
-                    (0..input_size).for_each(|i| {
+                    let mut input = Vec::new();
+                    let mut input_records = Vec::new();
+                    (0..input_len).for_each(|i| {
                         let i = F::from_canonical_u32(i as u32);
-                        let val = self.mr(input + i, timestamp);
-                        input_array.push(val.1 .0[0]);
+                        let (input_record, input_val) = self.mr(input_ptr + i, timestamp);
+                        input.push(input_val.0[0]);
+                        input_records.push(input_record);
                     });
 
                     // Handle the first permutation.
                     let first_permutation_input_size =
-                        min(8 - self.p2_hash_state_cursor, input_size);
+                        min(8 - self.p2_hash_state_cursor, input_len);
                     self.p2_hash_state[self.p2_hash_state_cursor
                         ..self.p2_hash_state_cursor + first_permutation_input_size]
-                        .copy_from_slice(&input_array[..first_permutation_input_size]);
+                        .copy_from_slice(&input[..first_permutation_input_size]);
                     self.p2_hash_state_cursor += first_permutation_input_size;
                     self.p2_hash_state_cursor %= 8;
                     if self.p2_hash_state_cursor == 0 {
@@ -749,7 +752,7 @@ where
                     }
 
                     // Handle the remaining chunks.
-                    for input_chunk in input_array[first_permutation_input_size..].chunks(8) {
+                    for input_chunk in input[first_permutation_input_size..].chunks(8) {
                         self.p2_hash_state[self.p2_hash_state_cursor
                             ..self.p2_hash_state_cursor + input_chunk.len()]
                             .copy_from_slice(input_chunk);
@@ -763,7 +766,7 @@ where
                         }
                     }
 
-                    self.num_absorb_rows += input_size / 8;
+                    self.num_absorb_rows += input_len / 8;
                     if (self.num_absorb_rows % 8) != 0 {
                         self.num_absorb_rows += 1;
                     }
@@ -772,9 +775,9 @@ where
                         Poseidon2AbsorbEvent {
                             clk: timestamp,
                             hash_num: p2_hash_num,
-                            input_ptr: input,
-                            len,
-                            input_array,
+                            input_ptr,
+                            input_len,
+                            input,
                             input_records,
                         },
                     ));
@@ -786,7 +789,8 @@ where
                     self.nb_poseidons += 1;
                     let (a_val, b_val, c_val) = self.all_rr(&instruction);
 
-                    let output = a_val[0];
+                    let p2_hash_num = a_val[0];
+                    let output_ptr = b_val[0];
                     let timestamp = self.clk;
 
                     if self.p2_hash_state_cursor != 0 {
@@ -796,9 +800,14 @@ where
                             .permute_mut(&mut self.p2_hash_state);
                     }
 
+                    let mut output_records = Vec::new();
                     (0..DIGEST_SIZE).for_each(|i| {
                         let i_f = F::from_canonical_u32(i as u32);
-                        self.mw(output + i_f, self.p2_hash_state[i], timestamp);
+                        output_records.push(self.mw(
+                            output_ptr + i_f,
+                            self.p2_hash_state[i],
+                            timestamp,
+                        ));
                     });
 
                     self.p2_hash_state_cursor = 0;
@@ -809,10 +818,10 @@ where
                     self.record.poseidon2_events.push(Poseidon2Event::Finalize(
                         Poseidon2FinalizeEvent {
                             clk: timestamp,
-                            hash_num: absorb_num,
+                            hash_num: p2_hash_num,
                             output_ptr,
-                            output,
-                            output_records,
+                            output: self.p2_hash_state,
+                            output_records: array::from_fn(|i| output_records[i]),
                         },
                     ));
 

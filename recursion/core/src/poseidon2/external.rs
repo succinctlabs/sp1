@@ -380,7 +380,7 @@ impl Poseidon2Chip {
             local.right_input.into(),
         ];
         builder.receive_table(
-            Opcode::Poseidon2.as_field::<AB::F>(),
+            Opcode::Poseidon2Compress.as_field::<AB::F>(),
             &operands,
             receive_table,
         );
@@ -436,7 +436,7 @@ mod tests {
     };
 
     use crate::{
-        poseidon2::{Poseidon2Chip, Poseidon2Event},
+        poseidon2::{Poseidon2Chip, Poseidon2CompressEvent},
         runtime::ExecutionRecord,
     };
     use p3_symmetric::Permutation;
@@ -474,7 +474,7 @@ mod tests {
         for (input, output) in test_inputs.into_iter().zip_eq(expected_outputs.clone()) {
             input_exec
                 .poseidon2_events
-                .push(Poseidon2Event::dummy_from_input(input, output));
+                .push(Poseidon2CompressEvent::dummy_from_input(input, output));
         }
 
         let trace: RowMajorMatrix<BabyBear> =
@@ -493,7 +493,7 @@ mod tests {
         for (input, output) in inputs.into_iter().zip_eq(outputs) {
             input_exec
                 .poseidon2_events
-                .push(Poseidon2Event::dummy_from_input(input, output));
+                .push(Poseidon2CompressEvent::dummy_from_input(input, output));
         }
 
         let chip = Poseidon2Chip {
