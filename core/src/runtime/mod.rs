@@ -1031,7 +1031,7 @@ impl Runtime {
         self.state.clk = 0;
         self.state.channel = 0;
 
-        tracing::info!("loading memory image");
+        tracing::debug!("loading memory image");
         for (addr, value) in self.program.memory_image.iter() {
             self.state.memory.insert(
                 *addr,
@@ -1047,8 +1047,6 @@ impl Runtime {
         self.record
             .memory_initialize_events
             .push(MemoryInitializeFinalizeEvent::initialize(0, 0, true));
-
-        tracing::info!("starting execution");
     }
 
     pub fn run_untraced(&mut self) -> Result<(), ExecutionError> {
@@ -1104,11 +1102,6 @@ impl Runtime {
     }
 
     fn postprocess(&mut self) {
-        tracing::info!(
-            "finished execution clk = {} pc = 0x{:x?}",
-            self.state.global_clk,
-            self.state.pc
-        );
         // Flush remaining stdout/stderr
         for (fd, buf) in self.io_buf.iter() {
             if !buf.is_empty() {
