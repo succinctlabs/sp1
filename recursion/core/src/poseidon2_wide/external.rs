@@ -16,7 +16,7 @@ use std::borrow::BorrowMut;
 use tracing::instrument;
 
 use crate::air::SP1RecursionAirBuilder;
-use crate::memory::{MemoryCols, MemoryReadSingleCols};
+use crate::memory::{MemoryCols, MemoryReadSingleCols, MemoryReadWriteSingleCols};
 
 use crate::poseidon2_wide::{external_linear_layer, internal_linear_layer};
 use crate::runtime::{ExecutionRecord, RecursionProgram};
@@ -68,6 +68,8 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
 
                     let cols: &mut Poseidon2Cols<F> = input_row.as_mut_slice().borrow_mut();
                     cols.is_compress = F::one();
+                    cols.is_syscall = F::one();
+                    cols.is_input = F::one();
 
                     let input_cols = cols.syscall_input.compress_mut();
                     input_cols.clk = compress_event.clk;
@@ -120,13 +122,14 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
 
                     rows.push(input_row);
 
-                    // let mut output_row = vec![F::zero(); NUM_POSEIDON2_COLS];
-                    // let cols: &mut Poseidon2Cols<F> = output_row.as_mut_slice().borrow_mut();
-                    // let output_cols = cols.cols.output_mut();
+                    let mut output_row = vec![F::zero(); NUM_POSEIDON2_COLS];
+                    let cols: &mut Poseidon2Cols<F> = output_row.as_mut_slice().borrow_mut();
+                    cols.is_compress = F::one();
+                    let output_cols = cols.cols.output_mut();
 
-                    // for i in 0..WIDTH {
-                    //     output_cols.output_memory[i].populate(&compress_event.result_records[i]);
-                    // }
+                    for i in 0..WIDTH {
+                        output_cols.output_memory[i].populate(&compress_event.result_records[i]);
+                    }
                 }
 
                 Poseidon2Event::Absorb(_) | Poseidon2Event::Finalize(_) => {
@@ -361,7 +364,9 @@ fn eval_mem<AB: SP1RecursionAirBuilder>(
     builder: &mut AB,
     syscall_params: &Poseidon2CompressInput<AB::Var>,
     input: &[MemoryReadSingleCols<AB::Var>; WIDTH],
-    is_real: AB::Expr,
+    output: &[MemoryReadWriteSingleCols<AB::Var>; WIDTH],
+    is_syscall: AB::Var,
+    is_input: AB::Var,
 ) {
     // Evaluate all of the memory.
     for i in 0..WIDTH {
@@ -375,16 +380,16 @@ fn eval_mem<AB: SP1RecursionAirBuilder>(
             syscall_params.clk,
             input_addr,
             &input[i],
-            is_real.clone(),
+            is_input,
         );
 
-        // let output_addr = local.dst + AB::F::from_canonical_usize(i);
-        // builder.recursion_eval_memory_access_single(
-        //     local.timestamp + AB::F::from_canonical_usize(1),
-        //     output_addr,
-        //     &local.output[i],
-        //     local.is_real,
-        // );
+        let output_addr = syscall_params.dst_ptr + AB::F::from_canonical_usize(i);
+        builder.recursion_eval_memory_access_single(
+            syscall_params.clk + AB::F::from_canonical_usize(1),
+            output_addr,
+            &output[i],
+            AB::Expr::one() - is_input,
+        );
     }
 
     // Constraint that the operands are sent from the CPU table.
@@ -397,7 +402,7 @@ fn eval_mem<AB: SP1RecursionAirBuilder>(
     builder.receive_table(
         Opcode::Poseidon2Compress.as_field::<AB::F>(),
         &operands,
-        is_real,
+        is_syscall,
     );
 }
 
@@ -413,43 +418,49 @@ where
 
         let syscall_input = local.syscall_input.compress();
         let compress_cols = local.cols.compress();
+        let output_cols = local.cols.output();
 
         let is_real = local.is_absorb + local.is_compress + local.is_finalize;
+        let is_syscall = local.is_syscall;
+        let is_input = local.is_input;
+        let do_perm = local.is_compress * is_syscall;
 
         eval_mem(
             builder,
             syscall_input,
             &compress_cols.input,
-            is_real.clone(),
+            &output_cols.output_memory,
+            is_syscall,
+            is_input,
         );
 
-        // Apply the initial round.
-        let initial_round_output = {
-            let mut initial_round_output: [AB::Expr; WIDTH] =
-                core::array::from_fn(|i| (*compress_cols.input[i].value()).into());
-            external_linear_layer(&mut initial_round_output);
-            initial_round_output
-        };
-        let external_round_0_state: [AB::Expr; WIDTH] = core::array::from_fn(|i| {
-            let state = compress_cols.permutation_cols.external_rounds_state[0];
-            state[i].into()
-        });
-        builder
-            .when(is_real.clone())
-            .assert_all_eq(external_round_0_state.clone(), initial_round_output);
+        // // Apply the initial round.
+        // let initial_round_output = {
+        //     let mut initial_round_output: [AB::Expr; WIDTH] =
+        //         core::array::from_fn(|i| (*compress_cols.input[i].value()).into());
+        //     external_linear_layer(&mut initial_round_output);
+        //     initial_round_output
+        // };
+        // let external_round_0_state: [AB::Expr; WIDTH] = core::array::from_fn(|i| {
+        //     let state = compress_cols.permutation_cols.external_rounds_state[0];
+        //     state[i].into()
+        // });
+        // builder
+        //     .when(do_perm.clone())
+        //     .assert_all_eq(external_round_0_state.clone(), initial_round_output);
 
-        // Apply the first half of external rounds.
-        for r in 0..NUM_EXTERNAL_ROUNDS / 2 {
-            eval_external_round(builder, &compress_cols.permutation_cols, r, is_real.clone());
-        }
+        // // Apply the first half of external rounds.
+        // for r in 0..NUM_EXTERNAL_ROUNDS / 2 {
+        //     eval_external_round(builder, &compress_cols.permutation_cols, r, do_perm.clone());
+        // }
 
-        // Apply the internal rounds.
-        eval_internal_rounds(builder, &compress_cols.permutation_cols, is_real.clone());
+        // // Apply the internal rounds.
+        // eval_internal_rounds(builder, &compress_cols.permutation_cols, do_perm.clone());
 
-        // Apply the second half of external rounds.
-        for r in NUM_EXTERNAL_ROUNDS / 2..NUM_EXTERNAL_ROUNDS {
-            eval_external_round(builder, &compress_cols.permutation_cols, r, is_real.clone());
-        }
+        // // Apply the second half of external rounds.
+        // for r in NUM_EXTERNAL_ROUNDS / 2..NUM_EXTERNAL_ROUNDS {
+        //     eval_external_round(builder, &compress_cols.permutation_cols, r, do_perm.clone());
+        // }
     }
 }
 

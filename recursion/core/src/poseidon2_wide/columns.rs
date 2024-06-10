@@ -143,6 +143,8 @@ pub struct Poseidon2Cols<T: Copy> {
     pub is_compress: T,
     pub is_absorb: T,
     pub is_finalize: T,
+    pub is_syscall: T,
+    pub is_input: T, // 1 if input, 0 if output
     pub syscall_input: Poseidon2InputEnum<T>,
     pub cols: Poseidon2OpcodeSpecific<T>,
     pub state_cursor: [T; WIDTH / 2], // Only used for absorb

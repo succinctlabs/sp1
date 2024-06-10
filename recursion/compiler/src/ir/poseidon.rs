@@ -57,7 +57,7 @@ impl<C: Config> Builder<C> {
         output: &Array<C, Felt<C::F>>,
     ) {
         self.operations.push(DslIr::Poseidon2FinalizeBabyBear(
-            p2_hash_num,
+            p2_hash_num.clone(),
             output.clone(),
         ));
     }
