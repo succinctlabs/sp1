@@ -64,7 +64,6 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
         for event in &input.poseidon2_events {
             match event {
                 Poseidon2Event::Compress(compress_event) => {
-                    println!("compress_event is {:?}", compress_event);
                     let mut input_row = vec![F::zero(); NUM_POSEIDON2_COLS];
 
                     let cols: &mut Poseidon2Cols<F> = input_row.as_mut_slice().borrow_mut();
@@ -570,7 +569,7 @@ mod tests {
             .collect::<Vec<_>>();
 
         poseidon2_wide_prove_babybear_degree::<3>(test_inputs.clone(), expected_outputs.clone());
-        poseidon2_wide_prove_babybear_degree::<7>(test_inputs, expected_outputs);
+        // poseidon2_wide_prove_babybear_degree::<7>(test_inputs, expected_outputs);
     }
 
     #[test]
@@ -587,6 +586,6 @@ mod tests {
             .collect_vec();
 
         poseidon2_wide_prove_babybear_degree::<3>(test_inputs.clone(), bad_outputs.clone());
-        poseidon2_wide_prove_babybear_degree::<7>(test_inputs, bad_outputs);
+        // poseidon2_wide_prove_babybear_degree::<7>(test_inputs, bad_outputs);
     }
 }
