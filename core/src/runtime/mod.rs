@@ -93,9 +93,16 @@ pub struct Runtime<'a> {
     /// Whether we should write to the report.
     pub print_report: bool,
 
+    /// A function to sanity check `verify_sp1_proof` during runtime.
     pub deferred_proof_verifier: DeferredProofVerifyFn<'a>,
 }
 
+/// Function to verify proofs during runtime when the verify_sp1_proof precompile is used. This
+/// is only done as a sanity check to ensure that users are passing in valid proofs. The actual
+/// constraints are verified in the recursion layer.
+///
+/// This function is passed into the runtime because its actual implementation relies on crates
+/// in recursion that depend on sp1-core.
 pub type DeferredProofVerifyFn<'a> = Box<
     dyn Fn(
             &ShardProof<BabyBearPoseidon2>,
@@ -207,7 +214,10 @@ impl<'a> Runtime<'a> {
             max_syscall_cycles,
             report: Default::default(),
             print_report: false,
-            deferred_proof_verifier: (|_, _, _, _| Ok(())),
+            deferred_proof_verifier: Box::new(|_, _, _, _| {
+                log::warn!("Not verifying sub proof during runtime");
+                Ok(())
+            }),
         }
     }
 
@@ -1137,6 +1147,14 @@ impl<'a> Runtime<'a> {
         // Flush trace buf
         if let Some(ref mut buf) = self.trace_buf {
             buf.flush().unwrap();
+        }
+
+        // Ensure that all proofs and input bytes were read, otherwise warn the user.
+        if self.state.proof_stream_ptr != self.state.proof_stream.len() {
+            log::warn!("Not all proofs were read. The proof may fail during recursion. Did you pass too many proofs in or forget to call verify_sp1_proof?");
+        }
+        if self.state.input_stream_ptr != self.state.input_stream.len() {
+            log::warn!("Not all input bytes were read.");
         }
 
         // SECTION: Set up all MemoryInitializeFinalizeEvents needed for memory argument.

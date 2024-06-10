@@ -1,3 +1,5 @@
+use core::panic;
+
 use crate::runtime::{Syscall, SyscallContext};
 
 /// Verifies an SP1 recursive verifier proof. Note that this syscall only verifies the proof during
@@ -29,6 +31,9 @@ impl Syscall for SyscallVerifySP1Proof {
             .collect::<Vec<u32>>();
 
         let proof_index = rt.state.proof_stream_ptr;
+        if proof_index >= rt.state.proof_stream.len() {
+            panic!("Not enough proofs were written to the runtime.");
+        }
         let (proof, proof_vk) = &rt.state.proof_stream[proof_index].clone();
         rt.state.proof_stream_ptr += 1;
 
@@ -36,7 +41,13 @@ impl Syscall for SyscallVerifySP1Proof {
         let pv_digest_bytes: [u32; 8] = pv_digest.try_into().unwrap();
 
         (ctx.rt.deferred_proof_verifier)(proof, proof_vk, vkey_bytes, pv_digest_bytes)
-            .unwrap_or_else(|e| panic!("Failed to verify proof {proof_index}: {}", e));
+            .unwrap_or_else(|e| {
+                panic!(
+                    "Failed to verify proof {proof_index} with digest {}: {}",
+                    hex::encode(bytemuck::cast_slice(&pv_digest_bytes)),
+                    e
+                )
+            });
 
         None
     }

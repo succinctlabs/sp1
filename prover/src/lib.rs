@@ -26,7 +26,7 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use rayon::prelude::*;
 use sp1_core::air::{PublicValues, Word};
 pub use sp1_core::io::{SP1PublicValues, SP1Stdin};
-use sp1_core::runtime::{ExecutionError, ExecutionReport, Runtime};
+use sp1_core::runtime::{DeferredProofVerifyFn, ExecutionError, ExecutionReport, Runtime};
 use sp1_core::stark::{Challenge, StarkProvingKey};
 use sp1_core::stark::{Challenger, MachineVerificationError};
 use sp1_core::utils::{SP1CoreOpts, DIGEST_SIZE};
@@ -255,16 +255,32 @@ impl SP1Prover {
             stdin,
             config,
             self.core_opts,
-            Some(|proof, vkey, pv, committed_value_digest| {
-                //
+            Some(Box::new(|proof, vkey, vk_bytes, committed_value_digest| {
+                // Check that the vk hash matches the vk hash from the input.
+                if vkey.hash_u32() != vk_bytes {
+                    return Err(MachineVerificationError::InvalidPublicValues(
+                        "vk hash from syscall does not match vkey from input",
+                    ));
+                }
+                // Check that proof is valid.
                 self.verify_compressed(
                     &SP1ReduceProof {
                         proof: proof.clone(),
                     },
                     &SP1VerifyingKey { vk: vkey.clone() },
-                );
+                )?;
+                // Check that the committed value digest matches the one from syscall
+                let public_values: &RecursionPublicValues<_> =
+                    proof.public_values.as_slice().borrow();
+                for (i, word) in public_values.committed_value_digest.iter().enumerate() {
+                    if *word != committed_value_digest[i].into() {
+                        return Err(MachineVerificationError::InvalidPublicValues(
+                            "committed_value_digest does not match",
+                        ));
+                    }
+                }
                 Ok(())
-            }),
+            })),
         )?;
         let public_values = SP1PublicValues::from(&public_values_stream);
         Ok(SP1CoreProof {

@@ -43,6 +43,7 @@ subtle-encoding = "0.5.1"
 serial_test = "3.1.1"
 num-bigint = "0.4.5"
 thiserror = "1.0.60"
+bytemuck = "1.16.0"
 
 [[bin]]
 name = "build_plonk_bn254"

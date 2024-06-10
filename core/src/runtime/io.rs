@@ -8,7 +8,7 @@ use serde::Serialize;
 
 use super::Runtime;
 
-impl Read for Runtime<'a> {
+impl<'a> Read for Runtime<'a> {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         self.read_public_values_slice(buf);
         Ok(buf.len())
