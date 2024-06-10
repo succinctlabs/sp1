@@ -4,10 +4,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::{
-    ffi::{build_plonk_bn254, prove_plonk_bn254, test_plonk_bn254, verify_plonk_bn254},
-    witness::GnarkWitness,
-};
+use crate::ffi::{build_plonk_bn254, prove_plonk_bn254, test_plonk_bn254, verify_plonk_bn254};
+use crate::witness::GnarkWitness;
 
 use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};

@@ -1,0 +1,10 @@
+[workspace]
+[package]
+name = "sp1-recursion-gnark-cli"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+sp1-recursion-gnark-ffi = { path = "../gnark-ffi", features = ["native"] }
+clap = { version = "4.3.8", features = ["derive"] }
+bincode = "1.3.3"
