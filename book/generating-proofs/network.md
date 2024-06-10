@@ -14,15 +14,18 @@ SP1_PROVER=network SP1_PRIVATE_KEY=... cargo run --release
 
 - `SP1_PROVER` should be set to `network` when using the prover network.
 
-- `SP1_PRIVATE_KEY` is your secp256k1 private key for signing messages on the network. You will need
+- `SP1_PRIVATE_KEY`should be set to your [private key](#key-setup). You will need
   to be using a [whitelisted](#getting-whitelisted) key to use the network.
 
 Once a request is sent, a prover will claim the request and start generating a proof. After some
 time, it will be fulfilled.
 
-## Getting whitelisted
+## Key Setup
 
-Create your prover network keypair credentials using the [cast](https://book.getfoundry.sh/cast/) CLI tool:
+The prover network uses secp256k1 signatures for authentication. You may generate a new keypair
+explicitly for use with the prover network, or used an existing keypair.
+
+Prover network keypair credentials can be generated using the [cast](https://book.getfoundry.sh/cast/) CLI tool:
 
 ```sh
 cast wallet new
@@ -34,4 +37,8 @@ or retieve your address from an existing key:
 cast wallet address --private-key $SP1_PRIVATE_KEY
 ```
 
-Keep the private key safe, and submit your address in this [form](https://docs.google.com/forms/d/e/1FAIpQLSd-X9uH7G0bvXH_kjptnQtNil8L4dumrVPpFE4t8Ci1XT1GaQ/viewform?vc=0&c=0&w=1&flr=0&usp=mail_form_link).
+You should keep your private key safe and secure. Only your address can be shared publically.
+
+## Getting Whitelisted
+
+After you have completed the [key setup](#key-setup), you can submit your address in this [form](https://docs.google.com/forms/d/e/1FAIpQLSd-X9uH7G0bvXH_kjptnQtNil8L4dumrVPpFE4t8Ci1XT1GaQ/viewform?vc=0&c=0&w=1&flr=0&usp=mail_form_link).
