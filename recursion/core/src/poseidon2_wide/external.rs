@@ -21,7 +21,7 @@ use crate::memory::MemoryCols;
 use crate::poseidon2_wide::{external_linear_layer, internal_linear_layer};
 use crate::runtime::{ExecutionRecord, RecursionProgram};
 
-use super::columns::{Poseidon2Cols, NUM_POSEIDON2_COLS};
+use super::columns::{Poseidon2Cols, Poseidon2Permutation, NUM_POSEIDON2_COLS};
 
 /// The width of the permutation.
 pub const WIDTH: usize = 16;
@@ -72,80 +72,80 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
                     input_cols.left_ptr = compress_event.left;
                     input_cols.right_ptr = compress_event.right;
 
-                    let cols = cols.syscall_input.compress_mut();
+                    let compress_cols = cols.cols.compress_mut();
+
+                    // Apply the initial round.
+                    for i in 0..WIDTH {
+                        compress_cols.input[i].populate(&compress_event.input_records[i]);
+                    }
+
+                    let p2_perm_cols = &mut compress_cols.permutation_cols;
+
+                    p2_perm_cols.external_rounds_state[0] = compress_event.input;
+                    external_linear_layer(&mut p2_perm_cols.external_rounds_state[0]);
+
+                    // Apply the first half of external rounds.
+                    for r in 0..NUM_EXTERNAL_ROUNDS / 2 {
+                        let next_state = populate_external_round(p2_perm_cols, r);
+
+                        if r == NUM_EXTERNAL_ROUNDS / 2 - 1 {
+                            p2_perm_cols.internal_rounds_state = next_state;
+                        } else {
+                            p2_perm_cols.external_rounds_state[r + 1] = next_state;
+                        }
+                    }
+
+                    let internal_sbox = &mut p2_perm_cols.internal_rounds_sbox;
+
+                    // Apply the internal rounds.
+                    p2_perm_cols.external_rounds_state[NUM_EXTERNAL_ROUNDS / 2] =
+                        populate_internal_rounds(p2_perm_cols);
+
+                    // Apply the second half of external rounds.
+                    for r in NUM_EXTERNAL_ROUNDS / 2..NUM_EXTERNAL_ROUNDS {
+                        let next_state = populate_external_round(p2_perm_cols, r);
+                        if r == NUM_EXTERNAL_ROUNDS - 1 {
+                            // Do nothing, since we set the cols.output by populating the output records
+                            // after this loop.
+                            for i in 0..WIDTH {
+                                assert_eq!(
+                                    compress_event.result_records[i].value[0],
+                                    next_state[i]
+                                );
+                            }
+                        } else {
+                            p2_perm_cols.external_rounds_state[r + 1] = next_state;
+                        }
+                    }
+
+                    rows.push(row);
                 }
 
-                Poseidon2Event::Absorb(absorb_event) => {
-                    cols.is_absorb = F::one();
+                Poseidon2Event::Absorb(_) | Poseidon2Event::Finalize(_) => {
+                    todo!();
+                } // Poseidon2Event::Absorb(absorb_event) => {
+                  //     cols.is_absorb = F::one();
 
-                    let input_cols = cols.syscall_input.absorb_mut();
-                    input_cols.clk = absorb_event.clk;
-                    input_cols.input_ptr = absorb_event.input_ptr;
-                    input_cols.len = F::from_canonical_usize(absorb_event.input_len);
-                    input_cols.hash_num = absorb_event.hash_num;
-                }
+                  //     let input_cols = cols.syscall_input.absorb_mut();
+                  //     input_cols.clk = absorb_event.clk;
+                  //     input_cols.input_ptr = absorb_event.input_ptr;
+                  //     input_cols.len = F::from_canonical_usize(absorb_event.input_len);
+                  //     input_cols.hash_num = absorb_event.hash_num;
+                  // }
 
-                Poseidon2Event::Finalize(finalize_event) => {
-                    cols.is_finalize = F::one();
+                  // Poseidon2Event::Finalize(finalize_event) => {
+                  //     cols.is_finalize = F::one();
 
-                    let input_cols = cols.syscall_input.finalize_mut();
-                    input_cols.clk = finalize_event.clk;
-                    input_cols.hash_num = finalize_event.hash_num;
-                    input_cols.output_ptr = finalize_event.output_ptr;
-                }
+                  //     let input_cols = cols.syscall_input.finalize_mut();
+                  //     input_cols.clk = finalize_event.clk;
+                  //     input_cols.hash_num = finalize_event.hash_num;
+                  //     input_cols.output_ptr = finalize_event.output_ptr;
+                  // }
             }
-
-            //     let (poseidon2_cols, mut external_sbox, mut internal_sbox) = cols.get_cols_mut();
-
-            //     let memory = &mut poseidon2_cols.memory;
-            //     memory.timestamp = event.clk;
-            //     memory.dst = event.dst;
-            //     memory.left = event.left;
-            //     memory.right = event.right;
-            //     memory.is_real = F::one();
-
-            //     // Apply the initial round.
-            //     for i in 0..WIDTH {
-            //         memory.input[i].populate(&event.input_records[i]);
-            //     }
 
             //     for i in 0..WIDTH {
             //         memory.output[i].populate(&event.result_records[i]);
             //     }
-
-            //     poseidon2_cols.external_rounds_state[0] = event.input;
-            //     external_linear_layer(&mut poseidon2_cols.external_rounds_state[0]);
-
-            //     // Apply the first half of external rounds.
-            //     for r in 0..NUM_EXTERNAL_ROUNDS / 2 {
-            //         let next_state = populate_external_round(poseidon2_cols, &mut external_sbox, r);
-
-            //         if r == NUM_EXTERNAL_ROUNDS / 2 - 1 {
-            //             poseidon2_cols.internal_rounds_state = next_state;
-            //         } else {
-            //             poseidon2_cols.external_rounds_state[r + 1] = next_state;
-            //         }
-            //     }
-
-            //     // Apply the internal rounds.
-            //     poseidon2_cols.external_rounds_state[NUM_EXTERNAL_ROUNDS / 2] =
-            //         populate_internal_rounds(poseidon2_cols, &mut internal_sbox);
-
-            //     // Apply the second half of external rounds.
-            //     for r in NUM_EXTERNAL_ROUNDS / 2..NUM_EXTERNAL_ROUNDS {
-            //         let next_state = populate_external_round(poseidon2_cols, &mut external_sbox, r);
-            //         if r == NUM_EXTERNAL_ROUNDS - 1 {
-            //             // Do nothing, since we set the cols.output by populating the output records
-            //             // after this loop.
-            //             for i in 0..WIDTH {
-            //                 assert_eq!(event.result_records[i].value[0], next_state[i]);
-            //             }
-            //         } else {
-            //             poseidon2_cols.external_rounds_state[r + 1] = next_state;
-            //         }
-            //     }
-
-            //     rows.push(row);
         }
 
         // // Pad the trace to a power of two.
@@ -177,92 +177,86 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
     }
 }
 
-// fn populate_external_round<F: PrimeField32>(
-//     poseidon2_cols: &mut Poseidon2Cols<F>,
-//     sbox: &mut Option<&mut [[F; WIDTH]; NUM_EXTERNAL_ROUNDS]>,
-//     r: usize,
-// ) -> [F; WIDTH] {
-//     let mut state = {
-//         let round_state: &mut [F; WIDTH] = poseidon2_cols.external_rounds_state[r].borrow_mut();
+fn populate_external_round<F: PrimeField32>(
+    p2_perm_cols: &mut Poseidon2Permutation<F>,
+    r: usize,
+) -> [F; WIDTH] {
+    let mut state = {
+        let round_state: &mut [F; WIDTH] = p2_perm_cols.external_rounds_state[r].borrow_mut();
 
-//         // Add round constants.
-//         //
-//         // Optimization: Since adding a constant is a degree 1 operation, we can avoid adding
-//         // columns for it, and instead include it in the constraint for the x^3 part of the sbox.
-//         let round = if r < NUM_EXTERNAL_ROUNDS / 2 {
-//             r
-//         } else {
-//             r + NUM_INTERNAL_ROUNDS
-//         };
-//         let mut add_rc = *round_state;
-//         for i in 0..WIDTH {
-//             add_rc[i] += F::from_wrapped_u32(RC_16_30_U32[round][i]);
-//         }
+        // Add round constants.
+        //
+        // Optimization: Since adding a constant is a degree 1 operation, we can avoid adding
+        // columns for it, and instead include it in the constraint for the x^3 part of the sbox.
+        let round = if r < NUM_EXTERNAL_ROUNDS / 2 {
+            r
+        } else {
+            r + NUM_INTERNAL_ROUNDS
+        };
+        let mut add_rc = *round_state;
+        for i in 0..WIDTH {
+            add_rc[i] += F::from_wrapped_u32(RC_16_30_U32[round][i]);
+        }
 
-//         // Apply the sboxes.
-//         // Optimization: since the linear layer that comes after the sbox is degree 1, we can
-//         // avoid adding columns for the result of the sbox, and instead include the x^3 -> x^7
-//         // part of the sbox in the constraint for the linear layer
-//         let mut sbox_deg_7: [F; 16] = [F::zero(); WIDTH];
-//         let mut sbox_deg_3: [F; 16] = [F::zero(); WIDTH];
-//         for i in 0..WIDTH {
-//             sbox_deg_3[i] = add_rc[i] * add_rc[i] * add_rc[i];
-//             sbox_deg_7[i] = sbox_deg_3[i] * sbox_deg_3[i] * add_rc[i];
-//         }
+        // Apply the sboxes.
+        // Optimization: since the linear layer that comes after the sbox is degree 1, we can
+        // avoid adding columns for the result of the sbox, and instead include the x^3 -> x^7
+        // part of the sbox in the constraint for the linear layer
+        let mut sbox_deg_7: [F; 16] = [F::zero(); WIDTH];
+        let mut sbox_deg_3: [F; 16] = [F::zero(); WIDTH];
+        for i in 0..WIDTH {
+            sbox_deg_3[i] = add_rc[i] * add_rc[i] * add_rc[i];
+            sbox_deg_7[i] = sbox_deg_3[i] * sbox_deg_3[i] * add_rc[i];
+        }
 
-//         if let Some(sbox) = sbox.as_deref_mut() {
-//             sbox[r] = sbox_deg_3;
-//         }
+        p2_perm_cols.external_rounds_sbox[r] = sbox_deg_3;
 
-//         sbox_deg_7
-//     };
+        sbox_deg_7
+    };
 
-//     // Apply the linear layer.
-//     external_linear_layer(&mut state);
-//     state
-// }
+    // Apply the linear layer.
+    external_linear_layer(&mut state);
+    state
+}
 
-// fn populate_internal_rounds<F: PrimeField32>(
-//     poseidon2_cols: &mut Poseidon2Cols<F>,
-//     sbox: &mut Option<&mut [F; NUM_INTERNAL_ROUNDS]>,
-// ) -> [F; WIDTH] {
-//     let mut state: [F; WIDTH] = poseidon2_cols.internal_rounds_state;
-//     let mut sbox_deg_3: [F; NUM_INTERNAL_ROUNDS] = [F::zero(); NUM_INTERNAL_ROUNDS];
-//     for r in 0..NUM_INTERNAL_ROUNDS {
-//         // Add the round constant to the 0th state element.
-//         // Optimization: Since adding a constant is a degree 1 operation, we can avoid adding
-//         // columns for it, just like for external rounds.
-//         let round = r + NUM_EXTERNAL_ROUNDS / 2;
-//         let add_rc = state[0] + F::from_wrapped_u32(RC_16_30_U32[round][0]);
+fn populate_internal_rounds<F: PrimeField32>(
+    p2_perm_cols: &mut Poseidon2Permutation<F>,
+) -> [F; WIDTH] {
+    let mut state: [F; WIDTH] = p2_perm_cols.internal_rounds_state;
+    let mut sbox_deg_3: [F; NUM_INTERNAL_ROUNDS] = [F::zero(); NUM_INTERNAL_ROUNDS];
+    for r in 0..NUM_INTERNAL_ROUNDS {
+        // Add the round constant to the 0th state element.
+        // Optimization: Since adding a constant is a degree 1 operation, we can avoid adding
+        // columns for it, just like for external rounds.
+        let round = r + NUM_EXTERNAL_ROUNDS / 2;
+        let add_rc = state[0] + F::from_wrapped_u32(RC_16_30_U32[round][0]);
 
-//         // Apply the sboxes.
-//         // Optimization: since the linear layer that comes after the sbox is degree 1, we can
-//         // avoid adding columns for the result of the sbox, just like for external rounds.
-//         sbox_deg_3[r] = add_rc * add_rc * add_rc;
-//         let sbox_deg_7 = sbox_deg_3[r] * sbox_deg_3[r] * add_rc;
+        // Apply the sboxes.
+        // Optimization: since the linear layer that comes after the sbox is degree 1, we can
+        // avoid adding columns for the result of the sbox, just like for external rounds.
+        sbox_deg_3[r] = add_rc * add_rc * add_rc;
+        let sbox_deg_7 = sbox_deg_3[r] * sbox_deg_3[r] * add_rc;
 
-//         // Apply the linear layer.
-//         state[0] = sbox_deg_7;
-//         internal_linear_layer(&mut state);
+        // Apply the linear layer.
+        state[0] = sbox_deg_7;
+        internal_linear_layer(&mut state);
 
-//         // Optimization: since we're only applying the sbox to the 0th state element, we only
-//         // need to have columns for the 0th state element at every step. This is because the
-//         // linear layer is degree 1, so all state elements at the end can be expressed as a
-//         // degree-3 polynomial of the state at the beginning of the internal rounds and the 0th
-//         // state element at rounds prior to the current round
-//         if r < NUM_INTERNAL_ROUNDS - 1 {
-//             poseidon2_cols.internal_rounds_s0[r] = state[0];
-//         }
-//     }
+        // Optimization: since we're only applying the sbox to the 0th state element, we only
+        // need to have columns for the 0th state element at every step. This is because the
+        // linear layer is degree 1, so all state elements at the end can be expressed as a
+        // degree-3 polynomial of the state at the beginning of the internal rounds and the 0th
+        // state element at rounds prior to the current round
+        if r < NUM_INTERNAL_ROUNDS - 1 {
+            p2_perm_cols.internal_rounds_s0[r] = state[0];
+        }
+    }
 
-//     let ret_state = state;
+    let ret_state = state;
 
-//     if let Some(sbox) = sbox.as_deref_mut() {
-//         *sbox = sbox_deg_3;
-//     }
+    p2_perm_cols.internal_rounds_sbox = sbox_deg_3;
 
-//     ret_state
-// }
+    ret_state
+}
 
 // fn eval_external_round<AB: SP1AirBuilder>(
 //     builder: &mut AB,

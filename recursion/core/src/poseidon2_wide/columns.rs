@@ -70,9 +70,8 @@ impl<T: Copy> Poseidon2InputEnum<T> {
 
 #[derive(AlignedBorrow, Clone, Copy)]
 pub struct Poseidon2Compress<T: Copy> {
-    pub left_input_memory: [MemoryReadSingleCols<T>; WIDTH / 2],
-    pub right_input_memory: [MemoryReadSingleCols<T>; WIDTH / 2],
-    pub permutation_rows: Poseidon2Permutation<T>,
+    pub input: [MemoryReadSingleCols<T>; WIDTH],
+    pub permutation_cols: Poseidon2Permutation<T>,
 }
 
 #[derive(AlignedBorrow, Clone, Copy)]
@@ -131,12 +130,12 @@ impl<T: Copy> Poseidon2OpcodeSpecific<T> {
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
 pub struct Poseidon2Permutation<T: Copy> {
-    external_rounds_state: [[T; WIDTH]; NUM_EXTERNAL_ROUNDS],
-    internal_rounds_state: [T; WIDTH],
-    internal_rounds_s0: [T; NUM_INTERNAL_ROUNDS - 1],
-    external_rounds_sbox: [[T; WIDTH]; NUM_EXTERNAL_ROUNDS],
-    internal_rounds_sbox: [T; NUM_INTERNAL_ROUNDS],
-    output_state: [T; WIDTH],
+    pub external_rounds_state: [[T; WIDTH]; NUM_EXTERNAL_ROUNDS],
+    pub internal_rounds_state: [T; WIDTH],
+    pub internal_rounds_s0: [T; NUM_INTERNAL_ROUNDS - 1],
+    pub external_rounds_sbox: [[T; WIDTH]; NUM_EXTERNAL_ROUNDS],
+    pub internal_rounds_sbox: [T; NUM_INTERNAL_ROUNDS],
+    pub output_state: [T; WIDTH],
 }
 
 #[derive(AlignedBorrow, Clone, Copy)]
