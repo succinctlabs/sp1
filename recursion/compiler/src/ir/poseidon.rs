@@ -45,10 +45,8 @@ impl<C: Config> Builder<C> {
     }
 
     pub fn poseidon2_absorb(&mut self, p2_hash_num: &Var<C::N>, input: &Array<C, Felt<C::F>>) {
-        self.operations.push(DslIr::Poseidon2AbsorbBabyBear(
-            p2_hash_num.clone(),
-            input.clone(),
-        ));
+        self.operations
+            .push(DslIr::Poseidon2AbsorbBabyBear(*p2_hash_num, input.clone()));
     }
 
     pub fn poseidon2_finalize_mut(
@@ -57,7 +55,7 @@ impl<C: Config> Builder<C> {
         output: &Array<C, Felt<C::F>>,
     ) {
         self.operations.push(DslIr::Poseidon2FinalizeBabyBear(
-            p2_hash_num.clone(),
+            *p2_hash_num,
             output.clone(),
         ));
     }

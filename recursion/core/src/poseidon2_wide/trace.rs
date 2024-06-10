@@ -59,14 +59,14 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
                     input_cols.left_ptr = compress_event.left;
                     input_cols.right_ptr = compress_event.right;
 
-                    let compress_cols = cols.cols.compress_mut();
+                    let compress_cols = cols.opcode_specific_cols.compress_mut();
 
                     // Apply the initial round.
                     for i in 0..WIDTH {
                         compress_cols.input[i].populate(&compress_event.input_records[i]);
                     }
 
-                    let p2_perm_cols = &mut compress_cols.permutation_cols;
+                    let p2_perm_cols = &mut cols.permutation_cols;
 
                     p2_perm_cols.external_rounds_state[0] = compress_event.input;
                     external_linear_layer(&mut p2_perm_cols.external_rounds_state[0]);
@@ -113,7 +113,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
                     input_cols.left_ptr = compress_event.left;
                     input_cols.right_ptr = compress_event.right;
 
-                    let output_cols = cols.cols.output_mut();
+                    let output_cols = cols.opcode_specific_cols.output_mut();
 
                     for i in 0..WIDTH {
                         output_cols.output_memory[i].populate(&compress_event.result_records[i]);

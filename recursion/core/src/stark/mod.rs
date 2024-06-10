@@ -71,11 +71,11 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
             .chain(once(RecursionAir::MemoryGlobal(MemoryGlobalChip {
                 fixed_log2_rows: None,
             })))
-            // .chain(once(RecursionAir::Poseidon2Wide(Poseidon2WideChip::<
-            //     DEGREE,
-            // > {
-            //     fixed_log2_rows: None,
-            // })))
+            .chain(once(RecursionAir::Poseidon2Wide(Poseidon2WideChip::<
+                DEGREE,
+            > {
+                fixed_log2_rows: None,
+            })))
             .chain(once(RecursionAir::FriFold(FriFoldChip::<DEGREE> {
                 fixed_log2_rows: None,
             })))
@@ -92,7 +92,15 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
             .chain(once(RecursionAir::MemoryGlobal(MemoryGlobalChip {
                 fixed_log2_rows: None,
             })))
-            .chain(once(RecursionAir::Multi(MultiChip {
+            // .chain(once(RecursionAir::Multi(MultiChip {
+            //     fixed_log2_rows: None,
+            // })))
+            .chain(once(RecursionAir::Poseidon2Wide(Poseidon2WideChip::<
+                DEGREE,
+            > {
+                fixed_log2_rows: None,
+            })))
+            .chain(once(RecursionAir::FriFold(FriFoldChip::<DEGREE> {
                 fixed_log2_rows: None,
             })))
             .chain(once(RecursionAir::RangeCheck(RangeCheckChip::default())))
@@ -108,8 +116,15 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
             .chain(once(RecursionAir::MemoryGlobal(MemoryGlobalChip {
                 fixed_log2_rows: Some(19),
             })))
-            .chain(once(RecursionAir::Multi(MultiChip {
-                fixed_log2_rows: Some(20),
+            .chain(once(RecursionAir::Poseidon2Wide(Poseidon2WideChip::<
+                DEGREE,
+            > {
+                fixed_log2_rows: None,
+            })))
+            .chain(once(RecursionAir::FriFold(FriFoldChip::<DEGREE> {
+                fixed_log2_rows: None,
+                // .chain(once(RecursionAir::Multi(MultiChip {
+                //     fixed_log2_rows: Some(20),
             })))
             .chain(once(RecursionAir::RangeCheck(RangeCheckChip::default())))
             .collect()

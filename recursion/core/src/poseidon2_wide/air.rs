@@ -43,12 +43,14 @@ fn eval_external_round<AB: SP1AirBuilder>(
     for i in 0..WIDTH {
         sbox_deg_3[i] = add_rc[i].clone() * add_rc[i].clone() * add_rc[i].clone();
 
-        builder.when(do_perm).assert_eq(
+        builder.assert_eq(
             perm_cols.external_rounds_sbox[r][i].into(),
             sbox_deg_3[i].clone(),
         );
 
-        sbox_deg_7[i] = sbox_deg_3[i].clone() * sbox_deg_3[i].clone() * add_rc[i].clone();
+        sbox_deg_7[i] = perm_cols.external_rounds_sbox[r][i]
+            * perm_cols.external_rounds_sbox[r][i]
+            * add_rc[i].clone();
     }
 
     // Apply the linear layer.
@@ -63,9 +65,7 @@ fn eval_external_round<AB: SP1AirBuilder>(
         perm_cols.external_rounds_state[r + 1]
     };
     for i in 0..WIDTH {
-        builder
-            .when(do_perm)
-            .assert_eq(next_state_cols[i], state[i].clone());
+        builder.assert_eq(next_state_cols[i], state[i].clone());
     }
 }
 
@@ -87,12 +87,11 @@ fn eval_internal_rounds<AB: SP1AirBuilder>(
         } + do_perm * AB::Expr::from_wrapped_u32(RC_16_30_U32[round][0]);
 
         let sbox_deg_3 = add_rc.clone() * add_rc.clone() * add_rc.clone();
-        builder
-            .when(do_perm)
-            .assert_eq(perm_cols.internal_rounds_sbox[r], sbox_deg_3.clone());
+        builder.assert_eq(perm_cols.internal_rounds_sbox[r], sbox_deg_3.clone());
 
         // See `populate_internal_rounds` for why we don't have columns for the sbox output here.
-        let sbox_deg_7 = sbox_deg_3.clone() * sbox_deg_3 * add_rc.clone();
+        let sbox_deg_7 =
+            perm_cols.internal_rounds_sbox[r] * perm_cols.internal_rounds_sbox[r] * add_rc.clone();
 
         // Apply the linear layer.
         // See `populate_internal_rounds` for why we don't have columns for the new state here.
@@ -250,9 +249,9 @@ where
         let next: &Poseidon2Cols<AB::Var> = (*next).borrow();
 
         let syscall_input = local.syscall_input.compress();
-        let compress_cols = local.cols.compress();
-        let local_output_cols = local.cols.output();
-        let next_output_cols = next.cols.output();
+        let compress_cols = local.opcode_specific_cols.compress();
+        let local_output_cols = local.opcode_specific_cols.output();
+        let next_output_cols = next.opcode_specific_cols.output();
 
         let is_syscall = local.is_syscall;
         let is_input = local.is_input;
@@ -272,7 +271,7 @@ where
         );
 
         // Check that the permutation columns are correct.
-        let perm_cols = compress_cols.permutation_cols;
+        let perm_cols = local.permutation_cols;
         eval_perm(
             builder,
             array::from_fn(|i| *compress_cols.input[i].value()),

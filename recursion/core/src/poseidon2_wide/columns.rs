@@ -71,7 +71,6 @@ impl<T: Copy> Poseidon2InputEnum<T> {
 #[derive(AlignedBorrow, Clone, Copy)]
 pub struct Poseidon2Compress<T: Copy> {
     pub input: [MemoryReadSingleCols<T>; WIDTH],
-    pub permutation_cols: Poseidon2Permutation<T>,
 }
 
 #[derive(AlignedBorrow, Clone, Copy)]
@@ -84,7 +83,6 @@ pub struct Poseidon2Absorb<T: Copy> {
     pub input_len: T,
     pub input_state_start_idx: T,
     pub num_input_consumed: T,
-    pub permutation_rows: Poseidon2Permutation<T>,
 }
 
 #[derive(AlignedBorrow, Clone, Copy)]
@@ -147,6 +145,7 @@ pub struct Poseidon2Cols<T: Copy> {
     pub is_input: T, // 1 if input, 0 if output
     pub do_perm: T,
     pub syscall_input: Poseidon2InputEnum<T>,
-    pub cols: Poseidon2OpcodeSpecific<T>,
+    pub opcode_specific_cols: Poseidon2OpcodeSpecific<T>,
+    pub permutation_cols: Poseidon2Permutation<T>,
     pub state_cursor: [T; WIDTH / 2], // Only used for absorb
 }
