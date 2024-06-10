@@ -507,9 +507,9 @@ where
 
         let syscall_input = local.syscall_input.compress();
         let compress_cols = local.cols.compress();
-        let output_cols = local.cols.output();
+        let local_output_cols = local.cols.output();
+        let next_output_cols = next.cols.output();
 
-        let is_real = local.is_absorb + local.is_compress + local.is_finalize;
         let is_syscall = local.is_syscall;
         let is_input = local.is_input;
         let do_perm = local.do_perm;
@@ -520,17 +520,27 @@ where
             builder,
             syscall_input,
             &compress_cols.input,
-            &output_cols.output_memory,
+            &local_output_cols.output_memory,
             is_syscall,
             is_input,
         );
 
+        let perm_cols = compress_cols.permutation_cols;
+
         eval_perm(
             builder,
             array::from_fn(|i| *compress_cols.input[i].value()),
-            &compress_cols.permutation_cols,
+            &perm_cols,
             do_perm,
         );
+
+        let next_output: [AB::Var; WIDTH] =
+            array::from_fn(|i| *next_output_cols.output_memory[i].value());
+        for i in 0..WIDTH {
+            builder
+                .when(do_perm)
+                .assert_eq(perm_cols.output_state[i], next_output[i]);
+        }
     }
 }
 
