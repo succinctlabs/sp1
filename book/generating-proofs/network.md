@@ -14,7 +14,7 @@ SP1_PROVER=network SP1_PRIVATE_KEY=... cargo run --release
 
 - `SP1_PROVER` should be set to `network` when using the prover network.
 
-- `SP1_PRIVATE_KEY`should be set to your [private key](#key-setup). You will need
+- `SP1_PRIVATE_KEY` should be set to your [private key](#key-setup). You will need
   to be using a [whitelisted](#getting-whitelisted) key to use the network.
 
 Once a request is sent, a prover will claim the request and start generating a proof. After some
@@ -37,7 +37,7 @@ or retieve your address from an existing key:
 cast wallet address --private-key $SP1_PRIVATE_KEY
 ```
 
-You should keep your private key safe and secure. Only your address can be shared publically.
+The private key should be set to `SP1_PRIVATE_KEY`, which should be kept safe and secure. Only your address can be shared publically.
 
 ## Getting Whitelisted
 
