@@ -78,9 +78,9 @@ checksum = "5c6cb57a04249c6480766f7f7cef5467412af1490f8d1e243141daddada3264f"
 
 [[package]]
 name = "alloy-primitives"
-version = "0.7.4"
+version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db8aa973e647ec336810a9356af8aea787249c9d00b1525359f3db29a68d231b"
+checksum = "f783611babedbbe90db3478c120fb5f5daacceffc210b39adc0af4fe0da70bad"
 dependencies = [
  "alloy-rlp",
  "bytes",
@@ -110,9 +110,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-sol-macro"
-version = "0.7.4"
+version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7dbd17d67f3e89478c8a634416358e539e577899666c927bc3d2b1328ee9b6ca"
+checksum = "4bad41a7c19498e3f6079f7744656328699f8ea3e783bdd10d85788cd439f572"
 dependencies = [
  "alloy-sol-macro-expander",
  "alloy-sol-macro-input",
@@ -124,13 +124,13 @@ dependencies = [
 
 [[package]]
 name = "alloy-sol-macro-expander"
-version = "0.7.4"
+version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2c6da95adcf4760bb4b108fefa51d50096c5e5fdd29ee72fed3e86ee414f2e34"
+checksum = "fd9899da7d011b4fe4c406a524ed3e3f963797dbc93b45479d60341d3a27b252"
 dependencies = [
  "alloy-sol-macro-input",
  "const-hex",
- "heck 0.4.1",
+ "heck",
  "indexmap 2.2.6",
  "proc-macro-error",
  "proc-macro2",
@@ -142,13 +142,13 @@ dependencies = [
 
 [[package]]
 name = "alloy-sol-macro-input"
-version = "0.7.4"
+version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "32c8da04c1343871fb6ce5a489218f9c85323c8340a36e9106b5fc98d4dd59d5"
+checksum = "d32d595768fdc61331a132b6f65db41afae41b9b97d36c21eb1b955c422a7e60"
 dependencies = [
  "const-hex",
  "dunce",
- "heck 0.5.0",
+ "heck",
  "proc-macro2",
  "quote",
  "syn 2.0.66",
@@ -157,9 +157,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-sol-types"
-version = "0.7.4"
+version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "40a64d2d2395c1ac636b62419a7b17ec39031d6b2367e66e9acbf566e6055e9c"
+checksum = "a49042c6d3b66a9fe6b2b5a8bf0d39fc2ae1ee0310a2a26ffedd79fb097878dd"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-macro",
@@ -860,7 +860,7 @@ version = "4.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "528131438037fd55894f62d6e9f068b8f45ac57ffa77517819645d10aed04f64"
 dependencies = [
- "heck 0.5.0",
+ "heck",
  "proc-macro2",
  "quote",
  "syn 2.0.66",
@@ -2082,12 +2082,6 @@ checksum = "b2bca93b15ea5a746f220e56587f71e73c6165eab783df9e26590069953e3c30"
 dependencies = [
  "fxhash",
 ]
-
-[[package]]
-name = "heck"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "95505c38b4572b2d910cecb0281560f54b440a19336cbbcb27bf6ce6adc6f5a8"
 
 [[package]]
 name = "heck"
@@ -3985,9 +3979,9 @@ dependencies = [
 
 [[package]]
 name = "ruint"
-version = "1.12.1"
+version = "1.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8f308135fef9fc398342da5472ce7c484529df23743fb7c734e0f3d472971e62"
+checksum = "2c3cc4c2511671f327125da14133d0c5c5d137f006a1017a16f557bc85b16286"
 dependencies = [
  "alloy-rlp",
  "ark-ff 0.3.0",
@@ -4009,9 +4003,9 @@ dependencies = [
 
 [[package]]
 name = "ruint-macro"
-version = "1.2.0"
+version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f86854cf50259291520509879a5c294c3c9a4c334e9ff65071c51e42ef1e2343"
+checksum = "48fd7bd8a6377e15ad9d42a8ec25371b94ddc67abe7c8b9127bec79bebaaae18"
 
 [[package]]
 name = "rustc-demangle"
@@ -5001,7 +4995,7 @@ version = "0.26.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f7993a8e3a9e88a00351486baae9522c91b123a088f76469e5bd5cc17198ea87"
 dependencies = [
- "heck 0.5.0",
+ "heck",
  "proc-macro2",
  "quote",
  "rustversion",
@@ -5047,9 +5041,9 @@ dependencies = [
 
 [[package]]
 name = "syn-solidity"
-version = "0.7.4"
+version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8db114c44cf843a8bacd37a146e37987a0b823a0e8bc4fdc610c9c72ab397a5"
+checksum = "8d71e19bca02c807c9faa67b5a47673ff231b6e7449b251695188522f1dc44b2"
 dependencies = [
  "paste",
  "proc-macro2",
