@@ -70,6 +70,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
                     cols.is_compress = F::one();
                     cols.is_syscall = F::one();
                     cols.is_input = F::one();
+                    cols.do_perm = F::one();
 
                     let input_cols = cols.syscall_input.compress_mut();
                     input_cols.clk = compress_event.clk;
@@ -270,7 +271,7 @@ fn eval_external_round<AB: SP1AirBuilder>(
     builder: &mut AB,
     perm_cols: &Poseidon2Permutation<AB::Var>,
     r: usize,
-    is_real: AB::Expr,
+    do_perm: AB::Var,
 ) {
     let external_state = perm_cols.external_rounds_state[r];
 
@@ -281,7 +282,7 @@ fn eval_external_round<AB: SP1AirBuilder>(
         r + NUM_INTERNAL_ROUNDS
     };
     let add_rc: [AB::Expr; WIDTH] = core::array::from_fn(|i| {
-        external_state[i].into() + is_real.clone() * AB::F::from_wrapped_u32(RC_16_30_U32[round][i])
+        external_state[i].into() + do_perm * AB::F::from_wrapped_u32(RC_16_30_U32[round][i])
     });
 
     // Apply the sboxes.
@@ -318,7 +319,7 @@ fn eval_external_round<AB: SP1AirBuilder>(
 fn eval_internal_rounds<AB: SP1AirBuilder>(
     builder: &mut AB,
     perm_cols: &Poseidon2Permutation<AB::Var>,
-    is_real: AB::Expr,
+    do_perm: AB::Var,
 ) {
     let state = &perm_cols.internal_rounds_state;
     let s0 = perm_cols.internal_rounds_s0;
@@ -330,7 +331,7 @@ fn eval_internal_rounds<AB: SP1AirBuilder>(
             state[0].clone()
         } else {
             s0[r - 1].into()
-        } + is_real.clone() * AB::Expr::from_wrapped_u32(RC_16_30_U32[round][0]);
+        } + do_perm * AB::Expr::from_wrapped_u32(RC_16_30_U32[round][0]);
 
         let sbox_deg_3 = add_rc.clone() * add_rc.clone() * add_rc.clone();
         builder.assert_eq(perm_cols.internal_rounds_sbox[r], sbox_deg_3.clone());
@@ -423,7 +424,7 @@ where
         let is_real = local.is_absorb + local.is_compress + local.is_finalize;
         let is_syscall = local.is_syscall;
         let is_input = local.is_input;
-        let do_perm = local.is_compress * is_syscall;
+        let do_perm = local.do_perm;
 
         eval_mem(
             builder,
@@ -434,33 +435,33 @@ where
             is_input,
         );
 
-        // // Apply the initial round.
-        // let initial_round_output = {
-        //     let mut initial_round_output: [AB::Expr; WIDTH] =
-        //         core::array::from_fn(|i| (*compress_cols.input[i].value()).into());
-        //     external_linear_layer(&mut initial_round_output);
-        //     initial_round_output
-        // };
-        // let external_round_0_state: [AB::Expr; WIDTH] = core::array::from_fn(|i| {
-        //     let state = compress_cols.permutation_cols.external_rounds_state[0];
-        //     state[i].into()
-        // });
-        // builder
-        //     .when(do_perm.clone())
-        //     .assert_all_eq(external_round_0_state.clone(), initial_round_output);
+        // Apply the initial round.
+        let initial_round_output = {
+            let mut initial_round_output: [AB::Expr; WIDTH] =
+                core::array::from_fn(|i| (*compress_cols.input[i].value()).into());
+            external_linear_layer(&mut initial_round_output);
+            initial_round_output
+        };
+        let external_round_0_state: [AB::Expr; WIDTH] = core::array::from_fn(|i| {
+            let state = compress_cols.permutation_cols.external_rounds_state[0];
+            state[i].into()
+        });
+        builder
+            .when(do_perm)
+            .assert_all_eq(external_round_0_state.clone(), initial_round_output);
 
-        // // Apply the first half of external rounds.
-        // for r in 0..NUM_EXTERNAL_ROUNDS / 2 {
-        //     eval_external_round(builder, &compress_cols.permutation_cols, r, do_perm.clone());
-        // }
+        // Apply the first half of external rounds.
+        for r in 0..NUM_EXTERNAL_ROUNDS / 2 {
+            eval_external_round(builder, &compress_cols.permutation_cols, r, do_perm);
+        }
 
-        // // Apply the internal rounds.
-        // eval_internal_rounds(builder, &compress_cols.permutation_cols, do_perm.clone());
+        // Apply the internal rounds.
+        eval_internal_rounds(builder, &compress_cols.permutation_cols, do_perm);
 
-        // // Apply the second half of external rounds.
-        // for r in NUM_EXTERNAL_ROUNDS / 2..NUM_EXTERNAL_ROUNDS {
-        //     eval_external_round(builder, &compress_cols.permutation_cols, r, do_perm.clone());
-        // }
+        // Apply the second half of external rounds.
+        for r in NUM_EXTERNAL_ROUNDS / 2..NUM_EXTERNAL_ROUNDS {
+            eval_external_round(builder, &compress_cols.permutation_cols, r, do_perm);
+        }
     }
 }
 
