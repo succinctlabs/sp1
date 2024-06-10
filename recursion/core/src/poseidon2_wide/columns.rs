@@ -4,7 +4,7 @@ use sp1_derive::AlignedBorrow;
 
 use crate::memory::{MemoryReadSingleCols, MemoryReadWriteSingleCols};
 
-use super::external::{NUM_EXTERNAL_ROUNDS, NUM_INTERNAL_ROUNDS, WIDTH};
+use super::{NUM_EXTERNAL_ROUNDS, NUM_INTERNAL_ROUNDS, WIDTH};
 
 pub const NUM_POSEIDON2_COLS: usize = size_of::<Poseidon2Cols<u8>>();
 

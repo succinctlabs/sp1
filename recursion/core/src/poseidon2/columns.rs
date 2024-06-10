@@ -1,6 +1,8 @@
 use sp1_derive::AlignedBorrow;
 
-use crate::{memory::MemoryReadWriteSingleCols, poseidon2_wide::external::WIDTH};
+use crate::memory::MemoryReadWriteSingleCols;
+
+use super::external::WIDTH;
 
 /// The column layout for the chip.
 #[derive(AlignedBorrow, Clone, Copy)]
