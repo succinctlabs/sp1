@@ -25,6 +25,9 @@ time, it will be fulfilled.
 The prover network uses secp256k1 signatures for authentication. You may generate a new keypair
 explicitly for use with the prover network, or used an existing keypair.
 
+There is no need for this keypair to hold funds. Its role is solely for authentication purposes,
+functioning as a unique identifier for your account.
+
 Prover network keypair credentials can be generated using the [cast](https://book.getfoundry.sh/cast/) CLI tool:
 
 ```sh
