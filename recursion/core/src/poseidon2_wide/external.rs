@@ -5,7 +5,7 @@ use crate::poseidon2::Poseidon2Event;
 // };
 use crate::runtime::Opcode;
 use core::borrow::Borrow;
-use p3_air::{Air, BaseAir};
+use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
@@ -126,11 +126,19 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
                     let mut output_row = vec![F::zero(); NUM_POSEIDON2_COLS];
                     let cols: &mut Poseidon2Cols<F> = output_row.as_mut_slice().borrow_mut();
                     cols.is_compress = F::one();
+                    let input_cols = cols.syscall_input.compress_mut();
+                    input_cols.clk = compress_event.clk;
+                    input_cols.dst_ptr = compress_event.dst;
+                    input_cols.left_ptr = compress_event.left;
+                    input_cols.right_ptr = compress_event.right;
+
                     let output_cols = cols.cols.output_mut();
 
                     for i in 0..WIDTH {
                         output_cols.output_memory[i].populate(&compress_event.result_records[i]);
                     }
+
+                    rows.push(output_row);
                 }
 
                 Poseidon2Event::Absorb(_) | Poseidon2Event::Finalize(_) => {
@@ -159,6 +167,8 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
             //         memory.output[i].populate(&event.result_records[i]);
             //     }
         }
+
+        println!("run real rows is {:?}", rows.len());
 
         // Pad the trace to a power of two.
         pad_rows_fixed(
@@ -292,7 +302,7 @@ fn eval_external_round<AB: SP1AirBuilder>(
     for i in 0..WIDTH {
         sbox_deg_3[i] = add_rc[i].clone() * add_rc[i].clone() * add_rc[i].clone();
 
-        builder.assert_eq(
+        builder.when(do_perm).assert_eq(
             perm_cols.external_rounds_sbox[r][i].into(),
             sbox_deg_3[i].clone(),
         );
@@ -312,7 +322,9 @@ fn eval_external_round<AB: SP1AirBuilder>(
         perm_cols.external_rounds_state[r + 1]
     };
     for i in 0..WIDTH {
-        builder.assert_eq(next_state_cols[i], state[i].clone());
+        builder
+            .when(do_perm)
+            .assert_eq(next_state_cols[i], state[i].clone());
     }
 }
 
@@ -334,7 +346,9 @@ fn eval_internal_rounds<AB: SP1AirBuilder>(
         } + do_perm * AB::Expr::from_wrapped_u32(RC_16_30_U32[round][0]);
 
         let sbox_deg_3 = add_rc.clone() * add_rc.clone() * add_rc.clone();
-        builder.assert_eq(perm_cols.internal_rounds_sbox[r], sbox_deg_3.clone());
+        builder
+            .when(do_perm)
+            .assert_eq(perm_cols.internal_rounds_sbox[r], sbox_deg_3.clone());
 
         // See `populate_internal_rounds` for why we don't have columns for the sbox output here.
         let sbox_deg_7 = sbox_deg_3.clone() * sbox_deg_3 * add_rc.clone();
@@ -361,11 +375,47 @@ impl<F, const DEGREE: usize> BaseAir<F> for Poseidon2WideChip<DEGREE> {
     }
 }
 
+fn eval_control_flow<AB: SP1RecursionAirBuilder>(
+    builder: &mut AB,
+    local: &Poseidon2Cols<AB::Var>,
+    next: &Poseidon2Cols<AB::Var>,
+) {
+    builder.assert_bool(local.is_compress);
+    builder.assert_bool(local.is_absorb);
+    builder.assert_bool(local.is_finalize);
+    builder.assert_bool(local.is_compress + local.is_absorb + local.is_finalize);
+
+    builder.assert_bool(local.is_syscall);
+    builder.assert_bool(local.is_input);
+    builder.assert_bool(local.do_perm);
+
+    let mut transition_builder = builder.when_transition();
+    let mut compress_builder = transition_builder.when(local.is_compress);
+    let mut compress_syscall_builder = compress_builder.when(local.is_syscall);
+
+    compress_syscall_builder.assert_one(local.is_input);
+    compress_syscall_builder.assert_one(local.do_perm);
+
+    compress_syscall_builder.assert_one(next.is_compress);
+    compress_syscall_builder.assert_zero(next.is_syscall);
+    compress_syscall_builder.assert_zero(next.is_input);
+    compress_syscall_builder.assert_zero(next.do_perm);
+
+    let local_syscall_input = local.syscall_input.compress();
+    let next_syscall_input = next.syscall_input.compress();
+
+    compress_syscall_builder.assert_eq(local_syscall_input.clk, next_syscall_input.clk);
+    compress_syscall_builder.assert_eq(local_syscall_input.dst_ptr, next_syscall_input.dst_ptr);
+    compress_syscall_builder.assert_eq(local_syscall_input.left_ptr, next_syscall_input.left_ptr);
+    compress_syscall_builder.assert_eq(local_syscall_input.right_ptr, next_syscall_input.right_ptr);
+}
+
 fn eval_mem<AB: SP1RecursionAirBuilder>(
     builder: &mut AB,
     syscall_params: &Poseidon2CompressInput<AB::Var>,
-    input: &[MemoryReadSingleCols<AB::Var>; WIDTH],
-    output: &[MemoryReadWriteSingleCols<AB::Var>; WIDTH],
+    input_memory: &[MemoryReadSingleCols<AB::Var>; WIDTH],
+    output_memory: &[MemoryReadWriteSingleCols<AB::Var>; WIDTH],
+    output: [AB::Var; WIDTH],
     is_syscall: AB::Var,
     is_input: AB::Var,
 ) {
@@ -380,7 +430,7 @@ fn eval_mem<AB: SP1RecursionAirBuilder>(
         builder.recursion_eval_memory_access_single(
             syscall_params.clk,
             input_addr,
-            &input[i],
+            &input_memory[i],
             is_input,
         );
 
@@ -388,9 +438,11 @@ fn eval_mem<AB: SP1RecursionAirBuilder>(
         builder.recursion_eval_memory_access_single(
             syscall_params.clk + AB::F::from_canonical_usize(1),
             output_addr,
-            &output[i],
+            &output_memory[i],
             AB::Expr::one() - is_input,
         );
+
+        // builder.assert_eq(*output_memory[i].value(), output[i]);
     }
 
     // Constraint that the operands are sent from the CPU table.
@@ -416,6 +468,8 @@ where
 
         let local = main.row_slice(0);
         let local: &Poseidon2Cols<AB::Var> = (*local).borrow();
+        let next = main.row_slice(1);
+        let next: &Poseidon2Cols<AB::Var> = (*next).borrow();
 
         let syscall_input = local.syscall_input.compress();
         let compress_cols = local.cols.compress();
@@ -426,11 +480,14 @@ where
         let is_input = local.is_input;
         let do_perm = local.do_perm;
 
+        eval_control_flow(builder, local, next);
+
         eval_mem(
             builder,
             syscall_input,
             &compress_cols.input,
             &output_cols.output_memory,
+            compress_cols.permutation_cols.output_state,
             is_syscall,
             is_input,
         );
