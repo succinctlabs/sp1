@@ -57,13 +57,14 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
     ) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
+        let num_columns = NUM_POSEIDON2_COLS;
+
         for event in &input.poseidon2_events {
-            let mut row = vec![F::zero(); NUM_POSEIDON2_COLS];
-
-            let cols: &mut Poseidon2Cols<F> = row.as_mut_slice().borrow_mut();
-
             match event {
                 Poseidon2Event::Compress(compress_event) => {
+                    let mut input_row = vec![F::zero(); NUM_POSEIDON2_COLS];
+
+                    let cols: &mut Poseidon2Cols<F> = input_row.as_mut_slice().borrow_mut();
                     cols.is_compress = F::one();
 
                     let input_cols = cols.syscall_input.compress_mut();
@@ -95,8 +96,6 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
                         }
                     }
 
-                    let internal_sbox = &mut p2_perm_cols.internal_rounds_sbox;
-
                     // Apply the internal rounds.
                     p2_perm_cols.external_rounds_state[NUM_EXTERNAL_ROUNDS / 2] =
                         populate_internal_rounds(p2_perm_cols);
@@ -105,9 +104,8 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
                     for r in NUM_EXTERNAL_ROUNDS / 2..NUM_EXTERNAL_ROUNDS {
                         let next_state = populate_external_round(p2_perm_cols, r);
                         if r == NUM_EXTERNAL_ROUNDS - 1 {
-                            // Do nothing, since we set the cols.output by populating the output records
-                            // after this loop.
                             for i in 0..WIDTH {
+                                p2_perm_cols.output_state[i] = next_state[i];
                                 assert_eq!(
                                     compress_event.result_records[i].value[0],
                                     next_state[i]
@@ -118,7 +116,15 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
                         }
                     }
 
-                    rows.push(row);
+                    rows.push(input_row);
+
+                    let mut output_row = vec![F::zero(); NUM_POSEIDON2_COLS];
+                    let cols: &mut Poseidon2Cols<F> = output_row.as_mut_slice().borrow_mut();
+                    let output_cols = cols.cols.output_mut();
+
+                    for i in 0..WIDTH {
+                        output_cols.output_memory[i].populate(&compress_event.result_records[i]);
+                    }
                 }
 
                 Poseidon2Event::Absorb(_) | Poseidon2Event::Finalize(_) => {
@@ -148,12 +154,12 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
             //     }
         }
 
-        // // Pad the trace to a power of two.
-        // pad_rows_fixed(
-        //     &mut rows,
-        //     || vec![F::zero(); num_columns],
-        //     self.fixed_log2_rows,
-        // );
+        // Pad the trace to a power of two.
+        pad_rows_fixed(
+            &mut rows,
+            || vec![F::zero(); num_columns],
+            self.fixed_log2_rows,
+        );
 
         // // Convert the trace to a row major matrix.
         // let trace =

@@ -89,7 +89,6 @@ pub struct Poseidon2Absorb<T: Copy> {
 
 #[derive(AlignedBorrow, Clone, Copy)]
 pub struct Poseidon2Output<T: Copy> {
-    pub previous_output: [T; WIDTH],
     pub output_memory: [MemoryReadWriteSingleCols<T>; WIDTH],
 }
 
