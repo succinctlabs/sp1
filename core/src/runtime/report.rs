@@ -43,13 +43,12 @@ impl ExecutionReport {
         // Convert counts to `String`s to prepare them for printing and to measure their width.
         let table_with_string_counts = entries
             .into_iter()
-            .map(|(label, ct)| (label, ct.to_string()))
+            .map(|(label, ct)| (label.to_string().to_lowercase(), ct.to_string()))
             .collect::<Vec<_>>();
         // Calculate width for padding the counts.
         let width = table_with_string_counts
-            .iter()
+            .first()
             .map(|(_, b)| b.len())
-            .max()
             .unwrap_or_default();
         for (label, count) in table_with_string_counts {
             lines.push(format!("{count:>width$} {label}"));

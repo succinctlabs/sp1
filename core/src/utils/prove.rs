@@ -225,9 +225,13 @@ where
         report_aggregate.total_instruction_count(),
         report_aggregate.total_syscall_count()
     );
+    // Print the opcode and syscall count tables like `du`:
+    // sorted by count (descending) and with the count in the first column.
+    tracing::info!("execution report (opcode counts):");
+    for line in ExecutionReport::sorted_table_lines(&report_aggregate.opcode_counts) {
+        tracing::info!("  {line}");
+    }
     tracing::info!("execution report (syscall counts):");
-    // Print the syscall count table like `du`: sorted by count and with the count in the first column.
-    // The following section can be extracted and reused to print other tables, if desired.
     for line in ExecutionReport::sorted_table_lines(&report_aggregate.syscall_counts) {
         tracing::info!("  {line}");
     }
