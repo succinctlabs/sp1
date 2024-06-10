@@ -12,6 +12,7 @@ use p3_matrix::Matrix;
 use sp1_core::air::{BaseAirBuilder, MachineAir, SP1AirBuilder};
 use sp1_core::utils::pad_rows_fixed;
 use sp1_primitives::RC_16_30_U32;
+use std::array;
 use std::borrow::BorrowMut;
 use tracing::instrument;
 
@@ -415,7 +416,6 @@ fn eval_mem<AB: SP1RecursionAirBuilder>(
     syscall_params: &Poseidon2CompressInput<AB::Var>,
     input_memory: &[MemoryReadSingleCols<AB::Var>; WIDTH],
     output_memory: &[MemoryReadWriteSingleCols<AB::Var>; WIDTH],
-    output: [AB::Var; WIDTH],
     is_syscall: AB::Var,
     is_input: AB::Var,
 ) {
@@ -459,6 +459,40 @@ fn eval_mem<AB: SP1RecursionAirBuilder>(
     );
 }
 
+fn eval_perm<AB: SP1RecursionAirBuilder>(
+    builder: &mut AB,
+    input: [AB::Var; WIDTH],
+    perm_cols: &Poseidon2Permutation<AB::Var>,
+    do_perm: AB::Var,
+) {
+    // Apply the initial round.
+    let initial_round_output = {
+        let mut initial_round_output: [AB::Expr; WIDTH] = core::array::from_fn(|i| input[i].into());
+        external_linear_layer(&mut initial_round_output);
+        initial_round_output
+    };
+    let external_round_0_state: [AB::Expr; WIDTH] = core::array::from_fn(|i| {
+        let state = perm_cols.external_rounds_state[0];
+        state[i].into()
+    });
+    builder
+        .when(do_perm)
+        .assert_all_eq(external_round_0_state.clone(), initial_round_output);
+
+    // Apply the first half of external rounds.
+    for r in 0..NUM_EXTERNAL_ROUNDS / 2 {
+        eval_external_round(builder, perm_cols, r, do_perm);
+    }
+
+    // Apply the internal rounds.
+    eval_internal_rounds(builder, perm_cols, do_perm);
+
+    // Apply the second half of external rounds.
+    for r in NUM_EXTERNAL_ROUNDS / 2..NUM_EXTERNAL_ROUNDS {
+        eval_external_round(builder, perm_cols, r, do_perm);
+    }
+}
+
 impl<AB, const DEGREE: usize> Air<AB> for Poseidon2WideChip<DEGREE>
 where
     AB: SP1RecursionAirBuilder,
@@ -487,38 +521,16 @@ where
             syscall_input,
             &compress_cols.input,
             &output_cols.output_memory,
-            compress_cols.permutation_cols.output_state,
             is_syscall,
             is_input,
         );
 
-        // Apply the initial round.
-        let initial_round_output = {
-            let mut initial_round_output: [AB::Expr; WIDTH] =
-                core::array::from_fn(|i| (*compress_cols.input[i].value()).into());
-            external_linear_layer(&mut initial_round_output);
-            initial_round_output
-        };
-        let external_round_0_state: [AB::Expr; WIDTH] = core::array::from_fn(|i| {
-            let state = compress_cols.permutation_cols.external_rounds_state[0];
-            state[i].into()
-        });
-        builder
-            .when(do_perm)
-            .assert_all_eq(external_round_0_state.clone(), initial_round_output);
-
-        // Apply the first half of external rounds.
-        for r in 0..NUM_EXTERNAL_ROUNDS / 2 {
-            eval_external_round(builder, &compress_cols.permutation_cols, r, do_perm);
-        }
-
-        // Apply the internal rounds.
-        eval_internal_rounds(builder, &compress_cols.permutation_cols, do_perm);
-
-        // Apply the second half of external rounds.
-        for r in NUM_EXTERNAL_ROUNDS / 2..NUM_EXTERNAL_ROUNDS {
-            eval_external_round(builder, &compress_cols.permutation_cols, r, do_perm);
-        }
+        eval_perm(
+            builder,
+            array::from_fn(|i| *compress_cols.input[i].value()),
+            &compress_cols.permutation_cols,
+            do_perm,
+        );
     }
 }
 
