@@ -95,7 +95,7 @@ pub struct Runtime<'a> {
     pub print_report: bool,
 
     /// A function to sanity check `verify_sp1_proof` during runtime.
-    pub deferred_proof_verifier: Arc<dyn DeferredProofVerifier + 'a>,
+    pub subproof_verifier: Arc<dyn SubproofVerifier + 'a>,
 }
 
 /// Function to verify proofs during runtime when the verify_sp1_proof precompile is used. This
@@ -104,7 +104,7 @@ pub struct Runtime<'a> {
 ///
 /// This function is passed into the runtime because its actual implementation relies on crates
 /// in recursion that depend on sp1-core.
-pub trait DeferredProofVerifier: Send {
+pub trait SubproofVerifier: Send {
     fn verify_deferred_proof(
         &self,
         proof: &ShardProof<BabyBearPoseidon2>,
@@ -115,13 +115,13 @@ pub trait DeferredProofVerifier: Send {
 }
 
 #[derive(Default)]
-pub struct DefaultDeferredProofVerifier {
+pub struct DefaultSubproofVerifier {
     printed: AtomicBool,
 }
 
-pub struct NoOpDeferredProofVerifier;
+pub struct NoOpSubproofVerifier;
 
-impl DeferredProofVerifier for NoOpDeferredProofVerifier {
+impl SubproofVerifier for NoOpSubproofVerifier {
     fn verify_deferred_proof(
         &self,
         _proof: &ShardProof<BabyBearPoseidon2>,
@@ -133,7 +133,7 @@ impl DeferredProofVerifier for NoOpDeferredProofVerifier {
     }
 }
 
-impl DefaultDeferredProofVerifier {
+impl DefaultSubproofVerifier {
     pub fn new() -> Self {
         Self {
             printed: AtomicBool::new(false),
@@ -141,7 +141,7 @@ impl DefaultDeferredProofVerifier {
     }
 }
 
-impl DeferredProofVerifier for DefaultDeferredProofVerifier {
+impl SubproofVerifier for DefaultSubproofVerifier {
     fn verify_deferred_proof(
         &self,
         _proof: &ShardProof<BabyBearPoseidon2>,
@@ -259,7 +259,7 @@ impl<'a> Runtime<'a> {
             max_syscall_cycles,
             report: Default::default(),
             print_report: false,
-            deferred_proof_verifier: Arc::new(DefaultDeferredProofVerifier::new()),
+            subproof_verifier: Arc::new(DefaultSubproofVerifier::new()),
         }
     }
 

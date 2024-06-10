@@ -41,7 +41,7 @@ impl Syscall for SyscallVerifySP1Proof {
         let pv_digest_bytes: [u32; 8] = pv_digest.try_into().unwrap();
 
         ctx.rt
-            .deferred_proof_verifier
+            .subproof_verifier
             .verify_deferred_proof(proof, proof_vk, vkey_bytes, pv_digest_bytes)
             .unwrap_or_else(|e| {
                 panic!(

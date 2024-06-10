@@ -5,7 +5,7 @@ use num_bigint::BigUint;
 use p3_baby_bear::BabyBear;
 use p3_field::{AbstractField, PrimeField};
 use sp1_core::air::MachineAir;
-use sp1_core::runtime::DeferredProofVerifier;
+use sp1_core::runtime::SubproofVerifier;
 use sp1_core::{
     air::PublicValues,
     io::SP1PublicValues,
@@ -297,7 +297,7 @@ pub fn verify_plonk_bn254_public_inputs(
     Ok(())
 }
 
-impl DeferredProofVerifier for &SP1Prover {
+impl SubproofVerifier for &SP1Prover {
     fn verify_deferred_proof(
         &self,
         proof: &sp1_core::stark::ShardProof<BabyBearPoseidon2>,

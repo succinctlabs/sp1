@@ -16,7 +16,7 @@ use crate::air::MachineAir;
 use crate::io::{SP1PublicValues, SP1Stdin};
 use crate::lookup::InteractionBuilder;
 use crate::runtime::{
-    DefaultDeferredProofVerifier, DeferredProofVerifier, ExecutionError, NoOpDeferredProofVerifier,
+    DefaultSubproofVerifier, ExecutionError, NoOpSubproofVerifier, SubproofVerifier,
 };
 use crate::runtime::{ExecutionRecord, ExecutionReport, ShardingConfig};
 use crate::stark::DebugConstraintBuilder;
@@ -100,15 +100,15 @@ where
     ShardMainData<SC>: Serialize + DeserializeOwned,
     <SC as StarkGenericConfig>::Val: PrimeField32,
 {
-    prove_with_deferred::<SC, DefaultDeferredProofVerifier>(program, stdin, config, opts, None)
+    prove_with_subproof_verifier::<SC, DefaultSubproofVerifier>(program, stdin, config, opts, None)
 }
 
-pub fn prove_with_deferred<SC: StarkGenericConfig + Send + Sync, V: DeferredProofVerifier>(
+pub fn prove_with_subproof_verifier<SC: StarkGenericConfig + Send + Sync, V: SubproofVerifier>(
     program: Program,
     stdin: &SP1Stdin,
     config: SC,
     opts: SP1CoreOpts,
-    deferred_fn: Option<Arc<V>>,
+    subproof_verifier: Option<Arc<V>>,
 ) -> Result<(MachineProof<SC>, Vec<u8>), SP1CoreProverError>
 where
     SC::Challenger: Clone,
@@ -126,8 +126,8 @@ where
     for proof in stdin.proofs.iter() {
         runtime.write_proof(proof.0.clone(), proof.1.clone());
     }
-    if let Some(deferred_fn) = deferred_fn.clone() {
-        runtime.deferred_proof_verifier = deferred_fn;
+    if let Some(deferred_fn) = subproof_verifier.clone() {
+        runtime.subproof_verifier = deferred_fn;
     }
 
     // Setup the machine.
@@ -381,7 +381,7 @@ fn trace_checkpoint(
     let mut runtime = Runtime::recover(program.clone(), state, opts);
     // We already passed the deferred proof verifier when creating checkpoints, so the proofs were
     // already verified. So here we use a noop verifier to not print any warnings.
-    runtime.deferred_proof_verifier = Arc::new(NoOpDeferredProofVerifier);
+    runtime.subproof_verifier = Arc::new(NoOpSubproofVerifier);
     let (events, _) =
         tracing::debug_span!("runtime.trace").in_scope(|| runtime.execute_record().unwrap());
     (events, runtime.report)

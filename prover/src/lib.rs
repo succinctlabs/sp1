@@ -251,7 +251,7 @@ impl SP1Prover {
         let config = CoreSC::default();
         let program = Program::from(&pk.elf);
         let opts = SP1CoreOpts::default();
-        let (proof, public_values_stream) = sp1_core::utils::prove_with_deferred(
+        let (proof, public_values_stream) = sp1_core::utils::prove_with_subproof_verifier(
             program,
             stdin,
             config,
