@@ -15,7 +15,7 @@ use crate::air::MachineAir;
 use crate::io::{SP1PublicValues, SP1Stdin};
 use crate::lookup::InteractionBuilder;
 use crate::runtime::ExecutionError;
-use crate::runtime::{ExecutionRecord, ShardingConfig};
+use crate::runtime::{ExecutionRecord, ExecutionReport, ShardingConfig};
 use crate::stark::DebugConstraintBuilder;
 use crate::stark::MachineProof;
 use crate::stark::ProverConstraintFolder;
@@ -163,7 +163,7 @@ where
     let mut challenger = machine.config().challenger();
     vk.observe_into(&mut challenger);
     for (num, checkpoint_file) in checkpoints.iter_mut().enumerate() {
-        let mut record = tracing::info_span!("commit_checkpoint", num)
+        let (mut record, _) = tracing::info_span!("commit_checkpoint", num)
             .in_scope(|| trace_checkpoint(program.clone(), checkpoint_file, opts));
         record.public_values = public_values;
         reset_seek(&mut *checkpoint_file);
@@ -186,10 +186,12 @@ where
 
     // For each checkpoint, generate events and shard again, then prove the shards.
     let mut shard_proofs = Vec::<ShardProof<SC>>::new();
+    let mut report_aggregate = ExecutionReport::default();
     for (num, mut checkpoint_file) in checkpoints.into_iter().enumerate() {
         let checkpoint_shards = {
-            let mut events = tracing::info_span!("prove_checkpoint", num)
+            let (mut events, report) = tracing::info_span!("prove_checkpoint", num)
                 .in_scope(|| trace_checkpoint(program.clone(), &checkpoint_file, opts));
+            report_aggregate += report;
             events.public_values = public_values;
             reset_seek(&mut checkpoint_file);
             tracing::debug_span!("shard").in_scope(|| machine.shard(events, &sharding_config))
@@ -216,6 +218,22 @@ where
             })
             .collect::<Vec<_>>();
         shard_proofs.append(&mut checkpoint_proofs);
+    }
+    // Log some of the `ExecutionReport` information.
+    tracing::info!(
+        "execution report (totals): total_cycles={}, total_syscall_cycles={}",
+        report_aggregate.total_instruction_count(),
+        report_aggregate.total_syscall_count()
+    );
+    // Print the opcode and syscall count tables like `du`:
+    // sorted by count (descending) and with the count in the first column.
+    tracing::info!("execution report (opcode counts):");
+    for line in ExecutionReport::sorted_table_lines(&report_aggregate.opcode_counts) {
+        tracing::info!("  {line}");
+    }
+    tracing::info!("execution report (syscall counts):");
+    for line in ExecutionReport::sorted_table_lines(&report_aggregate.syscall_counts) {
+        tracing::info!("  {line}");
     }
 
     let proof = MachineProof::<SC> { shard_proofs };
@@ -329,13 +347,17 @@ where
     Ok(proof)
 }
 
-fn trace_checkpoint(program: Program, file: &File, opts: SP1CoreOpts) -> ExecutionRecord {
+fn trace_checkpoint(
+    program: Program,
+    file: &File,
+    opts: SP1CoreOpts,
+) -> (ExecutionRecord, ExecutionReport) {
     let mut reader = std::io::BufReader::new(file);
     let state = bincode::deserialize_from(&mut reader).expect("failed to deserialize state");
     let mut runtime = Runtime::recover(program.clone(), state, opts);
     let (events, _) =
         tracing::debug_span!("runtime.trace").in_scope(|| runtime.execute_record().unwrap());
-    events
+    (events, runtime.report)
 }
 
 fn reset_seek(file: &mut File) {
