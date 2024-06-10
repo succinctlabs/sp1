@@ -5,6 +5,7 @@ use num_bigint::BigUint;
 use p3_baby_bear::BabyBear;
 use p3_field::{AbstractField, PrimeField};
 use sp1_core::air::MachineAir;
+use sp1_core::runtime::DeferredProofVerifier;
 use sp1_core::{
     air::PublicValues,
     io::SP1PublicValues,
@@ -294,4 +295,38 @@ pub fn verify_plonk_bn254_public_inputs(
     }
 
     Ok(())
+}
+
+impl DeferredProofVerifier for &SP1Prover {
+    fn verify_deferred_proof(
+        &self,
+        proof: &sp1_core::stark::ShardProof<BabyBearPoseidon2>,
+        vk: &sp1_core::stark::StarkVerifyingKey<BabyBearPoseidon2>,
+        vk_hash: [u32; 8],
+        committed_value_digest: [u32; 8],
+    ) -> Result<(), MachineVerificationError<BabyBearPoseidon2>> {
+        // Check that the vk hash matches the vk hash from the input.
+        if vk.hash_u32() != vk_hash {
+            return Err(MachineVerificationError::InvalidPublicValues(
+                "vk hash from syscall does not match vkey from input",
+            ));
+        }
+        // Check that proof is valid.
+        self.verify_compressed(
+            &SP1ReduceProof {
+                proof: proof.clone(),
+            },
+            &SP1VerifyingKey { vk: vk.clone() },
+        )?;
+        // Check that the committed value digest matches the one from syscall
+        let public_values: &RecursionPublicValues<_> = proof.public_values.as_slice().borrow();
+        for (i, word) in public_values.committed_value_digest.iter().enumerate() {
+            if *word != committed_value_digest[i].into() {
+                return Err(MachineVerificationError::InvalidPublicValues(
+                    "committed_value_digest does not match",
+                ));
+            }
+        }
+        Ok(())
+    }
 }

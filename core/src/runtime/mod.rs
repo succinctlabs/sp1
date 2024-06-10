@@ -27,6 +27,7 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufWriter;
 use std::io::Write;
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use thiserror::Error;
@@ -94,7 +95,7 @@ pub struct Runtime<'a> {
     pub print_report: bool,
 
     /// A function to sanity check `verify_sp1_proof` during runtime.
-    pub deferred_proof_verifier: DeferredProofVerifyFn<'a>,
+    pub deferred_proof_verifier: Arc<dyn DeferredProofVerifier + 'a>,
 }
 
 /// Function to verify proofs during runtime when the verify_sp1_proof precompile is used. This
@@ -103,15 +104,59 @@ pub struct Runtime<'a> {
 ///
 /// This function is passed into the runtime because its actual implementation relies on crates
 /// in recursion that depend on sp1-core.
-pub type DeferredProofVerifyFn<'a> = Box<
-    dyn Fn(
-            &ShardProof<BabyBearPoseidon2>,
-            &StarkVerifyingKey<BabyBearPoseidon2>,
-            [u32; 8],
-            [u32; 8],
-        ) -> Result<(), MachineVerificationError<BabyBearPoseidon2>>
-        + 'a,
->;
+pub trait DeferredProofVerifier: Send {
+    fn verify_deferred_proof(
+        &self,
+        proof: &ShardProof<BabyBearPoseidon2>,
+        vk: &StarkVerifyingKey<BabyBearPoseidon2>,
+        vk_hash: [u32; 8],
+        committed_value_digest: [u32; 8],
+    ) -> Result<(), MachineVerificationError<BabyBearPoseidon2>>;
+}
+
+#[derive(Default)]
+pub struct DefaultDeferredProofVerifier {
+    printed: AtomicBool,
+}
+
+pub struct NoOpDeferredProofVerifier;
+
+impl DeferredProofVerifier for NoOpDeferredProofVerifier {
+    fn verify_deferred_proof(
+        &self,
+        _proof: &ShardProof<BabyBearPoseidon2>,
+        _vk: &StarkVerifyingKey<BabyBearPoseidon2>,
+        _vk_hash: [u32; 8],
+        _committed_value_digest: [u32; 8],
+    ) -> Result<(), MachineVerificationError<BabyBearPoseidon2>> {
+        Ok(())
+    }
+}
+
+impl DefaultDeferredProofVerifier {
+    pub fn new() -> Self {
+        Self {
+            printed: AtomicBool::new(false),
+        }
+    }
+}
+
+impl DeferredProofVerifier for DefaultDeferredProofVerifier {
+    fn verify_deferred_proof(
+        &self,
+        _proof: &ShardProof<BabyBearPoseidon2>,
+        _vk: &StarkVerifyingKey<BabyBearPoseidon2>,
+        _vk_hash: [u32; 8],
+        _committed_value_digest: [u32; 8],
+    ) -> Result<(), MachineVerificationError<BabyBearPoseidon2>> {
+        if !self.printed.load(std::sync::atomic::Ordering::SeqCst) {
+            tracing::info!("Not verifying sub proof during runtime");
+            self.printed
+                .store(true, std::sync::atomic::Ordering::SeqCst);
+        }
+        Ok(())
+    }
+}
 
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct ExecutionReport {
@@ -214,10 +259,7 @@ impl<'a> Runtime<'a> {
             max_syscall_cycles,
             report: Default::default(),
             print_report: false,
-            deferred_proof_verifier: Box::new(|_, _, _, _| {
-                log::warn!("Not verifying sub proof during runtime");
-                Ok(())
-            }),
+            deferred_proof_verifier: Arc::new(DefaultDeferredProofVerifier::new()),
         }
     }
 
@@ -1151,7 +1193,7 @@ impl<'a> Runtime<'a> {
 
         // Ensure that all proofs and input bytes were read, otherwise warn the user.
         if self.state.proof_stream_ptr != self.state.proof_stream.len() {
-            log::warn!("Not all proofs were read. The proof may fail during recursion. Did you pass too many proofs in or forget to call verify_sp1_proof?");
+            panic!("Not all proofs were read. Proving will fail during recursion. Did you pass too many proofs in or forget to call verify_sp1_proof?");
         }
         if self.state.input_stream_ptr != self.state.input_stream.len() {
             log::warn!("Not all input bytes were read.");
