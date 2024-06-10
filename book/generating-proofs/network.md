@@ -14,34 +14,34 @@ SP1_PROVER=network SP1_PRIVATE_KEY=... cargo run --release
 
 - `SP1_PROVER` should be set to `network` when using the prover network.
 
-- `SP1_PRIVATE_KEY` is your secp256k1 private key for signing messages on the network. The balance of
-  the address corresponding to this private key will be used to pay for the proof request.
+- `SP1_PRIVATE_KEY` should be set to your [private key](#key-setup). You will need
+  to be using a [whitelisted](#getting-whitelisted) key to use the network.
 
 Once a request is sent, a prover will claim the request and start generating a proof. After some
-time, it will be returned.
+time, it will be fulfilled.
 
-## Network balance
+## Key Setup
 
-Before sending requests, you must ensure you have enough balance on the network. You can add to your
-balance by sending ETH to the canonical `NetworkFeeVault` contract on Base, which has the address
-[0x66ea36fDBdDD09E3aCAB7B9f654220B00e537574](https://basescan.org/address/0x66ea36fdbddd09e3acab7b9f654220b00e537574#code).
+The prover network uses secp256k1 signatures for authentication. You may generate a new keypair
+explicitly for use with the prover network, or used an existing keypair.
 
-Adding to your balance can be done in [Etherscan](https://basescan.org/address/0x66ea36fdbddd09e3acab7b9f654220b00e537574#writeContract) by
-connecting your wallet, or by using the [cast](https://book.getfoundry.sh/cast/) CLI tool.
+There is no need for this keypair to hold funds. Its role is solely for authentication purposes,
+functioning as a unique identifier for your account.
 
-This can be done either by calling the `addBalance()` function:
-
-```sh
-# The sender will send 1000 wei and the $OWNER will have their balance increased by 1000
-OWNER=(your address)
-AMOUNT=1000
-cast send 0x66ea36fDBdDD09E3aCAB7B9f654220B00e537574 "addBalance(address)" $OWNER --value $AMOUNT --private-key $PRIVATE_KEY --chain-id 8453 --rpc-url https://developer-access-mainnet.base.org
-```
-
-or by sending ETH directly:
+Prover network keypair credentials can be generated using the [cast](https://book.getfoundry.sh/cast/) CLI tool:
 
 ```sh
-# The sender will send 1000 wei and have their balance increased by 1000
-AMOUNT=1000
-cast send 0x66ea36fDBdDD09E3aCAB7B9f654220B00e537574 --value $AMOUNT --private-key $PRIVATE_KEY --chain-id 8453 --rpc-url https://developer-access-mainnet.base.org
+cast wallet new
 ```
+
+or retieve your address from an existing key:
+
+```sh
+cast wallet address --private-key $SP1_PRIVATE_KEY
+```
+
+The private key should be set to `SP1_PRIVATE_KEY`, which should be kept safe and secure. Only your address can be shared publically.
+
+## Getting Whitelisted
+
+After you have completed the [key setup](#key-setup), you can submit your address in this [form](https://docs.google.com/forms/d/e/1FAIpQLSd-X9uH7G0bvXH_kjptnQtNil8L4dumrVPpFE4t8Ci1XT1GaQ/viewform?vc=0&c=0&w=1&flr=0&usp=mail_form_link).
