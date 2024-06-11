@@ -78,7 +78,7 @@ impl Syscall for SyscallWrite {
                 let (name, value): (String, Vec<u8>) =
                     bincode::deserialize(slice).expect("hook call should deserialize");
                 tracing::info!("invoking runtime hook: {name} with {} bytes", value.len());
-                let res = rt.invoke_hook(&name, &value);
+                let res = rt.hook(&name, &value);
                 tracing::info!(
                     "obtained {} values with byte counts {:?}",
                     res.len(),

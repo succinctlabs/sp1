@@ -60,7 +60,7 @@ impl<'a> Default for HookRegistry<'a> {
 }
 
 pub struct HookEnv<'a> {
-    pub runtime: &'a Runtime,
+    pub runtime: &'a Runtime<'a>,
 }
 
 pub fn hook_ecrecover(_env: HookEnv<'_>, buf: &[u8]) -> Vec<Vec<u8>> {

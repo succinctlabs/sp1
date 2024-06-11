@@ -47,7 +47,7 @@ use crate::{alu::AluEvent, cpu::CpuEvent};
 ///
 /// For more information on the RV32IM instruction set, see the following:
 /// https://www.cs.sfu.ca/~ashriram/Courses/CS295/assets/notebooks/RISCV/RISCV_CARD.pdf
-pub struct Runtime {
+pub struct Runtime<'a> {
     /// The program.
     pub program: Arc<Program>,
 
@@ -96,7 +96,7 @@ pub struct Runtime {
 
     /// TODO hashmap of closures, add some default closures in `new`
     /// TODO Decide if we want a lifetime parameter for non-static hooks.
-    pub hooks: HookRegistry<'static>,
+    pub hook_registry: HookRegistry<'a>,
 }
 
 #[derive(Error, Debug)]
@@ -113,7 +113,7 @@ pub enum ExecutionError {
     Unimplemented(),
 }
 
-impl Runtime {
+impl<'a> Runtime<'a> {
     // Create a new runtime from a program.
     pub fn new(program: Program, opts: SP1CoreOpts) -> Self {
         // Create a shared reference to the program.
@@ -158,8 +158,13 @@ impl Runtime {
             max_syscall_cycles,
             report: ExecutionReport::default(),
             print_report: false,
-            hooks: HookRegistry::default(),
+            hook_registry: HookRegistry::default(),
         }
+    }
+
+    /// TODO docs
+    pub fn hook(&self, name: &str, buf: &[u8]) -> Vec<Vec<u8>> {
+        self.hook_registry.table[name](HookEnv { runtime: self }, buf)
     }
 
     /// Recover runtime state from a program and existing execution state.
@@ -1034,11 +1039,6 @@ impl Runtime {
     pub fn dry_run(&mut self) {
         self.emit_events = false;
         while !self.execute().unwrap() {}
-    }
-
-    /// TODO docs
-    pub fn invoke_hook(&self, name: &str, buf: &[u8]) -> Vec<Vec<u8>> {
-        self.hooks.table[name](HookEnv { runtime: self }, buf)
     }
 
     /// Executes up to `self.shard_batch_size` cycles of the program, returning whether the program has finished.
