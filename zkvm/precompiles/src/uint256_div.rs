@@ -3,7 +3,7 @@ use crate::io;
 use crate::sys_bigint;
 use crate::syscall_uint256_mulmod;
 use crate::unconstrained;
-use num::{BigUint, Integer};
+use num::{BigUint, Integer, Zero};
 
 /// Performs division on 256-bit unsigned integers represented as little endian byte arrays.
 ///
@@ -16,9 +16,10 @@ pub fn uint256_div(x: &mut [u8; 32], y: &[u8; 32]) -> [u8; 32] {
     cfg_if::cfg_if! {
         if #[cfg(all(target_os = "zkvm", target_vendor = "succinct"))] {
             let dividend = BigUint::from_bytes_le(x);
+            let divisor = BigUint::from_bytes_le(y);
 
             unconstrained!{
-                let divisor = BigUint::from_bytes_le(y);
+
                 let (quotient, remainder) = dividend.div_rem(&divisor);
 
                 let mut quotient_bytes = quotient.to_bytes_le();
@@ -52,8 +53,8 @@ pub fn uint256_div(x: &mut [u8; 32], y: &[u8; 32]) -> [u8; 32] {
 
             let quotient_times_divisor = BigUint::from_bytes_le(&quotient_times_y);
 
-            assert_eq!(quotient_times_divisor + remainder, dividend);
-            assert!(0 <= remainder && remainder < y);
+            assert_eq!(quotient_times_divisor + remainder.clone(), dividend);
+            assert!(remainder < divisor);
 
             *x
         } else {
