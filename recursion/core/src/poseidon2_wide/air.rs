@@ -163,6 +163,7 @@ fn eval_mem<AB: SP1RecursionAirBuilder>(
     output_memory: &[MemoryReadWriteSingleCols<AB::Var>; WIDTH],
     is_syscall: AB::Var,
     is_input: AB::Var,
+    is_output: AB::Var,
 ) {
     // Evaluate all of the memory.
     for i in 0..WIDTH {
@@ -184,7 +185,7 @@ fn eval_mem<AB: SP1RecursionAirBuilder>(
             syscall_params.clk + AB::F::from_canonical_usize(1),
             output_addr,
             &output_memory[i],
-            AB::Expr::one() - is_input,
+            is_output,
         );
     }
 
@@ -255,6 +256,7 @@ where
 
         let is_syscall = local.is_syscall;
         let is_input = local.is_input;
+        let is_output = local.is_output;
         let do_perm = local.do_perm;
 
         // Check that all the control flow columns are correct.
@@ -268,6 +270,7 @@ where
             &local_output_cols.output_memory,
             is_syscall,
             is_input,
+            is_output,
         );
 
         // Check that the permutation columns are correct.

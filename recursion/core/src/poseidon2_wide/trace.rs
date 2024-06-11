@@ -107,6 +107,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
                     let mut output_row = vec![F::zero(); NUM_POSEIDON2_COLS];
                     let cols: &mut Poseidon2Cols<F> = output_row.as_mut_slice().borrow_mut();
                     cols.is_compress = F::one();
+                    cols.is_output = F::one();
                     let input_cols = cols.syscall_input.compress_mut();
                     input_cols.clk = compress_event.clk;
                     input_cols.dst_ptr = compress_event.dst;

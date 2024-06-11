@@ -142,7 +142,8 @@ pub struct Poseidon2Cols<T: Copy> {
     pub is_absorb: T,
     pub is_finalize: T,
     pub is_syscall: T,
-    pub is_input: T, // 1 if input, 0 if output
+    pub is_input: T,
+    pub is_output: T,
     pub do_perm: T,
     pub syscall_input: Poseidon2InputEnum<T>,
     pub opcode_specific_cols: Poseidon2OpcodeSpecific<T>,
