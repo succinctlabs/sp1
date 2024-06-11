@@ -94,7 +94,7 @@ pub struct Runtime<'a> {
     /// Whether we should write to the report.
     pub print_report: bool,
 
-    /// A function to sanity check `verify_sp1_proof` during runtime.
+    /// Verifier used to sanity check `verify_sp1_proof` during runtime.
     pub subproof_verifier: Arc<dyn SubproofVerifier + 'a>,
 }
 
