@@ -58,7 +58,11 @@ pub struct HookEnv<'a, 'b: 'a> {
 }
 
 pub fn hook_ecrecover(_env: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
-    assert_eq!(buf.len(), 65 + 32, "buf should have length 65 + 32");
+    assert_eq!(
+        buf.len(),
+        65 + 33,
+        "ecrecover input should have length 65 + 32"
+    );
     let (sig, msg_hash) = buf.split_at(65);
     let sig: &[u8; 65] = sig.try_into().unwrap();
     let msg_hash: &[u8; 32] = msg_hash.try_into().unwrap();
