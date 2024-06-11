@@ -6,7 +6,14 @@ In the case that you do not want to prove locally, you can use the Succinct prov
 
 ## Sending a proof request
 
-To use the prover network to generate a proof, you can run your script as you would normally but with additional environment variables set:
+To use the prover network to generate a proof, you can run your script using `sp1_sdk::ProverClient` as you would normally but with additional environment variables set:
+
+```rust,noplayground
+// Generate the proof for the given program.
+let client = ProverClient::new();
+let (pk, vk) = client.setup(ELF);
+let mut proof = client.prove(&pk, stdin).unwrap();
+```
 
 ```sh
 SP1_PROVER=network SP1_PRIVATE_KEY=... RUST_LOG=info cargo run --release
@@ -17,7 +24,7 @@ SP1_PROVER=network SP1_PRIVATE_KEY=... RUST_LOG=info cargo run --release
 - `SP1_PRIVATE_KEY` should be set to your [private key](#key-setup). You will need
   to be using a [permissioned](#get-access) key to use the network.
 
-When you call a prove function in ProverClient, it will first simulate your program, then submit it for a prover to claim the request and start generating a proof. It will then wait for a proof to be generated and return it.
+When you call any of the prove functions in ProverClient now, it will first simulate your program, then wait for it to be proven through the network.
 
 ## View the status of your proof
 
