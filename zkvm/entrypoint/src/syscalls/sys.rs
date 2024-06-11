@@ -1,4 +1,32 @@
+use std::sync::Mutex;
+
+use lazy_static::lazy_static;
+use rand::{rngs::StdRng, Rng, SeedableRng};
+
 use crate::syscalls::{syscall_halt, syscall_write};
+
+/// The random number generator seed for the zkVM.
+///
+/// In the future, we can pass in this seed from the host or have the verifier generate it.
+const PRNG_SEED: u64 = 0x123456789abcdef0;
+
+lazy_static! {
+    /// A lazy static to generate a global random number generator.
+    static ref RNG: Mutex<StdRng> = Mutex::new(StdRng::seed_from_u64(PRNG_SEED));
+}
+
+/// Generates random words.
+///
+/// # Safety
+///
+/// Make sure that `buf` has at least `nwords` words.
+pub unsafe extern "C" fn sys_rand(recv_buf: *mut u8, words: usize) {
+    let mut rng = RNG.lock().unwrap();
+    for i in 0..words {
+        let element = recv_buf.add(i);
+        *element = rng.gen();
+    }
+}
 
 #[allow(clippy::missing_safety_doc)]
 #[no_mangle]
