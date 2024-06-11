@@ -26,7 +26,7 @@ When you call any of the prove functions in ProverClient now, it will first simu
 
 You can view your proof and other running proofs on the [explorer](https://explorer.succinct.xyz/). The page for your proof will show details such as the stage of your proof and the cycles used. It also shows the program hash which is the keccak256 of the program bytes.
 
-![Image from explorer.succinct.xyz showing the details of a proof including status, stage, type, program, requester, prover, CPU cycles used, time requested, and time claimed.](explorer.png)
+![Screenshot from explorer.succinct.xyz showing the details of a proof including status, stage, type, program, requester, prover, CPU cycles used, time requested, and time claimed.](explorer.png)
 
 ## Advanced Usage
 
