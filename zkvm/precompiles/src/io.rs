@@ -84,7 +84,7 @@ pub fn hint_slice(buf: &[u8]) {
     my_reader.write_all(buf).unwrap();
 }
 
-/// TODO docs
+/// Write the data `buf` to the file descriptor `fd` using `Write::write_all` .
 pub fn write(fd: u32, buf: &[u8]) {
     SyscallWriter { fd }.write_all(buf).unwrap();
 }

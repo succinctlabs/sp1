@@ -94,8 +94,7 @@ pub struct Runtime<'a> {
     /// Whether we should write to the report.
     pub print_report: bool,
 
-    /// TODO hashmap of closures, add some default closures in `new`
-    /// TODO Decide if we want a lifetime parameter for non-static hooks.
+    /// Registry of hooks, to be invoked by writing to certain file descriptors.
     pub hook_registry: HookRegistry<'a>,
 }
 
@@ -162,7 +161,8 @@ impl<'a> Runtime<'a> {
         }
     }
 
-    /// TODO docs
+    /// Invokes the hook corresponding to the given file descriptor `fd` with the data `buf`,
+    /// returning the resulting data.
     pub fn hook(&self, fd: u32, buf: &[u8]) -> Vec<Vec<u8>> {
         self.hook_registry.table[&fd](HookEnv { runtime: self }, buf)
     }

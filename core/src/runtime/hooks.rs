@@ -10,10 +10,10 @@ type HookId = u32;
 type BoxedHook<'a> = Box<dyn Fn(HookEnv, &[u8]) -> Vec<Vec<u8>> + 'a>;
 
 // Ensure this value is synced with the values in `zkvm/precompiles/src/io.rs`
-/// TODO
+/// The file descriptor through which to access `hook_ecrecover`.
 pub const FD_ECRECOVER_HOOK: HookId = 5;
 
-/// TODO docs
+/// A registry of hooks to call, indexed by the file descriptors through which they are accessed.
 pub struct HookRegistry<'a> {
     /// Table of registered hooks. Prefer using `Runtime::invoke_hook` and
     /// `HookRegistry::register` over interacting with this field directly.
@@ -21,7 +21,7 @@ pub struct HookRegistry<'a> {
 }
 
 impl<'a> HookRegistry<'a> {
-    /// Create a registry with default hooks.
+    /// Create a registry with the default hooks.
     pub fn new() -> Self {
         Default::default()
     }
@@ -52,7 +52,7 @@ impl<'a> Default for HookRegistry<'a> {
     }
 }
 
-/// TODO docs
+/// Environment that a hook may read from.
 pub struct HookEnv<'a, 'b: 'a> {
     pub runtime: &'a Runtime<'b>,
 }
@@ -87,10 +87,15 @@ pub fn hook_ecrecover(_env: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
 
 #[cfg(test)]
 pub mod tests {
-    /// TODO more tests
     use super::*;
+
     #[test]
-    fn empty_is_empty() {
+    pub fn registry_new_is_inhabited() {
+        assert_ne!(HookRegistry::new().table.len(), 0);
+    }
+
+    #[test]
+    pub fn registry_empty_is_empty() {
         assert_eq!(HookRegistry::empty().table.len(), 0);
     }
 }
