@@ -31,3 +31,5 @@ Or, retrieve your address from an existing key:
 ```sh
 cast wallet address --private-key $PRIVATE_KEY
 ```
+
+Make sure to keep your private key somewhere safe and secure, you'll need it to interact with the prover network.
