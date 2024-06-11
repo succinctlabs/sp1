@@ -74,14 +74,7 @@ impl Syscall for SyscallWrite {
             } else if fd == 4 {
                 rt.state.input_stream.push(slice.to_vec());
             } else if fd == FD_ECRECOVER_HOOK {
-                // ECRECOVER HOOK
-                tracing::info!("invoking ecrecover hook with {} bytes", slice.len());
                 let res = rt.hook(FD_ECRECOVER_HOOK, slice);
-                tracing::info!(
-                    "obtained {} values with byte counts {:?}",
-                    res.len(),
-                    res.iter().map(|x| x.len()).collect::<Vec<_>>()
-                );
                 rt.state.input_stream.extend(res);
             } else {
                 unreachable!()
