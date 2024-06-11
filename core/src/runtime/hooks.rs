@@ -9,9 +9,9 @@ use super::Runtime;
 type BoxedHook<'a> = Box<dyn Fn(HookEnv, &[u8]) -> Vec<Vec<u8>> + 'a>;
 
 /// The file descriptor through which to access `hook_ecrecover`.
-///
-///Note: Ensure this value is synced with the value in `zkvm/precompiles/src/io.rs`.
 pub const FD_ECRECOVER_HOOK: u32 = 5;
+// Note: To ensure any `fd` value is synced with `zkvm/precompiles/src/io.rs`,
+// add an assertion to the test `hook_fds_match` below.
 
 /// A registry of hooks to call, indexed by the file descriptors through which they are accessed.
 pub struct HookRegistry<'a> {
@@ -88,6 +88,12 @@ pub fn hook_ecrecover(_env: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
 #[cfg(test)]
 pub mod tests {
     use super::*;
+
+    #[test]
+    pub fn hook_fds_match() {
+        use sp1_zkvm::precompiles::io;
+        assert_eq!(FD_ECRECOVER_HOOK, io::FD_ECRECOVER_HOOK)
+    }
 
     #[test]
     pub fn registry_new_is_inhabited() {
