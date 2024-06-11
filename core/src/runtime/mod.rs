@@ -163,8 +163,8 @@ impl<'a> Runtime<'a> {
     }
 
     /// TODO docs
-    pub fn hook(&self, name: &str, buf: &[u8]) -> Vec<Vec<u8>> {
-        self.hook_registry.table[name](HookEnv { runtime: self }, buf)
+    pub fn hook(&self, fd: u32, buf: &[u8]) -> Vec<Vec<u8>> {
+        self.hook_registry.table[&fd](HookEnv { runtime: self }, buf)
     }
 
     /// Recover runtime state from a program and existing execution state.

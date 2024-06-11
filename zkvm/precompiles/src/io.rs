@@ -7,8 +7,10 @@ use std::alloc::Layout;
 use std::io::Write;
 
 const FD_HINT: u32 = 4;
-const FD_RUNTIME_HOOK: u32 = 5;
 pub const FD_PUBLIC_VALUES: u32 = 3;
+// Runtime hook file descriptors. Make sure these match the FDs in the HookRegistry.
+// The default hooks can be found in `core/src/runtime/hooks.rs`.
+pub const FD_ECRECOVER_HOOK: u32 = 5;
 
 pub struct SyscallWriter {
     fd: u32,
@@ -82,19 +84,7 @@ pub fn hint_slice(buf: &[u8]) {
     my_reader.write_all(buf).unwrap();
 }
 
-pub fn invoke_hook<T: Serialize>(name: &str, value: &T) {
-    let mut my_writer = SyscallWriter {
-        fd: FD_RUNTIME_HOOK,
-    };
-    // Serialize twice, so we can deserialize the name, allowing any value for the rest of the data.
-    let serialized_value = bincode::serialize(value).expect("serialization failed");
-    let serialized = bincode::serialize(&(name, serialized_value)).expect("serialization failed");
-    my_writer.write_all(&serialized).unwrap();
+/// TODO docs
+pub fn write(fd: u32, buf: &[u8]) {
+    SyscallWriter { fd }.write_all(buf).unwrap();
 }
-
-// pub fn invoke_hook_slice(buf: &[u8]) {
-//     let mut my_writer = SyscallWriter {
-//         fd: FD_RUNTIME_HOOK,
-//     };
-//     my_writer.write_all(buf).unwrap();
-// }

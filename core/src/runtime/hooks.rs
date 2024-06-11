@@ -1,5 +1,4 @@
 use core::convert::TryInto;
-use std::borrow::Cow;
 use std::collections::HashMap;
 
 use k256::ecdsa::{RecoveryId, Signature, VerifyingKey};
@@ -7,14 +6,18 @@ use k256::elliptic_curve::ops::Invert;
 
 use super::Runtime;
 
-type HookName<'a> = Cow<'a, str>;
-type BoxedHook<'a> = Box<dyn Fn(HookEnv<'_>, &[u8]) -> Vec<Vec<u8>> + 'a>;
+type HookId = u32;
+type BoxedHook<'a> = Box<dyn Fn(HookEnv, &[u8]) -> Vec<Vec<u8>> + 'a>;
+
+// Ensure this value is synced with the values in `zkvm/precompiles/src/io.rs`
+/// TODO
+pub const FD_ECRECOVER_HOOK: HookId = 5;
 
 /// TODO docs
 pub struct HookRegistry<'a> {
     /// Table of registered hooks. Prefer using `Runtime::invoke_hook` and
     /// `HookRegistry::register` over interacting with this field directly.
-    pub table: HashMap<HookName<'a>, BoxedHook<'a>>,
+    pub table: HashMap<HookId, BoxedHook<'a>>,
 }
 
 impl<'a> HookRegistry<'a> {
@@ -31,7 +34,7 @@ impl<'a> HookRegistry<'a> {
     }
 
     /// Register a hook under a given name.
-    pub fn register(&mut self, name: HookName<'a>, hook: BoxedHook<'a>) {
+    pub fn register(&mut self, name: HookId, hook: BoxedHook<'a>) {
         self.table.insert(name, hook);
     }
 }
@@ -40,18 +43,8 @@ impl<'a> Default for HookRegistry<'a> {
     fn default() -> Self {
         // When `LazyCell` gets stabilized (1.81.0), we can use it to avoid unnecessary allocations.
         let table = {
-            let entries: Vec<(HookName, BoxedHook)> = vec![
-                // ("noop".into(), Box::new(|_, _| vec![])),
-                // ("echo".into(), Box::new(|_, args| vec![args.to_owned()])),
-                // (
-                //     "hello_world".into(),
-                //     Box::new(|_, args| {
-                //         tracing::info!("hello world! {args:?}");
-                //         vec![]
-                //     }),
-                // ),
-                ("ecrecover".into(), Box::new(hook_ecrecover)),
-            ];
+            let entries: Vec<(HookId, BoxedHook)> =
+                vec![(FD_ECRECOVER_HOOK, Box::new(hook_ecrecover))];
             HashMap::from_iter(entries)
         };
 
@@ -59,18 +52,20 @@ impl<'a> Default for HookRegistry<'a> {
     }
 }
 
-pub struct HookEnv<'a> {
-    pub runtime: &'a Runtime<'a>,
+/// TODO docs
+pub struct HookEnv<'a, 'b: 'a> {
+    pub runtime: &'a Runtime<'b>,
 }
 
-pub fn hook_ecrecover(_env: HookEnv<'_>, buf: &[u8]) -> Vec<Vec<u8>> {
+pub fn hook_ecrecover(_env: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
     tracing::info!("hook_ecrecover buf.len()={}", buf.len());
-    let (sig, msg_hash): ([u8; 65], [u8; 32]) = bincode::deserialize(buf)
-        .ok()
-        .and_then(|(sig, msg_hash): (Vec<u8>, Vec<u8>)| {
-            Some((sig.try_into().ok()?, msg_hash.try_into().ok()?))
-        })
-        .expect("hook_ecrecover args should deserialize");
+    let (sig, msg_hash) = buf.split_at(65);
+    let sig: &[u8; 65] = sig
+        .try_into()
+        .expect("buf should have correct size and offset of bytes for sig");
+    let msg_hash: &[u8; 32] = msg_hash
+        .try_into()
+        .expect("buf should have correct size and offset of bytes for msg_hash");
 
     let mut recovery_id = sig[64];
     let mut sig = Signature::from_slice(&sig[..64]).unwrap();
@@ -92,6 +87,7 @@ pub fn hook_ecrecover(_env: HookEnv<'_>, buf: &[u8]) -> Vec<Vec<u8>> {
 
 #[cfg(test)]
 pub mod tests {
+    /// TODO more tests
     use super::*;
     #[test]
     fn empty_is_empty() {

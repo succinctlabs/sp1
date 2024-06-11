@@ -1,5 +1,5 @@
 use crate::{
-    runtime::{Register, Syscall, SyscallContext},
+    runtime::{Register, Syscall, SyscallContext, FD_ECRECOVER_HOOK},
     utils::num_to_comma_separated,
 };
 
@@ -16,7 +16,7 @@ impl Syscall for SyscallWrite {
         let a2 = Register::X12;
         let rt = &mut ctx.rt;
         let fd = arg1;
-        if fd == 1 || fd == 2 || fd == 3 || fd == 4 || fd == 5 {
+        if fd == 1 || fd == 2 || fd == 3 || fd == 4 || fd == FD_ECRECOVER_HOOK {
             let write_buf = arg2;
             let nbytes = rt.register(a2);
             // Read nbytes from memory starting at write_buf.
@@ -73,12 +73,10 @@ impl Syscall for SyscallWrite {
                 rt.state.public_values_stream.extend_from_slice(slice);
             } else if fd == 4 {
                 rt.state.input_stream.push(slice.to_vec());
-            } else if fd == 5 {
-                // TODO file descriptor to call runtime hooks
-                let (name, value): (String, Vec<u8>) =
-                    bincode::deserialize(slice).expect("hook call should deserialize");
-                tracing::info!("invoking runtime hook: {name} with {} bytes", value.len());
-                let res = rt.hook(&name, &value);
+            } else if fd == FD_ECRECOVER_HOOK {
+                // ECRECOVER HOOK
+                tracing::info!("invoking ecrecover hook with {} bytes", slice.len());
+                let res = rt.hook(FD_ECRECOVER_HOOK, slice);
                 tracing::info!(
                     "obtained {} values with byte counts {:?}",
                     res.len(),

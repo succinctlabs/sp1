@@ -14,7 +14,7 @@ use k256::elliptic_curve::sec1::ToEncodedPoint;
 use k256::elliptic_curve::PrimeField;
 use k256::{PublicKey, Scalar, Secp256k1};
 
-use crate::io::{self, invoke_hook};
+use crate::io::{self, FD_ECRECOVER_HOOK};
 use crate::unconstrained;
 
 const NUM_WORDS: usize = 16;
@@ -190,28 +190,12 @@ fn double_and_add_base(
 /// use `ecrecover`.
 pub fn unconstrained_ecrecover(sig: &[u8; 65], msg_hash: &[u8; 32]) -> ([u8; 33], Scalar) {
     unconstrained! {
-        let mut buf = Vec::from(sig);
-        buf.extend_from_slice(msg_hash);
-        invoke_hook("ecrecover", &(sig as &[u8], msg_hash as &[u8]));
+        let mut buf = [0; 65 + 32];
+        let (buf_sig, buf_msg_hash) = buf.split_at_mut(sig.len());
+        buf_sig.copy_from_slice(sig);
+        buf_msg_hash.copy_from_slice(msg_hash);
+        io::write(FD_ECRECOVER_HOOK, &buf);
     }
-    // unconstrained! {
-    //     let mut recovery_id = sig[64];
-    //     let mut sig = Signature::from_slice(&sig[..64]).unwrap();
-
-    //     if let Some(sig_normalized) = sig.normalize_s() {
-    //         sig = sig_normalized;
-    //         recovery_id ^= 1
-    //     };
-    //     let recid = RecoveryId::from_byte(recovery_id).expect("Recovery ID is valid");
-
-    //     let recovered_key = VerifyingKey::recover_from_prehash(&msg_hash[..], &sig, recid).unwrap();
-    //     let bytes = recovered_key.to_sec1_bytes();
-    //     io::hint_slice(&bytes);
-
-    //     let (_, s) = sig.split_scalars();
-    //     let s_inverse = s.invert();
-    //     io::hint_slice(&s_inverse.to_bytes());
-    // }
 
     let mut recovered_bytes: [u8; 33] = io::read_vec().try_into().unwrap();
 
