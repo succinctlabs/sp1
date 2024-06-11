@@ -6,18 +6,18 @@ use k256::elliptic_curve::ops::Invert;
 
 use super::Runtime;
 
-type HookId = u32;
 type BoxedHook<'a> = Box<dyn Fn(HookEnv, &[u8]) -> Vec<Vec<u8>> + 'a>;
 
-// Ensure this value is synced with the values in `zkvm/precompiles/src/io.rs`
 /// The file descriptor through which to access `hook_ecrecover`.
-pub const FD_ECRECOVER_HOOK: HookId = 5;
+///
+///Note: Ensure this value is synced with the value in `zkvm/precompiles/src/io.rs`.
+pub const FD_ECRECOVER_HOOK: u32 = 5;
 
 /// A registry of hooks to call, indexed by the file descriptors through which they are accessed.
 pub struct HookRegistry<'a> {
     /// Table of registered hooks. Prefer using `Runtime::invoke_hook` and
     /// `HookRegistry::register` over interacting with this field directly.
-    pub table: HashMap<HookId, BoxedHook<'a>>,
+    pub table: HashMap<u32, BoxedHook<'a>>,
 }
 
 impl<'a> HookRegistry<'a> {
@@ -34,7 +34,7 @@ impl<'a> HookRegistry<'a> {
     }
 
     /// Register a hook under a given name.
-    pub fn register(&mut self, name: HookId, hook: BoxedHook<'a>) {
+    pub fn register(&mut self, name: u32, hook: BoxedHook<'a>) {
         self.table.insert(name, hook);
     }
 }
@@ -43,7 +43,7 @@ impl<'a> Default for HookRegistry<'a> {
     fn default() -> Self {
         // When `LazyCell` gets stabilized (1.81.0), we can use it to avoid unnecessary allocations.
         let table = {
-            let entries: Vec<(HookId, BoxedHook)> =
+            let entries: Vec<(u32, BoxedHook)> =
                 vec![(FD_ECRECOVER_HOOK, Box::new(hook_ecrecover))];
             HashMap::from_iter(entries)
         };
