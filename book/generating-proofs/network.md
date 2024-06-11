@@ -15,16 +15,16 @@ SP1_PROVER=network SP1_PRIVATE_KEY=... RUST_LOG=info cargo run --release
 - `SP1_PROVER` should be set to `network` when using the prover network.
 
 - `SP1_PRIVATE_KEY` should be set to your [private key](#key-setup). You will need
-  to be using a [whitelisted](#getting-whitelisted) key to use the network.
+  to be using a [permissioned](#get-access) key to use the network.
 
-When you call a prove function in ProverClient, it will first simulate your program, then submit it for a prover to claim the request and start generating a proof. It will then wait for a proof to be generated.
+When you call a prove function in ProverClient, it will first simulate your program, then submit it for a prover to claim the request and start generating a proof. It will then wait for a proof to be generated and return it.
 
 ## Key Setup
 
 The prover network uses secp256k1 signatures for authentication. You may generate a new keypair
 explicitly for use with the prover network, or used an existing keypair.
 
-There is no need for this keypair to hold funds. Its role is solely for authentication purposes,
+Currently there is no need for this keypair to hold funds on any chain. Its role is solely for authentication purposes,
 functioning as a unique identifier for your account.
 
 Prover network keypair credentials can be generated using the [cast](https://book.getfoundry.sh/cast/) CLI tool:
