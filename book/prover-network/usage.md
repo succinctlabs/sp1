@@ -1,14 +1,8 @@
-# Generating Proofs: Prover Network
-
-In the case that you do not want to prove locally, you can use the Succinct prover network to generate proofs.
-
-current, blog post, private beta, get key
-
-**Note:** The network is still in development and should be only used for testing purposes.
+# Prover Network: Usage
 
 ## Sending a proof request
 
-To use the prover network to generate a proof, you can run your script using `sp1_sdk::ProverClient` as you would normally but with additional environment variables set:
+To use the prover network to generate a proof, you can run your script that uses `sp1_sdk::ProverClient` as you would normally but with additional environment variables set:
 
 ```rust,noplayground
 // Generate the proof for the given program.
@@ -26,13 +20,13 @@ SP1_PROVER=network SP1_PRIVATE_KEY=... RUST_LOG=info cargo run --release
 - `SP1_PRIVATE_KEY` should be set to your [private key](#key-setup). You will need
   to be using a [permissioned](#get-access) key to use the network.
 
-When you call any of the prove functions in ProverClient now, it will first simulate your program, then wait for it to be proven through the network.
+When you call any of the prove functions in ProverClient now, it will first simulate your program, then wait for it to be proven through the network and finally return the proof.
 
 ## View the status of your proof
 
 You can view your proof and other running proofs on the [explorer](https://explorer.succinct.xyz/). The page for your proof will show details such as the stage of your proof and the cycles used. It also shows the program hash which is the keccak256 of the program bytes.
 
-![alt text](explorer.png)
+![Image from explorer.succinct.xyz showing the details of a proof including status, stage, type, program, requester, prover, CPU cycles used, time requested, and time claimed.](explorer.png)
 
 ## Advanced Usage
 
@@ -67,28 +61,3 @@ impl NetworkProver {
     pub async fn prove<P: ProofType>(&self, elf: &[u8], stdin: SP1Stdin) -> Result<P>;
 }
 ```
-
-## Get access
-
-Currently the network is permissioned, so you need to gain access through Succinct. After you have completed the [key setup](#key-setup), you can submit your address in this [form](https://docs.google.com/forms/d/e/1FAIpQLSd-X9uH7G0bvXH_kjptnQtNil8L4dumrVPpFE4t8Ci1XT1GaQ/viewform?vc=0&c=0&w=1&flr=0&usp=mail_form_link) and we'll contact you shortly.
-
-## Key Setup
-
-The prover network uses secp256k1 signatures for authentication. You may generate a new keypair
-explicitly for use with the prover network, or used an existing keypair.
-
-Currently there is no need for this keypair to hold funds on any chain. Its role is solely for authentication purposes, functioning as a unique identifier for your account.
-
-Prover network keypair credentials can be generated using the [cast](https://book.getfoundry.sh/cast/) CLI tool:
-
-```sh
-cast wallet new
-```
-
-or retieve your address from an existing key:
-
-```sh
-cast wallet address --private-key $SP1_PRIVATE_KEY
-```
-
-The private key should be set to `SP1_PRIVATE_KEY`, which should be kept safe and secure. Only your address can be shared publicly.
