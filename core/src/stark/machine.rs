@@ -340,18 +340,16 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         })?;
 
         // Verify the cumulative sum is 0.
-        // tracing::debug_span!("verify cumulative sum is 0").in_scope(|| {
-        //     let mut sum = SC::Challenge::zero();
-        //     for proof in proof.shard_proofs.iter() {
-        //         sum += proof.cumulative_sum();
-        //     }
-        //     match sum.is_zero() {
-        //         true => Ok(()),
-        //         false => Err(MachineVerificationError::NonZeroCumulativeSum),
-        //     }
-        // })
-
-        Ok(())
+        tracing::debug_span!("verify cumulative sum is 0").in_scope(|| {
+            let mut sum = SC::Challenge::zero();
+            for proof in proof.shard_proofs.iter() {
+                sum += proof.cumulative_sum();
+            }
+            match sum.is_zero() {
+                true => Ok(()),
+                false => Err(MachineVerificationError::NonZeroCumulativeSum),
+            }
+        })
     }
 
     #[instrument("debug constraints", level = "debug", skip_all)]

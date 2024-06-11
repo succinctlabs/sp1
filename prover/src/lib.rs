@@ -447,6 +447,14 @@ impl SP1Prover {
                     runtime.print_stats();
 
                     let pk = &self.deferred_pk;
+
+                    let mut recursive_challenger = self.compress_machine.config().challenger();
+                    self.compress_machine.debug_constraints(
+                        pk,
+                        runtime.record.clone(),
+                        &mut recursive_challenger,
+                    );
+
                     let mut recursive_challenger = self.compress_machine.config().challenger();
                     (
                         self.compress_machine.prove::<LocalProver<_, _>>(
