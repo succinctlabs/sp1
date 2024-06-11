@@ -113,7 +113,7 @@ where
     pub fn generate_permutation_trace<EF: ExtensionField<F>>(
         &self,
         preprocessed: Option<&RowMajorMatrix<F>>,
-        main: &mut RowMajorMatrix<F>,
+        main: &RowMajorMatrix<F>,
         random_elements: &[EF],
     ) -> RowMajorMatrix<EF>
     where
