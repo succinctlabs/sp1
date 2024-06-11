@@ -6,10 +6,10 @@ In the case that you do not want to prove locally, you can use the Succinct prov
 
 ## Sending a proof request
 
-To use the prover network to generate a proof, you can run your program as you would normally but with additional environment variables set:
+To use the prover network to generate a proof, you can run your script as you would normally but with additional environment variables set:
 
 ```sh
-SP1_PROVER=network SP1_PRIVATE_KEY=... cargo run --release
+SP1_PROVER=network SP1_PRIVATE_KEY=... RUST_LOG=info cargo run --release
 ```
 
 - `SP1_PROVER` should be set to `network` when using the prover network.
@@ -40,8 +40,8 @@ or retieve your address from an existing key:
 cast wallet address --private-key $SP1_PRIVATE_KEY
 ```
 
-The private key should be set to `SP1_PRIVATE_KEY`, which should be kept safe and secure. Only your address can be shared publically.
+The private key should be set to `SP1_PRIVATE_KEY`, which should be kept safe and secure. Only your address can be shared publicly.
 
-## Getting Whitelisted
+## Get access
 
-After you have completed the [key setup](#key-setup), you can submit your address in this [form](https://docs.google.com/forms/d/e/1FAIpQLSd-X9uH7G0bvXH_kjptnQtNil8L4dumrVPpFE4t8Ci1XT1GaQ/viewform?vc=0&c=0&w=1&flr=0&usp=mail_form_link).
+Currently the network is permissioned, so you need to gain access through Succinct. After you have completed the [key setup](#key-setup), you can submit your address in this [form](https://docs.google.com/forms/d/e/1FAIpQLSd-X9uH7G0bvXH_kjptnQtNil8L4dumrVPpFE4t8Ci1XT1GaQ/viewform?vc=0&c=0&w=1&flr=0&usp=mail_form_link) and we'll contact you shortly.
