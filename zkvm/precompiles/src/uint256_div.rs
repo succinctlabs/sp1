@@ -53,7 +53,7 @@ pub fn uint256_div(x: &mut [u8; 32], y: &[u8; 32]) -> [u8; 32] {
             let quotient_times_divisor = BigUint::from_bytes_le(&quotient_times_y);
 
             assert_eq!(quotient_times_divisor + remainder, dividend);
-            assert!(0 <= remainder < y);
+            assert!(0 <= remainder && remainder < y);
 
             *x
         } else {
