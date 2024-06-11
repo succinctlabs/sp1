@@ -11,7 +11,9 @@ use std::process::Command;
 #[cfg(target_family = "unix")]
 use std::os::unix::fs::PermissionsExt;
 
-use crate::{get_target, get_toolchain_download_url, url_exists, RUSTUP_TOOLCHAIN_NAME};
+use crate::{
+    get_target, get_toolchain_download_url, is_supported_target, url_exists, RUSTUP_TOOLCHAIN_NAME,
+};
 
 #[derive(Parser)]
 #[command(
@@ -58,6 +60,11 @@ impl InstallToolchainCmd {
             Ok(_) => println!("Successfully created ~/.sp1 directory."),
             Err(err) => println!("Failed to create ~/.sp1 directory: {}", err),
         };
+
+        assert!(
+            is_supported_target(),
+            "Unsupported architecture. Please build the toolchain from source."
+        );
         let target = get_target();
         let toolchain_asset_name = format!("rust-toolchain-{}.tar.gz", target);
         let toolchain_archive_path = root_dir.join(toolchain_asset_name.clone());
