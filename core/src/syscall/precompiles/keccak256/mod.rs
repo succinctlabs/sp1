@@ -41,7 +41,6 @@ impl KeccakPermuteChip {
 #[cfg(test)]
 pub mod permute_tests {
     use crate::runtime::SyscallCode;
-    use crate::utils::tests::ECRECOVER_ELF;
     use crate::utils::{run_test, SP1CoreOpts};
     use crate::{
         runtime::{Instruction, Opcode, Program, Runtime},
@@ -92,9 +91,7 @@ pub mod permute_tests {
     #[test]
     fn test_keccak_permute_program_prove() {
         utils::setup_logger();
-        // TODO revert. this is just for testing
-        // let program = Program::from(KECCAK_PERMUTE_ELF);
-        let program = Program::from(ECRECOVER_ELF);
+        let program = Program::from(KECCAK_PERMUTE_ELF);
         run_test(program).unwrap();
     }
 }

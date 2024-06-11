@@ -58,7 +58,6 @@ pub struct HookEnv<'a, 'b: 'a> {
 }
 
 pub fn hook_ecrecover(_env: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
-    tracing::info!("hook_ecrecover buf.len()={}", buf.len());
     let (sig, msg_hash) = buf.split_at(65);
     let sig: &[u8; 65] = sig
         .try_into()

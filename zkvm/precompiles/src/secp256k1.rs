@@ -197,7 +197,7 @@ pub fn unconstrained_ecrecover(sig: &[u8; 65], msg_hash: &[u8; 32]) -> ([u8; 33]
         io::write(FD_ECRECOVER_HOOK, &buf);
     }
 
-    let mut recovered_bytes: [u8; 33] = io::read_vec().try_into().unwrap();
+    let recovered_bytes: [u8; 33] = io::read_vec().try_into().unwrap();
 
     let s_inv_bytes: [u8; 32] = io::read_vec().try_into().unwrap();
     let s_inverse = Scalar::from_repr(bits2field::<Secp256k1>(&s_inv_bytes).unwrap()).unwrap();
