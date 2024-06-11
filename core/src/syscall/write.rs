@@ -74,6 +74,8 @@ impl Syscall for SyscallWrite {
             rt.state.input_stream.push(slice.to_vec());
         } else if let Some(hook) = rt.hook_registry.table.get(&fd) {
             rt.state.input_stream.extend(hook(rt.hook_env(), slice));
+        } else {
+            panic!("tried to write to unknown file descriptor {fd}");
         }
         None
     }
