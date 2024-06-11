@@ -1,5 +1,5 @@
 use crate::{
-    runtime::{Register, Syscall, SyscallContext, FD_ECRECOVER_HOOK},
+    runtime::{Register, Syscall, SyscallContext},
     utils::num_to_comma_separated,
 };
 
@@ -16,7 +16,12 @@ impl Syscall for SyscallWrite {
         let a2 = Register::X12;
         let rt = &mut ctx.rt;
         let fd = arg1;
-        if fd == 1 || fd == 2 || fd == 3 || fd == 4 || fd == FD_ECRECOVER_HOOK {
+        let mut maybe_hook = None;
+        if fd == 1 || fd == 2 || fd == 3 || fd == 4 || {
+            // Is there a hook corresponding to `fd`?
+            maybe_hook = rt.hook_registry.table.get(&fd);
+            maybe_hook.is_some()
+        } {
             let write_buf = arg2;
             let nbytes = rt.register(a2);
             // Read nbytes from memory starting at write_buf.
@@ -73,9 +78,8 @@ impl Syscall for SyscallWrite {
                 rt.state.public_values_stream.extend_from_slice(slice);
             } else if fd == 4 {
                 rt.state.input_stream.push(slice.to_vec());
-            } else if fd == FD_ECRECOVER_HOOK {
-                let res = rt.hook(FD_ECRECOVER_HOOK, slice);
-                rt.state.input_stream.extend(res);
+            } else if let Some(hook) = maybe_hook {
+                rt.state.input_stream.extend(hook(rt.hook_env(), slice));
             } else {
                 unreachable!()
             }

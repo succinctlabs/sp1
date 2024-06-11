@@ -164,7 +164,12 @@ impl<'a> Runtime<'a> {
     /// Invokes the hook corresponding to the given file descriptor `fd` with the data `buf`,
     /// returning the resulting data.
     pub fn hook(&self, fd: u32, buf: &[u8]) -> Vec<Vec<u8>> {
-        self.hook_registry.table[&fd](HookEnv { runtime: self }, buf)
+        self.hook_registry.table[&fd](self.hook_env(), buf)
+    }
+
+    /// Prepare a `HookEnv` for use by hooks.
+    pub fn hook_env(&self) -> HookEnv {
+        HookEnv { runtime: self }
     }
 
     /// Recover runtime state from a program and existing execution state.
