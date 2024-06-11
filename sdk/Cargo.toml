@@ -36,7 +36,7 @@ tempfile = "3.10.1"
 num-bigint = "0.4.5"
 cfg-if = "1.0"
 ethers = { version = "2", default-features = false }
-strum_macros = "0.26.3"
+strum_macros = "0.26.4"
 strum = "0.26.2"
 
 [features]
