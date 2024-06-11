@@ -64,7 +64,7 @@ fn main() {
 
     // Save proof.
     proof
-        .save("proof-with-io.json")
+        .save("proof-with-io.bin")
         .expect("saving proof failed");
 
     println!("successfully generated and verified proof for the program!")

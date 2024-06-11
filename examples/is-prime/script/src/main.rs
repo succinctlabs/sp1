@@ -25,7 +25,7 @@ fn main() {
 
     // Save the proof
     proof
-        .save("proof-with-is-prime.json")
+        .save("proof-with-is-prime.bin")
         .expect("saving proof failed");
 
     println!("successfully generated and verified proof for the program!")

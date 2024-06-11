@@ -12,5 +12,5 @@ pgo-data.profdata
 .DS_Store
 
 # Proofs
-**/proof-with-pis.json
-**/proof-with-io.json
+**/proof-with-pis.bin
+**/proof-with-io.bin
