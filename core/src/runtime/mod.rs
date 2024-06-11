@@ -10,6 +10,7 @@ mod state;
 mod syscall;
 #[macro_use]
 mod utils;
+mod subproof;
 
 pub use instruction::*;
 pub use memory::*;
@@ -19,6 +20,7 @@ pub use record::*;
 pub use register::*;
 pub use report::*;
 pub use state::*;
+pub use subproof::*;
 pub use syscall::*;
 pub use utils::*;
 
@@ -27,7 +29,6 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufWriter;
 use std::io::Write;
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use thiserror::Error;
@@ -36,8 +37,7 @@ use crate::alu::create_alu_lookup_id;
 use crate::alu::create_alu_lookups;
 use crate::bytes::NUM_BYTE_LOOKUP_CHANNELS;
 use crate::memory::MemoryInitializeFinalizeEvent;
-use crate::stark::{MachineVerificationError, ShardProof, StarkVerifyingKey};
-use crate::utils::{BabyBearPoseidon2, SP1CoreOpts};
+use crate::utils::SP1CoreOpts;
 use crate::{alu::AluEvent, cpu::CpuEvent};
 
 /// An implementation of a runtime for the SP1 RISC-V zkVM.
@@ -96,108 +96,6 @@ pub struct Runtime<'a> {
 
     /// A function to sanity check `verify_sp1_proof` during runtime.
     pub subproof_verifier: Arc<dyn SubproofVerifier + 'a>,
-}
-
-/// Function to verify proofs during runtime when the verify_sp1_proof precompile is used. This
-/// is only done as a sanity check to ensure that users are passing in valid proofs. The actual
-/// constraints are verified in the recursion layer.
-///
-/// This function is passed into the runtime because its actual implementation relies on crates
-/// in recursion that depend on sp1-core.
-pub trait SubproofVerifier: Send {
-    fn verify_deferred_proof(
-        &self,
-        proof: &ShardProof<BabyBearPoseidon2>,
-        vk: &StarkVerifyingKey<BabyBearPoseidon2>,
-        vk_hash: [u32; 8],
-        committed_value_digest: [u32; 8],
-    ) -> Result<(), MachineVerificationError<BabyBearPoseidon2>>;
-}
-
-#[derive(Default)]
-pub struct DefaultSubproofVerifier {
-    printed: AtomicBool,
-}
-
-pub struct NoOpSubproofVerifier;
-
-impl SubproofVerifier for NoOpSubproofVerifier {
-    fn verify_deferred_proof(
-        &self,
-        _proof: &ShardProof<BabyBearPoseidon2>,
-        _vk: &StarkVerifyingKey<BabyBearPoseidon2>,
-        _vk_hash: [u32; 8],
-        _committed_value_digest: [u32; 8],
-    ) -> Result<(), MachineVerificationError<BabyBearPoseidon2>> {
-        Ok(())
-    }
-}
-
-impl DefaultSubproofVerifier {
-    pub fn new() -> Self {
-        Self {
-            printed: AtomicBool::new(false),
-        }
-    }
-}
-
-impl SubproofVerifier for DefaultSubproofVerifier {
-    fn verify_deferred_proof(
-        &self,
-        _proof: &ShardProof<BabyBearPoseidon2>,
-        _vk: &StarkVerifyingKey<BabyBearPoseidon2>,
-        _vk_hash: [u32; 8],
-        _committed_value_digest: [u32; 8],
-    ) -> Result<(), MachineVerificationError<BabyBearPoseidon2>> {
-        if !self.printed.load(std::sync::atomic::Ordering::SeqCst) {
-            tracing::info!("Not verifying sub proof during runtime");
-            self.printed
-                .store(true, std::sync::atomic::Ordering::SeqCst);
-        }
-        Ok(())
-    }
-}
-
-#[derive(Default, Debug, Clone, PartialEq, Eq)]
-pub struct ExecutionReport {
-    pub instruction_counts: HashMap<Opcode, u64>,
-    pub syscall_counts: HashMap<SyscallCode, u64>,
-}
-
-impl ExecutionReport {
-    pub fn total_instruction_count(&self) -> u64 {
-        self.instruction_counts.values().sum()
-    }
-
-    pub fn total_syscall_count(&self) -> u64 {
-        self.syscall_counts.values().sum()
-    }
-}
-
-impl Display for ExecutionReport {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        writeln!(f, "Instruction Counts:")?;
-        let mut sorted_instructions = self.instruction_counts.iter().collect::<Vec<_>>();
-
-        // Sort instructions by opcode name
-        sorted_instructions.sort_by_key(|&(opcode, _)| opcode.to_string());
-        for (opcode, count) in sorted_instructions {
-            writeln!(f, "  {}: {}", opcode, count)?;
-        }
-        writeln!(f, "Total Instructions: {}", self.total_instruction_count())?;
-
-        writeln!(f, "Syscall Counts:")?;
-        let mut sorted_syscalls = self.syscall_counts.iter().collect::<Vec<_>>();
-
-        // Sort syscalls by syscall name
-        sorted_syscalls.sort_by_key(|&(syscall, _)| format!("{:?}", syscall));
-        for (syscall, count) in sorted_syscalls {
-            writeln!(f, "  {}: {}", syscall, count)?;
-        }
-        writeln!(f, "Total Syscall Count: {}", self.total_syscall_count())?;
-
-        Ok(())
-    }
 }
 
 #[derive(Error, Debug)]
