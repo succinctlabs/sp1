@@ -60,7 +60,7 @@ pub struct HookEnv<'a, 'b: 'a> {
 pub fn hook_ecrecover(_env: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
     assert_eq!(
         buf.len(),
-        65 + 33,
+        65 + 32,
         "ecrecover input should have length 65 + 32"
     );
     let (sig, msg_hash) = buf.split_at(65);
@@ -87,6 +87,11 @@ pub fn hook_ecrecover(_env: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
 
 #[cfg(test)]
 pub mod tests {
+    use crate::{
+        runtime::Program,
+        utils::{self, tests::ECRECOVER_ELF},
+    };
+
     use super::*;
 
     #[test]
@@ -103,5 +108,12 @@ pub mod tests {
     #[test]
     pub fn registry_empty_is_empty() {
         assert_eq!(HookRegistry::empty().table.len(), 0);
+    }
+
+    #[test]
+    fn test_ecrecover_program_prove() {
+        utils::setup_logger();
+        let program = Program::from(ECRECOVER_ELF);
+        utils::run_test(program).unwrap();
     }
 }
