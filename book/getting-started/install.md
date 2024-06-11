@@ -18,7 +18,7 @@ sp1up is the SP1 toolchain installer. Open your terminal and run the following c
 curl -L https://sp1.succinct.xyz | bash
 ```
 
-This will install sp1up, then simply follow the instructions on-screen, which will make the `sp1up` command available in your CLI.
+Then simply follow the instructions on-screen, which will make the `sp1up` command available in your CLI.
 
 After following the instructions, you can run `sp1up` to install the toolchain:
 
@@ -26,8 +26,10 @@ After following the instructions, you can run `sp1up` to install the toolchain:
 sp1up
 ```
 
-This will install support for the `riscv32im-succinct-zkvm-elf` compilation target within your Rust compiler
-and a `cargo prove` CLI tool that will let you compile provable programs and then prove their correctness.
+This will install two things:
+
+1. The `succinct` Rust toolchain which has support for the `riscv32im-succinct-zkvm-elf` compilation target
+2. `cargo prove` CLI tool that will let you compile provable programs and then prove their correctness.
 
 You can verify the installation by running `cargo prove --version`:
 

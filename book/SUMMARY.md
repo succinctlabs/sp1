@@ -32,8 +32,6 @@
 
 - [Advanced](./generating-proofs/advanced.md)
 
-- [Network](./generating-proofs/network.md)
-
 # Prover Network
 
 - [Setup](./prover-network/setup.md)
