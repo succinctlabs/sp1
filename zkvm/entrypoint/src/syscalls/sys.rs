@@ -15,7 +15,7 @@ lazy_static! {
     static ref RNG: Mutex<StdRng> = Mutex::new(StdRng::seed_from_u64(PRNG_SEED));
 }
 
-/// Generates random words.
+/// Generates random bytes.
 ///
 /// # Safety
 ///
