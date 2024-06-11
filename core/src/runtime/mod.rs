@@ -96,7 +96,7 @@ pub struct Runtime {
 
     /// TODO hashmap of closures, add some default closures in `new`
     /// TODO Decide if we want a lifetime parameter for non-static hooks.
-    pub hooks: HashMap<HookName, BoxedHook>,
+    pub hooks: HookRegistry<'static>,
 }
 
 #[derive(Error, Debug)]
@@ -156,9 +156,9 @@ impl Runtime {
             syscall_map,
             emit_events: true,
             max_syscall_cycles,
-            report: Default::default(),
+            report: ExecutionReport::default(),
             print_report: false,
-            hooks: default_hooks(),
+            hooks: HookRegistry::default(),
         }
     }
 
@@ -1034,6 +1034,11 @@ impl Runtime {
     pub fn dry_run(&mut self) {
         self.emit_events = false;
         while !self.execute().unwrap() {}
+    }
+
+    /// TODO docs
+    pub fn invoke_hook(&self, name: &str, buf: &[u8]) -> Vec<Vec<u8>> {
+        self.hooks.table[name](HookEnv { runtime: self }, buf)
     }
 
     /// Executes up to `self.shard_batch_size` cycles of the program, returning whether the program has finished.

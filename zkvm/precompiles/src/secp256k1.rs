@@ -189,9 +189,11 @@ fn double_and_add_base(
 /// Either use `decompress_pubkey` and `verify_signature` to verify the results of this function, or
 /// use `ecrecover`.
 pub fn unconstrained_ecrecover(sig: &[u8; 65], msg_hash: &[u8; 32]) -> ([u8; 33], Scalar) {
-    let mut buf = Vec::from(sig);
-    buf.extend_from_slice(msg_hash);
-    invoke_hook("ecrecover", &(sig as &[u8], msg_hash as &[u8]));
+    unconstrained! {
+        let mut buf = Vec::from(sig);
+        buf.extend_from_slice(msg_hash);
+        invoke_hook("ecrecover", &(sig as &[u8], msg_hash as &[u8]));
+    }
     // unconstrained! {
     //     let mut recovery_id = sig[64];
     //     let mut sig = Signature::from_slice(&sig[..64]).unwrap();

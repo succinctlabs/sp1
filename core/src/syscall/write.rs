@@ -76,13 +76,14 @@ impl Syscall for SyscallWrite {
             } else if fd == 5 {
                 // TODO file descriptor to call runtime hooks
                 let (name, value): (String, Vec<u8>) =
-                    bincode::deserialize(slice).expect("failed to deserialize");
-                // let nb_bytes = bincode::serialized_size(&name)
-                //     .expect("failed to get serialized size")
-                //     as usize;
+                    bincode::deserialize(slice).expect("hook call should deserialize");
                 tracing::info!("invoking runtime hook: {name} with {} bytes", value.len());
-                let res = rt.hooks[&name](&value);
-                tracing::info!("obtained {} bytes", res.len());
+                let res = rt.invoke_hook(&name, &value);
+                tracing::info!(
+                    "obtained {} values with byte counts {:?}",
+                    res.len(),
+                    res.iter().map(|x| x.len()).collect::<Vec<_>>()
+                );
                 rt.state.input_stream.extend(res);
             } else {
                 unreachable!()
