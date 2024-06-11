@@ -6,7 +6,7 @@ Succinct [has been building](https://blog.succinct.xyz/succinct-network/) the Su
 
 ## Get access
 
-Currently the network is permissioned, so you need to gain access through Succinct. After you have completed the key setup below, you can submit your address in this [form](https://docs.google.com/forms/d/e/1FAIpQLSd-X9uH7G0bvXH_kjptnQtNil8L4dumrVPpFE4t8Ci1XT1GaQ/viewform?vc=0&c=0&w=1&flr=0&usp=mail_form_link) and we'll contact you shortly.
+Currently the network is permissioned, so you need to gain access through Succinct. After you have completed the key setup below, you can submit your address in this [form](https://docs.google.com/forms/d/e/1FAIpQLSd-X9uH7G0bvXH_kjptnQtNil8L4dumrVPpFE4t8Ci1XT1GaQ/viewform) and we'll contact you shortly.
 
 ### Key Setup
 
@@ -14,11 +14,19 @@ The prover network uses secp256k1 keypairs for authentication, like Ethereum wal
 
 Prover network keypair credentials can be generated using the [cast](https://book.getfoundry.sh/cast/) CLI tool:
 
+[Install](https://book.getfoundry.sh/getting-started/installation#using-foundryup):
+
+```sh
+curl -L https://foundry.paradigm.xyz | bash
+```
+
+Generate a new keypair:
+
 ```sh
 cast wallet new
 ```
 
-or retrieve your address from an existing key:
+Or, retrieve your address from an existing key:
 
 ```sh
 cast wallet address --private-key $PRIVATE_KEY
