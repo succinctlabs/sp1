@@ -34,6 +34,12 @@
 
 - [Network](./generating-proofs/network.md)
 
+# Prover Network
+
+- [Setup](./prover-network/setup.md)
+
+- [Usage](./prover-network/usage.md)
+
 # Verifying Proofs
 
 - [Solidity & EVM](./verifying-proofs/solidity-and-evm.md)
