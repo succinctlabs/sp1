@@ -7,6 +7,7 @@ use std::alloc::Layout;
 use std::io::Write;
 
 const FD_HINT: u32 = 4;
+const FD_RUNTIME_HOOK: u32 = 5;
 pub const FD_PUBLIC_VALUES: u32 = 3;
 
 pub struct SyscallWriter {
@@ -80,3 +81,20 @@ pub fn hint_slice(buf: &[u8]) {
     let mut my_reader = SyscallWriter { fd: FD_HINT };
     my_reader.write_all(buf).unwrap();
 }
+
+pub fn invoke_hook<T: Serialize>(name: &str, value: &T) {
+    let mut my_writer = SyscallWriter {
+        fd: FD_RUNTIME_HOOK,
+    };
+    // Serialize twice, so we can deserialize the name, allowing any value for the rest of the data.
+    let serialized_value = bincode::serialize(value).expect("serialization failed");
+    let serialized = bincode::serialize(&(name, serialized_value)).expect("serialization failed");
+    my_writer.write_all(&serialized).unwrap();
+}
+
+// pub fn invoke_hook_slice(buf: &[u8]) {
+//     let mut my_writer = SyscallWriter {
+//         fd: FD_RUNTIME_HOOK,
+//     };
+//     my_writer.write_all(buf).unwrap();
+// }

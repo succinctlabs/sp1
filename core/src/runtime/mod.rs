@@ -1,3 +1,4 @@
+mod hooks;
 mod instruction;
 mod io;
 mod memory;
@@ -11,6 +12,7 @@ mod syscall;
 #[macro_use]
 mod utils;
 
+pub use hooks::*;
 pub use instruction::*;
 pub use memory::*;
 pub use opcode::*;
@@ -91,6 +93,10 @@ pub struct Runtime {
 
     /// Whether we should write to the report.
     pub print_report: bool,
+
+    /// TODO hashmap of closures, add some default closures in `new`
+    /// TODO Decide if we want a lifetime parameter for non-static hooks.
+    pub hooks: HashMap<HookName, BoxedHook>,
 }
 
 #[derive(Error, Debug)]
@@ -152,6 +158,7 @@ impl Runtime {
             max_syscall_cycles,
             report: Default::default(),
             print_report: false,
+            hooks: default_hooks(),
         }
     }
 

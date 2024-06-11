@@ -14,7 +14,7 @@ use k256::elliptic_curve::sec1::ToEncodedPoint;
 use k256::elliptic_curve::PrimeField;
 use k256::{PublicKey, Scalar, Secp256k1};
 
-use crate::io;
+use crate::io::{self, invoke_hook};
 use crate::unconstrained;
 
 const NUM_WORDS: usize = 16;
@@ -189,26 +189,29 @@ fn double_and_add_base(
 /// Either use `decompress_pubkey` and `verify_signature` to verify the results of this function, or
 /// use `ecrecover`.
 pub fn unconstrained_ecrecover(sig: &[u8; 65], msg_hash: &[u8; 32]) -> ([u8; 33], Scalar) {
-    unconstrained! {
-        let mut recovery_id = sig[64];
-        let mut sig = Signature::from_slice(&sig[..64]).unwrap();
+    let mut buf = Vec::from(sig);
+    buf.extend_from_slice(msg_hash);
+    invoke_hook("ecrecover", &(sig as &[u8], msg_hash as &[u8]));
+    // unconstrained! {
+    //     let mut recovery_id = sig[64];
+    //     let mut sig = Signature::from_slice(&sig[..64]).unwrap();
 
-        if let Some(sig_normalized) = sig.normalize_s() {
-            sig = sig_normalized;
-            recovery_id ^= 1
-        };
-        let recid = RecoveryId::from_byte(recovery_id).expect("Recovery ID is valid");
+    //     if let Some(sig_normalized) = sig.normalize_s() {
+    //         sig = sig_normalized;
+    //         recovery_id ^= 1
+    //     };
+    //     let recid = RecoveryId::from_byte(recovery_id).expect("Recovery ID is valid");
 
-        let recovered_key = VerifyingKey::recover_from_prehash(&msg_hash[..], &sig, recid).unwrap();
-        let bytes = recovered_key.to_sec1_bytes();
-        io::hint_slice(&bytes);
+    //     let recovered_key = VerifyingKey::recover_from_prehash(&msg_hash[..], &sig, recid).unwrap();
+    //     let bytes = recovered_key.to_sec1_bytes();
+    //     io::hint_slice(&bytes);
 
-        let (_, s) = sig.split_scalars();
-        let s_inverse = s.invert();
-        io::hint_slice(&s_inverse.to_bytes());
-    }
+    //     let (_, s) = sig.split_scalars();
+    //     let s_inverse = s.invert();
+    //     io::hint_slice(&s_inverse.to_bytes());
+    // }
 
-    let recovered_bytes: [u8; 33] = io::read_vec().try_into().unwrap();
+    let mut recovered_bytes: [u8; 33] = io::read_vec().try_into().unwrap();
 
     let s_inv_bytes: [u8; 32] = io::read_vec().try_into().unwrap();
     let s_inverse = Scalar::from_repr(bits2field::<Secp256k1>(&s_inv_bytes).unwrap()).unwrap();

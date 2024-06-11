@@ -16,7 +16,7 @@ impl Syscall for SyscallWrite {
         let a2 = Register::X12;
         let rt = &mut ctx.rt;
         let fd = arg1;
-        if fd == 1 || fd == 2 || fd == 3 || fd == 4 {
+        if fd == 1 || fd == 2 || fd == 3 || fd == 4 || fd == 5 {
             let write_buf = arg2;
             let nbytes = rt.register(a2);
             // Read nbytes from memory starting at write_buf.
@@ -73,6 +73,17 @@ impl Syscall for SyscallWrite {
                 rt.state.public_values_stream.extend_from_slice(slice);
             } else if fd == 4 {
                 rt.state.input_stream.push(slice.to_vec());
+            } else if fd == 5 {
+                // TODO file descriptor to call runtime hooks
+                let (name, value): (String, Vec<u8>) =
+                    bincode::deserialize(slice).expect("failed to deserialize");
+                // let nb_bytes = bincode::serialized_size(&name)
+                //     .expect("failed to get serialized size")
+                //     as usize;
+                tracing::info!("invoking runtime hook: {name} with {} bytes", value.len());
+                let res = rt.hooks[&name](&value);
+                tracing::info!("obtained {} bytes", res.len());
+                rt.state.input_stream.extend(res);
             } else {
                 unreachable!()
             }
