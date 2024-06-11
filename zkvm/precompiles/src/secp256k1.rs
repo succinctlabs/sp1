@@ -189,6 +189,9 @@ fn double_and_add_base(
 /// Either use `decompress_pubkey` and `verify_signature` to verify the results of this function, or
 /// use `ecrecover`.
 pub fn unconstrained_ecrecover(sig: &[u8; 65], msg_hash: &[u8; 32]) -> ([u8; 33], Scalar) {
+    // The `unconstrained!` wrapper is used since none of these computations directly affect
+    // the output values of the VM. The remainder of the function sets the constraints on the values
+    // instead. Removing the `unconstrained!` wrapper slightly increases the cycle count.
     unconstrained! {
         let mut buf = [0; 65 + 32];
         let (buf_sig, buf_msg_hash) = buf.split_at_mut(sig.len());
