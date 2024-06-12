@@ -30,7 +30,7 @@ fn main() {
 
     // Save the proof.
     proof
-        .save("compressed-proof-with-pis.json")
+        .save("compressed-proof-with-pis.bin")
         .expect("saving proof failed");
 
     println!("successfully generated and verified proof for the program!")

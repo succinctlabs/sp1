@@ -40,8 +40,6 @@
 
 # Developers
 
-- [Recommended Settings](./developers/recommended-settings.md)
-
 - [Building Plonk Bn254 Artifacts](./developers/building-plonk-artifacts.md)
 
 - [Common Issues](./developers/common-issues.md)
