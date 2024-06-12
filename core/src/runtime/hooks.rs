@@ -1,4 +1,3 @@
-use core::convert::TryInto;
 use std::collections::HashMap;
 
 use k256::ecdsa::{RecoveryId, Signature, VerifyingKey};
