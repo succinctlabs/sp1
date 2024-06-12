@@ -16,7 +16,9 @@ pub mod network;
 pub use crate::network::prover::NetworkProver;
 
 pub mod provers;
-pub mod utils;
+pub mod utils {
+    pub use sp1_core::utils::setup_logger;
+}
 
 use cfg_if::cfg_if;
 use std::{env, fmt::Debug, fs::File, path::Path};
@@ -29,6 +31,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sp1_core::{
     runtime::ExecutionReport,
     stark::{MachineVerificationError, ShardProof},
+    SP1_CIRCUIT_VERSION,
 };
 pub use sp1_prover::{
     CoreSC, HashableKey, InnerSC, OuterSC, PlonkBn254Proof, SP1Prover, SP1ProvingKey,
@@ -165,6 +168,13 @@ impl ProverClient {
                 panic!("network feature is not enabled")
             }
         }
+    }
+
+    /// Gets the current version of the SP1 zkVM.
+    ///
+    /// Note: This is not the same as the version of the SP1 SDK.
+    pub fn version(&self) -> String {
+        SP1_CIRCUIT_VERSION.to_string()
     }
 
     /// Executes the given program on the given input (without generating a proof).
