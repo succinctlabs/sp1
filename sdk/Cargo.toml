@@ -38,6 +38,7 @@ cfg-if = "1.0"
 ethers = { version = "2", default-features = false }
 strum_macros = "0.26.3"
 strum = "0.26.2"
+thiserror = "1.0.61"
 
 [features]
 default = ["network"]
