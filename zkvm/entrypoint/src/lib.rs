@@ -95,13 +95,7 @@ mod zkvm {
         sym STACK_TOP
     );
 
-    static GETRANDOM_WARNING_ONCE: std::sync::Once = std::sync::Once::new();
-
     fn zkvm_getrandom(s: &mut [u8]) -> Result<(), Error> {
-        GETRANDOM_WARNING_ONCE.call_once(|| {
-            println!("WARNING: Using insecure random number generator");
-        });
-
         unsafe {
             crate::syscalls::sys_rand(s.as_mut_ptr(), s.len());
         }
