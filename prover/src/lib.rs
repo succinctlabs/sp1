@@ -706,23 +706,14 @@ mod tests {
     use std::fs::File;
     use std::io::{Read, Write};
 
-    use self::build::try_build_plonk_bn254_artifacts_dev;
     use super::*;
 
     use anyhow::Result;
+    use build::try_build_plonk_bn254_artifacts_dev;
     use p3_field::PrimeField32;
     use serial_test::serial;
     use sp1_core::io::SP1Stdin;
     use sp1_core::utils::setup_logger;
-
-    use p3_util::reverse_bits_len;
-    use rand::{thread_rng, Rng};
-    use sp1_core::{stark::StarkGenericConfig, utils::BabyBearPoseidon2};
-    use sp1_recursion_compiler::asm::AsmBuilder;
-    use sp1_recursion_compiler::ir::Felt;
-    use sp1_recursion_core::runtime::{Runtime, NUM_BITS};
-
-    use p3_field::AbstractField;
 
     /// Tests an end-to-end workflow of proving a program across the entire proof generation
     /// pipeline.

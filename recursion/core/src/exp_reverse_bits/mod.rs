@@ -1,7 +1,7 @@
 #![allow(clippy::needless_range_loop)]
 
 use crate::air::{Block, RecursionMemoryAirBuilder};
-use crate::memory::{MemoryAccessCols, MemoryReadSingleCols, MemoryReadWriteSingleCols};
+use crate::memory::{MemoryReadSingleCols, MemoryReadWriteSingleCols};
 use crate::runtime::Opcode;
 use core::borrow::Borrow;
 use itertools::Itertools;
@@ -106,8 +106,8 @@ impl<F: PrimeField32> ExpReverseBitsLenEvent<F> {
                 base_ptr: F::one(),
                 iteration_num: F::from_canonical_u32(i),
             });
-            new_exponent = new_exponent / 2;
-            new_len = new_len - F::one();
+            new_exponent /= 2;
+            new_len -= F::one();
         }
         assert_eq!(
             accum,
@@ -438,10 +438,8 @@ mod tests {
         utils::{uni_stark_prove, uni_stark_verify, BabyBearPoseidon2},
     };
 
-    use crate::air::Block;
     use crate::exp_reverse_bits::ExpReverseBitsLenChip;
     use crate::exp_reverse_bits::ExpReverseBitsLenEvent;
-    use crate::memory::MemoryRecord;
     use crate::runtime::ExecutionRecord;
 
     #[test]
@@ -454,9 +452,7 @@ mod tests {
             fixed_log2_rows: None,
         };
 
-        let test_xs = (1..16)
-            .map(|i| BabyBear::from_canonical_u32(i))
-            .collect_vec();
+        let test_xs = (1..16).map(BabyBear::from_canonical_u32).collect_vec();
 
         let test_exponents = (1..16).collect_vec();
 

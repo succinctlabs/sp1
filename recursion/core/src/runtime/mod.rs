@@ -8,7 +8,6 @@ use std::collections::VecDeque;
 use std::process::exit;
 use std::{marker::PhantomData, sync::Arc};
 
-use hashbrown::hash_map::Entry::Vacant;
 use hashbrown::HashMap;
 pub use instruction::*;
 use itertools::Itertools;
@@ -23,7 +22,7 @@ pub use utils::*;
 
 use crate::air::{Block, RECURSION_PUBLIC_VALUES_COL_MAP, RECURSIVE_PROOF_NUM_PV_ELTS};
 use crate::cpu::CpuEvent;
-use crate::exp_reverse_bits::{self, ExpReverseBitsLenEvent};
+use crate::exp_reverse_bits::ExpReverseBitsLenEvent;
 use crate::fri_fold::FriFoldEvent;
 use crate::memory::MemoryRecord;
 use crate::poseidon2::Poseidon2Event;
@@ -880,7 +879,7 @@ where
                                 len: len - m,
                                 prev_accum,
                                 accum,
-                                ptr: ptr,
+                                ptr,
                                 base_ptr: base,
                                 iteration_num: m,
                             });
@@ -1002,8 +1001,6 @@ mod tests {
     fn test_exp_reverse() {
         let two = F::two();
         let two_block = [F::two(), F::zero(), F::zero(), F::zero()];
-        let zero = F::zero();
-        // let zero_block = [F::zero(); 4];
         let program = RecursionProgram {
             traces: vec![],
             instructions: vec![Instruction::new(
