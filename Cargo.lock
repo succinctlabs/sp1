@@ -78,9 +78,9 @@ checksum = "5c6cb57a04249c6480766f7f7cef5467412af1490f8d1e243141daddada3264f"
 
 [[package]]
 name = "alloy-primitives"
-version = "0.7.4"
+version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db8aa973e647ec336810a9356af8aea787249c9d00b1525359f3db29a68d231b"
+checksum = "f783611babedbbe90db3478c120fb5f5daacceffc210b39adc0af4fe0da70bad"
 dependencies = [
  "alloy-rlp",
  "bytes",
@@ -110,9 +110,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-sol-macro"
-version = "0.7.4"
+version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7dbd17d67f3e89478c8a634416358e539e577899666c927bc3d2b1328ee9b6ca"
+checksum = "4bad41a7c19498e3f6079f7744656328699f8ea3e783bdd10d85788cd439f572"
 dependencies = [
  "alloy-sol-macro-expander",
  "alloy-sol-macro-input",
@@ -124,13 +124,13 @@ dependencies = [
 
 [[package]]
 name = "alloy-sol-macro-expander"
-version = "0.7.4"
+version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2c6da95adcf4760bb4b108fefa51d50096c5e5fdd29ee72fed3e86ee414f2e34"
+checksum = "fd9899da7d011b4fe4c406a524ed3e3f963797dbc93b45479d60341d3a27b252"
 dependencies = [
  "alloy-sol-macro-input",
  "const-hex",
- "heck 0.4.1",
+ "heck",
  "indexmap 2.2.6",
  "proc-macro-error",
  "proc-macro2",
@@ -142,13 +142,13 @@ dependencies = [
 
 [[package]]
 name = "alloy-sol-macro-input"
-version = "0.7.4"
+version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "32c8da04c1343871fb6ce5a489218f9c85323c8340a36e9106b5fc98d4dd59d5"
+checksum = "d32d595768fdc61331a132b6f65db41afae41b9b97d36c21eb1b955c422a7e60"
 dependencies = [
  "const-hex",
  "dunce",
- "heck 0.5.0",
+ "heck",
  "proc-macro2",
  "quote",
  "syn 2.0.66",
@@ -157,9 +157,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-sol-types"
-version = "0.7.4"
+version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "40a64d2d2395c1ac636b62419a7b17ec39031d6b2367e66e9acbf566e6055e9c"
+checksum = "a49042c6d3b66a9fe6b2b5a8bf0d39fc2ae1ee0310a2a26ffedd79fb097878dd"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-macro",
@@ -561,7 +561,7 @@ dependencies = [
  "bitflags 2.5.0",
  "cexpr",
  "clang-sys",
- "itertools 0.12.1",
+ "itertools 0.10.5",
  "lazy_static",
  "lazycell",
  "log",
@@ -747,9 +747,9 @@ checksum = "37b2a672a2cb129a2e41c10b1224bb368f9f37a2b16b612598138befd7b37eb5"
 
 [[package]]
 name = "cc"
-version = "1.0.98"
+version = "1.0.99"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "41c270e7540d725e65ac7f1b212ac8ce349719624d7bcff99f8e2e488e8cf03f"
+checksum = "96c51067fd44124faa7f870b4b1c969379ad32b2ba805aa959430ceaa384f695"
 dependencies = [
  "jobserver",
  "libc",
@@ -834,9 +834,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.5.4"
+version = "4.5.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "90bc066a67923782aa8515dbaea16946c5bcc5addbd668bb80af688e53e548a0"
+checksum = "5db83dced34638ad474f39f250d7fea9598bdd239eaced1bdf45d597da0f433f"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -844,9 +844,9 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-version = "4.5.2"
+version = "4.5.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ae129e2e766ae0ec03484e609954119f123cc1fe650337e155d03b022f24f7b4"
+checksum = "f7e204572485eb3fbf28f871612191521df159bc3e15a9f5064c66dba3a8c05f"
 dependencies = [
  "anstream",
  "anstyle",
@@ -856,11 +856,11 @@ dependencies = [
 
 [[package]]
 name = "clap_derive"
-version = "4.5.4"
+version = "4.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "528131438037fd55894f62d6e9f068b8f45ac57ffa77517819645d10aed04f64"
+checksum = "c780290ccf4fb26629baa7a1081e68ced113f1d3ec302fa5948f1c381ebf06c6"
 dependencies = [
- "heck 0.5.0",
+ "heck",
  "proc-macro2",
  "quote",
  "syn 2.0.66",
@@ -2085,12 +2085,6 @@ dependencies = [
 
 [[package]]
 name = "heck"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "95505c38b4572b2d910cecb0281560f54b440a19336cbbcb27bf6ce6adc6f5a8"
-
-[[package]]
-name = "heck"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
@@ -2484,6 +2478,15 @@ name = "itertools"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ba291022dbbd398a455acf126c1e341954079855bc60dfdda641363bd6922569"
+dependencies = [
+ "either",
+]
+
+[[package]]
+name = "itertools"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
 dependencies = [
  "either",
 ]
@@ -3638,7 +3641,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "81bddcdb20abf9501610992b6759a4c888aef7d1a7247ef75e2404275ac24af1"
 dependencies = [
  "anyhow",
- "itertools 0.12.1",
+ "itertools 0.10.5",
  "proc-macro2",
  "quote",
  "syn 2.0.66",
@@ -3985,9 +3988,9 @@ dependencies = [
 
 [[package]]
 name = "ruint"
-version = "1.12.1"
+version = "1.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8f308135fef9fc398342da5472ce7c484529df23743fb7c734e0f3d472971e62"
+checksum = "2c3cc4c2511671f327125da14133d0c5c5d137f006a1017a16f557bc85b16286"
 dependencies = [
  "alloy-rlp",
  "ark-ff 0.3.0",
@@ -4009,9 +4012,9 @@ dependencies = [
 
 [[package]]
 name = "ruint-macro"
-version = "1.2.0"
+version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f86854cf50259291520509879a5c294c3c9a4c334e9ff65071c51e42ef1e2343"
+checksum = "48fd7bd8a6377e15ad9d42a8ec25371b94ddc67abe7c8b9127bec79bebaaae18"
 
 [[package]]
 name = "rustc-demangle"
@@ -4605,7 +4608,7 @@ dependencies = [
  "elliptic-curve",
  "generic-array 1.0.0",
  "hex",
- "itertools 0.12.1",
+ "itertools 0.13.0",
  "k256",
  "log",
  "nohash-hasher",
@@ -4699,7 +4702,7 @@ dependencies = [
 name = "sp1-primitives"
 version = "0.1.0"
 dependencies = [
- "itertools 0.12.1",
+ "itertools 0.13.0",
  "lazy_static",
  "p3-baby-bear",
  "p3-field",
@@ -4719,7 +4722,7 @@ dependencies = [
  "futures",
  "hex",
  "indicatif",
- "itertools 0.12.1",
+ "itertools 0.13.0",
  "num-bigint 0.4.5",
  "p3-baby-bear",
  "p3-bn254-fr",
@@ -4756,7 +4759,7 @@ version = "0.1.0"
 dependencies = [
  "bincode",
  "ff 0.13.0",
- "itertools 0.12.1",
+ "itertools 0.13.0",
  "p3-air",
  "p3-baby-bear",
  "p3-bn254-fr",
@@ -4786,7 +4789,7 @@ name = "sp1-recursion-compiler"
 version = "0.1.0"
 dependencies = [
  "backtrace",
- "itertools 0.12.1",
+ "itertools 0.13.0",
  "p3-air",
  "p3-baby-bear",
  "p3-bn254-fr",
@@ -4816,7 +4819,7 @@ dependencies = [
  "backtrace",
  "ff 0.13.0",
  "hashbrown 0.14.5",
- "itertools 0.12.1",
+ "itertools 0.13.0",
  "p3-air",
  "p3-baby-bear",
  "p3-bn254-fr",
@@ -4855,6 +4858,8 @@ dependencies = [
 name = "sp1-recursion-gnark-ffi"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "bincode",
  "bindgen",
  "cc",
  "cfg-if",
@@ -4875,7 +4880,7 @@ dependencies = [
 name = "sp1-recursion-program"
 version = "0.1.0"
 dependencies = [
- "itertools 0.12.1",
+ "itertools 0.13.0",
  "p3-air",
  "p3-baby-bear",
  "p3-challenger",
@@ -4998,11 +5003,11 @@ dependencies = [
 
 [[package]]
 name = "strum_macros"
-version = "0.26.3"
+version = "0.26.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f7993a8e3a9e88a00351486baae9522c91b123a088f76469e5bd5cc17198ea87"
+checksum = "4c6bee85a5a24955dc440386795aa378cd9cf82acd5f764469152d2270e581be"
 dependencies = [
- "heck 0.5.0",
+ "heck",
  "proc-macro2",
  "quote",
  "rustversion",
@@ -5048,9 +5053,9 @@ dependencies = [
 
 [[package]]
 name = "syn-solidity"
-version = "0.7.4"
+version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8db114c44cf843a8bacd37a146e37987a0b823a0e8bc4fdc610c9c72ab397a5"
+checksum = "8d71e19bca02c807c9faa67b5a47673ff231b6e7449b251695188522f1dc44b2"
 dependencies = [
  "paste",
  "proc-macro2",

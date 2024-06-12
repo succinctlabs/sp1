@@ -1,6 +1,7 @@
 package sp1
 
 import (
+	"bufio"
 	"encoding/json"
 	"os"
 
@@ -30,7 +31,8 @@ func Prove(dataDir string, witnessPath string) Proof {
 		panic(err)
 	}
 	pk := plonk.NewProvingKey(ecc.BN254)
-	pk.UnsafeReadFrom(pkFile)
+	bufReader := bufio.NewReaderSize(pkFile, 1024*1024)
+	pk.UnsafeReadFrom(bufReader)
 
 	// Read the verifier key.
 	vkFile, err := os.Open(dataDir + "/" + VK_PATH)

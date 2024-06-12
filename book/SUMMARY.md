@@ -32,13 +32,13 @@
 
 - [Advanced](./generating-proofs/advanced.md)
 
+- [Network](./generating-proofs/network.md)
+
 # Verifying Proofs
 
 - [Solidity & EVM](./verifying-proofs/solidity-and-evm.md)
 
 # Developers
-
-- [Recommended Settings](./developers/recommended-settings.md)
 
 - [Building Plonk Bn254 Artifacts](./developers/building-plonk-artifacts.md)
 

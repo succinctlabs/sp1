@@ -1,0 +1,9 @@
+**/target
+Dockerfile*
+.dockerignore
+.git
+.gitignore
+examples
+tests
+sp1up
+book

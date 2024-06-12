@@ -1,0 +1,33 @@
+FROM golang:1.22 AS go-builder
+
+FROM rustlang/rust:nightly-bullseye-slim AS rust-builder
+
+# Dependencies
+RUN apt update && apt install -y clang
+
+# Install Go 1.22
+COPY --from=go-builder /usr/local/go /usr/local/go
+ENV PATH="/usr/local/go/bin:$PATH"
+
+WORKDIR /sp1
+
+# Install Rust toolchain
+COPY ./rust-toolchain /sp1/rust-toolchain
+RUN rustup show
+
+# Copy repo
+COPY . /sp1
+
+# Build the gnark-ffi CLI
+WORKDIR /sp1/recursion/gnark-cli
+
+RUN \
+  --mount=type=cache,target=target \
+  cargo build --release && cp target/release/sp1-recursion-gnark-cli /gnark-cli
+
+FROM rustlang/rust:nightly-bullseye-slim
+COPY --from=rust-builder /gnark-cli /gnark-cli
+
+LABEL org.opencontainers.image.source=https://github.com/succinctlabs/sp1
+
+ENTRYPOINT ["/gnark-cli"]

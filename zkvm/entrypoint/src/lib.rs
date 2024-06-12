@@ -90,7 +90,7 @@ mod zkvm {
         .option pop;
         la sp, {0}
         lw sp, 0(sp)
-        jal ra, __start;
+        call __start;
     "#,
         sym STACK_TOP
     );

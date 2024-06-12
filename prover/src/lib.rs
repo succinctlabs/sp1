@@ -60,6 +60,8 @@ use tracing::instrument;
 pub use types::*;
 use utils::words_to_bytes;
 
+pub use sp1_core::SP1_CIRCUIT_VERSION;
+
 /// The configuration for the core prover.
 pub type CoreSC = BabyBearPoseidon2;
 
@@ -135,6 +137,12 @@ pub struct SP1Prover {
 
     /// The machine used for proving the wrapping step.
     pub wrap_machine: StarkMachine<OuterSC, WrapAir<<OuterSC as StarkGenericConfig>::Val>>,
+
+    /// The options for the core prover.
+    pub core_opts: SP1CoreOpts,
+
+    /// The options for the recursion prover.
+    pub recursion_opts: SP1CoreOpts,
 }
 
 impl SP1Prover {
@@ -192,6 +200,8 @@ impl SP1Prover {
             compress_machine,
             shrink_machine,
             wrap_machine,
+            core_opts: SP1CoreOpts::default(),
+            recursion_opts: SP1CoreOpts::recursion(),
         }
     }
 
@@ -239,8 +249,8 @@ impl SP1Prover {
     ) -> Result<SP1CoreProof, SP1CoreProverError> {
         let config = CoreSC::default();
         let program = Program::from(&pk.elf);
-        let opts = SP1CoreOpts::default();
-        let (proof, public_values_stream) = sp1_core::utils::prove(program, stdin, config, opts)?;
+        let (proof, public_values_stream) =
+            sp1_core::utils::prove(program, stdin, config, self.core_opts)?;
         let public_values = SP1PublicValues::from(&public_values_stream);
         Ok(SP1CoreProof {
             proof: SP1CoreProofData(proof.shard_proofs),
@@ -395,7 +405,7 @@ impl SP1Prover {
         );
 
         let mut first_layer_proofs = Vec::new();
-        let opts = SP1CoreOpts::recursion();
+        let opts = self.recursion_opts;
         let shard_batch_size = opts.shard_batch_size;
         for inputs in core_inputs.chunks(shard_batch_size) {
             let proofs = inputs
@@ -535,7 +545,7 @@ impl SP1Prover {
         runtime.run();
         runtime.print_stats();
 
-        let opts = SP1CoreOpts::recursion();
+        let opts = self.recursion_opts;
         let mut recursive_challenger = self.compress_machine.config().challenger();
         self.compress_machine
             .prove::<LocalProver<_, _>>(pk, runtime.record, &mut recursive_challenger, opts)
@@ -572,7 +582,7 @@ impl SP1Prover {
         tracing::debug!("Compress program executed successfully");
 
         // Prove the compress program.
-        let opts = SP1CoreOpts::recursion();
+        let opts = self.recursion_opts;
         let mut compress_challenger = self.shrink_machine.config().challenger();
         let mut compress_proof = self.shrink_machine.prove::<LocalProver<_, _>>(
             &self.shrink_pk,
@@ -613,7 +623,7 @@ impl SP1Prover {
         tracing::debug!("Wrap program executed successfully");
 
         // Prove the wrap program.
-        let opts = SP1CoreOpts::recursion();
+        let opts = self.recursion_opts;
         let mut wrap_challenger = self.wrap_machine.config().challenger();
         let time = std::time::Instant::now();
         let mut wrap_proof = self.wrap_machine.prove::<LocalProver<_, _>>(
@@ -727,7 +737,8 @@ mod tests {
         let elf = include_bytes!("../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
 
         tracing::info!("initializing prover");
-        let prover = SP1Prover::new();
+        let mut prover = SP1Prover::new();
+        prover.core_opts.shard_size = 1 << 12;
 
         tracing::info!("setup elf");
         let (pk, vk) = prover.setup(elf);

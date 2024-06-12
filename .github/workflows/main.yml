@@ -14,37 +14,65 @@ on:
       - ".github/workflows/**"
 
 concurrency:
-    group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-    cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
-    plonk:
-        name: Plonk
-        runs-on: runs-on,cpu=64,ram=256,family=m7i+m7a,hdd=80,image=ubuntu22-full-x64
+  plonk:
+    name: Plonk Native
+    runs-on: runs-on,cpu=64,ram=256,family=m7i+m7a,hdd=80,image=ubuntu22-full-x64
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
+
+      - name: Run cargo test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          toolchain: nightly-2024-04-17
+          args: --release -p sp1-sdk --features native-gnark -- test_e2e_prove_plonk --nocapture
         env:
-          CARGO_NET_GIT_FETCH_WITH_CLI: "true"
-        steps:
-          - name: Checkout sources
-            uses: actions/checkout@v4
-    
-          - name: Setup CI
-            uses: ./.github/actions/setup
-    
-          - name: Run cargo test
-            uses: actions-rs/cargo@v1
-            with:
-              command: test
-              toolchain: nightly-2024-04-17
-              args: --release -p sp1-sdk --features plonk -- test_e2e_prove_plonk --nocapture
-            env:
-              RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
-              RUST_BACKTRACE: 1
-    check-branch:
-        name: Check branch
-        runs-on: ubuntu-latest
-        steps:
-          - name: Check branch
-            if: github.head_ref != 'dev'
-            run: |
-              echo "ERROR: You can only merge to main from dev."
-              exit 1
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
+          RUST_BACKTRACE: 1
+  plonk-docker:
+    name: Plonk Docker
+    runs-on: runs-on,cpu=64,ram=256,family=m7i+m7a,hdd=80,image=ubuntu22-full-x64
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
+
+      - name: Wait for docker-gnark
+        uses: explorium-ai/wait-github-status-action@v1.0.2
+        with:
+          name: docker-gnark
+          token: ${{ secrets.GITHUB_TOKEN }}
+          sha: ${{ github.event.pull_request.head.sha }} # Must
+
+      - name: Run cargo test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          toolchain: nightly-2024-04-17
+          args: --release -p sp1-sdk -- test_e2e_prove_plonk --nocapture
+        env:
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
+          RUST_BACKTRACE: 1
+  check-branch:
+    name: Check branch
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check branch
+        if: github.head_ref != 'dev'
+        run: |
+          echo "ERROR: You can only merge to main from dev."
+          exit 1

@@ -37,6 +37,23 @@ pub async fn url_exists(client: &Client, url: &str) -> bool {
     res.is_ok()
 }
 
+#[allow(unreachable_code)]
+pub fn is_supported_target() -> bool {
+    #[cfg(all(target_arch = "x86_64", target_os = "linux"))]
+    return true;
+
+    #[cfg(all(target_arch = "aarch64", target_os = "linux"))]
+    return true;
+
+    #[cfg(all(target_arch = "x86_64", target_os = "macos"))]
+    return true;
+
+    #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
+    return true;
+
+    false
+}
+
 pub fn get_target() -> String {
     target_lexicon::HOST.to_string()
 }
