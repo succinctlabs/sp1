@@ -16,9 +16,7 @@ pub mod network;
 pub use crate::network::prover::NetworkProver;
 
 pub mod provers;
-pub mod utils {
-    pub use sp1_core::utils::setup_logger;
-}
+pub mod utils;
 
 use cfg_if::cfg_if;
 use std::{env, fmt::Debug, fs::File, path::Path};
@@ -102,7 +100,7 @@ impl ProverClient {
                         panic!("network feature is not enabled")
                     }
                 }
-            },
+            }
             _ => panic!(
                 "invalid value for SP1_PROVER enviroment variable: expected 'local', 'mock', or 'network'"
             ),
