@@ -759,11 +759,11 @@ mod tests {
         let bytes = bincode::serialize(&wrapped_bn254_proof).unwrap();
 
         // Save the proof.
-        let mut file = File::create("proof-with-pis.json").unwrap();
+        let mut file = File::create("proof-with-pis.bin").unwrap();
         file.write_all(bytes.as_slice()).unwrap();
 
         // Load the proof.
-        let mut file = File::open("proof-with-pis.json").unwrap();
+        let mut file = File::open("proof-with-pis.bin").unwrap();
         let mut bytes = Vec::new();
         file.read_to_end(&mut bytes).unwrap();
 

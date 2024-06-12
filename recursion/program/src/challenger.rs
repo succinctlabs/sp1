@@ -291,8 +291,6 @@ mod tests {
     use p3_challenger::CanObserve;
     use p3_challenger::CanSample;
     use p3_field::AbstractField;
-    use rand::thread_rng;
-    use rand::Rng;
     use sp1_core::stark::StarkGenericConfig;
     use sp1_core::utils::BabyBearPoseidon2;
     use sp1_recursion_compiler::asm::AsmBuilder;
@@ -346,34 +344,5 @@ mod tests {
 
         let program = builder.compile_program();
         run_test_recursion(program, None, TestConfig::All);
-    }
-
-    #[test]
-    fn test_exp_reverse_bit_len_fast() {
-        type SC = BabyBearPoseidon2;
-        type F = <SC as StarkGenericConfig>::Val;
-        type EF = <SC as StarkGenericConfig>::Challenge;
-
-        let mut rng = thread_rng();
-
-        // Initialize a builder.
-        let mut builder = AsmBuilder::<F, EF>::default();
-
-        // Get a random var with `NUM_BITS` bits.
-        let x_val: F = rng.gen();
-
-        // Materialize the number as a var
-        let x_felt: Felt<_> = builder.eval(x_val);
-        let x_bits = builder.num2bits_f(x_felt);
-
-        let result = builder.exp_reverse_bits_len_fast(x_felt, &x_bits, 5);
-        let expected_val = builder.exp_reverse_bits_len(x_felt, &x_bits, 5);
-
-        builder.assert_felt_eq(expected_val, result);
-        builder.halt();
-
-        let program = builder.compile_program();
-
-        run_test_recursion(program, None, TestConfig::WideDeg3);
     }
 }

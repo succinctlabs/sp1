@@ -167,20 +167,23 @@ pub enum AsmInstruction<F, EF> {
     /// Hint a vector of blocks.
     Hint(i32),
 
-    // FRIFold(m, input).
+    /// FRIFold(m, input).
     FriFold(i32, i32),
 
-    // Commit(val, index).
+    /// Commit(val, index).
     Commit(i32, i32),
 
-    // RegisterPublicValue(val).
+    /// RegisterPublicValue(val).
     RegisterPublicValue(i32),
 
     LessThan(i32, i32, i32),
 
     CycleTracker(String),
 
-    // ExpReverseBitsLen
+    /// ExpReverseBitsLen instruction: (mathematical description) given `x`, `exp`, `len`, bit-reverse the last `len` bits of
+    /// `exp` and raise `x` to the power of the resulting value. The arguments are a pointer to the
+    /// addresss at which `x` is located (will be written to with the result), a pointer to the
+    /// address containing the bits of `exp` stored as a little-endian bit array, and `len`.
     ExpReverseBitsLen(i32, i32, i32),
 }
 

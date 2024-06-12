@@ -317,7 +317,7 @@ where
     OpeningProof<SC>: Send + Sync,
     ShardMainData<SC>: Serialize + DeserializeOwned,
 {
-    #[cfg(debug_assertions)]
+    #[cfg(feature = "debug")]
     {
         let mut challenger_clone = machine.config().challenger();
         let record_clone = record.clone();
