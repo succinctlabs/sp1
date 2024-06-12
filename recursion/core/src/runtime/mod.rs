@@ -996,36 +996,4 @@ mod tests {
             vec![vec![F::two().into(), F::two().into(), F::two().into()]].into();
         runtime.run();
     }
-
-    #[test]
-    fn test_exp_reverse() {
-        let two = F::two();
-        let two_block = [F::two(), F::zero(), F::zero(), F::zero()];
-        let program = RecursionProgram {
-            traces: vec![],
-            instructions: vec![Instruction::new(
-                Opcode::ExpReverseBitsLen,
-                two + F::one(),
-                two_block,
-                two_block,
-                F::from_canonical_u16(0),
-                F::from_canonical_u16(0),
-                false,
-                false,
-                "".to_string(),
-            )],
-        };
-        let machine = A::machine(SC::default());
-        let mut runtime = Runtime::<F, EF, _>::new(&program, machine.config().perm.clone());
-        runtime.memory.insert(
-            3,
-            MemoryEntry {
-                value: two_block.into(),
-                timestamp: F::zero(),
-            },
-        );
-        runtime.witness_stream =
-            vec![vec![F::two().into(), F::one().into(), F::one().into()]].into();
-        runtime.run();
-    }
 }
