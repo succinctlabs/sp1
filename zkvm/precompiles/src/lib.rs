@@ -34,7 +34,6 @@ extern "C" {
     pub fn syscall_bls12381_double(p: *mut u32);
     pub fn syscall_keccak_permute(state: *mut u64);
     pub fn syscall_uint256_mulmod(x: *mut u32, y: *const u32);
-    pub fn syscall_blake3_compress_inner(p: *mut u32, q: *const u32);
     pub fn syscall_enter_unconstrained() -> bool;
     pub fn syscall_exit_unconstrained();
     pub fn syscall_verify_sp1_proof(vkey: &[u32; 8], pv_digest: &[u8; 32]);
