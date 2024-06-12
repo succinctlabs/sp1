@@ -1,3 +1,4 @@
+mod hooks;
 mod instruction;
 mod io;
 mod memory;
@@ -11,6 +12,7 @@ mod syscall;
 #[macro_use]
 mod utils;
 
+pub use hooks::*;
 pub use instruction::*;
 pub use memory::*;
 pub use opcode::*;
@@ -45,7 +47,7 @@ use crate::{alu::AluEvent, cpu::CpuEvent};
 ///
 /// For more information on the RV32IM instruction set, see the following:
 /// https://www.cs.sfu.ca/~ashriram/Courses/CS295/assets/notebooks/RISCV/RISCV_CARD.pdf
-pub struct Runtime {
+pub struct Runtime<'a> {
     /// The program.
     pub program: Arc<Program>,
 
@@ -91,6 +93,9 @@ pub struct Runtime {
 
     /// Whether we should write to the report.
     pub print_report: bool,
+
+    /// Registry of hooks, to be invoked by writing to certain file descriptors.
+    pub hook_registry: HookRegistry<'a>,
 }
 
 #[derive(Error, Debug)]
@@ -107,7 +112,7 @@ pub enum ExecutionError {
     Unimplemented(),
 }
 
-impl Runtime {
+impl<'a> Runtime<'a> {
     // Create a new runtime from a program.
     pub fn new(program: Program, opts: SP1CoreOpts) -> Self {
         // Create a shared reference to the program.
@@ -150,9 +155,21 @@ impl Runtime {
             syscall_map,
             emit_events: true,
             max_syscall_cycles,
-            report: Default::default(),
+            report: ExecutionReport::default(),
             print_report: false,
+            hook_registry: HookRegistry::default(),
         }
+    }
+
+    /// Invokes the hook corresponding to the given file descriptor `fd` with the data `buf`,
+    /// returning the resulting data.
+    pub fn hook(&self, fd: u32, buf: &[u8]) -> Vec<Vec<u8>> {
+        self.hook_registry.table[&fd](self.hook_env(), buf)
+    }
+
+    /// Prepare a `HookEnv` for use by hooks.
+    pub fn hook_env(&self) -> HookEnv {
+        HookEnv { runtime: self }
     }
 
     /// Recover runtime state from a program and existing execution state.
