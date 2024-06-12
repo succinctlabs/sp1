@@ -705,8 +705,6 @@ mod tests {
     use sp1_core::io::SP1Stdin;
     use sp1_core::utils::setup_logger;
 
-    use sp1_recursion_core::poseidon2_wide::columns::NUM_POSEIDON2_COLS;
-
     /// Tests an end-to-end workflow of proving a program across the entire proof generation
     /// pipeline.
     ///
@@ -717,7 +715,6 @@ mod tests {
     #[serial]
     fn test_e2e() -> Result<()> {
         setup_logger();
-        println!("column count for p2-wide is {:?}", NUM_POSEIDON2_COLS);
         let elf = include_bytes!("../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
 
         tracing::info!("initializing prover");

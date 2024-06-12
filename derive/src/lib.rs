@@ -280,6 +280,192 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
     }
 }
 
+#[proc_macro_derive(
+    RecursionMachineAir,
+    attributes(sp1_core_path, execution_record_path, program_path, builder_path)
+)]
+pub fn recursion_machine_air_derive(input: TokenStream) -> TokenStream {
+    let ast: syn::DeriveInput = syn::parse(input).unwrap();
+
+    let name = &ast.ident;
+    let generics = &ast.generics;
+    let sp1_core_path = find_sp1_core_path(&ast.attrs);
+    let execution_record_path = find_execution_record_path(&ast.attrs);
+    let program_path = find_program_path(&ast.attrs);
+    let builder_path = find_builder_path(&ast.attrs);
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
+    match &ast.data {
+        Data::Struct(_) => unimplemented!("Structs are not supported yet"),
+        Data::Enum(e) => {
+            let variants = e
+                .variants
+                .iter()
+                .map(|variant| {
+                    let variant_name = &variant.ident;
+
+                    let mut fields = variant.fields.iter();
+                    let field = fields.next().unwrap();
+                    assert!(fields.next().is_none(), "Only one field is supported");
+                    (variant_name, field)
+                })
+                .collect::<Vec<_>>();
+
+            let width_arms = variants.iter().map(|(variant_name, field)| {
+                let field_ty = &field.ty;
+                quote! {
+                    #name::#variant_name(x) => <#field_ty as p3_air::BaseAir<F>>::width(x)
+                }
+            });
+
+            let base_air = quote! {
+                impl #impl_generics p3_air::BaseAir<F> for #name #ty_generics #where_clause {
+                    fn width(&self) -> usize {
+                        match self {
+                            #(#width_arms,)*
+                        }
+                    }
+
+                    fn preprocessed_trace(&self) -> Option<p3_matrix::dense::RowMajorMatrix<F>> {
+                        unreachable!("A machine air should use the preprocessed trace from the `MachineAir` trait")
+                    }
+                }
+            };
+
+            let name_arms = variants.iter().map(|(variant_name, field)| {
+                let field_ty = &field.ty;
+                quote! {
+                    #name::#variant_name(x) => <#field_ty as #sp1_core_path::air::MachineAir<F>>::name(x)
+                }
+            });
+
+            let preprocessed_width_arms = variants.iter().map(|(variant_name, field)| {
+                let field_ty = &field.ty;
+                quote! {
+                    #name::#variant_name(x) => <#field_ty as #sp1_core_path::air::MachineAir<F>>::preprocessed_width(x)
+                }
+            });
+
+            let generate_preprocessed_trace_arms = variants.iter().map(|(variant_name, field)| {
+                let field_ty = &field.ty;
+                quote! {
+                    #name::#variant_name(x) => <#field_ty as #sp1_core_path::air::MachineAir<F>>::generate_preprocessed_trace(x, program)
+                }
+            });
+
+            let generate_trace_arms = variants.iter().map(|(variant_name, field)| {
+                let field_ty = &field.ty;
+                quote! {
+                    #name::#variant_name(x) => <#field_ty as #sp1_core_path::air::MachineAir<F>>::generate_trace(x, input, output)
+                }
+            });
+
+            let generate_dependencies_arms = variants.iter().map(|(variant_name, field)| {
+                let field_ty = &field.ty;
+                quote! {
+                    #name::#variant_name(x) => <#field_ty as #sp1_core_path::air::MachineAir<F>>::generate_dependencies(x, input, output)
+                }
+            });
+
+            let included_arms = variants.iter().map(|(variant_name, field)| {
+                let field_ty = &field.ty;
+                quote! {
+                    #name::#variant_name(x) => <#field_ty as #sp1_core_path::air::MachineAir<F>>::included(x, shard)
+                }
+            });
+
+            let machine_air = quote! {
+                impl #impl_generics #sp1_core_path::air::MachineAir<F> for #name #ty_generics #where_clause {
+                    type Record = #execution_record_path;
+
+                    type Program = #program_path;
+
+                    fn name(&self) -> String {
+                        match self {
+                            #(#name_arms,)*
+                        }
+                    }
+
+                    fn preprocessed_width(&self) -> usize {
+                        match self {
+                            #(#preprocessed_width_arms,)*
+                        }
+                    }
+
+                    fn generate_preprocessed_trace(
+                        &self,
+                        program: &#program_path,
+                    ) -> Option<p3_matrix::dense::RowMajorMatrix<F>> {
+                        match self {
+                            #(#generate_preprocessed_trace_arms,)*
+                        }
+                    }
+
+                    fn generate_trace(
+                        &self,
+                        input: &#execution_record_path,
+                        output: &mut #execution_record_path,
+                    ) -> p3_matrix::dense::RowMajorMatrix<F> {
+                        match self {
+                            #(#generate_trace_arms,)*
+                        }
+                    }
+
+                    fn generate_dependencies(
+                        &self,
+                        input: &#execution_record_path,
+                        output: &mut #execution_record_path,
+                    ) {
+                        match self {
+                            #(#generate_dependencies_arms,)*
+                        }
+                    }
+
+                    fn included(&self, shard: &Self::Record) -> bool {
+                        match self {
+                            #(#included_arms,)*
+                        }
+                    }
+                }
+            };
+
+            let eval_arms = variants.iter().map(|(variant_name, field)| {
+                let field_ty = &field.ty;
+                quote! {
+                    #name::#variant_name(x) => <#field_ty as p3_air::Air<AB>>::eval(x, builder)
+                }
+            });
+
+            // Attach an extra generic AB : crate::air::SP1AirBuilder to the generics of the enum
+            let generics = &ast.generics;
+            let mut new_generics = generics.clone();
+            new_generics
+                .params
+                .push(syn::parse_quote! { AB: p3_air::PairBuilder + #builder_path });
+
+            let (air_impl_generics, _, _) = new_generics.split_for_impl();
+
+            let air = quote! {
+                impl #air_impl_generics p3_air::Air<AB> for #name #ty_generics #where_clause {
+                    fn eval(&self, builder: &mut AB) {
+                        match self {
+                            #(#eval_arms,)*
+                        }
+                    }
+                }
+            };
+
+            quote! {
+                #base_air
+
+                #machine_air
+            }
+            .into()
+        }
+        Data::Union(_) => unimplemented!("Unions are not supported"),
+    }
+}
+
 #[proc_macro_attribute]
 pub fn cycle_tracker(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as ItemFn);

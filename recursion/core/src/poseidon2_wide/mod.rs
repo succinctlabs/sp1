@@ -127,7 +127,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         generate_trace_degree::<3>();
-        // generate_trace_degree::<7>();
+        generate_trace_degree::<7>();
     }
 
     fn poseidon2_wide_prove_babybear_degree<const DEGREE: usize>(
@@ -185,7 +185,7 @@ mod tests {
             .collect::<Vec<_>>();
 
         poseidon2_wide_prove_babybear_degree::<3>(test_inputs.clone(), expected_outputs.clone());
-        // poseidon2_wide_prove_babybear_degree::<7>(test_inputs, expected_outputs);
+        poseidon2_wide_prove_babybear_degree::<7>(test_inputs, expected_outputs);
     }
 
     #[test]
@@ -202,6 +202,6 @@ mod tests {
             .collect_vec();
 
         poseidon2_wide_prove_babybear_degree::<3>(test_inputs.clone(), bad_outputs.clone());
-        // poseidon2_wide_prove_babybear_degree::<7>(test_inputs, bad_outputs);
+        poseidon2_wide_prove_babybear_degree::<7>(test_inputs, bad_outputs);
     }
 }
