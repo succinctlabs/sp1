@@ -179,6 +179,9 @@ pub enum AsmInstruction<F, EF> {
     LessThan(i32, i32, i32),
 
     CycleTracker(String),
+
+    // ExpReverseBitsLen
+    ExpReverseBitsLen(i32, i32, i32),
 }
 
 impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
@@ -862,6 +865,17 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 true,
                 "".to_string(),
             ),
+            AsmInstruction::ExpReverseBitsLen(base, ptr, len) => Instruction::new(
+                Opcode::ExpReverseBitsLen,
+                i32_f(base),
+                i32_f_arr(ptr),
+                i32_f_arr(len),
+                F::zero(),
+                F::zero(),
+                false,
+                false,
+                "".to_string(),
+            ),
         }
     }
 
@@ -1135,6 +1149,13 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
             }
             AsmInstruction::CycleTracker(name) => {
                 write!(f, "cycle-tracker {}", name)
+            }
+            AsmInstruction::ExpReverseBitsLen(base, ptr, len) => {
+                write!(
+                    f,
+                    "exp_reverse_bits_len ({})fp, ({})fp, ({})fp",
+                    base, ptr, len
+                )
             }
         }
     }

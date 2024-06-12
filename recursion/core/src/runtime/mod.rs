@@ -8,6 +8,7 @@ use std::collections::VecDeque;
 use std::process::exit;
 use std::{marker::PhantomData, sync::Arc};
 
+use hashbrown::hash_map::Entry::Vacant;
 use hashbrown::HashMap;
 pub use instruction::*;
 use itertools::Itertools;
@@ -22,6 +23,7 @@ pub use utils::*;
 
 use crate::air::{Block, RECURSION_PUBLIC_VALUES_COL_MAP, RECURSIVE_PROOF_NUM_PV_ELTS};
 use crate::cpu::CpuEvent;
+use crate::exp_reverse_bits::{self, ExpReverseBitsLenEvent};
 use crate::fri_fold::FriFoldEvent;
 use crate::memory::MemoryRecord;
 use crate::poseidon2::Poseidon2Event;
@@ -822,6 +824,74 @@ where
                     next_clk = timestamp;
                     (a, b, c) = (a_val, b_val, c_val);
                 }
+                Opcode::ExpReverseBitsLen => {
+                    // Read the operands.
+                    let (a_val, b_val, c_val) = self.all_rr(&instruction);
+
+                    // A pointer to the base of the exponentiation.
+                    let base = a_val[0];
+
+                    // A pointer to the first bit (LSB) of the exponent.
+                    let input_ptr = b_val[0];
+
+                    // The length parameter in bit-reverse-len.
+                    let len = c_val[0];
+
+                    let mut timestamp = self.clk;
+
+                    let mut accum = F::one();
+
+                    // Read the value at the pointer `base`.
+                    let mut x_record = self.mr(base, timestamp).0;
+
+                    // Iterate over the `len` least-significant bits of the exponent.
+                    for m in 0..len.as_canonical_u32() {
+                        let m = F::from_canonical_u32(m);
+
+                        // Pointer to the current bit.
+                        let ptr = input_ptr + m;
+
+                        // Read the current bit.
+                        let (current_bit_record, current_bit) = self.mr(ptr, timestamp);
+                        let current_bit = current_bit.ext::<EF>().as_base_slice()[0];
+
+                        // Extract the val in `x_record`
+                        let current_x_val = x_record.value[0];
+
+                        let prev_accum = accum;
+                        accum = prev_accum
+                            * prev_accum
+                            * if current_bit == F::one() {
+                                current_x_val
+                            } else {
+                                F::one()
+                            };
+
+                        // On the last iteration, write accum to the address pointed to in `base`.
+                        if m == len - F::one() {
+                            x_record = self.mw(base, Block::from(accum), timestamp);
+                        };
+
+                        // Add the event for this iteration to the `ExecutionRecord`.
+                        self.record
+                            .exp_reverse_bits_len_events
+                            .push(ExpReverseBitsLenEvent {
+                                clk: timestamp,
+                                x: x_record,
+                                current_bit: current_bit_record,
+                                len: len - m,
+                                prev_accum,
+                                accum,
+                                ptr: ptr,
+                                base_ptr: base,
+                                iteration_num: m,
+                            });
+                        timestamp += F::one();
+                    }
+
+                    next_clk = timestamp;
+                    (a, b, c) = (a_val, b_val, c_val);
+                }
                 // For both the Commit and RegisterPublicValue opcodes, we record the public value
                 Opcode::Commit | Opcode::RegisterPublicValue => {
                     let (a_val, b_val, c_val) = self.all_rr(&instruction);
@@ -885,7 +955,7 @@ mod tests {
         utils::BabyBearPoseidon2,
     };
 
-    use super::{Instruction, Opcode, RecursionProgram, Runtime};
+    use super::{Instruction, MemoryEntry, Opcode, RecursionProgram, Runtime};
 
     type SC = BabyBearPoseidon2;
     type F = <SC as StarkGenericConfig>::Val;
@@ -927,6 +997,40 @@ mod tests {
         let mut runtime = Runtime::<F, EF, _>::new(&program, machine.config().perm.clone());
         runtime.witness_stream =
             vec![vec![F::two().into(), F::two().into(), F::two().into()]].into();
+        runtime.run();
+    }
+
+    #[test]
+    fn test_exp_reverse() {
+        let two = F::two();
+        let two_block = [F::two(), F::zero(), F::zero(), F::zero()];
+        let zero = F::zero();
+        // let zero_block = [F::zero(); 4];
+        let program = RecursionProgram {
+            traces: vec![],
+            instructions: vec![Instruction::new(
+                Opcode::ExpReverseBitsLen,
+                two + F::one(),
+                two_block,
+                two_block,
+                F::from_canonical_u16(0),
+                F::from_canonical_u16(0),
+                false,
+                false,
+                "".to_string(),
+            )],
+        };
+        let machine = A::machine(SC::default());
+        let mut runtime = Runtime::<F, EF, _>::new(&program, machine.config().perm.clone());
+        runtime.memory.insert(
+            3,
+            MemoryEntry {
+                value: two_block.into(),
+                timestamp: F::zero(),
+            },
+        );
+        runtime.witness_stream =
+            vec![vec![F::two().into(), F::one().into(), F::one().into()]].into();
         runtime.run();
     }
 }

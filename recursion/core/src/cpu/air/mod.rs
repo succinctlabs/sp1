@@ -72,7 +72,10 @@ where
         }
 
         // Constrain the syscalls.
-        let send_syscall = local.selectors.is_poseidon + local.selectors.is_fri_fold;
+        let send_syscall = local.selectors.is_poseidon
+            + local.selectors.is_fri_fold
+            + local.selectors.is_exp_reverse_bits_len;
+
         let operands = [
             local.clk.into(),
             local.a.value()[0].into(),
@@ -118,7 +121,7 @@ impl<F: Field, const L: usize> CpuChip<F, L> {
         builder
             .when_transition()
             .when(next.is_real)
-            .when_not(local.selectors.is_fri_fold)
+            .when_not(local.selectors.is_fri_fold + local.selectors.is_exp_reverse_bits_len)
             .assert_eq(local.clk.into() + AB::F::from_canonical_u32(4), next.clk);
 
         builder
@@ -126,6 +129,12 @@ impl<F: Field, const L: usize> CpuChip<F, L> {
             .when(next.is_real)
             .when(local.selectors.is_fri_fold)
             .assert_eq(local.clk.into() + local.a.value()[0], next.clk);
+
+        builder
+            .when_transition()
+            .when(next.is_real)
+            .when(local.selectors.is_exp_reverse_bits_len)
+            .assert_eq(local.clk.into() + local.c.value()[0], next.clk);
     }
 
     /// Eval the is_real flag.

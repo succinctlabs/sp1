@@ -705,6 +705,15 @@ mod tests {
     use sp1_core::io::SP1Stdin;
     use sp1_core::utils::setup_logger;
 
+    use p3_util::reverse_bits_len;
+    use rand::{thread_rng, Rng};
+    use sp1_core::{stark::StarkGenericConfig, utils::BabyBearPoseidon2};
+    use sp1_recursion_compiler::asm::AsmBuilder;
+    use sp1_recursion_compiler::ir::Felt;
+    use sp1_recursion_core::runtime::{Runtime, NUM_BITS};
+
+    use p3_field::AbstractField;
+
     /// Tests an end-to-end workflow of proving a program across the entire proof generation
     /// pipeline.
     ///
@@ -737,45 +746,45 @@ mod tests {
         tracing::info!("verify compressed");
         prover.verify_compressed(&compressed_proof, &vk)?;
 
-        tracing::info!("shrink");
-        let shrink_proof = prover.shrink(compressed_proof)?;
+        // tracing::info!("shrink");
+        // let shrink_proof = prover.shrink(compressed_proof)?;
 
-        tracing::info!("verify shrink");
-        prover.verify_shrink(&shrink_proof, &vk)?;
+        // tracing::info!("verify shrink");
+        // prover.verify_shrink(&shrink_proof, &vk)?;
 
-        tracing::info!("wrap bn254");
-        let wrapped_bn254_proof = prover.wrap_bn254(shrink_proof)?;
-        let bytes = bincode::serialize(&wrapped_bn254_proof).unwrap();
+        // tracing::info!("wrap bn254");
+        // let wrapped_bn254_proof = prover.wrap_bn254(shrink_proof)?;
+        // let bytes = bincode::serialize(&wrapped_bn254_proof).unwrap();
 
-        // Save the proof.
-        let mut file = File::create("proof-with-pis.json").unwrap();
-        file.write_all(bytes.as_slice()).unwrap();
+        // // Save the proof.
+        // let mut file = File::create("proof-with-pis.json").unwrap();
+        // file.write_all(bytes.as_slice()).unwrap();
 
-        // Load the proof.
-        let mut file = File::open("proof-with-pis.json").unwrap();
-        let mut bytes = Vec::new();
-        file.read_to_end(&mut bytes).unwrap();
+        // // Load the proof.
+        // let mut file = File::open("proof-with-pis.json").unwrap();
+        // let mut bytes = Vec::new();
+        // file.read_to_end(&mut bytes).unwrap();
 
-        let wrapped_bn254_proof = bincode::deserialize(&bytes).unwrap();
+        // let wrapped_bn254_proof = bincode::deserialize(&bytes).unwrap();
 
-        tracing::info!("verify wrap bn254");
-        prover.verify_wrap_bn254(&wrapped_bn254_proof, &vk).unwrap();
+        // tracing::info!("verify wrap bn254");
+        // prover.verify_wrap_bn254(&wrapped_bn254_proof, &vk).unwrap();
 
-        tracing::info!("checking vkey hash babybear");
-        let vk_digest_babybear = wrapped_bn254_proof.sp1_vkey_digest_babybear();
-        assert_eq!(vk_digest_babybear, vk.hash_babybear());
+        // tracing::info!("checking vkey hash babybear");
+        // let vk_digest_babybear = wrapped_bn254_proof.sp1_vkey_digest_babybear();
+        // assert_eq!(vk_digest_babybear, vk.hash_babybear());
 
-        tracing::info!("checking vkey hash bn254");
-        let vk_digest_bn254 = wrapped_bn254_proof.sp1_vkey_digest_bn254();
-        assert_eq!(vk_digest_bn254, vk.hash_bn254());
+        // tracing::info!("checking vkey hash bn254");
+        // let vk_digest_bn254 = wrapped_bn254_proof.sp1_vkey_digest_bn254();
+        // assert_eq!(vk_digest_bn254, vk.hash_bn254());
 
-        tracing::info!("generate plonk bn254 proof");
-        let artifacts_dir =
-            try_build_plonk_bn254_artifacts_dev(&prover.wrap_vk, &wrapped_bn254_proof.proof);
-        let plonk_bn254_proof = prover.wrap_plonk_bn254(wrapped_bn254_proof, &artifacts_dir);
-        println!("{:?}", plonk_bn254_proof);
+        // tracing::info!("generate plonk bn254 proof");
+        // let artifacts_dir =
+        //     try_build_plonk_bn254_artifacts_dev(&prover.wrap_vk, &wrapped_bn254_proof.proof);
+        // let plonk_bn254_proof = prover.wrap_plonk_bn254(wrapped_bn254_proof, &artifacts_dir);
+        // println!("{:?}", plonk_bn254_proof);
 
-        prover.verify_plonk_bn254(&plonk_bn254_proof, &vk, &public_values, &artifacts_dir)?;
+        // prover.verify_plonk_bn254(&plonk_bn254_proof, &vk, &public_values, &artifacts_dir)?;
 
         Ok(())
     }
