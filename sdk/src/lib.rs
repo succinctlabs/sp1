@@ -102,7 +102,7 @@ impl ProverClient {
                         panic!("network feature is not enabled")
                     }
                 }
-            },
+            }
             _ => panic!(
                 "invalid value for SP1_PROVER enviroment variable: expected 'local', 'mock', or 'network'"
             ),
