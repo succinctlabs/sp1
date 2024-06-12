@@ -146,6 +146,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
                         let control_flow = cols.control_flow_mut();
                         control_flow.is_compress = F::one();
                         control_flow.is_output = F::one();
+                        control_flow.is_compress_output = F::one();
                     }
 
                     {
