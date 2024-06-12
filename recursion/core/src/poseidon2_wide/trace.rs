@@ -17,7 +17,7 @@ use crate::{
 };
 
 use super::{
-    columns::{Poseidon2Degree7, Poseidon2Mut},
+    columns::{Poseidon2Degree9, Poseidon2Mut},
     internal_linear_layer, Poseidon2WideChip, NUM_INTERNAL_ROUNDS,
 };
 
@@ -234,7 +234,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             let convert: &mut Poseidon2Degree3<F> = row.as_mut_slice().borrow_mut();
             Box::new(convert)
         } else if DEGREE == 9 {
-            let convert: &mut Poseidon2Degree7<F> = row.as_mut_slice().borrow_mut();
+            let convert: &mut Poseidon2Degree9<F> = row.as_mut_slice().borrow_mut();
             Box::new(convert)
         } else {
             panic!("Unsupported degree");

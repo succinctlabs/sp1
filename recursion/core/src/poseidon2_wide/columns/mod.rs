@@ -6,7 +6,7 @@ use sp1_derive::AlignedBorrow;
 use self::{
     control_flow::ControlFlow,
     opcode_workspace::OpcodeWorkspace,
-    permutation::{Permutation, PermutationNoSbox, PermutationSBox},
+    permutation::{Permutation, PermutationNoSbox, PermutationNoSboxHalfExternal, PermutationSBox},
     syscall_params::SyscallParams,
 };
 
@@ -37,7 +37,7 @@ pub trait Poseidon2Mut<'a, T: Copy + 'a> {
 
 enum MyEnum<T: Copy> {
     P2Degree3(Poseidon2Degree3<T>),
-    P2Degree8(Poseidon2Degree7<T>),
+    P2Degree8(Poseidon2Degree9<T>),
 }
 
 impl<'a, T: Copy + 'a> Poseidon2<'a, T> for MyEnum<T> {
@@ -74,7 +74,7 @@ impl<'a, T: Copy + 'a> Poseidon2<'a, T> for MyEnum<T> {
 
 enum MyEnumMut<'a, T: Copy> {
     P2Degree3(&'a mut Poseidon2Degree3<T>),
-    P2Degree8(&'a mut Poseidon2Degree7<T>),
+    P2Degree8(&'a mut Poseidon2Degree9<T>),
 }
 
 impl<'a, T: Copy + 'a> Poseidon2Mut<'a, T> for MyEnumMut<'a, T> {
@@ -152,18 +152,18 @@ impl<'a, T: Copy + 'a> Poseidon2Mut<'a, T> for &'a mut Poseidon2Degree3<T> {
     }
 }
 
-pub const NUM_POSEIDON2_DEGREE7_COLS: usize = size_of::<Poseidon2Degree7<u8>>();
-const fn make_col_map_degree7() -> Poseidon2Degree7<usize> {
-    let indices_arr = indices_arr::<NUM_POSEIDON2_DEGREE7_COLS>();
+pub const NUM_POSEIDON2_DEGREE9_COLS: usize = size_of::<Poseidon2Degree9<u8>>();
+const fn make_col_map_degree9() -> Poseidon2Degree9<usize> {
+    let indices_arr = indices_arr::<NUM_POSEIDON2_DEGREE9_COLS>();
     unsafe {
-        transmute::<[usize; NUM_POSEIDON2_DEGREE7_COLS], Poseidon2Degree7<usize>>(indices_arr)
+        transmute::<[usize; NUM_POSEIDON2_DEGREE9_COLS], Poseidon2Degree9<usize>>(indices_arr)
     }
 }
-pub const POSEIDON2_DEGREE7_COL_MAP: Poseidon2Degree7<usize> = make_col_map_degree7();
+pub const POSEIDON2_DEGREE9_COL_MAP: Poseidon2Degree9<usize> = make_col_map_degree9();
 
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
-pub struct Poseidon2Degree7<T: Copy> {
+pub struct Poseidon2Degree9<T: Copy> {
     pub control_flow: ControlFlow<T>,
     pub syscall_input: SyscallParams<T>,
     pub opcode_specific_cols: OpcodeWorkspace<T>,
@@ -171,7 +171,7 @@ pub struct Poseidon2Degree7<T: Copy> {
     pub state_cursor: [T; WIDTH / 2], // Only used for absorb
 }
 
-impl<'a, T: Copy + 'a> Poseidon2<'a, T> for Poseidon2Degree7<T> {
+impl<'a, T: Copy + 'a> Poseidon2<'a, T> for Poseidon2Degree9<T> {
     fn control_flow(&self) -> &ControlFlow<T> {
         &self.control_flow
     }
@@ -189,7 +189,49 @@ impl<'a, T: Copy + 'a> Poseidon2<'a, T> for Poseidon2Degree7<T> {
     }
 }
 
-impl<'a, T: Copy + 'a> Poseidon2Mut<'a, T> for &'a mut Poseidon2Degree7<T> {
+impl<'a, T: Copy + 'a> Poseidon2Mut<'a, T> for &'a mut Poseidon2Degree9<T> {
+    fn control_flow_mut(&mut self) -> &mut ControlFlow<T> {
+        &mut self.control_flow
+    }
+
+    fn syscall_params_mut(&mut self) -> &mut SyscallParams<T> {
+        &mut self.syscall_input
+    }
+
+    fn opcode_workspace_mut(&mut self) -> &mut OpcodeWorkspace<T> {
+        &mut self.opcode_specific_cols
+    }
+}
+
+#[derive(AlignedBorrow, Clone, Copy)]
+#[repr(C)]
+pub struct Poseidon2Degree15<T: Copy> {
+    pub control_flow: ControlFlow<T>,
+    pub syscall_input: SyscallParams<T>,
+    pub opcode_specific_cols: OpcodeWorkspace<T>,
+    pub permutation_cols: PermutationNoSboxHalfExternal<T>,
+    pub state_cursor: [T; WIDTH / 2], // Only used for absorb
+}
+
+impl<'a, T: Copy + 'a> Poseidon2<'a, T> for Poseidon2Degree15<T> {
+    fn control_flow(&self) -> &ControlFlow<T> {
+        &self.control_flow
+    }
+
+    fn syscall_params(&self) -> &SyscallParams<T> {
+        &self.syscall_input
+    }
+
+    fn opcode_workspace(&self) -> &OpcodeWorkspace<T> {
+        &self.opcode_specific_cols
+    }
+
+    fn permutation(&self) -> Box<dyn Permutation<T> + 'a> {
+        Box::new(self.permutation_cols)
+    }
+}
+
+impl<'a, T: Copy + 'a> Poseidon2Mut<'a, T> for &'a mut Poseidon2Degree15<T> {
     fn control_flow_mut(&mut self) -> &mut ControlFlow<T> {
         &mut self.control_flow
     }

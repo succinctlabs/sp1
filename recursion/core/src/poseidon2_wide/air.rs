@@ -11,8 +11,8 @@ use crate::{air::SP1RecursionAirBuilder, memory::MemoryCols, runtime::Opcode};
 use super::{
     columns::{
         control_flow::ControlFlow, opcode_workspace::OpcodeWorkspace, permutation::Permutation,
-        syscall_params::SyscallParams, Poseidon2, Poseidon2Degree3, Poseidon2Degree7,
-        NUM_POSEIDON2_DEGREE3_COLS, NUM_POSEIDON2_DEGREE7_COLS,
+        syscall_params::SyscallParams, Poseidon2, Poseidon2Degree3, Poseidon2Degree9,
+        NUM_POSEIDON2_DEGREE3_COLS, NUM_POSEIDON2_DEGREE9_COLS,
     },
     external_linear_layer, internal_linear_layer, Poseidon2WideChip, NUM_EXTERNAL_ROUNDS,
     NUM_INTERNAL_ROUNDS, WIDTH,
@@ -23,7 +23,7 @@ impl<F, const DEGREE: usize> BaseAir<F> for Poseidon2WideChip<DEGREE> {
         if DEGREE == 3 {
             NUM_POSEIDON2_DEGREE3_COLS
         } else if DEGREE == 9 {
-            NUM_POSEIDON2_DEGREE7_COLS
+            NUM_POSEIDON2_DEGREE9_COLS
         } else {
             panic!("Unsupported degree: {}", DEGREE);
         }
@@ -96,7 +96,7 @@ impl<'a, const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             let convert: &Poseidon2Degree3<AB::Var> = (*row).borrow();
             Box::new(*convert)
         } else if DEGREE == 9 {
-            let convert: &Poseidon2Degree7<AB::Var> = (*row).borrow();
+            let convert: &Poseidon2Degree9<AB::Var> = (*row).borrow();
             Box::new(*convert)
         } else {
             panic!("Unsupported degree");

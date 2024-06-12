@@ -4,7 +4,7 @@ use sp1_derive::AlignedBorrow;
 
 use crate::poseidon2_wide::{NUM_EXTERNAL_ROUNDS, NUM_INTERNAL_ROUNDS, WIDTH};
 
-use super::{POSEIDON2_DEGREE3_COL_MAP, POSEIDON2_DEGREE7_COL_MAP};
+use super::{POSEIDON2_DEGREE3_COL_MAP, POSEIDON2_DEGREE9_COL_MAP};
 
 pub trait Permutation<T: Copy> {
     fn external_rounds_state(&self) -> &[[T; WIDTH]; NUM_EXTERNAL_ROUNDS];
@@ -150,6 +150,56 @@ impl<T: Copy> PermutationMut<T> for &mut PermutationNoSbox<T> {
     }
 }
 
+#[derive(AlignedBorrow, Clone, Copy)]
+#[repr(C)]
+pub struct PermutationNoSboxHalfExternal<T: Copy> {
+    pub external_rounds_state: [[T; WIDTH]; NUM_EXTERNAL_ROUNDS / 2],
+    pub internal_rounds_state: [T; WIDTH],
+    pub internal_rounds_s0: [T; NUM_INTERNAL_ROUNDS - 1],
+    pub output_state: [T; WIDTH],
+}
+
+impl<T: Copy> Permutation<T> for PermutationNoSboxHalfExternal<T> {
+    fn external_rounds_state(&self) -> &[[T; WIDTH]; NUM_EXTERNAL_ROUNDS] {
+        todo!()
+    }
+
+    fn internal_rounds_state(&self) -> &[T; WIDTH] {
+        &self.internal_rounds_state
+    }
+
+    fn internal_rounds_s0(&self) -> &[T; NUM_INTERNAL_ROUNDS - 1] {
+        &self.internal_rounds_s0
+    }
+
+    fn external_rounds_sbox(&self) -> Option<&[[T; WIDTH]; NUM_EXTERNAL_ROUNDS]> {
+        None
+    }
+
+    fn internal_rounds_sbox(&self) -> Option<&[T; NUM_INTERNAL_ROUNDS]> {
+        None
+    }
+
+    fn output_state(&self) -> &[T; WIDTH] {
+        &self.output_state
+    }
+}
+
+impl<T: Copy> PermutationMut<T> for &mut PermutationNoSboxHalfExternal<T> {
+    fn get_cols_mut(
+        &mut self,
+    ) -> (
+        &mut [[T; WIDTH]; NUM_EXTERNAL_ROUNDS],
+        &mut [T; WIDTH],
+        &mut [T; NUM_INTERNAL_ROUNDS - 1],
+        Option<&mut [[T; WIDTH]; NUM_EXTERNAL_ROUNDS]>,
+        Option<&mut [T; NUM_INTERNAL_ROUNDS]>,
+        &mut [T; WIDTH],
+    ) {
+        todo!()
+    }
+}
+
 pub fn permutation_mut<'a, 'b: 'a, T, const DEGREE: usize>(
     row: &'b mut [T],
 ) -> Box<dyn PermutationMut<T> + 'a>
@@ -164,7 +214,7 @@ where
         let convert: &mut PermutationSBox<T> = row[start..end].borrow_mut();
         Box::new(convert)
     } else if DEGREE == 9 {
-        let start = POSEIDON2_DEGREE7_COL_MAP
+        let start = POSEIDON2_DEGREE9_COL_MAP
             .permutation_cols
             .external_rounds_state[0][0];
         let end = start + size_of::<PermutationNoSbox<u8>>();
