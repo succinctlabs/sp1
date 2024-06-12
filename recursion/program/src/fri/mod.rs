@@ -330,7 +330,7 @@ pub fn reduce_fast<C: Config, const D: usize>(
             _ => unreachable!(),
         };
         nested_opened_values.truncate(builder, Usize::Var(nb_opened_values));
-        builder.poseidon2_hash_x_orig(&nested_opened_values)
+        builder.poseidon2_hash_x(&nested_opened_values)
     } else {
         nested_opened_values.truncate(builder, Usize::Var(nb_opened_values));
         builder.poseidon2_hash_ext(&nested_opened_values)

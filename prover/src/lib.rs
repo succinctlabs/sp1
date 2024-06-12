@@ -27,7 +27,7 @@ use rayon::prelude::*;
 use sp1_core::air::{PublicValues, Word};
 pub use sp1_core::io::{SP1PublicValues, SP1Stdin};
 use sp1_core::runtime::{ExecutionError, ExecutionReport, Runtime};
-use sp1_core::stark::{Challenge, StarkProvingKey};
+use sp1_core::stark::{debug_constraints, Challenge, StarkProvingKey};
 use sp1_core::stark::{Challenger, MachineVerificationError};
 use sp1_core::utils::{SP1CoreOpts, DIGEST_SIZE};
 use sp1_core::{
@@ -414,6 +414,16 @@ impl SP1Prover {
                     runtime.print_stats();
 
                     let pk = &self.rec_pk;
+
+                    let mut challenger_clone = self.compress_machine.config().challenger();
+                    let record_clone = runtime.record.clone();
+                    self.compress_machine.debug_constraints(
+                        pk,
+                        record_clone,
+                        &mut challenger_clone,
+                    );
+                    panic!();
+
                     let mut recursive_challenger = self.compress_machine.config().challenger();
                     (
                         self.compress_machine.prove::<LocalProver<_, _>>(

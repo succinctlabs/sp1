@@ -6,6 +6,7 @@ pub mod external;
 mod trace;
 use crate::air::Block;
 use crate::memory::MemoryRecord;
+use crate::runtime::DIGEST_SIZE;
 use p3_field::PrimeField32;
 
 pub use columns::Poseidon2Cols;
@@ -59,6 +60,7 @@ pub struct Poseidon2AbsorbEvent<F> {
     pub hash_num: F,      // from a_val
     pub input_ptr: F,     // from b_val
     pub input_len: usize, // from c_val
+    pub hash_state_cursor: usize,
     pub input: Vec<F>,
     pub input_records: Vec<MemoryRecord<F>>,
 }
@@ -68,6 +70,7 @@ pub struct Poseidon2FinalizeEvent<F> {
     pub clk: F,
     pub hash_num: F,   // from a_val
     pub output_ptr: F, // from b_val
+    pub do_perm: bool,
     pub output: [F; WIDTH],
-    pub output_records: [MemoryRecord<F>; WIDTH],
+    pub output_records: [MemoryRecord<F>; DIGEST_SIZE],
 }

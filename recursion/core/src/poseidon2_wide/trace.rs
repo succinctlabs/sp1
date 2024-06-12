@@ -1,4 +1,5 @@
 use std::borrow::BorrowMut;
+use std::cmp::min;
 
 use p3_air::BaseAir;
 use p3_field::PrimeField32;
@@ -7,6 +8,7 @@ use sp1_core::{air::MachineAir, utils::pad_rows_fixed};
 use sp1_primitives::RC_16_30_U32;
 use tracing::instrument;
 
+use crate::poseidon2::{Poseidon2AbsorbEvent, Poseidon2CompressEvent, Poseidon2FinalizeEvent};
 use crate::poseidon2_wide::columns::permutation::permutation_mut;
 use crate::{
     poseidon2::Poseidon2Event,
@@ -47,157 +49,17 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
         for event in &input.poseidon2_events {
             match event {
                 Poseidon2Event::Compress(compress_event) => {
-                    let mut input_row = vec![F::zero(); num_columns];
-
-                    {
-                        let mut cols = self.convert_mut(&mut input_row);
-
-                        let control_flow = cols.control_flow_mut();
-                        control_flow.is_compress = F::one();
-                        control_flow.is_syscall = F::one();
-                        control_flow.is_input = F::one();
-                        control_flow.do_perm = F::one();
-                    }
-
-                    {
-                        let mut cols = self.convert_mut(&mut input_row);
-
-                        let syscall_params = cols.syscall_params_mut().compress_mut();
-                        syscall_params.clk = compress_event.clk;
-                        syscall_params.dst_ptr = compress_event.dst;
-                        syscall_params.left_ptr = compress_event.left;
-                        syscall_params.right_ptr = compress_event.right;
-                    }
-
-                    {
-                        let mut cols = self.convert_mut(&mut input_row);
-
-                        let compress_cols = cols.opcode_workspace_mut().compress_mut();
-
-                        // Apply the initial round.
-                        for i in 0..WIDTH {
-                            compress_cols.input[i].populate(&compress_event.input_records[i]);
-                        }
-                    }
-
-                    {
-                        let mut permutation = permutation_mut::<F, DEGREE>(&mut input_row);
-
-                        let (
-                            external_rounds_state,
-                            internal_rounds_state,
-                            internal_rounds_s0,
-                            mut external_sbox,
-                            mut internal_sbox,
-                            output_state,
-                        ) = permutation.get_cols_mut();
-
-                        external_rounds_state[0] = compress_event.input;
-                        external_linear_layer(&mut external_rounds_state[0]);
-
-                        // Apply the first half of external rounds.
-                        for r in 0..NUM_EXTERNAL_ROUNDS / 2 {
-                            let next_state = populate_external_round(
-                                external_rounds_state,
-                                &mut external_sbox,
-                                r,
-                            );
-                            if r == NUM_EXTERNAL_ROUNDS / 2 - 1 {
-                                *internal_rounds_state = next_state;
-                            } else {
-                                external_rounds_state[r + 1] = next_state;
-                            }
-                        }
-
-                        // Apply the internal rounds.
-                        external_rounds_state[NUM_EXTERNAL_ROUNDS / 2] = populate_internal_rounds(
-                            internal_rounds_state,
-                            internal_rounds_s0,
-                            &mut internal_sbox,
-                        );
-
-                        // Apply the second half of external rounds.
-                        for r in NUM_EXTERNAL_ROUNDS / 2..NUM_EXTERNAL_ROUNDS {
-                            let next_state = populate_external_round(
-                                external_rounds_state,
-                                &mut external_sbox,
-                                r,
-                            );
-                            if r == NUM_EXTERNAL_ROUNDS - 1 {
-                                for i in 0..WIDTH {
-                                    output_state[i] = next_state[i];
-                                    assert_eq!(
-                                        compress_event.result_records[i].value[0],
-                                        next_state[i]
-                                    );
-                                }
-                            } else {
-                                external_rounds_state[r + 1] = next_state;
-                            }
-                        }
-                    }
-
-                    rows.push(input_row);
-
-                    let mut output_row = vec![F::zero(); num_columns];
-                    {
-                        let mut cols = self.convert_mut(&mut output_row);
-
-                        let control_flow = cols.control_flow_mut();
-                        control_flow.is_compress = F::one();
-                        control_flow.is_output = F::one();
-                        control_flow.is_compress_output = F::one();
-                    }
-
-                    {
-                        let mut cols = self.convert_mut(&mut output_row);
-
-                        let syscall_cols = cols.syscall_params_mut().compress_mut();
-                        syscall_cols.clk = compress_event.clk;
-                        syscall_cols.dst_ptr = compress_event.dst;
-                        syscall_cols.left_ptr = compress_event.left;
-                        syscall_cols.right_ptr = compress_event.right;
-                    }
-
-                    {
-                        let mut cols = self.convert_mut(&mut output_row);
-
-                        let output_cols = cols.opcode_workspace_mut().output_mut();
-
-                        for i in 0..WIDTH {
-                            output_cols.output_memory[i]
-                                .populate(&compress_event.result_records[i]);
-                        }
-                    }
-
-                    rows.push(output_row);
+                    rows.extend(self.populate_compress_event(compress_event, num_columns));
                 }
 
-                Poseidon2Event::Absorb(_) | Poseidon2Event::Finalize(_) => {
-                    todo!();
-                } // Poseidon2Event::Absorb(absorb_event) => {
-                  //     cols.is_absorb = F::one();
+                Poseidon2Event::Absorb(absorb_event) => {
+                    rows.extend(self.populate_absorb_event(absorb_event, num_columns));
+                }
 
-                  //     let input_cols = cols.syscall_input.absorb_mut();
-                  //     input_cols.clk = absorb_event.clk;
-                  //     input_cols.input_ptr = absorb_event.input_ptr;
-                  //     input_cols.len = F::from_canonical_usize(absorb_event.input_len);
-                  //     input_cols.hash_num = absorb_event.hash_num;
-                  // }
-
-                  // Poseidon2Event::Finalize(finalize_event) => {
-                  //     cols.is_finalize = F::one();
-
-                  //     let input_cols = cols.syscall_input.finalize_mut();
-                  //     input_cols.clk = finalize_event.clk;
-                  //     input_cols.hash_num = finalize_event.hash_num;
-                  //     input_cols.output_ptr = finalize_event.output_ptr;
-                  // }
+                Poseidon2Event::Finalize(finalize_event) => {
+                    rows.push(self.populate_finalize_event(finalize_event, num_columns));
+                }
             }
-
-            //     for i in 0..WIDTH {
-            //         memory.output[i].populate(&event.result_records[i]);
-            //     }
         }
 
         // Pad the trace to a power of two.
@@ -240,6 +102,210 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         } else {
             panic!("Unsupported degree");
         }
+    }
+
+    pub fn populate_compress_event<F: PrimeField32>(
+        &self,
+        compress_event: &Poseidon2CompressEvent<F>,
+        num_columns: usize,
+    ) -> Vec<Vec<F>> {
+        let mut compress_rows = Vec::new();
+
+        let mut input_row = vec![F::zero(); num_columns];
+        {
+            let mut cols = self.convert_mut(&mut input_row);
+
+            let control_flow = cols.control_flow_mut();
+            control_flow.is_compress = F::one();
+            control_flow.is_syscall = F::one();
+            control_flow.is_input = F::one();
+            control_flow.do_perm = F::one();
+        }
+
+        {
+            let mut cols = self.convert_mut(&mut input_row);
+
+            let syscall_params = cols.syscall_params_mut().compress_mut();
+            syscall_params.clk = compress_event.clk;
+            syscall_params.dst_ptr = compress_event.dst;
+            syscall_params.left_ptr = compress_event.left;
+            syscall_params.right_ptr = compress_event.right;
+        }
+
+        {
+            let mut cols = self.convert_mut(&mut input_row);
+
+            let compress_cols = cols.opcode_workspace_mut().compress_mut();
+
+            // Apply the initial round.
+            for i in 0..WIDTH {
+                compress_cols.input[i].populate(&compress_event.input_records[i]);
+            }
+        }
+
+        {
+            let mut permutation = permutation_mut::<F, DEGREE>(&mut input_row);
+
+            let (
+                external_rounds_state,
+                internal_rounds_state,
+                internal_rounds_s0,
+                mut external_sbox,
+                mut internal_sbox,
+                output_state,
+            ) = permutation.get_cols_mut();
+
+            external_rounds_state[0] = compress_event.input;
+            external_linear_layer(&mut external_rounds_state[0]);
+
+            // Apply the first half of external rounds.
+            for r in 0..NUM_EXTERNAL_ROUNDS / 2 {
+                let next_state =
+                    populate_external_round(external_rounds_state, &mut external_sbox, r);
+                if r == NUM_EXTERNAL_ROUNDS / 2 - 1 {
+                    *internal_rounds_state = next_state;
+                } else {
+                    external_rounds_state[r + 1] = next_state;
+                }
+            }
+
+            // Apply the internal rounds.
+            external_rounds_state[NUM_EXTERNAL_ROUNDS / 2] = populate_internal_rounds(
+                internal_rounds_state,
+                internal_rounds_s0,
+                &mut internal_sbox,
+            );
+
+            // Apply the second half of external rounds.
+            for r in NUM_EXTERNAL_ROUNDS / 2..NUM_EXTERNAL_ROUNDS {
+                let next_state =
+                    populate_external_round(external_rounds_state, &mut external_sbox, r);
+                if r == NUM_EXTERNAL_ROUNDS - 1 {
+                    for i in 0..WIDTH {
+                        output_state[i] = next_state[i];
+                        assert_eq!(compress_event.result_records[i].value[0], next_state[i]);
+                    }
+                } else {
+                    external_rounds_state[r + 1] = next_state;
+                }
+            }
+        }
+
+        compress_rows.push(input_row);
+
+        let mut output_row = vec![F::zero(); num_columns];
+        {
+            let mut cols = self.convert_mut(&mut output_row);
+
+            let control_flow = cols.control_flow_mut();
+            control_flow.is_compress = F::one();
+            control_flow.is_output = F::one();
+            control_flow.is_compress_output = F::one();
+        }
+
+        {
+            let mut cols = self.convert_mut(&mut output_row);
+
+            let syscall_cols = cols.syscall_params_mut().compress_mut();
+            syscall_cols.clk = compress_event.clk;
+            syscall_cols.dst_ptr = compress_event.dst;
+            syscall_cols.left_ptr = compress_event.left;
+            syscall_cols.right_ptr = compress_event.right;
+        }
+
+        {
+            let mut cols = self.convert_mut(&mut output_row);
+
+            let output_cols = cols.opcode_workspace_mut().output_mut();
+
+            for i in 0..WIDTH {
+                output_cols.output_memory[i].populate(&compress_event.result_records[i]);
+            }
+        }
+
+        compress_rows.push(output_row);
+        compress_rows
+    }
+
+    pub fn populate_absorb_event<F: PrimeField32>(
+        &self,
+        absorb_event: &Poseidon2AbsorbEvent<F>,
+        num_columns: usize,
+    ) -> Vec<Vec<F>> {
+        let mut absorb_rows = Vec::new();
+
+        // Handle the first chunk.  It may not be the full hash rate.
+        // Create a vec of each absorb row's input size.
+        let first_chunk_size = min(
+            WIDTH / 2 - absorb_event.hash_state_cursor,
+            absorb_event.input_len,
+        );
+        let mut input_sizes = vec![first_chunk_size];
+
+        let num_rate_sizes = (absorb_event.input_len - first_chunk_size) / (WIDTH / 2);
+        input_sizes.extend(vec![WIDTH / 2; num_rate_sizes]);
+        let last_chunk_size = (absorb_event.input_len - first_chunk_size) % (WIDTH / 2);
+        if last_chunk_size > 0 {
+            input_sizes.push(last_chunk_size);
+        }
+
+        let mut state_cursor = absorb_event.hash_state_cursor;
+        for (row_num, input_size) in input_sizes.iter().enumerate() {
+            let mut absorb_row = vec![F::zero(); num_columns];
+
+            {
+                let mut cols = self.convert_mut(&mut absorb_row);
+                let control_flow = cols.control_flow_mut();
+                control_flow.is_absorb = F::one();
+                control_flow.is_syscall = F::from_bool(row_num == 0);
+                control_flow.is_input = F::one();
+                control_flow.do_perm = F::from_bool(state_cursor + input_size == (WIDTH / 2));
+            }
+
+            {
+                let mut cols = self.convert_mut(&mut absorb_row);
+
+                let syscall_params = cols.syscall_params_mut().absorb_mut();
+                syscall_params.clk = absorb_event.clk;
+                syscall_params.hash_num = absorb_event.hash_num;
+                syscall_params.input_ptr = absorb_event.input_ptr;
+                syscall_params.len = F::from_canonical_usize(absorb_event.input_len);
+            }
+
+            state_cursor += input_size;
+            state_cursor %= WIDTH / 2;
+            absorb_rows.push(absorb_row);
+        }
+
+        absorb_rows
+    }
+
+    pub fn populate_finalize_event<F: PrimeField32>(
+        &self,
+        finalize_event: &Poseidon2FinalizeEvent<F>,
+        num_columns: usize,
+    ) -> Vec<F> {
+        let mut finalize_row = vec![F::zero(); num_columns];
+
+        {
+            let mut cols = self.convert_mut(&mut finalize_row);
+            let control_flow = cols.control_flow_mut();
+            control_flow.is_finalize = F::one();
+            control_flow.is_syscall = F::one();
+            control_flow.is_output = F::one();
+            control_flow.do_perm = F::from_bool(finalize_event.do_perm);
+        }
+
+        {
+            let mut cols = self.convert_mut(&mut finalize_row);
+
+            let syscall_params = cols.syscall_params_mut().finalize_mut();
+            syscall_params.clk = finalize_event.clk;
+            syscall_params.hash_num = finalize_event.hash_num;
+            syscall_params.output_ptr = finalize_event.output_ptr;
+        }
+
+        finalize_row
     }
 }
 

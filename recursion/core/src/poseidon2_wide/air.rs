@@ -45,35 +45,35 @@ where
         let next_control_flow = next_ptr.control_flow();
         self.eval_control_flow(builder, local_control_flow, next_control_flow);
 
-        // Check that the syscall columns are correct.
+        // // Check that the syscall columns are correct.
         let local_syscall = local_ptr.syscall_params();
         let next_syscall = next_ptr.syscall_params();
         self.eval_syscall_params(
             builder,
             local_syscall,
             next_syscall,
-            local_control_flow.is_compress,
-            local_control_flow.is_syscall,
+            local_control_flow,
+            next_control_flow,
         );
 
-        // Check that all the memory access columns are correct.
-        let local_opcode_workspace = local_ptr.opcode_workspace();
-        self.eval_mem(
-            builder,
-            local_syscall,
-            local_opcode_workspace,
-            local_control_flow.is_input,
-            local_control_flow.is_output,
-        );
+        // // Check that all the memory access columns are correct.
+        // let local_opcode_workspace = local_ptr.opcode_workspace();
+        // self.eval_mem(
+        //     builder,
+        //     local_syscall,
+        //     local_opcode_workspace,
+        //     local_control_flow.is_input,
+        //     local_control_flow.is_output,
+        // );
 
-        // Check that the permutation columns are correct.
-        let local_perm_cols = local_ptr.permutation();
-        self.eval_perm(
-            builder,
-            array::from_fn(|i| *local_opcode_workspace.compress().input[i].value()),
-            local_perm_cols.as_ref(),
-            local_control_flow.do_perm,
-        );
+        // // Check that the permutation columns are correct.
+        // let local_perm_cols = local_ptr.permutation();
+        // self.eval_perm(
+        //     builder,
+        //     array::from_fn(|i| *local_opcode_workspace.compress().input[i].value()),
+        //     local_perm_cols.as_ref(),
+        //     local_control_flow.do_perm,
+        // );
 
         // // Check that the permutation output is copied to the next row correctly.
         // let next_opcode_workspace = next_ptr.opcode_workspace();
@@ -133,7 +133,7 @@ impl<'a, const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             local_control_flow.is_compress_output,
         );
 
-        // Ensure the first row is real and is a syscall row.
+        // // Ensure the first row is real and is a syscall row.
         builder.when_first_row().assert_one(is_real.clone());
         builder
             .when_first_row()
@@ -197,7 +197,7 @@ impl<'a, const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             // Every row right after the absorb syscall must either be a compress or finalize.
             absorb_builder
                 .when_transition()
-                .assert_one(next_control_flow.is_compress + next_control_flow.is_finalize);
+                .assert_one(next_control_flow.is_absorb + next_control_flow.is_finalize);
         }
 
         // Apply control flow constraints for finalize.
@@ -208,7 +208,6 @@ impl<'a, const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             finalize_builder.assert_one(local_control_flow.is_syscall);
             finalize_builder.assert_zero(local_control_flow.is_input);
             finalize_builder.assert_one(local_control_flow.is_output);
-            finalize_builder.assert_zero(local_control_flow.do_perm);
 
             // Every next real row after finalize must be either a compress or absorb and must be a syscall.
             finalize_builder
@@ -227,30 +226,71 @@ impl<'a, const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         builder: &mut AB,
         local_syscall: &SyscallParams<AB::Var>,
         next_syscall: &SyscallParams<AB::Var>,
-        is_compress: AB::Var,
-        is_syscall: AB::Var,
+        local_control_flow: &ControlFlow<AB::Var>,
+        next_control_flow: &ControlFlow<AB::Var>,
     ) {
         // Constraint that the operands are sent from the CPU table.
         let operands = local_syscall.get_raw_params();
-        builder.receive_table(
-            Opcode::Poseidon2Compress.as_field::<AB::F>(),
-            &operands,
-            is_syscall,
-        );
+        let opcodes: [AB::Expr; 3] = [
+            Opcode::Poseidon2Compress,
+            Opcode::Poseidon2Absorb,
+            Opcode::Poseidon2Finalize,
+        ]
+        .map(|x| x.as_field::<AB::F>().into());
+        let opcode_selectors = [
+            local_control_flow.is_compress,
+            local_control_flow.is_absorb,
+            local_control_flow.is_finalize,
+        ];
+
+        let opcode: AB::Expr = opcodes
+            .iter()
+            .zip(opcode_selectors.iter())
+            .map(|(x, y)| x.clone() * *y)
+            .sum();
+
+        builder.receive_table(opcode, &operands, local_control_flow.is_syscall);
 
         let mut transition_builder = builder.when_transition();
-        let mut compress_builder = transition_builder.when(is_compress);
-        let mut compress_syscall_builder = compress_builder.when(is_syscall);
 
-        // Verify that the syscall parameters are copied for all of the rows.
-        let local_syscall_input = local_syscall.compress();
-        let next_syscall_input = next_syscall.compress();
-        compress_syscall_builder.assert_eq(local_syscall_input.clk, next_syscall_input.clk);
-        compress_syscall_builder.assert_eq(local_syscall_input.dst_ptr, next_syscall_input.dst_ptr);
-        compress_syscall_builder
-            .assert_eq(local_syscall_input.left_ptr, next_syscall_input.left_ptr);
-        compress_syscall_builder
-            .assert_eq(local_syscall_input.right_ptr, next_syscall_input.right_ptr);
+        // Apply syscall constraints for compress.  Verify that the syscall parameters are copied to
+        // the compress output row.
+        {
+            let mut compress_syscall_builder = transition_builder
+                .when(local_control_flow.is_compress * local_control_flow.is_syscall);
+
+            let local_syscall_params = local_syscall.compress();
+            let next_syscall_params = next_syscall.compress();
+            compress_syscall_builder.assert_eq(local_syscall_params.clk, next_syscall_params.clk);
+            compress_syscall_builder
+                .assert_eq(local_syscall_params.dst_ptr, next_syscall_params.dst_ptr);
+            compress_syscall_builder
+                .assert_eq(local_syscall_params.left_ptr, next_syscall_params.left_ptr);
+            compress_syscall_builder.assert_eq(
+                local_syscall_params.right_ptr,
+                next_syscall_params.right_ptr,
+            );
+        }
+
+        // Apply syscall constraints for absorb.  Verify that the syscall parameters are the same within
+        // an absorb call.
+        {
+            let mut absorb_syscall_builder = transition_builder.when(local_control_flow.is_absorb);
+            let mut absorb_syscall_builder =
+                absorb_syscall_builder.when_not(next_control_flow.is_syscall);
+
+            let local_syscall_params = local_syscall.absorb();
+            let next_syscall_params = next_syscall.absorb();
+
+            absorb_syscall_builder.assert_eq(local_syscall_params.clk, next_syscall_params.clk);
+            absorb_syscall_builder
+                .assert_eq(local_syscall_params.hash_num, next_syscall_params.hash_num);
+            absorb_syscall_builder.assert_eq(
+                local_syscall_params.input_ptr,
+                next_syscall_params.input_ptr,
+            );
+            absorb_syscall_builder.assert_eq(local_syscall_params.len, next_syscall_params.len);
+        }
     }
 
     fn eval_mem<AB: SP1RecursionAirBuilder>(

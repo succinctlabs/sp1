@@ -1,6 +1,6 @@
 use sp1_derive::AlignedBorrow;
 
-#[derive(AlignedBorrow, Clone, Copy)]
+#[derive(AlignedBorrow, Clone, Copy, Debug)]
 #[repr(C)]
 pub struct ControlFlow<T> {
     pub is_compress: T,

@@ -736,6 +736,9 @@ where
                         input_records.push(input_record);
                     });
 
+                    // Save the p2 hash state cursor for the event.
+                    let event_hash_state_cursor = self.p2_hash_state_cursor;
+
                     // Handle the first permutation.
                     let first_permutation_input_size =
                         min(8 - self.p2_hash_state_cursor, input_len);
@@ -777,6 +780,7 @@ where
                             hash_num: p2_hash_num,
                             input_ptr,
                             input_len,
+                            hash_state_cursor: event_hash_state_cursor,
                             input,
                             input_records,
                         },
@@ -793,7 +797,8 @@ where
                     let output_ptr = b_val[0];
                     let timestamp = self.clk;
 
-                    if self.p2_hash_state_cursor != 0 {
+                    let do_perm = self.p2_hash_state_cursor != 0;
+                    if do_perm {
                         self.perm
                             .as_ref()
                             .unwrap()
@@ -820,6 +825,7 @@ where
                             clk: timestamp,
                             hash_num: p2_hash_num,
                             output_ptr,
+                            do_perm,
                             output: self.p2_hash_state,
                             output_records: array::from_fn(|i| output_records[i]),
                         },
