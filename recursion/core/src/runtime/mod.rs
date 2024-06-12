@@ -952,7 +952,7 @@ mod tests {
         utils::BabyBearPoseidon2,
     };
 
-    use super::{Instruction, MemoryEntry, Opcode, RecursionProgram, Runtime};
+    use super::{Instruction, Opcode, RecursionProgram, Runtime};
 
     type SC = BabyBearPoseidon2;
     type F = <SC as StarkGenericConfig>::Val;
