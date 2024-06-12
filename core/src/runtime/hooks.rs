@@ -10,8 +10,6 @@ type BoxedHook<'a> = Box<dyn Fn(HookEnv, &[u8]) -> Vec<Vec<u8>> + 'a>;
 
 /// The file descriptor through which to access `hook_ecrecover`.
 pub const FD_ECRECOVER_HOOK: u32 = 5;
-// Note: To ensure any `fd` value is synced with `zkvm/precompiles/src/io.rs`,
-// add an assertion to the test `hook_fds_match` below.
 
 /// A registry of hooks to call, indexed by the file descriptors through which they are accessed.
 pub struct HookRegistry<'a> {
@@ -43,8 +41,11 @@ impl<'a> Default for HookRegistry<'a> {
     fn default() -> Self {
         // When `LazyCell` gets stabilized (1.81.0), we can use it to avoid unnecessary allocations.
         let table = {
-            let entries: Vec<(u32, BoxedHook)> =
-                vec![(FD_ECRECOVER_HOOK, Box::new(hook_ecrecover))];
+            let entries: Vec<(u32, BoxedHook)> = vec![
+                // Note: To ensure any `fd` value is synced with `zkvm/precompiles/src/io.rs`,
+                // add an assertion to the test `hook_fds_match` below.
+                (FD_ECRECOVER_HOOK, Box::new(hook_ecrecover)),
+            ];
             HashMap::from_iter(entries)
         };
 
