@@ -50,6 +50,7 @@ pub enum Opcode {
     RegisterPublicValue = 42,
     LessThanF = 43,
     CycleTracker = 44,
+    ExpReverseBitsLen = 45,
 }
 
 impl Opcode {

@@ -214,7 +214,7 @@ impl<const DEGREE: usize> FriFoldChip<DEGREE> {
             .when(next.is_real)
             .assert_zero(next.m);
 
-        // Ensure that all rows for a FRI FOLD invocation have the same input_ptr, clk, and sequential m values.
+        // Ensure that all rows for a FRI FOLD invocation have the same input_ptr and sequential clk and m values.
         builder
             .when_transition()
             .when_not(local.is_last_iteration)
