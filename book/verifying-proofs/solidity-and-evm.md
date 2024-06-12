@@ -54,7 +54,7 @@ Add `@sp1-contracts/=lib/sp1-contracts/contracts/src/` in `remappings.txt.`
 Once installed, you can use the contracts in the library by importing them:
 
 ```solidity
-pragma solidity ^0.8.25;
+pragma solidity ^0.8.19;
 
 import {SP1Verifier} from "@sp1-contracts/SP1Verifier.sol";
 
