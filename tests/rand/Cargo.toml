@@ -1,0 +1,10 @@
+[workspace]
+[package]
+name = "rand-test"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+sp1-zkvm = { path = "../../zkvm/entrypoint" }
+sp1-derive = { path = "../../derive" }
+rand = "0.8.5"
