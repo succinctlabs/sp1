@@ -1,4 +1,3 @@
-pub mod blake3;
 pub mod edwards;
 pub mod keccak256;
 pub mod sha256;
@@ -20,6 +19,7 @@ use serde::{Deserialize, Serialize};
 /// Elliptic curve add event.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ECAddEvent {
+    pub lookup_id: usize,
     pub shard: u32,
     pub channel: u32,
     pub clk: u32,
@@ -68,6 +68,7 @@ pub fn create_ec_add_event<E: EllipticCurve>(
     let p_memory_records = rt.mw_slice(p_ptr, &result_words);
 
     ECAddEvent {
+        lookup_id: rt.syscall_lookup_id,
         shard: rt.current_shard(),
         channel: rt.current_channel(),
         clk: start_clk,
@@ -83,6 +84,7 @@ pub fn create_ec_add_event<E: EllipticCurve>(
 /// Elliptic curve double event.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ECDoubleEvent {
+    pub lookup_id: usize,
     pub shard: u32,
     pub channel: u32,
     pub clk: u32,
@@ -119,6 +121,7 @@ pub fn create_ec_double_event<E: EllipticCurve>(
     let p_memory_records = rt.mw_slice(p_ptr, &result_words);
 
     ECDoubleEvent {
+        lookup_id: rt.syscall_lookup_id,
         shard: rt.current_shard(),
         channel: rt.current_channel(),
         clk: start_clk,
@@ -131,6 +134,7 @@ pub fn create_ec_double_event<E: EllipticCurve>(
 /// Elliptic curve point decompress event.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ECDecompressEvent {
+    pub lookup_id: usize,
     pub shard: u32,
     pub channel: u32,
     pub clk: u32,
@@ -176,6 +180,7 @@ pub fn create_ec_decompress_event<E: EllipticCurve>(
     let y_memory_records = rt.mw_slice(slice_ptr, &y_words);
 
     ECDecompressEvent {
+        lookup_id: rt.syscall_lookup_id,
         shard: rt.current_shard(),
         channel: rt.current_channel(),
         clk: start_clk,

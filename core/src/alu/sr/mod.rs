@@ -85,6 +85,9 @@ pub struct ShiftRightCols<T> {
     /// The channel number, used for byte lookup table.
     pub channel: T,
 
+    /// The nonce of the operation.
+    pub nonce: T,
+
     /// The output operand.
     pub a: Word<T>,
 
@@ -283,6 +286,13 @@ impl<F: PrimeField> MachineAir<F> for ShiftRightChip {
             trace.values[i] = padded_row_template[i % NUM_SHIFT_RIGHT_COLS];
         }
 
+        // Write the nonces to the trace.
+        for i in 0..trace.height() {
+            let cols: &mut ShiftRightCols<F> =
+                trace.values[i * NUM_SHIFT_RIGHT_COLS..(i + 1) * NUM_SHIFT_RIGHT_COLS].borrow_mut();
+            cols.nonce = F::from_canonical_usize(i);
+        }
+
         trace
     }
 
@@ -305,8 +315,16 @@ where
         let main = builder.main();
         let local = main.row_slice(0);
         let local: &ShiftRightCols<AB::Var> = (*local).borrow();
+        let next = main.row_slice(1);
+        let next: &ShiftRightCols<AB::Var> = (*next).borrow();
         let zero: AB::Expr = AB::F::zero().into();
         let one: AB::Expr = AB::F::one().into();
+
+        // Constrain the incrementing nonce.
+        builder.when_first_row().assert_zero(local.nonce);
+        builder
+            .when_transition()
+            .assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         // Check that the MSB of most_significant_byte matches local.b_msb using lookup.
         {
@@ -464,6 +482,9 @@ where
             for shift_by_n_bit in local.shift_by_n_bits.iter() {
                 builder.assert_bool(*shift_by_n_bit);
             }
+            for bit in local.c_least_sig_byte.iter() {
+                builder.assert_bool(*bit);
+            }
         }
 
         // Range check bytes.
@@ -485,6 +506,9 @@ where
         builder.assert_bool(local.is_sra);
         builder.assert_bool(local.is_real);
 
+        // Check that is_real is the sum of the two operation flags.
+        builder.assert_eq(local.is_srl + local.is_sra, local.is_real);
+
         // Receive the arguments.
         builder.receive_alu(
             local.is_srl * AB::F::from_canonical_u32(Opcode::SRL as u32)
@@ -494,6 +518,7 @@ where
             local.c,
             local.shard,
             local.channel,
+            local.nonce,
             local.is_real,
         );
     }

@@ -1,5 +1,7 @@
 //! An implementation of Poseidon2 over BN254.
 
+use std::array;
+
 use itertools::Itertools;
 use p3_field::AbstractField;
 use p3_field::Field;
@@ -16,6 +18,8 @@ pub trait Poseidon2CircuitBuilder<C: Config> {
     fn p2_permute_mut(&mut self, state: [Var<C::N>; SPONGE_SIZE]);
     fn p2_hash(&mut self, input: &[Felt<C::F>]) -> OuterDigestVariable<C>;
     fn p2_compress(&mut self, input: [OuterDigestVariable<C>; 2]) -> OuterDigestVariable<C>;
+    fn p2_babybear_permute_mut(&mut self, state: [Felt<C::F>; 16]);
+    fn p2_babybear_hash(&mut self, input: &[Felt<C::F>]) -> [Felt<C::F>; 8];
 }
 
 impl<C: Config> Poseidon2CircuitBuilder<C> for Builder<C> {
@@ -52,6 +56,24 @@ impl<C: Config> Poseidon2CircuitBuilder<C> for Builder<C> {
         self.p2_permute_mut(state);
         [state[0]; DIGEST_SIZE]
     }
+
+    fn p2_babybear_permute_mut(&mut self, state: [Felt<C::F>; 16]) {
+        self.push(DslIr::CircuitPoseidon2PermuteBabyBear(state));
+    }
+
+    fn p2_babybear_hash(&mut self, input: &[Felt<C::F>]) -> [Felt<C::F>; 8] {
+        let mut state: [Felt<C::F>; 16] = array::from_fn(|_| self.eval(C::F::zero()));
+
+        for block_chunk in &input.iter().chunks(8) {
+            state
+                .iter_mut()
+                .zip(block_chunk)
+                .for_each(|(s, i)| *s = self.eval(*i));
+            self.p2_babybear_permute_mut(state);
+        }
+
+        array::from_fn(|i| state[i])
+    }
 }
 
 #[cfg(test)]
@@ -60,6 +82,9 @@ pub mod tests {
     use p3_bn254_fr::Bn254Fr;
     use p3_field::AbstractField;
     use p3_symmetric::{CryptographicHasher, Permutation, PseudoCompressionFunction};
+    use rand::thread_rng;
+    use rand::Rng;
+    use sp1_core::utils::{inner_perm, InnerHash};
     use sp1_recursion_compiler::config::OuterConfig;
     use sp1_recursion_compiler::constraints::ConstraintCompiler;
     use sp1_recursion_compiler::ir::{Builder, Felt, Var, Witness};
@@ -89,6 +114,25 @@ pub mod tests {
         builder.assert_var_eq(a, output[0]);
         builder.assert_var_eq(b, output[1]);
         builder.assert_var_eq(c, output[2]);
+
+        let mut backend = ConstraintCompiler::<OuterConfig>::default();
+        let constraints = backend.emit(builder.operations);
+        PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
+    }
+
+    #[test]
+    fn test_p2_babybear_permute_mut() {
+        let mut rng = thread_rng();
+        let mut builder = Builder::<OuterConfig>::default();
+        let input: [BabyBear; 16] = [rng.gen(); 16];
+        let input_vars: [Felt<_>; 16] = input.map(|x| builder.eval(x));
+        builder.p2_babybear_permute_mut(input_vars);
+
+        let perm = inner_perm();
+        let result = perm.permute(input);
+        for i in 0..16 {
+            builder.assert_felt_eq(input_vars[i], result[i]);
+        }
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
@@ -142,6 +186,55 @@ pub mod tests {
         let b: OuterDigestVariable<OuterConfig> = [builder.eval(b[0])];
         let result = builder.p2_compress([a, b]);
         builder.assert_var_eq(result[0], gt[0]);
+
+        let mut backend = ConstraintCompiler::<OuterConfig>::default();
+        let constraints = backend.emit(builder.operations);
+        PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
+    }
+
+    #[test]
+    fn test_p2_babybear_hash() {
+        let perm = inner_perm();
+        let hasher = InnerHash::new(perm.clone());
+
+        let input: [BabyBear; 26] = [
+            BabyBear::from_canonical_u32(0),
+            BabyBear::from_canonical_u32(1),
+            BabyBear::from_canonical_u32(2),
+            BabyBear::from_canonical_u32(2),
+            BabyBear::from_canonical_u32(2),
+            BabyBear::from_canonical_u32(2),
+            BabyBear::from_canonical_u32(2),
+            BabyBear::from_canonical_u32(2),
+            BabyBear::from_canonical_u32(2),
+            BabyBear::from_canonical_u32(2),
+            BabyBear::from_canonical_u32(2),
+            BabyBear::from_canonical_u32(2),
+            BabyBear::from_canonical_u32(2),
+            BabyBear::from_canonical_u32(2),
+            BabyBear::from_canonical_u32(2),
+            BabyBear::from_canonical_u32(3),
+            BabyBear::from_canonical_u32(3),
+            BabyBear::from_canonical_u32(3),
+            BabyBear::from_canonical_u32(3),
+            BabyBear::from_canonical_u32(3),
+            BabyBear::from_canonical_u32(3),
+            BabyBear::from_canonical_u32(3),
+            BabyBear::from_canonical_u32(3),
+            BabyBear::from_canonical_u32(3),
+            BabyBear::from_canonical_u32(3),
+            BabyBear::from_canonical_u32(3),
+        ];
+        let output = hasher.hash_iter(input);
+        println!("{:?}", output);
+
+        let mut builder = Builder::<OuterConfig>::default();
+        let input_felts: [Felt<_>; 26] = input.map(|x| builder.eval(x));
+        let result = builder.p2_babybear_hash(input_felts.as_slice());
+
+        for i in 0..8 {
+            builder.assert_felt_eq(result[i], output[i]);
+        }
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);

@@ -445,7 +445,6 @@ mod tests {
 
             let mut challenger = config.challenger();
 
-            // TODO: test with other fields
             let chip: FieldOpChip<Ed25519BaseField> = FieldOpChip::new(*op);
             let shard = ExecutionRecord::default();
             let trace: RowMajorMatrix<BabyBear> =

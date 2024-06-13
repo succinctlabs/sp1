@@ -26,6 +26,7 @@ pub struct ShaCompressCols<T> {
     /// Inputs.
     pub shard: T,
     pub channel: T,
+    pub nonce: T,
     pub clk: T,
     pub w_ptr: T,
     pub h_ptr: T,
@@ -102,7 +103,9 @@ pub struct ShaCompressCols<T> {
     pub finalized_operand: Word<T>,
     pub finalize_add: AddOperation<T>,
 
+    pub is_initialize: T,
     pub is_compression: T,
+    pub is_finalize: T,
     pub is_last_row: T,
 
     pub is_real: T,

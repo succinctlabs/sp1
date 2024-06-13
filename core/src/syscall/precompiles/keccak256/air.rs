@@ -32,6 +32,12 @@ where
         let local: &KeccakMemCols<AB::Var> = (*local).borrow();
         let next: &KeccakMemCols<AB::Var> = (*next).borrow();
 
+        // Constrain the incrementing nonce.
+        builder.when_first_row().assert_zero(local.nonce);
+        builder
+            .when_transition()
+            .assert_eq(local.nonce + AB::Expr::one(), next.nonce);
+
         let first_step = local.keccak.step_flags[0];
         let final_step = local.keccak.step_flags[NUM_ROUNDS - 1];
         let not_final_step = AB::Expr::one() - final_step;
@@ -68,6 +74,7 @@ where
             local.shard,
             local.channel,
             local.clk,
+            local.nonce,
             AB::F::from_canonical_u32(SyscallCode::KECCAK_PERMUTE.syscall_id()),
             local.state_addr,
             AB::Expr::zero(),
@@ -79,6 +86,7 @@ where
         let mut transition_not_final_builder = transition_builder.when(not_final_step);
         transition_not_final_builder.assert_eq(local.shard, next.shard);
         transition_not_final_builder.assert_eq(local.clk, next.clk);
+        transition_not_final_builder.assert_eq(local.channel, next.channel);
         transition_not_final_builder.assert_eq(local.state_addr, next.state_addr);
         transition_not_final_builder.assert_eq(local.is_real, next.is_real);
 
@@ -121,6 +129,16 @@ where
                         .a_prime_prime_prime(x_idx as usize, y_idx as usize, i),
                 )
             }
+        }
+
+        // Range check all the values in `state_mem` to be bytes.
+        for i in 0..STATE_NUM_WORDS {
+            builder.slice_range_check_u8(
+                &local.state_mem[i].value().0,
+                local.shard,
+                local.channel,
+                local.do_memory_check,
+            );
         }
 
         let mut sub_builder =
