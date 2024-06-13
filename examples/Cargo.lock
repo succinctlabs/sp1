@@ -1287,7 +1287,9 @@ dependencies = [
  "curve25519-dalek-ng",
  "hex",
  "rand_core",
+ "serde",
  "sha2 0.9.9",
+ "thiserror",
  "zeroize",
 ]
 
@@ -3425,6 +3427,8 @@ checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 name = "patch-testing-script"
 version = "0.1.0"
 dependencies = [
+ "ed25519-consensus",
+ "rand",
  "sp1-core",
  "sp1-helper",
  "sp1-sdk",

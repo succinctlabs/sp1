@@ -2,6 +2,7 @@
 sp1_zkvm::entrypoint!(main);
 
 use core::time::Duration;
+use ed25519_consensus::{Signature, SigningKey, VerificationKey, VerificationKeyBytes};
 use sha2_v0_10_6::{Digest as Digest_10_6, Sha256 as Sha256_10_6};
 // use sha2_v0_10_8::{Digest as Digest_10_8, Sha256 as Sha256_10_8};
 use sha2_v0_9_8::{Digest as Digest_9_8, Sha256 as Sha256_9_8};
@@ -9,8 +10,13 @@ use tiny_keccak::{Hasher, Keccak};
 
 fn main() {
     let num_cases = 5;
+    let input = [0u8; 32];
+
+    let sig: Signature = sp1_zkvm::io::read();
+    let vk: VerificationKey = sp1_zkvm::io::read();
+    let msg: Vec<u8> = sp1_zkvm::io::read_vec();
+
     for _ in 0..num_cases {
-        let input = [0u8; 32];
         let mut hasher = Keccak::v256();
         hasher.update(&input);
         let mut output = [0u8; 32];
@@ -28,4 +34,6 @@ fn main() {
         // sha256_10_8.update(input);
         // let output_10_8 = sha256_10_8.finalize();
     }
+
+    assert_eq!(vk.verify(&sig, &msg[..]), Ok(()))
 }
