@@ -137,10 +137,7 @@ where
     let folded_eval: Ext<C::F, C::EF> = builder.eval(C::F::zero());
     let two_adic_generator_f = config.get_two_adic_generator(builder, log_max_height);
 
-    let two_adic_gen_ext = two_adic_generator_f.to_operand().symbolic();
-    let two_adic_generator_ef: Ext<_, _> = builder.eval(two_adic_gen_ext);
-
-    let x = builder.exp_reverse_bits_len(two_adic_generator_ef, index_bits, log_max_height);
+    let x = builder.exp_reverse_bits_len_fast(two_adic_generator_f, index_bits, log_max_height);
 
     let log_max_height = log_max_height.materialize(builder);
     builder
@@ -190,10 +187,10 @@ where
                 .if_eq(index_sibling_mod_2, C::N::zero())
                 .then_or_else(
                     |builder| {
-                        builder.assign(xs_0, x * two_adic_generator_one);
+                        builder.assign(xs_0, x * two_adic_generator_one.to_operand().symbolic());
                     },
                     |builder| {
-                        builder.assign(xs_1, x * two_adic_generator_one);
+                        builder.assign(xs_1, x * two_adic_generator_one.to_operand().symbolic());
                     },
                 );
 

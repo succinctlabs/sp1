@@ -167,19 +167,19 @@ pub trait Syscall: Send + Sync {
 }
 
 /// A runtime for syscalls that is protected so that developers cannot arbitrarily modify the runtime.
-pub struct SyscallContext<'a> {
+pub struct SyscallContext<'a, 'b: 'a> {
     current_shard: u32,
     pub clk: u32,
 
     pub(crate) next_pc: u32,
     /// This is the exit_code used for the HALT syscall
     pub(crate) exit_code: u32,
-    pub(crate) rt: &'a mut Runtime,
+    pub(crate) rt: &'a mut Runtime<'b>,
     pub syscall_lookup_id: usize,
 }
 
-impl<'a> SyscallContext<'a> {
-    pub fn new(runtime: &'a mut Runtime) -> Self {
+impl<'a, 'b> SyscallContext<'a, 'b> {
+    pub fn new(runtime: &'a mut Runtime<'b>) -> Self {
         let current_shard = runtime.shard();
         let clk = runtime.state.clk;
         Self {

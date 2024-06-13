@@ -130,6 +130,41 @@ impl<C: Config> Builder<C> {
         result
     }
 
+    /// A version of `exp_reverse_bits_len` that uses the ExpReverseBitsLen precompile.
+    pub fn exp_reverse_bits_len_fast(
+        &mut self,
+        x: Felt<C::F>,
+        power_bits: &Array<C, Var<C::N>>,
+        bit_len: impl Into<Usize<C::N>>,
+    ) -> Felt<C::F> {
+        // Instantiate an array of length one and store the value of x.
+        let mut x_copy_arr: Array<C, Felt<C::F>> = self.dyn_array(1);
+        self.set(&mut x_copy_arr, 0, x);
+        // Get a pointer to the address holding x.
+        let x_copy_arr_ptr = match x_copy_arr {
+            Array::Dyn(ptr, _) => ptr,
+            _ => panic!("Expected a dynamic array"),
+        };
+
+        // Materialize the bit length as a Var.
+        let bit_len_var = bit_len.into().materialize(self);
+        // Get a pointer to the array of bits in the exponent.
+        let ptr = match power_bits {
+            Array::Dyn(ptr, _) => ptr,
+            _ => panic!("Expected a dynamic array"),
+        };
+
+        // Call the DslIR instruction ExpReverseBitsLen, which modifies the memory pointed to by `x_copy_arr_ptr`.
+        self.push(DslIr::ExpReverseBitsLen(
+            x_copy_arr_ptr,
+            ptr.address,
+            bit_len_var,
+        ));
+
+        // Return the value stored at the address pointed to by `x_copy_arr_ptr`.
+        self.get(&x_copy_arr, 0)
+    }
+
     /// Exponentiates a variable to a list of bits in little endian.
     pub fn exp_power_of_2_v<V>(
         &mut self,

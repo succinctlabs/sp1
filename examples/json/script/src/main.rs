@@ -1,7 +1,7 @@
 //! A simple script to generate and verify the proof of a given program.
 
 use lib::{Account, Transaction};
-use sp1_sdk::{utils, ProverClient, SP1Stdin};
+use sp1_sdk::{utils, ProverClient, SP1Proof, SP1Stdin};
 
 const JSON_ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
 
@@ -62,10 +62,16 @@ fn main() {
     // Verify proof.
     client.verify(&proof, &vk).expect("verification failed");
 
-    // Save proof.
+    // Test a round trip of proof serialization and deserialization.
     proof
-        .save("proof-with-io.json")
+        .save("proof-with-io.bin")
         .expect("saving proof failed");
+    let deserialized_proof = SP1Proof::load("proof-with-io.bin").expect("loading proof failed");
+
+    // Verify the deserialized proof.
+    client
+        .verify(&deserialized_proof, &vk)
+        .expect("verification failed");
 
     println!("successfully generated and verified proof for the program!")
 }
