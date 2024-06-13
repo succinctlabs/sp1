@@ -1,6 +1,7 @@
 use std::fs::File;
 use std::io;
 use std::io::{Seek, Write};
+use std::sync::Arc;
 use web_time::Instant;
 
 pub use baby_bear_blake3::BabyBearBlake3;
@@ -14,7 +15,9 @@ use thiserror::Error;
 use crate::air::MachineAir;
 use crate::io::{SP1PublicValues, SP1Stdin};
 use crate::lookup::InteractionBuilder;
-use crate::runtime::ExecutionError;
+use crate::runtime::{
+    DefaultSubproofVerifier, ExecutionError, NoOpSubproofVerifier, SubproofVerifier,
+};
 use crate::runtime::{ExecutionRecord, ExecutionReport, ShardingConfig};
 use crate::stark::DebugConstraintBuilder;
 use crate::stark::MachineProof;
@@ -97,6 +100,24 @@ where
     ShardMainData<SC>: Serialize + DeserializeOwned,
     <SC as StarkGenericConfig>::Val: PrimeField32,
 {
+    prove_with_subproof_verifier::<SC, DefaultSubproofVerifier>(program, stdin, config, opts, None)
+}
+
+pub fn prove_with_subproof_verifier<SC: StarkGenericConfig + Send + Sync, V: SubproofVerifier>(
+    program: Program,
+    stdin: &SP1Stdin,
+    config: SC,
+    opts: SP1CoreOpts,
+    subproof_verifier: Option<Arc<V>>,
+) -> Result<(MachineProof<SC>, Vec<u8>), SP1CoreProverError>
+where
+    SC::Challenger: Clone,
+    OpeningProof<SC>: Send + Sync,
+    Com<SC>: Send + Sync,
+    PcsProverData<SC>: Send + Sync,
+    ShardMainData<SC>: Serialize + DeserializeOwned,
+    <SC as StarkGenericConfig>::Val: PrimeField32,
+{
     let proving_start = Instant::now();
 
     // Execute the program.
@@ -104,6 +125,9 @@ where
     runtime.write_vecs(&stdin.buffer);
     for proof in stdin.proofs.iter() {
         runtime.write_proof(proof.0.clone(), proof.1.clone());
+    }
+    if let Some(deferred_fn) = subproof_verifier.clone() {
+        runtime.subproof_verifier = deferred_fn;
     }
 
     // Setup the machine.
@@ -355,6 +379,9 @@ fn trace_checkpoint(
     let mut reader = std::io::BufReader::new(file);
     let state = bincode::deserialize_from(&mut reader).expect("failed to deserialize state");
     let mut runtime = Runtime::recover(program.clone(), state, opts);
+    // We already passed the deferred proof verifier when creating checkpoints, so the proofs were
+    // already verified. So here we use a noop verifier to not print any warnings.
+    runtime.subproof_verifier = Arc::new(NoOpSubproofVerifier);
     let (events, _) =
         tracing::debug_span!("runtime.trace").in_scope(|| runtime.execute_record().unwrap());
     (events, runtime.report)
