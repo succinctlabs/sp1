@@ -18,6 +18,7 @@ use crate::{
     runtime::{ExecutionRecord, RecursionProgram},
 };
 
+use super::RATE;
 use super::{
     columns::{Poseidon2Degree9, Poseidon2Mut},
     internal_linear_layer, Poseidon2WideChip, NUM_INTERNAL_ROUNDS,
@@ -49,14 +50,19 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
         for event in &input.poseidon2_events {
             match event {
                 Poseidon2Event::Compress(compress_event) => {
+                    assert!(compress_event.left != F::zero());
+                    assert!(compress_event.right != F::zero());
+                    assert!(compress_event.dst != F::zero());
                     rows.extend(self.populate_compress_event(compress_event, num_columns));
                 }
 
                 Poseidon2Event::Absorb(absorb_event) => {
+                    assert!(absorb_event.input_ptr != F::zero());
                     rows.extend(self.populate_absorb_event(absorb_event, num_columns));
                 }
 
                 Poseidon2Event::Finalize(finalize_event) => {
+                    assert!(finalize_event.output_ptr != F::zero());
                     rows.push(self.populate_finalize_event(finalize_event, num_columns));
                 }
             }
@@ -114,8 +120,8 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         let mut input_row = vec![F::zero(); num_columns];
         {
             let mut cols = self.convert_mut(&mut input_row);
-
             let control_flow = cols.control_flow_mut();
+
             control_flow.is_compress = F::one();
             control_flow.is_syscall = F::one();
             control_flow.is_input = F::one();
@@ -124,8 +130,8 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
 
         {
             let mut cols = self.convert_mut(&mut input_row);
-
             let syscall_params = cols.syscall_params_mut().compress_mut();
+
             syscall_params.clk = compress_event.clk;
             syscall_params.dst_ptr = compress_event.dst;
             syscall_params.left_ptr = compress_event.left;
@@ -134,12 +140,25 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
 
         {
             let mut cols = self.convert_mut(&mut input_row);
+            let memory = cols.memory_mut();
 
+            memory.start_addr = compress_event.left;
+            // Populate the first half of the memory inputs in the memory struct.
+            for i in 0..WIDTH / 2 {
+                memory.memory_slot_used[i] = F::one();
+                memory.memory_accesses[i].populate(&compress_event.input_records[i]);
+            }
+        }
+
+        {
+            let mut cols = self.convert_mut(&mut input_row);
             let compress_cols = cols.opcode_workspace_mut().compress_mut();
+            compress_cols.start_addr = compress_event.right;
 
-            // Apply the initial round.
-            for i in 0..WIDTH {
-                compress_cols.input[i].populate(&compress_event.input_records[i]);
+            // Populate the second half of the memory inputs.
+            for i in 0..WIDTH / 2 {
+                compress_cols.memory_accesses[i]
+                    .populate(&compress_event.input_records[i + WIDTH / 2]);
             }
         }
 
@@ -196,8 +215,8 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         let mut output_row = vec![F::zero(); num_columns];
         {
             let mut cols = self.convert_mut(&mut output_row);
-
             let control_flow = cols.control_flow_mut();
+
             control_flow.is_compress = F::one();
             control_flow.is_output = F::one();
             control_flow.is_compress_output = F::one();
@@ -205,8 +224,8 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
 
         {
             let mut cols = self.convert_mut(&mut output_row);
-
             let syscall_cols = cols.syscall_params_mut().compress_mut();
+
             syscall_cols.clk = compress_event.clk;
             syscall_cols.dst_ptr = compress_event.dst;
             syscall_cols.left_ptr = compress_event.left;
@@ -215,11 +234,24 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
 
         {
             let mut cols = self.convert_mut(&mut output_row);
+            let memory = cols.memory_mut();
 
-            let output_cols = cols.opcode_workspace_mut().output_mut();
+            memory.start_addr = compress_event.dst;
+            // Populate the first half of the memory inputs in the memory struct.
+            for i in 0..WIDTH / 2 {
+                memory.memory_slot_used[i] = F::one();
+                memory.memory_accesses[i].populate(&compress_event.result_records[i]);
+            }
+        }
 
-            for i in 0..WIDTH {
-                output_cols.output_memory[i].populate(&compress_event.result_records[i]);
+        {
+            let mut cols = self.convert_mut(&mut output_row);
+            let compress_cols = cols.opcode_workspace_mut().compress_mut();
+
+            compress_cols.start_addr = compress_event.dst + F::from_canonical_usize(WIDTH / 2);
+            for i in 0..WIDTH / 2 {
+                compress_cols.memory_accesses[i]
+                    .populate(&compress_event.result_records[i + WIDTH / 2]);
             }
         }
 
@@ -237,39 +269,57 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         // Handle the first chunk.  It may not be the full hash rate.
         // Create a vec of each absorb row's input size.
         let first_chunk_size = min(
-            WIDTH / 2 - absorb_event.hash_state_cursor,
+            RATE - absorb_event.hash_state_cursor,
             absorb_event.input_len,
         );
         let mut input_sizes = vec![first_chunk_size];
 
-        let num_rate_sizes = (absorb_event.input_len - first_chunk_size) / (WIDTH / 2);
-        input_sizes.extend(vec![WIDTH / 2; num_rate_sizes]);
-        let last_chunk_size = (absorb_event.input_len - first_chunk_size) % (WIDTH / 2);
+        let num_rate_sizes = (absorb_event.input_len - first_chunk_size) / RATE;
+        input_sizes.extend(vec![RATE; num_rate_sizes]);
+        let last_chunk_size = (absorb_event.input_len - first_chunk_size) % RATE;
         if last_chunk_size > 0 {
             input_sizes.push(last_chunk_size);
         }
 
         let mut state_cursor = absorb_event.hash_state_cursor;
+        let mut input_cursor = 0;
         for (row_num, input_size) in input_sizes.iter().enumerate() {
             let mut absorb_row = vec![F::zero(); num_columns];
 
             {
                 let mut cols = self.convert_mut(&mut absorb_row);
                 let control_flow = cols.control_flow_mut();
+
                 control_flow.is_absorb = F::one();
                 control_flow.is_syscall = F::from_bool(row_num == 0);
                 control_flow.is_input = F::one();
-                control_flow.do_perm = F::from_bool(state_cursor + input_size == (WIDTH / 2));
+                control_flow.do_perm = F::from_bool(state_cursor + input_size == RATE);
             }
 
             {
                 let mut cols = self.convert_mut(&mut absorb_row);
-
                 let syscall_params = cols.syscall_params_mut().absorb_mut();
+
                 syscall_params.clk = absorb_event.clk;
                 syscall_params.hash_num = absorb_event.hash_num;
                 syscall_params.input_ptr = absorb_event.input_ptr;
                 syscall_params.len = F::from_canonical_usize(absorb_event.input_len);
+            }
+
+            {
+                let mut cols = self.convert_mut(&mut absorb_row);
+                let memory = cols.memory_mut();
+
+                // Populate the memory.
+                memory.start_addr = absorb_event.input_ptr + F::from_canonical_usize(input_cursor);
+                for i in 0..RATE {
+                    if i >= state_cursor && (input_cursor < absorb_event.input_len) {
+                        memory.memory_slot_used[i] = F::one();
+                        memory.memory_accesses[i]
+                            .populate(&absorb_event.input_records[input_cursor]);
+                        input_cursor += 1;
+                    }
+                }
             }
 
             state_cursor += input_size;
@@ -303,6 +353,17 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             syscall_params.clk = finalize_event.clk;
             syscall_params.hash_num = finalize_event.hash_num;
             syscall_params.output_ptr = finalize_event.output_ptr;
+        }
+
+        {
+            let mut cols = self.convert_mut(&mut finalize_row);
+            let memory = cols.memory_mut();
+
+            memory.start_addr = finalize_event.output_ptr;
+            for i in 0..WIDTH / 2 {
+                memory.memory_slot_used[i] = F::one();
+                memory.memory_accesses[i].populate(&finalize_event.output_records[i]);
+            }
         }
 
         finalize_row
