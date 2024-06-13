@@ -8,6 +8,8 @@ use std::process::{Command, Stdio};
 
 pub const RUSTUP_TOOLCHAIN_NAME: &str = "succinct";
 
+pub const RUST_TOOLCHAIN_TAG: &str = "succinct-v2024-02-24.1";
+
 pub const SP1_VERSION_MESSAGE: &str = concat!(
     "sp1",
     " (",
@@ -45,7 +47,10 @@ pub async fn get_toolchain_download_url(client: &Client, target: String) -> Stri
     // Get latest tag from https://api.github.com/repos/succinctlabs/rust/releases/latest
     // and use it to construct the download URL.
     let json = client
-        .get("https://api.github.com/repos/succinctlabs/rust/releases/latest")
+        .get(format!(
+            "https://api.github.com/repos/succinctlabs/rust/releases/{}",
+            RUST_TOOLCHAIN_TAG
+        ))
         .send()
         .await
         .unwrap()
