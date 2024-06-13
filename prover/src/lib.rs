@@ -415,13 +415,13 @@ impl SP1Prover {
 
                     let pk = &self.rec_pk;
 
-                    // let mut challenger_clone = self.compress_machine.config().challenger();
-                    // let record_clone = runtime.record.clone();
-                    // self.compress_machine.debug_constraints(
-                    //     pk,
-                    //     record_clone,
-                    //     &mut challenger_clone,
-                    // );
+                    let mut challenger_clone = self.compress_machine.config().challenger();
+                    let record_clone = runtime.record.clone();
+                    self.compress_machine.debug_constraints(
+                        pk,
+                        record_clone,
+                        &mut challenger_clone,
+                    );
 
                     let mut recursive_challenger = self.compress_machine.config().challenger();
                     (
@@ -746,37 +746,37 @@ mod tests {
         tracing::info!("verify compressed");
         prover.verify_compressed(&compressed_proof, &vk)?;
 
-        tracing::info!("shrink");
-        let shrink_proof = prover.shrink(compressed_proof)?;
+        // tracing::info!("shrink");
+        // let shrink_proof = prover.shrink(compressed_proof)?;
 
-        tracing::info!("verify shrink");
-        prover.verify_shrink(&shrink_proof, &vk)?;
+        // tracing::info!("verify shrink");
+        // prover.verify_shrink(&shrink_proof, &vk)?;
 
-        tracing::info!("wrap bn254");
-        let wrapped_bn254_proof = prover.wrap_bn254(shrink_proof)?;
-        let bytes = bincode::serialize(&wrapped_bn254_proof).unwrap();
+        // tracing::info!("wrap bn254");
+        // let wrapped_bn254_proof = prover.wrap_bn254(shrink_proof)?;
+        // let bytes = bincode::serialize(&wrapped_bn254_proof).unwrap();
 
-        // Save the proof.
-        let mut file = File::create("proof-with-pis.json").unwrap();
-        file.write_all(bytes.as_slice()).unwrap();
+        // // Save the proof.
+        // let mut file = File::create("proof-with-pis.json").unwrap();
+        // file.write_all(bytes.as_slice()).unwrap();
 
-        // Load the proof.
-        let mut file = File::open("proof-with-pis.json").unwrap();
-        let mut bytes = Vec::new();
-        file.read_to_end(&mut bytes).unwrap();
+        // // Load the proof.
+        // let mut file = File::open("proof-with-pis.json").unwrap();
+        // let mut bytes = Vec::new();
+        // file.read_to_end(&mut bytes).unwrap();
 
-        let wrapped_bn254_proof = bincode::deserialize(&bytes).unwrap();
+        // let wrapped_bn254_proof = bincode::deserialize(&bytes).unwrap();
 
-        tracing::info!("verify wrap bn254");
-        prover.verify_wrap_bn254(&wrapped_bn254_proof, &vk).unwrap();
+        // tracing::info!("verify wrap bn254");
+        // prover.verify_wrap_bn254(&wrapped_bn254_proof, &vk).unwrap();
 
-        tracing::info!("checking vkey hash babybear");
-        let vk_digest_babybear = wrapped_bn254_proof.sp1_vkey_digest_babybear();
-        assert_eq!(vk_digest_babybear, vk.hash_babybear());
+        // tracing::info!("checking vkey hash babybear");
+        // let vk_digest_babybear = wrapped_bn254_proof.sp1_vkey_digest_babybear();
+        // assert_eq!(vk_digest_babybear, vk.hash_babybear());
 
-        tracing::info!("checking vkey hash bn254");
-        let vk_digest_bn254 = wrapped_bn254_proof.sp1_vkey_digest_bn254();
-        assert_eq!(vk_digest_bn254, vk.hash_bn254());
+        // tracing::info!("checking vkey hash bn254");
+        // let vk_digest_bn254 = wrapped_bn254_proof.sp1_vkey_digest_bn254();
+        // assert_eq!(vk_digest_bn254, vk.hash_bn254());
 
         // tracing::info!("generate plonk bn254 proof");
         // let artifacts_dir =

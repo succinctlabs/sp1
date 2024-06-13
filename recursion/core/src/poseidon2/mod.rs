@@ -1,5 +1,7 @@
 #![allow(clippy::needless_range_loop)]
 
+use std::usize;
+
 use crate::poseidon2::external::WIDTH;
 mod columns;
 pub mod external;
@@ -55,14 +57,22 @@ impl<F: PrimeField32> Poseidon2CompressEvent<F> {
 }
 
 #[derive(Debug, Clone)]
+pub struct Poseidon2AbsorbIteration<F> {
+    pub state_cursor: usize,
+    pub start_addr: F,
+    pub input_records: Vec<MemoryRecord<F>>,
+    pub input_state: [F; WIDTH],
+    pub output_state: [F; WIDTH],
+    pub do_perm: bool,
+}
+
+#[derive(Debug, Clone)]
 pub struct Poseidon2AbsorbEvent<F> {
     pub clk: F,
     pub hash_num: F,      // from a_val
     pub input_ptr: F,     // from b_val
     pub input_len: usize, // from c_val
-    pub hash_state_cursor: usize,
-    pub input: Vec<F>,
-    pub input_records: Vec<MemoryRecord<F>>,
+    pub absorb_iterations: Vec<Poseidon2AbsorbIteration<F>>,
 }
 
 #[derive(Debug, Clone)]

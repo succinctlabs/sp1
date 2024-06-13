@@ -42,12 +42,6 @@ pub struct CompressWorkspace<T: Copy> {
 pub struct AbsorbWorkspace<T: Copy> {
     pub input_addr: T,
 
-    // The first non zero element of this should equal to the state_cursor.
-    // The sum of this is the total number of input elements consumed.
-    // The last non zero element should equal the updated state_cursor.
-    pub input_memory: [MemoryReadSingleCols<T>; RATE], // address will be start_addr + sum()
-    pub input_memory_used: [T; RATE],
-
     pub input_cursor: T,
     pub previous_output: [T; WIDTH],
 

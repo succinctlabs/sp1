@@ -18,6 +18,7 @@ use crate::{
     runtime::{ExecutionRecord, RecursionProgram},
 };
 
+use super::columns::permutation::PermutationMut;
 use super::RATE;
 use super::{
     columns::{Poseidon2Degree9, Poseidon2Mut},
@@ -162,53 +163,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             }
         }
 
-        {
-            let mut permutation = permutation_mut::<F, DEGREE>(&mut input_row);
-
-            let (
-                external_rounds_state,
-                internal_rounds_state,
-                internal_rounds_s0,
-                mut external_sbox,
-                mut internal_sbox,
-                output_state,
-            ) = permutation.get_cols_mut();
-
-            external_rounds_state[0] = compress_event.input;
-            external_linear_layer(&mut external_rounds_state[0]);
-
-            // Apply the first half of external rounds.
-            for r in 0..NUM_EXTERNAL_ROUNDS / 2 {
-                let next_state =
-                    populate_external_round(external_rounds_state, &mut external_sbox, r);
-                if r == NUM_EXTERNAL_ROUNDS / 2 - 1 {
-                    *internal_rounds_state = next_state;
-                } else {
-                    external_rounds_state[r + 1] = next_state;
-                }
-            }
-
-            // Apply the internal rounds.
-            external_rounds_state[NUM_EXTERNAL_ROUNDS / 2] = populate_internal_rounds(
-                internal_rounds_state,
-                internal_rounds_s0,
-                &mut internal_sbox,
-            );
-
-            // Apply the second half of external rounds.
-            for r in NUM_EXTERNAL_ROUNDS / 2..NUM_EXTERNAL_ROUNDS {
-                let next_state =
-                    populate_external_round(external_rounds_state, &mut external_sbox, r);
-                if r == NUM_EXTERNAL_ROUNDS - 1 {
-                    for i in 0..WIDTH {
-                        output_state[i] = next_state[i];
-                        assert_eq!(compress_event.result_records[i].value[0], next_state[i]);
-                    }
-                } else {
-                    external_rounds_state[r + 1] = next_state;
-                }
-            }
-        }
+        self.populate_permutation(compress_event.input, &mut input_row);
 
         compress_rows.push(input_row);
 
@@ -266,24 +221,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
     ) -> Vec<Vec<F>> {
         let mut absorb_rows = Vec::new();
 
-        // Handle the first chunk.  It may not be the full hash rate.
-        // Create a vec of each absorb row's input size.
-        let first_chunk_size = min(
-            RATE - absorb_event.hash_state_cursor,
-            absorb_event.input_len,
-        );
-        let mut input_sizes = vec![first_chunk_size];
-
-        let num_rate_sizes = (absorb_event.input_len - first_chunk_size) / RATE;
-        input_sizes.extend(vec![RATE; num_rate_sizes]);
-        let last_chunk_size = (absorb_event.input_len - first_chunk_size) % RATE;
-        if last_chunk_size > 0 {
-            input_sizes.push(last_chunk_size);
-        }
-
-        let mut state_cursor = absorb_event.hash_state_cursor;
-        let mut input_cursor = 0;
-        for (row_num, input_size) in input_sizes.iter().enumerate() {
+        for (iter_num, absorb_iter) in absorb_event.absorb_iterations.iter().enumerate() {
             let mut absorb_row = vec![F::zero(); num_columns];
 
             {
@@ -291,9 +229,9 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                 let control_flow = cols.control_flow_mut();
 
                 control_flow.is_absorb = F::one();
-                control_flow.is_syscall = F::from_bool(row_num == 0);
+                control_flow.is_syscall = F::from_bool(iter_num == 0);
                 control_flow.is_input = F::one();
-                // control_flow.do_perm = F::from_bool(state_cursor + input_size == RATE);
+                // control_flow.do_perm = F::from_bool(absorb_iter.do_perm);
             }
 
             {
@@ -310,20 +248,13 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                 let mut cols = self.convert_mut(&mut absorb_row);
                 let memory = cols.memory_mut();
 
-                // Populate the memory.
-                memory.start_addr = absorb_event.input_ptr + F::from_canonical_usize(input_cursor);
-                for i in 0..RATE {
-                    if i >= state_cursor && (input_cursor < absorb_event.input_len) {
-                        memory.memory_slot_used[i] = F::one();
-                        memory.memory_accesses[i]
-                            .populate(&absorb_event.input_records[input_cursor]);
-                        input_cursor += 1;
-                    }
+                memory.start_addr = absorb_iter.start_addr;
+                for (i, input_record) in absorb_iter.input_records.iter().enumerate() {
+                    memory.memory_slot_used[i + absorb_iter.state_cursor] = F::one();
+                    memory.memory_accesses[i + absorb_iter.state_cursor].populate(input_record);
                 }
             }
 
-            state_cursor += input_size;
-            state_cursor %= WIDTH / 2;
             absorb_rows.push(absorb_row);
         }
 
@@ -367,6 +298,52 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         }
 
         finalize_row
+    }
+
+    pub fn populate_permutation<F: PrimeField32>(&self, input: [F; WIDTH], input_row: &mut [F]) {
+        let mut permutation = permutation_mut::<F, DEGREE>(input_row);
+
+        let (
+            external_rounds_state,
+            internal_rounds_state,
+            internal_rounds_s0,
+            mut external_sbox,
+            mut internal_sbox,
+            output_state,
+        ) = permutation.get_cols_mut();
+
+        external_rounds_state[0] = input;
+        external_linear_layer(&mut external_rounds_state[0]);
+
+        // Apply the first half of external rounds.
+        for r in 0..NUM_EXTERNAL_ROUNDS / 2 {
+            let next_state = populate_external_round(external_rounds_state, &mut external_sbox, r);
+            if r == NUM_EXTERNAL_ROUNDS / 2 - 1 {
+                *internal_rounds_state = next_state;
+            } else {
+                external_rounds_state[r + 1] = next_state;
+            }
+        }
+
+        // Apply the internal rounds.
+        external_rounds_state[NUM_EXTERNAL_ROUNDS / 2] = populate_internal_rounds(
+            internal_rounds_state,
+            internal_rounds_s0,
+            &mut internal_sbox,
+        );
+
+        // Apply the second half of external rounds.
+        for r in NUM_EXTERNAL_ROUNDS / 2..NUM_EXTERNAL_ROUNDS {
+            let next_state = populate_external_round(external_rounds_state, &mut external_sbox, r);
+            if r == NUM_EXTERNAL_ROUNDS - 1 {
+                for i in 0..WIDTH {
+                    output_state[i] = next_state[i];
+                    // assert_eq!(compress_event.result_records[i].value[0], next_state[i]);
+                }
+            } else {
+                external_rounds_state[r + 1] = next_state;
+            }
+        }
     }
 }
 
