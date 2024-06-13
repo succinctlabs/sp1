@@ -98,9 +98,15 @@ jobs:
       - name: Setup CI
         uses: ./.github/actions/setup
 
+      - name: Build docker image
+        run: |
+          docker build -t sp1-gnark -f ./Dockerfile.gnark-ffi .
+
       - name: Run cargo test
         uses: actions-rs/cargo@v1
         with:
+          env:
+            SP1_GNARK_IMAGE: sp1-gnark
           command: test
           toolchain: nightly-2024-04-17
           args: --release -p sp1-prover -- --exact tests::test_e2e

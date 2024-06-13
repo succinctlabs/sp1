@@ -21,6 +21,7 @@ pub mod utils {
 }
 
 use cfg_if::cfg_if;
+pub use provers::SP1VerificationError;
 use std::{env, fmt::Debug, fs::File, path::Path};
 
 use anyhow::{Ok, Result};
@@ -52,6 +53,7 @@ pub struct SP1ProofWithPublicValues<P> {
     pub proof: P,
     pub stdin: SP1Stdin,
     pub public_values: SP1PublicValues,
+    pub sp1_version: String,
 }
 
 /// A [SP1ProofWithPublicValues] generated with [ProverClient::prove].
@@ -339,7 +341,7 @@ impl ProverClient {
         &self,
         proof: &SP1Proof,
         vkey: &SP1VerifyingKey,
-    ) -> Result<(), SP1ProofVerificationError> {
+    ) -> Result<(), SP1VerificationError> {
         self.prover.verify(proof, vkey)
     }
 
@@ -371,7 +373,7 @@ impl ProverClient {
         &self,
         proof: &SP1CompressedProof,
         vkey: &SP1VerifyingKey,
-    ) -> Result<()> {
+    ) -> Result<(), SP1VerificationError> {
         self.prover.verify_compressed(proof, vkey)
     }
 
@@ -401,7 +403,11 @@ impl ProverClient {
     /// // Verify the proof.
     /// client.verify_plonk(&proof, &vk).unwrap();
     /// ```
-    pub fn verify_plonk(&self, proof: &SP1PlonkBn254Proof, vkey: &SP1VerifyingKey) -> Result<()> {
+    pub fn verify_plonk(
+        &self,
+        proof: &SP1PlonkBn254Proof,
+        vkey: &SP1VerifyingKey,
+    ) -> Result<(), SP1VerificationError> {
         self.prover.verify_plonk(proof, vkey)
     }
 }
@@ -427,8 +433,13 @@ impl<P: Debug + Clone + Serialize + DeserializeOwned> SP1ProofWithPublicValues<P
 }
 
 impl SP1PlonkBn254Proof {
+    /// Returns the encoded proof bytes with a prefix of the VK hash.
     pub fn bytes(&self) -> String {
-        format!("0x{}", self.proof.encoded_proof.clone())
+        format!(
+            "0x{}{}",
+            hex::encode(&self.proof.plonk_vkey_hash[..4]),
+            &self.proof.encoded_proof
+        )
     }
 }
 
