@@ -28,7 +28,7 @@ sp1up
 
 This will install two things:
 
-1. The `succinct` Rust toolchain which has support for the `riscv32im-succinct-zkvm-elf` compilation target
+1. The `succinct` Rust toolchain which has support for the `riscv32im-succinct-zkvm-elf` compilation target.
 2. `cargo prove` CLI tool that will let you compile provable programs and then prove their correctness.
 
 You can verify the installation by running `cargo prove --version`:
