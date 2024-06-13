@@ -167,18 +167,24 @@ pub enum AsmInstruction<F, EF> {
     /// Hint a vector of blocks.
     Hint(i32),
 
-    // FRIFold(m, input).
+    /// FRIFold(m, input).
     FriFold(i32, i32),
 
-    // Commit(val, index).
+    /// Commit(val, index).
     Commit(i32, i32),
 
-    // RegisterPublicValue(val).
+    /// RegisterPublicValue(val).
     RegisterPublicValue(i32),
 
     LessThan(i32, i32, i32),
 
     CycleTracker(String),
+
+    /// ExpReverseBitsLen instruction: (mathematical description) given `x`, `exp`, `len`, bit-reverse the last `len` bits of
+    /// `exp` and raise `x` to the power of the resulting value. The arguments are a pointer to the
+    /// addresss at which `x` is located (will be written to with the result), a pointer to the
+    /// address containing the bits of `exp` stored as a little-endian bit array, and `len`.
+    ExpReverseBitsLen(i32, i32, i32),
 }
 
 impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
@@ -862,6 +868,17 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 true,
                 "".to_string(),
             ),
+            AsmInstruction::ExpReverseBitsLen(base, ptr, len) => Instruction::new(
+                Opcode::ExpReverseBitsLen,
+                i32_f(base),
+                i32_f_arr(ptr),
+                i32_f_arr(len),
+                F::zero(),
+                F::zero(),
+                false,
+                false,
+                "".to_string(),
+            ),
         }
     }
 
@@ -1135,6 +1152,13 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
             }
             AsmInstruction::CycleTracker(name) => {
                 write!(f, "cycle-tracker {}", name)
+            }
+            AsmInstruction::ExpReverseBitsLen(base, ptr, len) => {
+                write!(
+                    f,
+                    "exp_reverse_bits_len ({})fp, ({})fp, ({})fp",
+                    base, ptr, len
+                )
             }
         }
     }

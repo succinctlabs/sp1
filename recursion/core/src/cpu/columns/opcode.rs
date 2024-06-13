@@ -44,7 +44,7 @@ pub struct OpcodeSelectorCols<T> {
     pub is_fri_fold: T,
     pub is_commit: T,
     pub is_ext_to_felt: T,
-
+    pub is_exp_reverse_bits_len: T,
     pub is_heap_expand: T,
 }
 
@@ -70,6 +70,7 @@ impl<F: PrimeField32> OpcodeSelectorCols<F> {
             Opcode::TRAP => self.is_trap = F::one(),
             Opcode::HALT => self.is_halt = F::one(),
             Opcode::FRIFold => self.is_fri_fold = F::one(),
+            Opcode::ExpReverseBitsLen => self.is_exp_reverse_bits_len = F::one(),
             Opcode::Poseidon2Compress => self.is_poseidon = F::one(),
             Opcode::Commit => self.is_commit = F::one(),
             Opcode::HintExt2Felt => self.is_ext_to_felt = F::one(),
@@ -125,6 +126,7 @@ impl<T: Copy> IntoIterator for &OpcodeSelectorCols<T> {
             self.is_fri_fold,
             self.is_commit,
             self.is_ext_to_felt,
+            self.is_exp_reverse_bits_len,
             self.is_heap_expand,
         ]
         .into_iter()

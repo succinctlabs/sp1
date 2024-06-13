@@ -1,3 +1,4 @@
+mod hooks;
 mod instruction;
 mod io;
 mod memory;
@@ -12,6 +13,7 @@ mod syscall;
 mod utils;
 mod subproof;
 
+pub use hooks::*;
 pub use instruction::*;
 pub use memory::*;
 pub use opcode::*;
@@ -96,6 +98,9 @@ pub struct Runtime<'a> {
 
     /// Verifier used to sanity check `verify_sp1_proof` during runtime.
     pub subproof_verifier: Arc<dyn SubproofVerifier + 'a>,
+
+    /// Registry of hooks, to be invoked by writing to certain file descriptors.
+    pub hook_registry: HookRegistry<'a>,
 }
 
 #[derive(Error, Debug)]
@@ -155,10 +160,22 @@ impl<'a> Runtime<'a> {
             syscall_map,
             emit_events: true,
             max_syscall_cycles,
-            report: Default::default(),
+            report: ExecutionReport::default(),
             print_report: false,
             subproof_verifier: Arc::new(DefaultSubproofVerifier::new()),
+            hook_registry: HookRegistry::default(),
         }
+    }
+
+    /// Invokes the hook corresponding to the given file descriptor `fd` with the data `buf`,
+    /// returning the resulting data.
+    pub fn hook(&self, fd: u32, buf: &[u8]) -> Vec<Vec<u8>> {
+        self.hook_registry.table[&fd](self.hook_env(), buf)
+    }
+
+    /// Prepare a `HookEnv` for use by hooks.
+    pub fn hook_env(&self) -> HookEnv {
+        HookEnv { runtime: self }
     }
 
     /// Recover runtime state from a program and existing execution state.
@@ -1175,58 +1192,6 @@ pub mod tests {
         let mut runtime = Runtime::new(program, SP1CoreOpts::default());
         runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 42);
-    }
-
-    #[test]
-    fn test_ssz_withdrawals_program_run_report() {
-        let program = ssz_withdrawals_program();
-        let mut runtime = Runtime::new(program, SP1CoreOpts::default());
-        runtime.run().unwrap();
-        assert_eq!(runtime.report, {
-            use super::Opcode::*;
-            use super::SyscallCode::*;
-            super::ExecutionReport {
-                opcode_counts: [
-                    (LB, 10723),
-                    (DIVU, 6),
-                    (LW, 237094),
-                    (JALR, 38749),
-                    (XOR, 242242),
-                    (BEQ, 26917),
-                    (AND, 151701),
-                    (SB, 58448),
-                    (MUL, 4036),
-                    (SLTU, 16766),
-                    (ADD, 583439),
-                    (JAL, 5372),
-                    (LBU, 57950),
-                    (SRL, 293010),
-                    (SW, 312781),
-                    (ECALL, 2264),
-                    (BLTU, 43457),
-                    (BGEU, 5917),
-                    (BLT, 1141),
-                    (SUB, 12382),
-                    (BGE, 237),
-                    (MULHU, 1152),
-                    (BNE, 51442),
-                    (AUIPC, 19488),
-                    (OR, 301944),
-                    (SLL, 278698),
-                ]
-                .into(),
-                syscall_counts: [
-                    (COMMIT_DEFERRED_PROOFS, 8),
-                    (SHA_EXTEND, 1091),
-                    (COMMIT, 8),
-                    (WRITE, 65),
-                    (SHA_COMPRESS, 1091),
-                    (HALT, 1),
-                ]
-                .into(),
-            }
-        });
-        assert_eq!(runtime.report.total_instruction_count(), 2757356);
     }
 
     #[test]

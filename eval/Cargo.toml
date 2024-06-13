@@ -7,6 +7,6 @@ edition = "2021"
 sp1-core = { path = "../core" }
 sp1-prover = { path = "../prover" }
 
-clap = { version = "4.5.4", features = ["derive"] }
+clap = { version = "4.5.7", features = ["derive"] }
 csv = "1.3.0"
 serde = "1.0.201"

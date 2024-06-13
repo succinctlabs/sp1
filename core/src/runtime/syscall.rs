@@ -167,7 +167,7 @@ pub trait Syscall: Send + Sync {
 }
 
 /// A runtime for syscalls that is protected so that developers cannot arbitrarily modify the runtime.
-pub struct SyscallContext<'a, 'b> {
+pub struct SyscallContext<'a, 'b: 'a> {
     current_shard: u32,
     pub clk: u32,
 

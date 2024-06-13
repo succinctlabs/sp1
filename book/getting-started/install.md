@@ -6,7 +6,8 @@ build the toolchain and CLI from source.
 ## Requirements
 
 - [Rust (Nightly)](https://www.rust-lang.org/tools/install)
-- [Go >1.22.1](https://go.dev/doc/install)
+- [Docker](https://docs.docker.com/get-docker/)
+- [Go >1.22.1 (Optional)](https://go.dev/doc/install)
 
 ## Option 1: Prebuilt Binaries (Recommended)
 
