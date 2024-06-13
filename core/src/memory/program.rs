@@ -31,9 +31,7 @@ pub struct MemoryProgramPreprocessedCols<T> {
 #[derive(AlignedBorrow, Clone, Copy, Default)]
 #[repr(C)]
 pub struct MemoryProgramMultCols<T> {
-    /// The multiplicity of the event.
-    ///
-    /// This column is technically redundant with `is_real`, but it's included for clarity.
+    /// The multiplicity of the event, must be 1 in the first shard and 0 otherwise.
     pub multiplicity: T,
 
     /// Whether the shard is the first shard.
@@ -172,6 +170,13 @@ where
                 .map(|elm| (*elm).into())
                 .collect::<Vec<_>>(),
         );
+        IsZeroOperation::<AB::F>::eval(
+            builder,
+            public_values.shard - AB::Expr::one(),
+            mult_local.is_first_shard,
+            prep_local.is_real.into(),
+        );
+        let is_first_shard = mult_local.is_first_shard.result;
 
         // Constrain `is_first_shard` to be 1 if and only if the shard is the first shard.
         IsZeroOperation::<AB::F>::eval(
@@ -183,15 +188,13 @@ where
 
         // Multiplicity must be either 0 or 1.
         builder.assert_bool(mult_local.multiplicity);
-
         // If first shard and preprocessed is real, multiplicity must be one.
         builder
-            .when(mult_local.is_first_shard.result)
-            .assert_eq(mult_local.multiplicity, prep_local.is_real.into());
-
-        // If it's not the first shard, then the multiplicity must be zero.
+            .when(is_first_shard * prep_local.is_real)
+            .assert_one(mult_local.multiplicity);
+        // If not first shard or preprocessed is not real, multiplicity must be zero.
         builder
-            .when_not(mult_local.is_first_shard.result)
+            .when((AB::Expr::one() - is_first_shard) + (AB::Expr::one() - prep_local.is_real))
             .assert_zero(mult_local.multiplicity);
 
         let mut values = vec![AB::Expr::zero(), AB::Expr::zero(), prep_local.addr.into()];

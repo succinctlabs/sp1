@@ -35,8 +35,6 @@ use std::sync::Arc;
 
 use thiserror::Error;
 
-use crate::alu::create_alu_lookup_id;
-use crate::alu::create_alu_lookups;
 use crate::bytes::NUM_BYTE_LOOKUP_CHANNELS;
 use crate::memory::MemoryInitializeFinalizeEvent;
 use crate::utils::SP1CoreOpts;
@@ -429,8 +427,6 @@ impl<'a> Runtime<'a> {
         memory_store_value: Option<u32>,
         record: MemoryAccessRecord,
         exit_code: u32,
-        lookup_id: usize,
-        syscall_lookup_id: usize,
     ) {
         let cpu_event = CpuEvent {
             shard,
@@ -448,25 +444,14 @@ impl<'a> Runtime<'a> {
             memory: memory_store_value,
             memory_record: record.memory,
             exit_code,
-            alu_lookup_id: lookup_id,
-            syscall_lookup_id,
-            memory_add_lookup_id: create_alu_lookup_id(),
-            memory_sub_lookup_id: create_alu_lookup_id(),
-            branch_lt_lookup_id: create_alu_lookup_id(),
-            branch_gt_lookup_id: create_alu_lookup_id(),
-            branch_add_lookup_id: create_alu_lookup_id(),
-            jump_jal_lookup_id: create_alu_lookup_id(),
-            jump_jalr_lookup_id: create_alu_lookup_id(),
-            auipc_lookup_id: create_alu_lookup_id(),
         };
 
         self.record.cpu_events.push(cpu_event);
     }
 
     /// Emit an ALU event.
-    fn emit_alu(&mut self, clk: u32, opcode: Opcode, a: u32, b: u32, c: u32, lookup_id: usize) {
+    fn emit_alu(&mut self, clk: u32, opcode: Opcode, a: u32, b: u32, c: u32) {
         let event = AluEvent {
-            lookup_id,
             shard: self.shard(),
             clk,
             channel: self.channel(),
@@ -474,7 +459,6 @@ impl<'a> Runtime<'a> {
             a,
             b,
             c,
-            sub_lookups: create_alu_lookups(),
         };
         match opcode {
             Opcode::ADD => {
@@ -528,18 +512,10 @@ impl<'a> Runtime<'a> {
     }
 
     /// Set the destination register with the result and emit an ALU event.
-    fn alu_rw(
-        &mut self,
-        instruction: Instruction,
-        rd: Register,
-        a: u32,
-        b: u32,
-        c: u32,
-        lookup_id: usize,
-    ) {
+    fn alu_rw(&mut self, instruction: Instruction, rd: Register, a: u32, b: u32, c: u32) {
         self.rw(rd, a);
         if self.emit_events {
-            self.emit_alu(self.state.clk, instruction.opcode, a, b, c, lookup_id);
+            self.emit_alu(self.state.clk, instruction.opcode, a, b, c);
         }
     }
 
@@ -608,52 +584,52 @@ impl<'a> Runtime<'a> {
             Opcode::ADD => {
                 (rd, b, c) = self.alu_rr(instruction);
                 a = b.wrapping_add(c);
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+                self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::SUB => {
                 (rd, b, c) = self.alu_rr(instruction);
                 a = b.wrapping_sub(c);
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+                self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::XOR => {
                 (rd, b, c) = self.alu_rr(instruction);
                 a = b ^ c;
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+                self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::OR => {
                 (rd, b, c) = self.alu_rr(instruction);
                 a = b | c;
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+                self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::AND => {
                 (rd, b, c) = self.alu_rr(instruction);
                 a = b & c;
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+                self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::SLL => {
                 (rd, b, c) = self.alu_rr(instruction);
                 a = b.wrapping_shl(c);
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+                self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::SRL => {
                 (rd, b, c) = self.alu_rr(instruction);
                 a = b.wrapping_shr(c);
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+                self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::SRA => {
                 (rd, b, c) = self.alu_rr(instruction);
                 a = (b as i32).wrapping_shr(c) as u32;
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+                self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::SLT => {
                 (rd, b, c) = self.alu_rr(instruction);
                 a = if (b as i32) < (c as i32) { 1 } else { 0 };
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+                self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::SLTU => {
                 (rd, b, c) = self.alu_rr(instruction);
                 a = if b < c { 1 } else { 0 };
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+                self.alu_rw(instruction, rd, a, b, c);
             }
 
             // Load instructions.
@@ -827,7 +803,6 @@ impl<'a> Runtime<'a> {
 
                 let syscall_impl = self.get_syscall(syscall).cloned();
                 let mut precompile_rt = SyscallContext::new(self);
-                precompile_rt.syscall_lookup_id = syscall_lookup_id;
                 let (precompile_next_pc, precompile_cycles, returned_exit_code) =
                     if let Some(syscall_impl) = syscall_impl {
                         // Executing a syscall optionally returns a value to write to the t0 register.
@@ -872,22 +847,22 @@ impl<'a> Runtime<'a> {
             Opcode::MUL => {
                 (rd, b, c) = self.alu_rr(instruction);
                 a = b.wrapping_mul(c);
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+                self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::MULH => {
                 (rd, b, c) = self.alu_rr(instruction);
                 a = (((b as i32) as i64).wrapping_mul((c as i32) as i64) >> 32) as u32;
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+                self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::MULHU => {
                 (rd, b, c) = self.alu_rr(instruction);
                 a = ((b as u64).wrapping_mul(c as u64) >> 32) as u32;
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+                self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::MULHSU => {
                 (rd, b, c) = self.alu_rr(instruction);
                 a = (((b as i32) as i64).wrapping_mul(c as i64) >> 32) as u32;
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+                self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::DIV => {
                 (rd, b, c) = self.alu_rr(instruction);
@@ -896,7 +871,7 @@ impl<'a> Runtime<'a> {
                 } else {
                     a = (b as i32).wrapping_div(c as i32) as u32;
                 }
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+                self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::DIVU => {
                 (rd, b, c) = self.alu_rr(instruction);
@@ -905,7 +880,7 @@ impl<'a> Runtime<'a> {
                 } else {
                     a = b.wrapping_div(c);
                 }
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+                self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::REM => {
                 (rd, b, c) = self.alu_rr(instruction);
@@ -914,7 +889,7 @@ impl<'a> Runtime<'a> {
                 } else {
                     a = (b as i32).wrapping_rem(c as i32) as u32;
                 }
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+                self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::REMU => {
                 (rd, b, c) = self.alu_rr(instruction);
@@ -923,7 +898,7 @@ impl<'a> Runtime<'a> {
                 } else {
                     a = b.wrapping_rem(c);
                 }
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+                self.alu_rw(instruction, rd, a, b, c);
             }
 
             // See https://github.com/riscv-non-isa/riscv-asm-manual/blob/master/riscv-asm.md#instruction-aliases
@@ -960,8 +935,6 @@ impl<'a> Runtime<'a> {
                 memory_store_value,
                 self.memory_accesses,
                 exit_code,
-                lookup_id,
-                syscall_lookup_id,
             );
         };
         Ok(())
@@ -1126,7 +1099,7 @@ impl<'a> Runtime<'a> {
             None => &MemoryRecord {
                 value: 0,
                 shard: 0,
-                timestamp: 1,
+                timestamp: 0,
             },
         };
         memory_finalize_events.push(MemoryInitializeFinalizeEvent::finalize_from_record(

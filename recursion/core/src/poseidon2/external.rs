@@ -6,6 +6,7 @@ use p3_field::AbstractField;
 use p3_matrix::Matrix;
 use sp1_core::air::{BaseAirBuilder, ExtensionAirBuilder, SP1AirBuilder};
 use sp1_primitives::RC_16_30_U32;
+use std::ops::Add;
 
 use crate::air::{RecursionInteractionAirBuilder, RecursionMemoryAirBuilder};
 use crate::memory::MemoryCols;
@@ -40,7 +41,7 @@ impl Poseidon2Chip {
         local: &Poseidon2Cols<AB::Var>,
         next: &Poseidon2Cols<AB::Var>,
         receive_table: AB::Var,
-        memory_access: AB::Var,
+        memory_access: AB::Expr,
     ) {
         const NUM_ROUNDS_F: usize = 8;
         const NUM_ROUNDS_P: usize = 13;
@@ -66,10 +67,6 @@ impl Poseidon2Chip {
             .sum::<AB::Expr>();
         let is_memory_write = local.rounds[local.rounds.len() - 1];
 
-        self.eval_control_flow_and_inputs(builder, local, next);
-
-        self.eval_syscall(builder, local, receive_table);
-
         self.eval_mem(
             builder,
             local,
@@ -88,71 +85,16 @@ impl Poseidon2Chip {
             is_internal_layer.clone(),
             NUM_ROUNDS_F + NUM_ROUNDS_P + 1,
         );
-    }
 
-    fn eval_control_flow_and_inputs<AB: BaseAirBuilder + ExtensionAirBuilder>(
-        &self,
-        builder: &mut AB,
-        local: &Poseidon2Cols<AB::Var>,
-        next: &Poseidon2Cols<AB::Var>,
-    ) {
-        let num_total_rounds = local.rounds.len();
-        for i in 0..num_total_rounds {
-            // Verify that the round flags are correct.
+        self.eval_syscall(builder, local, receive_table);
+
+        // Range check all flags.
+        for i in 0..local.rounds.len() {
             builder.assert_bool(local.rounds[i]);
-
-            // Assert that the next round is correct.
-            builder
-                .when_transition()
-                .assert_eq(local.rounds[i], next.rounds[(i + 1) % num_total_rounds]);
-
-            if i != num_total_rounds - 1 {
-                builder
-                    .when_transition()
-                    .when(local.rounds[i])
-                    .assert_eq(local.clk, next.clk);
-                builder
-                    .when_transition()
-                    .when(local.rounds[i])
-                    .assert_eq(local.dst_input, next.dst_input);
-                builder
-                    .when_transition()
-                    .when(local.rounds[i])
-                    .assert_eq(local.left_input, next.left_input);
-                builder
-                    .when_transition()
-                    .when(local.rounds[i])
-                    .assert_eq(local.right_input, next.right_input);
-            }
         }
-
-        // Ensure that at most one of the round flags is set.
-        let round_acc = local
-            .rounds
-            .iter()
-            .fold(AB::Expr::zero(), |acc, round_flag| acc + *round_flag);
-        builder.assert_bool(round_acc);
-
-        // Verify the do_memory flag.
-        builder.assert_eq(
-            local.do_memory,
-            local.is_real * (local.rounds[0] + local.rounds[23]),
+        builder.assert_bool(
+            is_memory_read + is_initial + is_external_layer + is_internal_layer + is_memory_write,
         );
-
-        // Verify the do_receive flag.
-        builder.assert_eq(local.do_receive, local.is_real * local.rounds[0]);
-
-        // Verify the first row starts at round 0.
-        builder.when_first_row().assert_one(local.rounds[0]);
-        // The round count is not a power of 2, so the last row should not be real.
-        builder.when_last_row().assert_zero(local.is_real);
-
-        // Verify that all is_real flags within a round are equal.
-        let is_last_round = local.rounds[23];
-        builder
-            .when_transition()
-            .when_not(is_last_round)
-            .assert_eq(local.is_real, next.is_real);
     }
 
     fn eval_mem<AB: BaseAirBuilder + ExtensionAirBuilder>(
@@ -162,23 +104,20 @@ impl Poseidon2Chip {
         next: &Poseidon2Cols<AB::Var>,
         is_memory_read: AB::Var,
         is_memory_write: AB::Var,
-        memory_access: AB::Var,
+        memory_access: AB::Expr,
     ) {
         let memory_access_cols = local.round_specific_cols.memory_access();
         builder
-            .when(local.is_real)
             .when(is_memory_read)
             .assert_eq(local.left_input, memory_access_cols.addr_first_half);
         builder
-            .when(local.is_real)
             .when(is_memory_read)
             .assert_eq(local.right_input, memory_access_cols.addr_second_half);
 
         builder
-            .when(local.is_real)
             .when(is_memory_write)
             .assert_eq(local.dst_input, memory_access_cols.addr_first_half);
-        builder.when(local.is_real).when(is_memory_write).assert_eq(
+        builder.when(is_memory_write).assert_eq(
             local.dst_input + AB::F::from_canonical_usize(WIDTH / 2),
             memory_access_cols.addr_second_half,
         );
@@ -193,11 +132,7 @@ impl Poseidon2Chip {
                 local.clk + AB::Expr::one() * is_memory_write,
                 addr,
                 &memory_access_cols.mem_access[i],
-                memory_access,
-            );
-            builder.when(local.is_real).when(is_memory_read).assert_eq(
-                *memory_access_cols.mem_access[i].value(),
-                *memory_access_cols.mem_access[i].prev_value(),
+                memory_access.clone(),
             );
         }
 
@@ -205,14 +140,10 @@ impl Poseidon2Chip {
         // computation round.
         let next_computation_col = next.round_specific_cols.computation();
         for i in 0..WIDTH {
-            builder
-                .when_transition()
-                .when(local.is_real)
-                .when(is_memory_read)
-                .assert_eq(
-                    *memory_access_cols.mem_access[i].value(),
-                    next_computation_col.input[i],
-                );
+            builder.when_transition().when(is_memory_read).assert_eq(
+                *memory_access_cols.mem_access[i].value(),
+                next_computation_col.input[i],
+            );
         }
     }
 
@@ -254,7 +185,6 @@ impl Poseidon2Chip {
                 }
             }
             builder
-                .when(local.is_real)
                 .when(is_initial.clone() + is_external_layer.clone() + is_internal_layer.clone())
                 .assert_eq(result, computation_cols.add_rc[i]);
         }
@@ -267,15 +197,8 @@ impl Poseidon2Chip {
             let sbox_deg_3 = computation_cols.add_rc[i]
                 * computation_cols.add_rc[i]
                 * computation_cols.add_rc[i];
+            let sbox_deg_7 = sbox_deg_3.clone() * sbox_deg_3.clone() * computation_cols.add_rc[i];
             builder
-                .when(local.is_real)
-                .when(is_initial.clone() + is_external_layer.clone() + is_internal_layer.clone())
-                .assert_eq(computation_cols.sbox_deg_3[i], sbox_deg_3);
-            let sbox_deg_7 = computation_cols.sbox_deg_3[i]
-                * computation_cols.sbox_deg_3[i]
-                * computation_cols.add_rc[i];
-            builder
-                .when(local.is_real)
                 .when(is_initial.clone() + is_external_layer.clone() + is_internal_layer.clone())
                 .assert_eq(sbox_deg_7, computation_cols.sbox_deg_7[i]);
         }
@@ -331,7 +254,6 @@ impl Poseidon2Chip {
             for i in 0..WIDTH {
                 state[i] += sums[i % 4].clone();
                 builder
-                    .when(local.is_real)
                     .when(is_external_layer.clone() + is_initial.clone())
                     .assert_eq(state[i].clone(), computation_cols.output[i]);
             }
@@ -343,7 +265,6 @@ impl Poseidon2Chip {
             let mut state: [AB::Expr; WIDTH] = sbox_result.clone();
             internal_linear_layer(&mut state);
             builder
-                .when(local.is_real)
                 .when(is_internal_layer.clone())
                 .assert_all_eq(state.clone(), computation_cols.output);
         }
@@ -361,7 +282,6 @@ impl Poseidon2Chip {
 
             builder
                 .when_transition()
-                .when(local.is_real)
                 .when(is_initial.clone() + is_external_layer.clone() + is_internal_layer.clone())
                 .assert_eq(computation_cols.output[i], next_round_value);
         }
@@ -388,11 +308,13 @@ impl Poseidon2Chip {
     }
 
     pub const fn do_receive_table<T: Copy>(local: &Poseidon2Cols<T>) -> T {
-        local.do_receive
+        local.rounds[0]
     }
 
-    pub fn do_memory_access<T: Copy>(local: &Poseidon2Cols<T>) -> T {
-        local.do_memory
+    pub fn do_memory_access<T: Copy + Add<T, Output = Output>, Output>(
+        local: &Poseidon2Cols<T>,
+    ) -> Output {
+        local.rounds[0] + local.rounds[23]
     }
 }
 
@@ -412,7 +334,7 @@ where
             local,
             next,
             Self::do_receive_table::<AB::Var>(local),
-            Self::do_memory_access::<AB::Var>(local),
+            Self::do_memory_access::<AB::Var, AB::Expr>(local),
         );
     }
 }

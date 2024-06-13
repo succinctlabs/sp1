@@ -5,10 +5,8 @@ edition = "2021"
 
 [dependencies]
 p3-field = { workspace = true }
-p3-symmetric = { workspace = true }
 p3-baby-bear = { workspace = true }
 sp1-recursion-compiler = { path = "../compiler" }
-sp1-core = { path = "../../core" }
 serde = "1.0.201"
 serde_json = "1.0.117"
 tempfile = "3.10.1"

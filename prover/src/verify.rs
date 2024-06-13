@@ -47,7 +47,7 @@ impl SP1Prover {
         self.core_machine
             .verify(&vk.vk, &machine_proof, &mut challenger)?;
 
-        // Verify shard transitions.
+        // Verify shard transitions
         for (i, shard_proof) in proof.0.iter().enumerate() {
             let public_values = PublicValues::from_vec(shard_proof.public_values.clone());
             // Verify shard transitions

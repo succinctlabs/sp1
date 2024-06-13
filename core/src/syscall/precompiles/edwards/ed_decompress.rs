@@ -53,7 +53,6 @@ use super::{WordsFieldElement, WORDS_FIELD_ELEMENT};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EdDecompressEvent {
-    pub lookup_id: usize,
     pub shard: u32,
     pub channel: u32,
     pub clk: u32,
@@ -79,7 +78,6 @@ pub struct EdDecompressCols<T> {
     pub shard: T,
     pub channel: T,
     pub clk: T,
-    pub nonce: T,
     pub ptr: T,
     pub sign: T,
     pub x_access: GenericArray<MemoryWriteCols<T>, WordsFieldElement>,
@@ -106,13 +104,6 @@ impl<F: PrimeField32> EdDecompressCols<F> {
         self.channel = F::from_canonical_u32(event.channel);
         self.clk = F::from_canonical_u32(event.clk);
         self.ptr = F::from_canonical_u32(event.ptr);
-        self.nonce = F::from_canonical_u32(
-            record
-                .nonce_lookup
-                .get(&event.lookup_id)
-                .copied()
-                .unwrap_or_default(),
-        );
         self.sign = F::from_bool(event.sign);
         for i in 0..8 {
             self.x_access[i].populate(
@@ -285,7 +276,6 @@ impl<V: Copy> EdDecompressCols<V> {
             self.shard,
             self.channel,
             self.clk,
-            self.nonce,
             AB::F::from_canonical_u32(SyscallCode::ED_DECOMPRESS.syscall_id()),
             self.ptr,
             self.sign,
@@ -336,13 +326,11 @@ impl<E: EdwardsParameters> Syscall for EdDecompressChip<E> {
         let x_memory_records_vec = rt.mw_slice(slice_ptr, &decompressed_x_words);
         let x_memory_records: [MemoryWriteRecord; 8] = x_memory_records_vec.try_into().unwrap();
 
-        let lookup_id = rt.syscall_lookup_id;
         let shard = rt.current_shard();
         let channel = rt.current_channel();
         rt.record_mut()
             .ed_decompress_events
             .push(EdDecompressEvent {
-                lookup_id,
                 shard,
                 channel,
                 clk: start_clk,
@@ -402,20 +390,10 @@ impl<F: PrimeField32, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E
             row
         });
 
-        let mut trace = RowMajorMatrix::new(
+        RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_ED_DECOMPRESS_COLS,
-        );
-
-        // Write the nonces to the trace.
-        for i in 0..trace.height() {
-            let cols: &mut EdDecompressCols<F> = trace.values
-                [i * NUM_ED_DECOMPRESS_COLS..(i + 1) * NUM_ED_DECOMPRESS_COLS]
-                .borrow_mut();
-            cols.nonce = F::from_canonical_usize(i);
-        }
-
-        trace
+        )
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -435,18 +413,9 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let local = main.row_slice(0);
-        let local: &EdDecompressCols<AB::Var> = (*local).borrow();
-        let next = main.row_slice(1);
-        let next: &EdDecompressCols<AB::Var> = (*next).borrow();
-
-        // Constrain the incrementing nonce.
-        builder.when_first_row().assert_zero(local.nonce);
-        builder
-            .when_transition()
-            .assert_eq(local.nonce + AB::Expr::one(), next.nonce);
-
-        local.eval::<AB, E::BaseField, E>(builder);
+        let row = main.row_slice(0);
+        let row: &EdDecompressCols<AB::Var> = (*row).borrow();
+        row.eval::<AB, E::BaseField, E>(builder);
     }
 }
 
