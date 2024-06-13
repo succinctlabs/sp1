@@ -9,7 +9,7 @@ interface ISP1Verifier {
     function VERSION() external pure returns (string memory);
 
     /// @notice Returns the hash of the verification key.
-    function VKEY_HASH() public pure returns (bytes32);
+    function VKEY_HASH() external pure returns (bytes32);
 
     /// @notice Verifies a proof with given public values and vkey.
     /// @param vkey The verification key for the RISC-V program.

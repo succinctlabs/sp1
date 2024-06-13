@@ -27,7 +27,7 @@ pub enum ProverType {
 #[derive(Error, Debug)]
 pub enum SP1VerificationError {
     #[error("Version mismatch")]
-    VersionMismatch,
+    VersionMismatch(String),
     #[error("Core machine verification error: {0}")]
     Core(MachineVerificationError<CoreSC>),
     #[error("Recursion verification error: {0}")]
@@ -60,7 +60,9 @@ pub trait Prover: Send + Sync {
     /// Verify that an SP1 proof is valid given its vkey and metadata.
     fn verify(&self, proof: &SP1Proof, vkey: &SP1VerifyingKey) -> Result<(), SP1VerificationError> {
         if proof.sp1_version != self.version() {
-            return Err(SP1VerificationError::VersionMismatch);
+            return Err(SP1VerificationError::VersionMismatch(
+                proof.sp1_version.clone(),
+            ));
         }
         self.sp1_prover()
             .verify(&SP1CoreProofData(proof.proof.clone()), vkey)
@@ -74,7 +76,9 @@ pub trait Prover: Send + Sync {
         vkey: &SP1VerifyingKey,
     ) -> Result<(), SP1VerificationError> {
         if proof.sp1_version != self.version() {
-            return Err(SP1VerificationError::VersionMismatch);
+            return Err(SP1VerificationError::VersionMismatch(
+                proof.sp1_version.clone(),
+            ));
         }
         self.sp1_prover()
             .verify_compressed(
@@ -94,7 +98,9 @@ pub trait Prover: Send + Sync {
         vkey: &SP1VerifyingKey,
     ) -> Result<(), SP1VerificationError> {
         if proof.sp1_version != self.version() {
-            return Err(SP1VerificationError::VersionMismatch);
+            return Err(SP1VerificationError::VersionMismatch(
+                proof.sp1_version.clone(),
+            ));
         }
         let sp1_prover = self.sp1_prover();
 

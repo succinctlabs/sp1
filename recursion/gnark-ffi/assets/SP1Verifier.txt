@@ -38,7 +38,7 @@ contract SP1Verifier is PlonkVerifier {
         // To ensure the proof corresponds to this verifier, we check that the first 4 bytes of
         // proofBytes match the first 4 bytes of VKEY_HASH.
         bytes4 proofBytesPrefix = bytes4(proofBytes[:4]);
-        if (proofBytesPrefix != bytes4(VKEY_HASH)) {
+        if (proofBytesPrefix != bytes4(VKEY_HASH())) {
             revert WrongVersionProof();
         }
 
