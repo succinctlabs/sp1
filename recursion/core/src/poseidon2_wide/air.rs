@@ -66,14 +66,15 @@ where
             local_control_flow,
         );
 
-        // // Check that the permutation columns are correct.
-        // let local_perm_cols = local_ptr.permutation();
-        // self.eval_perm(
-        //     builder,
-        //     array::from_fn(|i| *local_opcode_workspace.compress().input[i].value()),
-        //     local_perm_cols.as_ref(),
-        //     local_control_flow.do_perm,
-        // );
+        // Check that the permutation columns are correct.
+        let local_perm_cols = local_ptr.permutation();
+        self.eval_perm(
+            builder,
+            local_perm_cols.as_ref(),
+            local_ptr.memory(),
+            local_ptr.opcode_workspace(),
+            local_control_flow,
+        );
 
         // // Check that the permutation output is copied to the next row correctly.
         // let next_opcode_workspace = next_ptr.opcode_workspace();
@@ -393,14 +394,22 @@ impl<'a, const DEGREE: usize> Poseidon2WideChip<DEGREE> {
     fn eval_perm<AB: SP1RecursionAirBuilder>(
         &self,
         builder: &mut AB,
-        input: [AB::Var; WIDTH],
         perm_cols: &dyn Permutation<AB::Var>,
-        do_perm: AB::Var,
+        memory: &Memory<AB::Var>,
+        opcode_workspace: &OpcodeWorkspace<AB::Var>,
+        control_flow: &ControlFlow<AB::Var>,
     ) {
+        let input: [AB::Expr; WIDTH] = array::from_fn(|i| {
+            if i < WIDTH / 2 {
+                (*memory.memory_accesses[i].value()).into()
+            } else {
+                (*opcode_workspace.compress().memory_accesses[i - WIDTH / 2].value()).into()
+            }
+        });
+
         // Apply the initial round.
         let initial_round_output = {
-            let mut initial_round_output: [AB::Expr; WIDTH] =
-                core::array::from_fn(|i| input[i].into());
+            let mut initial_round_output = input;
             external_linear_layer(&mut initial_round_output);
             initial_round_output
         };
@@ -410,20 +419,20 @@ impl<'a, const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         });
 
         builder
-            .when(do_perm)
+            .when(control_flow.do_perm)
             .assert_all_eq(external_round_0_state.clone(), initial_round_output);
 
         // Apply the first half of external rounds.
         for r in 0..NUM_EXTERNAL_ROUNDS / 2 {
-            self.eval_external_round(builder, perm_cols, r, do_perm);
+            self.eval_external_round(builder, perm_cols, r, control_flow.do_perm);
         }
 
         // Apply the internal rounds.
-        self.eval_internal_rounds(builder, perm_cols, do_perm);
+        self.eval_internal_rounds(builder, perm_cols, control_flow.do_perm);
 
         // Apply the second half of external rounds.
         for r in NUM_EXTERNAL_ROUNDS / 2..NUM_EXTERNAL_ROUNDS {
-            self.eval_external_round(builder, perm_cols, r, do_perm);
+            self.eval_external_round(builder, perm_cols, r, control_flow.do_perm);
         }
     }
 

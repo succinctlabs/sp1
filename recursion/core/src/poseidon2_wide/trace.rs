@@ -293,7 +293,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                 control_flow.is_absorb = F::one();
                 control_flow.is_syscall = F::from_bool(row_num == 0);
                 control_flow.is_input = F::one();
-                control_flow.do_perm = F::from_bool(state_cursor + input_size == RATE);
+                // control_flow.do_perm = F::from_bool(state_cursor + input_size == RATE);
             }
 
             {
@@ -343,7 +343,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             control_flow.is_finalize = F::one();
             control_flow.is_syscall = F::one();
             control_flow.is_output = F::one();
-            control_flow.do_perm = F::from_bool(finalize_event.do_perm);
+            // control_flow.do_perm = F::from_bool(finalize_event.do_perm);
         }
 
         {

@@ -415,14 +415,13 @@ impl SP1Prover {
 
                     let pk = &self.rec_pk;
 
-                    let mut challenger_clone = self.compress_machine.config().challenger();
-                    let record_clone = runtime.record.clone();
-                    self.compress_machine.debug_constraints(
-                        pk,
-                        record_clone,
-                        &mut challenger_clone,
-                    );
-                    panic!();
+                    // let mut challenger_clone = self.compress_machine.config().challenger();
+                    // let record_clone = runtime.record.clone();
+                    // self.compress_machine.debug_constraints(
+                    //     pk,
+                    //     record_clone,
+                    //     &mut challenger_clone,
+                    // );
 
                     let mut recursive_challenger = self.compress_machine.config().challenger();
                     (
