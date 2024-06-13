@@ -44,11 +44,10 @@ pub fn get_target() -> String {
 }
 
 pub async fn get_toolchain_download_url(client: &Client, target: String) -> String {
-    // Get latest tag from https://api.github.com/repos/succinctlabs/rust/releases/latest
-    // and use it to construct the download URL.
+    // Get release data from tag and use it to construct the download URL.
     let json = client
         .get(format!(
-            "https://api.github.com/repos/succinctlabs/rust/releases/{}",
+            "https://api.github.com/repos/succinctlabs/rust/releases/tags/{}",
             RUST_TOOLCHAIN_TAG
         ))
         .send()
