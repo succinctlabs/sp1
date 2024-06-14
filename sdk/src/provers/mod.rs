@@ -50,21 +50,10 @@ pub trait Prover: Send + Sync {
     fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey);
 
     /// Prove the execution of a RISCV ELF with the given inputs.
-    fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Proof>;
-
-    /// Prove the execution of a RISCV ELF with the given inputs and context.
-    fn prove_with_context(
-        &self,
-        pk: &SP1ProvingKey,
-        stdin: SP1Stdin,
-        context: SP1Context,
-    ) -> Result<SP1Proof>;
+    fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin, context: SP1Context) -> Result<SP1Proof>;
 
     /// Generate a compressed proof of the execution of a RISCV ELF with the given inputs.
-    fn prove_compressed(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1CompressedProof>;
-
-    /// Generate a compressed proof of the execution of a RISCV ELF with the given inputs and context.
-    fn prove_compressed_with_context(
+    fn prove_compressed(
         &self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
@@ -72,10 +61,7 @@ pub trait Prover: Send + Sync {
     ) -> Result<SP1CompressedProof>;
 
     /// Given an SP1 program and input, generate a PLONK proof that can be verified on-chain.
-    fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkBn254Proof>;
-
-    /// Given an SP1 program, input, and context, generate a PLONK proof that can be verified on-chain.
-    fn prove_plonk_with_context(
+    fn prove_plonk(
         &self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,

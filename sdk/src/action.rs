@@ -28,7 +28,7 @@ impl<'a> Execute<'a> {
             mut context_builder,
         } = self;
         let context = context_builder.build();
-        Ok(SP1Prover::execute_with_context(elf, &stdin, context)?)
+        Ok(SP1Prover::execute(elf, &stdin, context)?)
     }
 
     /// Add a runtime [Hook](super::Hook) into the context.
@@ -82,7 +82,7 @@ impl<'a> Prove<'a> {
         let context = context_builder.build();
         // TODO remove all the extra with_context
 
-        prover.prove_with_context(pk, stdin, context)
+        prover.prove(pk, stdin, context)
     }
 
     /// Add a runtime [Hook](super::Hook) into the context.

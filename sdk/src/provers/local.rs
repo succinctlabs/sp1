@@ -35,16 +35,7 @@ impl Prover for LocalProver {
         &self.prover
     }
 
-    fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Proof> {
-        self.prove_with_context(pk, stdin, Default::default())
-    }
-
-    fn prove_with_context(
-        &self,
-        pk: &SP1ProvingKey,
-        stdin: SP1Stdin,
-        context: SP1Context,
-    ) -> Result<SP1Proof> {
+    fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin, context: SP1Context) -> Result<SP1Proof> {
         let proof = self.prover.prove_core_with_context(pk, &stdin, context)?;
         Ok(SP1ProofWithPublicValues {
             proof: proof.proof.0,
@@ -54,11 +45,7 @@ impl Prover for LocalProver {
         })
     }
 
-    fn prove_compressed(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1CompressedProof> {
-        self.prove_compressed_with_context(pk, stdin, Default::default())
-    }
-
-    fn prove_compressed_with_context(
+    fn prove_compressed(
         &self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
@@ -76,11 +63,7 @@ impl Prover for LocalProver {
         })
     }
 
-    fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkBn254Proof> {
-        self.prove_plonk_with_context(pk, stdin, Default::default())
-    }
-
-    fn prove_plonk_with_context(
+    fn prove_plonk(
         &self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,

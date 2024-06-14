@@ -225,14 +225,6 @@ impl SP1Prover {
     pub fn execute(
         elf: &[u8],
         stdin: &SP1Stdin,
-    ) -> Result<(SP1PublicValues, ExecutionReport), ExecutionError> {
-        Self::execute_with_context(elf, stdin, Default::default())
-    }
-
-    /// Generate a proof of an SP1 program with the specified inputs and context.
-    pub fn execute_with_context(
-        elf: &[u8],
-        stdin: &SP1Stdin,
         context: SP1Context,
     ) -> Result<(SP1PublicValues, ExecutionReport), ExecutionError> {
         let program = Program::from(elf);

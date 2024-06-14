@@ -57,7 +57,7 @@ impl NetworkProver {
             .unwrap_or(false);
 
         if !skip_simulation {
-            let (_, report) = SP1Prover::execute(elf, &stdin)?;
+            let (_, report) = SP1Prover::execute(elf, &stdin, Default::default())?;
             log::info!(
                 "Simulation complete, cycles: {}",
                 report.total_instruction_count()
@@ -128,46 +128,29 @@ impl Prover for NetworkProver {
         self.local_prover.sp1_prover()
     }
 
-    fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Proof> {
+    fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin, _context: SP1Context) -> Result<SP1Proof> {
+        // TODO deal with context, creating errors on presence of set fields
         block_on(self.prove(&pk.elf, stdin))
     }
 
-    /// TODO figure out what to do here
-    fn prove_with_context(
+    fn prove_compressed(
         &self,
-        _pk: &SP1ProvingKey,
-        _stdin: SP1Stdin,
-        _context: SP1Context,
-    ) -> Result<SP1Proof> {
-        todo!()
-    }
-
-    fn prove_compressed(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1CompressedProof> {
-        block_on(self.prove(&pk.elf, stdin))
-    }
-
-    /// TODO figure out what to do here
-    fn prove_compressed_with_context(
-        &self,
-        _pk: &SP1ProvingKey,
-        _stdin: SP1Stdin,
+        pk: &SP1ProvingKey,
+        stdin: SP1Stdin,
         _context: SP1Context,
     ) -> Result<SP1CompressedProof> {
-        todo!()
-    }
-
-    fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkBn254Proof> {
+        // TODO see above
         block_on(self.prove(&pk.elf, stdin))
     }
 
-    /// TODO figure out what to do here
-    fn prove_plonk_with_context(
+    fn prove_plonk(
         &self,
-        _pk: &SP1ProvingKey,
-        _stdin: SP1Stdin,
+        pk: &SP1ProvingKey,
+        stdin: SP1Stdin,
         _context: SP1Context,
     ) -> Result<SP1PlonkBn254Proof> {
-        todo!()
+        // TODO see above
+        block_on(self.prove(&pk.elf, stdin))
     }
 }
 

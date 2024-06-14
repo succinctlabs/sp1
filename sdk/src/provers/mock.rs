@@ -38,18 +38,8 @@ impl Prover for MockProver {
         unimplemented!("MockProver does not support SP1Prover")
     }
 
-    fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Proof> {
-        self.prove_with_context(pk, stdin, Default::default())
-    }
-
-    /// TODO find out what to actually impl here
-    fn prove_with_context(
-        &self,
-        pk: &SP1ProvingKey,
-        stdin: SP1Stdin,
-        context: SP1Context,
-    ) -> Result<SP1Proof> {
-        let (public_values, _) = SP1Prover::execute_with_context(&pk.elf, &stdin, context)?;
+    fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin, context: SP1Context) -> Result<SP1Proof> {
+        let (public_values, _) = SP1Prover::execute(&pk.elf, &stdin, context)?;
         Ok(SP1ProofWithPublicValues {
             proof: vec![],
             stdin,
@@ -58,11 +48,7 @@ impl Prover for MockProver {
         })
     }
 
-    fn prove_compressed(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1CompressedProof> {
-        self.prove_compressed_with_context(pk, stdin, Default::default())
-    }
-
-    fn prove_compressed_with_context(
+    fn prove_compressed(
         &self,
         _pk: &SP1ProvingKey,
         _stdin: SP1Stdin,
@@ -71,17 +57,13 @@ impl Prover for MockProver {
         unimplemented!()
     }
 
-    fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkBn254Proof> {
-        self.prove_plonk_with_context(pk, stdin, Default::default())
-    }
-
-    fn prove_plonk_with_context(
+    fn prove_plonk(
         &self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
         context: SP1Context,
     ) -> Result<SP1PlonkBn254Proof> {
-        let (public_values, _) = SP1Prover::execute_with_context(&pk.elf, &stdin, context)?;
+        let (public_values, _) = SP1Prover::execute(&pk.elf, &stdin, context)?;
         Ok(SP1PlonkBn254Proof {
             proof: PlonkBn254Proof {
                 public_inputs: [
