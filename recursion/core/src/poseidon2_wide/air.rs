@@ -409,7 +409,7 @@ impl<'a, const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         control_flow: &ControlFlow<AB::Var>,
     ) {
         let input: [AB::Expr; WIDTH] = array::from_fn(|i| {
-            let previous_state = opcode_workspace.absorb().previous_state[i];
+            let previous_state = opcode_workspace.hash().previous_state[i];
 
             let (compress_input, absorb_input, finalize_input) = if i < WIDTH / 2 {
                 let mem_value = *memory.memory_accesses[i].value();
@@ -591,7 +591,7 @@ impl<'a, const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                 .when(control_flow.is_absorb)
                 .when(control_flow.do_perm)
                 .assert_all_eq(
-                    local_opcode_workspace.absorb().state,
+                    local_opcode_workspace.hash().state,
                     *permutation.perm_output(),
                 );
 
@@ -601,23 +601,44 @@ impl<'a, const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                     builder.if_else(
                         local_memory.memory_slot_used[i],
                         *local_memory.memory_accesses[i].value(),
-                        local_opcode_workspace.absorb().previous_state[i],
+                        local_opcode_workspace.hash().previous_state[i],
                     )
                 } else {
-                    local_opcode_workspace.absorb().previous_state[i].into()
+                    local_opcode_workspace.hash().previous_state[i].into()
                 }
             });
 
             builder
                 .when(control_flow.is_absorb_no_perm)
-                .assert_all_eq(local_opcode_workspace.absorb().state, input);
+                .assert_all_eq(local_opcode_workspace.hash().state, input);
 
             builder
                 .when_transition()
                 .when(control_flow.is_absorb)
                 .assert_all_eq(
-                    local_opcode_workspace.absorb().state,
-                    next_opcode_workspace.absorb().previous_state,
+                    local_opcode_workspace.hash().state,
+                    next_opcode_workspace.hash().previous_state,
+                );
+        }
+
+        // Finalize
+        {
+            // TODO: check the do_perm flag.
+
+            builder
+                .when(control_flow.is_finalize)
+                .when(control_flow.do_perm)
+                .assert_all_eq(
+                    local_opcode_workspace.hash().state,
+                    *permutation.perm_output(),
+                );
+
+            builder
+                .when(control_flow.is_finalize)
+                .when_not(control_flow.do_perm)
+                .assert_all_eq(
+                    local_opcode_workspace.hash().state,
+                    local_opcode_workspace.hash().previous_state,
                 );
         }
     }

@@ -18,7 +18,7 @@ impl<T: Copy> OpcodeWorkspace<T> {
         unsafe { &mut self.compress }
     }
 
-    pub fn absorb(&self) -> &AbsorbWorkspace<T> {
+    pub fn hash(&self) -> &AbsorbWorkspace<T> {
         unsafe { &self.absorb }
     }
 
