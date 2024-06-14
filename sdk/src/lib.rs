@@ -9,6 +9,7 @@
 pub mod proto {
     pub mod network;
 }
+pub mod action;
 pub mod artifacts;
 #[cfg(feature = "network")]
 pub mod network;
@@ -170,6 +171,16 @@ impl ProverClient {
         }
     }
 
+    // TODO change name
+    pub fn execute_new<'a>(&self, elf: &'a [u8], stdin: SP1Stdin) -> action::Execute<'a> {
+        action::Execute::new(elf, stdin)
+    }
+
+    // TODO change name
+    pub fn prove_new<'a>(&'a self, pk: &'a SP1ProvingKey, stdin: SP1Stdin) -> action::Prove<'a> {
+        action::Prove::new(self.prover.as_ref(), pk, stdin)
+    }
+
     /// Executes the given program on the given input (without generating a proof).
     ///
     /// Returns the public values and execution report of the program after it has been executed.
@@ -236,7 +247,6 @@ impl ProverClient {
     ) -> Result<(SP1PublicValues, ExecutionReport)> {
         Ok(SP1Prover::execute_with_context(elf, &stdin, context)?)
     }
-
     /// Setup a program to be proven and verified by the SP1 RISC-V zkVM by computing the proving
     /// and verifying keys.
     ///
@@ -617,6 +627,45 @@ mod tests {
         let elf = include_bytes!("../../tests/ecrecover/elf/riscv32im-succinct-zkvm-elf");
         let stdin = SP1Stdin::new();
         client.execute_with_context(elf, stdin, context).unwrap();
+        assert_ne!(call_ct.into_inner(), 0);
+    }
+
+    #[test]
+    fn test_execute_new() {
+        // Wrap the hook and check that it was called.
+        let call_ct = AtomicU32::new(0);
+        utils::setup_logger();
+        let client = ProverClient::local();
+        let elf = include_bytes!("../../tests/ecrecover/elf/riscv32im-succinct-zkvm-elf");
+        let stdin = SP1Stdin::new();
+        client
+            .execute_new(elf, stdin)
+            .with_hook(FD_ECRECOVER_HOOK, |env, buf| {
+                call_ct.fetch_add(1, Ordering::Relaxed);
+                hook_ecrecover(env, buf)
+            })
+            .run()
+            .unwrap();
+        assert_ne!(call_ct.into_inner(), 0);
+    }
+
+    #[test]
+    fn test_prove_new() {
+        // Wrap the hook and check that it was called.
+        let call_ct = AtomicU32::new(0);
+        utils::setup_logger();
+        let client = ProverClient::local();
+        let elf = include_bytes!("../../tests/ecrecover/elf/riscv32im-succinct-zkvm-elf");
+        let stdin = SP1Stdin::new();
+        let (pk, _) = client.setup(elf);
+        client
+            .prove_new(&pk, stdin)
+            .with_hook(FD_ECRECOVER_HOOK, |env, buf| {
+                call_ct.fetch_add(1, Ordering::Relaxed);
+                hook_ecrecover(env, buf)
+            })
+            .run()
+            .unwrap();
         assert_ne!(call_ct.into_inner(), 0);
     }
 
