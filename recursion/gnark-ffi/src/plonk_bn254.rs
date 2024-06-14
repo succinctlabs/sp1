@@ -82,7 +82,8 @@ impl PlonkBn254Prover {
 
         // Write the corresponding asset files to the build dir.
         let sp1_mock_verifier_path = build_dir.join("SP1MockVerifier.sol");
-        let sp1_mock_verifier_str = include_str!("../assets/SP1MockVerifier.txt");
+        let sp1_mock_verifier_str = include_str!("../assets/SP1MockVerifier.txt")
+            .replace("{SP1_CIRCUIT_VERSION}", SP1_CIRCUIT_VERSION);
         let mut mock_verifier_file = File::create(sp1_mock_verifier_path).unwrap();
         mock_verifier_file
             .write_all(sp1_mock_verifier_str.as_bytes())
