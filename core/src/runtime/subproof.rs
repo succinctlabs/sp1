@@ -11,7 +11,7 @@ use crate::{
 ///
 /// This needs to be passed in rather than written directly since the actual implementation relies
 /// on crates in recursion that depend on sp1-core.
-pub trait SubproofVerifier: Send {
+pub trait SubproofVerifier: Sync + Send {
     fn verify_deferred_proof(
         &self,
         proof: &ShardProof<BabyBearPoseidon2>,

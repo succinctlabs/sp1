@@ -4,12 +4,6 @@ set -e
 # Get the version from the command line.
 VERSION=$1
 
-# Sanity check the version matches v*.*.*
-if [[ $version != v* ]]; then
-    echo "Error: Version must be in the format v*"
-    exit 1
-fi
-
 # Specify the file to upload and the S3 bucket name
 FILE_TO_UPLOAD="./build"
 S3_BUCKET="sp1-circuits"
