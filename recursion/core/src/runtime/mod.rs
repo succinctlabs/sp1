@@ -24,7 +24,7 @@ use crate::air::{Block, RECURSION_PUBLIC_VALUES_COL_MAP, RECURSIVE_PROOF_NUM_PV_
 use crate::cpu::CpuEvent;
 use crate::exp_reverse_bits::ExpReverseBitsLenEvent;
 use crate::fri_fold::FriFoldEvent;
-use crate::memory::{compute_addr_diff, MemoryRecord};
+use crate::memory::MemoryRecord;
 use crate::poseidon2::Poseidon2Event;
 use crate::range_check::{RangeCheckEvent, RangeCheckOpcode};
 
@@ -266,20 +266,6 @@ where
         );
         self.record
             .add_range_check_events(&[diff_16bit_limb_event, diff_12bit_limb_event]);
-    }
-
-    /// Track the range checks for the memory finalize table. This will be used later to set the
-    /// multiplicities in the range check table. The parameter `subtract_one` should be `true` when
-    /// used for checking address uniqueness, and `false` when used to range-check the addresses
-    /// themselves.
-    fn track_addr_range_check(&mut self, addr: F, next_addr: F, subtract_one: bool) {
-        let (diff_16, diff_12) = compute_addr_diff(next_addr, addr, subtract_one);
-        let diff_16bit_limb_event =
-            RangeCheckEvent::new(RangeCheckOpcode::U16, diff_16.as_canonical_u32() as u16);
-        let diff_8bit_limb_event =
-            RangeCheckEvent::new(RangeCheckOpcode::U12, diff_12.as_canonical_u32() as u16);
-        self.record
-            .add_range_check_events(&[diff_16bit_limb_event, diff_8bit_limb_event]);
     }
 
     fn mr(&mut self, addr: F, timestamp: F) -> (MemoryRecord<F>, Block<F>) {
@@ -949,37 +935,12 @@ where
                 .first_memory_record
                 .push((F::from_canonical_usize(*addr), *init_value));
 
-            // Keep the last memory record sorted by address.
-            let pos = self
-                .record
-                .last_memory_record
-                .partition_point(|(a, _, _)| *a <= F::from_canonical_usize(*addr));
-            self.record.last_memory_record.insert(
-                pos,
-                (F::from_canonical_usize(*addr), entry.timestamp, entry.value),
-            )
+            self.record.last_memory_record.push((
+                F::from_canonical_usize(*addr),
+                entry.timestamp,
+                entry.value,
+            ))
         }
-        self.record
-            .last_memory_record
-            .sort_by_key(|(addr, _, _)| *addr);
-
-        // For all the records but the last, need to check that the next address is greater than the
-        // current address, and that the difference is bounded by 2^28. We also track that the current
-        // address is bounded by 2^28.
-        for i in 0..self.record.last_memory_record.len() - 1 {
-            self.track_addr_range_check(
-                self.record.last_memory_record[i].0,
-                self.record.last_memory_record[i + 1].0,
-                true,
-            );
-            self.track_addr_range_check(F::zero(), self.record.last_memory_record[i].0, false);
-        }
-        // Add the last range check event for the last memory address.
-        self.track_addr_range_check(
-            F::zero(),
-            self.record.last_memory_record.last().unwrap().0,
-            false,
-        );
     }
 }
 
