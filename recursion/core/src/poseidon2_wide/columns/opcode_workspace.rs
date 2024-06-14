@@ -1,9 +1,6 @@
 use sp1_derive::AlignedBorrow;
 
-use crate::{
-    memory::{MemoryReadSingleCols, MemoryReadWriteSingleCols},
-    poseidon2_wide::{RATE, WIDTH},
-};
+use crate::{memory::MemoryReadWriteSingleCols, poseidon2_wide::WIDTH};
 
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
@@ -40,11 +37,8 @@ pub struct CompressWorkspace<T: Copy> {
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
 pub struct AbsorbWorkspace<T: Copy> {
-    pub input_addr: T,
-
-    pub input_cursor: T,
-    pub previous_output: [T; WIDTH],
+    pub previous_state: [T; WIDTH],
+    pub state: [T; WIDTH],
 
     pub clk_diff_bits: [T; 4],
-    pub is_first_row: T,
 }

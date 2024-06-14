@@ -400,11 +400,29 @@ impl<'a, const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         control_flow: &ControlFlow<AB::Var>,
     ) {
         let input: [AB::Expr; WIDTH] = array::from_fn(|i| {
-            if i < WIDTH / 2 {
-                (*memory.memory_accesses[i].value()).into()
+            let previous_state = opcode_workspace.absorb().previous_state[i];
+
+            let (compress_input, absorb_input, finalize_input) = if i < WIDTH / 2 {
+                let mem_value = *memory.memory_accesses[i].value();
+
+                let compress_input = mem_value;
+                let absorb_input =
+                    builder.if_else(memory.memory_slot_used[i], mem_value, previous_state);
+                let finalize_input = previous_state.into();
+
+                (compress_input, absorb_input, finalize_input)
             } else {
-                (*opcode_workspace.compress().memory_accesses[i - WIDTH / 2].value()).into()
-            }
+                let compress_input =
+                    *opcode_workspace.compress().memory_accesses[i - WIDTH / 2].value();
+                let absorb_input = previous_state.into();
+                let finalize_input = previous_state.into();
+
+                (compress_input, absorb_input, finalize_input)
+            };
+
+            control_flow.is_compress * compress_input
+                + control_flow.is_absorb * absorb_input
+                + control_flow.is_finalize * finalize_input
         });
 
         // Apply the initial round.
@@ -418,21 +436,19 @@ impl<'a, const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             state[i].into()
         });
 
-        builder
-            .when(control_flow.do_perm)
-            .assert_all_eq(external_round_0_state.clone(), initial_round_output);
+        builder.assert_all_eq(external_round_0_state.clone(), initial_round_output);
 
         // Apply the first half of external rounds.
         for r in 0..NUM_EXTERNAL_ROUNDS / 2 {
-            self.eval_external_round(builder, perm_cols, r, control_flow.do_perm);
+            self.eval_external_round(builder, perm_cols, r);
         }
 
         // Apply the internal rounds.
-        self.eval_internal_rounds(builder, perm_cols, control_flow.do_perm);
+        self.eval_internal_rounds(builder, perm_cols);
 
         // Apply the second half of external rounds.
         for r in NUM_EXTERNAL_ROUNDS / 2..NUM_EXTERNAL_ROUNDS {
-            self.eval_external_round(builder, perm_cols, r, control_flow.do_perm);
+            self.eval_external_round(builder, perm_cols, r);
         }
     }
 
@@ -441,7 +457,6 @@ impl<'a, const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         builder: &mut AB,
         perm_cols: &dyn Permutation<AB::Var>,
         r: usize,
-        do_perm: AB::Var,
     ) {
         let external_state = perm_cols.external_rounds_state()[r];
 
@@ -452,7 +467,7 @@ impl<'a, const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             r + NUM_INTERNAL_ROUNDS
         };
         let add_rc: [AB::Expr; WIDTH] = core::array::from_fn(|i| {
-            external_state[i].into() + do_perm * AB::F::from_wrapped_u32(RC_16_30_U32[round][i])
+            external_state[i].into() + AB::F::from_wrapped_u32(RC_16_30_U32[round][i])
         });
 
         // Apply the sboxes.
@@ -492,7 +507,6 @@ impl<'a, const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         &self,
         builder: &mut AB,
         perm_cols: &dyn Permutation<AB::Var>,
-        do_perm: AB::Var,
     ) {
         let state = &perm_cols.internal_rounds_state();
         let s0 = perm_cols.internal_rounds_s0();
@@ -504,7 +518,7 @@ impl<'a, const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                 state[0].clone()
             } else {
                 s0[r - 1].into()
-            } + do_perm * AB::Expr::from_wrapped_u32(RC_16_30_U32[round][0]);
+            } + AB::Expr::from_wrapped_u32(RC_16_30_U32[round][0]);
 
             let mut sbox_deg_3 = add_rc.clone() * add_rc.clone() * add_rc.clone();
             if let Some(internal_sbox) = perm_cols.internal_rounds_sbox() {

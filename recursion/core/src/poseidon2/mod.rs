@@ -31,6 +31,7 @@ pub struct Poseidon2CompressEvent<F> {
     pub result_array: [F; WIDTH],
     pub input_records: [MemoryRecord<F>; WIDTH],
     pub result_records: [MemoryRecord<F>; WIDTH],
+    pub dummy_output_permutation: [F; WIDTH],
 }
 
 impl<F: PrimeField32> Poseidon2CompressEvent<F> {
@@ -52,6 +53,7 @@ impl<F: PrimeField32> Poseidon2CompressEvent<F> {
             result_array: [F::zero(); WIDTH],
             input_records,
             result_records: output_records,
+            dummy_output_permutation: [F::zero(); WIDTH],
         }
     }
 }
@@ -61,8 +63,11 @@ pub struct Poseidon2AbsorbIteration<F> {
     pub state_cursor: usize,
     pub start_addr: F,
     pub input_records: Vec<MemoryRecord<F>>,
-    pub input_state: [F; WIDTH],
-    pub output_state: [F; WIDTH],
+    pub perm_input: [F; WIDTH],
+    pub perm_output: [F; WIDTH],
+
+    pub previous_state: [F; WIDTH],
+    pub state: [F; WIDTH],
     pub do_perm: bool,
 }
 
@@ -81,6 +86,9 @@ pub struct Poseidon2FinalizeEvent<F> {
     pub hash_num: F,   // from a_val
     pub output_ptr: F, // from b_val
     pub do_perm: bool,
-    pub output: [F; WIDTH],
+    pub perm_input: [F; WIDTH],
+    pub perm_output: [F; WIDTH],
+    pub previous_state: [F; WIDTH],
+    pub state: [F; WIDTH],
     pub output_records: [MemoryRecord<F>; DIGEST_SIZE],
 }

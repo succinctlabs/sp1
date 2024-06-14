@@ -29,7 +29,7 @@ use crate::poseidon2::{
     Poseidon2AbsorbEvent, Poseidon2AbsorbIteration, Poseidon2CompressEvent, Poseidon2Event,
     Poseidon2FinalizeEvent,
 };
-use crate::poseidon2_wide::{RATE, WIDTH};
+use crate::poseidon2_wide::RATE;
 use crate::range_check::{RangeCheckEvent, RangeCheckOpcode};
 
 use p3_field::{ExtensionField, PrimeField32};
@@ -690,6 +690,9 @@ where
                     // Perform the permutation.
                     let result = self.perm.as_ref().unwrap().permute(array);
 
+                    // Perform the dummy permutation for the output compress row.
+                    let dummy_output_permutation = self.perm.as_ref().unwrap().permute(result);
+
                     // Write the value back to the array at ptr.
                     let mut result_records = vec![];
                     for (i, value) in result.iter().enumerate() {
@@ -712,6 +715,7 @@ where
                             result_array: result,
                             input_records,
                             result_records: result_records.try_into().unwrap(),
+                            dummy_output_permutation,
                         },
                     ));
 
@@ -732,6 +736,7 @@ where
                     let mut state_cursor = self.p2_hash_state_cursor;
                     let mut addr_iter = input_ptr;
                     let mut start_addr = addr_iter;
+                    let mut previous_state = self.p2_hash_state;
                     let permuter = self.perm.as_ref().unwrap().clone();
                     for _ in 0..input_len {
                         let (input_record, input_val) = self.mr(addr_iter, timestamp);
@@ -742,18 +747,21 @@ where
                         addr_iter += F::one();
 
                         if self.p2_hash_state_cursor == RATE {
-                            let input_state = self.p2_hash_state;
+                            let perm_input = self.p2_hash_state;
                             permuter.permute_mut(&mut self.p2_hash_state);
 
                             absorb_iterations.push(Poseidon2AbsorbIteration {
                                 state_cursor,
                                 start_addr,
                                 input_records,
-                                input_state,
-                                output_state: self.p2_hash_state,
+                                perm_input,
+                                perm_output: self.p2_hash_state,
+                                previous_state,
+                                state: self.p2_hash_state,
                                 do_perm: true,
                             });
 
+                            previous_state = self.p2_hash_state;
                             input_records = Vec::new();
                             self.p2_hash_state_cursor = 0;
                             state_cursor = 0;
@@ -762,12 +770,17 @@ where
                     }
 
                     if self.p2_hash_state_cursor != 0 {
+                        // Do a dummy permute.
+                        let dummy_permute = permuter.permute(self.p2_hash_state);
+
                         absorb_iterations.push(Poseidon2AbsorbIteration {
                             state_cursor,
                             start_addr,
                             input_records,
-                            input_state: [F::zero(); WIDTH],
-                            output_state: [F::zero(); WIDTH],
+                            perm_input: self.p2_hash_state,
+                            perm_output: dummy_permute,
+                            previous_state,
+                            state: self.p2_hash_state,
                             do_perm: false,
                         });
                     }
@@ -794,27 +807,18 @@ where
                     let timestamp = self.clk;
 
                     let do_perm = self.p2_hash_state_cursor != 0;
-                    if do_perm {
-                        self.perm
-                            .as_ref()
-                            .unwrap()
-                            .permute_mut(&mut self.p2_hash_state);
-                    }
+                    let perm_output = self.perm.as_ref().unwrap().permute(self.p2_hash_state);
+                    let state = if do_perm {
+                        perm_output
+                    } else {
+                        self.p2_hash_state
+                    };
 
                     let mut output_records = Vec::new();
                     (0..DIGEST_SIZE).for_each(|i| {
                         let i_f = F::from_canonical_u32(i as u32);
-                        output_records.push(self.mw(
-                            output_ptr + i_f,
-                            self.p2_hash_state[i],
-                            timestamp,
-                        ));
+                        output_records.push(self.mw(output_ptr + i_f, state[i], timestamp));
                     });
-
-                    self.p2_hash_state_cursor = 0;
-                    self.p2_hash_state = [F::zero(); PERMUTATION_WIDTH];
-
-                    self.num_finalizes += 1;
 
                     self.record.poseidon2_events.push(Poseidon2Event::Finalize(
                         Poseidon2FinalizeEvent {
@@ -822,10 +826,17 @@ where
                             hash_num: p2_hash_num,
                             output_ptr,
                             do_perm,
-                            output: self.p2_hash_state,
+                            perm_input: self.p2_hash_state,
+                            perm_output,
+                            previous_state: self.p2_hash_state,
+                            state,
                             output_records: array::from_fn(|i| output_records[i]),
                         },
                     ));
+
+                    self.p2_hash_state_cursor = 0;
+                    self.p2_hash_state = [F::zero(); PERMUTATION_WIDTH];
+                    self.num_finalizes += 1;
 
                     (a, b, c) = (a_val, b_val, c_val);
                 }
