@@ -100,14 +100,14 @@ pub trait RecursionMemoryAirBuilder: RecursionInteractionAirBuilder {
         ));
     }
 
-    /// Verifies that the memory access happends after the previous memory access.
+    /// Verifies that the memory access happens after the previous memory access.
     fn eval_memory_access_timestamp<E: Into<Self::Expr> + Clone>(
         &mut self,
         timestamp: impl Into<Self::Expr>,
         mem_access: &impl MemoryAccessTimestampCols<E>,
         is_real: impl Into<Self::Expr> + Clone,
     ) {
-        // We substract one since a diff of zero is not valid.
+        // We subtract one since a diff of zero is not valid.
         let diff_minus_one: Self::Expr =
             timestamp.into() - mem_access.prev_timestamp().clone().into() - Self::Expr::one();
 
