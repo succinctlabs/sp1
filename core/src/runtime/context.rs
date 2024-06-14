@@ -35,16 +35,20 @@ impl<'a> SP1ContextBuilder<'a> {
     ///
     /// Clears and resets the builder, allowing it to be reused.
     pub fn build(&mut self) -> SP1Context<'a> {
-        let mut table = if take(&mut self.no_default_hooks) {
-            Default::default()
-        } else {
-            HookRegistry::default().table
-        };
-        // Allows overwriting default hooks.
-        table.extend(take(&mut self.hook_registry_entries));
-        SP1Context {
-            hook_registry: Some(HookRegistry { table }),
-        }
+        // If hook_registry_entries is nonempty or no_default_hooks true,
+        // indicating a non-default value of hook_registry.
+        let hook_registry =
+            (!self.hook_registry_entries.is_empty() || self.no_default_hooks).then(|| {
+                let mut table = if take(&mut self.no_default_hooks) {
+                    Default::default()
+                } else {
+                    HookRegistry::default().table
+                };
+                // Allows overwriting default hooks.
+                table.extend(take(&mut self.hook_registry_entries));
+                HookRegistry { table }
+            });
+        SP1Context { hook_registry }
     }
 
     /// Add a runtime [Hook](super::Hook) into the context.
