@@ -6,7 +6,7 @@ on:
     tags:
       - "v*.*.*"
     branches:
-      - chris/temp-docker-build
+      - chris/v1.0.7-testnet
   schedule:
     - cron: "0 0 * * *"
   # Trigger without any parameters a proactive rebuild
