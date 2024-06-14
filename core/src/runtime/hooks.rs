@@ -67,7 +67,7 @@ impl<'a> HookRegistry<'a> {
     /// let mut registry: HookRegistry<'static> = Default::default();
     /// assert!(registry.get(&FD_ECRECOVER_HOOK).is_some());
     /// ```
-    pub fn get(&self, fd: &u32) -> Option<RwLockWriteGuard<dyn Hook + Sync + Send + 'a>> {
+    pub fn get(&self, fd: &u32) -> Option<RwLockWriteGuard<dyn Hook + Send + Sync + 'a>> {
         // Calling `.unwrap()` panics on a poisoned lock. Should never happen normally.
         self.table.get(fd).map(|x| x.write().unwrap())
     }
