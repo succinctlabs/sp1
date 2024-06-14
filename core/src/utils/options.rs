@@ -32,6 +32,7 @@ impl SP1CoreOpts {
     pub fn recursion() -> Self {
         let mut opts = Self::default();
         opts.reconstruct_commitments = false;
+        opts.shard_size = DEFAULT_SHARD_SIZE;
         opts
     }
 }

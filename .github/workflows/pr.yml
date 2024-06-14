@@ -98,8 +98,14 @@ jobs:
       - name: Setup CI
         uses: ./.github/actions/setup
 
+      - name: Build docker image
+        run: |
+          docker build -t sp1-gnark -f ./Dockerfile.gnark-ffi .
+
       - name: Run cargo test
         uses: actions-rs/cargo@v1
+        env:
+          SP1_GNARK_IMAGE: sp1-gnark
         with:
           command: test
           toolchain: nightly-2024-04-17
@@ -197,5 +203,6 @@ jobs:
           cargo add sp1-zkvm --path $GITHUB_WORKSPACE/zkvm/entrypoint
           cargo prove build
           cd ../script
+          cargo remove sp1-sdk
           cargo add sp1-sdk --path $GITHUB_WORKSPACE/sdk
           SP1_DEV=1 RUST_LOG=info cargo run --release

@@ -149,6 +149,7 @@ where
         let main = builder.main();
         let local = main.row_slice(0);
         let next = main.row_slice(1);
+        let next = main.row_slice(1);
         let local: &MemoryInitCols<AB::Var> = (*local).borrow();
         let next: &MemoryInitCols<AB::Var> = (*next).borrow();
 

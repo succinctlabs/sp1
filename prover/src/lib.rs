@@ -18,6 +18,7 @@ pub mod verify;
 
 use std::borrow::Borrow;
 use std::path::Path;
+use std::sync::Arc;
 
 use p3_baby_bear::BabyBear;
 use p3_challenger::CanObserve;
@@ -249,8 +250,13 @@ impl SP1Prover {
     ) -> Result<SP1CoreProof, SP1CoreProverError> {
         let config = CoreSC::default();
         let program = Program::from(&pk.elf);
-        let (proof, public_values_stream) =
-            sp1_core::utils::prove(program, stdin, config, self.core_opts)?;
+        let (proof, public_values_stream) = sp1_core::utils::prove_with_subproof_verifier(
+            program,
+            stdin,
+            config,
+            self.core_opts,
+            Some(Arc::new(self)),
+        )?;
         let public_values = SP1PublicValues::from(&public_values_stream);
         Ok(SP1CoreProof {
             proof: SP1CoreProofData(proof.shard_proofs),
@@ -404,39 +410,19 @@ impl SP1Prover {
             batch_size,
         );
 
-        let mut first_layer_proofs = Vec::new();
+        let mut reduce_proofs = Vec::new();
         let opts = self.recursion_opts;
         let shard_batch_size = opts.shard_batch_size;
         for inputs in core_inputs.chunks(shard_batch_size) {
             let proofs = inputs
                 .into_par_iter()
                 .map(|input| {
-                    let mut runtime = RecursionRuntime::<Val<InnerSC>, Challenge<InnerSC>, _>::new(
-                        &self.recursion_program,
-                        self.compress_machine.config().perm.clone(),
-                    );
-
-                    let mut witness_stream = Vec::new();
-                    witness_stream.extend(input.write());
-
-                    runtime.witness_stream = witness_stream.into();
-                    runtime.run();
-                    runtime.print_stats();
-
-                    let pk = &self.rec_pk;
-                    let mut recursive_challenger = self.compress_machine.config().challenger();
-                    (
-                        self.compress_machine.prove::<LocalProver<_, _>>(
-                            pk,
-                            runtime.record,
-                            &mut recursive_challenger,
-                            opts,
-                        ),
-                        ReduceProgramType::Core,
-                    )
+                    let proof =
+                        self.compress_machine_proof(input, &self.recursion_program, &self.rec_pk);
+                    (proof, ReduceProgramType::Core)
                 })
                 .collect::<Vec<_>>();
-            first_layer_proofs.extend(proofs);
+            reduce_proofs.extend(proofs);
         }
 
         // Run the deferred proofs programs.
@@ -444,39 +430,16 @@ impl SP1Prover {
             let proofs = inputs
                 .into_par_iter()
                 .map(|input| {
-                    let mut runtime = RecursionRuntime::<Val<InnerSC>, Challenge<InnerSC>, _>::new(
+                    let proof = self.compress_machine_proof(
+                        input,
                         &self.deferred_program,
-                        self.compress_machine.config().perm.clone(),
+                        &self.deferred_pk,
                     );
-
-                    let mut witness_stream = Vec::new();
-                    witness_stream.extend(input.write());
-
-                    runtime.witness_stream = witness_stream.into();
-                    runtime.run();
-                    runtime.print_stats();
-
-                    let pk = &self.deferred_pk;
-                    let mut recursive_challenger = self.compress_machine.config().challenger();
-                    (
-                        self.compress_machine.prove::<LocalProver<_, _>>(
-                            pk,
-                            runtime.record,
-                            &mut recursive_challenger,
-                            opts,
-                        ),
-                        ReduceProgramType::Deferred,
-                    )
+                    (proof, ReduceProgramType::Deferred)
                 })
                 .collect::<Vec<_>>();
-            first_layer_proofs.extend(proofs);
+            reduce_proofs.extend(proofs);
         }
-
-        // Chain all the individual shard proofs.
-        let mut reduce_proofs = first_layer_proofs
-            .into_iter()
-            .flat_map(|(proof, kind)| proof.shard_proofs.into_iter().map(move |p| (p, kind)))
-            .collect::<Vec<_>>();
 
         // Iterate over the recursive proof batches until there is one proof remaining.
         let mut is_complete;

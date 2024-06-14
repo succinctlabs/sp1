@@ -51,13 +51,6 @@ jobs:
       - name: Setup CI
         uses: ./.github/actions/setup
 
-      - name: Wait for docker-gnark
-        uses: explorium-ai/wait-github-status-action@v1.0.2
-        with:
-          name: docker-gnark
-          token: ${{ secrets.GITHUB_TOKEN }}
-          sha: ${{ github.event.pull_request.head.sha }} # Must
-
       - name: Run cargo test
         uses: actions-rs/cargo@v1
         with:
