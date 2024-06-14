@@ -61,12 +61,24 @@ where
     where
         A: MachineAir<F> + Air<InteractionBuilder<F>> + Air<SymbolicAirBuilder<F>>,
     {
-        // Todo: correct values
         let mut builder = InteractionBuilder::new(air.preprocessed_width(), air.width());
         air.eval(&mut builder);
         let (sends, receives) = builder.interactions();
 
-        // TODO: enable different numbers of public values.
+        let nb_byte_sends = sends
+            .iter()
+            .filter(|s| s.kind == InteractionKind::Byte)
+            .count();
+        let nb_byte_receives = receives
+            .iter()
+            .filter(|r| r.kind == InteractionKind::Byte)
+            .count();
+        tracing::debug!(
+            "chip {} has {} byte interactions",
+            air.name(),
+            nb_byte_sends + nb_byte_receives
+        );
+
         let mut max_constraint_degree =
             get_max_constraint_degree(&air, air.preprocessed_width(), PROOF_MAX_NUM_PVS);
 
@@ -101,7 +113,7 @@ where
     pub fn generate_permutation_trace<EF: ExtensionField<F>>(
         &self,
         preprocessed: Option<&RowMajorMatrix<F>>,
-        main: &mut RowMajorMatrix<F>,
+        main: &RowMajorMatrix<F>,
         random_elements: &[EF],
     ) -> RowMajorMatrix<EF>
     where

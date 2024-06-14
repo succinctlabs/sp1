@@ -4,13 +4,14 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::{
-    ffi::{build_plonk_bn254, prove_plonk_bn254, test_plonk_bn254, verify_plonk_bn254},
-    witness::GnarkWitness,
-};
+use crate::ffi::{build_plonk_bn254, prove_plonk_bn254, test_plonk_bn254, verify_plonk_bn254};
+use crate::witness::GnarkWitness;
 
 use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
+use sha2::Digest;
+use sha2::Sha256;
+use sp1_core::SP1_CIRCUIT_VERSION;
 use sp1_recursion_compiler::{
     constraints::Constraint,
     ir::{Config, Witness},
@@ -26,12 +27,19 @@ pub struct PlonkBn254Proof {
     pub public_inputs: [String; 2],
     pub encoded_proof: String,
     pub raw_proof: String,
+    pub plonk_vkey_hash: [u8; 32],
 }
 
 impl PlonkBn254Prover {
     /// Creates a new [PlonkBn254Prover].
     pub fn new() -> Self {
         Self
+    }
+
+    pub fn get_vkey_hash(build_dir: &Path) -> [u8; 32] {
+        let vkey_path = build_dir.join("vk.bin");
+        let vk_bin_bytes = std::fs::read(vkey_path).unwrap();
+        Sha256::digest(vk_bin_bytes).into()
     }
 
     /// Executes the prover in testing mode with a circuit definition and witness.
@@ -81,7 +89,13 @@ impl PlonkBn254Prover {
             .unwrap();
 
         let sp1_verifier_path = build_dir.join("SP1Verifier.sol");
-        let sp1_verifier_str = include_str!("../assets/SP1Verifier.txt");
+        let vkey_hash = Self::get_vkey_hash(&build_dir);
+        let sp1_verifier_str = include_str!("../assets/SP1Verifier.txt")
+            .replace("{SP1_CIRCUIT_VERSION}", SP1_CIRCUIT_VERSION)
+            .replace(
+                "{VKEY_HASH}",
+                format!("0x{}", hex::encode(vkey_hash)).as_str(),
+            );
         let mut sp1_verifier_file = File::create(sp1_verifier_path).unwrap();
         sp1_verifier_file
             .write_all(sp1_verifier_str.as_bytes())
@@ -95,7 +109,7 @@ impl PlonkBn254Prover {
             .unwrap();
     }
 
-    /// Generates a PLONK proof by sending a request to the Gnark server.
+    /// Generates a PLONK proof given a witness.
     pub fn prove<C: Config>(&self, witness: Witness<C>, build_dir: PathBuf) -> PlonkBn254Proof {
         // Write witness.
         let mut witness_file = tempfile::NamedTempFile::new().unwrap();
@@ -103,10 +117,12 @@ impl PlonkBn254Prover {
         let serialized = serde_json::to_string(&gnark_witness).unwrap();
         witness_file.write_all(serialized.as_bytes()).unwrap();
 
-        prove_plonk_bn254(
+        let mut proof = prove_plonk_bn254(
             build_dir.to_str().unwrap(),
             witness_file.path().to_str().unwrap(),
-        )
+        );
+        proof.plonk_vkey_hash = Self::get_vkey_hash(&build_dir);
+        proof
     }
 
     /// Verify a PLONK proof and verify that the supplied vkey_hash and committed_values_digest match.
@@ -117,6 +133,9 @@ impl PlonkBn254Prover {
         committed_values_digest: &BigUint,
         build_dir: &Path,
     ) {
+        if proof.plonk_vkey_hash != Self::get_vkey_hash(build_dir) {
+            panic!("Proof vkey hash does not match circuit vkey hash, it was generated with a different circuit.");
+        }
         verify_plonk_bn254(
             build_dir.to_str().unwrap(),
             &proof.raw_proof,

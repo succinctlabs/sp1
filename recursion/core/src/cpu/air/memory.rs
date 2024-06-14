@@ -30,7 +30,7 @@ impl<F: Field, const L: usize> CpuChip<F, L> {
             local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::Memory as u32),
             memory_cols.memory_addr,
             &memory_cols.memory,
-            is_memory_instr,
+            is_memory_instr.clone(),
         );
 
         // Constraints on the memory column depending on load or store.
@@ -41,7 +41,7 @@ impl<F: Field, const L: usize> CpuChip<F, L> {
         );
         // When there is a store, we ensure that we are writing the value of the a operand to the memory.
         builder
-            .when(local.selectors.is_store)
+            .when(is_memory_instr)
             .assert_block_eq(*local.a.value(), *memory_cols.memory.value());
     }
 }

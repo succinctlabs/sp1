@@ -12,9 +12,9 @@ use sp1_recursion_core::air::RecursionPublicValues;
 pub use sp1_recursion_core::stark::utils::sp1_dev_mode;
 use sp1_recursion_gnark_ffi::PlonkBn254Prover;
 
-use crate::install::{install_plonk_bn254_artifacts, PLONK_BN254_ARTIFACTS_COMMIT};
+use crate::install::install_plonk_bn254_artifacts;
 use crate::utils::{babybear_bytes_to_bn254, babybears_to_bn254, words_to_bytes};
-use crate::{OuterSC, SP1Prover};
+use crate::{OuterSC, SP1Prover, SP1_CIRCUIT_VERSION};
 
 /// Tries to install the PLONK artifacts if they are not already installed.
 pub fn try_install_plonk_bn254_artifacts() -> PathBuf {
@@ -27,8 +27,8 @@ pub fn try_install_plonk_bn254_artifacts() -> PathBuf {
         );
     } else {
         println!(
-            "[sp1] plonk bn254 artifacts for commit {} do not exist at {}. downloading...",
-            PLONK_BN254_ARTIFACTS_COMMIT,
+            "[sp1] plonk bn254 artifacts for version {} do not exist at {}. downloading...",
+            SP1_CIRCUIT_VERSION,
             build_dir.display()
         );
         install_plonk_bn254_artifacts(build_dir.clone());
@@ -37,9 +37,6 @@ pub fn try_install_plonk_bn254_artifacts() -> PathBuf {
 }
 
 /// Tries to build the PLONK artifacts inside the development directory.
-///
-/// TODO: Maybe add some additional logic here to handle rebuilding the artifacts if they are
-/// already built.
 pub fn try_build_plonk_bn254_artifacts_dev(
     template_vk: &StarkVerifyingKey<OuterSC>,
     template_proof: &ShardProof<OuterSC>,
@@ -57,7 +54,7 @@ fn plonk_bn254_artifacts_dir() -> PathBuf {
         .join(".sp1")
         .join("circuits")
         .join("plonk_bn254")
-        .join(PLONK_BN254_ARTIFACTS_COMMIT)
+        .join(SP1_CIRCUIT_VERSION)
 }
 
 /// Gets the directory where the PLONK artifacts are installed in development mode.

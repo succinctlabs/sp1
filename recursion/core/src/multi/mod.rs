@@ -66,8 +66,14 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for MultiChip<DEGREE> {
         input: &ExecutionRecord<F>,
         output: &mut ExecutionRecord<F>,
     ) -> RowMajorMatrix<F> {
-        let fri_fold_chip = FriFoldChip::<3>::default();
-        let poseidon2 = Poseidon2Chip::default();
+        let fri_fold_chip = FriFoldChip::<3> {
+            fixed_log2_rows: None,
+            pad: false,
+        };
+        let poseidon2 = Poseidon2Chip {
+            fixed_log2_rows: None,
+            pad: false,
+        };
         let fri_fold_trace = fri_fold_chip.generate_trace(input, output);
         let mut poseidon2_trace = poseidon2.generate_trace(input, output);
 
@@ -145,14 +151,12 @@ where
         // all the fri fold rows are first, then the posiedon2 rows, and finally any padded (non-real) rows.
 
         // First verify that all real rows are contiguous.
-        builder.when_first_row().assert_one(local_is_real.clone());
         builder
             .when_transition()
             .when_not(local_is_real.clone())
             .assert_zero(next_is_real.clone());
 
         // Next, verify that all fri fold rows are before the poseidon2 rows within the real rows section.
-        builder.when_first_row().assert_one(local.is_fri_fold);
         builder
             .when_transition()
             .when(next_is_real)
@@ -190,8 +194,7 @@ where
             local.poseidon2_receive_table,
         );
         sub_builder.assert_eq(
-            local.is_poseidon2
-                * Poseidon2Chip::do_memory_access::<AB::Var, AB::Expr>(poseidon2_columns),
+            local.is_poseidon2 * Poseidon2Chip::do_memory_access::<AB::Var>(poseidon2_columns),
             local.poseidon2_memory_access,
         );
 
@@ -201,7 +204,7 @@ where
             local.poseidon2(),
             next.poseidon2(),
             local.poseidon2_receive_table,
-            local.poseidon2_memory_access.into(),
+            local.poseidon2_memory_access,
         );
     }
 }

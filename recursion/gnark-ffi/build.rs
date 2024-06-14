@@ -11,7 +11,7 @@ use bindgen::CargoCallbacks;
 /// Build the go library, generate Rust bindings for the exposed functions, and link the library.
 fn main() {
     cfg_if! {
-        if #[cfg(feature = "plonk")] {
+        if #[cfg(feature = "native")] {
             println!("cargo:rerun-if-changed=go");
             // Define the output directory
             let out_dir = env::var("OUT_DIR").unwrap();

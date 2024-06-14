@@ -1,8 +1,6 @@
-use crate::{
-    runtime::{Syscall, SyscallContext},
-    stark::{RiscvAir, StarkGenericConfig},
-    utils::BabyBearPoseidon2Inner,
-};
+use core::panic;
+
+use crate::runtime::{Syscall, SyscallContext};
 
 /// Verifies an SP1 recursive verifier proof. Note that this syscall only verifies the proof during
 /// runtime. The actual constraint-level verification is deferred to the recursive layer, where
@@ -16,7 +14,6 @@ impl SyscallVerifySP1Proof {
 }
 
 impl Syscall for SyscallVerifySP1Proof {
-    #[allow(unused_variables, unused_mut)]
     fn execute(&self, ctx: &mut SyscallContext, vkey_ptr: u32, pv_digest_ptr: u32) -> Option<u32> {
         let rt = &mut ctx.rt;
 
@@ -33,22 +30,26 @@ impl Syscall for SyscallVerifySP1Proof {
             .map(|i| rt.word(pv_digest_ptr + i * 4))
             .collect::<Vec<u32>>();
 
-        let (proof, proof_vk) = &rt.state.proof_stream[rt.state.proof_stream_ptr];
+        let proof_index = rt.state.proof_stream_ptr;
+        if proof_index >= rt.state.proof_stream.len() {
+            panic!("Not enough proofs were written to the runtime.");
+        }
+        let (proof, proof_vk) = &rt.state.proof_stream[proof_index].clone();
         rt.state.proof_stream_ptr += 1;
 
-        let config = BabyBearPoseidon2Inner::new();
-        let mut challenger = config.challenger();
-        // TODO: need to use RecursionAir here
-        let machine = RiscvAir::machine(config);
+        let vkey_bytes: [u32; 8] = vkey.try_into().unwrap();
+        let pv_digest_bytes: [u32; 8] = pv_digest.try_into().unwrap();
 
-        // TODO: Need to import PublicValues from recursion.
-        // Assert the commit in vkey from runtime inputs matches the one from syscall.
-        // Assert that the public values digest from runtime inputs matches the one from syscall.
-
-        // TODO: Verify proof
-        // machine
-        //     .verify(proof_vk, proof, &mut challenger)
-        //     .expect("proof verification failed");
+        ctx.rt
+            .subproof_verifier
+            .verify_deferred_proof(proof, proof_vk, vkey_bytes, pv_digest_bytes)
+            .unwrap_or_else(|e| {
+                panic!(
+                    "Failed to verify proof {proof_index} with digest {}: {}",
+                    hex::encode(bytemuck::cast_slice(&pv_digest_bytes)),
+                    e
+                )
+            });
 
         None
     }

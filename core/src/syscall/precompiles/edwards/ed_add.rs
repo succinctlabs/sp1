@@ -6,6 +6,7 @@ use std::marker::PhantomData;
 use num::BigUint;
 use num::Zero;
 
+use p3_air::AirBuilder;
 use p3_air::{Air, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField32;
@@ -54,6 +55,7 @@ pub struct EdAddAssignCols<T> {
     pub shard: T,
     pub channel: T,
     pub clk: T,
+    pub nonce: T,
     pub p_ptr: T,
     pub q_ptr: T,
     pub p_access: [MemoryWriteCols<T>; WORDS_CURVE_POINT],
@@ -238,10 +240,19 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
         });
 
         // Convert the trace to a row major matrix.
-        RowMajorMatrix::new(
+        let mut trace = RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_ED_ADD_COLS,
-        )
+        );
+
+        // Write the nonces to the trace.
+        for i in 0..trace.height() {
+            let cols: &mut EdAddAssignCols<F> =
+                trace.values[i * NUM_ED_ADD_COLS..(i + 1) * NUM_ED_ADD_COLS].borrow_mut();
+            cols.nonce = F::from_canonical_usize(i);
+        }
+
+        trace
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -261,141 +272,150 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let row = main.row_slice(0);
-        let row: &EdAddAssignCols<AB::Var> = (*row).borrow();
+        let local = main.row_slice(0);
+        let local: &EdAddAssignCols<AB::Var> = (*local).borrow();
+        let next = main.row_slice(1);
+        let next: &EdAddAssignCols<AB::Var> = (*next).borrow();
 
-        let x1 = limbs_from_prev_access(&row.p_access[0..8]);
-        let x2 = limbs_from_prev_access(&row.q_access[0..8]);
-        let y1 = limbs_from_prev_access(&row.p_access[8..16]);
-        let y2 = limbs_from_prev_access(&row.q_access[8..16]);
+        // Constrain the incrementing nonce.
+        builder.when_first_row().assert_zero(local.nonce);
+        builder
+            .when_transition()
+            .assert_eq(local.nonce + AB::Expr::one(), next.nonce);
+
+        let x1 = limbs_from_prev_access(&local.p_access[0..8]);
+        let x2 = limbs_from_prev_access(&local.q_access[0..8]);
+        let y1 = limbs_from_prev_access(&local.p_access[8..16]);
+        let y2 = limbs_from_prev_access(&local.q_access[8..16]);
 
         // x3_numerator = x1 * y2 + x2 * y1.
-        row.x3_numerator.eval(
+        local.x3_numerator.eval(
             builder,
             &[x1, x2],
             &[y2, y1],
-            row.shard,
-            row.channel,
-            row.is_real,
+            local.shard,
+            local.channel,
+            local.is_real,
         );
 
         // y3_numerator = y1 * y2 + x1 * x2.
-        row.y3_numerator.eval(
+        local.y3_numerator.eval(
             builder,
             &[y1, x1],
             &[y2, x2],
-            row.shard,
-            row.channel,
-            row.is_real,
+            local.shard,
+            local.channel,
+            local.is_real,
         );
 
         // f = x1 * x2 * y1 * y2.
-        row.x1_mul_y1.eval(
+        local.x1_mul_y1.eval(
             builder,
             &x1,
             &y1,
             FieldOperation::Mul,
-            row.shard,
-            row.channel,
-            row.is_real,
+            local.shard,
+            local.channel,
+            local.is_real,
         );
-        row.x2_mul_y2.eval(
+        local.x2_mul_y2.eval(
             builder,
             &x2,
             &y2,
             FieldOperation::Mul,
-            row.shard,
-            row.channel,
-            row.is_real,
+            local.shard,
+            local.channel,
+            local.is_real,
         );
 
-        let x1_mul_y1 = row.x1_mul_y1.result;
-        let x2_mul_y2 = row.x2_mul_y2.result;
-        row.f.eval(
+        let x1_mul_y1 = local.x1_mul_y1.result;
+        let x2_mul_y2 = local.x2_mul_y2.result;
+        local.f.eval(
             builder,
             &x1_mul_y1,
             &x2_mul_y2,
             FieldOperation::Mul,
-            row.shard,
-            row.channel,
-            row.is_real,
+            local.shard,
+            local.channel,
+            local.is_real,
         );
 
         // d * f.
-        let f = row.f.result;
+        let f = local.f.result;
         let d_biguint = E::d_biguint();
         let d_const = E::BaseField::to_limbs_field::<AB::Expr, _>(&d_biguint);
-        row.d_mul_f.eval(
+        local.d_mul_f.eval(
             builder,
             &f,
             &d_const,
             FieldOperation::Mul,
-            row.shard,
-            row.channel,
-            row.is_real,
+            local.shard,
+            local.channel,
+            local.is_real,
         );
 
-        let d_mul_f = row.d_mul_f.result;
+        let d_mul_f = local.d_mul_f.result;
 
         // x3 = x3_numerator / (1 + d * f).
-        row.x3_ins.eval(
+        local.x3_ins.eval(
             builder,
-            &row.x3_numerator.result,
+            &local.x3_numerator.result,
             &d_mul_f,
             true,
-            row.shard,
-            row.channel,
-            row.is_real,
+            local.shard,
+            local.channel,
+            local.is_real,
         );
 
         // y3 = y3_numerator / (1 - d * f).
-        row.y3_ins.eval(
+        local.y3_ins.eval(
             builder,
-            &row.y3_numerator.result,
+            &local.y3_numerator.result,
             &d_mul_f,
             false,
-            row.shard,
-            row.channel,
-            row.is_real,
+            local.shard,
+            local.channel,
+            local.is_real,
         );
 
         // Constraint self.p_access.value = [self.x3_ins.result, self.y3_ins.result]
         // This is to ensure that p_access is updated with the new value.
-        let p_access_vec = value_as_limbs(&row.p_access);
+        let p_access_vec = value_as_limbs(&local.p_access);
         builder
-            .when(row.is_real)
-            .assert_all_eq(row.x3_ins.result, p_access_vec[0..NUM_LIMBS].to_vec());
-        builder.when(row.is_real).assert_all_eq(
-            row.y3_ins.result,
+            .when(local.is_real)
+            .assert_all_eq(local.x3_ins.result, p_access_vec[0..NUM_LIMBS].to_vec());
+        builder.when(local.is_real).assert_all_eq(
+            local.y3_ins.result,
             p_access_vec[NUM_LIMBS..NUM_LIMBS * 2].to_vec(),
         );
 
         builder.eval_memory_access_slice(
-            row.shard,
-            row.channel,
-            row.clk.into(),
-            row.q_ptr,
-            &row.q_access,
-            row.is_real,
+            local.shard,
+            local.channel,
+            local.clk.into(),
+            local.q_ptr,
+            &local.q_access,
+            local.is_real,
         );
 
         builder.eval_memory_access_slice(
-            row.shard,
-            row.channel,
-            row.clk + AB::F::from_canonical_u32(1),
-            row.p_ptr,
-            &row.p_access,
-            row.is_real,
+            local.shard,
+            local.channel,
+            local.clk + AB::F::from_canonical_u32(1),
+            local.p_ptr,
+            &local.p_access,
+            local.is_real,
         );
 
         builder.receive_syscall(
-            row.shard,
-            row.channel,
-            row.clk,
+            local.shard,
+            local.channel,
+            local.clk,
+            local.nonce,
             AB::F::from_canonical_u32(SyscallCode::ED_ADD.syscall_id()),
-            row.p_ptr,
-            row.q_ptr,
-            row.is_real,
+            local.p_ptr,
+            local.q_ptr,
+            local.is_real,
         );
     }
 }

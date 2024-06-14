@@ -201,6 +201,8 @@ pub enum DslIr<C: Config> {
     /// Permutes an array of Bn254 elements using Poseidon2 (output = p2_permute(array)). Should only
     /// be used when target is a gnark circuit.
     CircuitPoseidon2Permute([Var<C::N>; 3]),
+    /// Permutates an array of BabyBear elements in the circuit.
+    CircuitPoseidon2PermuteBabyBear([Felt<C::F>; 16]),
 
     // Miscellaneous instructions.
     /// Decompose hint operation of a usize into an array. (output = num2bits(usize)).
@@ -277,4 +279,7 @@ pub enum DslIr<C: Config> {
     LessThan(Var<C::N>, Var<C::N>, Var<C::N>),
     /// Tracks the number of cycles used by a block of code annotated by the string input.
     CycleTracker(String),
+
+    // Reverse bits exponentiation.
+    ExpReverseBitsLen(Ptr<C::N>, Var<C::N>, Var<C::N>),
 }

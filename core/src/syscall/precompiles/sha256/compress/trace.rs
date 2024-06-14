@@ -2,6 +2,7 @@ use std::borrow::BorrowMut;
 
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
+use p3_matrix::Matrix;
 
 use super::{
     columns::{ShaCompressCols, NUM_SHA_COMPRESS_COLS},
@@ -53,6 +54,7 @@ impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
 
                 cols.octet[j] = F::one();
                 cols.octet_num[octet_num_idx] = F::one();
+                cols.is_initialize = F::one();
 
                 cols.mem.populate_read(
                     channel,
@@ -207,6 +209,7 @@ impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
 
                 cols.octet[j] = F::one();
                 cols.octet_num[octet_num_idx] = F::one();
+                cols.is_finalize = F::one();
 
                 cols.finalize_add
                     .populate(output, shard, channel, og_h[j], event.h[j]);
@@ -249,13 +252,48 @@ impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
 
         output.add_byte_lookup_events(new_byte_lookup_events);
 
+        let num_real_rows = rows.len();
+
         pad_rows(&mut rows, || [F::zero(); NUM_SHA_COMPRESS_COLS]);
 
+        // Set the octet_num and octect columns for the padded rows.
+        let mut octet_num = 0;
+        let mut octet = 0;
+        for row in rows[num_real_rows..].iter_mut() {
+            let cols: &mut ShaCompressCols<F> = row.as_mut_slice().borrow_mut();
+            cols.octet_num[octet_num] = F::one();
+            cols.octet[octet] = F::one();
+
+            // If in the compression phase, set the k value.
+            if octet_num != 0 && octet_num != 9 {
+                let compression_idx = octet_num - 1;
+                let k_idx = compression_idx * 8 + octet;
+                cols.k = Word::from(SHA_COMPRESS_K[k_idx]);
+            }
+
+            octet = (octet + 1) % 8;
+            if octet == 0 {
+                octet_num = (octet_num + 1) % 10;
+            }
+
+            cols.is_last_row = cols.octet[7] * cols.octet_num[9];
+        }
+
         // Convert the trace to a row major matrix.
-        RowMajorMatrix::new(
+        let mut trace = RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_SHA_COMPRESS_COLS,
-        )
+        );
+
+        // Write the nonces to the trace.
+        for i in 0..trace.height() {
+            let cols: &mut ShaCompressCols<F> = trace.values
+                [i * NUM_SHA_COMPRESS_COLS..(i + 1) * NUM_SHA_COMPRESS_COLS]
+                .borrow_mut();
+            cols.nonce = F::from_canonical_usize(i);
+        }
+
+        trace
     }
 
     fn included(&self, shard: &Self::Record) -> bool {

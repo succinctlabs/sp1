@@ -79,6 +79,9 @@ pub struct MulCols<T> {
     /// The channel number, used for byte lookup table.
     pub channel: T,
 
+    /// The nonce of the operation.
+    pub nonce: T,
+
     /// The output operand.
     pub a: Word<T>,
 
@@ -270,6 +273,13 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
         // Pad the trace to a power of two.
         pad_to_power_of_two::<NUM_MUL_COLS, F>(&mut trace.values);
 
+        // Write the nonces to the trace.
+        for i in 0..trace.height() {
+            let cols: &mut MulCols<F> =
+                trace.values[i * NUM_MUL_COLS..(i + 1) * NUM_MUL_COLS].borrow_mut();
+            cols.nonce = F::from_canonical_usize(i);
+        }
+
         trace
     }
 
@@ -292,11 +302,19 @@ where
         let main = builder.main();
         let local = main.row_slice(0);
         let local: &MulCols<AB::Var> = (*local).borrow();
+        let next = main.row_slice(1);
+        let next: &MulCols<AB::Var> = (*next).borrow();
         let base = AB::F::from_canonical_u32(1 << 8);
 
         let zero: AB::Expr = AB::F::zero().into();
         let one: AB::Expr = AB::F::one().into();
         let byte_mask = AB::F::from_canonical_u8(BYTE_MASK);
+
+        // Constrain the incrementing nonce.
+        builder.when_first_row().assert_zero(local.nonce);
+        builder
+            .when_transition()
+            .assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         // Calculate the MSBs.
         let (b_msb, c_msb) = {
@@ -412,14 +430,6 @@ where
             .when(local.c_sign_extend)
             .assert_eq(local.c_msb, one.clone());
 
-        // If the opcode doesn't allow sign extension for an operand, we must not extend their sign.
-        builder
-            .when(local.is_mul + local.is_mulhu)
-            .assert_zero(local.b_sign_extend + local.c_sign_extend);
-        builder
-            .when(local.is_mul + local.is_mulhsu + local.is_mulhsu)
-            .assert_zero(local.c_sign_extend);
-
         // Calculate the opcode.
         let opcode = {
             // Exactly one of the op codes must be on.
@@ -455,6 +465,7 @@ where
             local.c,
             local.shard,
             local.channel,
+            local.nonce,
             local.is_real,
         );
     }

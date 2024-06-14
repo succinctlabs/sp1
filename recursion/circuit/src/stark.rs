@@ -2,6 +2,7 @@ use std::borrow::Borrow;
 use std::marker::PhantomData;
 
 use crate::fri::verify_two_adic_pcs;
+use crate::poseidon2::Poseidon2CircuitBuilder;
 use crate::types::OuterDigestVariable;
 use crate::utils::{babybear_bytes_to_bn254, babybears_to_bn254, words_to_bytes};
 use crate::witness::Witnessable;
@@ -20,7 +21,7 @@ use sp1_recursion_compiler::constraints::{Constraint, ConstraintCompiler};
 use sp1_recursion_compiler::ir::{Builder, Config, Ext, Felt, Var};
 use sp1_recursion_compiler::ir::{Usize, Witness};
 use sp1_recursion_compiler::prelude::SymbolicVar;
-use sp1_recursion_core::air::RecursionPublicValues;
+use sp1_recursion_core::air::{RecursionPublicValues, NUM_PV_ELMS_TO_HASH};
 use sp1_recursion_core::stark::config::{outer_fri_config, BabyBearPoseidon2Outer};
 use sp1_recursion_core::stark::RecursionAirSkinnyDeg9;
 use sp1_recursion_program::commit::PolynomialSpaceVariable;
@@ -270,7 +271,9 @@ pub fn build_wrap_circuit(
         let element = builder.get(&proof.public_values, i);
         pv_elements.push(element);
     }
+
     let pv: &RecursionPublicValues<_> = pv_elements.as_slice().borrow();
+
     let one_felt: Felt<_> = builder.constant(BabyBear::one());
     // Proof must be complete. In the reduce program, this will ensure that the SP1 proof has been
     // fully accumulated.
@@ -346,6 +349,13 @@ pub fn build_wrap_circuit(
         builder.assign(cumulative_sum, cumulative_sum + chip.cumulative_sum);
     }
     builder.assert_ext_eq(cumulative_sum, zero_ext);
+
+    // Verify the public values digest.
+    let calculated_digest = builder.p2_babybear_hash(&pv_elements[0..NUM_PV_ELMS_TO_HASH]);
+    let expected_digest = pv.digest;
+    for (calculated_elm, expected_elm) in calculated_digest.iter().zip(expected_digest.iter()) {
+        builder.assert_felt_eq(*expected_elm, *calculated_elm);
+    }
 
     let mut backend = ConstraintCompiler::<OuterConfig>::default();
     backend.emit(builder.operations)

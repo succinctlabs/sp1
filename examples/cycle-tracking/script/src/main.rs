@@ -1,4 +1,4 @@
-use sp1_sdk::{utils, ProverClient, SP1Stdin};
+use sp1_sdk::{utils, ProverClient, SP1Proof, SP1Stdin};
 
 /// The ELF we want to execute inside the zkVM.
 const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
@@ -18,10 +18,16 @@ fn main() {
     // Verify proof.
     client.verify(&proof, &vk).expect("verification failed");
 
-    // Save the proof.
+    // Test a round trip of proof serialization and deserialization.
     proof
-        .save("proof-with-pis.json")
+        .save("proof-with-pis.bin")
         .expect("saving proof failed");
+    let deserialized_proof = SP1Proof::load("proof-with-pis.bin").expect("loading proof failed");
+
+    // Verify the deserialized proof.
+    client
+        .verify(&deserialized_proof, &vk)
+        .expect("verification failed");
 
     println!("successfully generated and verified proof for the program!")
 }

@@ -3,6 +3,8 @@ use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::AbstractField;
 use p3_field::TwoAdicField;
 use sp1_core::air::MachineAir;
+use sp1_core::air::PublicValues;
+use sp1_core::air::Word;
 use sp1_core::stark::Com;
 use sp1_core::stark::GenericVerifierConstraintFolder;
 use sp1_core::stark::ShardProof;
@@ -12,7 +14,6 @@ use sp1_core::stark::StarkMachine;
 use sp1_core::stark::StarkVerifyingKey;
 use sp1_recursion_compiler::ir::Array;
 use sp1_recursion_compiler::ir::Ext;
-use sp1_recursion_compiler::ir::ExtConst;
 use sp1_recursion_compiler::ir::SymbolicExt;
 use sp1_recursion_compiler::ir::SymbolicVar;
 use sp1_recursion_compiler::ir::Var;
@@ -94,48 +95,6 @@ impl<'a, SC: StarkGenericConfig, A: MachineAir<SC::Val>> VerifyingKeyHint<'a, SC
     }
 }
 
-impl<C: Config, SC: StarkGenericConfig, A> StarkRecursiveVerifier<C> for StarkMachine<SC, A>
-where
-    C::F: TwoAdicField,
-    SC: StarkGenericConfig<
-        Val = C::F,
-        Challenge = C::EF,
-        Domain = TwoAdicMultiplicativeCoset<C::F>,
-    >,
-    A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
-    C::F: TwoAdicField,
-    C::EF: TwoAdicField,
-    Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
-{
-    fn verify_shard(
-        &self,
-        builder: &mut Builder<C>,
-        vk: &VerifyingKeyVariable<C>,
-        pcs: &TwoAdicFriPcsVariable<C>,
-        challenger: &mut DuplexChallengerVariable<C>,
-        proof: &ShardProofVariable<C>,
-        is_complete: impl Into<SymbolicVar<<C as Config>::N>>,
-    ) {
-        // Verify the shard proof.
-        StarkVerifier::<C, SC>::verify_shard(builder, vk, pcs, self, challenger, proof);
-
-        // Verify that the cumulative sum of the chip is zero if the shard is complete.
-        let cumulative_sum: Ext<_, _> = builder.uninit();
-        builder
-            .range(0, proof.opened_values.chips.len())
-            .for_each(|i, builder| {
-                let values = builder.get(&proof.opened_values.chips, i);
-                builder.assign(cumulative_sum, cumulative_sum + values.cumulative_sum);
-            });
-
-        builder
-            .if_eq(is_complete.into(), C::N::one())
-            .then(|builder| {
-                builder.assert_ext_eq(cumulative_sum, C::EF::zero().cons());
-            });
-    }
-}
-
 pub type RecursiveVerifierConstraintFolder<'a, C> = GenericVerifierConstraintFolder<
     'a,
     <C as Config>::F,
@@ -174,6 +133,14 @@ where
             opening_proof,
             ..
         } = proof;
+
+        // Extract public values.
+        let mut pv_elements = Vec::new();
+        for i in 0..machine.num_pv_elts() {
+            let element = builder.get(&proof.public_values, i);
+            pv_elements.push(element);
+        }
+        let public_values = PublicValues::<Word<Felt<_>>, Felt<_>>::from_vec(pv_elements);
 
         let ShardCommitmentVariable {
             main_commit,
@@ -344,16 +311,41 @@ where
         builder.cycle_tracker("stage-d-verify-pcs");
 
         builder.cycle_tracker("stage-e-verify-constraints");
+
+        let shard_bits = builder.num2bits_f(public_values.shard);
+        let shard = builder.bits2num_v(&shard_bits);
         for (i, chip) in machine.chips().iter().enumerate() {
             tracing::debug!("verifying constraints for chip: {}", chip.name());
             let index = builder.get(&proof.sorted_idxs, i);
+
+            if chip.name() == "CPU" {
+                builder.assert_var_ne(index, C::N::from_canonical_usize(EMPTY));
+            }
 
             if chip.preprocessed_width() > 0 {
                 builder.assert_var_ne(index, C::N::from_canonical_usize(EMPTY));
             }
 
-            if chip.name() == "CPU" {
-                builder.assert_var_ne(index, C::N::from_canonical_usize(EMPTY));
+            if chip.name() == "MemoryInit" {
+                builder.if_eq(shard, C::N::one()).then_or_else(
+                    |builder| {
+                        builder.assert_var_ne(index, C::N::from_canonical_usize(EMPTY));
+                    },
+                    |builder| {
+                        builder.assert_var_eq(index, C::N::from_canonical_usize(EMPTY));
+                    },
+                );
+            }
+
+            if chip.name() == "MemoryFinalize" {
+                builder.if_eq(shard, C::N::one()).then_or_else(
+                    |builder| {
+                        builder.assert_var_ne(index, C::N::from_canonical_usize(EMPTY));
+                    },
+                    |builder| {
+                        builder.assert_var_eq(index, C::N::from_canonical_usize(EMPTY));
+                    },
+                );
             }
 
             builder

@@ -3,6 +3,7 @@ use p3_field::AbstractField;
 
 use crate::air::{BaseAirBuilder, SP1AirBuilder, Word, WordAirBuilder};
 use crate::cpu::columns::{CpuCols, OpcodeSelectorCols};
+use crate::operations::BabyBearWordRangeChecker;
 use crate::{cpu::CpuChip, runtime::Opcode};
 
 impl CpuChip {
@@ -57,6 +58,20 @@ impl CpuChip {
                 .when(local.branching)
                 .assert_eq(branch_cols.next_pc.reduce::<AB>(), local.next_pc);
 
+            // Range check branch_cols.pc and branch_cols.next_pc.
+            BabyBearWordRangeChecker::<AB::F>::range_check(
+                builder,
+                branch_cols.pc,
+                branch_cols.pc_range_checker,
+                is_branch_instruction.clone(),
+            );
+            BabyBearWordRangeChecker::<AB::F>::range_check(
+                builder,
+                branch_cols.next_pc,
+                branch_cols.next_pc_range_checker,
+                is_branch_instruction.clone(),
+            );
+
             // When we are branching, calculate branch_cols.next_pc <==> branch_cols.pc + c.
             builder.send_alu(
                 Opcode::ADD.as_field::<AB::F>(),
@@ -65,6 +80,7 @@ impl CpuChip {
                 local.op_c_val(),
                 local.shard,
                 local.channel,
+                branch_cols.next_pc_nonce,
                 local.branching,
             );
 
@@ -83,15 +99,21 @@ impl CpuChip {
                 .when(local.is_real)
                 .when(local.not_branching)
                 .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), local.next_pc);
+
+            // Assert that either we are branching or not branching when the instruction is a branch.
+            builder
+                .when(is_branch_instruction.clone())
+                .assert_one(local.branching + local.not_branching);
+            builder
+                .when(is_branch_instruction.clone())
+                .assert_bool(local.branching);
+            builder
+                .when(is_branch_instruction.clone())
+                .assert_bool(local.not_branching);
         }
 
         // Evaluate branching value constraints.
         {
-            // Assert that local.is_branching is a bit.
-            builder
-                .when(is_branch_instruction.clone())
-                .assert_bool(local.branching);
-
             // When the opcode is BEQ and we are branching, assert that a_eq_b is true.
             builder
                 .when(local.selectors.is_beq * local.branching)
@@ -146,6 +168,11 @@ impl CpuChip {
             .when(is_branch_instruction.clone() * branch_cols.a_eq_b)
             .assert_word_eq(local.op_a_val(), local.op_b_val());
 
+        //  To prevent this ALU send to be arbitrarily large when is_branch_instruction is false.
+        builder
+            .when_not(is_branch_instruction.clone())
+            .assert_zero(local.branching);
+
         // Calculate a_lt_b <==> a < b (using appropriate signedness).
         let use_signed_comparison = local.selectors.is_blt + local.selectors.is_bge;
         builder.send_alu(
@@ -157,6 +184,7 @@ impl CpuChip {
             local.op_b_val(),
             local.shard,
             local.channel,
+            branch_cols.a_lt_b_nonce,
             is_branch_instruction.clone(),
         );
 
@@ -169,6 +197,7 @@ impl CpuChip {
             local.op_a_val(),
             local.shard,
             local.channel,
+            branch_cols.a_gt_b_nonce,
             is_branch_instruction.clone(),
         );
     }

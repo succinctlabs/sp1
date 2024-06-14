@@ -40,7 +40,6 @@
         // "examples/tendermint/script/Cargo.toml",
         // // Tests.
         // "examples/ed25519/Cargo.toml",
-        // "tests/blake3-compress/Cargo.toml",
         // "tests/cycle-tracker/Cargo.toml",
         // "tests/ecrecover/Cargo.toml",
         // "tests/ed-add/Cargo.toml",

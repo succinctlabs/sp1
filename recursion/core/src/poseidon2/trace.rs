@@ -49,7 +49,9 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
             for r in 0..rounds {
                 let mut row = [F::zero(); NUM_POSEIDON2_COLS];
                 let cols: &mut Poseidon2Cols<F> = row.as_mut_slice().borrow_mut();
+                cols.is_real = F::one();
 
+                let is_receive = r == 0;
                 let is_memory_read = r == 0;
                 let is_initial_layer = r == 1;
                 let is_external_layer =
@@ -78,6 +80,10 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
                 cols.right_input = poseidon2_event.right;
                 cols.rounds[r] = F::one();
 
+                if is_receive {
+                    cols.do_receive = F::one();
+                }
+
                 if is_memory_read || is_memory_write {
                     let memory_access_cols = cols.round_specific_cols.memory_access_mut();
 
@@ -97,6 +103,7 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
                                 .populate(&poseidon2_event.result_records[i]);
                         }
                     }
+                    cols.do_memory = F::one();
                 } else {
                     let computation_cols = cols.round_specific_cols.computation_mut();
 
@@ -131,6 +138,7 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
                         let sbox_deg_3 = computation_cols.add_rc[j]
                             * computation_cols.add_rc[j]
                             * computation_cols.add_rc[j];
+                        computation_cols.sbox_deg_3[j] = sbox_deg_3;
                         computation_cols.sbox_deg_7[j] =
                             sbox_deg_3 * sbox_deg_3 * computation_cols.add_rc[j];
                     }
@@ -163,12 +171,24 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
             }
         }
 
+        let num_real_rows = rows.len();
+
         // Pad the trace to a power of two.
-        pad_rows_fixed(
-            &mut rows,
-            || [F::zero(); NUM_POSEIDON2_COLS],
-            self.fixed_log2_rows,
-        );
+        if self.pad {
+            pad_rows_fixed(
+                &mut rows,
+                || [F::zero(); NUM_POSEIDON2_COLS],
+                self.fixed_log2_rows,
+            );
+        }
+
+        let mut round_num = 0;
+        for row in rows[num_real_rows..].iter_mut() {
+            let cols: &mut Poseidon2Cols<F> = row.as_mut_slice().borrow_mut();
+            cols.rounds[round_num] = F::one();
+
+            round_num = (round_num + 1) % rounds;
+        }
 
         // Convert the trace to a row major matrix.
         RowMajorMatrix::new(

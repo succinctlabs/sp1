@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 hex = "0.4.3"
-sp1-sdk = { path = "../../../sdk", features = ["plonk"] }
+sp1-sdk = { path = "../../../sdk" }
 tracing = "0.1.40"
 
 [build-dependencies]

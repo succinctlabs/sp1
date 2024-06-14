@@ -536,6 +536,12 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                 DslIr::Halt => {
                     self.push(AsmInstruction::Halt, trace);
                 }
+                DslIr::ExpReverseBitsLen(base, ptr, len) => {
+                    self.push(
+                        AsmInstruction::ExpReverseBitsLen(base.fp(), ptr.fp(), len.fp()),
+                        trace,
+                    );
+                }
                 _ => unimplemented!(),
             }
         }
@@ -594,7 +600,7 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
 
     pub fn compile(self) -> RecursionProgram<F> {
         let code = self.code();
-        tracing::info!("recursion program size: {}", code.size());
+        tracing::debug!("recursion program size: {}", code.size());
         code.machine_code()
     }
 

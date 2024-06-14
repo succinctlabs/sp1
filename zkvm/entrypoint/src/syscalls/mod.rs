@@ -1,4 +1,4 @@
-mod blake3_compress;
+mod bigint;
 mod bls12381;
 mod bn254;
 mod ed25519;
@@ -69,9 +69,6 @@ pub const SECP256K1_DOUBLE: u32 = 0x00_00_01_0B;
 
 /// Executes `K256_DECOMPRESS`.
 pub const SECP256K1_DECOMPRESS: u32 = 0x00_00_01_0C;
-
-/// Executes `BLAKE3_COMPRESS_INNER`.
-pub const BLAKE3_COMPRESS_INNER: u32 = 0x00_38_01_0D;
 
 /// Executes `BN254_ADD`.
 pub const BN254_ADD: u32 = 0x00_01_01_0E;

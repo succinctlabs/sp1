@@ -187,7 +187,8 @@ where
                 let element = builder.get(&proof.public_values, j);
                 challenger.observe(builder, element);
             }
-            // verify the proof.
+
+            // Verify the proof.
             StarkVerifier::<C, SC>::verify_shard(
                 builder,
                 &compress_vk,

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.25;
+pragma solidity ^0.8.19;
 
 import {ISP1Verifier} from "./ISP1Verifier.sol";
 import {PlonkVerifier} from "./PlonkVerifier.sol";
@@ -8,14 +8,20 @@ import {PlonkVerifier} from "./PlonkVerifier.sol";
 /// @author Succinct Labs
 /// @notice This contracts implements a solidity verifier for SP1.
 contract SP1Verifier is PlonkVerifier {
+    error WrongVersionProof();
+
     function VERSION() external pure returns (string memory) {
-        return "TODO";
+        return "{SP1_CIRCUIT_VERSION}";
+    }
+
+    function VKEY_HASH() public pure returns (bytes32) {
+        return {VKEY_HASH};
     }
 
     /// @notice Hashes the public values to a field elements inside Bn254.
     /// @param publicValues The public values.
     function hashPublicValues(
-        bytes memory publicValues
+        bytes calldata publicValues
     ) public pure returns (bytes32) {
         return sha256(publicValues) & bytes32(uint256((1 << 253) - 1));
     }
@@ -26,13 +32,20 @@ contract SP1Verifier is PlonkVerifier {
     /// @param proofBytes The proof of the program execution the SP1 zkVM encoded as bytes.
     function verifyProof(
         bytes32 vkey,
-        bytes memory publicValues,
-        bytes memory proofBytes
+        bytes calldata publicValues,
+        bytes calldata proofBytes
     ) public view {
+        // To ensure the proof corresponds to this verifier, we check that the first 4 bytes of
+        // proofBytes match the first 4 bytes of VKEY_HASH.
+        bytes4 proofBytesPrefix = bytes4(proofBytes[:4]);
+        if (proofBytesPrefix != bytes4(VKEY_HASH())) {
+            revert WrongVersionProof();
+        }
+
         bytes32 publicValuesDigest = hashPublicValues(publicValues);
         uint256[] memory inputs = new uint256[](2);
         inputs[0] = uint256(vkey);
         inputs[1] = uint256(publicValuesDigest);
-        this.Verify(proofBytes, inputs);
+        this.Verify(proofBytes[4:], inputs);
     }
 }
