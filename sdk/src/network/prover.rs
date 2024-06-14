@@ -6,7 +6,9 @@ use crate::{
     proto::network::ProofStatus,
     Prover,
 };
-use crate::{SP1CompressedProof, SP1PlonkBn254Proof, SP1Proof, SP1ProvingKey, SP1VerifyingKey};
+use crate::{
+    SP1CompressedProof, SP1Context, SP1PlonkBn254Proof, SP1Proof, SP1ProvingKey, SP1VerifyingKey,
+};
 use anyhow::Result;
 use serde::de::DeserializeOwned;
 use sp1_prover::utils::block_on;
@@ -130,12 +132,42 @@ impl Prover for NetworkProver {
         block_on(self.prove(&pk.elf, stdin))
     }
 
+    /// TODO figure out what to do here
+    fn prove_with_context(
+        &self,
+        _pk: &SP1ProvingKey,
+        _stdin: SP1Stdin,
+        _context: SP1Context,
+    ) -> Result<SP1Proof> {
+        todo!()
+    }
+
     fn prove_compressed(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1CompressedProof> {
         block_on(self.prove(&pk.elf, stdin))
     }
 
+    /// TODO figure out what to do here
+    fn prove_compressed_with_context(
+        &self,
+        _pk: &SP1ProvingKey,
+        _stdin: SP1Stdin,
+        _context: SP1Context,
+    ) -> Result<SP1CompressedProof> {
+        todo!()
+    }
+
     fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkBn254Proof> {
         block_on(self.prove(&pk.elf, stdin))
+    }
+
+    /// TODO figure out what to do here
+    fn prove_plonk_with_context(
+        &self,
+        _pk: &SP1ProvingKey,
+        _stdin: SP1Stdin,
+        _context: SP1Context,
+    ) -> Result<SP1PlonkBn254Proof> {
+        todo!()
     }
 }
 

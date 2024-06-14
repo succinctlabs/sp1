@@ -5,6 +5,7 @@ use crate::{
 };
 use anyhow::Result;
 use p3_field::PrimeField;
+use sp1_core::runtime::SP1Context;
 use sp1_prover::{
     verify::verify_plonk_bn254_public_inputs, HashableKey, PlonkBn254Proof, SP1Prover, SP1Stdin,
 };
@@ -38,7 +39,17 @@ impl Prover for MockProver {
     }
 
     fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Proof> {
-        let (public_values, _) = SP1Prover::execute(&pk.elf, &stdin)?;
+        self.prove_with_context(pk, stdin, Default::default())
+    }
+
+    /// TODO find out what to actually impl here
+    fn prove_with_context(
+        &self,
+        pk: &SP1ProvingKey,
+        stdin: SP1Stdin,
+        context: SP1Context,
+    ) -> Result<SP1Proof> {
+        let (public_values, _) = SP1Prover::execute_with_context(&pk.elf, &stdin, context)?;
         Ok(SP1ProofWithPublicValues {
             proof: vec![],
             stdin,
@@ -46,16 +57,30 @@ impl Prover for MockProver {
         })
     }
 
-    fn prove_compressed(
+    fn prove_compressed(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1CompressedProof> {
+        self.prove_compressed_with_context(pk, stdin, Default::default())
+    }
+
+    fn prove_compressed_with_context(
         &self,
         _pk: &SP1ProvingKey,
         _stdin: SP1Stdin,
+        _context: SP1Context,
     ) -> Result<SP1CompressedProof> {
         unimplemented!()
     }
 
     fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkBn254Proof> {
-        let (public_values, _) = SP1Prover::execute(&pk.elf, &stdin)?;
+        self.prove_plonk_with_context(pk, stdin, Default::default())
+    }
+
+    fn prove_plonk_with_context(
+        &self,
+        pk: &SP1ProvingKey,
+        stdin: SP1Stdin,
+        context: SP1Context,
+    ) -> Result<SP1PlonkBn254Proof> {
+        let (public_values, _) = SP1Prover::execute_with_context(&pk.elf, &stdin, context)?;
         Ok(SP1PlonkBn254Proof {
             proof: PlonkBn254Proof {
                 public_inputs: [

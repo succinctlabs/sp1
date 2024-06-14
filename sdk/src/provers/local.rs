@@ -1,4 +1,5 @@
 use anyhow::Result;
+use sp1_core::runtime::SP1Context;
 use sp1_prover::{SP1Prover, SP1Stdin};
 
 use crate::{
@@ -35,7 +36,16 @@ impl Prover for LocalProver {
     }
 
     fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Proof> {
-        let proof = self.prover.prove_core(pk, &stdin)?;
+        self.prove_with_context(pk, stdin, Default::default())
+    }
+
+    fn prove_with_context(
+        &self,
+        pk: &SP1ProvingKey,
+        stdin: SP1Stdin,
+        context: SP1Context,
+    ) -> Result<SP1Proof> {
+        let proof = self.prover.prove_core_with_context(pk, &stdin, context)?;
         Ok(SP1ProofWithPublicValues {
             proof: proof.proof.0,
             stdin: proof.stdin,
@@ -44,7 +54,16 @@ impl Prover for LocalProver {
     }
 
     fn prove_compressed(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1CompressedProof> {
-        let proof = self.prover.prove_core(pk, &stdin)?;
+        self.prove_compressed_with_context(pk, stdin, Default::default())
+    }
+
+    fn prove_compressed_with_context(
+        &self,
+        pk: &SP1ProvingKey,
+        stdin: SP1Stdin,
+        context: SP1Context,
+    ) -> Result<SP1CompressedProof> {
+        let proof = self.prover.prove_core_with_context(pk, &stdin, context)?;
         let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
         let public_values = proof.public_values.clone();
         let reduce_proof = self.prover.compress(&pk.vk, proof, deferred_proofs)?;
@@ -56,7 +75,16 @@ impl Prover for LocalProver {
     }
 
     fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkBn254Proof> {
-        let proof = self.prover.prove_core(pk, &stdin)?;
+        self.prove_plonk_with_context(pk, stdin, Default::default())
+    }
+
+    fn prove_plonk_with_context(
+        &self,
+        pk: &SP1ProvingKey,
+        stdin: SP1Stdin,
+        context: SP1Context,
+    ) -> Result<SP1PlonkBn254Proof> {
+        let proof = self.prover.prove_core_with_context(pk, &stdin, context)?;
         let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
         let public_values = proof.public_values.clone();
         let reduce_proof = self.prover.compress(&pk.vk, proof, deferred_proofs)?;

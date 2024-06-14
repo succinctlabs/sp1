@@ -26,7 +26,7 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use rayon::prelude::*;
 use sp1_core::air::{PublicValues, Word};
 pub use sp1_core::io::{SP1PublicValues, SP1Stdin};
-use sp1_core::runtime::{ExecutionError, ExecutionReport, Runtime};
+use sp1_core::runtime::{ExecutionError, ExecutionReport, Runtime, SP1Context};
 use sp1_core::stark::{Challenge, StarkProvingKey};
 use sp1_core::stark::{Challenger, MachineVerificationError};
 use sp1_core::utils::{SP1CoreOpts, DIGEST_SIZE};
@@ -225,9 +225,18 @@ impl SP1Prover {
         elf: &[u8],
         stdin: &SP1Stdin,
     ) -> Result<(SP1PublicValues, ExecutionReport), ExecutionError> {
+        Self::execute_with_context(elf, stdin, Default::default())
+    }
+
+    /// Generate a proof of an SP1 program with the specified inputs and context.
+    pub fn execute_with_context(
+        elf: &[u8],
+        stdin: &SP1Stdin,
+        context: SP1Context,
+    ) -> Result<(SP1PublicValues, ExecutionReport), ExecutionError> {
         let program = Program::from(elf);
         let opts = SP1CoreOpts::default();
-        let mut runtime = Runtime::new(program, opts);
+        let mut runtime = Runtime::with_context(program, opts, context);
         runtime.write_vecs(&stdin.buffer);
         for (proof, vkey) in stdin.proofs.iter() {
             runtime.write_proof(proof.clone(), vkey.clone());
@@ -247,10 +256,21 @@ impl SP1Prover {
         pk: &SP1ProvingKey,
         stdin: &SP1Stdin,
     ) -> Result<SP1CoreProof, SP1CoreProverError> {
+        self.prove_core_with_context(pk, stdin, Default::default())
+    }
+
+    /// Generate shard proofs which split up and prove the valid execution of a RISC-V program with
+    /// the core prover. Uses the provided context.
+    pub fn prove_core_with_context(
+        &self,
+        pk: &SP1ProvingKey,
+        stdin: &SP1Stdin,
+        context: SP1Context,
+    ) -> Result<SP1CoreProof, SP1CoreProverError> {
         let config = CoreSC::default();
         let program = Program::from(&pk.elf);
         let (proof, public_values_stream) =
-            sp1_core::utils::prove(program, stdin, config, self.core_opts)?;
+            sp1_core::utils::prove_with_context(program, stdin, config, self.core_opts, context)?;
         let public_values = SP1PublicValues::from(&public_values_stream);
         Ok(SP1CoreProof {
             proof: SP1CoreProofData(proof.shard_proofs),

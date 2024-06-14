@@ -5,6 +5,7 @@ use crate::{SP1CompressedProof, SP1PlonkBn254Proof, SP1Proof};
 use anyhow::Result;
 pub use local::LocalProver;
 pub use mock::MockProver;
+use sp1_core::runtime::SP1Context;
 use sp1_core::stark::MachineVerificationError;
 use sp1_prover::CoreSC;
 use sp1_prover::SP1CoreProofData;
@@ -32,11 +33,35 @@ pub trait Prover: Send + Sync {
     /// Prove the execution of a RISCV ELF with the given inputs.
     fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Proof>;
 
+    /// Prove the execution of a RISCV ELF with the given inputs and context.
+    fn prove_with_context(
+        &self,
+        pk: &SP1ProvingKey,
+        stdin: SP1Stdin,
+        context: SP1Context,
+    ) -> Result<SP1Proof>;
+
     /// Generate a compressed proof of the execution of a RISCV ELF with the given inputs.
     fn prove_compressed(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1CompressedProof>;
 
+    /// Generate a compressed proof of the execution of a RISCV ELF with the given inputs and context.
+    fn prove_compressed_with_context(
+        &self,
+        pk: &SP1ProvingKey,
+        stdin: SP1Stdin,
+        context: SP1Context,
+    ) -> Result<SP1CompressedProof>;
+
     /// Given an SP1 program and input, generate a PLONK proof that can be verified on-chain.
     fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkBn254Proof>;
+
+    /// Given an SP1 program, input, and context, generate a PLONK proof that can be verified on-chain.
+    fn prove_plonk_with_context(
+        &self,
+        pk: &SP1ProvingKey,
+        stdin: SP1Stdin,
+        context: SP1Context,
+    ) -> Result<SP1PlonkBn254Proof>;
 
     /// Verify that an SP1 proof is valid given its vkey and metadata.
     fn verify(
