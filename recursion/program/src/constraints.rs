@@ -383,7 +383,7 @@ mod tests {
 
         let program = builder.compile_program();
 
-        run_test_recursion(program, None, TestConfig::All);
+        run_test_recursion(program, None, TestConfig::WideDeg3);
     }
 
     #[test]

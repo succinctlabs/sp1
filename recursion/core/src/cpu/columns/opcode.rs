@@ -1,4 +1,7 @@
+use std::mem::transmute;
+
 use p3_field::PrimeField32;
+use p3_util::indices_arr;
 use sp1_derive::AlignedBorrow;
 
 use crate::{
@@ -7,6 +10,13 @@ use crate::{
 };
 
 const OPCODE_COUNT: usize = core::mem::size_of::<OpcodeSelectorCols<u8>>();
+
+const fn make_col_map() -> OpcodeSelectorCols<usize> {
+    let indices_arr = indices_arr::<OPCODE_COUNT>();
+    unsafe { transmute::<[usize; OPCODE_COUNT], OpcodeSelectorCols<usize>>(indices_arr) }
+}
+
+pub(crate) const SELECTOR_COL_MAP: OpcodeSelectorCols<usize> = make_col_map();
 
 /// Selectors for the opcode.
 ///
