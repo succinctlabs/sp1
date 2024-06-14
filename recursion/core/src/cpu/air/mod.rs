@@ -215,6 +215,10 @@ impl<F: Field, const L: usize> CpuChip<F, L> {
             + local.selectors.is_store
             + local.selectors.is_noop
             + local.selectors.is_ext_to_felt
+            + local.selectors.is_commit
+            + local.selectors.is_trap
+            + local.selectors.is_halt
+            + local.selectors.is_exp_reverse_bits_len
     }
 
     /// Expr to check for instructions that are commit instructions.
