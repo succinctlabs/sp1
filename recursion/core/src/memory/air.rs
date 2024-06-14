@@ -275,6 +275,12 @@ mod tests {
             let event = (val, val, Block::from(BabyBear::zero()));
             input_exec.last_memory_record.push(event);
         }
+
+        // Add a dummy initialize event because the AIR expects at least one.
+        input_exec
+            .first_memory_record
+            .push((BabyBear::zero(), Block::from(BabyBear::zero())));
+
         println!("input exec: {:?}", input_exec.last_memory_record.len());
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());
