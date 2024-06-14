@@ -9,6 +9,8 @@ on:
     paths:
       - "recursion/gnark-ffi/**"
       - "recursion/gnark-cli/**"
+    paths-ignore:
+      - "recursion/gnark-ffi/assets/**"
   merge_group:
 
 jobs:
