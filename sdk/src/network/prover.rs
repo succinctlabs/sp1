@@ -73,7 +73,7 @@ impl NetworkProver {
         if NetworkClient::rpc_url() == DEFAULT_PROVER_NETWORK_RPC {
             log::info!(
                 "View in explorer: https://explorer.succinct.xyz/{}",
-                proof_id.split('_').last().unwrap_or(&proof_id)
+                proof_id
             );
         }
         Ok(proof_id)

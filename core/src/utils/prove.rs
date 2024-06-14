@@ -1,6 +1,7 @@
 use std::fs::File;
 use std::io;
 use std::io::{Seek, Write};
+use std::sync::Arc;
 use web_time::Instant;
 
 pub use baby_bear_blake3::BabyBearBlake3;
@@ -14,7 +15,7 @@ use thiserror::Error;
 use crate::air::MachineAir;
 use crate::io::{SP1PublicValues, SP1Stdin};
 use crate::lookup::InteractionBuilder;
-use crate::runtime::{ExecutionError, SP1Context};
+use crate::runtime::{ExecutionError, NoOpSubproofVerifier, SP1Context};
 use crate::runtime::{ExecutionRecord, ExecutionReport, ShardingConfig};
 use crate::stark::DebugConstraintBuilder;
 use crate::stark::MachineProof;
@@ -374,6 +375,9 @@ fn trace_checkpoint(
     let mut reader = std::io::BufReader::new(file);
     let state = bincode::deserialize_from(&mut reader).expect("failed to deserialize state");
     let mut runtime = Runtime::recover(program.clone(), state, opts);
+    // We already passed the deferred proof verifier when creating checkpoints, so the proofs were
+    // already verified. So here we use a noop verifier to not print any warnings.
+    runtime.subproof_verifier = Arc::new(NoOpSubproofVerifier);
     let (events, _) =
         tracing::debug_span!("runtime.trace").in_scope(|| runtime.execute_record().unwrap());
     (events, runtime.report)

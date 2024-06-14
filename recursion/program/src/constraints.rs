@@ -385,4 +385,28 @@ mod tests {
 
         run_test_recursion(program, None, TestConfig::All);
     }
+
+    #[test]
+    fn test_memory_finalize() {
+        type SC = BabyBearPoseidon2;
+        type F = <SC as StarkGenericConfig>::Val;
+        type EF = <SC as StarkGenericConfig>::Challenge;
+
+        let mut rng = thread_rng();
+
+        // Initialize a builder.
+        let mut builder = AsmBuilder::<F, EF>::default();
+
+        // Get a random var with `NUM_BITS` bits.
+        let x_val: F = rng.gen();
+
+        // Materialize the number as a var
+        let _x_felt: Felt<_> = builder.eval(x_val);
+
+        builder.halt();
+
+        let program = builder.compile_program();
+
+        run_test_recursion(program, None, TestConfig::All);
+    }
 }

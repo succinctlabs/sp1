@@ -50,6 +50,7 @@ impl Prover for LocalProver {
             proof: proof.proof.0,
             stdin: proof.stdin,
             public_values: proof.public_values,
+            sp1_version: self.version().to_string(),
         })
     }
 
@@ -71,6 +72,7 @@ impl Prover for LocalProver {
             proof: reduce_proof.proof,
             stdin,
             public_values,
+            sp1_version: self.version().to_string(),
         })
     }
 
@@ -106,6 +108,7 @@ impl Prover for LocalProver {
             proof,
             stdin,
             public_values,
+            sp1_version: self.version().to_string(),
         })
     }
 }

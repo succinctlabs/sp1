@@ -1,19 +1,22 @@
 use core::mem::take;
+use std::sync::Arc;
 
-use super::{hookify, BoxedHook, HookEnv, HookRegistry};
+use super::{hookify, BoxedHook, HookEnv, HookRegistry, SubproofVerifier};
 
 /// Context to run a program inside SP1.
-#[derive(Debug, Clone, Default)]
+#[derive(Clone, Default)]
 pub struct SP1Context<'a> {
     /// The registry of hooks invokable from inside SP1.
     /// `None` denotes the default list of hooks.
     pub(crate) hook_registry: Option<HookRegistry<'a>>,
+    pub(crate) subproof_verifier: Option<Arc<dyn SubproofVerifier + 'a>>,
 }
 
 #[derive(Clone, Default)]
 pub struct SP1ContextBuilder<'a> {
     no_default_hooks: bool,
     hook_registry_entries: Vec<(u32, BoxedHook<'a>)>,
+    subproof_verifier: Option<Arc<dyn SubproofVerifier + 'a>>,
 }
 
 impl<'a> SP1Context<'a> {
@@ -48,7 +51,11 @@ impl<'a> SP1ContextBuilder<'a> {
                 table.extend(take(&mut self.hook_registry_entries));
                 HookRegistry { table }
             });
-        SP1Context { hook_registry }
+        let subproof_verifier = take(&mut self.subproof_verifier);
+        SP1Context {
+            hook_registry,
+            subproof_verifier,
+        }
     }
 
     /// Add a runtime [Hook](super::Hook) into the context.
@@ -71,6 +78,14 @@ impl<'a> SP1ContextBuilder<'a> {
     /// register a hook with the same value of `fd` by calling [`Self::hook`].
     pub fn without_default_hooks(&mut self) -> &mut Self {
         self.no_default_hooks = true;
+        self
+    }
+
+    pub fn subproof_verifier(
+        &mut self,
+        subproof_verifier: Arc<dyn SubproofVerifier + 'a>,
+    ) -> &mut Self {
+        self.subproof_verifier = Some(subproof_verifier);
         self
     }
 }
