@@ -48,6 +48,10 @@ where
             builder.when_not(local.is_real).assert_zero(selector);
         }
 
+        // Initialize clk and pc.
+        builder.when_first_row().assert_zero(local.clk);
+        builder.when_first_row().assert_zero(local.pc);
+
         builder.send_program(local.pc, local.instruction, local.selectors, local.is_real);
 
         // Constrain the operands.
