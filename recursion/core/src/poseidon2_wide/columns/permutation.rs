@@ -17,7 +17,7 @@ pub trait Permutation<T: Copy> {
 
     fn internal_rounds_sbox(&self) -> Option<&[T; NUM_INTERNAL_ROUNDS]>;
 
-    fn output_state(&self) -> &[T; WIDTH];
+    fn perm_output(&self) -> &[T; WIDTH];
 }
 
 pub trait PermutationMut<T: Copy> {
@@ -66,7 +66,7 @@ impl<T: Copy> Permutation<T> for PermutationSBox<T> {
         Some(&self.internal_rounds_sbox)
     }
 
-    fn output_state(&self) -> &[T; WIDTH] {
+    fn perm_output(&self) -> &[T; WIDTH] {
         &self.output_state
     }
 }
@@ -123,7 +123,7 @@ impl<T: Copy> Permutation<T> for PermutationNoSbox<T> {
         None
     }
 
-    fn output_state(&self) -> &[T; WIDTH] {
+    fn perm_output(&self) -> &[T; WIDTH] {
         &self.output_state
     }
 }
@@ -180,7 +180,7 @@ impl<T: Copy> Permutation<T> for PermutationNoSboxHalfExternal<T> {
         None
     }
 
-    fn output_state(&self) -> &[T; WIDTH] {
+    fn perm_output(&self) -> &[T; WIDTH] {
         &self.output_state
     }
 }

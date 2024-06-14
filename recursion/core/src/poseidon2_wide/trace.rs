@@ -238,6 +238,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                 control_flow.is_syscall = F::from_bool(iter_num == 0);
                 control_flow.is_input = F::one();
                 control_flow.do_perm = F::from_bool(absorb_iter.do_perm);
+                control_flow.is_absorb_no_perm = F::from_bool(!absorb_iter.do_perm);
             }
 
             {
@@ -265,7 +266,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                 let mut cols = self.convert_mut(&mut absorb_row);
                 let absorb_workspace = cols.opcode_workspace_mut().absorb_mut();
 
-                absorb_workspace.previous_state = absorb_iter.perm_input;
+                absorb_workspace.previous_state = absorb_iter.previous_state;
                 absorb_workspace.state = absorb_iter.state;
             }
 

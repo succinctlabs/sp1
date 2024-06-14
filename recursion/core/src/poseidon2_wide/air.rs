@@ -3,7 +3,7 @@ use std::{array, borrow::Borrow, ops::Deref};
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_matrix::Matrix;
-use sp1_core::air::BaseAirBuilder;
+use sp1_core::{air::BaseAirBuilder, runtime::Syscall};
 use sp1_primitives::RC_16_30_U32;
 
 use crate::{air::SP1RecursionAirBuilder, memory::MemoryCols, runtime::Opcode};
@@ -79,9 +79,11 @@ where
         // Check that the permutation output is copied to the next row correctly.
         self.eval_row_transition(
             builder,
-            local_control_flow,
+            local_ptr.control_flow(),
+            local_ptr.opcode_workspace(),
             next_ptr.opcode_workspace(),
             local_ptr.permutation().as_ref(),
+            local_ptr.memory(),
             next_ptr.memory(),
         );
     }
@@ -196,7 +198,13 @@ impl<'a, const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             absorb_builder.assert_one(local_control_flow.is_input);
             absorb_builder.assert_zero(local_control_flow.is_output);
 
-            // Every row right after the absorb syscall must either be a compress or finalize.
+            // Verify the is_absorb_no_perm flag.
+            absorb_builder.assert_eq(
+                local_control_flow.is_absorb_no_perm,
+                local_control_flow.is_absorb * (AB::Expr::one() - local_control_flow.do_perm),
+            );
+
+            // Every row right after the absorb syscall must either be an absorb or finalize.
             absorb_builder
                 .when_transition()
                 .assert_one(next_control_flow.is_absorb + next_control_flow.is_finalize);
@@ -495,7 +503,7 @@ impl<'a, const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         let next_state_cols = if r == NUM_EXTERNAL_ROUNDS / 2 - 1 {
             perm_cols.internal_rounds_state()
         } else if r == NUM_EXTERNAL_ROUNDS - 1 {
-            perm_cols.output_state()
+            perm_cols.perm_output()
         } else {
             &perm_cols.external_rounds_state()[r + 1]
         };
@@ -550,8 +558,10 @@ impl<'a, const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         &self,
         builder: &mut AB,
         control_flow: &ControlFlow<AB::Var>,
+        local_opcode_workspace: &OpcodeWorkspace<AB::Var>,
         next_opcode_workspace: &OpcodeWorkspace<AB::Var>,
         permutation: &dyn Permutation<AB::Var>,
+        local_memory: &Memory<AB::Var>,
         next_memory: &Memory<AB::Var>,
     ) {
         // For compress syscall rows, contrain that the permutation's output is equal to the compress
@@ -569,7 +579,46 @@ impl<'a, const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                 .when_transition()
                 .when(control_flow.is_compress)
                 .when(control_flow.is_syscall)
-                .assert_all_eq(next_memory_output, *permutation.output_state());
+                .assert_all_eq(next_memory_output, *permutation.perm_output());
+        }
+
+        // Absorb
+        {
+            // TODO: check the do_perm flag.
+
+            // Expected state when a permutation is done.
+            builder
+                .when(control_flow.is_absorb)
+                .when(control_flow.do_perm)
+                .assert_all_eq(
+                    local_opcode_workspace.absorb().state,
+                    *permutation.perm_output(),
+                );
+
+            // TODO: move the permutation input as a method for the poseidon2 struct.
+            let input: [AB::Expr; WIDTH] = array::from_fn(|i| {
+                if i < WIDTH / 2 {
+                    builder.if_else(
+                        local_memory.memory_slot_used[i],
+                        *local_memory.memory_accesses[i].value(),
+                        local_opcode_workspace.absorb().previous_state[i],
+                    )
+                } else {
+                    local_opcode_workspace.absorb().previous_state[i].into()
+                }
+            });
+
+            builder
+                .when(control_flow.is_absorb_no_perm)
+                .assert_all_eq(local_opcode_workspace.absorb().state, input);
+
+            builder
+                .when_transition()
+                .when(control_flow.is_absorb)
+                .assert_all_eq(
+                    local_opcode_workspace.absorb().state,
+                    next_opcode_workspace.absorb().previous_state,
+                );
         }
     }
 }
