@@ -76,13 +76,14 @@ where
             local_control_flow,
         );
 
-        // // Check that the permutation output is copied to the next row correctly.
-        // let next_opcode_workspace = next_ptr.opcode_workspace();
-        // let next_output: [AB::Var; WIDTH] =
-        //     array::from_fn(|i| *next_opcode_workspace.output().output_memory[i].value());
-        // builder
-        //     .when(local_control_flow.do_perm)
-        //     .assert_all_eq(*local_perm_cols.output_state(), next_output);
+        // Check that the permutation output is copied to the next row correctly.
+        self.eval_row_transition(
+            builder,
+            local_control_flow,
+            next_ptr.opcode_workspace(),
+            local_ptr.permutation().as_ref(),
+            next_ptr.memory(),
+        );
     }
 }
 
@@ -542,6 +543,33 @@ impl<'a, const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         let external_state = perm_cols.external_rounds_state()[NUM_EXTERNAL_ROUNDS / 2];
         for i in 0..WIDTH {
             builder.assert_eq(external_state[i], state[i].clone())
+        }
+    }
+
+    fn eval_row_transition<AB: SP1RecursionAirBuilder>(
+        &self,
+        builder: &mut AB,
+        control_flow: &ControlFlow<AB::Var>,
+        next_opcode_workspace: &OpcodeWorkspace<AB::Var>,
+        permutation: &dyn Permutation<AB::Var>,
+        next_memory: &Memory<AB::Var>,
+    ) {
+        // For compress syscall rows, contrain that the permutation's output is equal to the compress
+        // output's memory values.
+        {
+            let next_memory_output: [AB::Var; WIDTH] = array::from_fn(|i| {
+                if i < WIDTH / 2 {
+                    *next_memory.memory_accesses[i].value()
+                } else {
+                    *next_opcode_workspace.compress().memory_accesses[i - WIDTH / 2].value()
+                }
+            });
+
+            builder
+                .when_transition()
+                .when(control_flow.is_compress)
+                .when(control_flow.is_syscall)
+                .assert_all_eq(next_memory_output, *permutation.output_state());
         }
     }
 }
