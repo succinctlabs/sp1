@@ -166,21 +166,25 @@ where
         // padding rows.
         // The first row should be an initialize row.
         builder.when_first_row().assert_one(local.is_initialize);
+
         // After an initialize row, we should either have a finalize row, or another initialize row.
         builder
             .when_transition()
             .when(local.is_initialize)
             .assert_one(next.is_initialize + next.is_finalize);
+
         // After a finalize row, we should either have a finalize row, or a padding row.
         builder
             .when_transition()
             .when(local.is_finalize)
             .assert_one(next.is_finalize + (AB::Expr::one() - next.is_real));
+
         // After a padding row, we should only have another padding row.
         builder
             .when_transition()
             .when(AB::Expr::one() - local.is_real)
             .assert_zero(next.is_real);
+
         // The last row should be a padding row or a finalize row.
         builder
             .when_last_row()
