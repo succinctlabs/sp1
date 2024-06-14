@@ -1186,6 +1186,13 @@ pub mod tests {
         Program::from(PANIC_ELF)
     }
 
+    fn _assert_send<T: Send>() {}
+
+    /// Runtime needs to be Send so we can use it across async calls.
+    fn _assert_runtime_is_send() {
+        _assert_send::<Runtime>();
+    }
+
     #[test]
     fn test_simple_program_run() {
         let program = simple_program();
