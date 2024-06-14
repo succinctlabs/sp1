@@ -12,7 +12,7 @@ use std::borrow::Borrow;
 use p3_air::{Air, AirBuilder};
 use p3_field::{AbstractField, Field};
 use p3_matrix::Matrix;
-use sp1_core::air::BaseAirBuilder;
+use sp1_core::{air::BaseAirBuilder, cpu::columns::NUM_OPCODE_SELECTOR_COLS};
 
 use crate::{
     air::{RecursionPublicValues, SP1RecursionAirBuilder, RECURSIVE_PROOF_NUM_PV_ELTS},
@@ -38,6 +38,16 @@ where
         let one = AB::Expr::one();
 
         // Constrain the program.
+        builder
+            .when_not(local.is_real)
+            .assert_one(local.instruction.imm_b);
+        builder
+            .when_not(local.is_real)
+            .assert_one(local.instruction.imm_c);
+        for selector in local.selectors.into_iter() {
+            builder.when_not(local.is_real).assert_zero(selector);
+        }
+
         builder.send_program(local.pc, local.instruction, local.selectors, local.is_real);
 
         // Constrain the operands.
