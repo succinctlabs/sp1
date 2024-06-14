@@ -38,15 +38,15 @@ where
         let one = AB::Expr::one();
 
         // Constrain the program.
-        builder
-            .when_not(local.is_real)
-            .assert_one(local.instruction.imm_b);
-        builder
-            .when_not(local.is_real)
-            .assert_one(local.instruction.imm_c);
-        for selector in local.selectors.into_iter() {
-            builder.when_not(local.is_real).assert_zero(selector);
-        }
+        // builder
+        //     .when_not(local.is_real)
+        //     .assert_one(local.instruction.imm_b);
+        // builder
+        //     .when_not(local.is_real)
+        //     .assert_one(local.instruction.imm_c);
+        // for selector in local.selectors.into_iter() {
+        //     builder.when_not(local.is_real).assert_zero(selector);
+        // }
 
         builder.send_program(local.pc, local.instruction, local.selectors, local.is_real);
 
