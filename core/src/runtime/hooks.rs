@@ -5,7 +5,11 @@ use k256::elliptic_curve::ops::Invert;
 
 use super::Runtime;
 
-type BoxedHook<'a> = Box<dyn Fn(HookEnv, &[u8]) -> Vec<Vec<u8>> + 'a>;
+pub trait Hook: Fn(HookEnv, &[u8]) -> Vec<Vec<u8>> + Send {}
+
+impl<F: Fn(HookEnv, &[u8]) -> Vec<Vec<u8>> + Send> Hook for F {}
+
+pub type BoxedHook<'a> = Box<dyn Hook + 'a>;
 
 /// The file descriptor through which to access `hook_ecrecover`.
 pub const FD_ECRECOVER_HOOK: u32 = 5;

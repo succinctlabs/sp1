@@ -11,6 +11,7 @@ mod state;
 mod syscall;
 #[macro_use]
 mod utils;
+mod subproof;
 
 pub use hooks::*;
 pub use instruction::*;
@@ -21,6 +22,7 @@ pub use record::*;
 pub use register::*;
 pub use report::*;
 pub use state::*;
+pub use subproof::*;
 pub use syscall::*;
 pub use utils::*;
 
@@ -94,6 +96,9 @@ pub struct Runtime<'a> {
     /// Whether we should write to the report.
     pub print_report: bool,
 
+    /// Verifier used to sanity check `verify_sp1_proof` during runtime.
+    pub subproof_verifier: Arc<dyn SubproofVerifier + 'a>,
+
     /// Registry of hooks, to be invoked by writing to certain file descriptors.
     pub hook_registry: HookRegistry<'a>,
 }
@@ -157,6 +162,7 @@ impl<'a> Runtime<'a> {
             max_syscall_cycles,
             report: ExecutionReport::default(),
             print_report: false,
+            subproof_verifier: Arc::new(DefaultSubproofVerifier::new()),
             hook_registry: HookRegistry::default(),
         }
     }
@@ -1100,6 +1106,14 @@ impl<'a> Runtime<'a> {
             buf.flush().unwrap();
         }
 
+        // Ensure that all proofs and input bytes were read, otherwise warn the user.
+        if self.state.proof_stream_ptr != self.state.proof_stream.len() {
+            panic!("Not all proofs were read. Proving will fail during recursion. Did you pass too many proofs in or forget to call verify_sp1_proof?");
+        }
+        if self.state.input_stream_ptr != self.state.input_stream.len() {
+            log::warn!("Not all input bytes were read.");
+        }
+
         // SECTION: Set up all MemoryInitializeFinalizeEvents needed for memory argument.
         let memory_finalize_events = &mut self.record.memory_finalize_events;
 
@@ -1170,6 +1184,13 @@ pub mod tests {
 
     pub fn panic_program() -> Program {
         Program::from(PANIC_ELF)
+    }
+
+    fn _assert_send<T: Send>() {}
+
+    /// Runtime needs to be Send so we can use it across async calls.
+    fn _assert_runtime_is_send() {
+        _assert_send::<Runtime>();
     }
 
     #[test]
