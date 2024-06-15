@@ -175,7 +175,6 @@ impl<const DEGREE: usize> FriFoldChip<DEGREE> {
         &self,
         builder: &mut AB,
         local: &FriFoldCols<AB::Var>,
-        next: &FriFoldCols<AB::Var>,
         receive_table: AB::Var,
         memory_access: AB::Var,
     ) {
@@ -355,13 +354,11 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let (local, next) = (main.row_slice(0), main.row_slice(1));
+        let local = main.row_slice(0);
         let local: &FriFoldCols<AB::Var> = (*local).borrow();
-        let next: &FriFoldCols<AB::Var> = (*next).borrow();
         self.eval_fri_fold::<AB>(
             builder,
             local,
-            next,
             Self::do_receive_table::<AB::Var>(local),
             Self::do_memory_access::<AB::Var>(local),
         );

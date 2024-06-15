@@ -249,7 +249,6 @@ where
         fri_fold_chip.eval_fri_fold(
             &mut sub_builder,
             local.fri_fold(),
-            next.fri_fold(),
             local.fri_fold_receive_table,
             local.fri_fold_memory_access,
         );
