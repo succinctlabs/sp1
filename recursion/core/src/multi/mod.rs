@@ -2,7 +2,7 @@ use std::borrow::{Borrow, BorrowMut};
 
 use itertools::Itertools;
 use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::PrimeField32;
+use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use sp1_core::air::{BaseAirBuilder, MachineAir};
@@ -29,10 +29,12 @@ pub struct MultiCols<T: Copy> {
     pub is_fri_fold: T,
     pub fri_fold_receive_table: T,
     pub fri_fold_memory_access: T,
+    pub is_fri_fold_transition: T,
 
     pub is_poseidon2: T,
     pub poseidon2_receive_table: T,
     pub poseidon2_memory_access: T,
+    pub is_poseidon2_first: T,
 }
 
 #[derive(Clone, Copy)]
@@ -100,6 +102,12 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for MultiChip<DEGREE> {
                     let poseidon2_cols = *cols.poseidon2();
                     cols.poseidon2_receive_table = Poseidon2Chip::do_receive_table(&poseidon2_cols);
                     cols.poseidon2_memory_access = Poseidon2Chip::do_memory_access(&poseidon2_cols);
+
+                    cols.is_poseidon2_first = if i == fri_fold_trace.height() {
+                        F::one()
+                    } else {
+                        F::zero()
+                    };
                 }
                 row
             })
@@ -159,9 +167,70 @@ where
         // Next, verify that all fri fold rows are before the poseidon2 rows within the real rows section.
         builder
             .when_transition()
-            .when(next_is_real)
+            .when(next_is_real.clone())
             .when(local.is_poseidon2)
             .assert_one(next.is_poseidon2);
+
+        // Ensure that is_fri_fold_transition is properly computed.
+        builder.assert_eq(
+            local.is_fri_fold_transition,
+            local.is_fri_fold * next.is_fri_fold,
+        );
+
+        let local_fri_fold = local.fri_fold();
+        let next_fri_fold = next.fri_fold();
+
+        // Ensure that the the next iteration after the last iteration of a FRI FOLD invocation
+        // has m = 0. The FRI FOLD table itself ensures that the very first row of the FRI FOLD table
+        // has m = 0.
+        builder
+            .when(local_fri_fold.is_last_iteration)
+            .when(local.is_fri_fold_transition)
+            .assert_zero(next_fri_fold.m);
+
+        // Ensure that all rows for a FRI FOLD invocation have the same input_ptr and sequential clk
+        // and m values.
+        builder
+            .when_not(local_fri_fold.is_last_iteration)
+            .when(local.is_fri_fold_transition)
+            .assert_eq(next_fri_fold.m, local_fri_fold.m + AB::Expr::one());
+        builder
+            .when_not(local_fri_fold.is_last_iteration)
+            .when(local.is_fri_fold_transition)
+            .assert_eq(local_fri_fold.input_ptr, next_fri_fold.input_ptr);
+        builder
+            .when_not(local_fri_fold.is_last_iteration)
+            .when(local.is_fri_fold_transition)
+            .assert_eq(local_fri_fold.clk + AB::Expr::one(), next_fri_fold.clk);
+
+        // Verify the first Poseidon_2 row starts at round 0.
+        let local_poseidon2 = local.poseidon2();
+        builder
+            .when(local.is_poseidon2_first)
+            .assert_one(local_poseidon2.rounds[0]);
+
+        // Ensure that the is_poseidon2_first row is properly computed.
+        // The first row of the Poseidon_2 table is either the first row of the entire table
+        // or the row immediately following the last row of the FRI FOLD table.
+        builder
+            .when_first_row()
+            .assert_one(local.is_fri_fold + local.is_poseidon2_first);
+        builder
+            // The first two when clauses single out the last row of the FRI FOLD table.
+            .when_not(local.is_fri_fold_transition)
+            .when(local.is_fri_fold)
+            // If the last row of the FRI FOLD table is not the last row of the entire table,
+            .when_transition()
+            // the next row will be the first row of the Poseidon_2 table or a padding table.
+            .assert_one(next.is_poseidon2_first + AB::Expr::one() - next_is_real);
+
+        // These two constraints ensure that there is at most one first_row of the Poseidon_2 table.
+        builder
+            .when(local.is_poseidon2_first)
+            .assert_zero(next.is_poseidon2_first);
+        builder
+            .when_not(local.is_poseidon2_first)
+            .assert_zero(next.is_poseidon2_first);
 
         let mut sub_builder =
             MultiBuilder::new(builder, local.is_fri_fold.into(), next.is_fri_fold.into());
