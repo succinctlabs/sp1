@@ -5,7 +5,7 @@ name: book
 
 on:
   push:
-    branches: [main]
+    branches: [main, chris/fix-book]
   pull_request:
     branches: [main]
     paths:
