@@ -4,6 +4,22 @@ const DEFAULT_SHARD_SIZE: usize = 1 << 22;
 const DEFAULT_SHARD_BATCH_SIZE: usize = 16;
 
 #[derive(Debug, Clone, Copy)]
+pub struct SP1ProverOpts {
+    pub core_opts: SP1CoreOpts,
+    pub recursion_opts: SP1CoreOpts,
+}
+
+impl Default for SP1ProverOpts {
+    fn default() -> Self {
+        Self {
+            // TODO split these into two types
+            core_opts: SP1CoreOpts::default(),
+            recursion_opts: SP1CoreOpts::recursion(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
 pub struct SP1CoreOpts {
     pub shard_size: usize,
     pub shard_batch_size: usize,

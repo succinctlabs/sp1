@@ -11,6 +11,7 @@ use crate::{
 };
 use anyhow::Result;
 use serde::de::DeserializeOwned;
+use sp1_core::utils::SP1ProverOpts;
 use sp1_prover::utils::block_on;
 use sp1_prover::{SP1Prover, SP1Stdin, SP1_CIRCUIT_VERSION};
 use tokio::time::sleep;
@@ -128,7 +129,13 @@ impl Prover for NetworkProver {
         self.local_prover.sp1_prover()
     }
 
-    fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin, _context: SP1Context) -> Result<SP1Proof> {
+    fn prove(
+        &self,
+        pk: &SP1ProvingKey,
+        stdin: SP1Stdin,
+        _opts: SP1ProverOpts,
+        _context: SP1Context,
+    ) -> Result<SP1Proof> {
         // TODO deal with context, creating errors on presence of set fields
         block_on(self.prove(&pk.elf, stdin))
     }
@@ -137,6 +144,7 @@ impl Prover for NetworkProver {
         &self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
+        _opts: SP1ProverOpts,
         _context: SP1Context,
     ) -> Result<SP1CompressedProof> {
         // TODO see above
@@ -147,6 +155,7 @@ impl Prover for NetworkProver {
         &self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
+        _opts: SP1ProverOpts,
         _context: SP1Context,
     ) -> Result<SP1PlonkBn254Proof> {
         // TODO see above

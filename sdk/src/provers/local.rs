@@ -1,5 +1,5 @@
 use anyhow::Result;
-use sp1_core::runtime::SP1Context;
+use sp1_core::{runtime::SP1Context, utils::SP1ProverOpts};
 use sp1_prover::{SP1Prover, SP1Stdin};
 
 use crate::{
@@ -35,8 +35,14 @@ impl Prover for LocalProver {
         &self.prover
     }
 
-    fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin, context: SP1Context) -> Result<SP1Proof> {
-        let proof = self.prover.prove_core_with_context(pk, &stdin, context)?;
+    fn prove<'a>(
+        &'a self,
+        pk: &SP1ProvingKey,
+        stdin: SP1Stdin,
+        opts: SP1ProverOpts,
+        context: SP1Context<'a>,
+    ) -> Result<SP1Proof> {
+        let proof = self.prover.prove_core_with(pk, &stdin, opts, context)?;
         Ok(SP1ProofWithPublicValues {
             proof: proof.proof.0,
             stdin: proof.stdin,
@@ -45,16 +51,19 @@ impl Prover for LocalProver {
         })
     }
 
-    fn prove_compressed(
-        &self,
+    fn prove_compressed<'a>(
+        &'a self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
-        context: SP1Context,
+        opts: SP1ProverOpts,
+        context: SP1Context<'a>,
     ) -> Result<SP1CompressedProof> {
-        let proof = self.prover.prove_core_with_context(pk, &stdin, context)?;
+        let proof = self.prover.prove_core_with(pk, &stdin, opts, context)?;
         let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
         let public_values = proof.public_values.clone();
-        let reduce_proof = self.prover.compress(&pk.vk, proof, deferred_proofs)?;
+        let reduce_proof = self
+            .prover
+            .compress_with(&pk.vk, proof, deferred_proofs, opts)?;
         Ok(SP1CompressedProof {
             proof: reduce_proof.proof,
             stdin,
@@ -63,17 +72,20 @@ impl Prover for LocalProver {
         })
     }
 
-    fn prove_plonk(
-        &self,
+    fn prove_plonk<'a>(
+        &'a self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
-        context: SP1Context,
+        opts: SP1ProverOpts,
+        context: SP1Context<'a>,
     ) -> Result<SP1PlonkBn254Proof> {
-        let proof = self.prover.prove_core_with_context(pk, &stdin, context)?;
+        let proof = self.prover.prove_core_with(pk, &stdin, opts, context)?;
         let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
         let public_values = proof.public_values.clone();
-        let reduce_proof = self.prover.compress(&pk.vk, proof, deferred_proofs)?;
-        let compress_proof = self.prover.shrink(reduce_proof)?;
+        let reduce_proof = self
+            .prover
+            .compress_with(&pk.vk, proof, deferred_proofs, opts)?;
+        let compress_proof = self.prover.shrink_with(reduce_proof, opts)?;
         let outer_proof = self.prover.wrap_bn254(compress_proof)?;
 
         let plonk_bn254_aritfacts = if sp1_prover::build::sp1_dev_mode() {

@@ -338,13 +338,13 @@ impl ProverClient {
     /// // Generate the proof.
     /// let proof = client.prove_with_context(&pk, stdin, context).unwrap();
     /// ```
-    pub fn prove_with_context(
-        &self,
+    pub fn prove_with_context<'a>(
+        &'a self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
-        context: SP1Context,
+        context: SP1Context<'a>,
     ) -> Result<SP1Proof> {
-        self.prover.prove(pk, stdin, context)
+        self.prover.prove(pk, stdin, Default::default(), context)
     }
 
     /// Proves the execution of the given program with the given input in the compressed mode.
@@ -410,13 +410,14 @@ impl ProverClient {
     /// // Generate the proof.
     /// let proof = client.prove_compressed_with_context(&pk, stdin, context).unwrap();
     /// ```
-    pub fn prove_compressed_with_context(
-        &self,
+    pub fn prove_compressed_with_context<'a>(
+        &'a self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
-        context: SP1Context,
+        context: SP1Context<'a>,
     ) -> Result<SP1CompressedProof> {
-        self.prover.prove_compressed(pk, stdin, context)
+        self.prover
+            .prove_compressed(pk, stdin, Default::default(), context)
     }
 
     /// Proves the execution of the given program with the given input in the plonk bn254 mode.
@@ -480,13 +481,14 @@ impl ProverClient {
     /// let proof = client.prove_plonk_with_context(&pk, stdin, context).unwrap();
     /// ```
     /// Generates a plonk bn254 proof, verifiable onchain, of the given elf and stdin.
-    pub fn prove_plonk_with_context(
-        &self,
+    pub fn prove_plonk_with_context<'a>(
+        &'a self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
-        context: SP1Context,
+        context: SP1Context<'a>,
     ) -> Result<SP1PlonkBn254Proof> {
-        self.prover.prove_plonk(pk, stdin, context)
+        self.prover
+            .prove_plonk(pk, stdin, Default::default(), context)
     }
 
     /// Verifies that the given proof is valid and matches the given verification key produced by

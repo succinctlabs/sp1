@@ -1,4 +1,7 @@
-use sp1_core::runtime::{ExecutionReport, HookEnv, SP1ContextBuilder};
+use sp1_core::{
+    runtime::{ExecutionReport, HookEnv, SP1ContextBuilder},
+    utils::{SP1CoreOpts, SP1ProverOpts},
+};
 use sp1_prover::{SP1Prover, SP1ProvingKey, SP1PublicValues, SP1Stdin};
 
 use anyhow::{Ok, Result};
@@ -60,6 +63,7 @@ pub struct Prove<'a> {
     context_builder: SP1ContextBuilder<'a>,
     pk: &'a SP1ProvingKey,
     stdin: SP1Stdin,
+    opts: SP1CoreOpts,
 }
 
 impl<'a> Prove<'a> {
@@ -69,6 +73,7 @@ impl<'a> Prove<'a> {
             pk,
             stdin,
             context_builder: Default::default(),
+            opts: Default::default(),
         }
     }
 
@@ -78,11 +83,15 @@ impl<'a> Prove<'a> {
             pk,
             stdin,
             mut context_builder,
+            opts,
         } = self;
+        let opts = SP1ProverOpts {
+            core_opts: opts,
+            recursion_opts: opts,
+        };
         let context = context_builder.build();
-        // TODO remove all the extra with_context
 
-        prover.prove(pk, stdin, context)
+        prover.prove(pk, stdin, opts, context)
     }
 
     /// Add a runtime [Hook](super::Hook) into the context.
@@ -105,6 +114,27 @@ impl<'a> Prove<'a> {
     /// register a hook with the same value of `fd` by calling [`Self::hook`].
     pub fn without_default_hooks(mut self) -> Self {
         self.context_builder.without_default_hooks();
+        self
+    }
+
+    // TODO docs
+    pub fn shard_size(mut self, value: usize) -> Self {
+        self.opts.shard_size = value;
+        self
+    }
+
+    pub fn shard_batch_size(mut self, value: usize) -> Self {
+        self.opts.shard_batch_size = value;
+        self
+    }
+
+    pub fn shard_chunking_multiplier(mut self, value: usize) -> Self {
+        self.opts.shard_chunking_multiplier = value;
+        self
+    }
+
+    pub fn reconstruct_commitments(mut self, value: bool) -> Self {
+        self.opts.reconstruct_commitments = value;
         self
     }
 }

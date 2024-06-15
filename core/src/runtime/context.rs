@@ -8,8 +8,8 @@ use super::{hookify, BoxedHook, HookEnv, HookRegistry, SubproofVerifier};
 pub struct SP1Context<'a> {
     /// The registry of hooks invokable from inside SP1.
     /// `None` denotes the default list of hooks.
-    pub(crate) hook_registry: Option<HookRegistry<'a>>,
-    pub(crate) subproof_verifier: Option<Arc<dyn SubproofVerifier + 'a>>,
+    pub hook_registry: Option<HookRegistry<'a>>,
+    pub subproof_verifier: Option<Arc<dyn SubproofVerifier + 'a>>,
 }
 
 #[derive(Clone, Default)]

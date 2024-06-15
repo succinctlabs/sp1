@@ -5,7 +5,7 @@ use crate::{
 };
 use anyhow::Result;
 use p3_field::PrimeField;
-use sp1_core::runtime::SP1Context;
+use sp1_core::{runtime::SP1Context, utils::SP1ProverOpts};
 use sp1_prover::{
     verify::verify_plonk_bn254_public_inputs, HashableKey, PlonkBn254Proof, SP1Prover, SP1Stdin,
 };
@@ -38,7 +38,13 @@ impl Prover for MockProver {
         unimplemented!("MockProver does not support SP1Prover")
     }
 
-    fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin, context: SP1Context) -> Result<SP1Proof> {
+    fn prove<'a>(
+        &'a self,
+        pk: &SP1ProvingKey,
+        stdin: SP1Stdin,
+        opts: SP1ProverOpts,
+        context: SP1Context<'a>,
+    ) -> Result<SP1Proof> {
         let (public_values, _) = SP1Prover::execute(&pk.elf, &stdin, context)?;
         Ok(SP1ProofWithPublicValues {
             proof: vec![],
@@ -52,7 +58,8 @@ impl Prover for MockProver {
         &self,
         _pk: &SP1ProvingKey,
         _stdin: SP1Stdin,
-        _context: SP1Context,
+        _opts: SP1ProverOpts,
+        _context: SP1Context<'_>,
     ) -> Result<SP1CompressedProof> {
         unimplemented!()
     }
@@ -61,7 +68,8 @@ impl Prover for MockProver {
         &self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
-        context: SP1Context,
+        _opts: SP1ProverOpts,
+        context: SP1Context<'_>,
     ) -> Result<SP1PlonkBn254Proof> {
         let (public_values, _) = SP1Prover::execute(&pk.elf, &stdin, context)?;
         Ok(SP1PlonkBn254Proof {
