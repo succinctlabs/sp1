@@ -43,7 +43,6 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         builder.assert_bool(local_is_real.clone());
 
         builder.assert_bool(local_control_flow.is_syscall);
-        builder.assert_bool(local_control_flow.is_input);
         builder.assert_bool(local_control_flow.is_output);
         builder.assert_bool(local_control_flow.do_perm);
 
@@ -70,7 +69,6 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             let mut absorb_builder = builder.when(local_control_flow.is_absorb);
 
             // Every absorb syscall row must input and not output.
-            absorb_builder.assert_one(local_control_flow.is_input);
             absorb_builder.assert_zero(local_control_flow.is_output);
 
             // Verify the is_absorb_no_perm flag.
@@ -91,7 +89,6 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
 
             // Every finalize row must be a syscall, not an input, an output, and not a permutation.
             finalize_builder.assert_one(local_control_flow.is_syscall);
-            finalize_builder.assert_zero(local_control_flow.is_input);
             finalize_builder.assert_one(local_control_flow.is_output);
 
             // Every next real row after finalize must be either a compress or absorb and must be a syscall.
@@ -207,7 +204,6 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             builder.when(local_control_flow.is_compress * local_control_flow.is_syscall);
 
         // Every compress syscall row must input, do the permutation, and not output.
-        compress_syscall_builder.assert_one(local_control_flow.is_input);
         compress_syscall_builder.assert_one(local_control_flow.do_perm);
         compress_syscall_builder.assert_zero(local_control_flow.is_output);
 
@@ -219,7 +215,6 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         let mut compress_output_builder = builder.when(local_control_flow.is_compress_output);
         // Every compress output row must not do the permutation and not input.
         compress_output_builder.assert_zero(local_control_flow.is_syscall);
-        compress_output_builder.assert_zero(local_control_flow.is_input);
         compress_output_builder.assert_zero(local_control_flow.do_perm);
         compress_output_builder.assert_one(local_control_flow.is_compress_output);
 

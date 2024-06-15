@@ -212,7 +212,7 @@ impl<'a, const DEGREE: usize> Poseidon2WideChip<DEGREE> {
 
         // Verify the memory addr.
         builder
-            .when(control_flow.is_compress * control_flow.is_input)
+            .when(control_flow.is_compress * control_flow.is_syscall)
             .assert_eq(syscall_params.compress().left_ptr, memory.start_addr);
         builder
             .when(control_flow.is_compress_output)
@@ -236,10 +236,12 @@ impl<'a, const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             );
 
             // For read only accesses, assert the value didn't change.
-            builder.when(control_flow.is_input).assert_eq(
-                *memory.memory_accesses[i].prev_value(),
-                *memory.memory_accesses[i].value(),
-            );
+            builder
+                .when(control_flow.is_compress * control_flow.is_syscall + control_flow.is_absorb)
+                .assert_eq(
+                    *memory.memory_accesses[i].prev_value(),
+                    *memory.memory_accesses[i].value(),
+                );
 
             addr = addr.clone() + memory.memory_slot_used[i].into();
         }
@@ -248,7 +250,7 @@ impl<'a, const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         let compress_workspace = opcode_workspace.compress();
         // Verify the start addr.
         builder
-            .when(control_flow.is_compress * control_flow.is_input)
+            .when(control_flow.is_compress * control_flow.is_syscall)
             .assert_eq(
                 compress_workspace.start_addr,
                 syscall_params.compress().right_ptr,
@@ -268,7 +270,7 @@ impl<'a, const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             );
 
             builder
-                .when(control_flow.is_input * control_flow.is_compress)
+                .when(control_flow.is_syscall * control_flow.is_compress)
                 .assert_eq(
                     *compress_workspace.memory_accesses[i].prev_value(),
                     *compress_workspace.memory_accesses[i].value(),

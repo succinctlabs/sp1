@@ -123,7 +123,6 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
 
             control_flow.is_compress = F::one();
             control_flow.is_syscall = F::one();
-            control_flow.is_input = F::one();
             control_flow.do_perm = F::one();
         }
 
@@ -238,7 +237,6 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
 
                 control_flow.is_absorb = F::one();
                 control_flow.is_syscall = F::from_bool(iter_num == 0);
-                control_flow.is_input = F::one();
                 control_flow.do_perm = F::from_bool(absorb_iter.do_perm);
                 control_flow.is_absorb_no_perm = F::from_bool(!absorb_iter.do_perm);
             }
