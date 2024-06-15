@@ -43,14 +43,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         builder.assert_bool(local_is_real.clone());
 
         builder.assert_bool(local_control_flow.is_syscall);
-        builder.assert_bool(local_control_flow.is_output);
         builder.assert_bool(local_control_flow.do_perm);
-
-        // Ensure that is_compress * is_output == is_compress_output
-        builder.assert_eq(
-            local_control_flow.is_compress * local_control_flow.is_output,
-            local_control_flow.is_compress_output,
-        );
 
         self.global_control_flow(
             builder,
@@ -67,9 +60,6 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         // Apply control flow constraints for absorb.
         {
             let mut absorb_builder = builder.when(local_control_flow.is_absorb);
-
-            // Every absorb syscall row must input and not output.
-            absorb_builder.assert_zero(local_control_flow.is_output);
 
             // Verify the is_absorb_no_perm flag.
             absorb_builder.assert_eq(
@@ -89,7 +79,6 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
 
             // Every finalize row must be a syscall, not an input, an output, and not a permutation.
             finalize_builder.assert_one(local_control_flow.is_syscall);
-            finalize_builder.assert_one(local_control_flow.is_output);
 
             // Every next real row after finalize must be either a compress or absorb and must be a syscall.
             finalize_builder
@@ -140,11 +129,12 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         // enforce that, the following constraints are enforced.
 
         // 1) If absorb row -> next row is absorb or finalize.
-        // 2) If absorb row -> hash_num == hash_num'
-        // 3) If finalize row -> next row is compress or finalize row
+        // 2) If absorb row -> hash_num == hash_num'.
+        // 3) If finalize row -> next row is compress or finalize row.
         // 4) If finalize row and next row is absorb ->
-        //          a) hash_num + 1 == hash_num'
-        //          b) is_first_hash' == 1
+        //          hash_num + 1 == hash_num'
+        //      AND is_first_hash' == 1
+        // 5) If finalize row and next row is compress -> is compress syscall
         let mut absorb_transition_builder = transition_builder.when(local_control_flow.is_absorb);
         absorb_transition_builder
             .assert_one(next_control_flow.is_absorb + next_control_flow.is_finalize);
@@ -175,6 +165,9 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         finalize_transition_builder
             .when(next_control_flow.is_absorb)
             .assert_one(next_opcode_workspace.hash().is_first_hash_row);
+        finalize_transition_builder
+            .when(next_control_flow.is_compress)
+            .assert_one(next_control_flow.is_syscall);
 
         // If compress row -> next row is compress or not real.
         transition_builder
@@ -186,7 +179,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             .when_not(local_is_real.clone())
             .assert_zero(next_is_real);
 
-        // If the last row is real -> is a compress row.
+        // If the last row is real -> is a compress output row.
         builder
             .when_last_row()
             .when(local_is_real)
@@ -200,30 +193,29 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         next_control_flow: &ControlFlow<AB::Var>,
         next_is_real: AB::Expr,
     ) {
-        let mut compress_syscall_builder =
-            builder.when(local_control_flow.is_compress * local_control_flow.is_syscall);
+        // Compress syscall control flow contraints.
+        {
+            let mut compress_syscall_builder =
+                builder.when(local_control_flow.is_compress * local_control_flow.is_syscall);
 
-        // Every compress syscall row must input, do the permutation, and not output.
-        compress_syscall_builder.assert_one(local_control_flow.do_perm);
-        compress_syscall_builder.assert_zero(local_control_flow.is_output);
+            // Every compress syscall row must do a permutation.
+            compress_syscall_builder.assert_one(local_control_flow.do_perm);
 
-        // Row right after the compress syscall must be a compress output.
-        compress_syscall_builder
-            .when_transition()
-            .assert_one(next_control_flow.is_compress_output);
+            // Row right after the compress syscall must be a compress output.
+            compress_syscall_builder
+                .when_transition()
+                .assert_one(next_control_flow.is_compress_output);
+        }
 
-        let mut compress_output_builder = builder.when(local_control_flow.is_compress_output);
-        // Every compress output row must not do the permutation and not input.
-        compress_output_builder.assert_zero(local_control_flow.is_syscall);
-        compress_output_builder.assert_zero(local_control_flow.do_perm);
-        compress_output_builder.assert_one(local_control_flow.is_compress_output);
-
-        // Next row is a syscall row and not a finalize syscall.
-        compress_output_builder
-            .when(next_is_real.clone())
-            .assert_one(next_control_flow.is_syscall);
-        compress_output_builder
-            .when(next_is_real.clone())
-            .assert_zero(next_control_flow.is_finalize);
+        // Compress output control flow constraints.
+        {
+            let mut compress_output_builder = builder.when(local_control_flow.is_compress_output);
+            compress_output_builder.assert_zero(local_control_flow.is_syscall);
+            compress_output_builder.assert_zero(local_control_flow.do_perm);
+            compress_output_builder
+                .when_transition()
+                .when(next_is_real)
+                .assert_one(next_control_flow.is_compress * next_control_flow.is_syscall);
+        }
     }
 }

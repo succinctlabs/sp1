@@ -174,7 +174,6 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             let control_flow = cols.control_flow_mut();
 
             control_flow.is_compress = F::one();
-            control_flow.is_output = F::one();
             control_flow.is_compress_output = F::one();
         }
 
@@ -296,7 +295,6 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             let control_flow = cols.control_flow_mut();
             control_flow.is_finalize = F::one();
             control_flow.is_syscall = F::one();
-            control_flow.is_output = F::one();
             control_flow.do_perm = F::from_bool(finalize_event.do_perm);
         }
 

@@ -10,7 +10,5 @@ pub struct ControlFlow<T> {
     pub is_finalize: T,
 
     pub is_syscall: T,
-    pub is_input: T,
-    pub is_output: T,
     pub do_perm: T,
 }
