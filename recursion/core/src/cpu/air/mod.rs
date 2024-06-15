@@ -55,11 +55,7 @@ where
             .into_iter()
             .enumerate()
             .filter(|(i, _)| *i != SELECTOR_COL_MAP.is_noop)
-            .for_each(|selector| {
-                builder
-                    .when_not(local.is_real)
-                    .assert_zero(selector.1.into())
-            });
+            .for_each(|(_, selector)| builder.when_not(local.is_real).assert_zero(selector));
 
         // Initialize clk and pc.
         builder.when_first_row().assert_zero(local.clk);
