@@ -15,8 +15,7 @@ pub use columns::Poseidon2Cols;
 pub use external::Poseidon2Chip;
 
 #[derive(Debug, Clone)]
-pub enum Poseidon2Event<F> {
-    Compress(Poseidon2CompressEvent<F>),
+pub enum Poseidon2HashEvent<F> {
     Absorb(Poseidon2AbsorbEvent<F>),
     Finalize(Poseidon2FinalizeEvent<F>),
 }
@@ -78,6 +77,7 @@ pub struct Poseidon2AbsorbEvent<F> {
     pub input_ptr: F,     // from b_val
     pub input_len: usize, // from c_val
     pub absorb_iterations: Vec<Poseidon2AbsorbIteration<F>>,
+    pub is_hash_first_absorb: bool,
 }
 
 #[derive(Debug, Clone)]

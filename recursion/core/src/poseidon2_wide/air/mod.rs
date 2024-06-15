@@ -3,10 +3,12 @@ use std::{array, borrow::Borrow, ops::Deref};
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_matrix::Matrix;
-use sp1_core::{air::BaseAirBuilder, runtime::Syscall};
+use sp1_core::air::BaseAirBuilder;
 use sp1_primitives::RC_16_30_U32;
 
 use crate::{air::SP1RecursionAirBuilder, memory::MemoryCols, runtime::Opcode};
+
+pub mod control_flow;
 
 use super::{
     columns::{
@@ -37,17 +39,17 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let local_ptr = Self::convert::<AB>(main.row_slice(0));
-        let next_ptr = Self::convert::<AB>(main.row_slice(1));
+        let local_row = Self::convert::<AB>(main.row_slice(0));
+        let next_row = Self::convert::<AB>(main.row_slice(1));
 
         // Check that all the control flow columns are correct.
-        let local_control_flow = local_ptr.control_flow();
-        let next_control_flow = next_ptr.control_flow();
-        self.eval_control_flow(builder, local_control_flow, next_control_flow);
+        let local_control_flow = local_row.control_flow();
+        let next_control_flow = next_row.control_flow();
+        self.eval_control_flow(builder, local_row.as_ref(), next_row.as_ref());
 
         // // Check that the syscall columns are correct.
-        let local_syscall = local_ptr.syscall_params();
-        let next_syscall = next_ptr.syscall_params();
+        let local_syscall = local_row.syscall_params();
+        let next_syscall = next_row.syscall_params();
         self.eval_syscall_params(
             builder,
             local_syscall,
@@ -57,34 +59,34 @@ where
         );
 
         // Check that all the memory access columns are correct.
-        let local_opcode_workspace = local_ptr.opcode_workspace();
+        let local_opcode_workspace = local_row.opcode_workspace();
         self.eval_mem(
             builder,
             local_syscall,
-            local_ptr.memory(),
+            local_row.memory(),
             local_opcode_workspace,
             local_control_flow,
         );
 
         // Check that the permutation columns are correct.
-        let local_perm_cols = local_ptr.permutation();
+        let local_perm_cols = local_row.permutation();
         self.eval_perm(
             builder,
             local_perm_cols.as_ref(),
-            local_ptr.memory(),
-            local_ptr.opcode_workspace(),
+            local_row.memory(),
+            local_row.opcode_workspace(),
             local_control_flow,
         );
 
         // Check that the permutation output is copied to the next row correctly.
         self.eval_row_transition(
             builder,
-            local_ptr.control_flow(),
-            local_ptr.opcode_workspace(),
-            next_ptr.opcode_workspace(),
-            local_ptr.permutation().as_ref(),
-            local_ptr.memory(),
-            next_ptr.memory(),
+            local_row.control_flow(),
+            local_row.opcode_workspace(),
+            next_row.opcode_workspace(),
+            local_row.permutation().as_ref(),
+            local_row.memory(),
+            next_row.memory(),
         );
     }
 }
@@ -104,130 +106,6 @@ impl<'a, const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             Box::new(*convert)
         } else {
             panic!("Unsupported degree");
-        }
-    }
-
-    fn eval_control_flow<AB: SP1RecursionAirBuilder>(
-        &self,
-        builder: &mut AB,
-        local_control_flow: &ControlFlow<AB::Var>,
-        next_control_flow: &ControlFlow<AB::Var>,
-    ) {
-        let is_real = local_control_flow.is_compress
-            + local_control_flow.is_absorb
-            + local_control_flow.is_finalize;
-        let next_is_real = next_control_flow.is_compress
-            + next_control_flow.is_absorb
-            + next_control_flow.is_finalize;
-
-        builder.assert_bool(local_control_flow.is_compress);
-        builder.assert_bool(local_control_flow.is_compress_output);
-        builder.assert_bool(local_control_flow.is_absorb);
-        builder.assert_bool(local_control_flow.is_finalize);
-        builder.assert_bool(is_real.clone());
-
-        builder.assert_bool(local_control_flow.is_syscall);
-        builder.assert_bool(local_control_flow.is_input);
-        builder.assert_bool(local_control_flow.is_output);
-        builder.assert_bool(local_control_flow.do_perm);
-
-        // Ensure that is_compress * is_output == is_compress_output
-        builder.assert_eq(
-            local_control_flow.is_compress * local_control_flow.is_output,
-            local_control_flow.is_compress_output,
-        );
-
-        // // Ensure the first row is real and is a syscall row.
-        builder.when_first_row().assert_one(is_real.clone());
-        builder
-            .when_first_row()
-            .assert_one(local_control_flow.is_syscall);
-        // Ensure that there is only one transition from is_real to not is_real.
-        builder
-            .when_transition()
-            .when_not(is_real.clone())
-            .assert_zero(next_is_real.clone());
-
-        // Ensure that the last real row is either a finalize or a compress output row.
-        builder
-            .when_transition()
-            .when(is_real.clone())
-            .when_not(next_is_real.clone())
-            .assert_one(local_control_flow.is_finalize + local_control_flow.is_compress_output);
-        builder
-            .when_last_row()
-            .when(is_real)
-            .assert_one(local_control_flow.is_finalize + local_control_flow.is_compress_output);
-
-        // Apply control flow contraints for compress syscall.
-        {
-            let mut compress_syscall_builder =
-                builder.when(local_control_flow.is_compress * local_control_flow.is_syscall);
-
-            // Every compress syscall row must input, do the permutation, and not output.
-            compress_syscall_builder.assert_one(local_control_flow.is_input);
-            compress_syscall_builder.assert_one(local_control_flow.do_perm);
-            compress_syscall_builder.assert_zero(local_control_flow.is_output);
-
-            // Row right after the compress syscall must be a compress output.
-            compress_syscall_builder
-                .when_transition()
-                .assert_one(next_control_flow.is_compress_output);
-
-            let mut compress_output_builder = builder.when(local_control_flow.is_compress_output);
-            // Every compress output row must not do the permutation and not input.
-            compress_output_builder.assert_zero(local_control_flow.is_syscall);
-            compress_output_builder.assert_zero(local_control_flow.is_input);
-            compress_output_builder.assert_zero(local_control_flow.do_perm);
-            compress_output_builder.assert_one(local_control_flow.is_compress_output);
-
-            // Next row is a syscall row and not a finalize syscall.
-            compress_output_builder
-                .when(next_is_real.clone())
-                .assert_one(next_control_flow.is_syscall);
-            compress_output_builder
-                .when(next_is_real.clone())
-                .assert_zero(next_control_flow.is_finalize);
-        }
-
-        // Apply control flow constraints for absorb.
-        {
-            let mut absorb_builder = builder.when(local_control_flow.is_absorb);
-
-            // Every absorb syscall row must input and not output.
-            absorb_builder.assert_one(local_control_flow.is_input);
-            absorb_builder.assert_zero(local_control_flow.is_output);
-
-            // Verify the is_absorb_no_perm flag.
-            absorb_builder.assert_eq(
-                local_control_flow.is_absorb_no_perm,
-                local_control_flow.is_absorb * (AB::Expr::one() - local_control_flow.do_perm),
-            );
-
-            // Every row right after the absorb syscall must either be an absorb or finalize.
-            absorb_builder
-                .when_transition()
-                .assert_one(next_control_flow.is_absorb + next_control_flow.is_finalize);
-        }
-
-        // Apply control flow constraints for finalize.
-        {
-            let mut finalize_builder = builder.when(local_control_flow.is_finalize);
-
-            // Every finalize row must be a syscall, not an input, an output, and not a permutation.
-            finalize_builder.assert_one(local_control_flow.is_syscall);
-            finalize_builder.assert_zero(local_control_flow.is_input);
-            finalize_builder.assert_one(local_control_flow.is_output);
-
-            // Every next real row after finalize must be either a compress or absorb and must be a syscall.
-            finalize_builder
-                .when_transition()
-                .when(next_is_real.clone())
-                .assert_one(next_control_flow.is_compress + next_control_flow.is_absorb);
-            finalize_builder
-                .when_transition()
-                .when(next_is_real)
-                .assert_one(next_control_flow.is_syscall);
         }
     }
 

@@ -29,7 +29,7 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
         // This is a no-op.
     }
 
-    #[instrument(name = "generate poseidon2 trace", level = "debug", skip_all, fields(rows = input.poseidon2_events.len()))]
+    #[instrument(name = "generate poseidon2 trace", level = "debug", skip_all, fields(rows = input.poseidon2_compress_events.len()))]
     fn generate_trace(
         &self,
         input: &ExecutionRecord<F>,
@@ -196,6 +196,6 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
     }
 
     fn included(&self, record: &Self::Record) -> bool {
-        !record.poseidon2_events.is_empty()
+        !record.poseidon2_compress_events.is_empty()
     }
 }

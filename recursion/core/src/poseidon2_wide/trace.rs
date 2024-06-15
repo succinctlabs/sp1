@@ -7,10 +7,11 @@ use sp1_core::{air::MachineAir, utils::pad_rows_fixed};
 use sp1_primitives::RC_16_30_U32;
 use tracing::instrument;
 
-use crate::poseidon2::{Poseidon2AbsorbEvent, Poseidon2CompressEvent, Poseidon2FinalizeEvent};
+use crate::poseidon2::{
+    Poseidon2AbsorbEvent, Poseidon2CompressEvent, Poseidon2FinalizeEvent, Poseidon2HashEvent,
+};
 use crate::poseidon2_wide::columns::permutation::permutation_mut;
 use crate::{
-    poseidon2::Poseidon2Event,
     poseidon2_wide::{
         columns::Poseidon2Degree3, external_linear_layer, NUM_EXTERNAL_ROUNDS, WIDTH,
     },
@@ -35,7 +36,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
         // This is a no-op.
     }
 
-    #[instrument(name = "generate poseidon2 wide trace", level = "debug", skip_all, fields(rows = input.poseidon2_events.len()))]
+    #[instrument(name = "generate poseidon2 wide trace", level = "debug", skip_all, fields(rows = input.poseidon2_compress_events.len()))]
     fn generate_trace(
         &self,
         input: &ExecutionRecord<F>,
@@ -45,20 +46,21 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
 
         let num_columns = <Poseidon2WideChip<DEGREE> as BaseAir<F>>::width(self);
 
-        for event in &input.poseidon2_events {
+        // First process all of the hash events.
+        for event in &input.poseidon2_hash_events {
             match event {
-                Poseidon2Event::Compress(compress_event) => {
-                    rows.extend(self.populate_compress_event(compress_event, num_columns));
-                }
-
-                Poseidon2Event::Absorb(absorb_event) => {
+                Poseidon2HashEvent::Absorb(absorb_event) => {
                     rows.extend(self.populate_absorb_event(absorb_event, num_columns));
                 }
 
-                Poseidon2Event::Finalize(finalize_event) => {
+                Poseidon2HashEvent::Finalize(finalize_event) => {
                     rows.push(self.populate_finalize_event(finalize_event, num_columns));
                 }
             }
+        }
+
+        for event in &input.poseidon2_compress_events {
+            rows.extend(self.populate_compress_event(event, num_columns));
         }
 
         // Pad the trace to a power of two.
@@ -87,7 +89,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
     }
 
     fn included(&self, record: &Self::Record) -> bool {
-        !record.poseidon2_events.is_empty()
+        !record.poseidon2_compress_events.is_empty()
     }
 }
 
@@ -264,10 +266,12 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
 
             {
                 let mut cols = self.convert_mut(&mut absorb_row);
-                let absorb_workspace = cols.opcode_workspace_mut().absorb_mut();
+                let absorb_workspace = cols.opcode_workspace_mut().hash_mut();
 
                 absorb_workspace.previous_state = absorb_iter.previous_state;
                 absorb_workspace.state = absorb_iter.state;
+                absorb_workspace.is_first_hash_row =
+                    F::from_bool(iter_num == 0 && absorb_event.is_hash_first_absorb);
             }
 
             self.populate_permutation(
@@ -320,7 +324,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
 
         {
             let mut cols = self.convert_mut(&mut finalize_row);
-            let finalize_workspace = cols.opcode_workspace_mut().absorb_mut();
+            let finalize_workspace = cols.opcode_workspace_mut().hash_mut();
 
             finalize_workspace.previous_state = finalize_event.previous_state;
             finalize_workspace.state = finalize_event.state;

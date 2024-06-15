@@ -26,8 +26,8 @@ use crate::cpu::CpuEvent;
 use crate::fri_fold::FriFoldEvent;
 use crate::memory::MemoryRecord;
 use crate::poseidon2::{
-    Poseidon2AbsorbEvent, Poseidon2AbsorbIteration, Poseidon2CompressEvent, Poseidon2Event,
-    Poseidon2FinalizeEvent,
+    Poseidon2AbsorbEvent, Poseidon2AbsorbIteration, Poseidon2CompressEvent, Poseidon2FinalizeEvent,
+    Poseidon2HashEvent,
 };
 use crate::poseidon2_wide::RATE;
 use crate::range_check::{RangeCheckEvent, RangeCheckOpcode};
@@ -139,6 +139,8 @@ pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
 
     p2_hash_state_cursor: usize,
 
+    p2_current_hash_num: Option<F>,
+
     num_perms: usize,
 
     num_absorb_rows: usize,
@@ -195,6 +197,7 @@ where
             cycle_tracker: HashMap::new(),
             p2_hash_state: [F::zero(); PERMUTATION_WIDTH],
             p2_hash_state_cursor: 0,
+            p2_current_hash_num: None,
             num_perms: 0,
             num_absorb_rows: 0,
             num_finalizes: 0,
@@ -230,6 +233,7 @@ where
             cycle_tracker: HashMap::new(),
             p2_hash_state: [F::zero(); PERMUTATION_WIDTH],
             p2_hash_state_cursor: 0,
+            p2_current_hash_num: None,
             num_perms: 0,
             num_absorb_rows: 0,
             num_finalizes: 0,
@@ -705,8 +709,9 @@ where
 
                     self.num_perms += 1;
 
-                    self.record.poseidon2_events.push(Poseidon2Event::Compress(
-                        Poseidon2CompressEvent {
+                    self.record
+                        .poseidon2_compress_events
+                        .push(Poseidon2CompressEvent {
                             clk: timestamp,
                             dst,
                             left,
@@ -716,8 +721,7 @@ where
                             input_records,
                             result_records: result_records.try_into().unwrap(),
                             dummy_output_permutation,
-                        },
-                    ));
+                        });
 
                     (a, b, c) = (a_val, b_val, c_val);
                 }
@@ -785,15 +789,25 @@ where
                         });
                     }
 
-                    self.record.poseidon2_events.push(Poseidon2Event::Absorb(
-                        Poseidon2AbsorbEvent {
+                    let is_hash_first_absorb = if self.p2_current_hash_num.is_none()
+                        || self.p2_current_hash_num.unwrap() != p2_hash_num
+                    {
+                        self.p2_current_hash_num = Some(p2_hash_num);
+                        true
+                    } else {
+                        false
+                    };
+
+                    self.record
+                        .poseidon2_hash_events
+                        .push(Poseidon2HashEvent::Absorb(Poseidon2AbsorbEvent {
                             clk: timestamp,
                             hash_num: p2_hash_num,
                             input_ptr,
                             input_len,
                             absorb_iterations,
-                        },
-                    ));
+                            is_hash_first_absorb,
+                        }));
 
                     (a, b, c) = (a_val, b_val, c_val);
                 }
@@ -820,8 +834,9 @@ where
                         output_records.push(self.mw(output_ptr + i_f, state[i], timestamp));
                     });
 
-                    self.record.poseidon2_events.push(Poseidon2Event::Finalize(
-                        Poseidon2FinalizeEvent {
+                    self.record
+                        .poseidon2_hash_events
+                        .push(Poseidon2HashEvent::Finalize(Poseidon2FinalizeEvent {
                             clk: timestamp,
                             hash_num: p2_hash_num,
                             output_ptr,
@@ -831,8 +846,7 @@ where
                             previous_state: self.p2_hash_state,
                             state,
                             output_records: array::from_fn(|i| output_records[i]),
-                        },
-                    ));
+                        }));
 
                     self.p2_hash_state_cursor = 0;
                     self.p2_hash_state = [F::zero(); PERMUTATION_WIDTH];

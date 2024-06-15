@@ -73,7 +73,7 @@ pub(crate) fn internal_linear_layer<F: AbstractField>(state: &mut [F; WIDTH]) {
 mod tests {
     use std::time::Instant;
 
-    use crate::poseidon2::{Poseidon2CompressEvent, Poseidon2Event};
+    use crate::poseidon2::Poseidon2CompressEvent;
     use crate::runtime::ExecutionRecord;
     use itertools::Itertools;
     use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
@@ -115,9 +115,9 @@ mod tests {
 
         let mut input_exec = ExecutionRecord::<BabyBear>::default();
         for (input, output) in test_inputs.clone().into_iter().zip_eq(expected_outputs) {
-            input_exec.poseidon2_events.push(Poseidon2Event::Compress(
-                Poseidon2CompressEvent::dummy_from_input(input, output),
-            ));
+            input_exec
+                .poseidon2_compress_events
+                .push(Poseidon2CompressEvent::dummy_from_input(input, output));
         }
 
         // Generate trace will assert for the expected outputs.
@@ -140,9 +140,9 @@ mod tests {
         };
         let mut input_exec = ExecutionRecord::<BabyBear>::default();
         for (input, output) in inputs.into_iter().zip_eq(outputs) {
-            input_exec.poseidon2_events.push(Poseidon2Event::Compress(
-                Poseidon2CompressEvent::dummy_from_input(input, output),
-            ));
+            input_exec
+                .poseidon2_compress_events
+                .push(Poseidon2CompressEvent::dummy_from_input(input, output));
         }
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());

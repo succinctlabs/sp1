@@ -90,7 +90,7 @@ impl<T> IntoIterator for TracedVec<T> {
 /// A builder for the DSL.
 ///
 /// Can compile to both assembly and a set of constraints.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct Builder<C: Config> {
     pub(crate) felt_count: u32,
     pub(crate) ext_count: u32,
@@ -100,9 +100,27 @@ pub struct Builder<C: Config> {
     pub(crate) witness_var_count: u32,
     pub(crate) witness_felt_count: u32,
     pub(crate) witness_ext_count: u32,
-    pub(crate) p2_hash_num: Option<Var<C::N>>,
+    pub(crate) p2_hash_num: Var<C::N>,
     pub(crate) debug: bool,
     pub(crate) is_sub_builder: bool,
+}
+
+impl<C: Config> Default for Builder<C> {
+    fn default() -> Self {
+        Self {
+            felt_count: 0,
+            ext_count: 0,
+            var_count: 1,
+            witness_var_count: 0,
+            witness_felt_count: 0,
+            witness_ext_count: 0,
+            operations: Default::default(),
+            nb_public_values: None,
+            p2_hash_num: Var::new(0),
+            debug: false,
+            is_sub_builder: false,
+        }
+    }
 }
 
 impl<C: Config> Builder<C> {
@@ -112,7 +130,7 @@ impl<C: Config> Builder<C> {
         felt_count: u32,
         ext_count: u32,
         nb_public_values: Option<Var<C::N>>,
-        p2_hash_num: Option<Var<C::N>>,
+        p2_hash_num: Var<C::N>,
         debug: bool,
     ) -> Self {
         Self {
@@ -524,6 +542,8 @@ impl<'a, C: Config> IfBuilder<'a, C> {
             self.builder.debug,
         );
         f(&mut f_builder);
+        self.builder.p2_hash_num = f_builder.p2_hash_num;
+
         let then_instructions = f_builder.operations;
 
         // Dispatch instructions to the correct conditional block.
@@ -575,6 +595,8 @@ impl<'a, C: Config> IfBuilder<'a, C> {
 
         // Execute the `then` and `else_then` blocks and collect the instructions.
         then_f(&mut then_builder);
+        self.builder.p2_hash_num = then_builder.p2_hash_num;
+
         let then_instructions = then_builder.operations;
 
         let mut else_builder = Builder::<C>::new_sub_builder(
@@ -586,6 +608,8 @@ impl<'a, C: Config> IfBuilder<'a, C> {
             self.builder.debug,
         );
         else_f(&mut else_builder);
+        self.builder.p2_hash_num = else_builder.p2_hash_num;
+
         let else_instructions = else_builder.operations;
 
         // Dispatch instructions to the correct conditional block.
@@ -722,6 +746,7 @@ impl<'a, C: Config> RangeBuilder<'a, C> {
         );
 
         f(loop_variable, &mut loop_body_builder);
+        self.builder.p2_hash_num = loop_body_builder.p2_hash_num;
 
         let loop_instructions = loop_body_builder.operations;
 
