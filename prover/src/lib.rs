@@ -832,13 +832,7 @@ mod tests {
 
         tracing::info!("initializing prover");
         let prover = SP1Prover::new();
-        let opts = SP1ProverOpts {
-            core_opts: SP1CoreOpts {
-                shard_size: 1 << 12,
-                ..Default::default()
-            },
-            recursion_opts: SP1CoreOpts::default(),
-        };
+        let opts = SP1ProverOpts::default();
 
         tracing::info!("setup keccak elf");
         let (keccak_pk, keccak_vk) = prover.setup(keccak_elf);
