@@ -45,8 +45,14 @@ pub struct HashWorkspace<T: Copy> {
     pub state_cursor_is_zero: IsZeroOperation<T>,
 
     // Absorb
-    pub num_consumed: T, // Should be equal to min(remaining_len, WIDTH/2 - state_cursor)
-    pub num_remaining: T, // Should be equal to previous_remaining_len - 8
+    pub is_first_hash_row: T, // Is the first row of a hash invocation.
+    pub num_consumed: T,      // Should be equal to min(remaining_len, WIDTH/2 - state_cursor)
+    pub num_remaining_rows: T,
+    pub num_remaining_rows_is_zero: IsZeroOperation<T>,
+    pub last_row_num_consumed: T,
+    pub range_check_bitmap: [T; 3],
 
-    pub is_first_hash_row: T, // Only used for absorb
+    pub is_syscall_is_not_last_row: T,
+    pub is_syscall_is_last_row: T,
+    pub not_syscall_not_last_row: T,
 }

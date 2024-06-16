@@ -68,6 +68,8 @@ pub struct Poseidon2AbsorbIteration<F> {
     pub previous_state: [F; WIDTH],
     pub state: [F; WIDTH],
     pub do_perm: bool,
+    pub num_consumed: usize,
+    pub remaining_len: usize,
 }
 
 #[derive(Debug, Clone)]

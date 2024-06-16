@@ -741,6 +741,8 @@ where
                     let mut addr_iter = input_ptr;
                     let mut start_addr = addr_iter;
                     let mut previous_state = self.p2_hash_state;
+                    let mut num_consumed = 0;
+                    let mut remaining_len = input_len;
                     let permuter = self.perm.as_ref().unwrap().clone();
                     for _ in 0..input_len {
                         let (input_record, input_val) = self.mr(addr_iter, timestamp);
@@ -749,6 +751,7 @@ where
                         self.p2_hash_state[self.p2_hash_state_cursor] = input_val.0[0];
                         self.p2_hash_state_cursor += 1;
                         addr_iter += F::one();
+                        num_consumed += 1;
 
                         if self.p2_hash_state_cursor == RATE {
                             let perm_input = self.p2_hash_state;
@@ -763,13 +766,17 @@ where
                                 previous_state,
                                 state: self.p2_hash_state,
                                 do_perm: true,
+                                num_consumed,
+                                remaining_len,
                             });
 
+                            remaining_len -= num_consumed;
                             previous_state = self.p2_hash_state;
                             input_records = Vec::new();
                             self.p2_hash_state_cursor = 0;
                             state_cursor = 0;
                             start_addr = addr_iter;
+                            num_consumed = 0;
                         }
                     }
 
@@ -786,6 +793,8 @@ where
                             previous_state,
                             state: self.p2_hash_state,
                             do_perm: false,
+                            num_consumed,
+                            remaining_len,
                         });
                     }
 

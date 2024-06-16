@@ -18,6 +18,7 @@ use crate::{
     runtime::{ExecutionRecord, RecursionProgram},
 };
 
+use super::RATE;
 use super::{
     columns::{Poseidon2Degree9, Poseidon2Mut},
     internal_linear_layer, Poseidon2WideChip, NUM_INTERNAL_ROUNDS,
@@ -227,15 +228,19 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
     ) -> Vec<Vec<F>> {
         let mut absorb_rows = Vec::new();
 
+        let mut last_row_num_consumed = 0;
+        let num_absorb_rows = absorb_event.absorb_iterations.len();
         for (iter_num, absorb_iter) in absorb_event.absorb_iterations.iter().enumerate() {
             let mut absorb_row = vec![F::zero(); num_columns];
+            let is_syscall_row = iter_num == 0;
+            let is_last_row = iter_num == num_absorb_rows - 1;
 
             {
                 let mut cols = self.convert_mut(&mut absorb_row);
                 let control_flow = cols.control_flow_mut();
 
                 control_flow.is_absorb = F::one();
-                control_flow.is_syscall = F::from_bool(iter_num == 0);
+                control_flow.is_syscall = F::from_bool(is_syscall_row);
                 control_flow.do_perm = F::from_bool(absorb_iter.do_perm);
                 control_flow.is_absorb_no_perm = F::from_bool(!absorb_iter.do_perm);
             }
@@ -265,8 +270,65 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                 let mut cols = self.convert_mut(&mut absorb_row);
                 let absorb_workspace = cols.opcode_workspace_mut().hash_mut();
 
-                absorb_workspace.previous_state = absorb_iter.previous_state;
+                let num_remainined_rows = num_absorb_rows - 1 - iter_num;
+                absorb_workspace.num_remaining_rows = F::from_canonical_usize(num_remainined_rows);
+
+                // Calculate last_row_num_consumed.
+                // For absorb calls that span multiple rows (e.g. the last row is not the syscall row),
+                // last_row_num_consumed = (input_len + state_cursor) % 8 at the syscall row.
+                // For absorb calls that are only one row, last_row_num_consumed = absorb_event.input_len.
+                if is_syscall_row && !is_last_row {
+                    last_row_num_consumed =
+                        (absorb_event.input_len + absorb_iter.state_cursor) % RATE;
+                    if last_row_num_consumed == 0 {
+                        last_row_num_consumed = 8;
+                    }
+
+                    (0..3).for_each(|i| {
+                        absorb_workspace.range_check_bitmap[i] =
+                            F::from_bool((last_row_num_consumed - 1) & (1 << i) == (1 << i))
+                    });
+                }
+
+                if is_syscall_row && is_last_row {
+                    last_row_num_consumed = absorb_event.input_len;
+
+                    (0..3).for_each(|i| {
+                        absorb_workspace.range_check_bitmap[i] = F::from_bool(
+                            (absorb_iter.state_cursor + absorb_event.input_len - 1) & (1 << i)
+                                == (1 << i),
+                        )
+                    });
+                };
+
+                absorb_workspace.last_row_num_consumed =
+                    F::from_canonical_usize(last_row_num_consumed);
+
+                absorb_workspace
+                    .num_remaining_rows_is_zero
+                    .populate(num_remainined_rows as u32);
+
+                absorb_workspace.is_syscall_is_not_last_row =
+                    F::from_bool(is_syscall_row && !is_last_row);
+                absorb_workspace.is_syscall_is_last_row =
+                    F::from_bool(is_syscall_row && is_last_row);
+                absorb_workspace.not_syscall_not_last_row =
+                    F::from_bool(!is_syscall_row && !is_last_row);
+
+                absorb_workspace.num_consumed = F::from_canonical_usize(absorb_iter.num_consumed);
+                if is_last_row {
+                    if absorb_iter.num_consumed != last_row_num_consumed {
+                        println!("event is {:?}", absorb_event);
+                    }
+                    assert_eq!(absorb_iter.num_consumed, last_row_num_consumed);
+                }
+
                 absorb_workspace.state = absorb_iter.state;
+                absorb_workspace.previous_state = absorb_iter.previous_state;
+                absorb_workspace.state_cursor = F::from_canonical_usize(absorb_iter.state_cursor);
+                absorb_workspace
+                    .state_cursor_is_zero
+                    .populate(absorb_iter.state_cursor as u32);
                 absorb_workspace.is_first_hash_row =
                     F::from_bool(iter_num == 0 && absorb_event.is_hash_first_absorb);
             }
