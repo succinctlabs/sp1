@@ -179,6 +179,8 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         let local_hash_workspace = local_opcode_workspace.hash();
         let next_hash_workspace = next_opcode_workspace.hash();
         let is_last_row = local_hash_workspace.num_remaining_rows_is_zero.result;
+        let last_row_ending_cursor_is_seven =
+            local_hash_workspace.last_row_ending_cursor_is_seven.result;
 
         let mut absorb_builder = builder.when(local_control_flow.is_absorb);
 
@@ -190,101 +192,98 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             local_hash_workspace.not_syscall_not_last_row,
             (AB::Expr::one() - local_control_flow.is_syscall) * (AB::Expr::one() - is_last_row),
         );
-
         absorb_builder.assert_eq(
             local_hash_workspace.is_syscall_is_last_row,
             local_control_flow.is_syscall * is_last_row,
+        );
+        absorb_builder.assert_eq(
+            local_hash_workspace.not_syscall_is_last_row,
+            (AB::Expr::one() - local_control_flow.is_syscall) * is_last_row,
+        );
+        absorb_builder.assert_eq(
+            local_hash_workspace.is_last_row_ending_cursor_is_seven,
+            is_last_row * last_row_ending_cursor_is_seven,
+        );
+        absorb_builder.assert_eq(
+            local_hash_workspace.is_last_row_ending_cursor_not_seven,
+            is_last_row * (AB::Expr::one() - last_row_ending_cursor_is_seven),
         );
 
         // Ensure correct value of num_remaining_rows, last_row_num_consumed, and num_remaining_rows_is_zero.
         {
             let mut absorb_builder = builder.when(local_control_flow.is_absorb);
 
-            {
-                // For absorb calls that span multiple rows syscall rows,
-                // make sure that num_remaining_rows and last_row_num_consumed is correct.
-                absorb_builder
-                    .when(local_hash_workspace.is_syscall_is_not_last_row)
-                    .assert_eq(
-                        local_syscall_params.absorb().len + local_hash_workspace.state_cursor,
-                        local_hash_workspace.num_remaining_rows
-                            * AB::Expr::from_canonical_usize(RATE)
-                            + local_hash_workspace.last_row_num_consumed,
-                    );
-
-                // Range check last_run_num_consumed to be between 0 and 7, inclusive.
-                (0..3).for_each(|i| {
-                    absorb_builder.assert_bool(local_hash_workspace.range_check_bitmap[i])
-                });
-                let expected_last_row_num_consumed: AB::Expr = local_hash_workspace
-                    .range_check_bitmap
-                    .iter()
-                    .zip(0..3)
-                    .map(|(bit, exp)| *bit * AB::Expr::from_canonical_u32(2u32.pow(exp)))
-                    .sum::<AB::Expr>()
-                    + AB::Expr::one();
-                absorb_builder
-                    .when(local_hash_workspace.is_syscall_is_not_last_row)
-                    .assert_eq(
-                        local_hash_workspace.last_row_num_consumed,
-                        expected_last_row_num_consumed,
-                    );
-            }
-
-            {
-                // For absorb calls that are only one row, make sure that the last_row_num_consumed is
-                // the equal to the input_len.
-                absorb_builder
-                    .when(local_hash_workspace.is_syscall_is_last_row)
-                    .assert_eq(
-                        local_syscall_params.absorb().len,
-                        local_hash_workspace.last_row_num_consumed,
-                    );
-
-                // Range check input_len + state_cursor to be between 0 and 7, inclusive
-                (0..3).for_each(|i| {
-                    absorb_builder.assert_bool(local_hash_workspace.range_check_bitmap[i])
-                });
-                let expected_value: AB::Expr = local_hash_workspace
-                    .range_check_bitmap
-                    .iter()
-                    .zip(0..3)
-                    .map(|(bit, exp)| *bit * AB::Expr::from_canonical_u32(2u32.pow(exp)))
-                    .sum::<AB::Expr>();
-                absorb_builder
-                    .when(local_hash_workspace.is_syscall_is_last_row)
-                    .assert_eq(
-                        local_syscall_params.absorb().len + local_hash_workspace.state_cursor
-                            - AB::Expr::one(),
-                        expected_value,
-                    );
-            }
-
+            // For absorb calls that span multiple rows syscall rows,
+            // make sure that num_remaining_rows and last_row_num_consumed is correct.
             absorb_builder
-                .when(local_hash_workspace.is_syscall_is_last_row)
+                .when(local_control_flow.is_syscall)
                 .assert_eq(
-                    local_syscall_params.absorb().len,
-                    local_hash_workspace.last_row_num_consumed,
+                    local_hash_workspace.state_cursor + local_syscall_params.absorb().len
+                        - AB::Expr::one(),
+                    local_hash_workspace.num_remaining_rows * AB::Expr::from_canonical_usize(RATE)
+                        + local_hash_workspace.last_row_ending_cursor,
                 );
 
+            // Range check that last_row_ending_cursor is between 0 and 7, inclusive.
+            (0..3).for_each(|i| {
+                absorb_builder.assert_bool(local_hash_workspace.last_row_ending_cursor_bitmap[i])
+            });
+            let expected_last_row_ending_cursor: AB::Expr = local_hash_workspace
+                .last_row_ending_cursor_bitmap
+                .iter()
+                .zip(0..3)
+                .map(|(bit, exp)| *bit * AB::Expr::from_canonical_u32(2u32.pow(exp)))
+                .sum::<AB::Expr>();
+            absorb_builder
+                .when(local_hash_workspace.is_syscall_is_not_last_row)
+                .assert_eq(
+                    local_hash_workspace.last_row_ending_cursor,
+                    expected_last_row_ending_cursor,
+                );
+
+            // Verify the next row's num_remaining_rows column for this absorb call.
             absorb_builder
                 .when_not(local_hash_workspace.num_remaining_rows_is_zero.result)
                 .assert_eq(
                     next_hash_workspace.num_remaining_rows,
                     local_hash_workspace.num_remaining_rows - AB::Expr::one(),
                 );
+
+            // Copy down the last_row_ending_cursor value within the absorb call.
             absorb_builder
                 .when_not(local_hash_workspace.num_remaining_rows_is_zero.result)
                 .assert_eq(
-                    next_hash_workspace.last_row_num_consumed,
-                    local_hash_workspace.last_row_num_consumed,
+                    next_hash_workspace.last_row_ending_cursor,
+                    local_hash_workspace.last_row_ending_cursor,
                 );
+
+            // Ensure that at the last row, the next call is a syscall.
             absorb_builder
                 .when(local_hash_workspace.num_remaining_rows_is_zero.result)
                 .assert_one(next_control_flow.is_syscall);
 
+            // Verify the next syscall's state cursor.  If last_row_ending_cursor == 7, state_cursor' == 0,
+            // else state_cursor' = state_cursor + 1.
+            absorb_builder
+                .when(local_hash_workspace.is_last_row_ending_cursor_is_seven)
+                .assert_zero(next_hash_workspace.state_cursor);
+
+            absorb_builder
+                .when(local_hash_workspace.is_last_row_ending_cursor_not_seven)
+                .assert_eq(
+                    next_hash_workspace.state_cursor,
+                    local_hash_workspace.last_row_ending_cursor + AB::Expr::one(),
+                );
+
             // Drop absorb_builder so that builder can be used in the IsZeroOperation eval.
             drop(absorb_builder);
+            IsZeroOperation::<AB::F>::eval(
+                builder,
+                local_hash_workspace.last_row_ending_cursor - AB::Expr::from_canonical_usize(7),
+                local_hash_workspace.last_row_ending_cursor_is_seven,
+                local_control_flow.is_absorb.into(),
+            );
+
             IsZeroOperation::<AB::F>::eval(
                 builder,
                 local_hash_workspace.num_remaining_rows.into(),
@@ -293,117 +292,46 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             );
         }
 
-        // Ensure correct num_consumed.
+        // Ensure correct do_perm flag
         {
             let mut absorb_builder = builder.when(local_control_flow.is_absorb);
 
-            // Verify the materialized control flow flags.
-            absorb_builder.assert_eq(
-                local_hash_workspace.is_syscall_is_last_row,
-                local_control_flow.is_syscall * is_last_row,
-            );
-            absorb_builder.assert_eq(
-                local_hash_workspace.not_syscall_not_last_row,
-                (AB::Expr::one() - local_control_flow.is_syscall) * (AB::Expr::one() - is_last_row),
-            );
+            absorb_builder
+                .when(local_hash_workspace.is_syscall_is_not_last_row)
+                .assert_one(local_control_flow.do_perm);
 
             absorb_builder
                 .when(local_hash_workspace.not_syscall_not_last_row)
-                .assert_eq(
-                    local_hash_workspace.num_consumed,
-                    AB::Expr::from_canonical_usize(RATE),
-                );
+                .assert_one(local_control_flow.do_perm);
+
             absorb_builder.when(is_last_row).assert_eq(
-                local_hash_workspace.num_consumed,
-                local_hash_workspace.last_row_num_consumed,
+                local_control_flow.do_perm,
+                local_hash_workspace.last_row_ending_cursor_is_seven.result,
             );
         }
 
-        // Ensure correct state and state_cursor value.  // TODO:  Should state be constrained here?
-        // {
-        //     absorb_builder
-        //         .when(local_hash_workspace.is_first_hash_row)
-        //         .assert_zero(local_hash_workspace.state_cursor);
-        //     absorb_builder
-        //         .when(local_hash_workspace.is_first_hash_row)
-        //         .assert_all_zero(local_hash_workspace.state);
-        //     // TODO ensure correct state_cursor transition.
-        // }
+        // Apply control flow constraints for finalize.
+        {
+            let mut finalize_builder = builder.when(local_control_flow.is_finalize);
 
-        // // Ensure correct max_consumed.
-        // {
-        //     // On non-last absorb rows, ensure that num_consumed == max_consumed.
-        //     let max_consumed =
-        //         AB::Expr::from_canonical_usize(RATE) - local_hash_workspace.state_cursor;
-        //     absorb_builder
-        //         .when_not(local_hash_workspace.is_last_absorb_row)
-        //         .assert_eq(local_hash_workspace.num_consumed, max_consumed);
+            // Every finalize row must be a syscall, not an input, an output, and not a permutation.
+            finalize_builder.assert_one(local_control_flow.is_syscall);
 
-        //     // On last absorb rows, ensure that num_consumed == remaining len and that the remaining_len <= max_consumed.
-        //     absorb_builder
-        //         .when(local_hash_workspace.is_last_absorb_row)
-        //         .assert_eq(
-        //             local_hash_workspace.remaining_len,
-        //             local_hash_workspace.num_consumed,
-        //         );
+            // Every next real row after finalize must be either a compress or absorb and must be a syscall.
+            finalize_builder
+                .when_transition()
+                .when(next_is_real.clone())
+                .assert_one(next_control_flow.is_compress + next_control_flow.is_absorb);
+            finalize_builder
+                .when_transition()
+                .when(next_is_real.clone())
+                .assert_one(next_control_flow.is_syscall);
 
-        //     // absorb_builder
-        //     //     .when(local_hash_workspace.is_last_absorb_row)
-        //     //     .assert_lte(
-        //     //         local_hash_workspace.remaining_len,
-        //     //         local_hash_workspace.remaining_len_bitmap,
-        //     //         max_consumed,
-        //     //         local_hash_workspace.max_consumed_bitmap,
-        //     //     );
-        // }
-
-        // // Constrain the is_last_absorb_row column.
-        // absorb_builder
-        //     .when(local_opcode_workspace.hash().is_last_absorb_row)
-        //     .assert_one(next_control_flow.is_finalize);
-
-        // // Apply control flow constraints for absorb.
-        // {
-        //     let mut absorb_builder = builder.when(local_control_flow.is_absorb);
-
-        //     // Contrain remaining len columns.
-        //     // For every absorb syscall, is should be
-        //     absorb_builder
-        //         .when(local_control_flow.is_syscall)
-        //         .assert_eq(
-        //             local_opcode_workspace.hash().remaining_len,
-        //             local_syscall_params.absorb().len,
-        //         );
-
-        //     // Verify the is_absorb_no_perm flag.
-        //     absorb_builder.assert_eq(
-        //         local_control_flow.is_absorb_no_perm,
-        //         local_control_flow.is_absorb * (AB::Expr::one() - local_control_flow.do_perm),
-        //     );
-
-        //     // Every row right after the absorb syscall must either be an absorb or finalize.
-        //     absorb_builder
-        //         .when_transition()
-        //         .assert_one(next_control_flow.is_absorb + next_control_flow.is_finalize);
-        // }
-
-        // // Apply control flow constraints for finalize.
-        // {
-        //     let mut finalize_builder = builder.when(local_control_flow.is_finalize);
-
-        //     // Every finalize row must be a syscall, not an input, an output, and not a permutation.
-        //     finalize_builder.assert_one(local_control_flow.is_syscall);
-
-        //     // Every next real row after finalize must be either a compress or absorb and must be a syscall.
-        //     finalize_builder
-        //         .when_transition()
-        //         .when(next_is_real.clone())
-        //         .assert_one(next_control_flow.is_compress + next_control_flow.is_absorb);
-        //     finalize_builder
-        //         .when_transition()
-        //         .when(next_is_real.clone())
-        //         .assert_one(next_control_flow.is_syscall);
-        // }
+            finalize_builder.when(is_last_row).assert_eq(
+                local_control_flow.do_perm,
+                local_hash_workspace.last_row_ending_cursor_is_seven.result,
+            );
+        }
     }
 
     fn eval_compress_control_flow<AB: SP1RecursionAirBuilder>(

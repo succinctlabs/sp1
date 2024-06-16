@@ -92,5 +92,6 @@ pub struct Poseidon2FinalizeEvent<F> {
     pub perm_output: [F; WIDTH],
     pub previous_state: [F; WIDTH],
     pub state: [F; WIDTH],
+    pub state_cursor: usize,
     pub output_records: [MemoryRecord<F>; DIGEST_SIZE],
 }

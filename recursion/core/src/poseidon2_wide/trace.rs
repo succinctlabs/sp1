@@ -228,8 +228,9 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
     ) -> Vec<Vec<F>> {
         let mut absorb_rows = Vec::new();
 
-        let mut last_row_num_consumed = 0;
+        let mut last_row_ending_cursor = 0;
         let num_absorb_rows = absorb_event.absorb_iterations.len();
+
         for (iter_num, absorb_iter) in absorb_event.absorb_iterations.iter().enumerate() {
             let mut absorb_row = vec![F::zero(); num_columns];
             let is_syscall_row = iter_num == 0;
@@ -277,32 +278,25 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                 // For absorb calls that span multiple rows (e.g. the last row is not the syscall row),
                 // last_row_num_consumed = (input_len + state_cursor) % 8 at the syscall row.
                 // For absorb calls that are only one row, last_row_num_consumed = absorb_event.input_len.
-                if is_syscall_row && !is_last_row {
-                    last_row_num_consumed =
-                        (absorb_event.input_len + absorb_iter.state_cursor) % RATE;
-                    if last_row_num_consumed == 0 {
-                        last_row_num_consumed = 8;
-                    }
-
-                    (0..3).for_each(|i| {
-                        absorb_workspace.range_check_bitmap[i] =
-                            F::from_bool((last_row_num_consumed - 1) & (1 << i) == (1 << i))
-                    });
+                if is_syscall_row {
+                    last_row_ending_cursor =
+                        (absorb_iter.state_cursor + absorb_event.input_len - 1) % RATE;
                 }
 
-                if is_syscall_row && is_last_row {
-                    last_row_num_consumed = absorb_event.input_len;
+                absorb_workspace.last_row_ending_cursor =
+                    F::from_canonical_usize(last_row_ending_cursor);
 
-                    (0..3).for_each(|i| {
-                        absorb_workspace.range_check_bitmap[i] = F::from_bool(
-                            (absorb_iter.state_cursor + absorb_event.input_len - 1) & (1 << i)
-                                == (1 << i),
-                        )
-                    });
-                };
+                absorb_workspace
+                    .last_row_ending_cursor_is_seven
+                    .populate_from_field_element(
+                        F::from_canonical_usize(last_row_ending_cursor)
+                            - F::from_canonical_usize(7),
+                    );
 
-                absorb_workspace.last_row_num_consumed =
-                    F::from_canonical_usize(last_row_num_consumed);
+                (0..3).for_each(|i| {
+                    absorb_workspace.last_row_ending_cursor_bitmap[i] =
+                        F::from_bool((last_row_ending_cursor) & (1 << i) == (1 << i))
+                });
 
                 absorb_workspace
                     .num_remaining_rows_is_zero
@@ -314,21 +308,16 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                     F::from_bool(is_syscall_row && is_last_row);
                 absorb_workspace.not_syscall_not_last_row =
                     F::from_bool(!is_syscall_row && !is_last_row);
-
-                absorb_workspace.num_consumed = F::from_canonical_usize(absorb_iter.num_consumed);
-                if is_last_row {
-                    if absorb_iter.num_consumed != last_row_num_consumed {
-                        println!("event is {:?}", absorb_event);
-                    }
-                    assert_eq!(absorb_iter.num_consumed, last_row_num_consumed);
-                }
+                absorb_workspace.not_syscall_is_last_row =
+                    F::from_bool(!is_syscall_row && is_last_row);
+                absorb_workspace.is_last_row_ending_cursor_is_seven =
+                    F::from_bool(is_last_row && last_row_ending_cursor == 7);
+                absorb_workspace.is_last_row_ending_cursor_not_seven =
+                    F::from_bool(is_last_row && last_row_ending_cursor != 7);
 
                 absorb_workspace.state = absorb_iter.state;
                 absorb_workspace.previous_state = absorb_iter.previous_state;
                 absorb_workspace.state_cursor = F::from_canonical_usize(absorb_iter.state_cursor);
-                absorb_workspace
-                    .state_cursor_is_zero
-                    .populate(absorb_iter.state_cursor as u32);
                 absorb_workspace.is_first_hash_row =
                     F::from_bool(iter_num == 0 && absorb_event.is_hash_first_absorb);
             }
@@ -386,6 +375,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
 
             finalize_workspace.previous_state = finalize_event.previous_state;
             finalize_workspace.state = finalize_event.state;
+            finalize_workspace.state_cursor = F::from_canonical_usize(finalize_event.state_cursor);
         }
 
         self.populate_permutation(

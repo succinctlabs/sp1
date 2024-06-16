@@ -854,6 +854,7 @@ where
                             perm_output,
                             previous_state: self.p2_hash_state,
                             state,
+                            state_cursor: self.p2_hash_state_cursor,
                             output_records: array::from_fn(|i| output_records[i]),
                         }));
 
