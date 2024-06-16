@@ -70,7 +70,7 @@ impl NetworkProver {
 
         if NetworkClient::rpc_url() == DEFAULT_PROVER_NETWORK_RPC {
             log::info!(
-                "View in explorer: https://explorer.succinct.xyz/{}",
+                "View in explorer: https://explorer.succinct.xyz/proofrequest_{}",
                 proof_id
             );
         }
