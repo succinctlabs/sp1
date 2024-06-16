@@ -326,6 +326,16 @@ where
                 builder.assert_var_ne(index, C::N::from_canonical_usize(EMPTY));
             }
 
+            if chip.name() == "MemoryGlobalChip" {
+                builder.if_eq(shard, C::N::one()).then_or_else(
+                    |builder| {
+                        builder.assert_var_eq(index, C::N::from_canonical_usize(0));
+                    },
+                    |builder| {
+                        builder.assert_var_eq(index, C::N::from_canonical_usize(EMPTY));
+                    },
+                );
+            }
             if chip.name() == "MemoryInit" {
                 builder.if_eq(shard, C::N::one()).then_or_else(
                     |builder| {
