@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use p3_baby_bear::BabyBear;
 use sp1_core::runtime::SP1Context;
 use sp1_core::stark::StarkVerifyingKey;
-use sp1_core::utils::{SP1CoreOpts, SP1ProverOpts};
+use sp1_core::utils::SP1ProverOpts;
 use sp1_core::{io::SP1Stdin, stark::ShardProof};
 pub use sp1_recursion_circuit::stark::build_wrap_circuit;
 pub use sp1_recursion_circuit::witness::Witnessable;
