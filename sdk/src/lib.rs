@@ -149,10 +149,10 @@ impl ProverClient {
 
     /// Prepare to execute the given program on the given input (without generating a proof).
     /// The returned [action::Execute] may be configured via its methods before running.
-    /// To execute, call [action::Execute::run].
+    /// For example, calling [action::Execute::with_hook] registers hooks for execution.
     ///
-    /// Returns the public values and execution report of the program after it has been executed.
-    ///
+    /// To execute, call [action::Execute::run], which returns
+    /// the public values and execution report of the program after it has been executed.
     ///
     /// ### Examples
     /// ```no_run
@@ -177,9 +177,9 @@ impl ProverClient {
 
     /// Prepare to prove the execution of the given program with the given input in the default mode.
     /// The returned [action::Prove] may be configured via its methods before running.
-    /// To prove, call [action::Prove::run].
+    /// For example, calling [action::Prove::compress] sets the mode to compressed mode.
     ///
-    /// Calling [action::Prove::run] returns a proof of the program's execution.
+    /// To prove, call [action::Prove::run], which returns a proof of the program's execution.
     /// By default the proof generated will not be compressed to constant size.
     /// To create a more succinct proof, use the [Self::prove_compressed],
     /// [Self::prove_plonk], or [Self::prove_plonk] methods.
@@ -207,6 +207,7 @@ impl ProverClient {
     pub fn prove<'a>(&'a self, pk: &'a SP1ProvingKey, stdin: SP1Stdin) -> action::Prove<'a> {
         action::Prove::new(self.prover.as_ref(), pk, stdin)
     }
+
     /// Verifies that the given proof is valid and matches the given verification key produced by
     /// [Self::setup].
     ///
