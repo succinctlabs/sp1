@@ -37,9 +37,11 @@ func Verify(verifyCmdDataDir string, verifyCmdProof string, verifyCmdVkeyHash st
 
 	// Compute the public witness.
 	circuit := Circuit{
-		Vars:                 []frontend.Variable{},
-		Felts:                []babybear.Variable{},
-		Exts:                 []babybear.ExtensionVariable{},
+		// Prevent gnark from printing "ignoring uninitialized slice" by putting dummy values.
+		// The actual values don't matter because we only use the public witness here.
+		Vars:                 []frontend.Variable{frontend.Variable(0)},
+		Felts:                []babybear.Variable{babybear.Variable{}},
+		Exts:                 []babybear.ExtensionVariable{babybear.ExtensionVariable{}},
 		VkeyHash:             verifyCmdVkeyHash,
 		CommitedValuesDigest: verifyCmdCommitedValuesDigest,
 	}
