@@ -1,12 +1,14 @@
+use hashbrown::HashMap;
 use std::array;
 use std::borrow::BorrowMut;
-use std::collections::HashMap;
+use std::time::Instant;
 
 use p3_field::{PrimeField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_maybe_rayon::prelude::IntoParallelRefIterator;
 use p3_maybe_rayon::prelude::ParallelIterator;
 use p3_maybe_rayon::prelude::ParallelSlice;
+use p3_maybe_rayon::prelude::ParallelSliceMut;
 use tracing::instrument;
 
 use super::columns::{CPU_COL_MAP, NUM_CPU_COLS};
@@ -42,25 +44,26 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
         let mut new_blu_events = Vec::new();
 
         // Generate the trace rows for each event.
-        let mut rows_with_events = input
-            .cpu_events
-            .par_iter()
-            .map(|op: &CpuEvent| self.event_to_row::<F>(*op, &input.nonce_lookup))
-            .collect::<Vec<_>>();
+        let chunk_size = std::cmp::max(input.cpu_events.len() / num_cpus::get() * 4, 1);
+        let mut cpu_events = input.cpu_events.clone();
+        cpu_events.par_sort_unstable_by_key(|event| event.clk);
 
-        // No need to sort by the shard, since the cpu events are already partitioned by that.
-        rows_with_events.sort_unstable_by_key(|(event, _, _)| event[CPU_COL_MAP.clk]);
+        let (rows, events): (Vec<_>, Vec<_>) = cpu_events
+            .par_chunks(chunk_size)
+            .flat_map(|ops: &[CpuEvent]| {
+                ops.iter()
+                    .map(|op| self.event_to_row::<F>(*op, &input.nonce_lookup))
+                    .collect::<Vec<_>>()
+            })
+            .map(|(row, alu_events, blu_events)| (row, (alu_events, blu_events)))
+            .unzip();
 
-        let mut rows = Vec::<F>::new();
-        rows_with_events.into_iter().for_each(|row_with_events| {
-            let (row, alu_events, blu_events) = row_with_events;
-            rows.extend(row);
-            for (key, value) in alu_events {
+        events.into_iter().for_each(|event| {
+            let (alu_events, blu_events) = event;
+            for (key, value) in alu_events.into_iter() {
                 new_alu_events
                     .entry(key)
-                    .and_modify(|op_new_events: &mut Vec<AluEvent>| {
-                        op_new_events.extend(value.clone())
-                    })
+                    .and_modify(|op_new_events: &mut Vec<AluEvent>| op_new_events.extend(&value))
                     .or_insert(value);
             }
             new_blu_events.extend(blu_events);
@@ -68,14 +71,14 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
 
         // Add the dependency events to the shard.
         for (_, value) in new_alu_events.iter_mut() {
-            value.sort_unstable_by_key(|event| event.clk);
+            value.par_sort_unstable_by_key(|event| event.clk);
         }
-        new_blu_events.sort_unstable_by_key(|event| event.a1);
+        new_blu_events.par_sort_unstable_by_key(|event| event.a1);
         output.add_alu_events(new_alu_events);
         output.add_byte_lookup_events(new_blu_events);
 
         // Convert the trace to a row major matrix.
-        let mut trace = RowMajorMatrix::new(rows, NUM_CPU_COLS);
+        let mut trace = RowMajorMatrix::new(rows.into_iter().flatten().collect(), NUM_CPU_COLS);
 
         // Pad the trace to a power of two.
         Self::pad_to_power_of_two::<F>(&mut trace.values);
@@ -92,7 +95,7 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
             .par_chunks(chunk_size)
             .map(|ops: &[CpuEvent]| {
                 let mut alu = HashMap::new();
-                let mut blu: Vec<_> = Vec::default();
+                let mut blu: Vec<_> = Vec::with_capacity(ops.len() * 8);
                 ops.iter().for_each(|op| {
                     let (_, alu_events, blu_events) = self.event_to_row::<F>(*op, &HashMap::new());
                     alu_events.into_iter().for_each(|(key, value)| {
@@ -104,17 +107,22 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
             })
             .collect::<Vec<_>>();
 
+        let start = Instant::now();
         events
             .into_iter()
             .for_each(|(mut alu_events, mut blu_events)| {
                 for (_, value) in alu_events.iter_mut() {
-                    value.sort_unstable_by_key(|event| event.clk);
+                    value.par_sort_unstable_by_key(|event| event.clk);
                 }
+
                 // Add the dependency events to the shard.
                 output.add_alu_events(alu_events);
-                blu_events.sort_unstable_by_key(|event| event.a1);
+
+                blu_events.par_sort_unstable_by_key(|event| event.a1);
+
                 output.add_byte_lookup_events(blu_events);
             });
+        println!("second half of dependencies: {:?}", start.elapsed());
     }
 
     fn included(&self, _: &Self::Record) -> bool {
@@ -778,9 +786,11 @@ impl CpuChip {
 #[cfg(test)]
 mod tests {
     use p3_baby_bear::BabyBear;
+    use std::time::Instant;
 
     use super::*;
 
+    use crate::runtime::tests::ssz_withdrawals_program;
     use crate::runtime::{tests::simple_program, Runtime};
     use crate::utils::{run_test, setup_logger, SP1CoreOpts};
 
@@ -819,16 +829,24 @@ mod tests {
 
     #[test]
     fn generate_trace_simple_program() {
-        let program = simple_program();
+        let program = ssz_withdrawals_program();
         let mut runtime = Runtime::new(program, SP1CoreOpts::default());
         runtime.run().unwrap();
+        println!("runtime: {:?}", runtime.state.global_clk);
         let chip = CpuChip::default();
-        let trace: RowMajorMatrix<BabyBear> =
+
+        let start = Instant::now();
+        <CpuChip as MachineAir<BabyBear>>::generate_dependencies(
+            &chip,
+            &runtime.record,
+            &mut ExecutionRecord::default(),
+        );
+        println!("generate dependencies: {:?}", start.elapsed());
+
+        let start = Instant::now();
+        let _: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&runtime.record, &mut ExecutionRecord::default());
-        for cpu_event in runtime.record.cpu_events {
-            println!("{:?}", cpu_event);
-        }
-        println!("{:?}", trace.values)
+        println!("generate trace: {:?}", start.elapsed());
     }
 
     #[test]
