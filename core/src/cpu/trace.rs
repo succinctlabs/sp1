@@ -1,11 +1,9 @@
 use hashbrown::HashMap;
 use std::array;
 use std::borrow::BorrowMut;
-use std::time::Instant;
 
 use p3_field::{PrimeField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
-use p3_maybe_rayon::prelude::IntoParallelRefIterator;
 use p3_maybe_rayon::prelude::ParallelIterator;
 use p3_maybe_rayon::prelude::ParallelSlice;
 use p3_maybe_rayon::prelude::ParallelSliceMut;
