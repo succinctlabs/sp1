@@ -3,7 +3,9 @@ use sp1_core::operations::IsZeroOperation;
 use sp1_derive::AlignedBorrow;
 
 use crate::{
-    air::SP1RecursionAirBuilder, memory::MemoryReadWriteSingleCols, poseidon2_wide::WIDTH,
+    air::SP1RecursionAirBuilder,
+    memory::MemoryReadWriteSingleCols,
+    poseidon2_wide::{RATE, WIDTH},
 };
 
 #[derive(AlignedBorrow, Clone, Copy)]
@@ -53,7 +55,7 @@ pub struct AbsorbWorkspace<T: Copy> {
     /// State related columns.
     pub previous_state: [T; WIDTH],
     pub state: [T; WIDTH],
-    pub state_cursor: T,
+    pub syscall_state_cursor: T,
 
     /// Control flow columns.
     pub is_first_hash_row: T,
@@ -73,6 +75,14 @@ pub struct AbsorbWorkspace<T: Copy> {
 }
 
 impl<T: Copy> AbsorbWorkspace<T> {
+    pub(crate) fn state_cursor<AB: SP1RecursionAirBuilder>(&self) -> AB::Expr
+    where
+        T: Into<AB::Expr>,
+    {
+        (self.is_syscall_not_last_row.into() + self.is_syscall_is_last_row.into())
+            * self.syscall_state_cursor.into()
+    }
+
     pub(crate) fn do_perm<AB: SP1RecursionAirBuilder>(&self) -> AB::Expr
     where
         T: Into<AB::Expr>,
@@ -81,9 +91,21 @@ impl<T: Copy> AbsorbWorkspace<T> {
             + self.not_syscall_not_last_row.into()
             + self.last_row_ending_cursor_is_seven.result.into()
     }
+
+    pub(crate) fn num_consumed<AB: SP1RecursionAirBuilder>(&self) -> AB::Expr
+    where
+        T: Into<AB::Expr>,
+    {
+        self.is_syscall_not_last_row.into()
+            * (AB::Expr::from_canonical_usize(RATE) - self.state_cursor::<AB>())
+            + self.is_syscall_is_last_row.into()
+                * (self.last_row_ending_cursor.into() - self.state_cursor::<AB>() + AB::Expr::one())
+            + self.not_syscall_not_last_row.into() * AB::Expr::from_canonical_usize(RATE)
+            + self.not_syscall_is_last_row.into()
+                * (self.last_row_ending_cursor.into() + AB::Expr::one())
+    }
 }
 
-// virtual: num_consumed, start_cursor, do_perm
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
 pub struct FinalizeWorkspace<T: Copy> {

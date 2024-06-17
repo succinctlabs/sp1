@@ -315,7 +315,8 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
 
                 absorb_workspace.state = absorb_iter.state;
                 absorb_workspace.previous_state = absorb_iter.previous_state;
-                absorb_workspace.state_cursor = F::from_canonical_usize(absorb_iter.state_cursor);
+                absorb_workspace.syscall_state_cursor =
+                    F::from_canonical_usize(absorb_iter.state_cursor);
                 absorb_workspace.is_first_hash_row =
                     F::from_bool(iter_num == 0 && absorb_event.is_hash_first_absorb);
             }
