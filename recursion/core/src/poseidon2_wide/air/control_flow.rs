@@ -40,7 +40,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         builder.assert_bool(local_control_flow.is_syscall_row);
         builder.assert_bool(local_is_real.clone());
 
-        self.global_control_flow(
+        self.eval_global_control_flow(
             builder,
             local_control_flow,
             next_control_flow,
@@ -66,7 +66,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
     /// row is the first absorb syscall.  These constraints will require that there is at least one
     /// absorb, finalize, and compress system call.
     #[allow(clippy::too_many_arguments)]
-    fn global_control_flow<AB: SP1RecursionAirBuilder>(
+    fn eval_global_control_flow<AB: SP1RecursionAirBuilder>(
         &self,
         builder: &mut AB,
         local_control_flow: &ControlFlow<AB::Var>,
@@ -89,6 +89,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
 
         // For absorb rows, constrain the following:
         // 1) next row is either an absorb or syscall finalize.
+        // 2) when last absorb row, then the next row is a syscall row.
         // 2) hash_num == hash_num'.
         {
             let mut absorb_transition_builder =
@@ -96,7 +97,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             absorb_transition_builder
                 .assert_one(next_control_flow.is_absorb + next_control_flow.is_finalize);
             absorb_transition_builder
-                .when(next_control_flow.is_finalize)
+                .when(local_opcode_workspace.absorb().is_last_row::<AB>())
                 .assert_one(next_control_flow.is_syscall_row);
 
             absorb_transition_builder
@@ -111,6 +112,8 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                     local_syscall_params.absorb().hash_num,
                     next_syscall_params.finalize().hash_num,
                 );
+
+            // Ensure that at the last row, the next call is a syscall.
         }
 
         // For finalize rows, constrain the following:
@@ -139,7 +142,6 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         // For compress rows, constrain the following:
         // 1) if compress syscall -> next row is a compress output
         // 2) if compress output -> next row is a compress syscall or not real
-        // 3) last real row is a compress output row
         {
             transition_builder
                 .when(local_control_flow.is_compress)
@@ -189,43 +191,48 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
     ) {
         let local_hash_workspace = local_opcode_workspace.absorb();
         let next_hash_workspace = next_opcode_workspace.absorb();
-        let is_last_row = local_hash_workspace.num_remaining_rows_is_zero.result;
         let last_row_ending_cursor_is_seven =
             local_hash_workspace.last_row_ending_cursor_is_seven.result;
 
-        let mut absorb_builder = builder.when(local_control_flow.is_absorb);
-
-        absorb_builder.assert_eq(
-            local_hash_workspace.is_syscall_not_last_row,
-            local_control_flow.is_syscall_row * (AB::Expr::one() - is_last_row),
-        );
-        absorb_builder.assert_eq(
-            local_hash_workspace.not_syscall_not_last_row,
-            (AB::Expr::one() - local_control_flow.is_syscall_row) * (AB::Expr::one() - is_last_row),
-        );
-        absorb_builder.assert_eq(
-            local_hash_workspace.is_syscall_is_last_row,
-            local_control_flow.is_syscall_row * is_last_row,
-        );
-        absorb_builder.assert_eq(
-            local_hash_workspace.not_syscall_is_last_row,
-            (AB::Expr::one() - local_control_flow.is_syscall_row) * is_last_row,
-        );
-        absorb_builder.assert_eq(
-            local_hash_workspace.is_last_row_ending_cursor_is_seven,
-            is_last_row * last_row_ending_cursor_is_seven,
-        );
-        absorb_builder.assert_eq(
-            local_hash_workspace.is_last_row_ending_cursor_not_seven,
-            is_last_row * (AB::Expr::one() - last_row_ending_cursor_is_seven),
-        );
-
-        // Ensure correct value of num_remaining_rows, last_row_num_consumed, and num_remaining_rows_is_zero.
+        // Constrain the materialized control flow flags.
         {
             let mut absorb_builder = builder.when(local_control_flow.is_absorb);
 
-            // For absorb calls that span multiple rows syscall rows,
-            // make sure that num_remaining_rows and last_row_num_consumed is correct.
+            absorb_builder.assert_eq(
+                local_hash_workspace.is_syscall_not_last_row,
+                local_control_flow.is_syscall_row
+                    * (AB::Expr::one() - local_hash_workspace.is_last_row::<AB>()),
+            );
+            absorb_builder.assert_eq(
+                local_hash_workspace.not_syscall_not_last_row,
+                (AB::Expr::one() - local_control_flow.is_syscall_row)
+                    * (AB::Expr::one() - local_hash_workspace.is_last_row::<AB>()),
+            );
+            absorb_builder.assert_eq(
+                local_hash_workspace.is_syscall_is_last_row,
+                local_control_flow.is_syscall_row * local_hash_workspace.is_last_row::<AB>(),
+            );
+            absorb_builder.assert_eq(
+                local_hash_workspace.not_syscall_is_last_row,
+                (AB::Expr::one() - local_control_flow.is_syscall_row)
+                    * local_hash_workspace.is_last_row::<AB>(),
+            );
+            absorb_builder.assert_eq(
+                local_hash_workspace.is_last_row_ending_cursor_is_seven,
+                local_hash_workspace.is_last_row::<AB>() * last_row_ending_cursor_is_seven,
+            );
+            absorb_builder.assert_eq(
+                local_hash_workspace.is_last_row_ending_cursor_not_seven,
+                local_hash_workspace.is_last_row::<AB>()
+                    * (AB::Expr::one() - last_row_ending_cursor_is_seven),
+            );
+        }
+
+        // For the absorb syscall row, ensure correct value of num_remaining_rows, last_row_num_consumed,
+        // and num_remaining_rows_is_zero.
+        {
+            let mut absorb_builder = builder.when(local_control_flow.is_absorb);
+
             absorb_builder
                 .when(local_control_flow.is_syscall_row)
                 .assert_eq(
@@ -246,15 +253,20 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                 .map(|(bit, exp)| *bit * AB::Expr::from_canonical_u32(2u32.pow(exp)))
                 .sum::<AB::Expr>();
             absorb_builder
-                .when(local_hash_workspace.is_syscall_not_last_row)
+                .when(local_control_flow.is_syscall_row)
                 .assert_eq(
                     local_hash_workspace.last_row_ending_cursor,
                     expected_last_row_ending_cursor,
                 );
+        }
 
-            // Verify the next row's num_remaining_rows column for this absorb call.
+        // For all non last absorb rows, verify that num_remaining_rows decrements and
+        // that last_row_num_consumed is copied down.
+        {
+            let mut absorb_builder = builder.when(local_control_flow.is_absorb);
+
             absorb_builder
-                .when_not(local_hash_workspace.num_remaining_rows_is_zero.result)
+                .when_not(local_hash_workspace.is_last_row::<AB>())
                 .assert_eq(
                     next_hash_workspace.num_remaining_rows,
                     local_hash_workspace.num_remaining_rows - AB::Expr::one(),
@@ -262,19 +274,18 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
 
             // Copy down the last_row_ending_cursor value within the absorb call.
             absorb_builder
-                .when_not(local_hash_workspace.num_remaining_rows_is_zero.result)
+                .when_not(local_hash_workspace.is_last_row::<AB>())
                 .assert_eq(
                     next_hash_workspace.last_row_ending_cursor,
                     local_hash_workspace.last_row_ending_cursor,
                 );
+        }
 
-            // Ensure that at the last row, the next call is a syscall.
-            absorb_builder
-                .when(local_hash_workspace.num_remaining_rows_is_zero.result)
-                .assert_one(next_control_flow.is_syscall_row);
+        // For the last absorb rows, verify the next row's state cursor's value. Specifically, constrain
+        // 'state_cursor = (last_row_ending_cursor + 1) % RATE.
+        {
+            let mut absorb_builder = builder.when(local_control_flow.is_absorb);
 
-            // Verify the next syscall's state cursor.  If last_row_ending_cursor == 7, state_cursor' == 0,
-            // else state_cursor' = state_cursor + 1.
             absorb_builder
                 .when(local_hash_workspace.is_last_row_ending_cursor_is_seven)
                 .assert_zero(next_hash_workspace.syscall_state_cursor);
@@ -285,7 +296,10 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                     next_hash_workspace.syscall_state_cursor,
                     local_hash_workspace.last_row_ending_cursor + AB::Expr::one(),
                 );
+        }
 
+        // Eval the absorb's iszero operations.
+        {
             // Drop absorb_builder so that builder can be used in the IsZeroOperation eval.
             IsZeroOperation::<AB::F>::eval(
                 builder,

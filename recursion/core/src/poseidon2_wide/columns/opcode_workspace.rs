@@ -61,6 +61,8 @@ pub struct AbsorbWorkspace<T: Copy> {
     pub is_first_hash_row: T,
     pub num_remaining_rows: T,
     pub num_remaining_rows_is_zero: IsZeroOperation<T>,
+
+    // This is the state index of that last element consumed by the absorb syscall.
     pub last_row_ending_cursor: T,
     pub last_row_ending_cursor_is_seven: IsZeroOperation<T>, // Needed when doing the (last_row_ending_cursor_is_seven + 1) % 8 calculation.
     pub last_row_ending_cursor_bitmap: [T; 3],
@@ -75,6 +77,13 @@ pub struct AbsorbWorkspace<T: Copy> {
 }
 
 impl<T: Copy> AbsorbWorkspace<T> {
+    pub(crate) fn is_last_row<AB: SP1RecursionAirBuilder>(&self) -> AB::Expr
+    where
+        T: Into<AB::Expr>,
+    {
+        self.num_remaining_rows_is_zero.result.into()
+    }
+
     pub(crate) fn state_cursor<AB: SP1RecursionAirBuilder>(&self) -> AB::Expr
     where
         T: Into<AB::Expr>,
