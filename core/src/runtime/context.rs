@@ -90,4 +90,55 @@ impl<'a> SP1ContextBuilder<'a> {
     }
 }
 
-// TODO tests?
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use crate::runtime::{DefaultSubproofVerifier, SP1Context};
+
+    #[test]
+    fn defaults() {
+        let SP1Context {
+            hook_registry,
+            subproof_verifier,
+        } = SP1Context::builder().build();
+        assert!(hook_registry.is_none());
+        assert!(subproof_verifier.is_none());
+    }
+
+    #[test]
+    fn without_default_hooks() {
+        let SP1Context { hook_registry, .. } =
+            SP1Context::builder().without_default_hooks().build();
+        assert!(hook_registry.unwrap().table.is_empty());
+    }
+
+    #[test]
+    fn with_custom_hook() {
+        let SP1Context { hook_registry, .. } =
+            SP1Context::builder().hook(30, |_, _| vec![]).build();
+        assert!(hook_registry.unwrap().table.contains_key(&30));
+    }
+
+    #[test]
+    fn without_default_hooks_with_custom_hook() {
+        let SP1Context { hook_registry, .. } = SP1Context::builder()
+            .without_default_hooks()
+            .hook(30, |_, _| vec![])
+            .build();
+        assert_eq!(
+            &hook_registry.unwrap().table.into_keys().collect::<Vec<_>>(),
+            &[30]
+        );
+    }
+
+    #[test]
+    fn subproof_verifier() {
+        let SP1Context {
+            subproof_verifier, ..
+        } = SP1Context::builder()
+            .subproof_verifier(Arc::new(DefaultSubproofVerifier::new()))
+            .build();
+        assert!(subproof_verifier.is_some());
+    }
+}
