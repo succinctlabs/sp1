@@ -6,12 +6,10 @@ use crate::{
     air::SP1RecursionAirBuilder,
     poseidon2_wide::{
         columns::{
-            control_flow::ControlFlow,
-            opcode_workspace::OpcodeWorkspace,
-            syscall_params::{self, SyscallParams},
-            Poseidon2,
+            control_flow::ControlFlow, opcode_workspace::OpcodeWorkspace,
+            syscall_params::SyscallParams, Poseidon2,
         },
-        Poseidon2WideChip, RATE, WIDTH,
+        Poseidon2WideChip, RATE,
     },
 };
 
@@ -66,7 +64,6 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             local_opcode_workspace,
             next_opcode_workspace,
             local_syscall_params,
-            next_syscall_params,
             next_is_real.clone(),
         );
 
@@ -165,6 +162,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             .assert_one(local_control_flow.is_compress_output);
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn eval_hash_control_flow<AB: SP1RecursionAirBuilder>(
         &self,
         builder: &mut AB,
@@ -173,7 +171,6 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         local_opcode_workspace: &OpcodeWorkspace<AB::Var>,
         next_opcode_workspace: &OpcodeWorkspace<AB::Var>,
         local_syscall_params: &SyscallParams<AB::Var>,
-        next_syscall_params: &SyscallParams<AB::Var>,
         next_is_real: AB::Expr,
     ) {
         let local_hash_workspace = local_opcode_workspace.hash();
