@@ -107,7 +107,6 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
             })
             .collect::<Vec<_>>();
 
-        let start = Instant::now();
         events
             .into_iter()
             .for_each(|(mut alu_events, mut blu_events)| {
@@ -122,7 +121,6 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
 
                 output.add_byte_lookup_events(blu_events);
             });
-        println!("second half of dependencies: {:?}", start.elapsed());
     }
 
     fn included(&self, _: &Self::Record) -> bool {
