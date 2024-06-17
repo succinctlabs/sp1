@@ -3,7 +3,7 @@ use sp1_core::{runtime::SP1Context, utils::SP1ProverOpts};
 use sp1_prover::{SP1Prover, SP1Stdin};
 
 use crate::{
-    Prover, SP1CompressedProof, SP1PlonkBn254Proof, SP1Proof, SP1ProofWithPublicValues,
+    Prover, SP1CompressedProof, SP1CoreProof, SP1PlonkBn254Proof, SP1ProofWithPublicValues,
     SP1ProvingKey, SP1VerifyingKey,
 };
 
@@ -41,7 +41,7 @@ impl Prover for LocalProver {
         stdin: SP1Stdin,
         opts: SP1ProverOpts,
         context: SP1Context<'a>,
-    ) -> Result<SP1Proof> {
+    ) -> Result<SP1CoreProof> {
         let proof = self.prover.prove_core(pk, &stdin, opts, context)?;
         Ok(SP1ProofWithPublicValues {
             proof: proof.proof.0,

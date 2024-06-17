@@ -6,7 +6,7 @@ use sp1_prover::{SP1Prover, SP1ProvingKey, SP1PublicValues, SP1Stdin};
 
 use anyhow::{Ok, Result};
 
-use crate::{Prover, SP1Proof};
+use crate::{Prover, SP1Proof, SP1ProofKind};
 
 #[derive(Default)]
 pub struct Execute<'a> {
@@ -60,6 +60,7 @@ impl<'a> Execute<'a> {
 
 pub struct Prove<'a> {
     prover: &'a dyn Prover,
+    kind: SP1ProofKind,
     context_builder: SP1ContextBuilder<'a>,
     pk: &'a SP1ProvingKey,
     stdin: SP1Stdin,
@@ -70,6 +71,7 @@ impl<'a> Prove<'a> {
     pub fn new(prover: &'a dyn Prover, pk: &'a SP1ProvingKey, stdin: SP1Stdin) -> Self {
         Self {
             prover,
+            kind: Default::default(),
             pk,
             stdin,
             context_builder: Default::default(),
@@ -77,9 +79,28 @@ impl<'a> Prove<'a> {
         }
     }
 
+    /// Set the proof kind to the core mode. This is the default.
+    pub fn core(mut self) -> Self {
+        self.kind = SP1ProofKind::Core;
+        self
+    }
+
+    /// Set the proof kind to the compressed mode.
+    pub fn compress(mut self) -> Self {
+        self.kind = SP1ProofKind::Compress;
+        self
+    }
+
+    /// Set the proof mode to the plonk bn254 mode.
+    pub fn plonk(mut self) -> Self {
+        self.kind = SP1ProofKind::PlonkBn254;
+        self
+    }
+
     pub fn run(self) -> Result<SP1Proof> {
         let Self {
             prover,
+            kind,
             pk,
             stdin,
             mut context_builder,
@@ -91,7 +112,15 @@ impl<'a> Prove<'a> {
         };
         let context = context_builder.build();
 
-        prover.prove(pk, stdin, opts, context)
+        Ok(match kind {
+            SP1ProofKind::Core => SP1Proof::Core(prover.prove(pk, stdin, opts, context)?),
+            SP1ProofKind::Compress => {
+                SP1Proof::Compress(prover.prove_compressed(pk, stdin, opts, context)?)
+            }
+            SP1ProofKind::PlonkBn254 => {
+                SP1Proof::PlonkBn254(prover.prove_plonk(pk, stdin, opts, context)?)
+            }
+        })
     }
 
     /// Add a runtime [Hook](super::Hook) into the context.

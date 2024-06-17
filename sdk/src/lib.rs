@@ -16,25 +16,23 @@ pub mod network;
 #[cfg(feature = "network")]
 pub use crate::network::prover::NetworkProver;
 
+pub mod proof;
 pub mod provers;
 pub mod utils {
     pub use sp1_core::utils::setup_logger;
 }
 
 use cfg_if::cfg_if;
+pub use proof::*;
 pub use provers::SP1VerificationError;
-use std::{env, fmt::Debug, fs::File, path::Path};
+use std::env;
 
 use anyhow::Result;
 
 pub use provers::{LocalProver, MockProver, Prover};
 
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
 pub use sp1_core::runtime::{Hook, HookEnv, SP1Context, SP1ContextBuilder};
-use sp1_core::{
-    stark::{MachineVerificationError, ShardProof},
-    SP1_CIRCUIT_VERSION,
-};
+use sp1_core::SP1_CIRCUIT_VERSION;
 pub use sp1_prover::{
     CoreSC, HashableKey, InnerSC, OuterSC, PlonkBn254Proof, SP1Prover, SP1ProvingKey,
     SP1PublicValues, SP1Stdin, SP1VerifyingKey,
@@ -45,28 +43,6 @@ pub struct ProverClient {
     /// The underlying prover implementation.
     pub prover: Box<dyn Prover>,
 }
-
-/// A proof generated with SP1.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(bound(serialize = "P: Serialize + Debug + Clone"))]
-#[serde(bound(deserialize = "P: DeserializeOwned + Debug + Clone"))]
-pub struct SP1ProofWithPublicValues<P> {
-    pub proof: P,
-    pub stdin: SP1Stdin,
-    pub public_values: SP1PublicValues,
-    pub sp1_version: String,
-}
-
-/// A [SP1ProofWithPublicValues] generated with [ProverClient::prove].
-pub type SP1Proof = SP1ProofWithPublicValues<Vec<ShardProof<CoreSC>>>;
-pub type SP1ProofVerificationError = MachineVerificationError<CoreSC>;
-
-/// A [SP1ProofWithPublicValues] generated with [ProverClient::prove_compressed].
-pub type SP1CompressedProof = SP1ProofWithPublicValues<ShardProof<InnerSC>>;
-pub type SP1CompressedProofVerificationError = MachineVerificationError<InnerSC>;
-
-/// A [SP1ProofWithPublicValues] generated with [ProverClient::prove_plonk].
-pub type SP1PlonkBn254Proof = SP1ProofWithPublicValues<PlonkBn254Proof>;
 
 impl ProverClient {
     /// Creates a new [ProverClient].
@@ -373,7 +349,7 @@ impl ProverClient {
     /// ```
     pub fn verify(
         &self,
-        proof: &SP1Proof,
+        proof: &SP1CoreProof,
         vkey: &SP1VerifyingKey,
     ) -> Result<(), SP1VerificationError> {
         self.prover.verify(proof, vkey)
@@ -449,20 +425,6 @@ impl ProverClient {
 impl Default for ProverClient {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-impl<P: Debug + Clone + Serialize + DeserializeOwned> SP1ProofWithPublicValues<P> {
-    /// Saves the proof to a path.
-    pub fn save(&self, path: impl AsRef<Path>) -> Result<()> {
-        bincode::serialize_into(File::create(path).expect("failed to open file"), self)
-            .map_err(Into::into)
-    }
-
-    /// Loads a proof from a path.
-    pub fn load(path: impl AsRef<Path>) -> Result<Self> {
-        bincode::deserialize_from(File::open(path).expect("failed to open file"))
-            .map_err(Into::into)
     }
 }
 

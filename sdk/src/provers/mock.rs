@@ -1,6 +1,6 @@
 #![allow(unused_variables)]
 use crate::{
-    Prover, SP1CompressedProof, SP1PlonkBn254Proof, SP1Proof, SP1ProofWithPublicValues,
+    Prover, SP1CompressedProof, SP1CoreProof, SP1PlonkBn254Proof, SP1ProofWithPublicValues,
     SP1ProvingKey, SP1VerificationError, SP1VerifyingKey,
 };
 use anyhow::Result;
@@ -44,7 +44,7 @@ impl Prover for MockProver {
         stdin: SP1Stdin,
         opts: SP1ProverOpts,
         context: SP1Context<'a>,
-    ) -> Result<SP1Proof> {
+    ) -> Result<SP1CoreProof> {
         let (public_values, _) = SP1Prover::execute(&pk.elf, &stdin, context)?;
         Ok(SP1ProofWithPublicValues {
             proof: vec![],
@@ -90,7 +90,7 @@ impl Prover for MockProver {
 
     fn verify(
         &self,
-        _proof: &SP1Proof,
+        _proof: &SP1CoreProof,
         _vkey: &SP1VerifyingKey,
     ) -> Result<(), SP1VerificationError> {
         Ok(())

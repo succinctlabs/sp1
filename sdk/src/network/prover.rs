@@ -7,7 +7,8 @@ use crate::{
     Prover,
 };
 use crate::{
-    SP1CompressedProof, SP1Context, SP1PlonkBn254Proof, SP1Proof, SP1ProvingKey, SP1VerifyingKey,
+    SP1CompressedProof, SP1Context, SP1CoreProof, SP1PlonkBn254Proof, SP1ProvingKey,
+    SP1VerifyingKey,
 };
 use anyhow::Result;
 use serde::de::DeserializeOwned;
@@ -135,7 +136,7 @@ impl Prover for NetworkProver {
         stdin: SP1Stdin,
         opts: SP1ProverOpts,
         context: SP1Context,
-    ) -> Result<SP1Proof> {
+    ) -> Result<SP1CoreProof> {
         warn_if_not_default(&opts, &context);
         block_on(self.prove(&pk.elf, stdin))
     }
@@ -174,7 +175,7 @@ pub trait ProofType: DeserializeOwned {
     const PROOF_MODE: ProofMode;
 }
 
-impl ProofType for SP1Proof {
+impl ProofType for SP1CoreProof {
     const PROOF_MODE: ProofMode = ProofMode::Core;
 }
 

@@ -1,7 +1,7 @@
 mod local;
 mod mock;
 
-use crate::{SP1CompressedProof, SP1PlonkBn254Proof, SP1Proof};
+use crate::{SP1CompressedProof, SP1CoreProof, SP1PlonkBn254Proof};
 use anyhow::Result;
 pub use local::LocalProver;
 pub use mock::MockProver;
@@ -57,7 +57,7 @@ pub trait Prover: Send + Sync {
         stdin: SP1Stdin,
         opts: SP1ProverOpts,
         context: SP1Context<'a>,
-    ) -> Result<SP1Proof>;
+    ) -> Result<SP1CoreProof>;
 
     /// Generate a compressed proof of the execution of a RISCV ELF with the given inputs.
     fn prove_compressed<'a>(
@@ -78,7 +78,11 @@ pub trait Prover: Send + Sync {
     ) -> Result<SP1PlonkBn254Proof>;
 
     /// Verify that an SP1 proof is valid given its vkey and metadata.
-    fn verify(&self, proof: &SP1Proof, vkey: &SP1VerifyingKey) -> Result<(), SP1VerificationError> {
+    fn verify(
+        &self,
+        proof: &SP1CoreProof,
+        vkey: &SP1VerifyingKey,
+    ) -> Result<(), SP1VerificationError> {
         if proof.sp1_version != self.version() {
             return Err(SP1VerificationError::VersionMismatch(
                 proof.sp1_version.clone(),
