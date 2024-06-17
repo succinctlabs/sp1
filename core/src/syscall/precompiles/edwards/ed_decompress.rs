@@ -371,16 +371,13 @@ impl<F: PrimeField32, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        let mut rows = Vec::new();
-
-        for i in 0..input.ed_decompress_events.len() {
-            let event = &input.ed_decompress_events[i];
-            let mut row = [F::zero(); NUM_ED_DECOMPRESS_COLS];
-            let cols: &mut EdDecompressCols<F> = row.as_mut_slice().borrow_mut();
-            cols.populate::<E::BaseField, E>(event.clone(), output);
-
-            rows.push(row);
-        }
+        let mut rows: Vec<[F; NUM_ED_DECOMPRESS_COLS]> =
+            input.ed_add_events.par_iter().map(|event| {
+                let mut row = [F::zero(); NUM_ED_DECOMPRESS_COLS];
+                let cols: &mut EdDecompressCols<F> = row.as_mut_slice().borrow_mut();
+                cols.populate::<E::BaseField, E>(event.clone(), output);
+                row
+            });
 
         pad_rows(&mut rows, || {
             let mut row = [F::zero(); NUM_ED_DECOMPRESS_COLS];
