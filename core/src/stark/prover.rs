@@ -16,6 +16,7 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::*;
 use p3_util::log2_strict_usize;
+use std::collections::HashMap;
 
 use super::{quotient_values, PcsProverData, StarkMachine, Val};
 use super::{types::*, StarkGenericConfig};
@@ -157,12 +158,16 @@ where
     PcsProverData<SC>: Send + Sync,
     ShardMainData<SC>: Serialize + DeserializeOwned,
 {
-    pub fn commit_main(
-        config: &SC,
+    pub fn generate_traces(
         machine: &StarkMachine<SC, A>,
         shard: &A::Record,
         index: usize,
-    ) -> ShardMainData<SC> {
+    ) -> (
+        Vec<RowMajorMatrix<Val<SC>>>,
+        HashMap<String, usize>,
+        usize,
+        Vec<SC::Val>,
+    ) {
         // Filter the chips based on what is used.
         let shard_chips = machine.shard_chips(shard).collect::<Vec<_>>();
 
@@ -188,19 +193,6 @@ where
         // Order the chips and traces by trace size (biggest first), and get the ordering map.
         named_traces.sort_by_key(|(_, trace)| Reverse(trace.height()));
 
-        let pcs = config.pcs();
-
-        let domains_and_traces = named_traces
-            .iter()
-            .map(|(_, trace)| {
-                let domain = pcs.natural_domain_for_degree(trace.height());
-                (domain, trace.to_owned())
-            })
-            .collect::<Vec<_>>();
-
-        // Commit to the batch of traces.
-        let (main_commit, main_data) = pcs.commit(domains_and_traces);
-
         // Get the chip ordering.
         let chip_ordering = named_traces
             .iter()
@@ -213,13 +205,38 @@ where
             .map(|(_, trace)| trace)
             .collect::<Vec<_>>();
 
+        return (traces, chip_ordering, index, shard.public_values());
+    }
+
+    pub fn commit_main(
+        config: &SC,
+        machine: &StarkMachine<SC, A>,
+        shard: &A::Record,
+        index: usize,
+    ) -> ShardMainData<SC> {
+        let (traces, chip_ordering, index, public_values) =
+            Self::generate_traces(machine, shard, index);
+
+        let pcs = config.pcs();
+
+        let domains_and_traces = traces
+            .iter()
+            .map(|trace| {
+                let domain = pcs.natural_domain_for_degree(trace.height());
+                (domain, trace.to_owned())
+            })
+            .collect::<Vec<_>>();
+
+        // Commit to the batch of traces.
+        let (main_commit, main_data) = pcs.commit(domains_and_traces);
+
         ShardMainData {
             traces,
             main_commit,
             main_data,
             chip_ordering,
             index,
-            public_values: shard.public_values(),
+            public_values,
         }
     }
 
