@@ -279,4 +279,7 @@ pub enum DslIr<C: Config> {
     LessThan(Var<C::N>, Var<C::N>, Var<C::N>),
     /// Tracks the number of cycles used by a block of code annotated by the string input.
     CycleTracker(String),
+
+    // Reverse bits exponentiation.
+    ExpReverseBitsLen(Ptr<C::N>, Var<C::N>, Var<C::N>),
 }

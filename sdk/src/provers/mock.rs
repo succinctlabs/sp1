@@ -1,7 +1,7 @@
 #![allow(unused_variables)]
 use crate::{
-    Prover, SP1CompressedProof, SP1PlonkBn254Proof, SP1Proof, SP1ProofVerificationError,
-    SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
+    Prover, SP1CompressedProof, SP1PlonkBn254Proof, SP1Proof, SP1ProofWithPublicValues,
+    SP1ProvingKey, SP1VerificationError, SP1VerifyingKey,
 };
 use anyhow::Result;
 use p3_field::PrimeField;
@@ -43,6 +43,7 @@ impl Prover for MockProver {
             proof: vec![],
             stdin,
             public_values,
+            sp1_version: self.version().to_string(),
         })
     }
 
@@ -64,9 +65,11 @@ impl Prover for MockProver {
                 ],
                 encoded_proof: "".to_string(),
                 raw_proof: "".to_string(),
+                plonk_vkey_hash: [0; 32],
             },
             stdin,
             public_values,
+            sp1_version: self.version().to_string(),
         })
     }
 
@@ -74,7 +77,7 @@ impl Prover for MockProver {
         &self,
         _proof: &SP1Proof,
         _vkey: &SP1VerifyingKey,
-    ) -> Result<(), SP1ProofVerificationError> {
+    ) -> Result<(), SP1VerificationError> {
         Ok(())
     }
 
@@ -82,12 +85,17 @@ impl Prover for MockProver {
         &self,
         _proof: &SP1CompressedProof,
         _vkey: &SP1VerifyingKey,
-    ) -> Result<()> {
+    ) -> Result<(), SP1VerificationError> {
         Ok(())
     }
 
-    fn verify_plonk(&self, proof: &SP1PlonkBn254Proof, vkey: &SP1VerifyingKey) -> Result<()> {
-        verify_plonk_bn254_public_inputs(vkey, &proof.public_values, &proof.proof.public_inputs)?;
+    fn verify_plonk(
+        &self,
+        proof: &SP1PlonkBn254Proof,
+        vkey: &SP1VerifyingKey,
+    ) -> Result<(), SP1VerificationError> {
+        verify_plonk_bn254_public_inputs(vkey, &proof.public_values, &proof.proof.public_inputs)
+            .map_err(SP1VerificationError::Plonk)?;
         Ok(())
     }
 }

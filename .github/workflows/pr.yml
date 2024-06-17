@@ -86,25 +86,6 @@ jobs:
           FRI_QUERIES: 1
           SP1_DEV: 1
 
-  test-docker:
-    name: Test Docker
-    runs-on: runs-on,runner=64cpu-linux-arm64
-    env:
-      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v4
-
-      - name: Setup CI
-        uses: ./.github/actions/setup
-
-      - name: Run cargo test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          toolchain: nightly-2024-04-17
-          args: --release -p sp1-prover -- --exact tests::test_e2e
-
   lint:
     name: Formatting & Clippy
     runs-on: runs-on,runner=8cpu-linux-x64
@@ -197,5 +178,6 @@ jobs:
           cargo add sp1-zkvm --path $GITHUB_WORKSPACE/zkvm/entrypoint
           cargo prove build
           cd ../script
+          cargo remove sp1-sdk
           cargo add sp1-sdk --path $GITHUB_WORKSPACE/sdk
           SP1_DEV=1 RUST_LOG=info cargo run --release

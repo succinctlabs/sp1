@@ -703,6 +703,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c3ac9f8b63eca6fd385229b3675f6cc0dc5c8a5c8a54a59d4f52ffd670d87b0c"
 
 [[package]]
+name = "bytemuck"
+version = "1.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "78834c15cb5d5efe3452d58b1e8ba890dd62d21907f867f383358198e56ebca5"
+
+[[package]]
 name = "byteorder"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4682,6 +4688,7 @@ dependencies = [
  "arrayref",
  "bincode",
  "blake3",
+ "bytemuck",
  "cfg-if",
  "curve25519-dalek",
  "elf",
@@ -4769,6 +4776,7 @@ dependencies = [
  "anyhow",
  "backtrace",
  "bincode",
+ "bytemuck",
  "clap",
  "dirs",
  "futures",
@@ -4781,6 +4789,8 @@ dependencies = [
  "p3-challenger",
  "p3-commit",
  "p3-field",
+ "p3-util",
+ "rand",
  "rayon",
  "reqwest 0.12.4",
  "serde",
@@ -4870,6 +4880,7 @@ dependencies = [
  "p3-merkle-tree",
  "p3-poseidon2",
  "p3-symmetric",
+ "p3-util",
  "serde",
  "serde_with",
  "sp1-core",
