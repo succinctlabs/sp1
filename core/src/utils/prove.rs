@@ -101,7 +101,6 @@ where
     prove_with_context(program, stdin, config, opts, Default::default())
 }
 
-/// TODO
 pub fn prove_with_context<SC: StarkGenericConfig + Send + Sync>(
     program: Program,
     stdin: &SP1Stdin,

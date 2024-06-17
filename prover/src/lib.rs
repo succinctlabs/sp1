@@ -266,7 +266,6 @@ impl SP1Prover {
         opts: SP1ProverOpts,
         mut context: SP1Context<'a>,
     ) -> Result<SP1CoreProof, SP1CoreProverError> {
-        // TODO review: is this following line correct? @Chris
         context
             .subproof_verifier
             .get_or_insert_with(|| Arc::new(self));
