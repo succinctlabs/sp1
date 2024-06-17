@@ -49,13 +49,24 @@ pub struct DuplexChallengerVariable<C: Config> {
 impl<C: Config> DuplexChallengerVariable<C> {
     /// Creates a new duplex challenger with the default state.
     pub fn new(builder: &mut Builder<C>) -> Self {
-        DuplexChallengerVariable::<C> {
+        let result = DuplexChallengerVariable::<C> {
             sponge_state: builder.dyn_array(PERMUTATION_WIDTH),
             nb_inputs: builder.eval(C::N::zero()),
             input_buffer: builder.dyn_array(PERMUTATION_WIDTH),
             nb_outputs: builder.eval(C::N::zero()),
             output_buffer: builder.dyn_array(PERMUTATION_WIDTH),
-        }
+        };
+        builder.assert_var_eq(result.nb_inputs, C::N::zero());
+        builder.assert_var_eq(result.nb_outputs, C::N::zero());
+        builder.range(0, PERMUTATION_WIDTH).for_each(|i, builder| {
+            let sponge_element = builder.get(&result.sponge_state, i);
+            let input_element = builder.get(&result.input_buffer, i);
+            let output_element = builder.get(&result.output_buffer, i);
+            builder.assert_felt_eq(sponge_element, C::F::zero());
+            builder.assert_felt_eq(input_element, C::F::zero());
+            builder.assert_felt_eq(output_element, C::F::zero());
+        });
+        result
     }
 
     /// Creates a new challenger with the same state as an existing challenger.
