@@ -40,13 +40,13 @@ where
         let main = builder.main();
         let local_row = Self::convert::<AB>(main.row_slice(0));
         let next_row = Self::convert::<AB>(main.row_slice(1));
-
-        // Check that all the control flow columns are correct.
         let local_control_flow = local_row.control_flow();
         let next_control_flow = next_row.control_flow();
+
+        // Check that all the control flow columns are correct.
         self.eval_control_flow(builder, local_row.as_ref(), next_row.as_ref());
 
-        // // Check that the syscall columns are correct.
+        // Check that the syscall columns are correct.
         let local_syscall = local_row.syscall_params();
         let next_syscall = next_row.syscall_params();
         self.eval_syscall_params(

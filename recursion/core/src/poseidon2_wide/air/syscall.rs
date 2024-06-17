@@ -39,7 +39,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             .map(|(x, y)| x.clone() * *y)
             .sum();
 
-        builder.receive_table(opcode, &operands, local_control_flow.is_syscall);
+        builder.receive_table(opcode, &operands, local_control_flow.is_syscall_row);
 
         let mut transition_builder = builder.when_transition();
 
@@ -47,7 +47,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         // the compress output row.
         {
             let mut compress_syscall_builder = transition_builder
-                .when(local_control_flow.is_compress * local_control_flow.is_syscall);
+                .when(local_control_flow.is_compress * local_control_flow.is_syscall_row);
 
             let local_syscall_params = local_syscall.compress();
             let next_syscall_params = next_syscall.compress();
@@ -67,7 +67,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         {
             let mut absorb_syscall_builder = transition_builder.when(local_control_flow.is_absorb);
             let mut absorb_syscall_builder =
-                absorb_syscall_builder.when_not(next_control_flow.is_syscall);
+                absorb_syscall_builder.when_not(next_control_flow.is_syscall_row);
 
             let local_syscall_params = local_syscall.absorb();
             let next_syscall_params = next_syscall.absorb();

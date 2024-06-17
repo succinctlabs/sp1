@@ -14,6 +14,7 @@ use crate::{
 };
 
 impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
+    /// Constraints related to control flow.
     pub(crate) fn eval_control_flow<AB: SP1RecursionAirBuilder>(
         &self,
         builder: &mut AB,
@@ -24,10 +25,6 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
     {
         let local_control_flow = local_row.control_flow();
         let next_control_flow = next_row.control_flow();
-        let local_syscall_params = local_row.syscall_params();
-        let next_syscall_params = next_row.syscall_params();
-        let local_opcode_workspace = local_row.opcode_workspace();
-        let next_opcode_workspace = next_row.opcode_workspace();
 
         let local_is_real = local_control_flow.is_compress
             + local_control_flow.is_absorb
@@ -40,19 +37,17 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         builder.assert_bool(local_control_flow.is_compress_output);
         builder.assert_bool(local_control_flow.is_absorb);
         builder.assert_bool(local_control_flow.is_finalize);
+        builder.assert_bool(local_control_flow.is_syscall_row);
         builder.assert_bool(local_is_real.clone());
-
-        builder.assert_bool(local_control_flow.is_syscall);
-        builder.assert_bool(local_control_flow.do_perm);
 
         self.global_control_flow(
             builder,
             local_control_flow,
             next_control_flow,
-            local_syscall_params,
-            next_syscall_params,
-            local_opcode_workspace,
-            next_opcode_workspace,
+            local_row.syscall_params(),
+            next_row.syscall_params(),
+            local_row.opcode_workspace(),
+            next_row.opcode_workspace(),
             local_is_real.clone(),
             next_is_real.clone(),
         );
@@ -61,9 +56,9 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             builder,
             local_control_flow,
             next_control_flow,
-            local_opcode_workspace,
-            next_opcode_workspace,
-            local_syscall_params,
+            local_row.opcode_workspace(),
+            next_row.opcode_workspace(),
+            local_row.syscall_params(),
             next_is_real.clone(),
         );
 
@@ -76,9 +71,9 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         );
     }
 
-    /// This function will verify that all hash rows (absorb and finalize) are before the compress rows
-    /// and that the first row is the first absorb syscall.
-    /// We assume that there are at least one absorb, finalize, and compress invocations.
+    /// This function will verify that all hash rows are before the compress rows and that the first
+    /// row is the first absorb syscall.  These constraints will require that there is at least one
+    /// absorb, finalize, and compress system call.
     #[allow(clippy::too_many_arguments)]
     fn global_control_flow<AB: SP1RecursionAirBuilder>(
         &self,
@@ -95,9 +90,9 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         // We require that the first row is an absorb syscall and that the hash_num == 0.
         let mut first_row_builder = builder.when_first_row();
         first_row_builder.assert_one(local_control_flow.is_absorb);
-        first_row_builder.assert_one(local_control_flow.is_syscall);
+        first_row_builder.assert_one(local_control_flow.is_syscall_row);
         first_row_builder.assert_zero(local_syscall_params.absorb().hash_num);
-        first_row_builder.assert_one(local_opcode_workspace.hash().is_first_hash_row);
+        first_row_builder.assert_one(local_opcode_workspace.absorb().is_first_hash_row);
 
         let mut transition_builder = builder.when_transition();
 
@@ -140,10 +135,10 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             );
         finalize_transition_builder
             .when(next_control_flow.is_absorb)
-            .assert_one(next_opcode_workspace.hash().is_first_hash_row);
+            .assert_one(next_opcode_workspace.absorb().is_first_hash_row);
         finalize_transition_builder
             .when(next_control_flow.is_compress)
-            .assert_one(next_control_flow.is_syscall);
+            .assert_one(next_control_flow.is_syscall_row);
 
         // If compress row -> next row is compress or not real.
         transition_builder
@@ -173,8 +168,8 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         local_syscall_params: &SyscallParams<AB::Var>,
         next_is_real: AB::Expr,
     ) {
-        let local_hash_workspace = local_opcode_workspace.hash();
-        let next_hash_workspace = next_opcode_workspace.hash();
+        let local_hash_workspace = local_opcode_workspace.absorb();
+        let next_hash_workspace = next_opcode_workspace.absorb();
         let is_last_row = local_hash_workspace.num_remaining_rows_is_zero.result;
         let last_row_ending_cursor_is_seven =
             local_hash_workspace.last_row_ending_cursor_is_seven.result;
@@ -182,20 +177,20 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         let mut absorb_builder = builder.when(local_control_flow.is_absorb);
 
         absorb_builder.assert_eq(
-            local_hash_workspace.is_syscall_is_not_last_row,
-            local_control_flow.is_syscall * (AB::Expr::one() - is_last_row),
+            local_hash_workspace.is_syscall_not_last_row,
+            local_control_flow.is_syscall_row * (AB::Expr::one() - is_last_row),
         );
         absorb_builder.assert_eq(
             local_hash_workspace.not_syscall_not_last_row,
-            (AB::Expr::one() - local_control_flow.is_syscall) * (AB::Expr::one() - is_last_row),
+            (AB::Expr::one() - local_control_flow.is_syscall_row) * (AB::Expr::one() - is_last_row),
         );
         absorb_builder.assert_eq(
             local_hash_workspace.is_syscall_is_last_row,
-            local_control_flow.is_syscall * is_last_row,
+            local_control_flow.is_syscall_row * is_last_row,
         );
         absorb_builder.assert_eq(
             local_hash_workspace.not_syscall_is_last_row,
-            (AB::Expr::one() - local_control_flow.is_syscall) * is_last_row,
+            (AB::Expr::one() - local_control_flow.is_syscall_row) * is_last_row,
         );
         absorb_builder.assert_eq(
             local_hash_workspace.is_last_row_ending_cursor_is_seven,
@@ -213,7 +208,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             // For absorb calls that span multiple rows syscall rows,
             // make sure that num_remaining_rows and last_row_num_consumed is correct.
             absorb_builder
-                .when(local_control_flow.is_syscall)
+                .when(local_control_flow.is_syscall_row)
                 .assert_eq(
                     local_hash_workspace.state_cursor + local_syscall_params.absorb().len
                         - AB::Expr::one(),
@@ -232,7 +227,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                 .map(|(bit, exp)| *bit * AB::Expr::from_canonical_u32(2u32.pow(exp)))
                 .sum::<AB::Expr>();
             absorb_builder
-                .when(local_hash_workspace.is_syscall_is_not_last_row)
+                .when(local_hash_workspace.is_syscall_not_last_row)
                 .assert_eq(
                     local_hash_workspace.last_row_ending_cursor,
                     expected_last_row_ending_cursor,
@@ -257,7 +252,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             // Ensure that at the last row, the next call is a syscall.
             absorb_builder
                 .when(local_hash_workspace.num_remaining_rows_is_zero.result)
-                .assert_one(next_control_flow.is_syscall);
+                .assert_one(next_control_flow.is_syscall_row);
 
             // Verify the next syscall's state cursor.  If last_row_ending_cursor == 7, state_cursor' == 0,
             // else state_cursor' = state_cursor + 1.
@@ -273,7 +268,6 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                 );
 
             // Drop absorb_builder so that builder can be used in the IsZeroOperation eval.
-            drop(absorb_builder);
             IsZeroOperation::<AB::F>::eval(
                 builder,
                 local_hash_workspace.last_row_ending_cursor - AB::Expr::from_canonical_usize(7),
@@ -289,30 +283,12 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             );
         }
 
-        // Ensure correct do_perm flag
-        {
-            let mut absorb_builder = builder.when(local_control_flow.is_absorb);
-
-            absorb_builder
-                .when(local_hash_workspace.is_syscall_is_not_last_row)
-                .assert_one(local_control_flow.do_perm);
-
-            absorb_builder
-                .when(local_hash_workspace.not_syscall_not_last_row)
-                .assert_one(local_control_flow.do_perm);
-
-            absorb_builder.when(is_last_row).assert_eq(
-                local_control_flow.do_perm,
-                local_hash_workspace.last_row_ending_cursor_is_seven.result,
-            );
-        }
-
         // Apply control flow constraints for finalize.
         {
             let mut finalize_builder = builder.when(local_control_flow.is_finalize);
 
             // Every finalize row must be a syscall, not an input, an output, and not a permutation.
-            finalize_builder.assert_one(local_control_flow.is_syscall);
+            finalize_builder.assert_one(local_control_flow.is_syscall_row);
 
             // Every next real row after finalize must be either a compress or absorb and must be a syscall.
             finalize_builder
@@ -322,11 +298,14 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             finalize_builder
                 .when_transition()
                 .when(next_is_real.clone())
-                .assert_one(next_control_flow.is_syscall);
+                .assert_one(next_control_flow.is_syscall_row);
 
-            finalize_builder.when(is_last_row).assert_eq(
-                local_control_flow.do_perm,
-                local_hash_workspace.last_row_ending_cursor_is_seven.result,
+            // Eval state_cursor_is_zero.
+            IsZeroOperation::<AB::F>::eval(
+                builder,
+                local_opcode_workspace.finalize().state_cursor.into(),
+                local_opcode_workspace.finalize().state_cursor_is_zero,
+                local_control_flow.is_finalize.into(),
             );
         }
     }
@@ -341,10 +320,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         // Compress syscall control flow contraints.
         {
             let mut compress_syscall_builder =
-                builder.when(local_control_flow.is_compress * local_control_flow.is_syscall);
-
-            // Every compress syscall row must do a permutation.
-            compress_syscall_builder.assert_one(local_control_flow.do_perm);
+                builder.when(local_control_flow.is_compress * local_control_flow.is_syscall_row);
 
             // Row right after the compress syscall must be a compress output.
             compress_syscall_builder
@@ -355,8 +331,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         // Compress output control flow constraints.
         {
             let mut compress_output_builder = builder.when(local_control_flow.is_compress_output);
-            compress_output_builder.assert_zero(local_control_flow.is_syscall);
-            compress_output_builder.assert_zero(local_control_flow.do_perm);
+            compress_output_builder.assert_zero(local_control_flow.is_syscall_row);
             compress_output_builder
                 .when_transition()
                 .when(next_is_real.clone())
@@ -365,7 +340,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             compress_output_builder
                 .when_transition()
                 .when(next_is_real)
-                .assert_one(next_control_flow.is_syscall);
+                .assert_one(next_control_flow.is_syscall_row);
         }
     }
 }

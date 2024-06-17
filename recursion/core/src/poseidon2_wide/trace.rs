@@ -123,8 +123,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             let control_flow = cols.control_flow_mut();
 
             control_flow.is_compress = F::one();
-            control_flow.is_syscall = F::one();
-            control_flow.do_perm = F::one();
+            control_flow.is_syscall_row = F::one();
         }
 
         {
@@ -241,8 +240,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                 let control_flow = cols.control_flow_mut();
 
                 control_flow.is_absorb = F::one();
-                control_flow.is_syscall = F::from_bool(is_syscall_row);
-                control_flow.do_perm = F::from_bool(absorb_iter.do_perm);
+                control_flow.is_syscall_row = F::from_bool(is_syscall_row);
                 control_flow.is_absorb_no_perm = F::from_bool(!absorb_iter.do_perm);
             }
 
@@ -269,7 +267,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
 
             {
                 let mut cols = self.convert_mut(&mut absorb_row);
-                let absorb_workspace = cols.opcode_workspace_mut().hash_mut();
+                let absorb_workspace = cols.opcode_workspace_mut().absorb_mut();
 
                 let num_remainined_rows = num_absorb_rows - 1 - iter_num;
                 absorb_workspace.num_remaining_rows = F::from_canonical_usize(num_remainined_rows);
@@ -302,7 +300,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                     .num_remaining_rows_is_zero
                     .populate(num_remainined_rows as u32);
 
-                absorb_workspace.is_syscall_is_not_last_row =
+                absorb_workspace.is_syscall_not_last_row =
                     F::from_bool(is_syscall_row && !is_last_row);
                 absorb_workspace.is_syscall_is_last_row =
                     F::from_bool(is_syscall_row && is_last_row);
@@ -345,8 +343,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             let mut cols = self.convert_mut(&mut finalize_row);
             let control_flow = cols.control_flow_mut();
             control_flow.is_finalize = F::one();
-            control_flow.is_syscall = F::one();
-            control_flow.do_perm = F::from_bool(finalize_event.do_perm);
+            control_flow.is_syscall_row = F::one();
         }
 
         {
@@ -371,11 +368,14 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
 
         {
             let mut cols = self.convert_mut(&mut finalize_row);
-            let finalize_workspace = cols.opcode_workspace_mut().hash_mut();
+            let finalize_workspace = cols.opcode_workspace_mut().finalize_mut();
 
             finalize_workspace.previous_state = finalize_event.previous_state;
             finalize_workspace.state = finalize_event.state;
             finalize_workspace.state_cursor = F::from_canonical_usize(finalize_event.state_cursor);
+            finalize_workspace
+                .state_cursor_is_zero
+                .populate(finalize_event.state_cursor as u32);
         }
 
         self.populate_permutation(

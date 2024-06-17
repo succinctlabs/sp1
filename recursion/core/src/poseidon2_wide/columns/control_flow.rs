@@ -9,6 +9,5 @@ pub struct ControlFlow<T> {
     pub is_absorb_no_perm: T,
     pub is_finalize: T,
 
-    pub is_syscall: T,
-    pub do_perm: T,
+    pub is_syscall_row: T,
 }

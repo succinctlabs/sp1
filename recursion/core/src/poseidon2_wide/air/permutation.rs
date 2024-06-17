@@ -26,7 +26,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         control_flow: &ControlFlow<AB::Var>,
     ) {
         let input: [AB::Expr; WIDTH] = array::from_fn(|i| {
-            let previous_state = opcode_workspace.hash().previous_state[i];
+            let previous_state = opcode_workspace.absorb().previous_state[i];
 
             let (compress_input, absorb_input, finalize_input) = if i < WIDTH / 2 {
                 let mem_value = *memory.memory_accesses[i].value();

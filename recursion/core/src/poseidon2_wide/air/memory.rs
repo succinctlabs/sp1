@@ -45,13 +45,13 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
 
         // Verify the memory addr.
         builder
-            .when(control_flow.is_compress * control_flow.is_syscall)
+            .when(control_flow.is_compress * control_flow.is_syscall_row)
             .assert_eq(syscall_params.compress().left_ptr, memory.start_addr);
         builder
             .when(control_flow.is_compress_output)
             .assert_eq(syscall_params.compress().dst_ptr, memory.start_addr);
         builder
-            .when(control_flow.is_absorb * control_flow.is_syscall)
+            .when(control_flow.is_absorb * control_flow.is_syscall_row)
             .assert_eq(syscall_params.absorb().input_ptr, memory.start_addr);
         // TODO: Need to handle the case for non syscall compress.
         builder
@@ -70,7 +70,9 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
 
             // For read only accesses, assert the value didn't change.
             builder
-                .when(control_flow.is_compress * control_flow.is_syscall + control_flow.is_absorb)
+                .when(
+                    control_flow.is_compress * control_flow.is_syscall_row + control_flow.is_absorb,
+                )
                 .assert_eq(
                     *memory.memory_accesses[i].prev_value(),
                     *memory.memory_accesses[i].value(),
@@ -83,7 +85,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         let compress_workspace = opcode_workspace.compress();
         // Verify the start addr.
         builder
-            .when(control_flow.is_compress * control_flow.is_syscall)
+            .when(control_flow.is_compress * control_flow.is_syscall_row)
             .assert_eq(
                 compress_workspace.start_addr,
                 syscall_params.compress().right_ptr,
@@ -103,7 +105,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             );
 
             builder
-                .when(control_flow.is_syscall * control_flow.is_compress)
+                .when(control_flow.is_syscall_row * control_flow.is_compress)
                 .assert_eq(
                     *compress_workspace.memory_accesses[i].prev_value(),
                     *compress_workspace.memory_accesses[i].value(),
