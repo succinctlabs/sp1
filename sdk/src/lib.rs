@@ -25,14 +25,13 @@ use cfg_if::cfg_if;
 pub use provers::SP1VerificationError;
 use std::{env, fmt::Debug, fs::File, path::Path};
 
-use anyhow::{Ok, Result};
+use anyhow::Result;
 
 pub use provers::{LocalProver, MockProver, Prover};
 
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 pub use sp1_core::runtime::{Hook, HookEnv, SP1Context, SP1ContextBuilder};
 use sp1_core::{
-    runtime::ExecutionReport,
     stark::{MachineVerificationError, ShardProof},
     SP1_CIRCUIT_VERSION,
 };
@@ -174,34 +173,9 @@ impl ProverClient {
         }
     }
 
-    // TODO change name
-    pub fn execute_new<'a>(&self, elf: &'a [u8], stdin: SP1Stdin) -> action::Execute<'a> {
-        action::Execute::new(elf, stdin)
-    }
-
-    // TODO change name
-    pub fn prove_new<'a>(&'a self, pk: &'a SP1ProvingKey, stdin: SP1Stdin) -> action::Prove<'a> {
-        action::Prove::new(self.prover.as_ref(), pk, stdin)
-    }
-
-    /// Gets the current version of the SP1 zkVM.
-    ///
-    /// Note: This is not the same as the version of the SP1 SDK.
-    pub fn version(&self) -> String {
-        SP1_CIRCUIT_VERSION.to_string()
-    }
-
-    /// Calls [`Self::execute_with_context`] with the default context. See there for more details.
-    pub fn execute(
-        &self,
-        elf: &[u8],
-        stdin: SP1Stdin,
-    ) -> Result<(SP1PublicValues, ExecutionReport)> {
-        self.execute_with_context(elf, stdin, Default::default())
-    }
-
-    /// Executes the given program on the given input (without generating a proof).
-    /// The execution uses the provided context.
+    /// Prepare to execute the given program on the given input (without generating a proof).
+    /// The returned [action::Execute] may be configured via its methods before running.
+    /// To execute, call [action::Execute::run].
     ///
     /// Returns the public values and execution report of the program after it has been executed.
     ///
@@ -220,51 +194,20 @@ impl ProverClient {
     /// let mut stdin = SP1Stdin::new();
     /// stdin.write(&10usize);
     ///
-    /// // Build the context.
-    /// let context = SP1Context::builder()
-    /// //  [...]
-    ///     .build();
-    ///
     /// // Execute the program on the inputs.
-    /// let (public_values, report) = client.execute_with_context(elf, stdin, context).unwrap();
+    /// let (public_values, report) = client.execute(elf, stdin).run().unwrap();
     /// ```
-    pub fn execute_with_context(
-        &self,
-        elf: &[u8],
-        stdin: SP1Stdin,
-        context: SP1Context,
-    ) -> Result<(SP1PublicValues, ExecutionReport)> {
-        Ok(SP1Prover::execute(elf, &stdin, context)?)
-    }
-    /// Setup a program to be proven and verified by the SP1 RISC-V zkVM by computing the proving
-    /// and verifying keys.
-    ///
-    /// The proving key and verifying key essentially embed the program, as well as other auxiliary
-    /// data (such as lookup tables) that are used to prove the program's correctness.
-    ///
-    /// ### Examples
-    /// ```no_run
-    /// use sp1_sdk::{ProverClient, SP1Stdin};
-    ///
-    /// let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
-    /// let client = ProverClient::new();
-    /// let mut stdin = SP1Stdin::new();
-    /// stdin.write(&10usize);
-    /// let (pk, vk) = client.setup(elf);
-    /// ```
-    pub fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
-        self.prover.setup(elf)
+    pub fn execute<'a>(&self, elf: &'a [u8], stdin: SP1Stdin) -> action::Execute<'a> {
+        action::Execute::new(elf, stdin)
     }
 
-    /// Calls [`Self::prove_with_context`] with the default context. See there for more details.
-    pub fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Proof> {
-        self.prove_with_context(pk, stdin, Default::default())
-    }
-
-    /// Proves the execution of the given program with the given input in the default mode.
+    /// Prepare to prove the execution of the given program with the given input in the default mode.
+    /// The returned [action::Prove] may be configured via its methods before running.
+    /// To prove, call [action::Prove::run].
     ///
-    /// Returns a proof of the program's execution. By default the proof generated will not be
-    /// compressed to constant size. To create a more succinct proof, use the [Self::prove_compressed],
+    /// Calling [action::Prove::run] returns a proof of the program's execution.
+    /// By default the proof generated will not be compressed to constant size.
+    /// To create a more succinct proof, use the [Self::prove_compressed],
     /// [Self::prove_plonk], or [Self::prove_plonk] methods.
     ///
     /// ### Examples
@@ -284,21 +227,38 @@ impl ProverClient {
     /// let mut stdin = SP1Stdin::new();
     /// stdin.write(&10usize);
     ///
-    /// // Build the context.
-    /// let context = SP1Context::builder()
-    /// //  [...]
-    ///     .build();
-    ///
     /// // Generate the proof.
-    /// let proof = client.prove_with_context(&pk, stdin, context).unwrap();
+    /// let proof = client.prove(&pk, stdin).run().unwrap();
     /// ```
-    pub fn prove_with_context<'a>(
-        &'a self,
-        pk: &SP1ProvingKey,
-        stdin: SP1Stdin,
-        context: SP1Context<'a>,
-    ) -> Result<SP1Proof> {
-        self.prover.prove(pk, stdin, Default::default(), context)
+    pub fn prove<'a>(&'a self, pk: &'a SP1ProvingKey, stdin: SP1Stdin) -> action::Prove<'a> {
+        action::Prove::new(self.prover.as_ref(), pk, stdin)
+    }
+
+    /// Gets the current version of the SP1 zkVM.
+    ///
+    /// Note: This is not the same as the version of the SP1 SDK.
+    pub fn version(&self) -> String {
+        SP1_CIRCUIT_VERSION.to_string()
+    }
+
+    /// Setup a program to be proven and verified by the SP1 RISC-V zkVM by computing the proving
+    /// and verifying keys.
+    ///
+    /// The proving key and verifying key essentially embed the program, as well as other auxiliary
+    /// data (such as lookup tables) that are used to prove the program's correctness.
+    ///
+    /// ### Examples
+    /// ```no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin};
+    ///
+    /// let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+    /// let client = ProverClient::new();
+    /// let mut stdin = SP1Stdin::new();
+    /// stdin.write(&10usize);
+    /// let (pk, vk) = client.setup(elf);
+    /// ```
+    pub fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
+        self.prover.setup(elf)
     }
 
     /// Calls [`Self::prove_compressed_with_context`] with the default context. See there for more details.
@@ -408,7 +368,7 @@ impl ProverClient {
     /// let (pk, vk) = client.setup(elf);
     /// let mut stdin = SP1Stdin::new();
     /// stdin.write(&10usize);
-    /// let proof = client.prove(&pk, stdin).unwrap();
+    /// let proof = client.prove(&pk, stdin).run().unwrap();
     /// client.verify(&proof, &vk).unwrap();
     /// ```
     pub fn verify(
@@ -524,7 +484,7 @@ mod tests {
 
     use sp1_core::runtime::{hook_ecrecover, FD_ECRECOVER_HOOK};
 
-    use crate::{utils, ProverClient, SP1Context, SP1Stdin};
+    use crate::{utils, ProverClient, SP1Stdin};
 
     #[test]
     fn test_execute() {
@@ -534,25 +494,7 @@ mod tests {
             include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
-        client.execute(elf, stdin).unwrap();
-    }
-
-    #[test]
-    fn test_execute_with_context() {
-        // Wrap the hook and check that it was called.
-        let call_ct = AtomicU32::new(0);
-        let context = SP1Context::builder()
-            .hook(FD_ECRECOVER_HOOK, |env, buf| {
-                call_ct.fetch_add(1, Ordering::Relaxed);
-                hook_ecrecover(env, buf)
-            })
-            .build();
-        utils::setup_logger();
-        let client = ProverClient::local();
-        let elf = include_bytes!("../../tests/ecrecover/elf/riscv32im-succinct-zkvm-elf");
-        let stdin = SP1Stdin::new();
-        client.execute_with_context(elf, stdin, context).unwrap();
-        assert_ne!(call_ct.into_inner(), 0);
+        client.execute(elf, stdin).run().unwrap();
     }
 
     #[test]
@@ -564,7 +506,7 @@ mod tests {
         let elf = include_bytes!("../../tests/ecrecover/elf/riscv32im-succinct-zkvm-elf");
         let stdin = SP1Stdin::new();
         client
-            .execute_new(elf, stdin)
+            .execute(elf, stdin)
             .with_hook(FD_ECRECOVER_HOOK, |env, buf| {
                 call_ct.fetch_add(1, Ordering::Relaxed);
                 hook_ecrecover(env, buf)
@@ -584,7 +526,7 @@ mod tests {
         let stdin = SP1Stdin::new();
         let (pk, _) = client.setup(elf);
         client
-            .prove_new(&pk, stdin)
+            .prove(&pk, stdin)
             .with_hook(FD_ECRECOVER_HOOK, |env, buf| {
                 call_ct.fetch_add(1, Ordering::Relaxed);
                 hook_ecrecover(env, buf)
@@ -602,7 +544,7 @@ mod tests {
         let elf = include_bytes!("../../tests/panic/elf/riscv32im-succinct-zkvm-elf");
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
-        client.execute(elf, stdin).unwrap();
+        client.execute(elf, stdin).run().unwrap();
     }
 
     #[test]

@@ -33,7 +33,7 @@ fn main() {
     // Generate the proof for the given program.
     let client = ProverClient::new();
     let (pk, vk) = client.setup(ELF);
-    let mut proof = client.prove(&pk, stdin).unwrap();
+    let mut proof = client.prove(&pk, stdin).run().unwrap();
 
     // Read the output.
     let r = proof.public_values.read::<MyPointUnaligned>();

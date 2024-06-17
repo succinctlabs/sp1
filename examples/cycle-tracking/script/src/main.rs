@@ -13,7 +13,7 @@ fn main() {
     // Generate the proof for the given program.
     let client = ProverClient::new();
     let (pk, vk) = client.setup(ELF);
-    let proof = client.prove(&pk, stdin).expect("proving failed");
+    let proof = client.prove(&pk, stdin).run().expect("proving failed");
 
     // Verify proof.
     client.verify(&proof, &vk).expect("verification failed");
