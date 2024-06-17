@@ -13,10 +13,7 @@ fn main() {
     let proof = client.prove(&pk, stdin).run().expect("proving failed");
 
     // Verify proof.
-    client
-        .verify(&proof, &vk)
-        .run()
-        .expect("verification failed");
+    client.verify(&proof, &vk).expect("verification failed");
 
     // Test a round trip of proof serialization and deserialization.
     proof
@@ -27,7 +24,6 @@ fn main() {
     // Verify the deserialized proof.
     client
         .verify(&deserialized_proof, &vk)
-        .run()
         .expect("verification failed");
 
     println!("successfully generated and verified proof for the program!")

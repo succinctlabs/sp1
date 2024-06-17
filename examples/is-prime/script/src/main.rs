@@ -21,10 +21,7 @@ fn main() {
     let is_prime = proof.public_values.read::<bool>();
     println!("Is 29 prime? {}", is_prime);
 
-    client
-        .verify(&proof, &vk)
-        .run()
-        .expect("verification failed");
+    client.verify(&proof, &vk).expect("verification failed");
 
     // Test a round trip of proof serialization and deserialization.
     proof
@@ -36,7 +33,6 @@ fn main() {
     // Verify the deserialized proof.
     client
         .verify(&deserialized_proof, &vk)
-        .run()
         .expect("verification failed");
 
     println!("successfully generated and verified proof for the program!")
