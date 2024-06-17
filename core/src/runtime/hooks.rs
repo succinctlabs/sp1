@@ -59,14 +59,8 @@ impl<'a> HookRegistry<'a> {
         }
     }
 
-    /// Given the `fd` of a hook, get an RAII guard wrapping the `Hook`, if the hook exists.
-    ///
-    /// ### Examples
-    /// ```
-    /// use sp1_core::runtime::*;
-    /// let mut registry: HookRegistry<'static> = Default::default();
-    /// assert!(registry.get(&FD_ECRECOVER_HOOK).is_some());
-    /// ```
+    /// Get a hook with exclusive write access, if it exists.
+    /// Should not be called in async contexts, unless you know what you are doing.
     pub fn get(&self, fd: &u32) -> Option<RwLockWriteGuard<dyn Hook + Send + Sync + 'a>> {
         // Calling `.unwrap()` panics on a poisoned lock. Should never happen normally.
         self.table.get(fd).map(|x| x.write().unwrap())
