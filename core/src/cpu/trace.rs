@@ -44,7 +44,7 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
         let mut new_blu_events = Vec::new();
 
         // Generate the trace rows for each event.
-        let chunk_size = std::cmp::max(input.cpu_events.len() / num_cpus::get() * 4, 1);
+        let chunk_size = std::cmp::max(input.cpu_events.len() / num_cpus::get(), 1);
         let mut cpu_events = input.cpu_events.clone();
         cpu_events.par_sort_unstable_by_key(|event| event.clk);
 
