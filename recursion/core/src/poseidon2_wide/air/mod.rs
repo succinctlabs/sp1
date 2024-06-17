@@ -45,7 +45,7 @@ where
         let local_syscall = local_row.syscall_params();
         let next_syscall = next_row.syscall_params();
         let local_memory = local_row.memory();
-        let next_memory = local_row.memory();
+        let next_memory = next_row.memory();
         let local_perm = local_row.permutation();
         let local_opcode_workspace = local_row.opcode_workspace();
         let next_opcode_workspace = next_row.opcode_workspace();
