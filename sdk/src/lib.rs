@@ -220,14 +220,18 @@ impl ProverClient {
     /// let mut stdin = SP1Stdin::new();
     /// stdin.write(&10usize);
     /// let proof = client.prove(&pk, stdin).run().unwrap();
-    /// client.verify(&proof, &vk).run().unwrap();
+    /// client.verify(&proof, &vk).unwrap();
     /// ```
-    pub fn verify<'a>(
-        &'a self,
-        proof: &'a SP1Proof,
-        vk: &'a SP1VerifyingKey,
-    ) -> action::Verify<'a> {
-        action::Verify::new(self.prover.as_ref(), proof, vk)
+    pub fn verify(
+        &self,
+        proof: &SP1Proof,
+        vk: &SP1VerifyingKey,
+    ) -> Result<(), SP1VerificationError> {
+        match proof {
+            SP1Proof::Core(p) => self.prover.verify(p, vk),
+            SP1Proof::Compress(p) => self.prover.verify_compressed(p, vk),
+            SP1Proof::PlonkBn254(p) => self.prover.verify_plonk(p, vk),
+        }
     }
 
     /// Gets the current version of the SP1 zkVM.
@@ -355,7 +359,7 @@ mod tests {
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
         let proof = client.prove(&pk, stdin).plonk().run().unwrap();
-        client.verify(&proof, &vk).run().unwrap();
+        client.verify(&proof, &vk).unwrap();
     }
 
     #[test]
@@ -368,6 +372,6 @@ mod tests {
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
         let proof = client.prove(&pk, stdin).plonk().run().unwrap();
-        client.verify(&proof, &vk).run().unwrap();
+        client.verify(&proof, &vk).unwrap();
     }
 }
