@@ -397,20 +397,9 @@ impl SP1Prover {
         (core_inputs, deferred_inputs)
     }
 
-    /// TODO combine these variants?
-    #[deprecated]
-    pub fn compress(
-        &self,
-        vk: &SP1VerifyingKey,
-        proof: SP1CoreProof,
-        deferred_proofs: Vec<ShardProof<InnerSC>>,
-    ) -> Result<SP1ReduceProof<InnerSC>, SP1RecursionProverError> {
-        self.compress_with(vk, proof, deferred_proofs, SP1ProverOpts::default())
-    }
-
     /// Reduce shards proofs to a single shard proof using the recursion prover.
     #[instrument(name = "compress", level = "info", skip_all)]
-    pub fn compress_with(
+    pub fn compress(
         &self,
         vk: &SP1VerifyingKey,
         proof: SP1CoreProof,
@@ -555,18 +544,9 @@ impl SP1Prover {
             .unwrap()
     }
 
-    /// TODO combine these variants?
-    #[deprecated]
-    pub fn shrink(
-        &self,
-        reduced_proof: SP1ReduceProof<InnerSC>,
-    ) -> Result<SP1ReduceProof<InnerSC>, SP1RecursionProverError> {
-        self.shrink_with(reduced_proof, SP1ProverOpts::default())
-    }
-
     /// Wrap a reduce proof into a STARK proven over a SNARK-friendly field.
     #[instrument(name = "shrink", level = "info", skip_all)]
-    pub fn shrink_with(
+    pub fn shrink(
         &self,
         reduced_proof: SP1ReduceProof<InnerSC>,
         opts: SP1ProverOpts,
@@ -606,20 +586,12 @@ impl SP1Prover {
         })
     }
 
-    /// TODO combine these variants?
+    /// Wrap a reduce proof into a STARK proven over a SNARK-friendly field.
+    #[instrument(name = "wrap_bn254", level = "info", skip_all)]
     pub fn wrap_bn254(
         &self,
         compressed_proof: SP1ReduceProof<InnerSC>,
-    ) -> Result<SP1ReduceProof<OuterSC>, SP1RecursionProverError> {
-        self.wrap_bn254_with(compressed_proof, SP1CoreOpts::recursion())
-    }
-
-    /// Wrap a reduce proof into a STARK proven over a SNARK-friendly field.
-    #[instrument(name = "wrap_bn254", level = "info", skip_all)]
-    pub fn wrap_bn254_with(
-        &self,
-        compressed_proof: SP1ReduceProof<InnerSC>,
-        recursion_opts: SP1CoreOpts,
+        opts: SP1ProverOpts,
     ) -> Result<SP1ReduceProof<OuterSC>, SP1RecursionProverError> {
         let input = SP1RootMemoryLayout {
             machine: &self.shrink_machine,
@@ -648,7 +620,7 @@ impl SP1Prover {
             &self.wrap_pk,
             runtime.record,
             &mut wrap_challenger,
-            recursion_opts,
+            opts.recursion_opts,
         );
         let elapsed = time.elapsed();
         tracing::debug!("Wrap proving time: {:?}", elapsed);
@@ -768,19 +740,19 @@ mod tests {
         prover.verify(&core_proof.proof, &vk)?;
 
         tracing::info!("compress");
-        let compressed_proof = prover.compress_with(&vk, core_proof, vec![], opts)?;
+        let compressed_proof = prover.compress(&vk, core_proof, vec![], opts)?;
 
         tracing::info!("verify compressed");
         prover.verify_compressed(&compressed_proof, &vk)?;
 
         tracing::info!("shrink");
-        let shrink_proof = prover.shrink_with(compressed_proof, opts)?;
+        let shrink_proof = prover.shrink(compressed_proof, opts)?;
 
         tracing::info!("verify shrink");
         prover.verify_shrink(&shrink_proof, &vk)?;
 
         tracing::info!("wrap bn254");
-        let wrapped_bn254_proof = prover.wrap_bn254(shrink_proof)?;
+        let wrapped_bn254_proof = prover.wrap_bn254(shrink_proof, opts)?;
         let bytes = bincode::serialize(&wrapped_bn254_proof).unwrap();
 
         // Save the proof.
@@ -860,11 +832,11 @@ mod tests {
 
         // Generate recursive proof of first subproof.
         tracing::info!("compress subproof 1");
-        let deferred_reduce_1 = prover.compress_with(&keccak_vk, deferred_proof_1, vec![], opts)?;
+        let deferred_reduce_1 = prover.compress(&keccak_vk, deferred_proof_1, vec![], opts)?;
 
         // Generate recursive proof of second subproof.
         tracing::info!("compress subproof 2");
-        let deferred_reduce_2 = prover.compress_with(&keccak_vk, deferred_proof_2, vec![], opts)?;
+        let deferred_reduce_2 = prover.compress(&keccak_vk, deferred_proof_2, vec![], opts)?;
 
         // Run verify program with keccak vkey, subproofs, and their committed values.
         let mut stdin = SP1Stdin::new();
@@ -886,7 +858,7 @@ mod tests {
 
         // Generate recursive proof of verify program
         tracing::info!("compress verify program");
-        let verify_reduce = prover.compress_with(
+        let verify_reduce = prover.compress(
             &verify_vk,
             verify_proof,
             vec![

@@ -61,9 +61,7 @@ impl Prover for LocalProver {
         let proof = self.prover.prove_core_with(pk, &stdin, opts, context)?;
         let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
         let public_values = proof.public_values.clone();
-        let reduce_proof = self
-            .prover
-            .compress_with(&pk.vk, proof, deferred_proofs, opts)?;
+        let reduce_proof = self.prover.compress(&pk.vk, proof, deferred_proofs, opts)?;
         Ok(SP1CompressedProof {
             proof: reduce_proof.proof,
             stdin,
@@ -82,11 +80,9 @@ impl Prover for LocalProver {
         let proof = self.prover.prove_core_with(pk, &stdin, opts, context)?;
         let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
         let public_values = proof.public_values.clone();
-        let reduce_proof = self
-            .prover
-            .compress_with(&pk.vk, proof, deferred_proofs, opts)?;
-        let compress_proof = self.prover.shrink_with(reduce_proof, opts)?;
-        let outer_proof = self.prover.wrap_bn254(compress_proof)?;
+        let reduce_proof = self.prover.compress(&pk.vk, proof, deferred_proofs, opts)?;
+        let compress_proof = self.prover.shrink(reduce_proof, opts)?;
+        let outer_proof = self.prover.wrap_bn254(compress_proof, opts)?;
 
         let plonk_bn254_aritfacts = if sp1_prover::build::sp1_dev_mode() {
             sp1_prover::build::try_build_plonk_bn254_artifacts_dev(
