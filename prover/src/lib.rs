@@ -138,14 +138,6 @@ pub struct SP1Prover {
 
     /// The machine used for proving the wrapping step.
     pub wrap_machine: StarkMachine<OuterSC, WrapAir<<OuterSC as StarkGenericConfig>::Val>>,
-
-    /// The options for the core prover.
-    #[deprecated]
-    pub core_opts: SP1CoreOpts,
-
-    /// The options for the recursion prover.
-    #[deprecated]
-    pub recursion_opts: SP1CoreOpts,
 }
 
 impl SP1Prover {
@@ -183,8 +175,6 @@ impl SP1Prover {
         let wrap_machine = WrapAir::wrap_machine(OuterSC::default());
         let (wrap_pk, wrap_vk) = wrap_machine.setup(&wrap_program);
 
-        // TODO remove deprecated stuff, rename the methods
-        #[allow(deprecated)]
         Self {
             recursion_program,
             rec_pk,
@@ -205,8 +195,6 @@ impl SP1Prover {
             compress_machine,
             shrink_machine,
             wrap_machine,
-            core_opts: SP1CoreOpts::default(),
-            recursion_opts: SP1CoreOpts::recursion(),
         }
     }
 
