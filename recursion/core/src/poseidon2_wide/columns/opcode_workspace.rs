@@ -55,21 +55,25 @@ pub struct AbsorbWorkspace<T: Copy> {
     /// State related columns.
     pub previous_state: [T; WIDTH],
     pub state: [T; WIDTH],
-    pub syscall_state_cursor: T,
+    pub state_cursor: T,
 
     /// Control flow columns.
     pub is_first_hash_row: T,
     pub num_remaining_rows: T,
     pub num_remaining_rows_is_zero: IsZeroOperation<T>,
 
-    // This is the state index of that last element consumed by the absorb syscall.
+    /// This is the state index of that last element consumed by the absorb syscall.
     pub last_row_ending_cursor: T,
     pub last_row_ending_cursor_is_seven: IsZeroOperation<T>, // Needed when doing the (last_row_ending_cursor_is_seven + 1) % 8 calculation.
     pub last_row_ending_cursor_bitmap: [T; 3],
 
-    // Materialized control flow flags to deal with max contraint degree.
+    /// Only used for non syscall absorb rows.
+    /// read_ptr' = read_ptr + num_consumed
+    pub read_ptr: T,
+
+    /// Materialized control flow flags to deal with max contraint degree.
     pub is_syscall_not_last_row: T, // expected num_consumed == RATE - start_cursor, expected cursor == start_cursor
-    pub is_syscall_is_last_row: T,  // expected num_consumed == len, expected cursor == start_cursor
+    pub is_syscall_is_last_row: T, // expected num_consumed == len, expected cursor == start_cursor
     pub not_syscall_not_last_row: T, // expected num_consumed == 8, expected cursor == 0;
     pub not_syscall_is_last_row: T, // expected num_consuemd == last_row_num_consumed, expected_corsor == 0
     pub is_last_row_ending_cursor_is_seven: T,
@@ -84,21 +88,13 @@ impl<T: Copy> AbsorbWorkspace<T> {
         self.num_remaining_rows_is_zero.result.into()
     }
 
-    pub(crate) fn state_cursor<AB: SP1RecursionAirBuilder>(&self) -> AB::Expr
-    where
-        T: Into<AB::Expr>,
-    {
-        (self.is_syscall_not_last_row.into() + self.is_syscall_is_last_row.into())
-            * self.syscall_state_cursor.into()
-    }
-
     pub(crate) fn do_perm<AB: SP1RecursionAirBuilder>(&self) -> AB::Expr
     where
         T: Into<AB::Expr>,
     {
         self.is_syscall_not_last_row.into()
             + self.not_syscall_not_last_row.into()
-            + self.last_row_ending_cursor_is_seven.result.into()
+            + self.is_last_row_ending_cursor_is_seven.into()
     }
 
     pub(crate) fn num_consumed<AB: SP1RecursionAirBuilder>(&self) -> AB::Expr
@@ -106,9 +102,9 @@ impl<T: Copy> AbsorbWorkspace<T> {
         T: Into<AB::Expr>,
     {
         self.is_syscall_not_last_row.into()
-            * (AB::Expr::from_canonical_usize(RATE) - self.state_cursor::<AB>())
+            * (AB::Expr::from_canonical_usize(RATE) - self.state_cursor.into())
             + self.is_syscall_is_last_row.into()
-                * (self.last_row_ending_cursor.into() - self.state_cursor::<AB>() + AB::Expr::one())
+                * (self.last_row_ending_cursor.into() - self.state_cursor.into() + AB::Expr::one())
             + self.not_syscall_not_last_row.into() * AB::Expr::from_canonical_usize(RATE)
             + self.not_syscall_is_last_row.into()
                 * (self.last_row_ending_cursor.into() + AB::Expr::one())

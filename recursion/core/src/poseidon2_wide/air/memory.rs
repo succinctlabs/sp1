@@ -14,104 +14,125 @@ use crate::{
 };
 
 impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
+    /// Eval the memory related columns.
     pub(crate) fn eval_mem<AB: SP1RecursionAirBuilder>(
         &self,
         builder: &mut AB,
         syscall_params: &SyscallParams<AB::Var>,
-        memory: &Memory<AB::Var>,
+        local_memory: &Memory<AB::Var>,
+        next_memory: &Memory<AB::Var>,
         opcode_workspace: &OpcodeWorkspace<AB::Var>,
         control_flow: &ControlFlow<AB::Var>,
     ) {
         let clk = syscall_params.get_raw_params()[0];
         let is_real = control_flow.is_compress + control_flow.is_absorb + control_flow.is_finalize;
 
-        // Verify the memory flags.
+        // Constrain the memory flags.
         for i in 0..WIDTH / 2 {
-            builder.assert_bool(memory.memory_slot_used[i]);
+            builder.assert_bool(local_memory.memory_slot_used[i]);
+
+            // The memory slot flag will be used as the memory access multiplicity flag, so we need to
+            // ensure that those values are zero for all non real rows.
             builder
-                .when(memory.memory_slot_used[i])
-                .assert_one(is_real.clone());
+                .when_not(is_real.clone())
+                .assert_zero(local_memory.memory_slot_used[i]);
 
             // For compress and finalize, all of the slots should be true.
             builder
                 .when(control_flow.is_compress + control_flow.is_finalize)
-                .assert_one(memory.memory_slot_used[i]);
+                .assert_one(local_memory.memory_slot_used[i]);
 
-            // For absorb, the index of the first non zero slot should be equal to the state_cursor.
-            // The number of sequential non zero slots should be equal to the number of consumed elements.
-            // Need to make sure the non zero slots are contiguous.
-            // TODO
+            // For absorb, the first n zero columns should equal to state_cursor.  The next m contiguous
+            // non zero columns should be equal to the consumed elements.  The rest of the columns should
+            // be zero.
         }
 
-        // Verify the memory addr.
-        builder
-            .when(control_flow.is_compress * control_flow.is_syscall_row)
-            .assert_eq(syscall_params.compress().left_ptr, memory.start_addr);
-        builder
-            .when(control_flow.is_compress_output)
-            .assert_eq(syscall_params.compress().dst_ptr, memory.start_addr);
-        builder
-            .when(control_flow.is_absorb * control_flow.is_syscall_row)
-            .assert_eq(syscall_params.absorb().input_ptr, memory.start_addr);
-        // TODO: Need to handle the case for non syscall compress.
-        builder
-            .when(control_flow.is_finalize)
-            .assert_eq(syscall_params.finalize().output_ptr, memory.start_addr);
+        // Verify the start_addr column.
+        {
+            // For compress syscall rows, the start_addr should be the param's left ptr.
+            builder
+                .when(control_flow.is_compress * control_flow.is_syscall_row)
+                .assert_eq(syscall_params.compress().left_ptr, local_memory.start_addr);
 
-        // Evaluate the first half of the memory.
-        let mut addr: AB::Expr = memory.start_addr.into();
-        for i in 0..WIDTH / 2 {
-            builder.recursion_eval_memory_access_single(
-                clk + control_flow.is_compress_output,
-                addr.clone(),
-                &memory.memory_accesses[i],
-                memory.memory_slot_used[i],
+            // For compress output rows, the start_addr should be the param's dst ptr.
+            builder
+                .when(control_flow.is_compress_output)
+                .assert_eq(syscall_params.compress().dst_ptr, local_memory.start_addr);
+
+            // For absorb syscall rows, the start_addr should initially be from the syscall param's
+            // input_ptr, and for subsequent rows, it's incremented by the number of consumed elements.
+            builder
+                .when(control_flow.is_absorb)
+                .when(control_flow.is_syscall_row)
+                .assert_eq(syscall_params.absorb().input_ptr, local_memory.start_addr);
+            builder.when(control_flow.is_absorb_not_last_row).assert_eq(
+                next_memory.start_addr,
+                local_memory.start_addr + opcode_workspace.absorb().num_consumed::<AB>(),
             );
 
-            // For read only accesses, assert the value didn't change.
-            builder
-                .when(
-                    control_flow.is_compress * control_flow.is_syscall_row + control_flow.is_absorb,
-                )
-                .assert_eq(
-                    *memory.memory_accesses[i].prev_value(),
-                    *memory.memory_accesses[i].value(),
-                );
-
-            addr = addr.clone() + memory.memory_slot_used[i].into();
+            // For finalize syscall rows, the start_addr should be the param's output ptr.
+            builder.when(control_flow.is_finalize).assert_eq(
+                syscall_params.finalize().output_ptr,
+                local_memory.start_addr,
+            );
         }
 
-        // Evalulate the second half for compress syscall.
-        let compress_workspace = opcode_workspace.compress();
-        // Verify the start addr.
-        builder
-            .when(control_flow.is_compress * control_flow.is_syscall_row)
-            .assert_eq(
+        // Contrain memory access for the first half of the memory accesses.
+        {
+            let mut addr: AB::Expr = local_memory.start_addr.into();
+            for i in 0..WIDTH / 2 {
+                builder.recursion_eval_memory_access_single(
+                    clk + control_flow.is_compress_output,
+                    addr.clone(),
+                    &local_memory.memory_accesses[i],
+                    local_memory.memory_slot_used[i],
+                );
+
+                let compress_syscall_row = control_flow.is_compress * control_flow.is_syscall_row;
+                // For read only accesses, assert the value didn't change.
+                builder
+                    .when(compress_syscall_row + control_flow.is_absorb)
+                    .assert_eq(
+                        *local_memory.memory_accesses[i].prev_value(),
+                        *local_memory.memory_accesses[i].value(),
+                    );
+
+                addr = addr.clone() + local_memory.memory_slot_used[i].into();
+            }
+        }
+
+        // Contrain memory access for the first half of the memory accesses.
+        {
+            let compress_workspace = opcode_workspace.compress();
+
+            // Verify the start addr.
+            let is_compress_syscall = control_flow.is_compress * control_flow.is_syscall_row;
+            builder.when(is_compress_syscall.clone()).assert_eq(
                 compress_workspace.start_addr,
                 syscall_params.compress().right_ptr,
             );
-        builder.when(control_flow.is_compress_output).assert_eq(
-            compress_workspace.start_addr,
-            syscall_params.compress().dst_ptr + AB::Expr::from_canonical_usize(WIDTH / 2),
-        );
-        // Evaluate then memory
-        let mut addr: AB::Expr = compress_workspace.start_addr.into();
-        for i in 0..WIDTH / 2 {
-            builder.recursion_eval_memory_access_single(
-                clk + control_flow.is_compress_output,
-                addr.clone(),
-                &compress_workspace.memory_accesses[i],
-                control_flow.is_compress,
+            builder.when(control_flow.is_compress_output).assert_eq(
+                compress_workspace.start_addr,
+                syscall_params.compress().dst_ptr + AB::Expr::from_canonical_usize(WIDTH / 2),
             );
 
-            builder
-                .when(control_flow.is_syscall_row * control_flow.is_compress)
-                .assert_eq(
+            let mut addr: AB::Expr = compress_workspace.start_addr.into();
+            for i in 0..WIDTH / 2 {
+                builder.recursion_eval_memory_access_single(
+                    clk + control_flow.is_compress_output,
+                    addr.clone(),
+                    &compress_workspace.memory_accesses[i],
+                    control_flow.is_compress,
+                );
+
+                // For read only accesses, assert the value didn't change.
+                builder.when(is_compress_syscall.clone()).assert_eq(
                     *compress_workspace.memory_accesses[i].prev_value(),
                     *compress_workspace.memory_accesses[i].value(),
                 );
 
-            addr = addr.clone() + AB::Expr::one();
+                addr = addr.clone() + AB::Expr::one();
+            }
         }
     }
 }

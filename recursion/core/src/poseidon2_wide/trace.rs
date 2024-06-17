@@ -242,6 +242,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                 control_flow.is_absorb = F::one();
                 control_flow.is_syscall_row = F::from_bool(is_syscall_row);
                 control_flow.is_absorb_no_perm = F::from_bool(!absorb_iter.do_perm);
+                control_flow.is_absorb_not_last_row = F::from_bool(!is_last_row);
             }
 
             {
@@ -315,8 +316,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
 
                 absorb_workspace.state = absorb_iter.state;
                 absorb_workspace.previous_state = absorb_iter.previous_state;
-                absorb_workspace.syscall_state_cursor =
-                    F::from_canonical_usize(absorb_iter.state_cursor);
+                absorb_workspace.state_cursor = F::from_canonical_usize(absorb_iter.state_cursor);
                 absorb_workspace.is_first_hash_row =
                     F::from_bool(iter_num == 0 && absorb_event.is_hash_first_absorb);
             }
