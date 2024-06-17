@@ -20,7 +20,7 @@ pub const NUM_ROUNDS: usize = NUM_EXTERNAL_ROUNDS + NUM_INTERNAL_ROUNDS;
 
 /// A chip that implements addition for the opcode ADD.
 #[derive(Default)]
-pub struct Poseidon2WideChip<const DEGREE: usize> {
+pub struct Poseidon2WideChip<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize> {
     pub fixed_log2_rows: Option<usize>,
 }
 
@@ -88,8 +88,8 @@ mod tests {
 
     use super::{Poseidon2WideChip, WIDTH};
 
-    fn generate_trace_degree<const DEGREE: usize>() {
-        let chip = Poseidon2WideChip::<DEGREE> {
+    fn generate_trace_degree<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>() {
+        let chip = Poseidon2WideChip::<DEGREE, ROUND_CHUNK_SIZE> {
             fixed_log2_rows: None,
         };
 
@@ -127,15 +127,15 @@ mod tests {
     /// A test generating a trace for a single permutation that checks that the output is correct
     #[test]
     fn generate_trace() {
-        generate_trace_degree::<3>();
-        generate_trace_degree::<9>();
+        generate_trace_degree::<3, 1>();
+        generate_trace_degree::<9, 1>();
     }
 
-    fn poseidon2_wide_prove_babybear_degree<const DEGREE: usize>(
+    fn poseidon2_wide_prove_babybear_degree<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>(
         inputs: Vec<[BabyBear; 16]>,
         outputs: Vec<[BabyBear; 16]>,
     ) {
-        let chip = Poseidon2WideChip::<DEGREE> {
+        let chip = Poseidon2WideChip::<DEGREE, ROUND_CHUNK_SIZE> {
             fixed_log2_rows: None,
         };
         let mut input_exec = ExecutionRecord::<BabyBear>::default();
@@ -185,8 +185,8 @@ mod tests {
             .map(|input| gt.permute(*input))
             .collect::<Vec<_>>();
 
-        poseidon2_wide_prove_babybear_degree::<3>(test_inputs.clone(), expected_outputs.clone());
-        poseidon2_wide_prove_babybear_degree::<9>(test_inputs, expected_outputs);
+        poseidon2_wide_prove_babybear_degree::<3, 1>(test_inputs.clone(), expected_outputs.clone());
+        poseidon2_wide_prove_babybear_degree::<9, 1>(test_inputs, expected_outputs);
     }
 
     #[test]
@@ -202,7 +202,7 @@ mod tests {
             .map(|_| core::array::from_fn(|_| BabyBear::rand(rng)))
             .collect_vec();
 
-        poseidon2_wide_prove_babybear_degree::<3>(test_inputs.clone(), bad_outputs.clone());
-        poseidon2_wide_prove_babybear_degree::<9>(test_inputs, bad_outputs);
+        poseidon2_wide_prove_babybear_degree::<3, 1>(test_inputs.clone(), bad_outputs.clone());
+        poseidon2_wide_prove_babybear_degree::<9, 1>(test_inputs, bad_outputs);
     }
 }

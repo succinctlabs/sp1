@@ -13,7 +13,9 @@ use crate::{
     },
 };
 
-impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
+impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
+    Poseidon2WideChip<DEGREE, ROUND_CHUNK_SIZE>
+{
     /// Constraints related to control flow.
     pub(crate) fn eval_control_flow<AB: SP1RecursionAirBuilder>(
         &self,
@@ -234,7 +236,8 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             absorb_builder
                 .when(local_control_flow.is_syscall_row)
                 .assert_eq(
-                    local_hash_workspace.syscall_state_cursor + local_syscall_params.absorb().len
+                    local_hash_workspace.syscall_state_cursor
+                        + local_syscall_params.absorb().input_len
                         - AB::Expr::one(),
                     local_hash_workspace.num_remaining_rows * AB::Expr::from_canonical_usize(RATE)
                         + local_hash_workspace.last_row_ending_cursor,

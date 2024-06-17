@@ -13,30 +13,40 @@ pub mod syscall_params;
 
 use super::{
     columns::{
-        Poseidon2, Poseidon2Degree3, Poseidon2Degree9, NUM_POSEIDON2_DEGREE3_COLS,
-        NUM_POSEIDON2_DEGREE9_COLS,
+        Poseidon2, Poseidon2Degree17, Poseidon2Degree3, Poseidon2Degree9,
+        NUM_POSEIDON2_DEGREE17_COLS, NUM_POSEIDON2_DEGREE3_COLS, NUM_POSEIDON2_DEGREE9_COLS,
     },
     Poseidon2WideChip,
 };
 
-impl<F, const DEGREE: usize> BaseAir<F> for Poseidon2WideChip<DEGREE> {
+impl<F, const DEGREE: usize, const ROUND_CHUNK_SIZE: usize> BaseAir<F>
+    for Poseidon2WideChip<DEGREE, ROUND_CHUNK_SIZE>
+{
     fn width(&self) -> usize {
         if DEGREE == 3 {
             NUM_POSEIDON2_DEGREE3_COLS
         } else if DEGREE == 9 {
             NUM_POSEIDON2_DEGREE9_COLS
+        } else if DEGREE == 17 {
+            NUM_POSEIDON2_DEGREE17_COLS
         } else {
             panic!("Unsupported degree: {}", DEGREE);
         }
     }
 }
 
-impl<AB, const DEGREE: usize> Air<AB> for Poseidon2WideChip<DEGREE>
+impl<AB, const DEGREE: usize, const ROUND_CHUNK_SIZE: usize> Air<AB>
+    for Poseidon2WideChip<DEGREE, ROUND_CHUNK_SIZE>
 where
     AB: SP1RecursionAirBuilder,
     AB::Var: 'static,
 {
     fn eval(&self, builder: &mut AB) {
+        println!(
+            "width is {}",
+            <Poseidon2WideChip<DEGREE, ROUND_CHUNK_SIZE> as BaseAir<AB::Var>>::width(self)
+        );
+
         let main = builder.main();
         let local_row = Self::convert::<AB>(main.row_slice(0));
         let next_row = Self::convert::<AB>(main.row_slice(1));
@@ -93,7 +103,9 @@ where
     }
 }
 
-impl<'a, const DEGREE: usize> Poseidon2WideChip<DEGREE> {
+impl<'a, const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
+    Poseidon2WideChip<DEGREE, ROUND_CHUNK_SIZE>
+{
     fn convert<AB: SP1RecursionAirBuilder>(
         row: impl Deref<Target = [AB::Var]>,
     ) -> Box<dyn Poseidon2<'a, AB::Var> + 'a>
@@ -105,6 +117,9 @@ impl<'a, const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             Box::new(*convert)
         } else if DEGREE == 9 {
             let convert: &Poseidon2Degree9<AB::Var> = (*row).borrow();
+            Box::new(*convert)
+        } else if DEGREE == 17 {
+            let convert: &Poseidon2Degree17<AB::Var> = (*row).borrow();
             Box::new(*convert)
         } else {
             panic!("Unsupported degree");

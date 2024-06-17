@@ -10,7 +10,9 @@ use crate::{
     runtime::Opcode,
 };
 
-impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
+impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
+    Poseidon2WideChip<DEGREE, ROUND_CHUNK_SIZE>
+{
     /// Eval the syscall parameters.
     pub(crate) fn eval_syscall_params<AB: SP1RecursionAirBuilder>(
         &self,
@@ -78,7 +80,10 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                 local_syscall_params.input_ptr,
                 next_syscall_params.input_ptr,
             );
-            absorb_syscall_builder.assert_eq(local_syscall_params.len, next_syscall_params.len);
+            absorb_syscall_builder.assert_eq(
+                local_syscall_params.input_len,
+                next_syscall_params.input_len,
+            );
         }
     }
 }

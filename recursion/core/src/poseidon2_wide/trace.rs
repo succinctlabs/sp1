@@ -18,13 +18,16 @@ use crate::{
     runtime::{ExecutionRecord, RecursionProgram},
 };
 
+use super::columns::Poseidon2Degree17;
 use super::RATE;
 use super::{
     columns::{Poseidon2Degree9, Poseidon2Mut},
     internal_linear_layer, Poseidon2WideChip, NUM_INTERNAL_ROUNDS,
 };
 
-impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<DEGREE> {
+impl<F: PrimeField32, const DEGREE: usize, const ROUND_CHUNK_SIZE: usize> MachineAir<F>
+    for Poseidon2WideChip<DEGREE, ROUND_CHUNK_SIZE>
+{
     type Record = ExecutionRecord<F>;
 
     type Program = RecursionProgram<F>;
@@ -45,7 +48,8 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
     ) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
-        let num_columns = <Poseidon2WideChip<DEGREE> as BaseAir<F>>::width(self);
+        let num_columns = <Poseidon2WideChip<DEGREE, ROUND_CHUNK_SIZE> as BaseAir<F>>::width(self);
+        println!("num_columns is {:?}", num_columns);
 
         // First process all of the hash events.
         for event in &input.poseidon2_hash_events {
@@ -94,7 +98,9 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
     }
 }
 
-impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
+impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
+    Poseidon2WideChip<DEGREE, ROUND_CHUNK_SIZE>
+{
     pub fn convert_mut<'a, 'b: 'a, F: PrimeField32>(
         &self,
         row: &'b mut Vec<F>,
@@ -104,6 +110,9 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             Box::new(convert)
         } else if DEGREE == 9 {
             let convert: &mut Poseidon2Degree9<F> = row.as_mut_slice().borrow_mut();
+            Box::new(convert)
+        } else if DEGREE == 17 {
+            let convert: &mut Poseidon2Degree17<F> = row.as_mut_slice().borrow_mut();
             Box::new(convert)
         } else {
             panic!("Unsupported degree");
@@ -251,7 +260,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                 syscall_params.clk = absorb_event.clk;
                 syscall_params.hash_num = absorb_event.hash_num;
                 syscall_params.input_ptr = absorb_event.input_ptr;
-                syscall_params.len = F::from_canonical_usize(absorb_event.input_len);
+                syscall_params.input_len = F::from_canonical_usize(absorb_event.input_len);
             }
 
             {

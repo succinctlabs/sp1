@@ -241,9 +241,18 @@ impl<'a, T: Copy + 'a> Poseidon2Mut<'a, T> for &'a mut Poseidon2Degree9<T> {
     }
 }
 
+pub const NUM_POSEIDON2_DEGREE17_COLS: usize = size_of::<Poseidon2Degree17<u8>>();
+const fn make_col_map_degree17() -> Poseidon2Degree17<usize> {
+    let indices_arr = indices_arr::<NUM_POSEIDON2_DEGREE17_COLS>();
+    unsafe {
+        transmute::<[usize; NUM_POSEIDON2_DEGREE17_COLS], Poseidon2Degree17<usize>>(indices_arr)
+    }
+}
+pub const POSEIDON2_DEGREE17_COL_MAP: Poseidon2Degree17<usize> = make_col_map_degree17();
+
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
-pub struct Poseidon2Degree15<T: Copy> {
+pub struct Poseidon2Degree17<T: Copy> {
     pub control_flow: ControlFlow<T>,
     pub syscall_input: SyscallParams<T>,
     pub memory: Memory<T>,
@@ -252,7 +261,7 @@ pub struct Poseidon2Degree15<T: Copy> {
     pub state_cursor: [T; WIDTH / 2], // Only used for absorb
 }
 
-impl<'a, T: Copy + 'a> Poseidon2<'a, T> for Poseidon2Degree15<T> {
+impl<'a, T: Copy + 'a> Poseidon2<'a, T> for Poseidon2Degree17<T> {
     fn control_flow(&self) -> &ControlFlow<T> {
         &self.control_flow
     }
@@ -274,7 +283,7 @@ impl<'a, T: Copy + 'a> Poseidon2<'a, T> for Poseidon2Degree15<T> {
     }
 }
 
-impl<'a, T: Copy + 'a> Poseidon2Mut<'a, T> for &'a mut Poseidon2Degree15<T> {
+impl<'a, T: Copy + 'a> Poseidon2Mut<'a, T> for &'a mut Poseidon2Degree17<T> {
     fn control_flow_mut(&mut self) -> &mut ControlFlow<T> {
         &mut self.control_flow
     }

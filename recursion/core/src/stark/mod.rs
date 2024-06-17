@@ -15,20 +15,24 @@ use std::marker::PhantomData;
 
 use crate::runtime::D;
 
-pub type RecursionAirWideDeg3<F> = RecursionAir<F, 3>;
-pub type RecursionAirSkinnyDeg9<F> = RecursionAir<F, 9>;
-pub type RecursionAirSkinnyDeg15<F> = RecursionAir<F, 15>;
+pub type RecursionAirWideDeg3<F> = RecursionAir<F, 3, 1>;
+pub type RecursionAirSkinnyDeg9<F> = RecursionAir<F, 9, 1>;
+pub type RecursionAirSkinnyDeg15<F> = RecursionAir<F, 15, 1>;
 
 #[derive(RecursionMachineAir)]
 #[sp1_core_path = "sp1_core"]
 #[execution_record_path = "crate::runtime::ExecutionRecord<F>"]
 #[program_path = "crate::runtime::RecursionProgram<F>"]
 #[builder_path = "crate::air::SP1RecursionAirBuilder<F = F>"]
-pub enum RecursionAir<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> {
+pub enum RecursionAir<
+    F: PrimeField32 + BinomiallyExtendable<D>,
+    const DEGREE: usize,
+    const ROUND_CHUNK_SIZE: usize,
+> {
     Program(ProgramChip),
     Cpu(CpuChip<F, DEGREE>),
     MemoryGlobal(MemoryGlobalChip),
-    Poseidon2Wide(Poseidon2WideChip<DEGREE>),
+    Poseidon2Wide(Poseidon2WideChip<DEGREE, ROUND_CHUNK_SIZE>),
     Poseidon2Skinny(Poseidon2Chip),
     FriFold(FriFoldChip<DEGREE>),
     RangeCheck(RangeCheckChip<F>),
@@ -38,8 +42,9 @@ pub enum RecursionAir<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: u
 impl<
         F: PrimeField32 + BinomiallyExtendable<D>,
         const DEGREE: usize,
+        const ROUND_CHUNK_SIZE: usize,
         AB: p3_air::PairBuilder + crate::air::SP1RecursionAirBuilder<F = F>,
-    > p3_air::Air<AB> for RecursionAir<F, DEGREE>
+    > p3_air::Air<AB> for RecursionAir<F, DEGREE, ROUND_CHUNK_SIZE>
 where
     AB::Var: 'static,
 {
@@ -51,7 +56,7 @@ where
                 <MemoryGlobalChip as p3_air::Air<AB>>::eval(x, builder)
             }
             RecursionAir::Poseidon2Wide(x) => {
-                <Poseidon2WideChip<DEGREE> as p3_air::Air<AB>>::eval(x, builder)
+                <Poseidon2WideChip<DEGREE, ROUND_CHUNK_SIZE> as p3_air::Air<AB>>::eval(x, builder)
             }
             RecursionAir::Poseidon2Skinny(x) => {
                 <Poseidon2Chip as p3_air::Air<AB>>::eval(x, builder)
@@ -63,7 +68,12 @@ where
     }
 }
 
-impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAir<F, DEGREE> {
+impl<
+        F: PrimeField32 + BinomiallyExtendable<D>,
+        const DEGREE: usize,
+        const ROUND_CHUNK_SIZE: usize,
+    > RecursionAir<F, DEGREE, ROUND_CHUNK_SIZE>
+{
     /// A recursion machine that can have dynamic trace sizes.
     pub fn machine<SC: StarkGenericConfig<Val = F>>(config: SC) -> StarkMachine<SC, Self> {
         let chips = Self::get_all()
@@ -102,6 +112,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
             })))
             .chain(once(RecursionAir::Poseidon2Wide(Poseidon2WideChip::<
                 DEGREE,
+                ROUND_CHUNK_SIZE,
             > {
                 fixed_log2_rows: None,
             })))
@@ -126,6 +137,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
             // })))
             .chain(once(RecursionAir::Poseidon2Wide(Poseidon2WideChip::<
                 DEGREE,
+                ROUND_CHUNK_SIZE,
             > {
                 fixed_log2_rows: None,
             })))
@@ -147,6 +159,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
             })))
             .chain(once(RecursionAir::Poseidon2Wide(Poseidon2WideChip::<
                 DEGREE,
+                ROUND_CHUNK_SIZE,
             > {
                 fixed_log2_rows: None,
             })))

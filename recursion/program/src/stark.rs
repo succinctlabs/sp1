@@ -551,12 +551,12 @@ pub(crate) mod tests {
         let mut runtime = Runtime::<InnerVal, Challenge, _>::new(&program, config.perm.clone());
         runtime.run();
 
-        let machine = RecursionAir::<_, 3>::machine(SC::default());
+        let machine = RecursionAir::<_, 3, 1>::machine(SC::default());
         let (pk, vk) = machine.setup(&program);
         let record = runtime.record.clone();
 
         let mut challenger = machine.config().challenger();
-        let mut proof = machine.prove::<LocalProver<SC, RecursionAir<_, 3>>>(
+        let mut proof = machine.prove::<LocalProver<SC, RecursionAir<_, 3, 1>>>(
             &pk,
             record,
             &mut challenger,

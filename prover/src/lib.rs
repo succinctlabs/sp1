@@ -71,11 +71,11 @@ pub type OuterSC = BabyBearPoseidon2Outer;
 
 const REDUCE_DEGREE: usize = 3;
 const COMPRESS_DEGREE: usize = 9;
-const WRAP_DEGREE: usize = 9;
+const WRAP_DEGREE: usize = 17;
 
-pub type ReduceAir<F> = RecursionAir<F, REDUCE_DEGREE>;
-pub type CompressAir<F> = RecursionAir<F, COMPRESS_DEGREE>;
-pub type WrapAir<F> = RecursionAir<F, WRAP_DEGREE>;
+pub type ReduceAir<F> = RecursionAir<F, REDUCE_DEGREE, 1>;
+pub type CompressAir<F> = RecursionAir<F, COMPRESS_DEGREE, 1>;
+pub type WrapAir<F> = RecursionAir<F, WRAP_DEGREE, 2>;
 
 /// A end-to-end prover implementation for the SP1 RISC-V zkVM.
 pub struct SP1Prover {
@@ -304,7 +304,7 @@ impl SP1Prover {
         last_proof_pv: &PublicValues<Word<BabyBear>, BabyBear>,
         deferred_proofs: &[ShardProof<InnerSC>],
         batch_size: usize,
-    ) -> Vec<SP1DeferredMemoryLayout<'a, InnerSC, RecursionAir<BabyBear, 3>>> {
+    ) -> Vec<SP1DeferredMemoryLayout<'a, InnerSC, RecursionAir<BabyBear, 3, 1>>> {
         // Prepare the inputs for the deferred proofs recursive verification.
         let mut deferred_digest = [Val::<InnerSC>::zero(); DIGEST_SIZE];
         let mut deferred_inputs = Vec::new();
@@ -343,7 +343,7 @@ impl SP1Prover {
         batch_size: usize,
     ) -> (
         Vec<SP1RecursionMemoryLayout<'a, InnerSC, RiscvAir<BabyBear>>>,
-        Vec<SP1DeferredMemoryLayout<'a, InnerSC, RecursionAir<BabyBear, 3>>>,
+        Vec<SP1DeferredMemoryLayout<'a, InnerSC, RecursionAir<BabyBear, 3, 1>>>,
     ) {
         let is_complete = shard_proofs.len() == 1 && deferred_proofs.is_empty();
         let core_inputs = self.get_recursion_core_inputs(
@@ -746,45 +746,45 @@ mod tests {
         tracing::info!("verify compressed");
         prover.verify_compressed(&compressed_proof, &vk)?;
 
-        // tracing::info!("shrink");
-        // let shrink_proof = prover.shrink(compressed_proof)?;
+        tracing::info!("shrink");
+        let shrink_proof = prover.shrink(compressed_proof)?;
 
-        // tracing::info!("verify shrink");
-        // prover.verify_shrink(&shrink_proof, &vk)?;
+        tracing::info!("verify shrink");
+        prover.verify_shrink(&shrink_proof, &vk)?;
 
-        // tracing::info!("wrap bn254");
-        // let wrapped_bn254_proof = prover.wrap_bn254(shrink_proof)?;
-        // let bytes = bincode::serialize(&wrapped_bn254_proof).unwrap();
+        tracing::info!("wrap bn254");
+        let wrapped_bn254_proof = prover.wrap_bn254(shrink_proof)?;
+        let bytes = bincode::serialize(&wrapped_bn254_proof).unwrap();
 
-        // // Save the proof.
-        // let mut file = File::create("proof-with-pis.json").unwrap();
-        // file.write_all(bytes.as_slice()).unwrap();
+        // Save the proof.
+        let mut file = File::create("proof-with-pis.json").unwrap();
+        file.write_all(bytes.as_slice()).unwrap();
 
-        // // Load the proof.
-        // let mut file = File::open("proof-with-pis.json").unwrap();
-        // let mut bytes = Vec::new();
-        // file.read_to_end(&mut bytes).unwrap();
+        // Load the proof.
+        let mut file = File::open("proof-with-pis.json").unwrap();
+        let mut bytes = Vec::new();
+        file.read_to_end(&mut bytes).unwrap();
 
-        // let wrapped_bn254_proof = bincode::deserialize(&bytes).unwrap();
+        let wrapped_bn254_proof = bincode::deserialize(&bytes).unwrap();
 
-        // tracing::info!("verify wrap bn254");
-        // prover.verify_wrap_bn254(&wrapped_bn254_proof, &vk).unwrap();
+        tracing::info!("verify wrap bn254");
+        prover.verify_wrap_bn254(&wrapped_bn254_proof, &vk).unwrap();
 
-        // tracing::info!("checking vkey hash babybear");
-        // let vk_digest_babybear = wrapped_bn254_proof.sp1_vkey_digest_babybear();
-        // assert_eq!(vk_digest_babybear, vk.hash_babybear());
+        tracing::info!("checking vkey hash babybear");
+        let vk_digest_babybear = wrapped_bn254_proof.sp1_vkey_digest_babybear();
+        assert_eq!(vk_digest_babybear, vk.hash_babybear());
 
-        // tracing::info!("checking vkey hash bn254");
-        // let vk_digest_bn254 = wrapped_bn254_proof.sp1_vkey_digest_bn254();
-        // assert_eq!(vk_digest_bn254, vk.hash_bn254());
+        tracing::info!("checking vkey hash bn254");
+        let vk_digest_bn254 = wrapped_bn254_proof.sp1_vkey_digest_bn254();
+        assert_eq!(vk_digest_bn254, vk.hash_bn254());
 
-        // tracing::info!("generate plonk bn254 proof");
-        // let artifacts_dir =
-        //     try_build_plonk_bn254_artifacts_dev(&prover.wrap_vk, &wrapped_bn254_proof.proof);
-        // let plonk_bn254_proof = prover.wrap_plonk_bn254(wrapped_bn254_proof, &artifacts_dir);
-        // println!("{:?}", plonk_bn254_proof);
+        tracing::info!("generate plonk bn254 proof");
+        let artifacts_dir =
+            try_build_plonk_bn254_artifacts_dev(&prover.wrap_vk, &wrapped_bn254_proof.proof);
+        let plonk_bn254_proof = prover.wrap_plonk_bn254(wrapped_bn254_proof, &artifacts_dir);
+        println!("{:?}", plonk_bn254_proof);
 
-        // prover.verify_plonk_bn254(&plonk_bn254_proof, &vk, &public_values, &artifacts_dir)?;
+        prover.verify_plonk_bn254(&plonk_bn254_proof, &vk, &public_values, &artifacts_dir)?;
 
         Ok(())
     }
