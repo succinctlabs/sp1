@@ -2,11 +2,11 @@ use sp1_core::{
     runtime::{ExecutionReport, HookEnv, SP1ContextBuilder},
     utils::{SP1CoreOpts, SP1ProverOpts},
 };
-use sp1_prover::{SP1Prover, SP1ProvingKey, SP1PublicValues, SP1Stdin};
+use sp1_prover::{SP1Prover, SP1ProvingKey, SP1PublicValues, SP1Stdin, SP1VerifyingKey};
 
 use anyhow::{Ok, Result};
 
-use crate::{Prover, SP1Proof, SP1ProofKind};
+use crate::{Prover, SP1Proof, SP1ProofKind, SP1VerificationError};
 
 #[derive(Default)]
 pub struct Execute<'a> {
@@ -168,5 +168,26 @@ impl<'a> Prove<'a> {
     pub fn reconstruct_commitments(mut self, value: bool) -> Self {
         self.opts.reconstruct_commitments = value;
         self
+    }
+}
+
+pub struct Verify<'a> {
+    prover: &'a dyn Prover,
+    proof: &'a SP1Proof,
+    vk: &'a SP1VerifyingKey,
+}
+
+impl<'a> Verify<'a> {
+    pub fn new(prover: &'a dyn Prover, proof: &'a SP1Proof, vk: &'a SP1VerifyingKey) -> Self {
+        Self { prover, proof, vk }
+    }
+
+    pub fn run(self) -> Result<(), SP1VerificationError> {
+        let Self { prover, proof, vk } = self;
+        match proof {
+            SP1Proof::Core(p) => prover.verify(p, vk),
+            SP1Proof::Compress(p) => prover.verify_compressed(p, vk),
+            SP1Proof::PlonkBn254(p) => prover.verify_plonk(p, vk),
+        }
     }
 }
