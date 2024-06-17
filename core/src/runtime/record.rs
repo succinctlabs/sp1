@@ -1,5 +1,4 @@
-use std::collections::BTreeMap;
-use std::collections::HashMap;
+use hashbrown::HashMap;
 use std::mem::take;
 use std::sync::Arc;
 
@@ -64,7 +63,7 @@ pub struct ExecutionRecord {
 
     /// All byte lookups that are needed. The layout is shard -> (event -> count). Byte lookups are
     /// sharded to prevent the multiplicities from overflowing.
-    pub byte_lookups: BTreeMap<u32, BTreeMap<ByteLookupEvent, usize>>,
+    pub byte_lookups: HashMap<u32, HashMap<ByteLookupEvent, usize>>,
 
     pub sha_extend_events: Vec<ShaExtendEvent>,
 
