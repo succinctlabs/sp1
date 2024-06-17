@@ -161,7 +161,7 @@ pub fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
 /// In particular, the constraints checked here are:
 ///     - The running sum column starts at zero.
 ///     - That the RLC per interaction is computed correctly.
-///     - The running sum column ends at the (currently) given cumalitive sum.
+///     - The running sum column ends at the (currently) given cumulaitive sum.
 pub fn eval_permutation_constraints<F, AB>(
     sends: &[Interaction<F>],
     receives: &[Interaction<F>],
@@ -220,7 +220,7 @@ pub fn eval_permutation_constraints<F, AB>(
         // entry * \prod_i rlc_i = \sum_i m_i * \prod_{j!=i} rlc_j.
 
         // First, we calculate the random linear combinations and multiplicities with the correct
-        // sign depending on wetther the interaction is a send or a recieve.
+        // sign depending on whether the interaction is a send or a recieve.
         let mut rlcs: Vec<AB::ExprEF> = Vec::with_capacity(batch_size);
         let mut multiplicities: Vec<AB::Expr> = Vec::with_capacity(batch_size);
         for (interaction, is_send) in chunk {

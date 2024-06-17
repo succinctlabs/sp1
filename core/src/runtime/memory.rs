@@ -16,7 +16,7 @@ pub struct MemoryRecord {
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum MemoryAccessPosition {
     Memory = 0,
-    // Note that these AccessPositions mean that when when read/writing registers, they must be
+    // Note that these AccessPositions mean that when read/writing registers, they must be
     // read/written in the following order: C, B, A.
     C = 1,
     B = 2,
