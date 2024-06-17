@@ -12,7 +12,6 @@ pub struct SP1ProverOpts {
 impl Default for SP1ProverOpts {
     fn default() -> Self {
         Self {
-            // TODO split these into two types
             core_opts: SP1CoreOpts::default(),
             recursion_opts: SP1CoreOpts::recursion(),
         }
