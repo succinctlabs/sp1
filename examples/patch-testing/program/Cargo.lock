@@ -135,7 +135,7 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek-ng"
 version = "4.1.1"
-source = "git+https://github.com/sp1-patches/curve25519-dalek-ng-fork.git?branch=patch-v4.1.1#f5607edd61ad8e9d80c9be933cd119f4008044d9"
+source = "git+https://github.com/sp1-patches/curve25519-dalek-ng-fork?branch=patch-v4.1.1#f5607edd61ad8e9d80c9be933cd119f4008044d9"
 dependencies = [
  "byteorder",
  "digest 0.9.0",
@@ -156,13 +156,13 @@ dependencies = [
 
 [[package]]
 name = "derive_more"
-version = "0.99.17"
+version = "0.99.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4fb810d30a7c1953f91334de7244731fc3f3c10d7fe163338a35b9f640960321"
+checksum = "5f33878137e4dafd7fa914ad4e259e18a4e8e532b9617a2d0150262bf53abfce"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 1.0.109",
+ "syn 2.0.66",
 ]
 
 [[package]]
@@ -360,9 +360,9 @@ checksum = "4ec2a862134d2a7d32d7983ddcdd1c4923530833c9f2ea1a44fc5fa473989058"
 
 [[package]]
 name = "memchr"
-version = "2.7.2"
+version = "2.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6c8640c5d730cb13ebd907d8d04b52f55ac9a2eec55b440c8892f40d56c76c1d"
+checksum = "78ca9ab1a0babb1e7d5695e3530886289c18cf2f87ec19a575a0abdce112e3a3"
 
 [[package]]
 name = "num"
@@ -477,6 +477,7 @@ dependencies = [
 name = "patch-testing-program"
 version = "0.1.0"
 dependencies = [
+ "curve25519-dalek-ng",
  "ed25519-consensus",
  "sha2 0.10.8",
  "sha2 0.9.8",
@@ -848,6 +849,11 @@ name = "zeroize"
 version = "1.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ced3678a2879b30306d323f4542626697a464a97c0a07c9aebf7ebca65cd4dde"
+
+[[patch.unused]]
+name = "curve25519-dalek"
+version = "4.1.2"
+source = "git+https://github.com/sp1-patches/curve25519-dalek-fork?branch=patch-v4.1.2#5ecb96fe0ee571851f28f4e147cdc8386dd363a8"
 
 [[patch.unused]]
 name = "sha2"

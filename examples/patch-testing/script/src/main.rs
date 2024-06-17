@@ -10,10 +10,8 @@ fn main() {
 
     let mut stdin = SP1Stdin::new();
 
-    let input = [0u8; 32];
     let sk = SigningKey::new(thread_rng());
     let vk = VerificationKey::from(&sk);
-    // let pkb = VerificationKeyBytes::from(&sk);
 
     let msg = b"ed25519-consensus test message";
 
@@ -23,9 +21,30 @@ fn main() {
     stdin.write_vec(msg.to_vec());
 
     let client = ProverClient::new();
-    let (pv, report) = client
+    let (_, report) = client
         .execute(PATCH_TEST_ELF, stdin)
         .expect("proving failed");
+
+    // Confirm that there was at least 1 SHA_COMPUTE syscall.
+    assert!(report
+        .syscall_counts
+        .contains_key(&sp1_core::runtime::SyscallCode::SHA_COMPRESS));
+    assert!(report
+        .syscall_counts
+        .contains_key(&sp1_core::runtime::SyscallCode::SHA_EXTEND));
+
+    // Confirm there were ED25519_COMPUTE syscalls.
+    assert!(report
+        .syscall_counts
+        .contains_key(&sp1_core::runtime::SyscallCode::ED_ADD));
+    assert!(report
+        .syscall_counts
+        .contains_key(&sp1_core::runtime::SyscallCode::ED_DECOMPRESS));
+
+    // Confirm that there was at least 1 KECCAK_PERMUTE syscall.
+    assert!(report
+        .syscall_counts
+        .contains_key(&sp1_core::runtime::SyscallCode::KECCAK_PERMUTE));
 
     println!("Report: {:?}", report);
     println!("Total cycle count: {}", report.total_instruction_count());
