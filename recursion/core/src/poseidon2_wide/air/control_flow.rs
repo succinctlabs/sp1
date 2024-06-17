@@ -55,7 +55,6 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         self.eval_hash_control_flow(
             builder,
             local_control_flow,
-            next_control_flow,
             local_row.opcode_workspace(),
             next_row.opcode_workspace(),
             local_row.syscall_params(),
@@ -184,7 +183,6 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         &self,
         builder: &mut AB,
         local_control_flow: &ControlFlow<AB::Var>,
-        next_control_flow: &ControlFlow<AB::Var>,
         local_opcode_workspace: &OpcodeWorkspace<AB::Var>,
         next_opcode_workspace: &OpcodeWorkspace<AB::Var>,
         local_syscall_params: &SyscallParams<AB::Var>,

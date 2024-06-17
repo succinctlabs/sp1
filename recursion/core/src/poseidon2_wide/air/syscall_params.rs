@@ -11,6 +11,7 @@ use crate::{
 };
 
 impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
+    /// Eval the syscall parameters.
     pub(crate) fn eval_syscall_params<AB: SP1RecursionAirBuilder>(
         &self,
         builder: &mut AB,
@@ -20,7 +21,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         next_control_flow: &ControlFlow<AB::Var>,
     ) {
         // Constraint that the operands are sent from the CPU table.
-        let operands = local_syscall.get_raw_params();
+        let params = local_syscall.get_raw_params();
         let opcodes: [AB::Expr; 3] = [
             Opcode::Poseidon2Compress,
             Opcode::Poseidon2Absorb,
@@ -33,18 +34,17 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             local_control_flow.is_finalize,
         ];
 
-        let opcode: AB::Expr = opcodes
+        let used_opcode: AB::Expr = opcodes
             .iter()
             .zip(opcode_selectors.iter())
-            .map(|(x, y)| x.clone() * *y)
+            .map(|(opcode, opcode_selector)| opcode.clone() * *opcode_selector)
             .sum();
 
-        builder.receive_table(opcode, &operands, local_control_flow.is_syscall_row);
+        builder.receive_table(used_opcode, &params, local_control_flow.is_syscall_row);
 
         let mut transition_builder = builder.when_transition();
 
-        // Apply syscall constraints for compress.  Verify that the syscall parameters are copied to
-        // the compress output row.
+        // Verify that the syscall parameters are copied to the compress output row.
         {
             let mut compress_syscall_builder = transition_builder
                 .when(local_control_flow.is_compress * local_control_flow.is_syscall_row);
@@ -62,8 +62,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             );
         }
 
-        // Apply syscall constraints for absorb.  Verify that the syscall parameters are the same within
-        // an absorb call.
+        // Verify that the syscall parameters are copied down to all the non syscall absorb rows.
         {
             let mut absorb_syscall_builder = transition_builder.when(local_control_flow.is_absorb);
             let mut absorb_syscall_builder =
