@@ -42,7 +42,7 @@ pub fn main() {
 
     tracing::info!("prove core");
     let stdin = SP1Stdin::new();
-    let core_proof = prover.prove_core_with(&pk, &stdin, opts, context).unwrap();
+    let core_proof = prover.prove_core(&pk, &stdin, opts, context).unwrap();
 
     tracing::info!("Compress");
     let reduced_proof = prover.compress(&vk, core_proof, vec![], opts).unwrap();

@@ -42,7 +42,7 @@ impl Prover for LocalProver {
         opts: SP1ProverOpts,
         context: SP1Context<'a>,
     ) -> Result<SP1Proof> {
-        let proof = self.prover.prove_core_with(pk, &stdin, opts, context)?;
+        let proof = self.prover.prove_core(pk, &stdin, opts, context)?;
         Ok(SP1ProofWithPublicValues {
             proof: proof.proof.0,
             stdin: proof.stdin,
@@ -58,7 +58,7 @@ impl Prover for LocalProver {
         opts: SP1ProverOpts,
         context: SP1Context<'a>,
     ) -> Result<SP1CompressedProof> {
-        let proof = self.prover.prove_core_with(pk, &stdin, opts, context)?;
+        let proof = self.prover.prove_core(pk, &stdin, opts, context)?;
         let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
         let public_values = proof.public_values.clone();
         let reduce_proof = self.prover.compress(&pk.vk, proof, deferred_proofs, opts)?;
@@ -77,7 +77,7 @@ impl Prover for LocalProver {
         opts: SP1ProverOpts,
         context: SP1Context<'a>,
     ) -> Result<SP1PlonkBn254Proof> {
-        let proof = self.prover.prove_core_with(pk, &stdin, opts, context)?;
+        let proof = self.prover.prove_core(pk, &stdin, opts, context)?;
         let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
         let public_values = proof.public_values.clone();
         let reduce_proof = self.prover.compress(&pk.vk, proof, deferred_proofs, opts)?;

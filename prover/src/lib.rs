@@ -234,20 +234,9 @@ impl SP1Prover {
     }
 
     /// Generate shard proofs which split up and prove the valid execution of a RISC-V program with
-    /// the core prover.
-    #[deprecated]
-    pub fn prove_core(
-        &self,
-        pk: &SP1ProvingKey,
-        stdin: &SP1Stdin,
-    ) -> Result<SP1CoreProof, SP1CoreProverError> {
-        self.prove_core_with(pk, stdin, SP1ProverOpts::default(), SP1Context::default())
-    }
-
-    /// Generate shard proofs which split up and prove the valid execution of a RISC-V program with
     /// the core prover. Uses the provided context.
     #[instrument(name = "prove_core", level = "info", skip_all)]
-    pub fn prove_core_with<'a>(
+    pub fn prove_core<'a>(
         &'a self,
         pk: &SP1ProvingKey,
         stdin: &SP1Stdin,
@@ -721,7 +710,7 @@ mod tests {
 
         tracing::info!("prove core");
         let stdin = SP1Stdin::new();
-        let core_proof = prover.prove_core_with(&pk, &stdin, opts, context)?;
+        let core_proof = prover.prove_core(&pk, &stdin, opts, context)?;
         let public_values = core_proof.public_values.clone();
 
         tracing::info!("verify core");
@@ -803,8 +792,7 @@ mod tests {
         let mut stdin = SP1Stdin::new();
         stdin.write(&1usize);
         stdin.write(&vec![0u8, 0, 0]);
-        let deferred_proof_1 =
-            prover.prove_core_with(&keccak_pk, &stdin, opts, Default::default())?;
+        let deferred_proof_1 = prover.prove_core(&keccak_pk, &stdin, opts, Default::default())?;
         let pv_1 = deferred_proof_1.public_values.as_slice().to_vec().clone();
 
         // Generate a second proof of keccak of various inputs.
@@ -814,8 +802,7 @@ mod tests {
         stdin.write(&vec![0u8, 1, 2]);
         stdin.write(&vec![2, 3, 4]);
         stdin.write(&vec![5, 6, 7]);
-        let deferred_proof_2 =
-            prover.prove_core_with(&keccak_pk, &stdin, opts, Default::default())?;
+        let deferred_proof_2 = prover.prove_core(&keccak_pk, &stdin, opts, Default::default())?;
         let pv_2 = deferred_proof_2.public_values.as_slice().to_vec().clone();
 
         // Generate recursive proof of first subproof.
@@ -842,7 +829,7 @@ mod tests {
         stdin.write_proof(deferred_reduce_2.proof.clone(), keccak_vk.vk.clone());
 
         tracing::info!("proving verify program (core)");
-        let verify_proof = prover.prove_core_with(&verify_pk, &stdin, opts, Default::default())?;
+        let verify_proof = prover.prove_core(&verify_pk, &stdin, opts, Default::default())?;
 
         // Generate recursive proof of verify program
         tracing::info!("compress verify program");
