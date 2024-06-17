@@ -12,6 +12,8 @@ use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
+use p3_maybe_rayon::prelude::ParallelIterator;
+use p3_maybe_rayon::prelude::ParallelSlice;
 use serde::Deserialize;
 use serde::Serialize;
 use sp1_derive::AlignedBorrow;
@@ -21,7 +23,6 @@ use crate::air::BaseAirBuilder;
 use crate::air::MachineAir;
 use crate::air::SP1AirBuilder;
 use crate::bytes::event::ByteRecord;
-use crate::bytes::ByteLookupEvent;
 use crate::memory::MemoryReadCols;
 use crate::memory::MemoryWriteCols;
 use crate::operations::field::field_op::FieldOpCols;
@@ -96,9 +97,8 @@ impl<F: PrimeField32> EdDecompressCols<F> {
     pub fn populate<P: FieldParameters, E: EdwardsParameters>(
         &mut self,
         event: EdDecompressEvent,
-        record: &mut ExecutionRecord,
+        output: &mut impl ByteRecord,
     ) {
-        let mut new_byte_lookup_events = Vec::new();
         self.is_real = F::from_bool(true);
         self.shard = F::from_canonical_u32(event.shard);
         self.channel = F::from_canonical_u32(event.channel);
@@ -106,27 +106,17 @@ impl<F: PrimeField32> EdDecompressCols<F> {
         self.ptr = F::from_canonical_u32(event.ptr);
         self.sign = F::from_bool(event.sign);
         for i in 0..8 {
-            self.x_access[i].populate(
-                event.channel,
-                event.x_memory_records[i],
-                &mut new_byte_lookup_events,
-            );
-            self.y_access[i].populate(
-                event.channel,
-                event.y_memory_records[i],
-                &mut new_byte_lookup_events,
-            );
+            self.x_access[i].populate(event.channel, event.x_memory_records[i], output);
+            self.y_access[i].populate(event.channel, event.y_memory_records[i], output);
         }
 
         let y = &BigUint::from_bytes_le(&event.y_bytes);
-        self.populate_field_ops::<E>(&mut new_byte_lookup_events, event.shard, event.channel, y);
-
-        record.add_byte_lookup_events(new_byte_lookup_events);
+        self.populate_field_ops::<E>(output, event.shard, event.channel, y);
     }
 
     fn populate_field_ops<E: EdwardsParameters>(
         &mut self,
-        blu_events: &mut Vec<ByteLookupEvent>,
+        blu_events: &mut impl ByteRecord,
         shard: u32,
         channel: u32,
         y: &BigUint,
@@ -371,13 +361,34 @@ impl<F: PrimeField32, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        let mut rows: Vec<[F; NUM_ED_DECOMPRESS_COLS]> =
-            input.ed_add_events.par_iter().map(|event| {
-                let mut row = [F::zero(); NUM_ED_DECOMPRESS_COLS];
-                let cols: &mut EdDecompressCols<F> = row.as_mut_slice().borrow_mut();
-                cols.populate::<E::BaseField, E>(event.clone(), output);
-                row
-            });
+        let ed_decompress_events = &input.ed_decompress_events;
+        let chunk_size = std::cmp::max(ed_decompress_events.len() / num_cpus::get(), 1);
+        let rows_and_records = ed_decompress_events
+            .par_chunks(chunk_size)
+            .map(|events| {
+                let mut new_byte_lookup_events = Vec::new();
+
+                let rows = events
+                    .iter()
+                    .map(|event| {
+                        let mut row = [F::zero(); NUM_ED_DECOMPRESS_COLS];
+                        let cols: &mut EdDecompressCols<F> = row.as_mut_slice().borrow_mut();
+                        cols.populate::<E::BaseField, E>(
+                            event.clone(),
+                            &mut new_byte_lookup_events,
+                        );
+                        row
+                    })
+                    .collect::<Vec<_>>();
+                (rows, new_byte_lookup_events)
+            })
+            .collect::<Vec<_>>();
+
+        let mut rows: Vec<[F; NUM_ED_DECOMPRESS_COLS]> = vec![];
+        for row_and_record in rows_and_records {
+            rows.extend(row_and_record.0);
+            output.add_byte_lookup_events(row_and_record.1);
+        }
 
         pad_rows(&mut rows, || {
             let mut row = [F::zero(); NUM_ED_DECOMPRESS_COLS];
