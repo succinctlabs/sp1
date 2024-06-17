@@ -16,7 +16,7 @@ use sp1_core::air::BaseAirBuilder;
 
 use crate::{
     air::{RecursionPublicValues, SP1RecursionAirBuilder, RECURSIVE_PROOF_NUM_PV_ELTS},
-    cpu::{CpuChip, CpuCols},
+    cpu::{columns::SELECTOR_COL_MAP, CpuChip, CpuCols},
     memory::MemoryCols,
 };
 
@@ -38,6 +38,29 @@ where
         let one = AB::Expr::one();
 
         // Constrain the program.
+
+        // Constraints for "fake" columns.
+        builder
+            .when_not(local.is_real)
+            .assert_one(local.instruction.imm_b);
+        builder
+            .when_not(local.is_real)
+            .assert_one(local.instruction.imm_c);
+        builder
+            .when_not(local.is_real)
+            .assert_one(local.selectors.is_noop);
+
+        local
+            .selectors
+            .into_iter()
+            .enumerate()
+            .filter(|(i, _)| *i != SELECTOR_COL_MAP.is_noop)
+            .for_each(|(_, selector)| builder.when_not(local.is_real).assert_zero(selector));
+
+        // Initialize clk and pc.
+        builder.when_first_row().assert_zero(local.clk);
+        builder.when_first_row().assert_zero(local.pc);
+
         builder.send_program(local.pc, local.instruction, local.selectors, local.is_real);
 
         // Constrain the operands.
@@ -205,6 +228,10 @@ impl<F: Field, const L: usize> CpuChip<F, L> {
             + local.selectors.is_store
             + local.selectors.is_noop
             + local.selectors.is_ext_to_felt
+            + local.selectors.is_commit
+            + local.selectors.is_trap
+            + local.selectors.is_halt
+            + local.selectors.is_exp_reverse_bits_len
     }
 
     /// Expr to check for instructions that are commit instructions.
@@ -221,5 +248,77 @@ impl<F: Field, const L: usize> CpuChip<F, L> {
         AB: SP1RecursionAirBuilder<F = F>,
     {
         local.selectors.is_trap + local.selectors.is_halt
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use itertools::Itertools;
+    use std::time::Instant;
+
+    use p3_baby_bear::BabyBear;
+    use p3_baby_bear::DiffusionMatrixBabyBear;
+    use p3_field::AbstractField;
+    use p3_matrix::{dense::RowMajorMatrix, Matrix};
+    use p3_poseidon2::Poseidon2;
+    use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
+    use sp1_core::stark::StarkGenericConfig;
+    use sp1_core::{
+        air::MachineAir,
+        utils::{uni_stark_prove, uni_stark_verify, BabyBearPoseidon2},
+    };
+
+    use crate::air::Block;
+    use crate::memory::MemoryGlobalChip;
+    use crate::runtime::ExecutionRecord;
+
+    #[test]
+    fn test_cpu_unistark() {
+        let config = BabyBearPoseidon2::compressed();
+        let mut challenger = config.challenger();
+
+        let chip = MemoryGlobalChip {
+            fixed_log2_rows: None,
+        };
+
+        let test_vals = (0..16).map(BabyBear::from_canonical_u32).collect_vec();
+
+        let mut input_exec = ExecutionRecord::<BabyBear>::default();
+        for val in test_vals.into_iter() {
+            let event = (val, val, Block::from(BabyBear::zero()));
+            input_exec.last_memory_record.push(event);
+        }
+
+        // Add a dummy initialize event because the AIR expects at least one.
+        input_exec
+            .first_memory_record
+            .push((BabyBear::zero(), Block::from(BabyBear::zero())));
+
+        println!("input exec: {:?}", input_exec.last_memory_record.len());
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());
+        println!(
+            "trace dims is width: {:?}, height: {:?}",
+            trace.width(),
+            trace.height()
+        );
+
+        let start = Instant::now();
+        let proof = uni_stark_prove(&config, &chip, &mut challenger, trace);
+        let duration = start.elapsed().as_secs_f64();
+        println!("proof duration = {:?}", duration);
+
+        let mut challenger: p3_challenger::DuplexChallenger<
+            BabyBear,
+            Poseidon2<BabyBear, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 16, 7>,
+            16,
+            8,
+        > = config.challenger();
+        let start = Instant::now();
+        uni_stark_verify(&config, &chip, &mut challenger, &proof)
+            .expect("expected proof to be valid");
+
+        let duration = start.elapsed().as_secs_f64();
+        println!("verify duration = {:?}", duration);
     }
 }
