@@ -66,7 +66,7 @@ fn main() {
     let proof = client.prove(&pk, stdin).run().expect("proving failed");
 
     // Verify proof.
-    client.verify(&proof, &vk).expect("verification failed");
+    client.verify(&proof, &vk).run().expect("verification failed");
 
     // Verify the public values
     let mut expected_public_values: Vec<u8> = Vec::new();
@@ -85,6 +85,7 @@ fn main() {
     // Verify the deserialized proof.
     client
         .verify(&deserialized_proof, &vk)
+        .run()
         .expect("verification failed");
 
     println!("successfully generated and verified proof for the program!")

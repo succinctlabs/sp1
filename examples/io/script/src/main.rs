@@ -40,7 +40,10 @@ fn main() {
     println!("r: {:?}", r);
 
     // Verify proof.
-    client.verify(&proof, &vk).expect("verification failed");
+    client
+        .verify(&proof, &vk)
+        .run()
+        .expect("verification failed");
 
     // Test a round trip of proof serialization and deserialization.
     proof
@@ -51,6 +54,7 @@ fn main() {
     // Verify the deserialized proof.
     client
         .verify(&deserialized_proof, &vk)
+        .run()
         .expect("verification failed");
 
     println!("successfully generated and verified proof for the program!")
