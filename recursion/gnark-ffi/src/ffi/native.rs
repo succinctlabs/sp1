@@ -7,6 +7,7 @@
 
 use crate::PlonkBn254Proof;
 use cfg_if::cfg_if;
+use sp1_core::SP1_CIRCUIT_VERSION;
 use std::ffi::{c_char, CString};
 
 #[allow(warnings, clippy::all)]
@@ -120,6 +121,7 @@ impl C_PlonkBn254Proof {
                 ],
                 encoded_proof: c_char_ptr_to_string(self.EncodedProof),
                 raw_proof: c_char_ptr_to_string(self.RawProof),
+                plonk_vkey_hash: [0; 32],
             }
         }
     }

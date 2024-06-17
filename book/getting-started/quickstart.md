@@ -59,7 +59,7 @@ b: 332825110087067562321196029789634457848
 successfully generated and verified proof for the program!
 ```
 
-The program by default is quite small, so proof generation will only take a few seconds locally. After it completes, the proof will be saved in the `proof-with-io.json` file and also be verified for correctness.
+The program by default is quite small, so proof generation will only take a few seconds locally. After it completes, the proof will be saved in the `proof-with-io.bin` file and also be verified for correctness.
 
 ## Modifying the Program
 

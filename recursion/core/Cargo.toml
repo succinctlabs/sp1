@@ -5,6 +5,7 @@ version = "0.1.0"
 
 [dependencies]
 p3-field = { workspace = true }
+p3-util = { workspace = true }
 p3-baby-bear = { workspace = true }
 p3-air = { workspace = true }
 p3-matrix = { workspace = true }

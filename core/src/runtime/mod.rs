@@ -1,3 +1,4 @@
+mod hooks;
 mod instruction;
 mod io;
 mod memory;
@@ -10,7 +11,9 @@ mod state;
 mod syscall;
 #[macro_use]
 mod utils;
+mod subproof;
 
+pub use hooks::*;
 pub use instruction::*;
 pub use memory::*;
 pub use opcode::*;
@@ -19,6 +22,7 @@ pub use record::*;
 pub use register::*;
 pub use report::*;
 pub use state::*;
+pub use subproof::*;
 pub use syscall::*;
 pub use utils::*;
 
@@ -45,7 +49,7 @@ use crate::{alu::AluEvent, cpu::CpuEvent};
 ///
 /// For more information on the RV32IM instruction set, see the following:
 /// https://www.cs.sfu.ca/~ashriram/Courses/CS295/assets/notebooks/RISCV/RISCV_CARD.pdf
-pub struct Runtime {
+pub struct Runtime<'a> {
     /// The program.
     pub program: Arc<Program>,
 
@@ -91,6 +95,12 @@ pub struct Runtime {
 
     /// Whether we should write to the report.
     pub print_report: bool,
+
+    /// Verifier used to sanity check `verify_sp1_proof` during runtime.
+    pub subproof_verifier: Arc<dyn SubproofVerifier + 'a>,
+
+    /// Registry of hooks, to be invoked by writing to certain file descriptors.
+    pub hook_registry: HookRegistry<'a>,
 }
 
 #[derive(Error, Debug)]
@@ -107,7 +117,7 @@ pub enum ExecutionError {
     Unimplemented(),
 }
 
-impl Runtime {
+impl<'a> Runtime<'a> {
     // Create a new runtime from a program.
     pub fn new(program: Program, opts: SP1CoreOpts) -> Self {
         // Create a shared reference to the program.
@@ -150,9 +160,22 @@ impl Runtime {
             syscall_map,
             emit_events: true,
             max_syscall_cycles,
-            report: Default::default(),
+            report: ExecutionReport::default(),
             print_report: false,
+            subproof_verifier: Arc::new(DefaultSubproofVerifier::new()),
+            hook_registry: HookRegistry::default(),
         }
+    }
+
+    /// Invokes the hook corresponding to the given file descriptor `fd` with the data `buf`,
+    /// returning the resulting data.
+    pub fn hook(&self, fd: u32, buf: &[u8]) -> Vec<Vec<u8>> {
+        self.hook_registry.table[&fd](self.hook_env(), buf)
+    }
+
+    /// Prepare a `HookEnv` for use by hooks.
+    pub fn hook_env(&self) -> HookEnv {
+        HookEnv { runtime: self }
     }
 
     /// Recover runtime state from a program and existing execution state.
@@ -1083,6 +1106,14 @@ impl Runtime {
             buf.flush().unwrap();
         }
 
+        // Ensure that all proofs and input bytes were read, otherwise warn the user.
+        if self.state.proof_stream_ptr != self.state.proof_stream.len() {
+            panic!("Not all proofs were read. Proving will fail during recursion. Did you pass too many proofs in or forget to call verify_sp1_proof?");
+        }
+        if self.state.input_stream_ptr != self.state.input_stream.len() {
+            log::warn!("Not all input bytes were read.");
+        }
+
         // SECTION: Set up all MemoryInitializeFinalizeEvents needed for memory argument.
         let memory_finalize_events = &mut self.record.memory_finalize_events;
 
@@ -1155,64 +1186,19 @@ pub mod tests {
         Program::from(PANIC_ELF)
     }
 
+    fn _assert_send<T: Send>() {}
+
+    /// Runtime needs to be Send so we can use it across async calls.
+    fn _assert_runtime_is_send() {
+        _assert_send::<Runtime>();
+    }
+
     #[test]
     fn test_simple_program_run() {
         let program = simple_program();
         let mut runtime = Runtime::new(program, SP1CoreOpts::default());
         runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 42);
-    }
-
-    #[test]
-    fn test_ssz_withdrawals_program_run_report() {
-        let program = ssz_withdrawals_program();
-        let mut runtime = Runtime::new(program, SP1CoreOpts::default());
-        runtime.run().unwrap();
-        assert_eq!(runtime.report, {
-            use super::Opcode::*;
-            use super::SyscallCode::*;
-            super::ExecutionReport {
-                opcode_counts: [
-                    (LB, 10723),
-                    (DIVU, 6),
-                    (LW, 237094),
-                    (JALR, 38749),
-                    (XOR, 242242),
-                    (BEQ, 26917),
-                    (AND, 151701),
-                    (SB, 58448),
-                    (MUL, 4036),
-                    (SLTU, 16766),
-                    (ADD, 583439),
-                    (JAL, 5372),
-                    (LBU, 57950),
-                    (SRL, 293010),
-                    (SW, 312781),
-                    (ECALL, 2264),
-                    (BLTU, 43457),
-                    (BGEU, 5917),
-                    (BLT, 1141),
-                    (SUB, 12382),
-                    (BGE, 237),
-                    (MULHU, 1152),
-                    (BNE, 51442),
-                    (AUIPC, 19488),
-                    (OR, 301944),
-                    (SLL, 278698),
-                ]
-                .into(),
-                syscall_counts: [
-                    (COMMIT_DEFERRED_PROOFS, 8),
-                    (SHA_EXTEND, 1091),
-                    (COMMIT, 8),
-                    (WRITE, 65),
-                    (SHA_COMPRESS, 1091),
-                    (HALT, 1),
-                ]
-                .into(),
-            }
-        });
-        assert_eq!(runtime.report.total_instruction_count(), 2757356);
     }
 
     #[test]

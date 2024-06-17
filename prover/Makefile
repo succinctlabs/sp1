@@ -6,7 +6,7 @@ build-plonk-bn254:
 	rm -rf build && \
 	mkdir -p build && \
 	RUSTFLAGS='-C target-cpu=native' \
-	cargo run -p sp1-prover --release --bin build_plonk_bn254 --features plonk -- \
+	cargo run -p sp1-prover --release --bin build_plonk_bn254 -- \
 	--build-dir=./build
 
 release-plonk-bn254:
