@@ -133,10 +133,10 @@ impl Prover for NetworkProver {
         &self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
-        _opts: SP1ProverOpts,
-        _context: SP1Context,
+        opts: SP1ProverOpts,
+        context: SP1Context,
     ) -> Result<SP1Proof> {
-        // TODO deal with context, creating errors on presence of set fields
+        warn_if_not_default(&opts, &context);
         block_on(self.prove(&pk.elf, stdin))
     }
 
@@ -144,10 +144,10 @@ impl Prover for NetworkProver {
         &self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
-        _opts: SP1ProverOpts,
-        _context: SP1Context,
+        opts: SP1ProverOpts,
+        context: SP1Context,
     ) -> Result<SP1CompressedProof> {
-        // TODO see above
+        warn_if_not_default(&opts, &context);
         block_on(self.prove(&pk.elf, stdin))
     }
 
@@ -155,10 +155,10 @@ impl Prover for NetworkProver {
         &self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
-        _opts: SP1ProverOpts,
-        _context: SP1Context,
+        opts: SP1ProverOpts,
+        context: SP1Context,
     ) -> Result<SP1PlonkBn254Proof> {
-        // TODO see above
+        warn_if_not_default(&opts, &context);
         block_on(self.prove(&pk.elf, stdin))
     }
 }
@@ -184,4 +184,30 @@ impl ProofType for SP1CompressedProof {
 
 impl ProofType for SP1PlonkBn254Proof {
     const PROOF_MODE: ProofMode = ProofMode::Plonk;
+}
+
+/// Warns if `opts` or `context` are not default values, since they are currently unsupported.
+fn warn_if_not_default(opts: &SP1ProverOpts, context: &SP1Context) {
+    let _guard = tracing::warn_span!("network_prover").entered();
+    if opts != &SP1ProverOpts::default() {
+        tracing::warn!("non-default opts will be ignored: {:?}", opts.core_opts);
+        tracing::warn!("custom SP1ProverOpts are currently unsupported by the network prover");
+    }
+    // Exhaustive match is done to ensure we update the warnings if the types change.
+    let SP1Context {
+        hook_registry,
+        subproof_verifier,
+    } = context;
+    if hook_registry.is_some() {
+        tracing::warn!(
+            "non-default context.hook_registry will be ignored: {:?}",
+            hook_registry
+        );
+        tracing::warn!("custom runtime hooks are currently unsupported by the network prover");
+        tracing::warn!("proving may fail due to missing hooks");
+    }
+    if subproof_verifier.is_some() {
+        tracing::warn!("non-default context.subproof_verifier will be ignored");
+        tracing::warn!("custom subproof verifiers are currently unsupported by the network prover");
+    }
 }

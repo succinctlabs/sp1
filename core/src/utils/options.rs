@@ -3,7 +3,7 @@ use std::env;
 const DEFAULT_SHARD_SIZE: usize = 1 << 22;
 const DEFAULT_SHARD_BATCH_SIZE: usize = 16;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SP1ProverOpts {
     pub core_opts: SP1CoreOpts,
     pub recursion_opts: SP1CoreOpts,
@@ -18,7 +18,7 @@ impl Default for SP1ProverOpts {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SP1CoreOpts {
     pub shard_size: usize,
     pub shard_batch_size: usize,
