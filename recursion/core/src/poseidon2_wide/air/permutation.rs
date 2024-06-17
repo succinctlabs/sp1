@@ -17,6 +17,7 @@ use crate::{
 };
 
 impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
+    /// Contrain the permutation columns.
     pub(crate) fn eval_perm<AB: SP1RecursionAirBuilder>(
         &self,
         builder: &mut AB,
@@ -25,6 +26,10 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         opcode_workspace: &OpcodeWorkspace<AB::Var>,
         control_flow: &ControlFlow<AB::Var>,
     ) {
+        // Construct the input array of the permutation.  That array is dependent on the row type.
+        // For compress_syscall rows, the input is from the memory access values.  For absorb, the
+        // input is the previous state, with select elements being read from the memory access values.
+        // For finalize, the input is the previous state.
         let input: [AB::Expr; WIDTH] = array::from_fn(|i| {
             let previous_state = opcode_workspace.absorb().previous_state[i];
 
