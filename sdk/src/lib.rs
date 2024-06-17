@@ -191,28 +191,7 @@ impl ProverClient {
         SP1_CIRCUIT_VERSION.to_string()
     }
 
-    /// Executes the given program on the given input (without generating a proof).
-    ///
-    /// Returns the public values and execution report of the program after it has been executed.
-    ///
-    ///
-    /// ### Examples
-    /// ```no_run
-    /// use sp1_sdk::{ProverClient, SP1Stdin};
-    ///
-    /// // Load the program.
-    /// let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
-    ///
-    /// // Initialize the prover client.
-    /// let client = ProverClient::new();
-    ///
-    /// // Setup the inputs.
-    /// let mut stdin = SP1Stdin::new();
-    /// stdin.write(&10usize);
-    ///
-    /// // Execute the program on the inputs.
-    /// let (public_values, report) = client.execute(elf, stdin).unwrap();
-    /// ```
+    /// Calls [`Self::execute_with_context`] with the default context. See there for more details.
     pub fn execute(
         &self,
         elf: &[u8],
@@ -277,32 +256,7 @@ impl ProverClient {
         self.prover.setup(elf)
     }
 
-    /// Proves the execution of the given program with the given input in the default mode.
-    ///
-    /// Returns a proof of the program's execution. By default the proof generated will not be
-    /// compressed to constant size. To create a more succinct proof, use the [Self::prove_compressed],
-    /// [Self::prove_plonk], or [Self::prove_plonk] methods.
-    ///
-    /// ### Examples
-    /// ```no_run
-    /// use sp1_sdk::{ProverClient, SP1Stdin};
-    ///
-    /// // Load the program.
-    /// let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
-    ///
-    /// // Initialize the prover client.
-    /// let client = ProverClient::new();
-    ///
-    /// // Setup the program.
-    /// let (pk, vk) = client.setup(elf);
-    ///
-    /// // Setup the inputs.
-    /// let mut stdin = SP1Stdin::new();
-    /// stdin.write(&10usize);
-    ///
-    /// // Generate the proof.
-    /// let proof = client.prove(&pk, stdin).unwrap();
-    /// ```
+    /// Calls [`Self::prove_with_context`] with the default context. See there for more details.
     pub fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Proof> {
         self.prove_with_context(pk, stdin, Default::default())
     }
@@ -347,31 +301,7 @@ impl ProverClient {
         self.prover.prove(pk, stdin, Default::default(), context)
     }
 
-    /// Proves the execution of the given program with the given input in the compressed mode.
-    ///
-    /// Returns a compressed proof of the program's execution. The compressed proof is a succinct
-    /// proof that is of constant size and friendly for recursion and off-chain verification.
-    ///
-    /// ### Examples
-    /// ```no_run
-    /// use sp1_sdk::{ProverClient, SP1Stdin};
-    ///
-    /// // Load the program.
-    /// let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
-    ///
-    /// // Initialize the prover client.
-    /// let client = ProverClient::new();
-    ///
-    /// // Setup the program.
-    /// let (pk, vk) = client.setup(elf);
-    ///
-    /// // Setup the inputs.
-    /// let mut stdin = SP1Stdin::new();
-    /// stdin.write(&10usize);
-    ///
-    /// // Generate the proof.
-    /// let proof = client.prove_compressed(&pk, stdin).unwrap();
-    /// ```
+    /// Calls [`Self::prove_compressed_with_context`] with the default context. See there for more details.
     pub fn prove_compressed(
         &self,
         pk: &SP1ProvingKey,
@@ -420,32 +350,7 @@ impl ProverClient {
             .prove_compressed(pk, stdin, Default::default(), context)
     }
 
-    /// Proves the execution of the given program with the given input in the plonk bn254 mode.
-    ///
-    /// Returns a proof of the program's execution in the plonk bn254format. The proof is a succinct
-    /// proof that is of constant size and friendly for on-chain verification.
-    ///
-    /// ### Examples
-    /// ```no_run
-    /// use sp1_sdk::{ProverClient, SP1Stdin};
-    ///
-    /// // Load the program.
-    /// let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
-    ///
-    /// // Initialize the prover client.
-    /// let client = ProverClient::new();
-    ///
-    /// // Setup the program.
-    /// let (pk, vk) = client.setup(elf);
-    ///
-    /// // Setup the inputs.
-    /// let mut stdin = SP1Stdin::new();
-    /// stdin.write(&10usize);
-    ///
-    /// // Generate the proof.
-    /// let proof = client.prove_plonk(&pk, stdin).unwrap();
-    /// ```
-    /// Generates a plonk bn254 proof, verifiable onchain, of the given elf and stdin.
+    /// Calls [`Self::prove_plonk_with_context`] with the default context. See there for more details.
     pub fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkBn254Proof> {
         self.prove_plonk_with_context(pk, stdin, Default::default())
     }
