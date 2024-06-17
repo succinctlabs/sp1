@@ -81,6 +81,9 @@ impl<'a> SP1ContextBuilder<'a> {
         self
     }
 
+    /// Add a subproof verifier.
+    ///
+    /// The verifier is used to sanity check `verify_sp1_proof` during runtime.
     pub fn subproof_verifier(
         &mut self,
         subproof_verifier: Arc<dyn SubproofVerifier + 'a>,
