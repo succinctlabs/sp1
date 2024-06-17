@@ -56,6 +56,13 @@ impl<C: Config> DuplexChallengerVariable<C> {
             nb_outputs: builder.eval(C::N::zero()),
             output_buffer: builder.dyn_array(PERMUTATION_WIDTH),
         };
+
+        // Assert that the lengths of the arrays are equal to the permutation width.
+        builder.assert_usize_eq(PERMUTATION_WIDTH, result.sponge_state.len());
+        builder.assert_usize_eq(PERMUTATION_WIDTH, result.input_buffer.len());
+        builder.assert_usize_eq(PERMUTATION_WIDTH, result.output_buffer.len());
+
+        // Constrain the state of the challenger to contain all zeroes.
         builder.assert_var_eq(result.nb_inputs, C::N::zero());
         builder.assert_var_eq(result.nb_outputs, C::N::zero());
         builder.range(0, PERMUTATION_WIDTH).for_each(|i, builder| {
