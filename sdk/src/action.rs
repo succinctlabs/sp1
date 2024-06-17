@@ -117,22 +117,25 @@ impl<'a> Prove<'a> {
         self
     }
 
-    // TODO docs
+    /// Set the shard size for proving.
     pub fn shard_size(mut self, value: usize) -> Self {
         self.opts.shard_size = value;
         self
     }
 
+    /// Set the shard batch size for proving.
     pub fn shard_batch_size(mut self, value: usize) -> Self {
         self.opts.shard_batch_size = value;
         self
     }
 
+    /// Set the chunking multiplier for proving.
     pub fn shard_chunking_multiplier(mut self, value: usize) -> Self {
         self.opts.shard_chunking_multiplier = value;
         self
     }
 
+    /// Set whether we should reconstruct commitments while proving.
     pub fn reconstruct_commitments(mut self, value: bool) -> Self {
         self.opts.reconstruct_commitments = value;
         self
