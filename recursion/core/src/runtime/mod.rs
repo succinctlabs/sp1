@@ -142,12 +142,6 @@ pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
 
     p2_current_hash_num: Option<F>,
 
-    num_perms: usize,
-
-    num_absorb_rows: usize,
-
-    num_finalizes: usize,
-
     _marker: PhantomData<EF>,
 }
 
@@ -199,9 +193,6 @@ where
             p2_hash_state: [F::zero(); PERMUTATION_WIDTH],
             p2_hash_state_cursor: 0,
             p2_current_hash_num: None,
-            num_perms: 0,
-            num_absorb_rows: 0,
-            num_finalizes: 0,
             _marker: PhantomData,
         }
     }
@@ -235,9 +226,6 @@ where
             p2_hash_state: [F::zero(); PERMUTATION_WIDTH],
             p2_hash_state_cursor: 0,
             p2_current_hash_num: None,
-            num_perms: 0,
-            num_absorb_rows: 0,
-            num_finalizes: 0,
             _marker: PhantomData,
         }
     }
@@ -720,8 +708,6 @@ where
                         ));
                     }
 
-                    self.num_perms += 1;
-
                     self.record
                         .poseidon2_compress_events
                         .push(Poseidon2CompressEvent {
@@ -873,7 +859,6 @@ where
 
                     self.p2_hash_state_cursor = 0;
                     self.p2_hash_state = [F::zero(); PERMUTATION_WIDTH];
-                    self.num_finalizes += 1;
 
                     (a, b, c) = (a_val, b_val, c_val);
                 }
@@ -1114,10 +1099,6 @@ where
                 break;
             }
         }
-
-        println!("num_perms: {}", self.num_perms);
-        println!("num_absorbs: {}", self.num_absorb_rows);
-        println!("num_finalizes: {}", self.num_finalizes);
 
         let zero_block = Block::from(F::zero());
         // Collect all used memory addresses.

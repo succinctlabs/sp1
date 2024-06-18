@@ -13,7 +13,9 @@ use crate::{
     },
 };
 
-impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize> Poseidon2WideChip<DEGREE, ROUND_CHUNK_SIZE> {
+impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
+    Poseidon2WideChip<DEGREE, ROUND_CHUNK_SIZE>
+{
     /// Eval the memory related columns.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn eval_mem<AB: SP1RecursionAirBuilder>(

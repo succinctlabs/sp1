@@ -48,7 +48,6 @@ impl<F: PrimeField32, const DEGREE: usize, const ROUND_CHUNK_SIZE: usize> Machin
         let mut rows = Vec::new();
 
         let num_columns = <Poseidon2WideChip<DEGREE, ROUND_CHUNK_SIZE> as BaseAir<F>>::width(self);
-        println!("num_columns is {:?}", num_columns);
 
         // First process all of the hash events.
         for event in &input.poseidon2_hash_events {
