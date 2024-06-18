@@ -36,7 +36,7 @@ impl<F: Field> ByteChip<F> {
     /// Creates the preprocessed byte trace.
     ///
     /// This function returns a `trace` which is a matrix containing all possible byte operations.
-    pub fn trace_and_map(shard: u32) -> RowMajorMatrix<F> {
+    pub fn trace(shard: u32) -> RowMajorMatrix<F> {
         // The trace containing all values, with all multiplicities set to zero.
         let mut initial_trace = RowMajorMatrix::new(
             vec![F::zero(); NUM_ROWS * NUM_BYTE_PREPROCESSED_COLS],
@@ -58,7 +58,7 @@ impl<F: Field> ByteChip<F> {
 
             // Iterate over all operations for results and updating the table map.
             for channel in 0..NUM_BYTE_LOOKUP_CHANNELS {
-                for (i, opcode) in opcodes.iter().enumerate() {
+                for opcode in opcodes.iter() {
                     match opcode {
                         ByteOpcode::AND => {
                             let and = b & c;
@@ -143,7 +143,7 @@ mod tests {
     #[test]
     pub fn test_trace_and_map() {
         let start = Instant::now();
-        ByteChip::<BabyBear>::trace_and_map(0);
+        ByteChip::<BabyBear>::trace(0);
         println!("trace and map: {:?}", start.elapsed());
     }
 }
