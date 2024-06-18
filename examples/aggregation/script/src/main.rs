@@ -33,21 +33,24 @@ fn main() {
         let mut stdin = SP1Stdin::new();
         stdin.write(&10);
         client
-            .prove_compressed(&fibonacci_pk, stdin)
+            .prove(&fibonacci_pk, stdin)
+            .run()
             .expect("proving failed")
     });
     let proof_2 = tracing::info_span!("generate fibonacci proof n=20").in_scope(|| {
         let mut stdin = SP1Stdin::new();
         stdin.write(&20);
         client
-            .prove_compressed(&fibonacci_pk, stdin)
+            .prove(&fibonacci_pk, stdin)
+            .run()
             .expect("proving failed")
     });
     let proof_3 = tracing::info_span!("generate fibonacci proof n=30").in_scope(|| {
         let mut stdin = SP1Stdin::new();
         stdin.write(&30);
         client
-            .prove_compressed(&fibonacci_pk, stdin)
+            .prove(&fibonacci_pk, stdin)
+            .run()
             .expect("proving failed")
     });
 
@@ -94,7 +97,8 @@ fn main() {
 
         // Generate the plonk bn254 proof.
         client
-            .prove_plonk(&aggregation_pk, stdin)
+            .prove(&aggregation_pk, stdin)
+            .run()
             .expect("proving failed");
     });
 }
