@@ -8,7 +8,7 @@ To use the prover network to generate a proof, you can run your script that uses
 // Generate the proof for the given program.
 let client = ProverClient::new();
 let (pk, vk) = client.setup(ELF);
-let mut proof = client.prove(&pk, stdin).unwrap();
+let mut proof = client.prove(&pk, stdin).run().unwrap();
 ```
 
 ```sh

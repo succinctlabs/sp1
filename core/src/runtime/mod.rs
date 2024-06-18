@@ -1,3 +1,4 @@
+mod context;
 mod hooks;
 mod instruction;
 mod io;
@@ -13,6 +14,7 @@ mod syscall;
 mod utils;
 mod subproof;
 
+pub use context::*;
 pub use hooks::*;
 pub use instruction::*;
 pub use memory::*;
@@ -118,8 +120,13 @@ pub enum ExecutionError {
 }
 
 impl<'a> Runtime<'a> {
-    // Create a new runtime from a program.
+    // Create a new runtime from a program and options.
     pub fn new(program: Program, opts: SP1CoreOpts) -> Self {
+        Self::with_context(program, opts, Default::default())
+    }
+
+    /// Create a new runtime from a program, options, and a context.
+    pub fn with_context(program: Program, opts: SP1CoreOpts, context: SP1Context<'a>) -> Self {
         // Create a shared reference to the program.
         let program = Arc::new(program);
 
@@ -145,6 +152,11 @@ impl<'a> Runtime<'a> {
             .max()
             .unwrap_or(0);
 
+        let subproof_verifier = context
+            .subproof_verifier
+            .unwrap_or_else(|| Arc::new(DefaultSubproofVerifier::new()));
+        let hook_registry = context.hook_registry.unwrap_or_default();
+
         Self {
             record,
             state: ExecutionState::new(program.pc_start),
@@ -162,19 +174,22 @@ impl<'a> Runtime<'a> {
             max_syscall_cycles,
             report: ExecutionReport::default(),
             print_report: false,
-            subproof_verifier: Arc::new(DefaultSubproofVerifier::new()),
-            hook_registry: HookRegistry::default(),
+            subproof_verifier,
+            hook_registry,
         }
     }
 
     /// Invokes the hook corresponding to the given file descriptor `fd` with the data `buf`,
     /// returning the resulting data.
     pub fn hook(&self, fd: u32, buf: &[u8]) -> Vec<Vec<u8>> {
-        self.hook_registry.table[&fd](self.hook_env(), buf)
+        self.hook_registry
+            .get(&fd)
+            .unwrap()
+            .invoke_hook(self.hook_env(), buf)
     }
 
     /// Prepare a `HookEnv` for use by hooks.
-    pub fn hook_env(&self) -> HookEnv {
+    pub fn hook_env<'b>(&'b self) -> HookEnv<'b, 'a> {
         HookEnv { runtime: self }
     }
 
