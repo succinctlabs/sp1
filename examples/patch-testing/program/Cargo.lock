@@ -135,7 +135,7 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek-ng"
 version = "4.1.1"
-source = "git+https://github.com/sp1-patches/curve25519-dalek-ng-fork?branch=patch-v4.1.1#f5607edd61ad8e9d80c9be933cd119f4008044d9"
+source = "git+https://github.com/sp1-patches/curve25519-dalek-ng?branch=patch-v4.1.1#f5607edd61ad8e9d80c9be933cd119f4008044d9"
 dependencies = [
  "byteorder",
  "digest 0.9.0",
@@ -203,7 +203,7 @@ dependencies = [
 [[package]]
 name = "ed25519-consensus"
 version = "2.1.0"
-source = "git+https://github.com/sp1-patches/ed25519-consensus-fork?branch=patch-v2.1.0#925fe23b1255e37c027db696c847b04768d2b34f"
+source = "git+https://github.com/sp1-patches/ed25519-consensus?branch=patch-v2.1.0#4fba9b0acc9fcf7a87d00da84c340d5988e3d7cb"
 dependencies = [
  "curve25519-dalek-ng",
  "hex",
@@ -641,7 +641,7 @@ dependencies = [
 [[package]]
 name = "sha2"
 version = "0.9.8"
-source = "git+https://github.com/sp1-patches/RustCrypto-hashes-fork?branch=patch-sha2-v0.9.8#afdbfb09c325f8a69c01d540ec9a261e3637725d"
+source = "git+https://github.com/sp1-patches/RustCrypto-hashes?branch=patch-sha2-v0.9.8#afdbfb09c325f8a69c01d540ec9a261e3637725d"
 dependencies = [
  "block-buffer 0.9.0",
  "cfg-if",
@@ -653,7 +653,8 @@ dependencies = [
 [[package]]
 name = "sha2"
 version = "0.10.8"
-source = "git+https://github.com/sp1-patches/RustCrypto-hashes-fork?branch=patch-sha2-v0.10.8#1f224388fdede7cef649bce0d63876d1a9e3f515"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "793db75ad2bcafc3ffa7c68b215fee268f537982cd901d132f89c6343f3a3dc8"
 dependencies = [
  "cfg-if",
  "cpufeatures",
@@ -786,7 +787,7 @@ dependencies = [
 [[package]]
 name = "tiny-keccak"
 version = "2.0.2"
-source = "git+https://github.com/sp1-patches/tiny-keccak-fork?branch=ratan/try-simplifying-patch#b2371e4e9180f2c6abfe24911bb9a9336eccad3b"
+source = "git+https://github.com/sp1-patches/tiny-keccak?branch=patch-v2.0.2#bf0b28f63510a90c7b6c21ac6ff461c93ecd2331"
 dependencies = [
  "cfg-if",
  "crunchy",
@@ -856,3 +857,8 @@ name = "zeroize"
 version = "1.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ced3678a2879b30306d323f4542626697a464a97c0a07c9aebf7ebca65cd4dde"
+
+[[patch.unused]]
+name = "sha2"
+version = "0.10.6"
+source = "git+https://github.com/sp1-patches/RustCrypto-hashes?branch=patch-sha2-v0.10.6#e5f8b7eaaa9801503bd998932a52b65848eee234"

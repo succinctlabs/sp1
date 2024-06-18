@@ -23,7 +23,8 @@ fn main() {
     let client = ProverClient::new();
     let (_, report) = client
         .execute(PATCH_TEST_ELF, stdin)
-        .expect("proving failed");
+        .run()
+        .expect("executing failed");
 
     // Confirm there was at least 1 SHA_COMPUTE syscall.
     assert!(report
