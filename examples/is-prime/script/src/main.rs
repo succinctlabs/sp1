@@ -28,7 +28,7 @@ fn main() {
         .save("proof-with-is-prime.bin")
         .expect("saving proof failed");
     let deserialized_proof =
-        SP1Proof::load("proof-with-is-prime.bin").expect("loading proof failed");
+        SP1ProofBundle::load("proof-with-is-prime.bin").expect("loading proof failed");
 
     // Verify the deserialized proof.
     client

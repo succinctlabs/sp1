@@ -61,7 +61,7 @@ fn main() {
 
     // Test a round trip of proof serialization and deserialization.
     proof.save("proof-with-pis").expect("saving proof failed");
-    let deserialized_proof = SP1Proof::load("proof-with-pis").expect("loading proof failed");
+    let deserialized_proof = SP1ProofBundle::load("proof-with-pis").expect("loading proof failed");
 
     // Verify the deserialized proof.
     client
