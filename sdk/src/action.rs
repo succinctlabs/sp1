@@ -6,7 +6,7 @@ use sp1_prover::{SP1Prover, SP1ProvingKey, SP1PublicValues, SP1Stdin};
 
 use anyhow::{Ok, Result};
 
-use crate::{Prover, SP1Proof, SP1ProofKind};
+use crate::{Prover, SP1ProofBundle, SP1ProofKind};
 
 #[derive(Default)]
 pub struct Execute<'a> {
@@ -97,7 +97,7 @@ impl<'a> Prove<'a> {
         self
     }
 
-    pub fn run(self) -> Result<SP1Proof> {
+    pub fn run(self) -> Result<SP1ProofBundle> {
         let Self {
             prover,
             kind,
@@ -112,15 +112,11 @@ impl<'a> Prove<'a> {
         };
         let context = context_builder.build();
 
-        Ok(match kind {
-            SP1ProofKind::Core => SP1Proof::Core(prover.prove(pk, stdin, opts, context)?),
-            SP1ProofKind::Compress => {
-                SP1Proof::Compress(prover.prove_compressed(pk, stdin, opts, context)?)
-            }
-            SP1ProofKind::PlonkBn254 => {
-                SP1Proof::PlonkBn254(prover.prove_plonk(pk, stdin, opts, context)?)
-            }
-        })
+        match kind {
+            SP1ProofKind::Core => prover.prove(pk, stdin, opts, context),
+            SP1ProofKind::Compress => prover.prove_compressed(pk, stdin, opts, context),
+            SP1ProofKind::PlonkBn254 => prover.prove_plonk(pk, stdin, opts, context),
+        }
     }
 
     /// Add a runtime [Hook](super::Hook) into the context.

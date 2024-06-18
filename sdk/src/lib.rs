@@ -225,14 +225,10 @@ impl ProverClient {
     /// ```
     pub fn verify(
         &self,
-        proof: &SP1Proof,
+        proof: &SP1ProofBundle,
         vk: &SP1VerifyingKey,
     ) -> Result<(), SP1VerificationError> {
-        match proof {
-            SP1Proof::Core(p) => self.prover.verify(p, vk),
-            SP1Proof::Compress(p) => self.prover.verify_compressed(p, vk),
-            SP1Proof::PlonkBn254(p) => self.prover.verify_plonk(p, vk),
-        }
+        self.prover.verify(proof, vk)
     }
 
     /// Gets the current version of the SP1 zkVM.
@@ -266,17 +262,6 @@ impl ProverClient {
 impl Default for ProverClient {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-impl SP1PlonkBn254Proof {
-    /// Returns the encoded proof bytes with a prefix of the VK hash.
-    pub fn bytes(&self) -> String {
-        format!(
-            "0x{}{}",
-            hex::encode(&self.proof.plonk_vkey_hash[..4]),
-            &self.proof.encoded_proof
-        )
     }
 }
 

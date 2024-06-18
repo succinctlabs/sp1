@@ -1,7 +1,6 @@
 #![allow(unused_variables)]
 use crate::{
-    Prover, SP1CompressedProof, SP1CoreProof, SP1PlonkBn254Proof, SP1ProofWithPublicValues,
-    SP1ProvingKey, SP1VerificationError, SP1VerifyingKey,
+    Prover, SP1Proof, SP1ProofBundle, SP1ProvingKey, SP1VerificationError, SP1VerifyingKey,
 };
 use anyhow::Result;
 use p3_field::PrimeField;
@@ -44,10 +43,10 @@ impl Prover for MockProver {
         stdin: SP1Stdin,
         opts: SP1ProverOpts,
         context: SP1Context<'a>,
-    ) -> Result<SP1CoreProof> {
+    ) -> Result<SP1ProofBundle> {
         let (public_values, _) = SP1Prover::execute(&pk.elf, &stdin, context)?;
-        Ok(SP1ProofWithPublicValues {
-            proof: vec![],
+        Ok(SP1ProofBundle {
+            proof: SP1Proof::Core(vec![]),
             stdin,
             public_values,
             sp1_version: self.version().to_string(),
@@ -60,7 +59,7 @@ impl Prover for MockProver {
         _stdin: SP1Stdin,
         _opts: SP1ProverOpts,
         _context: SP1Context<'_>,
-    ) -> Result<SP1CompressedProof> {
+    ) -> Result<SP1ProofBundle> {
         unimplemented!()
     }
 
@@ -70,10 +69,10 @@ impl Prover for MockProver {
         stdin: SP1Stdin,
         _opts: SP1ProverOpts,
         context: SP1Context<'_>,
-    ) -> Result<SP1PlonkBn254Proof> {
+    ) -> Result<SP1ProofBundle> {
         let (public_values, _) = SP1Prover::execute(&pk.elf, &stdin, context)?;
-        Ok(SP1PlonkBn254Proof {
-            proof: PlonkBn254Proof {
+        Ok(SP1ProofBundle {
+            proof: SP1Proof::PlonkBn254(PlonkBn254Proof {
                 public_inputs: [
                     pk.vk.hash_bn254().as_canonical_biguint().to_string(),
                     public_values.hash().to_string(),
@@ -81,7 +80,7 @@ impl Prover for MockProver {
                 encoded_proof: "".to_string(),
                 raw_proof: "".to_string(),
                 plonk_vkey_hash: [0; 32],
-            },
+            }),
             stdin,
             public_values,
             sp1_version: self.version().to_string(),
@@ -90,28 +89,16 @@ impl Prover for MockProver {
 
     fn verify(
         &self,
-        _proof: &SP1CoreProof,
-        _vkey: &SP1VerifyingKey,
-    ) -> Result<(), SP1VerificationError> {
-        Ok(())
-    }
-
-    fn verify_compressed(
-        &self,
-        _proof: &SP1CompressedProof,
-        _vkey: &SP1VerifyingKey,
-    ) -> Result<(), SP1VerificationError> {
-        Ok(())
-    }
-
-    fn verify_plonk(
-        &self,
-        proof: &SP1PlonkBn254Proof,
+        bundle: &SP1ProofBundle,
         vkey: &SP1VerifyingKey,
     ) -> Result<(), SP1VerificationError> {
-        verify_plonk_bn254_public_inputs(vkey, &proof.public_values, &proof.proof.public_inputs)
-            .map_err(SP1VerificationError::Plonk)?;
-        Ok(())
+        match &bundle.proof {
+            SP1Proof::PlonkBn254(PlonkBn254Proof { public_inputs, .. }) => {
+                verify_plonk_bn254_public_inputs(vkey, &bundle.public_values, public_inputs)
+                    .map_err(SP1VerificationError::Plonk)
+            }
+            _ => Ok(()),
+        }
     }
 }
 

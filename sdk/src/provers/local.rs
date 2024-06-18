@@ -2,10 +2,7 @@ use anyhow::Result;
 use sp1_core::{runtime::SP1Context, utils::SP1ProverOpts};
 use sp1_prover::{SP1Prover, SP1Stdin};
 
-use crate::{
-    Prover, SP1CompressedProof, SP1CoreProof, SP1PlonkBn254Proof, SP1ProofWithPublicValues,
-    SP1ProvingKey, SP1VerifyingKey,
-};
+use crate::{Prover, SP1Proof, SP1ProofBundle, SP1ProvingKey, SP1VerifyingKey};
 
 use super::ProverType;
 
@@ -41,10 +38,10 @@ impl Prover for LocalProver {
         stdin: SP1Stdin,
         opts: SP1ProverOpts,
         context: SP1Context<'a>,
-    ) -> Result<SP1CoreProof> {
+    ) -> Result<SP1ProofBundle> {
         let proof = self.prover.prove_core(pk, &stdin, opts, context)?;
-        Ok(SP1ProofWithPublicValues {
-            proof: proof.proof.0,
+        Ok(SP1ProofBundle {
+            proof: SP1Proof::Core(proof.proof.0),
             stdin: proof.stdin,
             public_values: proof.public_values,
             sp1_version: self.version().to_string(),
@@ -57,13 +54,13 @@ impl Prover for LocalProver {
         stdin: SP1Stdin,
         opts: SP1ProverOpts,
         context: SP1Context<'a>,
-    ) -> Result<SP1CompressedProof> {
+    ) -> Result<SP1ProofBundle> {
         let proof = self.prover.prove_core(pk, &stdin, opts, context)?;
         let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
         let public_values = proof.public_values.clone();
         let reduce_proof = self.prover.compress(&pk.vk, proof, deferred_proofs, opts)?;
-        Ok(SP1CompressedProof {
-            proof: reduce_proof.proof,
+        Ok(SP1ProofBundle {
+            proof: SP1Proof::Compress(reduce_proof.proof),
             stdin,
             public_values,
             sp1_version: self.version().to_string(),
@@ -76,7 +73,7 @@ impl Prover for LocalProver {
         stdin: SP1Stdin,
         opts: SP1ProverOpts,
         context: SP1Context<'a>,
-    ) -> Result<SP1PlonkBn254Proof> {
+    ) -> Result<SP1ProofBundle> {
         let proof = self.prover.prove_core(pk, &stdin, opts, context)?;
         let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
         let public_values = proof.public_values.clone();
@@ -95,8 +92,8 @@ impl Prover for LocalProver {
         let proof = self
             .prover
             .wrap_plonk_bn254(outer_proof, &plonk_bn254_aritfacts);
-        Ok(SP1ProofWithPublicValues {
-            proof,
+        Ok(SP1ProofBundle {
+            proof: SP1Proof::PlonkBn254(proof),
             stdin,
             public_values,
             sp1_version: self.version().to_string(),

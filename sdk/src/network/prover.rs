@@ -6,10 +6,7 @@ use crate::{
     proto::network::ProofStatus,
     Prover,
 };
-use crate::{
-    SP1CompressedProof, SP1Context, SP1CoreProof, SP1PlonkBn254Proof, SP1ProvingKey,
-    SP1VerifyingKey,
-};
+use crate::{SP1Context, SP1ProofBundle, SP1ProvingKey, SP1VerifyingKey};
 use anyhow::Result;
 use serde::de::DeserializeOwned;
 use sp1_core::utils::SP1ProverOpts;
@@ -111,8 +108,13 @@ impl NetworkProver {
     }
 
     /// Requests a proof from the prover network and waits for it to be generated.
-    pub async fn prove<P: ProofType>(&self, elf: &[u8], stdin: SP1Stdin) -> Result<P> {
-        let proof_id = self.request_proof(elf, stdin, P::PROOF_MODE).await?;
+    pub async fn prove(
+        &self,
+        elf: &[u8],
+        stdin: SP1Stdin,
+        mode: ProofMode,
+    ) -> Result<SP1ProofBundle> {
+        let proof_id = self.request_proof(elf, stdin, mode).await?;
         self.wait_proof(&proof_id).await
     }
 }
@@ -136,9 +138,9 @@ impl Prover for NetworkProver {
         stdin: SP1Stdin,
         opts: SP1ProverOpts,
         context: SP1Context,
-    ) -> Result<SP1CoreProof> {
+    ) -> Result<SP1ProofBundle> {
         warn_if_not_default(&opts, &context);
-        block_on(self.prove(&pk.elf, stdin))
+        block_on(self.prove(&pk.elf, stdin, ProofMode::Core))
     }
 
     fn prove_compressed(
@@ -147,9 +149,9 @@ impl Prover for NetworkProver {
         stdin: SP1Stdin,
         opts: SP1ProverOpts,
         context: SP1Context,
-    ) -> Result<SP1CompressedProof> {
+    ) -> Result<SP1ProofBundle> {
         warn_if_not_default(&opts, &context);
-        block_on(self.prove(&pk.elf, stdin))
+        block_on(self.prove(&pk.elf, stdin, ProofMode::Compressed))
     }
 
     fn prove_plonk(
@@ -158,9 +160,9 @@ impl Prover for NetworkProver {
         stdin: SP1Stdin,
         opts: SP1ProverOpts,
         context: SP1Context,
-    ) -> Result<SP1PlonkBn254Proof> {
+    ) -> Result<SP1ProofBundle> {
         warn_if_not_default(&opts, &context);
-        block_on(self.prove(&pk.elf, stdin))
+        block_on(self.prove(&pk.elf, stdin, ProofMode::Plonk))
     }
 }
 
@@ -168,23 +170,6 @@ impl Default for NetworkProver {
     fn default() -> Self {
         Self::new()
     }
-}
-
-/// A deserializable proof struct that has an associated ProofMode.
-pub trait ProofType: DeserializeOwned {
-    const PROOF_MODE: ProofMode;
-}
-
-impl ProofType for SP1CoreProof {
-    const PROOF_MODE: ProofMode = ProofMode::Core;
-}
-
-impl ProofType for SP1CompressedProof {
-    const PROOF_MODE: ProofMode = ProofMode::Compressed;
-}
-
-impl ProofType for SP1PlonkBn254Proof {
-    const PROOF_MODE: ProofMode = ProofMode::Plonk;
 }
 
 /// Warns if `opts` or `context` are not default values, since they are currently unsupported.
