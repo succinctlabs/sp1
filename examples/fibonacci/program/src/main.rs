@@ -28,16 +28,6 @@ pub fn main() {
         b = c;
     }
 
-    sp1_zkvm::precompiles::unconstrained! {
-        let x = 1;
-        let y = 2;
-        println!("x = {}, y = {}", x, y);
-        let mut v = Vec::new();
-        v.push(x);
-        v.push(y);
-        println!("v = {:?}", v);
-    }
-
     // Write the output of the program.
     //
     // Behind the scenes, this also compiles down to a custom system call which handles writing
