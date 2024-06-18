@@ -118,7 +118,7 @@ impl<'a> Prove<'a> {
     }
 
     /// Set the proof kind to the compressed mode.
-    pub fn compress(mut self) -> Self {
+    pub fn compressed(mut self) -> Self {
         self.kind = SP1ProofKind::Compressed;
         self
     }
