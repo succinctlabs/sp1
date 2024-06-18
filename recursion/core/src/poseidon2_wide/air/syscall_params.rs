@@ -21,6 +21,7 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
         next_syscall: &SyscallParams<AB::Var>,
         local_control_flow: &ControlFlow<AB::Var>,
         next_control_flow: &ControlFlow<AB::Var>,
+        receive_syscall: AB::Var,
     ) {
         // Constraint that the operands are sent from the CPU table.
         let params = local_syscall.get_raw_params();
@@ -42,7 +43,7 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
             .map(|(opcode, opcode_selector)| opcode.clone() * *opcode_selector)
             .sum();
 
-        builder.receive_table(used_opcode, &params, local_control_flow.is_syscall_row);
+        builder.receive_table(used_opcode, &params, receive_syscall);
 
         let mut transition_builder = builder.when_transition();
 

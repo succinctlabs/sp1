@@ -15,9 +15,7 @@ use thiserror::Error;
 use crate::air::MachineAir;
 use crate::io::{SP1PublicValues, SP1Stdin};
 use crate::lookup::InteractionBuilder;
-use crate::runtime::{
-    DefaultSubproofVerifier, ExecutionError, NoOpSubproofVerifier, SubproofVerifier,
-};
+use crate::runtime::{ExecutionError, NoOpSubproofVerifier, SP1Context};
 use crate::runtime::{ExecutionRecord, ExecutionReport, ShardingConfig};
 use crate::stark::DebugConstraintBuilder;
 use crate::stark::MachineProof;
@@ -100,15 +98,15 @@ where
     ShardMainData<SC>: Serialize + DeserializeOwned,
     <SC as StarkGenericConfig>::Val: PrimeField32,
 {
-    prove_with_subproof_verifier::<SC, DefaultSubproofVerifier>(program, stdin, config, opts, None)
+    prove_with_context(program, stdin, config, opts, Default::default())
 }
 
-pub fn prove_with_subproof_verifier<SC: StarkGenericConfig + Send + Sync, V: SubproofVerifier>(
+pub fn prove_with_context<SC: StarkGenericConfig + Send + Sync>(
     program: Program,
     stdin: &SP1Stdin,
     config: SC,
     opts: SP1CoreOpts,
-    subproof_verifier: Option<Arc<V>>,
+    context: SP1Context,
 ) -> Result<(MachineProof<SC>, Vec<u8>), SP1CoreProverError>
 where
     SC::Challenger: Clone,
@@ -121,13 +119,10 @@ where
     let proving_start = Instant::now();
 
     // Execute the program.
-    let mut runtime = Runtime::new(program.clone(), opts);
+    let mut runtime = Runtime::with_context(program.clone(), opts, context);
     runtime.write_vecs(&stdin.buffer);
     for proof in stdin.proofs.iter() {
         runtime.write_proof(proof.0.clone(), proof.1.clone());
-    }
-    if let Some(deferred_fn) = subproof_verifier.clone() {
-        runtime.subproof_verifier = deferred_fn;
     }
 
     // Setup the machine.

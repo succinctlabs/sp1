@@ -26,7 +26,7 @@ use crate::cpu::CpuEvent;
 use crate::exp_reverse_bits::ExpReverseBitsLenEvent;
 use crate::fri_fold::FriFoldEvent;
 use crate::memory::{compute_addr_diff, MemoryRecord};
-use crate::poseidon2::{
+use crate::poseidon2_wide::events::{
     Poseidon2AbsorbEvent, Poseidon2AbsorbIteration, Poseidon2CompressEvent, Poseidon2FinalizeEvent,
     Poseidon2HashEvent,
 };

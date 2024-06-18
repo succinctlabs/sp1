@@ -4,8 +4,8 @@ pub mod utils;
 
 use crate::{
     cpu::CpuChip, exp_reverse_bits::ExpReverseBitsLenChip, fri_fold::FriFoldChip,
-    memory::MemoryGlobalChip, multi::MultiChip, poseidon2::Poseidon2Chip,
-    poseidon2_wide::Poseidon2WideChip, program::ProgramChip, range_check::RangeCheckChip,
+    memory::MemoryGlobalChip, multi::MultiChip, poseidon2_wide::Poseidon2WideChip,
+    program::ProgramChip, range_check::RangeCheckChip,
 };
 use core::iter::once;
 use p3_field::{extension::BinomiallyExtendable, PrimeField32};
@@ -34,10 +34,9 @@ pub enum RecursionAir<
     Cpu(CpuChip<F, DEGREE>),
     MemoryGlobal(MemoryGlobalChip),
     Poseidon2Wide(Poseidon2WideChip<DEGREE, ROUND_CHUNK_SIZE>),
-    Poseidon2Skinny(Poseidon2Chip),
     FriFold(FriFoldChip<DEGREE>),
     RangeCheck(RangeCheckChip<F>),
-    Multi(MultiChip<DEGREE>),
+    Multi(MultiChip<DEGREE, ROUND_CHUNK_SIZE>),
     ExpReverseBitsLen(ExpReverseBitsLenChip<DEGREE>),
 }
 
@@ -88,11 +87,15 @@ impl<
                 ROUND_CHUNK_SIZE,
             > {
                 fixed_log2_rows: None,
+                pad: true,
             })))
             .chain(once(RecursionAir::FriFold(FriFoldChip::<DEGREE> {
                 fixed_log2_rows: None,
                 pad: true,
             })))
+            // .chain(once(RecursionAir::Multi(MultiChip {
+            //     fixed_log2_rows: None,
+            // })))
             .chain(once(RecursionAir::RangeCheck(RangeCheckChip::default())))
             .chain(once(RecursionAir::ExpReverseBitsLen(
                 ExpReverseBitsLenChip::<DEGREE> {
@@ -112,18 +115,8 @@ impl<
             .chain(once(RecursionAir::MemoryGlobal(MemoryGlobalChip {
                 fixed_log2_rows: None,
             })))
-            // .chain(once(RecursionAir::Multi(MultiChip {
-            //     fixed_log2_rows: None,
-            // })))
-            .chain(once(RecursionAir::Poseidon2Wide(Poseidon2WideChip::<
-                DEGREE,
-                ROUND_CHUNK_SIZE,
-            > {
+            .chain(once(RecursionAir::Multi(MultiChip {
                 fixed_log2_rows: None,
-            })))
-            .chain(once(RecursionAir::FriFold(FriFoldChip::<DEGREE> {
-                fixed_log2_rows: None,
-                pad: true,
             })))
             .chain(once(RecursionAir::RangeCheck(RangeCheckChip::default())))
             .chain(once(RecursionAir::ExpReverseBitsLen(
@@ -144,17 +137,8 @@ impl<
             .chain(once(RecursionAir::MemoryGlobal(MemoryGlobalChip {
                 fixed_log2_rows: Some(19),
             })))
-            .chain(once(RecursionAir::Poseidon2Wide(Poseidon2WideChip::<
-                DEGREE,
-                ROUND_CHUNK_SIZE,
-            > {
-                fixed_log2_rows: None,
-            })))
-            .chain(once(RecursionAir::FriFold(FriFoldChip::<DEGREE> {
-                fixed_log2_rows: None,
-                pad: true,
-                // .chain(once(RecursionAir::Multi(MultiChip {
-                //     fixed_log2_rows: Some(20),
+            .chain(once(RecursionAir::Multi(MultiChip {
+                fixed_log2_rows: Some(20),
             })))
             .chain(once(RecursionAir::RangeCheck(RangeCheckChip::default())))
             .chain(once(RecursionAir::ExpReverseBitsLen(

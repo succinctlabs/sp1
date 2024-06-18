@@ -1,18 +1,9 @@
-#![allow(clippy::needless_range_loop)]
-
-use std::usize;
-
-use crate::poseidon2::external::WIDTH;
-mod columns;
-pub mod external;
-mod trace;
-use crate::air::Block;
-use crate::memory::MemoryRecord;
-use crate::runtime::DIGEST_SIZE;
 use p3_field::PrimeField32;
 
-pub use columns::Poseidon2Cols;
-pub use external::Poseidon2Chip;
+use crate::air::Block;
+use crate::memory::MemoryRecord;
+use crate::poseidon2_wide::WIDTH;
+use crate::runtime::DIGEST_SIZE;
 
 #[derive(Debug, Clone)]
 pub enum Poseidon2HashEvent<F> {

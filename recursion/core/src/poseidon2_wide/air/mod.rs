@@ -1,5 +1,3 @@
-use std::{borrow::Borrow, ops::Deref};
-
 use p3_air::{Air, BaseAir};
 use p3_matrix::Matrix;
 
@@ -13,10 +11,10 @@ pub mod syscall_params;
 
 use super::{
     columns::{
-        Poseidon2, Poseidon2Degree17, Poseidon2Degree3, Poseidon2Degree9,
-        NUM_POSEIDON2_DEGREE17_COLS, NUM_POSEIDON2_DEGREE3_COLS, NUM_POSEIDON2_DEGREE9_COLS,
+        Poseidon2, NUM_POSEIDON2_DEGREE17_COLS, NUM_POSEIDON2_DEGREE3_COLS,
+        NUM_POSEIDON2_DEGREE9_COLS,
     },
-    Poseidon2WideChip,
+    Poseidon2WideChip, WIDTH,
 };
 
 impl<F, const DEGREE: usize, const ROUND_CHUNK_SIZE: usize> BaseAir<F>
@@ -42,14 +40,45 @@ where
     AB::Var: 'static,
 {
     fn eval(&self, builder: &mut AB) {
-        println!(
-            "width is {}",
-            <Poseidon2WideChip<DEGREE, ROUND_CHUNK_SIZE> as BaseAir<AB::Var>>::width(self)
-        );
-
         let main = builder.main();
-        let local_row = Self::convert::<AB>(main.row_slice(0));
-        let next_row = Self::convert::<AB>(main.row_slice(1));
+        let local_row = Self::convert::<AB::Var>(main.row_slice(0));
+        let next_row = Self::convert::<AB::Var>(main.row_slice(1));
+
+        // Dummy constraints to normalize to DEGREE.
+        let lhs = (0..DEGREE)
+            .map(|_| local_row.control_flow().is_compress.into())
+            .product::<AB::Expr>();
+        let rhs = (0..DEGREE)
+            .map(|_| local_row.control_flow().is_compress.into())
+            .product::<AB::Expr>();
+        builder.assert_eq(lhs, rhs);
+
+        self.eval_poseidon2(
+            builder,
+            local_row.as_ref(),
+            next_row.as_ref(),
+            local_row.control_flow().is_syscall_row,
+            local_row.memory().memory_slot_used,
+            local_row.control_flow().is_compress,
+        );
+    }
+}
+
+impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
+    Poseidon2WideChip<DEGREE, ROUND_CHUNK_SIZE>
+{
+    pub(crate) fn eval_poseidon2<AB>(
+        &self,
+        builder: &mut AB,
+        local_row: &dyn Poseidon2<AB::Var>,
+        next_row: &dyn Poseidon2<AB::Var>,
+        receive_syscall: AB::Var,
+        first_half_memory_access: [AB::Var; WIDTH / 2],
+        second_half_memory_access: AB::Var,
+    ) where
+        AB: SP1RecursionAirBuilder,
+        AB::Var: 'static,
+    {
         let local_control_flow = local_row.control_flow();
         let next_control_flow = next_row.control_flow();
         let local_syscall = local_row.syscall_params();
@@ -61,7 +90,7 @@ where
         let next_opcode_workspace = next_row.opcode_workspace();
 
         // Check that all the control flow columns are correct.
-        self.eval_control_flow(builder, local_row.as_ref(), next_row.as_ref());
+        self.eval_control_flow(builder, local_row, next_row);
 
         // Check that the syscall columns are correct.
         self.eval_syscall_params(
@@ -70,6 +99,7 @@ where
             next_syscall,
             local_control_flow,
             next_control_flow,
+            receive_syscall,
         );
 
         // Check that all the memory access columns are correct.
@@ -80,6 +110,8 @@ where
             next_memory,
             local_opcode_workspace,
             local_control_flow,
+            first_half_memory_access,
+            second_half_memory_access,
         );
 
         // Check that the permutation columns are correct.
@@ -101,29 +133,5 @@ where
             local_memory,
             next_memory,
         );
-    }
-}
-
-impl<'a, const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
-    Poseidon2WideChip<DEGREE, ROUND_CHUNK_SIZE>
-{
-    fn convert<AB: SP1RecursionAirBuilder>(
-        row: impl Deref<Target = [AB::Var]>,
-    ) -> Box<dyn Poseidon2<'a, AB::Var> + 'a>
-    where
-        AB::Var: 'a,
-    {
-        if DEGREE == 3 {
-            let convert: &Poseidon2Degree3<AB::Var> = (*row).borrow();
-            Box::new(*convert)
-        } else if DEGREE == 9 {
-            let convert: &Poseidon2Degree9<AB::Var> = (*row).borrow();
-            Box::new(*convert)
-        } else if DEGREE == 17 {
-            let convert: &Poseidon2Degree17<AB::Var> = (*row).borrow();
-            Box::new(*convert)
-        } else {
-            panic!("Unsupported degree");
-        }
     }
 }

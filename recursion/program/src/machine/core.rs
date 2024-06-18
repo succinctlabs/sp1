@@ -104,17 +104,17 @@ where
     ///
     /// See [SP1Prover::verify] for the verification algorithm of a complete SP1 proof. In this
     /// function, we are aggregating several shard proofs and attesting to an aggregated state which
-    /// reprersents all the shards. The consistency conditions of the aggregated state are
+    /// represents all the shards. The consistency conditions of the aggregated state are
     /// asserted in the following way:
     ///
-    /// - Start pc for every shardf should be what the next pc declared in the previous shard was.
+    /// - Start pc for every shard should be what the next pc declared in the previous shard was.
     /// - Public input, deferred proof digests, and exit code should be the same in all shards.
     ///
     /// ## The leaf challenger.
     /// A key difference between the recursive tree verification and the complete one in
-    /// [SP1Prover::verify] is that the recursive verifier has no way of reconstructiing the
-    /// chanllenger only from a part of the shard proof. Therefoee, the value of the leaf challenger
-    /// is witnessed in the program and the verifier assertds correctness given this challenger.
+    /// [SP1Prover::verify] is that the recursive verifier has no way of reconstructing the
+    /// chanllenger only from a part of the shard proof. Therefore, the value of the leaf challenger
+    /// is witnessed in the program and the verifier asserts correctness given this challenger.
     /// In the course of the recursive verification, the challenger is reconstructed by observing
     /// the commitments one by one, and in the final step, the challenger is asserted to be the same
     /// as the one witnessed here.
@@ -223,7 +223,7 @@ where
                 builder.assign(exit_code, public_values.exit_code);
             });
 
-            // If the shard is zero, verify the global initial conditions hold on challenger and pc.
+            // If shard is one, verify the global initial conditions hold on challenger and pc.
             let shard = felt2var(builder, public_values.shard);
             builder.if_eq(shard, C::N::one()).then(|builder| {
                 // This should be the first proof as well
@@ -278,6 +278,9 @@ where
             {
                 builder.assert_felt_eq(*digest, *current_digest);
             }
+
+            // Range check the shard count to be less than 1<<16.
+            builder.range_check_f(current_shard, 16);
 
             // Update the loop variables: the reconstruct challenger, cumulative sum, shard number,
             // and program counter.

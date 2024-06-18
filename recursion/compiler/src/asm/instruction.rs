@@ -149,7 +149,7 @@ pub enum AsmInstruction<F, EF> {
     Poseidon2Permute(i32, i32),
 
     /// Perform a Poseidon2 compress.
-    Poseidon2Compress(i32, i32, i32, F),
+    Poseidon2Compress(i32, i32, i32),
 
     /// Performs a Posedion2 absorb.
     Poseidon2Absorb(i32, i32, i32),
@@ -843,13 +843,13 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 true,
                 "".to_string(),
             ),
-            AsmInstruction::Poseidon2Compress(result, op_1, op_2, operation) => Instruction::new(
+            AsmInstruction::Poseidon2Compress(result, src1, src2) => Instruction::new(
                 Opcode::Poseidon2Compress,
                 i32_f(result),
-                i32_f_arr(op_1),
-                i32_f_arr(op_2),
+                i32_f_arr(src1),
+                i32_f_arr(src2),
                 F::zero(),
-                operation,
+                F::zero(),
                 false,
                 false,
                 "".to_string(),
@@ -1168,11 +1168,11 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
             AsmInstruction::FriFold(m, input_ptr) => {
                 write!(f, "fri_fold ({})fp, ({})fp", m, input_ptr)
             }
-            AsmInstruction::Poseidon2Compress(result, op_1, op_2, operation) => {
+            AsmInstruction::Poseidon2Compress(result, src1, src2) => {
                 write!(
                     f,
-                    "poseidon2_compress ({})fp, {})fp, ({})fp, {}",
-                    result, op_1, op_2, operation,
+                    "poseidon2_compress ({})fp, {})fp, {})fp",
+                    result, src1, src2
                 )
             }
             AsmInstruction::Poseidon2Absorb(hash_num, input_ptr, input_len) => {

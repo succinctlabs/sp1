@@ -13,9 +13,9 @@ use crate::{
     },
 };
 
-impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
-    Poseidon2WideChip<DEGREE, ROUND_CHUNK_SIZE>
-{
+impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize> Poseidon2WideChip<DEGREE, ROUND_CHUNK_SIZE> {
+    /// Eval the memory related columns.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn eval_mem<AB: SP1RecursionAirBuilder>(
         &self,
         builder: &mut AB,
@@ -24,6 +24,8 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
         next_memory: &Memory<AB::Var>,
         opcode_workspace: &OpcodeWorkspace<AB::Var>,
         control_flow: &ControlFlow<AB::Var>,
+        first_half_memory_access: [AB::Var; WIDTH / 2],
+        second_half_memory_access: AB::Var,
     ) {
         let clk = syscall_params.get_raw_params()[0];
         let is_real = control_flow.is_compress + control_flow.is_absorb + control_flow.is_finalize;
@@ -86,7 +88,7 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
                     clk + control_flow.is_compress_output,
                     addr.clone(),
                     &local_memory.memory_accesses[i],
-                    local_memory.memory_slot_used[i],
+                    first_half_memory_access[i],
                 );
 
                 let compress_syscall_row = control_flow.is_compress * control_flow.is_syscall_row;
@@ -102,7 +104,7 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
             }
         }
 
-        // Contrain memory access for the first half of the memory accesses.
+        // Contrain memory access for the 2nd half of the memory accesses.
         {
             let compress_workspace = opcode_workspace.compress();
 
@@ -123,7 +125,7 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
                     clk + control_flow.is_compress_output,
                     addr.clone(),
                     &compress_workspace.memory_accesses[i],
-                    control_flow.is_compress,
+                    second_half_memory_access,
                 );
 
                 // For read only accesses, assert the value didn't change.

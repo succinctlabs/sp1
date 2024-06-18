@@ -1,14 +1,22 @@
 #![allow(clippy::needless_range_loop)]
 
+use std::borrow::Borrow;
+use std::ops::Deref;
+
 use p3_baby_bear::{MONTY_INVERSE, POSEIDON2_INTERNAL_MATRIX_DIAG_16_BABYBEAR_MONTY};
 use p3_field::AbstractField;
 use p3_field::PrimeField32;
 
 pub mod air;
 pub mod columns;
+pub mod events;
 pub mod trace;
 
 use p3_poseidon2::matmul_internal;
+
+use self::columns::Poseidon2;
+use self::columns::Poseidon2Degree3;
+use self::columns::Poseidon2Degree9;
 
 /// The width of the permutation.
 pub const WIDTH: usize = 16;
@@ -22,6 +30,26 @@ pub const NUM_ROUNDS: usize = NUM_EXTERNAL_ROUNDS + NUM_INTERNAL_ROUNDS;
 #[derive(Default)]
 pub struct Poseidon2WideChip<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize> {
     pub fixed_log2_rows: Option<usize>,
+    pub pad: bool,
+}
+
+impl<'a, const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
+    Poseidon2WideChip<DEGREE, ROUND_CHUNK_SIZE>
+{
+    pub(crate) fn convert<T>(row: impl Deref<Target = [T]>) -> Box<dyn Poseidon2<'a, T> + 'a>
+    where
+        T: Copy + 'a,
+    {
+        if DEGREE == 3 {
+            let convert: &Poseidon2Degree3<T> = (*row).borrow();
+            Box::new(*convert)
+        } else if DEGREE == 9 {
+            let convert: &Poseidon2Degree9<T> = (*row).borrow();
+            Box::new(*convert)
+        } else {
+            panic!("Unsupported degree");
+        }
+    }
 }
 
 pub fn apply_m_4<AF>(x: &mut [AF])
@@ -73,7 +101,6 @@ pub(crate) fn internal_linear_layer<F: AbstractField>(state: &mut [F; WIDTH]) {
 mod tests {
     use std::time::Instant;
 
-    use crate::poseidon2::Poseidon2CompressEvent;
     use crate::runtime::ExecutionRecord;
     use itertools::Itertools;
     use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
@@ -86,11 +113,13 @@ mod tests {
     use sp1_core::utils::{inner_perm, uni_stark_prove, uni_stark_verify, BabyBearPoseidon2};
     use zkhash::ark_ff::UniformRand;
 
+    use super::events::Poseidon2CompressEvent;
     use super::{Poseidon2WideChip, WIDTH};
 
     fn generate_trace_degree<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>() {
         let chip = Poseidon2WideChip::<DEGREE, ROUND_CHUNK_SIZE> {
             fixed_log2_rows: None,
+            pad: true,
         };
 
         let test_inputs = vec![
@@ -137,6 +166,7 @@ mod tests {
     ) {
         let chip = Poseidon2WideChip::<DEGREE, ROUND_CHUNK_SIZE> {
             fixed_log2_rows: None,
+            pad: true,
         };
         let mut input_exec = ExecutionRecord::<BabyBear>::default();
         for (input, output) in inputs.into_iter().zip_eq(outputs) {

@@ -42,82 +42,82 @@ pub trait Poseidon2Mut<'a, T: Copy + 'a> {
 }
 
 #[allow(dead_code)]
-enum MyEnum<T: Copy> {
+enum Poseidon2Enum<T: Copy> {
     P2Degree3(Poseidon2Degree3<T>),
-    P2Degree8(Poseidon2Degree9<T>),
+    P2Degree9(Poseidon2Degree9<T>),
 }
 
-impl<'a, T: Copy + 'a> Poseidon2<'a, T> for MyEnum<T> {
+impl<'a, T: Copy + 'a> Poseidon2<'a, T> for Poseidon2Enum<T> {
     // type Perm = PermutationSBox<T>;
 
     fn control_flow(&self) -> &ControlFlow<T> {
         match self {
-            MyEnum::P2Degree3(p) => p.control_flow(),
-            MyEnum::P2Degree8(p) => p.control_flow(),
+            Poseidon2Enum::P2Degree3(p) => p.control_flow(),
+            Poseidon2Enum::P2Degree9(p) => p.control_flow(),
         }
     }
 
     fn syscall_params(&self) -> &SyscallParams<T> {
         match self {
-            MyEnum::P2Degree3(p) => p.syscall_params(),
-            MyEnum::P2Degree8(p) => p.syscall_params(),
+            Poseidon2Enum::P2Degree3(p) => p.syscall_params(),
+            Poseidon2Enum::P2Degree9(p) => p.syscall_params(),
         }
     }
 
     fn memory(&self) -> &Memory<T> {
         match self {
-            MyEnum::P2Degree3(p) => p.memory(),
-            MyEnum::P2Degree8(p) => p.memory(),
+            Poseidon2Enum::P2Degree3(p) => p.memory(),
+            Poseidon2Enum::P2Degree9(p) => p.memory(),
         }
     }
 
     fn opcode_workspace(&self) -> &OpcodeWorkspace<T> {
         match self {
-            MyEnum::P2Degree3(p) => p.opcode_workspace(),
-            MyEnum::P2Degree8(p) => p.opcode_workspace(),
+            Poseidon2Enum::P2Degree3(p) => p.opcode_workspace(),
+            Poseidon2Enum::P2Degree9(p) => p.opcode_workspace(),
         }
     }
 
     fn permutation(&self) -> Box<dyn Permutation<T> + 'a> {
         match self {
-            MyEnum::P2Degree3(p) => p.permutation(),
-            MyEnum::P2Degree8(p) => p.permutation(),
+            Poseidon2Enum::P2Degree3(p) => p.permutation(),
+            Poseidon2Enum::P2Degree9(p) => p.permutation(),
         }
     }
 }
 
 #[allow(dead_code)]
-enum MyEnumMut<'a, T: Copy> {
+enum Poseidon2MutEnum<'a, T: Copy> {
     P2Degree3(&'a mut Poseidon2Degree3<T>),
-    P2Degree8(&'a mut Poseidon2Degree9<T>),
+    P2Degree9(&'a mut Poseidon2Degree9<T>),
 }
 
-impl<'a, T: Copy + 'a> Poseidon2Mut<'a, T> for MyEnumMut<'a, T> {
+impl<'a, T: Copy + 'a> Poseidon2Mut<'a, T> for Poseidon2MutEnum<'a, T> {
     fn control_flow_mut(&mut self) -> &mut ControlFlow<T> {
         match self {
-            MyEnumMut::P2Degree3(p) => p.control_flow_mut(),
-            MyEnumMut::P2Degree8(p) => p.control_flow_mut(),
+            Poseidon2MutEnum::P2Degree3(p) => p.control_flow_mut(),
+            Poseidon2MutEnum::P2Degree9(p) => p.control_flow_mut(),
         }
     }
 
     fn syscall_params_mut(&mut self) -> &mut SyscallParams<T> {
         match self {
-            MyEnumMut::P2Degree3(p) => p.syscall_params_mut(),
-            MyEnumMut::P2Degree8(p) => p.syscall_params_mut(),
+            Poseidon2MutEnum::P2Degree3(p) => p.syscall_params_mut(),
+            Poseidon2MutEnum::P2Degree9(p) => p.syscall_params_mut(),
         }
     }
 
     fn memory_mut(&mut self) -> &mut Memory<T> {
         match self {
-            MyEnumMut::P2Degree3(p) => p.memory_mut(),
-            MyEnumMut::P2Degree8(p) => p.memory_mut(),
+            Poseidon2MutEnum::P2Degree3(p) => p.memory_mut(),
+            Poseidon2MutEnum::P2Degree9(p) => p.memory_mut(),
         }
     }
 
     fn opcode_workspace_mut(&mut self) -> &mut OpcodeWorkspace<T> {
         match self {
-            MyEnumMut::P2Degree3(p) => p.opcode_workspace_mut(),
-            MyEnumMut::P2Degree8(p) => p.opcode_workspace_mut(),
+            Poseidon2MutEnum::P2Degree3(p) => p.opcode_workspace_mut(),
+            Poseidon2MutEnum::P2Degree9(p) => p.opcode_workspace_mut(),
         }
     }
 }

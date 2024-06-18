@@ -7,10 +7,8 @@ use sp1_core::{air::MachineAir, utils::pad_rows_fixed};
 use sp1_primitives::RC_16_30_U32;
 use tracing::instrument;
 
-use crate::poseidon2::{
-    Poseidon2AbsorbEvent, Poseidon2CompressEvent, Poseidon2FinalizeEvent, Poseidon2HashEvent,
-};
 use crate::poseidon2_wide::columns::permutation::permutation_mut;
+use crate::poseidon2_wide::events::Poseidon2HashEvent;
 use crate::{
     poseidon2_wide::{
         columns::Poseidon2Degree3, external_linear_layer, NUM_EXTERNAL_ROUNDS, WIDTH,
@@ -19,6 +17,7 @@ use crate::{
 };
 
 use super::columns::Poseidon2Degree17;
+use super::events::{Poseidon2AbsorbEvent, Poseidon2CompressEvent, Poseidon2FinalizeEvent};
 use super::RATE;
 use super::{
     columns::{Poseidon2Degree9, Poseidon2Mut},
@@ -68,16 +67,18 @@ impl<F: PrimeField32, const DEGREE: usize, const ROUND_CHUNK_SIZE: usize> Machin
             rows.extend(self.populate_compress_event(event, num_columns));
         }
 
-        // Pad the trace to a power of two.
-        pad_rows_fixed(
-            &mut rows,
-            || {
-                let mut padded_row = vec![F::zero(); num_columns];
-                self.populate_permutation([F::zero(); WIDTH], None, &mut padded_row);
-                padded_row
-            },
-            self.fixed_log2_rows,
-        );
+        if self.pad {
+            // Pad the trace to a power of two.
+            pad_rows_fixed(
+                &mut rows,
+                || {
+                    let mut padded_row = vec![F::zero(); num_columns];
+                    self.populate_permutation([F::zero(); WIDTH], None, &mut padded_row);
+                    padded_row
+                },
+                self.fixed_log2_rows,
+            );
+        }
 
         // Convert the trace to a row major matrix.
         let trace =
