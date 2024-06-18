@@ -39,5 +39,6 @@ fn main() {
     let y = CompressedEdwardsY(input);
     let _ = y.decompress();
 
+    // Test ed25519-consensus.
     assert_eq!(vk.verify(&sig, &msg[..]), Ok(()))
 }
