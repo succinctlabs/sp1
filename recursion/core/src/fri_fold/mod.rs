@@ -205,6 +205,26 @@ impl<const DEGREE: usize> FriFoldChip<DEGREE> {
         );
 
         builder.assert_bool(local.is_last_iteration);
+        builder.assert_bool(local.is_real);
+
+        builder
+            .when_transition()
+            .when_not(local.is_last_iteration)
+            .assert_eq(local.is_real, next.is_real);
+
+        builder
+            .when(local.is_last_iteration)
+            .assert_one(local.is_real);
+
+        builder
+            .when_transition()
+            .when_not(local.is_real)
+            .assert_zero(next.is_real);
+
+        builder
+            .when_last_row()
+            .when_not(local.is_last_iteration)
+            .assert_zero(local.is_real);
 
         // Ensure that all first iteration rows has a m value of 0.
         builder.when_first_row().assert_zero(local.m);
