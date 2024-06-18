@@ -4,21 +4,21 @@ import (
 	"github.com/consensys/gnark/frontend"
 )
 
-const width = 3
+const WIDTH = 3
 const numExternalRounds = 8
 const numInternalRounds = 56
 const degree = 5
 
 type Poseidon2Chip struct {
 	api                   frontend.API
-	internal_linear_layer [width]frontend.Variable
+	internal_linear_layer [WIDTH]frontend.Variable
 	zero                  frontend.Variable
 }
 
 func NewChip(api frontend.API) *Poseidon2Chip {
 	return &Poseidon2Chip{
 		api: api,
-		internal_linear_layer: [width]frontend.Variable{
+		internal_linear_layer: [WIDTH]frontend.Variable{
 			frontend.Variable(1),
 			frontend.Variable(1),
 			frontend.Variable(2),
@@ -27,7 +27,7 @@ func NewChip(api frontend.API) *Poseidon2Chip {
 	}
 }
 
-func (p *Poseidon2Chip) PermuteMut(state *[width]frontend.Variable) {
+func (p *Poseidon2Chip) PermuteMut(state *[WIDTH]frontend.Variable) {
 	// The initial linear layer.
 	p.matrixPermuteMut(state)
 
@@ -56,8 +56,8 @@ func (p *Poseidon2Chip) PermuteMut(state *[width]frontend.Variable) {
 	}
 }
 
-func (p *Poseidon2Chip) addRc(state *[width]frontend.Variable, rc [width]frontend.Variable) {
-	for i := 0; i < width; i++ {
+func (p *Poseidon2Chip) addRc(state *[WIDTH]frontend.Variable, rc [WIDTH]frontend.Variable) {
+	for i := 0; i < WIDTH; i++ {
 		state[i] = p.api.Add(state[i], rc[i])
 	}
 }
@@ -71,8 +71,8 @@ func (p *Poseidon2Chip) sboxP(input frontend.Variable) frontend.Variable {
 	return p.api.Mul(input_4, input)
 }
 
-func (p *Poseidon2Chip) sbox(state *[width]frontend.Variable) {
-	for i := 0; i < width; i++ {
+func (p *Poseidon2Chip) sbox(state *[WIDTH]frontend.Variable) {
+	for i := 0; i < WIDTH; i++ {
 		state[i] = p.sboxP(state[i])
 	}
 }
