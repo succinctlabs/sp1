@@ -28,7 +28,8 @@ fn main() {
     proof
         .save("proof-with-io.bin")
         .expect("saving proof failed");
-    let deserialized_proof = SP1Proof::load("proof-with-io.bin").expect("loading proof failed");
+    let deserialized_proof =
+        SP1ProofBundle::load("proof-with-io.bin").expect("loading proof failed");
 
     // Verify the deserialized proof.
     client
