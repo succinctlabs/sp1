@@ -49,7 +49,7 @@ pub struct DuplexChallengerVariable<C: Config> {
 impl<C: Config> DuplexChallengerVariable<C> {
     /// Creates a new duplex challenger with the default state.
     pub fn new(builder: &mut Builder<C>) -> Self {
-        let result = DuplexChallengerVariable::<C> {
+        let mut result = DuplexChallengerVariable::<C> {
             sponge_state: builder.dyn_array(PERMUTATION_WIDTH),
             nb_inputs: builder.eval(C::N::zero()),
             input_buffer: builder.dyn_array(PERMUTATION_WIDTH),
@@ -57,21 +57,11 @@ impl<C: Config> DuplexChallengerVariable<C> {
             output_buffer: builder.dyn_array(PERMUTATION_WIDTH),
         };
 
-        // Assert that the lengths of the arrays are equal to the permutation width.
-        builder.assert_usize_eq(PERMUTATION_WIDTH, result.sponge_state.len());
-        builder.assert_usize_eq(PERMUTATION_WIDTH, result.input_buffer.len());
-        builder.assert_usize_eq(PERMUTATION_WIDTH, result.output_buffer.len());
-
         // Constrain the state of the challenger to contain all zeroes.
-        builder.assert_var_eq(result.nb_inputs, C::N::zero());
-        builder.assert_var_eq(result.nb_outputs, C::N::zero());
         builder.range(0, PERMUTATION_WIDTH).for_each(|i, builder| {
-            let sponge_element = builder.get(&result.sponge_state, i);
-            let input_element = builder.get(&result.input_buffer, i);
-            let output_element = builder.get(&result.output_buffer, i);
-            builder.assert_felt_eq(sponge_element, C::F::zero());
-            builder.assert_felt_eq(input_element, C::F::zero());
-            builder.assert_felt_eq(output_element, C::F::zero());
+            builder.set(&mut result.sponge_state, i, C::F::zero());
+            builder.set(&mut result.input_buffer, i, C::F::zero());
+            builder.set(&mut result.output_buffer, i, C::F::zero());
         });
         result
     }
