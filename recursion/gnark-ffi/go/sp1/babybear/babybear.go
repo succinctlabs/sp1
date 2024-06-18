@@ -14,7 +14,6 @@ import (
 )
 
 var modulus = new(big.Int).SetUint64(2013265921)
-var W = new(big.Int).SetUint64(11)
 
 func init() {
 	solver.RegisterHint(invFHint)

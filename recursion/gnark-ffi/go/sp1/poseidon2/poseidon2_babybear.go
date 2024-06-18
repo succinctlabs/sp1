@@ -8,7 +8,6 @@ import (
 const BABYBEAR_WIDTH = 16
 const babybearNumExternalRounds = 8
 const babybearNumInternalRounds = 13
-const BABYBEAR_DEGREE = 7
 
 type Poseidon2BabyBearChip struct {
 	api      frontend.API

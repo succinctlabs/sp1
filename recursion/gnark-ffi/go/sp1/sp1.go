@@ -14,7 +14,6 @@ import (
 var srsFile string = "srs.bin"
 var srsLagrangeFile string = "srs_lagrange.bin"
 var constraintsJsonFile string = "constraints.json"
-var WITNESS_JSON_FILE string = "witness.json"
 var verifierContractPath string = "PlonkVerifier.sol"
 var circuitPath string = "circuit.bin"
 var vkPath string = "vk.bin"

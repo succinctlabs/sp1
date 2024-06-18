@@ -12,7 +12,7 @@ const degree = 5
 type Poseidon2Chip struct {
 	api                   frontend.API
 	internal_linear_layer [width]frontend.Variable
-	zero, one             frontend.Variable
+	zero                  frontend.Variable
 }
 
 func NewChip(api frontend.API) *Poseidon2Chip {
@@ -24,7 +24,6 @@ func NewChip(api frontend.API) *Poseidon2Chip {
 			frontend.Variable(2),
 		},
 		zero: frontend.Variable(0),
-		one:  frontend.Variable(1),
 	}
 }
 
