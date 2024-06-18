@@ -92,6 +92,11 @@ func Build(dataDir string) {
 				panic(err)
 			}
 
+			_, err = srsLagrange.ReadFrom(srsLagrangeFile)
+			if err != nil {
+				panic(err)
+			}
+
 		}
 	} else {
 		srs, srsLagrange, err = unsafekzg.NewSRS(scs)
