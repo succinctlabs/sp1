@@ -84,6 +84,9 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
                 fixed_log2_rows: None,
                 pad: true,
             })))
+            // .chain(once(RecursionAir::Multi(MultiChip {
+            //     fixed_log2_rows: None,
+            // })))
             .chain(once(RecursionAir::RangeCheck(RangeCheckChip::default())))
             .chain(once(RecursionAir::ExpReverseBitsLen(
                 ExpReverseBitsLenChip::<DEGREE> {
@@ -103,18 +106,8 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
             .chain(once(RecursionAir::MemoryGlobal(MemoryGlobalChip {
                 fixed_log2_rows: None,
             })))
-            // .chain(once(RecursionAir::Multi(MultiChip {
-            //     fixed_log2_rows: None,
-            // })))
-            .chain(once(RecursionAir::Poseidon2Wide(Poseidon2WideChip::<
-                DEGREE,
-            > {
+            .chain(once(RecursionAir::Multi(MultiChip {
                 fixed_log2_rows: None,
-                pad: true,
-            })))
-            .chain(once(RecursionAir::FriFold(FriFoldChip::<DEGREE> {
-                fixed_log2_rows: None,
-                pad: true,
             })))
             .chain(once(RecursionAir::RangeCheck(RangeCheckChip::default())))
             .chain(once(RecursionAir::ExpReverseBitsLen(
@@ -135,17 +128,8 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
             .chain(once(RecursionAir::MemoryGlobal(MemoryGlobalChip {
                 fixed_log2_rows: Some(19),
             })))
-            .chain(once(RecursionAir::Poseidon2Wide(Poseidon2WideChip::<
-                DEGREE,
-            > {
-                fixed_log2_rows: None,
-                pad: true,
-            })))
-            .chain(once(RecursionAir::FriFold(FriFoldChip::<DEGREE> {
-                fixed_log2_rows: None,
-                pad: true,
-                // .chain(once(RecursionAir::Multi(MultiChip {
-                //     fixed_log2_rows: Some(20),
+            .chain(once(RecursionAir::Multi(MultiChip {
+                fixed_log2_rows: Some(20),
             })))
             .chain(once(RecursionAir::RangeCheck(RangeCheckChip::default())))
             .chain(once(RecursionAir::ExpReverseBitsLen(

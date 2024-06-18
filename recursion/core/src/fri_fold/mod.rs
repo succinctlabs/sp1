@@ -1,6 +1,5 @@
 #![allow(clippy::needless_range_loop)]
 
-use crate::air::RecursionMemoryAirBuilder;
 use crate::memory::{MemoryReadCols, MemoryReadSingleCols, MemoryReadWriteCols};
 use crate::runtime::Opcode;
 use core::borrow::Borrow;
@@ -10,7 +9,7 @@ use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
-use sp1_core::air::{BaseAirBuilder, BinomialExtension, ExtensionAirBuilder, MachineAir};
+use sp1_core::air::{BaseAirBuilder, BinomialExtension, MachineAir};
 use sp1_core::utils::pad_rows_fixed;
 use sp1_derive::AlignedBorrow;
 use std::borrow::BorrowMut;
@@ -171,7 +170,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldChip<DEGREE>
 }
 
 impl<const DEGREE: usize> FriFoldChip<DEGREE> {
-    pub fn eval_fri_fold<AB: BaseAirBuilder + ExtensionAirBuilder + RecursionMemoryAirBuilder>(
+    pub fn eval_fri_fold<AB: SP1RecursionAirBuilder>(
         &self,
         builder: &mut AB,
         local: &FriFoldCols<AB::Var>,
@@ -179,16 +178,6 @@ impl<const DEGREE: usize> FriFoldChip<DEGREE> {
         receive_table: AB::Var,
         memory_access: AB::Var,
     ) {
-        // Dummy constraints to normalize to DEGREE when DEGREE > 3.
-        if DEGREE > 3 {
-            let lhs = (0..DEGREE)
-                .map(|_| local.is_real.into())
-                .product::<AB::Expr>();
-            let rhs = (0..DEGREE)
-                .map(|_| local.is_real.into())
-                .product::<AB::Expr>();
-            builder.assert_eq(lhs, rhs);
-        }
         // Constraint that the operands are sent from the CPU table.
         let first_iteration_clk = local.clk.into() - local.m.into();
         let total_num_iterations = local.m.into() + AB::Expr::one();
@@ -380,6 +369,16 @@ where
         let (local, next) = (main.row_slice(0), main.row_slice(1));
         let local: &FriFoldCols<AB::Var> = (*local).borrow();
         let next: &FriFoldCols<AB::Var> = (*next).borrow();
+
+        // Dummy constraints to normalize to DEGREE.
+        let lhs = (0..DEGREE)
+            .map(|_| local.is_real.into())
+            .product::<AB::Expr>();
+        let rhs = (0..DEGREE)
+            .map(|_| local.is_real.into())
+            .product::<AB::Expr>();
+        builder.assert_eq(lhs, rhs);
+
         self.eval_fri_fold::<AB>(
             builder,
             local,

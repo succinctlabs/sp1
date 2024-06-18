@@ -14,7 +14,7 @@ use sp1_derive::AlignedBorrow;
 
 use crate::air::{MultiBuilder, SP1RecursionAirBuilder};
 use crate::fri_fold::{FriFoldChip, FriFoldCols};
-use crate::poseidon2::{Poseidon2Chip, Poseidon2Cols};
+use crate::poseidon2::Poseidon2Cols;
 use crate::poseidon2_wide::columns::Poseidon2;
 use crate::poseidon2_wide::{Poseidon2WideChip, WIDTH};
 use crate::runtime::{ExecutionRecord, RecursionProgram};
@@ -36,7 +36,7 @@ pub struct MultiCols<T: Copy> {
     pub is_poseidon2: T,
     pub poseidon2_receive_table: T,
     pub poseidon2_1st_half_memory_access: [T; WIDTH / 2],
-    pub posiedon2_2nd_half_memory_access: T,
+    pub poseidon2_2nd_half_memory_access: T,
 }
 
 #[derive(Clone, Copy)]
@@ -77,7 +77,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for MultiChip<DEGREE> {
             fixed_log2_rows: None,
             pad: false,
         };
-        let poseidon2 = Poseidon2Chip {
+        let poseidon2 = Poseidon2WideChip::<DEGREE> {
             fixed_log2_rows: None,
             pad: false,
         };
@@ -95,7 +95,8 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for MultiChip<DEGREE> {
                 let process_fri_fold = i < fri_fold_trace.height();
 
                 let mut row = vec![F::zero(); num_columns];
-                row[NUM_MULTI_COLS..instruction_row.len()].copy_from_slice(instruction_row);
+                row[NUM_MULTI_COLS..NUM_MULTI_COLS + instruction_row.len()]
+                    .copy_from_slice(instruction_row);
 
                 if process_fri_fold {
                     let multi_cols: &mut MultiCols<F> = row[0..NUM_MULTI_COLS].borrow_mut();
@@ -110,12 +111,12 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for MultiChip<DEGREE> {
                     let multi_cols: &mut MultiCols<F> = row[0..NUM_MULTI_COLS].borrow_mut();
                     multi_cols.is_poseidon2 = F::one();
 
-                    let poseidon2_cols = MultiChip::<DEGREE>::poseidon2::<F>(instruction_row);
+                    let poseidon2_cols = Poseidon2WideChip::<DEGREE>::convert::<F>(instruction_row);
                     multi_cols.poseidon2_receive_table =
                         poseidon2_cols.control_flow().is_syscall_row;
                     multi_cols.poseidon2_1st_half_memory_access =
                         array::from_fn(|i| poseidon2_cols.memory().memory_slot_used[i]);
-                    multi_cols.posiedon2_2nd_half_memory_access =
+                    multi_cols.poseidon2_2nd_half_memory_access =
                         poseidon2_cols.control_flow().is_compress;
                 }
 
@@ -131,7 +132,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for MultiChip<DEGREE> {
         );
 
         // Convert the trace to a row major matrix.
-        RowMajorMatrix::new(rows.into_iter().flatten().collect(), NUM_MULTI_COLS)
+        RowMajorMatrix::new(rows.into_iter().flatten().collect(), num_columns)
     }
 
     fn included(&self, _: &Self::Record) -> bool {
@@ -142,6 +143,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for MultiChip<DEGREE> {
 impl<AB, const DEGREE: usize> Air<AB> for MultiChip<DEGREE>
 where
     AB: SP1RecursionAirBuilder,
+    AB::Var: 'static,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
@@ -151,6 +153,15 @@ where
         let next_slice: &[<AB as p3_air::AirBuilder>::Var] = &next;
         let local_multi_cols: &MultiCols<AB::Var> = local_slice[0..NUM_MULTI_COLS].borrow();
         let next_multi_cols: &MultiCols<AB::Var> = next_slice[0..NUM_MULTI_COLS].borrow();
+
+        // Dummy constraints to normalize to DEGREE.
+        let lhs = (0..DEGREE)
+            .map(|_| local_multi_cols.is_poseidon2.into())
+            .product::<AB::Expr>();
+        let rhs = (0..DEGREE)
+            .map(|_| local_multi_cols.is_poseidon2.into())
+            .product::<AB::Expr>();
+        builder.assert_eq(lhs, rhs);
 
         // Add some dummy constraints to compress the interactions.
         let mut expr = local_multi_cols.is_fri_fold * local_multi_cols.is_fri_fold;
@@ -219,7 +230,7 @@ where
             next_multi_cols.is_poseidon2.into(),
         );
 
-        let poseidon2_columns = MultiChip::<DEGREE>::poseidon2(local);
+        let poseidon2_columns = MultiChip::<DEGREE>::poseidon2(local_slice);
         sub_builder.assert_eq(
             local_multi_cols.is_poseidon2 * poseidon2_columns.control_flow().is_syscall_row,
             local_multi_cols.poseidon2_receive_table,
@@ -228,25 +239,26 @@ where
             .poseidon2_1st_half_memory_access
             .iter()
             .enumerate()
-            .for_each(|(i, &val)| {
+            .for_each(|(i, mem_access)| {
                 sub_builder.assert_eq(
                     local_multi_cols.is_poseidon2 * poseidon2_columns.memory().memory_slot_used[i],
-                    local_multi_cols.poseidon2_1st_half_memory_access[i],
+                    *mem_access,
                 );
             });
 
         sub_builder.assert_eq(
             local_multi_cols.is_poseidon2 * poseidon2_columns.control_flow().is_compress,
-            local_multi_cols.posiedon2_2nd_half_memory_access,
+            local_multi_cols.poseidon2_2nd_half_memory_access,
         );
 
-        let poseidon2_chip = Poseidon2Chip::default();
+        let poseidon2_chip = Poseidon2WideChip::<DEGREE>::default();
         poseidon2_chip.eval_poseidon2(
             &mut sub_builder,
-            local_multi_cols.poseidon2(),
-            next_multi_cols.poseidon2(),
+            poseidon2_columns.as_ref(),
+            MultiChip::<DEGREE>::poseidon2(next_slice).as_ref(),
             local_multi_cols.poseidon2_receive_table,
-            local_multi_cols.poseidon2_memory_access,
+            local_multi_cols.poseidon2_1st_half_memory_access,
+            local_multi_cols.poseidon2_2nd_half_memory_access,
         );
     }
 }

@@ -716,11 +716,11 @@ mod tests {
         tracing::info!("verify compressed");
         prover.verify_compressed(&compressed_proof, &vk)?;
 
-        // tracing::info!("shrink");
-        // let shrink_proof = prover.shrink(compressed_proof)?;
+        tracing::info!("shrink");
+        let shrink_proof = prover.shrink(compressed_proof)?;
 
-        // tracing::info!("verify shrink");
-        // prover.verify_shrink(&shrink_proof, &vk)?;
+        tracing::info!("verify shrink");
+        prover.verify_shrink(&shrink_proof, &vk)?;
 
         // tracing::info!("wrap bn254");
         // let wrapped_bn254_proof = prover.wrap_bn254(shrink_proof)?;
