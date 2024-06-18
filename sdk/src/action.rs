@@ -8,6 +8,8 @@ use anyhow::{Ok, Result};
 
 use crate::{Prover, SP1ProofBundle, SP1ProofKind};
 
+/// Builder to prepare and configure execution of a program on an input.
+/// May be run with [Self::run].
 #[derive(Default)]
 pub struct Execute<'a> {
     context_builder: SP1ContextBuilder<'a>,
@@ -16,6 +18,10 @@ pub struct Execute<'a> {
 }
 
 impl<'a> Execute<'a> {
+    /// Prepare to execute the given program on the given input (without generating a proof).
+    ///
+    /// Prefer using [ProverClient::execute](super::ProverClient::execute).
+    /// See there for more documentation.
     pub fn new(elf: &'a [u8], stdin: SP1Stdin) -> Self {
         Self {
             elf,
@@ -59,6 +65,8 @@ impl<'a> Execute<'a> {
     }
 }
 
+/// Builder to prepare and configure proving execution of a program on an input.
+/// May be run with [Self::run].
 pub struct Prove<'a> {
     prover: &'a dyn Prover,
     kind: SP1ProofKind,
@@ -69,6 +77,10 @@ pub struct Prove<'a> {
 }
 
 impl<'a> Prove<'a> {
+    /// Prepare to prove the execution of the given program with the given input.
+    ///
+    /// Prefer using [ProverClient::prove](super::ProverClient::prove).
+    /// See there for more documentation.
     pub fn new(prover: &'a dyn Prover, pk: &'a SP1ProvingKey, stdin: SP1Stdin) -> Self {
         Self {
             prover,
