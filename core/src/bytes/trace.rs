@@ -45,16 +45,13 @@ impl<F: Field> MachineAir<F> for ByteChip<F> {
         _output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
         let shard = input.index;
-        let start = std::time::Instant::now();
         let (_, event_map) = Self::trace_and_map(shard);
-        println!("trace_and_map: {:?}", start.elapsed());
 
         let mut trace = RowMajorMatrix::new(
             vec![F::zero(); NUM_BYTE_MULT_COLS * NUM_ROWS],
             NUM_BYTE_MULT_COLS,
         );
 
-        let start = std::time::Instant::now();
         for (lookup, mult) in input.byte_lookups[&shard].iter() {
             let (row, index) = event_map[lookup];
             let channel = lookup.channel as usize;
@@ -66,7 +63,6 @@ impl<F: Field> MachineAir<F> for ByteChip<F> {
             // Set the shard column as the current shard.
             cols.shard = F::from_canonical_u32(shard);
         }
-        println!("trace multiplicities: {:?}", start.elapsed());
 
         trace
     }
