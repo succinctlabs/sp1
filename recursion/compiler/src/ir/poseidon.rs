@@ -1,19 +1,7 @@
-use crate::ir::MemIndex;
-use crate::ir::MemVariable;
-use crate::ir::Ptr;
-use crate::ir::Variable;
-
 use p3_field::AbstractField;
 use sp1_recursion_core::runtime::{DIGEST_SIZE, HASH_RATE, PERMUTATION_WIDTH};
-use sp1_recursion_derive::DslVariable;
 
 use super::{Array, Builder, Config, DslIr, Ext, Felt, Usize, Var};
-
-#[derive(DslVariable, Debug, Clone)]
-pub struct Poseidon2State<C: Config> {
-    pub state: Array<C, Felt<C::F>>,
-    pub state_idx: Var<C::N>,
-}
 
 impl<C: Config> Builder<C> {
     /// Applies the Poseidon2 permutation to the given array.

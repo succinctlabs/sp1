@@ -171,7 +171,6 @@ where
             let proof = builder.get(&shard_proofs, i);
 
             // Verify the shard proof.
-            let shard_idx = builder.eval(i + C::N::one());
             let mut challenger = leaf_challenger.copy(builder);
             StarkVerifier::<C, SC>::verify_shard(
                 builder,
@@ -180,7 +179,6 @@ where
                 machine,
                 &mut challenger,
                 &proof,
-                shard_idx,
             );
 
             // Extract public values.

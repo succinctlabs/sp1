@@ -67,7 +67,6 @@ pub fn create_ec_add_event<E: EllipticCurve>(
 
     let p_memory_records = rt.mw_slice(p_ptr, &result_words);
 
-    println!("ec-add lookup id {:?}", rt.syscall_lookup_id);
     ECAddEvent {
         lookup_id: rt.syscall_lookup_id,
         shard: rt.current_shard(),

@@ -298,6 +298,7 @@ mod tests {
     use sp1_recursion_compiler::ir::Felt;
     use sp1_recursion_compiler::ir::Usize;
     use sp1_recursion_compiler::ir::Var;
+
     use sp1_recursion_core::runtime::PERMUTATION_WIDTH;
     use sp1_recursion_core::stark::utils::run_test_recursion;
     use sp1_recursion_core::stark::utils::TestConfig;

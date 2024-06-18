@@ -34,8 +34,8 @@ pub enum Opcode {
 
     // Poseidon2 compress
     Poseidon2Compress = 39,
-    Poseidon2Absorb = 45,
-    Poseidon2Finalize = 46,
+    Poseidon2Absorb = 46,
+    Poseidon2Finalize = 47,
 
     // Bit instructions.
     HintBits = 32,
@@ -52,6 +52,7 @@ pub enum Opcode {
     RegisterPublicValue = 42,
     LessThanF = 43,
     CycleTracker = 44,
+    ExpReverseBitsLen = 45,
 }
 
 impl Opcode {

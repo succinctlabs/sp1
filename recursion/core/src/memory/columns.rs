@@ -1,3 +1,4 @@
+use p3_field::PrimeField32;
 use sp1_derive::AlignedBorrow;
 
 use crate::air::Block;
@@ -10,6 +11,41 @@ pub struct MemoryInitCols<T> {
     pub value: Block<T>,
     pub is_initialize: T,
     pub is_finalize: T,
+
+    /// This column is the least significant 16 bit limb of next_address - current_address.
+    pub diff_16bit_limb: T,
+
+    /// This column is the most signficant 8 bit limb of next_address - current_addres.
+    pub diff_12bit_limb: T,
+
+    /// Same for the address column.
+    pub addr_16bit_limb: T,
+    pub addr_12bit_limb: T,
+
+    // An additional column to indicate if the memory row is a padded row.
+    pub is_real: T,
+
+    // A flag column for when range checks need to be applied to the diff columns. Range checks always
+    // need to be applied to the address columns.
+    pub is_range_check: T,
+}
+
+impl<T: PrimeField32> MemoryInitCols<T> {
+    pub fn new() -> Self {
+        Self {
+            addr: T::zero(),
+            timestamp: T::zero(),
+            value: Block::from([T::zero(); 4]),
+            is_initialize: T::zero(),
+            is_finalize: T::zero(),
+            diff_16bit_limb: T::zero(),
+            diff_12bit_limb: T::zero(),
+            addr_16bit_limb: T::zero(),
+            addr_12bit_limb: T::zero(),
+            is_real: T::zero(),
+            is_range_check: T::zero(),
+        }
+    }
 }
 
 /// NOTE: These are very similar to core/src/memory/columns.rs

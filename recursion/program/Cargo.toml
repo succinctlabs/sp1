@@ -20,7 +20,10 @@ p3-poseidon2 = { workspace = true }
 sp1-recursion-core = { path = "../core" }
 sp1-recursion-compiler = { path = "../compiler" }
 sp1-core = { path = "../../core" }
-itertools = "0.12.1"
+itertools = "0.13.0"
 serde = { version = "1.0.201", features = ["derive"] }
 rand = "0.8.5"
 tracing = "0.1.40"
+
+[features]
+debug = ["sp1-core/debug"]

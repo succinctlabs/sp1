@@ -1,5 +1,6 @@
 pub mod air;
 pub mod cpu;
+pub mod exp_reverse_bits;
 pub mod fri_fold;
 pub mod memory;
 pub mod multi;

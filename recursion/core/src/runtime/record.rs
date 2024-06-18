@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use super::RecursionProgram;
 use crate::air::Block;
 use crate::cpu::CpuEvent;
+use crate::exp_reverse_bits::ExpReverseBitsLenEvent;
 use crate::fri_fold::FriFoldEvent;
 use crate::poseidon2::{Poseidon2CompressEvent, Poseidon2HashEvent};
 use crate::range_check::RangeCheckEvent;
@@ -21,7 +22,7 @@ pub struct ExecutionRecord<F: Default> {
     pub poseidon2_hash_events: Vec<Poseidon2HashEvent<F>>,
     pub fri_fold_events: Vec<FriFoldEvent<F>>,
     pub range_check_events: BTreeMap<RangeCheckEvent, usize>,
-
+    pub exp_reverse_bits_len_events: Vec<ExpReverseBitsLenEvent<F>>,
     // (address, value)
     pub first_memory_record: Vec<(F, Block<F>)>,
 
@@ -56,10 +57,18 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
             "poseidon2_events".to_string(),
             self.poseidon2_compress_events.len(),
         );
+        stats.insert(
+            "poseidon2_events".to_string(),
+            self.poseidon2_hash_events.len(),
+        );
         stats.insert("fri_fold_events".to_string(), self.fri_fold_events.len());
         stats.insert(
             "range_check_events".to_string(),
             self.range_check_events.len(),
+        );
+        stats.insert(
+            "exp_reverse_bits_len_events".to_string(),
+            self.exp_reverse_bits_len_events.len(),
         );
         stats
     }

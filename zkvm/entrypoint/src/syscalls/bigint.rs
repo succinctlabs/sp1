@@ -1,6 +1,6 @@
-use crate::syscall_uint256_mulmod;
+use sp1_precompiles::BIGINT_WIDTH_WORDS;
 
-const BIGINT_WIDTH_WORDS: usize = 8;
+use super::syscall_uint256_mulmod;
 
 /// Sets result to be (x op y) % modulus. Currently only multiplication is supported. If modulus is
 /// zero, the modulus applied is 2^256.

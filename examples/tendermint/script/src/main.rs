@@ -1,3 +1,4 @@
+use sp1_sdk::SP1Proof;
 use std::time::Duration;
 use tokio::runtime::Runtime;
 
@@ -62,12 +63,10 @@ fn main() {
 
     let client = ProverClient::new();
     let (pk, vk) = client.setup(TENDERMINT_ELF);
-        let proof = client.prove_compressed(&pk, stdin).expect("proving failed");
+    let proof = client.prove(&pk, stdin).expect("proving failed");
 
     // Verify proof.
-    client
-        .verify_compressed(&proof, &vk)
-        .expect("verification failed");
+    client.verify(&proof, &vk).expect("verification failed");
 
     // Verify the public values
     let mut expected_public_values: Vec<u8> = Vec::new();
@@ -75,15 +74,18 @@ fn main() {
     expected_public_values.extend(light_block_2.signed_header.header.hash().as_bytes());
     expected_public_values.extend(serde_cbor::to_vec(&expected_verdict).unwrap());
 
-    assert_eq!(
-        proof.public_values.as_ref(),
-        expected_public_values
-    );
+    assert_eq!(proof.public_values.as_ref(), expected_public_values);
 
-    // Save proof.
+    // Test a round trip of proof serialization and deserialization.
     proof
-        .save("proof-with-pis.json")
+        .save("proof-with-pis.bin")
         .expect("saving proof failed");
+    let deserialized_proof = SP1Proof::load("proof-with-pis.bin").expect("loading proof failed");
+
+    // Verify the deserialized proof.
+    client
+        .verify(&deserialized_proof, &vk)
+        .expect("verification failed");
 
     println!("successfully generated and verified proof for the program!")
 }
