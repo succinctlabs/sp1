@@ -59,11 +59,8 @@ rayon-scan = "0.1.1"
 thiserror = "1.0.60"
 num-bigint = { version = "0.4.3", default-features = false }
 rand = "0.8.5"
-<<<<<<< HEAD
 bytemuck = "1.16.0"
-=======
 hashbrown = { version = "0.14.5", features = ["serde"] }
->>>>>>> 61ef659c (feat: optimized cpu tracegen)
 
 [dev-dependencies]
 tiny-keccak = { version = "2.0.2", features = ["keccak"] }
