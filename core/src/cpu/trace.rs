@@ -2,6 +2,7 @@ use hashbrown::HashMap;
 use p3_maybe_rayon::prelude::ParallelBridge;
 use std::array;
 use std::borrow::BorrowMut;
+use std::time::Instant;
 
 use p3_field::{PrimeField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
@@ -38,46 +39,24 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
     fn generate_trace(
         &self,
         input: &ExecutionRecord,
-        output: &mut ExecutionRecord,
+        _: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
         let mut values = vec![F::zero(); input.cpu_events.len() * NUM_CPU_COLS];
 
         let chunk_size = std::cmp::max(input.cpu_events.len() / num_cpus::get(), 1);
-        let (mut alu_events, mut blu_events): (Vec<_>, Vec<_>) = values
+        values
             .chunks_mut(chunk_size * NUM_CPU_COLS)
             .enumerate()
             .par_bridge()
-            .flat_map(|(i, rows)| {
+            .for_each(|(i, rows)| {
                 rows.chunks_mut(NUM_CPU_COLS)
                     .enumerate()
-                    .map(|(j, row)| {
+                    .for_each(|(j, row)| {
                         let idx = i * chunk_size + j;
                         let cols: &mut CpuCols<F> = row.borrow_mut();
-                        self.event_to_row(&input.cpu_events[idx], &input.nonce_lookup, cols)
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .unzip();
-
-        let mut new_alu_events = HashMap::new();
-        for alu_events_chunk in alu_events.iter_mut() {
-            for (key, value) in alu_events_chunk.iter_mut() {
-                let entry = new_alu_events.entry(*key).or_insert(Vec::new());
-                entry.append(value);
-            }
-        }
-
-        output.add_alu_events(new_alu_events);
-
-        let mut new_blu_events = Vec::new();
-        for blu_events_chunk in blu_events.iter_mut() {
-            new_blu_events.append(blu_events_chunk);
-        }
-
-        let entry = output.byte_lookups.entry(input.index).or_default();
-        for blu_event in new_blu_events.into_iter() {
-            *entry.entry(blu_event).or_insert(0) += 1;
-        }
+                        self.event_to_row(&input.cpu_events[idx], &input.nonce_lookup, cols);
+                    });
+            });
 
         // Convert the trace to a row major matrix.
         let mut trace = RowMajorMatrix::new(values, NUM_CPU_COLS);
@@ -92,6 +71,7 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
     fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
         // Generate the trace rows for each event.
         let chunk_size = std::cmp::max(input.cpu_events.len() / num_cpus::get(), 1);
+        let start = Instant::now();
         let events = input
             .cpu_events
             .par_chunks(chunk_size)
@@ -111,7 +91,9 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
                 (alu, blu)
             })
             .collect::<Vec<_>>();
+        println!("generate events: {:?}", start.elapsed());
 
+        let start = Instant::now();
         events
             .into_iter()
             .for_each(|(mut alu_events, mut blu_events)| {
@@ -126,6 +108,7 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
 
                 output.add_byte_lookup_events(blu_events);
             });
+        println!("write to output: {:?}", start.elapsed());
     }
 
     fn included(&self, _: &Self::Record) -> bool {
