@@ -81,11 +81,11 @@ pub trait Prover: Send + Sync {
                 .sp1_prover()
                 .verify(&SP1CoreProofData(proof), vkey)
                 .map_err(SP1VerificationError::Core),
-            SP1Proof::Compress(proof) => self
+            SP1Proof::Compressed(proof) => self
                 .sp1_prover()
                 .verify_compressed(&SP1ReduceProof { proof }, vkey)
                 .map_err(SP1VerificationError::Recursion),
-            SP1Proof::PlonkBn254(proof) => self
+            SP1Proof::Plonk(proof) => self
                 .sp1_prover()
                 .verify_plonk_bn254(
                     &proof,

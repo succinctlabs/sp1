@@ -52,9 +52,9 @@ impl Prover for LocalProver {
         let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
         let public_values = proof.public_values.clone();
         let reduce_proof = self.prover.compress(&pk.vk, proof, deferred_proofs, opts)?;
-        if kind == SP1ProofKind::Compress {
+        if kind == SP1ProofKind::Compressed {
             return Ok(SP1ProofBundle {
-                proof: SP1Proof::Compress(reduce_proof.proof),
+                proof: SP1Proof::Compressed(reduce_proof.proof),
                 stdin,
                 public_values,
                 sp1_version: self.version().to_string(),
@@ -74,9 +74,9 @@ impl Prover for LocalProver {
         let proof = self
             .prover
             .wrap_plonk_bn254(outer_proof, &plonk_bn254_aritfacts);
-        if kind == SP1ProofKind::PlonkBn254 {
+        if kind == SP1ProofKind::Plonk {
             return Ok(SP1ProofBundle {
-                proof: SP1Proof::PlonkBn254(proof),
+                proof: SP1Proof::Plonk(proof),
                 stdin,
                 public_values,
                 sp1_version: self.version().to_string(),

@@ -14,8 +14,8 @@ use sp1_prover::{CoreSC, InnerSC, PlonkBn254Proof, SP1PublicValues, SP1Stdin};
 pub enum SP1Proof {
     #[strum_discriminants(default)]
     Core(Vec<ShardProof<CoreSC>>),
-    Compress(ShardProof<InnerSC>),
-    PlonkBn254(PlonkBn254Proof),
+    Compressed(ShardProof<InnerSC>),
+    Plonk(PlonkBn254Proof),
 }
 
 /// A proof generated with SP1, bundled together with stdin, public values, and the SP1 version.

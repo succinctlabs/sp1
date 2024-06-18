@@ -181,8 +181,8 @@ impl From<SP1ProofKind> for ProofMode {
     fn from(value: SP1ProofKind) -> Self {
         match value {
             SP1ProofKind::Core => Self::Core,
-            SP1ProofKind::Compress => Self::Compressed,
-            SP1ProofKind::PlonkBn254 => Self::Plonk,
+            SP1ProofKind::Compressed => Self::Compressed,
+            SP1ProofKind::Plonk => Self::Plonk,
         }
     }
 }

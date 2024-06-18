@@ -56,11 +56,11 @@ impl Prover for MockProver {
                     sp1_version: self.version().to_string(),
                 })
             }
-            SP1ProofKind::Compress => unimplemented!(),
-            SP1ProofKind::PlonkBn254 => {
+            SP1ProofKind::Compressed => unimplemented!(),
+            SP1ProofKind::Plonk => {
                 let (public_values, _) = SP1Prover::execute(&pk.elf, &stdin, context)?;
                 Ok(SP1ProofBundle {
-                    proof: SP1Proof::PlonkBn254(PlonkBn254Proof {
+                    proof: SP1Proof::Plonk(PlonkBn254Proof {
                         public_inputs: [
                             pk.vk.hash_bn254().as_canonical_biguint().to_string(),
                             public_values.hash().to_string(),
@@ -83,7 +83,7 @@ impl Prover for MockProver {
         vkey: &SP1VerifyingKey,
     ) -> Result<(), SP1VerificationError> {
         match &bundle.proof {
-            SP1Proof::PlonkBn254(PlonkBn254Proof { public_inputs, .. }) => {
+            SP1Proof::Plonk(PlonkBn254Proof { public_inputs, .. }) => {
                 verify_plonk_bn254_public_inputs(vkey, &bundle.public_values, public_inputs)
                     .map_err(SP1VerificationError::Plonk)
             }

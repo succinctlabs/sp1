@@ -119,13 +119,13 @@ impl<'a> Prove<'a> {
 
     /// Set the proof kind to the compressed mode.
     pub fn compress(mut self) -> Self {
-        self.kind = SP1ProofKind::Compress;
+        self.kind = SP1ProofKind::Compressed;
         self
     }
 
     /// Set the proof mode to the plonk bn254 mode.
     pub fn plonk(mut self) -> Self {
-        self.kind = SP1ProofKind::PlonkBn254;
+        self.kind = SP1ProofKind::Plonk;
         self
     }
 
