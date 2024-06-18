@@ -9,8 +9,8 @@ sp1-zkvm = { path = "../../../zkvm/entrypoint" }
 
 sha2-v0-9-8 = { version = "0.9.8", package = "sha2" }
 # Note: Can't have sha2-v0-10-8 and v0-10-6 at the same time.
-sha2-v0-10-6 = { version = "0.10.6", package = "sha2" }
-# sha2-v0-10-8 = { version = "0.10.8", package = "sha2" }
+# sha2-v0-10-6 = { version = "0.10.6", package = "sha2" }
+sha2-v0-10-8 = { version = "0.10.8", package = "sha2" }
 
 ed25519-consensus = "2.1.0"
 
@@ -23,8 +23,8 @@ curve25519-dalek-ng = "4.1"
 tiny-keccak = { git = "https://github.com/sp1-patches/tiny-keccak-fork", branch = "patch-v2.0.2" }
 ed25519-consensus = { git = "https://github.com/sp1-patches/ed25519-consensus-fork", branch = "patch-v2.1.0" }
 sha2-v0-9-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes-fork", package = "sha2", branch = "patch-sha2-v0.9.8" }
-sha2-v0-10-6 = { git = "https://github.com/sp1-patches/RustCrypto-hashes-fork", package = "sha2", branch = "patch-sha2-v0.10.6" }
+# sha2-v0-10-6 = { git = "https://github.com/sp1-patches/RustCrypto-hashes-fork", package = "sha2", branch = "patch-sha2-v0.10.6" }
 sha2-v0-10-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes-fork", package = "sha2", branch = "patch-sha2-v0.10.8" }
 curve25519-dalek-ng = { git = "https://github.com/sp1-patches/curve25519-dalek-ng-fork", branch = "patch-v4.1.1" }
 # TODO: curve25519-dalek patch still a WIP.
-curve25519-dalek = { git = "https://github.com/sp1-patches/curve25519-dalek-fork", branch = "patch-v4.1.2" }
+# curve25519-dalek = { git = "https://github.com/sp1-patches/curve25519-dalek-fork", branch = "patch-v4.1.2" }

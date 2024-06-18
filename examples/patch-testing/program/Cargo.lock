@@ -856,13 +856,3 @@ name = "zeroize"
 version = "1.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ced3678a2879b30306d323f4542626697a464a97c0a07c9aebf7ebca65cd4dde"
-
-[[patch.unused]]
-name = "curve25519-dalek"
-version = "4.1.2"
-source = "git+https://github.com/sp1-patches/curve25519-dalek-fork?branch=patch-v4.1.2#5ecb96fe0ee571851f28f4e147cdc8386dd363a8"
-
-[[patch.unused]]
-name = "sha2"
-version = "0.10.6"
-source = "git+https://github.com/sp1-patches/RustCrypto-hashes-fork?branch=patch-sha2-v0.10.6#e5f8b7eaaa9801503bd998932a52b65848eee234"
