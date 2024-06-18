@@ -1129,8 +1129,8 @@ impl<'a> Runtime<'a> {
 
             let record = *self.state.memory.get(addr).unwrap();
 
-            if self.record.program.memory_image.get(addr).is_none() {
-                let initial_value = self.state.uninitialized_memory.get(&addr).unwrap_or(&0);
+            if !self.record.program.memory_image.contains_key(addr) {
+                let initial_value = self.state.uninitialized_memory.get(addr).unwrap_or(&0);
                 memory_initialize_events.push(MemoryInitializeFinalizeEvent::initialize(
                     *addr,
                     *initial_value,
