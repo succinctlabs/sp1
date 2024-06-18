@@ -71,8 +71,7 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
     fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
         // Generate the trace rows for each event.
         let chunk_size = std::cmp::max(input.cpu_events.len() / num_cpus::get(), 1);
-        let start = Instant::now();
-        let events = input
+        let (alu_events, blu_events): (Vec<_>, Vec<_>) = input
             .cpu_events
             .par_chunks(chunk_size)
             .map(|ops: &[CpuEvent]| {
@@ -90,25 +89,18 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
                 });
                 (alu, blu)
             })
-            .collect::<Vec<_>>();
-        println!("generate events: {:?}", start.elapsed());
+            .unzip();
 
-        let start = Instant::now();
-        events
-            .into_iter()
-            .for_each(|(mut alu_events, mut blu_events)| {
-                for (_, value) in alu_events.iter_mut() {
-                    value.par_sort_unstable_by_key(|event| event.clk);
-                }
+        for alu_events_chunk in alu_events.into_iter() {
+            output.add_alu_events(alu_events_chunk);
+        }
 
-                // Add the dependency events to the shard.
-                output.add_alu_events(alu_events);
+        let mut blu_events = blu_events.into_iter().flatten().collect::<Vec<_>>();
+        blu_events.par_sort_unstable_by_key(|event| (event.shard, event.opcode));
 
-                blu_events.par_sort_unstable_by_key(|event| event.a1);
-
-                output.add_byte_lookup_events(blu_events);
-            });
-        println!("write to output: {:?}", start.elapsed());
+        for blu_event in blu_events.into_iter() {
+            output.add_byte_lookup_event(blu_event);
+        }
     }
 
     fn included(&self, _: &Self::Record) -> bool {
