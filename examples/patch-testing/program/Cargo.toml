@@ -13,11 +13,8 @@ sha2-v0-10-6 = { version = "0.10.6", package = "sha2" }
 # sha2-v0-10-8 = { version = "0.10.8", package = "sha2" }
 
 ed25519-consensus = "2.1.0"
-
 tiny-keccak = { version = "2.0.2", features = ["keccak"] }
 curve25519-dalek-ng = "4.1"
-# TODO: curve25519-dalek patch still a WIP.
-# curve25519-dalek = "4.1"
 
 [patch.crates-io]
 tiny-keccak = { git = "https://github.com/sp1-patches/tiny-keccak", branch = "ratan/try-simplifying-patch" }
@@ -26,5 +23,3 @@ sha2-v0-9-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", packag
 # sha2-v0-10-6 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", branch = "patch-sha2-v0.10.6" }
 sha2-v0-10-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", branch = "patch-sha2-v0.10.8" }
 curve25519-dalek-ng = { git = "https://github.com/sp1-patches/curve25519-dalek-ng", branch = "patch-v4.1.1" }
-# TODO: curve25519-dalek patch still a WIP.
-# curve25519-dalek = { git = "https://github.com/sp1-patches/curve25519-dalek", branch = "patch-v4.1.2" }
