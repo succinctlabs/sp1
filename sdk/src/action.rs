@@ -24,6 +24,7 @@ impl<'a> Execute<'a> {
         }
     }
 
+    /// Execute the program on the input, consuming the built action `self`.
     pub fn run(self) -> Result<(SP1PublicValues, ExecutionReport)> {
         let Self {
             elf,
@@ -79,24 +80,7 @@ impl<'a> Prove<'a> {
         }
     }
 
-    /// Set the proof kind to the core mode. This is the default.
-    pub fn core(mut self) -> Self {
-        self.kind = SP1ProofKind::Core;
-        self
-    }
-
-    /// Set the proof kind to the compressed mode.
-    pub fn compress(mut self) -> Self {
-        self.kind = SP1ProofKind::Compress;
-        self
-    }
-
-    /// Set the proof mode to the plonk bn254 mode.
-    pub fn plonk(mut self) -> Self {
-        self.kind = SP1ProofKind::PlonkBn254;
-        self
-    }
-
+    /// Prove the execution of the program on the input, consuming the built action `self`.
     pub fn run(self) -> Result<SP1ProofBundle> {
         let Self {
             prover,
@@ -117,6 +101,24 @@ impl<'a> Prove<'a> {
             SP1ProofKind::Compress => prover.prove_compressed(pk, stdin, opts, context),
             SP1ProofKind::PlonkBn254 => prover.prove_plonk(pk, stdin, opts, context),
         }
+    }
+
+    /// Set the proof kind to the core mode. This is the default.
+    pub fn core(mut self) -> Self {
+        self.kind = SP1ProofKind::Core;
+        self
+    }
+
+    /// Set the proof kind to the compressed mode.
+    pub fn compress(mut self) -> Self {
+        self.kind = SP1ProofKind::Compress;
+        self
+    }
+
+    /// Set the proof mode to the plonk bn254 mode.
+    pub fn plonk(mut self) -> Self {
+        self.kind = SP1ProofKind::PlonkBn254;
+        self
     }
 
     /// Add a runtime [Hook](super::Hook) into the context.
