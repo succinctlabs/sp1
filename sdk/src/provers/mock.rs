@@ -1,6 +1,7 @@
 #![allow(unused_variables)]
 use crate::{
-    Prover, SP1Proof, SP1ProofBundle, SP1ProvingKey, SP1VerificationError, SP1VerifyingKey,
+    Prover, SP1Proof, SP1ProofBundle, SP1ProofKind, SP1ProvingKey, SP1VerificationError,
+    SP1VerifyingKey,
 };
 use anyhow::Result;
 use p3_field::PrimeField;
@@ -43,48 +44,37 @@ impl Prover for MockProver {
         stdin: SP1Stdin,
         opts: SP1ProverOpts,
         context: SP1Context<'a>,
+        kind: SP1ProofKind,
     ) -> Result<SP1ProofBundle> {
-        let (public_values, _) = SP1Prover::execute(&pk.elf, &stdin, context)?;
-        Ok(SP1ProofBundle {
-            proof: SP1Proof::Core(vec![]),
-            stdin,
-            public_values,
-            sp1_version: self.version().to_string(),
-        })
-    }
-
-    fn prove_compressed(
-        &self,
-        _pk: &SP1ProvingKey,
-        _stdin: SP1Stdin,
-        _opts: SP1ProverOpts,
-        _context: SP1Context<'_>,
-    ) -> Result<SP1ProofBundle> {
-        unimplemented!()
-    }
-
-    fn prove_plonk(
-        &self,
-        pk: &SP1ProvingKey,
-        stdin: SP1Stdin,
-        _opts: SP1ProverOpts,
-        context: SP1Context<'_>,
-    ) -> Result<SP1ProofBundle> {
-        let (public_values, _) = SP1Prover::execute(&pk.elf, &stdin, context)?;
-        Ok(SP1ProofBundle {
-            proof: SP1Proof::PlonkBn254(PlonkBn254Proof {
-                public_inputs: [
-                    pk.vk.hash_bn254().as_canonical_biguint().to_string(),
-                    public_values.hash().to_string(),
-                ],
-                encoded_proof: "".to_string(),
-                raw_proof: "".to_string(),
-                plonk_vkey_hash: [0; 32],
-            }),
-            stdin,
-            public_values,
-            sp1_version: self.version().to_string(),
-        })
+        match kind {
+            SP1ProofKind::Core => {
+                let (public_values, _) = SP1Prover::execute(&pk.elf, &stdin, context)?;
+                Ok(SP1ProofBundle {
+                    proof: SP1Proof::Core(vec![]),
+                    stdin,
+                    public_values,
+                    sp1_version: self.version().to_string(),
+                })
+            }
+            SP1ProofKind::Compress => unimplemented!(),
+            SP1ProofKind::PlonkBn254 => {
+                let (public_values, _) = SP1Prover::execute(&pk.elf, &stdin, context)?;
+                Ok(SP1ProofBundle {
+                    proof: SP1Proof::PlonkBn254(PlonkBn254Proof {
+                        public_inputs: [
+                            pk.vk.hash_bn254().as_canonical_biguint().to_string(),
+                            public_values.hash().to_string(),
+                        ],
+                        encoded_proof: "".to_string(),
+                        raw_proof: "".to_string(),
+                        plonk_vkey_hash: [0; 32],
+                    }),
+                    stdin,
+                    public_values,
+                    sp1_version: self.version().to_string(),
+                })
+            }
+        }
     }
 
     fn verify(

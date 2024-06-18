@@ -10,7 +10,7 @@ use sp1_prover::{CoreSC, InnerSC, PlonkBn254Proof, SP1PublicValues, SP1Stdin};
 /// A proof generated with SP1 of a particular proof mode.
 #[derive(Debug, Clone, Serialize, Deserialize, EnumDiscriminants, EnumTryAs)]
 #[strum_discriminants(derive(Default, Hash, PartialOrd, Ord))]
-#[strum_discriminants(name(SP1ProofKind), vis(pub(crate)))]
+#[strum_discriminants(name(SP1ProofKind))]
 pub enum SP1Proof {
     #[strum_discriminants(default)]
     Core(Vec<ShardProof<CoreSC>>),

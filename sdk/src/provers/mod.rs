@@ -19,6 +19,7 @@ use thiserror::Error;
 
 use crate::SP1Proof;
 use crate::SP1ProofBundle;
+use crate::SP1ProofKind;
 
 /// The type of prover.
 #[derive(Debug, PartialEq, EnumString)]
@@ -52,31 +53,14 @@ pub trait Prover: Send + Sync {
 
     fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey);
 
-    /// Prove the execution of a RISCV ELF with the given inputs.
+    /// Prove the execution of a RISCV ELF with the given inputs, according to the given proof mode.
     fn prove<'a>(
         &'a self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
         opts: SP1ProverOpts,
         context: SP1Context<'a>,
-    ) -> Result<SP1ProofBundle>;
-
-    /// Generate a compressed proof of the execution of a RISCV ELF with the given inputs.
-    fn prove_compressed<'a>(
-        &'a self,
-        pk: &SP1ProvingKey,
-        stdin: SP1Stdin,
-        opts: SP1ProverOpts,
-        context: SP1Context<'a>,
-    ) -> Result<SP1ProofBundle>;
-
-    /// Given an SP1 program and input, generate a PLONK proof that can be verified on-chain.
-    fn prove_plonk<'a>(
-        &'a self,
-        pk: &SP1ProvingKey,
-        stdin: SP1Stdin,
-        opts: SP1ProverOpts,
-        context: SP1Context<'a>,
+        kind: SP1ProofKind,
     ) -> Result<SP1ProofBundle>;
 
     /// Verify that an SP1 proof is valid given its vkey and metadata.

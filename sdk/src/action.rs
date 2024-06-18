@@ -108,11 +108,7 @@ impl<'a> Prove<'a> {
         };
         let context = context_builder.build();
 
-        match kind {
-            SP1ProofKind::Core => prover.prove(pk, stdin, opts, context),
-            SP1ProofKind::Compress => prover.prove_compressed(pk, stdin, opts, context),
-            SP1ProofKind::PlonkBn254 => prover.prove_plonk(pk, stdin, opts, context),
-        }
+        prover.prove(pk, stdin, opts, context, kind)
     }
 
     /// Set the proof kind to the core mode. This is the default.

@@ -6,7 +6,7 @@ use crate::{
     proto::network::ProofStatus,
     Prover,
 };
-use crate::{SP1Context, SP1ProofBundle, SP1ProvingKey, SP1VerifyingKey};
+use crate::{SP1Context, SP1ProofBundle, SP1ProofKind, SP1ProvingKey, SP1VerifyingKey};
 use anyhow::Result;
 use serde::de::DeserializeOwned;
 use sp1_core::utils::SP1ProverOpts;
@@ -132,37 +132,16 @@ impl Prover for NetworkProver {
         self.local_prover.sp1_prover()
     }
 
-    fn prove(
-        &self,
+    fn prove<'a>(
+        &'a self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
         opts: SP1ProverOpts,
-        context: SP1Context,
+        context: SP1Context<'a>,
+        kind: SP1ProofKind,
     ) -> Result<SP1ProofBundle> {
         warn_if_not_default(&opts, &context);
-        block_on(self.prove(&pk.elf, stdin, ProofMode::Core))
-    }
-
-    fn prove_compressed(
-        &self,
-        pk: &SP1ProvingKey,
-        stdin: SP1Stdin,
-        opts: SP1ProverOpts,
-        context: SP1Context,
-    ) -> Result<SP1ProofBundle> {
-        warn_if_not_default(&opts, &context);
-        block_on(self.prove(&pk.elf, stdin, ProofMode::Compressed))
-    }
-
-    fn prove_plonk(
-        &self,
-        pk: &SP1ProvingKey,
-        stdin: SP1Stdin,
-        opts: SP1ProverOpts,
-        context: SP1Context,
-    ) -> Result<SP1ProofBundle> {
-        warn_if_not_default(&opts, &context);
-        block_on(self.prove(&pk.elf, stdin, ProofMode::Plonk))
+        block_on(self.prove(&pk.elf, stdin, kind.into()))
     }
 }
 
@@ -195,5 +174,15 @@ fn warn_if_not_default(opts: &SP1ProverOpts, context: &SP1Context) {
     if subproof_verifier.is_some() {
         tracing::warn!("non-default context.subproof_verifier will be ignored");
         tracing::warn!("custom subproof verifiers are currently unsupported by the network prover");
+    }
+}
+
+impl From<SP1ProofKind> for ProofMode {
+    fn from(value: SP1ProofKind) -> Self {
+        match value {
+            SP1ProofKind::Core => Self::Core,
+            SP1ProofKind::Compress => Self::Compressed,
+            SP1ProofKind::PlonkBn254 => Self::Plonk,
+        }
     }
 }
