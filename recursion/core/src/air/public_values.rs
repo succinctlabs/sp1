@@ -80,7 +80,7 @@ pub struct RecursionPublicValues<T> {
     /// First shard being proven.
     pub start_shard: T,
 
-    /// Next shard that should be proven, if there are more. In other words, last shard proven + 1.
+    /// Next shard that should be proven, if there are more.
     pub next_shard: T,
 
     /// Start state of reconstruct_challenger.

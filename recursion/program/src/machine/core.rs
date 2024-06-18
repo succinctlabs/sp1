@@ -228,10 +228,10 @@ where
                 builder.assign(exit_code, public_values.exit_code);
             });
 
-            // If the shard is zero, verify the global initial conditions hold on challenger and pc.
+            // If it's first shard, verify the global initial conditions hold on challenger and pc.
             let shard = felt2var(builder, public_values.shard);
             builder.if_eq(shard, C::N::one()).then(|builder| {
-                // This should be the first proof as well
+                // This should be the 0th proof in this batch.
                 builder.assert_var_eq(i, C::N::zero());
 
                 // Start pc should be vk.pc_start
