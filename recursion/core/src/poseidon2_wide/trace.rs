@@ -73,7 +73,7 @@ impl<F: PrimeField32, const DEGREE: usize, const ROUND_CHUNK_SIZE: usize> Machin
             &mut rows,
             || {
                 let mut padded_row = vec![F::zero(); num_columns];
-                self.populate_permutation([F::zero(); WIDTH], [F::zero(); WIDTH], &mut padded_row);
+                self.populate_permutation([F::zero(); WIDTH], None, &mut padded_row);
                 padded_row
             },
             self.fixed_log2_rows,
@@ -171,7 +171,7 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
 
         self.populate_permutation(
             compress_event.input,
-            compress_event.result_array,
+            Some(compress_event.result_array),
             &mut input_row,
         );
 
@@ -219,11 +219,7 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
             }
         }
 
-        self.populate_permutation(
-            compress_event.result_array,
-            compress_event.dummy_output_permutation,
-            &mut output_row,
-        );
+        self.populate_permutation(compress_event.result_array, None, &mut output_row);
 
         compress_rows.push(output_row);
         compress_rows
@@ -251,6 +247,7 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
                 control_flow.is_absorb = F::one();
                 control_flow.is_syscall_row = F::from_bool(is_syscall_row);
                 control_flow.is_absorb_no_perm = F::from_bool(!absorb_iter.do_perm);
+                control_flow.is_absorb_not_last_row = F::from_bool(!is_last_row);
             }
 
             {
@@ -324,15 +321,18 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
 
                 absorb_workspace.state = absorb_iter.state;
                 absorb_workspace.previous_state = absorb_iter.previous_state;
-                absorb_workspace.syscall_state_cursor =
-                    F::from_canonical_usize(absorb_iter.state_cursor);
+                absorb_workspace.state_cursor = F::from_canonical_usize(absorb_iter.state_cursor);
                 absorb_workspace.is_first_hash_row =
                     F::from_bool(iter_num == 0 && absorb_event.is_hash_first_absorb);
             }
 
             self.populate_permutation(
                 absorb_iter.perm_input,
-                absorb_iter.perm_output,
+                if absorb_iter.do_perm {
+                    Some(absorb_iter.perm_output)
+                } else {
+                    None
+                },
                 &mut absorb_row,
             );
 
@@ -390,7 +390,11 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
 
         self.populate_permutation(
             finalize_event.perm_input,
-            finalize_event.perm_output,
+            if finalize_event.do_perm {
+                Some(finalize_event.perm_output)
+            } else {
+                None
+            },
             &mut finalize_row,
         );
 
@@ -400,7 +404,7 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
     pub fn populate_permutation<F: PrimeField32>(
         &self,
         input: [F; WIDTH],
-        expected_output: [F; WIDTH],
+        expected_output: Option<[F; WIDTH]>,
         input_row: &mut [F],
     ) {
         let mut permutation = permutation_mut::<F, DEGREE>(input_row);
@@ -440,7 +444,9 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
             if r == NUM_EXTERNAL_ROUNDS - 1 {
                 for i in 0..WIDTH {
                     output_state[i] = next_state[i];
-                    // assert_eq!(expected_output[i], next_state[i]);
+                    if let Some(expected_output) = expected_output {
+                        assert_eq!(expected_output[i], next_state[i]);
+                    }
                 }
             } else {
                 external_rounds_state[r + 1] = next_state;

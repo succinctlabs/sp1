@@ -77,6 +77,7 @@ where
             builder,
             local_syscall,
             local_memory,
+            next_memory,
             local_opcode_workspace,
             local_control_flow,
         );

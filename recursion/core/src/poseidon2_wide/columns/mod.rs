@@ -41,6 +41,7 @@ pub trait Poseidon2Mut<'a, T: Copy + 'a> {
     fn opcode_workspace_mut(&mut self) -> &mut OpcodeWorkspace<T>;
 }
 
+#[allow(dead_code)]
 enum MyEnum<T: Copy> {
     P2Degree3(Poseidon2Degree3<T>),
     P2Degree8(Poseidon2Degree9<T>),
@@ -85,6 +86,7 @@ impl<'a, T: Copy + 'a> Poseidon2<'a, T> for MyEnum<T> {
     }
 }
 
+#[allow(dead_code)]
 enum MyEnumMut<'a, T: Copy> {
     P2Degree3(&'a mut Poseidon2Degree3<T>),
     P2Degree8(&'a mut Poseidon2Degree9<T>),

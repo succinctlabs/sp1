@@ -113,8 +113,6 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
                     local_syscall_params.absorb().hash_num,
                     next_syscall_params.finalize().hash_num,
                 );
-
-            // Ensure that at the last row, the next call is a syscall.
         }
 
         // For finalize rows, constrain the following:
@@ -226,6 +224,18 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
                 local_hash_workspace.is_last_row::<AB>()
                     * (AB::Expr::one() - last_row_ending_cursor_is_seven),
             );
+
+            builder.assert_eq(
+                local_control_flow.is_absorb_not_last_row,
+                local_control_flow.is_absorb
+                    * (AB::Expr::one() - local_hash_workspace.is_last_row::<AB>()),
+            );
+
+            builder.assert_eq(
+                local_control_flow.is_absorb_no_perm,
+                local_control_flow.is_absorb
+                    * (AB::Expr::one() - local_hash_workspace.do_perm::<AB>()),
+            )
         }
 
         // For the absorb syscall row, ensure correct value of num_remaining_rows, last_row_num_consumed,
@@ -236,8 +246,7 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
             absorb_builder
                 .when(local_control_flow.is_syscall_row)
                 .assert_eq(
-                    local_hash_workspace.syscall_state_cursor
-                        + local_syscall_params.absorb().input_len
+                    local_hash_workspace.state_cursor + local_syscall_params.absorb().input_len
                         - AB::Expr::one(),
                     local_hash_workspace.num_remaining_rows * AB::Expr::from_canonical_usize(RATE)
                         + local_hash_workspace.last_row_ending_cursor,
@@ -264,9 +273,11 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
         // For all non last absorb rows, verify that num_remaining_rows decrements and
         // that last_row_num_consumed is copied down.
         {
-            let mut absorb_builder = builder.when(local_control_flow.is_absorb);
+            let mut transition_builder = builder.when_transition();
+            let mut absorb_transition_builder =
+                transition_builder.when(local_control_flow.is_absorb);
 
-            absorb_builder
+            absorb_transition_builder
                 .when_not(local_hash_workspace.is_last_row::<AB>())
                 .assert_eq(
                     next_hash_workspace.num_remaining_rows,
@@ -274,7 +285,7 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
                 );
 
             // Copy down the last_row_ending_cursor value within the absorb call.
-            absorb_builder
+            absorb_transition_builder
                 .when_not(local_hash_workspace.is_last_row::<AB>())
                 .assert_eq(
                     next_hash_workspace.last_row_ending_cursor,
@@ -282,21 +293,32 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
                 );
         }
 
-        // For the last absorb rows, verify the next row's state cursor's value. Specifically, constrain
-        // 'state_cursor = (last_row_ending_cursor + 1) % RATE.
+        // Constrain the state cursor.  There are three constraints:
+        // 1) For the first hash row, verify that state_cursor == 0.
+        // 2) For the last absorb rows, verify that constrain
+        //    'state_cursor = (last_row_ending_cursor + 1) % RATE.
+        // 3) For all non syscall rows, the state_cursor should be 0.
         {
             let mut absorb_builder = builder.when(local_control_flow.is_absorb);
 
             absorb_builder
+                .when(local_hash_workspace.is_first_hash_row)
+                .assert_zero(local_hash_workspace.state_cursor);
+
+            absorb_builder
                 .when(local_hash_workspace.is_last_row_ending_cursor_is_seven)
-                .assert_zero(next_hash_workspace.syscall_state_cursor);
+                .assert_zero(next_hash_workspace.state_cursor);
 
             absorb_builder
                 .when(local_hash_workspace.is_last_row_ending_cursor_not_seven)
                 .assert_eq(
-                    next_hash_workspace.syscall_state_cursor,
+                    next_hash_workspace.state_cursor,
                     local_hash_workspace.last_row_ending_cursor + AB::Expr::one(),
                 );
+
+            absorb_builder
+                .when_not(local_control_flow.is_syscall_row)
+                .assert_zero(local_hash_workspace.state_cursor);
         }
 
         // Eval the absorb's iszero operations.

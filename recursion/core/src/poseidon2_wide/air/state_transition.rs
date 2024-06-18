@@ -1,7 +1,7 @@
 use std::array;
 
 use p3_air::AirBuilder;
-use sp1_core::air::BaseAirBuilder;
+use sp1_core::{air::BaseAirBuilder, utils::DIGEST_SIZE};
 
 use crate::{
     air::SP1RecursionAirBuilder,
@@ -29,10 +29,10 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
         local_memory: &Memory<AB::Var>,
         next_memory: &Memory<AB::Var>,
     ) {
-        // For compress syscall rows, contrain that the permutation's output is equal to the compress
-        // output's memory values.
+        // For compress syscall rows, verify that the permutation output's state is equal to
+        // the compress output memory values.
         {
-            let next_memory_output: [AB::Var; WIDTH] = array::from_fn(|i| {
+            let compress_output_mem_values: [AB::Var; WIDTH] = array::from_fn(|i| {
                 if i < WIDTH / 2 {
                     *next_memory.memory_accesses[i].value()
                 } else {
@@ -44,12 +44,18 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
                 .when_transition()
                 .when(control_flow.is_compress)
                 .when(control_flow.is_syscall_row)
-                .assert_all_eq(next_memory_output, *permutation.perm_output());
+                .assert_all_eq(compress_output_mem_values, *permutation.perm_output());
         }
 
-        // Absorb
+        // Absorb rows.
         {
-            // Expected state when a permutation is done.
+            // Check that the state is zero on the first_hash_row.
+            builder
+                .when(control_flow.is_absorb)
+                .when(local_opcode_workspace.absorb().is_first_hash_row)
+                .assert_all_zero(local_opcode_workspace.absorb().previous_state);
+
+            // Check that the state is equal to the permutation output when the permutation is applied.
             builder
                 .when(control_flow.is_absorb)
                 .when(local_opcode_workspace.absorb().do_perm::<AB>())
@@ -58,7 +64,7 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
                     *permutation.perm_output(),
                 );
 
-            // TODO: move the permutation input as a method for the poseidon2 struct.
+            // Construct the input into the permutation.
             let input: [AB::Expr; WIDTH] = array::from_fn(|i| {
                 if i < WIDTH / 2 {
                     builder.if_else(
@@ -71,10 +77,12 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
                 }
             });
 
+            // Check that the state is equal the the permutation input when the permutation is not applied.
             builder
                 .when(control_flow.is_absorb_no_perm)
                 .assert_all_eq(local_opcode_workspace.absorb().state, input);
 
+            // Check that the state is copied to the next row.
             builder
                 .when_transition()
                 .when(control_flow.is_absorb)
@@ -84,8 +92,9 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
                 );
         }
 
-        // Finalize
+        // Finalize rows.
         {
+            // Check that the state is equal to the permutation output when the permutation is applied.
             builder
                 .when(control_flow.is_finalize)
                 .when(local_opcode_workspace.finalize().do_perm::<AB>())
@@ -94,6 +103,7 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
                     *permutation.perm_output(),
                 );
 
+            // Check that the state is equal to the previous state when the permutation is not applied.
             builder
                 .when(control_flow.is_finalize)
                 .when_not(local_opcode_workspace.finalize().do_perm::<AB>())
@@ -101,6 +111,15 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
                     local_opcode_workspace.finalize().state,
                     local_opcode_workspace.finalize().previous_state,
                 );
+
+            // Check that the finalize memory values are equal to the state.
+            let output_mem_values: [AB::Var; DIGEST_SIZE] =
+                array::from_fn(|i| *local_memory.memory_accesses[i].value());
+
+            builder.when(control_flow.is_finalize).assert_all_eq(
+                output_mem_values,
+                local_opcode_workspace.finalize().state[0..DIGEST_SIZE].to_vec(),
+            );
         }
     }
 }

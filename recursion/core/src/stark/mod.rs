@@ -10,7 +10,7 @@ use crate::{
 use core::iter::once;
 use p3_field::{extension::BinomiallyExtendable, PrimeField32};
 use sp1_core::stark::{Chip, StarkGenericConfig, StarkMachine, PROOF_MAX_NUM_PVS};
-use sp1_derive::RecursionMachineAir;
+use sp1_derive::MachineAir;
 use std::marker::PhantomData;
 
 use crate::runtime::D;
@@ -19,11 +19,12 @@ pub type RecursionAirWideDeg3<F> = RecursionAir<F, 3, 1>;
 pub type RecursionAirSkinnyDeg9<F> = RecursionAir<F, 9, 1>;
 pub type RecursionAirSkinnyDeg15<F> = RecursionAir<F, 15, 1>;
 
-#[derive(RecursionMachineAir)]
+#[derive(MachineAir)]
 #[sp1_core_path = "sp1_core"]
 #[execution_record_path = "crate::runtime::ExecutionRecord<F>"]
 #[program_path = "crate::runtime::RecursionProgram<F>"]
 #[builder_path = "crate::air::SP1RecursionAirBuilder<F = F>"]
+#[eval_trait_bound = "AB::Var: 'static"]
 pub enum RecursionAir<
     F: PrimeField32 + BinomiallyExtendable<D>,
     const DEGREE: usize,
@@ -37,35 +38,6 @@ pub enum RecursionAir<
     FriFold(FriFoldChip<DEGREE>),
     RangeCheck(RangeCheckChip<F>),
     Multi(MultiChip<DEGREE>),
-}
-
-impl<
-        F: PrimeField32 + BinomiallyExtendable<D>,
-        const DEGREE: usize,
-        const ROUND_CHUNK_SIZE: usize,
-        AB: p3_air::PairBuilder + crate::air::SP1RecursionAirBuilder<F = F>,
-    > p3_air::Air<AB> for RecursionAir<F, DEGREE, ROUND_CHUNK_SIZE>
-where
-    AB::Var: 'static,
-{
-    fn eval(&self, builder: &mut AB) {
-        match self {
-            RecursionAir::Program(x) => <ProgramChip as p3_air::Air<AB>>::eval(x, builder),
-            RecursionAir::Cpu(x) => <CpuChip<F, DEGREE> as p3_air::Air<AB>>::eval(x, builder),
-            RecursionAir::MemoryGlobal(x) => {
-                <MemoryGlobalChip as p3_air::Air<AB>>::eval(x, builder)
-            }
-            RecursionAir::Poseidon2Wide(x) => {
-                <Poseidon2WideChip<DEGREE, ROUND_CHUNK_SIZE> as p3_air::Air<AB>>::eval(x, builder)
-            }
-            RecursionAir::Poseidon2Skinny(x) => {
-                <Poseidon2Chip as p3_air::Air<AB>>::eval(x, builder)
-            }
-            RecursionAir::FriFold(x) => <FriFoldChip<DEGREE> as p3_air::Air<AB>>::eval(x, builder),
-            RecursionAir::RangeCheck(x) => <RangeCheckChip<F> as p3_air::Air<AB>>::eval(x, builder),
-            RecursionAir::Multi(x) => <MultiChip<DEGREE> as p3_air::Air<AB>>::eval(x, builder),
-        }
-    }
 }
 
 impl<
