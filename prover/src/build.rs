@@ -2,7 +2,9 @@ use std::borrow::Borrow;
 use std::path::PathBuf;
 
 use p3_baby_bear::BabyBear;
+use sp1_core::runtime::SP1Context;
 use sp1_core::stark::StarkVerifyingKey;
+use sp1_core::utils::SP1ProverOpts;
 use sp1_core::{io::SP1Stdin, stark::ShardProof};
 pub use sp1_recursion_circuit::stark::build_wrap_circuit;
 pub use sp1_recursion_circuit::witness::Witnessable;
@@ -121,6 +123,8 @@ pub fn dummy_proof() -> (StarkVerifyingKey<OuterSC>, ShardProof<OuterSC>) {
 
     tracing::info!("initializing prover");
     let prover = SP1Prover::new();
+    let opts = SP1ProverOpts::default();
+    let context = SP1Context::default();
 
     tracing::info!("setup elf");
     let (pk, vk) = prover.setup(elf);
@@ -128,16 +132,16 @@ pub fn dummy_proof() -> (StarkVerifyingKey<OuterSC>, ShardProof<OuterSC>) {
     tracing::info!("prove core");
     let mut stdin = SP1Stdin::new();
     stdin.write(&500u32);
-    let core_proof = prover.prove_core(&pk, &stdin).unwrap();
+    let core_proof = prover.prove_core(&pk, &stdin, opts, context).unwrap();
 
     tracing::info!("compress");
-    let compressed_proof = prover.compress(&vk, core_proof, vec![]).unwrap();
+    let compressed_proof = prover.compress(&vk, core_proof, vec![], opts).unwrap();
 
     tracing::info!("shrink");
-    let shrink_proof = prover.shrink(compressed_proof).unwrap();
+    let shrink_proof = prover.shrink(compressed_proof, opts).unwrap();
 
     tracing::info!("wrap");
-    let wrapped_proof = prover.wrap_bn254(shrink_proof).unwrap();
+    let wrapped_proof = prover.wrap_bn254(shrink_proof, opts).unwrap();
 
     (prover.wrap_vk, wrapped_proof.proof)
 }
