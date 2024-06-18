@@ -1127,8 +1127,8 @@ impl<'a> Runtime<'a> {
                 continue;
             }
 
-            let record = *self.state.memory.get(addr).unwrap();
-
+            // Program memory is initialized in the MemoryProgram chip and doesn't require any events,
+            // so we only send init events for other memory addresses.
             if !self.record.program.memory_image.contains_key(addr) {
                 let initial_value = self.state.uninitialized_memory.get(addr).unwrap_or(&0);
                 memory_initialize_events.push(MemoryInitializeFinalizeEvent::initialize(
@@ -1137,6 +1137,8 @@ impl<'a> Runtime<'a> {
                     true,
                 ));
             }
+
+            let record = *self.state.memory.get(addr).unwrap();
             memory_finalize_events.push(MemoryInitializeFinalizeEvent::finalize_from_record(
                 *addr, &record,
             ));
