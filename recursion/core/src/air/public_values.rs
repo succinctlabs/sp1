@@ -116,4 +116,7 @@ pub struct RecursionPublicValues<T> {
     /// The exit code of the program.  Note that this is not part of the public values digest, since
     /// it's value will be individually constrained.
     pub exit_code: T,
+
+    /// Total number of core shards in the program execution.
+    pub total_core_shards: T,
 }

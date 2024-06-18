@@ -189,6 +189,7 @@ where
             }
 
             // Verify the proof.
+            let one_var = builder.constant(C::N::one());
             StarkVerifier::<C, SC>::verify_shard(
                 builder,
                 &compress_vk,
@@ -196,6 +197,7 @@ where
                 machine,
                 &mut challenger,
                 &proof,
+                one_var,
             );
 
             // Load the public values from the proof.

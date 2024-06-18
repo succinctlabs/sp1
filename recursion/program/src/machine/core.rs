@@ -42,6 +42,7 @@ pub struct SP1RecursionMemoryLayout<'a, SC: StarkGenericConfig, A: MachineAir<SC
     pub leaf_challenger: &'a SC::Challenger,
     pub initial_reconstruct_challenger: SC::Challenger,
     pub is_complete: bool,
+    pub total_core_shards: usize,
 }
 
 #[derive(DslVariable, Clone)]
@@ -54,6 +55,8 @@ pub struct SP1RecursionMemoryLayoutVariable<C: Config> {
     pub initial_reconstruct_challenger: DuplexChallengerVariable<C>,
 
     pub is_complete: Var<C::N>,
+
+    pub total_core_shards: Var<C::N>,
 }
 
 impl SP1RecursiveVerifier<InnerConfig, BabyBearPoseidon2> {
@@ -131,6 +134,7 @@ where
             leaf_challenger,
             initial_reconstruct_challenger,
             is_complete,
+            total_core_shards,
         } = input;
 
         // Initialize values we will commit to public outputs.
@@ -179,6 +183,7 @@ where
                 machine,
                 &mut challenger,
                 &proof,
+                total_core_shards,
             );
 
             // Extract public values.
@@ -348,6 +353,7 @@ where
         recursion_public_values.start_reconstruct_deferred_digest = start_deferred_digest;
         recursion_public_values.end_reconstruct_deferred_digest = end_deferred_digest;
         recursion_public_values.is_complete = is_complete_felt;
+        recursion_public_values.total_core_shards = total_core_shards;
 
         // If the proof represents a complete proof, make completeness assertions.
         //
