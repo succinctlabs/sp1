@@ -46,7 +46,5 @@ fn main() {
         .syscall_counts
         .contains_key(&sp1_core::runtime::SyscallCode::KECCAK_PERMUTE));
 
-    println!("Report: {:?}", report);
-    println!("Total cycle count: {}", report.total_instruction_count());
-    println!("successfully executed the program!")
+    println!("Successfully executed the program & confirmed syscalls.");
 }
