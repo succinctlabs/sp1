@@ -786,7 +786,7 @@ dependencies = [
 [[package]]
 name = "tiny-keccak"
 version = "2.0.2"
-source = "git+https://github.com/sp1-patches/tiny-keccak-fork?branch=patch-v2.0.2#7891dc04f4a6f90bafefad240ded4d2e30b44838"
+source = "git+https://github.com/sp1-patches/tiny-keccak-fork?branch=ratan/try-simplifying-patch#b2371e4e9180f2c6abfe24911bb9a9336eccad3b"
 dependencies = [
  "cfg-if",
  "crunchy",
