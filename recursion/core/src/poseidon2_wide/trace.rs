@@ -64,16 +64,18 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
             rows.extend(self.populate_compress_event(event, num_columns));
         }
 
-        // Pad the trace to a power of two.
-        pad_rows_fixed(
-            &mut rows,
-            || {
-                let mut padded_row = vec![F::zero(); num_columns];
-                self.populate_permutation([F::zero(); WIDTH], None, &mut padded_row);
-                padded_row
-            },
-            self.fixed_log2_rows,
-        );
+        if self.pad {
+            // Pad the trace to a power of two.
+            pad_rows_fixed(
+                &mut rows,
+                || {
+                    let mut padded_row = vec![F::zero(); num_columns];
+                    self.populate_permutation([F::zero(); WIDTH], None, &mut padded_row);
+                    padded_row
+                },
+                self.fixed_log2_rows,
+            );
+        }
 
         // Convert the trace to a row major matrix.
         let trace =

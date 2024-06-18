@@ -78,6 +78,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
                 DEGREE,
             > {
                 fixed_log2_rows: None,
+                pad: true,
             })))
             .chain(once(RecursionAir::FriFold(FriFoldChip::<DEGREE> {
                 fixed_log2_rows: None,
@@ -109,6 +110,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
                 DEGREE,
             > {
                 fixed_log2_rows: None,
+                pad: true,
             })))
             .chain(once(RecursionAir::FriFold(FriFoldChip::<DEGREE> {
                 fixed_log2_rows: None,
@@ -137,6 +139,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
                 DEGREE,
             > {
                 fixed_log2_rows: None,
+                pad: true,
             })))
             .chain(once(RecursionAir::FriFold(FriFoldChip::<DEGREE> {
                 fixed_log2_rows: None,

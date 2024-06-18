@@ -22,6 +22,7 @@ pub const NUM_ROUNDS: usize = NUM_EXTERNAL_ROUNDS + NUM_INTERNAL_ROUNDS;
 #[derive(Default)]
 pub struct Poseidon2WideChip<const DEGREE: usize> {
     pub fixed_log2_rows: Option<usize>,
+    pub pad: bool,
 }
 
 pub fn apply_m_4<AF>(x: &mut [AF])
@@ -91,6 +92,7 @@ mod tests {
     fn generate_trace_degree<const DEGREE: usize>() {
         let chip = Poseidon2WideChip::<DEGREE> {
             fixed_log2_rows: None,
+            pad: true,
         };
 
         let test_inputs = vec![
@@ -137,6 +139,7 @@ mod tests {
     ) {
         let chip = Poseidon2WideChip::<DEGREE> {
             fixed_log2_rows: None,
+            pad: true,
         };
         let mut input_exec = ExecutionRecord::<BabyBear>::default();
         for (input, output) in inputs.into_iter().zip_eq(outputs) {
