@@ -45,6 +45,10 @@ pub const fn num_weierstrass_decompress_cols<P: FieldParameters + NumWords>() ->
     size_of::<WeierstrassDecompressCols<u8, P>>()
 }
 
+/// The name of the `WeierstrassDecompressChip` for the various supported elliptic curves.
+pub const W_DECOMPRESS_SEC_P_CHIP_NAME: &str = "Secp256k1Decompress";
+pub const W_DECOMPRESS_BLS_CHIP_NAME: &str = "Bls12381Decompress";
+
 /// A set of columns to compute `WeierstrassDecompress` that decompresses a point on a Weierstrass
 /// curve.
 #[derive(Debug, Clone, AlignedBorrow)]
@@ -143,8 +147,8 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
     fn name(&self) -> String {
         match E::CURVE_TYPE {
-            CurveType::Secp256k1 => "Secp256k1Decompress".to_string(),
-            CurveType::Bls12381 => "Bls12381Decompress".to_string(),
+            CurveType::Secp256k1 => W_DECOMPRESS_SEC_P_CHIP_NAME.to_string(),
+            CurveType::Bls12381 => W_DECOMPRESS_BLS_CHIP_NAME.to_string(),
             _ => panic!("Unsupported curve"),
         }
     }

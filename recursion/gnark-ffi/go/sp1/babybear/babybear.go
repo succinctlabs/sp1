@@ -14,6 +14,7 @@ import (
 )
 
 var MODULUS = new(big.Int).SetUint64(2013265921)
+var NUM_BITS_REDUCTION_THRESHHOLD = 120
 var W = new(big.Int).SetUint64(11)
 
 func init() {
@@ -193,6 +194,8 @@ func (c *Chip) MulE(a, b ExtensionVariable) ExtensionVariable {
 	for i := 0; i < 4; i++ {
 		for j := 0; j < 4; j++ {
 			if i+j >= 4 {
+				// The hard-coded "11" corresponds to the fact that the extension field is
+				// F[x]/(x^4-11) where F is the BabyBear field.
 				v2[i+j-4] = c.AddF(v2[i+j-4], c.MulFConst(c.MulF(a.Value[i], b.Value[j]), 11))
 			} else {
 				v2[i+j] = c.AddF(v2[i+j], c.MulF(a.Value[i], b.Value[j]))
@@ -255,7 +258,7 @@ func (c *Chip) ToBinary(in Variable) []frontend.Variable {
 }
 
 func (p *Chip) ReduceFast(x Variable) Variable {
-	if x.NbBits >= uint(120) {
+	if x.NbBits >= uint(NUM_BITS_REDUCTION_THRESHHOLD) {
 		return Variable{
 			Value:  p.ReduceWithMaxBits(x.Value, uint64(x.NbBits)),
 			NbBits: 31,

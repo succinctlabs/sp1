@@ -13,6 +13,9 @@ use crate::air::SP1AirBuilder;
 use crate::bytes::event::ByteRecord;
 use typenum::Unsigned;
 
+/// The name of the `FieldOpChip`.
+pub const FIELD_OP_CHIP_NAME: &str = "FieldOp";
+
 /// Airthmetic operation for emulating modular arithmetic.
 #[derive(PartialEq, Copy, Clone, Debug)]
 pub enum FieldOperation {
@@ -325,7 +328,7 @@ mod tests {
         type Program = Program;
 
         fn name(&self) -> String {
-            format!("FieldOp{:?}", self.operation)
+            format!("{}{:?}", super::FIELD_OP_CHIP_NAME, self.operation)
         }
 
         fn generate_trace(

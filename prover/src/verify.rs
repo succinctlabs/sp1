@@ -5,6 +5,7 @@ use num_bigint::BigUint;
 use p3_baby_bear::BabyBear;
 use p3_field::{AbstractField, PrimeField};
 use sp1_core::air::MachineAir;
+use sp1_core::memory::{MEMORY_FINALIZE_CHIP_NAME, MEMORY_INIT_CHIP_NAME};
 use sp1_core::runtime::SubproofVerifier;
 use sp1_core::{
     air::PublicValues,
@@ -116,11 +117,11 @@ impl SP1Prover {
             let memory_init_count = chips
                 .clone()
                 .into_iter()
-                .filter(|chip| chip.name() == "MemoryInit")
+                .filter(|chip| chip.name() == MEMORY_INIT_CHIP_NAME)
                 .count();
             let memory_final_count = chips
                 .into_iter()
-                .filter(|chip| chip.name() == "MemoryFinalize")
+                .filter(|chip| chip.name() == MEMORY_FINALIZE_CHIP_NAME)
                 .count();
 
             // Assert that the `MemoryInit` and `MemoryFinalize` chips only exist in the last shard.

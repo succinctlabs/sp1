@@ -16,6 +16,9 @@ use crate::runtime::{ExecutionRecord, RecursionProgram};
 
 pub const NUM_MULTI_COLS: usize = core::mem::size_of::<MultiCols<u8>>();
 
+/// The name of the `MultiChip`.
+pub const MULTI_CHIP_NAME: &str = "Multi";
+
 #[derive(Default)]
 pub struct MultiChip<const DEGREE: usize> {
     pub fixed_log2_rows: Option<usize>,
@@ -54,7 +57,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for MultiChip<DEGREE> {
     type Program = RecursionProgram<F>;
 
     fn name(&self) -> String {
-        "Multi".to_string()
+        MULTI_CHIP_NAME.to_string()
     }
 
     fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {

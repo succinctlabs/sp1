@@ -90,6 +90,9 @@ pub const NUM_DIVREM_COLS: usize = size_of::<DivRemCols<u8>>();
 /// The size of a byte in bits.
 const BYTE_SIZE: usize = 8;
 
+/// The name of the `DivRemChip`.
+pub const DIVREM_CHIP_NAME: &str = "DivRem";
+
 /// The size of a 64-bit in bytes.
 const LONG_WORD_SIZE: usize = 2 * WORD_SIZE;
 
@@ -217,7 +220,7 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
     type Program = Program;
 
     fn name(&self) -> String {
-        "DivRem".to_string()
+        DIVREM_CHIP_NAME.to_string()
     }
 
     fn generate_trace(

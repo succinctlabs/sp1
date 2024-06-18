@@ -14,6 +14,8 @@ use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::operations::field::params::FieldParameters;
 use p3_field::AbstractField;
 
+/// The name of the `EdSqrtChip`.
+pub const ED_SQRT_CHIP_NAME: &str = "EdSqrt";
 /// A set of columns to compute the square root in emulated arithmetic.
 ///
 /// *Safety*: The `FieldSqrtCols` asserts that `multiplication.result` is a square root of the given
@@ -196,6 +198,9 @@ mod tests {
     use rand::thread_rng;
     use sp1_derive::AlignedBorrow;
 
+    /// The name of the `EdSqrtChip`.
+    pub const ED_SQRT_CHIP_NAME: &str = "EdSqrt";
+
     #[derive(AlignedBorrow, Debug)]
     pub struct TestCols<T, P: FieldParameters> {
         pub a: Limbs<T, P::Limbs>,
@@ -222,7 +227,7 @@ mod tests {
         type Program = Program;
 
         fn name(&self) -> String {
-            "EdSqrtChip".to_string()
+            ED_SQRT_CHIP_NAME.to_string()
         }
 
         fn generate_trace(

@@ -42,6 +42,11 @@ pub const fn num_weierstrass_add_cols<P: FieldParameters + NumWords>() -> usize 
     size_of::<WeierstrassAddAssignCols<u8, P>>()
 }
 
+/// The name of the `WeierstrassAddAssignChip` for the various choices of elliptic curve.
+pub const W_ADD_SEC_P_CHIP_NAME: &str = "Secp256k1";
+pub const W_ADD_BN_254_CHIP_NAME: &str = "Bn254";
+pub const W_ADD_BLS_CHIP_NAME: &str = "Bls12381";
+
 /// A set of columns to compute `WeierstrassAdd` that add two points on a Weierstrass curve.
 ///
 /// Right now the number of limbs is assumed to be a constant, although this could be macro-ed or
@@ -208,9 +213,9 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
     fn name(&self) -> String {
         match E::CURVE_TYPE {
-            CurveType::Secp256k1 => "Secp256k1AddAssign".to_string(),
-            CurveType::Bn254 => "Bn254AddAssign".to_string(),
-            CurveType::Bls12381 => "Bls12381AddAssign".to_string(),
+            CurveType::Secp256k1 => W_ADD_SEC_P_CHIP_NAME.to_string(),
+            CurveType::Bn254 => W_ADD_BN_254_CHIP_NAME.to_string(),
+            CurveType::Bls12381 => W_ADD_BLS_CHIP_NAME.to_string(),
             _ => panic!("Unsupported curve"),
         }
     }

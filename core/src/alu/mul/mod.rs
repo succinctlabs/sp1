@@ -55,6 +55,9 @@ use crate::utils::pad_to_power_of_two;
 /// The number of main trace columns for `MulChip`.
 pub const NUM_MUL_COLS: usize = size_of::<MulCols<u8>>();
 
+/// The name of the `MulChip`.
+pub const MUL_CHIP_NAME: &str = "Mul";
+
 /// The number of digits in the product is at most the sum of the number of digits in the
 /// multiplicands.
 const PRODUCT_SIZE: usize = 2 * WORD_SIZE;
@@ -131,7 +134,7 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
     type Program = Program;
 
     fn name(&self) -> String {
-        "Mul".to_string()
+        MUL_CHIP_NAME.to_string()
     }
 
     fn generate_trace(

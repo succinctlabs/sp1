@@ -19,6 +19,7 @@ use crate::utils::pad_to_power_of_two;
 
 /// The number of main trace columns for `AddSubChip`.
 pub const NUM_ADD_SUB_COLS: usize = size_of::<AddSubCols<u8>>();
+pub const ADD_SUB_CHIP_NAME: &str = "AddSub";
 
 /// A chip that implements addition for the opcode ADD and SUB.
 ///
@@ -65,7 +66,7 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
     type Program = Program;
 
     fn name(&self) -> String {
-        "AddSub".to_string()
+        ADD_SUB_CHIP_NAME.to_string()
     }
 
     fn generate_trace(

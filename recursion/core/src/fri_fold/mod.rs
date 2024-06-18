@@ -22,6 +22,9 @@ use crate::runtime::{ExecutionRecord, RecursionProgram};
 
 pub const NUM_FRI_FOLD_COLS: usize = core::mem::size_of::<FriFoldCols<u8>>();
 
+/// The name of the `FriFoldChip`.
+pub const FRI_FOLD_CHIP_NAME: &str = "FriFold";
+
 #[derive(Default)]
 pub struct FriFoldChip<const DEGREE: usize> {
     pub fixed_log2_rows: Option<usize>,
@@ -96,7 +99,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldChip<DEGREE>
     type Program = RecursionProgram<F>;
 
     fn name(&self) -> String {
-        "FriFold".to_string()
+        FRI_FOLD_CHIP_NAME.to_string()
     }
 
     fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {

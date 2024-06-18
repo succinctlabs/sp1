@@ -11,6 +11,9 @@ use crate::air::Polynomial;
 use crate::air::SP1AirBuilder;
 use crate::bytes::event::ByteRecord;
 
+/// The name of the `FieldDenChip`.
+pub const FIELD_DEN_CHIP_NAME: &str = "FieldDen";
+
 /// A set of columns to compute `FieldDen(a, b)` where `a`, `b` are field elements.
 ///
 /// `a / (1 + b)` if `sign`
@@ -166,7 +169,7 @@ mod tests {
     use p3_air::BaseAir;
     use p3_field::{Field, PrimeField32};
 
-    use super::{FieldDenCols, Limbs};
+    use super::{FieldDenCols, Limbs, FIELD_DEN_CHIP_NAME};
 
     use crate::air::MachineAir;
 
@@ -217,7 +220,7 @@ mod tests {
         type Program = Program;
 
         fn name(&self) -> String {
-            "FieldDen".to_string()
+            FIELD_DEN_CHIP_NAME.to_string()
         }
 
         fn generate_trace(

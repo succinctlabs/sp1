@@ -12,7 +12,7 @@ import (
 )
 
 var SRS_FILE string = "srs.bin"
-var SRS_LAGRANGE_FILE string = "srs_lagrange.bin"
+var SRS_LAGRANGE_FILE string = "vars.bin"
 var CONSTRAINTS_JSON_FILE string = "constraints.json"
 var WITNESS_JSON_FILE string = "witness.json"
 var VERIFIER_CONTRACT_PATH string = "PlonkVerifier.sol"
@@ -128,18 +128,22 @@ func (circuit *Circuit) Define(api frontend.API) error {
 				vars[cs.Args[0][i]] = bits[i]
 			}
 		case "Permute":
-			state := [3]frontend.Variable{vars[cs.Args[0][0]], vars[cs.Args[1][0]], vars[cs.Args[2][0]]}
+			var state [poseidon2.WIDTH]frontend.Variable
+			for i := 0; i < poseidon2.WIDTH; i++ {
+				state[i] = vars[cs.Args[i][0]]
+			}
 			hashAPI.PermuteMut(&state)
-			vars[cs.Args[0][0]] = state[0]
-			vars[cs.Args[1][0]] = state[1]
-			vars[cs.Args[2][0]] = state[2]
+
+			for i := 0; i < poseidon2.WIDTH; i++ {
+				vars[cs.Args[i][0]] = state[i]
+			}
 		case "PermuteBabyBear":
-			var state [16]babybear.Variable
-			for i := 0; i < 16; i++ {
+			var state [poseidon2.BABYBEAR_WIDTH]babybear.Variable
+			for i := 0; i < poseidon2.BABYBEAR_WIDTH; i++ {
 				state[i] = felts[cs.Args[i][0]]
 			}
 			hashBabyBearAPI.PermuteMut(&state)
-			for i := 0; i < 16; i++ {
+			for i := 0; i < poseidon2.BABYBEAR_WIDTH; i++ {
 				felts[cs.Args[i][0]] = state[i]
 			}
 		case "SelectV":

@@ -5,6 +5,9 @@ use p3_field::TwoAdicField;
 use sp1_core::air::MachineAir;
 use sp1_core::air::PublicValues;
 use sp1_core::air::Word;
+use sp1_core::cpu::trace::CPU_CHIP_NAME;
+use sp1_core::memory::MEMORY_FINALIZE_CHIP_NAME;
+use sp1_core::memory::MEMORY_INIT_CHIP_NAME;
 use sp1_core::stark::Com;
 use sp1_core::stark::GenericVerifierConstraintFolder;
 use sp1_core::stark::ShardProof;
@@ -318,7 +321,7 @@ where
             tracing::debug!("verifying constraints for chip: {}", chip.name());
             let index = builder.get(&proof.sorted_idxs, i);
 
-            if chip.name() == "CPU" {
+            if chip.name() == CPU_CHIP_NAME {
                 builder.assert_var_ne(index, C::N::from_canonical_usize(EMPTY));
             }
 
@@ -326,7 +329,7 @@ where
                 builder.assert_var_ne(index, C::N::from_canonical_usize(EMPTY));
             }
 
-            if chip.name() == "MemoryInit" {
+            if chip.name() == MEMORY_INIT_CHIP_NAME {
                 builder.if_eq(shard, C::N::one()).then_or_else(
                     |builder| {
                         builder.assert_var_ne(index, C::N::from_canonical_usize(EMPTY));
@@ -337,7 +340,7 @@ where
                 );
             }
 
-            if chip.name() == "MemoryFinalize" {
+            if chip.name() == MEMORY_FINALIZE_CHIP_NAME {
                 builder.if_eq(shard, C::N::one()).then_or_else(
                     |builder| {
                         builder.assert_var_ne(index, C::N::from_canonical_usize(EMPTY));

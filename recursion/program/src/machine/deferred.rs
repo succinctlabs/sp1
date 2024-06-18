@@ -242,7 +242,11 @@ where
                     // let input_index: Var<_> =
                     //     builder.eval(F::from_canonical_usize(j * WORD_SIZE + k + 16));
                     let element = current_public_values.committed_value_digest[j][k];
-                    builder.set(&mut poseidon_inputs, j * WORD_SIZE + k + 16, element);
+                    builder.set(
+                        &mut poseidon_inputs,
+                        j * WORD_SIZE + k + 2 * DIGEST_SIZE,
+                        element,
+                    );
                 }
             }
             let new_digest = builder.poseidon2_hash(&poseidon_inputs);

@@ -45,6 +45,8 @@ use crate::utils::pad_rows;
 
 pub const NUM_ED_ADD_COLS: usize = size_of::<EdAddAssignCols<u8>>();
 
+/// The name of the `EdAddAssignChip`.
+pub const ED_ADD_ASSIGN_CHIP_NAME: &str = "EdAddAssign";
 /// A set of columns to compute `EdAdd` where a, b are field elements.
 /// Right now the number of limbs is assumed to be a constant, although this could be macro-ed
 /// or made generic in the future.
@@ -152,7 +154,7 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
     type Program = Program;
 
     fn name(&self) -> String {
-        "EdAddAssign".to_string()
+        ED_ADD_ASSIGN_CHIP_NAME.to_string()
     }
 
     fn generate_trace(

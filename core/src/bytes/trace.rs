@@ -14,13 +14,16 @@ use crate::{
 
 pub const NUM_ROWS: usize = 1 << 16;
 
+// The name of the `ByteChip`.
+pub const BYTE_CHIP_NAME: &str = "Byte";
+
 impl<F: Field> MachineAir<F> for ByteChip<F> {
     type Record = ExecutionRecord;
 
     type Program = Program;
 
     fn name(&self) -> String {
-        "Byte".to_string()
+        BYTE_CHIP_NAME.to_string()
     }
 
     fn preprocessed_width(&self) -> usize {

@@ -24,13 +24,16 @@ use crate::memory::MemoryCols;
 use crate::runtime::{ExecutionRecord, Opcode, Program};
 use crate::runtime::{MemoryRecordEnum, SyscallCode};
 
+/// The name of the `CpuChip`.
+pub const CPU_CHIP_NAME: &str = "CPU";
+
 impl<F: PrimeField32> MachineAir<F> for CpuChip {
     type Record = ExecutionRecord;
 
     type Program = Program;
 
     fn name(&self) -> String {
-        "CPU".to_string()
+        CPU_CHIP_NAME.to_string()
     }
 
     fn generate_trace(

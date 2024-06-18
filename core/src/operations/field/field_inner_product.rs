@@ -13,6 +13,8 @@ use crate::air::SP1AirBuilder;
 use crate::bytes::event::ByteRecord;
 use crate::operations::field::params::FieldParameters;
 
+/// The name of the `FieldInnerProductChip`.
+pub const FIELD_INNER_PROD_CHIP_NAME: &str = "FieldInnerProduct";
 /// A set of columns to compute `InnerProduct([a], [b])` where a, b are emulated elements.
 ///
 /// *Safety*: The `FieldInnerProductCols` asserts that `result = sum_i a_i * b_i mod M` where
@@ -164,7 +166,7 @@ mod tests {
     use p3_air::BaseAir;
     use p3_field::{Field, PrimeField32};
 
-    use super::{FieldInnerProductCols, Limbs};
+    use super::{FieldInnerProductCols, Limbs, FIELD_INNER_PROD_CHIP_NAME};
 
     use crate::air::MachineAir;
 
@@ -213,7 +215,7 @@ mod tests {
         type Program = Program;
 
         fn name(&self) -> String {
-            "FieldInnerProduct".to_string()
+            FIELD_INNER_PROD_CHIP_NAME.to_string()
         }
 
         fn generate_trace(

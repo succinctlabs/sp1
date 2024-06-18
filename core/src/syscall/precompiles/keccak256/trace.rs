@@ -16,12 +16,15 @@ use super::{
     KeccakPermuteChip, STATE_SIZE,
 };
 
+/// The name of the `KeccakPermuteChip`.
+pub const KECCAK_PERMUTE_CHIP_NAME: &str = "KeccakPermute";
+
 impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
     type Record = ExecutionRecord;
     type Program = Program;
 
     fn name(&self) -> String {
-        "KeccakPermute".to_string()
+        KECCAK_PERMUTE_CHIP_NAME.to_string()
     }
 
     fn generate_trace(
