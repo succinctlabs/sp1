@@ -8,8 +8,8 @@ pub mod utils;
 pub use event::ByteLookupEvent;
 pub use opcode::*;
 
-use alloc::collections::BTreeMap;
 use core::borrow::BorrowMut;
+use hashbrown::HashMap;
 use std::marker::PhantomData;
 
 use itertools::Itertools;
@@ -42,10 +42,10 @@ impl<F: Field> ByteChip<F> {
     /// the index of the result in the array of multiplicities.
     pub fn trace_and_map(
         shard: u32,
-    ) -> (RowMajorMatrix<F>, BTreeMap<ByteLookupEvent, (usize, usize)>) {
+    ) -> (RowMajorMatrix<F>, HashMap<ByteLookupEvent, (usize, usize)>) {
         // A map from a byte lookup to its corresponding row in the table and index in the array of
         // multiplicities.
-        let mut event_map = BTreeMap::new();
+        let mut event_map = HashMap::new();
 
         // The trace containing all values, with all multiplicities set to zero.
         let mut initial_trace = RowMajorMatrix::new(

@@ -1,9 +1,9 @@
 use anyhow::Result;
+use sp1_core::{runtime::SP1Context, utils::SP1ProverOpts};
 use sp1_prover::{SP1Prover, SP1Stdin};
 
 use crate::{
-    Prover, SP1CompressedProof, SP1PlonkBn254Proof, SP1Proof, SP1ProofWithPublicValues,
-    SP1ProvingKey, SP1VerifyingKey,
+    Prover, SP1Proof, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
 };
 
 use super::ProverType;
@@ -34,36 +34,36 @@ impl Prover for LocalProver {
         &self.prover
     }
 
-    fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Proof> {
-        let proof = self.prover.prove_core(pk, &stdin)?;
-        Ok(SP1ProofWithPublicValues {
-            proof: proof.proof.0,
-            stdin: proof.stdin,
-            public_values: proof.public_values,
-            sp1_version: self.version().to_string(),
-        })
-    }
-
-    fn prove_compressed(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1CompressedProof> {
-        let proof = self.prover.prove_core(pk, &stdin)?;
+    fn prove<'a>(
+        &'a self,
+        pk: &SP1ProvingKey,
+        stdin: SP1Stdin,
+        opts: SP1ProverOpts,
+        context: SP1Context<'a>,
+        kind: SP1ProofKind,
+    ) -> Result<SP1ProofWithPublicValues> {
+        let proof = self.prover.prove_core(pk, &stdin, opts, context)?;
+        if kind == SP1ProofKind::Core {
+            return Ok(SP1ProofWithPublicValues {
+                proof: SP1Proof::Core(proof.proof.0),
+                stdin: proof.stdin,
+                public_values: proof.public_values,
+                sp1_version: self.version().to_string(),
+            });
+        }
         let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
         let public_values = proof.public_values.clone();
-        let reduce_proof = self.prover.compress(&pk.vk, proof, deferred_proofs)?;
-        Ok(SP1CompressedProof {
-            proof: reduce_proof.proof,
-            stdin,
-            public_values,
-            sp1_version: self.version().to_string(),
-        })
-    }
-
-    fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkBn254Proof> {
-        let proof = self.prover.prove_core(pk, &stdin)?;
-        let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
-        let public_values = proof.public_values.clone();
-        let reduce_proof = self.prover.compress(&pk.vk, proof, deferred_proofs)?;
-        let compress_proof = self.prover.shrink(reduce_proof)?;
-        let outer_proof = self.prover.wrap_bn254(compress_proof)?;
+        let reduce_proof = self.prover.compress(&pk.vk, proof, deferred_proofs, opts)?;
+        if kind == SP1ProofKind::Compressed {
+            return Ok(SP1ProofWithPublicValues {
+                proof: SP1Proof::Compressed(reduce_proof.proof),
+                stdin,
+                public_values,
+                sp1_version: self.version().to_string(),
+            });
+        }
+        let compress_proof = self.prover.shrink(reduce_proof, opts)?;
+        let outer_proof = self.prover.wrap_bn254(compress_proof, opts)?;
 
         let plonk_bn254_aritfacts = if sp1_prover::build::sp1_dev_mode() {
             sp1_prover::build::try_build_plonk_bn254_artifacts_dev(
@@ -76,12 +76,15 @@ impl Prover for LocalProver {
         let proof = self
             .prover
             .wrap_plonk_bn254(outer_proof, &plonk_bn254_aritfacts);
-        Ok(SP1ProofWithPublicValues {
-            proof,
-            stdin,
-            public_values,
-            sp1_version: self.version().to_string(),
-        })
+        if kind == SP1ProofKind::Plonk {
+            return Ok(SP1ProofWithPublicValues {
+                proof: SP1Proof::Plonk(proof),
+                stdin,
+                public_values,
+                sp1_version: self.version().to_string(),
+            });
+        }
+        unreachable!()
     }
 }
 

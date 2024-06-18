@@ -64,7 +64,7 @@ mod utils;
 
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
-use std::collections::HashMap;
+use hashbrown::HashMap;
 
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;

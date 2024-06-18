@@ -2,7 +2,7 @@ use rsa::{
     pkcs8::{DecodePrivateKey, DecodePublicKey},
     RsaPrivateKey, RsaPublicKey,
 };
-use sp1_sdk::{utils, ProverClient, SP1Proof, SP1Stdin};
+use sp1_sdk::{utils, ProverClient, SP1ProofWithPublicValues, SP1Stdin};
 use std::vec;
 
 /// The ELF we want to execute inside the zkVM.
@@ -54,14 +54,15 @@ fn main() {
     // Generate the proof for the given program and input.
     let client = ProverClient::new();
     let (pk, vk) = client.setup(RSA_ELF);
-    let proof = client.prove(&pk, stdin).expect("proving failed");
+    let proof = client.prove(&pk, stdin).run().expect("proving failed");
 
     // Verify proof.
     client.verify(&proof, &vk).expect("verification failed");
 
     // Test a round trip of proof serialization and deserialization.
     proof.save("proof-with-pis").expect("saving proof failed");
-    let deserialized_proof = SP1Proof::load("proof-with-pis").expect("loading proof failed");
+    let deserialized_proof =
+        SP1ProofWithPublicValues::load("proof-with-pis").expect("loading proof failed");
 
     // Verify the deserialized proof.
     client
