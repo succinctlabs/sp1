@@ -1,4 +1,4 @@
-use sp1_sdk::SP1ProofBundle;
+use sp1_sdk::SP1ProofWithPublicValues;
 use std::time::Duration;
 use tokio::runtime::Runtime;
 
@@ -80,7 +80,7 @@ fn main() {
     proof
         .save("proof-with-pis.bin")
         .expect("saving proof failed");
-    let deserialized_proof = SP1ProofBundle::load("proof-with-pis.bin").expect("loading proof failed");
+    let deserialized_proof = SP1ProofWithPublicValues::load("proof-with-pis.bin").expect("loading proof failed");
 
     // Verify the deserialized proof.
     client

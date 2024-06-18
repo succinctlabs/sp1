@@ -6,7 +6,7 @@ use crate::{
     proto::network::ProofStatus,
     Prover,
 };
-use crate::{SP1Context, SP1ProofBundle, SP1ProofKind, SP1ProvingKey, SP1VerifyingKey};
+use crate::{SP1Context, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey};
 use anyhow::Result;
 use serde::de::DeserializeOwned;
 use sp1_core::utils::SP1ProverOpts;
@@ -113,7 +113,7 @@ impl NetworkProver {
         elf: &[u8],
         stdin: SP1Stdin,
         mode: ProofMode,
-    ) -> Result<SP1ProofBundle> {
+    ) -> Result<SP1ProofWithPublicValues> {
         let proof_id = self.request_proof(elf, stdin, mode).await?;
         self.wait_proof(&proof_id).await
     }
@@ -139,7 +139,7 @@ impl Prover for NetworkProver {
         opts: SP1ProverOpts,
         context: SP1Context<'a>,
         kind: SP1ProofKind,
-    ) -> Result<SP1ProofBundle> {
+    ) -> Result<SP1ProofWithPublicValues> {
         warn_if_not_default(&opts, &context);
         block_on(self.prove(&pk.elf, stdin, kind.into()))
     }

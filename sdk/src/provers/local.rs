@@ -2,7 +2,9 @@ use anyhow::Result;
 use sp1_core::{runtime::SP1Context, utils::SP1ProverOpts};
 use sp1_prover::{SP1Prover, SP1Stdin};
 
-use crate::{Prover, SP1Proof, SP1ProofBundle, SP1ProofKind, SP1ProvingKey, SP1VerifyingKey};
+use crate::{
+    Prover, SP1Proof, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
+};
 
 use super::ProverType;
 
@@ -39,10 +41,10 @@ impl Prover for LocalProver {
         opts: SP1ProverOpts,
         context: SP1Context<'a>,
         kind: SP1ProofKind,
-    ) -> Result<SP1ProofBundle> {
+    ) -> Result<SP1ProofWithPublicValues> {
         let proof = self.prover.prove_core(pk, &stdin, opts, context)?;
         if kind == SP1ProofKind::Core {
-            return Ok(SP1ProofBundle {
+            return Ok(SP1ProofWithPublicValues {
                 proof: SP1Proof::Core(proof.proof.0),
                 stdin: proof.stdin,
                 public_values: proof.public_values,
@@ -53,7 +55,7 @@ impl Prover for LocalProver {
         let public_values = proof.public_values.clone();
         let reduce_proof = self.prover.compress(&pk.vk, proof, deferred_proofs, opts)?;
         if kind == SP1ProofKind::Compressed {
-            return Ok(SP1ProofBundle {
+            return Ok(SP1ProofWithPublicValues {
                 proof: SP1Proof::Compressed(reduce_proof.proof),
                 stdin,
                 public_values,
@@ -75,7 +77,7 @@ impl Prover for LocalProver {
             .prover
             .wrap_plonk_bn254(outer_proof, &plonk_bn254_aritfacts);
         if kind == SP1ProofKind::Plonk {
-            return Ok(SP1ProofBundle {
+            return Ok(SP1ProofWithPublicValues {
                 proof: SP1Proof::Plonk(proof),
                 stdin,
                 public_values,

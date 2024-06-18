@@ -1,5 +1,5 @@
 //! A program that takes a number `n` as input, and writes if `n` is prime as an output.
-use sp1_sdk::{utils, ProverClient, SP1ProofBundle, SP1Stdin};
+use sp1_sdk::{utils, ProverClient, SP1ProofWithPublicValues, SP1Stdin};
 
 const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
 
@@ -28,7 +28,7 @@ fn main() {
         .save("proof-with-is-prime.bin")
         .expect("saving proof failed");
     let deserialized_proof =
-        SP1ProofBundle::load("proof-with-is-prime.bin").expect("loading proof failed");
+        SP1ProofWithPublicValues::load("proof-with-is-prime.bin").expect("loading proof failed");
 
     // Verify the deserialized proof.
     client

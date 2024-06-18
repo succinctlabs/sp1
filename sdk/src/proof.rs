@@ -20,14 +20,14 @@ pub enum SP1Proof {
 
 /// A proof generated with SP1, bundled together with stdin, public values, and the SP1 version.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SP1ProofBundle {
+pub struct SP1ProofWithPublicValues {
     pub proof: SP1Proof,
     pub stdin: SP1Stdin,
     pub public_values: SP1PublicValues,
     pub sp1_version: String,
 }
 
-impl SP1ProofBundle {
+impl SP1ProofWithPublicValues {
     /// Saves the proof to a path.
     pub fn save(&self, path: impl AsRef<Path>) -> Result<()> {
         bincode::serialize_into(File::create(path).expect("failed to open file"), self)

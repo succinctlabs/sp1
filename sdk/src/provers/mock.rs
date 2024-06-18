@@ -1,6 +1,6 @@
 #![allow(unused_variables)]
 use crate::{
-    Prover, SP1Proof, SP1ProofBundle, SP1ProofKind, SP1ProvingKey, SP1VerificationError,
+    Prover, SP1Proof, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerificationError,
     SP1VerifyingKey,
 };
 use anyhow::Result;
@@ -45,11 +45,11 @@ impl Prover for MockProver {
         opts: SP1ProverOpts,
         context: SP1Context<'a>,
         kind: SP1ProofKind,
-    ) -> Result<SP1ProofBundle> {
+    ) -> Result<SP1ProofWithPublicValues> {
         match kind {
             SP1ProofKind::Core => {
                 let (public_values, _) = SP1Prover::execute(&pk.elf, &stdin, context)?;
-                Ok(SP1ProofBundle {
+                Ok(SP1ProofWithPublicValues {
                     proof: SP1Proof::Core(vec![]),
                     stdin,
                     public_values,
@@ -59,7 +59,7 @@ impl Prover for MockProver {
             SP1ProofKind::Compressed => unimplemented!(),
             SP1ProofKind::Plonk => {
                 let (public_values, _) = SP1Prover::execute(&pk.elf, &stdin, context)?;
-                Ok(SP1ProofBundle {
+                Ok(SP1ProofWithPublicValues {
                     proof: SP1Proof::Plonk(PlonkBn254Proof {
                         public_inputs: [
                             pk.vk.hash_bn254().as_canonical_biguint().to_string(),
@@ -79,7 +79,7 @@ impl Prover for MockProver {
 
     fn verify(
         &self,
-        bundle: &SP1ProofBundle,
+        bundle: &SP1ProofWithPublicValues,
         vkey: &SP1VerifyingKey,
     ) -> Result<(), SP1VerificationError> {
         match &bundle.proof {

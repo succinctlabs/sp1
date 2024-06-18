@@ -6,7 +6,7 @@ use sp1_prover::{SP1Prover, SP1ProvingKey, SP1PublicValues, SP1Stdin};
 
 use anyhow::{Ok, Result};
 
-use crate::{Prover, SP1ProofBundle, SP1ProofKind};
+use crate::{Prover, SP1ProofKind, SP1ProofWithPublicValues};
 
 /// Builder to prepare and configure execution of a program on an input.
 /// May be run with [Self::run].
@@ -93,7 +93,7 @@ impl<'a> Prove<'a> {
     }
 
     /// Prove the execution of the program on the input, consuming the built action `self`.
-    pub fn run(self) -> Result<SP1ProofBundle> {
+    pub fn run(self) -> Result<SP1ProofWithPublicValues> {
         let Self {
             prover,
             kind,

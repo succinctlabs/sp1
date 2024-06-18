@@ -225,7 +225,7 @@ impl ProverClient {
     /// ```
     pub fn verify(
         &self,
-        proof: &SP1ProofBundle,
+        proof: &SP1ProofWithPublicValues,
         vk: &SP1VerifyingKey,
     ) -> Result<(), SP1VerificationError> {
         self.prover.verify(proof, vk)

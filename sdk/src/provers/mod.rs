@@ -18,8 +18,8 @@ use strum_macros::EnumString;
 use thiserror::Error;
 
 use crate::SP1Proof;
-use crate::SP1ProofBundle;
 use crate::SP1ProofKind;
+use crate::SP1ProofWithPublicValues;
 
 /// The type of prover.
 #[derive(Debug, PartialEq, EnumString)]
@@ -61,14 +61,14 @@ pub trait Prover: Send + Sync {
         opts: SP1ProverOpts,
         context: SP1Context<'a>,
         kind: SP1ProofKind,
-    ) -> Result<SP1ProofBundle>;
+    ) -> Result<SP1ProofWithPublicValues>;
 
     /// Verify that an SP1 proof is valid given its vkey and metadata.
     /// For Plonk proofs, verifies that the public inputs of the PlonkBn254 proof match
     /// the hash of the VK and the committed public values of the SP1ProofWithPublicValues.
     fn verify(
         &self,
-        bundle: &SP1ProofBundle,
+        bundle: &SP1ProofWithPublicValues,
         vkey: &SP1VerifyingKey,
     ) -> Result<(), SP1VerificationError> {
         if bundle.sp1_version != self.version() {
