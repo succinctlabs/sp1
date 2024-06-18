@@ -6,8 +6,8 @@ import (
 )
 
 const BABYBEAR_WIDTH = 16
-const BABYBEAR_NUM_EXTERNAL_ROUNDS = 8
-const BABYBEAR_NUM_INTERNAL_ROUNDS = 13
+const babybear_num_external_rounds = 8
+const babybear_num_internal_rounds = 13
 const BABYBEAR_DEGREE = 7
 
 type Poseidon2BabyBearChip struct {
@@ -27,25 +27,25 @@ func (p *Poseidon2BabyBearChip) PermuteMut(state *[BABYBEAR_WIDTH]babybear.Varia
 	p.externalLinearLayer(state)
 
 	// The first half of the external rounds.
-	rounds := BABYBEAR_NUM_EXTERNAL_ROUNDS + BABYBEAR_NUM_INTERNAL_ROUNDS
-	roundsFBeggining := BABYBEAR_NUM_EXTERNAL_ROUNDS / 2
+	rounds := babybear_num_external_rounds + babybear_num_internal_rounds
+	roundsFBeggining := babybear_num_external_rounds / 2
 	for r := 0; r < roundsFBeggining; r++ {
-		p.addRc(state, RC16[r])
+		p.addRc(state, rc16[r])
 		p.sbox(state)
 		p.externalLinearLayer(state)
 	}
 
 	// The internal rounds.
-	p_end := roundsFBeggining + BABYBEAR_NUM_INTERNAL_ROUNDS
+	p_end := roundsFBeggining + babybear_num_internal_rounds
 	for r := roundsFBeggining; r < p_end; r++ {
-		state[0] = p.fieldApi.AddF(state[0], RC16[r][0])
+		state[0] = p.fieldApi.AddF(state[0], rc16[r][0])
 		state[0] = p.sboxP(state[0])
 		p.diffusionPermuteMut(state)
 	}
 
 	// The second half of the external rounds.
 	for r := p_end; r < rounds; r++ {
-		p.addRc(state, RC16[r])
+		p.addRc(state, rc16[r])
 		p.sbox(state)
 		p.externalLinearLayer(state)
 	}
