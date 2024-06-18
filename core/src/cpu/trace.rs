@@ -2,7 +2,6 @@ use hashbrown::HashMap;
 use p3_maybe_rayon::prelude::ParallelBridge;
 use std::array;
 use std::borrow::BorrowMut;
-use std::time::Instant;
 
 use p3_field::{PrimeField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
@@ -216,7 +215,6 @@ impl CpuChip {
     }
 
     /// Populates the shard, channel, and clk related rows.
-    #[inline(always)]
     fn populate_shard_clk<F: PrimeField>(
         &self,
         cols: &mut CpuCols<F>,
