@@ -126,13 +126,13 @@ impl SP1Prover {
             // Assert that the `MemoryInit` and `MemoryFinalize` chips only exist in the last shard.
             if i != 0 && (memory_final_count > 0 || memory_init_count > 0) {
                 return Err(MachineVerificationError::InvalidChipOccurence(
-                    "memory init and finalize should not eixst anywhere but the last chip"
+                    "memory init and finalize should not exist anywhere but the first chip"
                         .to_string(),
                 ));
             }
             if i == 0 && (memory_init_count != 1 || memory_final_count != 1) {
                 return Err(MachineVerificationError::InvalidChipOccurence(
-                    "memory init and finalize should exist the last chip".to_string(),
+                    "memory init and finalize should exist in the first chip".to_string(),
                 ));
             }
         }
