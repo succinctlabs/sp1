@@ -6,8 +6,8 @@ import (
 )
 
 const BABYBEAR_WIDTH = 16
-const babybear_num_external_rounds = 8
-const babybear_num_internal_rounds = 13
+const babybearNumExternalRounds = 8
+const babybearNumInternalRounds = 13
 const BABYBEAR_DEGREE = 7
 
 type Poseidon2BabyBearChip struct {
