@@ -517,6 +517,7 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
         let initial_reconstruct_challenger =
             DuplexChallenger::<InnerVal, InnerPerm, 16, 8>::read(builder);
         let is_complete = builder.hint_var();
+        let total_core_shards = builder.hint_var();
 
         SP1RecursionMemoryLayoutVariable {
             vk,
@@ -524,6 +525,7 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
             leaf_challenger,
             initial_reconstruct_challenger,
             is_complete,
+            total_core_shards,
         }
     }
 
@@ -556,12 +558,14 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C> for SP1ReduceMemoryLayout<'a, Baby
         let shard_proofs = Vec::<ShardProofHint<'a, BabyBearPoseidon2, A>>::read(builder);
         let kinds = Vec::<usize>::read(builder);
         let is_complete = builder.hint_var();
+        let total_core_shards = builder.hint_var();
 
         SP1ReduceMemoryLayoutVariable {
             compress_vk,
             shard_proofs,
             kinds,
             is_complete,
+            total_core_shards,
         }
     }
 

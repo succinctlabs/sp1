@@ -288,6 +288,7 @@ impl SP1Prover {
                 leaf_challenger,
                 initial_reconstruct_challenger: reconstruct_challenger.clone(),
                 is_complete,
+                total_core_shards: shard_proofs.len(),
             });
 
             for proof in batch.iter() {
@@ -393,6 +394,7 @@ impl SP1Prover {
         let batch_size = 2;
 
         let shard_proofs = &proof.proof.0;
+        let total_core_shards = shard_proofs.len();
         // Get the leaf challenger.
         let mut leaf_challenger = self.core_machine.config().challenger();
         vk.vk.observe_into(&mut leaf_challenger);
@@ -465,6 +467,7 @@ impl SP1Prover {
                                 shard_proofs,
                                 kinds,
                                 is_complete,
+                                total_core_shards,
                             };
 
                             let proof = self.compress_machine_proof(

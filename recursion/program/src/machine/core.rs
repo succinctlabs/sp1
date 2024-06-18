@@ -338,6 +338,7 @@ where
         let end_deferred_digest = [zero; POSEIDON_NUM_WORDS];
 
         let is_complete_felt = var2felt(builder, is_complete);
+        let total_core_shards_felt = var2felt(builder, total_core_shards);
 
         recursion_public_values.committed_value_digest = committed_value_digest;
         recursion_public_values.deferred_proofs_digest = deferred_proofs_digest;
@@ -353,7 +354,7 @@ where
         recursion_public_values.start_reconstruct_deferred_digest = start_deferred_digest;
         recursion_public_values.end_reconstruct_deferred_digest = end_deferred_digest;
         recursion_public_values.is_complete = is_complete_felt;
-        recursion_public_values.total_core_shards = total_core_shards;
+        recursion_public_values.total_core_shards = total_core_shards_felt;
 
         // If the proof represents a complete proof, make completeness assertions.
         //
