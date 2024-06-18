@@ -94,8 +94,9 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
         let start_round_num = round_nums[0];
         let end_round_num = round_nums[round_nums.len() - 1];
 
-        let mut state: [AB::Expr; WIDTH] =
-            array::from_fn(|i| perm_cols.external_rounds_state()[start_round_num][i].into());
+        let mut state: [AB::Expr; WIDTH] = array::from_fn(|i| {
+            perm_cols.external_rounds_state()[start_round_num / ROUND_CHUNK_SIZE][i].into()
+        });
 
         for &r in round_nums.iter() {
             // Add the round constants.
@@ -136,7 +137,7 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
         } else if end_round_num == NUM_EXTERNAL_ROUNDS - 1 {
             perm_cols.perm_output()
         } else {
-            &perm_cols.external_rounds_state()[end_round_num + 1]
+            &perm_cols.external_rounds_state()[(end_round_num + 1) / ROUND_CHUNK_SIZE]
         };
         for i in 0..WIDTH {
             builder.assert_eq(next_state_cols[i], state[i].clone());
@@ -179,7 +180,8 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
             }
         }
 
-        let external_state = perm_cols.external_rounds_state()[NUM_EXTERNAL_ROUNDS / 2];
+        let external_state =
+            perm_cols.external_rounds_state()[(NUM_EXTERNAL_ROUNDS / 2) / ROUND_CHUNK_SIZE];
         for i in 0..WIDTH {
             builder.assert_eq(external_state[i], state[i].clone())
         }

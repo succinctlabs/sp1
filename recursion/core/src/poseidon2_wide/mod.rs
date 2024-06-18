@@ -14,6 +14,8 @@ pub mod trace;
 
 use p3_poseidon2::matmul_internal;
 
+use crate::poseidon2_wide::columns::Poseidon2Degree17;
+
 use self::columns::Poseidon2;
 use self::columns::Poseidon2Degree3;
 use self::columns::Poseidon2Degree9;
@@ -47,7 +49,8 @@ impl<'a, const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
             let convert: &Poseidon2Degree9<T> = (*row).borrow();
             Box::new(*convert)
         } else {
-            panic!("Unsupported degree");
+            let convert: &Poseidon2Degree17<T> = (*row).borrow();
+            Box::new(*convert)
         }
     }
 }

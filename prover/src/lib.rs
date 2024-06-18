@@ -28,7 +28,7 @@ use rayon::prelude::*;
 use sp1_core::air::{PublicValues, Word};
 pub use sp1_core::io::{SP1PublicValues, SP1Stdin};
 use sp1_core::runtime::{ExecutionError, ExecutionReport, Runtime, SP1Context};
-use sp1_core::stark::{debug_constraints, Challenge, StarkProvingKey};
+use sp1_core::stark::{Challenge, StarkProvingKey};
 use sp1_core::stark::{Challenger, MachineVerificationError};
 use sp1_core::utils::{SP1CoreOpts, SP1ProverOpts, DIGEST_SIZE};
 use sp1_core::{
@@ -74,7 +74,7 @@ pub type OuterSC = BabyBearPoseidon2Outer;
 
 const REDUCE_DEGREE: usize = 3;
 const COMPRESS_DEGREE: usize = 9;
-const WRAP_DEGREE: usize = 9;
+const WRAP_DEGREE: usize = 17;
 
 pub type ReduceAir<F> = RecursionAir<F, REDUCE_DEGREE, 1>;
 pub type CompressAir<F> = RecursionAir<F, COMPRESS_DEGREE, 1>;
@@ -595,6 +595,11 @@ impl SP1Prover {
         runtime.print_stats();
         tracing::debug!("Wrap program executed successfully");
 
+        let mut challenger_clone = self.wrap_machine.config().challenger();
+        let record_clone = runtime.record.clone();
+        self.wrap_machine
+            .debug_constraints(&self.wrap_pk, record_clone, &mut challenger_clone);
+
         // Prove the wrap program.
         let mut wrap_challenger = self.wrap_machine.config().challenger();
         let time = std::time::Instant::now();
@@ -738,11 +743,11 @@ mod tests {
         let bytes = bincode::serialize(&wrapped_bn254_proof).unwrap();
 
         // Save the proof.
-        let mut file = File::create("proof-with-pis.json").unwrap();
+        let mut file = File::create("proof-with-pis.bin").unwrap();
         file.write_all(bytes.as_slice()).unwrap();
 
         // Load the proof.
-        let mut file = File::open("proof-with-pis.json").unwrap();
+        let mut file = File::open("proof-with-pis.bin").unwrap();
         let mut bytes = Vec::new();
         file.read_to_end(&mut bytes).unwrap();
 
