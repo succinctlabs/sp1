@@ -1,6 +1,6 @@
 //! A simple example showing how to aggregate proofs of multiple programs with SP1.
 
-use sp1_sdk::{HashableKey, ProverClient, SP1Stdin, SP1VerifyingKey};
+use sp1_sdk::{HashableKey, ProverClient, SP1Proof, SP1ProofBundle, SP1Stdin, SP1VerifyingKey};
 
 /// A program that aggregates the proofs of the simple program.
 const AGGREGATION_ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
@@ -34,6 +34,7 @@ fn main() {
         stdin.write(&10);
         client
             .prove(&fibonacci_pk, stdin)
+            .compressed()
             .run()
             .expect("proving failed")
     });
@@ -42,6 +43,7 @@ fn main() {
         stdin.write(&20);
         client
             .prove(&fibonacci_pk, stdin)
+            .compressed()
             .run()
             .expect("proving failed")
     });
@@ -50,6 +52,7 @@ fn main() {
         stdin.write(&30);
         client
             .prove(&fibonacci_pk, stdin)
+            .compressed()
             .run()
             .expect("proving failed")
     });
@@ -92,12 +95,16 @@ fn main() {
         // Note: this data will not actually be read by the aggregation program, instead it will be
         // witnessed by the prover during the recursive aggregation process inside SP1 itself.
         for input in inputs {
-            stdin.write_proof(input.proof.proof, input.vk.vk);
+            let SP1Proof::Compressed(proof) = input.proof.proof else {
+                panic!()
+            };
+            stdin.write_proof(proof, input.vk.vk);
         }
 
         // Generate the plonk bn254 proof.
         client
             .prove(&aggregation_pk, stdin)
+            .plonk()
             .run()
             .expect("proving failed");
     });
