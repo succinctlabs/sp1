@@ -13,8 +13,6 @@
 )]
 #![warn(unused_extern_crates)]
 
-extern crate alloc;
-
 pub mod air;
 pub mod alu;
 pub mod bytes;
