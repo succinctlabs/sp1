@@ -10,10 +10,12 @@ use crate::{
 
 impl<F: Field, const L: usize> CpuChip<F, L> {
     /// Eval the ALU instructions.
+    ///
+    /// # Warning
+    /// The division constraints allow a = 0/0 for any a.
     pub fn eval_alu<AB>(&self, builder: &mut AB, local: &CpuCols<AB::Var>)
     where
         AB: SP1RecursionAirBuilder<F = F>,
-        
     {
         let one = AB::Expr::one();
         let is_alu_instruction = self.is_alu_instruction::<AB>(local);

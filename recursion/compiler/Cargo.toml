@@ -13,7 +13,7 @@ p3-symmetric = { workspace = true }
 p3-util = { workspace = true }
 sp1-recursion-core = { path = "../core" }
 sp1-core = { path = "../../core" }
-itertools = "0.12.1"
+itertools = "0.13.0"
 serde = { version = "1.0.201", features = ["derive"] }
 sp1-recursion-derive = { path = "../derive" }
 p3-bn254-fr = { workspace = true }

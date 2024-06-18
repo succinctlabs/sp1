@@ -61,7 +61,7 @@ pub const fn permutation_trace_width(num_interactions: usize, batch_size: usize)
 ///
 /// The permutation trace has (N+1)*EF::NUM_COLS columns, where N is the number of interactions in
 /// the chip.
-pub(crate) fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
+pub fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
     sends: &[Interaction<F>],
     receives: &[Interaction<F>],
     preprocessed: Option<&RowMajorMatrix<F>>,

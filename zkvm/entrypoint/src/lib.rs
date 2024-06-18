@@ -90,24 +90,16 @@ mod zkvm {
         .option pop;
         la sp, {0}
         lw sp, 0(sp)
-        jal ra, __start;
+        call __start;
     "#,
         sym STACK_TOP
     );
 
-    static GETRANDOM_WARNING_ONCE: std::sync::Once = std::sync::Once::new();
-
     fn zkvm_getrandom(s: &mut [u8]) -> Result<(), Error> {
-        use rand::Rng;
-        use rand::SeedableRng;
-
-        GETRANDOM_WARNING_ONCE.call_once(|| {
-            println!("WARNING: Using insecure random number generator");
-        });
-        let mut rng = rand::rngs::StdRng::seed_from_u64(123);
-        for i in 0..s.len() {
-            s[i] = rng.gen();
+        unsafe {
+            crate::syscalls::sys_rand(s.as_mut_ptr(), s.len());
         }
+
         Ok(())
     }
 

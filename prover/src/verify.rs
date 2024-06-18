@@ -5,6 +5,7 @@ use num_bigint::BigUint;
 use p3_baby_bear::BabyBear;
 use p3_field::{AbstractField, PrimeField};
 use sp1_core::air::MachineAir;
+use sp1_core::runtime::SubproofVerifier;
 use sp1_core::{
     air::PublicValues,
     io::SP1PublicValues,
@@ -112,11 +113,6 @@ impl SP1Prover {
                 .core_machine
                 .shard_chips_ordered(&shard_proof.chip_ordering)
                 .collect::<Vec<_>>();
-            let program_memory_init_count = chips
-                .clone()
-                .into_iter()
-                .filter(|chip| chip.name() == "MemoryProgram")
-                .count();
             let memory_init_count = chips
                 .clone()
                 .into_iter()
@@ -127,26 +123,14 @@ impl SP1Prover {
                 .filter(|chip| chip.name() == "MemoryFinalize")
                 .count();
 
-            // Assert that the `MemoryProgram` chip only exists in the first shard.
-            if i == 0 && program_memory_init_count != 1 {
-                return Err(MachineVerificationError::InvalidChipOccurence(
-                    "memory should exist in the first chip".to_string(),
-                ));
-            }
-            if i != 0 && program_memory_init_count > 0 {
-                return Err(MachineVerificationError::InvalidChipOccurence(
-                    "memory program should not exist in the first chip".to_string(),
-                ));
-            }
-
             // Assert that the `MemoryInit` and `MemoryFinalize` chips only exist in the last shard.
-            if i != proof.0.len() - 1 && (memory_final_count > 0 || memory_init_count > 0) {
+            if i != 0 && (memory_final_count > 0 || memory_init_count > 0) {
                 return Err(MachineVerificationError::InvalidChipOccurence(
                     "memory init and finalize should not eixst anywhere but the last chip"
                         .to_string(),
                 ));
             }
-            if i == proof.0.len() - 1 && (memory_init_count != 1 || memory_final_count != 1) {
+            if i == 0 && (memory_init_count != 1 || memory_final_count != 1) {
                 return Err(MachineVerificationError::InvalidChipOccurence(
                     "memory init and finalize should exist the last chip".to_string(),
                 ));
@@ -311,4 +295,38 @@ pub fn verify_plonk_bn254_public_inputs(
     }
 
     Ok(())
+}
+
+impl SubproofVerifier for &SP1Prover {
+    fn verify_deferred_proof(
+        &self,
+        proof: &sp1_core::stark::ShardProof<BabyBearPoseidon2>,
+        vk: &sp1_core::stark::StarkVerifyingKey<BabyBearPoseidon2>,
+        vk_hash: [u32; 8],
+        committed_value_digest: [u32; 8],
+    ) -> Result<(), MachineVerificationError<BabyBearPoseidon2>> {
+        // Check that the vk hash matches the vk hash from the input.
+        if vk.hash_u32() != vk_hash {
+            return Err(MachineVerificationError::InvalidPublicValues(
+                "vk hash from syscall does not match vkey from input",
+            ));
+        }
+        // Check that proof is valid.
+        self.verify_compressed(
+            &SP1ReduceProof {
+                proof: proof.clone(),
+            },
+            &SP1VerifyingKey { vk: vk.clone() },
+        )?;
+        // Check that the committed value digest matches the one from syscall
+        let public_values: &RecursionPublicValues<_> = proof.public_values.as_slice().borrow();
+        for (i, word) in public_values.committed_value_digest.iter().enumerate() {
+            if *word != committed_value_digest[i].into() {
+                return Err(MachineVerificationError::InvalidPublicValues(
+                    "committed_value_digest does not match",
+                ));
+            }
+        }
+        Ok(())
+    }
 }

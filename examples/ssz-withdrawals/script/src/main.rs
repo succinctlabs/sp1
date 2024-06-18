@@ -1,4 +1,4 @@
-use sp1_sdk::{utils, ProverClient, SP1Stdin};
+use sp1_sdk::{utils, ProverClient, SP1Proof, SP1Stdin};
 
 const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
 
@@ -10,17 +10,21 @@ fn main() {
     let stdin = SP1Stdin::new();
     let client = ProverClient::new();
     let (pk, vk) = client.setup(ELF);
-    let proof = client.prove_compressed(&pk, stdin).expect("proving failed");
+    let proof = client.prove(&pk, stdin).expect("proving failed");
 
     // Verify proof.
-    client
-        .verify_compressed(&proof, &vk)
-        .expect("verification failed");
+    client.verify(&proof, &vk).expect("verification failed");
 
-    // Save proof.
+    // Test a round trip of proof serialization and deserialization.
     proof
-        .save("proof-with-pis.json")
+        .save("proof-with-pis.bin")
         .expect("saving proof failed");
+    let deserialized_proof = SP1Proof::load("proof-with-pis.bin").expect("loading proof failed");
+
+    // Verify the deserialized proof.
+    client
+        .verify(&deserialized_proof, &vk)
+        .expect("verification failed");
 
     println!("successfully generated and verified proof for the program!")
 }

@@ -9,4 +9,4 @@ p3-field = { workspace = true }
 p3-baby-bear = { workspace = true }
 p3-poseidon2 = { workspace = true }
 p3-symmetric = { workspace = true }
-itertools = "0.12.1"
+itertools = "0.13.0"

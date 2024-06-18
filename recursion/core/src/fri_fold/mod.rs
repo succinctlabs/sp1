@@ -25,6 +25,7 @@ pub const NUM_FRI_FOLD_COLS: usize = core::mem::size_of::<FriFoldCols<u8>>();
 #[derive(Default)]
 pub struct FriFoldChip<const DEGREE: usize> {
     pub fixed_log2_rows: Option<usize>,
+    pub pad: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -143,11 +144,13 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldChip<DEGREE>
             .collect_vec();
 
         // Pad the trace to a power of two.
-        pad_rows_fixed(
-            &mut rows,
-            || [F::zero(); NUM_FRI_FOLD_COLS],
-            self.fixed_log2_rows,
-        );
+        if self.pad {
+            pad_rows_fixed(
+                &mut rows,
+                || [F::zero(); NUM_FRI_FOLD_COLS],
+                self.fixed_log2_rows,
+            );
+        }
 
         // Convert the trace to a row major matrix.
         let trace = RowMajorMatrix::new(rows.into_iter().flatten().collect(), NUM_FRI_FOLD_COLS);
@@ -211,7 +214,7 @@ impl<const DEGREE: usize> FriFoldChip<DEGREE> {
             .when(next.is_real)
             .assert_zero(next.m);
 
-        // Ensure that all rows for a FRI FOLD invocation have the same input_ptr, clk, and sequential m values.
+        // Ensure that all rows for a FRI FOLD invocation have the same input_ptr and sequential clk and m values.
         builder
             .when_transition()
             .when_not(local.is_last_iteration)

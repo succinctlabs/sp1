@@ -3,6 +3,7 @@ mod config;
 pub mod ec;
 mod logger;
 mod options;
+#[cfg(any(test, feature = "programs"))]
 mod programs;
 mod prove;
 mod tracer;
@@ -14,7 +15,7 @@ pub use options::*;
 pub use prove::*;
 pub use tracer::*;
 
-#[cfg(test)]
+#[cfg(any(test, feature = "programs"))]
 pub use programs::*;
 
 use crate::{memory::MemoryCols, operations::field::params::Limbs};

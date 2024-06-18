@@ -24,6 +24,7 @@ pub const WIDTH: usize = 16;
 #[derive(Default)]
 pub struct Poseidon2Chip {
     pub fixed_log2_rows: Option<usize>,
+    pub pad: bool,
 }
 
 impl<F> BaseAir<F> for Poseidon2Chip {
@@ -447,6 +448,7 @@ mod tests {
     fn generate_trace() {
         let chip = Poseidon2Chip {
             fixed_log2_rows: None,
+            pad: true,
         };
 
         let rng = &mut rand::thread_rng();
@@ -496,6 +498,7 @@ mod tests {
 
         let chip = Poseidon2Chip {
             fixed_log2_rows: None,
+            pad: true,
         };
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());
