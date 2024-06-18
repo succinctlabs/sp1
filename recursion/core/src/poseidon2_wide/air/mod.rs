@@ -1,5 +1,3 @@
-use std::{borrow::Borrow, ops::Deref};
-
 use p3_air::{Air, BaseAir};
 use p3_matrix::Matrix;
 
@@ -12,10 +10,7 @@ pub mod state_transition;
 pub mod syscall_params;
 
 use super::{
-    columns::{
-        Poseidon2, Poseidon2Degree3, Poseidon2Degree9, NUM_POSEIDON2_DEGREE3_COLS,
-        NUM_POSEIDON2_DEGREE9_COLS,
-    },
+    columns::{NUM_POSEIDON2_DEGREE3_COLS, NUM_POSEIDON2_DEGREE9_COLS},
     Poseidon2WideChip,
 };
 
@@ -38,8 +33,8 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let local_row = Self::convert::<AB>(main.row_slice(0));
-        let next_row = Self::convert::<AB>(main.row_slice(1));
+        let local_row = Self::convert::<AB::Var>(main.row_slice(0));
+        let next_row = Self::convert::<AB::Var>(main.row_slice(1));
         let local_control_flow = local_row.control_flow();
         let next_control_flow = next_row.control_flow();
         let local_syscall = local_row.syscall_params();
@@ -91,24 +86,5 @@ where
             local_memory,
             next_memory,
         );
-    }
-}
-
-impl<'a, const DEGREE: usize> Poseidon2WideChip<DEGREE> {
-    fn convert<AB: SP1RecursionAirBuilder>(
-        row: impl Deref<Target = [AB::Var]>,
-    ) -> Box<dyn Poseidon2<'a, AB::Var> + 'a>
-    where
-        AB::Var: 'a,
-    {
-        if DEGREE == 3 {
-            let convert: &Poseidon2Degree3<AB::Var> = (*row).borrow();
-            Box::new(*convert)
-        } else if DEGREE == 9 {
-            let convert: &Poseidon2Degree9<AB::Var> = (*row).borrow();
-            Box::new(*convert)
-        } else {
-            panic!("Unsupported degree");
-        }
     }
 }

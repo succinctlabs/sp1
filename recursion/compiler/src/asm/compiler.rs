@@ -511,7 +511,6 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                                     result.fp(),
                                     left.fp(),
                                     right.fp(),
-                                    F::zero(),
                                 ),
                                 trace,
                             ),
