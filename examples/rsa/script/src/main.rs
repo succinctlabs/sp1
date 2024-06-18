@@ -2,7 +2,7 @@ use rsa::{
     pkcs8::{DecodePrivateKey, DecodePublicKey},
     RsaPrivateKey, RsaPublicKey,
 };
-use sp1_sdk::{utils, ProverClient, SP1Proof, SP1Stdin};
+use sp1_sdk::{utils, ProverClient, SP1ProofBundle, SP1Stdin};
 use std::vec;
 
 /// The ELF we want to execute inside the zkVM.

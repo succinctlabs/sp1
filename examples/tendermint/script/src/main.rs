@@ -1,4 +1,4 @@
-use sp1_sdk::SP1Proof;
+use sp1_sdk::SP1ProofBundle;
 use std::time::Duration;
 use tokio::runtime::Runtime;
 
