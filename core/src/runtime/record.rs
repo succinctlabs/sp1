@@ -2,7 +2,6 @@ use hashbrown::HashMap;
 use std::mem::take;
 use std::sync::Arc;
 
-use itertools::Itertools;
 use p3_field::AbstractField;
 use serde::{Deserialize, Serialize};
 
@@ -61,8 +60,10 @@ pub struct ExecutionRecord {
     /// A trace of the SLT, SLTI, SLTU, and SLTIU events.
     pub lt_events: Vec<AluEvent>,
 
-    /// All byte lookups that are needed. The layout is shard -> (event -> count). Byte lookups are
-    /// sharded to prevent the multiplicities from overflowing.
+    /// All byte lookups that are needed.
+    ///
+    /// The layout is shard -> (event -> count). Byte lookups are sharded to prevent the
+    /// multiplicities from overflowing.
     pub byte_lookups: HashMap<u32, HashMap<ByteLookupEvent, usize>>,
 
     pub sha_extend_events: Vec<ShaExtendEvent>,
@@ -610,32 +611,29 @@ impl ExecutionRecord {
         self.lt_events.push(lt_event);
     }
 
-    pub fn add_alu_events(&mut self, alu_events: HashMap<Opcode, Vec<AluEvent>>) {
-        let keys = alu_events.keys().sorted();
-        for opcode in keys {
+    pub fn add_alu_events(&mut self, mut alu_events: HashMap<Opcode, Vec<AluEvent>>) {
+        for (opcode, value) in alu_events.iter_mut() {
             match opcode {
                 Opcode::ADD => {
-                    self.add_events.extend_from_slice(&alu_events[opcode]);
+                    self.add_events.append(value);
                 }
                 Opcode::MUL | Opcode::MULH | Opcode::MULHU | Opcode::MULHSU => {
-                    self.mul_events.extend_from_slice(&alu_events[opcode]);
+                    self.mul_events.append(value);
                 }
                 Opcode::SUB => {
-                    self.sub_events.extend_from_slice(&alu_events[opcode]);
+                    self.sub_events.append(value);
                 }
                 Opcode::XOR | Opcode::OR | Opcode::AND => {
-                    self.bitwise_events.extend_from_slice(&alu_events[opcode]);
+                    self.bitwise_events.append(value);
                 }
                 Opcode::SLL => {
-                    self.shift_left_events
-                        .extend_from_slice(&alu_events[opcode]);
+                    self.shift_left_events.append(value);
                 }
                 Opcode::SRL | Opcode::SRA => {
-                    self.shift_right_events
-                        .extend_from_slice(&alu_events[opcode]);
+                    self.shift_right_events.append(value);
                 }
                 Opcode::SLT | Opcode::SLTU => {
-                    self.lt_events.extend_from_slice(&alu_events[opcode]);
+                    self.lt_events.append(value);
                 }
                 _ => {
                     panic!("Invalid opcode: {:?}", opcode);

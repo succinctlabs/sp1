@@ -121,6 +121,7 @@ pub trait ByteRecord {
 
 impl ByteLookupEvent {
     /// Creates a new `ByteLookupEvent`.
+    #[inline(always)]
     pub fn new(
         shard: u32,
         channel: u32,
