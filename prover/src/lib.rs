@@ -339,7 +339,7 @@ impl SP1Prover {
                 sp1_vk: vk,
                 sp1_machine: &self.core_machine,
                 end_pc: Val::<InnerSC>::zero(),
-                end_shard: last_proof_pv.shard,
+                end_shard: last_proof_pv.shard + BabyBear::one(),
                 leaf_challenger: leaf_challenger.clone(),
                 committed_value_digest: last_proof_pv.committed_value_digest.to_vec(),
                 deferred_proofs_digest: last_proof_pv.deferred_proofs_digest.to_vec(),
