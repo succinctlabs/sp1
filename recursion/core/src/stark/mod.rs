@@ -138,7 +138,7 @@ impl<
                 fixed_log2_rows: Some(19),
             })))
             .chain(once(RecursionAir::Multi(MultiChip {
-                fixed_log2_rows: Some(20),
+                fixed_log2_rows: Some(17),
             })))
             .chain(once(RecursionAir::RangeCheck(RangeCheckChip::default())))
             .chain(once(RecursionAir::ExpReverseBitsLen(
