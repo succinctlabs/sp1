@@ -229,9 +229,9 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
         let mut absorb_rows = Vec::new();
 
         let mut last_row_ending_cursor = 0;
-        let num_absorb_rows = absorb_event.absorb_iterations.len();
+        let num_absorb_rows = absorb_event.iterations.len();
 
-        for (iter_num, absorb_iter) in absorb_event.absorb_iterations.iter().enumerate() {
+        for (iter_num, absorb_iter) in absorb_event.iterations.iter().enumerate() {
             let mut absorb_row = vec![F::zero(); num_columns];
             let is_syscall_row = iter_num == 0;
             let is_last_row = iter_num == num_absorb_rows - 1;
@@ -252,7 +252,7 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
 
                 syscall_params.clk = absorb_event.clk;
                 syscall_params.hash_num = absorb_event.hash_num;
-                syscall_params.input_ptr = absorb_event.input_ptr;
+                syscall_params.input_ptr = absorb_event.input_addr;
                 syscall_params.input_len = F::from_canonical_usize(absorb_event.input_len);
             }
 

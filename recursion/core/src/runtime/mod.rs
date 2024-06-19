@@ -661,6 +661,7 @@ where
                 }
                 Opcode::Poseidon2Compress => {
                     self.nb_poseidons += 1;
+
                     let (a_val, b_val, c_val) = self.all_rr(&instruction);
 
                     // Get the dst array ptr.
@@ -695,9 +696,6 @@ where
                     // Perform the permutation.
                     let result = self.perm.as_ref().unwrap().permute(array);
 
-                    // Perform the dummy permutation for the output compress row.
-                    let dummy_output_permutation = self.perm.as_ref().unwrap().permute(result);
-
                     // Write the value back to the array at ptr.
                     let mut result_records = vec![];
                     for (i, value) in result.iter().enumerate() {
@@ -719,7 +717,6 @@ where
                             result_array: result,
                             input_records,
                             result_records: result_records.try_into().unwrap(),
-                            dummy_output_permutation,
                         });
 
                     (a, b, c) = (a_val, b_val, c_val);
@@ -729,93 +726,84 @@ where
                     self.nb_poseidons += 1;
                     let (a_val, b_val, c_val) = self.all_rr(&instruction);
 
-                    let p2_hash_num = a_val[0];
-                    let input_ptr = b_val[0];
-                    let input_len = c_val[0].as_canonical_u32() as usize;
+                    let hash_num = a_val[0];
+                    let start_addr = b_val[0].as_canonical_u32();
+                    let input_len = c_val[0].as_canonical_u32();
+                    let end_addr = start_addr + input_len;
                     let timestamp = self.clk;
 
-                    let mut absorb_iterations = Vec::new();
+                    let is_hash_first_absorb = self.p2_current_hash_num.is_none()
+                        || self.p2_current_hash_num.unwrap() != hash_num;
+
+                    let mut absorb_event = Poseidon2AbsorbEvent {
+                        clk: timestamp,
+                        hash_num,
+                        input_addr: F::from_canonical_u32(start_addr),
+                        input_len: input_len as usize,
+                        iterations: Vec::new(),
+                        is_hash_first_absorb,
+                    };
+
                     let mut input_records = Vec::new();
-                    let mut state_cursor = self.p2_hash_state_cursor;
-                    let mut addr_iter = input_ptr;
-                    let mut start_addr = addr_iter;
                     let mut previous_state = self.p2_hash_state;
-                    let mut num_consumed = 0;
-                    let mut remaining_len = input_len;
+                    let mut iter_num_consumed = 0;
                     let permuter = self.perm.as_ref().unwrap().clone();
-                    for _ in 0..input_len {
-                        let (input_record, input_val) = self.mr(addr_iter, timestamp);
+                    for addr_iter in start_addr..end_addr {
+                        // Read from memory.
+                        let (input_record, input_val) =
+                            self.mr(F::from_canonical_u32(addr_iter), timestamp);
                         input_records.push(input_record);
 
                         self.p2_hash_state[self.p2_hash_state_cursor] = input_val.0[0];
                         self.p2_hash_state_cursor += 1;
-                        addr_iter += F::one();
-                        num_consumed += 1;
+                        iter_num_consumed += 1;
 
+                        // Do a permutation when the hash state is full.
                         if self.p2_hash_state_cursor == RATE {
                             let perm_input = self.p2_hash_state;
                             permuter.permute_mut(&mut self.p2_hash_state);
 
-                            absorb_iterations.push(Poseidon2AbsorbIteration {
-                                state_cursor,
-                                start_addr,
+                            absorb_event.iterations.push(Poseidon2AbsorbIteration {
+                                state_cursor: self.p2_hash_state_cursor - iter_num_consumed,
+                                start_addr: F::from_canonical_u32(
+                                    addr_iter - iter_num_consumed as u32 + 1,
+                                ),
                                 input_records,
                                 perm_input,
                                 perm_output: self.p2_hash_state,
                                 previous_state,
                                 state: self.p2_hash_state,
                                 do_perm: true,
-                                num_consumed,
-                                remaining_len,
                             });
 
-                            remaining_len -= num_consumed;
                             previous_state = self.p2_hash_state;
                             input_records = Vec::new();
                             self.p2_hash_state_cursor = 0;
-                            state_cursor = 0;
-                            start_addr = addr_iter;
-                            num_consumed = 0;
+                            iter_num_consumed = 0;
                         }
                     }
 
                     if self.p2_hash_state_cursor != 0 {
-                        // Do a dummy permute.
-                        let dummy_permute = permuter.permute(self.p2_hash_state);
-
-                        absorb_iterations.push(Poseidon2AbsorbIteration {
-                            state_cursor,
-                            start_addr,
+                        // Note that we still do a permutation, generate the trace and enforce permutation
+                        // constraints for every absorb and finalize row.
+                        absorb_event.iterations.push(Poseidon2AbsorbIteration {
+                            state_cursor: self.p2_hash_state_cursor - iter_num_consumed,
+                            start_addr: F::from_canonical_u32(end_addr - iter_num_consumed as u32),
                             input_records,
                             perm_input: self.p2_hash_state,
-                            perm_output: dummy_permute,
+                            perm_output: permuter.permute(self.p2_hash_state),
                             previous_state,
                             state: self.p2_hash_state,
                             do_perm: false,
-                            num_consumed,
-                            remaining_len,
                         });
                     }
 
-                    let is_hash_first_absorb = if self.p2_current_hash_num.is_none()
-                        || self.p2_current_hash_num.unwrap() != p2_hash_num
-                    {
-                        self.p2_current_hash_num = Some(p2_hash_num);
-                        true
-                    } else {
-                        false
-                    };
+                    // Update the current hash number.
+                    self.p2_current_hash_num = Some(hash_num);
 
                     self.record
                         .poseidon2_hash_events
-                        .push(Poseidon2HashEvent::Absorb(Poseidon2AbsorbEvent {
-                            clk: timestamp,
-                            hash_num: p2_hash_num,
-                            input_ptr,
-                            input_len,
-                            absorb_iterations,
-                            is_hash_first_absorb,
-                        }));
+                        .push(Poseidon2HashEvent::Absorb(absorb_event));
 
                     (a, b, c) = (a_val, b_val, c_val);
                 }
@@ -836,10 +824,8 @@ where
                         self.p2_hash_state
                     };
 
-                    let mut output_records = Vec::new();
-                    (0..DIGEST_SIZE).for_each(|i| {
-                        let i_f = F::from_canonical_u32(i as u32);
-                        output_records.push(self.mw(output_ptr + i_f, state[i], timestamp));
+                    let output_records: [MemoryRecord<F>; DIGEST_SIZE] = array::from_fn(|i| {
+                        self.mw(output_ptr + F::from_canonical_usize(i), state[i], timestamp)
                     });
 
                     self.record
@@ -848,13 +834,13 @@ where
                             clk: timestamp,
                             hash_num: p2_hash_num,
                             output_ptr,
-                            do_perm,
+                            state_cursor: self.p2_hash_state_cursor,
+                            output_records,
                             perm_input: self.p2_hash_state,
                             perm_output,
                             previous_state: self.p2_hash_state,
                             state,
-                            state_cursor: self.p2_hash_state_cursor,
-                            output_records: array::from_fn(|i| output_records[i]),
+                            do_perm,
                         }));
 
                     self.p2_hash_state_cursor = 0;

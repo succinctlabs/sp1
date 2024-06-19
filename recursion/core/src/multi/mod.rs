@@ -340,7 +340,7 @@ mod tests {
         for (input, output) in test_inputs.into_iter().zip_eq(expected_outputs) {
             input_exec
                 .poseidon2_compress_events
-                .push(Poseidon2CompressEvent::dummy_from_input(input, output));
+                .push(Poseidon2CompressEvent::create_test_event(input, output));
         }
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());
