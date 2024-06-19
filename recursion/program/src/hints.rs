@@ -635,6 +635,7 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
         let leaf_challenger = DuplexChallenger::<InnerVal, InnerPerm, 16, 8>::read(builder);
         let end_pc = InnerVal::read(builder);
         let end_shard = InnerVal::read(builder);
+        let total_core_shards = builder.hint_var();
 
         SP1DeferredMemoryLayoutVariable {
             compress_vk,
@@ -647,6 +648,7 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
             leaf_challenger,
             end_pc,
             end_shard,
+            total_core_shards,
         }
     }
 
@@ -682,6 +684,7 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
         stream.extend(self.leaf_challenger.write());
         stream.extend(self.end_pc.write());
         stream.extend(self.end_shard.write());
+        stream.extend(self.total_core_shards.write());
 
         stream
     }

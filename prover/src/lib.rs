@@ -321,6 +321,7 @@ impl SP1Prover {
         last_proof_pv: &PublicValues<Word<BabyBear>, BabyBear>,
         deferred_proofs: &[ShardProof<InnerSC>],
         batch_size: usize,
+        total_core_shards: usize,
     ) -> Vec<SP1DeferredMemoryLayout<'a, InnerSC, RecursionAir<BabyBear, 3>>> {
         // Prepare the inputs for the deferred proofs recursive verification.
         let mut deferred_digest = [Val::<InnerSC>::zero(); DIGEST_SIZE];
@@ -342,6 +343,7 @@ impl SP1Prover {
                 leaf_challenger: leaf_challenger.clone(),
                 committed_value_digest: last_proof_pv.committed_value_digest.to_vec(),
                 deferred_proofs_digest: last_proof_pv.deferred_proofs_digest.to_vec(),
+                total_core_shards,
             });
 
             deferred_digest = Self::hash_deferred_proofs(deferred_digest, batch);
@@ -378,6 +380,7 @@ impl SP1Prover {
             &last_proof_pv,
             deferred_proofs,
             batch_size,
+            shard_proofs.len(),
         );
         (core_inputs, deferred_inputs)
     }
