@@ -545,7 +545,7 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
         stream.extend(self.leaf_challenger.write());
         stream.extend(self.initial_reconstruct_challenger.write());
         stream.extend((self.is_complete as usize).write());
-        stream.extend((self.total_core_shards as usize).write());
+        stream.extend(self.total_core_shards.write());
 
         stream
     }
@@ -590,7 +590,7 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C> for SP1ReduceMemoryLayout<'a, Baby
         stream.extend(proof_hints.write());
         stream.extend(kinds.write());
         stream.extend((self.is_complete as usize).write());
-        stream.extend((self.total_core_shards as usize).write());
+        stream.extend(self.total_core_shards.write());
 
         stream
     }
