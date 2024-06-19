@@ -11,14 +11,13 @@ import (
 	"github.com/succinctlabs/sp1-recursion-gnark/sp1/poseidon2"
 )
 
-var SRS_FILE string = "srs.bin"
-var SRS_LAGRANGE_FILE string = "srs_lagrange.bin"
-var CONSTRAINTS_JSON_FILE string = "constraints.json"
-var WITNESS_JSON_FILE string = "witness.json"
-var VERIFIER_CONTRACT_PATH string = "PlonkVerifier.sol"
-var CIRCUIT_PATH string = "circuit.bin"
-var VK_PATH string = "vk.bin"
-var PK_PATH string = "pk.bin"
+var srsFile string = "srs.bin"
+var srsLagrangeFile string = "srs_lagrange.bin"
+var constraintsJsonFile string = "constraints.json"
+var verifierContractPath string = "PlonkVerifier.sol"
+var circuitPath string = "circuit.bin"
+var vkPath string = "vk.bin"
+var pkPath string = "pk.bin"
 
 type Circuit struct {
 	VkeyHash             frontend.Variable `gnark:",public"`

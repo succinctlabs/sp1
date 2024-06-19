@@ -28,7 +28,7 @@ func Verify(verifyCmdDataDir string, verifyCmdProof string, verifyCmdVkeyHash st
 	}
 
 	// Read the verifier key.
-	vkFile, err := os.Open(verifyCmdDataDir + "/" + VK_PATH)
+	vkFile, err := os.Open(verifyCmdDataDir + "/" + vkPath)
 	if err != nil {
 		panic(err)
 	}
