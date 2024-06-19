@@ -8,7 +8,7 @@ use crate::{
     poseidon2_wide::{RATE, WIDTH},
 };
 
-/// Workspace columns for the compress, absorb, and finalize rows.
+/// Workspace columns.  They are different for each opcode.
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
 pub union OpcodeWorkspace<T: Copy> {
@@ -71,10 +71,6 @@ pub struct AbsorbWorkspace<T: Copy> {
     pub last_row_ending_cursor_is_seven: IsZeroOperation<T>, // Needed when doing the (last_row_ending_cursor_is_seven + 1) % 8 calculation.
     pub last_row_ending_cursor_bitmap: [T; 3],
 
-    /// Only used for non syscall absorb rows.
-    /// read_ptr' = read_ptr + num_consumed
-    pub read_ptr: T,
-
     /// Materialized control flow flags to deal with max contraint degree.
     pub is_syscall_not_last_row: T,
     pub is_syscall_is_last_row: T,
@@ -84,6 +80,7 @@ pub struct AbsorbWorkspace<T: Copy> {
     pub is_last_row_ending_cursor_not_seven: T,
 }
 
+/// Methods that are "virtual" columns (e.g. will return expressions).
 impl<T: Copy> AbsorbWorkspace<T> {
     pub(crate) fn is_last_row<AB: SP1RecursionAirBuilder>(&self) -> AB::Expr
     where

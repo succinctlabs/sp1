@@ -6,6 +6,7 @@ use crate::poseidon2_wide::{NUM_EXTERNAL_ROUNDS, NUM_INTERNAL_ROUNDS, WIDTH};
 
 use super::{POSEIDON2_DEGREE3_COL_MAP, POSEIDON2_DEGREE9_COL_MAP};
 
+/// Trait that describes getter functions for the permutation columns.
 pub trait Permutation<T: Copy> {
     fn external_rounds_state(&self) -> &[[T; WIDTH]];
 
@@ -20,6 +21,7 @@ pub trait Permutation<T: Copy> {
     fn perm_output(&self) -> &[T; WIDTH];
 }
 
+/// Trait that describes setter functions for the permutation columns.
 pub trait PermutationMut<T: Copy> {
     #[allow(clippy::type_complexity)]
     fn get_cols_mut(
@@ -34,6 +36,7 @@ pub trait PermutationMut<T: Copy> {
     );
 }
 
+/// Permutation columns struct with S-boxes.
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
 pub struct PermutationSBox<T: Copy> {
@@ -93,6 +96,7 @@ impl<T: Copy> PermutationMut<T> for &mut PermutationSBox<T> {
     }
 }
 
+/// Permutation columns struct without S-boxes.
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
 pub struct PermutationNoSbox<T: Copy> {
@@ -150,6 +154,7 @@ impl<T: Copy> PermutationMut<T> for &mut PermutationNoSbox<T> {
     }
 }
 
+/// Permutation columns struct without S-boxes and half of the external rounds.
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
 pub struct PermutationNoSboxHalfExternal<T: Copy> {

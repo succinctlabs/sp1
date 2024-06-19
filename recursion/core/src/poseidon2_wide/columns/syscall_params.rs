@@ -4,6 +4,7 @@ use sp1_derive::AlignedBorrow;
 
 const SYSCALL_PARAMS_SIZE: usize = size_of::<SyscallParams<u8>>();
 
+/// Syscall params columns.  They are different for each opcode.
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
 pub union SyscallParams<T: Copy> {
