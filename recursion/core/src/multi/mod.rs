@@ -289,26 +289,22 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize> MultiChip<DEGREE, ROUND
 
 #[cfg(test)]
 mod tests {
-    use itertools::Itertools;
     use std::time::Instant;
 
     use p3_baby_bear::BabyBear;
     use p3_baby_bear::DiffusionMatrixBabyBear;
-    use p3_field::AbstractField;
     use p3_matrix::{dense::RowMajorMatrix, Matrix};
     use p3_poseidon2::Poseidon2;
     use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
     use sp1_core::stark::StarkGenericConfig;
-    use sp1_core::utils::inner_perm;
     use sp1_core::{
         air::MachineAir,
         utils::{uni_stark_prove, uni_stark_verify, BabyBearPoseidon2},
     };
 
     use crate::multi::MultiChip;
-    use crate::poseidon2_wide::events::Poseidon2CompressEvent;
+    use crate::poseidon2_wide::tests::generate_test_execution_record;
     use crate::runtime::ExecutionRecord;
-    use p3_symmetric::Permutation;
 
     #[test]
     fn prove_babybear() {
@@ -319,29 +315,7 @@ mod tests {
             fixed_log2_rows: None,
         };
 
-        let test_inputs = (0..16)
-            .map(|i| [BabyBear::from_canonical_u32(i); 16])
-            .collect_vec();
-
-        let gt: Poseidon2<
-            BabyBear,
-            Poseidon2ExternalMatrixGeneral,
-            DiffusionMatrixBabyBear,
-            16,
-            7,
-        > = inner_perm();
-
-        let expected_outputs = test_inputs
-            .iter()
-            .map(|input| gt.permute(*input))
-            .collect::<Vec<_>>();
-
-        let mut input_exec = ExecutionRecord::<BabyBear>::default();
-        for (input, output) in test_inputs.into_iter().zip_eq(expected_outputs) {
-            input_exec
-                .poseidon2_compress_events
-                .push(Poseidon2CompressEvent::create_test_event(input, output));
-        }
+        let input_exec = generate_test_execution_record(false);
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());
         println!(

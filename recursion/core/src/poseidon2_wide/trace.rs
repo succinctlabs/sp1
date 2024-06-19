@@ -228,6 +228,9 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
     ) -> Vec<Vec<F>> {
         let mut absorb_rows = Vec::new();
 
+        // We currently don't support an input_len of 0, since it will need special logic in the AIR.
+        assert!(absorb_event.input_len > F::zero());
+
         let mut last_row_ending_cursor = 0;
         let num_absorb_rows = absorb_event.iterations.len();
 
@@ -253,7 +256,7 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
                 syscall_params.clk = absorb_event.clk;
                 syscall_params.hash_num = absorb_event.hash_num;
                 syscall_params.input_ptr = absorb_event.input_addr;
-                syscall_params.input_len = F::from_canonical_usize(absorb_event.input_len);
+                syscall_params.input_len = absorb_event.input_len;
             }
 
             {
@@ -279,8 +282,10 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
                 // last_row_num_consumed = (input_len + state_cursor) % 8 at the syscall row.
                 // For absorb calls that are only one row, last_row_num_consumed = absorb_event.input_len.
                 if is_syscall_row {
-                    last_row_ending_cursor =
-                        (absorb_iter.state_cursor + absorb_event.input_len - 1) % RATE;
+                    last_row_ending_cursor = (absorb_iter.state_cursor
+                        + absorb_event.input_len.as_canonical_u32() as usize
+                        - 1)
+                        % RATE;
                 }
 
                 absorb_workspace.last_row_ending_cursor =
@@ -319,7 +324,7 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
                 absorb_workspace.previous_state = absorb_iter.previous_state;
                 absorb_workspace.state_cursor = F::from_canonical_usize(absorb_iter.state_cursor);
                 absorb_workspace.is_first_hash_row =
-                    F::from_bool(iter_num == 0 && absorb_event.is_hash_first_absorb);
+                    F::from_bool(iter_num == 0 && absorb_event.is_first_aborb);
             }
 
             self.populate_permutation(
