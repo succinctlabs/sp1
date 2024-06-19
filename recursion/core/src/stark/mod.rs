@@ -16,8 +16,8 @@ use std::marker::PhantomData;
 use crate::runtime::D;
 
 pub type RecursionAirWideDeg3<F> = RecursionAir<F, 3, 1>;
-pub type RecursionAirSkinnyDeg9<F> = RecursionAir<F, 9, 1>;
-pub type RecursionAirSkinnyDeg15<F> = RecursionAir<F, 15, 1>;
+pub type RecursionAirWideDeg9<F> = RecursionAir<F, 9, 1>;
+pub type RecursionAirWideDeg17<F> = RecursionAir<F, 17, 1>;
 
 #[derive(MachineAir)]
 #[sp1_core_path = "sp1_core"]
