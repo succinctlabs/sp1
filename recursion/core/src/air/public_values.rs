@@ -110,13 +110,13 @@ pub struct RecursionPublicValues<T> {
     /// Whether the proof completely proves the program execution.
     pub is_complete: T,
 
+    /// Total number of core shards in the program execution.
+    pub total_core_shards: T,
+
     /// The digest of all the previous public values elements.
     pub digest: [T; DIGEST_SIZE],
 
     /// The exit code of the program.  Note that this is not part of the public values digest, since
     /// it's value will be individually constrained.
     pub exit_code: T,
-
-    /// Total number of core shards in the program execution.
-    pub total_core_shards: T,
 }
