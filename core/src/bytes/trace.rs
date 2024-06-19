@@ -29,7 +29,7 @@ impl<F: Field> MachineAir<F> for ByteChip<F> {
     }
 
     fn generate_preprocessed_trace(&self, _program: &Self::Program) -> Option<RowMajorMatrix<F>> {
-        let trace = Self::trace(0);
+        let trace = Self::trace();
         Some(trace)
     }
 
