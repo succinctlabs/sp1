@@ -10,10 +10,7 @@ pub mod state_transition;
 pub mod syscall_params;
 
 use super::{
-    columns::{
-        Poseidon2, NUM_POSEIDON2_DEGREE17_COLS, NUM_POSEIDON2_DEGREE3_COLS,
-        NUM_POSEIDON2_DEGREE9_COLS,
-    },
+    columns::{Poseidon2, NUM_POSEIDON2_DEGREE3_COLS, NUM_POSEIDON2_DEGREE9_COLS},
     Poseidon2WideChip, WIDTH,
 };
 
@@ -23,10 +20,8 @@ impl<F, const DEGREE: usize, const ROUND_CHUNK_SIZE: usize> BaseAir<F>
     fn width(&self) -> usize {
         if DEGREE == 3 {
             NUM_POSEIDON2_DEGREE3_COLS
-        } else if DEGREE == 9 {
+        } else if DEGREE == 9 || DEGREE == 17 {
             NUM_POSEIDON2_DEGREE9_COLS
-        } else if DEGREE == 17 {
-            NUM_POSEIDON2_DEGREE17_COLS
         } else {
             panic!("Unsupported degree: {}", DEGREE);
         }

@@ -16,7 +16,6 @@ use crate::{
     runtime::{ExecutionRecord, RecursionProgram},
 };
 
-use super::columns::Poseidon2Degree17;
 use super::events::{Poseidon2AbsorbEvent, Poseidon2CompressEvent, Poseidon2FinalizeEvent};
 use super::RATE;
 use super::{
@@ -108,11 +107,8 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
         if DEGREE == 3 {
             let convert: &mut Poseidon2Degree3<F> = row.as_mut_slice().borrow_mut();
             Box::new(convert)
-        } else if DEGREE == 9 {
+        } else if DEGREE == 9 || DEGREE == 17 {
             let convert: &mut Poseidon2Degree9<F> = row.as_mut_slice().borrow_mut();
-            Box::new(convert)
-        } else if DEGREE == 17 {
-            let convert: &mut Poseidon2Degree17<F> = row.as_mut_slice().borrow_mut();
             Box::new(convert)
         } else {
             panic!("Unsupported degree");

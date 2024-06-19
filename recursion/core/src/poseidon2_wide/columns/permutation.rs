@@ -4,7 +4,7 @@ use sp1_derive::AlignedBorrow;
 
 use crate::poseidon2_wide::{NUM_EXTERNAL_ROUNDS, NUM_INTERNAL_ROUNDS, WIDTH};
 
-use super::{POSEIDON2_DEGREE17_COL_MAP, POSEIDON2_DEGREE3_COL_MAP, POSEIDON2_DEGREE9_COL_MAP};
+use super::{POSEIDON2_DEGREE3_COL_MAP, POSEIDON2_DEGREE9_COL_MAP};
 
 pub trait Permutation<T: Copy> {
     fn external_rounds_state(&self) -> &[[T; WIDTH]];
@@ -220,21 +220,13 @@ where
         let end = start + size_of::<PermutationSBox<u8>>();
         let convert: &mut PermutationSBox<T> = row[start..end].borrow_mut();
         Box::new(convert)
-    } else if DEGREE == 9 {
+    } else if DEGREE == 9 || DEGREE == 17 {
         let start = POSEIDON2_DEGREE9_COL_MAP
             .permutation_cols
             .external_rounds_state[0][0];
         let end = start + size_of::<PermutationNoSbox<u8>>();
 
         let convert: &mut PermutationNoSbox<T> = row[start..end].borrow_mut();
-        Box::new(convert)
-    } else if DEGREE == 17 {
-        let start = POSEIDON2_DEGREE17_COL_MAP
-            .permutation_cols
-            .external_rounds_state[0][0];
-        let end = start + size_of::<PermutationNoSboxHalfExternal<u8>>();
-
-        let convert: &mut PermutationNoSboxHalfExternal<T> = row[start..end].borrow_mut();
         Box::new(convert)
     } else {
         panic!("Unsupported degree");

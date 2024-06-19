@@ -160,13 +160,6 @@ where
             .product::<AB::Expr>();
         builder.assert_eq(lhs, rhs);
 
-        // Add some dummy constraints to compress the interactions.
-        let mut expr = local_multi_cols.is_fri_fold * local_multi_cols.is_fri_fold;
-        for _ in 0..(DEGREE - 2) {
-            expr *= local_multi_cols.is_fri_fold.into();
-        }
-        builder.assert_eq(expr.clone(), expr.clone());
-
         let next_is_real = next_multi_cols.is_fri_fold + next_multi_cols.is_poseidon2;
         let local_is_real = local_multi_cols.is_fri_fold + local_multi_cols.is_poseidon2;
 

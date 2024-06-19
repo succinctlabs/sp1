@@ -78,7 +78,7 @@ const WRAP_DEGREE: usize = 17;
 
 pub type ReduceAir<F> = RecursionAir<F, REDUCE_DEGREE, 1>;
 pub type CompressAir<F> = RecursionAir<F, COMPRESS_DEGREE, 1>;
-pub type WrapAir<F> = RecursionAir<F, WRAP_DEGREE, 2>;
+pub type WrapAir<F> = RecursionAir<F, WRAP_DEGREE, 1>;
 
 /// A end-to-end prover implementation for the SP1 RISC-V zkVM.
 pub struct SP1Prover {
