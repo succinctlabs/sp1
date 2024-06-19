@@ -1,6 +1,7 @@
 #![allow(clippy::needless_range_loop)]
 
 use std::borrow::Borrow;
+use std::borrow::BorrowMut;
 use std::ops::Deref;
 
 use p3_baby_bear::{MONTY_INVERSE, POSEIDON2_INTERNAL_MATRIX_DIAG_16_BABYBEAR_MONTY};
@@ -17,6 +18,7 @@ use p3_poseidon2::matmul_internal;
 use self::columns::Poseidon2;
 use self::columns::Poseidon2Degree3;
 use self::columns::Poseidon2Degree9;
+use self::columns::Poseidon2Mut;
 
 /// The width of the permutation.
 pub const WIDTH: usize = 16;
@@ -36,6 +38,7 @@ pub struct Poseidon2WideChip<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
 impl<'a, const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
     Poseidon2WideChip<DEGREE, ROUND_CHUNK_SIZE>
 {
+    /// Transmute a row it to an immutable Poseidon2 instance.
     pub(crate) fn convert<T>(row: impl Deref<Target = [T]>) -> Box<dyn Poseidon2<'a, T> + 'a>
     where
         T: Copy + 'a,
@@ -46,6 +49,22 @@ impl<'a, const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
         } else if DEGREE == 9 || DEGREE == 17 {
             let convert: &Poseidon2Degree9<T> = (*row).borrow();
             Box::new(*convert)
+        } else {
+            panic!("Unsupported degree");
+        }
+    }
+
+    /// Transmute a row it to a mutable Poseidon2 instance.
+    pub(crate) fn convert_mut<'b: 'a, F: PrimeField32>(
+        &self,
+        row: &'b mut Vec<F>,
+    ) -> Box<dyn Poseidon2Mut<'a, F> + 'a> {
+        if DEGREE == 3 {
+            let convert: &mut Poseidon2Degree3<F> = row.as_mut_slice().borrow_mut();
+            Box::new(convert)
+        } else if DEGREE == 9 || DEGREE == 17 {
+            let convert: &mut Poseidon2Degree9<F> = row.as_mut_slice().borrow_mut();
+            Box::new(convert)
         } else {
             panic!("Unsupported degree");
         }
@@ -161,7 +180,7 @@ pub(crate) mod tests {
     }
 
     pub(crate) fn generate_test_execution_record(
-        incorrect_output: bool,
+        incorrect_trace: bool,
     ) -> ExecutionRecord<BabyBear> {
         const NUM_ABSORBS: usize = 1000;
         const NUM_COMPRESSES: usize = 1000;
@@ -213,7 +232,7 @@ pub(crate) mod tests {
 
                 let do_perm = hash_state_cursor != 0;
                 let mut perm_output = permuter.permute(hash_state);
-                if incorrect_output {
+                if incorrect_trace {
                     perm_output = [BabyBear::rand(rng); WIDTH];
                 }
 
@@ -249,7 +268,7 @@ pub(crate) mod tests {
             .enumerate()
             .for_each(|(i, input)| {
                 let mut result_array = permuter.permute(*input);
-                if incorrect_output {
+                if incorrect_trace {
                     result_array = core::array::from_fn(|_| BabyBear::rand(rng));
                 }
                 let prev_ts = BabyBear::from_canonical_usize(i);
