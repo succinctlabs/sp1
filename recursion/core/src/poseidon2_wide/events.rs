@@ -40,7 +40,7 @@ impl<F: PrimeField32> Poseidon2CompressEvent<F> {
             left: F::zero(),
             right: F::zero(),
             input,
-            result_array: [F::zero(); WIDTH],
+            result_array: output,
             input_records,
             result_records: output_records,
             dummy_output_permutation: [F::zero(); WIDTH],

@@ -315,7 +315,7 @@ mod tests {
         let config = BabyBearPoseidon2::compressed();
         let mut challenger = config.challenger();
 
-        let chip = MultiChip::<5, 1> {
+        let chip = MultiChip::<9, 1> {
             fixed_log2_rows: None,
         };
 
