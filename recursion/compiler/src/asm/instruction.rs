@@ -154,7 +154,7 @@ pub enum AsmInstruction<F, EF> {
     /// Performs a Posedion2 absorb.
     Poseidon2Absorb(i32, i32, i32),
 
-    /// Perform a Poseidon2 finalize.
+    /// Performs a Poseidon2 finalize.
     Poseidon2Finalize(i32, i32),
 
     /// Print a variable.
@@ -876,7 +876,6 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 false,
                 "".to_string(),
             ),
-
             AsmInstruction::Commit(val, index) => Instruction::new(
                 Opcode::Commit,
                 i32_f(val),
@@ -1185,7 +1184,6 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
             AsmInstruction::Poseidon2Finalize(hash_num, output_ptr) => {
                 write!(f, "poseidon2_finalize ({})fp, {})fp", hash_num, output_ptr,)
             }
-
             AsmInstruction::Commit(val, index) => {
                 write!(f, "commit ({})fp ({})fp", val, index)
             }

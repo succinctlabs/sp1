@@ -7,7 +7,7 @@ use self::{
     control_flow::ControlFlow,
     memory::Memory,
     opcode_workspace::OpcodeWorkspace,
-    permutation::{Permutation, PermutationNoSbox, PermutationNoSboxHalfExternal, PermutationSBox},
+    permutation::{Permutation, PermutationNoSbox, PermutationSBox},
     syscall_params::SyscallParams,
 };
 
@@ -19,6 +19,7 @@ pub mod opcode_workspace;
 pub mod permutation;
 pub mod syscall_params;
 
+/// Trait for getter methods for Poseidon2 columns.
 pub trait Poseidon2<'a, T: Copy + 'a> {
     fn control_flow(&self) -> &ControlFlow<T>;
 
@@ -31,6 +32,7 @@ pub trait Poseidon2<'a, T: Copy + 'a> {
     fn permutation(&self) -> Box<dyn Permutation<T> + 'a>;
 }
 
+/// Trait for setter methods for Poseidon2 columns.
 pub trait Poseidon2Mut<'a, T: Copy + 'a> {
     fn control_flow_mut(&mut self) -> &mut ControlFlow<T>;
 
@@ -41,6 +43,7 @@ pub trait Poseidon2Mut<'a, T: Copy + 'a> {
     fn opcode_workspace_mut(&mut self) -> &mut OpcodeWorkspace<T>;
 }
 
+/// Enum to enable dynamic dispatch for the Poseidon2 columns.
 #[allow(dead_code)]
 enum Poseidon2Enum<T: Copy> {
     P2Degree3(Poseidon2Degree3<T>),
@@ -86,6 +89,7 @@ impl<'a, T: Copy + 'a> Poseidon2<'a, T> for Poseidon2Enum<T> {
     }
 }
 
+/// Enum to enable dynamic dispatch for the Poseidon2 columns.
 #[allow(dead_code)]
 enum Poseidon2MutEnum<'a, T: Copy> {
     P2Degree3(&'a mut Poseidon2Degree3<T>),
@@ -132,6 +136,7 @@ const fn make_col_map_degree3() -> Poseidon2Degree3<usize> {
 }
 pub const POSEIDON2_DEGREE3_COL_MAP: Poseidon2Degree3<usize> = make_col_map_degree3();
 
+/// Struct for the poseidon2 chip that contains sbox columns.
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
 pub struct Poseidon2Degree3<T: Copy> {
@@ -192,6 +197,7 @@ const fn make_col_map_degree9() -> Poseidon2Degree9<usize> {
 }
 pub const POSEIDON2_DEGREE9_COL_MAP: Poseidon2Degree9<usize> = make_col_map_degree9();
 
+/// Struct for the poseidon2 chip that doesn't contain sbox columns.
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
 pub struct Poseidon2Degree9<T: Copy> {
@@ -226,66 +232,6 @@ impl<'a, T: Copy + 'a> Poseidon2<'a, T> for Poseidon2Degree9<T> {
 }
 
 impl<'a, T: Copy + 'a> Poseidon2Mut<'a, T> for &'a mut Poseidon2Degree9<T> {
-    fn control_flow_mut(&mut self) -> &mut ControlFlow<T> {
-        &mut self.control_flow
-    }
-
-    fn syscall_params_mut(&mut self) -> &mut SyscallParams<T> {
-        &mut self.syscall_input
-    }
-
-    fn memory_mut(&mut self) -> &mut Memory<T> {
-        &mut self.memory
-    }
-
-    fn opcode_workspace_mut(&mut self) -> &mut OpcodeWorkspace<T> {
-        &mut self.opcode_specific_cols
-    }
-}
-
-pub const NUM_POSEIDON2_DEGREE17_COLS: usize = size_of::<Poseidon2Degree17<u8>>();
-const fn make_col_map_degree17() -> Poseidon2Degree17<usize> {
-    let indices_arr = indices_arr::<NUM_POSEIDON2_DEGREE17_COLS>();
-    unsafe {
-        transmute::<[usize; NUM_POSEIDON2_DEGREE17_COLS], Poseidon2Degree17<usize>>(indices_arr)
-    }
-}
-pub const POSEIDON2_DEGREE17_COL_MAP: Poseidon2Degree17<usize> = make_col_map_degree17();
-
-#[derive(AlignedBorrow, Clone, Copy)]
-#[repr(C)]
-pub struct Poseidon2Degree17<T: Copy> {
-    pub control_flow: ControlFlow<T>,
-    pub syscall_input: SyscallParams<T>,
-    pub memory: Memory<T>,
-    pub opcode_specific_cols: OpcodeWorkspace<T>,
-    pub permutation_cols: PermutationNoSboxHalfExternal<T>,
-    pub state_cursor: [T; WIDTH / 2], // Only used for absorb
-}
-
-impl<'a, T: Copy + 'a> Poseidon2<'a, T> for Poseidon2Degree17<T> {
-    fn control_flow(&self) -> &ControlFlow<T> {
-        &self.control_flow
-    }
-
-    fn syscall_params(&self) -> &SyscallParams<T> {
-        &self.syscall_input
-    }
-
-    fn memory(&self) -> &Memory<T> {
-        &self.memory
-    }
-
-    fn opcode_workspace(&self) -> &OpcodeWorkspace<T> {
-        &self.opcode_specific_cols
-    }
-
-    fn permutation(&self) -> Box<dyn Permutation<T> + 'a> {
-        Box::new(self.permutation_cols)
-    }
-}
-
-impl<'a, T: Copy + 'a> Poseidon2Mut<'a, T> for &'a mut Poseidon2Degree17<T> {
     fn control_flow_mut(&mut self) -> &mut ControlFlow<T> {
         &mut self.control_flow
     }

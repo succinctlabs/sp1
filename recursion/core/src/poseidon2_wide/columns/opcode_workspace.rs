@@ -8,6 +8,7 @@ use crate::{
     poseidon2_wide::{RATE, WIDTH},
 };
 
+/// Workspace columns for the compress, absorb, and finalize rows.
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
 pub union OpcodeWorkspace<T: Copy> {
@@ -15,7 +16,7 @@ pub union OpcodeWorkspace<T: Copy> {
     absorb: AbsorbWorkspace<T>,
     finalize: FinalizeWorkspace<T>,
 }
-
+/// Getter and setter functions for the opcode workspace.
 impl<T: Copy> OpcodeWorkspace<T> {
     pub fn compress(&self) -> &CompressWorkspace<T> {
         unsafe { &self.compress }
@@ -42,6 +43,8 @@ impl<T: Copy> OpcodeWorkspace<T> {
     }
 }
 
+/// Workspace columns for compress. This is used memory read/writes for the 2nd half of the
+/// compress permutation state.
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
 pub struct CompressWorkspace<T: Copy> {
@@ -49,6 +52,7 @@ pub struct CompressWorkspace<T: Copy> {
     pub memory_accesses: [MemoryReadWriteSingleCols<T>; WIDTH / 2],
 }
 
+/// Workspace columns for absorb.
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
 pub struct AbsorbWorkspace<T: Copy> {
@@ -72,10 +76,10 @@ pub struct AbsorbWorkspace<T: Copy> {
     pub read_ptr: T,
 
     /// Materialized control flow flags to deal with max contraint degree.
-    pub is_syscall_not_last_row: T, // expected num_consumed == RATE - start_cursor, expected cursor == start_cursor
-    pub is_syscall_is_last_row: T, // expected num_consumed == len, expected cursor == start_cursor
-    pub not_syscall_not_last_row: T, // expected num_consumed == 8, expected cursor == 0;
-    pub not_syscall_is_last_row: T, // expected num_consuemd == last_row_num_consumed, expected_corsor == 0
+    pub is_syscall_not_last_row: T,
+    pub is_syscall_is_last_row: T,
+    pub not_syscall_not_last_row: T,
+    pub not_syscall_is_last_row: T,
     pub is_last_row_ending_cursor_is_seven: T,
     pub is_last_row_ending_cursor_not_seven: T,
 }
@@ -111,6 +115,7 @@ impl<T: Copy> AbsorbWorkspace<T> {
     }
 }
 
+/// Workspace columns for finalize.
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
 pub struct FinalizeWorkspace<T: Copy> {

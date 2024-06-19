@@ -32,8 +32,10 @@ pub enum Opcode {
     TRAP = 30,
     HALT = 31,
 
-    // Poseidon2 compress
+    // Poseidon2 compress.
     Poseidon2Compress = 39,
+
+    // Poseidon2 hash.
     Poseidon2Absorb = 46,
     Poseidon2Finalize = 47,
 

@@ -534,7 +534,6 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                     }
                     _ => unimplemented!(),
                 },
-
                 DslIr::Poseidon2FinalizeBabyBear(p2_hash_num, output) => match output {
                     Array::Dyn(output, _) => {
                         self.push(
@@ -544,7 +543,6 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                     }
                     _ => unimplemented!(),
                 },
-
                 DslIr::Commit(val, index) => {
                     self.push(AsmInstruction::Commit(val.fp(), index.fp()), trace);
                 }

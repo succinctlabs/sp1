@@ -93,9 +93,6 @@ impl<
                 fixed_log2_rows: None,
                 pad: true,
             })))
-            // .chain(once(RecursionAir::Multi(MultiChip {
-            //     fixed_log2_rows: None,
-            // })))
             .chain(once(RecursionAir::RangeCheck(RangeCheckChip::default())))
             .chain(once(RecursionAir::ExpReverseBitsLen(
                 ExpReverseBitsLenChip::<DEGREE> {
