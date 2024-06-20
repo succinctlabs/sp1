@@ -135,7 +135,7 @@ where
         runtime.run().map_err(SP1CoreProverError::ExecutionError)?;
 
         // If debugging is enabled, we will also debug the constraints.
-        #[cfg(feature = "debug")]
+        #[cfg(debug_assertions)]
         {
             let mut challenger = machine.config().challenger();
             machine.debug_constraints(&pk, runtime.record.clone(), &mut challenger);
@@ -336,7 +336,7 @@ where
     OpeningProof<SC>: Send + Sync,
     ShardMainData<SC>: Serialize + DeserializeOwned,
 {
-    #[cfg(feature = "debug")]
+    #[cfg(debug_assertions)]
     {
         let mut challenger_clone = machine.config().challenger();
         let record_clone = record.clone();

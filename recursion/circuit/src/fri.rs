@@ -1,6 +1,8 @@
 use itertools::{izip, Itertools};
 use p3_commit::PolynomialSpace;
+use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
+use p3_field::PackedValue;
 use p3_field::TwoAdicField;
 use p3_fri::FriConfig;
 use p3_matrix::Dimensions;
@@ -32,6 +34,12 @@ pub fn verify_shape_and_sample_challenges<C: Config>(
         let sample = challenger.sample_ext(builder);
         betas.push(sample);
     }
+
+    // Observe the final polynomial.
+    let final_poly_felts = builder.ext2felt_circuit(proof.final_poly);
+    final_poly_felts.iter().for_each(|felt| {
+        challenger.observe(builder, *felt);
+    });
 
     assert_eq!(proof.query_proofs.len(), config.num_queries);
     challenger.check_witness(builder, config.proof_of_work_bits, proof.pow_witness);
