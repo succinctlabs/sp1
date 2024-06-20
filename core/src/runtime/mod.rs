@@ -264,16 +264,9 @@ impl<'a> Runtime<'a> {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => {
                 // If addr has a specific value to be initialized with, use that, otherwise 0.
-                let value = self.state.uninitialized_memory.remove(&addr).unwrap_or(0);
-
-                // Do not emit memory initialize events for address 0 as that is done in initialize.
-                if addr != 0 {
-                    self.record
-                        .memory_initialize_events
-                        .push(MemoryInitializeFinalizeEvent::initialize(addr, value, true));
-                }
+                let value = self.state.uninitialized_memory.get(&addr).unwrap_or(&0);
                 entry.insert(MemoryRecord {
-                    value,
+                    value: *value,
                     shard: 0,
                     timestamp: 0,
                 })
@@ -312,16 +305,10 @@ impl<'a> Runtime<'a> {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => {
                 // If addr has a specific value to be initialized with, use that, otherwise 0.
-                let value = self.state.uninitialized_memory.remove(&addr).unwrap_or(0);
+                let value = self.state.uninitialized_memory.get(&addr).unwrap_or(&0);
 
-                // Do not emit memory initialize events for address 0 as that is done in initialize.
-                if addr != 0 {
-                    self.record
-                        .memory_initialize_events
-                        .push(MemoryInitializeFinalizeEvent::initialize(addr, value, true));
-                }
                 entry.insert(MemoryRecord {
-                    value,
+                    value: *value,
                     shard: 0,
                     timestamp: 0,
                 })
@@ -1026,11 +1013,6 @@ impl<'a> Runtime<'a> {
                 },
             );
         }
-
-        // Create init event for register 0 because it needs to be the first row in MemoryInit.
-        self.record
-            .memory_initialize_events
-            .push(MemoryInitializeFinalizeEvent::initialize(0, 0, true));
     }
 
     pub fn run_untraced(&mut self) -> Result<(), ExecutionError> {
@@ -1134,13 +1116,29 @@ impl<'a> Runtime<'a> {
             addr_0_final_record,
         ));
 
+        let memory_initialize_events = &mut self.record.memory_initialize_events;
+        let addr_0_initialize_event =
+            MemoryInitializeFinalizeEvent::initialize(0, 0, addr_0_record.is_some());
+        memory_initialize_events.push(addr_0_initialize_event);
+
         for addr in self.state.memory.keys() {
             if addr == &0 {
-                continue; // We handle addr = 0 separately above.
+                // Handled above.
+                continue;
+            }
+
+            // Program memory is initialized in the MemoryProgram chip and doesn't require any events,
+            // so we only send init events for other memory addresses.
+            if !self.record.program.memory_image.contains_key(addr) {
+                let initial_value = self.state.uninitialized_memory.get(addr).unwrap_or(&0);
+                memory_initialize_events.push(MemoryInitializeFinalizeEvent::initialize(
+                    *addr,
+                    *initial_value,
+                    true,
+                ));
             }
 
             let record = *self.state.memory.get(addr).unwrap();
-
             memory_finalize_events.push(MemoryInitializeFinalizeEvent::finalize_from_record(
                 *addr, &record,
             ));

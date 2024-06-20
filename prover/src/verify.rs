@@ -47,6 +47,8 @@ impl SP1Prover {
         self.core_machine
             .verify(&vk.vk, &machine_proof, &mut challenger)?;
 
+        let num_shards = proof.0.len();
+
         // Verify shard transitions.
         for (i, shard_proof) in proof.0.iter().enumerate() {
             let public_values = PublicValues::from_vec(shard_proof.public_values.clone());
@@ -124,15 +126,15 @@ impl SP1Prover {
                 .count();
 
             // Assert that the `MemoryInit` and `MemoryFinalize` chips only exist in the last shard.
-            if i != 0 && (memory_final_count > 0 || memory_init_count > 0) {
+            if i != num_shards - 1 && (memory_final_count > 0 || memory_init_count > 0) {
                 return Err(MachineVerificationError::InvalidChipOccurence(
-                    "memory init and finalize should not eixst anywhere but the last chip"
+                    "memory init and finalize should not exist anywhere but the last chip"
                         .to_string(),
                 ));
             }
-            if i == 0 && (memory_init_count != 1 || memory_final_count != 1) {
+            if i == num_shards - 1 && (memory_init_count != 1 || memory_final_count != 1) {
                 return Err(MachineVerificationError::InvalidChipOccurence(
-                    "memory init and finalize should exist the last chip".to_string(),
+                    "memory init and finalize should exist in the last chip".to_string(),
                 ));
             }
         }

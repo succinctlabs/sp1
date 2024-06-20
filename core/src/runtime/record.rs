@@ -572,11 +572,11 @@ impl MachineRecord for ExecutionRecord {
             self.nonce_lookup.insert(event.lookup_id, i as u32);
         }
 
-        first
-            .memory_initialize_events
+        // Put MemoryInit / MemoryFinalize events in the last shard.
+        let last = shards.last_mut().unwrap();
+        last.memory_initialize_events
             .extend_from_slice(&self.memory_initialize_events);
-        first
-            .memory_finalize_events
+        last.memory_finalize_events
             .extend_from_slice(&self.memory_finalize_events);
 
         // Copy the nonce lookup to all shards.

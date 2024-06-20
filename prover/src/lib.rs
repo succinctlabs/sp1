@@ -288,6 +288,7 @@ impl SP1Prover {
                 leaf_challenger,
                 initial_reconstruct_challenger: reconstruct_challenger.clone(),
                 is_complete,
+                total_core_shards: shard_proofs.len(),
             });
 
             for proof in batch.iter() {
@@ -320,6 +321,7 @@ impl SP1Prover {
         last_proof_pv: &PublicValues<Word<BabyBear>, BabyBear>,
         deferred_proofs: &[ShardProof<InnerSC>],
         batch_size: usize,
+        total_core_shards: usize,
     ) -> Vec<SP1DeferredMemoryLayout<'a, InnerSC, RecursionAir<BabyBear, 3>>> {
         // Prepare the inputs for the deferred proofs recursive verification.
         let mut deferred_digest = [Val::<InnerSC>::zero(); DIGEST_SIZE];
@@ -337,10 +339,11 @@ impl SP1Prover {
                 sp1_vk: vk,
                 sp1_machine: &self.core_machine,
                 end_pc: Val::<InnerSC>::zero(),
-                end_shard: last_proof_pv.shard,
+                end_shard: last_proof_pv.shard + BabyBear::one(),
                 leaf_challenger: leaf_challenger.clone(),
                 committed_value_digest: last_proof_pv.committed_value_digest.to_vec(),
                 deferred_proofs_digest: last_proof_pv.deferred_proofs_digest.to_vec(),
+                total_core_shards,
             });
 
             deferred_digest = Self::hash_deferred_proofs(deferred_digest, batch);
@@ -377,6 +380,7 @@ impl SP1Prover {
             &last_proof_pv,
             deferred_proofs,
             batch_size,
+            shard_proofs.len(),
         );
         (core_inputs, deferred_inputs)
     }
@@ -393,6 +397,7 @@ impl SP1Prover {
         let batch_size = 2;
 
         let shard_proofs = &proof.proof.0;
+        let total_core_shards = shard_proofs.len();
         // Get the leaf challenger.
         let mut leaf_challenger = self.core_machine.config().challenger();
         vk.vk.observe_into(&mut leaf_challenger);
@@ -465,6 +470,7 @@ impl SP1Prover {
                                 shard_proofs,
                                 kinds,
                                 is_complete,
+                                total_core_shards,
                             };
 
                             let proof = self.compress_machine_proof(

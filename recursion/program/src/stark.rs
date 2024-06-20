@@ -120,6 +120,7 @@ where
         machine: &StarkMachine<SC, A>,
         challenger: &mut DuplexChallengerVariable<C>,
         proof: &ShardProofVariable<C>,
+        total_shards: Var<C::N>,
     ) where
         A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
         C::F: TwoAdicField,
@@ -327,7 +328,7 @@ where
             }
 
             if chip.name() == "MemoryInit" {
-                builder.if_eq(shard, C::N::one()).then_or_else(
+                builder.if_eq(shard, total_shards).then_or_else(
                     |builder| {
                         builder.assert_var_ne(index, C::N::from_canonical_usize(EMPTY));
                     },
@@ -338,7 +339,7 @@ where
             }
 
             if chip.name() == "MemoryFinalize" {
-                builder.if_eq(shard, C::N::one()).then_or_else(
+                builder.if_eq(shard, total_shards).then_or_else(
                     |builder| {
                         builder.assert_var_ne(index, C::N::from_canonical_usize(EMPTY));
                     },
