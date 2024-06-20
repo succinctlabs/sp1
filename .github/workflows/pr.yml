@@ -26,7 +26,7 @@ concurrency:
 jobs:
   test-x86:
     name: Test (x86-64)
-    runs-on: runs-on,runner=64cpu-linux-x64
+    runs-on: runs-on,runner=64cpu-linux-x64,spot=false
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
@@ -57,7 +57,7 @@ jobs:
 
   test-arm:
     name: Test (ARM)
-    runs-on: runs-on,runner=64cpu-linux-arm64
+    runs-on: runs-on,runner=64cpu-linux-arm64,spot=false
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
