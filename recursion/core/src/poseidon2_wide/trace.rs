@@ -9,6 +9,7 @@ use tracing::instrument;
 
 use crate::poseidon2_wide::columns::permutation::permutation_mut;
 use crate::poseidon2_wide::events::Poseidon2HashEvent;
+use crate::range_check::{RangeCheckEvent, RangeCheckOpcode};
 use crate::{
     poseidon2_wide::{external_linear_layer, NUM_EXTERNAL_ROUNDS, WIDTH},
     runtime::{ExecutionRecord, RecursionProgram},
@@ -27,15 +28,11 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
         format!("Poseidon2Wide {}", DEGREE)
     }
 
-    fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {
-        // This is a no-op.
-    }
-
     #[instrument(name = "generate poseidon2 wide trace", level = "debug", skip_all, fields(rows = input.poseidon2_compress_events.len()))]
     fn generate_trace(
         &self,
         input: &ExecutionRecord<F>,
-        _: &mut ExecutionRecord<F>,
+        output: &mut ExecutionRecord<F>,
     ) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
@@ -45,7 +42,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
         for event in &input.poseidon2_hash_events {
             match event {
                 Poseidon2HashEvent::Absorb(absorb_event) => {
-                    rows.extend(self.populate_absorb_event(absorb_event, num_columns));
+                    rows.extend(self.populate_absorb_event(absorb_event, num_columns, output));
                 }
 
                 Poseidon2HashEvent::Finalize(finalize_event) => {
@@ -207,6 +204,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         &self,
         absorb_event: &Poseidon2AbsorbEvent<F>,
         num_columns: usize,
+        output: &mut ExecutionRecord<F>,
     ) -> Vec<Vec<F>> {
         let mut absorb_rows = Vec::new();
 
@@ -253,10 +251,6 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                     memory.memory_slot_used[i + absorb_iter.state_cursor] = F::one();
                     memory.memory_accesses[i + absorb_iter.state_cursor].populate(input_record);
                 }
-
-                // if iter_num == 1 {
-                //     println!("memory: {:?}", memory);
-                // }
             }
 
             // Populate the opcode workspace fields.
@@ -264,8 +258,12 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                 let mut cols = self.convert_mut(&mut absorb_row);
                 let absorb_workspace = cols.opcode_workspace_mut().absorb_mut();
 
-                let num_remainined_rows = num_absorb_rows - 1 - iter_num;
-                absorb_workspace.num_remaining_rows = F::from_canonical_usize(num_remainined_rows);
+                let num_remaining_rows = num_absorb_rows - 1 - iter_num;
+                absorb_workspace.num_remaining_rows = F::from_canonical_usize(num_remaining_rows);
+                output.add_range_check_events(&[RangeCheckEvent::new(
+                    RangeCheckOpcode::U16,
+                    num_remaining_rows as u16,
+                )]);
 
                 // Calculate last_row_num_consumed.
                 // For absorb calls that span multiple rows (e.g. the last row is not the syscall row),
@@ -295,7 +293,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
 
                 absorb_workspace
                     .num_remaining_rows_is_zero
-                    .populate(num_remainined_rows as u32);
+                    .populate(num_remaining_rows as u32);
 
                 absorb_workspace.is_syscall_not_last_row =
                     F::from_bool(is_syscall_row && !is_last_row);
@@ -320,11 +318,6 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                 if is_last_row {
                     absorb_workspace.end_mem_idx_bitmap[last_row_ending_cursor] = F::one();
                 }
-
-                // if iter_num == 1 {
-                //     println!("absorb_workspace: {:?}", absorb_workspace);
-                //     panic!();
-                // }
             }
 
             // Populate the permutation fields.

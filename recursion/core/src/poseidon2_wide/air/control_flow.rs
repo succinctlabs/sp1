@@ -11,6 +11,7 @@ use crate::{
         },
         Poseidon2WideChip, RATE,
     },
+    range_check::RangeCheckOpcode,
 };
 
 impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
@@ -20,6 +21,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         builder: &mut AB,
         local_row: &dyn Poseidon2<AB::Var>,
         next_row: &dyn Poseidon2<AB::Var>,
+        send_range_check: AB::Var,
     ) where
         AB::Var: 'static,
     {
@@ -58,6 +60,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             local_row.opcode_workspace(),
             next_row.opcode_workspace(),
             local_row.syscall_params(),
+            send_range_check,
         );
     }
 
@@ -184,6 +187,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         local_opcode_workspace: &OpcodeWorkspace<AB::Var>,
         next_opcode_workspace: &OpcodeWorkspace<AB::Var>,
         local_syscall_params: &SyscallParams<AB::Var>,
+        send_range_check: AB::Var,
     ) {
         let local_hash_workspace = local_opcode_workspace.absorb();
         let next_hash_workspace = next_opcode_workspace.absorb();
@@ -266,6 +270,12 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                     local_hash_workspace.last_row_ending_cursor,
                     expected_last_row_ending_cursor,
                 );
+
+            builder.send_range_check(
+                AB::Expr::from_canonical_u8(RangeCheckOpcode::U16 as u8),
+                local_hash_workspace.num_remaining_rows,
+                send_range_check,
+            );
         }
 
         // For all non last absorb rows, verify that num_remaining_rows decrements and

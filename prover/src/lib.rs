@@ -508,11 +508,6 @@ impl SP1Prover {
         runtime.run();
         runtime.print_stats();
 
-        let mut challenger_clone = self.compress_machine.config().challenger();
-        let record_clone = runtime.record.clone();
-        self.compress_machine
-            .debug_constraints(pk, record_clone, &mut challenger_clone);
-
         let mut recursive_challenger = self.compress_machine.config().challenger();
         self.compress_machine
             .prove::<LocalProver<_, _>>(

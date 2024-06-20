@@ -36,6 +36,7 @@ pub struct MultiCols<T: Copy> {
     pub poseidon2_receive_table: T,
     pub poseidon2_1st_half_memory_access: [T; WIDTH / 2],
     pub poseidon2_2nd_half_memory_access: T,
+    pub poseidon2_send_range_check: T,
 }
 
 impl<F, const DEGREE: usize> BaseAir<F> for MultiChip<DEGREE> {
@@ -54,10 +55,6 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for MultiChip<DEGREE> {
 
     fn name(&self) -> String {
         "Multi".to_string()
-    }
-
-    fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {
-        // This is a no-op.
     }
 
     fn generate_trace(
@@ -110,6 +107,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for MultiChip<DEGREE> {
                         array::from_fn(|i| poseidon2_cols.memory().memory_slot_used[i]);
                     multi_cols.poseidon2_2nd_half_memory_access =
                         poseidon2_cols.control_flow().is_compress;
+                    multi_cols.poseidon2_send_range_check = poseidon2_cols.control_flow().is_absorb;
                 }
 
                 row
@@ -236,6 +234,11 @@ where
             local_multi_cols.poseidon2_2nd_half_memory_access,
         );
 
+        sub_builder.assert_eq(
+            local_multi_cols.is_poseidon2 * poseidon2_columns.control_flow().is_absorb,
+            local_multi_cols.poseidon2_send_range_check,
+        );
+
         let poseidon2_chip = Poseidon2WideChip::<DEGREE>::default();
         poseidon2_chip.eval_poseidon2(
             &mut sub_builder,
@@ -244,6 +247,7 @@ where
             local_multi_cols.poseidon2_receive_table,
             local_multi_cols.poseidon2_1st_half_memory_access,
             local_multi_cols.poseidon2_2nd_half_memory_access,
+            local_multi_cols.poseidon2_send_range_check,
         );
     }
 }

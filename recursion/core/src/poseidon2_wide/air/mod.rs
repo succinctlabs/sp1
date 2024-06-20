@@ -34,7 +34,7 @@
 //!     syscall, it's state_cursor is set to (last_row_ending_cursor + 1) % RATE.
 //!
 //!     From num_remaining_rows and syscall column, we know the absorb's first row and last row.  
-//!     From that fact, we can the enforce the following state writes.
+//!     From that fact, we can then enforce the following state writes.
 //!
 //!     1) is_first_row && is_last_row -> state writes are [state_cursor..state_cursor + last_row_ending_cursor]
 //!     2) is_first_row && !is_last_row -> state writes are [state_cursor..RATE - 1]
@@ -43,7 +43,8 @@
 //!
 //!     From the state writes range, we can then populate a bitmap that specifies which state elements
 //!     should be overwritten (stored in Memory.memory_slot_used columns).  To verify that this bitmap
-//!     is correct, we utilize the column's derivative (memory_slot_used[i] - memory_slot_used[i+1])
+//!     is correct, we utilize the column's derivative (memory_slot_used[i] - memory_slot_used[i-1],
+//!     where memory_slot_used[-1] is 0).
 //!
 //!     1) When idx == state write start_idx -> derivative == 1
 //!     2) When idx == (state write end_idx - 1) -> derivative == -1
@@ -56,12 +57,19 @@
 //!     1) is_first_row && !is_last_row -> do_perm == 1
 //!     2) !is_first_row && !is_last_row -> do_perm == 1
 //!     3) is_last_row && last_row_ending_cursor == RATE - 1 -> do_perm == 1
+//!     4) is_last_row && last_row_ending_cursor != RATE - 1 -> do_perm == 0
 //!
 //!
 //! Finalize rows
 //!     For finalize, the main flag that needs to be checked is do_perm.  If state_cursor == 0, then
 //!     do_perm should be 0, otherwise it should be 1.  If state_cursor == 0, that means that the
 //!     previous row did a perm.
+//!
+//!
+//! Compress rows
+//!     For compress, the main invariants that needs to be checked is that all syscall compress rows
+//!     verifies the correct memory read accesses, does the permutation, and copies the permuted value
+//!     into the next row.  That row should then verify the correct memory write accesses.
 
 use p3_air::{Air, BaseAir};
 use p3_matrix::Matrix;
@@ -117,11 +125,13 @@ where
             local_row.control_flow().is_syscall_row,
             local_row.memory().memory_slot_used,
             local_row.control_flow().is_compress,
+            local_row.control_flow().is_absorb,
         );
     }
 }
 
 impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn eval_poseidon2<AB>(
         &self,
         builder: &mut AB,
@@ -130,6 +140,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         receive_syscall: AB::Var,
         first_half_memory_access: [AB::Var; WIDTH / 2],
         second_half_memory_access: AB::Var,
+        send_range_check: AB::Var,
     ) where
         AB: SP1RecursionAirBuilder,
         AB::Var: 'static,
@@ -145,7 +156,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         let next_opcode_workspace = next_row.opcode_workspace();
 
         // Check that all the control flow columns are correct.
-        self.eval_control_flow(builder, local_row, next_row);
+        self.eval_control_flow(builder, local_row, next_row, send_range_check);
 
         // Check that the syscall columns are correct.
         self.eval_syscall_params(
