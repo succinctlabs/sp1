@@ -29,6 +29,9 @@ pub const NUM_EXTERNAL_ROUNDS: usize = 8;
 pub const NUM_INTERNAL_ROUNDS: usize = 13;
 pub const NUM_ROUNDS: usize = NUM_EXTERNAL_ROUNDS + NUM_INTERNAL_ROUNDS;
 
+/// The name of the `Poseidon2WideChip`.
+pub const POSEIDON_2_WIDE_CHIP_NAME: &str = "Poseidon2Wide";
+
 /// A chip that implements addition for the opcode ADD.
 #[derive(Default)]
 pub struct Poseidon2WideChip<const DEGREE: usize> {
@@ -41,7 +44,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
     type Program = RecursionProgram<F>;
 
     fn name(&self) -> String {
-        format!("Poseidon2Wide {}", DEGREE)
+        format!("{} {}", POSEIDON_2_WIDE_CHIP_NAME, DEGREE)
     }
 
     fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {

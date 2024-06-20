@@ -23,6 +23,9 @@ use crate::runtime::{ExecutionRecord, RecursionProgram};
 
 pub const NUM_EXP_REVERSE_BITS_LEN_COLS: usize = core::mem::size_of::<ExpReverseBitsLenCols<u8>>();
 
+/// The name of the chip.
+pub const EXP_REVERSE_BITS_LEN_NAME: &str = "ExpReverseBitsLen";
+
 #[derive(Default)]
 pub struct ExpReverseBitsLenChip<const DEGREE: usize> {
     pub fixed_log2_rows: Option<usize>,
@@ -174,7 +177,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpReverseBitsLenCh
     type Program = RecursionProgram<F>;
 
     fn name(&self) -> String {
-        "ExpReverseBitsLen".to_string()
+        EXP_REVERSE_BITS_LEN_NAME.to_string()
     }
 
     fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {

@@ -21,6 +21,9 @@ pub const NUM_PROGRAM_PREPROCESSED_COLS: usize = size_of::<ProgramPreprocessedCo
 /// The number of columns for the program multiplicities.
 pub const NUM_PROGRAM_MULT_COLS: usize = size_of::<ProgramMultiplicityCols<u8>>();
 
+/// The name of the `ProgramChip`.
+pub const PROGRAM_CHIP_NAME: &str = "Program";
+
 /// The column layout for the chip.
 #[derive(AlignedBorrow, Clone, Copy, Default)]
 #[repr(C)]
@@ -54,7 +57,7 @@ impl<F: PrimeField> MachineAir<F> for ProgramChip {
     type Program = Program;
 
     fn name(&self) -> String {
-        "Program".to_string()
+        PROGRAM_CHIP_NAME.to_string()
     }
 
     fn preprocessed_width(&self) -> usize {

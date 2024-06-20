@@ -17,6 +17,10 @@ use crate::operations::BabyBearBitDecomposition;
 use crate::runtime::{ExecutionRecord, Program};
 use crate::utils::pad_to_power_of_two;
 
+/// The Memory Init and Finalize chip names.
+pub const MEMORY_INIT_CHIP_NAME: &str = "MemoryInit";
+pub const MEMORY_FINALIZE_CHIP_NAME: &str = "MemoryFinalize";
+
 /// The type of memory chip that is being initialized.
 #[derive(PartialEq)]
 pub enum MemoryChipType {
@@ -49,8 +53,8 @@ impl<F: PrimeField> MachineAir<F> for MemoryChip {
 
     fn name(&self) -> String {
         match self.kind {
-            MemoryChipType::Initialize => "MemoryInit".to_string(),
-            MemoryChipType::Finalize => "MemoryFinalize".to_string(),
+            MemoryChipType::Initialize => MEMORY_INIT_CHIP_NAME.to_string(),
+            MemoryChipType::Finalize => MEMORY_FINALIZE_CHIP_NAME.to_string(),
         }
     }
 

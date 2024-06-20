@@ -6,6 +6,7 @@ use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use sp1_core::air::MachineAir;
+use sp1_core::program::PROGRAM_CHIP_NAME;
 use sp1_core::utils::pad_rows_fixed;
 use std::collections::HashMap;
 use tracing::instrument;
@@ -51,7 +52,7 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
     type Program = RecursionProgram<F>;
 
     fn name(&self) -> String {
-        "Program".to_string()
+        PROGRAM_CHIP_NAME.to_string()
     }
 
     fn preprocessed_width(&self) -> usize {

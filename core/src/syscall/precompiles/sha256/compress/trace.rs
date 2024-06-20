@@ -15,13 +15,16 @@ use crate::{
     utils::pad_rows,
 };
 
+/// The name of the `ShaCompressChip`.
+pub const SHA_COMPRESS_CHIP_NAME: &str = "ShaCompress";
+
 impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
     type Record = ExecutionRecord;
 
     type Program = Program;
 
     fn name(&self) -> String {
-        "ShaCompress".to_string()
+        SHA_COMPRESS_CHIP_NAME.to_string()
     }
 
     fn generate_trace(

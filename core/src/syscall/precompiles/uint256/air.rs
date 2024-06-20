@@ -32,6 +32,9 @@ use typenum::Unsigned;
 /// The number of columns in the Uint256MulCols.
 const NUM_COLS: usize = size_of::<Uint256MulCols<u8>>();
 
+/// The name of the `Uint256MulChip`.
+pub const UINT_256_MUL_MOD_CHIP_NAME: &str = "Uint256Mul";
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Uint256MulEvent {
     pub lookup_id: usize,
@@ -102,7 +105,7 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
     type Program = Program;
 
     fn name(&self) -> String {
-        "Uint256MulMod".to_string()
+        UINT_256_MUL_MOD_CHIP_NAME.to_string()
     }
 
     fn generate_trace(

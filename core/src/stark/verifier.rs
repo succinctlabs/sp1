@@ -22,6 +22,7 @@ use super::StarkGenericConfig;
 use super::StarkVerifyingKey;
 use super::Val;
 use crate::air::MachineAir;
+use crate::cpu::trace::CPU_CHIP_NAME;
 use crate::stark::MachineChip;
 
 pub struct Verifier<SC, A>(PhantomData<SC>, PhantomData<A>);
@@ -199,7 +200,10 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             .map_err(|_| VerificationError::OodEvaluationMismatch(chip.name()))?;
         }
 
-        let nb_cpu_chips = chips.iter().filter(|chip| chip.name() == "CPU").count();
+        let nb_cpu_chips = chips
+            .iter()
+            .filter(|chip| chip.name() == CPU_CHIP_NAME)
+            .count();
         if nb_cpu_chips != 1 {
             return Err(VerificationError::MissingCpuChip);
         }

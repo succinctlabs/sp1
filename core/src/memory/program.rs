@@ -18,6 +18,9 @@ pub const NUM_MEMORY_PROGRAM_PREPROCESSED_COLS: usize =
     size_of::<MemoryProgramPreprocessedCols<u8>>();
 pub const NUM_MEMORY_PROGRAM_MULT_COLS: usize = size_of::<MemoryProgramMultCols<u8>>();
 
+// The name of the `MemoryProgramChip`.
+pub const MEMORY_PROGRAM_CHIP_NAME: &str = "MemoryProgram";
+
 /// The column layout for the chip.
 #[derive(AlignedBorrow, Clone, Copy, Default)]
 #[repr(C)]
@@ -58,7 +61,7 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
     type Program = Program;
 
     fn name(&self) -> String {
-        "MemoryProgram".to_string()
+        MEMORY_PROGRAM_CHIP_NAME.to_string()
     }
 
     fn preprocessed_width(&self) -> usize {

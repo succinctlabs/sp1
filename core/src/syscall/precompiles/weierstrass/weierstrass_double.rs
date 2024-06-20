@@ -43,6 +43,11 @@ pub const fn num_weierstrass_double_cols<P: FieldParameters + NumWords>() -> usi
     size_of::<WeierstrassDoubleAssignCols<u8, P>>()
 }
 
+/// The name of the `WeierStrassDoubleAssignChip` for the various supported elliptic curves.
+pub const W_DOUBLE_SEC_P_CHIP_NAME: &str = "Secp256k1DoubleAssign";
+pub const W_DOUBLE_BN_CHIP_NAME: &str = "Bn254DoubleAssign";
+pub const W_DOUBLE_BLS_CHIP_NAME: &str = "Bls12381DoubleAssign";
+
 /// A set of columns to double a point on a Weierstrass curve.
 ///
 /// Right now the number of limbs is assumed to be a constant, although this could be macro-ed or
@@ -227,9 +232,9 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
     fn name(&self) -> String {
         match E::CURVE_TYPE {
-            CurveType::Secp256k1 => "Secp256k1DoubleAssign".to_string(),
-            CurveType::Bn254 => "Bn254DoubleAssign".to_string(),
-            CurveType::Bls12381 => "Bls12381DoubleAssign".to_string(),
+            CurveType::Secp256k1 => W_DOUBLE_SEC_P_CHIP_NAME.to_string(),
+            CurveType::Bn254 => W_DOUBLE_BN_CHIP_NAME.to_string(),
+            CurveType::Bls12381 => W_DOUBLE_BLS_CHIP_NAME.to_string(),
             _ => panic!("Unsupported curve"),
         }
     }

@@ -16,13 +16,16 @@ use super::{
     Poseidon2Chip, Poseidon2Cols,
 };
 
+/// The name of the `Poseidon2Chip`.
+pub const POSEIDON2_CHIP_NAME: &str = "Poseidon2";
+
 impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
     type Record = ExecutionRecord<F>;
 
     type Program = RecursionProgram<F>;
 
     fn name(&self) -> String {
-        "Poseidon2".to_string()
+        POSEIDON2_CHIP_NAME.to_string()
     }
 
     fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {

@@ -4,6 +4,7 @@ use p3_field::{extension::BinomiallyExtendable, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core::{
     air::{BinomialExtension, MachineAir},
+    cpu::trace::CPU_CHIP_NAME,
     utils::pad_rows_fixed,
 };
 use tracing::instrument;
@@ -24,7 +25,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const L: usize> MachineAir<F> fo
     type Program = RecursionProgram<F>;
 
     fn name(&self) -> String {
-        "CPU".to_string()
+        CPU_CHIP_NAME.to_string()
     }
 
     fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {

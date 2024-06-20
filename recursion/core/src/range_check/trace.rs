@@ -12,12 +12,15 @@ use crate::runtime::{ExecutionRecord, RecursionProgram};
 
 pub const NUM_ROWS: usize = 1 << 16;
 
+/// The name of the `RangeCheckChip`.
+pub const RANGE_CHECK_CHIP_NAME: &str = "RangeCheck";
+
 impl<F: PrimeField32> MachineAir<F> for RangeCheckChip<F> {
     type Record = ExecutionRecord<F>;
     type Program = RecursionProgram<F>;
 
     fn name(&self) -> String {
-        "RangeCheck".to_string()
+        RANGE_CHECK_CHIP_NAME.to_string()
     }
 
     fn preprocessed_width(&self) -> usize {

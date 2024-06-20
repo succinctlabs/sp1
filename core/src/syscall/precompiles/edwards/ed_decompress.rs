@@ -51,6 +51,8 @@ use crate::utils::words_to_bytes_le;
 
 use super::{WordsFieldElement, WORDS_FIELD_ELEMENT};
 
+/// The name of the `EdDecompressChip`.
+pub const ED_DECOMPRESS_CHIP_NAME: &str = "EdDecompress";
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EdDecompressEvent {
     pub lookup_id: usize,
@@ -375,7 +377,7 @@ impl<F: PrimeField32, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E
     type Program = Program;
 
     fn name(&self) -> String {
-        "EdDecompress".to_string()
+        ED_DECOMPRESS_CHIP_NAME.to_string()
     }
 
     fn generate_trace(

@@ -17,7 +17,7 @@ use sp1_recursion_compiler::{
     ir::{Array, Builder, Config, Ext, Felt, MemVariable, Var},
 };
 use sp1_recursion_core::air::Block;
-use sp1_recursion_core::runtime::PERMUTATION_WIDTH;
+use sp1_recursion_core::runtime::{HASH_RATE, PERMUTATION_WIDTH};
 
 use crate::challenger::DuplexChallengerVariable;
 use crate::fri::TwoAdicMultiplicativeCosetVariable;
@@ -386,7 +386,7 @@ impl Hintable<C> for ShardCommitment<InnerDigestHash> {
     }
 }
 
-impl Hintable<C> for DuplexChallenger<InnerVal, InnerPerm, 16, 8> {
+impl Hintable<C> for DuplexChallenger<InnerVal, InnerPerm, PERMUTATION_WIDTH, HASH_RATE> {
     type HintVariable = DuplexChallengerVariable<C>;
 
     fn read(builder: &mut Builder<C>) -> Self::HintVariable {
@@ -513,9 +513,10 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
     fn read(builder: &mut Builder<C>) -> Self::HintVariable {
         let vk = VerifyingKeyHint::<'a, BabyBearPoseidon2, A>::read(builder);
         let shard_proofs = Vec::<ShardProofHint<'a, BabyBearPoseidon2, A>>::read(builder);
-        let leaf_challenger = DuplexChallenger::<InnerVal, InnerPerm, 16, 8>::read(builder);
+        let leaf_challenger =
+            DuplexChallenger::<InnerVal, InnerPerm, PERMUTATION_WIDTH, HASH_RATE>::read(builder);
         let initial_reconstruct_challenger =
-            DuplexChallenger::<InnerVal, InnerPerm, 16, 8>::read(builder);
+            DuplexChallenger::<InnerVal, InnerPerm, PERMUTATION_WIDTH, HASH_RATE>::read(builder);
         let is_complete = builder.hint_var();
 
         SP1RecursionMemoryLayoutVariable {

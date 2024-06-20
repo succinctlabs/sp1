@@ -19,6 +19,9 @@ use crate::utils::pad_to_power_of_two;
 /// The number of main trace columns for `BitwiseChip`.
 pub const NUM_BITWISE_COLS: usize = size_of::<BitwiseCols<u8>>();
 
+/// The name of the `BitwiseChip`.
+pub const BITWISE_CHIP_NAME: &str = "Bitwise";
+
 /// A chip that implements bitwise operations for the opcodes XOR, OR, and AND.
 #[derive(Default)]
 pub struct BitwiseChip;
@@ -61,7 +64,7 @@ impl<F: PrimeField> MachineAir<F> for BitwiseChip {
     type Program = Program;
 
     fn name(&self) -> String {
-        "Bitwise".to_string()
+        BITWISE_CHIP_NAME.to_string()
     }
 
     fn generate_trace(

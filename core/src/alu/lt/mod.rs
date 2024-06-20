@@ -20,6 +20,9 @@ use crate::utils::pad_to_power_of_two;
 /// The number of main trace columns for `LtChip`.
 pub const NUM_LT_COLS: usize = size_of::<LtCols<u8>>();
 
+/// The name of the `LtChip`.
+pub const LT_CHIP_NAME: &str = "Lt";
+
 /// A chip that implements bitwise operations for the opcodes SLT and SLTU.
 #[derive(Default)]
 pub struct LtChip;
@@ -101,7 +104,7 @@ impl<F: PrimeField32> MachineAir<F> for LtChip {
     type Program = Program;
 
     fn name(&self) -> String {
-        "Lt".to_string()
+        LT_CHIP_NAME.to_string()
     }
 
     fn generate_trace(

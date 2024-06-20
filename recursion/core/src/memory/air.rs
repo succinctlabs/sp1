@@ -15,6 +15,9 @@ use crate::air::SP1RecursionAirBuilder;
 use crate::memory::{Block, MemoryGlobalChip};
 use crate::runtime::{ExecutionRecord, RecursionProgram};
 
+/// The name of the `MemoryGlobalChip`.
+pub const MEMORY_GLOBAL_CHIP_NAME: &str = "MemoryGlobal";
+
 pub(crate) const NUM_MEMORY_INIT_COLS: usize = size_of::<MemoryInitCols<u8>>();
 
 #[allow(dead_code)]
@@ -31,7 +34,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
     type Program = RecursionProgram<F>;
 
     fn name(&self) -> String {
-        "MemoryGlobalChip".to_string()
+        MEMORY_GLOBAL_CHIP_NAME.to_string()
     }
 
     fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {

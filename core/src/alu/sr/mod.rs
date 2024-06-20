@@ -65,6 +65,9 @@ use crate::utils::pad_to_power_of_two;
 /// The number of main trace columns for `ShiftRightChip`.
 pub const NUM_SHIFT_RIGHT_COLS: usize = size_of::<ShiftRightCols<u8>>();
 
+/// The name of the `ShiftRightChip`.
+pub const SHIFT_RIGHT_CHIP_NAME: &str = "ShiftRight";
+
 /// The number of bytes necessary to represent a 64-bit integer.
 const LONG_WORD_SIZE: usize = 2 * WORD_SIZE;
 
@@ -137,7 +140,7 @@ impl<F: PrimeField> MachineAir<F> for ShiftRightChip {
     type Program = Program;
 
     fn name(&self) -> String {
-        "ShiftRight".to_string()
+        SHIFT_RIGHT_CHIP_NAME.to_string()
     }
 
     fn generate_trace(
