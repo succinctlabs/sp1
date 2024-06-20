@@ -71,7 +71,6 @@ func Build(dataDir string) {
 			defer srsFile.Close()
 
 			_, err = srs.ReadFrom(srsFile)
-			srsFile.Close()
 			if err != nil {
 				panic(err)
 			}
@@ -89,22 +88,15 @@ func Build(dataDir string) {
 			defer srsFile.Close()
 
 			_, err = srs.ReadFrom(srsFile)
-			srsFile.Close()
 			if err != nil {
 				panic(err)
 			}
-
-			srsLagrangeFile, err := os.Open(srsLagrangeFileName)
-			if err != nil {
-				panic(err)
-			}
-			defer srsLagrangeFile.Close()
 
 			_, err = srsLagrange.ReadFrom(srsLagrangeFile)
-			srsLagrangeFile.Close()
 			if err != nil {
 				panic(err)
 			}
+
 		}
 	} else {
 		srs, srsLagrange, err = unsafekzg.NewSRS(scs)
@@ -165,6 +157,7 @@ func Build(dataDir string) {
 		panic(err)
 	}
 	vk.ExportSolidity(solidityVerifierFile)
+	defer solidityVerifierFile.Close()
 
 	// Write the R1CS.
 	scsFile, err := os.Create(dataDir + "/" + circuitPath)
