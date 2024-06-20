@@ -128,11 +128,11 @@ impl<
     pub fn get_wrap_all() -> Vec<Self> {
         once(RecursionAir::Program(ProgramChip))
             .chain(once(RecursionAir::Cpu(CpuChip {
-                fixed_log2_rows: Some(16),
+                fixed_log2_rows: Some(19),
                 _phantom: PhantomData,
             })))
             .chain(once(RecursionAir::MemoryGlobal(MemoryGlobalChip {
-                fixed_log2_rows: Some(16),
+                fixed_log2_rows: Some(20),
             })))
             .chain(once(RecursionAir::Multi(MultiChip {
                 fixed_log2_rows: Some(12),
