@@ -15,7 +15,7 @@ on:
 jobs:
   test-docker:
     name: Test
-    runs-on: runs-on,runner=64cpu-linux-arm64
+    runs-on: runs-on,runner=64cpu-linux-arm64,spot=false
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
