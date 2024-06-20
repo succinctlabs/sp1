@@ -1,8 +1,6 @@
 use itertools::{izip, Itertools};
 use p3_commit::PolynomialSpace;
-use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
-use p3_field::PackedValue;
 use p3_field::TwoAdicField;
 use p3_fri::FriConfig;
 use p3_matrix::Dimensions;
