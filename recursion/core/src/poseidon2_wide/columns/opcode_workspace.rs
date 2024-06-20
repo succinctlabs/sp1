@@ -53,7 +53,7 @@ pub struct CompressWorkspace<T: Copy> {
 }
 
 /// Workspace columns for absorb.
-#[derive(AlignedBorrow, Clone, Copy)]
+#[derive(AlignedBorrow, Clone, Copy, Debug)]
 #[repr(C)]
 pub struct AbsorbWorkspace<T: Copy> {
     /// State related columns.
@@ -65,6 +65,10 @@ pub struct AbsorbWorkspace<T: Copy> {
     pub is_first_hash_row: T,
     pub num_remaining_rows: T,
     pub num_remaining_rows_is_zero: IsZeroOperation<T>,
+
+    /// Memory columns.
+    pub start_mem_idx_bitmap: [T; WIDTH / 2],
+    pub end_mem_idx_bitmap: [T; WIDTH / 2],
 
     /// This is the state index of that last element consumed by the absorb syscall.
     pub last_row_ending_cursor: T,

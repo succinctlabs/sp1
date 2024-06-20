@@ -13,7 +13,7 @@ pub struct ControlFlow<T> {
     pub is_absorb: T,
     /// Specifies if this row is for absorb with no permutation.
     pub is_absorb_no_perm: T,
-    /// Specifies if this row is foor a non-last
+    /// Specifies if this row is for an absorb that is not the last row.
     pub is_absorb_not_last_row: T,
 
     /// Specifies if this row is for finalize.

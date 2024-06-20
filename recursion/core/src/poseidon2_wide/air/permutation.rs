@@ -1,6 +1,5 @@
 use std::array;
 
-use itertools::Itertools;
 use p3_field::AbstractField;
 use sp1_primitives::RC_16_30_U32;
 
@@ -17,9 +16,7 @@ use crate::{
     },
 };
 
-impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
-    Poseidon2WideChip<DEGREE, ROUND_CHUNK_SIZE>
-{
+impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
     pub(crate) fn eval_perm<AB: SP1RecursionAirBuilder>(
         &self,
         builder: &mut AB,
@@ -72,16 +69,16 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
         builder.assert_all_eq(external_round_0_state.clone(), initial_round_output);
 
         // Apply the first half of external rounds.
-        for r in &(0..NUM_EXTERNAL_ROUNDS / 2).chunks(ROUND_CHUNK_SIZE) {
-            self.eval_external_round(builder, perm_cols, &r.collect_vec());
+        for r in 0..NUM_EXTERNAL_ROUNDS / 2 {
+            self.eval_external_round(builder, perm_cols, r);
         }
 
         // Apply the internal rounds.
         self.eval_internal_rounds(builder, perm_cols);
 
         // Apply the second half of external rounds.
-        for r in &(NUM_EXTERNAL_ROUNDS / 2..NUM_EXTERNAL_ROUNDS).chunks(ROUND_CHUNK_SIZE) {
-            self.eval_external_round(builder, perm_cols, &r.collect_vec());
+        for r in NUM_EXTERNAL_ROUNDS / 2..NUM_EXTERNAL_ROUNDS {
+            self.eval_external_round(builder, perm_cols, r);
         }
     }
 
@@ -89,55 +86,47 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
         &self,
         builder: &mut AB,
         perm_cols: &dyn Permutation<AB::Var>,
-        round_nums: &[usize],
+        r: usize,
     ) {
-        let start_round_num = round_nums[0];
-        let end_round_num = round_nums[round_nums.len() - 1];
+        let external_state = perm_cols.external_rounds_state()[r];
 
-        let mut state: [AB::Expr; WIDTH] = array::from_fn(|i| {
-            perm_cols.external_rounds_state()[start_round_num / ROUND_CHUNK_SIZE][i].into()
+        // Add the round constants.
+        let round = if r < NUM_EXTERNAL_ROUNDS / 2 {
+            r
+        } else {
+            r + NUM_INTERNAL_ROUNDS
+        };
+        let add_rc: [AB::Expr; WIDTH] = core::array::from_fn(|i| {
+            external_state[i].into() + AB::F::from_wrapped_u32(RC_16_30_U32[round][i])
         });
 
-        for &r in round_nums.iter() {
-            // Add the round constants.
-            let round = if r < NUM_EXTERNAL_ROUNDS / 2 {
-                r
+        // Apply the sboxes.
+        // See `populate_external_round` for why we don't have columns for the sbox output here.
+        let mut sbox_deg_7: [AB::Expr; WIDTH] = core::array::from_fn(|_| AB::Expr::zero());
+        let mut sbox_deg_3: [AB::Expr; WIDTH] = core::array::from_fn(|_| AB::Expr::zero());
+        for i in 0..WIDTH {
+            let calculated_sbox_deg_3 = add_rc[i].clone() * add_rc[i].clone() * add_rc[i].clone();
+
+            if let Some(external_sbox) = perm_cols.external_rounds_sbox() {
+                builder.assert_eq(external_sbox[r][i].into(), calculated_sbox_deg_3);
+                sbox_deg_3[i] = external_sbox[r][i].into();
             } else {
-                r + NUM_INTERNAL_ROUNDS
-            };
-            let add_rc: [AB::Expr; WIDTH] = core::array::from_fn(|i| {
-                state[i].clone() + AB::F::from_wrapped_u32(RC_16_30_U32[round][i])
-            });
-
-            // Apply the sboxes.
-            // See `populate_external_round` for why we don't have columns for the sbox output here.
-            let mut sbox_deg_7: [AB::Expr; WIDTH] = core::array::from_fn(|_| AB::Expr::zero());
-            let mut sbox_deg_3: [AB::Expr; WIDTH] = core::array::from_fn(|_| AB::Expr::zero());
-            for i in 0..WIDTH {
-                let calculated_sbox_deg_3 =
-                    add_rc[i].clone() * add_rc[i].clone() * add_rc[i].clone();
-
-                if let Some(external_sbox) = perm_cols.external_rounds_sbox() {
-                    builder.assert_eq(external_sbox[r][i].into(), calculated_sbox_deg_3);
-                    sbox_deg_3[i] = external_sbox[r][i].into();
-                } else {
-                    sbox_deg_3[i] = calculated_sbox_deg_3;
-                }
-
-                sbox_deg_7[i] = sbox_deg_3[i].clone() * sbox_deg_3[i].clone() * add_rc[i].clone();
+                sbox_deg_3[i] = calculated_sbox_deg_3;
             }
 
-            // Apply the linear layer.
-            state = sbox_deg_7;
-            external_linear_layer(&mut state);
+            sbox_deg_7[i] = sbox_deg_3[i].clone() * sbox_deg_3[i].clone() * add_rc[i].clone();
         }
 
-        let next_state_cols = if end_round_num == NUM_EXTERNAL_ROUNDS / 2 - 1 {
+        // Apply the linear layer.
+        let mut state = sbox_deg_7;
+        external_linear_layer(&mut state);
+
+        let next_state_cols = if r == NUM_EXTERNAL_ROUNDS / 2 - 1 {
             perm_cols.internal_rounds_state()
-        } else if end_round_num == NUM_EXTERNAL_ROUNDS - 1 {
+        } else if r == NUM_EXTERNAL_ROUNDS - 1 {
             perm_cols.perm_output()
         } else {
-            &perm_cols.external_rounds_state()[(end_round_num + 1) / ROUND_CHUNK_SIZE]
+            &perm_cols.external_rounds_state()[r + 1]
         };
         for i in 0..WIDTH {
             builder.assert_eq(next_state_cols[i], state[i].clone());
@@ -180,8 +169,7 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
             }
         }
 
-        let external_state =
-            perm_cols.external_rounds_state()[(NUM_EXTERNAL_ROUNDS / 2) / ROUND_CHUNK_SIZE];
+        let external_state = perm_cols.external_rounds_state()[NUM_EXTERNAL_ROUNDS / 2];
         for i in 0..WIDTH {
             builder.assert_eq(external_state[i], state[i].clone())
         }

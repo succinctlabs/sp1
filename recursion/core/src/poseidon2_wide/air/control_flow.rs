@@ -13,9 +13,7 @@ use crate::{
     },
 };
 
-impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
-    Poseidon2WideChip<DEGREE, ROUND_CHUNK_SIZE>
-{
+impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
     /// Constraints related to control flow.
     pub(crate) fn eval_control_flow<AB: SP1RecursionAirBuilder>(
         &self,

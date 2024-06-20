@@ -21,7 +21,7 @@ use crate::runtime::{ExecutionRecord, RecursionProgram};
 pub const NUM_MULTI_COLS: usize = core::mem::size_of::<MultiCols<u8>>();
 
 #[derive(Default)]
-pub struct MultiChip<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize> {
+pub struct MultiChip<const DEGREE: usize> {
     pub fixed_log2_rows: Option<usize>,
 }
 
@@ -38,9 +38,7 @@ pub struct MultiCols<T: Copy> {
     pub poseidon2_2nd_half_memory_access: T,
 }
 
-impl<F, const DEGREE: usize, const ROUND_CHUNK_SIZE: usize> BaseAir<F>
-    for MultiChip<DEGREE, ROUND_CHUNK_SIZE>
-{
+impl<F, const DEGREE: usize> BaseAir<F> for MultiChip<DEGREE> {
     fn width(&self) -> usize {
         let fri_fold_width = Self::fri_fold_width::<F>();
         let poseidon2_width = Self::poseidon2_width::<F>();
@@ -49,9 +47,7 @@ impl<F, const DEGREE: usize, const ROUND_CHUNK_SIZE: usize> BaseAir<F>
     }
 }
 
-impl<F: PrimeField32, const DEGREE: usize, const ROUND_CHUNK_SIZE: usize> MachineAir<F>
-    for MultiChip<DEGREE, ROUND_CHUNK_SIZE>
-{
+impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for MultiChip<DEGREE> {
     type Record = ExecutionRecord<F>;
 
     type Program = RecursionProgram<F>;
@@ -73,14 +69,14 @@ impl<F: PrimeField32, const DEGREE: usize, const ROUND_CHUNK_SIZE: usize> Machin
             fixed_log2_rows: None,
             pad: false,
         };
-        let poseidon2 = Poseidon2WideChip::<DEGREE, ROUND_CHUNK_SIZE> {
+        let poseidon2 = Poseidon2WideChip::<DEGREE> {
             fixed_log2_rows: None,
             pad: false,
         };
         let fri_fold_trace = fri_fold_chip.generate_trace(input, output);
         let mut poseidon2_trace = poseidon2.generate_trace(input, output);
 
-        let num_columns = <MultiChip<DEGREE, ROUND_CHUNK_SIZE> as BaseAir<F>>::width(self);
+        let num_columns = <MultiChip<DEGREE> as BaseAir<F>>::width(self);
 
         let mut rows = fri_fold_trace
             .clone()
@@ -107,7 +103,7 @@ impl<F: PrimeField32, const DEGREE: usize, const ROUND_CHUNK_SIZE: usize> Machin
                     let multi_cols: &mut MultiCols<F> = row[0..NUM_MULTI_COLS].borrow_mut();
                     multi_cols.is_poseidon2 = F::one();
 
-                    let poseidon2_cols = Poseidon2WideChip::<DEGREE, ROUND_CHUNK_SIZE>::convert::<F>(instruction_row);
+                    let poseidon2_cols = Poseidon2WideChip::<DEGREE>::convert::<F>(instruction_row);
                     multi_cols.poseidon2_receive_table =
                         poseidon2_cols.control_flow().is_syscall_row;
                     multi_cols.poseidon2_1st_half_memory_access =
@@ -136,8 +132,7 @@ impl<F: PrimeField32, const DEGREE: usize, const ROUND_CHUNK_SIZE: usize> Machin
     }
 }
 
-impl<AB, const DEGREE: usize, const ROUND_CHUNK_SIZE: usize> Air<AB>
-    for MultiChip<DEGREE, ROUND_CHUNK_SIZE>
+impl<AB, const DEGREE: usize> Air<AB> for MultiChip<DEGREE>
 where
     AB: SP1RecursionAirBuilder,
     AB::Var: 'static,
@@ -220,7 +215,7 @@ where
             next_multi_cols.is_poseidon2.into(),
         );
 
-        let poseidon2_columns = MultiChip::<DEGREE, ROUND_CHUNK_SIZE>::poseidon2(local_slice);
+        let poseidon2_columns = MultiChip::<DEGREE>::poseidon2(local_slice);
         sub_builder.assert_eq(
             local_multi_cols.is_poseidon2 * poseidon2_columns.control_flow().is_syscall_row,
             local_multi_cols.poseidon2_receive_table,
@@ -241,11 +236,11 @@ where
             local_multi_cols.poseidon2_2nd_half_memory_access,
         );
 
-        let poseidon2_chip = Poseidon2WideChip::<DEGREE, ROUND_CHUNK_SIZE>::default();
+        let poseidon2_chip = Poseidon2WideChip::<DEGREE>::default();
         poseidon2_chip.eval_poseidon2(
             &mut sub_builder,
             poseidon2_columns.as_ref(),
-            MultiChip::<DEGREE, ROUND_CHUNK_SIZE>::poseidon2(next_slice).as_ref(),
+            MultiChip::<DEGREE>::poseidon2(next_slice).as_ref(),
             local_multi_cols.poseidon2_receive_table,
             local_multi_cols.poseidon2_1st_half_memory_access,
             local_multi_cols.poseidon2_2nd_half_memory_access,
@@ -253,7 +248,7 @@ where
     }
 }
 
-impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize> MultiChip<DEGREE, ROUND_CHUNK_SIZE> {
+impl<const DEGREE: usize> MultiChip<DEGREE> {
     fn fri_fold_width<T>() -> usize {
         <FriFoldChip<DEGREE> as BaseAir<T>>::width(&FriFoldChip::<DEGREE>::default())
     }
@@ -268,10 +263,7 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize> MultiChip<DEGREE, ROUND
     }
 
     fn poseidon2_width<T>() -> usize {
-        <Poseidon2WideChip<DEGREE, ROUND_CHUNK_SIZE> as BaseAir<T>>::width(&Poseidon2WideChip::<
-            DEGREE,
-            ROUND_CHUNK_SIZE,
-        >::default())
+        <Poseidon2WideChip<DEGREE> as BaseAir<T>>::width(&Poseidon2WideChip::<DEGREE>::default())
     }
 
     fn poseidon2<'a, T>(row: impl Deref<Target = [T]>) -> Box<dyn Poseidon2<'a, T> + 'a>
@@ -281,7 +273,7 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize> MultiChip<DEGREE, ROUND
         let row_slice: &[T] = &row;
         let poseidon2_width = Self::poseidon2_width::<T>();
 
-        Poseidon2WideChip::<DEGREE, ROUND_CHUNK_SIZE>::convert::<T>(
+        Poseidon2WideChip::<DEGREE>::convert::<T>(
             &row_slice[NUM_MULTI_COLS..NUM_MULTI_COLS + poseidon2_width],
         )
     }
@@ -311,7 +303,7 @@ mod tests {
         let config = BabyBearPoseidon2::compressed();
         let mut challenger = config.challenger();
 
-        let chip = MultiChip::<9, 1> {
+        let chip = MultiChip::<9> {
             fixed_log2_rows: None,
         };
 

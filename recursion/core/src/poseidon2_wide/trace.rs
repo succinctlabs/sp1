@@ -18,9 +18,7 @@ use super::events::{Poseidon2AbsorbEvent, Poseidon2CompressEvent, Poseidon2Final
 use super::RATE;
 use super::{internal_linear_layer, Poseidon2WideChip, NUM_INTERNAL_ROUNDS};
 
-impl<F: PrimeField32, const DEGREE: usize, const ROUND_CHUNK_SIZE: usize> MachineAir<F>
-    for Poseidon2WideChip<DEGREE, ROUND_CHUNK_SIZE>
-{
+impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<DEGREE> {
     type Record = ExecutionRecord<F>;
 
     type Program = RecursionProgram<F>;
@@ -41,7 +39,7 @@ impl<F: PrimeField32, const DEGREE: usize, const ROUND_CHUNK_SIZE: usize> Machin
     ) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
-        let num_columns = <Poseidon2WideChip<DEGREE, ROUND_CHUNK_SIZE> as BaseAir<F>>::width(self);
+        let num_columns = <Poseidon2WideChip<DEGREE> as BaseAir<F>>::width(self);
 
         // Populate the hash events.
         for event in &input.poseidon2_hash_events {
@@ -93,9 +91,7 @@ impl<F: PrimeField32, const DEGREE: usize, const ROUND_CHUNK_SIZE: usize> Machin
     }
 }
 
-impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
-    Poseidon2WideChip<DEGREE, ROUND_CHUNK_SIZE>
-{
+impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
     pub fn populate_compress_event<F: PrimeField32>(
         &self,
         compress_event: &Poseidon2CompressEvent<F>,
@@ -257,6 +253,10 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
                     memory.memory_slot_used[i + absorb_iter.state_cursor] = F::one();
                     memory.memory_accesses[i + absorb_iter.state_cursor].populate(input_record);
                 }
+
+                // if iter_num == 1 {
+                //     println!("memory: {:?}", memory);
+                // }
             }
 
             // Populate the opcode workspace fields.
@@ -315,6 +315,16 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
                 absorb_workspace.state_cursor = F::from_canonical_usize(absorb_iter.state_cursor);
                 absorb_workspace.is_first_hash_row =
                     F::from_bool(iter_num == 0 && absorb_event.is_first_aborb);
+
+                absorb_workspace.start_mem_idx_bitmap[absorb_iter.state_cursor] = F::one();
+                if is_last_row {
+                    absorb_workspace.end_mem_idx_bitmap[last_row_ending_cursor] = F::one();
+                }
+
+                // if iter_num == 1 {
+                //     println!("absorb_workspace: {:?}", absorb_workspace);
+                //     panic!();
+                // }
             }
 
             // Populate the permutation fields.
@@ -404,18 +414,16 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
         expected_output: Option<[F; WIDTH]>,
         input_row: &mut [F],
     ) {
-        // Create a set of temporary arrays to store the permutation trace info.  At the end of the
-        // function, copy over that trace info into the actual row.
+        let mut permutation = permutation_mut::<F, DEGREE>(input_row);
 
-        let mut external_rounds_state: [[F; WIDTH]; NUM_EXTERNAL_ROUNDS] =
-            [[F::zero(); WIDTH]; NUM_EXTERNAL_ROUNDS];
-        let mut internal_rounds_state: [F; WIDTH] = [F::zero(); WIDTH];
-        let mut internal_rounds_s0: [F; NUM_INTERNAL_ROUNDS - 1] =
-            [F::zero(); NUM_INTERNAL_ROUNDS - 1];
-        let mut external_sbox: [[F; WIDTH]; NUM_EXTERNAL_ROUNDS] =
-            [[F::zero(); WIDTH]; NUM_EXTERNAL_ROUNDS];
-        let mut internal_sbox: [F; NUM_INTERNAL_ROUNDS] = [F::zero(); NUM_INTERNAL_ROUNDS];
-        let mut output_state: [F; WIDTH] = [F::zero(); WIDTH];
+        let (
+            external_rounds_state,
+            internal_rounds_state,
+            internal_rounds_s0,
+            mut external_sbox,
+            mut internal_sbox,
+            output_state,
+        ) = permutation.get_cols_mut();
 
         external_rounds_state[0] = input;
         external_linear_layer(&mut external_rounds_state[0]);
@@ -423,9 +431,9 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
         // Apply the first half of external rounds.
         for r in 0..NUM_EXTERNAL_ROUNDS / 2 {
             let next_state =
-                self.populate_external_round(&external_rounds_state, &mut external_sbox, r);
+                self.populate_external_round(external_rounds_state, &mut external_sbox, r);
             if r == NUM_EXTERNAL_ROUNDS / 2 - 1 {
-                internal_rounds_state = next_state;
+                *internal_rounds_state = next_state;
             } else {
                 external_rounds_state[r + 1] = next_state;
             }
@@ -433,15 +441,15 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
 
         // Apply the internal rounds.
         external_rounds_state[NUM_EXTERNAL_ROUNDS / 2] = self.populate_internal_rounds(
-            &internal_rounds_state,
-            &mut internal_rounds_s0,
+            internal_rounds_state,
+            internal_rounds_s0,
             &mut internal_sbox,
         );
 
         // Apply the second half of external rounds.
         for r in NUM_EXTERNAL_ROUNDS / 2..NUM_EXTERNAL_ROUNDS {
             let next_state =
-                self.populate_external_round(&external_rounds_state, &mut external_sbox, r);
+                self.populate_external_round(external_rounds_state, &mut external_sbox, r);
             if r == NUM_EXTERNAL_ROUNDS - 1 {
                 for i in 0..WIDTH {
                     output_state[i] = next_state[i];
@@ -453,36 +461,12 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
                 external_rounds_state[r + 1] = next_state;
             }
         }
-
-        // Copy over the trace info into the actual row.
-        let mut permutation = permutation_mut::<F, DEGREE>(input_row);
-        let (
-            row_external_rounds_state,
-            row_internal_rounds_state,
-            row_internal_rounds_s0,
-            row_external_sbox,
-            row_internal_sbox,
-            row_output_state,
-        ) = permutation.get_cols_mut();
-
-        for r in (0..NUM_EXTERNAL_ROUNDS).step_by(ROUND_CHUNK_SIZE) {
-            row_external_rounds_state[r / ROUND_CHUNK_SIZE] = external_rounds_state[r];
-        }
-        *row_internal_rounds_state = internal_rounds_state;
-        *row_internal_rounds_s0 = internal_rounds_s0;
-        if let Some(row_external_sbox) = row_external_sbox {
-            *row_external_sbox = external_sbox;
-        }
-        if let Some(row_internal_sbox) = row_internal_sbox {
-            *row_internal_sbox = internal_sbox;
-        }
-        *row_output_state = output_state;
     }
 
     fn populate_external_round<F: PrimeField32>(
         &self,
         external_rounds_state: &[[F; WIDTH]],
-        sbox: &mut [[F; WIDTH]; NUM_EXTERNAL_ROUNDS],
+        sbox: &mut Option<&mut [[F; WIDTH]; NUM_EXTERNAL_ROUNDS]>,
         r: usize,
     ) -> [F; WIDTH] {
         let mut state = {
@@ -513,7 +497,10 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
                 sbox_deg_7[i] = sbox_deg_3[i] * sbox_deg_3[i] * add_rc[i];
             }
 
-            sbox[r] = sbox_deg_3;
+            if let Some(sbox) = sbox.as_deref_mut() {
+                sbox[r] = sbox_deg_3;
+            }
+
             sbox_deg_7
         };
 
@@ -526,7 +513,7 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
         &self,
         internal_rounds_state: &[F; WIDTH],
         internal_rounds_s0: &mut [F; NUM_INTERNAL_ROUNDS - 1],
-        sbox: &mut [F; NUM_INTERNAL_ROUNDS],
+        sbox: &mut Option<&mut [F; NUM_INTERNAL_ROUNDS]>,
     ) -> [F; WIDTH] {
         let mut state: [F; WIDTH] = *internal_rounds_state;
         let mut sbox_deg_3: [F; NUM_INTERNAL_ROUNDS] = [F::zero(); NUM_INTERNAL_ROUNDS];
@@ -558,7 +545,10 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
         }
 
         let ret_state = state;
-        *sbox = sbox_deg_3;
+
+        if let Some(sbox) = sbox.as_deref_mut() {
+            *sbox = sbox_deg_3;
+        }
 
         ret_state
     }

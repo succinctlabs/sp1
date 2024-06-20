@@ -1,5 +1,6 @@
 use p3_air::AirBuilder;
 use p3_field::AbstractField;
+use sp1_core::air::BaseAirBuilder;
 
 use crate::{
     air::SP1RecursionAirBuilder,
@@ -13,9 +14,7 @@ use crate::{
     },
 };
 
-impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
-    Poseidon2WideChip<DEGREE, ROUND_CHUNK_SIZE>
-{
+impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
     /// Eval the memory related columns.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn eval_mem<AB: SP1RecursionAirBuilder>(
@@ -47,9 +46,9 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
                 .when(control_flow.is_compress + control_flow.is_finalize)
                 .assert_one(local_memory.memory_slot_used[i]);
 
-            // For absorb, the first n zero columns should equal to state_cursor.  The next m contiguous
-            // non zero columns should be equal to the consumed elements.  The rest of the columns should
-            // be zero.
+            // For absorb, need to make sure the memory_slots_used is consistent with the start_cursor and
+            // end_cursor (i.e. start_cursor + num_consumed);
+            self.eval_absorb_memory_slots(builder, control_flow, local_memory, opcode_workspace);
         }
 
         // Verify the start_addr column.
@@ -139,5 +138,77 @@ impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
                 addr = addr.clone() + AB::Expr::one();
             }
         }
+    }
+
+    fn eval_absorb_memory_slots<AB: SP1RecursionAirBuilder>(
+        &self,
+        builder: &mut AB,
+        control_flow: &ControlFlow<AB::Var>,
+        local_memory: &Memory<AB::Var>,
+        opcode_workspace: &OpcodeWorkspace<AB::Var>,
+    ) {
+        // To verify that the absorb memory slots are correct, we take the derivative of the memory slots,
+        // (e.g. memory_slot_used[i] - memory_slot_used[i - 1]), and assert the following:
+        // 1) when start_mem_idx_bitmap[i] == 1 -> derivative == 1
+        // 2) when end_mem_idx_bitmap[i + 1] == 1 -> derivative == -1
+        // 3) when start_mem_idx_bitmap[i] == 0 and end_mem_idx_bitmap[i + 1] == 0 -> derivative == 0
+        let mut absorb_builder = builder.when(control_flow.is_absorb);
+
+        let start_mem_idx_bitmap = opcode_workspace.absorb().start_mem_idx_bitmap;
+        let end_mem_idx_bitmap = opcode_workspace.absorb().end_mem_idx_bitmap;
+        for i in 0..WIDTH / 2 {
+            let derivative: AB::Expr = if i == 0 {
+                local_memory.memory_slot_used[i].into()
+            } else {
+                local_memory.memory_slot_used[i] - local_memory.memory_slot_used[i - 1]
+            };
+
+            let is_start_mem_idx = start_mem_idx_bitmap[i].into();
+
+            let is_previous_end_mem_idx = if i == 0 {
+                AB::Expr::zero()
+            } else {
+                end_mem_idx_bitmap[i - 1].into()
+            };
+
+            absorb_builder
+                .when(is_start_mem_idx.clone())
+                .assert_one(derivative.clone());
+
+            absorb_builder
+                .when(is_previous_end_mem_idx.clone())
+                .assert_zero(derivative.clone() + AB::Expr::one());
+
+            absorb_builder
+                .when_not(is_start_mem_idx + is_previous_end_mem_idx)
+                .assert_zero(derivative);
+        }
+
+        // Verify correct value of start_mem_idx_bitmap and end_mem_idx_bitmap.
+        let start_mem_idx: AB::Expr = start_mem_idx_bitmap
+            .iter()
+            .enumerate()
+            .map(|(i, bit)| AB::Expr::from_canonical_usize(i) * *bit)
+            .sum();
+        absorb_builder.assert_eq(start_mem_idx, opcode_workspace.absorb().state_cursor);
+
+        let end_mem_idx: AB::Expr = end_mem_idx_bitmap
+            .iter()
+            .enumerate()
+            .map(|(i, bit)| AB::Expr::from_canonical_usize(i) * *bit)
+            .sum();
+
+        // When we are not in the last row, end_mem_idx should be zero.
+        absorb_builder
+            .when_not(opcode_workspace.absorb().is_last_row::<AB>())
+            .assert_zero(end_mem_idx.clone());
+
+        // When we are in the last row, end_mem_idx bitmap should equal last_row_ending_cursor.
+        absorb_builder
+            .when(opcode_workspace.absorb().is_last_row::<AB>())
+            .assert_eq(
+                end_mem_idx,
+                opcode_workspace.absorb().last_row_ending_cursor,
+            );
     }
 }

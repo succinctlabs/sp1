@@ -33,10 +33,10 @@ pub enum RecursionAir<
     Program(ProgramChip),
     Cpu(CpuChip<F, DEGREE>),
     MemoryGlobal(MemoryGlobalChip),
-    Poseidon2Wide(Poseidon2WideChip<DEGREE, ROUND_CHUNK_SIZE>),
+    Poseidon2Wide(Poseidon2WideChip<DEGREE>),
     FriFold(FriFoldChip<DEGREE>),
     RangeCheck(RangeCheckChip<F>),
-    Multi(MultiChip<DEGREE, ROUND_CHUNK_SIZE>),
+    Multi(MultiChip<DEGREE>),
     ExpReverseBitsLen(ExpReverseBitsLenChip<DEGREE>),
 }
 
@@ -84,7 +84,6 @@ impl<
             })))
             .chain(once(RecursionAir::Poseidon2Wide(Poseidon2WideChip::<
                 DEGREE,
-                ROUND_CHUNK_SIZE,
             > {
                 fixed_log2_rows: None,
                 pad: true,

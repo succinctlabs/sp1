@@ -30,14 +30,12 @@ pub const NUM_ROUNDS: usize = NUM_EXTERNAL_ROUNDS + NUM_INTERNAL_ROUNDS;
 
 /// A chip that implements addition for the opcode ADD.
 #[derive(Default)]
-pub struct Poseidon2WideChip<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize> {
+pub struct Poseidon2WideChip<const DEGREE: usize> {
     pub fixed_log2_rows: Option<usize>,
     pub pad: bool,
 }
 
-impl<'a, const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
-    Poseidon2WideChip<DEGREE, ROUND_CHUNK_SIZE>
-{
+impl<'a, const DEGREE: usize> Poseidon2WideChip<DEGREE> {
     /// Transmute a row it to an immutable Poseidon2 instance.
     pub(crate) fn convert<T>(row: impl Deref<Target = [T]>) -> Box<dyn Poseidon2<'a, T> + 'a>
     where
@@ -140,10 +138,10 @@ pub(crate) mod tests {
     use super::events::{Poseidon2AbsorbEvent, Poseidon2CompressEvent, Poseidon2FinalizeEvent};
     use super::{Poseidon2WideChip, WIDTH};
 
-    fn poseidon2_wide_prove_babybear_degree<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>(
+    fn poseidon2_wide_prove_babybear_degree<const DEGREE: usize>(
         input_exec: ExecutionRecord<BabyBear>,
     ) {
-        let chip = Poseidon2WideChip::<DEGREE, ROUND_CHUNK_SIZE> {
+        let chip = Poseidon2WideChip::<DEGREE> {
             fixed_log2_rows: None,
             pad: true,
         };
@@ -309,8 +307,8 @@ pub(crate) mod tests {
         // Generate test input exec record.
         let input_exec = generate_test_execution_record(false);
 
-        poseidon2_wide_prove_babybear_degree::<3, 1>(input_exec.clone());
-        poseidon2_wide_prove_babybear_degree::<9, 1>(input_exec);
+        poseidon2_wide_prove_babybear_degree::<3>(input_exec.clone());
+        poseidon2_wide_prove_babybear_degree::<9>(input_exec);
     }
 
     #[test]
@@ -319,7 +317,7 @@ pub(crate) mod tests {
         // Generate test input exec record.
         let input_exec = generate_test_execution_record(true);
 
-        poseidon2_wide_prove_babybear_degree::<3, 1>(input_exec.clone());
-        poseidon2_wide_prove_babybear_degree::<9, 1>(input_exec);
+        poseidon2_wide_prove_babybear_degree::<3>(input_exec.clone());
+        poseidon2_wide_prove_babybear_degree::<9>(input_exec);
     }
 }

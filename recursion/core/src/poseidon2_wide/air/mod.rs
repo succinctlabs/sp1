@@ -1,3 +1,68 @@
+//! The air module contains the AIR constraints for the poseidon2 chip.  Those constraints will
+//! enforce the following properties:
+//!
+//! Layout of the poseidon2 chip:
+//!     All the hash related rows should be in the first part of the chip and all the compress
+//!     related rows in the second part.  E.g. the chip should has this format:
+//!
+//!         absorb row (for hash num 1)
+//!         absorb row (for hash num 1)
+//!         absorb row (for hash num 1)
+//!         finalize row (for hash num 1)
+//!         absorb row (for hash num 2)
+//!         absorb row (for hash num 2)
+//!         finalize row (for hash num 2)
+//!         .
+//!         .
+//!         .
+//!         compress syscall/input row
+//!         compress output row
+//!
+//!
+//! Absorb rows
+//!     For absorb rows, the AIR needs to ensure that all of the input is written into the hash state
+//!     and that its written into the correct parts of that state.  To do this, the AIR will first ensure
+//!     the correct values for num_remaining_rows (e.g. total number of rows of an absorb syscall) and
+//!     the last_row_ending_cursor.  It does this by checking the following:
+//!
+//!     1) start_state_cursor + syscall_input_len == num_remaining_rows * RATE + last_row_ending_cursor
+//!     2) range check syscall_input_len to be [0, 2^16 - 1]
+//!     3) range check last_row_ending_cursor to be [0, RATE]
+//!
+//!     For all subsequent absorb rows, the num_remaining_rows will be decremented by 1, and the
+//!     last_row_ending_cursor will be copied down to all of the rows.  Also, for the next absorb/finalize
+//!     syscall, it's state_cursor is set to (last_row_ending_cursor + 1) % RATE.
+//!
+//!     From num_remaining_rows and syscall column, we know the absorb's first row and last row.  
+//!     From that fact, we can the enforce the following state writes.
+//!
+//!     1) is_first_row && is_last_row -> state writes are [state_cursor..state_cursor + last_row_ending_cursor]
+//!     2) is_first_row && !is_last_row -> state writes are [state_cursor..RATE - 1]
+//!     3) !is_first_row && !is_last_row -> state writes are [0..RATE - 1]
+//!     4) !is_first_row && is_last_row -> state writes are [0..last_row_ending_cursor]
+//!
+//!     From the state writes range, we can then populate a bitmap that specifies which state elements
+//!     should be overwritten (stored in Memory.memory_slot_used columns).  To verify that this bitmap
+//!     is correct, we utilize the column's derivative (memory_slot_used[i] - memory_slot_used[i+1])
+//!
+//!     1) When idx == state write start_idx -> derivative == 1
+//!     2) When idx == (state write end_idx - 1) -> derivative == -1
+//!     3) For all other cases, derivative == 0
+//!
+//!     In addition to determining the hash state writes, the AIR also needs to ensure that the do_perm
+//!     flag is correct (which is used to determine if a permutation should be done).  It does this
+//!     by enforcing the following.
+//!
+//!     1) is_first_row && !is_last_row -> do_perm == 1
+//!     2) !is_first_row && !is_last_row -> do_perm == 1
+//!     3) is_last_row && last_row_ending_cursor == RATE - 1 -> do_perm == 1
+//!
+//!
+//! Finalize rows
+//!     For finalize, the main flag that needs to be checked is do_perm.  If state_cursor == 0, then
+//!     do_perm should be 0, otherwise it should be 1.  If state_cursor == 0, that means that the
+//!     previous row did a perm.
+
 use p3_air::{Air, BaseAir};
 use p3_matrix::Matrix;
 
@@ -14,9 +79,7 @@ use super::{
     Poseidon2WideChip, WIDTH,
 };
 
-impl<F, const DEGREE: usize, const ROUND_CHUNK_SIZE: usize> BaseAir<F>
-    for Poseidon2WideChip<DEGREE, ROUND_CHUNK_SIZE>
-{
+impl<F, const DEGREE: usize> BaseAir<F> for Poseidon2WideChip<DEGREE> {
     fn width(&self) -> usize {
         if DEGREE == 3 {
             NUM_POSEIDON2_DEGREE3_COLS
@@ -28,8 +91,7 @@ impl<F, const DEGREE: usize, const ROUND_CHUNK_SIZE: usize> BaseAir<F>
     }
 }
 
-impl<AB, const DEGREE: usize, const ROUND_CHUNK_SIZE: usize> Air<AB>
-    for Poseidon2WideChip<DEGREE, ROUND_CHUNK_SIZE>
+impl<AB, const DEGREE: usize> Air<AB> for Poseidon2WideChip<DEGREE>
 where
     AB: SP1RecursionAirBuilder,
     AB::Var: 'static,
@@ -59,9 +121,7 @@ where
     }
 }
 
-impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
-    Poseidon2WideChip<DEGREE, ROUND_CHUNK_SIZE>
-{
+impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
     pub(crate) fn eval_poseidon2<AB>(
         &self,
         builder: &mut AB,

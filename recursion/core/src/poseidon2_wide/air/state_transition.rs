@@ -15,9 +15,7 @@ use crate::{
     },
 };
 
-impl<const DEGREE: usize, const ROUND_CHUNK_SIZE: usize>
-    Poseidon2WideChip<DEGREE, ROUND_CHUNK_SIZE>
-{
+impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn eval_state_transition<AB: SP1RecursionAirBuilder>(
         &self,
