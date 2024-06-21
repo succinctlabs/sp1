@@ -107,19 +107,25 @@ pub struct Builder<C: Config> {
 
 impl<C: Config> Default for Builder<C> {
     fn default() -> Self {
-        Self {
+        // We need to create a temporary placeholder for the p2_hash_num variable.
+        let placeholder_p2_hash_num = Var::new(0);
+
+        let mut new_builder = Self {
             felt_count: 0,
             ext_count: 0,
-            var_count: 1,
+            var_count: 0,
             witness_var_count: 0,
             witness_felt_count: 0,
             witness_ext_count: 0,
             operations: Default::default(),
             nb_public_values: None,
-            p2_hash_num: Var::new(0),
+            p2_hash_num: placeholder_p2_hash_num,
             debug: false,
             is_sub_builder: false,
-        }
+        };
+
+        new_builder.p2_hash_num = new_builder.uninit();
+        new_builder
     }
 }
 

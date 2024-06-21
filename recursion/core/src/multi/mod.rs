@@ -29,13 +29,21 @@ pub struct MultiChip<const DEGREE: usize> {
 #[repr(C)]
 pub struct MultiCols<T: Copy> {
     pub is_fri_fold: T,
+
+    /// Rows that needs to receive a fri_fold syscall.
     pub fri_fold_receive_table: T,
+    /// Rows that needs to access memory.
     pub fri_fold_memory_access: T,
 
     pub is_poseidon2: T,
+
+    /// Rows that needs to receive a poseidon2 syscall.
     pub poseidon2_receive_table: T,
+    /// Hash/Permute state entries that needs to access memory.  This is for the the first half of the permute state.
     pub poseidon2_1st_half_memory_access: [T; WIDTH / 2],
+    /// Flag to indicate if all of the second half of a compress state needs to access memory.
     pub poseidon2_2nd_half_memory_access: T,
+    /// Rows that need to send a range check.
     pub poseidon2_send_range_check: T,
 }
 

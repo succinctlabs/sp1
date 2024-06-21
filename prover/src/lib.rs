@@ -76,9 +76,9 @@ const REDUCE_DEGREE: usize = 3;
 const COMPRESS_DEGREE: usize = 9;
 const WRAP_DEGREE: usize = 17;
 
-pub type ReduceAir<F> = RecursionAir<F, REDUCE_DEGREE, 1>;
-pub type CompressAir<F> = RecursionAir<F, COMPRESS_DEGREE, 1>;
-pub type WrapAir<F> = RecursionAir<F, WRAP_DEGREE, 1>;
+pub type ReduceAir<F> = RecursionAir<F, REDUCE_DEGREE>;
+pub type CompressAir<F> = RecursionAir<F, COMPRESS_DEGREE>;
+pub type WrapAir<F> = RecursionAir<F, WRAP_DEGREE>;
 
 /// A end-to-end prover implementation for the SP1 RISC-V zkVM.
 pub struct SP1Prover {
@@ -313,7 +313,7 @@ impl SP1Prover {
         last_proof_pv: &PublicValues<Word<BabyBear>, BabyBear>,
         deferred_proofs: &[ShardProof<InnerSC>],
         batch_size: usize,
-    ) -> Vec<SP1DeferredMemoryLayout<'a, InnerSC, RecursionAir<BabyBear, 3, 1>>> {
+    ) -> Vec<SP1DeferredMemoryLayout<'a, InnerSC, RecursionAir<BabyBear, 3>>> {
         // Prepare the inputs for the deferred proofs recursive verification.
         let mut deferred_digest = [Val::<InnerSC>::zero(); DIGEST_SIZE];
         let mut deferred_inputs = Vec::new();
@@ -352,7 +352,7 @@ impl SP1Prover {
         batch_size: usize,
     ) -> (
         Vec<SP1RecursionMemoryLayout<'a, InnerSC, RiscvAir<BabyBear>>>,
-        Vec<SP1DeferredMemoryLayout<'a, InnerSC, RecursionAir<BabyBear, 3, 1>>>,
+        Vec<SP1DeferredMemoryLayout<'a, InnerSC, RecursionAir<BabyBear, 3>>>,
     ) {
         let is_complete = shard_proofs.len() == 1 && deferred_proofs.is_empty();
         let core_inputs = self.get_recursion_core_inputs(

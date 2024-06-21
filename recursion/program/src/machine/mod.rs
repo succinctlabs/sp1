@@ -53,7 +53,7 @@ mod tests {
         // Make the recursion program.
         let recursive_program = SP1RecursiveVerifier::<InnerConfig, SC>::build(&machine);
         let recursive_config = SC::default();
-        type A = RecursionAir<BabyBear, 3, 1>;
+        type A = RecursionAir<BabyBear, 3>;
         let recursive_machine = A::machine(recursive_config.clone());
         let (rec_pk, rec_vk) = recursive_machine.setup(&recursive_program);
 
@@ -71,13 +71,13 @@ mod tests {
         let (reduce_pk, compress_vk) = recursive_machine.setup(&reduce_program);
 
         // Make the compress program.
-        let compress_machine = RecursionAir::<_, 9, 1>::machine(SC::compressed());
+        let compress_machine = RecursionAir::<_, 9>::machine(SC::compressed());
         let compress_program =
             SP1RootVerifier::<InnerConfig, _, _>::build(&recursive_machine, &compress_vk, true);
         let (compress_pk, compress_vk) = compress_machine.setup(&compress_program);
 
         // Make the wrap program.
-        let wrap_machine = RecursionAir::<_, 17, 1>::machine(BabyBearPoseidon2Outer::default());
+        let wrap_machine = RecursionAir::<_, 17>::machine(BabyBearPoseidon2Outer::default());
         let wrap_program =
             SP1RootVerifier::<InnerConfig, _, _>::build(&compress_machine, &compress_vk, false);
 

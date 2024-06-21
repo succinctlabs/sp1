@@ -25,9 +25,9 @@
 //!     the correct values for num_remaining_rows (e.g. total number of rows of an absorb syscall) and
 //!     the last_row_ending_cursor.  It does this by checking the following:
 //!
-//!     1) start_state_cursor + syscall_input_len == num_remaining_rows * RATE + last_row_ending_cursor
-//!     2) range check syscall_input_len to be [0, 2^16 - 1]
-//!     3) range check last_row_ending_cursor to be [0, RATE]
+//!     1. start_state_cursor + syscall_input_len == num_remaining_rows * RATE + last_row_ending_cursor
+//!     2. range check syscall_input_len to be [0, 2^16 - 1]
+//!     3. range check last_row_ending_cursor to be [0, RATE]
 //!
 //!     For all subsequent absorb rows, the num_remaining_rows will be decremented by 1, and the
 //!     last_row_ending_cursor will be copied down to all of the rows.  Also, for the next absorb/finalize
@@ -36,28 +36,28 @@
 //!     From num_remaining_rows and syscall column, we know the absorb's first row and last row.  
 //!     From that fact, we can then enforce the following state writes.
 //!
-//!     1) is_first_row && is_last_row -> state writes are [state_cursor..state_cursor + last_row_ending_cursor]
-//!     2) is_first_row && !is_last_row -> state writes are [state_cursor..RATE - 1]
-//!     3) !is_first_row && !is_last_row -> state writes are [0..RATE - 1]
-//!     4) !is_first_row && is_last_row -> state writes are [0..last_row_ending_cursor]
+//!     1. is_first_row && is_last_row -> state writes are [state_cursor..state_cursor + last_row_ending_cursor]
+//!     2. is_first_row && !is_last_row -> state writes are [state_cursor..RATE - 1]
+//!     3. !is_first_row && !is_last_row -> state writes are [0..RATE - 1]
+//!     4. !is_first_row && is_last_row -> state writes are [0..last_row_ending_cursor]
 //!
 //!     From the state writes range, we can then populate a bitmap that specifies which state elements
 //!     should be overwritten (stored in Memory.memory_slot_used columns).  To verify that this bitmap
 //!     is correct, we utilize the column's derivative (memory_slot_used[i] - memory_slot_used[i-1],
 //!     where memory_slot_used[-1] is 0).
 //!
-//!     1) When idx == state write start_idx -> derivative == 1
-//!     2) When idx == (state write end_idx - 1) -> derivative == -1
-//!     3) For all other cases, derivative == 0
+//!     1. When idx == state write start_idx -> derivative == 1
+//!     2. When idx == (state write end_idx - 1) -> derivative == -1
+//!     3. For all other cases, derivative == 0
 //!
 //!     In addition to determining the hash state writes, the AIR also needs to ensure that the do_perm
 //!     flag is correct (which is used to determine if a permutation should be done).  It does this
 //!     by enforcing the following.
 //!
-//!     1) is_first_row && !is_last_row -> do_perm == 1
-//!     2) !is_first_row && !is_last_row -> do_perm == 1
-//!     3) is_last_row && last_row_ending_cursor == RATE - 1 -> do_perm == 1
-//!     4) is_last_row && last_row_ending_cursor != RATE - 1 -> do_perm == 0
+//!     1. is_first_row && !is_last_row -> do_perm == 1
+//!     2. !is_first_row && !is_last_row -> do_perm == 1
+//!     3. is_last_row && last_row_ending_cursor == RATE - 1 -> do_perm == 1
+//!     4. is_last_row && last_row_ending_cursor != RATE - 1 -> do_perm == 0
 //!
 //!
 //! Finalize rows

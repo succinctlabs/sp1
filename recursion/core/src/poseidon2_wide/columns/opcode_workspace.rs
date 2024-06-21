@@ -76,11 +76,17 @@ pub struct AbsorbWorkspace<T: Copy> {
     pub last_row_ending_cursor_bitmap: [T; 3],
 
     /// Materialized control flow flags to deal with max contraint degree.
+    /// Is an absorb syscall row which is not the last row for that absorb.
     pub is_syscall_not_last_row: T,
+    /// Is an absorb syscall row that is the last row for that absorb.
     pub is_syscall_is_last_row: T,
+    /// Is not an absorb syscall row and is not the last row for that absorb.
     pub not_syscall_not_last_row: T,
+    /// Is not an absorb syscall row and is last row for that absorb.
     pub not_syscall_is_last_row: T,
+    /// Is the last of an absorb and the state is filled up (e.g. it's ending cursor is 7).
     pub is_last_row_ending_cursor_is_seven: T,
+    /// Is the last of an absorb and the state is not filled up (e.g. it's ending cursor is not 7).
     pub is_last_row_ending_cursor_not_seven: T,
 }
 

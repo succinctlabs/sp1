@@ -245,6 +245,9 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         {
             let mut absorb_builder = builder.when(local_control_flow.is_absorb);
 
+            // Verify that state_cursor + syscall input_len - 1 == num_remaining_rows * RATE + last_row_ending_cursor.
+            // The minus one is needed, since `last_row_ending_cursor` is inclusive of the last element,
+            // while state_cursor + syscall input_len is not.
             absorb_builder
                 .when(local_control_flow.is_syscall_row)
                 .assert_eq(
@@ -254,7 +257,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                         + local_hash_workspace.last_row_ending_cursor,
                 );
 
-            // Range check that last_row_ending_cursor is between 0 and 7, inclusive.
+            // Range check that last_row_ending_cursor is between [0, 7].
             (0..3).for_each(|i| {
                 absorb_builder.assert_bool(local_hash_workspace.last_row_ending_cursor_bitmap[i])
             });
@@ -271,6 +274,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                     expected_last_row_ending_cursor,
                 );
 
+            // Range check that num_remaining_rows is between [0, 2^18-1].
             builder.send_range_check(
                 AB::Expr::from_canonical_u8(RangeCheckOpcode::U16 as u8),
                 local_hash_workspace.num_remaining_rows,
@@ -279,7 +283,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         }
 
         // For all non last absorb rows, verify that num_remaining_rows decrements and
-        // that last_row_num_consumed is copied down.
+        // that last_row_ending_cursor is copied down.
         {
             let mut transition_builder = builder.when_transition();
             let mut absorb_transition_builder =
@@ -304,7 +308,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         // Constrain the state cursor.  There are three constraints:
         // 1) For the first hash row, verify that state_cursor == 0.
         // 2) For the last absorb rows, verify that constrain
-        //    'state_cursor = (last_row_ending_cursor + 1) % RATE.
+        //    state_cursor' = (last_row_ending_cursor + 1) % RATE.
         // 3) For all non syscall rows, the state_cursor should be 0.
         {
             let mut absorb_builder = builder.when(local_control_flow.is_absorb);

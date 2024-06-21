@@ -184,6 +184,14 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                 .assert_zero(derivative);
         }
 
+        // Verify that all elements of start_mem_idx_bitmap and end_mem_idx_bitmap are bool.
+        start_mem_idx_bitmap.iter().for_each(|bit| {
+            absorb_builder.assert_bool(*bit);
+        });
+        end_mem_idx_bitmap.iter().for_each(|bit| {
+            absorb_builder.assert_bool(*bit);
+        });
+
         // Verify correct value of start_mem_idx_bitmap and end_mem_idx_bitmap.
         let start_mem_idx: AB::Expr = start_mem_idx_bitmap
             .iter()

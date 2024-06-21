@@ -15,9 +15,9 @@ use std::marker::PhantomData;
 
 use crate::runtime::D;
 
-pub type RecursionAirWideDeg3<F> = RecursionAir<F, 3, 1>;
-pub type RecursionAirWideDeg9<F> = RecursionAir<F, 9, 1>;
-pub type RecursionAirWideDeg17<F> = RecursionAir<F, 17, 1>;
+pub type RecursionAirWideDeg3<F> = RecursionAir<F, 3>;
+pub type RecursionAirWideDeg9<F> = RecursionAir<F, 9>;
+pub type RecursionAirWideDeg17<F> = RecursionAir<F, 17>;
 
 #[derive(MachineAir)]
 #[sp1_core_path = "sp1_core"]
@@ -25,11 +25,7 @@ pub type RecursionAirWideDeg17<F> = RecursionAir<F, 17, 1>;
 #[program_path = "crate::runtime::RecursionProgram<F>"]
 #[builder_path = "crate::air::SP1RecursionAirBuilder<F = F>"]
 #[eval_trait_bound = "AB::Var: 'static"]
-pub enum RecursionAir<
-    F: PrimeField32 + BinomiallyExtendable<D>,
-    const DEGREE: usize,
-    const ROUND_CHUNK_SIZE: usize,
-> {
+pub enum RecursionAir<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> {
     Program(ProgramChip),
     Cpu(CpuChip<F, DEGREE>),
     MemoryGlobal(MemoryGlobalChip),
@@ -40,12 +36,7 @@ pub enum RecursionAir<
     ExpReverseBitsLen(ExpReverseBitsLenChip<DEGREE>),
 }
 
-impl<
-        F: PrimeField32 + BinomiallyExtendable<D>,
-        const DEGREE: usize,
-        const ROUND_CHUNK_SIZE: usize,
-    > RecursionAir<F, DEGREE, ROUND_CHUNK_SIZE>
-{
+impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAir<F, DEGREE> {
     /// A recursion machine that can have dynamic trace sizes.
     pub fn machine<SC: StarkGenericConfig<Val = F>>(config: SC) -> StarkMachine<SC, Self> {
         let chips = Self::get_all()
