@@ -2,6 +2,7 @@
 //! enforce the following properties:
 //!
 //! Layout of the poseidon2 chip:
+//!
 //!     All the hash related rows should be in the first part of the chip and all the compress
 //!     related rows in the second part.  E.g. the chip should has this format:
 //!
@@ -20,6 +21,7 @@
 //!
 //!
 //! Absorb rows
+//!
 //!     For absorb rows, the AIR needs to ensure that all of the input is written into the hash state
 //!     and that its written into the correct parts of that state.  To do this, the AIR will first ensure
 //!     the correct values for num_remaining_rows (e.g. total number of rows of an absorb syscall) and
@@ -61,12 +63,14 @@
 //!
 //!
 //! Finalize rows
+//!
 //!     For finalize, the main flag that needs to be checked is do_perm.  If state_cursor == 0, then
 //!     do_perm should be 0, otherwise it should be 1.  If state_cursor == 0, that means that the
 //!     previous row did a perm.
 //!
 //!
 //! Compress rows
+//!
 //!     For compress, the main invariants that needs to be checked is that all syscall compress rows
 //!     verifies the correct memory read accesses, does the permutation, and copies the permuted value
 //!     into the next row.  That row should then verify the correct memory write accesses.
