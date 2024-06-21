@@ -125,7 +125,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
                 fixed_log2_rows: Some(20),
             })))
             .chain(once(RecursionAir::Multi(MultiChip {
-                fixed_log2_rows: Some(12),
+                fixed_log2_rows: Some(17),
             })))
             .chain(once(RecursionAir::RangeCheck(RangeCheckChip::default())))
             .chain(once(RecursionAir::ExpReverseBitsLen(
