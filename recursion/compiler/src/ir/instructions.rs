@@ -198,6 +198,10 @@ pub enum DslIr<C: Config> {
         Array<C, Felt<C::F>>,
         Array<C, Felt<C::F>>,
     ),
+    /// Absorb an array of baby bear elements for a specified hash instance.
+    Poseidon2AbsorbBabyBear(Var<C::N>, Array<C, Felt<C::F>>),
+    /// Finalize and return the hash digest of a specified hash instance.
+    Poseidon2FinalizeBabyBear(Var<C::N>, Array<C, Felt<C::F>>),
     /// Permutes an array of Bn254 elements using Poseidon2 (output = p2_permute(array)). Should only
     /// be used when target is a gnark circuit.
     CircuitPoseidon2Permute([Var<C::N>; 3]),

@@ -4,6 +4,7 @@ mod program;
 mod record;
 mod utils;
 
+use std::array;
 use std::collections::VecDeque;
 use std::process::exit;
 use std::{marker::PhantomData, sync::Arc};
@@ -25,7 +26,9 @@ use crate::cpu::CpuEvent;
 use crate::exp_reverse_bits::ExpReverseBitsLenEvent;
 use crate::fri_fold::FriFoldEvent;
 use crate::memory::{compute_addr_diff, MemoryRecord};
-use crate::poseidon2::Poseidon2Event;
+use crate::poseidon2_wide::events::{
+    Poseidon2AbsorbEvent, Poseidon2CompressEvent, Poseidon2FinalizeEvent, Poseidon2HashEvent,
+};
 use crate::range_check::{RangeCheckEvent, RangeCheckOpcode};
 
 use p3_field::{ExtensionField, PrimeField32};
@@ -131,6 +134,12 @@ pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
         >,
     >,
 
+    p2_hash_state: [F; PERMUTATION_WIDTH],
+
+    p2_hash_state_cursor: usize,
+
+    p2_current_hash_num: Option<F>,
+
     _marker: PhantomData<EF>,
 }
 
@@ -179,6 +188,9 @@ where
             access: CpuRecord::default(),
             witness_stream: VecDeque::new(),
             cycle_tracker: HashMap::new(),
+            p2_hash_state: [F::zero(); PERMUTATION_WIDTH],
+            p2_hash_state_cursor: 0,
+            p2_current_hash_num: None,
             _marker: PhantomData,
         }
     }
@@ -209,6 +221,9 @@ where
             access: CpuRecord::default(),
             witness_stream: VecDeque::new(),
             cycle_tracker: HashMap::new(),
+            p2_hash_state: [F::zero(); PERMUTATION_WIDTH],
+            p2_hash_state_cursor: 0,
+            p2_current_hash_num: None,
             _marker: PhantomData,
         }
     }
@@ -689,16 +704,106 @@ where
                         ));
                     }
 
-                    self.record.poseidon2_events.push(Poseidon2Event {
-                        clk: timestamp,
-                        dst,
-                        left,
-                        right,
-                        input: array,
-                        result_array: result,
-                        input_records,
-                        result_records: result_records.try_into().unwrap(),
+                    self.record
+                        .poseidon2_compress_events
+                        .push(Poseidon2CompressEvent {
+                            clk: timestamp,
+                            dst,
+                            left,
+                            right,
+                            input: array,
+                            result_array: result,
+                            input_records,
+                            result_records: result_records.try_into().unwrap(),
+                        });
+
+                    (a, b, c) = (a_val, b_val, c_val);
+                }
+
+                Opcode::Poseidon2Absorb => {
+                    self.nb_poseidons += 1;
+                    let (a_val, b_val, c_val) = self.all_rr(&instruction);
+
+                    let hash_num = a_val[0];
+                    let start_addr = b_val[0];
+                    let input_len = c_val[0];
+                    let timestamp = self.clk;
+
+                    // We currently don't support an input_len of 0, since it will need special logic in the AIR.
+                    assert!(input_len > F::zero());
+
+                    let is_first_absorb = self.p2_current_hash_num.is_none()
+                        || self.p2_current_hash_num.unwrap() != hash_num;
+
+                    let mut absorb_event = Poseidon2AbsorbEvent::new(
+                        timestamp,
+                        hash_num,
+                        start_addr,
+                        input_len,
+                        is_first_absorb,
+                    );
+
+                    let memory_records: Vec<MemoryRecord<F>> = (0..input_len.as_canonical_u32())
+                        .map(|i| self.mr(start_addr + F::from_canonical_u32(i), timestamp).0)
+                        .collect_vec();
+
+                    let permuter = self.perm.as_ref().unwrap().clone();
+                    absorb_event.populate_iterations(
+                        start_addr,
+                        input_len,
+                        &memory_records,
+                        &permuter,
+                        &mut self.p2_hash_state,
+                        &mut self.p2_hash_state_cursor,
+                    );
+
+                    // Update the current hash number.
+                    self.p2_current_hash_num = Some(hash_num);
+
+                    self.record
+                        .poseidon2_hash_events
+                        .push(Poseidon2HashEvent::Absorb(absorb_event));
+
+                    (a, b, c) = (a_val, b_val, c_val);
+                }
+
+                Opcode::Poseidon2Finalize => {
+                    self.nb_poseidons += 1;
+                    let (a_val, b_val, c_val) = self.all_rr(&instruction);
+
+                    let p2_hash_num = a_val[0];
+                    let output_ptr = b_val[0];
+                    let timestamp = self.clk;
+
+                    let do_perm = self.p2_hash_state_cursor != 0;
+                    let perm_output = self.perm.as_ref().unwrap().permute(self.p2_hash_state);
+                    let state = if do_perm {
+                        perm_output
+                    } else {
+                        self.p2_hash_state
+                    };
+                    let output_records: [MemoryRecord<F>; DIGEST_SIZE] = array::from_fn(|i| {
+                        self.mw(output_ptr + F::from_canonical_usize(i), state[i], timestamp)
                     });
+
+                    self.record
+                        .poseidon2_hash_events
+                        .push(Poseidon2HashEvent::Finalize(Poseidon2FinalizeEvent {
+                            clk: timestamp,
+                            hash_num: p2_hash_num,
+                            output_ptr,
+                            output_records,
+                            state_cursor: self.p2_hash_state_cursor,
+                            perm_input: self.p2_hash_state,
+                            perm_output,
+                            previous_state: self.p2_hash_state,
+                            state,
+                            do_perm,
+                        }));
+
+                    self.p2_hash_state_cursor = 0;
+                    self.p2_hash_state = [F::zero(); PERMUTATION_WIDTH];
+
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::HintBits => {

@@ -477,6 +477,10 @@ pub(crate) mod tests {
         // Observe all the commitments.
         let mut builder = Builder::<InnerConfig>::default();
 
+        // Add a hash invocation, since the poseidon2 table expects that it's in the first row.
+        let hash_input = builder.constant(vec![vec![F::one()]]);
+        builder.poseidon2_hash_x(&hash_input);
+
         let mut challenger = DuplexChallengerVariable::new(&mut builder);
 
         let preprocessed_commit_val: [F; DIGEST_SIZE] = vk.commit.into();
@@ -517,6 +521,10 @@ pub(crate) mod tests {
 
     fn test_public_values_program() -> RecursionProgram<InnerVal> {
         let mut builder = Builder::<InnerConfig>::default();
+
+        // Add a hash invocation, since the poseidon2 table expects that it's in the first row.
+        let hash_input = builder.constant(vec![vec![F::one()]]);
+        builder.poseidon2_hash_x(&hash_input);
 
         let mut public_values_stream: Vec<Felt<_>> = (0..RECURSIVE_PROOF_NUM_PV_ELTS)
             .map(|_| builder.uninit())

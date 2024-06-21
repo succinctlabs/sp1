@@ -74,7 +74,7 @@ pub type OuterSC = BabyBearPoseidon2Outer;
 
 const REDUCE_DEGREE: usize = 3;
 const COMPRESS_DEGREE: usize = 9;
-const WRAP_DEGREE: usize = 9;
+const WRAP_DEGREE: usize = 17;
 
 pub type ReduceAir<F> = RecursionAir<F, REDUCE_DEGREE>;
 pub type CompressAir<F> = RecursionAir<F, COMPRESS_DEGREE>;

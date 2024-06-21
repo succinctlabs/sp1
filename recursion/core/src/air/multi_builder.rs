@@ -1,4 +1,7 @@
-use p3_air::{AirBuilder, ExtensionBuilder, FilteredAirBuilder, PermutationAirBuilder};
+use p3_air::{
+    AirBuilder, AirBuilderWithPublicValues, ExtensionBuilder, FilteredAirBuilder,
+    PermutationAirBuilder,
+};
 use sp1_core::air::MessageBuilder;
 
 /// The MultiBuilder is used for the multi table.  It is used to create a virtual builder for one of
@@ -79,5 +82,15 @@ impl<'a, AB: AirBuilder + MessageBuilder<M>, M> MessageBuilder<M> for MultiBuild
 
     fn receive(&mut self, message: M) {
         self.inner.receive(message);
+    }
+}
+
+impl<'a, AB: AirBuilder + AirBuilderWithPublicValues> AirBuilderWithPublicValues
+    for MultiBuilder<'a, AB>
+{
+    type PublicVar = AB::PublicVar;
+
+    fn public_values(&self) -> &[Self::PublicVar] {
+        self.inner.public_values()
     }
 }

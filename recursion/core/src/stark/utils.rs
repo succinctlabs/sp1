@@ -7,7 +7,7 @@ use crate::air::Block;
 use crate::runtime::RecursionProgram;
 use crate::runtime::Runtime;
 use crate::stark::RecursionAir;
-use crate::stark::RecursionAirSkinnyDeg9;
+use crate::stark::RecursionAirWideDeg9;
 use p3_field::PrimeField32;
 use sp1_core::utils::run_test_machine;
 use std::collections::VecDeque;
@@ -54,7 +54,7 @@ pub fn run_test_recursion(
     }
 
     if test_config == TestConfig::All || test_config == TestConfig::SkinnyDeg7 {
-        let machine = RecursionAirSkinnyDeg9::machine(BabyBearPoseidon2::compressed());
+        let machine = RecursionAirWideDeg9::machine(BabyBearPoseidon2::compressed());
         let (pk, vk) = machine.setup(&program);
         let record = runtime.record.clone();
         let result = run_test_machine(record, machine, pk, vk);
@@ -64,7 +64,7 @@ pub fn run_test_recursion(
     }
 
     if test_config == TestConfig::All || test_config == TestConfig::SkinnyDeg7Wrap {
-        let machine = RecursionAirSkinnyDeg9::wrap_machine(BabyBearPoseidon2::compressed());
+        let machine = RecursionAirWideDeg9::wrap_machine(BabyBearPoseidon2::compressed());
         let (pk, vk) = machine.setup(&program);
         let record = runtime.record.clone();
         let result = run_test_machine(record, machine, pk, vk);
