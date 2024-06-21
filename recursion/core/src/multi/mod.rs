@@ -41,7 +41,7 @@ pub struct MultiCols<T: Copy> {
     pub poseidon2_first_row: T,
 
     /// Similar for Fri_fold.
-    pub fri_fold_last_row: T,
+    // pub fri_fold_last_row: T,
 
     /// Rows that needs to receive a poseidon2 syscall.
     pub poseidon2_receive_table: T,
@@ -110,9 +110,9 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for MultiChip<DEGREE> {
                         FriFoldChip::<DEGREE>::do_receive_table(fri_fold_cols);
                     multi_cols.fri_fold_memory_access =
                         FriFoldChip::<DEGREE>::do_memory_access(fri_fold_cols);
-                    if i == fri_fold_trace.height() - 1 {
-                        multi_cols.fri_fold_last_row = F::one();
-                    }
+                    // if i == fri_fold_trace.height() - 1 {
+                    //     multi_cols.fri_fold_last_row = F::one();
+                    // }
                 } else {
                     let multi_cols: &mut MultiCols<F> = row[0..NUM_MULTI_COLS].borrow_mut();
                     multi_cols.is_poseidon2 = F::one();
@@ -183,17 +183,17 @@ where
 
         // Constrain the flags to be boolean.
         builder.assert_bool(local_multi_cols.poseidon2_first_row);
-        builder.assert_bool(local_multi_cols.fri_fold_last_row);
+        // builder.assert_bool(local_multi_cols.fri_fold_last_row);
 
         // Constrain that the flags are computed correctly.
-        builder.when_transition().assert_eq(
-            local_multi_cols.is_fri_fold * (AB::Expr::one() - next_multi_cols.is_fri_fold),
-            local_multi_cols.fri_fold_last_row,
-        );
-        builder.when_last_row().assert_eq(
-            local_multi_cols.is_fri_fold,
-            local_multi_cols.fri_fold_last_row,
-        );
+        // builder.when_transition().assert_eq(
+        //     local_multi_cols.is_fri_fold * (AB::Expr::one() - next_multi_cols.is_fri_fold),
+        //     local_multi_cols.fri_fold_last_row,
+        // );
+        // builder.when_last_row().assert_eq(
+        //     local_multi_cols.is_fri_fold,
+        //     local_multi_cols.fri_fold_last_row,
+        // );
         builder.when_first_row().assert_eq(
             local_multi_cols.is_poseidon2,
             local_multi_cols.poseidon2_first_row,
@@ -224,7 +224,10 @@ where
             builder,
             local_multi_cols.is_fri_fold.into(),
             builder.is_first_row(),
-            local_multi_cols.fri_fold_last_row.into(),
+            builder.is_last_row() * (local_multi_cols.is_fri_fold.into())
+                + builder.is_transition()
+                    * local_multi_cols.is_fri_fold.into()
+                    * (AB::Expr::one() - next_multi_cols.is_fri_fold.into()),
             next_multi_cols.is_fri_fold.into(),
         );
 
