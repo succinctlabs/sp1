@@ -80,7 +80,7 @@ pub struct RecursionPublicValues<T> {
     /// First shard being proven.
     pub start_shard: T,
 
-    /// Next shard that should be proven, or 0 if the program halted.
+    /// Next shard that should be proven, if there are more.
     pub next_shard: T,
 
     /// Start state of reconstruct_challenger.
@@ -109,6 +109,9 @@ pub struct RecursionPublicValues<T> {
 
     /// Whether the proof completely proves the program execution.
     pub is_complete: T,
+
+    /// Total number of core shards in the program execution.
+    pub total_core_shards: T,
 
     /// The digest of all the previous public values elements.
     pub digest: [T; DIGEST_SIZE],

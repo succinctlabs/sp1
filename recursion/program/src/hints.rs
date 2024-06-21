@@ -517,6 +517,7 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
         let initial_reconstruct_challenger =
             DuplexChallenger::<InnerVal, InnerPerm, 16, 8>::read(builder);
         let is_complete = builder.hint_var();
+        let total_core_shards = builder.hint_var();
 
         SP1RecursionMemoryLayoutVariable {
             vk,
@@ -524,6 +525,7 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
             leaf_challenger,
             initial_reconstruct_challenger,
             is_complete,
+            total_core_shards,
         }
     }
 
@@ -543,6 +545,7 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
         stream.extend(self.leaf_challenger.write());
         stream.extend(self.initial_reconstruct_challenger.write());
         stream.extend((self.is_complete as usize).write());
+        stream.extend(self.total_core_shards.write());
 
         stream
     }
@@ -556,12 +559,14 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C> for SP1ReduceMemoryLayout<'a, Baby
         let shard_proofs = Vec::<ShardProofHint<'a, BabyBearPoseidon2, A>>::read(builder);
         let kinds = Vec::<usize>::read(builder);
         let is_complete = builder.hint_var();
+        let total_core_shards = builder.hint_var();
 
         SP1ReduceMemoryLayoutVariable {
             compress_vk,
             shard_proofs,
             kinds,
             is_complete,
+            total_core_shards,
         }
     }
 
@@ -585,6 +590,7 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C> for SP1ReduceMemoryLayout<'a, Baby
         stream.extend(proof_hints.write());
         stream.extend(kinds.write());
         stream.extend((self.is_complete as usize).write());
+        stream.extend(self.total_core_shards.write());
 
         stream
     }
@@ -629,6 +635,7 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
         let leaf_challenger = DuplexChallenger::<InnerVal, InnerPerm, 16, 8>::read(builder);
         let end_pc = InnerVal::read(builder);
         let end_shard = InnerVal::read(builder);
+        let total_core_shards = builder.hint_var();
 
         SP1DeferredMemoryLayoutVariable {
             compress_vk,
@@ -641,6 +648,7 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
             leaf_challenger,
             end_pc,
             end_shard,
+            total_core_shards,
         }
     }
 
@@ -676,6 +684,7 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
         stream.extend(self.leaf_challenger.write());
         stream.extend(self.end_pc.write());
         stream.extend(self.end_shard.write());
+        stream.extend(self.total_core_shards.write());
 
         stream
     }
