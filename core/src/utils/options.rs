@@ -1,5 +1,3 @@
-use std::env;
-
 const DEFAULT_SHARD_SIZE: usize = 1 << 22;
 const DEFAULT_SHARD_BATCH_SIZE: usize = 16;
 const DEFAULT_SHARD_CHUNKING_MULTIPLIER: usize = 1;
@@ -31,25 +29,10 @@ pub struct SP1CoreOpts {
 impl Default for SP1CoreOpts {
     fn default() -> Self {
         Self {
-            shard_size: env::var("SHARD_SIZE").map_or_else(
-                |_| DEFAULT_SHARD_SIZE,
-                |s| s.parse::<usize>().unwrap_or(DEFAULT_SHARD_SIZE),
-            ),
-            shard_batch_size: env::var("SHARD_BATCH_SIZE").map_or_else(
-                |_| DEFAULT_SHARD_BATCH_SIZE,
-                |s| s.parse::<usize>().unwrap_or(DEFAULT_SHARD_BATCH_SIZE),
-            ),
-            shard_chunking_multiplier: env::var("SHARD_CHUNKING_MULTIPLIER").map_or_else(
-                |_| DEFAULT_SHARD_CHUNKING_MULTIPLIER,
-                |s| {
-                    s.parse::<usize>()
-                        .unwrap_or(DEFAULT_SHARD_CHUNKING_MULTIPLIER)
-                },
-            ),
-            reconstruct_commitments: env::var("RECONSTRUCT_COMMITMENTS").map_or_else(
-                |_| DEFAULT_RECONSTRUCT_COMMITMENTS,
-                |s| s.parse::<bool>().unwrap_or(DEFAULT_RECONSTRUCT_COMMITMENTS),
-            ),
+            shard_size: DEFAULT_SHARD_SIZE,
+            shard_batch_size: DEFAULT_SHARD_BATCH_SIZE,
+            shard_chunking_multiplier: DEFAULT_SHARD_CHUNKING_MULTIPLIER,
+            reconstruct_commitments: DEFAULT_RECONSTRUCT_COMMITMENTS,
         }
     }
 }
