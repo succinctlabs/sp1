@@ -33,10 +33,12 @@ pub(crate) fn assert_complete<C: Config>(
         deferred_proofs_digest,
         next_pc,
         start_shard,
+        next_shard,
         cumulative_sum,
         start_reconstruct_deferred_digest,
         end_reconstruct_deferred_digest,
         leaf_challenger,
+        total_core_shards,
         ..
     } = public_values;
 
@@ -45,6 +47,9 @@ pub(crate) fn assert_complete<C: Config>(
 
     // Assert that the start shard is equal to 1.
     builder.assert_felt_eq(*start_shard, C::F::one());
+
+    // Assert that total_core_shards is correct by ensuring it equals next_shard - 1.
+    builder.assert_felt_eq(*total_core_shards, *next_shard - C::F::one());
 
     // The challenger has been fully verified.
 
