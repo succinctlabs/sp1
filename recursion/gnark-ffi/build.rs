@@ -12,7 +12,12 @@ use bindgen::CargoCallbacks;
 fn main() {
     cfg_if! {
         if #[cfg(feature = "native")] {
-            println!("cargo:rerun-if-changed=go");
+            println!("cargo:rerun-if-changed=go/sp1");
+            println!("cargo:rerun-if-changed=go/go.mod");
+            println!("cargo:rerun-if-changed=go/main.go");
+            println!("cargo:rerun-if-changed=go/babybear");
+            println!("cargo:rerun-if-changed=go/poseidon2");
+            println!("cargo:rerun-if-changed=go/trusted_setup");
             // Define the output directory
             let out_dir = env::var("OUT_DIR").unwrap();
             let dest_path = PathBuf::from(&out_dir);
@@ -66,6 +71,9 @@ fn main() {
                 println!("cargo:rustc-link-lib=framework=CoreFoundation");
                 println!("cargo:rustc-link-lib=framework=Security");
             }
+        } else {
+            // Ignore all file changes
+            println!("cargo:rerun-if-changed=build.rs");
         }
     }
 }
