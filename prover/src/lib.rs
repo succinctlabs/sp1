@@ -511,7 +511,7 @@ impl SP1Prover {
         witness_stream.extend(input.write());
 
         runtime.witness_stream = witness_stream.into();
-        runtime.run();
+        tracing::info_span!("execute").in_scope(|| runtime.run());
         runtime.print_stats();
 
         let mut recursive_challenger = self.compress_machine.config().challenger();
