@@ -12,10 +12,7 @@ use bindgen::CargoCallbacks;
 fn main() {
     cfg_if! {
         if #[cfg(feature = "native")] {
-            println!("cargo:rerun-if-changed=go/sp1");
-            println!("cargo:rerun-if-changed=go/go.mod");
-            println!("cargo:rerun-if-changed=go/main.go");
-            println!("cargo:rerun-if-changed=go/babybear.h");
+            println!("cargo:rerun-if-changed=go");
             // Define the output directory
             let out_dir = env::var("OUT_DIR").unwrap();
             let dest_path = PathBuf::from(&out_dir);
@@ -50,7 +47,6 @@ fn main() {
             let header_path = dest_path.join(format!("lib{}.h", lib_name));
             let bindings = bindgen::Builder::default()
                 .header(header_path.to_str().unwrap())
-                .parse_callbacks(Box::new(CargoCallbacks::new()))
                 .generate()
                 .expect("Unable to generate bindings");
 
