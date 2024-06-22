@@ -15,9 +15,7 @@ fn main() {
             println!("cargo:rerun-if-changed=go/sp1");
             println!("cargo:rerun-if-changed=go/go.mod");
             println!("cargo:rerun-if-changed=go/main.go");
-            println!("cargo:rerun-if-changed=go/babybear");
-            println!("cargo:rerun-if-changed=go/poseidon2");
-            println!("cargo:rerun-if-changed=go/trusted_setup");
+            println!("cargo:rerun-if-changed=go/babybear.h");
             // Define the output directory
             let out_dir = env::var("OUT_DIR").unwrap();
             let dest_path = PathBuf::from(&out_dir);
