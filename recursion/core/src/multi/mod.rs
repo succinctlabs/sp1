@@ -252,6 +252,8 @@ where
             &next_fri_fold_cols,
             local_multi_cols.fri_fold_receive_table,
             local_multi_cols.fri_fold_memory_access,
+            local_multi_cols.is_fri_fold.into(),
+            next_multi_cols.is_fri_fold.into(),
         );
 
         let mut sub_builder = MultiBuilder::new(

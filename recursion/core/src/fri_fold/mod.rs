@@ -13,6 +13,7 @@ use sp1_core::air::{BaseAirBuilder, BinomialExtension, MachineAir};
 use sp1_core::utils::pad_rows_fixed;
 use sp1_derive::AlignedBorrow;
 use std::borrow::BorrowMut;
+use std::ops::Sub;
 use tracing::instrument;
 
 use crate::air::SP1RecursionAirBuilder;
@@ -177,6 +178,8 @@ impl<const DEGREE: usize> FriFoldChip<DEGREE> {
         next: &FriFoldCols<AB::Var>,
         receive_table: AB::Var,
         memory_access: AB::Var,
+        is_fri_fold: AB::Expr,
+        next_is_fri_fold: AB::Expr,
     ) {
         // Constraint that the operands are sent from the CPU table.
         let first_iteration_clk = local.clk.into() - local.m.into();
@@ -210,11 +213,34 @@ impl<const DEGREE: usize> FriFoldChip<DEGREE> {
             .when_not(local.is_real)
             .assert_zero(next.is_real);
 
-        builder
-            .when_last_row()
-            .when_not(local.is_last_iteration)
-            .assert_zero(local.is_real);
+        // builder
+        //     .when(builder.is_last_row())
+        //     .when(local.is_real)
+        //     .assert_one(local.is_last_iteration);
 
+        // builder
+        //     .when(builder.is_last_row())
+        //     .when(local.is_real)
+        //     .assert_one(is_fri_fold);
+
+        // builder
+        //     .when(builder.is_last_row())
+        //     .assert_one(is_fri_fold.clone());
+
+        // let cond: AB::Expr = builder.is_last_row() * is_fri_fold.clone()
+        //     + builder.is_transition() * is_fri_fold.clone() * (AB::Expr::one() - next_is_fri_fold);
+
+        let cond: AB::Expr = builder.is_transition()
+            * is_fri_fold.clone()
+            * (AB::Expr::one() - next_is_fri_fold.clone());
+
+        // builder.when(cond).assert_one(is_fri_fold);
+
+        builder.assert_bool(is_fri_fold.clone());
+        builder
+            .when_transition()
+            .when(local.is_real * (AB::Expr::one() - next_is_fri_fold.clone()))
+            .assert_zero(AB::Expr::one() - AB::Expr::one());
         // Ensure that all first iteration rows has a m value of 0.
         builder.when_first_row().assert_zero(local.m);
         builder
@@ -405,6 +431,8 @@ where
             next,
             Self::do_receive_table::<AB::Var>(local),
             Self::do_memory_access::<AB::Var>(local),
+            local.is_real.into(),
+            next.is_real.into(),
         );
     }
 }

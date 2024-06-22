@@ -28,7 +28,7 @@ use rayon::prelude::*;
 use sp1_core::air::{PublicValues, Word};
 pub use sp1_core::io::{SP1PublicValues, SP1Stdin};
 use sp1_core::runtime::{ExecutionError, ExecutionReport, Runtime, SP1Context};
-use sp1_core::stark::{Challenge, StarkProvingKey};
+use sp1_core::stark::{Challenge, MachineProof, StarkProvingKey};
 use sp1_core::stark::{Challenger, MachineVerificationError};
 use sp1_core::utils::{SP1CoreOpts, SP1ProverOpts, DIGEST_SIZE};
 use sp1_core::{
@@ -416,6 +416,13 @@ impl SP1Prover {
                         &self.rec_pk,
                         opts,
                     );
+                    let mut recursive_challenger = self.compress_machine.config().challenger();
+                    let machine_proof = MachineProof {
+                        shard_proofs: vec![proof.clone()],
+                    };
+                    self.compress_machine
+                        .verify(&self.rec_vk, &machine_proof, &mut recursive_challenger)
+                        .unwrap();
                     (proof, ReduceProgramType::Core)
                 })
                 .collect::<Vec<_>>();
@@ -471,6 +478,19 @@ impl SP1Prover {
                                 &self.compress_pk,
                                 opts,
                             );
+
+                            let mut recursive_challenger =
+                                self.compress_machine.config().challenger();
+                            let machine_proof = MachineProof {
+                                shard_proofs: vec![proof.clone()],
+                            };
+                            self.compress_machine
+                                .verify(
+                                    &self.compress_vk,
+                                    &machine_proof,
+                                    &mut recursive_challenger,
+                                )
+                                .unwrap();
                             (proof, ReduceProgramType::Reduce)
                         })
                         .collect::<Vec<_>>()
