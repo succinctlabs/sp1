@@ -167,7 +167,7 @@ where
         let shard_chips = machine.shard_chips(shard).collect::<Vec<_>>();
 
         // For each chip, generate the trace.
-        let parent_span = tracing::debug_span!("generate traces for shard");
+        let parent_span = tracing::info_span!("generate traces for shard");
         let mut named_traces = parent_span.in_scope(|| {
             shard_chips
                 .par_iter()
