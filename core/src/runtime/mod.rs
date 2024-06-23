@@ -42,6 +42,7 @@ use crate::alu::create_alu_lookups;
 use crate::alu::divrem;
 use crate::bytes::NUM_BYTE_LOOKUP_CHANNELS;
 use crate::memory::MemoryInitializeFinalizeEvent;
+use crate::stark::CpuChip;
 use crate::utils::SP1CoreOpts;
 use crate::{alu::AluEvent, cpu::CpuEvent};
 
@@ -464,120 +465,7 @@ impl<'a> Runtime<'a> {
         };
 
         self.record.cpu_events.push(cpu_event);
-    }
-
-    fn emit_divrem_alu(&mut self, event: AluEvent) {
-        let (quotient, remainder) =
-            divrem::utils::get_quotient_and_remainder(event.b, event.c, event.opcode);
-        let c_msb = divrem::utils::get_msb(event.c);
-        let rem_msb = divrem::utils::get_msb(remainder);
-        let mut c_neg = 0;
-        let mut rem_neg = 0;
-        let is_signed_operation = divrem::utils::is_signed_operation(event.opcode);
-        if is_signed_operation {
-            c_neg = c_msb; // same as abs_c_alu_event
-            rem_neg = rem_msb; // same as abs_rem_alu_event
-        }
-
-        // Get all the ALU events for the division and remainder operations.
-        if c_neg == 1 {
-            self.record.add_events.push(AluEvent {
-                lookup_id: event.sub_lookups[4],
-                shard: event.shard,
-                channel: event.channel,
-                clk: event.clk,
-                opcode: Opcode::ADD,
-                a: 0,
-                b: event.c,
-                c: (event.c as i32).abs() as u32,
-                sub_lookups: create_alu_lookups(),
-            });
-        }
-        if rem_neg == 1 {
-            self.record.add_events.push(AluEvent {
-                lookup_id: event.sub_lookups[5],
-                shard: event.shard,
-                channel: event.channel,
-                clk: event.clk,
-                opcode: Opcode::ADD,
-                a: 0,
-                b: remainder,
-                c: (remainder as i32).abs() as u32,
-                sub_lookups: create_alu_lookups(),
-            });
-        }
-
-        let c_times_quotient = {
-            if is_signed_operation {
-                (((quotient as i32) as i64) * ((event.c as i32) as i64)).to_le_bytes()
-            } else {
-                ((quotient as u64) * (event.c as u64)).to_le_bytes()
-            }
-        };
-        let lower_word = u32::from_le_bytes(c_times_quotient[0..4].try_into().unwrap());
-        let upper_word = u32::from_le_bytes(c_times_quotient[4..8].try_into().unwrap());
-
-        let lower_multiplication = AluEvent {
-            lookup_id: event.sub_lookups[0],
-            shard: event.shard,
-            channel: event.channel,
-            clk: event.clk,
-            opcode: Opcode::MUL,
-            a: lower_word,
-            c: event.c,
-            b: quotient,
-            sub_lookups: create_alu_lookups(),
-        };
-        self.record.mul_events.push(lower_multiplication);
-
-        let upper_multiplication = AluEvent {
-            lookup_id: event.sub_lookups[1],
-            shard: event.shard,
-            channel: event.channel,
-            clk: event.clk,
-            opcode: {
-                if is_signed_operation {
-                    Opcode::MULH
-                } else {
-                    Opcode::MULHU
-                }
-            },
-            a: upper_word,
-            c: event.c,
-            b: quotient,
-            sub_lookups: create_alu_lookups(),
-        };
-        self.record.mul_events.push(upper_multiplication);
-
-        let lt_event = if is_signed_operation {
-            AluEvent {
-                lookup_id: event.sub_lookups[2],
-                shard: event.shard,
-                channel: event.channel,
-                opcode: Opcode::SLTU,
-                a: 1,
-                b: (remainder as i32).abs() as u32,
-                c: u32::max(1, (event.c as i32).abs() as u32),
-                clk: event.clk,
-                sub_lookups: create_alu_lookups(),
-            }
-        } else {
-            AluEvent {
-                lookup_id: event.sub_lookups[3],
-                shard: event.shard,
-                channel: event.channel,
-                opcode: Opcode::SLTU,
-                a: 1,
-                b: remainder,
-                c: u32::max(1, event.c),
-                clk: event.clk,
-                sub_lookups: create_alu_lookups(),
-            }
-        };
-
-        if event.c != 0 {
-            self.record.lt_events.push(lt_event);
-        }
+        CpuChip::event_to_alu_events(self, cpu_event);
     }
 
     /// Emit an ALU event.
@@ -617,6 +505,7 @@ impl<'a> Runtime<'a> {
             }
             Opcode::DIVU | Opcode::REMU | Opcode::DIV | Opcode::REM => {
                 self.record.divrem_events.push(event);
+                divrem::utils::emit_divrem_alu_events(self, event);
             }
             _ => {}
         }
