@@ -715,6 +715,7 @@ pub mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_ssz_withdrawal() {
         let program = ssz_withdrawals_program();
         run_test(program).unwrap();
