@@ -60,7 +60,7 @@
 //!    # b = 0 * quotient + b is satisfied by any quotient.
 //!    assert quotient = 0xffffffff
 
-mod utils;
+pub mod utils;
 
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
