@@ -1,4 +1,5 @@
 use hashbrown::HashMap;
+use num::traits::ToBytes;
 use p3_maybe_rayon::prelude::ParallelBridge;
 use std::array;
 use std::borrow::BorrowMut;
@@ -22,7 +23,9 @@ use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::cpu::columns::CpuCols;
 use crate::cpu::trace::ByteOpcode::{U16Range, U8Range};
 use crate::disassembler::WORD_SIZE;
+use crate::lookup::InteractionEvent;
 use crate::memory::MemoryCols;
+use crate::runtime::MemoryReadRecord;
 use crate::runtime::{ExecutionRecord, Opcode, Program};
 use crate::runtime::{MemoryRecordEnum, SyscallCode};
 
@@ -68,30 +71,44 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
 
     #[instrument(name = "generate cpu dependencies", level = "debug", skip_all)]
     fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
+        // TODO: separate this late
         // Generate the trace rows for each event.
         let chunk_size = std::cmp::max(input.cpu_events.len() / num_cpus::get(), 1);
-        let (alu_events, blu_events): (Vec<_>, Vec<_>) = input
+        let (alu_events, blu_events, int_events): (Vec<_>, Vec<_>, Vec<_>) = input
             .cpu_events
             .par_chunks(chunk_size)
             .map(|ops: &[CpuEvent]| {
                 let mut alu = HashMap::new();
                 let mut blu: Vec<_> = Vec::with_capacity(ops.len() * 8);
+                let mut interaction_events = Vec::new();
                 ops.iter().for_each(|op| {
+                    if op.instruction.opcode == Opcode::ECALL {
+                        let a_record = op.a_record.expect("ECALL should have an a record");
+                        let prev_value = a_record.prev_value();
+                        let syscall_id = prev_value.to_le_bytes()[0] as u32;
+                        interaction_events.push(InteractionEvent::from_syscall(
+                            true, op.shard, op.clk, syscall_id, op.b, op.c,
+                        ));
+                    }
                     let mut row = [F::zero(); NUM_CPU_COLS];
                     let cols: &mut CpuCols<F> = row.as_mut_slice().borrow_mut();
-                    let (alu_events, blu_events) =
+                    let (alu_events, blu_events, new_interaction_events) =
                         self.event_to_row::<F>(op, &HashMap::new(), cols);
                     alu_events.into_iter().for_each(|(key, value)| {
                         alu.entry(key).or_insert(Vec::default()).extend(value);
+                        for event in value.iter() {
+                            interaction_events.push(InteractionEvent::from_alu_event(true, event));
+                        }
                     });
                     blu.extend(blu_events);
+                    interaction_events.extend(new_interaction_events);
                 });
-                (alu, blu)
+                (alu, blu, interaction_events)
             })
             .unzip();
 
         for alu_events_chunk in alu_events.into_iter() {
-            output.add_alu_events(alu_events_chunk);
+            output.add_alu_events(alu_events_chunk.clone());
         }
 
         let mut blu_events = blu_events.into_iter().flatten().collect::<Vec<_>>();
@@ -114,9 +131,14 @@ impl CpuChip {
         event: &CpuEvent,
         nonce_lookup: &HashMap<usize, u32>,
         cols: &mut CpuCols<F>,
-    ) -> (HashMap<Opcode, Vec<alu::AluEvent>>, Vec<ByteLookupEvent>) {
+    ) -> (
+        HashMap<Opcode, Vec<alu::AluEvent>>,
+        Vec<ByteLookupEvent>,
+        Vec<InteractionEvent>,
+    ) {
         let mut new_alu_events = HashMap::new();
         let mut new_blu_events = Vec::new();
+        let mut new_interaction_events = Vec::new();
 
         // Populate shard and clk columns.
         self.populate_shard_clk(cols, event, &mut new_blu_events);
@@ -142,14 +164,17 @@ impl CpuChip {
         if let Some(record) = event.a_record {
             cols.op_a_access
                 .populate(event.channel, record, &mut new_blu_events);
+            new_interaction_events.push(InteractionEvent::from_memory_record(&record));
         }
         if let Some(MemoryRecordEnum::Read(record)) = event.b_record {
             cols.op_b_access
                 .populate(event.channel, record, &mut new_blu_events);
+            new_interaction_events.push(InteractionEvent::from_memory_record(&record.into()));
         }
         if let Some(MemoryRecordEnum::Read(record)) = event.c_record {
             cols.op_c_access
                 .populate(event.channel, record, &mut new_blu_events);
+            new_interaction_events.push(InteractionEvent::from_memory_record(&record.into()));
         }
 
         // Populate range checks for a.
@@ -186,7 +211,8 @@ impl CpuChip {
         if let Some(record) = event.memory_record {
             memory_columns
                 .memory_access
-                .populate(event.channel, record, &mut new_blu_events)
+                .populate(event.channel, record, &mut new_blu_events);
+            new_interaction_events.push(InteractionEvent::from_memory_record(&record));
         }
 
         // Populate memory, branch, jump, and auipc specific fields.
@@ -211,7 +237,7 @@ impl CpuChip {
         // Assert that the instruction is not a no-op.
         cols.is_real = F::one();
 
-        (new_alu_events, new_blu_events)
+        (new_alu_events, new_blu_events, new_interaction_events)
     }
 
     /// Populates the shard, channel, and clk related rows.

@@ -44,6 +44,27 @@ use crate::memory::MemoryInitializeFinalizeEvent;
 use crate::utils::SP1CoreOpts;
 use crate::{alu::AluEvent, cpu::CpuEvent};
 
+pub struct EventHandler {}
+
+impl EventHandler {
+    /// Handle an event from the runtime, for a non-syscall instruction.
+    pub fn handle_event() {
+        // For an add event
+        // -> CPUTable, AddTable, no byte table that is done JIT in generate_trace
+        // -> InteractionTable can also be JIT, but that might have some problems
+        // Because when we go to regenerate them, we need to be able to quickly know the values.
+    }
+
+    pub fn handle_cpu() {}
+
+    pub fn handle_add() {}
+
+    pub fn handle_interaction() {}
+
+    /// Handle a syscall from the runtime
+    pub fn handle_syscall() {}
+}
+
 /// An implementation of a runtime for the SP1 RISC-V zkVM.
 ///
 /// The runtime is responsible for executing a user program and tracing important events which occur

@@ -12,6 +12,7 @@ use crate::alu::AluEvent;
 use crate::bytes::event::ByteRecord;
 use crate::bytes::ByteLookupEvent;
 use crate::cpu::CpuEvent;
+use crate::lookup::InteractionEvent;
 use crate::runtime::MemoryInitializeFinalizeEvent;
 use crate::runtime::MemoryRecordEnum;
 use crate::stark::MachineRecord;
@@ -32,6 +33,8 @@ pub struct ExecutionRecord {
 
     /// The program.
     pub program: Arc<Program>,
+
+    pub interaction_events: Vec<InteractionEvent>,
 
     /// A trace of the CPU events which get emitted during execution.
     pub cpu_events: Vec<CpuEvent>,
@@ -640,6 +643,10 @@ impl ExecutionRecord {
                 }
             }
         }
+    }
+
+    pub fn add_interaction_event(&mut self, interaction_event: InteractionEvent) {
+        self.interaction_events.push(interaction_event);
     }
 }
 

@@ -12,6 +12,7 @@ use sp1_derive::AlignedBorrow;
 
 use crate::air::MachineAir;
 use crate::air::{SP1AirBuilder, Word};
+use crate::lookup::InteractionEvent;
 use crate::operations::AddOperation;
 use crate::runtime::{ExecutionRecord, Opcode, Program};
 use crate::stark::MachineRecord;
@@ -88,9 +89,11 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
             .par_chunks(chunk_size)
             .map(|events| {
                 let mut record = ExecutionRecord::default();
+                let mut interaction_events = vec![];
                 let rows = events
                     .iter()
                     .map(|event| {
+                        interaction_events.push(InteractionEvent::from_alu_event(false, &event));
                         let mut row = [F::zero(); NUM_ADD_SUB_COLS];
                         let cols: &mut AddSubCols<F> = row.as_mut_slice().borrow_mut();
                         let is_add = event.opcode == Opcode::ADD;
@@ -111,6 +114,7 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
                         );
                         cols.operand_1 = Word::from(operand_1);
                         cols.operand_2 = Word::from(operand_2);
+
                         row
                     })
                     .collect::<Vec<_>>();

@@ -330,6 +330,8 @@ pub trait AluAirBuilder: BaseAirBuilder {
             multiplicity.into(),
             InteractionKind::Alu,
         ));
+
+        // self.send(InteractionTable(shard, opcode, a, b, c, is_send=true))
     }
 
     /// Receives an ALU operation to be processed.
@@ -478,6 +480,10 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
             do_check.clone(),
             InteractionKind::Memory,
         ));
+
+        // TODO:
+        // Send to InteractionTable
+        // shard, clk, addr, value, prev_shard, prev_clk, prev_value
     }
 
     /// Constraints a memory read or write to a slice of `MemoryAccessCols`.

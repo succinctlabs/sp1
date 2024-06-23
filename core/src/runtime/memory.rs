@@ -59,6 +59,13 @@ impl MemoryRecordEnum {
             MemoryRecordEnum::Write(record) => record.value,
         }
     }
+
+    pub fn prev_value(&self) -> u32 {
+        match self {
+            MemoryRecordEnum::Read(record) => record.value,
+            MemoryRecordEnum::Write(record) => record.prev_value,
+        }
+    }
 }
 
 impl From<MemoryReadRecord> for MemoryRecordEnum {

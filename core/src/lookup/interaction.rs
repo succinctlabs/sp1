@@ -12,16 +12,15 @@ pub struct Interaction<F: Field> {
 }
 
 /// The type of interaction for a lookup argument.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
 pub enum InteractionKind {
     /// Interaction with the memory table, such as read and write.
     Memory = 1,
 
     /// Interaction with the program table, loading an instruction at a given pc address.
     Program = 2,
-
-    /// Interaction with instruction oracle.
-    Instruction = 3,
 
     /// Interaction with the ALU operations.
     Alu = 4,
@@ -32,9 +31,6 @@ pub enum InteractionKind {
     /// Requesting a range check for a given value and range.
     Range = 6,
 
-    /// Interaction with the field op table for field operations.
-    Field = 7,
-
     /// Interaction with a syscall.
     Syscall = 8,
 }
@@ -44,11 +40,9 @@ impl InteractionKind {
         vec![
             InteractionKind::Memory,
             InteractionKind::Program,
-            InteractionKind::Instruction,
             InteractionKind::Alu,
             InteractionKind::Byte,
             InteractionKind::Range,
-            InteractionKind::Field,
             InteractionKind::Syscall,
         ]
     }
@@ -87,11 +81,9 @@ impl Display for InteractionKind {
         match self {
             InteractionKind::Memory => write!(f, "Memory"),
             InteractionKind::Program => write!(f, "Program"),
-            InteractionKind::Instruction => write!(f, "Instruction"),
             InteractionKind::Alu => write!(f, "Alu"),
             InteractionKind::Byte => write!(f, "Byte"),
             InteractionKind::Range => write!(f, "Range"),
-            InteractionKind::Field => write!(f, "Field"),
             InteractionKind::Syscall => write!(f, "Syscall"),
         }
     }

@@ -244,6 +244,14 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         mut record: A::Record,
         config: &<A::Record as MachineRecord>::Config,
     ) -> Vec<A::Record> {
+        // TODO:
+        // Here we will need to first "shard" by the primary "tables"
+        // i.e. the "fixed proof shape"
+        // i.e. (CPU, ALU, ...)
+        // i.e. given [CPU, ADD, MUL] -> [GLOBAL, BYTE]
+        // Now one question is that we have to save the global table when we later do global argument...
+        // But perhaps we can worry about that later.
+
         // Get the local and global chips.
         let chips = self.chips();
 
