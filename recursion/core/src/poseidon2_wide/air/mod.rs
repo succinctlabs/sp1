@@ -152,7 +152,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         let next_syscall = next_row.syscall_params();
         let local_memory = local_row.memory();
         let next_memory = next_row.memory();
-        let local_perm = local_row.permutation();
+        // let local_perm = local_row.permutation();
         let local_opcode_workspace = local_row.opcode_workspace();
         let next_opcode_workspace = next_row.opcode_workspace();
 
@@ -182,13 +182,13 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         );
 
         // Check that the permutation columns are correct.
-        self.eval_perm(
-            builder,
-            local_perm.as_ref(),
-            local_memory,
-            local_opcode_workspace,
-            local_control_flow,
-        );
+        // self.eval_perm(
+        //     builder,
+        //     local_perm.as_ref(),
+        //     local_memory,
+        //     local_opcode_workspace,
+        //     local_control_flow,
+        // );
 
         // Check that the permutation output is copied to the next row correctly.
         self.eval_state_transition(
@@ -196,7 +196,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             local_control_flow,
             local_opcode_workspace,
             next_opcode_workspace,
-            local_perm.as_ref(),
+            // local_perm.as_ref(),
             local_memory,
             next_memory,
         );

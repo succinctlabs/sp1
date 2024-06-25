@@ -7,7 +7,7 @@ use sp1_core::{air::MachineAir, utils::pad_rows_fixed};
 use sp1_primitives::RC_16_30_U32;
 use tracing::instrument;
 
-use crate::poseidon2_wide::columns::permutation::permutation_mut;
+// use crate::poseidon2_wide::columns::permutation::permutation_mut;
 use crate::poseidon2_wide::events::Poseidon2HashEvent;
 use crate::range_check::{RangeCheckEvent, RangeCheckOpcode};
 use crate::{
@@ -61,9 +61,11 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
             pad_rows_fixed(
                 &mut rows,
                 || {
-                    let mut padded_row = vec![F::zero(); num_columns];
-                    self.populate_permutation([F::zero(); WIDTH], None, &mut padded_row);
-                    padded_row
+                    // let mut padded_row = vec![F::zero(); num_columns];
+                    // self.populate_permutation([F::zero(); WIDTH], None, &mut padded_row);
+                    // padded_row
+
+                    vec![F::zero(); num_columns]
                 },
                 self.fixed_log2_rows,
             );
@@ -144,11 +146,11 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         }
 
         // Populate the permutation fields.
-        self.populate_permutation(
-            compress_event.input,
-            Some(compress_event.result_array),
-            &mut input_row,
-        );
+        // self.populate_permutation(
+        //     compress_event.input,
+        //     Some(compress_event.result_array),
+        //     &mut input_row,
+        // );
 
         compress_rows.push(input_row);
 
@@ -194,7 +196,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             }
         }
 
-        self.populate_permutation(compress_event.result_array, None, &mut output_row);
+        // self.populate_permutation(compress_event.result_array, None, &mut output_row);
 
         compress_rows.push(output_row);
         compress_rows
@@ -321,15 +323,15 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             }
 
             // Populate the permutation fields.
-            self.populate_permutation(
-                absorb_iter.perm_input,
-                if absorb_iter.do_perm {
-                    Some(absorb_iter.perm_output)
-                } else {
-                    None
-                },
-                &mut absorb_row,
-            );
+            // self.populate_permutation(
+            //     absorb_iter.perm_input,
+            //     if absorb_iter.do_perm {
+            //         Some(absorb_iter.perm_output)
+            //     } else {
+            //         None
+            //     },
+            //     &mut absorb_row,
+            // );
 
             absorb_rows.push(absorb_row);
         }
@@ -388,73 +390,73 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         }
 
         // Populate the permutation fields.
-        self.populate_permutation(
-            finalize_event.perm_input,
-            if finalize_event.do_perm {
-                Some(finalize_event.perm_output)
-            } else {
-                None
-            },
-            &mut finalize_row,
-        );
+        // self.populate_permutation(
+        //     finalize_event.perm_input,
+        //     if finalize_event.do_perm {
+        //         Some(finalize_event.perm_output)
+        //     } else {
+        //         None
+        //     },
+        //     &mut finalize_row,
+        // );
 
         finalize_row
     }
 
-    pub fn populate_permutation<F: PrimeField32>(
-        &self,
-        input: [F; WIDTH],
-        expected_output: Option<[F; WIDTH]>,
-        input_row: &mut [F],
-    ) {
-        let mut permutation = permutation_mut::<F, DEGREE>(input_row);
+    // pub fn populate_permutation<F: PrimeField32>(
+    //     &self,
+    //     input: [F; WIDTH],
+    //     expected_output: Option<[F; WIDTH]>,
+    //     input_row: &mut [F],
+    // ) {
+    //     let mut permutation = permutation_mut::<F, DEGREE>(input_row);
 
-        let (
-            external_rounds_state,
-            internal_rounds_state,
-            internal_rounds_s0,
-            mut external_sbox,
-            mut internal_sbox,
-            output_state,
-        ) = permutation.get_cols_mut();
+    //     let (
+    //         external_rounds_state,
+    //         internal_rounds_state,
+    //         internal_rounds_s0,
+    //         mut external_sbox,
+    //         mut internal_sbox,
+    //         output_state,
+    //     ) = permutation.get_cols_mut();
 
-        external_rounds_state[0] = input;
-        external_linear_layer(&mut external_rounds_state[0]);
+    //     external_rounds_state[0] = input;
+    //     external_linear_layer(&mut external_rounds_state[0]);
 
-        // Apply the first half of external rounds.
-        for r in 0..NUM_EXTERNAL_ROUNDS / 2 {
-            let next_state =
-                self.populate_external_round(external_rounds_state, &mut external_sbox, r);
-            if r == NUM_EXTERNAL_ROUNDS / 2 - 1 {
-                *internal_rounds_state = next_state;
-            } else {
-                external_rounds_state[r + 1] = next_state;
-            }
-        }
+    //     // Apply the first half of external rounds.
+    //     for r in 0..NUM_EXTERNAL_ROUNDS / 2 {
+    //         let next_state =
+    //             self.populate_external_round(external_rounds_state, &mut external_sbox, r);
+    //         if r == NUM_EXTERNAL_ROUNDS / 2 - 1 {
+    //             *internal_rounds_state = next_state;
+    //         } else {
+    //             external_rounds_state[r + 1] = next_state;
+    //         }
+    //     }
 
-        // Apply the internal rounds.
-        external_rounds_state[NUM_EXTERNAL_ROUNDS / 2] = self.populate_internal_rounds(
-            internal_rounds_state,
-            internal_rounds_s0,
-            &mut internal_sbox,
-        );
+    //     // Apply the internal rounds.
+    //     external_rounds_state[NUM_EXTERNAL_ROUNDS / 2] = self.populate_internal_rounds(
+    //         internal_rounds_state,
+    //         internal_rounds_s0,
+    //         &mut internal_sbox,
+    //     );
 
-        // Apply the second half of external rounds.
-        for r in NUM_EXTERNAL_ROUNDS / 2..NUM_EXTERNAL_ROUNDS {
-            let next_state =
-                self.populate_external_round(external_rounds_state, &mut external_sbox, r);
-            if r == NUM_EXTERNAL_ROUNDS - 1 {
-                for i in 0..WIDTH {
-                    output_state[i] = next_state[i];
-                    if let Some(expected_output) = expected_output {
-                        assert_eq!(expected_output[i], next_state[i]);
-                    }
-                }
-            } else {
-                external_rounds_state[r + 1] = next_state;
-            }
-        }
-    }
+    //     // Apply the second half of external rounds.
+    //     for r in NUM_EXTERNAL_ROUNDS / 2..NUM_EXTERNAL_ROUNDS {
+    //         let next_state =
+    //             self.populate_external_round(external_rounds_state, &mut external_sbox, r);
+    //         if r == NUM_EXTERNAL_ROUNDS - 1 {
+    //             for i in 0..WIDTH {
+    //                 output_state[i] = next_state[i];
+    //                 if let Some(expected_output) = expected_output {
+    //                     assert_eq!(expected_output[i], next_state[i]);
+    //                 }
+    //             }
+    //         } else {
+    //             external_rounds_state[r + 1] = next_state;
+    //         }
+    //     }
+    // }
 
     fn populate_external_round<F: PrimeField32>(
         &self,

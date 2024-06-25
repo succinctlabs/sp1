@@ -7,7 +7,7 @@ use self::{
     control_flow::ControlFlow,
     memory::Memory,
     opcode_workspace::OpcodeWorkspace,
-    permutation::{Permutation, PermutationNoSbox, PermutationSBox},
+    // permutation::{Permutation, PermutationNoSbox, PermutationSBox},
     syscall_params::SyscallParams,
 };
 
@@ -29,7 +29,7 @@ pub trait Poseidon2<'a, T: Copy + 'a> {
 
     fn opcode_workspace(&self) -> &OpcodeWorkspace<T>;
 
-    fn permutation(&self) -> Box<dyn Permutation<T> + 'a>;
+    // fn permutation(&self) -> Box<dyn Permutation<T> + 'a>;
 }
 
 /// Trait for setter methods for Poseidon2 columns.
@@ -81,12 +81,12 @@ impl<'a, T: Copy + 'a> Poseidon2<'a, T> for Poseidon2Enum<T> {
         }
     }
 
-    fn permutation(&self) -> Box<dyn Permutation<T> + 'a> {
-        match self {
-            Poseidon2Enum::P2Degree3(p) => p.permutation(),
-            Poseidon2Enum::P2Degree9(p) => p.permutation(),
-        }
-    }
+    // fn permutation(&self) -> Box<dyn Permutation<T> + 'a> {
+    //     match self {
+    //         Poseidon2Enum::P2Degree3(p) => p.permutation(),
+    //         Poseidon2Enum::P2Degree9(p) => p.permutation(),
+    //     }
+    // }
 }
 
 /// Enum to enable dynamic dispatch for the Poseidon2 columns.
@@ -144,7 +144,7 @@ pub struct Poseidon2Degree3<T: Copy> {
     pub syscall_input: SyscallParams<T>,
     pub memory: Memory<T>,
     pub opcode_specific_cols: OpcodeWorkspace<T>,
-    pub permutation_cols: PermutationSBox<T>,
+    // pub permutation_cols: PermutationSBox<T>,
     pub state_cursor: [T; WIDTH / 2], // Only used for absorb
 }
 
@@ -165,9 +165,9 @@ impl<'a, T: Copy + 'a> Poseidon2<'a, T> for Poseidon2Degree3<T> {
         &self.opcode_specific_cols
     }
 
-    fn permutation(&self) -> Box<dyn Permutation<T> + 'a> {
-        Box::new(self.permutation_cols)
-    }
+    // fn permutation(&self) -> Box<dyn Permutation<T> + 'a> {
+    //     Box::new(self.permutation_cols)
+    // }
 }
 
 impl<'a, T: Copy + 'a> Poseidon2Mut<'a, T> for &'a mut Poseidon2Degree3<T> {
@@ -205,7 +205,7 @@ pub struct Poseidon2Degree9<T: Copy> {
     pub syscall_input: SyscallParams<T>,
     pub memory: Memory<T>,
     pub opcode_specific_cols: OpcodeWorkspace<T>,
-    pub permutation_cols: PermutationNoSbox<T>,
+    // pub permutation_cols: PermutationNoSbox<T>,
 }
 
 impl<'a, T: Copy + 'a> Poseidon2<'a, T> for Poseidon2Degree9<T> {
@@ -225,9 +225,9 @@ impl<'a, T: Copy + 'a> Poseidon2<'a, T> for Poseidon2Degree9<T> {
         &self.opcode_specific_cols
     }
 
-    fn permutation(&self) -> Box<dyn Permutation<T> + 'a> {
-        Box::new(self.permutation_cols)
-    }
+    // fn permutation(&self) -> Box<dyn Permutation<T> + 'a> {
+    //     Box::new(self.permutation_cols)
+    // }
 }
 
 impl<'a, T: Copy + 'a> Poseidon2Mut<'a, T> for &'a mut Poseidon2Degree9<T> {

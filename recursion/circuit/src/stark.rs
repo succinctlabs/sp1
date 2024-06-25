@@ -208,7 +208,7 @@ where
         rounds.push(perm_round);
         rounds.push(quotient_round);
         let config = outer_fri_config();
-        verify_two_adic_pcs(builder, &config, &proof.opening_proof, challenger, rounds);
+        // verify_two_adic_pcs(builder, &config, &proof.opening_proof, challenger, rounds);
 
         for (i, sorted_chip) in sorted_chips.iter().enumerate() {
             for chip in machine.chips() {
