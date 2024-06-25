@@ -627,7 +627,8 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
         let sp1_vk = VerifyingKeyHint::<'a, BabyBearPoseidon2, RiscvAir<_>>::read(builder);
         let committed_value_digest = Vec::<Vec<InnerVal>>::read(builder);
         let deferred_proofs_digest = Vec::<InnerVal>::read(builder);
-        let leaf_challenger = DuplexChallenger::<InnerVal, InnerPerm, 16, 8>::read(builder);
+        let leaf_challenger =
+            DuplexChallenger::<InnerVal, InnerPerm, PERMUTATION_WIDTH, HASH_RATE>::read(builder);
         let end_pc = InnerVal::read(builder);
         let end_shard = InnerVal::read(builder);
 
