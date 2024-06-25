@@ -379,6 +379,9 @@ pub mod tests {
 
         // Test the recursive Pcs.
         let mut builder = Builder::<InnerConfig>::default();
+        builder
+            .program_options
+            .insert("use_inline_exp_rev_bits".to_string(), "true".to_string());
         let config = const_fri_config(&mut builder, &compressed_fri_config());
         let pcs = TwoAdicFriPcsVariable { config };
         let rounds =
