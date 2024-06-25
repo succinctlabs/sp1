@@ -1,6 +1,6 @@
 # Writing Programs: Setup
 
-In this section, we will teach you how to setup a self-contained crate which can be compiled as an program that can be executed inside the zkVM.
+In this section, we will teach you how to setup a self-contained crate which can be compiled as a program that can be executed inside the zkVM.
 
 ## CLI (Recommended)
 

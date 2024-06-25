@@ -36,4 +36,4 @@ edition = "2021"
 sp1-sdk = { git = "https://github.com/succinctlabs/sp1.git" }
 ```
 
-The `sp1-sdk` crate includes necessary utilities to generate, save, and verify proofs.
+The `sp1-sdk` crate includes the necessary utilities to generate, save, and verify proofs.

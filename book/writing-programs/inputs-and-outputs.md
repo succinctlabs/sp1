@@ -24,7 +24,7 @@ Note that `T` must implement the `serde::Serialize` and `serde::Deserialize` tra
 let my_vec = sp1_zkvm::io::read_vec();
 ```
 
-## Commiting Data
+## Committing Data
 
 Committing to data makes the data public to the verifier. Use the `sp1_zkvm::io::commit::<T>` method:
 

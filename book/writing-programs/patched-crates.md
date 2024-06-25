@@ -1,7 +1,7 @@
 # Patched Crates
 
 We maintain forks of commonly used libraries in blockchain infrastructure to significantly accelerate the execution of certain operations.
-Under the hood, we use [precompiles](./precompiles.md) to acheive tremendous performance improvements in proof generation time.
+Under the hood, we use [precompiles](./precompiles.md) to achieve tremendous performance improvements in proof generation time.
 
 **If you know of a library or library version that you think should be patched, please open an issue or a pull request!**
 
