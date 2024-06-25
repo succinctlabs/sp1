@@ -53,8 +53,17 @@ where
         machine: &StarkMachine<BabyBearPoseidon2, A>,
         vk: &StarkVerifyingKey<BabyBearPoseidon2>,
         is_compress: bool,
+        is_wrap: bool,
     ) -> RecursionProgram<BabyBear> {
         let mut builder = Builder::<InnerConfig>::default();
+        builder
+            .program_options
+            .insert(String::from("check_vk"), is_compress.to_string());
+
+        builder
+            .program_options
+            .insert(String::from("use_inline_exp_rev_bits"), is_wrap.to_string());
+
         let proof: ShardProofVariable<_> = builder.uninit();
         ShardProofHint::<BabyBearPoseidon2, A>::witness(&proof, &mut builder);
 
@@ -62,7 +71,7 @@ where
             config: const_fri_config(&mut builder, machine.config().pcs().fri_config()),
         };
 
-        SP1RootVerifier::verify(&mut builder, &pcs, machine, vk, &proof, is_compress);
+        SP1RootVerifier::verify(&mut builder, &pcs, machine, vk, &proof);
 
         builder.compile_program()
     }
@@ -89,7 +98,6 @@ where
         machine: &StarkMachine<SC, A>,
         vk: &StarkVerifyingKey<SC>,
         proof: &ShardProofVariable<C>,
-        is_compress: bool,
     ) {
         // Get the verifying key info from the vk.
         let vk = proof_data_from_vk(builder, vk, machine);
@@ -137,7 +145,8 @@ where
 
         // If the proof is a compress proof, assert that the vk is the same as the compress vk from
         // the public values.
-        if is_compress {
+        let check_vk = builder.program_options.get("check_vk");
+        if check_vk.is_some() && check_vk.unwrap() == "true" {
             let vk_digest = hash_vkey(builder, &vk);
             for (i, reduce_digest_elem) in public_values.compress_vk_digest.iter().enumerate() {
                 let vk_digest_elem = builder.get(&vk_digest, i);

@@ -141,7 +141,14 @@ where
     let folded_eval: Ext<C::F, C::EF> = builder.eval(C::F::zero());
     let two_adic_generator_f = config.get_two_adic_generator(builder, log_max_height);
 
-    let x = builder.exp_reverse_bits_len_fast(two_adic_generator_f, index_bits, log_max_height);
+    let use_inline_exp_rev_bits = builder.program_options.get("use_inline_exp_rev_bits");
+
+    let x: Felt<C::F> =
+        if use_inline_exp_rev_bits.is_some() && use_inline_exp_rev_bits.unwrap() == "true" {
+            builder.exp_reverse_bits_len(two_adic_generator_f, index_bits, log_max_height)
+        } else {
+            builder.exp_reverse_bits_len_fast(two_adic_generator_f, index_bits, log_max_height)
+        };
 
     let log_max_height = log_max_height.materialize(builder);
     builder

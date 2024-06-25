@@ -164,14 +164,18 @@ impl SP1Prover {
         let (compress_pk, compress_vk) = compress_machine.setup(&compress_program);
 
         // Get the compress program, machine, and keys.
-        let shrink_program =
-            SP1RootVerifier::<InnerConfig, _, _>::build(&compress_machine, &compress_vk, true);
+        let shrink_program = SP1RootVerifier::<InnerConfig, _, _>::build(
+            &compress_machine,
+            &compress_vk,
+            true,
+            false,
+        );
         let shrink_machine = CompressAir::wrap_machine_dyn(InnerSC::compressed());
         let (shrink_pk, shrink_vk) = shrink_machine.setup(&shrink_program);
 
         // Get the wrap program, machine, and keys.
         let wrap_program =
-            SP1RootVerifier::<InnerConfig, _, _>::build(&shrink_machine, &shrink_vk, false);
+            SP1RootVerifier::<InnerConfig, _, _>::build(&shrink_machine, &shrink_vk, false, true);
         let wrap_machine = WrapAir::wrap_machine(OuterSC::default());
         let (wrap_pk, wrap_vk) = wrap_machine.setup(&wrap_program);
 

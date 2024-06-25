@@ -1,4 +1,4 @@
-use std::{iter::Zip, vec::IntoIter};
+use std::{collections::HashMap, iter::Zip, vec::IntoIter};
 
 use backtrace::Backtrace;
 use p3_field::AbstractField;
@@ -103,6 +103,7 @@ pub struct Builder<C: Config> {
     pub(crate) p2_hash_num: Var<C::N>,
     pub(crate) debug: bool,
     pub(crate) is_sub_builder: bool,
+    pub program_options: HashMap<String, String>,
 }
 
 impl<C: Config> Default for Builder<C> {
@@ -122,6 +123,7 @@ impl<C: Config> Default for Builder<C> {
             p2_hash_num: placeholder_p2_hash_num,
             debug: false,
             is_sub_builder: false,
+            program_options: HashMap::new(),
         };
 
         new_builder.p2_hash_num = new_builder.uninit();
@@ -138,6 +140,7 @@ impl<C: Config> Builder<C> {
         nb_public_values: Option<Var<C::N>>,
         p2_hash_num: Var<C::N>,
         debug: bool,
+        program_options: HashMap<String, String>,
     ) -> Self {
         Self {
             felt_count,
@@ -153,6 +156,7 @@ impl<C: Config> Builder<C> {
             p2_hash_num,
             debug,
             is_sub_builder: true,
+            program_options,
         }
     }
 
@@ -546,6 +550,7 @@ impl<'a, C: Config> IfBuilder<'a, C> {
             self.builder.nb_public_values,
             self.builder.p2_hash_num,
             self.builder.debug,
+            self.builder.program_options.clone(),
         );
         f(&mut f_builder);
         self.builder.p2_hash_num = f_builder.p2_hash_num;
@@ -597,6 +602,7 @@ impl<'a, C: Config> IfBuilder<'a, C> {
             self.builder.nb_public_values,
             self.builder.p2_hash_num,
             self.builder.debug,
+            self.builder.program_options.clone(),
         );
 
         // Execute the `then` and `else_then` blocks and collect the instructions.
@@ -612,6 +618,7 @@ impl<'a, C: Config> IfBuilder<'a, C> {
             self.builder.nb_public_values,
             self.builder.p2_hash_num,
             self.builder.debug,
+            self.builder.program_options.clone(),
         );
         else_f(&mut else_builder);
         self.builder.p2_hash_num = else_builder.p2_hash_num;
@@ -749,6 +756,7 @@ impl<'a, C: Config> RangeBuilder<'a, C> {
             self.builder.nb_public_values,
             self.builder.p2_hash_num,
             self.builder.debug,
+            self.builder.program_options.clone(),
         );
 
         f(loop_variable, &mut loop_body_builder);
