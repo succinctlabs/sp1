@@ -126,7 +126,7 @@ pub fn verify_two_adic_pcs<C: Config>(
 
                         let two_adic_generator_exp: Felt<C::F> = if use_inline_exp_rev_bits
                             .is_some()
-                            && use_inline_exp_rev_bits.unwrap() == "true"
+                            && *use_inline_exp_rev_bits.unwrap()
                         {
                             builder.exp_reverse_bits_len(
                                 two_adic_generator,
@@ -381,7 +381,7 @@ pub mod tests {
         let mut builder = Builder::<InnerConfig>::default();
         builder
             .program_options
-            .insert("use_inline_exp_rev_bits".to_string(), "true".to_string());
+            .insert("use_inline_exp_rev_bits".to_string(), true);
         let config = const_fri_config(&mut builder, &compressed_fri_config());
         let pcs = TwoAdicFriPcsVariable { config };
         let rounds =

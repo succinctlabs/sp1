@@ -103,7 +103,9 @@ pub struct Builder<C: Config> {
     pub(crate) p2_hash_num: Var<C::N>,
     pub(crate) debug: bool,
     pub(crate) is_sub_builder: bool,
-    pub program_options: HashMap<String, String>,
+    /// Program specific options.  Common use for it is to set a flag to conditionally (known at
+    /// compile time) include operations.
+    pub program_options: HashMap<String, bool>,
 }
 
 impl<C: Config> Default for Builder<C> {
@@ -140,7 +142,7 @@ impl<C: Config> Builder<C> {
         nb_public_values: Option<Var<C::N>>,
         p2_hash_num: Var<C::N>,
         debug: bool,
-        program_options: HashMap<String, String>,
+        program_options: HashMap<String, bool>,
     ) -> Self {
         Self {
             felt_count,

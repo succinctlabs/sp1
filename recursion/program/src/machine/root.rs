@@ -58,11 +58,11 @@ where
         let mut builder = Builder::<InnerConfig>::default();
         builder
             .program_options
-            .insert(String::from("check_vk"), is_compress.to_string());
+            .insert(String::from("check_vk"), is_compress);
 
         builder
             .program_options
-            .insert(String::from("use_inline_exp_rev_bits"), is_wrap.to_string());
+            .insert(String::from("use_inline_exp_rev_bits"), is_wrap);
 
         let proof: ShardProofVariable<_> = builder.uninit();
         ShardProofHint::<BabyBearPoseidon2, A>::witness(&proof, &mut builder);
@@ -146,7 +146,7 @@ where
         // If the proof is a compress proof, assert that the vk is the same as the compress vk from
         // the public values.
         let check_vk = builder.program_options.get("check_vk");
-        if check_vk.is_some() && check_vk.unwrap() == "true" {
+        if check_vk.is_some() && *check_vk.unwrap() {
             let vk_digest = hash_vkey(builder, &vk);
             for (i, reduce_digest_elem) in public_values.compress_vk_digest.iter().enumerate() {
                 let vk_digest_elem = builder.get(&vk_digest, i);
