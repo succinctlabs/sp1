@@ -64,9 +64,10 @@ pub struct Runtime<'a> {
     /// The memory accesses for the current cycle.
     pub memory_accesses: MemoryAccessRecord,
 
-    /// The maximum size of each shard.
+    /// The maximum size of each shard in number of CPU cycles.
     pub shard_size: u32,
 
+    /// Number of shards in each batch.
     pub shard_batch_size: u32,
 
     /// A counter for the number of cycles that have been executed in certain functions.
@@ -162,7 +163,7 @@ impl<'a> Runtime<'a> {
             state: ExecutionState::new(program.pc_start),
             program,
             memory_accesses: MemoryAccessRecord::default(),
-            shard_size: (opts.shard_size as u32) * 4,
+            shard_size: opts.shard_size as u32,
             shard_batch_size: opts.shard_batch_size as u32,
             cycle_tracker: HashMap::new(),
             io_buf: HashMap::new(),
@@ -197,7 +198,7 @@ impl<'a> Runtime<'a> {
     pub fn recover(program: Program, state: ExecutionState, opts: SP1CoreOpts) -> Self {
         let mut runtime = Self::new(program, opts);
         runtime.state = state;
-        let index: u32 = (runtime.state.global_clk / (runtime.shard_size / 4) as u64)
+        let index: u32 = (runtime.state.global_clk / runtime.shard_size as u64)
             .try_into()
             .unwrap();
         runtime.record.index = index + 1;
@@ -986,7 +987,7 @@ impl<'a> Runtime<'a> {
 
         // If there's not enough cycles left for another instruction, move to the next shard.
         // We multiply by 4 because clk is incremented by 4 for each normal instruction.
-        if !self.unconstrained && self.max_syscall_cycles + self.state.clk >= self.shard_size {
+        if !self.unconstrained && self.max_syscall_cycles + self.state.clk >= self.shard_size * 4 {
             self.state.current_shard += 1;
             self.state.clk = 0;
             self.state.channel = 0;
@@ -996,20 +997,22 @@ impl<'a> Runtime<'a> {
             >= (self.program.instructions.len() * 4) as u32)
     }
 
-    /// Execute up to `self.shard_batch_size` cycles, returning the events emitted and whether the program ended.
+    /// Execute up to `self.shard_batch_size` shards worth of cycles, returning the events emitted
+    /// and whether the program ended.
     pub fn execute_record(&mut self) -> Result<(ExecutionRecord, bool), ExecutionError> {
         self.emit_events = true;
         self.print_report = true;
-        let done = self.execute()?;
+        let done = self.execute_shard_batch()?;
         Ok((std::mem::take(&mut self.record), done))
     }
 
-    /// Execute up to `self.shard_batch_size` cycles, returning a copy of the prestate and whether the program ended.
+    /// Execute up to `self.shard_batch_size` shards worth of cycles, returning a copy of the
+    /// starting state and whether the program ended.
     pub fn execute_state(&mut self) -> Result<(ExecutionState, bool), ExecutionError> {
         self.emit_events = false;
         self.print_report = false;
         let state = self.state.clone();
-        let done = self.execute()?;
+        let done = self.execute_shard_batch()?;
         Ok((state, done))
     }
 
@@ -1033,24 +1036,19 @@ impl<'a> Runtime<'a> {
     pub fn run_untraced(&mut self) -> Result<(), ExecutionError> {
         self.emit_events = false;
         self.print_report = true;
-        while !self.execute()? {}
+        while !self.execute_shard_batch()? {}
         Ok(())
     }
 
     pub fn run(&mut self) -> Result<(), ExecutionError> {
         self.emit_events = true;
         self.print_report = true;
-        while !self.execute()? {}
+        while !self.execute_shard_batch()? {}
         Ok(())
     }
 
-    pub fn dry_run(&mut self) {
-        self.emit_events = false;
-        while !self.execute().unwrap() {}
-    }
-
     /// Executes up to `self.shard_batch_size` cycles of the program, returning whether the program has finished.
-    fn execute(&mut self) -> Result<bool, ExecutionError> {
+    pub fn execute_shard_batch(&mut self) -> Result<bool, ExecutionError> {
         // If it's the first cycle, initialize the program.
         if self.state.global_clk == 0 {
             self.initialize();

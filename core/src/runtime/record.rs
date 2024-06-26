@@ -641,6 +641,63 @@ impl ExecutionRecord {
             }
         }
     }
+
+    /// Remove all non-essential events from the record and return them in a separate record.
+    /// Non-essential events include all precompiles and MemoryInit/MemoryFinalize.
+    pub fn remove_optional_events(&mut self) -> ExecutionRecord {
+        let mut new_events = ExecutionRecord::default();
+        new_events.program = self.program.clone();
+        new_events.sha_extend_events = take(&mut self.sha_extend_events);
+        new_events.sha_compress_events = take(&mut self.sha_compress_events);
+        new_events.keccak_permute_events = take(&mut self.keccak_permute_events);
+        new_events.ed_add_events = take(&mut self.ed_add_events);
+        new_events.ed_decompress_events = take(&mut self.ed_decompress_events);
+        new_events.secp256k1_add_events = take(&mut self.secp256k1_add_events);
+        new_events.secp256k1_double_events = take(&mut self.secp256k1_double_events);
+        new_events.bn254_add_events = take(&mut self.bn254_add_events);
+        new_events.bn254_double_events = take(&mut self.bn254_double_events);
+        new_events.k256_decompress_events = take(&mut self.k256_decompress_events);
+        new_events.bls12381_add_events = take(&mut self.bls12381_add_events);
+        new_events.bls12381_double_events = take(&mut self.bls12381_double_events);
+        new_events.uint256_mul_events = take(&mut self.uint256_mul_events);
+        new_events.bls12381_decompress_events = take(&mut self.bls12381_decompress_events);
+        // We treat MemoryInit and MemoryFinalize as precompiles since they are proven in their own
+        // shards.
+        new_events.memory_initialize_events = take(&mut self.memory_initialize_events);
+        new_events.memory_finalize_events = take(&mut self.memory_finalize_events);
+
+        new_events
+    }
+
+    pub fn pop_shard(&mut self, shard_size: usize) -> ExecutionRecord {
+        let mut new_events = ExecutionRecord::default();
+        new_events.program = self.program.clone();
+        new_events.index = self.index;
+        self.index += 1;
+        new_events.cpu_events = take(&mut self.cpu_events);
+        if new_events.cpu_events.len() > shard_size {
+            self.cpu_events = new_events.cpu_events.split_off(shard_size);
+        }
+
+        new_events.add_events = take(&mut self.add_events);
+        new_events.mul_events = take(&mut self.mul_events);
+        new_events.sub_events = take(&mut self.sub_events);
+        new_events.bitwise_events = take(&mut self.bitwise_events);
+        new_events.shift_left_events = take(&mut self.shift_left_events);
+        new_events.shift_right_events = take(&mut self.shift_right_events);
+        new_events.divrem_events = take(&mut self.divrem_events);
+        new_events.lt_events = take(&mut self.lt_events);
+        // new_events.byte_lookups = take(&mut self.byte_lookups);
+
+        new_events.memory_initialize_events = take(&mut self.memory_initialize_events);
+        new_events.memory_finalize_events = take(&mut self.memory_finalize_events);
+
+        new_events.byte_lookups = self.byte_lookups.clone();
+        new_events.public_values = self.public_values.clone();
+        new_events.nonce_lookup = self.nonce_lookup.clone();
+
+        new_events
+    }
 }
 
 impl ByteRecord for ExecutionRecord {
