@@ -126,7 +126,7 @@ where
                     memory_limbs[i].clone(),
                     local
                         .keccak
-                        .a_prime_prime_prime(x_idx as usize, y_idx as usize, i),
+                        .a_prime_prime_prime(y_idx as usize, x_idx as usize, i),
                 )
             }
         }
