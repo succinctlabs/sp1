@@ -572,6 +572,17 @@ impl MachineRecord for ExecutionRecord {
             self.nonce_lookup.insert(event.lookup_id, i as u32);
         }
 
+        let mut precompile_shard = ExecutionRecord::default();
+        precompile_shard.add_events = std::mem::take(&mut first.add_events);
+        precompile_shard.sub_events = std::mem::take(&mut first.sub_events);
+        precompile_shard.index = shards.last_mut().unwrap().index + 1;
+        precompile_shard.public_values.shard = shards.last_mut().unwrap().public_values.shard + 1;
+        precompile_shard.program = self.program.clone();
+        precompile_shard
+            .byte_lookups
+            .insert(precompile_shard.index, HashMap::new());
+        shards.push(precompile_shard);
+
         // Put MemoryInit / MemoryFinalize events in the last shard.
         let last = shards.last_mut().unwrap();
         last.memory_initialize_events

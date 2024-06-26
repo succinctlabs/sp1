@@ -305,9 +305,6 @@ where
                 // shard).
                 builder.assert_felt_ne(public_values.start_pc, C::F::zero());
 
-                // Assert that the shard of the proof is equal to the current shard.
-                builder.assert_felt_eq(current_shard, public_values.shard);
-
                 // Assert that exit code is the same for all proofs.
                 builder.assert_felt_eq(exit_code, public_values.exit_code);
 
@@ -321,26 +318,29 @@ where
                 {
                     builder.assert_felt_eq(*digest, *current_digest);
                 }
-
-                // Range check the shard count to be less than 1<<16.
-                builder.range_check_f(current_shard, 16);
-
-                // Update the loop variables: the reconstruct challenger, cumulative sum, shard number,
-                // and program counter.
-
-                // Increment the shard index by one.
-                builder.assign(current_shard, current_shard + C::F::one());
-
-                // Update the reconstruct challenger.
-                reconstruct_challenger.observe(builder, proof.commitment.main_commit.clone());
-                for j in 0..machine.num_pv_elts() {
-                    let element = builder.get(&proof.public_values, j);
-                    reconstruct_challenger.observe(builder, element);
-                }
-
-                // Update current_pc to be the end_pc of the current proof.
-                builder.assign(current_pc, public_values.next_pc);
             });
+
+            // Update the loop variables: the reconstruct challenger, cumulative sum, shard number,
+            // and program counter.
+
+            // Assert that the shard of the proof is equal to the current shard.
+            builder.assert_felt_eq(current_shard, public_values.shard);
+
+            // Range check the shard count to be less than 1<<16.
+            builder.range_check_f(current_shard, 16);
+
+            // Increment the shard index by one.
+            builder.assign(current_shard, current_shard + C::F::one());
+
+            // Update the reconstruct challenger.
+            reconstruct_challenger.observe(builder, proof.commitment.main_commit.clone());
+            for j in 0..machine.num_pv_elts() {
+                let element = builder.get(&proof.public_values, j);
+                reconstruct_challenger.observe(builder, element);
+            }
+
+            // Update current_pc to be the end_pc of the current proof.
+            builder.assign(current_pc, public_values.next_pc);
 
             // Cumulative sum is updated by sums of all chips.
             let opened_values = proof.opened_values.chips;

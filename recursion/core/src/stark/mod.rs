@@ -118,7 +118,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
     pub fn get_wrap_all() -> Vec<Self> {
         once(RecursionAir::Program(ProgramChip))
             .chain(once(RecursionAir::Cpu(CpuChip {
-                fixed_log2_rows: Some(19),
+                fixed_log2_rows: Some(20),
                 _phantom: PhantomData,
             })))
             .chain(once(RecursionAir::MemoryGlobal(MemoryGlobalChip {

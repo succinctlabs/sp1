@@ -65,7 +65,7 @@ impl SP1Prover {
                         "wrong pc_start",
                     ));
                 }
-            } else {
+            } else if shard_proof.has_cpu() {
                 let prev_shard_proof = &proof.0[i - 1];
                 let prev_public_values =
                     PublicValues::from_vec(prev_shard_proof.public_values.clone());
