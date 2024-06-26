@@ -131,14 +131,6 @@ where
             ..
         } = proof;
 
-        // Extract public values.
-        let mut pv_elements = Vec::new();
-        for i in 0..machine.num_pv_elts() {
-            let element = builder.get(&proof.public_values, i);
-            pv_elements.push(element);
-        }
-        let public_values = PublicValues::<Word<Felt<_>>, Felt<_>>::from_vec(pv_elements);
-
         let ShardCommitmentVariable {
             main_commit,
             permutation_commit,
@@ -151,7 +143,6 @@ where
 
         challenger.observe(builder, permutation_commit.clone());
 
-        #[allow(unused_variables)]
         let alpha = challenger.sample_ext(builder);
 
         challenger.observe(builder, quotient_commit.clone());
@@ -309,44 +300,13 @@ where
 
         builder.cycle_tracker("stage-e-verify-constraints");
 
-        let shard_bits = builder.num2bits_f(public_values.shard);
-        let shard = builder.bits2num_v(&shard_bits);
         for (i, chip) in machine.chips().iter().enumerate() {
             tracing::debug!("verifying constraints for chip: {}", chip.name());
             let index = builder.get(&proof.sorted_idxs, i);
 
-            // TODO: FIX
-            // if chip.name() == "CPU" {
-            //     builder.assert_var_ne(index, C::N::from_canonical_usize(EMPTY));
-            // }
-
             if chip.preprocessed_width() > 0 {
                 builder.assert_var_ne(index, C::N::from_canonical_usize(EMPTY));
             }
-
-            // TODO: FIX
-            // if chip.name() == "MemoryInit" {
-            //     builder.if_eq(shard, total_shards).then_or_else(
-            //         |builder| {
-            //             builder.assert_var_ne(index, C::N::from_canonical_usize(EMPTY));
-            //         },
-            //         |builder| {
-            //             builder.assert_var_eq(index, C::N::from_canonical_usize(EMPTY));
-            //         },
-            //     );
-            // }
-
-            // TODO: FIX
-            // if chip.name() == "MemoryFinalize" {
-            //     builder.if_eq(shard, total_shards).then_or_else(
-            //         |builder| {
-            //             builder.assert_var_ne(index, C::N::from_canonical_usize(EMPTY));
-            //         },
-            //         |builder| {
-            //             builder.assert_var_eq(index, C::N::from_canonical_usize(EMPTY));
-            //         },
-            //     );
-            // }
 
             builder
                 .if_ne(index, C::N::from_canonical_usize(EMPTY))

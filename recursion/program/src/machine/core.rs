@@ -171,6 +171,7 @@ where
             let byte = word[byte_idx];
             builder.assign(byte, witnessed_byte);
         }
+        #[allow(clippy::needless_range_loop)]
         for i in 0..deferred_proofs_digest.len() {
             let witness = builder.get(&deferred_proofs_digest_arr, i);
             let value = deferred_proofs_digest[i];
@@ -230,42 +231,45 @@ where
             }
             let public_values = PublicValues::<Word<Felt<_>>, Felt<_>>::from_vec(pv_elements);
 
+            // If this is the first proof in the batch, verify the initial conditions.
+            //
+            // Note: regardless of whether this is a shard with CPU or not, these values should be
+            // set correctly.
+            builder.if_eq(i, C::N::zero()).then(|builder| {
+                // Initialize the values of accumulated variables.
+
+                // Shard.
+                builder.assign(initial_shard, public_values.shard);
+                builder.assign(current_shard, public_values.shard);
+
+                // Program counter.
+                builder.assign(start_pc, public_values.start_pc);
+                builder.assign(current_pc, public_values.start_pc);
+
+                // Commited public values digests.
+                for (word, first_word) in committed_value_digest
+                    .iter()
+                    .zip_eq(public_values.committed_value_digest.iter())
+                {
+                    for (byte, first_byte) in word.0.iter().zip_eq(first_word.0.iter()) {
+                        builder.assign(*byte, *first_byte);
+                    }
+                }
+
+                // Deferred proofs digests.
+                for (digest, first_digest) in deferred_proofs_digest
+                    .iter()
+                    .zip_eq(public_values.deferred_proofs_digest.iter())
+                {
+                    builder.assign(*digest, *first_digest);
+                }
+
+                // Exit code.
+                builder.assign(exit_code, public_values.exit_code);
+            });
+
             // If this is a CPU proof, verify the transition function.
             builder.if_eq(has_cpu, C::N::one()).then(|builder| {
-                // If this is the first proof in the batch, verify the initial conditions.
-                builder.if_eq(i, C::N::zero()).then(|builder| {
-                    // Initialize the values of accumulated variables.
-
-                    // Shard.
-                    builder.assign(initial_shard, public_values.shard);
-                    builder.assign(current_shard, public_values.shard);
-
-                    // Program counter.
-                    builder.assign(start_pc, public_values.start_pc);
-                    builder.assign(current_pc, public_values.start_pc);
-
-                    // Commited public values digests.
-                    for (word, first_word) in committed_value_digest
-                        .iter()
-                        .zip_eq(public_values.committed_value_digest.iter())
-                    {
-                        for (byte, first_byte) in word.0.iter().zip_eq(first_word.0.iter()) {
-                            builder.assign(*byte, *first_byte);
-                        }
-                    }
-
-                    // Deferred proofs digests.
-                    for (digest, first_digest) in deferred_proofs_digest
-                        .iter()
-                        .zip_eq(public_values.deferred_proofs_digest.iter())
-                    {
-                        builder.assign(*digest, *first_digest);
-                    }
-
-                    // Exit code.
-                    builder.assign(exit_code, public_values.exit_code);
-                });
-
                 // If shard is one, verify the global initial conditions hold on challenger and pc.
                 let shard = felt2var(builder, public_values.shard);
                 builder.if_eq(shard, C::N::one()).then(|builder| {
