@@ -274,6 +274,11 @@ impl SP1Prover {
         for batch in shard_proofs.chunks(batch_size) {
             let proofs = batch.to_vec();
 
+            let public_values = proofs
+                .iter()
+                .map(|proof| PublicValues::from_vec(proof.public_values.clone()))
+                .collect::<Vec<_>>();
+
             core_inputs.push(SP1RecursionMemoryLayout {
                 vk,
                 machine: &self.core_machine,
@@ -282,6 +287,16 @@ impl SP1Prover {
                 initial_reconstruct_challenger: reconstruct_challenger.clone(),
                 is_complete,
                 total_core_shards: shard_proofs.len(),
+                initial_shard: public_values[0].shard,
+                current_shard: public_values[0].shard,
+                start_pc: public_values[0].start_pc,
+                current_pc: public_values[0].start_pc,
+                committed_value_digest_arr: public_values[0]
+                    .committed_value_digest
+                    .iter()
+                    .map(|w| w.0.to_vec())
+                    .collect::<Vec<_>>(),
+                deferred_proofs_digest_arr: public_values[0].deferred_proofs_digest.to_vec(),
             });
 
             for proof in batch.iter() {
@@ -702,13 +717,7 @@ mod tests {
 
         tracing::info!("initializing prover");
         let prover = SP1Prover::new();
-        let opts = SP1ProverOpts {
-            core_opts: SP1CoreOpts {
-                shard_size: 1 << 12,
-                ..Default::default()
-            },
-            recursion_opts: SP1CoreOpts::default(),
-        };
+        let opts = SP1ProverOpts::default();
         let context = SP1Context::default();
 
         tracing::info!("setup elf");

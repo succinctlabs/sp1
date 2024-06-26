@@ -13,9 +13,11 @@ pub use utils::*;
 #[cfg(test)]
 mod tests {
 
+    use itertools::Itertools;
     use p3_baby_bear::BabyBear;
     use p3_challenger::CanObserve;
     use p3_maybe_rayon::prelude::*;
+    use sp1_core::air::PublicValues;
     use sp1_core::stark::{MachineVerificationError, RiscvAir, StarkGenericConfig};
     use sp1_core::utils::{BabyBearPoseidon2, SP1CoreOpts};
     use sp1_core::{
@@ -114,6 +116,10 @@ mod tests {
         let is_complete = proof.shard_proofs.len() == 1;
         for batch in proof.shard_proofs.chunks(batch_size) {
             let proofs = batch.to_vec();
+            let public_values = proofs
+                .iter()
+                .map(|proof| PublicValues::from_vec(proof.public_values.clone()))
+                .collect::<Vec<_>>();
 
             layouts.push(SP1RecursionMemoryLayout {
                 vk: &vk,
@@ -123,6 +129,16 @@ mod tests {
                 initial_reconstruct_challenger: reconstruct_challenger.clone(),
                 is_complete,
                 total_core_shards,
+                initial_shard: public_values[0].shard,
+                current_shard: public_values[0].shard,
+                start_pc: public_values[0].start_pc,
+                current_pc: public_values[0].start_pc,
+                committed_value_digest_arr: public_values[0]
+                    .committed_value_digest
+                    .iter()
+                    .map(|w| w.0.to_vec())
+                    .collect_vec(),
+                deferred_proofs_digest_arr: public_values[0].deferred_proofs_digest.to_vec(),
             });
 
             for proof in batch.iter() {

@@ -6,10 +6,10 @@ use itertools::Itertools;
 use p3_baby_bear::BabyBear;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::{AbstractField, PrimeField32, TwoAdicField};
-use sp1_core::air::{MachineAir, PublicValues};
+use sp1_core::air::{MachineAir, PublicValues, WORD_SIZE};
 use sp1_core::air::{Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS};
-use sp1_core::stark::StarkMachine;
 use sp1_core::stark::{Com, RiscvAir, ShardProof, StarkGenericConfig, StarkVerifyingKey};
+use sp1_core::stark::{StarkMachine, Val};
 use sp1_core::utils::BabyBearPoseidon2;
 use sp1_recursion_compiler::config::InnerConfig;
 use sp1_recursion_compiler::ir::{Array, Builder, Config, Ext, ExtConst, Felt, Var};
@@ -22,7 +22,7 @@ use sp1_recursion_compiler::prelude::*;
 use crate::challenger::{CanObserveVariable, DuplexChallengerVariable};
 use crate::fri::TwoAdicFriPcsVariable;
 use crate::hints::Hintable;
-use crate::stark::StarkVerifier;
+use crate::stark::{StarkVerifier, EMPTY};
 use crate::types::ShardProofVariable;
 use crate::types::VerifyingKeyVariable;
 use crate::utils::{const_fri_config, felt2var, get_challenger_public_values, hash_vkey, var2felt};
@@ -43,6 +43,12 @@ pub struct SP1RecursionMemoryLayout<'a, SC: StarkGenericConfig, A: MachineAir<SC
     pub initial_reconstruct_challenger: SC::Challenger,
     pub is_complete: bool,
     pub total_core_shards: usize,
+    pub initial_shard: Val<SC>,
+    pub current_shard: Val<SC>,
+    pub start_pc: Val<SC>,
+    pub current_pc: Val<SC>,
+    pub committed_value_digest_arr: Vec<Vec<Val<SC>>>,
+    pub deferred_proofs_digest_arr: Vec<Val<SC>>,
 }
 
 #[derive(DslVariable, Clone)]
@@ -57,6 +63,15 @@ pub struct SP1RecursionMemoryLayoutVariable<C: Config> {
     pub is_complete: Var<C::N>,
 
     pub total_core_shards: Var<C::N>,
+
+    pub initial_shard: Felt<C::F>,
+    pub current_shard: Felt<C::F>,
+
+    pub start_pc: Felt<C::F>,
+    pub current_pc: Felt<C::F>,
+
+    pub committed_value_digest_arr: Array<C, Array<C, Felt<C::F>>>,
+    pub deferred_proofs_digest_arr: Array<C, Felt<C::F>>,
 }
 
 impl SP1RecursiveVerifier<InnerConfig, BabyBearPoseidon2> {
@@ -83,11 +98,7 @@ impl SP1RecursiveVerifier<InnerConfig, BabyBearPoseidon2> {
 impl<C: Config, SC: StarkGenericConfig> SP1RecursiveVerifier<C, SC>
 where
     C::F: PrimeField32 + TwoAdicField,
-    SC: StarkGenericConfig<
-        Val = C::F,
-        Challenge = C::EF,
-        Domain = TwoAdicMultiplicativeCoset<C::F>,
-    >,
+    SC: StarkGenericConfig<Val = C::F, Challenge = C::EF, Domain = TwoAdicMultiplicativeCoset<C::F>>,
     Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
 {
     /// Verify a batch of SP1 shard proofs and aggregate their public values.
@@ -135,15 +146,15 @@ where
             initial_reconstruct_challenger,
             is_complete,
             total_core_shards,
+            initial_shard,
+            current_shard,
+            start_pc,
+            current_pc,
+            committed_value_digest_arr,
+            deferred_proofs_digest_arr,
         } = input;
 
         // Initialize values we will commit to public outputs.
-
-        // Start and end of program counters.
-        let start_pc: Felt<_> = builder.uninit();
-
-        // Start and end shard indices.
-        let initial_shard: Felt<_> = builder.uninit();
 
         // The commited values digest and deferred proof digest. These will be checked to be the
         // same for all proofs.
@@ -151,6 +162,20 @@ where
             array::from_fn(|_| Word(array::from_fn(|_| builder.uninit())));
         let deferred_proofs_digest: [Felt<_>; POSEIDON_NUM_WORDS] =
             array::from_fn(|_| builder.uninit());
+        for i in 0..committed_value_digest.len() * WORD_SIZE {
+            let word_idx = i / WORD_SIZE;
+            let byte_idx = i % WORD_SIZE;
+            let witnessed_word = builder.get(&committed_value_digest_arr, word_idx);
+            let witnessed_byte = builder.get(&witnessed_word, byte_idx);
+            let word = committed_value_digest[word_idx];
+            let byte = word[byte_idx];
+            builder.assign(byte, witnessed_byte);
+        }
+        for i in 0..deferred_proofs_digest.len() {
+            let witness = builder.get(&deferred_proofs_digest_arr, i);
+            let value = deferred_proofs_digest[i];
+            builder.assign(witness, value);
+        }
 
         // Assert that the number of proofs is not zero.
         builder.assert_usize_ne(shard_proofs.len(), 0);
@@ -158,11 +183,9 @@ where
         let leaf_challenger_public_values = get_challenger_public_values(builder, &leaf_challenger);
 
         // Initialize loop variables.
-        let current_shard: Felt<_> = builder.uninit();
         let mut reconstruct_challenger: DuplexChallengerVariable<_> =
             initial_reconstruct_challenger.copy(builder);
         let cumulative_sum: Ext<_, _> = builder.eval(C::EF::zero().cons());
-        let current_pc: Felt<_> = builder.uninit();
         let exit_code: Felt<_> = builder.uninit();
 
         // Range check that the number of proofs is sufficiently small.
@@ -173,6 +196,19 @@ where
         builder.range(0, shard_proofs.len()).for_each(|i, builder| {
             // Load the proof.
             let proof = builder.get(&shard_proofs, i);
+
+            // Compute whether the shard is a CPU proof.
+            let has_cpu: Var<_> = builder.eval(C::N::zero());
+            for (i, chip) in machine.chips().iter().enumerate() {
+                let index = builder.get(&proof.sorted_idxs, i);
+                if chip.name() == "CPU" {
+                    builder
+                        .if_ne(index, C::N::from_canonical_usize(EMPTY))
+                        .then(|builder| {
+                            builder.assign(has_cpu, C::N::one());
+                        });
+                }
+            }
 
             // Verify the shard proof.
             let mut challenger = leaf_challenger.copy(builder);
@@ -194,114 +230,117 @@ where
             }
             let public_values = PublicValues::<Word<Felt<_>>, Felt<_>>::from_vec(pv_elements);
 
-            // If this is the first proof in the batch, verify the initial conditions.
-            builder.if_eq(i, C::N::zero()).then(|builder| {
-                // Initialize the values of accumulated variables.
+            // If this is a CPU proof, verify the transition function.
+            builder.if_eq(has_cpu, C::N::one()).then(|builder| {
+                // If this is the first proof in the batch, verify the initial conditions.
+                builder.if_eq(i, C::N::zero()).then(|builder| {
+                    // Initialize the values of accumulated variables.
 
-                // Shard.
-                builder.assign(initial_shard, public_values.shard);
-                builder.assign(current_shard, public_values.shard);
+                    // Shard.
+                    builder.assign(initial_shard, public_values.shard);
+                    builder.assign(current_shard, public_values.shard);
 
-                // Program counter.
-                builder.assign(start_pc, public_values.start_pc);
-                builder.assign(current_pc, public_values.start_pc);
+                    // Program counter.
+                    builder.assign(start_pc, public_values.start_pc);
+                    builder.assign(current_pc, public_values.start_pc);
 
-                // Commited public values digests.
-                for (word, first_word) in committed_value_digest
+                    // Commited public values digests.
+                    for (word, first_word) in committed_value_digest
+                        .iter()
+                        .zip_eq(public_values.committed_value_digest.iter())
+                    {
+                        for (byte, first_byte) in word.0.iter().zip_eq(first_word.0.iter()) {
+                            builder.assign(*byte, *first_byte);
+                        }
+                    }
+
+                    // Deferred proofs digests.
+                    for (digest, first_digest) in deferred_proofs_digest
+                        .iter()
+                        .zip_eq(public_values.deferred_proofs_digest.iter())
+                    {
+                        builder.assign(*digest, *first_digest);
+                    }
+
+                    // Exit code.
+                    builder.assign(exit_code, public_values.exit_code);
+                });
+
+                // If shard is one, verify the global initial conditions hold on challenger and pc.
+                let shard = felt2var(builder, public_values.shard);
+                builder.if_eq(shard, C::N::one()).then(|builder| {
+                    // This should be the 0th proof in this batch.
+                    builder.assert_var_eq(i, C::N::zero());
+
+                    // Start pc should be vk.pc_start
+                    builder.assert_felt_eq(public_values.start_pc, vk.pc_start);
+
+                    // Assert that the initial challenger is equal to a fresh challenger observing the
+                    // verifier key and the initial pc.
+                    let mut first_initial_challenger = DuplexChallengerVariable::new(builder);
+
+                    first_initial_challenger.observe(builder, vk.commitment.clone());
+                    first_initial_challenger.observe(builder, vk.pc_start);
+
+                    // Make sure the start reconstruct challenger is correct, since we will
+                    // commit to it in public values.
+                    initial_reconstruct_challenger.assert_eq(builder, &first_initial_challenger);
+                });
+
+                // Assert compatibility of the shard values.
+
+                // Assert that the committed value digests are all the same.
+                for (word, current_word) in committed_value_digest
                     .iter()
                     .zip_eq(public_values.committed_value_digest.iter())
                 {
-                    for (byte, first_byte) in word.0.iter().zip_eq(first_word.0.iter()) {
-                        builder.assign(*byte, *first_byte);
+                    for (byte, current_byte) in word.0.iter().zip_eq(current_word.0.iter()) {
+                        builder.assert_felt_eq(*byte, *current_byte);
                     }
                 }
 
-                // Deferred proofs digests.
-                for (digest, first_digest) in deferred_proofs_digest
+                // Assert that the start_pc of the proof is equal to the current pc.
+                builder.assert_felt_eq(current_pc, public_values.start_pc);
+                // Assert that the start_pc is not zero (this means program has halted in a non-last
+                // shard).
+                builder.assert_felt_ne(public_values.start_pc, C::F::zero());
+
+                // Assert that the shard of the proof is equal to the current shard.
+                builder.assert_felt_eq(current_shard, public_values.shard);
+
+                // Assert that exit code is the same for all proofs.
+                builder.assert_felt_eq(exit_code, public_values.exit_code);
+
+                // Assert that the exit code is zero (success) for all proofs.
+                builder.assert_felt_eq(exit_code, C::F::zero());
+
+                // Assert that the deferred proof digest is the same for all proofs.
+                for (digest, current_digest) in deferred_proofs_digest
                     .iter()
                     .zip_eq(public_values.deferred_proofs_digest.iter())
                 {
-                    builder.assign(*digest, *first_digest);
+                    builder.assert_felt_eq(*digest, *current_digest);
                 }
 
-                // Exit code.
-                builder.assign(exit_code, public_values.exit_code);
-            });
+                // Range check the shard count to be less than 1<<16.
+                builder.range_check_f(current_shard, 16);
 
-            // If shard is one, verify the global initial conditions hold on challenger and pc.
-            let shard = felt2var(builder, public_values.shard);
-            builder.if_eq(shard, C::N::one()).then(|builder| {
-                // This should be the 0th proof in this batch.
-                builder.assert_var_eq(i, C::N::zero());
+                // Update the loop variables: the reconstruct challenger, cumulative sum, shard number,
+                // and program counter.
 
-                // Start pc should be vk.pc_start
-                builder.assert_felt_eq(public_values.start_pc, vk.pc_start);
+                // Increment the shard index by one.
+                builder.assign(current_shard, current_shard + C::F::one());
 
-                // Assert that the initial challenger is equal to a fresh challenger observing the
-                // verifier key and the initial pc.
-                let mut first_initial_challenger = DuplexChallengerVariable::new(builder);
-
-                first_initial_challenger.observe(builder, vk.commitment.clone());
-                first_initial_challenger.observe(builder, vk.pc_start);
-
-                // Make sure the start reconstruct challenger is correct, since we will
-                // commit to it in public values.
-                initial_reconstruct_challenger.assert_eq(builder, &first_initial_challenger);
-            });
-
-            // Assert compatibility of the shard values.
-
-            // Assert that the committed value digests are all the same.
-            for (word, current_word) in committed_value_digest
-                .iter()
-                .zip_eq(public_values.committed_value_digest.iter())
-            {
-                for (byte, current_byte) in word.0.iter().zip_eq(current_word.0.iter()) {
-                    builder.assert_felt_eq(*byte, *current_byte);
+                // Update the reconstruct challenger.
+                reconstruct_challenger.observe(builder, proof.commitment.main_commit.clone());
+                for j in 0..machine.num_pv_elts() {
+                    let element = builder.get(&proof.public_values, j);
+                    reconstruct_challenger.observe(builder, element);
                 }
-            }
 
-            // Assert that the start_pc of the proof is equal to the current pc.
-            builder.assert_felt_eq(current_pc, public_values.start_pc);
-            // Assert that the start_pc is not zero (this means program has halted in a non-last
-            // shard).
-            builder.assert_felt_ne(public_values.start_pc, C::F::zero());
-
-            // Assert that the shard of the proof is equal to the current shard.
-            builder.assert_felt_eq(current_shard, public_values.shard);
-
-            // Assert that exit code is the same for all proofs.
-            builder.assert_felt_eq(exit_code, public_values.exit_code);
-
-            // Assert that the exit code is zero (success) for all proofs.
-            builder.assert_felt_eq(exit_code, C::F::zero());
-
-            // Assert that the deferred proof digest is the same for all proofs.
-            for (digest, current_digest) in deferred_proofs_digest
-                .iter()
-                .zip_eq(public_values.deferred_proofs_digest.iter())
-            {
-                builder.assert_felt_eq(*digest, *current_digest);
-            }
-
-            // Range check the shard count to be less than 1<<16.
-            builder.range_check_f(current_shard, 16);
-
-            // Update the loop variables: the reconstruct challenger, cumulative sum, shard number,
-            // and program counter.
-
-            // Increment the shard index by one.
-            builder.assign(current_shard, current_shard + C::F::one());
-
-            // Update the reconstruct challenger.
-            reconstruct_challenger.observe(builder, proof.commitment.main_commit);
-            for j in 0..machine.num_pv_elts() {
-                let element = builder.get(&proof.public_values, j);
-                reconstruct_challenger.observe(builder, element);
-            }
-
-            // Update current_pc to be the end_pc of the current proof.
-            builder.assign(current_pc, public_values.next_pc);
+                // Update current_pc to be the end_pc of the current proof.
+                builder.assign(current_pc, public_values.next_pc);
+            });
 
             // Cumulative sum is updated by sums of all chips.
             let opened_values = proof.opened_values.chips;
