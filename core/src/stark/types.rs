@@ -159,7 +159,7 @@ impl<SC: StarkGenericConfig> ShardProof<SC> {
             .sum()
     }
 
-    pub fn has_cpu(&self) -> bool {
+    pub fn contains_cpu(&self) -> bool {
         self.chip_ordering.contains_key("CPU")
     }
 }

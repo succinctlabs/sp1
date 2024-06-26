@@ -286,7 +286,10 @@ impl SP1Prover {
                 leaf_challenger,
                 initial_reconstruct_challenger: reconstruct_challenger.clone(),
                 is_complete,
-                total_core_shards: shard_proofs.len(),
+                total_core_shards: shard_proofs
+                    .iter()
+                    .filter(|proof| proof.contains_cpu())
+                    .count(),
                 initial_shard: public_values[0].shard,
                 current_shard: public_values[0].shard,
                 start_pc: public_values[0].start_pc,
@@ -406,7 +409,10 @@ impl SP1Prover {
         let batch_size = 2;
 
         let shard_proofs = &proof.proof.0;
-        let total_core_shards = shard_proofs.len();
+        let total_core_shards = shard_proofs
+            .iter()
+            .filter(|proof| proof.contains_cpu())
+            .count();
         // Get the leaf challenger.
         let mut leaf_challenger = self.core_machine.config().challenger();
         vk.vk.observe_into(&mut leaf_challenger);

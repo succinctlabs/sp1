@@ -49,9 +49,11 @@ pub(crate) fn assert_complete<C: Config>(
     builder.assert_felt_eq(*start_shard, C::F::one());
 
     // Assert that total_core_shards is correct by ensuring it equals next_shard - 1.
-    builder.print_f(*total_core_shards);
-    builder.print_f(*next_shard);
     builder.assert_felt_eq(*total_core_shards, *next_shard - C::F::one());
+
+    // Assert that next shard is not equal to one. This guarantees that there is at least one shard
+    // with CPU.
+    builder.assert_felt_ne(*next_shard, C::F::one());
 
     // The challenger has been fully verified.
 

@@ -220,7 +220,6 @@ where
                 machine,
                 &mut challenger,
                 &proof,
-                total_core_shards,
             );
 
             // Extract public values.
@@ -333,7 +332,10 @@ where
             // Range check the shard count to be less than 1<<16.
             builder.range_check_f(current_shard, 16);
 
-            // Increment the shard index by one.
+            // Increment the shard index by one if it is a shard with CPU.
+            builder.if_eq(has_cpu, C::N::one()).then(|builder| {
+                builder.assign(current_shard, current_shard + C::F::one());
+            });
             builder.assign(current_shard, current_shard + C::F::one());
 
             // Update the reconstruct challenger.

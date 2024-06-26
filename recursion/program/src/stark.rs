@@ -3,8 +3,6 @@ use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::AbstractField;
 use p3_field::TwoAdicField;
 use sp1_core::air::MachineAir;
-use sp1_core::air::PublicValues;
-use sp1_core::air::Word;
 use sp1_core::stark::Com;
 use sp1_core::stark::GenericVerifierConstraintFolder;
 use sp1_core::stark::ShardProof;
@@ -116,7 +114,6 @@ where
         machine: &StarkMachine<SC, A>,
         challenger: &mut DuplexChallengerVariable<C>,
         proof: &ShardProofVariable<C>,
-        total_shards: Var<C::N>,
     ) where
         A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
         C::F: TwoAdicField,
