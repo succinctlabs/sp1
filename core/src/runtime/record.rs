@@ -1,3 +1,4 @@
+use blake3::Hash;
 use hashbrown::HashMap;
 use std::mem::take;
 use std::sync::Arc;
@@ -305,7 +306,7 @@ impl MachineRecord for ExecutionRecord {
         // Create empty shards that we will fill in.
         let mut shards: Vec<ExecutionRecord> = Vec::new();
 
-        // Iterate throught he CPU events and fill in the shards.
+        // Iterate through the CPU events and fill in the shards.
         let mut start_idx = 0;
         let mut current_shard = self.cpu_events[0].shard;
         for (i, cpu_event) in self.cpu_events.iter().enumerate() {
@@ -336,10 +337,10 @@ impl MachineRecord for ExecutionRecord {
                     self.public_values.committed_value_digest;
                 shard.public_values.deferred_proofs_digest =
                     self.public_values.deferred_proofs_digest;
+                shard.public_values.exit_code = self.public_values.exit_code;
                 shard.public_values.shard = current_shard;
                 shard.public_values.start_pc = shard.cpu_events[0].pc;
                 shard.public_values.next_pc = last_shard_cpu_event.next_pc;
-                shard.public_values.exit_code = last_shard_cpu_event.exit_code;
                 shards.push(shard);
 
                 if !(at_last_event) {
@@ -642,6 +643,80 @@ impl ExecutionRecord {
         }
     }
 
+    /// Returns a map of all lookup ids used in the shard.
+    pub fn get_lookup_ids(&self) -> HashMap<usize, u32> {
+        let mut lookup_ids = HashMap::new();
+
+        for (i, event) in self.add_events.iter().enumerate() {
+            lookup_ids.insert(event.lookup_id, i as u32);
+        }
+        for (i, event) in self.mul_events.iter().enumerate() {
+            lookup_ids.insert(event.lookup_id, i as u32);
+        }
+        for (i, event) in self.sub_events.iter().enumerate() {
+            lookup_ids.insert(event.lookup_id, (self.add_events.len() + i) as u32);
+        }
+        for (i, event) in self.bitwise_events.iter().enumerate() {
+            lookup_ids.insert(event.lookup_id, i as u32);
+        }
+        for (i, event) in self.shift_left_events.iter().enumerate() {
+            lookup_ids.insert(event.lookup_id, i as u32);
+        }
+        for (i, event) in self.shift_right_events.iter().enumerate() {
+            lookup_ids.insert(event.lookup_id, i as u32);
+        }
+        for (i, event) in self.divrem_events.iter().enumerate() {
+            lookup_ids.insert(event.lookup_id, i as u32);
+        }
+        for (i, event) in self.lt_events.iter().enumerate() {
+            lookup_ids.insert(event.lookup_id, i as u32);
+        }
+        for (i, event) in self.keccak_permute_events.iter().enumerate() {
+            lookup_ids.insert(event.lookup_id, (i * 24) as u32);
+        }
+        for (i, event) in self.secp256k1_add_events.iter().enumerate() {
+            lookup_ids.insert(event.lookup_id, i as u32);
+        }
+        for (i, event) in self.secp256k1_double_events.iter().enumerate() {
+            lookup_ids.insert(event.lookup_id, i as u32);
+        }
+        for (i, event) in self.bn254_add_events.iter().enumerate() {
+            lookup_ids.insert(event.lookup_id, i as u32);
+        }
+        for (i, event) in self.bn254_double_events.iter().enumerate() {
+            lookup_ids.insert(event.lookup_id, i as u32);
+        }
+        for (i, event) in self.bls12381_add_events.iter().enumerate() {
+            lookup_ids.insert(event.lookup_id, i as u32);
+        }
+        for (i, event) in self.bls12381_double_events.iter().enumerate() {
+            lookup_ids.insert(event.lookup_id, i as u32);
+        }
+        for (i, event) in self.bls12381_decompress_events.iter().enumerate() {
+            lookup_ids.insert(event.lookup_id, i as u32);
+        }
+        for (i, event) in self.sha_extend_events.iter().enumerate() {
+            lookup_ids.insert(event.lookup_id, (i * 48) as u32);
+        }
+        for (i, event) in self.sha_compress_events.iter().enumerate() {
+            lookup_ids.insert(event.lookup_id, (i * 80) as u32);
+        }
+        for (i, event) in self.ed_add_events.iter().enumerate() {
+            lookup_ids.insert(event.lookup_id, i as u32);
+        }
+        for (i, event) in self.ed_decompress_events.iter().enumerate() {
+            lookup_ids.insert(event.lookup_id, i as u32);
+        }
+        for (i, event) in self.k256_decompress_events.iter().enumerate() {
+            lookup_ids.insert(event.lookup_id, i as u32);
+        }
+        for (i, event) in self.uint256_mul_events.iter().enumerate() {
+            lookup_ids.insert(event.lookup_id, i as u32);
+        }
+
+        lookup_ids
+    }
+
     /// Remove all non-essential events from the record and return them in a separate record.
     /// Non-essential events include all precompiles and MemoryInit/MemoryFinalize.
     pub fn remove_optional_events(&mut self) -> ExecutionRecord {
@@ -657,9 +732,9 @@ impl ExecutionRecord {
         new_events.bn254_add_events = take(&mut self.bn254_add_events);
         new_events.bn254_double_events = take(&mut self.bn254_double_events);
         new_events.k256_decompress_events = take(&mut self.k256_decompress_events);
+        new_events.uint256_mul_events = take(&mut self.uint256_mul_events);
         new_events.bls12381_add_events = take(&mut self.bls12381_add_events);
         new_events.bls12381_double_events = take(&mut self.bls12381_double_events);
-        new_events.uint256_mul_events = take(&mut self.uint256_mul_events);
         new_events.bls12381_decompress_events = take(&mut self.bls12381_decompress_events);
         // We treat MemoryInit and MemoryFinalize as precompiles since they are proven in their own
         // shards.
@@ -669,34 +744,45 @@ impl ExecutionRecord {
         new_events
     }
 
+    /// Pops a shard from the left side of the record. The popped shard doesn't have any precompile
+    /// events in it.
     pub fn pop_shard(&mut self, shard_size: usize) -> ExecutionRecord {
-        let mut new_events = ExecutionRecord::default();
-        new_events.program = self.program.clone();
-        new_events.index = self.index;
+        let mut new_shard = ExecutionRecord::default();
+        new_shard.program = self.program.clone();
+        new_shard.index = self.index;
         self.index += 1;
-        new_events.cpu_events = take(&mut self.cpu_events);
-        if new_events.cpu_events.len() > shard_size {
-            self.cpu_events = new_events.cpu_events.split_off(shard_size);
+        new_shard.cpu_events = take(&mut self.cpu_events);
+        if new_shard.cpu_events.len() > shard_size {
+            self.cpu_events = new_shard.cpu_events.split_off(shard_size);
         }
 
-        new_events.add_events = take(&mut self.add_events);
-        new_events.mul_events = take(&mut self.mul_events);
-        new_events.sub_events = take(&mut self.sub_events);
-        new_events.bitwise_events = take(&mut self.bitwise_events);
-        new_events.shift_left_events = take(&mut self.shift_left_events);
-        new_events.shift_right_events = take(&mut self.shift_right_events);
-        new_events.divrem_events = take(&mut self.divrem_events);
-        new_events.lt_events = take(&mut self.lt_events);
-        // new_events.byte_lookups = take(&mut self.byte_lookups);
+        new_shard.add_events = take(&mut self.add_events);
+        new_shard.mul_events = take(&mut self.mul_events);
+        new_shard.sub_events = take(&mut self.sub_events);
+        new_shard.bitwise_events = take(&mut self.bitwise_events);
+        new_shard.shift_left_events = take(&mut self.shift_left_events);
+        new_shard.shift_right_events = take(&mut self.shift_right_events);
+        new_shard.divrem_events = take(&mut self.divrem_events);
+        new_shard.lt_events = take(&mut self.lt_events);
 
-        new_events.memory_initialize_events = take(&mut self.memory_initialize_events);
-        new_events.memory_finalize_events = take(&mut self.memory_finalize_events);
+        // TODO: this may be different
+        new_shard.memory_initialize_events = take(&mut self.memory_initialize_events);
+        new_shard.memory_finalize_events = take(&mut self.memory_finalize_events);
 
-        new_events.byte_lookups = self.byte_lookups.clone();
-        new_events.public_values = self.public_values.clone();
-        new_events.nonce_lookup = self.nonce_lookup.clone();
+        if self.byte_lookups.contains_key(&new_shard.index) {
+            new_shard
+                .byte_lookups
+                .insert(new_shard.index, self.byte_lookups[&new_shard.index].clone());
+        }
 
-        new_events
+        let last_event = new_shard.cpu_events.last().unwrap();
+        new_shard.public_values = self.public_values;
+        new_shard.public_values.shard = new_shard.index;
+        new_shard.public_values.start_pc = new_shard.cpu_events[0].pc;
+        new_shard.public_values.exit_code = last_event.exit_code;
+        new_shard.public_values.next_pc = last_event.next_pc;
+
+        new_shard
     }
 }
 
