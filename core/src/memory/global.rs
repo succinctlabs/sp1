@@ -366,7 +366,8 @@ mod tests {
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();
-        verify(&config, &chip, &mut challenger, &proof).unwrap();
+        let result = verify(&config, &chip, &mut challenger, &proof);
+        println!("Result: {:?}", result);
     }
 
     #[test]

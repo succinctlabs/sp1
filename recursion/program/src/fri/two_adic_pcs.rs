@@ -34,6 +34,7 @@ pub fn verify_two_adic_pcs<C: Config>(
 
     let log_blowup = config.log_blowup;
     let blowup = config.log_blowup;
+    let log_final_poly_len = config.log_final_poly_len;
     let alpha = challenger.sample_ext(builder);
 
     builder.cycle_tracker("stage-d-1-verify-shape-and-sample-challenges");
@@ -46,7 +47,8 @@ pub fn verify_two_adic_pcs<C: Config>(
         .commit_phase_commits
         .len()
         .materialize(builder);
-    let log_global_max_height: Var<_> = builder.eval(commit_phase_commits_len + log_blowup);
+    let log_global_max_height: Var<_> =
+        builder.eval(commit_phase_commits_len + log_blowup + log_final_poly_len);
 
     let mut reduced_openings: Array<C, Array<C, Ext<C::F, C::EF>>> =
         builder.array(proof.query_openings.len());

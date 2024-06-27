@@ -52,8 +52,13 @@ pub fn verify_shape_and_sample_challenges<C: Config>(
         });
 
     // Observe the final polynomial.
-    let final_poly_felts = builder.ext2felt(proof.final_poly);
-    challenger.observe_slice(builder, final_poly_felts);
+    builder
+        .range(0, proof.final_poly.len())
+        .for_each(|i, builder| {
+            let elt = builder.get(&proof.final_poly, i);
+            let felt = builder.ext2felt(elt);
+            challenger.observe_slice(builder, felt);
+        });
 
     let num_query_proofs = proof.query_proofs.len().materialize(builder);
     builder
@@ -65,7 +70,8 @@ pub fn verify_shape_and_sample_challenges<C: Config>(
     challenger.check_witness(builder, config.proof_of_work_bits, proof.pow_witness);
 
     let num_commit_phase_commits = proof.commit_phase_commits.len().materialize(builder);
-    let log_max_height: Var<_> = builder.eval(num_commit_phase_commits + config.log_blowup);
+    let log_max_height: Var<_> =
+        builder.eval(num_commit_phase_commits + config.log_final_poly_len + config.log_blowup);
     let mut query_indices = builder.array(config.num_queries);
     builder.range(0, config.num_queries).for_each(|i, builder| {
         let index_bits = challenger.sample_bits(builder, Usize::Var(log_max_height));
@@ -93,7 +99,8 @@ pub fn verify_challenges<C: Config>(
     C::EF: TwoAdicField,
 {
     let nb_commit_phase_commits = proof.commit_phase_commits.len().materialize(builder);
-    let log_max_height = builder.eval(nb_commit_phase_commits + config.log_blowup);
+    let log_max_height =
+        builder.eval(nb_commit_phase_commits + config.log_final_poly_len + config.log_blowup);
     builder
         .range(0, challenges.query_indices.len())
         .for_each(|i, builder| {
@@ -112,7 +119,12 @@ pub fn verify_challenges<C: Config>(
                 Usize::Var(log_max_height),
             );
 
-            builder.assert_ext_eq(folded_eval, proof.final_poly);
+            // Bitshift the index bits to the right.
+            let final_poly_index_bits =
+                index_bits.slice(builder, proof.commit_phase_commits.len(), index_bits.len());
+            let final_poly_index = builder.bits2num_v(&final_poly_index_bits);
+            let poly_coeff = builder.get(&proof.final_poly, final_poly_index);
+            builder.assert_ext_eq(folded_eval, poly_coeff);
         });
 }
 

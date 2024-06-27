@@ -259,13 +259,13 @@ pub enum DslIr<C: Config> {
     /// Executes a FRI fold operation. 1st field is the size of the fri fold input array.  2nd field
     /// is the fri fold input array.  See [`FriFoldInput`] for more details.
     FriFold(Var<C::N>, Array<C, FriFoldInput<C>>),
-    /// Select's a variable based on a condition. (select(cond, true_val, false_val) => output).
+    /// Selects a variable based on a condition. (select(cond, true_val, false_val) => output).
     /// Should only be used when target is a gnark circuit.
     CircuitSelectV(Var<C::N>, Var<C::N>, Var<C::N>, Var<C::N>),
-    /// Select's a field element based on a condition. (select(cond, true_val, false_val) => output).
+    /// Selects a field element based on a condition. (select(cond, true_val, false_val) => output).
     /// Should only be used when target is a gnark circuit.
     CircuitSelectF(Var<C::N>, Felt<C::F>, Felt<C::F>, Felt<C::F>),
-    /// Select's an extension field element based on a condition. (select(cond, true_val, false_val) => output).
+    /// Selects an extension field element based on a condition. (select(cond, true_val, false_val) => output).
     /// Should only be used when target is a gnark circuit.
     CircuitSelectE(
         Var<C::N>,

@@ -293,6 +293,18 @@ impl<C: Config> Builder<C> {
         result
     }
 
+    /// Compute the maximum of two variables.
+    pub fn max(&mut self, lhs: Var<C::N>, rhs: Var<C::N>) -> Var<C::N> {
+        let comparison = self.lt(lhs, rhs);
+        let result = self.uninit();
+        let zero: Var<_> = self.eval(C::N::zero());
+        self.if_eq(comparison, zero).then_or_else(
+            |builder| builder.assign(result, lhs),
+            |builder| builder.assign(result, rhs),
+        );
+        result
+    }
+
     /// Evaluate a block of operations if two expressions are equal.
     pub fn if_eq<LhsExpr: Into<SymbolicVar<C::N>>, RhsExpr: Into<SymbolicVar<C::N>>>(
         &mut self,

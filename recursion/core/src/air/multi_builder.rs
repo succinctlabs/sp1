@@ -91,6 +91,6 @@ impl<'a, AB: AirBuilder + AirBuilderWithPublicValues> AirBuilderWithPublicValues
     type PublicVar = AB::PublicVar;
 
     fn public_values(&self) -> &[Self::PublicVar] {
-        self.inner.public_values()
+        self.inner.inner.public_values()
     }
 }

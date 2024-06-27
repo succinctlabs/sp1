@@ -172,7 +172,11 @@ mod tests {
     use sp1_recursion_core::stark::utils::{run_test_recursion, TestConfig};
 
     use p3_challenger::{CanObserve, FieldChallenger};
-    use sp1_recursion_compiler::{asm::AsmBuilder, ir::Felt, prelude::ExtConst};
+    use sp1_recursion_compiler::{
+        asm::AsmBuilder,
+        ir::{Felt, Var},
+        prelude::ExtConst,
+    };
 
     use p3_commit::{Pcs, PolynomialSpace};
 
@@ -385,6 +389,41 @@ mod tests {
 
         run_test_recursion(program, None, TestConfig::All);
     }
+
+    // #[test]
+    // fn test_max_func() {
+    //     type SC = BabyBearPoseidon2;
+    //     type F = <SC as StarkGenericConfig>::Val;
+    //     type EF = <SC as StarkGenericConfig>::Challenge;
+
+    //     let mut rng = thread_rng();
+
+    //     // Initialize a builder.
+    //     let mut builder = AsmBuilder::<F, EF>::default();
+
+    //     // Get two random vars with `NUM_BITS` bits.
+    //     let x_val: F = rng.gen();
+    //     let y_val: F = rng.gen();
+
+    //     println!("x_val: {:?}", x_val);
+    //     println!("y_val: {:?}", y_val);
+
+    //     let max_val = x_val.max(y_val);
+
+    //     // Materialize the numbers as vars.
+    //     let x_var: Var<_> = builder.eval(x_val);
+    //     let y_var: Var<_> = builder.eval(y_val);
+
+    //     let expected_val: Var<_> = builder.eval(max_val);
+    //     let result = builder.max(x_var, y_var);
+
+    //     builder.assert_var_eq(expected_val, result);
+    //     builder.halt();
+
+    //     let program = builder.compile_program();
+
+    //     run_test_recursion(program, None, TestConfig::WideDeg3);
+    // }
 
     #[test]
     fn test_memory_finalize() {
