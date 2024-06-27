@@ -11,6 +11,7 @@ use sp1_core::air::{Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS};
 use sp1_core::stark::StarkMachine;
 use sp1_core::stark::{Com, RiscvAir, ShardProof, StarkGenericConfig, StarkVerifyingKey};
 use sp1_core::utils::BabyBearPoseidon2;
+use sp1_primitives::types::RecursionProgramType;
 use sp1_recursion_compiler::config::InnerConfig;
 use sp1_recursion_compiler::ir::{Array, Builder, Config, Ext, ExtConst, Felt, Var};
 use sp1_recursion_compiler::prelude::DslVariable;
@@ -64,7 +65,7 @@ impl SP1RecursiveVerifier<InnerConfig, BabyBearPoseidon2> {
     pub fn build(
         machine: &StarkMachine<BabyBearPoseidon2, RiscvAir<BabyBear>>,
     ) -> RecursionProgram<BabyBear> {
-        let mut builder = Builder::<InnerConfig>::default();
+        let mut builder = Builder::<InnerConfig>::new(RecursionProgramType::Core);
 
         let input: SP1RecursionMemoryLayoutVariable<_> = builder.uninit();
         SP1RecursionMemoryLayout::<BabyBearPoseidon2, RiscvAir<_>>::witness(&input, &mut builder);

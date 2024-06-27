@@ -8,6 +8,7 @@ use sp1_core::air::MachineAir;
 use sp1_core::stark::StarkMachine;
 use sp1_core::stark::{Com, ShardProof, StarkGenericConfig, StarkVerifyingKey};
 use sp1_core::utils::BabyBearPoseidon2;
+use sp1_primitives::types::RecursionProgramType;
 use sp1_recursion_compiler::config::InnerConfig;
 use sp1_recursion_compiler::ir::{Builder, Config, Felt, Var};
 use sp1_recursion_compiler::prelude::DslVariable;
@@ -52,17 +53,14 @@ where
     pub fn build(
         machine: &StarkMachine<BabyBearPoseidon2, A>,
         vk: &StarkVerifyingKey<BabyBearPoseidon2>,
-        is_compress: bool,
-        is_wrap: bool,
+        program_type: RecursionProgramType,
     ) -> RecursionProgram<BabyBear> {
-        let mut builder = Builder::<InnerConfig>::default();
-        builder
-            .program_options
-            .insert(String::from("check_vk"), is_compress);
+        assert!(matches!(
+            program_type,
+            RecursionProgramType::Shrink | RecursionProgramType::Wrap
+        ));
 
-        builder
-            .program_options
-            .insert(String::from("use_inline_exp_rev_bits"), is_wrap);
+        let mut builder = Builder::<InnerConfig>::new(program_type);
 
         let proof: ShardProofVariable<_> = builder.uninit();
         ShardProofHint::<BabyBearPoseidon2, A>::witness(&proof, &mut builder);
@@ -145,8 +143,7 @@ where
 
         // If the proof is a compress proof, assert that the vk is the same as the compress vk from
         // the public values.
-        let check_vk = builder.program_options.get("check_vk");
-        if check_vk.is_some() && *check_vk.unwrap() {
+        if matches!(builder.program_type, RecursionProgramType::Wrap) {
             let vk_digest = hash_vkey(builder, &vk);
             for (i, reduce_digest_elem) in public_values.compress_vk_digest.iter().enumerate() {
                 let vk_digest_elem = builder.get(&vk_digest, i);

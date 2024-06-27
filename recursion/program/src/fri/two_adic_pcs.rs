@@ -2,6 +2,7 @@ use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::AbstractField;
 use p3_field::TwoAdicField;
 use p3_symmetric::Hash;
+use sp1_primitives::types::RecursionProgramType;
 use sp1_recursion_compiler::prelude::*;
 use sp1_recursion_core::runtime::DIGEST_SIZE;
 
@@ -121,25 +122,20 @@ pub fn verify_two_adic_pcs<C: Config>(
                         let two_adic_generator = config.get_two_adic_generator(builder, log_height);
                         builder.cycle_tracker("exp_reverse_bits_len");
 
-                        let use_inline_exp_rev_bits =
-                            builder.program_options.get("use_inline_exp_rev_bits");
-
-                        let two_adic_generator_exp: Felt<C::F> = if use_inline_exp_rev_bits
-                            .is_some()
-                            && *use_inline_exp_rev_bits.unwrap()
-                        {
-                            builder.exp_reverse_bits_len(
-                                two_adic_generator,
-                                &index_bits_shifted,
-                                log_height,
-                            )
-                        } else {
-                            builder.exp_reverse_bits_len_fast(
-                                two_adic_generator,
-                                &index_bits_shifted,
-                                log_height,
-                            )
-                        };
+                        let two_adic_generator_exp: Felt<C::F> =
+                            if matches!(builder.program_type, RecursionProgramType::Wrap) {
+                                builder.exp_reverse_bits_len(
+                                    two_adic_generator,
+                                    &index_bits_shifted,
+                                    log_height,
+                                )
+                            } else {
+                                builder.exp_reverse_bits_len_fast(
+                                    two_adic_generator,
+                                    &index_bits_shifted,
+                                    log_height,
+                                )
+                            };
 
                         builder.cycle_tracker("exp_reverse_bits_len");
                         let x: Felt<C::F> = builder.eval(two_adic_generator_exp * g);
@@ -379,9 +375,6 @@ pub mod tests {
 
         // Test the recursive Pcs.
         let mut builder = Builder::<InnerConfig>::default();
-        builder
-            .program_options
-            .insert("use_inline_exp_rev_bits".to_string(), true);
         let config = const_fri_config(&mut builder, &compressed_fri_config());
         let pcs = TwoAdicFriPcsVariable { config };
         let rounds =

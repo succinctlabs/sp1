@@ -23,6 +23,7 @@ mod tests {
         runtime::Program,
         stark::{Challenge, LocalProver},
     };
+    use sp1_primitives::types::RecursionProgramType;
     use sp1_recursion_compiler::config::InnerConfig;
     use sp1_recursion_core::{
         runtime::Runtime,
@@ -75,8 +76,7 @@ mod tests {
         let compress_program = SP1RootVerifier::<InnerConfig, _, _>::build(
             &recursive_machine,
             &compress_vk,
-            true,
-            false,
+            RecursionProgramType::Shrink,
         );
         let (compress_pk, compress_vk) = compress_machine.setup(&compress_program);
 
@@ -85,8 +85,7 @@ mod tests {
         let wrap_program = SP1RootVerifier::<InnerConfig, _, _>::build(
             &compress_machine,
             &compress_vk,
-            false,
-            true,
+            RecursionProgramType::Wrap,
         );
 
         let mut challenger = machine.config().challenger();

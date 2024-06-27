@@ -1,7 +1,8 @@
-use std::{collections::HashMap, iter::Zip, vec::IntoIter};
+use std::{iter::Zip, vec::IntoIter};
 
 use backtrace::Backtrace;
 use p3_field::AbstractField;
+use sp1_primitives::types::RecursionProgramType;
 
 use super::{
     Array, Config, DslIr, Ext, Felt, FromConstant, SymbolicExt, SymbolicFelt, SymbolicUsize,
@@ -103,13 +104,17 @@ pub struct Builder<C: Config> {
     pub(crate) p2_hash_num: Var<C::N>,
     pub(crate) debug: bool,
     pub(crate) is_sub_builder: bool,
-    /// Program specific options.  Common use for it is to set a flag to conditionally (known at
-    /// compile time) include operations.
-    pub program_options: HashMap<String, bool>,
+    pub program_type: RecursionProgramType,
 }
 
 impl<C: Config> Default for Builder<C> {
     fn default() -> Self {
+        Self::new(RecursionProgramType::Core)
+    }
+}
+
+impl<C: Config> Builder<C> {
+    pub fn new(program_type: RecursionProgramType) -> Self {
         // We need to create a temporary placeholder for the p2_hash_num variable.
         let placeholder_p2_hash_num = Var::new(0);
 
@@ -125,15 +130,13 @@ impl<C: Config> Default for Builder<C> {
             p2_hash_num: placeholder_p2_hash_num,
             debug: false,
             is_sub_builder: false,
-            program_options: HashMap::new(),
+            program_type,
         };
 
         new_builder.p2_hash_num = new_builder.uninit();
         new_builder
     }
-}
 
-impl<C: Config> Builder<C> {
     /// Creates a new builder with a given number of counts for each type.
     pub fn new_sub_builder(
         var_count: u32,
@@ -142,7 +145,7 @@ impl<C: Config> Builder<C> {
         nb_public_values: Option<Var<C::N>>,
         p2_hash_num: Var<C::N>,
         debug: bool,
-        program_options: HashMap<String, bool>,
+        program_type: RecursionProgramType,
     ) -> Self {
         Self {
             felt_count,
@@ -158,7 +161,7 @@ impl<C: Config> Builder<C> {
             p2_hash_num,
             debug,
             is_sub_builder: true,
-            program_options,
+            program_type,
         }
     }
 
@@ -552,7 +555,7 @@ impl<'a, C: Config> IfBuilder<'a, C> {
             self.builder.nb_public_values,
             self.builder.p2_hash_num,
             self.builder.debug,
-            self.builder.program_options.clone(),
+            self.builder.program_type,
         );
         f(&mut f_builder);
         self.builder.p2_hash_num = f_builder.p2_hash_num;
@@ -604,7 +607,7 @@ impl<'a, C: Config> IfBuilder<'a, C> {
             self.builder.nb_public_values,
             self.builder.p2_hash_num,
             self.builder.debug,
-            self.builder.program_options.clone(),
+            self.builder.program_type,
         );
 
         // Execute the `then` and `else_then` blocks and collect the instructions.
@@ -620,7 +623,7 @@ impl<'a, C: Config> IfBuilder<'a, C> {
             self.builder.nb_public_values,
             self.builder.p2_hash_num,
             self.builder.debug,
-            self.builder.program_options.clone(),
+            self.builder.program_type,
         );
         else_f(&mut else_builder);
         self.builder.p2_hash_num = else_builder.p2_hash_num;
@@ -758,7 +761,7 @@ impl<'a, C: Config> RangeBuilder<'a, C> {
             self.builder.nb_public_values,
             self.builder.p2_hash_num,
             self.builder.debug,
-            self.builder.program_options.clone(),
+            self.builder.program_type,
         );
 
         f(loop_variable, &mut loop_body_builder);
