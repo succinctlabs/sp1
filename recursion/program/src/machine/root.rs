@@ -141,8 +141,8 @@ where
         // checking the `is_complete` flag in this program.
         builder.assert_felt_eq(public_values.is_complete, C::F::one());
 
-        // If the proof is a compress proof, assert that the vk is the same as the compress vk from
-        // the public values.
+        // If this is a Shrink program (when it's verifying a compress proof), then assert that the
+        // vk is the same as the compress vk from the public values.
         if matches!(builder.program_type, RecursionProgramType::Shrink) {
             let vk_digest = hash_vkey(builder, &vk);
             for (i, reduce_digest_elem) in public_values.compress_vk_digest.iter().enumerate() {
