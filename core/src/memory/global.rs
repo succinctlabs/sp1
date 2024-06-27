@@ -18,7 +18,7 @@ use crate::runtime::{ExecutionRecord, Program};
 use crate::utils::pad_to_power_of_two;
 
 /// The type of memory chip that is being initialized.
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 pub enum MemoryChipType {
     Initialize,
     Finalize,

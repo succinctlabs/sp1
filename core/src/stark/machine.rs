@@ -367,6 +367,12 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
 
         tracing::debug!("checking constraints for each shard");
 
+        // Obtain the challenges used for the permutation argument.
+        let mut permutation_challenges: Vec<SC::Challenge> = Vec::new();
+        for _ in 0..2 {
+            permutation_challenges.push(challenger.sample_ext_element());
+        }
+
         let mut cumulative_sum = SC::Challenge::zero();
         for shard in shards.iter() {
             // Filter the chips based on what is used.
@@ -386,13 +392,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                 .map(|chip| chip.generate_trace(shard, &mut A::Record::default()))
                 .zip(pre_traces)
                 .collect::<Vec<_>>();
-
-            // Get a permutation challenge.
-            // Obtain the challenges used for the permutation argument.
-            let mut permutation_challenges: Vec<SC::Challenge> = Vec::new();
-            for _ in 0..2 {
-                permutation_challenges.push(challenger.sample_ext_element());
-            }
 
             // Generate the permutation traces.
             let mut permutation_traces = Vec::with_capacity(chips.len());

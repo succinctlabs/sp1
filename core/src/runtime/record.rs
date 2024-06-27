@@ -584,7 +584,7 @@ impl MachineRecord for ExecutionRecord {
         memory_init_shard.program = self.program.clone();
         memory_init_shard
             .memory_initialize_events
-            .append(&mut self.memory_initialize_events);
+            .extend_from_slice(&self.memory_initialize_events);
         memory_init_shard
             .byte_lookups
             .insert(memory_init_shard.index, HashMap::new());
