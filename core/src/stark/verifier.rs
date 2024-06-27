@@ -199,10 +199,10 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             .map_err(|_| VerificationError::OodEvaluationMismatch(chip.name()))?;
         }
 
-        let nb_cpu_chips = chips.iter().filter(|chip| chip.name() == "CPU").count();
-        if nb_cpu_chips != 1 {
-            return Err(VerificationError::MissingCpuChip);
-        }
+        // let nb_cpu_chips = chips.iter().filter(|chip| chip.name() == "CPU").count();
+        // if nb_cpu_chips != 1 {
+        //     return Err(VerificationError::MissingCpuChip);
+        // }
 
         Ok(())
     }

@@ -16,6 +16,7 @@ sp1-derive = { path = "../../derive" }
 sp1-primitives = { path = "../../primitives" }
 tracing = "0.1.40"
 sp1-core = { path = "../../core" }
+sp1-recursion-core = { path = "../core" }
 hashbrown = { version = "0.14.5", features = ["serde"] }
 itertools = "0.13.0"
 p3-bn254-fr = { workspace = true }

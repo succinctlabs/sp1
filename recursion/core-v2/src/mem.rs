@@ -2,7 +2,6 @@ use core::borrow::Borrow;
 use itertools::Itertools;
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
-use p3_field::Field;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
@@ -10,7 +9,7 @@ use sp1_core::air::AirInteraction;
 use sp1_core::air::MachineAir;
 use sp1_core::air::MessageBuilder;
 use sp1_core::air::SP1AirBuilder;
-use std::marker::PhantomData;
+use sp1_core::lookup::InteractionKind;
 // use sp1_core::runtime::ExecutionRecord;
 use sp1_core::runtime::Program;
 use sp1_core::utils::pad_rows_fixed;
@@ -21,35 +20,34 @@ use tracing::instrument;
 
 use crate::*;
 
-pub const NUM_ADD_COLS: usize = core::mem::size_of::<AddCols<u8>>();
+pub const NUM_MEM_INIT_COLS: usize = core::mem::size_of::<MemoryCols<u8>>();
 
 #[derive(Default)]
-pub struct AddChip<F> {
-    _data: PhantomData<F>,
-}
+pub struct MemoryChip {}
 
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct AddCols<T: Copy> {
-    pub a: T,
-    pub b: T,
-    pub c: T,
+pub struct MemoryCols<T: Copy> {
+    pub address_value: AddressValue<T>,
+    pub multiplicity: T,
+    pub is_read: T,
+    pub is_write: T,
     pub is_real: T,
 }
 
-impl<F: Field> BaseAir<F> for AddChip<F> {
+impl<F> BaseAir<F> for MemoryChip {
     fn width(&self) -> usize {
-        NUM_ADD_COLS
+        NUM_MEM_INIT_COLS
     }
 }
 
-impl<F: PrimeField32> MachineAir<F> for AddChip<F> {
-    type Record = ExecutionRecord<F>;
+impl<F: PrimeField32> MachineAir<F> for MemoryChip {
+    type Record = crate::ExecutionRecord<F>;
 
     type Program = crate::RecursionProgram<F>;
 
     fn name(&self) -> String {
-        "Add".to_string()
+        "Memory".to_string()
     }
 
     fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {
@@ -57,23 +55,31 @@ impl<F: PrimeField32> MachineAir<F> for AddChip<F> {
     }
 
     fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
-        let add_events = input.add_events.clone();
+        let mem_events = input.mem_events.clone();
 
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
-        let rows = add_events
+        let rows = mem_events
             .into_iter()
             .map(|event| {
-                let mut row = [F::zero(); NUM_ADD_COLS];
+                let mut row = [F::zero(); NUM_MEM_INIT_COLS];
 
-                assert_eq!(event.opcode, Opcode::Add);
+                let MemEvent {
+                    address_value,
+                    multiplicity,
+                    kind,
+                } = event;
 
-                let AluEvent { a, b, c, .. } = event;
+                let (is_read, is_write): (F, F) = match kind {
+                    MemAccessKind::Read => (F::one(), F::zero()),
+                    MemAccessKind::Write => (F::zero(), F::one()),
+                };
 
-                let cols: &mut AddCols<_> = row.as_mut_slice().borrow_mut();
-                *cols = AddCols {
-                    a,
-                    b,
-                    c,
+                let cols: &mut MemoryCols<_> = row.as_mut_slice().borrow_mut();
+                *cols = MemoryCols {
+                    address_value,
+                    multiplicity,
+                    is_read,
+                    is_write,
                     is_real: F::one(),
                 };
 
@@ -82,11 +88,13 @@ impl<F: PrimeField32> MachineAir<F> for AddChip<F> {
             .collect::<Vec<_>>();
 
         // Convert the trace to a row major matrix.
-        let mut trace =
-            RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_ADD_COLS);
+        let mut trace = RowMajorMatrix::new(
+            rows.into_iter().flatten().collect::<Vec<_>>(),
+            NUM_MEM_INIT_COLS,
+        );
 
         // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_ADD_COLS, F>(&mut trace.values);
+        pad_to_power_of_two::<NUM_MEM_INIT_COLS, F>(&mut trace.values);
 
         trace
     }
@@ -96,30 +104,39 @@ impl<F: PrimeField32> MachineAir<F> for AddChip<F> {
     }
 }
 
-impl<AB> Air<AB> for AddChip<AB::F>
+impl<AB> Air<AB> for MemoryChip
 where
     AB: SP1AirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local = main.row_slice(0);
-        let local: &AddCols<AB::Var> = (*local).borrow();
-        // builder.when(local.is_real).receive(AirInteraction::new(AddressValue(), multiplicity, kind));
+        let local: &MemoryCols<AB::Var> = (*local).borrow();
+
+        // Exactly one should be true.
         builder
             .when(local.is_real)
-            .assert_eq(local.a, local.b + local.c);
+            .assert_one(local.is_read + local.is_write);
 
-        // builder.send(AirInteraction::new(
+        builder.when(local.is_read).receive(AirInteraction::new(
+            vec![local.address_value.0.into(), local.address_value.1.into()],
+            local.multiplicity.into(),
+            InteractionKind::Memory,
+        ));
 
-        // ))
+        builder.when(local.is_write).send(AirInteraction::new(
+            vec![local.address_value.0.into(), local.address_value.1.into()],
+            local.multiplicity.into(),
+            InteractionKind::Memory,
+        ));
     }
 }
 
 /*
 
 1) make a dummy program for loop 100: x' = x*x + x
-2) make add chip and mul chip with 3 columns each that prove a = b + c and a = b * c respectively.
-and then also fill in generate_trace and eval and write test (look at add_sub in core for test example).
+2) make mem_init chip and mul chip with 3 columns each that prove a = b + c and a = b * c respectively.
+and then also fill in generate_trace and eval and write test (look at mem_init_sub in core for test example).
 you will also need to write your own execution record struct but look at recursion-core for how we did that
 
 */
@@ -149,15 +166,21 @@ mod tests {
     #[test]
     fn generate_trace() {
         let shard = ExecutionRecord::<BabyBear> {
-            add_events: vec![AluEvent {
-                opcode: Opcode::Add,
-                a: BabyBear::one(),
-                b: BabyBear::one(),
-                c: BabyBear::two(),
-            }],
+            mem_events: vec![
+                MemEvent {
+                    address_value: AddressValue(BabyBear::zero(), BabyBear::one()),
+                    multiplicity: BabyBear::one(),
+                    kind: MemAccessKind::Write,
+                },
+                MemEvent {
+                    address_value: AddressValue(BabyBear::zero(), BabyBear::one()),
+                    multiplicity: BabyBear::one(),
+                    kind: MemAccessKind::Read,
+                },
+            ],
             ..Default::default()
         };
-        let chip = AddChip::default();
+        let chip = MemoryChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
         println!("{:?}", trace.values)
@@ -168,22 +191,27 @@ mod tests {
         let config = BabyBearPoseidon2::compressed();
         let mut challenger = config.challenger();
 
-        let chip = AddChip::default();
+        let chip = MemoryChip::default();
 
         let test_xs = (1..8).map(BabyBear::from_canonical_u32).collect_vec();
 
-        let test_ys = (1..8).map(BabyBear::from_canonical_u32).collect_vec();
-
         let mut input_exec = ExecutionRecord::<BabyBear>::default();
-        for (x, y) in test_xs.into_iter().cartesian_product(test_ys) {
-            input_exec.add_events.push(AluEvent {
-                opcode: Opcode::Add,
-                a: x + y,
-                b: x,
-                c: y,
-            });
-        }
-        println!("input exec: {:?}", input_exec.add_events.len());
+        input_exec
+            .mem_events
+            .extend(test_xs.clone().into_iter().map(|x| MemEvent {
+                address_value: AddressValue(x, x + BabyBear::one()),
+                multiplicity: BabyBear::one(),
+                kind: MemAccessKind::Write,
+            }));
+        input_exec
+            .mem_events
+            .extend(test_xs.clone().into_iter().map(|x| MemEvent {
+                address_value: AddressValue(x, x + BabyBear::one()),
+                multiplicity: BabyBear::one(),
+                kind: MemAccessKind::Read,
+            }));
+
+        println!("input exec: {:?}", input_exec.mem_events.len());
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());
         println!(
