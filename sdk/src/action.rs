@@ -104,7 +104,7 @@ impl<'a> Prove<'a> {
         } = self;
         let opts = SP1ProverOpts {
             core_opts: opts,
-            recursion_opts: opts,
+            recursion_opts: SP1CoreOpts::recursion(),
         };
         let context = context_builder.build();
 
