@@ -143,7 +143,7 @@ where
 
         // If the proof is a compress proof, assert that the vk is the same as the compress vk from
         // the public values.
-        if matches!(builder.program_type, RecursionProgramType::Wrap) {
+        if matches!(builder.program_type, RecursionProgramType::Shrink) {
             let vk_digest = hash_vkey(builder, &vk);
             for (i, reduce_digest_elem) in public_values.compress_vk_digest.iter().enumerate() {
                 let vk_digest_elem = builder.get(&vk_digest, i);
