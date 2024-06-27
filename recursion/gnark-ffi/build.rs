@@ -61,6 +61,15 @@ fn main() {
             println!("cargo:rustc-link-search=native={}", dest_path.display());
             println!("cargo:rustc-link-lib=static={}", lib_name);
 
+	    println!("cargo:rustc-link-search=/home/kevin_succinct/go/pkg/mod/github.com/ingonyama-zk/icicle/v2@v2.0.0-20240620074550-c92881fb7d1c/icicle/build/lib");
+            println!("cargo:rustc-link-lib=ingo_field_bn254");
+            println!("cargo:rustc-link-lib=ingo_curve_bn254");
+
+	    println!("cargo:rustc-link-search=/usr/local/cuda/lib64/");
+	    println!("cargo:rustc-link-lib=cudart");
+
+	    println!("cargo:rustc-link-lib=stdc++");
+
             // Static linking doesn't really work on macos, so we need to link some system libs
             if cfg!(target_os = "macos") {
                 println!("cargo:rustc-link-lib=framework=CoreFoundation");

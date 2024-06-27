@@ -12,6 +12,9 @@ import (
 	"github.com/consensys/gnark-crypto/kzg"
 	"github.com/consensys/gnark-ignition-verifier/ignition"
 	"github.com/consensys/gnark/constraint"
+
+        iciclecore "github.com/ingonyama-zk/icicle/v2/wrappers/golang/core"
+        iciclebn254 "github.com/ingonyama-zk/icicle/v2/wrappers/golang/curves/bn254"
 )
 
 func sanityCheck(srs *kzg_bn254.SRS) {
@@ -19,16 +22,22 @@ func sanityCheck(srs *kzg_bn254.SRS) {
 	// create a polynomial
 	f := randomPolynomial(60)
 
+        // move srs.Pk to the GPU
+        var iciclePk iciclecore.DeviceSlice
+        (iciclecore.HostSlice[bn254.G1Affine])(srs.Pk.G1).CopyToDevice(&iciclePk, true)
+	iciclebn254.AffineFromMontgomery(&iciclePk) // ICICLE operates in non-montgomery form
+
 	// commit the polynomial
 	digest, err := kzg_bn254.Commit(f, srs.Pk)
 	if err != nil {
-		log.Fatal(err)
+	    log.Fatal(err)
 	}
+	iciclePk.Free() // free the GPU mem of iciclePk as it is no longer needed
 
 	// compute opening proof at a random point
 	var point fr.Element
 	point.SetString("4321")
-	proof, err := kzg_bn254.Open(f, point, srs.Pk)
+	proof, err := kzg_bn254.Open(f, point, iciclePk)   // Open using ICICLE 
 	if err != nil {
 		log.Fatal(err)
 	}
