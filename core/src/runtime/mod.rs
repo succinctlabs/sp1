@@ -39,7 +39,9 @@ use thiserror::Error;
 
 use crate::alu::create_alu_lookup_id;
 use crate::alu::create_alu_lookups;
+use crate::alu::divrem;
 use crate::bytes::NUM_BYTE_LOOKUP_CHANNELS;
+use crate::cpu;
 use crate::memory::MemoryInitializeFinalizeEvent;
 use crate::utils::SP1CoreOpts;
 use crate::{alu::AluEvent, cpu::CpuEvent};
@@ -463,6 +465,7 @@ impl<'a> Runtime<'a> {
         };
 
         self.record.cpu_events.push(cpu_event);
+        cpu::utils::emit_dependencies(self, cpu_event);
     }
 
     /// Emit an ALU event.
@@ -502,6 +505,7 @@ impl<'a> Runtime<'a> {
             }
             Opcode::DIVU | Opcode::REMU | Opcode::DIV | Opcode::REM => {
                 self.record.divrem_events.push(event);
+                divrem::utils::emit_dependencies(self, event);
             }
             _ => {}
         }
@@ -1105,7 +1109,9 @@ impl<'a> Runtime<'a> {
 
         // Ensure that all proofs and input bytes were read, otherwise warn the user.
         if self.state.proof_stream_ptr != self.state.proof_stream.len() {
-            panic!("Not all proofs were read. Proving will fail during recursion. Did you pass too many proofs in or forget to call verify_sp1_proof?");
+            panic!(
+                "Not all proofs were read. Proving will fail during recursion. Did you pass too many proofs in or forget to call verify_sp1_proof?"
+            );
         }
         if self.state.input_stream_ptr != self.state.input_stream.len() {
             log::warn!("Not all input bytes were read.");
