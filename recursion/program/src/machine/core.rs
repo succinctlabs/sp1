@@ -274,70 +274,77 @@ where
             });
 
             // If this is a CPU proof, verify the transition function.
-            builder.if_eq(has_cpu, C::N::one()).then(|builder| {
-                // If shard is one, verify the global initial conditions hold on challenger and pc.
+            builder.if_eq(has_cpu, C::N::one()).then_or_else(
+                |builder| {
+                    // If shard is one, verify the global initial conditions hold on challenger and pc.
 
-                builder.if_eq(shard, C::N::one()).then(|builder| {
-                    // This should be the 0th proof in this batch.
-                    builder.assert_var_eq(i, C::N::zero());
+                    builder.if_eq(shard, C::N::one()).then(|builder| {
+                        // This should be the 0th proof in this batch.
+                        builder.assert_var_eq(i, C::N::zero());
 
-                    // Start pc should be vk.pc_start
-                    builder.assert_felt_eq(public_values.start_pc, vk.pc_start);
+                        // Start pc should be vk.pc_start
+                        builder.assert_felt_eq(public_values.start_pc, vk.pc_start);
 
-                    // Assert that the initial challenger is equal to a fresh challenger observing the
-                    // verifier key and the initial pc.
-                    let mut first_initial_challenger = DuplexChallengerVariable::new(builder);
+                        // Assert that the initial challenger is equal to a fresh challenger observing the
+                        // verifier key and the initial pc.
+                        let mut first_initial_challenger = DuplexChallengerVariable::new(builder);
 
-                    first_initial_challenger.observe(builder, vk.commitment.clone());
-                    first_initial_challenger.observe(builder, vk.pc_start);
+                        first_initial_challenger.observe(builder, vk.commitment.clone());
+                        first_initial_challenger.observe(builder, vk.pc_start);
 
-                    // Make sure the start reconstruct challenger is correct, since we will
-                    // commit to it in public values.
-                    initial_reconstruct_challenger.assert_eq(builder, &first_initial_challenger);
-                });
+                        // Make sure the start reconstruct challenger is correct, since we will
+                        // commit to it in public values.
+                        initial_reconstruct_challenger
+                            .assert_eq(builder, &first_initial_challenger);
+                    });
 
-                // Assert compatibility of the shard values.
+                    // Assert compatibility of the shard values.
 
-                // Assert that the committed value digests are all the same.
-                for (word, current_word) in committed_value_digest
-                    .iter()
-                    .zip_eq(public_values.committed_value_digest.iter())
-                {
-                    for (byte, current_byte) in word.0.iter().zip_eq(current_word.0.iter()) {
-                        builder.assert_felt_eq(*byte, *current_byte);
+                    // Assert that the committed value digests are all the same.
+                    for (word, current_word) in committed_value_digest
+                        .iter()
+                        .zip_eq(public_values.committed_value_digest.iter())
+                    {
+                        for (byte, current_byte) in word.0.iter().zip_eq(current_word.0.iter()) {
+                            builder.assert_felt_eq(*byte, *current_byte);
+                        }
                     }
-                }
 
-                // Assert that the start_pc of the proof is equal to the current pc.
-                builder.assert_felt_eq(current_pc, public_values.start_pc);
+                    // Assert that the start_pc of the proof is equal to the current pc.
+                    builder.assert_felt_eq(current_pc, public_values.start_pc);
 
-                // Assert that the start_pc is not zero (this means program has halted in a non-last
-                // shard).
-                builder.assert_felt_ne(public_values.start_pc, C::F::zero());
+                    // Assert that the start_pc is not zero (this means program has halted in a non-last
+                    // shard).
+                    builder.assert_felt_ne(public_values.start_pc, C::F::zero());
 
-                // Assert that exit code is the same for all proofs.
-                builder.assert_felt_eq(exit_code, public_values.exit_code);
+                    // Assert that exit code is the same for all proofs.
+                    builder.assert_felt_eq(exit_code, public_values.exit_code);
 
-                // Assert that the exit code is zero (success) for all proofs.
-                builder.assert_felt_eq(exit_code, C::F::zero());
+                    // Assert that the exit code is zero (success) for all proofs.
+                    builder.assert_felt_eq(exit_code, C::F::zero());
 
-                // Assert that the deferred proof digest is the same for all proofs.
-                for (digest, current_digest) in deferred_proofs_digest
-                    .iter()
-                    .zip_eq(public_values.deferred_proofs_digest.iter())
-                {
-                    builder.assert_felt_eq(*digest, *current_digest);
-                }
+                    // Assert that the deferred proof digest is the same for all proofs.
+                    for (digest, current_digest) in deferred_proofs_digest
+                        .iter()
+                        .zip_eq(public_values.deferred_proofs_digest.iter())
+                    {
+                        builder.assert_felt_eq(*digest, *current_digest);
+                    }
 
-                // Assert that the shard of the proof is equal to the current shard.
-                builder.assert_felt_eq(current_shard, public_values.shard);
+                    // Assert that the shard of the proof is equal to the current shard.
+                    builder.assert_felt_eq(current_shard, public_values.shard);
 
-                // Increment the current cpu shard by one.
-                builder.assign(current_shard, current_shard + C::F::one());
+                    // Increment the current cpu shard by one.
+                    builder.assign(current_shard, current_shard + C::F::one());
 
-                // Update current_pc to be the end_pc of the current proof.
-                builder.assign(current_pc, public_values.next_pc);
-            });
+                    // Update current_pc to be the end_pc of the current proof.
+                    builder.assign(current_pc, public_values.next_pc);
+                },
+                |builder| {
+                    // If it's not a CPU proof, we need to check that pc_start == pc_end.
+                    builder.assert_felt_eq(public_values.start_pc, public_values.next_pc);
+                },
+            );
 
             // Range check the shard count to be less than 1<<16.
             builder.range_check_f(public_values.shard, 16);
