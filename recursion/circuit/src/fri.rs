@@ -124,13 +124,14 @@ pub fn verify_two_adic_pcs<C: Config>(
                     let x: Felt<_> = builder.eval(g * two_adic_generator_exp);
 
                     for (z, ps_at_z) in izip!(mat_points, mat_values) {
+                        let mut acc: Ext<C::F, C::EF> =
+                            builder.eval(SymbolicExt::from_f(C::EF::zero()));
                         for (p_at_x, &p_at_z) in izip!(mat_opening.clone(), ps_at_z) {
-                            let quotient: SymbolicExt<C::F, C::EF> =
-                                (p_at_z - p_at_x[0]) / (*z - x);
-                            ro[log_height] =
-                                builder.eval(ro[log_height] + alpha_pow[log_height] * quotient);
+                            acc =
+                                builder.eval(acc + (alpha_pow[log_height] * (p_at_z - p_at_x[0])));
                             alpha_pow[log_height] = builder.eval(alpha_pow[log_height] * alpha);
                         }
+                        ro[log_height] = builder.eval(ro[log_height] + acc / (*z - x));
                     }
                 }
             }
