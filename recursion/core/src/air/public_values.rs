@@ -107,11 +107,6 @@ pub struct RecursionPublicValues<T> {
     /// Current cumulative sum of lookup bus.
     pub cumulative_sum: [T; 4],
 
-    // /// Whether the proof has already seen a `MemoryInit` table.
-    // pub seen_memory_init: T,
-
-    // /// Whether the proof has already seen a `MemoryFinalize` table.
-    // pub seen_memory_finalize: T,
     /// Whether the proof completely proves the program execution.
     pub is_complete: T,
 
