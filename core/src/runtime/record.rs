@@ -605,41 +605,6 @@ impl MachineRecord for ExecutionRecord {
             .append(&mut self.memory_finalize_events);
         shards.push(memory_finalize_shard);
 
-        // let mut precompile_shard = ExecutionRecord::default();
-        // let mut precompile_shard_2 = ExecutionRecord::default();
-
-        // precompile_shard.add_events = std::mem::take(&mut first.add_events);
-        // precompile_shard.sub_events = std::mem::take(&mut first.sub_events);
-        // precompile_shard_2.shift_left_events = std::mem::take(&mut first.shift_left_events);
-
-        // precompile_shard.index = shards.last_mut().unwrap().index + 1;
-        // precompile_shard.public_values = shards.last_mut().unwrap().public_values;
-        // precompile_shard.public_values.start_pc = precompile_shard.public_values.next_pc;
-        // precompile_shard.public_values.shard = shards.last_mut().unwrap().public_values.shard + 1;
-        // precompile_shard.program = self.program.clone();
-        // precompile_shard
-        //     .byte_lookups
-        //     .insert(precompile_shard.index, HashMap::new());
-
-        // precompile_shard_2.index = shards.last_mut().unwrap().index + 2;
-        // precompile_shard_2.public_values = shards.last_mut().unwrap().public_values;
-        // precompile_shard_2.public_values.start_pc = precompile_shard_2.public_values.next_pc;
-        // precompile_shard_2.public_values.shard = shards.last_mut().unwrap().public_values.shard + 1;
-        // precompile_shard_2.program = self.program.clone();
-        // precompile_shard_2
-        //     .byte_lookups
-        //     .insert(precompile_shard_2.index, HashMap::new());
-
-        // shards.push(precompile_shard);
-        // shards.push(precompile_shard_2);
-
-        // Put MemoryInit / MemoryFinalize events in the last shard.
-        // let last = shards.last_mut().unwrap();
-        // last.memory_initialize_events
-        //     .extend_from_slice(&self.memory_initialize_events);
-        // last.memory_finalize_events
-        //     .extend_from_slice(&self.memory_finalize_events);
-
         // Copy the nonce lookup to all shards.
         for shard in shards.iter_mut() {
             shard.nonce_lookup.clone_from(&self.nonce_lookup);
