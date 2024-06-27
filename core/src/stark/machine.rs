@@ -272,7 +272,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
     pub fn prove<P: Prover<SC, A>>(
         &self,
         pk: &StarkProvingKey<SC>,
-        record: A::Record,
+        mut records: Vec<A::Record>,
         challenger: &mut SC::Challenger,
         opts: SP1CoreOpts,
     ) -> MachineProof<SC>
@@ -282,11 +282,21 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             + for<'a> Air<VerifierConstraintFolder<'a, SC>>
             + for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
     {
-        let shards = tracing::info_span!("shard_record")
-            .in_scope(|| self.shard(record, &<A::Record as MachineRecord>::Config::default()));
+        // let shards = tracing::info_span!("shard_record")
+        //     .in_scope(|| self.shard(record, &<A::Record as MachineRecord>::Config::default()));
+
+        let chips = self.chips();
+        records.iter_mut().for_each(|record| {
+            chips.iter().for_each(|chip| {
+                let mut output = A::Record::default();
+                output.set_index(record.index());
+                chip.generate_dependencies(record, &mut output);
+                record.append(&mut output);
+            })
+        });
 
         tracing::info_span!("prove_shards")
-            .in_scope(|| P::prove_shards(self, pk, shards, challenger, opts))
+            .in_scope(|| P::prove_shards(self, pk, records, challenger, opts))
     }
 
     pub const fn config(&self) -> &SC {
@@ -356,15 +366,12 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
     pub fn debug_constraints(
         &self,
         pk: &StarkProvingKey<SC>,
-        record: A::Record,
+        mut records: Vec<A::Record>,
         challenger: &mut SC::Challenger,
     ) where
         SC::Val: PrimeField32,
         A: for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
     {
-        tracing::debug!("sharding the execution record");
-        let shards = self.shard(record, &<A::Record as MachineRecord>::Config::default());
-
         tracing::debug!("checking constraints for each shard");
 
         // Obtain the challenges used for the permutation argument.
@@ -373,8 +380,18 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             permutation_challenges.push(challenger.sample_ext_element());
         }
 
+        let chips = self.chips();
+        records.iter_mut().for_each(|record| {
+            chips.iter().for_each(|chip| {
+                let mut output = A::Record::default();
+                output.set_index(record.index());
+                chip.generate_dependencies(record, &mut output);
+                record.append(&mut output);
+            })
+        });
+
         let mut cumulative_sum = SC::Challenge::zero();
-        for shard in shards.iter() {
+        for shard in records.iter() {
             // Filter the chips based on what is used.
             let chips = self.shard_chips(shard).collect::<Vec<_>>();
 
@@ -439,6 +456,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                         .chip_ordering
                         .get(&chips[i].name())
                         .map(|index| &pk.traces[*index]);
+                    println!("shard index: {}", shard.index());
                     debug_constraints::<SC, A>(
                         chips[i],
                         permutation_trace,
@@ -456,7 +474,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             debug_interactions_with_all_chips::<SC, A>(
                 self,
                 pk,
-                &shards,
+                &records,
                 InteractionKind::all_kinds(),
             );
             panic!("Cumulative sum is not zero");

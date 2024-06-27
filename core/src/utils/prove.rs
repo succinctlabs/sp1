@@ -65,7 +65,7 @@ where
     let proving_start = Instant::now();
     let proof = machine.prove::<LocalProver<_, _>>(
         &pk,
-        runtime.record,
+        runtime.records,
         &mut challenger,
         SP1CoreOpts::default(),
     );
@@ -135,11 +135,11 @@ where
         runtime.run().map_err(SP1CoreProverError::ExecutionError)?;
 
         // If debugging is enabled, we will also debug the constraints.
-        #[cfg(debug_assertions)]
-        {
-            let mut challenger = machine.config().challenger();
-            machine.debug_constraints(&pk, runtime.record.clone(), &mut challenger);
-        }
+        // #[cfg(debug_assertions)]
+        // {
+        //     let mut challenger = machine.config().challenger();
+        //     machine.debug_constraints(&pk, runtime.record.clone(), &mut challenger);
+        // }
 
         // Generate the proof and return the proof and public values.
         let public_values = std::mem::take(&mut runtime.state.public_values_stream);
@@ -171,7 +171,11 @@ where
         if done {
             break (
                 std::mem::take(&mut runtime.state.public_values_stream),
-                runtime.record.public_values,
+                runtime
+                    .records
+                    .last()
+                    .expect("at least one record")
+                    .public_values,
             );
         }
     };
@@ -311,13 +315,13 @@ pub fn run_test_core(
     let machine = RiscvAir::machine(config);
     let (pk, vk) = machine.setup(runtime.program.as_ref());
 
-    let record = runtime.record;
-    run_test_machine(record, machine, pk, vk)
+    let records = runtime.records;
+    run_test_machine(records, machine, pk, vk)
 }
 
 #[allow(unused_variables)]
 pub fn run_test_machine<SC, A>(
-    record: A::Record,
+    records: Vec<A::Record>,
     machine: StarkMachine<SC, A>,
     pk: StarkProvingKey<SC>,
     vk: StarkVerifyingKey<SC>,
@@ -339,29 +343,29 @@ where
     #[cfg(debug_assertions)]
     {
         let mut challenger_clone = machine.config().challenger();
-        let record_clone = record.clone();
-        machine.debug_constraints(&pk, record_clone, &mut challenger_clone);
+        let records_clone = records.clone();
+        machine.debug_constraints(&pk, records_clone, &mut challenger_clone);
     }
-    let stats = record.stats().clone();
-    let cycles = stats.get("cpu_events").unwrap();
+    // let stats = record.stats().clone();
+    // let cycles = stats.get("cpu_events").unwrap();
 
     let start = Instant::now();
     let mut challenger = machine.config().challenger();
     let proof =
-        machine.prove::<LocalProver<SC, A>>(&pk, record, &mut challenger, SP1CoreOpts::default());
+        machine.prove::<LocalProver<SC, A>>(&pk, records, &mut challenger, SP1CoreOpts::default());
     let time = start.elapsed().as_millis();
     let nb_bytes = bincode::serialize(&proof).unwrap().len();
 
     let mut challenger = machine.config().challenger();
     machine.verify(&vk, &proof, &mut challenger)?;
 
-    tracing::info!(
-        "summary: cycles={}, e2e={}, khz={:.2}, proofSize={}",
-        cycles,
-        time,
-        (*cycles as f64 / time as f64),
-        Size::from_bytes(nb_bytes),
-    );
+    // tracing::info!(
+    //     "summary: cycles={}, e2e={}, khz={:.2}, proofSize={}",
+    //     cycles,
+    //     time,
+    //     (*cycles as f64 / time as f64),
+    //     Size::from_bytes(nb_bytes),
+    // );
 
     Ok(proof)
 }
