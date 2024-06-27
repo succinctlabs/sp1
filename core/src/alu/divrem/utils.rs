@@ -30,7 +30,8 @@ pub const fn get_msb(a: u32) -> u8 {
     ((a >> 31) & 1) as u8
 }
 
-pub fn emit_divrem_alu_events(runtime: &mut Runtime, event: AluEvent) {
+/// Emits the dependencies for division and remainder operations.
+pub fn emit_dependencies(runtime: &mut Runtime, event: AluEvent) {
     let (quotient, remainder) = get_quotient_and_remainder(event.b, event.c, event.opcode);
     let c_msb = get_msb(event.c);
     let rem_msb = get_msb(remainder);
