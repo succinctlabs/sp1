@@ -573,12 +573,38 @@ impl MachineRecord for ExecutionRecord {
             self.nonce_lookup.insert(event.lookup_id, i as u32);
         }
 
-        // Put MemoryInit / MemoryFinalize events in the last shard.
-        let last = shards.last_mut().unwrap();
-        last.memory_initialize_events
-            .extend_from_slice(&self.memory_initialize_events);
-        last.memory_finalize_events
-            .extend_from_slice(&self.memory_finalize_events);
+        // Get the last cpu shard number.
+        let last_public_values = shards.last().unwrap().public_values;
+
+        // Create a memory init shard.
+        let mut memory_init_shard = ExecutionRecord::default();
+        memory_init_shard.index = shards.last().unwrap().index + 1;
+        memory_init_shard.public_values = shards.last().unwrap().public_values;
+        memory_init_shard.public_values.start_pc = memory_init_shard.public_values.next_pc;
+        memory_init_shard.public_values.shard = last_public_values.shard + 1;
+        memory_init_shard.program = self.program.clone();
+        memory_init_shard
+            .memory_initialize_events
+            .append(&mut self.memory_initialize_events);
+        memory_init_shard
+            .byte_lookups
+            .insert(memory_init_shard.index, HashMap::new());
+        shards.push(memory_init_shard);
+
+        // Create a memory finalize shard.
+        let mut memory_finalize_shard = ExecutionRecord::default();
+        memory_finalize_shard.index = shards.last().unwrap().index + 2;
+        memory_finalize_shard.public_values = shards.last().unwrap().public_values;
+        memory_finalize_shard.public_values.start_pc = memory_finalize_shard.public_values.next_pc;
+        memory_finalize_shard.public_values.shard = last_public_values.shard + 1;
+        memory_finalize_shard.program = self.program.clone();
+        memory_finalize_shard
+            .byte_lookups
+            .insert(memory_finalize_shard.index, HashMap::new());
+        memory_finalize_shard
+            .memory_finalize_events
+            .append(&mut self.memory_finalize_events);
+        shards.push(memory_finalize_shard);
 
         // Copy the nonce lookup to all shards.
         for shard in shards.iter_mut() {

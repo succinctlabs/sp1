@@ -383,7 +383,7 @@ mod tests {
             runtime.record,
             &<ExecutionRecord as MachineRecord>::Config::default(),
         );
-        assert_eq!(shards.len(), 1);
+        assert_eq!(shards.len(), 3);
         debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
             &machine,
             &pkey,
@@ -405,7 +405,7 @@ mod tests {
             runtime.record,
             &<ExecutionRecord as MachineRecord>::Config::default(),
         );
-        assert_eq!(shards.len(), 1);
+        assert_eq!(shards.len(), 3);
         debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
             &machine,
             &pkey,

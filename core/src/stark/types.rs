@@ -158,6 +158,10 @@ impl<SC: StarkGenericConfig> ShardProof<SC> {
             .map(|c| c.cumulative_sum)
             .sum()
     }
+
+    pub fn contains_cpu(&self) -> bool {
+        self.chip_ordering.contains_key("CPU")
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone)]

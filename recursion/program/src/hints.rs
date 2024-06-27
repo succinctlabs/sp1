@@ -518,6 +518,12 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
             DuplexChallenger::<InnerVal, InnerPerm, 16, 8>::read(builder);
         let is_complete = builder.hint_var();
         let total_core_shards = builder.hint_var();
+        let initial_shard = builder.hint_felt();
+        let current_shard = builder.hint_felt();
+        let start_pc = builder.hint_felt();
+        let current_pc = builder.hint_felt();
+        let committed_value_digest_arr = Vec::<Vec<InnerVal>>::read(builder);
+        let deferred_proofs_digest_arr = Vec::<InnerVal>::read(builder);
 
         SP1RecursionMemoryLayoutVariable {
             vk,
@@ -526,6 +532,12 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
             initial_reconstruct_challenger,
             is_complete,
             total_core_shards,
+            initial_shard,
+            current_shard,
+            start_pc,
+            current_pc,
+            committed_value_digest_arr,
+            deferred_proofs_digest_arr,
         }
     }
 
@@ -546,6 +558,12 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
         stream.extend(self.initial_reconstruct_challenger.write());
         stream.extend((self.is_complete as usize).write());
         stream.extend(self.total_core_shards.write());
+        stream.extend(self.initial_shard.write());
+        stream.extend(self.current_shard.write());
+        stream.extend(self.start_pc.write());
+        stream.extend(self.current_pc.write());
+        stream.extend(self.committed_value_digest_arr.write());
+        stream.extend(self.deferred_proofs_digest_arr.write());
 
         stream
     }

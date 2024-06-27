@@ -475,6 +475,7 @@ pub enum MachineVerificationError<SC: StarkGenericConfig> {
     InvalidPublicValues(&'static str),
     TooManyShards,
     InvalidChipOccurence(String),
+    MissingCpuInFirstShard,
 }
 
 impl<SC: StarkGenericConfig> Debug for MachineVerificationError<SC> {
@@ -506,6 +507,9 @@ impl<SC: StarkGenericConfig> Debug for MachineVerificationError<SC> {
             }
             MachineVerificationError::InvalidChipOccurence(s) => {
                 write!(f, "Invalid chip occurence: {}", s)
+            }
+            MachineVerificationError::MissingCpuInFirstShard => {
+                write!(f, "Missing CPU in first shard")
             }
         }
     }

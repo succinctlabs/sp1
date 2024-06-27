@@ -47,12 +47,16 @@ impl SP1Prover {
         self.core_machine
             .verify(&vk.vk, &machine_proof, &mut challenger)?;
 
-        let num_shards = proof.0.len();
+        // Assert that the first shard has a "CPU".
+        let first_shard = proof.0.first().unwrap();
+        if !first_shard.contains_cpu() {
+            return Err(MachineVerificationError::MissingCpuInFirstShard);
+        }
 
         // Verify shard transitions.
+        let mut current_cpu_shard = BabyBear::one();
         for (i, shard_proof) in proof.0.iter().enumerate() {
             let public_values = PublicValues::from_vec(shard_proof.public_values.clone());
-            // Verify shard transitions
             if i == 0 {
                 // If it's the first shard, index should be 1.
                 if public_values.shard != BabyBear::one() {
@@ -69,16 +73,22 @@ impl SP1Prover {
                 let prev_shard_proof = &proof.0[i - 1];
                 let prev_public_values =
                     PublicValues::from_vec(prev_shard_proof.public_values.clone());
-                // For non-first shards, the index should be the previous index + 1.
-                if public_values.shard != prev_public_values.shard + BabyBear::one() {
-                    return Err(MachineVerificationError::InvalidPublicValues(
-                        "non incremental shard index",
-                    ));
+
+                // For shards with "CPU", the index should be the previous index + 1.
+                if shard_proof.contains_cpu() {
+                    if public_values.shard != current_cpu_shard + BabyBear::one() {
+                        return Err(MachineVerificationError::InvalidPublicValues(
+                            "non incremental shard index",
+                        ));
+                    }
+                    current_cpu_shard += BabyBear::one();
                 }
+
                 // Start pc should be what the next pc declared in the previous shard was.
                 if public_values.start_pc != prev_public_values.next_pc {
                     return Err(MachineVerificationError::InvalidPublicValues("pc mismatch"));
                 }
+
                 // Digests and exit code should be the same in all shards.
                 if public_values.committed_value_digest != prev_public_values.committed_value_digest
                     || public_values.deferred_proofs_digest
@@ -89,16 +99,11 @@ impl SP1Prover {
                         "digest or exit code mismatch",
                     ));
                 }
+
                 // The last shard should be halted. Halt is signaled with next_pc == 0.
                 if i == proof.0.len() - 1 && public_values.next_pc != BabyBear::zero() {
                     return Err(MachineVerificationError::InvalidPublicValues(
                         "last shard isn't halted",
-                    ));
-                }
-                // All non-last shards should not be halted.
-                if i != proof.0.len() - 1 && public_values.next_pc == BabyBear::zero() {
-                    return Err(MachineVerificationError::InvalidPublicValues(
-                        "non-last shard is halted",
                     ));
                 }
             }
@@ -109,34 +114,47 @@ impl SP1Prover {
             return Err(MachineVerificationError::TooManyShards);
         }
 
-        // Verify that the `MemoryInit` and `MemoryFinalize` chips are the last chips in the proof.
-        for (i, shard_proof) in proof.0.iter().enumerate() {
-            let chips = self
-                .core_machine
-                .shard_chips_ordered(&shard_proof.chip_ordering)
-                .collect::<Vec<_>>();
-            let memory_init_count = chips
-                .clone()
-                .into_iter()
-                .filter(|chip| chip.name() == "MemoryInit")
-                .count();
-            let memory_final_count = chips
-                .into_iter()
-                .filter(|chip| chip.name() == "MemoryFinalize")
-                .count();
+        // Verify that the `MemoryInit` and `MemoryFinalize` chips only appear once.
+        let memory_init_count: usize = proof
+            .0
+            .iter()
+            .map(|shard| {
+                let chips = self
+                    .core_machine
+                    .shard_chips_ordered(&shard.chip_ordering)
+                    .collect::<Vec<_>>();
+                chips
+                    .clone()
+                    .into_iter()
+                    .filter(|chip| chip.name() == "MemoryInit")
+                    .count()
+            })
+            .sum();
+        if memory_init_count != 1 {
+            return Err(MachineVerificationError::InvalidChipOccurence(
+                "memory init should only occur once".to_string(),
+            ));
+        }
 
-            // Assert that the `MemoryInit` and `MemoryFinalize` chips only exist in the last shard.
-            if i != num_shards - 1 && (memory_final_count > 0 || memory_init_count > 0) {
-                return Err(MachineVerificationError::InvalidChipOccurence(
-                    "memory init and finalize should not exist anywhere but the last chip"
-                        .to_string(),
-                ));
-            }
-            if i == num_shards - 1 && (memory_init_count != 1 || memory_final_count != 1) {
-                return Err(MachineVerificationError::InvalidChipOccurence(
-                    "memory init and finalize should exist in the last chip".to_string(),
-                ));
-            }
+        let memory_finalize_count: usize = proof
+            .0
+            .iter()
+            .map(|shard| {
+                let chips = self
+                    .core_machine
+                    .shard_chips_ordered(&shard.chip_ordering)
+                    .collect::<Vec<_>>();
+                chips
+                    .clone()
+                    .into_iter()
+                    .filter(|chip| chip.name() == "MemoryFinalize")
+                    .count()
+            })
+            .sum();
+        if memory_finalize_count != 1 {
+            return Err(MachineVerificationError::InvalidChipOccurence(
+                "memory finalize should only occur once".to_string(),
+            ));
         }
 
         Ok(())
