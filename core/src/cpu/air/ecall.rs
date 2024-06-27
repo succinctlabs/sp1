@@ -5,7 +5,7 @@ use crate::air::{BaseAirBuilder, PublicValues, WordAirBuilder};
 use crate::cpu::air::{Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS};
 use crate::cpu::columns::{CpuCols, OpcodeSelectorCols};
 use crate::memory::MemoryCols;
-use crate::operations::IsZeroOperation;
+use crate::operations::{BabyBearWordRangeChecker, IsZeroOperation};
 use crate::runtime::SyscallCode;
 use crate::stark::{CpuChip, SP1AirBuilder};
 
@@ -52,6 +52,21 @@ impl CpuChip {
             local.op_b_val().reduce::<AB>(),
             local.op_c_val().reduce::<AB>(),
             local.ecall_mul_send_to_table,
+        );
+
+        // Baby bear range check op_b_val and op_c_val.
+        BabyBearWordRangeChecker::<AB::F>::range_check(
+            builder,
+            local.op_b_val(),
+            ecall_cols.op_b_range_checker,
+            local.ecall_mul_send_to_table.into(),
+        );
+
+        BabyBearWordRangeChecker::<AB::F>::range_check(
+            builder,
+            local.op_c_val(),
+            ecall_cols.op_c_range_checker,
+            local.ecall_mul_send_to_table.into(),
         );
 
         // Compute whether this ecall is ENTER_UNCONSTRAINED.

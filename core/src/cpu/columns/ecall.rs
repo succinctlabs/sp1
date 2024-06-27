@@ -1,7 +1,10 @@
 use sp1_derive::AlignedBorrow;
 use std::mem::size_of;
 
-use crate::{air::PV_DIGEST_NUM_WORDS, operations::IsZeroOperation};
+use crate::{
+    air::PV_DIGEST_NUM_WORDS,
+    operations::{BabyBearWordRangeChecker, IsZeroOperation},
+};
 
 pub const NUM_ECALL_COLS: usize = size_of::<EcallCols<u8>>();
 
@@ -29,4 +32,9 @@ pub struct EcallCols<T> {
 
     /// The nonce of the syscall operation.
     pub syscall_nonce: T,
+
+    /// Babybear range check the op_b and op_c words.
+    pub op_b_range_checker: BabyBearWordRangeChecker<T>,
+
+    pub op_c_range_checker: BabyBearWordRangeChecker<T>,
 }

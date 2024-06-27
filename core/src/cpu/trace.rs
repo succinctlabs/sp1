@@ -674,6 +674,10 @@ impl CpuChip {
 
             cols.ecall_mul_send_to_table = cols.selectors.is_ecall * cols.op_a_access.prev_value[1];
 
+            // If sending to table, baby bear range check op_b and op_c.
+            ecall_cols.op_b_range_checker.populate(event.b);
+            ecall_cols.op_c_range_checker.populate(event.c);
+
             let syscall_id = cols.op_a_access.prev_value[0];
             // let send_to_table = cols.op_a_access.prev_value[1];
             // let num_cycles = cols.op_a_access.prev_value[2];
