@@ -172,11 +172,7 @@ mod tests {
     use sp1_recursion_core::stark::utils::{run_test_recursion, TestConfig};
 
     use p3_challenger::{CanObserve, FieldChallenger};
-    use sp1_recursion_compiler::{
-        asm::AsmBuilder,
-        ir::{Felt, Var},
-        prelude::ExtConst,
-    };
+    use sp1_recursion_compiler::{asm::AsmBuilder, ir::Felt, prelude::ExtConst};
 
     use p3_commit::{Pcs, PolynomialSpace};
 

@@ -182,7 +182,7 @@ pub fn verify_challenges<C: Config>(
             final_poly_val = builder.select_ef(
                 bit,
                 {
-                    final_poly_index_int = final_poly_index_int + 1 << i;
+                    final_poly_index_int += 1 << i;
                     proof.final_poly[final_poly_index_int]
                 },
                 final_poly_val,
@@ -491,36 +491,36 @@ pub mod tests {
         )
         .unwrap();
 
-        // // Define circuit.
-        // let mut builder = Builder::<OuterConfig>::default();
-        // let config = test_fri_config();
-        // let fri_proof = const_fri_proof(&mut builder, proof.fri_proof);
+        // Define circuit.
+        let mut builder = Builder::<OuterConfig>::default();
+        let config = test_fri_config();
+        let fri_proof = const_fri_proof(&mut builder, proof.fri_proof);
 
-        // let mut challenger = MultiField32ChallengerVariable::new(&mut builder);
-        // let commit: [Bn254Fr; DIGEST_SIZE] = commit.into();
-        // let commit: Var<_> = builder.eval(commit[0]);
-        // challenger.observe_commitment(&mut builder, [commit]);
-        // let _ = challenger.sample_ext(&mut builder);
-        // let fri_challenges =
-        //     verify_shape_and_sample_challenges(&mut builder, &config, &fri_proof, &mut challenger);
+        let mut challenger = MultiField32ChallengerVariable::new(&mut builder);
+        let commit: [Bn254Fr; DIGEST_SIZE] = commit.into();
+        let commit: Var<_> = builder.eval(commit[0]);
+        challenger.observe_commitment(&mut builder, [commit]);
+        let _ = challenger.sample_ext(&mut builder);
+        let fri_challenges =
+            verify_shape_and_sample_challenges(&mut builder, &config, &fri_proof, &mut challenger);
 
-        // for i in 0..fri_challenges_gt.betas.len() {
-        //     builder.assert_ext_eq(
-        //         SymbolicExt::from_f(fri_challenges_gt.betas[i]),
-        //         fri_challenges.betas[i],
-        //     );
-        // }
+        for i in 0..fri_challenges_gt.betas.len() {
+            builder.assert_ext_eq(
+                SymbolicExt::from_f(fri_challenges_gt.betas[i]),
+                fri_challenges.betas[i],
+            );
+        }
 
-        // for i in 0..fri_challenges_gt.query_indices.len() {
-        //     builder.assert_var_eq(
-        //         Bn254Fr::from_canonical_usize(fri_challenges_gt.query_indices[i]),
-        //         fri_challenges.query_indices[i],
-        //     );
-        // }
+        for i in 0..fri_challenges_gt.query_indices.len() {
+            builder.assert_var_eq(
+                Bn254Fr::from_canonical_usize(fri_challenges_gt.query_indices[i]),
+                fri_challenges.query_indices[i],
+            );
+        }
 
-        // let mut backend = ConstraintCompiler::<OuterConfig>::default();
-        // let constraints = backend.emit(builder.operations);
-        // PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
+        let mut backend = ConstraintCompiler::<OuterConfig>::default();
+        let constraints = backend.emit(builder.operations);
+        PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
     }
 
     #[test]
