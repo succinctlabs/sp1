@@ -38,7 +38,16 @@ pub enum MemAccessKind {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct AddressValue<F>(F, F);
+pub struct AddressValue<F> {
+    addr: F,
+    val: F,
+}
+
+impl<F> AddressValue<F> {
+    fn new(addr: F, val: F) -> Self {
+        Self { addr, val }
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Opcode {

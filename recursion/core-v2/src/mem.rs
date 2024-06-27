@@ -29,9 +29,8 @@ pub struct MemoryChip {}
 #[repr(C)]
 pub struct MemoryCols<T: Copy> {
     pub address_value: AddressValue<T>,
-    pub multiplicity: T,
-    pub is_read: T,
-    pub is_write: T,
+    pub read_mult: T,
+    pub write_mult: T,
     pub is_real: T,
 }
 
@@ -69,18 +68,17 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip {
                     kind,
                 } = event;
 
-                let (is_read, is_write): (F, F) = match kind {
-                    MemAccessKind::Read => (F::one(), F::zero()),
-                    MemAccessKind::Write => (F::zero(), F::one()),
+                let (read_mult, write_mult): (F, F) = match kind {
+                    MemAccessKind::Read => (multiplicity, F::zero()),
+                    MemAccessKind::Write => (F::zero(), multiplicity),
                 };
 
                 let cols: &mut MemoryCols<_> = row.as_mut_slice().borrow_mut();
                 *cols = MemoryCols {
                     address_value,
-                    multiplicity,
-                    is_read,
-                    is_write,
-                    is_real: F::one(),
+                    read_mult,
+                    write_mult,
+                    is_real: F::from_bool(true),
                 };
 
                 row
@@ -113,20 +111,23 @@ where
         let local = main.row_slice(0);
         let local: &MemoryCols<AB::Var> = (*local).borrow();
 
-        // Exactly one should be true.
-        builder
-            .when(local.is_real)
-            .assert_one(local.is_read + local.is_write);
+        // At most one should be true.
+        // builder.assert_zero(local.read_mult * local.write_mult);
 
-        builder.when(local.is_read).receive(AirInteraction::new(
-            vec![local.address_value.0.into(), local.address_value.1.into()],
-            local.multiplicity.into(),
+        let values = vec![
+            local.address_value.addr.into(),
+            local.address_value.val.into(),
+        ];
+
+        builder.receive(AirInteraction::new(
+            values.clone(),
+            local.read_mult.into(),
             InteractionKind::Memory,
         ));
 
-        builder.when(local.is_write).send(AirInteraction::new(
-            vec![local.address_value.0.into(), local.address_value.1.into()],
-            local.multiplicity.into(),
+        builder.send(AirInteraction::new(
+            values,
+            local.write_mult.into(),
             InteractionKind::Memory,
         ));
     }
@@ -168,12 +169,12 @@ mod tests {
         let shard = ExecutionRecord::<BabyBear> {
             mem_events: vec![
                 MemEvent {
-                    address_value: AddressValue(BabyBear::zero(), BabyBear::one()),
+                    address_value: AddressValue::new(BabyBear::zero(), BabyBear::one()),
                     multiplicity: BabyBear::one(),
                     kind: MemAccessKind::Write,
                 },
                 MemEvent {
-                    address_value: AddressValue(BabyBear::zero(), BabyBear::one()),
+                    address_value: AddressValue::new(BabyBear::zero(), BabyBear::one()),
                     multiplicity: BabyBear::one(),
                     kind: MemAccessKind::Read,
                 },
@@ -195,18 +196,19 @@ mod tests {
 
         let test_xs = (1..8).map(BabyBear::from_canonical_u32).collect_vec();
 
+        // Doesn't test that reads and writes cancel out
         let mut input_exec = ExecutionRecord::<BabyBear>::default();
         input_exec
             .mem_events
             .extend(test_xs.clone().into_iter().map(|x| MemEvent {
-                address_value: AddressValue(x, x + BabyBear::one()),
+                address_value: AddressValue::new(x, x + BabyBear::one()),
                 multiplicity: BabyBear::one(),
                 kind: MemAccessKind::Write,
             }));
         input_exec
             .mem_events
             .extend(test_xs.clone().into_iter().map(|x| MemEvent {
-                address_value: AddressValue(x, x + BabyBear::one()),
+                address_value: AddressValue::new(x, x + BabyBear::one()),
                 multiplicity: BabyBear::one(),
                 kind: MemAccessKind::Read,
             }));

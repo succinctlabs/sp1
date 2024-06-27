@@ -117,9 +117,15 @@ mod tests {
     use sp1_core::utils::{run_test_machine, BabyBearPoseidon2};
     // use sp1_recursion_core::air::SP1RecursionAirBuilder;
 
-    use crate::{machine::RecursionAir, AluEvent, ExecutionRecord, Opcode, RecursionProgram};
+    use crate::{
+        machine::RecursionAir, AddressValue, AluEvent, ExecutionRecord, MemAccessKind, MemEvent,
+        Opcode, RecursionProgram,
+    };
     #[test]
     pub fn asdf() {
+        type F = BabyBear;
+        let embed = F::from_canonical_u32;
+
         // TODO figure out how to write a program lol
         let program = RecursionProgram::default();
         // that's a trait, find the builder struct to use
@@ -132,13 +138,29 @@ mod tests {
         let record = ExecutionRecord {
             add_events: vec![AluEvent {
                 opcode: Opcode::Add,
-                a: BabyBear::two(),
-                b: BabyBear::one(),
-                c: BabyBear::one(),
+                a: F::two(),
+                b: F::one(),
+                c: F::one(),
             }],
             // add_events: vec![],
             mul_events: vec![],
-            mem_events: vec![],
+            mem_events: vec![
+                MemEvent {
+                    address_value: AddressValue::new(embed(1), embed(2)),
+                    multiplicity: F::one(), // SHOULD FAIL
+                    kind: MemAccessKind::Write,
+                },
+                MemEvent {
+                    address_value: AddressValue::new(embed(1), embed(2)),
+                    multiplicity: F::one(),
+                    kind: MemAccessKind::Read,
+                },
+                MemEvent {
+                    address_value: AddressValue::new(embed(1), embed(2)),
+                    multiplicity: F::one(),
+                    kind: MemAccessKind::Read,
+                },
+            ],
             ..Default::default()
         };
         let result = run_test_machine(record, machine, pk, vk);
