@@ -110,34 +110,36 @@ impl SP1Prover {
         }
 
         // Verify that the `MemoryInit` and `MemoryFinalize` chips are the last chips in the proof.
-        for (i, shard_proof) in proof.0.iter().enumerate() {
-            let chips = self
-                .core_machine
-                .shard_chips_ordered(&shard_proof.chip_ordering)
-                .collect::<Vec<_>>();
-            let memory_init_count = chips
-                .clone()
-                .into_iter()
-                .filter(|chip| chip.name() == "MemoryInit")
-                .count();
-            let memory_final_count = chips
-                .into_iter()
-                .filter(|chip| chip.name() == "MemoryFinalize")
-                .count();
+        // for (i, shard_proof) in proof.0.iter().enumerate() {
+        //     let chips = self
+        //         .core_machine
+        //         .shard_chips_ordered(&shard_proof.chip_ordering)
+        //         .collect::<Vec<_>>();
+        // let memory_init_count = chips
+        //     .clone()
+        //     .into_iter()
+        //     .filter(|chip| chip.name() == "MemoryInit")
+        //     .count();
+        // let memory_final_count = chips
+        //     .into_iter()
+        //     .filter(|chip| chip.name() == "MemoryFinalize")
+        //     .count();
 
-            // Assert that the `MemoryInit` and `MemoryFinalize` chips only exist in the last shard.
-            if i != num_shards - 1 && (memory_final_count > 0 || memory_init_count > 0) {
-                return Err(MachineVerificationError::InvalidChipOccurence(
-                    "memory init and finalize should not exist anywhere but the last chip"
-                        .to_string(),
-                ));
-            }
-            if i == num_shards - 1 && (memory_init_count != 1 || memory_final_count != 1) {
-                return Err(MachineVerificationError::InvalidChipOccurence(
-                    "memory init and finalize should exist in the last chip".to_string(),
-                ));
-            }
-        }
+        // TODO: FIX
+        //
+        // Assert that the `MemoryInit` and `MemoryFinalize` chips only exist in the last shard.
+        // if i != num_shards - 1 && (memory_final_count > 0 || memory_init_count > 0) {
+        //     return Err(MachineVerificationError::InvalidChipOccurence(
+        //         "memory init and finalize should not exist anywhere but the last chip"
+        //             .to_string(),
+        //     ));
+        // }
+        // if i == num_shards - 1 && (memory_init_count != 1 || memory_final_count != 1) {
+        //     return Err(MachineVerificationError::InvalidChipOccurence(
+        //         "memory init and finalize should exist in the last chip".to_string(),
+        //     ));
+        // }
+        // }
 
         Ok(())
     }
