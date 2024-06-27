@@ -267,10 +267,16 @@ where
                 builder.assign(exit_code, public_values.exit_code);
             });
 
+            // If the shard is one, assert that the shard has a "CPU" chip.
+            let shard = felt2var(builder, public_values.shard);
+            builder.if_eq(shard, C::N::one()).then(|builder| {
+                builder.assert_var_eq(has_cpu, C::N::one());
+            });
+
             // If this is a CPU proof, verify the transition function.
             builder.if_eq(has_cpu, C::N::one()).then(|builder| {
                 // If shard is one, verify the global initial conditions hold on challenger and pc.
-                let shard = felt2var(builder, public_values.shard);
+
                 builder.if_eq(shard, C::N::one()).then(|builder| {
                     // This should be the 0th proof in this batch.
                     builder.assert_var_eq(i, C::N::zero());

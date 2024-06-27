@@ -573,14 +573,14 @@ impl MachineRecord for ExecutionRecord {
         }
 
         // Get the last cpu shard number.
-        let last_cpu_shard = shards.last().unwrap().public_values.shard;
+        let last_public_values = shards.last().unwrap().public_values;
 
         // Create a memory init shard.
         let mut memory_init_shard = ExecutionRecord::default();
         memory_init_shard.index = shards.last().unwrap().index + 1;
         memory_init_shard.public_values = shards.last().unwrap().public_values;
         memory_init_shard.public_values.start_pc = memory_init_shard.public_values.next_pc;
-        memory_init_shard.public_values.shard = last_cpu_shard + 1;
+        memory_init_shard.public_values.shard = last_public_values.shard + 1;
         memory_init_shard.program = self.program.clone();
         memory_init_shard
             .memory_initialize_events
@@ -595,7 +595,7 @@ impl MachineRecord for ExecutionRecord {
         memory_finalize_shard.index = shards.last().unwrap().index + 2;
         memory_finalize_shard.public_values = shards.last().unwrap().public_values;
         memory_finalize_shard.public_values.start_pc = memory_finalize_shard.public_values.next_pc;
-        memory_finalize_shard.public_values.shard = last_cpu_shard + 1;
+        memory_finalize_shard.public_values.shard = last_public_values.shard + 1;
         memory_finalize_shard.program = self.program.clone();
         memory_finalize_shard
             .byte_lookups
