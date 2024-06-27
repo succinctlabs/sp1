@@ -273,7 +273,6 @@ impl SP1Prover {
         // Prepare the inputs for the recursion programs.
         for batch in shard_proofs.chunks(batch_size) {
             let proofs = batch.to_vec();
-
             let public_values = proofs
                 .iter()
                 .map(|proof| PublicValues::from_vec(proof.public_values.clone()))

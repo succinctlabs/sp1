@@ -304,6 +304,7 @@ where
 
                 // Assert that the start_pc of the proof is equal to the current pc.
                 builder.assert_felt_eq(current_pc, public_values.start_pc);
+
                 // Assert that the start_pc is not zero (this means program has halted in a non-last
                 // shard).
                 builder.assert_felt_ne(public_values.start_pc, C::F::zero());
@@ -321,22 +322,19 @@ where
                 {
                     builder.assert_felt_eq(*digest, *current_digest);
                 }
+
+                // Assert that the shard of the proof is equal to the current shard.
+                builder.assert_felt_eq(current_shard, public_values.shard);
+
+                // Increment the current cpu shard by one.
+                builder.assign(current_shard, current_shard + C::F::one());
+
+                // Update current_pc to be the end_pc of the current proof.
+                builder.assign(current_pc, public_values.next_pc);
             });
-
-            // Update the loop variables: the reconstruct challenger, cumulative sum, shard number,
-            // and program counter.
-
-            // Assert that the shard of the proof is equal to the current shard.
-            builder.assert_felt_eq(current_shard, public_values.shard);
 
             // Range check the shard count to be less than 1<<16.
-            builder.range_check_f(current_shard, 16);
-
-            // Increment the shard index by one if it is a shard with CPU.
-            builder.if_eq(has_cpu, C::N::one()).then(|builder| {
-                builder.assign(current_shard, current_shard + C::F::one());
-            });
-            builder.assign(current_shard, current_shard + C::F::one());
+            builder.range_check_f(public_values.shard, 16);
 
             // Update the reconstruct challenger.
             reconstruct_challenger.observe(builder, proof.commitment.main_commit.clone());
@@ -344,9 +342,6 @@ where
                 let element = builder.get(&proof.public_values, j);
                 reconstruct_challenger.observe(builder, element);
             }
-
-            // Update current_pc to be the end_pc of the current proof.
-            builder.assign(current_pc, public_values.next_pc);
 
             // Cumulative sum is updated by sums of all chips.
             let opened_values = proof.opened_values.chips;

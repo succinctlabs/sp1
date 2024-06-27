@@ -109,7 +109,7 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
             .copied()
             .collect::<Vec<_>>();
 
-        let mult = if input.index == 1 {
+        let mult = if input.public_values.shard == 1 {
             F::one()
         } else {
             F::zero()
@@ -122,7 +122,7 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
                 let mut row = [F::zero(); NUM_MEMORY_PROGRAM_MULT_COLS];
                 let cols: &mut MemoryProgramMultCols<F> = row.as_mut_slice().borrow_mut();
                 cols.multiplicity = mult;
-                cols.is_first_shard.populate(input.index - 1);
+                cols.is_first_shard.populate(input.public_values.shard - 1);
                 row
             })
             .collect::<Vec<_>>();
