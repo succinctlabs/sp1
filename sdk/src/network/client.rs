@@ -10,6 +10,7 @@ use reqwest::{Client as HttpClient, Url};
 use reqwest_middleware::ClientWithMiddleware as HttpClientWithMiddleware;
 use serde::de::DeserializeOwned;
 use sp1_prover::SP1Stdin;
+use std::result::Result::Ok as StdOk;
 use std::time::{SystemTime, UNIX_EPOCH};
 use twirp::Client as TwirpClient;
 
@@ -87,7 +88,9 @@ impl NetworkClient {
             .get_nonce(GetNonceRequest {
                 address: self.auth.get_address().to_vec(),
             })
-            .await?;
+            .await;
+
+        let res = self.handle_twirp_error(res).await?;
         Ok(res.nonce)
     }
 
@@ -107,6 +110,10 @@ impl NetworkClient {
             .get_proof_status(GetProofStatusRequest {
                 proof_id: proof_id.to_string(),
             })
+            .await;
+
+        let res = self
+            .handle_twirp_error(res)
             .await
             .context("Failed to get proof status")?;
 
@@ -141,9 +148,9 @@ impl NetworkClient {
             .get_proof_requests(GetProofRequestsRequest {
                 status: status.into(),
             })
-            .await?;
+            .await;
 
-        Ok(res)
+        self.handle_twirp_error(res).await
     }
 
     // Get the status of a relay transaction request.
@@ -156,7 +163,9 @@ impl NetworkClient {
             .get_relay_status(GetRelayStatusRequest {
                 tx_id: tx_id.to_string(),
             })
-            .await?;
+            .await;
+
+        let res = self.handle_twirp_error(res).await?;
 
         let tx_hash = match res.status() {
             TransactionStatus::TransactionScheduled => None,
@@ -199,7 +208,9 @@ impl NetworkClient {
                 mode: mode.into(),
                 version: version.to_string(),
             })
-            .await?;
+            .await;
+
+        let res = self.handle_twirp_error(res).await?;
 
         let program_bytes = bincode::serialize(elf)?;
         let stdin_bytes = bincode::serialize(&stdin)?;
@@ -215,13 +226,17 @@ impl NetworkClient {
             .auth
             .sign_submit_proof_message(nonce, &res.proof_id)
             .await?;
-        self.rpc
+
+        let submit_res = self
+            .rpc
             .submit_proof(SubmitProofRequest {
                 signature: submit_proof_signature.to_vec(),
                 nonce,
                 proof_id: res.proof_id.clone(),
             })
-            .await?;
+            .await;
+
+        self.handle_twirp_error(submit_res).await?;
 
         Ok(res.proof_id)
     }
@@ -231,6 +246,7 @@ impl NetworkClient {
     pub async fn claim_proof(&self, proof_id: &str) -> Result<ClaimProofResponse> {
         let nonce = self.get_nonce().await?;
         let signature = self.auth.sign_claim_proof_message(nonce, proof_id).await?;
+
         let res = self
             .rpc
             .claim_proof(ClaimProofRequest {
@@ -238,9 +254,9 @@ impl NetworkClient {
                 nonce,
                 proof_id: proof_id.to_string(),
             })
-            .await?;
+            .await;
 
-        Ok(res)
+        self.handle_twirp_error(res).await
     }
 
     // Unclaim a proof that was claimed. This should only be called if the proof has not been
@@ -257,7 +273,9 @@ impl NetworkClient {
             .auth
             .sign_unclaim_proof_message(nonce, proof_id.clone(), reason, description.clone())
             .await?;
-        self.rpc
+
+        let res = self
+            .rpc
             .unclaim_proof(UnclaimProofRequest {
                 signature,
                 nonce,
@@ -265,7 +283,9 @@ impl NetworkClient {
                 reason: reason.into(),
                 description,
             })
-            .await?;
+            .await;
+
+        self.handle_twirp_error(res).await?;
 
         Ok(())
     }
@@ -313,7 +333,24 @@ impl NetworkClient {
             callback: callback.to_vec(),
             callback_data: callback_data.to_vec(),
         };
-        let result = self.rpc.relay_proof(req).await?;
-        Ok(result.tx_id)
+        let res = self.rpc.relay_proof(req).await;
+
+        let res = self.handle_twirp_error(res).await?;
+
+        Ok(res.tx_id)
+    }
+
+    async fn handle_twirp_error<T>(
+        &self,
+        result: std::result::Result<T, ClientError>,
+    ) -> Result<T> {
+        match result {
+            StdOk(response) => StdOk(response),
+            Err(ClientError::TwirpError(err)) => {
+                let display_err = format!("error: {:?} message: {:?}", err.code, err.msg);
+                Err(anyhow::anyhow!(display_err))
+            }
+            Err(err) => Err(err.into()),
+        }
     }
 }
