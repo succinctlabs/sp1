@@ -408,14 +408,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                     .par_iter()
                     .zip(traces.par_iter_mut())
                     .map(|(chip, (main_trace, pre_trace))| {
-                        println!("chip: {:?} {}", chip.name(), main_trace.height());
-                        if let Some(preprocessed) = pre_trace {
-                            println!(
-                                "chip: {:?}, preprocessed: {:?}",
-                                chip.name(),
-                                preprocessed.height()
-                            );
-                        }
                         let perm_trace = chip.generate_permutation_trace(
                             *pre_trace,
                             main_trace,
@@ -454,7 +446,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                         .chip_ordering
                         .get(&chips[i].name())
                         .map(|index| &pk.traces[*index]);
-                    println!("shard index: {}", shard.index());
                     debug_constraints::<SC, A>(
                         chips[i],
                         permutation_trace,
