@@ -382,7 +382,7 @@ where
         builder.eval_memory_access_slice(
             local.shard,
             local.channel,
-            local.clk.into(),
+            local.clk.into() + AB::Expr::one(),
             local.y_ptr,
             &[local.y_memory, local.modulus_memory].concat(),
             local.is_real,
