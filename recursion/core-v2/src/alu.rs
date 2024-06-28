@@ -1,32 +1,20 @@
 use core::borrow::Borrow;
-use itertools::Itertools;
 use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::AbstractField;
 use p3_field::Field;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use sp1_core::air::AirInteraction;
 use sp1_core::air::MachineAir;
-use sp1_core::air::MessageBuilder;
 use sp1_core::air::SP1AirBuilder;
 use sp1_core::lookup::InteractionKind;
-use std::marker::PhantomData;
-// use sp1_core::runtime::ExecutionRecord;
-use sp1_core::runtime::Program;
-use sp1_core::utils::pad_rows_fixed;
 use sp1_core::utils::pad_to_power_of_two;
 use sp1_derive::AlignedBorrow;
 use std::borrow::BorrowMut;
-use tracing::instrument;
 
 use crate::*;
 
 pub const NUM_FIELD_ALU_COLS: usize = core::mem::size_of::<FieldAluCols<u8>>();
-// 14 columns
-// pub struct FieldALU<F> {
-//     pub in1: F
-// }
 
 #[derive(Default)]
 pub struct FieldAluChip {}
@@ -36,11 +24,11 @@ pub struct FieldAluChip {}
 pub struct FieldAluCols<F: Copy> {
     pub in1: AddressValue<F>,
     pub in2: AddressValue<F>,
+    pub out: AddressValue<F>,
     pub sum: F,
     pub diff: F,
     pub product: F,
     pub quotient: F,
-    pub out: AddressValue<F>,
     pub is_add: F,
     pub is_sub: F,
     pub is_mul: F,
@@ -93,11 +81,11 @@ impl<F: PrimeField32> MachineAir<F> for FieldAluChip {
                 *cols = FieldAluCols {
                     in1,
                     in2,
+                    out,
                     sum: v1 + v2,
                     diff: v1 - v2,
                     product: v1 * v2,
                     quotient: v1 * v2.try_inverse().unwrap_or(F::one()),
-                    out,
                     is_add: F::from_bool(false),
                     is_sub: F::from_bool(false),
                     is_mul: F::from_bool(false),
@@ -145,6 +133,11 @@ where
         let main = builder.main();
         let local = main.row_slice(0);
         let local: &FieldAluCols<AB::Var> = (*local).borrow();
+
+        // Check exactly one flag is enabled.
+        builder
+            .when(local.is_real)
+            .assert_one(local.is_add + local.is_sub + local.is_mul + local.is_div);
 
         let mut when_add = builder.when(local.is_add);
         when_add.assert_eq(local.out.val, local.sum);
@@ -196,23 +189,11 @@ you will also need to write your own execution record struct but look at recursi
 
 #[cfg(test)]
 mod tests {
-    use itertools::Itertools;
     use p3_baby_bear::BabyBear;
-    use p3_baby_bear::DiffusionMatrixBabyBear;
     use p3_field::AbstractField;
     use p3_matrix::dense::RowMajorMatrix;
-    use p3_matrix::Matrix;
-    use p3_poseidon2::Poseidon2;
-    use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
 
-    use rand::{thread_rng, Rng};
-    use std::time::Instant;
-
-    use sp1_core::{air::MachineAir, utils::uni_stark_verify};
-    use sp1_core::{
-        stark::StarkGenericConfig,
-        utils::{uni_stark_prove, BabyBearPoseidon2},
-    };
+    use sp1_core::air::MachineAir;
 
     use super::*;
 
@@ -234,60 +215,4 @@ mod tests {
         let trace: RowMajorMatrix<F> = chip.generate_trace(&shard, &mut ExecutionRecord::default());
         println!("{:?}", trace.values)
     }
-
-    // #[test]
-    // fn prove_babybear() {
-    //     let config = BabyBearPoseidon2::compressed();
-    //     let mut challenger = config.challenger();
-
-    //     let chip = FieldAlu::default();
-
-    //     let embed = BabyBear::from_canonical_u32;
-
-    //     let test_xs = (1..8)
-    //         .map(|x| AddressValue::new(embed(x + 1000), embed(x)))
-    //         .collect_vec();
-
-    //     let test_ys = (1..8)
-    //         .map(|x| AddressValue::new(embed(x + 2000), embed(x)))
-    //         .collect_vec();
-
-    //     let mut input_exec = ExecutionRecord::<BabyBear>::default();
-    //     for (x, y) in test_xs.into_iter().cartesian_product(test_ys) {
-    //         // let sum = x.val + y.val;
-    //         // input_exec.add_events.push(AluEvent {
-    //         //     out: AddressValue::new(sum + embed(3000), sum),
-    //         //     in1: x,
-    //         //     in2: y,
-    //         //     mult: embed(0),
-    //         //     opcode: Opcode::Add,
-    //         // });
-    //     }
-    //     println!("input exec: {:?}", input_exec.add_events.len());
-    //     let trace: RowMajorMatrix<BabyBear> =
-    //         chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());
-    //     println!(
-    //         "trace dims is width: {:?}, height: {:?}",
-    //         trace.width(),
-    //         trace.height()
-    //     );
-
-    //     let start = Instant::now();
-    //     let proof = uni_stark_prove(&config, &chip, &mut challenger, trace);
-    //     let duration = start.elapsed().as_secs_f64();
-    //     println!("proof duration = {:?}", duration);
-
-    //     let mut challenger: p3_challenger::DuplexChallenger<
-    //         BabyBear,
-    //         Poseidon2<BabyBear, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 16, 7>,
-    //         16,
-    //         8,
-    //     > = config.challenger();
-    //     let start = Instant::now();
-    //     uni_stark_verify(&config, &chip, &mut challenger, &proof)
-    //         .expect("expected proof to be valid");
-
-    //     let duration = start.elapsed().as_secs_f64();
-    //     println!("verify duration = {:?}", duration);
-    // }
 }
