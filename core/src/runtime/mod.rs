@@ -1063,6 +1063,9 @@ impl<'a> Runtime<'a> {
 
     /// Executes up to `self.shard_batch_size` cycles of the program, returning whether the program has finished.
     fn execute(&mut self) -> Result<bool, ExecutionError> {
+        // Get the current shard.
+        let start_shard = self.state.current_shard;
+
         // If it's the first cycle, initialize the program.
         if self.state.global_clk == 0 {
             self.initialize();
@@ -1108,7 +1111,7 @@ impl<'a> Runtime<'a> {
         for (i, record) in self.records.iter_mut().enumerate() {
             record.public_values.committed_value_digest = public_values.committed_value_digest;
             record.public_values.deferred_proofs_digest = public_values.deferred_proofs_digest;
-            record.public_values.shard = (i + 1) as u32;
+            record.public_values.shard = start_shard + i as u32;
             if !record.cpu_events.is_empty() {
                 record.public_values.start_pc = record.cpu_events[0].pc;
                 record.public_values.next_pc = record.cpu_events.last().unwrap().next_pc;

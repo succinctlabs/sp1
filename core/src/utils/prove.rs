@@ -181,7 +181,7 @@ where
     };
 
     // For each checkpoint, generate events, shard them, commit shards, and observe in challenger.
-    // let sharding_config = ShardingConfig::default();
+    let mut all_shards = Vec::new();
     let mut shard_main_datas = Vec::new();
     let mut challenger = machine.config().challenger();
     vk.observe_into(&mut challenger);
@@ -189,8 +189,16 @@ where
         let (mut records, _) = tracing::info_span!("commit_checkpoint", num)
             .in_scope(|| trace_checkpoint(program.clone(), checkpoint_file, opts));
         records.iter_mut().for_each(|record| {
+            let shard = record.public_values.shard;
+            let start_pc = record.public_values.start_pc;
+            let next_pc = record.public_values.next_pc;
+            record.index = shard - 1;
             record.public_values = public_values;
+            record.public_values.shard = shard;
+            record.public_values.start_pc = start_pc;
+            record.public_values.next_pc = next_pc;
         });
+        all_shards.extend(records.clone());
         reset_seek(&mut *checkpoint_file);
 
         // Shard the record into shards.
@@ -208,6 +216,22 @@ where
         }
     }
 
+    // Debug stuffs.
+    {
+        all_shards.iter().for_each(|record| {
+            println!(
+                "index={:?}, public_values.shard={:?}",
+                record.index(),
+                record.public_values.shard
+            );
+        });
+        let config = BabyBearPoseidon2::new();
+        let machine = RiscvAir::machine(config);
+        let (pk, vk) = machine.setup(runtime.program.as_ref());
+        let mut challenger = machine.config().challenger();
+        machine.debug_constraints(&pk, all_shards, &mut challenger);
+    }
+
     // For each checkpoint, generate events and shard again, then prove the shards.
     let mut shard_proofs = Vec::<ShardProof<SC>>::new();
     let mut report_aggregate = ExecutionReport::default();
@@ -215,10 +239,17 @@ where
         let checkpoint_shards = {
             let (mut events, report) = tracing::info_span!("prove_checkpoint", num)
                 .in_scope(|| trace_checkpoint(program.clone(), &checkpoint_file, opts));
-            report_aggregate += report;
             events.iter_mut().for_each(|record| {
+                let shard = record.public_values.shard;
+                let start_pc = record.public_values.start_pc;
+                let next_pc = record.public_values.next_pc;
+                record.index = shard - 1;
                 record.public_values = public_values;
+                record.public_values.shard = shard;
+                record.public_values.start_pc = start_pc;
+                record.public_values.next_pc = next_pc;
             });
+            report_aggregate += report;
             reset_seek(&mut checkpoint_file);
             tracing::debug_span!("shard").in_scope(|| machine.shard(events))
         };

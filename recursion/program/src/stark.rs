@@ -508,41 +508,41 @@ pub(crate) mod tests {
         builder.compile_program()
     }
 
-    // #[test]
-    // fn test_public_values_failure() {
-    //     let program = test_public_values_program();
+    #[test]
+    fn test_public_values_failure() {
+        let program = test_public_values_program();
 
-    //     let config = SC::default();
+        let config = SC::default();
 
-    //     let mut runtime = Runtime::<InnerVal, Challenge, _>::new(&program, config.perm.clone());
-    //     runtime.run();
+        let mut runtime = Runtime::<InnerVal, Challenge, _>::new(&program, config.perm.clone());
+        runtime.run();
 
-    //     let machine = RecursionAir::<_, 3>::machine(SC::default());
-    //     let (pk, vk) = machine.setup(&program);
-    //     let record = runtime.record.clone();
+        let machine = RecursionAir::<_, 3>::machine(SC::default());
+        let (pk, vk) = machine.setup(&program);
+        let record = runtime.record.clone();
 
-    //     let mut challenger = machine.config().challenger();
-    //     let mut proof = machine.prove::<LocalProver<SC, RecursionAir<_, 3>>>(
-    //         &pk,
-    //         record,
-    //         &mut challenger,
-    //         SP1CoreOpts::recursion(),
-    //     );
+        let mut challenger = machine.config().challenger();
+        let mut proof = machine.prove::<LocalProver<SC, RecursionAir<_, 3>>>(
+            &pk,
+            vec![record],
+            &mut challenger,
+            SP1CoreOpts::recursion(),
+        );
 
-    //     let mut challenger = machine.config().challenger();
-    //     let verification_result = machine.verify(&vk, &proof, &mut challenger);
-    //     if verification_result.is_err() {
-    //         panic!("Proof should verify successfully");
-    //     }
+        let mut challenger = machine.config().challenger();
+        let verification_result = machine.verify(&vk, &proof, &mut challenger);
+        if verification_result.is_err() {
+            panic!("Proof should verify successfully");
+        }
 
-    //     // Corrupt the public values.
-    //     proof.shard_proofs[0].public_values[RECURSION_PUBLIC_VALUES_COL_MAP.digest[0]] =
-    //         InnerVal::zero();
-    //     let verification_result = machine.verify(&vk, &proof, &mut challenger);
-    //     if verification_result.is_ok() {
-    //         panic!("Proof should not verify successfully");
-    //     }
-    // }
+        // Corrupt the public values.
+        proof.shard_proofs[0].public_values[RECURSION_PUBLIC_VALUES_COL_MAP.digest[0]] =
+            InnerVal::zero();
+        let verification_result = machine.verify(&vk, &proof, &mut challenger);
+        if verification_result.is_ok() {
+            panic!("Proof should not verify successfully");
+        }
+    }
 
     #[test]
     #[ignore]
