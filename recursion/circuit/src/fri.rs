@@ -9,6 +9,8 @@ use sp1_recursion_compiler::ir::{Builder, Config, Felt};
 use sp1_recursion_compiler::prelude::*;
 use sp1_recursion_core::stark::config::OuterChallengeMmcs;
 
+use crate::challenger::access_index_with_var_e;
+use crate::challenger::access_index_with_var_v;
 use crate::mmcs::verify_batch;
 use crate::types::FriChallenges;
 use crate::types::FriProofVariable;
@@ -44,7 +46,8 @@ pub fn verify_shape_and_sample_challenges<C: Config>(
     assert_eq!(proof.query_proofs.len(), config.num_queries);
     challenger.check_witness(builder, config.proof_of_work_bits, proof.pow_witness);
 
-    let log_max_height = proof.commit_phase_commits.len() + config.log_blowup;
+    let log_max_height =
+        proof.commit_phase_commits.len() + config.log_blowup + config.log_final_poly_len;
     let query_indices: Vec<Var<_>> = (0..config.num_queries)
         .map(|_| challenger.sample_bits(builder, log_max_height))
         .collect();
@@ -67,7 +70,8 @@ pub fn verify_two_adic_pcs<C: Config>(
     let fri_challenges =
         verify_shape_and_sample_challenges(builder, config, &proof.fri_proof, challenger);
 
-    let log_global_max_height = proof.fri_proof.commit_phase_commits.len() + config.log_blowup;
+    let log_global_max_height =
+        proof.fri_proof.commit_phase_commits.len() + config.log_blowup + config.log_final_poly_len;
 
     let reduced_openings = proof
         .query_openings
@@ -172,28 +176,23 @@ pub fn verify_challenges<C: Config>(
             log_max_height,
         );
 
-        // builder.select_v(cond, a, b)
+        // `index` is a query index, so it should be expressed in `log_max_height` bits.
+        let index_bits = builder.num2bits_v_circuit(index, log_max_height);
 
-        let index_bits = builder.num2bits_v_circuit(index, 32);
-        let final_poly_index = index_bits[proof.commit_phase_commits.len()..].to_vec();
-        let mut final_poly_val = proof.final_poly[0];
-        let mut final_poly_index_int = 0;
-        for (i, &bit) in final_poly_index.iter().enumerate() {
-            final_poly_val = builder.select_ef(
-                bit,
-                {
-                    final_poly_index_int += 1 << i;
-                    proof.final_poly[final_poly_index_int]
-                },
-                final_poly_val,
-            );
+        // `index_bits` is stored in little-endian order, and we need to shift right by `proof.commit_phase_commits.len()`,
+        // so we need to access `index_bits` from `proof.commit_phase_commits.len()` to `log_max_height`.
+        let final_poly_index = builder
+            .bits2num_v_circuit(&index_bits[proof.commit_phase_commits.len()..log_max_height]);
 
-            // if proof.final_poly[final_poly_index] != folded_eval {
-            //     return Err(FriError::FinalPolyMismatch);
-            // }
+        // Extract the value of the final polynomial at index `final_poly_index`.
+        let final_poly_val = access_index_with_var_e(
+            builder,
+            &proof.final_poly,
+            final_poly_index,
+            log_max_height - proof.commit_phase_commits.len(),
+        );
 
-            // builder.assert_ext_eq(folded_eval, proof.final_poly);
-        }
+        // Ensure that `folded_eval` matches the evaluation of the final polynomial at `final_poly_index`.
         builder.assert_ext_eq(folded_eval, final_poly_val);
     }
 }
