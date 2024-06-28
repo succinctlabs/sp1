@@ -216,22 +216,6 @@ where
         }
     }
 
-    // Debug stuffs.
-    {
-        all_shards.iter().for_each(|record| {
-            println!(
-                "index={:?}, public_values.shard={:?}",
-                record.index(),
-                record.public_values.shard
-            );
-        });
-        let config = BabyBearPoseidon2::new();
-        let machine = RiscvAir::machine(config);
-        let (pk, vk) = machine.setup(runtime.program.as_ref());
-        let mut challenger = machine.config().challenger();
-        machine.debug_constraints(&pk, all_shards, &mut challenger);
-    }
-
     // For each checkpoint, generate events and shard again, then prove the shards.
     let mut shard_proofs = Vec::<ShardProof<SC>>::new();
     let mut report_aggregate = ExecutionReport::default();
