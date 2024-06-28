@@ -3,7 +3,7 @@ use p3_field::{extension::BinomiallyExtendable, PrimeField32};
 use sp1_core::stark::{Chip, StarkGenericConfig, StarkMachine, PROOF_MAX_NUM_PVS};
 use sp1_derive::MachineAir;
 
-use crate::{add::AddChip, mem::MemoryChip, program::ProgramChip};
+use crate::{add::AddChip, mem::MemoryChip, mul::MulChip, program::ProgramChip};
 
 use std::marker::PhantomData;
 
@@ -14,10 +14,10 @@ use std::marker::PhantomData;
 #[builder_path = "sp1_recursion_core::air::SP1RecursionAirBuilder<F = F>"]
 #[eval_trait_bound = "AB::Var: 'static"]
 pub enum RecursionAir<F: PrimeField32> {
-    Program(ProgramChip),
+    Program(ProgramChip<F>),
     Memory(MemoryChip),
-    Add(AddChip<F>),
-    // Mul(MulChip),
+    Add(AddChip),
+    Mul(MulChip),
     // Cpu(CpuChip<F, DEGREE>),
     // MemoryGlobal(MemoryGlobalChip),
     // Poseidon2Wide(Poseidon2WideChip<DEGREE>),
@@ -60,7 +60,7 @@ impl<F: PrimeField32> RecursionAir<F> {
             RecursionAir::Program(ProgramChip::default()),
             RecursionAir::Memory(MemoryChip::default()),
             RecursionAir::Add(AddChip::default()),
-            // RecursionAir::Mul(MulChip::default()),
+            RecursionAir::Mul(MulChip::default()),
         ]
     }
 
@@ -121,8 +121,9 @@ mod tests {
         machine::RecursionAir, AddressValue, AluEvent, ExecutionRecord, MemAccessKind, MemEvent,
         Opcode, RecursionProgram,
     };
+
     #[test]
-    pub fn asdf() {
+    pub fn basic() {
         type F = BabyBear;
         let embed = F::from_canonical_u32;
 
@@ -176,6 +177,60 @@ mod tests {
             ],
             ..Default::default()
         };
+        let result = run_test_machine(record, machine, pk, vk);
+        if let Err(e) = result {
+            panic!("Verification failed: {:?}", e);
+        }
+    }
+
+    #[test]
+    pub fn iterate() {
+        type F = BabyBear;
+        let embed = F::from_canonical_u32;
+
+        // TODO figure out how to write a program lol
+        let program = RecursionProgram::default();
+        // that's a trait, find the builder struct to use
+        // let builder = SP1RecursionAirBuilder::<BabyBear>::new();
+
+        // let program = builder.compile_program();
+
+        let machine = RecursionAir::machine(BabyBearPoseidon2::default());
+        let (pk, vk) = machine.setup(&program);
+
+        let mut record = ExecutionRecord::default();
+
+        let mut x = AddressValue::new(F::zero(), F::one());
+        record.mem_events.push(MemEvent {
+            address_value: x,
+            multiplicity: embed(3),
+            kind: MemAccessKind::Write,
+        });
+        for _ in 0..100 {
+            let prod = AddressValue::new(x.addr + embed(1), x.val * x.val);
+            let sum = AddressValue::new(x.addr + embed(2), prod.val + x.val);
+            record.mul_events.push(AluEvent {
+                opcode: Opcode::Mul,
+                a: prod,
+                b: x,
+                c: x,
+                mult: embed(1),
+            });
+            record.add_events.push(AluEvent {
+                opcode: Opcode::Add,
+                a: sum,
+                b: prod,
+                c: x,
+                mult: embed(3),
+            });
+            x = sum;
+        }
+        record.mem_events.push(MemEvent {
+            address_value: x,
+            multiplicity: embed(3),
+            kind: MemAccessKind::Read,
+        });
+
         let result = run_test_machine(record, machine, pk, vk);
         if let Err(e) = result {
             panic!("Verification failed: {:?}", e);

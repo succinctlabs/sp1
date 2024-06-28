@@ -7,7 +7,7 @@ pub mod add;
 // pub mod builder;
 pub mod machine;
 pub mod mem;
-// pub mod mul;
+pub mod mul;
 pub mod program;
 
 // #[derive(Clone, Debug)]

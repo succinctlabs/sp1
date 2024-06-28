@@ -25,9 +25,7 @@ use crate::*;
 pub const NUM_ADD_COLS: usize = core::mem::size_of::<AddCols<u8>>();
 
 #[derive(Default)]
-pub struct AddChip<F> {
-    _data: PhantomData<F>,
-}
+pub struct AddChip {}
 
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
@@ -41,13 +39,13 @@ pub struct AddCols<F: Copy> {
     pub is_real: F,
 }
 
-impl<F: Field> BaseAir<F> for AddChip<F> {
+impl<F: Field> BaseAir<F> for AddChip {
     fn width(&self) -> usize {
         NUM_ADD_COLS
     }
 }
 
-impl<F: PrimeField32> MachineAir<F> for AddChip<F> {
+impl<F: PrimeField32> MachineAir<F> for AddChip {
     type Record = ExecutionRecord<F>;
 
     type Program = crate::RecursionProgram<F>;
@@ -101,7 +99,7 @@ impl<F: PrimeField32> MachineAir<F> for AddChip<F> {
     }
 }
 
-impl<AB> Air<AB> for AddChip<AB::F>
+impl<AB> Air<AB> for AddChip
 where
     AB: SP1AirBuilder,
 {

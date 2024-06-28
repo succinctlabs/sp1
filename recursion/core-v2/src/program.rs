@@ -8,6 +8,7 @@ use sp1_core::air::MachineAir;
 use sp1_core::utils::pad_rows_fixed;
 use sp1_recursion_core::air::SP1RecursionAirBuilder;
 use std::collections::HashMap;
+use std::marker::PhantomData;
 use tracing::instrument;
 
 use sp1_derive::AlignedBorrow;
@@ -36,16 +37,25 @@ pub struct ProgramMultiplicityCols<T> {
 }
 
 /// A chip that implements addition for the opcodes ADD and ADDI.
-#[derive(Default)]
-pub struct ProgramChip {}
+pub struct ProgramChip<F> {
+    _data: PhantomData<F>,
+}
 
-impl ProgramChip {
+impl<F> ProgramChip<F> {
     pub const fn new() -> Self {
-        Self {}
+        Self { _data: PhantomData }
     }
 }
 
-impl<F: PrimeField32> MachineAir<F> for ProgramChip {
+impl<F> Default for ProgramChip<F> {
+    fn default() -> Self {
+        Self {
+            _data: Default::default(),
+        }
+    }
+}
+
+impl<F: PrimeField32> MachineAir<F> for ProgramChip<F> {
     type Record = ExecutionRecord<F>;
 
     type Program = crate::RecursionProgram<F>;
@@ -148,13 +158,13 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
     }
 }
 
-impl<F> BaseAir<F> for ProgramChip {
+impl<F: Send + Sync> BaseAir<F> for ProgramChip<F> {
     fn width(&self) -> usize {
         NUM_PROGRAM_MULT_COLS
     }
 }
 
-impl<AB> Air<AB> for ProgramChip
+impl<AB> Air<AB> for ProgramChip<AB::F>
 where
     AB: SP1RecursionAirBuilder + PairBuilder,
 {
