@@ -244,12 +244,7 @@ mod tests {
         type F = BabyBear;
         let embed = F::from_canonical_u32;
 
-        // TODO figure out how to write a program lol
         let program = RecursionProgram::default();
-        // that's a trait, find the builder struct to use
-        // let builder = SP1RecursionAirBuilder::<BabyBear>::new();
-
-        // let program = builder.compile_program();
 
         let machine = RecursionAir::machine(BabyBearPoseidon2::default());
         let (pk, vk) = machine.setup(&program);
@@ -285,6 +280,73 @@ mod tests {
             address_value: x,
             multiplicity: embed(3),
             kind: MemAccessKind::Read,
+        });
+
+        let result = run_test_machine(record, machine, pk, vk);
+        if let Err(e) = result {
+            panic!("Verification failed: {:?}", e);
+        }
+    }
+
+    #[test]
+    pub fn four_ops() {
+        type F = BabyBear;
+        let embed = F::from_canonical_u32;
+
+        let program = RecursionProgram::default();
+
+        let machine = RecursionAir::machine(BabyBearPoseidon2::default());
+        let (pk, vk) = machine.setup(&program);
+
+        let mut record = ExecutionRecord::default();
+
+        let four = AddressValue::new(embed(0), embed(3));
+        record.mem_events.push(MemEvent {
+            address_value: four,
+            multiplicity: embed(4),
+            kind: MemAccessKind::Write,
+        });
+        let three = AddressValue::new(embed(1), embed(4));
+        record.mem_events.push(MemEvent {
+            address_value: three,
+            multiplicity: embed(4),
+            kind: MemAccessKind::Write,
+        });
+
+        let sum = AddressValue::new(embed(1), four.val + three.val);
+        record.alu_events.push(AluEvent {
+            opcode: Opcode::AddF,
+            out: sum,
+            in1: four,
+            in2: three,
+            mult: embed(0),
+        });
+
+        let diff = AddressValue::new(embed(1), four.val - three.val);
+        record.alu_events.push(AluEvent {
+            opcode: Opcode::SubF,
+            out: diff,
+            in1: four,
+            in2: three,
+            mult: embed(0),
+        });
+
+        let prod = AddressValue::new(embed(1), four.val * three.val);
+        record.alu_events.push(AluEvent {
+            opcode: Opcode::MulF,
+            out: prod,
+            in1: four,
+            in2: three,
+            mult: embed(0),
+        });
+
+        let quot = AddressValue::new(embed(1), four.val / three.val);
+        record.alu_events.push(AluEvent {
+            opcode: Opcode::DivF,
+            out: quot,
+            in1: four,
+            in2: three,
+            mult: embed(0),
         });
 
         let result = run_test_machine(record, machine, pk, vk);
