@@ -792,8 +792,8 @@ impl ExecutionRecord {
         new_shard.lt_events = take(&mut self.lt_events);
 
         // TODO: this may be different
-        new_shard.memory_initialize_events = take(&mut self.memory_initialize_events);
-        new_shard.memory_finalize_events = take(&mut self.memory_finalize_events);
+        // new_shard.memory_initialize_events = take(&mut self.memory_initialize_events);
+        // new_shard.memory_finalize_events = take(&mut self.memory_finalize_events);
 
         if self.byte_lookups.contains_key(&new_shard.index) {
             new_shard
