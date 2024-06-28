@@ -292,7 +292,8 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                 output.set_index(record.index());
                 chip.generate_dependencies(record, &mut output);
                 record.append(&mut output);
-            })
+            });
+            record.register_nonces();
         });
 
         tracing::info_span!("prove_shards")
@@ -387,7 +388,8 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                 output.set_index(record.index());
                 chip.generate_dependencies(record, &mut output);
                 record.append(&mut output);
-            })
+            });
+            record.register_nonces();
         });
 
         let mut cumulative_sum = SC::Challenge::zero();
@@ -418,6 +420,14 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                     .par_iter()
                     .zip(traces.par_iter_mut())
                     .map(|(chip, (main_trace, pre_trace))| {
+                        println!("chip: {:?} {}", chip.name(), main_trace.height());
+                        if let Some(preprocessed) = pre_trace {
+                            println!(
+                                "chip: {:?}, preprocessed: {:?}",
+                                chip.name(),
+                                preprocessed.height()
+                            );
+                        }
                         let perm_trace = chip.generate_permutation_trace(
                             *pre_trace,
                             main_trace,
@@ -731,6 +741,7 @@ pub mod tests {
 
     #[test]
     fn test_simple_memory_program_prove() {
+        setup_logger();
         let program = simple_memory_program();
         run_test(program).unwrap();
     }

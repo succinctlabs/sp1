@@ -1097,6 +1097,7 @@ impl<'a> Runtime<'a> {
     fn postprocess(&mut self) {
         // Push the remaining execution record.
         let record = std::mem::take(&mut self.record);
+        self.record.program = record.program.clone();
         self.records.push(record);
 
         // Get the final public values.
@@ -1182,6 +1183,7 @@ impl<'a> Runtime<'a> {
 
         // Push the remaining execution record with memory initialize & finalize events.
         let record = std::mem::take(&mut self.record);
+        self.record.program = record.program.clone();
         self.records.push(record);
 
         // Set the global public values for all shards.
@@ -1194,10 +1196,6 @@ impl<'a> Runtime<'a> {
                 record.public_values.next_pc = record.cpu_events.last().unwrap().next_pc;
                 record.public_values.exit_code = record.cpu_events.last().unwrap().exit_code;
             }
-
-            record.add_events.iter().enumerate().for_each(|(i, event)| {
-                record.nonce_lookup.insert(event.lookup_id, i as u32);
-            });
         }
     }
 

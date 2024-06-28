@@ -40,12 +40,6 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
         input: &ExecutionRecord,
         _: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        if input.cpu_events.len() > 0 {
-            println!(
-                "v2 shard.cpu_events[0].channel: {}",
-                input.cpu_events[0].channel
-            );
-        }
         let mut values = vec![F::zero(); input.cpu_events.len() * NUM_CPU_COLS];
 
         let chunk_size = std::cmp::max(input.cpu_events.len() / num_cpus::get(), 1);
@@ -60,13 +54,6 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
                         let idx = i * chunk_size + j;
                         let cols: &mut CpuCols<F> = row.borrow_mut();
                         self.event_to_row(&input.cpu_events[idx], &input.nonce_lookup, cols);
-                        if i == 0 && j == 0 {
-                            assert_eq!(
-                                cols.channel_selectors.channel_selectors[0],
-                                F::one(),
-                                "failed"
-                            );
-                        }
                     });
             });
 

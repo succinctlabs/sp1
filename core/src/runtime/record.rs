@@ -298,6 +298,151 @@ impl MachineRecord for ExecutionRecord {
             .append(&mut other.memory_finalize_events);
     }
 
+    fn register_nonces(&mut self) {
+        self.add_events.iter().enumerate().for_each(|(i, event)| {
+            self.nonce_lookup.insert(event.lookup_id, i as u32);
+        });
+
+        self.sub_events.iter().enumerate().for_each(|(i, event)| {
+            self.nonce_lookup
+                .insert(event.lookup_id, (self.add_events.len() + i) as u32);
+        });
+
+        self.mul_events.iter().enumerate().for_each(|(i, event)| {
+            self.nonce_lookup.insert(event.lookup_id, i as u32);
+        });
+
+        self.bitwise_events
+            .iter()
+            .enumerate()
+            .for_each(|(i, event)| {
+                self.nonce_lookup.insert(event.lookup_id, i as u32);
+            });
+
+        self.shift_left_events
+            .iter()
+            .enumerate()
+            .for_each(|(i, event)| {
+                self.nonce_lookup.insert(event.lookup_id, i as u32);
+            });
+
+        self.shift_right_events
+            .iter()
+            .enumerate()
+            .for_each(|(i, event)| {
+                self.nonce_lookup.insert(event.lookup_id, i as u32);
+            });
+
+        self.divrem_events
+            .iter()
+            .enumerate()
+            .for_each(|(i, event)| {
+                self.nonce_lookup.insert(event.lookup_id, i as u32);
+            });
+
+        self.lt_events.iter().enumerate().for_each(|(i, event)| {
+            self.nonce_lookup.insert(event.lookup_id, i as u32);
+        });
+
+        self.keccak_permute_events
+            .iter()
+            .enumerate()
+            .for_each(|(i, event)| {
+                self.nonce_lookup.insert(event.lookup_id, i as u32);
+            });
+
+        self.secp256k1_add_events
+            .iter()
+            .enumerate()
+            .for_each(|(i, event)| {
+                self.nonce_lookup.insert(event.lookup_id, i as u32);
+            });
+
+        self.secp256k1_double_events
+            .iter()
+            .enumerate()
+            .for_each(|(i, event)| {
+                self.nonce_lookup.insert(event.lookup_id, i as u32);
+            });
+
+        self.bn254_add_events
+            .iter()
+            .enumerate()
+            .for_each(|(i, event)| {
+                self.nonce_lookup.insert(event.lookup_id, i as u32);
+            });
+
+        self.bn254_double_events
+            .iter()
+            .enumerate()
+            .for_each(|(i, event)| {
+                self.nonce_lookup.insert(event.lookup_id, i as u32);
+            });
+
+        self.bls12381_add_events
+            .iter()
+            .enumerate()
+            .for_each(|(i, event)| {
+                self.nonce_lookup.insert(event.lookup_id, i as u32);
+            });
+
+        self.bls12381_double_events
+            .iter()
+            .enumerate()
+            .for_each(|(i, event)| {
+                self.nonce_lookup.insert(event.lookup_id, i as u32);
+            });
+
+        self.sha_extend_events
+            .iter()
+            .enumerate()
+            .for_each(|(i, event)| {
+                self.nonce_lookup.insert(event.lookup_id, (i * 48) as u32);
+            });
+
+        self.sha_compress_events
+            .iter()
+            .enumerate()
+            .for_each(|(i, event)| {
+                self.nonce_lookup.insert(event.lookup_id, (i * 80) as u32);
+            });
+
+        self.ed_add_events
+            .iter()
+            .enumerate()
+            .for_each(|(i, event)| {
+                self.nonce_lookup.insert(event.lookup_id, i as u32);
+            });
+
+        self.ed_decompress_events
+            .iter()
+            .enumerate()
+            .for_each(|(i, event)| {
+                self.nonce_lookup.insert(event.lookup_id, i as u32);
+            });
+
+        self.k256_decompress_events
+            .iter()
+            .enumerate()
+            .for_each(|(i, event)| {
+                self.nonce_lookup.insert(event.lookup_id, i as u32);
+            });
+
+        self.uint256_mul_events
+            .iter()
+            .enumerate()
+            .for_each(|(i, event)| {
+                self.nonce_lookup.insert(event.lookup_id, i as u32);
+            });
+
+        self.bls12381_decompress_events
+            .iter()
+            .enumerate()
+            .for_each(|(i, event)| {
+                self.nonce_lookup.insert(event.lookup_id, i as u32);
+            });
+    }
+
     fn shard(mut self, config: &ShardingConfig) -> Vec<Self> {
         // Get the number of CPU events.
         let num_cpu_events = self.cpu_events.len();

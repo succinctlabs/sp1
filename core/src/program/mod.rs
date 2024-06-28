@@ -62,6 +62,7 @@ impl<F: PrimeField> MachineAir<F> for ProgramChip {
     }
 
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
+        println!("program.instructions.len(): {}", program.instructions.len());
         let rows = program
             .instructions
             .clone()
@@ -112,6 +113,11 @@ impl<F: PrimeField> MachineAir<F> for ProgramChip {
                 .and_modify(|count| *count += 1)
                 .or_insert(1);
         });
+
+        println!(
+            "input.program.instructions.len(): {}",
+            input.program.instructions.len()
+        );
 
         let rows = input
             .program
