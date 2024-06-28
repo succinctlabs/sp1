@@ -202,7 +202,8 @@ where
         reset_seek(&mut *checkpoint_file);
 
         // Shard the record into shards.
-        let checkpoint_shards = tracing::info_span!("shard").in_scope(|| machine.shard(records));
+        tracing::info_span!("shard").in_scope(|| machine.generate_dependencies(&mut records));
+        let checkpoint_shards = records;
 
         // Commit to each shard.
         let (commitments, commit_data) = tracing::info_span!("commit")
@@ -235,7 +236,8 @@ where
             });
             report_aggregate += report;
             reset_seek(&mut checkpoint_file);
-            tracing::debug_span!("shard").in_scope(|| machine.shard(events))
+            tracing::debug_span!("shard").in_scope(|| machine.generate_dependencies(&mut events));
+            events
         };
         let mut checkpoint_proofs = checkpoint_shards
             .into_iter()

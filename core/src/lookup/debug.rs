@@ -224,7 +224,9 @@ mod test {
         let (pk, _) = machine.setup(&program);
         let mut runtime = Runtime::new(program, SP1CoreOpts::default());
         runtime.run().unwrap();
-        let shards = machine.shard(runtime.records);
+        machine.generate_dependencies(&mut runtime.records);
+
+        let shards = runtime.records;
         let ok =
             debug_interactions_with_all_chips(&machine, &pk, &shards, InteractionKind::all_kinds());
         assert!(ok);

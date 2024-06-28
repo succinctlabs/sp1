@@ -378,7 +378,9 @@ mod tests {
         let machine: crate::stark::StarkMachine<BabyBearPoseidon2, RiscvAir<BabyBear>> =
             RiscvAir::machine(BabyBearPoseidon2::new());
         let (pkey, _) = machine.setup(&program_clone);
-        let shards = machine.shard(runtime.records);
+        machine.generate_dependencies(&mut runtime.records);
+
+        let shards = runtime.records;
         assert_eq!(shards.len(), 2);
         debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
             &machine,
@@ -397,7 +399,9 @@ mod tests {
         runtime.run().unwrap();
         let machine = RiscvAir::machine(BabyBearPoseidon2::new());
         let (pkey, _) = machine.setup(&program_clone);
-        let shards = machine.shard(runtime.records);
+        machine.generate_dependencies(&mut runtime.records);
+
+        let shards = runtime.records;
         assert_eq!(shards.len(), 2);
         debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
             &machine,

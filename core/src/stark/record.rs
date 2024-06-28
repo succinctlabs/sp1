@@ -15,7 +15,5 @@ pub trait MachineRecord: Default + Sized + Send + Sync + Clone {
 
     fn register_nonces(&mut self) {}
 
-    fn shard(self, config: &Self::Config) -> Vec<Self>;
-
     fn public_values<F: AbstractField>(&self) -> Vec<F>;
 }

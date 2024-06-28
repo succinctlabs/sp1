@@ -239,10 +239,8 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         )
     }
 
-    pub fn shard(&self, mut records: Vec<A::Record>) -> Vec<A::Record> {
-        // Get the local and global chips.
+    pub fn generate_dependencies(&self, records: &mut [A::Record]) {
         let chips = self.chips();
-
         records.iter_mut().for_each(|record| {
             chips.iter().for_each(|chip| {
                 let mut output = A::Record::default();
@@ -252,8 +250,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             });
             record.register_nonces();
         });
-
-        records
     }
 
     /// Prove the execution record is valid.
