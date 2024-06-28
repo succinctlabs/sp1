@@ -226,7 +226,7 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
 
 impl Syscall for Uint256MulChip {
     fn num_extra_cycles(&self) -> u32 {
-        0
+        1
     }
 
     fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
