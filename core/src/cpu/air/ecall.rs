@@ -168,15 +168,24 @@ impl CpuChip {
         let expected_pv_digest_word =
             builder.index_word_array(&commit_digest, &ecall_columns.index_bitmap);
 
-        let digest_word = local.op_c_access.prev_value();
+        let digest_word = local.op_c_val();
 
         // Verify the public_values_digest_word.
         builder
             .when(local.selectors.is_ecall * is_commit)
-            .assert_word_eq(expected_pv_digest_word, *digest_word);
+            .assert_word_eq(expected_pv_digest_word, digest_word);
 
         let expected_deferred_proofs_digest_word =
             builder.index_array(&deferred_proofs_digest, &ecall_columns.index_bitmap);
+
+        // BabyBear range check op_c val, which is equal to digest_word.
+        let ecall_cols = local.opcode_specific_columns.ecall();
+        BabyBearWordRangeChecker::<AB::F>::range_check(
+            builder,
+            local.op_c_val(),
+            ecall_cols.op_c_range_checker,
+            local.selectors.is_ecall * is_commit_deferred_proofs.clone(),
+        );
 
         builder
             .when(local.selectors.is_ecall * is_commit_deferred_proofs)
@@ -204,8 +213,17 @@ impl CpuChip {
 
         builder.when(is_halt.clone()).assert_zero(local.next_pc);
 
+        // BabyBear range check op_b_val.
+        let ecall_cols = local.opcode_specific_columns.ecall();
+        BabyBearWordRangeChecker::<AB::F>::range_check(
+            builder,
+            local.op_b_val(),
+            ecall_cols.op_b_range_checker,
+            is_halt.clone(),
+        );
+
         builder.when(is_halt.clone()).assert_eq(
-            local.op_b_access.value().reduce::<AB>(),
+            local.op_b_val().reduce::<AB>(),
             public_values.exit_code.clone(),
         );
     }
