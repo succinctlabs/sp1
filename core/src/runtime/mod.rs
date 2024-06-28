@@ -1009,11 +1009,11 @@ impl<'a> Runtime<'a> {
     }
 
     /// Execute up to `self.shard_batch_size` cycles, returning the events emitted and whether the program ended.
-    pub fn execute_record(&mut self) -> Result<(ExecutionRecord, bool), ExecutionError> {
+    pub fn execute_record(&mut self) -> Result<(Vec<ExecutionRecord>, bool), ExecutionError> {
         self.emit_events = true;
         self.print_report = true;
         let done = self.execute()?;
-        Ok((std::mem::take(&mut self.record), done))
+        Ok((std::mem::take(&mut self.records), done))
     }
 
     /// Execute up to `self.shard_batch_size` cycles, returning a copy of the prestate and whether the program ended.
@@ -1087,14 +1087,6 @@ impl<'a> Runtime<'a> {
             }
         }
 
-        if done {
-            self.postprocess();
-        }
-
-        Ok(done)
-    }
-
-    fn postprocess(&mut self) {
         // Get the final public values.
         let public_values = self.record.public_values;
 
@@ -1103,6 +1095,31 @@ impl<'a> Runtime<'a> {
         self.record.program = record.program.clone();
         self.records.push(record);
 
+        if done {
+            self.postprocess();
+
+            // Push the remaining execution record with memory initialize & finalize events.
+            let record = std::mem::take(&mut self.record);
+            self.record.program = record.program.clone();
+            self.records.push(record);
+        }
+
+        // Set the global public values for all shards.
+        for (i, record) in self.records.iter_mut().enumerate() {
+            record.public_values.committed_value_digest = public_values.committed_value_digest;
+            record.public_values.deferred_proofs_digest = public_values.deferred_proofs_digest;
+            record.public_values.shard = (i + 1) as u32;
+            if !record.cpu_events.is_empty() {
+                record.public_values.start_pc = record.cpu_events[0].pc;
+                record.public_values.next_pc = record.cpu_events.last().unwrap().next_pc;
+                record.public_values.exit_code = record.cpu_events.last().unwrap().exit_code;
+            }
+        }
+
+        Ok(done)
+    }
+
+    fn postprocess(&mut self) {
         // Flush remaining stdout/stderr
         for (fd, buf) in self.io_buf.iter() {
             if !buf.is_empty() {
@@ -1179,23 +1196,6 @@ impl<'a> Runtime<'a> {
             memory_finalize_events.push(MemoryInitializeFinalizeEvent::finalize_from_record(
                 *addr, &record,
             ));
-        }
-
-        // Push the remaining execution record with memory initialize & finalize events.
-        let record = std::mem::take(&mut self.record);
-        self.record.program = record.program.clone();
-        self.records.push(record);
-
-        // Set the global public values for all shards.
-        for (i, record) in self.records.iter_mut().enumerate() {
-            record.public_values.committed_value_digest = public_values.committed_value_digest;
-            record.public_values.deferred_proofs_digest = public_values.deferred_proofs_digest;
-            record.public_values.shard = (i + 1) as u32;
-            if !record.cpu_events.is_empty() {
-                record.public_values.start_pc = record.cpu_events[0].pc;
-                record.public_values.next_pc = record.cpu_events.last().unwrap().next_pc;
-                record.public_values.exit_code = record.cpu_events.last().unwrap().exit_code;
-            }
         }
     }
 

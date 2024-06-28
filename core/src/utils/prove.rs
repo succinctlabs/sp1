@@ -16,7 +16,7 @@ use crate::air::MachineAir;
 use crate::io::{SP1PublicValues, SP1Stdin};
 use crate::lookup::InteractionBuilder;
 use crate::runtime::{ExecutionError, NoOpSubproofVerifier, SP1Context};
-use crate::runtime::{ExecutionRecord, ExecutionReport, ShardingConfig};
+use crate::runtime::{ExecutionRecord, ExecutionReport};
 use crate::stark::DebugConstraintBuilder;
 use crate::stark::MachineProof;
 use crate::stark::ProverConstraintFolder;
@@ -135,11 +135,11 @@ where
         runtime.run().map_err(SP1CoreProverError::ExecutionError)?;
 
         // If debugging is enabled, we will also debug the constraints.
-        // #[cfg(debug_assertions)]
-        // {
-        //     let mut challenger = machine.config().challenger();
-        //     machine.debug_constraints(&pk, runtime.record.clone(), &mut challenger);
-        // }
+        #[cfg(debug_assertions)]
+        {
+            let mut challenger = machine.config().challenger();
+            machine.debug_constraints(&pk, runtime.records.clone(), &mut challenger);
+        }
 
         // Generate the proof and return the proof and public values.
         let public_values = std::mem::take(&mut runtime.state.public_values_stream);
@@ -186,14 +186,15 @@ where
     let mut challenger = machine.config().challenger();
     vk.observe_into(&mut challenger);
     for (num, checkpoint_file) in checkpoints.iter_mut().enumerate() {
-        let (mut record, _) = tracing::info_span!("commit_checkpoint", num)
+        let (mut records, _) = tracing::info_span!("commit_checkpoint", num)
             .in_scope(|| trace_checkpoint(program.clone(), checkpoint_file, opts));
-        record.public_values = public_values;
+        records.iter_mut().for_each(|record| {
+            record.public_values = public_values;
+        });
         reset_seek(&mut *checkpoint_file);
 
         // Shard the record into shards.
-        let checkpoint_shards =
-            tracing::info_span!("shard").in_scope(|| machine.shard(vec![record]));
+        let checkpoint_shards = tracing::info_span!("shard").in_scope(|| machine.shard(records));
 
         // Commit to each shard.
         let (commitments, commit_data) = tracing::info_span!("commit")
@@ -215,9 +216,11 @@ where
             let (mut events, report) = tracing::info_span!("prove_checkpoint", num)
                 .in_scope(|| trace_checkpoint(program.clone(), &checkpoint_file, opts));
             report_aggregate += report;
-            events.public_values = public_values;
+            events.iter_mut().for_each(|record| {
+                record.public_values = public_values;
+            });
             reset_seek(&mut checkpoint_file);
-            tracing::debug_span!("shard").in_scope(|| machine.shard(vec![events]))
+            tracing::debug_span!("shard").in_scope(|| machine.shard(events))
         };
         let mut checkpoint_proofs = checkpoint_shards
             .into_iter()
@@ -374,7 +377,7 @@ fn trace_checkpoint(
     program: Program,
     file: &File,
     opts: SP1CoreOpts,
-) -> (ExecutionRecord, ExecutionReport) {
+) -> (Vec<ExecutionRecord>, ExecutionReport) {
     let mut reader = std::io::BufReader::new(file);
     let state = bincode::deserialize_from(&mut reader).expect("failed to deserialize state");
     let mut runtime = Runtime::recover(program.clone(), state, opts);
