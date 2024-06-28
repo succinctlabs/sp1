@@ -10,7 +10,6 @@ use sp1_recursion_compiler::prelude::*;
 use sp1_recursion_core::stark::config::OuterChallengeMmcs;
 
 use crate::challenger::access_index_with_var_e;
-use crate::challenger::access_index_with_var_v;
 use crate::mmcs::verify_batch;
 use crate::types::FriChallenges;
 use crate::types::FriProofVariable;

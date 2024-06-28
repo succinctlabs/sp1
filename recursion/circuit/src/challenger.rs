@@ -147,25 +147,6 @@ pub fn split_32<C: Config>(builder: &mut Builder<C>, val: Var<C::N>, n: usize) -
 }
 
 /// A function to access a Vec of Exts at a index, represented by a Var.
-pub fn access_index_with_var_v<C: Config>(
-    builder: &mut Builder<C>,
-    vec: &[Var<C::N>],
-    index: Var<C::N>,
-    num_bits: usize,
-) -> Var<C::N> {
-    let index_bits = builder.num2bits_v_circuit(index, num_bits);
-    assert!(index_bits.len() == num_bits);
-
-    let mut result = vec.to_vec();
-    for (_, &bit) in index_bits.iter().enumerate() {
-        result = (0..result.len() / 2)
-            .map(|i| builder.select_v(bit, result[2 * i + 1], result[2 * i]))
-            .collect();
-    }
-    result[0]
-}
-
-/// A function to access a Vec of Exts at a index, represented by a Var.
 pub fn access_index_with_var_e<C: Config>(
     builder: &mut Builder<C>,
     vec: &[Ext<C::F, C::EF>],
@@ -176,7 +157,7 @@ pub fn access_index_with_var_e<C: Config>(
     assert!(index_bits.len() == num_bits);
 
     let mut result = vec.to_vec();
-    for (_, &bit) in index_bits.iter().enumerate() {
+    for &bit in index_bits.iter() {
         result = (0..result.len() / 2)
             .map(|i| builder.select_ef(bit, result[2 * i + 1], result[2 * i]))
             .collect();
@@ -218,31 +199,6 @@ mod tests {
             builder.assert_var_eq(result[i], Bn254Fr::from_canonical_u32(value_u32 & 1));
             value_u32 >>= 1;
         }
-
-        let mut backend = ConstraintCompiler::<OuterConfig>::default();
-        let constraints = backend.emit(builder.operations);
-        PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
-    }
-
-    #[test]
-    fn test_access_index_with_var_v() {
-        let mut builder = Builder::<OuterConfig>::default();
-        let mut rng = thread_rng();
-
-        // Get a random array.
-        let vec_vals: Vec<<OuterConfig as sp1_recursion_compiler::ir::Config>::N> =
-            (0..16).map(|_| rng.gen()).collect();
-
-        println!("Target: {:?}", vec_vals[10]);
-
-        // Materialize the vec as a vec of Vars.
-        let vec: Vec<Var<_>> = vec_vals.into_iter().map(|x| builder.eval(x)).collect();
-
-        let index: Var<_> = builder.eval(Bn254Fr::from_canonical_u32(10));
-
-        let final_poly_val = super::access_index_with_var_v(&mut builder, &vec, index, 4);
-
-        builder.assert_var_eq(final_poly_val, vec[10]);
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
