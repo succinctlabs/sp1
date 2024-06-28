@@ -1,9 +1,8 @@
-use std::collections::HashMap;
-
 use p3_field::PrimeField32;
 use sp1_core::{air::PublicValues, stark::MachineRecord};
 
 pub mod add;
+pub mod alu;
 // pub mod builder;
 pub mod machine;
 pub mod mem;
@@ -19,9 +18,9 @@ pub mod program;
 #[derive(Clone, Debug)]
 pub struct AluEvent<F> {
     pub opcode: Opcode,
-    pub a: AddressValue<F>,
-    pub b: AddressValue<F>,
-    pub c: AddressValue<F>,
+    pub out: AddressValue<F>,
+    pub in1: AddressValue<F>,
+    pub in2: AddressValue<F>,
     pub mult: F, // number of times we need this value in the future
 }
 
@@ -45,7 +44,7 @@ pub struct AddressValue<F> {
 }
 
 impl<F> AddressValue<F> {
-    fn new(addr: F, val: F) -> Self {
+    pub fn new(addr: F, val: F) -> Self {
         Self { addr, val }
     }
 }
@@ -54,6 +53,14 @@ impl<F> AddressValue<F> {
 pub enum Opcode {
     Add,
     Mul,
+    AddF,
+    SubF,
+    MulF,
+    DivF,
+    AddE,
+    SubE,
+    MulE,
+    DivE,
 }
 
 #[derive(Clone, Default, Debug)]
@@ -61,6 +68,7 @@ pub struct ExecutionRecord<F> {
     /// The index of the shard.
     pub index: u32,
 
+    pub alu_events: Vec<AluEvent<F>>,
     pub add_events: Vec<AluEvent<F>>,
     pub mul_events: Vec<AluEvent<F>>,
     pub mem_events: Vec<MemEvent<F>>,

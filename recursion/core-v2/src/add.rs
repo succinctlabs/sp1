@@ -24,6 +24,26 @@ use crate::*;
 
 pub const NUM_ADD_COLS: usize = core::mem::size_of::<AddCols<u8>>();
 
+// 14 columns
+// pub struct FieldALU<F> {
+//     pub in1:
+// }
+
+// 26 columns
+// pub struct ExtensionFieldALU {
+//     pub in1: AddressValue<F>,
+//     pub in2: AddressValue<F>,
+//     pub sum: Extension<F>,
+//     pub diff: Extension<F>,
+//     pub product: Extension<F>,
+//     pub quotient: Extension<F>,
+//     pub out: AddressValue<F>,
+//     pub is_add: Bool<F>,
+//     pub is_diff: Bool<F>,
+//     pub is_mul: Bool<F>,
+//     pub is_div: Bool<F>,
+// }
+
 #[derive(Default)]
 pub struct AddChip {}
 
@@ -69,7 +89,13 @@ impl<F: PrimeField32> MachineAir<F> for AddChip {
 
                 assert_eq!(event.opcode, Opcode::Add);
 
-                let AluEvent { a, b, c, mult, .. } = event;
+                let AluEvent {
+                    out: a,
+                    in1: b,
+                    in2: c,
+                    mult,
+                    ..
+                } = event;
 
                 let cols: &mut AddCols<_> = row.as_mut_slice().borrow_mut();
                 *cols = AddCols {
@@ -173,9 +199,9 @@ mod tests {
 
         let shard = ExecutionRecord::<F> {
             add_events: vec![AluEvent {
-                a: AddressValue::new(F::zero(), F::one()),
-                b: AddressValue::new(F::zero(), F::one()),
-                c: AddressValue::new(F::zero(), F::one()),
+                out: AddressValue::new(F::zero(), F::one()),
+                in1: AddressValue::new(F::zero(), F::one()),
+                in2: AddressValue::new(F::zero(), F::one()),
                 mult: F::zero(),
                 opcode: Opcode::Add,
             }],
@@ -207,9 +233,9 @@ mod tests {
         for (x, y) in test_xs.into_iter().cartesian_product(test_ys) {
             let sum = x.val + y.val;
             input_exec.add_events.push(AluEvent {
-                a: AddressValue::new(sum + embed(3000), sum),
-                b: x,
-                c: y,
+                out: AddressValue::new(sum + embed(3000), sum),
+                in1: x,
+                in2: y,
                 mult: embed(0),
                 opcode: Opcode::Add,
             });

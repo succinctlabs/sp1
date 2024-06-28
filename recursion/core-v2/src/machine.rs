@@ -3,7 +3,7 @@ use p3_field::{extension::BinomiallyExtendable, PrimeField32};
 use sp1_core::stark::{Chip, StarkGenericConfig, StarkMachine, PROOF_MAX_NUM_PVS};
 use sp1_derive::MachineAir;
 
-use crate::{add::AddChip, mem::MemoryChip, mul::MulChip, program::ProgramChip};
+use crate::{add::AddChip, alu::FieldAluChip, mem::MemoryChip, mul::MulChip, program::ProgramChip};
 
 use std::marker::PhantomData;
 
@@ -18,6 +18,7 @@ pub enum RecursionAir<F: PrimeField32> {
     Memory(MemoryChip),
     Add(AddChip),
     Mul(MulChip),
+    FieldAlu(FieldAluChip),
     // Cpu(CpuChip<F, DEGREE>),
     // MemoryGlobal(MemoryGlobalChip),
     // Poseidon2Wide(Poseidon2WideChip<DEGREE>),
@@ -61,6 +62,7 @@ impl<F: PrimeField32> RecursionAir<F> {
             RecursionAir::Memory(MemoryChip::default()),
             RecursionAir::Add(AddChip::default()),
             RecursionAir::Mul(MulChip::default()),
+            RecursionAir::FieldAlu(FieldAluChip::default()),
         ]
     }
 
@@ -139,9 +141,9 @@ mod tests {
         let record = ExecutionRecord {
             add_events: vec![
                 AluEvent {
-                    a: AddressValue::new(embed(100), embed(2)),
-                    b: AddressValue::new(embed(101), embed(1)),
-                    c: AddressValue::new(embed(101), embed(1)),
+                    out: AddressValue::new(embed(100), embed(2)),
+                    in1: AddressValue::new(embed(101), embed(1)),
+                    in2: AddressValue::new(embed(101), embed(1)),
                     mult: embed(1),
                     opcode: Opcode::Add,
                 },
@@ -211,16 +213,70 @@ mod tests {
             let sum = AddressValue::new(x.addr + embed(2), prod.val + x.val);
             record.mul_events.push(AluEvent {
                 opcode: Opcode::Mul,
-                a: prod,
-                b: x,
-                c: x,
+                out: prod,
+                in1: x,
+                in2: x,
                 mult: embed(1),
             });
             record.add_events.push(AluEvent {
                 opcode: Opcode::Add,
-                a: sum,
-                b: prod,
-                c: x,
+                out: sum,
+                in1: prod,
+                in2: x,
+                mult: embed(3),
+            });
+            x = sum;
+        }
+        record.mem_events.push(MemEvent {
+            address_value: x,
+            multiplicity: embed(3),
+            kind: MemAccessKind::Read,
+        });
+
+        let result = run_test_machine(record, machine, pk, vk);
+        if let Err(e) = result {
+            panic!("Verification failed: {:?}", e);
+        }
+    }
+
+    #[test]
+    pub fn iterate_alu() {
+        type F = BabyBear;
+        let embed = F::from_canonical_u32;
+
+        // TODO figure out how to write a program lol
+        let program = RecursionProgram::default();
+        // that's a trait, find the builder struct to use
+        // let builder = SP1RecursionAirBuilder::<BabyBear>::new();
+
+        // let program = builder.compile_program();
+
+        let machine = RecursionAir::machine(BabyBearPoseidon2::default());
+        let (pk, vk) = machine.setup(&program);
+
+        let mut record = ExecutionRecord::default();
+
+        let mut x = AddressValue::new(F::zero(), F::one());
+        record.mem_events.push(MemEvent {
+            address_value: x,
+            multiplicity: embed(3),
+            kind: MemAccessKind::Write,
+        });
+        for _ in 0..100 {
+            let prod = AddressValue::new(x.addr + embed(1), x.val * x.val);
+            let sum = AddressValue::new(x.addr + embed(2), prod.val + x.val);
+            record.alu_events.push(AluEvent {
+                opcode: Opcode::MulF,
+                out: prod,
+                in1: x,
+                in2: x,
+                mult: embed(1),
+            });
+            record.alu_events.push(AluEvent {
+                opcode: Opcode::AddF,
+                out: sum,
+                in1: prod,
+                in2: x,
                 mult: embed(3),
             });
             x = sum;

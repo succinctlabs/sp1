@@ -69,7 +69,13 @@ impl<F: PrimeField32> MachineAir<F> for MulChip {
 
                 assert_eq!(event.opcode, Opcode::Mul);
 
-                let AluEvent { a, b, c, mult, .. } = event;
+                let AluEvent {
+                    out: a,
+                    in1: b,
+                    in2: c,
+                    mult,
+                    ..
+                } = event;
 
                 let cols: &mut MulCols<_> = row.as_mut_slice().borrow_mut();
                 *cols = MulCols {
@@ -173,9 +179,9 @@ mod tests {
 
         let shard = ExecutionRecord::<F> {
             mul_events: vec![AluEvent {
-                a: AddressValue::new(F::zero(), F::one()),
-                b: AddressValue::new(F::zero(), F::one()),
-                c: AddressValue::new(F::zero(), F::one()),
+                out: AddressValue::new(F::zero(), F::one()),
+                in1: AddressValue::new(F::zero(), F::one()),
+                in2: AddressValue::new(F::zero(), F::one()),
                 mult: F::zero(),
                 opcode: Opcode::Mul,
             }],
@@ -207,9 +213,9 @@ mod tests {
         for (x, y) in test_xs.into_iter().cartesian_product(test_ys) {
             let prod = x.val * y.val;
             input_exec.mul_events.push(AluEvent {
-                a: AddressValue::new(prod + embed(3000), prod),
-                b: x,
-                c: y,
+                out: AddressValue::new(prod + embed(3000), prod),
+                in1: x,
+                in2: y,
                 mult: embed(0),
                 opcode: Opcode::Mul,
             });
