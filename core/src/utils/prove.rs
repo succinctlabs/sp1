@@ -147,6 +147,8 @@ where
         return Ok((proof, public_values));
     }
 
+    let mut miscellaneous = ExecutionRecord::default();
+
     // Execute the program, saving checkpoints at the start of every `shard_batch_size` cycle range.
     let mut checkpoints = Vec::new();
     let (public_values_stream, public_values) = loop {
