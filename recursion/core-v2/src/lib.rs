@@ -7,7 +7,7 @@ pub mod add;
 // pub mod builder;
 pub mod machine;
 pub mod mem;
-pub mod mul;
+// pub mod mul;
 pub mod program;
 
 // #[derive(Clone, Debug)]
@@ -19,9 +19,10 @@ pub mod program;
 #[derive(Clone, Debug)]
 pub struct AluEvent<F> {
     pub opcode: Opcode,
-    pub a: F,
-    pub b: F,
-    pub c: F,
+    pub a: AddressValue<F>,
+    pub b: AddressValue<F>,
+    pub c: AddressValue<F>,
+    pub mult: F, // number of times we need this value in the future
 }
 
 #[derive(Clone, Debug)]

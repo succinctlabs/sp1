@@ -10,6 +10,7 @@ use sp1_core::air::AirInteraction;
 use sp1_core::air::MachineAir;
 use sp1_core::air::MessageBuilder;
 use sp1_core::air::SP1AirBuilder;
+use sp1_core::lookup::InteractionKind;
 use std::marker::PhantomData;
 // use sp1_core::runtime::ExecutionRecord;
 use sp1_core::runtime::Program;
@@ -30,11 +31,14 @@ pub struct AddChip<F> {
 
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct AddCols<T: Copy> {
-    pub a: T,
-    pub b: T,
-    pub c: T,
-    pub is_real: T,
+pub struct AddCols<F: Copy> {
+    pub a: AddressValue<F>,
+    pub b: AddressValue<F>,
+    pub c: AddressValue<F>,
+    // Consider just duplicating the event instead of having this column?
+    // Alternatively, a table explicitly for copying/discarding a value
+    pub mult: F,
+    pub is_real: F,
 }
 
 impl<F: Field> BaseAir<F> for AddChip<F> {
@@ -67,13 +71,14 @@ impl<F: PrimeField32> MachineAir<F> for AddChip<F> {
 
                 assert_eq!(event.opcode, Opcode::Add);
 
-                let AluEvent { a, b, c, .. } = event;
+                let AluEvent { a, b, c, mult, .. } = event;
 
                 let cols: &mut AddCols<_> = row.as_mut_slice().borrow_mut();
                 *cols = AddCols {
                     a,
                     b,
                     c,
+                    mult,
                     is_real: F::one(),
                 };
 
@@ -101,17 +106,35 @@ where
     AB: SP1AirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
+        let encode = |av: AddressValue<AB::Var>| vec![av.addr.into(), av.val.into()];
+
         let main = builder.main();
         let local = main.row_slice(0);
         let local: &AddCols<AB::Var> = (*local).borrow();
-        // builder.when(local.is_real).receive(AirInteraction::new(AddressValue(), multiplicity, kind));
         builder
             .when(local.is_real)
-            .assert_eq(local.a, local.b + local.c);
+            .assert_eq(local.a.val, local.b.val + local.c.val);
 
-        // builder.send(AirInteraction::new(
+        // local.is_real is 0 or 1
+        // builder.assert_zero(local.is_real * (AB::Expr::one() - local.is_real));
 
-        // ))
+        builder.send(AirInteraction::new(
+            encode(local.a),
+            local.mult.into(),
+            InteractionKind::Memory,
+        ));
+
+        builder.receive(AirInteraction::new(
+            encode(local.b),
+            local.is_real.into(), // is_real should be 0 or 1
+            InteractionKind::Memory,
+        ));
+
+        builder.receive(AirInteraction::new(
+            encode(local.c),
+            local.is_real.into(),
+            InteractionKind::Memory,
+        ));
     }
 }
 
@@ -148,18 +171,20 @@ mod tests {
 
     #[test]
     fn generate_trace() {
-        let shard = ExecutionRecord::<BabyBear> {
+        type F = BabyBear;
+
+        let shard = ExecutionRecord::<F> {
             add_events: vec![AluEvent {
+                a: AddressValue::new(F::zero(), F::one()),
+                b: AddressValue::new(F::zero(), F::one()),
+                c: AddressValue::new(F::zero(), F::one()),
+                mult: F::zero(),
                 opcode: Opcode::Add,
-                a: BabyBear::one(),
-                b: BabyBear::one(),
-                c: BabyBear::two(),
             }],
             ..Default::default()
         };
         let chip = AddChip::default();
-        let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&shard, &mut ExecutionRecord::default());
+        let trace: RowMajorMatrix<F> = chip.generate_trace(&shard, &mut ExecutionRecord::default());
         println!("{:?}", trace.values)
     }
 
@@ -170,17 +195,25 @@ mod tests {
 
         let chip = AddChip::default();
 
-        let test_xs = (1..8).map(BabyBear::from_canonical_u32).collect_vec();
+        let embed = BabyBear::from_canonical_u32;
 
-        let test_ys = (1..8).map(BabyBear::from_canonical_u32).collect_vec();
+        let test_xs = (1..8)
+            .map(|x| AddressValue::new(embed(x + 1000), embed(x)))
+            .collect_vec();
+
+        let test_ys = (1..8)
+            .map(|x| AddressValue::new(embed(x + 2000), embed(x)))
+            .collect_vec();
 
         let mut input_exec = ExecutionRecord::<BabyBear>::default();
         for (x, y) in test_xs.into_iter().cartesian_product(test_ys) {
+            let sum = x.val + y.val;
             input_exec.add_events.push(AluEvent {
-                opcode: Opcode::Add,
-                a: x + y,
+                a: AddressValue::new(sum + embed(3000), sum),
                 b: x,
                 c: y,
+                mult: embed(0),
+                opcode: Opcode::Add,
             });
         }
         println!("input exec: {:?}", input_exec.add_events.len());

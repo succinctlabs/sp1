@@ -3,7 +3,7 @@ use p3_field::{extension::BinomiallyExtendable, PrimeField32};
 use sp1_core::stark::{Chip, StarkGenericConfig, StarkMachine, PROOF_MAX_NUM_PVS};
 use sp1_derive::MachineAir;
 
-use crate::{add::AddChip, mem::MemoryChip, mul::MulChip, program::ProgramChip};
+use crate::{add::AddChip, mem::MemoryChip, program::ProgramChip};
 
 use std::marker::PhantomData;
 
@@ -17,7 +17,7 @@ pub enum RecursionAir<F: PrimeField32> {
     Program(ProgramChip),
     Memory(MemoryChip),
     Add(AddChip<F>),
-    Mul(MulChip),
+    // Mul(MulChip),
     // Cpu(CpuChip<F, DEGREE>),
     // MemoryGlobal(MemoryGlobalChip),
     // Poseidon2Wide(Poseidon2WideChip<DEGREE>),
@@ -60,7 +60,7 @@ impl<F: PrimeField32> RecursionAir<F> {
             RecursionAir::Program(ProgramChip::default()),
             RecursionAir::Memory(MemoryChip::default()),
             RecursionAir::Add(AddChip::default()),
-            RecursionAir::Mul(MulChip::default()),
+            // RecursionAir::Mul(MulChip::default()),
         ]
     }
 
@@ -136,18 +136,21 @@ mod tests {
         let machine = RecursionAir::machine(BabyBearPoseidon2::default());
         let (pk, vk) = machine.setup(&program);
         let record = ExecutionRecord {
-            add_events: vec![AluEvent {
-                opcode: Opcode::Add,
-                a: F::two(),
-                b: F::one(),
-                c: F::one(),
-            }],
-            // add_events: vec![],
+            add_events: vec![
+                AluEvent {
+                    a: AddressValue::new(embed(100), embed(2)),
+                    b: AddressValue::new(embed(101), embed(1)),
+                    c: AddressValue::new(embed(101), embed(1)),
+                    mult: embed(1),
+                    opcode: Opcode::Add,
+                },
+                //
+            ],
             mul_events: vec![],
             mem_events: vec![
                 MemEvent {
                     address_value: AddressValue::new(embed(1), embed(2)),
-                    multiplicity: F::one(), // SHOULD FAIL
+                    multiplicity: F::two(),
                     kind: MemAccessKind::Write,
                 },
                 MemEvent {
@@ -157,6 +160,16 @@ mod tests {
                 },
                 MemEvent {
                     address_value: AddressValue::new(embed(1), embed(2)),
+                    multiplicity: F::one(),
+                    kind: MemAccessKind::Read,
+                },
+                MemEvent {
+                    address_value: AddressValue::new(embed(101), embed(1)),
+                    multiplicity: F::two(),
+                    kind: MemAccessKind::Write,
+                },
+                MemEvent {
+                    address_value: AddressValue::new(embed(100), embed(2)),
                     multiplicity: F::one(),
                     kind: MemAccessKind::Read,
                 },
