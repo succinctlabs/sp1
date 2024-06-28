@@ -253,23 +253,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             record.register_nonces();
         });
 
-        // Generate the trace for each chip to collect events emitted from chips with dependencies.
-        // tracing::debug_span!("collect record events from chips").in_scope(|| {
-        //     chips.iter().for_each(|chip| {
-        //         let mut output = A::Record::default();
-        //         output.set_index(record.index());
-        //         chip.generate_dependencies(&record, &mut output);
-        //         record.append(&mut output);
-        //     })
-        // });
-
-        // // Display some statistics about the workload.
-        // let stats = record.stats();
-        // log::debug!("shard: {:?}", stats);
-
-        // // For each chip, shard the events into segments.
-        // record.shard(config)
-
         records
     }
 
