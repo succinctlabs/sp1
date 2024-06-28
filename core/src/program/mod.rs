@@ -114,11 +114,6 @@ impl<F: PrimeField> MachineAir<F> for ProgramChip {
                 .or_insert(1);
         });
 
-        println!(
-            "input.program.instructions.len(): {}",
-            input.program.instructions.len()
-        );
-
         let rows = input
             .program
             .instructions

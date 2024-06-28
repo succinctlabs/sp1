@@ -1095,13 +1095,13 @@ impl<'a> Runtime<'a> {
     }
 
     fn postprocess(&mut self) {
+        // Get the final public values.
+        let public_values = self.record.public_values;
+
         // Push the remaining execution record.
         let record = std::mem::take(&mut self.record);
         self.record.program = record.program.clone();
         self.records.push(record);
-
-        // Get the final public values.
-        let public_values = self.record.public_values;
 
         // Flush remaining stdout/stderr
         for (fd, buf) in self.io_buf.iter() {

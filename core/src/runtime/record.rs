@@ -348,7 +348,7 @@ impl MachineRecord for ExecutionRecord {
             .iter()
             .enumerate()
             .for_each(|(i, event)| {
-                self.nonce_lookup.insert(event.lookup_id, i as u32);
+                self.nonce_lookup.insert(event.lookup_id, (i * 24) as u32);
             });
 
         self.secp256k1_add_events
