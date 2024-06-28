@@ -12,7 +12,7 @@ use serde::de::DeserializeOwned;
 use sp1_prover::SP1Stdin;
 use std::result::Result::Ok as StdOk;
 use std::time::{SystemTime, UNIX_EPOCH};
-use twirp::Client as TwirpClient;
+use twirp::{Client as TwirpClient, ClientError};
 
 use crate::proto::network::{
     ClaimProofRequest, ClaimProofResponse, CreateProofRequest, FulfillProofRequest,
@@ -347,7 +347,7 @@ impl NetworkClient {
         match result {
             StdOk(response) => StdOk(response),
             Err(ClientError::TwirpError(err)) => {
-                let display_err = format!("error: {:?} message: {:?}", err.code, err.msg);
+                let display_err = format!("error: \"{:?}\" message: {:?}", err.code, err.msg);
                 Err(anyhow::anyhow!(display_err))
             }
             Err(err) => Err(err.into()),
