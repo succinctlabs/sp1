@@ -239,30 +239,38 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         )
     }
 
-    pub fn shard(
-        &self,
-        mut record: A::Record,
-        config: &<A::Record as MachineRecord>::Config,
-    ) -> Vec<A::Record> {
+    pub fn shard(&self, mut records: Vec<A::Record>) -> Vec<A::Record> {
         // Get the local and global chips.
         let chips = self.chips();
 
-        // Generate the trace for each chip to collect events emitted from chips with dependencies.
-        tracing::debug_span!("collect record events from chips").in_scope(|| {
+        records.iter_mut().for_each(|record| {
             chips.iter().for_each(|chip| {
                 let mut output = A::Record::default();
                 output.set_index(record.index());
-                chip.generate_dependencies(&record, &mut output);
+                chip.generate_dependencies(record, &mut output);
                 record.append(&mut output);
-            })
+            });
+            record.register_nonces();
         });
 
-        // Display some statistics about the workload.
-        let stats = record.stats();
-        log::debug!("shard: {:?}", stats);
+        // Generate the trace for each chip to collect events emitted from chips with dependencies.
+        // tracing::debug_span!("collect record events from chips").in_scope(|| {
+        //     chips.iter().for_each(|chip| {
+        //         let mut output = A::Record::default();
+        //         output.set_index(record.index());
+        //         chip.generate_dependencies(&record, &mut output);
+        //         record.append(&mut output);
+        //     })
+        // });
 
-        // For each chip, shard the events into segments.
-        record.shard(config)
+        // // Display some statistics about the workload.
+        // let stats = record.stats();
+        // log::debug!("shard: {:?}", stats);
+
+        // // For each chip, shard the events into segments.
+        // record.shard(config)
+
+        records
     }
 
     /// Prove the execution record is valid.
@@ -282,9 +290,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             + for<'a> Air<VerifierConstraintFolder<'a, SC>>
             + for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
     {
-        // let shards = tracing::info_span!("shard_record")
-        //     .in_scope(|| self.shard(record, &<A::Record as MachineRecord>::Config::default()));
-
         let chips = self.chips();
         records.iter_mut().for_each(|record| {
             chips.iter().for_each(|chip| {

@@ -181,7 +181,7 @@ where
     };
 
     // For each checkpoint, generate events, shard them, commit shards, and observe in challenger.
-    let sharding_config = ShardingConfig::default();
+    // let sharding_config = ShardingConfig::default();
     let mut shard_main_datas = Vec::new();
     let mut challenger = machine.config().challenger();
     vk.observe_into(&mut challenger);
@@ -193,7 +193,7 @@ where
 
         // Shard the record into shards.
         let checkpoint_shards =
-            tracing::info_span!("shard").in_scope(|| machine.shard(record, &sharding_config));
+            tracing::info_span!("shard").in_scope(|| machine.shard(vec![record]));
 
         // Commit to each shard.
         let (commitments, commit_data) = tracing::info_span!("commit")
@@ -217,7 +217,7 @@ where
             report_aggregate += report;
             events.public_values = public_values;
             reset_seek(&mut checkpoint_file);
-            tracing::debug_span!("shard").in_scope(|| machine.shard(events, &sharding_config))
+            tracing::debug_span!("shard").in_scope(|| machine.shard(vec![events]))
         };
         let mut checkpoint_proofs = checkpoint_shards
             .into_iter()
