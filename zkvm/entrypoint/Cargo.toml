@@ -4,20 +4,17 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-sp1-precompiles = { path = "../precompiles" }
-sp1-primitives = { path = "../../primitives", optional = true }
-p3-baby-bear = { workspace = true, optional = true }
-p3-field = { workspace = true, optional = true }
-bincode = "1.3.3"
 cfg-if = "1.0.0"
 getrandom = { version = "0.2.14", features = ["custom"] }
-k256 = { version = "0.13.3", features = ["ecdsa", "std", "bits"] }
-once_cell = "1.19.0"
 rand = "0.8.5"
-serde = { version = "1.0.201", features = ["derive"] }
 libm = { version = "0.2.8", optional = true }
 sha2 = { version = "0.10.8" }
 lazy_static = "1.5.0"
+
+# Used for verify feature
+sp1-primitives = { path = "../../primitives", optional = true }
+p3-baby-bear = { workspace = true, optional = true }
+p3-field = { workspace = true, optional = true }
 
 [features]
 default = ["libm"]
@@ -26,5 +23,4 @@ verify = [
   "dep:sp1-primitives",
   "dep:p3-baby-bear",
   "dep:p3-field",
-  "sp1-precompiles/verify",
 ]

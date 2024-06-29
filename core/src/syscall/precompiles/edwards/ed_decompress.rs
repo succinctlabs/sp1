@@ -2,7 +2,6 @@ use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use std::marker::PhantomData;
 
-use curve25519_dalek::edwards::CompressedEdwardsY;
 use generic_array::GenericArray;
 use num::BigUint;
 use num::One;
@@ -324,8 +323,7 @@ impl<E: EdwardsParameters> Syscall for EdDecompressChip<E> {
         compressed_edwards_y[compressed_edwards_y.len() - 1] |= (sign as u8) << 7;
 
         // Compute actual decompressed X
-        let compressed_y = CompressedEdwardsY(compressed_edwards_y);
-        let decompressed = decompress(&compressed_y);
+        let decompressed = decompress(compressed_edwards_y);
 
         let mut decompressed_x_bytes = decompressed.x.to_bytes_le();
         decompressed_x_bytes.resize(32, 0u8);

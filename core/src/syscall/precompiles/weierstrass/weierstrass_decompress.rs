@@ -398,7 +398,7 @@ mod tests {
     use amcl::bls381::bls381::basic::key_pair_generate_g2;
     use amcl::bls381::bls381::utils::deserialize_g1;
     use amcl::rand::RAND;
-    use elliptic_curve::sec1::ToEncodedPoint;
+    use k256::elliptic_curve::sec1::ToEncodedPoint;
     use rand::{thread_rng, Rng};
 
     use crate::utils::run_test_io;

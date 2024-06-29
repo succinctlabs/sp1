@@ -1,6 +1,5 @@
 use std::str::FromStr;
 
-use curve25519_dalek::edwards::CompressedEdwardsY;
 use generic_array::GenericArray;
 use num::{BigUint, Num, One};
 use serde::{Deserialize, Serialize};
@@ -8,7 +7,7 @@ use typenum::{U32, U62};
 
 use crate::operations::field::params::{FieldParameters, NumLimbs};
 use crate::utils::ec::edwards::{EdwardsCurve, EdwardsParameters};
-use crate::utils::ec::{AffinePoint, CurveType, EllipticCurveParameters};
+use crate::utils::ec::{AffinePoint, CurveType, EllipticCurveParameters, COMPRESSED_POINT_BYTES};
 
 pub type Ed25519 = EdwardsCurve<Ed25519Parameters>;
 
@@ -114,8 +113,8 @@ pub fn ed25519_sqrt(a: &BigUint) -> BigUint {
     beta
 }
 
-pub fn decompress(compressed_point: &CompressedEdwardsY) -> AffinePoint<Ed25519> {
-    let mut point_bytes = *compressed_point.as_bytes();
+pub fn decompress(compressed_point: [u8; COMPRESSED_POINT_BYTES]) -> AffinePoint<Ed25519> {
+    let mut point_bytes = compressed_point;
     let sign = point_bytes[31] >> 7 == 1;
     // mask out the sign bit
     point_bytes[31] &= 0b0111_1111;
@@ -171,9 +170,9 @@ mod tests {
                 // Set the sign bit.
                 compressed[31] |= (x[0] & 1) << 7;
 
-                CompressedEdwardsY(compressed)
+                compressed
             };
-            assert_eq!(point, decompress(&compressed_point));
+            assert_eq!(point, decompress(compressed_point));
 
             // Double the point to create a "random" point for the next iteration.
             point = point.clone() + point.clone();

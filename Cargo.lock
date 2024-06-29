@@ -4734,17 +4734,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "sp1-precompiles"
+name = "sp1-lib"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "bincode",
  "cfg-if",
- "getrandom",
  "hex",
  "k256",
- "num",
- "rand",
  "serde",
  "snowbridge-amcl",
 ]
@@ -5000,19 +4997,14 @@ dependencies = [
 name = "sp1-zkvm"
 version = "0.1.0"
 dependencies = [
- "bincode",
  "cfg-if",
  "getrandom",
- "k256",
  "lazy_static",
  "libm",
- "once_cell",
  "p3-baby-bear",
  "p3-field",
  "rand",
- "serde",
  "sha2",
- "sp1-precompiles",
  "sp1-primitives",
 ]
 

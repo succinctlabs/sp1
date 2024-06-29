@@ -13,7 +13,7 @@ cfg_if::cfg_if! {
 
 #[no_mangle]
 #[allow(unused_variables)]
-pub fn syscall_verify_sp1_proof(vk_digest: &[u32; 8], pv_digest: &[u8; 32]) {
+pub extern "C" fn syscall_verify_sp1_proof(vk_digest: &[u32; 8], pv_digest: &[u8; 32]) {
     #[cfg(target_os = "zkvm")]
     {
         // Call syscall to verify the next proof at runtime

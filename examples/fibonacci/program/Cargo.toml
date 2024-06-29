@@ -6,3 +6,4 @@ edition = "2021"
 
 [dependencies]
 sp1-zkvm = { path = "../../../zkvm/entrypoint" }
+sp1-lib = { path = "../../../zkvm/precompiles" }

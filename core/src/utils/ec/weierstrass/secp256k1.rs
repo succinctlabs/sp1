@@ -3,11 +3,7 @@
 
 use std::str::FromStr;
 
-use elliptic_curve::sec1::ToEncodedPoint;
-use elliptic_curve::subtle::Choice;
 use generic_array::GenericArray;
-use k256::elliptic_curve::point::DecompressPoint;
-use k256::FieldElement;
 use num::traits::FromBytes;
 use num::traits::ToBytes;
 use num::{BigUint, Zero};
@@ -95,7 +91,16 @@ impl WeierstrassParameters for Secp256k1Parameters {
     }
 }
 
+#[cfg(not(feature = "k256"))]
+pub fn secp256k1_decompress<E: EllipticCurve>(bytes_be: &[u8], _sign: u32) -> AffinePoint<E> {
+    panic!("secp256k1_decompress not implemented when k256 feature is disabled");
+}
+
+#[cfg(feature = "k256")]
 pub fn secp256k1_decompress<E: EllipticCurve>(bytes_be: &[u8], sign: u32) -> AffinePoint<E> {
+    use k256::elliptic_curve::point::DecompressPoint;
+    use k256::elliptic_curve::sec1::ToEncodedPoint;
+    use k256::elliptic_curve::subtle::Choice;
     let computed_point =
         k256::AffinePoint::decompress(bytes_be.into(), Choice::from(sign as u8)).unwrap();
     let point = computed_point.to_encoded_point(false);
@@ -105,7 +110,14 @@ pub fn secp256k1_decompress<E: EllipticCurve>(bytes_be: &[u8], sign: u32) -> Aff
     AffinePoint::<E>::new(x, y)
 }
 
+#[cfg(not(feature = "k256"))]
 pub fn secp256k1_sqrt(n: &BigUint) -> BigUint {
+    panic!("secp256k1_sqrt not implemented when k256 feature is disabled");
+}
+
+#[cfg(feature = "k256")]
+pub fn secp256k1_sqrt(n: &BigUint) -> BigUint {
+    use k256::FieldElement;
     let be_bytes = n.to_be_bytes();
     let mut bytes = [0_u8; 32];
     bytes[32 - be_bytes.len()..].copy_from_slice(&be_bytes);

@@ -2,9 +2,9 @@ use crate::{
     stark::{ShardProof, StarkVerifyingKey},
     utils::{BabyBearPoseidon2, Buffer},
 };
-use k256::sha2::{Digest, Sha256};
 use num_bigint::BigUint;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 /// Standard input for the prover.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
