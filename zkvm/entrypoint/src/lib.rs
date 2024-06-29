@@ -1,11 +1,6 @@
 pub mod heap;
 pub mod syscalls;
 
-#[cfg(feature = "lib")]
-pub mod lib {
-    pub use sp1_lib::*;
-}
-
 extern crate alloc;
 
 #[macro_export]
