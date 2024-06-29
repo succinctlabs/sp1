@@ -3,9 +3,6 @@ use core::fmt::Debug;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock, RwLockWriteGuard};
 
-use k256::ecdsa::{RecoveryId, Signature, VerifyingKey};
-use k256::elliptic_curve::ops::Invert;
-
 use super::Runtime;
 
 /// A runtime hook, wrapped in a smart pointer.
@@ -98,7 +95,15 @@ pub struct HookEnv<'a, 'b: 'a> {
     pub runtime: &'a Runtime<'b>,
 }
 
+#[cfg(not(feature = "k256"))]
 pub fn hook_ecrecover(_env: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
+    panic!("hook_ecrecover not implemented when k256 feature is disabled");
+}
+
+#[cfg(feature = "k256")]
+pub fn hook_ecrecover(_env: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
+    use k256::ecdsa::{RecoveryId, Signature, VerifyingKey};
+    use k256::elliptic_curve::ops::Invert;
     assert_eq!(
         buf.len(),
         65 + 32,
