@@ -3,7 +3,7 @@ use p3_field::{extension::BinomiallyExtendable, PrimeField32};
 use sp1_core::stark::{Chip, StarkGenericConfig, StarkMachine, PROOF_MAX_NUM_PVS};
 use sp1_derive::MachineAir;
 
-use crate::{add::AddChip, alu::FieldAluChip, mem::MemoryChip, mul::MulChip, program::ProgramChip};
+use crate::{alu::FieldAluChip, mem::MemoryChip, program::ProgramChip};
 
 use std::marker::PhantomData;
 
@@ -16,8 +16,6 @@ use std::marker::PhantomData;
 pub enum RecursionAir<F: PrimeField32> {
     Program(ProgramChip<F>),
     Memory(MemoryChip),
-    Add(AddChip),
-    Mul(MulChip),
     FieldAlu(FieldAluChip),
     // Cpu(CpuChip<F, DEGREE>),
     // MemoryGlobal(MemoryGlobalChip),
@@ -60,8 +58,6 @@ impl<F: PrimeField32> RecursionAir<F> {
         vec![
             RecursionAir::Program(ProgramChip::default()),
             RecursionAir::Memory(MemoryChip::default()),
-            RecursionAir::Add(AddChip::default()),
-            RecursionAir::Mul(MulChip::default()),
             RecursionAir::FieldAlu(FieldAluChip::default()),
         ]
     }
@@ -139,17 +135,16 @@ mod tests {
         let machine = RecursionAir::machine(BabyBearPoseidon2::default());
         let (pk, vk) = machine.setup(&program);
         let record = ExecutionRecord {
-            add_events: vec![
+            alu_events: vec![
                 AluEvent {
                     out: AddressValue::new(embed(100), embed(2)),
                     in1: AddressValue::new(embed(101), embed(1)),
                     in2: AddressValue::new(embed(101), embed(1)),
                     mult: embed(1),
-                    opcode: Opcode::Add,
+                    opcode: Opcode::AddF,
                 },
                 //
             ],
-            mul_events: vec![],
             mem_events: vec![
                 MemEvent {
                     address_value: AddressValue::new(embed(1), embed(2)),
@@ -211,15 +206,15 @@ mod tests {
         for _ in 0..100 {
             let prod = AddressValue::new(x.addr + embed(1), x.val * x.val);
             let sum = AddressValue::new(x.addr + embed(2), prod.val + x.val);
-            record.mul_events.push(AluEvent {
-                opcode: Opcode::Mul,
+            record.alu_events.push(AluEvent {
+                opcode: Opcode::MulF,
                 out: prod,
                 in1: x,
                 in2: x,
                 mult: embed(1),
             });
-            record.add_events.push(AluEvent {
-                opcode: Opcode::Add,
+            record.alu_events.push(AluEvent {
+                opcode: Opcode::AddF,
                 out: sum,
                 in1: prod,
                 in2: x,

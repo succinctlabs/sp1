@@ -1,12 +1,10 @@
 use p3_field::PrimeField32;
 use sp1_core::{air::PublicValues, stark::MachineRecord};
 
-pub mod add;
 pub mod alu;
 // pub mod builder;
 pub mod machine;
 pub mod mem;
-pub mod mul;
 pub mod program;
 
 // #[derive(Clone, Debug)]
@@ -51,8 +49,6 @@ impl<F> AddressValue<F> {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Opcode {
-    Add,
-    Mul,
     AddF,
     SubF,
     MulF,
@@ -69,8 +65,6 @@ pub struct ExecutionRecord<F> {
     pub index: u32,
 
     pub alu_events: Vec<AluEvent<F>>,
-    pub add_events: Vec<AluEvent<F>>,
-    pub mul_events: Vec<AluEvent<F>>,
     pub mem_events: Vec<MemEvent<F>>,
     // _data: std::marker::PhantomData<F>,
     // pub vars: HashMap<Address, u32>,
@@ -94,9 +88,15 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
     }
 
     fn append(&mut self, other: &mut Self) {
-        self.add_events.append(&mut other.add_events);
-        self.mul_events.append(&mut other.mul_events);
-        self.mem_events.append(&mut other.mem_events);
+        // Exhaustive destructuring for refactoring purposes.
+        let Self {
+            index: _,
+            alu_events,
+            mem_events,
+            public_values: _,
+        } = self;
+        alu_events.append(&mut other.alu_events);
+        mem_events.append(&mut other.mem_events);
     }
 
     fn shard(self, _config: &Self::Config) -> Vec<Self> {

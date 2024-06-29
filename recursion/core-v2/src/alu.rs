@@ -16,6 +16,26 @@ use crate::*;
 
 pub const NUM_FIELD_ALU_COLS: usize = core::mem::size_of::<FieldAluCols<u8>>();
 
+// 14 columns
+// pub struct FieldALU<F> {
+//     pub in1:
+// }
+
+// 26 columns
+// pub struct ExtensionFieldALU {
+//     pub in1: AddressValue<F>,
+//     pub in2: AddressValue<F>,
+//     pub sum: Extension<F>,
+//     pub diff: Extension<F>,
+//     pub product: Extension<F>,
+//     pub quotient: Extension<F>,
+//     pub out: AddressValue<F>,
+//     pub is_add: Bool<F>,
+//     pub is_diff: Bool<F>,
+//     pub is_mul: Bool<F>,
+//     pub is_div: Bool<F>,
+// }
+
 #[derive(Default)]
 pub struct FieldAluChip {}
 
@@ -177,15 +197,6 @@ where
         ));
     }
 }
-
-/*
-
-1) make a dummy program for loop 100: x' = x*x + x
-2) make add chip and mul chip with 3 columns each that prove a = b + c and a = b * c respectively.
-and then also fill in generate_trace and eval and write test (look at add_sub in core for test example).
-you will also need to write your own execution record struct but look at recursion-core for how we did that
-
-*/
 
 #[cfg(test)]
 mod tests {
