@@ -1,8 +1,7 @@
 use core::fmt::Debug;
 use core::mem::size_of;
+use std::borrow::Borrow;
 use std::borrow::BorrowMut;
-use std::iter::once;
-use std::{array, borrow::Borrow};
 
 use itertools::Itertools;
 use p3_field::{AbstractField, PrimeField32};
@@ -42,6 +41,7 @@ pub struct PublicValues<W, T> {
 
     /// The shard number.
     pub shard: T,
+    //
     // /// The largest address that is witnessed for initialization in the previous shard.
     // pub previous_init_addr: T,
 
@@ -59,30 +59,11 @@ impl PublicValues<u32, u32> {
     /// Convert the public values into a vector of field elements.  This function will pad the vector
     /// to the maximum number of public values.
     pub fn to_vec<F: AbstractField>(&self) -> Vec<F> {
-        let mut ret = self
-            .committed_value_digest
-            .iter()
-            .flat_map(|w| Word::<F>::from(*w).into_iter())
-            .chain(
-                self.deferred_proofs_digest
-                    .iter()
-                    .cloned()
-                    .map(F::from_canonical_u32),
-            )
-            .chain(once(F::from_canonical_u32(self.start_pc)))
-            .chain(once(F::from_canonical_u32(self.next_pc)))
-            .chain(once(F::from_canonical_u32(self.exit_code)))
-            .chain(once(F::from_canonical_u32(self.shard)))
-            .collect_vec();
+        let mut ret = vec![F::zero(); PROOF_MAX_NUM_PVS];
 
-        assert!(
-            ret.len() <= PROOF_MAX_NUM_PVS,
-            "Too many public values: {}",
-            ret.len()
-        );
-
-        ret.resize(PROOF_MAX_NUM_PVS, F::zero());
-
+        let field_values = PublicValues::<Word<F>, F>::from(*self);
+        let ret_ref_mut: &mut PublicValues<Word<F>, F> = ret.as_mut_slice().borrow_mut();
+        *ret_ref_mut = field_values;
         ret
     }
 }
@@ -90,37 +71,8 @@ impl PublicValues<u32, u32> {
 impl<T: Clone + Debug> PublicValues<Word<T>, T> {
     /// Convert a vector of field elements into a PublicValues struct.
     pub fn from_vec(data: Vec<T>) -> Self {
-        let mut iter = data.iter().cloned();
-
-        let committed_value_digest = array::from_fn(|_| Word::from_iter(&mut iter));
-
-        let deferred_proofs_digest = iter
-            .by_ref()
-            .take(POSEIDON_NUM_WORDS)
-            .collect_vec()
-            .try_into()
-            .unwrap();
-
-        // Collecting the remaining items into a tuple.  Note that it is only getting the first
-        // four items, as the rest would be padded values.
-        let remaining_items = iter.collect_vec();
-        if remaining_items.len() < 4 {
-            panic!("Invalid number of items in the serialized vector.");
-        }
-
-        let [start_pc, next_pc, exit_code, shard] = match &remaining_items.as_slice()[0..4] {
-            [start_pc, next_pc, exit_code, shard] => [start_pc, next_pc, exit_code, shard],
-            _ => unreachable!(),
-        };
-
-        Self {
-            committed_value_digest,
-            deferred_proofs_digest,
-            start_pc: start_pc.to_owned(),
-            next_pc: next_pc.to_owned(),
-            exit_code: exit_code.to_owned(),
-            shard: shard.to_owned(),
-        }
+        let result_ref: &Self = data.as_slice().borrow();
+        result_ref.clone()
     }
 }
 
@@ -134,7 +86,7 @@ impl<F: PrimeField32> PublicValues<Word<F>, F> {
     }
 }
 
-impl<T: Copy> Borrow<PublicValues<Word<T>, T>> for [T] {
+impl<T: Clone> Borrow<PublicValues<Word<T>, T>> for [T] {
     fn borrow(&self) -> &PublicValues<Word<T>, T> {
         debug_assert_eq!(
             self.len(),
@@ -147,7 +99,7 @@ impl<T: Copy> Borrow<PublicValues<Word<T>, T>> for [T] {
     }
 }
 
-impl<T: Copy> BorrowMut<PublicValues<Word<T>, T>> for [T] {
+impl<T: Clone> BorrowMut<PublicValues<Word<T>, T>> for [T] {
     fn borrow_mut(&mut self) -> &mut PublicValues<Word<T>, T> {
         debug_assert_eq!(
             self.len(),
@@ -157,6 +109,39 @@ impl<T: Copy> BorrowMut<PublicValues<Word<T>, T>> for [T] {
         debug_assert!(prefix.is_empty(), "Alignment should match");
         debug_assert_eq!(shorts.len(), 1);
         &mut shorts[0]
+    }
+}
+
+impl<F: AbstractField> From<PublicValues<u32, u32>> for PublicValues<Word<F>, F> {
+    fn from(value: PublicValues<u32, u32>) -> Self {
+        let PublicValues {
+            committed_value_digest,
+            deferred_proofs_digest,
+            start_pc,
+            next_pc,
+            exit_code,
+            shard,
+        } = value;
+
+        let committed_value_digest: [_; PV_DIGEST_NUM_WORDS] =
+            core::array::from_fn(|i| Word::from(committed_value_digest[i]));
+
+        let deferred_proofs_digest: [_; POSEIDON_NUM_WORDS] =
+            core::array::from_fn(|i| F::from_canonical_u32(deferred_proofs_digest[i]));
+
+        let start_pc = F::from_canonical_u32(start_pc);
+        let next_pc = F::from_canonical_u32(next_pc);
+        let exit_code = F::from_canonical_u32(exit_code);
+        let shard = F::from_canonical_u32(shard);
+
+        Self {
+            committed_value_digest,
+            deferred_proofs_digest,
+            start_pc,
+            next_pc,
+            exit_code,
+            shard,
+        }
     }
 }
 
