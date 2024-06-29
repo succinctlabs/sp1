@@ -1,7 +1,8 @@
 use core::fmt::Debug;
 use core::mem::size_of;
-use std::array;
+use std::borrow::BorrowMut;
 use std::iter::once;
+use std::{array, borrow::Borrow};
 
 use itertools::Itertools;
 use p3_field::{AbstractField, PrimeField32};
@@ -20,6 +21,7 @@ pub const POSEIDON_NUM_WORDS: usize = 8;
 
 /// The PublicValues struct is used to store all of a shard proof's public values.
 #[derive(Serialize, Deserialize, Clone, Copy, Default, Debug)]
+#[repr(C)]
 pub struct PublicValues<W, T> {
     /// The hash of all the bytes that the guest program has written to public values.
     pub committed_value_digest: [W; PV_DIGEST_NUM_WORDS],
@@ -40,6 +42,17 @@ pub struct PublicValues<W, T> {
 
     /// The shard number.
     pub shard: T,
+    // /// The largest address that is witnessed for initialization in the previous shard.
+    // pub previous_init_addr: T,
+
+    // /// The largest address that is witnessed for initialization in the current shard.
+    // pub last_init_addr: T,
+
+    // /// The largest address that is witnessed for finalization in the previous shard.
+    // pub previous_finalize_addr: T,
+
+    // /// The largest address that is witnessed for finalization in the current shard.
+    // pub last_finalize_addr: T,
 }
 
 impl PublicValues<u32, u32> {
@@ -118,6 +131,32 @@ impl<F: PrimeField32> PublicValues<Word<F>, F> {
             .iter()
             .flat_map(|w| w.into_iter().map(|f| f.as_canonical_u32() as u8))
             .collect_vec()
+    }
+}
+
+impl<T: Copy> Borrow<PublicValues<Word<T>, T>> for [T] {
+    fn borrow(&self) -> &PublicValues<Word<T>, T> {
+        debug_assert_eq!(
+            self.len(),
+            std::mem::size_of::<PublicValues<Word<u8>, u8>>()
+        );
+        let (prefix, shorts, _suffix) = unsafe { self.align_to::<PublicValues<Word<T>, T>>() };
+        debug_assert!(prefix.is_empty(), "Alignment should match");
+        debug_assert_eq!(shorts.len(), 1);
+        &shorts[0]
+    }
+}
+
+impl<T: Copy> BorrowMut<PublicValues<Word<T>, T>> for [T] {
+    fn borrow_mut(&mut self) -> &mut PublicValues<Word<T>, T> {
+        debug_assert_eq!(
+            self.len(),
+            std::mem::size_of::<PublicValues<Word<u8>, u8>>()
+        );
+        let (prefix, shorts, _suffix) = unsafe { self.align_to_mut::<PublicValues<Word<T>, T>>() };
+        debug_assert!(prefix.is_empty(), "Alignment should match");
+        debug_assert_eq!(shorts.len(), 1);
+        &mut shorts[0]
     }
 }
 
