@@ -3,9 +3,10 @@ cfg_if::cfg_if! {
         use core::arch::asm;
         use crate::zkvm;
         use sha2::digest::Update;
-        use sp1_precompiles::io::FD_PUBLIC_VALUES;
     }
 }
+
+const FD_PUBLIC_VALUES: u32 = 3;
 
 /// Write data to the prover.
 #[allow(unused_variables)]

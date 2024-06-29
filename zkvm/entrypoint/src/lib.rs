@@ -1,10 +1,9 @@
 pub mod heap;
 pub mod syscalls;
-pub mod io {
-    pub use sp1_precompiles::io::*;
-}
-pub mod precompiles {
-    pub use sp1_precompiles::*;
+
+#[cfg(feature = "lib")]
+pub mod lib {
+    pub use sp1_lib::*;
 }
 
 extern crate alloc;
@@ -55,7 +54,6 @@ mod zkvm {
 
     pub static mut PUBLIC_VALUES_HASHER: Option<Sha256> = None;
 
-    #[cfg(not(feature = "interface"))]
     #[no_mangle]
     unsafe extern "C" fn __start() {
         {

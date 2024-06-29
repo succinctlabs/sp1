@@ -12,16 +12,14 @@ pub const FD_PUBLIC_VALUES: u32 = 3;
 // The default hooks can be found in `core/src/runtime/hooks.rs`.
 pub const FD_ECRECOVER_HOOK: u32 = 5;
 
-pub struct SyscallWriter {
-    fd: u32,
-}
+pub struct SyscallWriter(pub u32);
 
 impl std::io::Write for SyscallWriter {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         let nbytes = buf.len();
         let write_buf = buf.as_ptr();
         unsafe {
-            syscall_write(self.fd, write_buf, nbytes);
+            syscall_write(self.0, write_buf, nbytes);
         }
         Ok(nbytes)
     }
@@ -61,30 +59,26 @@ pub fn read<T: DeserializeOwned>() -> T {
 }
 
 pub fn commit<T: Serialize>(value: &T) {
-    let writer = SyscallWriter {
-        fd: FD_PUBLIC_VALUES,
-    };
+    let writer = SyscallWriter(FD_PUBLIC_VALUES);
     bincode::serialize_into(writer, value).expect("serialization failed");
 }
 
 pub fn commit_slice(buf: &[u8]) {
-    let mut my_writer = SyscallWriter {
-        fd: FD_PUBLIC_VALUES,
-    };
+    let mut my_writer = SyscallWriter(FD_PUBLIC_VALUES);
     my_writer.write_all(buf).unwrap();
 }
 
 pub fn hint<T: Serialize>(value: &T) {
-    let writer = SyscallWriter { fd: FD_HINT };
+    let writer = SyscallWriter(FD_HINT);
     bincode::serialize_into(writer, value).expect("serialization failed");
 }
 
 pub fn hint_slice(buf: &[u8]) {
-    let mut my_reader = SyscallWriter { fd: FD_HINT };
+    let mut my_reader = SyscallWriter(FD_HINT);
     my_reader.write_all(buf).unwrap();
 }
 
 /// Write the data `buf` to the file descriptor `fd` using `Write::write_all` .
 pub fn write(fd: u32, buf: &[u8]) {
-    SyscallWriter { fd }.write_all(buf).unwrap();
+    SyscallWriter(fd).write_all(buf).unwrap();
 }
