@@ -231,11 +231,11 @@ mod tests {
             output: &mut ExecutionRecord,
         ) -> RowMajorMatrix<F> {
             let mut rng = thread_rng();
-            let num_rows = 1 << 8;
+            let num_rows = 1 << 9;
             let mut operands: Vec<BigUint> = (0..num_rows - 2)
                 .map(|_| {
                     // Take the square of a random number to make sure that the square root exists.
-                    let a = rng.gen_biguint(256);
+                    let a = rng.gen_biguint(512);
                     let sq = a.clone() * a.clone();
                     // We want to mod by the ed25519 modulus.
                     sq % &Ed25519BaseField::modulus()

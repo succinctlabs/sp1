@@ -9,6 +9,7 @@ use sp1_recursion_compiler::ir::{Builder, Config, Felt};
 use sp1_recursion_compiler::prelude::*;
 use sp1_recursion_core::stark::config::OuterChallengeMmcs;
 
+use crate::challenger::access_index_with_var_e;
 use crate::mmcs::verify_batch;
 use crate::types::FriChallenges;
 use crate::types::FriProofVariable;
@@ -34,15 +35,18 @@ pub fn verify_shape_and_sample_challenges<C: Config>(
     }
 
     // Observe the final polynomial.
-    let final_poly_felts = builder.ext2felt_circuit(proof.final_poly);
-    final_poly_felts.iter().for_each(|felt| {
-        challenger.observe(builder, *felt);
-    });
+    for i in 0..proof.final_poly.len() {
+        let felts = builder.ext2felt_circuit(proof.final_poly[i]);
+        felts.iter().for_each(|felt| {
+            challenger.observe(builder, *felt);
+        });
+    }
 
     assert_eq!(proof.query_proofs.len(), config.num_queries);
     challenger.check_witness(builder, config.proof_of_work_bits, proof.pow_witness);
 
-    let log_max_height = proof.commit_phase_commits.len() + config.log_blowup;
+    let log_max_height =
+        proof.commit_phase_commits.len() + config.log_blowup + config.log_final_poly_len;
     let query_indices: Vec<Var<_>> = (0..config.num_queries)
         .map(|_| challenger.sample_bits(builder, log_max_height))
         .collect();
@@ -65,7 +69,8 @@ pub fn verify_two_adic_pcs<C: Config>(
     let fri_challenges =
         verify_shape_and_sample_challenges(builder, config, &proof.fri_proof, challenger);
 
-    let log_global_max_height = proof.fri_proof.commit_phase_commits.len() + config.log_blowup;
+    let log_global_max_height =
+        proof.fri_proof.commit_phase_commits.len() + config.log_blowup + config.log_final_poly_len;
 
     let reduced_openings = proof
         .query_openings
@@ -153,7 +158,8 @@ pub fn verify_challenges<C: Config>(
     challenges: &FriChallenges<C>,
     reduced_openings: Vec<[Ext<C::F, C::EF>; 32]>,
 ) {
-    let log_max_height = proof.commit_phase_commits.len() + config.log_blowup;
+    let log_max_height =
+        proof.commit_phase_commits.len() + config.log_blowup + config.log_final_poly_len;
     for (&index, query_proof, ro) in izip!(
         &challenges.query_indices,
         &proof.query_proofs,
@@ -169,7 +175,24 @@ pub fn verify_challenges<C: Config>(
             log_max_height,
         );
 
-        builder.assert_ext_eq(folded_eval, proof.final_poly);
+        // `index` is a query index, so it should be expressed in `log_max_height` bits.
+        let index_bits = builder.num2bits_v_circuit(index, log_max_height);
+
+        // `index_bits` is stored in little-endian order, and we need to shift right by `proof.commit_phase_commits.len()`,
+        // so we need to access `index_bits` from `proof.commit_phase_commits.len()` to `log_max_height`.
+        let final_poly_index = builder
+            .bits2num_v_circuit(&index_bits[proof.commit_phase_commits.len()..log_max_height]);
+
+        // Extract the value of the final polynomial at index `final_poly_index`.
+        let final_poly_val = access_index_with_var_e(
+            builder,
+            &proof.final_poly,
+            final_poly_index,
+            log_max_height - proof.commit_phase_commits.len(),
+        );
+
+        // Ensure that `folded_eval` matches the evaluation of the final polynomial at `final_poly_index`.
+        builder.assert_ext_eq(folded_eval, final_poly_val);
     }
 }
 
@@ -321,7 +344,11 @@ pub mod tests {
         FriProofVariable {
             commit_phase_commits,
             query_proofs,
-            final_poly: builder.eval(SymbolicExt::from_f(fri_proof.final_poly)),
+            final_poly: fri_proof
+                .final_poly
+                .iter()
+                .map(|f| builder.eval(SymbolicExt::from_f(*f)))
+                .collect(),
             pow_witness: builder.eval(fri_proof.pow_witness),
         }
     }
@@ -411,7 +438,7 @@ pub mod tests {
     #[test]
     fn test_fri_verify_shape_and_sample_challenges() {
         let mut rng = &mut OsRng;
-        let log_degrees = &[16, 9, 7, 4, 2];
+        let log_degrees = &[22, 20, 17, 16, 9];
         let perm = outer_perm();
         let fri_config = test_fri_config();
         let hash = OuterHash::new(perm.clone()).unwrap();

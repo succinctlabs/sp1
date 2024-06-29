@@ -25,6 +25,7 @@ use crate::disassembler::WORD_SIZE;
 use crate::memory::MemoryCols;
 use crate::runtime::{ExecutionRecord, Opcode, Program};
 use crate::runtime::{MemoryRecordEnum, SyscallCode};
+use crate::utils::MIN_NUM_ROWS;
 
 impl<F: PrimeField32> MachineAir<F> for CpuChip {
     type Record = ExecutionRecord;
@@ -734,8 +735,8 @@ impl CpuChip {
 
     fn pad_to_power_of_two<F: PrimeField>(values: &mut Vec<F>) {
         let n_real_rows = values.len() / NUM_CPU_COLS;
-        let padded_nb_rows = if n_real_rows < 16 {
-            16
+        let padded_nb_rows = if n_real_rows < MIN_NUM_ROWS {
+            MIN_NUM_ROWS
         } else {
             n_real_rows.next_power_of_two()
         };
