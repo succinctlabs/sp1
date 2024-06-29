@@ -438,7 +438,7 @@ pub mod tests {
     #[test]
     fn test_fri_verify_shape_and_sample_challenges() {
         let mut rng = &mut OsRng;
-        let log_degrees = &[16, 9, 7, 4, 2];
+        let log_degrees = &[22, 20, 17, 16, 9];
         let perm = outer_perm();
         let fri_config = test_fri_config();
         let hash = OuterHash::new(perm.clone()).unwrap();
