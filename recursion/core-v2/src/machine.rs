@@ -1,11 +1,8 @@
-use core::iter::once;
-use p3_field::{extension::BinomiallyExtendable, PrimeField32};
+use p3_field::PrimeField32;
 use sp1_core::stark::{Chip, StarkGenericConfig, StarkMachine, PROOF_MAX_NUM_PVS};
 use sp1_derive::MachineAir;
 
 use crate::{alu::FieldAluChip, mem::MemoryChip, program::ProgramChip};
-
-use std::marker::PhantomData;
 
 #[derive(MachineAir)]
 #[sp1_core_path = "sp1_core"]

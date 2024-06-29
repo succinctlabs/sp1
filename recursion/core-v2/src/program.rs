@@ -1,4 +1,4 @@
-use core::borrow::{Borrow, BorrowMut};
+use core::borrow::Borrow;
 use core::mem::size_of;
 use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::PrimeField32;
@@ -7,15 +7,11 @@ use p3_matrix::Matrix;
 use sp1_core::air::MachineAir;
 use sp1_core::utils::pad_rows_fixed;
 use sp1_recursion_core::air::SP1RecursionAirBuilder;
-use std::collections::HashMap;
 use std::marker::PhantomData;
-use tracing::instrument;
 
 use sp1_derive::AlignedBorrow;
 
-// use crate::cpu::columns::InstructionCols;
-// use crate::cpu::columns::OpcodeSelectorCols;
-use crate::{ExecutionRecord, RecursionProgram};
+use crate::ExecutionRecord;
 
 pub const NUM_PROGRAM_PREPROCESSED_COLS: usize = size_of::<ProgramPreprocessedCols<u8>>();
 pub const NUM_PROGRAM_MULT_COLS: usize = size_of::<ProgramMultiplicityCols<u8>>();
@@ -68,7 +64,7 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip<F> {
         NUM_PROGRAM_PREPROCESSED_COLS
     }
 
-    fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
+    fn generate_preprocessed_trace(&self, _program: &Self::Program) -> Option<RowMajorMatrix<F>> {
         // let max_program_size = match std::env::var("MAX_RECURSION_PROGRAM_SIZE") {
         //     Ok(value) => value.parse().unwrap(),
         //     Err(_) => std::cmp::min(1048576, program.instructions.len()),
@@ -110,7 +106,7 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip<F> {
     // #[instrument(name = "generate program trace", level = "debug", skip_all, fields(rows = input.program.instructions.len()))]
     fn generate_trace(
         &self,
-        input: &ExecutionRecord<F>,
+        _input: &ExecutionRecord<F>,
         _output: &mut ExecutionRecord<F>,
     ) -> RowMajorMatrix<F> {
         // // Collect the number of times each instruction is called from the cpu events.

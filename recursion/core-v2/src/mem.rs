@@ -1,22 +1,15 @@
 use core::borrow::Borrow;
-use itertools::Itertools;
-use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::AbstractField;
+use p3_air::{Air, BaseAir};
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use sp1_core::air::AirInteraction;
 use sp1_core::air::MachineAir;
-use sp1_core::air::MessageBuilder;
 use sp1_core::air::SP1AirBuilder;
 use sp1_core::lookup::InteractionKind;
-// use sp1_core::runtime::ExecutionRecord;
-use sp1_core::runtime::Program;
-use sp1_core::utils::pad_rows_fixed;
 use sp1_core::utils::pad_to_power_of_two;
 use sp1_derive::AlignedBorrow;
 use std::borrow::BorrowMut;
-use tracing::instrument;
 
 use crate::*;
 
@@ -153,7 +146,6 @@ mod tests {
     use p3_poseidon2::Poseidon2;
     use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
 
-    use rand::{thread_rng, Rng};
     use std::time::Instant;
 
     use sp1_core::{air::MachineAir, utils::uni_stark_verify};
