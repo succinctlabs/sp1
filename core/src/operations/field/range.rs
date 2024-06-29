@@ -1,5 +1,6 @@
 use itertools::izip;
 
+use itertools::Itertools;
 use num::BigUint;
 
 use p3_air::AirBuilder;
@@ -34,9 +35,14 @@ impl<F: PrimeField32, P: FieldParameters> FieldRangeCols<F, P> {
         shard: u32,
         channel: u32,
         value: &BigUint,
+        modulus: Option<&BigUint>,
     ) {
         let value_limbs = P::to_limbs(value);
-        let modulus_limbs = P::to_limbs(&P::modulus());
+        let modulus_limbs = if modulus.is_none() {
+            P::to_limbs(&P::modulus())
+        } else {
+            P::to_limbs(modulus.unwrap())
+        };
 
         let mut byte_flags = vec![0u8; P::NB_LIMBS];
 
@@ -73,6 +79,7 @@ impl<V: Copy, P: FieldParameters> FieldRangeCols<V, P> {
         &self,
         builder: &mut AB,
         element: &E,
+        modulus: Option<&E>,
         shard: impl Into<AB::Expr> + Clone,
         channel: impl Into<AB::Expr> + Clone,
         is_real: impl Into<AB::Expr> + Clone,
@@ -90,7 +97,7 @@ impl<V: Copy, P: FieldParameters> FieldRangeCols<V, P> {
 
         // Check the flags are of valid form.
 
-        // Verrify that only one flag is set to one.
+        // Verify that only one flag is set to one.
         let mut sum_flags: AB::Expr = AB::Expr::zero();
         for &flag in self.byte_flags.0.iter() {
             // Assert that the flag is boolean.
@@ -108,7 +115,14 @@ impl<V: Copy, P: FieldParameters> FieldRangeCols<V, P> {
         let mut is_inequality_visited = AB::Expr::zero();
 
         // The bytes of the modulus.
-        let modulus_bytes = P::MODULUS.to_vec();
+        let modulus_bytes = if modulus.is_none() {
+            P::MODULUS
+                .iter()
+                .map(|x| AB::Expr::from_canonical_u8(*x))
+                .collect_vec()
+        } else {
+            modulus.unwrap().clone().into().coefficients().to_vec()
+        };
 
         let element: Polynomial<_> = element.clone().into();
 
@@ -124,11 +138,11 @@ impl<V: Copy, P: FieldParameters> FieldRangeCols<V, P> {
             is_inequality_visited += flag.into();
 
             first_lt_byte += byte.clone() * flag;
-            modulus_comparison_byte += flag.into() * AB::F::from_canonical_u8(modulus_byte);
+            modulus_comparison_byte += flag.into() * modulus_byte.clone();
 
             builder
                 .when_not(is_inequality_visited.clone())
-                .assert_eq(byte.clone(), AB::F::from_canonical_u8(modulus_byte));
+                .assert_eq(byte.clone(), modulus_byte.clone());
         }
 
         builder.assert_eq(self.comparison_byte, first_lt_byte);

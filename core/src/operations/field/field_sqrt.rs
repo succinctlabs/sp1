@@ -67,7 +67,7 @@ impl<F: PrimeField32, P: FieldParameters> FieldSqrtCols<F, P> {
         self.multiplication.result = P::to_limbs_field::<F, _>(&sqrt);
 
         // Populate the range columns.
-        self.range.populate(record, shard, channel, &sqrt);
+        self.range.populate(record, shard, channel, &sqrt, None);
 
         let sqrt_bytes = P::to_limbs(&sqrt);
         self.lsb = F::from_canonical_u8(sqrt_bytes[0] & 1);
@@ -138,6 +138,7 @@ where
         self.range.eval(
             builder,
             &sqrt,
+            None,
             shard.clone(),
             channel.clone(),
             is_real.clone(),

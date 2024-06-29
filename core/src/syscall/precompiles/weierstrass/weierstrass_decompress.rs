@@ -103,7 +103,7 @@ impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDecompressChip<E> {
         x: BigUint,
     ) {
         // Y = sqrt(x^3 + b)
-        cols.range_x.populate(record, shard, channel, &x);
+        cols.range_x.populate(record, shard, channel, &x, None);
         let x_2 = cols.x_2.populate(
             record,
             shard,
@@ -282,7 +282,7 @@ where
             limbs_from_prev_access(&local.x_access);
         local
             .range_x
-            .eval(builder, &x, local.shard, local.channel, local.is_real);
+            .eval(builder, &x, None, local.shard, local.channel, local.is_real);
         local.x_2.eval(
             builder,
             &x,

@@ -141,7 +141,7 @@ impl<F: PrimeField32> EdDecompressCols<F> {
         y: &BigUint,
     ) {
         let one = BigUint::one();
-        self.y_range.populate(blu_events, shard, channel, y);
+        self.y_range.populate(blu_events, shard, channel, y, None);
         let yy = self
             .yy
             .populate(blu_events, shard, channel, y, y, FieldOperation::Mul);
@@ -187,7 +187,7 @@ impl<V: Copy> EdDecompressCols<V> {
 
         let y: Limbs<V, U32> = limbs_from_prev_access(&self.y_access);
         self.y_range
-            .eval(builder, &y, self.shard, self.channel, self.is_real);
+            .eval(builder, &y, None, self.shard, self.channel, self.is_real);
         self.yy.eval(
             builder,
             &y,

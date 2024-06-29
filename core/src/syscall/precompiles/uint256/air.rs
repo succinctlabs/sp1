@@ -4,6 +4,7 @@ use crate::memory::{value_as_limbs, MemoryReadCols, MemoryWriteCols};
 use crate::operations::field::field_op::{FieldOpCols, FieldOperation};
 use crate::operations::field::params::NumWords;
 use crate::operations::field::params::{Limbs, NumLimbs};
+use crate::operations::field::range::FieldRangeCols;
 use crate::operations::IsZeroOperation;
 use crate::runtime::{ExecutionRecord, Program, Syscall, SyscallCode};
 use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
@@ -30,7 +31,7 @@ use std::mem::size_of;
 use typenum::Unsigned;
 
 /// The number of columns in the Uint256MulCols.
-const NUM_COLS: usize = size_of::<Uint256MulCols<u8>>();
+pub const NUM_COLS: usize = size_of::<Uint256MulCols<u8>>();
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Uint256MulEvent {
@@ -73,7 +74,7 @@ pub struct Uint256MulCols<T> {
     /// The clock cycle of the syscall.
     pub clk: T,
 
-    /// The none of the operation.
+    /// The nonce of the operation.
     pub nonce: T,
 
     /// The pointer to the first input.
@@ -93,6 +94,8 @@ pub struct Uint256MulCols<T> {
 
     // Output values. We compute (x * y) % modulus.
     pub output: FieldOpCols<T, U256Field>,
+
+    pub output_range_check: FieldRangeCols<T, U256Field>,
 
     pub is_real: T,
 }
@@ -176,6 +179,14 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
                             &effective_modulus,
                             // &modulus,
                             FieldOperation::Mul,
+                        );
+
+                        cols.output_range_check.populate(
+                            &mut new_byte_lookup_events,
+                            event.shard,
+                            event.channel,
+                            &x,
+                            Some(&effective_modulus),
                         );
 
                         row
@@ -357,6 +368,16 @@ where
             &y_limbs,
             &p_modulus,
             FieldOperation::Mul,
+            local.shard,
+            local.channel,
+            local.is_real,
+        );
+
+        // Verify the range of the output.
+        local.output_range_check.eval(
+            builder,
+            &local.output.result,
+            Some(&modulus_limbs),
             local.shard,
             local.channel,
             local.is_real,
