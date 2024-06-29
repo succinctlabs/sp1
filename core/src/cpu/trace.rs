@@ -17,16 +17,16 @@ use super::{CpuChip, CpuEvent};
 use crate::air::MachineAir;
 use crate::air::Word;
 use crate::alu::create_alu_lookups;
-use crate::alu::{self, AluEvent};
+use crate::alu::AluEvent;
 use crate::bytes::event::ByteRecord;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::cpu::columns::CpuCols;
 use crate::cpu::trace::ByteOpcode::{U16Range, U8Range};
 use crate::disassembler::WORD_SIZE;
-use crate::lookup::InteractionEvent;
+use crate::lookup::{AluInteraction, InteractionEvent};
 use crate::memory::MemoryCols;
 use crate::runtime::MemoryReadRecord;
-use crate::runtime::{ExecutionRecord, Opcode, Program};
+use crate::runtime::{ExecutionRecord, Opcode, Program, Runtime};
 use crate::runtime::{MemoryRecordEnum, SyscallCode};
 
 impl<F: PrimeField32> MachineAir<F> for CpuChip {
@@ -36,6 +36,15 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
 
     fn name(&self) -> String {
         "CPU".to_string()
+    }
+
+    fn generate_interaction_events(&self, input: &Self::Record) -> Vec<InteractionEvent> {
+        input
+            .cpu_events
+            .iter()
+            .map(|event| CpuChip::event_to_interaction_events(*event))
+            .flatten()
+            .collect()
     }
 
     fn generate_trace(
@@ -74,42 +83,20 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
         // TODO: separate this late
         // Generate the trace rows for each event.
         let chunk_size = std::cmp::max(input.cpu_events.len() / num_cpus::get(), 1);
-        let (alu_events, blu_events, int_events): (Vec<_>, Vec<_>, Vec<_>) = input
+        let blu_events: Vec<_> = input
             .cpu_events
             .par_chunks(chunk_size)
             .map(|ops: &[CpuEvent]| {
-                let mut alu = HashMap::new();
                 let mut blu: Vec<_> = Vec::with_capacity(ops.len() * 8);
-                let mut interaction_events = Vec::new();
                 ops.iter().for_each(|op| {
-                    if op.instruction.opcode == Opcode::ECALL {
-                        let a_record = op.a_record.expect("ECALL should have an a record");
-                        let prev_value = a_record.prev_value();
-                        let syscall_id = prev_value.to_le_bytes()[0] as u32;
-                        interaction_events.push(InteractionEvent::from_syscall(
-                            true, op.shard, op.clk, syscall_id, op.b, op.c,
-                        ));
-                    }
                     let mut row = [F::zero(); NUM_CPU_COLS];
                     let cols: &mut CpuCols<F> = row.as_mut_slice().borrow_mut();
-                    let (alu_events, blu_events, new_interaction_events) =
-                        self.event_to_row::<F>(op, &HashMap::new(), cols);
-                    alu_events.into_iter().for_each(|(key, value)| {
-                        alu.entry(key).or_insert(Vec::default()).extend(value);
-                        for event in value.iter() {
-                            interaction_events.push(InteractionEvent::from_alu_event(true, event));
-                        }
-                    });
+                    let blu_events = self.event_to_row::<F>(op, &HashMap::new(), cols);
                     blu.extend(blu_events);
-                    interaction_events.extend(new_interaction_events);
                 });
-                (alu, blu, interaction_events)
+                blu
             })
-            .unzip();
-
-        for alu_events_chunk in alu_events.into_iter() {
-            output.add_alu_events(alu_events_chunk.clone());
-        }
+            .collect();
 
         let mut blu_events = blu_events.into_iter().flatten().collect::<Vec<_>>();
         blu_events.par_sort_unstable_by_key(|event| (event.shard, event.opcode));
@@ -125,20 +112,276 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
 }
 
 impl CpuChip {
+    pub fn event_to_interaction_events(event: CpuEvent) -> Vec<InteractionEvent> {
+        let mut interaction_events = Vec::new();
+
+        // This is the "ECALL" interaction event.
+        if event.instruction.opcode == Opcode::ECALL {
+            let a_record = event.a_record.expect("ECALL should have an a record");
+            let prev_value = a_record.prev_value();
+            let syscall_id = prev_value.to_le_bytes()[0] as u32;
+            interaction_events.push(InteractionEvent::from_syscall(
+                true,
+                event.shard,
+                event.clk,
+                syscall_id,
+                event.b,
+                event.c,
+            ));
+        }
+
+        // All interactions due to memory are here.
+        if let Some(record) = event.a_record {
+            interaction_events.push(InteractionEvent::from_memory_record(&record));
+        }
+        if let Some(MemoryRecordEnum::Read(record)) = event.b_record {
+            interaction_events.push(InteractionEvent::from_memory_record(&record.into()));
+        }
+        if let Some(MemoryRecordEnum::Read(record)) = event.c_record {
+            interaction_events.push(InteractionEvent::from_memory_record(&record.into()));
+        }
+        // Populate memory accesses for reading from memory.
+        assert_eq!(event.memory_record.is_some(), event.memory.is_some());
+        if let Some(record) = event.memory_record {
+            interaction_events.push(InteractionEvent::from_memory_record(&record));
+        }
+
+        // Interactions due to send_alu are here (at the top-level due to opcode)
+        if event.instruction.is_alu_instruction() {
+            let interaction = InteractionEvent::Alu(AluInteraction {
+                is_send: true,
+                shard: event.shard,
+                clk: event.clk,
+                opcode: event.instruction.opcode,
+                a: event.a,
+                b: event.b,
+                c: event.c,
+            });
+            interaction_events.push(interaction);
+        }
+
+        // TODO: refactor below so its a less jank...
+        let mut mock_record = ExecutionRecord::default();
+        let alu_events = CpuChip::event_to_alu_events(&mut mock_record, event);
+        for alu_event in alu_events {
+            interaction_events.push(InteractionEvent::from_alu_event(true, &alu_event));
+        }
+        interaction_events
+    }
+
+    /// Given an CpuEvent, emit all ALU events that are derived from it.
+    pub fn event_to_alu_events(record: &mut ExecutionRecord, event: CpuEvent) -> Vec<AluEvent> {
+        let mut all_alu_events = vec![];
+        if matches!(
+            event.instruction.opcode,
+            Opcode::LB
+                | Opcode::LH
+                | Opcode::LW
+                | Opcode::LBU
+                | Opcode::LHU
+                | Opcode::SB
+                | Opcode::SH
+                | Opcode::SW
+        ) {
+            let memory_addr = event.b.wrapping_add(event.c);
+            // Add event to ALU check to check that addr == b + c
+            let add_event = AluEvent {
+                lookup_id: event.memory_add_lookup_id,
+                shard: event.shard,
+                channel: event.channel,
+                clk: event.clk,
+                opcode: Opcode::ADD,
+                a: memory_addr,
+                b: event.b,
+                c: event.c,
+                sub_lookups: create_alu_lookups(),
+            };
+            all_alu_events.push(add_event);
+            record.add_events.push(add_event);
+            let addr_offset = (memory_addr % 4 as u32) as u8;
+            let mem_value = event.memory_record.unwrap().value();
+
+            if matches!(event.instruction.opcode, Opcode::LB | Opcode::LH) {
+                let (unsigned_mem_val, most_sig_mem_value_byte, sign_value) =
+                    match event.instruction.opcode {
+                        Opcode::LB => {
+                            let most_sig_mem_value_byte =
+                                mem_value.to_le_bytes()[addr_offset as usize];
+                            let sign_value = 256;
+                            (
+                                most_sig_mem_value_byte as u32,
+                                most_sig_mem_value_byte,
+                                sign_value,
+                            )
+                        }
+                        Opcode::LH => {
+                            let sign_value = 65536;
+                            let unsigned_mem_val = match (addr_offset >> 1) % 2 {
+                                0 => mem_value & 0x0000FFFF,
+                                1 => (mem_value & 0xFFFF0000) >> 16,
+                                _ => unreachable!(),
+                            };
+                            let most_sig_mem_value_byte = unsigned_mem_val.to_le_bytes()[1];
+                            (unsigned_mem_val, most_sig_mem_value_byte, sign_value)
+                        }
+                        _ => unreachable!(),
+                    };
+
+                if most_sig_mem_value_byte >> 7 & 0x01 == 1 {
+                    let sub_event = AluEvent {
+                        lookup_id: event.memory_sub_lookup_id,
+                        channel: event.channel,
+                        shard: event.shard,
+                        clk: event.clk,
+                        opcode: Opcode::SUB,
+                        a: event.a,
+                        b: unsigned_mem_val,
+                        c: sign_value,
+                        sub_lookups: create_alu_lookups(),
+                    };
+                    record.add_events.push(sub_event);
+                    all_alu_events.push(sub_event);
+                }
+            }
+        }
+
+        if event.instruction.is_branch_instruction() {
+            let a_eq_b = event.a == event.b;
+            let use_signed_comparison =
+                matches!(event.instruction.opcode, Opcode::BLT | Opcode::BGE);
+            let a_lt_b = if use_signed_comparison {
+                (event.a as i32) < (event.b as i32)
+            } else {
+                event.a < event.b
+            };
+            let a_gt_b = if use_signed_comparison {
+                (event.a as i32) > (event.b as i32)
+            } else {
+                event.a > event.b
+            };
+
+            let alu_op_code = if use_signed_comparison {
+                Opcode::SLT
+            } else {
+                Opcode::SLTU
+            };
+            // Add the ALU events for the comparisons
+            let lt_comp_event = AluEvent {
+                lookup_id: event.branch_lt_lookup_id,
+                shard: event.shard,
+                channel: event.channel,
+                clk: event.clk,
+                opcode: alu_op_code,
+                a: a_lt_b as u32,
+                b: event.a,
+                c: event.b,
+                sub_lookups: create_alu_lookups(),
+            };
+            let gt_comp_event = AluEvent {
+                lookup_id: event.branch_gt_lookup_id,
+                shard: event.shard,
+                channel: event.channel,
+                clk: event.clk,
+                opcode: alu_op_code,
+                a: a_gt_b as u32,
+                b: event.b,
+                c: event.a,
+                sub_lookups: create_alu_lookups(),
+            };
+            record.lt_events.push(lt_comp_event);
+            record.lt_events.push(gt_comp_event);
+            all_alu_events.push(lt_comp_event);
+            all_alu_events.push(gt_comp_event);
+            let branching = match event.instruction.opcode {
+                Opcode::BEQ => a_eq_b,
+                Opcode::BNE => !a_eq_b,
+                Opcode::BLT | Opcode::BLTU => a_lt_b,
+                Opcode::BGE | Opcode::BGEU => a_eq_b || a_gt_b,
+                _ => unreachable!(),
+            };
+            if branching {
+                let next_pc = event.pc.wrapping_add(event.c);
+                let add_event = AluEvent {
+                    lookup_id: event.branch_add_lookup_id,
+                    shard: event.shard,
+                    channel: event.channel,
+                    clk: event.clk,
+                    opcode: Opcode::ADD,
+                    a: next_pc,
+                    b: event.pc,
+                    c: event.c,
+                    sub_lookups: create_alu_lookups(),
+                };
+                record.add_events.push(add_event);
+                all_alu_events.push(add_event);
+            }
+        }
+
+        if event.instruction.is_jump_instruction() {
+            match event.instruction.opcode {
+                Opcode::JAL => {
+                    let next_pc = event.pc.wrapping_add(event.b);
+                    let add_event = AluEvent {
+                        lookup_id: event.jump_jal_lookup_id,
+                        shard: event.shard,
+                        channel: event.channel,
+                        clk: event.clk,
+                        opcode: Opcode::ADD,
+                        a: next_pc,
+                        b: event.pc,
+                        c: event.b,
+                        sub_lookups: create_alu_lookups(),
+                    };
+                    record.add_events.push(add_event);
+                    all_alu_events.push(add_event);
+                }
+                Opcode::JALR => {
+                    let next_pc = event.b.wrapping_add(event.c);
+                    let add_event = AluEvent {
+                        lookup_id: event.jump_jalr_lookup_id,
+                        shard: event.shard,
+                        channel: event.channel,
+                        clk: event.clk,
+                        opcode: Opcode::ADD,
+                        a: next_pc,
+                        b: event.b,
+                        c: event.c,
+                        sub_lookups: create_alu_lookups(),
+                    };
+                    record.add_events.push(add_event);
+                    all_alu_events.push(add_event);
+                }
+                _ => unreachable!(),
+            }
+        }
+
+        if matches!(event.instruction.opcode, Opcode::AUIPC) {
+            let add_event = AluEvent {
+                lookup_id: event.auipc_lookup_id,
+                shard: event.shard,
+                channel: event.channel,
+                clk: event.clk,
+                opcode: Opcode::ADD,
+                a: event.a,
+                b: event.pc,
+                c: event.b,
+                sub_lookups: create_alu_lookups(),
+            };
+            record.add_events.push(add_event);
+            all_alu_events.push(add_event);
+        }
+
+        all_alu_events
+    }
+
     /// Create a row from an event.
     fn event_to_row<F: PrimeField32>(
         &self,
         event: &CpuEvent,
         nonce_lookup: &HashMap<usize, u32>,
         cols: &mut CpuCols<F>,
-    ) -> (
-        HashMap<Opcode, Vec<alu::AluEvent>>,
-        Vec<ByteLookupEvent>,
-        Vec<InteractionEvent>,
-    ) {
-        let mut new_alu_events = HashMap::new();
+    ) -> Vec<ByteLookupEvent> {
         let mut new_blu_events = Vec::new();
-        let mut new_interaction_events = Vec::new();
 
         // Populate shard and clk columns.
         self.populate_shard_clk(cols, event, &mut new_blu_events);
@@ -164,17 +407,14 @@ impl CpuChip {
         if let Some(record) = event.a_record {
             cols.op_a_access
                 .populate(event.channel, record, &mut new_blu_events);
-            new_interaction_events.push(InteractionEvent::from_memory_record(&record));
         }
         if let Some(MemoryRecordEnum::Read(record)) = event.b_record {
             cols.op_b_access
                 .populate(event.channel, record, &mut new_blu_events);
-            new_interaction_events.push(InteractionEvent::from_memory_record(&record.into()));
         }
         if let Some(MemoryRecordEnum::Read(record)) = event.c_record {
             cols.op_c_access
                 .populate(event.channel, record, &mut new_blu_events);
-            new_interaction_events.push(InteractionEvent::from_memory_record(&record.into()));
         }
 
         // Populate range checks for a.
@@ -212,20 +452,13 @@ impl CpuChip {
             memory_columns
                 .memory_access
                 .populate(event.channel, record, &mut new_blu_events);
-            new_interaction_events.push(InteractionEvent::from_memory_record(&record));
         }
 
         // Populate memory, branch, jump, and auipc specific fields.
-        self.populate_memory(
-            cols,
-            event,
-            &mut new_alu_events,
-            &mut new_blu_events,
-            nonce_lookup,
-        );
-        self.populate_branch(cols, event, &mut new_alu_events, nonce_lookup);
-        self.populate_jump(cols, event, &mut new_alu_events, nonce_lookup);
-        self.populate_auipc(cols, event, &mut new_alu_events, nonce_lookup);
+        self.populate_memory(cols, event, &mut new_blu_events, nonce_lookup);
+        self.populate_branch(cols, event, nonce_lookup);
+        self.populate_jump(cols, event, nonce_lookup);
+        self.populate_auipc(cols, event, nonce_lookup);
         let is_halt = self.populate_ecall(cols, event, nonce_lookup);
 
         cols.is_sequential_instr = F::from_bool(
@@ -237,7 +470,7 @@ impl CpuChip {
         // Assert that the instruction is not a no-op.
         cols.is_real = F::one();
 
-        (new_alu_events, new_blu_events, new_interaction_events)
+        new_blu_events
     }
 
     /// Populates the shard, channel, and clk related rows.
@@ -292,7 +525,6 @@ impl CpuChip {
         &self,
         cols: &mut CpuCols<F>,
         event: &CpuEvent,
-        new_alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
         new_blu_events: &mut Vec<ByteLookupEvent>,
         nonce_lookup: &HashMap<usize, u32>,
     ) {
@@ -323,23 +555,6 @@ impl CpuChip {
         let aligned_addr_ls_byte = (aligned_addr & 0x000000FF) as u8;
         let bits: [bool; 8] = array::from_fn(|i| aligned_addr_ls_byte & (1 << i) != 0);
         memory_columns.aa_least_sig_byte_decomp = array::from_fn(|i| F::from_bool(bits[i + 2]));
-
-        // Add event to ALU check to check that addr == b + c
-        let add_event = AluEvent {
-            lookup_id: event.memory_add_lookup_id,
-            shard: event.shard,
-            channel: event.channel,
-            clk: event.clk,
-            opcode: Opcode::ADD,
-            a: memory_addr,
-            b: event.b,
-            c: event.c,
-            sub_lookups: create_alu_lookups(),
-        };
-        new_alu_events
-            .entry(Opcode::ADD)
-            .and_modify(|op_new_events| op_new_events.push(add_event))
-            .or_insert(vec![add_event]);
         memory_columns.addr_word_nonce = F::from_canonical_u32(
             nonce_lookup
                 .get(&event.memory_add_lookup_id)
@@ -381,15 +596,11 @@ impl CpuChip {
 
             // For the signed load instructions, we need to check if the loaded value is negative.
             if matches!(event.instruction.opcode, Opcode::LB | Opcode::LH) {
-                let most_sig_mem_value_byte: u8;
-                let sign_value: u32;
-                if matches!(event.instruction.opcode, Opcode::LB) {
-                    sign_value = 256;
-                    most_sig_mem_value_byte = cols.unsigned_mem_val.to_u32().to_le_bytes()[0];
+                let most_sig_mem_value_byte = if matches!(event.instruction.opcode, Opcode::LB) {
+                    cols.unsigned_mem_val.to_u32().to_le_bytes()[0]
                 } else {
                     // LHU case
-                    sign_value = 65536;
-                    most_sig_mem_value_byte = cols.unsigned_mem_val.to_u32().to_le_bytes()[1];
+                    cols.unsigned_mem_val.to_u32().to_le_bytes()[1]
                 };
 
                 for i in (0..8).rev() {
@@ -398,28 +609,12 @@ impl CpuChip {
                 }
                 if memory_columns.most_sig_byte_decomp[7] == F::one() {
                     cols.mem_value_is_neg = F::one();
-                    let sub_event = AluEvent {
-                        lookup_id: event.memory_sub_lookup_id,
-                        channel: event.channel,
-                        shard: event.shard,
-                        clk: event.clk,
-                        opcode: Opcode::SUB,
-                        a: event.a,
-                        b: cols.unsigned_mem_val.to_u32(),
-                        c: sign_value,
-                        sub_lookups: create_alu_lookups(),
-                    };
                     cols.unsigned_mem_val_nonce = F::from_canonical_u32(
                         nonce_lookup
                             .get(&event.memory_sub_lookup_id)
                             .copied()
                             .unwrap_or_default(),
                     );
-
-                    new_alu_events
-                        .entry(Opcode::SUB)
-                        .and_modify(|op_new_events| op_new_events.push(sub_event))
-                        .or_insert(vec![sub_event]);
                 }
             }
         }
@@ -444,7 +639,6 @@ impl CpuChip {
         &self,
         cols: &mut CpuCols<F>,
         event: &CpuEvent,
-        alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
         nonce_lookup: &HashMap<usize, u32>,
     ) {
         if event.instruction.is_branch_instruction() {
@@ -466,24 +660,6 @@ impl CpuChip {
                 event.a > event.b
             };
 
-            let alu_op_code = if use_signed_comparison {
-                Opcode::SLT
-            } else {
-                Opcode::SLTU
-            };
-
-            // Add the ALU events for the comparisons
-            let lt_comp_event = AluEvent {
-                lookup_id: event.branch_lt_lookup_id,
-                shard: event.shard,
-                channel: event.channel,
-                clk: event.clk,
-                opcode: alu_op_code,
-                a: a_lt_b as u32,
-                b: event.a,
-                c: event.b,
-                sub_lookups: create_alu_lookups(),
-            };
             branch_columns.a_lt_b_nonce = F::from_canonical_u32(
                 nonce_lookup
                     .get(&event.branch_lt_lookup_id)
@@ -491,33 +667,12 @@ impl CpuChip {
                     .unwrap_or_default(),
             );
 
-            alu_events
-                .entry(alu_op_code)
-                .and_modify(|op_new_events| op_new_events.push(lt_comp_event))
-                .or_insert(vec![lt_comp_event]);
-
-            let gt_comp_event = AluEvent {
-                lookup_id: event.branch_gt_lookup_id,
-                shard: event.shard,
-                channel: event.channel,
-                clk: event.clk,
-                opcode: alu_op_code,
-                a: a_gt_b as u32,
-                b: event.b,
-                c: event.a,
-                sub_lookups: create_alu_lookups(),
-            };
             branch_columns.a_gt_b_nonce = F::from_canonical_u32(
                 nonce_lookup
                     .get(&event.branch_gt_lookup_id)
                     .copied()
                     .unwrap_or_default(),
             );
-
-            alu_events
-                .entry(alu_op_code)
-                .and_modify(|op_new_events| op_new_events.push(gt_comp_event))
-                .or_insert(vec![gt_comp_event]);
 
             branch_columns.a_eq_b = F::from_bool(a_eq_b);
             branch_columns.a_lt_b = F::from_bool(a_lt_b);
@@ -539,29 +694,12 @@ impl CpuChip {
 
             if branching {
                 cols.branching = F::one();
-
-                let add_event = AluEvent {
-                    lookup_id: event.branch_add_lookup_id,
-                    shard: event.shard,
-                    channel: event.channel,
-                    clk: event.clk,
-                    opcode: Opcode::ADD,
-                    a: next_pc,
-                    b: event.pc,
-                    c: event.c,
-                    sub_lookups: create_alu_lookups(),
-                };
                 branch_columns.next_pc_nonce = F::from_canonical_u32(
                     nonce_lookup
                         .get(&event.branch_add_lookup_id)
                         .copied()
                         .unwrap_or_default(),
                 );
-
-                alu_events
-                    .entry(Opcode::ADD)
-                    .and_modify(|op_new_events| op_new_events.push(add_event))
-                    .or_insert(vec![add_event]);
             } else {
                 cols.not_branching = F::one();
             }
@@ -573,7 +711,6 @@ impl CpuChip {
         &self,
         cols: &mut CpuCols<F>,
         event: &CpuEvent,
-        alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
         nonce_lookup: &HashMap<usize, u32>,
     ) {
         if event.instruction.is_jump_instruction() {
@@ -587,58 +724,24 @@ impl CpuChip {
                     jump_columns.pc_range_checker.populate(event.pc);
                     jump_columns.next_pc = Word::from(next_pc);
                     jump_columns.next_pc_range_checker.populate(next_pc);
-
-                    let add_event = AluEvent {
-                        lookup_id: event.jump_jal_lookup_id,
-                        shard: event.shard,
-                        channel: event.channel,
-                        clk: event.clk,
-                        opcode: Opcode::ADD,
-                        a: next_pc,
-                        b: event.pc,
-                        c: event.b,
-                        sub_lookups: create_alu_lookups(),
-                    };
                     jump_columns.jal_nonce = F::from_canonical_u32(
                         nonce_lookup
                             .get(&event.jump_jal_lookup_id)
                             .copied()
                             .unwrap_or_default(),
                     );
-
-                    alu_events
-                        .entry(Opcode::ADD)
-                        .and_modify(|op_new_events| op_new_events.push(add_event))
-                        .or_insert(vec![add_event]);
                 }
                 Opcode::JALR => {
                     let next_pc = event.b.wrapping_add(event.c);
                     jump_columns.op_a_range_checker.populate(event.a);
                     jump_columns.next_pc = Word::from(next_pc);
                     jump_columns.next_pc_range_checker.populate(next_pc);
-
-                    let add_event = AluEvent {
-                        lookup_id: event.jump_jalr_lookup_id,
-                        shard: event.shard,
-                        channel: event.channel,
-                        clk: event.clk,
-                        opcode: Opcode::ADD,
-                        a: next_pc,
-                        b: event.b,
-                        c: event.c,
-                        sub_lookups: create_alu_lookups(),
-                    };
                     jump_columns.jalr_nonce = F::from_canonical_u32(
                         nonce_lookup
                             .get(&event.jump_jalr_lookup_id)
                             .copied()
                             .unwrap_or_default(),
                     );
-
-                    alu_events
-                        .entry(Opcode::ADD)
-                        .and_modify(|op_new_events| op_new_events.push(add_event))
-                        .or_insert(vec![add_event]);
                 }
                 _ => unreachable!(),
             }
@@ -650,7 +753,6 @@ impl CpuChip {
         &self,
         cols: &mut CpuCols<F>,
         event: &CpuEvent,
-        alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
         nonce_lookup: &HashMap<usize, u32>,
     ) {
         if matches!(event.instruction.opcode, Opcode::AUIPC) {
@@ -658,29 +760,12 @@ impl CpuChip {
 
             auipc_columns.pc = Word::from(event.pc);
             auipc_columns.pc_range_checker.populate(event.pc);
-
-            let add_event = AluEvent {
-                lookup_id: event.auipc_lookup_id,
-                shard: event.shard,
-                channel: event.channel,
-                clk: event.clk,
-                opcode: Opcode::ADD,
-                a: event.a,
-                b: event.pc,
-                c: event.b,
-                sub_lookups: create_alu_lookups(),
-            };
             auipc_columns.auipc_nonce = F::from_canonical_u32(
                 nonce_lookup
                     .get(&event.auipc_lookup_id)
                     .copied()
                     .unwrap_or_default(),
             );
-
-            alu_events
-                .entry(Opcode::ADD)
-                .and_modify(|op_new_events| op_new_events.push(add_event))
-                .or_insert(vec![add_event]);
         }
     }
 

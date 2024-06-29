@@ -7,6 +7,7 @@ use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
+use p3_maybe_rayon::prelude::IntoParallelRefIterator;
 use sp1_derive::AlignedBorrow;
 
 use crate::air::MachineAir;
@@ -62,6 +63,17 @@ impl<F: PrimeField> MachineAir<F> for BitwiseChip {
 
     fn name(&self) -> String {
         "Bitwise".to_string()
+    }
+
+    fn generate_interaction_events(
+        &self,
+        input: &Self::Record,
+    ) -> Vec<crate::lookup::InteractionEvent> {
+        input
+            .bitwise_events
+            .iter()
+            .map(|event| crate::lookup::InteractionEvent::from_alu_event(false, event))
+            .collect()
     }
 
     fn generate_trace(

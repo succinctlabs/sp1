@@ -98,6 +98,16 @@ impl<SC: StarkGenericConfig> StarkVerifyingKey<SC> {
         challenger.observe(self.commit.clone());
         challenger.observe(self.pc_start);
     }
+
+    pub fn hash(&self) {
+        let mut challenger = SC::challenger();
+        challenger.observe(self.commit);
+        challenger.observe(pc_start);
+        for chip in self.chip_information {
+            challenger.observe(chip.1);
+        }
+        // TODO: observe chip_ordering, chip_information
+    }
 }
 
 impl<SC: StarkGenericConfig> Debug for StarkVerifyingKey<SC> {

@@ -39,8 +39,10 @@ use thiserror::Error;
 
 use crate::alu::create_alu_lookup_id;
 use crate::alu::create_alu_lookups;
+use crate::alu::divrem;
 use crate::bytes::NUM_BYTE_LOOKUP_CHANNELS;
 use crate::memory::MemoryInitializeFinalizeEvent;
+use crate::stark::CpuChip;
 use crate::utils::SP1CoreOpts;
 use crate::{alu::AluEvent, cpu::CpuEvent};
 
@@ -484,6 +486,7 @@ impl<'a> Runtime<'a> {
         };
 
         self.record.cpu_events.push(cpu_event);
+        CpuChip::event_to_alu_events(&mut self.record, cpu_event);
     }
 
     /// Emit an ALU event.
@@ -523,6 +526,7 @@ impl<'a> Runtime<'a> {
             }
             Opcode::DIVU | Opcode::REMU | Opcode::DIV | Opcode::REM => {
                 self.record.divrem_events.push(event);
+                divrem::utils::emit_divrem_alu_events(self, event);
             }
             _ => {}
         }

@@ -134,11 +134,23 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
         "Mul".to_string()
     }
 
+    fn generate_interaction_events(
+        &self,
+        input: &Self::Record,
+    ) -> Vec<crate::lookup::InteractionEvent> {
+        input
+            .mul_events
+            .iter()
+            .map(|event| crate::lookup::InteractionEvent::from_alu_event(false, event))
+            .collect()
+    }
+
     fn generate_trace(
         &self,
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
+        // TODO: why are we cloning here dear sir?
         let mul_events = input.mul_events.clone();
         // Compute the chunk size based on the number of events and the number of CPUs.
         let chunk_size = std::cmp::max(mul_events.len() / num_cpus::get(), 1);

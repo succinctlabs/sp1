@@ -2,6 +2,7 @@ use p3_air::BaseAir;
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 
+use crate::lookup::InteractionEvent;
 use crate::{runtime::Program, stark::MachineRecord};
 
 pub use sp1_derive::MachineAir;
@@ -26,6 +27,10 @@ pub trait MachineAir<F: Field>: BaseAir<F> {
     /// Generate the dependencies for a given execution record.
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
         self.generate_trace(input, output);
+    }
+
+    fn generate_interaction_events(&self, input: &Self::Record) -> Vec<InteractionEvent> {
+        vec![]
     }
 
     /// Whether this execution record contains events for this air.

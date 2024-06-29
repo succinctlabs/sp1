@@ -326,12 +326,23 @@ pub trait AluAirBuilder: BaseAirBuilder {
             .collect();
 
         self.send(AirInteraction::new(
-            values,
+            values.clone(),
             multiplicity.into(),
             InteractionKind::Alu,
         ));
 
-        // self.send(InteractionTable(shard, opcode, a, b, c, is_send=true))
+        // Send [Kind, is_send, padded_values...]
+        let padded_values = values.clone().resize(13, Self::Expr::zero());
+        let global_values = once(Self::F::from_canonical_u8(InteractionKind::Alu as u8).into())
+            .chain(once(Self::Expr::one()))
+            .chain(padded_values)
+            .collect();
+
+        self.send(AirInteraction::new(
+            global_values,
+            multiplicity.into(),
+            InteractionKind::Global,
+        ));
     }
 
     /// Receives an ALU operation to be processed.

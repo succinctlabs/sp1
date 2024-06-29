@@ -33,6 +33,9 @@ pub enum InteractionKind {
 
     /// Interaction with a syscall.
     Syscall = 8,
+
+    /// Interaction kind global
+    Global = 9,
 }
 
 impl InteractionKind {
@@ -44,6 +47,7 @@ impl InteractionKind {
             InteractionKind::Byte,
             InteractionKind::Range,
             InteractionKind::Syscall,
+            InteractionKind::Global,
         ]
     }
 }
@@ -85,6 +89,7 @@ impl Display for InteractionKind {
             InteractionKind::Byte => write!(f, "Byte"),
             InteractionKind::Range => write!(f, "Range"),
             InteractionKind::Syscall => write!(f, "Syscall"),
+            InteractionKind::Global => write!(f, "Global"),
         }
     }
 }

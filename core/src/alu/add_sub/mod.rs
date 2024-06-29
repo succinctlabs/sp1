@@ -60,6 +60,19 @@ pub struct AddSubCols<T> {
     pub is_sub: T,
 }
 
+impl AddSubChip {
+    pub fn generate_interaction_events(input: &ExecutionRecord) -> Vec<InteractionEvent> {
+        let mut interaction_events = vec![];
+        for event in input.add_events.iter() {
+            interaction_events.push(InteractionEvent::from_alu_event(false, event));
+        }
+        for event in input.sub_events.iter() {
+            interaction_events.push(InteractionEvent::from_alu_event(false, event));
+        }
+        interaction_events
+    }
+}
+
 impl<F: PrimeField> MachineAir<F> for AddSubChip {
     type Record = ExecutionRecord;
 

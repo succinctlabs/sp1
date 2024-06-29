@@ -140,6 +140,17 @@ impl<F: PrimeField> MachineAir<F> for ShiftRightChip {
         "ShiftRight".to_string()
     }
 
+    fn generate_interaction_events(
+        &self,
+        input: &Self::Record,
+    ) -> Vec<crate::lookup::InteractionEvent> {
+        input
+            .shift_right_events
+            .iter()
+            .map(|event| crate::lookup::InteractionEvent::from_alu_event(false, event))
+            .collect()
+    }
+
     fn generate_trace(
         &self,
         input: &ExecutionRecord,
