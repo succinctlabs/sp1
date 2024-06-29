@@ -1,3 +1,5 @@
+use std::borrow::Borrow;
+
 use p3_air::Air;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::AbstractField;
@@ -141,7 +143,7 @@ where
             let element = builder.get(&proof.public_values, i);
             pv_elements.push(element);
         }
-        let public_values = PublicValues::<Word<Felt<_>>, Felt<_>>::from_vec(pv_elements);
+        let public_values: &PublicValues<Word<Felt<_>>, Felt<_>> = pv_elements.as_slice().borrow();
 
         let ShardCommitmentVariable {
             main_commit,

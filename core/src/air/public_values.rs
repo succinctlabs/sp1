@@ -68,14 +68,6 @@ impl PublicValues<u32, u32> {
     }
 }
 
-impl<T: Clone + Debug> PublicValues<Word<T>, T> {
-    /// Convert a vector of field elements into a PublicValues struct.
-    pub fn from_vec(data: Vec<T>) -> Self {
-        let result_ref: &Self = data.as_slice().borrow();
-        result_ref.clone()
-    }
-}
-
 impl<F: PrimeField32> PublicValues<Word<F>, F> {
     /// Returns the commit digest as a vector of little-endian bytes.
     pub fn commit_digest_bytes(&self) -> Vec<u8> {

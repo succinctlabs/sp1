@@ -1,5 +1,5 @@
 use std::array;
-use std::borrow::BorrowMut;
+use std::borrow::{Borrow, BorrowMut};
 use std::marker::PhantomData;
 
 use itertools::Itertools;
@@ -193,7 +193,8 @@ where
                 let element = builder.get(&proof.public_values, i);
                 pv_elements.push(element);
             }
-            let public_values = PublicValues::<Word<Felt<_>>, Felt<_>>::from_vec(pv_elements);
+            let public_values: &PublicValues<Word<Felt<_>>, Felt<_>> =
+                pv_elements.as_slice().borrow();
 
             // If this is the first proof in the batch, verify the initial conditions.
             builder.if_eq(i, C::N::zero()).then(|builder| {

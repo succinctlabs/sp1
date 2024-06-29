@@ -4,7 +4,7 @@ use anyhow::Result;
 use num_bigint::BigUint;
 use p3_baby_bear::BabyBear;
 use p3_field::{AbstractField, PrimeField};
-use sp1_core::air::MachineAir;
+use sp1_core::air::{MachineAir, Word};
 use sp1_core::runtime::SubproofVerifier;
 use sp1_core::{
     air::PublicValues,
@@ -51,7 +51,8 @@ impl SP1Prover {
 
         // Verify shard transitions.
         for (i, shard_proof) in proof.0.iter().enumerate() {
-            let public_values = PublicValues::from_vec(shard_proof.public_values.clone());
+            let public_values: &PublicValues<Word<_>, _> =
+                shard_proof.public_values.as_slice().borrow();
             // Verify shard transitions
             if i == 0 {
                 // If it's the first shard, index should be 1.
@@ -67,8 +68,8 @@ impl SP1Prover {
                 }
             } else {
                 let prev_shard_proof = &proof.0[i - 1];
-                let prev_public_values =
-                    PublicValues::from_vec(prev_shard_proof.public_values.clone());
+                let prev_public_values: &PublicValues<Word<_>, _> =
+                    prev_shard_proof.public_values.as_slice().borrow();
                 // For non-first shards, the index should be the previous index + 1.
                 if public_values.shard != prev_public_values.shard + BabyBear::one() {
                     return Err(MachineVerificationError::InvalidPublicValues(

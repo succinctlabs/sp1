@@ -372,12 +372,16 @@ impl SP1Prover {
             batch_size,
             is_complete,
         );
-        let last_proof_pv =
-            PublicValues::from_vec(shard_proofs.last().unwrap().public_values.clone());
+        let last_proof_pv = shard_proofs
+            .last()
+            .unwrap()
+            .public_values
+            .as_slice()
+            .borrow();
         let deferred_inputs = self.get_recursion_deferred_inputs(
             &vk.vk,
             leaf_challenger,
-            &last_proof_pv,
+            last_proof_pv,
             deferred_proofs,
             batch_size,
             shard_proofs.len(),
