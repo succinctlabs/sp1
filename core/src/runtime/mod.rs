@@ -93,6 +93,8 @@ pub struct Runtime<'a> {
 
     pub emit_events: bool,
 
+    pub emit_precompile_events: bool,
+
     /// Report of the program execution.
     pub report: ExecutionReport,
 
@@ -172,6 +174,7 @@ impl<'a> Runtime<'a> {
             unconstrained_state: ForkState::default(),
             syscall_map,
             emit_events: true,
+            emit_precompile_events: true,
             max_syscall_cycles,
             report: ExecutionReport::default(),
             print_report: false,
@@ -1109,52 +1112,54 @@ impl<'a> Runtime<'a> {
             log::warn!("Not all input bytes were read.");
         }
 
-        // SECTION: Set up all MemoryInitializeFinalizeEvents needed for memory argument.
-        let memory_finalize_events = &mut self.record.memory_finalize_events;
+        if self.emit_precompile_events {
+            // SECTION: Set up all MemoryInitializeFinalizeEvents needed for memory argument.
+            let memory_finalize_events = &mut self.record.memory_finalize_events;
 
-        // We handle the addr = 0 case separately, as we constrain it to be 0 in the first row
-        // of the memory finalize table so it must be first in the array of events.
-        let addr_0_record = self.state.memory.get(&0u32);
+            // We handle the addr = 0 case separately, as we constrain it to be 0 in the first row
+            // of the memory finalize table so it must be first in the array of events.
+            let addr_0_record = self.state.memory.get(&0u32);
 
-        let addr_0_final_record = match addr_0_record {
-            Some(record) => record,
-            None => &MemoryRecord {
-                value: 0,
-                shard: 0,
-                timestamp: 1,
-            },
-        };
-        memory_finalize_events.push(MemoryInitializeFinalizeEvent::finalize_from_record(
-            0,
-            addr_0_final_record,
-        ));
+            let addr_0_final_record = match addr_0_record {
+                Some(record) => record,
+                None => &MemoryRecord {
+                    value: 0,
+                    shard: 0,
+                    timestamp: 1,
+                },
+            };
+            memory_finalize_events.push(MemoryInitializeFinalizeEvent::finalize_from_record(
+                0,
+                addr_0_final_record,
+            ));
 
-        let memory_initialize_events = &mut self.record.memory_initialize_events;
-        let addr_0_initialize_event =
-            MemoryInitializeFinalizeEvent::initialize(0, 0, addr_0_record.is_some());
-        memory_initialize_events.push(addr_0_initialize_event);
+            let memory_initialize_events = &mut self.record.memory_initialize_events;
+            let addr_0_initialize_event =
+                MemoryInitializeFinalizeEvent::initialize(0, 0, addr_0_record.is_some());
+            memory_initialize_events.push(addr_0_initialize_event);
 
-        for addr in self.state.memory.keys() {
-            if addr == &0 {
-                // Handled above.
-                continue;
-            }
+            for addr in self.state.memory.keys() {
+                if addr == &0 {
+                    // Handled above.
+                    continue;
+                }
 
-            // Program memory is initialized in the MemoryProgram chip and doesn't require any events,
-            // so we only send init events for other memory addresses.
-            if !self.record.program.memory_image.contains_key(addr) {
-                let initial_value = self.state.uninitialized_memory.get(addr).unwrap_or(&0);
-                memory_initialize_events.push(MemoryInitializeFinalizeEvent::initialize(
-                    *addr,
-                    *initial_value,
-                    true,
+                // Program memory is initialized in the MemoryProgram chip and doesn't require any events,
+                // so we only send init events for other memory addresses.
+                if !self.record.program.memory_image.contains_key(addr) {
+                    let initial_value = self.state.uninitialized_memory.get(addr).unwrap_or(&0);
+                    memory_initialize_events.push(MemoryInitializeFinalizeEvent::initialize(
+                        *addr,
+                        *initial_value,
+                        true,
+                    ));
+                }
+
+                let record = *self.state.memory.get(addr).unwrap();
+                memory_finalize_events.push(MemoryInitializeFinalizeEvent::finalize_from_record(
+                    *addr, &record,
                 ));
             }
-
-            let record = *self.state.memory.get(addr).unwrap();
-            memory_finalize_events.push(MemoryInitializeFinalizeEvent::finalize_from_record(
-                *addr, &record,
-            ));
         }
     }
 

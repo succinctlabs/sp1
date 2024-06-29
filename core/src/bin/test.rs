@@ -56,7 +56,12 @@ fn main() {
         shard.public_values.exit_code = last_shard_pvs.exit_code;
 
         shard.nonce_lookup = shard.get_lookup_ids();
-        println!("num lookups: {:?}", shard.nonce_lookup.len());
+        println!(
+            "num lookups: {:?} num memory finalize events: {:?} num memory initialize events: {:?}",
+            shard.nonce_lookup.len(),
+            shard.memory_finalize_events.len(),
+            shard.memory_initialize_events.len()
+        );
     }
     // // runtime.run().unwrap();
     // println!("{:?}", runtime.record.stats());

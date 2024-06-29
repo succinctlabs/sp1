@@ -79,19 +79,21 @@ impl Syscall for ShaCompressChip {
         let lookup_id = rt.syscall_lookup_id;
         let shard = rt.current_shard();
         let channel = rt.current_channel();
-        rt.record_mut().sha_compress_events.push(ShaCompressEvent {
-            lookup_id,
-            shard,
-            channel,
-            clk: start_clk,
-            w_ptr,
-            h_ptr,
-            w: original_w,
-            h: hx,
-            h_read_records: h_read_records.try_into().unwrap(),
-            w_i_read_records,
-            h_write_records: h_write_records.try_into().unwrap(),
-        });
+        if rt.rt.emit_precompile_events {
+            rt.record_mut().sha_compress_events.push(ShaCompressEvent {
+                lookup_id,
+                shard,
+                channel,
+                clk: start_clk,
+                w_ptr,
+                h_ptr,
+                w: original_w,
+                h: hx,
+                h_read_records: h_read_records.try_into().unwrap(),
+                w_i_read_records,
+                h_write_records: h_write_records.try_into().unwrap(),
+            });
+        }
 
         None
     }

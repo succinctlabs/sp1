@@ -106,4 +106,7 @@ pub(crate) struct ForkState {
 
     // Emit events from original state
     pub(crate) emit_events: bool,
+
+    // Emit precompile events from original state
+    pub(crate) emit_precompile_events: bool,
 }

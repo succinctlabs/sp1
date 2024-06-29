@@ -339,20 +339,22 @@ impl<E: EdwardsParameters> Syscall for EdDecompressChip<E> {
         let lookup_id = rt.syscall_lookup_id;
         let shard = rt.current_shard();
         let channel = rt.current_channel();
-        rt.record_mut()
-            .ed_decompress_events
-            .push(EdDecompressEvent {
-                lookup_id,
-                shard,
-                channel,
-                clk: start_clk,
-                ptr: slice_ptr,
-                sign: sign_bool,
-                y_bytes,
-                decompressed_x_bytes: decompressed_x_bytes.try_into().unwrap(),
-                x_memory_records,
-                y_memory_records,
-            });
+        if rt.rt.emit_precompile_events {
+            rt.record_mut()
+                .ed_decompress_events
+                .push(EdDecompressEvent {
+                    lookup_id,
+                    shard,
+                    channel,
+                    clk: start_clk,
+                    ptr: slice_ptr,
+                    sign: sign_bool,
+                    y_bytes,
+                    decompressed_x_bytes: decompressed_x_bytes.try_into().unwrap(),
+                    x_memory_records,
+                    y_memory_records,
+                });
+        }
         None
     }
 

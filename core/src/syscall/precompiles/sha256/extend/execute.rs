@@ -63,18 +63,20 @@ impl Syscall for ShaExtendChip {
         let lookup_id = rt.syscall_lookup_id;
         let shard = rt.current_shard();
         let channel = rt.current_channel();
-        rt.record_mut().sha_extend_events.push(ShaExtendEvent {
-            lookup_id,
-            shard,
-            channel,
-            clk: clk_init,
-            w_ptr: w_ptr_init,
-            w_i_minus_15_reads,
-            w_i_minus_2_reads,
-            w_i_minus_16_reads,
-            w_i_minus_7_reads,
-            w_i_writes,
-        });
+        if rt.rt.emit_precompile_events {
+            rt.record_mut().sha_extend_events.push(ShaExtendEvent {
+                lookup_id,
+                shard,
+                channel,
+                clk: clk_init,
+                w_ptr: w_ptr_init,
+                w_i_minus_15_reads,
+                w_i_minus_2_reads,
+                w_i_minus_16_reads,
+                w_i_minus_7_reads,
+                w_i_writes,
+            });
+        }
 
         None
     }

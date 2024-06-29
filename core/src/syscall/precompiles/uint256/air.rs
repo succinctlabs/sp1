@@ -276,20 +276,22 @@ impl Syscall for Uint256MulChip {
         let shard = rt.current_shard();
         let channel = rt.current_channel();
         let clk = rt.clk;
-        rt.record_mut().uint256_mul_events.push(Uint256MulEvent {
-            lookup_id,
-            shard,
-            channel,
-            clk,
-            x_ptr,
-            x,
-            y_ptr,
-            y,
-            modulus,
-            x_memory_records,
-            y_memory_records,
-            modulus_memory_records,
-        });
+        if rt.rt.emit_precompile_events {
+            rt.record_mut().uint256_mul_events.push(Uint256MulEvent {
+                lookup_id,
+                shard,
+                channel,
+                clk,
+                x_ptr,
+                x,
+                y_ptr,
+                y,
+                modulus,
+                x_memory_records,
+                y_memory_records,
+                modulus_memory_records,
+            });
+        }
 
         None
     }

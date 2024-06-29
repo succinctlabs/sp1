@@ -24,6 +24,7 @@ impl Syscall for SyscallEnterUnconstrained {
             record: std::mem::take(&mut ctx.rt.record),
             op_record: std::mem::take(&mut ctx.rt.memory_accesses),
             emit_events: ctx.rt.emit_events,
+            emit_precompile_events: ctx.rt.emit_precompile_events,
         };
         ctx.rt.emit_events = false;
         Some(1)
@@ -59,6 +60,7 @@ impl Syscall for SyscallExitUnconstrained {
             ctx.rt.record = std::mem::take(&mut ctx.rt.unconstrained_state.record);
             ctx.rt.memory_accesses = std::mem::take(&mut ctx.rt.unconstrained_state.op_record);
             ctx.rt.emit_events = ctx.rt.unconstrained_state.emit_events;
+            ctx.rt.emit_precompile_events = ctx.rt.unconstrained_state.emit_precompile_events;
             ctx.rt.unconstrained = false;
         }
         ctx.rt.unconstrained_state = ForkState::default();

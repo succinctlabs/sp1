@@ -75,10 +75,12 @@ pub struct WeierstrassDecompressChip<E> {
 impl<E: EllipticCurve> Syscall for WeierstrassDecompressChip<E> {
     fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
         let event = create_ec_decompress_event::<E>(rt, arg1, arg2);
-        match E::CURVE_TYPE {
-            CurveType::Secp256k1 => rt.record_mut().k256_decompress_events.push(event),
-            CurveType::Bls12381 => rt.record_mut().bls12381_decompress_events.push(event),
-            _ => panic!("Unsupported curve"),
+        if rt.rt.emit_precompile_events {
+            match E::CURVE_TYPE {
+                CurveType::Secp256k1 => rt.record_mut().k256_decompress_events.push(event),
+                CurveType::Bls12381 => rt.record_mut().bls12381_decompress_events.push(event),
+                _ => panic!("Unsupported curve"),
+            }
         }
         None
     }
