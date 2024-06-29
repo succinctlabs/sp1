@@ -15,6 +15,7 @@ mod unconstrained;
 #[cfg(feature = "verify")]
 mod verify;
 
+pub use bigint::*;
 pub use bls12381::*;
 pub use bn254::*;
 pub use ed25519::*;

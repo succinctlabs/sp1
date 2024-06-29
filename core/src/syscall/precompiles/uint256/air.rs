@@ -31,7 +31,7 @@ use std::mem::size_of;
 use typenum::Unsigned;
 
 /// The number of columns in the Uint256MulCols.
-pub const NUM_COLS: usize = size_of::<Uint256MulCols<u8>>();
+const NUM_COLS: usize = size_of::<Uint256MulCols<u8>>();
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Uint256MulEvent {
@@ -181,13 +181,13 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
                             FieldOperation::Mul,
                         );
 
-                        cols.output_range_check.populate(
-                            &mut new_byte_lookup_events,
-                            event.shard,
-                            event.channel,
-                            &x,
-                            Some(&effective_modulus),
-                        );
+                        // cols.output_range_check.populate(
+                        //     &mut new_byte_lookup_events,
+                        //     event.shard,
+                        //     event.channel,
+                        //     &x,
+                        //     Some(&effective_modulus),
+                        // );
 
                         row
                     })
@@ -374,14 +374,14 @@ where
         );
 
         // Verify the range of the output.
-        local.output_range_check.eval(
-            builder,
-            &local.output.result,
-            Some(&modulus_limbs),
-            local.shard,
-            local.channel,
-            local.is_real,
-        );
+        // local.output_range_check.eval(
+        //     builder,
+        //     &local.output.result,
+        //     Some(&modulus_limbs),
+        //     local.shard,
+        //     local.channel,
+        //     local.is_real,
+        // );
 
         // Assert that the correct result is being written to x_memory.
         builder
