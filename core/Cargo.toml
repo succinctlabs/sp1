@@ -41,7 +41,6 @@ blake3 = "1.5"
 cfg-if = "1.0.0"
 generic-array = { version = "1.0.0", features = ["alloc", "serde"] }
 typenum = "1.17.0"
-curve25519-dalek = { version = "4.1.2" }
 elliptic-curve = "0.13.8"
 hex = "0.4.3"
 k256 = { version = "0.13.3", features = ["expose-field"] }
