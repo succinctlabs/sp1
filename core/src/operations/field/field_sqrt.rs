@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use num::BigUint;
+use num::{BigUint, One};
 use p3_air::AirBuilder;
 use p3_field::PrimeField32;
 use sp1_derive::AlignedBorrow;
@@ -67,7 +67,8 @@ impl<F: PrimeField32, P: FieldParameters> FieldSqrtCols<F, P> {
         self.multiplication.result = P::to_limbs_field::<F, _>(&sqrt);
 
         // Populate the range columns.
-        self.range.populate(record, shard, channel, &sqrt, None);
+        self.range
+            .populate(record, shard, channel, &sqrt, &(modulus - BigUint::one()));
 
         let sqrt_bytes = P::to_limbs(&sqrt);
         self.lsb = F::from_canonical_u8(sqrt_bytes[0] & 1);
@@ -138,7 +139,7 @@ where
         self.range.eval(
             builder,
             &sqrt,
-            None,
+            &(P::modulus() - BigUint::one()),
             shard.clone(),
             channel.clone(),
             is_real.clone(),

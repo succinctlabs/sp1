@@ -3,8 +3,7 @@ use core::mem::size_of;
 use std::fmt::Debug;
 
 use generic_array::GenericArray;
-use num::BigUint;
-use num::Zero;
+use num::{BigUint, One, Zero};
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField32;
@@ -103,7 +102,13 @@ impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDecompressChip<E> {
         x: BigUint,
     ) {
         // Y = sqrt(x^3 + b)
-        cols.range_x.populate(record, shard, channel, &x, None);
+        cols.range_x.populate(
+            record,
+            shard,
+            channel,
+            &x,
+            &(E::BaseField::modulus() - BigUint::one()),
+        );
         let x_2 = cols.x_2.populate(
             record,
             shard,
@@ -280,9 +285,14 @@ where
 
         let x: Limbs<AB::Var, <E::BaseField as NumLimbs>::Limbs> =
             limbs_from_prev_access(&local.x_access);
-        local
-            .range_x
-            .eval(builder, &x, None, local.shard, local.channel, local.is_real);
+        local.range_x.eval(
+            builder,
+            &x,
+            &(E::BaseField::modulus() - BigUint::one()),
+            local.shard,
+            local.channel,
+            local.is_real,
+        );
         local.x_2.eval(
             builder,
             &x,

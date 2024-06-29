@@ -1,6 +1,5 @@
 use itertools::izip;
 
-use itertools::Itertools;
 use num::BigUint;
 
 use p3_air::AirBuilder;
@@ -35,20 +34,16 @@ impl<F: PrimeField32, P: FieldParameters> FieldRangeCols<F, P> {
         shard: u32,
         channel: u32,
         value: &BigUint,
-        modulus: Option<&BigUint>,
+        max_num: &BigUint,
     ) {
         let value_limbs = P::to_limbs(value);
-        let modulus_limbs = if modulus.is_none() {
-            P::to_limbs(&P::modulus())
-        } else {
-            P::to_limbs(modulus.unwrap())
-        };
+        let max_num_limbs = P::to_limbs(max_num);
 
         let mut byte_flags = vec![0u8; P::NB_LIMBS];
 
         for (byte, modulus_byte, flag) in izip!(
             value_limbs.iter().rev(),
-            modulus_limbs.iter().rev(),
+            max_num_limbs.iter().rev(),
             byte_flags.iter_mut().rev()
         ) {
             assert!(byte <= modulus_byte);
@@ -79,7 +74,7 @@ impl<V: Copy, P: FieldParameters> FieldRangeCols<V, P> {
         &self,
         builder: &mut AB,
         element: &E,
-        modulus: Option<&E>,
+        max_num: &BigUint,
         shard: impl Into<AB::Expr> + Clone,
         channel: impl Into<AB::Expr> + Clone,
         is_real: impl Into<AB::Expr> + Clone,
@@ -89,15 +84,15 @@ impl<V: Copy, P: FieldParameters> FieldRangeCols<V, P> {
     {
         // The byte flags give a specification of which byte is `first_eq`, i,e, the first most
         // significant byte for which the element is smaller than the modulus. To verify the
-        // less-than claim we need to check that:
+        // less-than-equal claim we need to check that:
         // * For all bytes until `first_eq` the element byte is equal to the modulus byte.
         // * For the `first_eq` byte the element byte is smaller than the modulus byte.
         // * all byte flags are boolean.
-        // * only one byte flag is set to one, and the rest are set to zero.
+        // * at most one byte flag is set to one
 
         // Check the flags are of valid form.
 
-        // Verify that only one flag is set to one.
+        // Verify that at most one flag is set to one.
         let mut sum_flags: AB::Expr = AB::Expr::zero();
         for &flag in self.byte_flags.0.iter() {
             // Assert that the flag is boolean.
@@ -105,32 +100,22 @@ impl<V: Copy, P: FieldParameters> FieldRangeCols<V, P> {
             // Add the flag to the sum.
             sum_flags += flag.into();
         }
-        // Assert that the sum is equal to one.
-        builder.assert_one(sum_flags);
-
-        // Check the less-than condition.
+        // Assert that the sum is a bool.
+        builder.assert_bool(sum_flags.clone());
+        let is_lt = sum_flags.clone();
 
         // A flag to indicate whether an equality check is necessary (this is for all bytes from
         // most significant until the first inequality.
         let mut is_inequality_visited = AB::Expr::zero();
 
-        // The bytes of the modulus.
-        let modulus_bytes = if modulus.is_none() {
-            P::MODULUS
-                .iter()
-                .map(|x| AB::Expr::from_canonical_u8(*x))
-                .collect_vec()
-        } else {
-            modulus.unwrap().clone().into().coefficients().to_vec()
-        };
-
+        let max_num_bytes = P::to_limbs(max_num);
         let element: Polynomial<_> = element.clone().into();
 
         let mut first_lt_byte = AB::Expr::zero();
         let mut modulus_comparison_byte = AB::Expr::zero();
-        for (byte, modulus_byte, &flag) in izip!(
+        for (byte, max_num_byte, &flag) in izip!(
             element.coefficients().iter().rev(),
-            modulus_bytes.into_iter().rev(),
+            max_num_bytes.iter().rev(),
             self.byte_flags.0.iter().rev()
         ) {
             // Once the byte flag was set to one, we turn off the quality check flag.
@@ -138,16 +123,20 @@ impl<V: Copy, P: FieldParameters> FieldRangeCols<V, P> {
             is_inequality_visited += flag.into();
 
             first_lt_byte += byte.clone() * flag;
-            modulus_comparison_byte += flag.into() * modulus_byte.clone();
+            let max_num_byte = AB::Expr::from_canonical_u8(*max_num_byte);
+            modulus_comparison_byte += flag.into() * max_num_byte.clone();
 
             builder
                 .when_not(is_inequality_visited.clone())
-                .assert_eq(byte.clone(), modulus_byte.clone());
+                .assert_eq(byte.clone(), max_num_byte.clone());
         }
 
         builder.assert_eq(self.comparison_byte, first_lt_byte);
 
         // Send the comparison interaction.
+        // First check that if is_lt is true, then is_real is true, so an interaction is not sent
+        // for a non real row.
+        builder.when(is_lt.clone()).assert_one(is_real.clone());
         builder.send_byte(
             ByteOpcode::LTU.as_field::<AB::F>(),
             AB::F::one(),
@@ -155,7 +144,7 @@ impl<V: Copy, P: FieldParameters> FieldRangeCols<V, P> {
             modulus_comparison_byte,
             shard,
             channel,
-            is_real,
+            is_lt,
         )
     }
 }

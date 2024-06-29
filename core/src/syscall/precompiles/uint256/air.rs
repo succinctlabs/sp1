@@ -181,13 +181,13 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
                             FieldOperation::Mul,
                         );
 
-                        // cols.output_range_check.populate(
-                        //     &mut new_byte_lookup_events,
-                        //     event.shard,
-                        //     event.channel,
-                        //     &x,
-                        //     Some(&effective_modulus),
-                        // );
+                        cols.output_range_check.populate(
+                            &mut new_byte_lookup_events,
+                            event.shard,
+                            event.channel,
+                            &x,
+                            &(effective_modulus - BigUint::one()),
+                        );
 
                         row
                     })
