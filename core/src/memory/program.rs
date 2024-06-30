@@ -169,13 +169,6 @@ where
             core::array::from_fn(|i| builder.public_values()[i].into());
         let public_values: &PublicValues<Word<AB::Expr>, AB::Expr> =
             public_values_slice.as_slice().borrow();
-        // let public_values = PublicValues::<Word<AB::Expr>, AB::Expr>::from_vec(
-        //     builder
-        //         .public_values()
-        //         .iter()
-        //         .map(|elm| (*elm).into())
-        //         .collect::<Vec<_>>(),
-        // );
 
         // Constrain `is_first_shard` to be 1 if and only if the shard is the first shard.
         IsZeroOperation::<AB::F>::eval(

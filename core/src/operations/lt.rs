@@ -6,6 +6,7 @@ use p3_field::PrimeField32;
 
 use sp1_derive::AlignedBorrow;
 
+use crate::air::BaseAirBuilder;
 use crate::{
     bytes::{event::ByteRecord, ByteLookupEvent, ByteOpcode},
     stark::SP1AirBuilder,
@@ -236,8 +237,8 @@ impl<V: Copy, const N: usize> AssertLtColsBits<V, N> {
             b_comparison_bit += b_bit.clone() * flag;
 
             builder
-                .when_not(is_inequality_visited.clone())
                 .when(is_real.clone())
+                .when_not(is_inequality_visited.clone())
                 .assert_eq(a_bit.clone(), b_bit.clone());
         }
 
