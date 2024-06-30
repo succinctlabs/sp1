@@ -577,15 +577,29 @@ impl MachineRecord for ExecutionRecord {
         last.memory_initialize_events
             .extend_from_slice(&self.memory_initialize_events);
         last.public_values.previous_init_addr_bits = [0; 32];
-        let last_init_addr = last.memory_initialize_events.last().unwrap().addr;
-        last.public_values.last_init_addr_bits =
-            core::array::from_fn(|i| (last_init_addr >> i) & 1);
+        if !self.memory_initialize_events.is_empty() {
+            let last_init_addr = last
+                .memory_initialize_events
+                .iter()
+                .map(|event| event.addr)
+                .max()
+                .unwrap();
+            last.public_values.last_init_addr_bits =
+                core::array::from_fn(|i| (last_init_addr >> i) & 1);
+        }
         last.memory_finalize_events
             .extend_from_slice(&self.memory_finalize_events);
         last.public_values.previous_finalize_addr_bits = [0; 32];
-        let last_finalize_addr = last.memory_finalize_events.last().unwrap().addr;
-        last.public_values.last_finalize_addr_bits =
-            core::array::from_fn(|i| (last_finalize_addr >> i) & 1);
+        if !self.memory_finalize_events.is_empty() {
+            let last_finalize_addr = last
+                .memory_finalize_events
+                .iter()
+                .map(|event| event.addr)
+                .max()
+                .unwrap();
+            last.public_values.last_finalize_addr_bits =
+                core::array::from_fn(|i| (last_finalize_addr >> i) & 1);
+        }
 
         // Copy the nonce lookup to all shards.
         for shard in shards.iter_mut() {

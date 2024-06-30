@@ -676,7 +676,7 @@ pub mod tests {
     }
 
     #[test]
-    fn test_fibonacci_prove() {
+    fn test_fibonacci_prove_simple() {
         setup_logger();
         let program = fibonacci_program();
         run_test(program).unwrap();

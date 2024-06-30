@@ -17,7 +17,7 @@ use crate::runtime::{ExecutionRecord, Program};
 use crate::utils::pad_to_power_of_two;
 
 /// The type of memory chip that is being initialized.
-#[derive(PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MemoryChipType {
     Initialize,
     Finalize,
@@ -114,6 +114,10 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip {
                     cols.lt_cols.populate(&prev_addr_bits, &addr_bits);
                 }
 
+                if i == memory_events.len() - 1 {
+                    cols.is_last_addr = F::one();
+                }
+
                 row
             })
             .collect::<Vec<_>>();
@@ -168,6 +172,9 @@ pub struct MemoryInitCols<T> {
 
     /// Auxilary column, equal to `(1 - is_prev_addr_zero.result) * is_first_row`.
     pub is_first_comp: T,
+
+    /// A flag to inidicate the last non-padded address. An auxiliary column needed for degree 3.
+    pub is_last_addr: T,
 }
 
 pub(crate) const NUM_MEMORY_INIT_COLS: usize = size_of::<MemoryInitCols<u8>>();
@@ -243,9 +250,9 @@ where
         // - In the last real row, we need to assert that addr = last_finalize_addr.
 
         // Assert that addr < addr' when the next row is real.
-        // builder
-        //     .when_transition()
-        //     .assert_eq(local.is_comp, next.is_real);
+        builder
+            .when_transition()
+            .assert_eq(next.is_next_comp, next.is_real);
         next.lt_cols.eval(
             builder,
             &local.addr_bits.bits,
@@ -357,8 +364,8 @@ where
                 .when(local.is_real)
                 .assert_eq(*local_bit, pub_bit.clone());
             builder
-                .when(local.is_real)
-                .when_not(next.is_real)
+                .when_transition()
+                .when(local.is_last_addr)
                 .assert_eq(*local_bit, pub_bit.clone());
         }
     }
