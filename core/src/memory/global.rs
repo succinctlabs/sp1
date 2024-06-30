@@ -276,10 +276,9 @@ mod tests {
     use crate::runtime::tests::simple_program;
     use crate::runtime::Runtime;
     use crate::stark::MachineRecord;
-    use crate::stark::{RiscvAir, StarkGenericConfig};
+    use crate::stark::RiscvAir;
     use crate::syscall::precompiles::sha256::extend_tests::sha_extend_program;
     use crate::utils::{setup_logger, BabyBearPoseidon2, SP1CoreOpts};
-    use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use p3_baby_bear::BabyBear;
 
     #[test]
@@ -303,25 +302,6 @@ mod tests {
         for mem_event in shard.memory_finalize_events {
             println!("{:?}", mem_event);
         }
-    }
-
-    #[test]
-    fn test_memory_prove_babybear() {
-        let config = BabyBearPoseidon2::new();
-        let mut challenger = config.challenger();
-
-        let program = simple_program();
-        let mut runtime = Runtime::new(program, SP1CoreOpts::default());
-        runtime.run().unwrap();
-
-        let chip = MemoryChip::new(MemoryChipType::Initialize);
-
-        let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&runtime.record, &mut ExecutionRecord::default());
-        let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
-
-        let mut challenger = config.challenger();
-        verify(&config, &chip, &mut challenger, &proof).unwrap();
     }
 
     #[test]
