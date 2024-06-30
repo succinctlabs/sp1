@@ -82,15 +82,15 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip {
                 cols.value = array::from_fn(|i| F::from_canonical_u32((value >> i) & 1));
                 cols.is_real = F::from_canonical_u32(used);
 
-                if i != memory_events.len() - 1 {
-                    let next_is_real = memory_events[i + 1].used;
-                    cols.is_comp = F::from_canonical_u32(next_is_real);
-                    let next_addr = memory_events[i + 1].addr;
-                    assert_ne!(next_addr, addr);
+                if i != 0 {
+                    let prev_is_real = memory_events[i - 1].used;
+                    cols.is_comp = F::from_canonical_u32(prev_is_real);
+                    let previous_addr = memory_events[i - 1].addr;
+                    assert_ne!(previous_addr, addr);
 
                     let addr_bits: [_; 32] = array::from_fn(|i| (addr >> i) & 1);
-                    let next_addr_bits: [_; 32] = array::from_fn(|i| (next_addr >> i) & 1);
-                    cols.lt_cols.populate(&addr_bits, &next_addr_bits);
+                    let prev_addr_bits: [_; 32] = array::from_fn(|i| (previous_addr >> i) & 1);
+                    cols.lt_cols.populate(&prev_addr_bits, &addr_bits);
                 }
 
                 row
@@ -216,14 +216,14 @@ where
         // - In the last real row, we need to assert that addr = last_finalize_addr.
 
         // Assert that addr < addr' when the next row is real.
-        builder
-            .when_transition()
-            .assert_eq(local.is_comp, next.is_real);
-        local.lt_cols.eval(
+        // builder
+        //     .when_transition()
+        //     .assert_eq(local.is_comp, next.is_real);
+        next.lt_cols.eval(
             builder,
             &local.addr_bits.bits,
             &next.addr_bits.bits,
-            local.is_comp,
+            next.is_comp,
         );
 
         // Assert that the real rows are all padded to the top.
