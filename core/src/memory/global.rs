@@ -10,8 +10,8 @@ use p3_matrix::Matrix;
 use sp1_derive::AlignedBorrow;
 
 use super::MemoryInitializeFinalizeEvent;
-use crate::air::MachineAir;
-use crate::air::{AirInteraction, BaseAirBuilder, SP1AirBuilder};
+use crate::air::{AirInteraction, BaseAirBuilder, PublicValues, SP1AirBuilder, Word};
+use crate::air::{MachineAir, SP1_PROOF_NUM_PV_ELTS};
 use crate::operations::{AssertLtColsBits, BabyBearBitDecomposition};
 use crate::runtime::{ExecutionRecord, Program};
 use crate::utils::pad_to_power_of_two;
@@ -195,6 +195,26 @@ where
             ));
         }
 
+        // Canonically decompose the address into bits so we can do comparisons.
+        BabyBearBitDecomposition::<AB::F>::range_check(
+            builder,
+            local.addr,
+            local.addr_bits,
+            local.is_real.into(),
+        );
+
+        // Assertion for increasing address. We need to make two types of less-than assertions,
+        // first we ned to assert that the addr < addr' when the next row is real. Then we need to
+        // make assertions with regards to public values.
+        //
+        // If the chip is a `MemoryInit`:
+        // - In the first row, we need to assert that previous_init_addr < addr.
+        // - In the last real row, we need to assert that addr = last_init_addr.
+        //
+        // If the chip is a `MemoryFinalize`:
+        // - In the first row, we need to assert that previous_finalize_addr < addr.
+        // - In the last real row, we need to assert that addr = last_finalize_addr.
+
         // Assert that addr < addr' when the next row is real.
         builder
             .when_transition()
@@ -206,24 +226,32 @@ where
             local.is_comp,
         );
 
-        // Canonically decompose the address into bits so we can do comparisons.
-        BabyBearBitDecomposition::<AB::F>::range_check(
-            builder,
-            local.addr,
-            local.addr_bits,
-            local.is_real.into(),
-        );
-
         // Assert that the real rows are all padded to the top.
         builder
             .when_transition()
             .when_not(local.is_real)
             .assert_zero(next.is_real);
 
+        // Make assertions for specific types of memory chips.
+
         if self.kind == MemoryChipType::Initialize {
             builder
                 .when(local.is_real)
                 .assert_eq(local.timestamp, AB::F::one());
+
+            let public_values_array: [AB::Expr; SP1_PROOF_NUM_PV_ELTS] =
+                array::from_fn(|i| builder.public_values()[i].into());
+            let public_values: &PublicValues<Word<AB::Expr>, AB::Expr> =
+                public_values_array.as_slice().borrow();
+
+            // Assert that the previous_init_addr is less then the first row address.
+        }
+
+        if self.kind == MemoryChipType::Finalize {
+            let public_values_array: [AB::Expr; SP1_PROOF_NUM_PV_ELTS] =
+                array::from_fn(|i| builder.public_values()[i].into());
+            let public_values: &PublicValues<Word<AB::Expr>, AB::Expr> =
+                public_values_array.as_slice().borrow();
         }
 
         // Register %x0 should always be 0. See 2.6 Load and Store Instruction on

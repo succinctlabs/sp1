@@ -82,7 +82,8 @@ impl<T: Clone> Borrow<PublicValues<Word<T>, T>> for [T] {
     fn borrow(&self) -> &PublicValues<Word<T>, T> {
         let size = std::mem::size_of::<PublicValues<Word<u8>, u8>>();
         debug_assert!(self.len() >= size);
-        let (prefix, shorts, _suffix) = unsafe { self.align_to::<PublicValues<Word<T>, T>>() };
+        let slice = &self[0..size];
+        let (prefix, shorts, _suffix) = unsafe { slice.align_to::<PublicValues<Word<T>, T>>() };
         debug_assert!(prefix.is_empty(), "Alignment should match");
         debug_assert_eq!(shorts.len(), 1);
         &shorts[0]
