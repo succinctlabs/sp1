@@ -1,12 +1,12 @@
 use std::fmt::Debug;
 
-use num::{BigUint, One};
+use num::BigUint;
 use p3_air::AirBuilder;
 use p3_field::PrimeField32;
 use sp1_derive::AlignedBorrow;
 
 use super::field_op::FieldOpCols;
-use super::params::Limbs;
+use super::params::{limbs_from_vec, Limbs};
 use super::range::FieldRangeCols;
 use crate::air::SP1AirBuilder;
 use crate::bytes::event::ByteRecord;
@@ -67,8 +67,7 @@ impl<F: PrimeField32, P: FieldParameters> FieldSqrtCols<F, P> {
         self.multiplication.result = P::to_limbs_field::<F, _>(&sqrt);
 
         // Populate the range columns.
-        self.range
-            .populate(record, shard, channel, &sqrt, &(modulus - BigUint::one()));
+        self.range.populate(record, shard, channel, &sqrt, &modulus);
 
         let sqrt_bytes = P::to_limbs(&sqrt);
         self.lsb = F::from_canonical_u8(sqrt_bytes[0] & 1);
@@ -136,10 +135,11 @@ where
             is_real.clone(),
         );
 
+        let modulus_limbs = P::to_limbs_field_vec(&P::modulus());
         self.range.eval(
             builder,
             &sqrt,
-            &(P::modulus() - BigUint::one()),
+            &limbs_from_vec::<AB::Expr, P::Limbs, AB::F>(modulus_limbs),
             shard.clone(),
             channel.clone(),
             is_real.clone(),

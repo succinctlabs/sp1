@@ -22,7 +22,7 @@ use crate::memory::MemoryReadWriteCols;
 use crate::operations::field::field_op::FieldOpCols;
 use crate::operations::field::field_op::FieldOperation;
 use crate::operations::field::field_sqrt::FieldSqrtCols;
-use crate::operations::field::params::{FieldParameters, NumWords};
+use crate::operations::field::params::{limbs_from_vec, FieldParameters, NumWords};
 use crate::operations::field::params::{Limbs, NumLimbs};
 use crate::operations::field::range::FieldRangeCols;
 use crate::runtime::ExecutionRecord;
@@ -285,10 +285,12 @@ where
 
         let x: Limbs<AB::Var, <E::BaseField as NumLimbs>::Limbs> =
             limbs_from_prev_access(&local.x_access);
+        let max_num_limbs =
+            E::BaseField::to_limbs_field_vec(&(E::BaseField::modulus() - BigUint::one()));
         local.range_x.eval(
             builder,
             &x,
-            &(E::BaseField::modulus() - BigUint::one()),
+            &limbs_from_vec::<AB::Expr, <E::BaseField as NumLimbs>::Limbs, AB::F>(max_num_limbs),
             local.shard,
             local.channel,
             local.is_real,

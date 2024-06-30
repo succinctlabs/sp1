@@ -281,6 +281,7 @@ pub fn run_test_io(
         runtime.run().unwrap();
         runtime
     });
+
     let public_values = SP1PublicValues::from(&runtime.state.public_values_stream);
     let _ = run_test_core(runtime)?;
     Ok(public_values)
@@ -312,6 +313,10 @@ pub fn run_test_core(
     let (pk, vk) = machine.setup(runtime.program.as_ref());
 
     let record = runtime.record;
+
+    let mut challenger = machine.config().challenger();
+    machine.debug_constraints(&pk, record.clone(), &mut challenger);
+
     run_test_machine(record, machine, pk, vk)
 }
 

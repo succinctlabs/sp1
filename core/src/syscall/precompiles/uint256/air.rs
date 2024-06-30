@@ -96,6 +96,7 @@ pub struct Uint256MulCols<T> {
     pub output: FieldOpCols<T, U256Field>,
 
     pub output_range_check: FieldRangeCols<T, U256Field>,
+    pub output_modulus_is_eq: T,
 
     pub is_real: T,
 }
@@ -241,6 +242,8 @@ impl Syscall for Uint256MulChip {
     }
 
     fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
+        let clk = rt.clk;
+
         let x_ptr = arg1;
         if x_ptr % 4 != 0 {
             panic!();
@@ -280,13 +283,14 @@ impl Syscall for Uint256MulChip {
         // Convert the result to little endian u32 words.
         let result = bytes_to_words_le::<8>(&result_bytes);
 
+        // Increment clk so that the write is not at the same cycle as the read.
+        rt.clk += 1;
         // Write the result to x and keep track of the memory records.
         let x_memory_records = rt.mw_slice(x_ptr, &result);
 
         let lookup_id = rt.syscall_lookup_id;
         let shard = rt.current_shard();
         let channel = rt.current_channel();
-        let clk = rt.clk;
         rt.record_mut().uint256_mul_events.push(Uint256MulEvent {
             lookup_id,
             shard,
@@ -373,15 +377,19 @@ where
             local.is_real,
         );
 
-        // Verify the range of the output.
-        // local.output_range_check.eval(
-        //     builder,
-        //     &local.output.result,
-        //     Some(&modulus_limbs),
-        //     local.shard,
-        //     local.channel,
-        //     local.is_real,
-        // );
+        // Verify the range of the output if the moduls is not zero.  Also, verify that all padded
+        // rows don't have modulus_is_zero set to 1.
+        local.output_range_check.eval(
+            builder,
+            &local.output.result,
+            &modulus_limbs,
+            local.shard,
+            local.channel,
+            modulus_is_zero.into(),
+        );
+        builder
+            .when(local.is_real)
+            .assert_zero(local.output_modulus_is_eq);
 
         // Assert that the correct result is being written to x_memory.
         builder
@@ -392,7 +400,7 @@ where
         builder.eval_memory_access_slice(
             local.shard,
             local.channel,
-            local.clk.into(),
+            local.clk.into() + AB::Expr::one(),
             local.x_ptr,
             &local.x_memory,
             local.is_real,
@@ -403,7 +411,7 @@ where
         builder.eval_memory_access_slice(
             local.shard,
             local.channel,
-            local.clk.into() + AB::Expr::one(),
+            local.clk.into(),
             local.y_ptr,
             &[local.y_memory, local.modulus_memory].concat(),
             local.is_real,

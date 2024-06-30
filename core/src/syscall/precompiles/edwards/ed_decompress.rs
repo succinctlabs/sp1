@@ -27,8 +27,8 @@ use crate::memory::MemoryWriteCols;
 use crate::operations::field::field_op::FieldOpCols;
 use crate::operations::field::field_op::FieldOperation;
 use crate::operations::field::field_sqrt::FieldSqrtCols;
-use crate::operations::field::params::FieldParameters;
 use crate::operations::field::params::Limbs;
+use crate::operations::field::params::{limbs_from_vec, FieldParameters};
 use crate::operations::field::range::FieldRangeCols;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::MemoryReadRecord;
@@ -192,10 +192,11 @@ impl<V: Copy> EdDecompressCols<V> {
         builder.assert_bool(self.sign);
 
         let y: Limbs<V, U32> = limbs_from_prev_access(&self.y_access);
+        let max_num_limbs = P::to_limbs_field_vec(&(Ed25519BaseField::modulus() - BigUint::one()));
         self.y_range.eval(
             builder,
             &y,
-            &(Ed25519BaseField::modulus() - BigUint::one()),
+            &limbs_from_vec::<AB::Expr, P::Limbs, AB::F>(max_num_limbs),
             self.shard,
             self.channel,
             self.is_real,
