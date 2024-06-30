@@ -116,6 +116,7 @@ where
     ShardMainData<SC>: Serialize + DeserializeOwned,
     <SC as StarkGenericConfig>::Val: PrimeField32,
 {
+    // Record the start of the process.
     let proving_start = Instant::now();
 
     // Execute the program.
@@ -146,8 +147,6 @@ where
         let proof = prove_simple(machine.config().clone(), runtime)?;
         return Ok((proof, public_values));
     }
-
-    let mut miscellaneous = ExecutionRecord::default();
 
     // Execute the program, saving checkpoints at the start of every `shard_batch_size` cycle range.
     let mut checkpoints = Vec::new();
@@ -183,7 +182,8 @@ where
     };
 
     // For each checkpoint, generate events, shard them, commit shards, and observe in challenger.
-    let mut all_shards = Vec::new();
+    let mut deferred = ExecutionRecord::default();
+    let (mut last_shard, mut last_start_pc, mut last_next_pc) = (0, 0, 0);
     let mut shard_main_datas = Vec::new();
     let mut challenger = machine.config().challenger();
     vk.observe_into(&mut challenger);
@@ -191,21 +191,26 @@ where
         let (mut records, _) = tracing::info_span!("commit_checkpoint", num)
             .in_scope(|| trace_checkpoint(program.clone(), checkpoint_file, opts));
         records.iter_mut().for_each(|record| {
-            let shard = record.public_values.shard;
-            let start_pc = record.public_values.start_pc;
-            let next_pc = record.public_values.next_pc;
-            record.index = shard - 1;
+            last_shard = record.public_values.shard;
+            last_start_pc = record.public_values.start_pc;
+            last_next_pc = record.public_values.next_pc;
+            record.program = program.clone().into();
+            record.index = last_shard - 1;
             record.public_values = public_values;
-            record.public_values.shard = shard;
-            record.public_values.start_pc = start_pc;
-            record.public_values.next_pc = next_pc;
+            record.public_values.shard = last_shard;
+            record.public_values.start_pc = last_start_pc;
+            record.public_values.next_pc = last_next_pc;
         });
-        all_shards.extend(records.clone());
         reset_seek(&mut *checkpoint_file);
 
         // Shard the record into shards.
         tracing::info_span!("shard").in_scope(|| machine.generate_dependencies(&mut records));
-        let checkpoint_shards = records;
+        let mut checkpoint_shards = records;
+
+        // Defer events that are too expensive to include in every shard.
+        checkpoint_shards.iter_mut().for_each(|record| {
+            deferred.append(&mut record.defer());
+        });
 
         // Commit to each shard.
         let (commitments, commit_data) = tracing::info_span!("commit")
@@ -219,11 +224,32 @@ where
         }
     }
 
+    // Commit to the deferred shards.
+    let mut deferred_shards = deferred.split();
+    deferred_shards.iter_mut().for_each(|record| {
+        record.index = last_shard - 1;
+        record.program = program.clone().into();
+        record.public_values = public_values;
+        record.public_values.shard = last_shard;
+        record.public_values.start_pc = last_start_pc;
+        record.public_values.next_pc = last_next_pc;
+    });
+    let (commitments, commit_data) = tracing::info_span!("commit")
+        .in_scope(|| LocalProver::commit_shards(&machine, &deferred_shards, opts));
+    shard_main_datas.push(commit_data);
+    for (commitment, shard) in commitments.into_iter().zip(deferred_shards.iter()) {
+        challenger.observe(commitment);
+        challenger.observe_slice(&shard.public_values::<SC::Val>()[0..machine.num_pv_elts()]);
+    }
+    drop(deferred_shards);
+    drop(shard_main_datas);
+
     // For each checkpoint, generate events and shard again, then prove the shards.
+    let mut deferred = ExecutionRecord::default();
     let mut shard_proofs = Vec::<ShardProof<SC>>::new();
     let mut report_aggregate = ExecutionReport::default();
     for (num, mut checkpoint_file) in checkpoints.into_iter().enumerate() {
-        let checkpoint_shards = {
+        let mut checkpoint_shards = {
             let (mut events, report) = tracing::info_span!("prove_checkpoint", num)
                 .in_scope(|| trace_checkpoint(program.clone(), &checkpoint_file, opts));
             events.iter_mut().for_each(|record| {
@@ -231,6 +257,7 @@ where
                 let start_pc = record.public_values.start_pc;
                 let next_pc = record.public_values.next_pc;
                 record.index = shard - 1;
+                record.program = program.clone().into();
                 record.public_values = public_values;
                 record.public_values.shard = shard;
                 record.public_values.start_pc = start_pc;
@@ -241,6 +268,12 @@ where
             tracing::debug_span!("shard").in_scope(|| machine.generate_dependencies(&mut events));
             events
         };
+
+        // Defer events that are too expensive to include in every shard.
+        checkpoint_shards.iter_mut().for_each(|record| {
+            deferred.append(&mut record.defer());
+        });
+
         let mut checkpoint_proofs = checkpoint_shards
             .into_iter()
             .map(|shard| {
@@ -264,6 +297,40 @@ where
             .collect::<Vec<_>>();
         shard_proofs.append(&mut checkpoint_proofs);
     }
+
+    // Prove the deferred shards.
+    let mut deferred_shards = deferred.split();
+    deferred_shards.iter_mut().for_each(|record| {
+        record.index = last_shard - 1;
+        record.program = program.clone().into();
+        record.public_values = public_values;
+        record.public_values.shard = last_shard;
+        record.public_values.start_pc = last_start_pc;
+        record.public_values.next_pc = last_next_pc;
+    });
+    let mut deferred_proofs = deferred_shards
+        .into_iter()
+        .map(|shard| {
+            let config = machine.config();
+            let shard_data =
+                LocalProver::commit_main(config, &machine, &shard, shard.index() as usize);
+
+            let chip_ordering = shard_data.chip_ordering.clone();
+            let ordered_chips = machine
+                .shard_chips_ordered(&chip_ordering)
+                .collect::<Vec<_>>()
+                .to_vec();
+            LocalProver::prove_shard(
+                config,
+                &pk,
+                &ordered_chips,
+                shard_data,
+                &mut challenger.clone(),
+            )
+        })
+        .collect::<Vec<_>>();
+    shard_proofs.append(&mut deferred_proofs);
+
     // Log some of the `ExecutionReport` information.
     tracing::info!(
         "execution report (totals): total_cycles={}, total_syscall_cycles={}",
