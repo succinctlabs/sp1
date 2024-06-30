@@ -9,6 +9,7 @@ use p3_field::PrimeField32;
 
 use sp1_derive::AlignedBorrow;
 
+use crate::air::BaseAirBuilder;
 use crate::{
     air::Polynomial,
     bytes::{event::ByteRecord, ByteLookupEvent, ByteOpcode},
@@ -26,6 +27,8 @@ pub struct FieldRangeCols<T, P: FieldParameters> {
     pub(crate) byte_flags: Limbs<T, P::Limbs>,
 
     pub(crate) comparison_byte: T,
+
+    pub(crate) modulus_comparison_byte: T,
 }
 
 impl<F: PrimeField32, P: FieldParameters> FieldRangeCols<F, P> {
@@ -37,6 +40,8 @@ impl<F: PrimeField32, P: FieldParameters> FieldRangeCols<F, P> {
         value: &BigUint,
         modulus: &BigUint,
     ) {
+        assert!(value < modulus);
+
         let value_limbs = P::to_limbs(value);
         let modulus = P::to_limbs(modulus);
 
@@ -51,6 +56,7 @@ impl<F: PrimeField32, P: FieldParameters> FieldRangeCols<F, P> {
             if byte < modulus_byte {
                 *flag = 1;
                 self.comparison_byte = F::from_canonical_u8(*byte);
+                self.modulus_comparison_byte = F::from_canonical_u8(*modulus_byte);
                 record.add_byte_lookup_event(ByteLookupEvent {
                     opcode: ByteOpcode::LTU,
                     shard,
@@ -104,12 +110,12 @@ impl<V: Copy, P: FieldParameters> FieldRangeCols<V, P> {
         let mut sum_flags: AB::Expr = AB::Expr::zero();
         for &flag in self.byte_flags.0.iter() {
             // Assert that the flag is boolean.
-            builder.assert_bool(flag);
+            builder.when(is_real.clone()).assert_bool(flag);
             // Add the flag to the sum.
             sum_flags += flag.into();
         }
         // Assert that the sum is equal to one.
-        builder.assert_one(sum_flags);
+        builder.when(is_real.clone()).assert_one(sum_flags);
 
         // Check the less-than condition.
 
@@ -135,18 +141,24 @@ impl<V: Copy, P: FieldParameters> FieldRangeCols<V, P> {
             modulus_comparison_byte += flag.into() * modulus_byte.clone();
 
             builder
+                .when(is_real.clone())
                 .when_not(is_inequality_visited.clone())
                 .assert_eq(byte.clone(), modulus_byte.clone());
         }
 
-        builder.assert_eq(self.comparison_byte, first_lt_byte);
+        builder
+            .when(is_real.clone())
+            .assert_eq(self.comparison_byte, first_lt_byte);
+        builder
+            .when(is_real.clone())
+            .assert_eq(self.modulus_comparison_byte, modulus_comparison_byte);
 
         // Send the comparison interaction.
         builder.send_byte(
             ByteOpcode::LTU.as_field::<AB::F>(),
             AB::F::one(),
             self.comparison_byte,
-            modulus_comparison_byte,
+            self.modulus_comparison_byte,
             shard,
             channel,
             is_real,

@@ -88,14 +88,16 @@ pub struct Uint256MulCols<T> {
     pub y_memory: GenericArray<MemoryReadCols<T>, WordsFieldElement>,
     pub modulus_memory: GenericArray<MemoryReadCols<T>, WordsFieldElement>,
 
-    // Columns for checking if modulus is zero. If it's zero, then use 2^256 as the effective modulus.
+    /// Columns for checking if modulus is zero. If it's zero, then use 2^256 as the effective modulus.
     pub modulus_is_zero: IsZeroOperation<T>,
+
+    /// Column that is equal to is_real * (1 - modulus_is_zero.result).
+    pub modulus_is_not_zero: T,
 
     // Output values. We compute (x * y) % modulus.
     pub output: FieldOpCols<T, U256Field>,
 
     pub output_range_check: FieldRangeCols<T, U256Field>,
-    pub output_modulus_is_eq: T,
 
     pub is_real: T,
 }
@@ -181,13 +183,16 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
                             FieldOperation::Mul,
                         );
 
-                        cols.output_range_check.populate(
-                            &mut new_byte_lookup_events,
-                            event.shard,
-                            event.channel,
-                            &x,
-                            &effective_modulus,
-                        );
+                        cols.modulus_is_not_zero = F::one() - cols.modulus_is_zero.result;
+                        if cols.modulus_is_not_zero == F::one() {
+                            cols.output_range_check.populate(
+                                &mut new_byte_lookup_events,
+                                event.shard,
+                                event.channel,
+                                &x,
+                                &effective_modulus,
+                            );
+                        }
 
                         row
                     })
@@ -376,19 +381,20 @@ where
             local.is_real,
         );
 
-        // Verify the range of the output if the moduls is not zero.  Also, verify that all padded
-        // rows don't have modulus_is_zero set to 1.
+        // Verify the range of the output if the moduls is not zero.  Also, check the value of
+        // modulus_is_not_zero.
         local.output_range_check.eval(
             builder,
             &local.output.result,
             &modulus_limbs,
             local.shard,
             local.channel,
-            modulus_is_zero.into(),
+            local.modulus_is_not_zero,
         );
-        builder
-            .when(local.is_real)
-            .assert_zero(local.output_modulus_is_eq);
+        builder.assert_eq(
+            local.modulus_is_not_zero,
+            local.is_real * (AB::Expr::one() - modulus_is_zero.into()),
+        );
 
         // Assert that the correct result is being written to x_memory.
         builder
