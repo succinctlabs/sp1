@@ -15,6 +15,7 @@ mod unconstrained;
 #[cfg(feature = "verify")]
 mod verify;
 
+pub use bigint::*;
 pub use bls12381::*;
 pub use bn254::*;
 pub use ed25519::*;
@@ -95,7 +96,7 @@ pub const HINT_READ: u32 = 0x00_00_00_F1;
 pub const BLS12381_DECOMPRESS: u32 = 0x00_00_01_1C;
 
 /// Executes the `UINT256_MUL` precompile.
-pub const UINT256_MUL: u32 = 0x00_00_01_1D;
+pub const UINT256_MUL: u32 = 0x00_01_01_1D;
 
 /// Executes the `BLS12381_ADD` precompile.
 pub const BLS12381_ADD: u32 = 0x00_01_01_1E;

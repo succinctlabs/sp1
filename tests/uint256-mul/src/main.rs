@@ -3,7 +3,7 @@ sp1_zkvm::entrypoint!(main);
 
 use num::{BigUint, One};
 use rand::Rng;
-use sp1_zkvm::precompiles::bigint_mulmod::sys_bigint;
+use sp1_zkvm::syscalls::sys_bigint;
 
 fn uint256_mul(x: &[u8; 32], y: &[u8; 32], modulus: &[u8; 32]) -> [u8; 32] {
     println!("cycle-tracker-start: uint256_mul");
