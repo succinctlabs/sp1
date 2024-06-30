@@ -172,7 +172,7 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
                         } else {
                             modulus.clone()
                         };
-                        cols.output.populate_with_modulus(
+                        let result = cols.output.populate_with_modulus(
                             &mut new_byte_lookup_events,
                             event.shard,
                             event.channel,
@@ -189,7 +189,7 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
                                 &mut new_byte_lookup_events,
                                 event.shard,
                                 event.channel,
-                                &x,
+                                &result,
                                 &effective_modulus,
                             );
                         }
