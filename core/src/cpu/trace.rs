@@ -675,13 +675,6 @@ impl CpuChip {
             let send_to_table = cols.selectors.is_ecall * cols.op_a_access.prev_value[1];
             cols.ecall_mul_send_to_table = send_to_table;
 
-            // If sending to table or is a halt instruction, range check op_b to be within baby bear.
-            // These range checkers are only checked if the instruction is sending to a precompile chip,
-            // or if the instruction is a HALT or COMMIT_DEFERRED_PROOFS syscall.  However, we populate
-            // the columns regardless.
-            ecall_cols.op_b_range_checker.populate(event.b);
-            ecall_cols.op_c_range_checker.populate(event.c);
-
             let syscall_id = cols.op_a_access.prev_value[0];
             // let send_to_table = cols.op_a_access.prev_value[1];
             // let num_cycles = cols.op_a_access.prev_value[2];

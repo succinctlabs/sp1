@@ -5,7 +5,7 @@ use crate::air::{BaseAirBuilder, PublicValues, WordAirBuilder};
 use crate::cpu::air::{Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS};
 use crate::cpu::columns::{CpuCols, OpcodeSelectorCols};
 use crate::memory::MemoryCols;
-use crate::operations::{BabyBearWordRangeChecker, IsZeroOperation};
+use crate::operations::IsZeroOperation;
 use crate::runtime::SyscallCode;
 use crate::stark::{CpuChip, SP1AirBuilder};
 
@@ -52,21 +52,6 @@ impl CpuChip {
             local.op_b_val().reduce::<AB>(),
             local.op_c_val().reduce::<AB>(),
             local.ecall_mul_send_to_table,
-        );
-
-        // Baby bear range check op_b_val and op_c_val.
-        BabyBearWordRangeChecker::<AB::F>::range_check(
-            builder,
-            local.op_b_val(),
-            ecall_cols.op_b_range_checker,
-            local.ecall_mul_send_to_table.into(),
-        );
-
-        BabyBearWordRangeChecker::<AB::F>::range_check(
-            builder,
-            local.op_c_val(),
-            ecall_cols.op_c_range_checker,
-            local.ecall_mul_send_to_table.into(),
         );
 
         // Compute whether this ecall is ENTER_UNCONSTRAINED.
@@ -175,23 +160,14 @@ impl CpuChip {
             .when(local.selectors.is_ecall * is_commit)
             .assert_word_eq(expected_pv_digest_word, digest_word);
 
-        let expected_deferred_proofs_digest_word =
+        let expected_deferred_proofs_digest_element =
             builder.index_array(&deferred_proofs_digest, &ecall_columns.index_bitmap);
-
-        // BabyBear range check op_c val, which is equal to digest_word.
-        let ecall_cols = local.opcode_specific_columns.ecall();
-        BabyBearWordRangeChecker::<AB::F>::range_check(
-            builder,
-            local.op_c_val(),
-            ecall_cols.op_c_range_checker,
-            local.selectors.is_ecall * is_commit_deferred_proofs.clone(),
-        );
 
         builder
             .when(local.selectors.is_ecall * is_commit_deferred_proofs)
-            .assert_eq(
-                expected_deferred_proofs_digest_word,
-                digest_word.reduce::<AB>(),
+            .assert_word_eq(
+                Word::extend_expr::<AB>(expected_deferred_proofs_digest_element),
+                digest_word,
             );
     }
 
@@ -213,18 +189,9 @@ impl CpuChip {
 
         builder.when(is_halt.clone()).assert_zero(local.next_pc);
 
-        // BabyBear range check op_b_val.
-        let ecall_cols = local.opcode_specific_columns.ecall();
-        BabyBearWordRangeChecker::<AB::F>::range_check(
-            builder,
+        builder.when(is_halt.clone()).assert_word_eq(
+            Word::extend_expr::<AB>(public_values.exit_code.clone()),
             local.op_b_val(),
-            ecall_cols.op_b_range_checker,
-            is_halt.clone(),
-        );
-
-        builder.when(is_halt.clone()).assert_eq(
-            local.op_b_val().reduce::<AB>(),
-            public_values.exit_code.clone(),
         );
     }
 
