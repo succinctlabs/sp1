@@ -179,6 +179,8 @@ where
         let reconstruct_deferred_digest: [Felt<_>; POSEIDON_NUM_WORDS] =
             core::array::from_fn(|_| builder.uninit());
         let cumulative_sum: [Felt<_>; D] = core::array::from_fn(|_| builder.eval(C::F::zero()));
+        let init_addr_bits: [Felt<_>; 32] = core::array::from_fn(|_| builder.uninit());
+        let finalize_addr_bits: [Felt<_>; 32] = core::array::from_fn(|_| builder.uninit());
 
         // Collect verifying keys for each kind of program.
         let recursive_vk_variable = proof_data_from_vk(builder, recursive_vk, machine);
@@ -303,6 +305,28 @@ where
                     current_public_values.start_shard,
                 );
 
+                // Initialize the MemoryInitialize address bits.
+                for (bit, (first_bit, current_bit)) in init_addr_bits.iter().zip(
+                    reduce_public_values
+                        .previous_init_addr_bits
+                        .iter()
+                        .zip(current_public_values.previous_init_addr_bits.iter()),
+                ) {
+                    builder.assign(*bit, *current_bit);
+                    builder.assign(*first_bit, *current_bit);
+                }
+
+                // Initialize the MemoryFinalize address bits.
+                for (bit, (first_bit, current_bit)) in finalize_addr_bits.iter().zip(
+                    reduce_public_values
+                        .previous_finalize_addr_bits
+                        .iter()
+                        .zip(current_public_values.previous_finalize_addr_bits.iter()),
+                ) {
+                    builder.assign(*bit, *current_bit);
+                    builder.assign(*first_bit, *current_bit);
+                }
+
                 // Initialize the leaf challenger.
                 assign_challenger_from_pv(
                     builder,
@@ -380,6 +404,22 @@ where
             builder.assert_felt_eq(shard, current_public_values.start_shard);
             // Assert that the leaf challenger is always the same.
 
+            // Assert that the MemoryInitialize address bits are the same.
+            for (bit, current_bit) in init_addr_bits
+                .iter()
+                .zip(current_public_values.previous_init_addr_bits.iter())
+            {
+                builder.assert_felt_eq(*bit, *current_bit);
+            }
+
+            // Assert that the MemoryFinalize address bits are the same.
+            for (bit, current_bit) in finalize_addr_bits
+                .iter()
+                .zip(current_public_values.previous_finalize_addr_bits.iter())
+            {
+                builder.assert_felt_eq(*bit, *current_bit);
+            }
+
             assert_challenger_eq_pv(
                 builder,
                 &leaf_challenger,
@@ -429,8 +469,26 @@ where
             // Update the accumulated values.
             // Update pc to be the next pc.
             builder.assign(pc, current_public_values.next_pc);
+
             // Update the shard to be the next shard.
             builder.assign(shard, current_public_values.next_shard);
+
+            // Update the MemoryInitialize address bits.
+            for (bit, next_bit) in init_addr_bits
+                .iter()
+                .zip(current_public_values.last_init_addr_bits.iter())
+            {
+                builder.assign(*bit, *next_bit);
+            }
+
+            // Update the MemoryFinalize address bits.
+            for (bit, next_bit) in finalize_addr_bits
+                .iter()
+                .zip(current_public_values.last_finalize_addr_bits.iter())
+            {
+                builder.assign(*bit, *next_bit);
+            }
+
             // Update the reconstruct challenger.
             assign_challenger_from_pv(
                 builder,
@@ -454,6 +512,10 @@ where
         reduce_public_values.next_pc = pc;
         // Set next shard to be the last shard (which is the same as accumulated shard)
         reduce_public_values.next_shard = shard;
+        // Set the MemoryInitialize address bits to be the last MemoryInitialize address bits.
+        reduce_public_values.last_init_addr_bits = init_addr_bits;
+        // Set the MemoryFinalize address bits to be the last MemoryFinalize address bits.
+        reduce_public_values.last_finalize_addr_bits = finalize_addr_bits;
         // Set the leaf challenger to it's value.
         let values = get_challenger_public_values(builder, &leaf_challenger);
         reduce_public_values.leaf_challenger = values;

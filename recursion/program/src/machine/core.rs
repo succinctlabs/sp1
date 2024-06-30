@@ -146,6 +146,14 @@ where
         // Start and end shard indices.
         let initial_shard: Felt<_> = builder.uninit();
 
+        // Start and end MemoryInit address bits.
+        let first_proof_previous_init_addr_bits: [Felt<_>; 32] =
+            array::from_fn(|_| builder.uninit());
+
+        // Start and end MemoryFinalize address bits.
+        let first_proof_previous_finalize_addr_bits: [Felt<_>; 32] =
+            array::from_fn(|_| builder.uninit());
+
         // The commited values digest and deferred proof digest. These will be checked to be the
         // same for all proofs.
         let committed_value_digest: [Word<Felt<_>>; PV_DIGEST_NUM_WORDS] =
@@ -211,17 +219,21 @@ where
                 builder.assign(current_pc, public_values.start_pc);
 
                 // MemoryInitialize address bits.
-                for (bit, pub_bit) in init_addr_bits
+                for ((bit, pub_bit), first_bit) in init_addr_bits
                     .iter()
                     .zip(public_values.previous_init_addr_bits.iter())
+                    .zip(first_proof_previous_init_addr_bits.iter())
                 {
                     builder.assign(*bit, *pub_bit);
+                    builder.assign(*first_bit, *pub_bit);
                 }
-                for (bit, pub_bit) in finalize_addr_bits
+                for ((bit, pub_bit), first_bit) in finalize_addr_bits
                     .iter()
                     .zip(public_values.previous_finalize_addr_bits.iter())
+                    .zip(first_proof_previous_finalize_addr_bits.iter())
                 {
                     builder.assign(*bit, *pub_bit);
+                    builder.assign(*first_bit, *pub_bit);
                 }
 
                 // Commited public values digests.
@@ -406,6 +418,11 @@ where
         recursion_public_values.next_pc = current_pc;
         recursion_public_values.start_shard = initial_shard;
         recursion_public_values.next_shard = current_shard;
+        recursion_public_values.previous_init_addr_bits = first_proof_previous_init_addr_bits;
+        recursion_public_values.last_init_addr_bits = init_addr_bits;
+        recursion_public_values.previous_finalize_addr_bits =
+            first_proof_previous_finalize_addr_bits;
+        recursion_public_values.last_finalize_addr_bits = finalize_addr_bits;
         recursion_public_values.sp1_vk_digest = vk_digest;
         recursion_public_values.leaf_challenger = leaf_challenger_public_values;
         recursion_public_values.start_reconstruct_challenger = initial_challenger_public_values;
