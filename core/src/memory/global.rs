@@ -62,6 +62,12 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip {
             MemoryChipType::Initialize => input.memory_initialize_events.clone(),
             MemoryChipType::Finalize => input.memory_finalize_events.clone(),
         };
+
+        let previous_addr_bits = match self.kind {
+            MemoryChipType::Initialize => input.public_values.previous_init_addr_bits,
+            MemoryChipType::Finalize => input.public_values.previous_finalize_addr_bits,
+        };
+
         memory_events.sort_by_key(|event| event.addr);
         let rows: Vec<[F; NUM_MEMORY_INIT_COLS]> = (0..memory_events.len()) // OPT: change this to par_iter
             .map(|i| {
@@ -81,6 +87,17 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip {
                 cols.timestamp = F::from_canonical_u32(timestamp);
                 cols.value = array::from_fn(|i| F::from_canonical_u32((value >> i) & 1));
                 cols.is_real = F::from_canonical_u32(used);
+
+                if i == 0 {
+                    let last_addr = previous_addr_bits
+                        .iter()
+                        .enumerate()
+                        .map(|(j, bit)| bit * (1 << j))
+                        .sum::<u32>();
+                    // assert!(last_addr < addr, "last_addr {} < addr {}", last_addr, addr);
+                    let addr_bits: [_; 32] = array::from_fn(|i| (addr >> i) & 1);
+                    cols.lt_cols.populate(&previous_addr_bits, &addr_bits);
+                }
 
                 if i != 0 {
                     let prev_is_real = memory_events[i - 1].used;
@@ -245,6 +262,13 @@ where
                 public_values_array.as_slice().borrow();
 
             // Assert that the previous_init_addr is less then the first row address.
+            let is_first_row = builder.is_first_row();
+            // local.lt_cols.eval(
+            //     builder,
+            //     &public_values.previous_init_addr_bits,
+            //     &local.addr_bits.bits,
+            //     is_first_row,
+            // );
         }
 
         if self.kind == MemoryChipType::Finalize {

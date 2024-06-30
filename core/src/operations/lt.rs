@@ -241,11 +241,11 @@ impl<V: Copy, const N: usize> AssertLtColsBits<V, N> {
                 .assert_eq(a_bit.clone(), b_bit.clone());
         }
 
-        // builder
-        //     .when(is_real.clone())
-        //     .assert_eq(a_comparison_bit, AB::F::zero());
-        // builder
-        //     .when(is_real.clone())
-        //     .assert_eq(b_comparison_bit, AB::F::one());
+        builder
+            .when(is_real.clone())
+            .assert_eq(a_comparison_bit, AB::F::zero());
+        builder
+            .when(is_real.clone())
+            .assert_eq(b_comparison_bit, AB::F::one());
     }
 }

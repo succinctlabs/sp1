@@ -42,17 +42,17 @@ pub struct PublicValues<W, T> {
     /// The shard number.
     pub shard: T,
 
-    /// The largest address that is witnessed for initialization in the previous shard.
-    pub previous_init_addr: T,
+    /// The bits of the largest address that is witnessed for initialization in the previous shard.
+    pub previous_init_addr_bits: [T; 32],
 
     /// The largest address that is witnessed for initialization in the current shard.
-    pub last_init_addr: T,
+    pub last_init_addr_bits: [T; 32],
 
-    /// The largest address that is witnessed for finalization in the previous shard.
-    pub previous_finalize_addr: T,
+    /// The bits of the largest address that is witnessed for finalization in the previous shard.
+    pub previous_finalize_addr_bits: [T; 32],
 
-    /// The largest address that is witnessed for finalization in the current shard.
-    pub last_finalize_addr: T,
+    /// The bits of the largest address that is witnessed for finalization in the current shard.
+    pub last_finalize_addr_bits: [T; 32],
 }
 
 impl PublicValues<u32, u32> {
@@ -111,10 +111,10 @@ impl<F: AbstractField> From<PublicValues<u32, u32>> for PublicValues<Word<F>, F>
             next_pc,
             exit_code,
             shard,
-            previous_init_addr,
-            last_init_addr,
-            previous_finalize_addr,
-            last_finalize_addr,
+            previous_init_addr_bits,
+            last_init_addr_bits,
+            previous_finalize_addr_bits,
+            last_finalize_addr_bits,
         } = value;
 
         let committed_value_digest: [_; PV_DIGEST_NUM_WORDS] =
@@ -127,10 +127,10 @@ impl<F: AbstractField> From<PublicValues<u32, u32>> for PublicValues<Word<F>, F>
         let next_pc = F::from_canonical_u32(next_pc);
         let exit_code = F::from_canonical_u32(exit_code);
         let shard = F::from_canonical_u32(shard);
-        let previous_init_addr = F::from_canonical_u32(previous_init_addr);
-        let last_init_addr = F::from_canonical_u32(last_init_addr);
-        let previous_finalize_addr = F::from_canonical_u32(previous_finalize_addr);
-        let last_finalize_addr = F::from_canonical_u32(last_finalize_addr);
+        let previous_init_addr_bits = previous_init_addr_bits.map(F::from_canonical_u32);
+        let last_init_addr_bits = last_init_addr_bits.map(F::from_canonical_u32);
+        let previous_finalize_addr_bits = previous_finalize_addr_bits.map(F::from_canonical_u32);
+        let last_finalize_addr_bits = last_finalize_addr_bits.map(F::from_canonical_u32);
 
         Self {
             committed_value_digest,
@@ -139,10 +139,10 @@ impl<F: AbstractField> From<PublicValues<u32, u32>> for PublicValues<Word<F>, F>
             next_pc,
             exit_code,
             shard,
-            previous_init_addr,
-            last_init_addr,
-            previous_finalize_addr,
-            last_finalize_addr,
+            previous_init_addr_bits,
+            last_init_addr_bits,
+            previous_finalize_addr_bits,
+            last_finalize_addr_bits,
         }
     }
 }
