@@ -259,7 +259,7 @@ where
             .when_not(local.is_real)
             .assert_zero(next.is_real);
 
-        // Make assertions for the initial and final comparisons.
+        // Make assertions for the initial comparison.
 
         // We want to constrain that the `adrr` in the first row is larger than the previous
         // initialized/finalized address, unless the previous address is zero. Since the previous
@@ -340,6 +340,26 @@ where
             builder
                 .when(local.is_first_comp)
                 .assert_zero(local.value[i]);
+        }
+
+        // Make assertions for the final value. We need to connect the final valid address to the
+        // correspinding `last_addr` value.
+        let last_addr_bits = match self.kind {
+            MemoryChipType::Initialize => &public_values.last_init_addr_bits,
+            MemoryChipType::Finalize => &public_values.last_finalize_addr_bits,
+        };
+        // The last address is either:
+        // - It's the last row and `is_real` is set to one.
+        // - The flag `is_real` is set to one and the next `is_real` is set to zero.
+        for (local_bit, pub_bit) in local.addr_bits.bits.iter().zip(last_addr_bits.iter()) {
+            builder
+                .when_last_row()
+                .when(local.is_real)
+                .assert_eq(*local_bit, pub_bit.clone());
+            builder
+                .when(local.is_real)
+                .when_not(next.is_real)
+                .assert_eq(*local_bit, pub_bit.clone());
         }
     }
 }
