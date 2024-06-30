@@ -1,7 +1,7 @@
 use itertools::izip;
 use std::fmt::Debug;
 
-use num::{BigUint, Zero};
+use num::BigUint;
 
 use p3_air::AirBuilder;
 use p3_field::AbstractField;
@@ -37,8 +37,6 @@ impl<F: PrimeField32, P: FieldParameters> FieldRangeCols<F, P> {
         value: &BigUint,
         modulus: &BigUint,
     ) {
-        assert!(&BigUint::zero() > modulus && modulus <= &P::modulus());
-
         let value_limbs = P::to_limbs(value);
         let modulus = P::to_limbs(modulus);
 
@@ -112,6 +110,8 @@ impl<V: Copy, P: FieldParameters> FieldRangeCols<V, P> {
         }
         // Assert that the sum is equal to one.
         builder.assert_one(sum_flags);
+
+        // Check the less-than condition.
 
         // A flag to indicate whether an equality check is necessary (this is for all bytes from
         // most significant until the first inequality.

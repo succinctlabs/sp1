@@ -16,8 +16,7 @@ use crate::utils::{
     words_to_bytes_le_vec,
 };
 use generic_array::GenericArray;
-use num::Zero;
-use num::{BigUint, One};
+use num::{BigUint, One, Zero};
 use p3_air::AirBuilder;
 use p3_air::{Air, BaseAir};
 use p3_field::AbstractField;
@@ -187,7 +186,7 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
                             event.shard,
                             event.channel,
                             &x,
-                            &(effective_modulus - BigUint::one()),
+                            &effective_modulus,
                         );
 
                         row
