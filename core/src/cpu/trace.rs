@@ -672,8 +672,7 @@ impl CpuChip {
             // Look at `ecall_eval` in cpu/air/mod.rs for the corresponding constraint and explanation.
             let ecall_cols = cols.opcode_specific_columns.ecall_mut();
 
-            let send_to_table = cols.selectors.is_ecall * cols.op_a_access.prev_value[1];
-            cols.ecall_mul_send_to_table = send_to_table;
+            cols.ecall_mul_send_to_table = cols.selectors.is_ecall * cols.op_a_access.prev_value[1];
 
             let syscall_id = cols.op_a_access.prev_value[0];
             // let send_to_table = cols.op_a_access.prev_value[1];
