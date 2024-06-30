@@ -285,7 +285,7 @@ where
         let prev_addr = prev_addr_bits
             .iter()
             .enumerate()
-            .map(|(i, bit)| bit.clone() * AB::F::from_canonical_u32(1 << i))
+            .map(|(i, bit)| bit.clone() * AB::F::from_wrapped_u32(1 << i))
             .sum::<AB::Expr>();
 
         // Constrain the is_prev_addr_zero operation only in the first row.
