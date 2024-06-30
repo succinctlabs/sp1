@@ -115,6 +115,8 @@ pub struct ShardingConfig {
     pub divrem_len: usize,
     pub lt_len: usize,
     pub field_len: usize,
+    pub mem_init_len: usize,
+    pub mem_finalize_len: usize,
     pub keccak_len: usize,
     pub secp256k1_add_len: usize,
     pub secp256k1_double_len: usize,
@@ -144,6 +146,8 @@ impl Default for ShardingConfig {
             lt_len: shard_size,
             mul_len: shard_size,
             shift_right_len: shard_size,
+            mem_init_len: shard_size,
+            mem_finalize_len: shard_size,
             field_len: shard_size * 4,
             keccak_len: shard_size,
             secp256k1_add_len: shard_size,
@@ -572,33 +576,53 @@ impl MachineRecord for ExecutionRecord {
             self.nonce_lookup.insert(event.lookup_id, i as u32);
         }
 
-        // Put MemoryInit / MemoryFinalize events in the last shard.
-        let last = shards.last_mut().unwrap();
-        last.memory_initialize_events
-            .extend_from_slice(&self.memory_initialize_events);
-        last.public_values.previous_init_addr_bits = [0; 32];
-        if !self.memory_initialize_events.is_empty() {
-            let last_init_addr = last
+        // Shard MemoryInit events.
+        self.memory_initialize_events
+            .sort_by_key(|event| event.addr);
+        let mut init_addr_bits = [0; 32];
+        let num_mem_init_shards = self
+            .memory_initialize_events
+            .len()
+            .div_ceil(config.mem_init_len);
+        let first_mem_init_shard = shards.len() - num_mem_init_shards;
+        for (mem_init_chunk, shard) in self
+            .memory_initialize_events
+            .chunks(config.mem_init_len)
+            .zip(shards.iter_mut().skip(first_mem_init_shard))
+        {
+            shard
                 .memory_initialize_events
-                .iter()
-                .map(|event| event.addr)
-                .max()
-                .unwrap();
-            last.public_values.last_init_addr_bits =
-                core::array::from_fn(|i| (last_init_addr >> i) & 1);
+                .extend_from_slice(mem_init_chunk);
+            shard.public_values.previous_init_addr_bits = init_addr_bits;
+            if let Some(last_event) = mem_init_chunk.last() {
+                let last_init_addr_bits = core::array::from_fn(|i| (last_event.addr >> i) & 1);
+                shard.public_values.last_init_addr_bits = last_init_addr_bits;
+                init_addr_bits = last_init_addr_bits;
+            }
         }
-        last.memory_finalize_events
-            .extend_from_slice(&self.memory_finalize_events);
-        last.public_values.previous_finalize_addr_bits = [0; 32];
-        if !self.memory_finalize_events.is_empty() {
-            let last_finalize_addr = last
+
+        // Shard MemoryFinalize events.
+        self.memory_finalize_events.sort_by_key(|event| event.addr);
+        let mut finalize_addr_bits = [0; 32];
+        let num_mem_finalize_shards = self
+            .memory_finalize_events
+            .len()
+            .div_ceil(config.mem_finalize_len);
+        let first_mem_finalize_shard = shards.len() - num_mem_finalize_shards;
+        for (mem_finalize_chunk, shard) in self
+            .memory_finalize_events
+            .chunks(config.mem_finalize_len)
+            .zip(shards.iter_mut().skip(first_mem_finalize_shard))
+        {
+            shard
                 .memory_finalize_events
-                .iter()
-                .map(|event| event.addr)
-                .max()
-                .unwrap();
-            last.public_values.last_finalize_addr_bits =
-                core::array::from_fn(|i| (last_finalize_addr >> i) & 1);
+                .extend_from_slice(mem_finalize_chunk);
+            shard.public_values.previous_finalize_addr_bits = finalize_addr_bits;
+            if let Some(last_event) = mem_finalize_chunk.last() {
+                let last_finalize_addr_bits = core::array::from_fn(|i| (last_event.addr >> i) & 1);
+                shard.public_values.last_finalize_addr_bits = last_finalize_addr_bits;
+                finalize_addr_bits = last_finalize_addr_bits;
+            }
         }
 
         // Copy the nonce lookup to all shards.
