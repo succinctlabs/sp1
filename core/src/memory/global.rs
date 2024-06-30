@@ -4,8 +4,7 @@ use std::array;
 
 use p3_air::BaseAir;
 use p3_air::{Air, AirBuilder};
-use p3_field::AbstractField;
-use p3_field::PrimeField;
+use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use sp1_derive::AlignedBorrow;
@@ -13,7 +12,7 @@ use sp1_derive::AlignedBorrow;
 use super::MemoryInitializeFinalizeEvent;
 use crate::air::MachineAir;
 use crate::air::{AirInteraction, BaseAirBuilder, SP1AirBuilder};
-use crate::operations::BabyBearBitDecomposition;
+use crate::operations::{AssertLtColsBits, BabyBearBitDecomposition};
 use crate::runtime::{ExecutionRecord, Program};
 use crate::utils::pad_to_power_of_two;
 
@@ -42,7 +41,7 @@ impl<F> BaseAir<F> for MemoryChip {
     }
 }
 
-impl<F: PrimeField> MachineAir<F> for MemoryChip {
+impl<F: PrimeField32> MachineAir<F> for MemoryChip {
     type Record = ExecutionRecord;
 
     type Program = Program;
@@ -84,24 +83,14 @@ impl<F: PrimeField> MachineAir<F> for MemoryChip {
                 cols.is_real = F::from_canonical_u32(used);
 
                 if i != memory_events.len() - 1 {
+                    let next_is_real = memory_events[i + 1].used;
+                    cols.is_comp = F::from_canonical_u32(next_is_real);
                     let next_addr = memory_events[i + 1].addr;
                     assert_ne!(next_addr, addr);
 
-                    cols.addr_bits.populate(addr);
-
-                    cols.seen_diff_bits[0] = F::zero();
-                    for j in 0..32 {
-                        let rev_j = 32 - j - 1;
-                        let next_bit = ((next_addr >> rev_j) & 1) == 1;
-                        let local_bit = ((addr >> rev_j) & 1) == 1;
-                        cols.match_bits[j] =
-                            F::from_bool((local_bit && next_bit) || (!local_bit && !next_bit));
-                        cols.seen_diff_bits[j + 1] = cols.seen_diff_bits[j]
-                            + (F::one() - cols.seen_diff_bits[j]) * (F::one() - cols.match_bits[j]);
-                        cols.not_match_and_not_seen_diff_bits[j] =
-                            (F::one() - cols.match_bits[j]) * (F::one() - cols.seen_diff_bits[j]);
-                    }
-                    assert_eq!(cols.seen_diff_bits[cols.seen_diff_bits.len() - 1], F::one());
+                    let addr_bits: [_; 32] = array::from_fn(|i| (addr >> i) & 1);
+                    let next_addr_bits: [_; 32] = array::from_fn(|i| (next_addr >> i) & 1);
+                    cols.lt_cols.populate(&addr_bits, &next_addr_bits);
                 }
 
                 row
@@ -138,23 +127,20 @@ pub struct MemoryInitCols<T> {
     /// The address of the memory access.
     pub addr: T,
 
+    /// Comparison assertions for address to be strictly increasing.
+    pub lt_cols: AssertLtColsBits<T, 32>,
+
     /// A bit decomposition of `addr`.
     pub addr_bits: BabyBearBitDecomposition<T>,
-
-    // Whether the i'th bit matches the next addr's bit.
-    pub match_bits: [T; 32],
-
-    // Whether we've seen a different bit in the comparison.
-    pub seen_diff_bits: [T; 33],
-
-    // Whether the i'th bit doesn't match the next addr's bit and we haven't seen a diff bitn yet.
-    pub not_match_and_not_seen_diff_bits: [T; 32],
 
     /// The value of the memory access.
     pub value: [T; 32],
 
     /// Whether the memory access is a real access.
     pub is_real: T,
+
+    /// Whether or not we are making a comparison assertion.
+    pub is_comp: T,
 }
 
 pub(crate) const NUM_MEMORY_INIT_COLS: usize = size_of::<MemoryInitCols<u8>>();
@@ -209,75 +195,16 @@ where
             ));
         }
 
-        // We want to assert addr < addr'. Assume seen_diff_0 = 0.
-        //
-        // match_i = (addr_i & addr'_i) || (!addr_i & !addr'_i)
-        // =>
-        // match_i == addr_i * addr_i + (1 - addr_i) * (1 - addr'_i)
-        //
-        // when !match_i and !seen_diff_i, then enforce (addr_i == 0) and (addr'_i == 1).
-        // if seen_diff_i:
-        //     seen_diff_{i+1} = 1
-        // else:
-        //     seen_diff_{i+1} = !match_i
-        // =>
-        // builder.when(!match_i * !seen_diff_i).assert_zero(addr_i)
-        // builder.when(!match_i * !seen_diff_i).assert_one(addr'_i)
-        // seen_diff_bit_{i+1} == seen_diff_i + (1-seen_diff_i) * (1 - match_i)
-        //
-        // at the end of the algorithm, assert that we've seen a diff bit.
-        // =>
-        // seen_diff_bit_{last} == 1
-
-        // Assert that we start with assuming that we haven't seen a diff bit.
-        builder.assert_zero(local.seen_diff_bits[0]);
-
-        for i in 0..local.addr_bits.bits.len() {
-            // Compute the i'th msb bit's index.
-            let rev_i = local.addr_bits.bits.len() - i - 1;
-
-            // Compute whether the i'th msb bit matches.
-            let match_i = local.addr_bits.bits[rev_i] * next.addr_bits.bits[rev_i]
-                + (AB::Expr::one() - local.addr_bits.bits[rev_i])
-                    * (AB::Expr::one() - next.addr_bits.bits[rev_i]);
-            builder
-                .when_transition()
-                .when(next.is_real)
-                .assert_eq(match_i.clone(), local.match_bits[i]);
-
-            // Compute whether it's not a match and we haven't seen a diff bit.
-            let not_match_and_not_seen_diff_i = (AB::Expr::one() - local.match_bits[i])
-                * (AB::Expr::one() - local.seen_diff_bits[i]);
-            builder.when_transition().when(next.is_real).assert_eq(
-                local.not_match_and_not_seen_diff_bits[i],
-                not_match_and_not_seen_diff_i,
-            );
-
-            // If the i'th msb bit doesn't match and it's the first time we've seen a diff bit,
-            // then enforce that the next bit is one and the current bit is zero.
-            builder
-                .when_transition()
-                .when(local.not_match_and_not_seen_diff_bits[i])
-                .when(next.is_real)
-                .assert_zero(local.addr_bits.bits[rev_i]);
-            builder
-                .when_transition()
-                .when(local.not_match_and_not_seen_diff_bits[i])
-                .when(next.is_real)
-                .assert_one(next.addr_bits.bits[rev_i]);
-
-            // Update the seen diff bits.
-            builder.when_transition().assert_eq(
-                local.seen_diff_bits[i + 1],
-                local.seen_diff_bits[i] + local.not_match_and_not_seen_diff_bits[i],
-            );
-        }
-
-        // Assert that on rows where the next row is real, we've seen a diff bit.
+        // Assert that addr < addr' when the next row is real.
         builder
             .when_transition()
-            .when(next.is_real)
-            .assert_one(local.seen_diff_bits[local.addr_bits.bits.len()]);
+            .assert_eq(local.is_comp, next.is_real);
+        local.lt_cols.eval(
+            builder,
+            &local.addr_bits.bits,
+            &next.addr_bits.bits,
+            local.is_comp,
+        );
 
         // Canonically decompose the address into bits so we can do comparisons.
         BabyBearBitDecomposition::<AB::F>::range_check(
