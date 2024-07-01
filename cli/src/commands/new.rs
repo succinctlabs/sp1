@@ -23,7 +23,7 @@ impl NewCmd {
         // Clone the repository.
         let output = Command::new("git")
             .arg("clone")
-            .arg("-b")
+            .arg("--branch")
             .arg("mattstam/update")
             .arg(TEMPLATE_REPOSITORY_URL)
             .arg(root.as_os_str())
