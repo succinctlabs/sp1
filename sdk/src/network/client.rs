@@ -11,7 +11,7 @@ use reqwest_middleware::ClientWithMiddleware as HttpClientWithMiddleware;
 use serde::de::DeserializeOwned;
 use sp1_prover::SP1Stdin;
 use std::time::{SystemTime, UNIX_EPOCH};
-use twirp::{Client as TwirpClient, ClientError};
+use twirp::Client as TwirpClient;
 
 use crate::proto::network::{
     ClaimProofRequest, ClaimProofResponse, CreateProofRequest, FulfillProofRequest,
@@ -190,7 +190,6 @@ impl NetworkClient {
             .auth
             .sign_create_proof_message(nonce, deadline, mode.into(), version)
             .await?;
-
         let res = self
             .rpc
             .create_proof(CreateProofRequest {
@@ -200,28 +199,7 @@ impl NetworkClient {
                 mode: mode.into(),
                 version: version.to_string(),
             })
-            .await;
-
-        let res = match res {
-            std::result::Result::Ok(response) => std::result::Result::Ok(response),
-            Err(ClientError::TwirpError(err)) => {
-                let formatted_err = format!(
-                    "Failed to create proof: {{ code: {:?}, msg: {:?}, meta: {:?} }}",
-                    err.code, err.msg, err.meta
-                );
-                std::result::Result::Err(ClientError::TwirpError(twirp::TwirpErrorResponse {
-                    code: err.code,
-                    msg: formatted_err,
-                    meta: err.meta,
-                }))
-            }
-            Err(err) => Err(err),
-        };
-
-        let res = match res {
-            std::result::Result::Ok(response) => response,
-            std::result::Result::Err(e) => return Err(anyhow::anyhow!("{:?}", e)),
-        };
+            .await?;
 
         let program_bytes = bincode::serialize(elf)?;
         let stdin_bytes = bincode::serialize(&stdin)?;
