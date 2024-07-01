@@ -1,6 +1,6 @@
 use std::fs::File;
 use std::io::Seek;
-use std::io::{self, SeekFrom};
+use std::io::{self};
 use std::sync::Arc;
 use web_time::Instant;
 
@@ -130,24 +130,6 @@ where
     let machine = RiscvAir::machine(config);
     let (pk, vk) = machine.setup(runtime.program.as_ref());
 
-    // If we don't need to batch, we can just run the program normally and prove it.
-    if opts.shard_batch_size == 0 {
-        // Execute the runtime and collect all the events..
-        runtime.run().map_err(SP1CoreProverError::ExecutionError)?;
-
-        // If debugging is enabled, we will also debug the constraints.
-        #[cfg(debug_assertions)]
-        {
-            let mut challenger = machine.config().challenger();
-            machine.debug_constraints(&pk, runtime.records.clone(), &mut challenger);
-        }
-
-        // Generate the proof and return the proof and public values.
-        let public_values = std::mem::take(&mut runtime.state.public_values_stream);
-        let proof = prove_simple(machine.config().clone(), runtime)?;
-        return Ok((proof, public_values));
-    }
-
     // Execute the program, saving checkpoints at the start of every `shard_batch_size` cycle range.
     let mut checkpoints = Vec::new();
     let (public_values_stream, public_values) = loop {
@@ -177,150 +159,105 @@ where
     };
 
     // Commit to the shards.
-    let mut deferred = ExecutionRecord::default();
-    let (
-        mut last_shard,
-        mut last_start_pc,
-        mut last_next_pc,
-        mut previous_init_addr_bits,
-        mut last_init_addr_bits,
-        mut previous_finalize_addr_bits,
-        mut last_finalize_addr_bits,
-    ) = (0, 0, 0, [0; 32], [0; 32], [0; 32], [0; 32]);
-    let num_checkpoints = checkpoints.len();
+    let mut deferred = ExecutionRecord::new(program.clone().into());
+    let mut state = public_values.reset();
+    let nb_checkpoints = checkpoints.len();
     let mut challenger = machine.config().challenger();
     vk.observe_into(&mut challenger);
     for (checkpoint_idx, checkpoint_file) in checkpoints.iter_mut().enumerate() {
+        // Trace the checkpoint and reconstruct the execution records.
         let (mut records, _) = trace_checkpoint(program.clone(), checkpoint_file, opts);
-        records.iter_mut().for_each(|record| {
-            last_shard = record.public_values.shard;
-            last_start_pc = record.public_values.start_pc;
-            last_next_pc = record.public_values.next_pc;
-            record.program = program.clone().into();
-            record.index = last_shard - 1;
-            record.public_values = public_values;
-            record.public_values.shard = last_shard;
-            record.public_values.start_pc = last_start_pc;
-            record.public_values.next_pc = last_next_pc;
-            record.public_values.previous_init_addr_bits = last_init_addr_bits;
-            record.public_values.last_init_addr_bits = last_init_addr_bits;
-            record.public_values.previous_finalize_addr_bits = last_finalize_addr_bits;
-            record.public_values.last_finalize_addr_bits = last_finalize_addr_bits;
-        });
         reset_seek(&mut *checkpoint_file);
 
-        // Shard the record into shards.
+        // Update the public values & prover state for the shards which contain "cpu events".
+        for record in records.iter_mut() {
+            state.shard = record.public_values.shard;
+            state.start_pc = record.public_values.start_pc;
+            state.next_pc = record.public_values.next_pc;
+            record.public_values = state;
+        }
+
+        // Generate the dependencies.
         machine.generate_dependencies(&mut records);
-        let mut checkpoint_shards = records;
 
         // Defer events that are too expensive to include in every shard.
-        checkpoint_shards.iter_mut().for_each(|record| {
+        for record in records.iter_mut() {
             deferred.append(&mut record.defer());
-        });
+        }
 
-        // Get deferred shards that ready to be committed.
-        let is_last_checkpoint = checkpoint_idx == num_checkpoints - 1;
+        // See if any deferred shards are ready to be commited to.
+        let is_last_checkpoint = checkpoint_idx == nb_checkpoints - 1;
         let mut deferred = deferred.split(is_last_checkpoint);
-        deferred.iter_mut().for_each(|record| {
-            record.index = last_shard - 1;
-            record.program = program.clone().into();
-            previous_init_addr_bits = record.public_values.previous_init_addr_bits;
-            last_init_addr_bits = record.public_values.last_init_addr_bits;
-            previous_finalize_addr_bits = record.public_values.previous_finalize_addr_bits;
-            last_finalize_addr_bits = record.public_values.last_finalize_addr_bits;
-            record.public_values = public_values;
-            record.public_values.shard = last_shard;
-            record.public_values.start_pc = last_start_pc;
-            record.public_values.next_pc = last_next_pc;
-            record.public_values.previous_init_addr_bits = previous_init_addr_bits;
-            record.public_values.last_init_addr_bits = last_init_addr_bits;
-            record.public_values.previous_finalize_addr_bits = previous_finalize_addr_bits;
-            record.public_values.last_finalize_addr_bits = last_finalize_addr_bits;
-        });
-        checkpoint_shards.append(&mut deferred);
 
-        // Commit to each shard.
-        let (commitments, _) = LocalProver::commit_shards(&machine, &checkpoint_shards, opts);
+        // Update the public values & prover state for the shards which do not contain "cpu events"
+        // before committing to them.
+        for record in deferred.iter_mut() {
+            state.previous_init_addr_bits = record.public_values.previous_init_addr_bits;
+            state.last_init_addr_bits = record.public_values.last_init_addr_bits;
+            state.previous_finalize_addr_bits = record.public_values.previous_finalize_addr_bits;
+            state.last_finalize_addr_bits = record.public_values.last_finalize_addr_bits;
+            record.public_values = state;
+        }
+        records.append(&mut deferred);
+
+        // Commit to the shards.
+        let (commitments, _) = LocalProver::commit_shards(&machine, &records, opts);
 
         // Observe the commitments.
-        for (commitment, shard) in commitments.into_iter().zip(checkpoint_shards.iter()) {
+        for (commitment, shard) in commitments.into_iter().zip(records.iter()) {
             challenger.observe(commitment);
             challenger.observe_slice(&shard.public_values::<SC::Val>()[0..machine.num_pv_elts()]);
         }
     }
 
     // Prove the shards.
-    let (
-        mut last_shard,
-        mut last_start_pc,
-        mut last_next_pc,
-        mut previous_init_addr_bits,
-        mut last_init_addr_bits,
-        mut previous_finalize_addr_bits,
-        mut last_finalize_addr_bits,
-    ) = (0, 0, 0, [0; 32], [0; 32], [0; 32], [0; 32]);
-    let mut deferred = ExecutionRecord::default();
+    let mut deferred = ExecutionRecord::new(program.clone().into());
+    let mut state = public_values.reset();
     let mut shard_proofs = Vec::<ShardProof<SC>>::new();
     let mut report_aggregate = ExecutionReport::default();
-    for (idx, mut checkpoint_file) in checkpoints.into_iter().enumerate() {
-        let mut checkpoint_shards = {
-            let (mut events, report) = trace_checkpoint(program.clone(), &checkpoint_file, opts);
-            events.iter_mut().for_each(|record| {
-                last_shard = record.public_values.shard;
-                last_start_pc = record.public_values.start_pc;
-                last_next_pc = record.public_values.next_pc;
-                record.program = program.clone().into();
-                record.index = last_shard - 1;
-                record.public_values = public_values;
-                record.public_values.shard = last_shard;
-                record.public_values.start_pc = last_start_pc;
-                record.public_values.next_pc = last_next_pc;
-                record.public_values.previous_init_addr_bits = last_init_addr_bits;
-                record.public_values.last_init_addr_bits = last_init_addr_bits;
-                record.public_values.previous_finalize_addr_bits = last_finalize_addr_bits;
-                record.public_values.last_finalize_addr_bits = last_finalize_addr_bits;
-            });
-            report_aggregate += report;
-            checkpoint_file
-                .seek(SeekFrom::Start(0))
-                .map_err(SP1CoreProverError::IoError)?;
-            machine.generate_dependencies(&mut events);
-            events
-        };
+    for (checkpoint_idx, mut checkpoint_file) in checkpoints.into_iter().enumerate() {
+        // Trace the checkpoint and reconstruct the execution records.
+        let (mut records, report) = trace_checkpoint(program.clone(), &checkpoint_file, opts);
+        report_aggregate += report;
+        reset_seek(&mut checkpoint_file);
+
+        // Update the public values & prover state for the shards which contain "cpu events".
+        for record in records.iter_mut() {
+            state.shard = record.public_values.shard;
+            state.start_pc = record.public_values.start_pc;
+            state.next_pc = record.public_values.next_pc;
+            record.public_values = state;
+        }
+
+        // Generate the dependencies.
+        machine.generate_dependencies(&mut records);
 
         // Defer events that are too expensive to include in every shard.
-        checkpoint_shards.iter_mut().for_each(|record| {
+        for record in records.iter_mut() {
             deferred.append(&mut record.defer());
-        });
+        }
 
-        // Get deferred shards that ready to be proven.
-        let is_last_checkpoint = idx == num_checkpoints - 1;
+        // See if any deferred shards are ready to be commited to.
+        let is_last_checkpoint = checkpoint_idx == nb_checkpoints - 1;
         let mut deferred = deferred.split(is_last_checkpoint);
-        deferred.iter_mut().for_each(|record| {
-            record.index = last_shard - 1;
-            record.program = program.clone().into();
-            previous_init_addr_bits = record.public_values.previous_init_addr_bits;
-            last_init_addr_bits = record.public_values.last_init_addr_bits;
-            previous_finalize_addr_bits = record.public_values.previous_finalize_addr_bits;
-            last_finalize_addr_bits = record.public_values.last_finalize_addr_bits;
-            record.public_values = public_values;
-            record.public_values.shard = last_shard;
-            record.public_values.start_pc = last_start_pc;
-            record.public_values.next_pc = last_next_pc;
-            record.public_values.previous_init_addr_bits = previous_init_addr_bits;
-            record.public_values.last_init_addr_bits = last_init_addr_bits;
-            record.public_values.previous_finalize_addr_bits = previous_finalize_addr_bits;
-            record.public_values.last_finalize_addr_bits = last_finalize_addr_bits;
-        });
-        checkpoint_shards.append(&mut deferred);
 
-        let mut checkpoint_proofs = checkpoint_shards
+        // Update the public values & prover state for the shards which do not contain "cpu events"
+        // before committing to them.
+        for record in deferred.iter_mut() {
+            state.previous_init_addr_bits = record.public_values.previous_init_addr_bits;
+            state.last_init_addr_bits = record.public_values.last_init_addr_bits;
+            state.previous_finalize_addr_bits = record.public_values.previous_finalize_addr_bits;
+            state.last_finalize_addr_bits = record.public_values.last_finalize_addr_bits;
+            record.public_values = state;
+        }
+        records.append(&mut deferred);
+
+        let mut proofs = records
             .into_iter()
             .map(|shard| {
                 let config = machine.config();
                 let shard_data =
                     LocalProver::commit_main(config, &machine, &shard, shard.index() as usize);
-
                 let chip_ordering = shard_data.chip_ordering.clone();
                 let ordered_chips = machine
                     .shard_chips_ordered(&chip_ordering)
@@ -335,7 +272,7 @@ where
                 )
             })
             .collect::<Vec<_>>();
-        shard_proofs.append(&mut checkpoint_proofs);
+        shard_proofs.append(&mut proofs);
     }
 
     // Log some of the `ExecutionReport` information.
@@ -344,8 +281,9 @@ where
         report_aggregate.total_instruction_count(),
         report_aggregate.total_syscall_count()
     );
-    // Print the opcode and syscall count tables like `du`:
-    // sorted by count (descending) and with the count in the first column.
+
+    // Print the opcode and syscall count tables like `du`: sorted by count (descending) and with
+    // the count in the first column.
     tracing::info!("execution report (opcode counts):");
     for line in ExecutionReport::sorted_table_lines(&report_aggregate.opcode_counts) {
         tracing::info!("  {line}");
@@ -355,9 +293,8 @@ where
         tracing::info!("  {line}");
     }
 
-    let proof = MachineProof::<SC> { shard_proofs };
-
     // Print the summary.
+    let proof = MachineProof::<SC> { shard_proofs };
     let proving_time = proving_start.elapsed().as_secs_f64();
     tracing::info!(
         "summary: cycles={}, e2e={}, khz={:.2}, proofSize={}",

@@ -27,9 +27,6 @@ use crate::utils::SP1CoreOpts;
 /// The trace of the execution is represented as a list of "events" that occur every cycle.
 #[derive(Default, Clone, Debug, Serialize, Deserialize)]
 pub struct ExecutionRecord {
-    /// The index of the shard.
-    pub index: u32,
-
     /// The program.
     pub program: Arc<Program>,
 
@@ -165,12 +162,10 @@ impl MachineRecord for ExecutionRecord {
     type Config = ShardingConfig;
 
     fn index(&self) -> u32 {
-        self.index
+        0
     }
 
-    fn set_index(&mut self, index: u32) {
-        self.index = index;
-    }
+    fn set_index(&mut self, index: u32) {}
 
     fn stats(&self) -> HashMap<String, usize> {
         let mut stats = HashMap::new();
@@ -455,9 +450,8 @@ impl MachineRecord for ExecutionRecord {
 }
 
 impl ExecutionRecord {
-    pub fn new(index: u32, program: Arc<Program>) -> Self {
+    pub fn new(program: Arc<Program>) -> Self {
         Self {
-            index,
             program,
             ..Default::default()
         }
@@ -545,6 +539,7 @@ impl ExecutionRecord {
                     if !remainder.is_empty() {
                         $shards.push(ExecutionRecord {
                             $events: chunks.remainder().to_vec(),
+                            program: self.program.clone(),
                             ..Default::default()
                         });
                     }
@@ -552,6 +547,7 @@ impl ExecutionRecord {
                 let mut event_shards = chunks
                     .map(|chunk| ExecutionRecord {
                         $events: chunk.to_vec(),
+                        program: self.program.clone(),
                         ..Default::default()
                     })
                     .collect::<Vec<_>>();
@@ -586,6 +582,7 @@ impl ExecutionRecord {
                 .zip(self.memory_finalize_events.chunks(threshold))
             {
                 let mut shard = ExecutionRecord::default();
+                shard.program = self.program.clone();
                 shard
                     .memory_initialize_events
                     .extend_from_slice(mem_init_chunk);

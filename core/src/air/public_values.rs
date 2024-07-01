@@ -66,6 +66,18 @@ impl PublicValues<u32, u32> {
         *ret_ref_mut = field_values;
         ret
     }
+
+    pub fn reset(&self) -> Self {
+        let mut copy = self.clone();
+        copy.shard = 0;
+        copy.start_pc = 0;
+        copy.next_pc = 0;
+        copy.previous_init_addr_bits = [0; 32];
+        copy.last_init_addr_bits = [0; 32];
+        copy.previous_finalize_addr_bits = [0; 32];
+        copy.last_finalize_addr_bits = [0; 32];
+        copy
+    }
 }
 
 impl<F: PrimeField32> PublicValues<Word<F>, F> {

@@ -203,12 +203,8 @@ impl<'a> Runtime<'a> {
 
     /// Recover runtime state from a program and existing execution state.
     pub fn recover(program: Program, state: ExecutionState, opts: SP1CoreOpts) -> Self {
-        let mut runtime = Self::new(program, opts);
+        let mut runtime = Self::new(program.clone(), opts);
         runtime.state = state;
-        let index: u32 = (runtime.state.global_clk / (runtime.shard_size / 4) as u64)
-            .try_into()
-            .unwrap();
-        runtime.record.index = index + 1;
         runtime
     }
 
@@ -1001,7 +997,7 @@ impl<'a> Runtime<'a> {
 
             let record = std::mem::take(&mut self.record);
             self.records.push(record);
-            self.record = ExecutionRecord::new(self.state.current_shard - 1, self.program.clone());
+            self.record = ExecutionRecord::new(self.program.clone());
         }
 
         Ok(self.state.pc.wrapping_sub(self.program.pc_base)
@@ -1063,6 +1059,9 @@ impl<'a> Runtime<'a> {
 
     /// Executes up to `self.shard_batch_size` cycles of the program, returning whether the program has finished.
     fn execute(&mut self) -> Result<bool, ExecutionError> {
+        // Get the program.
+        let program = self.program.clone();
+
         // Get the current shard.
         let start_shard = self.state.current_shard;
 
@@ -1096,7 +1095,7 @@ impl<'a> Runtime<'a> {
         // Push the remaining execution record, if there are any CPU events.
         if !self.record.cpu_events.is_empty() {
             let record = std::mem::take(&mut self.record);
-            self.record.program = record.program.clone();
+            self.record.program = program.clone();
             self.records.push(record);
         }
 
@@ -1105,12 +1104,13 @@ impl<'a> Runtime<'a> {
 
             // Push the remaining execution record with memory initialize & finalize events.
             let record = std::mem::take(&mut self.record);
-            self.record.program = record.program.clone();
+            self.record.program = program.clone();
             self.records.push(record);
         }
 
         // Set the global public values for all shards.
         for (i, record) in self.records.iter_mut().enumerate() {
+            record.program = program.clone();
             record.public_values.committed_value_digest = public_values.committed_value_digest;
             record.public_values.deferred_proofs_digest = public_values.deferred_proofs_digest;
             record.public_values.shard = start_shard + i as u32;
