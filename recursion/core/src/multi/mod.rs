@@ -5,7 +5,7 @@ use std::ops::Deref;
 
 use itertools::Itertools;
 use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::PrimeField32;
+use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use sp1_core::air::{BaseAirBuilder, MachineAir};
@@ -36,6 +36,12 @@ pub struct MultiCols<T: Copy> {
     pub fri_fold_memory_access: T,
 
     pub is_poseidon2: T,
+
+    /// A flag column to indicate whether the row is the first poseidon2 row.
+    pub poseidon2_first_row: T,
+
+    /// Similar for Fri_fold.
+    pub fri_fold_last_row: T,
 
     /// Rows that needs to receive a poseidon2 syscall.
     pub poseidon2_receive_table: T,
@@ -104,6 +110,9 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for MultiChip<DEGREE> {
                         FriFoldChip::<DEGREE>::do_receive_table(fri_fold_cols);
                     multi_cols.fri_fold_memory_access =
                         FriFoldChip::<DEGREE>::do_memory_access(fri_fold_cols);
+                    if i == fri_fold_trace.height() - 1 {
+                        multi_cols.fri_fold_last_row = F::one();
+                    }
                 } else {
                     let multi_cols: &mut MultiCols<F> = row[0..NUM_MULTI_COLS].borrow_mut();
                     multi_cols.is_poseidon2 = F::one();
@@ -116,6 +125,9 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for MultiChip<DEGREE> {
                     multi_cols.poseidon2_2nd_half_memory_access =
                         poseidon2_cols.control_flow().is_compress;
                     multi_cols.poseidon2_send_range_check = poseidon2_cols.control_flow().is_absorb;
+
+                    // The first row of the poseidon2 trace has index fri_fold_trace.height()
+                    multi_cols.poseidon2_first_row = F::from_bool(i == fri_fold_trace.height())
                 }
 
                 row
@@ -169,6 +181,28 @@ where
         builder.assert_bool(local_multi_cols.is_poseidon2);
         builder.assert_bool(local_is_real.clone());
 
+        // Constrain the flags to be boolean.
+        builder.assert_bool(local_multi_cols.poseidon2_first_row);
+        builder.assert_bool(local_multi_cols.fri_fold_last_row);
+
+        // Constrain that the flags are computed correctly.
+        builder.when_transition().assert_eq(
+            local_multi_cols.is_fri_fold * (AB::Expr::one() - next_multi_cols.is_fri_fold),
+            local_multi_cols.fri_fold_last_row,
+        );
+        builder.when_last_row().assert_eq(
+            local_multi_cols.is_fri_fold,
+            local_multi_cols.fri_fold_last_row,
+        );
+        builder.when_first_row().assert_eq(
+            local_multi_cols.is_poseidon2,
+            local_multi_cols.poseidon2_first_row,
+        );
+        builder.when_transition().assert_eq(
+            next_multi_cols.poseidon2_first_row,
+            local_multi_cols.is_fri_fold * next_multi_cols.is_poseidon2,
+        );
+
         // Fri fold requires that it's rows are contiguous, since each invocation spans multiple rows
         // and it's AIR checks for consistencies among them.  The following constraints enforce that
         // all the fri fold rows are first, then the posiedon2 rows, and finally any padded (non-real) rows.
@@ -189,6 +223,8 @@ where
         let mut sub_builder = MultiBuilder::new(
             builder,
             local_multi_cols.is_fri_fold.into(),
+            builder.is_first_row(),
+            local_multi_cols.fri_fold_last_row.into(),
             next_multi_cols.is_fri_fold.into(),
         );
 
@@ -218,6 +254,8 @@ where
         let mut sub_builder = MultiBuilder::new(
             builder,
             local_multi_cols.is_poseidon2.into(),
+            local_multi_cols.poseidon2_first_row.into(),
+            builder.is_last_row(),
             next_multi_cols.is_poseidon2.into(),
         );
 
