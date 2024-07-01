@@ -496,6 +496,79 @@ impl ExecutionRecord {
             }
         }
     }
+
+    /// Take out events from the [ExecutionRecord] that should be deferred to a separate shard.
+    ///
+    /// Note: we usually defer events that would increase the recursion cost significantly if
+    /// included in every shard.
+    pub fn defer(&mut self) -> ExecutionRecord {
+        ExecutionRecord {
+            keccak_permute_events: std::mem::take(&mut self.keccak_permute_events),
+            secp256k1_add_events: std::mem::take(&mut self.secp256k1_add_events),
+            secp256k1_double_events: std::mem::take(&mut self.secp256k1_double_events),
+            bn254_add_events: std::mem::take(&mut self.bn254_add_events),
+            bn254_double_events: std::mem::take(&mut self.bn254_double_events),
+            bls12381_add_events: std::mem::take(&mut self.bls12381_add_events),
+            bls12381_double_events: std::mem::take(&mut self.bls12381_double_events),
+            sha_extend_events: std::mem::take(&mut self.sha_extend_events),
+            sha_compress_events: std::mem::take(&mut self.sha_compress_events),
+            ed_add_events: std::mem::take(&mut self.ed_add_events),
+            ed_decompress_events: std::mem::take(&mut self.ed_decompress_events),
+            k256_decompress_events: std::mem::take(&mut self.k256_decompress_events),
+            uint256_mul_events: std::mem::take(&mut self.uint256_mul_events),
+            bls12381_decompress_events: std::mem::take(&mut self.bls12381_decompress_events),
+            ..Default::default()
+        }
+    }
+
+    /// Splits the deferred [ExecutionRecord] into multiple [ExecutionRecord]s, each which contain
+    /// a "reasonable" number of deferred events.
+    pub fn split(&mut self, exact: bool) -> Vec<ExecutionRecord> {
+        let mut shards = Vec::new();
+        let threshold = 1 << 19;
+
+        macro_rules! split_events {
+            ($self:ident, $events:ident, $shards:ident, $threshold:expr, $exact:expr) => {
+                let events = std::mem::take(&mut $self.$events);
+                let chunks = events.chunks_exact($threshold);
+                if $exact {
+                    $self.$events = chunks.remainder().to_vec();
+                } else {
+                    let remainder = chunks.remainder().to_vec();
+                    if !remainder.is_empty() {
+                        $shards.push(ExecutionRecord {
+                            $events: chunks.remainder().to_vec(),
+                            ..Default::default()
+                        });
+                    }
+                }
+                let mut event_shards = chunks
+                    .map(|chunk| ExecutionRecord {
+                        $events: chunk.to_vec(),
+                        ..Default::default()
+                    })
+                    .collect::<Vec<_>>();
+                $shards.append(&mut event_shards);
+            };
+        }
+
+        split_events!(self, keccak_permute_events, shards, threshold, exact);
+        split_events!(self, secp256k1_add_events, shards, threshold, exact);
+        split_events!(self, secp256k1_double_events, shards, threshold, exact);
+        split_events!(self, bn254_add_events, shards, threshold, exact);
+        split_events!(self, bn254_double_events, shards, threshold, exact);
+        split_events!(self, bls12381_add_events, shards, threshold, exact);
+        split_events!(self, bls12381_double_events, shards, threshold, exact);
+        split_events!(self, sha_extend_events, shards, threshold, exact);
+        split_events!(self, sha_compress_events, shards, threshold, exact);
+        split_events!(self, ed_add_events, shards, threshold, exact);
+        split_events!(self, ed_decompress_events, shards, threshold, exact);
+        split_events!(self, k256_decompress_events, shards, threshold, exact);
+        split_events!(self, uint256_mul_events, shards, threshold, exact);
+        split_events!(self, bls12381_decompress_events, shards, threshold, exact);
+
+        shards
+    }
 }
 
 impl ByteRecord for ExecutionRecord {
