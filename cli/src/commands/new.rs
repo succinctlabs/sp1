@@ -10,6 +10,7 @@ pub struct NewCmd {
     name: String,
 
     /// Whether to create the project with template EVM contracts.
+    #[arg(short, long)]
     evm: bool,
 }
 
