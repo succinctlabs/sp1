@@ -5,7 +5,7 @@ use crate::{
     proto::network::{UnclaimProofRequest, UnclaimReason},
 };
 use anyhow::{Context, Ok, Result};
-use futures::future::join_all;
+use futures::{future::join_all, Future};
 use reqwest::{Client as HttpClient, Url};
 use reqwest_middleware::ClientWithMiddleware as HttpClientWithMiddleware;
 use serde::de::DeserializeOwned;
@@ -24,9 +24,6 @@ use crate::proto::network::{
 
 /// The default RPC endpoint for the Succinct prover network.
 pub const DEFAULT_PROVER_NETWORK_RPC: &str = "https://rpc.succinct.xyz/";
-
-/// The default SP1 Verifier address on all chains.
-const DEFAULT_SP1_VERIFIER_ADDRESS: &str = "0xed2107448519345059eab9cddab42ddc78fbebe9";
 
 /// The timeout for a proof request to be fulfilled.
 const TIMEOUT: Duration = Duration::from_secs(60 * 60);
@@ -69,28 +66,13 @@ impl NetworkClient {
         }
     }
 
-    // Get the address for the SP1 Verifier contract.
-    pub fn get_sp1_verifier_address() -> [u8; 20] {
-        let verifier_hex = env::var("SP1_VERIFIER_ADDRESS")
-            .unwrap_or_else(|_| DEFAULT_SP1_VERIFIER_ADDRESS.to_string());
-        let verifier_bytes = hex::decode(verifier_hex.trim_start_matches("0x"))
-            .expect("Invalid SP1_VERIFIER_ADDRESS format");
-
-        verifier_bytes
-            .try_into()
-            .expect("SP1_VERIFIER_ADDRESS must be 20 bytes")
-    }
-
     /// Gets the latest nonce for this auth's account.
     pub async fn get_nonce(&self) -> Result<u64> {
         let res = self
-            .rpc
-            .get_nonce(GetNonceRequest {
+            .with_error_handling(self.rpc.get_nonce(GetNonceRequest {
                 address: self.auth.get_address().to_vec(),
-            })
-            .await;
-
-        let res = self.handle_twirp_error(res).await?;
+            }))
+            .await?;
         Ok(res.nonce)
     }
 
@@ -106,14 +88,9 @@ impl NetworkClient {
         proof_id: &str,
     ) -> Result<(GetProofStatusResponse, Option<P>)> {
         let res = self
-            .rpc
-            .get_proof_status(GetProofStatusRequest {
+            .with_error_handling(self.rpc.get_proof_status(GetProofStatusRequest {
                 proof_id: proof_id.to_string(),
-            })
-            .await;
-
-        let res = self
-            .handle_twirp_error(res)
+            }))
             .await
             .context("Failed to get proof status")?;
 
@@ -143,14 +120,10 @@ impl NetworkClient {
         &self,
         status: ProofStatus,
     ) -> Result<GetProofRequestsResponse> {
-        let res = self
-            .rpc
-            .get_proof_requests(GetProofRequestsRequest {
-                status: status.into(),
-            })
-            .await;
-
-        self.handle_twirp_error(res).await
+        self.with_error_handling(self.rpc.get_proof_requests(GetProofRequestsRequest {
+            status: status.into(),
+        }))
+        .await
     }
 
     // Get the status of a relay transaction request.
@@ -159,13 +132,10 @@ impl NetworkClient {
         tx_id: &str,
     ) -> Result<(GetRelayStatusResponse, Option<String>, Option<String>)> {
         let res = self
-            .rpc
-            .get_relay_status(GetRelayStatusRequest {
+            .with_error_handling(self.rpc.get_relay_status(GetRelayStatusRequest {
                 tx_id: tx_id.to_string(),
-            })
-            .await;
-
-        let res = self.handle_twirp_error(res).await?;
+            }))
+            .await?;
 
         let tx_hash = match res.status() {
             TransactionStatus::TransactionScheduled => None,
@@ -199,18 +169,16 @@ impl NetworkClient {
             .auth
             .sign_create_proof_message(nonce, deadline, mode.into(), version)
             .await?;
+
         let res = self
-            .rpc
-            .create_proof(CreateProofRequest {
+            .with_error_handling(self.rpc.create_proof(CreateProofRequest {
                 signature: create_proof_signature.to_vec(),
                 nonce,
                 deadline,
                 mode: mode.into(),
                 version: version.to_string(),
-            })
-            .await;
-
-        let res = self.handle_twirp_error(res).await?;
+            }))
+            .await?;
 
         let program_bytes = bincode::serialize(elf)?;
         let stdin_bytes = bincode::serialize(&stdin)?;
@@ -227,16 +195,12 @@ impl NetworkClient {
             .sign_submit_proof_message(nonce, &res.proof_id)
             .await?;
 
-        let submit_res = self
-            .rpc
-            .submit_proof(SubmitProofRequest {
-                signature: submit_proof_signature.to_vec(),
-                nonce,
-                proof_id: res.proof_id.clone(),
-            })
-            .await;
-
-        self.handle_twirp_error(submit_res).await?;
+        self.with_error_handling(self.rpc.submit_proof(SubmitProofRequest {
+            signature: submit_proof_signature.to_vec(),
+            nonce,
+            proof_id: res.proof_id.clone(),
+        }))
+        .await?;
 
         Ok(res.proof_id)
     }
@@ -247,16 +211,12 @@ impl NetworkClient {
         let nonce = self.get_nonce().await?;
         let signature = self.auth.sign_claim_proof_message(nonce, proof_id).await?;
 
-        let res = self
-            .rpc
-            .claim_proof(ClaimProofRequest {
-                signature,
-                nonce,
-                proof_id: proof_id.to_string(),
-            })
-            .await;
-
-        self.handle_twirp_error(res).await
+        self.with_error_handling(self.rpc.claim_proof(ClaimProofRequest {
+            signature,
+            nonce,
+            proof_id: proof_id.to_string(),
+        }))
+        .await
     }
 
     // Unclaim a proof that was claimed. This should only be called if the proof has not been
@@ -274,18 +234,14 @@ impl NetworkClient {
             .sign_unclaim_proof_message(nonce, proof_id.clone(), reason, description.clone())
             .await?;
 
-        let res = self
-            .rpc
-            .unclaim_proof(UnclaimProofRequest {
-                signature,
-                nonce,
-                proof_id,
-                reason: reason.into(),
-                description,
-            })
-            .await;
-
-        self.handle_twirp_error(res).await?;
+        self.with_error_handling(self.rpc.unclaim_proof(UnclaimProofRequest {
+            signature,
+            nonce,
+            proof_id,
+            reason: reason.into(),
+            description,
+        }))
+        .await?;
 
         Ok(())
     }
@@ -299,18 +255,17 @@ impl NetworkClient {
             .sign_fulfill_proof_message(nonce, proof_id)
             .await?;
         let res = self
-            .rpc
-            .fulfill_proof(FulfillProofRequest {
+            .with_error_handling(self.rpc.fulfill_proof(FulfillProofRequest {
                 signature,
                 nonce,
                 proof_id: proof_id.to_string(),
-            })
+            }))
             .await?;
 
         Ok(res)
     }
 
-    // Relay a proof. Returns an error if the proof is not in a PROOF_FULFILLED state.
+    /// Relays a proof to a verifier on a specific blockchain.
     pub async fn relay_proof(
         &self,
         proof_id: &str,
@@ -333,21 +288,26 @@ impl NetworkClient {
             callback: callback.to_vec(),
             callback_data: callback_data.to_vec(),
         };
-        let res = self.rpc.relay_proof(req).await;
-
-        let res = self.handle_twirp_error(res).await?;
+        let res = self.with_error_handling(self.rpc.relay_proof(req)).await?;
 
         Ok(res.tx_id)
     }
 
-    async fn handle_twirp_error<T>(
-        &self,
-        result: std::result::Result<T, ClientError>,
-    ) -> Result<T> {
+    /// Awaits the future, then handles prover network errors.
+    async fn with_error_handling<T, F>(&self, future: F) -> Result<T>
+    where
+        F: Future<Output = std::result::Result<T, ClientError>>,
+    {
+        let result = future.await;
+        self.handle_twirp_error(result)
+    }
+
+    /// Handles Twirp errors by formatting them into more readable error messages.
+    fn handle_twirp_error<T>(&self, result: std::result::Result<T, ClientError>) -> Result<T> {
         match result {
             StdOk(response) => StdOk(response),
             Err(ClientError::TwirpError(err)) => {
-                let display_err = format!("error: \"{:?}\" message: {:?}", err.code, err.msg);
+                let display_err = format!("error: \"{:?}\" message: \"{:?}\"", err.code, err.msg);
                 Err(anyhow::anyhow!(display_err))
             }
             Err(err) => Err(err.into()),
