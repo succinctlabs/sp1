@@ -300,7 +300,7 @@ mod tests {
         let mut challenger = machine.config().challenger();
         let proof = machine.prove::<LocalProver<_, _>>(
             &pk,
-            runtime.record,
+            vec![runtime.record],
             &mut challenger,
             SP1CoreOpts::recursion(),
         );

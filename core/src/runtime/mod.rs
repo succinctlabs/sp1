@@ -58,8 +58,11 @@ pub struct Runtime<'a> {
     /// The state of the execution.
     pub state: ExecutionState,
 
-    /// The trace of the execution.
+    /// The current trace of the execution that is being collected.
     pub record: ExecutionRecord,
+
+    /// The collected records, split by cpu cycles.
+    pub records: Vec<ExecutionRecord>,
 
     /// The memory accesses for the current cycle.
     pub memory_accesses: MemoryAccessRecord,
@@ -84,12 +87,16 @@ pub struct Runtime<'a> {
     /// the unconstrained block. The only thing preserved is writes to the input stream.
     pub unconstrained: bool,
 
+    /// The state of the runtime when in unconstrained mode.
     pub(crate) unconstrained_state: ForkState,
 
+    /// The mapping between syscall codes and their implementations.
     pub syscall_map: HashMap<SyscallCode, Arc<dyn Syscall>>,
 
+    /// The maximum number of cycles for a syscall.
     pub max_syscall_cycles: u32,
 
+    /// Whether to emit events during execution.
     pub emit_events: bool,
 
     /// Report of the program execution.
@@ -159,6 +166,7 @@ impl<'a> Runtime<'a> {
 
         Self {
             record,
+            records: vec![],
             state: ExecutionState::new(program.pc_start),
             program,
             memory_accesses: MemoryAccessRecord::default(),
@@ -990,6 +998,10 @@ impl<'a> Runtime<'a> {
             self.state.current_shard += 1;
             self.state.clk = 0;
             self.state.channel = 0;
+
+            let record = std::mem::take(&mut self.record);
+            self.records.push(record);
+            self.record = ExecutionRecord::new(self.state.current_shard - 1, self.program.clone());
         }
 
         Ok(self.state.pc.wrapping_sub(self.program.pc_base)
@@ -997,11 +1009,11 @@ impl<'a> Runtime<'a> {
     }
 
     /// Execute up to `self.shard_batch_size` cycles, returning the events emitted and whether the program ended.
-    pub fn execute_record(&mut self) -> Result<(ExecutionRecord, bool), ExecutionError> {
+    pub fn execute_record(&mut self) -> Result<(Vec<ExecutionRecord>, bool), ExecutionError> {
         self.emit_events = true;
         self.print_report = true;
         let done = self.execute()?;
-        Ok((std::mem::take(&mut self.record), done))
+        Ok((std::mem::take(&mut self.records), done))
     }
 
     /// Execute up to `self.shard_batch_size` cycles, returning a copy of the prestate and whether the program ended.
@@ -1051,6 +1063,9 @@ impl<'a> Runtime<'a> {
 
     /// Executes up to `self.shard_batch_size` cycles of the program, returning whether the program has finished.
     fn execute(&mut self) -> Result<bool, ExecutionError> {
+        // Get the current shard.
+        let start_shard = self.state.current_shard;
+
         // If it's the first cycle, initialize the program.
         if self.state.global_clk == 0 {
             self.initialize();
@@ -1075,8 +1090,33 @@ impl<'a> Runtime<'a> {
             }
         }
 
+        // Get the final public values.
+        let public_values = self.record.public_values;
+
+        // Push the remaining execution record.
+        let record = std::mem::take(&mut self.record);
+        self.record.program = record.program.clone();
+        self.records.push(record);
+
         if done {
             self.postprocess();
+
+            // Push the remaining execution record with memory initialize & finalize events.
+            let record = std::mem::take(&mut self.record);
+            self.record.program = record.program.clone();
+            self.records.push(record);
+        }
+
+        // Set the global public values for all shards.
+        for (i, record) in self.records.iter_mut().enumerate() {
+            record.public_values.committed_value_digest = public_values.committed_value_digest;
+            record.public_values.deferred_proofs_digest = public_values.deferred_proofs_digest;
+            record.public_values.shard = start_shard + i as u32;
+            if !record.cpu_events.is_empty() {
+                record.public_values.start_pc = record.cpu_events[0].pc;
+                record.public_values.next_pc = record.cpu_events.last().unwrap().next_pc;
+                record.public_values.exit_code = record.cpu_events.last().unwrap().exit_code;
+            }
         }
 
         Ok(done)
@@ -1105,7 +1145,9 @@ impl<'a> Runtime<'a> {
 
         // Ensure that all proofs and input bytes were read, otherwise warn the user.
         if self.state.proof_stream_ptr != self.state.proof_stream.len() {
-            panic!("Not all proofs were read. Proving will fail during recursion. Did you pass too many proofs in or forget to call verify_sp1_proof?");
+            panic!(
+                "Not all proofs were read. Proving will fail during recursion. Did you pass too many proofs in or forget to call verify_sp1_proof?"
+            );
         }
         if self.state.input_stream_ptr != self.state.input_stream.len() {
             log::warn!("Not all input bytes were read.");

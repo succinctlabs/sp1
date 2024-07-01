@@ -541,7 +541,7 @@ impl SP1Prover {
         self.compress_machine
             .prove::<LocalProver<_, _>>(
                 pk,
-                runtime.record,
+                vec![runtime.record],
                 &mut recursive_challenger,
                 opts.recursion_opts,
             )
@@ -582,7 +582,7 @@ impl SP1Prover {
         let mut compress_challenger = self.shrink_machine.config().challenger();
         let mut compress_proof = self.shrink_machine.prove::<LocalProver<_, _>>(
             &self.shrink_pk,
-            runtime.record,
+            vec![runtime.record],
             &mut compress_challenger,
             opts.recursion_opts,
         );
@@ -624,7 +624,7 @@ impl SP1Prover {
         let time = std::time::Instant::now();
         let mut wrap_proof = self.wrap_machine.prove::<LocalProver<_, _>>(
             &self.wrap_pk,
-            runtime.record,
+            vec![runtime.record],
             &mut wrap_challenger,
             opts.recursion_opts,
         );

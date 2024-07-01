@@ -1,6 +1,6 @@
 use std::fs::File;
-use std::io;
-use std::io::{Seek, Write};
+use std::io::Seek;
+use std::io::{self, SeekFrom};
 use std::sync::Arc;
 use web_time::Instant;
 
@@ -16,7 +16,7 @@ use crate::air::MachineAir;
 use crate::io::{SP1PublicValues, SP1Stdin};
 use crate::lookup::InteractionBuilder;
 use crate::runtime::{ExecutionError, NoOpSubproofVerifier, SP1Context};
-use crate::runtime::{ExecutionRecord, ExecutionReport, ShardingConfig};
+use crate::runtime::{ExecutionRecord, ExecutionReport};
 use crate::stark::DebugConstraintBuilder;
 use crate::stark::MachineProof;
 use crate::stark::ProverConstraintFolder;
@@ -65,7 +65,7 @@ where
     let proving_start = Instant::now();
     let proof = machine.prove::<LocalProver<_, _>>(
         &pk,
-        runtime.record,
+        runtime.records,
         &mut challenger,
         SP1CoreOpts::default(),
     );
@@ -116,6 +116,7 @@ where
     ShardMainData<SC>: Serialize + DeserializeOwned,
     <SC as StarkGenericConfig>::Val: PrimeField32,
 {
+    // Record the start of the process.
     let proving_start = Instant::now();
 
     // Execute the program.
@@ -138,7 +139,7 @@ where
         #[cfg(debug_assertions)]
         {
             let mut challenger = machine.config().challenger();
-            machine.debug_constraints(&pk, runtime.record.clone(), &mut challenger);
+            machine.debug_constraints(&pk, runtime.records.clone(), &mut challenger);
         }
 
         // Generate the proof and return the proof and public values.
@@ -151,50 +152,75 @@ where
     let mut checkpoints = Vec::new();
     let (public_values_stream, public_values) = loop {
         // Execute the runtime until we reach a checkpoint.
-        let (checkpoint, done) = tracing::info_span!("collect_checkpoints")
-            .in_scope(|| runtime.execute_state())
+        let (checkpoint, done) = runtime
+            .execute_state()
             .map_err(SP1CoreProverError::ExecutionError)?;
 
         // Save the checkpoint to a temp file.
-        let mut tempfile = tempfile::tempfile().map_err(SP1CoreProverError::IoError)?;
-        let mut writer = std::io::BufWriter::new(&mut tempfile);
-        bincode::serialize_into(&mut writer, &checkpoint)
-            .map_err(SP1CoreProverError::SerializationError)?;
-        writer.flush().map_err(SP1CoreProverError::IoError)?;
-        drop(writer);
-        tempfile
-            .seek(std::io::SeekFrom::Start(0))
+        let mut checkpoint_file = tempfile::tempfile().map_err(SP1CoreProverError::IoError)?;
+        checkpoint
+            .save(&mut checkpoint_file)
             .map_err(SP1CoreProverError::IoError)?;
-        checkpoints.push(tempfile);
+        checkpoints.push(checkpoint_file);
 
         // If we've reached the final checkpoint, break out of the loop.
         if done {
             break (
-                std::mem::take(&mut runtime.state.public_values_stream),
-                runtime.record.public_values,
+                runtime.state.public_values_stream,
+                runtime
+                    .records
+                    .last()
+                    .expect("at least one record")
+                    .public_values,
             );
         }
     };
 
-    // For each checkpoint, generate events, shard them, commit shards, and observe in challenger.
-    let sharding_config = ShardingConfig::default();
-    let mut shard_main_datas = Vec::new();
+    // Commit to the shards.
+    let mut deferred = ExecutionRecord::default();
+    let (mut last_shard, mut last_start_pc, mut last_next_pc) = (0, 0, 0);
+    let num_checkpoints = checkpoints.len();
     let mut challenger = machine.config().challenger();
     vk.observe_into(&mut challenger);
-    for (num, checkpoint_file) in checkpoints.iter_mut().enumerate() {
-        let (mut record, _) = tracing::info_span!("commit_checkpoint", num)
-            .in_scope(|| trace_checkpoint(program.clone(), checkpoint_file, opts));
-        record.public_values = public_values;
+    for (idx, checkpoint_file) in checkpoints.iter_mut().enumerate() {
+        let (mut records, _) = trace_checkpoint(program.clone(), checkpoint_file, opts);
+        records.iter_mut().for_each(|record| {
+            last_shard = record.public_values.shard;
+            last_start_pc = record.public_values.start_pc;
+            last_next_pc = record.public_values.next_pc;
+            record.program = program.clone().into();
+            record.index = last_shard - 1;
+            record.public_values = public_values;
+            record.public_values.shard = last_shard;
+            record.public_values.start_pc = last_start_pc;
+            record.public_values.next_pc = last_next_pc;
+        });
         reset_seek(&mut *checkpoint_file);
 
         // Shard the record into shards.
-        let checkpoint_shards =
-            tracing::info_span!("shard").in_scope(|| machine.shard(record, &sharding_config));
+        machine.generate_dependencies(&mut records);
+        let mut checkpoint_shards = records;
+
+        // Defer events that are too expensive to include in every shard.
+        checkpoint_shards.iter_mut().for_each(|record| {
+            deferred.append(&mut record.defer());
+        });
+
+        // Get deferred shards that ready to be committed.
+        let is_last_checkpoint = idx == num_checkpoints - 1;
+        let mut deferred = deferred.split(!is_last_checkpoint);
+        deferred.iter_mut().for_each(|record| {
+            record.index = last_shard - 1;
+            record.program = program.clone().into();
+            record.public_values = public_values;
+            record.public_values.shard = last_shard;
+            record.public_values.start_pc = last_start_pc;
+            record.public_values.next_pc = last_next_pc;
+        });
+        checkpoint_shards.append(&mut deferred);
 
         // Commit to each shard.
-        let (commitments, commit_data) = tracing::info_span!("commit")
-            .in_scope(|| LocalProver::commit_shards(&machine, &checkpoint_shards, opts));
-        shard_main_datas.push(commit_data);
+        let (commitments, _) = LocalProver::commit_shards(&machine, &checkpoint_shards, opts);
 
         // Observe the commitments.
         for (commitment, shard) in commitments.into_iter().zip(checkpoint_shards.iter()) {
@@ -203,18 +229,51 @@ where
         }
     }
 
-    // For each checkpoint, generate events and shard again, then prove the shards.
+    // Prove the shards.
+    let (mut last_shard, mut last_start_pc, mut last_next_pc) = (0, 0, 0);
+    let mut deferred = ExecutionRecord::default();
     let mut shard_proofs = Vec::<ShardProof<SC>>::new();
     let mut report_aggregate = ExecutionReport::default();
-    for (num, mut checkpoint_file) in checkpoints.into_iter().enumerate() {
-        let checkpoint_shards = {
-            let (mut events, report) = tracing::info_span!("prove_checkpoint", num)
-                .in_scope(|| trace_checkpoint(program.clone(), &checkpoint_file, opts));
+    for (idx, mut checkpoint_file) in checkpoints.into_iter().enumerate() {
+        let mut checkpoint_shards = {
+            let (mut events, report) = trace_checkpoint(program.clone(), &checkpoint_file, opts);
+            events.iter_mut().for_each(|record| {
+                last_shard = record.public_values.shard;
+                last_start_pc = record.public_values.start_pc;
+                last_next_pc = record.public_values.next_pc;
+                record.program = program.clone().into();
+                record.index = last_shard - 1;
+                record.public_values = public_values;
+                record.public_values.shard = last_shard;
+                record.public_values.start_pc = last_start_pc;
+                record.public_values.next_pc = last_next_pc;
+            });
             report_aggregate += report;
-            events.public_values = public_values;
-            reset_seek(&mut checkpoint_file);
-            tracing::debug_span!("shard").in_scope(|| machine.shard(events, &sharding_config))
+            checkpoint_file
+                .seek(SeekFrom::Start(0))
+                .map_err(SP1CoreProverError::IoError)?;
+            machine.generate_dependencies(&mut events);
+            events
         };
+
+        // Defer events that are too expensive to include in every shard.
+        checkpoint_shards.iter_mut().for_each(|record| {
+            deferred.append(&mut record.defer());
+        });
+
+        // Get deferred shards that ready to be proven.
+        let is_last_checkpoint = idx == num_checkpoints - 1;
+        let mut deferred = deferred.split(!is_last_checkpoint);
+        deferred.iter_mut().for_each(|record| {
+            record.index = last_shard - 1;
+            record.program = program.clone().into();
+            record.public_values = public_values;
+            record.public_values.shard = last_shard;
+            record.public_values.start_pc = last_start_pc;
+            record.public_values.next_pc = last_next_pc;
+        });
+        checkpoint_shards.append(&mut deferred);
+
         let mut checkpoint_proofs = checkpoint_shards
             .into_iter()
             .map(|shard| {
@@ -238,6 +297,7 @@ where
             .collect::<Vec<_>>();
         shard_proofs.append(&mut checkpoint_proofs);
     }
+
     // Log some of the `ExecutionReport` information.
     tracing::info!(
         "execution report (totals): total_cycles={}, total_syscall_cycles={}",
@@ -311,13 +371,13 @@ pub fn run_test_core(
     let machine = RiscvAir::machine(config);
     let (pk, vk) = machine.setup(runtime.program.as_ref());
 
-    let record = runtime.record;
-    run_test_machine(record, machine, pk, vk)
+    let records = runtime.records;
+    run_test_machine(records, machine, pk, vk)
 }
 
 #[allow(unused_variables)]
 pub fn run_test_machine<SC, A>(
-    record: A::Record,
+    records: Vec<A::Record>,
     machine: StarkMachine<SC, A>,
     pk: StarkProvingKey<SC>,
     vk: StarkVerifyingKey<SC>,
@@ -339,29 +399,29 @@ where
     #[cfg(debug_assertions)]
     {
         let mut challenger_clone = machine.config().challenger();
-        let record_clone = record.clone();
-        machine.debug_constraints(&pk, record_clone, &mut challenger_clone);
+        let records_clone = records.clone();
+        machine.debug_constraints(&pk, records_clone, &mut challenger_clone);
     }
-    let stats = record.stats().clone();
-    let cycles = stats.get("cpu_events").unwrap();
+    // let stats = record.stats().clone();
+    // let cycles = stats.get("cpu_events").unwrap();
 
     let start = Instant::now();
     let mut challenger = machine.config().challenger();
     let proof =
-        machine.prove::<LocalProver<SC, A>>(&pk, record, &mut challenger, SP1CoreOpts::default());
+        machine.prove::<LocalProver<SC, A>>(&pk, records, &mut challenger, SP1CoreOpts::default());
     let time = start.elapsed().as_millis();
     let nb_bytes = bincode::serialize(&proof).unwrap().len();
 
     let mut challenger = machine.config().challenger();
     machine.verify(&vk, &proof, &mut challenger)?;
 
-    tracing::info!(
-        "summary: cycles={}, e2e={}, khz={:.2}, proofSize={}",
-        cycles,
-        time,
-        (*cycles as f64 / time as f64),
-        Size::from_bytes(nb_bytes),
-    );
+    // tracing::info!(
+    //     "summary: cycles={}, e2e={}, khz={:.2}, proofSize={}",
+    //     cycles,
+    //     time,
+    //     (*cycles as f64 / time as f64),
+    //     Size::from_bytes(nb_bytes),
+    // );
 
     Ok(proof)
 }
@@ -370,7 +430,7 @@ fn trace_checkpoint(
     program: Program,
     file: &File,
     opts: SP1CoreOpts,
-) -> (ExecutionRecord, ExecutionReport) {
+) -> (Vec<ExecutionRecord>, ExecutionReport) {
     let mut reader = std::io::BufReader::new(file);
     let state = bincode::deserialize_from(&mut reader).expect("failed to deserialize state");
     let mut runtime = Runtime::recover(program.clone(), state, opts);

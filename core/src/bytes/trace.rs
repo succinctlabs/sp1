@@ -1,5 +1,6 @@
 use std::borrow::BorrowMut;
 
+use hashbrown::HashMap;
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 
@@ -47,8 +48,13 @@ impl<F: Field> MachineAir<F> for ByteChip<F> {
             NUM_BYTE_MULT_COLS,
         );
 
-        let shard = input.index;
-        for (lookup, mult) in input.byte_lookups[&shard].iter() {
+        let shard = input.index + 1;
+        for (lookup, mult) in input
+            .byte_lookups
+            .get(&shard)
+            .unwrap_or(&HashMap::new())
+            .iter()
+        {
             let row = if lookup.opcode != ByteOpcode::U16Range {
                 ((lookup.b << 8) + lookup.c) as usize
             } else {

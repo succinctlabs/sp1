@@ -90,10 +90,6 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
         }
     }
 
-    fn shard(self, _: &Self::Config) -> Vec<Self> {
-        vec![self]
-    }
-
     fn public_values<T: AbstractField>(&self) -> Vec<T> {
         let ret: [T; PROOF_MAX_NUM_PVS] = array::from_fn(|i| {
             if i < self.public_values.len() {

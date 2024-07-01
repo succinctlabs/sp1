@@ -528,7 +528,7 @@ pub(crate) mod tests {
         let mut challenger = machine.config().challenger();
         let mut proof = machine.prove::<LocalProver<SC, RecursionAir<_, 3>>>(
             &pk,
-            record,
+            vec![record],
             &mut challenger,
             SP1CoreOpts::recursion(),
         );

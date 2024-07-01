@@ -320,7 +320,6 @@ mod tests {
     use crate::lookup::{debug_interactions_with_all_chips, InteractionKind};
     use crate::runtime::tests::simple_program;
     use crate::runtime::Runtime;
-    use crate::stark::MachineRecord;
     use crate::stark::{RiscvAir, StarkGenericConfig};
     use crate::syscall::precompiles::sha256::extend_tests::sha_extend_program;
     use crate::utils::{setup_logger, BabyBearPoseidon2, SP1CoreOpts};
@@ -379,11 +378,10 @@ mod tests {
         let machine: crate::stark::StarkMachine<BabyBearPoseidon2, RiscvAir<BabyBear>> =
             RiscvAir::machine(BabyBearPoseidon2::new());
         let (pkey, _) = machine.setup(&program_clone);
-        let shards = machine.shard(
-            runtime.record,
-            &<ExecutionRecord as MachineRecord>::Config::default(),
-        );
-        assert_eq!(shards.len(), 3);
+        machine.generate_dependencies(&mut runtime.records);
+
+        let shards = runtime.records;
+        assert_eq!(shards.len(), 2);
         debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
             &machine,
             &pkey,
@@ -401,11 +399,10 @@ mod tests {
         runtime.run().unwrap();
         let machine = RiscvAir::machine(BabyBearPoseidon2::new());
         let (pkey, _) = machine.setup(&program_clone);
-        let shards = machine.shard(
-            runtime.record,
-            &<ExecutionRecord as MachineRecord>::Config::default(),
-        );
-        assert_eq!(shards.len(), 3);
+        machine.generate_dependencies(&mut runtime.records);
+
+        let shards = runtime.records;
+        assert_eq!(shards.len(), 2);
         debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
             &machine,
             &pkey,
