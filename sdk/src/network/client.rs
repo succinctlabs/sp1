@@ -35,11 +35,12 @@ pub struct NetworkClient {
 }
 
 impl NetworkClient {
+    /// Returns the currently configured RPC endpoint for the Succinct prover network.
     pub fn rpc_url() -> String {
         env::var("PROVER_NETWORK_RPC").unwrap_or_else(|_| DEFAULT_PROVER_NETWORK_RPC.to_string())
     }
 
-    // Create a new NetworkClient with the given private key for authentication.
+    /// Create a new NetworkClient with the given private key for authentication.
     pub fn new(private_key: &str) -> Self {
         let auth = NetworkAuth::new(private_key);
 
@@ -76,13 +77,13 @@ impl NetworkClient {
         Ok(res.nonce)
     }
 
-    // Upload a file to the specified url.
+    /// Upload a file to the specified url.
     async fn upload_file(&self, url: &str, data: Vec<u8>) -> Result<()> {
         self.http.put(url).body(data).send().await?;
         Ok(())
     }
 
-    // Get the status of a given proof. If the status is ProofFulfilled, the proof is also returned.
+    /// Get the status of a given proof. If the status is ProofFulfilled, the proof is also returned.
     pub async fn get_proof_status<P: DeserializeOwned>(
         &self,
         proof_id: &str,
@@ -115,7 +116,7 @@ impl NetworkClient {
         Ok((res, proof))
     }
 
-    // Relay a proof. Returns an error if the proof is not in a PROOF_FULFILLED state.
+    /// Relay a proof. Returns an error if the proof is not in a PROOF_FULFILLED state.
     pub async fn get_proof_requests(
         &self,
         status: ProofStatus,
@@ -126,7 +127,7 @@ impl NetworkClient {
         .await
     }
 
-    // Get the status of a relay transaction request.
+    /// Get the status of a relay transaction request.
     pub async fn get_relay_status(
         &self,
         tx_id: &str,
@@ -205,8 +206,8 @@ impl NetworkClient {
         Ok(res.proof_id)
     }
 
-    // Claim a proof that was requested. This commits to generating a proof and fulfilling it.
-    // Returns an error if the proof is not in a PROOF_REQUESTED state.
+    /// Claim a proof that was requested. This commits to generating a proof and fulfilling it.
+    /// Returns an error if the proof is not in a PROOF_REQUESTED state.
     pub async fn claim_proof(&self, proof_id: &str) -> Result<ClaimProofResponse> {
         let nonce = self.get_nonce().await?;
         let signature = self.auth.sign_claim_proof_message(nonce, proof_id).await?;
@@ -219,9 +220,9 @@ impl NetworkClient {
         .await
     }
 
-    // Unclaim a proof that was claimed. This should only be called if the proof has not been
-    // fulfilled yet. Returns an error if the proof is not in a PROOF_CLAIMED state or if the caller
-    // is not the claimer.
+    /// Unclaim a proof that was claimed. This should only be called if the proof has not been
+    /// fulfilled yet. Returns an error if the proof is not in a PROOF_CLAIMED state or if the caller
+    /// is not the claimer.
     pub async fn unclaim_proof(
         &self,
         proof_id: String,
@@ -246,8 +247,8 @@ impl NetworkClient {
         Ok(())
     }
 
-    // Fulfill a proof. Should only be called after the proof has been uploaded. Returns an error
-    // if the proof is not in a PROOF_CLAIMED state or if the caller is not the claimer.
+    /// Fulfill a proof. Should only be called after the proof has been uploaded. Returns an error
+    /// if the proof is not in a PROOF_CLAIMED state or if the caller is not the claimer.
     pub async fn fulfill_proof(&self, proof_id: &str) -> Result<FulfillProofResponse> {
         let nonce = self.get_nonce().await?;
         let signature = self
@@ -265,7 +266,7 @@ impl NetworkClient {
         Ok(res)
     }
 
-    /// Relays a proof to a verifier on a specific blockchain.
+    /// Relay a proof. Returns an error if the proof is not in a PROOF_FULFILLED state.
     pub async fn relay_proof(
         &self,
         proof_id: &str,
@@ -293,7 +294,7 @@ impl NetworkClient {
         Ok(res.tx_id)
     }
 
-    /// Awaits the future, then handles prover network errors.
+    /// Awaits the future, then handles Succinct prover network errors.
     async fn with_error_handling<T, F>(&self, future: F) -> Result<T>
     where
         F: Future<Output = std::result::Result<T, ClientError>>,
