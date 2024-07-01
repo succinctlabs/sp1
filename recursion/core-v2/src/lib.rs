@@ -1,3 +1,5 @@
+use std::iter::once;
+
 use p3_field::PrimeField32;
 use sp1_core::{air::PublicValues, stark::MachineRecord};
 
@@ -38,12 +40,20 @@ pub enum MemAccessKind {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct AddressValue<F> {
     addr: F,
-    val: F,
+    val: Block<F>,
 }
 
 impl<F> AddressValue<F> {
-    pub fn new(addr: F, val: F) -> Self {
+    pub fn new(addr: F, val: Block<F>) -> Self {
         Self { addr, val }
+    }
+
+    pub fn iter(&self) -> impl DoubleEndedIterator<Item = &F> {
+        once(&self.addr).chain(self.val.0.iter())
+    }
+
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut F> {
+        once(&mut self.addr).chain(self.val.0.iter_mut())
     }
 }
 
@@ -111,6 +121,7 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
 use p3_field::Field;
 use serde::{Deserialize, Serialize};
 use sp1_core::air::MachineProgram;
+use sp1_recursion_core::air::Block;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct RecursionProgram<F> {

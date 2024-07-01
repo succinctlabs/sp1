@@ -95,7 +95,8 @@ impl<F: PrimeField32> MachineAir<F> for FieldAluChip {
                     opcode,
                 } = event;
 
-                let (v1, v2) = (in1.val, in2.val);
+                // Should we check (at some point) that the other array entries are zero?
+                let (v1, v2) = (in1.val.0[0], in2.val.0[0]);
 
                 let cols: &mut FieldAluCols<_> = row.as_mut_slice().borrow_mut();
                 *cols = FieldAluCols {
@@ -148,7 +149,8 @@ where
     AB: SP1AirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
-        let encode = |av: AddressValue<AB::Var>| vec![av.addr.into(), av.val.into()];
+        let encode =
+            |av: AddressValue<AB::Var>| av.iter().cloned().map(Into::into).collect::<Vec<_>>();
 
         let main = builder.main();
         let local = main.row_slice(0);
@@ -160,20 +162,20 @@ where
             .assert_one(local.is_add + local.is_sub + local.is_mul + local.is_div);
 
         let mut when_add = builder.when(local.is_add);
-        when_add.assert_eq(local.out.val, local.sum);
-        when_add.assert_eq(local.in1.val + local.in2.val, local.sum);
+        when_add.assert_eq(local.out.val.0[0], local.sum);
+        when_add.assert_eq(local.in1.val.0[0] + local.in2.val.0[0], local.sum);
 
         let mut when_sub = builder.when(local.is_sub);
-        when_sub.assert_eq(local.out.val, local.diff);
-        when_sub.assert_eq(local.in1.val, local.in2.val + local.diff);
+        when_sub.assert_eq(local.out.val.0[0], local.diff);
+        when_sub.assert_eq(local.in1.val.0[0], local.in2.val.0[0] + local.diff);
 
         let mut when_mul = builder.when(local.is_mul);
-        when_mul.assert_eq(local.out.val, local.product);
-        when_mul.assert_eq(local.in1.val * local.in2.val, local.product);
+        when_mul.assert_eq(local.out.val.0[0], local.product);
+        when_mul.assert_eq(local.in1.val.0[0] * local.in2.val.0[0], local.product);
 
         let mut when_div = builder.when(local.is_div);
-        when_div.assert_eq(local.out.val, local.quotient);
-        when_div.assert_eq(local.in1.val, local.in2.val * local.quotient);
+        when_div.assert_eq(local.out.val.0[0], local.quotient);
+        when_div.assert_eq(local.in1.val.0[0], local.in2.val.0[0] * local.quotient);
 
         // local.is_real is 0 or 1
         // builder.assert_zero(local.is_real * (AB::Expr::one() - local.is_real));
@@ -214,9 +216,9 @@ mod tests {
 
         let shard = ExecutionRecord::<F> {
             alu_events: vec![AluEvent {
-                out: AddressValue::new(F::zero(), F::one()),
-                in1: AddressValue::new(F::zero(), F::one()),
-                in2: AddressValue::new(F::zero(), F::one()),
+                out: AddressValue::new(F::zero(), F::one().into()),
+                in1: AddressValue::new(F::zero(), F::one().into()),
+                in2: AddressValue::new(F::zero(), F::one().into()),
                 mult: F::zero(),
                 opcode: Opcode::AddF,
             }],
