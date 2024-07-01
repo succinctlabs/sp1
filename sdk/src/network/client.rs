@@ -17,9 +17,8 @@ use twirp::{Client as TwirpClient, ClientError};
 use crate::proto::network::{
     ClaimProofRequest, ClaimProofResponse, CreateProofRequest, FulfillProofRequest,
     FulfillProofResponse, GetNonceRequest, GetProofRequestsRequest, GetProofRequestsResponse,
-    GetProofStatusRequest, GetProofStatusResponse, GetRelayStatusRequest, GetRelayStatusResponse,
-    NetworkServiceClient, ProofMode, ProofStatus, RelayProofRequest, SubmitProofRequest,
-    TransactionStatus,
+    GetProofStatusRequest, GetProofStatusResponse, NetworkServiceClient, ProofMode, ProofStatus,
+    SubmitProofRequest,
 };
 
 /// The default RPC endpoint for the Succinct prover network.
@@ -116,7 +115,7 @@ impl NetworkClient {
         Ok((res, proof))
     }
 
-    /// Relay a proof. Returns an error if the proof is not in a PROOF_FULFILLED state.
+    /// Get all the proof requests for a given status.
     pub async fn get_proof_requests(
         &self,
         status: ProofStatus,
@@ -125,30 +124,6 @@ impl NetworkClient {
             status: status.into(),
         }))
         .await
-    }
-
-    /// Get the status of a relay transaction request.
-    pub async fn get_relay_status(
-        &self,
-        tx_id: &str,
-    ) -> Result<(GetRelayStatusResponse, Option<String>, Option<String>)> {
-        let res = self
-            .with_error_handling(self.rpc.get_relay_status(GetRelayStatusRequest {
-                tx_id: tx_id.to_string(),
-            }))
-            .await?;
-
-        let tx_hash = match res.status() {
-            TransactionStatus::TransactionScheduled => None,
-            _ => Some(format!("0x{}", hex::encode(res.tx_hash.clone()))),
-        };
-
-        let simulation_url = match res.status() {
-            TransactionStatus::TransactionFailed => Some(res.simulation_url.clone()),
-            _ => None,
-        };
-
-        Ok((res, tx_hash, simulation_url))
     }
 
     /// Creates a proof request for the given ELF and stdin.
@@ -266,34 +241,6 @@ impl NetworkClient {
         Ok(res)
     }
 
-    /// Relay a proof. Returns an error if the proof is not in a PROOF_FULFILLED state.
-    pub async fn relay_proof(
-        &self,
-        proof_id: &str,
-        chain_id: u32,
-        verifier: [u8; 20],
-        callback: [u8; 20],
-        callback_data: &[u8],
-    ) -> Result<String> {
-        let nonce = self.get_nonce().await?;
-        let signature = self
-            .auth
-            .sign_relay_proof_message(nonce, proof_id, chain_id, verifier, callback, callback_data)
-            .await?;
-        let req = RelayProofRequest {
-            signature,
-            nonce,
-            proof_id: proof_id.to_string(),
-            chain_id,
-            verifier: verifier.to_vec(),
-            callback: callback.to_vec(),
-            callback_data: callback_data.to_vec(),
-        };
-        let res = self.with_error_handling(self.rpc.relay_proof(req)).await?;
-
-        Ok(res.tx_id)
-    }
-
     /// Awaits the future, then handles Succinct prover network errors.
     async fn with_error_handling<T, F>(&self, future: F) -> Result<T>
     where
@@ -308,7 +255,7 @@ impl NetworkClient {
         match result {
             StdOk(response) => StdOk(response),
             Err(ClientError::TwirpError(err)) => {
-                let display_err = format!("error: \"{:?}\" message: \"{:?}\"", err.code, err.msg);
+                let display_err = format!("error: \"{:?}\" message: {:?}", err.code, err.msg);
                 Err(anyhow::anyhow!(display_err))
             }
             Err(err) => Err(err.into()),
