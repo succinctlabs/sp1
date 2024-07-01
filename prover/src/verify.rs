@@ -4,8 +4,9 @@ use anyhow::Result;
 use num_bigint::BigUint;
 use p3_baby_bear::BabyBear;
 use p3_field::{AbstractField, PrimeField};
-use sp1_core::air::Word;
+use sp1_core::air::{Word, PV_DIGEST_NUM_WORDS};
 use sp1_core::runtime::SubproofVerifier;
+use sp1_core::utils::DIGEST_SIZE;
 use sp1_core::{
     air::PublicValues,
     io::SP1PublicValues,
@@ -89,14 +90,33 @@ impl SP1Prover {
                 if public_values.start_pc != prev_public_values.next_pc {
                     return Err(MachineVerificationError::InvalidPublicValues("pc mismatch"));
                 }
-                // Digests and exit code should be the same in all shards.
-                if public_values.committed_value_digest != prev_public_values.committed_value_digest
-                    || public_values.deferred_proofs_digest
-                        != prev_public_values.deferred_proofs_digest
-                    || public_values.exit_code != prev_public_values.exit_code
+                // Public values digests and should be the same as the previous shard unless the
+                // public values digest of the previous shard digest is zero.
+                if (prev_public_values.committed_value_digest
+                    != [Word::<BabyBear>::from(0); PV_DIGEST_NUM_WORDS])
+                    && prev_public_values.committed_value_digest
+                        != public_values.committed_value_digest
                 {
                     return Err(MachineVerificationError::InvalidPublicValues(
-                        "digest or exit code mismatch",
+                        "committed value digest mismatch",
+                    ));
+                }
+
+                // Deferred proof digests and should be the same as the previous shard unless the
+                // deferred proof digest of the previous shard digest is zero.
+                if (prev_public_values.deferred_proofs_digest != [BabyBear::zero(); DIGEST_SIZE])
+                    && prev_public_values.deferred_proofs_digest
+                        != public_values.deferred_proofs_digest
+                {
+                    return Err(MachineVerificationError::InvalidPublicValues(
+                        "deferred proof digest mismatch",
+                    ));
+                }
+
+                // Exit code should be the same in all shards.
+                if public_values.exit_code != prev_public_values.exit_code {
+                    return Err(MachineVerificationError::InvalidPublicValues(
+                        "exit code mismatch",
                     ));
                 }
                 // The last shard should be halted. Halt is signaled with next_pc == 0.

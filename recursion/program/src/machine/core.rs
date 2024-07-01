@@ -175,6 +175,8 @@ where
         let exit_code: Felt<_> = builder.uninit();
         let init_addr_bits: [Felt<_>; 32] = array::from_fn(|_| builder.uninit());
         let finalize_addr_bits: [Felt<_>; 32] = array::from_fn(|_| builder.uninit());
+        let is_current_digest_zero: Var<_> = builder.eval(C::N::one());
+        let is_current_deferred_digest_zero: Var<_> = builder.eval(C::N::one());
 
         // Range check that the number of proofs is sufficiently small.
         let num_shard_proofs: Var<_> = shard_proofs.len().materialize(builder);
@@ -290,16 +292,6 @@ where
 
             // Assert compatibility of the shard values.
 
-            // Assert that the committed value digests are all the same.
-            for (word, current_word) in committed_value_digest
-                .iter()
-                .zip_eq(public_values.committed_value_digest.iter())
-            {
-                for (byte, current_byte) in word.0.iter().zip_eq(current_word.0.iter()) {
-                    builder.assert_felt_eq(*byte, *current_byte);
-                }
-            }
-
             // Assert that the start_pc of the proof is equal to the current pc.
             builder.assert_felt_eq(current_pc, public_values.start_pc);
             // Assert that the start_pc is not zero (this means program has halted in a non-last
@@ -330,22 +322,66 @@ where
                 builder.assert_felt_eq(*bit, *current_bit);
             }
 
-            // Assert that the deferred proof digest is the same for all proofs.
-            for (digest, current_digest) in deferred_proofs_digest
-                .iter()
-                .zip_eq(public_values.deferred_proofs_digest.iter())
-            {
-                builder.assert_felt_eq(*digest, *current_digest);
-            }
+            // If the current digest is not zero, assert the values are the same.
+            builder
+                .if_eq(is_current_digest_zero, C::N::zero())
+                .then(|builder| {
+                    for (word, current_word) in committed_value_digest
+                        .iter()
+                        .zip_eq(public_values.committed_value_digest.iter())
+                    {
+                        for (byte, current_byte) in word.0.iter().zip_eq(current_word.0.iter()) {
+                            builder.assert_felt_eq(*byte, *current_byte);
+                        }
+                    }
+                });
+
+            // If the current digest is not zero, assert that the deferred proof digest is the same.
+            builder
+                .if_eq(is_current_deferred_digest_zero, C::N::zero())
+                .then(|builder| {
+                    for (digest, current_digest) in deferred_proofs_digest
+                        .iter()
+                        .zip_eq(public_values.deferred_proofs_digest.iter())
+                    {
+                        builder.assert_felt_eq(*digest, *current_digest);
+                    }
+                });
 
             // Range check the shard count to be less than 1<<16.
             builder.range_check_f(current_shard, 16);
 
-            // Update the loop variables: the reconstruct challenger, cumulative sum, shard number,
-            // and program counter.
+            // Update the loop variables: the reconstruct challenger, committed values digest,
+            // deffered proofs digest, cumulative sum, shard number, and program counter.
 
             // Increment the shard index by one.
             builder.assign(current_shard, current_shard + C::F::one());
+
+            // Update the committed value digest and the `is_current_digest_zero` flag.
+            for (word, current_word) in committed_value_digest
+                .iter()
+                .zip_eq(public_values.committed_value_digest.iter())
+            {
+                for (byte, current_byte) in word.0.iter().zip_eq(current_word.0.iter()) {
+                    builder.assign(*byte, *current_byte);
+                    let byte_var = felt2var(builder, *byte);
+                    builder.if_ne(byte_var, C::N::zero()).then(|builder| {
+                        builder.assign(is_current_digest_zero, C::N::zero());
+                    });
+                }
+            }
+
+            // Update the deferred proofs digest and the `is_current_deferred_digest_zero` flag.
+            for (digest, current_digest) in deferred_proofs_digest
+                .iter()
+                .zip_eq(public_values.deferred_proofs_digest.iter())
+            {
+                builder.assign(*digest, *current_digest);
+                let digest_var = felt2var(builder, *digest);
+                builder.if_ne(digest_var, C::N::zero()).then(|builder| {
+                    builder.assign(is_current_deferred_digest_zero, C::N::zero());
+                });
+            }
 
             // Update the reconstruct challenger.
             reconstruct_challenger.observe(builder, proof.commitment.main_commit);
