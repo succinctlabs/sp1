@@ -115,7 +115,7 @@ impl NetworkClient {
         Ok((res, proof))
     }
 
-    // Get all the proof requests for a given status.
+    // Relay a proof. Returns an error if the proof is not in a PROOF_FULFILLED state.
     pub async fn get_proof_requests(
         &self,
         status: ProofStatus,
