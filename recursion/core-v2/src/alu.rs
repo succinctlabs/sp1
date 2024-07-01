@@ -42,9 +42,9 @@ pub struct FieldAluChip {}
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct FieldAluCols<F: Copy> {
-    pub in1: AddressValue<F>,
-    pub in2: AddressValue<F>,
-    pub out: AddressValue<F>,
+    pub in1: AddressValueBase<F>,
+    pub in2: AddressValueBase<F>,
+    pub out: AddressValueBase<F>,
     pub sum: F,
     pub diff: F,
     pub product: F,
@@ -148,7 +148,20 @@ where
     AB: SP1AirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
-        let encode = |av: AddressValue<AB::Var>| vec![av.addr.into(), av.val.into()];
+        // TODO improve types to remove all this boilerplate
+        let encode = |avb: AddressValueBase<AB::Var>| -> Vec<AB::Expr> {
+            let AddressValueBase { addr, val } = avb;
+            let av: AddressValue<AB::Expr> = AddressValue {
+                addr: addr.into(),
+                val: Block([
+                    val.into(),
+                    AB::F::zero().into(),
+                    AB::F::zero().into(),
+                    AB::F::zero().into(),
+                ]),
+            };
+            av.iter().cloned().collect::<Vec<_>>()
+        };
 
         let main = builder.main();
         let local = main.row_slice(0);
@@ -214,9 +227,9 @@ mod tests {
 
         let shard = ExecutionRecord::<F> {
             alu_events: vec![AluEvent {
-                out: AddressValue::new(F::zero(), F::one()),
-                in1: AddressValue::new(F::zero(), F::one()),
-                in2: AddressValue::new(F::zero(), F::one()),
+                out: AddressValueBase::new(F::zero(), F::one()),
+                in1: AddressValueBase::new(F::zero(), F::one()),
+                in2: AddressValueBase::new(F::zero(), F::one()),
                 mult: F::zero(),
                 opcode: Opcode::AddF,
             }],

@@ -107,10 +107,12 @@ where
         // At most one should be true.
         // builder.assert_zero(local.read_mult * local.write_mult);
 
-        let values = vec![
-            local.address_value.addr.into(),
-            local.address_value.val.into(),
-        ];
+        let values = local
+            .address_value
+            .iter()
+            .cloned()
+            .map(Into::into)
+            .collect::<Vec<_>>();
 
         builder.receive(AirInteraction::new(
             values.clone(),
@@ -161,12 +163,12 @@ mod tests {
         let shard = ExecutionRecord::<BabyBear> {
             mem_events: vec![
                 MemEvent {
-                    address_value: AddressValue::new(BabyBear::zero(), BabyBear::one()),
+                    address_value: AddressValue::new(BabyBear::zero(), BabyBear::one().into()),
                     multiplicity: BabyBear::one(),
                     kind: MemAccessKind::Write,
                 },
                 MemEvent {
-                    address_value: AddressValue::new(BabyBear::zero(), BabyBear::one()),
+                    address_value: AddressValue::new(BabyBear::zero(), BabyBear::one().into()),
                     multiplicity: BabyBear::one(),
                     kind: MemAccessKind::Read,
                 },
@@ -193,14 +195,14 @@ mod tests {
         input_exec
             .mem_events
             .extend(test_xs.clone().into_iter().map(|x| MemEvent {
-                address_value: AddressValue::new(x, x + BabyBear::one()),
+                address_value: AddressValue::new(x, (x + BabyBear::one()).into()),
                 multiplicity: BabyBear::one(),
                 kind: MemAccessKind::Write,
             }));
         input_exec
             .mem_events
             .extend(test_xs.clone().into_iter().map(|x| MemEvent {
-                address_value: AddressValue::new(x, x + BabyBear::one()),
+                address_value: AddressValue::new(x, (x + BabyBear::one()).into()),
                 multiplicity: BabyBear::one(),
                 kind: MemAccessKind::Read,
             }));

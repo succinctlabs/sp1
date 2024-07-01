@@ -113,8 +113,8 @@ mod tests {
     // use sp1_recursion_core::air::SP1RecursionAirBuilder;
 
     use crate::{
-        machine::RecursionAir, AddressValue, AluEvent, ExecutionRecord, MemAccessKind, MemEvent,
-        Opcode, RecursionProgram,
+        machine::RecursionAir, AddressValue, AddressValueBase, AluEvent, ExecutionRecord,
+        MemAccessKind, MemEvent, Opcode, RecursionProgram,
     };
 
     #[test]
@@ -134,9 +134,9 @@ mod tests {
         let record = ExecutionRecord {
             alu_events: vec![
                 AluEvent {
-                    out: AddressValue::new(embed(100), embed(2)),
-                    in1: AddressValue::new(embed(101), embed(1)),
-                    in2: AddressValue::new(embed(101), embed(1)),
+                    out: AddressValueBase::new(embed(100), embed(2)),
+                    in1: AddressValueBase::new(embed(101), embed(1)),
+                    in2: AddressValueBase::new(embed(101), embed(1)),
                     mult: embed(1),
                     opcode: Opcode::AddF,
                 },
@@ -144,27 +144,27 @@ mod tests {
             ],
             mem_events: vec![
                 MemEvent {
-                    address_value: AddressValue::new(embed(1), embed(2)),
+                    address_value: AddressValue::new(embed(1), embed(2).into()),
                     multiplicity: F::two(),
                     kind: MemAccessKind::Write,
                 },
                 MemEvent {
-                    address_value: AddressValue::new(embed(1), embed(2)),
+                    address_value: AddressValue::new(embed(1), embed(2).into()),
                     multiplicity: F::one(),
                     kind: MemAccessKind::Read,
                 },
                 MemEvent {
-                    address_value: AddressValue::new(embed(1), embed(2)),
+                    address_value: AddressValue::new(embed(1), embed(2).into()),
                     multiplicity: F::one(),
                     kind: MemAccessKind::Read,
                 },
                 MemEvent {
-                    address_value: AddressValue::new(embed(101), embed(1)),
+                    address_value: AddressValue::new(embed(101), embed(1).into()),
                     multiplicity: F::two(),
                     kind: MemAccessKind::Write,
                 },
                 MemEvent {
-                    address_value: AddressValue::new(embed(100), embed(2)),
+                    address_value: AddressValue::new(embed(100), embed(2).into()),
                     multiplicity: F::one(),
                     kind: MemAccessKind::Read,
                 },
@@ -194,15 +194,15 @@ mod tests {
 
         let mut record = ExecutionRecord::default();
 
-        let mut x = AddressValue::new(F::zero(), F::one());
+        let mut x = AddressValueBase::new(F::zero(), F::one());
         record.mem_events.push(MemEvent {
-            address_value: x,
+            address_value: x.into(),
             multiplicity: embed(3),
             kind: MemAccessKind::Write,
         });
         for _ in 0..100 {
-            let prod = AddressValue::new(x.addr + embed(1), x.val * x.val);
-            let sum = AddressValue::new(x.addr + embed(2), prod.val + x.val);
+            let prod = AddressValueBase::new(x.addr + embed(1), x.val * x.val);
+            let sum = AddressValueBase::new(x.addr + embed(2), prod.val + x.val);
             record.alu_events.push(AluEvent {
                 opcode: Opcode::MulF,
                 out: prod,
@@ -220,7 +220,7 @@ mod tests {
             x = sum;
         }
         record.mem_events.push(MemEvent {
-            address_value: x,
+            address_value: x.into(),
             multiplicity: embed(3),
             kind: MemAccessKind::Read,
         });
@@ -243,15 +243,15 @@ mod tests {
 
         let mut record = ExecutionRecord::default();
 
-        let mut x = AddressValue::new(F::zero(), F::one());
+        let mut x = AddressValueBase::new(F::zero(), F::one());
         record.mem_events.push(MemEvent {
-            address_value: x,
+            address_value: x.into(),
             multiplicity: embed(3),
             kind: MemAccessKind::Write,
         });
         for _ in 0..100 {
-            let prod = AddressValue::new(x.addr + embed(1), x.val * x.val);
-            let sum = AddressValue::new(x.addr + embed(2), prod.val + x.val);
+            let prod = AddressValueBase::new(x.addr + embed(1), x.val * x.val);
+            let sum = AddressValueBase::new(x.addr + embed(2), prod.val + x.val);
             record.alu_events.push(AluEvent {
                 opcode: Opcode::MulF,
                 out: prod,
@@ -269,7 +269,7 @@ mod tests {
             x = sum;
         }
         record.mem_events.push(MemEvent {
-            address_value: x,
+            address_value: x.into(),
             multiplicity: embed(3),
             kind: MemAccessKind::Read,
         });
@@ -292,20 +292,20 @@ mod tests {
 
         let mut record = ExecutionRecord::default();
 
-        let four = AddressValue::new(embed(0), embed(3));
+        let four = AddressValueBase::new(embed(0), embed(3));
         record.mem_events.push(MemEvent {
-            address_value: four,
+            address_value: four.into(),
             multiplicity: embed(4),
             kind: MemAccessKind::Write,
         });
-        let three = AddressValue::new(embed(1), embed(4));
+        let three = AddressValueBase::new(embed(1), embed(4));
         record.mem_events.push(MemEvent {
-            address_value: three,
+            address_value: three.into(),
             multiplicity: embed(4),
             kind: MemAccessKind::Write,
         });
 
-        let sum = AddressValue::new(embed(1), four.val + three.val);
+        let sum = AddressValueBase::new(embed(1), four.val + three.val);
         record.alu_events.push(AluEvent {
             opcode: Opcode::AddF,
             out: sum,
@@ -314,7 +314,7 @@ mod tests {
             mult: embed(0),
         });
 
-        let diff = AddressValue::new(embed(1), four.val - three.val);
+        let diff = AddressValueBase::new(embed(1), four.val - three.val);
         record.alu_events.push(AluEvent {
             opcode: Opcode::SubF,
             out: diff,
@@ -323,7 +323,7 @@ mod tests {
             mult: embed(0),
         });
 
-        let prod = AddressValue::new(embed(1), four.val * three.val);
+        let prod = AddressValueBase::new(embed(1), four.val * three.val);
         record.alu_events.push(AluEvent {
             opcode: Opcode::MulF,
             out: prod,
@@ -332,7 +332,7 @@ mod tests {
             mult: embed(0),
         });
 
-        let quot = AddressValue::new(embed(1), four.val / three.val);
+        let quot = AddressValueBase::new(embed(1), four.val / three.val);
         record.alu_events.push(AluEvent {
             opcode: Opcode::DivF,
             out: quot,
