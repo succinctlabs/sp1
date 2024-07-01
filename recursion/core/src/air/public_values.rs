@@ -83,6 +83,18 @@ pub struct RecursionPublicValues<T> {
     /// Next shard that should be proven, if there are more.
     pub next_shard: T,
 
+    /// Previous MemoryInit address bits.
+    pub previous_init_addr_bits: [T; 32],
+
+    /// Last MemoryInit address bits.
+    pub last_init_addr_bits: [T; 32],
+
+    /// Previous MemoryFinalize address bits.
+    pub previous_finalize_addr_bits: [T; 32],
+
+    /// Last MemoryFinalize address bits.
+    pub last_finalize_addr_bits: [T; 32],
+
     /// Start state of reconstruct_challenger.
     pub start_reconstruct_challenger: ChallengerPublicValues<T>,
 

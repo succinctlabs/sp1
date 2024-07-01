@@ -4,7 +4,7 @@ use anyhow::Result;
 use num_bigint::BigUint;
 use p3_baby_bear::BabyBear;
 use p3_field::{AbstractField, PrimeField};
-use sp1_core::air::MachineAir;
+use sp1_core::air::Word;
 use sp1_core::runtime::SubproofVerifier;
 use sp1_core::{
     air::PublicValues,
@@ -47,11 +47,10 @@ impl SP1Prover {
         self.core_machine
             .verify(&vk.vk, &machine_proof, &mut challenger)?;
 
-        let num_shards = proof.0.len();
-
         // Verify shard transitions.
         for (i, shard_proof) in proof.0.iter().enumerate() {
-            let public_values = PublicValues::from_vec(shard_proof.public_values.clone());
+            let public_values: &PublicValues<Word<_>, _> =
+                shard_proof.public_values.as_slice().borrow();
             // Verify shard transitions
             if i == 0 {
                 // If it's the first shard, index should be 1.
@@ -65,10 +64,21 @@ impl SP1Prover {
                         "wrong pc_start",
                     ));
                 }
+                // If it's the first shard, the prev_init_addr_bits and prev_finalize_addr_bits
+                // should be zero.
+                if public_values.previous_init_addr_bits != [BabyBear::zero(); 32] {
+                    return Err(MachineVerificationError::InvalidPublicValues(
+                        "In the first shard, the previous initialized address should be set to zero"));
+                }
+                if public_values.previous_finalize_addr_bits != [BabyBear::zero(); 32] {
+                    return Err(MachineVerificationError::InvalidPublicValues(
+                        "In the first shard, the previous finalized address should be set to zero",
+                    ));
+                }
             } else {
                 let prev_shard_proof = &proof.0[i - 1];
-                let prev_public_values =
-                    PublicValues::from_vec(prev_shard_proof.public_values.clone());
+                let prev_public_values: &PublicValues<Word<_>, _> =
+                    prev_shard_proof.public_values.as_slice().borrow();
                 // For non-first shards, the index should be the previous index + 1.
                 if public_values.shard != prev_public_values.shard + BabyBear::one() {
                     return Err(MachineVerificationError::InvalidPublicValues(
@@ -101,42 +111,28 @@ impl SP1Prover {
                         "non-last shard is halted",
                     ));
                 }
+                // The previous last initialized address of the previous shard should be equal to
+                // the last initialized address of the current shard.
+                if prev_public_values.last_init_addr_bits != public_values.previous_init_addr_bits {
+                    return Err(MachineVerificationError::InvalidPublicValues(
+                        "previous initialized address of the previous shard should be equal to the last initialized address of the current shard",
+                    ));
+                }
+                // The previous last finalized address of the previous shard should be equal to
+                // the last finalized address of the current shard.
+                if prev_public_values.last_finalize_addr_bits
+                    != public_values.previous_finalize_addr_bits
+                {
+                    return Err(MachineVerificationError::InvalidPublicValues(
+                            "previous finalized address of the previous shard should be equal to the last finalized address of the current shard",
+                        ));
+                }
             }
         }
 
         // Verify that the number of shards is not too large.
         if proof.0.len() > 1 << 16 {
             return Err(MachineVerificationError::TooManyShards);
-        }
-
-        // Verify that the `MemoryInit` and `MemoryFinalize` chips are the last chips in the proof.
-        for (i, shard_proof) in proof.0.iter().enumerate() {
-            let chips = self
-                .core_machine
-                .shard_chips_ordered(&shard_proof.chip_ordering)
-                .collect::<Vec<_>>();
-            let memory_init_count = chips
-                .clone()
-                .into_iter()
-                .filter(|chip| chip.name() == "MemoryInit")
-                .count();
-            let memory_final_count = chips
-                .into_iter()
-                .filter(|chip| chip.name() == "MemoryFinalize")
-                .count();
-
-            // Assert that the `MemoryInit` and `MemoryFinalize` chips only exist in the last shard.
-            if i != num_shards - 1 && (memory_final_count > 0 || memory_init_count > 0) {
-                return Err(MachineVerificationError::InvalidChipOccurence(
-                    "memory init and finalize should not exist anywhere but the last chip"
-                        .to_string(),
-                ));
-            }
-            if i == num_shards - 1 && (memory_init_count != 1 || memory_final_count != 1) {
-                return Err(MachineVerificationError::InvalidChipOccurence(
-                    "memory init and finalize should exist in the last chip".to_string(),
-                ));
-            }
         }
 
         Ok(())

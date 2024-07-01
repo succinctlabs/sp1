@@ -1,5 +1,5 @@
 use std::array;
-use std::borrow::BorrowMut;
+use std::borrow::{Borrow, BorrowMut};
 use std::marker::PhantomData;
 
 use itertools::Itertools;
@@ -146,6 +146,14 @@ where
         // Start and end shard indices.
         let initial_shard: Felt<_> = builder.uninit();
 
+        // Start and end MemoryInit address bits.
+        let first_proof_previous_init_addr_bits: [Felt<_>; 32] =
+            array::from_fn(|_| builder.uninit());
+
+        // Start and end MemoryFinalize address bits.
+        let first_proof_previous_finalize_addr_bits: [Felt<_>; 32] =
+            array::from_fn(|_| builder.uninit());
+
         // The commited values digest and deferred proof digest. These will be checked to be the
         // same for all proofs.
         let committed_value_digest: [Word<Felt<_>>; PV_DIGEST_NUM_WORDS] =
@@ -165,6 +173,8 @@ where
         let cumulative_sum: Ext<_, _> = builder.eval(C::EF::zero().cons());
         let current_pc: Felt<_> = builder.uninit();
         let exit_code: Felt<_> = builder.uninit();
+        let init_addr_bits: [Felt<_>; 32] = array::from_fn(|_| builder.uninit());
+        let finalize_addr_bits: [Felt<_>; 32] = array::from_fn(|_| builder.uninit());
 
         // Range check that the number of proofs is sufficiently small.
         let num_shard_proofs: Var<_> = shard_proofs.len().materialize(builder);
@@ -193,7 +203,8 @@ where
                 let element = builder.get(&proof.public_values, i);
                 pv_elements.push(element);
             }
-            let public_values = PublicValues::<Word<Felt<_>>, Felt<_>>::from_vec(pv_elements);
+            let public_values: &PublicValues<Word<Felt<_>>, Felt<_>> =
+                pv_elements.as_slice().borrow();
 
             // If this is the first proof in the batch, verify the initial conditions.
             builder.if_eq(i, C::N::zero()).then(|builder| {
@@ -206,6 +217,24 @@ where
                 // Program counter.
                 builder.assign(start_pc, public_values.start_pc);
                 builder.assign(current_pc, public_values.start_pc);
+
+                // MemoryInitialize address bits.
+                for ((bit, pub_bit), first_bit) in init_addr_bits
+                    .iter()
+                    .zip(public_values.previous_init_addr_bits.iter())
+                    .zip(first_proof_previous_init_addr_bits.iter())
+                {
+                    builder.assign(*bit, *pub_bit);
+                    builder.assign(*first_bit, *pub_bit);
+                }
+                for ((bit, pub_bit), first_bit) in finalize_addr_bits
+                    .iter()
+                    .zip(public_values.previous_finalize_addr_bits.iter())
+                    .zip(first_proof_previous_finalize_addr_bits.iter())
+                {
+                    builder.assign(*bit, *pub_bit);
+                    builder.assign(*first_bit, *pub_bit);
+                }
 
                 // Commited public values digests.
                 for (word, first_word) in committed_value_digest
@@ -237,6 +266,15 @@ where
 
                 // Start pc should be vk.pc_start
                 builder.assert_felt_eq(public_values.start_pc, vk.pc_start);
+
+                // Assert that the MemortInitialize address bits are zero.
+                for bit in init_addr_bits.iter() {
+                    builder.assert_felt_eq(*bit, C::F::zero());
+                }
+                // Assert that the MemortFinalize address bits are zero.
+                for bit in finalize_addr_bits.iter() {
+                    builder.assert_felt_eq(*bit, C::F::zero());
+                }
 
                 // Assert that the initial challenger is equal to a fresh challenger observing the
                 // verifier key and the initial pc.
@@ -277,6 +315,21 @@ where
             // Assert that the exit code is zero (success) for all proofs.
             builder.assert_felt_eq(exit_code, C::F::zero());
 
+            // Assert that the MemoryInitialize address bits match the current loop variable.
+            for (bit, current_bit) in init_addr_bits
+                .iter()
+                .zip_eq(public_values.previous_init_addr_bits.iter())
+            {
+                builder.assert_felt_eq(*bit, *current_bit);
+            }
+            // Assert that the MemoryFinalize address bits match the current loop variable.
+            for (bit, current_bit) in finalize_addr_bits
+                .iter()
+                .zip_eq(public_values.previous_finalize_addr_bits.iter())
+            {
+                builder.assert_felt_eq(*bit, *current_bit);
+            }
+
             // Assert that the deferred proof digest is the same for all proofs.
             for (digest, current_digest) in deferred_proofs_digest
                 .iter()
@@ -303,6 +356,21 @@ where
 
             // Update current_pc to be the end_pc of the current proof.
             builder.assign(current_pc, public_values.next_pc);
+
+            // Update the MemoryInitialize address bits.
+            for (bit, pub_bit) in init_addr_bits
+                .iter()
+                .zip(public_values.last_init_addr_bits.iter())
+            {
+                builder.assign(*bit, *pub_bit);
+            }
+            // Update the MemoryFinalize address bits.
+            for (bit, pub_bit) in finalize_addr_bits
+                .iter()
+                .zip(public_values.last_finalize_addr_bits.iter())
+            {
+                builder.assign(*bit, *pub_bit);
+            }
 
             // Cumulative sum is updated by sums of all chips.
             let opened_values = proof.opened_values.chips;
@@ -350,6 +418,11 @@ where
         recursion_public_values.next_pc = current_pc;
         recursion_public_values.start_shard = initial_shard;
         recursion_public_values.next_shard = current_shard;
+        recursion_public_values.previous_init_addr_bits = first_proof_previous_init_addr_bits;
+        recursion_public_values.last_init_addr_bits = init_addr_bits;
+        recursion_public_values.previous_finalize_addr_bits =
+            first_proof_previous_finalize_addr_bits;
+        recursion_public_values.last_finalize_addr_bits = finalize_addr_bits;
         recursion_public_values.sp1_vk_digest = vk_digest;
         recursion_public_values.leaf_challenger = leaf_challenger_public_values;
         recursion_public_values.start_reconstruct_challenger = initial_challenger_public_values;

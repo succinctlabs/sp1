@@ -8,7 +8,7 @@ use p3_matrix::Matrix;
 
 use sp1_derive::AlignedBorrow;
 
-use crate::air::{AirInteraction, PublicValues, SP1AirBuilder};
+use crate::air::{AirInteraction, PublicValues, SP1AirBuilder, SP1_PROOF_NUM_PV_ELTS};
 use crate::air::{MachineAir, Word};
 use crate::operations::IsZeroOperation;
 use crate::runtime::{ExecutionRecord, Program};
@@ -165,18 +165,15 @@ where
         let mult_local: &MemoryProgramMultCols<AB::Var> = (*mult_local).borrow();
 
         // Get shard from public values and evaluate whether it is the first shard.
-        let public_values = PublicValues::<Word<AB::Expr>, AB::Expr>::from_vec(
-            builder
-                .public_values()
-                .iter()
-                .map(|elm| (*elm).into())
-                .collect::<Vec<_>>(),
-        );
+        let public_values_slice: [AB::Expr; SP1_PROOF_NUM_PV_ELTS] =
+            core::array::from_fn(|i| builder.public_values()[i].into());
+        let public_values: &PublicValues<Word<AB::Expr>, AB::Expr> =
+            public_values_slice.as_slice().borrow();
 
         // Constrain `is_first_shard` to be 1 if and only if the shard is the first shard.
         IsZeroOperation::<AB::F>::eval(
             builder,
-            public_values.shard - AB::F::one(),
+            public_values.shard.clone() - AB::F::one(),
             mult_local.is_first_shard,
             prep_local.is_real.into(),
         );
