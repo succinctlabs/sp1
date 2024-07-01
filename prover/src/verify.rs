@@ -115,7 +115,7 @@ impl SP1Prover {
                 // the last initialized address of the current shard.
                 if prev_public_values.last_init_addr_bits != public_values.previous_init_addr_bits {
                     return Err(MachineVerificationError::InvalidPublicValues(
-                        "last initialized address of the previous shard should be equal to the last initialized address of the current shard",
+                        "previous initialized address of the previous shard should be equal to the last initialized address of the current shard",
                     ));
                 }
                 // The previous last finalized address of the previous shard should be equal to
@@ -124,7 +124,7 @@ impl SP1Prover {
                     != public_values.previous_finalize_addr_bits
                 {
                     return Err(MachineVerificationError::InvalidPublicValues(
-                            "last finalized address of the previous shard should be equal to the last finalized address of the current shard",
+                            "previous finalized address of the previous shard should be equal to the last finalized address of the current shard",
                         ));
                 }
             }

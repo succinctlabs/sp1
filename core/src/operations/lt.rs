@@ -108,7 +108,6 @@ impl<V: Copy, const N: usize> AssertLtColsBytes<V, N> {
 
         let a: [AB::Expr; N] = core::array::from_fn(|i| a[i].clone().into());
         let b: [AB::Expr; N] = core::array::from_fn(|i| b[i].clone().into());
-        // a.clone().try_into().unwrap();
 
         let mut first_lt_byte = AB::Expr::zero();
         let mut b_comparison_byte = AB::Expr::zero();
@@ -192,11 +191,11 @@ impl<V: Copy, const N: usize> AssertLtColsBits<V, N> {
     ) where
         V: Into<AB::Expr>,
     {
-        // The bit flags give a specification of which bit is `first_eq`, i,e, the first most
+        // The bit flags give a specification of which bit is `first_lt`, i,e, the first most
         // significant bit for which the element `a` is smaller than `b`. To verify the
         // less-than claim we need to check that:
-        // * For all bytes until `first_eq` the element `a` byte is equal to the `b` byte.
-        // * For the `first_eq` bit the `a`` bit is smaller than the `b` bit.
+        // * For all bytes until `first_lt` the element `a` byte is equal to the `b` byte.
+        // * For the `first_lt` bit the `a`` bit is smaller than the `b` bit.
         // * all bit flags are boolean.
         // * only one bit flag is set to one, and the rest are set to zero.
 
