@@ -1,5 +1,4 @@
 use hashbrown::HashMap;
-use itertools::Itertools;
 use std::sync::Arc;
 
 use p3_field::AbstractField;
@@ -522,149 +521,51 @@ impl ExecutionRecord {
         }
     }
 
-    pub fn split(&mut self) -> Vec<ExecutionRecord> {
+    /// Splits the deferred [ExecutionRecord] into multiple [ExecutionRecord]s, each which contain
+    /// a "reasonable" number of deferred events.
+    pub fn split(&mut self, exact: bool) -> Vec<ExecutionRecord> {
         let mut shards = Vec::new();
         let threshold = 1 << 19;
 
-        let keccak_permute_events = std::mem::take(&mut self.keccak_permute_events);
-        let mut keccak_shards = keccak_permute_events
-            .chunks(threshold)
-            .map(|chunk| ExecutionRecord {
-                keccak_permute_events: chunk.to_vec(),
-                ..Default::default()
-            })
-            .collect::<Vec<_>>();
-        shards.append(&mut keccak_shards);
+        macro_rules! split_events {
+            ($self:ident, $events:ident, $shards:ident, $threshold:expr, $exact:expr) => {
+                let events = std::mem::take(&mut $self.$events);
+                let chunks = events.chunks_exact($threshold);
+                if $exact {
+                    $self.$events = chunks.remainder().to_vec();
+                } else {
+                    let remainder = chunks.remainder().to_vec();
+                    if !remainder.is_empty() {
+                        $shards.push(ExecutionRecord {
+                            $events: chunks.remainder().to_vec(),
+                            ..Default::default()
+                        });
+                    }
+                }
+                let mut event_shards = chunks
+                    .map(|chunk| ExecutionRecord {
+                        $events: chunk.to_vec(),
+                        ..Default::default()
+                    })
+                    .collect::<Vec<_>>();
+                $shards.append(&mut event_shards);
+            };
+        }
 
-        let secp256k1_add_events = std::mem::take(&mut self.secp256k1_add_events);
-        let mut secp256k1_shards = secp256k1_add_events
-            .chunks(threshold)
-            .map(|chunk| ExecutionRecord {
-                secp256k1_add_events: chunk.to_vec(),
-                ..Default::default()
-            })
-            .collect::<Vec<_>>();
-        shards.append(&mut secp256k1_shards);
-
-        let secp256k1_double_events = std::mem::take(&mut self.secp256k1_double_events);
-        let mut secp256k1_shards = secp256k1_double_events
-            .chunks(threshold)
-            .map(|chunk| ExecutionRecord {
-                secp256k1_double_events: chunk.to_vec(),
-                ..Default::default()
-            })
-            .collect::<Vec<_>>();
-        shards.append(&mut secp256k1_shards);
-
-        let bn254_add_events = std::mem::take(&mut self.bn254_add_events);
-        let mut bn254_shards = bn254_add_events
-            .chunks(threshold)
-            .map(|chunk| ExecutionRecord {
-                bn254_add_events: chunk.to_vec(),
-                ..Default::default()
-            })
-            .collect::<Vec<_>>();
-        shards.append(&mut bn254_shards);
-
-        let bn254_double_events = std::mem::take(&mut self.bn254_double_events);
-        let mut bn254_shards = bn254_double_events
-            .chunks(threshold)
-            .map(|chunk| ExecutionRecord {
-                bn254_double_events: chunk.to_vec(),
-                ..Default::default()
-            })
-            .collect::<Vec<_>>();
-        shards.append(&mut bn254_shards);
-
-        let bls12381_add_events = std::mem::take(&mut self.bls12381_add_events);
-        let mut bls12381_shards = bls12381_add_events
-            .chunks(threshold)
-            .map(|chunk| ExecutionRecord {
-                bls12381_add_events: chunk.to_vec(),
-                ..Default::default()
-            })
-            .collect::<Vec<_>>();
-        shards.append(&mut bls12381_shards);
-
-        let bls12381_double_events = std::mem::take(&mut self.bls12381_double_events);
-        let mut bls12381_shards = bls12381_double_events
-            .chunks(threshold)
-            .map(|chunk| ExecutionRecord {
-                bls12381_double_events: chunk.to_vec(),
-                ..Default::default()
-            })
-            .collect::<Vec<_>>();
-        shards.append(&mut bls12381_shards);
-
-        let sha_extend_events = std::mem::take(&mut self.sha_extend_events);
-        let mut sha_extend_shards = sha_extend_events
-            .chunks(threshold)
-            .map(|chunk| ExecutionRecord {
-                sha_extend_events: chunk.to_vec(),
-                ..Default::default()
-            })
-            .collect::<Vec<_>>();
-        shards.append(&mut sha_extend_shards);
-
-        let sha_compress_events = std::mem::take(&mut self.sha_compress_events);
-        let mut sha_compress_shards = sha_compress_events
-            .chunks(threshold)
-            .map(|chunk| ExecutionRecord {
-                sha_compress_events: chunk.to_vec(),
-                ..Default::default()
-            })
-            .collect::<Vec<_>>();
-        shards.append(&mut sha_compress_shards);
-
-        let ed_add_events = std::mem::take(&mut self.ed_add_events);
-        let mut ed_add_shards = ed_add_events
-            .chunks(threshold)
-            .map(|chunk| ExecutionRecord {
-                ed_add_events: chunk.to_vec(),
-                ..Default::default()
-            })
-            .collect::<Vec<_>>();
-        shards.append(&mut ed_add_shards);
-
-        let ed_decompress_events = std::mem::take(&mut self.ed_decompress_events);
-        let mut ed_decompress_shards = ed_decompress_events
-            .chunks(threshold)
-            .map(|chunk| ExecutionRecord {
-                ed_decompress_events: chunk.to_vec(),
-                ..Default::default()
-            })
-            .collect::<Vec<_>>();
-        shards.append(&mut ed_decompress_shards);
-
-        let k256_decompress_events = std::mem::take(&mut self.k256_decompress_events);
-        let mut k256_decompress_shards = k256_decompress_events
-            .chunks(threshold)
-            .map(|chunk| ExecutionRecord {
-                k256_decompress_events: chunk.to_vec(),
-                ..Default::default()
-            })
-            .collect::<Vec<_>>();
-        shards.append(&mut k256_decompress_shards);
-
-        let uint256_mul_events = std::mem::take(&mut self.uint256_mul_events);
-        let mut uint256_mul_shards = uint256_mul_events
-            .chunks(threshold)
-            .map(|chunk| ExecutionRecord {
-                uint256_mul_events: chunk.to_vec(),
-                ..Default::default()
-            })
-            .collect::<Vec<_>>();
-        shards.append(&mut uint256_mul_shards);
-
-        let bls12381_decompress_events = std::mem::take(&mut self.bls12381_decompress_events);
-        let mut bls12381_decompress_shards = bls12381_decompress_events
-            .chunks(threshold)
-            .map(|chunk| ExecutionRecord {
-                bls12381_decompress_events: chunk.to_vec(),
-                ..Default::default()
-            })
-            .collect::<Vec<_>>();
-        shards.append(&mut bls12381_decompress_shards);
+        split_events!(self, keccak_permute_events, shards, threshold, exact);
+        split_events!(self, secp256k1_add_events, shards, threshold, exact);
+        split_events!(self, secp256k1_double_events, shards, threshold, exact);
+        split_events!(self, bn254_add_events, shards, threshold, exact);
+        split_events!(self, bn254_double_events, shards, threshold, exact);
+        split_events!(self, bls12381_add_events, shards, threshold, exact);
+        split_events!(self, bls12381_double_events, shards, threshold, exact);
+        split_events!(self, sha_extend_events, shards, threshold, exact);
+        split_events!(self, sha_compress_events, shards, threshold, exact);
+        split_events!(self, ed_add_events, shards, threshold, exact);
+        split_events!(self, ed_decompress_events, shards, threshold, exact);
+        split_events!(self, k256_decompress_events, shards, threshold, exact);
+        split_events!(self, uint256_mul_events, shards, threshold, exact);
+        split_events!(self, bls12381_decompress_events, shards, threshold, exact);
 
         shards
     }
