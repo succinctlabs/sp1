@@ -95,7 +95,6 @@ impl<F: PrimeField32> MachineAir<F> for FieldAluChip {
                     opcode,
                 } = event;
 
-                // Should we check (at some point) that the other array entries are zero?
                 let (v1, v2) = (in1.val.0[0], in2.val.0[0]);
 
                 let cols: &mut FieldAluCols<_> = row.as_mut_slice().borrow_mut();
@@ -160,6 +159,11 @@ where
         builder
             .when(local.is_real)
             .assert_one(local.is_add + local.is_sub + local.is_mul + local.is_div);
+
+        // Check the values read/written to memory are base elements.
+        builder.assert_is_base_element(local.in1.val.as_extension::<AB>());
+        builder.assert_is_base_element(local.in2.val.as_extension::<AB>());
+        builder.assert_is_base_element(local.out.val.as_extension::<AB>());
 
         let mut when_add = builder.when(local.is_add);
         when_add.assert_eq(local.out.val.0[0], local.sum);
