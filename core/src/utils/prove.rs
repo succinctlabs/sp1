@@ -402,8 +402,6 @@ where
         let records_clone = records.clone();
         machine.debug_constraints(&pk, records_clone, &mut challenger_clone);
     }
-    // let stats = record.stats().clone();
-    // let cycles = stats.get("cpu_events").unwrap();
 
     let start = Instant::now();
     let mut challenger = machine.config().challenger();
@@ -414,14 +412,6 @@ where
 
     let mut challenger = machine.config().challenger();
     machine.verify(&vk, &proof, &mut challenger)?;
-
-    // tracing::info!(
-    //     "summary: cycles={}, e2e={}, khz={:.2}, proofSize={}",
-    //     cycles,
-    //     time,
-    //     (*cycles as f64 / time as f64),
-    //     Size::from_bytes(nb_bytes),
-    // );
 
     Ok(proof)
 }

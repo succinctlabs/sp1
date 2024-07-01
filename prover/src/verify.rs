@@ -114,49 +114,6 @@ impl SP1Prover {
             return Err(MachineVerificationError::TooManyShards);
         }
 
-        // Verify that the `MemoryInit` and `MemoryFinalize` chips only appear once.
-        let memory_init_count: usize = proof
-            .0
-            .iter()
-            .map(|shard| {
-                let chips = self
-                    .core_machine
-                    .shard_chips_ordered(&shard.chip_ordering)
-                    .collect::<Vec<_>>();
-                chips
-                    .clone()
-                    .into_iter()
-                    .filter(|chip| chip.name() == "MemoryInit")
-                    .count()
-            })
-            .sum();
-        if memory_init_count != 1 {
-            return Err(MachineVerificationError::InvalidChipOccurence(
-                "memory init should only occur once".to_string(),
-            ));
-        }
-
-        let memory_finalize_count: usize = proof
-            .0
-            .iter()
-            .map(|shard| {
-                let chips = self
-                    .core_machine
-                    .shard_chips_ordered(&shard.chip_ordering)
-                    .collect::<Vec<_>>();
-                chips
-                    .clone()
-                    .into_iter()
-                    .filter(|chip| chip.name() == "MemoryFinalize")
-                    .count()
-            })
-            .sum();
-        if memory_finalize_count != 1 {
-            return Err(MachineVerificationError::InvalidChipOccurence(
-                "memory finalize should only occur once".to_string(),
-            ));
-        }
-
         Ok(())
     }
 
