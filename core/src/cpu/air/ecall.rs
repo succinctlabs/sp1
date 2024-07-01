@@ -176,7 +176,7 @@ impl CpuChip {
             .when(local.selectors.is_ecall * is_commit_deferred_proofs)
             .assert_eq(
                 expected_deferred_proofs_digest_element,
-                Word::reduce::<AB>(digest_word),
+                digest_word.reduce::<AB>(),
             );
     }
 
@@ -208,8 +208,8 @@ impl CpuChip {
         );
 
         builder.when(is_halt.clone()).assert_eq(
+            local.op_b_access.value().reduce::<AB>(),
             public_values.exit_code.clone(),
-            Word::reduce::<AB>(&local.op_b_val()),
         );
     }
 
