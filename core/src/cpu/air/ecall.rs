@@ -88,6 +88,13 @@ impl CpuChip {
             .when(is_ecall_instruction.clone())
             .when_not(is_enter_unconstrained + is_hint_len)
             .assert_word_eq(local.op_a_val(), local.op_a_access.prev_value);
+
+        // Verify value of ecall_range_check_operand column.
+        builder.assert_eq(
+            local.ecall_range_check_operand,
+            is_ecall_instruction
+                * (ecall_cols.is_halt.result + ecall_cols.is_commit_deferred_proofs.result),
+        );
     }
 
     /// Constraints related to the COMMIT and COMMIT_DEFERRED_PROOFS instructions.
@@ -169,7 +176,7 @@ impl CpuChip {
             builder,
             *digest_word,
             ecall_columns.operand_range_check_cols,
-            ecall_columns.is_commit_deferred_proofs.result.into(),
+            local.ecall_range_check_operand.into(),
         );
 
         builder
@@ -204,7 +211,7 @@ impl CpuChip {
             builder,
             local.op_b_val(),
             ecall_columns.operand_range_check_cols,
-            ecall_columns.is_halt.result.into(),
+            local.ecall_range_check_operand.into(),
         );
 
         builder.when(is_halt.clone()).assert_eq(

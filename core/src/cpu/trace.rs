@@ -732,11 +732,13 @@ impl CpuChip {
             // it's operands.
             if is_halt {
                 ecall_cols.operand_range_check_cols.populate(event.b);
+                cols.ecall_range_check_operand = F::one();
             }
 
             if syscall_id == F::from_canonical_u32(SyscallCode::COMMIT_DEFERRED_PROOFS.syscall_id())
             {
                 ecall_cols.operand_range_check_cols.populate(event.c);
+                cols.ecall_range_check_operand = F::one();
             }
         }
 
