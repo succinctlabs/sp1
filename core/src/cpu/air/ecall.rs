@@ -5,7 +5,7 @@ use crate::air::{BaseAirBuilder, PublicValues, WordAirBuilder};
 use crate::cpu::air::{Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS};
 use crate::cpu::columns::{CpuCols, OpcodeSelectorCols};
 use crate::memory::MemoryCols;
-use crate::operations::IsZeroOperation;
+use crate::operations::{BabyBearWordRangeChecker, IsZeroOperation};
 use crate::runtime::SyscallCode;
 use crate::stark::{CpuChip, SP1AirBuilder};
 
@@ -153,21 +153,30 @@ impl CpuChip {
         let expected_pv_digest_word =
             builder.index_word_array(&commit_digest, &ecall_columns.index_bitmap);
 
-        let digest_word = local.op_c_val();
+        let digest_word = local.op_c_access.prev_value();
 
         // Verify the public_values_digest_word.
         builder
             .when(local.selectors.is_ecall * is_commit)
-            .assert_word_eq(expected_pv_digest_word, digest_word);
+            .assert_word_eq(expected_pv_digest_word, *digest_word);
 
         let expected_deferred_proofs_digest_element =
             builder.index_array(&deferred_proofs_digest, &ecall_columns.index_bitmap);
 
+        // Verify that digest_word is within Babybear, since the deferred proofs commitment is a
+        // poseidon hash.
+        BabyBearWordRangeChecker::<AB::F>::range_check::<AB>(
+            builder,
+            *digest_word,
+            ecall_columns.operand_range_check_cols,
+            ecall_columns.is_commit_deferred_proofs.result.into(),
+        );
+
         builder
             .when(local.selectors.is_ecall * is_commit_deferred_proofs)
-            .assert_word_eq(
-                Word::extend_expr::<AB>(expected_deferred_proofs_digest_element),
-                digest_word,
+            .assert_eq(
+                expected_deferred_proofs_digest_element,
+                Word::reduce::<AB>(digest_word),
             );
     }
 
@@ -189,9 +198,18 @@ impl CpuChip {
 
         builder.when(is_halt.clone()).assert_zero(local.next_pc);
 
-        builder.when(is_halt.clone()).assert_word_eq(
-            Word::extend_expr::<AB>(public_values.exit_code.clone()),
+        // Verify that op_b is within Babybear, as we only allow exit codes within Babybear.
+        let ecall_columns = local.opcode_specific_columns.ecall();
+        BabyBearWordRangeChecker::<AB::F>::range_check::<AB>(
+            builder,
             local.op_b_val(),
+            ecall_columns.operand_range_check_cols,
+            ecall_columns.is_halt.result.into(),
+        );
+
+        builder.when(is_halt.clone()).assert_eq(
+            public_values.exit_code.clone(),
+            Word::reduce::<AB>(&local.op_b_val()),
         );
     }
 

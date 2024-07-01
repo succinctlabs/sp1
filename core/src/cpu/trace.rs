@@ -727,6 +727,17 @@ impl CpuChip {
             );
 
             is_halt = syscall_id == F::from_canonical_u32(SyscallCode::HALT.syscall_id());
+
+            // For halt and commit deferred proofs syscalls, we need to baby bear range check one of
+            // it's operands.
+            if is_halt {
+                ecall_cols.operand_range_check_cols.populate(event.b);
+            }
+
+            if syscall_id == F::from_canonical_u32(SyscallCode::COMMIT_DEFERRED_PROOFS.syscall_id())
+            {
+                ecall_cols.operand_range_check_cols.populate(event.c);
+            }
         }
 
         is_halt
