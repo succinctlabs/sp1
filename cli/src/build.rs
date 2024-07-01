@@ -8,18 +8,21 @@ use std::{
     thread,
 };
 
+// TODO: Pull this out into a lightweight shared crate.
+#[derive(Parser)]
+pub struct BuildArgs {
+    #[clap(long, action, help = "Build using Docker for reproducible builds.")]
+    pub docker: bool,
+    #[clap(long, action, help = "Ignore Rust version check.")]
+    pub ignore_rust_version: bool,
+    #[clap(long, action, help = "Build with features.")]
+    pub features: Vec<String>,
+}
+
 fn get_docker_image() -> String {
     // Get the docker image name from the environment variable
     std::env::var("SP1_DOCKER_IMAGE")
         .unwrap_or_else(|_| "ghcr.io/succinctlabs/sp1:latest".to_string())
-}
-
-#[derive(Parser)]
-pub(crate) struct BuildArgs {
-    #[clap(long, action, help = "Ignore Rust version check.")]
-    pub(crate) docker: bool,
-    #[clap(long, action, help = "Ignore Rust version check.")]
-    pub(crate) ignore_rust_version: bool,
 }
 
 pub fn build_program(args: &BuildArgs) -> Result<Utf8PathBuf> {
@@ -28,10 +31,9 @@ pub fn build_program(args: &BuildArgs) -> Result<Utf8PathBuf> {
     let root_package = metadata.root_package();
     let root_package_name = root_package.as_ref().map(|p| &p.name);
 
-    let build_target = "riscv32im-succinct-zkvm-elf";
+    let build_target = "riscv32im-succinct-zkvm-elf".to_string();
     if args.docker {
         let image = get_docker_image();
-
         let docker_check = Command::new("docker")
             .args(["info"])
             .stdout(Stdio::null())
@@ -46,16 +48,21 @@ pub fn build_program(args: &BuildArgs) -> Result<Utf8PathBuf> {
 
         let workspace_root_path = format!("{}:/root/program", metadata.workspace_root);
         let mut child_args = vec![
-            "run",
-            "--rm",
-            "-v",
-            workspace_root_path.as_str(),
-            image.as_str(),
-            "prove",
-            "build",
+            "run".to_string(),
+            "--rm".to_string(),
+            "-v".to_string(),
+            workspace_root_path,
+            image,
+            "prove".to_string(),
+            "build".to_string(),
         ];
         if args.ignore_rust_version {
-            child_args.push("--ignore-rust-version");
+            child_args.push("--ignore-rust-version".to_string());
+        }
+        // Add the features
+        if !args.features.is_empty() {
+            child_args.push("--features".to_string());
+            child_args.push(args.features.join(","));
         }
 
         let mut child = Command::new("docker")
@@ -87,18 +94,32 @@ pub fn build_program(args: &BuildArgs) -> Result<Utf8PathBuf> {
         }
     } else {
         let rust_flags = [
-            "-C",
-            "passes=loweratomic",
-            "-C",
-            "link-arg=-Ttext=0x00200800",
-            "-C",
-            "panic=abort",
+            "-C".to_string(),
+            "passes=loweratomic".to_string(),
+            "-C".to_string(),
+            "link-arg=-Ttext=0x00200800".to_string(),
+            "-C".to_string(),
+            "panic=abort".to_string(),
         ];
 
-        let mut cargo_args = vec!["build", "--release", "--target", build_target, "--locked"];
+        let mut cargo_args = vec![
+            "build".to_string(),
+            "--release".to_string(),
+            "--target".to_string(),
+            build_target.clone(),
+        ];
         if args.ignore_rust_version {
-            cargo_args.push("--ignore-rust-version");
+            cargo_args.push("--ignore-rust-version".to_string());
         }
+
+        // Add the features
+        if !args.features.is_empty() {
+            cargo_args.push("--features".to_string());
+            cargo_args.push(args.features.join(","));
+        }
+
+        // Ensure the Cargo.lock doesn't update.
+        cargo_args.push("--locked".to_string());
 
         let result = Command::new("cargo")
             .env("RUSTUP_TOOLCHAIN", "succinct")
@@ -115,7 +136,7 @@ pub fn build_program(args: &BuildArgs) -> Result<Utf8PathBuf> {
 
     let elf_path = metadata
         .target_directory
-        .join(build_target)
+        .join(build_target.clone())
         .join("release")
         .join(root_package_name.unwrap());
     let elf_dir = metadata.target_directory.parent().unwrap().join("elf");

@@ -1,16 +1,27 @@
 use chrono::Local;
+use clap::Parser;
 use std::{
     io::{BufRead, BufReader},
     process::{Command, Stdio},
     thread,
 };
 
+#[derive(Parser)]
+pub struct BuildArgs {
+    #[clap(long, action, help = "Build using Docker for reproducible builds.")]
+    pub docker: bool,
+    #[clap(long, action, help = "Ignore Rust version check.")]
+    pub ignore_rust_version: bool,
+    #[clap(long, action, help = "Build with features.")]
+    pub features: Vec<String>,
+}
+
 fn current_datetime() -> String {
     let now = Local::now();
     now.format("%Y-%m-%d %H:%M:%S").to_string()
 }
 
-pub fn build_program(path: &str) {
+pub fn build_program(path: &str, args: Option<BuildArgs>) {
     println!("path: {:?}", path);
     let program_dir = std::path::Path::new(path);
 
@@ -41,7 +52,7 @@ pub fn build_program(path: &str) {
         current_datetime()
     );
 
-    let status = execute_build_cmd(&program_dir)
+    let status = execute_build_cmd(&program_dir, args)
         .unwrap_or_else(|_| panic!("Failed to build `{}`.", root_package_name));
     if !status.success() {
         panic!("Failed to build `{}`.", root_package_name);
@@ -51,6 +62,7 @@ pub fn build_program(path: &str) {
 /// Executes the `cargo prove build` command in the program directory
 fn execute_build_cmd(
     program_dir: &impl AsRef<std::path::Path>,
+    args: Option<BuildArgs>,
 ) -> Result<std::process::ExitStatus, std::io::Error> {
     // Check if RUSTC_WORKSPACE_WRAPPER is set to clippy-driver (i.e. if `cargo clippy` is the current
     // compiler). If so, don't execute `cargo prove build` because it breaks rust-analyzer's `cargo clippy` feature.
@@ -62,9 +74,25 @@ fn execute_build_cmd(
         return Ok(std::process::ExitStatus::default());
     }
 
+    let mut cargo_prove_build_args = vec!["prove".to_string(), "build".to_string()];
+    if let Some(args) = args {
+        if args.docker {
+            cargo_prove_build_args.push("--docker".to_string());
+        }
+        if args.ignore_rust_version {
+            cargo_prove_build_args.push("--ignore-rust-version".to_string());
+        }
+        if !args.features.is_empty() {
+            for feature in args.features {
+                cargo_prove_build_args.push("--features".to_string());
+                cargo_prove_build_args.push(feature);
+            }
+        }
+    }
+
     let mut cmd = Command::new("cargo");
     cmd.current_dir(program_dir)
-        .args(["prove", "build"])
+        .args(cargo_prove_build_args)
         .env_remove("RUSTC")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());

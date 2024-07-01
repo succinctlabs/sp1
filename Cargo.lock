@@ -4633,6 +4633,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sp1-core",
+ "sp1-helper",
  "sp1-prover",
  "sp1-sdk",
  "target-lexicon",
@@ -4731,6 +4732,7 @@ version = "0.1.0"
 dependencies = [
  "cargo_metadata",
  "chrono",
+ "clap",
 ]
 
 [[package]]
