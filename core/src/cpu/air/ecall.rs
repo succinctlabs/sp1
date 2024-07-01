@@ -95,6 +95,14 @@ impl CpuChip {
             is_ecall_instruction
                 * (ecall_cols.is_halt.result + ecall_cols.is_commit_deferred_proofs.result),
         );
+
+        // Babybear range check the operand_to_check word.
+        BabyBearWordRangeChecker::<AB::F>::range_check::<AB>(
+            builder,
+            ecall_cols.operand_to_check,
+            ecall_cols.operand_range_check_cols,
+            local.ecall_range_check_operand.into(),
+        );
     }
 
     /// Constraints related to the COMMIT and COMMIT_DEFERRED_PROOFS instructions.
@@ -170,14 +178,10 @@ impl CpuChip {
         let expected_deferred_proofs_digest_element =
             builder.index_array(&deferred_proofs_digest, &ecall_columns.index_bitmap);
 
-        // Verify that digest_word is within Babybear, since the deferred proofs commitment is a
-        // poseidon hash.
-        BabyBearWordRangeChecker::<AB::F>::range_check::<AB>(
-            builder,
-            *digest_word,
-            ecall_columns.operand_range_check_cols,
-            local.ecall_range_check_operand.into(),
-        );
+        // Verify that the operand that was range checked is digest_word.
+        builder
+            .when(local.selectors.is_ecall * is_commit_deferred_proofs.clone())
+            .assert_word_eq(*digest_word, ecall_columns.operand_to_check);
 
         builder
             .when(local.selectors.is_ecall * is_commit_deferred_proofs)
@@ -205,14 +209,11 @@ impl CpuChip {
 
         builder.when(is_halt.clone()).assert_zero(local.next_pc);
 
-        // Verify that op_b is within Babybear, as we only allow exit codes within Babybear.
+        // Verify that the operand that was range checked is op_b.
         let ecall_columns = local.opcode_specific_columns.ecall();
-        BabyBearWordRangeChecker::<AB::F>::range_check::<AB>(
-            builder,
-            local.op_b_val(),
-            ecall_columns.operand_range_check_cols,
-            local.ecall_range_check_operand.into(),
-        );
+        builder
+            .when(is_halt.clone())
+            .assert_word_eq(local.op_b_val(), ecall_columns.operand_to_check);
 
         builder.when(is_halt.clone()).assert_eq(
             local.op_b_access.value().reduce::<AB>(),

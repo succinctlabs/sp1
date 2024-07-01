@@ -2,7 +2,7 @@ use sp1_derive::AlignedBorrow;
 use std::mem::size_of;
 
 use crate::{
-    air::PV_DIGEST_NUM_WORDS,
+    air::{Word, PV_DIGEST_NUM_WORDS},
     operations::{BabyBearWordRangeChecker, IsZeroOperation},
 };
 
@@ -35,4 +35,7 @@ pub struct EcallCols<T> {
 
     /// Columns to babybear range check the halt/commit_deferred_proofs operand.
     pub operand_range_check_cols: BabyBearWordRangeChecker<T>,
+
+    /// The operand value to babybear range check.
+    pub operand_to_check: Word<T>,
 }
