@@ -178,11 +178,19 @@ where
 
     // Commit to the shards.
     let mut deferred = ExecutionRecord::default();
-    let (mut last_shard, mut last_start_pc, mut last_next_pc) = (0, 0, 0);
+    let (
+        mut last_shard,
+        mut last_start_pc,
+        mut last_next_pc,
+        mut previous_init_addr_bits,
+        mut last_init_addr_bits,
+        mut previous_finalize_addr_bits,
+        mut last_finalize_addr_bits,
+    ) = (0, 0, 0, [0; 32], [0; 32], [0; 32], [0; 32]);
     let num_checkpoints = checkpoints.len();
     let mut challenger = machine.config().challenger();
     vk.observe_into(&mut challenger);
-    for (idx, checkpoint_file) in checkpoints.iter_mut().enumerate() {
+    for (checkpoint_idx, checkpoint_file) in checkpoints.iter_mut().enumerate() {
         let (mut records, _) = trace_checkpoint(program.clone(), checkpoint_file, opts);
         records.iter_mut().for_each(|record| {
             last_shard = record.public_values.shard;
@@ -194,6 +202,10 @@ where
             record.public_values.shard = last_shard;
             record.public_values.start_pc = last_start_pc;
             record.public_values.next_pc = last_next_pc;
+            record.public_values.previous_init_addr_bits = last_init_addr_bits;
+            record.public_values.last_init_addr_bits = last_init_addr_bits;
+            record.public_values.previous_finalize_addr_bits = last_finalize_addr_bits;
+            record.public_values.last_finalize_addr_bits = last_finalize_addr_bits;
         });
         reset_seek(&mut *checkpoint_file);
 
@@ -207,15 +219,23 @@ where
         });
 
         // Get deferred shards that ready to be committed.
-        let is_last_checkpoint = idx == num_checkpoints - 1;
-        let mut deferred = deferred.split(!is_last_checkpoint);
+        let is_last_checkpoint = checkpoint_idx == num_checkpoints - 1;
+        let mut deferred = deferred.split(is_last_checkpoint);
         deferred.iter_mut().for_each(|record| {
             record.index = last_shard - 1;
             record.program = program.clone().into();
+            previous_init_addr_bits = record.public_values.previous_init_addr_bits;
+            last_init_addr_bits = record.public_values.last_init_addr_bits;
+            previous_finalize_addr_bits = record.public_values.previous_finalize_addr_bits;
+            last_finalize_addr_bits = record.public_values.last_finalize_addr_bits;
             record.public_values = public_values;
             record.public_values.shard = last_shard;
             record.public_values.start_pc = last_start_pc;
             record.public_values.next_pc = last_next_pc;
+            record.public_values.previous_init_addr_bits = previous_init_addr_bits;
+            record.public_values.last_init_addr_bits = last_init_addr_bits;
+            record.public_values.previous_finalize_addr_bits = previous_finalize_addr_bits;
+            record.public_values.last_finalize_addr_bits = last_finalize_addr_bits;
         });
         checkpoint_shards.append(&mut deferred);
 
@@ -230,7 +250,15 @@ where
     }
 
     // Prove the shards.
-    let (mut last_shard, mut last_start_pc, mut last_next_pc) = (0, 0, 0);
+    let (
+        mut last_shard,
+        mut last_start_pc,
+        mut last_next_pc,
+        mut previous_init_addr_bits,
+        mut last_init_addr_bits,
+        mut previous_finalize_addr_bits,
+        mut last_finalize_addr_bits,
+    ) = (0, 0, 0, [0; 32], [0; 32], [0; 32], [0; 32]);
     let mut deferred = ExecutionRecord::default();
     let mut shard_proofs = Vec::<ShardProof<SC>>::new();
     let mut report_aggregate = ExecutionReport::default();
@@ -247,6 +275,10 @@ where
                 record.public_values.shard = last_shard;
                 record.public_values.start_pc = last_start_pc;
                 record.public_values.next_pc = last_next_pc;
+                record.public_values.previous_init_addr_bits = last_init_addr_bits;
+                record.public_values.last_init_addr_bits = last_init_addr_bits;
+                record.public_values.previous_finalize_addr_bits = last_finalize_addr_bits;
+                record.public_values.last_finalize_addr_bits = last_finalize_addr_bits;
             });
             report_aggregate += report;
             checkpoint_file
@@ -263,14 +295,22 @@ where
 
         // Get deferred shards that ready to be proven.
         let is_last_checkpoint = idx == num_checkpoints - 1;
-        let mut deferred = deferred.split(!is_last_checkpoint);
+        let mut deferred = deferred.split(is_last_checkpoint);
         deferred.iter_mut().for_each(|record| {
             record.index = last_shard - 1;
             record.program = program.clone().into();
+            previous_init_addr_bits = record.public_values.previous_init_addr_bits;
+            last_init_addr_bits = record.public_values.last_init_addr_bits;
+            previous_finalize_addr_bits = record.public_values.previous_finalize_addr_bits;
+            last_finalize_addr_bits = record.public_values.last_finalize_addr_bits;
             record.public_values = public_values;
             record.public_values.shard = last_shard;
             record.public_values.start_pc = last_start_pc;
             record.public_values.next_pc = last_next_pc;
+            record.public_values.previous_init_addr_bits = previous_init_addr_bits;
+            record.public_values.last_init_addr_bits = last_init_addr_bits;
+            record.public_values.previous_finalize_addr_bits = previous_finalize_addr_bits;
+            record.public_values.last_finalize_addr_bits = last_finalize_addr_bits;
         });
         checkpoint_shards.append(&mut deferred);
 
@@ -371,7 +411,14 @@ pub fn run_test_core(
     let machine = RiscvAir::machine(config);
     let (pk, vk) = machine.setup(runtime.program.as_ref());
 
-    let records = runtime.records;
+    let mut records = runtime.records;
+    println!("records.len(): {}", records.len());
+    let mut deferred = ExecutionRecord::default();
+    records.iter_mut().for_each(|record| {
+        deferred.append(&mut record.defer());
+    });
+    let mut deferred = deferred.split(true);
+    records.append(&mut deferred);
     run_test_machine(records, machine, pk, vk)
 }
 
@@ -399,8 +446,8 @@ where
     #[cfg(debug_assertions)]
     {
         let mut challenger_clone = machine.config().challenger();
-        let records_clone = records.clone();
-        machine.debug_constraints(&pk, records_clone, &mut challenger_clone);
+        let records = records.clone();
+        machine.debug_constraints(&pk, records, &mut challenger_clone);
     }
 
     let start = Instant::now();

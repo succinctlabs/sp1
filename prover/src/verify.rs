@@ -4,7 +4,7 @@ use anyhow::Result;
 use num_bigint::BigUint;
 use p3_baby_bear::BabyBear;
 use p3_field::{AbstractField, PrimeField};
-use sp1_core::air::MachineAir;
+use sp1_core::air::Word;
 use sp1_core::runtime::SubproofVerifier;
 use sp1_core::{
     air::PublicValues,
@@ -56,37 +56,63 @@ impl SP1Prover {
         // Verify shard transitions.
         let mut current_cpu_shard = BabyBear::one();
         for (i, shard_proof) in proof.0.iter().enumerate() {
-            let public_values = PublicValues::from_vec(shard_proof.public_values.clone());
+            let public_values: &PublicValues<Word<_>, _> =
+                shard_proof.public_values.as_slice().borrow();
+
             if i == 0 {
-                // If it's the first shard, index should be 1.
+                // If it's the first shard, the shard public value should be set to 1.
                 if public_values.shard != BabyBear::one() {
                     return Err(MachineVerificationError::InvalidPublicValues(
                         "first shard not 1",
                     ));
                 }
+
+                // If it's the first shard, the start_pc should be the same as the vkey's pc_start.
                 if public_values.start_pc != vk.vk.pc_start {
                     return Err(MachineVerificationError::InvalidPublicValues(
                         "wrong pc_start",
                     ));
                 }
+
+                // If it's the first shard, the prev_init_addr_bits and prev_finalize_addr_bits
+                // should be zero.
+                if public_values.previous_init_addr_bits != [BabyBear::zero(); 32] {
+                    return Err(MachineVerificationError::InvalidPublicValues(
+                        "in the first shard, the previous initialized address should be set to zero",
+                    ));
+                }
+                if public_values.previous_finalize_addr_bits != [BabyBear::zero(); 32] {
+                    return Err(MachineVerificationError::InvalidPublicValues(
+                        "in the first shard, the previous finalized address should be set to zero",
+                    ));
+                }
             } else {
                 let prev_shard_proof = &proof.0[i - 1];
-                let prev_public_values =
-                    PublicValues::from_vec(prev_shard_proof.public_values.clone());
+                let prev_public_values: &PublicValues<Word<_>, _> =
+                    prev_shard_proof.public_values.as_slice().borrow();
 
-                // For shards with "CPU", the index should be the previous index + 1.
                 if shard_proof.contains_cpu() {
+                    // For shards with "CPU", the index should be the previous cpu shard index + 1.
                     if public_values.shard != current_cpu_shard + BabyBear::one() {
                         return Err(MachineVerificationError::InvalidPublicValues(
-                            "non incremental shard index",
+                            "cpu shard index should be the previous cpu shard index + 1",
                         ));
                     }
                     current_cpu_shard += BabyBear::one();
+                } else {
+                    // For shards without "CPU", the start pc should be the same as the next pc.
+                    if public_values.start_pc != prev_public_values.next_pc {
+                        return Err(MachineVerificationError::InvalidPublicValues(
+                            "start pc should be the same as the next pc in non-cpu shard",
+                        ));
+                    }
                 }
 
                 // Start pc should be what the next pc declared in the previous shard was.
                 if public_values.start_pc != prev_public_values.next_pc {
-                    return Err(MachineVerificationError::InvalidPublicValues("pc mismatch"));
+                    return Err(MachineVerificationError::InvalidPublicValues(
+                        "pc transition mismatch",
+                    ));
                 }
 
                 // Digests and exit code should be the same in all shards.
@@ -104,6 +130,24 @@ impl SP1Prover {
                 if i == proof.0.len() - 1 && public_values.next_pc != BabyBear::zero() {
                     return Err(MachineVerificationError::InvalidPublicValues(
                         "last shard isn't halted",
+                    ));
+                }
+
+                // The previous last initialized address of the previous shard should be equal to
+                // the last initialized address of the current shard.
+                if prev_public_values.last_init_addr_bits != public_values.previous_init_addr_bits {
+                    return Err(MachineVerificationError::InvalidPublicValues(
+                        "previous initialized address of the previous shard should be equal to the last initialized address of the current shard",
+                    ));
+                }
+
+                // The previous last finalized address of the previous shard should be equal to
+                // the last finalized address of the current shard.
+                if prev_public_values.last_finalize_addr_bits
+                    != public_values.previous_finalize_addr_bits
+                {
+                    return Err(MachineVerificationError::InvalidPublicValues(
+                        "previous finalized address of the previous shard should be equal to the last finalized address of the current shard",
                     ));
                 }
             }

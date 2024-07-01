@@ -365,17 +365,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             permutation_challenges.push(challenger.sample_ext_element());
         }
 
-        let chips = self.chips();
-        records.iter_mut().for_each(|record| {
-            chips.iter().for_each(|chip| {
-                let mut output = A::Record::default();
-                output.set_index(record.index());
-                chip.generate_dependencies(record, &mut output);
-                record.append(&mut output);
-            });
-            record.register_nonces();
-        });
-
         let mut cumulative_sum = SC::Challenge::zero();
         for shard in records.iter() {
             // Filter the chips based on what is used.
@@ -682,7 +671,7 @@ pub mod tests {
     }
 
     #[test]
-    fn test_fibonacci_prove() {
+    fn test_fibonacci_prove_simple() {
         setup_logger();
         let program = fibonacci_program();
         run_test(program).unwrap();

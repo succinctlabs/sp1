@@ -22,8 +22,9 @@ use crate::syscall::precompiles::ECDecompressEvent;
 use crate::syscall::precompiles::{ECAddEvent, ECDoubleEvent};
 use crate::utils::SP1CoreOpts;
 
-/// A record of the execution of a program. Contains event data for everything that happened during
-/// the execution of the shard.
+/// A record of the execution of a program.
+///
+/// The trace of the execution is represented as a list of "events" that occur every cycle.
 #[derive(Default, Clone, Debug, Serialize, Deserialize)]
 pub struct ExecutionRecord {
     /// The index of the shard.
@@ -114,6 +115,8 @@ pub struct ShardingConfig {
     pub divrem_len: usize,
     pub lt_len: usize,
     pub field_len: usize,
+    pub mem_init_len: usize,
+    pub mem_finalize_len: usize,
     pub keccak_len: usize,
     pub secp256k1_add_len: usize,
     pub secp256k1_double_len: usize,
@@ -143,6 +146,8 @@ impl Default for ShardingConfig {
             lt_len: shard_size,
             mul_len: shard_size,
             shift_right_len: shard_size,
+            mem_init_len: shard_size,
+            mem_finalize_len: shard_size,
             field_len: shard_size * 4,
             keccak_len: shard_size,
             secp256k1_add_len: shard_size,
@@ -517,21 +522,23 @@ impl ExecutionRecord {
             k256_decompress_events: std::mem::take(&mut self.k256_decompress_events),
             uint256_mul_events: std::mem::take(&mut self.uint256_mul_events),
             bls12381_decompress_events: std::mem::take(&mut self.bls12381_decompress_events),
+            memory_initialize_events: std::mem::take(&mut self.memory_initialize_events),
+            memory_finalize_events: std::mem::take(&mut self.memory_finalize_events),
             ..Default::default()
         }
     }
 
     /// Splits the deferred [ExecutionRecord] into multiple [ExecutionRecord]s, each which contain
     /// a "reasonable" number of deferred events.
-    pub fn split(&mut self, exact: bool) -> Vec<ExecutionRecord> {
+    pub fn split(&mut self, last: bool) -> Vec<ExecutionRecord> {
         let mut shards = Vec::new();
-        let threshold = 1 << 19;
+        let threshold = 1 << 20;
 
         macro_rules! split_events {
             ($self:ident, $events:ident, $shards:ident, $threshold:expr, $exact:expr) => {
                 let events = std::mem::take(&mut $self.$events);
                 let chunks = events.chunks_exact($threshold);
-                if $exact {
+                if !$exact {
                     $self.$events = chunks.remainder().to_vec();
                 } else {
                     let remainder = chunks.remainder().to_vec();
@@ -552,20 +559,57 @@ impl ExecutionRecord {
             };
         }
 
-        split_events!(self, keccak_permute_events, shards, threshold, exact);
-        split_events!(self, secp256k1_add_events, shards, threshold, exact);
-        split_events!(self, secp256k1_double_events, shards, threshold, exact);
-        split_events!(self, bn254_add_events, shards, threshold, exact);
-        split_events!(self, bn254_double_events, shards, threshold, exact);
-        split_events!(self, bls12381_add_events, shards, threshold, exact);
-        split_events!(self, bls12381_double_events, shards, threshold, exact);
-        split_events!(self, sha_extend_events, shards, threshold, exact);
-        split_events!(self, sha_compress_events, shards, threshold, exact);
-        split_events!(self, ed_add_events, shards, threshold, exact);
-        split_events!(self, ed_decompress_events, shards, threshold, exact);
-        split_events!(self, k256_decompress_events, shards, threshold, exact);
-        split_events!(self, uint256_mul_events, shards, threshold, exact);
-        split_events!(self, bls12381_decompress_events, shards, threshold, exact);
+        split_events!(self, keccak_permute_events, shards, threshold, last);
+        split_events!(self, secp256k1_add_events, shards, threshold, last);
+        split_events!(self, secp256k1_double_events, shards, threshold, last);
+        split_events!(self, bn254_add_events, shards, threshold, last);
+        split_events!(self, bn254_double_events, shards, threshold, last);
+        split_events!(self, bls12381_add_events, shards, threshold, last);
+        split_events!(self, bls12381_double_events, shards, threshold, last);
+        split_events!(self, sha_extend_events, shards, threshold, last);
+        split_events!(self, sha_compress_events, shards, threshold, last);
+        split_events!(self, ed_add_events, shards, threshold, last);
+        split_events!(self, ed_decompress_events, shards, threshold, last);
+        split_events!(self, k256_decompress_events, shards, threshold, last);
+        split_events!(self, uint256_mul_events, shards, threshold, last);
+        split_events!(self, bls12381_decompress_events, shards, threshold, last);
+
+        if last {
+            self.memory_initialize_events
+                .sort_by_key(|event| event.addr);
+            self.memory_finalize_events.sort_by_key(|event| event.addr);
+            let mut init_addr_bits = [0; 32];
+            let mut finalize_addr_bits = [0; 32];
+            for (mem_init_chunk, mem_finalize_chunk) in self
+                .memory_initialize_events
+                .chunks(threshold)
+                .zip(self.memory_finalize_events.chunks(threshold))
+            {
+                let mut shard = ExecutionRecord::default();
+                shard
+                    .memory_initialize_events
+                    .extend_from_slice(mem_init_chunk);
+                shard.public_values.previous_init_addr_bits = init_addr_bits;
+                if let Some(last_event) = mem_init_chunk.last() {
+                    let last_init_addr_bits = core::array::from_fn(|i| (last_event.addr >> i) & 1);
+                    shard.public_values.last_init_addr_bits = last_init_addr_bits;
+                    init_addr_bits = last_init_addr_bits;
+                }
+
+                shard
+                    .memory_finalize_events
+                    .extend_from_slice(mem_finalize_chunk);
+                shard.public_values.previous_finalize_addr_bits = finalize_addr_bits;
+                if let Some(last_event) = mem_finalize_chunk.last() {
+                    let last_finalize_addr_bits =
+                        core::array::from_fn(|i| (last_event.addr >> i) & 1);
+                    shard.public_values.last_finalize_addr_bits = last_finalize_addr_bits;
+                    finalize_addr_bits = last_finalize_addr_bits;
+                }
+
+                shards.push(shard);
+            }
+        }
 
         shards
     }

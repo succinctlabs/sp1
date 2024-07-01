@@ -654,6 +654,8 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
         let end_pc = InnerVal::read(builder);
         let end_shard = InnerVal::read(builder);
         let total_core_shards = builder.hint_var();
+        let init_addr_bits = Vec::<InnerVal>::read(builder);
+        let finalize_addr_bits = Vec::<InnerVal>::read(builder);
 
         SP1DeferredMemoryLayoutVariable {
             compress_vk,
@@ -667,6 +669,8 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
             end_pc,
             end_shard,
             total_core_shards,
+            init_addr_bits,
+            finalize_addr_bits,
         }
     }
 
@@ -703,6 +707,8 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
         stream.extend(self.end_pc.write());
         stream.extend(self.end_shard.write());
         stream.extend(self.total_core_shards.write());
+        stream.extend(self.init_addr_bits.to_vec().write());
+        stream.extend(self.finalize_addr_bits.to_vec().write());
 
         stream
     }

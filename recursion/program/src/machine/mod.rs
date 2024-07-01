@@ -17,7 +17,7 @@ mod tests {
     use p3_baby_bear::BabyBear;
     use p3_challenger::CanObserve;
     use p3_maybe_rayon::prelude::*;
-    use sp1_core::air::PublicValues;
+    use sp1_core::air::{PublicValues, Word};
     use sp1_core::stark::{MachineVerificationError, RiscvAir, StarkGenericConfig};
     use sp1_core::utils::{BabyBearPoseidon2, SP1CoreOpts};
     use sp1_core::{
@@ -25,11 +25,13 @@ mod tests {
         runtime::Program,
         stark::{Challenge, LocalProver},
     };
+    use sp1_primitives::types::RecursionProgramType;
     use sp1_recursion_compiler::config::InnerConfig;
     use sp1_recursion_core::{
         runtime::Runtime,
         stark::{config::BabyBearPoseidon2Outer, RecursionAir},
     };
+    use std::borrow::Borrow;
 
     use crate::hints::Hintable;
 
@@ -74,14 +76,20 @@ mod tests {
 
         // Make the compress program.
         let compress_machine = RecursionAir::<_, 9>::machine(SC::compressed());
-        let compress_program =
-            SP1RootVerifier::<InnerConfig, _, _>::build(&recursive_machine, &compress_vk, true);
+        let compress_program = SP1RootVerifier::<InnerConfig, _, _>::build(
+            &recursive_machine,
+            &compress_vk,
+            RecursionProgramType::Shrink,
+        );
         let (compress_pk, compress_vk) = compress_machine.setup(&compress_program);
 
         // Make the wrap program.
-        let wrap_machine = RecursionAir::<_, 17>::machine(BabyBearPoseidon2Outer::default());
-        let wrap_program =
-            SP1RootVerifier::<InnerConfig, _, _>::build(&compress_machine, &compress_vk, false);
+        let wrap_machine = RecursionAir::<_, 17>::wrap_machine(BabyBearPoseidon2Outer::default());
+        let wrap_program = SP1RootVerifier::<InnerConfig, _, _>::build(
+            &compress_machine,
+            &compress_vk,
+            RecursionProgramType::Wrap,
+        );
 
         let mut challenger = machine.config().challenger();
         let time = std::time::Instant::now();
@@ -116,15 +124,15 @@ mod tests {
         let is_complete = proof.shard_proofs.len() == 1;
         for batch in proof.shard_proofs.chunks(batch_size) {
             let proofs = batch.to_vec();
-            let public_values = proofs
+            let public_values: Vec<&PublicValues<Word<_>, _>> = proofs
                 .iter()
-                .map(|proof| PublicValues::from_vec(proof.public_values.clone()))
+                .map(|proof| proof.public_values.as_slice().borrow())
                 .collect::<Vec<_>>();
 
             layouts.push(SP1RecursionMemoryLayout {
                 vk: &vk,
                 machine: &machine,
-                shard_proofs: proofs,
+                shard_proofs: proofs.clone(),
                 leaf_challenger: &leaf_challenger,
                 initial_reconstruct_challenger: reconstruct_challenger.clone(),
                 is_complete,

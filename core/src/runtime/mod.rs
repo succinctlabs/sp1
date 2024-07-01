@@ -1093,10 +1093,12 @@ impl<'a> Runtime<'a> {
         // Get the final public values.
         let public_values = self.record.public_values;
 
-        // Push the remaining execution record.
-        let record = std::mem::take(&mut self.record);
-        self.record.program = record.program.clone();
-        self.records.push(record);
+        // Push the remaining execution record, if there are any CPU events.
+        if !self.record.cpu_events.is_empty() {
+            let record = std::mem::take(&mut self.record);
+            self.record.program = record.program.clone();
+            self.records.push(record);
+        }
 
         if done {
             self.postprocess();

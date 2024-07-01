@@ -39,6 +39,7 @@ use sp1_core::{
     utils::{BabyBearPoseidon2, SP1CoreProverError},
 };
 use sp1_primitives::hash_deferred_proof;
+use sp1_primitives::types::RecursionProgramType;
 use sp1_recursion_circuit::witness::Witnessable;
 use sp1_recursion_compiler::config::InnerConfig;
 use sp1_recursion_compiler::ir::Witness;
@@ -164,14 +165,20 @@ impl SP1Prover {
         let (compress_pk, compress_vk) = compress_machine.setup(&compress_program);
 
         // Get the compress program, machine, and keys.
-        let shrink_program =
-            SP1RootVerifier::<InnerConfig, _, _>::build(&compress_machine, &compress_vk, true);
+        let shrink_program = SP1RootVerifier::<InnerConfig, _, _>::build(
+            &compress_machine,
+            &compress_vk,
+            RecursionProgramType::Shrink,
+        );
         let shrink_machine = CompressAir::wrap_machine_dyn(InnerSC::compressed());
         let (shrink_pk, shrink_vk) = shrink_machine.setup(&shrink_program);
 
         // Get the wrap program, machine, and keys.
-        let wrap_program =
-            SP1RootVerifier::<InnerConfig, _, _>::build(&shrink_machine, &shrink_vk, false);
+        let wrap_program = SP1RootVerifier::<InnerConfig, _, _>::build(
+            &shrink_machine,
+            &shrink_vk,
+            RecursionProgramType::Wrap,
+        );
         let wrap_machine = WrapAir::wrap_machine(OuterSC::default());
         let (wrap_pk, wrap_vk) = wrap_machine.setup(&wrap_program);
 
@@ -273,15 +280,15 @@ impl SP1Prover {
         // Prepare the inputs for the recursion programs.
         for batch in shard_proofs.chunks(batch_size) {
             let proofs = batch.to_vec();
-            let public_values = proofs
+            let public_values: Vec<&PublicValues<Word<_>, _>> = proofs
                 .iter()
-                .map(|proof| PublicValues::from_vec(proof.public_values.clone()))
+                .map(|proof| proof.public_values.as_slice().borrow())
                 .collect::<Vec<_>>();
 
             core_inputs.push(SP1RecursionMemoryLayout {
                 vk,
                 machine: &self.core_machine,
-                shard_proofs: proofs,
+                shard_proofs: proofs.clone(),
                 leaf_challenger,
                 initial_reconstruct_challenger: reconstruct_challenger.clone(),
                 is_complete,
@@ -349,7 +356,9 @@ impl SP1Prover {
                 sp1_vk: vk,
                 sp1_machine: &self.core_machine,
                 end_pc: Val::<InnerSC>::zero(),
-                end_shard: last_proof_pv.shard,
+                end_shard: last_proof_pv.shard + BabyBear::one(),
+                init_addr_bits: last_proof_pv.last_init_addr_bits,
+                finalize_addr_bits: last_proof_pv.last_finalize_addr_bits,
                 leaf_challenger: leaf_challenger.clone(),
                 committed_value_digest: last_proof_pv.committed_value_digest.to_vec(),
                 deferred_proofs_digest: last_proof_pv.deferred_proofs_digest.to_vec(),
@@ -382,12 +391,16 @@ impl SP1Prover {
             batch_size,
             is_complete,
         );
-        let last_proof_pv =
-            PublicValues::from_vec(shard_proofs.last().unwrap().public_values.clone());
+        let last_proof_pv = shard_proofs
+            .last()
+            .unwrap()
+            .public_values
+            .as_slice()
+            .borrow();
         let deferred_inputs = self.get_recursion_deferred_inputs(
             &vk.vk,
             leaf_challenger,
-            &last_proof_pv,
+            last_proof_pv,
             deferred_proofs,
             batch_size,
             shard_proofs

@@ -383,7 +383,10 @@ mod tests {
 
         let program = builder.compile_program();
 
-        run_test_recursion(program, None, TestConfig::All);
+        // We don't test with the config TestConfig::WideDeg17Wrap, since it doesn't have the
+        // `ExpReverseBitsLen` chip.
+        run_test_recursion(program.clone(), None, TestConfig::WideDeg3);
+        run_test_recursion(program, None, TestConfig::SkinnyDeg7);
     }
 
     #[test]

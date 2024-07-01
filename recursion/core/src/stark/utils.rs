@@ -17,7 +17,7 @@ pub enum TestConfig {
     All,
     WideDeg3,
     SkinnyDeg7,
-    SkinnyDeg7Wrap,
+    WideDeg17Wrap,
 }
 
 type Val = <BabyBearPoseidon2 as StarkGenericConfig>::Val;
@@ -63,7 +63,7 @@ pub fn run_test_recursion(
         }
     }
 
-    if test_config == TestConfig::All || test_config == TestConfig::SkinnyDeg7Wrap {
+    if test_config == TestConfig::All || test_config == TestConfig::WideDeg17Wrap {
         let machine = RecursionAirWideDeg9::wrap_machine(BabyBearPoseidon2::compressed());
         let (pk, vk) = machine.setup(&program);
         let record = runtime.record.clone();
