@@ -25,7 +25,6 @@ pub struct ShardMainData<SC: StarkGenericConfig> {
     pub main_commit: Com<SC>,
     pub main_data: PcsProverData<SC>,
     pub chip_ordering: HashMap<String, usize>,
-    pub index: usize,
     pub public_values: Vec<SC::Val>,
 }
 
@@ -35,7 +34,6 @@ impl<SC: StarkGenericConfig> ShardMainData<SC> {
         main_commit: Com<SC>,
         main_data: PcsProverData<SC>,
         chip_ordering: HashMap<String, usize>,
-        index: usize,
         public_values: Vec<Val<SC>>,
     ) -> Self {
         Self {
@@ -43,7 +41,6 @@ impl<SC: StarkGenericConfig> ShardMainData<SC> {
             main_commit,
             main_data,
             chip_ordering,
-            index,
             public_values,
         }
     }

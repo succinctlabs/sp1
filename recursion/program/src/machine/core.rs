@@ -308,11 +308,12 @@ where
                 // Start pc should be vk.pc_start
                 builder.assert_felt_eq(public_values.start_pc, vk.pc_start);
 
-                // Assert that the MemortInitialize address bits are zero.
+                // Assert that the MemoryInitialize address bits are zero.
                 for bit in init_addr_bits.iter() {
                     builder.assert_felt_eq(*bit, C::F::zero());
                 }
-                // Assert that the MemortFinalize address bits are zero.
+
+                // Assert that the MemoryFinalize address bits are zero.
                 for bit in finalize_addr_bits.iter() {
                     builder.assert_felt_eq(*bit, C::F::zero());
                 }
@@ -332,8 +333,6 @@ where
             // If this is a CPU proof, verify the transition function.
             builder.if_eq(has_cpu, C::N::one()).then_or_else(
                 |builder| {
-                    // If shard is one, verify the global initial conditions hold on challenger and pc.
-
                     builder.if_eq(shard, C::N::one()).then(|builder| {
                         // This should be the 0th proof in this batch.
                         builder.assert_var_eq(i, C::N::zero());

@@ -160,6 +160,7 @@ where
 
     // Commit to the shards.
     let mut deferred = ExecutionRecord::new(program.clone().into());
+    let mut debug_records = Vec::new();
     let mut state = public_values.reset();
     let nb_checkpoints = checkpoints.len();
     let mut challenger = machine.config().challenger();
@@ -200,6 +201,11 @@ where
         }
         records.append(&mut deferred);
 
+        #[cfg(debug_assertions)]
+        {
+            debug_records.extend(records.clone());
+        }
+
         // Commit to the shards.
         let (commitments, _) = LocalProver::commit_shards(&machine, &records, opts);
 
@@ -208,6 +214,13 @@ where
             challenger.observe(commitment);
             challenger.observe_slice(&shard.public_values::<SC::Val>()[0..machine.num_pv_elts()]);
         }
+    }
+
+    // Debug the constraints if debug assertions are enabled.
+    #[cfg(debug_assertions)]
+    {
+        let mut challenger = machine.config().challenger();
+        machine.debug_constraints(&pk, debug_records, &mut challenger);
     }
 
     // Prove the shards.
@@ -256,8 +269,7 @@ where
             .into_iter()
             .map(|shard| {
                 let config = machine.config();
-                let shard_data =
-                    LocalProver::commit_main(config, &machine, &shard, shard.index() as usize);
+                let shard_data = LocalProver::commit_main(config, &machine, &shard);
                 let chip_ordering = shard_data.chip_ordering.clone();
                 let ordered_chips = machine
                     .shard_chips_ordered(&chip_ordering)

@@ -161,12 +161,6 @@ impl Default for ShardingConfig {
 impl MachineRecord for ExecutionRecord {
     type Config = ShardingConfig;
 
-    fn index(&self) -> u32 {
-        0
-    }
-
-    fn set_index(&mut self, index: u32) {}
-
     fn stats(&self) -> HashMap<String, usize> {
         let mut stats = HashMap::new();
         stats.insert("cpu_events".to_string(), self.cpu_events.len());

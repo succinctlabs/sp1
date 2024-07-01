@@ -68,7 +68,7 @@ impl PublicValues<u32, u32> {
     }
 
     pub fn reset(&self) -> Self {
-        let mut copy = self.clone();
+        let mut copy = *self;
         copy.shard = 0;
         copy.start_pc = 0;
         copy.next_pc = 0;
