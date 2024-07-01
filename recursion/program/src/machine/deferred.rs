@@ -11,6 +11,7 @@ use sp1_core::air::{Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS};
 use sp1_core::stark::StarkMachine;
 use sp1_core::stark::{Com, RiscvAir, ShardProof, StarkGenericConfig, StarkVerifyingKey};
 use sp1_core::utils::BabyBearPoseidon2;
+use sp1_primitives::types::RecursionProgramType;
 use sp1_recursion_compiler::config::InnerConfig;
 use sp1_recursion_compiler::ir::{Array, Builder, Config, Felt, Var};
 use sp1_recursion_compiler::prelude::DslVariable;
@@ -54,6 +55,7 @@ where
     pub leaf_challenger: SC::Challenger,
     pub end_pc: SC::Val,
     pub end_shard: SC::Val,
+    pub total_core_shards: usize,
 }
 
 /// A variable version of the [SP1DeferredMemoryLayout] struct.
@@ -73,6 +75,7 @@ pub struct SP1DeferredMemoryLayoutVariable<C: Config> {
     pub leaf_challenger: DuplexChallengerVariable<C>,
     pub end_pc: Felt<C::F>,
     pub end_shard: Felt<C::F>,
+    pub total_core_shards: Var<C::N>,
 }
 
 impl<A> SP1DeferredVerifier<InnerConfig, BabyBearPoseidon2, A>
@@ -81,7 +84,7 @@ where
 {
     /// Create a new instance of the program for the [BabyBearPoseidon2] config.
     pub fn build(machine: &StarkMachine<BabyBearPoseidon2, A>) -> RecursionProgram<BabyBear> {
-        let mut builder = Builder::<InnerConfig>::default();
+        let mut builder = Builder::<InnerConfig>::new(RecursionProgramType::Deferred);
         let input: SP1DeferredMemoryLayoutVariable<_> = builder.uninit();
         SP1DeferredMemoryLayout::<BabyBearPoseidon2, A>::witness(&input, &mut builder);
 
@@ -129,7 +132,7 @@ where
             proofs,
             start_reconstruct_deferred_digest,
             is_complete,
-
+            total_core_shards,
             sp1_vk,
             committed_value_digest,
             deferred_proofs_digest,
@@ -189,6 +192,7 @@ where
             }
 
             // Verify the proof.
+            let one_var = builder.constant(C::N::one());
             StarkVerifier::<C, SC>::verify_shard(
                 builder,
                 &compress_vk,
@@ -196,6 +200,7 @@ where
                 machine,
                 &mut challenger,
                 &proof,
+                one_var,
             );
 
             // Load the public values from the proof.
@@ -290,6 +295,7 @@ where
 
         // Set the is_complete flag.
         deferred_public_values.is_complete = var2felt(builder, is_complete);
+        deferred_public_values.total_core_shards = var2felt(builder, total_core_shards);
 
         commit_public_values(builder, deferred_public_values);
     }

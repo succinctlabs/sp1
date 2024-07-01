@@ -14,6 +14,7 @@ use sp1_core::air::{Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS};
 use sp1_core::stark::StarkMachine;
 use sp1_core::stark::{Com, ShardProof, StarkGenericConfig, StarkVerifyingKey};
 use sp1_core::utils::BabyBearPoseidon2;
+use sp1_primitives::types::RecursionProgramType;
 use sp1_recursion_compiler::config::InnerConfig;
 use sp1_recursion_compiler::ir::{Array, Builder, Config, Felt, Var};
 use sp1_recursion_compiler::prelude::DslVariable;
@@ -30,7 +31,7 @@ use crate::types::ShardProofVariable;
 use crate::types::VerifyingKeyVariable;
 use crate::utils::{
     assert_challenger_eq_pv, assign_challenger_from_pv, const_fri_config,
-    get_challenger_public_values, hash_vkey,
+    get_challenger_public_values, hash_vkey, var2felt,
 };
 
 use super::utils::{commit_public_values, proof_data_from_vk, verify_public_values_hash};
@@ -59,6 +60,7 @@ pub struct SP1ReduceMemoryLayout<'a, SC: StarkGenericConfig, A: MachineAir<SC::V
     pub shard_proofs: Vec<ShardProof<SC>>,
     pub is_complete: bool,
     pub kinds: Vec<ReduceProgramType>,
+    pub total_core_shards: usize,
 }
 
 #[derive(DslVariable, Clone)]
@@ -67,6 +69,7 @@ pub struct SP1ReduceMemoryLayoutVariable<C: Config> {
     pub shard_proofs: Array<C, ShardProofVariable<C>>,
     pub kinds: Array<C, Var<C::N>>,
     pub is_complete: Var<C::N>,
+    pub total_core_shards: Var<C::N>,
 }
 
 impl<A> SP1CompressVerifier<InnerConfig, BabyBearPoseidon2, A>
@@ -79,7 +82,7 @@ where
         recursive_vk: &StarkVerifyingKey<BabyBearPoseidon2>,
         deferred_vk: &StarkVerifyingKey<BabyBearPoseidon2>,
     ) -> RecursionProgram<BabyBear> {
-        let mut builder = Builder::<InnerConfig>::default();
+        let mut builder = Builder::<InnerConfig>::new(RecursionProgramType::Compress);
 
         let input: SP1ReduceMemoryLayoutVariable<_> = builder.uninit();
         SP1ReduceMemoryLayout::<BabyBearPoseidon2, A>::witness(&input, &mut builder);
@@ -138,7 +141,9 @@ where
             shard_proofs,
             kinds,
             is_complete,
+            total_core_shards,
         } = input;
+        let total_core_shards_felt = var2felt(builder, total_core_shards);
 
         // Initialize the values for the aggregated public output.
 
@@ -236,6 +241,7 @@ where
                 challenger.observe(builder, element);
             }
             // verify proof.
+            let one_var = builder.constant(C::N::one());
             StarkVerifier::<C, SC>::verify_shard(
                 builder,
                 &vk,
@@ -243,6 +249,7 @@ where
                 machine,
                 &mut challenger,
                 &proof,
+                one_var,
             );
 
             // Load the public values from the proof.
@@ -370,7 +377,7 @@ where
             // Assert that the start pc is equal to the current pc.
             builder.assert_felt_eq(pc, current_public_values.start_pc);
             // Verfiy that the shard is equal to the current shard.
-            // builder.assert_felt_eq(shard, current_public_values.start_shard);
+            builder.assert_felt_eq(shard, current_public_values.start_shard);
             // Assert that the leaf challenger is always the same.
 
             assert_challenger_eq_pv(
@@ -403,9 +410,15 @@ where
                 builder.assert_felt_eq(*digest, *current_digest);
             }
 
+            // Assert that total_core_shards is the same.
+            builder.assert_felt_eq(
+                total_core_shards_felt,
+                current_public_values.total_core_shards,
+            );
+
             // Update the accumulated values.
 
-            // Update the deffered proof digest.
+            // Update the deferred proof digest.
             for (digest, current_digest) in reconstruct_deferred_digest
                 .iter()
                 .zip_eq(current_public_values.end_reconstruct_deferred_digest.iter())
@@ -459,6 +472,8 @@ where
         reduce_public_values.committed_value_digest = committed_value_digest;
         // Assign the cumulative sum.
         reduce_public_values.cumulative_sum = cumulative_sum;
+        // Assign the total number of shards.
+        reduce_public_values.total_core_shards = total_core_shards_felt;
 
         // If the proof is complete, make completeness assertions and set the flag. Otherwise, check
         // the flag is zero and set the public value to zero.

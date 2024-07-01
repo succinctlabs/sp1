@@ -23,6 +23,7 @@ mod tests {
         runtime::Program,
         stark::{Challenge, LocalProver},
     };
+    use sp1_primitives::types::RecursionProgramType;
     use sp1_recursion_compiler::config::InnerConfig;
     use sp1_recursion_core::{
         runtime::Runtime,
@@ -72,14 +73,20 @@ mod tests {
 
         // Make the compress program.
         let compress_machine = RecursionAir::<_, 9>::machine(SC::compressed());
-        let compress_program =
-            SP1RootVerifier::<InnerConfig, _, _>::build(&recursive_machine, &compress_vk, true);
+        let compress_program = SP1RootVerifier::<InnerConfig, _, _>::build(
+            &recursive_machine,
+            &compress_vk,
+            RecursionProgramType::Shrink,
+        );
         let (compress_pk, compress_vk) = compress_machine.setup(&compress_program);
 
         // Make the wrap program.
-        let wrap_machine = RecursionAir::<_, 17>::machine(BabyBearPoseidon2Outer::default());
-        let wrap_program =
-            SP1RootVerifier::<InnerConfig, _, _>::build(&compress_machine, &compress_vk, false);
+        let wrap_machine = RecursionAir::<_, 17>::wrap_machine(BabyBearPoseidon2Outer::default());
+        let wrap_program = SP1RootVerifier::<InnerConfig, _, _>::build(
+            &compress_machine,
+            &compress_vk,
+            RecursionProgramType::Wrap,
+        );
 
         let mut challenger = machine.config().challenger();
         let time = std::time::Instant::now();
@@ -91,6 +98,7 @@ mod tests {
         )
         .unwrap();
         machine.verify(&vk, &proof, &mut challenger).unwrap();
+        let total_core_shards = proof.shard_proofs.len();
         tracing::info!("Proof generated successfully");
         let elapsed = time.elapsed();
         tracing::info!("Execution proof time: {:?}", elapsed);
@@ -121,6 +129,7 @@ mod tests {
                 leaf_challenger: &leaf_challenger,
                 initial_reconstruct_challenger: reconstruct_challenger.clone(),
                 is_complete,
+                total_core_shards,
             });
 
             for proof in batch.iter() {
@@ -226,6 +235,7 @@ mod tests {
                         shard_proofs: batch.to_vec(),
                         kinds,
                         is_complete,
+                        total_core_shards,
                     };
 
                     let mut runtime = Runtime::<F, EF, _>::new(

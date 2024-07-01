@@ -1054,15 +1054,11 @@ where
                 .first_memory_record
                 .push((F::from_canonical_usize(*addr), *init_value));
 
-            // Keep the last memory record sorted by address.
-            let pos = self
-                .record
-                .last_memory_record
-                .partition_point(|(a, _, _)| *a <= F::from_canonical_usize(*addr));
-            self.record.last_memory_record.insert(
-                pos,
-                (F::from_canonical_usize(*addr), entry.timestamp, entry.value),
-            )
+            self.record.last_memory_record.push((
+                F::from_canonical_usize(*addr),
+                entry.timestamp,
+                entry.value,
+            ))
         }
         self.record
             .last_memory_record
