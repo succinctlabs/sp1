@@ -7,10 +7,11 @@ use yansi::Paint;
 #[command(name = "new", about = "Setup a new project that runs inside the SP1.")]
 pub struct NewCmd {
     /// The name of the project.
+    /// #
     name: String,
 
     /// Whether to create the project with template EVM contracts.
-    #[arg(long)]
+    #[arg(long, action)]
     evm: bool,
 }
 
