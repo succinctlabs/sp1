@@ -10,7 +10,7 @@ pub struct NewCmd {
     name: String,
 
     /// Whether to create the project with template EVM contracts.
-    #[arg(short, long)]
+    #[arg(long)]
     evm: bool,
 }
 
@@ -60,7 +60,7 @@ impl NewCmd {
             fs::remove_file(root.join(".gitsubmodules"))?;
         }
 
-        // TEMPL ls the directory
+        // List the directory
         Command::new("ls")
             .arg("-la")
             .current_dir(root)
