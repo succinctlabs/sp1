@@ -1,8 +1,8 @@
 #![no_main]
 sp1_zkvm::entrypoint!(main);
 
-use sp1_zkvm::precompiles::secp256k1::Secp256k1Operations;
-use sp1_zkvm::precompiles::utils::AffinePoint;
+use sp1_zkvm::lib::secp256k1::Secp256k1Operations;
+use sp1_zkvm::lib::utils::AffinePoint;
 
 #[sp1_derive::cycle_tracker]
 pub fn main() {

@@ -2,14 +2,14 @@
 
 ## Execution Only
 
-We recommend that during development of large programs (> 1 million cycles) that you do not generate proofs each time.
+We recommend that during the development of large programs (> 1 million cycles) you do not generate proofs each time.
 Instead, you should have your script only execute the program with the RISC-V runtime and read `public_values`. Here is an example:
 
 ```rust,noplayground
 {{#include ../../examples/fibonacci/script/bin/execute.rs}}
 ```
 
-If execution of your program succeeds, then proof generation should succeed as well! (Unless there is a bug in our zkVM implementation.)
+If the execution of your program succeeds, then proof generation should succeed as well! (Unless there is a bug in our zkVM implementation.)
 
 ## Compressed Proofs
 
@@ -61,7 +61,7 @@ SHARD_SIZE=4194304 RUST_LOG=info RUSTFLAGS='-C target-cpu=native' cargo run --re
 
 ## Memory Usage
 
-To reduce memory usage, set the `SHARD_BATCH_SIZE` enviroment variable depending on how much RAM
+To reduce memory usage, set the `SHARD_BATCH_SIZE` environment variable depending on how much RAM
 your machine has. A higher number will use more memory, but will be faster.
 
 ```rust,noplayground

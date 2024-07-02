@@ -16,9 +16,13 @@ fn get_docker_image() -> String {
 
 #[derive(Parser)]
 pub(crate) struct BuildArgs {
-    #[clap(long, action, help = "Ignore Rust version check.")]
+    #[clap(
+        long,
+        action,
+        help = "Create a binary using the reproducible build system with docker."
+    )]
     pub(crate) docker: bool,
-    #[clap(long, action, help = "Ignore Rust version check.")]
+    #[clap(long, action, help = "Ignore the rust version check.")]
     pub(crate) ignore_rust_version: bool,
 }
 
@@ -40,7 +44,9 @@ pub fn build_program(args: &BuildArgs) -> Result<Utf8PathBuf> {
             .context("failed to run docker command")?;
 
         if !docker_check.success() {
-            eprintln!("Docker is not installed or not running.");
+            eprintln!(
+                "docker is not installed or not running: https://docs.docker.com/get-docker/"
+            );
             exit(1);
         }
 
@@ -108,7 +114,6 @@ pub fn build_program(args: &BuildArgs) -> Result<Utf8PathBuf> {
             .context("Failed to run cargo command.")?;
 
         if !result.success() {
-            // Error message is already printed by cargo
             exit(result.code().unwrap_or(1))
         }
     }

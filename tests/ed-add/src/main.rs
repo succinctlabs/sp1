@@ -1,9 +1,8 @@
 #![no_main]
-sp1_zkvm::entrypoint!(main);
 
-extern "C" {
-    fn syscall_ed_add(p: *mut u32, q: *const u32);
-}
+use sp1_zkvm::syscalls::syscall_ed_add;
+
+sp1_zkvm::entrypoint!(main);
 
 pub fn main() {
     for _ in 0..4 {
@@ -25,9 +24,7 @@ pub fn main() {
             167, 131, 199, 47, 82, 134, 53, 62,
         ];
 
-        unsafe {
-            syscall_ed_add(a.as_mut_ptr() as *mut u32, b.as_ptr() as *const u32);
-        }
+        syscall_ed_add(a.as_mut_ptr() as *mut u32, b.as_ptr() as *mut u32);
 
         // 36213413123116753589144482590359479011148956763279542162278577842046663495729
         // 17093345531692682197799066694073110060588941459686871373458223451938707761683
