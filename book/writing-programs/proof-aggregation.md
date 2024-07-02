@@ -1,10 +1,9 @@
 # Proof Aggregation
 
-SP1 supports proof aggregation and recursion, which allows you to verify proofs within a proof. Usecases include:
+SP1 supports proof aggregation and recursion, which allows you to verify proofs within a proof. Use cases include:
 
 - Reducing on-chain verification costs by aggregating multiple proofs into a single proof.
 - Proving logic that is split into multiple proofs, such as proving a statement about a rollup's state transition function.
-- etc.
 
 **For an example of how to use proof aggregation and recursion in SP1, refer to the [aggregation example](https://github.com/succinctlabs/sp1/blob/main/examples/aggregation/script/src/main.rs).**
 
