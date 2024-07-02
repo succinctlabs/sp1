@@ -24,7 +24,7 @@ rayon = "1.10.0"
 itertools = "0.13.0"
 tracing = "0.1.40"
 tracing-subscriber = "0.3.18"
-serde_json = "1.0.117"
+serde_json = "1.0.120"
 clap = { version = "4.5.7", features = ["derive", "env"] }
 sha2 = "0.10.8"
 hex = "0.4.3"
