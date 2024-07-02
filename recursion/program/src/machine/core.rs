@@ -471,6 +471,17 @@ where
                     }
                 });
 
+                // Update the committed value digest.
+                #[allow(clippy::needless_range_loop)]
+                for i in 0..committed_value_digest.len() {
+                    for j in 0..WORD_SIZE {
+                        builder.assign(
+                            committed_value_digest[i][j],
+                            public_values.committed_value_digest[i][j],
+                        );
+                    }
+                }
+
                 // If `deferred_proofs_digest` is not zero, then `public_values.deferred_proofs_digest
                 // should be the current value.
                 let is_zero: Var<_> = builder.eval(C::N::one());
@@ -487,6 +498,15 @@ where
                         public_values.deferred_proofs_digest[0],
                     );
                 });
+
+                // Update the deferred proofs digest.
+                #[allow(clippy::needless_range_loop)]
+                for i in 0..deferred_proofs_digest.len() {
+                    builder.assign(
+                        deferred_proofs_digest[i],
+                        public_values.deferred_proofs_digest[i],
+                    );
+                }
             }
 
             // Verify that the number of shards is not too large.
