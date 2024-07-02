@@ -1,10 +1,14 @@
 use std::iter::once;
 
-use p3_field::{AbstractField, PrimeField32};
+use p3_field::{Field, PrimeField32};
+use serde::{Deserialize, Serialize};
+use sp1_core::air::MachineProgram;
 use sp1_core::{air::PublicValues, stark::MachineRecord};
+use sp1_derive::AlignedBorrow;
+use sp1_recursion_core::{air::Block, runtime::D};
 
 pub mod alu;
-// pub mod builder;
+pub mod builder;
 pub mod machine;
 pub mod mem;
 pub mod program;
@@ -18,15 +22,15 @@ pub mod program;
 #[derive(Clone, Debug)]
 pub struct AluEvent<F> {
     pub opcode: Opcode,
-    pub out: AddressValueBase<F>,
-    pub in1: AddressValueBase<F>,
-    pub in2: AddressValueBase<F>,
+    pub out: AddressValue<F, F>,
+    pub in1: AddressValue<F, F>,
+    pub in2: AddressValue<F, F>,
     pub mult: F, // number of times we need this value in the future
 }
 
 #[derive(Clone, Debug)]
 pub struct MemEvent<F> {
-    pub address_value: AddressValue<F>,
+    pub address_value: AddressValue<F, Block<F>>,
     pub multiplicity: F,
     pub kind: MemAccessKind,
 }
@@ -37,52 +41,40 @@ pub enum MemAccessKind {
     Write,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct AddressValue<F> {
-    addr: F,
-    val: Block<F>,
+#[derive(AlignedBorrow, Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(C)]
+/// A memory address along with the stored value.
+/// For alignment reasons, `val` is first --- in `AddressValue<F, Block<F>>`, `val` is well-aligned.
+pub struct AddressValue<A, V> {
+    val: V,
+    addr: A,
 }
 
-impl<F> AddressValue<F> {
-    pub fn new(addr: F, val: Block<F>) -> Self {
-        Self { addr, val }
-    }
-
-    pub fn iter(&self) -> std::iter::Chain<std::iter::Once<&F>, std::slice::Iter<F>> {
-        once(&self.addr).chain(self.val.0.iter())
-    }
-
-    pub fn iter_mut(
-        &mut self,
-    ) -> std::iter::Chain<std::iter::Once<&mut F>, std::slice::IterMut<F>> {
-        once(&mut self.addr).chain(self.val.0.iter_mut())
-    }
-}
-
-/// Used for base field computations.
-/// Should not be read/written to memory directly. Instead, convert to `AddressValue`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct AddressValueBase<F> {
-    addr: F,
-    val: F,
-}
-
-impl<F> AddressValueBase<F> {
-    pub fn new(addr: F, val: F) -> Self {
+impl<A, V> AddressValue<A, V> {
+    pub fn new(addr: A, val: V) -> Self {
         Self { addr, val }
     }
 }
 
-// TODO this is not what we want and doesn't work in `eval`
-impl<F: Default> From<AddressValueBase<F>> for AddressValue<F> {
-    fn from(other: AddressValueBase<F>) -> Self {
-        let AddressValueBase { addr, val } = other;
-        let mut padded_val = <[F; D]>::default();
-        padded_val[0] = val;
-        Self {
-            addr,
-            val: Block(padded_val),
-        }
+// impl<F> IntoIterator for AddressValue<F, F> {
+//     type Item = F;
+
+//     type IntoIter = std::array::IntoIter<F, 2>;
+
+//     fn into_iter(self) -> Self::IntoIter {
+//         let Self { addr, val } = self;
+//         [addr, val].into_iter()
+//     }
+// }
+
+impl<F> IntoIterator for AddressValue<F, Block<F>> {
+    type Item = F;
+
+    type IntoIter = std::iter::Chain<std::iter::Once<F>, std::array::IntoIter<F, D>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        let Self { addr, val } = self;
+        once(addr).chain(val)
     }
 }
 
@@ -146,11 +138,6 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
         self.public_values.to_vec()
     }
 }
-
-use p3_field::Field;
-use serde::{Deserialize, Serialize};
-use sp1_core::air::MachineProgram;
-use sp1_recursion_core::{air::Block, runtime::D};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct RecursionProgram<F> {

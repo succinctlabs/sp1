@@ -3,15 +3,12 @@ use p3_air::{Air, BaseAir};
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
-use sp1_core::air::AirInteraction;
 use sp1_core::air::MachineAir;
-use sp1_core::air::SP1AirBuilder;
-use sp1_core::lookup::InteractionKind;
 use sp1_core::utils::pad_to_power_of_two;
 use sp1_derive::AlignedBorrow;
 use std::borrow::BorrowMut;
 
-use crate::*;
+use crate::{builder::SP1RecursionAirBuilder, *};
 
 pub const NUM_MEM_INIT_COLS: usize = core::mem::size_of::<MemoryCols<u8>>();
 
@@ -21,7 +18,7 @@ pub struct MemoryChip {}
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct MemoryCols<T: Copy> {
-    pub address_value: AddressValue<T>,
+    pub address_value: AddressValue<T, Block<T>>,
     pub read_mult: T,
     pub write_mult: T,
     pub is_real: T,
@@ -97,7 +94,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip {
 
 impl<AB> Air<AB> for MemoryChip
 where
-    AB: SP1AirBuilder,
+    AB: SP1RecursionAirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
@@ -107,24 +104,9 @@ where
         // At most one should be true.
         // builder.assert_zero(local.read_mult * local.write_mult);
 
-        let values = local
-            .address_value
-            .iter()
-            .cloned()
-            .map(Into::into)
-            .collect::<Vec<_>>();
+        builder.receive_block(local.address_value, local.read_mult);
 
-        builder.receive(AirInteraction::new(
-            values.clone(),
-            local.read_mult.into(),
-            InteractionKind::Memory,
-        ));
-
-        builder.send(AirInteraction::new(
-            values,
-            local.write_mult.into(),
-            InteractionKind::Memory,
-        ));
+        builder.send_block(local.address_value, local.write_mult);
     }
 }
 
