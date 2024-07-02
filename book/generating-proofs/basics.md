@@ -19,6 +19,10 @@ You can run the above script in the `script` directory with `RUST_LOG=info cargo
 
 ## Build Script
 
+> WARNING: This may not generate a reproducible ELF which is necessary for verifying that your binary corresponds to given source code.
+>
+> When building a ELF that will be used in production, make sure to use the [reproducible build system](../writing-programs/setup.md#build-production).
+
 If you want your program crate to be built automatically whenever you build/run your script crate, you can add a `build.rs` file inside of `script/` (at the same level as `Cargo.toml`):
 
 ```rust,noplayground
