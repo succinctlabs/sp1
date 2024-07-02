@@ -332,7 +332,7 @@ pub fn run_test_io(
         runtime
     });
     let public_values = SP1PublicValues::from(&runtime.state.public_values_stream);
-    let _ = run_test_core(runtime)?;
+    let _ = run_test_core(runtime, inputs)?;
     Ok(public_values)
 }
 
@@ -347,12 +347,13 @@ pub fn run_test(
         runtime.run().unwrap();
         runtime
     });
-    run_test_core(runtime)
+    run_test_core(runtime, SP1Stdin::new())
 }
 
 #[allow(unused_variables)]
 pub fn run_test_core(
     runtime: Runtime,
+    inputs: SP1Stdin,
 ) -> Result<
     crate::stark::MachineProof<BabyBearPoseidon2>,
     crate::stark::MachineVerificationError<BabyBearPoseidon2>,
@@ -360,7 +361,7 @@ pub fn run_test_core(
     let config = BabyBearPoseidon2::new();
     let (proof, output) = prove_with_context(
         Program::clone(&runtime.program),
-        &SP1Stdin::new(),
+        &inputs,
         config,
         SP1CoreOpts::default(),
         SP1Context::default(),
