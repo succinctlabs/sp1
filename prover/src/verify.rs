@@ -4,10 +4,8 @@ use anyhow::Result;
 use num_bigint::BigUint;
 use p3_baby_bear::BabyBear;
 use p3_field::{AbstractField, PrimeField};
-use sha2::digest::consts::Z0;
 use sp1_core::air::{Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS, WORD_SIZE};
 use sp1_core::runtime::SubproofVerifier;
-use sp1_core::utils::DIGEST_SIZE;
 use sp1_core::{
     air::PublicValues,
     io::SP1PublicValues,
@@ -96,7 +94,7 @@ impl SP1Prover {
                 return Err(MachineVerificationError::InvalidPublicValues(
                     "start_pc != vk.start_pc: program counter should start at vk.start_pc",
                 ));
-            } else if public_values.start_pc != last_next_pc {
+            } else if i != 0 && public_values.start_pc != last_next_pc {
                 return Err(MachineVerificationError::InvalidPublicValues(
                     "start_pc != next_pc_prev: start_pc should equal next_pc_prev for all shards",
                 ));
@@ -105,7 +103,7 @@ impl SP1Prover {
                 return Err(MachineVerificationError::InvalidPublicValues(
                     "start_pc != next_pc: start_pc should equal next_pc for non-cpu shards",
                 ));
-            } else if public_values.start_pc == BabyBear::zero() {
+            } else if shard_proof.contains_cpu() && public_values.start_pc == BabyBear::zero() {
                 return Err(MachineVerificationError::InvalidPublicValues(
                     "start_pc == 0: execution should never start at halted state",
                 ));
