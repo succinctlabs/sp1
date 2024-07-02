@@ -86,7 +86,7 @@ impl SP1Prover {
         //
         // Finalization:
         // - `next_pc` should equal zero.
-        let mut last_next_pc = BabyBear::zero();
+        let mut prev_next_pc = BabyBear::zero();
         for (i, shard_proof) in proof.0.iter().enumerate() {
             let public_values: &PublicValues<Word<_>, _> =
                 shard_proof.public_values.as_slice().borrow();
@@ -94,7 +94,7 @@ impl SP1Prover {
                 return Err(MachineVerificationError::InvalidPublicValues(
                     "start_pc != vk.start_pc: program counter should start at vk.start_pc",
                 ));
-            } else if i != 0 && public_values.start_pc != last_next_pc {
+            } else if i != 0 && public_values.start_pc != prev_next_pc {
                 return Err(MachineVerificationError::InvalidPublicValues(
                     "start_pc != next_pc_prev: start_pc should equal next_pc_prev for all shards",
                 ));
@@ -112,7 +112,7 @@ impl SP1Prover {
                     "next_pc != 0: execution should have halted",
                 ));
             }
-            last_next_pc = public_values.next_pc;
+            prev_next_pc = public_values.next_pc;
         }
 
         // Exit code constraints.
