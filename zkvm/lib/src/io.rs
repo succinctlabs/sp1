@@ -39,7 +39,7 @@ impl Write for SyscallWriter {
 /// Read a buffer from the input stream.
 ///
 /// ### Examples
-/// ```no_run
+/// ```ignore
 /// let data: Vec<u8> = sp1_zkvm::io::read_vec();
 /// ```
 pub fn read_vec() -> Vec<u8> {
@@ -71,7 +71,7 @@ pub fn read_vec() -> Vec<u8> {
 /// Read a deserializable object from the input stream.
 ///
 /// ### Examples
-/// ```no_run
+/// ```ignore
 /// use serde::{Deserialize, Serialize};
 ///
 /// #[derive(Serialize, Deserialize)]
@@ -90,7 +90,7 @@ pub fn read<T: DeserializeOwned>() -> T {
 /// Commit a serializable object to the public values stream.
 ///
 /// ### Examples
-/// ```no_run
+/// ```ignore
 /// use serde::{Deserialize, Serialize};
 ///
 /// #[derive(Serialize, Deserialize)]
@@ -115,7 +115,7 @@ pub fn commit<T: Serialize>(value: &T) {
 /// Commit bytes to the public values stream.
 ///
 /// ### Examples
-/// ```no_run
+/// ```ignore
 /// let data = vec![1, 2, 3, 4];
 /// sp1_zkvm::io::commit_slice(&data);
 /// ```
@@ -129,7 +129,7 @@ pub fn commit_slice(buf: &[u8]) {
 /// Hint a serializable object to the hint stream.
 ///
 /// ### Examples
-/// ```no_run
+/// ```ignore
 /// use serde::{Deserialize, Serialize};
 ///
 /// #[derive(Serialize, Deserialize)]
@@ -152,7 +152,7 @@ pub fn hint<T: Serialize>(value: &T) {
 /// Hint bytes to the hint stream.
 ///
 /// ### Examples
-/// ```no_run
+/// ```ignore
 /// let data = vec![1, 2, 3, 4];
 /// sp1_zkvm::io::hint_slice(&data);
 /// ```
@@ -164,7 +164,7 @@ pub fn hint_slice(buf: &[u8]) {
 /// Write the data `buf` to the file descriptor `fd`.
 ///
 /// ### Examples
-/// ```no_run
+/// ```ignore
 /// let data = vec![1, 2, 3, 4];
 /// sp1_zkvm::io::write(3, &data);
 /// ```
