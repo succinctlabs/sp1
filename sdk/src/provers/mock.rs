@@ -1,11 +1,19 @@
 #![allow(unused_variables)]
+use std::collections::HashMap;
+
 use crate::{
     Prover, SP1Proof, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerificationError,
     SP1VerifyingKey,
 };
 use anyhow::Result;
-use p3_field::PrimeField;
-use sp1_core::{runtime::SP1Context, utils::SP1ProverOpts};
+use p3_baby_bear::BabyBear;
+use p3_field::{AbstractField, PrimeField};
+use p3_fri::{FriProof, TwoAdicFriPcsProof};
+use sp1_core::{
+    runtime::SP1Context,
+    stark::{ShardCommitment, ShardOpenedValues, ShardProof},
+    utils::SP1ProverOpts,
+};
 use sp1_prover::{
     verify::verify_plonk_bn254_public_inputs, HashableKey, PlonkBn254Proof, SP1Prover, SP1Stdin,
 };
@@ -35,7 +43,7 @@ impl Prover for MockProver {
     }
 
     fn sp1_prover(&self) -> &SP1Prover {
-        unimplemented!("MockProver does not support SP1Prover")
+        &self.prover
     }
 
     fn prove<'a>(
@@ -56,7 +64,33 @@ impl Prover for MockProver {
                     sp1_version: self.version().to_string(),
                 })
             }
-            SP1ProofKind::Compressed => unimplemented!(),
+            SP1ProofKind::Compressed => {
+                let (public_values, _) = SP1Prover::execute(&pk.elf, &stdin, context)?;
+                Ok(SP1ProofWithPublicValues {
+                    proof: SP1Proof::Compressed(ShardProof {
+                        commitment: ShardCommitment {
+                            main_commit: [BabyBear::zero(); 8].into(),
+                            permutation_commit: [BabyBear::zero(); 8].into(),
+                            quotient_commit: [BabyBear::zero(); 8].into(),
+                        },
+                        opened_values: ShardOpenedValues { chips: vec![] },
+                        opening_proof: TwoAdicFriPcsProof {
+                            fri_proof: FriProof {
+                                commit_phase_commits: vec![],
+                                query_proofs: vec![],
+                                final_poly: Default::default(),
+                                pow_witness: BabyBear::zero(),
+                            },
+                            query_openings: vec![],
+                        },
+                        chip_ordering: HashMap::new(),
+                        public_values: vec![],
+                    }),
+                    stdin,
+                    public_values,
+                    sp1_version: self.version().to_string(),
+                })
+            }
             SP1ProofKind::Plonk => {
                 let (public_values, _) = SP1Prover::execute(&pk.elf, &stdin, context)?;
                 Ok(SP1ProofWithPublicValues {
