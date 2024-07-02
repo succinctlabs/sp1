@@ -29,7 +29,7 @@ impl NewCmd {
             fs::create_dir(&self.name)?;
         }
 
-        // Clone the repository with the specified version (branch or tag).
+        // Clone the repository with the specified version.
         let output = Command::new("git")
             .arg("clone")
             .arg("--branch")
