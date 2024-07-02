@@ -24,7 +24,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
- test-fast:
+  test-fast:
     name: Test (fast-experimental)
     runs-on: runs-on,runner=64cpu-linux-x64,spot=false
     env:
