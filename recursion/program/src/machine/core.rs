@@ -200,7 +200,7 @@ where
         let init_addr_bits: [Felt<_>; 32] = array::from_fn(|_| builder.uninit());
         let finalize_addr_bits: [Felt<_>; 32] = array::from_fn(|_| builder.uninit());
 
-        // Range check that the number of proofs is sufficiently small.
+        // Verify that the batch size is sufficiently small.
         let num_shard_proofs: Var<_> = shard_proofs.len().materialize(builder);
         builder.range_check_v(num_shard_proofs, 16);
 
