@@ -1,3 +1,5 @@
+extern crate alloc;
+
 pub mod heap;
 pub mod syscalls;
 
@@ -5,13 +7,10 @@ pub mod syscalls;
 pub mod io {
     pub use sp1_lib::io::*;
 }
-
 #[cfg(feature = "lib")]
 pub mod lib {
     pub use sp1_lib::*;
 }
-
-extern crate alloc;
 
 #[macro_export]
 macro_rules! entrypoint {
