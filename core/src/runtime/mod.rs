@@ -37,7 +37,6 @@ use std::sync::Arc;
 
 use thiserror::Error;
 
-use crate::air::PublicValues;
 use crate::alu::create_alu_lookup_id;
 use crate::alu::create_alu_lookups;
 use crate::bytes::NUM_BYTE_LOOKUP_CHANNELS;
