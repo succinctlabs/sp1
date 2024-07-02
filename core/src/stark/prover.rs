@@ -24,10 +24,90 @@ use super::{StarkProvingKey, VerifierConstraintFolder};
 use crate::air::MachineAir;
 use crate::lookup::InteractionBuilder;
 use crate::stark::record::MachineRecord;
+use crate::stark::DebugConstraintBuilder;
 use crate::stark::MachineChip;
 use crate::stark::PackedChallenge;
 use crate::stark::ProverConstraintFolder;
 use crate::utils::SP1CoreOpts;
+
+pub trait StarkProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>> {
+    type MainData;
+
+    type ShardCommitData;
+
+    type Error;
+
+    /// A reference to the machine that this prover is using.
+    fn machine(&self) -> &StarkMachine<SC, A>;
+
+    /// Commit to the main execution trace.
+    fn commit_main(&self, shard: &A::Record) -> Self::MainData;
+
+    fn commit_shards(
+        &self,
+        shards: &[A::Record],
+        opts: SP1CoreOpts,
+    ) -> (Vec<Com<SC>>, Vec<Self::ShardCommitData>);
+
+    fn prove_shard(
+        pk: &StarkProvingKey<SC>,
+        shard_data: Self::MainData,
+        challenger: &mut SC::Challenger,
+    ) -> Result<ShardProof<SC>, Self::Error>;
+
+    fn prove_shards(
+        &self,
+        pk: &StarkProvingKey<SC>,
+        shards: Vec<A::Record>,
+        challenger: &mut SC::Challenger,
+        opts: SP1CoreOpts,
+    ) -> Result<MachineProof<SC>, Self::Error>;
+
+    /// The stark config for the machine.
+    fn config(&self) -> &SC {
+        self.machine().config()
+    }
+
+    /// Prove the execution record is valid.
+    ///
+    /// Given a proving key `pk` and a matching execution record `record`, this function generates
+    /// a STARK proof that the execution record is valid.
+    fn prove<P: Prover<SC, A>>(
+        &self,
+        pk: &StarkProvingKey<SC>,
+        mut records: Vec<A::Record>,
+        challenger: &mut SC::Challenger,
+        opts: SP1CoreOpts,
+    ) -> Result<MachineProof<SC>, Self::Error>
+    where
+        A: for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
+    {
+        let chips = self.machine().chips();
+        records.iter_mut().for_each(|record| {
+            chips.iter().for_each(|chip| {
+                let mut output = A::Record::default();
+                chip.generate_dependencies(record, &mut output);
+                record.append(&mut output);
+            });
+            record.register_nonces();
+        });
+
+        tracing::info_span!("prove_shards")
+            .in_scope(|| self.prove_shards(pk, records, challenger, opts))
+    }
+
+    fn debug_constraints(
+        &self,
+        pk: &StarkProvingKey<SC>,
+        records: Vec<A::Record>,
+        challenger: &mut SC::Challenger,
+    ) where
+        SC::Val: PrimeField32,
+        A: for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
+    {
+        self.machine().debug_constraints(pk, records, challenger)
+    }
+}
 
 fn chunk_vec<T>(mut vec: Vec<T>, chunk_size: usize) -> Vec<Vec<T>> {
     let mut result = Vec::new();
