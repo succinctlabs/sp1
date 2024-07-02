@@ -24,6 +24,19 @@ pub struct InstallToolchainCmd {}
 
 impl InstallToolchainCmd {
     pub fn run(&self) -> Result<()> {
+        // Check if rust is installed.
+        if Command::new("rustup")
+            .arg("--version")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .is_err()
+        {
+            return Err(anyhow::anyhow!(
+                "Rust is not installed. Please install Rust from https://rustup.rs/ and try again."
+            ));
+        }
+
         // Setup client.
         let client = Client::builder().user_agent("Mozilla/5.0").build()?;
 
