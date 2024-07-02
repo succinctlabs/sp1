@@ -215,7 +215,7 @@ mod tests {
     fn generate_trace() {
         type F = BabyBear;
 
-        let shard = ExecutionRecord::<F> {
+        let shard = ExecutionRecord {
             ext_alu_events: vec![ExtAluEvent {
                 out: AddressValue::new(F::zero(), F::one().into()),
                 in1: AddressValue::new(F::zero(), F::one().into()),

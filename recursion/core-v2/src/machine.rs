@@ -111,14 +111,18 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> RecursionAir<F> {
 mod tests {
 
     use p3_baby_bear::BabyBear;
-    use p3_field::AbstractField;
+    use p3_field::{
+        extension::{BinomialExtensionField, HasFrobenius},
+        AbstractExtensionField, AbstractField,
+    };
+    use rand::prelude::*;
     use sp1_core::utils::{run_test_machine, BabyBearPoseidon2};
-    use sp1_recursion_core::air::Block;
+    use sp1_recursion_core::{air::Block, runtime::D};
     // use sp1_recursion_core::air::SP1RecursionAirBuilder;
 
     use crate::{
-        machine::RecursionAir, AddressValue, BaseAluEvent, ExecutionRecord, MemAccessKind,
-        MemEvent, Opcode, RecursionProgram,
+        machine::RecursionAir, AddressValue, BaseAluEvent, ExecutionRecord, ExtAluEvent,
+        MemAccessKind, MemEvent, Opcode, RecursionProgram,
     };
 
     #[test]
@@ -364,6 +368,66 @@ mod tests {
             in2: three,
             mult: embed(0),
         });
+
+        let result = run_test_machine(record, machine, pk, vk);
+        if let Err(e) = result {
+            panic!("Verification failed: {:?}", e);
+        }
+    }
+
+    #[test]
+    pub fn field_norm() {
+        type F = BabyBear;
+        let embed = F::from_canonical_u32;
+
+        let program = RecursionProgram::default();
+
+        let machine = RecursionAir::machine(BabyBearPoseidon2::default());
+        let (pk, vk) = machine.setup(&program);
+
+        let mut record = ExecutionRecord::default();
+
+        let mut rng = StdRng::seed_from_u64(0);
+        let mut addr = F::zero();
+        for _ in 0..1000 {
+            let inner: [F; 4] = core::array::from_fn(|_| rng.sample(rand::distributions::Standard));
+            let x = BinomialExtensionField::<F, D>::from_base_slice(&inner);
+            let gal = x.galois_group();
+
+            let mut acc = BinomialExtensionField::one();
+
+            record.mem_events.push(MemEvent {
+                address_value: AddressValue::new(addr, F::one().into()),
+                multiplicity: embed(1),
+                kind: MemAccessKind::Write,
+            });
+            for conj in gal {
+                record.mem_events.push(MemEvent {
+                    address_value: AddressValue::new(addr + embed(1), conj.as_base_slice().into()),
+                    multiplicity: embed(1),
+                    kind: MemAccessKind::Write,
+                });
+                let prod = acc * conj;
+                let in1 = AddressValue::new(addr, acc.as_base_slice().into());
+                let in2 = AddressValue::new(addr + embed(1), conj.as_base_slice().into());
+                let out = AddressValue::new(addr + embed(2), prod.as_base_slice().into());
+                record.ext_alu_events.push(ExtAluEvent {
+                    opcode: Opcode::MulE,
+                    out,
+                    in1,
+                    in2,
+                    mult: embed(1),
+                });
+                addr += embed(2);
+                acc = prod;
+            }
+            let base_component: F = acc.as_base_slice()[0];
+            record.mem_events.push(MemEvent {
+                address_value: AddressValue::new(addr, Block::from(base_component)),
+                multiplicity: embed(1),
+                kind: MemAccessKind::Read,
+            });
+        }
 
         let result = run_test_machine(record, machine, pk, vk);
         if let Err(e) = result {
