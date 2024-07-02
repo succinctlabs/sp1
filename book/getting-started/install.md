@@ -5,6 +5,7 @@ build the toolchain and CLI from source.
 
 ## Requirements
 
+- [Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)
 - [Rust (Nightly)](https://www.rust-lang.org/tools/install)
 - [Docker](https://docs.docker.com/get-docker/)
 - [Go >1.22.1 (Optional)](https://go.dev/doc/install)
