@@ -1089,15 +1089,15 @@ impl<'a> Runtime<'a> {
             }
         }
 
-        // Get the final public values.
-        let public_values = self.record.public_values;
-
         // Push the remaining execution record, if there are any CPU events.
         if !self.record.cpu_events.is_empty() {
             let record = std::mem::take(&mut self.record);
             self.record.program = program.clone();
             self.records.push(record);
         }
+
+        // Get the final public values.
+        let public_values = self.records.last().unwrap().public_values;
 
         if done {
             self.postprocess();

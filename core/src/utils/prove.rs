@@ -158,6 +158,8 @@ where
         }
     };
 
+    println!("public_values: {:?}", public_values);
+
     // Commit to the shards.
     #[cfg(debug_assertions)]
     let mut debug_records: Vec<ExecutionRecord> = Vec::new();

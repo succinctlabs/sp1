@@ -682,7 +682,7 @@ pub mod tests {
         let program = fibonacci_program();
         let stdin = SP1Stdin::new();
         let mut opts = SP1CoreOpts::default();
-        opts.shard_size = 4096;
+        opts.shard_size = 1024;
         opts.shard_batch_size = 2;
         prove(program, &stdin, BabyBearPoseidon2::new(), opts).unwrap();
     }
