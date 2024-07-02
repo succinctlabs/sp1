@@ -37,6 +37,7 @@ use std::sync::Arc;
 
 use thiserror::Error;
 
+use crate::air::PublicValues;
 use crate::alu::create_alu_lookup_id;
 use crate::alu::create_alu_lookups;
 use crate::bytes::NUM_BYTE_LOOKUP_CHANNELS;
@@ -1097,7 +1098,10 @@ impl<'a> Runtime<'a> {
         }
 
         // Get the final public values.
-        let public_values = self.records.last().unwrap().public_values;
+        let public_values = match self.records.last() {
+            Some(record) => record.public_values,
+            None => PublicValues::default(),
+        };
 
         if done {
             self.postprocess();
