@@ -159,8 +159,9 @@ where
     };
 
     // Commit to the shards.
-    let mut deferred = ExecutionRecord::new(program.clone().into());
+    #[cfg(debug_assertions)]
     let mut debug_records: Vec<ExecutionRecord> = Vec::new();
+    let mut deferred = ExecutionRecord::new(program.clone().into());
     let mut state = public_values.reset();
     let nb_checkpoints = checkpoints.len();
     let mut challenger = machine.config().challenger();
@@ -357,18 +358,22 @@ pub fn run_test_core(
     crate::stark::MachineVerificationError<BabyBearPoseidon2>,
 > {
     let config = BabyBearPoseidon2::new();
+    let (proof, output) = prove_with_context(
+        Program::clone(&runtime.program),
+        &SP1Stdin::new(),
+        config,
+        SP1CoreOpts::default(),
+        SP1Context::default(),
+    )
+    .unwrap();
+
+    let config = BabyBearPoseidon2::new();
     let machine = RiscvAir::machine(config);
     let (pk, vk) = machine.setup(runtime.program.as_ref());
+    let mut challenger = machine.config().challenger();
+    machine.verify(&vk, &proof, &mut challenger).unwrap();
 
-    let mut records = runtime.records;
-    println!("records.len(): {}", records.len());
-    let mut deferred = ExecutionRecord::default();
-    records.iter_mut().for_each(|record| {
-        deferred.append(&mut record.defer());
-    });
-    let mut deferred = deferred.split(true);
-    records.append(&mut deferred);
-    run_test_machine(records, machine, pk, vk)
+    Ok(proof)
 }
 
 #[allow(unused_variables)]
