@@ -29,7 +29,7 @@ pub fn build_program(path: &str, args: Option<BuildArgs>) {
     println!("path: {:?}", path);
     let program_dir = std::path::Path::new(path);
 
-    // Tell cargo to rerun the script only if program/{src, Cargo.toml, Cargo.lock} changes
+    // Tell cargo to rerun the script if program/{src, Cargo.toml, Cargo.lock} or any dependency changes
     // Ref: https://doc.rust-lang.org/nightly/cargo/reference/build-scripts.html#rerun-if-changed
     let dirs = vec![
         program_dir.join("src"),
@@ -37,14 +37,24 @@ pub fn build_program(path: &str, args: Option<BuildArgs>) {
         program_dir.join("Cargo.lock"),
     ];
     for dir in dirs {
-        println!("cargo::rerun-if-changed={}", dir.display());
+        println!("cargo:rerun-if-changed={}", dir.display());
+    }
+
+    // Rerun if any dependency changes.
+    let metadata_file = program_dir.join("Cargo.toml");
+    let mut metadata_cmd = cargo_metadata::MetadataCommand::new();
+    let metadata = metadata_cmd.manifest_path(metadata_file).exec().unwrap();
+    println!(
+        "cargo:rerun-if-changed={}",
+        metadata.workspace_root.join("Cargo.lock").as_str()
+    );
+
+    for package in &metadata.packages {
+        println!("cargo:rerun-if-changed={}", package.manifest_path.as_str());
     }
 
     // Print a message so the user knows that their program was built. Cargo caches warnings emitted
     // from build scripts, so we'll print the date/time when the program was built.
-    let metadata_file = program_dir.join("Cargo.toml");
-    let mut metadata_cmd = cargo_metadata::MetadataCommand::new();
-    let metadata = metadata_cmd.manifest_path(metadata_file).exec().unwrap();
     let root_package = metadata.root_package();
     let root_package_name = root_package
         .as_ref()
