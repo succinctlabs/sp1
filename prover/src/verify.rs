@@ -192,13 +192,13 @@ impl SP1Prover {
                 && public_values.committed_value_digest != commited_value_digest_prev
             {
                 return Err(MachineVerificationError::InvalidPublicValues(
-                    "committed_value_digest != commited_value_digest_prev: committed_value_digest should equal commited_value_digest_prev for all shards",
+                    "committed_value_digest != commited_value_digest_prev: commited_value_digest should start at zero or equal commited_value_digest of the previous shard",
                 ));
             } else if deferred_proofs_digest_prev != zero_deferred_proofs_digest
                 && public_values.deferred_proofs_digest != deferred_proofs_digest_prev
             {
                 return Err(MachineVerificationError::InvalidPublicValues(
-                    "deferred_proofs_digest != deferred_proofs_digest_prev: deferred_proofs_digest should equal deferred_proofs_digest_prev for all shards",
+                    "deferred_proofs_digest != deferred_proofs_digest_prev: deferred_proofs_digest should start at zero or equal deferred_proofs_digest of the previous shard",
                 ));
             }
             commited_value_digest_prev = public_values.committed_value_digest;
