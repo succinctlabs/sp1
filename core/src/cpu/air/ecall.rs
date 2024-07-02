@@ -5,7 +5,7 @@ use crate::air::{BaseAirBuilder, PublicValues, WordAirBuilder};
 use crate::cpu::air::{Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS};
 use crate::cpu::columns::{CpuCols, OpcodeSelectorCols};
 use crate::memory::MemoryCols;
-use crate::operations::IsZeroOperation;
+use crate::operations::{BabyBearWordRangeChecker, IsZeroOperation};
 use crate::runtime::SyscallCode;
 use crate::stark::{CpuChip, SP1AirBuilder};
 
@@ -88,6 +88,21 @@ impl CpuChip {
             .when(is_ecall_instruction.clone())
             .when_not(is_enter_unconstrained + is_hint_len)
             .assert_word_eq(local.op_a_val(), local.op_a_access.prev_value);
+
+        // Verify value of ecall_range_check_operand column.
+        builder.assert_eq(
+            local.ecall_range_check_operand,
+            is_ecall_instruction
+                * (ecall_cols.is_halt.result + ecall_cols.is_commit_deferred_proofs.result),
+        );
+
+        // Babybear range check the operand_to_check word.
+        BabyBearWordRangeChecker::<AB::F>::range_check::<AB>(
+            builder,
+            ecall_cols.operand_to_check,
+            ecall_cols.operand_range_check_cols,
+            local.ecall_range_check_operand.into(),
+        );
     }
 
     /// Constraints related to the COMMIT and COMMIT_DEFERRED_PROOFS instructions.
@@ -160,13 +175,18 @@ impl CpuChip {
             .when(local.selectors.is_ecall * is_commit)
             .assert_word_eq(expected_pv_digest_word, *digest_word);
 
-        let expected_deferred_proofs_digest_word =
+        let expected_deferred_proofs_digest_element =
             builder.index_array(&deferred_proofs_digest, &ecall_columns.index_bitmap);
+
+        // Verify that the operand that was range checked is digest_word.
+        builder
+            .when(local.selectors.is_ecall * is_commit_deferred_proofs.clone())
+            .assert_word_eq(*digest_word, ecall_columns.operand_to_check);
 
         builder
             .when(local.selectors.is_ecall * is_commit_deferred_proofs)
             .assert_eq(
-                expected_deferred_proofs_digest_word,
+                expected_deferred_proofs_digest_element,
                 digest_word.reduce::<AB>(),
             );
     }
@@ -188,6 +208,12 @@ impl CpuChip {
             .assert_zero(next.is_real);
 
         builder.when(is_halt.clone()).assert_zero(local.next_pc);
+
+        // Verify that the operand that was range checked is op_b.
+        let ecall_columns = local.opcode_specific_columns.ecall();
+        builder
+            .when(is_halt.clone())
+            .assert_word_eq(local.op_b_val(), ecall_columns.operand_to_check);
 
         builder.when(is_halt.clone()).assert_eq(
             local.op_b_access.value().reduce::<AB>(),

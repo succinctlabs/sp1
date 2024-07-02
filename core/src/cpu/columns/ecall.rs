@@ -1,7 +1,10 @@
 use sp1_derive::AlignedBorrow;
 use std::mem::size_of;
 
-use crate::{air::PV_DIGEST_NUM_WORDS, operations::IsZeroOperation};
+use crate::{
+    air::{Word, PV_DIGEST_NUM_WORDS},
+    operations::{BabyBearWordRangeChecker, IsZeroOperation},
+};
 
 pub const NUM_ECALL_COLS: usize = size_of::<EcallCols<u8>>();
 
@@ -29,4 +32,10 @@ pub struct EcallCols<T> {
 
     /// The nonce of the syscall operation.
     pub syscall_nonce: T,
+
+    /// Columns to babybear range check the halt/commit_deferred_proofs operand.
+    pub operand_range_check_cols: BabyBearWordRangeChecker<T>,
+
+    /// The operand value to babybear range check.
+    pub operand_to_check: Word<T>,
 }
