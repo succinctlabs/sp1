@@ -81,7 +81,7 @@ pub type CompressAir<F> = RecursionAir<F, COMPRESS_DEGREE>;
 pub type WrapAir<F> = RecursionAir<F, WRAP_DEGREE>;
 
 /// A end-to-end prover implementation for the SP1 RISC-V zkVM.
-pub struct SP1Prover {
+pub struct SP1Prover<Impl: ProverImpl> {
     /// The program that can recursively verify a set of proofs into a single proof.
     pub recursion_program: RecursionProgram<BabyBear>,
 
