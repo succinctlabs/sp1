@@ -62,17 +62,16 @@ pub struct SP1RecursionMemoryLayoutVariable<C: Config> {
     pub initial_reconstruct_challenger: DuplexChallengerVariable<C>,
 
     pub is_complete: Var<C::N>,
+    // pub total_execution_shards: Var<C::N>,
 
-    pub total_execution_shards: Var<C::N>,
+    // pub initial_shard: Felt<C::F>,
+    // pub current_shard: Felt<C::F>,
 
-    pub initial_shard: Felt<C::F>,
-    pub current_shard: Felt<C::F>,
+    // pub start_pc: Felt<C::F>,
+    // pub current_pc: Felt<C::F>,
 
-    pub start_pc: Felt<C::F>,
-    pub current_pc: Felt<C::F>,
-
-    pub committed_value_digest_arr: Array<C, Array<C, Felt<C::F>>>,
-    pub deferred_proofs_digest_arr: Array<C, Felt<C::F>>,
+    // pub committed_value_digest_arr: Array<C, Array<C, Felt<C::F>>>,
+    // pub deferred_proofs_digest_arr: Array<C, Felt<C::F>>,
 }
 
 impl SP1RecursiveVerifier<InnerConfig, BabyBearPoseidon2> {
@@ -146,13 +145,13 @@ where
             leaf_challenger,
             initial_reconstruct_challenger,
             is_complete,
-            total_execution_shards,
-            initial_shard,
-            current_shard,
-            start_pc,
-            current_pc,
-            committed_value_digest_arr,
-            deferred_proofs_digest_arr,
+            // total_execution_shards,
+            // initial_shard,
+            // current_shard,
+            // start_pc,
+            // current_pc,
+            // committed_value_digest_arr,
+            // deferred_proofs_digest_arr,
         } = input;
 
         // Initialize values we will commit to public outputs.
@@ -165,27 +164,18 @@ where
         let first_proof_previous_finalize_addr_bits: [Felt<_>; 32] =
             array::from_fn(|_| builder.uninit());
 
+        let initial_shard = builder.uninit();
+        let current_shard = builder.uninit();
+
+        let start_pc = builder.uninit();
+        let current_pc = builder.uninit();
+
         // The commited values digest and deferred proof digest. These will be checked to be the
         // same for all proofs.
         let committed_value_digest: [Word<Felt<_>>; PV_DIGEST_NUM_WORDS] =
             array::from_fn(|_| Word(array::from_fn(|_| builder.uninit())));
         let deferred_proofs_digest: [Felt<_>; POSEIDON_NUM_WORDS] =
             array::from_fn(|_| builder.uninit());
-        for i in 0..committed_value_digest.len() * WORD_SIZE {
-            let word_idx = i / WORD_SIZE;
-            let byte_idx = i % WORD_SIZE;
-            let witnessed_word = builder.get(&committed_value_digest_arr, word_idx);
-            let witnessed_byte = builder.get(&witnessed_word, byte_idx);
-            let word = committed_value_digest[word_idx];
-            let byte = word[byte_idx];
-            builder.assign(byte, witnessed_byte);
-        }
-        #[allow(clippy::needless_range_loop)]
-        for i in 0..deferred_proofs_digest.len() {
-            let witness = builder.get(&deferred_proofs_digest_arr, i);
-            let value = deferred_proofs_digest[i];
-            builder.assign(witness, value);
-        }
 
         // Assert that the number of proofs is not zero.
         builder.assert_usize_ne(shard_proofs.len(), 0);
@@ -471,6 +461,19 @@ where
                     }
                 });
 
+                // If it's not a shard with "CPU", then the committed value digest should not change.
+                builder.if_ne(contains_cpu, C::N::one()).then(|builder| {
+                    #[allow(clippy::needless_range_loop)]
+                    for i in 0..committed_value_digest.len() {
+                        for j in 0..WORD_SIZE {
+                            builder.assert_felt_eq(
+                                committed_value_digest[i][j],
+                                public_values.committed_value_digest[i][j],
+                            );
+                        }
+                    }
+                });
+
                 // Update the committed value digest.
                 #[allow(clippy::needless_range_loop)]
                 for i in 0..committed_value_digest.len() {
@@ -497,6 +500,17 @@ where
                         deferred_proofs_digest[0],
                         public_values.deferred_proofs_digest[0],
                     );
+                });
+
+                // If it's not a shard with "CPU", then the deferred proofs digest should not change.
+                builder.if_ne(contains_cpu, C::N::one()).then(|builder| {
+                    #[allow(clippy::needless_range_loop)]
+                    for i in 0..deferred_proofs_digest.len() {
+                        builder.assert_felt_eq(
+                            deferred_proofs_digest[i],
+                            public_values.deferred_proofs_digest[i],
+                        );
+                    }
                 });
 
                 // Update the deferred proofs digest.
@@ -557,7 +571,6 @@ where
         let end_deferred_digest = [zero; POSEIDON_NUM_WORDS];
 
         let is_complete_felt = var2felt(builder, is_complete);
-        let total_execution_shards_felt = var2felt(builder, total_execution_shards);
 
         recursion_public_values.committed_value_digest = committed_value_digest;
         recursion_public_values.deferred_proofs_digest = deferred_proofs_digest;
@@ -578,7 +591,6 @@ where
         recursion_public_values.start_reconstruct_deferred_digest = start_deferred_digest;
         recursion_public_values.end_reconstruct_deferred_digest = end_deferred_digest;
         recursion_public_values.is_complete = is_complete_felt;
-        recursion_public_values.total_execution_shards = total_execution_shards_felt;
 
         // If the proof represents a complete proof, make completeness assertions.
         //

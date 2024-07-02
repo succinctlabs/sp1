@@ -38,7 +38,6 @@ pub(crate) fn assert_complete<C: Config>(
         start_reconstruct_deferred_digest,
         end_reconstruct_deferred_digest,
         leaf_challenger,
-        total_execution_shards,
         ..
     } = public_values;
 
@@ -47,9 +46,6 @@ pub(crate) fn assert_complete<C: Config>(
 
     // Assert that the start shard is equal to 1.
     builder.assert_felt_eq(*start_shard, C::F::one());
-
-    // Assert that total_execution_shards is correct by ensuring it equals next_shard - 1.
-    builder.assert_felt_eq(*total_execution_shards, *next_shard - C::F::one());
 
     // Assert that next shard is not equal to one. This guarantees that there is at least one shard
     // with CPU.

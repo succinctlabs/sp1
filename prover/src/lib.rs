@@ -425,10 +425,7 @@ impl SP1Prover {
         let batch_size = 2;
 
         let shard_proofs = &proof.proof.0;
-        let total_execution_shards = shard_proofs
-            .iter()
-            .filter(|proof| proof.contains_cpu())
-            .count();
+
         // Get the leaf challenger.
         let mut leaf_challenger = self.core_machine.config().challenger();
         vk.vk.observe_into(&mut leaf_challenger);
@@ -505,7 +502,6 @@ impl SP1Prover {
                                 shard_proofs,
                                 kinds,
                                 is_complete,
-                                total_execution_shards,
                             };
 
                             let proof = self.compress_machine_proof(

@@ -520,13 +520,6 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
         let initial_reconstruct_challenger =
             DuplexChallenger::<InnerVal, InnerPerm, 16, 8>::read(builder);
         let is_complete = builder.hint_var();
-        let total_execution_shards = builder.hint_var();
-        let initial_shard = builder.hint_felt();
-        let current_shard = builder.hint_felt();
-        let start_pc = builder.hint_felt();
-        let current_pc = builder.hint_felt();
-        let committed_value_digest_arr = Vec::<Vec<InnerVal>>::read(builder);
-        let deferred_proofs_digest_arr = Vec::<InnerVal>::read(builder);
 
         SP1RecursionMemoryLayoutVariable {
             vk,
@@ -534,13 +527,6 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
             leaf_challenger,
             initial_reconstruct_challenger,
             is_complete,
-            total_execution_shards,
-            initial_shard,
-            current_shard,
-            start_pc,
-            current_pc,
-            committed_value_digest_arr,
-            deferred_proofs_digest_arr,
         }
     }
 
@@ -580,14 +566,12 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C> for SP1ReduceMemoryLayout<'a, Baby
         let shard_proofs = Vec::<ShardProofHint<'a, BabyBearPoseidon2, A>>::read(builder);
         let kinds = Vec::<usize>::read(builder);
         let is_complete = builder.hint_var();
-        let total_execution_shards = builder.hint_var();
 
         SP1ReduceMemoryLayoutVariable {
             compress_vk,
             shard_proofs,
             kinds,
             is_complete,
-            total_execution_shards,
         }
     }
 
@@ -611,7 +595,6 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C> for SP1ReduceMemoryLayout<'a, Baby
         stream.extend(proof_hints.write());
         stream.extend(kinds.write());
         stream.extend((self.is_complete as usize).write());
-        stream.extend(self.total_execution_shards.write());
 
         stream
     }
@@ -656,7 +639,6 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
         let leaf_challenger = DuplexChallenger::<InnerVal, InnerPerm, 16, 8>::read(builder);
         let end_pc = InnerVal::read(builder);
         let end_shard = InnerVal::read(builder);
-        let total_execution_shards = builder.hint_var();
         let init_addr_bits = Vec::<InnerVal>::read(builder);
         let finalize_addr_bits = Vec::<InnerVal>::read(builder);
 
@@ -671,7 +653,6 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
             leaf_challenger,
             end_pc,
             end_shard,
-            total_execution_shards,
             init_addr_bits,
             finalize_addr_bits,
         }

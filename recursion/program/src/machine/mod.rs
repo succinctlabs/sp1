@@ -252,7 +252,6 @@ mod tests {
                         shard_proofs: batch.to_vec(),
                         kinds,
                         is_complete,
-                        total_execution_shards,
                     };
 
                     let mut runtime = Runtime::<F, EF, _>::new(

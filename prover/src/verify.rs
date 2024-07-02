@@ -181,6 +181,10 @@ impl SP1Prover {
         //  `commited_value_digest_prev`. Otherwise, `committed_value_digest` should equal zero.
         // - If `deferred_proofs_digest_prev` is not zero, then `deferred_proofs_digest` should equal
         //  `deferred_proofs_digest_prev`. Otherwise, `deferred_proofs_digest` should equal zero.
+        // - If it's not a shard with "CPU", then `commited_value_digest` should not change from the
+        //  previous shard.
+        // - If it's not a shard with "CPU", then `deferred_proofs_digest` should not change from the
+        //  previous shard.
         let zero_commited_value_digest = [Word([BabyBear::zero(); WORD_SIZE]); PV_DIGEST_NUM_WORDS];
         let zero_deferred_proofs_digest = [BabyBear::zero(); POSEIDON_NUM_WORDS];
         let mut commited_value_digest_prev = zero_commited_value_digest;
@@ -195,6 +199,18 @@ impl SP1Prover {
                     "committed_value_digest != commited_value_digest_prev: commited_value_digest should start at zero or equal commited_value_digest of the previous shard",
                 ));
             } else if deferred_proofs_digest_prev != zero_deferred_proofs_digest
+                && public_values.deferred_proofs_digest != deferred_proofs_digest_prev
+            {
+                return Err(MachineVerificationError::InvalidPublicValues(
+                    "deferred_proofs_digest != deferred_proofs_digest_prev: deferred_proofs_digest should start at zero or equal deferred_proofs_digest of the previous shard",
+                ));
+            } else if !shard_proof.contains_cpu()
+                && public_values.committed_value_digest != commited_value_digest_prev
+            {
+                return Err(MachineVerificationError::InvalidPublicValues(
+                    "committed_value_digest != commited_value_digest_prev: commited_value_digest should start at zero or equal commited_value_digest of the previous shard",
+                ));
+            } else if !shard_proof.contains_cpu()
                 && public_values.deferred_proofs_digest != deferred_proofs_digest_prev
             {
                 return Err(MachineVerificationError::InvalidPublicValues(

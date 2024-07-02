@@ -77,7 +77,6 @@ pub struct SP1DeferredMemoryLayoutVariable<C: Config> {
     pub leaf_challenger: DuplexChallengerVariable<C>,
     pub end_pc: Felt<C::F>,
     pub end_shard: Felt<C::F>,
-    pub total_execution_shards: Var<C::N>,
     pub init_addr_bits: Array<C, Felt<C::F>>,
     pub finalize_addr_bits: Array<C, Felt<C::F>>,
 }
@@ -132,7 +131,6 @@ where
             proofs,
             start_reconstruct_deferred_digest,
             is_complete,
-            total_execution_shards,
             sp1_vk,
             committed_value_digest,
             deferred_proofs_digest,
@@ -302,7 +300,6 @@ where
 
         // Set the is_complete flag.
         deferred_public_values.is_complete = var2felt(builder, is_complete);
-        deferred_public_values.total_execution_shards = var2felt(builder, total_execution_shards);
 
         commit_public_values(builder, deferred_public_values);
     }
