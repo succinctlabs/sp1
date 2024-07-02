@@ -9,6 +9,7 @@
 
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::new_without_default)]
+#![allow(clippy::collapsible_else_if)]
 
 pub mod build;
 pub mod install;
@@ -284,11 +285,10 @@ impl SP1Prover {
             core_inputs.push(SP1RecursionMemoryLayout {
                 vk,
                 machine: &self.core_machine,
-                shard_proofs: proofs,
+                shard_proofs: proofs.clone(),
                 leaf_challenger,
                 initial_reconstruct_challenger: reconstruct_challenger.clone(),
                 is_complete,
-                total_core_shards: shard_proofs.len(),
             });
 
             for proof in batch.iter() {
@@ -321,7 +321,6 @@ impl SP1Prover {
         last_proof_pv: &PublicValues<Word<BabyBear>, BabyBear>,
         deferred_proofs: &[ShardProof<InnerSC>],
         batch_size: usize,
-        total_core_shards: usize,
     ) -> Vec<SP1DeferredMemoryLayout<'a, InnerSC, RecursionAir<BabyBear, 3>>> {
         // Prepare the inputs for the deferred proofs recursive verification.
         let mut deferred_digest = [Val::<InnerSC>::zero(); DIGEST_SIZE];
@@ -339,13 +338,12 @@ impl SP1Prover {
                 sp1_vk: vk,
                 sp1_machine: &self.core_machine,
                 end_pc: Val::<InnerSC>::zero(),
-                end_shard: last_proof_pv.shard + BabyBear::one(),
+                end_shard: last_proof_pv.execution_shard,
                 init_addr_bits: last_proof_pv.last_init_addr_bits,
                 finalize_addr_bits: last_proof_pv.last_finalize_addr_bits,
                 leaf_challenger: leaf_challenger.clone(),
                 committed_value_digest: last_proof_pv.committed_value_digest.to_vec(),
                 deferred_proofs_digest: last_proof_pv.deferred_proofs_digest.to_vec(),
-                total_core_shards,
             });
 
             deferred_digest = Self::hash_deferred_proofs(deferred_digest, batch);
@@ -386,7 +384,6 @@ impl SP1Prover {
             last_proof_pv,
             deferred_proofs,
             batch_size,
-            shard_proofs.len(),
         );
         (core_inputs, deferred_inputs)
     }
@@ -404,7 +401,7 @@ impl SP1Prover {
         let batch_size = 2;
 
         let shard_proofs = &proof.proof.0;
-        let total_core_shards = shard_proofs.len();
+
         // Get the leaf challenger.
         let mut leaf_challenger = self.core_machine.config().challenger();
         vk.vk.observe_into(&mut leaf_challenger);
@@ -457,6 +454,11 @@ impl SP1Prover {
             reduce_proofs.extend(proofs);
         }
 
+        for reduce_proof in reduce_proofs.iter() {
+            let pv: &PublicValues<_, _> = reduce_proof.0.public_values.as_slice().borrow();
+            println!("execution shard: {}", pv.execution_shard);
+        }
+
         // Iterate over the recursive proof batches until there is one proof remaining.
         let mut is_complete;
         loop {
@@ -481,7 +483,6 @@ impl SP1Prover {
                                 shard_proofs,
                                 kinds,
                                 is_complete,
-                                total_core_shards,
                             };
 
                             let proof = self.compress_machine_proof(
@@ -531,7 +532,7 @@ impl SP1Prover {
         self.compress_machine
             .prove::<LocalProver<_, _>>(
                 pk,
-                runtime.record,
+                vec![runtime.record],
                 &mut recursive_challenger,
                 opts.recursion_opts,
             )
@@ -572,7 +573,7 @@ impl SP1Prover {
         let mut compress_challenger = self.shrink_machine.config().challenger();
         let mut compress_proof = self.shrink_machine.prove::<LocalProver<_, _>>(
             &self.shrink_pk,
-            runtime.record,
+            vec![runtime.record],
             &mut compress_challenger,
             opts.recursion_opts,
         );
@@ -614,7 +615,7 @@ impl SP1Prover {
         let time = std::time::Instant::now();
         let mut wrap_proof = self.wrap_machine.prove::<LocalProver<_, _>>(
             &self.wrap_pk,
-            runtime.record,
+            vec![runtime.record],
             &mut wrap_challenger,
             opts.recursion_opts,
         );
@@ -715,13 +716,7 @@ mod tests {
 
         tracing::info!("initializing prover");
         let prover = SP1Prover::new();
-        let opts = SP1ProverOpts {
-            core_opts: SP1CoreOpts {
-                shard_size: 1 << 12,
-                ..Default::default()
-            },
-            recursion_opts: SP1CoreOpts::default(),
-        };
+        let opts = SP1ProverOpts::default();
         let context = SP1Context::default();
 
         tracing::info!("setup elf");

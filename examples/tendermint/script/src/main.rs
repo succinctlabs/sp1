@@ -63,7 +63,7 @@ fn main() {
 
     let client = ProverClient::new();
     let (pk, vk) = client.setup(TENDERMINT_ELF);
-    let proof = client.prove(&pk, stdin).run().expect("proving failed");
+    let proof = client.prove(&pk, stdin).compressed().run().expect("proving failed");
 
     // Verify proof.
     client.verify(&proof, &vk).expect("verification failed");

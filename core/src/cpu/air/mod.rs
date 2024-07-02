@@ -379,7 +379,7 @@ impl CpuChip {
         // Verify the public value's shard.
         builder
             .when(local.is_real)
-            .assert_eq(public_values.shard.clone(), local.shard);
+            .assert_eq(public_values.execution_shard.clone(), local.shard);
 
         // Verify the public value's start pc.
         builder

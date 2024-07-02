@@ -118,7 +118,6 @@ where
         machine: &StarkMachine<SC, A>,
         challenger: &mut DuplexChallengerVariable<C>,
         proof: &ShardProofVariable<C>,
-        _total_shards: Var<C::N>,
     ) where
         A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
         C::F: TwoAdicField,
@@ -133,13 +132,6 @@ where
             ..
         } = proof;
 
-        // Extract public values.
-        let mut pv_elements = Vec::new();
-        for i in 0..machine.num_pv_elts() {
-            let element = builder.get(&proof.public_values, i);
-            pv_elements.push(element);
-        }
-
         let ShardCommitmentVariable {
             main_commit,
             permutation_commit,
@@ -152,7 +144,6 @@ where
 
         challenger.observe(builder, permutation_commit.clone());
 
-        #[allow(unused_variables)]
         let alpha = challenger.sample_ext(builder);
 
         challenger.observe(builder, quotient_commit.clone());
@@ -313,10 +304,6 @@ where
         for (i, chip) in machine.chips().iter().enumerate() {
             tracing::debug!("verifying constraints for chip: {}", chip.name());
             let index = builder.get(&proof.sorted_idxs, i);
-
-            if chip.name() == "CPU" {
-                builder.assert_var_ne(index, C::N::from_canonical_usize(EMPTY));
-            }
 
             if chip.preprocessed_width() > 0 {
                 builder.assert_var_ne(index, C::N::from_canonical_usize(EMPTY));
@@ -509,7 +496,7 @@ pub(crate) mod tests {
 
         public_values.sp1_vk_digest = [builder.constant(<C as Config>::F::zero()); DIGEST_SIZE];
         public_values.next_pc = builder.constant(<C as Config>::F::one());
-        public_values.next_shard = builder.constant(<C as Config>::F::two());
+        public_values.next_execution_shard = builder.constant(<C as Config>::F::two());
         public_values.end_reconstruct_deferred_digest =
             [builder.constant(<C as Config>::F::from_canonical_usize(3)); POSEIDON_NUM_WORDS];
 
@@ -541,7 +528,7 @@ pub(crate) mod tests {
         let mut challenger = machine.config().challenger();
         let mut proof = machine.prove::<LocalProver<SC, RecursionAir<_, 3>>>(
             &pk,
-            record,
+            vec![record],
             &mut challenger,
             SP1CoreOpts::recursion(),
         );

@@ -8,7 +8,7 @@ fn main() {
     utils::setup_logger();
 
     // Create an input stream and write '500' to it.
-    let n = 500u32;
+    let n = 1u32;
 
     let mut stdin = SP1Stdin::new();
     stdin.write(&n);
@@ -16,7 +16,7 @@ fn main() {
     // Generate the proof for the given program and input.
     let client = ProverClient::new();
     let (pk, vk) = client.setup(ELF);
-    let mut proof = client.prove(&pk, stdin).run().unwrap();
+    let mut proof = client.prove(&pk, stdin).compressed().run().unwrap();
 
     println!("generated proof");
 

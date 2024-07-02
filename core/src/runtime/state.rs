@@ -1,4 +1,8 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    fs::File,
+    io::{Seek, Write},
+};
 
 use nohash_hasher::BuildNoHashHasher;
 use serde::{Deserialize, Serialize};
@@ -106,4 +110,14 @@ pub(crate) struct ForkState {
 
     // Emit events from original state
     pub(crate) emit_events: bool,
+}
+
+impl ExecutionState {
+    pub fn save(&self, file: &mut File) -> std::io::Result<()> {
+        let mut writer = std::io::BufWriter::new(file);
+        bincode::serialize_into(&mut writer, self).unwrap();
+        writer.flush()?;
+        writer.seek(std::io::SeekFrom::Start(0))?;
+        Ok(())
+    }
 }

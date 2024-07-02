@@ -4,7 +4,7 @@ use anyhow::Result;
 use num_bigint::BigUint;
 use p3_baby_bear::BabyBear;
 use p3_field::{AbstractField, PrimeField};
-use sp1_core::air::Word;
+use sp1_core::air::{Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS, WORD_SIZE};
 use sp1_core::runtime::SubproofVerifier;
 use sp1_core::{
     air::PublicValues,
@@ -47,87 +47,178 @@ impl SP1Prover {
         self.core_machine
             .verify(&vk.vk, &machine_proof, &mut challenger)?;
 
-        // Verify shard transitions.
+        // Assert that the first shard has a "CPU".
+        let first_shard = proof.0.first().unwrap();
+        if !first_shard.contains_cpu() {
+            return Err(MachineVerificationError::MissingCpuInFirstShard);
+        }
+
+        // Execution shard constraints.
+        //
+        // Initialization:
+        // - Execution shard should start at one.
+        //
+        // Transition:
+        // - Execution shard should increment by one for each shard with "CPU".
+        let mut current_execution_shard = BabyBear::zero();
+        for shard_proof in proof.0.iter() {
+            let public_values: &PublicValues<Word<_>, _> =
+                shard_proof.public_values.as_slice().borrow();
+            if shard_proof.contains_cpu() {
+                if public_values.execution_shard != current_execution_shard + BabyBear::one() {
+                    return Err(MachineVerificationError::InvalidPublicValues(
+                        "cpu shard index should be the previous cpu shard index + 1 and start at 1",
+                    ));
+                }
+                current_execution_shard += BabyBear::one();
+            }
+        }
+
+        // Program counter constraints.
+        //
+        // Initialization:
+        // - `start_pc` should start as `vk.start_pc`.
+        //
+        // Transition:
+        // - `next_pc` of the previous shard should equal `start_pc`.
+        // - If it's not a shard with "CPU", then `start_pc` equals `next_pc`.
+        // - If it's a shard with "CPU", then `start_pc` should never equal zero.
+        //
+        // Finalization:
+        // - `next_pc` should equal zero.
+        let mut prev_next_pc = BabyBear::zero();
         for (i, shard_proof) in proof.0.iter().enumerate() {
             let public_values: &PublicValues<Word<_>, _> =
                 shard_proof.public_values.as_slice().borrow();
-            // Verify shard transitions
-            if i == 0 {
-                // If it's the first shard, index should be 1.
-                if public_values.shard != BabyBear::one() {
-                    return Err(MachineVerificationError::InvalidPublicValues(
-                        "first shard not 1",
-                    ));
-                }
-                if public_values.start_pc != vk.vk.pc_start {
-                    return Err(MachineVerificationError::InvalidPublicValues(
-                        "wrong pc_start",
-                    ));
-                }
-                // If it's the first shard, the prev_init_addr_bits and prev_finalize_addr_bits
-                // should be zero.
-                if public_values.previous_init_addr_bits != [BabyBear::zero(); 32] {
-                    return Err(MachineVerificationError::InvalidPublicValues(
-                        "In the first shard, the previous initialized address should be set to zero"));
-                }
-                if public_values.previous_finalize_addr_bits != [BabyBear::zero(); 32] {
-                    return Err(MachineVerificationError::InvalidPublicValues(
-                        "In the first shard, the previous finalized address should be set to zero",
-                    ));
-                }
-            } else {
-                let prev_shard_proof = &proof.0[i - 1];
-                let prev_public_values: &PublicValues<Word<_>, _> =
-                    prev_shard_proof.public_values.as_slice().borrow();
-                // For non-first shards, the index should be the previous index + 1.
-                if public_values.shard != prev_public_values.shard + BabyBear::one() {
-                    return Err(MachineVerificationError::InvalidPublicValues(
-                        "non incremental shard index",
-                    ));
-                }
-                // Start pc should be what the next pc declared in the previous shard was.
-                if public_values.start_pc != prev_public_values.next_pc {
-                    return Err(MachineVerificationError::InvalidPublicValues("pc mismatch"));
-                }
-                // Digests and exit code should be the same in all shards.
-                if public_values.committed_value_digest != prev_public_values.committed_value_digest
-                    || public_values.deferred_proofs_digest
-                        != prev_public_values.deferred_proofs_digest
-                    || public_values.exit_code != prev_public_values.exit_code
-                {
-                    return Err(MachineVerificationError::InvalidPublicValues(
-                        "digest or exit code mismatch",
-                    ));
-                }
-                // The last shard should be halted. Halt is signaled with next_pc == 0.
-                if i == proof.0.len() - 1 && public_values.next_pc != BabyBear::zero() {
-                    return Err(MachineVerificationError::InvalidPublicValues(
-                        "last shard isn't halted",
-                    ));
-                }
-                // All non-last shards should not be halted.
-                if i != proof.0.len() - 1 && public_values.next_pc == BabyBear::zero() {
-                    return Err(MachineVerificationError::InvalidPublicValues(
-                        "non-last shard is halted",
-                    ));
-                }
-                // The previous last initialized address of the previous shard should be equal to
-                // the last initialized address of the current shard.
-                if prev_public_values.last_init_addr_bits != public_values.previous_init_addr_bits {
-                    return Err(MachineVerificationError::InvalidPublicValues(
-                        "previous initialized address of the previous shard should be equal to the last initialized address of the current shard",
-                    ));
-                }
-                // The previous last finalized address of the previous shard should be equal to
-                // the last finalized address of the current shard.
-                if prev_public_values.last_finalize_addr_bits
-                    != public_values.previous_finalize_addr_bits
-                {
-                    return Err(MachineVerificationError::InvalidPublicValues(
-                            "previous finalized address of the previous shard should be equal to the last finalized address of the current shard",
-                        ));
-                }
+            if i == 0 && public_values.start_pc != vk.vk.pc_start {
+                return Err(MachineVerificationError::InvalidPublicValues(
+                    "start_pc != vk.start_pc: program counter should start at vk.start_pc",
+                ));
+            } else if i != 0 && public_values.start_pc != prev_next_pc {
+                return Err(MachineVerificationError::InvalidPublicValues(
+                    "start_pc != next_pc_prev: start_pc should equal next_pc_prev for all shards",
+                ));
+            } else if !shard_proof.contains_cpu() && public_values.start_pc != public_values.next_pc
+            {
+                return Err(MachineVerificationError::InvalidPublicValues(
+                    "start_pc != next_pc: start_pc should equal next_pc for non-cpu shards",
+                ));
+            } else if shard_proof.contains_cpu() && public_values.start_pc == BabyBear::zero() {
+                return Err(MachineVerificationError::InvalidPublicValues(
+                    "start_pc == 0: execution should never start at halted state",
+                ));
+            } else if i == proof.0.len() - 1 && public_values.next_pc != BabyBear::zero() {
+                return Err(MachineVerificationError::InvalidPublicValues(
+                    "next_pc != 0: execution should have halted",
+                ));
             }
+            prev_next_pc = public_values.next_pc;
+        }
+
+        // Exit code constraints.
+        //
+        // - In every shard, the exit code should be zero.
+        for shard_proof in proof.0.iter() {
+            let public_values: &PublicValues<Word<_>, _> =
+                shard_proof.public_values.as_slice().borrow();
+            if public_values.exit_code != BabyBear::zero() {
+                return Err(MachineVerificationError::InvalidPublicValues(
+                    "exit_code != 0: exit code should be zero for all shards",
+                ));
+            }
+        }
+
+        // Memory initilization & finalization constraints.
+        //
+        // Initialization:
+        // - `previous_init_addr_bits` should be zero.
+        // - `previous_finalize_addr_bits` should be zero.
+        //
+        // Transition:
+        // - For all shards, `previous_init_addr_bits` should equal `last_init_addr_bits` of the previous shard.
+        // - For all shards, `previous_finalize_addr_bits` should equal `last_finalize_addr_bits` of the previous shard.
+        // - For shards without "MemoryInit", `previous_init_addr_bits` should equal `last_init_addr_bits`.
+        // - For shards without "MemoryFinalize", `previous_finalize_addr_bits` should equal `last_finalize_addr_bits`.
+        let mut last_init_addr_bits_prev = [BabyBear::zero(); 32];
+        let mut last_finalize_addr_bits_prev = [BabyBear::zero(); 32];
+        for shard_proof in proof.0.iter() {
+            let public_values: &PublicValues<Word<_>, _> =
+                shard_proof.public_values.as_slice().borrow();
+            if public_values.previous_init_addr_bits != last_init_addr_bits_prev {
+                return Err(MachineVerificationError::InvalidPublicValues(
+                    "previous_init_addr_bits != last_init_addr_bits_prev: previous_init_addr_bits should be zero on initialization and equal to last_init_addr_bits of previous shard",
+                ));
+            } else if public_values.previous_finalize_addr_bits != last_finalize_addr_bits_prev {
+                return Err(MachineVerificationError::InvalidPublicValues(
+                    "last_init_addr_bits != last_finalize_addr_bits_prev: previous_finalize_addr_bits should be zero on initialization and equal to last_finalize_addr_bits of previous shard",
+                ));
+            } else if !shard_proof.contains_memory_init()
+                && public_values.previous_init_addr_bits != public_values.last_init_addr_bits
+            {
+                return Err(MachineVerificationError::InvalidPublicValues(
+                    "previous_init_addr_bits != last_init_addr_bits: previous_init_addr_bits should equal last_init_addr_bits for non-memory init shards",
+                ));
+            } else if !shard_proof.contains_memory_finalize()
+                && public_values.previous_finalize_addr_bits
+                    != public_values.last_finalize_addr_bits
+            {
+                return Err(MachineVerificationError::InvalidPublicValues(
+                    "previous_finalize_addr_bits != last_finalize_addr_bits: previous_finalize_addr_bits should equal last_finalize_addr_bits for non-memory finalize shards",
+                ));
+            }
+            last_init_addr_bits_prev = public_values.last_init_addr_bits;
+            last_finalize_addr_bits_prev = public_values.last_finalize_addr_bits;
+        }
+
+        // Digest constraints.
+        //
+        // Initialization:
+        // - `committed_value_digest` should be zero.
+        // - `deferred_proofs_digest` should be zero.
+        //
+        // Transition:
+        // - If `commited_value_digest_prev` is not zero, then `committed_value_digest` should equal
+        //  `commited_value_digest_prev`. Otherwise, `committed_value_digest` should equal zero.
+        // - If `deferred_proofs_digest_prev` is not zero, then `deferred_proofs_digest` should equal
+        //  `deferred_proofs_digest_prev`. Otherwise, `deferred_proofs_digest` should equal zero.
+        // - If it's not a shard with "CPU", then `commited_value_digest` should not change from the
+        //  previous shard.
+        // - If it's not a shard with "CPU", then `deferred_proofs_digest` should not change from the
+        //  previous shard.
+        let zero_commited_value_digest = [Word([BabyBear::zero(); WORD_SIZE]); PV_DIGEST_NUM_WORDS];
+        let zero_deferred_proofs_digest = [BabyBear::zero(); POSEIDON_NUM_WORDS];
+        let mut commited_value_digest_prev = zero_commited_value_digest;
+        let mut deferred_proofs_digest_prev = zero_deferred_proofs_digest;
+        for shard_proof in proof.0.iter() {
+            let public_values: &PublicValues<Word<_>, _> =
+                shard_proof.public_values.as_slice().borrow();
+            if commited_value_digest_prev != zero_commited_value_digest
+                && public_values.committed_value_digest != commited_value_digest_prev
+            {
+                return Err(MachineVerificationError::InvalidPublicValues(
+                    "committed_value_digest != commited_value_digest_prev: commited_value_digest should start at zero or equal commited_value_digest of the previous shard",
+                ));
+            } else if deferred_proofs_digest_prev != zero_deferred_proofs_digest
+                && public_values.deferred_proofs_digest != deferred_proofs_digest_prev
+            {
+                return Err(MachineVerificationError::InvalidPublicValues(
+                    "deferred_proofs_digest != deferred_proofs_digest_prev: deferred_proofs_digest should start at zero or equal deferred_proofs_digest of the previous shard",
+                ));
+            } else if !shard_proof.contains_cpu()
+                && public_values.committed_value_digest != commited_value_digest_prev
+            {
+                return Err(MachineVerificationError::InvalidPublicValues(
+                    "committed_value_digest != commited_value_digest_prev: commited_value_digest should start at zero or equal commited_value_digest of the previous shard",
+                ));
+            } else if !shard_proof.contains_cpu()
+                && public_values.deferred_proofs_digest != deferred_proofs_digest_prev
+            {
+                return Err(MachineVerificationError::InvalidPublicValues(
+                    "deferred_proofs_digest != deferred_proofs_digest_prev: deferred_proofs_digest should start at zero or equal deferred_proofs_digest of the previous shard",
+                ));
+            }
+            commited_value_digest_prev = public_values.committed_value_digest;
+            deferred_proofs_digest_prev = public_values.deferred_proofs_digest;
         }
 
         // Verify that the number of shards is not too large.

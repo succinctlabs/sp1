@@ -208,7 +208,7 @@ where
 mod test {
     use crate::{
         lookup::InteractionKind,
-        runtime::{Program, Runtime, ShardingConfig},
+        runtime::{Program, Runtime},
         stark::RiscvAir,
         utils::{setup_logger, tests::UINT256_MUL_ELF, BabyBearPoseidon2, SP1CoreOpts},
     };
@@ -224,7 +224,9 @@ mod test {
         let (pk, _) = machine.setup(&program);
         let mut runtime = Runtime::new(program, SP1CoreOpts::default());
         runtime.run().unwrap();
-        let shards = machine.shard(runtime.record, &ShardingConfig::default());
+        machine.generate_dependencies(&mut runtime.records);
+
+        let shards = runtime.records;
         let ok =
             debug_interactions_with_all_chips(&machine, &pk, &shards, InteractionKind::all_kinds());
         assert!(ok);

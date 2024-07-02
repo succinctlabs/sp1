@@ -115,9 +115,8 @@ where
                         .map(|(data, shard)| {
                             tracing::debug_span!(parent: &parent_span, "prove shard opening")
                                 .in_scope(|| {
-                                    let idx = shard.index() as usize;
                                     let data = if reconstruct_commitments {
-                                        Self::commit_main(config, machine, &shard, idx)
+                                        Self::commit_main(config, machine, &shard)
                                     } else {
                                         data.materialize()
                                             .expect("failed to materialize shard main data")
@@ -161,7 +160,6 @@ where
         config: &SC,
         machine: &StarkMachine<SC, A>,
         shard: &A::Record,
-        index: usize,
     ) -> ShardMainData<SC> {
         // Filter the chips based on what is used.
         let shard_chips = machine.shard_chips(shard).collect::<Vec<_>>();
@@ -218,7 +216,6 @@ where
             main_commit,
             main_data,
             chip_ordering,
-            index,
             public_values: shard.public_values(),
         }
     }
@@ -572,9 +569,7 @@ where
                         .map(|shard| {
                             tracing::debug_span!(parent: &parent_span, "commit to shard").in_scope(
                                 || {
-                                    let index = shard.index();
-                                    let data =
-                                        Self::commit_main(config, machine, shard, index as usize);
+                                    let data = Self::commit_main(config, machine, shard);
                                     finished.fetch_add(1, Ordering::Relaxed);
                                     let commitment = data.main_commit.clone();
                                     let data = if reconstruct_commitments {
