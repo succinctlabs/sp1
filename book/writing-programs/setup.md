@@ -11,19 +11,21 @@ cargo prove new <name>
 cd program
 ```
 
-### Build
+### Build (Development)
 
-To build the program, simply run:
+> WARNING: This may not generate a reproducible ELF which is necessary for verifying that your binary corresponds to given source code.
+
+To build the program while in development, simply run:
 
 ```
 cargo prove build
 ```
 
-This will compile the ELF that can be executed in the zkVM and put the executable in `elf/riscv32im-succinct-zkvm-elf`.
+This will compile the ELF that can be executed in the zkVM and put the executable in `elf/riscv32im-succinct-zkvm-elf`. 
 
-### Build with Docker
+### Build (Production)
 
-Another option is to build your program in a Docker container. This is useful if you are on a platform that does not have prebuilt binaries for the succinct toolchain, or if you are looking to get a reproducible ELF output. To do so, just use the `--docker` flag.
+For production builds, you can build your program inside a Docker container which will generate a **reproducible ELF** on all platforms. To do so, just use the `--docker` flag.
 
 ```
 cargo prove build --docker
