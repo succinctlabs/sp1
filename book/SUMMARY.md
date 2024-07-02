@@ -24,6 +24,8 @@
 
 - [Cycle Tracking](./writing-programs/cycle-tracking.md)
 
+- [Proof Aggregation](./writing-programs/proof-aggregation.md)
+
 # Generating Proofs
 
 - [Setup](./generating-proofs/setup.md)
