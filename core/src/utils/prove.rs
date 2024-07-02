@@ -160,7 +160,7 @@ where
 
     // Commit to the shards.
     let mut deferred = ExecutionRecord::new(program.clone().into());
-    let mut debug_records = Vec::new();
+    let mut debug_records: Vec<ExecutionRecord> = Vec::new();
     let mut state = public_values.reset();
     let nb_checkpoints = checkpoints.len();
     let mut challenger = machine.config().challenger();
