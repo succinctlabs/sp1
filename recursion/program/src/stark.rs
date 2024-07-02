@@ -368,7 +368,8 @@ pub(crate) mod tests {
     use sp1_core::air::POSEIDON_NUM_WORDS;
     use sp1_core::io::SP1Stdin;
     use sp1_core::runtime::Program;
-    use sp1_core::stark::LocalProver;
+    use sp1_core::stark::DefaultProver;
+    use sp1_core::stark::StarkProver;
     use sp1_core::utils::setup_logger;
     use sp1_core::utils::InnerChallenge;
     use sp1_core::utils::InnerVal;
@@ -414,7 +415,7 @@ pub(crate) mod tests {
         let machine = A::machine(SC::default());
         let (_, vk) = machine.setup(&Program::from(elf));
         let mut challenger_val = machine.config().challenger();
-        let (proof, _) = sp1_core::utils::prove(
+        let (proof, _) = sp1_core::utils::prove::<_, DefaultProver<_, _>>(
             Program::from(elf),
             &SP1Stdin::new(),
             SC::default(),
@@ -522,19 +523,17 @@ pub(crate) mod tests {
         runtime.run();
 
         let machine = RecursionAir::<_, 3>::machine(SC::default());
-        let (pk, vk) = machine.setup(&program);
+        let prover = DefaultProver::new(machine);
+        let (pk, vk) = prover.setup(&program);
         let record = runtime.record.clone();
 
-        let mut challenger = machine.config().challenger();
-        let mut proof = machine.prove::<LocalProver<SC, RecursionAir<_, 3>>>(
-            &pk,
-            vec![record],
-            &mut challenger,
-            SP1CoreOpts::recursion(),
-        );
+        let mut challenger = prover.config().challenger();
+        let mut proof = prover
+            .prove(&pk, vec![record], &mut challenger, SP1CoreOpts::recursion())
+            .unwrap();
 
-        let mut challenger = machine.config().challenger();
-        let verification_result = machine.verify(&vk, &proof, &mut challenger);
+        let mut challenger = prover.config().challenger();
+        let verification_result = prover.machine().verify(&vk, &proof, &mut challenger);
         if verification_result.is_err() {
             panic!("Proof should verify successfully");
         }
@@ -542,7 +541,7 @@ pub(crate) mod tests {
         // Corrupt the public values.
         proof.shard_proofs[0].public_values[RECURSION_PUBLIC_VALUES_COL_MAP.digest[0]] =
             InnerVal::zero();
-        let verification_result = machine.verify(&vk, &proof, &mut challenger);
+        let verification_result = prover.machine().verify(&vk, &proof, &mut challenger);
         if verification_result.is_ok() {
             panic!("Proof should not verify successfully");
         }

@@ -169,6 +169,8 @@ mod tests {
         },
         utils::{BabyBearPoseidon2, SP1CoreOpts},
     };
+    use sp1_core::stark::DefaultProver;
+`
     use sp1_recursion_core::stark::utils::{run_test_recursion, TestConfig};
 
     use p3_challenger::{CanObserve, FieldChallenger};
@@ -284,7 +286,7 @@ mod tests {
         let machine = A::machine(SC::default());
         let (_, vk) = machine.setup(&Program::from(elf));
         let mut challenger = machine.config().challenger();
-        let (proof, _) = sp1_core::utils::prove(
+        let (proof, _) = sp1_core::utils::prove::<_, DefaultProver<_, _>>(
             Program::from(elf),
             &SP1Stdin::new(),
             SC::default(),
