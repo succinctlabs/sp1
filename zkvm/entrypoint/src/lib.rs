@@ -1,9 +1,13 @@
 pub mod heap;
 pub mod syscalls;
+
+#[cfg(feature = "lib")]
 pub mod io {
     pub use sp1_lib::io::*;
 }
-pub mod precompiles {
+
+#[cfg(feature = "lib")]
+pub mod lib {
     pub use sp1_lib::*;
 }
 
