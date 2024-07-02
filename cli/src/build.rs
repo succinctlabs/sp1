@@ -44,7 +44,7 @@ pub fn build_program(args: &BuildArgs) -> Result<Utf8PathBuf> {
             .context("failed to run docker command")?;
 
         if !docker_check.success() {
-            eprintln!("Docker is not installed or not running.");
+            eprintln!("docker is not installed or not running.");
             exit(1);
         }
 
