@@ -98,7 +98,6 @@ mod tests {
         )
         .unwrap();
         machine.verify(&vk, &proof, &mut challenger).unwrap();
-        let total_core_shards = proof.shard_proofs.len();
         tracing::info!("Proof generated successfully");
         let elapsed = time.elapsed();
         tracing::info!("Execution proof time: {:?}", elapsed);
@@ -125,11 +124,10 @@ mod tests {
             layouts.push(SP1RecursionMemoryLayout {
                 vk: &vk,
                 machine: &machine,
-                shard_proofs: proofs,
+                shard_proofs: proofs.clone(),
                 leaf_challenger: &leaf_challenger,
                 initial_reconstruct_challenger: reconstruct_challenger.clone(),
                 is_complete,
-                total_core_shards,
             });
 
             for proof in batch.iter() {
@@ -179,7 +177,7 @@ mod tests {
                 let mut recursive_challenger = recursive_machine.config().challenger();
                 recursive_machine.prove::<LocalProver<_, _>>(
                     &rec_pk,
-                    record,
+                    vec![record],
                     &mut recursive_challenger,
                     SP1CoreOpts::recursion(),
                 )
@@ -235,7 +233,6 @@ mod tests {
                         shard_proofs: batch.to_vec(),
                         kinds,
                         is_complete,
-                        total_core_shards,
                     };
 
                     let mut runtime = Runtime::<F, EF, _>::new(
@@ -253,7 +250,7 @@ mod tests {
                     let mut recursive_challenger = recursive_machine.config().challenger();
                     let mut proof = recursive_machine.prove::<LocalProver<_, _>>(
                         &reduce_pk,
-                        runtime.record,
+                        vec![runtime.record],
                         &mut recursive_challenger,
                         SP1CoreOpts::recursion(),
                     );
@@ -313,7 +310,7 @@ mod tests {
         let time = std::time::Instant::now();
         let mut compress_proof = compress_machine.prove::<LocalProver<_, _>>(
             &compress_pk,
-            runtime.record,
+            vec![runtime.record],
             &mut compress_challenger,
             SP1CoreOpts::default(),
         );
@@ -362,7 +359,7 @@ mod tests {
         let time = std::time::Instant::now();
         let wrap_proof = wrap_machine.prove::<LocalProver<_, _>>(
             &wrap_pk,
-            runtime.record,
+            vec![runtime.record],
             &mut wrap_challenger,
             SP1CoreOpts::recursion(),
         );

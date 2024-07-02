@@ -239,30 +239,16 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         )
     }
 
-    pub fn shard(
-        &self,
-        mut record: A::Record,
-        config: &<A::Record as MachineRecord>::Config,
-    ) -> Vec<A::Record> {
-        // Get the local and global chips.
+    pub fn generate_dependencies(&self, records: &mut [A::Record]) {
         let chips = self.chips();
-
-        // Generate the trace for each chip to collect events emitted from chips with dependencies.
-        tracing::debug_span!("collect record events from chips").in_scope(|| {
+        records.iter_mut().for_each(|record| {
             chips.iter().for_each(|chip| {
                 let mut output = A::Record::default();
-                output.set_index(record.index());
-                chip.generate_dependencies(&record, &mut output);
+                chip.generate_dependencies(record, &mut output);
                 record.append(&mut output);
-            })
+            });
+            record.register_nonces();
         });
-
-        // Display some statistics about the workload.
-        let stats = record.stats();
-        log::debug!("shard: {:?}", stats);
-
-        // For each chip, shard the events into segments.
-        record.shard(config)
     }
 
     /// Prove the execution record is valid.
@@ -272,7 +258,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
     pub fn prove<P: Prover<SC, A>>(
         &self,
         pk: &StarkProvingKey<SC>,
-        record: A::Record,
+        mut records: Vec<A::Record>,
         challenger: &mut SC::Challenger,
         opts: SP1CoreOpts,
     ) -> MachineProof<SC>
@@ -282,11 +268,18 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             + for<'a> Air<VerifierConstraintFolder<'a, SC>>
             + for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
     {
-        let shards = tracing::info_span!("shard_record")
-            .in_scope(|| self.shard(record, &<A::Record as MachineRecord>::Config::default()));
+        let chips = self.chips();
+        records.iter_mut().for_each(|record| {
+            chips.iter().for_each(|chip| {
+                let mut output = A::Record::default();
+                chip.generate_dependencies(record, &mut output);
+                record.append(&mut output);
+            });
+            record.register_nonces();
+        });
 
         tracing::info_span!("prove_shards")
-            .in_scope(|| P::prove_shards(self, pk, shards, challenger, opts))
+            .in_scope(|| P::prove_shards(self, pk, records, challenger, opts))
     }
 
     pub const fn config(&self) -> &SC {
@@ -356,19 +349,22 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
     pub fn debug_constraints(
         &self,
         pk: &StarkProvingKey<SC>,
-        record: A::Record,
+        records: Vec<A::Record>,
         challenger: &mut SC::Challenger,
     ) where
         SC::Val: PrimeField32,
         A: for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
     {
-        tracing::debug!("sharding the execution record");
-        let shards = self.shard(record, &<A::Record as MachineRecord>::Config::default());
-
         tracing::debug!("checking constraints for each shard");
 
+        // Obtain the challenges used for the permutation argument.
+        let mut permutation_challenges: Vec<SC::Challenge> = Vec::new();
+        for _ in 0..2 {
+            permutation_challenges.push(challenger.sample_ext_element());
+        }
+
         let mut cumulative_sum = SC::Challenge::zero();
-        for shard in shards.iter() {
+        for shard in records.iter() {
             // Filter the chips based on what is used.
             let chips = self.shard_chips(shard).collect::<Vec<_>>();
 
@@ -386,13 +382,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                 .map(|chip| chip.generate_trace(shard, &mut A::Record::default()))
                 .zip(pre_traces)
                 .collect::<Vec<_>>();
-
-            // Get a permutation challenge.
-            // Obtain the challenges used for the permutation argument.
-            let mut permutation_challenges: Vec<SC::Challenge> = Vec::new();
-            for _ in 0..2 {
-                permutation_challenges.push(challenger.sample_ext_element());
-            }
 
             // Generate the permutation traces.
             let mut permutation_traces = Vec::with_capacity(chips.len());
@@ -457,7 +446,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             debug_interactions_with_all_chips::<SC, A>(
                 self,
                 pk,
-                &shards,
+                &records,
                 InteractionKind::all_kinds(),
             );
             panic!("Cumulative sum is not zero");
@@ -475,6 +464,7 @@ pub enum MachineVerificationError<SC: StarkGenericConfig> {
     InvalidPublicValues(&'static str),
     TooManyShards,
     InvalidChipOccurence(String),
+    MissingCpuInFirstShard,
 }
 
 impl<SC: StarkGenericConfig> Debug for MachineVerificationError<SC> {
@@ -506,6 +496,9 @@ impl<SC: StarkGenericConfig> Debug for MachineVerificationError<SC> {
             }
             MachineVerificationError::InvalidChipOccurence(s) => {
                 write!(f, "Invalid chip occurence: {}", s)
+            }
+            MachineVerificationError::MissingCpuInFirstShard => {
+                write!(f, "Missing CPU in first shard")
             }
         }
     }
@@ -710,13 +703,14 @@ pub mod tests {
 
     #[test]
     fn test_simple_memory_program_prove() {
+        setup_logger();
         let program = simple_memory_program();
         run_test(program).unwrap();
     }
 
     #[test]
-    #[ignore]
     fn test_ssz_withdrawal() {
+        setup_logger();
         let program = ssz_withdrawals_program();
         run_test(program).unwrap();
     }

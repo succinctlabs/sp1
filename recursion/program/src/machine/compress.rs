@@ -31,7 +31,7 @@ use crate::types::ShardProofVariable;
 use crate::types::VerifyingKeyVariable;
 use crate::utils::{
     assert_challenger_eq_pv, assign_challenger_from_pv, const_fri_config,
-    get_challenger_public_values, hash_vkey, var2felt,
+    get_challenger_public_values, hash_vkey,
 };
 
 use super::utils::{commit_public_values, proof_data_from_vk, verify_public_values_hash};
@@ -60,7 +60,6 @@ pub struct SP1ReduceMemoryLayout<'a, SC: StarkGenericConfig, A: MachineAir<SC::V
     pub shard_proofs: Vec<ShardProof<SC>>,
     pub is_complete: bool,
     pub kinds: Vec<ReduceProgramType>,
-    pub total_core_shards: usize,
 }
 
 #[derive(DslVariable, Clone)]
@@ -69,7 +68,6 @@ pub struct SP1ReduceMemoryLayoutVariable<C: Config> {
     pub shard_proofs: Array<C, ShardProofVariable<C>>,
     pub kinds: Array<C, Var<C::N>>,
     pub is_complete: Var<C::N>,
-    pub total_core_shards: Var<C::N>,
 }
 
 impl<A> SP1CompressVerifier<InnerConfig, BabyBearPoseidon2, A>
@@ -141,9 +139,7 @@ where
             shard_proofs,
             kinds,
             is_complete,
-            total_core_shards,
         } = input;
-        let total_core_shards_felt = var2felt(builder, total_core_shards);
 
         // Initialize the values for the aggregated public output.
 
@@ -243,7 +239,6 @@ where
                 challenger.observe(builder, element);
             }
             // verify proof.
-            let one_var = builder.constant(C::N::one());
             StarkVerifier::<C, SC>::verify_shard(
                 builder,
                 &vk,
@@ -251,7 +246,6 @@ where
                 machine,
                 &mut challenger,
                 &proof,
-                one_var,
             );
 
             // Load the public values from the proof.
@@ -299,10 +293,10 @@ where
                 builder.assign(pc, current_public_values.start_pc);
 
                 // Initialize start shard.
-                builder.assign(shard, current_public_values.start_shard);
+                builder.assign(shard, current_public_values.start_execution_shard);
                 builder.assign(
-                    reduce_public_values.start_shard,
-                    current_public_values.start_shard,
+                    reduce_public_values.start_execution_shard,
+                    current_public_values.start_execution_shard,
                 );
 
                 // Initialize the MemoryInitialize address bits.
@@ -400,8 +394,12 @@ where
 
             // Assert that the start pc is equal to the current pc.
             builder.assert_felt_eq(pc, current_public_values.start_pc);
+
             // Verfiy that the shard is equal to the current shard.
-            builder.assert_felt_eq(shard, current_public_values.start_shard);
+            builder.print_f(shard);
+            builder.print_f(current_public_values.start_execution_shard);
+            builder.assert_felt_eq(shard, current_public_values.start_execution_shard);
+
             // Assert that the leaf challenger is always the same.
 
             // Assert that the MemoryInitialize address bits are the same.
@@ -450,12 +448,6 @@ where
                 builder.assert_felt_eq(*digest, *current_digest);
             }
 
-            // Assert that total_core_shards is the same.
-            builder.assert_felt_eq(
-                total_core_shards_felt,
-                current_public_values.total_core_shards,
-            );
-
             // Update the accumulated values.
 
             // Update the deferred proof digest.
@@ -471,7 +463,7 @@ where
             builder.assign(pc, current_public_values.next_pc);
 
             // Update the shard to be the next shard.
-            builder.assign(shard, current_public_values.next_shard);
+            builder.assign(shard, current_public_values.next_execution_shard);
 
             // Update the MemoryInitialize address bits.
             for (bit, next_bit) in init_addr_bits
@@ -511,7 +503,7 @@ where
         // Set next_pc to be the last pc (which is the same as accumulated pc)
         reduce_public_values.next_pc = pc;
         // Set next shard to be the last shard (which is the same as accumulated shard)
-        reduce_public_values.next_shard = shard;
+        reduce_public_values.next_execution_shard = shard;
         // Set the MemoryInitialize address bits to be the last MemoryInitialize address bits.
         reduce_public_values.last_init_addr_bits = init_addr_bits;
         // Set the MemoryFinalize address bits to be the last MemoryFinalize address bits.
@@ -534,8 +526,6 @@ where
         reduce_public_values.committed_value_digest = committed_value_digest;
         // Assign the cumulative sum.
         reduce_public_values.cumulative_sum = cumulative_sum;
-        // Assign the total number of shards.
-        reduce_public_values.total_core_shards = total_core_shards_felt;
 
         // If the proof is complete, make completeness assertions and set the flag. Otherwise, check
         // the flag is zero and set the public value to zero.

@@ -1,5 +1,4 @@
 use hashbrown::HashMap;
-use std::mem::take;
 use std::sync::Arc;
 
 use p3_field::AbstractField;
@@ -23,13 +22,11 @@ use crate::syscall::precompiles::ECDecompressEvent;
 use crate::syscall::precompiles::{ECAddEvent, ECDoubleEvent};
 use crate::utils::SP1CoreOpts;
 
-/// A record of the execution of a program. Contains event data for everything that happened during
-/// the execution of the shard.
+/// A record of the execution of a program.
+///
+/// The trace of the execution is represented as a list of "events" that occur every cycle.
 #[derive(Default, Clone, Debug, Serialize, Deserialize)]
 pub struct ExecutionRecord {
-    /// The index of the shard.
-    pub index: u32,
-
     /// The program.
     pub program: Arc<Program>,
 
@@ -164,14 +161,6 @@ impl Default for ShardingConfig {
 impl MachineRecord for ExecutionRecord {
     type Config = ShardingConfig;
 
-    fn index(&self) -> u32 {
-        self.index
-    }
-
-    fn set_index(&mut self, index: u32) {
-        self.index = index;
-    }
-
     fn stats(&self) -> HashMap<String, usize> {
         let mut stats = HashMap::new();
         stats.insert("cpu_events".to_string(), self.cpu_events.len());
@@ -302,335 +291,149 @@ impl MachineRecord for ExecutionRecord {
             .append(&mut other.memory_finalize_events);
     }
 
-    fn shard(mut self, config: &ShardingConfig) -> Vec<Self> {
-        // Get the number of CPU events.
-        let num_cpu_events = self.cpu_events.len();
+    fn register_nonces(&mut self) {
+        self.add_events.iter().enumerate().for_each(|(i, event)| {
+            self.nonce_lookup.insert(event.lookup_id, i as u32);
+        });
 
-        // Create empty shards that we will fill in.
-        let mut shards: Vec<ExecutionRecord> = Vec::new();
+        self.sub_events.iter().enumerate().for_each(|(i, event)| {
+            self.nonce_lookup
+                .insert(event.lookup_id, (self.add_events.len() + i) as u32);
+        });
 
-        // Iterate throught he CPU events and fill in the shards.
-        let mut start_idx = 0;
-        let mut current_shard = self.cpu_events[0].shard;
-        for (i, cpu_event) in self.cpu_events.iter().enumerate() {
-            let at_last_event = i == num_cpu_events - 1;
-            if cpu_event.shard != current_shard || at_last_event {
-                let last_idx = if at_last_event { i + 1 } else { i };
+        self.mul_events.iter().enumerate().for_each(|(i, event)| {
+            self.nonce_lookup.insert(event.lookup_id, i as u32);
+        });
 
-                // Fill in the shard.
-                let mut shard = ExecutionRecord::default();
-                shard.index = current_shard;
-                shard.cpu_events = self.cpu_events[start_idx..last_idx].to_vec();
-                shard.program = self.program.clone();
-
-                // Byte lookups are already sharded, so put this shard's lookups in.
-                let current_byte_lookups =
-                    self.byte_lookups.remove(&current_shard).unwrap_or_default();
-                shard
-                    .byte_lookups
-                    .insert(current_shard, current_byte_lookups);
-                let last_shard_cpu_event = shard.cpu_events.last().unwrap();
-
-                // Set the public_values_digest for all shards.  For the vast majority of the time, only the last shard
-                // will read the public values.  But in some very rare edge cases, the last two shards will
-                // read it (e.g. when the halt instruction is the only instruction in the last shard).
-                // It seems overly complex to set the public_values_digest for the last two shards, so we just set it
-                // for all of the shards.
-                shard.public_values.committed_value_digest =
-                    self.public_values.committed_value_digest;
-                shard.public_values.deferred_proofs_digest =
-                    self.public_values.deferred_proofs_digest;
-                shard.public_values.shard = current_shard;
-                shard.public_values.start_pc = shard.cpu_events[0].pc;
-                shard.public_values.next_pc = last_shard_cpu_event.next_pc;
-                shard.public_values.exit_code = last_shard_cpu_event.exit_code;
-                shards.push(shard);
-
-                if !(at_last_event) {
-                    start_idx = i;
-                    current_shard += 1;
-                }
-            }
-        }
-
-        // Shard the ADD events.
-        for (add_chunk, shard) in take(&mut self.add_events)
-            .chunks_mut(config.add_len)
-            .zip(shards.iter_mut())
-        {
-            shard.add_events.extend_from_slice(add_chunk);
-            for (i, event) in add_chunk.iter().enumerate() {
+        self.bitwise_events
+            .iter()
+            .enumerate()
+            .for_each(|(i, event)| {
                 self.nonce_lookup.insert(event.lookup_id, i as u32);
-            }
-        }
+            });
 
-        // Shard the SUB events.
-        for (sub_chunk, shard) in take(&mut self.sub_events)
-            .chunks_mut(config.sub_len)
-            .zip(shards.iter_mut())
-        {
-            shard.sub_events.extend_from_slice(sub_chunk);
-            for (i, event) in sub_chunk.iter().enumerate() {
-                self.nonce_lookup
-                    .insert(event.lookup_id, shard.add_events.len() as u32 + i as u32);
-            }
-        }
-
-        // Shard the MUL events.
-        for (mul_chunk, shard) in take(&mut self.mul_events)
-            .chunks_mut(config.mul_len)
-            .zip(shards.iter_mut())
-        {
-            shard.mul_events.extend_from_slice(mul_chunk);
-            for (i, event) in mul_chunk.iter().enumerate() {
+        self.shift_left_events
+            .iter()
+            .enumerate()
+            .for_each(|(i, event)| {
                 self.nonce_lookup.insert(event.lookup_id, i as u32);
-            }
-        }
+            });
 
-        // Shard the bitwise events.
-        for (bitwise_chunk, shard) in take(&mut self.bitwise_events)
-            .chunks_mut(config.bitwise_len)
-            .zip(shards.iter_mut())
-        {
-            shard.bitwise_events.extend_from_slice(bitwise_chunk);
-            for (i, event) in bitwise_chunk.iter().enumerate() {
+        self.shift_right_events
+            .iter()
+            .enumerate()
+            .for_each(|(i, event)| {
                 self.nonce_lookup.insert(event.lookup_id, i as u32);
-            }
-        }
+            });
 
-        // Shard the shift left events.
-        for (shift_left_chunk, shard) in take(&mut self.shift_left_events)
-            .chunks_mut(config.shift_left_len)
-            .zip(shards.iter_mut())
-        {
-            shard.shift_left_events.extend_from_slice(shift_left_chunk);
-            for (i, event) in shift_left_chunk.iter().enumerate() {
+        self.divrem_events
+            .iter()
+            .enumerate()
+            .for_each(|(i, event)| {
                 self.nonce_lookup.insert(event.lookup_id, i as u32);
-            }
-        }
+            });
 
-        // Shard the shift right events.
-        for (shift_right_chunk, shard) in take(&mut self.shift_right_events)
-            .chunks_mut(config.shift_right_len)
-            .zip(shards.iter_mut())
-        {
-            shard
-                .shift_right_events
-                .extend_from_slice(shift_right_chunk);
-            for (i, event) in shift_right_chunk.iter().enumerate() {
-                self.nonce_lookup.insert(event.lookup_id, i as u32);
-            }
-        }
+        self.lt_events.iter().enumerate().for_each(|(i, event)| {
+            self.nonce_lookup.insert(event.lookup_id, i as u32);
+        });
 
-        // Shard the divrem events.
-        for (divrem_chunk, shard) in take(&mut self.divrem_events)
-            .chunks_mut(config.divrem_len)
-            .zip(shards.iter_mut())
-        {
-            shard.divrem_events.extend_from_slice(divrem_chunk);
-            for (i, event) in divrem_chunk.iter().enumerate() {
-                self.nonce_lookup.insert(event.lookup_id, i as u32);
-            }
-        }
-
-        // Shard the LT events.
-        for (lt_chunk, shard) in take(&mut self.lt_events)
-            .chunks_mut(config.lt_len)
-            .zip(shards.iter_mut())
-        {
-            shard.lt_events.extend_from_slice(lt_chunk);
-            for (i, event) in lt_chunk.iter().enumerate() {
-                self.nonce_lookup.insert(event.lookup_id, i as u32);
-            }
-        }
-
-        // Keccak-256 permute events.
-        for (keccak_chunk, shard) in take(&mut self.keccak_permute_events)
-            .chunks_mut(config.keccak_len)
-            .zip(shards.iter_mut())
-        {
-            shard.keccak_permute_events.extend_from_slice(keccak_chunk);
-            for (i, event) in keccak_chunk.iter().enumerate() {
+        self.keccak_permute_events
+            .iter()
+            .enumerate()
+            .for_each(|(i, event)| {
                 self.nonce_lookup.insert(event.lookup_id, (i * 24) as u32);
-            }
-        }
+            });
 
-        // secp256k1 curve add events.
-        for (secp256k1_add_chunk, shard) in take(&mut self.secp256k1_add_events)
-            .chunks_mut(config.secp256k1_add_len)
-            .zip(shards.iter_mut())
-        {
-            shard
-                .secp256k1_add_events
-                .extend_from_slice(secp256k1_add_chunk);
-            for (i, event) in secp256k1_add_chunk.iter().enumerate() {
+        self.secp256k1_add_events
+            .iter()
+            .enumerate()
+            .for_each(|(i, event)| {
                 self.nonce_lookup.insert(event.lookup_id, i as u32);
-            }
-        }
+            });
 
-        // secp256k1 curve double events.
-        for (secp256k1_double_chunk, shard) in take(&mut self.secp256k1_double_events)
-            .chunks_mut(config.secp256k1_double_len)
-            .zip(shards.iter_mut())
-        {
-            shard
-                .secp256k1_double_events
-                .extend_from_slice(secp256k1_double_chunk);
-            for (i, event) in secp256k1_double_chunk.iter().enumerate() {
+        self.secp256k1_double_events
+            .iter()
+            .enumerate()
+            .for_each(|(i, event)| {
                 self.nonce_lookup.insert(event.lookup_id, i as u32);
-            }
-        }
+            });
 
-        // bn254 curve add events.
-        for (bn254_add_chunk, shard) in take(&mut self.bn254_add_events)
-            .chunks_mut(config.bn254_add_len)
-            .zip(shards.iter_mut())
-        {
-            shard.bn254_add_events.extend_from_slice(bn254_add_chunk);
-            for (i, event) in bn254_add_chunk.iter().enumerate() {
+        self.bn254_add_events
+            .iter()
+            .enumerate()
+            .for_each(|(i, event)| {
                 self.nonce_lookup.insert(event.lookup_id, i as u32);
-            }
-        }
+            });
 
-        // bn254 curve double events.
-        for (bn254_double_chunk, shard) in take(&mut self.bn254_double_events)
-            .chunks_mut(config.bn254_double_len)
-            .zip(shards.iter_mut())
-        {
-            shard
-                .bn254_double_events
-                .extend_from_slice(bn254_double_chunk);
-            for (i, event) in bn254_double_chunk.iter().enumerate() {
+        self.bn254_double_events
+            .iter()
+            .enumerate()
+            .for_each(|(i, event)| {
                 self.nonce_lookup.insert(event.lookup_id, i as u32);
-            }
-        }
+            });
 
-        // BLS12-381 curve add events.
-        for (bls12381_add_chunk, shard) in take(&mut self.bls12381_add_events)
-            .chunks_mut(config.bls12381_add_len)
-            .zip(shards.iter_mut())
-        {
-            shard
-                .bls12381_add_events
-                .extend_from_slice(bls12381_add_chunk);
-            for (i, event) in bls12381_add_chunk.iter().enumerate() {
+        self.bls12381_add_events
+            .iter()
+            .enumerate()
+            .for_each(|(i, event)| {
                 self.nonce_lookup.insert(event.lookup_id, i as u32);
-            }
-        }
+            });
 
-        // BLS12-381 curve double events.
-        for (bls12381_double_chunk, shard) in take(&mut self.bls12381_double_events)
-            .chunks_mut(config.bls12381_double_len)
-            .zip(shards.iter_mut())
-        {
-            shard
-                .bls12381_double_events
-                .extend_from_slice(bls12381_double_chunk);
-            for (i, event) in bls12381_double_chunk.iter().enumerate() {
+        self.bls12381_double_events
+            .iter()
+            .enumerate()
+            .for_each(|(i, event)| {
                 self.nonce_lookup.insert(event.lookup_id, i as u32);
-            }
-        }
+            });
 
-        // Put the precompile events in the first shard.
-        let first = shards.first_mut().unwrap();
+        self.sha_extend_events
+            .iter()
+            .enumerate()
+            .for_each(|(i, event)| {
+                self.nonce_lookup.insert(event.lookup_id, (i * 48) as u32);
+            });
 
-        // SHA-256 extend events.
-        first.sha_extend_events = std::mem::take(&mut self.sha_extend_events);
-        for (i, event) in first.sha_extend_events.iter().enumerate() {
-            self.nonce_lookup.insert(event.lookup_id, (i * 48) as u32);
-        }
+        self.sha_compress_events
+            .iter()
+            .enumerate()
+            .for_each(|(i, event)| {
+                self.nonce_lookup.insert(event.lookup_id, (i * 80) as u32);
+            });
 
-        // SHA-256 compress events.
-        first.sha_compress_events = std::mem::take(&mut self.sha_compress_events);
-        for (i, event) in first.sha_compress_events.iter().enumerate() {
-            self.nonce_lookup.insert(event.lookup_id, (i * 80) as u32);
-        }
+        self.ed_add_events
+            .iter()
+            .enumerate()
+            .for_each(|(i, event)| {
+                self.nonce_lookup.insert(event.lookup_id, i as u32);
+            });
 
-        // Edwards curve add events.
-        first.ed_add_events = std::mem::take(&mut self.ed_add_events);
-        for (i, event) in first.ed_add_events.iter().enumerate() {
-            self.nonce_lookup.insert(event.lookup_id, i as u32);
-        }
+        self.ed_decompress_events
+            .iter()
+            .enumerate()
+            .for_each(|(i, event)| {
+                self.nonce_lookup.insert(event.lookup_id, i as u32);
+            });
 
-        // Edwards curve decompress events.
-        first.ed_decompress_events = std::mem::take(&mut self.ed_decompress_events);
-        for (i, event) in first.ed_decompress_events.iter().enumerate() {
-            self.nonce_lookup.insert(event.lookup_id, i as u32);
-        }
+        self.k256_decompress_events
+            .iter()
+            .enumerate()
+            .for_each(|(i, event)| {
+                self.nonce_lookup.insert(event.lookup_id, i as u32);
+            });
 
-        // K256 curve decompress events.
-        first.k256_decompress_events = std::mem::take(&mut self.k256_decompress_events);
-        for (i, event) in first.k256_decompress_events.iter().enumerate() {
-            self.nonce_lookup.insert(event.lookup_id, i as u32);
-        }
+        self.uint256_mul_events
+            .iter()
+            .enumerate()
+            .for_each(|(i, event)| {
+                self.nonce_lookup.insert(event.lookup_id, i as u32);
+            });
 
-        // Uint256 mul arithmetic events.
-        first.uint256_mul_events = std::mem::take(&mut self.uint256_mul_events);
-        for (i, event) in first.uint256_mul_events.iter().enumerate() {
-            self.nonce_lookup.insert(event.lookup_id, i as u32);
-        }
-
-        // Bls12-381 decompress events .
-        first.bls12381_decompress_events = std::mem::take(&mut self.bls12381_decompress_events);
-        for (i, event) in first.bls12381_decompress_events.iter().enumerate() {
-            self.nonce_lookup.insert(event.lookup_id, i as u32);
-        }
-
-        // Shard MemoryInit events.
-        self.memory_initialize_events
-            .sort_by_key(|event| event.addr);
-        let mut init_addr_bits = [0; 32];
-        let num_mem_init_shards = self
-            .memory_initialize_events
-            .len()
-            .div_ceil(config.mem_init_len);
-        let first_mem_init_shard = shards.len() - num_mem_init_shards;
-        for (mem_init_chunk, shard) in self
-            .memory_initialize_events
-            .chunks(config.mem_init_len)
-            .zip(shards.iter_mut().skip(first_mem_init_shard))
-        {
-            shard
-                .memory_initialize_events
-                .extend_from_slice(mem_init_chunk);
-            shard.public_values.previous_init_addr_bits = init_addr_bits;
-            if let Some(last_event) = mem_init_chunk.last() {
-                let last_init_addr_bits = core::array::from_fn(|i| (last_event.addr >> i) & 1);
-                shard.public_values.last_init_addr_bits = last_init_addr_bits;
-                init_addr_bits = last_init_addr_bits;
-            }
-        }
-
-        // Shard MemoryFinalize events.
-        self.memory_finalize_events.sort_by_key(|event| event.addr);
-        let mut finalize_addr_bits = [0; 32];
-        let num_mem_finalize_shards = self
-            .memory_finalize_events
-            .len()
-            .div_ceil(config.mem_finalize_len);
-        let first_mem_finalize_shard = shards.len() - num_mem_finalize_shards;
-        for (mem_finalize_chunk, shard) in self
-            .memory_finalize_events
-            .chunks(config.mem_finalize_len)
-            .zip(shards.iter_mut().skip(first_mem_finalize_shard))
-        {
-            shard
-                .memory_finalize_events
-                .extend_from_slice(mem_finalize_chunk);
-            shard.public_values.previous_finalize_addr_bits = finalize_addr_bits;
-            if let Some(last_event) = mem_finalize_chunk.last() {
-                let last_finalize_addr_bits = core::array::from_fn(|i| (last_event.addr >> i) & 1);
-                shard.public_values.last_finalize_addr_bits = last_finalize_addr_bits;
-                finalize_addr_bits = last_finalize_addr_bits;
-            }
-        }
-
-        // Copy the nonce lookup to all shards.
-        for shard in shards.iter_mut() {
-            shard.nonce_lookup.clone_from(&self.nonce_lookup);
-        }
-
-        shards
+        self.bls12381_decompress_events
+            .iter()
+            .enumerate()
+            .for_each(|(i, event)| {
+                self.nonce_lookup.insert(event.lookup_id, i as u32);
+            });
     }
 
     /// Retrieves the public values.  This method is needed for the `MachineRecord` trait, since
@@ -641,9 +444,8 @@ impl MachineRecord for ExecutionRecord {
 }
 
 impl ExecutionRecord {
-    pub fn new(index: u32, program: Arc<Program>) -> Self {
+    pub fn new(program: Arc<Program>) -> Self {
         Self {
-            index,
             program,
             ..Default::default()
         }
@@ -686,6 +488,121 @@ impl ExecutionRecord {
                 }
             }
         }
+    }
+
+    /// Take out events from the [ExecutionRecord] that should be deferred to a separate shard.
+    ///
+    /// Note: we usually defer events that would increase the recursion cost significantly if
+    /// included in every shard.
+    pub fn defer(&mut self) -> ExecutionRecord {
+        ExecutionRecord {
+            keccak_permute_events: std::mem::take(&mut self.keccak_permute_events),
+            secp256k1_add_events: std::mem::take(&mut self.secp256k1_add_events),
+            secp256k1_double_events: std::mem::take(&mut self.secp256k1_double_events),
+            bn254_add_events: std::mem::take(&mut self.bn254_add_events),
+            bn254_double_events: std::mem::take(&mut self.bn254_double_events),
+            bls12381_add_events: std::mem::take(&mut self.bls12381_add_events),
+            bls12381_double_events: std::mem::take(&mut self.bls12381_double_events),
+            sha_extend_events: std::mem::take(&mut self.sha_extend_events),
+            sha_compress_events: std::mem::take(&mut self.sha_compress_events),
+            ed_add_events: std::mem::take(&mut self.ed_add_events),
+            ed_decompress_events: std::mem::take(&mut self.ed_decompress_events),
+            k256_decompress_events: std::mem::take(&mut self.k256_decompress_events),
+            uint256_mul_events: std::mem::take(&mut self.uint256_mul_events),
+            bls12381_decompress_events: std::mem::take(&mut self.bls12381_decompress_events),
+            memory_initialize_events: std::mem::take(&mut self.memory_initialize_events),
+            memory_finalize_events: std::mem::take(&mut self.memory_finalize_events),
+            ..Default::default()
+        }
+    }
+
+    /// Splits the deferred [ExecutionRecord] into multiple [ExecutionRecord]s, each which contain
+    /// a "reasonable" number of deferred events.
+    pub fn split(&mut self, last: bool) -> Vec<ExecutionRecord> {
+        let mut shards = Vec::new();
+        let threshold = 1 << 20;
+
+        macro_rules! split_events {
+            ($self:ident, $events:ident, $shards:ident, $threshold:expr, $exact:expr) => {
+                let events = std::mem::take(&mut $self.$events);
+                let chunks = events.chunks_exact($threshold);
+                if !$exact {
+                    $self.$events = chunks.remainder().to_vec();
+                } else {
+                    let remainder = chunks.remainder().to_vec();
+                    if !remainder.is_empty() {
+                        $shards.push(ExecutionRecord {
+                            $events: chunks.remainder().to_vec(),
+                            program: self.program.clone(),
+                            ..Default::default()
+                        });
+                    }
+                }
+                let mut event_shards = chunks
+                    .map(|chunk| ExecutionRecord {
+                        $events: chunk.to_vec(),
+                        program: self.program.clone(),
+                        ..Default::default()
+                    })
+                    .collect::<Vec<_>>();
+                $shards.append(&mut event_shards);
+            };
+        }
+
+        split_events!(self, keccak_permute_events, shards, threshold, last);
+        split_events!(self, secp256k1_add_events, shards, threshold, last);
+        split_events!(self, secp256k1_double_events, shards, threshold, last);
+        split_events!(self, bn254_add_events, shards, threshold, last);
+        split_events!(self, bn254_double_events, shards, threshold, last);
+        split_events!(self, bls12381_add_events, shards, threshold, last);
+        split_events!(self, bls12381_double_events, shards, threshold, last);
+        split_events!(self, sha_extend_events, shards, threshold, last);
+        split_events!(self, sha_compress_events, shards, threshold, last);
+        split_events!(self, ed_add_events, shards, threshold, last);
+        split_events!(self, ed_decompress_events, shards, threshold, last);
+        split_events!(self, k256_decompress_events, shards, threshold, last);
+        split_events!(self, uint256_mul_events, shards, threshold, last);
+        split_events!(self, bls12381_decompress_events, shards, threshold, last);
+
+        if last {
+            self.memory_initialize_events
+                .sort_by_key(|event| event.addr);
+            self.memory_finalize_events.sort_by_key(|event| event.addr);
+            let mut init_addr_bits = [0; 32];
+            let mut finalize_addr_bits = [0; 32];
+            for (mem_init_chunk, mem_finalize_chunk) in self
+                .memory_initialize_events
+                .chunks(threshold)
+                .zip(self.memory_finalize_events.chunks(threshold))
+            {
+                let mut shard = ExecutionRecord::default();
+                shard.program = self.program.clone();
+                shard
+                    .memory_initialize_events
+                    .extend_from_slice(mem_init_chunk);
+                shard.public_values.previous_init_addr_bits = init_addr_bits;
+                if let Some(last_event) = mem_init_chunk.last() {
+                    let last_init_addr_bits = core::array::from_fn(|i| (last_event.addr >> i) & 1);
+                    shard.public_values.last_init_addr_bits = last_init_addr_bits;
+                    init_addr_bits = last_init_addr_bits;
+                }
+
+                shard
+                    .memory_finalize_events
+                    .extend_from_slice(mem_finalize_chunk);
+                shard.public_values.previous_finalize_addr_bits = finalize_addr_bits;
+                if let Some(last_event) = mem_finalize_chunk.last() {
+                    let last_finalize_addr_bits =
+                        core::array::from_fn(|i| (last_event.addr >> i) & 1);
+                    shard.public_values.last_finalize_addr_bits = last_finalize_addr_bits;
+                    finalize_addr_bits = last_finalize_addr_bits;
+                }
+
+                shards.push(shard);
+            }
+        }
+
+        shards
     }
 }
 
