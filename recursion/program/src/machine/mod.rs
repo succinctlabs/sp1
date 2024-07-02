@@ -137,8 +137,8 @@ mod tests {
                 initial_reconstruct_challenger: reconstruct_challenger.clone(),
                 is_complete,
                 total_core_shards,
-                initial_shard: public_values[0].shard,
-                current_shard: public_values[0].shard,
+                initial_shard: public_values[0].execution_shard,
+                current_shard: public_values[0].execution_shard,
                 start_pc: public_values[0].start_pc,
                 current_pc: public_values[0].start_pc,
                 committed_value_digest_arr: public_values[0]

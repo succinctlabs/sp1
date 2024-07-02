@@ -1113,7 +1113,7 @@ impl<'a> Runtime<'a> {
             record.program = program.clone();
             record.public_values.committed_value_digest = public_values.committed_value_digest;
             record.public_values.deferred_proofs_digest = public_values.deferred_proofs_digest;
-            record.public_values.shard = start_shard + i as u32;
+            record.public_values.execution_shard = start_shard + i as u32;
             if !record.cpu_events.is_empty() {
                 record.public_values.start_pc = record.cpu_events[0].pc;
                 record.public_values.next_pc = record.cpu_events.last().unwrap().next_pc;

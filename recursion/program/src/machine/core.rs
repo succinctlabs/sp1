@@ -250,8 +250,8 @@ where
                 // Initialize the values of accumulated variables.
 
                 // Shard.
-                builder.assign(initial_shard, public_values.shard);
-                builder.assign(current_shard, public_values.shard);
+                builder.assign(initial_shard, public_values.execution_shard);
+                builder.assign(current_shard, public_values.execution_shard);
 
                 // Program counter.
                 builder.assign(start_pc, public_values.start_pc);
@@ -297,7 +297,7 @@ where
                 builder.assign(exit_code, public_values.exit_code);
             });
 
-            let shard = felt2var(builder, public_values.shard);
+            let shard = felt2var(builder, public_values.execution_shard);
             builder.if_eq(shard, C::N::one()).then(|builder| {
                 // Assert that the shard contains a "CPU" chip.
                 builder.assert_var_eq(has_cpu, C::N::one());
@@ -387,7 +387,7 @@ where
                     }
 
                     // Assert that the shard of the proof is equal to the current shard.
-                    builder.assert_felt_eq(current_shard, public_values.shard);
+                    builder.assert_felt_eq(current_shard, public_values.execution_shard);
 
                     // Increment the current cpu shard by one.
                     builder.assign(current_shard, current_shard + C::F::one());
@@ -424,7 +424,7 @@ where
             }
 
             // Range check the shard count to be less than 1<<16.
-            builder.range_check_f(public_values.shard, 16);
+            builder.range_check_f(public_values.execution_shard, 16);
 
             // Update the reconstruct challenger.
             reconstruct_challenger.observe(builder, proof.commitment.main_commit.clone());

@@ -39,8 +39,8 @@ pub struct PublicValues<W, T> {
     /// The exit code of the program.  Only valid if halt has been executed.
     pub exit_code: T,
 
-    /// The shard number.
-    pub shard: T,
+    /// The execution shard number.
+    pub execution_shard: T,
 
     /// The bits of the largest address that is witnessed for initialization in the previous shard.
     pub previous_init_addr_bits: [T; 32],
@@ -69,7 +69,7 @@ impl PublicValues<u32, u32> {
 
     pub fn reset(&self) -> Self {
         let mut copy = *self;
-        copy.shard = 0;
+        copy.execution_shard = 0;
         copy.start_pc = 0;
         copy.next_pc = 0;
         copy.previous_init_addr_bits = [0; 32];
@@ -122,7 +122,7 @@ impl<F: AbstractField> From<PublicValues<u32, u32>> for PublicValues<Word<F>, F>
             start_pc,
             next_pc,
             exit_code,
-            shard,
+            execution_shard,
             previous_init_addr_bits,
             last_init_addr_bits,
             previous_finalize_addr_bits,
@@ -138,7 +138,7 @@ impl<F: AbstractField> From<PublicValues<u32, u32>> for PublicValues<Word<F>, F>
         let start_pc = F::from_canonical_u32(start_pc);
         let next_pc = F::from_canonical_u32(next_pc);
         let exit_code = F::from_canonical_u32(exit_code);
-        let shard = F::from_canonical_u32(shard);
+        let execution_shard = F::from_canonical_u32(execution_shard);
         let previous_init_addr_bits = previous_init_addr_bits.map(F::from_canonical_u32);
         let last_init_addr_bits = last_init_addr_bits.map(F::from_canonical_u32);
         let previous_finalize_addr_bits = previous_finalize_addr_bits.map(F::from_canonical_u32);
@@ -150,7 +150,7 @@ impl<F: AbstractField> From<PublicValues<u32, u32>> for PublicValues<Word<F>, F>
             start_pc,
             next_pc,
             exit_code,
-            shard,
+            execution_shard,
             previous_init_addr_bits,
             last_init_addr_bits,
             previous_finalize_addr_bits,

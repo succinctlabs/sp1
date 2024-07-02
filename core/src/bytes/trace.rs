@@ -48,7 +48,7 @@ impl<F: Field> MachineAir<F> for ByteChip<F> {
             NUM_BYTE_MULT_COLS,
         );
 
-        let shard = input.public_values.shard;
+        let shard = input.public_values.execution_shard;
         for (lookup, mult) in input
             .byte_lookups
             .get(&shard)

@@ -109,7 +109,7 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
             .copied()
             .collect::<Vec<_>>();
 
-        let mult = if input.public_values.shard == 1 {
+        let mult = if input.public_values.execution_shard == 1 {
             F::one()
         } else {
             F::zero()
@@ -122,7 +122,8 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
                 let mut row = [F::zero(); NUM_MEMORY_PROGRAM_MULT_COLS];
                 let cols: &mut MemoryProgramMultCols<F> = row.as_mut_slice().borrow_mut();
                 cols.multiplicity = mult;
-                cols.is_first_shard.populate(input.public_values.shard - 1);
+                cols.is_first_shard
+                    .populate(input.public_values.execution_shard - 1);
                 row
             })
             .collect::<Vec<_>>();
@@ -173,7 +174,7 @@ where
         // Constrain `is_first_shard` to be 1 if and only if the shard is the first shard.
         IsZeroOperation::<AB::F>::eval(
             builder,
-            public_values.shard.clone() - AB::F::one(),
+            public_values.execution_shard.clone() - AB::F::one(),
             mult_local.is_first_shard,
             prep_local.is_real.into(),
         );

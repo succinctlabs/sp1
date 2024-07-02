@@ -172,7 +172,7 @@ where
 
         // Update the public values & prover state for the shards which contain "cpu events".
         for record in records.iter_mut() {
-            state.shard = record.public_values.shard;
+            state.execution_shard = record.public_values.execution_shard;
             state.start_pc = record.public_values.start_pc;
             state.next_pc = record.public_values.next_pc;
             record.public_values = state;
@@ -236,7 +236,7 @@ where
 
         // Update the public values & prover state for the shards which contain "cpu events".
         for record in records.iter_mut() {
-            state.shard = record.public_values.shard;
+            state.execution_shard = record.public_values.execution_shard;
             state.start_pc = record.public_values.start_pc;
             state.next_pc = record.public_values.next_pc;
             record.public_values = state;

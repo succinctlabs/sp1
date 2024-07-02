@@ -9,6 +9,7 @@
 
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::new_without_default)]
+#![allow(clippy::collapsible_else_if)]
 
 pub mod build;
 pub mod install;
@@ -296,8 +297,8 @@ impl SP1Prover {
                     .iter()
                     .filter(|proof| proof.contains_cpu())
                     .count(),
-                initial_shard: public_values[0].shard,
-                current_shard: public_values[0].shard,
+                initial_shard: public_values[0].execution_shard,
+                current_shard: public_values[0].execution_shard,
                 start_pc: public_values[0].start_pc,
                 current_pc: public_values[0].start_pc,
                 committed_value_digest_arr: public_values[0]
@@ -356,7 +357,7 @@ impl SP1Prover {
                 sp1_vk: vk,
                 sp1_machine: &self.core_machine,
                 end_pc: Val::<InnerSC>::zero(),
-                end_shard: last_proof_pv.shard + BabyBear::one(),
+                end_shard: last_proof_pv.execution_shard + BabyBear::one(),
                 init_addr_bits: last_proof_pv.last_init_addr_bits,
                 finalize_addr_bits: last_proof_pv.last_finalize_addr_bits,
                 leaf_challenger: leaf_challenger.clone(),

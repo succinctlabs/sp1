@@ -159,6 +159,14 @@ impl<SC: StarkGenericConfig> ShardProof<SC> {
     pub fn contains_cpu(&self) -> bool {
         self.chip_ordering.contains_key("CPU")
     }
+
+    pub fn contains_memory_init(&self) -> bool {
+        self.chip_ordering.contains_key("MemoryInit")
+    }
+
+    pub fn contains_memory_finalize(&self) -> bool {
+        self.chip_ordering.contains_key("MemoryFinalize")
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone)]
