@@ -60,7 +60,7 @@ pub struct SP1ReduceMemoryLayout<'a, SC: StarkGenericConfig, A: MachineAir<SC::V
     pub shard_proofs: Vec<ShardProof<SC>>,
     pub is_complete: bool,
     pub kinds: Vec<ReduceProgramType>,
-    pub total_core_shards: usize,
+    pub total_execution_shards: usize,
 }
 
 #[derive(DslVariable, Clone)]
@@ -69,7 +69,7 @@ pub struct SP1ReduceMemoryLayoutVariable<C: Config> {
     pub shard_proofs: Array<C, ShardProofVariable<C>>,
     pub kinds: Array<C, Var<C::N>>,
     pub is_complete: Var<C::N>,
-    pub total_core_shards: Var<C::N>,
+    pub total_execution_shards: Var<C::N>,
 }
 
 impl<A> SP1CompressVerifier<InnerConfig, BabyBearPoseidon2, A>
@@ -108,11 +108,7 @@ where
 impl<C: Config, SC, A> SP1CompressVerifier<C, SC, A>
 where
     C::F: PrimeField32 + TwoAdicField,
-    SC: StarkGenericConfig<
-        Val = C::F,
-        Challenge = C::EF,
-        Domain = TwoAdicMultiplicativeCoset<C::F>,
-    >,
+    SC: StarkGenericConfig<Val = C::F, Challenge = C::EF, Domain = TwoAdicMultiplicativeCoset<C::F>>,
     A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
     Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
 {
@@ -141,9 +137,9 @@ where
             shard_proofs,
             kinds,
             is_complete,
-            total_core_shards,
+            total_execution_shards,
         } = input;
-        let total_core_shards_felt = var2felt(builder, total_core_shards);
+        let total_execution_shards_felt = var2felt(builder, total_execution_shards);
 
         // Initialize the values for the aggregated public output.
 
@@ -448,10 +444,10 @@ where
                 builder.assert_felt_eq(*digest, *current_digest);
             }
 
-            // Assert that total_core_shards is the same.
+            // Assert that total_execution_shards is the same.
             builder.assert_felt_eq(
-                total_core_shards_felt,
-                current_public_values.total_core_shards,
+                total_execution_shards_felt,
+                current_public_values.total_execution_shards,
             );
 
             // Update the accumulated values.
@@ -533,7 +529,7 @@ where
         // Assign the cumulative sum.
         reduce_public_values.cumulative_sum = cumulative_sum;
         // Assign the total number of shards.
-        reduce_public_values.total_core_shards = total_core_shards_felt;
+        reduce_public_values.total_execution_shards = total_execution_shards_felt;
 
         // If the proof is complete, make completeness assertions and set the flag. Otherwise, check
         // the flag is zero and set the public value to zero.

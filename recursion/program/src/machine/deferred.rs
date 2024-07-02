@@ -55,7 +55,7 @@ where
     pub leaf_challenger: SC::Challenger,
     pub end_pc: SC::Val,
     pub end_shard: SC::Val,
-    pub total_core_shards: usize,
+    pub total_execution_shards: usize,
     pub init_addr_bits: [SC::Val; 32],
     pub finalize_addr_bits: [SC::Val; 32],
 }
@@ -77,7 +77,7 @@ pub struct SP1DeferredMemoryLayoutVariable<C: Config> {
     pub leaf_challenger: DuplexChallengerVariable<C>,
     pub end_pc: Felt<C::F>,
     pub end_shard: Felt<C::F>,
-    pub total_core_shards: Var<C::N>,
+    pub total_execution_shards: Var<C::N>,
     pub init_addr_bits: Array<C, Felt<C::F>>,
     pub finalize_addr_bits: Array<C, Felt<C::F>>,
 }
@@ -107,11 +107,7 @@ where
 impl<C: Config, SC, A> SP1DeferredVerifier<C, SC, A>
 where
     C::F: PrimeField32 + TwoAdicField,
-    SC: StarkGenericConfig<
-        Val = C::F,
-        Challenge = C::EF,
-        Domain = TwoAdicMultiplicativeCoset<C::F>,
-    >,
+    SC: StarkGenericConfig<Val = C::F, Challenge = C::EF, Domain = TwoAdicMultiplicativeCoset<C::F>>,
     A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
     Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
 {
@@ -136,7 +132,7 @@ where
             proofs,
             start_reconstruct_deferred_digest,
             is_complete,
-            total_core_shards,
+            total_execution_shards,
             sp1_vk,
             committed_value_digest,
             deferred_proofs_digest,
@@ -306,7 +302,7 @@ where
 
         // Set the is_complete flag.
         deferred_public_values.is_complete = var2felt(builder, is_complete);
-        deferred_public_values.total_core_shards = var2felt(builder, total_core_shards);
+        deferred_public_values.total_execution_shards = var2felt(builder, total_execution_shards);
 
         commit_public_values(builder, deferred_public_values);
     }

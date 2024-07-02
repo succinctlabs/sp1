@@ -43,7 +43,7 @@ pub struct SP1RecursionMemoryLayout<'a, SC: StarkGenericConfig, A: MachineAir<SC
     pub leaf_challenger: &'a SC::Challenger,
     pub initial_reconstruct_challenger: SC::Challenger,
     pub is_complete: bool,
-    pub total_core_shards: usize,
+    pub total_execution_shards: usize,
     pub initial_shard: Val<SC>,
     pub current_shard: Val<SC>,
     pub start_pc: Val<SC>,
@@ -63,7 +63,7 @@ pub struct SP1RecursionMemoryLayoutVariable<C: Config> {
 
     pub is_complete: Var<C::N>,
 
-    pub total_core_shards: Var<C::N>,
+    pub total_execution_shards: Var<C::N>,
 
     pub initial_shard: Felt<C::F>,
     pub current_shard: Felt<C::F>,
@@ -146,7 +146,7 @@ where
             leaf_challenger,
             initial_reconstruct_challenger,
             is_complete,
-            total_core_shards,
+            total_execution_shards,
             initial_shard,
             current_shard,
             start_pc,
@@ -435,6 +435,7 @@ where
                 {
                     builder.assign(*bit, *pub_bit);
                 }
+
                 // Update the MemoryFinalize address bits.
                 for (bit, pub_bit) in finalize_addr_bits
                     .iter()
@@ -446,7 +447,46 @@ where
 
             // Digest constraints.
             {
-                // TODO.
+                // If `commited_value_digest` is not zero, then `public_values.commited_value_digest
+                // should be the current value.
+                let is_zero: Var<_> = builder.eval(C::N::one());
+                #[allow(clippy::needless_range_loop)]
+                for i in 0..committed_value_digest.len() {
+                    for j in 0..WORD_SIZE {
+                        let d = felt2var(builder, committed_value_digest[i][j]);
+                        builder.if_ne(d, C::N::zero()).then(|builder| {
+                            builder.assign(is_zero, C::N::zero());
+                        });
+                    }
+                }
+                builder.if_eq(is_zero, C::N::one()).then(|builder| {
+                    #[allow(clippy::needless_range_loop)]
+                    for i in 0..committed_value_digest.len() {
+                        for j in 0..WORD_SIZE {
+                            builder.assert_felt_eq(
+                                committed_value_digest[i][j],
+                                public_values.committed_value_digest[i][j],
+                            );
+                        }
+                    }
+                });
+
+                // If `deferred_proofs_digest` is not zero, then `public_values.deferred_proofs_digest
+                // should be the current value.
+                let is_zero: Var<_> = builder.eval(C::N::one());
+                #[allow(clippy::needless_range_loop)]
+                for i in 0..deferred_proofs_digest.len() {
+                    let d = felt2var(builder, deferred_proofs_digest[i]);
+                    builder.if_ne(d, C::N::zero()).then(|builder| {
+                        builder.assign(is_zero, C::N::zero());
+                    });
+                }
+                builder.if_eq(is_zero, C::N::one()).then(|builder| {
+                    builder.assert_felt_eq(
+                        deferred_proofs_digest[0],
+                        public_values.deferred_proofs_digest[0],
+                    );
+                });
             }
 
             // Verify that the number of shards is not too large.
@@ -497,7 +537,7 @@ where
         let end_deferred_digest = [zero; POSEIDON_NUM_WORDS];
 
         let is_complete_felt = var2felt(builder, is_complete);
-        let total_core_shards_felt = var2felt(builder, total_core_shards);
+        let total_execution_shards_felt = var2felt(builder, total_execution_shards);
 
         recursion_public_values.committed_value_digest = committed_value_digest;
         recursion_public_values.deferred_proofs_digest = deferred_proofs_digest;
@@ -518,7 +558,7 @@ where
         recursion_public_values.start_reconstruct_deferred_digest = start_deferred_digest;
         recursion_public_values.end_reconstruct_deferred_digest = end_deferred_digest;
         recursion_public_values.is_complete = is_complete_felt;
-        recursion_public_values.total_core_shards = total_core_shards_felt;
+        recursion_public_values.total_execution_shards = total_execution_shards_felt;
 
         // If the proof represents a complete proof, make completeness assertions.
         //

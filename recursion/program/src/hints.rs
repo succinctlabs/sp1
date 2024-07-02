@@ -90,10 +90,11 @@ impl Hintable<C> for [Word<BabyBear>; PV_DIGEST_NUM_WORDS] {
     }
 
     fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
-        vec![self
-            .iter()
-            .flat_map(|w| w.0.iter().map(|f| Block::from(*f)))
-            .collect::<Vec<_>>()]
+        vec![
+            self.iter()
+                .flat_map(|w| w.0.iter().map(|f| Block::from(*f)))
+                .collect::<Vec<_>>(),
+        ]
     }
 }
 
@@ -206,10 +207,11 @@ impl Hintable<C> for Vec<usize> {
     }
 
     fn write(&self) -> Vec<Vec<Block<InnerVal>>> {
-        vec![self
-            .iter()
-            .map(|x| Block::from(InnerVal::from_canonical_usize(*x)))
-            .collect()]
+        vec![
+            self.iter()
+                .map(|x| Block::from(InnerVal::from_canonical_usize(*x)))
+                .collect(),
+        ]
     }
 }
 
@@ -233,10 +235,11 @@ impl Hintable<C> for Vec<InnerChallenge> {
     }
 
     fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
-        vec![self
-            .iter()
-            .map(|x| Block::from((*x).as_base_slice()))
-            .collect()]
+        vec![
+            self.iter()
+                .map(|x| Block::from((*x).as_base_slice()))
+                .collect(),
+        ]
     }
 }
 
@@ -420,14 +423,14 @@ impl Hintable<C> for DuplexChallenger<InnerVal, InnerPerm, 16, 8> {
 }
 
 impl<
-        'a,
-        SC: StarkGenericConfig<
+    'a,
+    SC: StarkGenericConfig<
             Pcs = <BabyBearPoseidon2 as StarkGenericConfig>::Pcs,
             Challenge = <BabyBearPoseidon2 as StarkGenericConfig>::Challenge,
             Challenger = <BabyBearPoseidon2 as StarkGenericConfig>::Challenger,
         >,
-        A: MachineAir<SC::Val>,
-    > Hintable<C> for VerifyingKeyHint<'a, SC, A>
+    A: MachineAir<SC::Val>,
+> Hintable<C> for VerifyingKeyHint<'a, SC, A>
 {
     type HintVariable = VerifyingKeyVariable<C>;
 
@@ -459,14 +462,14 @@ impl<
 
 // Implement Hintable<C> for ShardProof where SC is equivalent to BabyBearPoseidon2
 impl<
-        'a,
-        SC: StarkGenericConfig<
+    'a,
+    SC: StarkGenericConfig<
             Pcs = <BabyBearPoseidon2 as StarkGenericConfig>::Pcs,
             Challenge = <BabyBearPoseidon2 as StarkGenericConfig>::Challenge,
             Challenger = <BabyBearPoseidon2 as StarkGenericConfig>::Challenger,
         >,
-        A: MachineAir<SC::Val>,
-    > Hintable<C> for ShardProofHint<'a, SC, A>
+    A: MachineAir<SC::Val>,
+> Hintable<C> for ShardProofHint<'a, SC, A>
 where
     ShardCommitment<Com<SC>>: Hintable<C>,
 {
@@ -517,7 +520,7 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
         let initial_reconstruct_challenger =
             DuplexChallenger::<InnerVal, InnerPerm, 16, 8>::read(builder);
         let is_complete = builder.hint_var();
-        let total_core_shards = builder.hint_var();
+        let total_execution_shards = builder.hint_var();
         let initial_shard = builder.hint_felt();
         let current_shard = builder.hint_felt();
         let start_pc = builder.hint_felt();
@@ -531,7 +534,7 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
             leaf_challenger,
             initial_reconstruct_challenger,
             is_complete,
-            total_core_shards,
+            total_execution_shards,
             initial_shard,
             current_shard,
             start_pc,
@@ -557,7 +560,7 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
         stream.extend(self.leaf_challenger.write());
         stream.extend(self.initial_reconstruct_challenger.write());
         stream.extend((self.is_complete as usize).write());
-        stream.extend(self.total_core_shards.write());
+        stream.extend(self.total_execution_shards.write());
         stream.extend(self.initial_shard.write());
         stream.extend(self.current_shard.write());
         stream.extend(self.start_pc.write());
@@ -577,14 +580,14 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C> for SP1ReduceMemoryLayout<'a, Baby
         let shard_proofs = Vec::<ShardProofHint<'a, BabyBearPoseidon2, A>>::read(builder);
         let kinds = Vec::<usize>::read(builder);
         let is_complete = builder.hint_var();
-        let total_core_shards = builder.hint_var();
+        let total_execution_shards = builder.hint_var();
 
         SP1ReduceMemoryLayoutVariable {
             compress_vk,
             shard_proofs,
             kinds,
             is_complete,
-            total_core_shards,
+            total_execution_shards,
         }
     }
 
@@ -608,7 +611,7 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C> for SP1ReduceMemoryLayout<'a, Baby
         stream.extend(proof_hints.write());
         stream.extend(kinds.write());
         stream.extend((self.is_complete as usize).write());
-        stream.extend(self.total_core_shards.write());
+        stream.extend(self.total_execution_shards.write());
 
         stream
     }
@@ -653,7 +656,7 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
         let leaf_challenger = DuplexChallenger::<InnerVal, InnerPerm, 16, 8>::read(builder);
         let end_pc = InnerVal::read(builder);
         let end_shard = InnerVal::read(builder);
-        let total_core_shards = builder.hint_var();
+        let total_execution_shards = builder.hint_var();
         let init_addr_bits = Vec::<InnerVal>::read(builder);
         let finalize_addr_bits = Vec::<InnerVal>::read(builder);
 
@@ -668,7 +671,7 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
             leaf_challenger,
             end_pc,
             end_shard,
-            total_core_shards,
+            total_execution_shards,
             init_addr_bits,
             finalize_addr_bits,
         }
@@ -706,7 +709,7 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
         stream.extend(self.leaf_challenger.write());
         stream.extend(self.end_pc.write());
         stream.extend(self.end_shard.write());
-        stream.extend(self.total_core_shards.write());
+        stream.extend(self.total_execution_shards.write());
         stream.extend(self.init_addr_bits.to_vec().write());
         stream.extend(self.finalize_addr_bits.to_vec().write());
 
