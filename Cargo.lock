@@ -4731,6 +4731,7 @@ version = "0.1.0"
 dependencies = [
  "cargo_metadata",
  "chrono",
+ "clap",
 ]
 
 [[package]]
