@@ -12,6 +12,10 @@ pub struct NewCmd {
     /// Whether to create the project with template EVM contracts.
     #[arg(long, action)]
     evm: bool,
+
+    /// Version of sp1-project-template to use (branch or tag).
+    #[arg(long, default_value = "main")]
+    version: String,
 }
 
 const TEMPLATE_REPOSITORY_URL: &str = "https://github.com/succinctlabs/sp1-project-template";
@@ -25,9 +29,11 @@ impl NewCmd {
             fs::create_dir(&self.name)?;
         }
 
-        // Clone the repository.
+        // Clone the repository with the specified version.
         let output = Command::new("git")
             .arg("clone")
+            .arg("--branch")
+            .arg(&self.version)
             .arg(TEMPLATE_REPOSITORY_URL)
             .arg(root.as_os_str())
             .arg("--recurse-submodules")
