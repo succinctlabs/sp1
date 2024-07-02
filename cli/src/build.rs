@@ -8,10 +8,13 @@ use std::{
     thread,
 };
 
-fn get_docker_image() -> String {
-    // Get the docker image name from the environment variable
-    std::env::var("SP1_DOCKER_IMAGE")
-        .unwrap_or_else(|_| "ghcr.io/succinctlabs/sp1:latest".to_string())
+/// Uses SP1_DOCKER_IMAGE environment variable if set, otherwise constructs the image to use based
+/// on the provided tag.
+fn get_docker_image(tag: &str) -> String {
+    std::env::var("SP1_DOCKER_IMAGE").unwrap_or_else(|_| {
+        let image_base = "ghcr.io/succinctlabs/sp1";
+        format!("{}:{}", image_base, tag)
+    })
 }
 
 #[derive(Parser)]
@@ -22,6 +25,12 @@ pub(crate) struct BuildArgs {
         help = "Create a binary using the reproducible build system with docker."
     )]
     pub(crate) docker: bool,
+    #[clap(
+        long,
+        help = "The ghcr.io/succinctlabs/sp1 image tag to use when building with docker.",
+        default_value = "latest"
+    )]
+    pub(crate) tag: String,
     #[clap(long, action, help = "Ignore the rust version check.")]
     pub(crate) ignore_rust_version: bool,
 }
@@ -34,7 +43,7 @@ pub fn build_program(args: &BuildArgs) -> Result<Utf8PathBuf> {
 
     let build_target = "riscv32im-succinct-zkvm-elf";
     if args.docker {
-        let image = get_docker_image();
+        let image = get_docker_image(&args.tag);
 
         let docker_check = Command::new("docker")
             .args(["info"])
@@ -54,6 +63,8 @@ pub fn build_program(args: &BuildArgs) -> Result<Utf8PathBuf> {
         let mut child_args = vec![
             "run",
             "--rm",
+            "--platform",
+            "linux/amd64",
             "-v",
             workspace_root_path.as_str(),
             image.as_str(),
