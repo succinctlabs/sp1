@@ -997,8 +997,10 @@ impl<'a> Runtime<'a> {
             self.state.channel = 0;
 
             let record = std::mem::take(&mut self.record);
+            let public_values = record.public_values;
             self.records.push(record);
             self.record = ExecutionRecord::new(self.program.clone());
+            self.record.public_values = public_values;
         }
 
         Ok(self.state.pc.wrapping_sub(self.program.pc_base)
@@ -1098,10 +1100,7 @@ impl<'a> Runtime<'a> {
         }
 
         // Get the final public values.
-        let public_values = match self.records.last() {
-            Some(record) => record.public_values,
-            None => PublicValues::default(),
-        };
+        let public_values = self.record.public_values;
 
         if done {
             self.postprocess();
@@ -1115,6 +1114,7 @@ impl<'a> Runtime<'a> {
         // Set the global public values for all shards.
         for (i, record) in self.records.iter_mut().enumerate() {
             record.program = program.clone();
+            record.public_values = public_values;
             record.public_values.committed_value_digest = public_values.committed_value_digest;
             record.public_values.deferred_proofs_digest = public_values.deferred_proofs_digest;
             record.public_values.execution_shard = start_shard + i as u32;
