@@ -4,6 +4,7 @@ use p3_field::{Field, PrimeField32};
 use serde::{Deserialize, Serialize};
 use sp1_core::air::MachineProgram;
 use sp1_core::{air::PublicValues, stark::MachineRecord};
+use sp1_derive::AlignedBorrow;
 use sp1_recursion_core::{air::Block, runtime::D};
 
 pub mod alu;
@@ -40,7 +41,8 @@ pub enum MemAccessKind {
     Write,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(AlignedBorrow, Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(C)]
 pub struct AddressValue<A, V> {
     addr: A,
     val: V,
