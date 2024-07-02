@@ -39,15 +39,6 @@ sol! {
         uint64 nonce;
         string proof_id;
     }
-
-    struct RelayProof {
-        uint64 nonce;
-        string proof_id;
-        uint32 chain_id;
-        address verifier;
-        address callback;
-        bytes callback_data;
-    }
 }
 
 /// Handles authentication for the Succinct prover network. All interactions that could potentially
@@ -147,28 +138,6 @@ impl NetworkAuth {
         let type_struct = FulfillProof {
             nonce,
             proof_id: proof_id.to_string(),
-        };
-        self.sign_message(type_struct).await
-    }
-
-    /// Signs a message to remote relay a proof to a specific chain with the verifier and callback
-    /// specified.
-    pub async fn sign_relay_proof_message(
-        &self,
-        nonce: u64,
-        proof_id: &str,
-        chain_id: u32,
-        verifier: [u8; 20],
-        callback: [u8; 20],
-        callback_data: &[u8],
-    ) -> Result<Vec<u8>> {
-        let type_struct = RelayProof {
-            nonce,
-            proof_id: proof_id.to_string(),
-            chain_id,
-            verifier: verifier.into(),
-            callback: callback.into(),
-            callback_data: callback_data.to_vec().into(),
         };
         self.sign_message(type_struct).await
     }
