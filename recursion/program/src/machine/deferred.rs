@@ -55,7 +55,6 @@ where
     pub leaf_challenger: SC::Challenger,
     pub end_pc: SC::Val,
     pub end_shard: SC::Val,
-    pub total_execution_shards: usize,
     pub init_addr_bits: [SC::Val; 32],
     pub finalize_addr_bits: [SC::Val; 32],
 }
@@ -106,11 +105,7 @@ where
 impl<C: Config, SC, A> SP1DeferredVerifier<C, SC, A>
 where
     C::F: PrimeField32 + TwoAdicField,
-    SC: StarkGenericConfig<
-        Val = C::F,
-        Challenge = C::EF,
-        Domain = TwoAdicMultiplicativeCoset<C::F>,
-    >,
+    SC: StarkGenericConfig<Val = C::F, Challenge = C::EF, Domain = TwoAdicMultiplicativeCoset<C::F>>,
     A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
     Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
 {

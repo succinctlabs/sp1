@@ -281,10 +281,6 @@ impl SP1Prover {
         // Prepare the inputs for the recursion programs.
         for batch in shard_proofs.chunks(batch_size) {
             let proofs = batch.to_vec();
-            let public_values: Vec<&PublicValues<Word<_>, _>> = proofs
-                .iter()
-                .map(|proof| proof.public_values.as_slice().borrow())
-                .collect::<Vec<_>>();
 
             core_inputs.push(SP1RecursionMemoryLayout {
                 vk,
@@ -293,20 +289,6 @@ impl SP1Prover {
                 leaf_challenger,
                 initial_reconstruct_challenger: reconstruct_challenger.clone(),
                 is_complete,
-                total_execution_shards: shard_proofs
-                    .iter()
-                    .filter(|proof| proof.contains_cpu())
-                    .count(),
-                initial_shard: public_values[0].execution_shard,
-                current_shard: public_values[0].execution_shard,
-                start_pc: public_values[0].start_pc,
-                current_pc: public_values[0].start_pc,
-                committed_value_digest_arr: public_values[0]
-                    .committed_value_digest
-                    .iter()
-                    .map(|w| w.0.to_vec())
-                    .collect::<Vec<_>>(),
-                deferred_proofs_digest_arr: public_values[0].deferred_proofs_digest.to_vec(),
             });
 
             for proof in batch.iter() {
@@ -339,7 +321,6 @@ impl SP1Prover {
         last_proof_pv: &PublicValues<Word<BabyBear>, BabyBear>,
         deferred_proofs: &[ShardProof<InnerSC>],
         batch_size: usize,
-        total_execution_shards: usize,
     ) -> Vec<SP1DeferredMemoryLayout<'a, InnerSC, RecursionAir<BabyBear, 3>>> {
         // Prepare the inputs for the deferred proofs recursive verification.
         let mut deferred_digest = [Val::<InnerSC>::zero(); DIGEST_SIZE];
@@ -357,13 +338,12 @@ impl SP1Prover {
                 sp1_vk: vk,
                 sp1_machine: &self.core_machine,
                 end_pc: Val::<InnerSC>::zero(),
-                end_shard: last_proof_pv.execution_shard + BabyBear::one(),
+                end_shard: last_proof_pv.execution_shard,
                 init_addr_bits: last_proof_pv.last_init_addr_bits,
                 finalize_addr_bits: last_proof_pv.last_finalize_addr_bits,
                 leaf_challenger: leaf_challenger.clone(),
                 committed_value_digest: last_proof_pv.committed_value_digest.to_vec(),
                 deferred_proofs_digest: last_proof_pv.deferred_proofs_digest.to_vec(),
-                total_execution_shards,
             });
 
             deferred_digest = Self::hash_deferred_proofs(deferred_digest, batch);
@@ -404,10 +384,6 @@ impl SP1Prover {
             last_proof_pv,
             deferred_proofs,
             batch_size,
-            shard_proofs
-                .iter()
-                .filter(|proof| proof.contains_cpu())
-                .count(),
         );
         (core_inputs, deferred_inputs)
     }
@@ -476,6 +452,11 @@ impl SP1Prover {
                 })
                 .collect::<Vec<_>>();
             reduce_proofs.extend(proofs);
+        }
+
+        for reduce_proof in reduce_proofs.iter() {
+            let pv: &PublicValues<_, _> = reduce_proof.0.public_values.as_slice().borrow();
+            println!("execution shard: {}", pv.execution_shard);
         }
 
         // Iterate over the recursive proof batches until there is one proof remaining.

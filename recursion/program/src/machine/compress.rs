@@ -106,11 +106,7 @@ where
 impl<C: Config, SC, A> SP1CompressVerifier<C, SC, A>
 where
     C::F: PrimeField32 + TwoAdicField,
-    SC: StarkGenericConfig<
-        Val = C::F,
-        Challenge = C::EF,
-        Domain = TwoAdicMultiplicativeCoset<C::F>,
-    >,
+    SC: StarkGenericConfig<Val = C::F, Challenge = C::EF, Domain = TwoAdicMultiplicativeCoset<C::F>>,
     A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
     Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
 {
@@ -394,8 +390,12 @@ where
 
             // Assert that the start pc is equal to the current pc.
             builder.assert_felt_eq(pc, current_public_values.start_pc);
+
             // Verfiy that the shard is equal to the current shard.
+            builder.print_f(shard);
+            builder.print_f(current_public_values.start_execution_shard);
             builder.assert_felt_eq(shard, current_public_values.start_execution_shard);
+
             // Assert that the leaf challenger is always the same.
 
             // Assert that the MemoryInitialize address bits are the same.

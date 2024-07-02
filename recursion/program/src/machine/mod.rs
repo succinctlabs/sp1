@@ -13,11 +13,9 @@ pub use utils::*;
 #[cfg(test)]
 mod tests {
 
-    use itertools::Itertools;
     use p3_baby_bear::BabyBear;
     use p3_challenger::CanObserve;
     use p3_maybe_rayon::prelude::*;
-    use sp1_core::air::{PublicValues, Word};
     use sp1_core::stark::{MachineVerificationError, RiscvAir, StarkGenericConfig};
     use sp1_core::utils::{BabyBearPoseidon2, SP1CoreOpts};
     use sp1_core::{
@@ -31,7 +29,6 @@ mod tests {
         runtime::Runtime,
         stark::{config::BabyBearPoseidon2Outer, RecursionAir},
     };
-    use std::borrow::Borrow;
 
     use crate::hints::Hintable;
 
@@ -101,7 +98,6 @@ mod tests {
         )
         .unwrap();
         machine.verify(&vk, &proof, &mut challenger).unwrap();
-        let total_execution_shards = proof.shard_proofs.len();
         tracing::info!("Proof generated successfully");
         let elapsed = time.elapsed();
         tracing::info!("Execution proof time: {:?}", elapsed);
@@ -124,10 +120,6 @@ mod tests {
         let is_complete = proof.shard_proofs.len() == 1;
         for batch in proof.shard_proofs.chunks(batch_size) {
             let proofs = batch.to_vec();
-            let public_values: Vec<&PublicValues<Word<_>, _>> = proofs
-                .iter()
-                .map(|proof| proof.public_values.as_slice().borrow())
-                .collect::<Vec<_>>();
 
             layouts.push(SP1RecursionMemoryLayout {
                 vk: &vk,
@@ -136,17 +128,6 @@ mod tests {
                 leaf_challenger: &leaf_challenger,
                 initial_reconstruct_challenger: reconstruct_challenger.clone(),
                 is_complete,
-                total_execution_shards,
-                initial_shard: public_values[0].execution_shard,
-                current_shard: public_values[0].execution_shard,
-                start_pc: public_values[0].start_pc,
-                current_pc: public_values[0].start_pc,
-                committed_value_digest_arr: public_values[0]
-                    .committed_value_digest
-                    .iter()
-                    .map(|w| w.0.to_vec())
-                    .collect_vec(),
-                deferred_proofs_digest_arr: public_values[0].deferred_proofs_digest.to_vec(),
             });
 
             for proof in batch.iter() {
