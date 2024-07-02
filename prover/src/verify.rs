@@ -146,11 +146,11 @@ impl SP1Prover {
                 shard_proof.public_values.as_slice().borrow();
             if public_values.previous_init_addr_bits != last_init_addr_bits_prev {
                 return Err(MachineVerificationError::InvalidPublicValues(
-                    "previous_init_addr_bits != 0: previous_init_addr_bits should be zero on initialization",
+                    "previous_init_addr_bits != last_init_addr_bits_prev: previous_init_addr_bits should be zero on initialization and equal to last_init_addr_bits of previous shard",
                 ));
             } else if public_values.previous_finalize_addr_bits != last_finalize_addr_bits_prev {
                 return Err(MachineVerificationError::InvalidPublicValues(
-                    "last_init_addr_bits != 0: last_init_addr_bits should be zero on initialization",
+                    "last_init_addr_bits != last_finalize_addr_bits_prev: previous_finalize_addr_bits should be zero on initialization and equal to last_finalize_addr_bits of previous shard",
                 ));
             } else if !shard_proof.contains_memory_init()
                 && public_values.previous_init_addr_bits != public_values.last_init_addr_bits
