@@ -43,9 +43,11 @@ pub enum MemAccessKind {
 
 #[derive(AlignedBorrow, Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(C)]
+/// A memory address along with the stored value.
+/// For alignment reasons, `val` is first --- in `AddressValue<F, Block<F>>`, `val` is well-aligned.
 pub struct AddressValue<A, V> {
-    addr: A,
     val: V,
+    addr: A,
 }
 
 impl<A, V> AddressValue<A, V> {
