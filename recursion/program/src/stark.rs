@@ -492,7 +492,7 @@ pub(crate) mod tests {
 
         public_values.sp1_vk_digest = [builder.constant(<C as Config>::F::zero()); DIGEST_SIZE];
         public_values.next_pc = builder.constant(<C as Config>::F::one());
-        public_values.next_shard = builder.constant(<C as Config>::F::two());
+        public_values.next_execution_shard = builder.constant(<C as Config>::F::two());
         public_values.end_reconstruct_deferred_digest =
             [builder.constant(<C as Config>::F::from_canonical_usize(3)); POSEIDON_NUM_WORDS];
 

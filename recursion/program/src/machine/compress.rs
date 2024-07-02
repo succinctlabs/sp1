@@ -289,10 +289,10 @@ where
                 builder.assign(pc, current_public_values.start_pc);
 
                 // Initialize start shard.
-                builder.assign(shard, current_public_values.start_shard);
+                builder.assign(shard, current_public_values.start_execution_shard);
                 builder.assign(
-                    reduce_public_values.start_shard,
-                    current_public_values.start_shard,
+                    reduce_public_values.start_execution_shard,
+                    current_public_values.start_execution_shard,
                 );
 
                 // Initialize the MemoryInitialize address bits.
@@ -391,7 +391,7 @@ where
             // Assert that the start pc is equal to the current pc.
             builder.assert_felt_eq(pc, current_public_values.start_pc);
             // Verfiy that the shard is equal to the current shard.
-            builder.assert_felt_eq(shard, current_public_values.start_shard);
+            builder.assert_felt_eq(shard, current_public_values.start_execution_shard);
             // Assert that the leaf challenger is always the same.
 
             // Assert that the MemoryInitialize address bits are the same.
@@ -455,7 +455,7 @@ where
             builder.assign(pc, current_public_values.next_pc);
 
             // Update the shard to be the next shard.
-            builder.assign(shard, current_public_values.next_shard);
+            builder.assign(shard, current_public_values.next_execution_shard);
 
             // Update the MemoryInitialize address bits.
             for (bit, next_bit) in init_addr_bits
@@ -495,7 +495,7 @@ where
         // Set next_pc to be the last pc (which is the same as accumulated pc)
         reduce_public_values.next_pc = pc;
         // Set next shard to be the last shard (which is the same as accumulated shard)
-        reduce_public_values.next_shard = shard;
+        reduce_public_values.next_execution_shard = shard;
         // Set the MemoryInitialize address bits to be the last MemoryInitialize address bits.
         reduce_public_values.last_init_addr_bits = init_addr_bits;
         // Set the MemoryFinalize address bits to be the last MemoryFinalize address bits.

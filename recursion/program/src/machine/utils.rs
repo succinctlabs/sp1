@@ -32,8 +32,8 @@ pub(crate) fn assert_complete<C: Config>(
     let RecursionPublicValues {
         deferred_proofs_digest,
         next_pc,
-        start_shard,
-        next_shard,
+        start_execution_shard: start_shard,
+        next_execution_shard: next_shard,
         cumulative_sum,
         start_reconstruct_deferred_digest,
         end_reconstruct_deferred_digest,

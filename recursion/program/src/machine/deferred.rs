@@ -260,8 +260,8 @@ where
         // Set initial_pc, end_pc, initial_shard, and end_shard to be the hitned values.
         deferred_public_values.start_pc = end_pc;
         deferred_public_values.next_pc = end_pc;
-        deferred_public_values.start_shard = end_shard;
-        deferred_public_values.next_shard = end_shard;
+        deferred_public_values.start_execution_shard = end_shard;
+        deferred_public_values.next_execution_shard = end_shard;
         // Set the init and finalize address bits to be the hintred values.
         let init_addr_bits = core::array::from_fn(|i| builder.get(&init_addr_bits, i));
         deferred_public_values.previous_init_addr_bits = init_addr_bits;

@@ -55,23 +55,10 @@ pub struct SP1RecursionMemoryLayout<'a, SC: StarkGenericConfig, A: MachineAir<SC
 #[derive(DslVariable, Clone)]
 pub struct SP1RecursionMemoryLayoutVariable<C: Config> {
     pub vk: VerifyingKeyVariable<C>,
-
     pub shard_proofs: Array<C, ShardProofVariable<C>>,
-
     pub leaf_challenger: DuplexChallengerVariable<C>,
     pub initial_reconstruct_challenger: DuplexChallengerVariable<C>,
-
     pub is_complete: Var<C::N>,
-    // pub total_execution_shards: Var<C::N>,
-
-    // pub initial_shard: Felt<C::F>,
-    // pub current_shard: Felt<C::F>,
-
-    // pub start_pc: Felt<C::F>,
-    // pub current_pc: Felt<C::F>,
-
-    // pub committed_value_digest_arr: Array<C, Array<C, Felt<C::F>>>,
-    // pub deferred_proofs_digest_arr: Array<C, Felt<C::F>>,
 }
 
 impl SP1RecursiveVerifier<InnerConfig, BabyBearPoseidon2> {
@@ -145,41 +132,19 @@ where
             leaf_challenger,
             initial_reconstruct_challenger,
             is_complete,
-            // total_execution_shards,
-            // initial_shard,
-            // current_shard,
-            // start_pc,
-            // current_pc,
-            // committed_value_digest_arr,
-            // deferred_proofs_digest_arr,
         } = input;
 
         // Initialize values we will commit to public outputs.
-
-        // Start and end MemoryInit address bits.
-        let first_proof_previous_init_addr_bits: [Felt<_>; 32] =
-            array::from_fn(|_| builder.uninit());
-
-        // Start and end MemoryFinalize address bits.
-        let first_proof_previous_finalize_addr_bits: [Felt<_>; 32] =
-            array::from_fn(|_| builder.uninit());
-
-        let initial_shard = builder.uninit();
-        let current_shard = builder.uninit();
-
+        let initial_execution_shard = builder.uninit();
+        let current_execution_shard = builder.uninit();
         let start_pc = builder.uninit();
         let current_pc = builder.uninit();
-
-        // The commited values digest and deferred proof digest. These will be checked to be the
-        // same for all proofs.
+        let first_previous_init_addr_bits: [Felt<_>; 32] = array::from_fn(|_| builder.uninit());
+        let first_previous_finalize_addr_bits: [Felt<_>; 32] = array::from_fn(|_| builder.uninit());
         let committed_value_digest: [Word<Felt<_>>; PV_DIGEST_NUM_WORDS] =
             array::from_fn(|_| Word(array::from_fn(|_| builder.uninit())));
         let deferred_proofs_digest: [Felt<_>; POSEIDON_NUM_WORDS] =
             array::from_fn(|_| builder.uninit());
-
-        // Assert that the number of proofs is not zero.
-        builder.assert_usize_ne(shard_proofs.len(), 0);
-
         let leaf_challenger_public_values = get_challenger_public_values(builder, &leaf_challenger);
 
         // Initialize loop variables.
@@ -190,7 +155,10 @@ where
         let init_addr_bits: [Felt<_>; 32] = array::from_fn(|_| builder.uninit());
         let finalize_addr_bits: [Felt<_>; 32] = array::from_fn(|_| builder.uninit());
 
-        // Verify that the batch size is sufficiently small.
+        // Assert that the number of proofs is not zero.
+        builder.assert_usize_ne(shard_proofs.len(), 0);
+
+        // Assert that the number of proofs is sufficiently small.
         let num_shard_proofs: Var<_> = shard_proofs.len().materialize(builder);
         builder.range_check_v(num_shard_proofs, 16);
 
@@ -238,8 +206,8 @@ where
             // If this is the first proof in the batch, verify the initial conditions.
             builder.if_eq(i, C::N::zero()).then(|builder| {
                 // Execution shard.
-                builder.assign(initial_shard, public_values.execution_shard);
-                builder.assign(current_shard, public_values.execution_shard);
+                builder.assign(initial_execution_shard, public_values.execution_shard);
+                builder.assign(current_execution_shard, public_values.execution_shard);
 
                 // Program counter.
                 builder.assign(start_pc, public_values.start_pc);
@@ -249,7 +217,7 @@ where
                 for ((bit, pub_bit), first_bit) in init_addr_bits
                     .iter()
                     .zip(public_values.previous_init_addr_bits.iter())
-                    .zip(first_proof_previous_init_addr_bits.iter())
+                    .zip(first_previous_init_addr_bits.iter())
                 {
                     builder.assign(*bit, *pub_bit);
                     builder.assign(*first_bit, *pub_bit);
@@ -257,7 +225,7 @@ where
                 for ((bit, pub_bit), first_bit) in finalize_addr_bits
                     .iter()
                     .zip(public_values.previous_finalize_addr_bits.iter())
-                    .zip(first_proof_previous_finalize_addr_bits.iter())
+                    .zip(first_previous_finalize_addr_bits.iter())
                 {
                     builder.assign(*bit, *pub_bit);
                     builder.assign(*first_bit, *pub_bit);
@@ -323,11 +291,14 @@ where
                 });
 
                 // Assert that the shard of the proof is equal to the current shard.
-                builder.assert_felt_eq(current_shard, public_values.execution_shard);
+                builder.assert_felt_eq(current_execution_shard, public_values.execution_shard);
 
                 // If the shard has a "CPU" chip, then the execution shard should be incremented by 1.
                 builder.if_eq(contains_cpu, C::N::one()).then(|builder| {
-                    builder.assign(current_shard, current_shard + C::F::one());
+                    builder.assign(
+                        current_execution_shard,
+                        current_execution_shard + C::F::one(),
+                    );
                 });
             }
 
@@ -556,38 +527,38 @@ where
         let final_challenger_public_values =
             get_challenger_public_values(builder, &reconstruct_challenger);
 
-        let cumulative_sum_arrray = builder.ext2felt(cumulative_sum);
-        let cumulative_sum_arrray = array::from_fn(|i| builder.get(&cumulative_sum_arrray, i));
-
-        let zero: Felt<_> = builder.eval(C::F::zero());
+        // Collect cumulative sum.
+        let cumulative_sum_array = builder.ext2felt(cumulative_sum);
+        let cumulative_sum_array = array::from_fn(|i| builder.get(&cumulative_sum_array, i));
 
         // Initialize the public values we will commit to.
+        let zero: Felt<_> = builder.eval(C::F::zero());
         let mut recursion_public_values_stream = [zero; RECURSIVE_PROOF_NUM_PV_ELTS];
-
         let recursion_public_values: &mut RecursionPublicValues<_> =
             recursion_public_values_stream.as_mut_slice().borrow_mut();
 
+        // Collect the deferred proof digests.
         let start_deferred_digest = [zero; POSEIDON_NUM_WORDS];
         let end_deferred_digest = [zero; POSEIDON_NUM_WORDS];
 
+        // Collect the is_complete flag.
         let is_complete_felt = var2felt(builder, is_complete);
 
         recursion_public_values.committed_value_digest = committed_value_digest;
         recursion_public_values.deferred_proofs_digest = deferred_proofs_digest;
         recursion_public_values.start_pc = start_pc;
         recursion_public_values.next_pc = current_pc;
-        recursion_public_values.start_shard = initial_shard;
-        recursion_public_values.next_shard = current_shard;
-        recursion_public_values.previous_init_addr_bits = first_proof_previous_init_addr_bits;
+        recursion_public_values.start_execution_shard = initial_execution_shard;
+        recursion_public_values.next_execution_shard = current_execution_shard;
+        recursion_public_values.previous_init_addr_bits = first_previous_init_addr_bits;
         recursion_public_values.last_init_addr_bits = init_addr_bits;
-        recursion_public_values.previous_finalize_addr_bits =
-            first_proof_previous_finalize_addr_bits;
+        recursion_public_values.previous_finalize_addr_bits = first_previous_finalize_addr_bits;
         recursion_public_values.last_finalize_addr_bits = finalize_addr_bits;
         recursion_public_values.sp1_vk_digest = vk_digest;
         recursion_public_values.leaf_challenger = leaf_challenger_public_values;
         recursion_public_values.start_reconstruct_challenger = initial_challenger_public_values;
         recursion_public_values.end_reconstruct_challenger = final_challenger_public_values;
-        recursion_public_values.cumulative_sum = cumulative_sum_arrray;
+        recursion_public_values.cumulative_sum = cumulative_sum_array;
         recursion_public_values.start_reconstruct_deferred_digest = start_deferred_digest;
         recursion_public_values.end_reconstruct_deferred_digest = end_deferred_digest;
         recursion_public_values.is_complete = is_complete_felt;

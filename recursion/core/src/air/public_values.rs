@@ -78,10 +78,10 @@ pub struct RecursionPublicValues<T> {
     pub next_pc: T,
 
     /// First shard being proven.
-    pub start_shard: T,
+    pub start_execution_shard: T,
 
     /// Next shard that should be proven, if there are more.
-    pub next_shard: T,
+    pub next_execution_shard: T,
 
     /// Previous MemoryInit address bits.
     pub previous_init_addr_bits: [T; 32],
