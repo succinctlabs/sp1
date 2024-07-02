@@ -1,6 +1,7 @@
-use crate::build::{build_program, BuildArgs};
+use crate::build::build_program;
 use anyhow::Result;
 use clap::Parser;
+use sp1_helper::BuildArgs;
 
 #[derive(Parser)]
 #[command(name = "build", about = "Build a program")]

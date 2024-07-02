@@ -17,6 +17,7 @@ clap = { version = "4.5.7", features = ["derive", "env"] }
 sp1-prover = { path = "../prover" }
 sp1-sdk = { path = "../sdk" }
 sp1-core = { path = "../core" }
+sp1-helper = { path = "../helper" }
 reqwest = { version = "0.12.4", features = [
   "stream",
   "json",

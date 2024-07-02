@@ -1,27 +1,12 @@
 use anyhow::{Context, Result};
 use cargo_metadata::camino::Utf8PathBuf;
-use clap::Parser;
+use sp1_helper::BuildArgs;
 use std::{
     fs,
     io::{BufRead, BufReader},
     process::{exit, Command, Stdio},
     thread,
 };
-
-// TODO: Pull this out into a lightweight shared crate.
-#[derive(Parser, Default)]
-pub struct BuildArgs {
-    #[clap(long, action, help = "Build using Docker for reproducible builds.")]
-    pub docker: bool,
-    #[clap(long, action, help = "Ignore Rust version check.")]
-    pub ignore_rust_version: bool,
-    #[clap(long, action, help = "If building a binary, specify the name.")]
-    pub binary: Option<String>,
-    #[clap(long, action, help = "ELF binary name.")]
-    pub elf: Option<String>,
-    #[clap(long, action, help = "Build with features.")]
-    pub features: Vec<String>,
-}
 
 fn get_docker_image() -> String {
     // Get the docker image name from the environment variable
@@ -35,13 +20,7 @@ pub fn build_program(args: &BuildArgs) -> Result<Utf8PathBuf> {
     let root_package = metadata.root_package();
     let root_package_name = root_package.as_ref().map(|p| &p.name);
 
-    // If the user supplied an ELF name, use that. Otherwise, use the default.
-    let build_target = if let Some(elf) = &args.elf {
-        elf.clone()
-    } else {
-        "riscv32im-succinct-zkvm-elf".to_string()
-    };
-
+    let build_target = "riscv32im-succinct-zkvm-elf".to_string();
     if args.docker {
         let image = get_docker_image();
         let docker_check = Command::new("docker")
@@ -74,15 +53,15 @@ pub fn build_program(args: &BuildArgs) -> Result<Utf8PathBuf> {
             child_args.push("--features".to_string());
             child_args.push(args.features.join(","));
         }
-        // Add the ELF name
-        if let Some(elf) = &args.elf {
-            child_args.push("--elf".to_string());
-            child_args.push(elf.clone());
-        }
         // Add the binary name
         if let Some(binary) = &args.binary {
             child_args.push("--binary".to_string());
             child_args.push(binary.clone());
+        }
+        // Add the ELF name
+        if let Some(elf) = &args.elf {
+            child_args.push("--elf".to_string());
+            child_args.push(elf.clone());
         }
 
         let mut child = Command::new("docker")
@@ -167,7 +146,19 @@ pub fn build_program(args: &BuildArgs) -> Result<Utf8PathBuf> {
         .join(root_package_name.unwrap());
     let elf_dir = metadata.target_directory.parent().unwrap().join("elf");
     fs::create_dir_all(&elf_dir)?;
-    let result_elf_path = elf_dir.join("riscv32im-succinct-zkvm-elf");
+
+    // The order of precedence for the ELF name is:
+    // 1. --elf flag
+    // 2. --binary flag (binary name + -elf suffix)
+    // 3. default (build target: riscv32im-succinct-zkvm-elf)
+    let elf_name = if let Some(elf) = &args.elf {
+        elf.to_string()
+    } else if let Some(binary) = &args.binary {
+        format!("{}-elf", binary)
+    } else {
+        build_target
+    };
+    let result_elf_path = elf_dir.join(elf_name);
     fs::copy(elf_path, &result_elf_path)?;
 
     Ok(result_elf_path)
