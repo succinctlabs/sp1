@@ -56,7 +56,7 @@ pub fn main() {
         let vkey = &vkeys[i];
         let public_values = &public_values[i];
         let public_values_digest = Sha256::digest(public_values);
-        sp1_zkvm::precompiles::verify::verify_sp1_proof(vkey, &public_values_digest.into());
+        sp1_zkvm::lib::verify::verify_sp1_proof(vkey, &public_values_digest.into());
     }
 
     // TODO: Do something interesting with the proofs here.
