@@ -6,6 +6,8 @@ use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
 use p3_field::AbstractField;
 use p3_poseidon2::{Poseidon2, Poseidon2ExternalMatrixGeneral};
 
+pub mod types;
+
 lazy_static! {
     // These constants are created by a RNG.
 

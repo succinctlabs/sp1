@@ -32,8 +32,12 @@ pub enum Opcode {
     TRAP = 30,
     HALT = 31,
 
-    // Hash instructions.
+    // Poseidon2 compress.
     Poseidon2Compress = 39,
+
+    // Poseidon2 hash.
+    Poseidon2Absorb = 46,
+    Poseidon2Finalize = 47,
 
     // Bit instructions.
     HintBits = 32,

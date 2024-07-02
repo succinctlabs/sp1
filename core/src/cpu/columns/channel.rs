@@ -12,6 +12,7 @@ pub struct ChannelSelectorCols<T> {
 }
 
 impl<F: Field> ChannelSelectorCols<F> {
+    #[inline(always)]
     pub fn populate(&mut self, channel: u32) {
         self.channel_selectors = [F::zero(); NUM_BYTE_LOOKUP_CHANNELS as usize];
         self.channel_selectors[channel as usize] = F::one();

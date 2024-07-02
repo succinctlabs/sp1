@@ -1,5 +1,3 @@
-use std::collections::BTreeMap;
-
 use p3_field::PrimeField32;
 use serde::{Deserialize, Serialize};
 
@@ -36,9 +34,10 @@ pub trait ByteRecord {
     fn add_byte_lookup_event(&mut self, blu_event: ByteLookupEvent);
 
     /// Adds a list of `ByteLookupEvent`s to the record.
+    #[inline]
     fn add_byte_lookup_events(&mut self, blu_events: Vec<ByteLookupEvent>) {
-        for blu_event in blu_events.iter() {
-            self.add_byte_lookup_event(*blu_event);
+        for blu_event in blu_events.into_iter() {
+            self.add_byte_lookup_event(blu_event);
         }
     }
 
@@ -121,6 +120,7 @@ pub trait ByteRecord {
 
 impl ByteLookupEvent {
     /// Creates a new `ByteLookupEvent`.
+    #[inline(always)]
     pub fn new(
         shard: u32,
         channel: u32,
@@ -145,15 +145,5 @@ impl ByteLookupEvent {
 impl ByteRecord for Vec<ByteLookupEvent> {
     fn add_byte_lookup_event(&mut self, blu_event: ByteLookupEvent) {
         self.push(blu_event);
-    }
-}
-
-impl ByteRecord for BTreeMap<u32, BTreeMap<ByteLookupEvent, usize>> {
-    fn add_byte_lookup_event(&mut self, blu_event: ByteLookupEvent) {
-        *self
-            .entry(blu_event.shard)
-            .or_default()
-            .entry(blu_event)
-            .or_insert(0) += 1
     }
 }

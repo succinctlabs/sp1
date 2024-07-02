@@ -52,6 +52,11 @@ pub trait BaseAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr>
         }
     }
 
+    /// Asserts that an iterator of expressions are all zero.
+    fn assert_all_zero<I: Into<Self::Expr>>(&mut self, iter: impl IntoIterator<Item = I>) {
+        iter.into_iter().for_each(|expr| self.assert_zero(expr));
+    }
+
     /// Will return `a` if `condition` is 1, else `b`.  This assumes that `condition` is already
     /// checked to be a boolean.
     #[inline]

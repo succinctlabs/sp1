@@ -4,67 +4,66 @@ import (
 	"github.com/consensys/gnark/frontend"
 )
 
-const WIDTH = 3
-const NUM_EXTERNAL_ROUNDS = 8
-const NUM_INTERNAL_ROUNDS = 56
-const DEGREE = 5
+const width = 3
+const numExternalRounds = 8
+const numInternalRounds = 56
+const degree = 5
 
 type Poseidon2Chip struct {
 	api                   frontend.API
-	internal_linear_layer [WIDTH]frontend.Variable
-	zero, one             frontend.Variable
+	internal_linear_layer [width]frontend.Variable
+	zero                  frontend.Variable
 }
 
 func NewChip(api frontend.API) *Poseidon2Chip {
 	return &Poseidon2Chip{
 		api: api,
-		internal_linear_layer: [WIDTH]frontend.Variable{
+		internal_linear_layer: [width]frontend.Variable{
 			frontend.Variable(1),
 			frontend.Variable(1),
 			frontend.Variable(2),
 		},
 		zero: frontend.Variable(0),
-		one:  frontend.Variable(1),
 	}
 }
 
-func (p *Poseidon2Chip) PermuteMut(state *[WIDTH]frontend.Variable) {
+func (p *Poseidon2Chip) PermuteMut(state *[width]frontend.Variable) {
 	// The initial linear layer.
-	p.MatrixPermuteMut(state)
+	p.matrixPermuteMut(state)
 
 	// The first half of the external rounds.
-	rounds := NUM_EXTERNAL_ROUNDS + NUM_INTERNAL_ROUNDS
-	rounds_f_beginning := NUM_EXTERNAL_ROUNDS / 2
+	rounds := numExternalRounds + numInternalRounds
+	rounds_f_beginning := numExternalRounds / 2
 	for r := 0; r < rounds_f_beginning; r++ {
-		p.AddRc(state, RC3[r])
-		p.Sbox(state)
-		p.MatrixPermuteMut(state)
+		p.addRc(state, rc3[r])
+		p.sbox(state)
+		p.matrixPermuteMut(state)
 	}
 
 	// The internal rounds.
-	p_end := rounds_f_beginning + NUM_INTERNAL_ROUNDS
+	p_end := rounds_f_beginning + numInternalRounds
 	for r := rounds_f_beginning; r < p_end; r++ {
-		state[0] = p.api.Add(state[0], RC3[r][0])
-		state[0] = p.SboxP(state[0])
-		p.DiffusionPermuteMut(state)
+		state[0] = p.api.Add(state[0], rc3[r][0])
+		state[0] = p.sboxP(state[0])
+		p.diffusionPermuteMut(state)
 	}
 
 	// The second half of the external rounds.
 	for r := p_end; r < rounds; r++ {
-		p.AddRc(state, RC3[r])
-		p.Sbox(state)
-		p.MatrixPermuteMut(state)
+		p.addRc(state, rc3[r])
+		p.sbox(state)
+		p.matrixPermuteMut(state)
 	}
 }
 
-func (p *Poseidon2Chip) AddRc(state *[WIDTH]frontend.Variable, rc [WIDTH]frontend.Variable) {
-	for i := 0; i < WIDTH; i++ {
+func (p *Poseidon2Chip) addRc(state *[width]frontend.Variable, rc [width]frontend.Variable) {
+	for i := 0; i < width; i++ {
 		state[i] = p.api.Add(state[i], rc[i])
 	}
 }
 
-func (p *Poseidon2Chip) SboxP(input frontend.Variable) frontend.Variable {
-	if DEGREE != 5 {
+func (p *Poseidon2Chip) sboxP(input frontend.Variable) frontend.Variable {
+	if degree != 5 {
 		panic("DEGREE is assumed to be 5")
 	}
 	squared := p.api.Mul(input, input)
@@ -72,8 +71,8 @@ func (p *Poseidon2Chip) SboxP(input frontend.Variable) frontend.Variable {
 	return p.api.Mul(input_4, input)
 }
 
-func (p *Poseidon2Chip) Sbox(state *[WIDTH]frontend.Variable) {
-	for i := 0; i < WIDTH; i++ {
-		state[i] = p.SboxP(state[i])
+func (p *Poseidon2Chip) sbox(state *[width]frontend.Variable) {
+	for i := 0; i < width; i++ {
+		state[i] = p.sboxP(state[i])
 	}
 }

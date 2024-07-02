@@ -1,26 +1,26 @@
+use hashbrown::HashMap;
 use std::array;
-use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use p3_field::{AbstractField, PrimeField32};
 use sp1_core::stark::{MachineRecord, PROOF_MAX_NUM_PVS};
-use std::collections::HashMap;
 
 use super::RecursionProgram;
 use crate::air::Block;
 use crate::cpu::CpuEvent;
 use crate::exp_reverse_bits::ExpReverseBitsLenEvent;
 use crate::fri_fold::FriFoldEvent;
-use crate::poseidon2::Poseidon2Event;
+use crate::poseidon2_wide::events::{Poseidon2CompressEvent, Poseidon2HashEvent};
 use crate::range_check::RangeCheckEvent;
 
 #[derive(Default, Debug, Clone)]
 pub struct ExecutionRecord<F: Default> {
     pub program: Arc<RecursionProgram<F>>,
     pub cpu_events: Vec<CpuEvent<F>>,
-    pub poseidon2_events: Vec<Poseidon2Event<F>>,
+    pub poseidon2_compress_events: Vec<Poseidon2CompressEvent<F>>,
+    pub poseidon2_hash_events: Vec<Poseidon2HashEvent<F>>,
     pub fri_fold_events: Vec<FriFoldEvent<F>>,
-    pub range_check_events: BTreeMap<RangeCheckEvent, usize>,
+    pub range_check_events: HashMap<RangeCheckEvent, usize>,
     pub exp_reverse_bits_len_events: Vec<ExpReverseBitsLenEvent<F>>,
     // (address, value)
     pub first_memory_record: Vec<(F, Block<F>)>,
@@ -52,7 +52,14 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
     fn stats(&self) -> HashMap<String, usize> {
         let mut stats = HashMap::new();
         stats.insert("cpu_events".to_string(), self.cpu_events.len());
-        stats.insert("poseidon2_events".to_string(), self.poseidon2_events.len());
+        stats.insert(
+            "poseidon2_events".to_string(),
+            self.poseidon2_compress_events.len(),
+        );
+        stats.insert(
+            "poseidon2_events".to_string(),
+            self.poseidon2_hash_events.len(),
+        );
         stats.insert("fri_fold_events".to_string(), self.fri_fold_events.len());
         stats.insert(
             "range_check_events".to_string(),

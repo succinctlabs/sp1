@@ -1,0 +1,14 @@
+[package]
+version = "0.1.0"
+name = "patch-testing-script"
+edition = "2021"
+
+[dependencies]
+rand = "0.8"
+ed25519-consensus = "2.1.0"
+sp1-core = { path = "../../../core", features = ["neon"] }
+sp1-sdk = { path = "../../../sdk" }
+tiny-keccak = { version = "2.0.2", features = ["keccak"] }
+
+[build-dependencies]
+sp1-helper = { path = "../../../helper" }

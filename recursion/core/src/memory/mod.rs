@@ -4,6 +4,7 @@ mod columns;
 use p3_field::PrimeField32;
 
 use crate::air::Block;
+pub use air::compute_addr_diff;
 pub use columns::*;
 
 #[allow(clippy::manual_non_exhaustive)]

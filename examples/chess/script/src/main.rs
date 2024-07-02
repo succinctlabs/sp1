@@ -1,4 +1,4 @@
-use sp1_sdk::{ProverClient, SP1Proof, SP1Stdin};
+use sp1_sdk::{ProverClient, SP1ProofWithPublicValues, SP1Stdin};
 
 const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
 
@@ -15,7 +15,7 @@ fn main() {
 
     let client = ProverClient::new();
     let (pk, vk) = client.setup(ELF);
-    let mut proof = client.prove(&pk, stdin).unwrap();
+    let mut proof = client.prove(&pk, stdin).run().unwrap();
 
     // Read output.
     let is_valid_move = proof.public_values.read::<bool>();
@@ -28,7 +28,8 @@ fn main() {
     proof
         .save("proof-with-io.bin")
         .expect("saving proof failed");
-    let deserialized_proof = SP1Proof::load("proof-with-io.bin").expect("loading proof failed");
+    let deserialized_proof =
+        SP1ProofWithPublicValues::load("proof-with-io.bin").expect("loading proof failed");
 
     // Verify the deserialized proof.
     client

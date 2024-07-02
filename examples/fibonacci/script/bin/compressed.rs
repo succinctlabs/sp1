@@ -15,7 +15,7 @@ fn main() {
     // Generate the constant-sized proof for the given program and input.
     let client = ProverClient::new();
     let (pk, vk) = client.setup(ELF);
-    let mut proof = client.prove_compressed(&pk, stdin).unwrap();
+    let mut proof = client.prove(&pk, stdin).compressed().run().unwrap();
 
     println!("generated proof");
     // Read and verify the output.
@@ -24,9 +24,7 @@ fn main() {
     println!("a: {}, b: {}", a, b);
 
     // Verify proof and public values
-    client
-        .verify_compressed(&proof, &vk)
-        .expect("verification failed");
+    client.verify(&proof, &vk).expect("verification failed");
 
     // Save the proof.
     proof

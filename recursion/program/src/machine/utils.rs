@@ -129,7 +129,7 @@ where
 }
 
 /// Calculates the digest of the recursion public values.
-pub(crate) fn calculate_public_values_digest<C: Config>(
+fn calculate_public_values_digest<C: Config>(
     builder: &mut Builder<C>,
     public_values: &RecursionPublicValues<Felt<C::F>>,
 ) -> Array<C, Felt<C::F>> {

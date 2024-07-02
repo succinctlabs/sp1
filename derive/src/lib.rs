@@ -32,6 +32,7 @@ use syn::Data;
 use syn::DeriveInput;
 use syn::GenericParam;
 use syn::ItemFn;
+use syn::WherePredicate;
 
 #[proc_macro_derive(AlignedBorrow)]
 pub fn aligned_borrow_derive(input: TokenStream) -> TokenStream {
@@ -94,7 +95,13 @@ pub fn aligned_borrow_derive(input: TokenStream) -> TokenStream {
 
 #[proc_macro_derive(
     MachineAir,
-    attributes(sp1_core_path, execution_record_path, program_path, builder_path)
+    attributes(
+        sp1_core_path,
+        execution_record_path,
+        program_path,
+        builder_path,
+        eval_trait_bound
+    )
 )]
 pub fn machine_air_derive(input: TokenStream) -> TokenStream {
     let ast: syn::DeriveInput = syn::parse(input).unwrap();
@@ -105,6 +112,7 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
     let execution_record_path = find_execution_record_path(&ast.attrs);
     let program_path = find_program_path(&ast.attrs);
     let builder_path = find_builder_path(&ast.attrs);
+    let eval_trait_bound = find_eval_trait_bound(&ast.attrs);
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
     match &ast.data {
@@ -257,6 +265,13 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
 
             let (air_impl_generics, _, _) = new_generics.split_for_impl();
 
+            let mut new_generics = generics.clone();
+            let where_clause = new_generics.make_where_clause();
+            if eval_trait_bound.is_some() {
+                let predicate: WherePredicate = syn::parse_str(&eval_trait_bound.unwrap()).unwrap();
+                where_clause.predicates.push(predicate);
+            }
+
             let air = quote! {
                 impl #air_impl_generics p3_air::Air<AB> for #name #ty_generics #where_clause {
                     fn eval(&self, builder: &mut AB) {
@@ -359,4 +374,18 @@ fn find_builder_path(attrs: &[syn::Attribute]) -> syn::Path {
         }
     }
     parse_quote!(crate::air::SP1AirBuilder<F = F>)
+}
+
+fn find_eval_trait_bound(attrs: &[syn::Attribute]) -> Option<String> {
+    for attr in attrs {
+        if attr.path.is_ident("eval_trait_bound") {
+            if let Ok(syn::Meta::NameValue(meta)) = attr.parse_meta() {
+                if let syn::Lit::Str(lit_str) = &meta.lit {
+                    return Some(lit_str.value());
+                }
+            }
+        }
+    }
+
+    None
 }

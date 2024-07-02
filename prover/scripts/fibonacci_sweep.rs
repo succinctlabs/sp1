@@ -3,7 +3,10 @@
 use std::{fs::File, io::BufWriter, io::Write, time::Instant};
 
 use itertools::iproduct;
-use sp1_core::io::SP1Stdin;
+use sp1_core::{
+    io::SP1Stdin,
+    utils::{SP1ProverOpts, SP1ProverOpts},
+};
 use sp1_prover::SP1Prover;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::{fmt::format::FmtSpan, util::SubscriberInitExt};
@@ -62,7 +65,9 @@ fn main() {
             proofs: vec![],
         };
         let leaf_proving_start = Instant::now();
-        let proof = prover.prove_core(&pk, &stdin).unwrap();
+        let proof = prover
+            .prove_core(&pk, &stdin, SP1ProverOpts::default(), SP1Context::default())
+            .unwrap();
         let leaf_proving_duration = leaf_proving_start.elapsed().as_secs_f64();
 
         let recursion_proving_start = Instant::now();

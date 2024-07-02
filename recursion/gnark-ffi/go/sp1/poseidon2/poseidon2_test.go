@@ -10,20 +10,20 @@ import (
 )
 
 type TestPoseidon2Circuit struct {
-	Input, ExpectedOutput [WIDTH]frontend.Variable `gnark:",public"`
+	Input, ExpectedOutput [width]frontend.Variable `gnark:",public"`
 }
 
 func (circuit *TestPoseidon2Circuit) Define(api frontend.API) error {
 	poseidon2Chip := NewChip(api)
 
-	input := [WIDTH]frontend.Variable{}
-	for i := 0; i < WIDTH; i++ {
+	input := [width]frontend.Variable{}
+	for i := 0; i < width; i++ {
 		input[i] = circuit.Input[i]
 	}
 
 	poseidon2Chip.PermuteMut(&input)
 
-	for i := 0; i < WIDTH; i++ {
+	for i := 0; i < width; i++ {
 		api.AssertIsEqual(circuit.ExpectedOutput[i], input[i])
 	}
 
@@ -34,13 +34,13 @@ func TestPoseidon2(t *testing.T) {
 	assert := test.NewAssert(t)
 	var circuit, witness TestPoseidon2Circuit
 
-	input := [WIDTH]frontend.Variable{
+	input := [width]frontend.Variable{
 		frontend.Variable(0),
 		frontend.Variable(0),
 		frontend.Variable(0),
 	}
 
-	expected_output := [WIDTH]frontend.Variable{
+	expected_output := [width]frontend.Variable{
 		frontend.Variable("0x2ED1DA00B14D635BD35B88AB49390D5C13C90DA7E9E3A5F1EA69CD87A0AA3E82"),
 		frontend.Variable("0x1E21E979CC3FD844B88C2016FD18F4DB07A698AA27DECA67CA509F5B0A4480D0"),
 		frontend.Variable("0x2C40D0115DA2C9B55553B231BE55295F411E628ED0CD0E187917066515F0A060"),

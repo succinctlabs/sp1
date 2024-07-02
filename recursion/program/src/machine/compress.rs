@@ -14,6 +14,7 @@ use sp1_core::air::{Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS};
 use sp1_core::stark::StarkMachine;
 use sp1_core::stark::{Com, ShardProof, StarkGenericConfig, StarkVerifyingKey};
 use sp1_core::utils::BabyBearPoseidon2;
+use sp1_primitives::types::RecursionProgramType;
 use sp1_recursion_compiler::config::InnerConfig;
 use sp1_recursion_compiler::ir::{Array, Builder, Config, Felt, Var};
 use sp1_recursion_compiler::prelude::DslVariable;
@@ -81,7 +82,7 @@ where
         recursive_vk: &StarkVerifyingKey<BabyBearPoseidon2>,
         deferred_vk: &StarkVerifyingKey<BabyBearPoseidon2>,
     ) -> RecursionProgram<BabyBear> {
-        let mut builder = Builder::<InnerConfig>::default();
+        let mut builder = Builder::<InnerConfig>::new(RecursionProgramType::Compress);
 
         let input: SP1ReduceMemoryLayoutVariable<_> = builder.uninit();
         SP1ReduceMemoryLayout::<BabyBearPoseidon2, A>::witness(&input, &mut builder);

@@ -72,8 +72,11 @@ impl Syscall for SyscallWrite {
             rt.state.public_values_stream.extend_from_slice(slice);
         } else if fd == 4 {
             rt.state.input_stream.push(slice.to_vec());
-        } else if let Some(hook) = rt.hook_registry.table.get(&fd) {
-            rt.state.input_stream.extend(hook(rt.hook_env(), slice));
+        } else if let Some(mut hook) = rt.hook_registry.get(&fd) {
+            let res = hook.invoke_hook(rt.hook_env(), slice);
+            // Add result vectors to the beginning of the stream.
+            let ptr = rt.state.input_stream_ptr;
+            rt.state.input_stream.splice(ptr..ptr, res);
         } else {
             log::warn!("tried to write to unknown file descriptor {fd}");
         }
