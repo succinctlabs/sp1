@@ -400,13 +400,6 @@ where
     OpeningProof<SC>: Send + Sync,
     ShardMainData<SC>: Serialize + DeserializeOwned,
 {
-    #[cfg(debug_assertions)]
-    {
-        let mut challenger_clone = machine.config().challenger();
-        let records = records.clone();
-        machine.debug_constraints(&pk, records, &mut challenger_clone);
-    }
-
     let start = Instant::now();
     let mut challenger = machine.config().challenger();
     let proof =

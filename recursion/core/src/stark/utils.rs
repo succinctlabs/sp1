@@ -6,7 +6,7 @@ use sp1_core::utils::BabyBearPoseidon2;
 use crate::air::Block;
 use crate::runtime::RecursionProgram;
 use crate::runtime::Runtime;
-use crate::stark::RecursionAir;
+use crate::stark::RecursionAirWideDeg3;
 use crate::stark::RecursionAirWideDeg9;
 use p3_field::PrimeField32;
 use sp1_core::utils::run_test_machine;
@@ -42,12 +42,12 @@ pub fn run_test_recursion(
         "The program executed successfully, number of cycles: {}",
         runtime.clk.as_canonical_u32() / 4
     );
+    let records = vec![runtime.record];
 
     if test_config == TestConfig::All || test_config == TestConfig::WideDeg3 {
-        let machine = RecursionAir::<_, 3>::machine(BabyBearPoseidon2::default());
+        let machine = RecursionAirWideDeg3::machine(BabyBearPoseidon2::default());
         let (pk, vk) = machine.setup(&program);
-        let record = runtime.record.clone();
-        let result = run_test_machine(vec![record], machine, pk, vk);
+        let result = run_test_machine(records.clone(), machine, pk, vk);
         if let Err(e) = result {
             panic!("Verification failed: {:?}", e);
         }
@@ -56,8 +56,7 @@ pub fn run_test_recursion(
     if test_config == TestConfig::All || test_config == TestConfig::SkinnyDeg7 {
         let machine = RecursionAirWideDeg9::machine(BabyBearPoseidon2::compressed());
         let (pk, vk) = machine.setup(&program);
-        let record = runtime.record.clone();
-        let result = run_test_machine(vec![record], machine, pk, vk);
+        let result = run_test_machine(records.clone(), machine, pk, vk);
         if let Err(e) = result {
             panic!("Verification failed: {:?}", e);
         }
@@ -66,8 +65,7 @@ pub fn run_test_recursion(
     if test_config == TestConfig::All || test_config == TestConfig::WideDeg17Wrap {
         let machine = RecursionAirWideDeg9::wrap_machine(BabyBearPoseidon2::compressed());
         let (pk, vk) = machine.setup(&program);
-        let record = runtime.record.clone();
-        let result = run_test_machine(vec![record], machine, pk, vk);
+        let result = run_test_machine(records.clone(), machine, pk, vk);
         if let Err(e) = result {
             panic!("Verification failed: {:?}", e);
         }
