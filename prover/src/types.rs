@@ -2,18 +2,27 @@ use std::borrow::Borrow;
 use std::{fs::File, path::Path};
 
 use anyhow::Result;
+use p3_air::Air;
 use p3_baby_bear::BabyBear;
 use p3_bn254_fr::Bn254Fr;
 use p3_commit::{Pcs, TwoAdicMultiplicativeCoset};
 use p3_field::PrimeField;
 use p3_field::{AbstractField, PrimeField32, TwoAdicField};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use sp1_core::air::MachineAir;
+use sp1_core::lookup::InteractionBuilder;
+use sp1_core::stark::{
+    Com, LocalProver, MachineChip, PcsProverData, ProverConstraintFolder, RiscvAir, ShardMainData,
+    StarkMachine, Val, VerifierConstraintFolder,
+};
+use sp1_core::utils::BabyBearPoseidon2;
 use sp1_core::{
     io::{SP1PublicValues, SP1Stdin},
     stark::{ShardProof, StarkGenericConfig, StarkProvingKey, StarkVerifyingKey},
     utils::DIGEST_SIZE,
 };
 use sp1_primitives::poseidon2_hash;
+use sp1_recursion_core::stark::RecursionAir;
 use sp1_recursion_core::{air::RecursionPublicValues, stark::config::BabyBearPoseidon2Outer};
 use sp1_recursion_gnark_ffi::plonk_bn254::PlonkBn254Proof;
 use thiserror::Error;
@@ -199,3 +208,95 @@ pub enum SP1ReduceProofWrapper {
 
 #[derive(Error, Debug)]
 pub enum SP1RecursionProverError {}
+
+pub trait StarkProver {
+    fn commit_main<SC: StarkGenericConfig, A: MachineAir<SC::Val>>(
+        config: &SC,
+        machine: &StarkMachine<SC, A>,
+        shard: &A::Record,
+        index: usize,
+    ) -> ShardMainData<SC>
+    where
+        SC::Challenger: Clone,
+        Com<SC>: Send + Sync,
+        PcsProverData<SC>: Send + Sync,
+        ShardMainData<SC>: Serialize + DeserializeOwned;
+
+    fn prove_shard<
+        SC: StarkGenericConfig,
+        A: MachineAir<SC::Val>
+            + for<'a> Air<ProverConstraintFolder<'a, SC>>
+            + Air<InteractionBuilder<Val<SC>>>
+            + for<'a> Air<VerifierConstraintFolder<'a, SC>>,
+    >(
+        config: &SC,
+        pk: &StarkProvingKey<SC>,
+        chips: &[&MachineChip<SC, A>],
+        shard_data: ShardMainData<SC>,
+        challenger: &mut SC::Challenger,
+    ) -> ShardProof<SC>
+    where
+        Val<SC>: PrimeField32,
+        SC::Challenger: Clone,
+        Com<SC>: Send + Sync,
+        PcsProverData<SC>: Send + Sync,
+        ShardMainData<SC>: Serialize + DeserializeOwned;
+}
+
+pub trait ProverImpl {
+    type Core: StarkProver;
+    type Reduce: StarkProver;
+    type Compress: StarkProver;
+    type Wrap: StarkProver;
+}
+
+pub struct DefaultStarkProver;
+
+impl StarkProver for DefaultStarkProver {
+    fn commit_main<SC: StarkGenericConfig, A: MachineAir<SC::Val>>(
+        config: &SC,
+        machine: &StarkMachine<SC, A>,
+        shard: &A::Record,
+        index: usize,
+    ) -> ShardMainData<SC>
+    where
+        SC::Challenger: Clone,
+        Com<SC>: Send + Sync,
+        PcsProverData<SC>: Send + Sync,
+        ShardMainData<SC>: Serialize + DeserializeOwned,
+    {
+        LocalProver::<SC, A>::commit_main(config, machine, shard, index)
+    }
+
+    fn prove_shard<
+        SC: StarkGenericConfig,
+        A: MachineAir<SC::Val>
+            + for<'a> Air<ProverConstraintFolder<'a, SC>>
+            + Air<InteractionBuilder<Val<SC>>>
+            + for<'a> Air<VerifierConstraintFolder<'a, SC>>,
+    >(
+        config: &SC,
+        pk: &StarkProvingKey<SC>,
+        chips: &[&MachineChip<SC, A>],
+        shard_data: ShardMainData<SC>,
+        challenger: &mut SC::Challenger,
+    ) -> ShardProof<SC>
+    where
+        Val<SC>: PrimeField32,
+        SC::Challenger: Clone,
+        Com<SC>: Send + Sync,
+        PcsProverData<SC>: Send + Sync,
+        ShardMainData<SC>: Serialize + DeserializeOwned,
+    {
+        LocalProver::<SC, A>::prove_shard(config, pk, chips, shard_data, challenger)
+    }
+}
+
+pub struct DefaultProverImpl;
+
+impl ProverImpl for DefaultProverImpl {
+    type Core = DefaultStarkProver;
+    type Reduce = DefaultStarkProver;
+    type Compress = DefaultStarkProver;
+    type Wrap = DefaultStarkProver;
+}
