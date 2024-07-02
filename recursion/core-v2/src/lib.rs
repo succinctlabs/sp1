@@ -7,7 +7,8 @@ use sp1_core::{air::PublicValues, stark::MachineRecord};
 use sp1_derive::AlignedBorrow;
 use sp1_recursion_core::{air::Block, runtime::D};
 
-pub mod alu;
+pub mod alu_base;
+pub mod alu_ext;
 pub mod builder;
 pub mod machine;
 pub mod mem;
@@ -20,11 +21,20 @@ pub mod program;
 // I don't think events should depend on the field being used,
 // but I don't want to implement encoding or memory yet
 #[derive(Clone, Debug)]
-pub struct AluEvent<F> {
+pub struct BaseAluEvent<F> {
     pub opcode: Opcode,
     pub out: AddressValue<F, F>,
     pub in1: AddressValue<F, F>,
     pub in2: AddressValue<F, F>,
+    pub mult: F, // number of times we need this value in the future
+}
+
+#[derive(Clone, Debug)]
+pub struct ExtAluEvent<F> {
+    pub opcode: Opcode,
+    pub out: AddressValue<F, Block<F>>,
+    pub in1: AddressValue<F, Block<F>>,
+    pub in2: AddressValue<F, Block<F>>,
     pub mult: F, // number of times we need this value in the future
 }
 
@@ -95,7 +105,8 @@ pub struct ExecutionRecord<F> {
     /// The index of the shard.
     pub index: u32,
 
-    pub alu_events: Vec<AluEvent<F>>,
+    pub base_alu_events: Vec<BaseAluEvent<F>>,
+    pub ext_alu_events: Vec<ExtAluEvent<F>>,
     pub mem_events: Vec<MemEvent<F>>,
     // _data: std::marker::PhantomData<F>,
     // pub vars: HashMap<Address, u32>,
@@ -122,11 +133,13 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
         // Exhaustive destructuring for refactoring purposes.
         let Self {
             index: _,
-            alu_events,
+            base_alu_events,
+            ext_alu_events,
             mem_events,
             public_values: _,
         } = self;
-        alu_events.append(&mut other.alu_events);
+        base_alu_events.append(&mut other.base_alu_events);
+        ext_alu_events.append(&mut other.ext_alu_events);
         mem_events.append(&mut other.mem_events);
     }
 
