@@ -123,7 +123,7 @@ impl SP1Prover {
                 shard_proof.public_values.as_slice().borrow();
             if public_values.exit_code != BabyBear::zero() {
                 return Err(MachineVerificationError::InvalidPublicValues(
-                    "exit_code != 0: exit code should be zero for non-cpu shards",
+                    "exit_code != 0: exit code should be zero for all shards",
                 ));
             }
         }
