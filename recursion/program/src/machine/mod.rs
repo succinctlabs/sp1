@@ -90,7 +90,7 @@ mod tests {
 
         let mut challenger = machine.config().challenger();
         let time = std::time::Instant::now();
-        let (proof, _) = sp1_core::utils::prove(
+        let (proof, _, _) = sp1_core::utils::prove(
             program,
             &SP1Stdin::new(),
             SC::default(),

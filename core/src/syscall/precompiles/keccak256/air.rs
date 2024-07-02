@@ -190,7 +190,7 @@ mod test {
         let config = BabyBearPoseidon2::new();
 
         let program = Program::from(KECCAK256_ELF);
-        let (proof, public_values) =
+        let (proof, public_values, _) =
             prove(program, &stdin, config, SP1CoreOpts::default()).unwrap();
         let mut public_values = SP1PublicValues::from(&public_values);
 
