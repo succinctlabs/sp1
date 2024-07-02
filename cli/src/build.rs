@@ -9,12 +9,16 @@ use std::{
 };
 
 // TODO: Pull this out into a lightweight shared crate.
-#[derive(Parser)]
+#[derive(Parser, Default)]
 pub struct BuildArgs {
     #[clap(long, action, help = "Build using Docker for reproducible builds.")]
     pub docker: bool,
     #[clap(long, action, help = "Ignore Rust version check.")]
     pub ignore_rust_version: bool,
+    #[clap(long, action, help = "If building a binary, specify the name.")]
+    pub binary: Option<String>,
+    #[clap(long, action, help = "ELF binary name.")]
+    pub elf: Option<String>,
     #[clap(long, action, help = "Build with features.")]
     pub features: Vec<String>,
 }
@@ -31,7 +35,13 @@ pub fn build_program(args: &BuildArgs) -> Result<Utf8PathBuf> {
     let root_package = metadata.root_package();
     let root_package_name = root_package.as_ref().map(|p| &p.name);
 
-    let build_target = "riscv32im-succinct-zkvm-elf".to_string();
+    // If the user supplied an ELF name, use that. Otherwise, use the default.
+    let build_target = if let Some(elf) = &args.elf {
+        elf.clone()
+    } else {
+        "riscv32im-succinct-zkvm-elf".to_string()
+    };
+
     if args.docker {
         let image = get_docker_image();
         let docker_check = Command::new("docker")
@@ -63,6 +73,16 @@ pub fn build_program(args: &BuildArgs) -> Result<Utf8PathBuf> {
         if !args.features.is_empty() {
             child_args.push("--features".to_string());
             child_args.push(args.features.join(","));
+        }
+        // Add the ELF name
+        if let Some(elf) = &args.elf {
+            child_args.push("--elf".to_string());
+            child_args.push(elf.clone());
+        }
+        // Add the binary name
+        if let Some(binary) = &args.binary {
+            child_args.push("--binary".to_string());
+            child_args.push(binary.clone());
         }
 
         let mut child = Command::new("docker")
@@ -108,6 +128,12 @@ pub fn build_program(args: &BuildArgs) -> Result<Utf8PathBuf> {
             "--target".to_string(),
             build_target.clone(),
         ];
+        // If the compilation is for a binary, specify the name.
+        if let Some(binary) = &args.binary {
+            cargo_args.push("--bin".to_string());
+            cargo_args.push(binary.clone());
+        }
+
         if args.ignore_rust_version {
             cargo_args.push("--ignore-rust-version".to_string());
         }

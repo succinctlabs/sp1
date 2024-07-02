@@ -6,12 +6,16 @@ use std::{
     thread,
 };
 
-#[derive(Parser)]
+#[derive(Parser, Default)]
 pub struct BuildArgs {
     #[clap(long, action, help = "Build using Docker for reproducible builds.")]
     pub docker: bool,
     #[clap(long, action, help = "Ignore Rust version check.")]
     pub ignore_rust_version: bool,
+    #[clap(long, action, help = "If building a binary, specify the name.")]
+    pub binary: Option<String>,
+    #[clap(long, action, help = "ELF binary name.")]
+    pub elf: Option<String>,
     #[clap(long, action, help = "Build with features.")]
     pub features: Vec<String>,
 }
@@ -87,6 +91,14 @@ fn execute_build_cmd(
                 cargo_prove_build_args.push("--features".to_string());
                 cargo_prove_build_args.push(feature);
             }
+        }
+        if let Some(binary) = &args.binary {
+            cargo_prove_build_args.push("--binary".to_string());
+            cargo_prove_build_args.push(binary.clone());
+        }
+        if let Some(elf) = &args.elf {
+            cargo_prove_build_args.push("--elf".to_string());
+            cargo_prove_build_args.push(elf.clone());
         }
     }
 
