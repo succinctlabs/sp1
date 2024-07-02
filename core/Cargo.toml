@@ -57,7 +57,7 @@ strum = "0.26"
 web-time = "1.1.0"
 rayon-scan = "0.1.1"
 thiserror = "1.0.60"
-num-bigint = { version = "0.4.3", default-features = false }
+num-bigint = { version = "0.4.6", default-features = false }
 rand = "0.8.5"
 bytemuck = "1.16.0"
 hashbrown = { version = "0.14.5", features = ["serde"] }
