@@ -1,9 +1,8 @@
 #![no_main]
-sp1_zkvm::entrypoint!(main);
 
-extern "C" {
-    fn syscall_secp256k1_decompress(compressed_key: &mut [u8; 64], is_odd: bool);
-}
+use sp1_zkvm::syscalls::syscall_secp256k1_decompress;
+
+sp1_zkvm::entrypoint!(main);
 
 pub fn main() {
     let compressed_key: [u8; 33] = sp1_zkvm::io::read_vec().try_into().unwrap();
@@ -16,9 +15,7 @@ pub fn main() {
             3 => true,
             _ => panic!("Invalid compressed key"),
         };
-        unsafe {
-            syscall_secp256k1_decompress(&mut decompressed_key, is_odd);
-        }
+        syscall_secp256k1_decompress(&mut decompressed_key, is_odd);
 
         let mut result: [u8; 65] = [0; 65];
         result[0] = 4;

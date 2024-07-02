@@ -1,11 +1,9 @@
 #![no_main]
-sp1_zkvm::entrypoint!(main);
 
 use hex_literal::hex;
+use sp1_zkvm::syscalls::syscall_ed_decompress;
 
-extern "C" {
-    fn syscall_ed_decompress(p: *mut u8);
-}
+sp1_zkvm::entrypoint!(main);
 
 pub fn main() {
     for _ in 0..4 {
@@ -16,9 +14,7 @@ pub fn main() {
 
         println!("before: {:?}", decompressed);
 
-        unsafe {
-            syscall_ed_decompress(decompressed.as_mut_ptr());
-        }
+        syscall_ed_decompress(&mut decompressed);
 
         let expected: [u8; 64] = [
             47, 252, 114, 91, 153, 234, 110, 201, 201, 153, 152, 14, 68, 231, 90, 221, 137, 110,

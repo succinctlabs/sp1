@@ -34,7 +34,7 @@ pub fn verify_two_adic_pcs<C: Config>(
     let g = builder.generator();
 
     let log_blowup = config.log_blowup;
-    let blowup = config.log_blowup;
+    let blowup = config.blowup;
     let alpha = challenger.sample_ext(builder);
 
     builder.cycle_tracker("stage-d-1-verify-shape-and-sample-challenges");

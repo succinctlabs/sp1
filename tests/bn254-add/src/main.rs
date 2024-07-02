@@ -1,9 +1,8 @@
 #![no_main]
-sp1_zkvm::entrypoint!(main);
 
-extern "C" {
-    fn syscall_bn254_add(p: *mut u32, q: *const u32);
-}
+use sp1_zkvm::syscalls::syscall_bn254_add;
+
+sp1_zkvm::entrypoint!(main);
 
 pub fn main() {
     for _ in 0..4 {
@@ -26,9 +25,7 @@ pub fn main() {
             124, 10, 14, 140, 115, 237, 21,
         ];
 
-        unsafe {
-            syscall_bn254_add(a.as_mut_ptr() as *mut u32, b.as_ptr() as *const u32);
-        }
+        syscall_bn254_add(a.as_mut_ptr() as *mut u32, b.as_ptr() as *const u32);
 
         // 3 * generator.
         // 3353031288059533942658390886683067124040920775575537747144343083137631628272
