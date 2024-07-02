@@ -137,8 +137,8 @@ impl SP1Prover {
         // Transition:
         // - For all shards, `previous_init_addr_bits` should equal `last_init_addr_bits` of the previous shard.
         // - For all shards, `previous_finalize_addr_bits` should equal `last_finalize_addr_bits` of the previous shard.
-        // - For shards with "MemoryInit", `previous_init_addr_bits` should equal `last_init_addr_bits`.
-        // - For shards with "MemoryFinalize", `previous_finalize_addr_bits` should equal `last_finalize_addr_bits`.
+        // - For shards without "MemoryInit", `previous_init_addr_bits` should equal `last_init_addr_bits`.
+        // - For shards without "MemoryFinalize", `previous_finalize_addr_bits` should equal `last_finalize_addr_bits`.
         let mut last_init_addr_bits_prev = [BabyBear::zero(); 32];
         let mut last_finalize_addr_bits_prev = [BabyBear::zero(); 32];
         for shard_proof in proof.0.iter() {

@@ -209,30 +209,6 @@ where
             // Load the proof.
             let proof = builder.get(&shard_proofs, i);
 
-            // Compute whether the shard is a CPU proof.
-            let has_cpu: Var<_> = builder.eval(C::N::zero());
-            for (i, chip) in machine.chips().iter().enumerate() {
-                let index = builder.get(&proof.sorted_idxs, i);
-                if chip.name() == "CPU" {
-                    builder
-                        .if_ne(index, C::N::from_canonical_usize(EMPTY))
-                        .then(|builder| {
-                            builder.assign(has_cpu, C::N::one());
-                        });
-                }
-            }
-
-            // Verify the shard proof.
-            let mut challenger = leaf_challenger.copy(builder);
-            StarkVerifier::<C, SC>::verify_shard(
-                builder,
-                &vk,
-                pcs,
-                machine,
-                &mut challenger,
-                &proof,
-            );
-
             // Extract public values.
             let mut pv_elements = Vec::new();
             for i in 0..machine.num_pv_elts() {
@@ -242,14 +218,36 @@ where
             let public_values: &PublicValues<Word<Felt<_>>, Felt<_>> =
                 pv_elements.as_slice().borrow();
 
-            // If this is the first proof in the batch, verify the initial conditions.
-            //
-            // Note: regardless of whether this is a shard with CPU or not, these values should be
-            // set correctly.
-            builder.if_eq(i, C::N::zero()).then(|builder| {
-                // Initialize the values of accumulated variables.
+            // Compute some flags about the shard.
+            let contains_cpu: Var<_> = builder.eval(C::N::zero());
+            let contains_memory_init: Var<_> = builder.eval(C::N::zero());
+            let contains_memory_finalize: Var<_> = builder.eval(C::N::zero());
+            for (i, chip) in machine.chips().iter().enumerate() {
+                let index = builder.get(&proof.sorted_idxs, i);
+                if chip.name() == "CPU" {
+                    builder
+                        .if_ne(index, C::N::from_canonical_usize(EMPTY))
+                        .then(|builder| {
+                            builder.assign(contains_cpu, C::N::one());
+                        });
+                } else if chip.name() == "MemoryInit" {
+                    builder
+                        .if_ne(index, C::N::from_canonical_usize(EMPTY))
+                        .then(|builder| {
+                            builder.assign(contains_memory_init, C::N::one());
+                        });
+                } else if chip.name() == "MemoryFinalize" {
+                    builder
+                        .if_ne(index, C::N::from_canonical_usize(EMPTY))
+                        .then(|builder| {
+                            builder.assign(contains_memory_finalize, C::N::one());
+                        });
+                }
+            }
 
-                // Shard.
+            // If this is the first proof in the batch, verify the initial conditions.
+            builder.if_eq(i, C::N::zero()).then(|builder| {
+                // Execution shard.
                 builder.assign(initial_shard, public_values.execution_shard);
                 builder.assign(current_shard, public_values.execution_shard);
 
@@ -257,7 +255,7 @@ where
                 builder.assign(start_pc, public_values.start_pc);
                 builder.assign(current_pc, public_values.start_pc);
 
-                // MemoryInitialize address bits.
+                // Memory initialization & finalization.
                 for ((bit, pub_bit), first_bit) in init_addr_bits
                     .iter()
                     .zip(public_values.previous_init_addr_bits.iter())
@@ -274,6 +272,9 @@ where
                     builder.assign(*bit, *pub_bit);
                     builder.assign(*first_bit, *pub_bit);
                 }
+
+                // Exit code.
+                builder.assign(exit_code, public_values.exit_code);
 
                 // Commited public values digests.
                 for (word, first_word) in committed_value_digest
@@ -292,36 +293,25 @@ where
                 {
                     builder.assign(*digest, *first_digest);
                 }
-
-                // Exit code.
-                builder.assign(exit_code, public_values.exit_code);
             });
 
-            let shard = felt2var(builder, public_values.execution_shard);
-            builder.if_eq(shard, C::N::one()).then(|builder| {
-                // Assert that the shard contains a "CPU" chip.
-                builder.assert_var_eq(has_cpu, C::N::one());
+            // Verify the shard proof.
+            let mut challenger = leaf_challenger.copy(builder);
+            StarkVerifier::<C, SC>::verify_shard(
+                builder,
+                &vk,
+                pcs,
+                machine,
+                &mut challenger,
+                &proof,
+            );
 
-                // This should be the 0th proof in this batch.
-                builder.assert_var_eq(i, C::N::zero());
-
-                // Start pc should be vk.pc_start
-                builder.assert_felt_eq(public_values.start_pc, vk.pc_start);
-
-                // Assert that the MemoryInitialize address bits are zero.
-                for bit in init_addr_bits.iter() {
-                    builder.assert_felt_eq(*bit, C::F::zero());
-                }
-
-                // Assert that the MemoryFinalize address bits are zero.
-                for bit in finalize_addr_bits.iter() {
-                    builder.assert_felt_eq(*bit, C::F::zero());
-                }
-
+            // Assert that the initial challenger was witnessed correctly.
+            let execution_shard = felt2var(builder, public_values.execution_shard);
+            builder.if_eq(execution_shard, C::N::one()).then(|builder| {
                 // Assert that the initial challenger is equal to a fresh challenger observing the
                 // verifier key and the initial pc.
                 let mut first_initial_challenger = DuplexChallengerVariable::new(builder);
-
                 first_initial_challenger.observe(builder, vk.commitment.clone());
                 first_initial_challenger.observe(builder, vk.pc_start);
 
@@ -330,100 +320,136 @@ where
                 initial_reconstruct_challenger.assert_eq(builder, &first_initial_challenger);
             });
 
-            // If this is a CPU proof, verify the transition function.
-            builder.if_eq(has_cpu, C::N::one()).then_or_else(
-                |builder| {
-                    builder.if_eq(shard, C::N::one()).then(|builder| {
-                        // This should be the 0th proof in this batch.
-                        builder.assert_var_eq(i, C::N::zero());
+            // Execution shard constraints.
+            {
+                // Assert that if the execution shard is one, then the shard contains a "CPU" chip.
+                builder.if_eq(execution_shard, C::N::one()).then(|builder| {
+                    builder.assert_var_eq(contains_cpu, C::N::one());
+                });
 
-                        // Start pc should be vk.pc_start
-                        builder.assert_felt_eq(public_values.start_pc, vk.pc_start);
+                // Assert that if the execution shard is one, then it should be the first proof in the batch.
+                builder.if_eq(execution_shard, C::N::one()).then(|builder| {
+                    builder.assert_var_eq(i, C::N::zero());
+                });
 
-                        // Assert that the initial challenger is equal to a fresh challenger observing the
-                        // verifier key and the initial pc.
-                        let mut first_initial_challenger = DuplexChallengerVariable::new(builder);
+                // Assert that the shard of the proof is equal to the current shard.
+                builder.assert_felt_eq(current_shard, public_values.execution_shard);
 
-                        first_initial_challenger.observe(builder, vk.commitment.clone());
-                        first_initial_challenger.observe(builder, vk.pc_start);
+                // If the shard has a "CPU" chip, then the execution shard should be incremented by 1.
+                builder.if_eq(contains_cpu, C::N::one()).then(|builder| {
+                    builder.assign(current_shard, current_shard + C::F::one());
+                });
+            }
 
-                        // Make sure the start reconstruct challenger is correct, since we will
-                        // commit to it in public values.
-                        initial_reconstruct_challenger
-                            .assert_eq(builder, &first_initial_challenger);
+            // Program counter constraints.
+            {
+                // If it's the first execution shard, then the start_pc should be vk.pc_start.
+                builder.if_eq(execution_shard, C::N::one()).then(|builder| {
+                    builder.assert_felt_eq(public_values.start_pc, vk.pc_start);
+                });
+
+                // Assert that the start_pc of the proof is equal to the current pc.
+                builder.assert_felt_eq(current_pc, public_values.start_pc);
+
+                // If it's not a shard with "CPU", then assert that the start_pc equals the next_pc.
+                builder.if_ne(contains_cpu, C::N::one()).then(|builder| {
+                    builder.assert_felt_eq(public_values.start_pc, public_values.next_pc);
+                });
+
+                // If it's a shard with "CPU", then assert that the start_pc is not zero.
+                builder.if_eq(contains_cpu, C::N::one()).then(|builder| {
+                    builder.assert_felt_ne(public_values.start_pc, C::F::zero());
+                });
+
+                // Update current_pc to be the end_pc of the current proof.
+                builder.assign(current_pc, public_values.next_pc);
+            }
+
+            // Exit code constraints.
+            {
+                // Assert that the exit code is zero (success) for all proofs.
+                builder.assert_felt_eq(exit_code, C::F::zero());
+            }
+
+            // Memory initialization & finalization constraints.
+            {
+                // Assert that `init_addr_bits` and `finalize_addr_bits` are zero for the first execution shard.
+                builder.if_eq(execution_shard, C::N::one()).then(|builder| {
+                    // Assert that the MemoryInitialize address bits are zero.
+                    for bit in init_addr_bits.iter() {
+                        builder.assert_felt_eq(*bit, C::F::zero());
+                    }
+
+                    // Assert that the MemoryFinalize address bits are zero.
+                    for bit in finalize_addr_bits.iter() {
+                        builder.assert_felt_eq(*bit, C::F::zero());
+                    }
+                });
+
+                // Assert that the MemoryInitialize address bits match the current loop variable.
+                for (bit, current_bit) in init_addr_bits
+                    .iter()
+                    .zip_eq(public_values.previous_init_addr_bits.iter())
+                {
+                    builder.assert_felt_eq(*bit, *current_bit);
+                }
+
+                // Assert that the MemoryFinalize address bits match the current loop variable.
+                for (bit, current_bit) in finalize_addr_bits
+                    .iter()
+                    .zip_eq(public_values.previous_finalize_addr_bits.iter())
+                {
+                    builder.assert_felt_eq(*bit, *current_bit);
+                }
+
+                // Assert that if MemoryInit is not present, then the address bits are the same.
+                builder
+                    .if_ne(contains_memory_init, C::N::one())
+                    .then(|builder| {
+                        for (prev_bit, last_bit) in public_values
+                            .previous_init_addr_bits
+                            .iter()
+                            .zip_eq(public_values.last_init_addr_bits.iter())
+                        {
+                            builder.assert_felt_eq(*prev_bit, *last_bit);
+                        }
                     });
 
-                    // Assert compatibility of the shard values.
-
-                    // Assert that the committed value digests are all the same.
-                    for (word, current_word) in committed_value_digest
-                        .iter()
-                        .zip_eq(public_values.committed_value_digest.iter())
-                    {
-                        for (byte, current_byte) in word.0.iter().zip_eq(current_word.0.iter()) {
-                            builder.assert_felt_eq(*byte, *current_byte);
+                // Assert that if MemoryFinalize is not present, then the address bits are the same.
+                builder
+                    .if_ne(contains_memory_finalize, C::N::one())
+                    .then(|builder| {
+                        for (prev_bit, last_bit) in public_values
+                            .previous_finalize_addr_bits
+                            .iter()
+                            .zip_eq(public_values.last_finalize_addr_bits.iter())
+                        {
+                            builder.assert_felt_eq(*prev_bit, *last_bit);
                         }
-                    }
+                    });
 
-                    // Assert that the start_pc of the proof is equal to the current pc.
-                    builder.assert_felt_eq(current_pc, public_values.start_pc);
-
-                    // Assert that the start_pc is not zero (this means program has halted in a non-last
-                    // shard).
-                    builder.assert_felt_ne(public_values.start_pc, C::F::zero());
-
-                    // Assert that exit code is the same for all proofs.
-                    builder.assert_felt_eq(exit_code, public_values.exit_code);
-
-                    // Assert that the exit code is zero (success) for all proofs.
-                    builder.assert_felt_eq(exit_code, C::F::zero());
-
-                    // Assert that the deferred proof digest is the same for all proofs.
-                    for (digest, current_digest) in deferred_proofs_digest
-                        .iter()
-                        .zip_eq(public_values.deferred_proofs_digest.iter())
-                    {
-                        builder.assert_felt_eq(*digest, *current_digest);
-                    }
-
-                    // Assert that the shard of the proof is equal to the current shard.
-                    builder.assert_felt_eq(current_shard, public_values.execution_shard);
-
-                    // Increment the current cpu shard by one.
-                    builder.assign(current_shard, current_shard + C::F::one());
-
-                    // Update current_pc to be the end_pc of the current proof.
-                    builder.assign(current_pc, public_values.next_pc);
-                },
-                |builder| {
-                    // If it's not a CPU proof, we need to check that pc_start == pc_end.
-                    builder.assert_felt_eq(public_values.start_pc, public_values.next_pc);
-                },
-            );
-            // Assert that the MemoryInitialize address bits match the current loop variable.
-            for (bit, current_bit) in init_addr_bits
-                .iter()
-                .zip_eq(public_values.previous_init_addr_bits.iter())
-            {
-                builder.assert_felt_eq(*bit, *current_bit);
-            }
-            // Assert that the MemoryFinalize address bits match the current loop variable.
-            for (bit, current_bit) in finalize_addr_bits
-                .iter()
-                .zip_eq(public_values.previous_finalize_addr_bits.iter())
-            {
-                builder.assert_felt_eq(*bit, *current_bit);
+                // Update the MemoryInitialize address bits.
+                for (bit, pub_bit) in init_addr_bits
+                    .iter()
+                    .zip(public_values.last_init_addr_bits.iter())
+                {
+                    builder.assign(*bit, *pub_bit);
+                }
+                // Update the MemoryFinalize address bits.
+                for (bit, pub_bit) in finalize_addr_bits
+                    .iter()
+                    .zip(public_values.last_finalize_addr_bits.iter())
+                {
+                    builder.assign(*bit, *pub_bit);
+                }
             }
 
-            // Assert that the deferred proof digest is the same for all proofs.
-            for (digest, current_digest) in deferred_proofs_digest
-                .iter()
-                .zip_eq(public_values.deferred_proofs_digest.iter())
+            // Digest constraints.
             {
-                builder.assert_felt_eq(*digest, *current_digest);
+                // TODO.
             }
 
-            // Range check the shard count to be less than 1<<16.
+            // Verify that the number of shards is not too large.
             builder.range_check_f(public_values.execution_shard, 16);
 
             // Update the reconstruct challenger.
@@ -431,24 +457,6 @@ where
             for j in 0..machine.num_pv_elts() {
                 let element = builder.get(&proof.public_values, j);
                 reconstruct_challenger.observe(builder, element);
-            }
-
-            // Update current_pc to be the end_pc of the current proof.
-            builder.assign(current_pc, public_values.next_pc);
-
-            // Update the MemoryInitialize address bits.
-            for (bit, pub_bit) in init_addr_bits
-                .iter()
-                .zip(public_values.last_init_addr_bits.iter())
-            {
-                builder.assign(*bit, *pub_bit);
-            }
-            // Update the MemoryFinalize address bits.
-            for (bit, pub_bit) in finalize_addr_bits
-                .iter()
-                .zip(public_values.last_finalize_addr_bits.iter())
-            {
-                builder.assign(*bit, *pub_bit);
             }
 
             // Cumulative sum is updated by sums of all chips.
