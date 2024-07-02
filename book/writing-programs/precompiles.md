@@ -2,7 +2,7 @@
 
 Precompiles are built into the SP1 zkVM and accelerate commonly used operations such as elliptic curve arithmetic and hashing. 
 Under the hood, precompiles are implemented as custom tables dedicated to proving one or few operations. **They typically improve the performance
-of executing expensive operations by a few order of magnitudes.**
+of executing expensive operations by a few orders of magnitude.**
 
 Inside the zkVM, precompiles are exposed as system calls executed through the `ecall` RISC-V instruction.
 Each precompile has a unique system call number and implements an interface for the computation.
