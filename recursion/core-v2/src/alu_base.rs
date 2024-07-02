@@ -11,7 +11,7 @@ use std::borrow::BorrowMut;
 
 use crate::{builder::SP1RecursionAirBuilder, *};
 
-pub const NUM_FIELD_ALU_COLS: usize = core::mem::size_of::<FieldAluCols<u8>>();
+pub const NUM_BASE_ALU_COLS: usize = core::mem::size_of::<BaseAluCols<u8>>();
 
 // 14 columns
 // pub struct FieldALU<F> {
@@ -34,11 +34,11 @@ pub const NUM_FIELD_ALU_COLS: usize = core::mem::size_of::<FieldAluCols<u8>>();
 // }
 
 #[derive(Default)]
-pub struct FieldAluChip {}
+pub struct BaseAluChip {}
 
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct FieldAluCols<F: Copy> {
+pub struct BaseAluCols<F: Copy> {
     pub in1: AddressValue<F, F>,
     pub in2: AddressValue<F, F>,
     pub out: AddressValue<F, F>,
@@ -56,19 +56,19 @@ pub struct FieldAluCols<F: Copy> {
     pub is_real: F,
 }
 
-impl<F: Field> BaseAir<F> for FieldAluChip {
+impl<F: Field> BaseAir<F> for BaseAluChip {
     fn width(&self) -> usize {
-        NUM_FIELD_ALU_COLS
+        NUM_BASE_ALU_COLS
     }
 }
 
-impl<F: PrimeField32> MachineAir<F> for FieldAluChip {
+impl<F: PrimeField32> MachineAir<F> for BaseAluChip {
     type Record = ExecutionRecord<F>;
 
     type Program = crate::RecursionProgram<F>;
 
     fn name(&self) -> String {
-        "Alu".to_string()
+        "Base field Alu".to_string()
     }
 
     fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {
@@ -76,15 +76,15 @@ impl<F: PrimeField32> MachineAir<F> for FieldAluChip {
     }
 
     fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
-        let alu_events = input.alu_events.clone();
+        let base_alu_events = input.base_alu_events.clone();
 
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
-        let rows = alu_events
+        let rows = base_alu_events
             .into_iter()
             .map(|event| {
-                let mut row = [F::zero(); NUM_FIELD_ALU_COLS];
+                let mut row = [F::zero(); NUM_BASE_ALU_COLS];
 
-                let AluEvent {
+                let BaseAluEvent {
                     out,
                     in1,
                     in2,
@@ -94,8 +94,8 @@ impl<F: PrimeField32> MachineAir<F> for FieldAluChip {
 
                 let (v1, v2) = (in1.val, in2.val);
 
-                let cols: &mut FieldAluCols<_> = row.as_mut_slice().borrow_mut();
-                *cols = FieldAluCols {
+                let cols: &mut BaseAluCols<_> = row.as_mut_slice().borrow_mut();
+                *cols = BaseAluCols {
                     in1,
                     in2,
                     out,
@@ -126,11 +126,11 @@ impl<F: PrimeField32> MachineAir<F> for FieldAluChip {
         // Convert the trace to a row major matrix.
         let mut trace = RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_FIELD_ALU_COLS,
+            NUM_BASE_ALU_COLS,
         );
 
         // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_FIELD_ALU_COLS, F>(&mut trace.values);
+        pad_to_power_of_two::<NUM_BASE_ALU_COLS, F>(&mut trace.values);
 
         trace
     }
@@ -140,14 +140,14 @@ impl<F: PrimeField32> MachineAir<F> for FieldAluChip {
     }
 }
 
-impl<AB> Air<AB> for FieldAluChip
+impl<AB> Air<AB> for BaseAluChip
 where
     AB: SP1RecursionAirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local = main.row_slice(0);
-        let local: &FieldAluCols<AB::Var> = (*local).borrow();
+        let local: &BaseAluCols<AB::Var> = (*local).borrow();
 
         // Check exactly one flag is enabled.
         builder
@@ -196,7 +196,7 @@ mod tests {
         type F = BabyBear;
 
         let shard = ExecutionRecord::<F> {
-            alu_events: vec![AluEvent {
+            base_alu_events: vec![BaseAluEvent {
                 out: AddressValue::new(F::zero(), F::one()),
                 in1: AddressValue::new(F::zero(), F::one()),
                 in2: AddressValue::new(F::zero(), F::one()),
@@ -205,7 +205,7 @@ mod tests {
             }],
             ..Default::default()
         };
-        let chip = FieldAluChip::default();
+        let chip = BaseAluChip::default();
         let trace: RowMajorMatrix<F> = chip.generate_trace(&shard, &mut ExecutionRecord::default());
         println!("{:?}", trace.values)
     }
