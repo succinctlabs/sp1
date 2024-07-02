@@ -112,7 +112,6 @@ pub fn build_program(args: &BuildArgs) -> Result<Utf8PathBuf> {
             .context("Failed to run cargo command.")?;
 
         if !result.success() {
-            // Error message is already printed by cargo
             exit(result.code().unwrap_or(1))
         }
     }
