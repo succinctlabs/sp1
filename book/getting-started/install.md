@@ -8,7 +8,6 @@ build the toolchain and CLI from source.
 - [Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)
 - [Rust (Nightly)](https://www.rust-lang.org/tools/install)
 - [Docker](https://docs.docker.com/get-docker/)
-- [Go >1.22.1 (Optional)](https://go.dev/doc/install)
 
 ## Option 1: Prebuilt Binaries (Recommended)
 
@@ -86,29 +85,4 @@ You can delete your existing installation of the toolchain with:
 
 ```bash
 rustup toolchain remove succinct
-```
-
-## Option 3: Using Docker
-
-SP1 can also be used entirely within a Docker container. If you don't have it, Docker can be
-installed directly from [Docker's website](https://docs.docker.com/get-docker/).
-
-Then you can use:
-
-```bash
-cargo prove --docker
-```
-
-to automatically use the latest image of SP1 in a container.
-
-Alternatively, it is possible to build the docker image locally by running:
-
-```bash
-docker build -t succinctlabs/sp1:latest ./cli/docker
-```
-
-You can then run the `cargo prove` command by mounting your program directory into the container:
-
-```bash
-docker run -v "$(pwd):/root/program" -it succinctlabs/sp1:latest prove build
 ```
