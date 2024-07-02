@@ -47,7 +47,7 @@ pub enum SP1CoreProverError {
 pub fn prove_simple<SC: StarkGenericConfig>(
     config: SC,
     runtime: Runtime,
-) -> Result<MachineProof<SC>, SP1CoreProverError>
+) -> Result<(MachineProof<SC>, u64), SP1CoreProverError>
 where
     SC::Challenger: Clone,
     OpeningProof<SC>: Send + Sync,
@@ -81,7 +81,7 @@ where
         Size::from_bytes(nb_bytes),
     );
 
-    Ok(proof)
+    Ok((proof, runtime.state.global_clk))
 }
 
 pub fn prove<SC: StarkGenericConfig + Send + Sync>(
@@ -89,7 +89,7 @@ pub fn prove<SC: StarkGenericConfig + Send + Sync>(
     stdin: &SP1Stdin,
     config: SC,
     opts: SP1CoreOpts,
-) -> Result<(MachineProof<SC>, Vec<u8>), SP1CoreProverError>
+) -> Result<(MachineProof<SC>, Vec<u8>, u64), SP1CoreProverError>
 where
     SC::Challenger: Clone,
     OpeningProof<SC>: Send + Sync,
@@ -107,7 +107,7 @@ pub fn prove_with_context<SC: StarkGenericConfig + Send + Sync>(
     config: SC,
     opts: SP1CoreOpts,
     context: SP1Context,
-) -> Result<(MachineProof<SC>, Vec<u8>), SP1CoreProverError>
+) -> Result<(MachineProof<SC>, Vec<u8>, u64), SP1CoreProverError>
 where
     SC::Challenger: Clone,
     OpeningProof<SC>: Send + Sync,
@@ -143,8 +143,8 @@ where
 
         // Generate the proof and return the proof and public values.
         let public_values = std::mem::take(&mut runtime.state.public_values_stream);
-        let proof = prove_simple(machine.config().clone(), runtime)?;
-        return Ok((proof, public_values));
+        let (proof, cycles) = prove_simple(machine.config().clone(), runtime)?;
+        return Ok((proof, public_values, cycles));
     }
 
     // Execute the program, saving checkpoints at the start of every `shard_batch_size` cycle range.
@@ -256,18 +256,19 @@ where
     }
 
     let proof = MachineProof::<SC> { shard_proofs };
+    let cycles = runtime.state.global_clk;
 
     // Print the summary.
     let proving_time = proving_start.elapsed().as_secs_f64();
     tracing::info!(
         "summary: cycles={}, e2e={}, khz={:.2}, proofSize={}",
-        runtime.state.global_clk,
+        cycles,
         proving_time,
         (runtime.state.global_clk as f64 / proving_time as f64),
         bincode::serialize(&proof).unwrap().len(),
     );
 
-    Ok((proof, public_values_stream))
+    Ok((proof, public_values_stream, cycles))
 }
 
 /// Runs a program and returns the public values stream.
