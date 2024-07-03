@@ -1,3 +1,4 @@
+use p3_baby_bear::BabyBear;
 use std::fs::File;
 use std::io::Seek;
 use std::io::{self};
@@ -321,7 +322,7 @@ where
 }
 
 /// Runs a program and returns the public values stream.
-pub fn run_test_io(
+pub fn run_test_io<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
     program: Program,
     inputs: SP1Stdin,
 ) -> Result<SP1PublicValues, crate::stark::MachineVerificationError<BabyBearPoseidon2>> {
@@ -332,11 +333,11 @@ pub fn run_test_io(
         runtime
     });
     let public_values = SP1PublicValues::from(&runtime.state.public_values_stream);
-    let _ = run_test_core(runtime, inputs)?;
+    let _ = run_test_core::<P>(runtime, inputs)?;
     Ok(public_values)
 }
 
-pub fn run_test(
+pub fn run_test<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
     program: Program,
 ) -> Result<
     crate::stark::MachineProof<BabyBearPoseidon2>,
@@ -347,11 +348,11 @@ pub fn run_test(
         runtime.run().unwrap();
         runtime
     });
-    run_test_core(runtime, SP1Stdin::new())
+    run_test_core::<P>(runtime, SP1Stdin::new())
 }
 
 #[allow(unused_variables)]
-pub fn run_test_core(
+pub fn run_test_core<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
     runtime: Runtime,
     inputs: SP1Stdin,
 ) -> Result<
@@ -359,7 +360,7 @@ pub fn run_test_core(
     crate::stark::MachineVerificationError<BabyBearPoseidon2>,
 > {
     let config = BabyBearPoseidon2::new();
-    let (proof, output, _) = prove_with_context::<_, DefaultProver<_, _>>(
+    let (proof, output, _) = prove_with_context::<_, P>(
         Program::clone(&runtime.program),
         &inputs,
         config,

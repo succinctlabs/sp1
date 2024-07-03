@@ -504,7 +504,7 @@ pub mod tests {
     fn test_simple_prove() {
         utils::setup_logger();
         let program = simple_program();
-        run_test(program).unwrap();
+        run_test::<DefaultProver<_, _>>(program).unwrap();
     }
 
     #[test]
@@ -526,7 +526,7 @@ pub mod tests {
                     Instruction::new(*shift_op, 31, 29, 3, false, false),
                 ];
                 let program = Program::new(instructions, 0, 0);
-                run_test(program).unwrap();
+                run_test::<DefaultProver<_, _>>(program).unwrap();
             }
         }
     }
@@ -540,7 +540,7 @@ pub mod tests {
             Instruction::new(Opcode::SUB, 31, 30, 29, false, false),
         ];
         let program = Program::new(instructions, 0, 0);
-        run_test(program).unwrap();
+        run_test::<DefaultProver<_, _>>(program).unwrap();
     }
 
     #[test]
@@ -552,7 +552,7 @@ pub mod tests {
             Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
         ];
         let program = Program::new(instructions, 0, 0);
-        run_test(program).unwrap();
+        run_test::<DefaultProver<_, _>>(program).unwrap();
     }
 
     #[test]
@@ -574,7 +574,7 @@ pub mod tests {
                     Instruction::new(*mul_op, 31, 30, 29, false, false),
                 ];
                 let program = Program::new(instructions, 0, 0);
-                run_test(program).unwrap();
+                run_test::<DefaultProver<_, _>>(program).unwrap();
             }
         }
     }
@@ -590,7 +590,7 @@ pub mod tests {
                 Instruction::new(*lt_op, 31, 30, 29, false, false),
             ];
             let program = Program::new(instructions, 0, 0);
-            run_test(program).unwrap();
+            run_test::<DefaultProver<_, _>>(program).unwrap();
         }
     }
 
@@ -606,7 +606,7 @@ pub mod tests {
                 Instruction::new(*bitwise_op, 31, 30, 29, false, false),
             ];
             let program = Program::new(instructions, 0, 0);
-            run_test(program).unwrap();
+            run_test::<DefaultProver<_, _>>(program).unwrap();
         }
     }
 
@@ -629,7 +629,7 @@ pub mod tests {
                     Instruction::new(*div_rem_op, 31, 29, 30, false, false),
                 ];
                 let program = Program::new(instructions, 0, 0);
-                run_test(program).unwrap();
+                run_test::<DefaultProver<_, _>>(program).unwrap();
             }
         }
     }
@@ -638,7 +638,7 @@ pub mod tests {
     fn test_fibonacci_prove_simple() {
         setup_logger();
         let program = fibonacci_program();
-        run_test(program).unwrap();
+        run_test::<DefaultProver<_, _>>(program).unwrap();
     }
 
     #[test]
@@ -671,14 +671,14 @@ pub mod tests {
     fn test_simple_memory_program_prove() {
         setup_logger();
         let program = simple_memory_program();
-        run_test(program).unwrap();
+        run_test::<DefaultProver<_, _>>(program).unwrap();
     }
 
     #[test]
     fn test_ssz_withdrawal() {
         setup_logger();
         let program = ssz_withdrawals_program();
-        run_test(program).unwrap();
+        run_test::<DefaultProver<_, _>>(program).unwrap();
     }
 
     #[test]
