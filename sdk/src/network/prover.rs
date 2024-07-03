@@ -10,6 +10,7 @@ use crate::{SP1Context, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, S
 use anyhow::Result;
 use serde::de::DeserializeOwned;
 use sp1_core::utils::SP1ProverOpts;
+use sp1_prover::components::DefaultProverComponents;
 use sp1_prover::utils::block_on;
 use sp1_prover::{SP1Prover, SP1Stdin, SP1_CIRCUIT_VERSION};
 use tokio::time::sleep;
@@ -56,7 +57,8 @@ impl NetworkProver {
             .unwrap_or(false);
 
         if !skip_simulation {
-            let (_, report) = SP1Prover::execute(elf, &stdin, Default::default())?;
+            let (_, report) =
+                SP1Prover::<DefaultProverComponents>::execute(elf, &stdin, Default::default())?;
             log::info!(
                 "Simulation complete, cycles: {}",
                 report.total_instruction_count()

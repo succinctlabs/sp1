@@ -6,6 +6,7 @@ use p3_baby_bear::BabyBear;
 use p3_field::{AbstractField, PrimeField};
 use sp1_core::air::{Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS, WORD_SIZE};
 use sp1_core::runtime::SubproofVerifier;
+use sp1_core::stark::MachineProver;
 use sp1_core::{
     air::PublicValues,
     io::SP1PublicValues,
@@ -16,6 +17,7 @@ use sp1_recursion_core::{air::RecursionPublicValues, stark::config::BabyBearPose
 use sp1_recursion_gnark_ffi::{PlonkBn254Proof, PlonkBn254Prover};
 use thiserror::Error;
 
+use crate::components::SP1ProverComponents;
 use crate::{
     CoreSC, HashableKey, OuterSC, SP1CoreProofData, SP1Prover, SP1ReduceProof, SP1VerifyingKey,
 };
@@ -32,7 +34,7 @@ pub enum PlonkVerificationError {
     InvalidPublicValues,
 }
 
-impl SP1Prover {
+impl<C: SP1ProverComponents> SP1Prover<C> {
     /// Verify a core proof by verifying the shards, verifying lookup bus, verifying that the
     /// shards are contiguous and complete.
     pub fn verify(
@@ -40,11 +42,12 @@ impl SP1Prover {
         proof: &SP1CoreProofData,
         vk: &SP1VerifyingKey,
     ) -> Result<(), MachineVerificationError<CoreSC>> {
-        let mut challenger = self.core_machine.config().challenger();
+        let mut challenger = self.core_prover.config().challenger();
         let machine_proof = MachineProof {
             shard_proofs: proof.0.to_vec(),
         };
-        self.core_machine
+        self.core_prover
+            .machine()
             .verify(&vk.vk, &machine_proof, &mut challenger)?;
 
         // Assert that the first shard has a "CPU".
@@ -235,12 +238,15 @@ impl SP1Prover {
         proof: &SP1ReduceProof<BabyBearPoseidon2>,
         vk: &SP1VerifyingKey,
     ) -> Result<(), MachineVerificationError<CoreSC>> {
-        let mut challenger = self.compress_machine.config().challenger();
+        let mut challenger = self.compress_prover.config().challenger();
         let machine_proof = MachineProof {
             shard_proofs: vec![proof.proof.clone()],
         };
-        self.compress_machine
-            .verify(&self.compress_vk, &machine_proof, &mut challenger)?;
+        self.compress_prover.machine().verify(
+            &self.compress_vk,
+            &machine_proof,
+            &mut challenger,
+        )?;
 
         // Validate public values
         let public_values: &RecursionPublicValues<_> =
@@ -278,11 +284,12 @@ impl SP1Prover {
         proof: &SP1ReduceProof<BabyBearPoseidon2>,
         vk: &SP1VerifyingKey,
     ) -> Result<(), MachineVerificationError<CoreSC>> {
-        let mut challenger = self.shrink_machine.config().challenger();
+        let mut challenger = self.shrink_prover.config().challenger();
         let machine_proof = MachineProof {
             shard_proofs: vec![proof.proof.clone()],
         };
-        self.shrink_machine
+        self.shrink_prover
+            .machine()
             .verify(&self.shrink_vk, &machine_proof, &mut challenger)?;
 
         // Validate public values
@@ -313,11 +320,12 @@ impl SP1Prover {
         proof: &SP1ReduceProof<BabyBearPoseidon2Outer>,
         vk: &SP1VerifyingKey,
     ) -> Result<(), MachineVerificationError<OuterSC>> {
-        let mut challenger = self.wrap_machine.config().challenger();
+        let mut challenger = self.wrap_prover.config().challenger();
         let machine_proof = MachineProof {
             shard_proofs: vec![proof.proof.clone()],
         };
-        self.wrap_machine
+        self.wrap_prover
+            .machine()
             .verify(&self.wrap_vk, &machine_proof, &mut challenger)?;
 
         // Validate public values
@@ -386,7 +394,7 @@ pub fn verify_plonk_bn254_public_inputs(
     Ok(())
 }
 
-impl SubproofVerifier for &SP1Prover {
+impl<C: SP1ProverComponents> SubproofVerifier for &SP1Prover<C> {
     fn verify_deferred_proof(
         &self,
         proof: &sp1_core::stark::ShardProof<BabyBearPoseidon2>,

@@ -1,11 +1,11 @@
 use std::{
-    collections::HashMap,
     fmt::Debug,
     fs::File,
     io::{BufReader, BufWriter, Seek},
 };
 
 use bincode::{deserialize_from, Error};
+use hashbrown::HashMap;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::dense::RowMajorMatrixView;
 use p3_matrix::stack::VerticalPair;
