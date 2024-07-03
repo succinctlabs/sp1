@@ -64,3 +64,7 @@ contract Fibonacci {
 ```
 
 For more details on the contracts, refer to the [sp1-contracts](https://github.com/succinctlabs/sp1-contracts) repo.
+
+### Testing
+
+To test the contract, we recommend setting up [Foundry Tests](https://book.getfoundry.sh/forge/tests). We have an example of such a test in the [SP1 Project Template](https://github.com/succinctlabs/sp1-project-template/blob/dev/contracts/test/Fibonacci.t.sol).
