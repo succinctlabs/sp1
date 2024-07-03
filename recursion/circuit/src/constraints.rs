@@ -170,8 +170,8 @@ mod tests {
     use serde::{de::DeserializeOwned, Serialize};
     use sp1_core::{
         stark::{
-            Chip, Com, DefaultProver, Dom, OpeningProof, PcsProverData, ShardCommitment,
-            ShardMainData, ShardProof, StarkGenericConfig, StarkMachine, MachineProver,
+            Chip, Com, DefaultProver, Dom, MachineProver, OpeningProof, PcsProverData,
+            ShardCommitment, ShardMainData, ShardProof, StarkGenericConfig, StarkMachine,
         },
         utils::SP1CoreOpts,
     };
