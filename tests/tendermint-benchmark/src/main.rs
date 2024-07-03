@@ -110,18 +110,18 @@ fn main() {
 
     let verify_time = light_block_2.time() + Duration::from_secs(20);
 
-    // let verdict = vp.verify_update_header(
-    //     light_block_2.as_untrusted_state(),
-    //     light_block_1.as_trusted_state(),
-    //     &opt,
-    //     verify_time.unwrap(),
-    // );
+    let verdict = vp.verify_update_header(
+        light_block_2.as_untrusted_state(),
+        light_block_1.as_trusted_state(),
+        &opt,
+        verify_time.unwrap(),
+    );
     println!("cycle-tracker-end: verify");
 
-    // match verdict {
-    //     Verdict::Success => {
-    //         println!("success");
-    //     }
-    //     v => panic!("expected success, got: {:?}", v),
-    // }
+    match verdict {
+        Verdict::Success => {
+            println!("success");
+        }
+        v => panic!("expected success, got: {:?}", v),
+    }
 }
