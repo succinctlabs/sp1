@@ -21,7 +21,6 @@ use crate::syscall::precompiles::sha256::{ShaCompressEvent, ShaExtendEvent};
 use crate::syscall::precompiles::uint256::Uint256MulEvent;
 use crate::syscall::precompiles::ECDecompressEvent;
 use crate::syscall::precompiles::{ECAddEvent, ECDoubleEvent};
-use crate::utils::SP1CoreOpts;
 
 /// A record of the execution of a program.
 ///
@@ -102,66 +101,7 @@ pub struct ExecutionRecord {
     pub nonce_lookup: HashMap<usize, u32>,
 }
 
-pub struct ShardingConfig {
-    pub shard_size: usize,
-    pub add_len: usize,
-    pub mul_len: usize,
-    pub sub_len: usize,
-    pub bitwise_len: usize,
-    pub shift_left_len: usize,
-    pub shift_right_len: usize,
-    pub divrem_len: usize,
-    pub lt_len: usize,
-    pub field_len: usize,
-    pub mem_init_len: usize,
-    pub mem_finalize_len: usize,
-    pub keccak_len: usize,
-    pub secp256k1_add_len: usize,
-    pub secp256k1_double_len: usize,
-    pub bn254_add_len: usize,
-    pub bn254_double_len: usize,
-    pub bls12381_add_len: usize,
-    pub bls12381_double_len: usize,
-    pub uint256_mul_len: usize,
-}
-
-impl ShardingConfig {
-    pub const fn shard_size(&self) -> usize {
-        self.shard_size
-    }
-}
-
-impl Default for ShardingConfig {
-    fn default() -> Self {
-        let shard_size = SP1CoreOpts::default().shard_size;
-        Self {
-            shard_size,
-            add_len: shard_size,
-            sub_len: shard_size,
-            bitwise_len: shard_size,
-            shift_left_len: shard_size,
-            divrem_len: shard_size,
-            lt_len: shard_size,
-            mul_len: shard_size,
-            shift_right_len: shard_size,
-            mem_init_len: shard_size,
-            mem_finalize_len: shard_size,
-            field_len: shard_size * 4,
-            keccak_len: shard_size,
-            secp256k1_add_len: shard_size,
-            secp256k1_double_len: shard_size,
-            bn254_add_len: shard_size,
-            bn254_double_len: shard_size,
-            bls12381_add_len: shard_size,
-            bls12381_double_len: shard_size,
-            uint256_mul_len: shard_size,
-        }
-    }
-}
-
 impl MachineRecord for ExecutionRecord {
-    type Config = ShardingConfig;
-
     fn stats(&self) -> HashMap<String, usize> {
         let mut stats = HashMap::new();
         stats.insert("cpu_events".to_string(), self.cpu_events.len());
