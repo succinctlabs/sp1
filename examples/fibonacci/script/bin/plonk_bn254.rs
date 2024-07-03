@@ -21,7 +21,7 @@ fn main() {
     println!("generated proof");
 
     // Get the public values as bytes.
-    let public_values = proof.public_values.bytes().to_string();
+    let public_values = proof.public_values.raw();
     println!("public values: {:?}", public_values);
 
     // Get the proof as bytes.
