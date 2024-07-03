@@ -455,11 +455,6 @@ impl SP1Prover {
             reduce_proofs.extend(proofs);
         }
 
-        for reduce_proof in reduce_proofs.iter() {
-            let pv: &PublicValues<_, _> = reduce_proof.0.public_values.as_slice().borrow();
-            println!("shard: {}", pv.shard);
-        }
-
         // Iterate over the recursive proof batches until there is one proof remaining.
         let mut is_complete;
         loop {
