@@ -34,7 +34,7 @@ impl MockProver {
     }
 }
 
-impl Prover for MockProver {
+impl Prover<DefaultProverComponents> for MockProver {
     fn id(&self) -> ProverType {
         ProverType::Mock
     }
