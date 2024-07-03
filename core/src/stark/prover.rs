@@ -29,21 +29,18 @@ use crate::stark::PackedChallenge;
 use crate::stark::ProverConstraintFolder;
 use crate::utils::SP1CoreOpts;
 
-pub trait StarkProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>> {
+pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>> {
     type MainData;
 
     type ShardCommitData;
 
     type Error: Error;
 
+    /// Create a new prover from a given machine.
     fn new(machine: StarkMachine<SC, A>) -> Self;
 
     /// A reference to the machine that this prover is using.
     fn machine(&self) -> &StarkMachine<SC, A>;
-
-    fn setup(&self, program: &A::Program) -> (StarkProvingKey<SC>, StarkVerifyingKey<SC>) {
-        self.machine().setup(program)
-    }
 
     /// Commit to the main execution trace.
     fn commit_main(&self, shard: &A::Record) -> Self::MainData;
@@ -63,6 +60,10 @@ pub trait StarkProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>> {
 
     fn generate_dependencies(&self, records: &mut [A::Record]) {
         self.machine().generate_dependencies(records)
+    }
+
+    fn setup(&self, program: &A::Program) -> (StarkProvingKey<SC>, StarkVerifyingKey<SC>) {
+        self.machine().setup(program)
     }
 
     fn prove_shards(
@@ -159,7 +160,7 @@ impl std::fmt::Display for DefaultProverError {
 
 impl Error for DefaultProverError {}
 
-impl<SC, A> StarkProver<SC, A> for DefaultProver<SC, A>
+impl<SC, A> MachineProver<SC, A> for DefaultProver<SC, A>
 where
     SC: StarkGenericConfig + Send + Sync,
     A: MachineAir<SC::Val>

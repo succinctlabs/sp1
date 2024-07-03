@@ -247,37 +247,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         });
     }
 
-    // /// Prove the execution record is valid.
-    // ///
-    // /// Given a proving key `pk` and a matching execution record `record`, this function generates
-    // /// a STARK proof that the execution record is valid.
-    // pub fn prove<P: Prover<SC, A>>(
-    //     &self,
-    //     pk: &StarkProvingKey<SC>,
-    //     mut records: Vec<A::Record>,
-    //     challenger: &mut SC::Challenger,
-    //     opts: SP1CoreOpts,
-    // ) -> MachineProof<SC>
-    // where
-    //     A: for<'a> Air<ProverConstraintFolder<'a, SC>>
-    //         + Air<InteractionBuilder<Val<SC>>>
-    //         + for<'a> Air<VerifierConstraintFolder<'a, SC>>
-    //         + for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
-    // {
-    //     let chips = self.chips();
-    //     records.iter_mut().for_each(|record| {
-    //         chips.iter().for_each(|chip| {
-    //             let mut output = A::Record::default();
-    //             chip.generate_dependencies(record, &mut output);
-    //             record.append(&mut output);
-    //         });
-    //         record.register_nonces();
-    //     });
-
-    //     tracing::info_span!("prove_shards")
-    //         .in_scope(|| P::prove_shards(self, pk, records, challenger, opts))
-    // }
-
     pub const fn config(&self) -> &SC {
         &self.config
     }

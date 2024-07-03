@@ -369,7 +369,7 @@ pub(crate) mod tests {
     use sp1_core::io::SP1Stdin;
     use sp1_core::runtime::Program;
     use sp1_core::stark::DefaultProver;
-    use sp1_core::stark::StarkProver;
+    use sp1_core::stark::MachineProver;
     use sp1_core::utils::setup_logger;
     use sp1_core::utils::InnerChallenge;
     use sp1_core::utils::InnerVal;

@@ -1,25 +1,25 @@
-use sp1_core::stark::{DefaultProver, RiscvAir, StarkGenericConfig, StarkProver};
+use sp1_core::stark::{DefaultProver, MachineProver, RiscvAir, StarkGenericConfig};
 
 use crate::{CompressAir, CoreSC, InnerSC, OuterSC, ReduceAir, WrapAir};
 
 pub trait SP1ProverComponents: Send + Sync {
     /// The prover for making SP1 core proofs.
-    type CoreProver: StarkProver<CoreSC, RiscvAir<<CoreSC as StarkGenericConfig>::Val>>
+    type CoreProver: MachineProver<CoreSC, RiscvAir<<CoreSC as StarkGenericConfig>::Val>>
         + Send
         + Sync;
 
     /// The prover for making SP1 recursive proofs.
-    type CompressProver: StarkProver<InnerSC, ReduceAir<<InnerSC as StarkGenericConfig>::Val>>
+    type CompressProver: MachineProver<InnerSC, ReduceAir<<InnerSC as StarkGenericConfig>::Val>>
         + Send
         + Sync;
 
     /// The prover for shrinking compressed proofs.
-    type ShrinkProver: StarkProver<InnerSC, CompressAir<<InnerSC as StarkGenericConfig>::Val>>
+    type ShrinkProver: MachineProver<InnerSC, CompressAir<<InnerSC as StarkGenericConfig>::Val>>
         + Send
         + Sync;
 
     /// The prover for wrapping compressed proofs into SNARK-friendly field elements.
-    type WrapProver: StarkProver<OuterSC, WrapAir<<OuterSC as StarkGenericConfig>::Val>>
+    type WrapProver: MachineProver<OuterSC, WrapAir<<OuterSC as StarkGenericConfig>::Val>>
         + Send
         + Sync;
 }

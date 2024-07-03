@@ -6,7 +6,7 @@ use p3_baby_bear::BabyBear;
 use p3_field::{AbstractField, PrimeField};
 use sp1_core::air::{Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS, WORD_SIZE};
 use sp1_core::runtime::SubproofVerifier;
-use sp1_core::stark::StarkProver;
+use sp1_core::stark::MachineProver;
 use sp1_core::{
     air::PublicValues,
     io::SP1PublicValues,

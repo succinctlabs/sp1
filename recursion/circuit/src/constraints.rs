@@ -171,7 +171,7 @@ mod tests {
     use sp1_core::{
         stark::{
             Chip, Com, DefaultProver, Dom, OpeningProof, PcsProverData, ShardCommitment,
-            ShardMainData, ShardProof, StarkGenericConfig, StarkMachine, StarkProver,
+            ShardMainData, ShardProof, StarkGenericConfig, StarkMachine, MachineProver,
         },
         utils::SP1CoreOpts,
     };

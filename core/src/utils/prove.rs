@@ -19,8 +19,8 @@ use crate::runtime::{ExecutionError, NoOpSubproofVerifier, SP1Context};
 use crate::runtime::{ExecutionRecord, ExecutionReport};
 use crate::stark::DebugConstraintBuilder;
 use crate::stark::MachineProof;
+use crate::stark::MachineProver;
 use crate::stark::ProverConstraintFolder;
-use crate::stark::StarkProver;
 use crate::stark::StarkVerifyingKey;
 use crate::stark::Val;
 use crate::stark::VerifierConstraintFolder;
@@ -45,7 +45,7 @@ pub enum SP1CoreProverError {
     SerializationError(bincode::Error),
 }
 
-pub fn prove_simple<SC: StarkGenericConfig, P: StarkProver<SC, RiscvAir<SC::Val>>>(
+pub fn prove_simple<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<SC::Val>>>(
     config: SC,
     runtime: Runtime,
 ) -> Result<(MachineProof<SC>, u64), SP1CoreProverError>
@@ -88,7 +88,7 @@ where
     Ok((proof, runtime.state.global_clk))
 }
 
-pub fn prove<SC: StarkGenericConfig, P: StarkProver<SC, RiscvAir<SC::Val>>>(
+pub fn prove<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<SC::Val>>>(
     program: Program,
     stdin: &SP1Stdin,
     config: SC,
@@ -105,7 +105,7 @@ where
     prove_with_context::<SC, P>(program, stdin, config, opts, Default::default())
 }
 
-pub fn prove_with_context<SC: StarkGenericConfig, P: StarkProver<SC, RiscvAir<SC::Val>>>(
+pub fn prove_with_context<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<SC::Val>>>(
     program: Program,
     stdin: &SP1Stdin,
     config: SC,

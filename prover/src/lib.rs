@@ -31,7 +31,7 @@ use rayon::prelude::*;
 use sp1_core::air::{PublicValues, Word};
 pub use sp1_core::io::{SP1PublicValues, SP1Stdin};
 use sp1_core::runtime::{ExecutionError, ExecutionReport, Runtime, SP1Context};
-use sp1_core::stark::StarkProver;
+use sp1_core::stark::MachineProver;
 use sp1_core::stark::{Challenge, StarkProvingKey};
 use sp1_core::stark::{Challenger, MachineVerificationError};
 use sp1_core::utils::{SP1CoreOpts, SP1ProverOpts, DIGEST_SIZE};
