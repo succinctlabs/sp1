@@ -344,7 +344,7 @@ impl MachineRecord for ExecutionRecord {
         self.keccak_permute_events.iter().for_each(|event| {
             self.nonce_lookup.insert(
                 event.lookup_id,
-                ((*count % DEFERRED_SPLIT_THRESHOLD) * 24) as u32,
+                ((*count % KECCAK_SPLIT_THRESHOLD) * 24) as u32,
             );
             *count += 1;
         });
@@ -599,7 +599,7 @@ impl ExecutionRecord {
             self,
             keccak_permute_events,
             shards,
-            DEFERRED_SPLIT_THRESHOLD,
+            KECCAK_SPLIT_THRESHOLD,
             last
         );
         println!("Finished splitting KeccakPermuteEvents");
@@ -752,3 +752,4 @@ pub struct MemoryAccessRecord {
 
 /// The threshold for splitting deferred events.
 pub const DEFERRED_SPLIT_THRESHOLD: usize = 1 << 19;
+pub const KECCAK_SPLIT_THRESHOLD: usize = (1 << 20) / 24;
