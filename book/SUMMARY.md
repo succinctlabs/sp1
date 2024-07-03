@@ -10,6 +10,8 @@
 
 - [Project Template](./getting-started/project-template.md)
 
+- [Hardware Requirements](./getting-started/hardware-requirements.md)
+
 # Writing Programs
 
 - [Setup](./writing-programs/setup.md)
@@ -36,7 +38,7 @@
 
 # Onchain Verification
 
-- [Getting Started](./onchain-verification/getting-started.md)
+- [Setup](./onchain-verification/getting-started.md)
 
 - [Solidity SDK](./onchain-verification/solidity-sdk.md)
 
