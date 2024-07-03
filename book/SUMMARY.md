@@ -40,9 +40,13 @@
 
 - [Usage](./prover-network/usage.md)
 
-# Verifying Proofs
+# Onchain Verification
 
-- [Solidity & EVM](./verifying-proofs/solidity-and-evm.md)
+- [Getting Started](./onchain-verification/getting-started.md)
+
+- [Solidity SDK](./onchain-verification/solidity-sdk.md)
+
+- [Contract Addresses](./onchain-verification/contract-addresses.md)
 
 # Developers
 
