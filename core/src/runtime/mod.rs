@@ -1098,6 +1098,8 @@ impl<'a> Runtime<'a> {
             self.records.push(record);
         }
 
+        println!("self.records.len(): {}", self.records.len());
+
         // Get the final public values.
         let public_values = self.record.public_values;
 
@@ -1109,6 +1111,8 @@ impl<'a> Runtime<'a> {
             self.record.program = program.clone();
             self.records.push(record);
         }
+
+        println!("self.records.len(): {}", self.records.len());
 
         // Set the global public values for all shards.
         for (i, record) in self.records.iter_mut().enumerate() {

@@ -55,6 +55,7 @@ where
     pub leaf_challenger: SC::Challenger,
     pub end_pc: SC::Val,
     pub end_shard: SC::Val,
+    pub end_execution_shard: SC::Val,
     pub init_addr_bits: [SC::Val; 32],
     pub finalize_addr_bits: [SC::Val; 32],
 }
@@ -76,6 +77,7 @@ pub struct SP1DeferredMemoryLayoutVariable<C: Config> {
     pub leaf_challenger: DuplexChallengerVariable<C>,
     pub end_pc: Felt<C::F>,
     pub end_shard: Felt<C::F>,
+    pub end_execution_shard: Felt<C::F>,
     pub init_addr_bits: Array<C, Felt<C::F>>,
     pub finalize_addr_bits: Array<C, Felt<C::F>>,
 }
@@ -105,11 +107,7 @@ where
 impl<C: Config, SC, A> SP1DeferredVerifier<C, SC, A>
 where
     C::F: PrimeField32 + TwoAdicField,
-    SC: StarkGenericConfig<
-        Val = C::F,
-        Challenge = C::EF,
-        Domain = TwoAdicMultiplicativeCoset<C::F>,
-    >,
+    SC: StarkGenericConfig<Val = C::F, Challenge = C::EF, Domain = TwoAdicMultiplicativeCoset<C::F>>,
     A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
     Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
 {
@@ -140,6 +138,7 @@ where
             leaf_challenger,
             end_pc,
             end_shard,
+            end_execution_shard,
             init_addr_bits,
             finalize_addr_bits,
         } = input;
@@ -263,8 +262,10 @@ where
         // Set initial_pc, end_pc, initial_shard, and end_shard to be the hitned values.
         deferred_public_values.start_pc = end_pc;
         deferred_public_values.next_pc = end_pc;
-        deferred_public_values.start_execution_shard = end_shard;
-        deferred_public_values.next_execution_shard = end_shard;
+        deferred_public_values.start_shard = end_shard;
+        deferred_public_values.next_shard = end_shard;
+        deferred_public_values.start_execution_shard = end_execution_shard;
+        deferred_public_values.next_execution_shard = end_execution_shard;
         // Set the init and finalize address bits to be the hintred values.
         let init_addr_bits = core::array::from_fn(|i| builder.get(&init_addr_bits, i));
         deferred_public_values.previous_init_addr_bits = init_addr_bits;

@@ -175,6 +175,7 @@ where
 
         // Update the public values & prover state for the shards which contain "cpu events".
         for record in records.iter_mut() {
+            state.shard += 1;
             state.execution_shard = record.public_values.execution_shard;
             state.start_pc = record.public_values.start_pc;
             state.next_pc = record.public_values.next_pc;
@@ -196,6 +197,7 @@ where
         // Update the public values & prover state for the shards which do not contain "cpu events"
         // before committing to them.
         for record in deferred.iter_mut() {
+            state.shard += 1;
             state.previous_init_addr_bits = record.public_values.previous_init_addr_bits;
             state.last_init_addr_bits = record.public_values.last_init_addr_bits;
             state.previous_finalize_addr_bits = record.public_values.previous_finalize_addr_bits;
@@ -239,6 +241,7 @@ where
 
         // Update the public values & prover state for the shards which contain "cpu events".
         for record in records.iter_mut() {
+            state.shard += 1;
             state.execution_shard = record.public_values.execution_shard;
             state.start_pc = record.public_values.start_pc;
             state.next_pc = record.public_values.next_pc;
@@ -260,6 +263,7 @@ where
         // Update the public values & prover state for the shards which do not contain "cpu events"
         // before committing to them.
         for record in deferred.iter_mut() {
+            state.shard += 1;
             state.previous_init_addr_bits = record.public_values.previous_init_addr_bits;
             state.last_init_addr_bits = record.public_values.last_init_addr_bits;
             state.previous_finalize_addr_bits = record.public_values.previous_finalize_addr_bits;

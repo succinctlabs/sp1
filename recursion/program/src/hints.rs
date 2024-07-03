@@ -90,10 +90,11 @@ impl Hintable<C> for [Word<BabyBear>; PV_DIGEST_NUM_WORDS] {
     }
 
     fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
-        vec![self
-            .iter()
-            .flat_map(|w| w.0.iter().map(|f| Block::from(*f)))
-            .collect::<Vec<_>>()]
+        vec![
+            self.iter()
+                .flat_map(|w| w.0.iter().map(|f| Block::from(*f)))
+                .collect::<Vec<_>>(),
+        ]
     }
 }
 
@@ -206,10 +207,11 @@ impl Hintable<C> for Vec<usize> {
     }
 
     fn write(&self) -> Vec<Vec<Block<InnerVal>>> {
-        vec![self
-            .iter()
-            .map(|x| Block::from(InnerVal::from_canonical_usize(*x)))
-            .collect()]
+        vec![
+            self.iter()
+                .map(|x| Block::from(InnerVal::from_canonical_usize(*x)))
+                .collect(),
+        ]
     }
 }
 
@@ -233,10 +235,11 @@ impl Hintable<C> for Vec<InnerChallenge> {
     }
 
     fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
-        vec![self
-            .iter()
-            .map(|x| Block::from((*x).as_base_slice()))
-            .collect()]
+        vec![
+            self.iter()
+                .map(|x| Block::from((*x).as_base_slice()))
+                .collect(),
+        ]
     }
 }
 
@@ -420,14 +423,14 @@ impl Hintable<C> for DuplexChallenger<InnerVal, InnerPerm, 16, 8> {
 }
 
 impl<
-        'a,
-        SC: StarkGenericConfig<
+    'a,
+    SC: StarkGenericConfig<
             Pcs = <BabyBearPoseidon2 as StarkGenericConfig>::Pcs,
             Challenge = <BabyBearPoseidon2 as StarkGenericConfig>::Challenge,
             Challenger = <BabyBearPoseidon2 as StarkGenericConfig>::Challenger,
         >,
-        A: MachineAir<SC::Val>,
-    > Hintable<C> for VerifyingKeyHint<'a, SC, A>
+    A: MachineAir<SC::Val>,
+> Hintable<C> for VerifyingKeyHint<'a, SC, A>
 {
     type HintVariable = VerifyingKeyVariable<C>;
 
@@ -459,14 +462,14 @@ impl<
 
 // Implement Hintable<C> for ShardProof where SC is equivalent to BabyBearPoseidon2
 impl<
-        'a,
-        SC: StarkGenericConfig<
+    'a,
+    SC: StarkGenericConfig<
             Pcs = <BabyBearPoseidon2 as StarkGenericConfig>::Pcs,
             Challenge = <BabyBearPoseidon2 as StarkGenericConfig>::Challenge,
             Challenger = <BabyBearPoseidon2 as StarkGenericConfig>::Challenger,
         >,
-        A: MachineAir<SC::Val>,
-    > Hintable<C> for ShardProofHint<'a, SC, A>
+    A: MachineAir<SC::Val>,
+> Hintable<C> for ShardProofHint<'a, SC, A>
 where
     ShardCommitment<Com<SC>>: Hintable<C>,
 {
@@ -629,6 +632,7 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
         let leaf_challenger = DuplexChallenger::<InnerVal, InnerPerm, 16, 8>::read(builder);
         let end_pc = InnerVal::read(builder);
         let end_shard = InnerVal::read(builder);
+        let end_execution_shard = InnerVal::read(builder);
         let init_addr_bits = Vec::<InnerVal>::read(builder);
         let finalize_addr_bits = Vec::<InnerVal>::read(builder);
 
@@ -643,6 +647,7 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
             leaf_challenger,
             end_pc,
             end_shard,
+            end_execution_shard,
             init_addr_bits,
             finalize_addr_bits,
         }
@@ -680,6 +685,7 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
         stream.extend(self.leaf_challenger.write());
         stream.extend(self.end_pc.write());
         stream.extend(self.end_shard.write());
+        stream.extend(self.end_execution_shard.write());
         stream.extend(self.init_addr_bits.to_vec().write());
         stream.extend(self.finalize_addr_bits.to_vec().write());
 
