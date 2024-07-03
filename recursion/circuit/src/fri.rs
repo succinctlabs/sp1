@@ -1,5 +1,3 @@
-use std::array;
-
 use itertools::{izip, Itertools};
 use p3_commit::PolynomialSpace;
 use p3_field::AbstractField;
@@ -69,18 +67,18 @@ pub fn verify_two_adic_pcs<C: Config>(
 
     let log_global_max_height = proof.fri_proof.commit_phase_commits.len() + config.log_blowup;
 
-    let mut alpha_pows: [Vec<Ext<C::F, C::EF>>; 32] = array::from_fn(|_| Vec::new());
+    let mut alpha_pows: Vec<Ext<C::F, C::EF>> =
+        vec![builder.eval(SymbolicExt::from_f(C::EF::one()))];
 
     let reduced_openings = proof
         .query_openings
         .iter()
         .zip(&fri_challenges.query_indices)
-        .enumerate()
-        .map(|(query_num, (query_opening, &index))| {
+        .map(|(query_opening, &index)| {
             let mut ro: [Ext<C::F, C::EF>; 32] =
                 [builder.eval(SymbolicExt::from_f(C::EF::zero())); 32];
 
-            let mut log_height_indices = [0usize; 32];
+            let mut log_height_pow = [0usize; 32];
 
             for (batch_opening, round) in izip!(query_opening.clone(), &rounds) {
                 let batch_commit = round.batch_commit;
@@ -130,19 +128,12 @@ pub fn verify_two_adic_pcs<C: Config>(
                         let mut acc: Ext<C::F, C::EF> =
                             builder.eval(SymbolicExt::from_f(C::EF::zero()));
                         for (p_at_x, &p_at_z) in izip!(mat_opening.clone(), ps_at_z) {
-                            let log_height_index = log_height_indices[log_height];
-                            if query_num == 0 && log_height_index == 0 {
-                                alpha_pows[log_height]
-                                    .push(builder.eval(SymbolicExt::from_f(C::EF::one())));
-                            }
-                            let alpha_pow = alpha_pows[log_height][log_height_index];
-
-                            acc = builder.eval(acc + (alpha_pow * (p_at_z - p_at_x[0])));
-
-                            if query_num == 0 {
-                                alpha_pows[log_height].push(builder.eval(alpha_pow * alpha));
-                            }
-                            log_height_indices[log_height] += 1;
+                            let pow = log_height_pow[log_height];
+                            (alpha_pows.len()..pow + 1).for_each(|_| {
+                                alpha_pows.push(builder.eval(*alpha_pows.last().unwrap() * alpha));
+                            });
+                            acc = builder.eval(acc + (alpha_pows[pow] * (p_at_z - p_at_x[0])));
+                            log_height_pow[log_height] += 1;
                         }
                         ro[log_height] = builder.eval(ro[log_height] + acc / (*z - x));
                     }
