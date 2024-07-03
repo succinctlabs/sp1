@@ -995,15 +995,19 @@ impl<'a> Runtime<'a> {
             self.state.clk = 0;
             self.state.channel = 0;
 
-            let record = std::mem::take(&mut self.record);
-            let public_values = record.public_values;
-            self.records.push(record);
-            self.record = ExecutionRecord::new(self.program.clone());
-            self.record.public_values = public_values;
+            self.bump_record();
         }
 
         Ok(self.state.pc.wrapping_sub(self.program.pc_base)
             >= (self.program.instructions.len() * 4) as u32)
+    }
+
+    pub fn bump_record(&mut self) {
+        let removed_record =
+            std::mem::replace(&mut self.record, ExecutionRecord::new(self.program.clone()));
+        let public_values = removed_record.public_values;
+        self.record.public_values = public_values;
+        self.records.push(removed_record);
     }
 
     /// Execute up to `self.shard_batch_size` cycles, returning the events emitted and whether the program ended.
@@ -1096,18 +1100,14 @@ impl<'a> Runtime<'a> {
 
         // Push the remaining execution record, if there are any CPU events.
         if !self.record.cpu_events.is_empty() {
-            let record = std::mem::take(&mut self.record);
-            self.record.program = program.clone();
-            self.records.push(record);
+            self.bump_record();
         }
 
         if done {
             self.postprocess();
 
             // Push the remaining execution record with memory initialize & finalize events.
-            let record = std::mem::take(&mut self.record);
-            self.record.program = program.clone();
-            self.records.push(record);
+            self.bump_record();
         }
 
         // Set the global public values for all shards.
