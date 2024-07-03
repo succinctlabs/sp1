@@ -19,6 +19,11 @@ impl LocalProver {
         let prover = SP1Prover::new();
         Self { prover }
     }
+
+    /// Creates a new [LocalProver] from an existing [SP1Prover].
+    pub fn from_prover(prover: SP1Prover) -> Self {
+        Self { prover }
+    }
 }
 
 impl Prover for LocalProver {
