@@ -79,7 +79,7 @@ pub fn verify_two_adic_pcs<C: Config>(
             let mut ro: [Ext<C::F, C::EF>; 32] =
                 [builder.eval(SymbolicExt::from_f(C::EF::zero())); 32];
 
-            // An array of "iterators" to keep track of the power of alpha for each log_height.
+            // An array of the current power for each log_height.
             let mut log_height_pow = [0usize; 32];
 
             for (batch_opening, round) in izip!(query_opening.clone(), &rounds) {
