@@ -359,7 +359,7 @@ pub fn run_test_core(
     crate::stark::MachineVerificationError<BabyBearPoseidon2>,
 > {
     let config = BabyBearPoseidon2::new();
-    let (proof, output, _) = prove_with_context(
+    let (proof, output, _) = prove_with_context::<_, DefaultProver<_, _>>(
         Program::clone(&runtime.program),
         &inputs,
         config,
