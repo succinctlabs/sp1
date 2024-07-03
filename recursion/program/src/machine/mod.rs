@@ -89,19 +89,19 @@ pub use utils::*;
 //             RecursionProgramType::Wrap,
 //         );
 
-//         let mut challenger = machine.config().challenger();
-//         let time = std::time::Instant::now();
-//         let (proof, _) = sp1_core::utils::prove(
-//             program,
-//             &SP1Stdin::new(),
-//             SC::default(),
-//             SP1CoreOpts::default(),
-//         )
-//         .unwrap();
-//         machine.verify(&vk, &proof, &mut challenger).unwrap();
-//         tracing::info!("Proof generated successfully");
-//         let elapsed = time.elapsed();
-//         tracing::info!("Execution proof time: {:?}", elapsed);
+// let mut challenger = machine.config().challenger();
+// let time = std::time::Instant::now();
+// let (proof, _, _) = sp1_core::utils::prove(
+//     program,
+//     &SP1Stdin::new(),
+//     SC::default(),
+//     SP1CoreOpts::default(),
+// )
+// .unwrap();
+// machine.verify(&vk, &proof, &mut challenger).unwrap();
+// tracing::info!("Proof generated successfully");
+// let elapsed = time.elapsed();
+// tracing::info!("Execution proof time: {:?}", elapsed);
 
 //         // Get the and leaf challenger.
 //         let mut leaf_challenger = machine.config().challenger();

@@ -415,7 +415,7 @@ pub(crate) mod tests {
         let machine = A::machine(SC::default());
         let (_, vk) = machine.setup(&Program::from(elf));
         let mut challenger_val = machine.config().challenger();
-        let (proof, _) = sp1_core::utils::prove::<_, DefaultProver<_, _>>(
+        let (proof, _, _) = sp1_core::utils::prove(
             Program::from(elf),
             &SP1Stdin::new(),
             SC::default(),
