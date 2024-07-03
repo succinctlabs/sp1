@@ -1,5 +1,5 @@
 #![allow(unused_variables)]
-use std::collections::HashMap;
+use hashbrown::HashMap;
 
 use crate::{
     Prover, SP1Proof, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerificationError,

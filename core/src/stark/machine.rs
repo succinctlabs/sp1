@@ -1,3 +1,4 @@
+use hashbrown::HashMap;
 use itertools::Itertools;
 use p3_air::Air;
 use p3_challenger::CanObserve;
@@ -14,7 +15,6 @@ use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use serde::Serialize;
 use std::cmp::Reverse;
-use std::collections::HashMap;
 use std::fmt::Debug;
 use tracing::instrument;
 
@@ -239,7 +239,11 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         )
     }
 
-    pub fn generate_dependencies(&self, records: &mut [A::Record]) {
+    pub fn generate_dependencies(
+        &self,
+        records: &mut [A::Record],
+        syscall_lookups: &mut HashMap<u32, usize>,
+    ) {
         let chips = self.chips();
         records.iter_mut().for_each(|record| {
             chips.iter().for_each(|chip| {
@@ -247,7 +251,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                 chip.generate_dependencies(record, &mut output);
                 record.append(&mut output);
             });
-            record.register_nonces();
+            record.register_nonces(syscall_lookups);
         });
     }
 
@@ -269,13 +273,14 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             + for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
     {
         let chips = self.chips();
+        let mut syscall_lookups: HashMap<u32, usize> = HashMap::new();
         records.iter_mut().for_each(|record| {
             chips.iter().for_each(|chip| {
                 let mut output = A::Record::default();
                 chip.generate_dependencies(record, &mut output);
                 record.append(&mut output);
             });
-            record.register_nonces();
+            record.register_nonces(&mut syscall_lookups);
         });
 
         tracing::info_span!("prove_shards")

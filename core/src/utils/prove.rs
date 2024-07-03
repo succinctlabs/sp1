@@ -1,3 +1,4 @@
+use hashbrown::HashMap;
 use std::fs::File;
 use std::io::Seek;
 use std::io::{self};
@@ -158,13 +159,12 @@ where
         }
     };
 
-    println!("public_values: {:?}", public_values);
-
     // Commit to the shards.
     #[cfg(debug_assertions)]
     let mut debug_records: Vec<ExecutionRecord> = Vec::new();
     let mut deferred = ExecutionRecord::new(program.clone().into());
     let mut state = public_values.reset();
+    let mut syscall_lookups: HashMap<u32, usize> = HashMap::new();
     let nb_checkpoints = checkpoints.len();
     let mut challenger = machine.config().challenger();
     vk.observe_into(&mut challenger);
@@ -182,7 +182,7 @@ where
         }
 
         // Generate the dependencies.
-        machine.generate_dependencies(&mut records);
+        machine.generate_dependencies(&mut records, &mut syscall_lookups);
 
         // Defer events that are too expensive to include in every shard.
         for record in records.iter_mut() {
@@ -229,6 +229,7 @@ where
     // Prove the shards.
     let mut deferred = ExecutionRecord::new(program.clone().into());
     let mut state = public_values.reset();
+    let mut syscall_lookups: HashMap<u32, usize> = HashMap::new();
     let mut shard_proofs = Vec::<ShardProof<SC>>::new();
     let mut report_aggregate = ExecutionReport::default();
     for (checkpoint_idx, mut checkpoint_file) in checkpoints.into_iter().enumerate() {
@@ -246,7 +247,7 @@ where
         }
 
         // Generate the dependencies.
-        machine.generate_dependencies(&mut records);
+        machine.generate_dependencies(&mut records, &mut syscall_lookups);
 
         // Defer events that are too expensive to include in every shard.
         for record in records.iter_mut() {
