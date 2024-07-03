@@ -8,7 +8,6 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_maybe_rayon::prelude::IntoParallelRefMutIterator;
 use p3_maybe_rayon::prelude::ParallelIterator;
 use p3_maybe_rayon::prelude::ParallelSlice;
-use p3_maybe_rayon::prelude::ParallelSliceMut;
 use tracing::instrument;
 
 use super::columns::{CPU_COL_MAP, NUM_CPU_COLS};
@@ -75,7 +74,7 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
             .par_chunks(chunk_size)
             .map(|ops: &[CpuEvent]| {
                 let mut alu = HashMap::new();
-                let mut blu: Vec<_> = Vec::with_capacity(ops.len() * 8);
+                let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
                 ops.iter().for_each(|op| {
                     let mut row = [F::zero(); NUM_CPU_COLS];
                     let cols: &mut CpuCols<F> = row.as_mut_slice().borrow_mut();
@@ -84,7 +83,13 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
                     alu_events.into_iter().for_each(|(key, value)| {
                         alu.entry(key).or_insert(Vec::default()).extend(value);
                     });
-                    blu.extend(blu_events);
+                    for blu_event in blu_events {
+                        blu.entry(blu_event.shard)
+                            .or_insert(HashMap::new())
+                            .entry(blu_event)
+                            .and_modify(|e| *e += 1)
+                            .or_insert(1);
+                    }
                 });
                 (alu, blu)
             })
@@ -94,11 +99,10 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
             output.add_alu_events(alu_events_chunk);
         }
 
-        let mut blu_events = blu_events.into_iter().flatten().collect::<Vec<_>>();
-        blu_events.par_sort_unstable_by_key(|event| (event.shard, event.opcode));
-
         for blu_event in blu_events.into_iter() {
-            output.add_byte_lookup_event(blu_event);
+            for (shard, events) in blu_event.iter() {
+                output.add_byte_lookup_events_for_shard(*shard, events.clone());
+            }
         }
     }
 

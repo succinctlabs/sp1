@@ -1,3 +1,4 @@
+use hashbrown::HashMap;
 use p3_field::PrimeField32;
 use serde::{Deserialize, Serialize};
 
@@ -32,6 +33,12 @@ pub struct ByteLookupEvent {
 pub trait ByteRecord {
     /// Adds a new `ByteLookupEvent` to the record.
     fn add_byte_lookup_event(&mut self, blu_event: ByteLookupEvent);
+
+    fn add_byte_lookup_events_for_shard(
+        &mut self,
+        shard: u32,
+        blu_event_map: HashMap<ByteLookupEvent, usize>,
+    );
 
     /// Adds a list of `ByteLookupEvent`s to the record.
     #[inline]
@@ -145,5 +152,13 @@ impl ByteLookupEvent {
 impl ByteRecord for Vec<ByteLookupEvent> {
     fn add_byte_lookup_event(&mut self, blu_event: ByteLookupEvent) {
         self.push(blu_event);
+    }
+
+    fn add_byte_lookup_events_for_shard(
+        &mut self,
+        _: u32,
+        _: hashbrown::HashMap<ByteLookupEvent, usize>,
+    ) {
+        todo!()
     }
 }
