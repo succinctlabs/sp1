@@ -560,6 +560,7 @@ impl ExecutionRecord {
     /// Splits the deferred [ExecutionRecord] into multiple [ExecutionRecord]s, each which contain
     /// a "reasonable" number of deferred events.
     pub fn split(&mut self, last: bool) -> Vec<ExecutionRecord> {
+        println!("Splitting records, last: {}", last);
         let mut shards = Vec::new();
 
         macro_rules! split_events {
@@ -571,6 +572,7 @@ impl ExecutionRecord {
                 } else {
                     let remainder = chunks.remainder().to_vec();
                     if !remainder.is_empty() {
+                        println!("Adding reminder of length {}", remainder.len());
                         $shards.push(ExecutionRecord {
                             $events: chunks.remainder().to_vec(),
                             program: self.program.clone(),
@@ -579,16 +581,20 @@ impl ExecutionRecord {
                     }
                 }
                 let mut event_shards = chunks
-                    .map(|chunk| ExecutionRecord {
-                        $events: chunk.to_vec(),
-                        program: self.program.clone(),
-                        ..Default::default()
+                    .map(|chunk| {
+                        println!("Adding chunk of length {}", chunk.len());
+                        ExecutionRecord {
+                            $events: chunk.to_vec(),
+                            program: self.program.clone(),
+                            ..Default::default()
+                        }
                     })
                     .collect::<Vec<_>>();
                 $shards.append(&mut event_shards);
             };
         }
 
+        println!("Splitting KeccakPermuteEvents");
         split_events!(
             self,
             keccak_permute_events,
