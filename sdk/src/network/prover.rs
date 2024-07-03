@@ -162,6 +162,7 @@ fn warn_if_not_default(opts: &SP1ProverOpts, context: &SP1Context) {
     let SP1Context {
         hook_registry,
         subproof_verifier,
+        ..
     } = context;
     if hook_registry.is_some() {
         tracing::warn!(
