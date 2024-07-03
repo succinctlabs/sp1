@@ -69,7 +69,7 @@ pub fn verify_two_adic_pcs<C: Config>(
 
     let log_global_max_height = proof.fri_proof.commit_phase_commits.len() + config.log_blowup;
 
-    let mut alpha_pow: [Vec<Ext<C::F, C::EF>>; 32] = array::from_fn(|_| Vec::new());
+    let mut alpha_pows: [Vec<Ext<C::F, C::EF>>; 32] = array::from_fn(|_| Vec::new());
 
     let reduced_openings = proof
         .query_openings
@@ -109,7 +109,6 @@ pub fn verify_two_adic_pcs<C: Config>(
                     batch_opening.opened_values.clone(),
                     batch_opening.opening_proof.clone(),
                 );
-
                 for (mat_opening, mat) in izip!(batch_opening.opened_values.clone(), mats) {
                     let mat_domain = mat.domain;
                     let mat_points = &mat.points;
@@ -132,23 +131,18 @@ pub fn verify_two_adic_pcs<C: Config>(
                             builder.eval(SymbolicExt::from_f(C::EF::zero()));
                         for (p_at_x, &p_at_z) in izip!(mat_opening.clone(), ps_at_z) {
                             let log_height_index = log_height_indices[log_height];
-
                             if query_num == 0 && log_height_index == 0 {
-                                alpha_pow[log_height]
+                                alpha_pows[log_height]
                                     .push(builder.eval(SymbolicExt::from_f(C::EF::one())));
                             }
+                            let alpha_pow = alpha_pows[log_height][log_height_index];
 
-                            acc = builder.eval(
-                                acc + (alpha_pow[log_height][log_height_index]
-                                    * (p_at_z - p_at_x[0])),
-                            );
+                            acc = builder.eval(acc + (alpha_pow * (p_at_z - p_at_x[0])));
 
                             if query_num == 0 {
-                                alpha_pow[log_height].push(
-                                    builder.eval(alpha_pow[log_height][log_height_index] * alpha),
-                                );
-                                log_height_indices[log_height] += 1;
+                                alpha_pows[log_height].push(builder.eval(alpha_pow * alpha));
                             }
+                            log_height_indices[log_height] += 1;
                         }
                         ro[log_height] = builder.eval(ro[log_height] + acc / (*z - x));
                     }
