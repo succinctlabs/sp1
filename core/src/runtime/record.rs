@@ -602,6 +602,7 @@ impl ExecutionRecord {
             DEFERRED_SPLIT_THRESHOLD,
             last
         );
+        println!("Finished splitting KeccakPermuteEvents");
         split_events!(
             self,
             secp256k1_add_events,
