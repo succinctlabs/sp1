@@ -34,15 +34,19 @@
 
 - [Advanced](./generating-proofs/advanced.md)
 
+# Onchain Verification
+
+- [Getting Started](./onchain-verification/getting-started.md)
+
+- [Solidity SDK](./onchain-verification/solidity-sdk.md)
+
+- [Contract Addresses](./onchain-verification/contract-addresses.md)
+
 # Prover Network
 
 - [Setup](./prover-network/setup.md)
 
 - [Usage](./prover-network/usage.md)
-
-# Verifying Proofs
-
-- [Solidity & EVM](./verifying-proofs/solidity-and-evm.md)
 
 # Developers
 
