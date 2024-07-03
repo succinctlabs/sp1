@@ -2,6 +2,10 @@
 
 [Introduction](./introduction.md)
 
+[Why use SP1?](./why-use-sp1.md)
+
+[What is a zkVM?](./what-is-a-zkvm.md)
+
 # Getting Started
 
 - [Install](./getting-started/install.md)
@@ -28,11 +32,15 @@
 
 - [Proof Aggregation](./writing-programs/proof-aggregation.md)
 
+- [Build Script](./writing-programs/build-script.md)
+
 # Generating Proofs
 
 - [Setup](./generating-proofs/setup.md)
 
 - [Basics](./generating-proofs/basics.md)
+
+- [Proving Modes](./generating-proofs/prover-configuration.md)
 
 - [Advanced](./generating-proofs/advanced.md)
 

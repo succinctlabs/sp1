@@ -1,13 +1,6 @@
 # Writing Programs: Basics 
 
-A zero-knowledge proof generally proves that some function `f` when applied to some input `x` produces some output `y` (i.e. `f(x) = y`).
-In the context of the SP1 zkVM:
-
-- `f` is written in normal Rust code.
-- `x` are bytes that can be serialized / deserialized into objects
-- `y` are bytes that can be serialized / deserialized into objects
-
-To make this more concrete, let's walk through a simple example of writing a Fibonacci program inside the zkVM.
+The easiest way to understand how to write programs for the SP1 zkVM is to look at some examples.
 
 ## Fibonacci
 
