@@ -224,11 +224,27 @@ impl MachineRecord for ExecutionRecord {
             "uint256_mul_events".to_string(),
             self.uint256_mul_events.len(),
         );
-
         stats.insert(
             "bls12381_decompress_events".to_string(),
             self.bls12381_decompress_events.len(),
         );
+        stats.insert(
+            "memory_initialize_events".to_string(),
+            self.memory_initialize_events.len(),
+        );
+        stats.insert(
+            "memory_finalize_events".to_string(),
+            self.memory_finalize_events.len(),
+        );
+        if !self.cpu_events.is_empty() {
+            let shard = self.cpu_events[0].shard;
+            stats.insert(
+                "byte_lookups".to_string(),
+                self.byte_lookups.get(&shard).map_or(0, |v| v.len()),
+            );
+        }
+        // Filter out the empty events.
+        stats.retain(|_, v| *v != 0);
         stats
     }
 
