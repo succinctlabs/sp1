@@ -718,6 +718,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 #[cfg(any(test, feature = "export-tests"))]
 pub mod tests {
 
+    use core::time;
     use std::fs::File;
     use std::io::{Read, Write};
 
@@ -733,7 +734,16 @@ pub mod tests {
     #[cfg(test)]
     use sp1_core::utils::setup_logger;
 
-    pub fn test_e2e_prover<C: SP1ProverComponents>() -> Result<()> {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum Test {
+        Core,
+        Compress,
+        Shrink,
+        Wrap,
+        Plonk,
+    }
+
+    pub fn test_e2e_prover<C: SP1ProverComponents>(test_kind: Test) -> Result<()> {
         let elf = include_bytes!("../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
 
         tracing::info!("initializing prover");
@@ -746,26 +756,46 @@ pub mod tests {
 
         tracing::info!("prove core");
         let stdin = SP1Stdin::new();
+        let time = std::time::Instant::now();
         let core_proof = prover.prove_core(&pk, &stdin, opts, context)?;
+        let core_duration = time.elapsed();
         let public_values = core_proof.public_values.clone();
 
         tracing::info!("verify core");
         prover.verify(&core_proof.proof, &vk)?;
 
+        if test_kind == Test::Core {
+            return Ok(());
+        }
+
         tracing::info!("compress");
+        let time = std::time::Instant::now();
         let compressed_proof = prover.compress(&vk, core_proof, vec![], opts)?;
+        let compress_duration = time.elapsed();
 
         tracing::info!("verify compressed");
         prover.verify_compressed(&compressed_proof, &vk)?;
 
+        if test_kind == Test::Compress {
+            return Ok(());
+        }
+
         tracing::info!("shrink");
+        let time = std::time::Instant::now();
         let shrink_proof = prover.shrink(compressed_proof, opts)?;
+        let shrink_duration = time.elapsed();
 
         tracing::info!("verify shrink");
         prover.verify_shrink(&shrink_proof, &vk)?;
 
+        if test_kind == Test::Shrink {
+            return Ok(());
+        }
+
         tracing::info!("wrap bn254");
+        let time = std::time::Instant::now();
         let wrapped_bn254_proof = prover.wrap_bn254(shrink_proof, opts)?;
+        let wrap_duration = time.elapsed();
         let bytes = bincode::serialize(&wrapped_bn254_proof).unwrap();
 
         // Save the proof.
@@ -781,6 +811,10 @@ pub mod tests {
 
         tracing::info!("verify wrap bn254");
         prover.verify_wrap_bn254(&wrapped_bn254_proof, &vk).unwrap();
+
+        if test_kind == Test::Wrap {
+            return Ok(());
+        }
 
         tracing::info!("checking vkey hash babybear");
         let vk_digest_babybear = wrapped_bn254_proof.sp1_vkey_digest_babybear();
@@ -894,7 +928,7 @@ pub mod tests {
     #[serial]
     fn test_e2e() -> Result<()> {
         setup_logger();
-        test_e2e_prover::<DefaultProverComponents>()
+        test_e2e_prover::<DefaultProverComponents>(Test::Plonk)
     }
 
     /// Tests an end-to-end workflow of proving a program across the entire proof generation

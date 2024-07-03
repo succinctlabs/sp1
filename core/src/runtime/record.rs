@@ -744,4 +744,4 @@ pub struct MemoryAccessRecord {
 }
 
 /// The threshold for splitting deferred events.
-pub const DEFERRED_SPLIT_THRESHOLD: usize = 1 << 20;
+pub const DEFERRED_SPLIT_THRESHOLD: usize = 1 << 19;
