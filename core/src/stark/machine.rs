@@ -23,20 +23,16 @@ use super::Dom;
 use crate::air::MachineAir;
 use crate::air::MachineProgram;
 use crate::lookup::debug_interactions_with_all_chips;
-use crate::lookup::InteractionBuilder;
 use crate::lookup::InteractionKind;
 use crate::stark::record::MachineRecord;
 use crate::stark::DebugConstraintBuilder;
-use crate::stark::ProverConstraintFolder;
 use crate::stark::ShardProof;
 use crate::stark::VerifierConstraintFolder;
-use crate::utils::SP1CoreOpts;
 
 use super::Chip;
 use super::Com;
 use super::MachineProof;
 use super::PcsProverData;
-use super::Prover;
 use super::StarkGenericConfig;
 use super::Val;
 use super::VerificationError;
@@ -253,38 +249,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             });
             record.register_nonces(syscall_lookups);
         });
-    }
-
-    /// Prove the execution record is valid.
-    ///
-    /// Given a proving key `pk` and a matching execution record `record`, this function generates
-    /// a STARK proof that the execution record is valid.
-    pub fn prove<P: Prover<SC, A>>(
-        &self,
-        pk: &StarkProvingKey<SC>,
-        mut records: Vec<A::Record>,
-        challenger: &mut SC::Challenger,
-        opts: SP1CoreOpts,
-    ) -> MachineProof<SC>
-    where
-        A: for<'a> Air<ProverConstraintFolder<'a, SC>>
-            + Air<InteractionBuilder<Val<SC>>>
-            + for<'a> Air<VerifierConstraintFolder<'a, SC>>
-            + for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
-    {
-        let chips = self.chips();
-        let mut syscall_lookups: HashMap<u32, usize> = HashMap::new();
-        records.iter_mut().for_each(|record| {
-            chips.iter().for_each(|chip| {
-                let mut output = A::Record::default();
-                chip.generate_dependencies(record, &mut output);
-                record.append(&mut output);
-            });
-            record.register_nonces(&mut syscall_lookups);
-        });
-
-        tracing::info_span!("prove_shards")
-            .in_scope(|| P::prove_shards(self, pk, records, challenger, opts))
     }
 
     pub const fn config(&self) -> &SC {
@@ -529,6 +493,7 @@ pub mod tests {
     use crate::runtime::Instruction;
     use crate::runtime::Opcode;
     use crate::runtime::Program;
+    use crate::stark::DefaultProver;
     use crate::stark::RiscvAir;
     use crate::stark::StarkProvingKey;
     use crate::stark::StarkVerifyingKey;
@@ -543,7 +508,7 @@ pub mod tests {
     fn test_simple_prove() {
         utils::setup_logger();
         let program = simple_program();
-        run_test(program).unwrap();
+        run_test::<DefaultProver<_, _>>(program).unwrap();
     }
 
     #[test]
@@ -565,7 +530,7 @@ pub mod tests {
                     Instruction::new(*shift_op, 31, 29, 3, false, false),
                 ];
                 let program = Program::new(instructions, 0, 0);
-                run_test(program).unwrap();
+                run_test::<DefaultProver<_, _>>(program).unwrap();
             }
         }
     }
@@ -579,7 +544,7 @@ pub mod tests {
             Instruction::new(Opcode::SUB, 31, 30, 29, false, false),
         ];
         let program = Program::new(instructions, 0, 0);
-        run_test(program).unwrap();
+        run_test::<DefaultProver<_, _>>(program).unwrap();
     }
 
     #[test]
@@ -591,7 +556,7 @@ pub mod tests {
             Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
         ];
         let program = Program::new(instructions, 0, 0);
-        run_test(program).unwrap();
+        run_test::<DefaultProver<_, _>>(program).unwrap();
     }
 
     #[test]
@@ -613,7 +578,7 @@ pub mod tests {
                     Instruction::new(*mul_op, 31, 30, 29, false, false),
                 ];
                 let program = Program::new(instructions, 0, 0);
-                run_test(program).unwrap();
+                run_test::<DefaultProver<_, _>>(program).unwrap();
             }
         }
     }
@@ -629,7 +594,7 @@ pub mod tests {
                 Instruction::new(*lt_op, 31, 30, 29, false, false),
             ];
             let program = Program::new(instructions, 0, 0);
-            run_test(program).unwrap();
+            run_test::<DefaultProver<_, _>>(program).unwrap();
         }
     }
 
@@ -645,7 +610,7 @@ pub mod tests {
                 Instruction::new(*bitwise_op, 31, 30, 29, false, false),
             ];
             let program = Program::new(instructions, 0, 0);
-            run_test(program).unwrap();
+            run_test::<DefaultProver<_, _>>(program).unwrap();
         }
     }
 
@@ -668,7 +633,7 @@ pub mod tests {
                     Instruction::new(*div_rem_op, 31, 29, 30, false, false),
                 ];
                 let program = Program::new(instructions, 0, 0);
-                run_test(program).unwrap();
+                run_test::<DefaultProver<_, _>>(program).unwrap();
             }
         }
     }
@@ -677,7 +642,7 @@ pub mod tests {
     fn test_fibonacci_prove_simple() {
         setup_logger();
         let program = fibonacci_program();
-        run_test(program).unwrap();
+        run_test::<DefaultProver<_, _>>(program).unwrap();
     }
 
     #[test]
@@ -689,7 +654,7 @@ pub mod tests {
         let mut opts = SP1CoreOpts::default();
         opts.shard_size = 1024;
         opts.shard_batch_size = 2;
-        prove(program, &stdin, BabyBearPoseidon2::new(), opts).unwrap();
+        prove::<_, DefaultProver<_, _>>(program, &stdin, BabyBearPoseidon2::new(), opts).unwrap();
     }
 
     #[test]
@@ -697,7 +662,7 @@ pub mod tests {
         setup_logger();
         let program = fibonacci_program();
         let stdin = SP1Stdin::new();
-        prove(
+        prove::<_, DefaultProver<_, _>>(
             program,
             &stdin,
             BabyBearPoseidon2::new(),
@@ -710,14 +675,14 @@ pub mod tests {
     fn test_simple_memory_program_prove() {
         setup_logger();
         let program = simple_memory_program();
-        run_test(program).unwrap();
+        run_test::<DefaultProver<_, _>>(program).unwrap();
     }
 
     #[test]
     fn test_ssz_withdrawal() {
         setup_logger();
         let program = ssz_withdrawals_program();
-        run_test(program).unwrap();
+        run_test::<DefaultProver<_, _>>(program).unwrap();
     }
 
     #[test]
