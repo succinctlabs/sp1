@@ -67,6 +67,7 @@ pub fn verify_two_adic_pcs<C: Config>(
 
     let log_global_max_height = proof.fri_proof.commit_phase_commits.len() + config.log_blowup;
 
+    // The powers of alpha, where the ith element is alpha^i.
     let mut alpha_pows: Vec<Ext<C::F, C::EF>> =
         vec![builder.eval(SymbolicExt::from_f(C::EF::one()))];
 
@@ -78,6 +79,7 @@ pub fn verify_two_adic_pcs<C: Config>(
             let mut ro: [Ext<C::F, C::EF>; 32] =
                 [builder.eval(SymbolicExt::from_f(C::EF::zero())); 32];
 
+            // An "iterator" to keep track of the power of alpha for each log_height.
             let mut log_height_pow = [0usize; 32];
 
             for (batch_opening, round) in izip!(query_opening.clone(), &rounds) {
@@ -129,6 +131,7 @@ pub fn verify_two_adic_pcs<C: Config>(
                             builder.eval(SymbolicExt::from_f(C::EF::zero()));
                         for (p_at_x, &p_at_z) in izip!(mat_opening.clone(), ps_at_z) {
                             let pow = log_height_pow[log_height];
+                            // Fill in any missing powers of alpha.
                             (alpha_pows.len()..pow + 1).for_each(|_| {
                                 alpha_pows.push(builder.eval(*alpha_pows.last().unwrap() * alpha));
                             });
