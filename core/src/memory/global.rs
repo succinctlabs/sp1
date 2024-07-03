@@ -381,6 +381,7 @@ mod tests {
     use crate::stark::RiscvAir;
     use crate::syscall::precompiles::sha256::extend_tests::sha_extend_program;
     use crate::utils::{setup_logger, BabyBearPoseidon2, SP1CoreOpts};
+    use hashbrown::HashMap;
     use p3_baby_bear::BabyBear;
 
     #[test]
@@ -416,7 +417,8 @@ mod tests {
         let machine: crate::stark::StarkMachine<BabyBearPoseidon2, RiscvAir<BabyBear>> =
             RiscvAir::machine(BabyBearPoseidon2::new());
         let (pkey, _) = machine.setup(&program_clone);
-        machine.generate_dependencies(&mut runtime.records);
+        let mut syscall_lookups: HashMap<u32, usize> = HashMap::new();
+        machine.generate_dependencies(&mut runtime.records, &mut syscall_lookups);
 
         let shards = runtime.records;
         assert_eq!(shards.len(), 2);
@@ -437,7 +439,8 @@ mod tests {
         runtime.run().unwrap();
         let machine = RiscvAir::machine(BabyBearPoseidon2::new());
         let (pkey, _) = machine.setup(&program_clone);
-        machine.generate_dependencies(&mut runtime.records);
+        let mut syscall_lookups: HashMap<u32, usize> = HashMap::new();
+        machine.generate_dependencies(&mut runtime.records, &mut syscall_lookups);
 
         let shards = runtime.records;
         assert_eq!(shards.len(), 2);

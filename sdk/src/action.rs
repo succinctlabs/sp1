@@ -2,7 +2,9 @@ use sp1_core::{
     runtime::{ExecutionReport, HookEnv, SP1ContextBuilder},
     utils::{SP1CoreOpts, SP1ProverOpts},
 };
-use sp1_prover::{SP1Prover, SP1ProvingKey, SP1PublicValues, SP1Stdin};
+use sp1_prover::{
+    components::DefaultProverComponents, SP1Prover, SP1ProvingKey, SP1PublicValues, SP1Stdin,
+};
 
 use anyhow::{Ok, Result};
 
@@ -38,7 +40,9 @@ impl<'a> Execute<'a> {
             mut context_builder,
         } = self;
         let context = context_builder.build();
-        Ok(SP1Prover::execute(elf, &stdin, context)?)
+        Ok(SP1Prover::<DefaultProverComponents>::execute(
+            elf, &stdin, context,
+        )?)
     }
 
     /// Add a runtime [Hook](super::Hook) into the context.
