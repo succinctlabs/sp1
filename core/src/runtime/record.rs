@@ -594,6 +594,19 @@ impl ByteRecord for ExecutionRecord {
             .entry(blu_event)
             .or_insert(0) += 1
     }
+
+    #[inline]
+    fn add_byte_lookup_events_for_shard(
+        &mut self,
+        shard: u32,
+        blu_event_map: HashMap<ByteLookupEvent, usize>,
+    ) {
+        let shard_blu_events = self.byte_lookups.entry(shard).or_default();
+
+        for (blu_event, count) in blu_event_map.into_iter() {
+            *shard_blu_events.entry(blu_event).or_insert(0) += count;
+        }
+    }
 }
 
 #[derive(Debug, Copy, Clone, Default)]
