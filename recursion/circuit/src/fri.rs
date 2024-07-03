@@ -147,13 +147,16 @@ pub fn verify_two_adic_pcs<C: Config>(
                                 alpha_pow[log_height].push(
                                     builder.eval(alpha_pow[log_height][log_height_index] * alpha),
                                 );
-                                log_height_indices[log_height] += 1;
                             }
+                            log_height_indices[log_height] += 1;
                         }
                         ro[log_height] = builder.eval(ro[log_height] + acc / (*z - x));
                     }
                 }
             }
+
+            println!("log_height_indices: {:?}", log_height_indices);
+
             ro
         })
         .collect::<Vec<_>>();

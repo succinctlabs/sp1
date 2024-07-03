@@ -56,20 +56,20 @@ pub struct CpuCols<T: Copy> {
     pub next_pc: T,
 
     /// Columns related to the instruction.
-    pub instruction: InstructionCols<T>,
+    pub instruction: InstructionCols<T>, // 14 columns
 
     /// Columns related to the byte lookup channel.
-    pub channel_selectors: ChannelSelectorCols<T>,
+    pub channel_selectors: ChannelSelectorCols<T>, // 16 columns
 
     /// Selectors for the opcode.
-    pub selectors: OpcodeSelectorCols<T>,
+    pub selectors: OpcodeSelectorCols<T>, // 22 columns
 
     /// Operand values, either from registers or immediate values.
-    pub op_a_access: MemoryReadWriteCols<T>,
-    pub op_b_access: MemoryReadCols<T>,
-    pub op_c_access: MemoryReadCols<T>,
+    pub op_a_access: MemoryReadWriteCols<T>, // 13 columns
+    pub op_b_access: MemoryReadCols<T>, // 9 columns
+    pub op_c_access: MemoryReadCols<T>, // 9 columns
 
-    pub opcode_specific_columns: OpcodeSpecificCols<T>,
+    pub opcode_specific_columns: OpcodeSpecificCols<T>, // 49 columns
 
     /// Selector to label whether this row is a non padded row.
     pub is_real: T,
