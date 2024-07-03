@@ -63,6 +63,14 @@ impl<'a> Execute<'a> {
         self.context_builder.without_default_hooks();
         self
     }
+
+    /// Set the maximum number of cpu cycles to use for execution.
+    ///
+    /// If the cycle limit is exceeded, execution will return [sp1_core::runtime::ExecutionError::ExceededCycleLimit].
+    pub fn max_cycles(mut self, max_cycles: u64) -> Self {
+        self.context_builder.max_cycles(max_cycles);
+        self
+    }
 }
 
 /// Builder to prepare and configure proving execution of a program on an input.
@@ -173,6 +181,14 @@ impl<'a> Prove<'a> {
     /// Set whether we should reconstruct commitments while proving.
     pub fn reconstruct_commitments(mut self, value: bool) -> Self {
         self.opts.reconstruct_commitments = value;
+        self
+    }
+
+    /// Set the maximum number of cpu cycles to use for execution.
+    ///
+    /// If the cycle limit is exceeded, execution will return [sp1_core::runtime::ExecutionError::ExceededCycleLimit].
+    pub fn cycle_limit(mut self, cycle_limit: u64) -> Self {
+        self.context_builder.max_cycles(cycle_limit);
         self
     }
 }
