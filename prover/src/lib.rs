@@ -718,7 +718,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 #[cfg(any(test, feature = "export-tests"))]
 pub mod tests {
 
-    use core::time;
     use std::fs::File;
     use std::io::{Read, Write};
 
@@ -743,9 +742,7 @@ pub mod tests {
         Plonk,
     }
 
-    pub fn test_e2e_prover<C: SP1ProverComponents>(test_kind: Test) -> Result<()> {
-        let elf = include_bytes!("../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
-
+    pub fn test_e2e_prover<C: SP1ProverComponents>(elf: &[u8], test_kind: Test) -> Result<()> {
         tracing::info!("initializing prover");
         let prover: SP1Prover = SP1Prover::new();
         let opts = SP1ProverOpts::default();
@@ -756,9 +753,7 @@ pub mod tests {
 
         tracing::info!("prove core");
         let stdin = SP1Stdin::new();
-        let time = std::time::Instant::now();
         let core_proof = prover.prove_core(&pk, &stdin, opts, context)?;
-        let core_duration = time.elapsed();
         let public_values = core_proof.public_values.clone();
 
         tracing::info!("verify core");
@@ -769,9 +764,7 @@ pub mod tests {
         }
 
         tracing::info!("compress");
-        let time = std::time::Instant::now();
         let compressed_proof = prover.compress(&vk, core_proof, vec![], opts)?;
-        let compress_duration = time.elapsed();
 
         tracing::info!("verify compressed");
         prover.verify_compressed(&compressed_proof, &vk)?;
@@ -781,9 +774,7 @@ pub mod tests {
         }
 
         tracing::info!("shrink");
-        let time = std::time::Instant::now();
         let shrink_proof = prover.shrink(compressed_proof, opts)?;
-        let shrink_duration = time.elapsed();
 
         tracing::info!("verify shrink");
         prover.verify_shrink(&shrink_proof, &vk)?;
@@ -793,9 +784,7 @@ pub mod tests {
         }
 
         tracing::info!("wrap bn254");
-        let time = std::time::Instant::now();
         let wrapped_bn254_proof = prover.wrap_bn254(shrink_proof, opts)?;
-        let wrap_duration = time.elapsed();
         let bytes = bincode::serialize(&wrapped_bn254_proof).unwrap();
 
         // Save the proof.
@@ -927,8 +916,9 @@ pub mod tests {
     #[test]
     #[serial]
     fn test_e2e() -> Result<()> {
+        let elf = include_bytes!("../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
         setup_logger();
-        test_e2e_prover::<DefaultProverComponents>(Test::Plonk)
+        test_e2e_prover::<DefaultProverComponents>(elf, Test::Plonk)
     }
 
     /// Tests an end-to-end workflow of proving a program across the entire proof generation
