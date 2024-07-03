@@ -715,8 +715,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     }
 }
 
-#[cfg(test)]
-mod tests {
+#[cfg(any(test, feature = "export-tests"))]
+pub mod tests {
 
     use std::fs::File;
     use std::io::{Read, Write};
@@ -726,20 +726,14 @@ mod tests {
     use anyhow::Result;
     use build::try_build_plonk_bn254_artifacts_dev;
     use p3_field::PrimeField32;
-    use serial_test::serial;
     use sp1_core::io::SP1Stdin;
+
+    #[cfg(test)]
+    use serial_test::serial;
+    #[cfg(test)]
     use sp1_core::utils::setup_logger;
 
-    /// Tests an end-to-end workflow of proving a program across the entire proof generation
-    /// pipeline.
-    ///
-    /// Add `FRI_QUERIES`=1 to your environment for faster execution. Should only take a few minutes
-    /// on a Mac M2. Note: This test always re-builds the plonk bn254 artifacts, so setting SP1_DEV is
-    /// not needed.
-    #[test]
-    #[serial]
-    fn test_e2e() -> Result<()> {
-        setup_logger();
+    pub fn test_e2e_prover<C: SP1ProverComponents>() -> Result<()> {
         let elf = include_bytes!("../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
 
         tracing::info!("initializing prover");
@@ -807,13 +801,7 @@ mod tests {
         Ok(())
     }
 
-    /// Tests an end-to-end workflow of proving a program across the entire proof generation
-    /// pipeline in addition to verifying deferred proofs.
-    #[test]
-    #[serial]
-    fn test_e2e_with_deferred_proofs() -> Result<()> {
-        setup_logger();
-
+    pub fn test_e2e_with_deferred_proofs_prover<C: SP1ProverComponents>() -> Result<()> {
         // Test program which proves the Keccak-256 hash of various inputs.
         let keccak_elf = include_bytes!("../../tests/keccak256/elf/riscv32im-succinct-zkvm-elf");
 
@@ -894,5 +882,27 @@ mod tests {
         prover.verify_compressed(&verify_reduce, &verify_vk)?;
 
         Ok(())
+    }
+
+    /// Tests an end-to-end workflow of proving a program across the entire proof generation
+    /// pipeline.
+    ///
+    /// Add `FRI_QUERIES`=1 to your environment for faster execution. Should only take a few minutes
+    /// on a Mac M2. Note: This test always re-builds the plonk bn254 artifacts, so setting SP1_DEV is
+    /// not needed.
+    #[test]
+    #[serial]
+    fn test_e2e() -> Result<()> {
+        setup_logger();
+        test_e2e_prover::<DefaultProverComponents>()
+    }
+
+    /// Tests an end-to-end workflow of proving a program across the entire proof generation
+    /// pipeline in addition to verifying deferred proofs.
+    #[test]
+    #[serial]
+    fn test_e2e_with_deferred_proofs() -> Result<()> {
+        setup_logger();
+        test_e2e_with_deferred_proofs_prover::<DefaultProverComponents>()
     }
 }
