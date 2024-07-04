@@ -1,4 +1,3 @@
-use hashbrown::HashMap;
 use p3_baby_bear::BabyBear;
 use std::fs::File;
 use std::io::Seek;
