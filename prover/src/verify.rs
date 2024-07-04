@@ -93,6 +93,13 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         for (i, shard_proof) in proof.0.iter().enumerate() {
             let public_values: &PublicValues<Word<_>, _> =
                 shard_proof.public_values.as_slice().borrow();
+            println!(
+                "shard proof i={} cpu={} start_pc={}, next_pc={}",
+                i,
+                shard_proof.contains_cpu(),
+                public_values.start_pc,
+                public_values.next_pc
+            );
             if i == 0 && public_values.start_pc != vk.vk.pc_start {
                 return Err(MachineVerificationError::InvalidPublicValues(
                     "start_pc != vk.start_pc: program counter should start at vk.start_pc",
