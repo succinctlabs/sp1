@@ -20,4 +20,4 @@ RUSTFLAGS='-C target-cpu=native -C target_feature=+avx512ifma,+avx512vl' cargo r
 must be set to a power of two. 
 
 `SHARD_BATCH_SIZE`: The number of shards that will be proven in parallel. This value can be tuned
-dependning on how much memory your machine has to improve performance.
+depending on how much memory your machine has to improve performance.
