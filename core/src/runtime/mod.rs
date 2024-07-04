@@ -869,6 +869,19 @@ impl<'a> Runtime<'a> {
                 next_pc = precompile_next_pc;
                 self.state.clk += precompile_cycles;
                 exit_code = returned_exit_code;
+
+                // Update the syscall counts.
+                let syscall_count = self.state.syscall_counts.entry(syscall).or_insert(0);
+                let multiplier = match syscall {
+                    SyscallCode::KECCAK_PERMUTE => 24,
+                    SyscallCode::SHA_EXTEND => 48,
+                    SyscallCode::SHA_COMPRESS => 80,
+                    _ => 1,
+                } as usize;
+                let threshold = DEFERRED_SPLIT_THRESHOLD / multiplier;
+                let nonce = (((*syscall_count as usize) % threshold) * multiplier) as u32;
+                self.record.nonce_lookup.insert(syscall_lookup_id, nonce);
+                *syscall_count += 1;
             }
             Opcode::EBREAK => {
                 return Err(ExecutionError::Breakpoint());

@@ -1,4 +1,3 @@
-use hashbrown::HashMap;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::cmp::Reverse;
@@ -59,13 +58,8 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>> {
         challenger: &mut SC::Challenger,
     ) -> Result<ShardProof<SC>, Self::Error>;
 
-    fn generate_dependencies(
-        &self,
-        records: &mut [A::Record],
-        syscall_lookups: &mut HashMap<u32, usize>,
-    ) {
-        self.machine()
-            .generate_dependencies(records, syscall_lookups)
+    fn generate_dependencies(&self, records: &mut [A::Record]) {
+        self.machine().generate_dependencies(records)
     }
 
     fn setup(&self, program: &A::Program) -> (StarkProvingKey<SC>, StarkVerifyingKey<SC>) {
@@ -115,14 +109,13 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>> {
         A: for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
     {
         let chips = self.machine().chips();
-        let mut syscall_lookups: HashMap<u32, usize> = HashMap::new();
         records.iter_mut().for_each(|record| {
             chips.iter().for_each(|chip| {
                 let mut output = A::Record::default();
                 chip.generate_dependencies(record, &mut output);
                 record.append(&mut output);
             });
-            record.register_nonces(&mut syscall_lookups);
+            record.register_nonces();
         });
 
         tracing::info_span!("prove_shards")
@@ -433,8 +426,12 @@ where
         });
 
         // Collect the opened values for each chip.
-        let [preprocessed_values, main_values, permutation_values, mut quotient_values] =
-            openings.try_into().unwrap();
+        let [
+            preprocessed_values,
+            main_values,
+            permutation_values,
+            mut quotient_values,
+        ] = openings.try_into().unwrap();
         assert!(main_values.len() == chips.len());
         let preprocessed_opened_values = preprocessed_values
             .into_iter()
