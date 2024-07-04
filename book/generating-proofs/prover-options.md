@@ -17,7 +17,7 @@ client.prove(&pk, stdin).run().unwrap();
 
 ## Compressed
 
-The compressed prover mode generates STARK proofs that have constant size. Use in settings where you
+The compressed prover mode generates STARK proofs that have constant size. Use this in settings where you
 care about **verification cost / proof size**.
 
 ```rust,noplayground
