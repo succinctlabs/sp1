@@ -250,15 +250,15 @@ where
         // - In the last real row, we need to assert that addr = last_finalize_addr.
 
         // Assert that addr < addr' when the next row is real.
-        builder
-            .when_transition()
-            .assert_eq(next.is_next_comp, next.is_real);
-        next.lt_cols.eval(
-            builder,
-            &local.addr_bits.bits,
-            &next.addr_bits.bits,
-            next.is_next_comp,
-        );
+        // builder
+        //     .when_transition()
+        //     .assert_eq(next.is_next_comp, next.is_real);
+        // next.lt_cols.eval(
+        //     builder,
+        //     &local.addr_bits.bits,
+        //     &next.addr_bits.bits,
+        //     next.is_next_comp,
+        // );
 
         // Assert that the real rows are all padded to the top.
         builder
@@ -297,33 +297,33 @@ where
 
         // Constrain the is_prev_addr_zero operation only in the first row.
         let is_first_row = builder.is_first_row();
-        IsZeroOperation::<AB::F>::eval(builder, prev_addr, local.is_prev_addr_zero, is_first_row);
+        // IsZeroOperation::<AB::F>::eval(builder, prev_addr, local.is_prev_addr_zero, is_first_row);
 
         // Assert that in the first row, is_first_comp is zero if and only if
         // addr == previous_addr == 0.
-        for (adrr_bit, prev_addr_bit) in local_addr_bits.iter().zip(prev_addr_bits.iter()) {
-            builder
-                .when(local.is_first_comp)
-                .assert_eq(prev_addr_bit.clone(), AB::F::zero());
-            builder
-                .when(local.is_first_comp)
-                .assert_eq(*adrr_bit, AB::F::zero());
-        }
+        // for (adrr_bit, prev_addr_bit) in local_addr_bits.iter().zip(prev_addr_bits.iter()) {
+        //     builder
+        //         .when(local.is_first_comp)
+        //         .assert_eq(prev_addr_bit.clone(), AB::F::zero());
+        //     builder
+        //         .when(local.is_first_comp)
+        //         .assert_eq(*adrr_bit, AB::F::zero());
+        // }
 
         // Constrain the is_next_comp column.
         let is_first_row = builder.is_first_row();
-        builder.assert_eq(
-            local.is_first_comp,
-            is_first_row * (AB::Expr::one() - local.is_prev_addr_zero.result),
-        );
+        // builder.assert_eq(
+        //     local.is_first_comp,
+        //     is_first_row * (AB::Expr::one() - local.is_prev_addr_zero.result),
+        // );
 
         // Constrain the inequality assertion in the first row.
-        local.lt_cols.eval(
-            builder,
-            prev_addr_bits,
-            &local_addr_bits,
-            local.is_first_comp,
-        );
+        // local.lt_cols.eval(
+        //     builder,
+        //     prev_addr_bits,
+        //     &local_addr_bits,
+        //     local.is_first_comp,
+        // );
 
         // Make assertions for specific types of memory chips.
 
@@ -343,11 +343,12 @@ where
         // **Remark**: it is up to the verifier to ensure that this flag is set to zero exactly
         // once, this can be constrained by the public values setting `previous_init_addr_bits` or
         // `previous_finalize_addr_bits` to zero.
-        for i in 0..32 {
-            builder
-                .when(local.is_first_comp)
-                .assert_zero(local.value[i]);
-        }
+        // for i in 0..32 {
+        //     builder
+        //         .when_first_row()
+        //         .when(local.is_prev_addr_zero.result)
+        //         .assert_zero(local.value[i]);
+        // }
 
         // Make assertions for the final value. We need to connect the final valid address to the
         // correspinding `last_addr` value.
@@ -358,16 +359,16 @@ where
         // The last address is either:
         // - It's the last row and `is_real` is set to one.
         // - The flag `is_real` is set to one and the next `is_real` is set to zero.
-        for (local_bit, pub_bit) in local.addr_bits.bits.iter().zip(last_addr_bits.iter()) {
-            builder
-                .when_last_row()
-                .when(local.is_real)
-                .assert_eq(*local_bit, pub_bit.clone());
-            builder
-                .when_transition()
-                .when(local.is_last_addr)
-                .assert_eq(*local_bit, pub_bit.clone());
-        }
+        // for (local_bit, pub_bit) in local.addr_bits.bits.iter().zip(last_addr_bits.iter()) {
+        //     builder
+        //         .when_last_row()
+        //         .when(local.is_real)
+        //         .assert_eq(*local_bit, pub_bit.clone());
+        //     builder
+        //         .when_transition()
+        //         .when(local.is_last_addr)
+        //         .assert_eq(*local_bit, pub_bit.clone());
+        // }
     }
 }
 

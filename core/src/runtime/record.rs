@@ -1,4 +1,6 @@
 use hashbrown::HashMap;
+use itertools::EitherOrBoth;
+use itertools::Itertools;
 use std::sync::Arc;
 
 use p3_field::AbstractField;
@@ -108,6 +110,7 @@ pub struct SplitOpts {
     pub keccak_split_threshold: usize,
     pub sha_extend_split_threshold: usize,
     pub sha_compress_split_threshold: usize,
+    pub memory_split_threshold: usize,
 }
 
 impl SplitOpts {
@@ -117,6 +120,7 @@ impl SplitOpts {
             keccak_split_threshold: deferred_shift_threshold / 24,
             sha_extend_split_threshold: deferred_shift_threshold / 48,
             sha_compress_split_threshold: deferred_shift_threshold / 80,
+            memory_split_threshold: deferred_shift_threshold,
         }
     }
 }
@@ -544,7 +548,6 @@ impl ExecutionRecord {
     /// Splits the deferred [ExecutionRecord] into multiple [ExecutionRecord]s, each which contain
     /// a "reasonable" number of deferred events.
     pub fn split(&mut self, last: bool, opts: SplitOpts) -> Vec<ExecutionRecord> {
-        println!("Splitting records, last: {}", last);
         let mut shards = Vec::new();
 
         macro_rules! split_events {
@@ -556,7 +559,6 @@ impl ExecutionRecord {
                 } else {
                     let remainder = chunks.remainder().to_vec();
                     if !remainder.is_empty() {
-                        println!("Adding reminder of length {}", remainder.len());
                         $shards.push(ExecutionRecord {
                             $events: chunks.remainder().to_vec(),
                             program: self.program.clone(),
@@ -565,20 +567,16 @@ impl ExecutionRecord {
                     }
                 }
                 let mut event_shards = chunks
-                    .map(|chunk| {
-                        println!("Adding chunk of length {}", chunk.len());
-                        ExecutionRecord {
-                            $events: chunk.to_vec(),
-                            program: self.program.clone(),
-                            ..Default::default()
-                        }
+                    .map(|chunk| ExecutionRecord {
+                        $events: chunk.to_vec(),
+                        program: self.program.clone(),
+                        ..Default::default()
                     })
                     .collect::<Vec<_>>();
                 $shards.append(&mut event_shards);
             };
         }
 
-        println!("Splitting KeccakPermuteEvents");
         split_events!(
             self,
             keccak_permute_events,
@@ -586,7 +584,6 @@ impl ExecutionRecord {
             opts.keccak_split_threshold,
             last
         );
-        println!("Finished splitting KeccakPermuteEvents");
         split_events!(
             self,
             secp256k1_add_events,
@@ -683,16 +680,24 @@ impl ExecutionRecord {
             self.memory_initialize_events
                 .sort_by_key(|event| event.addr);
             self.memory_finalize_events.sort_by_key(|event| event.addr);
+
             let mut init_addr_bits = [0; 32];
             let mut finalize_addr_bits = [0; 32];
-            for (mem_init_chunk, mem_finalize_chunk) in self
+            for mem_chunks in self
                 .memory_initialize_events
-                .chunks(opts.deferred_shift_threshold)
-                .zip(
+                .chunks(opts.memory_split_threshold)
+                .zip_longest(
                     self.memory_finalize_events
-                        .chunks(opts.deferred_shift_threshold),
+                        .chunks(opts.memory_split_threshold),
                 )
             {
+                let (mem_init_chunk, mem_finalize_chunk) = match mem_chunks {
+                    EitherOrBoth::Both(mem_init_chunk, mem_finalize_chunk) => {
+                        (mem_init_chunk, mem_finalize_chunk)
+                    }
+                    EitherOrBoth::Left(mem_init_chunk) => (mem_init_chunk, [].as_slice()),
+                    EitherOrBoth::Right(mem_finalize_chunk) => ([].as_slice(), mem_finalize_chunk),
+                };
                 let mut shard = ExecutionRecord::default();
                 shard.program = self.program.clone();
                 shard
@@ -701,9 +706,9 @@ impl ExecutionRecord {
                 shard.public_values.previous_init_addr_bits = init_addr_bits;
                 if let Some(last_event) = mem_init_chunk.last() {
                     let last_init_addr_bits = core::array::from_fn(|i| (last_event.addr >> i) & 1);
-                    shard.public_values.last_init_addr_bits = last_init_addr_bits;
                     init_addr_bits = last_init_addr_bits;
                 }
+                shard.public_values.last_init_addr_bits = init_addr_bits;
 
                 shard
                     .memory_finalize_events
@@ -712,9 +717,9 @@ impl ExecutionRecord {
                 if let Some(last_event) = mem_finalize_chunk.last() {
                     let last_finalize_addr_bits =
                         core::array::from_fn(|i| (last_event.addr >> i) & 1);
-                    shard.public_values.last_finalize_addr_bits = last_finalize_addr_bits;
                     finalize_addr_bits = last_finalize_addr_bits;
                 }
+                shard.public_values.last_finalize_addr_bits = finalize_addr_bits;
 
                 shards.push(shard);
             }
