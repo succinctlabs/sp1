@@ -437,7 +437,6 @@ where
                 for i in 0..committed_value_digest.len() {
                     for j in 0..WORD_SIZE {
                         let d = felt2var(builder, committed_value_digest[i][j]);
-                        builder.print_v(d);
                         builder.if_ne(d, C::N::zero()).then(|builder| {
                             builder.assign(is_zero, C::N::zero());
                         });
