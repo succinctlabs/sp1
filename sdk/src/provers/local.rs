@@ -71,7 +71,13 @@ impl Prover for LocalProver {
                 &outer_proof.proof,
             )
         } else {
-            sp1_prover::build::try_install_plonk_bn254_artifacts()
+            cfg_if::cfg_if! {
+                if #[cfg(feature = "network")] {
+                    sp1_prover::install::try_install_plonk_bn254_artifacts()
+                } else {
+                    return Err(anyhow::anyhow!("cannot install plonk artifacts without network feature"));
+                }
+            }
         };
         let proof = self
             .prover

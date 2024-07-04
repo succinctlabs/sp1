@@ -5,11 +5,13 @@
 //! Visit the [Getting Started](https://succinctlabs.github.io/sp1/getting-started.html) section
 //! in the official SP1 documentation for a quick start guide.
 
+#[cfg(feature = "network")]
 #[rustfmt::skip]
 pub mod proto {
     pub mod network;
 }
 pub mod action;
+#[cfg(feature = "network")]
 pub mod artifacts;
 #[cfg(feature = "network")]
 pub mod network;

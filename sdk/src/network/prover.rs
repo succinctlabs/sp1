@@ -10,7 +10,7 @@ use crate::{SP1Context, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, S
 use anyhow::Result;
 use serde::de::DeserializeOwned;
 use sp1_core::utils::SP1ProverOpts;
-use sp1_prover::utils::block_on;
+use sp1_prover::install::block_on;
 use sp1_prover::{SP1Prover, SP1Stdin, SP1_CIRCUIT_VERSION};
 use tokio::time::sleep;
 

@@ -32,7 +32,6 @@ rrs-lib = { git = "https://github.com/GregAC/rrs.git" }
 sp1-derive = { path = "../derive" }
 sp1-primitives = { path = "../primitives" }
 
-anyhow = "1.0.83"
 amcl = { package = "snowbridge-amcl", version = "1.0.2", default-features = false, features = [
   "bls381",
 ] }
@@ -61,6 +60,8 @@ num-bigint = { version = "0.4.6", default-features = false }
 rand = "0.8.5"
 bytemuck = "1.16.0"
 hashbrown = { version = "0.14.5", features = ["serde"] }
+
+getrandom = { version = "0.2.15", features = ["js"] }
 
 [dev-dependencies]
 tiny-keccak = { version = "2.0.2", features = ["keccak"] }

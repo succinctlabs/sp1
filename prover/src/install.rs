@@ -1,10 +1,11 @@
 use std::{cmp::min, io::Write, path::PathBuf, process::Command};
 
-use futures::StreamExt;
+use futures::{Future, StreamExt};
 use indicatif::{ProgressBar, ProgressStyle};
 use reqwest::Client;
+use tokio::{runtime, task::block_in_place};
 
-use crate::{utils::block_on, SP1_CIRCUIT_VERSION};
+use crate::{build::plonk_bn254_artifacts_dir, SP1_CIRCUIT_VERSION};
 
 /// The base URL for the S3 bucket containing the plonk bn254 artifacts.
 pub const PLONK_BN254_ARTIFACTS_URL_BASE: &str = "https://sp1-circuits.s3-us-east-2.amazonaws.com";
@@ -97,4 +98,37 @@ pub async fn download_file(
     pb.finish();
 
     Ok(())
+}
+
+/// Tries to install the PLONK artifacts if they are not already installed.
+pub fn try_install_plonk_bn254_artifacts() -> PathBuf {
+    let build_dir = plonk_bn254_artifacts_dir();
+
+    if build_dir.exists() {
+        println!(
+            "[sp1] plonk bn254 artifacts already seem to exist at {}. if you want to re-download them, delete the directory",
+            build_dir.display()
+        );
+    } else {
+        println!(
+            "[sp1] plonk bn254 artifacts for version {} do not exist at {}. downloading...",
+            SP1_CIRCUIT_VERSION,
+            build_dir.display()
+        );
+        install_plonk_bn254_artifacts(build_dir.clone());
+    }
+    build_dir
+}
+
+/// Utility method for blocking on an async function. If we're already in a tokio runtime, we'll
+/// block in place. Otherwise, we'll create a new runtime.
+pub fn block_on<T>(fut: impl Future<Output = T>) -> T {
+    // Handle case if we're already in an tokio runtime.
+    if let Ok(handle) = runtime::Handle::try_current() {
+        block_in_place(|| handle.block_on(fut))
+    } else {
+        // Otherwise create a new runtime.
+        let rt = runtime::Runtime::new().expect("Failed to create a new runtime");
+        rt.block_on(fut)
+    }
 }

@@ -114,6 +114,12 @@ jobs:
         env:
           CARGO_INCREMENTAL: 1
 
+      - name: Check wasm compatibility for sdk
+        uses: actions-rs/cargo@v1
+        with:
+          command: check
+          args: -p sp1-sdk --target wasm32-unknown-unknown --no-default-features 
+
   examples:
     name: Examples
     runs-on: runs-on,runner=8cpu-linux-x64

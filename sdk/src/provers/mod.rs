@@ -94,7 +94,14 @@ pub trait Prover: Send + Sync {
                     &if sp1_prover::build::sp1_dev_mode() {
                         sp1_prover::build::plonk_bn254_artifacts_dev_dir()
                     } else {
-                        sp1_prover::build::try_install_plonk_bn254_artifacts()
+                        cfg_if::cfg_if! {
+                            if #[cfg(feature = "network")] {
+                                sp1_prover::install::try_install_plonk_bn254_artifacts()
+                            } else {
+                                return Err(SP1VerificationError::Plonk(anyhow::anyhow!("cannot install plonk artifacts without network feature")));
+                            }
+                        }
+                        
                     },
                 )
                 .map_err(SP1VerificationError::Plonk),

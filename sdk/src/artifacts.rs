@@ -4,9 +4,7 @@ use anyhow::{Context, Result};
 use futures::StreamExt;
 use indicatif::{ProgressBar, ProgressStyle};
 use reqwest::Client;
-pub use sp1_prover::build::{
-    build_plonk_bn254_artifacts_with_dummy, try_install_plonk_bn254_artifacts,
-};
+pub use sp1_prover::build::build_plonk_bn254_artifacts_with_dummy;
 
 /// Exports the solidity verifier for PLONK proofs to the specified output directory.
 ///
@@ -17,7 +15,8 @@ pub fn export_solidity_plonk_bn254_verifier(output_dir: impl Into<PathBuf>) -> R
     let artifacts_dir = if sp1_prover::build::sp1_dev_mode() {
         sp1_prover::build::plonk_bn254_artifacts_dev_dir()
     } else {
-        sp1_prover::build::try_install_plonk_bn254_artifacts()
+        #[cfg(feature = "network")]
+        sp1_prover::install::try_install_plonk_bn254_artifacts()
     };
     let verifier_path = artifacts_dir.join("SP1Verifier.sol");
 

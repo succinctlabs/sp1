@@ -32,20 +32,26 @@ anyhow = "1.0.83"
 size = "0.4.1"
 dirs = "5.0.1"
 tempfile = "3.10.1"
-tokio = { version = "1.38.0", features = ["full"] }
-reqwest = { version = "0.12.4", features = [
-  "rustls-tls",
-  "trust-dns",
-  "stream",
-] }
 indicatif = "0.17.8"
 futures = "0.3.30"
 subtle-encoding = "0.5.1"
-serial_test = "3.1.1"
 num-bigint = "0.4.6"
 thiserror = "1.0.60"
 bytemuck = "1.16.0"
 rand = "0.8.4"
+
+tokio = { version = "1.38.0", features = ["full"], optional = true }
+reqwest = { version = "0.12.4", features = [
+  "rustls-tls",
+  "trust-dns",
+  "stream",
+], optional = true }
+
+[features]
+default = ["network"]
+network = ["dep:tokio", "dep:reqwest"]
+neon = ["sp1-core/neon"]
+native-gnark = ["sp1-recursion-gnark-ffi/native"]
 
 [[bin]]
 name = "build_plonk_bn254"
@@ -54,7 +60,3 @@ path = "scripts/build_plonk_bn254.rs"
 [[bin]]
 name = "e2e"
 path = "scripts/e2e.rs"
-
-[features]
-neon = ["sp1-core/neon"]
-native-gnark = ["sp1-recursion-gnark-ffi/native"]

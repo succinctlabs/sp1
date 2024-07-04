@@ -14,29 +14,8 @@ use sp1_recursion_core::air::RecursionPublicValues;
 pub use sp1_recursion_core::stark::utils::sp1_dev_mode;
 use sp1_recursion_gnark_ffi::PlonkBn254Prover;
 
-use crate::install::install_plonk_bn254_artifacts;
 use crate::utils::{babybear_bytes_to_bn254, babybears_to_bn254, words_to_bytes};
 use crate::{OuterSC, SP1Prover, SP1_CIRCUIT_VERSION};
-
-/// Tries to install the PLONK artifacts if they are not already installed.
-pub fn try_install_plonk_bn254_artifacts() -> PathBuf {
-    let build_dir = plonk_bn254_artifacts_dir();
-
-    if build_dir.exists() {
-        println!(
-            "[sp1] plonk bn254 artifacts already seem to exist at {}. if you want to re-download them, delete the directory",
-            build_dir.display()
-        );
-    } else {
-        println!(
-            "[sp1] plonk bn254 artifacts for version {} do not exist at {}. downloading...",
-            SP1_CIRCUIT_VERSION,
-            build_dir.display()
-        );
-        install_plonk_bn254_artifacts(build_dir.clone());
-    }
-    build_dir
-}
 
 /// Tries to build the PLONK artifacts inside the development directory.
 pub fn try_build_plonk_bn254_artifacts_dev(
@@ -50,7 +29,7 @@ pub fn try_build_plonk_bn254_artifacts_dev(
 }
 
 /// Gets the directory where the PLONK artifacts are installed.
-fn plonk_bn254_artifacts_dir() -> PathBuf {
+pub fn plonk_bn254_artifacts_dir() -> PathBuf {
     dirs::home_dir()
         .unwrap()
         .join(".sp1")

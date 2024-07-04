@@ -11,6 +11,7 @@
 #![allow(clippy::new_without_default)]
 
 pub mod build;
+#[cfg(feature = "network")]
 pub mod install;
 pub mod types;
 pub mod utils;
@@ -682,7 +683,9 @@ impl SP1Prover {
 
     fn check_for_high_cycles(cycles: u64) {
         if cycles > 100_000_000 {
-            tracing::warn!("high cycle count, consider using the prover network for proof generation: https://docs.succinct.xyz/prover-network/setup.html");
+            tracing::warn!(
+                "high cycle count, consider using the prover network for proof generation: https://docs.succinct.xyz/prover-network/setup.html"
+            );
         }
     }
 }
