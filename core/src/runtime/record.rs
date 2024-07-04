@@ -278,9 +278,10 @@ impl MachineRecord for ExecutionRecord {
             .append(&mut other.bls12381_decompress_events);
 
         // Merge the byte lookups.
-        let other_byte_lookups = Arc::try_unwrap(other.byte_lookups.clone()).unwrap();
-        for (shard, events_map) in other_byte_lookups.into_iter() {
-            match self.byte_lookups.get_mut(&shard) {
+        for byte_lookup_entry in other.byte_lookups.iter() {
+            let shard = byte_lookup_entry.key();
+            let (_, events_map) = other.byte_lookups.remove(shard).unwrap();
+            match self.byte_lookups.get_mut(shard) {
                 Some(mut existing) => {
                     // If there's already a map for this shard, update counts for each event.
                     for (event, count) in events_map.iter() {
@@ -289,7 +290,7 @@ impl MachineRecord for ExecutionRecord {
                 }
                 None => {
                     // If there isn't a map for this shard, insert the whole map.
-                    self.byte_lookups.insert(shard, events_map);
+                    self.byte_lookups.insert(*shard, events_map);
                 }
             }
         }
