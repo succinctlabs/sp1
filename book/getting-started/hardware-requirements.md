@@ -5,13 +5,12 @@ change over time as the design of the zKVM evolves.
 
 **The most important requirement is CPU for performance/latency and RAM to prevent running out of memory.**
 
-
-|                | Mock / Network               | Compress            | PLONK (EVM)                |
+|                | Mock / Network               | Core / Compress                    | PLONK (EVM)                |
 |----------------|------------------------------|------------------------------------|----------------------------|
 | CPU            | 1+, single-core perf matters | 16+, more is better                | 32+, more is better        |
 | Memory         | 8GB+, more is better         | 32GB+, more if you have more cores | 128GB+ (for PLONK)         |
 | Disk           | 20GB+                        | 20GB+                              | 100GB+ (for trusted setup) |
-| EVM Compatible | ✅                           | ❌                                  | ✅                        |
+| EVM Compatible | ✅                            | ❌                                  | ✅                          |
 
 ### CPU
 
