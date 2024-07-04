@@ -1,5 +1,6 @@
 use dashmap::DashMap;
 use hashbrown::HashMap;
+use p3_maybe_rayon::prelude::*;
 use std::mem::take;
 use std::sync::Arc;
 
@@ -283,9 +284,9 @@ impl MachineRecord for ExecutionRecord {
             .iter()
             .map(|e| *e.key())
             .collect::<Vec<u32>>();
-        for shard in shards {
-            let (_, events_map) = other.byte_lookups.remove(&shard).unwrap();
-            match self.byte_lookups.get_mut(&shard) {
+        shards.par_iter().for_each(|shard| {
+            let (_, events_map) = other.byte_lookups.remove(shard).unwrap();
+            match self.byte_lookups.get_mut(shard) {
                 Some(mut existing) => {
                     // If there's already a map for this shard, update counts for each event.
                     for (event, count) in events_map.iter() {
@@ -294,10 +295,10 @@ impl MachineRecord for ExecutionRecord {
                 }
                 None => {
                     // If there isn't a map for this shard, insert the whole map.
-                    self.byte_lookups.insert(shard, events_map);
+                    self.byte_lookups.insert(*shard, events_map);
                 }
             }
-        }
+        });
 
         self.memory_initialize_events
             .append(&mut other.memory_initialize_events);

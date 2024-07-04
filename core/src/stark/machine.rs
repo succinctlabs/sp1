@@ -256,7 +256,10 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                 chip.generate_dependencies(&record, &mut output);
                 let gd_time = gd_time.elapsed();
                 log::debug!("{}: generate_dependencies: {:?}", chip.name(), gd_time);
+                let append_time = std::time::Instant::now();
                 record.append(&mut output);
+                let append_time = append_time.elapsed();
+                log::debug!("{}: append: {:?}", chip.name(), append_time);
             })
         });
 
