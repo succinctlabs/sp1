@@ -6,7 +6,7 @@ use std::{
     thread,
 };
 
-#[derive(Parser, Default)]
+#[derive(Parser, Default, Clone)]
 pub struct BuildArgs {
     #[clap(long, action, help = "Build using Docker for reproducible builds.")]
     pub docker: bool,
@@ -29,18 +29,7 @@ pub fn build_program(path: &str, args: Option<BuildArgs>) {
     println!("path: {:?}", path);
     let program_dir = std::path::Path::new(path);
 
-    // Tell cargo to rerun the script if program/{src, Cargo.toml, Cargo.lock} or any dependency changes
-    // Ref: https://doc.rust-lang.org/nightly/cargo/reference/build-scripts.html#rerun-if-changed
-    let dirs = vec![
-        program_dir.join("src"),
-        program_dir.join("Cargo.toml"),
-        program_dir.join("Cargo.lock"),
-    ];
-    for dir in dirs {
-        println!("cargo:rerun-if-changed={}", dir.display());
-    }
-
-    // Rerun if any dependency changes.
+    // Tell cargo to rerun the script if program/{src, Cargo.toml, Cargo.lock} or any dependency changes.
     let metadata_file = program_dir.join("Cargo.toml");
     let mut metadata_cmd = cargo_metadata::MetadataCommand::new();
     let metadata = metadata_cmd.manifest_path(metadata_file).exec().unwrap();
@@ -73,6 +62,35 @@ pub fn build_program(path: &str, args: Option<BuildArgs>) {
     }
 }
 
+/// Add the `cargo prove build` arguments to the `command_args` vec. This is useful when adding
+/// the `cargo prove build` arguments to an existing command.
+pub fn add_cargo_prove_build_args(
+    command_args: &mut Vec<String>,
+    prove_args: BuildArgs,
+    ignore_docker: bool,
+) {
+    if prove_args.docker && !ignore_docker {
+        command_args.push("--docker".to_string());
+    }
+    if prove_args.ignore_rust_version {
+        command_args.push("--ignore-rust-version".to_string());
+    }
+    if !prove_args.features.is_empty() {
+        for feature in prove_args.features {
+            command_args.push("--features".to_string());
+            command_args.push(feature);
+        }
+    }
+    if let Some(binary) = &prove_args.binary {
+        command_args.push("--binary".to_string());
+        command_args.push(binary.clone());
+    }
+    if let Some(elf) = &prove_args.elf {
+        command_args.push("--elf".to_string());
+        command_args.push(elf.clone());
+    }
+}
+
 /// Executes the `cargo prove build` command in the program directory
 fn execute_build_cmd(
     program_dir: &impl AsRef<std::path::Path>,
@@ -90,26 +108,7 @@ fn execute_build_cmd(
 
     let mut cargo_prove_build_args = vec!["prove".to_string(), "build".to_string()];
     if let Some(args) = args {
-        if args.docker {
-            cargo_prove_build_args.push("--docker".to_string());
-        }
-        if args.ignore_rust_version {
-            cargo_prove_build_args.push("--ignore-rust-version".to_string());
-        }
-        if !args.features.is_empty() {
-            for feature in args.features {
-                cargo_prove_build_args.push("--features".to_string());
-                cargo_prove_build_args.push(feature);
-            }
-        }
-        if let Some(binary) = &args.binary {
-            cargo_prove_build_args.push("--binary".to_string());
-            cargo_prove_build_args.push(binary.clone());
-        }
-        if let Some(elf) = &args.elf {
-            cargo_prove_build_args.push("--elf".to_string());
-            cargo_prove_build_args.push(elf.clone());
-        }
+        add_cargo_prove_build_args(&mut cargo_prove_build_args, args, is_clippy_driver);
     }
 
     let mut cmd = Command::new("cargo");

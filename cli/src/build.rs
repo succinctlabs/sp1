@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use cargo_metadata::camino::Utf8PathBuf;
-use sp1_helper::BuildArgs;
+use sp1_helper::{add_cargo_prove_build_args, BuildArgs};
 use std::{
     fs,
     io::{BufRead, BufReader},
@@ -45,24 +45,10 @@ pub fn build_program(args: &BuildArgs) -> Result<Utf8PathBuf> {
             "prove".to_string(),
             "build".to_string(),
         ];
-        if args.ignore_rust_version {
-            child_args.push("--ignore-rust-version".to_string());
-        }
-        // Add the features
-        if !args.features.is_empty() {
-            child_args.push("--features".to_string());
-            child_args.push(args.features.join(","));
-        }
-        // Add the binary name
-        if let Some(binary) = &args.binary {
-            child_args.push("--binary".to_string());
-            child_args.push(binary.clone());
-        }
-        // Add the ELF name
-        if let Some(elf) = &args.elf {
-            child_args.push("--elf".to_string());
-            child_args.push(elf.clone());
-        }
+
+        // Add the `cargo prove build` arguments to the child process command, while ignoring
+        // `--docker`, as this command will be invoked in a docker container.
+        add_cargo_prove_build_args(&mut child_args, args.clone(), true);
 
         let mut child = Command::new("docker")
             .args(&child_args)
@@ -107,21 +93,10 @@ pub fn build_program(args: &BuildArgs) -> Result<Utf8PathBuf> {
             "--target".to_string(),
             build_target.clone(),
         ];
-        // If the compilation is for a binary, specify the name.
-        if let Some(binary) = &args.binary {
-            cargo_args.push("--bin".to_string());
-            cargo_args.push(binary.clone());
-        }
 
-        if args.ignore_rust_version {
-            cargo_args.push("--ignore-rust-version".to_string());
-        }
-
-        // Add the features
-        if !args.features.is_empty() {
-            cargo_args.push("--features".to_string());
-            cargo_args.push(args.features.join(","));
-        }
+        // Add the `cargo prove build` arguments to the child process command, while ignoring
+        // `--docker`, as we already know it's unused in this conditional.
+        add_cargo_prove_build_args(&mut cargo_args, args.clone(), true);
 
         // Ensure the Cargo.lock doesn't update.
         cargo_args.push("--locked".to_string());
