@@ -746,7 +746,6 @@ pub mod tests {
         tracing::info!("initializing prover");
         let prover: SP1Prover = SP1Prover::new();
         let mut opts = SP1ProverOpts::default();
-        opts.core_opts.split_opts.memory_split_threshold = 1 << 10;
         let context = SP1Context::default();
 
         tracing::info!("setup elf");
