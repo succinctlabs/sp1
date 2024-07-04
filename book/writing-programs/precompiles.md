@@ -15,7 +15,7 @@ to use these precompiles under the hood.**
 
 ## Specification
 
-If you are an advanced user you can interact with the precompiles directly using extern system calls.
+If you are an advanced user you can interact with the precompiles directly using external system calls.
 
 Here is a list of all available system calls & precompiles.
 
