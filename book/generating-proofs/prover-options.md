@@ -7,8 +7,8 @@ For a full list of options, see the [SP1 SDK](https://github.com/succinctlabs/sp
 
 ## Core (Default)
 
-The default prover mode generates a list of STARK proofs that in aggregate have size propotional to
- the size of the execution. Use in settings where you don't care about **verification cost / proof size**.
+The default prover mode generates a list of STARK proofs that in aggregate have size proportional to
+ the size of the execution. Use this in settings where you don't care about **verification cost / proof size**.
 
 ```rust,noplayground
 let client = ProverClient::new();
@@ -17,7 +17,7 @@ client.prove(&pk, stdin).run().unwrap();
 
 ## Compressed
 
-The compressed prover mode generates STARK proofs that have constant size. Use in settings where you
+The compressed prover mode generates STARK proofs that have constant size. Use this in settings where you
 care about **verification cost / proof size**.
 
 ```rust,noplayground
