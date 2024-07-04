@@ -6,7 +6,7 @@ So far we've explored how to generate proofs locally, but this can actually be i
 
 Succinct [has been building](https://blog.succinct.xyz/succinct-network/) the Succinct Prover Network, a distributed network of provers that can generate proofs of any size quickly and reliably. It's currently in private beta, but you can get access by following the steps below.
 
-## Get your API key
+## Get your key whitelisted
 
 **[FILL OUT THIS FORM](https://forms.gle/rTUvhstS8PFfv9B3A)** to gain access to the Succinct
 Network. Completing this form requires you to complete the [key setup](#key-setup) steps below.
