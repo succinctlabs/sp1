@@ -261,10 +261,10 @@ where
         // );
 
         // Assert that the real rows are all padded to the top.
-        builder
-            .when_transition()
-            .when_not(local.is_real)
-            .assert_zero(next.is_real);
+        // builder
+        //     .when_transition()
+        //     .when_not(local.is_real)
+        //     .assert_zero(next.is_real);
 
         // Make assertions for the initial comparison.
 
@@ -286,21 +286,21 @@ where
             MemoryChipType::Finalize => &public_values.previous_finalize_addr_bits,
         };
 
-        // Since the previous address is either zero or constrained by a different shard, we know
-        // it's an element of the field, so we can get an element from the bit decomposition with
-        // no concern for overflow.
-        let prev_addr = prev_addr_bits
-            .iter()
-            .enumerate()
-            .map(|(i, bit)| bit.clone() * AB::F::from_wrapped_u32(1 << i))
-            .sum::<AB::Expr>();
+        // // Since the previous address is either zero or constrained by a different shard, we know
+        // // it's an element of the field, so we can get an element from the bit decomposition with
+        // // no concern for overflow.
+        // let prev_addr = prev_addr_bits
+        //     .iter()
+        //     .enumerate()
+        //     .map(|(i, bit)| bit.clone() * AB::F::from_wrapped_u32(1 << i))
+        //     .sum::<AB::Expr>();
 
-        // Constrain the is_prev_addr_zero operation only in the first row.
-        let is_first_row = builder.is_first_row();
-        IsZeroOperation::<AB::F>::eval(builder, prev_addr, local.is_prev_addr_zero, is_first_row);
+        // // Constrain the is_prev_addr_zero operation only in the first row.
+        // let is_first_row = builder.is_first_row();
+        // IsZeroOperation::<AB::F>::eval(builder, prev_addr, local.is_prev_addr_zero, is_first_row);
 
-        // Assert that in the first row, is_first_comp is zero if and only if
-        // addr == previous_addr == 0.
+        // // Assert that in the first row, is_first_comp is zero if and only if
+        // // addr == previous_addr == 0.
         // for (adrr_bit, prev_addr_bit) in local_addr_bits.iter().zip(prev_addr_bits.iter()) {
         //     builder
         //         .when(local.is_first_comp)
@@ -310,11 +310,11 @@ where
         //         .assert_eq(*adrr_bit, AB::F::zero());
         // }
 
-        // Constrain the is_next_first_comp column.
-        let is_first_row = builder.is_first_row();
-        // builder.assert_eq(
+        // // Constrain the is_first_comp column.
+        // builder.assert_bool(local.is_first_comp);
+        // builder.when_first_row().assert_eq(
         //     local.is_first_comp,
-        //     is_first_row * (AB::Expr::one() - local.is_prev_addr_zero.result),
+        //     AB::Expr::one() - local.is_prev_addr_zero.result,
         // );
 
         // Constrain the inequality assertion in the first row.
@@ -325,7 +325,7 @@ where
             local.is_first_comp,
         );
 
-        // Make assertions for specific types of memory chips.
+        // // Make assertions for specific types of memory chips.
 
         if self.kind == MemoryChipType::Initialize {
             builder
@@ -346,7 +346,7 @@ where
         for i in 0..32 {
             builder
                 .when_first_row()
-                .when(local.is_prev_addr_zero.result)
+                .when_not(local.is_first_comp)
                 .assert_zero(local.value[i]);
         }
 
