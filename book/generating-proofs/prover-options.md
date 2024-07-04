@@ -8,7 +8,7 @@ For a full list of options, see the [SP1 SDK](https://github.com/succinctlabs/sp
 ## Core (Default)
 
 The default prover mode generates a list of STARK proofs that in aggregate have size proportional to
- the size of the execution. Use in settings where you don't care about **verification cost / proof size**.
+ the size of the execution. Use this in settings where you don't care about **verification cost / proof size**.
 
 ```rust,noplayground
 let client = ProverClient::new();
