@@ -1,4 +1,5 @@
 use hashbrown::HashMap;
+use p3_maybe_rayon::prelude::IntoParallelRefIterator;
 use p3_maybe_rayon::prelude::ParallelBridge;
 use std::array;
 use std::borrow::BorrowMut;
@@ -83,13 +84,7 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
                     alu_events.into_iter().for_each(|(key, value)| {
                         alu.entry(key).or_insert(Vec::default()).extend(value);
                     });
-                    for blu_event in blu_events {
-                        blu.entry(blu_event.shard)
-                            .or_insert(HashMap::new())
-                            .entry(blu_event)
-                            .and_modify(|e| *e += 1)
-                            .or_insert(1);
-                    }
+                    blu.add_byte_lookup_events(blu_events);
                 });
                 (alu, blu)
             })
@@ -100,9 +95,14 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
         }
 
         for blu_event in blu_events.into_iter() {
-            for (shard, events) in blu_event.iter() {
-                output.add_byte_lookup_events_for_shard(*shard, events.clone());
-            }
+            blu_event.par_iter().for_each(|(shard, events)| {
+                let mut shard_blu_events = output.byte_lookups.entry(*shard).or_default();
+
+                for (blu_event, count) in events.into_iter() {
+                    *shard_blu_events.entry(*blu_event).or_insert(0) += count;
+                }
+                // .add_byte_lookup_events_for_shard(*shard, events.clone())
+            })
         }
     }
 

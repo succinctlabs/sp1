@@ -1,3 +1,4 @@
+use dashmap::DashMap;
 use hashbrown::HashMap;
 use std::mem::take;
 use std::sync::Arc;
@@ -64,8 +65,8 @@ pub struct ExecutionRecord {
     ///
     /// The layout is shard -> (event -> count). Byte lookups are sharded to prevent the
     /// multiplicities from overflowing.
-    pub byte_lookups: HashMap<u32, HashMap<ByteLookupEvent, usize>>,
-
+    pub byte_lookups: Arc<DashMap<u32, HashMap<ByteLookupEvent, usize>>>,
+    //pub byte_lookups: HashMap<u32, HashMap<ByteLookupEvent, usize>>,
     pub sha_extend_events: Vec<ShaExtendEvent>,
 
     pub sha_compress_events: Vec<ShaCompressEvent>,
@@ -277,9 +278,10 @@ impl MachineRecord for ExecutionRecord {
             .append(&mut other.bls12381_decompress_events);
 
         // Merge the byte lookups.
-        for (shard, events_map) in std::mem::take(&mut other.byte_lookups).into_iter() {
+        let other_byte_lookups = Arc::try_unwrap(other.byte_lookups.clone()).unwrap();
+        for (shard, events_map) in other_byte_lookups.into_iter() {
             match self.byte_lookups.get_mut(&shard) {
-                Some(existing) => {
+                Some(mut existing) => {
                     // If there's already a map for this shard, update counts for each event.
                     for (event, count) in events_map.iter() {
                         *existing.entry(*event).or_insert(0) += count;
@@ -320,7 +322,7 @@ impl MachineRecord for ExecutionRecord {
                 shard.program = self.program.clone();
 
                 // Byte lookups are already sharded, so put this shard's lookups in.
-                let current_byte_lookups =
+                let (_, current_byte_lookups) =
                     self.byte_lookups.remove(&current_shard).unwrap_or_default();
                 shard
                     .byte_lookups
@@ -659,7 +661,7 @@ impl ByteRecord for ExecutionRecord {
         shard: u32,
         blu_event_map: HashMap<ByteLookupEvent, usize>,
     ) {
-        let shard_blu_events = self.byte_lookups.entry(shard).or_default();
+        let mut shard_blu_events = self.byte_lookups.entry(shard).or_default();
 
         for (blu_event, count) in blu_event_map.into_iter() {
             *shard_blu_events.entry(blu_event).or_insert(0) += count;

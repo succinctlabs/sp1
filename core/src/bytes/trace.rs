@@ -1,4 +1,4 @@
-use std::borrow::BorrowMut;
+use std::{borrow::BorrowMut, ops::Deref};
 
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
@@ -48,7 +48,7 @@ impl<F: Field> MachineAir<F> for ByteChip<F> {
         );
 
         let shard = input.index;
-        for (lookup, mult) in input.byte_lookups[&shard].iter() {
+        for (lookup, mult) in input.byte_lookups.get(&shard).unwrap().deref() {
             let row = if lookup.opcode != ByteOpcode::U16Range {
                 ((lookup.b << 8) + lookup.c) as usize
             } else {
