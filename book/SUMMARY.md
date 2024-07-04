@@ -40,9 +40,11 @@
 
 - [Basics](./generating-proofs/basics.md)
 
-- [Proving Modes](./generating-proofs/prover-configuration.md)
+- [Prover Options](./generating-proofs/prover-options.md)
 
-- [Advanced](./generating-proofs/advanced.md)
+- [Development Options](./generating-proofs/development-options.md)
+
+- [Optimizing Performance](./generating-proofs/optimizing-performance.md)
 
 # Onchain Verification
 
@@ -60,6 +62,6 @@
 
 # Developers
 
-- [Building Plonk Bn254 Artifacts](./developers/building-plonk-artifacts.md)
+- [Building PLONK Artifacts](./developers/building-plonk-artifacts.md)
 
 - [Common Issues](./developers/common-issues.md)

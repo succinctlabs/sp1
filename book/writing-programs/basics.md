@@ -2,7 +2,7 @@
 
 The easiest way to understand how to write programs for the SP1 zkVM is to look at some examples.
 
-## Fibonacci
+## Example: Fibonacci
 
 This program is from the `examples` [directory](https://github.com/succinctlabs/sp1/tree/main/examples) in the SP1 repo which contains several example programs of varying complexity.
 

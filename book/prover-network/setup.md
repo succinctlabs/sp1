@@ -2,21 +2,22 @@
 
 So far we've explored how to generate proofs locally, but this can actually be inconvenient on local machines due to high memory / CPU requirements, especially for very large programs.
 
-Succinct [has been building](https://blog.succinct.xyz/succinct-network/) the Succinct Network, a distributed network of provers that can generate proofs of any size quickly and reliably. It's currently in private beta, but you can get access by following the steps below.
+Succinct [has been building](https://blog.succinct.xyz/succinct-network/) the Succinct Prover Network, a distributed network of provers that can generate proofs of any size quickly and reliably. It's currently in private beta, but you can get access by following the steps below.
 
-## Get access
+## Get your API key
 
 **[FILL OUT THIS FORM](https://forms.gle/rTUvhstS8PFfv9B3A)** to gain access to the Succinct
 Network. Completing this form requires you to complete the [key setup](#key-setup) steps below.
 
-### Key Setup
+## Key Setup
 
-The prover network uses secp256k1 keypairs for authentication, like Ethereum wallets. You may generate a new keypair explicitly for use with the prover network, or use an existing keypair. Currently you do not need to hold any funds in this account, it is used solely for access control.
+The prover network uses Secp256k1 keypairs for authentication, similar to Ethereum wallets. You may generate a new keypair explicitly for use with the prover network, or use an existing keypair. **You do not need to hold any funds in this account, it is used solely for access control.**
 
+### Generate a new keypair with `cast`
 Prover network keypair credentials can be generated using the
 [cast](https://book.getfoundry.sh/cast/) CLI tool.
 
-First [install Foundry](https://book.getfoundry.sh/getting-started/installation#using-foundryup):
+First install [Foundry](https://book.getfoundry.sh/getting-started/installation#using-foundryup):
 
 ```sh
 curl -L https://foundry.paradigm.xyz | bash
