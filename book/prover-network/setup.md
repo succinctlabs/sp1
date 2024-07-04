@@ -1,5 +1,7 @@
 # Prover Network: Setup
 
+> **Currently, the supported version of SP1 on the prover network is `v1.0.5-testnet`.**
+
 So far we've explored how to generate proofs locally, but this can actually be inconvenient on local machines due to high memory / CPU requirements, especially for very large programs.
 
 Succinct [has been building](https://blog.succinct.xyz/succinct-network/) the Succinct Prover Network, a distributed network of provers that can generate proofs of any size quickly and reliably. It's currently in private beta, but you can get access by following the steps below.
