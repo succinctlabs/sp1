@@ -1,6 +1,7 @@
 use anyhow::Result;
 use sp1_core::{runtime::SP1Context, utils::SP1ProverOpts};
 use sp1_prover::{SP1Prover, SP1Stdin};
+use sysinfo::System;
 
 use crate::{
     Prover, SP1Proof, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
@@ -42,6 +43,13 @@ impl Prover for LocalProver {
         context: SP1Context<'a>,
         kind: SP1ProofKind,
     ) -> Result<SP1ProofWithPublicValues> {
+        let total_ram_gb = System::new_all().total_memory() / 1_000_000_000;
+        if kind == SP1ProofKind::Plonk && total_ram_gb <= 120 {
+            return Err(anyhow::anyhow!(
+                "not enough memory to generate plonk proof. at least 128GB is required."
+            ));
+        }
+
         let proof = self.prover.prove_core(pk, &stdin, opts, context)?;
         if kind == SP1ProofKind::Core {
             return Ok(SP1ProofWithPublicValues {
