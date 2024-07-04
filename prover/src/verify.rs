@@ -42,14 +42,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         proof: &SP1CoreProofData,
         vk: &SP1VerifyingKey,
     ) -> Result<(), MachineVerificationError<CoreSC>> {
-        let mut challenger = self.core_prover.config().challenger();
-        let machine_proof = MachineProof {
-            shard_proofs: proof.0.to_vec(),
-        };
-        self.core_prover
-            .machine()
-            .verify(&vk.vk, &machine_proof, &mut challenger)?;
-
         // Assert that the first shard has a "CPU".
         let first_shard = proof.0.first().unwrap();
         if !first_shard.contains_cpu() {
@@ -235,6 +227,15 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         if proof.0.len() > 1 << 16 {
             return Err(MachineVerificationError::TooManyShards);
         }
+
+        // Verify the shard proof.
+        let mut challenger = self.core_prover.config().challenger();
+        let machine_proof = MachineProof {
+            shard_proofs: proof.0.to_vec(),
+        };
+        self.core_prover
+            .machine()
+            .verify(&vk.vk, &machine_proof, &mut challenger)?;
 
         Ok(())
     }

@@ -130,7 +130,6 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
         }
 
         let nb_rows = rows.len();
-        println!("nb_rows: {}", nb_rows);
         let mut padded_nb_rows = nb_rows.next_power_of_two();
         if padded_nb_rows == 2 || padded_nb_rows == 1 {
             padded_nb_rows = 4;
