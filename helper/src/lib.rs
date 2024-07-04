@@ -29,7 +29,8 @@ pub fn build_program(path: &str, args: Option<BuildArgs>) {
     println!("path: {:?}", path);
     let program_dir = std::path::Path::new(path);
 
-    // Tell cargo to rerun the script if program/{src, Cargo.toml, Cargo.lock} or any dependency changes.
+    // Tell cargo to rerun the script if program/{src, Cargo.toml, Cargo.lock} or any dependency
+    // changes.
     let metadata_file = program_dir.join("Cargo.toml");
     let mut metadata_cmd = cargo_metadata::MetadataCommand::new();
     let metadata = metadata_cmd.manifest_path(metadata_file).exec().unwrap();
