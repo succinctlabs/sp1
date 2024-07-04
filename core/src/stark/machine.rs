@@ -239,6 +239,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         &self,
         records: &mut [A::Record],
         syscall_lookups: &mut HashMap<u32, usize>,
+        opts: &<A::Record as MachineRecord>::Config,
     ) {
         let chips = self.chips();
         records.iter_mut().for_each(|record| {
@@ -247,7 +248,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                 chip.generate_dependencies(record, &mut output);
                 record.append(&mut output);
             });
-            record.register_nonces(syscall_lookups);
+            record.register_nonces(syscall_lookups, opts);
         });
     }
 

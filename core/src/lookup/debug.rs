@@ -227,7 +227,8 @@ mod test {
         let mut runtime = Runtime::new(program, SP1CoreOpts::default());
         runtime.run().unwrap();
         let mut syscall_lookups: HashMap<u32, usize> = HashMap::new();
-        machine.generate_dependencies(&mut runtime.records, &mut syscall_lookups);
+        let opts = SP1CoreOpts::default();
+        machine.generate_dependencies(&mut runtime.records, &mut syscall_lookups, &opts);
 
         let shards = runtime.records;
         let ok =

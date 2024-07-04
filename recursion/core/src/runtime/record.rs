@@ -1,4 +1,5 @@
 use hashbrown::HashMap;
+use sp1_core::utils::SP1CoreOpts;
 use std::array;
 use std::sync::Arc;
 
@@ -41,6 +42,8 @@ impl<F: Default> ExecutionRecord<F> {
 }
 
 impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
+    type Config = SP1CoreOpts;
+
     fn stats(&self) -> HashMap<String, usize> {
         let mut stats = HashMap::new();
         stats.insert("cpu_events".to_string(), self.cpu_events.len());
