@@ -12,26 +12,6 @@ use std::borrow::BorrowMut;
 
 use crate::{builder::SP1RecursionAirBuilder, *};
 
-// 14 columns
-// pub struct FieldALU<F> {
-//     pub in1:
-// }
-
-// 26 columns
-// pub struct BaseensionFieldALU {
-//     pub in1: AddressValue<A, V>,
-//     pub in2: AddressValue<A, V>,
-//     pub sum: Baseension<F>,
-//     pub diff: Baseension<F>,
-//     pub product: Baseension<F>,
-//     pub quotient: Baseension<F>,
-//     pub out: AddressValue<A, V>,
-//     pub is_add: Bool<F>,
-//     pub is_diff: Bool<F>,
-//     pub is_mul: Bool<F>,
-//     pub is_div: Bool<F>,
-// }
-
 #[derive(Default)]
 pub struct BaseAluChip {}
 
@@ -58,8 +38,6 @@ pub struct BaseAluPreprocessedCols<F: Copy> {
     pub is_sub: F,
     pub is_mul: F,
     pub is_div: F,
-    // Consider just duplicating the event instead of having this column?
-    // Alternatively, a table explicitly for copying/discarding a value
     pub mult: F,
     pub is_real: F,
 }
@@ -96,12 +74,12 @@ impl<F: PrimeField32> MachineAir<F> for BaseAluChip {
                 else {
                     return None;
                 };
-                let mult = mult.clone();
+                let mult = mult.to_owned();
 
                 let mut row = [F::zero(); NUM_BASE_ALU_PREPROCESSED_COLS];
                 let cols: &mut BaseAluPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
                 *cols = BaseAluPreprocessedCols {
-                    addrs: addrs.clone(),
+                    addrs: addrs.to_owned(),
                     is_add: F::from_bool(false),
                     is_sub: F::from_bool(false),
                     is_mul: F::from_bool(false),
@@ -249,9 +227,9 @@ mod tests {
 
         let shard = ExecutionRecord {
             base_alu_events: vec![BaseAluIo {
-                out: F::one().into(),
-                in1: F::one().into(),
-                in2: F::one().into(),
+                out: F::one(),
+                in1: F::one(),
+                in2: F::one(),
             }],
             ..Default::default()
         };

@@ -172,22 +172,11 @@ you will also need to write your own execution record struct but look at recursi
 
 #[cfg(test)]
 mod tests {
-    use itertools::Itertools;
     use p3_baby_bear::BabyBear;
-    use p3_baby_bear::DiffusionMatrixBabyBear;
     use p3_field::AbstractField;
     use p3_matrix::dense::RowMajorMatrix;
-    use p3_matrix::Matrix;
-    use p3_poseidon2::Poseidon2;
-    use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
 
-    use std::time::Instant;
-
-    use sp1_core::{air::MachineAir, utils::uni_stark_verify};
-    use sp1_core::{
-        stark::StarkGenericConfig,
-        utils::{uni_stark_prove, BabyBearPoseidon2},
-    };
+    use sp1_core::air::MachineAir;
 
     use super::*;
 

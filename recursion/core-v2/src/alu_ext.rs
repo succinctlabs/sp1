@@ -42,8 +42,6 @@ pub struct ExtAluPreprocessedCols<F: Copy> {
     pub is_sub: F,
     pub is_mul: F,
     pub is_div: F,
-    // Consider just duplicating the event instead of having this column?
-    // Alternatively, a table explicitly for copying/discarding a value
     pub mult: F,
     pub is_real: F,
 }
@@ -80,12 +78,12 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
                 else {
                     return None;
                 };
-                let mult = mult.clone();
+                let mult = mult.to_owned();
 
                 let mut row = [F::zero(); NUM_EXT_ALU_PREPROCESSED_COLS];
                 let cols: &mut ExtAluPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
                 *cols = ExtAluPreprocessedCols {
-                    addrs: addrs.clone(),
+                    addrs: addrs.to_owned(),
                     is_add: F::from_bool(false),
                     is_sub: F::from_bool(false),
                     is_mul: F::from_bool(false),
