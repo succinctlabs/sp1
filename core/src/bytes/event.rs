@@ -208,8 +208,6 @@ impl ByteRecord for HashMap<u32, HashMap<ByteLookupEvent, usize>> {
             }
         }
 
-        println!("num_shards is {}", shards.len());
-
         shards
             .par_iter()
             .zip_eq(self_blu_maps.par_iter_mut())
@@ -247,8 +245,6 @@ impl ByteRecord for HashMap<u32, HashMap<ByteLookupEvent, usize>> {
                 }
             }
         }
-
-        println!("num_shards is {}", shards.len());
 
         shards
             .par_iter()

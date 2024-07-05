@@ -609,8 +609,6 @@ impl ByteRecord for ExecutionRecord {
             }
         }
 
-        println!("num_shards is {}", shards.len());
-
         shards
             .par_iter()
             .zip_eq(self_blu_maps.par_iter_mut())
