@@ -1,4 +1,5 @@
 use chrono::Local;
+#[cfg(feature = "clap")]
 use clap::Parser;
 use std::{
     io::{BufRead, BufReader},
@@ -6,17 +7,27 @@ use std::{
     thread,
 };
 
-#[derive(Parser, Default, Clone)]
+#[derive(Default, Clone)]
+#[cfg_attr(feature = "clap", derive(Parser))]
 pub struct BuildArgs {
-    #[clap(long, action, help = "Build using Docker for reproducible builds.")]
+    #[cfg_attr(
+        feature = "clap",
+        clap(long, action, help = "Build using Docker for reproducible builds.")
+    )]
     pub docker: bool,
-    #[clap(long, action, help = "Ignore Rust version check.")]
+    #[cfg_attr(
+        feature = "clap",
+        clap(long, action, help = "Ignore Rust version check.")
+    )]
     pub ignore_rust_version: bool,
-    #[clap(long, action, help = "If building a binary, specify the name.")]
+    #[cfg_attr(
+        feature = "clap",
+        clap(long, action, help = "If building a binary, specify the name.")
+    )]
     pub binary: Option<String>,
-    #[clap(long, action, help = "ELF binary name.")]
+    #[cfg_attr(feature = "clap", clap(long, action, help = "ELF binary name."))]
     pub elf: Option<String>,
-    #[clap(long, action, help = "Build with features.")]
+    #[cfg_attr(feature = "clap", clap(long, action, help = "Build with features."))]
     pub features: Vec<String>,
 }
 
@@ -25,7 +36,8 @@ fn current_datetime() -> String {
     now.format("%Y-%m-%d %H:%M:%S").to_string()
 }
 
-pub fn build_program(path: &str, args: Option<BuildArgs>) {
+/// Re-run the cargo command if the Cargo.toml or Cargo.lock file changes.
+pub fn cargo_rerun_if_changed(path: &str) {
     println!("path: {:?}", path);
     let program_dir = std::path::Path::new(path);
 
@@ -55,8 +67,28 @@ pub fn build_program(path: &str, args: Option<BuildArgs>) {
         root_package_name,
         current_datetime()
     );
+}
 
-    let status = execute_build_cmd(&program_dir, args)
+/// Builds the program if the program at path, or one of its dependencies, changes.
+/// Note: This function is kept for backwards compatibility.
+pub fn build_program(path: &str) {
+    // Activate the build command if the dependencies change.
+    cargo_rerun_if_changed(path);
+
+    let status = execute_build_cmd(&program_dir, None)
+        .unwrap_or_else(|_| panic!("Failed to build `{}`.", root_package_name));
+    if !status.success() {
+        panic!("Failed to build `{}`.", root_package_name);
+    }
+}
+
+/// Builds the program with the given arguments if the program at path, or one of its dependencies,
+/// changes.
+pub fn build_program_with_args(path: &str, args: BuildArgs) {
+    // Activate the build command if the dependencies change.
+    cargo_rerun_if_changed(path);
+
+    let status = execute_build_cmd(&program_dir, Some(args))
         .unwrap_or_else(|_| panic!("Failed to build `{}`.", root_package_name));
     if !status.success() {
         panic!("Failed to build `{}`.", root_package_name);
@@ -108,6 +140,7 @@ fn execute_build_cmd(
     }
 
     let mut cargo_prove_build_args = vec!["prove".to_string(), "build".to_string()];
+    /// Add the arguments for the `cargo prove build` CLI to the command.
     if let Some(args) = args {
         add_cargo_prove_build_args(&mut cargo_prove_build_args, args, is_clippy_driver);
     }
