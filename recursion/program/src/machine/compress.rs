@@ -355,20 +355,6 @@ where
                 {
                     builder.assign(*digest, *current_digest);
                 }
-
-                // Initialize the start reconstruct deferred digest.
-                for (digest, first_digest, global_digest) in izip!(
-                    reconstruct_deferred_digest.iter(),
-                    current_public_values
-                        .start_reconstruct_deferred_digest
-                        .iter(),
-                    reduce_public_values
-                        .start_reconstruct_deferred_digest
-                        .iter()
-                ) {
-                    builder.assign(*digest, *first_digest);
-                    builder.assign(*global_digest, *first_digest);
-                }
             });
 
             // Assert that the current values match the accumulated values.
@@ -490,6 +476,14 @@ where
                         current_public_values.deferred_proofs_digest[i],
                     );
                 }
+            }
+
+            // Update the deferred proof digest.
+            for (digest, current_digest) in reconstruct_deferred_digest
+                .iter()
+                .zip_eq(current_public_values.end_reconstruct_deferred_digest.iter())
+            {
+                builder.assign(*digest, *current_digest);
             }
 
             // Update the accumulated values.
