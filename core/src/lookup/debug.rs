@@ -206,7 +206,6 @@ where
 
 #[cfg(test)]
 mod test {
-    use hashbrown::HashMap;
 
     use crate::{
         lookup::InteractionKind,
@@ -226,9 +225,8 @@ mod test {
         let (pk, _) = machine.setup(&program);
         let mut runtime = Runtime::new(program, SP1CoreOpts::default());
         runtime.run().unwrap();
-        let mut syscall_lookups: HashMap<u32, usize> = HashMap::new();
         let opts = SP1CoreOpts::default();
-        machine.generate_dependencies(&mut runtime.records, &mut syscall_lookups, &opts);
+        machine.generate_dependencies(&mut runtime.records, &opts);
 
         let shards = runtime.records;
         let ok =

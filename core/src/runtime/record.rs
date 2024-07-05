@@ -8,7 +8,6 @@ use serde::{Deserialize, Serialize};
 
 use super::program::Program;
 use super::Opcode;
-use super::SyscallCode;
 use crate::air::PublicValues;
 use crate::alu::AluEvent;
 use crate::bytes::event::ByteRecord;
@@ -191,11 +190,27 @@ impl MachineRecord for ExecutionRecord {
             "uint256_mul_events".to_string(),
             self.uint256_mul_events.len(),
         );
-
         stats.insert(
             "bls12381_decompress_events".to_string(),
             self.bls12381_decompress_events.len(),
         );
+        stats.insert(
+            "memory_initialize_events".to_string(),
+            self.memory_initialize_events.len(),
+        );
+        stats.insert(
+            "memory_finalize_events".to_string(),
+            self.memory_finalize_events.len(),
+        );
+        if !self.cpu_events.is_empty() {
+            let shard = self.cpu_events[0].shard;
+            stats.insert(
+                "byte_lookups".to_string(),
+                self.byte_lookups.get(&shard).map_or(0, |v| v.len()),
+            );
+        }
+        // Filter out the empty events.
+        stats.retain(|_, v| *v != 0);
         stats
     }
 
@@ -258,7 +273,7 @@ impl MachineRecord for ExecutionRecord {
             .append(&mut other.memory_finalize_events);
     }
 
-    fn register_nonces(&mut self, syscall_lookups: &mut HashMap<u32, usize>, opts: &Self::Config) {
+    fn register_nonces(&mut self, _opts: &Self::Config) {
         self.add_events.iter().enumerate().for_each(|(i, event)| {
             self.nonce_lookup.insert(event.lookup_id, i as u32);
         });
@@ -303,170 +318,9 @@ impl MachineRecord for ExecutionRecord {
         self.lt_events.iter().enumerate().for_each(|(i, event)| {
             self.nonce_lookup.insert(event.lookup_id, i as u32);
         });
-
-        let count = syscall_lookups
-            .entry(SyscallCode::KECCAK_PERMUTE as u32)
-            .or_insert(0);
-        self.keccak_permute_events.iter().for_each(|event| {
-            self.nonce_lookup.insert(
-                event.lookup_id,
-                ((*count % opts.split_opts.keccak_split_threshold) * 24) as u32,
-            );
-            *count += 1;
-        });
-
-        let count = syscall_lookups
-            .entry(SyscallCode::SECP256K1_ADD as u32)
-            .or_insert(0);
-        self.secp256k1_add_events.iter().for_each(|event| {
-            self.nonce_lookup.insert(
-                event.lookup_id,
-                (*count % opts.split_opts.deferred_shift_threshold) as u32,
-            );
-            *count += 1;
-        });
-
-        let count = syscall_lookups
-            .entry(SyscallCode::SECP256K1_DOUBLE as u32)
-            .or_insert(0);
-        self.secp256k1_double_events.iter().for_each(|event| {
-            self.nonce_lookup.insert(
-                event.lookup_id,
-                (*count % opts.split_opts.deferred_shift_threshold) as u32,
-            );
-            *count += 1;
-        });
-
-        let count = syscall_lookups
-            .entry(SyscallCode::BN254_ADD as u32)
-            .or_insert(0);
-        self.bn254_add_events.iter().for_each(|event| {
-            self.nonce_lookup.insert(
-                event.lookup_id,
-                (*count % opts.split_opts.deferred_shift_threshold) as u32,
-            );
-            *count += 1;
-        });
-
-        let count = syscall_lookups
-            .entry(SyscallCode::BN254_DOUBLE as u32)
-            .or_insert(0);
-        self.bn254_double_events.iter().for_each(|event| {
-            self.nonce_lookup.insert(
-                event.lookup_id,
-                (*count % opts.split_opts.deferred_shift_threshold) as u32,
-            );
-            *count += 1;
-        });
-
-        let count = syscall_lookups
-            .entry(SyscallCode::BLS12381_ADD as u32)
-            .or_insert(0);
-        self.bls12381_add_events.iter().for_each(|event| {
-            self.nonce_lookup.insert(
-                event.lookup_id,
-                (*count % opts.split_opts.deferred_shift_threshold) as u32,
-            );
-            *count += 1;
-        });
-
-        let count = syscall_lookups
-            .entry(SyscallCode::BLS12381_DOUBLE as u32)
-            .or_insert(0);
-        self.bls12381_double_events.iter().for_each(|event| {
-            self.nonce_lookup.insert(
-                event.lookup_id,
-                (*count % opts.split_opts.deferred_shift_threshold) as u32,
-            );
-            *count += 1;
-        });
-        self.bls12381_double_events
-            .iter()
-            .enumerate()
-            .for_each(|(i, event)| {
-                self.nonce_lookup.insert(event.lookup_id, i as u32);
-            });
-
-        let count = syscall_lookups
-            .entry(SyscallCode::SHA_EXTEND as u32)
-            .or_insert(0);
-        self.sha_extend_events.iter().for_each(|event| {
-            self.nonce_lookup.insert(
-                event.lookup_id,
-                ((*count % opts.split_opts.sha_extend_split_threshold) * 48) as u32,
-            );
-            *count += 1;
-        });
-
-        let count = syscall_lookups
-            .entry(SyscallCode::SHA_COMPRESS as u32)
-            .or_insert(0);
-        self.sha_compress_events.iter().for_each(|event| {
-            self.nonce_lookup.insert(
-                event.lookup_id,
-                ((*count % opts.split_opts.sha_compress_split_threshold) * 80) as u32,
-            );
-            *count += 1;
-        });
-
-        let count = syscall_lookups
-            .entry(SyscallCode::ED_ADD as u32)
-            .or_insert(0);
-        self.ed_add_events.iter().for_each(|event| {
-            self.nonce_lookup.insert(
-                event.lookup_id,
-                (*count % opts.split_opts.deferred_shift_threshold) as u32,
-            );
-            *count += 1;
-        });
-
-        let count = syscall_lookups
-            .entry(SyscallCode::ED_DECOMPRESS as u32)
-            .or_insert(0);
-        self.ed_decompress_events.iter().for_each(|event| {
-            self.nonce_lookup.insert(
-                event.lookup_id,
-                (*count % opts.split_opts.deferred_shift_threshold) as u32,
-            );
-            *count += 1;
-        });
-
-        let count = syscall_lookups
-            .entry(SyscallCode::SECP256K1_DECOMPRESS as u32)
-            .or_insert(0);
-        self.k256_decompress_events.iter().for_each(|event| {
-            self.nonce_lookup.insert(
-                event.lookup_id,
-                (*count % opts.split_opts.deferred_shift_threshold) as u32,
-            );
-            *count += 1;
-        });
-
-        let count = syscall_lookups
-            .entry(SyscallCode::UINT256_MUL as u32)
-            .or_insert(0);
-        self.uint256_mul_events.iter().for_each(|event| {
-            self.nonce_lookup.insert(
-                event.lookup_id,
-                (*count % opts.split_opts.deferred_shift_threshold) as u32,
-            );
-            *count += 1;
-        });
-
-        let count = syscall_lookups
-            .entry(SyscallCode::BLS12381_DECOMPRESS as u32)
-            .or_insert(0);
-        self.bls12381_decompress_events.iter().for_each(|event| {
-            self.nonce_lookup.insert(
-                event.lookup_id,
-                (*count % opts.split_opts.deferred_shift_threshold) as u32,
-            );
-            *count += 1;
-        });
     }
 
     /// Retrieves the public values.  This method is needed for the `MachineRecord` trait, since
-    /// the public values digest is used by the prover.
     fn public_values<F: AbstractField>(&self) -> Vec<F> {
         self.public_values.to_vec()
     }

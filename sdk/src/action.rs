@@ -72,7 +72,7 @@ impl<'a> Execute<'a> {
 /// Builder to prepare and configure proving execution of a program on an input.
 /// May be run with [Self::run].
 pub struct Prove<'a> {
-    prover: &'a dyn Prover,
+    prover: &'a dyn Prover<DefaultProverComponents>,
     kind: SP1ProofKind,
     context_builder: SP1ContextBuilder<'a>,
     pk: &'a SP1ProvingKey,
@@ -85,7 +85,11 @@ impl<'a> Prove<'a> {
     ///
     /// Prefer using [ProverClient::prove](super::ProverClient::prove).
     /// See there for more documentation.
-    pub fn new(prover: &'a dyn Prover, pk: &'a SP1ProvingKey, stdin: SP1Stdin) -> Self {
+    pub fn new(
+        prover: &'a dyn Prover<DefaultProverComponents>,
+        pk: &'a SP1ProvingKey,
+        stdin: SP1Stdin,
+    ) -> Self {
         Self {
             prover,
             kind: Default::default(),

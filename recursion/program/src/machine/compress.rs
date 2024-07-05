@@ -9,7 +9,7 @@ use p3_baby_bear::BabyBear;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::{AbstractField, PrimeField32, TwoAdicField};
 use serde::{Deserialize, Serialize};
-use sp1_core::air::MachineAir;
+use sp1_core::air::{MachineAir, WORD_SIZE};
 use sp1_core::air::{Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS};
 use sp1_core::stark::StarkMachine;
 use sp1_core::stark::{Com, ShardProof, StarkGenericConfig, StarkVerifyingKey};
@@ -30,7 +30,7 @@ use crate::stark::{RecursiveVerifierConstraintFolder, StarkVerifier};
 use crate::types::ShardProofVariable;
 use crate::types::VerifyingKeyVariable;
 use crate::utils::{
-    assert_challenger_eq_pv, assign_challenger_from_pv, const_fri_config,
+    assert_challenger_eq_pv, assign_challenger_from_pv, const_fri_config, felt2var,
     get_challenger_public_values, hash_vkey,
 };
 
@@ -355,20 +355,6 @@ where
                 {
                     builder.assign(*digest, *current_digest);
                 }
-
-                // Initialize the start reconstruct deferred digest.
-                for (digest, first_digest, global_digest) in izip!(
-                    reconstruct_deferred_digest.iter(),
-                    current_public_values
-                        .start_reconstruct_deferred_digest
-                        .iter(),
-                    reduce_public_values
-                        .start_reconstruct_deferred_digest
-                        .iter()
-                ) {
-                    builder.assign(*digest, *first_digest);
-                    builder.assign(*global_digest, *first_digest);
-                }
             });
 
             // Assert that the current values match the accumulated values.
@@ -396,8 +382,6 @@ where
             builder.assert_felt_eq(pc, current_public_values.start_pc);
 
             // Verfiy that the shard is equal to the current shard.
-            builder.print_f(shard);
-            builder.print_f(current_public_values.start_execution_shard);
             builder.assert_felt_eq(shard, current_public_values.start_execution_shard);
 
             // Assert that the leaf challenger is always the same.
@@ -430,25 +414,69 @@ where
                 current_public_values.start_reconstruct_challenger,
             );
 
-            // Assert that the commited digests are the same.
-            for (word, current_word) in committed_value_digest
-                .iter()
-                .zip_eq(current_public_values.committed_value_digest.iter())
+            // Digest constraints.
             {
-                for (byte, current_byte) in word.0.iter().zip_eq(current_word.0.iter()) {
-                    builder.assert_felt_eq(*byte, *current_byte);
+                // If `commited_value_digest` is not zero, then `public_values.commited_value_digest
+                // should be the current value.
+                let is_zero: Var<_> = builder.eval(C::N::one());
+                #[allow(clippy::needless_range_loop)]
+                for i in 0..committed_value_digest.len() {
+                    for j in 0..WORD_SIZE {
+                        let d = felt2var(builder, committed_value_digest[i][j]);
+                        builder.if_ne(d, C::N::zero()).then(|builder| {
+                            builder.assign(is_zero, C::N::zero());
+                        });
+                    }
+                }
+                builder.if_eq(is_zero, C::N::zero()).then(|builder| {
+                    #[allow(clippy::needless_range_loop)]
+                    for i in 0..committed_value_digest.len() {
+                        for j in 0..WORD_SIZE {
+                            builder.assert_felt_eq(
+                                committed_value_digest[i][j],
+                                current_public_values.committed_value_digest[i][j],
+                            );
+                        }
+                    }
+                });
+
+                // Update the committed value digest.
+                #[allow(clippy::needless_range_loop)]
+                for i in 0..committed_value_digest.len() {
+                    for j in 0..WORD_SIZE {
+                        builder.assign(
+                            committed_value_digest[i][j],
+                            current_public_values.committed_value_digest[i][j],
+                        );
+                    }
+                }
+
+                // If `deferred_proofs_digest` is not zero, then `public_values.deferred_proofs_digest
+                // should be the current value.
+                let is_zero: Var<_> = builder.eval(C::N::zero());
+                #[allow(clippy::needless_range_loop)]
+                for i in 0..deferred_proofs_digest.len() {
+                    let d = felt2var(builder, deferred_proofs_digest[i]);
+                    builder.if_ne(d, C::N::zero()).then(|builder| {
+                        builder.assign(is_zero, C::N::zero());
+                    });
+                }
+                builder.if_eq(is_zero, C::N::zero()).then(|builder| {
+                    builder.assert_felt_eq(
+                        deferred_proofs_digest[0],
+                        current_public_values.deferred_proofs_digest[0],
+                    );
+                });
+
+                // Update the deferred proofs digest.
+                #[allow(clippy::needless_range_loop)]
+                for i in 0..deferred_proofs_digest.len() {
+                    builder.assign(
+                        deferred_proofs_digest[i],
+                        current_public_values.deferred_proofs_digest[i],
+                    );
                 }
             }
-
-            // Assert that the deferred proof digests are the same.
-            for (digest, current_digest) in deferred_proofs_digest
-                .iter()
-                .zip_eq(current_public_values.deferred_proofs_digest.iter())
-            {
-                builder.assert_felt_eq(*digest, *current_digest);
-            }
-
-            // Update the accumulated values.
 
             // Update the deferred proof digest.
             for (digest, current_digest) in reconstruct_deferred_digest

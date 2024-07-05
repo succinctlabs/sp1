@@ -13,7 +13,7 @@ use crate::{
     utils::BabyBearPoseidon2,
 };
 
-use super::{ExecutionRecord, MemoryAccessRecord, MemoryRecord};
+use super::{ExecutionRecord, MemoryAccessRecord, MemoryRecord, SyscallCode};
 
 /// Holds data describing the current state of a program's execution.
 #[serde_as]
@@ -64,6 +64,9 @@ pub struct ExecutionState {
 
     /// A ptr to the current position in the public values stream, incremented when reading from public_values_stream.
     pub public_values_stream_ptr: usize,
+
+    /// Keeps track of how many times a certain syscall has been called.
+    pub syscall_counts: HashMap<SyscallCode, u64>,
 }
 
 impl ExecutionState {
@@ -83,6 +86,7 @@ impl ExecutionState {
             public_values_stream_ptr: 0,
             proof_stream: Vec::new(),
             proof_stream_ptr: 0,
+            syscall_counts: HashMap::new(),
         }
     }
 }

@@ -1,4 +1,3 @@
-use hashbrown::HashMap;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::cmp::Reverse;
@@ -62,11 +61,9 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>> {
     fn generate_dependencies(
         &self,
         records: &mut [A::Record],
-        syscall_lookups: &mut HashMap<u32, usize>,
         opts: &<A::Record as MachineRecord>::Config,
     ) {
-        self.machine()
-            .generate_dependencies(records, syscall_lookups, opts)
+        self.machine().generate_dependencies(records, opts)
     }
 
     fn setup(&self, program: &A::Program) -> (StarkProvingKey<SC>, StarkVerifyingKey<SC>) {
@@ -116,14 +113,13 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>> {
         A: for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
     {
         let chips = self.machine().chips();
-        let mut syscall_lookups: HashMap<u32, usize> = HashMap::new();
         records.iter_mut().for_each(|record| {
             chips.iter().for_each(|chip| {
                 let mut output = A::Record::default();
                 chip.generate_dependencies(record, &mut output);
                 record.append(&mut output);
             });
-            record.register_nonces(&mut syscall_lookups, &opts);
+            record.register_nonces(&opts);
         });
 
         tracing::info_span!("prove_shards")

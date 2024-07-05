@@ -238,7 +238,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
     pub fn generate_dependencies(
         &self,
         records: &mut [A::Record],
-        syscall_lookups: &mut HashMap<u32, usize>,
         opts: &<A::Record as MachineRecord>::Config,
     ) {
         let chips = self.chips();
@@ -248,7 +247,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                 chip.generate_dependencies(record, &mut output);
                 record.append(&mut output);
             });
-            record.register_nonces(syscall_lookups, opts);
+            record.register_nonces(opts);
         });
     }
 

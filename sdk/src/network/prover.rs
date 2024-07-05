@@ -20,7 +20,7 @@ use crate::provers::{LocalProver, ProverType};
 /// An implementation of [crate::ProverClient] that can generate proofs on a remote RPC server.
 pub struct NetworkProver {
     client: NetworkClient,
-    local_prover: LocalProver,
+    local_prover: LocalProver<DefaultProverComponents>,
 }
 
 impl NetworkProver {
@@ -121,7 +121,7 @@ impl NetworkProver {
     }
 }
 
-impl Prover for NetworkProver {
+impl Prover<DefaultProverComponents> for NetworkProver {
     fn id(&self) -> ProverType {
         ProverType::Network
     }
