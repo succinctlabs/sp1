@@ -85,6 +85,7 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
             .chain(input.sub_events.iter())
             .collect::<Vec<_>>();
 
+        let populate_time = std::time::Instant::now();
         let (chunks_rows, chunks_blus): (Vec<_>, Vec<_>) = merged_events
             .par_chunks(chunk_size)
             .map(|events| {
@@ -118,17 +119,29 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
                 (rows, blu)
             })
             .unzip();
+        let populate_time = populate_time.elapsed();
+        log::info!(
+            "Populated {} rows in {:?}",
+            chunks_rows.iter().map(|x| x.len()).sum::<usize>(),
+            populate_time
+        );
 
+        let add_byte_lookup_time = std::time::Instant::now();
         for blu_event in chunks_blus.into_iter() {
             for (shard, events) in blu_event.iter() {
                 output.add_byte_lookup_events_for_shard(*shard, events.clone());
             }
         }
+        let add_byte_lookup_time = add_byte_lookup_time.elapsed();
+        log::info!("Added byte lookups in {:?}", add_byte_lookup_time);
 
+        let rows_flatten_time = std::time::Instant::now();
         let mut rows: Vec<[F; NUM_ADD_SUB_COLS]> = vec![];
         chunks_rows
             .iter()
             .for_each(|chunk_row| rows.extend(chunk_row));
+        let rows_flatten_time = rows_flatten_time.elapsed();
+        log::info!("Flattened {} rows in {:?}", rows.len(), rows_flatten_time);
 
         // Convert the trace to a row major matrix.
         let mut trace = RowMajorMatrix::new(
@@ -137,14 +150,20 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
         );
 
         // Pad the trace to a power of two.
+        let pad_time = std::time::Instant::now();
         pad_to_power_of_two::<NUM_ADD_SUB_COLS, F>(&mut trace.values);
+        let pad_time = pad_time.elapsed();
+        log::info!("Padded trace in {:?}", pad_time);
 
         // Write the nonces to the trace.
+        let nonce_time = std::time::Instant::now();
         for i in 0..trace.height() {
             let cols: &mut AddSubCols<F> =
                 trace.values[i * NUM_ADD_SUB_COLS..(i + 1) * NUM_ADD_SUB_COLS].borrow_mut();
             cols.nonce = F::from_canonical_usize(i);
         }
+        let nonce_time = nonce_time.elapsed();
+        log::info!("Wrote nonces in {:?}", nonce_time);
 
         trace
     }
