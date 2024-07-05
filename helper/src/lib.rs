@@ -3,6 +3,7 @@ use chrono::Local;
 use clap::Parser;
 use std::{
     io::{BufRead, BufReader},
+    path::Path,
     process::{Command, Stdio},
     thread,
 };
@@ -18,6 +19,15 @@ pub struct BuildArgs {
         clap(long, action, help = "Build using Docker for reproducible builds.")
     )]
     pub docker: bool,
+    #[cfg_attr(
+        feature = "clap",
+        clap(
+            long,
+            help = "The ghcr.io/succinctlabs/sp1 image tag to use when building with docker.",
+            default_value = "latest"
+        )
+    )]
+    pub tag: String,
     #[cfg_attr(
         feature = "clap",
         clap(long, action, help = "Ignore Rust version check.")
@@ -40,7 +50,7 @@ fn current_datetime() -> String {
 }
 
 /// Re-run the cargo command if the Cargo.toml or Cargo.lock file changes.
-pub fn cargo_rerun_if_changed(path: &str) {
+pub fn cargo_rerun_if_changed(path: &str) -> (&Path, String) {
     println!("path: {:?}", path);
     let program_dir = std::path::Path::new(path);
 
@@ -70,13 +80,15 @@ pub fn cargo_rerun_if_changed(path: &str) {
         root_package_name,
         current_datetime()
     );
+
+    (program_dir, root_package_name.to_string())
 }
 
 /// Builds the program if the program at path, or one of its dependencies, changes.
 /// Note: This function is kept for backwards compatibility.
 pub fn build_program(path: &str) {
     // Activate the build command if the dependencies change.
-    cargo_rerun_if_changed(path);
+    let (program_dir, root_package_name) = cargo_rerun_if_changed(path);
 
     let status = execute_build_cmd(&program_dir, None)
         .unwrap_or_else(|_| panic!("Failed to build `{}`.", root_package_name));
@@ -89,7 +101,7 @@ pub fn build_program(path: &str) {
 /// changes.
 pub fn build_program_with_args(path: &str, args: BuildArgs) {
     // Activate the build command if the dependencies change.
-    cargo_rerun_if_changed(path);
+    let (program_dir, root_package_name) = cargo_rerun_if_changed(path);
 
     let status = execute_build_cmd(&program_dir, Some(args))
         .unwrap_or_else(|_| panic!("Failed to build `{}`.", root_package_name));
@@ -143,7 +155,7 @@ fn execute_build_cmd(
     }
 
     let mut cargo_prove_build_args = vec!["prove".to_string(), "build".to_string()];
-    /// Add the arguments for the `cargo prove build` CLI to the command.
+    // Add the arguments for the `cargo prove build` CLI to the command.
     if let Some(args) = args {
         add_cargo_prove_build_args(&mut cargo_prove_build_args, args, is_clippy_driver);
     }

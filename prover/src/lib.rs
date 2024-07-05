@@ -255,8 +255,9 @@ impl SP1Prover {
             .get_or_insert_with(|| Arc::new(self));
         let config = CoreSC::default();
         let program = Program::from(&pk.elf);
-        let (proof, public_values_stream) =
+        let (proof, public_values_stream, cycles) =
             sp1_core::utils::prove_with_context(program, stdin, config, opts.core_opts, context)?;
+        Self::check_for_high_cycles(cycles);
         let public_values = SP1PublicValues::from(&public_values_stream);
         Ok(SP1CoreProof {
             proof: SP1CoreProofData(proof.shard_proofs),
@@ -677,6 +678,12 @@ impl SP1Prover {
             );
         }
         digest
+    }
+
+    fn check_for_high_cycles(cycles: u64) {
+        if cycles > 100_000_000 {
+            tracing::warn!("high cycle count, consider using the prover network for proof generation: https://docs.succinct.xyz/prover-network/setup.html");
+        }
     }
 }
 

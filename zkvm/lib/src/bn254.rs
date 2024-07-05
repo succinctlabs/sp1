@@ -7,8 +7,9 @@ pub struct Bn254;
 const NUM_WORDS: usize = 16;
 
 impl CurveOperations<NUM_WORDS> for Bn254 {
-    // The values has been taken from py_ecc python library by Ethereum Foundation.
-    // https://github.com/ethereum/py_pairing/blob/5f609da/py_ecc/bn128/bn128_field_elements.py
+    /// The generator has been taken from py_pairing python library by the Ethereum Foundation:
+    ///
+    /// https://github.com/ethereum/py_pairing/blob/5f609da/py_ecc/bn128/bn128_field_elements.py
     const GENERATOR: [u32; NUM_WORDS] = [1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0];
 
     fn add_assign(limbs: &mut [u32; NUM_WORDS], other: &[u32; NUM_WORDS]) {
