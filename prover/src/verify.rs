@@ -42,11 +42,13 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         proof: &SP1CoreProofData,
         vk: &SP1VerifyingKey,
     ) -> Result<(), MachineVerificationError<CoreSC>> {
-        let mut challenger = self.core_machine.config().challenger();
+        let mut challenger = self.core_prover.config().challenger();
         let machine_proof = MachineProof {
             shard_proofs: proof.0.to_vec(),
         };
-        self.core_machine
+
+        self.core_prover
+            .machine()
             .verify(&vk.vk, &machine_proof, &mut challenger)?;
 
         // Assert that the first shard has a "CPU".
