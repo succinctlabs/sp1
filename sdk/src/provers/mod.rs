@@ -17,6 +17,7 @@ use sp1_prover::{SP1ProvingKey, SP1Stdin, SP1VerifyingKey};
 use strum_macros::EnumString;
 use thiserror::Error;
 
+use crate::install::try_install_plonk_bn254_artifacts;
 use crate::SP1Proof;
 use crate::SP1ProofKind;
 use crate::SP1ProofWithPublicValues;
@@ -94,7 +95,7 @@ pub trait Prover: Send + Sync {
                     &if sp1_prover::build::sp1_dev_mode() {
                         sp1_prover::build::plonk_bn254_artifacts_dev_dir()
                     } else {
-                        sp1_prover::build::try_install_plonk_bn254_artifacts()
+                        try_install_plonk_bn254_artifacts()
                     },
                 )
                 .map_err(SP1VerificationError::Plonk),

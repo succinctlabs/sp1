@@ -11,7 +11,6 @@
 #![allow(clippy::new_without_default)]
 
 pub mod build;
-pub mod install;
 pub mod types;
 pub mod utils;
 pub mod verify;
