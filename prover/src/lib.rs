@@ -744,7 +744,7 @@ pub mod tests {
 
     pub fn test_e2e_prover<C: SP1ProverComponents>(elf: &[u8], test_kind: Test) -> Result<()> {
         tracing::info!("initializing prover");
-        let prover: SP1Prover = SP1Prover::new();
+        let prover: SP1Prover<C> = SP1Prover::<C>::new();
         let opts = SP1ProverOpts::default();
         let context = SP1Context::default();
 
