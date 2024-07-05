@@ -256,21 +256,8 @@ impl MachineRecord for ExecutionRecord {
         self.bls12381_decompress_events
             .append(&mut other.bls12381_decompress_events);
 
-        // Merge the byte lookups.
-        for (shard, events_map) in std::mem::take(&mut other.byte_lookups).into_iter() {
-            match self.byte_lookups.get_mut(&shard) {
-                Some(existing) => {
-                    // If there's already a map for this shard, update counts for each event.
-                    for (event, count) in events_map.iter() {
-                        *existing.entry(*event).or_insert(0) += count;
-                    }
-                }
-                None => {
-                    // If there isn't a map for this shard, insert the whole map.
-                    self.byte_lookups.insert(shard, events_map);
-                }
-            }
-        }
+        self.byte_lookups
+            .add_byte_lookup_events_for_shard(&mut other.byte_lookups);
 
         self.memory_initialize_events
             .append(&mut other.memory_initialize_events);
