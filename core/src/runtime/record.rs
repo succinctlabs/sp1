@@ -599,6 +599,8 @@ impl ByteRecord for ExecutionRecord {
             self_blu_maps.push(self.byte_lookups.remove(shard));
         }
 
+        println!("num_shards is {}", shards.len());
+
         shards
             .par_iter()
             .zip_eq(self_blu_maps.par_iter_mut())

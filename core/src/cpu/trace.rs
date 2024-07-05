@@ -69,6 +69,8 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
     fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
         // Generate the trace rows for each event.
         let chunk_size = std::cmp::max(input.cpu_events.len() / num_cpus::get(), 1);
+
+        let gather_events_time = std::time::Instant::now();
         let (alu_events, blu_events): (Vec<_>, Vec<_>) = input
             .cpu_events
             .par_chunks(chunk_size)
@@ -94,14 +96,22 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
                 (alu, blu)
             })
             .unzip();
+        let gather_events_time = gather_events_time.elapsed();
+        tracing::debug!("gather events time: {:?}", gather_events_time);
 
+        let alu_events_time = std::time::Instant::now();
         for alu_events_chunk in alu_events.into_iter() {
             output.add_alu_events(alu_events_chunk);
         }
+        let alu_events_time = alu_events_time.elapsed();
+        tracing::debug!("add alu events time: {:?}", alu_events_time);
 
+        let blu_events_time = std::time::Instant::now();
         for mut blu_event in blu_events.into_iter() {
             output.add_byte_lookup_events_for_shard(&mut blu_event);
         }
+        let blu_events_time = blu_events_time.elapsed();
+        tracing::debug!("add blu events time: {:?}", blu_events_time);
     }
 
     fn included(&self, input: &Self::Record) -> bool {
