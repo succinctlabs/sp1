@@ -235,7 +235,11 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         )
     }
 
-    pub fn generate_dependencies(&self, records: &mut [A::Record]) {
+    pub fn generate_dependencies(
+        &self,
+        records: &mut [A::Record],
+        opts: &<A::Record as MachineRecord>::Config,
+    ) {
         let chips = self.chips();
         records.iter_mut().for_each(|record| {
             chips.iter().for_each(|chip| {
@@ -243,7 +247,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                 chip.generate_dependencies(record, &mut output);
                 record.append(&mut output);
             });
-            record.register_nonces();
+            record.register_nonces(opts);
         });
     }
 

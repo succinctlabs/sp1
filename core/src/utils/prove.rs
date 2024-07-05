@@ -116,11 +116,6 @@ pub fn prove_with_context<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<
 where
     SC::Val: PrimeField32,
     SC::Challenger: Clone,
-    //     OpeningProof<SC>: Send + Sync,
-    //     Com<SC>: Send + Sync,
-    //     PcsProverData<SC>: Send + Sync,
-    //     ShardMainData<SC>: Serialize + DeserializeOwned,
-    //     <SC as StarkGenericConfig>::Val: PrimeField32,
 {
     // Record the start of the process.
     let proving_start = Instant::now();
@@ -187,7 +182,7 @@ where
         }
 
         // Generate the dependencies.
-        prover.generate_dependencies(&mut records);
+        prover.generate_dependencies(&mut records, &opts);
 
         // Defer events that are too expensive to include in every shard.
         for record in records.iter_mut() {
@@ -196,7 +191,10 @@ where
 
         // See if any deferred shards are ready to be commited to.
         let is_last_checkpoint = checkpoint_idx == nb_checkpoints - 1;
-        let mut deferred = deferred.split(is_last_checkpoint);
+        if is_last_checkpoint {
+            records.pop();
+        }
+        let mut deferred = deferred.split(is_last_checkpoint, opts.split_opts);
 
         // Update the public values & prover state for the shards which do not contain "cpu events"
         // before committing to them.
@@ -205,6 +203,7 @@ where
             state.last_init_addr_bits = record.public_values.last_init_addr_bits;
             state.previous_finalize_addr_bits = record.public_values.previous_finalize_addr_bits;
             state.last_finalize_addr_bits = record.public_values.last_finalize_addr_bits;
+            state.start_pc = state.next_pc;
             record.public_values = state;
         }
         records.append(&mut deferred);
@@ -251,7 +250,7 @@ where
         }
 
         // Generate the dependencies.
-        prover.generate_dependencies(&mut records);
+        prover.generate_dependencies(&mut records, &opts);
 
         // Defer events that are too expensive to include in every shard.
         for record in records.iter_mut() {
@@ -260,7 +259,10 @@ where
 
         // See if any deferred shards are ready to be commited to.
         let is_last_checkpoint = checkpoint_idx == nb_checkpoints - 1;
-        let mut deferred = deferred.split(is_last_checkpoint);
+        if is_last_checkpoint {
+            records.pop();
+        }
+        let mut deferred = deferred.split(is_last_checkpoint, opts.split_opts);
 
         // Update the public values & prover state for the shards which do not contain "cpu events"
         // before committing to them.
@@ -269,6 +271,7 @@ where
             state.last_init_addr_bits = record.public_values.last_init_addr_bits;
             state.previous_finalize_addr_bits = record.public_values.previous_finalize_addr_bits;
             state.last_finalize_addr_bits = record.public_values.last_finalize_addr_bits;
+            state.start_pc = state.next_pc;
             record.public_values = state;
         }
         records.append(&mut deferred);
@@ -389,6 +392,7 @@ where
         + Air<InteractionBuilder<Val<SC>>>
         + for<'a> Air<VerifierConstraintFolder<'a, SC>>
         + for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
+    A::Record: MachineRecord<Config = SP1CoreOpts>,
     SC: StarkGenericConfig,
     SC::Val: p3_field::PrimeField32,
     SC::Challenger: Clone,

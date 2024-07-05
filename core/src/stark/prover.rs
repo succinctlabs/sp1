@@ -58,8 +58,12 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>> {
         challenger: &mut SC::Challenger,
     ) -> Result<ShardProof<SC>, Self::Error>;
 
-    fn generate_dependencies(&self, records: &mut [A::Record]) {
-        self.machine().generate_dependencies(records)
+    fn generate_dependencies(
+        &self,
+        records: &mut [A::Record],
+        opts: &<A::Record as MachineRecord>::Config,
+    ) {
+        self.machine().generate_dependencies(records, opts)
     }
 
     fn setup(&self, program: &A::Program) -> (StarkProvingKey<SC>, StarkVerifyingKey<SC>) {
@@ -71,7 +75,7 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>> {
         pk: &StarkProvingKey<SC>,
         shards: Vec<A::Record>,
         challenger: &mut SC::Challenger,
-        opts: SP1CoreOpts,
+        opts: <A::Record as MachineRecord>::Config,
     ) -> Result<MachineProof<SC>, Self::Error>;
 
     /// The stark config for the machine.
@@ -103,7 +107,7 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>> {
         pk: &StarkProvingKey<SC>,
         mut records: Vec<A::Record>,
         challenger: &mut SC::Challenger,
-        opts: SP1CoreOpts,
+        opts: <A::Record as MachineRecord>::Config,
     ) -> Result<MachineProof<SC>, Self::Error>
     where
         A: for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
@@ -115,7 +119,7 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>> {
                 chip.generate_dependencies(record, &mut output);
                 record.append(&mut output);
             });
-            record.register_nonces();
+            record.register_nonces(&opts);
         });
 
         tracing::info_span!("prove_shards")
@@ -167,6 +171,7 @@ where
         + for<'a> Air<ProverConstraintFolder<'a, SC>>
         + Air<InteractionBuilder<Val<SC>>>
         + for<'a> Air<VerifierConstraintFolder<'a, SC>>,
+    A::Record: MachineRecord<Config = SP1CoreOpts>,
     SC::Val: PrimeField32,
     Com<SC>: Send + Sync,
     PcsProverData<SC>: Send + Sync,
@@ -426,8 +431,12 @@ where
         });
 
         // Collect the opened values for each chip.
-        let [preprocessed_values, main_values, permutation_values, mut quotient_values] =
-            openings.try_into().unwrap();
+        let [
+            preprocessed_values,
+            main_values,
+            permutation_values,
+            mut quotient_values,
+        ] = openings.try_into().unwrap();
         assert!(main_values.len() == chips.len());
         let preprocessed_opened_values = preprocessed_values
             .into_iter()

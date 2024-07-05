@@ -1,4 +1,6 @@
 use hashbrown::HashMap;
+use itertools::EitherOrBoth;
+use itertools::Itertools;
 use std::sync::Arc;
 
 use p3_field::AbstractField;
@@ -101,65 +103,29 @@ pub struct ExecutionRecord {
     pub nonce_lookup: HashMap<usize, u32>,
 }
 
-pub struct ShardingConfig {
-    pub shard_size: usize,
-    pub add_len: usize,
-    pub mul_len: usize,
-    pub sub_len: usize,
-    pub bitwise_len: usize,
-    pub shift_left_len: usize,
-    pub shift_right_len: usize,
-    pub divrem_len: usize,
-    pub lt_len: usize,
-    pub field_len: usize,
-    pub mem_init_len: usize,
-    pub mem_finalize_len: usize,
-    pub keccak_len: usize,
-    pub secp256k1_add_len: usize,
-    pub secp256k1_double_len: usize,
-    pub bn254_add_len: usize,
-    pub bn254_double_len: usize,
-    pub bls12381_add_len: usize,
-    pub bls12381_double_len: usize,
-    pub uint256_mul_len: usize,
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SplitOpts {
+    pub deferred_shift_threshold: usize,
+    pub keccak_split_threshold: usize,
+    pub sha_extend_split_threshold: usize,
+    pub sha_compress_split_threshold: usize,
+    pub memory_split_threshold: usize,
 }
 
-impl ShardingConfig {
-    pub const fn shard_size(&self) -> usize {
-        self.shard_size
-    }
-}
-
-impl Default for ShardingConfig {
-    fn default() -> Self {
-        let shard_size = SP1CoreOpts::default().shard_size;
+impl SplitOpts {
+    pub fn new(deferred_shift_threshold: usize) -> Self {
         Self {
-            shard_size,
-            add_len: shard_size,
-            sub_len: shard_size,
-            bitwise_len: shard_size,
-            shift_left_len: shard_size,
-            divrem_len: shard_size,
-            lt_len: shard_size,
-            mul_len: shard_size,
-            shift_right_len: shard_size,
-            mem_init_len: shard_size,
-            mem_finalize_len: shard_size,
-            field_len: shard_size * 4,
-            keccak_len: shard_size,
-            secp256k1_add_len: shard_size,
-            secp256k1_double_len: shard_size,
-            bn254_add_len: shard_size,
-            bn254_double_len: shard_size,
-            bls12381_add_len: shard_size,
-            bls12381_double_len: shard_size,
-            uint256_mul_len: shard_size,
+            deferred_shift_threshold,
+            keccak_split_threshold: deferred_shift_threshold / 24,
+            sha_extend_split_threshold: deferred_shift_threshold / 48,
+            sha_compress_split_threshold: deferred_shift_threshold / 80,
+            memory_split_threshold: deferred_shift_threshold,
         }
     }
 }
 
 impl MachineRecord for ExecutionRecord {
-    type Config = ShardingConfig;
+    type Config = SP1CoreOpts;
 
     fn stats(&self) -> HashMap<String, usize> {
         let mut stats = HashMap::new();
@@ -307,7 +273,7 @@ impl MachineRecord for ExecutionRecord {
             .append(&mut other.memory_finalize_events);
     }
 
-    fn register_nonces(&mut self) {
+    fn register_nonces(&mut self, _opts: &Self::Config) {
         self.add_events.iter().enumerate().for_each(|(i, event)| {
             self.nonce_lookup.insert(event.lookup_id, i as u32);
         });
@@ -355,7 +321,6 @@ impl MachineRecord for ExecutionRecord {
     }
 
     /// Retrieves the public values.  This method is needed for the `MachineRecord` trait, since
-    /// the public values digest is used by the prover.
     fn public_values<F: AbstractField>(&self) -> Vec<F> {
         self.public_values.to_vec()
     }
@@ -436,7 +401,7 @@ impl ExecutionRecord {
 
     /// Splits the deferred [ExecutionRecord] into multiple [ExecutionRecord]s, each which contain
     /// a "reasonable" number of deferred events.
-    pub fn split(&mut self, last: bool) -> Vec<ExecutionRecord> {
+    pub fn split(&mut self, last: bool, opts: SplitOpts) -> Vec<ExecutionRecord> {
         let mut shards = Vec::new();
 
         macro_rules! split_events {
@@ -470,92 +435,98 @@ impl ExecutionRecord {
             self,
             keccak_permute_events,
             shards,
-            DEFERRED_SPLIT_THRESHOLD,
+            opts.keccak_split_threshold,
             last
         );
         split_events!(
             self,
             secp256k1_add_events,
             shards,
-            DEFERRED_SPLIT_THRESHOLD,
+            opts.deferred_shift_threshold,
             last
         );
         split_events!(
             self,
             secp256k1_double_events,
             shards,
-            DEFERRED_SPLIT_THRESHOLD,
+            opts.deferred_shift_threshold,
             last
         );
         split_events!(
             self,
             bn254_add_events,
             shards,
-            DEFERRED_SPLIT_THRESHOLD,
+            opts.deferred_shift_threshold,
             last
         );
         split_events!(
             self,
             bn254_double_events,
             shards,
-            DEFERRED_SPLIT_THRESHOLD,
+            opts.deferred_shift_threshold,
             last
         );
         split_events!(
             self,
             bls12381_add_events,
             shards,
-            DEFERRED_SPLIT_THRESHOLD,
+            opts.deferred_shift_threshold,
             last
         );
         split_events!(
             self,
             bls12381_double_events,
             shards,
-            DEFERRED_SPLIT_THRESHOLD,
+            opts.deferred_shift_threshold,
             last
         );
         split_events!(
             self,
             sha_extend_events,
             shards,
-            DEFERRED_SPLIT_THRESHOLD,
+            opts.sha_extend_split_threshold,
             last
         );
         split_events!(
             self,
             sha_compress_events,
             shards,
-            DEFERRED_SPLIT_THRESHOLD,
+            opts.sha_compress_split_threshold,
             last
         );
-        split_events!(self, ed_add_events, shards, DEFERRED_SPLIT_THRESHOLD, last);
+        split_events!(
+            self,
+            ed_add_events,
+            shards,
+            opts.deferred_shift_threshold,
+            last
+        );
         split_events!(
             self,
             ed_decompress_events,
             shards,
-            DEFERRED_SPLIT_THRESHOLD,
+            opts.deferred_shift_threshold,
             last
         );
         split_events!(
             self,
             k256_decompress_events,
             shards,
-            DEFERRED_SPLIT_THRESHOLD,
+            opts.deferred_shift_threshold,
             last
         );
         split_events!(
             self,
             uint256_mul_events,
             shards,
-            DEFERRED_SPLIT_THRESHOLD,
+            opts.deferred_shift_threshold,
             last
         );
         split_events!(
             self,
             bls12381_decompress_events,
             shards,
-            DEFERRED_SPLIT_THRESHOLD,
+            opts.deferred_shift_threshold,
             last
         );
 
@@ -563,13 +534,24 @@ impl ExecutionRecord {
             self.memory_initialize_events
                 .sort_by_key(|event| event.addr);
             self.memory_finalize_events.sort_by_key(|event| event.addr);
+
             let mut init_addr_bits = [0; 32];
             let mut finalize_addr_bits = [0; 32];
-            for (mem_init_chunk, mem_finalize_chunk) in self
+            for mem_chunks in self
                 .memory_initialize_events
-                .chunks(DEFERRED_SPLIT_THRESHOLD)
-                .zip(self.memory_finalize_events.chunks(DEFERRED_SPLIT_THRESHOLD))
+                .chunks(opts.memory_split_threshold)
+                .zip_longest(
+                    self.memory_finalize_events
+                        .chunks(opts.memory_split_threshold),
+                )
             {
+                let (mem_init_chunk, mem_finalize_chunk) = match mem_chunks {
+                    EitherOrBoth::Both(mem_init_chunk, mem_finalize_chunk) => {
+                        (mem_init_chunk, mem_finalize_chunk)
+                    }
+                    EitherOrBoth::Left(mem_init_chunk) => (mem_init_chunk, [].as_slice()),
+                    EitherOrBoth::Right(mem_finalize_chunk) => ([].as_slice(), mem_finalize_chunk),
+                };
                 let mut shard = ExecutionRecord::default();
                 shard.program = self.program.clone();
                 shard
@@ -578,9 +560,9 @@ impl ExecutionRecord {
                 shard.public_values.previous_init_addr_bits = init_addr_bits;
                 if let Some(last_event) = mem_init_chunk.last() {
                     let last_init_addr_bits = core::array::from_fn(|i| (last_event.addr >> i) & 1);
-                    shard.public_values.last_init_addr_bits = last_init_addr_bits;
                     init_addr_bits = last_init_addr_bits;
                 }
+                shard.public_values.last_init_addr_bits = init_addr_bits;
 
                 shard
                     .memory_finalize_events
@@ -589,9 +571,9 @@ impl ExecutionRecord {
                 if let Some(last_event) = mem_finalize_chunk.last() {
                     let last_finalize_addr_bits =
                         core::array::from_fn(|i| (last_event.addr >> i) & 1);
-                    shard.public_values.last_finalize_addr_bits = last_finalize_addr_bits;
                     finalize_addr_bits = last_finalize_addr_bits;
                 }
+                shard.public_values.last_finalize_addr_bits = finalize_addr_bits;
 
                 shards.push(shard);
             }

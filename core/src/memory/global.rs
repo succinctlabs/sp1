@@ -299,22 +299,11 @@ where
         let is_first_row = builder.is_first_row();
         IsZeroOperation::<AB::F>::eval(builder, prev_addr, local.is_prev_addr_zero, is_first_row);
 
-        // Assert that in the first row, is_first_comp is zero if and only if
-        // addr == previous_addr == 0.
-        for (adrr_bit, prev_addr_bit) in local_addr_bits.iter().zip(prev_addr_bits.iter()) {
-            builder
-                .when(local.is_first_comp)
-                .assert_eq(prev_addr_bit.clone(), AB::F::zero());
-            builder
-                .when(local.is_first_comp)
-                .assert_eq(*adrr_bit, AB::F::zero());
-        }
-
-        // Constrain the is_next_comp column.
-        let is_first_row = builder.is_first_row();
-        builder.assert_eq(
+        // Constrain the is_first_comp column.
+        builder.assert_bool(local.is_first_comp);
+        builder.when_first_row().assert_eq(
             local.is_first_comp,
-            is_first_row * (AB::Expr::one() - local.is_prev_addr_zero.result),
+            AB::Expr::one() - local.is_prev_addr_zero.result,
         );
 
         // Constrain the inequality assertion in the first row.
@@ -325,7 +314,7 @@ where
             local.is_first_comp,
         );
 
-        // Make assertions for specific types of memory chips.
+        // // Make assertions for specific types of memory chips.
 
         if self.kind == MemoryChipType::Initialize {
             builder
@@ -345,7 +334,8 @@ where
         // `previous_finalize_addr_bits` to zero.
         for i in 0..32 {
             builder
-                .when(local.is_first_comp)
+                .when_first_row()
+                .when_not(local.is_first_comp)
                 .assert_zero(local.value[i]);
         }
 
@@ -416,7 +406,8 @@ mod tests {
         let machine: crate::stark::StarkMachine<BabyBearPoseidon2, RiscvAir<BabyBear>> =
             RiscvAir::machine(BabyBearPoseidon2::new());
         let (pkey, _) = machine.setup(&program_clone);
-        machine.generate_dependencies(&mut runtime.records);
+        let opts = SP1CoreOpts::default();
+        machine.generate_dependencies(&mut runtime.records, &opts);
 
         let shards = runtime.records;
         assert_eq!(shards.len(), 2);
@@ -437,7 +428,8 @@ mod tests {
         runtime.run().unwrap();
         let machine = RiscvAir::machine(BabyBearPoseidon2::new());
         let (pkey, _) = machine.setup(&program_clone);
-        machine.generate_dependencies(&mut runtime.records);
+        let opts = SP1CoreOpts::default();
+        machine.generate_dependencies(&mut runtime.records, &opts);
 
         let shards = runtime.records;
         assert_eq!(shards.len(), 2);
