@@ -742,10 +742,13 @@ pub mod tests {
         Plonk,
     }
 
-    pub fn test_e2e_prover<C: SP1ProverComponents>(elf: &[u8], test_kind: Test) -> Result<()> {
+    pub fn test_e2e_prover<C: SP1ProverComponents>(
+        elf: &[u8],
+        opts: SP1ProverOpts,
+        test_kind: Test,
+    ) -> Result<()> {
         tracing::info!("initializing prover");
-        let prover: SP1Prover = SP1Prover::new();
-        let opts = SP1ProverOpts::default();
+        let prover: SP1Prover<C> = SP1Prover::<C>::new();
         let context = SP1Context::default();
 
         tracing::info!("setup elf");
@@ -918,7 +921,8 @@ pub mod tests {
     fn test_e2e() -> Result<()> {
         let elf = include_bytes!("../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
         setup_logger();
-        test_e2e_prover::<DefaultProverComponents>(elf, Test::Plonk)
+        let opts = SP1ProverOpts::default();
+        test_e2e_prover::<DefaultProverComponents>(elf, opts, Test::Plonk)
     }
 
     /// Tests an end-to-end workflow of proving a program across the entire proof generation
