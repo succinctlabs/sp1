@@ -37,7 +37,7 @@ use sp1_recursion_core::air::Block;
 // };
 // use sp1_recursion_core::range_check::{RangeCheckEvent, RangeCheckOpcode};
 
-use p3_field::{AbstractExtensionField, ExtensionField, PrimeField32};
+use p3_field::{AbstractExtensionField, AbstractField, ExtensionField, PrimeField32};
 use sp1_core::runtime::MemoryAccessPosition;
 
 /// TODO expand glob import
@@ -507,7 +507,7 @@ where
                         Opcode::AddF => in1 + in2,
                         Opcode::SubF => in1 - in2,
                         Opcode::MulF => in1 * in2,
-                        Opcode::DivF => in1 / in2,
+                        Opcode::DivF => in1.try_div(in2).unwrap_or(AbstractField::one()),
                         _ => panic!("Invalid opcode: {:?}", opcode),
                     };
                     self.mw(addrs.out, Block::from(out), mult);
@@ -531,7 +531,7 @@ where
                         Opcode::AddE => in1_ef + in2_ef,
                         Opcode::SubE => in1_ef - in2_ef,
                         Opcode::MulE => in1_ef * in2_ef,
-                        Opcode::DivE => in1_ef / in2_ef,
+                        Opcode::DivE => in1_ef.try_div(in2_ef).unwrap_or(AbstractField::one()),
                         _ => panic!("Invalid opcode: {:?}", opcode),
                     };
                     let out = Block::from(out_ef.as_base_slice());

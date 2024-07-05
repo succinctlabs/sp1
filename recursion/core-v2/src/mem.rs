@@ -13,12 +13,14 @@ use crate::{builder::SP1RecursionAirBuilder, *};
 #[derive(Default)]
 pub struct MemoryChip {}
 
-// pub const NUM_MEM_INIT_COLS: usize = core::mem::size_of::<MemoryCols<u8>>();
-pub const NUM_MEM_INIT_COLS: usize = 0;
+pub const NUM_MEM_INIT_COLS: usize = core::mem::size_of::<MemoryCols<u8>>();
+// pub const NUM_MEM_INIT_COLS: usize = 0;
 
-// #[derive(AlignedBorrow, Debug, Clone, Copy)]
-// #[repr(C)]
-// pub struct MemoryCols<F: Copy> {}
+#[derive(AlignedBorrow, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct MemoryCols<F: Copy> {
+    _nothing: F,
+}
 
 pub const NUM_MEM_PREPROCESSED_INIT_COLS: usize =
     core::mem::size_of::<MemoryPreprocessedCols<u8>>();
@@ -65,7 +67,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip {
                 else {
                     return None;
                 };
-                let mult = mult.clone();
+                let mult = mult.to_owned();
                 let (read_mult, write_mult): (F, F) = match kind {
                     MemAccessKind::Read => (mult, F::zero()),
                     MemAccessKind::Write => (F::zero(), mult),
@@ -102,7 +104,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip {
     }
 
     fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
-        let mem_events = input.mem_events.clone();
+        // let mem_events = input.mem_events.clone();
 
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
         // let rows = mem_events

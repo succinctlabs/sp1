@@ -9,7 +9,6 @@ pub struct RecursionProgram<F> {
     pub instructions: Vec<Instruction<F>>,
     // #[serde(skip)]
     // pub traces: Vec<Option<Backtrace>>,
-    _data: std::marker::PhantomData<F>,
 }
 
 impl<F: Field> MachineProgram<F> for RecursionProgram<F> {

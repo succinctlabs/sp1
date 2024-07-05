@@ -110,7 +110,8 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> RecursionAir<F> {
 #[cfg(test)]
 mod tests {
 
-    use p3_baby_bear::BabyBear;
+    use machine::RecursionAir;
+    use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
     use p3_field::{
         extension::{BinomialExtensionField, HasFrobenius},
         AbstractExtensionField, AbstractField, Field,
@@ -122,11 +123,83 @@ mod tests {
     };
     use sp1_recursion_core::{
         air::Block,
-        runtime::{Runtime, D},
+        stark::{config::BabyBearPoseidon2Outer, RecursionAirWideDeg3},
     };
     // use sp1_recursion_core::air::SP1RecursionAirBuilder;
 
-    use crate::{machine::RecursionAir, ExecutionRecord, MemAccessKind, Opcode, RecursionProgram};
+    // TODO expand glob import
+    use crate::{runtime::Runtime, *};
+
+    #[test]
+    pub fn basicest() {
+        type SC = BabyBearPoseidon2Outer;
+        type F = <SC as StarkGenericConfig>::Val;
+        type EF = <SC as StarkGenericConfig>::Challenge;
+        type A = RecursionAirWideDeg3<F>;
+        let embed = F::from_canonical_u32;
+
+        // TODO figure out how to write a program lol
+        // let program = RecursionProgram::default();
+        // that's a trait, find the builder struct to use
+        // let builder = SP1RecursionAirBuilder::<BabyBear>::new();
+
+        // let program = builder.compile_program();
+
+        let instructions = vec![
+            Instruction::Mem(MemInstr {
+                addrs: MemIo {
+                    inner: Address(embed(0)),
+                },
+                vals: MemIo {
+                    inner: Block::from(embed(9)),
+                },
+                mult: embed(1),
+                kind: MemAccessKind::Write,
+            }),
+            Instruction::Mem(MemInstr {
+                addrs: MemIo {
+                    inner: Address(embed(1)),
+                },
+                vals: MemIo {
+                    inner: Block::from(embed(10)),
+                },
+                mult: embed(1),
+                kind: MemAccessKind::Write,
+            }),
+            Instruction::BaseAlu(BaseAluInstr {
+                opcode: Opcode::AddF,
+                mult: embed(1),
+                addrs: BaseAluIo {
+                    out: Address(embed(2)),
+                    in1: Address(embed(0)),
+                    in2: Address(embed(1)),
+                },
+            }),
+            Instruction::Mem(MemInstr {
+                addrs: MemIo {
+                    inner: Address(embed(2)),
+                },
+                vals: MemIo {
+                    inner: Block::from(embed(19)),
+                },
+                mult: embed(1),
+                kind: MemAccessKind::Read,
+            }),
+        ];
+        let program = RecursionProgram { instructions };
+        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new_no_perm(&program);
+        runtime.run();
+
+        assert_eq!(runtime.record.mem_events.len(), 3);
+        assert_eq!(runtime.record.base_alu_events.len(), 1);
+
+        let machine = RecursionAir::machine(BabyBearPoseidon2::default());
+        let (pk, vk) = machine.setup(&program);
+        let result = run_test_machine(runtime.record, machine, pk, vk);
+        if let Err(e) = result {
+            panic!("Verification failed: {:?}", e);
+        }
+    }
 
     #[test]
     #[cfg(disable)]

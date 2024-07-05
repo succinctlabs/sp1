@@ -110,10 +110,10 @@ impl<F: PrimeField32> MachineAir<F> for BaseAluChip {
                     is_real: F::from_bool(true),
                 };
                 let target_flag = match opcode {
-                    Opcode::AddE => &mut cols.is_add,
-                    Opcode::SubE => &mut cols.is_sub,
-                    Opcode::MulE => &mut cols.is_mul,
-                    Opcode::DivE => &mut cols.is_div,
+                    Opcode::AddF => &mut cols.is_add,
+                    Opcode::SubF => &mut cols.is_sub,
+                    Opcode::MulF => &mut cols.is_mul,
+                    Opcode::DivF => &mut cols.is_div,
                     _ => panic!("Invalid opcode: {:?}", opcode),
                 };
                 *target_flag = F::from_bool(true);
