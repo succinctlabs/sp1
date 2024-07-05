@@ -8,6 +8,9 @@ use std::{
 };
 
 #[derive(Default, Clone)]
+// `clap` is enabled in the `cli` crate for `sp1-helper`, when users are building programs with
+// `cargo prove` CLI directly. The `helper` crate is intended to be lightweight, so we only derive
+// the `Parser` trait if the `clap` feature is enabled.
 #[cfg_attr(feature = "clap", derive(Parser))]
 pub struct BuildArgs {
     #[cfg_attr(
