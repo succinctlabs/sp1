@@ -118,6 +118,7 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
                 })
                 .unzip();
 
+            let shard_blu_map_add_time = std::time::Instant::now();
             for mut blu_event in chunks_blus.into_iter() {
                 for (shard, blu_map) in blu_event.drain() {
                     shard_blu_map
@@ -126,10 +127,15 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
                         .push(blu_map);
                 }
             }
+            let shard_blu_map_add_time = shard_blu_map_add_time.elapsed();
+            println!("Shard BLU map add time: {:?}", shard_blu_map_add_time);
 
+            let chunk_rows_time = std::time::Instant::now();
             chunks_rows
                 .iter()
                 .for_each(|chunk_row| rows.extend(chunk_row));
+            let chunk_rows_time = chunk_rows_time.elapsed();
+            println!("Chunk rows time: {:?}", chunk_rows_time);
         };
 
         let process_event_time = std::time::Instant::now();
