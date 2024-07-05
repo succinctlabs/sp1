@@ -4,7 +4,7 @@ The prover network currently only supports specific versions of SP1:
 
 | Environment | RPC URL                    | Supported Version |
 | ----------- | -------------------------- | ----------------- |
-| Prod        | `https://rpc.succinct.xyz` | v1.0.5            |
+| Prod        | `https://rpc.succinct.xyz` | v1.0.5-testnet    |
 
 If you submit a proof request to the prover network and your are not using the supported version, you will receive an error message.
 
