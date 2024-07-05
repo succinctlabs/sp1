@@ -628,8 +628,8 @@ impl ByteRecord for ExecutionRecord {
                 }
             });
 
-        for (shard, blu_map) in shards.iter().zip(self_blu_maps.iter()) {
-            self.byte_lookups.insert(**shard, blu_map.clone());
+        for (shard, blu_map) in shards.into_iter().zip(self_blu_maps.into_iter()) {
+            self.byte_lookups.insert(*shard, blu_map);
         }
     }
 }
