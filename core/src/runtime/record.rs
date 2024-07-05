@@ -605,14 +605,11 @@ impl ByteRecord for ExecutionRecord {
         &mut self,
         blu_event_map: &mut HashMap<u32, HashMap<ByteLookupEvent, usize>>,
     ) {
-        let shards: Vec<u32>;
-        {
-            shards = blu_event_map.keys().map(|x| *x).collect_vec();
-        }
+        let shards: Vec<u32> = blu_event_map.keys().copied().collect_vec();
         let mut self_blu_maps: Vec<Option<HashMap<ByteLookupEvent, usize>>> = Vec::new();
 
         for shard in shards.iter() {
-            self.byte_lookups.remove(shard);
+            self_blu_maps.push(self.byte_lookups.remove(shard));
         }
 
         shards
