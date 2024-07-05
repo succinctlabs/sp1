@@ -223,9 +223,7 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
             .unzip();
 
         for blu_event in blu_events.into_iter() {
-            for (shard, events) in blu_event.iter() {
-                output.add_byte_lookup_events_for_shard(*shard, events.clone());
-            }
+            output.add_byte_lookup_events_for_shard(blu_event);
         }
 
         let mut rows = Vec::new();
