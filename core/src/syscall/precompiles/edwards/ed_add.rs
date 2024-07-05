@@ -222,9 +222,16 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
             })
             .unzip();
 
+        let mut shard_blu_map: HashMap<u32, Vec<HashMap<ByteLookupEvent, usize>>> = HashMap::new();
         for mut blu_event in blu_events.into_iter() {
-            output.add_byte_lookup_events_for_shard(&mut blu_event);
+            for (shard, blu_map) in blu_event.drain() {
+                shard_blu_map
+                    .entry(shard)
+                    .or_insert(Vec::new())
+                    .push(blu_map);
+            }
         }
+        output.add_byte_lookup_events_for_shard(&mut shard_blu_map);
 
         let mut rows = Vec::new();
         row_chunks.into_iter().for_each(|r| rows.extend(r));

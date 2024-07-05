@@ -14,6 +14,7 @@ use sp1_derive::AlignedBorrow;
 use crate::air::MachineAir;
 use crate::air::{SP1AirBuilder, Word};
 use crate::bytes::event::ByteRecord;
+use crate::bytes::ByteLookupEvent;
 use crate::operations::AddOperation;
 use crate::runtime::{ExecutionRecord, Opcode, Program};
 use crate::utils::pad_to_power_of_two;
@@ -127,9 +128,16 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
         );
 
         let add_byte_lookup_time = std::time::Instant::now();
+        let mut shard_blu_map: HashMap<u32, Vec<HashMap<ByteLookupEvent, usize>>> = HashMap::new();
         for mut blu_event in chunks_blus.into_iter() {
-            output.add_byte_lookup_events_for_shard(&mut blu_event);
+            for (shard, blu_map) in blu_event.drain() {
+                shard_blu_map
+                    .entry(shard)
+                    .or_insert(Vec::new())
+                    .push(blu_map);
+            }
         }
+        output.add_byte_lookup_events_for_shard(&mut shard_blu_map);
         let add_byte_lookup_time = add_byte_lookup_time.elapsed();
         log::info!("Added byte lookups in {:?}", add_byte_lookup_time);
 

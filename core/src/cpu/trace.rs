@@ -107,9 +107,17 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
         tracing::debug!("add alu events time: {:?}", alu_events_time);
 
         let blu_events_time = std::time::Instant::now();
+        let mut shard_blu_map: HashMap<u32, Vec<HashMap<ByteLookupEvent, usize>>> = HashMap::new();
         for mut blu_event in blu_events.into_iter() {
-            output.add_byte_lookup_events_for_shard(&mut blu_event);
+            for (shard, blu_map) in blu_event.drain() {
+                shard_blu_map
+                    .entry(shard)
+                    .or_insert(Vec::new())
+                    .push(blu_map);
+            }
         }
+
+        output.add_byte_lookup_events_for_shard(&mut shard_blu_map);
         let blu_events_time = blu_events_time.elapsed();
         tracing::debug!("add blu events time: {:?}", blu_events_time);
     }
