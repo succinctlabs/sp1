@@ -2,16 +2,15 @@
 
 The prover network currently only supports specific versions of SP1:
 
-| Environment | RPC URL                            | Supported Version |
-| ----------- | ---------------------------------- | ----------------- |
-| Prod        | `https://rpc.succinct.xyz`         | v1.0.5            |
-| Staging     | `https://rpc-staging.succinct.xyz` | v1.0.8            |
+| Environment | RPC URL                    | Supported Version |
+| ----------- | -------------------------- | ----------------- |
+| Prod        | `https://rpc.succinct.xyz` | v1.0.5            |
 
-If you submit a proof request to the prover network and your are not using a supported version, you will receive an error message.
+If you submit a proof request to the prover network and your are not using the supported version, you will receive an error message.
 
 ## Changing versions
 
-You must switch to a supported version before submitting the proof. To do so, replace the `sp1-zkvm` version in your progam's `Cargo.toml`:
+You must switch to a supported version before submitting a proof. To do so, replace the `sp1-zkvm` version in your progam's `Cargo.toml`:
 
 ```toml
 [dependencies]
