@@ -1,6 +1,7 @@
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 
+use hashbrown::HashMap;
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField;
@@ -12,9 +13,9 @@ use sp1_derive::AlignedBorrow;
 
 use crate::air::MachineAir;
 use crate::air::{SP1AirBuilder, Word};
+use crate::bytes::event::ByteRecord;
 use crate::operations::AddOperation;
 use crate::runtime::{ExecutionRecord, Opcode, Program};
-use crate::stark::MachineRecord;
 use crate::utils::pad_to_power_of_two;
 
 /// The number of main trace columns for `AddSubChip`.
@@ -84,10 +85,10 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
             .chain(input.sub_events.iter())
             .collect::<Vec<_>>();
 
-        let rows_and_records = merged_events
+        let (chunks_rows, chunks_blus): (Vec<_>, Vec<_>) = merged_events
             .par_chunks(chunk_size)
             .map(|events| {
-                let mut record = ExecutionRecord::default();
+                let mut blu = HashMap::new();
                 let rows = events
                     .iter()
                     .map(|event| {
@@ -103,7 +104,7 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
                         let operand_2 = event.c;
 
                         cols.add_operation.populate(
-                            &mut record,
+                            &mut blu,
                             event.shard,
                             event.channel,
                             operand_1,
@@ -114,15 +115,20 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
                         row
                     })
                     .collect::<Vec<_>>();
-                (rows, record)
+                (rows, blu)
             })
-            .collect::<Vec<_>>();
+            .unzip();
+
+        for blu_event in chunks_blus.into_iter() {
+            for (shard, events) in blu_event.iter() {
+                output.add_byte_lookup_events_for_shard(*shard, events.clone());
+            }
+        }
 
         let mut rows: Vec<[F; NUM_ADD_SUB_COLS]> = vec![];
-        for mut row_and_record in rows_and_records {
-            rows.extend(row_and_record.0);
-            output.append(&mut row_and_record.1);
-        }
+        chunks_rows
+            .iter()
+            .for_each(|chunk_row| rows.extend(chunk_row));
 
         // Convert the trace to a row major matrix.
         let mut trace = RowMajorMatrix::new(
