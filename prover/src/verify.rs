@@ -42,14 +42,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         proof: &SP1CoreProofData,
         vk: &SP1VerifyingKey,
     ) -> Result<(), MachineVerificationError<CoreSC>> {
-        let mut challenger = self.core_prover.config().challenger();
-        let machine_proof = MachineProof {
-            shard_proofs: proof.0.to_vec(),
-        };
-        self.core_prover
-            .machine()
-            .verify(&vk.vk, &machine_proof, &mut challenger)?;
-
         // Assert that the first shard has a "CPU".
         let first_shard = proof.0.first().unwrap();
         if !first_shard.contains_cpu() {
@@ -93,6 +85,13 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         for (i, shard_proof) in proof.0.iter().enumerate() {
             let public_values: &PublicValues<Word<_>, _> =
                 shard_proof.public_values.as_slice().borrow();
+            println!(
+                "shard proof i={} cpu={} start_pc={}, next_pc={}",
+                i,
+                shard_proof.contains_cpu(),
+                public_values.start_pc,
+                public_values.next_pc
+            );
             if i == 0 && public_values.start_pc != vk.vk.pc_start {
                 return Err(MachineVerificationError::InvalidPublicValues(
                     "start_pc != vk.start_pc: program counter should start at vk.start_pc",
@@ -228,6 +227,15 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         if proof.0.len() > 1 << 16 {
             return Err(MachineVerificationError::TooManyShards);
         }
+
+        // Verify the shard proof.
+        let mut challenger = self.core_prover.config().challenger();
+        let machine_proof = MachineProof {
+            shard_proofs: proof.0.to_vec(),
+        };
+        self.core_prover
+            .machine()
+            .verify(&vk.vk, &machine_proof, &mut challenger)?;
 
         Ok(())
     }

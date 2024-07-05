@@ -1111,6 +1111,8 @@ impl<'a> Runtime<'a> {
         }
 
         // Set the global public values for all shards.
+        let mut last_next_pc = 0;
+        let mut last_exit_code = 0;
         for (i, record) in self.records.iter_mut().enumerate() {
             record.program = program.clone();
             record.public_values = public_values;
@@ -1121,6 +1123,12 @@ impl<'a> Runtime<'a> {
                 record.public_values.start_pc = record.cpu_events[0].pc;
                 record.public_values.next_pc = record.cpu_events.last().unwrap().next_pc;
                 record.public_values.exit_code = record.cpu_events.last().unwrap().exit_code;
+                last_next_pc = record.public_values.next_pc;
+                last_exit_code = record.public_values.exit_code;
+            } else {
+                record.public_values.start_pc = last_next_pc;
+                record.public_values.next_pc = last_next_pc;
+                record.public_values.exit_code = last_exit_code;
             }
         }
 
