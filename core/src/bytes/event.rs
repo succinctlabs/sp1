@@ -1,5 +1,9 @@
 use hashbrown::HashMap;
+use itertools::Itertools;
 use p3_field::PrimeField32;
+use p3_maybe_rayon::prelude::{
+    IndexedParallelIterator, IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator,
+};
 use serde::{Deserialize, Serialize};
 
 use super::ByteOpcode;
@@ -155,7 +159,7 @@ impl ByteRecord for Vec<ByteLookupEvent> {
 
     fn add_byte_lookup_events_for_shard(
         &mut self,
-        blu_event_map: &mut HashMap<u32, HashMap<ByteLookupEvent, usize>>,
+        _: &mut HashMap<u32, HashMap<ByteLookupEvent, usize>>,
     ) {
         todo!()
     }
@@ -175,6 +179,36 @@ impl ByteRecord for HashMap<u32, HashMap<ByteLookupEvent, usize>> {
         &mut self,
         blu_event_map: &mut HashMap<u32, HashMap<ByteLookupEvent, usize>>,
     ) {
-        todo!()
+        let shards: Vec<u32> = blu_event_map.keys().copied().collect_vec();
+        let mut self_blu_maps: Vec<Option<HashMap<ByteLookupEvent, usize>>> = Vec::new();
+
+        for shard in shards.iter() {
+            self_blu_maps.push(self.remove(shard));
+        }
+
+        shards
+            .par_iter()
+            .zip_eq(self_blu_maps.par_iter_mut())
+            .for_each(|(shard, self_blu_map)| {
+                if self_blu_map.is_some() {
+                    let blu_map = blu_event_map.get(shard).unwrap();
+                    for (blu_event, count) in blu_map.iter() {
+                        *self_blu_map
+                            .as_mut()
+                            .unwrap()
+                            .entry(*blu_event)
+                            .or_insert(0) += count;
+                    }
+                }
+            });
+
+        for (shard, blu_map) in shards.into_iter().zip(self_blu_maps.into_iter()) {
+            if blu_map.is_none() {
+                let blu_map2 = blu_event_map.remove(&shard).unwrap();
+                self.insert(shard, blu_map2);
+            } else {
+                self.insert(shard, blu_map.unwrap());
+            }
+        }
     }
 }
