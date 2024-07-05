@@ -222,7 +222,6 @@ where
                     addrs,
                 }) => {
                     self.nb_base_ops += 1;
-                    // TODO better memory management like in Instruction::Mem branch
                     let in1 = self.mr(addrs.in1).val[0];
                     let in2 = self.mr(addrs.in2).val[0];
                     // Do the computation.
@@ -244,7 +243,6 @@ where
                     addrs,
                 }) => {
                     self.nb_ext_ops += 1;
-                    // TODO better memory management like in Instruction::Mem branch
                     let in1 = self.mr(addrs.in1).val;
                     let in2 = self.mr(addrs.in2).val;
                     // Do the computation.
