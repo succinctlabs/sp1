@@ -36,8 +36,7 @@ pub trait ByteRecord {
 
     fn add_byte_lookup_events_for_shard(
         &mut self,
-        shard: u32,
-        blu_event_map: HashMap<ByteLookupEvent, usize>,
+        blu_event_map: HashMap<u32, HashMap<ByteLookupEvent, usize>>,
     );
 
     /// Adds a list of `ByteLookupEvent`s to the record.
@@ -156,8 +155,7 @@ impl ByteRecord for Vec<ByteLookupEvent> {
 
     fn add_byte_lookup_events_for_shard(
         &mut self,
-        _: u32,
-        _: hashbrown::HashMap<ByteLookupEvent, usize>,
+        blu_event_map: HashMap<u32, HashMap<ByteLookupEvent, usize>>,
     ) {
         todo!()
     }
@@ -175,13 +173,8 @@ impl ByteRecord for HashMap<u32, HashMap<ByteLookupEvent, usize>> {
 
     fn add_byte_lookup_events_for_shard(
         &mut self,
-        shard: u32,
-        blu_event_map: hashbrown::HashMap<ByteLookupEvent, usize>,
+        blu_event_map: HashMap<u32, HashMap<ByteLookupEvent, usize>>,
     ) {
-        let shard_blu_events = self.entry(shard).or_default();
-
-        for (blu_event, count) in blu_event_map.into_iter() {
-            *shard_blu_events.entry(blu_event).or_insert(0) += count;
-        }
+        todo!()
     }
 }

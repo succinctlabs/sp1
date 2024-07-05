@@ -1,6 +1,11 @@
 use hashbrown::HashMap;
 use itertools::EitherOrBoth;
 use itertools::Itertools;
+use p3_maybe_rayon::prelude::IndexedParallelIterator;
+use p3_maybe_rayon::prelude::IntoParallelRefIterator;
+use p3_maybe_rayon::prelude::IntoParallelRefMutIterator;
+use p3_maybe_rayon::prelude::ParallelIterator;
+use std::mem::take;
 use std::sync::Arc;
 
 use p3_field::AbstractField;
@@ -598,13 +603,33 @@ impl ByteRecord for ExecutionRecord {
     #[inline]
     fn add_byte_lookup_events_for_shard(
         &mut self,
-        shard: u32,
-        blu_event_map: HashMap<ByteLookupEvent, usize>,
+        blu_event_map: HashMap<u32, HashMap<ByteLookupEvent, usize>>,
     ) {
-        let shard_blu_events = self.byte_lookups.entry(shard).or_default();
+        let shards = blu_event_map.keys().collect_vec();
+        let mut self_blu_maps = Vec::new();
 
-        for (blu_event, count) in blu_event_map.into_iter() {
-            *shard_blu_events.entry(blu_event).or_insert(0) += count;
+        for shard in shards.iter() {
+            let a = self.byte_lookups.remove(*shard);
+            if a.is_none() {
+                self_blu_maps.push(HashMap::new());
+            } else {
+                self_blu_maps.push(a.unwrap());
+            }
+        }
+
+        shards
+            .par_iter()
+            .zip_eq(self_blu_maps.par_iter_mut())
+            .for_each(|(shard, self_blu_map)| {
+                let blu_map = blu_event_map.get(*shard).unwrap();
+
+                for (blu_event, count) in blu_map.iter() {
+                    *self_blu_map.entry(*blu_event).or_insert(0) += count;
+                }
+            });
+
+        for (shard, blu_map) in shards.iter().zip(self_blu_maps.iter()) {
+            self.byte_lookups.insert(**shard, blu_map.clone());
         }
     }
 }

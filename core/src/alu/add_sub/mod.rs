@@ -128,9 +128,7 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
 
         let add_byte_lookup_time = std::time::Instant::now();
         for blu_event in chunks_blus.into_iter() {
-            for (shard, events) in blu_event.iter() {
-                output.add_byte_lookup_events_for_shard(*shard, events.clone());
-            }
+            output.add_byte_lookup_events_for_shard(blu_event);
         }
         let add_byte_lookup_time = add_byte_lookup_time.elapsed();
         log::info!("Added byte lookups in {:?}", add_byte_lookup_time);
