@@ -603,33 +603,41 @@ impl ByteRecord for ExecutionRecord {
     #[inline]
     fn add_byte_lookup_events_for_shard(
         &mut self,
-        blu_event_map: HashMap<u32, HashMap<ByteLookupEvent, usize>>,
+        blu_event_map: &mut HashMap<u32, HashMap<ByteLookupEvent, usize>>,
     ) {
-        let shards = blu_event_map.keys().collect_vec();
-        let mut self_blu_maps = Vec::new();
+        let shards: Vec<u32>;
+        {
+            shards = blu_event_map.keys().map(|x| *x).collect_vec();
+        }
+        let mut self_blu_maps: Vec<Option<HashMap<ByteLookupEvent, usize>>> = Vec::new();
 
         for shard in shards.iter() {
-            let a = self.byte_lookups.remove(*shard);
-            if a.is_none() {
-                self_blu_maps.push(HashMap::new());
-            } else {
-                self_blu_maps.push(a.unwrap());
-            }
+            self.byte_lookups.remove(shard);
         }
 
         shards
             .par_iter()
             .zip_eq(self_blu_maps.par_iter_mut())
             .for_each(|(shard, self_blu_map)| {
-                let blu_map = blu_event_map.get(*shard).unwrap();
-
-                for (blu_event, count) in blu_map.iter() {
-                    *self_blu_map.entry(*blu_event).or_insert(0) += count;
+                if self_blu_map.is_some() {
+                    let blu_map = blu_event_map.get(shard).unwrap();
+                    for (blu_event, count) in blu_map.iter() {
+                        *self_blu_map
+                            .as_mut()
+                            .unwrap()
+                            .entry(*blu_event)
+                            .or_insert(0) += count;
+                    }
                 }
             });
 
         for (shard, blu_map) in shards.into_iter().zip(self_blu_maps.into_iter()) {
-            self.byte_lookups.insert(*shard, blu_map);
+            if blu_map.is_none() {
+                let blu_map2 = blu_event_map.remove(&shard).unwrap();
+                self.byte_lookups.insert(shard, blu_map2);
+            } else {
+                self.byte_lookups.insert(shard, blu_map.unwrap());
+            }
         }
     }
 }

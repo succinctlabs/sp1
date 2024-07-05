@@ -36,7 +36,7 @@ pub trait ByteRecord {
 
     fn add_byte_lookup_events_for_shard(
         &mut self,
-        blu_event_map: HashMap<u32, HashMap<ByteLookupEvent, usize>>,
+        blu_event_map: &mut HashMap<u32, HashMap<ByteLookupEvent, usize>>,
     );
 
     /// Adds a list of `ByteLookupEvent`s to the record.
