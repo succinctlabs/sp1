@@ -2,7 +2,9 @@ use sp1_core::{
     runtime::{ExecutionReport, HookEnv, SP1ContextBuilder},
     utils::{SP1CoreOpts, SP1ProverOpts},
 };
-use sp1_prover::{SP1Prover, SP1ProvingKey, SP1PublicValues, SP1Stdin};
+use sp1_prover::{
+    components::DefaultProverComponents, SP1Prover, SP1ProvingKey, SP1PublicValues, SP1Stdin,
+};
 
 use anyhow::{Ok, Result};
 
@@ -38,7 +40,9 @@ impl<'a> Execute<'a> {
             mut context_builder,
         } = self;
         let context = context_builder.build();
-        Ok(SP1Prover::execute(elf, &stdin, context)?)
+        Ok(SP1Prover::<DefaultProverComponents>::execute(
+            elf, &stdin, context,
+        )?)
     }
 
     /// Add a runtime [Hook](super::Hook) into the context.
@@ -68,7 +72,7 @@ impl<'a> Execute<'a> {
 /// Builder to prepare and configure proving execution of a program on an input.
 /// May be run with [Self::run].
 pub struct Prove<'a> {
-    prover: &'a dyn Prover,
+    prover: &'a dyn Prover<DefaultProverComponents>,
     kind: SP1ProofKind,
     context_builder: SP1ContextBuilder<'a>,
     pk: &'a SP1ProvingKey,
@@ -81,7 +85,11 @@ impl<'a> Prove<'a> {
     ///
     /// Prefer using [ProverClient::prove](super::ProverClient::prove).
     /// See there for more documentation.
-    pub fn new(prover: &'a dyn Prover, pk: &'a SP1ProvingKey, stdin: SP1Stdin) -> Self {
+    pub fn new(
+        prover: &'a dyn Prover<DefaultProverComponents>,
+        pk: &'a SP1ProvingKey,
+        stdin: SP1Stdin,
+    ) -> Self {
         Self {
             prover,
             kind: Default::default(),

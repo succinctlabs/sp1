@@ -1,6 +1,6 @@
 use anyhow::Result;
 use sp1_core::{runtime::SP1Context, utils::SP1ProverOpts};
-use sp1_prover::{SP1Prover, SP1Stdin};
+use sp1_prover::{components::SP1ProverComponents, SP1Prover, SP1Stdin};
 
 use crate::{
     Prover, SP1Proof, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
@@ -9,19 +9,24 @@ use crate::{
 use super::ProverType;
 
 /// An implementation of [crate::ProverClient] that can generate end-to-end proofs locally.
-pub struct LocalProver {
-    prover: SP1Prover,
+pub struct LocalProver<C: SP1ProverComponents> {
+    prover: SP1Prover<C>,
 }
 
-impl LocalProver {
+impl<C: SP1ProverComponents> LocalProver<C> {
     /// Creates a new [LocalProver].
     pub fn new() -> Self {
         let prover = SP1Prover::new();
         Self { prover }
     }
+
+    /// Creates a new [LocalProver] from an existing [SP1Prover].
+    pub fn from_prover(prover: SP1Prover<C>) -> Self {
+        Self { prover }
+    }
 }
 
-impl Prover for LocalProver {
+impl<C: SP1ProverComponents> Prover<C> for LocalProver<C> {
     fn id(&self) -> ProverType {
         ProverType::Local
     }
@@ -30,7 +35,7 @@ impl Prover for LocalProver {
         self.prover.setup(elf)
     }
 
-    fn sp1_prover(&self) -> &SP1Prover {
+    fn sp1_prover(&self) -> &SP1Prover<C> {
         &self.prover
     }
 
@@ -88,7 +93,7 @@ impl Prover for LocalProver {
     }
 }
 
-impl Default for LocalProver {
+impl<C: SP1ProverComponents> Default for LocalProver<C> {
     fn default() -> Self {
         Self::new()
     }

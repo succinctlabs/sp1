@@ -433,7 +433,7 @@ where
                         });
                     }
                 }
-                builder.if_eq(is_zero, C::N::one()).then(|builder| {
+                builder.if_eq(is_zero, C::N::zero()).then(|builder| {
                     #[allow(clippy::needless_range_loop)]
                     for i in 0..committed_value_digest.len() {
                         for j in 0..WORD_SIZE {
@@ -479,7 +479,7 @@ where
                         builder.assign(is_zero, C::N::zero());
                     });
                 }
-                builder.if_eq(is_zero, C::N::one()).then(|builder| {
+                builder.if_eq(is_zero, C::N::zero()).then(|builder| {
                     builder.assert_felt_eq(
                         deferred_proofs_digest[0],
                         public_values.deferred_proofs_digest[0],

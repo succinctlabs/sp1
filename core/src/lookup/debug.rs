@@ -206,6 +206,7 @@ where
 
 #[cfg(test)]
 mod test {
+
     use crate::{
         lookup::InteractionKind,
         runtime::{Program, Runtime},
@@ -224,7 +225,8 @@ mod test {
         let (pk, _) = machine.setup(&program);
         let mut runtime = Runtime::new(program, SP1CoreOpts::default());
         runtime.run().unwrap();
-        machine.generate_dependencies(&mut runtime.records);
+        let opts = SP1CoreOpts::default();
+        machine.generate_dependencies(&mut runtime.records, &opts);
 
         let shards = runtime.records;
         let ok =

@@ -1,3 +1,4 @@
+use p3_baby_bear::BabyBear;
 use std::fs::File;
 use std::io::Seek;
 use std::io::{self};
@@ -19,6 +20,7 @@ use crate::runtime::{ExecutionError, NoOpSubproofVerifier, SP1Context};
 use crate::runtime::{ExecutionRecord, ExecutionReport};
 use crate::stark::DebugConstraintBuilder;
 use crate::stark::MachineProof;
+use crate::stark::MachineProver;
 use crate::stark::ProverConstraintFolder;
 use crate::stark::StarkVerifyingKey;
 use crate::stark::Val;
@@ -29,7 +31,7 @@ use crate::utils::SP1CoreOpts;
 use crate::{
     runtime::{Program, Runtime},
     stark::StarkGenericConfig,
-    stark::{LocalProver, OpeningProof, ShardMainData},
+    stark::{DefaultProver, OpeningProof, ShardMainData},
 };
 
 const LOG_DEGREE_BOUND: usize = 31;
@@ -44,10 +46,10 @@ pub enum SP1CoreProverError {
     SerializationError(bincode::Error),
 }
 
-pub fn prove_simple<SC: StarkGenericConfig>(
+pub fn prove_simple<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<SC::Val>>>(
     config: SC,
     runtime: Runtime,
-) -> Result<MachineProof<SC>, SP1CoreProverError>
+) -> Result<(MachineProof<SC>, u64), SP1CoreProverError>
 where
     SC::Challenger: Clone,
     OpeningProof<SC>: Send + Sync,
@@ -58,17 +60,20 @@ where
 {
     // Setup the machine.
     let machine = RiscvAir::machine(config);
-    let (pk, _) = machine.setup(runtime.program.as_ref());
+    let prover = P::new(machine);
+    let (pk, _) = prover.setup(runtime.program.as_ref());
 
     // Prove the program.
-    let mut challenger = machine.config().challenger();
+    let mut challenger = prover.config().challenger();
     let proving_start = Instant::now();
-    let proof = machine.prove::<LocalProver<_, _>>(
-        &pk,
-        runtime.records,
-        &mut challenger,
-        SP1CoreOpts::default(),
-    );
+    let proof = prover
+        .prove(
+            &pk,
+            runtime.records,
+            &mut challenger,
+            SP1CoreOpts::default(),
+        )
+        .unwrap();
     let proving_duration = proving_start.elapsed().as_millis();
     let nb_bytes = bincode::serialize(&proof).unwrap().len();
 
@@ -81,40 +86,36 @@ where
         Size::from_bytes(nb_bytes),
     );
 
-    Ok(proof)
+    Ok((proof, runtime.state.global_clk))
 }
 
-pub fn prove<SC: StarkGenericConfig + Send + Sync>(
+pub fn prove<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<SC::Val>>>(
     program: Program,
     stdin: &SP1Stdin,
     config: SC,
     opts: SP1CoreOpts,
-) -> Result<(MachineProof<SC>, Vec<u8>), SP1CoreProverError>
+) -> Result<(MachineProof<SC>, Vec<u8>, u64), SP1CoreProverError>
 where
     SC::Challenger: Clone,
-    OpeningProof<SC>: Send + Sync,
-    Com<SC>: Send + Sync,
-    PcsProverData<SC>: Send + Sync,
-    ShardMainData<SC>: Serialize + DeserializeOwned,
+    // OpeningProof<SC>: Send + Sync,
+    // Com<SC>: Send + Sync,
+    // PcsProverData<SC>: Send + Sync,
+    // ShardMainData<SC>: Serialize + DeserializeOwned,
     <SC as StarkGenericConfig>::Val: PrimeField32,
 {
-    prove_with_context(program, stdin, config, opts, Default::default())
+    prove_with_context::<SC, P>(program, stdin, config, opts, Default::default())
 }
 
-pub fn prove_with_context<SC: StarkGenericConfig + Send + Sync>(
+pub fn prove_with_context<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<SC::Val>>>(
     program: Program,
     stdin: &SP1Stdin,
     config: SC,
     opts: SP1CoreOpts,
     context: SP1Context,
-) -> Result<(MachineProof<SC>, Vec<u8>), SP1CoreProverError>
+) -> Result<(MachineProof<SC>, Vec<u8>, u64), SP1CoreProverError>
 where
+    SC::Val: PrimeField32,
     SC::Challenger: Clone,
-    OpeningProof<SC>: Send + Sync,
-    Com<SC>: Send + Sync,
-    PcsProverData<SC>: Send + Sync,
-    ShardMainData<SC>: Serialize + DeserializeOwned,
-    <SC as StarkGenericConfig>::Val: PrimeField32,
 {
     // Record the start of the process.
     let proving_start = Instant::now();
@@ -128,7 +129,8 @@ where
 
     // Setup the machine.
     let machine = RiscvAir::machine(config);
-    let (pk, vk) = machine.setup(runtime.program.as_ref());
+    let prover = P::new(machine);
+    let (pk, vk) = prover.setup(runtime.program.as_ref());
 
     // Execute the program, saving checkpoints at the start of every `shard_batch_size` cycle range.
     let mut checkpoints = Vec::new();
@@ -158,15 +160,13 @@ where
         }
     };
 
-    println!("public_values: {:?}", public_values);
-
     // Commit to the shards.
     #[cfg(debug_assertions)]
     let mut debug_records: Vec<ExecutionRecord> = Vec::new();
     let mut deferred = ExecutionRecord::new(program.clone().into());
     let mut state = public_values.reset();
     let nb_checkpoints = checkpoints.len();
-    let mut challenger = machine.config().challenger();
+    let mut challenger = prover.config().challenger();
     vk.observe_into(&mut challenger);
     for (checkpoint_idx, checkpoint_file) in checkpoints.iter_mut().enumerate() {
         // Trace the checkpoint and reconstruct the execution records.
@@ -183,7 +183,7 @@ where
         }
 
         // Generate the dependencies.
-        machine.generate_dependencies(&mut records);
+        prover.generate_dependencies(&mut records, &opts);
 
         // Defer events that are too expensive to include in every shard.
         for record in records.iter_mut() {
@@ -192,7 +192,10 @@ where
 
         // See if any deferred shards are ready to be commited to.
         let is_last_checkpoint = checkpoint_idx == nb_checkpoints - 1;
-        let mut deferred = deferred.split(is_last_checkpoint);
+        if is_last_checkpoint {
+            records.pop();
+        }
+        let mut deferred = deferred.split(is_last_checkpoint, opts.split_opts);
 
         // Update the public values & prover state for the shards which do not contain "cpu events"
         // before committing to them.
@@ -202,6 +205,7 @@ where
             state.last_init_addr_bits = record.public_values.last_init_addr_bits;
             state.previous_finalize_addr_bits = record.public_values.previous_finalize_addr_bits;
             state.last_finalize_addr_bits = record.public_values.last_finalize_addr_bits;
+            state.start_pc = state.next_pc;
             record.public_values = state;
         }
         records.append(&mut deferred);
@@ -212,20 +216,20 @@ where
         }
 
         // Commit to the shards.
-        let (commitments, _) = LocalProver::commit_shards(&machine, &records, opts);
+        let (commitments, _) = prover.commit_shards(&records, opts);
 
         // Observe the commitments.
         for (commitment, shard) in commitments.into_iter().zip(records.iter()) {
             challenger.observe(commitment);
-            challenger.observe_slice(&shard.public_values::<SC::Val>()[0..machine.num_pv_elts()]);
+            challenger.observe_slice(&shard.public_values::<SC::Val>()[0..prover.num_pv_elts()]);
         }
     }
 
     // Debug the constraints if debug assertions are enabled.
     #[cfg(debug_assertions)]
     {
-        let mut challenger = machine.config().challenger();
-        machine.debug_constraints(&pk, debug_records, &mut challenger);
+        let mut challenger = prover.config().challenger();
+        prover.debug_constraints(&pk, debug_records, &mut challenger);
     }
 
     // Prove the shards.
@@ -249,7 +253,7 @@ where
         }
 
         // Generate the dependencies.
-        machine.generate_dependencies(&mut records);
+        prover.generate_dependencies(&mut records, &opts);
 
         // Defer events that are too expensive to include in every shard.
         for record in records.iter_mut() {
@@ -258,7 +262,10 @@ where
 
         // See if any deferred shards are ready to be commited to.
         let is_last_checkpoint = checkpoint_idx == nb_checkpoints - 1;
-        let mut deferred = deferred.split(is_last_checkpoint);
+        if is_last_checkpoint {
+            records.pop();
+        }
+        let mut deferred = deferred.split(is_last_checkpoint, opts.split_opts);
 
         // Update the public values & prover state for the shards which do not contain "cpu events"
         // before committing to them.
@@ -268,6 +275,7 @@ where
             state.last_init_addr_bits = record.public_values.last_init_addr_bits;
             state.previous_finalize_addr_bits = record.public_values.previous_finalize_addr_bits;
             state.last_finalize_addr_bits = record.public_values.last_finalize_addr_bits;
+            state.start_pc = state.next_pc;
             record.public_values = state;
         }
         records.append(&mut deferred);
@@ -275,20 +283,10 @@ where
         let mut proofs = records
             .into_iter()
             .map(|shard| {
-                let config = machine.config();
-                let shard_data = LocalProver::commit_main(config, &machine, &shard);
-                let chip_ordering = shard_data.chip_ordering.clone();
-                let ordered_chips = machine
-                    .shard_chips_ordered(&chip_ordering)
-                    .collect::<Vec<_>>()
-                    .to_vec();
-                LocalProver::prove_shard(
-                    config,
-                    &pk,
-                    &ordered_chips,
-                    shard_data,
-                    &mut challenger.clone(),
-                )
+                let shard_data = prover.commit_main(&shard);
+                prover
+                    .prove_shard(&pk, shard_data, &mut challenger.clone())
+                    .unwrap()
             })
             .collect::<Vec<_>>();
         shard_proofs.append(&mut proofs);
@@ -312,22 +310,24 @@ where
         tracing::info!("  {line}");
     }
 
-    // Print the summary.
     let proof = MachineProof::<SC> { shard_proofs };
+    let cycles = runtime.state.global_clk;
+
+    // Print the summary.
     let proving_time = proving_start.elapsed().as_secs_f64();
     tracing::info!(
         "summary: cycles={}, e2e={}, khz={:.2}, proofSize={}",
-        runtime.state.global_clk,
+        cycles,
         proving_time,
         (runtime.state.global_clk as f64 / proving_time as f64),
         bincode::serialize(&proof).unwrap().len(),
     );
 
-    Ok((proof, public_values_stream))
+    Ok((proof, public_values_stream, cycles))
 }
 
 /// Runs a program and returns the public values stream.
-pub fn run_test_io(
+pub fn run_test_io<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
     program: Program,
     inputs: SP1Stdin,
 ) -> Result<SP1PublicValues, crate::stark::MachineVerificationError<BabyBearPoseidon2>> {
@@ -338,11 +338,11 @@ pub fn run_test_io(
         runtime
     });
     let public_values = SP1PublicValues::from(&runtime.state.public_values_stream);
-    let _ = run_test_core(runtime, inputs)?;
+    let _ = run_test_core::<P>(runtime, inputs)?;
     Ok(public_values)
 }
 
-pub fn run_test(
+pub fn run_test<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
     program: Program,
 ) -> Result<
     crate::stark::MachineProof<BabyBearPoseidon2>,
@@ -353,11 +353,11 @@ pub fn run_test(
         runtime.run().unwrap();
         runtime
     });
-    run_test_core(runtime, SP1Stdin::new())
+    run_test_core::<P>(runtime, SP1Stdin::new())
 }
 
 #[allow(unused_variables)]
-pub fn run_test_core(
+pub fn run_test_core<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
     runtime: Runtime,
     inputs: SP1Stdin,
 ) -> Result<
@@ -365,7 +365,7 @@ pub fn run_test_core(
     crate::stark::MachineVerificationError<BabyBearPoseidon2>,
 > {
     let config = BabyBearPoseidon2::new();
-    let (proof, output) = prove_with_context(
+    let (proof, output, _) = prove_with_context::<_, P>(
         Program::clone(&runtime.program),
         &inputs,
         config,
@@ -396,6 +396,7 @@ where
         + Air<InteractionBuilder<Val<SC>>>
         + for<'a> Air<VerifierConstraintFolder<'a, SC>>
         + for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
+    A::Record: MachineRecord<Config = SP1CoreOpts>,
     SC: StarkGenericConfig,
     SC::Val: p3_field::PrimeField32,
     SC::Challenger: Clone,
@@ -405,14 +406,16 @@ where
     ShardMainData<SC>: Serialize + DeserializeOwned,
 {
     let start = Instant::now();
-    let mut challenger = machine.config().challenger();
-    let proof =
-        machine.prove::<LocalProver<SC, A>>(&pk, records, &mut challenger, SP1CoreOpts::default());
+    let prover = DefaultProver::new(machine);
+    let mut challenger = prover.config().challenger();
+    let proof = prover
+        .prove(&pk, records, &mut challenger, SP1CoreOpts::default())
+        .unwrap();
     let time = start.elapsed().as_millis();
     let nb_bytes = bincode::serialize(&proof).unwrap().len();
 
-    let mut challenger = machine.config().challenger();
-    machine.verify(&vk, &proof, &mut challenger)?;
+    let mut challenger = prover.config().challenger();
+    prover.machine().verify(&vk, &proof, &mut challenger)?;
 
     Ok(proof)
 }
