@@ -1,10 +1,13 @@
 use std::iter::once;
 
+use hashbrown::HashMap;
 use p3_field::{Field, PrimeField32};
+use poseidon2_wide::events::Poseidon2Event;
 use serde::{Deserialize, Serialize};
 use sp1_core::air::MachineProgram;
 use sp1_core::{air::PublicValues, stark::MachineRecord};
 use sp1_derive::AlignedBorrow;
+use sp1_recursion_core::range_check::RangeCheckEvent;
 use sp1_recursion_core::{air::Block, runtime::D};
 
 pub mod alu_base;
@@ -12,6 +15,7 @@ pub mod alu_ext;
 pub mod builder;
 pub mod machine;
 pub mod mem;
+pub mod poseidon2_wide;
 pub mod program;
 
 // #[derive(Clone, Debug)]
@@ -108,6 +112,8 @@ pub struct ExecutionRecord<F> {
     pub base_alu_events: Vec<BaseAluEvent<F>>,
     pub ext_alu_events: Vec<ExtAluEvent<F>>,
     pub mem_events: Vec<MemEvent<F>>,
+    pub poseidon2_events: Vec<Poseidon2Event<F>>,
+    pub range_check_events: HashMap<RangeCheckEvent, usize>,
     // _data: std::marker::PhantomData<F>,
     // pub vars: HashMap<Address, u32>,
     /// The public values.
@@ -136,11 +142,20 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
             base_alu_events,
             ext_alu_events,
             mem_events,
+            poseidon2_events,
+            range_check_events,
             public_values: _,
         } = self;
         base_alu_events.append(&mut other.base_alu_events);
         ext_alu_events.append(&mut other.ext_alu_events);
         mem_events.append(&mut other.mem_events);
+        poseidon2_events.append(&mut other.poseidon2_events);
+
+        // Merge the range check lookups.
+        for (range_check_event, count) in std::mem::take(&mut other.range_check_events).into_iter()
+        {
+            *range_check_events.entry(range_check_event).or_insert(0) += count;
+        }
     }
 
     fn shard(self, _config: &Self::Config) -> Vec<Self> {
@@ -151,12 +166,22 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
         self.public_values.to_vec()
     }
 }
+impl<F: Default> ExecutionRecord<F> {
+    pub fn add_range_check_events(&mut self, events: &[RangeCheckEvent]) {
+        for event in events {
+            *self.range_check_events.entry(*event).or_insert(0) += 1;
+        }
+    }
+}
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct RecursionProgram<F> {
     // pub instructions: Vec<Instruction<F>>,
     // #[serde(skip)]
     // pub traces: Vec<Option<Backtrace>>,
+
+    //Jank way to track the number of poseidon2 events.
+    pub num_poseidon2_events: usize,
     _data: std::marker::PhantomData<F>,
 }
 

@@ -3,7 +3,10 @@ use sp1_core::stark::{Chip, StarkGenericConfig, StarkMachine, PROOF_MAX_NUM_PVS}
 use sp1_derive::MachineAir;
 use sp1_recursion_core::runtime::D;
 
-use crate::{alu_base::BaseAluChip, alu_ext::ExtAluChip, mem::MemoryChip, program::ProgramChip};
+use crate::{
+    alu_base::BaseAluChip, alu_ext::ExtAluChip, mem::MemoryChip, poseidon2_wide::Poseidon2WideChip,
+    program::ProgramChip,
+};
 
 #[derive(MachineAir)]
 #[sp1_core_path = "sp1_core"]
@@ -11,21 +14,21 @@ use crate::{alu_base::BaseAluChip, alu_ext::ExtAluChip, mem::MemoryChip, program
 #[program_path = "crate::RecursionProgram<F>"]
 #[builder_path = "crate::builder::SP1RecursionAirBuilder<F = F>"]
 #[eval_trait_bound = "AB::Var: 'static"]
-pub enum RecursionAir<F: PrimeField32 + BinomiallyExtendable<D>> {
+pub enum RecursionAir<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> {
     Program(ProgramChip<F>),
     Memory(MemoryChip),
     BaseAlu(BaseAluChip),
     ExtAlu(ExtAluChip),
     // Cpu(CpuChip<F, DEGREE>),
     // MemoryGlobal(MemoryGlobalChip),
-    // Poseidon2Wide(Poseidon2WideChip<DEGREE>),
+    Poseidon2Wide(Poseidon2WideChip<DEGREE>),
     // FriFold(FriFoldChip<DEGREE>),
     // RangeCheck(RangeCheckChip<F>),
     // Multi(MultiChip<DEGREE>),
     // ExpReverseBitsLen(ExpReverseBitsLenChip<DEGREE>),
 }
 
-impl<F: PrimeField32 + BinomiallyExtendable<D>> RecursionAir<F> {
+impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAir<F, DEGREE> {
     /// A recursion machine that can have dynamic trace sizes.
     pub fn machine<SC: StarkGenericConfig<Val = F>>(config: SC) -> StarkMachine<SC, Self> {
         let chips = Self::get_all()
@@ -59,6 +62,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> RecursionAir<F> {
             RecursionAir::Memory(MemoryChip::default()),
             RecursionAir::BaseAlu(BaseAluChip::default()),
             RecursionAir::ExtAlu(ExtAluChip::default()),
+            RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE>::default()),
         ]
     }
 
@@ -137,7 +141,7 @@ mod tests {
 
         // let program = builder.compile_program();
 
-        let machine = RecursionAir::machine(BabyBearPoseidon2::default());
+        let machine = RecursionAir::<_, 3>::machine(BabyBearPoseidon2::default());
         let (pk, vk) = machine.setup(&program);
         let record = ExecutionRecord {
             mem_events: vec![
@@ -172,7 +176,7 @@ mod tests {
 
         // let program = builder.compile_program();
 
-        let machine = RecursionAir::machine(BabyBearPoseidon2::default());
+        let machine = RecursionAir::<_, 3>::machine(BabyBearPoseidon2::default());
         let (pk, vk) = machine.setup(&program);
         let record = ExecutionRecord {
             base_alu_events: vec![
@@ -217,7 +221,7 @@ mod tests {
 
         // let program = builder.compile_program();
 
-        let machine = RecursionAir::machine(BabyBearPoseidon2::default());
+        let machine = RecursionAir::<_, 3>::machine(BabyBearPoseidon2::default());
         let (pk, vk) = machine.setup(&program);
 
         let mut record = ExecutionRecord::default();
@@ -266,7 +270,7 @@ mod tests {
 
         let program = RecursionProgram::default();
 
-        let machine = RecursionAir::machine(BabyBearPoseidon2::default());
+        let machine = RecursionAir::<_, 3>::machine(BabyBearPoseidon2::default());
         let (pk, vk) = machine.setup(&program);
 
         let mut record = ExecutionRecord::default();
@@ -315,7 +319,7 @@ mod tests {
 
         let program = RecursionProgram::default();
 
-        let machine = RecursionAir::machine(BabyBearPoseidon2::default());
+        let machine = RecursionAir::<_, 3>::machine(BabyBearPoseidon2::default());
         let (pk, vk) = machine.setup(&program);
 
         let mut record = ExecutionRecord::default();
@@ -382,7 +386,7 @@ mod tests {
 
         let program = RecursionProgram::default();
 
-        let machine = RecursionAir::machine(BabyBearPoseidon2::default());
+        let machine = RecursionAir::<_, 3>::machine(BabyBearPoseidon2::default());
         let (pk, vk) = machine.setup(&program);
 
         let mut record = ExecutionRecord::default();
