@@ -5,6 +5,7 @@ mod record;
 // mod utils;
 
 use std::array;
+use std::borrow::Cow;
 use std::collections::VecDeque;
 use std::process::exit;
 use std::{marker::PhantomData, sync::Arc};
@@ -71,8 +72,8 @@ pub const D: usize = 4;
 
 #[derive(Debug, Clone, Default)]
 pub struct MemoryEntry<F> {
-    pub value: Block<F>,
-    pub timestamp: F,
+    pub val: Block<F>,
+    pub mult: F,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -116,8 +117,7 @@ pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
     /// Memory.
     // pub memory: Vec<MemoryEntry<F>>,
     // pub memory: HashMap<usize, MemoryEntry<F>>,
-    pub memory: HashMap<Address<F>, Block<F>>,
-
+    pub memory: HashMap<Address<F>, MemoryEntry<F>>,
     /// Uninitialized memory addresses that have a specific value they should be initialized with.
     /// The Opcodes that start with Hint* utilize this to set memory values.
     pub uninitialized_memory: HashMap<usize, Block<F>>,
@@ -441,6 +441,47 @@ where
     //     (a_val, b_val, c_val)
     // }
 
+    /// Read from a memory address. Decrements the memory entry's mult count,
+    /// removing the entry if the mult is no longer positive.
+    ///
+    /// # Panics
+    /// Panics if the address is unassigned.
+    fn mr(&mut self, addr: Address<F>) -> Cow<MemoryEntry<F>> {
+        self.mr_mult(addr, F::one())
+    }
+
+    /// Read from a memory address. Reduces the memory entry's mult count by the given amount,
+    /// removing the entry if the mult is no longer positive.
+    ///
+    /// # Panics
+    /// Panics if the address is unassigned.
+    fn mr_mult(&mut self, addr: Address<F>, mult: F) -> Cow<MemoryEntry<F>> {
+        match self.memory.entry(addr) {
+            Entry::Occupied(mut entry) => {
+                let entry_mult = &mut entry.get_mut().mult;
+                *entry_mult -= mult;
+                // We don't check for negative mult because I'm not sure how comparison in F works.
+                if entry_mult.is_zero() {
+                    Cow::Owned(entry.remove())
+                } else {
+                    Cow::Borrowed(entry.into_mut())
+                }
+            }
+            Entry::Vacant(_) => panic!("tried to read from unassigned address: {addr:?}",),
+        }
+    }
+
+    /// Write to a memory address, setting the given value and mult.
+    ///
+    /// # Panics
+    /// Panics if the address is already assigned.
+    fn mw(&mut self, addr: Address<F>, val: Block<F>, mult: F) -> &mut MemoryEntry<F> {
+        match self.memory.entry(addr) {
+            Entry::Occupied(entry) => panic!("tried to write to assigned address: {entry:?}"),
+            Entry::Vacant(entry) => entry.insert(MemoryEntry { val, mult }),
+        }
+    }
+
     /// Compare to [sp1_recursion_core::runtime::Runtime::run].
     pub fn run(&mut self) {
         let early_exit_ts = std::env::var("RECURSION_EARLY_EXIT_TS")
@@ -454,43 +495,38 @@ where
             match instruction {
                 Instruction::BaseAlu(BaseAluInstr {
                     opcode,
-                    mult: _,
-                    addrs: BaseAluIo { out, in1, in2 },
+                    mult,
+                    addrs,
                 }) => {
                     self.nb_base_ops += 1;
                     // TODO better memory management like in Instruction::Mem branch
-                    let in1 = *self.memory.entry(in1).or_default();
-                    let in1_f = in1[0];
-                    let in2 = *self.memory.entry(in2).or_default();
-                    let in2_f = in2[0];
-                    let out_entry = self.memory.entry(out).or_default();
+                    let in1 = self.mr(addrs.in1).val[0];
+                    let in2 = self.mr(addrs.in2).val[0];
                     // Do the computation.
-                    let out_ef = match opcode {
-                        Opcode::AddF => in1_f + in2_f,
-                        Opcode::SubF => in1_f - in2_f,
-                        Opcode::MulF => in1_f * in2_f,
-                        Opcode::DivF => in1_f / in2_f,
+                    let out = match opcode {
+                        Opcode::AddF => in1 + in2,
+                        Opcode::SubF => in1 - in2,
+                        Opcode::MulF => in1 * in2,
+                        Opcode::DivF => in1 / in2,
                         _ => panic!("Invalid opcode: {:?}", opcode),
                     };
-                    out_entry[0] = out_ef;
-                    let out = *out_entry;
+                    self.mw(addrs.out, Block::from(out), mult);
                     self.record
-                        .ext_alu_events
-                        .push(ExtAluEvent { out, in1, in2 });
+                        .base_alu_events
+                        .push(BaseAluEvent { out, in1, in2 });
                 }
                 Instruction::ExtAlu(ExtAluInstr {
                     opcode,
-                    mult: _,
-                    addrs: ExtAluIo { out, in1, in2 },
+                    mult,
+                    addrs,
                 }) => {
                     self.nb_ext_ops += 1;
                     // TODO better memory management like in Instruction::Mem branch
-                    let in1 = *self.memory.entry(in1).or_default();
-                    let in1_ef = EF::from_base_slice(&in1.0);
-                    let in2 = *self.memory.entry(in2).or_default();
-                    let in2_ef = EF::from_base_slice(&in2.0);
-                    let out_entry = self.memory.entry(out).or_default();
+                    let in1 = self.mr(addrs.in1).val;
+                    let in2 = self.mr(addrs.in2).val;
                     // Do the computation.
+                    let in1_ef = EF::from_base_slice(&in1.0);
+                    let in2_ef = EF::from_base_slice(&in2.0);
                     let out_ef = match opcode {
                         Opcode::AddE => in1_ef + in2_ef,
                         Opcode::SubE => in1_ef - in2_ef,
@@ -498,39 +534,30 @@ where
                         Opcode::DivE => in1_ef / in2_ef,
                         _ => panic!("Invalid opcode: {:?}", opcode),
                     };
-                    *out_entry = Block::from(out_ef.as_base_slice());
-                    let out = *out_entry;
+                    let out = Block::from(out_ef.as_base_slice());
+                    self.mw(addrs.out, out, mult);
                     self.record
                         .ext_alu_events
                         .push(ExtAluEvent { out, in1, in2 });
                 }
                 Instruction::Mem(MemInstr {
                     addrs: MemIo { inner: addr },
-                    vals,
+                    vals: MemIo { inner: val },
                     mult,
                     kind,
                 }) => {
                     self.nb_memory_ops += 1;
-                    match (kind, self.memory.entry(addr)) {
-                        (MemAccessKind::Read, Entry::Occupied(v)) => {
-                            todo!()
-                            // TODO reduce mult count
+                    match kind {
+                        MemAccessKind::Read => {
+                            let mem_entry = self.mr_mult(addr, mult);
+                            assert_eq!(
+                                mem_entry.val, val,
+                                "stored memory value should be the specified value"
+                            );
                         }
-                        (MemAccessKind::Read, Entry::Vacant(_)) => {
-                            panic!("tried to read from unassigned address: {addr:?}",)
-                        }
-                        (MemAccessKind::Write, Entry::Occupied(v)) => {
-                            panic!("tried to write to assigned address: {addr:?}, {v:?}",)
-                        }
-                        (MemAccessKind::Write, Entry::Vacant(v)) => {
-                            todo!()
-                            // TODO write to and set mult count
-                        }
+                        MemAccessKind::Write => drop(self.mw(addr, val, mult)),
                     }
-                    // TODO memory operations
-                    // TODO keeping track of memory multiplicity, so we can drop old values
-                    // TODO testing
-                    self.record.mem_events.push(vals);
+                    self.record.mem_events.push(MemEvent { inner: val });
                 }
             };
 
