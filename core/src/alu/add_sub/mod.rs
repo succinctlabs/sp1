@@ -2,24 +2,21 @@ use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 
 use hashbrown::HashMap;
+use itertools::Itertools;
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
-use p3_maybe_rayon::prelude::ParallelIterator;
-use p3_maybe_rayon::prelude::ParallelSlice;
+use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
 use sp1_derive::AlignedBorrow;
 
 use crate::air::MachineAir;
 use crate::air::{SP1AirBuilder, Word};
 use crate::bytes::event::ByteRecord;
-use crate::bytes::ByteLookupEvent;
 use crate::operations::AddOperation;
 use crate::runtime::{ExecutionRecord, Opcode, Program};
 use crate::utils::pad_to_power_of_two;
-
-use super::AluEvent;
 
 /// The number of main trace columns for `AddSubChip`.
 pub const NUM_ADD_SUB_COLS: usize = size_of::<AddSubCols<u8>>();
@@ -77,77 +74,65 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        // Generate the rows for the trace.
-        let mut shard_blu_map: HashMap<u32, Vec<HashMap<ByteLookupEvent, usize>>> = HashMap::new();
-        let mut rows: Vec<[F; NUM_ADD_SUB_COLS]> = vec![];
+        let chunk_size = std::cmp::max(
+            (input.add_events.len() + input.sub_events.len()) / num_cpus::get(),
+            1,
+        );
 
-        let mut process_event = |events: &Vec<AluEvent>| {
-            let chunk_size = std::cmp::max(events.len() / num_cpus::get(), 1);
-
-            let (chunks_rows, chunks_blus): (Vec<_>, Vec<_>) = events
-                .par_chunks(chunk_size)
-                .map(|events| {
-                    let mut blu = HashMap::new();
-                    let rows = events
-                        .iter()
-                        .map(|event| {
-                            let mut row = [F::zero(); NUM_ADD_SUB_COLS];
-                            let cols: &mut AddSubCols<F> = row.as_mut_slice().borrow_mut();
-                            let is_add = event.opcode == Opcode::ADD;
-                            cols.shard = F::from_canonical_u32(event.shard);
-                            cols.channel = F::from_canonical_u32(event.channel);
-                            cols.is_add = F::from_bool(is_add);
-                            cols.is_sub = F::from_bool(!is_add);
-
-                            let operand_1 = if is_add { event.b } else { event.a };
-                            let operand_2 = event.c;
-
-                            cols.add_operation.populate(
-                                &mut blu,
-                                event.shard,
-                                event.channel,
-                                operand_1,
-                                operand_2,
-                            );
-                            cols.operand_1 = Word::from(operand_1);
-                            cols.operand_2 = Word::from(operand_2);
-                            row
-                        })
-                        .collect::<Vec<_>>();
-                    (rows, blu)
-                })
-                .unzip();
-
-            let shard_blu_map_add_time = std::time::Instant::now();
-            for mut blu_event in chunks_blus.into_iter() {
-                for (shard, blu_map) in blu_event.drain() {
-                    shard_blu_map
-                        .entry(shard)
-                        .or_insert(Vec::new())
-                        .push(blu_map);
-                }
-            }
-            let shard_blu_map_add_time = shard_blu_map_add_time.elapsed();
-            println!("Shard BLU map add time: {:?}", shard_blu_map_add_time);
-
-            let chunk_rows_time = std::time::Instant::now();
-            chunks_rows
-                .iter()
-                .for_each(|chunk_row| rows.extend(chunk_row));
-            let chunk_rows_time = chunk_rows_time.elapsed();
-            println!("Chunk rows time: {:?}", chunk_rows_time);
-        };
+        let event_iter = input
+            .add_events
+            .chunks(chunk_size)
+            .chain(input.sub_events.chunks(chunk_size));
 
         let process_event_time = std::time::Instant::now();
-        process_event(&input.add_events);
-        process_event(&input.sub_events);
+        let (row_batches, blu_batches): (Vec<_>, Vec<_>) = event_iter
+            .par_bridge()
+            .map(|events| {
+                let mut blu = HashMap::new();
+                let rows = events
+                    .iter()
+                    .map(|event| {
+                        let mut row = [F::zero(); NUM_ADD_SUB_COLS];
+                        let cols: &mut AddSubCols<F> = row.as_mut_slice().borrow_mut();
+                        let is_add = event.opcode == Opcode::ADD;
+                        cols.shard = F::from_canonical_u32(event.shard);
+                        cols.channel = F::from_canonical_u32(event.channel);
+                        cols.is_add = F::from_bool(is_add);
+                        cols.is_sub = F::from_bool(!is_add);
+
+                        let operand_1 = if is_add { event.b } else { event.a };
+                        let operand_2 = event.c;
+
+                        cols.add_operation.populate(
+                            &mut blu,
+                            event.shard,
+                            event.channel,
+                            operand_1,
+                            operand_2,
+                        );
+                        cols.operand_1 = Word::from(operand_1);
+                        cols.operand_2 = Word::from(operand_2);
+                        row
+                    })
+                    .collect::<Vec<_>>();
+                (rows, blu)
+            })
+            .unzip();
         let process_event_time = process_event_time.elapsed();
         println!("Process event time: {:?}", process_event_time);
 
         let add_byte_lookup_time = std::time::Instant::now();
-        output.add_byte_lookup_events_for_shard(&mut shard_blu_map);
+        output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
         let add_byte_lookup_time = add_byte_lookup_time.elapsed();
         println!("Add byte lookup time: {:?}", add_byte_lookup_time);
+
+        let flatten_row_time = std::time::Instant::now();
+        let mut rows: Vec<[F; NUM_ADD_SUB_COLS]> = vec![];
+        for batch in row_batches {
+            rows.extend(batch);
+        }
+        let flatten_row_time = flatten_row_time.elapsed();
+        println!("Flatten row time: {:?}", flatten_row_time);
 
         // Convert the trace to a row major matrix.
         let trace_flatten_time = std::time::Instant::now();

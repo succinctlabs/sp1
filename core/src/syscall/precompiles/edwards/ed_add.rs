@@ -4,6 +4,7 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use hashbrown::HashMap;
+use itertools::Itertools;
 use num::BigUint;
 use num::Zero;
 
@@ -222,16 +223,7 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
             })
             .unzip();
 
-        let mut shard_blu_map: HashMap<u32, Vec<HashMap<ByteLookupEvent, usize>>> = HashMap::new();
-        for mut blu_event in blu_events.into_iter() {
-            for (shard, blu_map) in blu_event.drain() {
-                shard_blu_map
-                    .entry(shard)
-                    .or_insert(Vec::new())
-                    .push(blu_map);
-            }
-        }
-        output.add_byte_lookup_events_for_shard(&mut shard_blu_map);
+        output.add_sharded_byte_lookup_events(blu_events.iter().collect_vec());
 
         let mut rows = Vec::new();
         row_chunks.into_iter().for_each(|r| rows.extend(r));

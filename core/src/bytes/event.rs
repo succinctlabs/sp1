@@ -38,14 +38,9 @@ pub trait ByteRecord {
     /// Adds a new `ByteLookupEvent` to the record.
     fn add_byte_lookup_event(&mut self, blu_event: ByteLookupEvent);
 
-    fn add_byte_lookup_events_for_shard(
+    fn add_sharded_byte_lookup_events(
         &mut self,
-        blu_event_map: &mut HashMap<u32, Vec<HashMap<ByteLookupEvent, usize>>>,
-    );
-
-    fn add_byte_lookup_events_for_shard2(
-        &mut self,
-        blu_event_map: &mut HashMap<u32, HashMap<ByteLookupEvent, usize>>,
+        sharded_blu_events_vec: Vec<&HashMap<u32, HashMap<ByteLookupEvent, usize>>>,
     );
 
     /// Adds a list of `ByteLookupEvent`s to the record.
@@ -162,16 +157,9 @@ impl ByteRecord for Vec<ByteLookupEvent> {
         self.push(blu_event);
     }
 
-    fn add_byte_lookup_events_for_shard(
+    fn add_sharded_byte_lookup_events(
         &mut self,
-        _: &mut HashMap<u32, Vec<HashMap<ByteLookupEvent, usize>>>,
-    ) {
-        todo!()
-    }
-
-    fn add_byte_lookup_events_for_shard2(
-        &mut self,
-        blu_event_map: &mut HashMap<u32, HashMap<ByteLookupEvent, usize>>,
+        _: Vec<&HashMap<u32, HashMap<ByteLookupEvent, usize>>>,
     ) {
         todo!()
     }
@@ -187,77 +175,66 @@ impl ByteRecord for HashMap<u32, HashMap<ByteLookupEvent, usize>> {
             .or_insert(1);
     }
 
-    fn add_byte_lookup_events_for_shard(
+    fn add_sharded_byte_lookup_events(
         &mut self,
-        blu_event_map: &mut HashMap<u32, Vec<HashMap<ByteLookupEvent, usize>>>,
+        new_events: Vec<&HashMap<u32, HashMap<ByteLookupEvent, usize>>>,
     ) {
-        let shards: Vec<u32> = blu_event_map.keys().copied().collect_vec();
+        add_sharded_byte_lookup_events(self, new_events);
+    }
+}
 
-        let mut self_blu_maps: Vec<HashMap<ByteLookupEvent, usize>> = Vec::new();
-
-        for shard in shards.iter() {
-            let blu = self.remove(shard);
-
-            match blu {
-                Some(blu) => {
-                    self_blu_maps.push(blu);
-                }
-                None => {
-                    self_blu_maps.push(HashMap::new());
-                }
-            }
-        }
-
-        shards
-            .par_iter()
-            .zip_eq(self_blu_maps.par_iter_mut())
-            .for_each(|(shard, self_blu_map)| {
-                let blu_map_vec = blu_event_map.get(shard).unwrap();
-                for blu_map in blu_map_vec.iter() {
-                    for (blu_event, count) in blu_map.iter() {
-                        *self_blu_map.entry(*blu_event).or_insert(0) += count;
-                    }
-                }
-            });
-
-        for (shard, blu) in shards.into_iter().zip(self_blu_maps.into_iter()) {
-            self.insert(shard, blu);
+pub(crate) fn add_sharded_byte_lookup_events(
+    sharded_blu_events: &mut HashMap<u32, HashMap<ByteLookupEvent, usize>>,
+    new_events: Vec<&HashMap<u32, HashMap<ByteLookupEvent, usize>>>,
+) {
+    // new_sharded_blu_map is a map of shard -> Vec<map of byte lookup event -> multiplicities>.
+    // We want to collect the new events in this format so that we can do parallel aggregation
+    // per shard.
+    let mut new_sharded_blu_map: HashMap<u32, Vec<&HashMap<ByteLookupEvent, usize>>> =
+        HashMap::new();
+    for new_sharded_blu_events in new_events.into_iter() {
+        for (shard, new_blu_map) in new_sharded_blu_events.into_iter() {
+            new_sharded_blu_map
+                .entry(*shard)
+                .or_insert(Vec::new())
+                .push(new_blu_map);
         }
     }
 
-    fn add_byte_lookup_events_for_shard2(
-        &mut self,
-        blu_event_map: &mut HashMap<u32, HashMap<ByteLookupEvent, usize>>,
-    ) {
-        let shards: Vec<u32> = blu_event_map.keys().copied().collect_vec();
+    // Collect all the shard numbers.
+    let shards: Vec<u32> = new_sharded_blu_map.keys().copied().collect_vec();
 
-        let mut self_blu_maps: Vec<HashMap<ByteLookupEvent, usize>> = Vec::new();
+    // Move ownership of self's per shard blu maps into a vec.  This is so that we
+    // can do parallel aggregation per shard.
+    let mut self_blu_maps: Vec<HashMap<ByteLookupEvent, usize>> = Vec::new();
+    shards.iter().for_each(|shard| {
+        let blu = sharded_blu_events.remove(shard);
 
-        for shard in shards.iter() {
-            let blu = self.remove(shard);
-
-            match blu {
-                Some(blu) => {
-                    self_blu_maps.push(blu);
-                }
-                None => {
-                    self_blu_maps.push(HashMap::new());
-                }
+        match blu {
+            Some(blu) => {
+                self_blu_maps.push(blu);
+            }
+            None => {
+                self_blu_maps.push(HashMap::new());
             }
         }
+    });
 
-        shards
-            .par_iter()
-            .zip_eq(self_blu_maps.par_iter_mut())
-            .for_each(|(shard, self_blu_map)| {
-                let blu_map = blu_event_map.get(shard).unwrap();
+    // Increment self's byte lookup events multiplicity.
+    shards
+        .par_iter()
+        .zip_eq(self_blu_maps.par_iter_mut())
+        .for_each(|(shard, self_blu_map)| {
+            let blu_map_vec = new_sharded_blu_map.get(shard).unwrap();
+            for blu_map in blu_map_vec.iter() {
                 for (blu_event, count) in blu_map.iter() {
                     *self_blu_map.entry(*blu_event).or_insert(0) += count;
                 }
-            });
+            }
+        });
 
-        for (shard, blu) in shards.into_iter().zip(self_blu_maps.into_iter()) {
-            self.insert(shard, blu);
-        }
+    // Move ownership of the blu maps back to self.
+    for (shard, blu) in shards.into_iter().zip(self_blu_maps.into_iter()) {
+        sharded_blu_events.insert(shard, blu);
     }
 }

@@ -1,4 +1,5 @@
 use hashbrown::HashMap;
+use itertools::Itertools;
 use std::array;
 use std::borrow::BorrowMut;
 
@@ -75,6 +76,7 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
             .par_chunks(chunk_size)
             .map(|ops: &[CpuEvent]| {
                 let mut alu = HashMap::new();
+                // The blu map stores shard -> map(byte lookup event -> multiplicity).
                 let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
                 ops.iter().for_each(|op| {
                     let mut row = [F::zero(); NUM_CPU_COLS];
@@ -84,13 +86,7 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
                     alu_events.into_iter().for_each(|(key, value)| {
                         alu.entry(key).or_insert(Vec::default()).extend(value);
                     });
-                    for blu_event in blu_events {
-                        blu.entry(blu_event.shard)
-                            .or_insert(HashMap::new())
-                            .entry(blu_event)
-                            .and_modify(|e| *e += 1)
-                            .or_insert(1);
-                    }
+                    blu.add_byte_lookup_events(blu_events);
                 });
                 (alu, blu)
             })
@@ -100,16 +96,7 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
             output.add_alu_events(alu_events_chunk);
         }
 
-        let mut shard_blu_map: HashMap<u32, Vec<HashMap<ByteLookupEvent, usize>>> = HashMap::new();
-        for mut blu_event in blu_events.into_iter() {
-            for (shard, blu_map) in blu_event.drain() {
-                shard_blu_map
-                    .entry(shard)
-                    .or_insert(Vec::new())
-                    .push(blu_map);
-            }
-        }
-        output.add_byte_lookup_events_for_shard(&mut shard_blu_map);
+        output.add_sharded_byte_lookup_events(blu_events.iter().collect_vec())
     }
 
     fn included(&self, input: &Self::Record) -> bool {

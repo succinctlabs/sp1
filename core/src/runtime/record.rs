@@ -15,6 +15,7 @@ use super::program::Program;
 use super::Opcode;
 use crate::air::PublicValues;
 use crate::alu::AluEvent;
+use crate::bytes::event::add_sharded_byte_lookup_events;
 use crate::bytes::event::ByteRecord;
 use crate::bytes::ByteLookupEvent;
 use crate::cpu::CpuEvent;
@@ -256,8 +257,7 @@ impl MachineRecord for ExecutionRecord {
         self.bls12381_decompress_events
             .append(&mut other.bls12381_decompress_events);
 
-        self.byte_lookups
-            .add_byte_lookup_events_for_shard2(&mut other.byte_lookups);
+        self.add_sharded_byte_lookup_events(vec![&other.byte_lookups]);
 
         self.memory_initialize_events
             .append(&mut other.memory_initialize_events);
@@ -588,49 +588,11 @@ impl ByteRecord for ExecutionRecord {
     }
 
     #[inline]
-    fn add_byte_lookup_events_for_shard(
+    fn add_sharded_byte_lookup_events(
         &mut self,
-        blu_event_map: &mut HashMap<u32, Vec<HashMap<ByteLookupEvent, usize>>>,
+        new_events: Vec<&HashMap<u32, HashMap<ByteLookupEvent, usize>>>,
     ) {
-        let shards: Vec<u32> = blu_event_map.keys().copied().collect_vec();
-
-        let mut self_blu_maps: Vec<HashMap<ByteLookupEvent, usize>> = Vec::new();
-
-        for shard in shards.iter() {
-            let blu = self.byte_lookups.remove(shard);
-
-            match blu {
-                Some(blu) => {
-                    self_blu_maps.push(blu);
-                }
-                None => {
-                    self_blu_maps.push(HashMap::new());
-                }
-            }
-        }
-
-        shards
-            .par_iter()
-            .zip_eq(self_blu_maps.par_iter_mut())
-            .for_each(|(shard, self_blu_map)| {
-                let blu_map_vec = blu_event_map.get(shard).unwrap();
-                for blu_map in blu_map_vec.iter() {
-                    for (blu_event, count) in blu_map.iter() {
-                        *self_blu_map.entry(*blu_event).or_insert(0) += count;
-                    }
-                }
-            });
-
-        for (shard, blu) in shards.into_iter().zip(self_blu_maps.into_iter()) {
-            self.byte_lookups.insert(shard, blu);
-        }
-    }
-
-    fn add_byte_lookup_events_for_shard2(
-        &mut self,
-        blu_event_map: &mut HashMap<u32, HashMap<ByteLookupEvent, usize>>,
-    ) {
-        todo!()
+        add_sharded_byte_lookup_events(&mut self.byte_lookups, new_events);
     }
 }
 
