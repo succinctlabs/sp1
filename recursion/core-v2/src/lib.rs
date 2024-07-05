@@ -105,7 +105,7 @@ pub struct ExtAluInstr<F> {
 
 // -------------------------------------------------------------------------------------------------
 
-/// The inputs and outputs to an operation of the extension field ALU.
+/// The inputs and outputs to the manual memory management/memory initialization table.
 #[derive(AlignedBorrow, Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MemIo<V> {
     pub inner: V,
