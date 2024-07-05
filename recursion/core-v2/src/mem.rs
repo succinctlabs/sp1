@@ -119,7 +119,9 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip {
         //         row
         //     })
         //     .collect::<Vec<_>>();
-        let rows = Vec::<[_; NUM_MEM_INIT_COLS]>::new();
+        let rows = std::iter::repeat([F::zero(); NUM_MEM_INIT_COLS])
+            .take(input.mem_events.len())
+            .collect::<Vec<_>>();
 
         // Convert the trace to a row major matrix.
         let mut trace = RowMajorMatrix::new(
