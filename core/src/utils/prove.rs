@@ -193,6 +193,9 @@ where
 
         // See if any deferred shards are ready to be commited to.
         let is_last_checkpoint = checkpoint_idx == nb_checkpoints - 1;
+        if is_last_checkpoint {
+            records.pop();
+        }
         let mut deferred = deferred.split(is_last_checkpoint, opts.split_opts);
 
         // Update the public values & prover state for the shards which do not contain "cpu events"
@@ -259,6 +262,9 @@ where
 
         // See if any deferred shards are ready to be commited to.
         let is_last_checkpoint = checkpoint_idx == nb_checkpoints - 1;
+        if is_last_checkpoint {
+            records.pop();
+        }
         let mut deferred = deferred.split(is_last_checkpoint, opts.split_opts);
 
         // Update the public values & prover state for the shards which do not contain "cpu events"
