@@ -1,5 +1,5 @@
 use sp1_helper::build_program;
 
 fn main() {
-    build_program("../program", None)
+    build_program("../program")
 }
