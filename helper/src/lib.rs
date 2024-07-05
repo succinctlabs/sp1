@@ -139,7 +139,8 @@ pub fn add_cargo_prove_build_args(
     }
 }
 
-/// Executes the `cargo prove build` command in the program directory
+/// Executes the `cargo prove build` command in the program directory. If there are any cargo prove
+/// build arguments, they are added to the command.
 fn execute_build_cmd(
     program_dir: &impl AsRef<std::path::Path>,
     args: Option<BuildArgs>,
