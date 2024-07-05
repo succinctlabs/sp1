@@ -202,6 +202,7 @@ where
             state.last_init_addr_bits = record.public_values.last_init_addr_bits;
             state.previous_finalize_addr_bits = record.public_values.previous_finalize_addr_bits;
             state.last_finalize_addr_bits = record.public_values.last_finalize_addr_bits;
+            state.start_pc = state.next_pc;
             record.public_values = state;
         }
         records.append(&mut deferred);
