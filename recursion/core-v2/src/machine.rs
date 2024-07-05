@@ -217,7 +217,7 @@ mod tests {
             instr::mem_int(MemAccessKind::Read, 1, 1, 2),
         ];
         let program = RecursionProgram { instructions };
-        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new_no_perm(&program);
+        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program);
         runtime.run();
 
         let config = SC::new();
@@ -242,7 +242,7 @@ mod tests {
             instr::mem_int(MemAccessKind::Read, 999, 1, 2),
         ];
         let program = RecursionProgram { instructions };
-        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new_no_perm(&program);
+        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program);
         runtime.run();
 
         let config = SC::new();
@@ -267,7 +267,7 @@ mod tests {
             instr::mem_int(MemAccessKind::Read, 1, 999, 2),
         ];
         let program = RecursionProgram { instructions };
-        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new_no_perm(&program);
+        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program);
         runtime.run();
 
         let config = SC::new();
@@ -292,7 +292,7 @@ mod tests {
             instr::mem_int(MemAccessKind::Read, 1, 1, 999),
         ];
         let program = RecursionProgram { instructions };
-        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new_no_perm(&program);
+        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program);
         runtime.run();
 
         let config = SC::new();
@@ -318,7 +318,7 @@ mod tests {
             instr::mem_int(MemAccessKind::Read, 1, 2, 19),
         ];
         let program = RecursionProgram { instructions };
-        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new_no_perm(&program);
+        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program);
         runtime.run();
 
         let config = SC::new();
@@ -347,7 +347,7 @@ mod tests {
             .collect::<Vec<_>>();
 
         let program = RecursionProgram { instructions };
-        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new_no_perm(&program);
+        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program);
         runtime.run();
 
         let config = SC::new();
@@ -379,7 +379,7 @@ mod tests {
             instr::mem_int(MemAccessKind::Read, 1, 5, 6 / 3),
         ];
         let program = RecursionProgram { instructions };
-        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new_no_perm(&program);
+        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program);
         runtime.run();
 
         let config = SC::new();
@@ -427,7 +427,7 @@ mod tests {
         }
 
         let program = RecursionProgram { instructions };
-        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new_no_perm(&program);
+        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program);
         runtime.run();
 
         let config = SC::new();
