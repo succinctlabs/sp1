@@ -155,7 +155,7 @@ impl ByteRecord for Vec<ByteLookupEvent> {
 
     fn add_byte_lookup_events_for_shard(
         &mut self,
-        blu_event_map: HashMap<u32, HashMap<ByteLookupEvent, usize>>,
+        blu_event_map: &mut HashMap<u32, HashMap<ByteLookupEvent, usize>>,
     ) {
         todo!()
     }
@@ -173,7 +173,7 @@ impl ByteRecord for HashMap<u32, HashMap<ByteLookupEvent, usize>> {
 
     fn add_byte_lookup_events_for_shard(
         &mut self,
-        blu_event_map: HashMap<u32, HashMap<ByteLookupEvent, usize>>,
+        blu_event_map: &mut HashMap<u32, HashMap<ByteLookupEvent, usize>>,
     ) {
         todo!()
     }

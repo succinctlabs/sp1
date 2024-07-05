@@ -99,8 +99,8 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
             output.add_alu_events(alu_events_chunk);
         }
 
-        for blu_event in blu_events.into_iter() {
-            output.add_byte_lookup_events_for_shard(blu_event);
+        for mut blu_event in blu_events.into_iter() {
+            output.add_byte_lookup_events_for_shard(&mut blu_event);
         }
     }
 
