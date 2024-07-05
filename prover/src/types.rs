@@ -10,9 +10,10 @@ use p3_field::{AbstractField, PrimeField32, TwoAdicField};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sp1_core::{
     io::{SP1PublicValues, SP1Stdin},
-    stark::{ShardProof, StarkGenericConfig, StarkProvingKey, StarkVerifyingKey},
+    stark::{ShardProof, StarkGenericConfig, StarkVerifyingKey},
     utils::DIGEST_SIZE,
 };
+pub use sp1_core::{SP1ProvingKey, SP1VerifyingKey};
 use sp1_primitives::poseidon2_hash;
 use sp1_recursion_core::{air::RecursionPublicValues, stark::config::BabyBearPoseidon2Outer};
 use sp1_recursion_gnark_ffi::plonk_bn254::PlonkBn254Proof;
@@ -21,21 +22,6 @@ use thiserror::Error;
 use crate::utils::words_to_bytes_be;
 use crate::{utils::babybear_bytes_to_bn254, words_to_bytes};
 use crate::{utils::babybears_to_bn254, CoreSC, InnerSC};
-
-/// The information necessary to generate a proof for a given RISC-V program.
-#[derive(Clone, Serialize, Deserialize)]
-pub struct SP1ProvingKey {
-    pub pk: StarkProvingKey<CoreSC>,
-    pub elf: Vec<u8>,
-    /// Verifying key is also included as we need it for recursion
-    pub vk: SP1VerifyingKey,
-}
-
-/// The information necessary to verify a proof for a given RISC-V program.
-#[derive(Clone, Serialize, Deserialize)]
-pub struct SP1VerifyingKey {
-    pub vk: StarkVerifyingKey<CoreSC>,
-}
 
 /// A trait for keys that can be hashed into a digest.
 pub trait HashableKey {

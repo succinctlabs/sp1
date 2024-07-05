@@ -28,9 +28,12 @@ pub mod stark;
 pub mod syscall;
 pub mod utils;
 
+use crate::stark::StarkProvingKey;
 #[allow(unused_imports)]
 use runtime::{Program, Runtime};
-use stark::StarkGenericConfig;
+use serde::{Deserialize, Serialize};
+use stark::{StarkGenericConfig, StarkVerifyingKey};
+use utils::BabyBearPoseidon2;
 
 /// The global version for all components of SP1.
 ///
@@ -38,3 +41,21 @@ use stark::StarkGenericConfig;
 /// core, recursion, and plonk-bn254. This string is used to download SP1 artifacts and the gnark
 /// docker image.
 pub const SP1_CIRCUIT_VERSION: &str = "v1.0.8-testnet";
+
+/// The configuration for the core prover.
+pub type CoreSC = BabyBearPoseidon2;
+
+/// The information necessary to generate a proof for a given RISC-V program.
+#[derive(Clone, Serialize, Deserialize)]
+pub struct SP1ProvingKey {
+    pub pk: StarkProvingKey<CoreSC>,
+    pub elf: Vec<u8>,
+    /// Verifying key is also included as we need it for recursion
+    pub vk: SP1VerifyingKey,
+}
+
+/// The information necessary to verify a proof for a given RISC-V program.
+#[derive(Clone, Serialize, Deserialize)]
+pub struct SP1VerifyingKey {
+    pub vk: StarkVerifyingKey<CoreSC>,
+}
