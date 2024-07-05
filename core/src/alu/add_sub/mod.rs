@@ -19,6 +19,8 @@ use crate::operations::AddOperation;
 use crate::runtime::{ExecutionRecord, Opcode, Program};
 use crate::utils::pad_to_power_of_two;
 
+use super::AluEvent;
+
 /// The number of main trace columns for `AddSubChip`.
 pub const NUM_ADD_SUB_COLS: usize = size_of::<AddSubCols<u8>>();
 
@@ -76,81 +78,95 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
         // Generate the rows for the trace.
-        let chunk_size = std::cmp::max(
-            (input.add_events.len() + input.sub_events.len()) / num_cpus::get(),
-            1,
-        );
-        let merged_events = input
-            .add_events
-            .iter()
-            .chain(input.sub_events.iter())
-            .collect::<Vec<_>>();
-
-        let (chunks_rows, chunks_blus): (Vec<_>, Vec<_>) = merged_events
-            .par_chunks(chunk_size)
-            .map(|events| {
-                let mut blu = HashMap::new();
-                let rows = events
-                    .iter()
-                    .map(|event| {
-                        let mut row = [F::zero(); NUM_ADD_SUB_COLS];
-                        let cols: &mut AddSubCols<F> = row.as_mut_slice().borrow_mut();
-                        let is_add = event.opcode == Opcode::ADD;
-                        cols.shard = F::from_canonical_u32(event.shard);
-                        cols.channel = F::from_canonical_u32(event.channel);
-                        cols.is_add = F::from_bool(is_add);
-                        cols.is_sub = F::from_bool(!is_add);
-
-                        let operand_1 = if is_add { event.b } else { event.a };
-                        let operand_2 = event.c;
-
-                        cols.add_operation.populate(
-                            &mut blu,
-                            event.shard,
-                            event.channel,
-                            operand_1,
-                            operand_2,
-                        );
-                        cols.operand_1 = Word::from(operand_1);
-                        cols.operand_2 = Word::from(operand_2);
-                        row
-                    })
-                    .collect::<Vec<_>>();
-                (rows, blu)
-            })
-            .unzip();
-
         let mut shard_blu_map: HashMap<u32, Vec<HashMap<ByteLookupEvent, usize>>> = HashMap::new();
-        for mut blu_event in chunks_blus.into_iter() {
-            for (shard, blu_map) in blu_event.drain() {
-                shard_blu_map
-                    .entry(shard)
-                    .or_insert(Vec::new())
-                    .push(blu_map);
-            }
-        }
-        output.add_byte_lookup_events_for_shard(&mut shard_blu_map);
-
         let mut rows: Vec<[F; NUM_ADD_SUB_COLS]> = vec![];
-        chunks_rows
-            .iter()
-            .for_each(|chunk_row| rows.extend(chunk_row));
+
+        let mut process_event = |events: &Vec<AluEvent>| {
+            let chunk_size = std::cmp::max(events.len() / num_cpus::get(), 1);
+
+            let (chunks_rows, chunks_blus): (Vec<_>, Vec<_>) = events
+                .par_chunks(chunk_size)
+                .map(|events| {
+                    let mut blu = HashMap::new();
+                    let rows = events
+                        .iter()
+                        .map(|event| {
+                            let mut row = [F::zero(); NUM_ADD_SUB_COLS];
+                            let cols: &mut AddSubCols<F> = row.as_mut_slice().borrow_mut();
+                            let is_add = event.opcode == Opcode::ADD;
+                            cols.shard = F::from_canonical_u32(event.shard);
+                            cols.channel = F::from_canonical_u32(event.channel);
+                            cols.is_add = F::from_bool(is_add);
+                            cols.is_sub = F::from_bool(!is_add);
+
+                            let operand_1 = if is_add { event.b } else { event.a };
+                            let operand_2 = event.c;
+
+                            cols.add_operation.populate(
+                                &mut blu,
+                                event.shard,
+                                event.channel,
+                                operand_1,
+                                operand_2,
+                            );
+                            cols.operand_1 = Word::from(operand_1);
+                            cols.operand_2 = Word::from(operand_2);
+                            row
+                        })
+                        .collect::<Vec<_>>();
+                    (rows, blu)
+                })
+                .unzip();
+
+            for mut blu_event in chunks_blus.into_iter() {
+                for (shard, blu_map) in blu_event.drain() {
+                    shard_blu_map
+                        .entry(shard)
+                        .or_insert(Vec::new())
+                        .push(blu_map);
+                }
+            }
+
+            chunks_rows
+                .iter()
+                .for_each(|chunk_row| rows.extend(chunk_row));
+        };
+
+        let process_event_time = std::time::Instant::now();
+        process_event(&input.add_events);
+        process_event(&input.sub_events);
+        let process_event_time = process_event_time.elapsed();
+        println!("Process event time: {:?}", process_event_time);
+
+        let add_byte_lookup_time = std::time::Instant::now();
+        output.add_byte_lookup_events_for_shard(&mut shard_blu_map);
+        let add_byte_lookup_time = add_byte_lookup_time.elapsed();
+        println!("Add byte lookup time: {:?}", add_byte_lookup_time);
 
         // Convert the trace to a row major matrix.
+        let trace_flatten_time = std::time::Instant::now();
         let mut trace = RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_ADD_SUB_COLS,
         );
+        let trace_flatten_time = trace_flatten_time.elapsed();
+        println!("Trace flatten time: {:?}", trace_flatten_time);
 
         // Pad the trace to a power of two.
+        let pad_time = std::time::Instant::now();
         pad_to_power_of_two::<NUM_ADD_SUB_COLS, F>(&mut trace.values);
+        let pad_time = pad_time.elapsed();
+        println!("Pad time: {:?}", pad_time);
 
         // Write the nonces to the trace.
+        let write_nonce_time = std::time::Instant::now();
         for i in 0..trace.height() {
             let cols: &mut AddSubCols<F> =
                 trace.values[i * NUM_ADD_SUB_COLS..(i + 1) * NUM_ADD_SUB_COLS].borrow_mut();
             cols.nonce = F::from_canonical_usize(i);
         }
+        let write_nonce_time = write_nonce_time.elapsed();
+        println!("Write nonce time: {:?}", write_nonce_time);
 
         trace
     }
