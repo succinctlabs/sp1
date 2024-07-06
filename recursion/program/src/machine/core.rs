@@ -78,11 +78,7 @@ impl SP1RecursiveVerifier<InnerConfig, BabyBearPoseidon2> {
 impl<C: Config, SC: StarkGenericConfig> SP1RecursiveVerifier<C, SC>
 where
     C::F: PrimeField32 + TwoAdicField,
-    SC: StarkGenericConfig<
-        Val = C::F,
-        Challenge = C::EF,
-        Domain = TwoAdicMultiplicativeCoset<C::F>,
-    >,
+    SC: StarkGenericConfig<Val = C::F, Challenge = C::EF, Domain = TwoAdicMultiplicativeCoset<C::F>>,
     Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
 {
     /// Verify a batch of SP1 shard proofs and aggregate their public values.
@@ -286,7 +282,7 @@ where
                 // Assert that the shard of the proof is equal to the current shard.
                 builder.assert_felt_eq(current_shard, public_values.shard);
 
-                // Assert that if the execution shard is one, then it should be the first proof in the batch.
+                // Assert that if the shard is one, then it should be the first proof in the batch.
                 builder.if_eq(shard, C::N::one()).then(|builder| {
                     builder.assert_var_eq(i, C::N::zero());
                 });
@@ -298,13 +294,10 @@ where
             // Execution shard constraints.
             let execution_shard = felt2var(builder, public_values.execution_shard);
             {
-                // Assert that if the execution shard is one, then it should be the first proof in the batch.
-                builder.if_eq(execution_shard, C::N::one()).then(|builder| {
-                    builder.assert_var_eq(i, C::N::zero());
-                });
-
                 // Assert that the shard of the proof is equal to the current shard.
-                builder.assert_felt_eq(current_execution_shard, public_values.execution_shard);
+                builder.if_eq(contains_cpu, C::N::one()).then(|builder| {
+                    builder.assert_felt_eq(current_execution_shard, public_values.execution_shard);
+                });
 
                 // If the shard has a "CPU" chip, then the execution shard should be incremented by 1.
                 builder.if_eq(contains_cpu, C::N::one()).then(|builder| {
@@ -317,8 +310,9 @@ where
 
             // Program counter constraints.
             {
-                // If it's the first execution shard, then the start_pc should be vk.pc_start.
-                builder.if_eq(execution_shard, C::N::one()).then(|builder| {
+                // If it's the first shard (which is the first execution shard), then the start_pc
+                // should be vk.pc_start.
+                builder.if_eq(shard, C::N::one()).then(|builder| {
                     builder.assert_felt_eq(public_values.start_pc, vk.pc_start);
                 });
 

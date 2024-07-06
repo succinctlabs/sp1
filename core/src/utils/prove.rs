@@ -194,6 +194,7 @@ where
         let is_last_checkpoint = checkpoint_idx == nb_checkpoints - 1;
         if is_last_checkpoint {
             records.pop();
+            state.shard -= 1;
         }
         let mut deferred = deferred.split(is_last_checkpoint, opts.split_opts);
 
@@ -264,6 +265,7 @@ where
         let is_last_checkpoint = checkpoint_idx == nb_checkpoints - 1;
         if is_last_checkpoint {
             records.pop();
+            state.shard -= 1;
         }
         let mut deferred = deferred.split(is_last_checkpoint, opts.split_opts);
 
