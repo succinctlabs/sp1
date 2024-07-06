@@ -3,10 +3,7 @@ use sp1_core::stark::{Chip, StarkGenericConfig, StarkMachine, PROOF_MAX_NUM_PVS}
 use sp1_derive::MachineAir;
 use sp1_recursion_core::runtime::D;
 
-use crate::{
-    alu_base::BaseAluChip, alu_ext::ExtAluChip, mem::MemoryChip, poseidon2_wide::Poseidon2WideChip,
-    program::ProgramChip,
-};
+use crate::{alu_base::BaseAluChip, alu_ext::ExtAluChip, mem::MemoryChip, program::ProgramChip};
 
 #[derive(MachineAir)]
 #[sp1_core_path = "sp1_core"]
@@ -14,7 +11,7 @@ use crate::{
 #[program_path = "crate::RecursionProgram<F>"]
 #[builder_path = "crate::builder::SP1RecursionAirBuilder<F = F>"]
 #[eval_trait_bound = "AB::Var: 'static"]
-pub enum RecursionAir<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> {
+pub enum RecursionAir<F: PrimeField32 + BinomiallyExtendable<D>> {
     Program(ProgramChip<F>),
     Memory(MemoryChip),
     BaseAlu(BaseAluChip),
@@ -28,7 +25,7 @@ pub enum RecursionAir<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: u
     // ExpReverseBitsLen(ExpReverseBitsLenChip<DEGREE>),
 }
 
-impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAir<F, DEGREE> {
+impl<F: PrimeField32 + BinomiallyExtendable<D>> RecursionAir<F> {
     /// A recursion machine that can have dynamic trace sizes.
     pub fn machine<SC: StarkGenericConfig<Val = F>>(config: SC) -> StarkMachine<SC, Self> {
         let chips = Self::get_all()
@@ -62,7 +59,6 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
             RecursionAir::Memory(MemoryChip::default()),
             RecursionAir::BaseAlu(BaseAluChip::default()),
             RecursionAir::ExtAlu(ExtAluChip::default()),
-            RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE>::default()),
         ]
     }
 
@@ -114,266 +110,91 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
 #[cfg(test)]
 mod tests {
 
-    use p3_baby_bear::BabyBear;
+    use machine::RecursionAir;
+    use p3_baby_bear::DiffusionMatrixBabyBear;
     use p3_field::{
         extension::{BinomialExtensionField, HasFrobenius},
-        AbstractExtensionField, AbstractField,
+        AbstractExtensionField, AbstractField, Field,
     };
     use rand::prelude::*;
-    use sp1_core::utils::{run_test_machine, BabyBearPoseidon2};
-    use sp1_recursion_core::{air::Block, runtime::D};
-    // use sp1_recursion_core::air::SP1RecursionAirBuilder;
+    use sp1_core::{stark::StarkGenericConfig, utils::run_test_machine};
+    use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
 
-    use crate::{
-        machine::RecursionAir, AddressValue, BaseAluEvent, ExecutionRecord, ExtAluEvent,
-        MemAccessKind, MemEvent, Opcode, RecursionProgram,
-    };
+    // TODO expand glob import
+    use crate::{runtime::instruction as instr, *};
 
     #[test]
-    pub fn basicer() {
-        type F = BabyBear;
-        let embed = F::from_canonical_u32;
+    pub fn fibonacci() {
+        type SC = BabyBearPoseidon2Outer;
+        type F = <SC as StarkGenericConfig>::Val;
+        type EF = <SC as StarkGenericConfig>::Challenge;
+        type A = RecursionAir<F>;
 
-        // TODO figure out how to write a program lol
-        let program = RecursionProgram::default();
-        // that's a trait, find the builder struct to use
-        // let builder = SP1RecursionAirBuilder::<BabyBear>::new();
+        let n = 10;
 
-        // let program = builder.compile_program();
+        let instructions = once(instr::mem(MemAccessKind::Write, 1, 0, 0))
+            .chain(once(instr::mem(MemAccessKind::Write, 2, 1, 1)))
+            .chain((2..=n).map(|i| instr::base_alu(Opcode::AddF, 2, i, i - 2, i - 1)))
+            .chain(once(instr::mem(MemAccessKind::Read, 1, n - 1, 34)))
+            .chain(once(instr::mem(MemAccessKind::Read, 2, n, 55)))
+            .collect::<Vec<_>>();
 
-        let machine = RecursionAir::<_, 3>::machine(BabyBearPoseidon2::default());
+        let program = RecursionProgram { instructions };
+        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program);
+        runtime.run();
+
+        let config = SC::new();
+        let machine = A::machine(config);
         let (pk, vk) = machine.setup(&program);
-        let record = ExecutionRecord {
-            mem_events: vec![
-                MemEvent {
-                    address_value: AddressValue::new(embed(1), Block::from(embed(2))),
-                    multiplicity: F::one(),
-                    kind: MemAccessKind::Write,
-                },
-                MemEvent {
-                    address_value: AddressValue::new(embed(1), Block::from(embed(2))),
-                    multiplicity: F::one(),
-                    kind: MemAccessKind::Read,
-                },
-            ],
-            ..Default::default()
-        };
-        let result = run_test_machine(record, machine, pk, vk);
+        let result = run_test_machine(runtime.record, machine, pk, vk);
         if let Err(e) = result {
             panic!("Verification failed: {:?}", e);
         }
     }
 
     #[test]
-    pub fn basic() {
-        type F = BabyBear;
-        let embed = F::from_canonical_u32;
+    pub fn field_norm() {
+        type SC = BabyBearPoseidon2Outer;
+        type F = <SC as StarkGenericConfig>::Val;
+        type EF = <SC as StarkGenericConfig>::Challenge;
+        type A = RecursionAir<F>;
 
-        // TODO figure out how to write a program lol
-        let program = RecursionProgram::default();
-        // that's a trait, find the builder struct to use
-        // let builder = SP1RecursionAirBuilder::<BabyBear>::new();
+        let mut instructions = Vec::new();
 
-        // let program = builder.compile_program();
-
-        let machine = RecursionAir::<_, 3>::machine(BabyBearPoseidon2::default());
-        let (pk, vk) = machine.setup(&program);
-        let record = ExecutionRecord {
-            base_alu_events: vec![
-                BaseAluEvent {
-                    out: AddressValue::new(embed(100), embed(2)),
-                    in1: AddressValue::new(embed(101), embed(1)),
-                    in2: AddressValue::new(embed(101), embed(1)),
-                    mult: embed(1),
-                    opcode: Opcode::AddF,
-                },
-                //
-            ],
-            mem_events: vec![
-                MemEvent {
-                    address_value: AddressValue::new(embed(101), embed(1).into()),
-                    multiplicity: F::two(),
-                    kind: MemAccessKind::Write,
-                },
-                MemEvent {
-                    address_value: AddressValue::new(embed(100), embed(2).into()),
-                    multiplicity: F::one(),
-                    kind: MemAccessKind::Read,
-                },
-            ],
-            ..Default::default()
-        };
-        let result = run_test_machine(record, machine, pk, vk);
-        if let Err(e) = result {
-            panic!("Verification failed: {:?}", e);
-        }
-    }
-
-    #[test]
-    pub fn iterate() {
-        type F = BabyBear;
-        let embed = F::from_canonical_u32;
-
-        // TODO figure out how to write a program lol
-        let program = RecursionProgram::default();
-        // that's a trait, find the builder struct to use
-        // let builder = SP1RecursionAirBuilder::<BabyBear>::new();
-
-        // let program = builder.compile_program();
-
-        let machine = RecursionAir::<_, 3>::machine(BabyBearPoseidon2::default());
-        let (pk, vk) = machine.setup(&program);
-
-        let mut record = ExecutionRecord::default();
-
-        let mut x = AddressValue::new(F::zero(), F::one());
-        record.mem_events.push(MemEvent {
-            address_value: AddressValue::new(x.addr, Block::from(x.val)),
-            multiplicity: embed(3),
-            kind: MemAccessKind::Write,
-        });
+        let mut rng = StdRng::seed_from_u64(0xDEADBEEF);
+        let mut addr = 0;
         for _ in 0..100 {
-            let prod = AddressValue::new(x.addr + embed(1), x.val * x.val);
-            let sum = AddressValue::new(x.addr + embed(2), prod.val + x.val);
-            record.base_alu_events.push(BaseAluEvent {
-                opcode: Opcode::MulF,
-                out: prod,
-                in1: x,
-                in2: x,
-                mult: embed(1),
-            });
-            record.base_alu_events.push(BaseAluEvent {
-                opcode: Opcode::AddF,
-                out: sum,
-                in1: prod,
-                in2: x,
-                mult: embed(3),
-            });
-            x = sum;
+            let inner: [F; 4] = std::iter::repeat_with(|| {
+                core::array::from_fn(|_| rng.sample(rand::distributions::Standard))
+            })
+            .find(|xs| !xs.iter().all(F::is_zero))
+            .unwrap();
+            let x = BinomialExtensionField::<F, D>::from_base_slice(&inner);
+            let gal = x.galois_group();
+
+            let mut acc = BinomialExtensionField::one();
+
+            instructions.push(instr::mem_ext(MemAccessKind::Write, 1, addr, acc));
+            for conj in gal {
+                instructions.push(instr::mem_ext(MemAccessKind::Write, 1, addr + 1, conj));
+                instructions.push(instr::ext_alu(Opcode::MulE, 1, addr + 2, addr, addr + 1));
+
+                addr += 2;
+                acc *= conj;
+            }
+            let base_cmp: F = acc.as_base_slice()[0];
+            instructions.push(instr::mem_single(MemAccessKind::Read, 1, addr, base_cmp));
+            addr += 1;
         }
-        record.mem_events.push(MemEvent {
-            address_value: AddressValue::new(x.addr, Block::from(x.val)),
-            multiplicity: embed(3),
-            kind: MemAccessKind::Read,
-        });
 
-        let result = run_test_machine(record, machine, pk, vk);
-        if let Err(e) = result {
-            panic!("Verification failed: {:?}", e);
-        }
-    }
+        let program = RecursionProgram { instructions };
+        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program);
+        runtime.run();
 
-    #[test]
-    pub fn iterate_alu() {
-        type F = BabyBear;
-        let embed = F::from_canonical_u32;
-
-        let program = RecursionProgram::default();
-
-        let machine = RecursionAir::<_, 3>::machine(BabyBearPoseidon2::default());
+        let config = SC::new();
+        let machine = A::machine(config);
         let (pk, vk) = machine.setup(&program);
-
-        let mut record = ExecutionRecord::default();
-
-        let mut x = AddressValue::new(F::zero(), F::one());
-        record.mem_events.push(MemEvent {
-            address_value: AddressValue::new(x.addr, Block::from(x.val)),
-            multiplicity: embed(3),
-            kind: MemAccessKind::Write,
-        });
-        for _ in 0..100 {
-            let prod = AddressValue::new(x.addr + embed(1), x.val * x.val);
-            let sum = AddressValue::new(x.addr + embed(2), prod.val + x.val);
-            record.base_alu_events.push(BaseAluEvent {
-                opcode: Opcode::MulF,
-                out: prod,
-                in1: x,
-                in2: x,
-                mult: embed(1),
-            });
-            record.base_alu_events.push(BaseAluEvent {
-                opcode: Opcode::AddF,
-                out: sum,
-                in1: prod,
-                in2: x,
-                mult: embed(3),
-            });
-            x = sum;
-        }
-        record.mem_events.push(MemEvent {
-            address_value: AddressValue::new(x.addr, Block::from(x.val)),
-            multiplicity: embed(3),
-            kind: MemAccessKind::Read,
-        });
-
-        let result = run_test_machine(record, machine, pk, vk);
-        if let Err(e) = result {
-            panic!("Verification failed: {:?}", e);
-        }
-    }
-
-    #[test]
-    pub fn four_ops() {
-        type F = BabyBear;
-        let embed = F::from_canonical_u32;
-
-        let program = RecursionProgram::default();
-
-        let machine = RecursionAir::<_, 3>::machine(BabyBearPoseidon2::default());
-        let (pk, vk) = machine.setup(&program);
-
-        let mut record = ExecutionRecord::default();
-
-        let four = AddressValue::new(embed(0), embed(3));
-        record.mem_events.push(MemEvent {
-            address_value: AddressValue::new(four.addr, Block::from(four.val)),
-            multiplicity: embed(4),
-            kind: MemAccessKind::Write,
-        });
-        let three = AddressValue::new(embed(1), embed(4));
-        record.mem_events.push(MemEvent {
-            address_value: AddressValue::new(three.addr, Block::from(three.val)),
-            multiplicity: embed(4),
-            kind: MemAccessKind::Write,
-        });
-
-        let sum = AddressValue::new(embed(1), four.val + three.val);
-        record.base_alu_events.push(BaseAluEvent {
-            opcode: Opcode::AddF,
-            out: sum,
-            in1: four,
-            in2: three,
-            mult: embed(0),
-        });
-
-        let diff = AddressValue::new(embed(1), four.val - three.val);
-        record.base_alu_events.push(BaseAluEvent {
-            opcode: Opcode::SubF,
-            out: diff,
-            in1: four,
-            in2: three,
-            mult: embed(0),
-        });
-
-        let prod = AddressValue::new(embed(1), four.val * three.val);
-        record.base_alu_events.push(BaseAluEvent {
-            opcode: Opcode::MulF,
-            out: prod,
-            in1: four,
-            in2: three,
-            mult: embed(0),
-        });
-
-        let quot = AddressValue::new(embed(1), four.val / three.val);
-        record.base_alu_events.push(BaseAluEvent {
-            opcode: Opcode::DivF,
-            out: quot,
-            in1: four,
-            in2: three,
-            mult: embed(0),
-        });
-
-        let result = run_test_machine(record, machine, pk, vk);
+        let result = run_test_machine(runtime.record, machine, pk, vk);
         if let Err(e) = result {
             panic!("Verification failed: {:?}", e);
         }
