@@ -503,7 +503,6 @@ where
 
             // Verify that the number of shards is not too large.
             builder.range_check_f(public_values.shard, 16);
-            builder.range_check_f(public_values.execution_shard, 16);
 
             // Update the reconstruct challenger.
             reconstruct_challenger.observe(builder, proof.commitment.main_commit.clone());
