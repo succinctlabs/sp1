@@ -4852,6 +4852,7 @@ dependencies = [
  "sp1-recursion-core",
  "sp1-recursion-gnark-ffi",
  "sp1-recursion-program",
+ "sp1-recursion-static-program",
  "subtle-encoding",
  "tempfile",
  "thiserror",
@@ -5011,6 +5012,20 @@ dependencies = [
  "sp1-recursion-core",
  "stacker",
  "tracing",
+]
+
+[[package]]
+name = "sp1-recursion-static-program"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "lazy_static",
+ "p3-baby-bear",
+ "sp1-core",
+ "sp1-primitives",
+ "sp1-recursion-compiler",
+ "sp1-recursion-core",
+ "sp1-recursion-program",
 ]
 
 [[package]]

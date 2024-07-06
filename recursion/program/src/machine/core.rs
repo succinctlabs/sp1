@@ -59,18 +59,25 @@ impl SP1RecursiveVerifier<InnerConfig, BabyBearPoseidon2> {
     pub fn build(
         machine: &StarkMachine<BabyBearPoseidon2, RiscvAir<BabyBear>>,
     ) -> RecursionProgram<BabyBear> {
+        println!("1");
         let mut builder = Builder::<InnerConfig>::new(RecursionProgramType::Core);
 
+        println!("2");
         let input: SP1RecursionMemoryLayoutVariable<_> = builder.uninit();
+        println!("3");
         SP1RecursionMemoryLayout::<BabyBearPoseidon2, RiscvAir<_>>::witness(&input, &mut builder);
+        println!("4");
 
         let pcs = TwoAdicFriPcsVariable {
             config: const_fri_config(&mut builder, machine.config().pcs().fri_config()),
         };
+        println!("5");
         SP1RecursiveVerifier::verify(&mut builder, &pcs, machine, input);
 
+        println!("6");
         builder.halt();
 
+        println!("hi");
         builder.compile_program()
     }
 }

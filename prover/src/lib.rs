@@ -59,6 +59,9 @@ use sp1_recursion_program::machine::{
 pub use sp1_recursion_program::machine::{
     SP1DeferredMemoryLayout, SP1RecursionMemoryLayout, SP1ReduceMemoryLayout, SP1RootMemoryLayout,
 };
+use sp1_recursion_static_program::{
+    COMPRESS_PROGRAM, DEFERRED_PROGRAM, RECURSION_PROGRAM, SHRINK_PROGRAM, WRAP_PROGRAM,
+};
 use tracing::instrument;
 pub use types::*;
 use utils::words_to_bytes;
@@ -85,7 +88,7 @@ pub type WrapAir<F> = RecursionAir<F, WRAP_DEGREE>;
 /// A end-to-end prover implementation for the SP1 RISC-V zkVM.
 pub struct SP1Prover<C: SP1ProverComponents = DefaultProverComponents> {
     /// The program that can recursively verify a set of proofs into a single proof.
-    pub recursion_program: RecursionProgram<BabyBear>,
+    pub recursion_program: &'static RecursionProgram<BabyBear>,
 
     /// The proving key for the recursion step.
     pub rec_pk: StarkProvingKey<InnerSC>,
@@ -94,7 +97,7 @@ pub struct SP1Prover<C: SP1ProverComponents = DefaultProverComponents> {
     pub rec_vk: StarkVerifyingKey<InnerSC>,
 
     /// The program that recursively verifies deferred proofs and accumulates the digests.
-    pub deferred_program: RecursionProgram<BabyBear>,
+    pub deferred_program: &'static RecursionProgram<BabyBear>,
 
     /// The proving key for the reduce step.
     pub deferred_pk: StarkProvingKey<InnerSC>,
@@ -103,7 +106,7 @@ pub struct SP1Prover<C: SP1ProverComponents = DefaultProverComponents> {
     pub deferred_vk: StarkVerifyingKey<InnerSC>,
 
     /// The program that reduces a set of recursive proofs into a single proof.
-    pub compress_program: RecursionProgram<BabyBear>,
+    pub compress_program: &'static RecursionProgram<BabyBear>,
 
     /// The proving key for the reduce step.
     pub compress_pk: StarkProvingKey<InnerSC>,
@@ -112,7 +115,7 @@ pub struct SP1Prover<C: SP1ProverComponents = DefaultProverComponents> {
     pub compress_vk: StarkVerifyingKey<InnerSC>,
 
     /// The shrink program that compresses a proof into a succinct proof.
-    pub shrink_program: RecursionProgram<BabyBear>,
+    pub shrink_program: &'static RecursionProgram<BabyBear>,
 
     /// The proving key for the compress step.
     pub shrink_pk: StarkProvingKey<InnerSC>,
@@ -121,7 +124,7 @@ pub struct SP1Prover<C: SP1ProverComponents = DefaultProverComponents> {
     pub shrink_vk: StarkVerifyingKey<InnerSC>,
 
     /// The wrap program that wraps a proof into a SNARK-friendly field.
-    pub wrap_program: RecursionProgram<BabyBear>,
+    pub wrap_program: &'static RecursionProgram<BabyBear>,
 
     /// The proving key for the wrap step.
     pub wrap_pk: StarkProvingKey<OuterSC>,
@@ -150,59 +153,40 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let core_prover = C::CoreProver::new(core_machine);
 
         // Get the recursive verifier and setup the proving and verifying keys.
-        let recursion_program =
-            SP1RecursiveVerifier::<InnerConfig, _>::build(core_prover.machine());
         let compress_machine = ReduceAir::machine(InnerSC::default());
         let compress_prover = C::CompressProver::new(compress_machine);
-        let (rec_pk, rec_vk) = compress_prover.setup(&recursion_program);
+        let (rec_pk, rec_vk) = compress_prover.setup(&RECURSION_PROGRAM);
 
         // Get the deferred program and keys.
-        let deferred_program =
-            SP1DeferredVerifier::<InnerConfig, _, _>::build(compress_prover.machine());
-        let (deferred_pk, deferred_vk) = compress_prover.setup(&deferred_program);
+        let (deferred_pk, deferred_vk) = compress_prover.setup(&DEFERRED_PROGRAM);
 
         // Make the reduce program and keys.
-        let compress_program = SP1CompressVerifier::<InnerConfig, _, _>::build(
-            compress_prover.machine(),
-            &rec_vk,
-            &deferred_vk,
-        );
-        let (compress_pk, compress_vk) = compress_prover.setup(&compress_program);
+        let (compress_pk, compress_vk) = compress_prover.setup(&COMPRESS_PROGRAM);
 
         // Get the compress program, machine, and keys.
-        let shrink_program = SP1RootVerifier::<InnerConfig, _, _>::build(
-            compress_prover.machine(),
-            &compress_vk,
-            RecursionProgramType::Shrink,
-        );
         let shrink_machine = CompressAir::wrap_machine_dyn(InnerSC::compressed());
         let shrink_prover = C::ShrinkProver::new(shrink_machine);
-        let (shrink_pk, shrink_vk) = shrink_prover.setup(&shrink_program);
+        let (shrink_pk, shrink_vk) = shrink_prover.setup(&SHRINK_PROGRAM);
 
         // Get the wrap program, machine, and keys.
-        let wrap_program = SP1RootVerifier::<InnerConfig, _, _>::build(
-            shrink_prover.machine(),
-            &shrink_vk,
-            RecursionProgramType::Wrap,
-        );
         let wrap_machine = WrapAir::wrap_machine(OuterSC::default());
         let wrap_prover = C::WrapProver::new(wrap_machine);
-        let (wrap_pk, wrap_vk) = wrap_prover.setup(&wrap_program);
+        let (wrap_pk, wrap_vk) = wrap_prover.setup(&WRAP_PROGRAM);
 
         Self {
-            recursion_program,
+            recursion_program: &RECURSION_PROGRAM,
             rec_pk,
             rec_vk,
-            deferred_program,
+            deferred_program: &DEFERRED_PROGRAM,
             deferred_pk,
             deferred_vk,
-            compress_program,
+            compress_program: &COMPRESS_PROGRAM,
             compress_pk,
             compress_vk,
-            shrink_program,
+            shrink_program: &SHRINK_PROGRAM,
             shrink_pk,
             shrink_vk,
-            wrap_program,
+            wrap_program: &WRAP_PROGRAM,
             wrap_pk,
             wrap_vk,
             core_prover,
@@ -933,5 +917,12 @@ pub mod tests {
     fn test_e2e_with_deferred_proofs() -> Result<()> {
         setup_logger();
         test_e2e_with_deferred_proofs_prover::<DefaultProverComponents>()
+    }
+
+    #[test]
+    fn test_random() {
+        let start = std::time::Instant::now();
+        let prover = SP1Prover::<DefaultProverComponents>::new();
+        println!("prover: {:?}", start.elapsed());
     }
 }

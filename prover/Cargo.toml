@@ -8,6 +8,7 @@ license = "MIT OR Apache-2.0"
 
 [dependencies]
 sp1-recursion-program = { path = "../recursion/program" }
+sp1-recursion-static-program = { path = "../recursion/static-program" }
 sp1-recursion-circuit = { path = "../recursion/circuit" }
 sp1-recursion-compiler = { path = "../recursion/compiler" }
 sp1-recursion-core = { path = "../recursion/core" }

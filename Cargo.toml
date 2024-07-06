@@ -12,6 +12,7 @@ members = [
   "recursion/core",
   "recursion/gnark-ffi",
   "recursion/program",
+  "recursion/static-program",
   "sdk",
   "zkvm/*",
 ]
@@ -22,6 +23,9 @@ resolver = "2"
 opt-level = 3
 
 [profile.bench]
+opt-level = 3
+
+[profile.release.build-override]
 opt-level = 3
 
 [profile.fast]
