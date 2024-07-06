@@ -110,6 +110,9 @@ pub struct Runtime<'a> {
 
     /// Registry of hooks, to be invoked by writing to certain file descriptors.
     pub hook_registry: HookRegistry<'a>,
+
+    // The options for the runtime.
+    pub opts: SP1CoreOpts,
 }
 
 #[derive(Error, Debug)]
@@ -184,6 +187,7 @@ impl<'a> Runtime<'a> {
             print_report: false,
             subproof_verifier,
             hook_registry,
+            opts,
         }
     }
 
@@ -872,13 +876,18 @@ impl<'a> Runtime<'a> {
 
                 // Update the syscall counts.
                 let syscall_count = self.state.syscall_counts.entry(syscall).or_insert(0);
-                let multiplier = match syscall {
-                    SyscallCode::KECCAK_PERMUTE => 24,
-                    SyscallCode::SHA_EXTEND => 48,
-                    SyscallCode::SHA_COMPRESS => 80,
-                    _ => 1,
-                } as usize;
-                let threshold = DEFERRED_SPLIT_THRESHOLD / multiplier;
+                let (threshold, multiplier) = match syscall {
+                    SyscallCode::KECCAK_PERMUTE => {
+                        (self.opts.split_opts.keccak_split_threshold, 24)
+                    }
+                    SyscallCode::SHA_EXTEND => {
+                        (self.opts.split_opts.sha_extend_split_threshold, 48)
+                    }
+                    SyscallCode::SHA_COMPRESS => {
+                        (self.opts.split_opts.sha_compress_split_threshold, 80)
+                    }
+                    _ => (self.opts.split_opts.deferred_shift_threshold, 1),
+                };
                 let nonce = (((*syscall_count as usize) % threshold) * multiplier) as u32;
                 self.record.nonce_lookup.insert(syscall_lookup_id, nonce);
                 *syscall_count += 1;
@@ -1239,7 +1248,7 @@ pub mod tests {
     use crate::{
         runtime::Register,
         utils::{
-            tests::{FIBONACCI_ELF, PANIC_ELF, SSZ_WITHDRAWALS_ELF},
+            tests::{FIBONACCI_ELF, KECCAK_PERMUTE_ELF, PANIC_ELF, SSZ_WITHDRAWALS_ELF},
             SP1CoreOpts,
         },
     };
@@ -1260,7 +1269,7 @@ pub mod tests {
     }
 
     pub fn ssz_withdrawals_program() -> Program {
-        Program::from(SSZ_WITHDRAWALS_ELF)
+        Program::from(KECCAK_PERMUTE_ELF)
     }
 
     pub fn panic_program() -> Program {
