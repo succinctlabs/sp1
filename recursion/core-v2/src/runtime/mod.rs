@@ -9,7 +9,6 @@ pub use program::*;
 pub use record::*;
 
 use std::borrow::Cow;
-use std::collections::VecDeque;
 use std::{marker::PhantomData, sync::Arc};
 
 use hashbrown::hash_map::Entry;
@@ -65,8 +64,6 @@ pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
 
     pub nb_poseidons: usize,
 
-    pub nb_bit_decompositions: usize,
-
     pub nb_ext_ops: usize,
 
     pub nb_base_ops: usize,
@@ -75,15 +72,8 @@ pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
 
     pub nb_branch_ops: usize,
 
-    pub nb_print_f: usize,
-
-    pub nb_print_e: usize,
-
     /// The current clock.
     pub clk: F,
-
-    /// The frame pointer.
-    pub fp: F,
 
     /// The program counter.
     pub pc: F,
@@ -92,19 +82,10 @@ pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
     pub program: RecursionProgram<F>,
 
     /// Memory.
-    // pub memory: Vec<MemoryEntry<F>>,
-    // pub memory: HashMap<usize, MemoryEntry<F>>,
     pub memory: HashMap<Address<F>, MemoryEntry<F>>,
-    /// Uninitialized memory addresses that have a specific value they should be initialized with.
-    /// The Opcodes that start with Hint* utilize this to set memory values.
-    pub uninitialized_memory: HashMap<usize, Block<F>>,
 
     /// The execution record.
     pub record: ExecutionRecord<F>,
-
-    /// The access record for this cycle.
-    // pub access: CpuRecord<F>,
-    pub witness_stream: VecDeque<Vec<Block<F>>>,
 
     pub cycle_tracker: HashMap<String, CycleTrackerEntry>,
 
@@ -131,21 +112,15 @@ where
         Self {
             timestamp: 0,
             nb_poseidons: 0,
-            nb_bit_decompositions: 0,
             nb_ext_ops: 0,
             nb_base_ops: 0,
             nb_memory_ops: 0,
             nb_branch_ops: 0,
-            nb_print_f: 0,
-            nb_print_e: 0,
             clk: F::zero(),
             program: program.clone(),
-            fp: F::from_canonical_usize(STACK_SIZE),
             pc: F::zero(),
             memory: HashMap::new(),
-            uninitialized_memory: HashMap::new(),
             record,
-            witness_stream: VecDeque::new(),
             cycle_tracker: HashMap::new(),
             _marker_ef: PhantomData,
             _marker_diffusion: PhantomData,

@@ -14,7 +14,6 @@ use crate::{builder::SP1RecursionAirBuilder, *};
 pub struct MemoryChip {}
 
 pub const NUM_MEM_INIT_COLS: usize = core::mem::size_of::<MemoryCols<u8>>();
-// pub const NUM_MEM_INIT_COLS: usize = 0;
 
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
@@ -145,9 +144,6 @@ where
     AB: SP1RecursionAirBuilder + PairBuilder,
 {
     fn eval(&self, builder: &mut AB) {
-        // let main = builder.main();
-        // let local = main.row_slice(0);
-        // let local: &MemoryCols<AB::Var> = (*local).borrow();
         let prep = builder.preprocessed();
         let prep_local = prep.row_slice(0);
         let prep_local: &MemoryPreprocessedCols<AB::Var> = (*prep_local).borrow();

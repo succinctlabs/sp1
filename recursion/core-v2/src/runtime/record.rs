@@ -15,8 +15,6 @@ pub struct ExecutionRecord<F> {
     pub base_alu_events: Vec<BaseAluEvent<F>>,
     pub ext_alu_events: Vec<ExtAluEvent<F>>,
     pub mem_events: Vec<MemEvent<F>>,
-    // _data: std::marker::PhantomData<F>,
-    // pub vars: HashMap<Address, u32>,
     /// The public values.
     pub public_values: PublicValues<u32, u32>,
 }
