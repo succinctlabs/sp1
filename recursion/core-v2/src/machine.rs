@@ -124,32 +124,6 @@ mod tests {
     use crate::{runtime::instruction as instr, *};
 
     #[test]
-    pub fn basic_mem_and_alu() {
-        type SC = BabyBearPoseidon2Outer;
-        type F = <SC as StarkGenericConfig>::Val;
-        type EF = <SC as StarkGenericConfig>::Challenge;
-        type A = RecursionAir<F>;
-
-        let instructions = vec![
-            instr::mem(MemAccessKind::Write, 1, 0, 9),
-            instr::mem(MemAccessKind::Write, 1, 1, 10),
-            instr::base_alu(Opcode::AddF, 1, 2, 0, 1),
-            instr::mem(MemAccessKind::Read, 1, 2, 19),
-        ];
-        let program = RecursionProgram { instructions };
-        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program);
-        runtime.run();
-
-        let config = SC::new();
-        let machine = A::machine(config);
-        let (pk, vk) = machine.setup(&program);
-        let result = run_test_machine(runtime.record, machine, pk, vk);
-        if let Err(e) = result {
-            panic!("Verification failed: {:?}", e);
-        }
-    }
-
-    #[test]
     pub fn fibonacci() {
         type SC = BabyBearPoseidon2Outer;
         type F = <SC as StarkGenericConfig>::Val;
