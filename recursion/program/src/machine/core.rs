@@ -132,6 +132,8 @@ where
         } = input;
 
         // Initialize values we will commit to public outputs.
+        let initial_shard = builder.uninit();
+        let current_shard = builder.uninit();
         let initial_execution_shard = builder.uninit();
         let current_execution_shard = builder.uninit();
         let start_pc = builder.uninit();
@@ -202,6 +204,10 @@ where
 
             // If this is the first proof in the batch, verify the initial conditions.
             builder.if_eq(i, C::N::zero()).then(|builder| {
+                // Shard.
+                builder.assign(initial_shard, public_values.shard);
+                builder.assign(current_shard, public_values.shard);
+
                 // Execution shard.
                 builder.assign(initial_execution_shard, public_values.execution_shard);
                 builder.assign(current_execution_shard, public_values.execution_shard);
@@ -262,8 +268,8 @@ where
             );
 
             // Assert that the initial challenger was witnessed correctly.
-            let execution_shard = felt2var(builder, public_values.execution_shard);
-            builder.if_eq(execution_shard, C::N::one()).then(|builder| {
+            let shard = felt2var(builder, public_values.shard);
+            builder.if_eq(shard, C::N::one()).then(|builder| {
                 // Assert that the initial challenger is equal to a fresh challenger observing the
                 // verifier key and the initial pc.
                 let mut first_initial_challenger = DuplexChallengerVariable::new(builder);
@@ -275,20 +281,27 @@ where
                 initial_reconstruct_challenger.assert_eq(builder, &first_initial_challenger);
             });
 
-            // Execution shard constraints.
+            // Shard constraints.
             {
-                // Assert that if the execution shard is one, then the shard contains a "CPU" chip.
-                builder.if_eq(execution_shard, C::N::one()).then(|builder| {
-                    builder.assert_var_eq(contains_cpu, C::N::one());
-                });
+                // Assert that the shard of the proof is equal to the current shard.
+                builder.assert_felt_eq(current_shard, public_values.shard);
 
-                // Assert that if the execution shard is one, then it should be the first proof in the batch.
-                builder.if_eq(execution_shard, C::N::one()).then(|builder| {
+                // Assert that if the shard is one, then it should be the first proof in the batch.
+                builder.if_eq(shard, C::N::one()).then(|builder| {
                     builder.assert_var_eq(i, C::N::zero());
                 });
 
+                // Increment the current shard by one.
+                builder.assign(current_shard, current_shard + C::F::one());
+            }
+
+            // Execution shard constraints.
+            let execution_shard = felt2var(builder, public_values.execution_shard);
+            {
                 // Assert that the shard of the proof is equal to the current shard.
-                builder.assert_felt_eq(current_execution_shard, public_values.execution_shard);
+                builder.if_eq(contains_cpu, C::N::one()).then(|builder| {
+                    builder.assert_felt_eq(current_execution_shard, public_values.execution_shard);
+                });
 
                 // If the shard has a "CPU" chip, then the execution shard should be incremented by 1.
                 builder.if_eq(contains_cpu, C::N::one()).then(|builder| {
@@ -301,8 +314,9 @@ where
 
             // Program counter constraints.
             {
-                // If it's the first execution shard, then the start_pc should be vk.pc_start.
-                builder.if_eq(execution_shard, C::N::one()).then(|builder| {
+                // If it's the first shard (which is the first execution shard), then the start_pc
+                // should be vk.pc_start.
+                builder.if_eq(shard, C::N::one()).then(|builder| {
                     builder.assert_felt_eq(public_values.start_pc, vk.pc_start);
                 });
 
@@ -492,7 +506,7 @@ where
             }
 
             // Verify that the number of shards is not too large.
-            builder.range_check_f(public_values.execution_shard, 16);
+            builder.range_check_f(public_values.shard, 16);
 
             // Update the reconstruct challenger.
             reconstruct_challenger.observe(builder, proof.commitment.main_commit.clone());
@@ -545,6 +559,8 @@ where
         recursion_public_values.deferred_proofs_digest = deferred_proofs_digest;
         recursion_public_values.start_pc = start_pc;
         recursion_public_values.next_pc = current_pc;
+        recursion_public_values.start_shard = initial_shard;
+        recursion_public_values.next_shard = current_shard;
         recursion_public_values.start_execution_shard = initial_execution_shard;
         recursion_public_values.next_execution_shard = current_execution_shard;
         recursion_public_values.previous_init_addr_bits = first_previous_init_addr_bits;

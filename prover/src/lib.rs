@@ -296,6 +296,10 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         for batch in shard_proofs.chunks(batch_size) {
             let proofs = batch.to_vec();
 
+            let public_values: &PublicValues<Word<BabyBear>, BabyBear> =
+                proofs.last().unwrap().public_values.as_slice().borrow();
+            println!("core execution shard: {}", public_values.execution_shard);
+
             core_inputs.push(SP1RecursionMemoryLayout {
                 vk,
                 machine: self.core_prover.machine(),
@@ -343,6 +347,13 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         for batch in deferred_proofs.chunks(batch_size) {
             let proofs = batch.to_vec();
 
+            let public_values: &PublicValues<Word<BabyBear>, BabyBear> =
+                proofs.last().unwrap().public_values.as_slice().borrow();
+            println!(
+                "deferred execution shard: {}",
+                public_values.execution_shard
+            );
+
             deferred_inputs.push(SP1DeferredMemoryLayout {
                 compress_vk: &self.compress_vk,
                 machine: self.compress_prover.machine(),
@@ -352,7 +363,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 sp1_vk: vk,
                 sp1_machine: self.core_prover.machine(),
                 end_pc: Val::<InnerSC>::zero(),
-                end_shard: last_proof_pv.execution_shard,
+                end_shard: last_proof_pv.shard + BabyBear::one(),
+                end_execution_shard: last_proof_pv.execution_shard,
                 init_addr_bits: last_proof_pv.last_init_addr_bits,
                 finalize_addr_bits: last_proof_pv.last_finalize_addr_bits,
                 leaf_challenger: leaf_challenger.clone(),
@@ -466,11 +478,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 })
                 .collect::<Vec<_>>();
             reduce_proofs.extend(proofs);
-        }
-
-        for reduce_proof in reduce_proofs.iter() {
-            let pv: &PublicValues<_, _> = reduce_proof.0.public_values.as_slice().borrow();
-            println!("execution shard: {}", pv.execution_shard);
         }
 
         // Iterate over the recursive proof batches until there is one proof remaining.
@@ -710,7 +717,9 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
     fn check_for_high_cycles(cycles: u64) {
         if cycles > 100_000_000 {
-            tracing::warn!("high cycle count, consider using the prover network for proof generation: https://docs.succinct.xyz/prover-network/setup.html");
+            tracing::warn!(
+                "high cycle count, consider using the prover network for proof generation: https://docs.succinct.xyz/prover-network/setup.html"
+            );
         }
     }
 }

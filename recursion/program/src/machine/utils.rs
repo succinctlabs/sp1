@@ -32,8 +32,10 @@ pub(crate) fn assert_complete<C: Config>(
     let RecursionPublicValues {
         deferred_proofs_digest,
         next_pc,
-        start_execution_shard: start_shard,
-        next_execution_shard: next_shard,
+        start_shard,
+        next_shard,
+        start_execution_shard,
+        next_execution_shard,
         cumulative_sum,
         start_reconstruct_deferred_digest,
         end_reconstruct_deferred_digest,
@@ -44,12 +46,18 @@ pub(crate) fn assert_complete<C: Config>(
     // Assert that `next_pc` is equal to zero (so program execution has completed)
     builder.assert_felt_eq(*next_pc, C::F::zero());
 
-    // Assert that the start shard is equal to 1.
+    // Assert that start shard is equal to 1.
     builder.assert_felt_eq(*start_shard, C::F::one());
+
+    // Assert that the next shard is not equal to one. This guarantees that there is at least one shard.
+    builder.assert_felt_ne(*next_shard, C::F::one());
+
+    // Assert that the start execution shard is equal to 1.
+    builder.assert_felt_eq(*start_execution_shard, C::F::one());
 
     // Assert that next shard is not equal to one. This guarantees that there is at least one shard
     // with CPU.
-    builder.assert_felt_ne(*next_shard, C::F::one());
+    builder.assert_felt_ne(*next_execution_shard, C::F::one());
 
     // The challenger has been fully verified.
 

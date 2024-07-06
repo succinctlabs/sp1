@@ -48,7 +48,7 @@ pub enum SP1CoreProverError {
 
 pub fn prove_simple<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<SC::Val>>>(
     config: SC,
-    runtime: Runtime,
+    mut runtime: Runtime,
 ) -> Result<(MachineProof<SC>, u64), SP1CoreProverError>
 where
     SC::Challenger: Clone,
@@ -62,6 +62,15 @@ where
     let machine = RiscvAir::machine(config);
     let prover = P::new(machine);
     let (pk, _) = prover.setup(runtime.program.as_ref());
+
+    // Set the shard numbers.
+    runtime
+        .records
+        .iter_mut()
+        .enumerate()
+        .for_each(|(i, shard)| {
+            shard.public_values.shard = (i + 1) as u32;
+        });
 
     // Prove the program.
     let mut challenger = prover.config().challenger();
@@ -175,6 +184,7 @@ where
 
         // Update the public values & prover state for the shards which contain "cpu events".
         for record in records.iter_mut() {
+            state.shard += 1;
             state.execution_shard = record.public_values.execution_shard;
             state.start_pc = record.public_values.start_pc;
             state.next_pc = record.public_values.next_pc;
@@ -191,14 +201,12 @@ where
 
         // See if any deferred shards are ready to be commited to.
         let is_last_checkpoint = checkpoint_idx == nb_checkpoints - 1;
-        if is_last_checkpoint {
-            records.pop();
-        }
         let mut deferred = deferred.split(is_last_checkpoint, opts.split_opts);
 
         // Update the public values & prover state for the shards which do not contain "cpu events"
         // before committing to them.
         for record in deferred.iter_mut() {
+            state.shard += 1;
             state.previous_init_addr_bits = record.public_values.previous_init_addr_bits;
             state.last_init_addr_bits = record.public_values.last_init_addr_bits;
             state.previous_finalize_addr_bits = record.public_values.previous_finalize_addr_bits;
@@ -243,6 +251,7 @@ where
 
         // Update the public values & prover state for the shards which contain "cpu events".
         for record in records.iter_mut() {
+            state.shard += 1;
             state.execution_shard = record.public_values.execution_shard;
             state.start_pc = record.public_values.start_pc;
             state.next_pc = record.public_values.next_pc;
@@ -259,14 +268,12 @@ where
 
         // See if any deferred shards are ready to be commited to.
         let is_last_checkpoint = checkpoint_idx == nb_checkpoints - 1;
-        if is_last_checkpoint {
-            records.pop();
-        }
         let mut deferred = deferred.split(is_last_checkpoint, opts.split_opts);
 
         // Update the public values & prover state for the shards which do not contain "cpu events"
         // before committing to them.
         for record in deferred.iter_mut() {
+            state.shard += 1;
             state.previous_init_addr_bits = record.public_values.previous_init_addr_bits;
             state.last_init_addr_bits = record.public_values.last_init_addr_bits;
             state.previous_finalize_addr_bits = record.public_values.previous_finalize_addr_bits;
