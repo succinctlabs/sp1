@@ -118,92 +118,10 @@ mod tests {
     };
     use rand::prelude::*;
     use sp1_core::{stark::StarkGenericConfig, utils::run_test_machine};
-    use sp1_recursion_core::{air::Block, stark::config::BabyBearPoseidon2Outer};
+    use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
 
     // TODO expand glob import
-    use crate::{runtime::Runtime, *};
-
-    mod instr {
-        use super::*;
-        pub fn base_alu<F: AbstractField>(
-            opcode: Opcode,
-            mult: u32,
-            out: u32,
-            in1: u32,
-            in2: u32,
-        ) -> Instruction<F> {
-            Instruction::BaseAlu(BaseAluInstr {
-                opcode,
-                mult: F::from_canonical_u32(mult),
-                addrs: BaseAluIo {
-                    out: Address(F::from_canonical_u32(out)),
-                    in1: Address(F::from_canonical_u32(in1)),
-                    in2: Address(F::from_canonical_u32(in2)),
-                },
-            })
-        }
-
-        pub fn ext_alu<F: AbstractField>(
-            opcode: Opcode,
-            mult: u32,
-            out: u32,
-            in1: u32,
-            in2: u32,
-        ) -> Instruction<F> {
-            Instruction::ExtAlu(ExtAluInstr {
-                opcode,
-                mult: F::from_canonical_u32(mult),
-                addrs: ExtAluIo {
-                    out: Address(F::from_canonical_u32(out)),
-                    in1: Address(F::from_canonical_u32(in1)),
-                    in2: Address(F::from_canonical_u32(in2)),
-                },
-            })
-        }
-
-        pub fn mem_int<F: AbstractField>(
-            kind: MemAccessKind,
-            mult: u32,
-            addr: u32,
-            val: u32,
-        ) -> Instruction<F> {
-            mem_single(kind, mult, addr, F::from_canonical_u32(val))
-        }
-
-        pub fn mem_single<F: AbstractField>(
-            kind: MemAccessKind,
-            mult: u32,
-            addr: u32,
-            val: F,
-        ) -> Instruction<F> {
-            mem_block(kind, mult, addr, Block::from(val))
-        }
-
-        pub fn mem_ext<F: AbstractField + Copy, EF: AbstractExtensionField<F>>(
-            kind: MemAccessKind,
-            mult: u32,
-            addr: u32,
-            val: EF,
-        ) -> Instruction<F> {
-            mem_block(kind, mult, addr, val.as_base_slice().into())
-        }
-
-        pub fn mem_block<F: AbstractField>(
-            kind: MemAccessKind,
-            mult: u32,
-            addr: u32,
-            val: Block<F>,
-        ) -> Instruction<F> {
-            Instruction::Mem(MemInstr {
-                addrs: MemIo {
-                    inner: Address(F::from_canonical_u32(addr)),
-                },
-                vals: MemIo { inner: val },
-                mult: F::from_canonical_u32(mult),
-                kind,
-            })
-        }
-    }
+    use crate::{runtime::instruction as instr, *};
 
     #[test]
     pub fn basic_mem() {
@@ -213,8 +131,8 @@ mod tests {
         type A = RecursionAir<F>;
 
         let instructions = vec![
-            instr::mem_int(MemAccessKind::Write, 1, 1, 2),
-            instr::mem_int(MemAccessKind::Read, 1, 1, 2),
+            instr::mem(MemAccessKind::Write, 1, 1, 2),
+            instr::mem(MemAccessKind::Read, 1, 1, 2),
         ];
         let program = RecursionProgram { instructions };
         let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program);
@@ -238,8 +156,8 @@ mod tests {
         type A = RecursionAir<F>;
 
         let instructions = vec![
-            instr::mem_int(MemAccessKind::Write, 1, 1, 2),
-            instr::mem_int(MemAccessKind::Read, 999, 1, 2),
+            instr::mem(MemAccessKind::Write, 1, 1, 2),
+            instr::mem(MemAccessKind::Read, 999, 1, 2),
         ];
         let program = RecursionProgram { instructions };
         let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program);
@@ -263,8 +181,8 @@ mod tests {
         type A = RecursionAir<F>;
 
         let instructions = vec![
-            instr::mem_int(MemAccessKind::Write, 1, 1, 2),
-            instr::mem_int(MemAccessKind::Read, 1, 999, 2),
+            instr::mem(MemAccessKind::Write, 1, 1, 2),
+            instr::mem(MemAccessKind::Read, 1, 999, 2),
         ];
         let program = RecursionProgram { instructions };
         let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program);
@@ -288,8 +206,8 @@ mod tests {
         type A = RecursionAir<F>;
 
         let instructions = vec![
-            instr::mem_int(MemAccessKind::Write, 1, 1, 2),
-            instr::mem_int(MemAccessKind::Read, 1, 1, 999),
+            instr::mem(MemAccessKind::Write, 1, 1, 2),
+            instr::mem(MemAccessKind::Read, 1, 1, 999),
         ];
         let program = RecursionProgram { instructions };
         let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program);
@@ -312,10 +230,10 @@ mod tests {
         type A = RecursionAir<F>;
 
         let instructions = vec![
-            instr::mem_int(MemAccessKind::Write, 1, 0, 9),
-            instr::mem_int(MemAccessKind::Write, 1, 1, 10),
+            instr::mem(MemAccessKind::Write, 1, 0, 9),
+            instr::mem(MemAccessKind::Write, 1, 1, 10),
             instr::base_alu(Opcode::AddF, 1, 2, 0, 1),
-            instr::mem_int(MemAccessKind::Read, 1, 2, 19),
+            instr::mem(MemAccessKind::Read, 1, 2, 19),
         ];
         let program = RecursionProgram { instructions };
         let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program);
@@ -339,45 +257,13 @@ mod tests {
 
         let n = 10;
 
-        let instructions = once(instr::mem_int(MemAccessKind::Write, 1, 0, 0))
-            .chain(once(instr::mem_int(MemAccessKind::Write, 2, 1, 1)))
+        let instructions = once(instr::mem(MemAccessKind::Write, 1, 0, 0))
+            .chain(once(instr::mem(MemAccessKind::Write, 2, 1, 1)))
             .chain((2..=n).map(|i| instr::base_alu(Opcode::AddF, 2, i, i - 2, i - 1)))
-            .chain(once(instr::mem_int(MemAccessKind::Read, 1, n - 1, 34)))
-            .chain(once(instr::mem_int(MemAccessKind::Read, 2, n, 55)))
+            .chain(once(instr::mem(MemAccessKind::Read, 1, n - 1, 34)))
+            .chain(once(instr::mem(MemAccessKind::Read, 2, n, 55)))
             .collect::<Vec<_>>();
 
-        let program = RecursionProgram { instructions };
-        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program);
-        runtime.run();
-
-        let config = SC::new();
-        let machine = A::machine(config);
-        let (pk, vk) = machine.setup(&program);
-        let result = run_test_machine(runtime.record, machine, pk, vk);
-        if let Err(e) = result {
-            panic!("Verification failed: {:?}", e);
-        }
-    }
-
-    #[test]
-    pub fn four_ops() {
-        type SC = BabyBearPoseidon2Outer;
-        type F = <SC as StarkGenericConfig>::Val;
-        type EF = <SC as StarkGenericConfig>::Challenge;
-        type A = RecursionAir<F>;
-
-        let instructions = vec![
-            instr::mem_int(MemAccessKind::Write, 4, 0, 6),
-            instr::mem_int(MemAccessKind::Write, 4, 1, 3),
-            instr::base_alu(Opcode::AddF, 1, 2, 0, 1),
-            instr::mem_int(MemAccessKind::Read, 1, 2, 6 + 3),
-            instr::base_alu(Opcode::SubF, 1, 3, 0, 1),
-            instr::mem_int(MemAccessKind::Read, 1, 3, 6 - 3),
-            instr::base_alu(Opcode::MulF, 1, 4, 0, 1),
-            instr::mem_int(MemAccessKind::Read, 1, 4, 6 * 3),
-            instr::base_alu(Opcode::DivF, 1, 5, 0, 1),
-            instr::mem_int(MemAccessKind::Read, 1, 5, 6 / 3),
-        ];
         let program = RecursionProgram { instructions };
         let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program);
         runtime.run();

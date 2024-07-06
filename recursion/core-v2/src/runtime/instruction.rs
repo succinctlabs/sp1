@@ -1,3 +1,4 @@
+use p3_field::{AbstractExtensionField, AbstractField};
 use serde::{Deserialize, Serialize};
 
 use crate::*;
@@ -9,73 +10,81 @@ pub enum Instruction<F> {
     Mem(MemInstr<F>),
 }
 
-// #[derive(Debug, Clone, Serialize, Deserialize)]
-// pub struct Instruction<F> {
-//     /// Which operation to execute.
-//     pub opcode: Opcode,
+pub fn base_alu<F: AbstractField>(
+    opcode: Opcode,
+    mult: u32,
+    out: u32,
+    in1: u32,
+    in2: u32,
+) -> Instruction<F> {
+    Instruction::BaseAlu(BaseAluInstr {
+        opcode,
+        mult: F::from_canonical_u32(mult),
+        addrs: BaseAluIo {
+            out: Address(F::from_canonical_u32(out)),
+            in1: Address(F::from_canonical_u32(in1)),
+            in2: Address(F::from_canonical_u32(in2)),
+        },
+    })
+}
 
-//     /// The first operand.
-//     pub op_a: F,
+pub fn ext_alu<F: AbstractField>(
+    opcode: Opcode,
+    mult: u32,
+    out: u32,
+    in1: u32,
+    in2: u32,
+) -> Instruction<F> {
+    Instruction::ExtAlu(ExtAluInstr {
+        opcode,
+        mult: F::from_canonical_u32(mult),
+        addrs: ExtAluIo {
+            out: Address(F::from_canonical_u32(out)),
+            in1: Address(F::from_canonical_u32(in1)),
+            in2: Address(F::from_canonical_u32(in2)),
+        },
+    })
+}
 
-//     /// The second operand.
-//     pub op_b: Block<F>,
+pub fn mem<F: AbstractField>(
+    kind: MemAccessKind,
+    mult: u32,
+    addr: u32,
+    val: u32,
+) -> Instruction<F> {
+    mem_single(kind, mult, addr, F::from_canonical_u32(val))
+}
 
-//     /// The third operand.
-//     pub op_c: Block<F>,
+pub fn mem_single<F: AbstractField>(
+    kind: MemAccessKind,
+    mult: u32,
+    addr: u32,
+    val: F,
+) -> Instruction<F> {
+    mem_block(kind, mult, addr, Block::from(val))
+}
 
-//     // The offset imm operand.
-//     pub offset_imm: F,
+pub fn mem_ext<F: AbstractField + Copy, EF: AbstractExtensionField<F>>(
+    kind: MemAccessKind,
+    mult: u32,
+    addr: u32,
+    val: EF,
+) -> Instruction<F> {
+    mem_block(kind, mult, addr, val.as_base_slice().into())
+}
 
-//     // The size imm operand.
-//     pub size_imm: F,
-
-//     /// Whether the second operand is an immediate value.
-//     pub imm_b: bool,
-
-//     /// Whether the third operand is an immediate value.
-//     pub imm_c: bool,
-
-//     /// A debug string for the instruction.
-//     pub debug: String,
-// }
-
-// impl<F: PrimeField32> Instruction<F> {
-//     #[allow(clippy::too_many_arguments)]
-//     pub fn new(
-//         opcode: Opcode,
-//         op_a: F,
-//         op_b: [F; D],
-//         op_c: [F; D],
-//         offset_imm: F,
-//         size_imm: F,
-//         imm_b: bool,
-//         imm_c: bool,
-//         debug: String,
-//     ) -> Self {
-//         Self {
-//             opcode,
-//             op_a,
-//             op_b: Block::from(op_b),
-//             op_c: Block::from(op_c),
-//             offset_imm,
-//             size_imm,
-//             imm_b,
-//             imm_c,
-//             debug,
-//         }
-//     }
-
-//     pub fn dummy() -> Self {
-//         Instruction::new(
-//             Opcode::AddF,
-//             F::zero(),
-//             [F::zero(); 4],
-//             [F::zero(); 4],
-//             F::zero(),
-//             F::zero(),
-//             false,
-//             false,
-//             "".to_string(),
-//         )
-//     }
-// }
+pub fn mem_block<F: AbstractField>(
+    kind: MemAccessKind,
+    mult: u32,
+    addr: u32,
+    val: Block<F>,
+) -> Instruction<F> {
+    Instruction::Mem(MemInstr {
+        addrs: MemIo {
+            inner: Address(F::from_canonical_u32(addr)),
+        },
+        vals: MemIo { inner: val },
+        mult: F::from_canonical_u32(mult),
+        kind,
+    })
+}

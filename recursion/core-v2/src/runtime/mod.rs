@@ -1,9 +1,9 @@
-mod instruction;
+pub mod instruction;
 mod opcode;
 mod program;
 mod record;
 
-pub use instruction::*;
+pub use instruction::Instruction;
 pub use opcode::*;
 pub use program::*;
 pub use record::*;
