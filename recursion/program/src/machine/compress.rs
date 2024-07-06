@@ -165,6 +165,7 @@ where
         let sp1_vk_digest: [Felt<_>; DIGEST_SIZE] = array::from_fn(|_| builder.uninit());
         let pc: Felt<_> = builder.uninit();
         let shard: Felt<_> = builder.uninit();
+        let execution_shard: Felt<_> = builder.uninit();
         let mut initial_reconstruct_challenger = DuplexChallengerVariable::new(builder);
         let mut reconstruct_challenger = DuplexChallengerVariable::new(builder);
         let mut leaf_challenger = DuplexChallengerVariable::new(builder);
@@ -293,7 +294,14 @@ where
                 builder.assign(pc, current_public_values.start_pc);
 
                 // Initialize start shard.
-                builder.assign(shard, current_public_values.start_execution_shard);
+                builder.assign(shard, current_public_values.start_shard);
+                builder.assign(
+                    reduce_public_values.start_shard,
+                    current_public_values.start_shard,
+                );
+
+                // Initialize start execution shard.
+                builder.assign(execution_shard, current_public_values.start_execution_shard);
                 builder.assign(
                     reduce_public_values.start_execution_shard,
                     current_public_values.start_execution_shard,
@@ -381,8 +389,11 @@ where
             // Assert that the start pc is equal to the current pc.
             builder.assert_felt_eq(pc, current_public_values.start_pc);
 
-            // Verfiy that the shard is equal to the current shard.
-            builder.assert_felt_eq(shard, current_public_values.start_execution_shard);
+            // Verify that the shard is equal to the current shard.
+            builder.assert_felt_eq(shard, current_public_values.start_shard);
+
+            // Verfiy that the exeuction shard is equal to the current execution shard.
+            builder.assert_felt_eq(execution_shard, current_public_values.start_execution_shard);
 
             // Assert that the leaf challenger is always the same.
 
@@ -491,7 +502,10 @@ where
             builder.assign(pc, current_public_values.next_pc);
 
             // Update the shard to be the next shard.
-            builder.assign(shard, current_public_values.next_execution_shard);
+            builder.assign(shard, current_public_values.next_shard);
+
+            // Update the execution shard to be the next execution shard.
+            builder.assign(execution_shard, current_public_values.next_execution_shard);
 
             // Update the MemoryInitialize address bits.
             for (bit, next_bit) in init_addr_bits
@@ -530,8 +544,10 @@ where
         reduce_public_values.sp1_vk_digest = sp1_vk_digest;
         // Set next_pc to be the last pc (which is the same as accumulated pc)
         reduce_public_values.next_pc = pc;
-        // Set next shard to be the last shard (which is the same as accumulated shard)
-        reduce_public_values.next_execution_shard = shard;
+        // Set next shard to be the last shard
+        reduce_public_values.next_shard = shard;
+        // Set next execution shard to be the last execution shard
+        reduce_public_values.next_execution_shard = execution_shard;
         // Set the MemoryInitialize address bits to be the last MemoryInitialize address bits.
         reduce_public_values.last_init_addr_bits = init_addr_bits;
         // Set the MemoryFinalize address bits to be the last MemoryFinalize address bits.

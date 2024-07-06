@@ -352,7 +352,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 sp1_vk: vk,
                 sp1_machine: self.core_prover.machine(),
                 end_pc: Val::<InnerSC>::zero(),
-                end_shard: last_proof_pv.execution_shard,
+                end_shard: last_proof_pv.shard + BabyBear::one(),
+                end_execution_shard: last_proof_pv.execution_shard,
                 init_addr_bits: last_proof_pv.last_init_addr_bits,
                 finalize_addr_bits: last_proof_pv.last_finalize_addr_bits,
                 leaf_challenger: leaf_challenger.clone(),
@@ -466,11 +467,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 })
                 .collect::<Vec<_>>();
             reduce_proofs.extend(proofs);
-        }
-
-        for reduce_proof in reduce_proofs.iter() {
-            let pv: &PublicValues<_, _> = reduce_proof.0.public_values.as_slice().borrow();
-            println!("execution shard: {}", pv.execution_shard);
         }
 
         // Iterate over the recursive proof batches until there is one proof remaining.

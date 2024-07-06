@@ -44,6 +44,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         proof: &SP1CoreProofData,
         vk: &SP1VerifyingKey,
     ) -> Result<(), MachineVerificationError<CoreSC>> {
+        // Initialization constraints.
+        //
         // Assert that the first shard has a "CPU".
         let first_shard = proof.0.first().unwrap();
         if !first_shard.contains_cpu() {
@@ -65,6 +67,25 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             }
         }
 
+        // Shard constraints.
+        //
+        // Initialization:
+        // - Shard should start at one.
+        //
+        // Transition:
+        // - Shard should increment by one for each shard.
+        let mut current_shard = BabyBear::zero();
+        for shard_proof in proof.0.iter() {
+            let public_values: &PublicValues<Word<_>, _> =
+                shard_proof.public_values.as_slice().borrow();
+            current_shard += BabyBear::one();
+            if public_values.shard != current_shard {
+                return Err(MachineVerificationError::InvalidPublicValues(
+                    "shard index should be the previous shard index + 1 and start at 1",
+                ));
+            }
+        }
+
         // Execution shard constraints.
         //
         // Initialization:
@@ -73,6 +94,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         // Transition:
         // - Execution shard should increment by one for each shard with "CPU".
         // - Execution shard should stay the same for non-CPU shards.
+        // - For the other shards, execution shard does not matter.
         let mut current_execution_shard = BabyBear::zero();
         for shard_proof in proof.0.iter() {
             let public_values: &PublicValues<Word<_>, _> =
@@ -82,16 +104,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 if public_values.execution_shard != current_execution_shard {
                     return Err(MachineVerificationError::InvalidPublicValues(
                         "execution shard index should be the previous execution shard index + 1 if cpu exists and start at 1",
-                    ));
-                }
-            } else {
-                println!(
-                    "{} {}",
-                    public_values.execution_shard, current_execution_shard
-                );
-                if public_values.execution_shard != current_execution_shard {
-                    return Err(MachineVerificationError::InvalidPublicValues(
-                        "execution shard index should be the previous cpu shard index if cpu does not exist",
                     ));
                 }
             }
@@ -113,13 +125,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         for (i, shard_proof) in proof.0.iter().enumerate() {
             let public_values: &PublicValues<Word<_>, _> =
                 shard_proof.public_values.as_slice().borrow();
-            println!(
-                "shard proof i={} cpu={} start_pc={}, next_pc={}",
-                i,
-                shard_proof.contains_cpu(),
-                public_values.start_pc,
-                public_values.next_pc
-            );
             if i == 0 && public_values.start_pc != vk.vk.pc_start {
                 return Err(MachineVerificationError::InvalidPublicValues(
                     "start_pc != vk.start_pc: program counter should start at vk.start_pc",
@@ -158,7 +163,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             }
         }
 
-        // Memory initilization & finalization constraints.
+        // Memory initialization & finalization constraints.
         //
         // Initialization:
         // - `previous_init_addr_bits` should be zero.
@@ -176,24 +181,24 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 shard_proof.public_values.as_slice().borrow();
             if public_values.previous_init_addr_bits != last_init_addr_bits_prev {
                 return Err(MachineVerificationError::InvalidPublicValues(
-                    "previous_init_addr_bits != last_init_addr_bits_prev: previous_init_addr_bits should be zero on initialization and equal to last_init_addr_bits of previous shard",
+                    "previous_init_addr_bits != last_init_addr_bits_prev",
                 ));
             } else if public_values.previous_finalize_addr_bits != last_finalize_addr_bits_prev {
                 return Err(MachineVerificationError::InvalidPublicValues(
-                    "last_init_addr_bits != last_finalize_addr_bits_prev: previous_finalize_addr_bits should be zero on initialization and equal to last_finalize_addr_bits of previous shard",
+                    "last_init_addr_bits != last_finalize_addr_bits_prev",
                 ));
             } else if !shard_proof.contains_memory_init()
                 && public_values.previous_init_addr_bits != public_values.last_init_addr_bits
             {
                 return Err(MachineVerificationError::InvalidPublicValues(
-                    "previous_init_addr_bits != last_init_addr_bits: previous_init_addr_bits should equal last_init_addr_bits for non-memory init shards",
+                    "previous_init_addr_bits != last_init_addr_bits",
                 ));
             } else if !shard_proof.contains_memory_finalize()
                 && public_values.previous_finalize_addr_bits
                     != public_values.last_finalize_addr_bits
             {
                 return Err(MachineVerificationError::InvalidPublicValues(
-                    "previous_finalize_addr_bits != last_finalize_addr_bits: previous_finalize_addr_bits should equal last_finalize_addr_bits for non-memory finalize shards",
+                    "previous_finalize_addr_bits != last_finalize_addr_bits",
                 ));
             }
             last_init_addr_bits_prev = public_values.last_init_addr_bits;
@@ -226,25 +231,25 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 && public_values.committed_value_digest != commited_value_digest_prev
             {
                 return Err(MachineVerificationError::InvalidPublicValues(
-                    "committed_value_digest != commited_value_digest_prev: commited_value_digest should start at zero or equal commited_value_digest of the previous shard",
+                    "committed_value_digest != commited_value_digest_prev",
                 ));
             } else if deferred_proofs_digest_prev != zero_deferred_proofs_digest
                 && public_values.deferred_proofs_digest != deferred_proofs_digest_prev
             {
                 return Err(MachineVerificationError::InvalidPublicValues(
-                    "deferred_proofs_digest != deferred_proofs_digest_prev: deferred_proofs_digest should start at zero or equal deferred_proofs_digest of the previous shard",
+                    "deferred_proofs_digest != deferred_proofs_digest_prev",
                 ));
             } else if !shard_proof.contains_cpu()
                 && public_values.committed_value_digest != commited_value_digest_prev
             {
                 return Err(MachineVerificationError::InvalidPublicValues(
-                    "committed_value_digest != commited_value_digest_prev: commited_value_digest should start at zero or equal commited_value_digest of the previous shard",
+                    "committed_value_digest != commited_value_digest_prev",
                 ));
             } else if !shard_proof.contains_cpu()
                 && public_values.deferred_proofs_digest != deferred_proofs_digest_prev
             {
                 return Err(MachineVerificationError::InvalidPublicValues(
-                    "deferred_proofs_digest != deferred_proofs_digest_prev: deferred_proofs_digest should start at zero or equal deferred_proofs_digest of the previous shard",
+                    "deferred_proofs_digest != deferred_proofs_digest_prev",
                 ));
             }
             commited_value_digest_prev = public_values.committed_value_digest;

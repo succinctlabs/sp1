@@ -629,6 +629,7 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
         let leaf_challenger = DuplexChallenger::<InnerVal, InnerPerm, 16, 8>::read(builder);
         let end_pc = InnerVal::read(builder);
         let end_shard = InnerVal::read(builder);
+        let end_execution_shard = InnerVal::read(builder);
         let init_addr_bits = Vec::<InnerVal>::read(builder);
         let finalize_addr_bits = Vec::<InnerVal>::read(builder);
 
@@ -643,6 +644,7 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
             leaf_challenger,
             end_pc,
             end_shard,
+            end_execution_shard,
             init_addr_bits,
             finalize_addr_bits,
         }
@@ -680,6 +682,7 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
         stream.extend(self.leaf_challenger.write());
         stream.extend(self.end_pc.write());
         stream.extend(self.end_shard.write());
+        stream.extend(self.end_execution_shard.write());
         stream.extend(self.init_addr_bits.to_vec().write());
         stream.extend(self.finalize_addr_bits.to_vec().write());
 
