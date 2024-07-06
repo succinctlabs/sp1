@@ -227,7 +227,6 @@ impl MachineRecord for ExecutionRecord {
         self.divrem_events.append(&mut other.divrem_events);
         self.lt_events.append(&mut other.lt_events);
         self.sha_extend_events.append(&mut other.sha_extend_events);
-
         self.sha_compress_events
             .append(&mut other.sha_compress_events);
         self.keccak_permute_events

@@ -5,7 +5,7 @@ use hashbrown::HashMap;
 use itertools::Itertools;
 use p3_air::AirBuilder;
 use p3_air::{Air, BaseAir};
-use p3_field::{AbstractField, PrimeField32};
+use p3_field::{AbstractField, PrimeField};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::{IntoParallelRefIterator, ParallelIterator, ParallelSlice};
@@ -59,7 +59,7 @@ pub struct BitwiseCols<T> {
     pub is_and: T,
 }
 
-impl<F: PrimeField32> MachineAir<F> for BitwiseChip {
+impl<F: PrimeField> MachineAir<F> for BitwiseChip {
     type Record = ExecutionRecord;
 
     type Program = Program;
@@ -130,7 +130,7 @@ impl<F: PrimeField32> MachineAir<F> for BitwiseChip {
 
 impl BitwiseChip {
     /// Create a row from an event.
-    fn event_to_row<F: PrimeField32>(
+    fn event_to_row<F: PrimeField>(
         &self,
         event: &AluEvent,
         cols: &mut BitwiseCols<F>,

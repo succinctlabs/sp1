@@ -36,7 +36,7 @@ use core::mem::size_of;
 use hashbrown::HashMap;
 use itertools::Itertools;
 use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::{AbstractField, PrimeField32};
+use p3_field::{AbstractField, PrimeField};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::{ParallelIterator, ParallelSlice};
@@ -105,7 +105,7 @@ pub struct ShiftLeftCols<T> {
     pub is_real: T,
 }
 
-impl<F: PrimeField32> MachineAir<F> for ShiftLeft {
+impl<F: PrimeField> MachineAir<F> for ShiftLeft {
     type Record = ExecutionRecord;
 
     type Program = Program;
@@ -190,7 +190,7 @@ impl<F: PrimeField32> MachineAir<F> for ShiftLeft {
 
 impl ShiftLeft {
     /// Create a row from an event.
-    fn event_to_row<F: PrimeField32>(
+    fn event_to_row<F: PrimeField>(
         &self,
         event: &AluEvent,
         cols: &mut ShiftLeftCols<F>,

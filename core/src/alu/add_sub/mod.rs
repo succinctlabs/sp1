@@ -4,7 +4,7 @@ use core::mem::size_of;
 use hashbrown::HashMap;
 use itertools::Itertools;
 use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::{AbstractField, PrimeField32};
+use p3_field::{AbstractField, PrimeField};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::ParallelSlice;
@@ -63,7 +63,7 @@ pub struct AddSubCols<T> {
     pub is_sub: T,
 }
 
-impl<F: PrimeField32> MachineAir<F> for AddSubChip {
+impl<F: PrimeField> MachineAir<F> for AddSubChip {
     type Record = ExecutionRecord;
 
     type Program = Program;
@@ -163,7 +163,7 @@ impl<F: PrimeField32> MachineAir<F> for AddSubChip {
 
 impl AddSubChip {
     /// Create a row from an event.
-    fn event_to_row<F: PrimeField32>(
+    fn event_to_row<F: PrimeField>(
         &self,
         event: &AluEvent,
         cols: &mut AddSubCols<F>,
