@@ -228,7 +228,10 @@ mod test {
         let opts = SP1CoreOpts::default();
         machine.generate_dependencies(&mut runtime.records, &opts);
 
-        let shards = runtime.records;
+        let mut shards = runtime.records;
+        shards.iter_mut().enumerate().for_each(|(i, shard)| {
+            shard.public_values.shard = (i + 1) as u32;
+        });
         let ok =
             debug_interactions_with_all_chips(&machine, &pk, &shards, InteractionKind::all_kinds());
         assert!(ok);
