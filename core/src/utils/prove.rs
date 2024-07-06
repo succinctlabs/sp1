@@ -48,7 +48,7 @@ pub enum SP1CoreProverError {
 
 pub fn prove_simple<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<SC::Val>>>(
     config: SC,
-    runtime: Runtime,
+    mut runtime: Runtime,
 ) -> Result<(MachineProof<SC>, u64), SP1CoreProverError>
 where
     SC::Challenger: Clone,
@@ -62,6 +62,15 @@ where
     let machine = RiscvAir::machine(config);
     let prover = P::new(machine);
     let (pk, _) = prover.setup(runtime.program.as_ref());
+
+    // Set the shard numbers.
+    runtime
+        .records
+        .iter_mut()
+        .enumerate()
+        .for_each(|(i, shard)| {
+            shard.public_values.shard = (i + 1) as u32;
+        });
 
     // Prove the program.
     let mut challenger = prover.config().challenger();
