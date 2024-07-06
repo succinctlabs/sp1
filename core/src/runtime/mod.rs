@@ -110,6 +110,9 @@ pub struct Runtime<'a> {
 
     /// Registry of hooks, to be invoked by writing to certain file descriptors.
     pub hook_registry: HookRegistry<'a>,
+
+    // The options for the runtime.
+    pub opts: SP1CoreOpts,
 }
 
 #[derive(Error, Debug)]
@@ -184,6 +187,7 @@ impl<'a> Runtime<'a> {
             print_report: false,
             subproof_verifier,
             hook_registry,
+            opts,
         }
     }
 
@@ -872,13 +876,18 @@ impl<'a> Runtime<'a> {
 
                 // Update the syscall counts.
                 let syscall_count = self.state.syscall_counts.entry(syscall).or_insert(0);
-                let multiplier = match syscall {
-                    SyscallCode::KECCAK_PERMUTE => 24,
-                    SyscallCode::SHA_EXTEND => 48,
-                    SyscallCode::SHA_COMPRESS => 80,
-                    _ => 1,
-                } as usize;
-                let threshold = DEFERRED_SPLIT_THRESHOLD / multiplier;
+                let (threshold, multiplier) = match syscall {
+                    SyscallCode::KECCAK_PERMUTE => {
+                        (self.opts.split_opts.keccak_split_threshold, 24)
+                    }
+                    SyscallCode::SHA_EXTEND => {
+                        (self.opts.split_opts.sha_extend_split_threshold, 48)
+                    }
+                    SyscallCode::SHA_COMPRESS => {
+                        (self.opts.split_opts.sha_compress_split_threshold, 80)
+                    }
+                    _ => (self.opts.split_opts.deferred_shift_threshold, 1),
+                };
                 let nonce = (((*syscall_count as usize) % threshold) * multiplier) as u32;
                 self.record.nonce_lookup.insert(syscall_lookup_id, nonce);
                 *syscall_count += 1;
@@ -1124,7 +1133,6 @@ impl<'a> Runtime<'a> {
         }
 
         // Set the global public values for all shards.
-        let mut last_execution_shard = 0;
         let mut last_next_pc = 0;
         let mut last_exit_code = 0;
         for (i, record) in self.records.iter_mut().enumerate() {
@@ -1132,16 +1140,14 @@ impl<'a> Runtime<'a> {
             record.public_values = public_values;
             record.public_values.committed_value_digest = public_values.committed_value_digest;
             record.public_values.deferred_proofs_digest = public_values.deferred_proofs_digest;
+            record.public_values.execution_shard = start_shard + i as u32;
             if !record.cpu_events.is_empty() {
-                record.public_values.execution_shard = start_shard + i as u32;
                 record.public_values.start_pc = record.cpu_events[0].pc;
                 record.public_values.next_pc = record.cpu_events.last().unwrap().next_pc;
                 record.public_values.exit_code = record.cpu_events.last().unwrap().exit_code;
-                last_execution_shard = record.public_values.execution_shard;
                 last_next_pc = record.public_values.next_pc;
                 last_exit_code = record.public_values.exit_code;
             } else {
-                record.public_values.execution_shard = last_execution_shard;
                 record.public_values.start_pc = last_next_pc;
                 record.public_values.next_pc = last_next_pc;
                 record.public_values.exit_code = last_exit_code;
@@ -1242,7 +1248,7 @@ pub mod tests {
     use crate::{
         runtime::Register,
         utils::{
-            tests::{FIBONACCI_ELF, PANIC_ELF, SSZ_WITHDRAWALS_ELF},
+            tests::{FIBONACCI_ELF, KECCAK_PERMUTE_ELF, PANIC_ELF, SSZ_WITHDRAWALS_ELF},
             SP1CoreOpts,
         },
     };
@@ -1263,7 +1269,7 @@ pub mod tests {
     }
 
     pub fn ssz_withdrawals_program() -> Program {
-        Program::from(SSZ_WITHDRAWALS_ELF)
+        Program::from(KECCAK_PERMUTE_ELF)
     }
 
     pub fn panic_program() -> Program {

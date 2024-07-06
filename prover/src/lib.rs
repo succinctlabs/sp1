@@ -296,6 +296,10 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         for batch in shard_proofs.chunks(batch_size) {
             let proofs = batch.to_vec();
 
+            let public_values: &PublicValues<Word<BabyBear>, BabyBear> =
+                proofs.last().unwrap().public_values.as_slice().borrow();
+            println!("core execution shard: {}", public_values.execution_shard);
+
             core_inputs.push(SP1RecursionMemoryLayout {
                 vk,
                 machine: self.core_prover.machine(),
@@ -342,6 +346,13 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
         for batch in deferred_proofs.chunks(batch_size) {
             let proofs = batch.to_vec();
+
+            let public_values: &PublicValues<Word<BabyBear>, BabyBear> =
+                proofs.last().unwrap().public_values.as_slice().borrow();
+            println!(
+                "deferred execution shard: {}",
+                public_values.execution_shard
+            );
 
             deferred_inputs.push(SP1DeferredMemoryLayout {
                 compress_vk: &self.compress_vk,
@@ -706,7 +717,9 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
     fn check_for_high_cycles(cycles: u64) {
         if cycles > 100_000_000 {
-            tracing::warn!("high cycle count, consider using the prover network for proof generation: https://docs.succinct.xyz/prover-network/setup.html");
+            tracing::warn!(
+                "high cycle count, consider using the prover network for proof generation: https://docs.succinct.xyz/prover-network/setup.html"
+            );
         }
     }
 }
@@ -738,10 +751,13 @@ pub mod tests {
         Plonk,
     }
 
-    pub fn test_e2e_prover<C: SP1ProverComponents>(elf: &[u8], test_kind: Test) -> Result<()> {
+    pub fn test_e2e_prover<C: SP1ProverComponents>(
+        elf: &[u8],
+        opts: SP1ProverOpts,
+        test_kind: Test,
+    ) -> Result<()> {
         tracing::info!("initializing prover");
-        let prover: SP1Prover = SP1Prover::new();
-        let opts = SP1ProverOpts::default();
+        let prover: SP1Prover<C> = SP1Prover::<C>::new();
         let context = SP1Context::default();
 
         tracing::info!("setup elf");
@@ -914,7 +930,8 @@ pub mod tests {
     fn test_e2e() -> Result<()> {
         let elf = include_bytes!("../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
         setup_logger();
-        test_e2e_prover::<DefaultProverComponents>(elf, Test::Plonk)
+        let opts = SP1ProverOpts::default();
+        test_e2e_prover::<DefaultProverComponents>(elf, opts, Test::Plonk)
     }
 
     /// Tests an end-to-end workflow of proving a program across the entire proof generation
