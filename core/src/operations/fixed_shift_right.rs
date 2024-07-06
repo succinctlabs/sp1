@@ -9,7 +9,6 @@ use crate::bytes::utils::shr_carry;
 use crate::bytes::ByteLookupEvent;
 use crate::bytes::ByteOpcode;
 use crate::disassembler::WORD_SIZE;
-use crate::runtime::ExecutionRecord;
 
 /// A set of columns needed to compute `>>` of a word with a fixed offset R.
 ///
@@ -43,7 +42,7 @@ impl<F: Field> FixedShiftRightOperation<F> {
 
     pub fn populate(
         &mut self,
-        record: &mut ExecutionRecord,
+        record: &mut impl ByteRecord,
         shard: u32,
         channel: u32,
         input: u32,
