@@ -22,6 +22,8 @@ use crate::{
     CoreSC, HashableKey, OuterSC, SP1CoreProofData, SP1Prover, SP1ReduceProof, SP1VerifyingKey,
 };
 
+const MAX_CPU_LOG_DEGREE: usize = 22;
+
 #[derive(Error, Debug)]
 pub enum PlonkVerificationError {
     #[error(
@@ -48,6 +50,21 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             return Err(MachineVerificationError::MissingCpuInFirstShard);
         }
 
+        // CPU sanity checks.
+        //
+        // Assert that the CPU log degree does not exceed `MAX_CPU_LOG_DEGREE`. This is to ensure
+        // that the lookup argument's multiplicities do not overflow.
+        for shard_proof in proof.0.iter() {
+            if shard_proof.contains_cpu() {
+                let log_degree_cpu = shard_proof.log_degree_cpu();
+                if log_degree_cpu > MAX_CPU_LOG_DEGREE {
+                    return Err(MachineVerificationError::CpuLogDegreeTooLarge(
+                        log_degree_cpu,
+                    ));
+                }
+            }
+        }
+
         // Execution shard constraints.
         //
         // Initialization:
@@ -55,17 +72,28 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         //
         // Transition:
         // - Execution shard should increment by one for each shard with "CPU".
+        // - Execution shard should stay the same for non-CPU shards.
         let mut current_execution_shard = BabyBear::zero();
         for shard_proof in proof.0.iter() {
             let public_values: &PublicValues<Word<_>, _> =
                 shard_proof.public_values.as_slice().borrow();
             if shard_proof.contains_cpu() {
-                if public_values.execution_shard != current_execution_shard + BabyBear::one() {
+                current_execution_shard += BabyBear::one();
+                if public_values.execution_shard != current_execution_shard {
                     return Err(MachineVerificationError::InvalidPublicValues(
-                        "cpu shard index should be the previous cpu shard index + 1 and start at 1",
+                        "execution shard index should be the previous execution shard index + 1 if cpu exists and start at 1",
                     ));
                 }
-                current_execution_shard += BabyBear::one();
+            } else {
+                println!(
+                    "{} {}",
+                    public_values.execution_shard, current_execution_shard
+                );
+                if public_values.execution_shard != current_execution_shard {
+                    return Err(MachineVerificationError::InvalidPublicValues(
+                        "execution shard index should be the previous cpu shard index if cpu does not exist",
+                    ));
+                }
             }
         }
 

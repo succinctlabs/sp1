@@ -156,6 +156,11 @@ impl<SC: StarkGenericConfig> ShardProof<SC> {
             .sum()
     }
 
+    pub fn log_degree_cpu(&self) -> usize {
+        let idx = self.chip_ordering.get("CPU").expect("CPU chip not found");
+        self.opened_values.chips[*idx].log_degree
+    }
+
     pub fn contains_cpu(&self) -> bool {
         self.chip_ordering.contains_key("CPU")
     }
