@@ -5,6 +5,7 @@ use num_bigint::BigUint;
 use p3_baby_bear::BabyBear;
 use p3_field::{AbstractField, PrimeField};
 use sp1_core::air::{Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS, WORD_SIZE};
+use sp1_core::cpu::MAX_CPU_LOG_DEGREE;
 use sp1_core::runtime::SubproofVerifier;
 use sp1_core::stark::MachineProver;
 use sp1_core::{
@@ -21,8 +22,6 @@ use crate::components::SP1ProverComponents;
 use crate::{
     CoreSC, HashableKey, OuterSC, SP1CoreProofData, SP1Prover, SP1ReduceProof, SP1VerifyingKey,
 };
-
-const MAX_CPU_LOG_DEGREE: usize = 22;
 
 #[derive(Error, Debug)]
 pub enum PlonkVerificationError {
@@ -52,7 +51,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             return Err(MachineVerificationError::MissingCpuInFirstShard);
         }
 
-        // CPU sanity checks.
+        // CPU log degree bound check.
         //
         // Assert that the CPU log degree does not exceed `MAX_CPU_LOG_DEGREE`. This is to ensure
         // that the lookup argument's multiplicities do not overflow.
