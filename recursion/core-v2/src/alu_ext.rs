@@ -222,13 +222,18 @@ where
 
 #[cfg(test)]
 mod tests {
-    use p3_baby_bear::BabyBear;
+    use machine::RecursionAir;
+    use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
     use p3_field::AbstractField;
     use p3_matrix::dense::RowMajorMatrix;
 
-    use sp1_core::air::MachineAir;
+    use rand::{rngs::StdRng, Rng, SeedableRng};
+    use sp1_core::{air::MachineAir, stark::StarkGenericConfig, utils::run_test_machine};
+    use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
 
     use super::*;
+
+    use crate::runtime::instruction as instr;
 
     #[test]
     fn generate_trace() {
@@ -245,5 +250,55 @@ mod tests {
         let chip = ExtAluChip::default();
         let trace: RowMajorMatrix<F> = chip.generate_trace(&shard, &mut ExecutionRecord::default());
         println!("{:?}", trace.values)
+    }
+
+    #[test]
+    pub fn four_ops() {
+        type SC = BabyBearPoseidon2Outer;
+        type F = <SC as StarkGenericConfig>::Val;
+        type EF = <SC as StarkGenericConfig>::Challenge;
+        type A = RecursionAir<F>;
+
+        let mut rng = StdRng::seed_from_u64(0xDEADBEEF);
+        let mut random_extfelt = move || {
+            let inner: [F; 4] = core::array::from_fn(|_| rng.sample(rand::distributions::Standard));
+            BinomialExtensionField::<F, D>::from_base_slice(&inner)
+        };
+        let mut addr = 0;
+
+        let instructions = (0..10)
+            .flat_map(|_| {
+                let quot = random_extfelt();
+                let in2 = random_extfelt();
+                let in1 = in2 * quot;
+                let alloc_size = 6;
+                let a = (0..alloc_size).map(|x| x + addr).collect::<Vec<_>>();
+                addr += alloc_size;
+                [
+                    instr::mem_ext(MemAccessKind::Write, 4, a[0], in1),
+                    instr::mem_ext(MemAccessKind::Write, 4, a[1], in2),
+                    instr::ext_alu(Opcode::AddE, 1, a[2], a[0], a[1]),
+                    instr::mem_ext(MemAccessKind::Read, 1, a[2], in1 + in2),
+                    instr::ext_alu(Opcode::SubE, 1, a[3], a[0], a[1]),
+                    instr::mem_ext(MemAccessKind::Read, 1, a[3], in1 - in2),
+                    instr::ext_alu(Opcode::MulE, 1, a[4], a[0], a[1]),
+                    instr::mem_ext(MemAccessKind::Read, 1, a[4], in1 * in2),
+                    instr::ext_alu(Opcode::DivE, 1, a[5], a[0], a[1]),
+                    instr::mem_ext(MemAccessKind::Read, 1, a[5], quot),
+                ]
+            })
+            .collect::<Vec<Instruction<F>>>();
+
+        let program = RecursionProgram { instructions };
+        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program);
+        runtime.run();
+
+        let config = SC::new();
+        let machine = A::machine(config);
+        let (pk, vk) = machine.setup(&program);
+        let result = run_test_machine(runtime.record, machine, pk, vk);
+        if let Err(e) = result {
+            panic!("Verification failed: {:?}", e);
+        }
     }
 }

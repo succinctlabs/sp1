@@ -251,31 +251,29 @@ mod tests {
         type A = RecursionAir<F>;
 
         let mut rng = StdRng::seed_from_u64(0xDEADBEEF);
+        let mut random_felt = move || -> F { rng.sample(rand::distributions::Standard) };
         let mut addr = 0;
 
-        let range = (F::ORDER_U32 as f64).sqrt().sqrt().floor() as u32;
-
-        let instructions = (0..10)
+        let instructions = (0..1000)
             .flat_map(|_| {
-                let quot = rng.gen_range(0..range);
-                let in2 = rng.gen_range(0..range);
+                let quot = random_felt();
+                let in2 = random_felt();
                 let in1 = in2 * quot;
                 let alloc_size = 6;
                 let a = (0..alloc_size).map(|x| x + addr).collect::<Vec<_>>();
-                let instrs = [
-                    instr::mem(MemAccessKind::Write, 4, a[0], in1),
-                    instr::mem(MemAccessKind::Write, 4, a[1], in2),
-                    instr::base_alu(Opcode::AddF, 1, a[2], a[0], a[1]),
-                    instr::mem(MemAccessKind::Read, 1, a[2], in1.wrapping_add(in2)),
-                    instr::base_alu(Opcode::SubF, 1, a[3], a[0], a[1]),
-                    instr::mem(MemAccessKind::Read, 1, a[3], in1.wrapping_sub(in2)),
-                    instr::base_alu(Opcode::MulF, 1, a[4], a[0], a[1]),
-                    instr::mem(MemAccessKind::Read, 1, a[4], in1 * in2),
-                    instr::base_alu(Opcode::DivF, 1, a[5], a[0], a[1]),
-                    instr::mem(MemAccessKind::Read, 1, a[5], quot),
-                ];
                 addr += alloc_size;
-                instrs
+                [
+                    instr::mem_single(MemAccessKind::Write, 4, a[0], in1),
+                    instr::mem_single(MemAccessKind::Write, 4, a[1], in2),
+                    instr::base_alu(Opcode::AddF, 1, a[2], a[0], a[1]),
+                    instr::mem_single(MemAccessKind::Read, 1, a[2], in1 + in2),
+                    instr::base_alu(Opcode::SubF, 1, a[3], a[0], a[1]),
+                    instr::mem_single(MemAccessKind::Read, 1, a[3], in1 - in2),
+                    instr::base_alu(Opcode::MulF, 1, a[4], a[0], a[1]),
+                    instr::mem_single(MemAccessKind::Read, 1, a[4], in1 * in2),
+                    instr::base_alu(Opcode::DivF, 1, a[5], a[0], a[1]),
+                    instr::mem_single(MemAccessKind::Read, 1, a[5], quot),
+                ]
             })
             .collect::<Vec<Instruction<F>>>();
 
