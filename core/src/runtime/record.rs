@@ -232,6 +232,7 @@ impl MachineRecord for ExecutionRecord {
         self.divrem_events.append(&mut other.divrem_events);
         self.lt_events.append(&mut other.lt_events);
         self.sha_extend_events.append(&mut other.sha_extend_events);
+
         self.sha_compress_events
             .append(&mut other.sha_compress_events);
         self.keccak_permute_events
@@ -257,7 +258,11 @@ impl MachineRecord for ExecutionRecord {
         self.bls12381_decompress_events
             .append(&mut other.bls12381_decompress_events);
 
-        self.add_sharded_byte_lookup_events(vec![&other.byte_lookups]);
+        if self.byte_lookups.is_empty() {
+            self.byte_lookups = std::mem::take(&mut other.byte_lookups);
+        } else {
+            self.add_sharded_byte_lookup_events(vec![&other.byte_lookups]);
+        }
 
         self.memory_initialize_events
             .append(&mut other.memory_initialize_events);
