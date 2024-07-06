@@ -266,7 +266,7 @@ mod tests {
         };
         let mut addr = 0;
 
-        let instructions = (0..10)
+        let instructions = (0..1000)
             .flat_map(|_| {
                 let quot = random_extfelt();
                 let in2 = random_extfelt();

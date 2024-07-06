@@ -172,16 +172,38 @@ you will also need to write your own execution record struct but look at recursi
 
 #[cfg(test)]
 mod tests {
-    use p3_baby_bear::BabyBear;
+    use machine::RecursionAir;
+    use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
     use p3_field::AbstractField;
     use p3_matrix::dense::RowMajorMatrix;
 
-    use sp1_core::air::MachineAir;
+    use sp1_core::{air::MachineAir, stark::StarkGenericConfig, utils::run_test_machine};
+    use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
 
     use super::*;
 
+    use crate::runtime::instruction as instr;
+
+    type SC = BabyBearPoseidon2Outer;
+    type F = <SC as StarkGenericConfig>::Val;
+    type EF = <SC as StarkGenericConfig>::Challenge;
+    type A = RecursionAir<F>;
+
+    pub fn prove_program(program: RecursionProgram<F>) {
+        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program);
+        runtime.run();
+
+        let config = SC::new();
+        let machine = A::machine(config);
+        let (pk, vk) = machine.setup(&program);
+        let result = run_test_machine(runtime.record, machine, pk, vk);
+        if let Err(e) = result {
+            panic!("Verification failed: {:?}", e);
+        }
+    }
+
     #[test]
-    fn generate_trace() {
+    pub fn generate_trace() {
         let shard = ExecutionRecord::<BabyBear> {
             mem_events: vec![
                 MemEvent {
@@ -200,57 +222,45 @@ mod tests {
     }
 
     #[test]
-    #[cfg(disable)]
-    fn prove_babybear() {
-        let config = BabyBearPoseidon2::compressed();
-        let mut challenger = config.challenger();
+    pub fn prove_basic_mem() {
+        prove_program(RecursionProgram {
+            instructions: vec![
+                instr::mem(MemAccessKind::Write, 1, 1, 2),
+                instr::mem(MemAccessKind::Read, 1, 1, 2),
+            ],
+        });
+    }
 
-        let chip = MemoryChip::default();
+    #[test]
+    #[should_panic]
+    pub fn basic_mem_bad_mult() {
+        prove_program(RecursionProgram {
+            instructions: vec![
+                instr::mem(MemAccessKind::Write, 1, 1, 2),
+                instr::mem(MemAccessKind::Read, 999, 1, 2),
+            ],
+        });
+    }
 
-        let test_xs = (1..8).map(BabyBear::from_canonical_u32).collect_vec();
+    #[test]
+    #[should_panic]
+    pub fn basic_mem_bad_address() {
+        prove_program(RecursionProgram {
+            instructions: vec![
+                instr::mem(MemAccessKind::Write, 1, 1, 2),
+                instr::mem(MemAccessKind::Read, 1, 999, 2),
+            ],
+        });
+    }
 
-        // Doesn't test that reads and writes cancel out
-        let mut input_exec = ExecutionRecord::<BabyBear>::default();
-        input_exec
-            .mem_events
-            .extend(test_xs.clone().into_iter().map(|x| MemEvent {
-                x: AddressValue::new(x, (x + BabyBear::one()).into()),
-                mult: BabyBear::one(),
-                kind: MemAccessKind::Write,
-            }));
-        input_exec
-            .mem_events
-            .extend(test_xs.clone().into_iter().map(|x| MemEvent {
-                x: AddressValue::new(x, (x + BabyBear::one()).into()),
-                mult: BabyBear::one(),
-                kind: MemAccessKind::Read,
-            }));
-
-        println!("input exec: {:?}", input_exec.mem_events.len());
-        let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());
-        println!(
-            "trace dims is width: {:?}, height: {:?}",
-            trace.width(),
-            trace.height()
-        );
-
-        let start = Instant::now();
-        let proof = uni_stark_prove(&config, &chip, &mut challenger, trace);
-        let duration = start.elapsed().as_secs_f64();
-        println!("proof duration = {:?}", duration);
-
-        let mut challenger: p3_challenger::DuplexChallenger<
-            BabyBear,
-            Poseidon2<BabyBear, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 16, 7>,
-            16,
-            8,
-        > = config.challenger();
-        let start = Instant::now();
-        uni_stark_verify(&config, &chip, &mut challenger, &proof)
-            .expect("expected proof to be valid");
-
-        let duration = start.elapsed().as_secs_f64();
-        println!("verify duration = {:?}", duration);
+    #[test]
+    #[should_panic]
+    pub fn basic_mem_bad_value() {
+        prove_program(RecursionProgram {
+            instructions: vec![
+                instr::mem(MemAccessKind::Write, 1, 1, 2),
+                instr::mem(MemAccessKind::Read, 1, 1, 999),
+            ],
+        });
     }
 }
