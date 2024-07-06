@@ -2,7 +2,7 @@ use std::path::Path;
 
 use p3_baby_bear::BabyBear;
 use sp1_core::{
-    stark::{DefaultProver, MachineProver, RiscvAir},
+    stark::{DefaultProver, MachineProver, RiscvAir, StarkProvingKey, StarkVerifyingKey},
     utils::BabyBearPoseidon2,
 };
 use sp1_primitives::types::RecursionProgramType;
@@ -32,10 +32,20 @@ type WrapAir<F> = RecursionAir<F, WRAP_DEGREE>;
 
 fn build_programs() -> (
     RecursionProgram<BabyBear>,
+    StarkProvingKey<BabyBearPoseidon2>,
+    StarkVerifyingKey<BabyBearPoseidon2>,
     RecursionProgram<BabyBear>,
+    StarkProvingKey<BabyBearPoseidon2>,
+    StarkVerifyingKey<BabyBearPoseidon2>,
     RecursionProgram<BabyBear>,
+    StarkProvingKey<BabyBearPoseidon2>,
+    StarkVerifyingKey<BabyBearPoseidon2>,
     RecursionProgram<BabyBear>,
+    StarkProvingKey<BabyBearPoseidon2>,
+    StarkVerifyingKey<BabyBearPoseidon2>,
     RecursionProgram<BabyBear>,
+    StarkProvingKey<BabyBearPoseidon2Outer>,
+    StarkVerifyingKey<BabyBearPoseidon2Outer>,
 ) {
     let core_machine = RiscvAir::machine(CoreSC::default());
     let core_prover = DefaultProver::new(core_machine);
@@ -81,48 +91,93 @@ fn build_programs() -> (
 
     (
         recursion_program,
+        rec_pk,
+        rec_vk,
         deferred_program,
+        deferred_pk,
+        deferred_vk,
         compress_program,
+        compress_pk,
+        compress_vk,
         shrink_program,
+        shrink_pk,
+        shrink_vk,
         wrap_program,
+        wrap_pk,
+        wrap_vk,
     )
 }
 
 fn main() {
-    let (recursion_program, deferred_program, compress_program, shrink_program, wrap_program) =
-        build_programs();
+    let (
+        recursion_program,
+        rec_pk,
+        rec_vk,
+        deferred_program,
+        deferred_pk,
+        deferred_vk,
+        compress_program,
+        compress_pk,
+        compress_vk,
+        shrink_program,
+        shrink_pk,
+        shrink_vk,
+        wrap_program,
+        wrap_pk,
+        wrap_vk,
+    ) = build_programs();
 
     // Write the programs to files.
     let output_dir = std::env::var("OUT_DIR").unwrap();
     let recursion_program_path = Path::new(&output_dir).join("recursion_program.bin");
+    let rec_pk_path = Path::new(&output_dir).join("rec_pk.bin");
+    let rec_vk_path = Path::new(&output_dir).join("rec_vk.bin");
     let deferred_program_path = Path::new(&output_dir).join("deferred_program.bin");
+    let deferred_pk_path = Path::new(&output_dir).join("deferred_pk.bin");
+    let deferred_vk_path = Path::new(&output_dir).join("deferred_vk.bin");
     let compress_program_path = Path::new(&output_dir).join("compress_program.bin");
+    let compress_pk_path = Path::new(&output_dir).join("compress_pk.bin");
+    let compress_vk_path = Path::new(&output_dir).join("compress_vk.bin");
     let shrink_program_path = Path::new(&output_dir).join("shrink_program.bin");
+    let shrink_pk_path = Path::new(&output_dir).join("shrink_pk.bin");
+    let shrink_vk_path = Path::new(&output_dir).join("shrink_vk.bin");
     let wrap_program_path = Path::new(&output_dir).join("wrap_program.bin");
+    let wrap_pk_path = Path::new(&output_dir).join("wrap_pk.bin");
+    let wrap_vk_path = Path::new(&output_dir).join("wrap_vk.bin");
 
     std::fs::write(
         recursion_program_path,
         bincode::serialize(&recursion_program).unwrap(),
     )
     .unwrap();
+    std::fs::write(rec_pk_path, bincode::serialize(&rec_pk).unwrap()).unwrap();
+    std::fs::write(rec_vk_path, bincode::serialize(&rec_vk).unwrap()).unwrap();
     std::fs::write(
         deferred_program_path,
         bincode::serialize(&deferred_program).unwrap(),
     )
     .unwrap();
+    std::fs::write(deferred_pk_path, bincode::serialize(&deferred_pk).unwrap()).unwrap();
+    std::fs::write(deferred_vk_path, bincode::serialize(&deferred_vk).unwrap()).unwrap();
     std::fs::write(
         compress_program_path,
         bincode::serialize(&compress_program).unwrap(),
     )
     .unwrap();
+    std::fs::write(compress_pk_path, bincode::serialize(&compress_pk).unwrap()).unwrap();
+    std::fs::write(compress_vk_path, bincode::serialize(&compress_vk).unwrap()).unwrap();
     std::fs::write(
         shrink_program_path,
         bincode::serialize(&shrink_program).unwrap(),
     )
     .unwrap();
+    std::fs::write(shrink_pk_path, bincode::serialize(&shrink_pk).unwrap()).unwrap();
+    std::fs::write(shrink_vk_path, bincode::serialize(&shrink_vk).unwrap()).unwrap();
     std::fs::write(
         wrap_program_path,
         bincode::serialize(&wrap_program).unwrap(),
     )
     .unwrap();
+    std::fs::write(wrap_pk_path, bincode::serialize(&wrap_pk).unwrap()).unwrap();
+    std::fs::write(wrap_vk_path, bincode::serialize(&wrap_vk).unwrap()).unwrap();
 }

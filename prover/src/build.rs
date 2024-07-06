@@ -112,5 +112,5 @@ pub fn dummy_proof() -> (StarkVerifyingKey<OuterSC>, ShardProof<OuterSC>) {
     tracing::info!("wrap");
     let wrapped_proof = prover.wrap_bn254(shrink_proof, opts).unwrap();
 
-    (prover.wrap_vk, wrapped_proof.proof)
+    (prover.wrap_vk.clone(), wrapped_proof.proof)
 }

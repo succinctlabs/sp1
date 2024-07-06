@@ -11,6 +11,7 @@ lazy_static = "1.5.0"
 bincode = "1.3.3"
 p3-baby-bear = { workspace = true }
 sp1-recursion-core = { path = "../core" }
+sp1-core = { path = "../../core" }
 
 [build-dependencies]
 sp1-recursion-program = { path = "../program" }

@@ -60,7 +60,9 @@ pub use sp1_recursion_program::machine::{
     SP1DeferredMemoryLayout, SP1RecursionMemoryLayout, SP1ReduceMemoryLayout, SP1RootMemoryLayout,
 };
 use sp1_recursion_static_program::{
-    COMPRESS_PROGRAM, DEFERRED_PROGRAM, RECURSION_PROGRAM, SHRINK_PROGRAM, WRAP_PROGRAM,
+    COMPRESS_PK, COMPRESS_PROGRAM, COMPRESS_VK, DEFERRED_PK, DEFERRED_PROGRAM, DEFERRED_VK,
+    RECURSION_PK, RECURSION_PROGRAM, RECURSION_VK, SHRINK_PK, SHRINK_PROGRAM, SHRINK_VK, WRAP_PK,
+    WRAP_PROGRAM, WRAP_VK,
 };
 use tracing::instrument;
 pub use types::*;
@@ -91,46 +93,46 @@ pub struct SP1Prover<C: SP1ProverComponents = DefaultProverComponents> {
     pub recursion_program: &'static RecursionProgram<BabyBear>,
 
     /// The proving key for the recursion step.
-    pub rec_pk: StarkProvingKey<InnerSC>,
+    pub rec_pk: &'static StarkProvingKey<InnerSC>,
 
     /// The verification key for the recursion step.
-    pub rec_vk: StarkVerifyingKey<InnerSC>,
+    pub rec_vk: &'static StarkVerifyingKey<InnerSC>,
 
     /// The program that recursively verifies deferred proofs and accumulates the digests.
     pub deferred_program: &'static RecursionProgram<BabyBear>,
 
     /// The proving key for the reduce step.
-    pub deferred_pk: StarkProvingKey<InnerSC>,
+    pub deferred_pk: &'static StarkProvingKey<InnerSC>,
 
     /// The verification key for the reduce step.
-    pub deferred_vk: StarkVerifyingKey<InnerSC>,
+    pub deferred_vk: &'static StarkVerifyingKey<InnerSC>,
 
     /// The program that reduces a set of recursive proofs into a single proof.
     pub compress_program: &'static RecursionProgram<BabyBear>,
 
     /// The proving key for the reduce step.
-    pub compress_pk: StarkProvingKey<InnerSC>,
+    pub compress_pk: &'static StarkProvingKey<InnerSC>,
 
     /// The verification key for the reduce step.
-    pub compress_vk: StarkVerifyingKey<InnerSC>,
+    pub compress_vk: &'static StarkVerifyingKey<InnerSC>,
 
     /// The shrink program that compresses a proof into a succinct proof.
     pub shrink_program: &'static RecursionProgram<BabyBear>,
 
     /// The proving key for the compress step.
-    pub shrink_pk: StarkProvingKey<InnerSC>,
+    pub shrink_pk: &'static StarkProvingKey<InnerSC>,
 
     /// The verification key for the compress step.
-    pub shrink_vk: StarkVerifyingKey<InnerSC>,
+    pub shrink_vk: &'static StarkVerifyingKey<InnerSC>,
 
     /// The wrap program that wraps a proof into a SNARK-friendly field.
     pub wrap_program: &'static RecursionProgram<BabyBear>,
 
     /// The proving key for the wrap step.
-    pub wrap_pk: StarkProvingKey<OuterSC>,
+    pub wrap_pk: &'static StarkProvingKey<OuterSC>,
 
     /// The verification key for the wrapping step.
-    pub wrap_vk: StarkVerifyingKey<OuterSC>,
+    pub wrap_vk: &'static StarkVerifyingKey<OuterSC>,
 
     /// The machine used for proving the core step.
     pub core_prover: C::CoreProver,
@@ -155,40 +157,35 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         // Get the recursive verifier and setup the proving and verifying keys.
         let compress_machine = ReduceAir::machine(InnerSC::default());
         let compress_prover = C::CompressProver::new(compress_machine);
-        let (rec_pk, rec_vk) = compress_prover.setup(&RECURSION_PROGRAM);
 
         // Get the deferred program and keys.
-        let (deferred_pk, deferred_vk) = compress_prover.setup(&DEFERRED_PROGRAM);
 
         // Make the reduce program and keys.
-        let (compress_pk, compress_vk) = compress_prover.setup(&COMPRESS_PROGRAM);
 
         // Get the compress program, machine, and keys.
         let shrink_machine = CompressAir::wrap_machine_dyn(InnerSC::compressed());
         let shrink_prover = C::ShrinkProver::new(shrink_machine);
-        let (shrink_pk, shrink_vk) = shrink_prover.setup(&SHRINK_PROGRAM);
 
         // Get the wrap program, machine, and keys.
         let wrap_machine = WrapAir::wrap_machine(OuterSC::default());
         let wrap_prover = C::WrapProver::new(wrap_machine);
-        let (wrap_pk, wrap_vk) = wrap_prover.setup(&WRAP_PROGRAM);
 
         Self {
             recursion_program: &RECURSION_PROGRAM,
-            rec_pk,
-            rec_vk,
+            rec_pk: &RECURSION_PK,
+            rec_vk: &RECURSION_VK,
             deferred_program: &DEFERRED_PROGRAM,
-            deferred_pk,
-            deferred_vk,
+            deferred_pk: &DEFERRED_PK,
+            deferred_vk: &DEFERRED_VK,
             compress_program: &COMPRESS_PROGRAM,
-            compress_pk,
-            compress_vk,
+            compress_pk: &COMPRESS_PK,
+            compress_vk: &COMPRESS_VK,
             shrink_program: &SHRINK_PROGRAM,
-            shrink_pk,
-            shrink_vk,
+            shrink_pk: &SHRINK_PK,
+            shrink_vk: &SHRINK_VK,
             wrap_program: &WRAP_PROGRAM,
-            wrap_pk,
-            wrap_vk,
+            wrap_pk: &WRAP_PK,
+            wrap_vk: &WRAP_VK,
             core_prover,
             compress_prover,
             shrink_prover,
