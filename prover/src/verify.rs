@@ -16,6 +16,7 @@ use sp1_core::{
 };
 use sp1_recursion_core::{air::RecursionPublicValues, stark::config::BabyBearPoseidon2Outer};
 use sp1_recursion_gnark_ffi::{PlonkBn254Proof, PlonkBn254Prover};
+use sp1_recursion_static_program::{COMPRESS_VK, SHRINK_VK, WRAP_VK};
 use thiserror::Error;
 
 use crate::components::SP1ProverComponents;
@@ -282,11 +283,9 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let machine_proof = MachineProof {
             shard_proofs: vec![proof.proof.clone()],
         };
-        self.compress_prover.machine().verify(
-            &self.compress_vk,
-            &machine_proof,
-            &mut challenger,
-        )?;
+        self.compress_prover
+            .machine()
+            .verify(&COMPRESS_VK, &machine_proof, &mut challenger)?;
 
         // Validate public values
         let public_values: &RecursionPublicValues<_> =
@@ -308,7 +307,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         }
 
         // Verify that the reduce program is the one we are expecting.
-        let recursion_vkey_hash = self.compress_vk.hash_babybear();
+        let recursion_vkey_hash = COMPRESS_VK.hash_babybear();
         if public_values.compress_vk_digest != recursion_vkey_hash {
             return Err(MachineVerificationError::InvalidPublicValues(
                 "recursion vk hash mismatch",
@@ -330,7 +329,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         };
         self.shrink_prover
             .machine()
-            .verify(&self.shrink_vk, &machine_proof, &mut challenger)?;
+            .verify(&SHRINK_VK, &machine_proof, &mut challenger)?;
 
         // Validate public values
         let public_values: &RecursionPublicValues<_> =
@@ -366,7 +365,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         };
         self.wrap_prover
             .machine()
-            .verify(&self.wrap_vk, &machine_proof, &mut challenger)?;
+            .verify(&WRAP_VK, &machine_proof, &mut challenger)?;
 
         // Validate public values
         let public_values: &RecursionPublicValues<_> =

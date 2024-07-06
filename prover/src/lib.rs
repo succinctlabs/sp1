@@ -89,51 +89,6 @@ pub type WrapAir<F> = RecursionAir<F, WRAP_DEGREE>;
 
 /// A end-to-end prover implementation for the SP1 RISC-V zkVM.
 pub struct SP1Prover<C: SP1ProverComponents = DefaultProverComponents> {
-    /// The program that can recursively verify a set of proofs into a single proof.
-    pub recursion_program: &'static RecursionProgram<BabyBear>,
-
-    /// The proving key for the recursion step.
-    pub rec_pk: &'static StarkProvingKey<InnerSC>,
-
-    /// The verification key for the recursion step.
-    pub rec_vk: &'static StarkVerifyingKey<InnerSC>,
-
-    /// The program that recursively verifies deferred proofs and accumulates the digests.
-    pub deferred_program: &'static RecursionProgram<BabyBear>,
-
-    /// The proving key for the reduce step.
-    pub deferred_pk: &'static StarkProvingKey<InnerSC>,
-
-    /// The verification key for the reduce step.
-    pub deferred_vk: &'static StarkVerifyingKey<InnerSC>,
-
-    /// The program that reduces a set of recursive proofs into a single proof.
-    pub compress_program: &'static RecursionProgram<BabyBear>,
-
-    /// The proving key for the reduce step.
-    pub compress_pk: &'static StarkProvingKey<InnerSC>,
-
-    /// The verification key for the reduce step.
-    pub compress_vk: &'static StarkVerifyingKey<InnerSC>,
-
-    /// The shrink program that compresses a proof into a succinct proof.
-    pub shrink_program: &'static RecursionProgram<BabyBear>,
-
-    /// The proving key for the compress step.
-    pub shrink_pk: &'static StarkProvingKey<InnerSC>,
-
-    /// The verification key for the compress step.
-    pub shrink_vk: &'static StarkVerifyingKey<InnerSC>,
-
-    /// The wrap program that wraps a proof into a SNARK-friendly field.
-    pub wrap_program: &'static RecursionProgram<BabyBear>,
-
-    /// The proving key for the wrap step.
-    pub wrap_pk: &'static StarkProvingKey<OuterSC>,
-
-    /// The verification key for the wrapping step.
-    pub wrap_vk: &'static StarkVerifyingKey<OuterSC>,
-
     /// The machine used for proving the core step.
     pub core_prover: C::CoreProver,
 
@@ -171,21 +126,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let wrap_prover = C::WrapProver::new(wrap_machine);
 
         Self {
-            recursion_program: &RECURSION_PROGRAM,
-            rec_pk: &RECURSION_PK,
-            rec_vk: &RECURSION_VK,
-            deferred_program: &DEFERRED_PROGRAM,
-            deferred_pk: &DEFERRED_PK,
-            deferred_vk: &DEFERRED_VK,
-            compress_program: &COMPRESS_PROGRAM,
-            compress_pk: &COMPRESS_PK,
-            compress_vk: &COMPRESS_VK,
-            shrink_program: &SHRINK_PROGRAM,
-            shrink_pk: &SHRINK_PK,
-            shrink_vk: &SHRINK_VK,
-            wrap_program: &WRAP_PROGRAM,
-            wrap_pk: &WRAP_PK,
-            wrap_vk: &WRAP_VK,
             core_prover,
             compress_prover,
             shrink_prover,
@@ -328,7 +268,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             let proofs = batch.to_vec();
 
             deferred_inputs.push(SP1DeferredMemoryLayout {
-                compress_vk: &self.compress_vk,
+                compress_vk: &COMPRESS_VK,
                 machine: self.compress_prover.machine(),
                 proofs,
                 start_reconstruct_deferred_digest: deferred_digest.to_vec(),
@@ -424,12 +364,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             let proofs = inputs
                 .into_par_iter()
                 .map(|input| {
-                    let proof = self.compress_machine_proof(
-                        input,
-                        &self.recursion_program,
-                        &self.rec_pk,
-                        opts,
-                    );
+                    let proof =
+                        self.compress_machine_proof(input, &RECURSION_PROGRAM, &RECURSION_PK, opts);
                     (proof, ReduceProgramType::Core)
                 })
                 .collect::<Vec<_>>();
@@ -441,12 +377,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             let proofs = inputs
                 .into_par_iter()
                 .map(|input| {
-                    let proof = self.compress_machine_proof(
-                        input,
-                        &self.deferred_program,
-                        &self.deferred_pk,
-                        opts,
-                    );
+                    let proof =
+                        self.compress_machine_proof(input, &DEFERRED_PROGRAM, &DEFERRED_PK, opts);
                     (proof, ReduceProgramType::Deferred)
                 })
                 .collect::<Vec<_>>();
@@ -472,7 +404,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                 batch.iter().cloned().unzip::<_, _, Vec<_>, Vec<_>>();
 
                             let input = SP1ReduceMemoryLayout {
-                                compress_vk: &self.compress_vk,
+                                compress_vk: &COMPRESS_VK,
                                 recursive_machine: self.compress_prover.machine(),
                                 shard_proofs,
                                 kinds,
@@ -481,8 +413,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
                             let proof = self.compress_machine_proof(
                                 input,
-                                &self.compress_program,
-                                &self.compress_pk,
+                                &COMPRESS_PROGRAM,
+                                &COMPRESS_PK,
                                 opts,
                             );
                             (proof, ReduceProgramType::Reduce)
@@ -552,7 +484,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
         // Run the compress program.
         let mut runtime = RecursionRuntime::<Val<InnerSC>, Challenge<InnerSC>, _>::new(
-            &self.shrink_program,
+            &SHRINK_PROGRAM,
             self.shrink_prover.config().perm.clone(),
         );
 
@@ -569,7 +501,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let mut compress_proof = self
             .shrink_prover
             .prove(
-                &self.shrink_pk,
+                &SHRINK_PK,
                 vec![runtime.record],
                 &mut compress_challenger,
                 opts.recursion_opts,
@@ -596,7 +528,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
         // Run the compress program.
         let mut runtime = RecursionRuntime::<Val<InnerSC>, Challenge<InnerSC>, _>::new(
-            &self.wrap_program,
+            &WRAP_PROGRAM,
             self.shrink_prover.config().perm.clone(),
         );
 
@@ -614,7 +546,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let mut wrap_proof = self
             .wrap_prover
             .prove(
-                &self.wrap_pk,
+                &WRAP_PK,
                 vec![runtime.record],
                 &mut wrap_challenger,
                 opts.recursion_opts,
@@ -623,10 +555,10 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let elapsed = time.elapsed();
         tracing::debug!("Wrap proving time: {:?}", elapsed);
         let mut wrap_challenger = self.wrap_prover.config().challenger();
-        let result =
-            self.wrap_prover
-                .machine()
-                .verify(&self.wrap_vk, &wrap_proof, &mut wrap_challenger);
+        let result = self
+            .wrap_prover
+            .machine()
+            .verify(&WRAP_VK, &wrap_proof, &mut wrap_challenger);
         match result {
             Ok(_) => tracing::info!("Proof verified successfully"),
             Err(MachineVerificationError::NonZeroCumulativeSum) => {
@@ -800,7 +732,7 @@ pub mod tests {
 
         tracing::info!("generate plonk bn254 proof");
         let artifacts_dir =
-            try_build_plonk_bn254_artifacts_dev(&prover.wrap_vk, &wrapped_bn254_proof.proof);
+            try_build_plonk_bn254_artifacts_dev(&WRAP_VK, &wrapped_bn254_proof.proof);
         let plonk_bn254_proof = prover.wrap_plonk_bn254(wrapped_bn254_proof, &artifacts_dir);
         println!("{:?}", plonk_bn254_proof);
 

@@ -13,6 +13,7 @@ use sp1_recursion_compiler::{config::OuterConfig, constraints::Constraint};
 use sp1_recursion_core::air::RecursionPublicValues;
 pub use sp1_recursion_core::stark::utils::sp1_dev_mode;
 use sp1_recursion_gnark_ffi::PlonkBn254Prover;
+use sp1_recursion_static_program::WRAP_VK;
 
 use crate::utils::{babybear_bytes_to_bn254, babybears_to_bn254, words_to_bytes};
 use crate::{OuterSC, SP1Prover};
@@ -112,5 +113,5 @@ pub fn dummy_proof() -> (StarkVerifyingKey<OuterSC>, ShardProof<OuterSC>) {
     tracing::info!("wrap");
     let wrapped_proof = prover.wrap_bn254(shrink_proof, opts).unwrap();
 
-    (prover.wrap_vk.clone(), wrapped_proof.proof)
+    (WRAP_VK.clone(), wrapped_proof.proof)
 }

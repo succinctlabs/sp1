@@ -14,6 +14,7 @@ use sp1_recursion_circuit::witness::Witnessable;
 use sp1_recursion_compiler::ir::Witness;
 use sp1_recursion_core::air::RecursionPublicValues;
 use sp1_recursion_gnark_ffi::PlonkBn254Prover;
+use sp1_recursion_static_program::WRAP_VK;
 use subtle_encoding::hex;
 
 #[derive(Parser, Debug)]
@@ -55,7 +56,7 @@ pub fn main() {
 
     tracing::info!("building verifier constraints");
     let constraints = tracing::info_span!("wrap circuit")
-        .in_scope(|| build_wrap_circuit(&prover.wrap_vk, wrapped_proof.proof.clone()));
+        .in_scope(|| build_wrap_circuit(&WRAP_VK, wrapped_proof.proof.clone()));
 
     tracing::info!("building template witness");
     let pv: &RecursionPublicValues<_> = wrapped_proof.proof.public_values.as_slice().borrow();
