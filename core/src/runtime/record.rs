@@ -1,11 +1,6 @@
 use hashbrown::HashMap;
 use itertools::EitherOrBoth;
 use itertools::Itertools;
-use p3_maybe_rayon::prelude::IndexedParallelIterator;
-use p3_maybe_rayon::prelude::IntoParallelRefIterator;
-use p3_maybe_rayon::prelude::IntoParallelRefMutIterator;
-use p3_maybe_rayon::prelude::ParallelIterator;
-use std::mem::take;
 use std::sync::Arc;
 
 use p3_field::AbstractField;
