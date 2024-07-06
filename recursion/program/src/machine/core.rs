@@ -281,15 +281,20 @@ where
             {
                 for (i, chip) in machine.chips().iter().enumerate() {
                     if chip.name() == "CPU" {
-                        let index = builder.get(&proof.sorted_idxs, i);
-                        let log_degree = builder.get(&proof.opened_values.chips, index).log_degree;
-                        let log_degree_match: Var<_> = builder.eval(C::N::zero());
-                        builder.range(0, MAX_CPU_LOG_DEGREE).for_each(|j, builder| {
-                            builder.if_eq(j, log_degree).then(|builder| {
-                                builder.assign(log_degree_match, C::N::one());
-                            });
+                        builder.if_eq(contains_cpu, C::N::one()).then(|builder| {
+                            let index = builder.get(&proof.sorted_idxs, i);
+                            let log_degree =
+                                builder.get(&proof.opened_values.chips, index).log_degree;
+                            let log_degree_match: Var<_> = builder.eval(C::N::zero());
+                            builder
+                                .range(0, MAX_CPU_LOG_DEGREE + 1)
+                                .for_each(|j, builder| {
+                                    builder.if_eq(j, log_degree).then(|builder| {
+                                        builder.assign(log_degree_match, C::N::one());
+                                    });
+                                });
+                            builder.assert_var_eq(log_degree_match, C::N::one());
                         });
-                        builder.assert_var_eq(log_degree_match, C::N::one());
                     }
                 }
             }
