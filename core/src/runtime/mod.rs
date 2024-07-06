@@ -1124,7 +1124,6 @@ impl<'a> Runtime<'a> {
         }
 
         // Set the global public values for all shards.
-        let mut last_execution_shard = 0;
         let mut last_next_pc = 0;
         let mut last_exit_code = 0;
         for (i, record) in self.records.iter_mut().enumerate() {
@@ -1132,16 +1131,14 @@ impl<'a> Runtime<'a> {
             record.public_values = public_values;
             record.public_values.committed_value_digest = public_values.committed_value_digest;
             record.public_values.deferred_proofs_digest = public_values.deferred_proofs_digest;
+            record.public_values.execution_shard = start_shard + i as u32;
             if !record.cpu_events.is_empty() {
-                record.public_values.execution_shard = start_shard + i as u32;
                 record.public_values.start_pc = record.cpu_events[0].pc;
                 record.public_values.next_pc = record.cpu_events.last().unwrap().next_pc;
                 record.public_values.exit_code = record.cpu_events.last().unwrap().exit_code;
-                last_execution_shard = record.public_values.execution_shard;
                 last_next_pc = record.public_values.next_pc;
                 last_exit_code = record.public_values.exit_code;
             } else {
-                record.public_values.execution_shard = last_execution_shard;
                 record.public_values.start_pc = last_next_pc;
                 record.public_values.next_pc = last_next_pc;
                 record.public_values.exit_code = last_exit_code;
