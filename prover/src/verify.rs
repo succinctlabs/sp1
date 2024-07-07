@@ -51,7 +51,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             return Err(MachineVerificationError::MissingCpuInFirstShard);
         }
 
-        // CPU log degree bound check.
+        // CPU log degree bound constraints.
         //
         // Assert that the CPU log degree does not exceed `MAX_CPU_LOG_DEGREE`. This is to ensure
         // that the lookup argument's multiplicities do not overflow.

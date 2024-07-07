@@ -1248,7 +1248,7 @@ pub mod tests {
     use crate::{
         runtime::Register,
         utils::{
-            tests::{FIBONACCI_ELF, KECCAK_PERMUTE_ELF, PANIC_ELF, SSZ_WITHDRAWALS_ELF},
+            tests::{FIBONACCI_ELF, KECCAK_PERMUTE_ELF, PANIC_ELF},
             SP1CoreOpts,
         },
     };
