@@ -12,6 +12,7 @@ use sp1_core::stark::StarkMachine;
 use sp1_core::stark::StarkVerifyingKey;
 use sp1_recursion_compiler::ir::Array;
 use sp1_recursion_compiler::ir::Ext;
+use sp1_recursion_compiler::ir::ExtConst;
 use sp1_recursion_compiler::ir::SymbolicExt;
 use sp1_recursion_compiler::ir::SymbolicVar;
 use sp1_recursion_compiler::ir::Var;
@@ -105,11 +106,7 @@ pub type RecursiveVerifierConstraintFolder<'a, C> = GenericVerifierConstraintFol
 impl<C: Config, SC: StarkGenericConfig> StarkVerifier<C, SC>
 where
     C::F: TwoAdicField,
-    SC: StarkGenericConfig<
-        Val = C::F,
-        Challenge = C::EF,
-        Domain = TwoAdicMultiplicativeCoset<C::F>,
-    >,
+    SC: StarkGenericConfig<Val = C::F, Challenge = C::EF, Domain = TwoAdicMultiplicativeCoset<C::F>>,
 {
     pub fn verify_shard<A>(
         builder: &mut Builder<C>,
@@ -118,6 +115,7 @@ where
         machine: &StarkMachine<SC, A>,
         challenger: &mut DuplexChallengerVariable<C>,
         proof: &ShardProofVariable<C>,
+        check_cumulative_sum: bool,
     ) where
         A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
         C::F: TwoAdicField,
@@ -221,7 +219,6 @@ where
             builder.set_value(&mut quotient_domains, i, quotient_domain.clone());
 
             // Get trace_opening_points.
-
             let mut trace_points = builder.dyn_array::<Ext<_, _>>(2);
             let zeta_next = domain.next_point(builder, zeta);
             builder.set_value(&mut trace_points, 0, zeta);
@@ -250,7 +247,6 @@ where
             builder.set_value(&mut perm_mats, i, perm_mat);
 
             // Get the quotient matrices and values.
-
             let qc_domains =
                 quotient_domain.split_domains(builder, log_quotient_degree, quotient_size);
 
@@ -301,6 +297,7 @@ where
 
         builder.cycle_tracker("stage-e-verify-constraints");
 
+        let num_shard_chips_enabled: Var<_> = builder.eval(C::N::zero());
         for (i, chip) in machine.chips().iter().enumerate() {
             tracing::debug!("verifying constraints for chip: {}", chip.name());
             let index = builder.get(&proof.sorted_idxs, i);
@@ -332,6 +329,7 @@ where
                     let qc_domains =
                         quotient_domain.split_domains_const(builder, log_quotient_degree);
 
+                    // Verify the constraints.
                     Self::verify_constraints(
                         builder,
                         chip,
@@ -343,8 +341,30 @@ where
                         alpha,
                         &permutation_challenges,
                     );
+
+                    // Increment the number of shard chips that are enabled.
+                    builder.assign(
+                        num_shard_chips_enabled,
+                        num_shard_chips_enabled + C::N::one(),
+                    );
                 });
         }
+
+        // Assert that the number of chips in `opened_values` matches the number of shard chips enabled.
+        builder.assert_var_eq(num_shard_chips_enabled, num_shard_chips);
+
+        // If we're checking the cumulative sum, assert that the sum of the cumulative sums is zero.
+        if check_cumulative_sum {
+            let sum: Ext<_, _> = builder.eval(C::EF::zero().cons());
+            builder
+                .range(0, proof.opened_values.chips.len())
+                .for_each(|i, builder| {
+                    let cumulative_sum = builder.get(&proof.opened_values.chips, i).cumulative_sum;
+                    builder.assign(sum, sum + cumulative_sum);
+                });
+            builder.assert_ext_eq(sum, C::EF::zero().cons());
+        }
+
         builder.cycle_tracker("stage-e-verify-constraints");
     }
 }

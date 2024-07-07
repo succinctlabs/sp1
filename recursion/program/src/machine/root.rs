@@ -78,11 +78,7 @@ where
 impl<C: Config, SC, A> SP1RootVerifier<C, SC, A>
 where
     C::F: PrimeField32 + TwoAdicField,
-    SC: StarkGenericConfig<
-        Val = C::F,
-        Challenge = C::EF,
-        Domain = TwoAdicMultiplicativeCoset<C::F>,
-    >,
+    SC: StarkGenericConfig<Val = C::F, Challenge = C::EF, Domain = TwoAdicMultiplicativeCoset<C::F>>,
     A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
     Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
 {
@@ -113,7 +109,15 @@ where
             challenger.observe(builder, element);
         }
         // verify proof.
-        StarkVerifier::<C, SC>::verify_shard(builder, &vk, pcs, machine, &mut challenger, proof);
+        StarkVerifier::<C, SC>::verify_shard(
+            builder,
+            &vk,
+            pcs,
+            machine,
+            &mut challenger,
+            proof,
+            true,
+        );
 
         // Get the public inputs from the proof.
         let public_values_elements = (0..RECURSIVE_PROOF_NUM_PV_ELTS)

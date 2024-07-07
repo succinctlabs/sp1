@@ -243,6 +243,7 @@ where
                 machine,
                 &mut challenger,
                 &proof,
+                true,
             );
 
             // Load the public values from the proof.
@@ -386,13 +387,9 @@ where
             builder.assert_felt_eq(pc, current_public_values.start_pc);
 
             // Verify that the shard is equal to the current shard.
-            builder.print_f(shard);
-            builder.print_f(current_public_values.start_shard);
             builder.assert_felt_eq(shard, current_public_values.start_shard);
 
             // Verfiy that the exeuction shard is equal to the current execution shard.
-            // builder.print_f(execution_shard);
-            // builder.print_f(current_public_values.start_execution_shard);
             builder.assert_felt_eq(execution_shard, current_public_values.start_execution_shard);
 
             // Assert that the leaf challenger is always the same.
