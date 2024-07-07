@@ -434,6 +434,7 @@ pub enum MachineVerificationError<SC: StarkGenericConfig> {
     TooManyShards,
     InvalidChipOccurence(String),
     MissingCpuInFirstShard,
+    CpuLogDegreeTooLarge(usize),
 }
 
 impl<SC: StarkGenericConfig> Debug for MachineVerificationError<SC> {
@@ -468,6 +469,9 @@ impl<SC: StarkGenericConfig> Debug for MachineVerificationError<SC> {
             }
             MachineVerificationError::MissingCpuInFirstShard => {
                 write!(f, "Missing CPU in first shard")
+            }
+            MachineVerificationError::CpuLogDegreeTooLarge(log_degree) => {
+                write!(f, "CPU log degree too large: {}", log_degree)
             }
         }
     }

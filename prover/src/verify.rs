@@ -5,6 +5,7 @@ use num_bigint::BigUint;
 use p3_baby_bear::BabyBear;
 use p3_field::{AbstractField, PrimeField};
 use sp1_core::air::{Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS, WORD_SIZE};
+use sp1_core::cpu::MAX_CPU_LOG_DEGREE;
 use sp1_core::runtime::SubproofVerifier;
 use sp1_core::stark::MachineProver;
 use sp1_core::{
@@ -50,6 +51,21 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             return Err(MachineVerificationError::MissingCpuInFirstShard);
         }
 
+        // CPU log degree bound check.
+        //
+        // Assert that the CPU log degree does not exceed `MAX_CPU_LOG_DEGREE`. This is to ensure
+        // that the lookup argument's multiplicities do not overflow.
+        for shard_proof in proof.0.iter() {
+            if shard_proof.contains_cpu() {
+                let log_degree_cpu = shard_proof.log_degree_cpu();
+                if log_degree_cpu > MAX_CPU_LOG_DEGREE {
+                    return Err(MachineVerificationError::CpuLogDegreeTooLarge(
+                        log_degree_cpu,
+                    ));
+                }
+            }
+        }
+
         // Shard constraints.
         //
         // Initialization:
@@ -76,18 +92,19 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         //
         // Transition:
         // - Execution shard should increment by one for each shard with "CPU".
+        // - Execution shard should stay the same for non-CPU shards.
         // - For the other shards, execution shard does not matter.
         let mut current_execution_shard = BabyBear::zero();
         for shard_proof in proof.0.iter() {
             let public_values: &PublicValues<Word<_>, _> =
                 shard_proof.public_values.as_slice().borrow();
             if shard_proof.contains_cpu() {
-                if public_values.execution_shard != current_execution_shard + BabyBear::one() {
+                current_execution_shard += BabyBear::one();
+                if public_values.execution_shard != current_execution_shard {
                     return Err(MachineVerificationError::InvalidPublicValues(
-                        "execution shard mismatch for shard with cpu",
+                        "execution shard index should be the previous execution shard index + 1 if cpu exists and start at 1",
                     ));
                 }
-                current_execution_shard += BabyBear::one();
             }
         }
 
