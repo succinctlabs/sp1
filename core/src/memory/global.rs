@@ -314,7 +314,7 @@ where
             local.is_first_comp,
         );
 
-        // // Make assertions for specific types of memory chips.
+        // Make assertions for specific types of memory chips.
 
         if self.kind == MemoryChipType::Initialize {
             builder

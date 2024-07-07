@@ -106,10 +106,6 @@ pub fn prove<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<SC::Val>>>(
 ) -> Result<(MachineProof<SC>, Vec<u8>, u64), SP1CoreProverError>
 where
     SC::Challenger: Clone,
-    // OpeningProof<SC>: Send + Sync,
-    // Com<SC>: Send + Sync,
-    // PcsProverData<SC>: Send + Sync,
-    // ShardMainData<SC>: Serialize + DeserializeOwned,
     <SC as StarkGenericConfig>::Val: PrimeField32,
 {
     prove_with_context::<SC, P>(program, stdin, config, opts, Default::default())

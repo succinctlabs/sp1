@@ -70,20 +70,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
         }
 
         // Convert the trace to a row major matrix.
-        let trace =
-            RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), num_columns);
-
-        #[cfg(debug_assertions)]
-        {
-            use p3_matrix::Matrix;
-            println!(
-                "poseidon2 wide trace dims is width: {:?}, height: {:?}",
-                trace.width(),
-                trace.height()
-            );
-        }
-
-        trace
+        RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), num_columns)
     }
 
     fn included(&self, record: &Self::Record) -> bool {
