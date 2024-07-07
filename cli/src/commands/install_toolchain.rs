@@ -20,7 +20,10 @@ use crate::{
     name = "install-toolchain",
     about = "Install the cargo-prove toolchain."
 )]
-pub struct InstallToolchainCmd {}
+pub struct InstallToolchainCmd {
+    #[arg(short, long, env = "GITHUB_TOKEN")]
+    pub token: Option<String>,
+}
 
 impl InstallToolchainCmd {
     pub fn run(&self) -> Result<()> {
@@ -37,8 +40,23 @@ impl InstallToolchainCmd {
             ));
         }
 
-        // Setup client.
-        let client = Client::builder().user_agent("Mozilla/5.0").build()?;
+        // Setup client with optional token.
+        let client_builder = Client::builder().user_agent("Mozilla/5.0");
+        let client = if let Some(ref token) = self.token {
+            client_builder
+                .default_headers({
+                    let mut headers = reqwest::header::HeaderMap::new();
+                    headers.insert(
+                        reqwest::header::AUTHORIZATION,
+                        reqwest::header::HeaderValue::from_str(&format!("token {}", token))
+                            .unwrap(),
+                    );
+                    headers
+                })
+                .build()?
+        } else {
+            client_builder.build()?
+        };
 
         // Setup variables.
         let root_dir = home_dir().unwrap().join(".sp1");

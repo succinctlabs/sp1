@@ -336,6 +336,17 @@ mod tests {
         client.execute(elf, stdin).run().unwrap();
     }
 
+    #[should_panic]
+    #[test]
+    fn test_cycle_limit_fail() {
+        utils::setup_logger();
+        let client = ProverClient::local();
+        let elf = include_bytes!("../../tests/panic/elf/riscv32im-succinct-zkvm-elf");
+        let mut stdin = SP1Stdin::new();
+        stdin.write(&10usize);
+        client.execute(elf, stdin).max_cycles(1).run().unwrap();
+    }
+
     #[test]
     fn test_e2e_prove_plonk() {
         utils::setup_logger();

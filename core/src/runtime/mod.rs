@@ -113,6 +113,9 @@ pub struct Runtime<'a> {
 
     // The options for the runtime.
     pub opts: SP1CoreOpts,
+
+    /// The maximum number of cpu cycles to use for execution.
+    pub max_cycles: Option<u64>,
 }
 
 #[derive(Error, Debug)]
@@ -125,6 +128,8 @@ pub enum ExecutionError {
     UnsupportedSyscall(u32),
     #[error("breakpoint encountered")]
     Breakpoint(),
+    #[error("exceeded cycle limit of {0}")]
+    ExceededCycleLimit(u64),
     #[error("got unimplemented as opcode")]
     Unimplemented(),
 }
@@ -188,6 +193,7 @@ impl<'a> Runtime<'a> {
             subproof_verifier,
             hook_registry,
             opts,
+            max_cycles: context.max_cycles,
         }
     }
 
@@ -1018,6 +1024,13 @@ impl<'a> Runtime<'a> {
             self.state.channel = 0;
 
             self.bump_record();
+        }
+
+        // If the cycle limit is exceeded, return an error.
+        if let Some(max_cycles) = self.max_cycles {
+            if self.state.global_clk >= max_cycles {
+                return Err(ExecutionError::ExceededCycleLimit(max_cycles));
+            }
         }
 
         Ok(self.state.pc.wrapping_sub(self.program.pc_base)

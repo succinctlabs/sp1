@@ -1,0 +1,34 @@
+# Hardware Requirements
+
+The hardware requirements for SP1 depend on what features you want to use. These requirements can also
+change over time as the design of the zKVM evolves. 
+
+**The most important requirement is CPU for performance/latency and RAM to prevent running out of memory.**
+
+|                | Mock / Network               | Core / Compress                    | PLONK (EVM)                |
+|----------------|------------------------------|------------------------------------|----------------------------|
+| CPU            | 1+, single-core perf matters | 16+, more is better                | 32+, more is better        |
+| Memory         | 8GB+, more is better         | 32GB+, more if you have more cores | 128GB+ (for PLONK)         |
+| Disk           | 20GB+                        | 20GB+                              | 100GB+ (for trusted setup) |
+| EVM Compatible | ✅                            | ❌                                  | ✅                          |
+
+### CPU
+
+The execution & trace generation of the zkVM is mostly CPU bound, having a high single-core 
+performance is recommended to accelerate these steps. The rest of the prover is mostly bound by hashing/field operations
+which can be parallelized with multiple cores.
+
+### Memory
+
+Our prover requires keeping large matrices (i.e., traces) in memory to generate the proofs. Certain steps of the prover
+have a minimum memory requirement, meaning that if you have less than this amount of memory, the process will OOM.
+
+This effect is most noticeable when using the PLONK prover, which requires around 128GB of RAM to generate a proof. We use PLONK to avoid
+having to perform a trusted setup, which other SNARK provers like Groth16 require. We have future optimizations planned to reduce
+the memory requirements of the PLONK prover substantially.
+
+### Disk
+
+Disk is required to install the SP1 zkVM toolchain and to install the trused setup artifacts, if you plan to locally build the PLONK prover.
+
+Furthermore, disk is used to checkpoint the state of the program execution, which is required to generate the proofs. 

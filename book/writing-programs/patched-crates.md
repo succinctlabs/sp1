@@ -34,6 +34,36 @@ revm = { git = "https://github.com/sp1-patches/revm", branch = "patch-v5.0.0" }
 reth-primitives = { git = "https://github.com/sp1-patches/reth", default-features = false, branch = "sp1-reth" }
 ```
 
+An example of using patched crates is available in our [Tendermint Example](https://github.com/succinctlabs/sp1/blob/main/examples/tendermint/program/Cargo.toml#L22-L25).
+
+### Verifying Patch Usage: Cargo
+
+You can check if the patch was applied by using cargo's tree command to print the dependencies of the crate you patched.
+
+```bash
+cargo tree -p sha2
+cargo tree -p sha2@0.9.8
+```
+
+Next to the package name, it should have a link to the Github repository that you patched with.
+
+### Verifying Patch Usage: SP1
+
+To check if a precompile is used by your program, you can observe SP1's log output. Make sure to setup the logger with `sp1_sdk::utils::setup_logger()` and run your program with `RUST_LOG=info`.
+
+In the example below, note how the `sha256_extend` precompile was repoted as being used eight times.
+
+```bash
+2024-07-03T04:46:33.753527Z  INFO prove_core: execution report (syscall counts):
+2024-07-03T04:46:33.753550Z  INFO prove_core:   8 sha256_extend
+2024-07-03T04:46:33.753550Z  INFO prove_core:   8 commit
+2024-07-03T04:46:33.753553Z  INFO prove_core:   8 commit_deferred_proofs
+2024-07-03T04:46:33.753554Z  INFO prove_core:   4 write
+2024-07-03T04:46:33.753555Z  INFO prove_core:   1 halt
+```
+
+### Troubleshooting
+
 You may also need to update your `Cargo.lock` file. For example:
 
 ```bash
@@ -53,48 +83,3 @@ You can permanently set this value in `~/.cargo/config`:
 git-fetch-with-cli = true
 ```
 
-### Sanity Checks
-
-**You must make sure your patch is in the workspace root, otherwise it will not be applied.**
-
-You can check if the patch was applied by running a command like the following:
-
-```bash
-cargo tree -p sha2
-cargo tree -p sha2@0.9.8
-```
-
-Next to the package name, it should have a link to the Github repository that you patched with.
-
-**Checking whether a precompile is used**
-
-To check if a precompile is used by your program, when running the script to generate a proof, make sure to use the `RUST_LOG=info` environment variable and set up `utils::setup_logger()` in your script. Then, when you run the script, you should see a log message like the following:
-
-```bash
-2024-03-02T19:10:39.570244Z  INFO runtime.run(...): ... 
-2024-03-02T19:10:39.570244Z  INFO runtime.run(...): ... 
-2024-03-02T19:10:40.003907Z  INFO runtime.prove(...): Sharding the execution record.
-2024-03-02T19:10:40.003916Z  INFO runtime.prove(...): Generating trace for each chip.
-2024-03-02T19:10:40.003918Z  INFO runtime.prove(...): Record stats before generate_trace (incomplete): ShardStats {
-    nb_cpu_events: 7476561,
-    nb_add_events: 2126546,
-    nb_mul_events: 11116,
-    nb_sub_events: 54075,
-    nb_bitwise_events: 646940,
-    nb_shift_left_events: 142595,
-    nb_shift_right_events: 274016,
-    nb_divrem_events: 0,
-    nb_lt_events: 81862,
-    nb_field_events: 0,
-    nb_sha_extend_events: 0,
-    nb_sha_compress_events: 0,
-    nb_keccak_permute_events: 2916,
-    nb_ed_add_events: 0,
-    nb_ed_decompress_events: 0,
-    nb_weierstrass_add_events: 0,
-    nb_weierstrass_double_events: 0,
-    nb_k256_decompress_events: 0,
-}
-```
-
-The `ShardStats` struct contains the number of events for each "table" from the execution of the program, including precompile tables. In the example above, the `nb_keccak_permute_events` field is `2916`, indicating that the precompile for the Keccak permutation was used. 
