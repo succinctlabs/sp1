@@ -34,9 +34,7 @@ p3-air = "0.1.3-succinct"
 p3-field = "0.1.3-succinct"
 p3-commit = "0.1.3-succinct"
 p3-matrix = "0.1.3-succinct"
-p3-baby-bear = { version ="0.1.3-succinct" , features = [
-  "nightly-features",
-] }
+p3-baby-bear = { version = "0.1.3-succinct", features = ["nightly-features"] }
 p3-util = "0.1.3-succinct"
 p3-challenger = "0.1.3-succinct"
 p3-dft = "0.1.3-succinct"
