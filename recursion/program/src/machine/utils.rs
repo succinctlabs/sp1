@@ -59,23 +59,15 @@ pub(crate) fn assert_complete<C: Config>(
     // with CPU.
     builder.assert_felt_ne(*next_execution_shard, C::F::one());
 
-    // The challenger has been fully verified.
-
-    // The start_reconstruct_challenger should be the same as an empty challenger observing the
-    // verifier key and the start pc. This was already verified when verifying the leaf proofs so
-    // there is no need to assert it here.
-
     // Assert that the end reconstruct challenger is equal to the leaf challenger.
     assert_challenger_eq_pv(builder, end_reconstruct_challenger, *leaf_challenger);
 
-    // The deferred digest has been fully reconstructed.
-
-    // The start reconstruct digest should be zero.
+    // The start reconstruct deffered digest should be zero.
     for start_digest_word in start_reconstruct_deferred_digest {
         builder.assert_felt_eq(*start_digest_word, C::F::zero());
     }
 
-    // The end reconstruct digest should be equal to the deferred proofs digest.
+    // The end reconstruct deffered digest should be equal to the deferred proofs digest.
     for (end_digest_word, deferred_digest_word) in end_reconstruct_deferred_digest
         .iter()
         .zip_eq(deferred_proofs_digest.iter())

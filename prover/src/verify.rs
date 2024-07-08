@@ -43,7 +43,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         proof: &SP1CoreProofData,
         vk: &SP1VerifyingKey,
     ) -> Result<(), MachineVerificationError<CoreSC>> {
-        // Initialization constraints.
+        // First shard has a "CPU" constraint.
         //
         // Assert that the first shard has a "CPU".
         let first_shard = proof.0.first().unwrap();
