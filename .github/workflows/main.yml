@@ -98,7 +98,7 @@ jobs:
 
       - name: Run script
         run: |
-          cd examples/ssz-withdrawals
+          cd examples/ssz-withdrawals/program
           cargo add sp1-zkvm --path $GITHUB_WORKSPACE/zkvm/entrypoint
           cargo prove build
           cd ../script
