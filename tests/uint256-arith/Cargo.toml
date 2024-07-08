@@ -6,5 +6,5 @@ edition = "2021"
 
 [dependencies]
 sp1-zkvm = { path = "../../zkvm/entrypoint" }
-sp1-derive = { git = "https://github.com/succinctlabs/sp1.git" }
+sp1-derive = { path = "../../derive" }
 crypto-bigint = "0.6.0-pre.12"
