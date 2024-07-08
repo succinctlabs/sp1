@@ -38,7 +38,9 @@ The goal of this to to end up with a Github release and crate version that are r
 
 In each individual crate, update the version to the new version you want to publish.
 
-For example, if the last version was `0.0.1`, and you want to publish `0.0.2`, you would replace `version = "0.0.1"` with `version = "0.0.2"` each of the `Cargo.toml` files.
+For example, if the last version was `0.0.1`, and you want to publish `0.0.2`, you would replace
+`version = "0.0.1"` with `version = "0.0.2"` each of the `Cargo.toml` files. You can do this all at
+once using a find-and-replace tool, but be mindful of any other crates that might match the last version.
 
 ### Step 2: Create a release
 
