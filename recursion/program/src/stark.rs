@@ -334,17 +334,19 @@ where
                         quotient_domain.split_domains_const(builder, log_quotient_degree);
 
                     // Verify the constraints.
-                    Self::verify_constraints(
-                        builder,
-                        chip,
-                        &values,
-                        proof.public_values.clone(),
-                        trace_domain,
-                        qc_domains,
-                        zeta,
-                        alpha,
-                        &permutation_challenges,
-                    );
+                    stacker::maybe_grow(16 * 1024 * 1024, 16 * 1024 * 1024, || {
+                        Self::verify_constraints(
+                            builder,
+                            chip,
+                            &values,
+                            proof.public_values.clone(),
+                            trace_domain,
+                            qc_domains,
+                            zeta,
+                            alpha,
+                            &permutation_challenges,
+                        );
+                    });
 
                     // Increment the number of shard chips that are enabled.
                     builder.assign(
