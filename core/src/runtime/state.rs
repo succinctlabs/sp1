@@ -5,29 +5,15 @@ use std::{
 };
 
 use nohash_hasher::BuildNoHashHasher;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
+use super::{ExecutionRecord, MemoryAccessRecord, MemoryRecord, SyscallCode};
+use crate::utils::{deserialize_hashmap_as_vec, serialize_hashmap_as_vec};
 use crate::{
     stark::{ShardProof, StarkVerifyingKey},
     utils::BabyBearPoseidon2,
 };
-
-use super::{ExecutionRecord, MemoryAccessRecord, MemoryRecord, SyscallCode};
-
-fn serialize_hashmap<V: Serialize, S: Serializer>(
-    map: &HashMap<u32, V, BuildNoHashHasher<u32>>,
-    serializer: S,
-) -> Result<S::Ok, S::Error> {
-    Serialize::serialize(&map.iter().collect::<Vec<_>>(), serializer)
-}
-
-fn deserialize_hashmap<'de, V: Deserialize<'de>, D: Deserializer<'de>>(
-    deserializer: D,
-) -> Result<HashMap<u32, V, BuildNoHashHasher<u32>>, D::Error> {
-    let seq: Vec<(u32, V)> = Deserialize::deserialize(deserializer)?;
-    Ok(seq.into_iter().collect())
-}
 
 /// Holds data describing the current state of a program's execution.
 #[serde_as]
@@ -53,16 +39,16 @@ pub struct ExecutionState {
     /// The memory which instructions operate over. Values contain the memory value and last shard
     /// + timestamp that each memory address was accessed.
     #[serde(
-        serialize_with = "serialize_hashmap",
-        deserialize_with = "deserialize_hashmap"
+        serialize_with = "serialize_hashmap_as_vec",
+        deserialize_with = "deserialize_hashmap_as_vec"
     )]
     pub memory: HashMap<u32, MemoryRecord, BuildNoHashHasher<u32>>,
 
     /// Uninitialized memory addresses that have a specific value they should be initialized with.
     /// SyscallHintRead uses this to write hint data into uninitialized memory.
     #[serde(
-        serialize_with = "serialize_hashmap",
-        deserialize_with = "deserialize_hashmap"
+        serialize_with = "serialize_hashmap_as_vec",
+        deserialize_with = "deserialize_hashmap_as_vec"
     )]
     pub uninitialized_memory: HashMap<u32, u32, BuildNoHashHasher<u32>>,
 
