@@ -62,12 +62,12 @@ pub(crate) fn assert_complete<C: Config>(
     // Assert that the end reconstruct challenger is equal to the leaf challenger.
     assert_challenger_eq_pv(builder, end_reconstruct_challenger, *leaf_challenger);
 
-    // The start reconstruct deffered digest should be zero.
+    // The start reconstruct deferred digest should be zero.
     for start_digest_word in start_reconstruct_deferred_digest {
         builder.assert_felt_eq(*start_digest_word, C::F::zero());
     }
 
-    // The end reconstruct deffered digest should be equal to the deferred proofs digest.
+    // The end reconstruct deferred digest should be equal to the deferred proofs digest.
     for (end_digest_word, deferred_digest_word) in end_reconstruct_deferred_digest
         .iter()
         .zip_eq(deferred_proofs_digest.iter())
@@ -87,11 +87,7 @@ pub(crate) fn proof_data_from_vk<C: Config, SC, A>(
     machine: &StarkMachine<SC, A>,
 ) -> VerifyingKeyVariable<C>
 where
-    SC: StarkGenericConfig<
-        Val = C::F,
-        Challenge = C::EF,
-        Domain = TwoAdicMultiplicativeCoset<C::F>,
-    >,
+    SC: StarkGenericConfig<Val = C::F, Challenge = C::EF, Domain = TwoAdicMultiplicativeCoset<C::F>>,
     A: MachineAir<SC::Val>,
     Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
 {

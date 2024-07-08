@@ -107,11 +107,7 @@ where
 impl<C: Config, SC, A> SP1DeferredVerifier<C, SC, A>
 where
     C::F: PrimeField32 + TwoAdicField,
-    SC: StarkGenericConfig<
-        Val = C::F,
-        Challenge = C::EF,
-        Domain = TwoAdicMultiplicativeCoset<C::F>,
-    >,
+    SC: StarkGenericConfig<Val = C::F, Challenge = C::EF, Domain = TwoAdicMultiplicativeCoset<C::F>>,
     A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
     Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
 {
@@ -303,7 +299,7 @@ where
         deferred_public_values.start_reconstruct_challenger = values;
         deferred_public_values.end_reconstruct_challenger = values;
 
-        // Assign the deffered proof digests.
+        // Assign the deferred proof digests.
         deferred_public_values.end_reconstruct_deferred_digest =
             array::from_fn(|i| builder.get(&reconstruct_deferred_digest, i));
 
