@@ -74,7 +74,7 @@ jobs:
 
   ssz-withdrawals:
     name: Example (SSZ Withdrawals)
-    runs-on: ubuntu-latest
+    runs-on: runs-on,runner=8cpu-linux-x64
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
