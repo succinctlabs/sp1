@@ -106,7 +106,11 @@ where
 impl<C: Config, SC, A> SP1CompressVerifier<C, SC, A>
 where
     C::F: PrimeField32 + TwoAdicField,
-    SC: StarkGenericConfig<Val = C::F, Challenge = C::EF, Domain = TwoAdicMultiplicativeCoset<C::F>>,
+    SC: StarkGenericConfig<
+        Val = C::F,
+        Challenge = C::EF,
+        Domain = TwoAdicMultiplicativeCoset<C::F>,
+    >,
     A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
     Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
 {
@@ -142,7 +146,6 @@ where
         let mut reduce_public_values_stream: Vec<Felt<_>> = (0..RECURSIVE_PROOF_NUM_PV_ELTS)
             .map(|_| builder.uninit())
             .collect();
-
         let reduce_public_values: &mut RecursionPublicValues<_> =
             reduce_public_values_stream.as_mut_slice().borrow_mut();
 
@@ -566,8 +569,7 @@ where
         reduce_public_values.end_reconstruct_challenger = values;
         // Set the start reconstruct deferred digest to be the last reconstruct deferred digest.
         reduce_public_values.end_reconstruct_deferred_digest = reconstruct_deferred_digest;
-
-        // Assign the deffered proof digests.
+        // Assign the deferred proof digests.
         reduce_public_values.deferred_proofs_digest = deferred_proofs_digest;
         // Assign the committed value digests.
         reduce_public_values.committed_value_digest = committed_value_digest;
