@@ -80,8 +80,26 @@ pub struct RecursionPublicValues<T> {
     /// First shard being proven.
     pub start_shard: T,
 
-    /// Next shard that should be proven, if there are more.
+    /// Next shard that should be proven.
     pub next_shard: T,
+
+    /// First execution shard being proven.
+    pub start_execution_shard: T,
+
+    /// Next execution shard that should be proven.
+    pub next_execution_shard: T,
+
+    /// Previous MemoryInit address bits.
+    pub previous_init_addr_bits: [T; 32],
+
+    /// Last MemoryInit address bits.
+    pub last_init_addr_bits: [T; 32],
+
+    /// Previous MemoryFinalize address bits.
+    pub previous_finalize_addr_bits: [T; 32],
+
+    /// Last MemoryFinalize address bits.
+    pub last_finalize_addr_bits: [T; 32],
 
     /// Start state of reconstruct_challenger.
     pub start_reconstruct_challenger: ChallengerPublicValues<T>,
@@ -109,9 +127,6 @@ pub struct RecursionPublicValues<T> {
 
     /// Whether the proof completely proves the program execution.
     pub is_complete: T,
-
-    /// Total number of core shards in the program execution.
-    pub total_core_shards: T,
 
     /// The digest of all the previous public values elements.
     pub digest: [T; DIGEST_SIZE],

@@ -422,6 +422,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    use crate::stark::DefaultProver;
     use crate::utils;
     use crate::utils::tests::{ED25519_ELF, ED_ADD_ELF};
     use crate::Program;
@@ -430,13 +431,13 @@ mod tests {
     fn test_ed_add_simple() {
         utils::setup_logger();
         let program = Program::from(ED_ADD_ELF);
-        utils::run_test(program).unwrap();
+        utils::run_test::<DefaultProver<_, _>>(program).unwrap();
     }
 
     #[test]
     fn test_ed25519_program() {
         utils::setup_logger();
         let program = Program::from(ED25519_ELF);
-        utils::run_test(program).unwrap();
+        utils::run_test::<DefaultProver<_, _>>(program).unwrap();
     }
 }

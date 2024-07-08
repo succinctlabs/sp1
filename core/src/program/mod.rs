@@ -62,6 +62,7 @@ impl<F: PrimeField> MachineAir<F> for ProgramChip {
     }
 
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
+        debug_assert!(!program.instructions.is_empty(), "empty program");
         let rows = program
             .instructions
             .clone()
@@ -123,7 +124,7 @@ impl<F: PrimeField> MachineAir<F> for ProgramChip {
                 let pc = input.program.pc_base + (i as u32 * 4);
                 let mut row = [F::zero(); NUM_PROGRAM_MULT_COLS];
                 let cols: &mut ProgramMultiplicityCols<F> = row.as_mut_slice().borrow_mut();
-                cols.shard = F::from_canonical_u32(input.index);
+                cols.shard = F::from_canonical_u32(input.public_values.execution_shard);
                 cols.multiplicity =
                     F::from_canonical_usize(*instruction_counts.get(&pc).unwrap_or(&0));
                 row

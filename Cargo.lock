@@ -5025,6 +5025,7 @@ dependencies = [
  "dirs",
  "ethers",
  "futures",
+ "hashbrown 0.14.5",
  "hex",
  "indicatif",
  "log",

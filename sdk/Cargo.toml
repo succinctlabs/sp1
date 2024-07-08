@@ -41,6 +41,7 @@ ethers = { version = "2", default-features = false }
 strum_macros = "0.26.4"
 strum = "0.26.3"
 thiserror = "1.0.61"
+hashbrown = "0.14.5"
 sysinfo = "0.30.12"
 
 [features]
