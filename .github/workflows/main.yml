@@ -62,15 +62,15 @@ jobs:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_BACKTRACE: 1
 
-  # check-branch:
-  #   name: Check branch
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Check branch
-  #       if: github.head_ref != 'dev' && !startsWith(github.ref, 'release/') && !startsWith(github.ref, 'hotfix/')
-  #       run: |
-  #         echo "ERROR: You can only merge to main from dev, release/*, or hotfix/*."
-  #         exit 1
+  check-branch:
+    name: Check branch
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check branch
+        if: github.head_ref != 'dev' && !startsWith(github.ref, 'release/') && !startsWith(github.ref, 'hotfix/')
+        run: |
+          echo "ERROR: You can only merge to main from dev, release/*, or hotfix/*."
+          exit 1
 
   ssz-withdrawals:
     name: Example (SSZ Withdrawals)
