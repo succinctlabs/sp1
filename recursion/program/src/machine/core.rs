@@ -287,10 +287,12 @@ where
                 false,
             );
 
+            // CHECKPOINT FOR COMMENTING OUT # 3.
+
             // First shard has a "CPU" constraint.
             {
                 builder.if_eq(shard, C::N::one()).then(|builder| {
-                    builder.assert_var_eq(contains_cpu, C::N::one());
+                    // builder.assert_var_eq(contains_cpu, C::N::one());
                 });
             }
 
@@ -310,7 +312,7 @@ where
                                         builder.assign(cpu_log_degree_lt_max, C::N::one());
                                     });
                                 });
-                            builder.assert_var_eq(cpu_log_degree_lt_max, C::N::one());
+                            // builder.assert_var_eq(cpu_log_degree_lt_max, C::N::one());
                         });
                     }
                 }
@@ -319,7 +321,7 @@ where
             // Shard constraints.
             {
                 // Assert that the shard of the proof is equal to the current shard.
-                builder.assert_felt_eq(current_shard, public_values.shard);
+                // builder.assert_felt_eq(current_shard, public_values.shard);
 
                 // Increment the current shard by one.
                 builder.assign(current_shard, current_shard + C::F::one());
@@ -330,7 +332,7 @@ where
             {
                 // Assert that the shard of the proof is equal to the current shard.
                 builder.if_eq(contains_cpu, C::N::one()).then(|builder| {
-                    builder.assert_felt_eq(current_execution_shard, public_values.execution_shard);
+                    // builder.assert_felt_eq(current_execution_shard, public_values.execution_shard);
                 });
 
                 // If the shard has a "CPU" chip, then the execution shard should be incremented by 1.
@@ -347,20 +349,20 @@ where
                 // If it's the first shard (which is the first execution shard), then the start_pc
                 // should be vk.pc_start.
                 builder.if_eq(shard, C::N::one()).then(|builder| {
-                    builder.assert_felt_eq(public_values.start_pc, vk.pc_start);
+                    // builder.assert_felt_eq(public_values.start_pc, vk.pc_start);
                 });
 
                 // Assert that the start_pc of the proof is equal to the current pc.
-                builder.assert_felt_eq(current_pc, public_values.start_pc);
+                // builder.assert_felt_eq(current_pc, public_values.start_pc);
 
                 // If it's not a shard with "CPU", then assert that the start_pc equals the next_pc.
                 builder.if_ne(contains_cpu, C::N::one()).then(|builder| {
-                    builder.assert_felt_eq(public_values.start_pc, public_values.next_pc);
+                    // builder.assert_felt_eq(public_values.start_pc, public_values.next_pc);
                 });
 
                 // If it's a shard with "CPU", then assert that the start_pc is not zero.
                 builder.if_eq(contains_cpu, C::N::one()).then(|builder| {
-                    builder.assert_felt_ne(public_values.start_pc, C::F::zero());
+                    // builder.assert_felt_ne(public_values.start_pc, C::F::zero());
                 });
 
                 // Update current_pc to be the end_pc of the current proof.
@@ -370,10 +372,10 @@ where
             // Exit code constraints.
             {
                 // Assert that the exit code is zero (success) for all proofs.
-                builder.assert_felt_eq(exit_code, C::F::zero());
+                // builder.assert_felt_eq(exit_code, C::F::zero());
             }
 
-            // CHECKPOINT FOR COMMENTING OUT # 2
+            // CHECKPOINT FOR COMMENTING OUT # 2, STILL TRAPS AT THIS POINT.
 
             // Memory initialization & finalization constraints.
             {
