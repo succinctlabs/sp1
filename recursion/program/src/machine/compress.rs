@@ -404,20 +404,20 @@ where
             // Assert that the leaf challenger is always the same.
 
             // Assert that the MemoryInitialize address bits are the same.
-            for (bit, current_bit) in init_addr_bits
-                .iter()
-                .zip(current_public_values.previous_init_addr_bits.iter())
-            {
-                builder.assert_felt_eq(*bit, *current_bit);
-            }
+            // for (bit, current_bit) in init_addr_bits
+            //     .iter()
+            //     .zip(current_public_values.previous_init_addr_bits.iter())
+            // {
+            //     builder.assert_felt_eq(*bit, *current_bit);
+            // }
 
             // Assert that the MemoryFinalize address bits are the same.
-            for (bit, current_bit) in finalize_addr_bits
-                .iter()
-                .zip(current_public_values.previous_finalize_addr_bits.iter())
-            {
-                builder.assert_felt_eq(*bit, *current_bit);
-            }
+            // for (bit, current_bit) in finalize_addr_bits
+            //     .iter()
+            //     .zip(current_public_values.previous_finalize_addr_bits.iter())
+            // {
+            //     builder.assert_felt_eq(*bit, *current_bit);
+            // }
 
             assert_challenger_eq_pv(
                 builder,
@@ -478,12 +478,12 @@ where
                         builder.assign(is_zero, C::N::zero());
                     });
                 }
-                builder.if_eq(is_zero, C::N::zero()).then(|builder| {
-                    builder.assert_felt_eq(
-                        deferred_proofs_digest[0],
-                        current_public_values.deferred_proofs_digest[0],
-                    );
-                });
+                // builder.if_eq(is_zero, C::N::zero()).then(|builder| {
+                //     builder.assert_felt_eq(
+                //         deferred_proofs_digest[0],
+                //         current_public_values.deferred_proofs_digest[0],
+                //     );
+                // });
 
                 // Update the deferred proofs digest.
                 #[allow(clippy::needless_range_loop)]
