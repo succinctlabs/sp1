@@ -109,7 +109,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
     }
 
     fn included(&self, record: &Self::Record) -> bool {
-        !record.poseidon2_wide_events.is_empty()
+        true
     }
 
     fn preprocessed_width(&self) -> usize {
@@ -122,9 +122,6 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
             .iter()
             .filter(|i| matches!(i, Poseidon2Wide(_)))
             .count();
-        if instruction_count == 0 {
-            return None;
-        }
 
         let mut rows = vec![
             F::zero();
@@ -289,7 +286,7 @@ mod tests {
     };
 
     #[test]
-    fn generate_trace() {
+    fn generate_trace_deg_3() {
         type F = BabyBear;
         let input_0 = [F::one(); WIDTH];
         let permuter = inner_perm();
@@ -314,5 +311,33 @@ mod tests {
         };
         let chip_3 = Poseidon2WideChip::<3>::default();
         let _: RowMajorMatrix<F> = chip_3.generate_trace(&shard, &mut ExecutionRecord::default());
+    }
+
+    #[test]
+    fn generate_trace_deg_9() {
+        type F = BabyBear;
+        let input_0 = [F::one(); WIDTH];
+        let permuter = inner_perm();
+        let output_0 = permuter.permute(input_0);
+        let mut rng = rand::thread_rng();
+
+        let input_1 = [F::rand(&mut rng); WIDTH];
+        let output_1 = permuter.permute(input_1);
+
+        let shard = ExecutionRecord {
+            poseidon2_wide_events: vec![
+                Poseidon2WideEvent {
+                    input: input_0,
+                    output: output_0,
+                },
+                Poseidon2WideEvent {
+                    input: input_1,
+                    output: output_1,
+                },
+            ],
+            ..Default::default()
+        };
+        let chip_9 = Poseidon2WideChip::<9>::default();
+        let _: RowMajorMatrix<F> = chip_9.generate_trace(&shard, &mut ExecutionRecord::default());
     }
 }

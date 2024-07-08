@@ -127,8 +127,6 @@ pub(crate) mod tests {
     use std::iter::once;
 
     use crate::machine::RecursionAir;
-    use crate::poseidon2_wide::columns::{NUM_POSEIDON2_DEGREE3_COLS, NUM_POSEIDON2_DEGREE9_COLS};
-    // use crate::poseidon2_wide::events::Poseidon2Event;
     use crate::{runtime::instruction as instr, MemAccessKind, RecursionProgram, Runtime};
     use p3_air::BaseAir;
     use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
@@ -149,14 +147,49 @@ pub(crate) mod tests {
         type EF = <SC as StarkGenericConfig>::Challenge;
         type A = RecursionAir<F, 3>;
 
+        let input = [1; WIDTH];
+        let output = inner_perm()
+            .permute(input.map(BabyBear::from_canonical_u32))
+            .map(|x| BabyBear::as_canonical_u32(&x));
+
+        let instructions = (0..WIDTH)
+            .map(|i| instr::mem(MemAccessKind::Write, 1, i as u32, input[i]))
+            .chain(once(instr::poseidon2_wide(
+                1,
+                std::array::from_fn(|i| (i + WIDTH) as u32),
+                std::array::from_fn(|i| i as u32),
+            )))
+            .chain(
+                (0..WIDTH)
+                    .map(|i| instr::mem(MemAccessKind::Read, 1, (i + WIDTH) as u32, output[i])),
+            )
+            .collect::<Vec<_>>();
+
+        let program = RecursionProgram { instructions };
+        let mut runtime =
+            Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program, BabyBearPoseidon2::new().perm);
+        runtime.run();
+
+        let config = SC::new();
         println!(
-            "NUM_POSEIDON2_WIDE_DEGREE_3: {}",
-            NUM_POSEIDON2_DEGREE3_COLS
+            "Poseidon Degree 3 main width: {}",
+            <Poseidon2WideChip<3> as BaseAir<F>>::width(&Poseidon2WideChip::<3>::default())
         );
-        println!(
-            "NUM_POSEIDON2_WIDE_DEGREE_9: {}",
-            NUM_POSEIDON2_DEGREE9_COLS
-        );
+        let machine = A::machine(config);
+        let (pk, vk) = machine.setup(&program);
+        let result = run_test_machine(runtime.record, machine, pk, vk);
+        if let Err(e) = result {
+            panic!("Verification failed: {:?}", e);
+        }
+    }
+
+    #[test]
+    fn test_poseidon2_deg_9() {
+        setup_logger();
+        type SC = BabyBearPoseidon2Outer;
+        type F = <SC as StarkGenericConfig>::Val;
+        type EF = <SC as StarkGenericConfig>::Challenge;
+        type A = RecursionAir<F, 9>;
 
         let input = [1; WIDTH];
         let output = inner_perm()

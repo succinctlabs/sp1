@@ -306,5 +306,6 @@ where
                 break;
             }
         }
+        println!("Number of Poseidon2 operations: {}", self.nb_poseidons);
     }
 }
