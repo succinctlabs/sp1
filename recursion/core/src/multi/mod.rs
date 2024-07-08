@@ -39,6 +39,8 @@ pub struct MultiCols<T: Copy> {
 
     /// A flag column to indicate whether the row is the first poseidon2 row.
     pub poseidon2_first_row: T,
+    /// A flag column to indicate whether the row is the last poseidon2 row.
+    pub poseidon2_last_row: T,
 
     /// Similar for Fri_fold.
     pub fri_fold_last_row: T,
@@ -87,6 +89,9 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for MultiChip<DEGREE> {
         let fri_fold_trace = fri_fold_chip.generate_trace(input, output);
         let mut poseidon2_trace = poseidon2.generate_trace(input, output);
 
+        let fri_fold_height = fri_fold_trace.height();
+        let poseidon2_height = poseidon2_trace.height();
+
         let num_columns = <MultiChip<DEGREE> as BaseAir<F>>::width(self);
 
         let mut rows = fri_fold_trace
@@ -127,7 +132,9 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for MultiChip<DEGREE> {
                     multi_cols.poseidon2_send_range_check = poseidon2_cols.control_flow().is_absorb;
 
                     // The first row of the poseidon2 trace has index fri_fold_trace.height()
-                    multi_cols.poseidon2_first_row = F::from_bool(i == fri_fold_trace.height())
+                    multi_cols.poseidon2_first_row = F::from_bool(i == fri_fold_height);
+                    multi_cols.poseidon2_last_row =
+                        F::from_bool(i == fri_fold_height + poseidon2_height - 1);
                 }
 
                 row
@@ -183,6 +190,7 @@ where
 
         // Constrain the flags to be boolean.
         builder.assert_bool(local_multi_cols.poseidon2_first_row);
+        builder.assert_bool(local_multi_cols.poseidon2_last_row);
         builder.assert_bool(local_multi_cols.fri_fold_last_row);
 
         // Constrain that the flags are computed correctly.
@@ -201,6 +209,14 @@ where
         builder.when_transition().assert_eq(
             next_multi_cols.poseidon2_first_row,
             local_multi_cols.is_fri_fold * next_multi_cols.is_poseidon2,
+        );
+        builder.when_transition().assert_eq(
+            local_multi_cols.is_poseidon2 * (AB::Expr::one() - next_multi_cols.is_poseidon2),
+            local_multi_cols.poseidon2_last_row,
+        );
+        builder.when_last_row().assert_eq(
+            local_multi_cols.is_poseidon2,
+            local_multi_cols.poseidon2_last_row,
         );
 
         // Fri fold requires that it's rows are contiguous, since each invocation spans multiple rows
@@ -255,7 +271,7 @@ where
             builder,
             local_multi_cols.is_poseidon2.into(),
             local_multi_cols.poseidon2_first_row.into(),
-            builder.is_last_row(),
+            local_multi_cols.poseidon2_last_row.into(),
             next_multi_cols.is_poseidon2.into(),
         );
 
