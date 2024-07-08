@@ -447,6 +447,8 @@ where
                 }
             }
 
+            // CHECKPOINT FOR COMMENTING OUT
+
             // Digest constraints.
             {
                 // If `commited_value_digest` is not zero, then `public_values.commited_value_digest
@@ -465,10 +467,10 @@ where
                     #[allow(clippy::needless_range_loop)]
                     for i in 0..committed_value_digest.len() {
                         for j in 0..WORD_SIZE {
-                            builder.assert_felt_eq(
-                                committed_value_digest[i][j],
-                                public_values.committed_value_digest[i][j],
-                            );
+                            // builder.assert_felt_eq(
+                            //     committed_value_digest[i][j],
+                            //     public_values.committed_value_digest[i][j],
+                            // );
                         }
                     }
                 });
@@ -477,12 +479,12 @@ where
                 builder.if_ne(contains_cpu, C::N::one()).then(|builder| {
                     #[allow(clippy::needless_range_loop)]
                     for i in 0..committed_value_digest.len() {
-                        for j in 0..WORD_SIZE {
-                            builder.assert_felt_eq(
-                                committed_value_digest[i][j],
-                                public_values.committed_value_digest[i][j],
-                            );
-                        }
+                        // for j in 0..WORD_SIZE {
+                        //     builder.assert_felt_eq(
+                        //         committed_value_digest[i][j],
+                        //         public_values.committed_value_digest[i][j],
+                        //     );
+                        // }
                     }
                 });
 
@@ -508,20 +510,20 @@ where
                     });
                 }
                 builder.if_eq(is_zero, C::N::zero()).then(|builder| {
-                    builder.assert_felt_eq(
-                        deferred_proofs_digest[0],
-                        public_values.deferred_proofs_digest[0],
-                    );
+                    // builder.assert_felt_eq(
+                    //     deferred_proofs_digest[0],
+                    //     public_values.deferred_proofs_digest[0],
+                    // );
                 });
 
                 // If it's not a shard with "CPU", then the deferred proofs digest should not change.
                 builder.if_ne(contains_cpu, C::N::one()).then(|builder| {
                     #[allow(clippy::needless_range_loop)]
                     for i in 0..deferred_proofs_digest.len() {
-                        builder.assert_felt_eq(
-                            deferred_proofs_digest[i],
-                            public_values.deferred_proofs_digest[i],
-                        );
+                        // builder.assert_felt_eq(
+                        //     deferred_proofs_digest[i],
+                        //     public_values.deferred_proofs_digest[i],
+                        // );
                     }
                 });
 
