@@ -4,14 +4,12 @@ use std::borrow::Borrow;
 use std::borrow::BorrowMut;
 use std::ops::Deref;
 
-use p3_air::BaseAir;
 use p3_baby_bear::{MONTY_INVERSE, POSEIDON2_INTERNAL_MATRIX_DIAG_16_BABYBEAR_MONTY};
 use p3_field::AbstractField;
 use p3_field::PrimeField32;
 
 pub mod air;
 pub mod columns;
-pub mod events;
 pub mod trace;
 
 use p3_poseidon2::matmul_internal;
@@ -48,7 +46,7 @@ impl<'a, const DEGREE: usize> Poseidon2WideChip<DEGREE> {
     /// Transmute a row it to an immutable Poseidon2 instance.
     pub(crate) fn convert<T>(row: impl Deref<Target = [T]>) -> Box<dyn Poseidon2<'a, T> + 'a>
     where
-        T: Copy + std::fmt::Debug + 'a,
+        T: Copy + 'a,
     {
         if DEGREE == 3 {
             let convert: &Poseidon2Degree3<T> = (*row).borrow();
@@ -125,31 +123,27 @@ pub(crate) fn internal_linear_layer<F: AbstractField>(state: &mut [F; WIDTH]) {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::array;
+
     use std::iter::once;
 
     use crate::machine::RecursionAir;
     use crate::poseidon2_wide::columns::{NUM_POSEIDON2_DEGREE3_COLS, NUM_POSEIDON2_DEGREE9_COLS};
     // use crate::poseidon2_wide::events::Poseidon2Event;
-    use crate::{
-        instruction as instr, ExecutionRecord, MemAccessKind, Opcode, Poseidon2WideEvent,
-        RecursionProgram, Runtime,
-    };
+    use crate::{runtime::instruction as instr, MemAccessKind, RecursionProgram, Runtime};
+    use p3_air::BaseAir;
     use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
     use p3_field::{AbstractField, PrimeField32};
-    use p3_poseidon2::{Poseidon2, Poseidon2ExternalMatrixGeneral};
     use p3_symmetric::Permutation;
-    use rand::random;
     use sp1_core::stark::StarkGenericConfig;
-    use sp1_core::utils::{inner_perm, run_test_machine, BabyBearPoseidon2};
+    use sp1_core::utils::{inner_perm, run_test_machine, setup_logger, BabyBearPoseidon2};
 
     use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
-    use zkhash::ark_ff::UniformRand;
 
     use super::{Poseidon2WideChip, WIDTH};
 
     #[test]
     fn test_poseidon2_deg_3() {
+        setup_logger();
         type SC = BabyBearPoseidon2Outer;
         type F = <SC as StarkGenericConfig>::Val;
         type EF = <SC as StarkGenericConfig>::Challenge;
@@ -188,6 +182,10 @@ pub(crate) mod tests {
         runtime.run();
 
         let config = SC::new();
+        println!(
+            "Poseidon Degree 3 main width: {}",
+            <Poseidon2WideChip<3> as BaseAir<F>>::width(&Poseidon2WideChip::<3>::default())
+        );
         let machine = A::machine(config);
         let (pk, vk) = machine.setup(&program);
         let result = run_test_machine(runtime.record, machine, pk, vk);

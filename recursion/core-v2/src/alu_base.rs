@@ -224,7 +224,7 @@ mod tests {
         stark::StarkGenericConfig,
         utils::{run_test_machine, BabyBearPoseidon2},
     };
-    use sp1_recursion_core::stark::config::{BabyBearPoseidon2Outer, OuterPerm};
+    use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
 
     use super::*;
 

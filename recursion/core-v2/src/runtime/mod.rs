@@ -283,9 +283,17 @@ where
                 }) => {
                     self.nb_poseidons += 1;
                     let in_vals = std::array::from_fn(|i| self.mr(input[i]).val[0]);
+                    println!("in_vals: {:?}", in_vals);
                     let perm_output = self.perm.as_ref().unwrap().permute(in_vals);
+                    println!("output: {:?}", perm_output);
+                    println!("output addresses: {:?}", output);
+
                     perm_output.iter().enumerate().for_each(|(i, &val)| {
                         self.mw(output[i], Block::from(val), mult);
+                    });
+                    self.record.poseidon2_wide_events.push(Poseidon2WideEvent {
+                        input: in_vals,
+                        output: perm_output,
                     });
                 }
             };

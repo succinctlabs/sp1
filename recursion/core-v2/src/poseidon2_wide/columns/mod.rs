@@ -11,14 +11,14 @@ pub mod permutation;
 pub mod preprocessed;
 
 /// Trait for getter methods for Poseidon2 columns.
-pub trait Poseidon2<'a, T: Copy + 'a>: std::fmt::Debug {
+pub trait Poseidon2<'a, T: Copy + 'a> {
     fn state_var(&self) -> &[T; WIDTH];
     fn internal_rounds_s0(&self) -> &[T; NUM_INTERNAL_ROUNDS - 1];
     fn s_box_state(&self) -> Option<&[T; WIDTH]>;
 }
 
 /// Trait for setter methods for Poseidon2 columns. Only need the memory columns are populated mutably.
-pub trait Poseidon2Mut<'a, T: Copy + 'a>: std::fmt::Debug {
+pub trait Poseidon2Mut<'a, T: Copy + 'a> {
     fn get_cols_mut(
         &mut self,
     ) -> (
@@ -30,13 +30,12 @@ pub trait Poseidon2Mut<'a, T: Copy + 'a>: std::fmt::Debug {
 
 /// Enum to enable dynamic dispatch for the Poseidon2 columns.
 #[allow(dead_code)]
-#[derive(Debug)]
-enum Poseidon2Enum<T: Copy + std::fmt::Debug> {
+enum Poseidon2Enum<T: Copy> {
     P2Degree3(Poseidon2Degree3<T>),
     P2Degree9(Poseidon2Degree9<T>),
 }
 
-impl<'a, T: Copy + std::fmt::Debug + 'a> Poseidon2<'a, T> for Poseidon2Enum<T> {
+impl<'a, T: Copy + 'a> Poseidon2<'a, T> for Poseidon2Enum<T> {
     fn state_var(&self) -> &[T; WIDTH] {
         match self {
             Poseidon2Enum::P2Degree3(p) => p.state_var(),
@@ -61,13 +60,12 @@ impl<'a, T: Copy + std::fmt::Debug + 'a> Poseidon2<'a, T> for Poseidon2Enum<T> {
 
 /// Enum to enable dynamic dispatch for the Poseidon2 columns.
 #[allow(dead_code)]
-#[derive(Debug)]
-enum Poseidon2MutEnum<'a, T: Copy + std::fmt::Debug> {
+enum Poseidon2MutEnum<'a, T: Copy> {
     P2Degree3(&'a mut Poseidon2Degree3<T>),
     P2Degree9(&'a mut Poseidon2Degree9<T>),
 }
 
-impl<'a, T: Copy + std::fmt::Debug + 'a> Poseidon2Mut<'a, T> for Poseidon2MutEnum<'a, T> {
+impl<'a, T: Copy + 'a> Poseidon2Mut<'a, T> for Poseidon2MutEnum<'a, T> {
     fn get_cols_mut(
         &mut self,
     ) -> (
@@ -93,12 +91,12 @@ const fn make_col_map_degree3() -> Poseidon2Degree3<usize> {
 pub const POSEIDON2_DEGREE3_COL_MAP: Poseidon2Degree3<usize> = make_col_map_degree3();
 
 /// Struct for the poseidon2 chip that contains sbox columns.
-#[derive(AlignedBorrow, Clone, Copy, Debug)]
+#[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
-pub struct Poseidon2Degree3<T: Copy + std::fmt::Debug> {
+pub struct Poseidon2Degree3<T: Copy> {
     pub permutation_cols: PermutationSBox<T>,
 }
-impl<'a, T: Copy + std::fmt::Debug + 'a> Poseidon2<'a, T> for Poseidon2Degree3<T> {
+impl<'a, T: Copy + 'a> Poseidon2<'a, T> for Poseidon2Degree3<T> {
     fn state_var(&self) -> &[T; WIDTH] {
         &self.permutation_cols.state.state_var
     }
@@ -112,7 +110,7 @@ impl<'a, T: Copy + std::fmt::Debug + 'a> Poseidon2<'a, T> for Poseidon2Degree3<T
     }
 }
 
-impl<'a, T: Copy + std::fmt::Debug + 'a> Poseidon2Mut<'a, T> for &'a mut Poseidon2Degree3<T> {
+impl<'a, T: Copy + 'a> Poseidon2Mut<'a, T> for &'a mut Poseidon2Degree3<T> {
     fn get_cols_mut(
         &mut self,
     ) -> (
@@ -138,13 +136,13 @@ const fn make_col_map_degree9() -> Poseidon2Degree9<usize> {
 pub const POSEIDON2_DEGREE9_COL_MAP: Poseidon2Degree9<usize> = make_col_map_degree9();
 
 /// Struct for the poseidon2 chip that doesn't contain sbox columns.
-#[derive(AlignedBorrow, Clone, Copy, Debug)]
+#[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
-pub struct Poseidon2Degree9<T: Copy + std::fmt::Debug> {
+pub struct Poseidon2Degree9<T: Copy> {
     pub permutation_cols: PermutationNoSbox<T>,
 }
 
-impl<'a, T: Copy + std::fmt::Debug + 'a> Poseidon2<'a, T> for Poseidon2Degree9<T> {
+impl<'a, T: Copy + 'a> Poseidon2<'a, T> for Poseidon2Degree9<T> {
     fn state_var(&self) -> &[T; WIDTH] {
         &self.permutation_cols.state.state_var
     }
@@ -158,7 +156,7 @@ impl<'a, T: Copy + std::fmt::Debug + 'a> Poseidon2<'a, T> for Poseidon2Degree9<T
     }
 }
 
-impl<'a, T: Copy + std::fmt::Debug + 'a> Poseidon2Mut<'a, T> for &'a mut Poseidon2Degree9<T> {
+impl<'a, T: Copy + 'a> Poseidon2Mut<'a, T> for &'a mut Poseidon2Degree9<T> {
     fn get_cols_mut(
         &mut self,
     ) -> (

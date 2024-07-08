@@ -1,6 +1,6 @@
+use std::borrow::BorrowMut;
 use std::mem::size_of;
 
-use ff::derive::bitvec::vec;
 use p3_air::BaseAir;
 use p3_field::PrimeField32;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
@@ -9,13 +9,12 @@ use sp1_primitives::RC_16_30_U32;
 use tracing::instrument;
 
 use crate::poseidon2_wide::{external_linear_layer, NUM_EXTERNAL_ROUNDS, WIDTH};
-use crate::{
-    instruction::Instruction::Poseidon2Wide, ExecutionRecord, Poseidon2WideInstr, RecursionProgram,
-};
+use crate::Address;
+use crate::{instruction::Instruction::Poseidon2Wide, ExecutionRecord, RecursionProgram};
 
 use super::columns::permutation::max;
 use super::columns::preprocessed::{
-    Poseidon2MemoryPreprocessedCols, RoundCountersPreprocessedCols,
+    Poseidon2MemoryPreprocessedCols, Poseidon2PreprocessedCols, RoundCountersPreprocessedCols,
 };
 use super::{internal_linear_layer, Poseidon2WideChip, NUM_INTERNAL_ROUNDS};
 
@@ -59,28 +58,26 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
                 let (next_state_var, next_internal_rounds_s0) = {
                     let mut cols = self.convert_mut(&mut row_add[i]);
                     let (state, internal_state_s0, mut sbox_state) = cols.get_cols_mut();
-                    let mut state = state.clone();
+                    let mut state = *state;
                     if i == 0 {
                         external_linear_layer(&mut state);
                     }
-                    if i != NUM_EXTERNAL_ROUNDS / 2 {
+                    let (next_state_var, next_internal_rounds_s0) = if i != NUM_EXTERNAL_ROUNDS / 2
+                    {
                         (
-                            self.populate_external_round(&mut state, &mut sbox_state, i),
+                            self.populate_external_round(&state, &mut sbox_state, i),
                             [state[0]; NUM_INTERNAL_ROUNDS - 1],
                         )
                     } else {
-                        self.populate_internal_rounds(
-                            &mut state,
-                            internal_state_s0,
-                            &mut sbox_state,
-                        )
-                    }
+                        self.populate_internal_rounds(&state, internal_state_s0, &mut sbox_state)
+                    };
+                    (next_state_var, next_internal_rounds_s0)
                 };
                 let mut next_cols = self.convert_mut(&mut row_add[i + 1]);
                 let (next_state, internal_state_s0, _) = next_cols.get_cols_mut();
                 *next_state = next_state_var;
                 *internal_state_s0 = next_internal_rounds_s0;
-                if i == NUM_EXTERNAL_ROUNDS + 1 {
+                if i == NUM_EXTERNAL_ROUNDS {
                     assert_eq!(next_state_var, event.output);
                 }
             }
@@ -103,7 +100,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
 
         #[cfg(debug_assertions)]
         println!(
-            "poseidon2 wide trace dims is width: {:?}, height: {:?}",
+            "poseidon2 wide main trace dims is width: {:?}, height: {:?}",
             trace.width(),
             trace.height()
         );
@@ -129,14 +126,57 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
             return None;
         }
 
-        let rows = vec![
+        let mut rows = vec![
             F::zero();
             PREPROCESSED_POSEIDON2_WIDTH
                 * max(
                     16,
-                    (instruction_count * NUM_EXTERNAL_ROUNDS + 2).next_power_of_two()
+                    (instruction_count * (NUM_EXTERNAL_ROUNDS + 2)).next_power_of_two()
                 )
         ];
+
+        // Set the input memory read management columns
+        rows.chunks_mut(PREPROCESSED_POSEIDON2_WIDTH)
+            .step_by(NUM_EXTERNAL_ROUNDS + 2)
+            .enumerate()
+            .for_each(|(event_ct, chunk)| {
+                let cols: &mut Poseidon2PreprocessedCols<_> = (*chunk).borrow_mut();
+                cols.memory_preprocessed
+                    .memory_prepr
+                    .iter_mut()
+                    .enumerate()
+                    .for_each(|(i, x)| {
+                        x.addr = Address(F::from_canonical_usize(2 * event_ct * WIDTH + i));
+                        x.is_real = if event_ct < instruction_count {
+                            F::one()
+                        } else {
+                            F::zero()
+                        };
+                        x.read_mult = F::one() * x.is_real;
+                    })
+            });
+
+        // Set the input memory write management columns.
+        rows.chunks_mut(PREPROCESSED_POSEIDON2_WIDTH)
+            .skip(NUM_EXTERNAL_ROUNDS + 1)
+            .step_by(NUM_EXTERNAL_ROUNDS + 2)
+            .enumerate()
+            .for_each(|(event_ct, chunk)| {
+                let cols: &mut Poseidon2PreprocessedCols<_> = (*chunk).borrow_mut();
+                cols.memory_preprocessed
+                    .memory_prepr
+                    .iter_mut()
+                    .enumerate()
+                    .for_each(|(i, x)| {
+                        x.addr = Address(F::from_canonical_usize(2 * event_ct * WIDTH + WIDTH + i));
+                        x.is_real = if event_ct < instruction_count {
+                            F::one()
+                        } else {
+                            F::zero()
+                        };
+                        x.write_mult = F::one() * x.is_real;
+                    })
+            });
 
         Some(RowMajorMatrix::new(rows, PREPROCESSED_POSEIDON2_WIDTH))
     }
@@ -193,7 +233,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         internal_rounds_s0: &mut [F; NUM_INTERNAL_ROUNDS - 1],
         sbox: &mut Option<&mut [F; WIDTH]>,
     ) -> ([F; WIDTH], [F; NUM_INTERNAL_ROUNDS - 1]) {
-        let mut new_state = state.clone();
+        let mut new_state = *state;
         let mut sbox_deg_3: [F; max(WIDTH, NUM_INTERNAL_ROUNDS)] =
             [F::zero(); max(WIDTH, NUM_INTERNAL_ROUNDS)];
         for r in 0..NUM_INTERNAL_ROUNDS {
@@ -237,10 +277,11 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
 mod tests {
     use p3_baby_bear::BabyBear;
     use p3_field::AbstractField;
-    use p3_matrix::{dense::RowMajorMatrix, Matrix};
+    use p3_matrix::dense::RowMajorMatrix;
     use p3_symmetric::Permutation;
     use sp1_core::air::MachineAir;
     use sp1_core::utils::inner_perm;
+    use zkhash::ark_ff::UniformRand;
 
     use crate::{
         poseidon2_wide::{Poseidon2WideChip, WIDTH},
@@ -250,16 +291,28 @@ mod tests {
     #[test]
     fn generate_trace() {
         type F = BabyBear;
-        let input = [F::one(); WIDTH];
+        let input_0 = [F::one(); WIDTH];
         let permuter = inner_perm();
-        let output = permuter.permute(input);
+        let output_0 = permuter.permute(input_0);
+        let mut rng = rand::thread_rng();
+
+        let input_1 = [F::rand(&mut rng); WIDTH];
+        let output_1 = permuter.permute(input_1);
 
         let shard = ExecutionRecord {
-            poseidon2_wide_events: vec![Poseidon2WideEvent { input, output }],
+            poseidon2_wide_events: vec![
+                Poseidon2WideEvent {
+                    input: input_0,
+                    output: output_0,
+                },
+                Poseidon2WideEvent {
+                    input: input_1,
+                    output: output_1,
+                },
+            ],
             ..Default::default()
         };
         let chip_3 = Poseidon2WideChip::<3>::default();
-        let trace: RowMajorMatrix<F> =
-            chip_3.generate_trace(&shard, &mut ExecutionRecord::default());
+        let _: RowMajorMatrix<F> = chip_3.generate_trace(&shard, &mut ExecutionRecord::default());
     }
 }
