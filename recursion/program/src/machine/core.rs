@@ -287,12 +287,12 @@ where
                 false,
             );
 
-            // CHECKPOINT FOR COMMENTING OUT # 3.
+            // CHECKPOINT FOR COMMENTING OUT # 3, DOES NOT TRAP AT THIS POINT.
 
             // First shard has a "CPU" constraint.
             {
                 builder.if_eq(shard, C::N::one()).then(|builder| {
-                    // builder.assert_var_eq(contains_cpu, C::N::one());
+                    builder.assert_var_eq(contains_cpu, C::N::one());
                 });
             }
 
@@ -312,7 +312,7 @@ where
                                         builder.assign(cpu_log_degree_lt_max, C::N::one());
                                     });
                                 });
-                            // builder.assert_var_eq(cpu_log_degree_lt_max, C::N::one());
+                            builder.assert_var_eq(cpu_log_degree_lt_max, C::N::one());
                         });
                     }
                 }
@@ -341,6 +341,7 @@ where
                         current_execution_shard,
                         current_execution_shard + C::F::one(),
                     );
+                    builder.assert_felt_eq(current_execution_shard, public_values.execution_shard);
                 });
             }
 
