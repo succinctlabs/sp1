@@ -133,7 +133,9 @@ impl CpuChip {
         cols.pc = F::from_canonical_u32(event.pc);
         cols.next_pc = F::from_canonical_u32(event.next_pc);
         cols.instruction.populate(event.instruction);
-        cols.selectors.populate(event.instruction);
+
+        let opcode_bits = event.instruction.opcode.as_le_bits();
+        cols.opcode_bits = array::from_fn(|i| F::from_bool(opcode_bits[i]));
         *cols.op_a_access.value_mut() = event.a.into();
         *cols.op_b_access.value_mut() = event.b.into();
         *cols.op_c_access.value_mut() = event.c.into();

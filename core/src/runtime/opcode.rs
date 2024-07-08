@@ -1,10 +1,14 @@
-use std::fmt::Display;
+use std::{array, fmt::Display};
 
-use p3_field::Field;
+use itertools::Itertools;
+use p3_field::{AbstractField, Field};
 use serde::{Deserialize, Serialize};
+use strum::VariantArray;
 
 /// An opcode specifies which operation to execute.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord, VariantArray,
+)]
 #[allow(non_camel_case_types)]
 pub enum Opcode {
     // Arithmetic instructions.
@@ -111,10 +115,48 @@ impl Opcode {
             Opcode::UNIMP => "unimp",
         }
     }
-}
 
-impl Opcode {
+    pub const fn max_opcode_value() -> usize {
+        let variants = Self::VARIANTS;
+        let mut max_num = variants[0] as usize;
+        let mut i = 1;
+
+        while i < variants.len() {
+            let num = variants[i] as usize;
+            if num > max_num {
+                max_num = num;
+            }
+
+            i += 1;
+        }
+
+        max_num
+    }
+
+    pub const fn num_bits_for_opcode() -> usize {
+        Self::max_opcode_value()
+            .next_power_of_two()
+            .trailing_zeros() as usize
+    }
+
     pub fn as_field<F: Field>(self) -> F {
         F::from_canonical_u32(self as u32)
+    }
+
+    pub fn as_le_bits<F: AbstractField>(self) -> [F; Self::num_bits_for_opcode()] {
+        let bits: [F; Self::num_bits_for_opcode()] =
+            array::from_fn(|i| F::from_bool((self as usize) & (1 << i) != 0));
+
+        bits
+    }
+
+    pub fn is_eq_from_bits<F: AbstractField>(self, rhs: [F; Self::num_bits_for_opcode()]) -> F {
+        let lhs = self.as_le_bits::<F>();
+        let bitwse_xor: [F; Self::num_bits_for_opcode()] = array::from_fn(|i| {
+            let xor = lhs[i] + rhs[i] - F::from_canonical_usize(2) * lhs[i] * rhs[i];
+            F::one() - xor
+        });
+
+        bit_eq.eq
     }
 }

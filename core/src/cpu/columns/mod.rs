@@ -25,6 +25,7 @@ use std::mem::{size_of, transmute};
 use crate::{
     air::Word,
     memory::{MemoryCols, MemoryReadCols, MemoryReadWriteCols},
+    runtime::Opcode,
 };
 
 pub const NUM_CPU_COLS: usize = size_of::<CpuCols<u8>>();
@@ -62,7 +63,7 @@ pub struct CpuCols<T: Copy> {
     pub channel_selectors: ChannelSelectorCols<T>,
 
     /// Selectors for the opcode.
-    pub selectors: OpcodeSelectorCols<T>,
+    pub opcode_bits: [T; Opcode::num_bits_for_opcode()],
 
     /// Operand values, either from registers or immediate values.
     pub op_a_access: MemoryReadWriteCols<T>,
