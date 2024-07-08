@@ -389,14 +389,14 @@ where
                 .iter()
                 .zip(current_public_values.sp1_vk_digest)
             {
-                // builder.assert_felt_eq(*digest, current);
+                builder.assert_felt_eq(*digest, current);
             }
 
             // Assert that the start pc is equal to the current pc.
-            // builder.assert_felt_eq(pc, current_public_values.start_pc);
+            builder.assert_felt_eq(pc, current_public_values.start_pc);
 
             // Verify that the shard is equal to the current shard.
-            // builder.assert_felt_eq(shard, current_public_values.start_shard);
+            builder.assert_felt_eq(shard, current_public_values.start_shard);
 
             // Verfiy that the exeuction shard is equal to the current execution shard.
             // builder.assert_felt_eq(execution_shard, current_public_values.start_execution_shard);
@@ -404,20 +404,20 @@ where
             // Assert that the leaf challenger is always the same.
 
             // Assert that the MemoryInitialize address bits are the same.
-            // for (bit, current_bit) in init_addr_bits
-            //     .iter()
-            //     .zip(current_public_values.previous_init_addr_bits.iter())
-            // {
-            //     builder.assert_felt_eq(*bit, *current_bit);
-            // }
+            for (bit, current_bit) in init_addr_bits
+                .iter()
+                .zip(current_public_values.previous_init_addr_bits.iter())
+            {
+                builder.assert_felt_eq(*bit, *current_bit);
+            }
 
             // Assert that the MemoryFinalize address bits are the same.
-            // for (bit, current_bit) in finalize_addr_bits
-            //     .iter()
-            //     .zip(current_public_values.previous_finalize_addr_bits.iter())
-            // {
-            //     builder.assert_felt_eq(*bit, *current_bit);
-            // }
+            for (bit, current_bit) in finalize_addr_bits
+                .iter()
+                .zip(current_public_values.previous_finalize_addr_bits.iter())
+            {
+                // builder.assert_felt_eq(*bit, *current_bit);
+            }
 
             assert_challenger_eq_pv(
                 builder,
