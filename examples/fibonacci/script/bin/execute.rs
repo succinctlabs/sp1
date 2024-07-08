@@ -17,7 +17,7 @@ fn main() {
     let client = ProverClient::new();
     let (mut public_values, _) = client.execute(ELF, stdin).unwrap();
 
-    println!("generated proof");
+    println!("program executed");
 
     // Read and verify the output.
     let _ = public_values.read::<u32>();
