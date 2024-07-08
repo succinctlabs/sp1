@@ -106,11 +106,7 @@ pub type RecursiveVerifierConstraintFolder<'a, C> = GenericVerifierConstraintFol
 impl<C: Config, SC: StarkGenericConfig> StarkVerifier<C, SC>
 where
     C::F: TwoAdicField,
-    SC: StarkGenericConfig<
-        Val = C::F,
-        Challenge = C::EF,
-        Domain = TwoAdicMultiplicativeCoset<C::F>,
-    >,
+    SC: StarkGenericConfig<Val = C::F, Challenge = C::EF, Domain = TwoAdicMultiplicativeCoset<C::F>>,
 {
     pub fn verify_shard<A>(
         builder: &mut Builder<C>,
@@ -334,17 +330,19 @@ where
                         quotient_domain.split_domains_const(builder, log_quotient_degree);
 
                     // Verify the constraints.
-                    Self::verify_constraints(
-                        builder,
-                        chip,
-                        &values,
-                        proof.public_values.clone(),
-                        trace_domain,
-                        qc_domains,
-                        zeta,
-                        alpha,
-                        &permutation_challenges,
-                    );
+                    stacker::maybe_grow(16 * 1024 * 1024, 16 * 1024 * 1024, || {
+                        Self::verify_constraints(
+                            builder,
+                            chip,
+                            &values,
+                            proof.public_values.clone(),
+                            trace_domain,
+                            qc_domains,
+                            zeta,
+                            alpha,
+                            &permutation_challenges,
+                        );
+                    });
 
                     // Increment the number of shard chips that are enabled.
                     builder.assign(
