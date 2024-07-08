@@ -108,7 +108,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
         trace
     }
 
-    fn included(&self, record: &Self::Record) -> bool {
+    fn included(&self, _record: &Self::Record) -> bool {
         true
     }
 
