@@ -7,9 +7,15 @@ use super::{hookify, BoxedHook, HookEnv, HookRegistry, SubproofVerifier};
 #[derive(Clone, Default)]
 pub struct SP1Context<'a> {
     /// The registry of hooks invokable from inside SP1.
-    /// `None` denotes the default list of hooks.
+    ///
+    /// Note: `None` denotes the default list of hooks.
     pub hook_registry: Option<HookRegistry<'a>>,
+
+    /// The verifier for verifying subproofs.
     pub subproof_verifier: Option<Arc<dyn SubproofVerifier + 'a>>,
+
+    /// The maximum number of cpu cycles to use for execution.
+    pub max_cycles: Option<u64>,
 }
 
 #[derive(Clone, Default)]
@@ -17,6 +23,7 @@ pub struct SP1ContextBuilder<'a> {
     no_default_hooks: bool,
     hook_registry_entries: Vec<(u32, BoxedHook<'a>)>,
     subproof_verifier: Option<Arc<dyn SubproofVerifier + 'a>>,
+    max_cycles: Option<u64>,
 }
 
 impl<'a> SP1Context<'a> {
@@ -52,9 +59,11 @@ impl<'a> SP1ContextBuilder<'a> {
                 HookRegistry { table }
             });
         let subproof_verifier = take(&mut self.subproof_verifier);
+        let cycle_limit = take(&mut self.max_cycles);
         SP1Context {
             hook_registry,
             subproof_verifier,
+            max_cycles: cycle_limit,
         }
     }
 
@@ -91,6 +100,12 @@ impl<'a> SP1ContextBuilder<'a> {
         self.subproof_verifier = Some(subproof_verifier);
         self
     }
+
+    /// Set the maximum number of cpu cycles to use for execution.
+    pub fn max_cycles(&mut self, max_cycles: u64) -> &mut Self {
+        self.max_cycles = Some(max_cycles);
+        self
+    }
 }
 
 #[cfg(test)]
@@ -104,9 +119,11 @@ mod tests {
         let SP1Context {
             hook_registry,
             subproof_verifier,
+            max_cycles: cycle_limit,
         } = SP1Context::builder().build();
         assert!(hook_registry.is_none());
         assert!(subproof_verifier.is_none());
+        assert!(cycle_limit.is_none());
     }
 
     #[test]

@@ -8,6 +8,7 @@ use sp1_core::runtime::SP1Context;
 use sp1_core::stark::MachineVerificationError;
 use sp1_core::utils::SP1ProverOpts;
 use sp1_core::SP1_CIRCUIT_VERSION;
+use sp1_prover::components::SP1ProverComponents;
 use sp1_prover::CoreSC;
 use sp1_prover::InnerSC;
 use sp1_prover::SP1CoreProofData;
@@ -42,10 +43,10 @@ pub enum SP1VerificationError {
 }
 
 /// An implementation of [crate::ProverClient].
-pub trait Prover: Send + Sync {
+pub trait Prover<C: SP1ProverComponents>: Send + Sync {
     fn id(&self) -> ProverType;
 
-    fn sp1_prover(&self) -> &SP1Prover;
+    fn sp1_prover(&self) -> &SP1Prover<C>;
 
     fn version(&self) -> &str {
         SP1_CIRCUIT_VERSION

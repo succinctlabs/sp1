@@ -39,6 +39,14 @@ impl SP1ProofWithPublicValues {
         bincode::deserialize_from(File::open(path).expect("failed to open file"))
             .map_err(Into::into)
     }
+
+    /// Returns the raw proof as a string.
+    pub fn raw(&self) -> String {
+        match &self.proof {
+            SP1Proof::Plonk(plonk) => plonk.raw_proof.clone(),
+            _ => unimplemented!(),
+        }
+    }
 }
 
 pub type SP1CoreProofVerificationError = MachineVerificationError<CoreSC>;

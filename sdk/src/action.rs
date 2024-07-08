@@ -2,7 +2,9 @@ use sp1_core::{
     runtime::{ExecutionReport, HookEnv, SP1ContextBuilder},
     utils::{SP1CoreOpts, SP1ProverOpts},
 };
-use sp1_prover::{SP1Prover, SP1ProvingKey, SP1PublicValues, SP1Stdin};
+use sp1_prover::{
+    components::DefaultProverComponents, SP1Prover, SP1ProvingKey, SP1PublicValues, SP1Stdin,
+};
 
 use anyhow::{Ok, Result};
 
@@ -38,7 +40,9 @@ impl<'a> Execute<'a> {
             mut context_builder,
         } = self;
         let context = context_builder.build();
-        Ok(SP1Prover::execute(elf, &stdin, context)?)
+        Ok(SP1Prover::<DefaultProverComponents>::execute(
+            elf, &stdin, context,
+        )?)
     }
 
     /// Add a runtime [Hook](super::Hook) into the context.
@@ -63,12 +67,20 @@ impl<'a> Execute<'a> {
         self.context_builder.without_default_hooks();
         self
     }
+
+    /// Set the maximum number of cpu cycles to use for execution.
+    ///
+    /// If the cycle limit is exceeded, execution will return [sp1_core::runtime::ExecutionError::ExceededCycleLimit].
+    pub fn max_cycles(mut self, max_cycles: u64) -> Self {
+        self.context_builder.max_cycles(max_cycles);
+        self
+    }
 }
 
 /// Builder to prepare and configure proving execution of a program on an input.
 /// May be run with [Self::run].
 pub struct Prove<'a> {
-    prover: &'a dyn Prover,
+    prover: &'a dyn Prover<DefaultProverComponents>,
     kind: SP1ProofKind,
     context_builder: SP1ContextBuilder<'a>,
     pk: &'a SP1ProvingKey,
@@ -81,7 +93,11 @@ impl<'a> Prove<'a> {
     ///
     /// Prefer using [ProverClient::prove](super::ProverClient::prove).
     /// See there for more documentation.
-    pub fn new(prover: &'a dyn Prover, pk: &'a SP1ProvingKey, stdin: SP1Stdin) -> Self {
+    pub fn new(
+        prover: &'a dyn Prover<DefaultProverComponents>,
+        pk: &'a SP1ProvingKey,
+        stdin: SP1Stdin,
+    ) -> Self {
         Self {
             prover,
             kind: Default::default(),
@@ -173,6 +189,14 @@ impl<'a> Prove<'a> {
     /// Set whether we should reconstruct commitments while proving.
     pub fn reconstruct_commitments(mut self, value: bool) -> Self {
         self.opts.reconstruct_commitments = value;
+        self
+    }
+
+    /// Set the maximum number of cpu cycles to use for execution.
+    ///
+    /// If the cycle limit is exceeded, execution will return [sp1_core::runtime::ExecutionError::ExceededCycleLimit].
+    pub fn cycle_limit(mut self, cycle_limit: u64) -> Self {
+        self.context_builder.max_cycles(cycle_limit);
         self
     }
 }
