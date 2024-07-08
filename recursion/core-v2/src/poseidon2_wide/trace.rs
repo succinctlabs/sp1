@@ -13,13 +13,10 @@ use crate::Address;
 use crate::{instruction::Instruction::Poseidon2Wide, ExecutionRecord, RecursionProgram};
 
 use super::columns::permutation::max;
-use super::columns::preprocessed::{
-    Poseidon2MemoryPreprocessedCols, Poseidon2PreprocessedCols, RoundCountersPreprocessedCols,
-};
+use super::columns::preprocessed::Poseidon2PreprocessedCols;
 use super::{internal_linear_layer, Poseidon2WideChip, NUM_INTERNAL_ROUNDS};
 
-const PREPROCESSED_POSEIDON2_WIDTH: usize = size_of::<Poseidon2MemoryPreprocessedCols<u8>>()
-    + size_of::<RoundCountersPreprocessedCols<u8>>();
+const PREPROCESSED_POSEIDON2_WIDTH: usize = size_of::<Poseidon2PreprocessedCols<u8>>();
 
 impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<DEGREE> {
     type Record = ExecutionRecord<F>;
@@ -78,7 +75,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
                 *next_state = next_state_var;
                 *internal_state_s0 = next_internal_rounds_s0;
                 if i == NUM_EXTERNAL_ROUNDS {
-                    assert_eq!(next_state_var, event.output);
+                    debug_assert_eq!(next_state_var, event.output);
                 }
             }
             rows.extend(row_add.into_iter());
