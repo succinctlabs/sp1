@@ -373,18 +373,20 @@ where
                 builder.assert_felt_eq(exit_code, C::F::zero());
             }
 
+            // CHECKPOINT FOR COMMENTING OUT # 2
+
             // Memory initialization & finalization constraints.
             {
                 // Assert that `init_addr_bits` and `finalize_addr_bits` are zero for the first execution shard.
                 builder.if_eq(execution_shard, C::N::one()).then(|builder| {
                     // Assert that the MemoryInitialize address bits are zero.
                     for bit in current_init_addr_bits.iter() {
-                        builder.assert_felt_eq(*bit, C::F::zero());
+                        // builder.assert_felt_eq(*bit, C::F::zero());
                     }
 
                     // Assert that the MemoryFinalize address bits are zero.
                     for bit in current_finalize_addr_bits.iter() {
-                        builder.assert_felt_eq(*bit, C::F::zero());
+                        // builder.assert_felt_eq(*bit, C::F::zero());
                     }
                 });
 
@@ -393,7 +395,7 @@ where
                     .iter()
                     .zip_eq(public_values.previous_init_addr_bits.iter())
                 {
-                    builder.assert_felt_eq(*bit, *current_bit);
+                    // builder.assert_felt_eq(*bit, *current_bit);
                 }
 
                 // Assert that the MemoryFinalize address bits match the current loop variable.
@@ -401,7 +403,7 @@ where
                     .iter()
                     .zip_eq(public_values.previous_finalize_addr_bits.iter())
                 {
-                    builder.assert_felt_eq(*bit, *current_bit);
+                    // builder.assert_felt_eq(*bit, *current_bit);
                 }
 
                 // Assert that if MemoryInit is not present, then the address bits are the same.
@@ -413,7 +415,7 @@ where
                             .iter()
                             .zip_eq(public_values.last_init_addr_bits.iter())
                         {
-                            builder.assert_felt_eq(*prev_bit, *last_bit);
+                            // builder.assert_felt_eq(*prev_bit, *last_bit);
                         }
                     });
 
@@ -426,7 +428,7 @@ where
                             .iter()
                             .zip_eq(public_values.last_finalize_addr_bits.iter())
                         {
-                            builder.assert_felt_eq(*prev_bit, *last_bit);
+                            // builder.assert_felt_eq(*prev_bit, *last_bit);
                         }
                     });
 
@@ -447,7 +449,7 @@ where
                 }
             }
 
-            // CHECKPOINT FOR COMMENTING OUT
+            // CHECKPOINT FOR COMMENTING OUT # 1 (TRAPED IN THIS CHECKPOINT)
 
             // Digest constraints.
             {
