@@ -5,5 +5,5 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-sp1-zkvm = { path = "../../zkvm/entrypoint" }
+sp1-zkvm = { path = "../../zkvm/entrypoint", features = ["bn254"] }
 sp1-derive = { path = "../../derive" }

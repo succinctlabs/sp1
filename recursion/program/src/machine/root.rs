@@ -113,7 +113,6 @@ where
             challenger.observe(builder, element);
         }
         // verify proof.
-        let one = builder.constant(C::N::one());
         StarkVerifier::<C, SC>::verify_shard(
             builder,
             &vk,
@@ -121,7 +120,7 @@ where
             machine,
             &mut challenger,
             proof,
-            one,
+            true,
         );
 
         // Get the public inputs from the proof.

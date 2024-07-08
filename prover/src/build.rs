@@ -122,7 +122,7 @@ pub fn dummy_proof() -> (StarkVerifyingKey<OuterSC>, ShardProof<OuterSC>) {
     let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
 
     tracing::info!("initializing prover");
-    let prover = SP1Prover::new();
+    let prover: SP1Prover = SP1Prover::new();
     let opts = SP1ProverOpts::default();
     let context = SP1Context::default();
 

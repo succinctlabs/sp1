@@ -126,7 +126,6 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
         let mut rows: Vec<[F; NUM_KECCAK_MEM_COLS]> = vec![];
         for (mut row, mut record) in rows_and_records {
             rows.append(&mut row);
-            record.index = output.index;
             output.append(&mut record);
         }
 

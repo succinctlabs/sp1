@@ -102,8 +102,8 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
         }
     }
 
-    fn included(&self, _: &Self::Record) -> bool {
-        true
+    fn included(&self, input: &Self::Record) -> bool {
+        !input.cpu_events.is_empty()
     }
 }
 
@@ -727,6 +727,21 @@ impl CpuChip {
             );
 
             is_halt = syscall_id == F::from_canonical_u32(SyscallCode::HALT.syscall_id());
+
+            // For halt and commit deferred proofs syscalls, we need to baby bear range check one of
+            // it's operands.
+            if is_halt {
+                ecall_cols.operand_to_check = event.b.into();
+                ecall_cols.operand_range_check_cols.populate(event.b);
+                cols.ecall_range_check_operand = F::one();
+            }
+
+            if syscall_id == F::from_canonical_u32(SyscallCode::COMMIT_DEFERRED_PROOFS.syscall_id())
+            {
+                ecall_cols.operand_to_check = event.c.into();
+                ecall_cols.operand_range_check_cols.populate(event.c);
+                cols.ecall_range_check_operand = F::one();
+            }
         }
 
         is_halt
@@ -766,6 +781,7 @@ mod tests {
 
     use crate::runtime::tests::ssz_withdrawals_program;
     use crate::runtime::{tests::simple_program, Runtime};
+    use crate::stark::DefaultProver;
     use crate::utils::{run_test, setup_logger, SP1CoreOpts};
 
     // #[test]
@@ -827,6 +843,6 @@ mod tests {
     fn prove_trace() {
         setup_logger();
         let program = simple_program();
-        run_test(program).unwrap();
+        run_test::<DefaultProver<_, _>>(program).unwrap();
     }
 }

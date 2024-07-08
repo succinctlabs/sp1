@@ -1,11 +1,11 @@
 use std::{
-    collections::HashMap,
     fmt::Debug,
     fs::File,
     io::{BufReader, BufWriter, Seek},
 };
 
 use bincode::{deserialize_from, Error};
+use hashbrown::HashMap;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::dense::RowMajorMatrixView;
 use p3_matrix::stack::VerticalPair;
@@ -25,7 +25,6 @@ pub struct ShardMainData<SC: StarkGenericConfig> {
     pub main_commit: Com<SC>,
     pub main_data: PcsProverData<SC>,
     pub chip_ordering: HashMap<String, usize>,
-    pub index: usize,
     pub public_values: Vec<SC::Val>,
 }
 
@@ -35,7 +34,6 @@ impl<SC: StarkGenericConfig> ShardMainData<SC> {
         main_commit: Com<SC>,
         main_data: PcsProverData<SC>,
         chip_ordering: HashMap<String, usize>,
-        index: usize,
         public_values: Vec<Val<SC>>,
     ) -> Self {
         Self {
@@ -43,7 +41,6 @@ impl<SC: StarkGenericConfig> ShardMainData<SC> {
             main_commit,
             main_data,
             chip_ordering,
-            index,
             public_values,
         }
     }
@@ -124,7 +121,7 @@ pub struct ShardOpenedValues<T: Serialize> {
 /// The maximum number of elements that can be stored in the public values vec.  Both SP1 and recursive
 /// proofs need to pad their public_values vec to this length.  This is required since the recursion
 /// verification program expects the public values vec to be fixed length.
-pub const PROOF_MAX_NUM_PVS: usize = 241;
+pub const PROOF_MAX_NUM_PVS: usize = 370;
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(bound = "")]
@@ -157,6 +154,23 @@ impl<SC: StarkGenericConfig> ShardProof<SC> {
             .iter()
             .map(|c| c.cumulative_sum)
             .sum()
+    }
+
+    pub fn log_degree_cpu(&self) -> usize {
+        let idx = self.chip_ordering.get("CPU").expect("CPU chip not found");
+        self.opened_values.chips[*idx].log_degree
+    }
+
+    pub fn contains_cpu(&self) -> bool {
+        self.chip_ordering.contains_key("CPU")
+    }
+
+    pub fn contains_memory_init(&self) -> bool {
+        self.chip_ordering.contains_key("MemoryInit")
+    }
+
+    pub fn contains_memory_finalize(&self) -> bool {
+        self.chip_ordering.contains_key("MemoryFinalize")
     }
 }
 
