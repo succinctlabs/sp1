@@ -6,7 +6,7 @@ use std::{
 
 use nohash_hasher::BuildNoHashHasher;
 use serde::{Deserialize, Serialize};
-use serde_with::{serde_as, Seq};
+use serde_with::serde_as;
 
 use crate::{
     stark::{ShardProof, StarkVerifyingKey},
@@ -38,12 +38,12 @@ pub struct ExecutionState {
 
     /// The memory which instructions operate over. Values contain the memory value and last shard
     /// + timestamp that each memory address was accessed.
-    #[serde_as(as = "Seq<(_, _)>")]
+    #[serde_as(as = "Vec<(_, _)>")]
     pub memory: HashMap<u32, MemoryRecord, BuildNoHashHasher<u32>>,
 
     /// Uninitialized memory addresses that have a specific value they should be initialized with.
     /// SyscallHintRead uses this to write hint data into uninitialized memory.
-    #[serde_as(as = "Seq<(_, _)>")]
+    #[serde_as(as = "Vec<(_, _)>")]
     pub uninitialized_memory: HashMap<u32, u32, BuildNoHashHasher<u32>>,
 
     /// A stream of input values (global to the entire program).
