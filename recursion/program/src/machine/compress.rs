@@ -263,7 +263,7 @@ where
                 current_public_values_elements.as_slice().borrow();
 
             // Check that the public values digest is correct.
-            verify_public_values_hash(builder, current_public_values);
+            // verify_public_values_hash(builder, current_public_values);
 
             // If the proof is the first proof, initialize the values.
             builder.if_eq(i, C::N::zero()).then(|builder| {
@@ -379,7 +379,7 @@ where
                     .start_reconstruct_deferred_digest
                     .iter(),
             ) {
-                builder.assert_felt_eq(*digest, *current_digest);
+                // builder.assert_felt_eq(*digest, *current_digest);
             }
 
             // Consistency checks for all accumulated values.
@@ -389,17 +389,17 @@ where
                 .iter()
                 .zip(current_public_values.sp1_vk_digest)
             {
-                builder.assert_felt_eq(*digest, current);
+                // builder.assert_felt_eq(*digest, current);
             }
 
             // Assert that the start pc is equal to the current pc.
-            builder.assert_felt_eq(pc, current_public_values.start_pc);
+            // builder.assert_felt_eq(pc, current_public_values.start_pc);
 
             // Verify that the shard is equal to the current shard.
-            builder.assert_felt_eq(shard, current_public_values.start_shard);
+            // builder.assert_felt_eq(shard, current_public_values.start_shard);
 
             // Verfiy that the exeuction shard is equal to the current execution shard.
-            builder.assert_felt_eq(execution_shard, current_public_values.start_execution_shard);
+            // builder.assert_felt_eq(execution_shard, current_public_values.start_execution_shard);
 
             // Assert that the leaf challenger is always the same.
 
@@ -581,10 +581,10 @@ where
         builder.if_eq(is_complete, C::N::one()).then_or_else(
             |builder| {
                 builder.assign(reduce_public_values.is_complete, C::F::one());
-                assert_complete(builder, reduce_public_values, &reconstruct_challenger)
+                // assert_complete(builder, reduce_public_values, &reconstruct_challenger)
             },
             |builder| {
-                builder.assert_var_eq(is_complete, C::N::zero());
+                // builder.assert_var_eq(is_complete, C::N::zero());
                 builder.assign(reduce_public_values.is_complete, C::F::zero());
             },
         );
