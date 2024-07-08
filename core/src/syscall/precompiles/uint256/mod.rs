@@ -12,7 +12,7 @@ mod tests {
         runtime::Program,
         utils::{
             self,
-            ec::{uint256::U256Field, utils::biguint_from_limbs},
+            ec::{uint::U256Field, utils::biguint_from_limbs},
             run_test_io,
             tests::UINT256_MUL_ELF,
         },

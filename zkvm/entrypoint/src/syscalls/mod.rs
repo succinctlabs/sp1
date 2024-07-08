@@ -103,3 +103,6 @@ pub const BLS12381_ADD: u32 = 0x00_01_01_1E;
 
 /// Executes the `BLS12381_DOUBLE` precompile.
 pub const BLS12381_DOUBLE: u32 = 0x00_00_01_1F;
+
+/// Executes the `FP384_ADD` precompile.
+pub const FP384_ADD: u32 = 0x00_01_01_20;

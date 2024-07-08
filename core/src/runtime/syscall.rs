@@ -102,6 +102,8 @@ pub enum SyscallCode {
 
     /// Executes the `BLS12381_DOUBLE` precompile.
     BLS12381_DOUBLE = 0x00_00_01_1F,
+
+    FP384_ADD = 0x00_01_01_20,
 }
 
 impl SyscallCode {
@@ -124,6 +126,7 @@ impl SyscallCode {
             0x00_00_01_0F => SyscallCode::BN254_DOUBLE,
             0x00_01_01_1E => SyscallCode::BLS12381_ADD,
             0x00_00_01_1F => SyscallCode::BLS12381_DOUBLE,
+            0x00_00_01_20 => SyscallCode::FP384_ADD,
             0x00_00_00_10 => SyscallCode::COMMIT,
             0x00_00_00_1A => SyscallCode::COMMIT_DEFERRED_PROOFS,
             0x00_00_00_1B => SyscallCode::VERIFY_SP1_PROOF,
@@ -415,6 +418,9 @@ mod tests {
                 }
                 SyscallCode::UINT256_MUL => {
                     assert_eq!(code as u32, sp1_zkvm::syscalls::UINT256_MUL)
+                }
+                SyscallCode::FP384_ADD => {
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::FP384_ADD)
                 }
                 SyscallCode::COMMIT => assert_eq!(code as u32, sp1_zkvm::syscalls::COMMIT),
                 SyscallCode::COMMIT_DEFERRED_PROOFS => {
