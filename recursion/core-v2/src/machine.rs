@@ -1,9 +1,12 @@
 use p3_field::{extension::BinomiallyExtendable, PrimeField32};
 use sp1_core::stark::{Chip, StarkGenericConfig, StarkMachine, PROOF_MAX_NUM_PVS};
 use sp1_derive::MachineAir;
-use sp1_recursion_core::{poseidon2_wide::Poseidon2WideChip, runtime::D};
+use sp1_recursion_core::runtime::D;
 
-use crate::{alu_base::BaseAluChip, alu_ext::ExtAluChip, mem::MemoryChip, program::ProgramChip};
+use crate::{
+    alu_base::BaseAluChip, alu_ext::ExtAluChip, mem::MemoryChip, poseidon2_wide::Poseidon2WideChip,
+    program::ProgramChip,
+};
 
 #[derive(MachineAir)]
 #[sp1_core_path = "sp1_core"]
@@ -59,6 +62,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
             RecursionAir::Memory(MemoryChip::default()),
             RecursionAir::BaseAlu(BaseAluChip::default()),
             RecursionAir::ExtAlu(ExtAluChip::default()),
+            RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE>::default()),
         ]
     }
 
@@ -111,7 +115,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
 mod tests {
 
     use machine::RecursionAir;
-    use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
+    use p3_baby_bear::DiffusionMatrixBabyBear;
     use p3_field::{
         extension::{BinomialExtensionField, HasFrobenius},
         AbstractExtensionField, AbstractField, Field,
@@ -119,7 +123,7 @@ mod tests {
     use rand::prelude::*;
     use sp1_core::{
         stark::StarkGenericConfig,
-        utils::{run_test_machine, BabyBearPoseidon2},
+        utils::{run_test_machine, BabyBearPoseidon2Inner},
     };
     use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
 
@@ -142,11 +146,14 @@ mod tests {
             .chain(once(instr::mem(MemAccessKind::Read, 2, n, 55)))
             .collect::<Vec<_>>();
 
-        let program = RecursionProgram { instructions };
-        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program);
-        runtime.run();
-
         let config = SC::new();
+
+        let program = RecursionProgram { instructions };
+        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(
+            &program,
+            BabyBearPoseidon2Inner::new().perm,
+        );
+        runtime.run();
         let machine = A::machine(config);
         let (pk, vk) = machine.setup(&program);
         let result = run_test_machine(runtime.record, machine, pk, vk);
@@ -157,59 +164,50 @@ mod tests {
 
     #[test]
     pub fn field_norm() {
-        type F = BabyBear;
-        let embed = F::from_canonical_u32;
+        type SC = BabyBearPoseidon2Outer;
+        type F = <SC as StarkGenericConfig>::Val;
+        type EF = <SC as StarkGenericConfig>::Challenge;
+        type A = RecursionAir<F, 3>;
 
-        let program = RecursionProgram::default();
+        let mut instructions = Vec::new();
 
-        let machine = RecursionAir::<_, 3>::machine(BabyBearPoseidon2::default());
-        let (pk, vk) = machine.setup(&program);
-
-        let mut record = ExecutionRecord::default();
-
-        let mut rng = StdRng::seed_from_u64(0);
-        let mut addr = F::zero();
-        for _ in 0..1000 {
-            let inner: [F; 4] = core::array::from_fn(|_| rng.sample(rand::distributions::Standard));
+        let mut rng = StdRng::seed_from_u64(0xDEADBEEF);
+        let mut addr = 0;
+        for _ in 0..100 {
+            let inner: [F; 4] = std::iter::repeat_with(|| {
+                core::array::from_fn(|_| rng.sample(rand::distributions::Standard))
+            })
+            .find(|xs| !xs.iter().all(F::is_zero))
+            .unwrap();
             let x = BinomialExtensionField::<F, D>::from_base_slice(&inner);
             let gal = x.galois_group();
 
             let mut acc = BinomialExtensionField::one();
 
-            record.mem_events.push(MemEvent {
-                address_value: AddressValue::new(addr, F::one().into()),
-                multiplicity: embed(1),
-                kind: MemAccessKind::Write,
-            });
+            instructions.push(instr::mem_ext(MemAccessKind::Write, 1, addr, acc));
             for conj in gal {
-                record.mem_events.push(MemEvent {
-                    address_value: AddressValue::new(addr + embed(1), conj.as_base_slice().into()),
-                    multiplicity: embed(1),
-                    kind: MemAccessKind::Write,
-                });
-                let prod = acc * conj;
-                let in1 = AddressValue::new(addr, acc.as_base_slice().into());
-                let in2 = AddressValue::new(addr + embed(1), conj.as_base_slice().into());
-                let out = AddressValue::new(addr + embed(2), prod.as_base_slice().into());
-                record.ext_alu_events.push(ExtAluEvent {
-                    opcode: Opcode::MulE,
-                    out,
-                    in1,
-                    in2,
-                    mult: embed(1),
-                });
-                addr += embed(2);
-                acc = prod;
+                instructions.push(instr::mem_ext(MemAccessKind::Write, 1, addr + 1, conj));
+                instructions.push(instr::ext_alu(Opcode::MulE, 1, addr + 2, addr, addr + 1));
+
+                addr += 2;
+                acc *= conj;
             }
-            let base_component: F = acc.as_base_slice()[0];
-            record.mem_events.push(MemEvent {
-                address_value: AddressValue::new(addr, Block::from(base_component)),
-                multiplicity: embed(1),
-                kind: MemAccessKind::Read,
-            });
+            let base_cmp: F = acc.as_base_slice()[0];
+            instructions.push(instr::mem_single(MemAccessKind::Read, 1, addr, base_cmp));
+            addr += 1;
         }
 
-        let result = run_test_machine(record, machine, pk, vk);
+        let program = RecursionProgram { instructions };
+        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(
+            &program,
+            BabyBearPoseidon2Inner::new().perm,
+        );
+        runtime.run();
+
+        let config = SC::new();
+        let machine = A::machine(config);
+        let (pk, vk) = machine.setup(&program);
+        let result = run_test_machine(runtime.record, machine, pk, vk);
         if let Err(e) = result {
             panic!("Verification failed: {:?}", e);
         }

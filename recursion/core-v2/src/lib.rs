@@ -1,5 +1,6 @@
 use std::iter::once;
 
+use poseidon2_wide::WIDTH;
 use serde::{Deserialize, Serialize};
 use sp1_derive::AlignedBorrow;
 use sp1_recursion_core::air::Block;
@@ -84,3 +85,20 @@ pub enum MemAccessKind {
     Read,
     Write,
 }
+
+// -------------------------------------------------------------------------------------------------
+/// The inputs and outputs to a Poseidon2 permutation.
+#[derive(AlignedBorrow, Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Poseidon2Io<V> {
+    pub input: [V; WIDTH],
+    pub output: [V; WIDTH],
+}
+
+/// An instruction invoking the Poseidon2 permutation.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Poseidon2WideInstr<F> {
+    pub addrs: Poseidon2Io<Address<F>>,
+    pub mult: F,
+}
+
+pub type Poseidon2WideEvent<F> = Poseidon2Io<F>;

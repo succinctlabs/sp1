@@ -15,9 +15,8 @@ use hashbrown::hash_map::Entry;
 use hashbrown::HashMap;
 use itertools::Itertools;
 use p3_field::{AbstractField, ExtensionField, PrimeField32};
-use p3_poseidon2::Poseidon2;
-use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
-use p3_symmetric::CryptographicPermutation;
+use p3_poseidon2::{Poseidon2, Poseidon2ExternalMatrixGeneral};
+use p3_symmetric::{CryptographicPermutation, Permutation};
 
 use sp1_recursion_core::air::Block;
 
@@ -89,6 +88,18 @@ pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
 
     pub cycle_tracker: HashMap<String, CycleTrackerEntry>,
 
+    /// Entries for dealing with the Poseidon2 hash state.
+    perm: Option<
+        Poseidon2<
+            F,
+            Poseidon2ExternalMatrixGeneral,
+            Diffusion,
+            PERMUTATION_WIDTH,
+            POSEIDON2_SBOX_DEGREE,
+        >,
+    >,
+
+    // p2_hash_state: [F; PERMUTATION_WIDTH],
     _marker_ef: PhantomData<EF>,
 
     _marker_diffusion: PhantomData<Diffusion>,
@@ -104,7 +115,16 @@ where
         POSEIDON2_SBOX_DEGREE,
     >: CryptographicPermutation<[F; PERMUTATION_WIDTH]>,
 {
-    pub fn new(program: &RecursionProgram<F>) -> Self {
+    pub fn new(
+        program: &RecursionProgram<F>,
+        perm: Poseidon2<
+            F,
+            Poseidon2ExternalMatrixGeneral,
+            Diffusion,
+            PERMUTATION_WIDTH,
+            POSEIDON2_SBOX_DEGREE,
+        >,
+    ) -> Self {
         let record = ExecutionRecord::<F> {
             program: Arc::new(program.clone()),
             ..Default::default()
@@ -122,6 +142,8 @@ where
             memory: HashMap::new(),
             record,
             cycle_tracker: HashMap::new(),
+            perm: Some(perm),
+            // p2_hash_state: [F::zero(); PERMUTATION_WIDTH],
             _marker_ef: PhantomData,
             _marker_diffusion: PhantomData,
         }
@@ -254,6 +276,17 @@ where
                         MemAccessKind::Write => drop(self.mw(addr, val, mult)),
                     }
                     self.record.mem_events.push(MemEvent { inner: val });
+                }
+                Instruction::Poseidon2Wide(Poseidon2WideInstr {
+                    addrs: Poseidon2Io { input, output },
+                    mult,
+                }) => {
+                    self.nb_poseidons += 1;
+                    let in_vals = std::array::from_fn(|i| self.mr(input[i]).val[0]);
+                    let perm_output = self.perm.as_ref().unwrap().permute(in_vals);
+                    perm_output.iter().enumerate().for_each(|(i, &val)| {
+                        self.mw(output[i], Block::from(val), mult);
+                    });
                 }
             };
 

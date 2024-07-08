@@ -12,6 +12,7 @@ pub enum Opcode {
     SubE,
     MulE,
     DivE,
+    Poseidon2,
 }
 
 impl Opcode {

@@ -15,10 +15,7 @@ pub mod permutation;
 // pub mod syscall_params;
 
 use super::{
-    columns::{
-        memory::MemoryPreprocessed, Poseidon2, NUM_POSEIDON2_DEGREE3_COLS,
-        NUM_POSEIDON2_DEGREE9_COLS,
-    },
+    columns::{Poseidon2, NUM_POSEIDON2_DEGREE3_COLS, NUM_POSEIDON2_DEGREE9_COLS},
     Poseidon2WideChip,
 };
 
@@ -39,52 +36,20 @@ where
     AB: SP1RecursionAirBuilder + PairBuilder,
     AB::Var: 'static,
 {
-    fn eval(&self, builder: &mut AB) {
-        let main = builder.main();
-        let local_row = Self::convert::<AB::Var>(main.row_slice(0));
-
-        let prep = builder.preprocessed();
-        let prep = prep.row_slice(0);
-        // let local_prep: &MemoryPreprocessed<AB::Var> = (*prep).borrow();
-        // let next_row = Self::convert::<AB::Var>(main.row_slice(1));
-
-        // Dummy constraints to normalize to DEGREE.
-        let lhs = (0..DEGREE)
-            .map(|_| local_row.memory().input[0].into())
-            .product::<AB::Expr>();
-        let rhs = (0..DEGREE)
-            .map(|_| local_row.memory().input[0].into())
-            .product::<AB::Expr>();
-        builder.assert_eq(lhs, rhs);
-
-        self.eval_poseidon2(builder, local_row.as_ref(), (*prep).borrow());
-    }
+    fn eval(&self, builder: &mut AB) {}
 }
 
 impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn eval_poseidon2<AB>(
-        &self,
-        builder: &mut AB,
-        local_row: &dyn Poseidon2<AB::Var>,
-        prep: &MemoryPreprocessed<AB::Var>,
-    ) where
+    pub(crate) fn eval_poseidon2<AB>(&self, _builder: &mut AB, _local_row: &dyn Poseidon2<AB::Var>)
+    where
         AB: SP1RecursionAirBuilder,
         AB::Var: 'static,
     {
-        let local_memory = local_row.memory();
-        let local_memory_prepr = prep;
-        let local_perm = local_row.permutation();
-
         // Check that all the memory access columns are correct.
-        self.eval_mem(
-            builder,
-            local_memory,
-            local_memory_prepr,
-            std::array::from_fn(|i| local_memory_prepr.output_mult[i].into()),
-        );
+        // self.eval_mem(...);
 
         // Check that the permutation columns are correct.
-        self.eval_perm(builder, local_perm.as_ref(), local_memory);
+        // self.eval_perm(...);
     }
 }
