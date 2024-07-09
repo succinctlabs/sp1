@@ -130,6 +130,8 @@ impl<F: PrimeField32> MachineAir<F> for Fp384MulChip {
                         let modulus =
                             BigUint::from_bytes_le(&words_to_bytes_le::<32>(&event.modulus));
 
+                        println!("x bigint: {:?}", x);
+
                         // Assign basic values to the columns.
                         cols.is_real = F::one();
                         cols.shard = F::from_canonical_u32(event.shard);
@@ -251,23 +253,29 @@ impl Syscall for Fp384MulChip {
         let (modulus_memory_records, modulus) = rt.mr_slice(modulus_ptr, WORDS_FIELD_ELEMENT);
 
         // Get the BigUint values for x, y, and the modulus.
+        println!("x bytes: {:?}", words_to_bytes_le_vec(&x));
         let uint384_x = BigUint::from_bytes_le(&words_to_bytes_le_vec(&x));
         let uint384_y = BigUint::from_bytes_le(&words_to_bytes_le_vec(&y));
         let uint384_modulus = BigUint::from_bytes_le(&words_to_bytes_le_vec(&modulus));
+
+        println!("uint384_x: {:?}", uint384_x);
+        println!("uint384_y: {:?}", uint384_y);
+        println!("uint384_modulus: {:?}", uint384_modulus);
 
         // Perform the multiplication and take the result modulo the modulus.
         let result: BigUint = if uint384_modulus.is_zero() {
             let modulus = BigUint::one() << 384;
             (uint384_x * uint384_y) % modulus
         } else {
+            println!("modulus bytes: {:?}", uint384_modulus.to_bytes_le());
             (uint384_x * uint384_y) % uint384_modulus
         };
 
         let mut result_bytes = result.to_bytes_le();
-        result_bytes.resize(32, 0u8); // Pad the result to 32 bytes.
-
+        result_bytes.resize(48, 0u8); // Pad the result to 32 bytes.
+        println!("result bytes: {:?}", result_bytes);
         // Convert the result to little endian u32 words.
-        let result = bytes_to_words_le::<8>(&result_bytes);
+        let result = bytes_to_words_le::<12>(&result_bytes);
 
         // Write the result to x and keep track of the memory records.
         let x_memory_records = rt.mw_slice(x_ptr, &result);

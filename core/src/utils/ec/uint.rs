@@ -40,14 +40,14 @@ impl NumLimbs for U256Field {
 pub struct U384Field;
 
 impl FieldParameters for U384Field {
-    /// The modulus of the field. It is represented as a little-endian array of 33 bytes.
+    /// The modulus of the field. It is represented as a little-endian array of 49 bytes.
     const MODULUS: &'static [u8] = &[
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
     ];
 
     /// A rough witness-offset estimate given the size of the limbs and the size of the field.
-    const WITNESS_OFFSET: usize = 1usize << 22;
+    const WITNESS_OFFSET: usize = 1usize << 14;
 
     /// The modulus of Uint235 is 2^384.
     fn modulus() -> BigUint {
@@ -56,7 +56,7 @@ impl FieldParameters for U384Field {
 }
 
 impl NumLimbs for U384Field {
-    type Limbs = U32;
-    // Note we use one more limb than usual because for mulmod with mod 1<<256, we need an extra limb.
-    type Witness = U63;
+    type Limbs = U48;
+    // Note we use one more limb than usual because for mulmod with mod 1<<384, we need an extra limb.
+    type Witness = U95;
 }

@@ -1,6 +1,6 @@
-use super::syscall_uint256_mulmod;
+use sp1_precompiles::{BIGINT_WIDTH_WORDS, FP_BIGINT_WIDTH_WORDS};
 
-pub const BIGINT_WIDTH_WORDS: usize = 8;
+use super::{syscall_fp384_mulmod, syscall_uint256_mulmod};
 
 /// Sets result to be (x op y) % modulus. Currently only multiplication is supported. If modulus is
 /// zero, the modulus applied is 2^256.
@@ -38,5 +38,50 @@ pub extern "C" fn sys_bigint(
         // Call the uint256_mul syscall to multiply the x value with the concatenated y and modulus.
         // This syscall writes the result in-place, so it will mutate the result ptr appropriately.
         syscall_uint256_mulmod(result_ptr, concat_ptr);
+    }
+}
+
+/// Sets result to be (x op y) % modulus. Currently only multiplication is supported. If modulus is
+/// zero, the modulus applied is 2^384.
+#[allow(unused_variables)]
+#[no_mangle]
+pub extern "C" fn sys_fp_bigint(
+    result: *mut [u32; FP_BIGINT_WIDTH_WORDS],
+    op: u32,
+    x: *const [u32; FP_BIGINT_WIDTH_WORDS],
+    y: *const [u32; FP_BIGINT_WIDTH_WORDS],
+    modulus: *const [u32; FP_BIGINT_WIDTH_WORDS],
+) {
+    // Instantiate a new uninitialized array of words to place the concatenated y and modulus.
+    let mut concat_y_modulus = core::mem::MaybeUninit::<[u32; FP_BIGINT_WIDTH_WORDS * 2]>::uninit();
+    unsafe {
+        let result_ptr = result as *mut u32;
+        let x_ptr = x as *const u32;
+        let y_ptr = y as *const u32;
+        let concat_ptr = concat_y_modulus.as_mut_ptr() as *mut u32;
+
+        // First copy the y value into the concatenated array.
+        // println!("cycle-tracker-start: copy1");
+        core::ptr::copy_nonoverlapping(y_ptr, concat_ptr, FP_BIGINT_WIDTH_WORDS);
+        // println!("cycle-tracker-end: copy1");
+
+        // Then, copy the modulus value into the concatenated array. Add the width of the y value
+        // to the pointer to place the modulus value after the y value.
+        // println!("cycle-tracker-start: copy2");
+        core::ptr::copy_nonoverlapping(
+            modulus as *const u32,
+            concat_ptr.add(FP_BIGINT_WIDTH_WORDS),
+            FP_BIGINT_WIDTH_WORDS,
+        );
+        // println!("cycle-tracker-end: copy2");
+
+        // Copy x into the result array, as our syscall will write the result into the first input.
+        // println!("cycle-tracker-start: copy3");
+        core::ptr::copy_nonoverlapping(x as *const u32, result_ptr, FP_BIGINT_WIDTH_WORDS);
+        // println!("cycle-tracker-end: copy3");
+
+        // Call the uint256_mul syscall to multiply the x value with the concatenated y and modulus.
+        // This syscall writes the result in-place, so it will mutate the result ptr appropriately.
+        syscall_fp384_mulmod(result_ptr, concat_ptr);
     }
 }
