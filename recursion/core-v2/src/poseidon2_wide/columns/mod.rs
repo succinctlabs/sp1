@@ -9,6 +9,8 @@ use super::{NUM_INTERNAL_ROUNDS, WIDTH};
 pub mod permutation;
 pub mod preprocessed;
 
+pub const POSEIDON2_DEGREE3_COL_MAP: Poseidon2Degree3<usize> = make_col_map_degree3();
+pub const NUM_POSEIDON2_DEGREE3_COLS: usize = size_of::<Poseidon2Degree3<u8>>();
 /// Trait for getter methods for Poseidon2 columns.
 pub trait Poseidon2<'a, T: Copy + 'a> {
     fn state_var(&self) -> &[T; WIDTH];
@@ -79,15 +81,12 @@ impl<'a, T: Copy + 'a> Poseidon2Mut<'a, T> for Poseidon2MutEnum<'a, T> {
     }
 }
 
-pub const NUM_POSEIDON2_DEGREE3_COLS: usize = size_of::<Poseidon2Degree3<u8>>();
-
 const fn make_col_map_degree3() -> Poseidon2Degree3<usize> {
     let indices_arr = indices_arr::<NUM_POSEIDON2_DEGREE3_COLS>();
     unsafe {
         transmute::<[usize; NUM_POSEIDON2_DEGREE3_COLS], Poseidon2Degree3<usize>>(indices_arr)
     }
 }
-pub const POSEIDON2_DEGREE3_COL_MAP: Poseidon2Degree3<usize> = make_col_map_degree3();
 
 /// Struct for the poseidon2 chip that contains sbox columns.
 #[derive(AlignedBorrow, Clone, Copy)]
@@ -95,6 +94,7 @@ pub const POSEIDON2_DEGREE3_COL_MAP: Poseidon2Degree3<usize> = make_col_map_degr
 pub struct Poseidon2Degree3<T: Copy> {
     pub permutation_cols: PermutationSBox<T>,
 }
+
 impl<'a, T: Copy + 'a> Poseidon2<'a, T> for Poseidon2Degree3<T> {
     fn state_var(&self) -> &[T; WIDTH] {
         &self.permutation_cols.state.state_var

@@ -14,10 +14,7 @@ pub mod trace;
 
 use p3_poseidon2::matmul_internal;
 
-use self::columns::Poseidon2;
-use self::columns::Poseidon2Degree3;
-use self::columns::Poseidon2Degree9;
-use self::columns::Poseidon2Mut;
+use self::columns::{Poseidon2, Poseidon2Degree3, Poseidon2Degree9, Poseidon2Mut};
 
 /// The width of the permutation.
 pub const WIDTH: usize = 16;

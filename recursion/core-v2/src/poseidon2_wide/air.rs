@@ -7,11 +7,12 @@ use std::borrow::Borrow;
 use p3_air::{Air, BaseAir, PairBuilder};
 use p3_matrix::Matrix;
 
-use crate::builder::SP1RecursionAirBuilder;
-
-use crate::poseidon2_wide::{
-    columns::{NUM_POSEIDON2_DEGREE3_COLS, NUM_POSEIDON2_DEGREE9_COLS},
-    Poseidon2WideChip,
+use crate::{
+    builder::SP1RecursionAirBuilder,
+    poseidon2_wide::{
+        columns::{NUM_POSEIDON2_DEGREE3_COLS, NUM_POSEIDON2_DEGREE9_COLS},
+        Poseidon2WideChip,
+    },
 };
 
 use super::columns::preprocessed::Poseidon2PreprocessedCols;

@@ -8,13 +8,15 @@ use sp1_core::{air::MachineAir, utils::pad_rows_fixed};
 use sp1_primitives::RC_16_30_U32;
 use tracing::instrument;
 
-use crate::poseidon2_wide::{external_linear_layer, NUM_EXTERNAL_ROUNDS, WIDTH};
-use crate::Address;
-use crate::{instruction::Instruction::Poseidon2Wide, ExecutionRecord, RecursionProgram};
-
-use super::columns::permutation::max;
-use super::columns::preprocessed::Poseidon2PreprocessedCols;
-use super::{internal_linear_layer, Poseidon2WideChip, NUM_INTERNAL_ROUNDS};
+use crate::{
+    instruction::Instruction::Poseidon2Wide,
+    poseidon2_wide::{
+        columns::{permutation::max, preprocessed::Poseidon2PreprocessedCols},
+        external_linear_layer, internal_linear_layer, Poseidon2WideChip, NUM_EXTERNAL_ROUNDS,
+        NUM_INTERNAL_ROUNDS, WIDTH,
+    },
+    Address, ExecutionRecord, RecursionProgram,
+};
 
 const PREPROCESSED_POSEIDON2_WIDTH: usize = size_of::<Poseidon2PreprocessedCols<u8>>();
 
