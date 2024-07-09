@@ -2,6 +2,8 @@
 name = "sp1-build"
 version = "0.1.0"
 edition = "2021"
+description = "Builds a SP1 program."
+license = "MIT OR Apache-2.0"
 
 [dependencies]
 cargo_metadata = "0.18.1"

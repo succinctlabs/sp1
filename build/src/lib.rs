@@ -12,9 +12,8 @@ use anyhow::{Context, Result};
 use cargo_metadata::camino::Utf8PathBuf;
 
 #[derive(Default, Clone)]
-// `clap` is enabled in the `cli` crate for `sp1-helper`, when users are building programs with
-// `cargo prove` CLI directly. The `helper` crate is intended to be lightweight, so we only derive
-// the `Parser` trait if the `clap` feature is enabled.
+// Conditionally derive the `Parser` trait if the `clap` feature is enabled. This is useful
+// for keeping the binary size smaller.
 #[cfg_attr(feature = "clap", derive(Parser))]
 pub struct BuildArgs {
     #[cfg_attr(
