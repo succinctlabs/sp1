@@ -7,7 +7,6 @@ use sp1_recursion_core_v2::BaseAluInstr;
 use sp1_recursion_core_v2::Opcode;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use std::mem::take;
 
 use sp1_recursion_core_v2::*;
 
@@ -19,13 +18,13 @@ use crate::prelude::TracedVec;
 #[derive(Debug, Clone, Default)]
 pub struct AsmCompiler<F, EF> {
     pub next_addr: F,
-    // Map the frame pointers of the variables to the "physical" addresses.
+    /// Map the frame pointers of the variables to the "physical" addresses.
     pub fp_to_addr: HashMap<i32, Address<F>>,
-    // Map base field constants to "physical" addresses and mults.
+    /// Map base field constants to "physical" addresses and mults.
     pub consts_f: HashMap<F, (Address<F>, F)>,
-    // Map extension field constants to "physical" addresses and mults.
+    /// Map extension field constants to "physical" addresses and mults.
     pub consts_ef: HashMap<EF, (Address<F>, F)>,
-    // Map each "physical" address to its read count.
+    /// Map each "physical" address to its read count.
     pub addr_to_mult: HashMap<Address<F>, F>,
 }
 
@@ -35,10 +34,10 @@ where
     EF: ExtensionField<F> + TwoAdicField,
 {
     /// Allocate a fresh address. Checks that the address space is not full.
-    pub fn fresh_addr(allocator: &mut F) -> Address<F> {
-        let id = Address(*allocator);
-        *allocator += F::one();
-        if allocator.is_zero() {
+    pub fn alloc(next_addr: &mut F) -> Address<F> {
+        let id = Address(*next_addr);
+        *next_addr += F::one();
+        if next_addr.is_zero() {
             panic!("out of address space");
         }
         id
@@ -49,7 +48,7 @@ where
     pub fn write_fp(&mut self, fp: i32) -> Address<F> {
         match self.fp_to_addr.entry(fp) {
             Entry::Vacant(entry) => {
-                let addr = Self::fresh_addr(&mut self.next_addr);
+                let addr = Self::alloc(&mut self.next_addr);
                 // This is a write, so we set the mult to zero.
                 if let Some(x) = self.addr_to_mult.insert(addr, F::zero()) {
                     panic!("unexpected entry in addr_to_mult: {x:?}");
@@ -69,7 +68,7 @@ where
                 // This is a read, so we increment the mult.
                 match self.addr_to_mult.get_mut(entry.get()) {
                     Some(mult) => *mult += F::one(),
-                    None => panic!("expected entry in addr_mult: {:?}", entry),
+                    None => panic!("expected entry in addr_mult: {entry:?}"),
                 }
                 *entry.into_mut()
             }
@@ -82,7 +81,7 @@ where
         self.consts_f
             .entry(f)
             .and_modify(|(_, x)| *x += F::one())
-            .or_insert((Self::fresh_addr(&mut self.next_addr), F::one()))
+            .or_insert_with(|| (Self::alloc(&mut self.next_addr), F::one()))
             .0
     }
 
@@ -92,18 +91,18 @@ where
         self.consts_ef
             .entry(ef)
             .and_modify(|(_, x)| *x += F::one())
-            .or_insert((Self::fresh_addr(&mut self.next_addr), F::one()))
+            .or_insert_with(|| (Self::alloc(&mut self.next_addr), F::one()))
             .0
     }
 
     // ---------------------------------------------------------------------------------------------
     // INSTRUCTION HELPERS
 
-    pub fn init_to_f(&mut self, fp: i32, f: F) -> Instruction<F> {
+    pub fn init_at_f(&mut self, fp: i32, f: F) -> Instruction<F> {
         self.init_at(fp, Block::from(f))
     }
 
-    pub fn init_to_ef(&mut self, fp: i32, ef: EF) -> Instruction<F> {
+    pub fn init_at_ef(&mut self, fp: i32, ef: EF) -> Instruction<F> {
         self.init_at(fp, ef.as_base_slice().into())
     }
 
@@ -112,7 +111,7 @@ where
         Self::init_at_addr(addr, block)
     }
 
-    fn init_at_addr(addr: Address<F>, block: Block<F>) -> Instruction<F> {
+    pub fn init_at_addr(addr: Address<F>, block: Block<F>) -> Instruction<F> {
         Instruction::Mem(MemInstr {
             addrs: MemIo { inner: addr },
             vals: MemIo { inner: block },
@@ -126,9 +125,9 @@ where
 
     pub fn compile_one(&mut self, ir_instr: DslIr<AsmConfig<F, EF>>) -> Instruction<F> {
         match ir_instr {
-            DslIr::ImmV(dst, src) => self.init_to_f(dst.fp(), src),
-            DslIr::ImmF(dst, src) => self.init_to_f(dst.fp(), src),
-            DslIr::ImmE(dst, src) => self.init_to_ef(dst.fp(), src),
+            DslIr::ImmV(dst, src) => self.init_at_f(dst.fp(), src),
+            DslIr::ImmF(dst, src) => self.init_at_f(dst.fp(), src),
+            DslIr::ImmE(dst, src) => self.init_at_ef(dst.fp(), src),
 
             DslIr::AddV(dst, lhs, rhs) => Instruction::BaseAlu(BaseAluInstr {
                 opcode: Opcode::AddF,
@@ -632,31 +631,31 @@ where
                 // _ => panic!("unsupported {:?}", instruction),
             }
         }
+        debug_assert!(self.addr_to_mult.is_empty());
         // Initialize constants.
-        let instrs_consts_f = take(&mut self.consts_f)
-            .into_iter()
-            .map(|(f, (addr, mult))| {
-                Instruction::Mem(MemInstr {
-                    addrs: MemIo { inner: addr },
-                    vals: MemIo {
-                        inner: Block::from(f),
-                    },
-                    mult,
-                    kind: MemAccessKind::Write,
-                })
-            });
-        let instrs_consts_ef = take(&mut self.consts_ef)
-            .into_iter()
-            .map(|(ef, (addr, mult))| {
-                Instruction::Mem(MemInstr {
-                    addrs: MemIo { inner: addr },
-                    vals: MemIo {
-                        inner: ef.as_base_slice().into(),
-                    },
-                    mult,
-                    kind: MemAccessKind::Write,
-                })
-            });
+        let instrs_consts_f = self.consts_f.drain().map(|(f, (addr, mult))| {
+            Instruction::Mem(MemInstr {
+                addrs: MemIo { inner: addr },
+                vals: MemIo {
+                    inner: Block::from(f),
+                },
+                mult,
+                kind: MemAccessKind::Write,
+            })
+        });
+        let instrs_consts_ef = self.consts_ef.drain().map(|(ef, (addr, mult))| {
+            Instruction::Mem(MemInstr {
+                addrs: MemIo { inner: addr },
+                vals: MemIo {
+                    inner: ef.as_base_slice().into(),
+                },
+                mult,
+                kind: MemAccessKind::Write,
+            })
+        });
+        // Reset the other fields.
+        self.next_addr = Default::default();
+        self.fp_to_addr.clear();
         // Place constant-initializing instructions at the top.
         instrs_consts_f
             .chain(instrs_consts_ef)
