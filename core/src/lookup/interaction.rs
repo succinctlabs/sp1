@@ -7,8 +7,8 @@ use p3_field::Field;
 /// An interaction for a lookup or a permutation argument.
 pub struct Interaction<F: Field> {
     pub values: Vec<VirtualPairCol<F>>,
-    pub multiplicity: VirtualPairCol<F>,
     pub kind: InteractionKind,
+    pub mult: Option<VirtualPairCol<F>>,
 }
 
 /// The type of interaction for a lookup argument.
@@ -58,14 +58,10 @@ impl<F: Field> Interaction<F> {
     /// Create a new interaction.
     pub const fn new(
         values: Vec<VirtualPairCol<F>>,
-        multiplicity: VirtualPairCol<F>,
         kind: InteractionKind,
+        mult: Option<VirtualPairCol<F>>,
     ) -> Self {
-        Self {
-            values,
-            multiplicity,
-            kind,
-        }
+        Self { values, kind, mult }
     }
 
     /// The index of the argument in the lookup table.

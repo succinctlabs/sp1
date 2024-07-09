@@ -19,23 +19,25 @@ use crate::{bytes::ByteOpcode, memory::MemoryCols};
 
 /// A Builder with the ability to encode the existance of interactions with other AIRs by sending
 /// and receiving messages.
-pub trait MessageBuilder<M> {
-    fn send(&mut self, message: M);
+pub trait MessageBuilder<M, Mu, S> {
+    fn send(&mut self, message: M, mult: Option<Mu>, selector: Option<S>);
 
-    fn receive(&mut self, message: M);
+    fn receive(&mut self, message: M, mult: Option<Mu>, selector: Option<S>);
 }
 
-impl<AB: EmptyMessageBuilder, M> MessageBuilder<M> for AB {
-    fn send(&mut self, _message: M) {}
+impl<AB: EmptyMessageBuilder, M, Mu, S> MessageBuilder<M, Mu, S> for AB {
+    fn send(&mut self, _message: M, _mult: Option<Mu>, _selector: Option<S>) {}
 
-    fn receive(&mut self, _message: M) {}
+    fn receive(&mut self, _message: M, _mult: Option<Mu>, _selector: Option<S>) {}
 }
 
 /// A message builder for which sending and receiving messages is a no-op.
 pub trait EmptyMessageBuilder: AirBuilder {}
 
 /// A trait which contains basic methods for building an AIR.
-pub trait BaseAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr>> {
+pub trait BaseAirBuilder:
+    AirBuilder + MessageBuilder<AirInteraction<Self::Expr>, Self::Expr, Self::Expr>
+{
     /// Returns a sub-builder whose constraints are enforced only when `condition` is not one.
     fn when_not<I: Into<Self::Expr>>(&mut self, condition: I) -> FilteredAirBuilder<Self> {
         self.when_ne(condition, Self::F::one())
@@ -124,20 +126,24 @@ pub trait ByteAirBuilder: BaseAirBuilder {
         shard: impl Into<Self::Expr>,
         channel: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
+        selector: Option<impl Into<Self::Expr>>,
     ) {
-        self.send(AirInteraction::new(
-            vec![
-                opcode.into(),
-                a1.into(),
-                a2.into(),
-                b.into(),
-                c.into(),
-                shard.into(),
-                channel.into(),
-            ],
-            multiplicity.into(),
-            InteractionKind::Byte,
-        ));
+        self.send(
+            AirInteraction::new(
+                vec![
+                    opcode.into(),
+                    a1.into(),
+                    a2.into(),
+                    b.into(),
+                    c.into(),
+                    shard.into(),
+                    channel.into(),
+                ],
+                multiplicity.into(),
+                InteractionKind::Byte,
+            ),
+            selector.into(),
+        );
     }
 
     /// Receives a byte operation to be processed.
