@@ -64,6 +64,9 @@ pub fn build_program(args: &BuildArgs, program_dir: Option<PathBuf>) -> Result<U
         // Get the current directory.
         std::env::current_dir().expect("Failed to get current directory.")
     });
+    let program_dir: Utf8PathBuf = program_dir
+        .try_into()
+        .expect("Failed to convert PathBuf to Utf8PathBuf");
 
     let metadata_cmd = cargo_metadata::MetadataCommand::new();
     let metadata = metadata_cmd.exec().unwrap();
@@ -157,7 +160,7 @@ pub fn build_program(args: &BuildArgs, program_dir: Option<PathBuf>) -> Result<U
         cargo_args.push("--locked".to_string());
 
         let result = Command::new("cargo")
-            .current_dir(program_dir)
+            .current_dir(program_dir.clone())
             .env("RUSTUP_TOOLCHAIN", "succinct")
             .env("CARGO_ENCODED_RUSTFLAGS", rust_flags.join("\x1f"))
             .args(&cargo_args)
@@ -175,8 +178,7 @@ pub fn build_program(args: &BuildArgs, program_dir: Option<PathBuf>) -> Result<U
         .join("release")
         .join(root_package_name.unwrap());
 
-    // TODO: This should be the program_dir.
-    let elf_dir = metadata.target_directory.parent().unwrap().join("elf");
+    let elf_dir = program_dir.join("elf");
     fs::create_dir_all(&elf_dir)?;
 
     // The order of precedence for the ELF name is:
