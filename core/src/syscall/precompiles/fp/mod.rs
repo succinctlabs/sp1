@@ -9,7 +9,7 @@ use crate::runtime::{ExecutionRecord, Program, Syscall, SyscallCode};
 use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
 use crate::stark::MachineRecord;
 use crate::syscall::precompiles::SyscallContext;
-use crate::utils::ec::uint256::U384Field;
+use crate::utils::ec::uint::U384Field;
 use crate::utils::{
     bytes_to_words_le, limbs_from_access, limbs_from_prev_access, pad_rows, words_to_bytes_le,
     words_to_bytes_le_vec,
@@ -29,11 +29,11 @@ use std::borrow::{Borrow, BorrowMut};
 use std::mem::size_of;
 use typenum::Unsigned;
 
-/// The number of columns in the Fp384AddCols.
-const NUM_COLS: usize = size_of::<Fp384AddCols<u8>>();
+/// The number of columns in the Fp384MulCols.
+const NUM_COLS: usize = size_of::<Fp384MulCols<u8>>();
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Fp384AddEvent {
+pub struct Fp384MulEvent {
     pub lookup_id: usize,
     pub shard: u32,
     pub channel: u32,
@@ -49,9 +49,9 @@ pub struct Fp384AddEvent {
 }
 
 #[derive(Default)]
-pub struct Fp384AddChip;
+pub struct Fp384MulChip;
 
-impl Fp384AddChip {
+impl Fp384MulChip {
     pub const fn new() -> Self {
         Self
     }
@@ -60,10 +60,10 @@ impl Fp384AddChip {
 type WordsFieldElement = <U384Field as NumWords>::WordsFieldElement;
 const WORDS_FIELD_ELEMENT: usize = WordsFieldElement::USIZE;
 
-/// A set of columns for the Fp384Add operation.
+/// A set of columns for the Fp384Mul operation.
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
-pub struct Fp384AddCols<T> {
+pub struct Fp384MulCols<T> {
     /// The shard number of the syscall.
     pub shard: T,
 
@@ -97,12 +97,12 @@ pub struct Fp384AddCols<T> {
     pub is_real: T,
 }
 
-impl<F: PrimeField32> MachineAir<F> for Fp384AddChip {
+impl<F: PrimeField32> MachineAir<F> for Fp384MulChip {
     type Record = ExecutionRecord;
     type Program = Program;
 
     fn name(&self) -> String {
-        "Fp384AddMod".to_string()
+        "Fp384MulMod".to_string()
     }
 
     fn generate_trace(
@@ -112,7 +112,7 @@ impl<F: PrimeField32> MachineAir<F> for Fp384AddChip {
     ) -> RowMajorMatrix<F> {
         // Generate the trace rows & corresponding records for each chunk of events concurrently.
         let rows_and_records = input
-            .fp384_add_events
+            .fp384_mul_events
             .chunks(1)
             .map(|events| {
                 let mut records = ExecutionRecord::default();
@@ -122,7 +122,7 @@ impl<F: PrimeField32> MachineAir<F> for Fp384AddChip {
                     .iter()
                     .map(|event| {
                         let mut row: [F; NUM_COLS] = [F::zero(); NUM_COLS];
-                        let cols: &mut Fp384AddCols<F> = row.as_mut_slice().borrow_mut();
+                        let cols: &mut Fp384MulCols<F> = row.as_mut_slice().borrow_mut();
 
                         // Decode uint384 points
                         let x = BigUint::from_bytes_le(&words_to_bytes_le::<32>(&event.x));
@@ -175,7 +175,7 @@ impl<F: PrimeField32> MachineAir<F> for Fp384AddChip {
                             &y,
                             &effective_modulus,
                             // &modulus,
-                            FieldOperation::Add,
+                            FieldOperation::Mul,
                         );
 
                         row
@@ -195,12 +195,12 @@ impl<F: PrimeField32> MachineAir<F> for Fp384AddChip {
 
         pad_rows(&mut rows, || {
             let mut row: [F; NUM_COLS] = [F::zero(); NUM_COLS];
-            let cols: &mut Fp384AddCols<F> = row.as_mut_slice().borrow_mut();
+            let cols: &mut Fp384MulCols<F> = row.as_mut_slice().borrow_mut();
 
             let x = BigUint::zero();
             let y = BigUint::zero();
             cols.output
-                .populate(&mut vec![], 0, 0, &x, &y, FieldOperation::Add);
+                .populate(&mut vec![], 0, 0, &x, &y, FieldOperation::Mul);
 
             row
         });
@@ -211,7 +211,7 @@ impl<F: PrimeField32> MachineAir<F> for Fp384AddChip {
 
         // Write the nonces to the trace.
         for i in 0..trace.height() {
-            let cols: &mut Fp384AddCols<F> =
+            let cols: &mut Fp384MulCols<F> =
                 trace.values[i * NUM_COLS..(i + 1) * NUM_COLS].borrow_mut();
             cols.nonce = F::from_canonical_usize(i);
         }
@@ -220,11 +220,11 @@ impl<F: PrimeField32> MachineAir<F> for Fp384AddChip {
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        !shard.fp384_add_events.is_empty()
+        !shard.fp384_mul_events.is_empty()
     }
 }
 
-impl Syscall for Fp384AddChip {
+impl Syscall for Fp384MulChip {
     fn num_extra_cycles(&self) -> u32 {
         0
     }
@@ -255,12 +255,12 @@ impl Syscall for Fp384AddChip {
         let uint384_y = BigUint::from_bytes_le(&words_to_bytes_le_vec(&y));
         let uint384_modulus = BigUint::from_bytes_le(&words_to_bytes_le_vec(&modulus));
 
-        // Perform the addition and take the result modulo the modulus.
+        // Perform the multiplication and take the result modulo the modulus.
         let result: BigUint = if uint384_modulus.is_zero() {
             let modulus = BigUint::one() << 384;
-            (uint384_x + uint384_y) % modulus
+            (uint384_x * uint384_y) % modulus
         } else {
-            (uint384_x + uint384_y) % uint384_modulus
+            (uint384_x * uint384_y) % uint384_modulus
         };
 
         let mut result_bytes = result.to_bytes_le();
@@ -276,7 +276,7 @@ impl Syscall for Fp384AddChip {
         let shard = rt.current_shard();
         let channel = rt.current_channel();
         let clk = rt.clk;
-        rt.record_mut().fp384_add_events.push(Fp384AddEvent {
+        rt.record_mut().fp384_mul_events.push(Fp384MulEvent {
             lookup_id,
             shard,
             channel,
@@ -295,13 +295,13 @@ impl Syscall for Fp384AddChip {
     }
 }
 
-impl<F> BaseAir<F> for Fp384AddChip {
+impl<F> BaseAir<F> for Fp384MulChip {
     fn width(&self) -> usize {
         NUM_COLS
     }
 }
 
-impl<AB> Air<AB> for Fp384AddChip
+impl<AB> Air<AB> for Fp384MulChip
 where
     AB: SP1AirBuilder,
     Limbs<AB::Var, <U384Field as NumLimbs>::Limbs>: Copy,
@@ -309,9 +309,9 @@ where
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local = main.row_slice(0);
-        let local: &Fp384AddCols<AB::Var> = (*local).borrow();
+        let local: &Fp384MulCols<AB::Var> = (*local).borrow();
         let next = main.row_slice(1);
-        let next: &Fp384AddCols<AB::Var> = (*next).borrow();
+        let next: &Fp384MulCols<AB::Var> = (*next).borrow();
 
         // Constrain the incrementing nonce.
         builder.when_first_row().assert_zero(local.nonce);
@@ -356,7 +356,7 @@ where
             &x_limbs,
             &y_limbs,
             &p_modulus,
-            FieldOperation::Add,
+            FieldOperation::Mul,
             local.shard,
             local.channel,
             local.is_real,
@@ -394,7 +394,7 @@ where
             local.channel,
             local.clk,
             local.nonce,
-            AB::F::from_canonical_u32(SyscallCode::FP384_ADD.syscall_id()),
+            AB::F::from_canonical_u32(SyscallCode::FP384_MUL.syscall_id()),
             local.x_ptr,
             local.y_ptr,
             local.is_real,

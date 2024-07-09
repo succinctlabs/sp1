@@ -8,7 +8,7 @@ use rand::Rng;
 const BIGINT_WIDTH_WORDS: usize = 12;
 
 extern "C" {
-    fn syscall_fp384_add(x: *mut u32, y: *const u32);
+    fn syscall_fp384_mul(x: *mut u32, y: *const u32);
 }
 
 /// Sets result to be (x op y) % modulus. Currently only multiplication is supported. If modulus is
@@ -46,7 +46,7 @@ pub extern "C" fn sys_biggerint(
 
         // Call the uint256_mul syscall to multiply the x value with the concatenated y and modulus.
         // This syscall writes the result in-place, so it will mutate the result ptr appropriately.
-        syscall_fp384_add(result_ptr, concat_ptr);
+        syscall_fp384_mul(result_ptr, concat_ptr);
     }
 }
 
