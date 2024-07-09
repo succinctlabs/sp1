@@ -40,7 +40,6 @@ use sp1_core::{
     utils::{BabyBearPoseidon2, SP1CoreProverError},
 };
 use sp1_primitives::hash_deferred_proof;
-use sp1_primitives::types::RecursionProgramType;
 use sp1_recursion_circuit::witness::Witnessable;
 use sp1_recursion_compiler::config::InnerConfig;
 use sp1_recursion_compiler::ir::Witness;
@@ -53,16 +52,12 @@ pub use sp1_recursion_gnark_ffi::plonk_bn254::PlonkBn254Proof;
 use sp1_recursion_gnark_ffi::plonk_bn254::PlonkBn254Prover;
 use sp1_recursion_program::hints::Hintable;
 pub use sp1_recursion_program::machine::ReduceProgramType;
-use sp1_recursion_program::machine::{
-    SP1CompressVerifier, SP1DeferredVerifier, SP1RecursiveVerifier, SP1RootVerifier,
-};
 pub use sp1_recursion_program::machine::{
     SP1DeferredMemoryLayout, SP1RecursionMemoryLayout, SP1ReduceMemoryLayout, SP1RootMemoryLayout,
 };
 use sp1_recursion_static_program::{
-    COMPRESS_PK, COMPRESS_PROGRAM, COMPRESS_VK, DEFERRED_PK, DEFERRED_PROGRAM, DEFERRED_VK,
-    RECURSION_PK, RECURSION_PROGRAM, RECURSION_VK, SHRINK_PK, SHRINK_PROGRAM, SHRINK_VK, WRAP_PK,
-    WRAP_PROGRAM, WRAP_VK,
+    COMPRESS_PK, COMPRESS_PROGRAM, COMPRESS_VK, DEFERRED_PK, DEFERRED_PROGRAM, RECURSION_PK,
+    RECURSION_PROGRAM, SHRINK_PK, SHRINK_PROGRAM, WRAP_PK, WRAP_PROGRAM, WRAP_VK,
 };
 use tracing::instrument;
 pub use types::*;
