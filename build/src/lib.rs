@@ -1,12 +1,51 @@
-use anyhow::{Context, Result};
-use cargo_metadata::camino::Utf8PathBuf;
-use sp1_helper::{add_cargo_prove_build_args, BuildArgs};
+#[cfg(feature = "clap")]
+use clap::Parser;
 use std::{
     fs,
     io::{BufRead, BufReader},
+    path::PathBuf,
     process::{exit, Command, Stdio},
     thread,
 };
+
+use anyhow::{Context, Result};
+use cargo_metadata::camino::Utf8PathBuf;
+
+#[derive(Default, Clone)]
+// `clap` is enabled in the `cli` crate for `sp1-helper`, when users are building programs with
+// `cargo prove` CLI directly. The `helper` crate is intended to be lightweight, so we only derive
+// the `Parser` trait if the `clap` feature is enabled.
+#[cfg_attr(feature = "clap", derive(Parser))]
+pub struct BuildArgs {
+    #[cfg_attr(
+        feature = "clap",
+        clap(long, action, help = "Build using Docker for reproducible builds.")
+    )]
+    pub docker: bool,
+    #[cfg_attr(
+        feature = "clap",
+        clap(
+            long,
+            help = "The ghcr.io/succinctlabs/sp1 image tag to use when building with docker.",
+            default_value = "latest"
+        )
+    )]
+    pub tag: String,
+    #[cfg_attr(
+        feature = "clap",
+        clap(long, action, help = "Ignore Rust version check.")
+    )]
+    pub ignore_rust_version: bool,
+    #[cfg_attr(
+        feature = "clap",
+        clap(long, action, help = "If building a binary, specify the name.")
+    )]
+    pub binary: Option<String>,
+    #[cfg_attr(feature = "clap", clap(long, action, help = "ELF binary name."))]
+    pub elf: Option<String>,
+    #[cfg_attr(feature = "clap", clap(long, action, help = "Build with features."))]
+    pub features: Vec<String>,
+}
 
 /// Uses SP1_DOCKER_IMAGE environment variable if set, otherwise constructs the image to use based
 /// on the provided tag.
@@ -17,7 +56,15 @@ fn get_docker_image(tag: &str) -> String {
     })
 }
 
-pub fn build_program(args: &BuildArgs) -> Result<Utf8PathBuf> {
+// TODO: Pipe the output to SP1 if done via build_program. Either should be an argument or return the Command itself.
+
+/// Build a program with the specified BuildArgs.
+pub fn build_program(args: &BuildArgs, program_dir: Option<PathBuf>) -> Result<Utf8PathBuf> {
+    let program_dir = program_dir.unwrap_or_else(|| {
+        // Get the current directory.
+        std::env::current_dir().expect("Failed to get current directory.")
+    });
+
     let metadata_cmd = cargo_metadata::MetadataCommand::new();
     let metadata = metadata_cmd.exec().unwrap();
     let root_package = metadata.root_package();
@@ -110,6 +157,7 @@ pub fn build_program(args: &BuildArgs) -> Result<Utf8PathBuf> {
         cargo_args.push("--locked".to_string());
 
         let result = Command::new("cargo")
+            .current_dir(program_dir)
             .env("RUSTUP_TOOLCHAIN", "succinct")
             .env("CARGO_ENCODED_RUSTFLAGS", rust_flags.join("\x1f"))
             .args(&cargo_args)
@@ -126,6 +174,8 @@ pub fn build_program(args: &BuildArgs) -> Result<Utf8PathBuf> {
         .join(build_target.clone())
         .join("release")
         .join(root_package_name.unwrap());
+
+    // TODO: This should be the program_dir.
     let elf_dir = metadata.target_directory.parent().unwrap().join("elf");
     fs::create_dir_all(&elf_dir)?;
 
@@ -144,4 +194,33 @@ pub fn build_program(args: &BuildArgs) -> Result<Utf8PathBuf> {
     fs::copy(elf_path, &result_elf_path)?;
 
     Ok(result_elf_path)
+}
+
+/// Add the `cargo prove build` arguments to the `command_args` vec. This is useful when adding
+/// the `cargo prove build` arguments to an existing command.
+pub fn add_cargo_prove_build_args(
+    command_args: &mut Vec<String>,
+    prove_args: BuildArgs,
+    ignore_docker: bool,
+) {
+    if prove_args.docker && !ignore_docker {
+        command_args.push("--docker".to_string());
+    }
+    if prove_args.ignore_rust_version {
+        command_args.push("--ignore-rust-version".to_string());
+    }
+    if !prove_args.features.is_empty() {
+        for feature in prove_args.features {
+            command_args.push("--features".to_string());
+            command_args.push(feature);
+        }
+    }
+    if let Some(binary) = &prove_args.binary {
+        command_args.push("--binary".to_string());
+        command_args.push(binary.clone());
+    }
+    if let Some(elf) = &prove_args.elf {
+        command_args.push("--elf".to_string());
+        command_args.push(elf.clone());
+    }
 }

@@ -1,48 +1,6 @@
 use chrono::Local;
-#[cfg(feature = "clap")]
-use clap::Parser;
-use std::{
-    io::{BufRead, BufReader},
-    path::Path,
-    process::{Command, Stdio},
-    thread,
-};
-
-#[derive(Default, Clone)]
-// `clap` is enabled in the `cli` crate for `sp1-helper`, when users are building programs with
-// `cargo prove` CLI directly. The `helper` crate is intended to be lightweight, so we only derive
-// the `Parser` trait if the `clap` feature is enabled.
-#[cfg_attr(feature = "clap", derive(Parser))]
-pub struct BuildArgs {
-    #[cfg_attr(
-        feature = "clap",
-        clap(long, action, help = "Build using Docker for reproducible builds.")
-    )]
-    pub docker: bool,
-    #[cfg_attr(
-        feature = "clap",
-        clap(
-            long,
-            help = "The ghcr.io/succinctlabs/sp1 image tag to use when building with docker.",
-            default_value = "latest"
-        )
-    )]
-    pub tag: String,
-    #[cfg_attr(
-        feature = "clap",
-        clap(long, action, help = "Ignore Rust version check.")
-    )]
-    pub ignore_rust_version: bool,
-    #[cfg_attr(
-        feature = "clap",
-        clap(long, action, help = "If building a binary, specify the name.")
-    )]
-    pub binary: Option<String>,
-    #[cfg_attr(feature = "clap", clap(long, action, help = "ELF binary name."))]
-    pub elf: Option<String>,
-    #[cfg_attr(feature = "clap", clap(long, action, help = "Build with features."))]
-    pub features: Vec<String>,
-}
+use sp1_build::BuildArgs;
+use std::{path::Path, process::ExitStatus};
 
 fn current_datetime() -> String {
     let now = Local::now();
@@ -59,6 +17,9 @@ pub fn cargo_rerun_if_changed(path: &str) -> (&Path, String) {
     let metadata_file = program_dir.join("Cargo.toml");
     let mut metadata_cmd = cargo_metadata::MetadataCommand::new();
     let metadata = metadata_cmd.manifest_path(metadata_file).exec().unwrap();
+
+    // TODO: This will re-run more often as the program directory's Cargo.lock is intertwined with
+    // the workspace's Cargo.lock.
     println!(
         "cargo:rerun-if-changed={}",
         metadata.workspace_root.join("Cargo.lock").as_str()
@@ -88,26 +49,18 @@ pub fn cargo_rerun_if_changed(path: &str) -> (&Path, String) {
 /// Note: This function is kept for backwards compatibility.
 pub fn build_program(path: &str) {
     // Activate the build command if the dependencies change.
-    let (program_dir, root_package_name) = cargo_rerun_if_changed(path);
+    let (program_dir, _) = cargo_rerun_if_changed(path);
 
-    let status = execute_build_cmd(&program_dir, None)
-        .unwrap_or_else(|_| panic!("Failed to build `{}`.", root_package_name));
-    if !status.success() {
-        panic!("Failed to build `{}`.", root_package_name);
-    }
+    let _ = execute_build_cmd(&program_dir, None);
 }
 
 /// Builds the program with the given arguments if the program at path, or one of its dependencies,
 /// changes.
 pub fn build_program_with_args(path: &str, args: BuildArgs) {
     // Activate the build command if the dependencies change.
-    let (program_dir, root_package_name) = cargo_rerun_if_changed(path);
+    let (program_dir, _) = cargo_rerun_if_changed(path);
 
-    let status = execute_build_cmd(&program_dir, Some(args))
-        .unwrap_or_else(|_| panic!("Failed to build `{}`.", root_package_name));
-    if !status.success() {
-        panic!("Failed to build `{}`.", root_package_name);
-    }
+    let _ = execute_build_cmd(&program_dir, Some(args));
 }
 
 /// Add the `cargo prove build` arguments to the `command_args` vec. This is useful when adding
@@ -155,34 +108,18 @@ fn execute_build_cmd(
         return Ok(std::process::ExitStatus::default());
     }
 
-    let mut cargo_prove_build_args = vec!["prove".to_string(), "build".to_string()];
-    // Add the arguments for the `cargo prove build` CLI to the command.
-    if let Some(args) = args {
-        add_cargo_prove_build_args(&mut cargo_prove_build_args, args, is_clippy_driver);
+    let path_output = if let Some(args) = args {
+        sp1_build::build_program(&args, Some(program_dir.as_ref().to_path_buf()))
+    } else {
+        sp1_build::build_program(
+            &BuildArgs::default(),
+            Some(program_dir.as_ref().to_path_buf()),
+        )
+    };
+
+    if let Err(e) = path_output {
+        eprintln!("Error: {}", e);
     }
 
-    let mut cmd = Command::new("cargo");
-    cmd.current_dir(program_dir)
-        .args(cargo_prove_build_args)
-        .env_remove("RUSTC")
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-    let mut child = cmd.spawn()?;
-
-    let stdout = BufReader::new(child.stdout.take().unwrap());
-    let stderr = BufReader::new(child.stderr.take().unwrap());
-
-    // Pipe stdout and stderr to the parent process with [sp1] prefix
-    let stdout_handle = thread::spawn(move || {
-        stdout.lines().for_each(|line| {
-            println!("[sp1] {}", line.unwrap());
-        });
-    });
-    stderr.lines().for_each(|line| {
-        eprintln!("[sp1] {}", line.unwrap());
-    });
-
-    stdout_handle.join().unwrap();
-
-    child.wait()
+    Ok(ExitStatus::default())
 }

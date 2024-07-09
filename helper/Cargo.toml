@@ -7,9 +7,6 @@ readme = "../README.md"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-clap = { version = "4.5.7", features = ["derive", "env"], optional = true }
+sp1-build = { path = "../build" }
 cargo_metadata = "0.18.1"
 chrono = { version = "0.4.38", default-features = false, features = ["clock"] }
-
-[features]
-clap = ["dep:clap"]
