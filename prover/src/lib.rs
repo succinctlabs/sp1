@@ -55,7 +55,7 @@ pub use sp1_recursion_program::machine::ReduceProgramType;
 pub use sp1_recursion_program::machine::{
     SP1DeferredMemoryLayout, SP1RecursionMemoryLayout, SP1ReduceMemoryLayout, SP1RootMemoryLayout,
 };
-use sp1_recursion_static_program::{
+pub use sp1_recursion_static_program::{
     COMPRESS_PK, COMPRESS_PROGRAM, COMPRESS_VK, DEFERRED_PK, DEFERRED_PROGRAM, RECURSION_PK,
     RECURSION_PROGRAM, SHRINK_PK, SHRINK_PROGRAM, WRAP_PK, WRAP_PROGRAM, WRAP_VK,
 };

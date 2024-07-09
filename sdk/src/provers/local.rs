@@ -1,6 +1,6 @@
 use anyhow::Result;
 use sp1_core::{runtime::SP1Context, utils::SP1ProverOpts};
-use sp1_prover::{components::SP1ProverComponents, SP1Prover, SP1Stdin};
+use sp1_prover::{components::SP1ProverComponents, SP1Prover, SP1Stdin, WRAP_VK};
 use sysinfo::System;
 
 use crate::{
@@ -80,10 +80,7 @@ impl<C: SP1ProverComponents> Prover<C> for LocalProver<C> {
         let outer_proof = self.prover.wrap_bn254(compress_proof, opts)?;
 
         let plonk_bn254_aritfacts = if sp1_prover::build::sp1_dev_mode() {
-            sp1_prover::build::try_build_plonk_bn254_artifacts_dev(
-                &self.prover.wrap_vk,
-                &outer_proof.proof,
-            )
+            sp1_prover::build::try_build_plonk_bn254_artifacts_dev(&WRAP_VK, &outer_proof.proof)
         } else {
             try_install_plonk_bn254_artifacts()
         };
