@@ -21,6 +21,9 @@ pub extern "C" fn syscall_uint256_mulmod(x: *mut u32, y: *const u32) {
     unreachable!()
 }
 
+/// Fp384 addition operation.
+///
+/// The result is written over the first input.
 #[allow(unused_variables)]
 #[no_mangle]
 pub extern "C" fn syscall_fp384_add(x: *mut u32, y: *const u32) {

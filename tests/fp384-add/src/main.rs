@@ -1,15 +1,21 @@
 #![no_main]
 sp1_zkvm::entrypoint!(main);
 
+use bytemuck;
+use num::{BigUint, One};
+use rand;
+use rand::Rng;
 const BIGINT_WIDTH_WORDS: usize = 12;
 
-use super::syscall_uint256_mulmod;
+extern "C" {
+    fn syscall_fp384_add(x: *mut u32, y: *const u32);
+}
 
 /// Sets result to be (x op y) % modulus. Currently only multiplication is supported. If modulus is
 /// zero, the modulus applied is 2^256.
 #[allow(unused_variables)]
 #[no_mangle]
-pub extern "C" fn sys_bigint(
+pub extern "C" fn sys_biggerint(
     result: *mut [u32; BIGINT_WIDTH_WORDS],
     op: u32,
     x: *const [u32; BIGINT_WIDTH_WORDS],
@@ -44,41 +50,45 @@ pub extern "C" fn sys_bigint(
     }
 }
 
-
-#![no_main]
-sp1_zkvm::entrypoint!(main);
-
-use num::{BigUint, One};
-use rand::Rng;
-use sp1_zkvm::precompiles::bigint_mulmod::sys_bigint;
-
-fn uint256_mul(x: &[u8; 32], y: &[u8; 32], modulus: &[u8; 32]) -> [u8; 32] {
+fn uint256_mul(x: &[u8; 48], y: &[u8; 48], modulus: &[u8; 48]) -> [u8; 48] {
     println!("cycle-tracker-start: uint256_mul");
-    let mut result = [0u32; 8];
-    syscall_fp384_add(
-        result.as_mut_ptr() as *mut [u32; 8],
-        x.as_ptr() as *const [u32; 8],
-        y.as_ptr() as *const [u32; 8],
-        modulus.as_ptr() as *const [u32; 8],
+    let mut result = [0u32; 12];
+    sys_biggerint(
+        result.as_mut_ptr() as *mut [u32; 12],
+        0,
+        x.as_ptr() as *const [u32; 12],
+        y.as_ptr() as *const [u32; 12],
+        modulus.as_ptr() as *const [u32; 12],
     );
     println!("cycle-tracker-end: uint256_mul");
-    bytemuck::cast::<[u32; 8], [u8; 32]>(result)
+    bytemuck::cast::<[u32; 12], [u8; 48]>(result)
 }
 
-fn biguint_to_bytes_le(x: BigUint) -> [u8; 32] {
+fn biguint_to_bytes_le(x: BigUint) -> [u8; 48] {
     let mut bytes = x.to_bytes_le();
-    bytes.resize(32, 0);
+    bytes.resize(48, 0);
     bytes.try_into().unwrap()
 }
 
-#[sp1_derive::cycle_tracker]
 fn main() {
     for _ in 0..50 {
         // Test with random numbers.
         let mut rng = rand::thread_rng();
-        let mut x: [u8; 32] = rng.gen();
-        let mut y: [u8; 32] = rng.gen();
-        let modulus: [u8; 32] = rng.gen();
+        let mut x: [u8; 48] = (0..48)
+            .map(|_| rng.gen::<u8>())
+            .collect::<Vec<u8>>()
+            .try_into()
+            .unwrap();
+        let mut y: [u8; 48] = (0..48)
+            .map(|_| rng.gen::<u8>())
+            .collect::<Vec<u8>>()
+            .try_into()
+            .unwrap();
+        let mut modulus: [u8; 48] = (0..48)
+            .map(|_| rng.gen::<u8>())
+            .collect::<Vec<u8>>()
+            .try_into()
+            .unwrap();
 
         // Convert byte arrays to BigUint
         let modulus_big = BigUint::from_bytes_le(&modulus);
@@ -96,13 +106,21 @@ fn main() {
     }
 
     // Modulus zero tests
-    let modulus = [0u8; 32];
+    let modulus = [0u8; 48];
     let modulus_big: BigUint = BigUint::one() << 256;
     for _ in 0..50 {
         // Test with random numbers.
         let mut rng = rand::thread_rng();
-        let mut x: [u8; 32] = rng.gen();
-        let mut y: [u8; 32] = rng.gen();
+        let mut x: [u8; 48] = (0..48)
+            .map(|_| rng.gen::<u8>())
+            .collect::<Vec<u8>>()
+            .try_into()
+            .unwrap();
+        let mut y: [u8; 48] = (0..48)
+            .map(|_| rng.gen::<u8>())
+            .collect::<Vec<u8>>()
+            .try_into()
+            .unwrap();
 
         // Convert byte arrays to BigUint
         let x_big = BigUint::from_bytes_le(&x);
@@ -120,12 +138,16 @@ fn main() {
 
     // Test with random numbers.
     let mut rng = rand::thread_rng();
-    let x: [u8; 32] = rng.gen();
+    let x: [u8; 48] = (0..48)
+        .map(|_| rng.gen::<u8>())
+        .collect::<Vec<u8>>()
+        .try_into()
+        .unwrap();
 
     // Hardcoded edge case: Multiplying by 1
-    let modulus = [0u8; 32];
+    let modulus = [0u8; 48];
 
-    let mut one: [u8; 32] = [0; 32];
+    let mut one: [u8; 48] = [0; 48];
     one[0] = 1; // Least significant byte set to 1, represents the number 1
     let original_x = x; // Copy original x value before multiplication by 1
     let result_one = uint256_mul(&x, &one, &modulus);
@@ -135,7 +157,7 @@ fn main() {
     );
 
     // Hardcoded edge case: Multiplying by 0
-    let zero: [u8; 32] = [0; 32]; // Represents the number 0
+    let zero: [u8; 48] = [0; 48]; // Represents the number 0
     let result_zero = uint256_mul(&x, &zero, &modulus);
     assert_eq!(result_zero, zero, "Multiplying by 0 should yield 0.");
 
