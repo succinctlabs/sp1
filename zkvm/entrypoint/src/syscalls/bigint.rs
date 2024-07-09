@@ -61,24 +61,18 @@ pub extern "C" fn sys_fp_bigint(
         let concat_ptr = concat_y_modulus.as_mut_ptr() as *mut u32;
 
         // First copy the y value into the concatenated array.
-        // println!("cycle-tracker-start: copy1");
         core::ptr::copy_nonoverlapping(y_ptr, concat_ptr, FP_BIGINT_WIDTH_WORDS);
-        // println!("cycle-tracker-end: copy1");
 
         // Then, copy the modulus value into the concatenated array. Add the width of the y value
         // to the pointer to place the modulus value after the y value.
-        // println!("cycle-tracker-start: copy2");
         core::ptr::copy_nonoverlapping(
             modulus as *const u32,
             concat_ptr.add(FP_BIGINT_WIDTH_WORDS),
             FP_BIGINT_WIDTH_WORDS,
         );
-        // println!("cycle-tracker-end: copy2");
 
         // Copy x into the result array, as our syscall will write the result into the first input.
-        // println!("cycle-tracker-start: copy3");
         core::ptr::copy_nonoverlapping(x as *const u32, result_ptr, FP_BIGINT_WIDTH_WORDS);
-        // println!("cycle-tracker-end: copy3");
 
         // Call the uint256_mul syscall to multiply the x value with the concatenated y and modulus.
         // This syscall writes the result in-place, so it will mutate the result ptr appropriately.
