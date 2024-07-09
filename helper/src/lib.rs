@@ -63,35 +63,6 @@ pub fn build_program_with_args(path: &str, args: BuildArgs) {
     let _ = execute_build_cmd(&program_dir, Some(args));
 }
 
-/// Add the `cargo prove build` arguments to the `command_args` vec. This is useful when adding
-/// the `cargo prove build` arguments to an existing command.
-pub fn add_cargo_prove_build_args(
-    command_args: &mut Vec<String>,
-    prove_args: BuildArgs,
-    ignore_docker: bool,
-) {
-    if prove_args.docker && !ignore_docker {
-        command_args.push("--docker".to_string());
-    }
-    if prove_args.ignore_rust_version {
-        command_args.push("--ignore-rust-version".to_string());
-    }
-    if !prove_args.features.is_empty() {
-        for feature in prove_args.features {
-            command_args.push("--features".to_string());
-            command_args.push(feature);
-        }
-    }
-    if let Some(binary) = &prove_args.binary {
-        command_args.push("--binary".to_string());
-        command_args.push(binary.clone());
-    }
-    if let Some(elf) = &prove_args.elf {
-        command_args.push("--elf".to_string());
-        command_args.push(elf.clone());
-    }
-}
-
 /// Executes the `cargo prove build` command in the program directory. If there are any cargo prove
 /// build arguments, they are added to the command.
 fn execute_build_cmd(
