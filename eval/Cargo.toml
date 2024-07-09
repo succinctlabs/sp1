@@ -11,4 +11,4 @@ sp1-prover = { path = "../prover" }
 
 clap = { version = "4.5.8", features = ["derive"] }
 csv = "1.3.0"
-serde = "1.0.201"
+serde = "1.0.204"
