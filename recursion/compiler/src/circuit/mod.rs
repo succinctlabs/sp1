@@ -379,7 +379,7 @@ where
 }
 
 /// Utility functions for various register types.
-trait Reg<F, EF>: Debug {
+trait Reg<F, EF> {
     /// Mark the register as to be read from, returning the "physical" address.
     fn read(&self, compiler: &mut AsmCompiler<F, EF>) -> Address<F>;
 
