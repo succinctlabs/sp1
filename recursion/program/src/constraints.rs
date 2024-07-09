@@ -1,24 +1,21 @@
 use p3_air::Air;
 use p3_commit::LagrangeSelectors;
-use p3_field::AbstractExtensionField;
-use p3_field::AbstractField;
-use p3_field::TwoAdicField;
-use sp1_core::air::MachineAir;
-use sp1_core::stark::AirOpenedValues;
-use sp1_core::stark::PROOF_MAX_NUM_PVS;
-use sp1_core::stark::{MachineChip, StarkGenericConfig};
-use sp1_recursion_compiler::ir::Array;
-use sp1_recursion_compiler::ir::Felt;
-use sp1_recursion_compiler::prelude::Config;
-use sp1_recursion_compiler::prelude::ExtConst;
-use sp1_recursion_compiler::prelude::{Builder, Ext, SymbolicExt};
+use p3_field::{AbstractExtensionField, AbstractField, TwoAdicField};
+use sp1_core::{
+    air::MachineAir,
+    stark::{AirOpenedValues, MachineChip, StarkGenericConfig, PROOF_MAX_NUM_PVS},
+};
+use sp1_recursion_compiler::{
+    ir::{Array, Felt},
+    prelude::{Builder, Config, Ext, ExtConst, SymbolicExt},
+};
 
-use crate::commit::PolynomialSpaceVariable;
-use crate::fri::TwoAdicMultiplicativeCosetVariable;
-use crate::stark::RecursiveVerifierConstraintFolder;
-use crate::stark::StarkVerifier;
-use crate::types::ChipOpenedValuesVariable;
-use crate::types::ChipOpening;
+use crate::{
+    commit::PolynomialSpaceVariable,
+    fri::TwoAdicMultiplicativeCosetVariable,
+    stark::{RecursiveVerifierConstraintFolder, StarkVerifier},
+    types::{ChipOpenedValuesVariable, ChipOpening},
+};
 
 impl<C: Config, SC: StarkGenericConfig> StarkVerifier<C, SC>
 where
@@ -95,8 +92,8 @@ where
                     .filter(|(j, _)| *j != i)
                     .map(|(_, other_domain)| {
                         let first_point: Ext<_, _> = builder.eval(domain.first_point());
-                        other_domain.zp_at_point(builder, zeta)
-                            * other_domain.zp_at_point(builder, first_point).inverse()
+                        other_domain.zp_at_point(builder, zeta) *
+                            other_domain.zp_at_point(builder, first_point).inverse()
                     })
                     .product::<SymbolicExt<_, _>>()
             })
@@ -160,13 +157,12 @@ mod tests {
     use itertools::{izip, Itertools};
     use rand::{thread_rng, Rng};
     use serde::{de::DeserializeOwned, Serialize};
-    use sp1_core::stark::DefaultProver;
     use sp1_core::{
         io::SP1Stdin,
         runtime::Program,
         stark::{
-            Chip, Com, Dom, OpeningProof, PcsProverData, RiscvAir, ShardCommitment, ShardMainData,
-            ShardProof, StarkGenericConfig, StarkMachine,
+            Chip, Com, DefaultProver, Dom, OpeningProof, PcsProverData, RiscvAir, ShardCommitment,
+            ShardMainData, ShardProof, StarkGenericConfig, StarkMachine,
         },
         utils::{BabyBearPoseidon2, SP1CoreOpts},
     };
@@ -202,24 +198,15 @@ mod tests {
         ShardMainData<SC>: Serialize + DeserializeOwned,
         SC::Val: p3_field::PrimeField32,
     {
-        let ShardProof {
-            commitment,
-            opened_values,
-            ..
-        } = proof;
+        let ShardProof { commitment, opened_values, .. } = proof;
 
-        let ShardCommitment {
-            permutation_commit,
-            quotient_commit,
-            ..
-        } = commitment;
+        let ShardCommitment { permutation_commit, quotient_commit, .. } = commitment;
 
         // Extract verification metadata.
         let pcs = machine.config().pcs();
 
-        let permutation_challenges = (0..2)
-            .map(|_| challenger.sample_ext_element::<SC::Challenge>())
-            .collect::<Vec<_>>();
+        let permutation_challenges =
+            (0..2).map(|_| challenger.sample_ext_element::<SC::Challenge>()).collect::<Vec<_>>();
 
         challenger.observe(permutation_commit.clone());
 
@@ -230,20 +217,12 @@ mod tests {
 
         let zeta = challenger.sample_ext_element::<SC::Challenge>();
 
-        let chips = machine
-            .shard_chips_ordered(&proof.chip_ordering)
-            .collect::<Vec<_>>();
+        let chips = machine.shard_chips_ordered(&proof.chip_ordering).collect::<Vec<_>>();
 
-        let log_degrees = opened_values
-            .chips
-            .iter()
-            .map(|val| val.log_degree)
-            .collect::<Vec<_>>();
+        let log_degrees = opened_values.chips.iter().map(|val| val.log_degree).collect::<Vec<_>>();
 
-        let log_quotient_degrees = chips
-            .iter()
-            .map(|chip| chip.log_quotient_degree())
-            .collect::<Vec<_>>();
+        let log_quotient_degrees =
+            chips.iter().map(|chip| chip.log_quotient_degree()).collect::<Vec<_>>();
 
         let trace_domains = log_degrees
             .iter()
@@ -262,14 +241,7 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        (
-            chips,
-            trace_domains,
-            quotient_chunk_domains,
-            permutation_challenges,
-            alpha,
-            zeta,
-        )
+        (chips, trace_domains, quotient_chunk_domains, permutation_challenges, alpha, zeta)
     }
 
     #[test]

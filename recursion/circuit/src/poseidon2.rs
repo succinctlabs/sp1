@@ -3,16 +3,10 @@
 use std::array;
 
 use itertools::Itertools;
-use p3_field::AbstractField;
-use p3_field::Field;
-use sp1_recursion_compiler::ir::Felt;
-use sp1_recursion_compiler::ir::{Builder, Config, DslIr, Var};
+use p3_field::{AbstractField, Field};
+use sp1_recursion_compiler::ir::{Builder, Config, DslIr, Felt, Var};
 
-use crate::challenger::reduce_32;
-use crate::types::OuterDigestVariable;
-use crate::DIGEST_SIZE;
-use crate::RATE;
-use crate::SPONGE_SIZE;
+use crate::{challenger::reduce_32, types::OuterDigestVariable, DIGEST_SIZE, RATE, SPONGE_SIZE};
 
 pub trait Poseidon2CircuitBuilder<C: Config> {
     fn p2_permute_mut(&mut self, state: [Var<C::N>; SPONGE_SIZE]);
@@ -31,11 +25,8 @@ impl<C: Config> Poseidon2CircuitBuilder<C> for Builder<C> {
         assert!(C::N::bits() == p3_bn254_fr::Bn254Fr::bits());
         assert!(C::F::bits() == p3_baby_bear::BabyBear::bits());
         let num_f_elms = C::N::bits() / C::F::bits();
-        let mut state: [Var<C::N>; SPONGE_SIZE] = [
-            self.eval(C::N::zero()),
-            self.eval(C::N::zero()),
-            self.eval(C::N::zero()),
-        ];
+        let mut state: [Var<C::N>; SPONGE_SIZE] =
+            [self.eval(C::N::zero()), self.eval(C::N::zero()), self.eval(C::N::zero())];
         for block_chunk in &input.iter().chunks(RATE) {
             for (chunk_id, chunk) in (&block_chunk.chunks(num_f_elms)).into_iter().enumerate() {
                 let chunk = chunk.collect_vec().into_iter().copied().collect::<Vec<_>>();
@@ -48,11 +39,8 @@ impl<C: Config> Poseidon2CircuitBuilder<C> for Builder<C> {
     }
 
     fn p2_compress(&mut self, input: [OuterDigestVariable<C>; 2]) -> OuterDigestVariable<C> {
-        let state: [Var<C::N>; SPONGE_SIZE] = [
-            self.eval(input[0][0]),
-            self.eval(input[1][0]),
-            self.eval(C::N::zero()),
-        ];
+        let state: [Var<C::N>; SPONGE_SIZE] =
+            [self.eval(input[0][0]), self.eval(input[1][0]), self.eval(C::N::zero())];
         self.p2_permute_mut(state);
         [state[0]; DIGEST_SIZE]
     }
@@ -65,10 +53,7 @@ impl<C: Config> Poseidon2CircuitBuilder<C> for Builder<C> {
         let mut state: [Felt<C::F>; 16] = array::from_fn(|_| self.eval(C::F::zero()));
 
         for block_chunk in &input.iter().chunks(8) {
-            state
-                .iter_mut()
-                .zip(block_chunk)
-                .for_each(|(s, i)| *s = self.eval(*i));
+            state.iter_mut().zip(block_chunk).for_each(|(s, i)| *s = self.eval(*i));
             self.p2_babybear_permute_mut(state);
         }
 
@@ -82,17 +67,17 @@ pub mod tests {
     use p3_bn254_fr::Bn254Fr;
     use p3_field::AbstractField;
     use p3_symmetric::{CryptographicHasher, Permutation, PseudoCompressionFunction};
-    use rand::thread_rng;
-    use rand::Rng;
+    use rand::{thread_rng, Rng};
     use sp1_core::utils::{inner_perm, InnerHash};
-    use sp1_recursion_compiler::config::OuterConfig;
-    use sp1_recursion_compiler::constraints::ConstraintCompiler;
-    use sp1_recursion_compiler::ir::{Builder, Felt, Var, Witness};
+    use sp1_recursion_compiler::{
+        config::OuterConfig,
+        constraints::ConstraintCompiler,
+        ir::{Builder, Felt, Var, Witness},
+    };
     use sp1_recursion_core::stark::config::{outer_perm, OuterCompress, OuterHash};
     use sp1_recursion_gnark_ffi::PlonkBn254Prover;
 
-    use crate::poseidon2::Poseidon2CircuitBuilder;
-    use crate::types::OuterDigestVariable;
+    use crate::{poseidon2::Poseidon2CircuitBuilder, types::OuterDigestVariable};
 
     #[test]
     fn test_p2_permute_mut() {

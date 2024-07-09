@@ -24,38 +24,31 @@ impl Instruction {
         imm_b: bool,
         imm_c: bool,
     ) -> Self {
-        Self {
-            opcode,
-            op_a,
-            op_b,
-            op_c,
-            imm_b,
-            imm_c,
-        }
+        Self { opcode, op_a, op_b, op_c, imm_b, imm_c }
     }
 
     /// Returns if the instruction is an ALU instruction.
     pub const fn is_alu_instruction(&self) -> bool {
         matches!(
             self.opcode,
-            Opcode::ADD
-                | Opcode::SUB
-                | Opcode::XOR
-                | Opcode::OR
-                | Opcode::AND
-                | Opcode::SLL
-                | Opcode::SRL
-                | Opcode::SRA
-                | Opcode::SLT
-                | Opcode::SLTU
-                | Opcode::MUL
-                | Opcode::MULH
-                | Opcode::MULHU
-                | Opcode::MULHSU
-                | Opcode::DIV
-                | Opcode::DIVU
-                | Opcode::REM
-                | Opcode::REMU
+            Opcode::ADD |
+                Opcode::SUB |
+                Opcode::XOR |
+                Opcode::OR |
+                Opcode::AND |
+                Opcode::SLL |
+                Opcode::SRL |
+                Opcode::SRA |
+                Opcode::SLT |
+                Opcode::SLTU |
+                Opcode::MUL |
+                Opcode::MULH |
+                Opcode::MULHU |
+                Opcode::MULHSU |
+                Opcode::DIV |
+                Opcode::DIVU |
+                Opcode::REM |
+                Opcode::REMU
         )
     }
 
@@ -68,14 +61,14 @@ impl Instruction {
     pub const fn is_memory_instruction(&self) -> bool {
         matches!(
             self.opcode,
-            Opcode::LB
-                | Opcode::LH
-                | Opcode::LW
-                | Opcode::LBU
-                | Opcode::LHU
-                | Opcode::SB
-                | Opcode::SH
-                | Opcode::SW
+            Opcode::LB |
+                Opcode::LH |
+                Opcode::LW |
+                Opcode::LBU |
+                Opcode::LHU |
+                Opcode::SB |
+                Opcode::SH |
+                Opcode::SW
         )
     }
 
@@ -102,11 +95,8 @@ impl Debug for Instruction {
         } else {
             format!("%x{}", self.op_b)
         };
-        let op_c_formatted = if self.imm_c {
-            format!("{}", self.op_c as i32)
-        } else {
-            format!("%x{}", self.op_c)
-        };
+        let op_c_formatted =
+            if self.imm_c { format!("{}", self.op_c as i32) } else { format!("%x{}", self.op_c) };
 
         let width = 10;
         write!(

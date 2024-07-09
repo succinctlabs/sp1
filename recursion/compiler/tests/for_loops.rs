@@ -1,12 +1,10 @@
 use p3_baby_bear::BabyBear;
 use p3_field::AbstractField;
-use sp1_core::stark::StarkGenericConfig;
-use sp1_core::utils::BabyBearPoseidon2;
-use sp1_recursion_compiler::asm::AsmBuilder;
-use sp1_recursion_compiler::asm::AsmConfig;
-use sp1_recursion_compiler::ir::Array;
-use sp1_recursion_compiler::ir::SymbolicVar;
-use sp1_recursion_compiler::ir::Var;
+use sp1_core::{stark::StarkGenericConfig, utils::BabyBearPoseidon2};
+use sp1_recursion_compiler::{
+    asm::{AsmBuilder, AsmConfig},
+    ir::{Array, SymbolicVar, Var},
+};
 use sp1_recursion_core::runtime::Runtime;
 
 #[test]
@@ -105,9 +103,7 @@ fn test_compiler_break() {
     builder.range(0, array.len()).for_each(|i, builder| {
         builder.set(&mut array, i, i);
 
-        builder
-            .if_eq(i, break_len)
-            .then(|builder| builder.break_loop());
+        builder.if_eq(i, break_len).then(|builder| builder.break_loop());
     });
 
     // Test that the array is correctly initialized.
@@ -128,9 +124,7 @@ fn test_compiler_break() {
         let exp_value: Var<_> = builder.eval(i * is_break);
         let value = builder.get(&array, i);
         builder.assert_var_eq(value, exp_value);
-        builder
-            .if_eq(i, break_len)
-            .then(|builder| builder.assign(is_break, F::zero()));
+        builder.if_eq(i, break_len).then(|builder| builder.assign(is_break, F::zero()));
     });
 
     // Test the break instructions in a nested loop.
@@ -141,9 +135,7 @@ fn test_compiler_break() {
 
         builder.range(0, i).for_each(|_, builder| {
             builder.assign(counter, counter + F::one());
-            builder
-                .if_eq(counter, break_len)
-                .then(|builder| builder.break_loop());
+            builder.if_eq(counter, break_len).then(|builder| builder.break_loop());
         });
 
         builder.set(&mut array, i, counter);
@@ -157,9 +149,7 @@ fn test_compiler_break() {
             builder.eval(i * is_break + (SymbolicVar::<F>::one() - is_break) * break_len);
         let value = builder.get(&array, i);
         builder.assert_var_eq(value, exp_value);
-        builder
-            .if_eq(i, break_len)
-            .then(|builder| builder.assign(is_break, F::zero()));
+        builder.if_eq(i, break_len).then(|builder| builder.assign(is_break, F::zero()));
     });
 
     let code = builder.compile_asm();

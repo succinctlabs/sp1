@@ -36,9 +36,7 @@ impl<C: Config, V: MemVariable<C>> Array<C, V> {
             Self::Dyn(ptr, len) => {
                 assert!(V::size_of() == 1, "only support variables of size 1");
                 let new_address = builder.eval(ptr.address + shift);
-                let new_ptr = Ptr::<C::N> {
-                    address: new_address,
-                };
+                let new_ptr = Ptr::<C::N> { address: new_address };
                 let len_var = len.materialize(builder);
                 let new_length = builder.eval(len_var - shift);
                 Array::Dyn(new_ptr, Usize::Var(new_length))
@@ -143,11 +141,7 @@ impl<C: Config> Builder<C> {
                     let valid = self.lt(index_v, len_v);
                     self.assert_var_eq(valid, C::N::one());
                 }
-                let index = MemIndex {
-                    index,
-                    offset: 0,
-                    size: V::size_of(),
-                };
+                let index = MemIndex { index, offset: 0, size: V::size_of() };
                 let var: V = self.uninit();
                 self.load(var.clone(), *ptr, index);
                 var
@@ -173,11 +167,7 @@ impl<C: Config> Builder<C> {
                     let valid = self.lt(index_v, len_v);
                     self.assert_var_eq(valid, C::N::one());
                 }
-                let index = MemIndex {
-                    index,
-                    offset: 0,
-                    size: V::size_of(),
-                };
+                let index = MemIndex { index, offset: 0, size: V::size_of() };
                 let var: Ptr<C::N> = self.uninit();
                 self.load(var, *ptr, index);
                 var
@@ -204,11 +194,7 @@ impl<C: Config> Builder<C> {
                     let valid = self.lt(index_v, len_v);
                     self.assert_var_eq(valid, C::N::one());
                 }
-                let index = MemIndex {
-                    index,
-                    offset: 0,
-                    size: V::size_of(),
-                };
+                let index = MemIndex { index, offset: 0, size: V::size_of() };
                 let value: V = self.eval(value);
                 self.store(*ptr, index, value);
             }
@@ -228,11 +214,7 @@ impl<C: Config> Builder<C> {
                 todo!()
             }
             Array::Dyn(ptr, _) => {
-                let index = MemIndex {
-                    index,
-                    offset: 0,
-                    size: V::size_of(),
-                };
+                let index = MemIndex { index, offset: 0, size: V::size_of() };
                 self.store(*ptr, index, value);
             }
         }

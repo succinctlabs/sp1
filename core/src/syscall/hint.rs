@@ -34,15 +34,8 @@ impl Syscall for SyscallHintRead {
         }
         let vec = &ctx.rt.state.input_stream[ctx.rt.state.input_stream_ptr];
         ctx.rt.state.input_stream_ptr += 1;
-        assert!(
-            !ctx.rt.unconstrained,
-            "hint read should not be used in a unconstrained block"
-        );
-        assert_eq!(
-            vec.len() as u32,
-            len,
-            "hint input stream read length mismatch"
-        );
+        assert!(!ctx.rt.unconstrained, "hint read should not be used in a unconstrained block");
+        assert_eq!(vec.len() as u32, len, "hint input stream read length mismatch");
         assert_eq!(ptr % 4, 0, "hint read address not aligned to 4 bytes");
         // Iterate through the vec in 4-byte chunks
         for i in (0..len).step_by(4) {

@@ -61,11 +61,7 @@ pub fn compute_root_quotient_and_shift<F: PrimeField32>(
 #[inline]
 pub fn split_u16_limbs_to_u8_limbs<F: PrimeField32>(slice: &[F]) -> (Vec<F>, Vec<F>) {
     (
-        slice
-            .iter()
-            .map(|x| x.as_canonical_u64() as u8)
-            .map(|x| F::from_canonical_u8(x))
-            .collect(),
+        slice.iter().map(|x| x.as_canonical_u64() as u8).map(|x| F::from_canonical_u8(x)).collect(),
         slice
             .iter()
             .map(|x| (x.as_canonical_u64() >> 8) as u8)

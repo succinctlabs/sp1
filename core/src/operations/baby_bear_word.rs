@@ -41,28 +41,22 @@ impl<F: Field> BabyBearWordRangeChecker<F> {
         is_real: AB::Expr,
     ) {
         let mut recomposed_byte = AB::Expr::zero();
-        cols.most_sig_byte_decomp
-            .iter()
-            .enumerate()
-            .for_each(|(i, value)| {
-                builder.when(is_real.clone()).assert_bool(*value);
-                recomposed_byte =
-                    recomposed_byte.clone() + AB::Expr::from_canonical_usize(1 << i) * *value;
-            });
+        cols.most_sig_byte_decomp.iter().enumerate().for_each(|(i, value)| {
+            builder.when(is_real.clone()).assert_bool(*value);
+            recomposed_byte =
+                recomposed_byte.clone() + AB::Expr::from_canonical_usize(1 << i) * *value;
+        });
 
-        builder
-            .when(is_real.clone())
-            .assert_eq(recomposed_byte, value[3]);
+        builder.when(is_real.clone()).assert_eq(recomposed_byte, value[3]);
 
         // Range check that value is less than baby bear modulus.  To do this, it is sufficient
-        // to just do comparisons for the most significant byte. BabyBear's modulus is (in big endian binary)
-        // 01111000_00000000_00000000_00000001.  So we need to check the following conditions:
+        // to just do comparisons for the most significant byte. BabyBear's modulus is (in big
+        // endian binary) 01111000_00000000_00000000_00000001.  So we need to check the
+        // following conditions:
         // 1) if most_sig_byte > 01111000, then fail.
         // 2) if most_sig_byte == 01111000, then value's lower sig bytes must all be 0.
         // 3) if most_sig_byte < 01111000, then pass.
-        builder
-            .when(is_real.clone())
-            .assert_zero(cols.most_sig_byte_decomp[7]);
+        builder.when(is_real.clone()).assert_zero(cols.most_sig_byte_decomp[7]);
 
         // Compute the product of the "top bits".
         builder.when(is_real.clone()).assert_eq(
@@ -78,10 +72,8 @@ impl<F: Field> BabyBearWordRangeChecker<F> {
             cols.and_most_sig_byte_decomp_3_to_6 * cols.most_sig_byte_decomp[6],
         );
 
-        let bottom_bits: AB::Expr = cols.most_sig_byte_decomp[0..3]
-            .iter()
-            .map(|bit| (*bit).into())
-            .sum();
+        let bottom_bits: AB::Expr =
+            cols.most_sig_byte_decomp[0..3].iter().map(|bit| (*bit).into()).sum();
         builder
             .when(is_real.clone())
             .when(cols.and_most_sig_byte_decomp_3_to_7)

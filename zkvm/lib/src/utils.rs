@@ -15,21 +15,15 @@ impl<C: CurveOperations<NUM_WORDS> + Copy, const NUM_WORDS: usize> AffinePoint<C
     const GENERATOR: [u32; NUM_WORDS] = C::GENERATOR;
 
     pub const fn generator_in_affine() -> Self {
-        Self {
-            limbs: Self::GENERATOR,
-            _marker: std::marker::PhantomData,
-        }
+        Self { limbs: Self::GENERATOR, _marker: std::marker::PhantomData }
     }
 
     pub const fn new(limbs: [u32; NUM_WORDS]) -> Self {
-        Self {
-            limbs,
-            _marker: std::marker::PhantomData,
-        }
+        Self { limbs, _marker: std::marker::PhantomData }
     }
 
-    /// x_bytes and y_bytes are the concatenated little endian representations of the x and y coordinates.
-    /// The length of x_bytes and y_bytes must each be NUM_WORDS * 2.
+    /// x_bytes and y_bytes are the concatenated little endian representations of the x and y
+    /// coordinates. The length of x_bytes and y_bytes must each be NUM_WORDS * 2.
     pub fn from(x_bytes: &[u8], y_bytes: &[u8]) -> Self {
         debug_assert!(x_bytes.len() == NUM_WORDS * 2);
         debug_assert!(y_bytes.len() == NUM_WORDS * 2);
@@ -79,10 +73,7 @@ impl<C: CurveOperations<NUM_WORDS> + Copy, const NUM_WORDS: usize> AffinePoint<C
         let u32_limbs = bytes_to_words_le(limbs);
         debug_assert!(u32_limbs.len() == NUM_WORDS);
 
-        Self {
-            limbs: u32_limbs.try_into().unwrap(),
-            _marker: std::marker::PhantomData,
-        }
+        Self { limbs: u32_limbs.try_into().unwrap(), _marker: std::marker::PhantomData }
     }
 
     pub fn to_le_bytes(&self) -> Vec<u8> {
@@ -94,10 +85,7 @@ impl<C: CurveOperations<NUM_WORDS> + Copy, const NUM_WORDS: usize> AffinePoint<C
 
 /// Converts a slice of words to a byte array in little endian.
 pub fn words_to_bytes_le(words: &[u32]) -> Vec<u8> {
-    words
-        .iter()
-        .flat_map(|word| word.to_le_bytes().to_vec())
-        .collect::<Vec<_>>()
+    words.iter().flat_map(|word| word.to_le_bytes().to_vec()).collect::<Vec<_>>()
 }
 
 /// Converts a byte array in little endian to a slice of words.

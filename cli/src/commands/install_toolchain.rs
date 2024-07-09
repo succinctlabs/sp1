@@ -4,9 +4,11 @@ use dirs::home_dir;
 use rand::{distributions::Alphanumeric, Rng};
 use reqwest::Client;
 use sp1_sdk::artifacts::download_file;
-use std::fs::{self};
-use std::io::Read;
-use std::process::Command;
+use std::{
+    fs::{self},
+    io::Read,
+    process::Command,
+};
 
 #[cfg(target_family = "unix")]
 use std::os::unix::fs::PermissionsExt;
@@ -16,10 +18,7 @@ use crate::{
 };
 
 #[derive(Parser)]
-#[command(
-    name = "install-toolchain",
-    about = "Install the cargo-prove toolchain."
-)]
+#[command(name = "install-toolchain", about = "Install the cargo-prove toolchain.")]
 pub struct InstallToolchainCmd {
     #[arg(short, long, env = "GITHUB_TOKEN")]
     pub token: Option<String>,
@@ -68,10 +67,10 @@ impl InstallToolchainCmd {
                     if let Ok(entry) = entry {
                         let entry_path = entry.path();
                         let entry_name = entry_path.file_name().unwrap();
-                        if entry_path.is_dir()
-                            && entry_name != "bin"
-                            && entry_name != "circuits"
-                            && entry_name != "toolchains"
+                        if entry_path.is_dir() &&
+                            entry_name != "bin" &&
+                            entry_name != "circuits" &&
+                            entry_name != "toolchains"
                         {
                             if let Err(err) = fs::remove_dir_all(&entry_path) {
                                 println!("Failed to remove directory {:?}: {}", entry_path, err);
@@ -114,12 +113,7 @@ impl InstallToolchainCmd {
 
         // Download the toolchain.
         let mut file = fs::File::create(toolchain_archive_path)?;
-        rt.block_on(download_file(
-            &client,
-            toolchain_download_url.as_str(),
-            &mut file,
-        ))
-        .unwrap();
+        rt.block_on(download_file(&client, toolchain_download_url.as_str(), &mut file)).unwrap();
 
         // Remove the existing toolchain from rustup, if it exists.
         let mut child = Command::new("rustup")
@@ -144,22 +138,14 @@ impl InstallToolchainCmd {
         fs::create_dir_all(toolchain_dir.clone())?;
         Command::new("tar")
             .current_dir(&root_dir)
-            .args([
-                "-xzf",
-                &toolchain_asset_name,
-                "-C",
-                &toolchain_dir.to_string_lossy(),
-            ])
+            .args(["-xzf", &toolchain_asset_name, "-C", &toolchain_dir.to_string_lossy()])
             .status()?;
 
         // Move the toolchain to a randomly named directory in the 'toolchains' folder
         let toolchains_dir = root_dir.join("toolchains");
         fs::create_dir_all(&toolchains_dir)?;
-        let random_string: String = rand::thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(10)
-            .map(char::from)
-            .collect();
+        let random_string: String =
+            rand::thread_rng().sample_iter(&Alphanumeric).take(10).map(char::from).collect();
         let new_toolchain_dir = toolchains_dir.join(random_string);
         fs::rename(&toolchain_dir, &new_toolchain_dir)?;
 

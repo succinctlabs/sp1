@@ -2,12 +2,10 @@ use std::borrow::BorrowMut;
 
 use p3_field::PrimeField32;
 use p3_keccak_air::{generate_trace_rows, NUM_KECCAK_COLS, NUM_ROUNDS};
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{ParallelIterator, ParallelSlice};
 
-use crate::bytes::event::ByteRecord;
-use crate::{runtime::Program, stark::MachineRecord};
+use crate::{bytes::event::ByteRecord, runtime::Program, stark::MachineRecord};
 
 use crate::{air::MachineAir, runtime::ExecutionRecord};
 

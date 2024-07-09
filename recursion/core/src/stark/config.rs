@@ -4,21 +4,17 @@ use p3_challenger::MultiField32Challenger;
 use p3_commit::ExtensionMmcs;
 use p3_dft::Radix2DitParallel;
 use p3_field::extension::BinomialExtensionField;
-use p3_fri::BatchOpening;
-use p3_fri::CommitPhaseProofStep;
-use p3_fri::QueryProof;
-use p3_fri::{FriConfig, FriProof, TwoAdicFriPcs, TwoAdicFriPcsProof};
+use p3_fri::{
+    BatchOpening, CommitPhaseProofStep, FriConfig, FriProof, QueryProof, TwoAdicFriPcs,
+    TwoAdicFriPcsProof,
+};
 use p3_merkle_tree::FieldMerkleTreeMmcs;
-use p3_poseidon2::Poseidon2;
-use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
-use p3_symmetric::Hash;
-use p3_symmetric::{MultiField32PaddingFreeSponge, TruncatedPermutation};
-use serde::Deserialize;
-use serde::Serialize;
+use p3_poseidon2::{Poseidon2, Poseidon2ExternalMatrixGeneral};
+use p3_symmetric::{Hash, MultiField32PaddingFreeSponge, TruncatedPermutation};
+use serde::{Deserialize, Serialize};
 use sp1_core::stark::StarkGenericConfig;
 
-use super::poseidon2::bn254_poseidon2_rc3;
-use super::utils;
+use super::{poseidon2::bn254_poseidon2_rc3, utils};
 
 /// A configuration for outer recursion.
 pub type OuterVal = BabyBear;
@@ -48,10 +44,8 @@ pub fn outer_perm() -> OuterPerm {
     let mut round_constants = bn254_poseidon2_rc3();
     let internal_start = ROUNDS_F / 2;
     let internal_end = (ROUNDS_F / 2) + ROUNDS_P;
-    let internal_round_constants = round_constants
-        .drain(internal_start..internal_end)
-        .map(|vec| vec[0])
-        .collect::<Vec<_>>();
+    let internal_round_constants =
+        round_constants.drain(internal_start..internal_end).map(|vec| vec[0]).collect::<Vec<_>>();
     let external_round_constants = round_constants;
     OuterPerm::new(
         ROUNDS_F,
@@ -77,12 +71,7 @@ pub fn outer_fri_config() -> FriConfig<OuterChallengeMmcs> {
             Err(_) => 25,
         }
     };
-    FriConfig {
-        log_blowup: 4,
-        num_queries,
-        proof_of_work_bits: 16,
-        mmcs: challenge_mmcs,
-    }
+    FriConfig { log_blowup: 4, num_queries, proof_of_work_bits: 16, mmcs: challenge_mmcs }
 }
 
 #[derive(Deserialize)]
@@ -154,10 +143,5 @@ pub fn test_fri_config() -> FriConfig<OuterChallengeMmcs> {
     let hash = OuterHash::new(perm.clone()).unwrap();
     let compress = OuterCompress::new(perm.clone());
     let challenge_mmcs = OuterChallengeMmcs::new(OuterValMmcs::new(hash, compress));
-    FriConfig {
-        log_blowup: 1,
-        num_queries: 1,
-        proof_of_work_bits: 1,
-        mmcs: challenge_mmcs,
-    }
+    FriConfig { log_blowup: 1, num_queries: 1, proof_of_work_bits: 1, mmcs: challenge_mmcs }
 }

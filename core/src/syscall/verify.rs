@@ -22,13 +22,9 @@ impl Syscall for SyscallVerifySP1Proof {
         // pv_digest_ptr is a pointer to [u32; 8] which contains the public values digest.
         assert_eq!(pv_digest_ptr % 4, 0, "pv_digest_ptr must be word-aligned");
 
-        let vkey = (0..8)
-            .map(|i| rt.word(vkey_ptr + i * 4))
-            .collect::<Vec<u32>>();
+        let vkey = (0..8).map(|i| rt.word(vkey_ptr + i * 4)).collect::<Vec<u32>>();
 
-        let pv_digest = (0..8)
-            .map(|i| rt.word(pv_digest_ptr + i * 4))
-            .collect::<Vec<u32>>();
+        let pv_digest = (0..8).map(|i| rt.word(pv_digest_ptr + i * 4)).collect::<Vec<u32>>();
 
         let proof_index = rt.state.proof_stream_ptr;
         if proof_index >= rt.state.proof_stream.len() {

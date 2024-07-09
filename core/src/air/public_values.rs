@@ -1,7 +1,5 @@
-use core::fmt::Debug;
-use core::mem::size_of;
-use std::borrow::Borrow;
-use std::borrow::BorrowMut;
+use core::{fmt::Debug, mem::size_of};
+use std::borrow::{Borrow, BorrowMut};
 
 use itertools::Itertools;
 use p3_field::{AbstractField, PrimeField32};
@@ -59,8 +57,8 @@ pub struct PublicValues<W, T> {
 }
 
 impl PublicValues<u32, u32> {
-    /// Convert the public values into a vector of field elements.  This function will pad the vector
-    /// to the maximum number of public values.
+    /// Convert the public values into a vector of field elements.  This function will pad the
+    /// vector to the maximum number of public values.
     pub fn to_vec<F: AbstractField>(&self) -> Vec<F> {
         let mut ret = vec![F::zero(); PROOF_MAX_NUM_PVS];
 
@@ -173,9 +171,6 @@ mod tests {
     /// Check that the PI_DIGEST_NUM_WORDS number match the zkVM crate's.
     #[test]
     fn test_public_values_digest_num_words_consistency_zkvm() {
-        assert_eq!(
-            public_values::PV_DIGEST_NUM_WORDS,
-            sp1_zkvm::PV_DIGEST_NUM_WORDS
-        );
+        assert_eq!(public_values::PV_DIGEST_NUM_WORDS, sp1_zkvm::PV_DIGEST_NUM_WORDS);
     }
 }

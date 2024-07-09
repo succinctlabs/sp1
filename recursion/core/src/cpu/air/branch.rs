@@ -63,9 +63,7 @@ impl<F: Field, const L: usize> CpuChip<F, L> {
         let mut do_branch = local.selectors.is_beq * branch_cols.comparison_diff.result;
         do_branch += local.selectors.is_bne * (one.clone() - branch_cols.comparison_diff.result);
         do_branch += local.selectors.is_bneinc * (one.clone() - branch_cols.comparison_diff.result);
-        builder
-            .when(is_branch_instruction.clone())
-            .assert_eq(branch_cols.do_branch, do_branch);
+        builder.when(is_branch_instruction.clone()).assert_eq(branch_cols.do_branch, do_branch);
 
         // Verify branch_col.next_pc col.
         let pc_offset = local.c.value().0[0];

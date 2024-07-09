@@ -1,21 +1,21 @@
-use core::borrow::{Borrow, BorrowMut};
-use core::mem::size_of;
+use core::{
+    borrow::{Borrow, BorrowMut},
+    mem::size_of,
+};
 
 use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::AbstractField;
-use p3_field::PrimeField;
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
-use p3_maybe_rayon::prelude::ParallelIterator;
-use p3_maybe_rayon::prelude::ParallelSlice;
+use p3_field::{AbstractField, PrimeField};
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
+use p3_maybe_rayon::prelude::{ParallelIterator, ParallelSlice};
 use sp1_derive::AlignedBorrow;
 
-use crate::air::MachineAir;
-use crate::air::{SP1AirBuilder, Word};
-use crate::operations::AddOperation;
-use crate::runtime::{ExecutionRecord, Opcode, Program};
-use crate::stark::MachineRecord;
-use crate::utils::pad_to_power_of_two;
+use crate::{
+    air::{MachineAir, SP1AirBuilder, Word},
+    operations::AddOperation,
+    runtime::{ExecutionRecord, Opcode, Program},
+    stark::MachineRecord,
+    utils::pad_to_power_of_two,
+};
 
 /// The number of main trace columns for `AddSubChip`.
 pub const NUM_ADD_SUB_COLS: usize = size_of::<AddSubCols<u8>>();
@@ -74,15 +74,10 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
         // Generate the rows for the trace.
-        let chunk_size = std::cmp::max(
-            (input.add_events.len() + input.sub_events.len()) / num_cpus::get(),
-            1,
-        );
-        let merged_events = input
-            .add_events
-            .iter()
-            .chain(input.sub_events.iter())
-            .collect::<Vec<_>>();
+        let chunk_size =
+            std::cmp::max((input.add_events.len() + input.sub_events.len()) / num_cpus::get(), 1);
+        let merged_events =
+            input.add_events.iter().chain(input.sub_events.iter()).collect::<Vec<_>>();
 
         let rows_and_records = merged_events
             .par_chunks(chunk_size)
@@ -125,10 +120,8 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
         }
 
         // Convert the trace to a row major matrix.
-        let mut trace = RowMajorMatrix::new(
-            rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_ADD_SUB_COLS,
-        );
+        let mut trace =
+            RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_ADD_SUB_COLS);
 
         // Pad the trace to a power of two.
         pad_to_power_of_two::<NUM_ADD_SUB_COLS, F>(&mut trace.values);
@@ -167,9 +160,7 @@ where
 
         // Constrain the incrementing nonce.
         builder.when_first_row().assert_zero(local.nonce);
-        builder
-            .when_transition()
-            .assert_eq(local.nonce + AB::Expr::one(), next.nonce);
+        builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         // Evaluate the addition operation.
         AddOperation::<AB::F>::eval(

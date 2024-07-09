@@ -4,32 +4,29 @@ mod program;
 mod record;
 mod utils;
 
-use std::array;
-use std::collections::VecDeque;
-use std::process::exit;
-use std::{marker::PhantomData, sync::Arc};
+use std::{array, collections::VecDeque, marker::PhantomData, process::exit, sync::Arc};
 
 use hashbrown::HashMap;
 pub use instruction::*;
 use itertools::Itertools;
 pub use opcode::*;
-use p3_poseidon2::Poseidon2;
-use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
-use p3_symmetric::CryptographicPermutation;
-use p3_symmetric::Permutation;
+use p3_poseidon2::{Poseidon2, Poseidon2ExternalMatrixGeneral};
+use p3_symmetric::{CryptographicPermutation, Permutation};
 pub use program::*;
 pub use record::*;
 pub use utils::*;
 
-use crate::air::{Block, RECURSION_PUBLIC_VALUES_COL_MAP, RECURSIVE_PROOF_NUM_PV_ELTS};
-use crate::cpu::CpuEvent;
-use crate::exp_reverse_bits::ExpReverseBitsLenEvent;
-use crate::fri_fold::FriFoldEvent;
-use crate::memory::{compute_addr_diff, MemoryRecord};
-use crate::poseidon2_wide::events::{
-    Poseidon2AbsorbEvent, Poseidon2CompressEvent, Poseidon2FinalizeEvent, Poseidon2HashEvent,
+use crate::{
+    air::{Block, RECURSION_PUBLIC_VALUES_COL_MAP, RECURSIVE_PROOF_NUM_PV_ELTS},
+    cpu::CpuEvent,
+    exp_reverse_bits::ExpReverseBitsLenEvent,
+    fri_fold::FriFoldEvent,
+    memory::{compute_addr_diff, MemoryRecord},
+    poseidon2_wide::events::{
+        Poseidon2AbsorbEvent, Poseidon2CompressEvent, Poseidon2FinalizeEvent, Poseidon2HashEvent,
+    },
+    range_check::{RangeCheckEvent, RangeCheckOpcode},
 };
-use crate::range_check::{RangeCheckEvent, RangeCheckOpcode};
 
 use p3_field::{ExtensionField, PrimeField32};
 use sp1_core::runtime::MemoryAccessPosition;
@@ -46,7 +43,8 @@ pub const PERMUTATION_WIDTH: usize = 16;
 pub const POSEIDON2_SBOX_DEGREE: u64 = 7;
 pub const HASH_RATE: usize = 8;
 
-/// The current verifier implementation assumes that we are using a 256-bit hash with 32-bit elements.
+/// The current verifier implementation assumes that we are using a 256-bit hash with 32-bit
+/// elements.
 pub const DIGEST_SIZE: usize = 8;
 
 pub const NUM_BITS: usize = 31;
@@ -163,10 +161,8 @@ where
             POSEIDON2_SBOX_DEGREE,
         >,
     ) -> Self {
-        let record = ExecutionRecord::<F> {
-            program: Arc::new(program.clone()),
-            ..Default::default()
-        };
+        let record =
+            ExecutionRecord::<F> { program: Arc::new(program.clone()), ..Default::default() };
         Self {
             timestamp: 0,
             nb_poseidons: 0,
@@ -196,10 +192,8 @@ where
     }
 
     pub fn new_no_perm(program: &RecursionProgram<F>) -> Self {
-        let record = ExecutionRecord::<F> {
-            program: Arc::new(program.clone()),
-            ..Default::default()
-        };
+        let record =
+            ExecutionRecord::<F> { program: Arc::new(program.clone()), ..Default::default() };
         Self {
             timestamp: 0,
             nb_poseidons: 0,
@@ -242,13 +236,7 @@ where
 
     // Peek at the memory without touching the record.
     fn peek(&mut self, addr: F) -> (F, Block<F>) {
-        (
-            addr,
-            self.memory
-                .get(&(addr.as_canonical_u32() as usize))
-                .unwrap()
-                .value,
-        )
+        (addr, self.memory.get(&(addr.as_canonical_u32() as usize)).unwrap().value)
     }
 
     // Write to uninitialized memory.
@@ -262,10 +250,7 @@ where
         self.memory
             .entry(addr)
             .and_modify(|_| panic!("address already initialized"))
-            .or_insert(MemoryEntry {
-                value,
-                timestamp: F::zero(),
-            });
+            .or_insert(MemoryEntry { value, timestamp: F::zero() });
     }
 
     /// Given a MemoryRecord event, track the range checks for the memory access.
@@ -279,8 +264,7 @@ where
             RangeCheckOpcode::U12,
             record.diff_12bit_limb.as_canonical_u32() as u16,
         );
-        self.record
-            .add_range_check_events(&[diff_16bit_limb_event, diff_12bit_limb_event]);
+        self.record.add_range_check_events(&[diff_16bit_limb_event, diff_12bit_limb_event]);
     }
 
     /// Track the range checks for the memory finalize table. This will be used later to set the
@@ -293,21 +277,14 @@ where
             RangeCheckEvent::new(RangeCheckOpcode::U16, diff_16.as_canonical_u32() as u16);
         let diff_8bit_limb_event =
             RangeCheckEvent::new(RangeCheckOpcode::U12, diff_12.as_canonical_u32() as u16);
-        self.record
-            .add_range_check_events(&[diff_16bit_limb_event, diff_8bit_limb_event]);
+        self.record.add_range_check_events(&[diff_16bit_limb_event, diff_8bit_limb_event]);
     }
 
     fn mr(&mut self, addr: F, timestamp: F) -> (MemoryRecord<F>, Block<F>) {
-        let entry = self
-            .memory
-            .entry(addr.as_canonical_u32() as usize)
-            .or_default();
+        let entry = self.memory.entry(addr.as_canonical_u32() as usize).or_default();
         let (prev_value, prev_timestamp) = (entry.value, entry.timestamp);
         let record = MemoryRecord::new_read(addr, prev_value, timestamp, prev_timestamp);
-        *entry = MemoryEntry {
-            value: prev_value,
-            timestamp,
-        };
+        *entry = MemoryEntry { value: prev_value, timestamp };
         self.track_memory_range_checks(&record);
         (record, prev_value)
     }
@@ -331,10 +308,7 @@ where
         let value_as_block = value.into();
         let record =
             MemoryRecord::new_write(addr, value_as_block, timestamp, prev_value, prev_timestamp);
-        *entry = MemoryEntry {
-            value: value_as_block,
-            timestamp,
-        };
+        *entry = MemoryEntry { value: value_as_block, timestamp };
         self.track_memory_range_checks(&record);
         record
     }
@@ -482,8 +456,7 @@ where
                     if instruction_is_heap_expand(&instruction) {
                         let (u16_range_check, u12_range_check) =
                             get_heap_size_range_check_events(a_val[0]);
-                        self.record
-                            .add_range_check_events(&[u16_range_check, u12_range_check]);
+                        self.record.add_range_check_events(&[u16_range_check, u12_range_check]);
                     }
 
                     (a, b, c) = (a_val, b_val, c_val);
@@ -613,9 +586,7 @@ where
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::TRAP => {
-                    self.record
-                        .public_values
-                        .resize(RECURSIVE_PROOF_NUM_PV_ELTS, F::zero());
+                    self.record.public_values.resize(RECURSIVE_PROOF_NUM_PV_ELTS, F::zero());
                     self.record.public_values[RECURSION_PUBLIC_VALUES_COL_MAP.exit_code] = F::one();
 
                     let trap_pc = self.pc.as_canonical_u32() as usize;
@@ -639,9 +610,7 @@ where
                     }
                 }
                 Opcode::HALT => {
-                    self.record
-                        .public_values
-                        .resize(RECURSIVE_PROOF_NUM_PV_ELTS, F::zero());
+                    self.record.public_values.resize(RECURSIVE_PROOF_NUM_PV_ELTS, F::zero());
                     self.record.public_values[RECURSION_PUBLIC_VALUES_COL_MAP.exit_code] =
                         F::zero();
 
@@ -704,18 +673,16 @@ where
                         ));
                     }
 
-                    self.record
-                        .poseidon2_compress_events
-                        .push(Poseidon2CompressEvent {
-                            clk: timestamp,
-                            dst,
-                            left,
-                            right,
-                            input: array,
-                            result_array: result,
-                            input_records,
-                            result_records: result_records.try_into().unwrap(),
-                        });
+                    self.record.poseidon2_compress_events.push(Poseidon2CompressEvent {
+                        clk: timestamp,
+                        dst,
+                        left,
+                        right,
+                        input: array,
+                        result_array: result,
+                        input_records,
+                        result_records: result_records.try_into().unwrap(),
+                    });
 
                     (a, b, c) = (a_val, b_val, c_val);
                 }
@@ -729,11 +696,12 @@ where
                     let input_len = c_val[0];
                     let timestamp = self.clk;
 
-                    // We currently don't support an input_len of 0, since it will need special logic in the AIR.
+                    // We currently don't support an input_len of 0, since it will need special
+                    // logic in the AIR.
                     assert!(input_len > F::zero());
 
-                    let is_first_absorb = self.p2_current_hash_num.is_none()
-                        || self.p2_current_hash_num.unwrap() != hash_num;
+                    let is_first_absorb = self.p2_current_hash_num.is_none() ||
+                        self.p2_current_hash_num.unwrap() != hash_num;
 
                     let mut absorb_event = Poseidon2AbsorbEvent::new(
                         timestamp,
@@ -777,18 +745,13 @@ where
 
                     let do_perm = self.p2_hash_state_cursor != 0;
                     let perm_output = self.perm.as_ref().unwrap().permute(self.p2_hash_state);
-                    let state = if do_perm {
-                        perm_output
-                    } else {
-                        self.p2_hash_state
-                    };
+                    let state = if do_perm { perm_output } else { self.p2_hash_state };
                     let output_records: [MemoryRecord<F>; DIGEST_SIZE] = array::from_fn(|i| {
                         self.mw(output_ptr + F::from_canonical_usize(i), state[i], timestamp)
                     });
 
-                    self.record
-                        .poseidon2_hash_events
-                        .push(Poseidon2HashEvent::Finalize(Poseidon2FinalizeEvent {
+                    self.record.poseidon2_hash_events.push(Poseidon2HashEvent::Finalize(
+                        Poseidon2FinalizeEvent {
                             clk: timestamp,
                             hash_num: p2_hash_num,
                             output_ptr,
@@ -799,7 +762,8 @@ where
                             previous_state: self.p2_hash_state,
                             state,
                             do_perm,
-                        }));
+                        },
+                    ));
 
                     self.p2_hash_state_cursor = 0;
                     self.p2_hash_state = [F::zero(); PERMUTATION_WIDTH];
@@ -842,7 +806,8 @@ where
                 Opcode::FRIFold => {
                     let (a_val, b_val, c_val) = self.all_rr(&instruction);
 
-                    // The timestamp for the memory reads for all of these operations will be self.clk
+                    // The timestamp for the memory reads for all of these operations will be
+                    // self.clk
 
                     let ps_at_z_len = a_val[0];
                     let input_ptr = b_val[0];
@@ -975,13 +940,9 @@ where
                         let current_x_val = x_record.value[0];
 
                         let prev_accum = accum;
-                        accum = prev_accum
-                            * prev_accum
-                            * if current_bit == F::one() {
-                                current_x_val
-                            } else {
-                                F::one()
-                            };
+                        accum = prev_accum *
+                            prev_accum *
+                            if current_bit == F::one() { current_x_val } else { F::one() };
 
                         // On the last iteration, write accum to the address pointed to in `base`.
                         if m == len - F::one() {
@@ -989,19 +950,17 @@ where
                         };
 
                         // Add the event for this iteration to the `ExecutionRecord`.
-                        self.record
-                            .exp_reverse_bits_len_events
-                            .push(ExpReverseBitsLenEvent {
-                                clk: timestamp,
-                                x: x_record,
-                                current_bit: current_bit_record,
-                                len: len - m,
-                                prev_accum,
-                                accum,
-                                ptr,
-                                base_ptr: base,
-                                iteration_num: m,
-                            });
+                        self.record.exp_reverse_bits_len_events.push(ExpReverseBitsLenEvent {
+                            clk: timestamp,
+                            x: x_record,
+                            current_bit: current_bit_record,
+                            len: len - m,
+                            prev_accum,
+                            accum,
+                            ptr,
+                            base_ptr: base,
+                            iteration_num: m,
+                        });
                         timestamp += F::one();
                     }
 
@@ -1036,9 +995,9 @@ where
             self.timestamp += 1;
             self.access = CpuRecord::default();
 
-            if self.timestamp >= early_exit_ts
-                || instruction.opcode == Opcode::HALT
-                || instruction.opcode == Opcode::TRAP
+            if self.timestamp >= early_exit_ts ||
+                instruction.opcode == Opcode::HALT ||
+                instruction.opcode == Opcode::TRAP
             {
                 break;
             }
@@ -1050,9 +1009,7 @@ where
             // Get the initial value of the memory address from either the uninitialized memory
             // or set it as a default to 0.
             let init_value = self.uninitialized_memory.get(addr).unwrap_or(&zero_block);
-            self.record
-                .first_memory_record
-                .push((F::from_canonical_usize(*addr), *init_value));
+            self.record.first_memory_record.push((F::from_canonical_usize(*addr), *init_value));
 
             self.record.last_memory_record.push((
                 F::from_canonical_usize(*addr),
@@ -1060,13 +1017,11 @@ where
                 entry.value,
             ))
         }
-        self.record
-            .last_memory_record
-            .sort_by_key(|(addr, _, _)| *addr);
+        self.record.last_memory_record.sort_by_key(|(addr, _, _)| *addr);
 
         // For all the records but the last, need to check that the next address is greater than the
-        // current address, and that the difference is bounded by 2^28. We also track that the current
-        // address is bounded by 2^28.
+        // current address, and that the difference is bounded by 2^28. We also track that the
+        // current address is bounded by 2^28.
         for i in 0..self.record.last_memory_record.len() - 1 {
             self.track_addr_range_check(
                 self.record.last_memory_record[i].0,

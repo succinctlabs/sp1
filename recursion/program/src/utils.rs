@@ -1,24 +1,30 @@
 use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
 use p3_commit::{ExtensionMmcs, TwoAdicMultiplicativeCoset};
-use p3_field::extension::BinomialExtensionField;
-use p3_field::{AbstractField, Field, TwoAdicField};
+use p3_field::{extension::BinomialExtensionField, AbstractField, Field, TwoAdicField};
 use p3_fri::FriConfig;
 use p3_merkle_tree::FieldMerkleTreeMmcs;
 use p3_poseidon2::{Poseidon2, Poseidon2ExternalMatrixGeneral};
 use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
-use sp1_core::air::MachineAir;
-use sp1_core::stark::{Dom, ShardProof, StarkGenericConfig, StarkMachine, StarkVerifyingKey};
-use sp1_core::utils::BabyBearPoseidon2;
-use sp1_recursion_compiler::asm::AsmConfig;
-use sp1_recursion_compiler::ir::{Array, Builder, Config, Felt, MemVariable, Var};
-use sp1_recursion_core::air::ChallengerPublicValues;
-use sp1_recursion_core::runtime::{DIGEST_SIZE, PERMUTATION_WIDTH};
+use sp1_core::{
+    air::MachineAir,
+    stark::{Dom, ShardProof, StarkGenericConfig, StarkMachine, StarkVerifyingKey},
+    utils::BabyBearPoseidon2,
+};
+use sp1_recursion_compiler::{
+    asm::AsmConfig,
+    ir::{Array, Builder, Config, Felt, MemVariable, Var},
+};
+use sp1_recursion_core::{
+    air::ChallengerPublicValues,
+    runtime::{DIGEST_SIZE, PERMUTATION_WIDTH},
+};
 
-use crate::challenger::DuplexChallengerVariable;
-use crate::fri::types::FriConfigVariable;
-use crate::fri::TwoAdicMultiplicativeCosetVariable;
-use crate::stark::EMPTY;
-use crate::types::{QuotientDataValues, VerifyingKeyVariable};
+use crate::{
+    challenger::DuplexChallengerVariable,
+    fri::{types::FriConfigVariable, TwoAdicMultiplicativeCosetVariable},
+    stark::EMPTY,
+    types::{QuotientDataValues, VerifyingKeyVariable},
+};
 
 type SC = BabyBearPoseidon2;
 type F = <SC as StarkGenericConfig>::Val;
@@ -46,10 +52,7 @@ pub fn const_fri_config(
         let constant_generator = Val::two_adic_generator(i);
         builder.set(&mut generators, i, constant_generator);
 
-        let constant_domain = TwoAdicMultiplicativeCoset {
-            log_n: i,
-            shift: Val::one(),
-        };
+        let constant_domain = TwoAdicMultiplicativeCoset { log_n: i, shift: Val::one() };
         let domain_value: TwoAdicMultiplicativeCosetVariable<_> = builder.constant(constant_domain);
         builder.set(&mut subgroups, i, domain_value);
     }
@@ -157,13 +160,7 @@ pub fn get_challenger_public_values<C: Config>(
     let num_outputs = var2felt(builder, var.nb_outputs);
     let output_buffer = core::array::from_fn(|i| builder.get(&var.output_buffer, i));
 
-    ChallengerPublicValues {
-        sponge_state,
-        num_inputs,
-        input_buffer,
-        num_outputs,
-        output_buffer,
-    }
+    ChallengerPublicValues { sponge_state, num_inputs, input_buffer, num_outputs, output_buffer }
 }
 
 /// Hash the verifying key + prep domains into a single digest.
@@ -183,22 +180,20 @@ pub fn hash_vkey<C: Config>(
     builder.set(&mut inputs, DIGEST_SIZE, vk.pc_start);
     let four: Var<_> = builder.constant(C::N::from_canonical_usize(4));
     let one: Var<_> = builder.constant(C::N::one());
-    builder
-        .range(0, vk.prep_domains.len())
-        .for_each(|i, builder| {
-            let sorted_index = builder.get(&vk.preprocessed_sorted_idxs, i);
-            let domain = builder.get(&vk.prep_domains, i);
-            let log_n_index: Var<_> = builder.eval(vkey_slots + sorted_index * four);
-            let size_index: Var<_> = builder.eval(log_n_index + one);
-            let shift_index: Var<_> = builder.eval(size_index + one);
-            let g_index: Var<_> = builder.eval(shift_index + one);
-            let log_n_felt = var2felt(builder, domain.log_n);
-            let size_felt = var2felt(builder, domain.size);
-            builder.set(&mut inputs, log_n_index, log_n_felt);
-            builder.set(&mut inputs, size_index, size_felt);
-            builder.set(&mut inputs, shift_index, domain.shift);
-            builder.set(&mut inputs, g_index, domain.g);
-        });
+    builder.range(0, vk.prep_domains.len()).for_each(|i, builder| {
+        let sorted_index = builder.get(&vk.preprocessed_sorted_idxs, i);
+        let domain = builder.get(&vk.prep_domains, i);
+        let log_n_index: Var<_> = builder.eval(vkey_slots + sorted_index * four);
+        let size_index: Var<_> = builder.eval(log_n_index + one);
+        let shift_index: Var<_> = builder.eval(size_index + one);
+        let g_index: Var<_> = builder.eval(shift_index + one);
+        let log_n_felt = var2felt(builder, domain.log_n);
+        let size_felt = var2felt(builder, domain.size);
+        builder.set(&mut inputs, log_n_index, log_n_felt);
+        builder.set(&mut inputs, size_index, size_felt);
+        builder.set(&mut inputs, shift_index, domain.shift);
+        builder.set(&mut inputs, g_index, domain.g);
+    });
     builder.poseidon2_hash(&inputs)
 }
 
@@ -241,10 +236,7 @@ pub(crate) fn get_chip_quotient_data<SC: StarkGenericConfig, A: MachineAir<SC::V
         .shard_chips_ordered(&proof.chip_ordering)
         .map(|chip| {
             let log_quotient_degree = chip.log_quotient_degree();
-            QuotientDataValues {
-                log_quotient_degree,
-                quotient_size: 1 << log_quotient_degree,
-            }
+            QuotientDataValues { log_quotient_degree, quotient_size: 1 << log_quotient_degree }
         })
         .collect()
 }

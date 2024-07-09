@@ -1,28 +1,28 @@
 use core::mem::size_of;
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
-use sp1_core::air::AirInteraction;
-use sp1_core::air::MachineAir;
-use sp1_core::lookup::InteractionKind;
-use sp1_core::utils::pad_rows_fixed;
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
+use sp1_core::{
+    air::{AirInteraction, MachineAir},
+    lookup::InteractionKind,
+    utils::pad_rows_fixed,
+};
 use std::borrow::{Borrow, BorrowMut};
 use tracing::instrument;
 
 use super::columns::MemoryInitCols;
-use crate::air::SP1RecursionAirBuilder;
-use crate::memory::{Block, MemoryGlobalChip};
-use crate::runtime::{ExecutionRecord, RecursionProgram};
+use crate::{
+    air::SP1RecursionAirBuilder,
+    memory::{Block, MemoryGlobalChip},
+    runtime::{ExecutionRecord, RecursionProgram},
+};
 
 pub(crate) const NUM_MEMORY_INIT_COLS: usize = size_of::<MemoryInitCols<u8>>();
 
 #[allow(dead_code)]
 impl MemoryGlobalChip {
     pub const fn new() -> Self {
-        Self {
-            fixed_log2_rows: None,
-        }
+        Self { fixed_log2_rows: None }
     }
 }
 
@@ -102,16 +102,9 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
         );
 
         // Pad the trace to a power of two.
-        pad_rows_fixed(
-            &mut rows,
-            || [F::zero(); NUM_MEMORY_INIT_COLS],
-            self.fixed_log2_rows,
-        );
+        pad_rows_fixed(&mut rows, || [F::zero(); NUM_MEMORY_INIT_COLS], self.fixed_log2_rows);
 
-        RowMajorMatrix::new(
-            rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_MEMORY_INIT_COLS,
-        )
+        RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_MEMORY_INIT_COLS)
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -125,20 +118,17 @@ impl<F> BaseAir<F> for MemoryGlobalChip {
     }
 }
 
-/// Computes the difference between the `addr` and `prev_addr` and returns the 16-bit limb and 12-bit
-/// limbs of the difference.
+/// Computes the difference between the `addr` and `prev_addr` and returns the 16-bit limb and
+/// 12-bit limbs of the difference.
 ///
-/// The parameter `subtract_one` is expected to be `true` when `addr` and `prev_addr` are consecutive
-/// addresses in the global memory table (we don't allow repeated addresses), and `false` when this
-/// function is used to perform the 28-bit range check on the `addr` field.
+/// The parameter `subtract_one` is expected to be `true` when `addr` and `prev_addr` are
+/// consecutive addresses in the global memory table (we don't allow repeated addresses), and
+/// `false` when this function is used to perform the 28-bit range check on the `addr` field.
 pub fn compute_addr_diff<F: PrimeField32>(addr: F, prev_addr: F, subtract_one: bool) -> (F, F) {
     let diff = addr.as_canonical_u32() - prev_addr.as_canonical_u32() - subtract_one as u32;
     let diff_16bit_limb = diff & 0xffff;
     let diff_12bit_limb = (diff >> 16) & 0xfff;
-    (
-        F::from_canonical_u32(diff_16bit_limb),
-        F::from_canonical_u32(diff_12bit_limb),
-    )
+    (F::from_canonical_u32(diff_16bit_limb), F::from_canonical_u32(diff_12bit_limb))
 }
 
 impl<AB> Air<AB> for MemoryGlobalChip
@@ -180,24 +170,16 @@ where
             .assert_one(next.is_finalize + (AB::Expr::one() - next.is_real));
 
         // After a padding row, we should only have another padding row.
-        builder
-            .when_transition()
-            .when(AB::Expr::one() - local.is_real)
-            .assert_zero(next.is_real);
+        builder.when_transition().when(AB::Expr::one() - local.is_real).assert_zero(next.is_real);
 
         // The last row should be a padding row or a finalize row.
-        builder
-            .when_last_row()
-            .assert_one(local.is_finalize + AB::Expr::one() - local.is_real);
+        builder.when_last_row().assert_one(local.is_finalize + AB::Expr::one() - local.is_real);
 
         // Ensure that the is_range_check column is properly computed.
-        // The flag column `is_range_check` is set iff is_finalize is set AND next.is_finalize is set.
-        builder
-            .when(local.is_range_check)
-            .assert_one(local.is_finalize * next.is_finalize);
-        builder
-            .when_not(local.is_range_check)
-            .assert_zero(local.is_finalize * next.is_finalize);
+        // The flag column `is_range_check` is set iff is_finalize is set AND next.is_finalize is
+        // set.
+        builder.when(local.is_range_check).assert_one(local.is_finalize * next.is_finalize);
+        builder.when_not(local.is_range_check).assert_zero(local.is_finalize * next.is_finalize);
 
         // Send requests for the 28-bit range checks and ensure that the limbs are correctly
         // computed.
@@ -247,30 +229,24 @@ mod tests {
     use itertools::Itertools;
     use std::time::Instant;
 
-    use p3_baby_bear::BabyBear;
-    use p3_baby_bear::DiffusionMatrixBabyBear;
+    use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
     use p3_field::AbstractField;
     use p3_matrix::{dense::RowMajorMatrix, Matrix};
-    use p3_poseidon2::Poseidon2;
-    use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
-    use sp1_core::stark::StarkGenericConfig;
+    use p3_poseidon2::{Poseidon2, Poseidon2ExternalMatrixGeneral};
     use sp1_core::{
         air::MachineAir,
+        stark::StarkGenericConfig,
         utils::{uni_stark_prove, uni_stark_verify, BabyBearPoseidon2},
     };
 
-    use crate::air::Block;
-    use crate::memory::MemoryGlobalChip;
-    use crate::runtime::ExecutionRecord;
+    use crate::{air::Block, memory::MemoryGlobalChip, runtime::ExecutionRecord};
 
     #[test]
     fn prove_babybear() {
         let config = BabyBearPoseidon2::compressed();
         let mut challenger = config.challenger();
 
-        let chip = MemoryGlobalChip {
-            fixed_log2_rows: None,
-        };
+        let chip = MemoryGlobalChip { fixed_log2_rows: None };
 
         let test_vals = (0..16).map(BabyBear::from_canonical_u32).collect_vec();
 
@@ -281,18 +257,12 @@ mod tests {
         }
 
         // Add a dummy initialize event because the AIR expects at least one.
-        input_exec
-            .first_memory_record
-            .push((BabyBear::zero(), Block::from(BabyBear::zero())));
+        input_exec.first_memory_record.push((BabyBear::zero(), Block::from(BabyBear::zero())));
 
         println!("input exec: {:?}", input_exec.last_memory_record.len());
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());
-        println!(
-            "trace dims is width: {:?}, height: {:?}",
-            trace.width(),
-            trace.height()
-        );
+        println!("trace dims is width: {:?}, height: {:?}", trace.width(), trace.height());
 
         let start = Instant::now();
         let proof = uni_stark_prove(&config, &chip, &mut challenger, trace);

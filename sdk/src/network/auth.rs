@@ -1,5 +1,4 @@
-use std::borrow::Cow;
-use std::str::FromStr;
+use std::{borrow::Cow, str::FromStr};
 
 use alloy_sol_types::{sol, Eip712Domain, SolStruct};
 use anyhow::Result;
@@ -44,8 +43,8 @@ sol! {
 /// Handles authentication for the Succinct prover network. All interactions that could potentially
 /// use computational resources must be authenticated by signing a message with a secp256k1 key.
 ///
-/// The messages themselves follow EIP-712, where the domain is "succinct" and the TypeStruct changes
-/// depending on which endpoint is being used. Documentation for EIP-712 can be found at:
+/// The messages themselves follow EIP-712, where the domain is "succinct" and the TypeStruct
+/// changes depending on which endpoint is being used. Documentation for EIP-712 can be found at:
 /// https://eips.ethereum.org/EIPS/eip-712
 pub struct NetworkAuth {
     // Holds a secp256k1 private key.
@@ -88,30 +87,20 @@ impl NetworkAuth {
         mode: i32,
         version: &str,
     ) -> Result<Vec<u8>> {
-        let type_struct = CreateProof {
-            nonce,
-            deadline,
-            mode: mode as u32,
-            version: version.to_string(),
-        };
+        let type_struct =
+            CreateProof { nonce, deadline, mode: mode as u32, version: version.to_string() };
         self.sign_message(type_struct).await
     }
 
     /// Signs a message to mark a proof as ready for proof generation.
     pub async fn sign_submit_proof_message(&self, nonce: u64, proof_id: &str) -> Result<Vec<u8>> {
-        let type_struct = SubmitProof {
-            nonce,
-            proof_id: proof_id.to_string(),
-        };
+        let type_struct = SubmitProof { nonce, proof_id: proof_id.to_string() };
         self.sign_message(type_struct).await
     }
 
     /// Signs a message to claim a proof that was requested.
     pub async fn sign_claim_proof_message(&self, nonce: u64, proof_id: &str) -> Result<Vec<u8>> {
-        let type_struct = ClaimProof {
-            nonce,
-            proof_id: proof_id.to_string(),
-        };
+        let type_struct = ClaimProof { nonce, proof_id: proof_id.to_string() };
         self.sign_message(type_struct).await
     }
 
@@ -123,22 +112,14 @@ impl NetworkAuth {
         reason: UnclaimReason,
         description: String,
     ) -> Result<Vec<u8>> {
-        let type_struct = UnclaimProof {
-            nonce,
-            proof_id,
-            reason: reason as u8,
-            description,
-        };
+        let type_struct = UnclaimProof { nonce, proof_id, reason: reason as u8, description };
         self.sign_message(type_struct).await
     }
 
     /// Signs a message to fulfill a proof. The proof must have been previously claimed by the
     /// signer first.
     pub async fn sign_fulfill_proof_message(&self, nonce: u64, proof_id: &str) -> Result<Vec<u8>> {
-        let type_struct = FulfillProof {
-            nonce,
-            proof_id: proof_id.to_string(),
-        };
+        let type_struct = FulfillProof { nonce, proof_id: proof_id.to_string() };
         self.sign_message(type_struct).await
     }
 }

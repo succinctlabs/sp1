@@ -28,21 +28,22 @@ pub use subproof::*;
 pub use syscall::*;
 pub use utils::*;
 
-use std::collections::hash_map::Entry;
-use std::collections::HashMap;
-use std::fs::File;
-use std::io::BufWriter;
-use std::io::Write;
-use std::sync::Arc;
+use std::{
+    collections::{hash_map::Entry, HashMap},
+    fs::File,
+    io::{BufWriter, Write},
+    sync::Arc,
+};
 
 use thiserror::Error;
 
-use crate::alu::create_alu_lookup_id;
-use crate::alu::create_alu_lookups;
-use crate::bytes::NUM_BYTE_LOOKUP_CHANNELS;
-use crate::memory::MemoryInitializeFinalizeEvent;
-use crate::utils::SP1CoreOpts;
-use crate::{alu::AluEvent, cpu::CpuEvent};
+use crate::{
+    alu::{create_alu_lookup_id, create_alu_lookups, AluEvent},
+    bytes::NUM_BYTE_LOOKUP_CHANNELS,
+    cpu::CpuEvent,
+    memory::MemoryInitializeFinalizeEvent,
+    utils::SP1CoreOpts,
+};
 
 /// An implementation of a runtime for the SP1 RISC-V zkVM.
 ///
@@ -83,8 +84,9 @@ pub struct Runtime<'a> {
 
     /// Whether the runtime is in constrained mode or not.
     ///
-    /// In unconstrained mode, any events, clock, register, or memory changes are reset after leaving
-    /// the unconstrained block. The only thing preserved is writes to the input stream.
+    /// In unconstrained mode, any events, clock, register, or memory changes are reset after
+    /// leaving the unconstrained block. The only thing preserved is writes to the input
+    /// stream.
     pub unconstrained: bool,
 
     /// The state of the runtime when in unconstrained mode.
@@ -146,10 +148,7 @@ impl<'a> Runtime<'a> {
         let program = Arc::new(program);
 
         // Create a default record with the program.
-        let record = ExecutionRecord {
-            program: program.clone(),
-            ..Default::default()
-        };
+        let record = ExecutionRecord { program: program.clone(), ..Default::default() };
 
         // If TRACE_FILE is set, initialize the trace buffer.
         let trace_buf = if let Ok(trace_file) = std::env::var("TRACE_FILE") {
@@ -161,15 +160,11 @@ impl<'a> Runtime<'a> {
 
         // Determine the maximum number of cycles for any syscall.
         let syscall_map = default_syscall_map();
-        let max_syscall_cycles = syscall_map
-            .values()
-            .map(|syscall| syscall.num_extra_cycles())
-            .max()
-            .unwrap_or(0);
+        let max_syscall_cycles =
+            syscall_map.values().map(|syscall| syscall.num_extra_cycles()).max().unwrap_or(0);
 
-        let subproof_verifier = context
-            .subproof_verifier
-            .unwrap_or_else(|| Arc::new(DefaultSubproofVerifier::new()));
+        let subproof_verifier =
+            context.subproof_verifier.unwrap_or_else(|| Arc::new(DefaultSubproofVerifier::new()));
         let hook_registry = context.hook_registry.unwrap_or_default();
 
         Self {
@@ -200,10 +195,7 @@ impl<'a> Runtime<'a> {
     /// Invokes the hook corresponding to the given file descriptor `fd` with the data `buf`,
     /// returning the resulting data.
     pub fn hook(&self, fd: u32, buf: &[u8]) -> Vec<Vec<u8>> {
-        self.hook_registry
-            .get(&fd)
-            .unwrap()
-            .invoke_hook(self.hook_env(), buf)
+        self.hook_registry.get(&fd).unwrap().invoke_hook(self.hook_env(), buf)
     }
 
     /// Prepare a `HookEnv` for use by hooks.
@@ -282,10 +274,7 @@ impl<'a> Runtime<'a> {
                 Entry::Occupied(ref entry) => Some(entry.get()),
                 Entry::Vacant(_) => None,
             };
-            self.unconstrained_state
-                .memory_diff
-                .entry(addr)
-                .or_insert(record.copied());
+            self.unconstrained_state.memory_diff.entry(addr).or_insert(record.copied());
         }
 
         // If it's the first time accessing this address, initialize previous values.
@@ -294,11 +283,7 @@ impl<'a> Runtime<'a> {
             Entry::Vacant(entry) => {
                 // If addr has a specific value to be initialized with, use that, otherwise 0.
                 let value = self.state.uninitialized_memory.get(&addr).unwrap_or(&0);
-                entry.insert(MemoryRecord {
-                    value: *value,
-                    shard: 0,
-                    timestamp: 0,
-                })
+                entry.insert(MemoryRecord { value: *value, shard: 0, timestamp: 0 })
             }
         };
         let value = record.value;
@@ -323,10 +308,7 @@ impl<'a> Runtime<'a> {
                 Entry::Occupied(ref entry) => Some(entry.get()),
                 Entry::Vacant(_) => None,
             };
-            self.unconstrained_state
-                .memory_diff
-                .entry(addr)
-                .or_insert(record.copied());
+            self.unconstrained_state.memory_diff.entry(addr).or_insert(record.copied());
         }
 
         // If it's the first time accessing this address, initialize previous values.
@@ -336,11 +318,7 @@ impl<'a> Runtime<'a> {
                 // If addr has a specific value to be initialized with, use that, otherwise 0.
                 let value = self.state.uninitialized_memory.get(&addr).unwrap_or(&0);
 
-                entry.insert(MemoryRecord {
-                    value: *value,
-                    shard: 0,
-                    timestamp: 0,
-                })
+                entry.insert(MemoryRecord { value: *value, shard: 0, timestamp: 0 })
             }
         };
         let prev_value = record.value;
@@ -351,14 +329,7 @@ impl<'a> Runtime<'a> {
         record.timestamp = timestamp;
 
         // Construct the memory write record.
-        MemoryWriteRecord::new(
-            value,
-            shard,
-            timestamp,
-            prev_value,
-            prev_shard,
-            prev_timestamp,
-        )
+        MemoryWriteRecord::new(value, shard, timestamp, prev_value, prev_shard, prev_timestamp)
     }
 
     /// Read from memory, assuming that all addresses are aligned.
@@ -534,11 +505,8 @@ impl<'a> Runtime<'a> {
             (rd, b, c)
         } else {
             assert!(instruction.imm_b && instruction.imm_c);
-            let (rd, b, c) = (
-                Register::from_u32(instruction.op_a),
-                instruction.op_b,
-                instruction.op_c,
-            );
+            let (rd, b, c) =
+                (Register::from_u32(instruction.op_a), instruction.op_b, instruction.op_c);
             (rd, b, c)
         }
     }
@@ -834,11 +802,7 @@ impl<'a> Runtime<'a> {
                 let syscall = SyscallCode::from_u32(syscall_id);
 
                 if self.print_report && !self.unconstrained {
-                    self.report
-                        .syscall_counts
-                        .entry(syscall)
-                        .and_modify(|c| *c += 1)
-                        .or_insert(1);
+                    self.report.syscall_counts.entry(syscall).and_modify(|c| *c += 1).or_insert(1);
                 }
 
                 let syscall_impl = self.get_syscall(syscall).cloned();
@@ -846,8 +810,9 @@ impl<'a> Runtime<'a> {
                 precompile_rt.syscall_lookup_id = syscall_lookup_id;
                 let (precompile_next_pc, precompile_cycles, returned_exit_code) =
                     if let Some(syscall_impl) = syscall_impl {
-                        // Executing a syscall optionally returns a value to write to the t0 register.
-                        // If it returns None, we just keep the syscall_id in t0.
+                        // Executing a syscall optionally returns a value to write to the t0
+                        // register. If it returns None, we just keep the
+                        // syscall_id in t0.
                         let res = syscall_impl.execute(&mut precompile_rt, b, c);
                         if let Some(val) = res {
                             a = val;
@@ -1033,8 +998,8 @@ impl<'a> Runtime<'a> {
             }
         }
 
-        Ok(self.state.pc.wrapping_sub(self.program.pc_base)
-            >= (self.program.instructions.len() * 4) as u32)
+        Ok(self.state.pc.wrapping_sub(self.program.pc_base) >=
+            (self.program.instructions.len() * 4) as u32)
     }
 
     pub fn bump_record(&mut self) {
@@ -1045,7 +1010,8 @@ impl<'a> Runtime<'a> {
         self.records.push(removed_record);
     }
 
-    /// Execute up to `self.shard_batch_size` cycles, returning the events emitted and whether the program ended.
+    /// Execute up to `self.shard_batch_size` cycles, returning the events emitted and whether the
+    /// program ended.
     pub fn execute_record(&mut self) -> Result<(Vec<ExecutionRecord>, bool), ExecutionError> {
         self.emit_events = true;
         self.print_report = true;
@@ -1053,7 +1019,8 @@ impl<'a> Runtime<'a> {
         Ok((std::mem::take(&mut self.records), done))
     }
 
-    /// Execute up to `self.shard_batch_size` cycles, returning a copy of the prestate and whether the program ended.
+    /// Execute up to `self.shard_batch_size` cycles, returning a copy of the prestate and whether
+    /// the program ended.
     pub fn execute_state(&mut self) -> Result<(ExecutionState, bool), ExecutionError> {
         self.emit_events = false;
         self.print_report = false;
@@ -1068,14 +1035,7 @@ impl<'a> Runtime<'a> {
 
         tracing::debug!("loading memory image");
         for (addr, value) in self.program.memory_image.iter() {
-            self.state.memory.insert(
-                *addr,
-                MemoryRecord {
-                    value: *value,
-                    shard: 0,
-                    timestamp: 0,
-                },
-            );
+            self.state.memory.insert(*addr, MemoryRecord { value: *value, shard: 0, timestamp: 0 });
         }
     }
 
@@ -1098,7 +1058,8 @@ impl<'a> Runtime<'a> {
         while !self.execute().unwrap() {}
     }
 
-    /// Executes up to `self.shard_batch_size` cycles of the program, returning whether the program has finished.
+    /// Executes up to `self.shard_batch_size` cycles of the program, returning whether the program
+    /// has finished.
     fn execute(&mut self) -> Result<bool, ExecutionError> {
         // Get the program.
         let program = self.program.clone();
@@ -1111,7 +1072,8 @@ impl<'a> Runtime<'a> {
             self.initialize();
         }
 
-        // Loop until we've executed `self.shard_batch_size` shards if `self.shard_batch_size` is set.
+        // Loop until we've executed `self.shard_batch_size` shards if `self.shard_batch_size` is
+        // set.
         let mut done = false;
         let mut current_shard = self.state.current_shard;
         let mut num_shards_executed = 0;
@@ -1210,16 +1172,10 @@ impl<'a> Runtime<'a> {
 
         let addr_0_final_record = match addr_0_record {
             Some(record) => record,
-            None => &MemoryRecord {
-                value: 0,
-                shard: 0,
-                timestamp: 1,
-            },
+            None => &MemoryRecord { value: 0, shard: 0, timestamp: 1 },
         };
-        memory_finalize_events.push(MemoryInitializeFinalizeEvent::finalize_from_record(
-            0,
-            addr_0_final_record,
-        ));
+        memory_finalize_events
+            .push(MemoryInitializeFinalizeEvent::finalize_from_record(0, addr_0_final_record));
 
         let memory_initialize_events = &mut self.record.memory_initialize_events;
         let addr_0_initialize_event =
@@ -1232,8 +1188,8 @@ impl<'a> Runtime<'a> {
                 continue;
             }
 
-            // Program memory is initialized in the MemoryProgram chip and doesn't require any events,
-            // so we only send init events for other memory addresses.
+            // Program memory is initialized in the MemoryProgram chip and doesn't require any
+            // events, so we only send init events for other memory addresses.
             if !self.record.program.memory_image.contains_key(addr) {
                 let initial_value = self.state.uninitialized_memory.get(addr).unwrap_or(&0);
                 memory_initialize_events.push(MemoryInitializeFinalizeEvent::initialize(
@@ -1244,9 +1200,8 @@ impl<'a> Runtime<'a> {
             }
 
             let record = *self.state.memory.get(addr).unwrap();
-            memory_finalize_events.push(MemoryInitializeFinalizeEvent::finalize_from_record(
-                *addr, &record,
-            ));
+            memory_finalize_events
+                .push(MemoryInitializeFinalizeEvent::finalize_from_record(*addr, &record));
         }
     }
 

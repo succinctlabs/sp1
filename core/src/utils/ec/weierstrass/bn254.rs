@@ -4,10 +4,10 @@ use serde::{Deserialize, Serialize};
 use typenum::{U32, U62};
 
 use super::{SwCurve, WeierstrassParameters};
-use crate::operations::field::params::FieldParameters;
-use crate::operations::field::params::NumLimbs;
-use crate::utils::ec::CurveType;
-use crate::utils::ec::EllipticCurveParameters;
+use crate::{
+    operations::field::params::{FieldParameters, NumLimbs},
+    utils::ec::{CurveType, EllipticCurveParameters},
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 /// Bn254 curve parameter
@@ -93,9 +93,6 @@ mod tests {
 
     #[test]
     fn test_weierstrass_biguint_scalar_mul() {
-        assert_eq!(
-            biguint_from_limbs(Bn254BaseField::MODULUS),
-            Bn254BaseField::modulus()
-        );
+        assert_eq!(biguint_from_limbs(Bn254BaseField::MODULUS), Bn254BaseField::modulus());
     }
 }

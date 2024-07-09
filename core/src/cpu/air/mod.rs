@@ -4,29 +4,25 @@ pub mod memory;
 pub mod register;
 
 use core::borrow::Borrow;
-use p3_air::Air;
-use p3_air::AirBuilder;
-use p3_air::AirBuilderWithPublicValues;
-use p3_air::BaseAir;
+use p3_air::{Air, AirBuilder, AirBuilderWithPublicValues, BaseAir};
 use p3_field::AbstractField;
 use p3_matrix::Matrix;
 
-use crate::air::BaseAirBuilder;
-use crate::air::PublicValues;
-use crate::air::SP1AirBuilder;
-use crate::air::Word;
-use crate::air::POSEIDON_NUM_WORDS;
-use crate::air::PV_DIGEST_NUM_WORDS;
-use crate::air::SP1_PROOF_NUM_PV_ELTS;
-use crate::bytes::ByteOpcode;
-use crate::cpu::columns::OpcodeSelectorCols;
-use crate::cpu::columns::{CpuCols, NUM_CPU_COLS};
-use crate::cpu::CpuChip;
-use crate::operations::BabyBearWordRangeChecker;
-use crate::runtime::Opcode;
+use crate::{
+    air::{
+        BaseAirBuilder, PublicValues, SP1AirBuilder, Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS,
+        SP1_PROOF_NUM_PV_ELTS,
+    },
+    bytes::ByteOpcode,
+    cpu::{
+        columns::{CpuCols, OpcodeSelectorCols, NUM_CPU_COLS},
+        CpuChip,
+    },
+    operations::BabyBearWordRangeChecker,
+    runtime::Opcode,
+};
 
-use super::columns::eval_channel_selectors;
-use super::columns::OPCODE_SELECTORS_COL_MAP;
+use super::columns::{eval_channel_selectors, OPCODE_SELECTORS_COL_MAP};
 
 impl<AB> Air<AB> for CpuChip
 where
@@ -124,25 +120,15 @@ where
         self.eval_is_real(builder, local, next);
 
         // Check that when `is_real=0` that all flags that send interactions are zero.
-        local
-            .selectors
-            .into_iter()
-            .enumerate()
-            .for_each(|(i, selector)| {
-                if i == OPCODE_SELECTORS_COL_MAP.imm_b {
-                    builder
-                        .when(AB::Expr::one() - local.is_real)
-                        .assert_one(local.selectors.imm_b);
-                } else if i == OPCODE_SELECTORS_COL_MAP.imm_c {
-                    builder
-                        .when(AB::Expr::one() - local.is_real)
-                        .assert_one(local.selectors.imm_c);
-                } else {
-                    builder
-                        .when(AB::Expr::one() - local.is_real)
-                        .assert_zero(selector);
-                }
-            });
+        local.selectors.into_iter().enumerate().for_each(|(i, selector)| {
+            if i == OPCODE_SELECTORS_COL_MAP.imm_b {
+                builder.when(AB::Expr::one() - local.is_real).assert_one(local.selectors.imm_b);
+            } else if i == OPCODE_SELECTORS_COL_MAP.imm_c {
+                builder.when(AB::Expr::one() - local.is_real).assert_one(local.selectors.imm_c);
+            } else {
+                builder.when(AB::Expr::one() - local.is_real).assert_zero(selector);
+            }
+        });
     }
 }
 
@@ -174,15 +160,10 @@ impl CpuChip {
         builder
             .when(is_jump_instruction.clone())
             .when_not(local.instruction.op_a_0)
-            .assert_eq(
-                local.op_a_val().reduce::<AB>(),
-                local.pc + AB::F::from_canonical_u8(4),
-            );
+            .assert_eq(local.op_a_val().reduce::<AB>(), local.pc + AB::F::from_canonical_u8(4));
 
         // Verify that the word form of local.pc is correct for JAL instructions.
-        builder
-            .when(local.selectors.is_jal)
-            .assert_eq(jump_columns.pc.reduce::<AB>(), local.pc);
+        builder.when(local.selectors.is_jal).assert_eq(jump_columns.pc.reduce::<AB>(), local.pc);
 
         // Verify that the word form of next.pc is correct for both jump instructions.
         builder
@@ -191,7 +172,8 @@ impl CpuChip {
             .when(is_jump_instruction.clone())
             .assert_eq(jump_columns.next_pc.reduce::<AB>(), next.pc);
 
-        // When the last row is real and it's a jump instruction, assert that local.next_pc <==> jump_column.next_pc
+        // When the last row is real and it's a jump instruction, assert that local.next_pc <==>
+        // jump_column.next_pc
         builder
             .when(local.is_real)
             .when(is_jump_instruction.clone())
@@ -248,9 +230,7 @@ impl CpuChip {
         let auipc_columns = local.opcode_specific_columns.auipc();
 
         // Verify that the word form of local.pc is correct.
-        builder
-            .when(local.selectors.is_auipc)
-            .assert_eq(auipc_columns.pc.reduce::<AB>(), local.pc);
+        builder.when(local.selectors.is_auipc).assert_eq(auipc_columns.pc.reduce::<AB>(), local.pc);
 
         // Range check the pc.
         BabyBearWordRangeChecker::<AB::F>::range_check(
@@ -278,7 +258,8 @@ impl CpuChip {
     /// This method ensures that all of the shard values are the same and that the clk starts at 0
     /// and is transitioned apporpriately.  It will also check that shard values are within 16 bits
     /// and clk values are within 24 bits.  Those range checks are needed for the memory access
-    /// timestamp check, which assumes those values are within 2^24.  See [`MemoryAirBuilder::verify_mem_access_ts`].
+    /// timestamp check, which assumes those values are within 2^24.  See
+    /// [`MemoryAirBuilder::verify_mem_access_ts`].
     pub(crate) fn eval_shard_clk<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
@@ -286,10 +267,7 @@ impl CpuChip {
         next: &CpuCols<AB::Var>,
     ) {
         // Verify that all shard values are the same.
-        builder
-            .when_transition()
-            .when(next.is_real)
-            .assert_eq(local.shard, next.shard);
+        builder.when_transition().when(next.is_real).assert_eq(local.shard, next.shard);
 
         // Verify that the shard value is within 16 bits.
         builder.send_byte(
@@ -314,10 +292,7 @@ impl CpuChip {
         let expected_next_clk =
             local.clk + AB::Expr::from_canonical_u32(4) + num_extra_cycles.clone();
 
-        builder
-            .when_transition()
-            .when(next.is_real)
-            .assert_eq(expected_next_clk.clone(), next.clk);
+        builder.when_transition().when(next.is_real).assert_eq(expected_next_clk.clone(), next.clk);
 
         // Range check that the clk is within 24 bits using it's limb values.
         builder.eval_range_check_24bits(
@@ -332,8 +307,9 @@ impl CpuChip {
 
     /// Constraints related to the pc for non jump, branch, and halt instructions.
     ///
-    /// The function will verify that the pc increments by 4 for all instructions except branch, jump
-    /// and halt instructions. Also, it ensures that the pc is carried down to the last row for non-real rows.
+    /// The function will verify that the pc increments by 4 for all instructions except branch,
+    /// jump and halt instructions. Also, it ensures that the pc is carried down to the last row
+    /// for non-real rows.
     pub(crate) fn eval_pc<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
@@ -346,22 +322,24 @@ impl CpuChip {
         let is_halt = self.get_is_halt_syscall::<AB>(builder, local);
         builder.when(local.is_real).assert_eq(
             local.is_sequential_instr,
-            AB::Expr::one()
-                - (is_branch_instruction
-                    + local.selectors.is_jal
-                    + local.selectors.is_jalr
-                    + is_halt),
+            AB::Expr::one() -
+                (is_branch_instruction +
+                    local.selectors.is_jal +
+                    local.selectors.is_jalr +
+                    is_halt),
         );
 
-        // Verify that the pc increments by 4 for all instructions except branch, jump and halt instructions.
-        // The other case is handled by eval_jump, eval_branch and eval_ecall (for halt).
+        // Verify that the pc increments by 4 for all instructions except branch, jump and halt
+        // instructions. The other case is handled by eval_jump, eval_branch and eval_ecall
+        // (for halt).
         builder
             .when_transition()
             .when(next.is_real)
             .when(local.is_sequential_instr)
             .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), next.pc);
 
-        // When the last row is real and it's a sequential instruction, assert that local.next_pc <==> local.pc + 4
+        // When the last row is real and it's a sequential instruction, assert that local.next_pc
+        // <==> local.pc + 4
         builder
             .when(local.is_real)
             .when(local.is_sequential_instr)
@@ -377,14 +355,10 @@ impl CpuChip {
         public_values: &PublicValues<Word<AB::Expr>, AB::Expr>,
     ) {
         // Verify the public value's shard.
-        builder
-            .when(local.is_real)
-            .assert_eq(public_values.execution_shard.clone(), local.shard);
+        builder.when(local.is_real).assert_eq(public_values.execution_shard.clone(), local.shard);
 
         // Verify the public value's start pc.
-        builder
-            .when_first_row()
-            .assert_eq(public_values.start_pc.clone(), local.pc);
+        builder.when_first_row().assert_eq(public_values.start_pc.clone(), local.pc);
 
         // Verify the public value's next pc.  We need to handle two cases:
         // 1. The last real row is a transition row.
@@ -417,10 +391,7 @@ impl CpuChip {
         // change value.
         builder.assert_bool(local.is_real);
         builder.when_first_row().assert_one(local.is_real);
-        builder
-            .when_transition()
-            .when_not(local.is_real)
-            .assert_zero(next.is_real);
+        builder.when_transition().when_not(local.is_real).assert_zero(next.is_real);
     }
 }
 

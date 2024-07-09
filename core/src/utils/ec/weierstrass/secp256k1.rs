@@ -3,24 +3,21 @@
 
 use std::str::FromStr;
 
-use elliptic_curve::sec1::ToEncodedPoint;
-use elliptic_curve::subtle::Choice;
+use elliptic_curve::{sec1::ToEncodedPoint, subtle::Choice};
 use generic_array::GenericArray;
-use k256::elliptic_curve::point::DecompressPoint;
-use k256::FieldElement;
-use num::traits::FromBytes;
-use num::traits::ToBytes;
-use num::{BigUint, Zero};
+use k256::{elliptic_curve::point::DecompressPoint, FieldElement};
+use num::{
+    traits::{FromBytes, ToBytes},
+    BigUint, Zero,
+};
 use serde::{Deserialize, Serialize};
 use typenum::{U32, U62};
 
 use super::{SwCurve, WeierstrassParameters};
-use crate::operations::field::params::FieldParameters;
-use crate::operations::field::params::NumLimbs;
-use crate::utils::ec::AffinePoint;
-use crate::utils::ec::CurveType;
-use crate::utils::ec::EllipticCurve;
-use crate::utils::ec::EllipticCurveParameters;
+use crate::{
+    operations::field::params::{FieldParameters, NumLimbs},
+    utils::ec::{AffinePoint, CurveType, EllipticCurve, EllipticCurveParameters},
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 /// Secp256k1 curve parameter
@@ -124,10 +121,7 @@ mod tests {
 
     #[test]
     fn test_weierstrass_biguint_scalar_mul() {
-        assert_eq!(
-            biguint_from_limbs(Secp256k1BaseField::MODULUS),
-            Secp256k1BaseField::modulus()
-        );
+        assert_eq!(biguint_from_limbs(Secp256k1BaseField::MODULUS), Secp256k1BaseField::modulus());
     }
 
     #[test]

@@ -1,25 +1,29 @@
 #![allow(clippy::needless_range_loop)]
 
-use crate::air::{Block, IsZeroOperation, RecursionMemoryAirBuilder};
-use crate::memory::{MemoryReadSingleCols, MemoryReadWriteSingleCols};
-use crate::runtime::Opcode;
+use crate::{
+    air::{Block, IsZeroOperation, RecursionMemoryAirBuilder},
+    memory::{MemoryReadSingleCols, MemoryReadWriteSingleCols},
+    runtime::Opcode,
+};
 use core::borrow::Borrow;
 use itertools::Itertools;
 use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::AbstractField;
-use p3_field::PrimeField32;
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
+use p3_field::{AbstractField, PrimeField32};
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_util::reverse_bits_len;
-use sp1_core::air::{BaseAirBuilder, ExtensionAirBuilder, MachineAir, SP1AirBuilder};
-use sp1_core::utils::pad_rows_fixed;
+use sp1_core::{
+    air::{BaseAirBuilder, ExtensionAirBuilder, MachineAir, SP1AirBuilder},
+    utils::pad_rows_fixed,
+};
 use sp1_derive::AlignedBorrow;
 use std::borrow::BorrowMut;
 use tracing::instrument;
 
-use crate::air::SP1RecursionAirBuilder;
-use crate::memory::MemoryRecord;
-use crate::runtime::{ExecutionRecord, RecursionProgram};
+use crate::{
+    air::SP1RecursionAirBuilder,
+    memory::MemoryRecord,
+    runtime::{ExecutionRecord, RecursionProgram},
+};
 
 pub const NUM_EXP_REVERSE_BITS_LEN_COLS: usize = core::mem::size_of::<ExpReverseBitsLenCols<u8>>();
 
@@ -75,11 +79,7 @@ impl<F: PrimeField32> ExpReverseBitsLenEvent<F> {
                 x: MemoryRecord::new_write(
                     F::one(),
                     Block::from([
-                        if i == len.as_canonical_u32() - 1 {
-                            accum
-                        } else {
-                            x
-                        },
+                        if i == len.as_canonical_u32() - 1 { accum } else { x },
                         F::zero(),
                         F::zero(),
                         F::zero(),
@@ -137,10 +137,12 @@ pub struct ExpReverseBitsLenCols<T: Copy> {
     /// The accumulator of the current iteration.
     pub accum: T,
 
-    /// A flag column to check whether the current row represents the last iteration of the computation.
+    /// A flag column to check whether the current row represents the last iteration of the
+    /// computation.
     pub is_last: IsZeroOperation<T>,
 
-    /// A flag column to check whether the current row represents the first iteration of the computation.
+    /// A flag column to check whether the current row represents the first iteration of the
+    /// computation.
     pub is_first: IsZeroOperation<T>,
 
     /// A column to count up from 0 to the length of the exponent.
@@ -206,8 +208,8 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpReverseBitsLenCh
                 cols.is_first.populate(event.iteration_num);
                 cols.is_real = F::one();
                 cols.iteration_num = event.iteration_num;
-                cols.multiplier = if event.current_bit.value
-                    == Block([F::one(), F::zero(), F::zero(), F::zero()])
+                cols.multiplier = if event.current_bit.value ==
+                    Block([F::one(), F::zero(), F::zero(), F::zero()])
                 {
                     // The event may change the value stored in the x memory access, and we need to
                     // use the previous value.
@@ -266,22 +268,14 @@ impl<const DEGREE: usize> ExpReverseBitsLenChip<DEGREE> {
     ) {
         // Dummy constraints to normalize to DEGREE when DEGREE > 3.
         if DEGREE > 3 {
-            let lhs = (0..DEGREE)
-                .map(|_| local.is_real.into())
-                .product::<AB::Expr>();
-            let rhs = (0..DEGREE)
-                .map(|_| local.is_real.into())
-                .product::<AB::Expr>();
+            let lhs = (0..DEGREE).map(|_| local.is_real.into()).product::<AB::Expr>();
+            let rhs = (0..DEGREE).map(|_| local.is_real.into()).product::<AB::Expr>();
             builder.assert_eq(lhs, rhs);
         }
 
         // Constraint that the operands are sent from the CPU table.
-        let operands = [
-            local.clk.into(),
-            local.base_ptr.into(),
-            local.ptr.into(),
-            local.len.into(),
-        ];
+        let operands =
+            [local.clk.into(), local.base_ptr.into(), local.ptr.into(), local.len.into()];
         builder.receive_table(
             Opcode::ExpReverseBitsLen.as_field::<AB::F>(),
             &operands,
@@ -312,9 +306,7 @@ impl<const DEGREE: usize> ExpReverseBitsLenChip<DEGREE> {
             .assert_one(next.is_first.result);
 
         // The accumulator needs to start with the multiplier for every `is_first` row.
-        builder
-            .when(local.is_first.result)
-            .assert_eq(local.accum, local.multiplier);
+        builder.when(local.is_first.result).assert_eq(local.accum, local.multiplier);
 
         // Assert that the last real row has `is_last` on.
         builder
@@ -322,16 +314,14 @@ impl<const DEGREE: usize> ExpReverseBitsLenChip<DEGREE> {
             .assert_one(local.is_last.result);
 
         // `multiplier` is x if the current bit is 1, and 1 if the current bit is 0.
-        builder
-            .when(current_bit_val)
-            .assert_eq(local.multiplier, local.x.prev_value);
+        builder.when(current_bit_val).assert_eq(local.multiplier, local.x.prev_value);
         builder
             .when(local.is_real)
             .when_not(current_bit_val)
             .assert_eq(local.multiplier, AB::Expr::one());
 
-        // To get `next.accum`, we multiply `local.prev_accum_squared` by `local.multiplier` when not
-        // `is_last`.
+        // To get `next.accum`, we multiply `local.prev_accum_squared` by `local.multiplier` when
+        // not `is_last`.
         builder
             .when_transition()
             .when_not(local.is_last.result)
@@ -343,7 +333,8 @@ impl<const DEGREE: usize> ExpReverseBitsLenChip<DEGREE> {
             .when_not(local.is_last.result)
             .assert_eq(next.prev_accum_squared, local.accum * local.accum);
 
-        // Constrain the memory address `base_ptr` to be the same as the next, as long as not `is_last`.
+        // Constrain the memory address `base_ptr` to be the same as the next, as long as not
+        // `is_last`.
         builder
             .when_transition()
             .when_not(local.is_last.result)
@@ -364,9 +355,7 @@ impl<const DEGREE: usize> ExpReverseBitsLenChip<DEGREE> {
             .assert_eq(local.iteration_num + AB::Expr::one(), next.iteration_num);
 
         // The `iteration_num` counter must be 0 iff `is_first` is on.
-        builder
-            .when(local.is_first.result)
-            .assert_eq(local.iteration_num, AB::Expr::zero());
+        builder.when(local.is_first.result).assert_eq(local.iteration_num, AB::Expr::zero());
 
         // Access the memory for current_bit.
         builder.recursion_eval_memory_access_single(
@@ -379,8 +368,8 @@ impl<const DEGREE: usize> ExpReverseBitsLenChip<DEGREE> {
         // Constrain that the x_mem_access_flag is true when `is_first` or `is_last`.
         builder.when(local.is_real).assert_eq(
             local.x_mem_access_flag,
-            local.is_first.result + local.is_last.result
-                - local.is_first.result * local.is_last.result,
+            local.is_first.result + local.is_last.result -
+                local.is_first.result * local.is_last.result,
         );
 
         // Access the memory for x.
@@ -407,14 +396,10 @@ impl<const DEGREE: usize> ExpReverseBitsLenChip<DEGREE> {
             .assert_eq(local.clk + AB::Expr::one(), next.clk);
 
         // Ensure that the value at the x memory access is unchanged when not `is_last`.
-        builder
-            .when_not(local.is_last.result)
-            .assert_eq(local.x.access.value, local.x.prev_value);
+        builder.when_not(local.is_last.result).assert_eq(local.x.access.value, local.x.prev_value);
 
         // Ensure that the value at the x memory access is `accum` when `is_last`.
-        builder
-            .when(local.is_last.result)
-            .assert_eq(local.accum, local.x.access.value);
+        builder.when(local.is_last.result).assert_eq(local.accum, local.x.access.value);
     }
 
     pub const fn do_exp_bit_memory_access<T: Copy>(local: &ExpReverseBitsLenCols<T>) -> T {
@@ -445,31 +430,27 @@ mod tests {
     use itertools::Itertools;
     use std::time::Instant;
 
-    use p3_baby_bear::BabyBear;
-    use p3_baby_bear::DiffusionMatrixBabyBear;
+    use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
     use p3_field::AbstractField;
     use p3_matrix::{dense::RowMajorMatrix, Matrix};
-    use p3_poseidon2::Poseidon2;
-    use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
-    use sp1_core::stark::StarkGenericConfig;
+    use p3_poseidon2::{Poseidon2, Poseidon2ExternalMatrixGeneral};
     use sp1_core::{
         air::MachineAir,
+        stark::StarkGenericConfig,
         utils::{uni_stark_prove, uni_stark_verify, BabyBearPoseidon2},
     };
 
-    use crate::exp_reverse_bits::ExpReverseBitsLenChip;
-    use crate::exp_reverse_bits::ExpReverseBitsLenEvent;
-    use crate::runtime::ExecutionRecord;
+    use crate::{
+        exp_reverse_bits::{ExpReverseBitsLenChip, ExpReverseBitsLenEvent},
+        runtime::ExecutionRecord,
+    };
 
     #[test]
     fn prove_babybear() {
         let config = BabyBearPoseidon2::compressed();
         let mut challenger = config.challenger();
 
-        let chip = ExpReverseBitsLenChip::<5> {
-            pad: true,
-            fixed_log2_rows: None,
-        };
+        let chip = ExpReverseBitsLenChip::<5> { pad: true, fixed_log2_rows: None };
 
         let test_xs = (1..16).map(BabyBear::from_canonical_u32).collect_vec();
 
@@ -485,17 +466,10 @@ mod tests {
             );
             input_exec.exp_reverse_bits_len_events.append(&mut events);
         }
-        println!(
-            "input exec: {:?}",
-            input_exec.exp_reverse_bits_len_events.len()
-        );
+        println!("input exec: {:?}", input_exec.exp_reverse_bits_len_events.len());
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());
-        println!(
-            "trace dims is width: {:?}, height: {:?}",
-            trace.width(),
-            trace.height()
-        );
+        println!("trace dims is width: {:?}, height: {:?}", trace.width(), trace.height());
 
         let start = Instant::now();
         let proof = uni_stark_prove(&config, &chip, &mut challenger, trace);

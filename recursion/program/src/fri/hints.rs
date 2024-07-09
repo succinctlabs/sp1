@@ -1,21 +1,22 @@
-use p3_field::AbstractExtensionField;
-use p3_field::AbstractField;
+use p3_field::{AbstractExtensionField, AbstractField};
 use sp1_core::utils::{
     InnerBatchOpening, InnerChallenge, InnerCommitPhaseStep, InnerDigest, InnerFriProof,
     InnerPcsProof, InnerQueryProof, InnerVal,
 };
-use sp1_recursion_compiler::config::InnerConfig;
 use sp1_recursion_compiler::{
     asm::AsmConfig,
+    config::InnerConfig,
     ir::{Array, Builder, Config},
 };
 use sp1_recursion_core::{air::Block, runtime::DIGEST_SIZE};
 
 use super::types::{BatchOpeningVariable, TwoAdicPcsProofVariable};
-use crate::fri::types::{
-    DigestVariable, FriCommitPhaseProofStepVariable, FriProofVariable, FriQueryProofVariable,
+use crate::{
+    fri::types::{
+        DigestVariable, FriCommitPhaseProofStepVariable, FriProofVariable, FriQueryProofVariable,
+    },
+    hints::Hintable,
 };
-use crate::hints::Hintable;
 
 type C = InnerConfig;
 
@@ -66,10 +67,7 @@ impl Hintable<C> for InnerCommitPhaseStep {
     fn read(builder: &mut Builder<C>) -> Self::HintVariable {
         let sibling_value = builder.hint_ext();
         let opening_proof = Vec::<InnerDigest>::read(builder);
-        Self::HintVariable {
-            sibling_value,
-            opening_proof,
-        }
+        Self::HintVariable { sibling_value, opening_proof }
     }
 
     fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
@@ -118,17 +116,13 @@ impl Hintable<C> for InnerQueryProof {
 
     fn read(builder: &mut Builder<C>) -> Self::HintVariable {
         let commit_phase_openings = Vec::<InnerCommitPhaseStep>::read(builder);
-        Self::HintVariable {
-            commit_phase_openings,
-        }
+        Self::HintVariable { commit_phase_openings }
     }
 
     fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
         let mut stream = Vec::new();
 
-        stream.extend(Vec::<InnerCommitPhaseStep>::write(
-            &self.commit_phase_openings,
-        ));
+        stream.extend(Vec::<InnerCommitPhaseStep>::write(&self.commit_phase_openings));
 
         stream
     }
@@ -170,23 +164,14 @@ impl Hintable<C> for InnerFriProof {
         let query_proofs = Vec::<InnerQueryProof>::read(builder);
         let final_poly = builder.hint_ext();
         let pow_witness = builder.hint_felt();
-        Self::HintVariable {
-            commit_phase_commits,
-            query_proofs,
-            final_poly,
-            pow_witness,
-        }
+        Self::HintVariable { commit_phase_commits, query_proofs, final_poly, pow_witness }
     }
 
     fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
         let mut stream = Vec::new();
 
         stream.extend(Vec::<InnerDigest>::write(
-            &self
-                .commit_phase_commits
-                .iter()
-                .map(|x| (*x).into())
-                .collect(),
+            &self.commit_phase_commits.iter().map(|x| (*x).into()).collect(),
         ));
         stream.extend(Vec::<InnerQueryProof>::write(&self.query_proofs));
         let final_poly: &[InnerVal] = self.final_poly.as_base_slice();
@@ -205,10 +190,7 @@ impl Hintable<C> for InnerBatchOpening {
     fn read(builder: &mut Builder<C>) -> Self::HintVariable {
         let opened_values = Vec::<Vec<InnerChallenge>>::read(builder);
         let opening_proof = Vec::<InnerDigest>::read(builder);
-        Self::HintVariable {
-            opened_values,
-            opening_proof,
-        }
+        Self::HintVariable { opened_values, opening_proof }
     }
 
     fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
@@ -287,10 +269,7 @@ impl Hintable<C> for InnerPcsProof {
     fn read(builder: &mut Builder<C>) -> Self::HintVariable {
         let fri_proof = InnerFriProof::read(builder);
         let query_openings = Vec::<Vec<InnerBatchOpening>>::read(builder);
-        Self::HintVariable {
-            fri_proof,
-            query_openings,
-        }
+        Self::HintVariable { fri_proof, query_openings }
     }
 
     fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {

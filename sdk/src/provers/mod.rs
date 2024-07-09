@@ -4,24 +4,19 @@ mod mock;
 use anyhow::Result;
 pub use local::LocalProver;
 pub use mock::MockProver;
-use sp1_core::runtime::SP1Context;
-use sp1_core::stark::MachineVerificationError;
-use sp1_core::utils::SP1ProverOpts;
-use sp1_core::SP1_CIRCUIT_VERSION;
-use sp1_prover::components::SP1ProverComponents;
-use sp1_prover::CoreSC;
-use sp1_prover::InnerSC;
-use sp1_prover::SP1CoreProofData;
-use sp1_prover::SP1Prover;
-use sp1_prover::SP1ReduceProof;
-use sp1_prover::{SP1ProvingKey, SP1Stdin, SP1VerifyingKey};
+use sp1_core::{
+    runtime::SP1Context, stark::MachineVerificationError, utils::SP1ProverOpts, SP1_CIRCUIT_VERSION,
+};
+use sp1_prover::{
+    components::SP1ProverComponents, CoreSC, InnerSC, SP1CoreProofData, SP1Prover, SP1ProvingKey,
+    SP1ReduceProof, SP1Stdin, SP1VerifyingKey,
+};
 use strum_macros::EnumString;
 use thiserror::Error;
 
-use crate::install::try_install_plonk_bn254_artifacts;
-use crate::SP1Proof;
-use crate::SP1ProofKind;
-use crate::SP1ProofWithPublicValues;
+use crate::{
+    install::try_install_plonk_bn254_artifacts, SP1Proof, SP1ProofKind, SP1ProofWithPublicValues,
+};
 
 /// The type of prover.
 #[derive(Debug, PartialEq, EnumString)]
@@ -74,9 +69,7 @@ pub trait Prover<C: SP1ProverComponents>: Send + Sync {
         vkey: &SP1VerifyingKey,
     ) -> Result<(), SP1VerificationError> {
         if bundle.sp1_version != self.version() {
-            return Err(SP1VerificationError::VersionMismatch(
-                bundle.sp1_version.clone(),
-            ));
+            return Err(SP1VerificationError::VersionMismatch(bundle.sp1_version.clone()));
         }
         match bundle.proof.clone() {
             SP1Proof::Core(proof) => self

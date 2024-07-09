@@ -7,17 +7,19 @@ use sp1_core::{air::MachineAir, utils::pad_rows_fixed};
 use sp1_primitives::RC_16_30_U32;
 use tracing::instrument;
 
-use crate::poseidon2_wide::columns::permutation::permutation_mut;
-use crate::poseidon2_wide::events::Poseidon2HashEvent;
-use crate::range_check::{RangeCheckEvent, RangeCheckOpcode};
 use crate::{
-    poseidon2_wide::{external_linear_layer, NUM_EXTERNAL_ROUNDS, WIDTH},
+    poseidon2_wide::{
+        columns::permutation::permutation_mut, events::Poseidon2HashEvent, external_linear_layer,
+        NUM_EXTERNAL_ROUNDS, WIDTH,
+    },
+    range_check::{RangeCheckEvent, RangeCheckOpcode},
     runtime::{ExecutionRecord, RecursionProgram},
 };
 
-use super::events::{Poseidon2AbsorbEvent, Poseidon2CompressEvent, Poseidon2FinalizeEvent};
-use super::RATE;
-use super::{internal_linear_layer, Poseidon2WideChip, NUM_INTERNAL_ROUNDS};
+use super::{
+    events::{Poseidon2AbsorbEvent, Poseidon2CompressEvent, Poseidon2FinalizeEvent},
+    internal_linear_layer, Poseidon2WideChip, NUM_INTERNAL_ROUNDS, RATE,
+};
 
 impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<DEGREE> {
     type Record = ExecutionRecord<F>;
@@ -198,7 +200,8 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
     ) -> Vec<Vec<F>> {
         let mut absorb_rows = Vec::new();
 
-        // We currently don't support an input_len of 0, since it will need special logic in the AIR.
+        // We currently don't support an input_len of 0, since it will need special logic in the
+        // AIR.
         assert!(absorb_event.input_len > F::zero());
 
         let mut last_row_ending_cursor = 0;
@@ -256,34 +259,30 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                 )]);
 
                 // Calculate last_row_num_consumed.
-                // For absorb calls that span multiple rows (e.g. the last row is not the syscall row),
-                // last_row_num_consumed = (input_len + state_cursor) % 8 at the syscall row.
-                // For absorb calls that are only one row, last_row_num_consumed = absorb_event.input_len.
+                // For absorb calls that span multiple rows (e.g. the last row is not the syscall
+                // row), last_row_num_consumed = (input_len + state_cursor) % 8 at
+                // the syscall row. For absorb calls that are only one row,
+                // last_row_num_consumed = absorb_event.input_len.
                 if is_syscall_row {
-                    last_row_ending_cursor = (absorb_iter.state_cursor
-                        + absorb_event.input_len.as_canonical_u32() as usize
-                        - 1)
-                        % RATE;
+                    last_row_ending_cursor = (absorb_iter.state_cursor +
+                        absorb_event.input_len.as_canonical_u32() as usize -
+                        1) %
+                        RATE;
                 }
 
                 absorb_workspace.last_row_ending_cursor =
                     F::from_canonical_usize(last_row_ending_cursor);
 
-                absorb_workspace
-                    .last_row_ending_cursor_is_seven
-                    .populate_from_field_element(
-                        F::from_canonical_usize(last_row_ending_cursor)
-                            - F::from_canonical_usize(7),
-                    );
+                absorb_workspace.last_row_ending_cursor_is_seven.populate_from_field_element(
+                    F::from_canonical_usize(last_row_ending_cursor) - F::from_canonical_usize(7),
+                );
 
                 (0..3).for_each(|i| {
                     absorb_workspace.last_row_ending_cursor_bitmap[i] =
                         F::from_bool((last_row_ending_cursor) & (1 << i) == (1 << i))
                 });
 
-                absorb_workspace
-                    .num_remaining_rows_is_zero
-                    .populate(num_remaining_rows as u32);
+                absorb_workspace.num_remaining_rows_is_zero.populate(num_remaining_rows as u32);
 
                 absorb_workspace.is_syscall_not_last_row =
                     F::from_bool(is_syscall_row && !is_last_row);
@@ -313,11 +312,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             // Populate the permutation fields.
             self.populate_permutation(
                 absorb_iter.perm_input,
-                if absorb_iter.do_perm {
-                    Some(absorb_iter.perm_output)
-                } else {
-                    None
-                },
+                if absorb_iter.do_perm { Some(absorb_iter.perm_output) } else { None },
                 &mut absorb_row,
             );
 
@@ -372,19 +367,13 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             finalize_workspace.previous_state = finalize_event.previous_state;
             finalize_workspace.state = finalize_event.state;
             finalize_workspace.state_cursor = F::from_canonical_usize(finalize_event.state_cursor);
-            finalize_workspace
-                .state_cursor_is_zero
-                .populate(finalize_event.state_cursor as u32);
+            finalize_workspace.state_cursor_is_zero.populate(finalize_event.state_cursor as u32);
         }
 
         // Populate the permutation fields.
         self.populate_permutation(
             finalize_event.perm_input,
-            if finalize_event.do_perm {
-                Some(finalize_event.perm_output)
-            } else {
-                None
-            },
+            if finalize_event.do_perm { Some(finalize_event.perm_output) } else { None },
             &mut finalize_row,
         );
 
@@ -458,12 +447,9 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             // Add round constants.
             //
             // Optimization: Since adding a constant is a degree 1 operation, we can avoid adding
-            // columns for it, and instead include it in the constraint for the x^3 part of the sbox.
-            let round = if r < NUM_EXTERNAL_ROUNDS / 2 {
-                r
-            } else {
-                r + NUM_INTERNAL_ROUNDS
-            };
+            // columns for it, and instead include it in the constraint for the x^3 part of the
+            // sbox.
+            let round = if r < NUM_EXTERNAL_ROUNDS / 2 { r } else { r + NUM_INTERNAL_ROUNDS };
             let mut add_rc = *round_state;
             for i in 0..WIDTH {
                 add_rc[i] += F::from_wrapped_u32(RC_16_30_U32[round][i]);

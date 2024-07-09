@@ -1,9 +1,7 @@
 use p3_baby_bear::BabyBear;
-use p3_field::extension::BinomialExtensionField;
-use p3_field::AbstractField;
+use p3_field::{extension::BinomialExtensionField, AbstractField};
 use sp1_core::utils::BabyBearPoseidon2;
-use sp1_recursion_compiler::asm::AsmBuilder;
-use sp1_recursion_compiler::ir::Var;
+use sp1_recursion_compiler::{asm::AsmBuilder, ir::Var};
 use sp1_recursion_core::runtime::Runtime;
 
 #[test]
@@ -24,9 +22,7 @@ fn test_compiler_conditionals() {
         builder.if_eq(one, one).then(|builder| {
             builder.if_eq(two, two).then(|builder| {
                 builder.if_eq(three, three).then(|builder| {
-                    builder
-                        .if_eq(four, four)
-                        .then(|builder| builder.assign(c, F::one()))
+                    builder.if_eq(four, four).then(|builder| builder.assign(c, F::one()))
                 })
             })
         })
@@ -36,16 +32,12 @@ fn test_compiler_conditionals() {
     let c: Var<_> = builder.eval(F::zero());
     builder.if_eq(zero, one).then_or_else(
         |builder| {
-            builder.if_eq(one, one).then(|builder| {
-                builder
-                    .if_eq(two, two)
-                    .then(|builder| builder.assign(c, F::one()))
-            })
+            builder
+                .if_eq(one, one)
+                .then(|builder| builder.if_eq(two, two).then(|builder| builder.assign(c, F::one())))
         },
         |builder| {
-            builder
-                .if_ne(three, four)
-                .then_or_else(|_| {}, |builder| builder.assign(c, F::zero()))
+            builder.if_ne(three, four).then_or_else(|_| {}, |builder| builder.assign(c, F::zero()))
         },
     );
     builder.assert_var_eq(c, F::zero());
@@ -78,9 +70,7 @@ fn test_compiler_conditionals_v2() {
         builder.if_eq(one, one).then(|builder| {
             builder.if_eq(two, two).then(|builder| {
                 builder.if_eq(three, three).then(|builder| {
-                    builder
-                        .if_eq(four, four)
-                        .then(|builder| builder.assign(c, F::one()))
+                    builder.if_eq(four, four).then(|builder| builder.assign(c, F::one()))
                 })
             })
         })

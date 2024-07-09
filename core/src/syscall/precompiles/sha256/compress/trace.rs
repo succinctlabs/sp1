@@ -1,8 +1,7 @@
 use std::borrow::BorrowMut;
 
 use p3_field::PrimeField32;
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
 
 use super::{
     columns::{ShaCompressCols, NUM_SHA_COMPRESS_COLS},
@@ -122,19 +121,14 @@ impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
                 let e_rr_6 = cols.e_rr_6.populate(output, shard, channel, e, 6);
                 let e_rr_11 = cols.e_rr_11.populate(output, shard, channel, e, 11);
                 let e_rr_25 = cols.e_rr_25.populate(output, shard, channel, e, 25);
-                let s1_intermediate = cols
-                    .s1_intermediate
-                    .populate(output, shard, channel, e_rr_6, e_rr_11);
-                let s1 = cols
-                    .s1
-                    .populate(output, shard, channel, s1_intermediate, e_rr_25);
+                let s1_intermediate =
+                    cols.s1_intermediate.populate(output, shard, channel, e_rr_6, e_rr_11);
+                let s1 = cols.s1.populate(output, shard, channel, s1_intermediate, e_rr_25);
 
                 let e_and_f = cols.e_and_f.populate(output, shard, channel, e, f);
                 let e_not = cols.e_not.populate(output, shard, channel, e);
                 let e_not_and_g = cols.e_not_and_g.populate(output, shard, channel, e_not, g);
-                let ch = cols
-                    .ch
-                    .populate(output, shard, channel, e_and_f, e_not_and_g);
+                let ch = cols.ch.populate(output, shard, channel, e_and_f, e_not_and_g);
 
                 let temp1 = cols.temp1.populate(
                     output,
@@ -150,29 +144,22 @@ impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
                 let a_rr_2 = cols.a_rr_2.populate(output, shard, channel, a, 2);
                 let a_rr_13 = cols.a_rr_13.populate(output, shard, channel, a, 13);
                 let a_rr_22 = cols.a_rr_22.populate(output, shard, channel, a, 22);
-                let s0_intermediate = cols
-                    .s0_intermediate
-                    .populate(output, shard, channel, a_rr_2, a_rr_13);
-                let s0 = cols
-                    .s0
-                    .populate(output, shard, channel, s0_intermediate, a_rr_22);
+                let s0_intermediate =
+                    cols.s0_intermediate.populate(output, shard, channel, a_rr_2, a_rr_13);
+                let s0 = cols.s0.populate(output, shard, channel, s0_intermediate, a_rr_22);
 
                 let a_and_b = cols.a_and_b.populate(output, shard, channel, a, b);
                 let a_and_c = cols.a_and_c.populate(output, shard, channel, a, c);
                 let b_and_c = cols.b_and_c.populate(output, shard, channel, b, c);
-                let maj_intermediate = cols
-                    .maj_intermediate
-                    .populate(output, shard, channel, a_and_b, a_and_c);
-                let maj = cols
-                    .maj
-                    .populate(output, shard, channel, maj_intermediate, b_and_c);
+                let maj_intermediate =
+                    cols.maj_intermediate.populate(output, shard, channel, a_and_b, a_and_c);
+                let maj = cols.maj.populate(output, shard, channel, maj_intermediate, b_and_c);
 
                 let temp2 = cols.temp2.populate(output, shard, channel, s0, maj);
 
                 let d_add_temp1 = cols.d_add_temp1.populate(output, shard, channel, d, temp1);
-                let temp1_add_temp2 = cols
-                    .temp1_add_temp2
-                    .populate(output, shard, channel, temp1, temp2);
+                let temp1_add_temp2 =
+                    cols.temp1_add_temp2.populate(output, shard, channel, temp1, temp2);
 
                 event.h[7] = g;
                 event.h[6] = f;
@@ -189,11 +176,8 @@ impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
                 rows.push(row);
             }
 
-            let mut v: [u32; 8] = (0..8)
-                .map(|i| event.h[i])
-                .collect::<Vec<_>>()
-                .try_into()
-                .unwrap();
+            let mut v: [u32; 8] =
+                (0..8).map(|i| event.h[i]).collect::<Vec<_>>().try_into().unwrap();
 
             octet_num_idx += 1;
             // Store a, b, c, d, e, f, g, h.
@@ -211,8 +195,7 @@ impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
                 cols.octet_num[octet_num_idx] = F::one();
                 cols.is_finalize = F::one();
 
-                cols.finalize_add
-                    .populate(output, shard, channel, og_h[j], event.h[j]);
+                cols.finalize_add.populate(output, shard, channel, og_h[j], event.h[j]);
                 cols.mem.populate_write(
                     channel,
                     event.h_write_records[j],

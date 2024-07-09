@@ -91,17 +91,13 @@ pub trait ByteRecord {
         self.add_u8_range_checks(
             shard,
             channel,
-            &field_values
-                .iter()
-                .map(|x| x.as_canonical_u32() as u8)
-                .collect::<Vec<_>>(),
+            &field_values.iter().map(|x| x.as_canonical_u32() as u8).collect::<Vec<_>>(),
         );
     }
 
     /// Adds `ByteLookupEvent`s to verify that all the bytes in the input slice are indeed bytes.
     fn add_u16_range_checks(&mut self, shard: u32, channel: u32, ls: &[u32]) {
-        ls.iter()
-            .for_each(|x| self.add_u16_range_check(shard, channel, *x));
+        ls.iter().for_each(|x| self.add_u16_range_check(shard, channel, *x));
     }
 
     /// Adds a `ByteLookupEvent` to compute the bitwise OR of the two input values.
@@ -130,15 +126,7 @@ impl ByteLookupEvent {
         b: u32,
         c: u32,
     ) -> Self {
-        Self {
-            shard,
-            channel,
-            opcode,
-            a1,
-            a2,
-            b,
-            c,
-        }
+        Self { shard, channel, opcode, a1, a2, b, c }
     }
 }
 

@@ -10,8 +10,10 @@ use reqwest::{Client as HttpClient, Url};
 use reqwest_middleware::ClientWithMiddleware as HttpClientWithMiddleware;
 use serde::de::DeserializeOwned;
 use sp1_prover::SP1Stdin;
-use std::result::Result::Ok as StdOk;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{
+    result::Result::Ok as StdOk,
+    time::{SystemTime, UNIX_EPOCH},
+};
 use twirp::{Client as TwirpClient, ClientError};
 
 use crate::proto::network::{
@@ -59,19 +61,15 @@ impl NetworkClient {
             .build()
             .unwrap();
 
-        Self {
-            auth,
-            rpc,
-            http: http_client.into(),
-        }
+        Self { auth, rpc, http: http_client.into() }
     }
 
     /// Gets the latest nonce for this auth's account.
     pub async fn get_nonce(&self) -> Result<u64> {
         let res = self
-            .with_error_handling(self.rpc.get_nonce(GetNonceRequest {
-                address: self.auth.get_address().to_vec(),
-            }))
+            .with_error_handling(
+                self.rpc.get_nonce(GetNonceRequest { address: self.auth.get_address().to_vec() }),
+            )
             .await?;
         Ok(res.nonce)
     }
@@ -82,15 +80,16 @@ impl NetworkClient {
         Ok(())
     }
 
-    /// Get the status of a given proof. If the status is ProofFulfilled, the proof is also returned.
+    /// Get the status of a given proof. If the status is ProofFulfilled, the proof is also
+    /// returned.
     pub async fn get_proof_status<P: DeserializeOwned>(
         &self,
         proof_id: &str,
     ) -> Result<(GetProofStatusResponse, Option<P>)> {
         let res = self
-            .with_error_handling(self.rpc.get_proof_status(GetProofStatusRequest {
-                proof_id: proof_id.to_string(),
-            }))
+            .with_error_handling(
+                self.rpc.get_proof_status(GetProofStatusRequest { proof_id: proof_id.to_string() }),
+            )
             .await
             .context("Failed to get proof status")?;
 
@@ -120,9 +119,9 @@ impl NetworkClient {
         &self,
         status: ProofStatus,
     ) -> Result<GetProofRequestsResponse> {
-        self.with_error_handling(self.rpc.get_proof_requests(GetProofRequestsRequest {
-            status: status.into(),
-        }))
+        self.with_error_handling(
+            self.rpc.get_proof_requests(GetProofRequestsRequest { status: status.into() }),
+        )
         .await
     }
 
@@ -135,16 +134,12 @@ impl NetworkClient {
         version: &str,
     ) -> Result<String> {
         let start = SystemTime::now();
-        let since_the_epoch = start
-            .duration_since(UNIX_EPOCH)
-            .expect("Invalid start time");
+        let since_the_epoch = start.duration_since(UNIX_EPOCH).expect("Invalid start time");
         let deadline = since_the_epoch.as_secs() + TIMEOUT.as_secs();
 
         let nonce = self.get_nonce().await?;
-        let create_proof_signature = self
-            .auth
-            .sign_create_proof_message(nonce, deadline, mode.into(), version)
-            .await?;
+        let create_proof_signature =
+            self.auth.sign_create_proof_message(nonce, deadline, mode.into(), version).await?;
 
         let res = self
             .with_error_handling(self.rpc.create_proof(CreateProofRequest {
@@ -166,10 +161,8 @@ impl NetworkClient {
         results.pop().expect("Failed to upload program")?;
 
         let nonce = self.get_nonce().await?;
-        let submit_proof_signature = self
-            .auth
-            .sign_submit_proof_message(nonce, &res.proof_id)
-            .await?;
+        let submit_proof_signature =
+            self.auth.sign_submit_proof_message(nonce, &res.proof_id).await?;
 
         self.with_error_handling(self.rpc.submit_proof(SubmitProofRequest {
             signature: submit_proof_signature.to_vec(),
@@ -196,8 +189,8 @@ impl NetworkClient {
     }
 
     /// Unclaim a proof that was claimed. This should only be called if the proof has not been
-    /// fulfilled yet. Returns an error if the proof is not in a PROOF_CLAIMED state or if the caller
-    /// is not the claimer.
+    /// fulfilled yet. Returns an error if the proof is not in a PROOF_CLAIMED state or if the
+    /// caller is not the claimer.
     pub async fn unclaim_proof(
         &self,
         proof_id: String,
@@ -226,10 +219,7 @@ impl NetworkClient {
     /// if the proof is not in a PROOF_CLAIMED state or if the caller is not the claimer.
     pub async fn fulfill_proof(&self, proof_id: &str) -> Result<FulfillProofResponse> {
         let nonce = self.get_nonce().await?;
-        let signature = self
-            .auth
-            .sign_fulfill_proof_message(nonce, proof_id)
-            .await?;
+        let signature = self.auth.sign_fulfill_proof_message(nonce, proof_id).await?;
         let res = self
             .with_error_handling(self.rpc.fulfill_proof(FulfillProofRequest {
                 signature,

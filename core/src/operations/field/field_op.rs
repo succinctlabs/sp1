@@ -5,12 +5,15 @@ use p3_air::AirBuilder;
 use p3_field::PrimeField32;
 use sp1_derive::AlignedBorrow;
 
-use super::params::{FieldParameters, Limbs};
-use super::util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs};
-use super::util_air::eval_field_operation;
-use crate::air::Polynomial;
-use crate::air::SP1AirBuilder;
-use crate::bytes::event::ByteRecord;
+use super::{
+    params::{FieldParameters, Limbs},
+    util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs},
+    util_air::eval_field_operation,
+};
+use crate::{
+    air::{Polynomial, SP1AirBuilder},
+    bytes::event::ByteRecord,
+};
 use typenum::Unsigned;
 
 /// Airthmetic operation for emulating modular arithmetic.
@@ -69,12 +72,10 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
         }
 
         // Here we have special logic for p_modulus because to_limbs_field only works for numbers in
-        // the field, but modulus can == the field modulus so it can have 1 extra limb (ex. uint256).
-        let p_modulus_limbs = modulus
-            .to_bytes_le()
-            .iter()
-            .map(|x| F::from_canonical_u8(*x))
-            .collect::<Vec<F>>();
+        // the field, but modulus can == the field modulus so it can have 1 extra limb (ex.
+        // uint256).
+        let p_modulus_limbs =
+            modulus.to_bytes_le().iter().map(|x| F::from_canonical_u8(*x)).collect::<Vec<F>>();
         let p_modulus: Polynomial<F> = p_modulus_limbs.iter().into();
         let p_result: Polynomial<F> = P::to_limbs_field::<F, _>(&result).into();
         let p_carry: Polynomial<F> = P::to_limbs_field::<F, _>(&carry).into();
@@ -121,22 +122,18 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
     ) -> BigUint {
         if b == &BigUint::zero() && op == FieldOperation::Div {
             // Division by 0 is allowed only when dividing 0 so that padded rows can be all 0.
-            assert_eq!(
-                *a,
-                BigUint::zero(),
-                "division by zero is allowed only when dividing zero"
-            );
+            assert_eq!(*a, BigUint::zero(), "division by zero is allowed only when dividing zero");
         }
 
         let result = match op {
             // If doing the subtraction operation, a - b = result, equivalent to a = result + b.
             FieldOperation::Sub => {
                 let result = (modulus.clone() + a - b) % modulus;
-                // We populate the carry, witness_low, witness_high as if we were doing an addition with result + b.
-                // But we populate `result` with the actual result of the subtraction because those columns are expected
-                // to contain the result by the user.
-                // Note that this reversal means we have to flip result, a correspondingly in
-                // the `eval` function.
+                // We populate the carry, witness_low, witness_high as if we were doing an addition
+                // with result + b. But we populate `result` with the actual result
+                // of the subtraction because those columns are expected to contain
+                // the result by the user. Note that this reversal means we have to
+                // flip result, a correspondingly in the `eval` function.
                 self.populate_carry_and_witness(&result, b, FieldOperation::Add, modulus);
                 self.result = P::to_limbs_field::<F, _>(&result);
                 result
@@ -148,10 +145,11 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
                 let result =
                     (a * b.modpow(&(modulus.clone() - 2u32), &modulus.clone())) % modulus.clone();
 
-                // We populate the carry, witness_low, witness_high as if we were doing a multiplication
-                // with result * b. But we populate `result` with the actual result of the
-                // multiplication because those columns are expected to contain the result by the user.
-                // Note that this reversal means we have to flip result, a correspondingly in the `eval`
+                // We populate the carry, witness_low, witness_high as if we were doing a
+                // multiplication with result * b. But we populate `result` with the
+                // actual result of the multiplication because those columns are
+                // expected to contain the result by the user. Note that this
+                // reversal means we have to flip result, a correspondingly in the `eval`
                 // function.
                 self.populate_carry_and_witness(&result, b, FieldOperation::Mul, modulus);
                 self.result = P::to_limbs_field::<F, _>(&result);
@@ -169,7 +167,8 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
         result
     }
 
-    /// Populate these columns without a specified modulus (will use the modulus of the field parameters).
+    /// Populate these columns without a specified modulus (will use the modulus of the field
+    /// parameters).
     pub fn populate(
         &mut self,
         record: &mut impl ByteRecord,
@@ -274,24 +273,24 @@ mod tests {
 
     use crate::air::MachineAir;
 
-    use crate::bytes::event::ByteRecord;
-    use crate::operations::field::params::FieldParameters;
-    use crate::runtime::Program;
-    use crate::stark::StarkGenericConfig;
-    use crate::utils::ec::edwards::ed25519::Ed25519BaseField;
-    use crate::utils::ec::weierstrass::secp256k1::Secp256k1BaseField;
-    use crate::utils::{
-        pad_to_power_of_two, uni_stark_prove as prove, uni_stark_verify as verify,
-        BabyBearPoseidon2,
+    use crate::{
+        air::SP1AirBuilder,
+        bytes::event::ByteRecord,
+        operations::field::params::FieldParameters,
+        runtime::{ExecutionRecord, Program},
+        stark::StarkGenericConfig,
+        utils::{
+            ec::{edwards::ed25519::Ed25519BaseField, weierstrass::secp256k1::Secp256k1BaseField},
+            pad_to_power_of_two, uni_stark_prove as prove, uni_stark_verify as verify,
+            BabyBearPoseidon2,
+        },
     };
-    use crate::{air::SP1AirBuilder, runtime::ExecutionRecord};
     use core::borrow::{Borrow, BorrowMut};
     use num::bigint::RandBigInt;
     use p3_air::Air;
     use p3_baby_bear::BabyBear;
     use p3_field::AbstractField;
-    use p3_matrix::dense::RowMajorMatrix;
-    use p3_matrix::Matrix;
+    use p3_matrix::{dense::RowMajorMatrix, Matrix};
     use rand::thread_rng;
     use sp1_derive::AlignedBorrow;
     use std::mem::size_of;
@@ -312,10 +311,7 @@ mod tests {
 
     impl<P: FieldParameters> FieldOpChip<P> {
         pub const fn new(operation: FieldOperation) -> Self {
-            Self {
-                operation,
-                _phantom: std::marker::PhantomData,
-            }
+            Self { operation, _phantom: std::marker::PhantomData }
         }
     }
 
@@ -361,17 +357,14 @@ mod tests {
                     let cols: &mut TestCols<F, P> = row.as_mut_slice().borrow_mut();
                     cols.a = P::to_limbs_field::<F, _>(a);
                     cols.b = P::to_limbs_field::<F, _>(b);
-                    cols.a_op_b
-                        .populate(&mut blu_events, 1, 0, a, b, self.operation);
+                    cols.a_op_b.populate(&mut blu_events, 1, 0, a, b, self.operation);
                     output.add_byte_lookup_events(blu_events);
                     row
                 })
                 .collect::<Vec<_>>();
             // Convert the trace to a row major matrix.
-            let mut trace = RowMajorMatrix::new(
-                rows.into_iter().flatten().collect::<Vec<_>>(),
-                NUM_TEST_COLS,
-            );
+            let mut trace =
+                RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_TEST_COLS);
 
             // Pad the trace to a power of two.
             pad_to_power_of_two::<NUM_TEST_COLS, F>(&mut trace.values);
@@ -413,13 +406,7 @@ mod tests {
 
     #[test]
     fn generate_trace() {
-        for op in [
-            FieldOperation::Add,
-            FieldOperation::Mul,
-            FieldOperation::Sub,
-        ]
-        .iter()
-        {
+        for op in [FieldOperation::Add, FieldOperation::Mul, FieldOperation::Sub].iter() {
             println!("op: {:?}", op);
             let chip: FieldOpChip<Ed25519BaseField> = FieldOpChip::new(*op);
             let shard = ExecutionRecord::default();
@@ -433,13 +420,9 @@ mod tests {
     fn prove_babybear() {
         let config = BabyBearPoseidon2::new();
 
-        for op in [
-            FieldOperation::Add,
-            FieldOperation::Sub,
-            FieldOperation::Mul,
-            FieldOperation::Div,
-        ]
-        .iter()
+        for op in
+            [FieldOperation::Add, FieldOperation::Sub, FieldOperation::Mul, FieldOperation::Div]
+                .iter()
         {
             println!("op: {:?}", op);
 

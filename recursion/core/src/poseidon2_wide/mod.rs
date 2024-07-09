@@ -1,12 +1,12 @@
 #![allow(clippy::needless_range_loop)]
 
-use std::borrow::Borrow;
-use std::borrow::BorrowMut;
-use std::ops::Deref;
+use std::{
+    borrow::{Borrow, BorrowMut},
+    ops::Deref,
+};
 
 use p3_baby_bear::{MONTY_INVERSE, POSEIDON2_INTERNAL_MATRIX_DIAG_16_BABYBEAR_MONTY};
-use p3_field::AbstractField;
-use p3_field::PrimeField32;
+use p3_field::{AbstractField, PrimeField32};
 
 pub mod air;
 pub mod columns;
@@ -15,10 +15,7 @@ pub mod trace;
 
 use p3_poseidon2::matmul_internal;
 
-use self::columns::Poseidon2;
-use self::columns::Poseidon2Degree3;
-use self::columns::Poseidon2Degree9;
-use self::columns::Poseidon2Mut;
+use self::columns::{Poseidon2, Poseidon2Degree3, Poseidon2Degree9, Poseidon2Mut};
 
 /// The width of the permutation.
 pub const WIDTH: usize = 16;
@@ -89,12 +86,8 @@ pub(crate) fn external_linear_layer<AF: AbstractField>(state: &mut [AF; WIDTH]) 
     for j in (0..WIDTH).step_by(4) {
         apply_m_4(&mut state[j..j + 4]);
     }
-    let sums: [AF; 4] = core::array::from_fn(|k| {
-        (0..WIDTH)
-            .step_by(4)
-            .map(|j| state[j + k].clone())
-            .sum::<AF>()
-    });
+    let sums: [AF; 4] =
+        core::array::from_fn(|k| (0..WIDTH).step_by(4).map(|j| state[j + k].clone()).sum::<AF>());
 
     for j in 0..WIDTH {
         state[j] += sums[j % 4].clone();
@@ -116,13 +109,14 @@ pub(crate) fn internal_linear_layer<F: AbstractField>(state: &mut [F; WIDTH]) {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::array;
-    use std::time::Instant;
+    use std::{array, time::Instant};
 
-    use crate::air::Block;
-    use crate::memory::MemoryRecord;
-    use crate::poseidon2_wide::events::Poseidon2HashEvent;
-    use crate::runtime::{ExecutionRecord, DIGEST_SIZE};
+    use crate::{
+        air::Block,
+        memory::MemoryRecord,
+        poseidon2_wide::events::Poseidon2HashEvent,
+        runtime::{ExecutionRecord, DIGEST_SIZE},
+    };
     use itertools::Itertools;
     use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
     use p3_field::AbstractField;
@@ -130,21 +124,22 @@ pub(crate) mod tests {
     use p3_poseidon2::{Poseidon2, Poseidon2ExternalMatrixGeneral};
     use p3_symmetric::Permutation;
     use rand::random;
-    use sp1_core::air::MachineAir;
-    use sp1_core::stark::StarkGenericConfig;
-    use sp1_core::utils::{inner_perm, uni_stark_prove, uni_stark_verify, BabyBearPoseidon2};
+    use sp1_core::{
+        air::MachineAir,
+        stark::StarkGenericConfig,
+        utils::{inner_perm, uni_stark_prove, uni_stark_verify, BabyBearPoseidon2},
+    };
     use zkhash::ark_ff::UniformRand;
 
-    use super::events::{Poseidon2AbsorbEvent, Poseidon2CompressEvent, Poseidon2FinalizeEvent};
-    use super::{Poseidon2WideChip, WIDTH};
+    use super::{
+        events::{Poseidon2AbsorbEvent, Poseidon2CompressEvent, Poseidon2FinalizeEvent},
+        Poseidon2WideChip, WIDTH,
+    };
 
     fn poseidon2_wide_prove_babybear_degree<const DEGREE: usize>(
         input_exec: ExecutionRecord<BabyBear>,
     ) {
-        let chip = Poseidon2WideChip::<DEGREE> {
-            fixed_log2_rows: None,
-            pad: true,
-        };
+        let chip = Poseidon2WideChip::<DEGREE> { fixed_log2_rows: None, pad: true };
 
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());
@@ -197,107 +192,99 @@ pub(crate) mod tests {
         // Generate hash test events.
         let hash_test_input_sizes: [usize; NUM_ABSORBS] =
             array::from_fn(|_| random::<usize>() % 128 + 1);
-        hash_test_input_sizes
-            .iter()
-            .enumerate()
-            .for_each(|(i, input_size)| {
-                let test_input = (0..*input_size).map(|_| BabyBear::rand(rng)).collect_vec();
+        hash_test_input_sizes.iter().enumerate().for_each(|(i, input_size)| {
+            let test_input = (0..*input_size).map(|_| BabyBear::rand(rng)).collect_vec();
 
-                let prev_ts = BabyBear::from_canonical_usize(i);
-                let absorb_ts = BabyBear::from_canonical_usize(i + 1);
-                let finalize_ts = BabyBear::from_canonical_usize(i + 2);
-                let hash_num = BabyBear::from_canonical_usize(i);
-                let start_addr = BabyBear::from_canonical_usize(i + 1);
-                let input_len = BabyBear::from_canonical_usize(*input_size);
+            let prev_ts = BabyBear::from_canonical_usize(i);
+            let absorb_ts = BabyBear::from_canonical_usize(i + 1);
+            let finalize_ts = BabyBear::from_canonical_usize(i + 2);
+            let hash_num = BabyBear::from_canonical_usize(i);
+            let start_addr = BabyBear::from_canonical_usize(i + 1);
+            let input_len = BabyBear::from_canonical_usize(*input_size);
 
-                let mut absorb_event =
-                    Poseidon2AbsorbEvent::new(absorb_ts, hash_num, start_addr, input_len, true);
+            let mut absorb_event =
+                Poseidon2AbsorbEvent::new(absorb_ts, hash_num, start_addr, input_len, true);
 
-                let mut hash_state = [BabyBear::zero(); WIDTH];
-                let mut hash_state_cursor = 0;
-                absorb_event.populate_iterations(
-                    start_addr,
-                    input_len,
-                    &dummy_memory_access_records(test_input.clone(), prev_ts, absorb_ts),
-                    &permuter,
-                    &mut hash_state,
-                    &mut hash_state_cursor,
-                );
+            let mut hash_state = [BabyBear::zero(); WIDTH];
+            let mut hash_state_cursor = 0;
+            absorb_event.populate_iterations(
+                start_addr,
+                input_len,
+                &dummy_memory_access_records(test_input.clone(), prev_ts, absorb_ts),
+                &permuter,
+                &mut hash_state,
+                &mut hash_state_cursor,
+            );
 
-                input_exec
-                    .poseidon2_hash_events
-                    .push(Poseidon2HashEvent::Absorb(absorb_event));
+            input_exec.poseidon2_hash_events.push(Poseidon2HashEvent::Absorb(absorb_event));
 
-                let do_perm = hash_state_cursor != 0;
-                let mut perm_output = permuter.permute(hash_state);
-                if incorrect_trace {
-                    perm_output = [BabyBear::rand(rng); WIDTH];
-                }
+            let do_perm = hash_state_cursor != 0;
+            let mut perm_output = permuter.permute(hash_state);
+            if incorrect_trace {
+                perm_output = [BabyBear::rand(rng); WIDTH];
+            }
 
-                let state = if do_perm { perm_output } else { hash_state };
+            let state = if do_perm { perm_output } else { hash_state };
 
-                input_exec
-                    .poseidon2_hash_events
-                    .push(Poseidon2HashEvent::Finalize(Poseidon2FinalizeEvent {
-                        clk: finalize_ts,
-                        hash_num,
-                        output_ptr: start_addr,
-                        output_records: dummy_memory_access_records(
-                            state.as_slice().to_vec(),
-                            absorb_ts,
-                            finalize_ts,
-                        )[0..DIGEST_SIZE]
-                            .try_into()
-                            .unwrap(),
-                        state_cursor: hash_state_cursor,
-                        perm_input: hash_state,
-                        perm_output,
-                        previous_state: hash_state,
-                        state,
-                        do_perm,
-                    }));
-            });
+            input_exec.poseidon2_hash_events.push(Poseidon2HashEvent::Finalize(
+                Poseidon2FinalizeEvent {
+                    clk: finalize_ts,
+                    hash_num,
+                    output_ptr: start_addr,
+                    output_records: dummy_memory_access_records(
+                        state.as_slice().to_vec(),
+                        absorb_ts,
+                        finalize_ts,
+                    )[0..DIGEST_SIZE]
+                        .try_into()
+                        .unwrap(),
+                    state_cursor: hash_state_cursor,
+                    perm_input: hash_state,
+                    perm_output,
+                    previous_state: hash_state,
+                    state,
+                    do_perm,
+                },
+            ));
+        });
 
         let compress_test_inputs: Vec<[BabyBear; WIDTH]> = (0..NUM_COMPRESSES)
             .map(|_| core::array::from_fn(|_| BabyBear::rand(rng)))
             .collect_vec();
-        compress_test_inputs
-            .iter()
-            .enumerate()
-            .for_each(|(i, input)| {
-                let mut result_array = permuter.permute(*input);
-                if incorrect_trace {
-                    result_array = core::array::from_fn(|_| BabyBear::rand(rng));
-                }
-                let prev_ts = BabyBear::from_canonical_usize(i);
-                let input_ts = BabyBear::from_canonical_usize(i + 1);
-                let output_ts = BabyBear::from_canonical_usize(i + 2);
+        compress_test_inputs.iter().enumerate().for_each(|(i, input)| {
+            let mut result_array = permuter.permute(*input);
+            if incorrect_trace {
+                result_array = core::array::from_fn(|_| BabyBear::rand(rng));
+            }
+            let prev_ts = BabyBear::from_canonical_usize(i);
+            let input_ts = BabyBear::from_canonical_usize(i + 1);
+            let output_ts = BabyBear::from_canonical_usize(i + 2);
 
-                let dst = BabyBear::from_canonical_usize(i + 1);
-                let left = dst + BabyBear::from_canonical_usize(WIDTH / 2);
-                let right = left + BabyBear::from_canonical_usize(WIDTH / 2);
+            let dst = BabyBear::from_canonical_usize(i + 1);
+            let left = dst + BabyBear::from_canonical_usize(WIDTH / 2);
+            let right = left + BabyBear::from_canonical_usize(WIDTH / 2);
 
-                let compress_event = Poseidon2CompressEvent {
-                    clk: input_ts,
-                    dst,
-                    left,
-                    right,
-                    input: *input,
-                    result_array,
-                    input_records: dummy_memory_access_records(input.to_vec(), prev_ts, input_ts)
-                        .try_into()
-                        .unwrap(),
-                    result_records: dummy_memory_access_records(
-                        result_array.to_vec(),
-                        input_ts,
-                        output_ts,
-                    )
+            let compress_event = Poseidon2CompressEvent {
+                clk: input_ts,
+                dst,
+                left,
+                right,
+                input: *input,
+                result_array,
+                input_records: dummy_memory_access_records(input.to_vec(), prev_ts, input_ts)
                     .try_into()
                     .unwrap(),
-                };
+                result_records: dummy_memory_access_records(
+                    result_array.to_vec(),
+                    input_ts,
+                    output_ts,
+                )
+                .try_into()
+                .unwrap(),
+            };
 
-                input_exec.poseidon2_compress_events.push(compress_event);
-            });
+            input_exec.poseidon2_compress_events.push(compress_event);
+        });
 
         input_exec
     }

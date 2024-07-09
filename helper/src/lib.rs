@@ -31,15 +31,8 @@ pub fn build_program(path: &str) {
     let mut metadata_cmd = cargo_metadata::MetadataCommand::new();
     let metadata = metadata_cmd.manifest_path(metadata_file).exec().unwrap();
     let root_package = metadata.root_package();
-    let root_package_name = root_package
-        .as_ref()
-        .map(|p| p.name.as_str())
-        .unwrap_or("Program");
-    println!(
-        "cargo:warning={} built at {}",
-        root_package_name,
-        current_datetime()
-    );
+    let root_package_name = root_package.as_ref().map(|p| p.name.as_str()).unwrap_or("Program");
+    println!("cargo:warning={} built at {}", root_package_name, current_datetime());
 
     let status = execute_build_cmd(&program_dir)
         .unwrap_or_else(|_| panic!("Failed to build `{}`.", root_package_name));
@@ -52,8 +45,9 @@ pub fn build_program(path: &str) {
 fn execute_build_cmd(
     program_dir: &impl AsRef<std::path::Path>,
 ) -> Result<std::process::ExitStatus, std::io::Error> {
-    // Check if RUSTC_WORKSPACE_WRAPPER is set to clippy-driver (i.e. if `cargo clippy` is the current
-    // compiler). If so, don't execute `cargo prove build` because it breaks rust-analyzer's `cargo clippy` feature.
+    // Check if RUSTC_WORKSPACE_WRAPPER is set to clippy-driver (i.e. if `cargo clippy` is the
+    // current compiler). If so, don't execute `cargo prove build` because it breaks
+    // rust-analyzer's `cargo clippy` feature.
     let is_clippy_driver = std::env::var("RUSTC_WORKSPACE_WRAPPER")
         .map(|val| val.contains("clippy-driver"))
         .unwrap_or(false);

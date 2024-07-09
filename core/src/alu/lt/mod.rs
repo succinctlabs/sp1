@@ -1,21 +1,21 @@
-use core::borrow::{Borrow, BorrowMut};
-use core::mem::size_of;
+use core::{
+    borrow::{Borrow, BorrowMut},
+    mem::size_of,
+};
 
 use itertools::izip;
 use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::Field;
-use p3_field::{AbstractField, PrimeField32};
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
+use p3_field::{AbstractField, Field, PrimeField32};
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::*;
 use sp1_derive::AlignedBorrow;
 
-use crate::air::{BaseAirBuilder, MachineAir};
-use crate::air::{SP1AirBuilder, Word};
-use crate::bytes::event::ByteRecord;
-use crate::bytes::{ByteLookupEvent, ByteOpcode};
-use crate::runtime::{ExecutionRecord, Opcode, Program};
-use crate::utils::pad_to_power_of_two;
+use crate::{
+    air::{BaseAirBuilder, MachineAir, SP1AirBuilder, Word},
+    bytes::{event::ByteRecord, ByteLookupEvent, ByteOpcode},
+    runtime::{ExecutionRecord, Opcode, Program},
+    utils::pad_to_power_of_two,
+};
 
 /// The number of main trace columns for `LtChip`.
 pub const NUM_LT_COLS: usize = size_of::<LtCols<u8>>();
@@ -85,12 +85,8 @@ pub struct LtCols<T> {
 
 impl LtCols<u32> {
     pub fn from_trace_row<F: PrimeField32>(row: &[F]) -> Self {
-        let sized: [u32; NUM_LT_COLS] = row
-            .iter()
-            .map(|x| x.as_canonical_u32())
-            .collect::<Vec<u32>>()
-            .try_into()
-            .unwrap();
+        let sized: [u32; NUM_LT_COLS] =
+            row.iter().map(|x| x.as_canonical_u32()).collect::<Vec<u32>>().try_into().unwrap();
         *sized.as_slice().borrow()
     }
 }
@@ -257,9 +253,7 @@ where
 
         // Constrain the incrementing nonce.
         builder.when_first_row().assert_zero(local.nonce);
-        builder
-            .when_transition()
-            .assert_eq(local.nonce + AB::Expr::one(), next.nonce);
+        builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         let is_real = local.is_slt + local.is_sltu;
 
@@ -323,9 +317,7 @@ where
         builder.assert_bool(local.is_sign_eq);
 
         // assert the correction of the comparison.
-        builder
-            .when(local.is_sign_eq)
-            .assert_eq(local.bit_b, local.bit_c);
+        builder.when(local.is_sign_eq).assert_eq(local.bit_b, local.bit_c);
         builder
             .when(is_real.clone())
             .when_not(local.is_sign_eq)
@@ -352,9 +344,7 @@ where
         builder.assert_bool(local.byte_flags[2]);
         builder.assert_bool(local.byte_flags[3]);
         builder.assert_bool(sum_flags.clone());
-        builder
-            .when(is_real.clone())
-            .assert_eq(AB::Expr::one() - local.is_comp_eq, sum_flags);
+        builder.when(is_real.clone()).assert_eq(AB::Expr::one() - local.is_comp_eq, sum_flags);
 
         // Constrain `local.sltu == STLU(b_comp, c_comp)`.
         //
@@ -378,11 +368,9 @@ where
         let mut c_comparison_byte = AB::Expr::zero();
         // Iterate over the bytes in reverse order and select the differing bytes using the byte
         // flag columns values.
-        for (b_byte, c_byte, &flag) in izip!(
-            b_comp.0.iter().rev(),
-            c_comp.0.iter().rev(),
-            local.byte_flags.iter().rev()
-        ) {
+        for (b_byte, c_byte, &flag) in
+            izip!(b_comp.0.iter().rev(), c_comp.0.iter().rev(), local.byte_flags.iter().rev())
+        {
             // Once the byte flag was set to one, we turn off the quality check flag.
             // We can do this by calculating the sum of the flags since only `1` is set to `1`.
             is_inequality_visited += flag.into();
@@ -395,9 +383,7 @@ where
                 .when_not(is_inequality_visited.clone())
                 .assert_eq(b_byte.clone(), c_byte.clone());
             // If the numbers are assumed equal, inequality should not be visited.
-            builder
-                .when(local.is_comp_eq)
-                .assert_zero(is_inequality_visited.clone());
+            builder.when(local.is_comp_eq).assert_zero(is_inequality_visited.clone());
         }
         // We need to verify that the comparison bytes are set correctly. This is only relevant in
         // the case where the bytes are not equal.
@@ -411,10 +397,9 @@ where
         // in the loop that when `local.is_comp_eq == 1` then all bytes are euqal. It is left to
         // verify that when `local.is_comp_eq == 0` the comparison bytes are indeed not equal.
         // This is done using the inverse hint `not_eq_inv`.
-        builder.when_not(local.is_comp_eq).assert_eq(
-            local.not_eq_inv * (b_comp_byte - c_comp_byte),
-            is_real.clone(),
-        );
+        builder
+            .when_not(local.is_comp_eq)
+            .assert_eq(local.not_eq_inv * (b_comp_byte - c_comp_byte), is_real.clone());
 
         // Now the value of `local.sltu` is equal to the same value for the comparison bytes.
         //
@@ -442,8 +427,8 @@ where
 
         // Receive the arguments.
         builder.receive_alu(
-            local.is_slt * AB::F::from_canonical_u32(Opcode::SLT as u32)
-                + local.is_sltu * AB::F::from_canonical_u32(Opcode::SLTU as u32),
+            local.is_slt * AB::F::from_canonical_u32(Opcode::SLT as u32) +
+                local.is_sltu * AB::F::from_canonical_u32(Opcode::SLTU as u32),
             local.a,
             local.b,
             local.c,

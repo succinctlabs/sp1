@@ -45,26 +45,16 @@ pub fn pad_to_power_of_two<const N: usize, T: Clone + Default>(values: &mut Vec<
 pub fn limbs_from_prev_access<T: Copy, N: ArrayLength, M: MemoryCols<T>>(
     cols: &[M],
 ) -> Limbs<T, N> {
-    let vec = cols
-        .iter()
-        .flat_map(|access| access.prev_value().0)
-        .collect::<Vec<T>>();
+    let vec = cols.iter().flat_map(|access| access.prev_value().0).collect::<Vec<T>>();
 
-    let sized = vec
-        .try_into()
-        .unwrap_or_else(|_| panic!("failed to convert to limbs"));
+    let sized = vec.try_into().unwrap_or_else(|_| panic!("failed to convert to limbs"));
     Limbs(sized)
 }
 
 pub fn limbs_from_access<T: Copy, N: ArrayLength, M: MemoryCols<T>>(cols: &[M]) -> Limbs<T, N> {
-    let vec = cols
-        .iter()
-        .flat_map(|access| access.value().0)
-        .collect::<Vec<T>>();
+    let vec = cols.iter().flat_map(|access| access.value().0).collect::<Vec<T>>();
 
-    let sized = vec
-        .try_into()
-        .unwrap_or_else(|_| panic!("failed to convert to limbs"));
+    let sized = vec.try_into().unwrap_or_else(|_| panic!("failed to convert to limbs"));
     Limbs(sized)
 }
 
@@ -129,10 +119,7 @@ pub fn words_to_bytes_le<const B: usize>(words: &[u32]) -> [u8; B] {
 
 /// Converts a slice of words to a byte vector in little endian.
 pub fn words_to_bytes_le_vec(words: &[u32]) -> Vec<u8> {
-    words
-        .iter()
-        .flat_map(|word| word.to_le_bytes().to_vec())
-        .collect::<Vec<_>>()
+    words.iter().flat_map(|word| word.to_le_bytes().to_vec()).collect::<Vec<_>>()
 }
 
 /// Converts a byte array in little endian to a slice of words.

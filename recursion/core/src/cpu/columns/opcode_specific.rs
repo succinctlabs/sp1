@@ -1,10 +1,12 @@
-use std::fmt::{Debug, Formatter};
-use std::mem::{size_of, transmute};
+use std::{
+    fmt::{Debug, Formatter},
+    mem::{size_of, transmute},
+};
 
-use super::branch::BranchCols;
-use super::heap_expand::HeapExpandCols;
-use super::memory::MemoryCols;
-use super::public_values::PublicValuesCols;
+use super::{
+    branch::BranchCols, heap_expand::HeapExpandCols, memory::MemoryCols,
+    public_values::PublicValuesCols,
+};
 
 pub const NUM_OPCODE_SPECIFIC_COLS: usize = size_of::<OpcodeSpecificCols<u8>>();
 
@@ -20,9 +22,7 @@ pub union OpcodeSpecificCols<T: Copy> {
 
 impl<T: Copy + Default> Default for OpcodeSpecificCols<T> {
     fn default() -> Self {
-        OpcodeSpecificCols {
-            branch: BranchCols::<T>::default(),
-        }
+        OpcodeSpecificCols { branch: BranchCols::<T>::default() }
     }
 }
 

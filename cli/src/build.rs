@@ -103,14 +103,8 @@ pub fn build_program(args: &BuildArgs) -> Result<Utf8PathBuf> {
             exit(result.code().unwrap_or(1))
         }
     } else {
-        let rust_flags = [
-            "-C",
-            "passes=loweratomic",
-            "-C",
-            "link-arg=-Ttext=0x00200800",
-            "-C",
-            "panic=abort",
-        ];
+        let rust_flags =
+            ["-C", "passes=loweratomic", "-C", "link-arg=-Ttext=0x00200800", "-C", "panic=abort"];
 
         let mut cargo_args = vec!["build", "--release", "--target", build_target, "--locked"];
         if args.ignore_rust_version {

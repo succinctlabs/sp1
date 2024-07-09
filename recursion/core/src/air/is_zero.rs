@@ -5,8 +5,7 @@
 //! The idea is that 1 - input * inverse is exactly the boolean value indicating whether the input
 //! is 0.
 use p3_air::AirBuilder;
-use p3_field::AbstractField;
-use p3_field::Field;
+use p3_field::{AbstractField, Field};
 use sp1_derive::AlignedBorrow;
 
 use sp1_core::air::SP1AirBuilder;
@@ -24,11 +23,8 @@ pub struct IsZeroOperation<T> {
 
 impl<F: Field> IsZeroOperation<F> {
     pub fn populate(&mut self, a: F) -> F {
-        let (inverse, result) = if a.is_zero() {
-            (F::zero(), F::one())
-        } else {
-            (a.inverse(), F::zero())
-        };
+        let (inverse, result) =
+            if a.is_zero() { (F::zero(), F::one()) } else { (a.inverse(), F::zero()) };
 
         self.inverse = inverse;
         self.result = result;
@@ -68,16 +64,11 @@ impl<F: Field> IsZeroOperation<F> {
 
         let is_zero = one.clone() - inverse * a.clone();
 
-        builder
-            .when(is_real.clone())
-            .assert_eq(is_zero, cols.result);
+        builder.when(is_real.clone()).assert_eq(is_zero, cols.result);
 
         builder.when(is_real.clone()).assert_bool(cols.result);
 
         // If the result is 1, then the input is 0.
-        builder
-            .when(is_real.clone())
-            .when(cols.result)
-            .assert_zero(a.clone());
+        builder.when(is_real.clone()).when(cols.result).assert_zero(a.clone());
     }
 }

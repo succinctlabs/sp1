@@ -1,6 +1,8 @@
 use crate::cpu::columns::{AuipcCols, BranchCols, JumpCols, MemoryColumns};
-use std::fmt::{Debug, Formatter};
-use std::mem::{size_of, transmute};
+use std::{
+    fmt::{Debug, Formatter},
+    mem::{size_of, transmute},
+};
 
 use super::ecall::EcallCols;
 
@@ -19,9 +21,7 @@ pub union OpcodeSpecificCols<T: Copy> {
 
 impl<T: Copy + Default> Default for OpcodeSpecificCols<T> {
     fn default() -> Self {
-        OpcodeSpecificCols {
-            memory: MemoryColumns::default(),
-        }
+        OpcodeSpecificCols { memory: MemoryColumns::default() }
     }
 }
 

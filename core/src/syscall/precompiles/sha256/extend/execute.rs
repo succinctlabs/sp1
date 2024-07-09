@@ -49,10 +49,7 @@ impl Syscall for ShaExtendChip {
             w_i_minus_7_reads.push(record);
 
             // Compute `w_i`.
-            let w_i = s1
-                .wrapping_add(w_i_minus_16)
-                .wrapping_add(s0)
-                .wrapping_add(w_i_minus_7);
+            let w_i = s1.wrapping_add(w_i_minus_16).wrapping_add(s0).wrapping_add(w_i_minus_7);
 
             // Write w[i].
             w_i_writes.push(rt.mw(w_ptr + i * 4, w_i));

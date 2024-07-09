@@ -22,8 +22,8 @@ pub const NUM_RANGE_CHECK_OPS: usize = 2;
 
 /// A chip for computing range check operations.
 ///
-/// The chip contains a preprocessed table of all possible range check operations. Other chips can then
-/// use lookups into this table to range check their values.
+/// The chip contains a preprocessed table of all possible range check operations. Other chips can
+/// then use lookups into this table to range check their values.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct RangeCheckChip<F>(PhantomData<F>);
 
@@ -32,7 +32,8 @@ impl<F: Field> RangeCheckChip<F> {
     ///
     /// This function returns a pair `(trace, map)`, where:
     ///  - `trace` is a matrix containing all possible range check values.
-    /// - `map` is a map from a range check lookup to the value's corresponding row it appears in the table and
+    /// - `map` is a map from a range check lookup to the value's corresponding row it appears in
+    ///   the table and
     /// the index of the result in the array of multiplicities.
     pub fn trace_and_map() -> (RowMajorMatrix<F>, BTreeMap<RangeCheckEvent, (usize, usize)>) {
         // A map from a byte lookup to its corresponding row in the table and index in the array of

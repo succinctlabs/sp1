@@ -1,44 +1,41 @@
-use core::borrow::{Borrow, BorrowMut};
-use core::mem::size_of;
+use core::{
+    borrow::{Borrow, BorrowMut},
+    mem::size_of,
+};
 use std::fmt::Debug;
 
 use generic_array::GenericArray;
 use num::{BigUint, Zero};
 use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::AbstractField;
-use p3_field::PrimeField32;
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
+use p3_field::{AbstractField, PrimeField32};
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_derive::AlignedBorrow;
 use std::marker::PhantomData;
 use typenum::Unsigned;
 
-use crate::air::BaseAirBuilder;
-use crate::air::MachineAir;
-use crate::air::SP1AirBuilder;
-use crate::bytes::event::ByteRecord;
-use crate::memory::MemoryReadCols;
-use crate::memory::MemoryReadWriteCols;
-use crate::operations::field::field_op::FieldOpCols;
-use crate::operations::field::field_op::FieldOperation;
-use crate::operations::field::field_sqrt::FieldSqrtCols;
-use crate::operations::field::params::{limbs_from_vec, FieldParameters, NumWords};
-use crate::operations::field::params::{Limbs, NumLimbs};
-use crate::operations::field::range::FieldRangeCols;
-use crate::runtime::ExecutionRecord;
-use crate::runtime::Program;
-use crate::runtime::Syscall;
-use crate::runtime::SyscallCode;
-use crate::syscall::precompiles::create_ec_decompress_event;
-use crate::syscall::precompiles::SyscallContext;
-use crate::utils::ec::weierstrass::bls12_381::bls12381_sqrt;
-use crate::utils::ec::weierstrass::secp256k1::secp256k1_sqrt;
-use crate::utils::ec::weierstrass::WeierstrassParameters;
-use crate::utils::ec::CurveType;
-use crate::utils::ec::EllipticCurve;
-use crate::utils::limbs_from_access;
-use crate::utils::limbs_from_prev_access;
-use crate::utils::{bytes_to_words_le_vec, pad_rows};
+use crate::{
+    air::{BaseAirBuilder, MachineAir, SP1AirBuilder},
+    bytes::event::ByteRecord,
+    memory::{MemoryReadCols, MemoryReadWriteCols},
+    operations::field::{
+        field_op::{FieldOpCols, FieldOperation},
+        field_sqrt::FieldSqrtCols,
+        params::{limbs_from_vec, FieldParameters, Limbs, NumLimbs, NumWords},
+        range::FieldRangeCols,
+    },
+    runtime::{ExecutionRecord, Program, Syscall, SyscallCode},
+    syscall::precompiles::{create_ec_decompress_event, SyscallContext},
+    utils::{
+        bytes_to_words_le_vec,
+        ec::{
+            weierstrass::{
+                bls12_381::bls12381_sqrt, secp256k1::secp256k1_sqrt, WeierstrassParameters,
+            },
+            CurveType, EllipticCurve,
+        },
+        limbs_from_access, limbs_from_prev_access, pad_rows,
+    },
+};
 
 pub const fn num_weierstrass_decompress_cols<P: FieldParameters + NumWords>() -> usize {
     size_of::<WeierstrassDecompressCols<u8, P>>()
@@ -89,9 +86,7 @@ impl<E: EllipticCurve> Syscall for WeierstrassDecompressChip<E> {
 
 impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDecompressChip<E> {
     pub const fn new() -> Self {
-        Self {
-            _marker: PhantomData::<E>,
-        }
+        Self { _marker: PhantomData::<E> }
     }
 
     fn populate_field_ops<F: PrimeField32>(
@@ -102,36 +97,23 @@ impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDecompressChip<E> {
         x: BigUint,
     ) {
         // Y = sqrt(x^3 + b)
-        cols.range_x
-            .populate(record, shard, channel, &x, &E::BaseField::modulus());
-        let x_2 = cols.x_2.populate(
-            record,
-            shard,
-            channel,
-            &x.clone(),
-            &x.clone(),
-            FieldOperation::Mul,
-        );
-        let x_3 = cols
-            .x_3
-            .populate(record, shard, channel, &x_2, &x, FieldOperation::Mul);
+        cols.range_x.populate(record, shard, channel, &x, &E::BaseField::modulus());
+        let x_2 =
+            cols.x_2.populate(record, shard, channel, &x.clone(), &x.clone(), FieldOperation::Mul);
+        let x_3 = cols.x_3.populate(record, shard, channel, &x_2, &x, FieldOperation::Mul);
         let b = E::b_int();
         let x_3_plus_b =
-            cols.x_3_plus_b
-                .populate(record, shard, channel, &x_3, &b, FieldOperation::Add);
+            cols.x_3_plus_b.populate(record, shard, channel, &x_3, &b, FieldOperation::Add);
 
         let sqrt_fn = match E::CURVE_TYPE {
             CurveType::Secp256k1 => secp256k1_sqrt,
             CurveType::Bls12381 => bls12381_sqrt,
             _ => panic!("Unsupported curve"),
         };
-        let y = cols
-            .y
-            .populate(record, shard, channel, &x_3_plus_b, sqrt_fn);
+        let y = cols.y.populate(record, shard, channel, &x_3_plus_b, sqrt_fn);
 
         let zero = BigUint::zero();
-        cols.neg_y
-            .populate(record, shard, channel, &zero, &y, FieldOperation::Sub);
+        cols.neg_y.populate(record, shard, channel, &zero, &y, FieldOperation::Sub);
     }
 }
 
@@ -230,9 +212,9 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
         // Write the nonces to the trace.
         for i in 0..trace.height() {
-            let cols: &mut WeierstrassDecompressCols<F, E::BaseField> = trace.values[i
-                * num_weierstrass_decompress_cols::<E::BaseField>()
-                ..(i + 1) * num_weierstrass_decompress_cols::<E::BaseField>()]
+            let cols: &mut WeierstrassDecompressCols<F, E::BaseField> = trace.values[i *
+                num_weierstrass_decompress_cols::<E::BaseField>()..
+                (i + 1) * num_weierstrass_decompress_cols::<E::BaseField>()]
                 .borrow_mut();
             cols.nonce = F::from_canonical_usize(i);
         }
@@ -269,9 +251,7 @@ where
 
         // Constrain the incrementing nonce.
         builder.when_first_row().assert_zero(local.nonce);
-        builder
-            .when_transition()
-            .assert_eq(local.nonce + AB::Expr::one(), next.nonce);
+        builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         let num_limbs = <E::BaseField as NumLimbs>::Limbs::USIZE;
         let num_words_field_element = num_limbs / 4;
@@ -398,18 +378,20 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::io::SP1Stdin;
-    use crate::stark::DefaultProver;
-    use crate::utils::{self, tests::BLS12381_DECOMPRESS_ELF};
-    use crate::Program;
-    use amcl::bls381::bls381::basic::key_pair_generate_g2;
-    use amcl::bls381::bls381::utils::deserialize_g1;
-    use amcl::rand::RAND;
+    use crate::{
+        io::SP1Stdin,
+        stark::DefaultProver,
+        utils::{self, tests::BLS12381_DECOMPRESS_ELF},
+        Program,
+    };
+    use amcl::{
+        bls381::bls381::{basic::key_pair_generate_g2, utils::deserialize_g1},
+        rand::RAND,
+    };
     use elliptic_curve::sec1::ToEncodedPoint;
     use rand::{thread_rng, Rng};
 
-    use crate::utils::run_test_io;
-    use crate::utils::tests::SECP256K1_DECOMPRESS_ELF;
+    use crate::utils::{run_test_io, tests::SECP256K1_DECOMPRESS_ELF};
 
     #[test]
     fn test_weierstrass_bls_decompress() {

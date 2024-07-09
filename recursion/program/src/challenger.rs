@@ -1,14 +1,11 @@
 use p3_field::AbstractField;
-use sp1_recursion_compiler::prelude::MemIndex;
-use sp1_recursion_compiler::prelude::MemVariable;
-use sp1_recursion_compiler::prelude::Ptr;
-use sp1_recursion_compiler::prelude::Variable;
-use sp1_recursion_compiler::prelude::{Array, Builder, Config, DslVariable, Ext, Felt, Usize, Var};
-use sp1_recursion_core::runtime::HASH_RATE;
-use sp1_recursion_core::runtime::{DIGEST_SIZE, PERMUTATION_WIDTH};
+use sp1_recursion_compiler::prelude::{
+    Array, Builder, Config, DslVariable, Ext, Felt, MemIndex, MemVariable, Ptr, Usize, Var,
+    Variable,
+};
+use sp1_recursion_core::runtime::{DIGEST_SIZE, HASH_RATE, PERMUTATION_WIDTH};
 
-use crate::fri::types::DigestVariable;
-use crate::types::VerifyingKeyVariable;
+use crate::{fri::types::DigestVariable, types::VerifyingKeyVariable};
 
 /// Reference: [p3_challenger::CanObserve].
 pub trait CanObserveVariable<C: Config, V> {
@@ -155,11 +152,9 @@ impl<C: Config> DuplexChallengerVariable<C> {
         builder.set(&mut self.input_buffer, self.nb_inputs, value);
         builder.assign(self.nb_inputs, self.nb_inputs + C::N::one());
 
-        builder
-            .if_eq(self.nb_inputs, C::N::from_canonical_usize(HASH_RATE))
-            .then(|builder| {
-                self.duplexing(builder);
-            })
+        builder.if_eq(self.nb_inputs, C::N::from_canonical_usize(HASH_RATE)).then(|builder| {
+            self.duplexing(builder);
+        })
     }
 
     fn observe_commitment(&mut self, builder: &mut Builder<C>, commitment: DigestVariable<C>) {
@@ -296,20 +291,18 @@ impl<C: Config> FeltChallenger<C> for DuplexChallengerVariable<C> {
 
 #[cfg(test)]
 mod tests {
-    use p3_challenger::CanObserve;
-    use p3_challenger::CanSample;
+    use p3_challenger::{CanObserve, CanSample};
     use p3_field::AbstractField;
-    use sp1_core::stark::StarkGenericConfig;
-    use sp1_core::utils::BabyBearPoseidon2;
-    use sp1_recursion_compiler::asm::AsmBuilder;
-    use sp1_recursion_compiler::asm::AsmConfig;
-    use sp1_recursion_compiler::ir::Felt;
-    use sp1_recursion_compiler::ir::Usize;
-    use sp1_recursion_compiler::ir::Var;
+    use sp1_core::{stark::StarkGenericConfig, utils::BabyBearPoseidon2};
+    use sp1_recursion_compiler::{
+        asm::{AsmBuilder, AsmConfig},
+        ir::{Felt, Usize, Var},
+    };
 
-    use sp1_recursion_core::runtime::PERMUTATION_WIDTH;
-    use sp1_recursion_core::stark::utils::run_test_recursion;
-    use sp1_recursion_core::stark::utils::TestConfig;
+    use sp1_recursion_core::{
+        runtime::PERMUTATION_WIDTH,
+        stark::utils::{run_test_recursion, TestConfig},
+    };
 
     use crate::challenger::DuplexChallengerVariable;
 

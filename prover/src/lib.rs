@@ -17,33 +17,29 @@ pub mod types;
 pub mod utils;
 pub mod verify;
 
-use std::borrow::Borrow;
-use std::path::Path;
-use std::sync::Arc;
+use std::{borrow::Borrow, path::Path, sync::Arc};
 
 use components::{DefaultProverComponents, SP1ProverComponents};
 use p3_baby_bear::BabyBear;
 use p3_challenger::CanObserve;
 use p3_field::{AbstractField, PrimeField};
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use rayon::prelude::*;
-use sp1_core::air::{PublicValues, Word};
-pub use sp1_core::io::{SP1PublicValues, SP1Stdin};
-use sp1_core::runtime::{ExecutionError, ExecutionReport, Runtime, SP1Context};
-use sp1_core::stark::MachineProver;
-use sp1_core::stark::{Challenge, StarkProvingKey};
-use sp1_core::stark::{Challenger, MachineVerificationError};
-use sp1_core::utils::{SP1CoreOpts, SP1ProverOpts, DIGEST_SIZE};
-use sp1_core::{
-    runtime::Program,
-    stark::{RiscvAir, ShardProof, StarkGenericConfig, StarkVerifyingKey, Val},
-    utils::{BabyBearPoseidon2, SP1CoreProverError},
+use rayon::{
+    iter::{IntoParallelIterator, ParallelIterator},
+    prelude::*,
 };
-use sp1_primitives::hash_deferred_proof;
-use sp1_primitives::types::RecursionProgramType;
+pub use sp1_core::io::{SP1PublicValues, SP1Stdin};
+use sp1_core::{
+    air::{PublicValues, Word},
+    runtime::{ExecutionError, ExecutionReport, Program, Runtime, SP1Context},
+    stark::{
+        Challenge, Challenger, MachineProver, MachineVerificationError, RiscvAir, ShardProof,
+        StarkGenericConfig, StarkProvingKey, StarkVerifyingKey, Val,
+    },
+    utils::{BabyBearPoseidon2, SP1CoreOpts, SP1CoreProverError, SP1ProverOpts, DIGEST_SIZE},
+};
+use sp1_primitives::{hash_deferred_proof, types::RecursionProgramType};
 use sp1_recursion_circuit::witness::Witnessable;
-use sp1_recursion_compiler::config::InnerConfig;
-use sp1_recursion_compiler::ir::Witness;
+use sp1_recursion_compiler::{config::InnerConfig, ir::Witness};
 use sp1_recursion_core::{
     air::RecursionPublicValues,
     runtime::{RecursionProgram, Runtime as RecursionRuntime},
@@ -51,13 +47,13 @@ use sp1_recursion_core::{
 };
 pub use sp1_recursion_gnark_ffi::plonk_bn254::PlonkBn254Proof;
 use sp1_recursion_gnark_ffi::plonk_bn254::PlonkBn254Prover;
-use sp1_recursion_program::hints::Hintable;
-pub use sp1_recursion_program::machine::ReduceProgramType;
-use sp1_recursion_program::machine::{
-    SP1CompressVerifier, SP1DeferredVerifier, SP1RecursiveVerifier, SP1RootVerifier,
-};
 pub use sp1_recursion_program::machine::{
-    SP1DeferredMemoryLayout, SP1RecursionMemoryLayout, SP1ReduceMemoryLayout, SP1RootMemoryLayout,
+    ReduceProgramType, SP1DeferredMemoryLayout, SP1RecursionMemoryLayout, SP1ReduceMemoryLayout,
+    SP1RootMemoryLayout,
+};
+use sp1_recursion_program::{
+    hints::Hintable,
+    machine::{SP1CompressVerifier, SP1DeferredVerifier, SP1RecursiveVerifier, SP1RootVerifier},
 };
 use tracing::instrument;
 pub use types::*;
@@ -218,11 +214,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let program = Program::from(elf);
         let (pk, vk) = self.core_prover.setup(&program);
         let vk = SP1VerifyingKey { vk };
-        let pk = SP1ProvingKey {
-            pk,
-            elf: elf.to_vec(),
-            vk: vk.clone(),
-        };
+        let pk = SP1ProvingKey { pk, elf: elf.to_vec(), vk: vk.clone() };
         (pk, vk)
     }
 
@@ -241,10 +233,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             runtime.write_proof(proof.clone(), vkey.clone());
         }
         runtime.run_untraced()?;
-        Ok((
-            SP1PublicValues::from(&runtime.state.public_values_stream),
-            runtime.report,
-        ))
+        Ok((SP1PublicValues::from(&runtime.state.public_values_stream), runtime.report))
     }
 
     /// Generate shard proofs which split up and prove the valid execution of a RISC-V program with
@@ -257,9 +246,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         opts: SP1ProverOpts,
         mut context: SP1Context<'a>,
     ) -> Result<SP1CoreProof, SP1CoreProverError> {
-        context
-            .subproof_verifier
-            .get_or_insert_with(|| Arc::new(self));
+        context.subproof_verifier.get_or_insert_with(|| Arc::new(self));
         let config = CoreSC::default();
         let program = Program::from(&pk.elf);
         let (proof, public_values_stream, cycles) =
@@ -316,18 +303,9 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         }
 
         // Check that the leaf challenger is the same as the reconstruct challenger.
-        assert_eq!(
-            reconstruct_challenger.sponge_state,
-            leaf_challenger.sponge_state
-        );
-        assert_eq!(
-            reconstruct_challenger.input_buffer,
-            leaf_challenger.input_buffer
-        );
-        assert_eq!(
-            reconstruct_challenger.output_buffer,
-            leaf_challenger.output_buffer
-        );
+        assert_eq!(reconstruct_challenger.sponge_state, leaf_challenger.sponge_state);
+        assert_eq!(reconstruct_challenger.input_buffer, leaf_challenger.input_buffer);
+        assert_eq!(reconstruct_challenger.output_buffer, leaf_challenger.output_buffer);
         core_inputs
     }
 
@@ -390,12 +368,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             batch_size,
             is_complete,
         );
-        let last_proof_pv = shard_proofs
-            .last()
-            .unwrap()
-            .public_values
-            .as_slice()
-            .borrow();
+        let last_proof_pv = shard_proofs.last().unwrap().public_values.as_slice().borrow();
         let deferred_inputs = self.get_recursion_deferred_inputs(
             &vk.vk,
             leaf_challenger,
@@ -517,9 +490,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         debug_assert_eq!(reduce_proofs.len(), 1);
         let reduce_proof = reduce_proofs.pop().unwrap();
 
-        Ok(SP1ReduceProof {
-            proof: reduce_proof.0,
-        })
+        Ok(SP1ReduceProof { proof: reduce_proof.0 })
     }
 
     pub fn compress_machine_proof(
@@ -543,12 +514,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
         let mut recursive_challenger = self.compress_prover.config().challenger();
         self.compress_prover
-            .prove(
-                pk,
-                vec![runtime.record],
-                &mut recursive_challenger,
-                opts.recursion_opts,
-            )
+            .prove(pk, vec![runtime.record], &mut recursive_challenger, opts.recursion_opts)
             .unwrap()
             .shard_proofs
             .pop()
@@ -595,9 +561,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             )
             .unwrap();
 
-        Ok(SP1ReduceProof {
-            proof: compress_proof.shard_proofs.pop().unwrap(),
-        })
+        Ok(SP1ReduceProof { proof: compress_proof.shard_proofs.pop().unwrap() })
     }
 
     /// Wrap a reduce proof into a STARK proven over a SNARK-friendly field.
@@ -632,20 +596,13 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let time = std::time::Instant::now();
         let mut wrap_proof = self
             .wrap_prover
-            .prove(
-                &self.wrap_pk,
-                vec![runtime.record],
-                &mut wrap_challenger,
-                opts.recursion_opts,
-            )
+            .prove(&self.wrap_pk, vec![runtime.record], &mut wrap_challenger, opts.recursion_opts)
             .unwrap();
         let elapsed = time.elapsed();
         tracing::debug!("Wrap proving time: {:?}", elapsed);
         let mut wrap_challenger = self.wrap_prover.config().challenger();
         let result =
-            self.wrap_prover
-                .machine()
-                .verify(&self.wrap_vk, &wrap_proof, &mut wrap_challenger);
+            self.wrap_prover.machine().verify(&self.wrap_vk, &wrap_proof, &mut wrap_challenger);
         match result {
             Ok(_) => tracing::info!("Proof verified successfully"),
             Err(MachineVerificationError::NonZeroCumulativeSum) => {
@@ -655,9 +612,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         }
         tracing::info!("Wrapping successful");
 
-        Ok(SP1ReduceProof {
-            proof: wrap_proof.shard_proofs.pop().unwrap(),
-        })
+        Ok(SP1ReduceProof { proof: wrap_proof.shard_proofs.pop().unwrap() })
     }
 
     /// Wrap the STARK proven over a SNARK-friendly field into a PLONK proof.
@@ -719,8 +674,10 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 #[cfg(any(test, feature = "export-tests"))]
 pub mod tests {
 
-    use std::fs::File;
-    use std::io::{Read, Write};
+    use std::{
+        fs::File,
+        io::{Read, Write},
+    };
 
     use super::*;
 
@@ -893,11 +850,7 @@ pub mod tests {
         let verify_reduce = prover.compress(
             &verify_vk,
             verify_proof,
-            vec![
-                deferred_reduce_1.proof,
-                deferred_reduce_2.proof.clone(),
-                deferred_reduce_2.proof,
-            ],
+            vec![deferred_reduce_1.proof, deferred_reduce_2.proof.clone(), deferred_reduce_2.proof],
             opts,
         )?;
         let reduce_pv: &RecursionPublicValues<_> =
@@ -915,8 +868,8 @@ pub mod tests {
     /// pipeline.
     ///
     /// Add `FRI_QUERIES`=1 to your environment for faster execution. Should only take a few minutes
-    /// on a Mac M2. Note: This test always re-builds the plonk bn254 artifacts, so setting SP1_DEV is
-    /// not needed.
+    /// on a Mac M2. Note: This test always re-builds the plonk bn254 artifacts, so setting SP1_DEV
+    /// is not needed.
     #[test]
     #[serial]
     fn test_e2e() -> Result<()> {

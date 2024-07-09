@@ -1,22 +1,26 @@
-use std::array;
-use std::borrow::{Borrow, BorrowMut};
-use std::cmp::max;
-use std::ops::Deref;
+use std::{
+    array,
+    borrow::{Borrow, BorrowMut},
+    cmp::max,
+    ops::Deref,
+};
 
 use itertools::Itertools;
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
-use sp1_core::air::{BaseAirBuilder, MachineAir};
-use sp1_core::utils::pad_rows_fixed;
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
+use sp1_core::{
+    air::{BaseAirBuilder, MachineAir},
+    utils::pad_rows_fixed,
+};
 use sp1_derive::AlignedBorrow;
 
-use crate::air::{MultiBuilder, SP1RecursionAirBuilder};
-use crate::fri_fold::{FriFoldChip, FriFoldCols};
-use crate::poseidon2_wide::columns::Poseidon2;
-use crate::poseidon2_wide::{Poseidon2WideChip, WIDTH};
-use crate::runtime::{ExecutionRecord, RecursionProgram};
+use crate::{
+    air::{MultiBuilder, SP1RecursionAirBuilder},
+    fri_fold::{FriFoldChip, FriFoldCols},
+    poseidon2_wide::{columns::Poseidon2, Poseidon2WideChip, WIDTH},
+    runtime::{ExecutionRecord, RecursionProgram},
+};
 
 pub const NUM_MULTI_COLS: usize = core::mem::size_of::<MultiCols<u8>>();
 
@@ -47,7 +51,8 @@ pub struct MultiCols<T: Copy> {
 
     /// Rows that needs to receive a poseidon2 syscall.
     pub poseidon2_receive_table: T,
-    /// Hash/Permute state entries that needs to access memory.  This is for the the first half of the permute state.
+    /// Hash/Permute state entries that needs to access memory.  This is for the the first half of
+    /// the permute state.
     pub poseidon2_1st_half_memory_access: [T; WIDTH / 2],
     /// Flag to indicate if all of the second half of a compress state needs to access memory.
     pub poseidon2_2nd_half_memory_access: T,
@@ -78,14 +83,8 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for MultiChip<DEGREE> {
         input: &ExecutionRecord<F>,
         output: &mut ExecutionRecord<F>,
     ) -> RowMajorMatrix<F> {
-        let fri_fold_chip = FriFoldChip::<DEGREE> {
-            fixed_log2_rows: None,
-            pad: false,
-        };
-        let poseidon2 = Poseidon2WideChip::<DEGREE> {
-            fixed_log2_rows: None,
-            pad: false,
-        };
+        let fri_fold_chip = FriFoldChip::<DEGREE> { fixed_log2_rows: None, pad: false };
+        let poseidon2 = Poseidon2WideChip::<DEGREE> { fixed_log2_rows: None, pad: false };
         let fri_fold_trace = fri_fold_chip.generate_trace(input, output);
         let mut poseidon2_trace = poseidon2.generate_trace(input, output);
 
@@ -142,11 +141,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for MultiChip<DEGREE> {
             .collect_vec();
 
         // Pad the trace to a power of two.
-        pad_rows_fixed(
-            &mut rows,
-            || vec![F::zero(); num_columns],
-            self.fixed_log2_rows,
-        );
+        pad_rows_fixed(&mut rows, || vec![F::zero(); num_columns], self.fixed_log2_rows);
 
         // Convert the trace to a row major matrix.
         RowMajorMatrix::new(rows.into_iter().flatten().collect(), num_columns)
@@ -172,12 +167,8 @@ where
         let next_multi_cols: &MultiCols<AB::Var> = next_slice[0..NUM_MULTI_COLS].borrow();
 
         // Dummy constraints to normalize to DEGREE.
-        let lhs = (0..DEGREE)
-            .map(|_| local_multi_cols.is_poseidon2.into())
-            .product::<AB::Expr>();
-        let rhs = (0..DEGREE)
-            .map(|_| local_multi_cols.is_poseidon2.into())
-            .product::<AB::Expr>();
+        let lhs = (0..DEGREE).map(|_| local_multi_cols.is_poseidon2.into()).product::<AB::Expr>();
+        let rhs = (0..DEGREE).map(|_| local_multi_cols.is_poseidon2.into()).product::<AB::Expr>();
         builder.assert_eq(lhs, rhs);
 
         let next_is_real = next_multi_cols.is_fri_fold + next_multi_cols.is_poseidon2;
@@ -198,14 +189,12 @@ where
             local_multi_cols.is_fri_fold * (AB::Expr::one() - next_multi_cols.is_fri_fold),
             local_multi_cols.fri_fold_last_row,
         );
-        builder.when_last_row().assert_eq(
-            local_multi_cols.is_fri_fold,
-            local_multi_cols.fri_fold_last_row,
-        );
-        builder.when_first_row().assert_eq(
-            local_multi_cols.is_poseidon2,
-            local_multi_cols.poseidon2_first_row,
-        );
+        builder
+            .when_last_row()
+            .assert_eq(local_multi_cols.is_fri_fold, local_multi_cols.fri_fold_last_row);
+        builder
+            .when_first_row()
+            .assert_eq(local_multi_cols.is_poseidon2, local_multi_cols.poseidon2_first_row);
         builder.when_transition().assert_eq(
             next_multi_cols.poseidon2_first_row,
             local_multi_cols.is_fri_fold * next_multi_cols.is_poseidon2,
@@ -214,22 +203,20 @@ where
             local_multi_cols.is_poseidon2 * (AB::Expr::one() - next_multi_cols.is_poseidon2),
             local_multi_cols.poseidon2_last_row,
         );
-        builder.when_last_row().assert_eq(
-            local_multi_cols.is_poseidon2,
-            local_multi_cols.poseidon2_last_row,
-        );
+        builder
+            .when_last_row()
+            .assert_eq(local_multi_cols.is_poseidon2, local_multi_cols.poseidon2_last_row);
 
-        // Fri fold requires that it's rows are contiguous, since each invocation spans multiple rows
-        // and it's AIR checks for consistencies among them.  The following constraints enforce that
-        // all the fri fold rows are first, then the posiedon2 rows, and finally any padded (non-real) rows.
+        // Fri fold requires that it's rows are contiguous, since each invocation spans multiple
+        // rows and it's AIR checks for consistencies among them.  The following constraints
+        // enforce that all the fri fold rows are first, then the posiedon2 rows, and
+        // finally any padded (non-real) rows.
 
         // First verify that all real rows are contiguous.
-        builder
-            .when_transition()
-            .when_not(local_is_real.clone())
-            .assert_zero(next_is_real.clone());
+        builder.when_transition().when_not(local_is_real.clone()).assert_zero(next_is_real.clone());
 
-        // Next, verify that all fri fold rows are before the poseidon2 rows within the real rows section.
+        // Next, verify that all fri fold rows are before the poseidon2 rows within the real rows
+        // section.
         builder
             .when_transition()
             .when(next_is_real)
@@ -248,13 +235,13 @@ where
         let next_fri_fold_cols = Self::fri_fold(&next);
 
         sub_builder.assert_eq(
-            local_multi_cols.is_fri_fold
-                * FriFoldChip::<DEGREE>::do_memory_access::<AB::Var>(&local_fri_fold_cols),
+            local_multi_cols.is_fri_fold *
+                FriFoldChip::<DEGREE>::do_memory_access::<AB::Var>(&local_fri_fold_cols),
             local_multi_cols.fri_fold_memory_access,
         );
         sub_builder.assert_eq(
-            local_multi_cols.is_fri_fold
-                * FriFoldChip::<DEGREE>::do_receive_table::<AB::Var>(&local_fri_fold_cols),
+            local_multi_cols.is_fri_fold *
+                FriFoldChip::<DEGREE>::do_receive_table::<AB::Var>(&local_fri_fold_cols),
             local_multi_cols.fri_fold_receive_table,
         );
 
@@ -280,16 +267,14 @@ where
             local_multi_cols.is_poseidon2 * poseidon2_columns.control_flow().is_syscall_row,
             local_multi_cols.poseidon2_receive_table,
         );
-        local_multi_cols
-            .poseidon2_1st_half_memory_access
-            .iter()
-            .enumerate()
-            .for_each(|(i, mem_access)| {
+        local_multi_cols.poseidon2_1st_half_memory_access.iter().enumerate().for_each(
+            |(i, mem_access)| {
                 sub_builder.assert_eq(
                     local_multi_cols.is_poseidon2 * poseidon2_columns.memory().memory_slot_used[i],
                     *mem_access,
                 );
-            });
+            },
+        );
 
         sub_builder.assert_eq(
             local_multi_cols.is_poseidon2 * poseidon2_columns.control_flow().is_compress,
@@ -349,38 +334,31 @@ impl<const DEGREE: usize> MultiChip<DEGREE> {
 mod tests {
     use std::time::Instant;
 
-    use p3_baby_bear::BabyBear;
-    use p3_baby_bear::DiffusionMatrixBabyBear;
+    use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
     use p3_matrix::{dense::RowMajorMatrix, Matrix};
-    use p3_poseidon2::Poseidon2;
-    use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
-    use sp1_core::stark::StarkGenericConfig;
+    use p3_poseidon2::{Poseidon2, Poseidon2ExternalMatrixGeneral};
     use sp1_core::{
         air::MachineAir,
+        stark::StarkGenericConfig,
         utils::{uni_stark_prove, uni_stark_verify, BabyBearPoseidon2},
     };
 
-    use crate::multi::MultiChip;
-    use crate::poseidon2_wide::tests::generate_test_execution_record;
-    use crate::runtime::ExecutionRecord;
+    use crate::{
+        multi::MultiChip, poseidon2_wide::tests::generate_test_execution_record,
+        runtime::ExecutionRecord,
+    };
 
     #[test]
     fn prove_babybear() {
         let config = BabyBearPoseidon2::compressed();
         let mut challenger = config.challenger();
 
-        let chip = MultiChip::<9> {
-            fixed_log2_rows: None,
-        };
+        let chip = MultiChip::<9> { fixed_log2_rows: None };
 
         let input_exec = generate_test_execution_record(false);
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());
-        println!(
-            "trace dims is width: {:?}, height: {:?}",
-            trace.width(),
-            trace.height()
-        );
+        println!("trace dims is width: {:?}, height: {:?}", trace.width(), trace.height());
 
         let start = Instant::now();
         let proof = uni_stark_prove(&config, &chip, &mut challenger, trace);

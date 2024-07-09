@@ -23,12 +23,9 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
     ) {
         // Constraint that the operands are sent from the CPU table.
         let params = local_syscall.get_raw_params();
-        let opcodes: [AB::Expr; 3] = [
-            Opcode::Poseidon2Compress,
-            Opcode::Poseidon2Absorb,
-            Opcode::Poseidon2Finalize,
-        ]
-        .map(|x| x.as_field::<AB::F>().into());
+        let opcodes: [AB::Expr; 3] =
+            [Opcode::Poseidon2Compress, Opcode::Poseidon2Absorb, Opcode::Poseidon2Finalize]
+                .map(|x| x.as_field::<AB::F>().into());
         let opcode_selectors = [
             local_control_flow.is_compress,
             local_control_flow.is_absorb,
@@ -57,10 +54,8 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                 .assert_eq(local_syscall_params.dst_ptr, next_syscall_params.dst_ptr);
             compress_syscall_builder
                 .assert_eq(local_syscall_params.left_ptr, next_syscall_params.left_ptr);
-            compress_syscall_builder.assert_eq(
-                local_syscall_params.right_ptr,
-                next_syscall_params.right_ptr,
-            );
+            compress_syscall_builder
+                .assert_eq(local_syscall_params.right_ptr, next_syscall_params.right_ptr);
         }
 
         // Verify that the syscall parameters are copied down to all the non syscall absorb rows.
@@ -75,14 +70,10 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             absorb_syscall_builder.assert_eq(local_syscall_params.clk, next_syscall_params.clk);
             absorb_syscall_builder
                 .assert_eq(local_syscall_params.hash_num, next_syscall_params.hash_num);
-            absorb_syscall_builder.assert_eq(
-                local_syscall_params.input_ptr,
-                next_syscall_params.input_ptr,
-            );
-            absorb_syscall_builder.assert_eq(
-                local_syscall_params.input_len,
-                next_syscall_params.input_len,
-            );
+            absorb_syscall_builder
+                .assert_eq(local_syscall_params.input_ptr, next_syscall_params.input_ptr);
+            absorb_syscall_builder
+                .assert_eq(local_syscall_params.input_len, next_syscall_params.input_len);
         }
     }
 }

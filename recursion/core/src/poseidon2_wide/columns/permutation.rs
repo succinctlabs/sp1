@@ -219,16 +219,12 @@ where
     T: Copy,
 {
     if DEGREE == 3 {
-        let start = POSEIDON2_DEGREE3_COL_MAP
-            .permutation_cols
-            .external_rounds_state[0][0];
+        let start = POSEIDON2_DEGREE3_COL_MAP.permutation_cols.external_rounds_state[0][0];
         let end = start + size_of::<PermutationSBox<u8>>();
         let convert: &mut PermutationSBox<T> = row[start..end].borrow_mut();
         Box::new(convert)
     } else if DEGREE == 9 || DEGREE == 17 {
-        let start = POSEIDON2_DEGREE9_COL_MAP
-            .permutation_cols
-            .external_rounds_state[0][0];
+        let start = POSEIDON2_DEGREE9_COL_MAP.permutation_cols.external_rounds_state[0][0];
         let end = start + size_of::<PermutationNoSbox<u8>>();
 
         let convert: &mut PermutationNoSbox<T> = row[start..end].borrow_mut();

@@ -1,10 +1,11 @@
-use std::cmp::min;
-use std::collections::BTreeMap;
+use std::{cmp::min, collections::BTreeMap};
 
-use elf::abi::{EM_RISCV, ET_EXEC, PF_X, PT_LOAD};
-use elf::endian::LittleEndian;
-use elf::file::Class;
-use elf::ElfBytes;
+use elf::{
+    abi::{EM_RISCV, ET_EXEC, PF_X, PT_LOAD},
+    endian::LittleEndian,
+    file::Class,
+    ElfBytes,
+};
 
 /// The maximum size of the memory in bytes.
 pub const MAXIMUM_MEMORY_SIZE: u32 = u32::MAX;
@@ -36,15 +37,11 @@ impl Elf {
         pc_base: u32,
         memory_image: BTreeMap<u32, u32>,
     ) -> Self {
-        Self {
-            instructions,
-            pc_start,
-            pc_base,
-            memory_image,
-        }
+        Self { instructions, pc_start, pc_base, memory_image }
     }
 
-    /// Parse the ELF file into a vector of 32-bit encoded instructions and the first memory address.
+    /// Parse the ELF file into a vector of 32-bit encoded instructions and the first memory
+    /// address.
     ///
     /// Reference: https://en.wikipedia.org/wiki/Executable_and_Linkable_Format
     pub fn decode(input: &[u8]) -> Self {
@@ -62,11 +59,7 @@ impl Elf {
         }
 
         // Get the entrypoint of the ELF file as an u32.
-        let entry: u32 = elf
-            .ehdr
-            .e_entry
-            .try_into()
-            .expect("e_entry was larger than 32 bits");
+        let entry: u32 = elf.ehdr.e_entry.try_into().expect("e_entry was larger than 32 bits");
 
         // Make sure the entrypoint is valid.
         if entry == MAXIMUM_MEMORY_SIZE || entry % WORD_SIZE as u32 != 0 {
@@ -85,28 +78,21 @@ impl Elf {
         // Only read segments that are executable instructions that are also PT_LOAD.
         for segment in segments.iter().filter(|x| x.p_type == PT_LOAD) {
             // Get the file size of the segment as an u32.
-            let file_size: u32 = segment
-                .p_filesz
-                .try_into()
-                .expect("filesize was larger than 32 bits");
+            let file_size: u32 =
+                segment.p_filesz.try_into().expect("filesize was larger than 32 bits");
             if file_size == MAXIMUM_MEMORY_SIZE {
                 panic!("invalid segment file_size");
             }
 
             // Get the memory size of the segment as an u32.
-            let mem_size: u32 = segment
-                .p_memsz
-                .try_into()
-                .expect("mem_size was larger than 32 bits");
+            let mem_size: u32 =
+                segment.p_memsz.try_into().expect("mem_size was larger than 32 bits");
             if mem_size == MAXIMUM_MEMORY_SIZE {
                 panic!("Invalid segment mem_size");
             }
 
             // Get the virtual address of the segment as an u32.
-            let vaddr: u32 = segment
-                .p_vaddr
-                .try_into()
-                .expect("vaddr was larger than 32 bits");
+            let vaddr: u32 = segment.p_vaddr.try_into().expect("vaddr was larger than 32 bits");
             if vaddr % WORD_SIZE as u32 != 0 {
                 panic!("vaddr {vaddr:08x} is unaligned");
             }
@@ -118,10 +104,7 @@ impl Elf {
             }
 
             // Get the offset to the segment.
-            let offset: u32 = segment
-                .p_offset
-                .try_into()
-                .expect("offset was larger than 32 bits");
+            let offset: u32 = segment.p_offset.try_into().expect("offset was larger than 32 bits");
 
             // Read the segment and decode each word as an instruction.
             for i in (0..mem_size).step_by(WORD_SIZE) {

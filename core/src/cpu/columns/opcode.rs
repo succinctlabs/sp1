@@ -1,7 +1,9 @@
 use p3_field::PrimeField;
 use sp1_derive::AlignedBorrow;
-use std::mem::{size_of, transmute};
-use std::vec::IntoIter;
+use std::{
+    mem::{size_of, transmute},
+    vec::IntoIter,
+};
 
 use crate::{
     runtime::{Instruction, Opcode},

@@ -75,14 +75,7 @@ pub mod compress_tests {
             ]);
         }
         instructions.extend(vec![
-            Instruction::new(
-                Opcode::ADD,
-                5,
-                0,
-                SyscallCode::SHA_COMPRESS as u32,
-                false,
-                true,
-            ),
+            Instruction::new(Opcode::ADD, 5, 0, SyscallCode::SHA_COMPRESS as u32, false, true),
             Instruction::new(Opcode::ADD, 10, 0, w_ptr, false, true),
             Instruction::new(Opcode::ADD, 11, 0, h_ptr, false, true),
             Instruction::new(Opcode::ECALL, 5, 10, 11, false, false),

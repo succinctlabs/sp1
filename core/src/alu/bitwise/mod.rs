@@ -1,20 +1,19 @@
-use core::borrow::{Borrow, BorrowMut};
-use core::mem::size_of;
+use core::{
+    borrow::{Borrow, BorrowMut},
+    mem::size_of,
+};
 
-use p3_air::AirBuilder;
-use p3_air::{Air, BaseAir};
-use p3_field::AbstractField;
-use p3_field::PrimeField;
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
+use p3_air::{Air, AirBuilder, BaseAir};
+use p3_field::{AbstractField, PrimeField};
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_derive::AlignedBorrow;
 
-use crate::air::MachineAir;
-use crate::air::{SP1AirBuilder, Word};
-use crate::bytes::event::ByteRecord;
-use crate::bytes::{ByteLookupEvent, ByteOpcode};
-use crate::runtime::{ExecutionRecord, Opcode, Program};
-use crate::utils::pad_to_power_of_two;
+use crate::{
+    air::{MachineAir, SP1AirBuilder, Word},
+    bytes::{event::ByteRecord, ByteLookupEvent, ByteOpcode},
+    runtime::{ExecutionRecord, Opcode, Program},
+    utils::pad_to_power_of_two,
+};
 
 /// The number of main trace columns for `BitwiseChip`.
 pub const NUM_BITWISE_COLS: usize = size_of::<BitwiseCols<u8>>();
@@ -108,10 +107,8 @@ impl<F: PrimeField> MachineAir<F> for BitwiseChip {
             .collect::<Vec<_>>();
 
         // Convert the trace to a row major matrix.
-        let mut trace = RowMajorMatrix::new(
-            rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_BITWISE_COLS,
-        );
+        let mut trace =
+            RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_BITWISE_COLS);
 
         // Pad the trace to a power of two.
         pad_to_power_of_two::<NUM_BITWISE_COLS, F>(&mut trace.values);
@@ -149,33 +146,23 @@ where
 
         // Constrain the incrementing nonce.
         builder.when_first_row().assert_zero(local.nonce);
-        builder
-            .when_transition()
-            .assert_eq(local.nonce + AB::Expr::one(), next.nonce);
+        builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         // Get the opcode for the operation.
-        let opcode = local.is_xor * ByteOpcode::XOR.as_field::<AB::F>()
-            + local.is_or * ByteOpcode::OR.as_field::<AB::F>()
-            + local.is_and * ByteOpcode::AND.as_field::<AB::F>();
+        let opcode = local.is_xor * ByteOpcode::XOR.as_field::<AB::F>() +
+            local.is_or * ByteOpcode::OR.as_field::<AB::F>() +
+            local.is_and * ByteOpcode::AND.as_field::<AB::F>();
 
         // Get a multiplicity of `1` only for a true row.
         let mult = local.is_xor + local.is_or + local.is_and;
         for ((a, b), c) in local.a.into_iter().zip(local.b).zip(local.c) {
-            builder.send_byte(
-                opcode.clone(),
-                a,
-                b,
-                c,
-                local.shard,
-                local.channel,
-                mult.clone(),
-            );
+            builder.send_byte(opcode.clone(), a, b, c, local.shard, local.channel, mult.clone());
         }
 
         // Get the cpu opcode, which corresponds to the opcode being sent in the CPU table.
-        let cpu_opcode = local.is_xor * Opcode::XOR.as_field::<AB::F>()
-            + local.is_or * Opcode::OR.as_field::<AB::F>()
-            + local.is_and * Opcode::AND.as_field::<AB::F>();
+        let cpu_opcode = local.is_xor * Opcode::XOR.as_field::<AB::F>() +
+            local.is_or * Opcode::OR.as_field::<AB::F>() +
+            local.is_and * Opcode::AND.as_field::<AB::F>();
 
         // Receive the arguments.
         builder.receive_alu(
@@ -202,14 +189,18 @@ mod tests {
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
 
-    use crate::air::MachineAir;
-    use crate::stark::StarkGenericConfig;
-    use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
+    use crate::{
+        air::MachineAir,
+        stark::StarkGenericConfig,
+        utils::{uni_stark_prove as prove, uni_stark_verify as verify},
+    };
 
     use super::BitwiseChip;
-    use crate::alu::AluEvent;
-    use crate::runtime::{ExecutionRecord, Opcode};
-    use crate::utils::BabyBearPoseidon2;
+    use crate::{
+        alu::AluEvent,
+        runtime::{ExecutionRecord, Opcode},
+        utils::BabyBearPoseidon2,
+    };
 
     #[test]
     fn generate_trace() {

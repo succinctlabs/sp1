@@ -1,12 +1,10 @@
-use std::borrow::Borrow;
-use std::{fs::File, path::Path};
+use std::{borrow::Borrow, fs::File, path::Path};
 
 use anyhow::Result;
 use p3_baby_bear::BabyBear;
 use p3_bn254_fr::Bn254Fr;
 use p3_commit::{Pcs, TwoAdicMultiplicativeCoset};
-use p3_field::PrimeField;
-use p3_field::{AbstractField, PrimeField32, TwoAdicField};
+use p3_field::{AbstractField, PrimeField, PrimeField32, TwoAdicField};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sp1_core::{
     io::{SP1PublicValues, SP1Stdin},
@@ -18,9 +16,10 @@ use sp1_recursion_core::{air::RecursionPublicValues, stark::config::BabyBearPose
 use sp1_recursion_gnark_ffi::plonk_bn254::PlonkBn254Proof;
 use thiserror::Error;
 
-use crate::utils::words_to_bytes_be;
-use crate::{utils::babybear_bytes_to_bn254, words_to_bytes};
-use crate::{utils::babybears_to_bn254, CoreSC, InnerSC};
+use crate::{
+    utils::{babybear_bytes_to_bn254, babybears_to_bn254, words_to_bytes_be},
+    words_to_bytes, CoreSC, InnerSC,
+};
 
 /// The information necessary to generate a proof for a given RISC-V program.
 #[derive(Clone, Serialize, Deserialize)]
@@ -51,10 +50,7 @@ pub trait HashableKey {
 
     fn bytes32(&self) -> String {
         let vkey_digest_bn254 = self.hash_bn254();
-        format!(
-            "0x{:0>64}",
-            vkey_digest_bn254.as_canonical_biguint().to_str_radix(16)
-        )
+        format!("0x{:0>64}", vkey_digest_bn254.as_canonical_biguint().to_str_radix(16))
     }
 
     /// Hash the key into a digest of bytes elements.
@@ -130,9 +126,7 @@ impl<P: Serialize + DeserializeOwned + Clone> SP1ProofWithMetadata<P> {
 
 impl<P: std::fmt::Debug + Clone> std::fmt::Debug for SP1ProofWithMetadata<P> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SP1ProofWithMetadata")
-            .field("proof", &self.proof)
-            .finish()
+        f.debug_struct("SP1ProofWithMetadata").field("proof", &self.proof).finish()
     }
 }
 
@@ -183,9 +177,7 @@ impl SP1ReduceProof<BabyBearPoseidon2Outer> {
         let proof = &self.proof;
         let pv: &RecursionPublicValues<BabyBear> = proof.public_values.as_slice().borrow();
         let committed_values_digest_bytes: [BabyBear; 32] =
-            words_to_bytes(&pv.committed_value_digest)
-                .try_into()
-                .unwrap();
+            words_to_bytes(&pv.committed_value_digest).try_into().unwrap();
         babybear_bytes_to_bn254(&committed_values_digest_bytes)
     }
 }

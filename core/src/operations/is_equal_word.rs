@@ -2,8 +2,7 @@ use p3_field::Field;
 use sp1_derive::AlignedBorrow;
 
 use super::IsZeroWordOperation;
-use crate::air::SP1AirBuilder;
-use crate::air::Word;
+use crate::air::{SP1AirBuilder, Word};
 
 /// A set of columns needed to compute the equality of two words.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]

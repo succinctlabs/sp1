@@ -4,20 +4,17 @@ use std::fmt::Debug;
 use num::BigUint;
 
 use p3_air::AirBuilder;
-use p3_field::AbstractField;
-use p3_field::PrimeField32;
+use p3_field::{AbstractField, PrimeField32};
 
 use sp1_derive::AlignedBorrow;
 
-use crate::air::BaseAirBuilder;
 use crate::{
-    air::Polynomial,
+    air::{BaseAirBuilder, Polynomial},
     bytes::{event::ByteRecord, ByteLookupEvent, ByteOpcode},
     stark::SP1AirBuilder,
 };
 
-use super::params::FieldParameters;
-use super::params::Limbs;
+use super::params::{FieldParameters, Limbs};
 
 /// Operation columns for verifying that an element is within the range `[0, modulus)`.
 #[derive(Debug, Clone, AlignedBorrow)]
@@ -47,11 +44,9 @@ impl<F: PrimeField32, P: FieldParameters> FieldRangeCols<F, P> {
 
         let mut byte_flags = vec![0u8; P::NB_LIMBS];
 
-        for (byte, modulus_byte, flag) in izip!(
-            value_limbs.iter().rev(),
-            modulus.iter().rev(),
-            byte_flags.iter_mut().rev()
-        ) {
+        for (byte, modulus_byte, flag) in
+            izip!(value_limbs.iter().rev(), modulus.iter().rev(), byte_flags.iter_mut().rev())
+        {
             assert!(byte <= modulus_byte);
             if byte < modulus_byte {
                 *flag = 1;
@@ -143,9 +138,7 @@ impl<V: Copy, P: FieldParameters> FieldRangeCols<V, P> {
                 .assert_eq(byte.clone(), modulus_byte.clone());
         }
 
-        builder
-            .when(is_real.clone())
-            .assert_eq(self.comparison_byte, first_lt_byte);
+        builder.when(is_real.clone()).assert_eq(self.comparison_byte, first_lt_byte);
         builder
             .when(is_real.clone())
             .assert_eq(self.modulus_comparison_byte, modulus_comparison_byte);

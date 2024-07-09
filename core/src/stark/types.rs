@@ -6,9 +6,10 @@ use std::{
 
 use bincode::{deserialize_from, Error};
 use hashbrown::HashMap;
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::dense::RowMajorMatrixView;
-use p3_matrix::stack::VerticalPair;
+use p3_matrix::{
+    dense::{RowMajorMatrix, RowMajorMatrixView},
+    stack::VerticalPair,
+};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use size::Size;
 use tracing::trace;
@@ -36,13 +37,7 @@ impl<SC: StarkGenericConfig> ShardMainData<SC> {
         chip_ordering: HashMap<String, usize>,
         public_values: Vec<Val<SC>>,
     ) -> Self {
-        Self {
-            traces,
-            main_commit,
-            main_data,
-            chip_ordering,
-            public_values,
-        }
+        Self { traces, main_commit, main_data, chip_ordering, public_values }
     }
 
     pub fn save(&self, file: File) -> Result<ShardMainDataWrapper<SC>, Error>
@@ -54,10 +49,7 @@ impl<SC: StarkGenericConfig> ShardMainData<SC> {
         drop(writer);
         let metadata = file.metadata()?;
         let bytes_written = metadata.len();
-        trace!(
-            "wrote {} while saving ShardMainData",
-            Size::from_bytes(bytes_written)
-        );
+        trace!("wrote {} while saving ShardMainData", Size::from_bytes(bytes_written));
         Ok(ShardMainDataWrapper::TempFile(file, bytes_written))
     }
 
@@ -118,9 +110,9 @@ pub struct ShardOpenedValues<T: Serialize> {
     pub chips: Vec<ChipOpenedValues<T>>,
 }
 
-/// The maximum number of elements that can be stored in the public values vec.  Both SP1 and recursive
-/// proofs need to pad their public_values vec to this length.  This is required since the recursion
-/// verification program expects the public values vec to be fixed length.
+/// The maximum number of elements that can be stored in the public values vec.  Both SP1 and
+/// recursive proofs need to pad their public_values vec to this length.  This is required since the
+/// recursion verification program expects the public values vec to be fixed length.
 pub const PROOF_MAX_NUM_PVS: usize = 370;
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -149,11 +141,7 @@ impl<T: Send + Sync + Clone> AirOpenedValues<T> {
 
 impl<SC: StarkGenericConfig> ShardProof<SC> {
     pub fn cumulative_sum(&self) -> Challenge<SC> {
-        self.opened_values
-            .chips
-            .iter()
-            .map(|c| c.cumulative_sum)
-            .sum()
+        self.opened_values.chips.iter().map(|c| c.cumulative_sum).sum()
     }
 
     pub fn log_degree_cpu(&self) -> usize {
@@ -182,9 +170,7 @@ pub struct MachineProof<SC: StarkGenericConfig> {
 
 impl<SC: StarkGenericConfig> Debug for MachineProof<SC> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Proof")
-            .field("shard_proofs", &self.shard_proofs.len())
-            .finish()
+        f.debug_struct("Proof").field("shard_proofs", &self.shard_proofs.len()).finish()
     }
 }
 

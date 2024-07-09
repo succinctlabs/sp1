@@ -1,47 +1,38 @@
-use core::borrow::{Borrow, BorrowMut};
-use core::mem::size_of;
-use std::fmt::Debug;
-use std::marker::PhantomData;
+use core::{
+    borrow::{Borrow, BorrowMut},
+    mem::size_of,
+};
+use std::{fmt::Debug, marker::PhantomData};
 
-use num::BigUint;
-use num::Zero;
+use num::{BigUint, Zero};
 
-use p3_air::AirBuilder;
-use p3_air::{Air, BaseAir};
-use p3_field::AbstractField;
-use p3_field::PrimeField32;
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
-use p3_maybe_rayon::prelude::IntoParallelRefIterator;
-use p3_maybe_rayon::prelude::ParallelIterator;
+use p3_air::{Air, AirBuilder, BaseAir};
+use p3_field::{AbstractField, PrimeField32};
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
+use p3_maybe_rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 use sp1_derive::AlignedBorrow;
 
 use super::{NUM_LIMBS, WORDS_CURVE_POINT};
-use crate::air::BaseAirBuilder;
-use crate::air::MachineAir;
-use crate::air::SP1AirBuilder;
-use crate::bytes::event::ByteRecord;
-use crate::bytes::ByteLookupEvent;
-use crate::memory::value_as_limbs;
-use crate::memory::MemoryReadCols;
-use crate::memory::MemoryWriteCols;
-use crate::operations::field::field_den::FieldDenCols;
-use crate::operations::field::field_inner_product::FieldInnerProductCols;
-use crate::operations::field::field_op::FieldOpCols;
-use crate::operations::field::field_op::FieldOperation;
-use crate::operations::field::params::FieldParameters;
-use crate::runtime::ExecutionRecord;
-use crate::runtime::Program;
-use crate::runtime::Syscall;
-use crate::runtime::SyscallCode;
-use crate::syscall::precompiles::create_ec_add_event;
-use crate::syscall::precompiles::SyscallContext;
-use crate::utils::ec::edwards::ed25519::Ed25519BaseField;
-use crate::utils::ec::edwards::EdwardsParameters;
-use crate::utils::ec::AffinePoint;
-use crate::utils::ec::EllipticCurve;
-use crate::utils::limbs_from_prev_access;
-use crate::utils::pad_rows;
+use crate::{
+    air::{BaseAirBuilder, MachineAir, SP1AirBuilder},
+    bytes::{event::ByteRecord, ByteLookupEvent},
+    memory::{value_as_limbs, MemoryReadCols, MemoryWriteCols},
+    operations::field::{
+        field_den::FieldDenCols,
+        field_inner_product::FieldInnerProductCols,
+        field_op::{FieldOpCols, FieldOperation},
+        params::FieldParameters,
+    },
+    runtime::{ExecutionRecord, Program, Syscall, SyscallCode},
+    syscall::precompiles::{create_ec_add_event, SyscallContext},
+    utils::{
+        ec::{
+            edwards::{ed25519::Ed25519BaseField, EdwardsParameters},
+            AffinePoint, EllipticCurve,
+        },
+        limbs_from_prev_access, pad_rows,
+    },
+};
 
 pub const NUM_ED_ADD_COLS: usize = size_of::<EdAddAssignCols<u8>>();
 
@@ -77,9 +68,7 @@ pub struct EdAddAssignChip<E> {
 
 impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
     pub const fn new() -> Self {
-        Self {
-            _marker: PhantomData,
-        }
+        Self { _marker: PhantomData }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -108,29 +97,17 @@ impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
             &[q_y.clone(), q_x.clone()],
         );
         let x1_mul_y1 =
-            cols.x1_mul_y1
-                .populate(record, shard, channel, &p_x, &p_y, FieldOperation::Mul);
+            cols.x1_mul_y1.populate(record, shard, channel, &p_x, &p_y, FieldOperation::Mul);
         let x2_mul_y2 =
-            cols.x2_mul_y2
-                .populate(record, shard, channel, &q_x, &q_y, FieldOperation::Mul);
-        let f = cols.f.populate(
-            record,
-            shard,
-            channel,
-            &x1_mul_y1,
-            &x2_mul_y2,
-            FieldOperation::Mul,
-        );
+            cols.x2_mul_y2.populate(record, shard, channel, &q_x, &q_y, FieldOperation::Mul);
+        let f =
+            cols.f.populate(record, shard, channel, &x1_mul_y1, &x2_mul_y2, FieldOperation::Mul);
 
         let d = E::d_biguint();
-        let d_mul_f = cols
-            .d_mul_f
-            .populate(record, shard, channel, &f, &d, FieldOperation::Mul);
+        let d_mul_f = cols.d_mul_f.populate(record, shard, channel, &f, &d, FieldOperation::Mul);
 
-        cols.x3_ins
-            .populate(record, shard, channel, &x3_numerator, &d_mul_f, true);
-        cols.y3_ins
-            .populate(record, shard, channel, &y3_numerator, &d_mul_f, false);
+        cols.x3_ins.populate(record, shard, channel, &x3_numerator, &d_mul_f, true);
+        cols.y3_ins.populate(record, shard, channel, &y3_numerator, &d_mul_f, false);
     }
 }
 
@@ -240,10 +217,8 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
         });
 
         // Convert the trace to a row major matrix.
-        let mut trace = RowMajorMatrix::new(
-            rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_ED_ADD_COLS,
-        );
+        let mut trace =
+            RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_ED_ADD_COLS);
 
         // Write the nonces to the trace.
         for i in 0..trace.height() {
@@ -279,9 +254,7 @@ where
 
         // Constrain the incrementing nonce.
         builder.when_first_row().assert_zero(local.nonce);
-        builder
-            .when_transition()
-            .assert_eq(local.nonce + AB::Expr::one(), next.nonce);
+        builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         let x1 = limbs_from_prev_access(&local.p_access[0..8]);
         let x2 = limbs_from_prev_access(&local.q_access[0..8]);
@@ -384,10 +357,9 @@ where
         builder
             .when(local.is_real)
             .assert_all_eq(local.x3_ins.result, p_access_vec[0..NUM_LIMBS].to_vec());
-        builder.when(local.is_real).assert_all_eq(
-            local.y3_ins.result,
-            p_access_vec[NUM_LIMBS..NUM_LIMBS * 2].to_vec(),
-        );
+        builder
+            .when(local.is_real)
+            .assert_all_eq(local.y3_ins.result, p_access_vec[NUM_LIMBS..NUM_LIMBS * 2].to_vec());
 
         builder.eval_memory_access_slice(
             local.shard,
@@ -422,10 +394,12 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::stark::DefaultProver;
-    use crate::utils;
-    use crate::utils::tests::{ED25519_ELF, ED_ADD_ELF};
-    use crate::Program;
+    use crate::{
+        stark::DefaultProver,
+        utils,
+        utils::tests::{ED25519_ELF, ED_ADD_ELF},
+        Program,
+    };
 
     #[test]
     fn test_ed_add_simple() {

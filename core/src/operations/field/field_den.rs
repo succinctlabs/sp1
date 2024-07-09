@@ -4,12 +4,15 @@ use num::BigUint;
 use p3_field::PrimeField32;
 use sp1_derive::AlignedBorrow;
 
-use super::params::{FieldParameters, Limbs};
-use super::util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs};
-use super::util_air::eval_field_operation;
-use crate::air::Polynomial;
-use crate::air::SP1AirBuilder;
-use crate::bytes::event::ByteRecord;
+use super::{
+    params::{FieldParameters, Limbs},
+    util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs},
+    util_air::eval_field_operation,
+};
+use crate::{
+    air::{Polynomial, SP1AirBuilder},
+    bytes::event::ByteRecord,
+};
 
 /// A set of columns to compute `FieldDen(a, b)` where `a`, `b` are field elements.
 ///
@@ -47,11 +50,7 @@ impl<F: PrimeField32, P: FieldParameters> FieldDenCols<F, P> {
         debug_assert_eq!(&den_inv * &denominator % &p, BigUint::from(1u32));
         debug_assert!(result < p);
 
-        let equation_lhs = if sign {
-            b * &result + &result
-        } else {
-            b * &result + a
-        };
+        let equation_lhs = if sign { b * &result + &result } else { b * &result + a };
         let equation_rhs = if sign { a.clone() } else { result.clone() };
         let carry = (&equation_lhs - &equation_rhs) / &p;
         debug_assert!(carry < p);
@@ -117,14 +116,11 @@ where
         let p_carry = self.carry.into();
 
         // Compute the vanishing polynomial:
-        //      lhs(x) = sign * (b(x) * result(x) + result(x)) + (1 - sign) * (b(x) * result(x) + a(x))
-        //      rhs(x) = sign * a(x) + (1 - sign) * result(x)
+        //      lhs(x) = sign * (b(x) * result(x) + result(x)) + (1 - sign) * (b(x) * result(x) +
+        // a(x))      rhs(x) = sign * a(x) + (1 - sign) * result(x)
         //      lhs(x) - rhs(x) - carry(x) * p(x)
-        let p_equation_lhs = if sign {
-            &p_b * &p_result + &p_result
-        } else {
-            &p_b * &p_result + &p_a
-        };
+        let p_equation_lhs =
+            if sign { &p_b * &p_result + &p_result } else { &p_b * &p_result + &p_a };
         let p_equation_rhs = if sign { p_a } else { p_result };
 
         let p_lhs_minus_rhs = &p_equation_lhs - &p_equation_rhs;
@@ -170,21 +166,25 @@ mod tests {
 
     use crate::air::MachineAir;
 
-    use crate::operations::field::params::FieldParameters;
-    use crate::runtime::Program;
-    use crate::stark::StarkGenericConfig;
-    use crate::utils::ec::edwards::ed25519::Ed25519BaseField;
-    use crate::utils::BabyBearPoseidon2;
-    use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
-    use crate::{air::SP1AirBuilder, runtime::ExecutionRecord};
-    use core::borrow::{Borrow, BorrowMut};
-    use core::mem::size_of;
+    use crate::{
+        air::SP1AirBuilder,
+        operations::field::params::FieldParameters,
+        runtime::{ExecutionRecord, Program},
+        stark::StarkGenericConfig,
+        utils::{
+            ec::edwards::ed25519::Ed25519BaseField, uni_stark_prove as prove,
+            uni_stark_verify as verify, BabyBearPoseidon2,
+        },
+    };
+    use core::{
+        borrow::{Borrow, BorrowMut},
+        mem::size_of,
+    };
     use num::bigint::RandBigInt;
     use p3_air::Air;
     use p3_baby_bear::BabyBear;
     use p3_field::AbstractField;
-    use p3_matrix::dense::RowMajorMatrix;
-    use p3_matrix::Matrix;
+    use p3_matrix::{dense::RowMajorMatrix, Matrix};
     use rand::thread_rng;
     use sp1_derive::AlignedBorrow;
 
@@ -204,10 +204,7 @@ mod tests {
 
     impl<P: FieldParameters> FieldDenChip<P> {
         pub const fn new(sign: bool) -> Self {
-            Self {
-                sign,
-                _phantom: std::marker::PhantomData,
-            }
+            Self { sign, _phantom: std::marker::PhantomData }
         }
     }
 
@@ -260,10 +257,7 @@ mod tests {
 
             // Note we do not pad the trace here because we cannot just pad with all 0s.
 
-            RowMajorMatrix::new(
-                rows.into_iter().flatten().collect::<Vec<_>>(),
-                NUM_TEST_COLS,
-            )
+            RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_TEST_COLS)
         }
 
         fn included(&self, _: &Self::Record) -> bool {

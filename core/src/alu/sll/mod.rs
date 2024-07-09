@@ -30,22 +30,23 @@
 //! - Ideally, we would calculate b * pow(2, c), but pow(2, c) could overflow in F.
 //! - Shifting by a multiple of 8 bits is easy (=num_bytes_to_shift) since we just shift words.
 
-use core::borrow::{Borrow, BorrowMut};
-use core::mem::size_of;
+use core::{
+    borrow::{Borrow, BorrowMut},
+    mem::size_of,
+};
 
 use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::AbstractField;
-use p3_field::PrimeField;
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
+use p3_field::{AbstractField, PrimeField};
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_derive::AlignedBorrow;
 
-use crate::air::MachineAir;
-use crate::air::{SP1AirBuilder, Word};
-use crate::bytes::event::ByteRecord;
-use crate::disassembler::WORD_SIZE;
-use crate::runtime::{ExecutionRecord, Opcode, Program};
-use crate::utils::pad_to_power_of_two;
+use crate::{
+    air::{MachineAir, SP1AirBuilder, Word},
+    bytes::event::ByteRecord,
+    disassembler::WORD_SIZE,
+    runtime::{ExecutionRecord, Opcode, Program},
+    utils::pad_to_power_of_two,
+};
 
 /// The number of main trace columns for `ShiftLeft`.
 pub const NUM_SHIFT_LEFT_COLS: usize = size_of::<ShiftLeftCols<u8>>();
@@ -239,9 +240,7 @@ where
 
         // Constrain the incrementing nonce.
         builder.when_first_row().assert_zero(local.nonce);
-        builder
-            .when_transition()
-            .assert_eq(local.nonce + AB::Expr::one(), next.nonce);
+        builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         // We first "bit shift" and next we "byte shift". Then we compare the results with a.
         // Finally, we perform some misc checks.
@@ -272,17 +271,16 @@ where
 
         // Check bit_shift_multiplier = 2^num_bits_to_shift by using shift_by_n_bits.
         for i in 0..BYTE_SIZE {
-            builder.when(local.shift_by_n_bits[i]).assert_eq(
-                local.bit_shift_multiplier,
-                AB::F::from_canonical_usize(1 << i),
-            );
+            builder
+                .when(local.shift_by_n_bits[i])
+                .assert_eq(local.bit_shift_multiplier, AB::F::from_canonical_usize(1 << i));
         }
 
         // Check bit_shift_result = b * bit_shift_multiplier by using bit_shift_result_carry to
         // carry-propagate.
         for i in 0..WORD_SIZE {
-            let mut v = local.b[i] * local.bit_shift_multiplier
-                - local.bit_shift_result_carry[i] * base.clone();
+            let mut v = local.b[i] * local.bit_shift_multiplier -
+                local.bit_shift_result_carry[i] * base.clone();
             if i > 0 {
                 v += local.bit_shift_result_carry[i - 1].into();
             }
@@ -326,10 +324,7 @@ where
             builder.assert_bool(*shift);
         }
         builder.assert_eq(
-            local
-                .shift_by_n_bits
-                .iter()
-                .fold(zero.clone(), |acc, &x| acc + x),
+            local.shift_by_n_bits.iter().fold(zero.clone(), |acc, &x| acc + x),
             one.clone(),
         );
 
@@ -354,10 +349,7 @@ where
         }
 
         builder.assert_eq(
-            local
-                .shift_by_n_bytes
-                .iter()
-                .fold(zero.clone(), |acc, &x| acc + x),
+            local.shift_by_n_bytes.iter().fold(zero.clone(), |acc, &x| acc + x),
             one.clone(),
         );
 

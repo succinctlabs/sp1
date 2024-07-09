@@ -3,14 +3,18 @@ pub mod keccak256;
 pub mod sha256;
 pub mod uint256;
 pub mod weierstrass;
-use crate::operations::field::params::{NumLimbs, NumWords};
-use crate::runtime::SyscallContext;
-use crate::utils::ec::weierstrass::bls12_381::bls12381_decompress;
-use crate::utils::ec::weierstrass::secp256k1::secp256k1_decompress;
-use crate::utils::ec::CurveType;
-use crate::utils::ec::{AffinePoint, EllipticCurve};
-use crate::utils::{bytes_to_words_le_vec, words_to_bytes_le_vec};
-use crate::{runtime::MemoryReadRecord, runtime::MemoryWriteRecord};
+use crate::{
+    operations::field::params::{NumLimbs, NumWords},
+    runtime::{MemoryReadRecord, MemoryWriteRecord, SyscallContext},
+    utils::{
+        bytes_to_words_le_vec,
+        ec::{
+            weierstrass::{bls12_381::bls12381_decompress, secp256k1::secp256k1_decompress},
+            AffinePoint, CurveType, EllipticCurve,
+        },
+        words_to_bytes_le_vec,
+    },
+};
 use typenum::Unsigned;
 
 use core::fmt::Debug;
@@ -33,8 +37,9 @@ pub struct ECAddEvent {
 
 /// Create an elliptic curve add event. It takes two pointers to memory locations, reads the points
 /// from memory, adds them together, and writes the result back to the first memory location.
-/// The generic parameter `N` is the number of u32 words in the point representation. For example, for
-/// the secp256k1 curve, `N` would be 16 (64 bytes) because the x and y coordinates are 32 bytes each.
+/// The generic parameter `N` is the number of u32 words in the point representation. For example,
+/// for the secp256k1 curve, `N` would be 16 (64 bytes) because the x and y coordinates are 32 bytes
+/// each.
 pub fn create_ec_add_event<E: EllipticCurve>(
     rt: &mut SyscallContext,
     arg1: u32,
@@ -94,9 +99,9 @@ pub struct ECDoubleEvent {
 }
 
 /// Create an elliptic curve double event. It takes a pointer to a memory location, reads the point
-/// from memory, doubles it, and writes the result back to the memory location. The generic parameter
-/// `N` is the number of u32 words in the point representation. For example, for the secp256k1 curve, `N`
-/// would be 16 (64 bytes) because the x and y coordinates are 32 bytes each.
+/// from memory, doubles it, and writes the result back to the memory location. The generic
+/// parameter `N` is the number of u32 words in the point representation. For example, for the
+/// secp256k1 curve, `N` would be 16 (64 bytes) because the x and y coordinates are 32 bytes each.
 pub fn create_ec_double_event<E: EllipticCurve>(
     rt: &mut SyscallContext,
     arg1: u32,

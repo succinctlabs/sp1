@@ -10,17 +10,11 @@ pub struct Buffer {
 
 impl Buffer {
     pub const fn new() -> Self {
-        Self {
-            data: Vec::new(),
-            ptr: 0,
-        }
+        Self { data: Vec::new(), ptr: 0 }
     }
 
     pub fn from(data: &[u8]) -> Self {
-        Self {
-            data: data.to_vec(),
-            ptr: 0,
-        }
+        Self { data: data.to_vec(), ptr: 0 }
     }
 
     /// Set the position ptr to the beginning of the buffer.

@@ -38,9 +38,7 @@ pub fn populate_permutation_row<F: PrimeField, EF: ExtensionField<F>>(
                 for (columns, beta) in interaction.values.iter().zip(betas) {
                     denominator += beta * columns.apply::<F, F>(preprocessed_row, main_row)
                 }
-                let mut mult = interaction
-                    .multiplicity
-                    .apply::<F, F>(preprocessed_row, main_row);
+                let mut mult = interaction.multiplicity.apply::<F, F>(preprocessed_row, main_row);
 
                 if !is_send {
                     mult = -mult;
@@ -112,10 +110,8 @@ pub fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
                 });
         }
         None => {
-            permutation_trace
-                .par_rows_mut()
-                .zip_eq(main.par_row_slices())
-                .for_each(|(row, main_row)| {
+            permutation_trace.par_rows_mut().zip_eq(main.par_row_slices()).for_each(
+                |(row, main_row)| {
                     populate_permutation_row(
                         row,
                         &[],
@@ -126,32 +122,25 @@ pub fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
                         betas.clone(),
                         batch_size,
                     )
-                });
+                },
+            );
         }
     }
 
     let zero = EF::zero();
     let cumulative_sums = permutation_trace
         .par_rows_mut()
-        .map(|row| {
-            row[0..permutation_trace_width - 1]
-                .iter()
-                .copied()
-                .sum::<EF>()
-        })
+        .map(|row| row[0..permutation_trace_width - 1].iter().copied().sum::<EF>())
         .collect::<Vec<_>>();
 
-    let cumulative_sums = cumulative_sums
-        .into_par_iter()
-        .scan(|a, b| *a + *b, zero)
-        .collect::<Vec<_>>();
+    let cumulative_sums =
+        cumulative_sums.into_par_iter().scan(|a, b| *a + *b, zero).collect::<Vec<_>>();
 
-    permutation_trace
-        .par_rows_mut()
-        .zip_eq(cumulative_sums.into_par_iter())
-        .for_each(|(row, cumulative_sum)| {
+    permutation_trace.par_rows_mut().zip_eq(cumulative_sums.into_par_iter()).for_each(
+        |(row, cumulative_sum)| {
             *row.last_mut().unwrap() = cumulative_sum;
-        });
+        },
+    );
 
     permutation_trace
 }
@@ -207,15 +196,9 @@ pub fn eval_permutation_constraints<F, AB>(
         batch_size,
         perm_width - 1
     );
-    assert_eq!(
-        perm_width,
-        permutation_trace_width(sends.len() + receives.len(), batch_size)
-    );
+    assert_eq!(perm_width, permutation_trace_width(sends.len() + receives.len(), batch_size));
 
-    for (entry, chunk) in perm_local[0..perm_local.len() - 1]
-        .iter()
-        .zip(interaction_chunks)
-    {
+    for (entry, chunk) in perm_local[0..perm_local.len() - 1].iter().zip(interaction_chunks) {
         // Assert that the i-eth entry is equal to the sum_i m_i/rlc_i by constraints:
         // entry * \prod_i rlc_i = \sum_i m_i * \prod_{j!=i} rlc_j.
 
@@ -226,8 +209,8 @@ pub fn eval_permutation_constraints<F, AB>(
         for (interaction, is_send) in chunk {
             let mut rlc = alpha.clone();
             let mut betas = beta.powers();
-            rlc += betas.next().unwrap()
-                * AB::ExprEF::from_canonical_usize(interaction.argument_index());
+            rlc += betas.next().unwrap() *
+                AB::ExprEF::from_canonical_usize(interaction.argument_index());
             for (field, beta) in interaction.values.iter().zip(betas.clone()) {
                 let elem = field.apply::<AB::Expr, AB::Var>(&preprocessed_local, main_local);
                 rlc += beta * elem;
@@ -238,8 +221,8 @@ pub fn eval_permutation_constraints<F, AB>(
             multiplicities.push(
                 interaction
                     .multiplicity
-                    .apply::<AB::Expr, AB::Var>(&preprocessed_local, main_local)
-                    * send_factor,
+                    .apply::<AB::Expr, AB::Var>(&preprocessed_local, main_local) *
+                    send_factor,
             );
         }
 
@@ -251,12 +234,7 @@ pub fn eval_permutation_constraints<F, AB>(
             product *= rlc.clone();
             // Calculate the product of all but the current rlc.
             let mut all_but_current = AB::ExprEF::one();
-            for other_rlc in rlcs
-                .iter()
-                .enumerate()
-                .filter(|(j, _)| i != *j)
-                .map(|(_, rlc)| rlc)
-            {
+            for other_rlc in rlcs.iter().enumerate().filter(|(j, _)| i != *j).map(|(_, rlc)| rlc) {
                 all_but_current *= other_rlc.clone();
             }
             numerator += AB::ExprEF::from_base(m) * all_but_current;
@@ -267,26 +245,16 @@ pub fn eval_permutation_constraints<F, AB>(
         builder.assert_eq_ext(product.clone() * entry.clone(), numerator);
     }
 
-    let sum_local = perm_local[..perm_width - 1]
-        .iter()
-        .map(|x| (*x).into())
-        .sum::<AB::ExprEF>();
+    let sum_local = perm_local[..perm_width - 1].iter().map(|x| (*x).into()).sum::<AB::ExprEF>();
 
-    let sum_next = perm_next[..perm_width - 1]
-        .iter()
-        .map(|x| (*x).into())
-        .sum::<AB::ExprEF>();
+    let sum_next = perm_next[..perm_width - 1].iter().map(|x| (*x).into()).sum::<AB::ExprEF>();
 
     let phi_local: AB::ExprEF = (*perm_local.last().unwrap()).into();
     let phi_next: AB::ExprEF = (*perm_next.last().unwrap()).into();
-    builder
-        .when_transition()
-        .assert_eq_ext(phi_next - phi_local.clone(), sum_next);
+    builder.when_transition().assert_eq_ext(phi_next - phi_local.clone(), sum_next);
 
     builder.when_first_row().assert_eq_ext(phi_local, sum_local);
 
     let cumulative_sum = builder.cumulative_sum();
-    builder
-        .when_last_row()
-        .assert_eq_ext(*perm_local.last().unwrap(), cumulative_sum);
+    builder.when_last_row().assert_eq_ext(*perm_local.last().unwrap(), cumulative_sum);
 }

@@ -1,20 +1,21 @@
 use crate::air::SP1RecursionAirBuilder;
-use core::borrow::{Borrow, BorrowMut};
-use core::mem::size_of;
+use core::{
+    borrow::{Borrow, BorrowMut},
+    mem::size_of,
+};
 use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::PrimeField32;
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
-use sp1_core::air::MachineAir;
-use sp1_core::utils::pad_rows_fixed;
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
+use sp1_core::{air::MachineAir, utils::pad_rows_fixed};
 use std::collections::HashMap;
 use tracing::instrument;
 
 use sp1_derive::AlignedBorrow;
 
-use crate::cpu::columns::InstructionCols;
-use crate::cpu::columns::OpcodeSelectorCols;
-use crate::runtime::{ExecutionRecord, RecursionProgram};
+use crate::{
+    cpu::columns::{InstructionCols, OpcodeSelectorCols},
+    runtime::{ExecutionRecord, RecursionProgram},
+};
 
 pub const NUM_PROGRAM_PREPROCESSED_COLS: usize = size_of::<ProgramPreprocessedCols<u8>>();
 pub const NUM_PROGRAM_MULT_COLS: usize = size_of::<ProgramMultiplicityCols<u8>>();
@@ -78,11 +79,7 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
             .collect::<Vec<_>>();
 
         // Pad the trace to a power of two.
-        pad_rows_fixed(
-            &mut rows,
-            || [F::zero(); NUM_PROGRAM_PREPROCESSED_COLS],
-            None,
-        );
+        pad_rows_fixed(&mut rows, || [F::zero(); NUM_PROGRAM_PREPROCESSED_COLS], None);
 
         // Convert the trace to a row major matrix.
         Some(RowMajorMatrix::new(
@@ -133,10 +130,7 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
         pad_rows_fixed(&mut rows, || [F::zero(); NUM_PROGRAM_MULT_COLS], None);
 
         // Convert the trace to a row major matrix.
-        RowMajorMatrix::new(
-            rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_PROGRAM_MULT_COLS,
-        )
+        RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_PROGRAM_MULT_COLS)
     }
 
     fn included(&self, _: &Self::Record) -> bool {

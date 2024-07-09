@@ -1,11 +1,11 @@
-use crate::air::SP1AirBuilder;
-use crate::air::Word;
-use crate::bytes::event::ByteRecord;
-use crate::runtime::ExecutionRecord;
+use crate::{
+    air::{SP1AirBuilder, Word},
+    bytes::event::ByteRecord,
+    runtime::ExecutionRecord,
+};
 
 use p3_air::AirBuilder;
-use p3_field::AbstractField;
-use p3_field::Field;
+use p3_field::{AbstractField, Field};
 use sp1_derive::AlignedBorrow;
 
 /// A set of columns needed to compute the add of two words.
@@ -48,9 +48,7 @@ impl<F: Field> AddOperation<F> {
         }
 
         let base = 256u32;
-        let overflow = a[0]
-            .wrapping_add(b[0])
-            .wrapping_sub(expected.to_le_bytes()[0]) as u32;
+        let overflow = a[0].wrapping_add(b[0]).wrapping_sub(expected.to_le_bytes()[0]) as u32;
         debug_assert_eq!(overflow.wrapping_mul(overflow.wrapping_sub(base)), 0);
 
         // Range check

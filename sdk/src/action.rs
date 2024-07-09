@@ -25,24 +25,14 @@ impl<'a> Execute<'a> {
     /// Prefer using [ProverClient::execute](super::ProverClient::execute).
     /// See there for more documentation.
     pub fn new(elf: &'a [u8], stdin: SP1Stdin) -> Self {
-        Self {
-            elf,
-            stdin,
-            context_builder: Default::default(),
-        }
+        Self { elf, stdin, context_builder: Default::default() }
     }
 
     /// Execute the program on the input, consuming the built action `self`.
     pub fn run(self) -> Result<(SP1PublicValues, ExecutionReport)> {
-        let Self {
-            elf,
-            stdin,
-            mut context_builder,
-        } = self;
+        let Self { elf, stdin, mut context_builder } = self;
         let context = context_builder.build();
-        Ok(SP1Prover::<DefaultProverComponents>::execute(
-            elf, &stdin, context,
-        )?)
+        Ok(SP1Prover::<DefaultProverComponents>::execute(elf, &stdin, context)?)
     }
 
     /// Add a runtime [Hook](super::Hook) into the context.
@@ -70,7 +60,8 @@ impl<'a> Execute<'a> {
 
     /// Set the maximum number of cpu cycles to use for execution.
     ///
-    /// If the cycle limit is exceeded, execution will return [sp1_core::runtime::ExecutionError::ExceededCycleLimit].
+    /// If the cycle limit is exceeded, execution will return
+    /// [sp1_core::runtime::ExecutionError::ExceededCycleLimit].
     pub fn max_cycles(mut self, max_cycles: u64) -> Self {
         self.context_builder.max_cycles(max_cycles);
         self
@@ -110,18 +101,8 @@ impl<'a> Prove<'a> {
 
     /// Prove the execution of the program on the input, consuming the built action `self`.
     pub fn run(self) -> Result<SP1ProofWithPublicValues> {
-        let Self {
-            prover,
-            kind,
-            pk,
-            stdin,
-            mut context_builder,
-            opts,
-        } = self;
-        let opts = SP1ProverOpts {
-            core_opts: opts,
-            recursion_opts: opts,
-        };
+        let Self { prover, kind, pk, stdin, mut context_builder, opts } = self;
+        let opts = SP1ProverOpts { core_opts: opts, recursion_opts: opts };
         let context = context_builder.build();
 
         prover.prove(pk, stdin, opts, context, kind)
@@ -194,7 +175,8 @@ impl<'a> Prove<'a> {
 
     /// Set the maximum number of cpu cycles to use for execution.
     ///
-    /// If the cycle limit is exceeded, execution will return [sp1_core::runtime::ExecutionError::ExceededCycleLimit].
+    /// If the cycle limit is exceeded, execution will return
+    /// [sp1_core::runtime::ExecutionError::ExceededCycleLimit].
     pub fn cycle_limit(mut self, cycle_limit: u64) -> Self {
         self.context_builder.max_cycles(cycle_limit);
         self

@@ -1,5 +1,7 @@
-use core::fmt::Debug;
-use core::ops::{Add, AddAssign, Mul, Neg, Sub};
+use core::{
+    fmt::Debug,
+    ops::{Add, AddAssign, Mul, Neg, Sub},
+};
 
 use itertools::Itertools;
 use p3_field::{AbstractExtensionField, AbstractField, Field};
@@ -21,9 +23,7 @@ impl<T> Polynomial<T> {
     where
         T: Clone,
     {
-        Self {
-            coefficients: coefficients.to_vec(),
-        }
+        Self { coefficients: coefficients.to_vec() }
     }
 
     /// Gets the coefficients of the polynomial.
@@ -47,11 +47,7 @@ impl<T> Polynomial<T> {
         T: AbstractField,
     {
         let powers = x.powers();
-        self.coefficients
-            .iter()
-            .zip(powers)
-            .map(|(c, x)| x * c.clone())
-            .sum()
+        self.coefficients.iter().zip(powers).map(|(c, x)| x * c.clone()).sum()
     }
 
     /// Computes the root quotient of the polynomial.
@@ -67,17 +63,13 @@ impl<T> Polynomial<T> {
             let element = result[i - 1] - self.coefficients[i];
             result.push(element / r);
         }
-        Self {
-            coefficients: result,
-        }
+        Self { coefficients: result }
     }
 }
 
 impl<T> FromIterator<T> for Polynomial<T> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
-        Self {
-            coefficients: iter.into_iter().collect(),
-        }
+        Self { coefficients: iter.into_iter().collect() }
     }
 }
 
@@ -225,12 +217,7 @@ impl<T: AbstractField> Mul<T> for Polynomial<T> {
     type Output = Self;
 
     fn mul(self, other: T) -> Self {
-        Self::new(
-            self.coefficients
-                .into_iter()
-                .map(|x| x * other.clone())
-                .collect(),
-        )
+        Self::new(self.coefficients.into_iter().map(|x| x * other.clone()).collect())
     }
 }
 
@@ -238,13 +225,7 @@ impl<T: AbstractField> Mul<T> for &Polynomial<T> {
     type Output = Polynomial<T>;
 
     fn mul(self, other: T) -> Polynomial<T> {
-        Polynomial::new(
-            self.coefficients
-                .iter()
-                .cloned()
-                .map(|x| x * other.clone())
-                .collect(),
-        )
+        Polynomial::new(self.coefficients.iter().cloned().map(|x| x * other.clone()).collect())
     }
 }
 
@@ -257,9 +238,9 @@ impl<T: Eq + AbstractField> PartialEq<Polynomial<T>> for Polynomial<T> {
                 (other, self)
             };
             for i in 0..longer.coefficients.len() {
-                if (i < shorter.coefficients.len()
-                    && shorter.coefficients[i] != longer.coefficients[i])
-                    || (i >= shorter.coefficients.len() && longer.coefficients[i] != T::zero())
+                if (i < shorter.coefficients.len() &&
+                    shorter.coefficients[i] != longer.coefficients[i]) ||
+                    (i >= shorter.coefficients.len() && longer.coefficients[i] != T::zero())
                 {
                     return false;
                 }
@@ -273,11 +254,7 @@ impl<T: Eq + AbstractField> PartialEq<Polynomial<T>> for Polynomial<T> {
 impl Polynomial<u8> {
     pub fn as_field<F: Field>(self) -> Polynomial<F> {
         Polynomial {
-            coefficients: self
-                .coefficients
-                .iter()
-                .map(|x| F::from_canonical_u8(*x))
-                .collect(),
+            coefficients: self.coefficients.iter().map(|x| F::from_canonical_u8(*x)).collect(),
         }
     }
 }

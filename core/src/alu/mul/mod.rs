@@ -30,27 +30,26 @@
 
 mod utils;
 
-use core::borrow::{Borrow, BorrowMut};
-use core::mem::size_of;
+use core::{
+    borrow::{Borrow, BorrowMut},
+    mem::size_of,
+};
 
 use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::AbstractField;
-use p3_field::PrimeField;
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
-use p3_maybe_rayon::prelude::ParallelIterator;
-use p3_maybe_rayon::prelude::ParallelSlice;
+use p3_field::{AbstractField, PrimeField};
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
+use p3_maybe_rayon::prelude::{ParallelIterator, ParallelSlice};
 use sp1_derive::AlignedBorrow;
 
-use crate::air::MachineAir;
-use crate::air::{SP1AirBuilder, Word};
-use crate::alu::mul::utils::get_msb;
-use crate::bytes::event::ByteRecord;
-use crate::bytes::{ByteLookupEvent, ByteOpcode};
-use crate::disassembler::WORD_SIZE;
-use crate::runtime::{ExecutionRecord, Opcode, Program};
-use crate::stark::MachineRecord;
-use crate::utils::pad_to_power_of_two;
+use crate::{
+    air::{MachineAir, SP1AirBuilder, Word},
+    alu::mul::utils::get_msb,
+    bytes::{event::ByteRecord, ByteLookupEvent, ByteOpcode},
+    disassembler::WORD_SIZE,
+    runtime::{ExecutionRecord, Opcode, Program},
+    stark::MachineRecord,
+    utils::pad_to_power_of_two,
+};
 
 /// The number of main trace columns for `MulChip`.
 pub const NUM_MUL_COLS: usize = size_of::<MulCols<u8>>();
@@ -153,10 +152,10 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
                     .map(|event| {
                         // Ensure that the opcode is MUL, MULHU, MULH, or MULHSU.
                         assert!(
-                            event.opcode == Opcode::MUL
-                                || event.opcode == Opcode::MULHU
-                                || event.opcode == Opcode::MULH
-                                || event.opcode == Opcode::MULHSU
+                            event.opcode == Opcode::MUL ||
+                                event.opcode == Opcode::MULHU ||
+                                event.opcode == Opcode::MULH ||
+                                event.opcode == Opcode::MULHSU
                         );
                         let mut row = [F::zero(); NUM_MUL_COLS];
                         let cols: &mut MulCols<F> = row.as_mut_slice().borrow_mut();
@@ -176,8 +175,8 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
                             cols.c_msb = F::from_canonical_u8(c_msb);
 
                             // If b is signed and it is negative, sign extend b.
-                            if (event.opcode == Opcode::MULH || event.opcode == Opcode::MULHSU)
-                                && b_msb == 1
+                            if (event.opcode == Opcode::MULH || event.opcode == Opcode::MULHSU) &&
+                                b_msb == 1
                             {
                                 cols.b_sign_extend = F::one();
                                 b.resize(PRODUCT_SIZE, BYTE_MASK);
@@ -218,8 +217,8 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
                             }
                         }
 
-                        // Calculate the correct product using the `product` array. We store the correct carry
-                        // value for verification.
+                        // Calculate the correct product using the `product` array. We store the
+                        // correct carry value for verification.
                         let base = 1 << BYTE_SIZE;
                         let mut carry = [0u32; PRODUCT_SIZE];
                         for i in 0..PRODUCT_SIZE {
@@ -312,16 +311,12 @@ where
 
         // Constrain the incrementing nonce.
         builder.when_first_row().assert_zero(local.nonce);
-        builder
-            .when_transition()
-            .assert_eq(local.nonce + AB::Expr::one(), next.nonce);
+        builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         // Calculate the MSBs.
         let (b_msb, c_msb) = {
-            let msb_pairs = [
-                (local.b_msb, local.b[WORD_SIZE - 1]),
-                (local.c_msb, local.c[WORD_SIZE - 1]),
-            ];
+            let msb_pairs =
+                [(local.b_msb, local.b[WORD_SIZE - 1]), (local.c_msb, local.c[WORD_SIZE - 1])];
             let opcode = AB::F::from_canonical_u32(ByteOpcode::MSB as u32);
             for msb_pair in msb_pairs.iter() {
                 let msb = msb_pair.0;
@@ -398,9 +393,7 @@ where
             let is_upper = local.is_mulh + local.is_mulhu + local.is_mulhsu;
             for i in 0..WORD_SIZE {
                 builder.when(is_lower).assert_eq(product[i], local.a[i]);
-                builder
-                    .when(is_upper.clone())
-                    .assert_eq(product[i + WORD_SIZE], local.a[i]);
+                builder.when(is_upper.clone()).assert_eq(product[i + WORD_SIZE], local.a[i]);
             }
         }
 
@@ -423,12 +416,8 @@ where
         }
 
         // If signed extended, the MSB better be 1.
-        builder
-            .when(local.b_sign_extend)
-            .assert_eq(local.b_msb, one.clone());
-        builder
-            .when(local.c_sign_extend)
-            .assert_eq(local.c_msb, one.clone());
+        builder.when(local.b_sign_extend).assert_eq(local.b_msb, one.clone());
+        builder.when(local.c_sign_extend).assert_eq(local.c_msb, one.clone());
 
         // Calculate the opcode.
         let opcode = {
@@ -441,10 +430,10 @@ where
             let mulh: AB::Expr = AB::F::from_canonical_u32(Opcode::MULH as u32).into();
             let mulhu: AB::Expr = AB::F::from_canonical_u32(Opcode::MULHU as u32).into();
             let mulhsu: AB::Expr = AB::F::from_canonical_u32(Opcode::MULHSU as u32).into();
-            local.is_mul * mul
-                + local.is_mulh * mulh
-                + local.is_mulhu * mulhu
-                + local.is_mulhsu * mulhsu
+            local.is_mul * mul +
+                local.is_mulh * mulh +
+                local.is_mulhu * mulhu +
+                local.is_mulhsu * mulhsu
         };
 
         // Range check.

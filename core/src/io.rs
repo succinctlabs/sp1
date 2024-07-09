@@ -13,10 +13,7 @@ pub struct SP1Stdin {
     /// a vec of bytes at a time.
     pub buffer: Vec<Vec<u8>>,
     pub ptr: usize,
-    pub proofs: Vec<(
-        ShardProof<BabyBearPoseidon2>,
-        StarkVerifyingKey<BabyBearPoseidon2>,
-    )>,
+    pub proofs: Vec<(ShardProof<BabyBearPoseidon2>, StarkVerifyingKey<BabyBearPoseidon2>)>,
 }
 
 /// Public values for the prover.
@@ -28,20 +25,12 @@ pub struct SP1PublicValues {
 impl SP1Stdin {
     /// Create a new `SP1Stdin`.
     pub const fn new() -> Self {
-        Self {
-            buffer: Vec::new(),
-            ptr: 0,
-            proofs: Vec::new(),
-        }
+        Self { buffer: Vec::new(), ptr: 0, proofs: Vec::new() }
     }
 
     /// Create a `SP1Stdin` from a slice of bytes.
     pub fn from(data: &[u8]) -> Self {
-        Self {
-            buffer: vec![data.to_vec()],
-            ptr: 0,
-            proofs: Vec::new(),
-        }
+        Self { buffer: vec![data.to_vec()], ptr: 0, proofs: Vec::new() }
     }
 
     /// Read a value from the buffer.
@@ -86,9 +75,7 @@ impl SP1Stdin {
 impl SP1PublicValues {
     /// Create a new `SP1PublicValues`.
     pub const fn new() -> Self {
-        Self {
-            buffer: Buffer::new(),
-        }
+        Self { buffer: Buffer::new() }
     }
 
     pub fn raw(&self) -> String {
@@ -97,9 +84,7 @@ impl SP1PublicValues {
 
     /// Create a `SP1PublicValues` from a slice of bytes.
     pub fn from(data: &[u8]) -> Self {
-        Self {
-            buffer: Buffer::from(data),
-        }
+        Self { buffer: Buffer::from(data) }
     }
 
     pub fn as_slice(&self) -> &[u8] {

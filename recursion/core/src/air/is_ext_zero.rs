@@ -6,10 +6,10 @@
 //! is 0.
 use crate::air::Block;
 use p3_air::AirBuilder;
-use p3_field::extension::BinomialExtensionField;
-use p3_field::extension::BinomiallyExtendable;
-use p3_field::AbstractField;
-use p3_field::Field;
+use p3_field::{
+    extension::{BinomialExtensionField, BinomiallyExtendable},
+    AbstractField, Field,
+};
 use sp1_core::air::BinomialExtension;
 use sp1_derive::AlignedBorrow;
 
@@ -86,10 +86,7 @@ impl<F: Field> IsExtZeroOperation<F> {
 
         // If the result is 1, then the input is 0.
         for x in a {
-            builder
-                .when(is_real.clone())
-                .when(cols.result)
-                .assert_zero(x.clone());
+            builder.when(is_real.clone()).when(cols.result).assert_zero(x.clone());
         }
     }
 }

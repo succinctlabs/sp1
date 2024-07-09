@@ -1,28 +1,20 @@
 use core::fmt::Display;
-use std::fmt::Debug;
-use std::fmt::Formatter;
-use std::marker::PhantomData;
+use std::{
+    fmt::{Debug, Formatter},
+    marker::PhantomData,
+};
 
 use itertools::Itertools;
-use p3_air::Air;
-use p3_air::BaseAir;
-use p3_challenger::CanObserve;
-use p3_challenger::FieldChallenger;
-use p3_commit::LagrangeSelectors;
-use p3_commit::Pcs;
-use p3_commit::PolynomialSpace;
-use p3_field::AbstractExtensionField;
-use p3_field::AbstractField;
+use p3_air::{Air, BaseAir};
+use p3_challenger::{CanObserve, FieldChallenger};
+use p3_commit::{LagrangeSelectors, Pcs, PolynomialSpace};
+use p3_field::{AbstractExtensionField, AbstractField};
 
-use super::folder::VerifierConstraintFolder;
-use super::types::*;
-use super::Domain;
-use super::OpeningError;
-use super::StarkGenericConfig;
-use super::StarkVerifyingKey;
-use super::Val;
-use crate::air::MachineAir;
-use crate::stark::MachineChip;
+use super::{
+    folder::VerifierConstraintFolder, types::*, Domain, OpeningError, StarkGenericConfig,
+    StarkVerifyingKey, Val,
+};
+use crate::{air::MachineAir, stark::MachineChip};
 
 pub struct Verifier<SC, A>(PhantomData<SC>, PhantomData<A>);
 
@@ -55,31 +47,20 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             return Err(VerificationError::ChipOpeningLengthMismatch);
         }
 
-        let log_degrees = opened_values
-            .chips
-            .iter()
-            .map(|val| val.log_degree)
-            .collect::<Vec<_>>();
+        let log_degrees = opened_values.chips.iter().map(|val| val.log_degree).collect::<Vec<_>>();
 
-        let log_quotient_degrees = chips
-            .iter()
-            .map(|chip| chip.log_quotient_degree())
-            .collect::<Vec<_>>();
+        let log_quotient_degrees =
+            chips.iter().map(|chip| chip.log_quotient_degree()).collect::<Vec<_>>();
 
         let trace_domains = log_degrees
             .iter()
             .map(|log_degree| pcs.natural_domain_for_degree(1 << log_degree))
             .collect::<Vec<_>>();
 
-        let ShardCommitment {
-            main_commit,
-            permutation_commit,
-            quotient_commit,
-        } = commitment;
+        let ShardCommitment { main_commit, permutation_commit, quotient_commit } = commitment;
 
-        let permutation_challenges = (0..2)
-            .map(|_| challenger.sample_ext_element::<SC::Challenge>())
-            .collect::<Vec<_>>();
+        let permutation_challenges =
+            (0..2).map(|_| challenger.sample_ext_element::<SC::Challenge>()).collect::<Vec<_>>();
 
         challenger.observe(permutation_commit.clone());
 
@@ -98,10 +79,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
                 let values = opened_values.chips[i].preprocessed.clone();
                 (
                     *domain,
-                    vec![
-                        (zeta, values.local),
-                        (domain.next_point(zeta).unwrap(), values.next),
-                    ],
+                    vec![(zeta, values.local), (domain.next_point(zeta).unwrap(), values.next)],
                 )
             })
             .collect::<Vec<_>>();
@@ -128,10 +106,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
                     *domain,
                     vec![
                         (zeta, values.permutation.local.clone()),
-                        (
-                            domain.next_point(zeta).unwrap(),
-                            values.permutation.next.clone(),
-                        ),
+                        (domain.next_point(zeta).unwrap(), values.permutation.next.clone()),
                     ],
                 )
             })
@@ -178,12 +153,9 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             .map_err(|e| VerificationError::InvalidopeningArgument(e))?;
 
         // Verify the constrtaint evaluations.
-        for (chip, trace_domain, qc_domains, values) in izip!(
-            chips.iter(),
-            trace_domains,
-            quotient_chunk_domains,
-            opened_values.chips.iter(),
-        ) {
+        for (chip, trace_domain, qc_domains, values) in
+            izip!(chips.iter(), trace_domains, quotient_chunk_domains, opened_values.chips.iter(),)
+        {
             // Verify the shape of the opening arguments matches the expected values.
             Self::verify_opening_shape(chip, values)
                 .map_err(|e| VerificationError::OpeningShapeError(chip.name(), e))?;
@@ -230,10 +202,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             ));
         }
         if opening.main.next.len() != chip.width() {
-            return Err(OpeningShapeError::MainWidthMismatch(
-                chip.width(),
-                opening.main.next.len(),
-            ));
+            return Err(OpeningShapeError::MainWidthMismatch(chip.width(), opening.main.next.len()));
         }
 
         // Verify that the permutation width matches the expected value for the chip.
@@ -322,11 +291,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         let unflatten = |v: &[SC::Challenge]| {
             v.chunks_exact(SC::Challenge::D)
                 .map(|chunk| {
-                    chunk
-                        .iter()
-                        .enumerate()
-                        .map(|(e_i, &x)| SC::Challenge::monomial(e_i) * x)
-                        .sum()
+                    chunk.iter().enumerate().map(|(e_i, &x)| SC::Challenge::monomial(e_i) * x).sum()
                 })
                 .collect::<Vec<SC::Challenge>>()
         };
@@ -372,8 +337,8 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
                     .enumerate()
                     .filter(|(j, _)| *j != i)
                     .map(|(_, other_domain)| {
-                        other_domain.zp_at_point(zeta)
-                            * other_domain.zp_at_point(domain.first_point()).inverse()
+                        other_domain.zp_at_point(zeta) *
+                            other_domain.zp_at_point(domain.first_point()).inverse()
                     })
                     .product::<SC::Challenge>()
             })
@@ -421,39 +386,19 @@ impl Debug for OpeningShapeError {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         match self {
             OpeningShapeError::PreprocessedWidthMismatch(expected, actual) => {
-                write!(
-                    f,
-                    "Preprocessed width mismatch: expected {}, got {}",
-                    expected, actual
-                )
+                write!(f, "Preprocessed width mismatch: expected {}, got {}", expected, actual)
             }
             OpeningShapeError::MainWidthMismatch(expected, actual) => {
-                write!(
-                    f,
-                    "Main width mismatch: expected {}, got {}",
-                    expected, actual
-                )
+                write!(f, "Main width mismatch: expected {}, got {}", expected, actual)
             }
             OpeningShapeError::PermutationWidthMismatch(expected, actual) => {
-                write!(
-                    f,
-                    "Permutation width mismatch: expected {}, got {}",
-                    expected, actual
-                )
+                write!(f, "Permutation width mismatch: expected {}, got {}", expected, actual)
             }
             OpeningShapeError::QuotientWidthMismatch(expected, actual) => {
-                write!(
-                    f,
-                    "Quotient width mismatch: expected {}, got {}",
-                    expected, actual
-                )
+                write!(f, "Quotient width mismatch: expected {}, got {}", expected, actual)
             }
             OpeningShapeError::QuotientChunkSizeMismatch(expected, actual) => {
-                write!(
-                    f,
-                    "Quotient chunk size mismatch: expected {}, got {}",
-                    expected, actual
-                )
+                write!(f, "Quotient chunk size mismatch: expected {}, got {}", expected, actual)
             }
         }
     }

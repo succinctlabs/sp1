@@ -92,29 +92,21 @@ impl<F: Field> PairBuilder for InteractionBuilder<F> {
 
 impl<F: Field> MessageBuilder<AirInteraction<SymbolicExpression<F>>> for InteractionBuilder<F> {
     fn send(&mut self, message: AirInteraction<SymbolicExpression<F>>) {
-        let values = message
-            .values
-            .into_iter()
-            .map(|v| symbolic_to_virtual_pair(&v))
-            .collect::<Vec<_>>();
+        let values =
+            message.values.into_iter().map(|v| symbolic_to_virtual_pair(&v)).collect::<Vec<_>>();
 
         let multiplicity = symbolic_to_virtual_pair(&message.multiplicity);
 
-        self.sends
-            .push(Interaction::new(values, multiplicity, message.kind));
+        self.sends.push(Interaction::new(values, multiplicity, message.kind));
     }
 
     fn receive(&mut self, message: AirInteraction<SymbolicExpression<F>>) {
-        let values = message
-            .values
-            .into_iter()
-            .map(|v| symbolic_to_virtual_pair(&v))
-            .collect::<Vec<_>>();
+        let values =
+            message.values.into_iter().map(|v| symbolic_to_virtual_pair(&v)).collect::<Vec<_>>();
 
         let multiplicity = symbolic_to_virtual_pair(&message.multiplicity);
 
-        self.receives
-            .push(Interaction::new(values, multiplicity, message.kind));
+        self.receives.push(Interaction::new(values, multiplicity, message.kind));
     }
 }
 
@@ -148,10 +140,7 @@ fn eval_symbolic_to_virtual_pair<F: Field>(
                 (vec![(PairCol::Preprocessed(v.index), F::one())], F::zero())
             }
             Entry::Main { offset: 0 } => (vec![(PairCol::Main(v.index), F::one())], F::zero()),
-            _ => panic!(
-                "Not an affine expression in current row elements {:?}",
-                v.entry
-            ),
+            _ => panic!("Not an affine expression in current row elements {:?}", v.entry),
         },
         SymbolicExpression::Add { x, y, .. } => {
             let (v_l, c_l) = eval_symbolic_to_virtual_pair(x);
@@ -261,11 +250,7 @@ mod tests {
                 InteractionKind::Alu,
             ));
 
-            builder.receive(AirInteraction::new(
-                vec![x.into()],
-                y.into(),
-                InteractionKind::Byte,
-            ));
+            builder.receive(AirInteraction::new(vec![x.into()], y.into(), InteractionKind::Byte));
         }
     }
 
