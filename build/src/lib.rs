@@ -60,8 +60,11 @@ fn get_docker_image(tag: &str) -> String {
 
 // TODO: Pipe the output to SP1 if done via build_program. Either should be an argument or return the Command itself.
 
-/// Build a program with the specified BuildArgs.
+/// Build a program with the specified BuildArgs. program_dir is specified as an argument when
+/// the program is built via build_program in sp1-helper.
 pub fn build_program(args: &BuildArgs, program_dir: Option<PathBuf>) -> Result<Utf8PathBuf> {
+    let build_with_helper = program_dir.is_some();
+
     let program_dir = program_dir.unwrap_or_else(|| {
         // Get the current directory.
         std::env::current_dir().expect("Failed to get current directory.")
@@ -123,11 +126,19 @@ pub fn build_program(args: &BuildArgs, program_dir: Option<PathBuf>) -> Result<U
         // Pipe stdout and stderr to the parent process with [docker] prefix
         let stdout_handle = thread::spawn(move || {
             stdout.lines().for_each(|line| {
-                println!("[docker] {}", line.unwrap());
+                if build_with_helper {
+                    println!("[sp1] [docker] {}", line.unwrap());
+                } else {
+                    println!("[docker] {}", line.unwrap());
+                }
             });
         });
         stderr.lines().for_each(|line| {
-            eprintln!("[docker] {}", line.unwrap());
+            if build_with_helper {
+                eprintln!("[sp1] [docker] {}", line.unwrap());
+            } else {
+                eprintln!("[docker] {}", line.unwrap());
+            }
         });
 
         stdout_handle.join().unwrap();
@@ -161,13 +172,34 @@ pub fn build_program(args: &BuildArgs, program_dir: Option<PathBuf>) -> Result<U
         // Ensure the Cargo.lock doesn't update.
         cargo_args.push("--locked".to_string());
 
-        let result = Command::new("cargo")
+        let mut child = Command::new("cargo")
             .current_dir(program_dir.clone())
             .env("RUSTUP_TOOLCHAIN", "succinct")
             .env("CARGO_ENCODED_RUSTFLAGS", rust_flags.join("\x1f"))
             .args(&cargo_args)
-            .status()
-            .context("Failed to run cargo command.")?;
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .context("Failed to spawn command")?;
+
+        if build_with_helper {
+            let stdout = BufReader::new(child.stdout.take().unwrap());
+            let stderr = BufReader::new(child.stderr.take().unwrap());
+
+            // Pipe stdout and stderr to the parent process with [sp1] prefix
+            let stdout_handle = thread::spawn(move || {
+                stdout.lines().for_each(|line| {
+                    println!("[sp1] {}", line.unwrap());
+                });
+            });
+            stderr.lines().for_each(|line| {
+                eprintln!("[sp1] {}", line.unwrap());
+            });
+
+            stdout_handle.join().unwrap();
+        }
+
+        let result = child.wait()?;
 
         if !result.success() {
             exit(result.code().unwrap_or(1))
