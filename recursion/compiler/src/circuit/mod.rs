@@ -1,4 +1,6 @@
 use core::fmt::Debug;
+use p3_field::AbstractExtensionField;
+use p3_field::AbstractField;
 use p3_field::ExtensionField;
 use p3_field::PrimeField;
 use p3_field::TwoAdicField;
@@ -11,8 +13,7 @@ use std::collections::HashMap;
 use sp1_recursion_core_v2::*;
 
 use crate::asm::AsmConfig;
-use crate::ir::DslIr;
-use crate::prelude::TracedVec;
+use crate::prelude::*;
 
 /// The backend for the constraint compiler.
 #[derive(Debug, Clone, Default)]
@@ -98,428 +99,137 @@ where
     // ---------------------------------------------------------------------------------------------
     // INSTRUCTION HELPERS
 
-    pub fn init_at_f(&mut self, fp: i32, f: F) -> Instruction<F> {
-        self.init_at(fp, Block::from(f))
-    }
+    // fn init_at_f(&mut self, fp: i32, f: F) -> Instruction<F> {
+    //     self.init_at(fp, Block::from(f))
+    // }
 
-    pub fn init_at_ef(&mut self, fp: i32, ef: EF) -> Instruction<F> {
-        self.init_at(fp, ef.as_base_slice().into())
-    }
+    // fn init_at_ef(&mut self, fp: i32, ef: EF) -> Instruction<F> {
+    //     self.init_at(fp, ef.as_base_slice().into())
+    // }
 
-    pub fn init_at(&mut self, fp: i32, block: Block<F>) -> Instruction<F> {
-        let addr = self.write_fp(fp);
-        Self::init_at_addr(addr, block)
-    }
+    // fn init_at(&mut self, fp: i32, block: Block<F>) -> Instruction<F> {
+    //     let addr = self.write_fp(fp);
+    //     Self::init_at_addr(addr, block)
+    // }
 
-    pub fn init_at_addr(addr: Address<F>, block: Block<F>) -> Instruction<F> {
+    // fn init_at_addr(addr: Address<F>, block: Block<F>) -> Instruction<F> {
+    //     Instruction::Mem(MemInstr {
+    //         addrs: MemIo { inner: addr },
+    //         vals: MemIo { inner: block },
+    //         mult: F::zero(),
+    //         kind: MemAccessKind::Write,
+    //     })
+    // }
+
+    fn mem_write_const(&mut self, dst: impl Reg<F, EF>, src: Imm<F, EF>) -> Instruction<F> {
         Instruction::Mem(MemInstr {
-            addrs: MemIo { inner: addr },
-            vals: MemIo { inner: block },
+            addrs: MemIo {
+                inner: dst.write(self),
+            },
+            vals: MemIo {
+                inner: src.as_block(),
+            },
             mult: F::zero(),
             kind: MemAccessKind::Write,
+        })
+    }
+
+    fn base_alu(
+        &mut self,
+        opcode: BaseAluOpcode,
+        dst: impl Reg<F, EF>,
+        lhs: impl Reg<F, EF>,
+        rhs: impl Reg<F, EF>,
+    ) -> Instruction<F> {
+        Instruction::BaseAlu(BaseAluInstr {
+            opcode,
+            mult: F::zero(),
+            addrs: BaseAluIo {
+                out: dst.write(self),
+                in1: lhs.read(self),
+                in2: rhs.read(self),
+            },
+        })
+    }
+
+    fn ext_alu(
+        &mut self,
+        opcode: ExtAluOpcode,
+        dst: impl Reg<F, EF>,
+        lhs: impl Reg<F, EF>,
+        rhs: impl Reg<F, EF>,
+    ) -> Instruction<F> {
+        Instruction::ExtAlu(ExtAluInstr {
+            opcode,
+            mult: F::zero(),
+            addrs: ExtAluIo {
+                out: dst.write(self),
+                in1: lhs.read(self),
+                in2: rhs.read(self),
+            },
         })
     }
 
     // ---------------------------------------------------------------------------------------------
     // COMPILATION
 
-    pub fn compile_one(&mut self, ir_instr: DslIr<AsmConfig<F, EF>>) -> Instruction<F> {
+    pub fn compile_one(&mut self, ir_instr: DslIr<AsmConfig<F, EF>>) -> Vec<Instruction<F>> {
+        // For readability. Avoids polluting outer scope.
+        use BaseAluOpcode::*;
+        use ExtAluOpcode::*;
+
         match ir_instr {
-            DslIr::ImmV(dst, src) => self.init_at_f(dst.fp(), src),
-            DslIr::ImmF(dst, src) => self.init_at_f(dst.fp(), src),
-            DslIr::ImmE(dst, src) => self.init_at_ef(dst.fp(), src),
+            DslIr::ImmV(dst, src) => vec![self.mem_write_const(dst, Imm::F(src))],
+            DslIr::ImmF(dst, src) => vec![self.mem_write_const(dst, Imm::F(src))],
+            DslIr::ImmE(dst, src) => vec![self.mem_write_const(dst, Imm::EF(src))],
 
-            DslIr::AddV(dst, lhs, rhs) => Instruction::BaseAlu(BaseAluInstr {
-                opcode: BaseAluOpcode::AddF,
-                mult: F::zero(),
-                addrs: BaseAluIo {
-                    out: self.write_fp(dst.fp()),
-                    in1: self.read_fp(lhs.fp()),
-                    in2: self.read_fp(rhs.fp()),
-                },
-            }),
-            DslIr::AddVI(dst, lhs, rhs) => Instruction::BaseAlu(BaseAluInstr {
-                opcode: BaseAluOpcode::AddF,
-                mult: F::zero(),
-                addrs: BaseAluIo {
-                    out: self.write_fp(dst.fp()),
-                    in1: self.read_fp(lhs.fp()),
-                    in2: self.read_const_f(rhs),
-                },
-            }),
-            DslIr::AddF(dst, lhs, rhs) => Instruction::BaseAlu(BaseAluInstr {
-                opcode: BaseAluOpcode::AddF,
-                mult: F::zero(),
-                addrs: BaseAluIo {
-                    out: self.write_fp(dst.fp()),
-                    in1: self.read_fp(lhs.fp()),
-                    in2: self.read_fp(rhs.fp()),
-                },
-            }),
-            DslIr::AddFI(dst, lhs, rhs) => Instruction::BaseAlu(BaseAluInstr {
-                opcode: BaseAluOpcode::AddF,
-                mult: F::zero(),
-                addrs: BaseAluIo {
-                    out: self.write_fp(dst.fp()),
-                    in1: self.read_fp(lhs.fp()),
-                    in2: self.read_const_f(rhs),
-                },
-            }),
-            DslIr::AddE(dst, lhs, rhs) => Instruction::ExtAlu(ExtAluInstr {
-                opcode: ExtAluOpcode::AddE,
-                mult: F::zero(),
-                addrs: ExtAluIo {
-                    out: self.write_fp(dst.fp()),
-                    in1: self.read_fp(lhs.fp()),
-                    in2: self.read_fp(rhs.fp()),
-                },
-            }),
-            DslIr::AddEI(dst, lhs, rhs) => Instruction::ExtAlu(ExtAluInstr {
-                opcode: ExtAluOpcode::AddE,
-                mult: F::zero(),
-                addrs: ExtAluIo {
-                    out: self.write_fp(dst.fp()),
-                    in1: self.read_fp(lhs.fp()),
-                    in2: self.read_const_ef(rhs),
-                },
-            }),
-            DslIr::AddEF(dst, lhs, rhs) => Instruction::ExtAlu(ExtAluInstr {
-                opcode: ExtAluOpcode::AddE,
-                mult: F::zero(),
-                addrs: ExtAluIo {
-                    out: self.write_fp(dst.fp()),
-                    in1: self.read_fp(lhs.fp()),
-                    in2: self.read_fp(rhs.fp()),
-                },
-            }),
-            DslIr::AddEFI(dst, lhs, rhs) => Instruction::ExtAlu(ExtAluInstr {
-                opcode: ExtAluOpcode::AddE,
-                mult: F::zero(),
-                addrs: ExtAluIo {
-                    out: self.write_fp(dst.fp()),
-                    in1: self.read_fp(lhs.fp()),
-                    in2: self.read_const_f(rhs),
-                },
-            }),
-            DslIr::AddEFFI(dst, lhs, rhs) => Instruction::ExtAlu(ExtAluInstr {
-                opcode: ExtAluOpcode::AddE,
-                mult: F::zero(),
-                addrs: ExtAluIo {
-                    out: self.write_fp(dst.fp()),
-                    in1: self.read_fp(lhs.fp()),
-                    in2: self.read_const_ef(rhs),
-                },
-            }),
+            DslIr::AddV(dst, lhs, rhs) => vec![self.base_alu(AddF, dst, lhs, rhs)],
+            DslIr::AddVI(dst, lhs, rhs) => vec![self.base_alu(AddF, dst, lhs, Imm::F(rhs))],
+            DslIr::AddF(dst, lhs, rhs) => vec![self.base_alu(AddF, dst, lhs, rhs)],
+            DslIr::AddFI(dst, lhs, rhs) => vec![self.base_alu(AddF, dst, lhs, Imm::F(rhs))],
+            DslIr::AddE(dst, lhs, rhs) => vec![self.ext_alu(AddE, dst, lhs, rhs)],
+            DslIr::AddEI(dst, lhs, rhs) => vec![self.ext_alu(AddE, dst, lhs, Imm::EF(rhs))],
+            DslIr::AddEF(dst, lhs, rhs) => vec![self.ext_alu(AddE, dst, lhs, rhs)],
+            DslIr::AddEFI(dst, lhs, rhs) => vec![self.ext_alu(AddE, dst, lhs, Imm::F(rhs))],
+            DslIr::AddEFFI(dst, lhs, rhs) => vec![self.ext_alu(AddE, dst, lhs, Imm::EF(rhs))],
 
-            DslIr::SubV(dst, lhs, rhs) => Instruction::BaseAlu(BaseAluInstr {
-                opcode: BaseAluOpcode::SubF,
-                mult: F::zero(),
-                addrs: BaseAluIo {
-                    out: self.write_fp(dst.fp()),
-                    in1: self.read_fp(lhs.fp()),
-                    in2: self.read_fp(rhs.fp()),
-                },
-            }),
-            DslIr::SubVI(dst, lhs, rhs) => Instruction::BaseAlu(BaseAluInstr {
-                opcode: BaseAluOpcode::SubF,
-                mult: F::zero(),
-                addrs: BaseAluIo {
-                    out: self.write_fp(dst.fp()),
-                    in1: self.read_fp(lhs.fp()),
-                    in2: self.read_const_f(rhs),
-                },
-            }),
-            DslIr::SubVIN(dst, lhs, rhs) => Instruction::BaseAlu(BaseAluInstr {
-                opcode: BaseAluOpcode::SubF,
-                mult: F::zero(),
-                addrs: BaseAluIo {
-                    out: self.write_fp(dst.fp()),
-                    in1: self.read_const_f(lhs),
-                    in2: self.read_fp(rhs.fp()),
-                },
-            }),
-            DslIr::SubF(dst, lhs, rhs) => Instruction::BaseAlu(BaseAluInstr {
-                opcode: BaseAluOpcode::SubF,
-                mult: F::zero(),
-                addrs: BaseAluIo {
-                    out: self.write_fp(dst.fp()),
-                    in1: self.read_fp(lhs.fp()),
-                    in2: self.read_fp(rhs.fp()),
-                },
-            }),
-            DslIr::SubFI(dst, lhs, rhs) => Instruction::BaseAlu(BaseAluInstr {
-                opcode: BaseAluOpcode::SubF,
-                mult: F::zero(),
-                addrs: BaseAluIo {
-                    out: self.write_fp(dst.fp()),
-                    in1: self.read_fp(lhs.fp()),
-                    in2: self.read_const_f(rhs),
-                },
-            }),
-            DslIr::SubFIN(dst, lhs, rhs) => Instruction::BaseAlu(BaseAluInstr {
-                opcode: BaseAluOpcode::SubF,
-                mult: F::zero(),
-                addrs: BaseAluIo {
-                    out: self.write_fp(dst.fp()),
-                    in1: self.read_const_f(lhs),
-                    in2: self.read_fp(rhs.fp()),
-                },
-            }),
-            DslIr::SubE(dst, lhs, rhs) => Instruction::ExtAlu(ExtAluInstr {
-                opcode: ExtAluOpcode::SubE,
-                mult: F::zero(),
-                addrs: ExtAluIo {
-                    out: self.write_fp(dst.fp()),
-                    in1: self.read_fp(lhs.fp()),
-                    in2: self.read_fp(rhs.fp()),
-                },
-            }),
-            DslIr::SubEI(dst, lhs, rhs) => Instruction::ExtAlu(ExtAluInstr {
-                opcode: ExtAluOpcode::SubE,
-                mult: F::zero(),
-                addrs: ExtAluIo {
-                    out: self.write_fp(dst.fp()),
-                    in1: self.read_fp(lhs.fp()),
-                    in2: self.read_const_ef(rhs),
-                },
-            }),
-            DslIr::SubEIN(dst, lhs, rhs) => Instruction::ExtAlu(ExtAluInstr {
-                opcode: ExtAluOpcode::SubE,
-                mult: F::zero(),
-                addrs: ExtAluIo {
-                    out: self.write_fp(dst.fp()),
-                    in1: self.read_const_ef(lhs),
-                    in2: self.read_fp(rhs.fp()),
-                },
-            }),
-            DslIr::SubEFI(dst, lhs, rhs) => Instruction::ExtAlu(ExtAluInstr {
-                opcode: ExtAluOpcode::SubE,
-                mult: F::zero(),
-                addrs: ExtAluIo {
-                    out: self.write_fp(dst.fp()),
-                    in1: self.read_fp(lhs.fp()),
-                    in2: self.read_const_f(rhs),
-                },
-            }),
-            DslIr::SubEF(dst, lhs, rhs) => Instruction::ExtAlu(ExtAluInstr {
-                opcode: ExtAluOpcode::SubE,
-                mult: F::zero(),
-                addrs: ExtAluIo {
-                    out: self.write_fp(dst.fp()),
-                    in1: self.read_fp(lhs.fp()),
-                    in2: self.read_fp(rhs.fp()),
-                },
-            }),
+            DslIr::SubV(dst, lhs, rhs) => vec![self.base_alu(SubF, dst, lhs, rhs)],
+            DslIr::SubVI(dst, lhs, rhs) => vec![self.base_alu(SubF, dst, lhs, Imm::F(rhs))],
+            DslIr::SubVIN(dst, lhs, rhs) => vec![self.base_alu(SubF, dst, Imm::F(lhs), rhs)],
+            DslIr::SubF(dst, lhs, rhs) => vec![self.base_alu(SubF, dst, lhs, rhs)],
+            DslIr::SubFI(dst, lhs, rhs) => vec![self.base_alu(SubF, dst, lhs, Imm::F(rhs))],
+            DslIr::SubFIN(dst, lhs, rhs) => vec![self.base_alu(SubF, dst, Imm::F(lhs), rhs)],
+            DslIr::SubE(dst, lhs, rhs) => vec![self.ext_alu(SubE, dst, lhs, rhs)],
+            DslIr::SubEI(dst, lhs, rhs) => vec![self.ext_alu(SubE, dst, lhs, Imm::EF(rhs))],
+            DslIr::SubEIN(dst, lhs, rhs) => vec![self.ext_alu(SubE, dst, Imm::EF(lhs), rhs)],
+            DslIr::SubEFI(dst, lhs, rhs) => vec![self.ext_alu(SubE, dst, lhs, Imm::F(rhs))],
+            DslIr::SubEF(dst, lhs, rhs) => vec![self.ext_alu(SubE, dst, lhs, rhs)],
 
-            DslIr::MulV(dst, lhs, rhs) => Instruction::BaseAlu(BaseAluInstr {
-                opcode: BaseAluOpcode::MulF,
-                mult: F::zero(),
-                addrs: BaseAluIo {
-                    out: self.write_fp(dst.fp()),
-                    in1: self.read_fp(lhs.fp()),
-                    in2: self.read_fp(rhs.fp()),
-                },
-            }),
-            DslIr::MulVI(dst, lhs, rhs) => Instruction::BaseAlu(BaseAluInstr {
-                opcode: BaseAluOpcode::MulF,
-                mult: F::zero(),
-                addrs: BaseAluIo {
-                    out: self.write_fp(dst.fp()),
-                    in1: self.read_fp(lhs.fp()),
-                    in2: self.read_const_f(rhs),
-                },
-            }),
-            DslIr::MulF(dst, lhs, rhs) => Instruction::BaseAlu(BaseAluInstr {
-                opcode: BaseAluOpcode::MulF,
-                mult: F::zero(),
-                addrs: BaseAluIo {
-                    out: self.write_fp(dst.fp()),
-                    in1: self.read_fp(lhs.fp()),
-                    in2: self.read_fp(rhs.fp()),
-                },
-            }),
-            DslIr::MulFI(dst, lhs, rhs) => Instruction::BaseAlu(BaseAluInstr {
-                opcode: BaseAluOpcode::MulF,
-                mult: F::zero(),
-                addrs: BaseAluIo {
-                    out: self.write_fp(dst.fp()),
-                    in1: self.read_fp(lhs.fp()),
-                    in2: self.read_const_f(rhs),
-                },
-            }),
-            DslIr::MulE(dst, lhs, rhs) => Instruction::ExtAlu(ExtAluInstr {
-                opcode: ExtAluOpcode::MulE,
-                mult: F::zero(),
-                addrs: ExtAluIo {
-                    out: self.write_fp(dst.fp()),
-                    in1: self.read_fp(lhs.fp()),
-                    in2: self.read_fp(rhs.fp()),
-                },
-            }),
-            DslIr::MulEI(dst, lhs, rhs) => Instruction::ExtAlu(ExtAluInstr {
-                opcode: ExtAluOpcode::MulE,
-                mult: F::zero(),
-                addrs: ExtAluIo {
-                    out: self.write_fp(dst.fp()),
-                    in1: self.read_fp(lhs.fp()),
-                    in2: self.read_const_ef(rhs),
-                },
-            }),
-            DslIr::MulEFI(dst, lhs, rhs) => Instruction::ExtAlu(ExtAluInstr {
-                opcode: ExtAluOpcode::MulE,
-                mult: F::zero(),
-                addrs: ExtAluIo {
-                    out: self.write_fp(dst.fp()),
-                    in1: self.read_fp(lhs.fp()),
-                    in2: self.read_const_f(rhs),
-                },
-            }),
-            DslIr::MulEF(dst, lhs, rhs) => Instruction::ExtAlu(ExtAluInstr {
-                opcode: ExtAluOpcode::MulE,
-                mult: F::zero(),
-                addrs: ExtAluIo {
-                    out: self.write_fp(dst.fp()),
-                    in1: self.read_fp(lhs.fp()),
-                    in2: self.read_fp(rhs.fp()),
-                },
-            }),
+            DslIr::MulV(dst, lhs, rhs) => vec![self.base_alu(MulF, dst, lhs, rhs)],
+            DslIr::MulVI(dst, lhs, rhs) => vec![self.base_alu(MulF, dst, lhs, Imm::F(rhs))],
+            DslIr::MulF(dst, lhs, rhs) => vec![self.base_alu(MulF, dst, lhs, rhs)],
+            DslIr::MulFI(dst, lhs, rhs) => vec![self.base_alu(MulF, dst, lhs, Imm::F(rhs))],
+            DslIr::MulE(dst, lhs, rhs) => vec![self.ext_alu(MulE, dst, lhs, rhs)],
+            DslIr::MulEI(dst, lhs, rhs) => vec![self.ext_alu(MulE, dst, lhs, Imm::EF(rhs))],
+            DslIr::MulEFI(dst, lhs, rhs) => vec![self.ext_alu(MulE, dst, lhs, Imm::F(rhs))],
+            DslIr::MulEF(dst, lhs, rhs) => vec![self.ext_alu(MulE, dst, lhs, rhs)],
 
-            DslIr::DivF(dst, lhs, rhs) => Instruction::BaseAlu(BaseAluInstr {
-                opcode: BaseAluOpcode::DivF,
-                mult: F::zero(),
-                addrs: BaseAluIo {
-                    out: self.write_fp(dst.fp()),
-                    in1: self.read_fp(lhs.fp()),
-                    in2: self.read_fp(rhs.fp()),
-                },
-            }),
-            DslIr::DivFI(dst, lhs, rhs) => Instruction::BaseAlu(BaseAluInstr {
-                opcode: BaseAluOpcode::DivF,
-                mult: F::zero(),
-                addrs: BaseAluIo {
-                    out: self.write_fp(dst.fp()),
-                    in1: self.read_fp(lhs.fp()),
-                    in2: self.read_const_f(rhs),
-                },
-            }),
-            DslIr::DivFIN(dst, lhs, rhs) => Instruction::BaseAlu(BaseAluInstr {
-                opcode: BaseAluOpcode::DivF,
-                mult: F::zero(),
-                addrs: BaseAluIo {
-                    out: self.write_fp(dst.fp()),
-                    in1: self.read_const_f(lhs),
-                    in2: self.read_fp(rhs.fp()),
-                },
-            }),
-            DslIr::DivE(dst, lhs, rhs) => Instruction::ExtAlu(ExtAluInstr {
-                opcode: ExtAluOpcode::DivE,
-                mult: F::zero(),
-                addrs: ExtAluIo {
-                    out: self.write_fp(dst.fp()),
-                    in1: self.read_fp(lhs.fp()),
-                    in2: self.read_fp(rhs.fp()),
-                },
-            }),
-            DslIr::DivEI(dst, lhs, rhs) => Instruction::ExtAlu(ExtAluInstr {
-                opcode: ExtAluOpcode::DivE,
-                mult: F::zero(),
-                addrs: ExtAluIo {
-                    out: self.write_fp(dst.fp()),
-                    in1: self.read_fp(lhs.fp()),
-                    in2: self.read_const_ef(rhs),
-                },
-            }),
-            DslIr::DivEIN(dst, lhs, rhs) => Instruction::ExtAlu(ExtAluInstr {
-                opcode: ExtAluOpcode::DivE,
-                mult: F::zero(),
-                addrs: ExtAluIo {
-                    out: self.write_fp(dst.fp()),
-                    in1: self.read_const_ef(lhs),
-                    in2: self.read_fp(rhs.fp()),
-                },
-            }),
-            DslIr::DivEFI(dst, lhs, rhs) => Instruction::ExtAlu(ExtAluInstr {
-                opcode: ExtAluOpcode::DivE,
-                mult: F::zero(),
-                addrs: ExtAluIo {
-                    out: self.write_fp(dst.fp()),
-                    in1: self.read_fp(lhs.fp()),
-                    in2: self.read_const_f(rhs),
-                },
-            }),
-            DslIr::DivEFIN(dst, lhs, rhs) => Instruction::ExtAlu(ExtAluInstr {
-                opcode: ExtAluOpcode::DivE,
-                mult: F::zero(),
-                addrs: ExtAluIo {
-                    out: self.write_fp(dst.fp()),
-                    in1: self.read_const_f(lhs),
-                    in2: self.read_fp(rhs.fp()),
-                },
-            }),
-            DslIr::DivEF(dst, lhs, rhs) => Instruction::ExtAlu(ExtAluInstr {
-                opcode: ExtAluOpcode::DivE,
-                mult: F::zero(),
-                addrs: ExtAluIo {
-                    out: self.write_fp(dst.fp()),
-                    in1: self.read_fp(lhs.fp()),
-                    in2: self.read_fp(rhs.fp()),
-                },
-            }),
+            DslIr::DivF(dst, lhs, rhs) => vec![self.base_alu(DivF, dst, lhs, rhs)],
+            DslIr::DivFI(dst, lhs, rhs) => vec![self.base_alu(DivF, dst, lhs, Imm::F(rhs))],
+            DslIr::DivFIN(dst, lhs, rhs) => vec![self.base_alu(DivF, dst, Imm::F(lhs), rhs)],
+            DslIr::DivE(dst, lhs, rhs) => vec![self.ext_alu(DivE, dst, lhs, rhs)],
+            DslIr::DivEI(dst, lhs, rhs) => vec![self.ext_alu(DivE, dst, lhs, Imm::EF(rhs))],
+            DslIr::DivEIN(dst, lhs, rhs) => vec![self.ext_alu(DivE, dst, Imm::EF(lhs), rhs)],
+            DslIr::DivEFI(dst, lhs, rhs) => vec![self.ext_alu(DivE, dst, lhs, Imm::F(rhs))],
+            DslIr::DivEFIN(dst, lhs, rhs) => vec![self.ext_alu(DivE, dst, Imm::F(lhs), rhs)],
+            DslIr::DivEF(dst, lhs, rhs) => vec![self.ext_alu(DivE, dst, lhs, rhs)],
 
-            DslIr::NegV(dst, src) => Instruction::BaseAlu(BaseAluInstr {
-                opcode: BaseAluOpcode::SubF,
-                mult: F::zero(),
-                addrs: BaseAluIo {
-                    out: self.write_fp(dst.fp()),
-                    in1: self.read_const_f(F::zero()),
-                    in2: self.read_fp(src.fp()),
-                },
-            }),
-            DslIr::NegF(dst, src) => Instruction::BaseAlu(BaseAluInstr {
-                opcode: BaseAluOpcode::SubF,
-                mult: F::zero(),
-                addrs: BaseAluIo {
-                    out: self.write_fp(dst.fp()),
-                    in1: self.read_const_f(F::zero()),
-                    in2: self.read_fp(src.fp()),
-                },
-            }),
-            DslIr::NegE(dst, src) => Instruction::ExtAlu(ExtAluInstr {
-                opcode: ExtAluOpcode::SubE,
-                mult: F::zero(),
-                addrs: ExtAluIo {
-                    out: self.write_fp(dst.fp()),
-                    in1: self.read_const_f(F::zero()),
-                    in2: self.read_fp(src.fp()),
-                },
-            }),
-            DslIr::InvV(dst, src) => Instruction::BaseAlu(BaseAluInstr {
-                opcode: BaseAluOpcode::DivF,
-                mult: F::zero(),
-                addrs: BaseAluIo {
-                    out: self.write_fp(dst.fp()),
-                    in1: self.read_const_f(F::one()),
-                    in2: self.read_fp(src.fp()),
-                },
-            }),
-            DslIr::InvF(dst, src) => Instruction::BaseAlu(BaseAluInstr {
-                opcode: BaseAluOpcode::DivF,
-                mult: F::zero(),
-                addrs: BaseAluIo {
-                    out: self.write_fp(dst.fp()),
-                    in1: self.read_const_f(F::one()),
-                    in2: self.read_fp(src.fp()),
-                },
-            }),
-            DslIr::InvE(dst, src) => Instruction::ExtAlu(ExtAluInstr {
-                opcode: ExtAluOpcode::DivE,
-                mult: F::zero(),
-                addrs: ExtAluIo {
-                    out: self.write_fp(dst.fp()),
-                    in1: self.read_const_f(F::one()),
-                    in2: self.read_fp(src.fp()),
-                },
-            }),
+            DslIr::NegV(dst, src) => vec![self.base_alu(SubF, dst, Imm::F(F::zero()), src)],
+            DslIr::NegF(dst, src) => vec![self.base_alu(SubF, dst, Imm::F(F::zero()), src)],
+            DslIr::NegE(dst, src) => vec![self.ext_alu(SubE, dst, Imm::EF(EF::zero()), src)],
+            DslIr::InvV(dst, src) => vec![self.base_alu(DivF, dst, Imm::F(F::one()), src)],
+            DslIr::InvF(dst, src) => vec![self.base_alu(DivF, dst, Imm::F(F::one()), src)],
+            DslIr::InvE(dst, src) => vec![self.ext_alu(DivE, dst, Imm::F(F::one()), src)],
 
             // DslIr::AssertEqV(dst, src) => todo!(),
 
@@ -606,7 +316,7 @@ where
 
         let mut instrs = operations
             .into_iter()
-            .map(|(ir_instr, _)| self.compile_one(ir_instr))
+            .flat_map(|(ir_instr, _)| self.compile_one(ir_instr))
             .collect::<Vec<_>>();
         // Replace the mults.
         for asm_instr in instrs.iter_mut() {
@@ -661,6 +371,80 @@ where
             .chain(instrs_consts_ef)
             .chain(instrs)
             .collect()
+    }
+}
+
+/// Immediate (i.e. constant) field element.
+///
+/// Required to distinguish a base and extension field element at the type level,
+/// since the IR's instructions do not provide this information.
+#[derive(Debug, Clone, Copy)]
+enum Imm<F, EF> {
+    /// Element of the base field `F`.
+    F(F),
+    /// Element of the extension field `EF`.
+    EF(EF),
+}
+
+impl<F, EF> Imm<F, EF>
+where
+    F: AbstractField + Copy,
+    EF: AbstractExtensionField<F>,
+{
+    // Get a `Block` of memory representing this immediate.
+    fn as_block(&self) -> Block<F> {
+        match self {
+            Imm::F(f) => Block::from(*f),
+            Imm::EF(ef) => ef.as_base_slice().into(),
+        }
+    }
+}
+
+/// Utility functions for various register types.
+trait Reg<F, EF>: Debug {
+    /// Mark the register as to be read from, returning the "physical" address.
+    fn read(&self, compiler: &mut AsmCompiler<F, EF>) -> Address<F>;
+
+    /// Mark the register as to be written to, returning the "physical" address.
+    fn write(&self, _compiler: &mut AsmCompiler<F, EF>) -> Address<F>;
+}
+
+macro_rules! impl_reg_fp {
+    ($a:ty) => {
+        impl<F, EF> Reg<F, EF> for $a
+        where
+            F: PrimeField + TwoAdicField,
+            EF: ExtensionField<F> + TwoAdicField,
+        {
+            fn read(&self, compiler: &mut AsmCompiler<F, EF>) -> Address<F> {
+                compiler.read_fp(self.fp())
+            }
+            fn write(&self, compiler: &mut AsmCompiler<F, EF>) -> Address<F> {
+                compiler.write_fp(self.fp())
+            }
+        }
+    };
+}
+
+// These three types have `.fp()` but they don't share a trait.
+impl_reg_fp!(Var<F>);
+impl_reg_fp!(Felt<F>);
+impl_reg_fp!(Ext<F, EF>);
+
+impl<F, EF> Reg<F, EF> for Imm<F, EF>
+where
+    F: PrimeField + TwoAdicField,
+    EF: ExtensionField<F> + TwoAdicField,
+{
+    fn read(&self, compiler: &mut AsmCompiler<F, EF>) -> Address<F> {
+        match self {
+            Imm::F(f) => compiler.read_const_f(*f),
+            Imm::EF(ef) => compiler.read_const_ef(*ef),
+        }
+    }
+
+    fn write(&self, _compiler: &mut AsmCompiler<F, EF>) -> Address<F> {
+        panic!("cannot write to immediate in register: {self:?}")
     }
 }
 
