@@ -99,7 +99,6 @@ pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
         >,
     >,
 
-    // p2_hash_state: [F; PERMUTATION_WIDTH],
     _marker_ef: PhantomData<EF>,
 
     _marker_diffusion: PhantomData<Diffusion>,
@@ -143,7 +142,6 @@ where
             record,
             cycle_tracker: HashMap::new(),
             perm: Some(perm),
-            // p2_hash_state: [F::zero(); PERMUTATION_WIDTH],
             _marker_ef: PhantomData,
             _marker_diffusion: PhantomData,
         }

@@ -1,6 +1,5 @@
-//! The air module contains the AIR constraints for the poseidon2 chip.  Those constraints will
-//! enforce the following properties:
-//!
+//! The air module contains the AIR constraints for the poseidon2 chip.  
+//! At the moment, we're only including memory constraints to test the new memory argument.
 
 use std::borrow::Borrow;
 
