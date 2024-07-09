@@ -33,7 +33,7 @@ pub type BaseAluEvent<F> = BaseAluIo<F>;
 /// An instruction invoking the extension field ALU.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BaseAluInstr<F> {
-    pub opcode: Opcode,
+    pub opcode: BaseAluOpcode,
     pub mult: F,
     pub addrs: BaseAluIo<Address<F>>,
 }
@@ -53,7 +53,7 @@ pub type ExtAluEvent<F> = ExtAluIo<Block<F>>;
 /// An instruction invoking the extension field ALU.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ExtAluInstr<F> {
-    pub opcode: Opcode,
+    pub opcode: ExtAluOpcode,
     pub mult: F,
     pub addrs: ExtAluIo<Address<F>>,
 }

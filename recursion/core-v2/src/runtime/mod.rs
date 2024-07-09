@@ -201,11 +201,10 @@ where
                     let in2 = self.mr(addrs.in2).val[0];
                     // Do the computation.
                     let out = match opcode {
-                        Opcode::AddF => in1 + in2,
-                        Opcode::SubF => in1 - in2,
-                        Opcode::MulF => in1 * in2,
-                        Opcode::DivF => in1.try_div(in2).unwrap_or(AbstractField::one()),
-                        _ => panic!("Invalid opcode: {:?}", opcode),
+                        BaseAluOpcode::AddF => in1 + in2,
+                        BaseAluOpcode::SubF => in1 - in2,
+                        BaseAluOpcode::MulF => in1 * in2,
+                        BaseAluOpcode::DivF => in1.try_div(in2).unwrap_or(AbstractField::one()),
                     };
                     self.mw(addrs.out, Block::from(out), mult);
                     self.record
@@ -224,11 +223,12 @@ where
                     let in1_ef = EF::from_base_slice(&in1.0);
                     let in2_ef = EF::from_base_slice(&in2.0);
                     let out_ef = match opcode {
-                        Opcode::AddE => in1_ef + in2_ef,
-                        Opcode::SubE => in1_ef - in2_ef,
-                        Opcode::MulE => in1_ef * in2_ef,
-                        Opcode::DivE => in1_ef.try_div(in2_ef).unwrap_or(AbstractField::one()),
-                        _ => panic!("Invalid opcode: {:?}", opcode),
+                        ExtAluOpcode::AddE => in1_ef + in2_ef,
+                        ExtAluOpcode::SubE => in1_ef - in2_ef,
+                        ExtAluOpcode::MulE => in1_ef * in2_ef,
+                        ExtAluOpcode::DivE => {
+                            in1_ef.try_div(in2_ef).unwrap_or(AbstractField::one())
+                        }
                     };
                     let out = Block::from(out_ef.as_base_slice());
                     self.mw(addrs.out, out, mult);

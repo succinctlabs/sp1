@@ -4,7 +4,7 @@ use p3_field::PrimeField;
 use p3_field::TwoAdicField;
 use sp1_recursion_core::air::Block;
 use sp1_recursion_core_v2::BaseAluInstr;
-use sp1_recursion_core_v2::Opcode;
+use sp1_recursion_core_v2::BaseAluOpcode;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 
@@ -130,7 +130,7 @@ where
             DslIr::ImmE(dst, src) => self.init_at_ef(dst.fp(), src),
 
             DslIr::AddV(dst, lhs, rhs) => Instruction::BaseAlu(BaseAluInstr {
-                opcode: Opcode::AddF,
+                opcode: BaseAluOpcode::AddF,
                 mult: F::zero(),
                 addrs: BaseAluIo {
                     out: self.write_fp(dst.fp()),
@@ -139,7 +139,7 @@ where
                 },
             }),
             DslIr::AddVI(dst, lhs, rhs) => Instruction::BaseAlu(BaseAluInstr {
-                opcode: Opcode::AddF,
+                opcode: BaseAluOpcode::AddF,
                 mult: F::zero(),
                 addrs: BaseAluIo {
                     out: self.write_fp(dst.fp()),
@@ -148,7 +148,7 @@ where
                 },
             }),
             DslIr::AddF(dst, lhs, rhs) => Instruction::BaseAlu(BaseAluInstr {
-                opcode: Opcode::AddF,
+                opcode: BaseAluOpcode::AddF,
                 mult: F::zero(),
                 addrs: BaseAluIo {
                     out: self.write_fp(dst.fp()),
@@ -157,7 +157,7 @@ where
                 },
             }),
             DslIr::AddFI(dst, lhs, rhs) => Instruction::BaseAlu(BaseAluInstr {
-                opcode: Opcode::AddF,
+                opcode: BaseAluOpcode::AddF,
                 mult: F::zero(),
                 addrs: BaseAluIo {
                     out: self.write_fp(dst.fp()),
@@ -166,7 +166,7 @@ where
                 },
             }),
             DslIr::AddE(dst, lhs, rhs) => Instruction::ExtAlu(ExtAluInstr {
-                opcode: Opcode::AddE,
+                opcode: ExtAluOpcode::AddE,
                 mult: F::zero(),
                 addrs: ExtAluIo {
                     out: self.write_fp(dst.fp()),
@@ -175,7 +175,7 @@ where
                 },
             }),
             DslIr::AddEI(dst, lhs, rhs) => Instruction::ExtAlu(ExtAluInstr {
-                opcode: Opcode::AddE,
+                opcode: ExtAluOpcode::AddE,
                 mult: F::zero(),
                 addrs: ExtAluIo {
                     out: self.write_fp(dst.fp()),
@@ -184,7 +184,7 @@ where
                 },
             }),
             DslIr::AddEF(dst, lhs, rhs) => Instruction::ExtAlu(ExtAluInstr {
-                opcode: Opcode::AddE,
+                opcode: ExtAluOpcode::AddE,
                 mult: F::zero(),
                 addrs: ExtAluIo {
                     out: self.write_fp(dst.fp()),
@@ -193,7 +193,7 @@ where
                 },
             }),
             DslIr::AddEFI(dst, lhs, rhs) => Instruction::ExtAlu(ExtAluInstr {
-                opcode: Opcode::AddE,
+                opcode: ExtAluOpcode::AddE,
                 mult: F::zero(),
                 addrs: ExtAluIo {
                     out: self.write_fp(dst.fp()),
@@ -202,7 +202,7 @@ where
                 },
             }),
             DslIr::AddEFFI(dst, lhs, rhs) => Instruction::ExtAlu(ExtAluInstr {
-                opcode: Opcode::AddE,
+                opcode: ExtAluOpcode::AddE,
                 mult: F::zero(),
                 addrs: ExtAluIo {
                     out: self.write_fp(dst.fp()),
@@ -212,7 +212,7 @@ where
             }),
 
             DslIr::SubV(dst, lhs, rhs) => Instruction::BaseAlu(BaseAluInstr {
-                opcode: Opcode::SubF,
+                opcode: BaseAluOpcode::SubF,
                 mult: F::zero(),
                 addrs: BaseAluIo {
                     out: self.write_fp(dst.fp()),
@@ -221,7 +221,7 @@ where
                 },
             }),
             DslIr::SubVI(dst, lhs, rhs) => Instruction::BaseAlu(BaseAluInstr {
-                opcode: Opcode::SubF,
+                opcode: BaseAluOpcode::SubF,
                 mult: F::zero(),
                 addrs: BaseAluIo {
                     out: self.write_fp(dst.fp()),
@@ -230,7 +230,7 @@ where
                 },
             }),
             DslIr::SubVIN(dst, lhs, rhs) => Instruction::BaseAlu(BaseAluInstr {
-                opcode: Opcode::SubF,
+                opcode: BaseAluOpcode::SubF,
                 mult: F::zero(),
                 addrs: BaseAluIo {
                     out: self.write_fp(dst.fp()),
@@ -239,7 +239,7 @@ where
                 },
             }),
             DslIr::SubF(dst, lhs, rhs) => Instruction::BaseAlu(BaseAluInstr {
-                opcode: Opcode::SubF,
+                opcode: BaseAluOpcode::SubF,
                 mult: F::zero(),
                 addrs: BaseAluIo {
                     out: self.write_fp(dst.fp()),
@@ -248,7 +248,7 @@ where
                 },
             }),
             DslIr::SubFI(dst, lhs, rhs) => Instruction::BaseAlu(BaseAluInstr {
-                opcode: Opcode::SubF,
+                opcode: BaseAluOpcode::SubF,
                 mult: F::zero(),
                 addrs: BaseAluIo {
                     out: self.write_fp(dst.fp()),
@@ -257,7 +257,7 @@ where
                 },
             }),
             DslIr::SubFIN(dst, lhs, rhs) => Instruction::BaseAlu(BaseAluInstr {
-                opcode: Opcode::SubF,
+                opcode: BaseAluOpcode::SubF,
                 mult: F::zero(),
                 addrs: BaseAluIo {
                     out: self.write_fp(dst.fp()),
@@ -266,7 +266,7 @@ where
                 },
             }),
             DslIr::SubE(dst, lhs, rhs) => Instruction::ExtAlu(ExtAluInstr {
-                opcode: Opcode::SubE,
+                opcode: ExtAluOpcode::SubE,
                 mult: F::zero(),
                 addrs: ExtAluIo {
                     out: self.write_fp(dst.fp()),
@@ -275,7 +275,7 @@ where
                 },
             }),
             DslIr::SubEI(dst, lhs, rhs) => Instruction::ExtAlu(ExtAluInstr {
-                opcode: Opcode::SubE,
+                opcode: ExtAluOpcode::SubE,
                 mult: F::zero(),
                 addrs: ExtAluIo {
                     out: self.write_fp(dst.fp()),
@@ -284,7 +284,7 @@ where
                 },
             }),
             DslIr::SubEIN(dst, lhs, rhs) => Instruction::ExtAlu(ExtAluInstr {
-                opcode: Opcode::SubE,
+                opcode: ExtAluOpcode::SubE,
                 mult: F::zero(),
                 addrs: ExtAluIo {
                     out: self.write_fp(dst.fp()),
@@ -293,7 +293,7 @@ where
                 },
             }),
             DslIr::SubEFI(dst, lhs, rhs) => Instruction::ExtAlu(ExtAluInstr {
-                opcode: Opcode::SubE,
+                opcode: ExtAluOpcode::SubE,
                 mult: F::zero(),
                 addrs: ExtAluIo {
                     out: self.write_fp(dst.fp()),
@@ -302,7 +302,7 @@ where
                 },
             }),
             DslIr::SubEF(dst, lhs, rhs) => Instruction::ExtAlu(ExtAluInstr {
-                opcode: Opcode::SubE,
+                opcode: ExtAluOpcode::SubE,
                 mult: F::zero(),
                 addrs: ExtAluIo {
                     out: self.write_fp(dst.fp()),
@@ -312,7 +312,7 @@ where
             }),
 
             DslIr::MulV(dst, lhs, rhs) => Instruction::BaseAlu(BaseAluInstr {
-                opcode: Opcode::MulF,
+                opcode: BaseAluOpcode::MulF,
                 mult: F::zero(),
                 addrs: BaseAluIo {
                     out: self.write_fp(dst.fp()),
@@ -321,7 +321,7 @@ where
                 },
             }),
             DslIr::MulVI(dst, lhs, rhs) => Instruction::BaseAlu(BaseAluInstr {
-                opcode: Opcode::MulF,
+                opcode: BaseAluOpcode::MulF,
                 mult: F::zero(),
                 addrs: BaseAluIo {
                     out: self.write_fp(dst.fp()),
@@ -330,7 +330,7 @@ where
                 },
             }),
             DslIr::MulF(dst, lhs, rhs) => Instruction::BaseAlu(BaseAluInstr {
-                opcode: Opcode::MulF,
+                opcode: BaseAluOpcode::MulF,
                 mult: F::zero(),
                 addrs: BaseAluIo {
                     out: self.write_fp(dst.fp()),
@@ -339,7 +339,7 @@ where
                 },
             }),
             DslIr::MulFI(dst, lhs, rhs) => Instruction::BaseAlu(BaseAluInstr {
-                opcode: Opcode::MulF,
+                opcode: BaseAluOpcode::MulF,
                 mult: F::zero(),
                 addrs: BaseAluIo {
                     out: self.write_fp(dst.fp()),
@@ -348,7 +348,7 @@ where
                 },
             }),
             DslIr::MulE(dst, lhs, rhs) => Instruction::ExtAlu(ExtAluInstr {
-                opcode: Opcode::MulE,
+                opcode: ExtAluOpcode::MulE,
                 mult: F::zero(),
                 addrs: ExtAluIo {
                     out: self.write_fp(dst.fp()),
@@ -357,7 +357,7 @@ where
                 },
             }),
             DslIr::MulEI(dst, lhs, rhs) => Instruction::ExtAlu(ExtAluInstr {
-                opcode: Opcode::MulE,
+                opcode: ExtAluOpcode::MulE,
                 mult: F::zero(),
                 addrs: ExtAluIo {
                     out: self.write_fp(dst.fp()),
@@ -366,7 +366,7 @@ where
                 },
             }),
             DslIr::MulEFI(dst, lhs, rhs) => Instruction::ExtAlu(ExtAluInstr {
-                opcode: Opcode::MulE,
+                opcode: ExtAluOpcode::MulE,
                 mult: F::zero(),
                 addrs: ExtAluIo {
                     out: self.write_fp(dst.fp()),
@@ -375,7 +375,7 @@ where
                 },
             }),
             DslIr::MulEF(dst, lhs, rhs) => Instruction::ExtAlu(ExtAluInstr {
-                opcode: Opcode::MulE,
+                opcode: ExtAluOpcode::MulE,
                 mult: F::zero(),
                 addrs: ExtAluIo {
                     out: self.write_fp(dst.fp()),
@@ -385,7 +385,7 @@ where
             }),
 
             DslIr::DivF(dst, lhs, rhs) => Instruction::BaseAlu(BaseAluInstr {
-                opcode: Opcode::DivF,
+                opcode: BaseAluOpcode::DivF,
                 mult: F::zero(),
                 addrs: BaseAluIo {
                     out: self.write_fp(dst.fp()),
@@ -394,7 +394,7 @@ where
                 },
             }),
             DslIr::DivFI(dst, lhs, rhs) => Instruction::BaseAlu(BaseAluInstr {
-                opcode: Opcode::DivF,
+                opcode: BaseAluOpcode::DivF,
                 mult: F::zero(),
                 addrs: BaseAluIo {
                     out: self.write_fp(dst.fp()),
@@ -403,7 +403,7 @@ where
                 },
             }),
             DslIr::DivFIN(dst, lhs, rhs) => Instruction::BaseAlu(BaseAluInstr {
-                opcode: Opcode::DivF,
+                opcode: BaseAluOpcode::DivF,
                 mult: F::zero(),
                 addrs: BaseAluIo {
                     out: self.write_fp(dst.fp()),
@@ -412,7 +412,7 @@ where
                 },
             }),
             DslIr::DivE(dst, lhs, rhs) => Instruction::ExtAlu(ExtAluInstr {
-                opcode: Opcode::DivE,
+                opcode: ExtAluOpcode::DivE,
                 mult: F::zero(),
                 addrs: ExtAluIo {
                     out: self.write_fp(dst.fp()),
@@ -421,7 +421,7 @@ where
                 },
             }),
             DslIr::DivEI(dst, lhs, rhs) => Instruction::ExtAlu(ExtAluInstr {
-                opcode: Opcode::DivE,
+                opcode: ExtAluOpcode::DivE,
                 mult: F::zero(),
                 addrs: ExtAluIo {
                     out: self.write_fp(dst.fp()),
@@ -430,7 +430,7 @@ where
                 },
             }),
             DslIr::DivEIN(dst, lhs, rhs) => Instruction::ExtAlu(ExtAluInstr {
-                opcode: Opcode::DivE,
+                opcode: ExtAluOpcode::DivE,
                 mult: F::zero(),
                 addrs: ExtAluIo {
                     out: self.write_fp(dst.fp()),
@@ -439,7 +439,7 @@ where
                 },
             }),
             DslIr::DivEFI(dst, lhs, rhs) => Instruction::ExtAlu(ExtAluInstr {
-                opcode: Opcode::DivE,
+                opcode: ExtAluOpcode::DivE,
                 mult: F::zero(),
                 addrs: ExtAluIo {
                     out: self.write_fp(dst.fp()),
@@ -448,7 +448,7 @@ where
                 },
             }),
             DslIr::DivEFIN(dst, lhs, rhs) => Instruction::ExtAlu(ExtAluInstr {
-                opcode: Opcode::DivE,
+                opcode: ExtAluOpcode::DivE,
                 mult: F::zero(),
                 addrs: ExtAluIo {
                     out: self.write_fp(dst.fp()),
@@ -457,7 +457,7 @@ where
                 },
             }),
             DslIr::DivEF(dst, lhs, rhs) => Instruction::ExtAlu(ExtAluInstr {
-                opcode: Opcode::DivE,
+                opcode: ExtAluOpcode::DivE,
                 mult: F::zero(),
                 addrs: ExtAluIo {
                     out: self.write_fp(dst.fp()),
@@ -467,7 +467,7 @@ where
             }),
 
             DslIr::NegV(dst, src) => Instruction::BaseAlu(BaseAluInstr {
-                opcode: Opcode::SubF,
+                opcode: BaseAluOpcode::SubF,
                 mult: F::zero(),
                 addrs: BaseAluIo {
                     out: self.write_fp(dst.fp()),
@@ -476,7 +476,7 @@ where
                 },
             }),
             DslIr::NegF(dst, src) => Instruction::BaseAlu(BaseAluInstr {
-                opcode: Opcode::SubF,
+                opcode: BaseAluOpcode::SubF,
                 mult: F::zero(),
                 addrs: BaseAluIo {
                     out: self.write_fp(dst.fp()),
@@ -485,7 +485,7 @@ where
                 },
             }),
             DslIr::NegE(dst, src) => Instruction::ExtAlu(ExtAluInstr {
-                opcode: Opcode::SubE,
+                opcode: ExtAluOpcode::SubE,
                 mult: F::zero(),
                 addrs: ExtAluIo {
                     out: self.write_fp(dst.fp()),
@@ -494,7 +494,7 @@ where
                 },
             }),
             DslIr::InvV(dst, src) => Instruction::BaseAlu(BaseAluInstr {
-                opcode: Opcode::DivF,
+                opcode: BaseAluOpcode::DivF,
                 mult: F::zero(),
                 addrs: BaseAluIo {
                     out: self.write_fp(dst.fp()),
@@ -503,7 +503,7 @@ where
                 },
             }),
             DslIr::InvF(dst, src) => Instruction::BaseAlu(BaseAluInstr {
-                opcode: Opcode::DivF,
+                opcode: BaseAluOpcode::DivF,
                 mult: F::zero(),
                 addrs: BaseAluIo {
                     out: self.write_fp(dst.fp()),
@@ -512,7 +512,7 @@ where
                 },
             }),
             DslIr::InvE(dst, src) => Instruction::ExtAlu(ExtAluInstr {
-                opcode: Opcode::DivE,
+                opcode: ExtAluOpcode::DivE,
                 mult: F::zero(),
                 addrs: ExtAluIo {
                     out: self.write_fp(dst.fp()),

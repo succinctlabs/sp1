@@ -92,11 +92,10 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
                     is_real: F::from_bool(true),
                 };
                 let target_flag = match opcode {
-                    Opcode::AddE => &mut cols.is_add,
-                    Opcode::SubE => &mut cols.is_sub,
-                    Opcode::MulE => &mut cols.is_mul,
-                    Opcode::DivE => &mut cols.is_div,
-                    _ => panic!("Invalid opcode: {:?}", opcode),
+                    ExtAluOpcode::AddE => &mut cols.is_add,
+                    ExtAluOpcode::SubE => &mut cols.is_sub,
+                    ExtAluOpcode::MulE => &mut cols.is_mul,
+                    ExtAluOpcode::DivE => &mut cols.is_div,
                 };
                 *target_flag = F::from_bool(true);
 
@@ -277,13 +276,13 @@ mod tests {
                 [
                     instr::mem_ext(MemAccessKind::Write, 4, a[0], in1),
                     instr::mem_ext(MemAccessKind::Write, 4, a[1], in2),
-                    instr::ext_alu(Opcode::AddE, 1, a[2], a[0], a[1]),
+                    instr::ext_alu(ExtAluOpcode::AddE, 1, a[2], a[0], a[1]),
                     instr::mem_ext(MemAccessKind::Read, 1, a[2], in1 + in2),
-                    instr::ext_alu(Opcode::SubE, 1, a[3], a[0], a[1]),
+                    instr::ext_alu(ExtAluOpcode::SubE, 1, a[3], a[0], a[1]),
                     instr::mem_ext(MemAccessKind::Read, 1, a[3], in1 - in2),
-                    instr::ext_alu(Opcode::MulE, 1, a[4], a[0], a[1]),
+                    instr::ext_alu(ExtAluOpcode::MulE, 1, a[4], a[0], a[1]),
                     instr::mem_ext(MemAccessKind::Read, 1, a[4], in1 * in2),
-                    instr::ext_alu(Opcode::DivE, 1, a[5], a[0], a[1]),
+                    instr::ext_alu(ExtAluOpcode::DivE, 1, a[5], a[0], a[1]),
                     instr::mem_ext(MemAccessKind::Read, 1, a[5], quot),
                 ]
             })

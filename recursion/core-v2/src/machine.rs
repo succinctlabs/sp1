@@ -134,7 +134,7 @@ mod tests {
 
         let instructions = once(instr::mem(MemAccessKind::Write, 1, 0, 0))
             .chain(once(instr::mem(MemAccessKind::Write, 2, 1, 1)))
-            .chain((2..=n).map(|i| instr::base_alu(Opcode::AddF, 2, i, i - 2, i - 1)))
+            .chain((2..=n).map(|i| instr::base_alu(BaseAluOpcode::AddF, 2, i, i - 2, i - 1)))
             .chain(once(instr::mem(MemAccessKind::Read, 1, n - 1, 34)))
             .chain(once(instr::mem(MemAccessKind::Read, 2, n, 55)))
             .collect::<Vec<_>>();
@@ -177,7 +177,13 @@ mod tests {
             instructions.push(instr::mem_ext(MemAccessKind::Write, 1, addr, acc));
             for conj in gal {
                 instructions.push(instr::mem_ext(MemAccessKind::Write, 1, addr + 1, conj));
-                instructions.push(instr::ext_alu(Opcode::MulE, 1, addr + 2, addr, addr + 1));
+                instructions.push(instr::ext_alu(
+                    ExtAluOpcode::MulE,
+                    1,
+                    addr + 2,
+                    addr,
+                    addr + 1,
+                ));
 
                 addr += 2;
                 acc *= conj;
