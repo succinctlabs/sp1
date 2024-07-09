@@ -201,6 +201,9 @@ where
 
         // Update the public values & prover state for the shards which do not contain "cpu events"
         // before committing to them.
+        if !is_last_checkpoint {
+            state.execution_shard += 1;
+        }
         for record in deferred.iter_mut() {
             state.shard += 1;
             state.previous_init_addr_bits = record.public_values.previous_init_addr_bits;
@@ -268,6 +271,9 @@ where
 
         // Update the public values & prover state for the shards which do not contain "cpu events"
         // before committing to them.
+        if !is_last_checkpoint {
+            state.execution_shard += 1;
+        }
         for record in deferred.iter_mut() {
             state.shard += 1;
             state.previous_init_addr_bits = record.public_values.previous_init_addr_bits;
