@@ -4,7 +4,8 @@ use sp1_prover::{components::SP1ProverComponents, SP1Prover, SP1Stdin};
 use sysinfo::System;
 
 use crate::{
-    Prover, SP1Proof, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
+    install::try_install_plonk_bn254_artifacts, Prover, SP1Proof, SP1ProofKind,
+    SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
 };
 
 use super::ProverType;
@@ -84,7 +85,7 @@ impl<C: SP1ProverComponents> Prover<C> for LocalProver<C> {
                 &outer_proof.proof,
             )
         } else {
-            sp1_prover::build::try_install_plonk_bn254_artifacts()
+            try_install_plonk_bn254_artifacts()
         };
         let proof = self
             .prover

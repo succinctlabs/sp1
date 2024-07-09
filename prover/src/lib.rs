@@ -13,7 +13,6 @@
 
 pub mod build;
 pub mod components;
-pub mod install;
 pub mod types;
 pub mod utils;
 pub mod verify;
