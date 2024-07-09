@@ -18,8 +18,6 @@ pub fn cargo_rerun_if_changed(path: &str) -> (&Path, String) {
     let mut metadata_cmd = cargo_metadata::MetadataCommand::new();
     let metadata = metadata_cmd.manifest_path(metadata_file).exec().unwrap();
 
-    // TODO: This will re-run more often as the program directory's Cargo.lock is intertwined with
-    // the workspace's Cargo.lock.
     println!(
         "cargo:rerun-if-changed={}",
         metadata.workspace_root.join("Cargo.lock").as_str()
