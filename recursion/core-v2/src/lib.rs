@@ -16,7 +16,7 @@ pub use runtime::*;
 
 #[derive(AlignedBorrow, Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[repr(C)]
-pub struct Address<F>(F);
+pub struct Address<F>(pub F);
 
 // -------------------------------------------------------------------------------------------------
 
