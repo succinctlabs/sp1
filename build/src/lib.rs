@@ -58,8 +58,6 @@ fn get_docker_image(tag: &str) -> String {
     })
 }
 
-// TODO: Pipe the output to SP1 if done via build_program. Either should be an argument or return the Command itself.
-
 /// Build a program with the specified BuildArgs. program_dir is specified as an argument when
 /// the program is built via build_program in sp1-helper.
 pub fn build_program(args: &BuildArgs, program_dir: Option<PathBuf>) -> Result<Utf8PathBuf> {
