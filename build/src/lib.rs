@@ -43,7 +43,10 @@ pub struct BuildArgs {
     pub binary: Option<String>,
     #[cfg_attr(feature = "clap", clap(long, action, help = "ELF binary name."))]
     pub elf: Option<String>,
-    #[cfg_attr(feature = "clap", clap(long, action, help = "Build with features."))]
+    #[cfg_attr(
+        feature = "clap",
+        clap(long, action, value_delimiter = ',', help = "Build with features.")
+    )]
     pub features: Vec<String>,
 }
 
@@ -212,10 +215,10 @@ pub fn add_cargo_prove_build_args(
         command_args.push("--ignore-rust-version".to_string());
     }
     if !prove_args.features.is_empty() {
-        for feature in prove_args.features {
-            command_args.push("--features".to_string());
-            command_args.push(feature);
-        }
+        // `cargo prove build` accepts a comma-separated list of features.
+        let features = prove_args.features.join(",");
+        command_args.push("--features".to_string());
+        command_args.push(features);
     }
     if let Some(binary) = &prove_args.binary {
         command_args.push("--binary".to_string());
