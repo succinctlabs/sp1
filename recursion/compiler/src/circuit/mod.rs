@@ -99,28 +99,6 @@ where
     // ---------------------------------------------------------------------------------------------
     // INSTRUCTION HELPERS
 
-    // fn init_at_f(&mut self, fp: i32, f: F) -> Instruction<F> {
-    //     self.init_at(fp, Block::from(f))
-    // }
-
-    // fn init_at_ef(&mut self, fp: i32, ef: EF) -> Instruction<F> {
-    //     self.init_at(fp, ef.as_base_slice().into())
-    // }
-
-    // fn init_at(&mut self, fp: i32, block: Block<F>) -> Instruction<F> {
-    //     let addr = self.write_fp(fp);
-    //     Self::init_at_addr(addr, block)
-    // }
-
-    // fn init_at_addr(addr: Address<F>, block: Block<F>) -> Instruction<F> {
-    //     Instruction::Mem(MemInstr {
-    //         addrs: MemIo { inner: addr },
-    //         vals: MemIo { inner: block },
-    //         mult: F::zero(),
-    //         kind: MemAccessKind::Write,
-    //     })
-    // }
-
     fn mem_write_const(&mut self, dst: impl Reg<F, EF>, src: Imm<F, EF>) -> Instruction<F> {
         Instruction::Mem(MemInstr {
             addrs: MemIo {
