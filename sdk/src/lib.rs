@@ -26,6 +26,7 @@ pub mod utils {
 use cfg_if::cfg_if;
 pub use proof::*;
 pub use provers::SP1VerificationError;
+use sp1_prover::components::DefaultProverComponents;
 use std::env;
 
 pub use provers::{LocalProver, MockProver, Prover};
@@ -40,7 +41,7 @@ pub use sp1_prover::{
 /// A client for interacting with SP1.
 pub struct ProverClient {
     /// The underlying prover implementation.
-    pub prover: Box<dyn Prover>,
+    pub prover: Box<dyn Prover<DefaultProverComponents>>,
 }
 
 impl ProverClient {

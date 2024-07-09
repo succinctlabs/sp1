@@ -60,6 +60,8 @@
 
 - [Usage](./prover-network/usage.md)
 
+- [Supported Versions](./prover-network/versions.md)
+
 # Developers
 
 - [Building PLONK Artifacts](./developers/building-plonk-artifacts.md)

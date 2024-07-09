@@ -1,7 +1,10 @@
 [package]
 name = "sp1-recursion-compiler"
-version = "0.1.0"
+version = "0.0.0-test"
 edition = "2021"
+description = "SP1 is a performant, 100% open-source, contributor-friendly zkVM."
+readme = "../../README.md"
+license = "MIT OR Apache-2.0"
 
 [dependencies]
 p3-air = { workspace = true }
@@ -21,7 +24,7 @@ sp1-recursion-core = { path = "../core" }
 sp1-recursion-derive = { path = "../derive" }
 
 itertools = "0.13.0"
-serde = { version = "1.0.201", features = ["derive"] }
+serde = { version = "1.0.204", features = ["derive"] }
 backtrace = "0.3.71"
 tracing = "0.1.40"
 

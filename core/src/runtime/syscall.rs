@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
 
+use serde::{Deserialize, Serialize};
 use strum_macros::EnumIter;
 
 use crate::runtime::{Register, Runtime};
@@ -28,7 +29,9 @@ use crate::{runtime::ExecutionRecord, runtime::MemoryReadRecord, runtime::Memory
 /// - The second byte is 0/1 depending on whether the syscall has a separate table. This is used
 /// in the CPU table to determine whether to lookup the syscall using the syscall interaction.
 /// - The third byte is the number of additional cycles the syscall uses.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, EnumIter, Ord, PartialOrd)]
+#[derive(
+    Debug, Copy, Clone, PartialEq, Eq, Hash, EnumIter, Ord, PartialOrd, Serialize, Deserialize,
+)]
 #[allow(non_camel_case_types)]
 pub enum SyscallCode {
     /// Halts the program.
@@ -92,7 +95,7 @@ pub enum SyscallCode {
     HINT_READ = 0x00_00_00_F1,
 
     /// Executes the `UINT256_MUL` precompile.
-    UINT256_MUL = 0x00_00_01_1D,
+    UINT256_MUL = 0x00_01_01_1D,
 
     /// Executes the `BLS12381_ADD` precompile.
     BLS12381_ADD = 0x00_01_01_1E,
@@ -126,7 +129,7 @@ impl SyscallCode {
             0x00_00_00_1B => SyscallCode::VERIFY_SP1_PROOF,
             0x00_00_00_F0 => SyscallCode::HINT_LEN,
             0x00_00_00_F1 => SyscallCode::HINT_READ,
-            0x00_00_01_1D => SyscallCode::UINT256_MUL,
+            0x00_01_01_1D => SyscallCode::UINT256_MUL,
             0x00_00_01_1C => SyscallCode::BLS12381_DECOMPRESS,
             _ => panic!("invalid syscall number: {}", value),
         }

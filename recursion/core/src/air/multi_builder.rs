@@ -8,14 +8,28 @@ use sp1_core::air::MessageBuilder;
 /// the sub tables in the multi table.
 pub struct MultiBuilder<'a, AB: AirBuilder> {
     inner: FilteredAirBuilder<'a, AB>,
+
+    /// These fields are used to determine whether a row is is the first or last row of the subtable,
+    /// which requires hinting from the parent table.
+    is_first_row: AB::Expr,
+    is_last_row: AB::Expr,
+
     next_condition: AB::Expr,
 }
 
 impl<'a, AB: AirBuilder> MultiBuilder<'a, AB> {
-    pub fn new(builder: &'a mut AB, local_condition: AB::Expr, next_condition: AB::Expr) -> Self {
+    pub fn new(
+        builder: &'a mut AB,
+        local_condition: AB::Expr,
+        is_first_row: AB::Expr,
+        is_last_row: AB::Expr,
+        next_condition: AB::Expr,
+    ) -> Self {
         let inner = builder.when(local_condition.clone());
         Self {
             inner,
+            is_first_row,
+            is_last_row,
             next_condition,
         }
     }
@@ -32,11 +46,11 @@ impl<'a, AB: AirBuilder> AirBuilder for MultiBuilder<'a, AB> {
     }
 
     fn is_first_row(&self) -> Self::Expr {
-        self.inner.is_first_row()
+        self.is_first_row.clone()
     }
 
     fn is_last_row(&self) -> Self::Expr {
-        self.inner.is_last_row()
+        self.is_last_row.clone()
     }
 
     fn is_transition_window(&self, size: usize) -> Self::Expr {

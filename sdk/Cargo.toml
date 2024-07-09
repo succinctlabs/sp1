@@ -1,13 +1,16 @@
 [package]
 name = "sp1-sdk"
-version = "0.1.0"
+version = "0.0.0-test"
 edition = "2021"
+description = "SP1 is a performant, 100% open-source, contributor-friendly zkVM."
+readme = "../README.md"
+license = "MIT OR Apache-2.0"
 
 [dependencies]
 prost = "0.12"
-serde = { version = "1.0.201", features = ["derive"] }
+serde = { version = "1.0.204", features = ["derive"] }
 serde_json = "1.0.120"
-twirp = { git = "https://github.com/github/twirp-rs.git", rev = "c85f31f9c54957374e7dcb3534fc52cff0aa2dc5" }
+twirp = { package = "twirp-rs", version = "0.3.0-succinct" }
 async-trait = "0.1.80"
 reqwest-middleware = "0.3.2"
 reqwest = { version = "0.12.4", features = [
@@ -30,7 +33,7 @@ indicatif = "0.17.8"
 tracing = "0.1.40"
 hex = "0.4.3"
 log = "0.4.22"
-axum = "=0.7.5"
+axum = "=0.7.4"
 alloy-sol-types = { version = "0.7.6", optional = true }
 sha2 = "0.10.8"
 dirs = "5.0.1"
@@ -41,11 +44,11 @@ ethers = { version = "2", default-features = false }
 strum_macros = "0.26.4"
 strum = "0.26.3"
 thiserror = "1.0.61"
+hashbrown = "0.14.5"
 sysinfo = "0.30.12"
 
 [features]
 default = ["network"]
-
 neon = ["sp1-core/neon"]
 native-gnark = ["sp1-prover/native-gnark"]
 # TODO: Once alloy has a 1.* release, we can likely remove this feature flag, as there will be less 

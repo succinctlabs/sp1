@@ -1,3 +1,4 @@
+use hashbrown::HashMap;
 use itertools::Itertools;
 use p3_air::Air;
 use p3_challenger::CanObserve;
@@ -14,7 +15,6 @@ use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use serde::Serialize;
 use std::cmp::Reverse;
-use std::collections::HashMap;
 use std::fmt::Debug;
 use tracing::instrument;
 
@@ -23,20 +23,16 @@ use super::Dom;
 use crate::air::MachineAir;
 use crate::air::MachineProgram;
 use crate::lookup::debug_interactions_with_all_chips;
-use crate::lookup::InteractionBuilder;
 use crate::lookup::InteractionKind;
 use crate::stark::record::MachineRecord;
 use crate::stark::DebugConstraintBuilder;
-use crate::stark::ProverConstraintFolder;
 use crate::stark::ShardProof;
 use crate::stark::VerifierConstraintFolder;
-use crate::utils::SP1CoreOpts;
 
 use super::Chip;
 use super::Com;
 use super::MachineProof;
 use super::PcsProverData;
-use super::Prover;
 use super::StarkGenericConfig;
 use super::Val;
 use super::VerificationError;
@@ -239,54 +235,20 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         )
     }
 
-    pub fn shard(
+    pub fn generate_dependencies(
         &self,
-        mut record: A::Record,
-        config: &<A::Record as MachineRecord>::Config,
-    ) -> Vec<A::Record> {
-        // Get the local and global chips.
+        records: &mut [A::Record],
+        opts: &<A::Record as MachineRecord>::Config,
+    ) {
         let chips = self.chips();
-
-        // Generate the trace for each chip to collect events emitted from chips with dependencies.
-        tracing::debug_span!("collect record events from chips").in_scope(|| {
+        records.iter_mut().for_each(|record| {
             chips.iter().for_each(|chip| {
                 let mut output = A::Record::default();
-                output.set_index(record.index());
-                chip.generate_dependencies(&record, &mut output);
+                chip.generate_dependencies(record, &mut output);
                 record.append(&mut output);
-            })
+            });
+            record.register_nonces(opts);
         });
-
-        // Display some statistics about the workload.
-        let stats = record.stats();
-        log::debug!("shard: {:?}", stats);
-
-        // For each chip, shard the events into segments.
-        record.shard(config)
-    }
-
-    /// Prove the execution record is valid.
-    ///
-    /// Given a proving key `pk` and a matching execution record `record`, this function generates
-    /// a STARK proof that the execution record is valid.
-    pub fn prove<P: Prover<SC, A>>(
-        &self,
-        pk: &StarkProvingKey<SC>,
-        record: A::Record,
-        challenger: &mut SC::Challenger,
-        opts: SP1CoreOpts,
-    ) -> MachineProof<SC>
-    where
-        A: for<'a> Air<ProverConstraintFolder<'a, SC>>
-            + Air<InteractionBuilder<Val<SC>>>
-            + for<'a> Air<VerifierConstraintFolder<'a, SC>>
-            + for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
-    {
-        let shards = tracing::info_span!("shard_record")
-            .in_scope(|| self.shard(record, &<A::Record as MachineRecord>::Config::default()));
-
-        tracing::info_span!("prove_shards")
-            .in_scope(|| P::prove_shards(self, pk, shards, challenger, opts))
     }
 
     pub const fn config(&self) -> &SC {
@@ -356,19 +318,22 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
     pub fn debug_constraints(
         &self,
         pk: &StarkProvingKey<SC>,
-        record: A::Record,
+        records: Vec<A::Record>,
         challenger: &mut SC::Challenger,
     ) where
         SC::Val: PrimeField32,
         A: for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
     {
-        tracing::debug!("sharding the execution record");
-        let shards = self.shard(record, &<A::Record as MachineRecord>::Config::default());
-
         tracing::debug!("checking constraints for each shard");
 
+        // Obtain the challenges used for the permutation argument.
+        let mut permutation_challenges: Vec<SC::Challenge> = Vec::new();
+        for _ in 0..2 {
+            permutation_challenges.push(challenger.sample_ext_element());
+        }
+
         let mut cumulative_sum = SC::Challenge::zero();
-        for shard in shards.iter() {
+        for shard in records.iter() {
             // Filter the chips based on what is used.
             let chips = self.shard_chips(shard).collect::<Vec<_>>();
 
@@ -386,13 +351,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                 .map(|chip| chip.generate_trace(shard, &mut A::Record::default()))
                 .zip(pre_traces)
                 .collect::<Vec<_>>();
-
-            // Get a permutation challenge.
-            // Obtain the challenges used for the permutation argument.
-            let mut permutation_challenges: Vec<SC::Challenge> = Vec::new();
-            for _ in 0..2 {
-                permutation_challenges.push(challenger.sample_ext_element());
-            }
 
             // Generate the permutation traces.
             let mut permutation_traces = Vec::with_capacity(chips.len());
@@ -457,7 +415,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             debug_interactions_with_all_chips::<SC, A>(
                 self,
                 pk,
-                &shards,
+                &records,
                 InteractionKind::all_kinds(),
             );
             panic!("Cumulative sum is not zero");
@@ -475,6 +433,8 @@ pub enum MachineVerificationError<SC: StarkGenericConfig> {
     InvalidPublicValues(&'static str),
     TooManyShards,
     InvalidChipOccurence(String),
+    MissingCpuInFirstShard,
+    CpuLogDegreeTooLarge(usize),
 }
 
 impl<SC: StarkGenericConfig> Debug for MachineVerificationError<SC> {
@@ -507,6 +467,12 @@ impl<SC: StarkGenericConfig> Debug for MachineVerificationError<SC> {
             MachineVerificationError::InvalidChipOccurence(s) => {
                 write!(f, "Invalid chip occurence: {}", s)
             }
+            MachineVerificationError::MissingCpuInFirstShard => {
+                write!(f, "Missing CPU in first shard")
+            }
+            MachineVerificationError::CpuLogDegreeTooLarge(log_degree) => {
+                write!(f, "CPU log degree too large: {}", log_degree)
+            }
         }
     }
 }
@@ -531,6 +497,7 @@ pub mod tests {
     use crate::runtime::Instruction;
     use crate::runtime::Opcode;
     use crate::runtime::Program;
+    use crate::stark::DefaultProver;
     use crate::stark::RiscvAir;
     use crate::stark::StarkProvingKey;
     use crate::stark::StarkVerifyingKey;
@@ -545,7 +512,7 @@ pub mod tests {
     fn test_simple_prove() {
         utils::setup_logger();
         let program = simple_program();
-        run_test(program).unwrap();
+        run_test::<DefaultProver<_, _>>(program).unwrap();
     }
 
     #[test]
@@ -567,7 +534,7 @@ pub mod tests {
                     Instruction::new(*shift_op, 31, 29, 3, false, false),
                 ];
                 let program = Program::new(instructions, 0, 0);
-                run_test(program).unwrap();
+                run_test::<DefaultProver<_, _>>(program).unwrap();
             }
         }
     }
@@ -581,7 +548,7 @@ pub mod tests {
             Instruction::new(Opcode::SUB, 31, 30, 29, false, false),
         ];
         let program = Program::new(instructions, 0, 0);
-        run_test(program).unwrap();
+        run_test::<DefaultProver<_, _>>(program).unwrap();
     }
 
     #[test]
@@ -593,7 +560,7 @@ pub mod tests {
             Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
         ];
         let program = Program::new(instructions, 0, 0);
-        run_test(program).unwrap();
+        run_test::<DefaultProver<_, _>>(program).unwrap();
     }
 
     #[test]
@@ -615,7 +582,7 @@ pub mod tests {
                     Instruction::new(*mul_op, 31, 30, 29, false, false),
                 ];
                 let program = Program::new(instructions, 0, 0);
-                run_test(program).unwrap();
+                run_test::<DefaultProver<_, _>>(program).unwrap();
             }
         }
     }
@@ -631,7 +598,7 @@ pub mod tests {
                 Instruction::new(*lt_op, 31, 30, 29, false, false),
             ];
             let program = Program::new(instructions, 0, 0);
-            run_test(program).unwrap();
+            run_test::<DefaultProver<_, _>>(program).unwrap();
         }
     }
 
@@ -647,7 +614,7 @@ pub mod tests {
                 Instruction::new(*bitwise_op, 31, 30, 29, false, false),
             ];
             let program = Program::new(instructions, 0, 0);
-            run_test(program).unwrap();
+            run_test::<DefaultProver<_, _>>(program).unwrap();
         }
     }
 
@@ -670,16 +637,16 @@ pub mod tests {
                     Instruction::new(*div_rem_op, 31, 29, 30, false, false),
                 ];
                 let program = Program::new(instructions, 0, 0);
-                run_test(program).unwrap();
+                run_test::<DefaultProver<_, _>>(program).unwrap();
             }
         }
     }
 
     #[test]
-    fn test_fibonacci_prove() {
+    fn test_fibonacci_prove_simple() {
         setup_logger();
         let program = fibonacci_program();
-        run_test(program).unwrap();
+        run_test::<DefaultProver<_, _>>(program).unwrap();
     }
 
     #[test]
@@ -691,7 +658,7 @@ pub mod tests {
         let mut opts = SP1CoreOpts::default();
         opts.shard_size = 1024;
         opts.shard_batch_size = 2;
-        prove(program, &stdin, BabyBearPoseidon2::new(), opts).unwrap();
+        prove::<_, DefaultProver<_, _>>(program, &stdin, BabyBearPoseidon2::new(), opts).unwrap();
     }
 
     #[test]
@@ -699,7 +666,7 @@ pub mod tests {
         setup_logger();
         let program = fibonacci_program();
         let stdin = SP1Stdin::new();
-        prove(
+        prove::<_, DefaultProver<_, _>>(
             program,
             &stdin,
             BabyBearPoseidon2::new(),
@@ -710,15 +677,16 @@ pub mod tests {
 
     #[test]
     fn test_simple_memory_program_prove() {
+        setup_logger();
         let program = simple_memory_program();
-        run_test(program).unwrap();
+        run_test::<DefaultProver<_, _>>(program).unwrap();
     }
 
     #[test]
-    #[ignore]
     fn test_ssz_withdrawal() {
+        setup_logger();
         let program = ssz_withdrawals_program();
-        run_test(program).unwrap();
+        run_test::<DefaultProver<_, _>>(program).unwrap();
     }
 
     #[test]

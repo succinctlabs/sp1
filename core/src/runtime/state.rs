@@ -1,15 +1,19 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    fs::File,
+    io::{Seek, Write},
+};
 
 use nohash_hasher::BuildNoHashHasher;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
+use super::{ExecutionRecord, MemoryAccessRecord, MemoryRecord, SyscallCode};
+use crate::utils::{deserialize_hashmap_as_vec, serialize_hashmap_as_vec};
 use crate::{
     stark::{ShardProof, StarkVerifyingKey},
     utils::BabyBearPoseidon2,
 };
-
-use super::{ExecutionRecord, MemoryAccessRecord, MemoryRecord};
 
 /// Holds data describing the current state of a program's execution.
 #[serde_as]
@@ -34,10 +38,18 @@ pub struct ExecutionState {
 
     /// The memory which instructions operate over. Values contain the memory value and last shard
     /// + timestamp that each memory address was accessed.
+    #[serde(
+        serialize_with = "serialize_hashmap_as_vec",
+        deserialize_with = "deserialize_hashmap_as_vec"
+    )]
     pub memory: HashMap<u32, MemoryRecord, BuildNoHashHasher<u32>>,
 
     /// Uninitialized memory addresses that have a specific value they should be initialized with.
     /// SyscallHintRead uses this to write hint data into uninitialized memory.
+    #[serde(
+        serialize_with = "serialize_hashmap_as_vec",
+        deserialize_with = "deserialize_hashmap_as_vec"
+    )]
     pub uninitialized_memory: HashMap<u32, u32, BuildNoHashHasher<u32>>,
 
     /// A stream of input values (global to the entire program).
@@ -60,6 +72,9 @@ pub struct ExecutionState {
 
     /// A ptr to the current position in the public values stream, incremented when reading from public_values_stream.
     pub public_values_stream_ptr: usize,
+
+    /// Keeps track of how many times a certain syscall has been called.
+    pub syscall_counts: HashMap<SyscallCode, u64>,
 }
 
 impl ExecutionState {
@@ -79,6 +94,7 @@ impl ExecutionState {
             public_values_stream_ptr: 0,
             proof_stream: Vec::new(),
             proof_stream_ptr: 0,
+            syscall_counts: HashMap::new(),
         }
     }
 }
@@ -106,4 +122,14 @@ pub(crate) struct ForkState {
 
     // Emit events from original state
     pub(crate) emit_events: bool,
+}
+
+impl ExecutionState {
+    pub fn save(&self, file: &mut File) -> std::io::Result<()> {
+        let mut writer = std::io::BufWriter::new(file);
+        bincode::serialize_into(&mut writer, self).unwrap();
+        writer.flush()?;
+        writer.seek(std::io::SeekFrom::Start(0))?;
+        Ok(())
+    }
 }
