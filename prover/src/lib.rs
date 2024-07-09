@@ -56,8 +56,8 @@ pub use sp1_recursion_program::machine::{
     SP1DeferredMemoryLayout, SP1RecursionMemoryLayout, SP1ReduceMemoryLayout, SP1RootMemoryLayout,
 };
 pub use sp1_recursion_static_program::{
-    COMPRESS_PK, COMPRESS_PROGRAM, COMPRESS_VK, DEFERRED_PK, DEFERRED_PROGRAM, RECURSION_PK,
-    RECURSION_PROGRAM, SHRINK_PK, SHRINK_PROGRAM, WRAP_PK, WRAP_PROGRAM, WRAP_VK,
+    COMPRESS_PK, COMPRESS_PROGRAM, COMPRESS_VK, DEFERRED_PK, DEFERRED_PROGRAM, DEFERRED_VK,
+    RECURSION_PK, RECURSION_PROGRAM, SHRINK_PK, SHRINK_PROGRAM, WRAP_PK, WRAP_PROGRAM, WRAP_VK,
 };
 use tracing::instrument;
 pub use types::*;
