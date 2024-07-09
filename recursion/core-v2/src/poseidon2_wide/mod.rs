@@ -128,7 +128,6 @@ pub(crate) mod tests {
 
     use crate::machine::RecursionAir;
     use crate::{runtime::instruction as instr, MemAccessKind, RecursionProgram, Runtime};
-    use p3_air::BaseAir;
     use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
     use p3_field::{AbstractField, PrimeField32};
     use p3_symmetric::Permutation;
@@ -137,7 +136,7 @@ pub(crate) mod tests {
 
     use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
 
-    use super::{Poseidon2WideChip, WIDTH};
+    use super::WIDTH;
 
     #[test]
     fn test_poseidon2_deg_3() {
@@ -171,10 +170,6 @@ pub(crate) mod tests {
         runtime.run();
 
         let config = SC::new();
-        println!(
-            "Poseidon Degree 3 main width: {}",
-            <Poseidon2WideChip<3> as BaseAir<F>>::width(&Poseidon2WideChip::<3>::default())
-        );
         let machine = A::machine(config);
         let (pk, vk) = machine.setup(&program);
         let result = run_test_machine(runtime.record, machine, pk, vk);
@@ -215,10 +210,6 @@ pub(crate) mod tests {
         runtime.run();
 
         let config = SC::new();
-        println!(
-            "Poseidon Degree 3 main width: {}",
-            <Poseidon2WideChip<3> as BaseAir<F>>::width(&Poseidon2WideChip::<3>::default())
-        );
         let machine = A::machine(config);
         let (pk, vk) = machine.setup(&program);
         let result = run_test_machine(runtime.record, machine, pk, vk);

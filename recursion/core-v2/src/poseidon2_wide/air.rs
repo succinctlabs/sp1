@@ -59,7 +59,6 @@ where
             )
         });
 
-        // For now, include only memory constraints.
         (0..WIDTH).for_each(|i| {
             builder.send_single(
                 prep_local.memory_preprocessed.memory_prepr[i].addr,
@@ -67,9 +66,5 @@ where
                 prep_local.memory_preprocessed.memory_prepr[i].write_mult,
             )
         });
-
-        // builder.receive_single(prep_local.addrs.in2, *in2, prep_local.is_real);
-
-        // builder.send_single(prep_local.addrs.out, *out, prep_local.mult);
     }
 }

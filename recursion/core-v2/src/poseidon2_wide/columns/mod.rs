@@ -6,7 +6,6 @@ use sp1_derive::AlignedBorrow;
 
 use super::{NUM_INTERNAL_ROUNDS, WIDTH};
 
-pub mod dummy_interactions;
 pub mod permutation;
 pub mod preprocessed;
 
