@@ -16,6 +16,7 @@ on:
       - "zkvm/**"
       - "tests/**"
       - "examples/**"
+      - "Cargo.toml"
       - ".github/workflows/**"
   merge_group:
 

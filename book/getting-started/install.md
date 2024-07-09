@@ -42,7 +42,9 @@ If this works, go to the [next section](./quickstart.md) to compile and prove a 
 
 ### Troubleshooting
 
-If you have installed `cargo-prove` from source, it may conflict with sp1up's `cargo-prove` installation or vice versa. You can remove the `cargo-prove` that was installed from source with the following command:
+If you experience [rate-limiting](https://docs.github.com/en/rest/using-the-rest-api/getting-started-with-the-rest-api?apiVersion=2022-11-28#rate-limiting) when using the `sp1up` command, you can resolve this by using the `--token` flag and providing your GitHub token.
+
+If you have installed `cargo-prove` from source, it may conflict with `sp1up`'s `cargo-prove` installation or vice versa. You can remove the `cargo-prove` that was installed from source with the following command:
 
 ```bash
 rm ~/.cargo/bin/cargo-prove
