@@ -11,6 +11,11 @@ pub struct AffinePoint<C: CurveOperations<NUM_WORDS>, const NUM_WORDS: usize> {
     _marker: std::marker::PhantomData<C>,
 }
 
+#[derive(Debug)]
+pub enum MulAssignError {
+    ZeroScalar,
+}
+
 impl<C: CurveOperations<NUM_WORDS> + Copy, const NUM_WORDS: usize> AffinePoint<C, NUM_WORDS> {
     const GENERATOR: [u32; NUM_WORDS] = C::GENERATOR;
 
@@ -53,7 +58,7 @@ impl<C: CurveOperations<NUM_WORDS> + Copy, const NUM_WORDS: usize> AffinePoint<C
         C::double(&mut self.limbs);
     }
 
-    pub fn mul_assign(&mut self, scalar: &[u32]) -> Result<(), &'static str> {
+    pub fn mul_assign(&mut self, scalar: &[u32]) -> Result<(), MulAssignError> {
         debug_assert!(scalar.len() == NUM_WORDS / 2);
 
         let mut res: Option<Self> = None;
@@ -61,7 +66,7 @@ impl<C: CurveOperations<NUM_WORDS> + Copy, const NUM_WORDS: usize> AffinePoint<C
 
         let scalar_is_zero = scalar.iter().all(|&words| words == 0);
         if scalar_is_zero {
-            return Err("Scalar is zero");
+            return Err(MulAssignError::ZeroScalar);
         }
 
         for &words in scalar.iter() {
