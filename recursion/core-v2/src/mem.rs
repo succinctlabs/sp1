@@ -34,6 +34,15 @@ pub struct MemoryPreprocessedCols<F: Copy> {
     pub is_real: F,
 }
 
+#[derive(AlignedBorrow, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct MemoryPreprocessedColsNoVal<F: Copy> {
+    pub addr: Address<F>,
+    pub read_mult: F,
+    pub write_mult: F,
+    pub is_real: F,
+}
+
 impl<F> BaseAir<F> for MemoryChip {
     fn width(&self) -> usize {
         NUM_MEM_INIT_COLS
@@ -173,7 +182,11 @@ mod tests {
     use p3_field::AbstractField;
     use p3_matrix::dense::RowMajorMatrix;
 
-    use sp1_core::{air::MachineAir, stark::StarkGenericConfig, utils::run_test_machine};
+    use sp1_core::{
+        air::MachineAir,
+        stark::StarkGenericConfig,
+        utils::{run_test_machine, BabyBearPoseidon2Inner},
+    };
     use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
 
     use super::*;
@@ -183,10 +196,13 @@ mod tests {
     type SC = BabyBearPoseidon2Outer;
     type F = <SC as StarkGenericConfig>::Val;
     type EF = <SC as StarkGenericConfig>::Challenge;
-    type A = RecursionAir<F>;
+    type A = RecursionAir<F, 3>;
 
     pub fn prove_program(program: RecursionProgram<F>) {
-        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program);
+        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(
+            &program,
+            BabyBearPoseidon2Inner::new().perm,
+        );
         runtime.run();
 
         let config = SC::new();
