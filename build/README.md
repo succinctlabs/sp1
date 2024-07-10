@@ -1,0 +1,2 @@
+# sp1-build
+Lightweight crate used to build SP1 programs. Exposes a single function, `build_program`, which builds a program in the local environment or in a docker container with the specified parameters from `BuildArgs`.

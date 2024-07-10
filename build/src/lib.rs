@@ -175,6 +175,35 @@ fn handle_cmd_output(
     stdout_handle.join().unwrap();
 }
 
+/// Add the `cargo prove build` arguments to the `command_args` vec. This is useful when adding
+/// the `cargo prove build` arguments to an existing command.
+fn add_cargo_prove_build_args(
+    command_args: &mut Vec<String>,
+    prove_args: BuildArgs,
+    ignore_docker: bool,
+) {
+    if prove_args.docker && !ignore_docker {
+        command_args.push("--docker".to_string());
+    }
+    if prove_args.ignore_rust_version {
+        command_args.push("--ignore-rust-version".to_string());
+    }
+    if !prove_args.features.is_empty() {
+        // `cargo prove build` accepts a comma-separated list of features.
+        let features = prove_args.features.join(",");
+        command_args.push("--features".to_string());
+        command_args.push(features);
+    }
+    if let Some(binary) = &prove_args.binary {
+        command_args.push("--binary".to_string());
+        command_args.push(binary.clone());
+    }
+    if let Some(elf) = &prove_args.elf {
+        command_args.push("--elf".to_string());
+        command_args.push(elf.clone());
+    }
+}
+
 /// Build a program with the specified BuildArgs. program_dir is specified as an argument when
 /// the program is built via build_program in sp1-helper.
 pub fn build_program(args: &BuildArgs, program_dir: Option<PathBuf>) -> Result<Utf8PathBuf> {
@@ -235,45 +264,16 @@ pub fn build_program(args: &BuildArgs, program_dir: Option<PathBuf>) -> Result<U
     // The order of precedence for the ELF name is:
     // 1. --elf flag
     // 2. --binary flag (binary name + -elf suffix)
-    // 3. default (build target: riscv32im-succinct-zkvm-elf)
+    // 3. default (root package name)
     let elf_name = if let Some(elf) = &args.elf {
         elf.to_string()
     } else if let Some(binary) = &args.binary {
         format!("{}-elf", binary)
     } else {
-        build_target
+        root_package_name.unwrap().to_string()
     };
     let result_elf_path = elf_dir.join(elf_name);
     fs::copy(elf_path, &result_elf_path)?;
 
     Ok(result_elf_path)
-}
-
-/// Add the `cargo prove build` arguments to the `command_args` vec. This is useful when adding
-/// the `cargo prove build` arguments to an existing command.
-pub fn add_cargo_prove_build_args(
-    command_args: &mut Vec<String>,
-    prove_args: BuildArgs,
-    ignore_docker: bool,
-) {
-    if prove_args.docker && !ignore_docker {
-        command_args.push("--docker".to_string());
-    }
-    if prove_args.ignore_rust_version {
-        command_args.push("--ignore-rust-version".to_string());
-    }
-    if !prove_args.features.is_empty() {
-        // `cargo prove build` accepts a comma-separated list of features.
-        let features = prove_args.features.join(",");
-        command_args.push("--features".to_string());
-        command_args.push(features);
-    }
-    if let Some(binary) = &prove_args.binary {
-        command_args.push("--binary".to_string());
-        command_args.push(binary.clone());
-    }
-    if let Some(elf) = &prove_args.elf {
-        command_args.push("--elf".to_string());
-        command_args.push(elf.clone());
-    }
 }
