@@ -88,11 +88,10 @@ impl<F: PrimeField32> MachineAir<F> for BaseAluChip {
                     is_real: F::from_bool(true),
                 };
                 let target_flag = match opcode {
-                    Opcode::AddF => &mut cols.is_add,
-                    Opcode::SubF => &mut cols.is_sub,
-                    Opcode::MulF => &mut cols.is_mul,
-                    Opcode::DivF => &mut cols.is_div,
-                    _ => panic!("Invalid opcode: {:?}", opcode),
+                    BaseAluOpcode::AddF => &mut cols.is_add,
+                    BaseAluOpcode::SubF => &mut cols.is_sub,
+                    BaseAluOpcode::MulF => &mut cols.is_mul,
+                    BaseAluOpcode::DivF => &mut cols.is_div,
                 };
                 *target_flag = F::from_bool(true);
 
@@ -269,13 +268,13 @@ mod tests {
                 [
                     instr::mem_single(MemAccessKind::Write, 4, a[0], in1),
                     instr::mem_single(MemAccessKind::Write, 4, a[1], in2),
-                    instr::base_alu(Opcode::AddF, 1, a[2], a[0], a[1]),
+                    instr::base_alu(BaseAluOpcode::AddF, 1, a[2], a[0], a[1]),
                     instr::mem_single(MemAccessKind::Read, 1, a[2], in1 + in2),
-                    instr::base_alu(Opcode::SubF, 1, a[3], a[0], a[1]),
+                    instr::base_alu(BaseAluOpcode::SubF, 1, a[3], a[0], a[1]),
                     instr::mem_single(MemAccessKind::Read, 1, a[3], in1 - in2),
-                    instr::base_alu(Opcode::MulF, 1, a[4], a[0], a[1]),
+                    instr::base_alu(BaseAluOpcode::MulF, 1, a[4], a[0], a[1]),
                     instr::mem_single(MemAccessKind::Read, 1, a[4], in1 * in2),
-                    instr::base_alu(Opcode::DivF, 1, a[5], a[0], a[1]),
+                    instr::base_alu(BaseAluOpcode::DivF, 1, a[5], a[0], a[1]),
                     instr::mem_single(MemAccessKind::Read, 1, a[5], quot),
                 ]
             })

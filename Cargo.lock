@@ -4929,9 +4929,8 @@ dependencies = [
  "rand",
  "serde",
  "sp1-core",
- "sp1-primitives",
  "sp1-recursion-core",
- "sp1-recursion-derive",
+ "sp1-recursion-core-v2",
  "tracing",
 ]
 
