@@ -53,7 +53,7 @@ impl<C: CurveOperations<NUM_WORDS> + Copy, const NUM_WORDS: usize> AffinePoint<C
         C::double(&mut self.limbs);
     }
 
-    pub fn mul_assign(&mut self, scalar: &[u32]) -> Option<()> {
+    pub fn mul_assign(&mut self, scalar: &[u32]) -> Result<(), &'static str> {
         debug_assert!(scalar.len() == NUM_WORDS / 2);
 
         let mut res: Option<Self> = None;
@@ -61,7 +61,7 @@ impl<C: CurveOperations<NUM_WORDS> + Copy, const NUM_WORDS: usize> AffinePoint<C
 
         let scalar_is_zero = scalar.iter().all(|&words| words == 0);
         if scalar_is_zero {
-            return None;
+            return Err("Scalar is zero");
         }
 
         for &words in scalar.iter() {
@@ -78,7 +78,7 @@ impl<C: CurveOperations<NUM_WORDS> + Copy, const NUM_WORDS: usize> AffinePoint<C
         }
 
         *self = res.unwrap();
-        Some(())
+        Ok(())
     }
 
     pub fn from_le_bytes(limbs: &[u8]) -> Self {
