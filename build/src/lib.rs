@@ -28,6 +28,7 @@ use cargo_metadata::camino::Utf8PathBuf;
 /// * `ignore_rust_version` - A boolean flag to ignore Rust version checks.
 /// * `binary` - An optional string to specify the name of the binary if building a binary.
 /// * `elf` - An optional string to specify the name of the ELF binary.
+/// * `output_directory` - An optional string to specify the directory to place the built program relative to the program directory.
 ///
 /// # Example
 ///
@@ -73,9 +74,14 @@ pub struct BuildArgs {
         feature = "clap",
         clap(long, action, help = "If building a binary, specify the name.")
     )]
-    pub binary: Option<String>,
+    pub binary: String,
     #[cfg_attr(feature = "clap", clap(long, action, help = "ELF binary name."))]
-    pub elf: Option<String>,
+    pub elf: String,
+    #[cfg_attr(
+        feature = "clap",
+        clap(long, action, help = "The output directory for the built program.")
+    )]
+    pub output_directory: String,
 }
 
 /// Uses SP1_DOCKER_IMAGE environment variable if set, otherwise constructs the image to use based
@@ -222,13 +228,17 @@ fn add_cargo_prove_build_args(
         command_args.push("--features".to_string());
         command_args.push(features);
     }
-    if let Some(binary) = &prove_args.binary {
+    if !prove_args.binary.is_empty() {
         command_args.push("--binary".to_string());
-        command_args.push(binary.clone());
+        command_args.push(prove_args.binary.clone());
     }
-    if let Some(elf) = &prove_args.elf {
+    if !prove_args.elf.is_empty() {
         command_args.push("--elf".to_string());
-        command_args.push(elf.clone());
+        command_args.push(prove_args.elf.clone());
+    }
+    if !prove_args.output_directory.is_empty() {
+        command_args.push("--output-directory".to_string());
+        command_args.push(prove_args.output_directory.clone());
     }
 }
 
@@ -335,28 +345,35 @@ pub fn build_program(args: &BuildArgs, program_dir: Option<PathBuf>) -> Result<U
         exit(result.code().unwrap_or(1))
     }
 
-    // Write the ELF to a target folder specified by the program's package.
-    let elf_path = metadata
+    // The ELF is written to a target folder specified by the program's package.
+    let original_elf_path = metadata
         .target_directory
         .join(build_target.clone())
         .join("release")
         .join(root_package_name.unwrap());
-    let elf_dir = program_dir.join("elf");
-    fs::create_dir_all(&elf_dir)?;
 
     // The order of precedence for the ELF name is:
     // 1. --elf flag
     // 2. --binary flag (binary name + -elf suffix)
     // 3. default (root package name)
-    let elf_name = if let Some(elf) = &args.elf {
-        elf.to_string()
-    } else if let Some(binary) = &args.binary {
-        format!("{}-elf", binary)
+    let elf_name = if !args.elf.is_empty() {
+        args.elf.clone()
+    } else if !args.binary.is_empty() {
+        format!("{}-elf", args.binary.clone())
     } else {
         root_package_name.unwrap().to_string()
     };
+
+    let elf_dir = if !args.output_directory.is_empty() {
+        program_dir.join(args.output_directory.clone())
+    } else {
+        program_dir.join("elf")
+    };
+    fs::create_dir_all(&elf_dir)?;
     let result_elf_path = elf_dir.join(elf_name);
-    fs::copy(elf_path, &result_elf_path)?;
+
+    // Copy the ELF to the specified output directory.
+    fs::copy(original_elf_path, &result_elf_path)?;
 
     Ok(result_elf_path)
 }
