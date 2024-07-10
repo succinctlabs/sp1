@@ -104,6 +104,8 @@ fn get_docker_cmd(
     // `--docker`, as this command will be invoked in a docker container.
     add_cargo_prove_build_args(&mut child_args, args.clone(), true);
 
+    // Set the arguments and remove RUSTC from the environment to avoid ensure the correct
+    // version is used.
     command.args(&child_args).env_remove("RUSTC");
     Ok(())
 }
