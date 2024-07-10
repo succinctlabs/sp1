@@ -26,7 +26,9 @@ use crate::operations::BabyBearWordRangeChecker;
 use crate::runtime::Opcode;
 
 use super::columns::eval_channel_selectors;
+use super::columns::CpuOpcodeSpecificCols;
 use super::columns::OPCODE_SELECTORS_COL_MAP;
+use super::CpuOpcodeSpecificChip;
 
 impl<AB> Air<AB> for CpuChip
 where
@@ -88,8 +90,19 @@ where
             is_alu_instruction,
         );
 
-        // Branch instructions.
-        self.eval_branch_ops::<AB>(builder, is_branch_instruction.clone(), local, next);
+        // Handle the branch related instructions in the opcode specific table.
+        builder.send_instruction(
+            local.shard,
+            local.channel,
+            local.pc,
+            local.next_pc,
+            next.is_real,
+            local.selectors,
+            local.op_a_val(),
+            local.op_b_val(),
+            local.op_c_val(),
+            is_branch_instruction.clone(),
+        );
 
         // Jump instructions.
         self.eval_jump_ops::<AB>(builder, local, next);
@@ -425,6 +438,42 @@ impl CpuChip {
 }
 
 impl<F> BaseAir<F> for CpuChip {
+    fn width(&self) -> usize {
+        NUM_CPU_COLS
+    }
+}
+
+impl<AB> Air<AB> for CpuOpcodeSpecificChip
+where
+    AB: SP1AirBuilder + AirBuilderWithPublicValues,
+    AB::Var: Sized,
+{
+    fn eval(&self, builder: &mut AB) {
+        let main = builder.main();
+        let local = main.row_slice(0);
+        let local: &CpuOpcodeSpecificCols<AB::Var> = (*local).borrow();
+
+        builder.receive_instruction(
+            local.shard,
+            local.channel,
+            local.pc,
+            local.next_pc,
+            local.next_is_real,
+            local.selectors,
+            local.op_a,
+            local.op_b,
+            local.op_c,
+            local.is_real,
+        );
+
+        let is_branch_instruction = self.is_branch_instruction::<AB>(&local.selectors);
+
+        // Branch instructions.
+        self.eval_branch_ops::<AB>(builder, is_branch_instruction.clone(), local);
+    }
+}
+
+impl<F> BaseAir<F> for CpuOpcodeSpecificChip {
     fn width(&self) -> usize {
         NUM_CPU_COLS
     }

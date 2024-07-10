@@ -653,6 +653,75 @@ pub trait ProgramAirBuilder: BaseAirBuilder {
     }
 }
 
+/// A trait which contains methods related to cpu instruction interactions in an AIR.
+pub trait InstructionAirBuilder: BaseAirBuilder {
+    /// Sends an instruction.
+    #[allow(clippy::too_many_arguments)]
+    fn send_instruction(
+        &mut self,
+        shard: impl Into<Self::Expr>,
+        channel: impl Into<Self::Expr>,
+        pc: impl Into<Self::Expr>,
+        next_pc: impl Into<Self::Expr>,
+        next_is_real: impl Into<Self::Expr>,
+        selectors: OpcodeSelectorCols<impl Into<Self::Expr> + Copy>,
+        op_a_val: Word<impl Into<Self::Expr> + Copy>,
+        op_b_val: Word<impl Into<Self::Expr> + Copy>,
+        op_c_val: Word<impl Into<Self::Expr> + Copy>,
+        multiplicity: impl Into<Self::Expr>,
+    ) {
+        let values = once(shard.into())
+            .chain(once(channel.into()))
+            .chain(once(pc.into()))
+            .chain(once(next_pc.into()))
+            .chain(once(next_is_real.into()))
+            .chain(selectors.into_iter().map(|x| x.into()))
+            .chain(op_a_val.0.into_iter().map(|x| x.into()))
+            .chain(op_b_val.0.into_iter().map(|x| x.into()))
+            .chain(op_c_val.0.into_iter().map(|x| x.into()))
+            .collect();
+
+        self.send(AirInteraction::new(
+            values,
+            multiplicity.into(),
+            InteractionKind::Instruction,
+        ));
+    }
+
+    /// Receives an instruction.
+    #[allow(clippy::too_many_arguments)]
+    fn receive_instruction(
+        &mut self,
+        shard: impl Into<Self::Expr>,
+        channel: impl Into<Self::Expr>,
+        pc: impl Into<Self::Expr>,
+        next_pc: impl Into<Self::Expr>,
+        next_is_real: impl Into<Self::Expr>,
+        selectors: OpcodeSelectorCols<impl Into<Self::Expr> + Copy>,
+        op_a_val: Word<impl Into<Self::Expr> + Copy>,
+        op_b_val: Word<impl Into<Self::Expr> + Copy>,
+        op_c_val: Word<impl Into<Self::Expr> + Copy>,
+        multiplicity: impl Into<Self::Expr>,
+    ) {
+        let values = once(shard.into())
+            .chain(once(channel.into()))
+            .chain(once(pc.into()))
+            .chain(once(next_pc.into()))
+            .chain(once(next_is_real.into()))
+            .chain(selectors.into_iter().map(|x| x.into()))
+            .chain(op_a_val.0.into_iter().map(|x| x.into()))
+            .chain(op_b_val.0.into_iter().map(|x| x.into()))
+            .chain(op_c_val.0.into_iter().map(|x| x.into()))
+            .collect();
+
+        self.receive(AirInteraction::new(
+            values,
+            multiplicity.into(),
+            InteractionKind::Instruction,
+        ));
+    }
+}
+
 pub trait ExtensionAirBuilder: BaseAirBuilder {
     /// Asserts that the two field extensions are equal.
     fn assert_ext_eq<I: Into<Self::Expr>>(
@@ -710,6 +779,7 @@ pub trait SP1AirBuilder:
     + AluAirBuilder
     + MemoryAirBuilder
     + ProgramAirBuilder
+    + InstructionAirBuilder
 {
 }
 
@@ -729,6 +799,7 @@ impl<AB: BaseAirBuilder> WordAirBuilder for AB {}
 impl<AB: BaseAirBuilder> AluAirBuilder for AB {}
 impl<AB: BaseAirBuilder> MemoryAirBuilder for AB {}
 impl<AB: BaseAirBuilder> ProgramAirBuilder for AB {}
+impl<AB: BaseAirBuilder> InstructionAirBuilder for AB {}
 impl<AB: BaseAirBuilder> ExtensionAirBuilder for AB {}
 impl<AB: BaseAirBuilder + AirBuilderWithPublicValues> MachineAirBuilder for AB {}
 impl<AB: BaseAirBuilder + AirBuilderWithPublicValues> SP1AirBuilder for AB {}

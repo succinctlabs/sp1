@@ -71,25 +71,6 @@ pub struct CpuCols<T: Copy> {
 
     pub opcode_specific_columns: OpcodeSpecificCols<T>,
 
-    /// Selector to label whether this row is a non padded row.
-    pub is_real: T,
-
-    /// The branching column is equal to:
-    ///
-    /// > is_beq & a_eq_b ||
-    /// > is_bne & (a_lt_b | a_gt_b) ||
-    /// > (is_blt | is_bltu) & a_lt_b ||
-    /// > (is_bge | is_bgeu) & (a_eq_b | a_gt_b)
-    pub branching: T,
-
-    /// The not branching column is equal to:
-    ///
-    /// > is_beq & !a_eq_b ||
-    /// > is_bne & !(a_lt_b | a_gt_b) ||
-    /// > (is_blt | is_bltu) & !a_lt_b ||
-    /// > (is_bge | is_bgeu) & !(a_eq_b | a_gt_b)
-    pub not_branching: T,
-
     /// The memory value is negative column is equal to:
     ///
     /// > (is_lbu | is_lhu) & (most_sig_byte_decomp[7] == 1)
@@ -110,6 +91,9 @@ pub struct CpuCols<T: Copy> {
     /// This is true for all instructions that are not jumps, branches, and halt.  Those instructions
     /// may move the program counter to a non sequential instruction.
     pub is_sequential_instr: T,
+
+    /// Selector to label whether this row is a non padded row.
+    pub is_real: T,
 }
 
 impl<T: Copy> CpuCols<T> {
@@ -133,4 +117,52 @@ impl<T: Copy> CpuCols<T> {
 const fn make_col_map() -> CpuCols<usize> {
     let indices_arr = indices_arr::<NUM_CPU_COLS>();
     unsafe { transmute::<[usize; NUM_CPU_COLS], CpuCols<usize>>(indices_arr) }
+}
+
+pub const NUM_CPU_OPCODE_SPECIFIC_COLS: usize = size_of::<CpuOpcodeSpecificCols<u8>>();
+
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct CpuOpcodeSpecificCols<T: Copy> {
+    /// The current shard.
+    pub shard: T,
+    /// The channel value, used for byte lookup multiplicity.
+    pub channel: T,
+
+    /// The program counter value.
+    pub pc: T,
+
+    /// The expected next program counter value.
+    pub next_pc: T,
+
+    pub op_a: Word<T>,
+    pub op_b: Word<T>,
+    pub op_c: Word<T>,
+
+    /// Selectors for the opcode.
+    pub selectors: OpcodeSelectorCols<T>,
+
+    pub opcode_specific_columns: OpcodeSpecificCols<T>,
+
+    /// Selector to label whether this row is a non padded row.
+    pub is_real: T,
+
+    // TODO:  Do we really need this?
+    pub next_is_real: T,
+
+    /// The branching column is equal to:
+    ///
+    /// > is_beq & a_eq_b ||
+    /// > is_bne & (a_lt_b | a_gt_b) ||
+    /// > (is_blt | is_bltu) & a_lt_b ||
+    /// > (is_bge | is_bgeu) & (a_eq_b | a_gt_b)
+    pub branching: T,
+
+    /// The not branching column is equal to:
+    ///
+    /// > is_beq & !a_eq_b ||
+    /// > is_bne & !(a_lt_b | a_gt_b) ||
+    /// > (is_blt | is_bltu) & !a_lt_b ||
+    /// > (is_bge | is_bgeu) & !(a_eq_b | a_gt_b)
+    pub not_branching: T,
 }

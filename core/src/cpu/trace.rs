@@ -11,7 +11,11 @@ use p3_maybe_rayon::prelude::ParallelIterator;
 use p3_maybe_rayon::prelude::ParallelSlice;
 use tracing::instrument;
 
+use super::columns::CpuOpcodeSpecificCols;
+use super::columns::NUM_CPU_OPCODE_SPECIFIC_COLS;
 use super::columns::{CPU_COL_MAP, NUM_CPU_COLS};
+use super::BranchEvent;
+use super::CpuOpcodeSpecificChip;
 use super::{CpuChip, CpuEvent};
 use crate::air::MachineAir;
 use crate::air::Word;
@@ -189,7 +193,6 @@ impl CpuChip {
 
         // Populate memory, branch, jump, and auipc specific fields.
         self.populate_memory(cols, event, &mut new_alu_events, blu_events, nonce_lookup);
-        self.populate_branch(cols, event, &mut new_alu_events, nonce_lookup);
         self.populate_jump(cols, event, &mut new_alu_events, nonce_lookup);
         self.populate_auipc(cols, event, &mut new_alu_events, nonce_lookup);
         let is_halt = self.populate_ecall(cols, event, nonce_lookup);
@@ -295,7 +298,6 @@ impl CpuChip {
             lookup_id: event.memory_add_lookup_id,
             shard: event.shard,
             channel: event.channel,
-            clk: event.clk,
             opcode: Opcode::ADD,
             a: memory_addr,
             b: event.b,
@@ -368,7 +370,6 @@ impl CpuChip {
                         lookup_id: event.memory_sub_lookup_id,
                         channel: event.channel,
                         shard: event.shard,
-                        clk: event.clk,
                         opcode: Opcode::SUB,
                         a: event.a,
                         b: cols.unsigned_mem_val.to_u32(),
@@ -405,135 +406,6 @@ impl CpuChip {
         }
     }
 
-    /// Populates columns related to branching.
-    fn populate_branch<F: PrimeField>(
-        &self,
-        cols: &mut CpuCols<F>,
-        event: &CpuEvent,
-        alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
-        nonce_lookup: &HashMap<usize, u32>,
-    ) {
-        if event.instruction.is_branch_instruction() {
-            let branch_columns = cols.opcode_specific_columns.branch_mut();
-
-            let a_eq_b = event.a == event.b;
-
-            let use_signed_comparison =
-                matches!(event.instruction.opcode, Opcode::BLT | Opcode::BGE);
-
-            let a_lt_b = if use_signed_comparison {
-                (event.a as i32) < (event.b as i32)
-            } else {
-                event.a < event.b
-            };
-            let a_gt_b = if use_signed_comparison {
-                (event.a as i32) > (event.b as i32)
-            } else {
-                event.a > event.b
-            };
-
-            let alu_op_code = if use_signed_comparison {
-                Opcode::SLT
-            } else {
-                Opcode::SLTU
-            };
-
-            // Add the ALU events for the comparisons
-            let lt_comp_event = AluEvent {
-                lookup_id: event.branch_lt_lookup_id,
-                shard: event.shard,
-                channel: event.channel,
-                clk: event.clk,
-                opcode: alu_op_code,
-                a: a_lt_b as u32,
-                b: event.a,
-                c: event.b,
-                sub_lookups: create_alu_lookups(),
-            };
-            branch_columns.a_lt_b_nonce = F::from_canonical_u32(
-                nonce_lookup
-                    .get(&event.branch_lt_lookup_id)
-                    .copied()
-                    .unwrap_or_default(),
-            );
-
-            alu_events
-                .entry(alu_op_code)
-                .and_modify(|op_new_events| op_new_events.push(lt_comp_event))
-                .or_insert(vec![lt_comp_event]);
-
-            let gt_comp_event = AluEvent {
-                lookup_id: event.branch_gt_lookup_id,
-                shard: event.shard,
-                channel: event.channel,
-                clk: event.clk,
-                opcode: alu_op_code,
-                a: a_gt_b as u32,
-                b: event.b,
-                c: event.a,
-                sub_lookups: create_alu_lookups(),
-            };
-            branch_columns.a_gt_b_nonce = F::from_canonical_u32(
-                nonce_lookup
-                    .get(&event.branch_gt_lookup_id)
-                    .copied()
-                    .unwrap_or_default(),
-            );
-
-            alu_events
-                .entry(alu_op_code)
-                .and_modify(|op_new_events| op_new_events.push(gt_comp_event))
-                .or_insert(vec![gt_comp_event]);
-
-            branch_columns.a_eq_b = F::from_bool(a_eq_b);
-            branch_columns.a_lt_b = F::from_bool(a_lt_b);
-            branch_columns.a_gt_b = F::from_bool(a_gt_b);
-
-            let branching = match event.instruction.opcode {
-                Opcode::BEQ => a_eq_b,
-                Opcode::BNE => !a_eq_b,
-                Opcode::BLT | Opcode::BLTU => a_lt_b,
-                Opcode::BGE | Opcode::BGEU => a_eq_b || a_gt_b,
-                _ => unreachable!(),
-            };
-
-            let next_pc = event.pc.wrapping_add(event.c);
-            branch_columns.pc = Word::from(event.pc);
-            branch_columns.next_pc = Word::from(next_pc);
-            branch_columns.pc_range_checker.populate(event.pc);
-            branch_columns.next_pc_range_checker.populate(next_pc);
-
-            if branching {
-                cols.branching = F::one();
-
-                let add_event = AluEvent {
-                    lookup_id: event.branch_add_lookup_id,
-                    shard: event.shard,
-                    channel: event.channel,
-                    clk: event.clk,
-                    opcode: Opcode::ADD,
-                    a: next_pc,
-                    b: event.pc,
-                    c: event.c,
-                    sub_lookups: create_alu_lookups(),
-                };
-                branch_columns.next_pc_nonce = F::from_canonical_u32(
-                    nonce_lookup
-                        .get(&event.branch_add_lookup_id)
-                        .copied()
-                        .unwrap_or_default(),
-                );
-
-                alu_events
-                    .entry(Opcode::ADD)
-                    .and_modify(|op_new_events| op_new_events.push(add_event))
-                    .or_insert(vec![add_event]);
-            } else {
-                cols.not_branching = F::one();
-            }
-        }
-    }
-
     /// Populate columns related to jumping.
     fn populate_jump<F: PrimeField>(
         &self,
@@ -558,7 +430,6 @@ impl CpuChip {
                         lookup_id: event.jump_jal_lookup_id,
                         shard: event.shard,
                         channel: event.channel,
-                        clk: event.clk,
                         opcode: Opcode::ADD,
                         a: next_pc,
                         b: event.pc,
@@ -587,7 +458,6 @@ impl CpuChip {
                         lookup_id: event.jump_jalr_lookup_id,
                         shard: event.shard,
                         channel: event.channel,
-                        clk: event.clk,
                         opcode: Opcode::ADD,
                         a: next_pc,
                         b: event.b,
@@ -629,7 +499,6 @@ impl CpuChip {
                 lookup_id: event.auipc_lookup_id,
                 shard: event.shard,
                 channel: event.channel,
-                clk: event.clk,
                 opcode: Opcode::ADD,
                 a: event.a,
                 b: event.pc,
@@ -760,6 +629,238 @@ impl CpuChip {
             padded_row[CPU_COL_MAP.selectors.imm_b] = F::one();
             padded_row[CPU_COL_MAP.selectors.imm_c] = F::one();
         });
+    }
+}
+
+impl<F: PrimeField32> MachineAir<F> for CpuOpcodeSpecificChip {
+    type Record = ExecutionRecord;
+
+    type Program = Program;
+
+    fn name(&self) -> String {
+        "CPUOpcodeSpecific".to_string()
+    }
+
+    fn generate_trace(
+        &self,
+        input: &ExecutionRecord,
+        _: &mut ExecutionRecord,
+    ) -> RowMajorMatrix<F> {
+        let num_real_rows = input.branch_events.len();
+        let mut rows = vec![F::zero(); num_real_rows * NUM_CPU_OPCODE_SPECIFIC_COLS];
+
+        let chunk_size = std::cmp::max(num_real_rows / num_cpus::get(), 1);
+        rows.chunks_mut(chunk_size * NUM_CPU_OPCODE_SPECIFIC_COLS)
+            .enumerate()
+            .par_bridge()
+            .for_each(|(i, rows)| {
+                rows.chunks_mut(NUM_CPU_OPCODE_SPECIFIC_COLS)
+                    .enumerate()
+                    .for_each(|(j, row)| {
+                        let idx = i * chunk_size + j;
+                        let cols: &mut CpuOpcodeSpecificCols<F> = row.borrow_mut();
+                        self.event_to_row(&input.branch_events[idx], &input.nonce_lookup, cols);
+                    });
+            });
+
+        let padded_nb_rows = if num_real_rows < 16 {
+            16
+        } else {
+            num_real_rows.next_power_of_two()
+        };
+        rows.resize(padded_nb_rows * NUM_CPU_OPCODE_SPECIFIC_COLS, F::zero());
+
+        // Convert the trace to a row major matrix.
+
+        RowMajorMatrix::new(rows, NUM_CPU_OPCODE_SPECIFIC_COLS)
+    }
+
+    #[instrument(
+        name = "generate cpu opcode specific dependencies",
+        level = "debug",
+        skip_all
+    )]
+    fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
+        // Generate the trace rows for each event.
+        let chunk_size = std::cmp::max(input.branch_events.len() / num_cpus::get(), 1);
+
+        let alu_events = input
+            .branch_events
+            .par_chunks(chunk_size)
+            .map(|ops: &[BranchEvent]| {
+                let mut alu = HashMap::new();
+                ops.iter().for_each(|op| {
+                    let mut row = [F::zero(); NUM_CPU_OPCODE_SPECIFIC_COLS];
+                    let cols: &mut CpuOpcodeSpecificCols<F> = row.as_mut_slice().borrow_mut();
+                    let alu_events = self.event_to_row::<F>(op, &HashMap::new(), cols);
+                    alu_events.into_iter().for_each(|(key, value)| {
+                        alu.entry(key).or_insert(Vec::default()).extend(value);
+                    });
+                });
+                alu
+            })
+            .collect::<Vec<_>>();
+
+        for alu_events_chunk in alu_events.into_iter() {
+            output.add_alu_events(alu_events_chunk);
+        }
+    }
+
+    fn included(&self, input: &Self::Record) -> bool {
+        !input.cpu_events.is_empty()
+    }
+}
+
+impl CpuOpcodeSpecificChip {
+    /// Create a row from an event.
+    fn event_to_row<F: PrimeField32>(
+        &self,
+        event: &BranchEvent,
+        nonce_lookup: &HashMap<usize, u32>,
+        cols: &mut CpuOpcodeSpecificCols<F>,
+    ) -> HashMap<Opcode, Vec<alu::AluEvent>> {
+        let mut new_alu_events = HashMap::new();
+
+        // Populate basic fields.
+        cols.pc = F::from_canonical_u32(event.pc);
+        cols.next_pc = F::from_canonical_u32(event.next_pc);
+        cols.selectors.populate(event.instruction);
+        cols.op_a = event.a.into();
+        cols.op_b = event.b.into();
+        cols.op_c = event.c.into();
+
+        self.populate_branch(cols, event, &mut new_alu_events, nonce_lookup);
+
+        // Assert that the instruction is not a no-op.
+        cols.is_real = F::one();
+
+        new_alu_events
+    }
+
+    /// Populates columns related to branching.
+    fn populate_branch<F: PrimeField>(
+        &self,
+        cols: &mut CpuOpcodeSpecificCols<F>,
+        event: &BranchEvent,
+        alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
+        nonce_lookup: &HashMap<usize, u32>,
+    ) {
+        if event.instruction.is_branch_instruction() {
+            let branch_columns = cols.opcode_specific_columns.branch_mut();
+
+            let a_eq_b = event.a == event.b;
+
+            let use_signed_comparison =
+                matches!(event.instruction.opcode, Opcode::BLT | Opcode::BGE);
+
+            let a_lt_b = if use_signed_comparison {
+                (event.a as i32) < (event.b as i32)
+            } else {
+                event.a < event.b
+            };
+            let a_gt_b = if use_signed_comparison {
+                (event.a as i32) > (event.b as i32)
+            } else {
+                event.a > event.b
+            };
+
+            let alu_op_code = if use_signed_comparison {
+                Opcode::SLT
+            } else {
+                Opcode::SLTU
+            };
+
+            // Add the ALU events for the comparisons
+            let lt_comp_event = AluEvent {
+                lookup_id: event.branch_lt_lookup_id,
+                shard: event.shard,
+                channel: event.channel,
+                opcode: alu_op_code,
+                a: a_lt_b as u32,
+                b: event.a,
+                c: event.b,
+                sub_lookups: create_alu_lookups(),
+            };
+            branch_columns.a_lt_b_nonce = F::from_canonical_u32(
+                nonce_lookup
+                    .get(&event.branch_lt_lookup_id)
+                    .copied()
+                    .unwrap_or_default(),
+            );
+
+            alu_events
+                .entry(alu_op_code)
+                .and_modify(|op_new_events| op_new_events.push(lt_comp_event))
+                .or_insert(vec![lt_comp_event]);
+
+            let gt_comp_event = AluEvent {
+                lookup_id: event.branch_gt_lookup_id,
+                shard: event.shard,
+                channel: event.channel,
+                opcode: alu_op_code,
+                a: a_gt_b as u32,
+                b: event.b,
+                c: event.a,
+                sub_lookups: create_alu_lookups(),
+            };
+            branch_columns.a_gt_b_nonce = F::from_canonical_u32(
+                nonce_lookup
+                    .get(&event.branch_gt_lookup_id)
+                    .copied()
+                    .unwrap_or_default(),
+            );
+
+            alu_events
+                .entry(alu_op_code)
+                .and_modify(|op_new_events| op_new_events.push(gt_comp_event))
+                .or_insert(vec![gt_comp_event]);
+
+            branch_columns.a_eq_b = F::from_bool(a_eq_b);
+            branch_columns.a_lt_b = F::from_bool(a_lt_b);
+            branch_columns.a_gt_b = F::from_bool(a_gt_b);
+
+            let branching = match event.instruction.opcode {
+                Opcode::BEQ => a_eq_b,
+                Opcode::BNE => !a_eq_b,
+                Opcode::BLT | Opcode::BLTU => a_lt_b,
+                Opcode::BGE | Opcode::BGEU => a_eq_b || a_gt_b,
+                _ => unreachable!(),
+            };
+
+            let next_pc = event.pc.wrapping_add(event.c);
+            branch_columns.pc = Word::from(event.pc);
+            branch_columns.next_pc = Word::from(next_pc);
+            branch_columns.pc_range_checker.populate(event.pc);
+            branch_columns.next_pc_range_checker.populate(next_pc);
+
+            if branching {
+                cols.branching = F::one();
+
+                let add_event = AluEvent {
+                    lookup_id: event.branch_add_lookup_id,
+                    shard: event.shard,
+                    channel: event.channel,
+                    opcode: Opcode::ADD,
+                    a: next_pc,
+                    b: event.pc,
+                    c: event.c,
+                    sub_lookups: create_alu_lookups(),
+                };
+                branch_columns.next_pc_nonce = F::from_canonical_u32(
+                    nonce_lookup
+                        .get(&event.branch_add_lookup_id)
+                        .copied()
+                        .unwrap_or_default(),
+                );
+
+                alu_events
+                    .entry(Opcode::ADD)
+                    .and_modify(|op_new_events| op_new_events.push(add_event))
+                    .or_insert(vec![add_event]);
+            } else {
+                cols.not_branching = F::one();
+            }
+        }
     }
 }
 

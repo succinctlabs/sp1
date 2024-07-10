@@ -40,6 +40,7 @@ use thiserror::Error;
 use crate::alu::create_alu_lookup_id;
 use crate::alu::create_alu_lookups;
 use crate::bytes::NUM_BYTE_LOOKUP_CHANNELS;
+use crate::cpu::BranchEvent;
 use crate::memory::MemoryInitializeFinalizeEvent;
 use crate::utils::SP1CoreOpts;
 use crate::{alu::AluEvent, cpu::CpuEvent};
@@ -468,9 +469,6 @@ impl<'a> Runtime<'a> {
             syscall_lookup_id,
             memory_add_lookup_id: create_alu_lookup_id(),
             memory_sub_lookup_id: create_alu_lookup_id(),
-            branch_lt_lookup_id: create_alu_lookup_id(),
-            branch_gt_lookup_id: create_alu_lookup_id(),
-            branch_add_lookup_id: create_alu_lookup_id(),
             jump_jal_lookup_id: create_alu_lookup_id(),
             jump_jalr_lookup_id: create_alu_lookup_id(),
             auipc_lookup_id: create_alu_lookup_id(),
@@ -480,11 +478,10 @@ impl<'a> Runtime<'a> {
     }
 
     /// Emit an ALU event.
-    fn emit_alu(&mut self, clk: u32, opcode: Opcode, a: u32, b: u32, c: u32, lookup_id: usize) {
+    fn emit_alu(&mut self, opcode: Opcode, a: u32, b: u32, c: u32, lookup_id: usize) {
         let event = AluEvent {
             lookup_id,
             shard: self.shard(),
-            clk,
             channel: self.channel(),
             opcode,
             a,
@@ -521,6 +518,33 @@ impl<'a> Runtime<'a> {
         }
     }
 
+    /// Emit a branch event.
+    fn emit_branch(
+        &mut self,
+        instruction: Instruction,
+        a: u32,
+        b: u32,
+        c: u32,
+        pc: u32,
+        next_pc: u32,
+    ) {
+        let event = BranchEvent {
+            pc,
+            next_pc,
+            shard: self.shard(),
+            channel: self.channel(),
+            instruction,
+            a,
+            b,
+            c,
+            branch_add_lookup_id: create_alu_lookup_id(),
+            branch_lt_lookup_id: create_alu_lookup_id(),
+            branch_gt_lookup_id: create_alu_lookup_id(),
+        };
+
+        self.record.branch_events.push(event);
+    }
+
     /// Fetch the destination register and input operand values for an ALU instruction.
     fn alu_rr(&mut self, instruction: Instruction) -> (Register, u32, u32) {
         if !instruction.imm_c {
@@ -555,7 +579,7 @@ impl<'a> Runtime<'a> {
     ) {
         self.rw(rd, a);
         if self.emit_events {
-            self.emit_alu(self.state.clk, instruction.opcode, a, b, c, lookup_id);
+            self.emit_alu(instruction.opcode, a, b, c, lookup_id);
         }
     }
 
@@ -767,6 +791,7 @@ impl<'a> Runtime<'a> {
                 if a == b {
                     next_pc = self.state.pc.wrapping_add(c);
                 }
+                self.emit_branch(instruction, a, b, c, pc, next_pc);
             }
             Opcode::BNE => {
                 (a, b, c) = self.branch_rr(instruction);

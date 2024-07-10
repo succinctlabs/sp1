@@ -13,6 +13,7 @@ use crate::alu::AluEvent;
 use crate::bytes::event::add_sharded_byte_lookup_events;
 use crate::bytes::event::ByteRecord;
 use crate::bytes::ByteLookupEvent;
+use crate::cpu::BranchEvent;
 use crate::cpu::CpuEvent;
 use crate::runtime::MemoryInitializeFinalizeEvent;
 use crate::runtime::MemoryRecordEnum;
@@ -59,6 +60,8 @@ pub struct ExecutionRecord {
 
     /// A trace of the SLT, SLTI, SLTU, and SLTIU events.
     pub lt_events: Vec<AluEvent>,
+
+    pub branch_events: Vec<BranchEvent>,
 
     /// All byte lookups that are needed.
     ///
