@@ -1,7 +1,5 @@
 #![allow(clippy::needless_range_loop)]
 
-use crate::mem::MemoryPreprocessedColsNoVal;
-use crate::{ExpReverseBitsInstr, Instruction};
 use core::borrow::Borrow;
 use p3_air::PairBuilder;
 use p3_air::{Air, BaseAir};
@@ -14,8 +12,12 @@ use sp1_derive::AlignedBorrow;
 use std::borrow::BorrowMut;
 use tracing::instrument;
 
-use crate::builder::SP1RecursionAirBuilder;
-use crate::runtime::{ExecutionRecord, RecursionProgram};
+use crate::{
+    builder::SP1RecursionAirBuilder,
+    mem::MemoryPreprocessedColsNoVal,
+    runtime::{ExecutionRecord, RecursionProgram},
+    ExpReverseBitsInstr, Instruction,
+};
 
 pub const NUM_EXP_REVERSE_BITS_LEN_COLS: usize = core::mem::size_of::<ExpReverseBitsLenCols<u8>>();
 pub const NUM_EXP_REVERSE_BITS_LEN_PREPROCESSED_COLS: usize =
