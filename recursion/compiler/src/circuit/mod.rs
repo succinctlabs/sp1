@@ -76,6 +76,29 @@ where
         }
     }
 
+    /// Associate a `mult` of zero with `addr`.
+    /// Ensures that `addr` has not already been written to.
+    pub fn write_addr(&mut self, addr: Address<F>) -> F {
+        match self.addr_to_mult.entry(addr) {
+            Entry::Vacant(entry) => *entry.insert(F::zero()),
+            Entry::Occupied(entry) => panic!("unexpected entry in addr_to_mult: {entry:?}"),
+        }
+    }
+
+    /// Increment the existing `mult` associated with `addr`.
+    /// Ensures that `addr` has already been assigned a `mult`.
+    pub fn read_addr(&mut self, addr: Address<F>) -> F {
+        match self.addr_to_mult.entry(addr) {
+            Entry::Vacant(entry) => panic!("expected entry in addr_to_mult: {entry:?}"),
+            Entry::Occupied(entry) => {
+                // This is a read, so we increment the mult.
+                let mult = entry.into_mut();
+                *mult += F::one();
+                *mult
+            }
+        }
+    }
+
     /// Read the base field constant.
     /// Increments the mult, first creating an entry if it does not yet exist.
     pub fn read_const_f(&mut self, f: F) -> Address<F> {
@@ -148,6 +171,50 @@ where
         })
     }
 
+    fn base_assert_eq(
+        &mut self,
+        lhs: impl Reg<F, EF>,
+        rhs: impl Reg<F, EF>,
+    ) -> Vec<Instruction<F>> {
+        use BaseAluOpcode::*;
+        let [diff, out] = core::array::from_fn(|_| Self::alloc(&mut self.next_addr));
+        vec![
+            self.base_alu(SubF, diff, lhs, rhs),
+            self.base_alu(DivF, out, diff, Imm::F(F::zero())),
+        ]
+    }
+
+    fn base_assert_ne(
+        &mut self,
+        lhs: impl Reg<F, EF>,
+        rhs: impl Reg<F, EF>,
+    ) -> Vec<Instruction<F>> {
+        use BaseAluOpcode::*;
+        let [diff, out] = core::array::from_fn(|_| Self::alloc(&mut self.next_addr));
+        vec![
+            self.base_alu(SubF, diff, lhs, rhs),
+            self.base_alu(DivF, out, Imm::F(F::one()), diff),
+        ]
+    }
+
+    fn ext_assert_eq(&mut self, lhs: impl Reg<F, EF>, rhs: impl Reg<F, EF>) -> Vec<Instruction<F>> {
+        use ExtAluOpcode::*;
+        let [diff, out] = core::array::from_fn(|_| Self::alloc(&mut self.next_addr));
+        vec![
+            self.ext_alu(SubE, diff, lhs, rhs),
+            self.ext_alu(DivE, out, diff, Imm::EF(EF::zero())),
+        ]
+    }
+
+    fn ext_assert_ne(&mut self, lhs: impl Reg<F, EF>, rhs: impl Reg<F, EF>) -> Vec<Instruction<F>> {
+        use ExtAluOpcode::*;
+        let [diff, out] = core::array::from_fn(|_| Self::alloc(&mut self.next_addr));
+        vec![
+            self.ext_alu(SubE, diff, lhs, rhs),
+            self.ext_alu(DivE, out, Imm::EF(EF::one()), diff),
+        ]
+    }
+
     // ---------------------------------------------------------------------------------------------
     // COMPILATION
 
@@ -209,17 +276,19 @@ where
             DslIr::InvF(dst, src) => vec![self.base_alu(DivF, dst, Imm::F(F::one()), src)],
             DslIr::InvE(dst, src) => vec![self.ext_alu(DivE, dst, Imm::F(F::one()), src)],
 
-            // DslIr::AssertEqV(dst, src) => todo!(),
+            DslIr::AssertEqV(lhs, rhs) => self.base_assert_eq(lhs, rhs),
+            DslIr::AssertEqF(lhs, rhs) => self.base_assert_eq(lhs, rhs),
+            DslIr::AssertEqE(lhs, rhs) => self.ext_assert_eq(lhs, rhs),
+            DslIr::AssertEqVI(lhs, rhs) => self.base_assert_eq(lhs, Imm::F(rhs)),
+            DslIr::AssertEqFI(lhs, rhs) => self.base_assert_eq(lhs, Imm::F(rhs)),
+            DslIr::AssertEqEI(lhs, rhs) => self.ext_assert_eq(lhs, Imm::EF(rhs)),
 
-            // DslIr::AssertEqF(dst, src) => todo!(),
-
-            // DslIr::AssertEqE(dst, src) => todo!(),
-
-            // DslIr::AssertEqVI(dst, src) => todo!(),
-
-            // DslIr::AssertEqFI(dst, src) => todo!(),
-
-            // DslIr::AssertEqEI(dst, src) => todo!(),
+            DslIr::AssertNeV(lhs, rhs) => self.base_assert_ne(lhs, rhs),
+            DslIr::AssertNeF(lhs, rhs) => self.base_assert_ne(lhs, rhs),
+            DslIr::AssertNeE(lhs, rhs) => self.ext_assert_ne(lhs, rhs),
+            DslIr::AssertNeVI(lhs, rhs) => self.base_assert_ne(lhs, Imm::F(rhs)),
+            DslIr::AssertNeFI(lhs, rhs) => self.base_assert_ne(lhs, Imm::F(rhs)),
+            DslIr::AssertNeEI(lhs, rhs) => self.ext_assert_ne(lhs, Imm::EF(rhs)),
 
             // DslIr::For(_, _, _, _, _) => todo!(),
             // DslIr::IfEq(_, _, _, _) => todo!(),
@@ -297,28 +366,28 @@ where
             .flat_map(|(ir_instr, _)| self.compile_one(ir_instr))
             .collect::<Vec<_>>();
         // Replace the mults.
-        for asm_instr in instrs.iter_mut() {
-            match asm_instr {
+        instrs
+            .iter_mut()
+            .filter_map(|asm_instr| match asm_instr {
                 Instruction::BaseAlu(BaseAluInstr {
                     mult,
                     addrs: BaseAluIo { out, .. },
                     ..
-                }) => *mult = self.addr_to_mult.remove(out).unwrap(),
+                }) => Some((mult, out)),
                 Instruction::ExtAlu(ExtAluInstr {
                     mult,
                     addrs: ExtAluIo { out, .. },
                     ..
-                }) => *mult = self.addr_to_mult.remove(out).unwrap(),
+                }) => Some((mult, out)),
                 Instruction::Mem(MemInstr {
-                    addrs: MemIo { inner: out },
+                    addrs: MemIo { inner },
                     mult,
                     kind: MemAccessKind::Write,
                     ..
-                }) => *mult = self.addr_to_mult.remove(out).unwrap(),
-                _ => (),
-                // _ => panic!("unsupported {:?}", instruction),
-            }
-        }
+                }) => Some((mult, inner)),
+                _ => None,
+            })
+            .for_each(|(mult, addr)| *mult = self.addr_to_mult.remove(addr).unwrap());
         debug_assert!(self.addr_to_mult.is_empty());
         // Initialize constants.
         let instrs_consts_f = self.consts_f.drain().map(|(f, (addr, mult))| {
@@ -426,42 +495,44 @@ where
     }
 }
 
+impl<F, EF> Reg<F, EF> for Address<F>
+where
+    F: PrimeField + TwoAdicField,
+    EF: ExtensionField<F> + TwoAdicField,
+{
+    fn read(&self, compiler: &mut AsmCompiler<F, EF>) -> Address<F> {
+        compiler.read_addr(*self);
+        *self
+    }
+
+    fn write(&self, compiler: &mut AsmCompiler<F, EF>) -> Address<F> {
+        compiler.write_addr(*self);
+        *self
+    }
+}
+
 #[cfg(test)]
-#[cfg(ignore)] // TODO make test work
 mod tests {
     use p3_baby_bear::DiffusionMatrixBabyBear;
+    use rand::{rngs::StdRng, Rng, SeedableRng};
     use sp1_core::{stark::StarkGenericConfig, utils::run_test_machine};
     use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
     use sp1_recursion_core_v2::{machine::RecursionAir, RecursionProgram, Runtime};
 
-    use p3_field::AbstractField;
+    use p3_field::Field;
 
-    use crate::{asm::AsmBuilder, prelude::*};
+    use crate::asm::AsmBuilder;
 
-    #[test]
-    fn arithmetic() {
-        type SC = BabyBearPoseidon2Outer;
-        type F = <SC as StarkGenericConfig>::Val;
-        type EF = <SC as StarkGenericConfig>::Challenge;
-        type A = RecursionAir<F>;
+    use super::*;
 
-        // let n_val = 10;
-        let mut builder = AsmBuilder::<F, EF>::default();
-        let a: Felt<_> = builder.eval(F::one());
-        let b: Felt<_> = builder.eval(F::one());
+    type SC = BabyBearPoseidon2Outer;
+    type F = <SC as StarkGenericConfig>::Val;
+    type EF = <SC as StarkGenericConfig>::Challenge;
+    type A = RecursionAir<F>;
 
-        let temp: Felt<_> = builder.eval(F::one());
-        builder.assign(temp, a + b);
-        builder.assign(b, a + temp);
-        builder.assign(a, temp);
-        // let expected_value = F::from_canonical_u32(0);
-        // builder.assert_felt_eq(a, expected_value);
-
+    fn test_operations(operations: TracedVec<DslIr<AsmConfig<F, EF>>>) {
         let mut compiler = super::AsmCompiler::default();
-        let instructions = compiler.compile(builder.operations);
-
-        println!("Program size = {}", instructions.len());
-
+        let instructions = compiler.compile(operations);
         let program = RecursionProgram { instructions };
         let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program);
         runtime.run();
@@ -473,5 +544,69 @@ mod tests {
         if let Err(e) = result {
             panic!("Verification failed: {:?}", e);
         }
+    }
+
+    macro_rules! test_assert_fixture {
+        ($assert_felt:ident, $assert_ext:ident, $should_offset:literal) => {
+            let mut builder = AsmBuilder::<F, EF>::default();
+
+            let mut base_elts = StdRng::seed_from_u64(0xDEADBEEF)
+                .sample_iter::<F, _>(rand::distributions::Standard);
+            for _ in 0..100 {
+                let a = base_elts.next().unwrap();
+                let b = base_elts.next().unwrap();
+                let c = a + b;
+                let ar: Felt<_> = builder.eval(a);
+                let br: Felt<_> = builder.eval(b);
+                let cr: Felt<_> = builder.eval(ar + br);
+                let cm = if $should_offset {
+                    c + base_elts.find(|x| !x.is_zero()).unwrap()
+                } else {
+                    c
+                };
+                builder.$assert_felt(cr, cm);
+            }
+
+            let mut ext_elts = StdRng::seed_from_u64(0xABADCAFE)
+                .sample_iter::<EF, _>(rand::distributions::Standard);
+            for _ in 0..100 {
+                let a = ext_elts.next().unwrap();
+                let b = ext_elts.next().unwrap();
+                let c = a + b;
+                let ar: Ext<_, _> = builder.eval(a.cons());
+                let br: Ext<_, _> = builder.eval(b.cons());
+                let cr: Ext<_, _> = builder.eval(ar + br);
+                let cm = if $should_offset {
+                    c + ext_elts.find(|x| !x.is_zero()).unwrap()
+                } else {
+                    c
+                };
+                builder.$assert_ext(cr, cm.cons());
+            }
+
+            test_operations(builder.operations);
+        };
+    }
+
+    #[test]
+    fn test_assert_eq_noop() {
+        test_assert_fixture!(assert_felt_eq, assert_ext_eq, false);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_assert_eq_panics() {
+        test_assert_fixture!(assert_felt_eq, assert_ext_eq, true);
+    }
+
+    #[test]
+    fn test_assert_ne_noop() {
+        test_assert_fixture!(assert_felt_ne, assert_ext_ne, true);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_assert_ne_panics() {
+        test_assert_fixture!(assert_felt_ne, assert_ext_ne, false);
     }
 }
