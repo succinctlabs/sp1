@@ -8,11 +8,30 @@ use sp1_core::{
 };
 use sp1_recursion_core::{runtime::RecursionProgram, stark::config::BabyBearPoseidon2Outer};
 
+static RECURSION_PROGRAM_BYTES: &[u8] =
+    include_bytes!(concat!(env!("OUT_DIR"), "/recursion_program.bin"));
+static RECURSION_PK_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/rec_pk.bin"));
+static RECURSION_VK_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/rec_vk.bin"));
+static DEFERRED_PROGRAM_BYTES: &[u8] =
+    include_bytes!(concat!(env!("OUT_DIR"), "/deferred_program.bin"));
+static DEFERRED_PK_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/deferred_pk.bin"));
+static DEFERRED_VK_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/deferred_vk.bin"));
+static COMPRESS_PROGRAM_BYTES: &[u8] =
+    include_bytes!(concat!(env!("OUT_DIR"), "/compress_program.bin"));
+static COMPRESS_PK_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/compress_pk.bin"));
+static COMPRESS_VK_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/compress_vk.bin"));
+static SHRINK_PROGRAM_BYTES: &[u8] =
+    include_bytes!(concat!(env!("OUT_DIR"), "/shrink_program.bin"));
+static SHRINK_PK_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/shrink_pk.bin"));
+static SHRINK_VK_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/shrink_vk.bin"));
+static WRAP_PROGRAM_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/wrap_program.bin"));
+static WRAP_PK_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/wrap_pk.bin"));
+static WRAP_VK_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/wrap_vk.bin"));
+
 lazy_static! {
     pub static ref RECURSION_PROGRAM: RecursionProgram<BabyBear> = {
         let start_time = Instant::now();
-        let program = include_bytes!(concat!(env!("OUT_DIR"), "/recursion_program.bin"));
-        let res = bincode::deserialize(program).unwrap();
+        let res = bincode::deserialize(&RECURSION_PROGRAM_BYTES).unwrap();
         println!(
             "Recursion program deserialized in {:?}",
             start_time.elapsed()
@@ -21,22 +40,19 @@ lazy_static! {
     };
     pub static ref RECURSION_PK: StarkProvingKey<BabyBearPoseidon2> = {
         let start_time = Instant::now();
-        let program = include_bytes!(concat!(env!("OUT_DIR"), "/rec_pk.bin"));
-        let res = bincode::deserialize(program).unwrap();
+        let res = bincode::deserialize(&RECURSION_PK_BYTES).unwrap();
         println!("Recursion pk deserialized in {:?}", start_time.elapsed());
         res
     };
     pub static ref RECURSION_VK: StarkVerifyingKey<BabyBearPoseidon2> = {
         let start_time = Instant::now();
-        let program = include_bytes!(concat!(env!("OUT_DIR"), "/rec_vk.bin"));
-        let res = bincode::deserialize(program).unwrap();
+        let res = bincode::deserialize(&RECURSION_VK_BYTES).unwrap();
         println!("Recursion vk deserialized in {:?}", start_time.elapsed());
         res
     };
     pub static ref DEFERRED_PROGRAM: RecursionProgram<BabyBear> = {
         let start_time = Instant::now();
-        let program = include_bytes!(concat!(env!("OUT_DIR"), "/deferred_program.bin"));
-        let res = bincode::deserialize(program).unwrap();
+        let res = bincode::deserialize(&DEFERRED_PROGRAM_BYTES).unwrap();
         println!(
             "Deferred program deserialized in {:?}",
             start_time.elapsed()
@@ -45,22 +61,19 @@ lazy_static! {
     };
     pub static ref DEFERRED_PK: StarkProvingKey<BabyBearPoseidon2> = {
         let start_time = Instant::now();
-        let program = include_bytes!(concat!(env!("OUT_DIR"), "/deferred_pk.bin"));
-        let res = bincode::deserialize(program).unwrap();
+        let res = bincode::deserialize(&DEFERRED_PK_BYTES).unwrap();
         println!("Deferred pk deserialized in {:?}", start_time.elapsed());
         res
     };
     pub static ref DEFERRED_VK: StarkVerifyingKey<BabyBearPoseidon2> = {
         let start_time = Instant::now();
-        let program = include_bytes!(concat!(env!("OUT_DIR"), "/deferred_vk.bin"));
-        let res = bincode::deserialize(program).unwrap();
+        let res = bincode::deserialize(&DEFERRED_VK_BYTES).unwrap();
         println!("Deferred vk deserialized in {:?}", start_time.elapsed());
         res
     };
     pub static ref COMPRESS_PROGRAM: RecursionProgram<BabyBear> = {
         let start_time = Instant::now();
-        let program = include_bytes!(concat!(env!("OUT_DIR"), "/compress_program.bin"));
-        let res = bincode::deserialize(program).unwrap();
+        let res = bincode::deserialize(&COMPRESS_PROGRAM_BYTES).unwrap();
         println!(
             "Compress program deserialized in {:?}",
             start_time.elapsed()
@@ -69,57 +82,49 @@ lazy_static! {
     };
     pub static ref COMPRESS_PK: StarkProvingKey<BabyBearPoseidon2> = {
         let start_time = Instant::now();
-        let program = include_bytes!(concat!(env!("OUT_DIR"), "/compress_pk.bin"));
-        let res = bincode::deserialize(program).unwrap();
+        let res = bincode::deserialize(&COMPRESS_PK_BYTES).unwrap();
         println!("Compress pk deserialized in {:?}", start_time.elapsed());
         res
     };
     pub static ref COMPRESS_VK: StarkVerifyingKey<BabyBearPoseidon2> = {
         let start_time = Instant::now();
-        let program = include_bytes!(concat!(env!("OUT_DIR"), "/compress_vk.bin"));
-        let res = bincode::deserialize(program).unwrap();
+        let res = bincode::deserialize(&COMPRESS_VK_BYTES).unwrap();
         println!("Compress vk deserialized in {:?}", start_time.elapsed());
         res
     };
     pub static ref SHRINK_PROGRAM: RecursionProgram<BabyBear> = {
         let start_time = Instant::now();
-        let program = include_bytes!(concat!(env!("OUT_DIR"), "/shrink_program.bin"));
-        let res = bincode::deserialize(program).unwrap();
+        let res = bincode::deserialize(&SHRINK_PROGRAM_BYTES).unwrap();
         println!("Shrink program deserialized in {:?}", start_time.elapsed());
         res
     };
     pub static ref SHRINK_PK: StarkProvingKey<BabyBearPoseidon2> = {
         let start_time = Instant::now();
-        let program = include_bytes!(concat!(env!("OUT_DIR"), "/shrink_pk.bin"));
-        let res = bincode::deserialize(program).unwrap();
+        let res = bincode::deserialize(&SHRINK_PK_BYTES).unwrap();
         println!("Shrink pk deserialized in {:?}", start_time.elapsed());
         res
     };
     pub static ref SHRINK_VK: StarkVerifyingKey<BabyBearPoseidon2> = {
         let start_time = Instant::now();
-        let program = include_bytes!(concat!(env!("OUT_DIR"), "/shrink_vk.bin"));
-        let res = bincode::deserialize(program).unwrap();
+        let res = bincode::deserialize(&SHRINK_VK_BYTES).unwrap();
         println!("Shrink vk deserialized in {:?}", start_time.elapsed());
         res
     };
     pub static ref WRAP_PROGRAM: RecursionProgram<BabyBear> = {
         let start_time = Instant::now();
-        let program = include_bytes!(concat!(env!("OUT_DIR"), "/wrap_program.bin"));
-        let res = bincode::deserialize(program).unwrap();
+        let res = bincode::deserialize(&WRAP_PROGRAM_BYTES).unwrap();
         println!("Wrap program deserialized in {:?}", start_time.elapsed());
         res
     };
     pub static ref WRAP_PK: StarkProvingKey<BabyBearPoseidon2Outer> = {
         let start_time = Instant::now();
-        let program = include_bytes!(concat!(env!("OUT_DIR"), "/wrap_pk.bin"));
-        let res = bincode::deserialize(program).unwrap();
+        let res = bincode::deserialize(&WRAP_PK_BYTES).unwrap();
         println!("Wrap pk deserialized in {:?}", start_time.elapsed());
         res
     };
     pub static ref WRAP_VK: StarkVerifyingKey<BabyBearPoseidon2Outer> = {
         let start_time = Instant::now();
-        let program = include_bytes!(concat!(env!("OUT_DIR"), "/wrap_vk.bin"));
-        let res = bincode::deserialize(program).unwrap();
+        let res = bincode::deserialize(&WRAP_VK_BYTES).unwrap();
         println!("Wrap vk deserialized in {:?}", start_time.elapsed());
         res
     };
