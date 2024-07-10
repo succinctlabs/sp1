@@ -17,6 +17,8 @@ pub struct ExecutionRecord<F> {
     pub mem_events: Vec<MemEvent<F>>,
     /// The public values.
     pub public_values: PublicValues<u32, u32>,
+
+    pub poseidon2_wide_events: Vec<Poseidon2WideEvent<F>>,
 }
 
 impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
@@ -43,10 +45,12 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
             ext_alu_events,
             mem_events,
             public_values: _,
+            poseidon2_wide_events,
         } = self;
         base_alu_events.append(&mut other.base_alu_events);
         ext_alu_events.append(&mut other.ext_alu_events);
         mem_events.append(&mut other.mem_events);
+        poseidon2_wide_events.append(&mut other.poseidon2_wide_events);
     }
 
     fn shard(self, _config: &Self::Config) -> Vec<Self> {

@@ -227,7 +227,11 @@ mod tests {
     use p3_matrix::dense::RowMajorMatrix;
 
     use rand::{rngs::StdRng, Rng, SeedableRng};
-    use sp1_core::{air::MachineAir, stark::StarkGenericConfig, utils::run_test_machine};
+    use sp1_core::{
+        air::MachineAir,
+        stark::StarkGenericConfig,
+        utils::{run_test_machine, BabyBearPoseidon2Inner},
+    };
     use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
 
     use super::*;
@@ -256,7 +260,7 @@ mod tests {
         type SC = BabyBearPoseidon2Outer;
         type F = <SC as StarkGenericConfig>::Val;
         type EF = <SC as StarkGenericConfig>::Challenge;
-        type A = RecursionAir<F>;
+        type A = RecursionAir<F, 3>;
 
         let mut rng = StdRng::seed_from_u64(0xDEADBEEF);
         let mut random_extfelt = move || {
@@ -289,7 +293,10 @@ mod tests {
             .collect::<Vec<Instruction<F>>>();
 
         let program = RecursionProgram { instructions };
-        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program);
+        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(
+            &program,
+            BabyBearPoseidon2Inner::new().perm,
+        );
         runtime.run();
 
         let config = SC::new();
