@@ -560,7 +560,7 @@ mod tests {
                 test_operations(builder.operations);
             }
         };
-        ($builder:ident, $wrap:path, $t:ty, $u:ty, $seed:expr, $assert:ident, $should_offset:literal) => {
+        ($builder:ident, $wrap:path, $t:ty, $u:ty, $seed:expr, $assert:ident, $should_offset:expr) => {
             {
                 let mut elts = StdRng::seed_from_u64($seed)
                     .sample_iter::<$t, _>(rand::distributions::Standard);
