@@ -1,8 +1,9 @@
 #![allow(clippy::needless_range_loop)]
 
-use crate::mem::MemoryPreprocessedCols;
+use crate::mem::{MemoryPreprocessedCols, MemoryPreprocessedColsNoVal};
 // use crate::memory::{MemoryReadSingleCols, MemoryReadWriteSingleCols};
 use crate::runtime::Opcode;
+use crate::{ExpReverseBitsInstr, Instruction};
 use core::borrow::Borrow;
 use itertools::Itertools;
 use p3_air::PairBuilder;
@@ -24,6 +25,8 @@ use crate::builder::SP1RecursionAirBuilder;
 use crate::runtime::{ExecutionRecord, RecursionProgram};
 
 pub const NUM_EXP_REVERSE_BITS_LEN_COLS: usize = core::mem::size_of::<ExpReverseBitsLenCols<u8>>();
+pub const NUM_EXP_REVERSE_BITS_LEN_PREPROCESSED_COLS: usize =
+    core::mem::size_of::<ExpReverseBitsLenPreprocessedCols<u8>>();
 
 #[derive(Default)]
 pub struct ExpReverseBitsLenChip<const DEGREE: usize> {
@@ -34,8 +37,9 @@ pub struct ExpReverseBitsLenChip<const DEGREE: usize> {
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct ExpReverseBitsLenPreprocessedCols<T: Copy> {
-    pub x_memory: MemoryPreprocessedCols<T>,
-    pub exponent_memory: MemoryPreprocessedCols<T>,
+    pub x_memory: MemoryPreprocessedColsNoVal<T>,
+    pub exponent_memory: [MemoryPreprocessedColsNoVal<T>; 32],
+    pub result_memory: MemoryPreprocessedColsNoVal<T>,
     pub len: T,
     pub iteration_num: T,
     pub is_first: T,
@@ -48,9 +52,6 @@ pub struct ExpReverseBitsLenPreprocessedCols<T: Copy> {
 pub struct ExpReverseBitsLenCols<T: Copy> {
     /// The base of the exponentiation.
     pub x: T,
-
-    /// The length parameter of the exponentiation. This is decremented by 1 every iteration.
-    pub len: T,
 
     /// The current bit of the exponent. This is read from memory.
     pub current_bit: T,
@@ -85,7 +86,67 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpReverseBitsLenCh
     }
 
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
-        None
+        let mut rows: Vec<[F; NUM_EXP_REVERSE_BITS_LEN_PREPROCESSED_COLS]> = Vec::new();
+        program
+            .instructions
+            .iter()
+            .filter_map(|instruction| {
+                if let Instruction::ExpReverseBitsLen(instr) = instruction {
+                    Some(instr)
+                } else {
+                    None
+                }
+            })
+            .for_each(|instruction| {
+                let ExpReverseBitsInstr { addrs, len, mult } = instruction;
+                let mut row_add = vec![
+                    [F::zero(); NUM_EXP_REVERSE_BITS_LEN_PREPROCESSED_COLS];
+                    len.as_canonical_u32() as usize
+                ];
+                row_add.iter_mut().enumerate().for_each(|(i, row)| {
+                    let row: &mut ExpReverseBitsLenPreprocessedCols<F> =
+                        row.as_mut_slice().borrow_mut();
+                    row.len = *len - F::from_canonical_u32(i as u32);
+                    row.iteration_num = F::from_canonical_u32(i as u32);
+                    row.is_first = F::from_bool(i == 0);
+                    row.is_last = F::from_bool(i == len.as_canonical_u32() as usize - 1);
+                    row.is_real = F::one();
+                    row.x_memory = MemoryPreprocessedColsNoVal {
+                        addr: addrs.base,
+                        read_mult: *mult,
+                        write_mult: F::zero(),
+                        is_real: F::one(),
+                    };
+                    row.exponent_memory = addrs.exp.map(|exp| MemoryPreprocessedColsNoVal {
+                        addr: exp,
+                        read_mult: *mult,
+                        write_mult: F::zero(),
+                        is_real: F::one(),
+                    });
+                    row.result_memory = MemoryPreprocessedColsNoVal {
+                        addr: addrs.result,
+                        read_mult: F::zero(),
+                        write_mult: *mult,
+                        is_real: F::one(),
+                    };
+                });
+                rows.extend(row_add);
+            });
+
+        // Pad the trace to a power of two.
+        if self.pad {
+            pad_rows_fixed(
+                &mut rows,
+                || [F::zero(); NUM_EXP_REVERSE_BITS_LEN_PREPROCESSED_COLS],
+                self.fixed_log2_rows,
+            );
+        }
+
+        let trace = RowMajorMatrix::new(
+            rows.into_iter().flatten().collect(),
+            NUM_EXP_REVERSE_BITS_LEN_PREPROCESSED_COLS,
+        );
+        Some(trace)
     }
 
     #[instrument(name = "generate exp reverse bits len trace", level = "debug", skip_all, fields(rows = input.exp_reverse_bits_len_events.len()))]
@@ -117,7 +178,6 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpReverseBitsLenCh
 
                 cols.x = event.base;
                 cols.current_bit = event.exp[i];
-                cols.len = event.len;
                 cols.accum = accum;
                 cols.prev_accum_squared = prev_accum * prev_accum;
                 cols.multiplier = if event.exp[i] == F::one() {
@@ -167,7 +227,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpReverseBitsLenCh
 
 impl<const DEGREE: usize> ExpReverseBitsLenChip<DEGREE> {
     pub fn eval_exp_reverse_bits_len<
-        AB: BaseAirBuilder + ExtensionAirBuilder + RecursionMemoryAirBuilder + SP1AirBuilder,
+        AB: BaseAirBuilder + ExtensionAirBuilder + SP1RecursionAirBuilder + SP1AirBuilder,
     >(
         &self,
         builder: &mut AB,
@@ -177,15 +237,15 @@ impl<const DEGREE: usize> ExpReverseBitsLenChip<DEGREE> {
         memory_access: AB::Var,
     ) {
         // Dummy constraints to normalize to DEGREE when DEGREE > 3.
-        // if DEGREE > 3 {
-        //     let lhs = (0..DEGREE)
-        //         .map(|_| local.is_real.into())
-        //         .product::<AB::Expr>();
-        //     let rhs = (0..DEGREE)
-        //         .map(|_| local.is_real.into())
-        //         .product::<AB::Expr>();
-        //     builder.assert_eq(lhs, rhs);
-        // }
+        if DEGREE > 3 {
+            let lhs = (0..DEGREE)
+                .map(|_| prepr.is_real.into())
+                .product::<AB::Expr>();
+            let rhs = (0..DEGREE)
+                .map(|_| prepr.is_real.into())
+                .product::<AB::Expr>();
+            builder.assert_eq(lhs, rhs);
+        }
 
         // // Constraint that the operands are sent from the CPU table.
         // let operands = [
@@ -295,14 +355,20 @@ impl<const DEGREE: usize> ExpReverseBitsLenChip<DEGREE> {
         //         - local.is_first.result * local.is_last.result,
         // );
 
-        // // Access the memory for x.
-        // // This only needs to be done for the first and last iterations.
-        // builder.recursion_eval_memory_access_single(
-        //     local.clk,
-        //     local.base_ptr,
-        //     &local.x,
-        //     local.x_mem_access_flag,
-        // );
+        // Access the memory for x.
+        // This only needs to be done for the first and last iterations.
+        builder.receive_single(
+            prepr.x_memory.addr,
+            prepr.x_memory.read_mult,
+            prepr.x_memory.is_real,
+        );
+        builder.send_single(
+            prepr.result_memory.addr,
+            local.accum,
+            prepr.result_memory.write_mult,
+        );
+
+        // Need to access memory for
 
         // // The `base_ptr` column stays the same when not `is_last`.
         // builder
@@ -360,11 +426,17 @@ where
 mod tests {
     use itertools::Itertools;
     use p3_util::reverse_bits_len;
+    use rand::rngs::StdRng;
+    use rand::Rng;
+    use rand::SeedableRng;
+    use sp1_core::utils::run_test_machine;
+    use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
+    use std::mem::size_of;
     use std::time::Instant;
 
     use p3_baby_bear::BabyBear;
     use p3_baby_bear::DiffusionMatrixBabyBear;
-    use p3_field::AbstractField;
+    use p3_field::{AbstractField, PrimeField32};
     use p3_matrix::{dense::RowMajorMatrix, Matrix};
     use p3_poseidon2::Poseidon2;
     use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
@@ -375,67 +447,65 @@ mod tests {
     };
 
     use crate::exp_reverse_bits::ExpReverseBitsLenChip;
+    use crate::machine::RecursionAir;
+    use crate::runtime::instruction as instr;
     use crate::runtime::ExecutionRecord;
     use crate::ExpReverseBitsEvent;
+    use crate::Instruction;
+    use crate::MemAccessKind;
+    use crate::RecursionProgram;
+    use crate::Runtime;
 
     #[test]
     fn prove_babybear() {
-        // let config = BabyBearPoseidon2::compressed();
-        // let mut challenger = config.challenger();
+        // type SC = BabyBearPoseidon2Outer;
+        // type F = <SC as StarkGenericConfig>::Val;
+        // type EF = <SC as StarkGenericConfig>::Challenge;
+        // type A = RecursionAir<F, 3>;
 
-        // let chip = ExpReverseBitsLenChip::<5> {
-        //     pad: true,
-        //     fixed_log2_rows: None,
-        // };
+        // let mut rng = StdRng::seed_from_u64(0xDEADBEEF);
+        // let mut random_felt = move || -> F { rng.sample(rand::distributions::Standard) };
+        // let mut random_bit = move || -> F{rng.sample_bit()};
+        // let mut addr = 0;
 
-        // let test_xs = (1..16).map(BabyBear::from_canonical_u32).collect_vec();
+        // let instructions = (1..11)
+        //     .flat_map(|i| {
+        //         let base = random_felt();
+        //         let exponent =[ random_bit(); 32];
+        //         let len = i;
+        //         let result = base
+        //             .exp_u64(reverse_bits_len(exponent.as_canonical_u32() as usize, len) as u64);
+        //         let exp_bits =std::array::from_fn(|i| exponent.bit(i));
 
-        // let test_exponents: Vec<u32> = (1..16).collect_vec();
+        //         let alloc_size = 34;
+        //         let a = (0..alloc_size).map(|x| x + addr).collect::<Vec<_>>();
+        //         addr += alloc_size;
+        //         [
+        //             instr::mem_single(MemAccessKind::Write, 1, a[0], base),
+        //             instr::exp_reverse_bits_len(
+        //                 1,
+        //                 base,
+        //                 exp_bits,
+        //                 F::from_canonical_usize(len),
+        //                 result,
+        //             ),
+        //             instr::
+        //         ]
+        //     })
+        //     .collect::<Vec<Instruction<F>>>();
 
-        // let mut input_exec = ExecutionRecord::<BabyBear>::default();
-        // for (x, exponent) in test_xs.into_iter().zip_eq(test_exponents) {
-        //     let num_bits = exponent.ilog2() + 1;
-        //     let exp_bits: [u32; 32] = (0..32)
-        //         .map(|i| (exponent >> i) & 1)
-        //         .collect_vec()
-        //         .try_into()
-        //         .unwrap();
-        //     let event = ExpReverseBitsEvent {
-        //         base: x,
-        //         exp: exp_bits.map(BabyBear::from_canonical_u32),
-        //         len: BabyBear::from_canonical_u32(num_bits),
-        //         result: x.exp_u64(reverse_bits_len(exponent as usize, num_bits as usize) as u64),
-        //     };
-        //     input_exec.exp_reverse_bits_len_events.push(event);
+        // let program = RecursionProgram { instructions };
+
+        // let config = SC::new();
+
+        // let mut runtime =
+        //     Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program, BabyBearPoseidon2::new().perm);
+        // runtime.run();
+        // let machine = A::machine(config);
+        // let (pk, vk) = machine.setup(&program);
+        // let result = run_test_machine(runtime.record, machine, pk, vk);
+        // if let Err(e) = result {
+        //     panic!("Verification failed: {:?}", e);
         // }
-        // println!(
-        //     "input exec: {:?}",
-        //     input_exec.exp_reverse_bits_len_events.len()
-        // );
-        // let trace: RowMajorMatrix<BabyBear> =
-        //     chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());
-        // println!(
-        //     "trace dims is width: {:?}, height: {:?}",
-        //     trace.width(),
-        //     trace.height()
-        // );
-
-        // let start = Instant::now();
-        // let proof = uni_stark_prove(&config, &chip, &mut challenger, trace);
-        // let duration = start.elapsed().as_secs_f64();
-        // println!("proof duration = {:?}", duration);
-
-        // let mut challenger: p3_challenger::DuplexChallenger<
-        //     BabyBear,
-        //     Poseidon2<BabyBear, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 16, 7>,
-        //     16,
-        //     8,
-        // > = config.challenger();
-        // let start = Instant::now();
-        // uni_stark_verify(&config, &chip, &mut challenger, &proof)
-        //     .expect("expected proof to be valid");
-
-        // let duration = start.elapsed().as_secs_f64();
-        // println!("verify duration = {:?}", duration);
     }
 }

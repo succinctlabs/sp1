@@ -107,18 +107,18 @@ pub fn poseidon2_wide<F: AbstractField>(
 
 pub fn exp_reverse_bits_len<F: AbstractField>(
     mult: u32,
-    base: u32,
-    exp: [u32; 32],
-    len: u32,
-    result: u32,
+    base: F,
+    exp: [F; 32],
+    len: F,
+    result: F,
 ) -> Instruction<F> {
     Instruction::ExpReverseBitsLen(ExpReverseBitsInstr {
         mult: F::from_canonical_u32(mult),
         addrs: ExpReverseBitsIo {
-            base: Address(F::from_canonical_u32(base)),
-            exp: exp.map(F::from_canonical_u32).map(Address),
-            result: Address(F::from_canonical_u32(result)),
+            base: Address(base),
+            exp: exp.map(Address),
+            result: Address(result),
         },
-        len: F::from_canonical_u32(len),
+        len: len,
     })
 }
