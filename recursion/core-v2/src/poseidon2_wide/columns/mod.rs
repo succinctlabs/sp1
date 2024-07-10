@@ -29,58 +29,6 @@ pub trait Poseidon2Mut<'a, T: Copy + 'a> {
     );
 }
 
-/// Enum to enable dynamic dispatch for the Poseidon2 columns.
-#[allow(dead_code)]
-enum Poseidon2Enum<T: Copy> {
-    P2Degree3(Poseidon2Degree3<T>),
-    P2Degree9(Poseidon2Degree9<T>),
-}
-
-impl<'a, T: Copy + 'a> Poseidon2<'a, T> for Poseidon2Enum<T> {
-    fn state_var(&self) -> &[T; WIDTH] {
-        match self {
-            Poseidon2Enum::P2Degree3(p) => p.state_var(),
-            Poseidon2Enum::P2Degree9(p) => p.state_var(),
-        }
-    }
-
-    fn internal_rounds_s0(&self) -> &[T; NUM_INTERNAL_ROUNDS - 1] {
-        match self {
-            Poseidon2Enum::P2Degree3(p) => p.internal_rounds_s0(),
-            Poseidon2Enum::P2Degree9(p) => p.internal_rounds_s0(),
-        }
-    }
-
-    fn s_box_state(&self) -> Option<&[T; WIDTH]> {
-        match self {
-            Poseidon2Enum::P2Degree3(p) => p.s_box_state(),
-            Poseidon2Enum::P2Degree9(p) => p.s_box_state(),
-        }
-    }
-}
-
-/// Enum to enable dynamic dispatch for the Poseidon2 columns.
-#[allow(dead_code)]
-enum Poseidon2MutEnum<'a, T: Copy> {
-    P2Degree3(&'a mut Poseidon2Degree3<T>),
-    P2Degree9(&'a mut Poseidon2Degree9<T>),
-}
-
-impl<'a, T: Copy + 'a> Poseidon2Mut<'a, T> for Poseidon2MutEnum<'a, T> {
-    fn get_cols_mut(
-        &mut self,
-    ) -> (
-        &mut [T; WIDTH],
-        &mut [T; NUM_INTERNAL_ROUNDS - 1],
-        Option<&mut [T; WIDTH]>,
-    ) {
-        match self {
-            Poseidon2MutEnum::P2Degree3(p) => p.get_cols_mut(),
-            Poseidon2MutEnum::P2Degree9(p) => p.get_cols_mut(),
-        }
-    }
-}
-
 const fn make_col_map_degree3() -> Poseidon2Degree3<usize> {
     let indices_arr = indices_arr::<NUM_POSEIDON2_DEGREE3_COLS>();
     unsafe {
