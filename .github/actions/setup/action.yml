@@ -37,7 +37,7 @@ runs:
           ~/.cargo/git/db/
           target/
           ~/.rustup/
-        key: bruh-${{ hashFiles('Cargo.toml') }}
+        key: sodifnsoidfs
         restore-keys: fvisdfviusnvisnfvisufv
 
     - name: Setup toolchain
