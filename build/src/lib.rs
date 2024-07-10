@@ -15,6 +15,35 @@ use cargo_metadata::camino::Utf8PathBuf;
 // Conditionally derive the `Parser` trait if the `clap` feature is enabled. This is useful
 // for keeping the binary size smaller.
 #[cfg_attr(feature = "clap", derive(Parser))]
+/// `BuildArgs` is a struct that holds various arguments used for building a program.
+///
+/// This struct can be used to configure the build process, including options for using Docker,
+/// specifying binary and ELF names, ignoring Rust version checks, and enabling specific features.
+///
+/// # Fields
+///
+/// * `docker` - A boolean flag to indicate whether to use Docker for reproducible builds.
+/// * `tag` - A string specifying the Docker image tag to use when building with Docker. Defaults to "latest".
+/// * `features` - A vector of strings specifying features to build with.
+/// * `ignore_rust_version` - A boolean flag to ignore Rust version checks.
+/// * `binary` - An optional string to specify the name of the binary if building a binary.
+/// * `elf` - An optional string to specify the name of the ELF binary.
+///
+/// # Example
+///
+/// ```
+/// use your_crate::BuildArgs;
+///
+/// let args = BuildArgs {
+///     docker: true,
+///     tag: "latest".to_string(),
+///     features: vec!["feature1".to_string(), "feature2".to_string()],
+///     ignore_rust_version: false,
+///     binary: Some("my_binary".to_string()),
+///     elf: Some("my_elf".to_string()),
+/// };
+///
+/// // Use `args` to configure your build process
 pub struct BuildArgs {
     #[cfg_attr(
         feature = "clap",
@@ -32,6 +61,11 @@ pub struct BuildArgs {
     pub tag: String,
     #[cfg_attr(
         feature = "clap",
+        clap(long, action, value_delimiter = ',', help = "Build with features.")
+    )]
+    pub features: Vec<String>,
+    #[cfg_attr(
+        feature = "clap",
         clap(long, action, help = "Ignore Rust version check.")
     )]
     pub ignore_rust_version: bool,
@@ -42,11 +76,6 @@ pub struct BuildArgs {
     pub binary: Option<String>,
     #[cfg_attr(feature = "clap", clap(long, action, help = "ELF binary name."))]
     pub elf: Option<String>,
-    #[cfg_attr(
-        feature = "clap",
-        clap(long, action, value_delimiter = ',', help = "Build with features.")
-    )]
-    pub features: Vec<String>,
 }
 
 /// Uses SP1_DOCKER_IMAGE environment variable if set, otherwise constructs the image to use based
@@ -68,13 +97,13 @@ fn get_docker_cmd(
 ) -> Result<()> {
     let image = get_docker_image(&args.tag);
 
+    // Check if docker is installed and running.
     let docker_check = Command::new("docker")
         .args(["info"])
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .status()
         .context("failed to run docker command")?;
-
     if !docker_check.success() {
         eprintln!("docker is not installed or not running: https://docs.docker.com/get-docker/");
         exit(1);
@@ -155,14 +184,11 @@ fn handle_cmd_output(
     build_with_helper: bool,
     docker: bool,
 ) {
-    let msg = if build_with_helper && docker {
-        "[sp1] [docker] "
-    } else if build_with_helper {
-        "[sp1] "
-    } else if docker {
-        "[docker] "
-    } else {
-        ""
+    let msg = match (build_with_helper, docker) {
+        (true, true) => "[sp1] [docker] ",
+        (true, false) => "[sp1] ",
+        (false, true) => "[docker] ",
+        (false, false) => "",
     };
     // Pipe stdout and stderr to the parent process with [docker] prefix
     let stdout_handle = thread::spawn(move || {
@@ -206,23 +232,71 @@ fn add_cargo_prove_build_args(
     }
 }
 
-/// Build a program with the specified BuildArgs. program_dir is specified as an argument when
-/// the program is built via build_program in sp1-helper.
+/// Build a program with the specified BuildArgs. The `program_dir` is specified as an argument when
+/// the program is built via `build_program` in sp1-helper.
+///
+/// # Arguments
+///
+/// * `args` - A reference to a `BuildArgs` struct that holds various arguments used for building the program.
+/// * `program_dir` - An optional `PathBuf` specifying the directory of the program to be built.
+///
+/// # Returns
+///
+/// * `Result<Utf8PathBuf>` - The path to the built program as a `Utf8PathBuf` on success, or an error on failure.
+///
+/// # Example
+///
+/// ```
+/// use your_crate::{BuildArgs, build_program};
+/// use std::path::PathBuf;
+///
+/// let args = BuildArgs {
+///     docker: true,
+///     tag: "latest".to_string(),
+///     features: vec!["feature1".to_string(), "feature2".to_string()],
+///     ignore_rust_version: false,
+///     binary: Some("my_binary".to_string()),
+///     elf: Some("my_elf".to_string()),
+/// };
+///
+/// let program_dir = Some(PathBuf::from("/path/to/program"));
+///
+/// match build_program(&args, program_dir) {
+///     Ok(path) => println!("Program built successfully at: {}", path),
+///     Err(e) => eprintln!("Failed to build program: {}", e),
+/// }
+///
+/// // Example using ..Default::default()
+/// let args = BuildArgs {
+///     docker: true,
+///     ..Default::default()
+/// };
+///
+/// let program_dir = Some(PathBuf::from("/path/to/program"));
+///
+/// match build_program(&args, program_dir) {
+///     Ok(path) => println!("Program built successfully at: {}", path),
+///     Err(e) => eprintln!("Failed to build program: {}", e),
+/// }
+/// ```
 pub fn build_program(args: &BuildArgs, program_dir: Option<PathBuf>) -> Result<Utf8PathBuf> {
+    // If the program directory is specified, this function was called by sp1-helper.
     let is_helper = program_dir.is_some();
-    let program_dir = program_dir.unwrap_or_else(|| {
-        // Get the current directory.
-        std::env::current_dir().expect("Failed to get current directory.")
-    });
+
+    // If the program directory is not specified, use the current directory.
+    let program_dir = program_dir
+        .unwrap_or_else(|| std::env::current_dir().expect("Failed to get current directory."));
     let program_dir: Utf8PathBuf = program_dir
         .try_into()
         .expect("Failed to convert PathBuf to Utf8PathBuf");
 
+    // The root package name corresponds to the package name of the current directory.
     let metadata_cmd = cargo_metadata::MetadataCommand::new();
     let metadata = metadata_cmd.exec().unwrap();
     let root_package = metadata.root_package();
     let root_package_name = root_package.as_ref().map(|p| &p.name);
 
+    // Get the command corresponding to Docker or local build.
     let build_target = "riscv32im-succinct-zkvm-elf".to_string();
     let mut cmd = if args.docker {
         let mut docker_cmd = Command::new("docker");
@@ -246,6 +320,7 @@ pub fn build_program(args: &BuildArgs, program_dir: Option<PathBuf>) -> Result<U
         cmd.env_remove("RUSTC");
     }
 
+    // Add necessary tags for stdout and stderr from the command.
     let mut child = cmd
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -260,12 +335,12 @@ pub fn build_program(args: &BuildArgs, program_dir: Option<PathBuf>) -> Result<U
         exit(result.code().unwrap_or(1))
     }
 
+    // Write the ELF to a target folder specified by the program's package.
     let elf_path = metadata
         .target_directory
         .join(build_target.clone())
         .join("release")
         .join(root_package_name.unwrap());
-
     let elf_dir = program_dir.join("elf");
     fs::create_dir_all(&elf_dir)?;
 

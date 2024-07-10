@@ -8,7 +8,7 @@ fn current_datetime() -> String {
 }
 
 /// Re-run the cargo command if the Cargo.toml or Cargo.lock file changes.
-pub fn cargo_rerun_if_changed(path: &str) -> (&Path, String) {
+fn cargo_rerun_if_changed(path: &str) -> (&Path, String) {
     println!("path: {:?}", path);
     let program_dir = std::path::Path::new(path);
 
@@ -43,24 +43,6 @@ pub fn cargo_rerun_if_changed(path: &str) -> (&Path, String) {
     (program_dir, root_package_name.to_string())
 }
 
-/// Builds the program if the program at path, or one of its dependencies, changes.
-/// Note: This function is kept for backwards compatibility.
-pub fn build_program(path: &str) {
-    // Activate the build command if the dependencies change.
-    let (program_dir, _) = cargo_rerun_if_changed(path);
-
-    let _ = execute_build_cmd(&program_dir, None);
-}
-
-/// Builds the program with the given arguments if the program at path, or one of its dependencies,
-/// changes.
-pub fn build_program_with_args(path: &str, args: BuildArgs) {
-    // Activate the build command if the dependencies change.
-    let (program_dir, _) = cargo_rerun_if_changed(path);
-
-    let _ = execute_build_cmd(&program_dir, Some(args));
-}
-
 /// Executes the `cargo prove build` command in the program directory. If there are any cargo prove
 /// build arguments, they are added to the command.
 fn execute_build_cmd(
@@ -77,6 +59,7 @@ fn execute_build_cmd(
         return Ok(std::process::ExitStatus::default());
     }
 
+    // Build the program with the given arguments.
     let path_output = if let Some(args) = args {
         sp1_build::build_program(&args, Some(program_dir.as_ref().to_path_buf()))
     } else {
@@ -90,4 +73,60 @@ fn execute_build_cmd(
     }
 
     Ok(ExitStatus::default())
+}
+
+/// Builds the program if the program at the specified path, or one of its dependencies, changes.
+///
+/// This function monitors the program and its dependencies for changes. If any changes are detected,
+/// it triggers a rebuild of the program.
+///
+/// # Arguments
+///
+/// * `path` - A string slice that holds the path to the program directory.
+///
+/// # Example
+///
+/// ```
+/// use sp1_helper::build_program;
+///
+/// build_program("path/to/program");
+/// ```
+///
+/// This function is useful for automatically rebuilding the program during development
+/// when changes are made to the source code or its dependencies.
+pub fn build_program(path: &str) {
+    // Activate the build command if the dependencies change.
+    let (program_dir, _) = cargo_rerun_if_changed(path);
+
+    let _ = execute_build_cmd(&program_dir, None);
+}
+
+/// Builds the program with the given arguments if the program at path, or one of its dependencies,
+/// changes.
+///
+/// # Arguments
+///
+/// * `path` - A string slice that holds the path to the program directory.
+/// * `args` - A [`BuildArgs`] struct that contains various build configuration options.
+///
+/// # Example that builds the program in a docker container with the `feature1` feature enabled:
+///
+/// ```
+/// use sp1_helper::{build_program_with_args, BuildArgs};
+///
+/// let args = BuildArgs {
+///     docker: true,
+///     features: vec!["feature1".to_string()],
+///     ..Default::default()
+/// };
+///
+/// build_program_with_args("path/to/program", args);
+/// ```
+///
+/// See [`BuildArgs`] for more details on available build options.
+pub fn build_program_with_args(path: &str, args: BuildArgs) {
+    // Activate the build command if the dependencies change.
+    let (program_dir, _) = cargo_rerun_if_changed(path);
+
+    let _ = execute_build_cmd(&program_dir, Some(args));
 }
