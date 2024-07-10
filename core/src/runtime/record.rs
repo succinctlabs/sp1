@@ -10,6 +10,7 @@ use super::program::Program;
 use super::Opcode;
 use crate::air::PublicValues;
 use crate::alu::AluEvent;
+use crate::bytes::event::add_sharded_byte_lookup_events;
 use crate::bytes::event::ByteRecord;
 use crate::bytes::ByteLookupEvent;
 use crate::cpu::CpuEvent;
@@ -251,20 +252,10 @@ impl MachineRecord for ExecutionRecord {
         self.bls12381_decompress_events
             .append(&mut other.bls12381_decompress_events);
 
-        // Merge the byte lookups.
-        for (shard, events_map) in std::mem::take(&mut other.byte_lookups).into_iter() {
-            match self.byte_lookups.get_mut(&shard) {
-                Some(existing) => {
-                    // If there's already a map for this shard, update counts for each event.
-                    for (event, count) in events_map.iter() {
-                        *existing.entry(*event).or_insert(0) += count;
-                    }
-                }
-                None => {
-                    // If there isn't a map for this shard, insert the whole map.
-                    self.byte_lookups.insert(shard, events_map);
-                }
-            }
+        if self.byte_lookups.is_empty() {
+            self.byte_lookups = std::mem::take(&mut other.byte_lookups);
+        } else {
+            self.add_sharded_byte_lookup_events(vec![&other.byte_lookups]);
         }
 
         self.memory_initialize_events
@@ -593,6 +584,14 @@ impl ByteRecord for ExecutionRecord {
             .or_default()
             .entry(blu_event)
             .or_insert(0) += 1
+    }
+
+    #[inline]
+    fn add_sharded_byte_lookup_events(
+        &mut self,
+        new_events: Vec<&HashMap<u32, HashMap<ByteLookupEvent, usize>>>,
+    ) {
+        add_sharded_byte_lookup_events(&mut self.byte_lookups, new_events);
     }
 }
 
