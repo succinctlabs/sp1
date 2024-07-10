@@ -239,6 +239,9 @@ pub fn build_program(args: &BuildArgs, program_dir: Option<PathBuf>) -> Result<U
         build_cmd
     };
 
+    // Strip the Rustc configuration if this is called by sp1-helper, otherwise it will attempt to
+    // compile the SP1 program with the toolchain of the normal build process, rather than the
+    // Succinct toolchain.
     if is_helper {
         cmd.env_remove("RUSTC");
     }
