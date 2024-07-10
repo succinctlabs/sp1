@@ -296,12 +296,6 @@ where
             // DslIr::IfEqI(_, _, _, _) => todo!(),
             // DslIr::IfNeI(_, _, _, _) => todo!(),
             // DslIr::Break => todo!(),
-            // DslIr::AssertNeV(_, _) => todo!(),
-            // DslIr::AssertNeF(_, _) => todo!(),
-            // DslIr::AssertNeE(_, _) => todo!(),
-            // DslIr::AssertNeVI(_, _) => todo!(),
-            // DslIr::AssertNeFI(_, _) => todo!(),
-            // DslIr::AssertNeEI(_, _) => todo!(),
             // DslIr::Alloc(_, _, _) => todo!(),
             // DslIr::LoadV(_, _, _) => todo!(),
             // DslIr::LoadF(_, _, _) => todo!(),
@@ -515,7 +509,10 @@ where
 mod tests {
     use p3_baby_bear::DiffusionMatrixBabyBear;
     use rand::{rngs::StdRng, Rng, SeedableRng};
-    use sp1_core::{stark::StarkGenericConfig, utils::run_test_machine};
+    use sp1_core::{
+        stark::StarkGenericConfig,
+        utils::{run_test_machine, BabyBearPoseidon2Inner},
+    };
     use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
     use sp1_recursion_core_v2::{machine::RecursionAir, RecursionProgram, Runtime};
 
@@ -528,13 +525,16 @@ mod tests {
     type SC = BabyBearPoseidon2Outer;
     type F = <SC as StarkGenericConfig>::Val;
     type EF = <SC as StarkGenericConfig>::Challenge;
-    type A = RecursionAir<F>;
+    type A = RecursionAir<F, 3>;
 
     fn test_operations(operations: TracedVec<DslIr<AsmConfig<F, EF>>>) {
         let mut compiler = super::AsmCompiler::default();
         let instructions = compiler.compile(operations);
         let program = RecursionProgram { instructions };
-        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program);
+        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(
+            &program,
+            BabyBearPoseidon2Inner::new().perm,
+        );
         runtime.run();
 
         let config = SC::new();
