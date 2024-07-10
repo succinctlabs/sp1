@@ -207,8 +207,7 @@ fn add_cargo_prove_build_args(
 /// Build a program with the specified BuildArgs. program_dir is specified as an argument when
 /// the program is built via build_program in sp1-helper.
 pub fn build_program(args: &BuildArgs, program_dir: Option<PathBuf>) -> Result<Utf8PathBuf> {
-    let build_with_helper = program_dir.is_some();
-
+    let is_helper = program_dir.is_some();
     let program_dir = program_dir.unwrap_or_else(|| {
         // Get the current directory.
         std::env::current_dir().expect("Failed to get current directory.")
@@ -245,7 +244,7 @@ pub fn build_program(args: &BuildArgs, program_dir: Option<PathBuf>) -> Result<U
         .context("failed to spawn command")?;
     let stdout = BufReader::new(child.stdout.take().unwrap());
     let stderr = BufReader::new(child.stderr.take().unwrap());
-    handle_cmd_output(stdout, stderr, build_with_helper, args.docker);
+    handle_cmd_output(stdout, stderr, is_helper, args.docker);
     let result = child.wait()?;
     if !result.success() {
         // Error message is already printed by cargo.
