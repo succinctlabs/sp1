@@ -51,7 +51,7 @@ Next to the package name, it should have a link to the Github repository that yo
 
 To check if a precompile is used by your program, you can observe SP1's log output. Make sure to setup the logger with `sp1_sdk::utils::setup_logger()` and run your program with `RUST_LOG=info`.
 
-In the example below, note how the `sha256_extend` precompile was repoted as being used eight times.
+In the example below, note how the `sha256_extend` precompile was reported as being used eight times.
 
 ```bash
 2024-07-03T04:46:33.753527Z  INFO prove_core: execution report (syscall counts):
@@ -72,7 +72,7 @@ cargo update -p ed25519-consensus
 
 If you encounter issues relating to cargo / git, you can try setting `CARGO_NET_GIT_FETCH_WITH_CLI`:
 
-```
+```bash
 CARGO_NET_GIT_FETCH_WITH_CLI=true cargo update -p ed25519-consensus
 ```
 
@@ -82,4 +82,3 @@ You can permanently set this value in `~/.cargo/config`:
 [net]
 git-fetch-with-cli = true
 ```
-
