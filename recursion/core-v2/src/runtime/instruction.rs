@@ -13,7 +13,7 @@ pub enum Instruction<F> {
 }
 
 pub fn base_alu<F: AbstractField>(
-    opcode: Opcode,
+    opcode: BaseAluOpcode,
     mult: u32,
     out: u32,
     in1: u32,
@@ -31,7 +31,7 @@ pub fn base_alu<F: AbstractField>(
 }
 
 pub fn ext_alu<F: AbstractField>(
-    opcode: Opcode,
+    opcode: ExtAluOpcode,
     mult: u32,
     out: u32,
     in1: u32,

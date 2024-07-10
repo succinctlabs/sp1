@@ -130,30 +130,20 @@ mod tests {
     // TODO expand glob import
     use crate::{runtime::instruction as instr, *};
 
-    #[test]
-    pub fn fibonacci() {
-        type SC = BabyBearPoseidon2Outer;
-        type F = <SC as StarkGenericConfig>::Val;
-        type EF = <SC as StarkGenericConfig>::Challenge;
-        type A = RecursionAir<F, 3>;
+    type SC = BabyBearPoseidon2Outer;
+    type F = <SC as StarkGenericConfig>::Val;
+    type EF = <SC as StarkGenericConfig>::Challenge;
+    type A = RecursionAir<F, 3>;
 
-        let n = 10;
-
-        let instructions = once(instr::mem(MemAccessKind::Write, 1, 0, 0))
-            .chain(once(instr::mem(MemAccessKind::Write, 2, 1, 1)))
-            .chain((2..=n).map(|i| instr::base_alu(Opcode::AddF, 2, i, i - 2, i - 1)))
-            .chain(once(instr::mem(MemAccessKind::Read, 1, n - 1, 34)))
-            .chain(once(instr::mem(MemAccessKind::Read, 2, n, 55)))
-            .collect::<Vec<_>>();
-
-        let config = SC::new();
-
+    fn test_instructions(instructions: Vec<Instruction<F>>) {
         let program = RecursionProgram { instructions };
         let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(
             &program,
             BabyBearPoseidon2Inner::new().perm,
         );
         runtime.run();
+
+        let config = SC::new();
         let machine = A::machine(config);
         let (pk, vk) = machine.setup(&program);
         let result = run_test_machine(runtime.record, machine, pk, vk);
@@ -163,12 +153,46 @@ mod tests {
     }
 
     #[test]
-    pub fn field_norm() {
-        type SC = BabyBearPoseidon2Outer;
-        type F = <SC as StarkGenericConfig>::Val;
-        type EF = <SC as StarkGenericConfig>::Challenge;
-        type A = RecursionAir<F, 3>;
+    pub fn fibonacci() {
+        let n = 10;
 
+        let instructions = once(instr::mem(MemAccessKind::Write, 1, 0, 0))
+            .chain(once(instr::mem(MemAccessKind::Write, 2, 1, 1)))
+            .chain((2..=n).map(|i| instr::base_alu(BaseAluOpcode::AddF, 2, i, i - 2, i - 1)))
+            .chain(once(instr::mem(MemAccessKind::Read, 1, n - 1, 34)))
+            .chain(once(instr::mem(MemAccessKind::Read, 2, n, 55)))
+            .collect::<Vec<_>>();
+
+        test_instructions(instructions);
+    }
+
+    #[test]
+    #[should_panic]
+    pub fn div_nonzero_by_zero() {
+        let instructions = vec![
+            instr::mem(MemAccessKind::Write, 1, 0, 0),
+            instr::mem(MemAccessKind::Write, 1, 1, 1),
+            instr::base_alu(BaseAluOpcode::DivF, 1, 2, 1, 0),
+            instr::mem(MemAccessKind::Read, 1, 2, 1),
+        ];
+
+        test_instructions(instructions);
+    }
+
+    #[test]
+    pub fn div_zero_by_zero() {
+        let instructions = vec![
+            instr::mem(MemAccessKind::Write, 1, 0, 0),
+            instr::mem(MemAccessKind::Write, 1, 1, 0),
+            instr::base_alu(BaseAluOpcode::DivF, 1, 2, 1, 0),
+            instr::mem(MemAccessKind::Read, 1, 2, 1),
+        ];
+
+        test_instructions(instructions);
+    }
+
+    #[test]
+    pub fn field_norm() {
         let mut instructions = Vec::new();
 
         let mut rng = StdRng::seed_from_u64(0xDEADBEEF);
@@ -187,7 +211,13 @@ mod tests {
             instructions.push(instr::mem_ext(MemAccessKind::Write, 1, addr, acc));
             for conj in gal {
                 instructions.push(instr::mem_ext(MemAccessKind::Write, 1, addr + 1, conj));
-                instructions.push(instr::ext_alu(Opcode::MulE, 1, addr + 2, addr, addr + 1));
+                instructions.push(instr::ext_alu(
+                    ExtAluOpcode::MulE,
+                    1,
+                    addr + 2,
+                    addr,
+                    addr + 1,
+                ));
 
                 addr += 2;
                 acc *= conj;
@@ -197,19 +227,6 @@ mod tests {
             addr += 1;
         }
 
-        let program = RecursionProgram { instructions };
-        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(
-            &program,
-            BabyBearPoseidon2Inner::new().perm,
-        );
-        runtime.run();
-
-        let config = SC::new();
-        let machine = A::machine(config);
-        let (pk, vk) = machine.setup(&program);
-        let result = run_test_machine(runtime.record, machine, pk, vk);
-        if let Err(e) = result {
-            panic!("Verification failed: {:?}", e);
-        }
+        test_instructions(instructions);
     }
 }

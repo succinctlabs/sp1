@@ -1,6 +1,5 @@
 use std::borrow::Borrow;
 use std::panic::{self, AssertUnwindSafe};
-use std::process::exit;
 
 use p3_air::{
     Air, AirBuilder, AirBuilderWithPublicValues, ExtensionBuilder, PairBuilder,
@@ -97,10 +96,12 @@ pub fn debug_constraints<SC, A>(
             chip.eval(&mut builder);
         }));
         if result.is_err() {
-            eprintln!("local: {:?}", main_local);
-            eprintln!("next:  {:?}", main_next);
-            eprintln!("failed at row {} of chip {}", i, chip.name());
-            exit(1);
+            panic!(
+                "failed at row {i} of chip {}:\
+                       \tlocal: {main_local:?}\
+                       \tnext:  {main_next:?}",
+                chip.name()
+            );
         }
     });
 }

@@ -6,7 +6,6 @@ mod utils;
 
 use std::array;
 use std::collections::VecDeque;
-use std::process::exit;
 use std::{marker::PhantomData, sync::Arc};
 
 use hashbrown::HashMap;
@@ -628,11 +627,10 @@ where
                             let trace = self.program.traces[nearby_pc].clone();
                             if let Some(mut trace) = trace {
                                 trace.resolve();
-                                eprintln!(
+                                panic!(
                                     "TRAP encountered at pc={}. Nearest trace at pc={}: {:?}",
                                     trap_pc, nearby_pc, trace
                                 );
-                                exit(1);
                             }
                         }
                         panic!("TRAP encountered. No backtrace available");
