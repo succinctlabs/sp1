@@ -113,7 +113,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpReverseBitsLenCh
                     row.is_real = F::one();
                     row.x_memory = MemoryPreprocessedColsNoVal {
                         addr: addrs.base,
-                        read_mult: *mult,
+                        read_mult: *mult * F::from_bool(i == 0),
                         write_mult: F::zero(),
                         is_real: F::one(),
                     };
@@ -126,10 +126,9 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpReverseBitsLenCh
                     row.result_memory = MemoryPreprocessedColsNoVal {
                         addr: addrs.result,
                         read_mult: F::zero(),
-                        write_mult: *mult,
+                        write_mult: *mult * F::from_bool(i == addrs.exp.len() - 1),
                         is_real: F::one(),
                     };
-                    println!("cols {:?}", *row);
                 });
                 rows.extend(row_add);
             });
@@ -465,7 +464,7 @@ mod tests {
         let mut random_bit = move || rng.gen_range(0..2);
         let mut addr = 0;
 
-        let instructions = (1..2)
+        let instructions = (1..11)
             .flat_map(|i| {
                 let base = random_felt();
                 let exponent_bits = vec![random_bit(); i];
@@ -478,11 +477,11 @@ mod tests {
                 let result =
                     base.exp_u64(reverse_bits_len(exponent.as_canonical_u32() as usize, i) as u64);
 
-                let alloc_size = 34;
+                let alloc_size = i + 2;
                 let exp_a = (0..i).map(|x| x + addr + 1).collect::<Vec<_>>();
                 let exp_a_clone = exp_a.clone();
                 let x_a = addr;
-                let result_a = addr + 33;
+                let result_a = addr + alloc_size - 1;
                 addr += alloc_size;
                 let exp_bit_instructions = (0..i).map(move |j| {
                     instr::mem_single(

@@ -300,9 +300,6 @@ where
                     addrs: ExpReverseBitsIo { base, exp, result },
                     mult,
                 }) => {
-                    println!("Base Address: {:?}", base);
-                    println!("Exp Address: {:?}", exp);
-                    println!("Result Address: {:?}", result);
                     self.nb_exp_reverse_bits += 1;
                     let base_val = self.mr(base).val[0];
                     let exp_bits: Vec<_> = exp.iter().map(|bit| self.mr(*bit).val[0]).collect();
@@ -331,6 +328,5 @@ where
                 break;
             }
         }
-        println!("Number of Poseidon2 operations: {}", self.nb_poseidons);
     }
 }
