@@ -1,25 +1,19 @@
 #![allow(clippy::needless_range_loop)]
 
-use crate::mem::{MemoryPreprocessedCols, MemoryPreprocessedColsNoVal};
-// use crate::memory::{MemoryReadSingleCols, MemoryReadWriteSingleCols};
+use crate::mem::MemoryPreprocessedColsNoVal;
 use crate::{ExpReverseBitsInstr, Instruction};
 use core::borrow::Borrow;
-use itertools::Itertools;
 use p3_air::PairBuilder;
-use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::AbstractField;
+use p3_air::{Air, BaseAir};
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
-use p3_util::reverse_bits_len;
 use sp1_core::air::{BaseAirBuilder, ExtensionAirBuilder, MachineAir, SP1AirBuilder};
 use sp1_core::utils::pad_rows_fixed;
 use sp1_derive::AlignedBorrow;
-use sp1_recursion_core::air::{Block, IsZeroOperation, RecursionMemoryAirBuilder};
 use std::borrow::BorrowMut;
 use tracing::instrument;
 
-// use crate::memory::MemoryRecord;
 use crate::builder::SP1RecursionAirBuilder;
 use crate::runtime::{ExecutionRecord, RecursionProgram};
 
@@ -115,7 +109,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpReverseBitsLenCh
                         row.as_mut_slice().borrow_mut();
                     row.iteration_num = F::from_canonical_u32(i as u32);
                     row.is_first = F::from_bool(i == 0);
-                    row.is_last = F::from_bool(i == addrs.exp.len() as usize - 1);
+                    row.is_last = F::from_bool(i == addrs.exp.len() - 1);
                     row.is_real = F::one();
                     row.x_memory = MemoryPreprocessedColsNoVal {
                         addr: addrs.base,
@@ -185,13 +179,11 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpReverseBitsLenCh
                 cols.accum = accum;
                 cols.prev_accum_squared = prev_accum * prev_accum;
                 cols.multiplier = if event.exp[i] == F::one() {
-                    // The event may change the value stored in the x memory access, and we need to
-                    // use the previous value.
                     event.base
                 } else {
                     F::one()
                 };
-                if i == event.exp.len() as usize {
+                if i == event.exp.len() {
                     assert_eq!(event.result, accum);
                 }
             });
@@ -237,8 +229,8 @@ impl<const DEGREE: usize> ExpReverseBitsLenChip<DEGREE> {
         builder: &mut AB,
         local: &ExpReverseBitsLenCols<AB::Var>,
         prepr: &ExpReverseBitsLenPreprocessedCols<AB::Var>,
-        next: &ExpReverseBitsLenCols<AB::Var>,
-        memory_access: AB::Var,
+        _next: &ExpReverseBitsLenCols<AB::Var>,
+        _memory_access: AB::Var,
     ) {
         // Dummy constraints to normalize to DEGREE when DEGREE > 3.
         if DEGREE > 3 {
@@ -438,23 +430,16 @@ mod tests {
     use rand::SeedableRng;
     use sp1_core::utils::run_test_machine;
     use sp1_core::utils::setup_logger;
+    use sp1_core::utils::BabyBearPoseidon2;
     use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
     use std::iter::once;
-    use std::mem::size_of;
-    use std::result;
-    use std::time::Instant;
 
     use p3_baby_bear::BabyBear;
     use p3_baby_bear::DiffusionMatrixBabyBear;
     use p3_field::{AbstractField, PrimeField32};
-    use p3_matrix::{dense::RowMajorMatrix, Matrix};
-    use p3_poseidon2::Poseidon2;
-    use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
+    use p3_matrix::dense::RowMajorMatrix;
+    use sp1_core::air::MachineAir;
     use sp1_core::stark::StarkGenericConfig;
-    use sp1_core::{
-        air::MachineAir,
-        utils::{uni_stark_prove, uni_stark_verify, BabyBearPoseidon2},
-    };
 
     use crate::exp_reverse_bits::ExpReverseBitsLenChip;
     use crate::machine::RecursionAir;
@@ -515,9 +500,7 @@ mod tests {
                         exp_a
                             .into_iter()
                             .map(|bit| F::from_canonical_u32(bit as u32))
-                            .collect_vec()
-                            .try_into()
-                            .unwrap(),
+                            .collect_vec(),
                         F::from_canonical_u32(result_a as u32),
                     )))
                     .chain(once(instr::mem_single(
