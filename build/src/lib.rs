@@ -72,14 +72,27 @@ pub struct BuildArgs {
     pub ignore_rust_version: bool,
     #[cfg_attr(
         feature = "clap",
-        clap(long, action, help = "If building a binary, specify the name.")
+        clap(
+            long,
+            action,
+            help = "If building a binary, specify the name.",
+            default_value = ""
+        )
     )]
     pub binary: String,
-    #[cfg_attr(feature = "clap", clap(long, action, help = "ELF binary name."))]
+    #[cfg_attr(
+        feature = "clap",
+        clap(long, action, help = "ELF binary name.", default_value = "")
+    )]
     pub elf: String,
     #[cfg_attr(
         feature = "clap",
-        clap(long, action, help = "The output directory for the built program.")
+        clap(
+            long,
+            action,
+            help = "The output directory for the built program.",
+            default_value = ""
+        )
     )]
     pub output_directory: String,
 }
