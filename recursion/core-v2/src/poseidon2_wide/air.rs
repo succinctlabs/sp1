@@ -1,17 +1,17 @@
-//! The air module contains the AIR constraints for the poseidon2 chip.  Those constraints will
-//! enforce the following properties:
-//!
+//! The air module contains the AIR constraints for the poseidon2 chip.  
+//! At the moment, we're only including memory constraints to test the new memory argument.
 
 use std::borrow::Borrow;
 
 use p3_air::{Air, BaseAir, PairBuilder};
 use p3_matrix::Matrix;
 
-use crate::builder::SP1RecursionAirBuilder;
-
-use crate::poseidon2_wide::{
-    columns::{NUM_POSEIDON2_DEGREE3_COLS, NUM_POSEIDON2_DEGREE9_COLS},
-    Poseidon2WideChip,
+use crate::{
+    builder::SP1RecursionAirBuilder,
+    poseidon2_wide::{
+        columns::{NUM_POSEIDON2_DEGREE3_COLS, NUM_POSEIDON2_DEGREE9_COLS},
+        Poseidon2WideChip,
+    },
 };
 
 use super::columns::preprocessed::Poseidon2PreprocessedCols;
@@ -59,7 +59,6 @@ where
             )
         });
 
-        // For now, include only memory constraints.
         (0..WIDTH).for_each(|i| {
             builder.send_single(
                 prep_local.memory_preprocessed.memory_prepr[i].addr,
@@ -67,9 +66,5 @@ where
                 prep_local.memory_preprocessed.memory_prepr[i].write_mult,
             )
         });
-
-        // builder.receive_single(prep_local.addrs.in2, *in2, prep_local.is_real);
-
-        // builder.send_single(prep_local.addrs.out, *out, prep_local.mult);
     }
 }

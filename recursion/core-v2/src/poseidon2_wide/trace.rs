@@ -8,13 +8,15 @@ use sp1_core::{air::MachineAir, utils::pad_rows_fixed};
 use sp1_primitives::RC_16_30_U32;
 use tracing::instrument;
 
-use crate::poseidon2_wide::{external_linear_layer, NUM_EXTERNAL_ROUNDS, WIDTH};
-use crate::Address;
-use crate::{instruction::Instruction::Poseidon2Wide, ExecutionRecord, RecursionProgram};
-
-use super::columns::permutation::max;
-use super::columns::preprocessed::Poseidon2PreprocessedCols;
-use super::{internal_linear_layer, Poseidon2WideChip, NUM_INTERNAL_ROUNDS};
+use crate::{
+    instruction::Instruction::Poseidon2Wide,
+    poseidon2_wide::{
+        columns::{permutation::max, preprocessed::Poseidon2PreprocessedCols},
+        external_linear_layer, internal_linear_layer, Poseidon2WideChip, NUM_EXTERNAL_ROUNDS,
+        NUM_INTERNAL_ROUNDS, WIDTH,
+    },
+    Address, ExecutionRecord, RecursionProgram,
+};
 
 const PREPROCESSED_POSEIDON2_WIDTH: usize = size_of::<Poseidon2PreprocessedCols<u8>>();
 
@@ -113,6 +115,9 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
         PREPROCESSED_POSEIDON2_WIDTH
     }
 
+    /// This is very much subject to change. At the moment, we just populate the memory management
+    /// columns. For the moment, we assume that the program only contains Poseidon2Wide instructions,
+    /// and for each instruction we read 16 successive memory locations and write to the next 16.
     fn generate_preprocessed_trace(&self, _program: &Self::Program) -> Option<RowMajorMatrix<F>> {
         let instruction_count = _program
             .instructions
@@ -162,7 +167,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
                     .iter_mut()
                     .enumerate()
                     .for_each(|(i, x)| {
-                        x.addr = Address(F::from_canonical_usize(2 * event_ct * WIDTH + WIDTH + i));
+                        x.addr = Address(F::from_canonical_usize((2 * event_ct + 1) * WIDTH + i));
                         x.is_real = if event_ct < instruction_count {
                             F::one()
                         } else {

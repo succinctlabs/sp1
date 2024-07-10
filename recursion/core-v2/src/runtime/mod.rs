@@ -99,7 +99,6 @@ pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
         >,
     >,
 
-    // p2_hash_state: [F; PERMUTATION_WIDTH],
     _marker_ef: PhantomData<EF>,
 
     _marker_diffusion: PhantomData<Diffusion>,
@@ -143,7 +142,6 @@ where
             record,
             cycle_tracker: HashMap::new(),
             perm: Some(perm),
-            // p2_hash_state: [F::zero(); PERMUTATION_WIDTH],
             _marker_ef: PhantomData,
             _marker_diffusion: PhantomData,
         }
@@ -283,10 +281,7 @@ where
                 }) => {
                     self.nb_poseidons += 1;
                     let in_vals = std::array::from_fn(|i| self.mr(input[i]).val[0]);
-                    println!("in_vals: {:?}", in_vals);
                     let perm_output = self.perm.as_ref().unwrap().permute(in_vals);
-                    println!("output: {:?}", perm_output);
-                    println!("output addresses: {:?}", output);
 
                     perm_output.iter().enumerate().for_each(|(i, &val)| {
                         self.mw(output[i], Block::from(val), mult);

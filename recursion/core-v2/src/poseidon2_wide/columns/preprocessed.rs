@@ -1,9 +1,6 @@
 use sp1_derive::AlignedBorrow;
 
-use crate::mem::MemoryPreprocessedColsNoVal;
-use crate::poseidon2_wide::WIDTH;
-
-// pub const POSEIDON2_MEMORY_PREPROCESSED_WIDTH: usize = size_of::<MemoryPreprocessedkkj<u8>>();
+use crate::{mem::MemoryPreprocessedColsNoVal, poseidon2_wide::WIDTH};
 
 #[derive(AlignedBorrow, Clone, Copy, Debug)]
 #[repr(C)]

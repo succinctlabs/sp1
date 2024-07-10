@@ -6,10 +6,11 @@ use sp1_derive::AlignedBorrow;
 
 use super::{NUM_INTERNAL_ROUNDS, WIDTH};
 
-pub mod dummy_interactions;
 pub mod permutation;
 pub mod preprocessed;
 
+pub const POSEIDON2_DEGREE3_COL_MAP: Poseidon2Degree3<usize> = make_col_map_degree3();
+pub const NUM_POSEIDON2_DEGREE3_COLS: usize = size_of::<Poseidon2Degree3<u8>>();
 /// Trait for getter methods for Poseidon2 columns.
 pub trait Poseidon2<'a, T: Copy + 'a> {
     fn state_var(&self) -> &[T; WIDTH];
@@ -28,67 +29,12 @@ pub trait Poseidon2Mut<'a, T: Copy + 'a> {
     );
 }
 
-/// Enum to enable dynamic dispatch for the Poseidon2 columns.
-#[allow(dead_code)]
-enum Poseidon2Enum<T: Copy> {
-    P2Degree3(Poseidon2Degree3<T>),
-    P2Degree9(Poseidon2Degree9<T>),
-}
-
-impl<'a, T: Copy + 'a> Poseidon2<'a, T> for Poseidon2Enum<T> {
-    fn state_var(&self) -> &[T; WIDTH] {
-        match self {
-            Poseidon2Enum::P2Degree3(p) => p.state_var(),
-            Poseidon2Enum::P2Degree9(p) => p.state_var(),
-        }
-    }
-
-    fn internal_rounds_s0(&self) -> &[T; NUM_INTERNAL_ROUNDS - 1] {
-        match self {
-            Poseidon2Enum::P2Degree3(p) => p.internal_rounds_s0(),
-            Poseidon2Enum::P2Degree9(p) => p.internal_rounds_s0(),
-        }
-    }
-
-    fn s_box_state(&self) -> Option<&[T; WIDTH]> {
-        match self {
-            Poseidon2Enum::P2Degree3(p) => p.s_box_state(),
-            Poseidon2Enum::P2Degree9(p) => p.s_box_state(),
-        }
-    }
-}
-
-/// Enum to enable dynamic dispatch for the Poseidon2 columns.
-#[allow(dead_code)]
-enum Poseidon2MutEnum<'a, T: Copy> {
-    P2Degree3(&'a mut Poseidon2Degree3<T>),
-    P2Degree9(&'a mut Poseidon2Degree9<T>),
-}
-
-impl<'a, T: Copy + 'a> Poseidon2Mut<'a, T> for Poseidon2MutEnum<'a, T> {
-    fn get_cols_mut(
-        &mut self,
-    ) -> (
-        &mut [T; WIDTH],
-        &mut [T; NUM_INTERNAL_ROUNDS - 1],
-        Option<&mut [T; WIDTH]>,
-    ) {
-        match self {
-            Poseidon2MutEnum::P2Degree3(p) => p.get_cols_mut(),
-            Poseidon2MutEnum::P2Degree9(p) => p.get_cols_mut(),
-        }
-    }
-}
-
-pub const NUM_POSEIDON2_DEGREE3_COLS: usize = size_of::<Poseidon2Degree3<u8>>();
-
 const fn make_col_map_degree3() -> Poseidon2Degree3<usize> {
     let indices_arr = indices_arr::<NUM_POSEIDON2_DEGREE3_COLS>();
     unsafe {
         transmute::<[usize; NUM_POSEIDON2_DEGREE3_COLS], Poseidon2Degree3<usize>>(indices_arr)
     }
 }
-pub const POSEIDON2_DEGREE3_COL_MAP: Poseidon2Degree3<usize> = make_col_map_degree3();
 
 /// Struct for the poseidon2 chip that contains sbox columns.
 #[derive(AlignedBorrow, Clone, Copy)]
@@ -96,6 +42,7 @@ pub const POSEIDON2_DEGREE3_COL_MAP: Poseidon2Degree3<usize> = make_col_map_degr
 pub struct Poseidon2Degree3<T: Copy> {
     pub permutation_cols: PermutationSBox<T>,
 }
+
 impl<'a, T: Copy + 'a> Poseidon2<'a, T> for Poseidon2Degree3<T> {
     fn state_var(&self) -> &[T; WIDTH] {
         &self.permutation_cols.state.state_var

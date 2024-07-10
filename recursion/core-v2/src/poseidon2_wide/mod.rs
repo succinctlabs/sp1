@@ -14,10 +14,7 @@ pub mod trace;
 
 use p3_poseidon2::matmul_internal;
 
-use self::columns::Poseidon2;
-use self::columns::Poseidon2Degree3;
-use self::columns::Poseidon2Degree9;
-use self::columns::Poseidon2Mut;
+use self::columns::{Poseidon2, Poseidon2Degree3, Poseidon2Degree9, Poseidon2Mut};
 
 /// The width of the permutation.
 pub const WIDTH: usize = 16;
@@ -128,7 +125,6 @@ pub(crate) mod tests {
 
     use crate::machine::RecursionAir;
     use crate::{runtime::instruction as instr, MemAccessKind, RecursionProgram, Runtime};
-    use p3_air::BaseAir;
     use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
     use p3_field::{AbstractField, PrimeField32};
     use p3_symmetric::Permutation;
@@ -136,34 +132,55 @@ pub(crate) mod tests {
     use sp1_core::utils::{inner_perm, run_test_machine, setup_logger, BabyBearPoseidon2};
 
     use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
+    use zkhash::ark_ff::UniformRand;
 
-    use super::{Poseidon2WideChip, WIDTH};
+    use super::WIDTH;
 
     #[test]
-    fn test_poseidon2_deg_3() {
+    fn test_poseidon2() {
         setup_logger();
         type SC = BabyBearPoseidon2Outer;
         type F = <SC as StarkGenericConfig>::Val;
         type EF = <SC as StarkGenericConfig>::Challenge;
         type A = RecursionAir<F, 3>;
+        type B = RecursionAir<F, 9>;
 
         let input = [1; WIDTH];
         let output = inner_perm()
             .permute(input.map(BabyBear::from_canonical_u32))
             .map(|x| BabyBear::as_canonical_u32(&x));
 
-        let instructions = (0..WIDTH)
-            .map(|i| instr::mem(MemAccessKind::Write, 1, i as u32, input[i]))
-            .chain(once(instr::poseidon2_wide(
-                1,
-                std::array::from_fn(|i| (i + WIDTH) as u32),
-                std::array::from_fn(|i| i as u32),
-            )))
-            .chain(
-                (0..WIDTH)
-                    .map(|i| instr::mem(MemAccessKind::Read, 1, (i + WIDTH) as u32, output[i])),
-            )
-            .collect::<Vec<_>>();
+        let rng = &mut rand::thread_rng();
+        let input_1: [BabyBear; WIDTH] = std::array::from_fn(|_| BabyBear::rand(rng));
+        let output_1 = inner_perm()
+            .permute(input_1)
+            .map(|x| BabyBear::as_canonical_u32(&x));
+        let input_1 = input_1.map(|x| BabyBear::as_canonical_u32(&x));
+
+        let instructions =
+            (0..WIDTH)
+                .map(|i| instr::mem(MemAccessKind::Write, 1, i as u32, input[i]))
+                .chain(once(instr::poseidon2_wide(
+                    1,
+                    std::array::from_fn(|i| (i + WIDTH) as u32),
+                    std::array::from_fn(|i| i as u32),
+                )))
+                .chain(
+                    (0..WIDTH)
+                        .map(|i| instr::mem(MemAccessKind::Read, 1, (i + WIDTH) as u32, output[i])),
+                )
+                .chain((0..WIDTH).map(|i| {
+                    instr::mem(MemAccessKind::Write, 1, (2 * WIDTH + i) as u32, input_1[i])
+                }))
+                .chain(once(instr::poseidon2_wide(
+                    1,
+                    std::array::from_fn(|i| (i + 3 * WIDTH) as u32),
+                    std::array::from_fn(|i| (i + 2 * WIDTH) as u32),
+                )))
+                .chain((0..WIDTH).map(|i| {
+                    instr::mem(MemAccessKind::Read, 1, (i + 3 * WIDTH) as u32, output_1[i])
+                }))
+                .collect::<Vec<_>>();
 
         let program = RecursionProgram { instructions };
         let mut runtime =
@@ -171,58 +188,18 @@ pub(crate) mod tests {
         runtime.run();
 
         let config = SC::new();
-        println!(
-            "Poseidon Degree 3 main width: {}",
-            <Poseidon2WideChip<3> as BaseAir<F>>::width(&Poseidon2WideChip::<3>::default())
-        );
-        let machine = A::machine(config);
-        let (pk, vk) = machine.setup(&program);
-        let result = run_test_machine(runtime.record, machine, pk, vk);
-        if let Err(e) = result {
+        let machine_deg_3 = A::machine(config);
+        let (pk_3, vk_3) = machine_deg_3.setup(&program);
+        let result_deg_3 = run_test_machine(runtime.record.clone(), machine_deg_3, pk_3, vk_3);
+        if let Err(e) = result_deg_3 {
             panic!("Verification failed: {:?}", e);
         }
-    }
-
-    #[test]
-    fn test_poseidon2_deg_9() {
-        setup_logger();
-        type SC = BabyBearPoseidon2Outer;
-        type F = <SC as StarkGenericConfig>::Val;
-        type EF = <SC as StarkGenericConfig>::Challenge;
-        type A = RecursionAir<F, 9>;
-
-        let input = [1; WIDTH];
-        let output = inner_perm()
-            .permute(input.map(BabyBear::from_canonical_u32))
-            .map(|x| BabyBear::as_canonical_u32(&x));
-
-        let instructions = (0..WIDTH)
-            .map(|i| instr::mem(MemAccessKind::Write, 1, i as u32, input[i]))
-            .chain(once(instr::poseidon2_wide(
-                1,
-                std::array::from_fn(|i| (i + WIDTH) as u32),
-                std::array::from_fn(|i| i as u32),
-            )))
-            .chain(
-                (0..WIDTH)
-                    .map(|i| instr::mem(MemAccessKind::Read, 1, (i + WIDTH) as u32, output[i])),
-            )
-            .collect::<Vec<_>>();
-
-        let program = RecursionProgram { instructions };
-        let mut runtime =
-            Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program, BabyBearPoseidon2::new().perm);
-        runtime.run();
 
         let config = SC::new();
-        println!(
-            "Poseidon Degree 3 main width: {}",
-            <Poseidon2WideChip<3> as BaseAir<F>>::width(&Poseidon2WideChip::<3>::default())
-        );
-        let machine = A::machine(config);
-        let (pk, vk) = machine.setup(&program);
-        let result = run_test_machine(runtime.record, machine, pk, vk);
-        if let Err(e) = result {
+        let machine_deg_9 = B::machine(config);
+        let (pk_9, vk_9) = machine_deg_9.setup(&program);
+        let result_deg_9 = run_test_machine(runtime.record, machine_deg_9, pk_9, vk_9);
+        if let Err(e) = result_deg_9 {
             panic!("Verification failed: {:?}", e);
         }
     }
