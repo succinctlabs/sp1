@@ -33,15 +33,16 @@ use cargo_metadata::camino::Utf8PathBuf;
 /// # Example
 ///
 /// ```
-/// use your_crate::BuildArgs;
+/// use sp1_build::BuildArgs;
 ///
 /// let args = BuildArgs {
 ///     docker: true,
 ///     tag: "latest".to_string(),
 ///     features: vec!["feature1".to_string(), "feature2".to_string()],
 ///     ignore_rust_version: false,
-///     binary: Some("my_binary".to_string()),
-///     elf: Some("my_elf".to_string()),
+///     binary: "my_binary".to_string(),
+///     elf: "my_elf".to_string(),
+///     output_directory: "elf".to_string(),
 /// };
 ///
 /// // Use `args` to configure your build process
@@ -270,7 +271,7 @@ fn add_cargo_prove_build_args(
 /// # Example
 ///
 /// ```
-/// use your_crate::{BuildArgs, build_program};
+/// use sp1_build::BuildArgs;
 /// use std::path::PathBuf;
 ///
 /// let args = BuildArgs {
@@ -278,8 +279,9 @@ fn add_cargo_prove_build_args(
 ///     tag: "latest".to_string(),
 ///     features: vec!["feature1".to_string(), "feature2".to_string()],
 ///     ignore_rust_version: false,
-///     binary: Some("my_binary".to_string()),
-///     elf: Some("my_elf".to_string()),
+///     binary: "my_binary".to_string(),
+///     elf: "my_elf".to_string(),
+///     output_directory: "elf".to_string(),
 /// };
 ///
 /// let program_dir = Some(PathBuf::from("/path/to/program"));
@@ -289,7 +291,7 @@ fn add_cargo_prove_build_args(
 ///     Err(e) => eprintln!("Failed to build program: {}", e),
 /// }
 ///
-/// // Example using ..Default::default()
+/// // Example using default values
 /// let args = BuildArgs {
 ///     docker: true,
 ///     ..Default::default()
