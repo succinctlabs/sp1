@@ -138,6 +138,7 @@ jobs:
           cd cli
           cargo install --force --locked --path .
           ~/.sp1/bin/cargo-prove prove install-toolchain
+          rustc --print target-list
           cd ~
 
       - name: Run cargo check
