@@ -37,8 +37,8 @@ runs:
           ~/.cargo/git/db/
           target/
           ~/.rustup/
-        key: sodifnsoidfs
-        restore-keys: fvisdfviusnvisnfvisufv
+        key: rust-nightly-2024-04-17-${{ hashFiles('**/Cargo.toml') }}
+        restore-keys: rust-nightly-2024-04-17-
 
     - name: Setup toolchain
       id: rustc-toolchain
