@@ -6,7 +6,6 @@ mod utils;
 
 use std::array;
 use std::collections::VecDeque;
-use std::process::exit;
 use std::{marker::PhantomData, sync::Arc};
 
 use hashbrown::HashMap;
