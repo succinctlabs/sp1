@@ -27,19 +27,25 @@ pub const NUM_EXP_REVERSE_BITS_LEN_COLS: usize = core::mem::size_of::<ExpReverse
 pub const NUM_EXP_REVERSE_BITS_LEN_PREPROCESSED_COLS: usize =
     core::mem::size_of::<ExpReverseBitsLenPreprocessedCols<u8>>();
 
-#[derive(Default)]
 pub struct ExpReverseBitsLenChip<const DEGREE: usize> {
     pub fixed_log2_rows: Option<usize>,
     pub pad: bool,
 }
+impl<const DEGREE: usize> Default for ExpReverseBitsLenChip<DEGREE> {
+    fn default() -> Self {
+        Self {
+            fixed_log2_rows: None,
+            pad: true,
+        }
+    }
+}
 
-#[derive(AlignedBorrow, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, Clone, Copy, Debug)]
 #[repr(C)]
 pub struct ExpReverseBitsLenPreprocessedCols<T: Copy> {
     pub x_memory: MemoryPreprocessedColsNoVal<T>,
-    pub exponent_memory: [MemoryPreprocessedColsNoVal<T>; 32],
+    pub exponent_memory: MemoryPreprocessedColsNoVal<T>,
     pub result_memory: MemoryPreprocessedColsNoVal<T>,
-    pub len: T,
     pub iteration_num: T,
     pub is_first: T,
     pub is_last: T,
@@ -84,6 +90,10 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpReverseBitsLenCh
         // This is a no-op.
     }
 
+    fn preprocessed_width(&self) -> usize {
+        NUM_EXP_REVERSE_BITS_LEN_PREPROCESSED_COLS
+    }
+
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
         let mut rows: Vec<[F; NUM_EXP_REVERSE_BITS_LEN_PREPROCESSED_COLS]> = Vec::new();
         program
@@ -97,18 +107,15 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpReverseBitsLenCh
                 }
             })
             .for_each(|instruction| {
-                let ExpReverseBitsInstr { addrs, len, mult } = instruction;
-                let mut row_add = vec![
-                    [F::zero(); NUM_EXP_REVERSE_BITS_LEN_PREPROCESSED_COLS];
-                    len.as_canonical_u32() as usize
-                ];
+                let ExpReverseBitsInstr { addrs, mult } = instruction;
+                let mut row_add =
+                    vec![[F::zero(); NUM_EXP_REVERSE_BITS_LEN_PREPROCESSED_COLS]; addrs.exp.len()];
                 row_add.iter_mut().enumerate().for_each(|(i, row)| {
                     let row: &mut ExpReverseBitsLenPreprocessedCols<F> =
                         row.as_mut_slice().borrow_mut();
-                    row.len = *len - F::from_canonical_u32(i as u32);
                     row.iteration_num = F::from_canonical_u32(i as u32);
                     row.is_first = F::from_bool(i == 0);
-                    row.is_last = F::from_bool(i == len.as_canonical_u32() as usize - 1);
+                    row.is_last = F::from_bool(i == addrs.exp.len() as usize - 1);
                     row.is_real = F::one();
                     row.x_memory = MemoryPreprocessedColsNoVal {
                         addr: addrs.base,
@@ -116,18 +123,19 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpReverseBitsLenCh
                         write_mult: F::zero(),
                         is_real: F::one(),
                     };
-                    row.exponent_memory = addrs.exp.map(|exp| MemoryPreprocessedColsNoVal {
-                        addr: exp,
-                        read_mult: *mult,
+                    row.exponent_memory = MemoryPreprocessedColsNoVal {
+                        addr: addrs.exp[i],
+                        read_mult: F::one(),
                         write_mult: F::zero(),
                         is_real: F::one(),
-                    });
+                    };
                     row.result_memory = MemoryPreprocessedColsNoVal {
                         addr: addrs.result,
                         read_mult: F::zero(),
                         write_mult: *mult,
                         is_real: F::one(),
                     };
+                    println!("cols {:?}", *row);
                 });
                 rows.extend(row_add);
             });
@@ -156,10 +164,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpReverseBitsLenCh
     ) -> RowMajorMatrix<F> {
         let mut overall_rows = Vec::new();
         input.exp_reverse_bits_len_events.iter().for_each(|event| {
-            let mut rows = vec![
-                vec![F::zero(); NUM_EXP_REVERSE_BITS_LEN_COLS];
-                event.len.as_canonical_u32() as usize
-            ];
+            let mut rows = vec![vec![F::zero(); NUM_EXP_REVERSE_BITS_LEN_COLS]; event.exp.len()];
 
             let mut accum = F::one();
 
@@ -186,7 +191,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpReverseBitsLenCh
                 } else {
                     F::one()
                 };
-                if i == event.len.as_canonical_u32() as usize {
+                if i == event.exp.len() as usize {
                     assert_eq!(event.result, accum);
                 }
             });
@@ -356,15 +361,16 @@ impl<const DEGREE: usize> ExpReverseBitsLenChip<DEGREE> {
 
         // Access the memory for x.
         // This only needs to be done for the first and last iterations.
-        builder.receive_single(
-            prepr.x_memory.addr,
-            prepr.x_memory.read_mult,
-            prepr.x_memory.is_real,
-        );
+        builder.receive_single(prepr.x_memory.addr, local.x, prepr.x_memory.read_mult);
         builder.send_single(
             prepr.result_memory.addr,
             local.accum,
             prepr.result_memory.write_mult,
+        );
+        builder.receive_single(
+            prepr.exponent_memory.addr,
+            local.current_bit,
+            prepr.exponent_memory.read_mult,
         );
 
         // Need to access memory for
@@ -412,11 +418,11 @@ where
         let next: &ExpReverseBitsLenCols<AB::Var> = (*next).borrow();
         let prep = builder.preprocessed();
         let prep_local = prep.row_slice(0);
-        let prep_local: &ExpReverseBitsLenPreprocessedCols<AB::Var> = (*prep_local).borrow();
+        let prep_local: &ExpReverseBitsLenPreprocessedCols<_> = (*prep_local).borrow();
         self.eval_exp_reverse_bits_len::<AB>(
             builder,
             local,
-            prep,
+            prep_local,
             next,
             Self::do_exp_bit_memory_access::<AB::Var>(prep_local),
         );
@@ -431,8 +437,11 @@ mod tests {
     use rand::Rng;
     use rand::SeedableRng;
     use sp1_core::utils::run_test_machine;
+    use sp1_core::utils::setup_logger;
     use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
+    use std::iter::once;
     use std::mem::size_of;
+    use std::result;
     use std::time::Instant;
 
     use p3_baby_bear::BabyBear;
@@ -458,40 +467,65 @@ mod tests {
     use crate::Runtime;
 
     #[test]
-    fn prove_babybear() {
+    fn prove_babybear_circuit_erbl() {
+        setup_logger();
         type SC = BabyBearPoseidon2Outer;
         type F = <SC as StarkGenericConfig>::Val;
         type EF = <SC as StarkGenericConfig>::Challenge;
         type A = RecursionAir<F, 3>;
 
         let mut rng = StdRng::seed_from_u64(0xDEADBEEF);
-        let mut random_felt = move || -> F { rng.sample(rand::distributions::Standard) };
-        let mut random_bit = move || -> F { rng.sample_bit() };
+        let mut random_felt = move || -> F { F::from_canonical_u32(rng.gen_range(0..1 << 16)) };
+        let mut rng = StdRng::seed_from_u64(0xDEADBEEF);
+        let mut random_bit = move || rng.gen_range(0..2);
         let mut addr = 0;
 
-        let instructions = (1..11)
+        let instructions = (1..2)
             .flat_map(|i| {
                 let base = random_felt();
-                let exponent = [random_bit(); 32];
-                let len = i;
-                let result = base
-                    .exp_u64(reverse_bits_len(exponent.as_canonical_u32() as usize, len) as u64);
-                let exp_bits = std::array::from_fn(|i| exponent.bit(i));
+                let exponent_bits = vec![random_bit(); i];
+                let exponent = F::from_canonical_u32(
+                    exponent_bits
+                        .iter()
+                        .enumerate()
+                        .fold(0, |acc, (i, x)| acc + x * (1 << i)),
+                );
+                let result =
+                    base.exp_u64(reverse_bits_len(exponent.as_canonical_u32() as usize, i) as u64);
 
                 let alloc_size = 34;
-                let a = (0..alloc_size).map(|x| x + addr).collect::<Vec<_>>();
+                let exp_a = (0..i).map(|x| x + addr + 1).collect::<Vec<_>>();
+                let exp_a_clone = exp_a.clone();
+                let x_a = addr;
+                let result_a = addr + 33;
                 addr += alloc_size;
-                [
-                    instr::mem_single(MemAccessKind::Write, 1, a[0], base),
-                    instr::exp_reverse_bits_len(
+                let exp_bit_instructions = (0..i).map(move |j| {
+                    instr::mem_single(
+                        MemAccessKind::Write,
                         1,
-                        base,
-                        exp_bits,
-                        F::from_canonical_usize(len),
+                        exp_a_clone[j] as u32,
+                        F::from_canonical_u32(exponent_bits[j]),
+                    )
+                });
+                once(instr::mem_single(MemAccessKind::Write, 1, x_a as u32, base))
+                    .chain(exp_bit_instructions)
+                    .chain(once(instr::exp_reverse_bits_len(
+                        1,
+                        F::from_canonical_u32(x_a as u32),
+                        exp_a
+                            .into_iter()
+                            .map(|bit| F::from_canonical_u32(bit as u32))
+                            .collect_vec()
+                            .try_into()
+                            .unwrap(),
+                        F::from_canonical_u32(result_a as u32),
+                    )))
+                    .chain(once(instr::mem_single(
+                        MemAccessKind::Read,
+                        1,
+                        result_a as u32,
                         result,
-                    ),
-                    instr::mem_single(MemAccessKind::Write, 1, a[33], result),
-                ]
+                    )))
             })
             .collect::<Vec<Instruction<F>>>();
 
@@ -508,5 +542,22 @@ mod tests {
         if let Err(e) = result {
             panic!("Verification failed: {:?}", e);
         }
+    }
+
+    #[test]
+    fn generate_erbl_circuit_trace() {
+        type F = BabyBear;
+
+        let shard = ExecutionRecord {
+            exp_reverse_bits_len_events: vec![ExpReverseBitsEvent {
+                base: F::two(),
+                exp: vec![F::zero(), F::one(), F::one()],
+                result: F::two().exp_u64(0b110),
+            }],
+            ..Default::default()
+        };
+        let chip = ExpReverseBitsLenChip::<3>::default();
+        let trace: RowMajorMatrix<F> = chip.generate_trace(&shard, &mut ExecutionRecord::default());
+        println!("{:?}", trace.values)
     }
 }
