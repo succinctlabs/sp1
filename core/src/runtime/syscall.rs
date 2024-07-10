@@ -8,7 +8,7 @@ use strum_macros::EnumIter;
 use crate::runtime::{Register, Runtime};
 use crate::syscall::precompiles::edwards::EdAddAssignChip;
 use crate::syscall::precompiles::edwards::EdDecompressChip;
-use crate::syscall::precompiles::fp::Fp384MulChip;
+use crate::syscall::precompiles::fp384::Fp384MulChip;
 use crate::syscall::precompiles::keccak256::KeccakPermuteChip;
 use crate::syscall::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::syscall::precompiles::uint256::Uint256MulChip;

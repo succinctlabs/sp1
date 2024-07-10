@@ -18,7 +18,7 @@ use crate::runtime::MemoryInitializeFinalizeEvent;
 use crate::runtime::MemoryRecordEnum;
 use crate::stark::MachineRecord;
 use crate::syscall::precompiles::edwards::EdDecompressEvent;
-use crate::syscall::precompiles::fp::Fp384MulEvent;
+use crate::syscall::precompiles::fp384::Fp384MulEvent;
 use crate::syscall::precompiles::keccak256::KeccakPermuteEvent;
 use crate::syscall::precompiles::sha256::{ShaCompressEvent, ShaExtendEvent};
 use crate::syscall::precompiles::uint256::Uint256MulEvent;

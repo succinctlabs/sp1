@@ -1,5 +1,5 @@
 pub mod edwards;
-pub mod fp;
+pub mod fp384;
 pub mod keccak256;
 pub mod sha256;
 pub mod uint256;
