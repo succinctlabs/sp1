@@ -466,7 +466,7 @@ mod tests {
         let mut random_bit = move || rng.gen_range(0..2);
         let mut addr = 0;
 
-        let instructions = (1..11)
+        let instructions = (1..15)
             .flat_map(|i| {
                 let base = random_felt();
                 let exponent_bits = vec![random_bit(); i];
