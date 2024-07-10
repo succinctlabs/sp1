@@ -2,7 +2,6 @@
 
 use crate::mem::{MemoryPreprocessedCols, MemoryPreprocessedColsNoVal};
 // use crate::memory::{MemoryReadSingleCols, MemoryReadWriteSingleCols};
-use crate::runtime::Opcode;
 use crate::{ExpReverseBitsInstr, Instruction};
 use core::borrow::Borrow;
 use itertools::Itertools;
@@ -413,12 +412,14 @@ where
         let next: &ExpReverseBitsLenCols<AB::Var> = (*next).borrow();
         let prep = builder.preprocessed();
         let prep_local = prep.row_slice(0);
-        // self.eval_exp_reverse_bits_len::<AB>(
-        //     builder,
-        //     local,
-        //     next,
-        //     Self::do_exp_bit_memory_access::<AB::Var>(local),
-        // );
+        let prep_local: &ExpReverseBitsLenPreprocessedCols<AB::Var> = (*prep_local).borrow();
+        self.eval_exp_reverse_bits_len::<AB>(
+            builder,
+            local,
+            prep,
+            next,
+            Self::do_exp_bit_memory_access::<AB::Var>(prep_local),
+        );
     }
 }
 
@@ -458,54 +459,54 @@ mod tests {
 
     #[test]
     fn prove_babybear() {
-        // type SC = BabyBearPoseidon2Outer;
-        // type F = <SC as StarkGenericConfig>::Val;
-        // type EF = <SC as StarkGenericConfig>::Challenge;
-        // type A = RecursionAir<F, 3>;
+        type SC = BabyBearPoseidon2Outer;
+        type F = <SC as StarkGenericConfig>::Val;
+        type EF = <SC as StarkGenericConfig>::Challenge;
+        type A = RecursionAir<F, 3>;
 
-        // let mut rng = StdRng::seed_from_u64(0xDEADBEEF);
-        // let mut random_felt = move || -> F { rng.sample(rand::distributions::Standard) };
-        // let mut random_bit = move || -> F{rng.sample_bit()};
-        // let mut addr = 0;
+        let mut rng = StdRng::seed_from_u64(0xDEADBEEF);
+        let mut random_felt = move || -> F { rng.sample(rand::distributions::Standard) };
+        let mut random_bit = move || -> F { rng.sample_bit() };
+        let mut addr = 0;
 
-        // let instructions = (1..11)
-        //     .flat_map(|i| {
-        //         let base = random_felt();
-        //         let exponent =[ random_bit(); 32];
-        //         let len = i;
-        //         let result = base
-        //             .exp_u64(reverse_bits_len(exponent.as_canonical_u32() as usize, len) as u64);
-        //         let exp_bits =std::array::from_fn(|i| exponent.bit(i));
+        let instructions = (1..11)
+            .flat_map(|i| {
+                let base = random_felt();
+                let exponent = [random_bit(); 32];
+                let len = i;
+                let result = base
+                    .exp_u64(reverse_bits_len(exponent.as_canonical_u32() as usize, len) as u64);
+                let exp_bits = std::array::from_fn(|i| exponent.bit(i));
 
-        //         let alloc_size = 34;
-        //         let a = (0..alloc_size).map(|x| x + addr).collect::<Vec<_>>();
-        //         addr += alloc_size;
-        //         [
-        //             instr::mem_single(MemAccessKind::Write, 1, a[0], base),
-        //             instr::exp_reverse_bits_len(
-        //                 1,
-        //                 base,
-        //                 exp_bits,
-        //                 F::from_canonical_usize(len),
-        //                 result,
-        //             ),
-        //             instr::
-        //         ]
-        //     })
-        //     .collect::<Vec<Instruction<F>>>();
+                let alloc_size = 34;
+                let a = (0..alloc_size).map(|x| x + addr).collect::<Vec<_>>();
+                addr += alloc_size;
+                [
+                    instr::mem_single(MemAccessKind::Write, 1, a[0], base),
+                    instr::exp_reverse_bits_len(
+                        1,
+                        base,
+                        exp_bits,
+                        F::from_canonical_usize(len),
+                        result,
+                    ),
+                    instr::mem_single(MemAccessKind::Write, 1, a[33], result),
+                ]
+            })
+            .collect::<Vec<Instruction<F>>>();
 
-        // let program = RecursionProgram { instructions };
+        let program = RecursionProgram { instructions };
 
-        // let config = SC::new();
+        let config = SC::new();
 
-        // let mut runtime =
-        //     Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program, BabyBearPoseidon2::new().perm);
-        // runtime.run();
-        // let machine = A::machine(config);
-        // let (pk, vk) = machine.setup(&program);
-        // let result = run_test_machine(runtime.record, machine, pk, vk);
-        // if let Err(e) = result {
-        //     panic!("Verification failed: {:?}", e);
-        // }
+        let mut runtime =
+            Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program, BabyBearPoseidon2::new().perm);
+        runtime.run();
+        let machine = A::machine(config);
+        let (pk, vk) = machine.setup(&program);
+        let result = run_test_machine(runtime.record, machine, pk, vk);
+        if let Err(e) = result {
+            panic!("Verification failed: {:?}", e);
+        }
     }
 }
