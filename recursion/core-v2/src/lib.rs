@@ -86,7 +86,6 @@ pub enum MemAccessKind {
     Write,
 }
 
-// -------------------------------------------------------------------------------------------------
 /// The inputs and outputs to a Poseidon2 permutation.
 #[derive(AlignedBorrow, Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Poseidon2Io<V> {

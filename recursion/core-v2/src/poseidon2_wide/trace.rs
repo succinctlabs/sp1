@@ -115,6 +115,9 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
         PREPROCESSED_POSEIDON2_WIDTH
     }
 
+    /// This is very much subject to change. At the moment, we just populate the memory management
+    /// columns. For the moment, we assume that the program only contains Poseidon2Wide instructions,
+    /// and for each instruction we read 16 successive memory locations and write to the next 16.
     fn generate_preprocessed_trace(&self, _program: &Self::Program) -> Option<RowMajorMatrix<F>> {
         let instruction_count = _program
             .instructions
@@ -164,7 +167,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
                     .iter_mut()
                     .enumerate()
                     .for_each(|(i, x)| {
-                        x.addr = Address(F::from_canonical_usize(2 * event_ct * WIDTH + WIDTH + i));
+                        x.addr = Address(F::from_canonical_usize((2 * event_ct + 1) * WIDTH + i));
                         x.is_real = if event_ct < instruction_count {
                             F::one()
                         } else {
