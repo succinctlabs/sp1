@@ -45,6 +45,7 @@ where
     }
 
     /// Map `fp` to a fresh address and initialize the mult to 0.
+    ///
     /// Ensures that `fp` has not already been written to.
     pub fn write_fp(&mut self, fp: i32) -> Address<F> {
         match self.fp_to_addr.entry(fp) {
@@ -61,6 +62,7 @@ where
     }
 
     /// Map `fp` to its existing address and increment its mult.
+    ///
     /// Ensures that `fp` has already been assigned an address.
     pub fn read_fp(&mut self, fp: i32) -> Address<F> {
         match self.fp_to_addr.entry(fp) {
@@ -77,6 +79,7 @@ where
     }
 
     /// Associate a `mult` of zero with `addr`.
+    ///
     /// Ensures that `addr` has not already been written to.
     pub fn write_addr(&mut self, addr: Address<F>) -> F {
         match self.addr_to_mult.entry(addr) {
@@ -86,6 +89,7 @@ where
     }
 
     /// Increment the existing `mult` associated with `addr`.
+    ///
     /// Ensures that `addr` has already been assigned a `mult`.
     pub fn read_addr(&mut self, addr: Address<F>) -> F {
         match self.addr_to_mult.entry(addr) {
@@ -100,6 +104,7 @@ where
     }
 
     /// Read the base field constant.
+    ///
     /// Increments the mult, first creating an entry if it does not yet exist.
     pub fn read_const_f(&mut self, f: F) -> Address<F> {
         self.consts_f
@@ -110,6 +115,7 @@ where
     }
 
     /// Read the base field constant.
+    ///
     /// Increments the mult, first creating an entry if it does not yet exist.
     pub fn read_const_ef(&mut self, ef: EF) -> Address<F> {
         self.consts_ef
@@ -119,7 +125,6 @@ where
             .0
     }
 
-    // ---------------------------------------------------------------------------------------------
     // INSTRUCTION HELPERS
 
     fn mem_write_const(&mut self, dst: impl Reg<F, EF>, src: Imm<F, EF>) -> Instruction<F> {
@@ -215,7 +220,6 @@ where
         ]
     }
 
-    // ---------------------------------------------------------------------------------------------
     // COMPILATION
 
     pub fn compile_one(&mut self, ir_instr: DslIr<AsmConfig<F, EF>>) -> Vec<Instruction<F>> {
@@ -349,17 +353,13 @@ where
         &mut self,
         operations: TracedVec<DslIr<AsmConfig<F, EF>>>,
     ) -> Vec<Instruction<F>> {
-        // First, preprocess.
-        // Each immediate must be assigned to an address and written to that address.
-        // Each fp must be assigned to an address.
-        // Reads of each address must be counted.
-        // Mults will be set to zero and then filled back in later.
-
+        // Compile each IR instruction into a list of ASM instructions, then combine them.
+        // This step also counts the number of times each address is read from.
         let mut instrs = operations
             .into_iter()
             .flat_map(|(ir_instr, _)| self.compile_one(ir_instr))
             .collect::<Vec<_>>();
-        // Replace the mults.
+        // Replace the mults using the address count data gathered in this previous.
         instrs
             .iter_mut()
             .filter_map(|asm_instr| match asm_instr {
