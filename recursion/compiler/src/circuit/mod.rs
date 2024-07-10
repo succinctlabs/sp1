@@ -548,43 +548,37 @@ mod tests {
 
     macro_rules! test_assert_fixture {
         ($assert_felt:ident, $assert_ext:ident, $should_offset:literal) => {
-            let mut builder = AsmBuilder::<F, EF>::default();
+            {
+                use std::convert::identity;
 
-            let mut base_elts = StdRng::seed_from_u64(0xDEADBEEF)
-                .sample_iter::<F, _>(rand::distributions::Standard);
-            for _ in 0..100 {
-                let a = base_elts.next().unwrap();
-                let b = base_elts.next().unwrap();
-                let c = a + b;
-                let ar: Felt<_> = builder.eval(a);
-                let br: Felt<_> = builder.eval(b);
-                let cr: Felt<_> = builder.eval(ar + br);
-                let cm = if $should_offset {
-                    c + base_elts.find(|x| !x.is_zero()).unwrap()
-                } else {
-                    c
-                };
-                builder.$assert_felt(cr, cm);
+                let mut builder = AsmBuilder::<F, EF>::default();
+
+                test_assert_fixture!(builder, identity, F, Felt<_>, 0xDEADBEEF, $assert_felt, $should_offset);
+
+                test_assert_fixture!(builder, EF::cons, EF, Ext<_, _>, 0xABADCAFE, $assert_ext, $should_offset);
+
+                test_operations(builder.operations);
             }
-
-            let mut ext_elts = StdRng::seed_from_u64(0xABADCAFE)
-                .sample_iter::<EF, _>(rand::distributions::Standard);
-            for _ in 0..100 {
-                let a = ext_elts.next().unwrap();
-                let b = ext_elts.next().unwrap();
-                let c = a + b;
-                let ar: Ext<_, _> = builder.eval(a.cons());
-                let br: Ext<_, _> = builder.eval(b.cons());
-                let cr: Ext<_, _> = builder.eval(ar + br);
-                let cm = if $should_offset {
-                    c + ext_elts.find(|x| !x.is_zero()).unwrap()
-                } else {
-                    c
-                };
-                builder.$assert_ext(cr, cm.cons());
+        };
+        ($builder:ident, $wrap:path, $t:ty, $u:ty, $seed:expr, $assert:ident, $should_offset:literal) => {
+            {
+                let mut elts = StdRng::seed_from_u64($seed)
+                    .sample_iter::<$t, _>(rand::distributions::Standard);
+                for _ in 0..100 {
+                    let a = elts.next().unwrap();
+                    let b = elts.next().unwrap();
+                    let c = a + b;
+                    let ar: $u = $builder.eval($wrap(a));
+                    let br: $u = $builder.eval($wrap(b));
+                    let cr: $u = $builder.eval(ar + br);
+                    let cm = if $should_offset {
+                        c + elts.find(|x| !x.is_zero()).unwrap()
+                    } else {
+                        c
+                    };
+                    $builder.$assert(cr, $wrap(cm));
+                }
             }
-
-            test_operations(builder.operations);
         };
     }
 
