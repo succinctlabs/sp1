@@ -38,7 +38,7 @@ runs:
           target/
           ~/.rustup/
         key: bruh-${{ hashFiles('Cargo.toml') }}
-        restore-keys: bruh-what
+        restore-keys: fvisdfviusnvisnfvisufv
 
     - name: Setup toolchain
       id: rustc-toolchain
