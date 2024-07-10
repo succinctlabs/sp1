@@ -366,8 +366,6 @@ impl<const DEGREE: usize> ExpReverseBitsLenChip<DEGREE> {
             prepr.exponent_memory.read_mult,
         );
 
-        // Need to access memory for
-
         // // The `base_ptr` column stays the same when not `is_last`.
         // builder
         //     .when_transition()
