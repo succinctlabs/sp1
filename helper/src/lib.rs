@@ -86,10 +86,10 @@ fn execute_build_cmd(
 ///
 /// # Example
 ///
-/// ```
+/// ```no_run
 /// use sp1_helper::build_program;
 ///
-/// build_program("path/to/program");
+/// build_program("../path/to/program");
 /// ```
 ///
 /// This function is useful for automatically rebuilding the program during development
@@ -111,8 +111,9 @@ pub fn build_program(path: &str) {
 ///
 /// # Example that builds the program in a docker container with the `feature1` feature enabled:
 ///
-/// ```
-/// use sp1_helper::{build_program_with_args, BuildArgs};
+/// ```no_run
+/// use sp1_helper::build_program_with_args;
+/// use sp1_build::BuildArgs;
 ///
 /// let args = BuildArgs {
 ///     docker: true,
@@ -120,7 +121,7 @@ pub fn build_program(path: &str) {
 ///     ..Default::default()
 /// };
 ///
-/// build_program_with_args("path/to/program", args);
+/// build_program_with_args("../path/to/program", args);
 /// ```
 ///
 /// See [`BuildArgs`] for more details on available build options.

@@ -27,7 +27,7 @@ use cargo_metadata::camino::Utf8PathBuf;
 /// * `features` - A vector of strings specifying features to build with.
 /// * `ignore_rust_version` - A boolean flag to ignore Rust version checks.
 /// * `binary` - An optional string to specify the name of the binary if building a binary.
-/// * `elf` - An optional string to specify the name of the ELF binary.
+/// * `elf_name` - An optional string to specify the name of the ELF binary.
 /// * `output_directory` - An optional string to specify the directory to place the built program relative to the program directory.
 ///
 /// # Example
@@ -41,7 +41,7 @@ use cargo_metadata::camino::Utf8PathBuf;
 ///     features: vec!["feature1".to_string(), "feature2".to_string()],
 ///     ignore_rust_version: false,
 ///     binary: "my_binary".to_string(),
-///     elf: "my_elf".to_string(),
+///     elf_name: "my_elf".to_string(),
 ///     output_directory: "elf".to_string(),
 /// };
 ///
@@ -85,7 +85,7 @@ pub struct BuildArgs {
         feature = "clap",
         clap(long, action, help = "ELF binary name.", default_value = "")
     )]
-    pub elf: String,
+    pub elf_name: String,
     #[cfg_attr(
         feature = "clap",
         clap(
@@ -246,9 +246,9 @@ fn add_cargo_prove_build_args(
         command_args.push("--binary".to_string());
         command_args.push(prove_args.binary.clone());
     }
-    if !prove_args.elf.is_empty() {
-        command_args.push("--elf".to_string());
-        command_args.push(prove_args.elf.clone());
+    if !prove_args.elf_name.is_empty() {
+        command_args.push("--elf-name".to_string());
+        command_args.push(prove_args.elf_name.clone());
     }
     if !prove_args.output_directory.is_empty() {
         command_args.push("--output-directory".to_string());
@@ -270,8 +270,8 @@ fn add_cargo_prove_build_args(
 ///
 /// # Example
 ///
-/// ```
-/// use sp1_build::BuildArgs;
+/// ```no_run
+/// use sp1_build::{BuildArgs, build_program};
 /// use std::path::PathBuf;
 ///
 /// let args = BuildArgs {
@@ -280,11 +280,11 @@ fn add_cargo_prove_build_args(
 ///     features: vec!["feature1".to_string(), "feature2".to_string()],
 ///     ignore_rust_version: false,
 ///     binary: "my_binary".to_string(),
-///     elf: "my_elf".to_string(),
+///     elf_name: "my_elf".to_string(),
 ///     output_directory: "elf".to_string(),
 /// };
 ///
-/// let program_dir = Some(PathBuf::from("/path/to/program"));
+/// let program_dir = Some(PathBuf::from("../path/to/program"));
 ///
 /// match build_program(&args, program_dir) {
 ///     Ok(path) => println!("Program built successfully at: {}", path),
@@ -368,11 +368,11 @@ pub fn build_program(args: &BuildArgs, program_dir: Option<PathBuf>) -> Result<U
         .join(root_package_name.unwrap());
 
     // The order of precedence for the ELF name is:
-    // 1. --elf flag
+    // 1. --elf_name flag
     // 2. --binary flag (binary name + -elf suffix)
     // 3. default (root package name)
-    let elf_name = if !args.elf.is_empty() {
-        args.elf.clone()
+    let elf_name = if !args.elf_name.is_empty() {
+        args.elf_name.clone()
     } else if !args.binary.is_empty() {
         format!("{}-elf", args.binary.clone())
     } else {
