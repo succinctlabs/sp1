@@ -5,6 +5,7 @@ mod record;
 
 pub use instruction::Instruction;
 pub use opcode::*;
+use p3_util::reverse_bits_len;
 pub use program::*;
 pub use record::*;
 
@@ -290,6 +291,32 @@ where
                         input: in_vals,
                         output: perm_output,
                     });
+                }
+                Instruction::ExpReverseBitsLen(ExpReverseBitsInstr {
+                    addrs: ExpReverseBitsIo { base, exp, result },
+                    mult,
+                    len,
+                }) => {
+                    let base_val = self.mr(base).val[0];
+                    let exp: [F; 32] = std::array::from_fn(|i| self.mr(exp[i]).val[0]);
+                    let exp_array: [F; 32] = exp.into_iter().collect_vec().try_into().unwrap();
+                    let exp_val = exp_array
+                        .iter()
+                        .enumerate()
+                        .fold(0, |acc, (i, &val)| acc + val.as_canonical_u32() * (1 << i));
+                    let out = base_val.exp_u64(reverse_bits_len(
+                        exp_val as usize,
+                        len.as_canonical_u32() as usize,
+                    ) as u64);
+                    self.mw(result, Block::from(out), mult);
+                    self.record
+                        .exp_reverse_bits_len_events
+                        .push(ExpReverseBitsEvent {
+                            result: out,
+                            base: base_val,
+                            exp: exp_array,
+                            len,
+                        });
                 }
             };
 

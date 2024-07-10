@@ -8,6 +8,7 @@ use sp1_recursion_core::air::Block;
 pub mod alu_base;
 pub mod alu_ext;
 pub mod builder;
+pub mod exp_reverse_bits;
 pub mod machine;
 pub mod mem;
 pub mod poseidon2_wide;
@@ -101,3 +102,28 @@ pub struct Poseidon2WideInstr<F> {
 }
 
 pub type Poseidon2WideEvent<F> = Poseidon2Io<F>;
+
+/// The inputs and outputs to an exp-reverse-bits operation.
+#[derive(AlignedBorrow, Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ExpReverseBitsIo<V> {
+    pub base: V,
+    // The bits in little-endian order in an array.
+    pub exp: [V; 32],
+    pub result: V,
+}
+
+/// An instruction invoking the exp-reverse-bits operation.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ExpReverseBitsInstr<F> {
+    pub addrs: ExpReverseBitsIo<Address<F>>,
+    pub len: F,
+    pub mult: F,
+}
+
+#[derive(AlignedBorrow, Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ExpReverseBitsEvent<F> {
+    pub base: F,
+    pub exp: [F; 32],
+    pub len: F,
+    pub result: F,
+}
