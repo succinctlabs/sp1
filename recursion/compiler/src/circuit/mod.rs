@@ -44,23 +44,6 @@ where
         id
     }
 
-    /// Map `fp` to a fresh address and initialize the mult to 0.
-    ///
-    /// Ensures that `fp` has not already been written to.
-    pub fn write_fp(&mut self, fp: i32) -> Address<F> {
-        match self.fp_to_addr.entry(fp) {
-            Entry::Vacant(entry) => {
-                let addr = Self::alloc(&mut self.next_addr);
-                // This is a write, so we set the mult to zero.
-                if let Some(x) = self.addr_to_mult.insert(addr, F::zero()) {
-                    panic!("unexpected entry in addr_to_mult: {x:?}");
-                }
-                *entry.insert(addr)
-            }
-            Entry::Occupied(entry) => panic!("unexpected entry in fp_to_addr: {entry:?}"),
-        }
-    }
-
     /// Map `fp` to its existing address and increment its mult.
     ///
     /// Ensures that `fp` has already been assigned an address.
@@ -78,13 +61,20 @@ where
         }
     }
 
-    /// Associate a `mult` of zero with `addr`.
+    /// Map `fp` to a fresh address and initialize the mult to 0.
     ///
-    /// Ensures that `addr` has not already been written to.
-    pub fn write_addr(&mut self, addr: Address<F>) -> F {
-        match self.addr_to_mult.entry(addr) {
-            Entry::Vacant(entry) => *entry.insert(F::zero()),
-            Entry::Occupied(entry) => panic!("unexpected entry in addr_to_mult: {entry:?}"),
+    /// Ensures that `fp` has not already been written to.
+    pub fn write_fp(&mut self, fp: i32) -> Address<F> {
+        match self.fp_to_addr.entry(fp) {
+            Entry::Vacant(entry) => {
+                let addr = Self::alloc(&mut self.next_addr);
+                // This is a write, so we set the mult to zero.
+                if let Some(x) = self.addr_to_mult.insert(addr, F::zero()) {
+                    panic!("unexpected entry in addr_to_mult: {x:?}");
+                }
+                *entry.insert(addr)
+            }
+            Entry::Occupied(entry) => panic!("unexpected entry in fp_to_addr: {entry:?}"),
         }
     }
 
@@ -100,6 +90,16 @@ where
                 *mult += F::one();
                 *mult
             }
+        }
+    }
+
+    /// Associate a `mult` of zero with `addr`.
+    ///
+    /// Ensures that `addr` has not already been written to.
+    pub fn write_addr(&mut self, addr: Address<F>) -> F {
+        match self.addr_to_mult.entry(addr) {
+            Entry::Vacant(entry) => *entry.insert(F::zero()),
+            Entry::Occupied(entry) => panic!("unexpected entry in addr_to_mult: {entry:?}"),
         }
     }
 
