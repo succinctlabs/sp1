@@ -85,9 +85,8 @@ fn execute_build_cmd(
             Some(program_dir.as_ref().to_path_buf()),
         )
     };
-
-    if let Err(e) = path_output {
-        eprintln!("Error: {}", e);
+    if let Err(err) = path_output {
+        eprintln!("Failed to build program: {}", err);
     }
 
     Ok(ExitStatus::default())
