@@ -85,7 +85,8 @@ pub struct Prove<'a> {
     context_builder: SP1ContextBuilder<'a>,
     pk: &'a SP1ProvingKey,
     stdin: SP1Stdin,
-    opts: SP1CoreOpts,
+    core_opts: SP1CoreOpts,
+    recursion_opts: SP1CoreOpts,
 }
 
 impl<'a> Prove<'a> {
@@ -104,7 +105,8 @@ impl<'a> Prove<'a> {
             pk,
             stdin,
             context_builder: Default::default(),
-            opts: Default::default(),
+            core_opts: SP1CoreOpts::default(),
+            recursion_opts: SP1CoreOpts::recursion(),
         }
     }
 
@@ -116,11 +118,12 @@ impl<'a> Prove<'a> {
             pk,
             stdin,
             mut context_builder,
-            opts,
+            core_opts,
+            recursion_opts,
         } = self;
         let opts = SP1ProverOpts {
-            core_opts: opts,
-            recursion_opts: opts,
+            core_opts,
+            recursion_opts,
         };
         let context = context_builder.build();
 
@@ -170,25 +173,25 @@ impl<'a> Prove<'a> {
 
     /// Set the shard size for proving.
     pub fn shard_size(mut self, value: usize) -> Self {
-        self.opts.shard_size = value;
+        self.core_opts.shard_size = value;
         self
     }
 
     /// Set the shard batch size for proving.
     pub fn shard_batch_size(mut self, value: usize) -> Self {
-        self.opts.shard_batch_size = value;
+        self.core_opts.shard_batch_size = value;
         self
     }
 
     /// Set the chunking multiplier for proving.
     pub fn shard_chunking_multiplier(mut self, value: usize) -> Self {
-        self.opts.shard_chunking_multiplier = value;
+        self.core_opts.shard_chunking_multiplier = value;
         self
     }
 
     /// Set whether we should reconstruct commitments while proving.
     pub fn reconstruct_commitments(mut self, value: bool) -> Self {
-        self.opts.reconstruct_commitments = value;
+        self.core_opts.reconstruct_commitments = value;
         self
     }
 
