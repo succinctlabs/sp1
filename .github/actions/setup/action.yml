@@ -37,7 +37,7 @@ runs:
           ~/.cargo/git/db/
           target/
           ~/.rustup/
-        key: rust-nightly-2024-04-17-${{ hashFiles('Cargo.toml') }}
+        key: bruh-${{ hashFiles('Cargo.toml') }}
         restore-keys: rust-nightly-2024-04-17-
 
     - name: Setup toolchain
