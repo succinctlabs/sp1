@@ -239,6 +239,10 @@ pub fn build_program(args: &BuildArgs, program_dir: Option<PathBuf>) -> Result<U
         build_cmd
     };
 
+    if is_helper {
+        cmd.env_remove("RUSTC");
+    }
+
     let mut child = cmd
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
