@@ -415,6 +415,11 @@ impl<const DEGREE: usize> ExpReverseBitsLenChip<DEGREE> {
                 - local.is_first.result * local.is_last.result,
         );
 
+        // Make sure that x is only accessed when `is_real` is 1.
+        builder
+            .when_not(local.is_real)
+            .assert_zero(local.x_mem_access_flag);
+
         // Access the memory for x.
         // This only needs to be done for the first and last iterations.
         builder.recursion_eval_memory_access_single(
