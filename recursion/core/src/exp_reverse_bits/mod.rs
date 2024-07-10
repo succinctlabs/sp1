@@ -445,6 +445,11 @@ impl<const DEGREE: usize> ExpReverseBitsLenChip<DEGREE> {
             .when_not(local.is_last.result)
             .assert_eq(local.x.access.value, next.x.prev_value);
 
+        builder
+            .when_transition()
+            .when_not(local.is_last.result)
+            .assert_eq(local.x.access.value, local.x.prev_value);
+
         // Ensure that the value at the x memory access is `accum` when `is_last`.
         builder
             .when(local.is_last.result)
