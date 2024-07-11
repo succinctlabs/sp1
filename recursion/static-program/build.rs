@@ -129,9 +129,9 @@ fn main() {
 
     // Write the programs to files.
     let output_dir = std::env::var("OUT_DIR").unwrap();
-    let recursion_program_path = Path::new(&output_dir).join("recursion_program.bin");
-    let rec_pk_path = Path::new(&output_dir).join("rec_pk.bin");
-    let rec_vk_path = Path::new(&output_dir).join("rec_vk.bin");
+    let recursion_program_path = Path::new(&output_dir).join("RECURSION_program.bin");
+    let rec_pk_path = Path::new(&output_dir).join("RECURSION_pk.bin");
+    let rec_vk_path = Path::new(&output_dir).join("RECURSION_vk.bin");
     let deferred_program_path = Path::new(&output_dir).join("deferred_program.bin");
     let deferred_pk_path = Path::new(&output_dir).join("deferred_pk.bin");
     let deferred_vk_path = Path::new(&output_dir).join("deferred_vk.bin");

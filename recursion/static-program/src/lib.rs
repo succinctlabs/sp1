@@ -8,10 +8,50 @@ use sp1_core::{
 };
 use sp1_recursion_core::{runtime::RecursionProgram, stark::config::BabyBearPoseidon2Outer};
 
-pub static RECURSION_PROGRAM_BYTES: &[u8] =
-    include_bytes!(concat!(env!("OUT_DIR"), "/recursion_program.bin"));
-pub static RECURSION_PK_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/rec_pk.bin"));
-pub static RECURSION_VK_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/rec_vk.bin"));
+macro_rules! include_and_deserialize {
+    ($name:ident) => {
+        paste::item! {
+            pub static [<$name _PROGRAM_BYTES>]: &[u8] =
+                include_bytes!(concat!(env!("OUT_DIR"), "/", stringify!($name), "_program.bin"));
+            pub static [<$name _PK_BYTES>]: &[u8] =
+                &[];
+            pub static [<$name _VK_BYTES>]: &[u8] =
+            &[];
+
+            lazy_static! {
+                pub static ref [<$name _PROGRAM>]: RecursionProgram<BabyBear> = {
+                    let start_time = Instant::now();
+                    let res = bincode::deserialize(&[<$name _PROGRAM_BYTES>]).unwrap();
+                    println!(
+                        "{} program deserialized in {:?}",
+                        stringify!($name),
+                        start_time.elapsed()
+                    );
+                    res
+                };
+                pub static ref [<$name _PK>]: StarkProvingKey<BabyBearPoseidon2> = {
+                    let start_time = Instant::now();
+                    let res = bincode::deserialize(&[<$name _PK_BYTES>]).unwrap();
+                    println!("{} pk deserialized in {:?}", stringify!($name), start_time.elapsed());
+                    res
+                };
+                pub static ref [<$name _VK>]: StarkVerifyingKey<BabyBearPoseidon2> = {
+                    let start_time = Instant::now();
+                    let res = bincode::deserialize(&[<$name _VK_BYTES>]).unwrap();
+                    println!("{} vk deserialized in {:?}", stringify!($name), start_time.elapsed());
+                    res
+                };
+            }
+        }
+    };
+}
+
+include_and_deserialize!(RECURSION);
+
+// pub static RECURSION_PROGRAM_BYTES: &[u8] =
+//     include_bytes!(concat!(env!("OUT_DIR"), "/recursion_program.bin"));
+// pub static RECURSION_PK_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/rec_pk.bin"));
+// pub static RECURSION_VK_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/rec_vk.bin"));
 pub static DEFERRED_PROGRAM_BYTES: &[u8] =
     include_bytes!(concat!(env!("OUT_DIR"), "/deferred_program.bin"));
 pub static DEFERRED_PK_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/deferred_pk.bin"));
@@ -30,27 +70,27 @@ pub static WRAP_PK_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/wrap
 pub static WRAP_VK_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/wrap_vk.bin"));
 
 lazy_static! {
-    pub static ref RECURSION_PROGRAM: RecursionProgram<BabyBear> = {
-        let start_time = Instant::now();
-        let res = bincode::deserialize(&RECURSION_PROGRAM_BYTES).unwrap();
-        println!(
-            "Recursion program deserialized in {:?}",
-            start_time.elapsed()
-        );
-        res
-    };
-    pub static ref RECURSION_PK: StarkProvingKey<BabyBearPoseidon2> = {
-        let start_time = Instant::now();
-        let res = bincode::deserialize(&RECURSION_PK_BYTES).unwrap();
-        println!("Recursion pk deserialized in {:?}", start_time.elapsed());
-        res
-    };
-    pub static ref RECURSION_VK: StarkVerifyingKey<BabyBearPoseidon2> = {
-        let start_time = Instant::now();
-        let res = bincode::deserialize(&RECURSION_VK_BYTES).unwrap();
-        println!("Recursion vk deserialized in {:?}", start_time.elapsed());
-        res
-    };
+    // pub static ref RECURSION_PROGRAM: RecursionProgram<BabyBear> = {
+    //     let start_time = Instant::now();
+    //     let res = bincode::deserialize(&RECURSION_PROGRAM_BYTES).unwrap();
+    //     println!(
+    //         "Recursion program deserialized in {:?}",
+    //         start_time.elapsed()
+    //     );
+    //     res
+    // };
+    // pub static ref RECURSION_PK: StarkProvingKey<BabyBearPoseidon2> = {
+    //     let start_time = Instant::now();
+    //     let res = bincode::deserialize(&RECURSION_PK_BYTES).unwrap();
+    //     println!("Recursion pk deserialized in {:?}", start_time.elapsed());
+    //     res
+    // };
+    // pub static ref RECURSION_VK: StarkVerifyingKey<BabyBearPoseidon2> = {
+    //     let start_time = Instant::now();
+    //     let res = bincode::deserialize(&RECURSION_VK_BYTES).unwrap();
+    //     println!("Recursion vk deserialized in {:?}", start_time.elapsed());
+    //     res
+    // };
     pub static ref DEFERRED_PROGRAM: RecursionProgram<BabyBear> = {
         let start_time = Instant::now();
         let res = bincode::deserialize(&DEFERRED_PROGRAM_BYTES).unwrap();
