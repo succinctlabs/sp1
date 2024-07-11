@@ -50,7 +50,6 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
         let nb_rows = next_power_of_two(nb_events, self.fixed_log2_rows);
         let mut values = vec![F::zero(); nb_rows * NUM_MEMORY_INIT_COLS];
 
-        let num_mem_final = input.last_memory_record.len();
         par_for_each_row(&mut values, NUM_MEMORY_INIT_COLS, |i, row| {
             if i >= nb_events {
                 return;
@@ -68,7 +67,8 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
             } else {
                 let (addr, timestamp, value) =
                     &input.last_memory_record[i - input.first_memory_record.len()];
-                let (next_addr, _, _) = if i == nb_events - 1 {
+                let last = i == nb_events - 1;
+                let (next_addr, _, _) = if last {
                     &(F::zero(), F::zero(), Block::from(F::zero()))
                 } else {
                     &input.last_memory_record[i - input.first_memory_record.len() + 1]
@@ -77,7 +77,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
                 cols.timestamp = *timestamp;
                 cols.value = *value;
                 cols.is_finalize = F::one();
-                (cols.diff_16bit_limb, cols.diff_12bit_limb) = if i != num_mem_final - 1 {
+                (cols.diff_16bit_limb, cols.diff_12bit_limb) = if !last {
                     compute_addr_diff(*next_addr, *addr, true)
                 } else {
                     (F::zero(), F::zero())
@@ -86,7 +86,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
                     compute_addr_diff(*addr, F::zero(), false);
 
                 cols.is_real = F::one();
-                cols.is_range_check = F::from_bool(i != num_mem_final - 1);
+                cols.is_range_check = F::from_bool(!last);
             }
         });
 
