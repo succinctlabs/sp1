@@ -330,7 +330,9 @@ where
                     self.nb_fri_fold += 1;
                     let x = self.mr(single_addrs.x).val[0];
                     let z = self.mr(ext_single_addrs.z).val;
+                    let z: EF = z.ext();
                     let alpha = self.mr(ext_single_addrs.alpha).val;
+                    let alpha: EF = alpha.ext();
                     let mat_opening = ext_vec_addrs
                         .mat_opening
                         .iter()
@@ -341,7 +343,7 @@ where
                         .iter()
                         .map(|addr| self.mr(*addr).val)
                         .collect_vec();
-                    let alpha_pow = ext_vec_addrs
+                    let alpha_pows = ext_vec_addrs
                         .alpha_pow
                         .iter()
                         .map(|addr| self.mr(*addr).val)
@@ -351,6 +353,64 @@ where
                         .iter()
                         .map(|addr| self.mr(*addr).val)
                         .collect_vec();
+                    for m in 0..ps_at_z.len() {
+                        // let m = F::from_canonical_u32(m);
+                        // Get the opening values.
+                        let p_at_x = mat_opening[m];
+                        let p_at_x: EF = p_at_x.ext();
+                        let p_at_z = ps_at_z[m];
+                        let p_at_z: EF = p_at_z.ext();
+
+                        // Calculate the quotient and update the values
+                        let quotient = (-p_at_z + p_at_x) / (-z + x);
+
+                        // First we peek to get the current value.
+                        let (alpha_pow_ptr_plus_log_height, alpha_pow_at_log_height) =
+                            self.peek(alpha_pow_ptr + log_height);
+                        let alpha_pow_at_log_height: EF = alpha_pow_at_log_height.ext();
+
+                        let (ro_ptr_plus_log_height, ro_at_log_height) =
+                            self.peek(ro_ptr + log_height);
+                        let ro_at_log_height: EF = ro_at_log_height.ext();
+
+                        let new_ro_at_log_height =
+                            ro_at_log_height + alpha_pow_at_log_height * quotient;
+                        let new_alpha_pow_at_log_height = alpha_pow_at_log_height * alpha;
+
+                        let ro_at_log_height_record = self.mw(
+                            ro_ptr_plus_log_height,
+                            Block::from(new_ro_at_log_height.as_base_slice()),
+                            timestamp,
+                        );
+
+                        let alpha_pow_at_log_height_record = self.mw(
+                            alpha_pow_ptr_plus_log_height,
+                            Block::from(new_alpha_pow_at_log_height.as_base_slice()),
+                            timestamp,
+                        );
+
+                        self.record.fri_fold_events.push(FriFoldEvent {
+                            is_last_iteration: F::from_bool(
+                                ps_at_z_len.as_canonical_u32() - 1 == m.as_canonical_u32(),
+                            ),
+                            clk: timestamp,
+                            m,
+                            input_ptr,
+                            z: z_record,
+                            alpha: alpha_record,
+                            x: x_record,
+                            log_height: log_height_record,
+                            mat_opening_ptr: mat_opening_ptr_record,
+                            ps_at_z_ptr: ps_at_z_ptr_record,
+                            alpha_pow_ptr: alpha_pow_ptr_record,
+                            ro_ptr: ro_ptr_record,
+                            p_at_x: p_at_x_record,
+                            p_at_z: p_at_z_record,
+                            alpha_pow_at_log_height: alpha_pow_at_log_height_record,
+                            ro_at_log_height: ro_at_log_height_record,
+                        });
+                        timestamp += F::one();
+                    }
                 }
             }
 
