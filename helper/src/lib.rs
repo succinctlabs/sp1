@@ -1,6 +1,7 @@
+use cargo_metadata::Metadata;
 use chrono::Local;
 pub use sp1_build::BuildArgs;
-use std::{path::Path, process::ExitStatus};
+use std::process::ExitStatus;
 
 fn current_datetime() -> String {
     let now = Local::now();
@@ -8,18 +9,8 @@ fn current_datetime() -> String {
 }
 
 /// Re-run the cargo command if the Cargo.toml or Cargo.lock file changes.
-fn cargo_rerun_if_changed(path: &str) -> (&Path, String) {
-    let program_dir = std::path::Path::new(path);
-    let metadata_file = program_dir.join("Cargo.toml");
-    let mut metadata_cmd = cargo_metadata::MetadataCommand::new();
-    let metadata = metadata_cmd.manifest_path(metadata_file).exec().unwrap();
-    let root_package = metadata.root_package();
-    let root_package_name = root_package
-        .as_ref()
-        .map(|p| p.name.as_str())
-        .unwrap_or("Program");
-
-    // Re-run the build script if program/{src, Cargo.toml, Cargo.lock} or any dependency changes.
+fn cargo_rerun_if_changed(metadata: &Metadata) {
+    // Re-run the build script if Cargo.lock changes or any dependency changes.
     println!(
         "cargo:rerun-if-changed={}",
         metadata.workspace_root.join("Cargo.lock").as_str()
@@ -28,8 +19,6 @@ fn cargo_rerun_if_changed(path: &str) -> (&Path, String) {
     for package in &metadata.packages {
         println!("cargo:rerun-if-changed={}", package.manifest_path.as_str());
     }
-
-    (program_dir, root_package_name.to_string())
 }
 
 /// Executes the `cargo prove build` command in the program directory. If there are any cargo prove
@@ -96,16 +85,32 @@ pub fn build_program_with_args(path: &str, args: BuildArgs) {
 
 /// Internal helper function to build the program with or without arguments.
 fn build_program_internal(path: &str, args: Option<BuildArgs>) {
+    // Get the root package name and metadata.
+    let program_dir = std::path::Path::new(path);
+    let metadata_file = program_dir.join("Cargo.toml");
+    let mut metadata_cmd = cargo_metadata::MetadataCommand::new();
+    let metadata = metadata_cmd.manifest_path(metadata_file).exec().unwrap();
+    let root_package = metadata.root_package();
+    let root_package_name = root_package
+        .as_ref()
+        .map(|p| p.name.as_str())
+        .unwrap_or("Program");
+
     // Skip the program build if the SP1_SKIP_PROGRAM_BUILD environment variable is set to true.
     let skip_program_build = std::env::var("SP1_SKIP_PROGRAM_BUILD")
         .map(|v| v.eq_ignore_ascii_case("true"))
         .unwrap_or(false);
     if skip_program_build {
+        println!(
+            "cargo:warning=Build skipped for {} at {} due to SP1_SKIP_PROGRAM_BUILD flag",
+            root_package_name,
+            current_datetime()
+        );
         return;
     }
 
     // Activate the build command if the dependencies change.
-    let (program_dir, root_package_name) = cargo_rerun_if_changed(path);
+    cargo_rerun_if_changed(&metadata);
 
     let _ = execute_build_cmd(&program_dir, args);
 
