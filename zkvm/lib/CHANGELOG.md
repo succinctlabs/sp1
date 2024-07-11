@@ -1,4 +1,5 @@
 # Changelog
+
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
@@ -6,9 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.0.0-test.1](https://github.com/succinctlabs/sp1/compare/sp1-lib-v0.0.0-test...sp1-lib-v0.0.0-test.1) - 2024-07-11
+## [0.0.1-test](https://github.com/succinctlabs/sp1/compare/sp1-lib-v0.0.0-test...sp1-lib-v0.0.1-test) - 2024-07-11
 
 ### Added
+
 - publish sp1 to crates.io ([#1052](https://github.com/succinctlabs/sp1/pull/1052))
 - new README img ([#226](https://github.com/succinctlabs/sp1/pull/226))
 - readme updates ([#205](https://github.com/succinctlabs/sp1/pull/205))
@@ -21,10 +23,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - tracing, profiling, benchmarking ([#99](https://github.com/succinctlabs/sp1/pull/99))
 
 ### Fixed
+
 - handle mul_assign scalar zero ([#1077](https://github.com/succinctlabs/sp1/pull/1077))
 
 ### Other
-- *(deps)* bump serde from 1.0.203 to 1.0.204 ([#1063](https://github.com/succinctlabs/sp1/pull/1063))
+
+- _(deps)_ bump serde from 1.0.203 to 1.0.204 ([#1063](https://github.com/succinctlabs/sp1/pull/1063))
 - hm
 - ignore
 - cleanup zkvm/lib

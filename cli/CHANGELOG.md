@@ -1,4 +1,5 @@
 # Changelog
+
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
@@ -6,32 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.0.0-test.1](https://github.com/succinctlabs/sp1/compare/sp1-cli-v0.0.0-test...sp1-cli-v0.0.0-test.1) - 2024-07-11
+## [0.0.1-test](https://github.com/succinctlabs/sp1/compare/sp1-cli-v0.0.0-test...sp1-cli-v0.0.1-test) - 2024-07-11
 
 ### Added
+
 - publish sp1 to crates.io ([#1052](https://github.com/succinctlabs/sp1/pull/1052))
-- *(cli)* use GH token during installation to avoid rate limiting ([#1031](https://github.com/succinctlabs/sp1/pull/1031))
-- *(cli)* build --docker accepts an optional image tag ([#1022](https://github.com/succinctlabs/sp1/pull/1022))
-- *(cli)* allow template version and fix CI ([#1012](https://github.com/succinctlabs/sp1/pull/1012))
-- *(cli)* check for rust usage during installation ([#1006](https://github.com/succinctlabs/sp1/pull/1006))
-- *(cli)* only template contracts when --evm is used ([#1004](https://github.com/succinctlabs/sp1/pull/1004))
+- _(cli)_ use GH token during installation to avoid rate limiting ([#1031](https://github.com/succinctlabs/sp1/pull/1031))
+- _(cli)_ build --docker accepts an optional image tag ([#1022](https://github.com/succinctlabs/sp1/pull/1022))
+- _(cli)_ allow template version and fix CI ([#1012](https://github.com/succinctlabs/sp1/pull/1012))
+- _(cli)_ check for rust usage during installation ([#1006](https://github.com/succinctlabs/sp1/pull/1006))
+- _(cli)_ only template contracts when --evm is used ([#1004](https://github.com/succinctlabs/sp1/pull/1004))
 - (breaking changes to SDK API) use builder pattern for SDK execute/prove/verify ([#940](https://github.com/succinctlabs/sp1/pull/940))
 - cargo prove new from sp1-project-template ([#922](https://github.com/succinctlabs/sp1/pull/922))
 - update docs + add some tests around solidity contract export ([#693](https://github.com/succinctlabs/sp1/pull/693))
 - e2e groth16 with contract verifier ([#671](https://github.com/succinctlabs/sp1/pull/671))
 - aggregation fixes ([#649](https://github.com/succinctlabs/sp1/pull/649))
-- *(sdk)* auto setup circuit ([#635](https://github.com/succinctlabs/sp1/pull/635))
+- _(sdk)_ auto setup circuit ([#635](https://github.com/succinctlabs/sp1/pull/635))
 - fix cargo prove new issues ([#542](https://github.com/succinctlabs/sp1/pull/542))
 - added `--ignore-rust-version` to `cargo prove build` ([#462](https://github.com/succinctlabs/sp1/pull/462))
 - sdk using secp256k1 auth ([#483](https://github.com/succinctlabs/sp1/pull/483))
 - sp1-sdk, remote prover ([#370](https://github.com/succinctlabs/sp1/pull/370))
 - Many small features and chores ([#347](https://github.com/succinctlabs/sp1/pull/347))
 - add instructions for docker usage and setup CI ([#346](https://github.com/succinctlabs/sp1/pull/346))
-- *(cli)* static toolchain + install from releases ([#300](https://github.com/succinctlabs/sp1/pull/300))
+- _(cli)_ static toolchain + install from releases ([#300](https://github.com/succinctlabs/sp1/pull/300))
 - add gitignore in project creation ([#266](https://github.com/succinctlabs/sp1/pull/266))
-- *(cli)* reproducible docker builds ([#254](https://github.com/succinctlabs/sp1/pull/254))
+- _(cli)_ reproducible docker builds ([#254](https://github.com/succinctlabs/sp1/pull/254))
 - new README img ([#226](https://github.com/succinctlabs/sp1/pull/226))
-- *(cli)* binary file or hex string input ([#210](https://github.com/succinctlabs/sp1/pull/210))
+- _(cli)_ binary file or hex string input ([#210](https://github.com/succinctlabs/sp1/pull/210))
 - readme updates ([#205](https://github.com/succinctlabs/sp1/pull/205))
 - release v0.0.1-alpha ([#200](https://github.com/succinctlabs/sp1/pull/200))
 - upgrade toolchain to rust 1.75 ([#193](https://github.com/succinctlabs/sp1/pull/193))
@@ -51,34 +53,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - cargo prove + examples ([#67](https://github.com/succinctlabs/sp1/pull/67))
 
 ### Fixed
+
 - assets branch ([#752](https://github.com/succinctlabs/sp1/pull/752))
-- *(ci)* downgrade `getrandom` ([#751](https://github.com/succinctlabs/sp1/pull/751))
+- _(ci)_ downgrade `getrandom` ([#751](https://github.com/succinctlabs/sp1/pull/751))
 - install toolchain ([#650](https://github.com/succinctlabs/sp1/pull/650))
 - moving into toolchain dir ([#646](https://github.com/succinctlabs/sp1/pull/646))
 - sp1up ([#643](https://github.com/succinctlabs/sp1/pull/643))
 - outdated templates ([#473](https://github.com/succinctlabs/sp1/pull/473))
-- *(cli)* get-target ([#270](https://github.com/succinctlabs/sp1/pull/270))
+- _(cli)_ get-target ([#270](https://github.com/succinctlabs/sp1/pull/270))
 - edit fibonacci example to use `u128` and note overflow case in quickstart ([#245](https://github.com/succinctlabs/sp1/pull/245))
 
 ### Other
-- *(deps)* bump target-lexicon from 0.12.14 to 0.12.15 ([#1067](https://github.com/succinctlabs/sp1/pull/1067))
+
+- _(deps)_ bump target-lexicon from 0.12.14 to 0.12.15 ([#1067](https://github.com/succinctlabs/sp1/pull/1067))
 - get docker url
 - hm
 - better build
 - small fixes
-- *(cli)* informative logging ([#947](https://github.com/succinctlabs/sp1/pull/947))
+- _(cli)_ informative logging ([#947](https://github.com/succinctlabs/sp1/pull/947))
 - Merge branch 'dev' into dependabot/cargo/dev/clap-4.5.8
-- *(deps)* bump serde_json from 1.0.117 to 1.0.120
+- _(deps)_ bump serde_json from 1.0.117 to 1.0.120
 - get rid of json convert to bin + add proof roundtrip to examples ([#924](https://github.com/succinctlabs/sp1/pull/924))
 - x86 mac also works
 - failure on sp1 on unsupported target
-- *(deps)* bump clap from 4.5.4 to 4.5.7 ([#908](https://github.com/succinctlabs/sp1/pull/908))
-- *(deps)* bump ubuntu from `3f85b7c` to `e3f92ab` in /cli/docker
+- _(deps)_ bump clap from 4.5.4 to 4.5.7 ([#908](https://github.com/succinctlabs/sp1/pull/908))
+- _(deps)_ bump ubuntu from `3f85b7c` to `e3f92ab` in /cli/docker
 - simplify quickstart ([#819](https://github.com/succinctlabs/sp1/pull/819))
 - remove unused deps ([#794](https://github.com/succinctlabs/sp1/pull/794))
 - Clean up TOML files ([#796](https://github.com/succinctlabs/sp1/pull/796))
 - update dev with latest main ([#728](https://github.com/succinctlabs/sp1/pull/728))
-- *(deps)* bump dirs from 4.0.0 to 5.0.1
+- _(deps)_ bump dirs from 4.0.0 to 5.0.1
 - update all dependencies ([#689](https://github.com/succinctlabs/sp1/pull/689))
 - sdk improvements ([#580](https://github.com/succinctlabs/sp1/pull/580))
 - fixing dep tree for `prover`, `recursion`, `core` and `sdk` ([#545](https://github.com/succinctlabs/sp1/pull/545))

@@ -1,4 +1,5 @@
 # Changelog
+
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
@@ -6,19 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.0.0-test.1](https://github.com/succinctlabs/sp1/compare/sp1-sdk-v0.0.0-test...sp1-sdk-v0.0.0-test.1) - 2024-07-11
+## [0.0.1-test](https://github.com/succinctlabs/sp1/compare/sp1-sdk-v0.0.0-test...sp1-sdk-v0.0.1-test) - 2024-07-11
 
 ### Added
+
 - publish sp1 to crates.io ([#1052](https://github.com/succinctlabs/sp1/pull/1052))
 - critical constraint changes ([#1046](https://github.com/succinctlabs/sp1/pull/1046))
 - cycle limit ([#1027](https://github.com/succinctlabs/sp1/pull/1027))
 - improve network prover error output ([#991](https://github.com/succinctlabs/sp1/pull/991))
-- *(sdk)* finish mock prover implementation ([#1008](https://github.com/succinctlabs/sp1/pull/1008))
+- _(sdk)_ finish mock prover implementation ([#1008](https://github.com/succinctlabs/sp1/pull/1008))
 - (breaking changes to SDK API) use builder pattern for SDK execute/prove/verify ([#940](https://github.com/succinctlabs/sp1/pull/940))
 - circuit version in proof ([#926](https://github.com/succinctlabs/sp1/pull/926))
 - sp1 circuit version ([#899](https://github.com/succinctlabs/sp1/pull/899))
 - use docker by default for gnark ([#890](https://github.com/succinctlabs/sp1/pull/890))
-- *(sdk)* add explorer link ([#858](https://github.com/succinctlabs/sp1/pull/858))
+- _(sdk)_ add explorer link ([#858](https://github.com/succinctlabs/sp1/pull/858))
 - check version for proof requests ([#862](https://github.com/succinctlabs/sp1/pull/862))
 - feature flag `alloy_sol_types` ([#850](https://github.com/succinctlabs/sp1/pull/850))
 - generic const expr ([#854](https://github.com/succinctlabs/sp1/pull/854))
@@ -35,21 +37,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - fix execution + proving errors ([#715](https://github.com/succinctlabs/sp1/pull/715))
 - update docs + add some tests around solidity contract export ([#693](https://github.com/succinctlabs/sp1/pull/693))
 - add sp1-sdk tests with SP1_DEV=0 for release ci ([#694](https://github.com/succinctlabs/sp1/pull/694))
-- program refactor  ([#651](https://github.com/succinctlabs/sp1/pull/651))
+- program refactor ([#651](https://github.com/succinctlabs/sp1/pull/651))
 - e2e groth16 with contract verifier ([#671](https://github.com/succinctlabs/sp1/pull/671))
 - nextgen ci for sp1-prover ([#663](https://github.com/succinctlabs/sp1/pull/663))
 - Adding docs for new `ProverClient` and `groth16` and `compressed` mode ([#627](https://github.com/succinctlabs/sp1/pull/627))
 - add multiple proving modes to network client ([#630](https://github.com/succinctlabs/sp1/pull/630))
 - aggregation fixes ([#649](https://github.com/succinctlabs/sp1/pull/649))
-- *(recursion)* poseidon2 max constraint degree const generic ([#634](https://github.com/succinctlabs/sp1/pull/634))
-- *(sdk)* auto setup circuit ([#635](https://github.com/succinctlabs/sp1/pull/635))
+- _(recursion)_ poseidon2 max constraint degree const generic ([#634](https://github.com/succinctlabs/sp1/pull/634))
+- _(sdk)_ auto setup circuit ([#635](https://github.com/succinctlabs/sp1/pull/635))
 - complete reduce program ([#565](https://github.com/succinctlabs/sp1/pull/565))
 - update network client with claim and fulfill ([#546](https://github.com/succinctlabs/sp1/pull/546))
 - fix cargo prove new issues ([#542](https://github.com/succinctlabs/sp1/pull/542))
 - verify shard transitions + fixes ([#482](https://github.com/succinctlabs/sp1/pull/482))
 - execute before `prove_remote_async` ([#530](https://github.com/succinctlabs/sp1/pull/530))
 - nonce in signed messages ([#507](https://github.com/succinctlabs/sp1/pull/507))
-- *(sdk)* add `prove_async` ([#505](https://github.com/succinctlabs/sp1/pull/505))
+- _(sdk)_ add `prove_async` ([#505](https://github.com/succinctlabs/sp1/pull/505))
 - sdk using secp256k1 auth ([#483](https://github.com/succinctlabs/sp1/pull/483))
 - recursion vm public values ([#495](https://github.com/succinctlabs/sp1/pull/495))
 - relay proofs ([#458](https://github.com/succinctlabs/sp1/pull/458))
@@ -68,13 +70,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - tracing, profiling, benchmarking ([#99](https://github.com/succinctlabs/sp1/pull/99))
 
 ### Fixed
-- *(sdk)* options warning when using network prover ([#1069](https://github.com/succinctlabs/sp1/pull/1069))
-- *(sdk)* lock axum to 0.7.4 ([#1029](https://github.com/succinctlabs/sp1/pull/1029))
+
+- _(sdk)_ options warning when using network prover ([#1069](https://github.com/succinctlabs/sp1/pull/1069))
+- _(sdk)_ lock axum to 0.7.4 ([#1029](https://github.com/succinctlabs/sp1/pull/1029))
 - plonk feature off by default ([#852](https://github.com/succinctlabs/sp1/pull/852))
 - fix
 - install for `verify_plonk_bn254` ([#798](https://github.com/succinctlabs/sp1/pull/798))
 - download Groth16 artifacts on `prove_groth16` invocation ([#674](https://github.com/succinctlabs/sp1/pull/674))
-- *(sdk)* Small fix for getting vkey digest ([#665](https://github.com/succinctlabs/sp1/pull/665))
+- _(sdk)_ Small fix for getting vkey digest ([#665](https://github.com/succinctlabs/sp1/pull/665))
 - verify reduced proofs ([#655](https://github.com/succinctlabs/sp1/pull/655))
 - compress before wrap ([#624](https://github.com/succinctlabs/sp1/pull/624))
 - fix
@@ -85,25 +88,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - fibonacci io ([#478](https://github.com/succinctlabs/sp1/pull/478))
 
 ### Other
+
 - remove async crates `sp1-prover` ([#1042](https://github.com/succinctlabs/sp1/pull/1042))
-- *(deps)* bump serde from 1.0.203 to 1.0.204 ([#1063](https://github.com/succinctlabs/sp1/pull/1063))
+- _(deps)_ bump serde from 1.0.203 to 1.0.204 ([#1063](https://github.com/succinctlabs/sp1/pull/1063))
 - switch to p3 from crates.io ([#1038](https://github.com/succinctlabs/sp1/pull/1038))
 - hm
 - add memory error
 - cycle limit
 - Merge branch 'dev' into dependabot/cargo/dev/log-0.4.22
-- *(deps)* bump serde_json from 1.0.117 to 1.0.120 ([#1001](https://github.com/succinctlabs/sp1/pull/1001))
-- *(deps)* bump num-bigint from 0.4.5 to 0.4.6 ([#1002](https://github.com/succinctlabs/sp1/pull/1002))
-- *(deps)* bump reqwest-middleware from 0.3.1 to 0.3.2
-- *(deps)* bump strum from 0.26.2 to 0.26.3
+- _(deps)_ bump serde_json from 1.0.117 to 1.0.120 ([#1001](https://github.com/succinctlabs/sp1/pull/1001))
+- _(deps)_ bump num-bigint from 0.4.5 to 0.4.6 ([#1002](https://github.com/succinctlabs/sp1/pull/1002))
+- _(deps)_ bump reqwest-middleware from 0.3.1 to 0.3.2
+- _(deps)_ bump strum from 0.26.2 to 0.26.3
 - v1.0.7-testnet ([#930](https://github.com/succinctlabs/sp1/pull/930))
 - add version to sdk ([#923](https://github.com/succinctlabs/sp1/pull/923))
 - hm
 - network docs + cleanup ([#913](https://github.com/succinctlabs/sp1/pull/913))
-- *(deps)* bump strum_macros from 0.26.3 to 0.26.4 ([#907](https://github.com/succinctlabs/sp1/pull/907))
-- *(deps)* bump alloy-sol-types from 0.7.4 to 0.7.6 ([#909](https://github.com/succinctlabs/sp1/pull/909))
-- *(deps)* bump tokio from 1.37.0 to 1.38.0 ([#882](https://github.com/succinctlabs/sp1/pull/882))
-- *(deps)* bump strum_macros from 0.26.2 to 0.26.3
+- _(deps)_ bump strum_macros from 0.26.3 to 0.26.4 ([#907](https://github.com/succinctlabs/sp1/pull/907))
+- _(deps)_ bump alloy-sol-types from 0.7.4 to 0.7.6 ([#909](https://github.com/succinctlabs/sp1/pull/909))
+- _(deps)_ bump tokio from 1.37.0 to 1.38.0 ([#882](https://github.com/succinctlabs/sp1/pull/882))
+- _(deps)_ bump strum_macros from 0.26.2 to 0.26.3
 - add network requester to requested proof ([#845](https://github.com/succinctlabs/sp1/pull/845))
 - Merge branch 'main' into dev
 - clean
@@ -119,7 +123,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Clean up TOML files ([#796](https://github.com/succinctlabs/sp1/pull/796))
 - merge main into dev ([#801](https://github.com/succinctlabs/sp1/pull/801))
 - update dev with latest main ([#728](https://github.com/succinctlabs/sp1/pull/728))
-- *(deps)* bump axum from 0.7.4 to 0.7.5
+- _(deps)_ bump axum from 0.7.4 to 0.7.5
 - update all dependencies ([#689](https://github.com/succinctlabs/sp1/pull/689))
 - sdk tweaks ([#653](https://github.com/succinctlabs/sp1/pull/653))
 - Implement `Prover` on `MockProver` ([#629](https://github.com/succinctlabs/sp1/pull/629))

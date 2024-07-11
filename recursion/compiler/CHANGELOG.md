@@ -1,4 +1,5 @@
 # Changelog
+
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
@@ -6,16 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.0.0-test.1](https://github.com/succinctlabs/sp1/compare/sp1-recursion-compiler-v0.0.0-test...sp1-recursion-compiler-v0.0.0-test.1) - 2024-07-11
+## [0.0.1-test](https://github.com/succinctlabs/sp1/compare/sp1-recursion-compiler-v0.0.0-test...sp1-recursion-compiler-v0.0.1-test) - 2024-07-11
 
 ### Added
+
 - publish sp1 to crates.io ([#1052](https://github.com/succinctlabs/sp1/pull/1052))
 - plonk circuit optimizations ([#972](https://github.com/succinctlabs/sp1/pull/972))
 - poseidon2 hash ([#885](https://github.com/succinctlabs/sp1/pull/885))
 - plonk prover ([#795](https://github.com/succinctlabs/sp1/pull/795))
-- *(recursion)* public values constraints ([#748](https://github.com/succinctlabs/sp1/pull/748))
-- *(recursion)* HALT instruction ([#703](https://github.com/succinctlabs/sp1/pull/703))
-- program refactor  ([#651](https://github.com/succinctlabs/sp1/pull/651))
+- _(recursion)_ public values constraints ([#748](https://github.com/succinctlabs/sp1/pull/748))
+- _(recursion)_ HALT instruction ([#703](https://github.com/succinctlabs/sp1/pull/703))
+- program refactor ([#651](https://github.com/succinctlabs/sp1/pull/651))
 - improve circuit by 3-4x ([#648](https://github.com/succinctlabs/sp1/pull/648))
 - regularize proof shape ([#641](https://github.com/succinctlabs/sp1/pull/641))
 - groth16 server ([#594](https://github.com/succinctlabs/sp1/pull/594))
@@ -23,11 +25,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - prover tweaks ([#603](https://github.com/succinctlabs/sp1/pull/603))
 - recursion compress layer + RecursionAirWideDeg3 + RecursionAirSkinnyDeg7 + optimized groth16 ([#590](https://github.com/succinctlabs/sp1/pull/590))
 - fixing memory interactions ([#587](https://github.com/succinctlabs/sp1/pull/587))
-- *(Recursion)* evaluate constraints in a single expression  ([#592](https://github.com/succinctlabs/sp1/pull/592))
-- expression caching  ([#586](https://github.com/succinctlabs/sp1/pull/586))
+- _(Recursion)_ evaluate constraints in a single expression ([#592](https://github.com/succinctlabs/sp1/pull/592))
+- expression caching ([#586](https://github.com/succinctlabs/sp1/pull/586))
 - complete reduce program ([#565](https://github.com/succinctlabs/sp1/pull/565))
 - public inputs in gnark circuit ([#576](https://github.com/succinctlabs/sp1/pull/576))
-- simplify compiler load/store  ([#572](https://github.com/succinctlabs/sp1/pull/572))
+- simplify compiler load/store ([#572](https://github.com/succinctlabs/sp1/pull/572))
 - e2e groth16 flow ([#549](https://github.com/succinctlabs/sp1/pull/549))
 - alu cpu columns ([#562](https://github.com/succinctlabs/sp1/pull/562))
 - recursion experiments ([#522](https://github.com/succinctlabs/sp1/pull/522))
@@ -38,32 +40,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 0 cycle input for recursion program ([#510](https://github.com/succinctlabs/sp1/pull/510))
 - reduce with different configs ([#508](https://github.com/succinctlabs/sp1/pull/508))
 - groth16 recursion e2e ([#502](https://github.com/succinctlabs/sp1/pull/502))
-- *(recursion)* reduce N sp1/recursive proofs ([#503](https://github.com/succinctlabs/sp1/pull/503))
+- _(recursion)_ reduce N sp1/recursive proofs ([#503](https://github.com/succinctlabs/sp1/pull/503))
 - recursion optimizations + compiler cleanup ([#499](https://github.com/succinctlabs/sp1/pull/499))
 - recursion vm public values ([#495](https://github.com/succinctlabs/sp1/pull/495))
 - cleanup compiler ir ([#496](https://github.com/succinctlabs/sp1/pull/496))
 - add support for witness in programs ([#476](https://github.com/succinctlabs/sp1/pull/476))
 - fri-fold precompile ([#479](https://github.com/succinctlabs/sp1/pull/479))
 - gnark recursive verifier ([#457](https://github.com/succinctlabs/sp1/pull/457))
-- Preprocessing + recursion  ([#450](https://github.com/succinctlabs/sp1/pull/450))
-- *(precompile)* add bn254 precompile ([#384](https://github.com/succinctlabs/sp1/pull/384))
+- Preprocessing + recursion ([#450](https://github.com/succinctlabs/sp1/pull/450))
+- _(precompile)_ add bn254 precompile ([#384](https://github.com/succinctlabs/sp1/pull/384))
 - verify shard ([#444](https://github.com/succinctlabs/sp1/pull/444))
-- *(WIP)* end-to-end verfier ([#439](https://github.com/succinctlabs/sp1/pull/439))
+- _(WIP)_ end-to-end verfier ([#439](https://github.com/succinctlabs/sp1/pull/439))
 - working two adic pcs verifier in recursive zkvm ([#434](https://github.com/succinctlabs/sp1/pull/434))
 - num2bits ([#426](https://github.com/succinctlabs/sp1/pull/426))
-- plonky3 update  ([#428](https://github.com/succinctlabs/sp1/pull/428))
+- plonky3 update ([#428](https://github.com/succinctlabs/sp1/pull/428))
 - dsl derive macro + fri pow witness verify ([#422](https://github.com/succinctlabs/sp1/pull/422))
-- poseidon2 permute  ([#423](https://github.com/succinctlabs/sp1/pull/423))
+- poseidon2 permute ([#423](https://github.com/succinctlabs/sp1/pull/423))
 - verify constraints ([#409](https://github.com/succinctlabs/sp1/pull/409))
 - continue work on fri verifier ([#411](https://github.com/succinctlabs/sp1/pull/411))
-- expression caching  ([#407](https://github.com/succinctlabs/sp1/pull/407))
+- expression caching ([#407](https://github.com/succinctlabs/sp1/pull/407))
 - in progress fri verifier ([#402](https://github.com/succinctlabs/sp1/pull/402))
 - poseidon2 air ([#397](https://github.com/succinctlabs/sp1/pull/397))
 - update to the latest plonky3 version ([#398](https://github.com/succinctlabs/sp1/pull/398))
 - verify constraints in DSL + basic verifier setup ([#395](https://github.com/succinctlabs/sp1/pull/395))
 - arithmetic bug fix and add compiler to ci ([#394](https://github.com/succinctlabs/sp1/pull/394))
 - array and symbolic evaluation ([#390](https://github.com/succinctlabs/sp1/pull/390))
-- cleanup and array progress  ([#387](https://github.com/succinctlabs/sp1/pull/387))
+- cleanup and array progress ([#387](https://github.com/succinctlabs/sp1/pull/387))
 - gnark if statements evaluation ([#386](https://github.com/succinctlabs/sp1/pull/386))
 - extension in vm backend ([#382](https://github.com/succinctlabs/sp1/pull/382))
 - gnark e2e build ([#381](https://github.com/succinctlabs/sp1/pull/381))
@@ -81,9 +83,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - tracing, profiling, benchmarking ([#99](https://github.com/succinctlabs/sp1/pull/99))
 
 ### Fixed
+
 - range check for shard number in recursion ([#952](https://github.com/succinctlabs/sp1/pull/952))
 - memory finalize duplicate address attack from audit ([#934](https://github.com/succinctlabs/sp1/pull/934))
-- *(recursion)* num2bits fixes ([#732](https://github.com/succinctlabs/sp1/pull/732))
+- _(recursion)_ num2bits fixes ([#732](https://github.com/succinctlabs/sp1/pull/732))
 - verify reduced proofs ([#655](https://github.com/succinctlabs/sp1/pull/655))
 - better groth16 file handling ([#620](https://github.com/succinctlabs/sp1/pull/620))
 - deferred proofs + cleanup hash_vkey ([#615](https://github.com/succinctlabs/sp1/pull/615))
@@ -97,7 +100,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - clippy ([#366](https://github.com/succinctlabs/sp1/pull/366))
 
 ### Other
-- *(deps)* bump serde from 1.0.203 to 1.0.204 ([#1063](https://github.com/succinctlabs/sp1/pull/1063))
+
+- _(deps)_ bump serde from 1.0.203 to 1.0.204 ([#1063](https://github.com/succinctlabs/sp1/pull/1063))
 - Fixes from review.
 - Update recursion/compiler/src/ir/utils.rs
 - please clippy
@@ -109,14 +113,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Make some functions const ([#774](https://github.com/succinctlabs/sp1/pull/774))
 - remove unused deps ([#794](https://github.com/succinctlabs/sp1/pull/794))
 - Clean up TOML files ([#796](https://github.com/succinctlabs/sp1/pull/796))
-- *(recursion)* document IR ([#737](https://github.com/succinctlabs/sp1/pull/737))
-- *(recursion)* explicitly don't allow witness and public values related apis in sub-builder ([#744](https://github.com/succinctlabs/sp1/pull/744))
-- *(recursion)* heap ptr checks ([#775](https://github.com/succinctlabs/sp1/pull/775))
-- *(recursion)* convert ext2felt to hint ([#771](https://github.com/succinctlabs/sp1/pull/771))
+- _(recursion)_ document IR ([#737](https://github.com/succinctlabs/sp1/pull/737))
+- _(recursion)_ explicitly don't allow witness and public values related apis in sub-builder ([#744](https://github.com/succinctlabs/sp1/pull/744))
+- _(recursion)_ heap ptr checks ([#775](https://github.com/succinctlabs/sp1/pull/775))
+- _(recursion)_ convert ext2felt to hint ([#771](https://github.com/succinctlabs/sp1/pull/771))
 - update all dependencies ([#689](https://github.com/succinctlabs/sp1/pull/689))
 - make ci faster ([#536](https://github.com/succinctlabs/sp1/pull/536))
 - cleanup for allen ([#518](https://github.com/succinctlabs/sp1/pull/518))
-- *(recursion)* reduce program ([#497](https://github.com/succinctlabs/sp1/pull/497))
+- _(recursion)_ reduce program ([#497](https://github.com/succinctlabs/sp1/pull/497))
 - for loop optimizations
 - final touches for public release ([#239](https://github.com/succinctlabs/sp1/pull/239))
 - update docs with slight nits ([#224](https://github.com/succinctlabs/sp1/pull/224))

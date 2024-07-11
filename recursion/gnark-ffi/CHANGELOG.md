@@ -1,4 +1,5 @@
 # Changelog
+
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
@@ -6,15 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.0.0-test.1](https://github.com/succinctlabs/sp1/compare/sp1-recursion-gnark-ffi-v0.0.0-test...sp1-recursion-gnark-ffi-v0.0.0-test.1) - 2024-07-11
+## [0.0.1-test](https://github.com/succinctlabs/sp1/compare/sp1-recursion-gnark-ffi-v0.0.0-test...sp1-recursion-gnark-ffi-v0.0.1-test) - 2024-07-11
 
 ### Added
+
 - publish sp1 to crates.io ([#1052](https://github.com/succinctlabs/sp1/pull/1052))
 - update verifier contract templates ([#963](https://github.com/succinctlabs/sp1/pull/963))
 - circuit version in proof ([#926](https://github.com/succinctlabs/sp1/pull/926))
 - sp1 circuit version ([#899](https://github.com/succinctlabs/sp1/pull/899))
 - use docker by default for gnark ([#890](https://github.com/succinctlabs/sp1/pull/890))
-- *(sdk)* add explorer link ([#858](https://github.com/succinctlabs/sp1/pull/858))
+- _(sdk)_ add explorer link ([#858](https://github.com/succinctlabs/sp1/pull/858))
 - update contract artifacts ([#802](https://github.com/succinctlabs/sp1/pull/802))
 - plonk prover ([#795](https://github.com/succinctlabs/sp1/pull/795))
 - groth16 feature flag ([#782](https://github.com/succinctlabs/sp1/pull/782))
@@ -23,7 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - add `groth16` verification to gnark server ([#631](https://github.com/succinctlabs/sp1/pull/631))
 - load circuit artifacts in faster ([#638](https://github.com/succinctlabs/sp1/pull/638))
 - regularize proof shape ([#641](https://github.com/succinctlabs/sp1/pull/641))
-- *(sdk)* auto setup circuit ([#635](https://github.com/succinctlabs/sp1/pull/635))
+- _(sdk)_ auto setup circuit ([#635](https://github.com/succinctlabs/sp1/pull/635))
 - canonicalize build dir paths ([#637](https://github.com/succinctlabs/sp1/pull/637))
 - groth16 server ([#594](https://github.com/succinctlabs/sp1/pull/594))
 - recursion compress layer + RecursionAirWideDeg3 + RecursionAirSkinnyDeg7 + optimized groth16 ([#590](https://github.com/succinctlabs/sp1/pull/590))
@@ -39,7 +41,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - tracing, profiling, benchmarking ([#99](https://github.com/succinctlabs/sp1/pull/99))
 
 ### Fixed
-- *(contracts)* check verifier success ([#983](https://github.com/succinctlabs/sp1/pull/983))
+
+- _(contracts)_ check verifier success ([#983](https://github.com/succinctlabs/sp1/pull/983))
 - close unclosed file streams ([#954](https://github.com/succinctlabs/sp1/pull/954))
 - some informational fixes from veridise audit ([#953](https://github.com/succinctlabs/sp1/pull/953))
 - mock verifier ([#936](https://github.com/succinctlabs/sp1/pull/936))
@@ -51,11 +54,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - better groth16 file handling ([#620](https://github.com/succinctlabs/sp1/pull/620))
 
 ### Other
-- *(deps)* bump serde from 1.0.203 to 1.0.204 ([#1063](https://github.com/succinctlabs/sp1/pull/1063))
-- *(contracts)* remove mock verifier and interface autogen ([#1045](https://github.com/succinctlabs/sp1/pull/1045))
+
+- _(deps)_ bump serde from 1.0.203 to 1.0.204 ([#1063](https://github.com/succinctlabs/sp1/pull/1063))
+- _(contracts)_ remove mock verifier and interface autogen ([#1045](https://github.com/succinctlabs/sp1/pull/1045))
 - Merge branch 'dev' into dependabot/cargo/dev/log-0.4.22
-- *(deps)* bump serde_json from 1.0.117 to 1.0.120 ([#1001](https://github.com/succinctlabs/sp1/pull/1001))
-- *(deps)* bump num-bigint from 0.4.5 to 0.4.6
+- _(deps)_ bump serde_json from 1.0.117 to 1.0.120 ([#1001](https://github.com/succinctlabs/sp1/pull/1001))
+- _(deps)_ bump num-bigint from 0.4.5 to 0.4.6
 - circuit poseidon2 babybear ([#870](https://github.com/succinctlabs/sp1/pull/870))
 - docs
 - lint

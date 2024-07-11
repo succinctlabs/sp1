@@ -1,6 +1,6 @@
 [package]
 name = "sp1-lib"
-version = "0.0.0-test.1"
+version = "0.0.1-test"
 edition = "2021"
 description = "SP1 is a performant, 100% open-source, contributor-friendly zkVM."
 readme = "../../README.md"
@@ -19,7 +19,11 @@ amcl = { package = "snowbridge-amcl", version = "1.0.2", default-features = fals
 hex = { version = "0.4.3", optional = true }
 
 # k256
-k256 = { version = "0.13.3", features = ["ecdsa", "std", "bits"], optional = true }
+k256 = { version = "0.13.3", features = [
+  "ecdsa",
+  "std",
+  "bits",
+], optional = true }
 
 [features]
 default = []

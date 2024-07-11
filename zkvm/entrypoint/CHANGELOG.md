@@ -1,4 +1,5 @@
 # Changelog
+
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
@@ -6,21 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.0.0-test.1](https://github.com/succinctlabs/sp1/compare/sp1-zkvm-v0.0.0-test...sp1-zkvm-v0.0.0-test.1) - 2024-07-11
+## [0.0.1-test](https://github.com/succinctlabs/sp1/compare/sp1-zkvm-v0.0.0-test...sp1-zkvm-v0.0.1-test) - 2024-07-11
 
 ### Added
+
 - publish sp1 to crates.io ([#1052](https://github.com/succinctlabs/sp1/pull/1052))
 - `mulmod` uint256 precompile ([#642](https://github.com/succinctlabs/sp1/pull/642))
 - aggregation fixes ([#649](https://github.com/succinctlabs/sp1/pull/649))
 - complete reduce program ([#565](https://github.com/succinctlabs/sp1/pull/565))
 - feat(precompile) bls12-381 add and double precompile ([#448](https://github.com/succinctlabs/sp1/pull/448))
-- *(precompile)* add biguint arithmetic precompiles ([#378](https://github.com/succinctlabs/sp1/pull/378))
+- _(precompile)_ add biguint arithmetic precompiles ([#378](https://github.com/succinctlabs/sp1/pull/378))
 - weierstrass decompress precompile ([#440](https://github.com/succinctlabs/sp1/pull/440))
 - nested sp1 proof verification ([#494](https://github.com/succinctlabs/sp1/pull/494))
 - setup recursion prover crate ([#475](https://github.com/succinctlabs/sp1/pull/475))
 - public values ([#455](https://github.com/succinctlabs/sp1/pull/455))
 - one cycle input ([#451](https://github.com/succinctlabs/sp1/pull/451))
-- *(precompile)* add bn254 precompile ([#384](https://github.com/succinctlabs/sp1/pull/384))
+- _(precompile)_ add bn254 precompile ([#384](https://github.com/succinctlabs/sp1/pull/384))
 - Connect CPU to ECALL tables ([#364](https://github.com/succinctlabs/sp1/pull/364))
 - Many small features and chores ([#347](https://github.com/succinctlabs/sp1/pull/347))
 - program build script ([#296](https://github.com/succinctlabs/sp1/pull/296))
@@ -36,21 +38,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - tracing, profiling, benchmarking ([#99](https://github.com/succinctlabs/sp1/pull/99))
 
 ### Fixed
+
 - uint256 fixes ([#990](https://github.com/succinctlabs/sp1/pull/990))
 - no mangle
 - replace `jal` with `call` in entrypoint ([#898](https://github.com/succinctlabs/sp1/pull/898))
 - sys_bigint duplicate symbol ([#880](https://github.com/succinctlabs/sp1/pull/880))
 - `getrandom` version ([#753](https://github.com/succinctlabs/sp1/pull/753))
-- *(zkvm)* libm math intrinsics ([#287](https://github.com/succinctlabs/sp1/pull/287))
+- _(zkvm)_ libm math intrinsics ([#287](https://github.com/succinctlabs/sp1/pull/287))
 - memcpy & memset ([#282](https://github.com/succinctlabs/sp1/pull/282))
 - zkvm crate refactor bug ([#276](https://github.com/succinctlabs/sp1/pull/276))
 
 ### Other
-- *(deps)* bump serde from 1.0.203 to 1.0.204 ([#1063](https://github.com/succinctlabs/sp1/pull/1063))
+
+- _(deps)_ bump serde from 1.0.203 to 1.0.204 ([#1063](https://github.com/succinctlabs/sp1/pull/1063))
 - clenaup zkvm
 - hm
 - cleanup zkvm/lib
-- *(deps)* bump lazy_static from 1.4.0 to 1.5.0
+- _(deps)_ bump lazy_static from 1.4.0 to 1.5.0
 - fix sys rand ([#919](https://github.com/succinctlabs/sp1/pull/919))
 - runtime gets printed out 3 times
 - hm

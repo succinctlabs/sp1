@@ -1,4 +1,5 @@
 # Changelog
+
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
@@ -6,9 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.0.0-test.1](https://github.com/succinctlabs/sp1/compare/sp1-recursion-circuit-v0.0.0-test...sp1-recursion-circuit-v0.0.0-test.1) - 2024-07-11
+## [0.0.1-test](https://github.com/succinctlabs/sp1/compare/sp1-recursion-circuit-v0.0.0-test...sp1-recursion-circuit-v0.0.1-test) - 2024-07-11
 
 ### Added
+
 - publish sp1 to crates.io ([#1052](https://github.com/succinctlabs/sp1/pull/1052))
 - critical constraint changes ([#1046](https://github.com/succinctlabs/sp1/pull/1046))
 - plonk circuit optimizations ([#972](https://github.com/succinctlabs/sp1/pull/972))
@@ -16,17 +18,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - use docker by default for gnark ([#890](https://github.com/succinctlabs/sp1/pull/890))
 - sp1 core prover opts
 - exit code ([#750](https://github.com/succinctlabs/sp1/pull/750))
-- program refactor  ([#651](https://github.com/succinctlabs/sp1/pull/651))
+- program refactor ([#651](https://github.com/succinctlabs/sp1/pull/651))
 - e2e groth16 with contract verifier ([#671](https://github.com/succinctlabs/sp1/pull/671))
 - improve circuit by 3-4x ([#648](https://github.com/succinctlabs/sp1/pull/648))
 - regularize proof shape ([#641](https://github.com/succinctlabs/sp1/pull/641))
-- *(sdk)* auto setup circuit ([#635](https://github.com/succinctlabs/sp1/pull/635))
+- _(sdk)_ auto setup circuit ([#635](https://github.com/succinctlabs/sp1/pull/635))
 - arbitrary degree in recursion ([#605](https://github.com/succinctlabs/sp1/pull/605))
 - prover tweaks ([#603](https://github.com/succinctlabs/sp1/pull/603))
 - enable arbitrary constraint degree ([#593](https://github.com/succinctlabs/sp1/pull/593))
 - recursion compress layer + RecursionAirWideDeg3 + RecursionAirSkinnyDeg7 + optimized groth16 ([#590](https://github.com/succinctlabs/sp1/pull/590))
-- *(Recursion)* evaluate constraints in a single expression  ([#592](https://github.com/succinctlabs/sp1/pull/592))
-- expression caching  ([#586](https://github.com/succinctlabs/sp1/pull/586))
+- _(Recursion)_ evaluate constraints in a single expression ([#592](https://github.com/succinctlabs/sp1/pull/592))
+- expression caching ([#586](https://github.com/succinctlabs/sp1/pull/586))
 - plonk e2e prover ([#582](https://github.com/succinctlabs/sp1/pull/582))
 - public inputs in gnark circuit ([#576](https://github.com/succinctlabs/sp1/pull/576))
 - e2e groth16 flow ([#549](https://github.com/succinctlabs/sp1/pull/549))
@@ -46,7 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - recursion permutation challenges as variables ([#486](https://github.com/succinctlabs/sp1/pull/486))
 - add support for witness in programs ([#476](https://github.com/succinctlabs/sp1/pull/476))
 - gnark recursive verifier ([#457](https://github.com/succinctlabs/sp1/pull/457))
-- Preprocessing + recursion  ([#450](https://github.com/succinctlabs/sp1/pull/450))
+- Preprocessing + recursion ([#450](https://github.com/succinctlabs/sp1/pull/450))
 - working two adic pcs verifier in recursive zkvm ([#434](https://github.com/succinctlabs/sp1/pull/434))
 - new README img ([#226](https://github.com/succinctlabs/sp1/pull/226))
 - readme updates ([#205](https://github.com/succinctlabs/sp1/pull/205))
@@ -59,9 +61,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - tracing, profiling, benchmarking ([#99](https://github.com/succinctlabs/sp1/pull/99))
 
 ### Fixed
+
 - fix overflow when compile to wasm32 ([#812](https://github.com/succinctlabs/sp1/pull/812))
 - p3 audit change ([#964](https://github.com/succinctlabs/sp1/pull/964))
-- *(recursion)* assert curve bit length in circuit p2_hash ([#736](https://github.com/succinctlabs/sp1/pull/736))
+- _(recursion)_ assert curve bit length in circuit p2_hash ([#736](https://github.com/succinctlabs/sp1/pull/736))
 - fri fold mem access ([#660](https://github.com/succinctlabs/sp1/pull/660))
 - verify reduced proofs ([#655](https://github.com/succinctlabs/sp1/pull/655))
 - high degree constraints in recursion ([#619](https://github.com/succinctlabs/sp1/pull/619))
@@ -72,11 +75,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - don't observe padded public values ([#520](https://github.com/succinctlabs/sp1/pull/520))
 
 ### Other
-- *(deps)* bump serde from 1.0.203 to 1.0.204 ([#1063](https://github.com/succinctlabs/sp1/pull/1063))
-- *(deps)* bump itertools from 0.12.1 to 0.13.0 ([#817](https://github.com/succinctlabs/sp1/pull/817))
+
+- _(deps)_ bump serde from 1.0.203 to 1.0.204 ([#1063](https://github.com/succinctlabs/sp1/pull/1063))
+- _(deps)_ bump itertools from 0.12.1 to 0.13.0 ([#817](https://github.com/succinctlabs/sp1/pull/817))
 - circuit poseidon2 babybear ([#870](https://github.com/succinctlabs/sp1/pull/870))
 - remove unecessary todos in recursion
-- permutation argument in circuit  ([#804](https://github.com/succinctlabs/sp1/pull/804))
+- permutation argument in circuit ([#804](https://github.com/succinctlabs/sp1/pull/804))
 - remove unecessary todo in bb31 to bn254 ([#805](https://github.com/succinctlabs/sp1/pull/805))
 - remove unecessary todo
 - Clean up TOML files ([#796](https://github.com/succinctlabs/sp1/pull/796))

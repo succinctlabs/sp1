@@ -1,4 +1,5 @@
 # Changelog
+
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
@@ -6,9 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.0.0-test.1](https://github.com/succinctlabs/sp1/compare/sp1-prover-v0.0.0-test...sp1-prover-v0.0.0-test.1) - 2024-07-11
+## [0.0.1-test](https://github.com/succinctlabs/sp1/compare/sp1-prover-v0.0.0-test...sp1-prover-v0.0.1-test) - 2024-07-11
 
 ### Added
+
 - publish sp1 to crates.io ([#1052](https://github.com/succinctlabs/sp1/pull/1052))
 - critical constraint changes ([#1046](https://github.com/succinctlabs/sp1/pull/1046))
 - suggest prover network if high cycles ([#1019](https://github.com/succinctlabs/sp1/pull/1019))
@@ -16,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - poseidon2 hash ([#885](https://github.com/succinctlabs/sp1/pull/885))
 - (breaking changes to SDK API) use builder pattern for SDK execute/prove/verify ([#940](https://github.com/succinctlabs/sp1/pull/940))
 - verify subproof in runtime ([#911](https://github.com/succinctlabs/sp1/pull/911))
-- *(sdk)* add explorer link ([#858](https://github.com/succinctlabs/sp1/pull/858))
+- _(sdk)_ add explorer link ([#858](https://github.com/succinctlabs/sp1/pull/858))
 - generic const expr ([#854](https://github.com/succinctlabs/sp1/pull/854))
 - execute() exposes ExecutionReport ([#847](https://github.com/succinctlabs/sp1/pull/847))
 - update contract artifacts ([#802](https://github.com/succinctlabs/sp1/pull/802))
@@ -30,7 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - auto rebuild dev artifacts in sdk ([#726](https://github.com/succinctlabs/sp1/pull/726))
 - fix execution + proving errors ([#715](https://github.com/succinctlabs/sp1/pull/715))
 - update groth16 artifacts ([#711](https://github.com/succinctlabs/sp1/pull/711))
-- program refactor  ([#651](https://github.com/succinctlabs/sp1/pull/651))
+- program refactor ([#651](https://github.com/succinctlabs/sp1/pull/651))
 - serial tests in prover crate ([#673](https://github.com/succinctlabs/sp1/pull/673))
 - e2e groth16 with contract verifier ([#671](https://github.com/succinctlabs/sp1/pull/671))
 - nextgen ci for sp1-prover ([#663](https://github.com/succinctlabs/sp1/pull/663))
@@ -39,7 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - aggregation fixes ([#649](https://github.com/succinctlabs/sp1/pull/649))
 - improve circuit by 3-4x ([#648](https://github.com/succinctlabs/sp1/pull/648))
 - regularize proof shape ([#641](https://github.com/succinctlabs/sp1/pull/641))
-- *(sdk)* auto setup circuit ([#635](https://github.com/succinctlabs/sp1/pull/635))
+- _(sdk)_ auto setup circuit ([#635](https://github.com/succinctlabs/sp1/pull/635))
 - prover tweaks pt4 ([#632](https://github.com/succinctlabs/sp1/pull/632))
 - groth16 server ([#594](https://github.com/succinctlabs/sp1/pull/594))
 - arbitrary degree in recursion ([#605](https://github.com/succinctlabs/sp1/pull/605))
@@ -59,7 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - gnark wrap test + cleanup ([#511](https://github.com/succinctlabs/sp1/pull/511))
 - 0 cycle input for recursion program ([#510](https://github.com/succinctlabs/sp1/pull/510))
 - reduce with different configs ([#508](https://github.com/succinctlabs/sp1/pull/508))
-- *(recursion)* reduce N sp1/recursive proofs ([#503](https://github.com/succinctlabs/sp1/pull/503))
+- _(recursion)_ reduce N sp1/recursive proofs ([#503](https://github.com/succinctlabs/sp1/pull/503))
 - recursion optimizations + compiler cleanup ([#499](https://github.com/succinctlabs/sp1/pull/499))
 - recursion vm public values ([#495](https://github.com/succinctlabs/sp1/pull/495))
 - add support for witness in programs ([#476](https://github.com/succinctlabs/sp1/pull/476))
@@ -75,11 +77,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - tracing, profiling, benchmarking ([#99](https://github.com/succinctlabs/sp1/pull/99))
 
 ### Fixed
+
 - plonk feature off by default ([#852](https://github.com/succinctlabs/sp1/pull/852))
 - install for `verify_plonk_bn254` ([#798](https://github.com/succinctlabs/sp1/pull/798))
 - groth16 install when in existing runtime ([#735](https://github.com/succinctlabs/sp1/pull/735))
 - shutdown groth16 ([#667](https://github.com/succinctlabs/sp1/pull/667))
-- *(sdk)* Small fix for getting vkey digest ([#665](https://github.com/succinctlabs/sp1/pull/665))
+- _(sdk)_ Small fix for getting vkey digest ([#665](https://github.com/succinctlabs/sp1/pull/665))
 - verify reduced proofs ([#655](https://github.com/succinctlabs/sp1/pull/655))
 - high degree constraints in recursion ([#619](https://github.com/succinctlabs/sp1/pull/619))
 - deferred proofs + cleanup hash_vkey ([#615](https://github.com/succinctlabs/sp1/pull/615))
@@ -89,10 +92,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - don't observe padded public values ([#520](https://github.com/succinctlabs/sp1/pull/520))
 
 ### Other
+
 - remove async crates `sp1-prover` ([#1042](https://github.com/succinctlabs/sp1/pull/1042))
 - Merge branch 'dev' into dependabot/cargo/dev/clap-4.5.8
-- *(deps)* bump serde_json from 1.0.117 to 1.0.120 ([#1001](https://github.com/succinctlabs/sp1/pull/1001))
-- *(deps)* bump num-bigint from 0.4.5 to 0.4.6
+- _(deps)_ bump serde_json from 1.0.117 to 1.0.120 ([#1001](https://github.com/succinctlabs/sp1/pull/1001))
+- _(deps)_ bump num-bigint from 0.4.5 to 0.4.6
 - merge main -> dev ([#969](https://github.com/succinctlabs/sp1/pull/969))
 - cleanup compress ([#928](https://github.com/succinctlabs/sp1/pull/928))
 - v1.0.7-testnet ([#930](https://github.com/succinctlabs/sp1/pull/930))
@@ -101,7 +105,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - uncomment
 - Merge branch 'dev' into erabinov/exp_rev_precompile
 - Version of exp_rev_precompile
-- *(deps)* bump tokio from 1.37.0 to 1.38.0
+- _(deps)_ bump tokio from 1.37.0 to 1.38.0
 - update plonk artifacts ([#877](https://github.com/succinctlabs/sp1/pull/877))
 - fixes ([#821](https://github.com/succinctlabs/sp1/pull/821))
 - bump plonk artifacts ([#864](https://github.com/succinctlabs/sp1/pull/864))
@@ -109,13 +113,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - hm
 - remove unused deps ([#794](https://github.com/succinctlabs/sp1/pull/794))
 - Clean up TOML files ([#796](https://github.com/succinctlabs/sp1/pull/796))
-- SP1ProvingKey serde  ([#772](https://github.com/succinctlabs/sp1/pull/772))
+- SP1ProvingKey serde ([#772](https://github.com/succinctlabs/sp1/pull/772))
 - update groth16 build ([#758](https://github.com/succinctlabs/sp1/pull/758))
-- *(prover)* expose functions for getting core/deferred inputs ([#755](https://github.com/succinctlabs/sp1/pull/755))
+- _(prover)_ expose functions for getting core/deferred inputs ([#755](https://github.com/succinctlabs/sp1/pull/755))
 - use actual ffi for gnark ([#738](https://github.com/succinctlabs/sp1/pull/738))
 - get_cycles don't need emit events ([#697](https://github.com/succinctlabs/sp1/pull/697))
 - update all dependencies ([#689](https://github.com/succinctlabs/sp1/pull/689))
-- *(recursion)* poseidon2 loose ends ([#672](https://github.com/succinctlabs/sp1/pull/672))
+- _(recursion)_ poseidon2 loose ends ([#672](https://github.com/succinctlabs/sp1/pull/672))
 - gnark folder ([#677](https://github.com/succinctlabs/sp1/pull/677))
 - sdk tweaks ([#653](https://github.com/succinctlabs/sp1/pull/653))
 - sdk improvements ([#580](https://github.com/succinctlabs/sp1/pull/580))
@@ -125,7 +129,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - cleanup prover ([#551](https://github.com/succinctlabs/sp1/pull/551))
 - cleanup program + add missing constraints ([#547](https://github.com/succinctlabs/sp1/pull/547))
 - make ci faster ([#536](https://github.com/succinctlabs/sp1/pull/536))
-- *(recursion)* reduce program ([#497](https://github.com/succinctlabs/sp1/pull/497))
+- _(recursion)_ reduce program ([#497](https://github.com/succinctlabs/sp1/pull/497))
 - final touches for public release ([#239](https://github.com/succinctlabs/sp1/pull/239))
 - update docs with slight nits ([#224](https://github.com/succinctlabs/sp1/pull/224))
 - sp1 rename ([#212](https://github.com/succinctlabs/sp1/pull/212))

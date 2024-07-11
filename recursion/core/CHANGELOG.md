@@ -1,4 +1,5 @@
 # Changelog
+
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
@@ -6,9 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.0.0-test.1](https://github.com/succinctlabs/sp1/compare/sp1-recursion-core-v0.0.0-test...sp1-recursion-core-v0.0.0-test.1) - 2024-07-11
+## [0.0.1-test](https://github.com/succinctlabs/sp1/compare/sp1-recursion-core-v0.0.0-test...sp1-recursion-core-v0.0.1-test) - 2024-07-11
 
 ### Added
+
 - publish sp1 to crates.io ([#1052](https://github.com/succinctlabs/sp1/pull/1052))
 - critical constraint changes ([#1046](https://github.com/succinctlabs/sp1/pull/1046))
 - plonk circuit optimizations ([#972](https://github.com/succinctlabs/sp1/pull/972))
@@ -18,35 +20,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - generic const expr ([#854](https://github.com/succinctlabs/sp1/pull/854))
 - plonk prover ([#795](https://github.com/succinctlabs/sp1/pull/795))
 - exit code ([#750](https://github.com/succinctlabs/sp1/pull/750))
-- *(recursion)* public values constraints ([#748](https://github.com/succinctlabs/sp1/pull/748))
-- *(recursion)* HALT instruction ([#703](https://github.com/succinctlabs/sp1/pull/703))
-- program refactor  ([#651](https://github.com/succinctlabs/sp1/pull/651))
+- _(recursion)_ public values constraints ([#748](https://github.com/succinctlabs/sp1/pull/748))
+- _(recursion)_ HALT instruction ([#703](https://github.com/succinctlabs/sp1/pull/703))
+- program refactor ([#651](https://github.com/succinctlabs/sp1/pull/651))
 - e2e groth16 with contract verifier ([#671](https://github.com/succinctlabs/sp1/pull/671))
 - nextgen ci for sp1-prover ([#663](https://github.com/succinctlabs/sp1/pull/663))
-- *(recursion)* Add interactions to poseidon2 skinny ([#658](https://github.com/succinctlabs/sp1/pull/658))
+- _(recursion)_ Add interactions to poseidon2 skinny ([#658](https://github.com/succinctlabs/sp1/pull/658))
 - Adding docs for new `ProverClient` and `groth16` and `compressed` mode ([#627](https://github.com/succinctlabs/sp1/pull/627))
 - aggregation fixes ([#649](https://github.com/succinctlabs/sp1/pull/649))
 - improve circuit by 3-4x ([#648](https://github.com/succinctlabs/sp1/pull/648))
-- *(recursion)* poseidon2 max constraint degree const generic ([#634](https://github.com/succinctlabs/sp1/pull/634))
+- _(recursion)_ poseidon2 max constraint degree const generic ([#634](https://github.com/succinctlabs/sp1/pull/634))
 - regularize proof shape ([#641](https://github.com/succinctlabs/sp1/pull/641))
 - prover tweaks pt4 ([#632](https://github.com/succinctlabs/sp1/pull/632))
-- *(recursion)* jump instruction constraints ([#617](https://github.com/succinctlabs/sp1/pull/617))
-- *(recursion)* cpu branch constraints ([#578](https://github.com/succinctlabs/sp1/pull/578))
+- _(recursion)_ jump instruction constraints ([#617](https://github.com/succinctlabs/sp1/pull/617))
+- _(recursion)_ cpu branch constraints ([#578](https://github.com/succinctlabs/sp1/pull/578))
 - prover tweaks pt 2 ([#607](https://github.com/succinctlabs/sp1/pull/607))
 - prover tweaks ([#603](https://github.com/succinctlabs/sp1/pull/603))
-- *(recursion)* memory access timestamp constraints ([#589](https://github.com/succinctlabs/sp1/pull/589))
+- _(recursion)_ memory access timestamp constraints ([#589](https://github.com/succinctlabs/sp1/pull/589))
 - enable arbitrary constraint degree ([#593](https://github.com/succinctlabs/sp1/pull/593))
 - recursion compress layer + RecursionAirWideDeg3 + RecursionAirSkinnyDeg7 + optimized groth16 ([#590](https://github.com/succinctlabs/sp1/pull/590))
 - fixing memory interactions ([#587](https://github.com/succinctlabs/sp1/pull/587))
-- *(recursion)* memory builder + fri-fold precompile ([#581](https://github.com/succinctlabs/sp1/pull/581))
+- _(recursion)_ memory builder + fri-fold precompile ([#581](https://github.com/succinctlabs/sp1/pull/581))
 - complete reduce program ([#565](https://github.com/succinctlabs/sp1/pull/565))
 - public inputs in gnark circuit ([#576](https://github.com/succinctlabs/sp1/pull/576))
-- *(recursion)* cpu alu constraints ([#570](https://github.com/succinctlabs/sp1/pull/570))
-- *(recursion)* recursion air builder ([#574](https://github.com/succinctlabs/sp1/pull/574))
-- simplify compiler load/store  ([#572](https://github.com/succinctlabs/sp1/pull/572))
+- _(recursion)_ cpu alu constraints ([#570](https://github.com/succinctlabs/sp1/pull/570))
+- _(recursion)_ recursion air builder ([#574](https://github.com/succinctlabs/sp1/pull/574))
+- simplify compiler load/store ([#572](https://github.com/succinctlabs/sp1/pull/572))
 - alu cpu columns ([#562](https://github.com/succinctlabs/sp1/pull/562))
 - recursion experiments ([#522](https://github.com/succinctlabs/sp1/pull/522))
-- *(recursion)* impl `Poseidon2WideChip` ([#537](https://github.com/succinctlabs/sp1/pull/537))
+- _(recursion)_ impl `Poseidon2WideChip` ([#537](https://github.com/succinctlabs/sp1/pull/537))
 - groth16 circuit build script ([#541](https://github.com/succinctlabs/sp1/pull/541))
 - verify shard transitions + fixes ([#482](https://github.com/succinctlabs/sp1/pull/482))
 - preprocess memory program chip ([#480](https://github.com/succinctlabs/sp1/pull/480))
@@ -66,13 +68,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - gnark recursive verifier ([#457](https://github.com/succinctlabs/sp1/pull/457))
 - recursion cpu constraints ([#464](https://github.com/succinctlabs/sp1/pull/464))
 - public values ([#455](https://github.com/succinctlabs/sp1/pull/455))
-- Preprocessing + recursion  ([#450](https://github.com/succinctlabs/sp1/pull/450))
-- *(precompile)* add bn254 precompile ([#384](https://github.com/succinctlabs/sp1/pull/384))
+- Preprocessing + recursion ([#450](https://github.com/succinctlabs/sp1/pull/450))
+- _(precompile)_ add bn254 precompile ([#384](https://github.com/succinctlabs/sp1/pull/384))
 - verify shard ([#444](https://github.com/succinctlabs/sp1/pull/444))
-- *(WIP)* end-to-end verfier ([#439](https://github.com/succinctlabs/sp1/pull/439))
+- _(WIP)_ end-to-end verfier ([#439](https://github.com/succinctlabs/sp1/pull/439))
 - working two adic pcs verifier in recursive zkvm ([#434](https://github.com/succinctlabs/sp1/pull/434))
 - num2bits ([#426](https://github.com/succinctlabs/sp1/pull/426))
-- poseidon2 permute  ([#423](https://github.com/succinctlabs/sp1/pull/423))
+- poseidon2 permute ([#423](https://github.com/succinctlabs/sp1/pull/423))
 - verify constraints ([#409](https://github.com/succinctlabs/sp1/pull/409))
 - poseidon2 air ([#397](https://github.com/succinctlabs/sp1/pull/397))
 - checkpoint runtime for constant memory usage ([#389](https://github.com/succinctlabs/sp1/pull/389))
@@ -95,6 +97,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - tracing, profiling, benchmarking ([#99](https://github.com/succinctlabs/sp1/pull/99))
 
 ### Fixed
+
 - multi-builder first/last row issue ([#997](https://github.com/succinctlabs/sp1/pull/997))
 - recursion runtime
 - changed fixed size for multi table ([#966](https://github.com/succinctlabs/sp1/pull/966))
@@ -103,13 +106,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - memory finalize duplicate address attack from audit ([#934](https://github.com/succinctlabs/sp1/pull/934))
 - fix things
 - fix
-- *(recursion)* num2bits fixes ([#732](https://github.com/succinctlabs/sp1/pull/732))
-- *(recursion)* poseidon2 external flag ([#747](https://github.com/succinctlabs/sp1/pull/747))
-- *(recursion)* enable mul constraint ([#686](https://github.com/succinctlabs/sp1/pull/686))
+- _(recursion)_ num2bits fixes ([#732](https://github.com/succinctlabs/sp1/pull/732))
+- _(recursion)_ poseidon2 external flag ([#747](https://github.com/succinctlabs/sp1/pull/747))
+- _(recursion)_ enable mul constraint ([#686](https://github.com/succinctlabs/sp1/pull/686))
 - fixes to the multi table ([#669](https://github.com/succinctlabs/sp1/pull/669))
 - fri fold mem access ([#660](https://github.com/succinctlabs/sp1/pull/660))
 - verify reduced proofs ([#655](https://github.com/succinctlabs/sp1/pull/655))
-- *(recursion)* fixes for fri fold and poseidon2 ([#654](https://github.com/succinctlabs/sp1/pull/654))
+- _(recursion)_ fixes for fri fold and poseidon2 ([#654](https://github.com/succinctlabs/sp1/pull/654))
 - high degree constraints in recursion ([#619](https://github.com/succinctlabs/sp1/pull/619))
 - circuit sponge absorb rate ([#618](https://github.com/succinctlabs/sp1/pull/618))
 - deferred proofs + cleanup hash_vkey ([#615](https://github.com/succinctlabs/sp1/pull/615))
@@ -117,13 +120,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - update Poseidon2 air to match plonky3 ([#600](https://github.com/succinctlabs/sp1/pull/600))
 - circuit verification ([#599](https://github.com/succinctlabs/sp1/pull/599))
 - poseidon2wide `is_real` ([#591](https://github.com/succinctlabs/sp1/pull/591))
-- *(recursion)* poseidon2 chip matches plonky3 ([#548](https://github.com/succinctlabs/sp1/pull/548))
+- _(recursion)_ poseidon2 chip matches plonky3 ([#548](https://github.com/succinctlabs/sp1/pull/548))
 - observe only non-padded public values ([#523](https://github.com/succinctlabs/sp1/pull/523))
 - few regression fixes ([#441](https://github.com/succinctlabs/sp1/pull/441))
 - ci ([#401](https://github.com/succinctlabs/sp1/pull/401))
 
 ### Other
-- *(deps)* bump serde_with from 3.8.1 to 3.8.3 ([#1064](https://github.com/succinctlabs/sp1/pull/1064))
+
+- _(deps)_ bump serde_with from 3.8.1 to 3.8.3 ([#1064](https://github.com/succinctlabs/sp1/pull/1064))
 - merge main -> dev ([#969](https://github.com/succinctlabs/sp1/pull/969))
 - format PR [#934](https://github.com/succinctlabs/sp1/pull/934) ([#939](https://github.com/succinctlabs/sp1/pull/939))
 - Refactored is_last and is_first columns; added constraint to make sure that the last real row has is_last on.
@@ -140,21 +144,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - remove unecessary todos in recursion
 - Make some functions const ([#774](https://github.com/succinctlabs/sp1/pull/774))
 - Clean up TOML files ([#796](https://github.com/succinctlabs/sp1/pull/796))
-- *(recursion)* heap ptr checks ([#775](https://github.com/succinctlabs/sp1/pull/775))
-- *(recursion)* convert ext2felt to hint ([#771](https://github.com/succinctlabs/sp1/pull/771))
+- _(recursion)_ heap ptr checks ([#775](https://github.com/succinctlabs/sp1/pull/775))
+- _(recursion)_ convert ext2felt to hint ([#771](https://github.com/succinctlabs/sp1/pull/771))
 - update all dependencies ([#689](https://github.com/succinctlabs/sp1/pull/689))
-- *(recursion)* poseidon2 loose ends ([#672](https://github.com/succinctlabs/sp1/pull/672))
+- _(recursion)_ poseidon2 loose ends ([#672](https://github.com/succinctlabs/sp1/pull/672))
 - sdk tweaks ([#653](https://github.com/succinctlabs/sp1/pull/653))
-- *(recursion)* consolidate initial and finalize memory tables ([#656](https://github.com/succinctlabs/sp1/pull/656))
-- *(recursion)* cpu column chores ([#614](https://github.com/succinctlabs/sp1/pull/614))
-- *(recursion)* re-organized cpu chip and trace ([#613](https://github.com/succinctlabs/sp1/pull/613))
+- _(recursion)_ consolidate initial and finalize memory tables ([#656](https://github.com/succinctlabs/sp1/pull/656))
+- _(recursion)_ cpu column chores ([#614](https://github.com/succinctlabs/sp1/pull/614))
+- _(recursion)_ re-organized cpu chip and trace ([#613](https://github.com/succinctlabs/sp1/pull/613))
 - poseidon2 config change ([#609](https://github.com/succinctlabs/sp1/pull/609))
 - cleanup prover ([#551](https://github.com/succinctlabs/sp1/pull/551))
 - cleanup program + add missing constraints ([#547](https://github.com/succinctlabs/sp1/pull/547))
 - make ci faster ([#536](https://github.com/succinctlabs/sp1/pull/536))
 - attach dummy wide poseidon2 ([#512](https://github.com/succinctlabs/sp1/pull/512))
 - add poseidon2 chip to recursionAIR ([#504](https://github.com/succinctlabs/sp1/pull/504))
-- *(recursion)* reduce program ([#497](https://github.com/succinctlabs/sp1/pull/497))
+- _(recursion)_ reduce program ([#497](https://github.com/succinctlabs/sp1/pull/497))
 - for loop optimizations
 - update to latest plonky3 main ([#491](https://github.com/succinctlabs/sp1/pull/491))
 - sunday cleanup ([#363](https://github.com/succinctlabs/sp1/pull/363))
