@@ -140,8 +140,9 @@ fn get_docker_cmd(
         "RUSTUP_TOOLCHAIN=succinct".to_string(),
         "-e".to_string(),
         format!("CARGO_ENCODED_RUSTFLAGS={}", rust_flags.join("\x1f")),
-        image,
         "--entrypoint".to_string(),
+        "".to_string(),
+        image,
         "cargo".to_string(),
     ];
 
@@ -327,13 +328,14 @@ pub fn build_program(args: &BuildArgs, program_dir: Option<PathBuf>) -> Result<U
     // The order of precedence for the ELF name is:
     // 1. --elf_name flag
     // 2. --binary flag (binary name + -elf suffix)
-    // 3. default (root package name)
+    // 3. riscv32im-succinct-zkvm-elf
     let elf_name = if !args.elf_name.is_empty() {
         args.elf_name.clone()
     } else if !args.binary.is_empty() {
         format!("{}-elf", args.binary.clone())
     } else {
-        root_package_name.unwrap().to_string()
+        // TODO: Change this to default to the package name. Will require updating docs.
+        build_target
     };
 
     let elf_dir = if !args.output_directory.is_empty() {
@@ -344,8 +346,6 @@ pub fn build_program(args: &BuildArgs, program_dir: Option<PathBuf>) -> Result<U
     fs::create_dir_all(&elf_dir)?;
     let result_elf_path = elf_dir.join(elf_name);
 
-    println!("cargo:warning=original_elf_path: {}", original_elf_path);
-    println!("cargo:warning=result_elf_path: {}", result_elf_path);
     // Copy the ELF to the specified output directory.
     fs::copy(original_elf_path, &result_elf_path)?;
 
