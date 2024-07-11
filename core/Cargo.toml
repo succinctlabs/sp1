@@ -1,6 +1,6 @@
 [package]
 name = "sp1-core"
-version = "0.0.0-test"
+version = "0.0.1-test"
 edition = "2021"
 description = "SP1 is a performant, 100% open-source, contributor-friendly zkVM."
 readme = "../README.md"
@@ -64,7 +64,7 @@ thiserror = "1.0.60"
 num-bigint = { version = "0.4.6", default-features = false }
 rand = "0.8.5"
 bytemuck = "1.16.0"
-hashbrown = { version = "0.14.5", features = ["serde"] }
+hashbrown = { version = "0.14.5", features = ["serde", "inline-more"] }
 
 [dev-dependencies]
 tiny-keccak = { version = "2.0.2", features = ["keccak"] }

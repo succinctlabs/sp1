@@ -1,7 +1,6 @@
 use crate::air::SP1AirBuilder;
 use crate::air::Word;
 use crate::bytes::event::ByteRecord;
-use crate::runtime::ExecutionRecord;
 
 use p3_air::AirBuilder;
 use p3_field::AbstractField;
@@ -22,7 +21,7 @@ pub struct AddOperation<T> {
 impl<F: Field> AddOperation<F> {
     pub fn populate(
         &mut self,
-        record: &mut ExecutionRecord,
+        record: &mut impl ByteRecord,
         shard: u32,
         channel: u32,
         a_u32: u32,

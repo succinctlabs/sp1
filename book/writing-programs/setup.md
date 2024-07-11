@@ -19,7 +19,7 @@ cd program
 
 To build the program while in development, simply run:
 
-```
+```bash
 cargo prove build
 ```
 
@@ -29,13 +29,13 @@ This will compile the ELF that can be executed in the zkVM and put the executabl
 
 For production builds of programs, you can build your program inside a Docker container which will generate a **reproducible ELF** on all platforms. To do so, just use the `--docker` flag and the `--tag` flag with the release version you want to use. For example:
 
-```
+```bash
 cargo prove build --docker --tag v1.0.5-testnet
 ```
 
 To verify that your build is reproducible, you can compute the SHA-512 hash of the ELF on different platforms and systems with:
 
-```
+```bash
 $ shasum -a 512 elf/riscv32im-succinct-zkvm-elf
 f9afb8caaef10de9a8aad484c4dd3bfa54ba7218f3fc245a20e8a03ed40b38c617e175328515968aecbd3c38c47b2ca034a99e6dbc928512894f20105b03a203
 ```

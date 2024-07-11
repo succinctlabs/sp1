@@ -1,7 +1,7 @@
 [workspace]
 [package]
 name = "keccak-permute-test"
-version = "0.0.0-test"
+version = "0.0.1-test"
 publish = false
 
 [dependencies]

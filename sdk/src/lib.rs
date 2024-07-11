@@ -11,6 +11,7 @@ pub mod proto {
 }
 pub mod action;
 pub mod artifacts;
+pub mod install;
 #[cfg(feature = "network")]
 pub mod network;
 #[cfg(feature = "network")]
