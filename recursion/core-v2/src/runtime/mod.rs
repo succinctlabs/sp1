@@ -321,6 +321,7 @@ where
                             exp: exp_bits,
                         });
                 }
+
                 Instruction::FriFold(FriFoldInstr {
                     single_addrs,
                     ext_single_addrs,
