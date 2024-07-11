@@ -2,7 +2,7 @@
 name = "sp1-helper"
 version = "0.0.0-test"
 edition = "2021"
-description = "SP1 is a performant, 100% open-source, contributor-friendly zkVM."
+description = "Crate for building SP1 programs with build scripts."
 readme = "../README.md"
 license = "MIT OR Apache-2.0"
 

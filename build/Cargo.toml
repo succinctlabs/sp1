@@ -2,7 +2,7 @@
 name = "sp1-build"
 version = "0.1.0"
 edition = "2021"
-description = "Builds a SP1 program."
+description = "Build an SP1 program."
 license = "MIT OR Apache-2.0"
 
 [dependencies]
