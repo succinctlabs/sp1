@@ -14,6 +14,7 @@ use crate::utils::{
     bytes_to_words_le, limbs_from_access, limbs_from_prev_access, pad_rows, words_to_bytes_le,
     words_to_bytes_le_vec,
 };
+use amcl::bls381::fp12;
 use generic_array::GenericArray;
 use itertools::Itertools;
 use num::Zero;
@@ -303,7 +304,10 @@ impl<F: PrimeField32, E: FieldParameters> MachineAir<F> for Fp12MulChip {
                             (a * b) % &modulus
                         };
 
-                        let fp12_mul = |dest: Fp6MulCols<F>, a: [&BigUint; 6], b: [&BigUint; 6]| {
+                        let sum_of_products = |dest: Fp6MulCols<F>,
+                                               a: [&BigUint; 6],
+                                               b: [&BigUint; 6]|
+                         -> (&BigUint, &BigUint) {
                             let a00 = a[0];
                             let a01 = a[1];
                             let a10 = a[2];
@@ -345,7 +349,7 @@ impl<F: PrimeField32, E: FieldParameters> MachineAir<F> for Fp12MulChip {
                                 c0_m_a11_t_b20_p_b21,
                                 c0_a01_t_b01,
                             );
-                            let _c0 = &sub(dest.c0, c0_p_a20_t_b10_m_b11, c0_a21_t_b10_p_b11);
+                            let c0 = &sub(dest.c0, c0_p_a20_t_b10_m_b11, c0_a21_t_b10_p_b11);
 
                             // c1
                             let c1_a00_t_b01 = &mul(dest.c1_a00_t_b01, a00, b01);
@@ -376,8 +380,52 @@ impl<F: PrimeField32, E: FieldParameters> MachineAir<F> for Fp12MulChip {
                                 c1_p_a11_t_b20_m_b21,
                                 c1_a20_t_b10_p_b11,
                             );
-                            let _c1 = &add(dest.c1, c1_p_a20_t_b10_p_b11, c1_a21_t_b10_m_b11);
+                            let c1 = &add(dest.c1, c1_p_a20_t_b10_p_b11, c1_a21_t_b10_m_b11);
+
+                            (c0, c1)
                         };
+
+                        let fp12_add = |dest: Fp6AddCols<F>, a: [&BigUint; 6], b: [&BigUint; 6]| {
+                            let a00 = a[0];
+                            let a01 = a[1];
+                            let a10 = a[2];
+                            let a11 = a[3];
+                            let a20 = a[4];
+                            let a21 = a[5];
+
+                            let b00 = b[0];
+                            let b01 = b[1];
+                            let b10 = b[2];
+                            let b11 = b[3];
+                            let b20 = b[4];
+                            let b21 = b[5];
+
+                            let a00_p_b00 = &add(dest.a00_p_b00, a00, b00);
+                            let a01_p_b01 = &add(dest.a01_p_b01, a01, b01);
+                            let a10_p_b10 = &add(dest.a10_p_b10, a10, b10);
+                            let a11_p_b11 = &add(dest.a11_p_b11, a11, b11);
+                            let a20_p_b20 = &add(dest.a20_p_b20, a20, b20);
+                            let _a21_p_b21 = &add(dest.a21_p_b21, a21, b21);
+                        };
+
+                        let fp12_mul_by_non_residue =
+                            |dest: Fp6MulByNonResidue<F>, a: [&BigUint; 6]| {
+                                let a00 = a[0];
+                                let a01 = a[1];
+                                let a10 = a[2];
+                                let a11 = a[3];
+                                let a20 = a[4];
+                                let a21 = a[5];
+
+                                let c00 = &sub(dest.c00, a20, a21);
+                                let c01 = &add(dest.c01, a20, a21);
+
+                                let c10 = a00;
+                                let c11 = a01;
+
+                                let c20 = a10;
+                                let c21 = a11;
+                            };
 
                         row
                     })
