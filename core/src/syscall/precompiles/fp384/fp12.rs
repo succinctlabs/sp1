@@ -282,7 +282,23 @@ impl<F: PrimeField32, E: FieldParameters> MachineAir<F> for Fp12MulChip {
                                 a,
                                 b,
                                 &modulus,
-                                FieldOperation::Mul,
+                                FieldOperation::Add,
+                            );
+                            (a * b) % &modulus
+                        };
+
+                        let sub = |dest: FieldOpCols<F, U384Field>,
+                                   a: &BigUint,
+                                   b: &BigUint|
+                         -> BigUint {
+                            dest.populate_with_modulus(
+                                &mut new_byte_lookup_events,
+                                event.shard,
+                                event.channel,
+                                a,
+                                b,
+                                &modulus,
+                                FieldOperation::Sub,
                             );
                             (a * b) % &modulus
                         };
@@ -302,23 +318,65 @@ impl<F: PrimeField32, E: FieldParameters> MachineAir<F> for Fp12MulChip {
                             let b20 = b[4];
                             let b21 = b[5];
 
-                            let c0_b10_p_b11 = &mul(dest.c0_b10_p_b11, b10, b11);
-                            let c0_b10_m_b11 = &mul(dest.c0_b10_m_b11, b10, b11);
-                            let c0_b20_p_b21 = &mul(dest.c0_b20_p_b21, b20, b21);
-                            let c0_b20_m_b21 = &mul(dest.c0_b20_m_b21, b20, b21);
+                            // c0
+                            let c0_b10_p_b11 = &add(dest.c0_b10_p_b11, a10, b11);
+                            let c0_b10_m_b11 = &sub(dest.c0_b10_m_b11, a10, b11);
+                            let c0_b20_p_b21 = &add(dest.c0_b20_p_b21, a20, b21);
+                            let c0_b20_m_b21 = &sub(dest.c0_b20_m_b21, a20, b21);
 
                             let c0_a00_t_b00 = &mul(dest.c0_a00_t_b00, a00, b00);
                             let c0_a01_t_b01 = &mul(dest.c0_a01_t_b01, a01, b01);
-                            let c0_a10_t_b20_m_b21 =
-                                mul(dest.c0_a10_t_b20_m_b21, a10, c0_b20_m_b21);
-                            let c0_a11_t_b20_p_b21 =
-                                &mul(dest.c0_a11_t_b20_p_b21, a11, c0_b20_p_b21);
-                            let c0_a20_t_b10_m_b11 =
-                                &mul(dest.c0_a20_t_b10_m_b11, a20, c0_b10_m_b11);
-                            let c0_a21_t_b10_p_b11 =
-                                &mul(dest.c0_a21_t_b10_p_b11, a21, c0_b10_p_b11);
+                            let c0_a10_t_b20_m_b21 = &mul(dest.c0_a10_t_b20_m_b21, a10, b20);
+                            let c0_a11_t_b20_p_b21 = &mul(dest.c0_a11_t_b20_p_b21, a11, b21);
+                            let c0_a20_t_b10_m_b11 = &mul(dest.c0_a20_t_b10_m_b11, a20, b10);
+                            let c0_a21_t_b10_p_b11 = &mul(dest.c0_a21_t_b10_p_b11, a21, b11);
 
-                            let c0_m_a01_t_b01 = &mul(dest.c0_m_a01_t_b01, a00, b00);
+                            let c0_m_a01_t_b01 =
+                                &sub(dest.c0_m_a01_t_b01, c0_a00_t_b00, c0_a01_t_b01);
+                            let c0_p_a10_t_b20_m_b21 =
+                                &add(dest.c0_p_a10_t_b20_m_b21, c0_m_a01_t_b01, c0_a01_t_b01);
+                            let c0_m_a11_t_b20_p_b21 = &sub(
+                                dest.c0_m_a11_t_b20_p_b21,
+                                c0_p_a10_t_b20_m_b21,
+                                c0_a01_t_b01,
+                            );
+                            let c0_p_a20_t_b10_m_b11 = &add(
+                                dest.c0_p_a20_t_b10_m_b11,
+                                c0_m_a11_t_b20_p_b21,
+                                c0_a01_t_b01,
+                            );
+                            let _c0 = &sub(dest.c0, c0_p_a20_t_b10_m_b11, c0_a21_t_b10_p_b11);
+
+                            // c1
+                            let c1_a00_t_b01 = &mul(dest.c1_a00_t_b01, a00, b01);
+                            let c1_a01_t_b00 = &mul(dest.c1_a01_t_b00, a01, b00);
+                            let c1_a10_t_b20_p_b21 =
+                                &mul(dest.c1_a10_t_b20_p_b21, a10, c0_b20_p_b21);
+                            let c1_a11_t_b20_m_b21 =
+                                &mul(dest.c1_a11_t_b20_m_b21, a11, c0_b20_m_b21);
+                            let c1_a20_t_b10_p_b11 =
+                                &mul(dest.c1_a20_t_b10_p_b11, a20, c0_b10_p_b11);
+                            let c1_a21_t_b10_m_b11 =
+                                &mul(dest.c1_a21_t_b10_m_b11, a21, c0_b10_m_b11);
+
+                            let c1_p_a01_t_b00 =
+                                &add(dest.c1_p_a01_t_b00, c1_a00_t_b01, c1_a01_t_b00);
+                            let c1_p_a10_t_b20_p_b21 = &add(
+                                dest.c1_p_a10_t_b20_p_b21,
+                                c1_p_a01_t_b00,
+                                c1_a10_t_b20_p_b21,
+                            );
+                            let c1_p_a11_t_b20_m_b21 = &add(
+                                dest.c1_p_a11_t_b20_m_b21,
+                                c1_p_a10_t_b20_p_b21,
+                                c1_a11_t_b20_m_b21,
+                            );
+                            let c1_p_a20_t_b10_p_b11 = &add(
+                                dest.c1_p_a20_t_b10_p_b11,
+                                c1_p_a11_t_b20_m_b21,
+                                c1_a20_t_b10_p_b11,
+                            );
+                            let _c1 = &add(dest.c1, c1_p_a20_t_b10_p_b11, c1_a21_t_b10_m_b11);
                         };
 
                         row
