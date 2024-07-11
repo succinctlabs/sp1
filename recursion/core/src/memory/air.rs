@@ -67,8 +67,11 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
             } else {
                 let (addr, timestamp, value) =
                     &input.last_memory_record[i - input.first_memory_record.len()];
-                let (next_addr, _, _) =
+                let (next_addr, _, _) = if i == nb_events - 1 {
+                    (&F::zero(), &F::zero(), &Block::from(F::zero()))
+                } else {
                     &input.last_memory_record[i - input.first_memory_record.len() + 1];
+                };
                 cols.addr = *addr;
                 cols.timestamp = *timestamp;
                 cols.value = *value;
