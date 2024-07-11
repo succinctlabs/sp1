@@ -16,7 +16,7 @@ use sp1_recursion_core_v2::*;
 use crate::asm::AsmConfig;
 use crate::prelude::*;
 
-/// The backend for the constraint compiler.
+/// The backend for the circuit compiler.
 #[derive(Debug, Clone, Default)]
 pub struct AsmCompiler<F, EF> {
     pub next_addr: F,
@@ -126,8 +126,6 @@ where
             .0
     }
 
-    // INSTRUCTION HELPERS
-
     fn mem_write_const(&mut self, dst: impl Reg<F, EF>, src: Imm<F, EF>) -> Instruction<F> {
         Instruction::Mem(MemInstr {
             addrs: MemIo {
@@ -234,8 +232,6 @@ where
             mults: [F::zero(); WIDTH],
         })
     }
-
-    // COMPILATION
 
     pub fn compile_one(&mut self, ir_instr: DslIr<AsmConfig<F, EF>>) -> Vec<Instruction<F>> {
         // For readability. Avoids polluting outer scope.
@@ -377,6 +373,7 @@ where
             .into_iter()
             .flat_map(|(ir_instr, _)| self.compile_one(ir_instr))
             .collect::<Vec<_>>();
+
         // Replace the mults using the address count data gathered in this previous.
         // Exhaustive match for refactoring purposes.
         instrs
