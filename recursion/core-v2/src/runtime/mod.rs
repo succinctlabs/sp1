@@ -74,6 +74,8 @@ pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
 
     pub nb_exp_reverse_bits: usize,
 
+    pub nb_fri_fold: usize,
+
     /// The current clock.
     pub clk: F,
 
@@ -139,6 +141,7 @@ where
             nb_base_ops: 0,
             nb_memory_ops: 0,
             nb_branch_ops: 0,
+            nb_fri_fold: 0,
             clk: F::zero(),
             program: program.clone(),
             pc: F::zero(),
@@ -318,7 +321,37 @@ where
                             exp: exp_bits,
                         });
                 }
-            };
+                Instruction::FriFold(FriFoldInstr {
+                    single_addrs,
+                    ext_single_addrs,
+                    ext_vec_addrs,
+                }) => {
+                    self.nb_fri_fold += 1;
+                    let x = self.mr(single_addrs.x).val[0];
+                    let z = self.mr(ext_single_addrs.z).val;
+                    let alpha = self.mr(ext_single_addrs.alpha).val;
+                    let mat_opening = ext_vec_addrs
+                        .mat_opening
+                        .iter()
+                        .map(|addr| self.mr(*addr).val)
+                        .collect_vec();
+                    let ps_at_z = ext_vec_addrs
+                        .ps_at_z
+                        .iter()
+                        .map(|addr| self.mr(*addr).val)
+                        .collect_vec();
+                    let alpha_pow = ext_vec_addrs
+                        .alpha_pow
+                        .iter()
+                        .map(|addr| self.mr(*addr).val)
+                        .collect_vec();
+                    let ro = ext_vec_addrs
+                        .ro
+                        .iter()
+                        .map(|addr| self.mr(*addr).val)
+                        .collect_vec();
+                }
+            }
 
             self.pc = next_pc;
             self.clk = next_clk;

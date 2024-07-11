@@ -10,6 +10,7 @@ pub enum Instruction<F> {
     Mem(MemInstr<F>),
     Poseidon2Wide(Poseidon2WideInstr<F>),
     ExpReverseBitsLen(ExpReverseBitsInstr<F>),
+    FriFold(FriFoldInstr<F>),
 }
 
 pub fn base_alu<F: AbstractField>(
