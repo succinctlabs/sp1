@@ -798,30 +798,35 @@ impl<'a> Runtime<'a> {
                 if a != b {
                     next_pc = self.state.pc.wrapping_add(c);
                 }
+                self.emit_branch(instruction, a, b, c, pc, next_pc);
             }
             Opcode::BLT => {
                 (a, b, c) = self.branch_rr(instruction);
                 if (a as i32) < (b as i32) {
                     next_pc = self.state.pc.wrapping_add(c);
                 }
+                self.emit_branch(instruction, a, b, c, pc, next_pc);
             }
             Opcode::BGE => {
                 (a, b, c) = self.branch_rr(instruction);
                 if (a as i32) >= (b as i32) {
                     next_pc = self.state.pc.wrapping_add(c);
                 }
+                self.emit_branch(instruction, a, b, c, pc, next_pc);
             }
             Opcode::BLTU => {
                 (a, b, c) = self.branch_rr(instruction);
                 if a < b {
                     next_pc = self.state.pc.wrapping_add(c);
                 }
+                self.emit_branch(instruction, a, b, c, pc, next_pc);
             }
             Opcode::BGEU => {
                 (a, b, c) = self.branch_rr(instruction);
                 if a >= b {
                     next_pc = self.state.pc.wrapping_add(c);
                 }
+                self.emit_branch(instruction, a, b, c, pc, next_pc);
             }
 
             // Jump instructions.

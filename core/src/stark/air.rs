@@ -1,6 +1,7 @@
 use super::StarkMachine;
 pub use crate::air::SP1AirBuilder;
 use crate::air::{MachineAir, SP1_PROOF_NUM_PV_ELTS};
+use crate::cpu::CpuOpcodeSpecificChip;
 use crate::memory::{MemoryChipType, MemoryProgramChip};
 use crate::stark::Chip;
 use crate::StarkGenericConfig;
@@ -49,6 +50,8 @@ pub enum RiscvAir<F: PrimeField32> {
     Program(ProgramChip),
     /// An AIR for the RISC-V CPU. Each row represents a cpu cycle.
     Cpu(CpuChip),
+    /// An AIR for the RISC-V CPU that contains opcode specific information.
+    CpuOpcodeSpecific(CpuOpcodeSpecificChip),
     /// An AIR for the RISC-V Add and SUB instruction.
     Add(AddSubChip),
     /// An AIR for RISC-V Bitwise instructions.
@@ -118,6 +121,8 @@ impl<F: PrimeField32> RiscvAir<F> {
         let mut chips = vec![];
         let cpu = CpuChip::default();
         chips.push(RiscvAir::Cpu(cpu));
+        let cpu_opcode_specific = CpuOpcodeSpecificChip::default();
+        chips.push(RiscvAir::CpuOpcodeSpecific(cpu_opcode_specific));
         let program = ProgramChip::default();
         chips.push(RiscvAir::Program(program));
         let sha_extend = ShaExtendChip::default();

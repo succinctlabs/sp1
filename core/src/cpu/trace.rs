@@ -671,7 +671,6 @@ impl<F: PrimeField32> MachineAir<F> for CpuOpcodeSpecificChip {
         rows.resize(padded_nb_rows * NUM_CPU_OPCODE_SPECIFIC_COLS, F::zero());
 
         // Convert the trace to a row major matrix.
-
         RowMajorMatrix::new(rows, NUM_CPU_OPCODE_SPECIFIC_COLS)
     }
 
@@ -707,7 +706,7 @@ impl<F: PrimeField32> MachineAir<F> for CpuOpcodeSpecificChip {
     }
 
     fn included(&self, input: &Self::Record) -> bool {
-        !input.cpu_events.is_empty()
+        !input.branch_events.is_empty()
     }
 }
 
@@ -728,6 +727,8 @@ impl CpuOpcodeSpecificChip {
         cols.op_a = event.a.into();
         cols.op_b = event.b.into();
         cols.op_c = event.c.into();
+        cols.shard = F::from_canonical_u32(event.shard);
+        cols.channel = F::from_canonical_u32(event.channel);
 
         self.populate_branch(cols, event, &mut new_alu_events, nonce_lookup);
 

@@ -231,11 +231,8 @@ where
     }
 
     // Debug the constraints if debug assertions are enabled.
-    #[cfg(debug_assertions)]
-    {
-        let mut challenger = prover.config().challenger();
-        prover.debug_constraints(&pk, debug_records, &mut challenger);
-    }
+    let mut challenger = prover.config().challenger();
+    prover.debug_constraints(&pk, debug_records, &mut challenger);
 
     // Prove the shards.
     let mut deferred = ExecutionRecord::new(program.clone().into());

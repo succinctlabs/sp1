@@ -27,6 +27,7 @@ use crate::runtime::Opcode;
 
 use super::columns::eval_channel_selectors;
 use super::columns::CpuOpcodeSpecificCols;
+use super::columns::NUM_CPU_OPCODE_SPECIFIC_COLS;
 use super::columns::OPCODE_SELECTORS_COL_MAP;
 use super::CpuOpcodeSpecificChip;
 
@@ -480,6 +481,6 @@ where
 
 impl<F> BaseAir<F> for CpuOpcodeSpecificChip {
     fn width(&self) -> usize {
-        NUM_CPU_COLS
+        NUM_CPU_OPCODE_SPECIFIC_COLS
     }
 }
