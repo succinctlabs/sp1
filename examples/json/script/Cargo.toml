@@ -8,7 +8,7 @@ publish = false
 serde = "1.0.197"
 serde_json = "1.0.114"
 sp1-sdk = { path = "../../../sdk", version = "0.0.1-test" }
-lib = { path = "../lib" }
+lib = { path = "../lib", version = "0.0.1-test" }
 
 [build-dependencies]
 sp1-helper = { path = "../../../helper", version = "0.0.1-test" }
