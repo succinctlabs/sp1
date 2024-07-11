@@ -7,4 +7,4 @@ publish = false
 
 [dependencies]
 chess = "3.2.0"
-sp1-zkvm = { path = "../../../zkvm/entrypoint" }
+sp1-zkvm = { path = "../../../zkvm/entrypoint", version = "0.0.1-test" }

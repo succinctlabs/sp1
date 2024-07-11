@@ -8,6 +8,8 @@ readme = "../../README.md"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-sp1-recursion-gnark-ffi = { path = "../gnark-ffi", features = ["native"] }
+sp1-recursion-gnark-ffi = { path = "../gnark-ffi", features = [
+	"native",
+], version = "0.0.1-test" }
 clap = { version = "4.3.8", features = ["derive"] }
 bincode = "1.3.3"

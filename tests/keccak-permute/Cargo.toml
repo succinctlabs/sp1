@@ -5,4 +5,4 @@ version = "0.0.1-test"
 publish = false
 
 [dependencies]
-sp1-zkvm = { path = "../../zkvm/entrypoint" }
+sp1-zkvm = { path = "../../zkvm/entrypoint", version = "0.0.1-test" }
