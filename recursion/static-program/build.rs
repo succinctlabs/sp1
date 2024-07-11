@@ -132,18 +132,18 @@ fn main() {
     let recursion_program_path = Path::new(&output_dir).join("RECURSION_program.bin");
     let rec_pk_path = Path::new(&output_dir).join("RECURSION_pk.bin");
     let rec_vk_path = Path::new(&output_dir).join("RECURSION_vk.bin");
-    let deferred_program_path = Path::new(&output_dir).join("deferred_program.bin");
-    let deferred_pk_path = Path::new(&output_dir).join("deferred_pk.bin");
-    let deferred_vk_path = Path::new(&output_dir).join("deferred_vk.bin");
-    let compress_program_path = Path::new(&output_dir).join("compress_program.bin");
-    let compress_pk_path = Path::new(&output_dir).join("compress_pk.bin");
-    let compress_vk_path = Path::new(&output_dir).join("compress_vk.bin");
-    let shrink_program_path = Path::new(&output_dir).join("shrink_program.bin");
-    let shrink_pk_path = Path::new(&output_dir).join("shrink_pk.bin");
-    let shrink_vk_path = Path::new(&output_dir).join("shrink_vk.bin");
-    let wrap_program_path = Path::new(&output_dir).join("wrap_program.bin");
-    let wrap_pk_path = Path::new(&output_dir).join("wrap_pk.bin");
-    let wrap_vk_path = Path::new(&output_dir).join("wrap_vk.bin");
+    let deferred_program_path = Path::new(&output_dir).join("DEFERRED_program.bin");
+    let deferred_pk_path = Path::new(&output_dir).join("DEFERRED_pk.bin");
+    let deferred_vk_path = Path::new(&output_dir).join("DEFERRED_vk.bin");
+    let compress_program_path = Path::new(&output_dir).join("COMPRESS_program.bin");
+    let compress_pk_path = Path::new(&output_dir).join("COMPRESS_pk.bin");
+    let compress_vk_path = Path::new(&output_dir).join("COMPRESS_vk.bin");
+    let shrink_program_path = Path::new(&output_dir).join("SHRINK_program.bin");
+    let shrink_pk_path = Path::new(&output_dir).join("SHRINK_pk.bin");
+    let shrink_vk_path = Path::new(&output_dir).join("SHRINK_vk.bin");
+    let wrap_program_path = Path::new(&output_dir).join("WRAP_program.bin");
+    let wrap_pk_path = Path::new(&output_dir).join("WRAP_pk.bin");
+    let wrap_vk_path = Path::new(&output_dir).join("WRAP_vk.bin");
 
     std::fs::write(
         recursion_program_path,
