@@ -202,7 +202,7 @@ fn copy_elf_to_output_dir(
     Ok(result_elf_path)
 }
 
-/// Build a program with the specified BuildArgs. The `program_dir` is specified as an argument when
+/// Build a program with the specified [`BuildArgs`]. The `program_dir` is specified as an argument when
 /// the program is built via `build_program` in sp1-helper.
 ///
 /// # Arguments
