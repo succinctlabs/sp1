@@ -158,6 +158,7 @@ where
         tracing::debug!("Total Cycles: {}", self.timestamp);
         tracing::debug!("Poseidon Operations: {}", self.nb_poseidons);
         tracing::debug!("Exp Reverse Bits Operations: {}", self.nb_exp_reverse_bits);
+        tracing::debug!("FriFold Operations: {}", self.nb_fri_fold);
         tracing::debug!("Field Operations: {}", self.nb_base_ops);
         tracing::debug!("Extension Operations: {}", self.nb_ext_ops);
         tracing::debug!("Memory Operations: {}", self.nb_memory_ops);
@@ -323,12 +324,14 @@ where
                 }
 
                 Instruction::FriFold(FriFoldInstr {
-                    single_addrs,
+                    base_single_addrs,
                     ext_single_addrs,
                     ext_vec_addrs,
+                    alpha_pow_mults,
+                    ro_mults,
                 }) => {
                     self.nb_fri_fold += 1;
-                    let x = self.mr(single_addrs.x).val[0];
+                    let x = self.mr(base_single_addrs.x).val[0];
                     let z = self.mr(ext_single_addrs.z).val;
                     let z: EF = z.ext();
                     let alpha = self.mr(ext_single_addrs.alpha).val;
@@ -343,16 +346,7 @@ where
                         .iter()
                         .map(|addr| self.mr(*addr).val)
                         .collect_vec();
-                    let alpha_pows = ext_vec_addrs
-                        .alpha_pow
-                        .iter()
-                        .map(|addr| self.mr(*addr).val)
-                        .collect_vec();
-                    let ro = ext_vec_addrs
-                        .ro
-                        .iter()
-                        .map(|addr| self.mr(*addr).val)
-                        .collect_vec();
+
                     for m in 0..ps_at_z.len() {
                         // let m = F::from_canonical_u32(m);
                         // Get the opening values.
@@ -365,51 +359,40 @@ where
                         let quotient = (-p_at_z + p_at_x) / (-z + x);
 
                         // First we peek to get the current value.
-                        let (alpha_pow_ptr_plus_log_height, alpha_pow_at_log_height) =
-                            self.peek(alpha_pow_ptr + log_height);
-                        let alpha_pow_at_log_height: EF = alpha_pow_at_log_height.ext();
+                        let alpha_pow: EF = self.mr(ext_vec_addrs.alpha_pow_input[m]).val.ext();
 
-                        let (ro_ptr_plus_log_height, ro_at_log_height) =
-                            self.peek(ro_ptr + log_height);
-                        let ro_at_log_height: EF = ro_at_log_height.ext();
+                        let ro: EF = self.mr(ext_vec_addrs.ro_input[m]).val.ext();
 
-                        let new_ro_at_log_height =
-                            ro_at_log_height + alpha_pow_at_log_height * quotient;
-                        let new_alpha_pow_at_log_height = alpha_pow_at_log_height * alpha;
+                        let new_ro = ro + alpha_pow * quotient;
+                        let new_alpha_pow = alpha_pow * alpha;
 
-                        let ro_at_log_height_record = self.mw(
-                            ro_ptr_plus_log_height,
-                            Block::from(new_ro_at_log_height.as_base_slice()),
-                            timestamp,
+                        let _ = self.mw(
+                            ext_vec_addrs.ro_output[m],
+                            Block::from(new_ro.as_base_slice()),
+                            ro_mults[m],
                         );
 
-                        let alpha_pow_at_log_height_record = self.mw(
-                            alpha_pow_ptr_plus_log_height,
-                            Block::from(new_alpha_pow_at_log_height.as_base_slice()),
-                            timestamp,
+                        let _ = self.mw(
+                            ext_vec_addrs.alpha_pow_output[m],
+                            Block::from(new_alpha_pow.as_base_slice()),
+                            alpha_pow_mults[m],
                         );
 
                         self.record.fri_fold_events.push(FriFoldEvent {
-                            is_last_iteration: F::from_bool(
-                                ps_at_z_len.as_canonical_u32() - 1 == m.as_canonical_u32(),
-                            ),
-                            clk: timestamp,
-                            m,
-                            input_ptr,
-                            z: z_record,
-                            alpha: alpha_record,
-                            x: x_record,
-                            log_height: log_height_record,
-                            mat_opening_ptr: mat_opening_ptr_record,
-                            ps_at_z_ptr: ps_at_z_ptr_record,
-                            alpha_pow_ptr: alpha_pow_ptr_record,
-                            ro_ptr: ro_ptr_record,
-                            p_at_x: p_at_x_record,
-                            p_at_z: p_at_z_record,
-                            alpha_pow_at_log_height: alpha_pow_at_log_height_record,
-                            ro_at_log_height: ro_at_log_height_record,
+                            base_single: FriFoldBaseIo { x },
+                            ext_single: FriFoldExtSingleIo {
+                                z: Block::from(z.as_base_slice()),
+                                alpha: Block::from(alpha.as_base_slice()),
+                            },
+                            ext_vec: FriFoldExtVecIo {
+                                mat_opening: Block::from(p_at_x.as_base_slice()),
+                                ps_at_z: Block::from(p_at_z.as_base_slice()),
+                                alpha_pow_input: Block::from(alpha_pow.as_base_slice()),
+                                ro_input: Block::from(ro.as_base_slice()),
+                                alpha_pow_output: Block::from(new_alpha_pow.as_base_slice()),
+                                ro_output: Block::from(new_ro.as_base_slice()),
+                            },
                         });
-                        timestamp += F::one();
                     }
                 }
             }

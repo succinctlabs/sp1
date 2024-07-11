@@ -1,6 +1,7 @@
 #![allow(clippy::needless_range_loop)]
 
 use crate::mem::MemoryPreprocessedColsNoVal;
+use crate::{FriFoldInstr, Instruction};
 use core::borrow::Borrow;
 use itertools::Itertools;
 use p3_air::PairBuilder;
@@ -34,17 +35,21 @@ pub struct FriFoldChip<const DEGREE: usize> {
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct FriFoldPreprocessedCols<T: Copy> {
+    /// Iteration number.
     pub m: T,
+
     pub is_last_iteration: T,
-    pub log_height: T,
 
     pub z_mem: MemoryPreprocessedColsNoVal<T>,
     pub alpha_mem: MemoryPreprocessedColsNoVal<T>,
     pub x_mem: MemoryPreprocessedColsNoVal<T>,
-    pub mat_opening_mem: MemoryPreprocessedColsNoVal<T>,
-    pub ps_at_z_mem: MemoryPreprocessedColsNoVal<T>,
-    pub alpha_pow_mem: MemoryPreprocessedColsNoVal<T>,
-    pub ro_mem: MemoryPreprocessedColsNoVal<T>,
+
+    pub alpha_pow_input_mem: MemoryPreprocessedColsNoVal<T>,
+    pub ro_input_mem: MemoryPreprocessedColsNoVal<T>,
+
+    pub ro_output_mem: MemoryPreprocessedColsNoVal<T>,
+    pub alpha_pow_output_mem: MemoryPreprocessedColsNoVal<T>,
+
     pub p_at_x_mem: MemoryPreprocessedColsNoVal<T>,
     pub p_at_z_mem: MemoryPreprocessedColsNoVal<T>,
 
@@ -61,8 +66,11 @@ pub struct FriFoldCols<T: Copy> {
     pub p_at_x: Block<T>,
     pub p_at_z: Block<T>,
 
-    pub alpha_pow_at_log_height: Block<T>,
-    pub ro_at_log_height: Block<T>,
+    pub alpha_pow_input: Block<T>,
+    pub ro_input: Block<T>,
+
+    pub alpha_pow_output: Block<T>,
+    pub ro_output: Block<T>,
 }
 
 impl<F, const DEGREE: usize> BaseAir<F> for FriFoldChip<DEGREE> {
@@ -87,7 +95,114 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldChip<DEGREE>
     fn preprocessed_width(&self) -> usize {
         NUM_FRI_FOLD_PREPROCESSED_COLS
     }
+    fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
+        let mut rows: Vec<[F; NUM_FRI_FOLD_PREPROCESSED_COLS]> = Vec::new();
+        program
+            .instructions
+            .iter()
+            .filter_map(|instruction| {
+                if let Instruction::FriFold(instr) = instruction {
+                    Some(instr)
+                } else {
+                    None
+                }
+            })
+            .for_each(|instruction| {
+                let FriFoldInstr {
+                    base_single_addrs,
+                    ext_single_addrs,
+                    ext_vec_addrs,
+                    alpha_pow_mults,
+                    ro_mults,
+                } = instruction;
+                let mut row_add =
+                    vec![[F::zero(); NUM_FRI_FOLD_PREPROCESSED_COLS]; ext_vec_addrs.ps_at_z.len()];
+                row_add.iter_mut().enumerate().for_each(|(i, row)| {
+                    let row: &mut FriFoldPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
 
+                    row.m = F::from_canonical_u32(i as u32);
+                    row.is_last_iteration = F::from_bool(i == ext_vec_addrs.ps_at_z.len() - 1);
+
+                    // Only need to read z, x, and alpha once, hence the multiplicities.
+                    row.z_mem = MemoryPreprocessedColsNoVal {
+                        addr: ext_single_addrs.z,
+                        read_mult: F::from_bool(i == 0),
+                        write_mult: F::zero(),
+                        is_real: F::one(),
+                    };
+                    row.x_mem = MemoryPreprocessedColsNoVal {
+                        addr: base_single_addrs.x,
+                        read_mult: F::from_bool(i == 0),
+                        write_mult: F::zero(),
+                        is_real: F::from_bool(i == 0),
+                    };
+                    row.alpha_mem = MemoryPreprocessedColsNoVal {
+                        addr: ext_single_addrs.alpha,
+                        read_mult: F::from_bool(i == 0),
+                        write_mult: F::zero(),
+                        is_real: F::one(),
+                    };
+
+                    // Read the memory for the input vectors.
+                    row.alpha_pow_input_mem = MemoryPreprocessedColsNoVal {
+                        addr: ext_vec_addrs.alpha_pow_input[i],
+                        read_mult: F::one(),
+                        write_mult: F::zero(),
+                        is_real: F::one(),
+                    };
+                    row.ro_input_mem = MemoryPreprocessedColsNoVal {
+                        addr: ext_vec_addrs.ro_input[i],
+                        read_mult: F::one(),
+                        write_mult: F::zero(),
+                        is_real: F::one(),
+                    };
+                    row.p_at_z_mem = MemoryPreprocessedColsNoVal {
+                        addr: ext_vec_addrs.ps_at_z[i],
+                        read_mult: F::one(),
+                        write_mult: F::zero(),
+                        is_real: F::one(),
+                    };
+                    row.p_at_x_mem = MemoryPreprocessedColsNoVal {
+                        addr: ext_vec_addrs.mat_opening[i],
+                        read_mult: F::one(),
+                        write_mult: F::zero(),
+                        is_real: F::one(),
+                    };
+
+                    // Write the memory for the output vectors.
+                    row.alpha_pow_output_mem = MemoryPreprocessedColsNoVal {
+                        addr: ext_vec_addrs.alpha_pow_output[i],
+                        read_mult: F::zero(),
+                        write_mult: alpha_pow_mults[i],
+                        is_real: F::one(),
+                    };
+                    row.ro_output_mem = MemoryPreprocessedColsNoVal {
+                        addr: ext_vec_addrs.ro_output[i],
+                        read_mult: F::zero(),
+                        write_mult: ro_mults[i],
+                        is_real: F::one(),
+                    };
+
+                    row.is_real = F::one();
+                });
+                rows.extend(row_add);
+            });
+
+        // Pad the trace to a power of two.
+        if self.pad {
+            pad_rows_fixed(
+                &mut rows,
+                || [F::zero(); NUM_FRI_FOLD_PREPROCESSED_COLS],
+                self.fixed_log2_rows,
+            );
+        }
+
+        let trace = RowMajorMatrix::new(
+            rows.into_iter().flatten().collect(),
+            NUM_FRI_FOLD_PREPROCESSED_COLS,
+        );
+        Some(trace)
+    }
     #[instrument(name = "generate fri fold trace", level = "debug", skip_all, fields(rows = input.fri_fold_events.len()))]
     fn generate_trace(
         &self,
@@ -102,14 +217,17 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldChip<DEGREE>
 
                 let cols: &mut FriFoldCols<F> = row.as_mut_slice().borrow_mut();
 
-                cols.x = event.base.x;
+                cols.x = event.base_single.x;
                 cols.z = event.ext_single.z;
                 cols.alpha = event.ext_single.alpha;
 
-                cols.p_at_z = event.vec_accesses.ps_at_z;
-                cols.p_at_x = event.vec_accesses.mat_opening;
-                cols.alpha_pow_at_log_height = event.vec_accesses.alpha_pow;
-                cols.ro_at_log_height = event.vec_accesses.ro;
+                cols.p_at_z = event.ext_vec.ps_at_z;
+                cols.p_at_x = event.ext_vec.mat_opening;
+                cols.alpha_pow_input = event.ext_vec.alpha_pow_input;
+                cols.ro_input = event.ext_vec.ro_input;
+
+                cols.alpha_pow_output = event.ext_vec.alpha_pow_output;
+                cols.ro_output = event.ext_vec.ro_output;
 
                 row
             })
@@ -152,6 +270,52 @@ impl<const DEGREE: usize> FriFoldChip<DEGREE> {
         receive_table: AB::Var,
         memory_access: AB::Var,
     ) {
+        builder.receive_single(local_prepr.x_mem.addr, local.x, local_prepr.x_mem.read_mult);
+
+        builder.receive_block(local_prepr.z_mem.addr, local.z, local_prepr.z_mem.read_mult);
+
+        builder.receive_block(
+            local_prepr.alpha_mem.addr,
+            local.alpha,
+            local_prepr.alpha_mem.read_mult,
+        );
+
+        builder.receive_block(
+            local_prepr.alpha_pow_input_mem.addr,
+            local.alpha_pow_input,
+            local_prepr.alpha_pow_input_mem.read_mult,
+        );
+
+        builder.receive_block(
+            local_prepr.ro_input_mem.addr,
+            local.ro_input,
+            local_prepr.ro_input_mem.read_mult,
+        );
+
+        builder.receive_block(
+            local_prepr.p_at_z_mem.addr,
+            local.p_at_z,
+            local_prepr.p_at_z_mem.read_mult,
+        );
+
+        builder.receive_block(
+            local_prepr.p_at_x_mem.addr,
+            local.p_at_x,
+            local_prepr.p_at_x_mem.read_mult,
+        );
+
+        builder.send_block(
+            local_prepr.alpha_pow_output_mem.addr,
+            local.alpha_pow_output,
+            local_prepr.alpha_pow_output_mem.write_mult,
+        );
+
+        builder.send_block(
+            local_prepr.ro_output_mem.addr,
+            local.ro_output,
+            local_prepr.ro_output_mem.write_mult,
+        );
+
         // // Constraint that the operands are sent from the CPU table.
         // let first_iteration_clk = local.clk.into() - local.m.into();
         // let total_num_iterations = local.m.into() + AB::Expr::one();
@@ -384,5 +548,235 @@ where
             Self::do_receive_table::<AB::Var>(prepr_local),
             Self::do_memory_access::<AB::Var>(prepr_local),
         );
+    }
+}
+#[cfg(test)]
+mod tests {
+    use itertools::Itertools;
+    use p3_field::AbstractExtensionField;
+    use p3_field::ExtensionField;
+    use p3_util::reverse_bits_len;
+    use rand::rngs::StdRng;
+    use rand::Rng;
+    use rand::SeedableRng;
+    use sp1_core::utils::run_test_machine;
+    use sp1_core::utils::setup_logger;
+    use sp1_core::utils::BabyBearPoseidon2;
+    use sp1_recursion_core::air::Block;
+    use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
+    use std::iter::once;
+    use std::mem::size_of;
+
+    use p3_baby_bear::BabyBear;
+    use p3_baby_bear::DiffusionMatrixBabyBear;
+    use p3_field::{AbstractField, PrimeField32};
+    use p3_matrix::dense::RowMajorMatrix;
+    use sp1_core::air::MachineAir;
+    use sp1_core::stark::StarkGenericConfig;
+
+    use crate::exp_reverse_bits::ExpReverseBitsLenChip;
+    use crate::fri_fold::FriFoldChip;
+    use crate::machine::RecursionAir;
+    use crate::runtime::instruction as instr;
+    use crate::runtime::ExecutionRecord;
+    use crate::Address;
+    use crate::ExpReverseBitsEvent;
+    use crate::FriFoldBaseIo;
+    use crate::FriFoldEvent;
+    use crate::FriFoldExtSingleIo;
+    use crate::FriFoldExtVecIo;
+    use crate::Instruction;
+    use crate::MemAccessKind;
+    use crate::RecursionProgram;
+    use crate::Runtime;
+
+    #[test]
+    fn prove_babybear_circuit_fri_fold() {
+        setup_logger();
+        type SC = BabyBearPoseidon2Outer;
+        type F = <SC as StarkGenericConfig>::Val;
+        type EF = <SC as StarkGenericConfig>::Challenge;
+        type A = RecursionAir<F, 3>;
+
+        let mut rng = StdRng::seed_from_u64(0xDEADBEEF);
+        let mut random_felt = move || -> F { F::from_canonical_u32(rng.gen_range(0..1 << 16)) };
+        let mut rng = StdRng::seed_from_u64(0xDEADBEEF);
+        let mut random_block =
+            move || Block::from([F::from_canonical_u32(rng.gen_range(0..1 << 16)); 4]);
+        let mut addr = 0;
+
+        let num_ext_vecs: u32 = size_of::<FriFoldExtVecIo<u8>>() as u32;
+        let num_singles: u32 =
+            size_of::<FriFoldBaseIo<u8>>() as u32 + size_of::<FriFoldExtSingleIo<u8>>() as u32;
+
+        let instructions = (2..3)
+            .flat_map(|i: u32| {
+                println!("i: {:?}", i);
+                let alloc_size = i * (num_ext_vecs + 2) + num_singles;
+                let mat_opening_a = (0..i).map(|x| x + addr).collect::<Vec<_>>();
+                println!("mat_opening_a: {:?}", mat_opening_a);
+                let ps_at_z_a = (0..i).map(|x| x + i + addr).collect::<Vec<_>>();
+                println!("ps_at_z_a: {:?}", ps_at_z_a);
+
+                let alpha_pow_input_a = (0..i).map(|x: u32| x + addr + 2 * i).collect::<Vec<_>>();
+                println!("alpha_pow_input_a: {:?}", alpha_pow_input_a);
+                let ro_input_a = (0..i).map(|x: u32| x + addr + 3 * i).collect::<Vec<_>>();
+                println!("ro_input_a: {:?}", ro_input_a);
+
+                let alpha_pow_output_a = (0..i).map(|x: u32| x + addr + 4 * i).collect::<Vec<_>>();
+                println!("alpha_pow_output_a: {:?}", alpha_pow_output_a);
+                let ro_output_a = (0..i).map(|x: u32| x + addr + 5 * i).collect::<Vec<_>>();
+                println!("ro_output_a: {:?}", ro_output_a);
+
+                let x_a = addr + 6 * i;
+                println!("x_a: {:?}", x_a);
+                let z_a = addr + 6 * i + 1;
+                println!("z_a: {:?}", z_a);
+                let alpha_a = addr + 6 * i + 2;
+                println!("alpha_a: {:?}", alpha_a);
+
+                addr += alloc_size;
+
+                let x = random_felt();
+                let z = random_block();
+                let alpha = random_block();
+
+                let alpha_pow_input = (0..i).map(|_| random_block()).collect::<Vec<_>>();
+                let ro_input = (0..i).map(|_| random_block()).collect::<Vec<_>>();
+
+                let ps_at_z = (0..i).map(|_| random_block()).collect::<Vec<_>>();
+                let mat_opening = (0..i).map(|_| random_block()).collect::<Vec<_>>();
+
+                let alpha_pow_output = (0..i)
+                    .map(|i| alpha_pow_input[i as usize].ext::<EF>() * alpha.ext::<EF>())
+                    .collect::<Vec<EF>>();
+                let ro_output = (0..i)
+                    .map(|i| {
+                        let i = i as usize;
+                        ro_input[i].ext::<EF>()
+                            + alpha_pow_input[i].ext::<EF>()
+                                * (-ps_at_z[i].ext::<EF>() + mat_opening[i].ext::<EF>())
+                                / (-z.ext::<EF>() + x)
+                    })
+                    .collect::<Vec<EF>>();
+
+                let mut instructions = vec![instr::mem_single(MemAccessKind::Write, 1, x_a, x)];
+
+                instructions.push(instr::mem_block(MemAccessKind::Write, 1, z_a, z));
+
+                instructions.push(instr::mem_block(MemAccessKind::Write, 1, alpha_a, alpha));
+
+                (0..i).for_each(|j_32| {
+                    let j = j_32 as usize;
+                    instructions.push(instr::mem_block(
+                        MemAccessKind::Write,
+                        1,
+                        mat_opening_a[j],
+                        mat_opening[j],
+                    ));
+                    instructions.push(instr::mem_block(
+                        MemAccessKind::Write,
+                        1,
+                        ps_at_z_a[j],
+                        ps_at_z[j],
+                    ));
+
+                    instructions.push(instr::mem_block(
+                        MemAccessKind::Write,
+                        1,
+                        alpha_pow_input_a[j],
+                        alpha_pow_input[j],
+                    ));
+                    instructions.push(instr::mem_block(
+                        MemAccessKind::Write,
+                        1,
+                        ro_input_a[j],
+                        ro_input[j],
+                    ));
+                });
+
+                instructions.push(instr::fri_fold(
+                    z_a,
+                    alpha_a,
+                    x_a,
+                    mat_opening_a.clone(),
+                    ps_at_z_a.clone(),
+                    alpha_pow_input_a.clone(),
+                    ro_input_a.clone(),
+                    alpha_pow_output_a.clone(),
+                    ro_output_a.clone(),
+                    vec![1; i as usize],
+                    vec![1; i as usize],
+                ));
+
+                (0..i).for_each(|j| {
+                    let j = j as usize;
+                    instructions.push(instr::mem_block(
+                        MemAccessKind::Read,
+                        1,
+                        alpha_pow_output_a[j],
+                        Block::from(alpha_pow_output[j].as_base_slice()),
+                    ));
+                    instructions.push(instr::mem_block(
+                        MemAccessKind::Read,
+                        1,
+                        ro_output_a[j],
+                        Block::from(ro_output[j].as_base_slice()),
+                    ));
+                });
+
+                instructions
+            })
+            .collect::<Vec<Instruction<F>>>();
+
+        let program = RecursionProgram { instructions };
+
+        let config = SC::new();
+
+        let mut runtime =
+            Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program, BabyBearPoseidon2::new().perm);
+        runtime.run();
+        let machine = A::machine(config);
+        let (pk, vk) = machine.setup(&program);
+        let result = run_test_machine(runtime.record, machine, pk, vk);
+        if let Err(e) = result {
+            panic!("Verification failed: {:?}", e);
+        }
+    }
+
+    #[test]
+    fn generate_fri_fold_circuit_trace() {
+        type F = BabyBear;
+
+        let mut rng = StdRng::seed_from_u64(0xDEADBEEF);
+        let mut rng2 = StdRng::seed_from_u64(0xDEADBEEF);
+        let mut random_felt = move || -> F { F::from_canonical_u32(rng.gen_range(0..1 << 16)) };
+        let mut random_block = move || Block::from([random_felt(); 4]);
+
+        let shard = ExecutionRecord {
+            fri_fold_events: (0..17)
+                .map(|_| FriFoldEvent {
+                    base_single: FriFoldBaseIo {
+                        x: F::from_canonical_u32(rng2.gen_range(0..1 << 16)),
+                    },
+                    ext_single: FriFoldExtSingleIo {
+                        z: random_block(),
+                        alpha: random_block(),
+                    },
+                    ext_vec: crate::FriFoldExtVecIo {
+                        mat_opening: random_block(),
+                        ps_at_z: random_block(),
+                        alpha_pow_input: random_block(),
+                        ro_input: random_block(),
+                        alpha_pow_output: random_block(),
+                        ro_output: random_block(),
+                    },
+                })
+                .collect(),
+            ..Default::default()
+        };
+        let chip = FriFoldChip::<3>::default();
+        let trace: RowMajorMatrix<F> = chip.generate_trace(&shard, &mut ExecutionRecord::default());
+        println!("{:?}", trace.values)
     }
 }
