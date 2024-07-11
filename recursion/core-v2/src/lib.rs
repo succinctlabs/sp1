@@ -24,7 +24,7 @@ pub struct Address<F>(pub F);
 // -------------------------------------------------------------------------------------------------
 
 /// The inputs and outputs to an operation of the base field ALU.
-#[derive(AlignedBorrow, Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BaseAluIo<V> {
     pub out: V,
     pub in1: V,
@@ -44,7 +44,7 @@ pub struct BaseAluInstr<F> {
 // -------------------------------------------------------------------------------------------------
 
 /// The inputs and outputs to an operation of the extension field ALU.
-#[derive(AlignedBorrow, Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExtAluIo<V> {
     pub out: V,
     pub in1: V,
@@ -64,12 +64,12 @@ pub struct ExtAluInstr<F> {
 // -------------------------------------------------------------------------------------------------
 
 /// The inputs and outputs to the manual memory management/memory initialization table.
-#[derive(AlignedBorrow, Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MemIo<V> {
     pub inner: V,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MemInstr<F> {
     pub addrs: MemIo<Address<F>>,
     pub vals: MemIo<Block<F>>,
@@ -81,14 +81,14 @@ pub type MemEvent<F> = MemIo<Block<F>>;
 
 // -------------------------------------------------------------------------------------------------
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MemAccessKind {
     Read,
     Write,
 }
 
 /// The inputs and outputs to a Poseidon2 permutation.
-#[derive(AlignedBorrow, Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Poseidon2Io<V> {
     pub input: [V; WIDTH],
     pub output: [V; WIDTH],
@@ -104,7 +104,7 @@ pub struct Poseidon2WideInstr<F> {
 pub type Poseidon2WideEvent<F> = Poseidon2Io<F>;
 
 /// The inputs and outputs to an exp-reverse-bits operation.
-#[derive(AlignedBorrow, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExpReverseBitsIo<V> {
     pub base: V,
     // The bits of the exponent in little-endian order in a vec.
@@ -119,7 +119,7 @@ pub struct ExpReverseBitsInstr<F> {
     pub mult: F,
 }
 
-#[derive(AlignedBorrow, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExpReverseBitsEvent<F> {
     pub base: F,
     pub exp: Vec<F>,
