@@ -14,20 +14,20 @@ use cargo_metadata::{camino::Utf8PathBuf, Metadata};
 
 const BUILD_TARGET: &str = "riscv32im-succinct-zkvm-elf";
 
-/// `BuildArgs` is a struct that holds various arguments used for building a program.
+/// [`BuildArgs`] is a struct that holds various arguments used for building a program.
 ///
 /// This struct can be used to configure the build process, including options for using Docker,
 /// specifying binary and ELF names, ignoring Rust version checks, and enabling specific features.
 ///
 /// # Fields
 ///
-/// * `docker` - A boolean flag to indicate whether to use Docker for reproducible builds.
-/// * `tag` - A string specifying the Docker image tag to use when building with Docker. Defaults to "latest".
-/// * `features` - A vector of strings specifying features to build with.
-/// * `ignore_rust_version` - A boolean flag to ignore Rust version checks.
-/// * `binary` - An optional string to specify the name of the binary if building a binary.
-/// * `elf_name` - An optional string to specify the name of the ELF binary.
-/// * `output_directory` - An optional string to specify the directory to place the built program relative to the program directory.
+/// * `docker` - Boolean flag to indicate whether to use Docker for reproducible builds.
+/// * `tag` - Docker image tag to use when building with Docker. Defaults to "latest".
+/// * `features` - List of features to build with.
+/// * `ignore_rust_version` - Boolean flag to ignore Rust version checks.
+/// * `binary` - Name of the binary if building a binary.
+/// * `elf_name` - Name of the ELF binary.
+/// * `output_directory` - Directory to place the built program relative to the program directory.
 #[derive(Default, Clone, Parser)]
 pub struct BuildArgs {
     #[clap(long, action, help = "Build using Docker for reproducible builds.")]
@@ -60,7 +60,7 @@ pub struct BuildArgs {
     pub output_directory: String,
 }
 
-/// Get the arguments to build the program with the arguments from the `BuildArgs` struct.
+/// Get the arguments to build the program with the arguments from the [`BuildArgs`] struct.
 fn get_program_build_args(args: &BuildArgs) -> Vec<String> {
     let mut build_args = vec![
         "build".to_string(),

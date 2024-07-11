@@ -1,6 +1,6 @@
 [package]
 name = "fibonacci-script"
-version = "0.0.0-test"
+version = "0.0.1-test"
 edition = "2021"
 default-run = "fibonacci-script"
 publish = false
