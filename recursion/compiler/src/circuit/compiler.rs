@@ -402,6 +402,7 @@ where
                     addrs: Poseidon2Io { ref output, .. },
                     mults,
                 }) => mults.iter_mut().zip(output).collect(),
+                Instruction::ExpReverseBitsLen(_) => todo!(),
             })
             .for_each(|(mult, addr): (&mut F, &Address<F>)| {
                 *mult = self.addr_to_mult.remove(addr).unwrap()
