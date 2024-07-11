@@ -31,7 +31,7 @@ pub extern "C" fn syscall_fp384_mulmod(x: *mut u32, y: *const u32) {
     unsafe {
         asm!(
             "ecall",
-            in("t0") crate::syscalls::FP384_MUL,
+            in("t0") crate::syscalls::FP_MUL,
             in("a0") x,
             in("a1") y,
         );

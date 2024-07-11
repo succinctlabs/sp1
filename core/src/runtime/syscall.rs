@@ -8,7 +8,7 @@ use strum_macros::EnumIter;
 use crate::runtime::{Register, Runtime};
 use crate::syscall::precompiles::edwards::EdAddAssignChip;
 use crate::syscall::precompiles::edwards::EdDecompressChip;
-use crate::syscall::precompiles::fp384::Fp384MulChip;
+use crate::syscall::precompiles::fp384::FpMulChip;
 use crate::syscall::precompiles::keccak256::KeccakPermuteChip;
 use crate::syscall::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::syscall::precompiles::uint256::Uint256MulChip;
@@ -105,7 +105,7 @@ pub enum SyscallCode {
     BLS12381_DOUBLE = 0x00_00_01_1F,
 
     /// Executes the `FP381_MUL` precompile.
-    FP384_MUL = 0x00_01_01_20,
+    FP_MUL = 0x00_01_01_20,
 }
 
 impl SyscallCode {
@@ -128,7 +128,7 @@ impl SyscallCode {
             0x00_00_01_0F => SyscallCode::BN254_DOUBLE,
             0x00_01_01_1E => SyscallCode::BLS12381_ADD,
             0x00_00_01_1F => SyscallCode::BLS12381_DOUBLE,
-            0x00_01_01_20 => SyscallCode::FP384_MUL,
+            0x00_01_01_20 => SyscallCode::FP_MUL,
             0x00_00_00_10 => SyscallCode::COMMIT,
             0x00_00_00_1A => SyscallCode::COMMIT_DEFERRED_PROOFS,
             0x00_00_00_1B => SyscallCode::VERIFY_SP1_PROOF,
@@ -317,7 +317,7 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Arc<dyn Syscall>> {
         SyscallCode::BLS12381_DOUBLE,
         Arc::new(WeierstrassDoubleAssignChip::<Bls12381>::new()),
     );
-    syscall_map.insert(SyscallCode::FP384_MUL, Arc::new(Fp384MulChip::new()));
+    syscall_map.insert(SyscallCode::FP_MUL, Arc::new(FpMulChip::new()));
     syscall_map.insert(SyscallCode::UINT256_MUL, Arc::new(Uint256MulChip::new()));
     syscall_map.insert(
         SyscallCode::ENTER_UNCONSTRAINED,
@@ -412,7 +412,7 @@ mod tests {
                 SyscallCode::BLS12381_DOUBLE => {
                     assert_eq!(code as u32, sp1_zkvm::syscalls::BLS12381_DOUBLE)
                 }
-                SyscallCode::FP384_MUL => assert_eq!(code as u32, sp1_zkvm::syscalls::FP384_MUL),
+                SyscallCode::FP_MUL => assert_eq!(code as u32, sp1_zkvm::syscalls::FP_MUL),
                 SyscallCode::SECP256K1_DECOMPRESS => {
                     assert_eq!(code as u32, sp1_zkvm::syscalls::SECP256K1_DECOMPRESS)
                 }

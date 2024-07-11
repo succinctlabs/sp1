@@ -1,4 +1,5 @@
 mod fp;
+mod fp12;
 
 use std::{
     mem::transmute,
@@ -6,6 +7,8 @@ use std::{
 };
 
 pub use fp::*;
+pub use fp12::*;
+
 use num_bigint::BigUint;
 
 use crate::utils::{bytes_to_words_le, words_to_bytes_le_vec};
