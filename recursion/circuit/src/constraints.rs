@@ -294,7 +294,7 @@ mod tests {
         let program = basic_program::<F>();
         let config = SC::new();
         let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new_no_perm(&program);
-        runtime.run();
+        _ = runtime.run();
         let machine = A::machine(config);
         let prover = DefaultProver::new(machine);
         let (pk, vk) = prover.setup(&program);
