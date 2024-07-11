@@ -91,12 +91,12 @@ pub fn mem_block<F: AbstractField>(
 }
 
 pub fn poseidon2_wide<F: AbstractField>(
-    mult: u32,
+    mults: [u32; WIDTH],
     output: [u32; WIDTH],
     input: [u32; WIDTH],
 ) -> Instruction<F> {
     Instruction::Poseidon2Wide(Poseidon2WideInstr {
-        mult: F::from_canonical_u32(mult),
+        mults: mults.map(F::from_canonical_u32),
         addrs: Poseidon2Io {
             output: output.map(F::from_canonical_u32).map(Address),
             input: input.map(F::from_canonical_u32).map(Address),
