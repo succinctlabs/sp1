@@ -138,6 +138,7 @@ where
     let (pk, vk) = prover.setup(runtime.program.as_ref());
 
     // Execute the program, saving checkpoints at the start of every `shard_batch_size` cycle range.
+    let make_checkpoint_span = tracing::debug_span!("Execute and save checkpoints").entered();
     let mut checkpoints = Vec::new();
     let (public_values_stream, public_values) = loop {
         // Execute the runtime until we reach a checkpoint.
@@ -164,10 +165,13 @@ where
             );
         }
     };
+    make_checkpoint_span.exit();
 
     // Commit to the shards.
     #[cfg(debug_assertions)]
     let mut debug_records: Vec<ExecutionRecord> = Vec::new();
+
+    let commit_span = tracing::debug_span!("Commit to shards").entered();
     let mut deferred = ExecutionRecord::new(program.clone().into());
     let mut state = public_values.reset();
     let nb_checkpoints = checkpoints.len();
@@ -188,7 +192,8 @@ where
         }
 
         // Generate the dependencies.
-        prover.generate_dependencies(&mut records, &opts);
+        tracing::debug_span!("Generate dependencies", checkpoint_idx = checkpoint_idx)
+            .in_scope(|| prover.generate_dependencies(&mut records, &opts));
 
         // Defer events that are too expensive to include in every shard.
         for record in records.iter_mut() {
@@ -229,6 +234,7 @@ where
             challenger.observe_slice(&shard.public_values::<SC::Val>()[0..prover.num_pv_elts()]);
         }
     }
+    commit_span.exit();
 
     // Debug the constraints if debug assertions are enabled.
     #[cfg(debug_assertions)]
