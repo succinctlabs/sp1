@@ -54,20 +54,20 @@ include_and_deserialize!(RECURSION);
 // pub static RECURSION_VK_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/rec_vk.bin"));
 pub static DEFERRED_PROGRAM_BYTES: &[u8] =
     include_bytes!(concat!(env!("OUT_DIR"), "/deferred_program.bin"));
-pub static DEFERRED_PK_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/deferred_pk.bin"));
-pub static DEFERRED_VK_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/deferred_vk.bin"));
+pub static DEFERRED_PK_BYTES: &[u8] = &[];
+pub static DEFERRED_VK_BYTES: &[u8] = &[];
 pub static COMPRESS_PROGRAM_BYTES: &[u8] =
     include_bytes!(concat!(env!("OUT_DIR"), "/compress_program.bin"));
-pub static COMPRESS_PK_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/compress_pk.bin"));
-pub static COMPRESS_VK_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/compress_vk.bin"));
+pub static COMPRESS_PK_BYTES: &[u8] = &[];
+pub static COMPRESS_VK_BYTES: &[u8] = &[];
 pub static SHRINK_PROGRAM_BYTES: &[u8] =
     include_bytes!(concat!(env!("OUT_DIR"), "/shrink_program.bin"));
-pub static SHRINK_PK_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/shrink_pk.bin"));
-pub static SHRINK_VK_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/shrink_vk.bin"));
+pub static SHRINK_PK_BYTES: &[u8] = &[];
+pub static SHRINK_VK_BYTES: &[u8] = &[];
 pub static WRAP_PROGRAM_BYTES: &[u8] =
     include_bytes!(concat!(env!("OUT_DIR"), "/wrap_program.bin"));
-pub static WRAP_PK_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/wrap_pk.bin"));
-pub static WRAP_VK_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/wrap_vk.bin"));
+pub static WRAP_PK_BYTES: &[u8] = &[];
+pub static WRAP_VK_BYTES: &[u8] = &[];
 
 lazy_static! {
     // pub static ref RECURSION_PROGRAM: RecursionProgram<BabyBear> = {
