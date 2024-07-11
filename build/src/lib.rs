@@ -1,22 +1,19 @@
-#[cfg(feature = "clap")]
+mod docker;
+
 use clap::Parser;
 use std::{
     fs,
     io::{BufRead, BufReader},
     path::PathBuf,
-    process::{exit, ChildStderr, ChildStdout, Command, Stdio},
+    process::{exit, Command, Stdio},
     thread,
 };
 
 use anyhow::{Context, Result};
-use cargo_metadata::camino::Utf8PathBuf;
+use cargo_metadata::{camino::Utf8PathBuf, Metadata};
 
 const BUILD_TARGET: &str = "riscv32im-succinct-zkvm-elf";
 
-#[derive(Default, Clone)]
-// Conditionally derive the `Parser` trait if the `clap` feature is enabled. This is useful
-// for keeping the binary size smaller.
-#[cfg_attr(feature = "clap", derive(Parser))]
 /// `BuildArgs` is a struct that holds various arguments used for building a program.
 ///
 /// This struct can be used to configure the build process, including options for using Docker,
@@ -31,65 +28,36 @@ const BUILD_TARGET: &str = "riscv32im-succinct-zkvm-elf";
 /// * `binary` - An optional string to specify the name of the binary if building a binary.
 /// * `elf_name` - An optional string to specify the name of the ELF binary.
 /// * `output_directory` - An optional string to specify the directory to place the built program relative to the program directory.
+#[derive(Default, Clone, Parser)]
 pub struct BuildArgs {
-    #[cfg_attr(
-        feature = "clap",
-        clap(long, action, help = "Build using Docker for reproducible builds.")
-    )]
+    #[clap(long, action, help = "Build using Docker for reproducible builds.")]
     pub docker: bool,
-    #[cfg_attr(
-        feature = "clap",
-        clap(
-            long,
-            help = "The ghcr.io/succinctlabs/sp1 image tag to use when building with docker.",
-            default_value = "latest"
-        )
+    #[clap(
+        long,
+        help = "The ghcr.io/succinctlabs/sp1 image tag to use when building with docker.",
+        default_value = "latest"
     )]
     pub tag: String,
-    #[cfg_attr(
-        feature = "clap",
-        clap(long, action, value_delimiter = ',', help = "Build with features.")
-    )]
+    #[clap(long, action, value_delimiter = ',', help = "Build with features.")]
     pub features: Vec<String>,
-    #[cfg_attr(
-        feature = "clap",
-        clap(long, action, help = "Ignore Rust version check.")
-    )]
+    #[clap(long, action, help = "Ignore Rust version check.")]
     pub ignore_rust_version: bool,
-    #[cfg_attr(
-        feature = "clap",
-        clap(
-            long,
-            action,
-            help = "If building a binary, specify the name.",
-            default_value = ""
-        )
+    #[clap(
+        long,
+        action,
+        help = "If building a binary, specify the name.",
+        default_value = ""
     )]
     pub binary: String,
-    #[cfg_attr(
-        feature = "clap",
-        clap(long, action, help = "ELF binary name.", default_value = "")
-    )]
+    #[clap(long, action, help = "ELF binary name.", default_value = "")]
     pub elf_name: String,
-    #[cfg_attr(
-        feature = "clap",
-        clap(
-            long,
-            action,
-            help = "The output directory for the built program.",
-            default_value = ""
-        )
+    #[clap(
+        long,
+        action,
+        help = "The output directory for the built program.",
+        default_value = ""
     )]
     pub output_directory: String,
-}
-
-/// Uses SP1_DOCKER_IMAGE environment variable if set, otherwise constructs the image to use based
-/// on the provided tag.
-fn get_docker_image(tag: &str) -> String {
-    std::env::var("SP1_DOCKER_IMAGE").unwrap_or_else(|_| {
-        let image_base = "ghcr.io/succinctlabs/sp1";
-        format!("{}:{}", image_base, tag)
-    })
 }
 
 /// Get the arguments to build the program with the arguments from the `BuildArgs` struct.
@@ -121,7 +89,7 @@ fn get_build_args(args: &BuildArgs) -> Vec<String> {
     build_args
 }
 
-/// Rust flags for C compilation.
+/// Rust flags for compilation of C libraries.
 fn get_rust_flags() -> String {
     let rust_flags = [
         "-C".to_string(),
@@ -134,86 +102,44 @@ fn get_rust_flags() -> String {
     rust_flags.join("\x1f")
 }
 
-/// Modify the command to build the program in the docker container. Mounts the entire workspace
-/// and sets the working directory to the program directory.
-fn get_docker_cmd(
-    command: &mut Command,
-    args: &BuildArgs,
-    workspace_root: &Utf8PathBuf,
-    program_dir: &Utf8PathBuf,
-) -> Result<()> {
-    let image = get_docker_image(&args.tag);
-
-    // Check if docker is installed and running.
-    let docker_check = Command::new("docker")
-        .args(["info"])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .context("failed to run docker command")?;
-    if !docker_check.success() {
-        eprintln!("docker is not installed or not running: https://docs.docker.com/get-docker/");
-        exit(1);
-    }
-
-    // Mount the entire workspace, and set the working directory to the program dir. Note: If the
-    // program dir has local dependencies outside of the workspace, building with Docker will fail.
-    let workspace_root_path = format!("{}:/root/program", workspace_root);
-    let program_dir_path = format!(
-        "/root/program/{}",
-        program_dir.strip_prefix(workspace_root).unwrap()
-    );
-    // Add docker-specific arguments.
-    let mut docker_args = vec![
-        "run".to_string(),
-        "--rm".to_string(),
-        "--platform".to_string(),
-        "linux/amd64".to_string(),
-        "-v".to_string(),
-        workspace_root_path,
-        "-w".to_string(),
-        program_dir_path,
-        "-e".to_string(),
-        "RUSTUP_TOOLCHAIN=succinct".to_string(),
-        "-e".to_string(),
-        format!("CARGO_ENCODED_RUSTFLAGS={}", get_rust_flags()),
-        "--entrypoint".to_string(),
-        "".to_string(),
-        image,
-        "cargo".to_string(),
-    ];
-
-    // Add the SP1 program build arguments.
-    docker_args.extend_from_slice(&get_build_args(args));
-
-    // Set the arguments and remove RUSTC from the environment to avoid ensure the correct
-    // version is used.
-    command.current_dir(program_dir.clone()).args(&docker_args);
-    Ok(())
-}
-
 /// Get the command to build the program locally.
-fn get_build_cmd(command: &mut Command, args: &BuildArgs, program_dir: &Utf8PathBuf) {
+fn create_local_command(args: &BuildArgs, program_dir: &Utf8PathBuf) -> Command {
+    let mut command = Command::new("cargo");
     command
         .current_dir(program_dir.clone())
         .env("RUSTUP_TOOLCHAIN", "succinct")
         .env("CARGO_ENCODED_RUSTFLAGS", get_rust_flags())
         .args(&get_build_args(args));
+    command
 }
 
-/// Add the [sp1] or [docker] prefix to the output of the child process depending on the context.
-fn handle_cmd_output(
-    stdout: BufReader<ChildStdout>,
-    stderr: BufReader<ChildStderr>,
-    build_with_helper: bool,
-    docker: bool,
-) {
+/// Execute the command and handle the output. Note: Strip the rustc configuration if this is called
+/// by sp1-helper so it uses the Succinct toolchain.
+fn execute_command(mut command: Command, build_with_helper: bool, docker: bool) -> Result<()> {
+    // Strip the rustc configuration if this is called by sp1-helper, otherwise it will attempt to
+    // compile the SP1 program with the toolchain of the normal build process, rather than the
+    // Succinct toolchain.
+    if build_with_helper {
+        command.env_remove("RUSTC");
+    }
+
+    // Add necessary tags for stdout and stderr from the command.
+    let mut child = command
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .context("failed to spawn command")?;
+    let stdout = BufReader::new(child.stdout.take().unwrap());
+    let stderr = BufReader::new(child.stderr.take().unwrap());
+
+    // Add the [sp1] or [docker] prefix to the output of the child process depending on the context.
     let msg = match (build_with_helper, docker) {
         (true, true) => "[sp1] [docker] ",
         (true, false) => "[sp1] ",
         (false, true) => "[docker] ",
         (false, false) => "",
     };
+
     // Pipe stdout and stderr to the parent process with [docker] prefix
     let stdout_handle = thread::spawn(move || {
         stdout.lines().for_each(|line| {
@@ -223,8 +149,57 @@ fn handle_cmd_output(
     stderr.lines().for_each(|line| {
         eprintln!("{} {}", msg, line.unwrap());
     });
-
     stdout_handle.join().unwrap();
+
+    // Wait for the child process to finish and check the result.
+    let result = child.wait()?;
+    if !result.success() {
+        // Error message is already printed by cargo.
+        exit(result.code().unwrap_or(1))
+    }
+    Ok(())
+}
+
+/// Copy the ELF to the specified output directory.
+fn copy_elf_to_output_dir(
+    metadata: &Metadata,
+    args: &BuildArgs,
+    program_dir: &Utf8PathBuf,
+    root_package_name: &str,
+) -> Result<Utf8PathBuf> {
+    // The ELF is written to a target folder specified by the program's package.
+    let original_elf_path = metadata
+        .target_directory
+        .join(BUILD_TARGET)
+        .join("release")
+        .join(root_package_name);
+
+    // The order of precedence for the ELF name is:
+    // 1. --elf_name flag
+    // 2. --binary flag (binary name + -elf suffix)
+    // 3. riscv32im-succinct-zkvm-elf
+    let elf_name = if !args.elf_name.is_empty() {
+        args.elf_name.clone()
+    } else if !args.binary.is_empty() {
+        format!("{}-elf", args.binary.clone())
+    } else {
+        // TODO: In the future, change this to default to the package name. Will require updating
+        // docs and examples.
+        BUILD_TARGET.to_string()
+    };
+
+    let elf_dir = if !args.output_directory.is_empty() {
+        program_dir.join(args.output_directory.clone())
+    } else {
+        program_dir.join("elf")
+    };
+    fs::create_dir_all(&elf_dir)?;
+    let result_elf_path = elf_dir.join(elf_name);
+
+    // Copy the ELF to the specified output directory.
+    fs::copy(original_elf_path, &result_elf_path)?;
+
+    Ok(result_elf_path)
 }
 
 /// Build a program with the specified BuildArgs. The `program_dir` is specified as an argument when
@@ -256,74 +231,13 @@ pub fn build_program(args: &BuildArgs, program_dir: Option<PathBuf>) -> Result<U
     let root_package_name = root_package.as_ref().map(|p| &p.name);
 
     // Get the command corresponding to Docker or local build.
-    let mut cmd = if args.docker {
-        let mut docker_cmd = Command::new("docker");
-        get_docker_cmd(
-            &mut docker_cmd,
-            args,
-            &metadata.workspace_root,
-            &program_dir,
-        )?;
-        docker_cmd
+    let cmd = if args.docker {
+        docker::create_docker_command(args, &metadata.workspace_root, &program_dir)?
     } else {
-        let mut cmd: Command = Command::new("cargo");
-        get_build_cmd(&mut cmd, args, &program_dir);
-        cmd
+        create_local_command(args, &program_dir)
     };
 
-    // Strip the Rustc configuration if this is called by sp1-helper, otherwise it will attempt to
-    // compile the SP1 program with the toolchain of the normal build process, rather than the
-    // Succinct toolchain.
-    if is_helper {
-        cmd.env_remove("RUSTC");
-    }
+    execute_command(cmd, is_helper, args.docker)?;
 
-    // Add necessary tags for stdout and stderr from the command.
-    let mut child = cmd
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .context("failed to spawn command")?;
-    let stdout = BufReader::new(child.stdout.take().unwrap());
-    let stderr = BufReader::new(child.stderr.take().unwrap());
-    handle_cmd_output(stdout, stderr, is_helper, args.docker);
-    let result = child.wait()?;
-    if !result.success() {
-        // Error message is already printed by cargo.
-        exit(result.code().unwrap_or(1))
-    }
-
-    // The ELF is written to a target folder specified by the program's package.
-    let original_elf_path = metadata
-        .target_directory
-        .join(BUILD_TARGET)
-        .join("release")
-        .join(root_package_name.unwrap());
-
-    // The order of precedence for the ELF name is:
-    // 1. --elf_name flag
-    // 2. --binary flag (binary name + -elf suffix)
-    // 3. riscv32im-succinct-zkvm-elf
-    let elf_name = if !args.elf_name.is_empty() {
-        args.elf_name.clone()
-    } else if !args.binary.is_empty() {
-        format!("{}-elf", args.binary.clone())
-    } else {
-        // TODO: In the future, change this to default to the package name. Will require updating
-        // docs and examples.
-        BUILD_TARGET.to_string()
-    };
-
-    let elf_dir = if !args.output_directory.is_empty() {
-        program_dir.join(args.output_directory.clone())
-    } else {
-        program_dir.join("elf")
-    };
-    fs::create_dir_all(&elf_dir)?;
-    let result_elf_path = elf_dir.join(elf_name);
-
-    // Copy the ELF to the specified output directory.
-    fs::copy(original_elf_path, &result_elf_path)?;
-
-    Ok(result_elf_path)
+    copy_elf_to_output_dir(&metadata, args, &program_dir, root_package_name.unwrap())
 }

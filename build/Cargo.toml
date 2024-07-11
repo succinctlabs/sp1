@@ -8,8 +8,4 @@ license = "MIT OR Apache-2.0"
 [dependencies]
 cargo_metadata = "0.18.1"
 anyhow = { version = "1.0.83" }
-clap = { version = "4.5.7", features = ["derive", "env"], optional = true }
-
-
-[features]
-clap = ["dep:clap"]
+clap = { version = "4.5.7", features = ["derive", "env"] }
