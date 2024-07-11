@@ -20,14 +20,6 @@ fn cargo_rerun_if_changed(path: &str) -> (&Path, String) {
         .map(|p| p.name.as_str())
         .unwrap_or("Program");
 
-    // Skip the program build if the SP1_SKIP_PROGRAM_BUILD environment variable is set to true.
-    let skip_program_build = std::env::var("SP1_SKIP_PROGRAM_BUILD")
-        .map(|v| v.eq_ignore_ascii_case("true"))
-        .unwrap_or(false);
-    if skip_program_build {
-        return (program_dir, root_package_name.to_string());
-    }
-
     // Re-run the build script if program/{src, Cargo.toml, Cargo.lock} or any dependency changes.
     println!(
         "cargo:rerun-if-changed={}",
@@ -93,6 +85,14 @@ fn execute_build_cmd(
 /// This function is useful for automatically rebuilding the program during development
 /// when changes are made to the source code or its dependencies.
 pub fn build_program(path: &str) {
+    // Skip the program build if the SP1_SKIP_PROGRAM_BUILD environment variable is set to true.
+    let skip_program_build = std::env::var("SP1_SKIP_PROGRAM_BUILD")
+        .map(|v| v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
+    if skip_program_build {
+        return;
+    }
+
     // Activate the build command if the dependencies change.
     let (program_dir, root_package_name) = cargo_rerun_if_changed(path);
 
