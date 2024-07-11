@@ -62,6 +62,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "fibonacci-program-build-new"
+version = "0.0.0-test"
+dependencies = [
+ "sp1-zkvm",
+]
+
+[[package]]
 name = "generic-array"
 version = "0.14.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -80,14 +87,6 @@ dependencies = [
  "cfg-if",
  "libc",
  "wasi",
-]
-
-[[package]]
-name = "io-program"
-version = "0.0.0-test"
-dependencies = [
- "serde",
- "sp1-zkvm",
 ]
 
 [[package]]

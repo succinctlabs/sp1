@@ -29,23 +29,6 @@ use cargo_metadata::camino::Utf8PathBuf;
 /// * `binary` - An optional string to specify the name of the binary if building a binary.
 /// * `elf_name` - An optional string to specify the name of the ELF binary.
 /// * `output_directory` - An optional string to specify the directory to place the built program relative to the program directory.
-///
-/// # Example
-///
-/// ```
-/// use sp1_build::BuildArgs;
-///
-/// let args = BuildArgs {
-///     docker: true,
-///     tag: "latest".to_string(),
-///     features: vec!["feature1".to_string(), "feature2".to_string()],
-///     ignore_rust_version: false,
-///     binary: "my_binary".to_string(),
-///     elf_name: "my_elf".to_string(),
-///     output_directory: "elf".to_string(),
-/// };
-///
-/// // Use `args` to configure your build process
 pub struct BuildArgs {
     #[cfg_attr(
         feature = "clap",
@@ -114,6 +97,7 @@ fn get_docker_cmd(
     args: &BuildArgs,
     workspace_root: &Utf8PathBuf,
     program_dir: &Utf8PathBuf,
+    build_target: String,
 ) -> Result<()> {
     let image = get_docker_image(&args.tag);
 
@@ -135,7 +119,15 @@ fn get_docker_cmd(
         "/root/program/{}",
         program_dir.strip_prefix(workspace_root).unwrap()
     );
-    let mut child_args = vec![
+    let rust_flags = [
+        "-C".to_string(),
+        "passes=loweratomic".to_string(),
+        "-C".to_string(),
+        "link-arg=-Ttext=0x00200800".to_string(),
+        "-C".to_string(),
+        "panic=abort".to_string(),
+    ];
+    let mut docker_args = vec![
         "run".to_string(),
         "--rm".to_string(),
         "--platform".to_string(),
@@ -144,18 +136,42 @@ fn get_docker_cmd(
         workspace_root_path,
         "-w".to_string(),
         program_dir_path,
+        "-e".to_string(),
+        "RUSTUP_TOOLCHAIN=succinct".to_string(),
+        "-e".to_string(),
+        format!("CARGO_ENCODED_RUSTFLAGS={}", rust_flags.join("\x1f")),
         image,
-        "prove".to_string(),
-        "build".to_string(),
+        "--entrypoint".to_string(),
+        "cargo".to_string(),
     ];
 
-    // Add the `cargo prove build` arguments to the child process command, while ignoring
-    // `--docker`, as this command will be invoked in a docker container.
-    add_cargo_prove_build_args(&mut child_args, args.clone(), true);
+    docker_args.extend_from_slice(&[
+        "build".to_string(),
+        "--release".to_string(),
+        "--target".to_string(),
+        build_target,
+    ]);
+
+    if args.ignore_rust_version {
+        docker_args.push("--ignore-rust-version".to_string());
+    }
+
+    if !args.binary.is_empty() {
+        docker_args.push("--bin".to_string());
+        docker_args.push(args.binary.clone());
+    }
+
+    if !args.features.is_empty() {
+        docker_args.push("--features".to_string());
+        docker_args.push(args.features.join(","));
+    }
+
+    // Ensure the Cargo.lock doesn't update.
+    docker_args.push("--locked".to_string());
 
     // Set the arguments and remove RUSTC from the environment to avoid ensure the correct
     // version is used.
-    command.args(&child_args).env_remove("RUSTC");
+    command.current_dir(program_dir.clone()).args(&docker_args);
     Ok(())
 }
 
@@ -182,9 +198,19 @@ fn get_build_cmd(
         build_target,
     ];
 
-    // Add the `cargo prove build` arguments to the child process command, while ignoring
-    // `--docker`, as we already know it's unused in this conditional.
-    add_cargo_prove_build_args(&mut cargo_args, args.clone(), true);
+    if args.ignore_rust_version {
+        cargo_args.push("--ignore-rust-version".to_string());
+    }
+
+    if !args.binary.is_empty() {
+        cargo_args.push("--bin".to_string());
+        cargo_args.push(args.binary.clone());
+    }
+
+    if !args.features.is_empty() {
+        cargo_args.push("--features".to_string());
+        cargo_args.push(args.features.join(","));
+    }
 
     // Ensure the Cargo.lock doesn't update.
     cargo_args.push("--locked".to_string());
@@ -223,39 +249,6 @@ fn handle_cmd_output(
     stdout_handle.join().unwrap();
 }
 
-/// Add the `cargo prove build` arguments to the `command_args` vec. This is useful when adding
-/// the `cargo prove build` arguments to an existing command.
-fn add_cargo_prove_build_args(
-    command_args: &mut Vec<String>,
-    prove_args: BuildArgs,
-    ignore_docker: bool,
-) {
-    if prove_args.docker && !ignore_docker {
-        command_args.push("--docker".to_string());
-    }
-    if prove_args.ignore_rust_version {
-        command_args.push("--ignore-rust-version".to_string());
-    }
-    if !prove_args.features.is_empty() {
-        // `cargo prove build` accepts a comma-separated list of features.
-        let features = prove_args.features.join(",");
-        command_args.push("--features".to_string());
-        command_args.push(features);
-    }
-    if !prove_args.binary.is_empty() {
-        command_args.push("--binary".to_string());
-        command_args.push(prove_args.binary.clone());
-    }
-    if !prove_args.elf_name.is_empty() {
-        command_args.push("--elf-name".to_string());
-        command_args.push(prove_args.elf_name.clone());
-    }
-    if !prove_args.output_directory.is_empty() {
-        command_args.push("--output-directory".to_string());
-        command_args.push(prove_args.output_directory.clone());
-    }
-}
-
 /// Build a program with the specified BuildArgs. The `program_dir` is specified as an argument when
 /// the program is built via `build_program` in sp1-helper.
 ///
@@ -267,43 +260,6 @@ fn add_cargo_prove_build_args(
 /// # Returns
 ///
 /// * `Result<Utf8PathBuf>` - The path to the built program as a `Utf8PathBuf` on success, or an error on failure.
-///
-/// # Example
-///
-/// ```no_run
-/// use sp1_build::{BuildArgs, build_program};
-/// use std::path::PathBuf;
-///
-/// let args = BuildArgs {
-///     docker: true,
-///     tag: "latest".to_string(),
-///     features: vec!["feature1".to_string(), "feature2".to_string()],
-///     ignore_rust_version: false,
-///     binary: "my_binary".to_string(),
-///     elf_name: "my_elf".to_string(),
-///     output_directory: "elf".to_string(),
-/// };
-///
-/// let program_dir = Some(PathBuf::from("../path/to/program"));
-///
-/// match build_program(&args, program_dir) {
-///     Ok(path) => println!("Program built successfully at: {}", path),
-///     Err(e) => eprintln!("Failed to build program: {}", e),
-/// }
-///
-/// // Example using default values
-/// let args = BuildArgs {
-///     docker: true,
-///     ..Default::default()
-/// };
-///
-/// let program_dir = Some(PathBuf::from("/path/to/program"));
-///
-/// match build_program(&args, program_dir) {
-///     Ok(path) => println!("Program built successfully at: {}", path),
-///     Err(e) => eprintln!("Failed to build program: {}", e),
-/// }
-/// ```
 pub fn build_program(args: &BuildArgs, program_dir: Option<PathBuf>) -> Result<Utf8PathBuf> {
     // If the program directory is specified, this function was called by sp1-helper.
     let is_helper = program_dir.is_some();
@@ -330,6 +286,7 @@ pub fn build_program(args: &BuildArgs, program_dir: Option<PathBuf>) -> Result<U
             args,
             &metadata.workspace_root,
             &program_dir,
+            build_target.clone(),
         )?;
         docker_cmd
     } else {
@@ -387,6 +344,8 @@ pub fn build_program(args: &BuildArgs, program_dir: Option<PathBuf>) -> Result<U
     fs::create_dir_all(&elf_dir)?;
     let result_elf_path = elf_dir.join(elf_name);
 
+    println!("cargo:warning=original_elf_path: {}", original_elf_path);
+    println!("cargo:warning=result_elf_path: {}", result_elf_path);
     // Copy the ELF to the specified output directory.
     fs::copy(original_elf_path, &result_elf_path)?;
 

@@ -1,5 +1,5 @@
 use chrono::Local;
-use sp1_build::BuildArgs;
+pub use sp1_build::BuildArgs;
 use std::{path::Path, process::ExitStatus};
 
 fn current_datetime() -> String {
