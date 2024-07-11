@@ -58,12 +58,11 @@ pub struct CpuEvent {
     pub memory_sub_lookup_id: usize,
     pub jump_jal_lookup_id: usize,
     pub jump_jalr_lookup_id: usize,
-    pub auipc_lookup_id: usize,
 }
 
 /// A standard format for describing ALU operations that need to be proven.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct BranchEvent {
+pub struct CpuOpcodeSpecEvent {
     /// The shard number, used for byte lookup table.
     pub shard: u32,
 
@@ -84,6 +83,8 @@ pub struct BranchEvent {
 
     // The second input operand.
     pub c: u32,
+
+    pub auipc_lookup_id: usize,
 
     pub branch_add_lookup_id: usize,
 

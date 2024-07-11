@@ -40,7 +40,7 @@ use thiserror::Error;
 use crate::alu::create_alu_lookup_id;
 use crate::alu::create_alu_lookups;
 use crate::bytes::NUM_BYTE_LOOKUP_CHANNELS;
-use crate::cpu::BranchEvent;
+use crate::cpu::CpuOpcodeSpecEvent;
 use crate::memory::MemoryInitializeFinalizeEvent;
 use crate::utils::SP1CoreOpts;
 use crate::{alu::AluEvent, cpu::CpuEvent};
@@ -471,7 +471,6 @@ impl<'a> Runtime<'a> {
             memory_sub_lookup_id: create_alu_lookup_id(),
             jump_jal_lookup_id: create_alu_lookup_id(),
             jump_jalr_lookup_id: create_alu_lookup_id(),
-            auipc_lookup_id: create_alu_lookup_id(),
         };
 
         self.record.cpu_events.push(cpu_event);
@@ -520,7 +519,7 @@ impl<'a> Runtime<'a> {
 
     /// Emit a branch event.
     #[allow(clippy::too_many_arguments)]
-    fn emit_branch(
+    fn emit_cpu_opcode_specific(
         &mut self,
         instruction: Instruction,
         a: u32,
@@ -530,7 +529,7 @@ impl<'a> Runtime<'a> {
         pc: u32,
         next_pc: u32,
     ) {
-        let event = BranchEvent {
+        let event = CpuOpcodeSpecEvent {
             pc,
             next_pc,
             shard: self.shard(),
@@ -539,12 +538,13 @@ impl<'a> Runtime<'a> {
             a,
             b,
             c,
+            auipc_lookup_id: create_alu_lookup_id(),
             branch_add_lookup_id: create_alu_lookup_id(),
             branch_lt_lookup_id: create_alu_lookup_id(),
             branch_gt_lookup_id: create_alu_lookup_id(),
         };
 
-        self.record.branch_events.push(event);
+        self.record.cpu_opcode_spec_events.push(event);
     }
 
     /// Fetch the destination register and input operand values for an ALU instruction.
@@ -1024,8 +1024,8 @@ impl<'a> Runtime<'a> {
                 syscall_lookup_id,
             );
 
-            if instruction.is_branch_instruction() {
-                self.emit_branch(instruction, a, b, c, channel, pc, next_pc);
+            if instruction.is_branch_instruction() || instruction.opcode == Opcode::AUIPC {
+                self.emit_cpu_opcode_specific(instruction, a, b, c, channel, pc, next_pc);
             }
         };
         Ok(())

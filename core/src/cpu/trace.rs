@@ -14,7 +14,7 @@ use tracing::instrument;
 use super::columns::CpuOpcodeSpecificCols;
 use super::columns::NUM_CPU_OPCODE_SPECIFIC_COLS;
 use super::columns::{CPU_COL_MAP, NUM_CPU_COLS};
-use super::BranchEvent;
+use super::CpuOpcodeSpecEvent;
 use super::CpuOpcodeSpecificChip;
 use super::{CpuChip, CpuEvent};
 use crate::air::MachineAir;
@@ -194,7 +194,6 @@ impl CpuChip {
         // Populate memory, branch, jump, and auipc specific fields.
         self.populate_memory(cols, event, &mut new_alu_events, blu_events, nonce_lookup);
         self.populate_jump(cols, event, &mut new_alu_events, nonce_lookup);
-        self.populate_auipc(cols, event, &mut new_alu_events, nonce_lookup);
         let is_halt = self.populate_ecall(cols, event, nonce_lookup);
 
         cols.is_sequential_instr = F::from_bool(
@@ -481,44 +480,6 @@ impl CpuChip {
         }
     }
 
-    /// Populate columns related to AUIPC.
-    fn populate_auipc<F: PrimeField>(
-        &self,
-        cols: &mut CpuCols<F>,
-        event: &CpuEvent,
-        alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
-        nonce_lookup: &HashMap<usize, u32>,
-    ) {
-        if matches!(event.instruction.opcode, Opcode::AUIPC) {
-            let auipc_columns = cols.opcode_specific_columns.auipc_mut();
-
-            auipc_columns.pc = Word::from(event.pc);
-            auipc_columns.pc_range_checker.populate(event.pc);
-
-            let add_event = AluEvent {
-                lookup_id: event.auipc_lookup_id,
-                shard: event.shard,
-                channel: event.channel,
-                opcode: Opcode::ADD,
-                a: event.a,
-                b: event.pc,
-                c: event.b,
-                sub_lookups: create_alu_lookups(),
-            };
-            auipc_columns.auipc_nonce = F::from_canonical_u32(
-                nonce_lookup
-                    .get(&event.auipc_lookup_id)
-                    .copied()
-                    .unwrap_or_default(),
-            );
-
-            alu_events
-                .entry(Opcode::ADD)
-                .and_modify(|op_new_events| op_new_events.push(add_event))
-                .or_insert(vec![add_event]);
-        }
-    }
-
     /// Populate columns related to ECALL.
     fn populate_ecall<F: PrimeField>(
         &self,
@@ -646,7 +607,7 @@ impl<F: PrimeField32> MachineAir<F> for CpuOpcodeSpecificChip {
         input: &ExecutionRecord,
         _: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        let num_real_rows = input.branch_events.len();
+        let num_real_rows = input.cpu_opcode_spec_events.len();
         let mut rows = vec![F::zero(); num_real_rows * NUM_CPU_OPCODE_SPECIFIC_COLS];
 
         let chunk_size = std::cmp::max(num_real_rows / num_cpus::get(), 1);
@@ -659,7 +620,11 @@ impl<F: PrimeField32> MachineAir<F> for CpuOpcodeSpecificChip {
                     .for_each(|(j, row)| {
                         let idx = i * chunk_size + j;
                         let cols: &mut CpuOpcodeSpecificCols<F> = row.borrow_mut();
-                        self.event_to_row(&input.branch_events[idx], &input.nonce_lookup, cols);
+                        self.event_to_row(
+                            &input.cpu_opcode_spec_events[idx],
+                            &input.nonce_lookup,
+                            cols,
+                        );
                     });
             });
 
@@ -681,12 +646,12 @@ impl<F: PrimeField32> MachineAir<F> for CpuOpcodeSpecificChip {
     )]
     fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
         // Generate the trace rows for each event.
-        let chunk_size = std::cmp::max(input.branch_events.len() / num_cpus::get(), 1);
+        let chunk_size = std::cmp::max(input.cpu_opcode_spec_events.len() / num_cpus::get(), 1);
 
         let alu_events = input
-            .branch_events
+            .cpu_opcode_spec_events
             .par_chunks(chunk_size)
-            .map(|ops: &[BranchEvent]| {
+            .map(|ops: &[CpuOpcodeSpecEvent]| {
                 let mut alu = HashMap::new();
                 ops.iter().for_each(|op| {
                     let mut row = [F::zero(); NUM_CPU_OPCODE_SPECIFIC_COLS];
@@ -706,7 +671,7 @@ impl<F: PrimeField32> MachineAir<F> for CpuOpcodeSpecificChip {
     }
 
     fn included(&self, input: &Self::Record) -> bool {
-        !input.branch_events.is_empty()
+        !input.cpu_opcode_spec_events.is_empty()
     }
 }
 
@@ -714,7 +679,7 @@ impl CpuOpcodeSpecificChip {
     /// Create a row from an event.
     fn event_to_row<F: PrimeField32>(
         &self,
-        event: &BranchEvent,
+        event: &CpuOpcodeSpecEvent,
         nonce_lookup: &HashMap<usize, u32>,
         cols: &mut CpuOpcodeSpecificCols<F>,
     ) -> HashMap<Opcode, Vec<alu::AluEvent>> {
@@ -730,7 +695,11 @@ impl CpuOpcodeSpecificChip {
         cols.shard = F::from_canonical_u32(event.shard);
         cols.channel = F::from_canonical_u32(event.channel);
 
-        self.populate_branch(cols, event, &mut new_alu_events, nonce_lookup);
+        if event.instruction.is_branch_instruction() {
+            self.populate_branch(cols, event, &mut new_alu_events, nonce_lookup);
+        } else if event.instruction.opcode == Opcode::AUIPC {
+            self.populate_auipc(cols, event, &mut new_alu_events, nonce_lookup);
+        }
 
         // Assert that the instruction is not a no-op.
         cols.is_real = F::one();
@@ -738,11 +707,49 @@ impl CpuOpcodeSpecificChip {
         new_alu_events
     }
 
+    /// Populate columns related to AUIPC.
+    fn populate_auipc<F: PrimeField>(
+        &self,
+        cols: &mut CpuOpcodeSpecificCols<F>,
+        event: &CpuOpcodeSpecEvent,
+        alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
+        nonce_lookup: &HashMap<usize, u32>,
+    ) {
+        if matches!(event.instruction.opcode, Opcode::AUIPC) {
+            let auipc_columns = cols.opcode_specific_columns.auipc_mut();
+
+            auipc_columns.pc = Word::from(event.pc);
+            auipc_columns.pc_range_checker.populate(event.pc);
+
+            let add_event = AluEvent {
+                lookup_id: event.auipc_lookup_id,
+                shard: event.shard,
+                channel: event.channel,
+                opcode: Opcode::ADD,
+                a: event.a,
+                b: event.pc,
+                c: event.b,
+                sub_lookups: create_alu_lookups(),
+            };
+            auipc_columns.auipc_nonce = F::from_canonical_u32(
+                nonce_lookup
+                    .get(&event.auipc_lookup_id)
+                    .copied()
+                    .unwrap_or_default(),
+            );
+
+            alu_events
+                .entry(Opcode::ADD)
+                .and_modify(|op_new_events| op_new_events.push(add_event))
+                .or_insert(vec![add_event]);
+        }
+    }
+
     /// Populates columns related to branching.
     fn populate_branch<F: PrimeField>(
         &self,
         cols: &mut CpuOpcodeSpecificCols<F>,
-        event: &BranchEvent,
+        event: &CpuOpcodeSpecEvent,
         alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
         nonce_lookup: &HashMap<usize, u32>,
     ) {
