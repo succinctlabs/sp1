@@ -7,3 +7,5 @@ publish = false
 
 [dependencies]
 sp1-zkvm = { path = "../../../zkvm/entrypoint" }
+risc0-zkvm = { version = "0.20", default-features = false, features = ["std"] }
+risc0-zkvm-platform = "0.20"
