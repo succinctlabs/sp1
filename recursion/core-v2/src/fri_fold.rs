@@ -609,31 +609,24 @@ mod tests {
         let num_singles: u32 =
             size_of::<FriFoldBaseIo<u8>>() as u32 + size_of::<FriFoldExtSingleIo<u8>>() as u32;
 
-        let instructions = (2..3)
+        let instructions = (2..17)
             .flat_map(|i: u32| {
-                println!("i: {:?}", i);
                 let alloc_size = i * (num_ext_vecs + 2) + num_singles;
+
+                // Allocate the memory for a FRI fold instruction. Here, i represents the lengths
+                // of the vectors for the vector fields of the instruction.
                 let mat_opening_a = (0..i).map(|x| x + addr).collect::<Vec<_>>();
-                println!("mat_opening_a: {:?}", mat_opening_a);
                 let ps_at_z_a = (0..i).map(|x| x + i + addr).collect::<Vec<_>>();
-                println!("ps_at_z_a: {:?}", ps_at_z_a);
 
                 let alpha_pow_input_a = (0..i).map(|x: u32| x + addr + 2 * i).collect::<Vec<_>>();
-                println!("alpha_pow_input_a: {:?}", alpha_pow_input_a);
                 let ro_input_a = (0..i).map(|x: u32| x + addr + 3 * i).collect::<Vec<_>>();
-                println!("ro_input_a: {:?}", ro_input_a);
 
                 let alpha_pow_output_a = (0..i).map(|x: u32| x + addr + 4 * i).collect::<Vec<_>>();
-                println!("alpha_pow_output_a: {:?}", alpha_pow_output_a);
                 let ro_output_a = (0..i).map(|x: u32| x + addr + 5 * i).collect::<Vec<_>>();
-                println!("ro_output_a: {:?}", ro_output_a);
 
                 let x_a = addr + 6 * i;
-                println!("x_a: {:?}", x_a);
                 let z_a = addr + 6 * i + 1;
-                println!("z_a: {:?}", z_a);
                 let alpha_a = addr + 6 * i + 2;
-                println!("alpha_a: {:?}", alpha_a);
 
                 addr += alloc_size;
 
