@@ -29,7 +29,7 @@ use crate::stark::PackedChallenge;
 use crate::stark::ProverConstraintFolder;
 use crate::utils::SP1CoreOpts;
 
-pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>> {
+pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>: Send + Sync {
     type MainData;
 
     type ShardCommitData;

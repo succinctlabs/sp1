@@ -2,6 +2,7 @@ use p3_baby_bear::BabyBear;
 use std::fs::File;
 use std::io::Seek;
 use std::io::{self};
+use std::sync::mpsc::sync_channel;
 use std::sync::Arc;
 use web_time::Instant;
 
@@ -105,7 +106,7 @@ pub fn prove<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<SC::Val>>>(
     opts: SP1CoreOpts,
 ) -> Result<(MachineProof<SC>, Vec<u8>, u64), SP1CoreProverError>
 where
-    SC::Challenger: Clone,
+    SC::Challenger: 'static + Clone + Send,
     <SC as StarkGenericConfig>::Val: PrimeField32,
 {
     let machine = RiscvAir::machine(config);
@@ -122,7 +123,7 @@ pub fn prove_with_context<SC: StarkGenericConfig>(
 ) -> Result<(MachineProof<SC>, Vec<u8>, u64), SP1CoreProverError>
 where
     SC::Val: PrimeField32,
-    SC::Challenger: Clone,
+    SC::Challenger: 'static + Clone + Send,
 {
     // Record the start of the process.
     let proving_start = Instant::now();
@@ -177,171 +178,188 @@ where
     let nb_checkpoints = checkpoints.len();
     let mut challenger = prover.config().challenger();
     vk.observe_into(&mut challenger);
-    for (checkpoint_idx, checkpoint_file) in checkpoints.iter_mut().enumerate() {
-        // Trace the checkpoint and reconstruct the execution records.
-        let (mut records, _) = trace_checkpoint(program.clone(), checkpoint_file, opts);
-        reset_seek(&mut *checkpoint_file);
 
-        // Update the public values & prover state for the shards which contain "cpu events".
-        for record in records.iter_mut() {
-            state.shard += 1;
-            state.execution_shard = record.public_values.execution_shard;
-            state.start_pc = record.public_values.start_pc;
-            state.next_pc = record.public_values.next_pc;
-            record.public_values = state;
+    std::thread::scope(move |s| {
+        let (tx, rx) = sync_channel::<Vec<ExecutionRecord>>(opts.shard_batch_size);
+
+        let challenger_handle = s.spawn(move || {
+            let mut challenger = challenger;
+            for records in rx.iter().take(nb_checkpoints) {
+                // Commit to the shards.
+                let (commitments, _) = prover.commit_shards(&records, opts);
+
+                // Observe the commitments.
+                for (commitment, shard) in commitments.into_iter().zip(records.iter()) {
+                    challenger.observe(commitment);
+                    challenger
+                        .observe_slice(&shard.public_values::<SC::Val>()[0..prover.num_pv_elts()]);
+                }
+            }
+            challenger
+        });
+
+        for (checkpoint_idx, checkpoint_file) in checkpoints.iter_mut().enumerate() {
+            // Trace the checkpoint and reconstruct the execution records.
+            let (mut records, _) = trace_checkpoint(program.clone(), checkpoint_file, opts);
+            reset_seek(&mut *checkpoint_file);
+
+            // Update the public values & prover state for the shards which contain "cpu events".
+            for record in records.iter_mut() {
+                state.shard += 1;
+                state.execution_shard = record.public_values.execution_shard;
+                state.start_pc = record.public_values.start_pc;
+                state.next_pc = record.public_values.next_pc;
+                record.public_values = state;
+            }
+
+            // Generate the dependencies.
+            tracing::debug_span!("Generate dependencies", checkpoint_idx = checkpoint_idx)
+                .in_scope(|| prover.generate_dependencies(&mut records, &opts));
+
+            // Defer events that are too expensive to include in every shard.
+            for record in records.iter_mut() {
+                deferred.append(&mut record.defer());
+            }
+
+            // See if any deferred shards are ready to be commited to.
+            let is_last_checkpoint = checkpoint_idx == nb_checkpoints - 1;
+            let mut deferred = deferred.split(is_last_checkpoint, opts.split_opts);
+
+            // Update the public values & prover state for the shards which do not contain "cpu events"
+            // before committing to them.
+            if !is_last_checkpoint {
+                state.execution_shard += 1;
+            }
+            for record in deferred.iter_mut() {
+                state.shard += 1;
+                state.previous_init_addr_bits = record.public_values.previous_init_addr_bits;
+                state.last_init_addr_bits = record.public_values.last_init_addr_bits;
+                state.previous_finalize_addr_bits =
+                    record.public_values.previous_finalize_addr_bits;
+                state.last_finalize_addr_bits = record.public_values.last_finalize_addr_bits;
+                state.start_pc = state.next_pc;
+                record.public_values = state;
+            }
+            records.append(&mut deferred);
+
+            #[cfg(debug_assertions)]
+            {
+                debug_records.extend(records.clone());
+            }
+
+            tx.send(records).unwrap();
         }
+        let challenger = challenger_handle.join().unwrap();
+        commit_span.exit();
 
-        // Generate the dependencies.
-        tracing::debug_span!("Generate dependencies", checkpoint_idx = checkpoint_idx)
-            .in_scope(|| prover.generate_dependencies(&mut records, &opts));
-
-        // Defer events that are too expensive to include in every shard.
-        for record in records.iter_mut() {
-            deferred.append(&mut record.defer());
-        }
-
-        // See if any deferred shards are ready to be commited to.
-        let is_last_checkpoint = checkpoint_idx == nb_checkpoints - 1;
-        let mut deferred = deferred.split(is_last_checkpoint, opts.split_opts);
-
-        // Update the public values & prover state for the shards which do not contain "cpu events"
-        // before committing to them.
-        if !is_last_checkpoint {
-            state.execution_shard += 1;
-        }
-        for record in deferred.iter_mut() {
-            state.shard += 1;
-            state.previous_init_addr_bits = record.public_values.previous_init_addr_bits;
-            state.last_init_addr_bits = record.public_values.last_init_addr_bits;
-            state.previous_finalize_addr_bits = record.public_values.previous_finalize_addr_bits;
-            state.last_finalize_addr_bits = record.public_values.last_finalize_addr_bits;
-            state.start_pc = state.next_pc;
-            record.public_values = state;
-        }
-        records.append(&mut deferred);
-
+        // Debug the constraints if debug assertions are enabled.
         #[cfg(debug_assertions)]
         {
-            debug_records.extend(records.clone());
+            let mut challenger = prover.config().challenger();
+            prover.debug_constraints(&pk, debug_records, &mut challenger);
         }
 
-        // Commit to the shards.
-        let (commitments, _) = prover.commit_shards(&records, opts);
+        // Prove the shards.
+        let mut deferred = ExecutionRecord::new(program.clone().into());
+        let mut state = public_values.reset();
+        let mut shard_proofs = Vec::<ShardProof<SC>>::new();
+        let mut report_aggregate = ExecutionReport::default();
+        for (checkpoint_idx, mut checkpoint_file) in checkpoints.into_iter().enumerate() {
+            // Trace the checkpoint and reconstruct the execution records.
+            let (mut records, report) = trace_checkpoint(program.clone(), &checkpoint_file, opts);
+            report_aggregate += report;
+            reset_seek(&mut checkpoint_file);
 
-        // Observe the commitments.
-        for (commitment, shard) in commitments.into_iter().zip(records.iter()) {
-            challenger.observe(commitment);
-            challenger.observe_slice(&shard.public_values::<SC::Val>()[0..prover.num_pv_elts()]);
-        }
-    }
-    commit_span.exit();
+            // Update the public values & prover state for the shards which contain "cpu events".
+            for record in records.iter_mut() {
+                state.shard += 1;
+                state.execution_shard = record.public_values.execution_shard;
+                state.start_pc = record.public_values.start_pc;
+                state.next_pc = record.public_values.next_pc;
+                record.public_values = state;
+            }
 
-    // Debug the constraints if debug assertions are enabled.
-    #[cfg(debug_assertions)]
-    {
-        let mut challenger = prover.config().challenger();
-        prover.debug_constraints(&pk, debug_records, &mut challenger);
-    }
+            // Generate the dependencies.
+            prover.generate_dependencies(&mut records, &opts);
 
-    // Prove the shards.
-    let mut deferred = ExecutionRecord::new(program.clone().into());
-    let mut state = public_values.reset();
-    let mut shard_proofs = Vec::<ShardProof<SC>>::new();
-    let mut report_aggregate = ExecutionReport::default();
-    for (checkpoint_idx, mut checkpoint_file) in checkpoints.into_iter().enumerate() {
-        // Trace the checkpoint and reconstruct the execution records.
-        let (mut records, report) = trace_checkpoint(program.clone(), &checkpoint_file, opts);
-        report_aggregate += report;
-        reset_seek(&mut checkpoint_file);
+            // Defer events that are too expensive to include in every shard.
+            for record in records.iter_mut() {
+                deferred.append(&mut record.defer());
+            }
 
-        // Update the public values & prover state for the shards which contain "cpu events".
-        for record in records.iter_mut() {
-            state.shard += 1;
-            state.execution_shard = record.public_values.execution_shard;
-            state.start_pc = record.public_values.start_pc;
-            state.next_pc = record.public_values.next_pc;
-            record.public_values = state;
-        }
+            // See if any deferred shards are ready to be commited to.
+            let is_last_checkpoint = checkpoint_idx == nb_checkpoints - 1;
+            let mut deferred = deferred.split(is_last_checkpoint, opts.split_opts);
 
-        // Generate the dependencies.
-        prover.generate_dependencies(&mut records, &opts);
+            // Update the public values & prover state for the shards which do not contain "cpu events"
+            // before committing to them.
+            if !is_last_checkpoint {
+                state.execution_shard += 1;
+            }
+            for record in deferred.iter_mut() {
+                state.shard += 1;
+                state.previous_init_addr_bits = record.public_values.previous_init_addr_bits;
+                state.last_init_addr_bits = record.public_values.last_init_addr_bits;
+                state.previous_finalize_addr_bits =
+                    record.public_values.previous_finalize_addr_bits;
+                state.last_finalize_addr_bits = record.public_values.last_finalize_addr_bits;
+                state.start_pc = state.next_pc;
+                record.public_values = state;
+            }
+            records.append(&mut deferred);
 
-        // Defer events that are too expensive to include in every shard.
-        for record in records.iter_mut() {
-            deferred.append(&mut record.defer());
-        }
-
-        // See if any deferred shards are ready to be commited to.
-        let is_last_checkpoint = checkpoint_idx == nb_checkpoints - 1;
-        let mut deferred = deferred.split(is_last_checkpoint, opts.split_opts);
-
-        // Update the public values & prover state for the shards which do not contain "cpu events"
-        // before committing to them.
-        if !is_last_checkpoint {
-            state.execution_shard += 1;
-        }
-        for record in deferred.iter_mut() {
-            state.shard += 1;
-            state.previous_init_addr_bits = record.public_values.previous_init_addr_bits;
-            state.last_init_addr_bits = record.public_values.last_init_addr_bits;
-            state.previous_finalize_addr_bits = record.public_values.previous_finalize_addr_bits;
-            state.last_finalize_addr_bits = record.public_values.last_finalize_addr_bits;
-            state.start_pc = state.next_pc;
-            record.public_values = state;
-        }
-        records.append(&mut deferred);
-
-        let mut proofs =
-            tracing::debug_span!("prove shards for checkpoint", checkpoint = checkpoint_idx)
-                .in_scope(|| {
-                    records
-                        .into_iter()
-                        .map(|shard| {
-                            let id = shard.public_values.shard;
-                            tracing::debug_span!("prove shard", shard = id).in_scope(|| {
-                                let shard_data = prover.commit_main(&shard);
-                                prover
-                                    .prove_shard(&pk, shard_data, &mut challenger.clone())
-                                    .unwrap()
+            let mut proofs =
+                tracing::debug_span!("prove shards for checkpoint", checkpoint = checkpoint_idx)
+                    .in_scope(|| {
+                        records
+                            .into_iter()
+                            .map(|shard| {
+                                let id = shard.public_values.shard;
+                                tracing::debug_span!("prove shard", shard = id).in_scope(|| {
+                                    let shard_data = prover.commit_main(&shard);
+                                    prover
+                                        .prove_shard(&pk, shard_data, &mut challenger.clone())
+                                        .unwrap()
+                                })
                             })
-                        })
-                        .collect::<Vec<_>>()
-                });
-        shard_proofs.append(&mut proofs);
-    }
+                            .collect::<Vec<_>>()
+                    });
+            shard_proofs.append(&mut proofs);
+        }
 
-    // Log some of the `ExecutionReport` information.
-    tracing::info!(
-        "execution report (totals): total_cycles={}, total_syscall_cycles={}",
-        report_aggregate.total_instruction_count(),
-        report_aggregate.total_syscall_count()
-    );
+        // Log some of the `ExecutionReport` information.
+        tracing::info!(
+            "execution report (totals): total_cycles={}, total_syscall_cycles={}",
+            report_aggregate.total_instruction_count(),
+            report_aggregate.total_syscall_count()
+        );
 
-    // Print the opcode and syscall count tables like `du`: sorted by count (descending) and with
-    // the count in the first column.
-    tracing::info!("execution report (opcode counts):");
-    for line in ExecutionReport::sorted_table_lines(&report_aggregate.opcode_counts) {
-        tracing::info!("  {line}");
-    }
-    tracing::info!("execution report (syscall counts):");
-    for line in ExecutionReport::sorted_table_lines(&report_aggregate.syscall_counts) {
-        tracing::info!("  {line}");
-    }
+        // Print the opcode and syscall count tables like `du`: sorted by count (descending) and with
+        // the count in the first column.
+        tracing::info!("execution report (opcode counts):");
+        for line in ExecutionReport::sorted_table_lines(&report_aggregate.opcode_counts) {
+            tracing::info!("  {line}");
+        }
+        tracing::info!("execution report (syscall counts):");
+        for line in ExecutionReport::sorted_table_lines(&report_aggregate.syscall_counts) {
+            tracing::info!("  {line}");
+        }
 
-    let proof = MachineProof::<SC> { shard_proofs };
-    let cycles = runtime.state.global_clk;
+        let proof = MachineProof::<SC> { shard_proofs };
+        let cycles = runtime.state.global_clk;
 
-    // Print the summary.
-    let proving_time = proving_start.elapsed().as_secs_f64();
-    tracing::info!(
-        "summary: cycles={}, e2e={}s, khz={:.2}, proofSize={}",
-        cycles,
-        proving_time,
-        (runtime.state.global_clk as f64 / (proving_time * 1000.0) as f64),
-        bincode::serialize(&proof).unwrap().len(),
-    );
+        // Print the summary.
+        let proving_time = proving_start.elapsed().as_secs_f64();
+        tracing::info!(
+            "summary: cycles={}, e2e={}s, khz={:.2}, proofSize={}",
+            cycles,
+            proving_time,
+            (runtime.state.global_clk as f64 / (proving_time * 1000.0) as f64),
+            bincode::serialize(&proof).unwrap().len(),
+        );
 
-    Ok((proof, public_values_stream, cycles))
+        Ok((proof, public_values_stream, cycles))
+    })
 }
 
 /// Runs a program and returns the public values stream.
