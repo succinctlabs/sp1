@@ -1,7 +1,7 @@
 use cargo_metadata::Metadata;
 use chrono::Local;
 pub use sp1_build::BuildArgs;
-use std::process::ExitStatus;
+use std::{path::Path, process::ExitStatus};
 
 fn current_datetime() -> String {
     let now = Local::now();
@@ -9,15 +9,39 @@ fn current_datetime() -> String {
 }
 
 /// Re-run the cargo command if the Cargo.toml or Cargo.lock file changes.
-fn cargo_rerun_if_changed(metadata: &Metadata) {
-    // Re-run the build script if Cargo.lock changes or any dependency changes.
+fn cargo_rerun_if_changed(metadata: &Metadata, program_dir: &Path) {
+    // Tell cargo to rerun the script only if program/{src, Cargo.toml, Cargo.lock} changes
+    // Ref: https://doc.rust-lang.org/nightly/cargo/reference/build-scripts.html#rerun-if-changed
+    let dirs = vec![program_dir.join("src"), program_dir.join("bin")];
+    for dir in dirs {
+        println!("cargo::rerun-if-changed={}", dir.display());
+    }
+
+    // Re-run the build script if Cargo.lock changes
     println!(
         "cargo:rerun-if-changed={}",
         metadata.workspace_root.join("Cargo.lock").as_str()
     );
 
+    // Re-run if any local dependency changes
     for package in &metadata.packages {
-        println!("cargo:rerun-if-changed={}", package.manifest_path.as_str());
+        for dependency in &package.dependencies {
+            if let Some(path) = &dependency.path {
+                println!("cargo:rerun-if-changed={}", path.as_str());
+            }
+        }
+    }
+
+    // Re-run if a feature flag changes.
+    let all_features: std::collections::HashSet<String> = metadata
+        .root_package()
+        .map(|package| package.features.keys().cloned().collect())
+        .unwrap_or_default();
+    for feature in all_features {
+        println!(
+            "cargo:rerun-if-env-changed=CARGO_FEATURE_{}",
+            feature.to_uppercase()
+        );
     }
 }
 
@@ -110,7 +134,7 @@ fn build_program_internal(path: &str, args: Option<BuildArgs>) {
     }
 
     // Activate the build command if the dependencies change.
-    cargo_rerun_if_changed(&metadata);
+    cargo_rerun_if_changed(&metadata, program_dir);
 
     let _ = execute_build_cmd(&program_dir, args);
 
