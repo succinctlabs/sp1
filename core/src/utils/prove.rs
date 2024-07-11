@@ -285,15 +285,22 @@ where
         }
         records.append(&mut deferred);
 
-        let mut proofs = records
-            .into_iter()
-            .map(|shard| {
-                let shard_data = prover.commit_main(&shard);
-                prover
-                    .prove_shard(&pk, shard_data, &mut challenger.clone())
-                    .unwrap()
-            })
-            .collect::<Vec<_>>();
+        let mut proofs =
+            tracing::debug_span!("prove shards for checkpoint", checkpoint = checkpoint_idx)
+                .in_scope(|| {
+                    records
+                        .into_iter()
+                        .enumerate()
+                        .map(|(id, shard)| {
+                            tracing::debug_span!("prove shard", shard = id).in_scope(|| {
+                                let shard_data = prover.commit_main(&shard);
+                                prover
+                                    .prove_shard(&pk, shard_data, &mut challenger.clone())
+                                    .unwrap()
+                            })
+                        })
+                        .collect::<Vec<_>>()
+                });
         shard_proofs.append(&mut proofs);
     }
 
@@ -321,10 +328,10 @@ where
     // Print the summary.
     let proving_time = proving_start.elapsed().as_secs_f64();
     tracing::info!(
-        "summary: cycles={}, e2e={}, khz={:.2}, proofSize={}",
+        "summary: cycles={}, e2e={}s, khz={:.2}, proofSize={}",
         cycles,
         proving_time,
-        (runtime.state.global_clk as f64 / proving_time as f64),
+        (runtime.state.global_clk as f64 / (proving_time * 1000.0) as f64),
         bincode::serialize(&proof).unwrap().len(),
     );
 
