@@ -85,24 +85,7 @@ fn execute_build_cmd(
 /// This function is useful for automatically rebuilding the program during development
 /// when changes are made to the source code or its dependencies.
 pub fn build_program(path: &str) {
-    // Skip the program build if the SP1_SKIP_PROGRAM_BUILD environment variable is set to true.
-    let skip_program_build = std::env::var("SP1_SKIP_PROGRAM_BUILD")
-        .map(|v| v.eq_ignore_ascii_case("true"))
-        .unwrap_or(false);
-    if skip_program_build {
-        return;
-    }
-
-    // Activate the build command if the dependencies change.
-    let (program_dir, root_package_name) = cargo_rerun_if_changed(path);
-
-    let _ = execute_build_cmd(&program_dir, None);
-
-    println!(
-        "cargo:warning={} built at {}",
-        root_package_name,
-        current_datetime()
-    );
+    build_program_internal(path, None)
 }
 
 /// Builds the program with the given arguments if the program at path, or one of its dependencies,
@@ -130,10 +113,23 @@ pub fn build_program(path: &str) {
 ///
 /// See [`BuildArgs`] for more details on available build options.
 pub fn build_program_with_args(path: &str, args: BuildArgs) {
+    build_program_internal(path, Some(args))
+}
+
+/// Internal helper function to build the program with or without arguments.
+fn build_program_internal(path: &str, args: Option<BuildArgs>) {
+    // Skip the program build if the SP1_SKIP_PROGRAM_BUILD environment variable is set to true.
+    let skip_program_build = std::env::var("SP1_SKIP_PROGRAM_BUILD")
+        .map(|v| v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
+    if skip_program_build {
+        return;
+    }
+
     // Activate the build command if the dependencies change.
     let (program_dir, root_package_name) = cargo_rerun_if_changed(path);
 
-    let _ = execute_build_cmd(&program_dir, Some(args));
+    let _ = execute_build_cmd(&program_dir, args);
 
     println!(
         "cargo:warning={} built at {}",
