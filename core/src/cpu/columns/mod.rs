@@ -135,9 +135,10 @@ pub struct CpuOpcodeSpecificCols<T: Copy> {
     /// The expected next program counter value.
     pub next_pc: T,
 
-    pub op_a: Word<T>,
-    pub op_b: Word<T>,
-    pub op_c: Word<T>,
+    pub op_a_val: Word<T>,
+    pub op_b_val: Word<T>,
+    pub op_c_val: Word<T>,
+    pub op_a_0: T,
 
     /// Selectors for the opcode.
     pub selectors: OpcodeSelectorCols<T>,

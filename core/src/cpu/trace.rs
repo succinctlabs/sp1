@@ -27,7 +27,7 @@ use crate::cpu::columns::CpuCols;
 use crate::cpu::trace::ByteOpcode::{U16Range, U8Range};
 use crate::disassembler::WORD_SIZE;
 use crate::memory::MemoryCols;
-use crate::runtime::{ExecutionRecord, Opcode, Program};
+use crate::runtime::{ExecutionRecord, Opcode, Program, Register::X0};
 use crate::runtime::{MemoryRecordEnum, SyscallCode};
 
 impl<F: PrimeField32> MachineAir<F> for CpuChip {
@@ -193,7 +193,6 @@ impl CpuChip {
 
         // Populate memory, branch, jump, and auipc specific fields.
         self.populate_memory(cols, event, &mut new_alu_events, blu_events, nonce_lookup);
-        self.populate_jump(cols, event, &mut new_alu_events, nonce_lookup);
         let is_halt = self.populate_ecall(cols, event, nonce_lookup);
 
         cols.is_sequential_instr = F::from_bool(
@@ -402,81 +401,6 @@ impl CpuChip {
                 b: byte_pair[0] as u32,
                 c: byte_pair[1] as u32,
             });
-        }
-    }
-
-    /// Populate columns related to jumping.
-    fn populate_jump<F: PrimeField>(
-        &self,
-        cols: &mut CpuCols<F>,
-        event: &CpuEvent,
-        alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
-        nonce_lookup: &HashMap<usize, u32>,
-    ) {
-        if event.instruction.is_jump_instruction() {
-            let jump_columns = cols.opcode_specific_columns.jump_mut();
-
-            match event.instruction.opcode {
-                Opcode::JAL => {
-                    let next_pc = event.pc.wrapping_add(event.b);
-                    jump_columns.op_a_range_checker.populate(event.a);
-                    jump_columns.pc = Word::from(event.pc);
-                    jump_columns.pc_range_checker.populate(event.pc);
-                    jump_columns.next_pc = Word::from(next_pc);
-                    jump_columns.next_pc_range_checker.populate(next_pc);
-
-                    let add_event = AluEvent {
-                        lookup_id: event.jump_jal_lookup_id,
-                        shard: event.shard,
-                        channel: event.channel,
-                        opcode: Opcode::ADD,
-                        a: next_pc,
-                        b: event.pc,
-                        c: event.b,
-                        sub_lookups: create_alu_lookups(),
-                    };
-                    jump_columns.jal_nonce = F::from_canonical_u32(
-                        nonce_lookup
-                            .get(&event.jump_jal_lookup_id)
-                            .copied()
-                            .unwrap_or_default(),
-                    );
-
-                    alu_events
-                        .entry(Opcode::ADD)
-                        .and_modify(|op_new_events| op_new_events.push(add_event))
-                        .or_insert(vec![add_event]);
-                }
-                Opcode::JALR => {
-                    let next_pc = event.b.wrapping_add(event.c);
-                    jump_columns.op_a_range_checker.populate(event.a);
-                    jump_columns.next_pc = Word::from(next_pc);
-                    jump_columns.next_pc_range_checker.populate(next_pc);
-
-                    let add_event = AluEvent {
-                        lookup_id: event.jump_jalr_lookup_id,
-                        shard: event.shard,
-                        channel: event.channel,
-                        opcode: Opcode::ADD,
-                        a: next_pc,
-                        b: event.b,
-                        c: event.c,
-                        sub_lookups: create_alu_lookups(),
-                    };
-                    jump_columns.jalr_nonce = F::from_canonical_u32(
-                        nonce_lookup
-                            .get(&event.jump_jalr_lookup_id)
-                            .copied()
-                            .unwrap_or_default(),
-                    );
-
-                    alu_events
-                        .entry(Opcode::ADD)
-                        .and_modify(|op_new_events| op_new_events.push(add_event))
-                        .or_insert(vec![add_event]);
-                }
-                _ => unreachable!(),
-            }
         }
     }
 
@@ -689,17 +613,33 @@ impl CpuOpcodeSpecificChip {
         cols.pc = F::from_canonical_u32(event.pc);
         cols.next_pc = F::from_canonical_u32(event.next_pc);
         cols.selectors.populate(event.instruction);
-        cols.op_a = event.a.into();
-        cols.op_b = event.b.into();
-        cols.op_c = event.c.into();
+
+        if let Some(record) = event.a_record {
+            cols.op_a_val = record.value().into();
+        } else {
+            cols.op_a_val = event.a.into();
+        }
+
+        if let Some(record) = event.b_record {
+            cols.op_b_val = record.value().into();
+        } else {
+            cols.op_b_val = event.b.into();
+        }
+
+        if let Some(record) = event.c_record {
+            cols.op_c_val = record.value().into();
+        } else {
+            cols.op_c_val = event.c.into();
+        }
+
+        cols.op_a_0 = F::from_bool(event.instruction.op_a == X0 as u32);
+
         cols.shard = F::from_canonical_u32(event.shard);
         cols.channel = F::from_canonical_u32(event.channel);
 
-        if event.instruction.is_branch_instruction() {
-            self.populate_branch(cols, event, &mut new_alu_events, nonce_lookup);
-        } else if event.instruction.opcode == Opcode::AUIPC {
-            self.populate_auipc(cols, event, &mut new_alu_events, nonce_lookup);
-        }
+        self.populate_branch(cols, event, &mut new_alu_events, nonce_lookup);
+        self.populate_jump(cols, event, &mut new_alu_events, nonce_lookup);
+        self.populate_auipc(cols, event, &mut new_alu_events, nonce_lookup);
 
         // Assert that the instruction is not a no-op.
         cols.is_real = F::one();
@@ -867,6 +807,81 @@ impl CpuOpcodeSpecificChip {
                     .or_insert(vec![add_event]);
             } else {
                 cols.not_branching = F::one();
+            }
+        }
+    }
+
+    /// Populate columns related to jumping.
+    fn populate_jump<F: PrimeField>(
+        &self,
+        cols: &mut CpuOpcodeSpecificCols<F>,
+        event: &CpuOpcodeSpecEvent,
+        alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
+        nonce_lookup: &HashMap<usize, u32>,
+    ) {
+        if event.instruction.is_jump_instruction() {
+            let jump_columns = cols.opcode_specific_columns.jump_mut();
+
+            match event.instruction.opcode {
+                Opcode::JAL => {
+                    let next_pc = event.pc.wrapping_add(event.b);
+                    jump_columns.op_a_range_checker.populate(event.a);
+                    jump_columns.pc = Word::from(event.pc);
+                    jump_columns.pc_range_checker.populate(event.pc);
+                    jump_columns.next_pc = Word::from(next_pc);
+                    jump_columns.next_pc_range_checker.populate(next_pc);
+
+                    let add_event = AluEvent {
+                        lookup_id: event.jump_jal_lookup_id,
+                        shard: event.shard,
+                        channel: event.channel,
+                        opcode: Opcode::ADD,
+                        a: next_pc,
+                        b: event.pc,
+                        c: event.b,
+                        sub_lookups: create_alu_lookups(),
+                    };
+                    jump_columns.jal_nonce = F::from_canonical_u32(
+                        nonce_lookup
+                            .get(&event.jump_jal_lookup_id)
+                            .copied()
+                            .unwrap_or_default(),
+                    );
+
+                    alu_events
+                        .entry(Opcode::ADD)
+                        .and_modify(|op_new_events| op_new_events.push(add_event))
+                        .or_insert(vec![add_event]);
+                }
+                Opcode::JALR => {
+                    let next_pc = event.b.wrapping_add(event.c);
+                    jump_columns.op_a_range_checker.populate(event.a);
+                    jump_columns.next_pc = Word::from(next_pc);
+                    jump_columns.next_pc_range_checker.populate(next_pc);
+
+                    let add_event = AluEvent {
+                        lookup_id: event.jump_jalr_lookup_id,
+                        shard: event.shard,
+                        channel: event.channel,
+                        opcode: Opcode::ADD,
+                        a: next_pc,
+                        b: event.b,
+                        c: event.c,
+                        sub_lookups: create_alu_lookups(),
+                    };
+                    jump_columns.jalr_nonce = F::from_canonical_u32(
+                        nonce_lookup
+                            .get(&event.jump_jalr_lookup_id)
+                            .copied()
+                            .unwrap_or_default(),
+                    );
+
+                    alu_events
+                        .entry(Opcode::ADD)
+                        .and_modify(|op_new_events| op_new_events.push(add_event))
+                        .or_insert(vec![add_event]);
+                }
+                _ => unreachable!(),
             }
         }
     }

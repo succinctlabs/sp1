@@ -667,6 +667,7 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
         op_a_val: Word<impl Into<Self::Expr> + Copy>,
         op_b_val: Word<impl Into<Self::Expr> + Copy>,
         op_c_val: Word<impl Into<Self::Expr> + Copy>,
+        op_a_0: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
         let values = once(shard.into())
@@ -677,6 +678,7 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
             .chain(op_a_val.0.into_iter().map(|x| x.into()))
             .chain(op_b_val.0.into_iter().map(|x| x.into()))
             .chain(op_c_val.0.into_iter().map(|x| x.into()))
+            .chain(once(op_a_0.into()))
             .collect();
 
         self.send(AirInteraction::new(
@@ -698,6 +700,7 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
         op_a_val: Word<impl Into<Self::Expr> + Copy>,
         op_b_val: Word<impl Into<Self::Expr> + Copy>,
         op_c_val: Word<impl Into<Self::Expr> + Copy>,
+        op_a_0: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
         let values = once(shard.into())
@@ -708,6 +711,7 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
             .chain(op_a_val.0.into_iter().map(|x| x.into()))
             .chain(op_b_val.0.into_iter().map(|x| x.into()))
             .chain(op_c_val.0.into_iter().map(|x| x.into()))
+            .chain(once(op_a_0.into()))
             .collect();
 
         self.receive(AirInteraction::new(

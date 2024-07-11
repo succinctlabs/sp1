@@ -85,7 +85,7 @@ impl CpuOpcodeSpecificChip {
                 Opcode::ADD.as_field::<AB::F>(),
                 branch_cols.next_pc,
                 branch_cols.pc,
-                local.op_c,
+                local.op_c_val,
                 local.shard,
                 local.channel,
                 branch_cols.next_pc_nonce,
@@ -167,7 +167,7 @@ impl CpuOpcodeSpecificChip {
         // When it's a branch instruction and a_eq_b, assert that a == b.
         builder
             .when(is_branch_instruction.clone() * branch_cols.a_eq_b)
-            .assert_word_eq(local.op_a, local.op_b);
+            .assert_word_eq(local.op_a_val, local.op_b_val);
 
         //  To prevent this ALU send to be arbitrarily large when is_branch_instruction is false.
         builder
@@ -182,8 +182,8 @@ impl CpuOpcodeSpecificChip {
         builder.send_alu(
             less_than_opcode.clone(),
             Word::extend_var::<AB>(branch_cols.a_lt_b),
-            local.op_a,
-            local.op_b,
+            local.op_a_val,
+            local.op_b_val,
             local.shard,
             local.channel,
             branch_cols.a_lt_b_nonce,
@@ -193,8 +193,8 @@ impl CpuOpcodeSpecificChip {
         builder.send_alu(
             less_than_opcode,
             Word::extend_var::<AB>(branch_cols.a_gt_b),
-            local.op_b,
-            local.op_a,
+            local.op_b_val,
+            local.op_a_val,
             local.shard,
             local.channel,
             branch_cols.a_gt_b_nonce,
