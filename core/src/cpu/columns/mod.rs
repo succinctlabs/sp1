@@ -147,9 +147,6 @@ pub struct CpuOpcodeSpecificCols<T: Copy> {
     /// Selector to label whether this row is a non padded row.
     pub is_real: T,
 
-    // TODO:  Do we really need this?
-    pub next_is_real: T,
-
     /// The branching column is equal to:
     ///
     /// > is_beq & a_eq_b ||

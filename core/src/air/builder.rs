@@ -663,7 +663,6 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
         channel: impl Into<Self::Expr>,
         pc: impl Into<Self::Expr>,
         next_pc: impl Into<Self::Expr>,
-        next_is_real: impl Into<Self::Expr>,
         selectors: OpcodeSelectorCols<impl Into<Self::Expr> + Copy>,
         op_a_val: Word<impl Into<Self::Expr> + Copy>,
         op_b_val: Word<impl Into<Self::Expr> + Copy>,
@@ -674,7 +673,6 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
             .chain(once(channel.into()))
             .chain(once(pc.into()))
             .chain(once(next_pc.into()))
-            .chain(once(next_is_real.into()))
             .chain(selectors.into_iter().map(|x| x.into()))
             .chain(op_a_val.0.into_iter().map(|x| x.into()))
             .chain(op_b_val.0.into_iter().map(|x| x.into()))
@@ -696,7 +694,6 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
         channel: impl Into<Self::Expr>,
         pc: impl Into<Self::Expr>,
         next_pc: impl Into<Self::Expr>,
-        next_is_real: impl Into<Self::Expr>,
         selectors: OpcodeSelectorCols<impl Into<Self::Expr> + Copy>,
         op_a_val: Word<impl Into<Self::Expr> + Copy>,
         op_b_val: Word<impl Into<Self::Expr> + Copy>,
@@ -707,7 +704,6 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
             .chain(once(channel.into()))
             .chain(once(pc.into()))
             .chain(once(next_pc.into()))
-            .chain(once(next_is_real.into()))
             .chain(selectors.into_iter().map(|x| x.into()))
             .chain(op_a_val.0.into_iter().map(|x| x.into()))
             .chain(op_b_val.0.into_iter().map(|x| x.into()))

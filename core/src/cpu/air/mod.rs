@@ -91,18 +91,24 @@ where
         );
 
         // Handle the branch related instructions in the opcode specific table.
+        // This will basically ensure that local.next_pc is correct for branch instructions.
         builder.send_instruction(
             local.shard,
             local.channel,
             local.pc,
             local.next_pc,
-            next.is_real,
             local.selectors,
             local.op_a_val(),
             local.op_b_val(),
             local.op_c_val(),
             is_branch_instruction.clone(),
         );
+
+        builder
+            .when_transition()
+            .when(next.is_real)
+            .when(is_branch_instruction.clone())
+            .assert_eq(local.next_pc, next.pc);
 
         // Jump instructions.
         self.eval_jump_ops::<AB>(builder, local, next);
@@ -458,7 +464,6 @@ where
             local.channel,
             local.pc,
             local.next_pc,
-            local.next_is_real,
             local.selectors,
             local.op_a,
             local.op_b,
