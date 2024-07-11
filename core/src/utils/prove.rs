@@ -108,6 +108,9 @@ pub fn prove<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<SC::Val>>>(
 where
     SC::Challenger: 'static + Clone + Send,
     <SC as StarkGenericConfig>::Val: PrimeField32,
+    OpeningProof<SC>: Send,
+    Com<SC>: Send,
+    PcsProverData<SC>: Send + Sync,
 {
     let machine = RiscvAir::machine(config);
     let prover = P::new(machine);
@@ -124,6 +127,9 @@ pub fn prove_with_context<SC: StarkGenericConfig>(
 where
     SC::Val: PrimeField32,
     SC::Challenger: 'static + Clone + Send,
+    OpeningProof<SC>: Send,
+    Com<SC>: Send,
+    PcsProverData<SC>: Send + Sync,
 {
     // Record the start of the process.
     let proving_start = Instant::now();
@@ -262,8 +268,29 @@ where
         // Prove the shards.
         let mut deferred = ExecutionRecord::new(program.clone().into());
         let mut state = public_values.reset();
-        let mut shard_proofs = Vec::<ShardProof<SC>>::new();
         let mut report_aggregate = ExecutionReport::default();
+
+        let (tx, rx) = sync_channel::<Vec<ExecutionRecord>>(opts.shard_batch_size);
+        let shard_proofs_handle = s.spawn(move || {
+            let mut shard_proofs = Vec::<ShardProof<SC>>::new();
+            for records in rx.iter().take(nb_checkpoints) {
+                let mut proofs = records
+                    .into_iter()
+                    .map(|shard| {
+                        let id = shard.public_values.shard;
+                        tracing::debug_span!("prove shard", shard = id).in_scope(|| {
+                            let shard_data = prover.commit_main(&shard);
+                            prover
+                                .prove_shard(&pk, shard_data, &mut challenger.clone())
+                                .unwrap()
+                        })
+                    })
+                    .collect::<Vec<_>>();
+                shard_proofs.append(&mut proofs);
+            }
+            shard_proofs
+        });
+
         for (checkpoint_idx, mut checkpoint_file) in checkpoints.into_iter().enumerate() {
             // Trace the checkpoint and reconstruct the execution records.
             let (mut records, report) = trace_checkpoint(program.clone(), &checkpoint_file, opts);
@@ -308,24 +335,27 @@ where
             }
             records.append(&mut deferred);
 
-            let mut proofs =
-                tracing::debug_span!("prove shards for checkpoint", checkpoint = checkpoint_idx)
-                    .in_scope(|| {
-                        records
-                            .into_iter()
-                            .map(|shard| {
-                                let id = shard.public_values.shard;
-                                tracing::debug_span!("prove shard", shard = id).in_scope(|| {
-                                    let shard_data = prover.commit_main(&shard);
-                                    prover
-                                        .prove_shard(&pk, shard_data, &mut challenger.clone())
-                                        .unwrap()
-                                })
-                            })
-                            .collect::<Vec<_>>()
-                    });
-            shard_proofs.append(&mut proofs);
+            tx.send(records).unwrap();
+
+            // let mut proofs =
+            //     tracing::debug_span!("prove shards for checkpoint", checkpoint = checkpoint_idx)
+            //         .in_scope(|| {
+            //             records
+            //                 .into_iter()
+            //                 .map(|shard| {
+            //                     let id = shard.public_values.shard;
+            //                     tracing::debug_span!("prove shard", shard = id).in_scope(|| {
+            //                         let shard_data = prover.commit_main(&shard);
+            //                         prover
+            //                             .prove_shard(&pk, shard_data, &mut challenger.clone())
+            //                             .unwrap()
+            //                     })
+            //                 })
+            //                 .collect::<Vec<_>>()
+            //         });
+            // shard_proofs.append(&mut proofs);
         }
+        let shard_proofs = shard_proofs_handle.join().unwrap();
 
         // Log some of the `ExecutionReport` information.
         tracing::info!(

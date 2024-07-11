@@ -296,7 +296,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
             let public_values: &PublicValues<Word<BabyBear>, BabyBear> =
                 proofs.last().unwrap().public_values.as_slice().borrow();
-            println!("core execution shard: {}", public_values.execution_shard);
 
             core_inputs.push(SP1RecursionMemoryLayout {
                 vk,
