@@ -233,6 +233,22 @@ where
         })
     }
 
+    fn exp_reverse_bits(
+        &mut self,
+        dst: impl Reg<F, EF>,
+        base: impl Reg<F, EF>,
+        exp: Vec<impl Reg<F, EF>>,
+    ) -> Instruction<F> {
+        Instruction::ExpReverseBitsLen(ExpReverseBitsInstr {
+            addrs: ExpReverseBitsIo {
+                result: dst.write(self),
+                base: base.read(self),
+                exp: exp.into_iter().map(|r| r.read(self)).collect(),
+            },
+            mult: F::zero(),
+        })
+    }
+
     pub fn compile_one(&mut self, ir_instr: DslIr<AsmConfig<F, EF>>) -> Vec<Instruction<F>> {
         // For readability. Avoids polluting outer scope.
         use BaseAluOpcode::*;
@@ -307,6 +323,9 @@ where
 
             DslIr::CircuitV2Poseidon2PermuteBabyBear(dst, src) => {
                 vec![self.poseidon2_permute(dst, src)]
+            }
+            DslIr::CircuitV2ExpReverseBits(dst, base, exp) => {
+                vec![self.exp_reverse_bits(dst, base, exp)]
             }
 
             // DslIr::For(_, _, _, _, _) => todo!(),
@@ -402,7 +421,10 @@ where
                     addrs: Poseidon2Io { ref output, .. },
                     mults,
                 }) => mults.iter_mut().zip(output).collect(),
-                Instruction::ExpReverseBitsLen(_) => todo!(),
+                Instruction::ExpReverseBitsLen(ExpReverseBitsInstr {
+                    addrs: ExpReverseBitsIo { ref result, .. },
+                    mult,
+                }) => vec![(mult, result)],
             })
             .for_each(|(mult, addr): (&mut F, &Address<F>)| {
                 *mult = self.addr_to_mult.remove(addr).unwrap()
@@ -472,7 +494,7 @@ trait Reg<F, EF> {
     fn read(&self, compiler: &mut AsmCompiler<F, EF>) -> Address<F>;
 
     /// Mark the register as to be written to, returning the "physical" address.
-    fn write(&self, _compiler: &mut AsmCompiler<F, EF>) -> Address<F>;
+    fn write(&self, compiler: &mut AsmCompiler<F, EF>) -> Address<F>;
 }
 
 macro_rules! impl_reg_fp {
@@ -543,7 +565,7 @@ mod tests {
     use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
     use sp1_recursion_core_v2::{machine::RecursionAir, RecursionProgram, Runtime};
 
-    use crate::{asm::AsmBuilder, circuit::CircuitBuilder};
+    use crate::{asm::AsmBuilder, circuit::CircuitV2Builder};
 
     use super::*;
 
