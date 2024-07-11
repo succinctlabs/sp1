@@ -546,7 +546,7 @@ pub(crate) mod tests {
         let config = SC::default();
 
         let mut runtime = Runtime::<InnerVal, Challenge, _>::new(&program, config.perm.clone());
-        runtime.run();
+        _ = runtime.run();
 
         let machine = RecursionAir::<_, 3>::machine(SC::default());
         let prover = DefaultProver::new(machine);
