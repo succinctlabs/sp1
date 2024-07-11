@@ -3,7 +3,7 @@ use std::process::{exit, Command, Stdio};
 use anyhow::{Context, Result};
 use cargo_metadata::camino::Utf8PathBuf;
 
-use crate::{get_build_args, get_rust_flags, BuildArgs};
+use crate::{get_program_build_args, get_rust_compiler_flags, BuildArgs};
 
 /// Uses SP1_DOCKER_IMAGE environment variable if set, otherwise constructs the image to use based
 /// on the provided tag.
@@ -55,7 +55,7 @@ pub fn create_docker_command(
         "-e".to_string(),
         "RUSTUP_TOOLCHAIN=succinct".to_string(),
         "-e".to_string(),
-        format!("CARGO_ENCODED_RUSTFLAGS={}", get_rust_flags()),
+        format!("CARGO_ENCODED_RUSTFLAGS={}", get_rust_compiler_flags()),
         "--entrypoint".to_string(),
         "".to_string(),
         image,
@@ -63,7 +63,7 @@ pub fn create_docker_command(
     ];
 
     // Add the SP1 program build arguments.
-    docker_args.extend_from_slice(&get_build_args(args));
+    docker_args.extend_from_slice(&get_program_build_args(args));
 
     let mut command = Command::new("docker");
     command.current_dir(program_dir.clone()).args(&docker_args);

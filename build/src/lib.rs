@@ -61,7 +61,7 @@ pub struct BuildArgs {
 }
 
 /// Get the arguments to build the program with the arguments from the `BuildArgs` struct.
-fn get_build_args(args: &BuildArgs) -> Vec<String> {
+fn get_program_build_args(args: &BuildArgs) -> Vec<String> {
     let mut build_args = vec![
         "build".to_string(),
         "--release".to_string(),
@@ -90,7 +90,7 @@ fn get_build_args(args: &BuildArgs) -> Vec<String> {
 }
 
 /// Rust flags for compilation of C libraries.
-fn get_rust_flags() -> String {
+fn get_rust_compiler_flags() -> String {
     let rust_flags = [
         "-C".to_string(),
         "passes=loweratomic".to_string(),
@@ -108,8 +108,8 @@ fn create_local_command(args: &BuildArgs, program_dir: &Utf8PathBuf) -> Command 
     command
         .current_dir(program_dir.clone())
         .env("RUSTUP_TOOLCHAIN", "succinct")
-        .env("CARGO_ENCODED_RUSTFLAGS", get_rust_flags())
-        .args(&get_build_args(args));
+        .env("CARGO_ENCODED_RUSTFLAGS", get_rust_compiler_flags())
+        .args(&get_program_build_args(args));
     command
 }
 
