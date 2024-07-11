@@ -290,8 +290,8 @@ where
                 .in_scope(|| {
                     records
                         .into_iter()
-                        .enumerate()
-                        .map(|(id, shard)| {
+                        .map(|shard| {
+                            let id = shard.public_values.shard;
                             tracing::debug_span!("prove shard", shard = id).in_scope(|| {
                                 let shard_data = prover.commit_main(&shard);
                                 prover
