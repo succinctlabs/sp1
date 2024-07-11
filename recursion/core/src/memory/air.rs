@@ -51,6 +51,9 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
 
         let num_mem_final = input.last_memory_record.len();
         par_for_each_row(&mut values, NUM_MEMORY_INIT_COLS, |i, row| {
+            if i >= nb_events {
+                return;
+            }
             let cols: &mut MemoryInitCols<F> = row.borrow_mut();
 
             if i < input.first_memory_record.len() {

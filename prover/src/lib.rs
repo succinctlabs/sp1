@@ -59,7 +59,7 @@ use sp1_recursion_program::machine::{
 pub use sp1_recursion_program::machine::{
     SP1DeferredMemoryLayout, SP1RecursionMemoryLayout, SP1ReduceMemoryLayout, SP1RootMemoryLayout,
 };
-use tracing::instrument;
+use tracing::{info_span, instrument};
 pub use types::*;
 use utils::words_to_bytes;
 
@@ -522,6 +522,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         })
     }
 
+    /// Generate a proof with the compress machine.
     pub fn compress_machine_proof(
         &self,
         input: impl Hintable<InnerConfig>,
@@ -538,7 +539,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         witness_stream.extend(input.write());
 
         runtime.witness_stream = witness_stream.into();
-        runtime.run();
+        info_span!("runtime.run()").in_scope(|| runtime.run());
         runtime.print_stats();
 
         let mut recursive_challenger = self.compress_prover.config().challenger();

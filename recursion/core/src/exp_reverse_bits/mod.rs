@@ -195,6 +195,9 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpReverseBitsLenCh
         let mut values = vec![F::zero(); nb_rows * NUM_EXP_REVERSE_BITS_LEN_COLS];
 
         par_for_each_row(&mut values, NUM_EXP_REVERSE_BITS_LEN_COLS, |i, row| {
+            if i >= nb_events {
+                return;
+            }
             let event = &input.exp_reverse_bits_len_events[i];
             let cols: &mut ExpReverseBitsLenCols<F> = row.borrow_mut();
 

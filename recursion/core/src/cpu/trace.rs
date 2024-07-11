@@ -39,11 +39,14 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const L: usize> MachineAir<F> fo
         input: &ExecutionRecord<F>,
         _: &mut ExecutionRecord<F>,
     ) -> RowMajorMatrix<F> {
-        let nb_rows = input.cpu_events.len();
-        let padded_nb_rows = next_power_of_two(nb_rows, self.fixed_log2_rows);
+        let nb_events = input.cpu_events.len();
+        let padded_nb_rows = next_power_of_two(nb_events, self.fixed_log2_rows);
         let mut values = vec![F::zero(); padded_nb_rows * NUM_CPU_COLS];
 
         par_for_each_row(&mut values, NUM_CPU_COLS, |i, row| {
+            if i >= nb_events {
+                return;
+            }
             let event = &input.cpu_events[i];
             let cols: &mut CpuCols<F> = row.borrow_mut();
 
