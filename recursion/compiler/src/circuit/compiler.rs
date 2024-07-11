@@ -535,7 +535,7 @@ where
 #[cfg(test)]
 mod tests {
     use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
-    use p3_field::{Field, PrimeField32};
+    use p3_field::Field;
     use p3_symmetric::Permutation;
     use rand::{rngs::StdRng, Rng, SeedableRng};
     use sp1_core::{
@@ -544,13 +544,6 @@ mod tests {
     };
     use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
     use sp1_recursion_core_v2::{machine::RecursionAir, RecursionProgram, Runtime};
-
-    use std::iter::once;
-
-    use p3_field::AbstractField;
-
-    use sp1_core::utils::BabyBearPoseidon2;
-    use sp1_recursion_core_v2::{runtime::instruction as instr, MemAccessKind};
 
     use crate::{asm::AsmBuilder, circuit::Poseidon2CircuitBuilder};
 
