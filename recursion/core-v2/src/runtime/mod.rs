@@ -286,15 +286,19 @@ where
                 }
                 Instruction::Poseidon2Wide(Poseidon2WideInstr {
                     addrs: Poseidon2Io { input, output },
-                    mult,
+                    mults,
                 }) => {
                     self.nb_poseidons += 1;
                     let in_vals = std::array::from_fn(|i| self.mr(input[i]).val[0]);
                     let perm_output = self.perm.as_ref().unwrap().permute(in_vals);
 
-                    perm_output.iter().enumerate().for_each(|(i, &val)| {
-                        self.mw(output[i], Block::from(val), mult);
-                    });
+                    perm_output
+                        .iter()
+                        .zip(output)
+                        .zip(mults)
+                        .for_each(|((&val, addr), mult)| {
+                            self.mw(addr, Block::from(val), mult);
+                        });
                     self.record.poseidon2_wide_events.push(Poseidon2WideEvent {
                         input: in_vals,
                         output: perm_output,
