@@ -11,6 +11,8 @@ use std::{
 use anyhow::{Context, Result};
 use cargo_metadata::camino::Utf8PathBuf;
 
+const BUILD_TARGET: &str = "riscv32im-succinct-zkvm-elf";
+
 #[derive(Default, Clone)]
 // Conditionally derive the `Parser` trait if the `clap` feature is enabled. This is useful
 // for keeping the binary size smaller.
@@ -90,6 +92,48 @@ fn get_docker_image(tag: &str) -> String {
     })
 }
 
+/// Get the arguments to build the program with the arguments from the `BuildArgs` struct.
+fn get_build_args(args: &BuildArgs) -> Vec<String> {
+    let mut build_args = vec![
+        "build".to_string(),
+        "--release".to_string(),
+        "--target".to_string(),
+        BUILD_TARGET.to_string(),
+    ];
+
+    if args.ignore_rust_version {
+        build_args.push("--ignore-rust-version".to_string());
+    }
+
+    if !args.binary.is_empty() {
+        build_args.push("--bin".to_string());
+        build_args.push(args.binary.clone());
+    }
+
+    if !args.features.is_empty() {
+        build_args.push("--features".to_string());
+        build_args.push(args.features.join(","));
+    }
+
+    // Ensure the Cargo.lock doesn't update.
+    build_args.push("--locked".to_string());
+
+    build_args
+}
+
+/// Rust flags for C compilation.
+fn get_rust_flags() -> String {
+    let rust_flags = [
+        "-C".to_string(),
+        "passes=loweratomic".to_string(),
+        "-C".to_string(),
+        "link-arg=-Ttext=0x00200800".to_string(),
+        "-C".to_string(),
+        "panic=abort".to_string(),
+    ];
+    rust_flags.join("\x1f")
+}
+
 /// Modify the command to build the program in the docker container. Mounts the entire workspace
 /// and sets the working directory to the program directory.
 fn get_docker_cmd(
@@ -97,7 +141,6 @@ fn get_docker_cmd(
     args: &BuildArgs,
     workspace_root: &Utf8PathBuf,
     program_dir: &Utf8PathBuf,
-    build_target: String,
 ) -> Result<()> {
     let image = get_docker_image(&args.tag);
 
@@ -113,20 +156,14 @@ fn get_docker_cmd(
         exit(1);
     }
 
-    // Mount the entire workspace, and set the working directory to the program dir.
+    // Mount the entire workspace, and set the working directory to the program dir. Note: If the
+    // program dir has local dependencies outside of the workspace, building with Docker will fail.
     let workspace_root_path = format!("{}:/root/program", workspace_root);
     let program_dir_path = format!(
         "/root/program/{}",
         program_dir.strip_prefix(workspace_root).unwrap()
     );
-    let rust_flags = [
-        "-C".to_string(),
-        "passes=loweratomic".to_string(),
-        "-C".to_string(),
-        "link-arg=-Ttext=0x00200800".to_string(),
-        "-C".to_string(),
-        "panic=abort".to_string(),
-    ];
+    // Add docker-specific arguments.
     let mut docker_args = vec![
         "run".to_string(),
         "--rm".to_string(),
@@ -139,36 +176,15 @@ fn get_docker_cmd(
         "-e".to_string(),
         "RUSTUP_TOOLCHAIN=succinct".to_string(),
         "-e".to_string(),
-        format!("CARGO_ENCODED_RUSTFLAGS={}", rust_flags.join("\x1f")),
+        format!("CARGO_ENCODED_RUSTFLAGS={}", get_rust_flags()),
         "--entrypoint".to_string(),
         "".to_string(),
         image,
         "cargo".to_string(),
     ];
 
-    docker_args.extend_from_slice(&[
-        "build".to_string(),
-        "--release".to_string(),
-        "--target".to_string(),
-        build_target,
-    ]);
-
-    if args.ignore_rust_version {
-        docker_args.push("--ignore-rust-version".to_string());
-    }
-
-    if !args.binary.is_empty() {
-        docker_args.push("--bin".to_string());
-        docker_args.push(args.binary.clone());
-    }
-
-    if !args.features.is_empty() {
-        docker_args.push("--features".to_string());
-        docker_args.push(args.features.join(","));
-    }
-
-    // Ensure the Cargo.lock doesn't update.
-    docker_args.push("--locked".to_string());
+    // Add the SP1 program build arguments.
+    docker_args.extend_from_slice(&get_build_args(args));
 
     // Set the arguments and remove RUSTC from the environment to avoid ensure the correct
     // version is used.
@@ -176,52 +192,13 @@ fn get_docker_cmd(
     Ok(())
 }
 
-/// Modify the command to build the program in the local environment.
-fn get_build_cmd(
-    command: &mut Command,
-    args: &BuildArgs,
-    program_dir: &Utf8PathBuf,
-    build_target: String,
-) -> Result<()> {
-    let rust_flags = [
-        "-C".to_string(),
-        "passes=loweratomic".to_string(),
-        "-C".to_string(),
-        "link-arg=-Ttext=0x00200800".to_string(),
-        "-C".to_string(),
-        "panic=abort".to_string(),
-    ];
-
-    let mut cargo_args = vec![
-        "build".to_string(),
-        "--release".to_string(),
-        "--target".to_string(),
-        build_target,
-    ];
-
-    if args.ignore_rust_version {
-        cargo_args.push("--ignore-rust-version".to_string());
-    }
-
-    if !args.binary.is_empty() {
-        cargo_args.push("--bin".to_string());
-        cargo_args.push(args.binary.clone());
-    }
-
-    if !args.features.is_empty() {
-        cargo_args.push("--features".to_string());
-        cargo_args.push(args.features.join(","));
-    }
-
-    // Ensure the Cargo.lock doesn't update.
-    cargo_args.push("--locked".to_string());
-
+/// Get the command to build the program locally.
+fn get_build_cmd(command: &mut Command, args: &BuildArgs, program_dir: &Utf8PathBuf) {
     command
         .current_dir(program_dir.clone())
         .env("RUSTUP_TOOLCHAIN", "succinct")
-        .env("CARGO_ENCODED_RUSTFLAGS", rust_flags.join("\x1f"))
-        .args(&cargo_args);
-    Ok(())
+        .env("CARGO_ENCODED_RUSTFLAGS", get_rust_flags())
+        .args(&get_build_args(args));
 }
 
 /// Add the [sp1] or [docker] prefix to the output of the child process depending on the context.
@@ -279,7 +256,6 @@ pub fn build_program(args: &BuildArgs, program_dir: Option<PathBuf>) -> Result<U
     let root_package_name = root_package.as_ref().map(|p| &p.name);
 
     // Get the command corresponding to Docker or local build.
-    let build_target = "riscv32im-succinct-zkvm-elf".to_string();
     let mut cmd = if args.docker {
         let mut docker_cmd = Command::new("docker");
         get_docker_cmd(
@@ -287,13 +263,12 @@ pub fn build_program(args: &BuildArgs, program_dir: Option<PathBuf>) -> Result<U
             args,
             &metadata.workspace_root,
             &program_dir,
-            build_target.clone(),
         )?;
         docker_cmd
     } else {
-        let mut build_cmd = Command::new("cargo");
-        get_build_cmd(&mut build_cmd, args, &program_dir, build_target.clone())?;
-        build_cmd
+        let mut cmd: Command = Command::new("cargo");
+        get_build_cmd(&mut cmd, args, &program_dir);
+        cmd
     };
 
     // Strip the Rustc configuration if this is called by sp1-helper, otherwise it will attempt to
@@ -321,7 +296,7 @@ pub fn build_program(args: &BuildArgs, program_dir: Option<PathBuf>) -> Result<U
     // The ELF is written to a target folder specified by the program's package.
     let original_elf_path = metadata
         .target_directory
-        .join(build_target.clone())
+        .join(BUILD_TARGET)
         .join("release")
         .join(root_package_name.unwrap());
 
@@ -334,8 +309,9 @@ pub fn build_program(args: &BuildArgs, program_dir: Option<PathBuf>) -> Result<U
     } else if !args.binary.is_empty() {
         format!("{}-elf", args.binary.clone())
     } else {
-        // TODO: Change this to default to the package name. Will require updating docs.
-        build_target
+        // TODO: In the future, change this to default to the package name. Will require updating
+        // docs and examples.
+        BUILD_TARGET.to_string()
     };
 
     let elf_dir = if !args.output_directory.is_empty() {
