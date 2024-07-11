@@ -543,7 +543,7 @@ mod tests {
     use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
     use sp1_recursion_core_v2::{machine::RecursionAir, RecursionProgram, Runtime};
 
-    use crate::{asm::AsmBuilder, circuit::Poseidon2CircuitBuilder};
+    use crate::{asm::AsmBuilder, circuit::CircuitBuilder};
 
     use super::*;
 
