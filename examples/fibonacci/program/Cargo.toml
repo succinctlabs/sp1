@@ -7,3 +7,6 @@ publish = false
 
 [dependencies]
 sp1-zkvm = { path = "../../../zkvm/entrypoint" }
+
+[features]
+new_feature = []

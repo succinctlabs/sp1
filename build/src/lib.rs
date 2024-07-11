@@ -18,16 +18,6 @@ const BUILD_TARGET: &str = "riscv32im-succinct-zkvm-elf";
 ///
 /// This struct can be used to configure the build process, including options for using Docker,
 /// specifying binary and ELF names, ignoring Rust version checks, and enabling specific features.
-///
-/// # Fields
-///
-/// * `docker` - Boolean flag to indicate whether to use Docker for reproducible builds.
-/// * `tag` - Docker image tag to use when building with Docker. Defaults to "latest".
-/// * `features` - List of features to build with.
-/// * `ignore_rust_version` - Boolean flag to ignore Rust version checks.
-/// * `binary` - Name of the binary if building a binary.
-/// * `elf_name` - Name of the ELF binary.
-/// * `output_directory` - Directory to place the built program relative to the program directory.
 #[derive(Default, Clone, Parser)]
 pub struct BuildArgs {
     #[clap(long, action, help = "Build using Docker for reproducible builds.")]
@@ -43,10 +33,11 @@ pub struct BuildArgs {
     #[clap(long, action, help = "Ignore Rust version check.")]
     pub ignore_rust_version: bool,
     #[clap(
+        alias = "bin",
         long,
         action,
         help = "If building a binary, specify the name.",
-        default_value = ""
+        default_value = "riscv32im-succinct-zkvm"
     )]
     pub binary: String,
     #[clap(long, action, help = "ELF binary name.", default_value = "")]
@@ -55,7 +46,7 @@ pub struct BuildArgs {
         long,
         action,
         help = "The output directory for the built program.",
-        default_value = ""
+        default_value = "elf"
     )]
     pub output_directory: String,
 }
@@ -176,23 +167,16 @@ fn copy_elf_to_output_dir(
 
     // The order of precedence for the ELF name is:
     // 1. --elf_name flag
-    // 2. --binary flag (binary name + -elf suffix)
-    // 3. riscv32im-succinct-zkvm-elf
+    // 2. --binary flag + -elf suffix (defaults to riscv32im-succinct-zkvm-elf)
     let elf_name = if !args.elf_name.is_empty() {
         args.elf_name.clone()
-    } else if !args.binary.is_empty() {
-        format!("{}-elf", args.binary.clone())
     } else {
         // TODO: In the future, change this to default to the package name. Will require updating
         // docs and examples.
-        BUILD_TARGET.to_string()
+        format!("{}-elf", args.binary.clone())
     };
 
-    let elf_dir = if !args.output_directory.is_empty() {
-        program_dir.join(args.output_directory.clone())
-    } else {
-        program_dir.join("elf")
-    };
+    let elf_dir = program_dir.join(args.output_directory.clone());
     fs::create_dir_all(&elf_dir)?;
     let result_elf_path = elf_dir.join(elf_name);
 
