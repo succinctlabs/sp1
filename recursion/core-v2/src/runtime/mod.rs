@@ -5,6 +5,7 @@ mod record;
 
 pub use instruction::Instruction;
 pub use opcode::*;
+use p3_util::reverse_bits_len;
 pub use program::*;
 pub use record::*;
 
@@ -71,6 +72,8 @@ pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
 
     pub nb_branch_ops: usize,
 
+    pub nb_exp_reverse_bits: usize,
+
     /// The current clock.
     pub clk: F,
 
@@ -131,6 +134,7 @@ where
         Self {
             timestamp: 0,
             nb_poseidons: 0,
+            nb_exp_reverse_bits: 0,
             nb_ext_ops: 0,
             nb_base_ops: 0,
             nb_memory_ops: 0,
@@ -150,6 +154,7 @@ where
     pub fn print_stats(&self) {
         tracing::debug!("Total Cycles: {}", self.timestamp);
         tracing::debug!("Poseidon Operations: {}", self.nb_poseidons);
+        tracing::debug!("Exp Reverse Bits Operations: {}", self.nb_exp_reverse_bits);
         tracing::debug!("Field Operations: {}", self.nb_base_ops);
         tracing::debug!("Extension Operations: {}", self.nb_ext_ops);
         tracing::debug!("Memory Operations: {}", self.nb_memory_ops);
@@ -290,6 +295,28 @@ where
                         input: in_vals,
                         output: perm_output,
                     });
+                }
+                Instruction::ExpReverseBitsLen(ExpReverseBitsInstr {
+                    addrs: ExpReverseBitsIo { base, exp, result },
+                    mult,
+                }) => {
+                    self.nb_exp_reverse_bits += 1;
+                    let base_val = self.mr(base).val[0];
+                    let exp_bits: Vec<_> = exp.iter().map(|bit| self.mr(*bit).val[0]).collect();
+                    let exp_val = exp_bits
+                        .iter()
+                        .enumerate()
+                        .fold(0, |acc, (i, &val)| acc + val.as_canonical_u32() * (1 << i));
+                    let out =
+                        base_val.exp_u64(reverse_bits_len(exp_val as usize, exp_bits.len()) as u64);
+                    self.mw(result, Block::from(out), mult);
+                    self.record
+                        .exp_reverse_bits_len_events
+                        .push(ExpReverseBitsEvent {
+                            result: out,
+                            base: base_val,
+                            exp: exp_bits,
+                        });
                 }
             };
 
