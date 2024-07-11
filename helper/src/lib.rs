@@ -9,7 +9,6 @@ fn current_datetime() -> String {
 
 /// Re-run the cargo command if the Cargo.toml or Cargo.lock file changes.
 fn cargo_rerun_if_changed(path: &str) -> (&Path, String) {
-    println!("path: {:?}", path);
     let program_dir = std::path::Path::new(path);
 
     // Tell cargo to rerun the script if program/{src, Cargo.toml, Cargo.lock} or any dependency
@@ -34,11 +33,6 @@ fn cargo_rerun_if_changed(path: &str) -> (&Path, String) {
         .as_ref()
         .map(|p| p.name.as_str())
         .unwrap_or("Program");
-    println!(
-        "cargo:warning={} built at {}",
-        root_package_name,
-        current_datetime()
-    );
 
     (program_dir, root_package_name.to_string())
 }
@@ -96,9 +90,15 @@ fn execute_build_cmd(
 /// when changes are made to the source code or its dependencies.
 pub fn build_program(path: &str) {
     // Activate the build command if the dependencies change.
-    let (program_dir, _) = cargo_rerun_if_changed(path);
+    let (program_dir, root_package_name) = cargo_rerun_if_changed(path);
 
     let _ = execute_build_cmd(&program_dir, None);
+
+    println!(
+        "cargo:warning={} built at {}",
+        root_package_name,
+        current_datetime()
+    );
 }
 
 /// Builds the program with the given arguments if the program at path, or one of its dependencies,
@@ -127,7 +127,13 @@ pub fn build_program(path: &str) {
 /// See [`BuildArgs`] for more details on available build options.
 pub fn build_program_with_args(path: &str, args: BuildArgs) {
     // Activate the build command if the dependencies change.
-    let (program_dir, _) = cargo_rerun_if_changed(path);
+    let (program_dir, root_package_name) = cargo_rerun_if_changed(path);
 
     let _ = execute_build_cmd(&program_dir, Some(args));
+
+    println!(
+        "cargo:warning={} built at {}",
+        root_package_name,
+        current_datetime()
+    );
 }
