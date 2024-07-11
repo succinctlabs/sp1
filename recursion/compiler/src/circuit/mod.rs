@@ -5,6 +5,7 @@ use p3_field::ExtensionField;
 use p3_field::PrimeField;
 use p3_field::TwoAdicField;
 use sp1_recursion_core::air::Block;
+use sp1_recursion_core_v2::poseidon2_wide::WIDTH;
 use sp1_recursion_core_v2::BaseAluInstr;
 use sp1_recursion_core_v2::BaseAluOpcode;
 use std::collections::hash_map::Entry;
@@ -220,6 +221,20 @@ where
         ]
     }
 
+    fn poseidon2_permute(
+        &mut self,
+        dst: [impl Reg<F, EF>; WIDTH],
+        src: [impl Reg<F, EF>; WIDTH],
+    ) -> Instruction<F> {
+        Instruction::Poseidon2Wide(Poseidon2WideInstr {
+            addrs: Poseidon2Io {
+                input: src.map(|r| r.write(self)),
+                output: dst.map(|r| r.read(self)),
+            },
+            mults: [F::zero(); WIDTH],
+        })
+    }
+
     // COMPILATION
 
     pub fn compile_one(&mut self, ir_instr: DslIr<AsmConfig<F, EF>>) -> Vec<Instruction<F>> {
@@ -294,6 +309,10 @@ where
             DslIr::AssertNeFI(lhs, rhs) => self.base_assert_ne(lhs, Imm::F(rhs)),
             DslIr::AssertNeEI(lhs, rhs) => self.ext_assert_ne(lhs, Imm::EF(rhs)),
 
+            DslIr::CircuitV2Poseidon2PermuteBabyBear(dst, src) => {
+                vec![self.poseidon2_permute(dst, src)]
+            }
+
             // DslIr::For(_, _, _, _, _) => todo!(),
             // DslIr::IfEq(_, _, _, _) => todo!(),
             // DslIr::IfNe(_, _, _, _) => todo!(),
@@ -309,7 +328,6 @@ where
             // DslIr::StoreE(_, _, _) => todo!(),
             // DslIr::CircuitNum2BitsV(_, _, _) => todo!(),
             // DslIr::CircuitNum2BitsF(_, _) => todo!(),
-            // DslIr::Poseidon2PermuteBabyBear(_, _) => todo!(),
             // DslIr::Poseidon2CompressBabyBear(_, _, _) => todo!(),
             // DslIr::Poseidon2AbsorbBabyBear(_, _) => todo!(),
             // DslIr::Poseidon2FinalizeBabyBear(_, _) => todo!(),
@@ -360,28 +378,37 @@ where
             .flat_map(|(ir_instr, _)| self.compile_one(ir_instr))
             .collect::<Vec<_>>();
         // Replace the mults using the address count data gathered in this previous.
+        // Exhaustive match for refactoring purposes.
         instrs
             .iter_mut()
-            .filter_map(|asm_instr| match asm_instr {
+            .flat_map(|asm_instr| match asm_instr {
                 Instruction::BaseAlu(BaseAluInstr {
                     mult,
-                    addrs: BaseAluIo { out, .. },
+                    addrs: BaseAluIo { ref out, .. },
                     ..
-                }) => Some((mult, out)),
+                }) => vec![(mult, out)],
                 Instruction::ExtAlu(ExtAluInstr {
                     mult,
-                    addrs: ExtAluIo { out, .. },
+                    addrs: ExtAluIo { ref out, .. },
                     ..
-                }) => Some((mult, out)),
+                }) => vec![(mult, out)],
                 Instruction::Mem(MemInstr {
-                    addrs: MemIo { inner },
+                    addrs: MemIo { ref inner },
                     mult,
-                    kind: MemAccessKind::Write,
+                    kind,
                     ..
-                }) => Some((mult, inner)),
-                _ => None,
+                }) => match kind {
+                    MemAccessKind::Write => vec![(mult, inner)],
+                    _ => vec![],
+                },
+                Instruction::Poseidon2Wide(Poseidon2WideInstr {
+                    addrs: Poseidon2Io { ref output, .. },
+                    mults,
+                }) => mults.iter_mut().zip(output).collect(),
             })
-            .for_each(|(mult, addr)| *mult = self.addr_to_mult.remove(addr).unwrap());
+            .for_each(|(mult, addr): (&mut F, &Address<F>)| {
+                *mult = self.addr_to_mult.remove(addr).unwrap()
+            });
         debug_assert!(self.addr_to_mult.is_empty());
         // Initialize constants.
         let instrs_consts_f = self.consts_f.drain().map(|(f, (addr, mult))| {
