@@ -108,13 +108,15 @@ where
     SC::Challenger: Clone,
     <SC as StarkGenericConfig>::Val: PrimeField32,
 {
-    prove_with_context::<SC, P>(program, stdin, config, opts, Default::default())
+    let machine = RiscvAir::machine(config);
+    let prover = P::new(machine);
+    prove_with_context::<SC>(&prover, program, stdin, opts, Default::default())
 }
 
-pub fn prove_with_context<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<SC::Val>>>(
+pub fn prove_with_context<SC: StarkGenericConfig>(
+    prover: &impl MachineProver<SC, RiscvAir<SC::Val>>,
     program: Program,
     stdin: &SP1Stdin,
-    config: SC,
     opts: SP1CoreOpts,
     context: SP1Context,
 ) -> Result<(MachineProof<SC>, Vec<u8>, u64), SP1CoreProverError>
@@ -133,8 +135,6 @@ where
     }
 
     // Setup the machine.
-    let machine = RiscvAir::machine(config);
-    let prover = P::new(machine);
     let (pk, vk) = prover.setup(runtime.program.as_ref());
 
     // Execute the program, saving checkpoints at the start of every `shard_batch_size` cycle range.
@@ -383,10 +383,12 @@ pub fn run_test_core<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
     crate::stark::MachineVerificationError<BabyBearPoseidon2>,
 > {
     let config = BabyBearPoseidon2::new();
-    let (proof, output, _) = prove_with_context::<_, P>(
+    let machine = RiscvAir::machine(config);
+    let prover = P::new(machine);
+    let (proof, output, _) = prove_with_context(
+        &prover,
         Program::clone(&runtime.program),
         &inputs,
-        config,
         SP1CoreOpts::default(),
         SP1Context::default(),
     )

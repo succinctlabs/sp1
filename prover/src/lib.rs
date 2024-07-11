@@ -260,16 +260,14 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         context
             .subproof_verifier
             .get_or_insert_with(|| Arc::new(self));
-        let config = CoreSC::default();
         let program = Program::from(&pk.elf);
-        let (proof, public_values_stream, cycles) =
-            sp1_core::utils::prove_with_context::<_, C::CoreProver>(
-                program,
-                stdin,
-                config,
-                opts.core_opts,
-                context,
-            )?;
+        let (proof, public_values_stream, cycles) = sp1_core::utils::prove_with_context(
+            &self.core_prover,
+            program,
+            stdin,
+            opts.core_opts,
+            context,
+        )?;
         Self::check_for_high_cycles(cycles);
         let public_values = SP1PublicValues::from(&public_values_stream);
         Ok(SP1CoreProof {
