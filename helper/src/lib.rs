@@ -7,8 +7,7 @@ fn current_datetime() -> String {
     now.format("%Y-%m-%d %H:%M:%S").to_string()
 }
 
-/// Re-run the cargo command if the Cargo.toml or Cargo.lock file changes. Note: SP1_SKIP_PROGRAM_BUILD
-/// environment variable can be set to true to skip the program build.
+/// Re-run the cargo command if the Cargo.toml or Cargo.lock file changes.
 fn cargo_rerun_if_changed(path: &str) -> (&Path, String) {
     let program_dir = std::path::Path::new(path);
     let metadata_file = program_dir.join("Cargo.toml");
@@ -84,6 +83,8 @@ fn execute_build_cmd(
 ///
 /// This function is useful for automatically rebuilding the program during development
 /// when changes are made to the source code or its dependencies.
+///
+/// Set the `SP1_SKIP_PROGRAM_BUILD` environment variable to `true` to skip building the program.
 pub fn build_program(path: &str) {
     build_program_internal(path, None)
 }
@@ -112,6 +113,8 @@ pub fn build_program(path: &str) {
 /// ```
 ///
 /// See [`BuildArgs`] for more details on available build options.
+///
+/// Set the `SP1_SKIP_PROGRAM_BUILD` environment variable to `true` to skip building the program.
 pub fn build_program_with_args(path: &str, args: BuildArgs) {
     build_program_internal(path, Some(args))
 }
