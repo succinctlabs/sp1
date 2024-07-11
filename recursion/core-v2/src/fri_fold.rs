@@ -271,6 +271,8 @@ impl<const DEGREE: usize> FriFoldChip<DEGREE> {
         _receive_table: AB::Var,
         _memory_access: AB::Var,
     ) {
+        // Constrain the memory accesses.
+
         builder.receive_single(local_prepr.x_mem.addr, local.x, local_prepr.x_mem.read_mult);
 
         builder.receive_block(local_prepr.z_mem.addr, local.z, local_prepr.z_mem.read_mult);
