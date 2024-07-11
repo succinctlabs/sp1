@@ -34,12 +34,13 @@ SP1 crates are hosted on [crates.io](https://crates.io/search?q=sp1). We use
 [release-plz](https://release-plz.ieni.dev/) to automate the publication process, and it is configured
 with [release-plz.toml](./release-plz.toml) and [.github/workflows/release-plz.yml](./.github/workflows/release-plz.yml).
 
-With this configuration, when the `main` branch is pushed to, the following happens:
+With this configuration, when the `dev` branch is pushed to, the following happens:
 
-1. release-plz creates a pull request with the new versions, where it prepares the next release.
-2. release-plz releases the unpublished packages.
+1. release-plz creates a pull request with the new versions.
+2. when we are ready to create a release, we merge the pull request.
+3. after merging the pull request, release-plz publishes the packages.
 
-In the case that this does not work, you can manually publish the crates by [installing
+In the case that the automated publish does not work, you can manually do this by [installing
 release-plz](https://release-plz.ieni.dev/docs/usage/installation) and preparing the crates with:
 
 ```bash
