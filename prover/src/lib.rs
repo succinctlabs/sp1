@@ -275,6 +275,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         Ok(SP1CoreProof {
             proof: SP1CoreProofData(proof.shard_proofs),
             stdin: stdin.clone(),
+            cycles,
             public_values,
         })
     }
