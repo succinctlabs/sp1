@@ -7,16 +7,28 @@ fn current_datetime() -> String {
     now.format("%Y-%m-%d %H:%M:%S").to_string()
 }
 
-/// Re-run the cargo command if the Cargo.toml or Cargo.lock file changes.
+/// Re-run the cargo command if the Cargo.toml or Cargo.lock file changes. Note: SP1_SKIP_PROGRAM_BUILD
+/// environment variable can be set to true to skip the program build.
 fn cargo_rerun_if_changed(path: &str) -> (&Path, String) {
     let program_dir = std::path::Path::new(path);
-
-    // Tell cargo to rerun the script if program/{src, Cargo.toml, Cargo.lock} or any dependency
-    // changes.
     let metadata_file = program_dir.join("Cargo.toml");
     let mut metadata_cmd = cargo_metadata::MetadataCommand::new();
     let metadata = metadata_cmd.manifest_path(metadata_file).exec().unwrap();
+    let root_package = metadata.root_package();
+    let root_package_name = root_package
+        .as_ref()
+        .map(|p| p.name.as_str())
+        .unwrap_or("Program");
 
+    // Skip the program build if the SP1_SKIP_PROGRAM_BUILD environment variable is set to true.
+    let skip_program_build = std::env::var("SP1_SKIP_PROGRAM_BUILD")
+        .map(|v| v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
+    if skip_program_build {
+        return (program_dir, root_package_name.to_string());
+    }
+
+    // Re-run the build script if program/{src, Cargo.toml, Cargo.lock} or any dependency changes.
     println!(
         "cargo:rerun-if-changed={}",
         metadata.workspace_root.join("Cargo.lock").as_str()
@@ -25,14 +37,6 @@ fn cargo_rerun_if_changed(path: &str) -> (&Path, String) {
     for package in &metadata.packages {
         println!("cargo:rerun-if-changed={}", package.manifest_path.as_str());
     }
-
-    // Print a message so the user knows that their program was built. Cargo caches warnings emitted
-    // from build scripts, so we'll print the date/time when the program was built.
-    let root_package = metadata.root_package();
-    let root_package_name = root_package
-        .as_ref()
-        .map(|p| p.name.as_str())
-        .unwrap_or("Program");
 
     (program_dir, root_package_name.to_string())
 }
