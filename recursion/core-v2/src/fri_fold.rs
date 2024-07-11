@@ -1,25 +1,26 @@
 #![allow(clippy::needless_range_loop)]
 
-use crate::mem::MemoryPreprocessedColsNoVal;
-use crate::{FriFoldInstr, Instruction};
 use core::borrow::Borrow;
 use itertools::Itertools;
-use p3_air::PairBuilder;
-use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::AbstractField;
-use p3_field::PrimeField32;
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
-use sp1_core::air::{BaseAirBuilder, BinomialExtension, MachineAir};
-use sp1_core::utils::pad_rows_fixed;
-use sp1_derive::AlignedBorrow;
-use sp1_recursion_core::air::Block;
 use std::borrow::BorrowMut;
 use tracing::instrument;
 
-use crate::builder::SP1RecursionAirBuilder;
-// use crate::memory::MemoryRecord;
-use crate::runtime::{ExecutionRecord, RecursionProgram};
+use p3_air::PairBuilder;
+use p3_air::{Air, BaseAir};
+use p3_field::PrimeField32;
+use p3_matrix::dense::RowMajorMatrix;
+use p3_matrix::Matrix;
+
+use sp1_core::{air::MachineAir, utils::pad_rows_fixed};
+use sp1_derive::AlignedBorrow;
+use sp1_recursion_core::air::Block;
+
+use crate::{
+    builder::SP1RecursionAirBuilder,
+    mem::MemoryPreprocessedColsNoVal,
+    runtime::{Instruction, RecursionProgram},
+    ExecutionRecord, FriFoldInstr,
+};
 
 pub const NUM_FRI_FOLD_COLS: usize = core::mem::size_of::<FriFoldCols<u8>>();
 pub const NUM_FRI_FOLD_PREPROCESSED_COLS: usize =
@@ -265,10 +266,10 @@ impl<const DEGREE: usize> FriFoldChip<DEGREE> {
         &self,
         builder: &mut AB,
         local: &FriFoldCols<AB::Var>,
-        next: &FriFoldCols<AB::Var>,
+        _next: &FriFoldCols<AB::Var>,
         local_prepr: &FriFoldPreprocessedCols<AB::Var>,
-        receive_table: AB::Var,
-        memory_access: AB::Var,
+        _receive_table: AB::Var,
+        _memory_access: AB::Var,
     ) {
         builder.receive_single(local_prepr.x_mem.addr, local.x, local_prepr.x_mem.read_mult);
 
@@ -552,10 +553,7 @@ where
 }
 #[cfg(test)]
 mod tests {
-    use itertools::Itertools;
     use p3_field::AbstractExtensionField;
-    use p3_field::ExtensionField;
-    use p3_util::reverse_bits_len;
     use rand::rngs::StdRng;
     use rand::Rng;
     use rand::SeedableRng;
@@ -564,31 +562,22 @@ mod tests {
     use sp1_core::utils::BabyBearPoseidon2;
     use sp1_recursion_core::air::Block;
     use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
-    use std::iter::once;
     use std::mem::size_of;
 
     use p3_baby_bear::BabyBear;
     use p3_baby_bear::DiffusionMatrixBabyBear;
-    use p3_field::{AbstractField, PrimeField32};
+    use p3_field::AbstractField;
     use p3_matrix::dense::RowMajorMatrix;
     use sp1_core::air::MachineAir;
     use sp1_core::stark::StarkGenericConfig;
 
-    use crate::exp_reverse_bits::ExpReverseBitsLenChip;
-    use crate::fri_fold::FriFoldChip;
-    use crate::machine::RecursionAir;
-    use crate::runtime::instruction as instr;
-    use crate::runtime::ExecutionRecord;
-    use crate::Address;
-    use crate::ExpReverseBitsEvent;
-    use crate::FriFoldBaseIo;
-    use crate::FriFoldEvent;
-    use crate::FriFoldExtSingleIo;
-    use crate::FriFoldExtVecIo;
-    use crate::Instruction;
-    use crate::MemAccessKind;
-    use crate::RecursionProgram;
-    use crate::Runtime;
+    use crate::{
+        fri_fold::FriFoldChip,
+        machine::RecursionAir,
+        runtime::{instruction as instr, ExecutionRecord},
+        FriFoldBaseIo, FriFoldEvent, FriFoldExtSingleIo, FriFoldExtVecIo, Instruction,
+        MemAccessKind, RecursionProgram, Runtime,
+    };
 
     #[test]
     fn prove_babybear_circuit_fri_fold() {
@@ -613,7 +602,7 @@ mod tests {
             .flat_map(|i: u32| {
                 let alloc_size = i * (num_ext_vecs + 2) + num_singles;
 
-                // Allocate the memory for a FRI fold instruction. Here, i represents the lengths
+                // Allocate the memory for a FRI fold instruction. Here, i is the lengths
                 // of the vectors for the vector fields of the instruction.
                 let mat_opening_a = (0..i).map(|x| x + addr).collect::<Vec<_>>();
                 let ps_at_z_a = (0..i).map(|x| x + i + addr).collect::<Vec<_>>();
@@ -630,6 +619,7 @@ mod tests {
 
                 addr += alloc_size;
 
+                // Generate random values for the inputs.
                 let x = random_felt();
                 let z = random_block();
                 let alpha = random_block();
@@ -640,6 +630,7 @@ mod tests {
                 let ps_at_z = (0..i).map(|_| random_block()).collect::<Vec<_>>();
                 let mat_opening = (0..i).map(|_| random_block()).collect::<Vec<_>>();
 
+                // Compute the outputs from the inputs.
                 let alpha_pow_output = (0..i)
                     .map(|i| alpha_pow_input[i as usize].ext::<EF>() * alpha.ext::<EF>())
                     .collect::<Vec<EF>>();
@@ -653,6 +644,7 @@ mod tests {
                     })
                     .collect::<Vec<EF>>();
 
+                // Write the inputs to memory.
                 let mut instructions = vec![instr::mem_single(MemAccessKind::Write, 1, x_a, x)];
 
                 instructions.push(instr::mem_block(MemAccessKind::Write, 1, z_a, z));
@@ -688,6 +680,7 @@ mod tests {
                     ));
                 });
 
+                // Generate the FRI fold instruction.
                 instructions.push(instr::fri_fold(
                     z_a,
                     alpha_a,
@@ -702,6 +695,7 @@ mod tests {
                     vec![1; i as usize],
                 ));
 
+                // Read all the outputs.
                 (0..i).for_each(|j| {
                     let j = j as usize;
                     instructions.push(instr::mem_block(
