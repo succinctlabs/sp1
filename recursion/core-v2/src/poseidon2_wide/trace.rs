@@ -118,8 +118,8 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
     /// This is very much subject to change. At the moment, we just populate the memory management
     /// columns. For the moment, we assume that the program only contains Poseidon2Wide instructions,
     /// and for each instruction we read 16 successive memory locations and write to the next 16.
-    fn generate_preprocessed_trace(&self, _program: &Self::Program) -> Option<RowMajorMatrix<F>> {
-        let instruction_count = _program
+    fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
+        let instruction_count = program
             .instructions
             .iter()
             .filter(|i| matches!(i, Poseidon2Wide(_)))

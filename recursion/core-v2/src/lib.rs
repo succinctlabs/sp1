@@ -98,7 +98,7 @@ pub struct Poseidon2Io<V> {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Poseidon2WideInstr<F> {
     pub addrs: Poseidon2Io<Address<F>>,
-    pub mult: F,
+    pub mults: [F; WIDTH],
 }
 
 pub type Poseidon2WideEvent<F> = Poseidon2Io<F>;
