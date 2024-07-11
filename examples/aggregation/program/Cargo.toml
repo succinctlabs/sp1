@@ -1,7 +1,7 @@
 [workspace]
 [package]
 name = "aggregation-program"
-version = "0.0.0-test"
+version = "0.0.1-test"
 edition = "2021"
 publish = false
 
