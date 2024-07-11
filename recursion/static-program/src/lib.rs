@@ -8,25 +8,21 @@ use sp1_core::{
 };
 use sp1_recursion_core::{runtime::RecursionProgram, stark::config::BabyBearPoseidon2Outer};
 
-static RECURSION_PROGRAM_BYTES: &[u8] =
-    include_bytes!(concat!(env!("OUT_DIR"), "/recursion_program.bin"));
-static RECURSION_PK_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/rec_pk.bin"));
-static RECURSION_VK_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/rec_vk.bin"));
-static DEFERRED_PROGRAM_BYTES: &[u8] =
-    include_bytes!(concat!(env!("OUT_DIR"), "/deferred_program.bin"));
-static DEFERRED_PK_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/deferred_pk.bin"));
-static DEFERRED_VK_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/deferred_vk.bin"));
-static COMPRESS_PROGRAM_BYTES: &[u8] =
-    include_bytes!(concat!(env!("OUT_DIR"), "/compress_program.bin"));
-static COMPRESS_PK_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/compress_pk.bin"));
-static COMPRESS_VK_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/compress_vk.bin"));
-static SHRINK_PROGRAM_BYTES: &[u8] =
-    include_bytes!(concat!(env!("OUT_DIR"), "/shrink_program.bin"));
-static SHRINK_PK_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/shrink_pk.bin"));
-static SHRINK_VK_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/shrink_vk.bin"));
-static WRAP_PROGRAM_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/wrap_program.bin"));
-static WRAP_PK_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/wrap_pk.bin"));
-static WRAP_VK_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/wrap_vk.bin"));
+static RECURSION_PROGRAM_BYTES: &[u8] = &[];
+static RECURSION_PK_BYTES: &[u8] = &[];
+static RECURSION_VK_BYTES: &[u8] = &[];
+static DEFERRED_PROGRAM_BYTES: &[u8] = &[];
+static DEFERRED_PK_BYTES: &[u8] = &[];
+static DEFERRED_VK_BYTES: &[u8] = &[];
+static COMPRESS_PROGRAM_BYTES: &[u8] = &[];
+static COMPRESS_PK_BYTES: &[u8] = &[];
+static COMPRESS_VK_BYTES: &[u8] = &[];
+static SHRINK_PROGRAM_BYTES: &[u8] = &[];
+static SHRINK_PK_BYTES: &[u8] = &[];
+static SHRINK_VK_BYTES: &[u8] = &[];
+static WRAP_PROGRAM_BYTES: &[u8] = &[];
+static WRAP_PK_BYTES: &[u8] = &[];
+static WRAP_VK_BYTES: &[u8] = &[];
 
 lazy_static! {
     pub static ref RECURSION_PROGRAM: RecursionProgram<BabyBear> = {
