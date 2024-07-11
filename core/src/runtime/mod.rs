@@ -519,12 +519,14 @@ impl<'a> Runtime<'a> {
     }
 
     /// Emit a branch event.
+    #[allow(clippy::too_many_arguments)]
     fn emit_branch(
         &mut self,
         instruction: Instruction,
         a: u32,
         b: u32,
         c: u32,
+        channel: u32,
         pc: u32,
         next_pc: u32,
     ) {
@@ -532,7 +534,7 @@ impl<'a> Runtime<'a> {
             pc,
             next_pc,
             shard: self.shard(),
-            channel: self.channel(),
+            channel,
             instruction,
             a,
             b,
@@ -791,42 +793,36 @@ impl<'a> Runtime<'a> {
                 if a == b {
                     next_pc = self.state.pc.wrapping_add(c);
                 }
-                self.emit_branch(instruction, a, b, c, pc, next_pc);
             }
             Opcode::BNE => {
                 (a, b, c) = self.branch_rr(instruction);
                 if a != b {
                     next_pc = self.state.pc.wrapping_add(c);
                 }
-                self.emit_branch(instruction, a, b, c, pc, next_pc);
             }
             Opcode::BLT => {
                 (a, b, c) = self.branch_rr(instruction);
                 if (a as i32) < (b as i32) {
                     next_pc = self.state.pc.wrapping_add(c);
                 }
-                self.emit_branch(instruction, a, b, c, pc, next_pc);
             }
             Opcode::BGE => {
                 (a, b, c) = self.branch_rr(instruction);
                 if (a as i32) >= (b as i32) {
                     next_pc = self.state.pc.wrapping_add(c);
                 }
-                self.emit_branch(instruction, a, b, c, pc, next_pc);
             }
             Opcode::BLTU => {
                 (a, b, c) = self.branch_rr(instruction);
                 if a < b {
                     next_pc = self.state.pc.wrapping_add(c);
                 }
-                self.emit_branch(instruction, a, b, c, pc, next_pc);
             }
             Opcode::BGEU => {
                 (a, b, c) = self.branch_rr(instruction);
                 if a >= b {
                     next_pc = self.state.pc.wrapping_add(c);
                 }
-                self.emit_branch(instruction, a, b, c, pc, next_pc);
             }
 
             // Jump instructions.
@@ -1027,6 +1023,10 @@ impl<'a> Runtime<'a> {
                 lookup_id,
                 syscall_lookup_id,
             );
+
+            if instruction.is_branch_instruction() {
+                self.emit_branch(instruction, a, b, c, channel, pc, next_pc);
+            }
         };
         Ok(())
     }
