@@ -1,4 +1,3 @@
-mod build;
 pub mod commands;
 mod util;
 
@@ -69,7 +68,7 @@ pub async fn get_toolchain_download_url(client: &Client, target: String) -> Stri
         .json::<serde_json::Value>()
         .await
         .unwrap();
-    let tag = json["tag_name"].as_str().unwrap();
+    let tag = json["tag_name"].as_str().expect("Failed to download Succinct toolchain. Likely caused by GitHub rate limiting. Please try again using the --token flag. Docs: https://docs.succinct.xyz/getting-started/install.html#troubleshooting");
 
     let url = format!(
         "https://github.com/succinctlabs/rust/releases/download/{}/rust-toolchain-{}.tar.gz",

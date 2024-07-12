@@ -5,9 +5,9 @@ build the toolchain and CLI from source.
 
 ## Requirements
 
+- [Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)
 - [Rust (Nightly)](https://www.rust-lang.org/tools/install)
 - [Docker](https://docs.docker.com/get-docker/)
-- [Go >1.22.1 (Optional)](https://go.dev/doc/install)
 
 ## Option 1: Prebuilt Binaries (Recommended)
 
@@ -42,7 +42,9 @@ If this works, go to the [next section](./quickstart.md) to compile and prove a 
 
 ### Troubleshooting
 
-If you have installed `cargo-prove` from source, it may conflict with sp1up's `cargo-prove` installation or vice versa. You can remove the `cargo-prove` that was installed from source with the following command:
+If you experience [rate-limiting](https://docs.github.com/en/rest/using-the-rest-api/getting-started-with-the-rest-api?apiVersion=2022-11-28#rate-limiting) when using the `sp1up` command, you can resolve this by using the `--token` flag and providing your GitHub token.
+
+If you have installed `cargo-prove` from source, it may conflict with `sp1up`'s `cargo-prove` installation or vice versa. You can remove the `cargo-prove` that was installed from source with the following command:
 
 ```bash
 rm ~/.cargo/bin/cargo-prove
@@ -75,7 +77,7 @@ Building the toolchain can take a while, ranging from 30 mins to an hour dependi
 cargo prove install-toolchain
 ```
 
-To verify the installation of the tooolchain, run and make sure you see `succinct`:
+To verify the installation of the toolchain, run and make sure you see `succinct`:
 
 ```bash
 rustup toolchain list
@@ -85,29 +87,4 @@ You can delete your existing installation of the toolchain with:
 
 ```bash
 rustup toolchain remove succinct
-```
-
-## Option 3: Using Docker
-
-SP1 can also be used entirely within a Docker container. If you don't have it, Docker can be
-installed directly from [Docker's website](https://docs.docker.com/get-docker/).
-
-Then you can use:
-
-```bash
-cargo prove --docker
-```
-
-to automatically use the latest image of SP1 in a container.
-
-Alternatively, it is possible to build the docker image locally by running:
-
-```bash
-docker build -t succinctlabs/sp1:latest ./cli/docker
-```
-
-You can then run the `cargo prove` command by mounting your program directory into the container:
-
-```bash
-docker run -v "$(pwd):/root/program" -it succinctlabs/sp1:latest prove build
 ```

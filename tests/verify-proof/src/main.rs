@@ -5,7 +5,7 @@
 sp1_zkvm::entrypoint!(main);
 
 use sha2::{Digest, Sha256};
-use sp1_zkvm::precompiles::verify::verify_sp1_proof;
+use sp1_zkvm::lib::verify::verify_sp1_proof;
 
 fn words_to_bytes(words: &[u32; 8]) -> [u8; 32] {
     let mut bytes = [0u8; 32];

@@ -4,7 +4,7 @@ language = "en"
 multilingual = false
 src = "book"
 title = "SP1 Book"
-description = "A book on all things Reth"
+description = "A book on all things SP1"
 
 [output.html]
 theme = "book/theme"

@@ -206,7 +206,6 @@ pub struct Poseidon2Degree9<T: Copy> {
     pub memory: Memory<T>,
     pub opcode_specific_cols: OpcodeWorkspace<T>,
     pub permutation_cols: PermutationNoSbox<T>,
-    pub state_cursor: [T; WIDTH / 2], // Only used for absorb
 }
 
 impl<'a, T: Copy + 'a> Poseidon2<'a, T> for Poseidon2Degree9<T> {

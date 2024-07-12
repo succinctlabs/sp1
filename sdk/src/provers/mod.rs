@@ -8,6 +8,7 @@ use sp1_core::runtime::SP1Context;
 use sp1_core::stark::MachineVerificationError;
 use sp1_core::utils::SP1ProverOpts;
 use sp1_core::SP1_CIRCUIT_VERSION;
+use sp1_prover::components::SP1ProverComponents;
 use sp1_prover::CoreSC;
 use sp1_prover::InnerSC;
 use sp1_prover::SP1CoreProofData;
@@ -17,6 +18,7 @@ use sp1_prover::{SP1ProvingKey, SP1Stdin, SP1VerifyingKey};
 use strum_macros::EnumString;
 use thiserror::Error;
 
+use crate::install::try_install_plonk_bn254_artifacts;
 use crate::SP1Proof;
 use crate::SP1ProofKind;
 use crate::SP1ProofWithPublicValues;
@@ -42,10 +44,10 @@ pub enum SP1VerificationError {
 }
 
 /// An implementation of [crate::ProverClient].
-pub trait Prover: Send + Sync {
+pub trait Prover<C: SP1ProverComponents>: Send + Sync {
     fn id(&self) -> ProverType;
 
-    fn sp1_prover(&self) -> &SP1Prover;
+    fn sp1_prover(&self) -> &SP1Prover<C>;
 
     fn version(&self) -> &str {
         SP1_CIRCUIT_VERSION
@@ -94,7 +96,7 @@ pub trait Prover: Send + Sync {
                     &if sp1_prover::build::sp1_dev_mode() {
                         sp1_prover::build::plonk_bn254_artifacts_dev_dir()
                     } else {
-                        sp1_prover::build::try_install_plonk_bn254_artifacts()
+                        try_install_plonk_bn254_artifacts()
                     },
                 )
                 .map_err(SP1VerificationError::Plonk),

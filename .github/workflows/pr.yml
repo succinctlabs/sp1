@@ -16,6 +16,7 @@ on:
       - "zkvm/**"
       - "tests/**"
       - "examples/**"
+      - "Cargo.toml"
       - ".github/workflows/**"
   merge_group:
 
@@ -167,6 +168,7 @@ jobs:
         run: |
           cd cli
           cargo install --force --locked --path .
+          ~/.sp1/bin/cargo-prove prove install-toolchain
           cd ~
 
       - name: Run cargo check
@@ -200,7 +202,7 @@ jobs:
 
       - name: Run cargo prove new
         run: |
-          cargo prove new fibonacci
+          cargo prove new fibonacci --version dev
 
       - name: Build program and run script
         run: |

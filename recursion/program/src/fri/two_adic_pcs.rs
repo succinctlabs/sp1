@@ -2,6 +2,7 @@ use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::AbstractField;
 use p3_field::TwoAdicField;
 use p3_symmetric::Hash;
+use sp1_primitives::types::RecursionProgramType;
 use sp1_recursion_compiler::prelude::*;
 use sp1_recursion_core::runtime::DIGEST_SIZE;
 
@@ -33,7 +34,7 @@ pub fn verify_two_adic_pcs<C: Config>(
     let g = builder.generator();
 
     let log_blowup = config.log_blowup;
-    let blowup = config.log_blowup;
+    let blowup = config.blowup;
     let alpha = challenger.sample_ext(builder);
 
     builder.cycle_tracker("stage-d-1-verify-shape-and-sample-challenges");
@@ -120,11 +121,22 @@ pub fn verify_two_adic_pcs<C: Config>(
 
                         let two_adic_generator = config.get_two_adic_generator(builder, log_height);
                         builder.cycle_tracker("exp_reverse_bits_len");
-                        let two_adic_generator_exp = builder.exp_reverse_bits_len_fast(
-                            two_adic_generator,
-                            &index_bits_shifted,
-                            log_height,
-                        );
+
+                        let two_adic_generator_exp: Felt<C::F> =
+                            if matches!(builder.program_type, RecursionProgramType::Wrap) {
+                                builder.exp_reverse_bits_len(
+                                    two_adic_generator,
+                                    &index_bits_shifted,
+                                    log_height,
+                                )
+                            } else {
+                                builder.exp_reverse_bits_len_fast(
+                                    two_adic_generator,
+                                    &index_bits_shifted,
+                                    log_height,
+                                )
+                            };
+
                         builder.cycle_tracker("exp_reverse_bits_len");
                         let x: Felt<C::F> = builder.eval(two_adic_generator_exp * g);
 
@@ -405,6 +417,10 @@ pub mod tests {
     fn test_two_adic_fri_pcs_single_batch() {
         use sp1_recursion_core::stark::utils::{run_test_recursion, TestConfig};
         let (program, witness) = build_test_fri_with_cols_and_log2_rows(10, 16);
-        run_test_recursion(program, Some(witness), TestConfig::All);
+
+        // We don't test with the config TestConfig::WideDeg17Wrap, since it doesn't have the
+        // `ExpReverseBitsLen` chip.
+        run_test_recursion(program.clone(), Some(witness.clone()), TestConfig::WideDeg3);
+        run_test_recursion(program, Some(witness), TestConfig::SkinnyDeg7);
     }
 }

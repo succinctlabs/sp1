@@ -11,6 +11,7 @@ use sp1_core::air::{Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS};
 use sp1_core::stark::StarkMachine;
 use sp1_core::stark::{Com, RiscvAir, ShardProof, StarkGenericConfig, StarkVerifyingKey};
 use sp1_core::utils::BabyBearPoseidon2;
+use sp1_primitives::types::RecursionProgramType;
 use sp1_recursion_compiler::config::InnerConfig;
 use sp1_recursion_compiler::ir::{Array, Builder, Config, Felt, Var};
 use sp1_recursion_compiler::prelude::DslVariable;
@@ -54,7 +55,9 @@ where
     pub leaf_challenger: SC::Challenger,
     pub end_pc: SC::Val,
     pub end_shard: SC::Val,
-    pub total_core_shards: usize,
+    pub end_execution_shard: SC::Val,
+    pub init_addr_bits: [SC::Val; 32],
+    pub finalize_addr_bits: [SC::Val; 32],
 }
 
 /// A variable version of the [SP1DeferredMemoryLayout] struct.
@@ -74,7 +77,9 @@ pub struct SP1DeferredMemoryLayoutVariable<C: Config> {
     pub leaf_challenger: DuplexChallengerVariable<C>,
     pub end_pc: Felt<C::F>,
     pub end_shard: Felt<C::F>,
-    pub total_core_shards: Var<C::N>,
+    pub end_execution_shard: Felt<C::F>,
+    pub init_addr_bits: Array<C, Felt<C::F>>,
+    pub finalize_addr_bits: Array<C, Felt<C::F>>,
 }
 
 impl<A> SP1DeferredVerifier<InnerConfig, BabyBearPoseidon2, A>
@@ -83,7 +88,7 @@ where
 {
     /// Create a new instance of the program for the [BabyBearPoseidon2] config.
     pub fn build(machine: &StarkMachine<BabyBearPoseidon2, A>) -> RecursionProgram<BabyBear> {
-        let mut builder = Builder::<InnerConfig>::default();
+        let mut builder = Builder::<InnerConfig>::new(RecursionProgramType::Deferred);
         let input: SP1DeferredMemoryLayoutVariable<_> = builder.uninit();
         SP1DeferredMemoryLayout::<BabyBearPoseidon2, A>::witness(&input, &mut builder);
 
@@ -131,13 +136,15 @@ where
             proofs,
             start_reconstruct_deferred_digest,
             is_complete,
-            total_core_shards,
             sp1_vk,
             committed_value_digest,
             deferred_proofs_digest,
             leaf_challenger,
             end_pc,
             end_shard,
+            end_execution_shard,
+            init_addr_bits,
+            finalize_addr_bits,
         } = input;
 
         // Initialize the values for the aggregated public output as all zeros.
@@ -191,7 +198,6 @@ where
             }
 
             // Verify the proof.
-            let one_var = builder.constant(C::N::one());
             StarkVerifier::<C, SC>::verify_shard(
                 builder,
                 &compress_vk,
@@ -199,7 +205,7 @@ where
                 machine,
                 &mut challenger,
                 &proof,
-                one_var,
+                true,
             );
 
             // Load the public values from the proof.
@@ -263,6 +269,15 @@ where
         deferred_public_values.next_pc = end_pc;
         deferred_public_values.start_shard = end_shard;
         deferred_public_values.next_shard = end_shard;
+        deferred_public_values.start_execution_shard = end_execution_shard;
+        deferred_public_values.next_execution_shard = end_execution_shard;
+        // Set the init and finalize address bits to be the hintred values.
+        let init_addr_bits = core::array::from_fn(|i| builder.get(&init_addr_bits, i));
+        deferred_public_values.previous_init_addr_bits = init_addr_bits;
+        deferred_public_values.last_init_addr_bits = init_addr_bits;
+        let finalize_addr_bits = core::array::from_fn(|i| builder.get(&finalize_addr_bits, i));
+        deferred_public_values.previous_finalize_addr_bits = finalize_addr_bits;
+        deferred_public_values.last_finalize_addr_bits = finalize_addr_bits;
 
         // Set the sp1_vk_digest to be the hitned value.
         let sp1_vk_digest = hash_vkey(builder, &sp1_vk);
@@ -294,7 +309,6 @@ where
 
         // Set the is_complete flag.
         deferred_public_values.is_complete = var2felt(builder, is_complete);
-        deferred_public_values.total_core_shards = var2felt(builder, total_core_shards);
 
         commit_public_values(builder, deferred_public_values);
     }

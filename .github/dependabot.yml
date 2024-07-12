@@ -5,8 +5,15 @@ updates:
     schedule:
       interval: "weekly"
     target-branch: "dev"
+    ignore:
+      - dependency-name: "axum"
+        versions: ["> 0.7.4"]
   - package-ecosystem: "docker"
     directory: "/cli/docker"
     schedule:
       interval: "weekly"
     target-branch: "dev"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"

@@ -1,7 +1,10 @@
 [package]
-edition = "2021"
 name = "sp1-recursion-core"
-version = "0.1.0"
+version = "0.0.2-test"
+edition = "2021"
+description = "SP1 is a performant, 100% open-source, contributor-friendly zkVM."
+readme = "../../README.md"
+license = "MIT OR Apache-2.0"
 
 [dependencies]
 p3-field = { workspace = true }
@@ -12,10 +15,10 @@ p3-matrix = { workspace = true }
 p3-maybe-rayon = { workspace = true }
 p3-poseidon2 = { workspace = true }
 p3-symmetric = { workspace = true }
-sp1-derive = { path = "../../derive" }
-sp1-primitives = { path = "../../primitives" }
+sp1-derive = { path = "../../derive", version = "0.0.2-test" }
+sp1-primitives = { path = "../../primitives", version = "0.0.2-test" }
 tracing = "0.1.40"
-sp1-core = { path = "../../core" }
+sp1-core = { path = "../../core", version = "0.0.2-test" }
 hashbrown = { version = "0.14.5", features = ["serde"] }
 itertools = "0.13.0"
 p3-bn254-fr = { workspace = true }
@@ -24,10 +27,10 @@ p3-commit = { workspace = true }
 p3-dft = { workspace = true }
 p3-challenger = { workspace = true }
 p3-fri = { workspace = true }
-zkhash = { git = "https://github.com/HorizenLabs/poseidon2" }
+zkhash = "0.2.0"
 ff = { version = "0.13", features = ["derive", "derive_bits"] }
 serde = { version = "1.0", features = ["derive", "rc"] }
-serde_with = "3.8.1"
+serde_with = "3.8.3"
 backtrace = { version = "0.3.71", features = ["serde"] }
 arrayref = "0.3.7"
 static_assertions = "1.1.0"
