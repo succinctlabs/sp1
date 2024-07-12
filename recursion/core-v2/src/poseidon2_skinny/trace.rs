@@ -1,6 +1,7 @@
 use std::borrow::BorrowMut;
 use std::mem::size_of;
 
+use itertools::Itertools;
 use p3_air::BaseAir;
 use p3_field::PrimeField32;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
@@ -10,12 +11,13 @@ use tracing::instrument;
 
 use crate::{
     instruction::Instruction::Poseidon2Wide,
-    poseidon2_wide::{
+    mem::MemoryPreprocessedColsNoVal,
+    poseidon2_skinny::{
         columns::{permutation::max, preprocessed::Poseidon2PreprocessedCols},
         external_linear_layer, internal_linear_layer, Poseidon2WideChip, NUM_EXTERNAL_ROUNDS,
         NUM_INTERNAL_ROUNDS, WIDTH,
     },
-    Address, ExecutionRecord, RecursionProgram,
+    ExecutionRecord, RecursionProgram,
 };
 
 const PREPROCESSED_POSEIDON2_WIDTH: usize = size_of::<Poseidon2PreprocessedCols<u8>>();
@@ -115,69 +117,86 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
         PREPROCESSED_POSEIDON2_WIDTH
     }
 
-    /// This is very much subject to change. At the moment, we just populate the memory management
-    /// columns. For the moment, we assume that the program only contains Poseidon2Wide instructions,
-    /// and for each instruction we read 16 successive memory locations and write to the next 16.
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
-        let instruction_count = program
-            .instructions
-            .iter()
-            .filter(|i| matches!(i, Poseidon2Wide(_)))
-            .count();
+        let instructions =
+            program
+                .instructions
+                .iter()
+                .filter_map(|instruction| match instruction {
+                    Poseidon2Wide(instr) => Some(instr),
+                    _ => None,
+                });
+
+        let num_instructions = instructions.clone().count();
 
         let mut rows = vec![
-            F::zero();
-            PREPROCESSED_POSEIDON2_WIDTH
-                * max(
-                    16,
-                    (instruction_count * (NUM_EXTERNAL_ROUNDS + 2)).next_power_of_two()
-                )
+            [F::zero(); PREPROCESSED_POSEIDON2_WIDTH];
+            num_instructions * (NUM_EXTERNAL_ROUNDS + 2)
         ];
 
-        // Set the input memory read management columns
-        rows.chunks_mut(PREPROCESSED_POSEIDON2_WIDTH)
-            .step_by(NUM_EXTERNAL_ROUNDS + 2)
-            .enumerate()
-            .for_each(|(event_ct, chunk)| {
-                let cols: &mut Poseidon2PreprocessedCols<_> = (*chunk).borrow_mut();
-                cols.memory_preprocessed
-                    .memory_prepr
-                    .iter_mut()
-                    .enumerate()
-                    .for_each(|(i, x)| {
-                        x.addr = Address(F::from_canonical_usize(2 * event_ct * WIDTH + i));
-                        x.is_real = if event_ct < instruction_count {
-                            F::one()
-                        } else {
-                            F::zero()
-                        };
-                        x.read_mult = F::one() * x.is_real;
-                    })
-            });
+        // Iterate over the instructions and take NUM_EXTERNAL_ROUNDS + 2 rows for each instruction.
+        instructions
+            .zip_eq(&rows.iter_mut().chunks(NUM_EXTERNAL_ROUNDS + 2))
+            .for_each(|(instruction, row_add)| {
+                row_add.into_iter().enumerate().for_each(|(i, row)| {
+                    let cols: &mut Poseidon2PreprocessedCols<_> =
+                        (*row).as_mut_slice().borrow_mut();
 
-        // Set the input memory write management columns.
-        rows.chunks_mut(PREPROCESSED_POSEIDON2_WIDTH)
-            .skip(NUM_EXTERNAL_ROUNDS + 1)
-            .step_by(NUM_EXTERNAL_ROUNDS + 2)
-            .enumerate()
-            .for_each(|(event_ct, chunk)| {
-                let cols: &mut Poseidon2PreprocessedCols<_> = (*chunk).borrow_mut();
-                cols.memory_preprocessed
-                    .memory_prepr
-                    .iter_mut()
-                    .enumerate()
-                    .for_each(|(i, x)| {
-                        x.addr = Address(F::from_canonical_usize((2 * event_ct + 1) * WIDTH + i));
-                        x.is_real = if event_ct < instruction_count {
-                            F::one()
-                        } else {
+                    // Set the round-counter columns.
+                    cols.round_counters_preprocessed.is_external_round =
+                        F::from_bool((i != NUM_EXTERNAL_ROUNDS / 2 + 1) && i > 1);
+                    cols.round_counters_preprocessed.is_internal_round =
+                        F::from_bool(i == NUM_EXTERNAL_ROUNDS / 2 + 1);
+                    cols.round_counters_preprocessed.is_first_round = F::from_bool(i == 0);
+                    (0..WIDTH).for_each(|j| {
+                        cols.round_counters_preprocessed.round_constants[j] = if i <= 1 {
                             F::zero()
+                        } else {
+                            F::from_wrapped_u32(RC_16_30_U32[i - 2][j])
                         };
-                        x.write_mult = F::one() * x.is_real;
-                    })
-            });
+                    });
 
-        Some(RowMajorMatrix::new(rows, PREPROCESSED_POSEIDON2_WIDTH))
+                    // Set the memory columns. We read once, at the first iteration,
+                    // and write once, at the last iteration.
+                    if i == 0 {
+                        cols.memory_preprocessed =
+                            instruction
+                                .addrs
+                                .input
+                                .map(|addr| MemoryPreprocessedColsNoVal {
+                                    addr,
+                                    read_mult: F::one(),
+                                    write_mult: F::zero(),
+                                    is_real: F::one(),
+                                });
+                    } else if i == NUM_EXTERNAL_ROUNDS + 1 {
+                        cols.memory_preprocessed =
+                            instruction
+                                .addrs
+                                .output
+                                .map(|addr| MemoryPreprocessedColsNoVal {
+                                    addr,
+                                    read_mult: F::zero(),
+                                    write_mult: instruction.mults[i],
+                                    is_real: F::one(),
+                                });
+                    }
+                });
+            });
+        if self.pad {
+            // Pad the trace to a power of two.
+            // This may need to be adjusted when the AIR constraints are implemented.
+            pad_rows_fixed(
+                &mut rows,
+                || [F::zero(); PREPROCESSED_POSEIDON2_WIDTH],
+                self.fixed_log2_rows,
+            );
+        }
+        let trace_rows = rows.into_iter().flatten().collect::<Vec<_>>();
+        Some(RowMajorMatrix::new(
+            trace_rows,
+            PREPROCESSED_POSEIDON2_WIDTH,
+        ))
     }
 }
 
@@ -283,7 +302,7 @@ mod tests {
     use zkhash::ark_ff::UniformRand;
 
     use crate::{
-        poseidon2_wide::{Poseidon2WideChip, WIDTH},
+        poseidon2_skinny::{Poseidon2WideChip, WIDTH},
         ExecutionRecord, Poseidon2WideEvent,
     };
 

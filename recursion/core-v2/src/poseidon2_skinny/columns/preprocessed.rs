@@ -1,12 +1,6 @@
 use sp1_derive::AlignedBorrow;
 
-use crate::{mem::MemoryPreprocessedColsNoVal, poseidon2_wide::WIDTH};
-
-#[derive(AlignedBorrow, Clone, Copy, Debug)]
-#[repr(C)]
-pub struct Poseidon2MemoryPreprocessedCols<T: Copy> {
-    pub memory_prepr: [MemoryPreprocessedColsNoVal<T>; WIDTH],
-}
+use crate::{mem::MemoryPreprocessedColsNoVal, poseidon2_skinny::WIDTH};
 
 #[derive(AlignedBorrow, Clone, Copy, Debug)]
 #[repr(C)]
@@ -20,6 +14,6 @@ pub struct RoundCountersPreprocessedCols<T: Copy> {
 #[derive(AlignedBorrow, Clone, Copy, Debug)]
 #[repr(C)]
 pub struct Poseidon2PreprocessedCols<T: Copy> {
-    pub memory_preprocessed: Poseidon2MemoryPreprocessedCols<T>,
+    pub memory_preprocessed: [MemoryPreprocessedColsNoVal<T>; WIDTH],
     pub round_counters_preprocessed: RoundCountersPreprocessedCols<T>,
 }

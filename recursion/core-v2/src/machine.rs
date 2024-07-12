@@ -5,7 +5,7 @@ use sp1_recursion_core::runtime::D;
 
 use crate::{
     alu_base::BaseAluChip, alu_ext::ExtAluChip, exp_reverse_bits::ExpReverseBitsLenChip,
-    fri_fold::FriFoldChip, mem::MemoryChip, poseidon2_wide::Poseidon2WideChip,
+    fri_fold::FriFoldChip, mem::MemoryChip, poseidon2_skinny::Poseidon2WideChip,
     program::ProgramChip,
 };
 
