@@ -6,6 +6,16 @@ RUN curl --proto '=https' --tlsv1.2 --retry 10 --retry-connrefused -fsSL 'https:
 ENV PATH="/root/.cargo/bin:${PATH}"
 RUN curl -L https://sp1.succinct.xyz | bash && ~/.sp1/bin/sp1up
 
+# Install RISC-V toolchain
+RUN curl -L https://github.com/stnolting/riscv-gcc-prebuilt/releases/download/rv32i-131023/riscv32-unknown-elf.gcc-13.2.0.tar.gz -o /tmp/riscv32-unknown-elf.gcc-13.2.0.tar.gz \
+    && mkdir -p /opt/riscv \
+    && tar -xzf /tmp/riscv32-unknown-elf.gcc-13.2.0.tar.gz -C /opt/riscv/ \
+    && rm -f /tmp/riscv32-unknown-elf.gcc-13.2.0.tar.gz
+
+# Set default C compiler and RISC-V toolchain environment variables
+ENV PATH="/opt/riscv/bin:${PATH}"
+ENV CC=gcc
+
 WORKDIR /root/program
 
 ENV CARGO_TERM_COLOR=always

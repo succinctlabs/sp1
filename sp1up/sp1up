@@ -27,9 +27,9 @@ main() {
       -p|--path)        shift; SP1UP_LOCAL_REPO=$1;;
       -P|--pr)          shift; SP1UP_PR=$1;;
       -C|--commit)      shift; SP1UP_COMMIT=$1;;
+      --riscv)          SP1UP_RISCV=true;;
       --arch)           shift; SP1UP_ARCH=$1;;
       --platform)       shift; SP1UP_PLATFORM=$1;;
-      -t|--toolchain)   shift; SP1UP_TOOLCHAIN=$1;;
       -h|--help)
         usage
         exit 0
@@ -52,8 +52,9 @@ main() {
     fi
   fi
 
-  if [ -n "$SP1UP_TOOLCHAIN" ]; then
-    install_toolchain "$SP1UP_TOOLCHAIN"
+  if [ "$SP1UP_RISCV" = true ]; then
+    install_riscv
+    exit 0
   fi
 
   # Installs sp1 from a local repository if --path parameter is provided
@@ -211,50 +212,48 @@ EOF
   fi
 }
 
-install_toolchain() {
-  case $1 in
-    riscv)
-      say "installing RISC-V toolchain"
-      uname_s=$(uname -s)
-      case $uname_s in
-        Linux|Darwin)
-          TOOLCHAIN_URL="https://github.com/stnolting/riscv-gcc-prebuilt/releases/download/rv32i-131023/riscv32-unknown-elf.gcc-13.2.0.tar.gz"
-          ;;
-        *)
-          err "unsupported platform: $uname_s"
-          ;;
-      esac
-      TOOLCHAIN_ARCHIVE="/tmp/riscv32-unknown-elf.gcc-13.2.0.tar.gz"
-      TOOLCHAIN_INSTALL_DIR="$SP1_DIR/riscv"
-
-      # Check if the RISC-V GCC prebuilt binary archive already exists, otherwise download it
-      if [ -f "$TOOLCHAIN_ARCHIVE" ]; then
-        say "riscv-gcc-prebuilt archive already exists, please check the file manually"
-      else
-        ensure download "$TOOLCHAIN_URL" "$TOOLCHAIN_ARCHIVE"
-      fi
-
-      # Create the directory if it doesn't exist
-      if [ ! -d "$TOOLCHAIN_INSTALL_DIR" ]; then
-        mkdir -p "$TOOLCHAIN_INSTALL_DIR"
-      fi
-
-      # Extract the downloaded archive
-      ensure tar -xzf "$TOOLCHAIN_ARCHIVE" -C "$TOOLCHAIN_INSTALL_DIR" >/dev/null 2>&1
-      rm -f "$TOOLCHAIN_ARCHIVE"
-      say "RISC-V toolchain installed"
+install_riscv() {
+  say "installing RISC-V toolchain"
+  uname_s=$(uname -s)
+  case $uname_s in
+    Linux)
+      TOOLCHAIN_URL="https://github.com/stnolting/riscv-gcc-prebuilt/releases/download/rv32i-131023/riscv32-unknown-elf.gcc-13.2.0.tar.gz"
       ;;
     *)
-      err "unsupported toolchain: $1"
+      err "unsupported platform for RISC-V toolchain: $uname_s"
       ;;
   esac
+  TOOLCHAIN_ARCHIVE="/tmp/riscv32-unknown-elf.gcc-13.2.0.tar.gz"
+  TOOLCHAIN_INSTALL_DIR="$SP1_DIR/riscv"
+
+  # Check if the RISC-V GCC prebuilt binary archive already exists, otherwise download it
+  if [ -f "$TOOLCHAIN_ARCHIVE" ]; then
+    say "riscv-gcc-prebuilt archive already exists"
+  else
+    ensure download "$TOOLCHAIN_URL" "$TOOLCHAIN_ARCHIVE"
+  fi
+
+  # Create the target directory if it doesn't exist
+  if [ ! -d "$TOOLCHAIN_INSTALL_DIR" ]; then
+    mkdir -p "$TOOLCHAIN_INSTALL_DIR"
+  fi
+
+  # Extract the downloaded archive into the target directory
+  ensure tar -xzf "$TOOLCHAIN_ARCHIVE" -C "$TOOLCHAIN_INSTALL_DIR" >/dev/null 2>&1
+  rm -f "$TOOLCHAIN_ARCHIVE"
+
+  # Set environment variables for the RISC-V toolchain
+  export PATH="$TOOLCHAIN_INSTALL_DIR/bin:$PATH"
+  export CC=gcc
+
+  say "RISC-V toolchain installed and environment variables set"
 }
 
 usage() {
   cat 1>&2 <<EOF
 The installer for the SP1.
 
-Update or revert to a specific sp1 version with ease.
+Update or revert to a specific SP1 version with ease.
 
 USAGE:
     sp1up <OPTIONS>
@@ -267,9 +266,9 @@ OPTIONS:
     -C, --commit    Install a specific commit
     -r, --repo      Install from a remote GitHub repo (uses default branch if no other options are set)
     -p, --path      Install a local repository
+    --riscv         Install the RISC-V toolchain
     --arch          Install a specific architecture (supports amd64 and arm64)
     --platform      Install a specific platform (supports win32, linux, and darwin)
-    -t, --toolchain Install a specific toolchain (supports riscv)
 EOF
 }
 
