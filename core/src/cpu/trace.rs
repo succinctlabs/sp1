@@ -172,13 +172,10 @@ impl CpuChip {
             c: a_bytes[3],
         });
 
-        // Populate memory, branch, jump, and auipc specific fields.
-        let is_halt = self.populate_ecall(cols, event, nonce_lookup);
-
-        cols.is_sequential_instr = F::from_bool(
-            !event.instruction.is_branch_instruction()
-                && !event.instruction.is_jump_instruction()
-                && !is_halt,
+        cols.is_halt = F::from_bool(
+            event.instruction.opcode == Opcode::ECALL
+                && (cols.op_a_access.prev_value[0]
+                    == F::from_canonical_u32(SyscallCode::HALT.syscall_id())),
         );
 
         // Assert that the instruction is not a no-op.
@@ -230,95 +227,6 @@ impl CpuChip {
             0,
             clk_8bit_limb,
         ));
-    }
-
-    /// Populate columns related to ECALL.
-    fn populate_ecall<F: PrimeField>(
-        &self,
-        cols: &mut CpuCols<F>,
-        event: &CpuEvent,
-        nonce_lookup: &HashMap<usize, u32>,
-    ) -> bool {
-        let mut is_halt = false;
-
-        if cols.selectors.is_ecall == F::one() {
-            // The send_to_table column is the 1st entry of the op_a_access column prev_value field.
-            // Look at `ecall_eval` in cpu/air/mod.rs for the corresponding constraint and explanation.
-            let ecall_cols = cols.opcode_specific_columns.ecall_mut();
-
-            cols.ecall_mul_send_to_table = cols.selectors.is_ecall * cols.op_a_access.prev_value[1];
-
-            let syscall_id = cols.op_a_access.prev_value[0];
-            // let send_to_table = cols.op_a_access.prev_value[1];
-            // let num_cycles = cols.op_a_access.prev_value[2];
-
-            // Populate `is_enter_unconstrained`.
-            ecall_cols
-                .is_enter_unconstrained
-                .populate_from_field_element(
-                    syscall_id
-                        - F::from_canonical_u32(SyscallCode::ENTER_UNCONSTRAINED.syscall_id()),
-                );
-
-            // Populate `is_hint_len`.
-            ecall_cols.is_hint_len.populate_from_field_element(
-                syscall_id - F::from_canonical_u32(SyscallCode::HINT_LEN.syscall_id()),
-            );
-
-            // Populate `is_halt`.
-            ecall_cols.is_halt.populate_from_field_element(
-                syscall_id - F::from_canonical_u32(SyscallCode::HALT.syscall_id()),
-            );
-
-            // Populate `is_commit`.
-            ecall_cols.is_commit.populate_from_field_element(
-                syscall_id - F::from_canonical_u32(SyscallCode::COMMIT.syscall_id()),
-            );
-
-            // Populate `is_commit_deferred_proofs`.
-            ecall_cols
-                .is_commit_deferred_proofs
-                .populate_from_field_element(
-                    syscall_id
-                        - F::from_canonical_u32(SyscallCode::COMMIT_DEFERRED_PROOFS.syscall_id()),
-                );
-
-            // If the syscall is `COMMIT` or `COMMIT_DEFERRED_PROOFS`, set the index bitmap and digest word.
-            if syscall_id == F::from_canonical_u32(SyscallCode::COMMIT.syscall_id())
-                || syscall_id
-                    == F::from_canonical_u32(SyscallCode::COMMIT_DEFERRED_PROOFS.syscall_id())
-            {
-                let digest_idx = cols.op_b_access.value().to_u32() as usize;
-                ecall_cols.index_bitmap[digest_idx] = F::one();
-            }
-
-            // Write the syscall nonce.
-            ecall_cols.syscall_nonce = F::from_canonical_u32(
-                nonce_lookup
-                    .get(&event.syscall_lookup_id)
-                    .copied()
-                    .unwrap_or_default(),
-            );
-
-            is_halt = syscall_id == F::from_canonical_u32(SyscallCode::HALT.syscall_id());
-
-            // For halt and commit deferred proofs syscalls, we need to baby bear range check one of
-            // it's operands.
-            if is_halt {
-                ecall_cols.operand_to_check = event.b.into();
-                ecall_cols.operand_range_check_cols.populate(event.b);
-                cols.ecall_range_check_operand = F::one();
-            }
-
-            if syscall_id == F::from_canonical_u32(SyscallCode::COMMIT_DEFERRED_PROOFS.syscall_id())
-            {
-                ecall_cols.operand_to_check = event.c.into();
-                ecall_cols.operand_range_check_cols.populate(event.c);
-                cols.ecall_range_check_operand = F::one();
-            }
-        }
-
-        is_halt
     }
 
     fn pad_to_power_of_two<F: PrimeField>(values: &mut Vec<F>) {
@@ -453,6 +361,7 @@ impl CpuOpcodeSpecificChip {
         instruction.is_branch_instruction()
             || instruction.is_jump_instruction()
             || instruction.is_memory_instruction()
+            || instruction.is_ecall_instruction()
             || instruction.opcode == Opcode::AUIPC
     }
 
@@ -477,6 +386,7 @@ impl CpuOpcodeSpecificChip {
 
         if let Some(record) = event.a_record {
             cols.op_a_val = record.value().into();
+            cols.op_a_prev_val = record.prev_value().into();
         } else {
             cols.op_a_val = event.a.into();
         }
@@ -499,6 +409,7 @@ impl CpuOpcodeSpecificChip {
         self.populate_jump(cols, event, &mut new_alu_events, nonce_lookup);
         self.populate_auipc(cols, event, &mut new_alu_events, nonce_lookup);
         self.populate_memory(cols, event, &mut new_alu_events, blu_events, nonce_lookup);
+        self.populate_ecall(cols, event, nonce_lookup);
 
         // Assert that the instruction is not a no-op.
         cols.is_real = F::one();
@@ -901,6 +812,96 @@ impl CpuOpcodeSpecificChip {
                 b: byte_pair[0] as u32,
                 c: byte_pair[1] as u32,
             });
+        }
+    }
+
+    /// Populate columns related to ECALL.
+    fn populate_ecall<F: PrimeField>(
+        &self,
+        cols: &mut CpuOpcodeSpecificCols<F>,
+        event: &CpuEvent,
+        nonce_lookup: &HashMap<usize, u32>,
+    ) {
+        if cols.selectors.is_ecall == F::one() {
+            // The send_to_table column is the 1st entry of the op_a_access column prev_value field.
+            // Look at `ecall_eval` in cpu/air/mod.rs for the corresponding constraint and explanation.
+            let ecall_cols = cols.opcode_specific_columns.ecall_mut();
+
+            let prev_value: Word<F> = if let Some(record) = event.a_record {
+                record.prev_value().into()
+            } else {
+                panic!("expected a memory record for ecall instructions");
+            };
+
+            let (send_to_table, syscall_id) = (prev_value[1], prev_value[0]);
+
+            cols.ecall_mul_send_to_table = cols.selectors.is_ecall * send_to_table;
+
+            // Populate `is_enter_unconstrained`.
+            ecall_cols
+                .is_enter_unconstrained
+                .populate_from_field_element(
+                    syscall_id
+                        - F::from_canonical_u32(SyscallCode::ENTER_UNCONSTRAINED.syscall_id()),
+                );
+
+            // Populate `is_hint_len`.
+            ecall_cols.is_hint_len.populate_from_field_element(
+                syscall_id - F::from_canonical_u32(SyscallCode::HINT_LEN.syscall_id()),
+            );
+
+            // Populate `is_halt`.
+            ecall_cols.is_halt.populate_from_field_element(
+                syscall_id - F::from_canonical_u32(SyscallCode::HALT.syscall_id()),
+            );
+
+            // Populate `is_commit`.
+            ecall_cols.is_commit.populate_from_field_element(
+                syscall_id - F::from_canonical_u32(SyscallCode::COMMIT.syscall_id()),
+            );
+
+            // Populate `is_commit_deferred_proofs`.
+            ecall_cols
+                .is_commit_deferred_proofs
+                .populate_from_field_element(
+                    syscall_id
+                        - F::from_canonical_u32(SyscallCode::COMMIT_DEFERRED_PROOFS.syscall_id()),
+                );
+
+            // If the syscall is `COMMIT` or `COMMIT_DEFERRED_PROOFS`, set the index bitmap and digest word.
+            if syscall_id == F::from_canonical_u32(SyscallCode::COMMIT.syscall_id())
+                || syscall_id
+                    == F::from_canonical_u32(SyscallCode::COMMIT_DEFERRED_PROOFS.syscall_id())
+            {
+                let digest_idx = cols.op_b_val.to_u32() as usize;
+                ecall_cols.index_bitmap[digest_idx] = F::one();
+            }
+
+            // Write the syscall nonce.
+            ecall_cols.syscall_nonce = F::from_canonical_u32(
+                nonce_lookup
+                    .get(&event.syscall_lookup_id)
+                    .copied()
+                    .unwrap_or_default(),
+            );
+
+            let is_halt = syscall_id == F::from_canonical_u32(SyscallCode::HALT.syscall_id());
+            cols.is_halt = F::from_bool(is_halt);
+
+            // For halt and commit deferred proofs syscalls, we need to baby bear range check one of
+            // it's operands.
+            if is_halt {
+                ecall_cols.operand_to_check = event.b.into();
+                ecall_cols.operand_range_check_cols.populate(event.b);
+                cols.ecall_range_check_operand = F::one();
+            }
+
+            if syscall_id == F::from_canonical_u32(SyscallCode::COMMIT_DEFERRED_PROOFS.syscall_id())
+            {
+                ecall_cols.operand_to_check = event.c.into();
+                ecall_cols.operand_range_check_cols.populate(event.c);
+                cols.ecall_range_check_operand = F::one();
+            }
         }
     }
 }

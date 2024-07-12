@@ -71,21 +71,18 @@ pub struct CpuCols<T: Copy> {
 
     pub opcode_specific_columns: OpcodeSpecificCols<T>,
 
-    /// The result of selectors.is_ecall * the send_to_table column for the ECALL opcode.
-    pub ecall_mul_send_to_table: T,
-
-    /// The result of selectors.is_ecall * (is_halt || is_commit_deferred_proofs)
-    pub ecall_range_check_operand: T,
-
-    /// This is true for all instructions that are not jumps, branches, and halt.  Those instructions
-    /// may move the program counter to a non sequential instruction.
-    pub is_sequential_instr: T,
+    pub is_halt: T,
 
     /// Selector to label whether this row is a non padded row.
     pub is_real: T,
 }
 
 impl<T: Copy> CpuCols<T> {
+    /// Gets the prev value of the first operand.
+    pub fn op_a_prev_val(&self) -> Word<T> {
+        *self.op_a_access.prev_value()
+    }
+
     /// Gets the value of the first operand.
     pub fn op_a_val(&self) -> Word<T> {
         *self.op_a_access.value()
@@ -126,6 +123,7 @@ pub struct CpuOpcodeSpecificCols<T: Copy> {
     /// The expected next program counter value.
     pub next_pc: T,
 
+    pub op_a_prev_val: Word<T>,
     pub op_a_val: Word<T>,
     pub op_b_val: Word<T>,
     pub op_c_val: Word<T>,
@@ -165,4 +163,12 @@ pub struct CpuOpcodeSpecificCols<T: Copy> {
     pub unsigned_mem_val: Word<T>,
 
     pub unsigned_mem_val_nonce: T,
+
+    /// The result of selectors.is_ecall * the send_to_table column for the ECALL opcode.
+    pub ecall_mul_send_to_table: T,
+
+    /// The result of selectors.is_ecall * (is_halt || is_commit_deferred_proofs)
+    pub ecall_range_check_operand: T,
+
+    pub is_halt: T,
 }
