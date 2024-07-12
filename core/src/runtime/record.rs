@@ -14,7 +14,6 @@ use crate::bytes::event::add_sharded_byte_lookup_events;
 use crate::bytes::event::ByteRecord;
 use crate::bytes::ByteLookupEvent;
 use crate::cpu::CpuEvent;
-use crate::cpu::CpuOpcodeSpecEvent;
 use crate::runtime::MemoryInitializeFinalizeEvent;
 use crate::runtime::MemoryRecordEnum;
 use crate::stark::MachineRecord;
@@ -60,8 +59,6 @@ pub struct ExecutionRecord {
 
     /// A trace of the SLT, SLTI, SLTU, and SLTIU events.
     pub lt_events: Vec<AluEvent>,
-
-    pub cpu_opcode_spec_events: Vec<CpuOpcodeSpecEvent>,
 
     /// All byte lookups that are needed.
     ///

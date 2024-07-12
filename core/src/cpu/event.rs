@@ -54,42 +54,6 @@ pub struct CpuEvent {
 
     pub alu_lookup_id: usize,
     pub syscall_lookup_id: usize,
-    pub memory_add_lookup_id: usize,
-    pub memory_sub_lookup_id: usize,
-}
-
-/// A standard format for describing ALU operations that need to be proven.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct CpuOpcodeSpecEvent {
-    /// The shard number, used for byte lookup table.
-    pub shard: u32,
-
-    /// The channel number, used for byte lookup table.
-    pub channel: u32,
-
-    pub pc: u32,
-
-    pub next_pc: u32,
-
-    pub instruction: Instruction,
-
-    /// The first operand.
-    pub a: u32,
-
-    /// The memory access record for the first operand.
-    pub a_record: Option<MemoryRecordEnum>,
-
-    /// The second operand.
-    pub b: u32,
-
-    /// The memory access record for the second operand.
-    pub b_record: Option<MemoryRecordEnum>,
-
-    /// The third operand.
-    pub c: u32,
-
-    /// The memory access record for the third operand.
-    pub c_record: Option<MemoryRecordEnum>,
 
     pub auipc_lookup_id: usize,
     pub branch_add_lookup_id: usize,
@@ -97,4 +61,6 @@ pub struct CpuOpcodeSpecEvent {
     pub branch_lt_lookup_id: usize,
     pub jump_jal_lookup_id: usize,
     pub jump_jalr_lookup_id: usize,
+    pub memory_add_lookup_id: usize,
+    pub memory_sub_lookup_id: usize,
 }

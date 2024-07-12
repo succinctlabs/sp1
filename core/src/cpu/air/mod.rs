@@ -20,7 +20,6 @@ use crate::air::POSEIDON_NUM_WORDS;
 use crate::air::PV_DIGEST_NUM_WORDS;
 use crate::air::SP1_PROOF_NUM_PV_ELTS;
 use crate::bytes::ByteOpcode;
-use crate::cpu::columns::OpcodeSelectorCols;
 use crate::cpu::columns::{CpuCols, NUM_CPU_COLS};
 use crate::cpu::CpuChip;
 use crate::operations::BabyBearWordRangeChecker;
@@ -58,18 +57,13 @@ where
         );
 
         // Compute some flags for which type of instruction we are dealing with.
-        let is_memory_instruction: AB::Expr = self.is_memory_instruction::<AB>(&local.selectors);
-        let is_branch_instruction: AB::Expr = self.is_branch_instruction::<AB>(&local.selectors);
-        let is_alu_instruction: AB::Expr = self.is_alu_instruction::<AB>(&local.selectors);
+        let is_memory_instruction: AB::Expr = local.selectors.is_memory_instruction::<AB>();
+        let is_branch_instruction: AB::Expr = local.selectors.is_branch_instruction::<AB>();
+        let is_alu_instruction: AB::Expr = local.selectors.is_alu_instruction::<AB>();
         let is_jump_instruction = local.selectors.is_jal + local.selectors.is_jalr;
 
         // Register constraints.
         self.eval_registers::<AB>(builder, local, is_branch_instruction.clone());
-
-        // Memory instructions.
-        self.eval_memory_address_and_access::<AB>(builder, local, is_memory_instruction.clone());
-        self.eval_memory_load::<AB>(builder, local);
-        self.eval_memory_store::<AB>(builder, local);
 
         // Channel constraints.
         eval_channel_selectors(
@@ -96,6 +90,7 @@ where
         // Handle the branch related instructions in the opcode specific table.
         // This will basically ensure that local.next_pc is correct for branch instructions.
         builder.send_instruction(
+            local.clk,
             local.shard,
             local.channel,
             local.pc,
@@ -105,7 +100,10 @@ where
             local.op_b_val(),
             local.op_c_val(),
             local.instruction.op_a_0,
-            is_branch_instruction.clone() + is_jump_instruction.clone() + local.selectors.is_auipc,
+            is_branch_instruction.clone()
+                + is_jump_instruction.clone()
+                + is_memory_instruction.clone()
+                + local.selectors.is_auipc,
         );
 
         builder
@@ -164,14 +162,6 @@ where
 }
 
 impl CpuChip {
-    /// Whether the instruction is an ALU instruction.
-    pub(crate) fn is_alu_instruction<AB: SP1AirBuilder>(
-        &self,
-        opcode_selectors: &OpcodeSelectorCols<AB::Var>,
-    ) -> AB::Expr {
-        opcode_selectors.is_alu.into()
-    }
-
     /// Constraints related to the shard and clk.
     ///
     /// This method ensures that all of the shard values are the same and that the clk starts at 0
@@ -340,6 +330,7 @@ where
         let local: &CpuOpcodeSpecificCols<AB::Var> = (*local).borrow();
 
         builder.receive_instruction(
+            local.clk,
             local.shard,
             local.channel,
             local.pc,
@@ -352,7 +343,13 @@ where
             local.is_real,
         );
 
-        let is_branch_instruction = self.is_branch_instruction::<AB>(&local.selectors);
+        // Memory instructions.
+        let is_memory_instruction = local.selectors.is_memory_instruction::<AB>();
+        self.eval_memory_address_and_access::<AB>(builder, local, is_memory_instruction.clone());
+        self.eval_memory_load::<AB>(builder, local);
+        self.eval_memory_store::<AB>(builder, local);
+
+        let is_branch_instruction = local.selectors.is_branch_instruction::<AB>();
 
         // Branch instructions.
         self.eval_branch_ops::<AB>(builder, is_branch_instruction.clone(), local);

@@ -71,17 +71,6 @@ pub struct CpuCols<T: Copy> {
 
     pub opcode_specific_columns: OpcodeSpecificCols<T>,
 
-    /// The memory value is negative column is equal to:
-    ///
-    /// > (is_lbu | is_lhu) & (most_sig_byte_decomp[7] == 1)
-    pub mem_value_is_neg: T,
-
-    /// The unsigned memory value is the value after the offset logic is applied. Used for the load
-    /// memory opcodes (i.e. LB, LH, LW, LBU, and LHU).
-    pub unsigned_mem_val: Word<T>,
-
-    pub unsigned_mem_val_nonce: T,
-
     /// The result of selectors.is_ecall * the send_to_table column for the ECALL opcode.
     pub ecall_mul_send_to_table: T,
 
@@ -126,6 +115,8 @@ pub const NUM_CPU_OPCODE_SPECIFIC_COLS: usize = size_of::<CpuOpcodeSpecificCols<
 pub struct CpuOpcodeSpecificCols<T: Copy> {
     /// The current shard.
     pub shard: T,
+    /// The current clk.
+    pub clk: T,
     /// The channel value, used for byte lookup multiplicity.
     pub channel: T,
 
@@ -163,4 +154,15 @@ pub struct CpuOpcodeSpecificCols<T: Copy> {
     /// > (is_blt | is_bltu) & !a_lt_b ||
     /// > (is_bge | is_bgeu) & !(a_eq_b | a_gt_b)
     pub not_branching: T,
+
+    /// The memory value is negative column is equal to:
+    ///
+    /// > (is_lbu | is_lhu) & (most_sig_byte_decomp[7] == 1)
+    pub mem_value_is_neg: T,
+
+    /// The unsigned memory value is the value after the offset logic is applied. Used for the load
+    /// memory opcodes (i.e. LB, LH, LW, LBU, and LHU).
+    pub unsigned_mem_val: Word<T>,
+
+    pub unsigned_mem_val_nonce: T,
 }

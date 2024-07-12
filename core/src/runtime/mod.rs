@@ -39,11 +39,11 @@ use thiserror::Error;
 
 use crate::alu::create_alu_lookup_id;
 use crate::alu::create_alu_lookups;
+use crate::alu::AluEvent;
 use crate::bytes::NUM_BYTE_LOOKUP_CHANNELS;
-use crate::cpu::CpuOpcodeSpecEvent;
+use crate::cpu::CpuEvent;
 use crate::memory::MemoryInitializeFinalizeEvent;
 use crate::utils::SP1CoreOpts;
-use crate::{alu::AluEvent, cpu::CpuEvent};
 
 /// An implementation of a runtime for the SP1 RISC-V zkVM.
 ///
@@ -469,36 +469,6 @@ impl<'a> Runtime<'a> {
             syscall_lookup_id,
             memory_add_lookup_id: create_alu_lookup_id(),
             memory_sub_lookup_id: create_alu_lookup_id(),
-        };
-
-        self.record.cpu_events.push(cpu_event);
-    }
-
-    /// Emit a cpu opcode specific event.
-    #[allow(clippy::too_many_arguments)]
-    fn emit_cpu_opcode_specific(
-        &mut self,
-        instruction: Instruction,
-        a: u32,
-        b: u32,
-        c: u32,
-        record: MemoryAccessRecord,
-        channel: u32,
-        pc: u32,
-        next_pc: u32,
-    ) {
-        let event = CpuOpcodeSpecEvent {
-            pc,
-            next_pc,
-            shard: self.shard(),
-            channel,
-            instruction,
-            a,
-            b,
-            c,
-            a_record: record.a,
-            b_record: record.b,
-            c_record: record.c,
             auipc_lookup_id: create_alu_lookup_id(),
             branch_add_lookup_id: create_alu_lookup_id(),
             branch_lt_lookup_id: create_alu_lookup_id(),
@@ -507,9 +477,8 @@ impl<'a> Runtime<'a> {
             jump_jalr_lookup_id: create_alu_lookup_id(),
         };
 
-        self.record.cpu_opcode_spec_events.push(event);
+        self.record.cpu_events.push(cpu_event);
     }
-
     /// Emit an ALU event.
     fn emit_alu(&mut self, opcode: Opcode, a: u32, b: u32, c: u32, lookup_id: usize) {
         let event = AluEvent {
@@ -1027,22 +996,6 @@ impl<'a> Runtime<'a> {
                 lookup_id,
                 syscall_lookup_id,
             );
-
-            if instruction.is_branch_instruction()
-                || instruction.is_jump_instruction()
-                || instruction.opcode == Opcode::AUIPC
-            {
-                self.emit_cpu_opcode_specific(
-                    instruction,
-                    a,
-                    b,
-                    c,
-                    self.memory_accesses,
-                    channel,
-                    pc,
-                    next_pc,
-                );
-            }
         };
         Ok(())
     }

@@ -2,48 +2,13 @@ use p3_air::AirBuilder;
 use p3_field::AbstractField;
 
 use crate::air::{BaseAirBuilder, SP1AirBuilder, Word, WordAirBuilder};
-use crate::cpu::columns::{CpuCols, MemoryColumns, OpcodeSelectorCols};
-use crate::cpu::CpuChip;
+use crate::cpu::columns::{CpuOpcodeSpecificCols, MemoryColumns};
+use crate::cpu::CpuOpcodeSpecificChip;
 use crate::memory::MemoryCols;
 use crate::operations::BabyBearWordRangeChecker;
 use crate::runtime::{MemoryAccessPosition, Opcode};
 
-impl CpuChip {
-    /// Computes whether the opcode is a memory instruction.
-    pub(crate) fn is_memory_instruction<AB: SP1AirBuilder>(
-        &self,
-        opcode_selectors: &OpcodeSelectorCols<AB::Var>,
-    ) -> AB::Expr {
-        opcode_selectors.is_lb
-            + opcode_selectors.is_lbu
-            + opcode_selectors.is_lh
-            + opcode_selectors.is_lhu
-            + opcode_selectors.is_lw
-            + opcode_selectors.is_sb
-            + opcode_selectors.is_sh
-            + opcode_selectors.is_sw
-    }
-
-    /// Computes whether the opcode is a load instruction.
-    pub(crate) fn is_load_instruction<AB: SP1AirBuilder>(
-        &self,
-        opcode_selectors: &OpcodeSelectorCols<AB::Var>,
-    ) -> AB::Expr {
-        opcode_selectors.is_lb
-            + opcode_selectors.is_lbu
-            + opcode_selectors.is_lh
-            + opcode_selectors.is_lhu
-            + opcode_selectors.is_lw
-    }
-
-    /// Computes whether the opcode is a store instruction.
-    pub(crate) fn is_store_instruction<AB: SP1AirBuilder>(
-        &self,
-        opcode_selectors: &OpcodeSelectorCols<AB::Var>,
-    ) -> AB::Expr {
-        opcode_selectors.is_sb + opcode_selectors.is_sh + opcode_selectors.is_sw
-    }
-
+impl CpuOpcodeSpecificChip {
     /// Constrains the addr_aligned, addr_offset, and addr_word memory columns.
     ///
     /// This method will do the following:
@@ -53,7 +18,7 @@ impl CpuChip {
     pub(crate) fn eval_memory_address_and_access<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
-        local: &CpuCols<AB::Var>,
+        local: &CpuOpcodeSpecificCols<AB::Var>,
         is_memory_instruction: AB::Expr,
     ) {
         // Get the memory specific columns.
@@ -63,8 +28,8 @@ impl CpuChip {
         builder.send_alu(
             AB::Expr::from_canonical_u32(Opcode::ADD as u32),
             memory_columns.addr_word,
-            local.op_b_val(),
-            local.op_c_val(),
+            local.op_b_val,
+            local.op_c_val,
             local.shard,
             local.channel,
             memory_columns.addr_word_nonce,
@@ -140,7 +105,7 @@ impl CpuChip {
 
         // On memory load instructions, make sure that the memory value is not changed.
         builder
-            .when(self.is_load_instruction::<AB>(&local.selectors))
+            .when(local.selectors.is_load_instruction::<AB>())
             .assert_word_eq(
                 *memory_columns.memory_access.value(),
                 *memory_columns.memory_access.prev_value(),
@@ -151,13 +116,13 @@ impl CpuChip {
     pub(crate) fn eval_memory_load<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
-        local: &CpuCols<AB::Var>,
+        local: &CpuOpcodeSpecificCols<AB::Var>,
     ) {
         // Get the memory specific columns.
         let memory_columns = local.opcode_specific_columns.memory();
 
         // Compute whether this is a load instruction.
-        let is_load = self.is_load_instruction::<AB>(&local.selectors);
+        let is_load = local.selectors.is_load_instruction::<AB>();
 
         // Verify the unsigned_mem_value column.
         self.eval_unsigned_mem_value(builder, memory_columns, local);
@@ -184,7 +149,7 @@ impl CpuChip {
         ]);
         builder.send_alu(
             Opcode::SUB.as_field::<AB::F>(),
-            local.op_a_val(),
+            local.op_a_val,
             local.unsigned_mem_val,
             signed_value,
             local.shard,
@@ -198,14 +163,14 @@ impl CpuChip {
         builder
             .when(is_load)
             .when_not(local.mem_value_is_neg)
-            .assert_word_eq(local.unsigned_mem_val, local.op_a_val());
+            .assert_word_eq(local.unsigned_mem_val, local.op_a_val);
     }
 
     /// Evaluates constraints related to storing to memory.
     pub(crate) fn eval_memory_store<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
-        local: &CpuCols<AB::Var>,
+        local: &CpuOpcodeSpecificCols<AB::Var>,
     ) {
         let memory_columns = local.opcode_specific_columns.memory();
 
@@ -220,7 +185,7 @@ impl CpuChip {
 
         // Compute the expected stored value for a SB instruction.
         let one = AB::Expr::one();
-        let a_val = local.op_a_val();
+        let a_val = local.op_a_val;
         let mem_val = *memory_columns.memory_access.value();
         let prev_mem_val = *memory_columns.memory_access.prev_value();
         let sb_expected_stored_value = Word([
@@ -272,7 +237,7 @@ impl CpuChip {
         &self,
         builder: &mut AB,
         memory_columns: &MemoryColumns<AB::Var>,
-        local: &CpuCols<AB::Var>,
+        local: &CpuOpcodeSpecificCols<AB::Var>,
     ) {
         let mem_val = *memory_columns.memory_access.value();
 
@@ -328,10 +293,10 @@ impl CpuChip {
         &self,
         builder: &mut AB,
         memory_columns: &MemoryColumns<AB::Var>,
-        local: &CpuCols<AB::Var>,
+        local: &CpuOpcodeSpecificCols<AB::Var>,
         unsigned_mem_val: &Word<AB::Var>,
     ) {
-        let is_mem = self.is_memory_instruction::<AB>(&local.selectors);
+        let is_mem = local.selectors.is_memory_instruction::<AB>();
         let mut recomposed_byte = AB::Expr::zero();
         for i in 0..8 {
             builder
@@ -353,9 +318,9 @@ impl CpuChip {
         &self,
         builder: &mut AB,
         memory_columns: &MemoryColumns<AB::Var>,
-        local: &CpuCols<AB::Var>,
+        local: &CpuOpcodeSpecificCols<AB::Var>,
     ) {
-        let is_mem_op = self.is_memory_instruction::<AB>(&local.selectors);
+        let is_mem_op = local.selectors.is_memory_instruction::<AB>();
         let offset_is_zero = AB::Expr::one()
             - memory_columns.offset_is_one
             - memory_columns.offset_is_two

@@ -659,6 +659,7 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
     #[allow(clippy::too_many_arguments)]
     fn send_instruction(
         &mut self,
+        clk: impl Into<Self::Expr>,
         shard: impl Into<Self::Expr>,
         channel: impl Into<Self::Expr>,
         pc: impl Into<Self::Expr>,
@@ -670,7 +671,8 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
         op_a_0: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
-        let values = once(shard.into())
+        let values = once(clk.into())
+            .chain(once(shard.into()))
             .chain(once(channel.into()))
             .chain(once(pc.into()))
             .chain(once(next_pc.into()))
@@ -692,6 +694,7 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
     #[allow(clippy::too_many_arguments)]
     fn receive_instruction(
         &mut self,
+        clk: impl Into<Self::Expr>,
         shard: impl Into<Self::Expr>,
         channel: impl Into<Self::Expr>,
         pc: impl Into<Self::Expr>,
@@ -703,7 +706,8 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
         op_a_0: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
-        let values = once(shard.into())
+        let values = once(clk.into())
+            .chain(once(shard.into()))
             .chain(once(channel.into()))
             .chain(once(pc.into()))
             .chain(once(next_pc.into()))

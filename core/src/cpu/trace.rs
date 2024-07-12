@@ -14,9 +14,9 @@ use tracing::instrument;
 use super::columns::CpuOpcodeSpecificCols;
 use super::columns::NUM_CPU_OPCODE_SPECIFIC_COLS;
 use super::columns::{CPU_COL_MAP, NUM_CPU_COLS};
-use super::CpuOpcodeSpecEvent;
+use super::CpuChip;
+use super::CpuEvent;
 use super::CpuOpcodeSpecificChip;
-use super::{CpuChip, CpuEvent};
 use crate::air::MachineAir;
 use crate::air::Word;
 use crate::alu::create_alu_lookups;
@@ -81,28 +81,20 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
         // Generate the trace rows for each event.
         let chunk_size = std::cmp::max(input.cpu_events.len() / num_cpus::get(), 1);
 
-        let (alu_events, blu_events): (Vec<_>, Vec<_>) = input
+        let blu_events = input
             .cpu_events
             .par_chunks(chunk_size)
             .map(|ops: &[CpuEvent]| {
-                let mut alu = HashMap::new();
                 // The blu map stores shard -> map(byte lookup event -> multiplicity).
                 let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
                 ops.iter().for_each(|op| {
                     let mut row = [F::zero(); NUM_CPU_COLS];
                     let cols: &mut CpuCols<F> = row.as_mut_slice().borrow_mut();
-                    let alu_events = self.event_to_row::<F>(op, &HashMap::new(), cols, &mut blu);
-                    alu_events.into_iter().for_each(|(key, value)| {
-                        alu.entry(key).or_insert(Vec::default()).extend(value);
-                    });
+                    self.event_to_row::<F>(op, &HashMap::new(), cols, &mut blu);
                 });
-                (alu, blu)
+                blu
             })
-            .unzip();
-
-        for alu_events_chunk in alu_events.into_iter() {
-            output.add_alu_events(alu_events_chunk);
-        }
+            .collect::<Vec<_>>();
 
         output.add_sharded_byte_lookup_events(blu_events.iter().collect_vec());
     }
@@ -120,9 +112,7 @@ impl CpuChip {
         nonce_lookup: &HashMap<usize, u32>,
         cols: &mut CpuCols<F>,
         blu_events: &mut impl ByteRecord,
-    ) -> HashMap<Opcode, Vec<alu::AluEvent>> {
-        let mut new_alu_events = HashMap::new();
-
+    ) {
         // Populate shard and clk columns.
         self.populate_shard_clk(cols, event, blu_events);
 
@@ -182,17 +172,7 @@ impl CpuChip {
             c: a_bytes[3],
         });
 
-        // Populate memory accesses for reading from memory.
-        assert_eq!(event.memory_record.is_some(), event.memory.is_some());
-        let memory_columns = cols.opcode_specific_columns.memory_mut();
-        if let Some(record) = event.memory_record {
-            memory_columns
-                .memory_access
-                .populate(event.channel, record, blu_events)
-        }
-
         // Populate memory, branch, jump, and auipc specific fields.
-        self.populate_memory(cols, event, &mut new_alu_events, blu_events, nonce_lookup);
         let is_halt = self.populate_ecall(cols, event, nonce_lookup);
 
         cols.is_sequential_instr = F::from_bool(
@@ -203,8 +183,6 @@ impl CpuChip {
 
         // Assert that the instruction is not a no-op.
         cols.is_real = F::one();
-
-        new_alu_events
     }
 
     /// Populates the shard, channel, and clk related rows.
@@ -252,156 +230,6 @@ impl CpuChip {
             0,
             clk_8bit_limb,
         ));
-    }
-
-    /// Populates columns related to memory.
-    fn populate_memory<F: PrimeField>(
-        &self,
-        cols: &mut CpuCols<F>,
-        event: &CpuEvent,
-        new_alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
-        blu_events: &mut impl ByteRecord,
-        nonce_lookup: &HashMap<usize, u32>,
-    ) {
-        if !matches!(
-            event.instruction.opcode,
-            Opcode::LB
-                | Opcode::LH
-                | Opcode::LW
-                | Opcode::LBU
-                | Opcode::LHU
-                | Opcode::SB
-                | Opcode::SH
-                | Opcode::SW
-        ) {
-            return;
-        }
-
-        // Populate addr_word and addr_aligned columns.
-        let memory_columns = cols.opcode_specific_columns.memory_mut();
-        let memory_addr = event.b.wrapping_add(event.c);
-        let aligned_addr = memory_addr - memory_addr % WORD_SIZE as u32;
-        memory_columns.addr_word = memory_addr.into();
-        memory_columns.addr_word_range_checker.populate(memory_addr);
-        memory_columns.addr_aligned = F::from_canonical_u32(aligned_addr);
-
-        // Populate the aa_least_sig_byte_decomp columns.
-        assert!(aligned_addr % 4 == 0);
-        let aligned_addr_ls_byte = (aligned_addr & 0x000000FF) as u8;
-        let bits: [bool; 8] = array::from_fn(|i| aligned_addr_ls_byte & (1 << i) != 0);
-        memory_columns.aa_least_sig_byte_decomp = array::from_fn(|i| F::from_bool(bits[i + 2]));
-
-        // Add event to ALU check to check that addr == b + c
-        let add_event = AluEvent {
-            lookup_id: event.memory_add_lookup_id,
-            shard: event.shard,
-            channel: event.channel,
-            opcode: Opcode::ADD,
-            a: memory_addr,
-            b: event.b,
-            c: event.c,
-            sub_lookups: create_alu_lookups(),
-        };
-        new_alu_events
-            .entry(Opcode::ADD)
-            .and_modify(|op_new_events| op_new_events.push(add_event))
-            .or_insert(vec![add_event]);
-        memory_columns.addr_word_nonce = F::from_canonical_u32(
-            nonce_lookup
-                .get(&event.memory_add_lookup_id)
-                .copied()
-                .unwrap_or_default(),
-        );
-
-        // Populate memory offsets.
-        let addr_offset = (memory_addr % WORD_SIZE as u32) as u8;
-        memory_columns.addr_offset = F::from_canonical_u8(addr_offset);
-        memory_columns.offset_is_one = F::from_bool(addr_offset == 1);
-        memory_columns.offset_is_two = F::from_bool(addr_offset == 2);
-        memory_columns.offset_is_three = F::from_bool(addr_offset == 3);
-
-        // If it is a load instruction, set the unsigned_mem_val column.
-        let mem_value = event.memory_record.unwrap().value();
-        if matches!(
-            event.instruction.opcode,
-            Opcode::LB | Opcode::LBU | Opcode::LH | Opcode::LHU | Opcode::LW
-        ) {
-            match event.instruction.opcode {
-                Opcode::LB | Opcode::LBU => {
-                    cols.unsigned_mem_val =
-                        (mem_value.to_le_bytes()[addr_offset as usize] as u32).into();
-                }
-                Opcode::LH | Opcode::LHU => {
-                    let value = match (addr_offset >> 1) % 2 {
-                        0 => mem_value & 0x0000FFFF,
-                        1 => (mem_value & 0xFFFF0000) >> 16,
-                        _ => unreachable!(),
-                    };
-                    cols.unsigned_mem_val = value.into();
-                }
-                Opcode::LW => {
-                    cols.unsigned_mem_val = mem_value.into();
-                }
-                _ => unreachable!(),
-            }
-
-            // For the signed load instructions, we need to check if the loaded value is negative.
-            if matches!(event.instruction.opcode, Opcode::LB | Opcode::LH) {
-                let most_sig_mem_value_byte: u8;
-                let sign_value: u32;
-                if matches!(event.instruction.opcode, Opcode::LB) {
-                    sign_value = 256;
-                    most_sig_mem_value_byte = cols.unsigned_mem_val.to_u32().to_le_bytes()[0];
-                } else {
-                    // LHU case
-                    sign_value = 65536;
-                    most_sig_mem_value_byte = cols.unsigned_mem_val.to_u32().to_le_bytes()[1];
-                };
-
-                for i in (0..8).rev() {
-                    memory_columns.most_sig_byte_decomp[i] =
-                        F::from_canonical_u8(most_sig_mem_value_byte >> i & 0x01);
-                }
-                if memory_columns.most_sig_byte_decomp[7] == F::one() {
-                    cols.mem_value_is_neg = F::one();
-                    let sub_event = AluEvent {
-                        lookup_id: event.memory_sub_lookup_id,
-                        channel: event.channel,
-                        shard: event.shard,
-                        opcode: Opcode::SUB,
-                        a: event.a,
-                        b: cols.unsigned_mem_val.to_u32(),
-                        c: sign_value,
-                        sub_lookups: create_alu_lookups(),
-                    };
-                    cols.unsigned_mem_val_nonce = F::from_canonical_u32(
-                        nonce_lookup
-                            .get(&event.memory_sub_lookup_id)
-                            .copied()
-                            .unwrap_or_default(),
-                    );
-
-                    new_alu_events
-                        .entry(Opcode::SUB)
-                        .and_modify(|op_new_events| op_new_events.push(sub_event))
-                        .or_insert(vec![sub_event]);
-                }
-            }
-        }
-
-        // Add event to byte lookup for byte range checking each byte in the memory addr
-        let addr_bytes = memory_addr.to_le_bytes();
-        for byte_pair in addr_bytes.chunks_exact(2) {
-            blu_events.add_byte_lookup_event(ByteLookupEvent {
-                shard: event.shard,
-                channel: event.channel,
-                opcode: ByteOpcode::U8Range,
-                a1: 0,
-                a2: 0,
-                b: byte_pair[0] as u32,
-                c: byte_pair[1] as u32,
-            });
-        }
     }
 
     /// Populate columns related to ECALL.
@@ -531,7 +359,13 @@ impl<F: PrimeField32> MachineAir<F> for CpuOpcodeSpecificChip {
         input: &ExecutionRecord,
         _: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        let num_real_rows = input.cpu_opcode_spec_events.len();
+        let filtered_cpu_events = input
+            .cpu_events
+            .iter()
+            .filter(|event| Self::add_to_cpu_aux_chip(event))
+            .collect_vec();
+
+        let num_real_rows = filtered_cpu_events.len();
         let mut rows = vec![F::zero(); num_real_rows * NUM_CPU_OPCODE_SPECIFIC_COLS];
 
         let chunk_size = std::cmp::max(num_real_rows / num_cpus::get(), 1);
@@ -545,8 +379,9 @@ impl<F: PrimeField32> MachineAir<F> for CpuOpcodeSpecificChip {
                         let idx = i * chunk_size + j;
                         let cols: &mut CpuOpcodeSpecificCols<F> = row.borrow_mut();
                         self.event_to_row(
-                            &input.cpu_opcode_spec_events[idx],
+                            filtered_cpu_events[idx],
                             &input.nonce_lookup,
+                            &mut Vec::new(),
                             cols,
                         );
                     });
@@ -570,44 +405,70 @@ impl<F: PrimeField32> MachineAir<F> for CpuOpcodeSpecificChip {
     )]
     fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
         // Generate the trace rows for each event.
-        let chunk_size = std::cmp::max(input.cpu_opcode_spec_events.len() / num_cpus::get(), 1);
+        let filtered_cpu_events = input
+            .cpu_events
+            .iter()
+            .filter(|event| Self::add_to_cpu_aux_chip(event))
+            .collect_vec();
 
-        let alu_events = input
-            .cpu_opcode_spec_events
+        let chunk_size = std::cmp::max(filtered_cpu_events.len() / num_cpus::get(), 1);
+
+        let (alu_events, blu_events): (Vec<_>, Vec<_>) = filtered_cpu_events
             .par_chunks(chunk_size)
-            .map(|ops: &[CpuOpcodeSpecEvent]| {
+            .map(|ops: &[&CpuEvent]| {
                 let mut alu = HashMap::new();
+                let mut blu = HashMap::new();
                 ops.iter().for_each(|op| {
                     let mut row = [F::zero(); NUM_CPU_OPCODE_SPECIFIC_COLS];
                     let cols: &mut CpuOpcodeSpecificCols<F> = row.as_mut_slice().borrow_mut();
-                    let alu_events = self.event_to_row::<F>(op, &HashMap::new(), cols);
+                    let alu_events = self.event_to_row::<F>(op, &HashMap::new(), &mut blu, cols);
                     alu_events.into_iter().for_each(|(key, value)| {
                         alu.entry(key).or_insert(Vec::default()).extend(value);
                     });
                 });
-                alu
+                (alu, blu)
             })
-            .collect::<Vec<_>>();
+            .unzip();
 
         for alu_events_chunk in alu_events.into_iter() {
             output.add_alu_events(alu_events_chunk);
         }
+
+        output.add_sharded_byte_lookup_events(blu_events.iter().collect_vec());
     }
 
     fn included(&self, input: &Self::Record) -> bool {
-        !input.cpu_opcode_spec_events.is_empty()
+        let first_event = input
+            .cpu_events
+            .iter()
+            .find(|event| Self::add_to_cpu_aux_chip(event));
+
+        first_event.is_some()
     }
 }
 
 impl CpuOpcodeSpecificChip {
+    fn add_to_cpu_aux_chip(event: &CpuEvent) -> bool {
+        let instruction = event.instruction;
+        instruction.is_branch_instruction()
+            || instruction.is_jump_instruction()
+            || instruction.is_memory_instruction()
+            || instruction.opcode == Opcode::AUIPC
+    }
+
     /// Create a row from an event.
     fn event_to_row<F: PrimeField32>(
         &self,
-        event: &CpuOpcodeSpecEvent,
+        event: &CpuEvent,
         nonce_lookup: &HashMap<usize, u32>,
+        blu_events: &mut impl ByteRecord,
         cols: &mut CpuOpcodeSpecificCols<F>,
     ) -> HashMap<Opcode, Vec<alu::AluEvent>> {
         let mut new_alu_events = HashMap::new();
+
+        cols.clk = F::from_canonical_u32(event.clk);
+        cols.shard = F::from_canonical_u32(event.shard);
+        cols.channel = F::from_canonical_u32(event.channel);
 
         // Populate basic fields.
         cols.pc = F::from_canonical_u32(event.pc);
@@ -634,12 +495,10 @@ impl CpuOpcodeSpecificChip {
 
         cols.op_a_0 = F::from_bool(event.instruction.op_a == X0 as u32);
 
-        cols.shard = F::from_canonical_u32(event.shard);
-        cols.channel = F::from_canonical_u32(event.channel);
-
         self.populate_branch(cols, event, &mut new_alu_events, nonce_lookup);
         self.populate_jump(cols, event, &mut new_alu_events, nonce_lookup);
         self.populate_auipc(cols, event, &mut new_alu_events, nonce_lookup);
+        self.populate_memory(cols, event, &mut new_alu_events, blu_events, nonce_lookup);
 
         // Assert that the instruction is not a no-op.
         cols.is_real = F::one();
@@ -651,7 +510,7 @@ impl CpuOpcodeSpecificChip {
     fn populate_auipc<F: PrimeField>(
         &self,
         cols: &mut CpuOpcodeSpecificCols<F>,
-        event: &CpuOpcodeSpecEvent,
+        event: &CpuEvent,
         alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
         nonce_lookup: &HashMap<usize, u32>,
     ) {
@@ -689,7 +548,7 @@ impl CpuOpcodeSpecificChip {
     fn populate_branch<F: PrimeField>(
         &self,
         cols: &mut CpuOpcodeSpecificCols<F>,
-        event: &CpuOpcodeSpecEvent,
+        event: &CpuEvent,
         alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
         nonce_lookup: &HashMap<usize, u32>,
     ) {
@@ -815,7 +674,7 @@ impl CpuOpcodeSpecificChip {
     fn populate_jump<F: PrimeField>(
         &self,
         cols: &mut CpuOpcodeSpecificCols<F>,
-        event: &CpuOpcodeSpecEvent,
+        event: &CpuEvent,
         alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
         nonce_lookup: &HashMap<usize, u32>,
     ) {
@@ -883,6 +742,165 @@ impl CpuOpcodeSpecificChip {
                 }
                 _ => unreachable!(),
             }
+        }
+    }
+
+    /// Populates columns related to memory.
+    fn populate_memory<F: PrimeField32>(
+        &self,
+        cols: &mut CpuOpcodeSpecificCols<F>,
+        event: &CpuEvent,
+        new_alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
+        blu_events: &mut impl ByteRecord,
+        nonce_lookup: &HashMap<usize, u32>,
+    ) {
+        if !matches!(
+            event.instruction.opcode,
+            Opcode::LB
+                | Opcode::LH
+                | Opcode::LW
+                | Opcode::LBU
+                | Opcode::LHU
+                | Opcode::SB
+                | Opcode::SH
+                | Opcode::SW
+        ) {
+            return;
+        }
+
+        // Populate memory accesses for reading from memory.
+        assert_eq!(event.memory_record.is_some(), event.memory.is_some());
+        let memory_columns = cols.opcode_specific_columns.memory_mut();
+        if let Some(record) = event.memory_record {
+            memory_columns
+                .memory_access
+                .populate(event.channel, record, blu_events)
+        }
+
+        // Populate addr_word and addr_aligned columns.
+        let memory_columns = cols.opcode_specific_columns.memory_mut();
+        let memory_addr = event.b.wrapping_add(event.c);
+        let aligned_addr = memory_addr - memory_addr % WORD_SIZE as u32;
+        memory_columns.addr_word = memory_addr.into();
+        memory_columns.addr_word_range_checker.populate(memory_addr);
+        memory_columns.addr_aligned = F::from_canonical_u32(aligned_addr);
+
+        // Populate the aa_least_sig_byte_decomp columns.
+        assert!(aligned_addr % 4 == 0);
+        let aligned_addr_ls_byte = (aligned_addr & 0x000000FF) as u8;
+        let bits: [bool; 8] = array::from_fn(|i| aligned_addr_ls_byte & (1 << i) != 0);
+        memory_columns.aa_least_sig_byte_decomp = array::from_fn(|i| F::from_bool(bits[i + 2]));
+
+        // Add event to ALU check to check that addr == b + c
+        let add_event = AluEvent {
+            lookup_id: event.memory_add_lookup_id,
+            shard: event.shard,
+            channel: event.channel,
+            opcode: Opcode::ADD,
+            a: memory_addr,
+            b: event.b,
+            c: event.c,
+            sub_lookups: create_alu_lookups(),
+        };
+        new_alu_events
+            .entry(Opcode::ADD)
+            .and_modify(|op_new_events| op_new_events.push(add_event))
+            .or_insert(vec![add_event]);
+        memory_columns.addr_word_nonce = F::from_canonical_u32(
+            nonce_lookup
+                .get(&event.memory_add_lookup_id)
+                .copied()
+                .unwrap_or_default(),
+        );
+
+        // Populate memory offsets.
+        let addr_offset = (memory_addr % WORD_SIZE as u32) as u8;
+        memory_columns.addr_offset = F::from_canonical_u8(addr_offset);
+        memory_columns.offset_is_one = F::from_bool(addr_offset == 1);
+        memory_columns.offset_is_two = F::from_bool(addr_offset == 2);
+        memory_columns.offset_is_three = F::from_bool(addr_offset == 3);
+
+        // If it is a load instruction, set the unsigned_mem_val column.
+        let mem_value = event.memory_record.unwrap().value();
+        if matches!(
+            event.instruction.opcode,
+            Opcode::LB | Opcode::LBU | Opcode::LH | Opcode::LHU | Opcode::LW
+        ) {
+            match event.instruction.opcode {
+                Opcode::LB | Opcode::LBU => {
+                    cols.unsigned_mem_val =
+                        (mem_value.to_le_bytes()[addr_offset as usize] as u32).into();
+                }
+                Opcode::LH | Opcode::LHU => {
+                    let value = match (addr_offset >> 1) % 2 {
+                        0 => mem_value & 0x0000FFFF,
+                        1 => (mem_value & 0xFFFF0000) >> 16,
+                        _ => unreachable!(),
+                    };
+                    cols.unsigned_mem_val = value.into();
+                }
+                Opcode::LW => {
+                    cols.unsigned_mem_val = mem_value.into();
+                }
+                _ => unreachable!(),
+            }
+
+            // For the signed load instructions, we need to check if the loaded value is negative.
+            if matches!(event.instruction.opcode, Opcode::LB | Opcode::LH) {
+                let most_sig_mem_value_byte: u8;
+                let sign_value: u32;
+                if matches!(event.instruction.opcode, Opcode::LB) {
+                    sign_value = 256;
+                    most_sig_mem_value_byte = cols.unsigned_mem_val.to_u32().to_le_bytes()[0];
+                } else {
+                    // LHU case
+                    sign_value = 65536;
+                    most_sig_mem_value_byte = cols.unsigned_mem_val.to_u32().to_le_bytes()[1];
+                };
+
+                for i in (0..8).rev() {
+                    memory_columns.most_sig_byte_decomp[i] =
+                        F::from_canonical_u8(most_sig_mem_value_byte >> i & 0x01);
+                }
+                if memory_columns.most_sig_byte_decomp[7] == F::one() {
+                    cols.mem_value_is_neg = F::one();
+                    let sub_event = AluEvent {
+                        lookup_id: event.memory_sub_lookup_id,
+                        channel: event.channel,
+                        shard: event.shard,
+                        opcode: Opcode::SUB,
+                        a: event.a,
+                        b: cols.unsigned_mem_val.to_u32(),
+                        c: sign_value,
+                        sub_lookups: create_alu_lookups(),
+                    };
+                    cols.unsigned_mem_val_nonce = F::from_canonical_u32(
+                        nonce_lookup
+                            .get(&event.memory_sub_lookup_id)
+                            .copied()
+                            .unwrap_or_default(),
+                    );
+
+                    new_alu_events
+                        .entry(Opcode::SUB)
+                        .and_modify(|op_new_events| op_new_events.push(sub_event))
+                        .or_insert(vec![sub_event]);
+                }
+            }
+        }
+
+        // Add event to byte lookup for byte range checking each byte in the memory addr
+        let addr_bytes = memory_addr.to_le_bytes();
+        for byte_pair in addr_bytes.chunks_exact(2) {
+            blu_events.add_byte_lookup_event(ByteLookupEvent {
+                shard: event.shard,
+                channel: event.channel,
+                opcode: ByteOpcode::U8Range,
+                a1: 0,
+                a2: 0,
+                b: byte_pair[0] as u32,
+                c: byte_pair[1] as u32,
+            });
         }
     }
 }

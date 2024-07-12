@@ -3,21 +3,13 @@ use p3_field::AbstractField;
 
 use crate::air::{BaseAirBuilder, PublicValues, WordAirBuilder};
 use crate::cpu::air::{Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS};
-use crate::cpu::columns::{CpuCols, OpcodeSelectorCols};
+use crate::cpu::columns::CpuCols;
 use crate::memory::MemoryCols;
 use crate::operations::{BabyBearWordRangeChecker, IsZeroOperation};
 use crate::runtime::SyscallCode;
 use crate::stark::{CpuChip, SP1AirBuilder};
 
 impl CpuChip {
-    /// Whether the instruction is an ECALL instruction.
-    pub(crate) fn is_ecall_instruction<AB: SP1AirBuilder>(
-        &self,
-        opcode_selectors: &OpcodeSelectorCols<AB::Var>,
-    ) -> AB::Expr {
-        opcode_selectors.is_ecall.into()
-    }
-
     /// Constraints related to the ECALL opcode.
     ///
     /// This method will do the following:
@@ -25,7 +17,7 @@ impl CpuChip {
     /// 2. Check for valid op_a values.
     pub(crate) fn eval_ecall<AB: SP1AirBuilder>(&self, builder: &mut AB, local: &CpuCols<AB::Var>) {
         let ecall_cols = local.opcode_specific_columns.ecall();
-        let is_ecall_instruction = self.is_ecall_instruction::<AB>(&local.selectors);
+        let is_ecall_instruction = local.selectors.is_ecall_instruction::<AB>();
 
         // The syscall code is the read-in value of op_a at the start of the instruction.
         let syscall_code = local.op_a_access.prev_value();
@@ -228,7 +220,7 @@ impl CpuChip {
         local: &CpuCols<AB::Var>,
     ) -> AB::Expr {
         let ecall_cols = local.opcode_specific_columns.ecall();
-        let is_ecall_instruction = self.is_ecall_instruction::<AB>(&local.selectors);
+        let is_ecall_instruction = local.selectors.is_ecall_instruction::<AB>();
 
         // The syscall code is the read-in value of op_a at the start of the instruction.
         let syscall_code = local.op_a_access.prev_value();
@@ -257,7 +249,7 @@ impl CpuChip {
     ) -> (AB::Expr, AB::Expr) {
         let ecall_cols = local.opcode_specific_columns.ecall();
 
-        let is_ecall_instruction = self.is_ecall_instruction::<AB>(&local.selectors);
+        let is_ecall_instruction = local.selectors.is_ecall_instruction::<AB>();
 
         // The syscall code is the read-in value of op_a at the start of the instruction.
         let syscall_code = local.op_a_access.prev_value();
@@ -297,7 +289,7 @@ impl CpuChip {
         &self,
         local: &CpuCols<AB::Var>,
     ) -> AB::Expr {
-        let is_ecall_instruction = self.is_ecall_instruction::<AB>(&local.selectors);
+        let is_ecall_instruction = local.selectors.is_ecall_instruction::<AB>();
 
         // The syscall code is the read-in value of op_a at the start of the instruction.
         let syscall_code = local.op_a_access.prev_value();

@@ -1,8 +1,10 @@
 use p3_field::PrimeField;
 use sp1_derive::AlignedBorrow;
 use std::mem::{size_of, transmute};
+use std::ops::Add;
 use std::vec::IntoIter;
 
+use crate::stark::SP1AirBuilder;
 use crate::{
     runtime::{Instruction, Opcode},
     utils::indices_arr,
@@ -60,6 +62,67 @@ pub struct OpcodeSelectorCols<T> {
     /// Miscellaneous.
     pub is_auipc: T,
     pub is_unimpl: T,
+}
+
+impl<T: Copy> OpcodeSelectorCols<T> {
+    /// Whether the instruction is an ALU instruction.
+    pub(crate) fn is_alu_instruction<AB: SP1AirBuilder>(&self) -> AB::Expr
+    where
+        T: Into<AB::Expr>,
+    {
+        self.is_alu.into()
+    }
+
+    /// Computes whether the opcode is a branch instruction.
+    pub(crate) fn is_branch_instruction<AB: SP1AirBuilder>(&self) -> AB::Expr
+    where
+        T: Into<AB::Expr> + Add<T, Output = AB::Expr>,
+        AB::Expr: Add<T, Output = AB::Expr>,
+    {
+        self.is_beq + self.is_bne + self.is_blt + self.is_bge + self.is_bltu + self.is_bgeu
+    }
+
+    /// Computes whether the opcode is a memory instruction.
+    pub(crate) fn is_memory_instruction<AB: SP1AirBuilder>(&self) -> AB::Expr
+    where
+        T: Into<AB::Expr> + Add<T, Output = AB::Expr>,
+        AB::Expr: Add<T, Output = AB::Expr>,
+    {
+        self.is_lb
+            + self.is_lbu
+            + self.is_lh
+            + self.is_lhu
+            + self.is_lw
+            + self.is_sb
+            + self.is_sh
+            + self.is_sw
+    }
+
+    /// Computes whether the opcode is a load instruction.
+    pub(crate) fn is_load_instruction<AB: SP1AirBuilder>(&self) -> AB::Expr
+    where
+        T: Into<AB::Expr> + Add<T, Output = AB::Expr>,
+        AB::Expr: Add<T, Output = AB::Expr>,
+    {
+        self.is_lb + self.is_lbu + self.is_lh + self.is_lhu + self.is_lw
+    }
+
+    /// Computes whether the opcode is a store instruction.
+    pub(crate) fn is_store_instruction<AB: SP1AirBuilder>(&self) -> AB::Expr
+    where
+        T: Into<AB::Expr> + Add<T, Output = AB::Expr>,
+        AB::Expr: Add<T, Output = AB::Expr>,
+    {
+        self.is_sb + self.is_sh + self.is_sw
+    }
+
+    /// Whether the instruction is an ECALL instruction.
+    pub(crate) fn is_ecall_instruction<AB: SP1AirBuilder>(&self) -> AB::Expr
+    where
+        T: Into<AB::Expr>,
+    {
+        self.is_ecall.into()
+    }
 }
 
 impl<F: PrimeField> OpcodeSelectorCols<F> {
