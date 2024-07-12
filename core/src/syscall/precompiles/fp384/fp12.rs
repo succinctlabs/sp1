@@ -57,111 +57,236 @@ const NUM_FP_MULS: usize = 144;
 
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
-pub struct SumOfProductsAuxillaryCols<T> {
-    pub b10_p_b11: FieldOpCols<T, U384Field>, // b.c1.c0 + b.c1.c1;
-    pub b10_m_b11: FieldOpCols<T, U384Field>, // b.c1.c0 - b.c1.c1;
-    pub b20_p_b21: FieldOpCols<T, U384Field>, // b.c2.c0 + b.c2.c1;
-    pub b20_m_b21: FieldOpCols<T, U384Field>, // b.c2.c0 - b.c2.c1;
+pub struct SumOfProductsAuxillaryCols<F> {
+    pub b10_p_b11: FieldOpCols<F, U384Field>, // b.c1.c0 + b.c1.c1;
+    pub b10_m_b11: FieldOpCols<F, U384Field>, // b.c1.c0 - b.c1.c1;
+    pub b20_p_b21: FieldOpCols<F, U384Field>, // b.c2.c0 + b.c2.c1;
+    pub b20_m_b21: FieldOpCols<F, U384Field>, // b.c2.c0 - b.c2.c1;
+}
+
+impl<F: PrimeField32> SumOfProductsAuxillaryCols<F> {
+    fn pad_rows(&mut self) {
+        [
+            &mut self.b10_p_b11,
+            &mut self.b10_m_b11,
+            &mut self.b20_p_b21,
+            &mut self.b20_m_b21,
+        ]
+        .iter_mut()
+        .for_each(|dest| {
+            dest.populate(
+                &mut vec![],
+                0,
+                0,
+                &BigUint::zero(),
+                &BigUint::zero(),
+                FieldOperation::Mul,
+            );
+        });
+    }
 }
 
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
-pub struct SumOfProductsCols<T> {
-    pub a1_t_b1: FieldOpCols<T, U384Field>,
-    pub a2_t_b2: FieldOpCols<T, U384Field>,
-    pub a3_t_b3: FieldOpCols<T, U384Field>,
-    pub a4_t_b4: FieldOpCols<T, U384Field>,
-    pub a5_t_b5: FieldOpCols<T, U384Field>,
-    pub a6_t_b6: FieldOpCols<T, U384Field>,
+pub struct SumOfProductsCols<F> {
+    pub a1_t_b1: FieldOpCols<F, U384Field>,
+    pub a2_t_b2: FieldOpCols<F, U384Field>,
+    pub a3_t_b3: FieldOpCols<F, U384Field>,
+    pub a4_t_b4: FieldOpCols<F, U384Field>,
+    pub a5_t_b5: FieldOpCols<F, U384Field>,
+    pub a6_t_b6: FieldOpCols<F, U384Field>,
 
-    pub sum1: FieldOpCols<T, U384Field>,
-    pub sum2: FieldOpCols<T, U384Field>,
-    pub sum3: FieldOpCols<T, U384Field>,
-    pub sum4: FieldOpCols<T, U384Field>,
-    pub sum5: FieldOpCols<T, U384Field>,
+    pub sum1: FieldOpCols<F, U384Field>,
+    pub sum2: FieldOpCols<F, U384Field>,
+    pub sum3: FieldOpCols<F, U384Field>,
+    pub sum4: FieldOpCols<F, U384Field>,
+    pub sum5: FieldOpCols<F, U384Field>,
+}
+
+impl<F: PrimeField32> SumOfProductsCols<F> {
+    fn pad_rows(&mut self) {
+        [
+            &mut self.a1_t_b1,
+            &mut self.a2_t_b2,
+            &mut self.a3_t_b3,
+            &mut self.a4_t_b4,
+            &mut self.a5_t_b5,
+            &mut self.a6_t_b6,
+            &mut self.sum1,
+            &mut self.sum2,
+            &mut self.sum3,
+            &mut self.sum4,
+            &mut self.sum5,
+        ]
+        .iter_mut()
+        .for_each(|dest| {
+            dest.populate(
+                &mut vec![],
+                0,
+                0,
+                &BigUint::zero(),
+                &BigUint::zero(),
+                FieldOperation::Mul,
+            );
+        });
+    }
 }
 
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
-pub struct Fp6MulCols<T> {
-    pub aux: SumOfProductsAuxillaryCols<T>,
+pub struct Fp6MulCols<F> {
+    pub aux: SumOfProductsAuxillaryCols<F>,
     // [a.c0.c0, -a.c0.c1, a.c1.c0, -a.c1.c1, a.c2.c0, -a.c2.c1]
     // [b.c0.c0, b.c0.c1, b20_m_b21, b20_p_b21, b10_m_b11, b10_p_b11]
-    pub c00: SumOfProductsCols<T>,
+    pub c00: SumOfProductsCols<F>,
 
     // [a.c0.c0, a.c0.c1, a.c1.c0, a.c1.c1, a.c2.c0, a.c2.c1],
     // [b.c0.c1, b.c0.c0, b20_p_b21, b20_m_b21, b10_p_b11, b10_m_b11],
-    pub c01: SumOfProductsCols<T>,
+    pub c01: SumOfProductsCols<F>,
 
     // [a.c0.c0, -a.c0.c1, a.c1.c0, -a.c1.c1, a.c2.c0, -a.c2.c1],
     // [b.c1.c0, b.c1.c1, b.c0.c0, b.c0.c1, b20_m_b21, b20_p_b21],
-    pub c10: SumOfProductsCols<T>,
+    pub c10: SumOfProductsCols<F>,
 
     // [a.c0.c0, a.c0.c1, a.c1.c0, a.c1.c1, a.c2.c0, a.c2.c1],
     // [b.c1.c1, b.c1.c0, b.c0.c1, b.c0.c0, b20_p_b21, b20_m_b21],
-    pub c11: SumOfProductsCols<T>,
+    pub c11: SumOfProductsCols<F>,
 
     // [a.c0.c0, -a.c0.c1, a.c1.c0, -a.c1.c1, a.c2.c0, -a.c2.c1],
     // [b.c2.c0, b.c2.c1, b.c1.c0, b.c1.c1, b.c0.c0, b.c0.c1],
-    pub c20: SumOfProductsCols<T>,
+    pub c20: SumOfProductsCols<F>,
 
     // [a.c0.c0, a.c0.c1, a.c1.c0, a.c1.c1, a.c2.c0, a.c2.c1],
     // [b.c2.c1, b.c2.c0, b.c1.c1, b.c1.c0, b.c0.c1, b.c0.c0],
-    pub c21: SumOfProductsCols<T>,
+    pub c21: SumOfProductsCols<F>,
+}
+
+impl<F: PrimeField32> Fp6MulCols<F> {
+    fn pad_rows(&mut self) {
+        self.aux.pad_rows();
+        self.c00.pad_rows();
+        self.c01.pad_rows();
+        self.c10.pad_rows();
+        self.c11.pad_rows();
+        self.c20.pad_rows();
+        self.c21.pad_rows();
+    }
 }
 
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
-pub struct Fp6AddCols<T> {
-    pub a00_p_b00: FieldOpCols<T, U384Field>, // a.c0.c0 + b.c0.c0
-    pub a01_p_b01: FieldOpCols<T, U384Field>, // a.c0.c1 + b.c0.c1
-    pub a10_p_b10: FieldOpCols<T, U384Field>, // a.c1.c0 + b.c1.c0
-    pub a11_p_b11: FieldOpCols<T, U384Field>, // a.c1.c1 + b.c1.c1
-    pub a20_p_b20: FieldOpCols<T, U384Field>, // a.c2.c0 + b.c2.c0
-    pub a21_p_b21: FieldOpCols<T, U384Field>, // a.c2.c1 + b.c2.c1
+pub struct Fp6AddCols<F> {
+    pub a00_p_b00: FieldOpCols<F, U384Field>, // a.c0.c0 + b.c0.c0
+    pub a01_p_b01: FieldOpCols<F, U384Field>, // a.c0.c1 + b.c0.c1
+    pub a10_p_b10: FieldOpCols<F, U384Field>, // a.c1.c0 + b.c1.c0
+    pub a11_p_b11: FieldOpCols<F, U384Field>, // a.c1.c1 + b.c1.c1
+    pub a20_p_b20: FieldOpCols<F, U384Field>, // a.c2.c0 + b.c2.c0
+    pub a21_p_b21: FieldOpCols<F, U384Field>, // a.c2.c1 + b.c2.c1
+}
+
+impl<F: PrimeField32> Fp6AddCols<F> {
+    fn pad_rows(&mut self) {
+        [
+            &mut self.a00_p_b00,
+            &mut self.a01_p_b01,
+            &mut self.a10_p_b10,
+            &mut self.a11_p_b11,
+            &mut self.a20_p_b20,
+            &mut self.a21_p_b21,
+        ]
+        .iter_mut()
+        .for_each(|dest| {
+            dest.populate(
+                &mut vec![],
+                0,
+                0,
+                &BigUint::zero(),
+                &BigUint::zero(),
+                FieldOperation::Mul,
+            );
+        });
+    }
 }
 
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
-pub struct Fp6MulByNonResidueCols<T> {
-    pub c00: FieldOpCols<T, U384Field>, // a.c2.c0 - a.c2.c1
-    pub c01: FieldOpCols<T, U384Field>, // a.c2.c0 + a.c2.c1
+pub struct Fp6MulByNonResidueCols<F> {
+    pub c00: FieldOpCols<F, U384Field>, // a.c2.c0 - a.c2.c1
+    pub c01: FieldOpCols<F, U384Field>, // a.c2.c0 + a.c2.c1
 
-    pub c10: FieldOpCols<T, U384Field>, // a.c0.c0
-    pub c11: FieldOpCols<T, U384Field>, // a.c0.c1
+    pub c10: FieldOpCols<F, U384Field>, // a.c0.c0
+    pub c11: FieldOpCols<F, U384Field>, // a.c0.c1
 
-    pub c20: FieldOpCols<T, U384Field>, // a.c1.c0
-    pub c21: FieldOpCols<T, U384Field>, // a.c1.c1
+    pub c20: FieldOpCols<F, U384Field>, // a.c1.c0
+    pub c21: FieldOpCols<F, U384Field>, // a.c1.c1
+}
+
+impl<F: PrimeField32> Fp6MulByNonResidueCols<F> {
+    fn pad_rows(&mut self) {
+        [
+            &mut self.c00,
+            &mut self.c01,
+            &mut self.c10,
+            &mut self.c11,
+            &mut self.c20,
+            &mut self.c21,
+        ]
+        .iter_mut()
+        .for_each(|dest| {
+            dest.populate(
+                &mut vec![],
+                0,
+                0,
+                &BigUint::zero(),
+                &BigUint::zero(),
+                FieldOperation::Mul,
+            );
+        });
+    }
 }
 
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
-pub struct AuxFp12MulCols<T> {
-    pub aa: Fp6MulCols<T>,             // self.c0 * other.c0;
-    pub bb: Fp6MulCols<T>,             // self.c1 * other.c1;
-    pub o: Fp6AddCols<T>,              // other.c0 + other.c1;
-    pub y1: Fp6AddCols<T>,             // a.c1 + a.c0
-    pub y2: Fp6MulCols<T>,             // (a.c1 + a.c0) * a.o
-    pub y3: Fp6AddCols<T>,             // (a.c1 + a.c0) * o  - aa
-    pub y: Fp6AddCols<T>,              // (a.c1 + a.c0) * o  - aa - bb
-    pub x1: Fp6MulByNonResidueCols<T>, // bb * non_residue
-    pub x: Fp6AddCols<T>,              // bb * non_residue + aa
+pub struct AuxFp12MulCols<F> {
+    pub aa: Fp6MulCols<F>,             // self.c0 * other.c0;
+    pub bb: Fp6MulCols<F>,             // self.c1 * other.c1;
+    pub o: Fp6AddCols<F>,              // other.c0 + other.c1;
+    pub y1: Fp6AddCols<F>,             // a.c1 + a.c0
+    pub y2: Fp6MulCols<F>,             // (a.c1 + a.c0) * a.o
+    pub y3: Fp6AddCols<F>,             // (a.c1 + a.c0) * o  - aa
+    pub y: Fp6AddCols<F>,              // (a.c1 + a.c0) * o  - aa - bb
+    pub x1: Fp6MulByNonResidueCols<F>, // bb * non_residue
+    pub x: Fp6AddCols<F>,              // bb * non_residue + aa
+}
+
+impl<F: PrimeField32> AuxFp12MulCols<F> {
+    fn pad_rows(&mut self) {
+        self.aa.pad_rows();
+        self.bb.pad_rows();
+        self.o.pad_rows();
+        self.y1.pad_rows();
+        self.y2.pad_rows();
+        self.y3.pad_rows();
+        self.y.pad_rows();
+        self.x1.pad_rows();
+        self.x.pad_rows();
+    }
 }
 
 /// A set of columns for the FpMul operation.
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
-pub struct Fp12MulCols<T> {
-    pub is_real: T,
-    pub shard: T,
-    pub channel: T,
-    pub clk: T,
-    pub nonce: T,
-    pub x_ptr: T,
-    pub y_ptr: T,
-    pub x_memory: GenericArray<MemoryWriteCols<T>, WordsFieldElement>,
-    pub y_memory: GenericArray<MemoryReadCols<T>, WordsFieldElement>,
-    pub output: AuxFp12MulCols<T>,
+pub struct Fp12MulCols<F> {
+    pub is_real: F,
+    pub shard: F,
+    pub channel: F,
+    pub clk: F,
+    pub nonce: F,
+    pub x_ptr: F,
+    pub y_ptr: F,
+    pub x_memory: GenericArray<MemoryWriteCols<F>, WordsFieldElement>,
+    pub y_memory: GenericArray<MemoryReadCols<F>, WordsFieldElement>,
+    pub output: AuxFp12MulCols<F>,
 }
 
 #[derive(Default)]
@@ -234,63 +359,51 @@ impl<F: PrimeField32, P: FieldParameters> MachineAir<F> for Fp12MulChip<P> {
                             );
                         }
 
-                        // // Populate the output columns.
-                        // let a000 = &x[0];
-                        // let a001 = &x[1];
-                        // let a010 = &x[2];
-                        // let a011 = &x[3];
-                        // let a020 = &x[4];
-                        // let a021 = &x[5];
-                        // let a100 = &x[6];
-                        // let a101 = &x[7];
-                        // let a110 = &x[8];
-                        // let a111 = &x[9];
-                        // let a120 = &x[10];
-                        // let a121 = &x[11];
-
-                        // let b000 = &y[0];
-                        // let b001 = &y[1];
-                        // let b010 = &y[2];
-                        // let b011 = &y[3];
-                        // let b020 = &y[4];
-                        // let b021 = &y[5];
-                        // let b100 = &y[6];
-                        // let b101 = &y[7];
-                        // let b110 = &y[8];
-                        // let b111 = &y[9];
-                        // let b120 = &y[10];
-                        // let b121 = &y[11];
-
-                        let mut constraints: Fp12MulChipConstraints<F> =
-                            Fp12MulChipConstraints::new(
-                                event.shard,
-                                event.channel,
-                                new_byte_lookup_events.clone(),
-                                modulus,
-                            );
-
+                        let constraints: Fp12MulChipConstraints<F> = Fp12MulChipConstraints::new(
+                            event.shard,
+                            event.channel,
+                            new_byte_lookup_events.clone(),
+                            modulus,
+                        );
+                        new_byte_lookup_events = constraints.new_byte_lookup_events;
                         row
                     })
                     .collect_vec();
+                records.add_byte_lookup_events(new_byte_lookup_events);
+                (rows, records)
             })
             .collect::<Vec<_>>();
-        todo!()
+
+        //  Generate the trace rows for each event.
+        let mut rows = Vec::new();
+        for (row, mut record) in rows_and_records {
+            rows.extend(row);
+            output.append(&mut record);
+        }
+
+        pad_rows(&mut rows, || {
+            let mut row: [F; NUM_COLS] = [F::zero(); NUM_COLS];
+            let cols: &mut Fp12MulCols<F> = row.as_mut_slice().borrow_mut();
+            cols.output.pad_rows();
+            row
+        });
+
+        // Convert the trace to a row major matrix.
+        let mut trace =
+            RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_COLS);
+
+        // Write the nonces to the trace.
+        for i in 0..trace.height() {
+            let cols: &mut Fp12MulCols<F> =
+                trace.values[i * NUM_COLS..(i + 1) * NUM_COLS].borrow_mut();
+            cols.nonce = F::from_canonical_usize(i);
+        }
+
+        trace
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        todo!()
-    }
-
-    fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
-        self.generate_trace(input, output);
-    }
-
-    fn preprocessed_width(&self) -> usize {
-        0
-    }
-
-    fn generate_preprocessed_trace(&self, _program: &Self::Program) -> Option<RowMajorMatrix<F>> {
-        None
+        !shard.fp_mul_events.is_empty()
     }
 }
 
