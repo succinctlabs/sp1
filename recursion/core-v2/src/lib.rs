@@ -135,6 +135,7 @@ pub struct FriFoldIo<V> {
     pub ext_vec: FriFoldExtVecIo<Vec<Block<V>>>,
     pub base_single: FriFoldBaseIo<V>,
 }
+
 /// The extension-field-valued single inputs to the FRI fold operation.
 #[derive(AlignedBorrow, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FriFoldExtSingleIo<V> {
@@ -152,6 +153,7 @@ pub struct FriFoldExtVecIo<V> {
     pub alpha_pow_output: V,
     pub ro_output: V,
 }
+
 /// The base-field-valued inputs to the FRI fold operation.
 #[derive(AlignedBorrow, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FriFoldBaseIo<V> {
