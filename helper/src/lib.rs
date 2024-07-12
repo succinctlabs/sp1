@@ -17,13 +17,13 @@ fn cargo_rerun_if_changed(metadata: &Metadata, program_dir: &Path) {
         println!("cargo::rerun-if-changed={}", dir.display());
     }
 
-    // Re-run the build script if Cargo.lock changes
+    // Re-run the build script if Cargo.lock changes.
     println!(
         "cargo:rerun-if-changed={}",
         metadata.workspace_root.join("Cargo.lock").as_str()
     );
 
-    // Re-run if any local dependency changes
+    // Re-run if any local dependency changes.
     for package in &metadata.packages {
         for dependency in &package.dependencies {
             if let Some(path) = &dependency.path {
