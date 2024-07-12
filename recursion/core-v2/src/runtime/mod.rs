@@ -288,7 +288,7 @@ where
                     }
                     self.record.mem_events.push(MemEvent { inner: val });
                 }
-                Instruction::Poseidon2Wide(Poseidon2WideInstr {
+                Instruction::Poseidon2Skinny(Poseidon2SkinnyInstr {
                     addrs: Poseidon2Io { input, output },
                     mults,
                 }) => {
@@ -303,10 +303,12 @@ where
                         .for_each(|((&val, addr), mult)| {
                             self.mw(addr, Block::from(val), mult);
                         });
-                    self.record.poseidon2_wide_events.push(Poseidon2WideEvent {
-                        input: in_vals,
-                        output: perm_output,
-                    });
+                    self.record
+                        .poseidon2_wide_events
+                        .push(Poseidon2SkinnyEvent {
+                            input: in_vals,
+                            output: perm_output,
+                        });
                 }
                 Instruction::ExpReverseBitsLen(ExpReverseBitsInstr {
                     addrs: ExpReverseBitsIo { base, exp, result },

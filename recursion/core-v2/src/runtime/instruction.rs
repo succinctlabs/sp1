@@ -8,7 +8,7 @@ pub enum Instruction<F> {
     BaseAlu(BaseAluInstr<F>),
     ExtAlu(ExtAluInstr<F>),
     Mem(MemInstr<F>),
-    Poseidon2Wide(Poseidon2WideInstr<F>),
+    Poseidon2Skinny(Poseidon2SkinnyInstr<F>),
     ExpReverseBitsLen(ExpReverseBitsInstr<F>),
     HintBits(HintBitsInstr<F>),
     FriFold(FriFoldInstr<F>),
@@ -106,7 +106,7 @@ pub fn poseidon2_wide<F: AbstractField>(
     output: [u32; WIDTH],
     input: [u32; WIDTH],
 ) -> Instruction<F> {
-    Instruction::Poseidon2Wide(Poseidon2WideInstr {
+    Instruction::Poseidon2Skinny(Poseidon2SkinnyInstr {
         mults: mults.map(F::from_canonical_u32),
         addrs: Poseidon2Io {
             output: output.map(F::from_canonical_u32).map(Address),
