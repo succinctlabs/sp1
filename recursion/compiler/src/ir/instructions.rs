@@ -218,7 +218,7 @@ pub enum DslIr<C: Config> {
     /// Decompose hint operation of a field element into an array. (output = num2bits(felt)).
     HintBitsF(Array<C, Var<C::N>>, Felt<C::F>),
     /// Decompose hint operation of a field element into an array. (output = num2bits(felt)).
-    CircuitV2HintBitsF(Vec<Var<C::N>>, Felt<C::F>),
+    CircuitV2HintBitsF(Vec<Felt<C::F>>, Felt<C::F>),
     /// Prints a variable.
     PrintV(Var<C::N>),
     /// Prints a field element.
@@ -291,5 +291,5 @@ pub enum DslIr<C: Config> {
     // Reverse bits exponentiation.
     ExpReverseBitsLen(Ptr<C::N>, Var<C::N>, Var<C::N>),
     /// Reverse bits exponentiation. Output, base, exponent bits.
-    CircuitV2ExpReverseBits(Felt<C::F>, Felt<C::F>, Vec<Var<C::N>>),
+    CircuitV2ExpReverseBits(Felt<C::F>, Felt<C::F>, Vec<Felt<C::F>>),
 }

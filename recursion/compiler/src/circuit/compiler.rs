@@ -250,7 +250,7 @@ where
         })
     }
 
-    fn num2bits_f_circuit(
+    fn hint_bit_decomposition(
         &mut self,
         value: impl Reg<F, EF>,
         output: Vec<impl Reg<F, EF>>,
@@ -342,7 +342,9 @@ where
             DslIr::CircuitV2ExpReverseBits(dst, base, exp) => {
                 vec![self.exp_reverse_bits(dst, base, exp)]
             }
-            DslIr::CircuitNum2BitsF(value, output) => vec![self.num2bits_f_circuit(value, output)],
+            DslIr::CircuitV2HintBitsF(output, value) => {
+                vec![self.hint_bit_decomposition(value, output)]
+            }
 
             // DslIr::For(_, _, _, _, _) => todo!(),
             // DslIr::IfEq(_, _, _, _) => todo!(),
@@ -576,7 +578,7 @@ where
 #[cfg(test)]
 mod tests {
     use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
-    use p3_field::Field;
+    use p3_field::{Field, PrimeField32};
     use p3_symmetric::Permutation;
     use rand::{rngs::StdRng, Rng, SeedableRng};
     use sp1_core::{
@@ -635,6 +637,31 @@ mod tests {
             builder.assert_felt_eq(lhs, rhs);
         }
 
+        test_operations(builder.operations);
+    }
+
+    #[test]
+    fn test_hint_bit_decomposition() {
+        setup_logger();
+
+        let mut builder = AsmBuilder::<F, EF>::default();
+        let mut rng =
+            StdRng::seed_from_u64(0xC0FFEE7AB1E).sample_iter::<F, _>(rand::distributions::Standard);
+        for _ in 0..1 {
+            let input_f = rng.next().unwrap();
+            let input = input_f.as_canonical_u32();
+            let output = (0..NUM_BITS).map(|i| (input >> i) & 1).collect::<Vec<_>>();
+
+            let input_felt = builder.eval(input_f);
+            let output_felts = builder.num2bits_v2_f(input_felt);
+            let expected: Vec<Felt<_>> = output
+                .into_iter()
+                .map(|x| builder.eval(F::from_canonical_u32(x)))
+                .collect();
+            for (lhs, rhs) in output_felts.into_iter().zip(expected) {
+                builder.assert_felt_eq(lhs, rhs);
+            }
+        }
         test_operations(builder.operations);
     }
 
