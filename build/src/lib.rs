@@ -181,7 +181,11 @@ fn copy_elf_to_output_dir(
         format!("{}-elf", args.binary.clone())
     };
 
-    let elf_dir = program_dir.join(args.output_directory.clone());
+    let elf_dir = program_metadata
+        .target_directory
+        .parent()
+        .unwrap()
+        .join(args.output_directory.clone());
     fs::create_dir_all(&elf_dir)?;
     let result_elf_path = elf_dir.join(elf_name);
 
