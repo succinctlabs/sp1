@@ -208,7 +208,6 @@ pub enum DslIr<C: Config> {
     /// Permutates an array of BabyBear elements in the circuit.
     CircuitPoseidon2PermuteBabyBear([Felt<C::F>; 16]),
     /// Permutates an array of BabyBear elements in the circuit.
-    /// TODO allow the builder to construct this instruction via a new method
     CircuitV2Poseidon2PermuteBabyBear([Felt<C::F>; 16], [Felt<C::F>; 16]),
 
     // Miscellaneous instructions.
@@ -218,6 +217,8 @@ pub enum DslIr<C: Config> {
     HintBitsV(Array<C, Var<C::N>>, Var<C::N>),
     /// Decompose hint operation of a field element into an array. (output = num2bits(felt)).
     HintBitsF(Array<C, Var<C::N>>, Felt<C::F>),
+    /// Decompose hint operation of a field element into an array. (output = num2bits(felt)).
+    CircuitV2HintBitsF(Vec<Felt<C::F>>, Felt<C::F>),
     /// Prints a variable.
     PrintV(Var<C::N>),
     /// Prints a field element.
@@ -289,4 +290,6 @@ pub enum DslIr<C: Config> {
 
     // Reverse bits exponentiation.
     ExpReverseBitsLen(Ptr<C::N>, Var<C::N>, Var<C::N>),
+    /// Reverse bits exponentiation. Output, base, exponent bits.
+    CircuitV2ExpReverseBits(Felt<C::F>, Felt<C::F>, Vec<Felt<C::F>>),
 }

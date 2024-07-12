@@ -17,7 +17,7 @@ use sp1_recursion_core::air::Block;
 
 use crate::{
     builder::SP1RecursionAirBuilder,
-    mem::MemoryPreprocessedColsNoVal,
+    mem::MemoryPreprocessedCols,
     runtime::{Instruction, RecursionProgram},
     ExecutionRecord, FriFoldInstr,
 };
@@ -47,19 +47,19 @@ pub struct FriFoldPreprocessedCols<T: Copy> {
     pub is_last_iteration: T,
 
     // Memory accesses for the single fields.
-    pub z_mem: MemoryPreprocessedColsNoVal<T>,
-    pub alpha_mem: MemoryPreprocessedColsNoVal<T>,
-    pub x_mem: MemoryPreprocessedColsNoVal<T>,
+    pub z_mem: MemoryPreprocessedCols<T>,
+    pub alpha_mem: MemoryPreprocessedCols<T>,
+    pub x_mem: MemoryPreprocessedCols<T>,
 
     // Memory accesses for the vector field inputs.
-    pub alpha_pow_input_mem: MemoryPreprocessedColsNoVal<T>,
-    pub ro_input_mem: MemoryPreprocessedColsNoVal<T>,
-    pub p_at_x_mem: MemoryPreprocessedColsNoVal<T>,
-    pub p_at_z_mem: MemoryPreprocessedColsNoVal<T>,
+    pub alpha_pow_input_mem: MemoryPreprocessedCols<T>,
+    pub ro_input_mem: MemoryPreprocessedCols<T>,
+    pub p_at_x_mem: MemoryPreprocessedCols<T>,
+    pub p_at_z_mem: MemoryPreprocessedCols<T>,
 
     // Memory accesses for the vector field outputs.
-    pub ro_output_mem: MemoryPreprocessedColsNoVal<T>,
-    pub alpha_pow_output_mem: MemoryPreprocessedColsNoVal<T>,
+    pub ro_output_mem: MemoryPreprocessedCols<T>,
+    pub alpha_pow_output_mem: MemoryPreprocessedCols<T>,
 
     pub is_real: T,
 }
@@ -132,19 +132,19 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldChip<DEGREE>
 
                     // Only need to read z, x, and alpha on the first iteration, hence the
                     // multiplicities are i==0.
-                    row.z_mem = MemoryPreprocessedColsNoVal {
+                    row.z_mem = MemoryPreprocessedCols {
                         addr: ext_single_addrs.z,
                         read_mult: F::from_bool(i == 0),
                         write_mult: F::zero(),
                         is_real: F::one(),
                     };
-                    row.x_mem = MemoryPreprocessedColsNoVal {
+                    row.x_mem = MemoryPreprocessedCols {
                         addr: base_single_addrs.x,
                         read_mult: F::from_bool(i == 0),
                         write_mult: F::zero(),
                         is_real: F::from_bool(i == 0),
                     };
-                    row.alpha_mem = MemoryPreprocessedColsNoVal {
+                    row.alpha_mem = MemoryPreprocessedCols {
                         addr: ext_single_addrs.alpha,
                         read_mult: F::from_bool(i == 0),
                         write_mult: F::zero(),
@@ -152,25 +152,25 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldChip<DEGREE>
                     };
 
                     // Read the memory for the input vectors.
-                    row.alpha_pow_input_mem = MemoryPreprocessedColsNoVal {
+                    row.alpha_pow_input_mem = MemoryPreprocessedCols {
                         addr: ext_vec_addrs.alpha_pow_input[i],
                         read_mult: F::one(),
                         write_mult: F::zero(),
                         is_real: F::one(),
                     };
-                    row.ro_input_mem = MemoryPreprocessedColsNoVal {
+                    row.ro_input_mem = MemoryPreprocessedCols {
                         addr: ext_vec_addrs.ro_input[i],
                         read_mult: F::one(),
                         write_mult: F::zero(),
                         is_real: F::one(),
                     };
-                    row.p_at_z_mem = MemoryPreprocessedColsNoVal {
+                    row.p_at_z_mem = MemoryPreprocessedCols {
                         addr: ext_vec_addrs.ps_at_z[i],
                         read_mult: F::one(),
                         write_mult: F::zero(),
                         is_real: F::one(),
                     };
-                    row.p_at_x_mem = MemoryPreprocessedColsNoVal {
+                    row.p_at_x_mem = MemoryPreprocessedCols {
                         addr: ext_vec_addrs.mat_opening[i],
                         read_mult: F::one(),
                         write_mult: F::zero(),
@@ -178,13 +178,13 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldChip<DEGREE>
                     };
 
                     // Write the memory for the output vectors.
-                    row.alpha_pow_output_mem = MemoryPreprocessedColsNoVal {
+                    row.alpha_pow_output_mem = MemoryPreprocessedCols {
                         addr: ext_vec_addrs.alpha_pow_output[i],
                         read_mult: F::zero(),
                         write_mult: alpha_pow_mults[i],
                         is_real: F::one(),
                     };
-                    row.ro_output_mem = MemoryPreprocessedColsNoVal {
+                    row.ro_output_mem = MemoryPreprocessedCols {
                         addr: ext_vec_addrs.ro_output[i],
                         read_mult: F::zero(),
                         write_mult: ro_mults[i],
