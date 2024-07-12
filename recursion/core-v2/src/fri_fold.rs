@@ -49,18 +49,20 @@ pub struct FriFoldPreprocessedCols<T: Copy> {
 
     pub is_last_iteration: T,
 
+    // Memory accesses for the single fields.
     pub z_mem: MemoryPreprocessedColsNoVal<T>,
     pub alpha_mem: MemoryPreprocessedColsNoVal<T>,
     pub x_mem: MemoryPreprocessedColsNoVal<T>,
 
+    // Memory accesses for the vector field inputs.
     pub alpha_pow_input_mem: MemoryPreprocessedColsNoVal<T>,
     pub ro_input_mem: MemoryPreprocessedColsNoVal<T>,
-
-    pub ro_output_mem: MemoryPreprocessedColsNoVal<T>,
-    pub alpha_pow_output_mem: MemoryPreprocessedColsNoVal<T>,
-
     pub p_at_x_mem: MemoryPreprocessedColsNoVal<T>,
     pub p_at_z_mem: MemoryPreprocessedColsNoVal<T>,
+
+    // Memory accesses for the vector field outputs.
+    pub ro_output_mem: MemoryPreprocessedColsNoVal<T>,
+    pub alpha_pow_output_mem: MemoryPreprocessedColsNoVal<T>,
 
     pub is_real: T,
 }
@@ -74,7 +76,6 @@ pub struct FriFoldCols<T: Copy> {
 
     pub p_at_x: Block<T>,
     pub p_at_z: Block<T>,
-
     pub alpha_pow_input: Block<T>,
     pub ro_input: Block<T>,
 
@@ -126,6 +127,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldChip<DEGREE>
                 } = instruction;
                 let mut row_add =
                     vec![[F::zero(); NUM_FRI_FOLD_PREPROCESSED_COLS]; ext_vec_addrs.ps_at_z.len()];
+
                 row_add.iter_mut().enumerate().for_each(|(i, row)| {
                     let row: &mut FriFoldPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
 
@@ -133,7 +135,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldChip<DEGREE>
                     row.is_last_iteration = F::from_bool(i == ext_vec_addrs.ps_at_z.len() - 1);
 
                     // Only need to read z, x, and alpha on the first iteration, hence the
-                    // multiplicities are .
+                    // multiplicities are i==0.
                     row.z_mem = MemoryPreprocessedColsNoVal {
                         addr: ext_single_addrs.z,
                         read_mult: F::from_bool(i == 0),
