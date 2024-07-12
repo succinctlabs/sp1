@@ -13,6 +13,8 @@ use anyhow::{Context, Result};
 use cargo_metadata::camino::Utf8PathBuf;
 
 const BUILD_TARGET: &str = "riscv32im-succinct-zkvm-elf";
+const DEFAULT_TAG: &str = "latest";
+const DEFAULT_OUTPUT_DIR: &str = "elf";
 
 /// [`BuildArgs`] is a struct that holds various arguments used for building a program.
 ///
@@ -25,7 +27,7 @@ pub struct BuildArgs {
     #[clap(
         long,
         help = "The ghcr.io/succinctlabs/sp1 image tag to use when building with docker.",
-        default_value = "latest"
+        default_value = DEFAULT_TAG
     )]
     pub tag: String,
     #[clap(long, action, value_delimiter = ',', help = "Build with features.")]
@@ -46,7 +48,7 @@ pub struct BuildArgs {
         long,
         action,
         help = "The output directory for the built program.",
-        default_value = "elf"
+        default_value = DEFAULT_OUTPUT_DIR
     )]
     pub output_directory: String,
     #[clap(
@@ -64,12 +66,12 @@ impl Default for BuildArgs {
     fn default() -> Self {
         Self {
             docker: false,
-            tag: "latest".to_string(),
+            tag: DEFAULT_TAG.to_string(),
             features: vec![],
             ignore_rust_version: false,
             binary: "".to_string(),
             elf_name: "".to_string(),
-            output_directory: "elf".to_string(),
+            output_directory: DEFAULT_OUTPUT_DIR.to_string(),
             locked: false,
             no_default_features: false,
         }
