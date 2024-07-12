@@ -10,6 +10,15 @@ pub enum Instruction<F> {
     Mem(MemInstr<F>),
     Poseidon2Wide(Poseidon2WideInstr<F>),
     ExpReverseBitsLen(ExpReverseBitsInstr<F>),
+    HintBits(HintBitsInstr<F>),
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct HintBitsInstr<F> {
+    /// Addresses and mults of the output bits.
+    pub output_addrs_mults: Vec<(Address<F>, F)>,
+    /// Input value to decompose.
+    pub input_addr: Address<F>,
 }
 
 pub fn base_alu<F: AbstractField>(

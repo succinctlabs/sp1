@@ -3,6 +3,7 @@ mod opcode;
 mod program;
 mod record;
 
+use instruction::HintBitsInstr;
 pub use instruction::Instruction;
 pub use opcode::*;
 use p3_util::reverse_bits_len;
@@ -63,6 +64,8 @@ pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
     pub timestamp: usize,
 
     pub nb_poseidons: usize,
+
+    pub nb_bit_decompositions: usize,
 
     pub nb_ext_ops: usize,
 
@@ -134,6 +137,7 @@ where
         Self {
             timestamp: 0,
             nb_poseidons: 0,
+            nb_bit_decompositions: 0,
             nb_exp_reverse_bits: 0,
             nb_ext_ops: 0,
             nb_base_ops: 0,
@@ -321,6 +325,21 @@ where
                             base: base_val,
                             exp: exp_bits,
                         });
+                }
+                Instruction::HintBits(HintBitsInstr {
+                    output_addrs_mults,
+                    input_addr,
+                }) => {
+                    self.nb_bit_decompositions += 1;
+                    let num = self.mr(input_addr).val[0].as_canonical_u32();
+                    // Decompose the num into LE bits.
+                    let bits = (0..output_addrs_mults.len())
+                        .map(|i| (num >> i) & 1)
+                        .collect::<Vec<_>>();
+                    // Write the bits to the array at dst.
+                    for (bit, (addr, mult)) in bits.into_iter().zip(output_addrs_mults) {
+                        self.mw(addr, Block::from(F::from_canonical_u32(bit)), mult);
+                    }
                 }
             };
 

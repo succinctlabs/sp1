@@ -1,4 +1,5 @@
 use core::fmt::Debug;
+use instruction::HintBitsInstr;
 use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
 use p3_field::ExtensionField;
@@ -249,6 +250,20 @@ where
         })
     }
 
+    fn num2bits_f_circuit(
+        &mut self,
+        value: impl Reg<F, EF>,
+        output: Vec<impl Reg<F, EF>>,
+    ) -> Instruction<F> {
+        Instruction::HintBits(HintBitsInstr {
+            output_addrs_mults: output
+                .into_iter()
+                .map(|r| (r.write(self), F::zero()))
+                .collect(),
+            input_addr: value.read(self),
+        })
+    }
+
     pub fn compile_one(&mut self, ir_instr: DslIr<AsmConfig<F, EF>>) -> Vec<Instruction<F>> {
         // For readability. Avoids polluting outer scope.
         use BaseAluOpcode::*;
@@ -327,6 +342,7 @@ where
             DslIr::CircuitV2ExpReverseBits(dst, base, exp) => {
                 vec![self.exp_reverse_bits(dst, base, exp)]
             }
+            DslIr::CircuitNum2BitsF(value, output) => vec![self.num2bits_f_circuit(value, output)],
 
             // DslIr::For(_, _, _, _, _) => todo!(),
             // DslIr::IfEq(_, _, _, _) => todo!(),
@@ -342,7 +358,6 @@ where
             // DslIr::StoreF(_, _, _) => todo!(),
             // DslIr::StoreE(_, _, _) => todo!(),
             // DslIr::CircuitNum2BitsV(_, _, _) => todo!(),
-            // DslIr::CircuitNum2BitsF(_, _) => todo!(),
             // DslIr::Poseidon2CompressBabyBear(_, _, _) => todo!(),
             // DslIr::Poseidon2AbsorbBabyBear(_, _) => todo!(),
             // DslIr::Poseidon2FinalizeBabyBear(_, _) => todo!(),
@@ -425,6 +440,12 @@ where
                     addrs: ExpReverseBitsIo { ref result, .. },
                     mult,
                 }) => vec![(mult, result)],
+                Instruction::HintBits(HintBitsInstr {
+                    output_addrs_mults, ..
+                }) => output_addrs_mults
+                    .iter_mut()
+                    .map(|(ref addr, mult)| (mult, addr))
+                    .collect(),
             })
             .for_each(|(mult, addr): (&mut F, &Address<F>)| {
                 *mult = self.addr_to_mult.remove(addr).unwrap()

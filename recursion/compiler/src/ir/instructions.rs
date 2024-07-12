@@ -217,6 +217,8 @@ pub enum DslIr<C: Config> {
     HintBitsV(Array<C, Var<C::N>>, Var<C::N>),
     /// Decompose hint operation of a field element into an array. (output = num2bits(felt)).
     HintBitsF(Array<C, Var<C::N>>, Felt<C::F>),
+    /// Decompose hint operation of a field element into an array. (output = num2bits(felt)).
+    CircuitV2HintBitsF(Vec<Var<C::N>>, Felt<C::F>),
     /// Prints a variable.
     PrintV(Var<C::N>),
     /// Prints a field element.
