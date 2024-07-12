@@ -186,7 +186,7 @@ where
     vk.observe_into(&mut challenger);
 
     std::thread::scope(move |s| {
-        let (tx, rx) = sync_channel::<Vec<ExecutionRecord>>(opts.shard_batch_size);
+        let (tx, rx) = sync_channel::<Vec<ExecutionRecord>>(opts.shard_batch_size * 4);
 
         let challenger_handle = s.spawn(move || {
             let mut challenger = challenger;
@@ -270,7 +270,7 @@ where
         let mut state = public_values.reset();
         let mut report_aggregate = ExecutionReport::default();
 
-        let (tx, rx) = sync_channel::<Vec<ExecutionRecord>>(opts.shard_batch_size);
+        let (tx, rx) = sync_channel::<Vec<ExecutionRecord>>(opts.shard_batch_size * 4);
         let shard_proofs_handle = s.spawn(move || {
             let mut shard_proofs = Vec::<ShardProof<SC>>::new();
             for records in rx.iter().take(nb_checkpoints) {
