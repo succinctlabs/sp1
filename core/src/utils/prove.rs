@@ -185,7 +185,9 @@ where
     let mut challenger = prover.config().challenger();
     vk.observe_into(&mut challenger);
 
-    let (tx, rx) = sync_channel::<Vec<ExecutionRecord>>(opts.shard_batch_size * 4);
+    let (tx, rx) = sync_channel::<Vec<ExecutionRecord>>(
+        opts.shard_batch_size * opts.shard_chunking_multiplier,
+    );
 
     let challenger_handle = {
         let prover = prover.clone();
@@ -271,7 +273,9 @@ where
     let mut state = public_values.reset();
     let mut report_aggregate = ExecutionReport::default();
 
-    let (tx, rx) = sync_channel::<Vec<ExecutionRecord>>(opts.shard_batch_size * 4);
+    let (tx, rx) = sync_channel::<Vec<ExecutionRecord>>(
+        opts.shard_batch_size * opts.shard_chunking_multiplier,
+    );
     let shard_proofs_handle = {
         let prover = prover.clone();
         std::thread::spawn(move || {
