@@ -11,6 +11,7 @@ pub enum Instruction<F> {
     Poseidon2Wide(Poseidon2WideInstr<F>),
     ExpReverseBitsLen(ExpReverseBitsInstr<F>),
     HintBits(HintBitsInstr<F>),
+    FriFold(FriFoldInstr<F>),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -127,5 +128,64 @@ pub fn exp_reverse_bits_len<F: AbstractField>(
             exp: exp.into_iter().map(Address).collect(),
             result: Address(result),
         },
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn fri_fold<F: AbstractField>(
+    z: u32,
+    alpha: u32,
+    x: u32,
+    mat_opening: Vec<u32>,
+    ps_at_z: Vec<u32>,
+    alpha_pow_input: Vec<u32>,
+    ro_input: Vec<u32>,
+    alpha_pow_output: Vec<u32>,
+    ro_output: Vec<u32>,
+    alpha_mults: Vec<u32>,
+    ro_mults: Vec<u32>,
+) -> Instruction<F> {
+    Instruction::FriFold(FriFoldInstr {
+        base_single_addrs: FriFoldBaseIo {
+            x: Address(F::from_canonical_u32(x)),
+        },
+        ext_single_addrs: FriFoldExtSingleIo {
+            z: Address(F::from_canonical_u32(z)),
+            alpha: Address(F::from_canonical_u32(alpha)),
+        },
+        ext_vec_addrs: FriFoldExtVecIo {
+            mat_opening: mat_opening
+                .iter()
+                .map(|elm| Address(F::from_canonical_u32(*elm)))
+                .collect(),
+            ps_at_z: ps_at_z
+                .iter()
+                .map(|elm| Address(F::from_canonical_u32(*elm)))
+                .collect(),
+            alpha_pow_input: alpha_pow_input
+                .iter()
+                .map(|elm| Address(F::from_canonical_u32(*elm)))
+                .collect(),
+            ro_input: ro_input
+                .iter()
+                .map(|elm| Address(F::from_canonical_u32(*elm)))
+                .collect(),
+            alpha_pow_output: alpha_pow_output
+                .iter()
+                .map(|elm| Address(F::from_canonical_u32(*elm)))
+                .collect(),
+            ro_output: ro_output
+                .iter()
+                .map(|elm| Address(F::from_canonical_u32(*elm)))
+                .collect(),
+        },
+        alpha_pow_mults: alpha_mults
+            .iter()
+            .map(|mult| F::from_canonical_u32(*mult))
+            .collect(),
+        ro_mults: ro_mults
+            .iter()
+            .map(|mult| F::from_canonical_u32(*mult))
+            .collect(),
     })
 }

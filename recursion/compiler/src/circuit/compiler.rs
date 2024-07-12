@@ -6,7 +6,7 @@ use p3_field::ExtensionField;
 use p3_field::PrimeField;
 use p3_field::TwoAdicField;
 use sp1_recursion_core::air::Block;
-use sp1_recursion_core_v2::poseidon2_wide::WIDTH;
+use sp1_recursion_core_v2::poseidon2_skinny::WIDTH;
 use sp1_recursion_core_v2::BaseAluInstr;
 use sp1_recursion_core_v2::BaseAluOpcode;
 use std::collections::hash_map::Entry;
@@ -471,6 +471,7 @@ where
                     .iter_mut()
                     .map(|(ref addr, mult)| (mult, addr))
                     .collect(),
+                Instruction::FriFold(_) => todo!(),
             })
             .for_each(|(mult, addr): (&mut F, &Address<F>)| {
                 *mult = self.addr_to_mult.remove(addr).unwrap()

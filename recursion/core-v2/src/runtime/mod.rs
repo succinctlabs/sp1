@@ -77,6 +77,8 @@ pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
 
     pub nb_exp_reverse_bits: usize,
 
+    pub nb_fri_fold: usize,
+
     /// The current clock.
     pub clk: F,
 
@@ -143,6 +145,7 @@ where
             nb_base_ops: 0,
             nb_memory_ops: 0,
             nb_branch_ops: 0,
+            nb_fri_fold: 0,
             clk: F::zero(),
             program: program.clone(),
             pc: F::zero(),
@@ -159,6 +162,7 @@ where
         tracing::debug!("Total Cycles: {}", self.timestamp);
         tracing::debug!("Poseidon Operations: {}", self.nb_poseidons);
         tracing::debug!("Exp Reverse Bits Operations: {}", self.nb_exp_reverse_bits);
+        tracing::debug!("FriFold Operations: {}", self.nb_fri_fold);
         tracing::debug!("Field Operations: {}", self.nb_base_ops);
         tracing::debug!("Extension Operations: {}", self.nb_ext_ops);
         tracing::debug!("Memory Operations: {}", self.nb_memory_ops);
@@ -342,7 +346,80 @@ where
                         self.record.mem_events.push(MemEvent { inner: bit });
                     }
                 }
-            };
+
+                Instruction::FriFold(FriFoldInstr {
+                    base_single_addrs,
+                    ext_single_addrs,
+                    ext_vec_addrs,
+                    alpha_pow_mults,
+                    ro_mults,
+                }) => {
+                    self.nb_fri_fold += 1;
+                    let x = self.mr(base_single_addrs.x).val[0];
+                    let z = self.mr(ext_single_addrs.z).val;
+                    let z: EF = z.ext();
+                    let alpha = self.mr(ext_single_addrs.alpha).val;
+                    let alpha: EF = alpha.ext();
+                    let mat_opening = ext_vec_addrs
+                        .mat_opening
+                        .iter()
+                        .map(|addr| self.mr(*addr).val)
+                        .collect_vec();
+                    let ps_at_z = ext_vec_addrs
+                        .ps_at_z
+                        .iter()
+                        .map(|addr| self.mr(*addr).val)
+                        .collect_vec();
+
+                    for m in 0..ps_at_z.len() {
+                        // let m = F::from_canonical_u32(m);
+                        // Get the opening values.
+                        let p_at_x = mat_opening[m];
+                        let p_at_x: EF = p_at_x.ext();
+                        let p_at_z = ps_at_z[m];
+                        let p_at_z: EF = p_at_z.ext();
+
+                        // Calculate the quotient and update the values
+                        let quotient = (-p_at_z + p_at_x) / (-z + x);
+
+                        // First we peek to get the current value.
+                        let alpha_pow: EF = self.mr(ext_vec_addrs.alpha_pow_input[m]).val.ext();
+
+                        let ro: EF = self.mr(ext_vec_addrs.ro_input[m]).val.ext();
+
+                        let new_ro = ro + alpha_pow * quotient;
+                        let new_alpha_pow = alpha_pow * alpha;
+
+                        let _ = self.mw(
+                            ext_vec_addrs.ro_output[m],
+                            Block::from(new_ro.as_base_slice()),
+                            ro_mults[m],
+                        );
+
+                        let _ = self.mw(
+                            ext_vec_addrs.alpha_pow_output[m],
+                            Block::from(new_alpha_pow.as_base_slice()),
+                            alpha_pow_mults[m],
+                        );
+
+                        self.record.fri_fold_events.push(FriFoldEvent {
+                            base_single: FriFoldBaseIo { x },
+                            ext_single: FriFoldExtSingleIo {
+                                z: Block::from(z.as_base_slice()),
+                                alpha: Block::from(alpha.as_base_slice()),
+                            },
+                            ext_vec: FriFoldExtVecIo {
+                                mat_opening: Block::from(p_at_x.as_base_slice()),
+                                ps_at_z: Block::from(p_at_z.as_base_slice()),
+                                alpha_pow_input: Block::from(alpha_pow.as_base_slice()),
+                                ro_input: Block::from(ro.as_base_slice()),
+                                alpha_pow_output: Block::from(new_alpha_pow.as_base_slice()),
+                                ro_output: Block::from(new_ro.as_base_slice()),
+                            },
+                        });
+                    }
+                }
+            }
 
             self.pc = next_pc;
             self.clk = next_clk;

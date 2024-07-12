@@ -3,7 +3,7 @@
 use p3_field::AbstractField;
 
 use crate::prelude::*;
-use sp1_recursion_core_v2::{poseidon2_wide::WIDTH, NUM_BITS};
+use sp1_recursion_core_v2::{poseidon2_skinny::WIDTH, NUM_BITS};
 
 pub trait CircuitV2Builder<C: Config> {
     fn num2bits_v2_f(&mut self, num: Felt<C::F>) -> Vec<Felt<C::F>>;
