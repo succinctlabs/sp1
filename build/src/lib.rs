@@ -49,6 +49,14 @@ pub struct BuildArgs {
         default_value = ""
     )]
     pub output_directory: String,
+    #[clap(
+        long,
+        action,
+        help = "Lock the dependencies, ensures that Cargo.lock doesn't update."
+    )]
+    pub locked: bool,
+    #[clap(long, action, help = "Build without default features.")]
+    pub no_default_features: bool,
 }
 
 // Implement default args to match clap defaults.
@@ -62,6 +70,8 @@ impl Default for BuildArgs {
             binary: "".to_string(),
             elf_name: "".to_string(),
             output_directory: "".to_string(),
+            locked: false,
+            no_default_features: false,
         }
     }
 }
@@ -89,8 +99,13 @@ fn get_program_build_args(args: &BuildArgs) -> Vec<String> {
         build_args.push(args.features.join(","));
     }
 
-    // Ensure the Cargo.lock doesn't update.
-    build_args.push("--locked".to_string());
+    if args.no_default_features {
+        build_args.push("--no-default-features".to_string());
+    }
+
+    if args.locked {
+        build_args.push("--locked".to_string());
+    }
 
     build_args
 }
