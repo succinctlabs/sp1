@@ -26,10 +26,18 @@ pub const NUM_FRI_FOLD_COLS: usize = core::mem::size_of::<FriFoldCols<u8>>();
 pub const NUM_FRI_FOLD_PREPROCESSED_COLS: usize =
     core::mem::size_of::<FriFoldPreprocessedCols<u8>>();
 
-#[derive(Default)]
 pub struct FriFoldChip<const DEGREE: usize> {
     pub fixed_log2_rows: Option<usize>,
     pub pad: bool,
+}
+
+impl<const DEGREE: usize> Default for FriFoldChip<DEGREE> {
+    fn default() -> Self {
+        Self {
+            fixed_log2_rows: None,
+            pad: true,
+        }
+    }
 }
 
 /// The preprocessed columns for a FRI fold invocation.
@@ -124,7 +132,8 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldChip<DEGREE>
                     row.m = F::from_canonical_u32(i as u32);
                     row.is_last_iteration = F::from_bool(i == ext_vec_addrs.ps_at_z.len() - 1);
 
-                    // Only need to read z, x, and alpha once, hence the multiplicities.
+                    // Only need to read z, x, and alpha on the first iteration, hence the
+                    // multiplicities are .
                     row.z_mem = MemoryPreprocessedColsNoVal {
                         addr: ext_single_addrs.z,
                         read_mult: F::from_bool(i == 0),
