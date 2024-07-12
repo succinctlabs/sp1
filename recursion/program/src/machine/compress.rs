@@ -470,7 +470,7 @@ where
 
                 // If `deferred_proofs_digest` is not zero, then `public_values.deferred_proofs_digest
                 // should be the current value.
-                let is_zero: Var<_> = builder.eval(C::N::zero());
+                let is_zero: Var<_> = builder.eval(C::N::one());
                 #[allow(clippy::needless_range_loop)]
                 for i in 0..deferred_proofs_digest.len() {
                     let d = felt2var(builder, deferred_proofs_digest[i]);

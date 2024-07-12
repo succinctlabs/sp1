@@ -1,6 +1,6 @@
 [package]
 name = "sp1-recursion-compiler"
-version = "0.0.1-test"
+version = "0.0.2-test"
 edition = "2021"
 description = "SP1 is a performant, 100% open-source, contributor-friendly zkVM."
 readme = "../../README.md"
@@ -18,10 +18,10 @@ p3-poseidon2 = { workspace = true }
 p3-symmetric = { workspace = true }
 p3-util = { workspace = true }
 
-sp1-core = { path = "../../core" }
-sp1-primitives = { path = "../../primitives" }
-sp1-recursion-core = { path = "../core" }
-sp1-recursion-derive = { path = "../derive" }
+sp1-core = { path = "../../core", version = "0.0.2-test" }
+sp1-primitives = { path = "../../primitives", version = "0.0.2-test" }
+sp1-recursion-core = { path = "../core", version = "0.0.2-test" }
+sp1-recursion-derive = { path = "../derive", version = "0.0.2-test" }
 
 itertools = "0.13.0"
 serde = { version = "1.0.204", features = ["derive"] }

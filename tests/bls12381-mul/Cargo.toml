@@ -1,10 +1,12 @@
 [workspace]
 [package]
 name = "bls12381-mul-test"
-version = "0.0.1-test"
+version = "0.0.2-test"
 publish = false
 
 
 [dependencies]
-sp1-zkvm = { path = "../../zkvm/entrypoint", features = ["bls12381"] }
-sp1-derive = { path = "../../derive" }
+sp1-zkvm = { path = "../../zkvm/entrypoint", features = [
+	"bls12381",
+], version = "0.0.2-test" }
+sp1-derive = { path = "../../derive", version = "0.0.2-test" }
