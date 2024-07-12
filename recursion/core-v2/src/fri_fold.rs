@@ -44,9 +44,6 @@ impl<const DEGREE: usize> Default for FriFoldChip<DEGREE> {
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct FriFoldPreprocessedCols<T: Copy> {
-    /// Iteration number.
-    pub m: T,
-
     pub is_last_iteration: T,
 
     // Memory accesses for the single fields.
@@ -131,7 +128,6 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldChip<DEGREE>
                 row_add.iter_mut().enumerate().for_each(|(i, row)| {
                     let row: &mut FriFoldPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
 
-                    row.m = F::from_canonical_u32(i as u32);
                     row.is_last_iteration = F::from_bool(i == ext_vec_addrs.ps_at_z.len() - 1);
 
                     // Only need to read z, x, and alpha on the first iteration, hence the
