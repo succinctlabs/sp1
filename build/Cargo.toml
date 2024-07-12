@@ -3,6 +3,7 @@ name = "sp1-build"
 version = "0.0.1-test"
 edition = "2021"
 description = "Build an SP1 program."
+readme = "../README.md"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
