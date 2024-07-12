@@ -248,7 +248,7 @@ where
         dst: [impl Reg<F, EF>; WIDTH],
         src: [impl Reg<F, EF>; WIDTH],
     ) -> Instruction<F> {
-        Instruction::Poseidon2Wide(Poseidon2WideInstr {
+        Instruction::Poseidon2Skinny(Poseidon2SkinnyInstr {
             addrs: Poseidon2Io {
                 input: src.map(|r| r.read(self)),
                 output: dst.map(|r| r.write(self)),
@@ -457,7 +457,7 @@ where
                     MemAccessKind::Write => vec![(mult, inner)],
                     _ => vec![],
                 },
-                Instruction::Poseidon2Wide(Poseidon2WideInstr {
+                Instruction::Poseidon2Skinny(Poseidon2SkinnyInstr {
                     addrs: Poseidon2Io { ref output, .. },
                     mults,
                 }) => mults.iter_mut().zip(output).collect(),
