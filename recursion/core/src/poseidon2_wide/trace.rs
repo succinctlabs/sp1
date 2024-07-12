@@ -312,6 +312,8 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                 absorb_workspace.start_mem_idx_bitmap[absorb_iter.state_cursor] = F::one();
                 if is_last_row {
                     absorb_workspace.end_mem_idx_bitmap[last_row_ending_cursor] = F::one();
+                } else {
+                    absorb_workspace.end_mem_idx_bitmap[7] = F::one();
                 }
             }
 
