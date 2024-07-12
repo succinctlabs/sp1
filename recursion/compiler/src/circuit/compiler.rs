@@ -23,10 +23,8 @@ pub struct AsmCompiler<F, EF> {
     pub next_addr: F,
     /// Map the frame pointers of the variables to the "physical" addresses.
     pub fp_to_addr: HashMap<i32, Address<F>>,
-    /// Map base field constants to "physical" addresses and mults.
-    pub consts_f: HashMap<F, (Address<F>, F)>,
-    /// Map extension field constants to "physical" addresses and mults.
-    pub consts_ef: HashMap<EF, (Address<F>, F)>,
+    /// Map base or extension field constants to "physical" addresses and mults.
+    pub consts: HashMap<Imm<F, EF>, (Address<F>, F)>,
     /// Map each "physical" address to its read count.
     pub addr_to_mult: HashMap<Address<F>, F>,
 }
@@ -131,45 +129,24 @@ where
         }
     }
 
-    /// Read the base field constant.
-    ///
-    /// Does not increment the mult. Creates an entry if it does not yet exist.
-    pub fn read_ghost_const_f(&mut self, f: F) -> Address<F> {
-        self.consts_f
-            .entry(f)
-            .or_insert_with(|| (Self::alloc(&mut self.next_addr), F::zero()))
-            .0
-    }
-
-    /// Read the base field constant.
+    /// Read a constant (a.k.a. immediate).
     ///
     /// Increments the mult, first creating an entry if it does not yet exist.
-    pub fn read_const_f(&mut self, f: F) -> Address<F> {
-        self.consts_f
-            .entry(f)
+    pub fn read_const(&mut self, imm: Imm<F, EF>) -> Address<F> {
+        self.consts
+            .entry(imm)
             .and_modify(|(_, x)| *x += F::one())
             .or_insert_with(|| (Self::alloc(&mut self.next_addr), F::one()))
             .0
     }
 
-    /// Read the base field constant.
-    ///
-    /// Does not increment the mult. Creates an entry if it does not yet exist.
-    pub fn read_ghost_const_ef(&mut self, ef: EF) -> Address<F> {
-        self.consts_ef
-            .entry(ef)
-            .or_insert_with(|| (Self::alloc(&mut self.next_addr), F::zero()))
-            .0
-    }
-
-    /// Read the base field constant.
+    /// Read a constant (a.k.a. immediate).
     ///
     /// Increments the mult, first creating an entry if it does not yet exist.
-    pub fn read_const_ef(&mut self, ef: EF) -> Address<F> {
-        self.consts_ef
-            .entry(ef)
-            .and_modify(|(_, x)| *x += F::one())
-            .or_insert_with(|| (Self::alloc(&mut self.next_addr), F::one()))
+    pub fn read_ghost_const(&mut self, imm: Imm<F, EF>) -> Address<F> {
+        self.consts
+            .entry(imm)
+            .or_insert_with(|| (Self::alloc(&mut self.next_addr), F::zero()))
             .0
     }
 
@@ -500,21 +477,11 @@ where
             });
         debug_assert!(self.addr_to_mult.is_empty());
         // Initialize constants.
-        let instrs_consts_f = self.consts_f.drain().map(|(f, (addr, mult))| {
+        let instrs_consts = self.consts.drain().map(|(imm, (addr, mult))| {
             Instruction::Mem(MemInstr {
                 addrs: MemIo { inner: addr },
                 vals: MemIo {
-                    inner: Block::from(f),
-                },
-                mult,
-                kind: MemAccessKind::Write,
-            })
-        });
-        let instrs_consts_ef = self.consts_ef.drain().map(|(ef, (addr, mult))| {
-            Instruction::Mem(MemInstr {
-                addrs: MemIo { inner: addr },
-                vals: MemIo {
-                    inner: ef.as_base_slice().into(),
+                    inner: imm.as_block(),
                 },
                 mult,
                 kind: MemAccessKind::Write,
@@ -524,10 +491,7 @@ where
         self.next_addr = Default::default();
         self.fp_to_addr.clear();
         // Place constant-initializing instructions at the top.
-        instrs_consts_f
-            .chain(instrs_consts_ef)
-            .chain(instrs)
-            .collect()
+        instrs_consts.chain(instrs).collect()
     }
 }
 
@@ -535,8 +499,8 @@ where
 ///
 /// Required to distinguish a base and extension field element at the type level,
 /// since the IR's instructions do not provide this information.
-#[derive(Debug, Clone, Copy)]
-enum Imm<F, EF> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Imm<F, EF> {
     /// Element of the base field `F`.
     F(F),
     /// Element of the extension field `EF`.
@@ -549,7 +513,7 @@ where
     EF: AbstractExtensionField<F>,
 {
     // Get a `Block` of memory representing this immediate.
-    fn as_block(&self) -> Block<F> {
+    pub fn as_block(&self) -> Block<F> {
         match self {
             Imm::F(f) => Block::from(*f),
             Imm::EF(ef) => ef.as_base_slice().into(),
@@ -600,17 +564,11 @@ where
     EF: ExtensionField<F> + TwoAdicField,
 {
     fn read(&self, compiler: &mut AsmCompiler<F, EF>) -> Address<F> {
-        match self {
-            Imm::F(f) => compiler.read_const_f(*f),
-            Imm::EF(ef) => compiler.read_const_ef(*ef),
-        }
+        compiler.read_const(*self)
     }
 
     fn read_ghost(&self, compiler: &mut AsmCompiler<F, EF>) -> Address<F> {
-        match self {
-            Imm::F(f) => compiler.read_ghost_const_f(*f),
-            Imm::EF(ef) => compiler.read_ghost_const_ef(*ef),
-        }
+        compiler.read_ghost_const(*self)
     }
 
     fn write(&self, _compiler: &mut AsmCompiler<F, EF>) -> Address<F> {
