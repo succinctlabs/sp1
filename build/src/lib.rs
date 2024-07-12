@@ -37,7 +37,7 @@ pub struct BuildArgs {
         long,
         action,
         help = "If building a binary, specify the name.",
-        default_value = "riscv32im-succinct-zkvm"
+        default_value = ""
     )]
     pub binary: String,
     #[clap(long, action, help = "ELF binary name.", default_value = "")]
@@ -46,7 +46,7 @@ pub struct BuildArgs {
         long,
         action,
         help = "The output directory for the built program.",
-        default_value = "elf"
+        default_value = ""
     )]
     pub output_directory: String,
 }
@@ -59,9 +59,9 @@ impl Default for BuildArgs {
             tag: "latest".to_string(),
             features: vec![],
             ignore_rust_version: false,
-            binary: "riscv32im-succinct-zkvm".to_string(),
+            binary: "".to_string(),
             elf_name: "".to_string(),
-            output_directory: "elf".to_string(),
+            output_directory: "".to_string(),
         }
     }
 }
@@ -195,16 +195,22 @@ fn copy_elf_to_output_dir(
     } else if !args.binary.is_empty() {
         // TODO: In the future, change this to default to the package name. Will require updating
         // docs and examples.
-        format!("{}-elf", args.binary.clone())
+        args.binary.clone()
     } else {
         BUILD_TARGET.to_string()
+    };
+
+    let out_dir = if !args.output_directory.is_empty() {
+        args.output_directory.clone()
+    } else {
+        "elf".to_string()
     };
 
     let elf_dir = program_metadata
         .target_directory
         .parent()
         .unwrap()
-        .join(args.output_directory.clone());
+        .join(out_dir);
     fs::create_dir_all(&elf_dir)?;
     let result_elf_path = elf_dir.join(elf_name);
 
