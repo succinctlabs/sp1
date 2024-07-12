@@ -56,7 +56,7 @@ fn test_compiler_poseidon2_permute() {
     let program = builder.compile_program();
 
     let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
-    _ = runtime.run();
+    runtime.run().unwrap();
     println!(
         "The program executed successfully, number of cycles: {}",
         runtime.clk.as_canonical_u32() / 4
@@ -115,7 +115,7 @@ fn test_compiler_poseidon2_hash() {
     let program = builder.compile_program();
 
     let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
-    _ = runtime.run();
+    runtime.run().unwrap();
     println!(
         "The program executed successfully, number of cycles: {}",
         runtime.clk.as_canonical_u32() / 4
@@ -151,7 +151,7 @@ fn test_compiler_poseidon2_hash_v2() {
     let program = builder.compile_program();
 
     let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
-    _ = runtime.run();
+    runtime.run().unwrap();
     println!(
         "The program executed successfully, number of cycles: {}",
         runtime.clk.as_canonical_u32() / 4

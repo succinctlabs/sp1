@@ -534,9 +534,9 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
         runtime.witness_stream = witness_stream.into();
 
-        if let Err(e) = runtime.run() {
-            return Err(SP1RecursionProverError::RuntimeError(e.to_string()));
-        }
+        runtime
+            .run()
+            .map_err(|e| SP1RecursionProverError::RuntimeError(e.to_string()))?;
         runtime.print_stats();
 
         let mut recursive_challenger = self.compress_prover.config().challenger();
@@ -581,9 +581,9 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
         runtime.witness_stream = witness_stream.into();
 
-        if let Err(e) = runtime.run() {
-            return Err(SP1RecursionProverError::RuntimeError(e.to_string()));
-        }
+        runtime
+            .run()
+            .map_err(|e| SP1RecursionProverError::RuntimeError(e.to_string()))?;
 
         runtime.print_stats();
         tracing::debug!("Compress program executed successfully");
@@ -629,9 +629,9 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
         runtime.witness_stream = witness_stream.into();
 
-        if let Err(e) = runtime.run() {
-            return Err(SP1RecursionProverError::RuntimeError(e.to_string()));
-        }
+        runtime
+            .run()
+            .map_err(|e| SP1RecursionProverError::RuntimeError(e.to_string()))?;
 
         runtime.print_stats();
         tracing::debug!("Wrap program executed successfully");
