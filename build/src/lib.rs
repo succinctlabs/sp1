@@ -18,7 +18,7 @@ const BUILD_TARGET: &str = "riscv32im-succinct-zkvm-elf";
 ///
 /// This struct can be used to configure the build process, including options for using Docker,
 /// specifying binary and ELF names, ignoring Rust version checks, and enabling specific features.
-#[derive(Default, Clone, Parser)]
+#[derive(Default, Clone, Parser, Debug)]
 pub struct BuildArgs {
     #[clap(long, action, help = "Build using Docker for reproducible builds.")]
     pub docker: bool,
@@ -170,15 +170,19 @@ fn copy_elf_to_output_dir(
         .join("release")
         .join(root_package_name);
 
+    println!("args: {:?}", args);
+
     // The order of precedence for the ELF name is:
     // 1. --elf_name flag
     // 2. --binary flag + -elf suffix (defaults to riscv32im-succinct-zkvm-elf)
     let elf_name = if !args.elf_name.is_empty() {
         args.elf_name.clone()
-    } else {
+    } else if !args.binary.is_empty() {
         // TODO: In the future, change this to default to the package name. Will require updating
         // docs and examples.
         format!("{}-elf", args.binary.clone())
+    } else {
+        BUILD_TARGET.to_string()
     };
 
     let elf_dir = program_metadata
