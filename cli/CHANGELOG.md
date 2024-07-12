@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.0.1-test](https://github.com/succinctlabs/sp1/compare/sp1-cli-v0.0.2-test...sp1-cli-v0.0.2-test) - 2024-07-12
+## [0.0.1-test](https://github.com/succinctlabs/sp1/compare/sp1-cli-v0.0.2-test...sp1-cli-v0.0.1-test) - 2024-07-12
 
 ### Added
 
@@ -107,7 +107,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - better curta graphic ([#184](https://github.com/succinctlabs/sp1/pull/184))
 - Initial commit
 
-## [0.0.1-test](https://github.com/succinctlabs/sp1/compare/sp1-cli-v0.0.0-test...sp1-cli-v0.0.2-test) - 2024-07-11
+## [0.0.1-test](https://github.com/succinctlabs/sp1/compare/sp1-cli-v0.0.0-test...sp1-cli-v0.0.1-test) - 2024-07-11
 
 ### Added
 
