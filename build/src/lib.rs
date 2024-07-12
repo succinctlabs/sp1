@@ -201,8 +201,6 @@ fn copy_elf_to_output_dir(args: &BuildArgs, program_dir: &Utf8PathBuf) -> Result
         .join("release")
         .join(root_package_name.unwrap());
 
-    println!("Args: {:?}", args);
-
     // The order of precedence for the ELF name is:
     // 1. --elf_name flag
     // 2. --binary flag + -elf suffix (defaults to riscv32im-succinct-zkvm-elf)
@@ -223,9 +221,6 @@ fn copy_elf_to_output_dir(args: &BuildArgs, program_dir: &Utf8PathBuf) -> Result
         .join(&args.output_directory);
     fs::create_dir_all(&elf_dir)?;
     let result_elf_path = elf_dir.join(elf_name);
-
-    println!("Original ELF path: {:?}", original_elf_path);
-    println!("Result ELF path: {:?}", result_elf_path);
 
     // Copy the ELF to the specified output directory.
     fs::copy(original_elf_path, &result_elf_path)?;
