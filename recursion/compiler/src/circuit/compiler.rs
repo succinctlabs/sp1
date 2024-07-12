@@ -650,11 +650,11 @@ mod tests {
             let input_1: [F; WIDTH] = rng.next().unwrap();
             let output_1 = inner_perm().permute(input_1);
 
-        let input_1_felts = input_1.map(|x| builder.eval(x));
-        let output_1_felts = builder.poseidon2_permute_v2(input_1_felts);
-        let expected: [Felt<_>; WIDTH] = output_1.map(|x| builder.eval(x));
-        for (lhs, rhs) in output_1_felts.into_iter().zip(expected) {
-            builder.assert_felt_eq(lhs, rhs);
+            let input_1_felts = input_1.map(|x| builder.eval(x));
+            let output_1_felts = builder.poseidon2_permute_v2(input_1_felts);
+            let expected: [Felt<_>; WIDTH] = output_1.map(|x| builder.eval(x));
+            for (lhs, rhs) in output_1_felts.into_iter().zip(expected) {
+                builder.assert_felt_eq(lhs, rhs);
             }
         }
 
