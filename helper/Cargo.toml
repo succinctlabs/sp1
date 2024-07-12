@@ -2,10 +2,11 @@
 name = "sp1-helper"
 version = "0.0.1-test"
 edition = "2021"
-description = "SP1 is a performant, 100% open-source, contributor-friendly zkVM."
+description = "Crate for building SP1 programs with build scripts."
 readme = "../README.md"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
+sp1-build = { path = "../build" }
 cargo_metadata = "0.18.1"
 chrono = { version = "0.4.38", default-features = false, features = ["clock"] }
