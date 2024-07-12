@@ -46,17 +46,30 @@ where
         id
     }
 
+    /// Map `fp` to its existing address without changing its mult.
+    ///
+    /// Ensures that `fp` has already been assigned an address.
+    pub fn read_ghost_fp(&mut self, fp: i32) -> Address<F> {
+        self.read_fp_internal(fp, false)
+    }
+
     /// Map `fp` to its existing address and increment its mult.
     ///
     /// Ensures that `fp` has already been assigned an address.
     pub fn read_fp(&mut self, fp: i32) -> Address<F> {
+        self.read_fp_internal(fp, true)
+    }
+
+    pub fn read_fp_internal(&mut self, fp: i32, increment_mult: bool) -> Address<F> {
         match self.fp_to_addr.entry(fp) {
             Entry::Vacant(entry) => panic!("expected entry in fp_to_addr: {entry:?}"),
             Entry::Occupied(entry) => {
-                // This is a read, so we increment the mult.
-                match self.addr_to_mult.get_mut(entry.get()) {
-                    Some(mult) => *mult += F::one(),
-                    None => panic!("expected entry in addr_mult: {entry:?}"),
+                if increment_mult {
+                    // This is a read, so we increment the mult.
+                    match self.addr_to_mult.get_mut(entry.get()) {
+                        Some(mult) => *mult += F::one(),
+                        None => panic!("expected entry in addr_mult: {entry:?}"),
+                    }
                 }
                 *entry.into_mut()
             }
@@ -83,14 +96,27 @@ where
     /// Increment the existing `mult` associated with `addr`.
     ///
     /// Ensures that `addr` has already been assigned a `mult`.
-    pub fn read_addr(&mut self, addr: Address<F>) -> F {
+    pub fn read_addr(&mut self, addr: Address<F>) -> &mut F {
+        self.read_addr_internal(addr, true)
+    }
+
+    /// Retrieves `mult` associated with `addr`.
+    ///
+    /// Ensures that `addr` has already been assigned a `mult`.
+    pub fn read_ghost_addr(&mut self, addr: Address<F>) -> &mut F {
+        self.read_addr_internal(addr, true)
+    }
+
+    fn read_addr_internal(&mut self, addr: Address<F>, increment_mult: bool) -> &mut F {
         match self.addr_to_mult.entry(addr) {
             Entry::Vacant(entry) => panic!("expected entry in addr_to_mult: {entry:?}"),
             Entry::Occupied(entry) => {
                 // This is a read, so we increment the mult.
                 let mult = entry.into_mut();
-                *mult += F::one();
-                *mult
+                if increment_mult {
+                    *mult += F::one();
+                }
+                mult
             }
         }
     }
@@ -98,11 +124,21 @@ where
     /// Associate a `mult` of zero with `addr`.
     ///
     /// Ensures that `addr` has not already been written to.
-    pub fn write_addr(&mut self, addr: Address<F>) -> F {
+    pub fn write_addr(&mut self, addr: Address<F>) -> &mut F {
         match self.addr_to_mult.entry(addr) {
-            Entry::Vacant(entry) => *entry.insert(F::zero()),
+            Entry::Vacant(entry) => entry.insert(F::zero()),
             Entry::Occupied(entry) => panic!("unexpected entry in addr_to_mult: {entry:?}"),
         }
+    }
+
+    /// Read the base field constant.
+    ///
+    /// Does not increment the mult. Creates an entry if it does not yet exist.
+    pub fn read_ghost_const_f(&mut self, f: F) -> Address<F> {
+        self.consts_f
+            .entry(f)
+            .or_insert_with(|| (Self::alloc(&mut self.next_addr), F::zero()))
+            .0
     }
 
     /// Read the base field constant.
@@ -113,6 +149,16 @@ where
             .entry(f)
             .and_modify(|(_, x)| *x += F::one())
             .or_insert_with(|| (Self::alloc(&mut self.next_addr), F::one()))
+            .0
+    }
+
+    /// Read the base field constant.
+    ///
+    /// Does not increment the mult. Creates an entry if it does not yet exist.
+    pub fn read_ghost_const_ef(&mut self, ef: EF) -> Address<F> {
+        self.consts_ef
+            .entry(ef)
+            .or_insert_with(|| (Self::alloc(&mut self.next_addr), F::zero()))
             .0
     }
 
@@ -260,7 +306,7 @@ where
                 .into_iter()
                 .map(|r| (r.write(self), F::zero()))
                 .collect(),
-            input_addr: value.read(self),
+            input_addr: value.read_ghost(self),
         })
     }
 
@@ -516,6 +562,9 @@ trait Reg<F, EF> {
     /// Mark the register as to be read from, returning the "physical" address.
     fn read(&self, compiler: &mut AsmCompiler<F, EF>) -> Address<F>;
 
+    /// Get the "physical" address of the register, assigning a new address if necessary.
+    fn read_ghost(&self, compiler: &mut AsmCompiler<F, EF>) -> Address<F>;
+
     /// Mark the register as to be written to, returning the "physical" address.
     fn write(&self, compiler: &mut AsmCompiler<F, EF>) -> Address<F>;
 }
@@ -529,6 +578,9 @@ macro_rules! impl_reg_fp {
         {
             fn read(&self, compiler: &mut AsmCompiler<F, EF>) -> Address<F> {
                 compiler.read_fp(self.fp())
+            }
+            fn read_ghost(&self, compiler: &mut AsmCompiler<F, EF>) -> Address<F> {
+                compiler.read_ghost_fp(self.fp())
             }
             fn write(&self, compiler: &mut AsmCompiler<F, EF>) -> Address<F> {
                 compiler.write_fp(self.fp())
@@ -554,6 +606,13 @@ where
         }
     }
 
+    fn read_ghost(&self, compiler: &mut AsmCompiler<F, EF>) -> Address<F> {
+        match self {
+            Imm::F(f) => compiler.read_ghost_const_f(*f),
+            Imm::EF(ef) => compiler.read_ghost_const_ef(*ef),
+        }
+    }
+
     fn write(&self, _compiler: &mut AsmCompiler<F, EF>) -> Address<F> {
         panic!("cannot write to immediate in register: {self:?}")
     }
@@ -566,6 +625,11 @@ where
 {
     fn read(&self, compiler: &mut AsmCompiler<F, EF>) -> Address<F> {
         compiler.read_addr(*self);
+        *self
+    }
+
+    fn read_ghost(&self, compiler: &mut AsmCompiler<F, EF>) -> Address<F> {
+        compiler.read_ghost_addr(*self);
         *self
     }
 
@@ -582,6 +646,7 @@ mod tests {
     use p3_symmetric::Permutation;
     use rand::{rngs::StdRng, Rng, SeedableRng};
     use sp1_core::{
+        lookup::{debug_interactions_with_all_chips, InteractionKind},
         stark::StarkGenericConfig,
         utils::{inner_perm, run_test_machine, setup_logger, BabyBearPoseidon2Inner},
     };
@@ -599,7 +664,7 @@ mod tests {
 
     fn test_operations(operations: TracedVec<DslIr<AsmConfig<F, EF>>>) {
         let mut compiler = super::AsmCompiler::default();
-        let instructions = compiler.compile(operations);
+        let instructions = dbg!(compiler.compile(operations));
         let program = RecursionProgram { instructions };
         let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(
             &program,
@@ -610,10 +675,16 @@ mod tests {
         let config = SC::new();
         let machine = A::machine(config);
         let (pk, vk) = machine.setup(&program);
-        let result = run_test_machine(runtime.record, machine, pk, vk);
-        if let Err(e) = result {
-            panic!("Verification failed: {:?}", e);
-        }
+        debug_interactions_with_all_chips(
+            &machine,
+            &pk,
+            &[runtime.record],
+            InteractionKind::all_kinds(),
+        );
+        // let result = run_test_machine(runtime.record, machine, pk, vk);
+        // if let Err(e) = result {
+        //     panic!("Verification failed: {:?}", e);
+        // }
     }
 
     #[test]

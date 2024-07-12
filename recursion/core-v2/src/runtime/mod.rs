@@ -331,7 +331,7 @@ where
                     input_addr,
                 }) => {
                     self.nb_bit_decompositions += 1;
-                    let num = self.mr(input_addr).val[0].as_canonical_u32();
+                    let num = self.mr_mult(input_addr, F::zero()).val[0].as_canonical_u32();
                     // Decompose the num into LE bits.
                     let bits = (0..output_addrs_mults.len())
                         .map(|i| (num >> i) & 1)
