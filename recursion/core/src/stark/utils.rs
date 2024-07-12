@@ -37,11 +37,20 @@ pub fn run_test_recursion(
     if witness.is_some() {
         runtime.witness_stream = witness.unwrap();
     }
-    runtime.run();
-    println!(
-        "The program executed successfully, number of cycles: {}",
-        runtime.clk.as_canonical_u32() / 4
-    );
+
+    match runtime.run() {
+        Ok(_) => {
+            println!(
+                "The program executed successfully, number of cycles: {}",
+                runtime.clk.as_canonical_u32() / 4
+            );
+        }
+        Err(e) => {
+            eprintln!("Runtime error: {:?}", e);
+            return;
+        }
+    }
+
     let records = vec![runtime.record];
 
     if test_config == TestConfig::All || test_config == TestConfig::WideDeg3 {
