@@ -130,16 +130,16 @@ pub struct SP1Prover<C: SP1ProverComponents = DefaultProverComponents> {
     pub wrap_vk: StarkVerifyingKey<OuterSC>,
 
     /// The machine used for proving the core step.
-    pub core_prover: C::CoreProver,
+    pub core_prover: Arc<C::CoreProver>,
 
     /// The machine used for proving the recursive and reduction steps.
-    pub compress_prover: C::CompressProver,
+    pub compress_prover: Arc<C::CompressProver>,
 
     /// The machine used for proving the shrink step.
-    pub shrink_prover: C::ShrinkProver,
+    pub shrink_prover: Arc<C::ShrinkProver>,
 
     /// The machine used for proving the wrapping step.
-    pub wrap_prover: C::WrapProver,
+    pub wrap_prover: Arc<C::WrapProver>,
 }
 
 impl<C: SP1ProverComponents> SP1Prover<C> {
@@ -205,10 +205,10 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             wrap_program,
             wrap_pk,
             wrap_vk,
-            core_prover,
-            compress_prover,
-            shrink_prover,
-            wrap_prover,
+            core_prover: Arc::new(core_prover),
+            compress_prover: Arc::new(compress_prover),
+            shrink_prover: Arc::new(shrink_prover),
+            wrap_prover: Arc::new(wrap_prover),
         }
     }
 
@@ -262,7 +262,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             .get_or_insert_with(|| Arc::new(self));
         let program = Program::from(&pk.elf);
         let (proof, public_values_stream, cycles) = sp1_core::utils::prove_with_context(
-            &self.core_prover,
+            &*self.core_prover,
             program,
             stdin,
             opts.core_opts,
@@ -293,9 +293,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         // Prepare the inputs for the recursion programs.
         for batch in shard_proofs.chunks(batch_size) {
             let proofs = batch.to_vec();
-
-            let public_values: &PublicValues<Word<BabyBear>, BabyBear> =
-                proofs.last().unwrap().public_values.as_slice().borrow();
 
             core_inputs.push(SP1RecursionMemoryLayout {
                 vk,
