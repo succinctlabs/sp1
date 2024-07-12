@@ -10,7 +10,7 @@ use std::{
 };
 
 use anyhow::{Context, Result};
-use cargo_metadata::{camino::Utf8PathBuf, Metadata};
+use cargo_metadata::camino::Utf8PathBuf;
 
 const BUILD_TARGET: &str = "riscv32im-succinct-zkvm-elf";
 
@@ -153,13 +153,18 @@ fn execute_command(mut command: Command, build_with_helper: bool, docker: bool) 
 
 /// Copy the ELF to the specified output directory.
 fn copy_elf_to_output_dir(
-    metadata: &Metadata,
     args: &BuildArgs,
     program_dir: &Utf8PathBuf,
     root_package_name: &str,
 ) -> Result<Utf8PathBuf> {
+    let program_metadata_file = program_dir.join("Cargo.toml");
+    let mut program_metadata_cmd = cargo_metadata::MetadataCommand::new();
+    let program_metadata = program_metadata_cmd
+        .manifest_path(program_metadata_file)
+        .exec()
+        .unwrap();
     // The ELF is written to a target folder specified by the program's package.
-    let original_elf_path = metadata
+    let original_elf_path = program_metadata
         .target_directory
         .join(BUILD_TARGET)
         .join("release")
@@ -235,5 +240,5 @@ pub fn build_program(args: &BuildArgs, program_dir: Option<PathBuf>) -> Result<U
 
     println!("Executed command.");
 
-    copy_elf_to_output_dir(&metadata, args, &program_dir, root_package_name.unwrap())
+    copy_elf_to_output_dir(args, &program_dir, root_package_name.unwrap())
 }
