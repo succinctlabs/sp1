@@ -20,6 +20,7 @@ pub struct ExecutionRecord<F> {
 
     pub poseidon2_wide_events: Vec<Poseidon2WideEvent<F>>,
     pub exp_reverse_bits_len_events: Vec<ExpReverseBitsEvent<F>>,
+    pub fri_fold_events: Vec<FriFoldEvent<F>>,
 }
 
 impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
@@ -48,12 +49,14 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
             public_values: _,
             poseidon2_wide_events,
             exp_reverse_bits_len_events,
+            fri_fold_events,
         } = self;
         base_alu_events.append(&mut other.base_alu_events);
         ext_alu_events.append(&mut other.ext_alu_events);
         mem_events.append(&mut other.mem_events);
         poseidon2_wide_events.append(&mut other.poseidon2_wide_events);
         exp_reverse_bits_len_events.append(&mut other.exp_reverse_bits_len_events);
+        fri_fold_events.append(&mut other.fri_fold_events);
     }
 
     fn shard(self, _config: &Self::Config) -> Vec<Self> {
