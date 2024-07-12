@@ -29,15 +29,6 @@ impl<C: Config> CircuitV2Builder<C> for Builder<C> {
             })
             .sum();
 
-        // let sum: Felt<_> = self.eval(C::F::zero());
-        // for i in 0..NUM_BITS {
-        //     let bit = output[i];
-        //     self.assert_var_eq(bit * (bit - C::F::one()), C::F::zero());
-        //     self.if_eq(bit, C::N::one()).then(|builder| {
-        //         builder.assign(sum, sum + C::F::from_canonical_u32(1 << i));
-        //     });
-        // }
-
         self.assert_felt_eq(x, num);
 
         output
