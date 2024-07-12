@@ -10,14 +10,20 @@ fn current_datetime() -> String {
 
 /// Re-run the cargo command if the Cargo.toml or Cargo.lock file changes.
 fn cargo_rerun_if_changed(metadata: &Metadata, program_dir: &Path) {
-    // Tell cargo to rerun the script only if program/{src, Cargo.toml, Cargo.lock} changes
+    // Tell cargo to rerun the script only if program/{src, bin, build.rs, Cargo.toml} changes
     // Ref: https://doc.rust-lang.org/nightly/cargo/reference/build-scripts.html#rerun-if-changed
-    let dirs = vec![program_dir.join("src"), program_dir.join("bin")];
+    let dirs = vec![
+        program_dir.join("src"),
+        program_dir.join("bin"),
+        program_dir.join("build.rs"),
+        program_dir.join("Cargo.toml"),
+    ];
     for dir in dirs {
         println!("cargo::rerun-if-changed={}", dir.display());
     }
 
-    // Re-run the build script if Cargo.lock changes.
+    // Re-run the build script if the workspace root's Cargo.lock changes. If the program is its own
+    // workspace, this will be the program's Cargo.lock.
     println!(
         "cargo:rerun-if-changed={}",
         metadata.workspace_root.join("Cargo.lock").as_str()
