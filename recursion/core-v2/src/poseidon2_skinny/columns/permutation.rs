@@ -2,7 +2,7 @@ use std::{borrow::BorrowMut, mem::size_of};
 
 use sp1_derive::AlignedBorrow;
 
-use crate::poseidon2_wide::{
+use crate::poseidon2_skinny::{
     columns::{POSEIDON2_DEGREE3_COL_MAP, POSEIDON2_DEGREE9_COL_MAP},
     NUM_INTERNAL_ROUNDS, WIDTH,
 };
