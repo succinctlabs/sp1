@@ -18,7 +18,7 @@ const BUILD_TARGET: &str = "riscv32im-succinct-zkvm-elf";
 ///
 /// This struct can be used to configure the build process, including options for using Docker,
 /// specifying binary and ELF names, ignoring Rust version checks, and enabling specific features.
-#[derive(Default, Clone, Parser, Debug)]
+#[derive(Clone, Parser, Debug)]
 pub struct BuildArgs {
     #[clap(long, action, help = "Build using Docker for reproducible builds.")]
     pub docker: bool,
@@ -49,6 +49,21 @@ pub struct BuildArgs {
         default_value = "elf"
     )]
     pub output_directory: String,
+}
+
+// Implement default args to match clap defaults.
+impl Default for BuildArgs {
+    fn default() -> Self {
+        Self {
+            docker: false,
+            tag: "latest".to_string(),
+            features: vec![],
+            ignore_rust_version: false,
+            binary: "riscv32im-succinct-zkvm".to_string(),
+            elf_name: "".to_string(),
+            output_directory: "elf".to_string(),
+        }
+    }
 }
 
 /// Get the arguments to build the program with the arguments from the [`BuildArgs`] struct.
