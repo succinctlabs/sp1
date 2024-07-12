@@ -18,61 +18,57 @@ use crate::{
 
 #[derive(Clone, Copy)]
 #[repr(C)]
-pub struct Fp<F: FieldParameters> {
-    data: [u64; 6],
-    _field: std::marker::PhantomData<F>,
-}
+pub struct Fp(pub [u64; 6]);
 
-impl<F: FieldParameters> Fp<F> {
+impl Fp {
+    const MODULUS: &'static [u8] = &[
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+    ];
     pub(crate) fn to_words(self) -> [u32; 12] {
-        unsafe { transmute(self.data) }
+        unsafe { transmute(self.0) }
     }
 
     pub(crate) fn from_words(bytes: &[u32; 12]) -> Self {
-        unsafe {
-            Self {
-                data: transmute(*bytes),
-                _field: std::marker::PhantomData,
-            }
-        }
+        unsafe { Self(transmute(*bytes)) }
     }
 }
 
-impl<F: FieldParameters> Mul for Fp<F> {
+impl Mul for Fp {
     type Output = Self;
 
     fn mul(self, other: Self) -> Self::Output {
         let rhs = BigUint::from_bytes_be(&words_to_bytes_le_vec(&self.to_words()));
         let lhs = BigUint::from_bytes_be(&words_to_bytes_le_vec(&other.to_words()));
 
-        let out = (lhs * rhs) % BigUint::from_bytes_le(F::MODULUS);
+        let out = (lhs * rhs) % BigUint::from_bytes_le(Self::MODULUS);
         Self::from_words(&bytes_to_words_le::<12>(&out.to_bytes_le()))
     }
 }
 
-impl<F: FieldParameters> Add for Fp<F> {
+impl Add for Fp {
     type Output = Self;
 
     fn add(self, other: Self) -> Self::Output {
         let rhs = BigUint::from_bytes_be(&words_to_bytes_le_vec(&self.to_words()));
         let lhs = BigUint::from_bytes_be(&words_to_bytes_le_vec(&other.to_words()));
 
-        let out = (lhs + rhs) % BigUint::from_bytes_le(F::MODULUS);
+        let out = (lhs + rhs) % BigUint::from_bytes_le(Self::MODULUS);
         Self::from_words(&bytes_to_words_le::<12>(&out.to_bytes_le()))
     }
 }
 
-impl<F: FieldParameters> Neg for Fp<F> {
+impl Neg for Fp {
     type Output = Self;
 
     fn neg(self) -> Self::Output {
         let val = BigUint::from_bytes_be(&words_to_bytes_le_vec(&self.to_words()));
-        let out = BigUint::from_bytes_le(F::MODULUS) - val;
+        let out = BigUint::from_bytes_le(Self::MODULUS) - val;
         Self::from_words(&bytes_to_words_le::<12>(&out.to_bytes_le()))
     }
 }
 
-impl<F: FieldParameters> Sub for Fp<F> {
+impl Sub for Fp {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
@@ -82,12 +78,12 @@ impl<F: FieldParameters> Sub for Fp<F> {
 
 #[derive(Clone, Copy)]
 #[repr(C)]
-pub struct Fp2<F: FieldParameters> {
-    c0: Fp<F>,
-    c1: Fp<F>,
+pub struct Fp2 {
+    c0: Fp,
+    c1: Fp,
 }
 
-impl<F: FieldParameters> Fp2<F> {
+impl Fp2 {
     pub(crate) fn to_words(self) -> [u32; 24] {
         let mut bytes = [0; 24];
         bytes[..12].copy_from_slice(&self.c0.to_words());
@@ -110,7 +106,7 @@ impl<F: FieldParameters> Fp2<F> {
     }
 }
 
-impl<F: FieldParameters> Mul for Fp2<F> {
+impl Mul for Fp2 {
     type Output = Self;
 
     fn mul(self, rhs: Self) -> Self::Output {
@@ -121,7 +117,7 @@ impl<F: FieldParameters> Mul for Fp2<F> {
     }
 }
 
-impl<F: FieldParameters> Add for Fp2<F> {
+impl Add for Fp2 {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
@@ -132,7 +128,7 @@ impl<F: FieldParameters> Add for Fp2<F> {
     }
 }
 
-impl<F: FieldParameters> Neg for Fp2<F> {
+impl Neg for Fp2 {
     type Output = Self;
 
     fn neg(self) -> Self::Output {
@@ -145,13 +141,13 @@ impl<F: FieldParameters> Neg for Fp2<F> {
 
 #[derive(Clone, Copy)]
 #[repr(C)]
-pub struct Fp6<F: FieldParameters> {
-    c0: Fp2<F>,
-    c1: Fp2<F>,
-    c2: Fp2<F>,
+pub struct Fp6 {
+    c0: Fp2,
+    c1: Fp2,
+    c2: Fp2,
 }
 
-impl<F: FieldParameters> Fp6<F> {
+impl Fp6 {
     pub(crate) fn to_words(&self) -> [u32; 72] {
         let mut bytes = [0; 72];
         bytes[..24].copy_from_slice(&self.c0.to_words());
@@ -168,7 +164,7 @@ impl<F: FieldParameters> Fp6<F> {
         }
     }
 
-    fn mul_by_nonresidue(&self) -> Fp6<F> {
+    fn mul_by_nonresidue(&self) -> Fp6 {
         Fp6 {
             c0: self.c2.mul_by_nonresidue(),
             c1: self.c0,
@@ -177,7 +173,7 @@ impl<F: FieldParameters> Fp6<F> {
     }
 }
 
-impl<F: FieldParameters> Mul for Fp6<F> {
+impl Mul for Fp6 {
     type Output = Self;
 
     fn mul(self, rhs: Self) -> Self::Output {
@@ -227,7 +223,7 @@ impl<F: FieldParameters> Mul for Fp6<F> {
     }
 }
 
-impl<F: FieldParameters> Add for Fp6<F> {
+impl Add for Fp6 {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
@@ -239,7 +235,7 @@ impl<F: FieldParameters> Add for Fp6<F> {
     }
 }
 
-impl<F: FieldParameters> Neg for Fp6<F> {
+impl Neg for Fp6 {
     type Output = Self;
 
     fn neg(self) -> Self::Output {
@@ -251,7 +247,7 @@ impl<F: FieldParameters> Neg for Fp6<F> {
     }
 }
 
-impl<F: FieldParameters> Sub for Fp6<F> {
+impl Sub for Fp6 {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
@@ -261,12 +257,12 @@ impl<F: FieldParameters> Sub for Fp6<F> {
 
 #[derive(Clone, Copy)]
 #[repr(C)]
-pub struct Fp12<F: FieldParameters> {
-    c0: Fp6<F>,
-    c1: Fp6<F>,
+pub struct Fp12 {
+    c0: Fp6,
+    c1: Fp6,
 }
 
-impl<F: FieldParameters> Fp12<F> {
+impl Fp12 {
     pub(crate) fn to_words(self) -> [u32; 144] {
         let mut bytes = [0; 144];
         bytes[..72].copy_from_slice(&self.c0.to_words());
@@ -282,7 +278,7 @@ impl<F: FieldParameters> Fp12<F> {
     }
 }
 
-impl<F: FieldParameters> Add for Fp12<F> {
+impl Add for Fp12 {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
@@ -293,7 +289,7 @@ impl<F: FieldParameters> Add for Fp12<F> {
     }
 }
 
-impl<F: FieldParameters> Mul for Fp12<F> {
+impl Mul for Fp12 {
     type Output = Self;
 
     fn mul(self, rhs: Self) -> Self::Output {

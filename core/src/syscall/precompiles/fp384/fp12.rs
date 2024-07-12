@@ -34,6 +34,8 @@ use std::marker::PhantomData;
 use std::mem::size_of;
 use typenum::Unsigned;
 
+use super::Fp12;
+
 /// The number of columns in the FpMulCols.
 const NUM_COLS: usize = size_of::<Fp12MulCols<u8>>();
 
@@ -53,6 +55,7 @@ pub struct Fp12MulEvent {
 
 type WordsFieldElement = <U384Field as NumWords>::WordsFieldElement;
 const WORDS_FIELD_ELEMENT: usize = WordsFieldElement::USIZE;
+const WORDS_FP12_ELEMENT: usize = 12 * WORDS_FIELD_ELEMENT;
 const NUM_FP_MULS: usize = 144;
 
 #[derive(Debug, Clone, AlignedBorrow)]
@@ -290,11 +293,16 @@ pub struct Fp12MulCols<F> {
 }
 
 #[derive(Default)]
-pub struct Fp12MulChip<P> {
-    _marker: PhantomData<P>,
+pub struct Fp12MulChip;
+
+impl Fp12MulChip {
+    const MODULUS: &'static [u8] = &[
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+    ];
 }
 
-impl<F: PrimeField32, P: FieldParameters> MachineAir<F> for Fp12MulChip<P> {
+impl<F: PrimeField32> MachineAir<F> for Fp12MulChip {
     type Record = ExecutionRecord;
 
     type Program = Program;
@@ -335,7 +343,7 @@ impl<F: PrimeField32, P: FieldParameters> MachineAir<F> for Fp12MulChip<P> {
                             .collect_vec();
                         let y: [BigUint; 12] = y.try_into().unwrap();
 
-                        let modulus = BigUint::from_bytes_le(P::MODULUS);
+                        let modulus = BigUint::from_bytes_le(Self::MODULUS);
 
                         // Assign basic values to the columns.
                         cols.is_real = F::one();
@@ -359,12 +367,13 @@ impl<F: PrimeField32, P: FieldParameters> MachineAir<F> for Fp12MulChip<P> {
                             );
                         }
 
-                        let constraints: Fp12MulChipConstraints<F> = Fp12MulChipConstraints::new(
+                        let constraints: Fp12MulChipTrace<F> = Fp12MulChipTrace::new(
                             event.shard,
                             event.channel,
                             new_byte_lookup_events.clone(),
                             modulus,
                         );
+                        constraints.fp12_mul(&mut cols.output, x, y);
                         new_byte_lookup_events = constraints.new_byte_lookup_events;
                         row
                     })
@@ -407,8 +416,403 @@ impl<F: PrimeField32, P: FieldParameters> MachineAir<F> for Fp12MulChip<P> {
     }
 }
 
+impl Syscall for Fp12MulChip {
+    fn num_extra_cycles(&self) -> u32 {
+        0
+    }
+
+    fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
+        let x_ptr = arg1;
+        if x_ptr % 4 != 0 {
+            panic!();
+        }
+        let y_ptr = arg2;
+        if y_ptr % 4 != 0 {
+            panic!();
+        }
+
+        // First read the words for the x value. We can read a slice_unsafe here because we write
+        // the computed result to x later.
+        let x = rt.slice_unsafe(x_ptr, WORDS_FP12_ELEMENT);
+
+        // Read the y value.
+        let (y_memory_records, y) = rt.mr_slice(y_ptr, WORDS_FP12_ELEMENT);
+
+        let result = Fp12::from_words(&x.clone().try_into().unwrap())
+            * Fp12::from_words(&y.clone().try_into().unwrap());
+
+        // Write the result to x and keep track of the memory records.
+        let x_memory_records = rt.mw_slice(x_ptr, &result.to_words());
+
+        let lookup_id = rt.syscall_lookup_id;
+        let shard = rt.current_shard();
+        let channel = rt.current_channel();
+        let clk = rt.clk;
+        rt.record_mut().fp12_mul_events.push(Fp12MulEvent {
+            lookup_id,
+            shard,
+            channel,
+            clk,
+            x_ptr,
+            x,
+            y_ptr,
+            y,
+            x_memory_records,
+            y_memory_records,
+        });
+
+        None
+    }
+}
+
+impl<F> BaseAir<F> for Fp12MulChip {
+    fn width(&self) -> usize {
+        NUM_COLS
+    }
+}
+
+impl<AB> Air<AB> for Fp12MulChip
+where
+    AB: SP1AirBuilder,
+    Limbs<AB::Var, <U384Field as NumLimbs>::Limbs>: Copy,
+{
+    fn eval(&self, builder: &mut AB) {
+        let main = builder.main();
+        let local = main.row_slice(0);
+        let local: &Fp12MulCols<AB::Var> = (*local).borrow();
+        let next = main.row_slice(1);
+        let next: &Fp12MulCols<AB::Var> = (*next).borrow();
+
+        // Constrain the incrementing nonce.
+        builder.when_first_row().assert_zero(local.nonce);
+        builder
+            .when_transition()
+            .assert_eq(local.nonce + AB::Expr::one(), next.nonce);
+
+        let x_limbs = limbs_from_prev_access(&local.x_memory);
+        let y_limbs = limbs_from_access(&local.y_memory);
+    }
+}
+
+macro_rules! build_fp12_mul_constraints {
+    ($DType:ty) => {
+        fn sum_of_products_aux(
+            &mut self,
+            dest: &mut SumOfProductsAuxillaryCols<F>,
+            b: [&$DType; 6],
+        ) -> [$DType; 4] {
+            let b00 = b[0];
+            let b01 = b[1];
+            let b10 = b[2];
+            let b11 = b[3];
+            let b20 = b[4];
+            let b21 = b[5];
+
+            let b10_p_b11 = self.add(&mut dest.b10_p_b11, b10, b11);
+            let b10_m_b11 = self.sub(&mut dest.b10_m_b11, b10, b11);
+            let b20_p_b21 = self.add(&mut dest.b20_p_b21, b20, b21);
+            let b20_m_b21 = self.sub(&mut dest.b20_m_b21, b20, b21);
+
+            [b10_p_b11, b10_m_b11, b20_p_b21, b20_m_b21]
+        }
+
+        fn sum_of_products(
+            &mut self,
+            dest: &mut SumOfProductsCols<F>,
+            a: [(i8, &$DType); 6],
+            b: [(i8, &$DType); 6],
+        ) -> $DType {
+            let a00 = a[0].1;
+            let a01 = a[1].1;
+            let a10 = a[2].1;
+            let a11 = a[3].1;
+            let a20 = a[4].1;
+            let a21 = a[5].1;
+
+            let b00 = b[0].1;
+            let b01 = b[1].1;
+            let b10 = b[2].1;
+            let b11 = b[3].1;
+            let b20 = b[4].1;
+            let b21 = b[5].1;
+
+            let a1_t_b1 = &self.mul(&mut dest.a1_t_b1, a00, b00);
+            let a2_t_b2 = &self.mul(&mut dest.a2_t_b2, a01, b01);
+            let a3_t_b3 = &self.mul(&mut dest.a3_t_b3, a10, b10);
+            let a4_t_b4 = &self.mul(&mut dest.a4_t_b4, a11, b11);
+            let a5_t_b5 = &self.mul(&mut dest.a5_t_b5, a20, b20);
+            let a6_t_b6 = &self.mul(&mut dest.a6_t_b6, a21, b21);
+
+            let products = [a1_t_b1, a2_t_b2, a3_t_b3, a4_t_b4, a5_t_b5, a6_t_b6];
+            let dests = [
+                &mut dest.sum1,
+                &mut dest.sum2,
+                &mut dest.sum3,
+                &mut dest.sum4,
+                &mut dest.sum5,
+            ];
+
+            // Get negative coefficients in the sum of products.
+            let is_sub = a
+                .iter()
+                .zip(b.iter())
+                .map(|(a, b)| a.0 != b.0)
+                .collect_vec();
+
+            let mut sum = a1_t_b1.clone();
+
+            for (is_neg, dest, cur) in izip!(is_sub, dests, products).skip(1) {
+                let _sum = &sum.clone();
+                if is_neg {
+                    sum = sum + &self.sub(dest, _sum, cur);
+                } else {
+                    sum = sum + &self.add(dest, _sum, cur);
+                }
+            }
+
+            sum
+        }
+        fn fp6_mul(
+            &mut self,
+            dest: &mut Fp6MulCols<F>,
+            a: &[$DType; 6],
+            b: &[$DType; 6],
+        ) -> [$DType; 6] {
+            let a00 = &a[0];
+            let a01 = &a[1];
+            let a10 = &a[2];
+            let a11 = &a[3];
+            let a20 = &a[4];
+            let a21 = &a[5];
+
+            let b00 = &b[0];
+            let b01 = &b[1];
+            let b10 = &b[2];
+            let b11 = &b[3];
+            let b20 = &b[4];
+            let b21 = &b[5];
+
+            let [b10_p_b11, b10_m_b11, b20_p_b21, b20_m_b21] =
+                self.sum_of_products_aux(&mut dest.aux, [b00, b01, b10, b11, b20, b21]);
+            let c00 = self.sum_of_products(
+                &mut dest.c00,
+                [(1, a00), (1, a01), (1, a10), (1, a11), (1, a20), (1, a21)],
+                [
+                    (1, b00),
+                    (-1, b01),
+                    (1, &b20_m_b21),
+                    (-1, &b20_p_b21),
+                    (1, &b10_m_b11),
+                    (-1, &b10_p_b11),
+                ],
+            );
+
+            let c01 = self.sum_of_products(
+                &mut dest.c01,
+                [(1, a00), (1, a01), (1, a10), (1, a11), (1, a20), (1, a21)],
+                [
+                    (1, b01),
+                    (1, b00),
+                    (1, &b20_p_b21),
+                    (1, &b20_m_b21),
+                    (1, &b10_p_b11),
+                    (1, &b10_m_b11),
+                ],
+            );
+
+            let c10 = self.sum_of_products(
+                &mut dest.c10,
+                [
+                    (1, a00),
+                    (-1, a01),
+                    (1, a10),
+                    (-1, a11),
+                    (1, a20),
+                    (-1, a21),
+                ],
+                [
+                    (1, b10),
+                    (1, b11),
+                    (1, b00),
+                    (1, b01),
+                    (1, &b20_m_b21),
+                    (1, &b20_p_b21),
+                ],
+            );
+
+            let c11 = self.sum_of_products(
+                &mut dest.c11,
+                [(1, a00), (1, a01), (1, a10), (1, a11), (1, a20), (1, a21)],
+                [
+                    (1, b11),
+                    (1, b10),
+                    (1, b01),
+                    (1, b00),
+                    (1, &b20_p_b21),
+                    (1, &b20_m_b21),
+                ],
+            );
+
+            let c20 = self.sum_of_products(
+                &mut dest.c20,
+                [
+                    (1, a00),
+                    (-1, a01),
+                    (1, a10),
+                    (-1, a11),
+                    (1, a20),
+                    (-1, a21),
+                ],
+                [(1, b20), (1, b21), (1, b10), (1, b11), (1, b00), (1, b01)],
+            );
+
+            let c21 = self.sum_of_products(
+                &mut dest.c21,
+                [(1, a00), (1, a01), (1, a10), (1, a11), (1, a20), (1, a21)],
+                [(1, b21), (1, b20), (1, b11), (1, b10), (1, b01), (1, b00)],
+            );
+
+            [c00, c01, c10, c11, c20, c21]
+        }
+        fn fp6_add(
+            &mut self,
+            dest: &mut Fp6AddCols<F>,
+            a: &[$DType; 6],
+            b: &[$DType; 6],
+        ) -> [$DType; 6] {
+            let a00 = &a[0];
+            let a01 = &a[1];
+            let a10 = &a[2];
+            let a11 = &a[3];
+            let a20 = &a[4];
+            let a21 = &a[5];
+
+            let b00 = &b[0];
+            let b01 = &b[1];
+            let b10 = &b[2];
+            let b11 = &b[3];
+            let b20 = &b[4];
+            let b21 = &b[5];
+
+            let a00_p_b00 = self.add(&mut dest.a00_p_b00, a00, b00);
+            let a01_p_b01 = self.add(&mut dest.a01_p_b01, a01, b01);
+            let a10_p_b10 = self.add(&mut dest.a10_p_b10, a10, b10);
+            let a11_p_b11 = self.add(&mut dest.a11_p_b11, a11, b11);
+            let a20_p_b20 = self.add(&mut dest.a20_p_b20, a20, b20);
+            let a21_p_b21 = self.add(&mut dest.a21_p_b21, a21, b21);
+
+            [
+                a00_p_b00, a01_p_b01, a10_p_b10, a11_p_b11, a20_p_b20, a21_p_b21,
+            ]
+        }
+
+        fn fp6_sub(
+            &mut self,
+            dest: &mut Fp6AddCols<F>,
+            a: &[$DType; 6],
+            b: &[$DType; 6],
+        ) -> [$DType; 6] {
+            let a00 = &a[0];
+            let a01 = &a[1];
+            let a10 = &a[2];
+            let a11 = &a[3];
+            let a20 = &a[4];
+            let a21 = &a[5];
+
+            let b00 = &b[0];
+            let b01 = &b[1];
+            let b10 = &b[2];
+            let b11 = &b[3];
+            let b20 = &b[4];
+            let b21 = &b[5];
+
+            let a00_m_b00 = self.sub(&mut dest.a00_p_b00, a00, b00);
+            let a01_m_b01 = self.sub(&mut dest.a01_p_b01, a01, b01);
+            let a10_m_b10 = self.sub(&mut dest.a10_p_b10, a10, b10);
+            let a11_m_b11 = self.sub(&mut dest.a11_p_b11, a11, b11);
+            let a20_m_b20 = self.sub(&mut dest.a20_p_b20, a20, b20);
+            let a21_m_b21 = self.sub(&mut dest.a21_p_b21, a21, b21);
+
+            [
+                a00_m_b00, a01_m_b01, a10_m_b10, a11_m_b11, a20_m_b20, a21_m_b21,
+            ]
+        }
+        fn fp6_mul_by_non_residue(
+            &mut self,
+            dest: &mut Fp6MulByNonResidueCols<F>,
+            a: &[$DType; 6],
+        ) -> [$DType; 6] {
+            let a00 = &a[0];
+            let a01 = &a[1];
+            let a10 = &a[2];
+            let a11 = &a[3];
+            let a20 = &a[4];
+            let a21 = &a[5];
+
+            let c00 = self.sub(&mut dest.c00, &a20, &a21);
+            let c01 = self.add(&mut dest.c01, &a20, &a21);
+
+            let c10 = a00;
+            let c11 = a01;
+
+            let c20 = a10;
+            let c21 = a11;
+
+            [c00, c01, c10.clone(), c11.clone(), c20.clone(), c21.clone()]
+        }
+        fn fp12_mul(
+            &mut self,
+            dest: &mut AuxFp12MulCols<F>,
+            a: [$DType; 12],
+            b: [$DType; 12],
+        ) -> [$DType; 12] {
+            let ac0 = a[0..6]
+                .iter()
+                .map(|x| x.clone())
+                .collect_vec()
+                .try_into()
+                .unwrap();
+            let ac1 = a[6..12]
+                .iter()
+                .map(|x| x.clone())
+                .collect_vec()
+                .try_into()
+                .unwrap();
+            let bc0 = b[0..6]
+                .iter()
+                .map(|x| x.clone())
+                .collect_vec()
+                .try_into()
+                .unwrap();
+            let bc1 = b[6..12]
+                .iter()
+                .map(|x| x.clone())
+                .collect_vec()
+                .try_into()
+                .unwrap();
+
+            let aa = self.fp6_mul(&mut dest.aa, &ac0, &bc0);
+            let bb = self.fp6_mul(&mut dest.bb, &ac1, &bc1);
+
+            let o = self.fp6_add(&mut dest.o, &bc0, &bc0);
+            let y1 = self.fp6_add(&mut dest.y1, &ac1, &ac0);
+            let y2 = self.fp6_mul(&mut dest.y2, &y1, &o);
+            let y3 = self.fp6_sub(&mut dest.y3, &y2, &aa);
+            let y = self.fp6_sub(&mut dest.y, &y3, &bb);
+            let x1 = self.fp6_mul_by_non_residue(&mut dest.x1, &bb);
+            let x = self.fp6_add(&mut dest.x, &x1, &aa);
+
+            x.iter()
+                .chain(y.iter())
+                .cloned()
+                .collect_vec()
+                .try_into()
+                .unwrap()
+        }
+    };
+}
 #[repr(C)]
-struct Fp12MulChipConstraints<F> {
+struct Fp12MulChipTrace<F> {
     shard: u32,
     channel: u32,
     new_byte_lookup_events: Vec<ByteLookupEvent>,
@@ -416,7 +820,7 @@ struct Fp12MulChipConstraints<F> {
     _marker: PhantomData<F>,
 }
 
-impl<F: PrimeField32> Fp12MulChipConstraints<F> {
+impl<F: PrimeField32> Fp12MulChipTrace<F> {
     fn new(
         shard: u32,
         channel: u32,
@@ -454,324 +858,81 @@ impl<F: PrimeField32> Fp12MulChipConstraints<F> {
         (a * b) % &self.modulus
     }
     fn add(&mut self, dest: &mut FieldOpCols<F, U384Field>, a: &BigUint, b: &BigUint) -> BigUint {
-        self.populate_with_modulus(dest, a, b, FieldOperation::Mul);
+        self.populate_with_modulus(dest, a, b, FieldOperation::Add);
         (a + b) % &self.modulus
     }
     fn sub(&mut self, dest: &mut FieldOpCols<F, U384Field>, a: &BigUint, b: &BigUint) -> BigUint {
-        self.populate_with_modulus(dest, a, b, FieldOperation::Mul);
+        self.populate_with_modulus(dest, a, b, FieldOperation::Sub);
         (a - b) % &self.modulus
     }
-    fn sum_of_products_aux(
-        &mut self,
-        dest: &mut SumOfProductsAuxillaryCols<F>,
-        b: [&BigUint; 6],
-    ) -> [BigUint; 4] {
-        let b00 = b[0];
-        let b01 = b[1];
-        let b10 = b[2];
-        let b11 = b[3];
-        let b20 = b[4];
-        let b21 = b[5];
 
-        let b10_p_b11 = self.add(&mut dest.b10_p_b11, b10, b11);
-        let b10_m_b11 = self.sub(&mut dest.b10_m_b11, b10, b11);
-        let b20_p_b21 = self.add(&mut dest.b20_p_b21, b20, b21);
-        let b20_m_b21 = self.sub(&mut dest.b20_m_b21, b20, b21);
+    build_fp12_mul_constraints!(BigUint);
+}
 
-        [b10_p_b11, b10_m_b11, b20_p_b21, b20_m_b21]
-    }
+#[derive(Clone)]
+#[repr(C)]
+struct Fp12MulChipEval<F, AB>
+where
+    AB: SP1AirBuilder,
+    Limbs<AB::Var, <U384Field as NumLimbs>::Limbs>: Copy,
+{
+    shard: u32,
+    channel: u32,
+    is_real: u32,
+    builder: AB,
+    new_byte_lookup_events: Vec<ByteLookupEvent>,
+    modulus: BigUint,
+    _marker: PhantomData<F>,
+}
 
-    fn sum_of_products(
-        &mut self,
-        dest: &mut SumOfProductsCols<F>,
-        a: [(i8, &BigUint); 6],
-        b: [(i8, &BigUint); 6],
-    ) -> BigUint {
-        let a00 = a[0].1;
-        let a01 = a[1].1;
-        let a10 = a[2].1;
-        let a11 = a[3].1;
-        let a20 = a[4].1;
-        let a21 = a[5].1;
-
-        let b00 = b[0].1;
-        let b01 = b[1].1;
-        let b10 = b[2].1;
-        let b11 = b[3].1;
-        let b20 = b[4].1;
-        let b21 = b[5].1;
-
-        let a1_t_b1 = &self.mul(&mut dest.a1_t_b1, a00, b00);
-        let a2_t_b2 = &self.mul(&mut dest.a2_t_b2, a01, b01);
-        let a3_t_b3 = &self.mul(&mut dest.a3_t_b3, a10, b10);
-        let a4_t_b4 = &self.mul(&mut dest.a4_t_b4, a11, b11);
-        let a5_t_b5 = &self.mul(&mut dest.a5_t_b5, a20, b20);
-        let a6_t_b6 = &self.mul(&mut dest.a6_t_b6, a21, b21);
-
-        let products = [a1_t_b1, a2_t_b2, a3_t_b3, a4_t_b4, a5_t_b5, a6_t_b6];
-        let dests = [
-            &mut dest.sum1,
-            &mut dest.sum2,
-            &mut dest.sum3,
-            &mut dest.sum4,
-            &mut dest.sum5,
-        ];
-
-        // Get negative coefficients in the sum of products.
-        let is_sub = a
-            .iter()
-            .zip(b.iter())
-            .map(|(a, b)| a.0 != b.0)
-            .collect_vec();
-
-        let mut sum = a1_t_b1.clone();
-
-        for (is_neg, dest, cur) in izip!(is_sub, dests, products).skip(1) {
-            let _sum = &sum.clone();
-            if is_neg {
-                sum = sum + &self.sub(dest, _sum, cur);
-            } else {
-                sum = sum + &self.add(dest, _sum, cur);
-            }
+impl<F, AB> Fp12MulChipEval<F, AB>
+where
+    AB: SP1AirBuilder,
+    Limbs<AB::Var, <U384Field as NumLimbs>::Limbs>: Copy,
+{
+    fn new(
+        shard: u32,
+        channel: u32,
+        is_real: u32,
+        builder: AB,
+        new_byte_lookup_events: Vec<ByteLookupEvent>,
+        modulus: BigUint,
+    ) -> Self {
+        Self {
+            shard,
+            channel,
+            is_real,
+            builder,
+            new_byte_lookup_events,
+            modulus,
+            _marker: PhantomData,
         }
-
-        sum
-    }
-    fn fp6_mul(
-        &mut self,
-        dest: &mut Fp6MulCols<F>,
-        a: &[BigUint; 6],
-        b: &[BigUint; 6],
-    ) -> [BigUint; 6] {
-        let a00 = &a[0];
-        let a01 = &a[1];
-        let a10 = &a[2];
-        let a11 = &a[3];
-        let a20 = &a[4];
-        let a21 = &a[5];
-
-        let b00 = &b[0];
-        let b01 = &b[1];
-        let b10 = &b[2];
-        let b11 = &b[3];
-        let b20 = &b[4];
-        let b21 = &b[5];
-
-        let [b10_p_b11, b10_m_b11, b20_p_b21, b20_m_b21] =
-            self.sum_of_products_aux(&mut dest.aux, [b00, b01, b10, b11, b20, b21]);
-        let c00 = self.sum_of_products(
-            &mut dest.c00,
-            [(1, a00), (1, a01), (1, a10), (1, a11), (1, a20), (1, a21)],
-            [
-                (1, b00),
-                (-1, b01),
-                (1, &b20_m_b21),
-                (-1, &b20_p_b21),
-                (1, &b10_m_b11),
-                (-1, &b10_p_b11),
-            ],
-        );
-
-        let c01 = self.sum_of_products(
-            &mut dest.c01,
-            [(1, a00), (1, a01), (1, a10), (1, a11), (1, a20), (1, a21)],
-            [
-                (1, b01),
-                (1, b00),
-                (1, &b20_p_b21),
-                (1, &b20_m_b21),
-                (1, &b10_p_b11),
-                (1, &b10_m_b11),
-            ],
-        );
-
-        let c10 = self.sum_of_products(
-            &mut dest.c10,
-            [
-                (1, a00),
-                (-1, a01),
-                (1, a10),
-                (-1, a11),
-                (1, a20),
-                (-1, a21),
-            ],
-            [
-                (1, b10),
-                (1, b11),
-                (1, b00),
-                (1, b01),
-                (1, &b20_m_b21),
-                (1, &b20_p_b21),
-            ],
-        );
-
-        let c11 = self.sum_of_products(
-            &mut dest.c11,
-            [(1, a00), (1, a01), (1, a10), (1, a11), (1, a20), (1, a21)],
-            [
-                (1, b11),
-                (1, b10),
-                (1, b01),
-                (1, b00),
-                (1, &b20_p_b21),
-                (1, &b20_m_b21),
-            ],
-        );
-
-        let c20 = self.sum_of_products(
-            &mut dest.c20,
-            [
-                (1, a00),
-                (-1, a01),
-                (1, a10),
-                (-1, a11),
-                (1, a20),
-                (-1, a21),
-            ],
-            [(1, b20), (1, b21), (1, b10), (1, b11), (1, b00), (1, b01)],
-        );
-
-        let c21 = self.sum_of_products(
-            &mut dest.c21,
-            [(1, a00), (1, a01), (1, a10), (1, a11), (1, a20), (1, a21)],
-            [(1, b21), (1, b20), (1, b11), (1, b10), (1, b01), (1, b00)],
-        );
-
-        [c00, c01, c10, c11, c20, c21]
-    }
-    fn fp6_add(
-        &mut self,
-        dest: &mut Fp6AddCols<F>,
-        a: &[BigUint; 6],
-        b: &[BigUint; 6],
-    ) -> [BigUint; 6] {
-        let a00 = &a[0];
-        let a01 = &a[1];
-        let a10 = &a[2];
-        let a11 = &a[3];
-        let a20 = &a[4];
-        let a21 = &a[5];
-
-        let b00 = &b[0];
-        let b01 = &b[1];
-        let b10 = &b[2];
-        let b11 = &b[3];
-        let b20 = &b[4];
-        let b21 = &b[5];
-
-        let a00_p_b00 = self.add(&mut dest.a00_p_b00, a00, b00);
-        let a01_p_b01 = self.add(&mut dest.a01_p_b01, a01, b01);
-        let a10_p_b10 = self.add(&mut dest.a10_p_b10, a10, b10);
-        let a11_p_b11 = self.add(&mut dest.a11_p_b11, a11, b11);
-        let a20_p_b20 = self.add(&mut dest.a20_p_b20, a20, b20);
-        let a21_p_b21 = self.add(&mut dest.a21_p_b21, a21, b21);
-
-        [
-            a00_p_b00, a01_p_b01, a10_p_b10, a11_p_b11, a20_p_b20, a21_p_b21,
-        ]
     }
 
-    fn fp6_sub(
-        &mut self,
-        dest: &mut Fp6AddCols<F>,
-        a: &[BigUint; 6],
-        b: &[BigUint; 6],
-    ) -> [BigUint; 6] {
-        let a00 = &a[0];
-        let a01 = &a[1];
-        let a10 = &a[2];
-        let a11 = &a[3];
-        let a20 = &a[4];
-        let a21 = &a[5];
-
-        let b00 = &b[0];
-        let b01 = &b[1];
-        let b10 = &b[2];
-        let b11 = &b[3];
-        let b20 = &b[4];
-        let b21 = &b[5];
-
-        let a00_m_b00 = self.sub(&mut dest.a00_p_b00, a00, b00);
-        let a01_m_b01 = self.sub(&mut dest.a01_p_b01, a01, b01);
-        let a10_m_b10 = self.sub(&mut dest.a10_p_b10, a10, b10);
-        let a11_m_b11 = self.sub(&mut dest.a11_p_b11, a11, b11);
-        let a20_m_b20 = self.sub(&mut dest.a20_p_b20, a20, b20);
-        let a21_m_b21 = self.sub(&mut dest.a21_p_b21, a21, b21);
-
-        [
-            a00_m_b00, a01_m_b01, a10_m_b10, a11_m_b11, a20_m_b20, a21_m_b21,
-        ]
+    fn eval(&mut self, dest: &mut FieldOpCols<F, U384Field>, x: &AB, y: &AB, op: FieldOperation) {
+        dest.eval(
+            &mut self.builder,
+            &x,
+            &y,
+            op,
+            self.shard,
+            self.channel,
+            self.is_real,
+        );
     }
-    fn fp6_mul_by_non_residue(
-        &mut self,
-        dest: &mut Fp6MulByNonResidueCols<F>,
-        a: &[BigUint; 6],
-    ) -> [BigUint; 6] {
-        let a00 = &a[0];
-        let a01 = &a[1];
-        let a10 = &a[2];
-        let a11 = &a[3];
-        let a20 = &a[4];
-        let a21 = &a[5];
-
-        let c00 = self.sub(&mut dest.c00, &a20, &a21);
-        let c01 = self.add(&mut dest.c01, &a20, &a21);
-
-        let c10 = a00;
-        let c11 = a01;
-
-        let c20 = a10;
-        let c21 = a11;
-
-        [c00, c01, c10.clone(), c11.clone(), c20.clone(), c21.clone()]
+    fn mul(&mut self, dest: &mut FieldOpCols<F, _>, a: &AB, b: &AB) -> Limbs<F, _> {
+        self.eval(dest, a, b, FieldOperation::Mul);
+        dest.result
+        // (a * b) % &self.modulus
     }
-    fn fp12_mul(
-        &mut self,
-        dest: &mut AuxFp12MulCols<F>,
-        a: [BigUint; 12],
-        b: [BigUint; 12],
-    ) -> [BigUint; 12] {
-        let ac0 = a[0..6]
-            .iter()
-            .map(|x| x.clone())
-            .collect_vec()
-            .try_into()
-            .unwrap();
-        let ac1 = a[6..12]
-            .iter()
-            .map(|x| x.clone())
-            .collect_vec()
-            .try_into()
-            .unwrap();
-        let bc0 = b[0..6]
-            .iter()
-            .map(|x| x.clone())
-            .collect_vec()
-            .try_into()
-            .unwrap();
-        let bc1 = b[6..12]
-            .iter()
-            .map(|x| x.clone())
-            .collect_vec()
-            .try_into()
-            .unwrap();
-
-        let aa = self.fp6_mul(&mut dest.aa, &ac0, &bc0);
-        let bb = self.fp6_mul(&mut dest.bb, &ac1, &bc1);
-
-        let o = self.fp6_add(&mut dest.o, &bc0, &bc0);
-        let y1 = self.fp6_add(&mut dest.y1, &ac1, &ac0);
-        let y2 = self.fp6_mul(&mut dest.y2, &y1, &o);
-        let y3 = self.fp6_sub(&mut dest.y3, &y2, &aa);
-        let y = self.fp6_sub(&mut dest.y, &y3, &bb);
-        let x1 = self.fp6_mul_by_non_residue(&mut dest.x1, &bb);
-        let x = self.fp6_add(&mut dest.x, &x1, &aa);
-
-        x.iter()
-            .chain(y.iter())
-            .cloned()
-            .collect_vec()
-            .try_into()
-            .unwrap()
+    fn add(&mut self, dest: &mut FieldOpCols<F, _>, a: &AB, b: &AB) -> AB {
+        self.eval(dest, a, b, FieldOperation::Mul);
+        (a + b) % &self.modulus
     }
+    fn sub(&mut self, dest: &mut FieldOpCols<F, _>, a: &AB, b: &AB) -> AB {
+        self.eval(dest, a, b, FieldOperation::Mul);
+        (a - b) % &self.modulus
+    }
+
+    build_fp12_mul_constraints!(Limbs<AB::Var, _>);
 }

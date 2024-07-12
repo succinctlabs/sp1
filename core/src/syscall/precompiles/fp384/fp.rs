@@ -361,6 +361,8 @@ where
             local.is_real,
         );
 
+        let tmp: Limbs<<AB as AirBuilder>::Var, _> = local.output.result;
+
         // Assert that the correct result is being written to x_memory.
         builder
             .when(local.is_real)
