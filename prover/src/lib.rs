@@ -19,6 +19,8 @@ pub mod verify;
 
 use std::borrow::Borrow;
 use std::path::Path;
+use std::sync::mpsc::sync_channel;
+use std::sync::mpsc::SyncSender;
 use std::sync::Arc;
 
 use components::{DefaultProverComponents, SP1ProverComponents};
@@ -44,6 +46,7 @@ use sp1_primitives::types::RecursionProgramType;
 use sp1_recursion_circuit::witness::Witnessable;
 use sp1_recursion_compiler::config::InnerConfig;
 use sp1_recursion_compiler::ir::Witness;
+use sp1_recursion_core::runtime::ExecutionRecord as RecursionExecutionRecord;
 use sp1_recursion_core::{
     air::RecursionPublicValues,
     runtime::{RecursionProgram, Runtime as RecursionRuntime},
@@ -415,6 +418,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
         let shard_proofs = &proof.proof.0;
 
+        // let (tx, rx) = sync_channel(bound)
+
         // Get the leaf challenger.
         let mut leaf_challenger = self.core_prover.config().challenger();
         vk.vk.observe_into(&mut leaf_challenger);
@@ -515,6 +520,50 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         Ok(SP1ReduceProof {
             proof: reduce_proof.0,
         })
+    }
+
+    pub fn compress_machine_proof_sync(
+        &self,
+        input: impl Hintable<InnerConfig>,
+        opts: SP1ProverOpts,
+        job: ReduceProgramType,
+        tx: SyncSender<(
+            ReduceProgramType,
+            RecursionExecutionRecord<Val<InnerSC>>,
+            SP1ProverOpts,
+        )>,
+    ) {
+        let program = match job {
+            ReduceProgramType::Core => &self.recursion_program,
+            ReduceProgramType::Deferred => &self.deferred_program,
+            ReduceProgramType::Reduce => &self.compress_program,
+        };
+        let mut runtime = RecursionRuntime::<Val<InnerSC>, Challenge<InnerSC>, _>::new(
+            program,
+            self.compress_prover.config().perm.clone(),
+        );
+
+        let mut witness_stream = Vec::new();
+        witness_stream.extend(input.write());
+
+        runtime.witness_stream = witness_stream.into();
+        runtime.run();
+        runtime.print_stats();
+
+        tx.send((job, runtime.record, opts)).unwrap();
+
+        // let mut recursive_challenger = self.compress_prover.config().challenger();
+        // self.compress_prover
+        //     .prove(
+        //         pk,
+        //         vec![runtime.record],
+        //         &mut recursive_challenger,
+        //         opts.recursion_opts,
+        //     )
+        //     .unwrap()
+        //     .shard_proofs
+        //     .pop()
+        //     .unwrap()
     }
 
     pub fn compress_machine_proof(
