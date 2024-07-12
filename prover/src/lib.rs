@@ -295,10 +295,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         for batch in shard_proofs.chunks(batch_size) {
             let proofs = batch.to_vec();
 
-            let public_values: &PublicValues<Word<BabyBear>, BabyBear> =
-                proofs.last().unwrap().public_values.as_slice().borrow();
-            println!("core execution shard: {}", public_values.execution_shard);
-
             core_inputs.push(SP1RecursionMemoryLayout {
                 vk,
                 machine: self.core_prover.machine(),
