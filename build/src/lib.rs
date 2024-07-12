@@ -180,6 +180,8 @@ fn copy_elf_to_output_dir(
     fs::create_dir_all(&elf_dir)?;
     let result_elf_path = elf_dir.join(elf_name);
 
+    println!("Got here!");
+
     // Copy the ELF to the specified output directory.
     fs::copy(original_elf_path, &result_elf_path)?;
 
@@ -208,11 +210,15 @@ pub fn build_program(args: &BuildArgs, program_dir: Option<PathBuf>) -> Result<U
         .try_into()
         .expect("Failed to convert PathBuf to Utf8PathBuf");
 
+    println!("program_dir: {:?}", program_dir);
+
     // The root package name corresponds to the package name of the current directory.
     let metadata_cmd = cargo_metadata::MetadataCommand::new();
     let metadata = metadata_cmd.exec().unwrap();
     let root_package = metadata.root_package();
     let root_package_name = root_package.as_ref().map(|p| &p.name);
+
+    println!("root_package_name: {:?}", root_package_name);
 
     // Get the command corresponding to Docker or local build.
     let cmd = if args.docker {
@@ -222,6 +228,8 @@ pub fn build_program(args: &BuildArgs, program_dir: Option<PathBuf>) -> Result<U
     };
 
     execute_command(cmd, is_helper, args.docker)?;
+
+    println!("Executed command.");
 
     copy_elf_to_output_dir(&metadata, args, &program_dir, root_package_name.unwrap())
 }
