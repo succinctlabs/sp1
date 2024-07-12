@@ -7,6 +7,6 @@ readme = "../README.md"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-sp1-build = { path = "../build" }
+sp1-build = { path = "../build", version = "0.0.1-test" }
 cargo_metadata = "0.18.1"
 chrono = { version = "0.4.38", default-features = false, features = ["clock"] }
