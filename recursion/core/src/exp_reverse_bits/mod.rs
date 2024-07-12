@@ -101,7 +101,7 @@ impl<F: PrimeField32> ExpReverseBitsLenEvent<F> {
                 len: new_len,
                 prev_accum,
                 accum,
-                ptr: F::zero(),
+                ptr: F::from_canonical_u32(i),
                 base_ptr: F::one(),
                 iteration_num: F::from_canonical_u32(i),
             });
@@ -278,12 +278,31 @@ impl<const DEGREE: usize> ExpReverseBitsLenChip<DEGREE> {
             local.is_first.result,
         );
 
+        // Make sure that local.is_first.result is not on for fake rows, so we don't receive operands
+        // for a fake row.
+        builder
+            .when_not(local.is_real)
+            .assert_zero(local.is_first.result);
+
         IsZeroOperation::<AB::F>::eval(
             builder,
             AB::Expr::one() - local.len,
             local.is_last,
             local.is_real.into(),
         );
+
+        IsZeroOperation::<AB::F>::eval(
+            builder,
+            local.iteration_num.into(),
+            local.is_first,
+            local.is_real.into(),
+        );
+
+        // All real columns need to be in succession.
+        builder
+            .when_transition()
+            .assert_zero((AB::Expr::one() - local.is_real) * next.is_real);
+
         // Assert that the boolean columns are boolean.
         builder.assert_bool(local.is_real);
 
@@ -308,7 +327,13 @@ impl<const DEGREE: usize> ExpReverseBitsLenChip<DEGREE> {
 
         // Assert that the last real row has `is_last` on.
         builder
+            .when_transition()
             .when(local.is_real * (AB::Expr::one() - next.is_real))
+            .assert_one(local.is_last.result);
+
+        builder
+            .when_last_row()
+            .when(local.is_real)
             .assert_one(local.is_last.result);
 
         // `multiplier` is x if the current bit is 1, and 1 if the current bit is 0.
@@ -321,10 +346,9 @@ impl<const DEGREE: usize> ExpReverseBitsLenChip<DEGREE> {
             .assert_eq(local.multiplier, AB::Expr::one());
 
         // To get `next.accum`, we multiply `local.prev_accum_squared` by `local.multiplier` when not
-        // `is_last`.
+        // `is_first`.
         builder
-            .when_transition()
-            .when_not(local.is_last.result)
+            .when_not(local.is_first.result)
             .assert_eq(local.accum, local.prev_accum_squared * local.multiplier);
 
         // Constrain the accum_squared column.
@@ -338,6 +362,14 @@ impl<const DEGREE: usize> ExpReverseBitsLenChip<DEGREE> {
             .when_transition()
             .when_not(local.is_last.result)
             .assert_eq(local.base_ptr, next.base_ptr);
+
+        // Constrain the memory address `ptr` to increment by one except when
+        // `is_last`
+        builder
+            .when_transition()
+            .when(next.is_real)
+            .when_not(local.is_last.result)
+            .assert_eq(next.ptr, local.ptr + AB::Expr::one());
 
         // The `len` counter must decrement when not `is_last`.
         builder
@@ -373,6 +405,11 @@ impl<const DEGREE: usize> ExpReverseBitsLenChip<DEGREE> {
                 - local.is_first.result * local.is_last.result,
         );
 
+        // Make sure that x is only accessed when `is_real` is 1.
+        builder
+            .when_not(local.is_real)
+            .assert_zero(local.x_mem_access_flag);
+
         // Access the memory for x.
         // This only needs to be done for the first and last iterations.
         builder.recursion_eval_memory_access_single(
@@ -398,6 +435,13 @@ impl<const DEGREE: usize> ExpReverseBitsLenChip<DEGREE> {
 
         // Ensure that the value at the x memory access is unchanged when not `is_last`.
         builder
+            .when_transition()
+            .when(next.is_real)
+            .when_not(local.is_last.result)
+            .assert_eq(local.x.access.value, next.x.prev_value);
+
+        builder
+            .when_transition()
             .when_not(local.is_last.result)
             .assert_eq(local.x.access.value, local.x.prev_value);
 
