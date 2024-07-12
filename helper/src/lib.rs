@@ -19,7 +19,9 @@ fn cargo_rerun_if_changed(metadata: &Metadata, program_dir: &Path) {
         program_dir.join("Cargo.toml"),
     ];
     for dir in dirs {
-        println!("cargo::rerun-if-changed={}", dir.display());
+        if dir.exists() {
+            println!("cargo::rerun-if-changed={}", dir.display());
+        }
     }
 
     // Re-run the build script if the workspace root's Cargo.lock changes. If the program is its own
@@ -36,18 +38,6 @@ fn cargo_rerun_if_changed(metadata: &Metadata, program_dir: &Path) {
                 println!("cargo:rerun-if-changed={}", path.as_str());
             }
         }
-    }
-
-    // Re-run if a feature flag changes.
-    let all_features: std::collections::HashSet<String> = metadata
-        .root_package()
-        .map(|package| package.features.keys().cloned().collect())
-        .unwrap_or_default();
-    for feature in all_features {
-        println!(
-            "cargo:rerun-if-env-changed=CARGO_FEATURE_{}",
-            feature.to_uppercase()
-        );
     }
 }
 
