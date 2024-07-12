@@ -118,8 +118,6 @@ impl<F: PrimeField32> MachineAir<F> for BaseAluChip {
     fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
         let base_alu_events = input.base_alu_events.clone();
 
-        println!("{:?}", base_alu_events);
-
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
         let rows = base_alu_events
             .into_iter()
