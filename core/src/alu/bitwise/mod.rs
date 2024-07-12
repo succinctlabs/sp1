@@ -1,12 +1,14 @@
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 
+use hashbrown::HashMap;
+use itertools::Itertools;
 use p3_air::AirBuilder;
 use p3_air::{Air, BaseAir};
-use p3_field::AbstractField;
-use p3_field::PrimeField;
+use p3_field::{AbstractField, PrimeField};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
+use p3_maybe_rayon::prelude::{IntoParallelRefIterator, ParallelIterator, ParallelSlice};
 use sp1_derive::AlignedBorrow;
 
 use crate::air::MachineAir;
@@ -15,6 +17,8 @@ use crate::bytes::event::ByteRecord;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::runtime::{ExecutionRecord, Opcode, Program};
 use crate::utils::pad_to_power_of_two;
+
+use super::AluEvent;
 
 /// The number of main trace columns for `BitwiseChip`.
 pub const NUM_BITWISE_COLS: usize = size_of::<BitwiseCols<u8>>();
@@ -67,42 +71,16 @@ impl<F: PrimeField> MachineAir<F> for BitwiseChip {
     fn generate_trace(
         &self,
         input: &ExecutionRecord,
-        output: &mut ExecutionRecord,
+        _: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        // Generate the trace rows for each event.
         let rows = input
             .bitwise_events
-            .iter()
+            .par_iter()
             .map(|event| {
                 let mut row = [F::zero(); NUM_BITWISE_COLS];
                 let cols: &mut BitwiseCols<F> = row.as_mut_slice().borrow_mut();
-                let a = event.a.to_le_bytes();
-                let b = event.b.to_le_bytes();
-                let c = event.c.to_le_bytes();
-
-                cols.shard = F::from_canonical_u32(event.shard);
-                cols.channel = F::from_canonical_u32(event.channel);
-                cols.a = Word::from(event.a);
-                cols.b = Word::from(event.b);
-                cols.c = Word::from(event.c);
-
-                cols.is_xor = F::from_bool(event.opcode == Opcode::XOR);
-                cols.is_or = F::from_bool(event.opcode == Opcode::OR);
-                cols.is_and = F::from_bool(event.opcode == Opcode::AND);
-
-                for ((b_a, b_b), b_c) in a.into_iter().zip(b).zip(c) {
-                    let byte_event = ByteLookupEvent {
-                        shard: event.shard,
-                        channel: event.channel,
-                        opcode: ByteOpcode::from(event.opcode),
-                        a1: b_a as u32,
-                        a2: 0,
-                        b: b_b as u32,
-                        c: b_c as u32,
-                    };
-                    output.add_byte_lookup_event(byte_event);
-                }
-
+                let mut blu = Vec::new();
+                self.event_to_row(event, cols, &mut blu);
                 row
             })
             .collect::<Vec<_>>();
@@ -125,8 +103,65 @@ impl<F: PrimeField> MachineAir<F> for BitwiseChip {
         trace
     }
 
+    fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
+        let chunk_size = std::cmp::max(input.bitwise_events.len() / num_cpus::get(), 1);
+
+        let blu_batches = input
+            .bitwise_events
+            .par_chunks(chunk_size)
+            .map(|events| {
+                let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
+                events.iter().for_each(|event| {
+                    let mut row = [F::zero(); NUM_BITWISE_COLS];
+                    let cols: &mut BitwiseCols<F> = row.as_mut_slice().borrow_mut();
+                    self.event_to_row(event, cols, &mut blu);
+                });
+                blu
+            })
+            .collect::<Vec<_>>();
+
+        output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
+    }
+
     fn included(&self, shard: &Self::Record) -> bool {
         !shard.bitwise_events.is_empty()
+    }
+}
+
+impl BitwiseChip {
+    /// Create a row from an event.
+    fn event_to_row<F: PrimeField>(
+        &self,
+        event: &AluEvent,
+        cols: &mut BitwiseCols<F>,
+        blu: &mut impl ByteRecord,
+    ) {
+        let a = event.a.to_le_bytes();
+        let b = event.b.to_le_bytes();
+        let c = event.c.to_le_bytes();
+
+        cols.shard = F::from_canonical_u32(event.shard);
+        cols.channel = F::from_canonical_u32(event.channel);
+        cols.a = Word::from(event.a);
+        cols.b = Word::from(event.b);
+        cols.c = Word::from(event.c);
+
+        cols.is_xor = F::from_bool(event.opcode == Opcode::XOR);
+        cols.is_or = F::from_bool(event.opcode == Opcode::OR);
+        cols.is_and = F::from_bool(event.opcode == Opcode::AND);
+
+        for ((b_a, b_b), b_c) in a.into_iter().zip(b).zip(c) {
+            let byte_event = ByteLookupEvent {
+                shard: event.shard,
+                channel: event.channel,
+                opcode: ByteOpcode::from(event.opcode),
+                a1: b_a as u32,
+                a2: 0,
+                b: b_b as u32,
+                c: b_c as u32,
+            };
+            blu.add_byte_lookup_event(byte_event);
+        }
     }
 }
 

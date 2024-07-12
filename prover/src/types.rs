@@ -198,4 +198,7 @@ pub enum SP1ReduceProofWrapper {
 }
 
 #[derive(Error, Debug)]
-pub enum SP1RecursionProverError {}
+pub enum SP1RecursionProverError {
+    #[error("Runtime error: {0}")]
+    RuntimeError(String),
+}

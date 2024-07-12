@@ -3,6 +3,8 @@ use core::mem::size_of;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
+use hashbrown::HashMap;
+use itertools::Itertools;
 use num::BigUint;
 use num::Zero;
 
@@ -14,6 +16,7 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::IntoParallelRefIterator;
 use p3_maybe_rayon::prelude::ParallelIterator;
+use p3_maybe_rayon::prelude::ParallelSlice;
 use sp1_derive::AlignedBorrow;
 
 use super::{NUM_LIMBS, WORDS_CURVE_POINT};
@@ -34,8 +37,8 @@ use crate::runtime::ExecutionRecord;
 use crate::runtime::Program;
 use crate::runtime::Syscall;
 use crate::runtime::SyscallCode;
-use crate::syscall::precompiles::create_ec_add_event;
 use crate::syscall::precompiles::SyscallContext;
+use crate::syscall::precompiles::{create_ec_add_event, ECAddEvent};
 use crate::utils::ec::edwards::ed25519::Ed25519BaseField;
 use crate::utils::ec::edwards::EdwardsParameters;
 use crate::utils::ec::AffinePoint;
@@ -158,69 +161,19 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
     fn generate_trace(
         &self,
         input: &ExecutionRecord,
-        output: &mut ExecutionRecord,
+        _: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        let (mut rows, new_byte_lookup_events): (
-            Vec<[F; NUM_ED_ADD_COLS]>,
-            Vec<Vec<ByteLookupEvent>>,
-        ) = input
+        let mut rows = input
             .ed_add_events
             .par_iter()
             .map(|event| {
                 let mut row = [F::zero(); NUM_ED_ADD_COLS];
                 let cols: &mut EdAddAssignCols<F> = row.as_mut_slice().borrow_mut();
-
-                // Decode affine points.
-                let p = &event.p;
-                let q = &event.q;
-                let p = AffinePoint::<E>::from_words_le(p);
-                let (p_x, p_y) = (p.x, p.y);
-                let q = AffinePoint::<E>::from_words_le(q);
-                let (q_x, q_y) = (q.x, q.y);
-
-                // Populate basic columns.
-                cols.is_real = F::one();
-                cols.shard = F::from_canonical_u32(event.shard);
-                cols.channel = F::from_canonical_u32(event.channel);
-                cols.clk = F::from_canonical_u32(event.clk);
-                cols.p_ptr = F::from_canonical_u32(event.p_ptr);
-                cols.q_ptr = F::from_canonical_u32(event.q_ptr);
-
-                let mut new_byte_lookup_events = Vec::new();
-                Self::populate_field_ops(
-                    &mut new_byte_lookup_events,
-                    event.shard,
-                    event.channel,
-                    cols,
-                    p_x,
-                    p_y,
-                    q_x,
-                    q_y,
-                );
-
-                // Populate the memory access columns.
-                for i in 0..WORDS_CURVE_POINT {
-                    cols.q_access[i].populate(
-                        event.channel,
-                        event.q_memory_records[i],
-                        &mut new_byte_lookup_events,
-                    );
-                }
-                for i in 0..WORDS_CURVE_POINT {
-                    cols.p_access[i].populate(
-                        event.channel,
-                        event.p_memory_records[i],
-                        &mut new_byte_lookup_events,
-                    );
-                }
-
-                (row, new_byte_lookup_events)
+                let mut blu = Vec::new();
+                self.event_to_row(event, cols, &mut blu);
+                row
             })
-            .unzip();
-
-        for byte_lookup_events in new_byte_lookup_events {
-            output.add_byte_lookup_events(byte_lookup_events);
-        }
+            .collect::<Vec<_>>();
 
         pad_rows(&mut rows, || {
             let mut row = [F::zero(); NUM_ED_ADD_COLS];
@@ -255,8 +208,64 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
         trace
     }
 
+    fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
+        let chunk_size = std::cmp::max(input.ed_add_events.len() / num_cpus::get(), 1);
+
+        let blu_batches = input
+            .ed_add_events
+            .par_chunks(chunk_size)
+            .map(|events| {
+                let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
+                events.iter().for_each(|event| {
+                    let mut row = [F::zero(); NUM_ED_ADD_COLS];
+                    let cols: &mut EdAddAssignCols<F> = row.as_mut_slice().borrow_mut();
+                    self.event_to_row(event, cols, &mut blu);
+                });
+                blu
+            })
+            .collect::<Vec<_>>();
+
+        output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
+    }
+
     fn included(&self, shard: &Self::Record) -> bool {
         !shard.ed_add_events.is_empty()
+    }
+}
+
+impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
+    /// Create a row from an event.
+    fn event_to_row<F: PrimeField32>(
+        &self,
+        event: &ECAddEvent,
+        cols: &mut EdAddAssignCols<F>,
+        blu: &mut impl ByteRecord,
+    ) {
+        // Decode affine points.
+        let p = &event.p;
+        let q = &event.q;
+        let p = AffinePoint::<E>::from_words_le(p);
+        let (p_x, p_y) = (p.x, p.y);
+        let q = AffinePoint::<E>::from_words_le(q);
+        let (q_x, q_y) = (q.x, q.y);
+
+        // Populate basic columns.
+        cols.is_real = F::one();
+        cols.shard = F::from_canonical_u32(event.shard);
+        cols.channel = F::from_canonical_u32(event.channel);
+        cols.clk = F::from_canonical_u32(event.clk);
+        cols.p_ptr = F::from_canonical_u32(event.p_ptr);
+        cols.q_ptr = F::from_canonical_u32(event.q_ptr);
+
+        Self::populate_field_ops(blu, event.shard, event.channel, cols, p_x, p_y, q_x, q_y);
+
+        // Populate the memory access columns.
+        for i in 0..WORDS_CURVE_POINT {
+            cols.q_access[i].populate(event.channel, event.q_memory_records[i], blu);
+        }
+        for i in 0..WORDS_CURVE_POINT {
+            cols.p_access[i].populate(event.channel, event.p_memory_records[i], blu);
+        }
     }
 }
 
@@ -422,6 +431,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    use crate::stark::DefaultProver;
     use crate::utils;
     use crate::utils::tests::{ED25519_ELF, ED_ADD_ELF};
     use crate::Program;
@@ -430,13 +440,13 @@ mod tests {
     fn test_ed_add_simple() {
         utils::setup_logger();
         let program = Program::from(ED_ADD_ELF);
-        utils::run_test(program).unwrap();
+        utils::run_test::<DefaultProver<_, _>>(program).unwrap();
     }
 
     #[test]
     fn test_ed25519_program() {
         utils::setup_logger();
         let program = Program::from(ED25519_ELF);
-        utils::run_test(program).unwrap();
+        utils::run_test::<DefaultProver<_, _>>(program).unwrap();
     }
 }

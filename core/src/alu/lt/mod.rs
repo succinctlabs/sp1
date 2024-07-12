@@ -1,7 +1,8 @@
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 
-use itertools::izip;
+use hashbrown::HashMap;
+use itertools::{izip, Itertools};
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::Field;
 use p3_field::{AbstractField, PrimeField32};
@@ -16,6 +17,8 @@ use crate::bytes::event::ByteRecord;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::runtime::{ExecutionRecord, Opcode, Program};
 use crate::utils::pad_to_power_of_two;
+
+use super::AluEvent;
 
 /// The number of main trace columns for `LtChip`.
 pub const NUM_LT_COLS: usize = size_of::<LtCols<u8>>();
@@ -107,114 +110,21 @@ impl<F: PrimeField32> MachineAir<F> for LtChip {
     fn generate_trace(
         &self,
         input: &ExecutionRecord,
-        output: &mut ExecutionRecord,
+        _: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
-        let (rows, new_byte_lookup_events): (Vec<_>, Vec<_>) = input
+        let rows = input
             .lt_events
             .par_iter()
             .map(|event| {
                 let mut row = [F::zero(); NUM_LT_COLS];
                 let mut new_byte_lookup_events: Vec<ByteLookupEvent> = Vec::new();
                 let cols: &mut LtCols<F> = row.as_mut_slice().borrow_mut();
-                let a = event.a.to_le_bytes();
-                let b = event.b.to_le_bytes();
-                let c = event.c.to_le_bytes();
+                self.event_to_row(event, cols, &mut new_byte_lookup_events);
 
-                cols.shard = F::from_canonical_u32(event.shard);
-                cols.channel = F::from_canonical_u32(event.channel);
-                cols.a = Word(a.map(F::from_canonical_u8));
-                cols.b = Word(b.map(F::from_canonical_u8));
-                cols.c = Word(c.map(F::from_canonical_u8));
-
-                // If this is SLT, mask the MSB of b & c before computing cols.bits.
-                let masked_b = b[3] & 0x7f;
-                let masked_c = c[3] & 0x7f;
-                cols.b_masked = F::from_canonical_u8(masked_b);
-                cols.c_masked = F::from_canonical_u8(masked_c);
-
-                // Send the masked interaction.
-                new_byte_lookup_events.add_byte_lookup_event(ByteLookupEvent {
-                    shard: event.shard,
-                    channel: event.channel,
-                    opcode: ByteOpcode::AND,
-                    a1: masked_b as u32,
-                    a2: 0,
-                    b: b[3] as u32,
-                    c: 0x7f as u32,
-                });
-                new_byte_lookup_events.add_byte_lookup_event(ByteLookupEvent {
-                    shard: event.shard,
-                    channel: event.channel,
-                    opcode: ByteOpcode::AND,
-                    a1: masked_c as u32,
-                    a2: 0,
-                    b: c[3] as u32,
-                    c: 0x7f as u32,
-                });
-
-                let mut b_comp = b;
-                let mut c_comp = c;
-                if event.opcode == Opcode::SLT {
-                    b_comp[3] = masked_b;
-                    c_comp[3] = masked_c;
-                }
-                cols.sltu = F::from_bool(b_comp < c_comp);
-                cols.is_comp_eq = F::from_bool(b_comp == c_comp);
-
-                // Set the byte equality flags.
-                for (b_byte, c_byte, flag) in izip!(
-                    b_comp.iter().rev(),
-                    c_comp.iter().rev(),
-                    cols.byte_flags.iter_mut().rev()
-                ) {
-                    if c_byte != b_byte {
-                        *flag = F::one();
-                        cols.sltu = F::from_bool(b_byte < c_byte);
-                        let b_byte = F::from_canonical_u8(*b_byte);
-                        let c_byte = F::from_canonical_u8(*c_byte);
-                        cols.not_eq_inv = (b_byte - c_byte).inverse();
-                        cols.comparison_bytes = [b_byte, c_byte];
-                        break;
-                    }
-                }
-
-                cols.msb_b = F::from_canonical_u8((b[3] >> 7) & 1);
-                cols.msb_c = F::from_canonical_u8((c[3] >> 7) & 1);
-                cols.is_sign_eq = if event.opcode == Opcode::SLT {
-                    F::from_bool((b[3] >> 7) == (c[3] >> 7))
-                } else {
-                    F::one()
-                };
-
-                cols.is_slt = F::from_bool(event.opcode == Opcode::SLT);
-                cols.is_sltu = F::from_bool(event.opcode == Opcode::SLTU);
-
-                cols.bit_b = cols.msb_b * cols.is_slt;
-                cols.bit_c = cols.msb_c * cols.is_slt;
-
-                assert_eq!(
-                    cols.a[0],
-                    cols.bit_b * (F::one() - cols.bit_c) + cols.is_sign_eq * cols.sltu
-                );
-
-                new_byte_lookup_events.add_byte_lookup_event(ByteLookupEvent {
-                    shard: event.shard,
-                    channel: event.channel,
-                    opcode: ByteOpcode::LTU,
-                    a1: cols.sltu.as_canonical_u32(),
-                    a2: 0,
-                    b: cols.comparison_bytes[0].as_canonical_u32(),
-                    c: cols.comparison_bytes[1].as_canonical_u32(),
-                });
-
-                (row, new_byte_lookup_events)
+                row
             })
-            .unzip();
-
-        for byte_lookup_events in new_byte_lookup_events {
-            output.add_byte_lookup_events(byte_lookup_events);
-        }
+            .collect::<Vec<_>>();
 
         // Convert the trace to a row major matrix.
         let mut trace =
@@ -233,8 +143,129 @@ impl<F: PrimeField32> MachineAir<F> for LtChip {
         trace
     }
 
+    fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
+        let chunk_size = std::cmp::max(input.lt_events.len() / num_cpus::get(), 1);
+
+        let blu_batches = input
+            .lt_events
+            .par_chunks(chunk_size)
+            .map(|events| {
+                let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
+                events.iter().for_each(|event| {
+                    let mut row = [F::zero(); NUM_LT_COLS];
+                    let cols: &mut LtCols<F> = row.as_mut_slice().borrow_mut();
+                    self.event_to_row(event, cols, &mut blu);
+                });
+                blu
+            })
+            .collect::<Vec<_>>();
+
+        output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
+    }
+
     fn included(&self, shard: &Self::Record) -> bool {
         !shard.lt_events.is_empty()
+    }
+}
+
+impl LtChip {
+    /// Create a row from an event.
+    fn event_to_row<F: PrimeField32>(
+        &self,
+        event: &AluEvent,
+        cols: &mut LtCols<F>,
+        blu: &mut impl ByteRecord,
+    ) {
+        let a = event.a.to_le_bytes();
+        let b = event.b.to_le_bytes();
+        let c = event.c.to_le_bytes();
+
+        cols.shard = F::from_canonical_u32(event.shard);
+        cols.channel = F::from_canonical_u32(event.channel);
+        cols.a = Word(a.map(F::from_canonical_u8));
+        cols.b = Word(b.map(F::from_canonical_u8));
+        cols.c = Word(c.map(F::from_canonical_u8));
+
+        // If this is SLT, mask the MSB of b & c before computing cols.bits.
+        let masked_b = b[3] & 0x7f;
+        let masked_c = c[3] & 0x7f;
+        cols.b_masked = F::from_canonical_u8(masked_b);
+        cols.c_masked = F::from_canonical_u8(masked_c);
+
+        // Send the masked interaction.
+        blu.add_byte_lookup_event(ByteLookupEvent {
+            shard: event.shard,
+            channel: event.channel,
+            opcode: ByteOpcode::AND,
+            a1: masked_b as u32,
+            a2: 0,
+            b: b[3] as u32,
+            c: 0x7f as u32,
+        });
+        blu.add_byte_lookup_event(ByteLookupEvent {
+            shard: event.shard,
+            channel: event.channel,
+            opcode: ByteOpcode::AND,
+            a1: masked_c as u32,
+            a2: 0,
+            b: c[3] as u32,
+            c: 0x7f as u32,
+        });
+
+        let mut b_comp = b;
+        let mut c_comp = c;
+        if event.opcode == Opcode::SLT {
+            b_comp[3] = masked_b;
+            c_comp[3] = masked_c;
+        }
+        cols.sltu = F::from_bool(b_comp < c_comp);
+        cols.is_comp_eq = F::from_bool(b_comp == c_comp);
+
+        // Set the byte equality flags.
+        for (b_byte, c_byte, flag) in izip!(
+            b_comp.iter().rev(),
+            c_comp.iter().rev(),
+            cols.byte_flags.iter_mut().rev()
+        ) {
+            if c_byte != b_byte {
+                *flag = F::one();
+                cols.sltu = F::from_bool(b_byte < c_byte);
+                let b_byte = F::from_canonical_u8(*b_byte);
+                let c_byte = F::from_canonical_u8(*c_byte);
+                cols.not_eq_inv = (b_byte - c_byte).inverse();
+                cols.comparison_bytes = [b_byte, c_byte];
+                break;
+            }
+        }
+
+        cols.msb_b = F::from_canonical_u8((b[3] >> 7) & 1);
+        cols.msb_c = F::from_canonical_u8((c[3] >> 7) & 1);
+        cols.is_sign_eq = if event.opcode == Opcode::SLT {
+            F::from_bool((b[3] >> 7) == (c[3] >> 7))
+        } else {
+            F::one()
+        };
+
+        cols.is_slt = F::from_bool(event.opcode == Opcode::SLT);
+        cols.is_sltu = F::from_bool(event.opcode == Opcode::SLTU);
+
+        cols.bit_b = cols.msb_b * cols.is_slt;
+        cols.bit_c = cols.msb_c * cols.is_slt;
+
+        assert_eq!(
+            cols.a[0],
+            cols.bit_b * (F::one() - cols.bit_c) + cols.is_sign_eq * cols.sltu
+        );
+
+        blu.add_byte_lookup_event(ByteLookupEvent {
+            shard: event.shard,
+            channel: event.channel,
+            opcode: ByteOpcode::LTU,
+            a1: cols.sltu.as_canonical_u32(),
+            a2: 0,
+            b: cols.comparison_bytes[0].as_canonical_u32(),
+            c: cols.comparison_bytes[1].as_canonical_u32(),
+        });
     }
 }
 

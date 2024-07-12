@@ -1,4 +1,5 @@
 use hashbrown::HashMap;
+use sp1_core::utils::SP1CoreOpts;
 use std::array;
 use std::sync::Arc;
 
@@ -41,13 +42,7 @@ impl<F: Default> ExecutionRecord<F> {
 }
 
 impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
-    type Config = ();
-
-    fn index(&self) -> u32 {
-        0
-    }
-
-    fn set_index(&mut self, _: u32) {}
+    type Config = SP1CoreOpts;
 
     fn stats(&self) -> HashMap<String, usize> {
         let mut stats = HashMap::new();
@@ -88,10 +83,6 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
                 .entry(range_check_event)
                 .or_insert(0) += count;
         }
-    }
-
-    fn shard(self, _: &Self::Config) -> Vec<Self> {
-        vec![self]
     }
 
     fn public_values<T: AbstractField>(&self) -> Vec<T> {

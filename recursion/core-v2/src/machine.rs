@@ -149,7 +149,7 @@ mod tests {
         let config = SC::new();
         let machine = A::machine(config);
         let (pk, vk) = machine.setup(&program);
-        let result = run_test_machine(runtime.record, machine, pk, vk);
+        let result = run_test_machine(vec![runtime.record], machine, pk, vk);
         if let Err(e) = result {
             panic!("Verification failed: {:?}", e);
         }

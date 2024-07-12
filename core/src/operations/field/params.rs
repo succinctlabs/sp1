@@ -74,12 +74,12 @@ pub trait FieldParameters:
     }
 }
 
-/// Convert a vec of u8 limbs to a Limbs of N length.
-pub fn limbs_from_vec<E: From<F>, N: ArrayLength, F: Field>(limbs: Vec<E>) -> Limbs<E, N> {
+/// Convert a vec of F limbs to a Limbs of N length.
+pub fn limbs_from_vec<E: From<F>, N: ArrayLength, F: Field>(limbs: Vec<F>) -> Limbs<E, N> {
     debug_assert_eq!(limbs.len(), N::USIZE);
     let mut result = GenericArray::<E, N>::generate(|_i| F::zero().into());
     for (i, limb) in limbs.into_iter().enumerate() {
-        result[i] = limb;
+        result[i] = limb.into();
     }
     Limbs(result)
 }
