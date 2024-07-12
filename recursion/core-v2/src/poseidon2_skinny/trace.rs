@@ -117,9 +117,6 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
         PREPROCESSED_POSEIDON2_WIDTH
     }
 
-    /// This is very much subject to change. At the moment, we just populate the memory management
-    /// columns. For the moment, we assume that the program only contains Poseidon2Wide instructions,
-    /// and for each instruction we read 16 successive memory locations and write to the next 16.
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
         let instructions =
             program
@@ -129,17 +126,23 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
                     Poseidon2Wide(instr) => Some(instr),
                     _ => None,
                 });
+
         let num_instructions = instructions.clone().count();
+
         let mut rows = vec![
             [F::zero(); PREPROCESSED_POSEIDON2_WIDTH];
             num_instructions * (NUM_EXTERNAL_ROUNDS + 2)
         ];
+
+        // Iterate over the instructions and take NUM_EXTERNAL_ROUNDS + 2 rows for each instruction.
         instructions
             .zip_eq(&rows.iter_mut().chunks(NUM_EXTERNAL_ROUNDS + 2))
             .for_each(|(instruction, row_add)| {
                 row_add.into_iter().enumerate().for_each(|(i, row)| {
                     let cols: &mut Poseidon2PreprocessedCols<_> =
                         (*row).as_mut_slice().borrow_mut();
+
+                    // Set the round-counter columns.
                     cols.round_counters_preprocessed.is_external_round =
                         F::from_bool((i != NUM_EXTERNAL_ROUNDS / 2 + 1) && i > 1);
                     cols.round_counters_preprocessed.is_internal_round =
@@ -153,6 +156,8 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
                         };
                     });
 
+                    // Set the memory columns. We read once, at the first iteration,
+                    // and write once, at the last iteration.
                     if i == 0 {
                         cols.memory_preprocessed =
                             instruction
