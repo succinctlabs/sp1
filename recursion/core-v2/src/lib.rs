@@ -1,6 +1,6 @@
 use std::iter::once;
 
-use poseidon2_wide::WIDTH;
+use poseidon2_skinny::WIDTH;
 use serde::{Deserialize, Serialize};
 use sp1_derive::AlignedBorrow;
 use sp1_recursion_core::air::Block;
@@ -11,7 +11,7 @@ pub mod builder;
 pub mod exp_reverse_bits;
 pub mod machine;
 pub mod mem;
-pub mod poseidon2_wide;
+pub mod poseidon2_skinny;
 pub mod program;
 pub mod runtime;
 
