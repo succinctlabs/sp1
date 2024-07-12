@@ -185,7 +185,6 @@ where
     let mut challenger = prover.config().challenger();
     vk.observe_into(&mut challenger);
 
-    // std::thread::scope(move |s| {
     let (tx, rx) = sync_channel::<Vec<ExecutionRecord>>(opts.shard_batch_size * 4);
 
     let challenger_handle = {
@@ -340,24 +339,6 @@ where
         records.append(&mut deferred);
 
         tx.send(records).unwrap();
-
-        // let mut proofs =
-        //     tracing::debug_span!("prove shards for checkpoint", checkpoint = checkpoint_idx)
-        //         .in_scope(|| {
-        //             records
-        //                 .into_iter()
-        //                 .map(|shard| {
-        //                     let id = shard.public_values.shard;
-        //                     tracing::debug_span!("prove shard", shard = id).in_scope(|| {
-        //                         let shard_data = prover.commit_main(&shard);
-        //                         prover
-        //                             .prove_shard(&pk, shard_data, &mut challenger.clone())
-        //                             .unwrap()
-        //                     })
-        //                 })
-        //                 .collect::<Vec<_>>()
-        //         });
-        // shard_proofs.append(&mut proofs);
     }
     let shard_proofs = shard_proofs_handle.join().unwrap();
 
@@ -393,7 +374,6 @@ where
     );
 
     Ok((proof, public_values_stream, cycles))
-    // })
 }
 
 /// Runs a program and returns the public values stream.
