@@ -13,9 +13,12 @@ build_program(&BuildArgs::default(), Some(program_dir));
 
 ## Potential Issues
 
-If you attempt to build a program with `docker = true` that depends on a local crate that is not in
-the current workspace, you may run into issues with the docker build not being able to find the crate,
-as only the workspace root is mounted.
+If you attempt to build a program with Docker that depends on a local crate, and the crate is not in
+the current workspace, you may run into issues with the docker build not being able to find the crate, as only the workspace root is mounted.
+
+```
+error: failed to load manifest for dependency `...`
+```
 
 To fix this, you can either:
 1. Move the program into the workspace that contains the crate.
