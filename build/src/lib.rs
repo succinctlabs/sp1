@@ -46,7 +46,7 @@ pub struct BuildArgs {
         long,
         action,
         help = "The output directory for the built program.",
-        default_value = ""
+        default_value = "elf"
     )]
     pub output_directory: String,
     #[clap(
@@ -69,7 +69,7 @@ impl Default for BuildArgs {
             ignore_rust_version: false,
             binary: "".to_string(),
             elf_name: "".to_string(),
-            output_directory: "".to_string(),
+            output_directory: "elf".to_string(),
             locked: false,
             no_default_features: false,
         }
@@ -214,17 +214,11 @@ fn copy_elf_to_output_dir(args: &BuildArgs, program_dir: &Utf8PathBuf) -> Result
         BUILD_TARGET.to_string()
     };
 
-    let out_dir = if !args.output_directory.is_empty() {
-        args.output_directory.clone()
-    } else {
-        "elf".to_string()
-    };
-
     let elf_dir = program_metadata
         .target_directory
         .parent()
         .unwrap()
-        .join(out_dir);
+        .join(&args.output_directory);
     fs::create_dir_all(&elf_dir)?;
     let result_elf_path = elf_dir.join(elf_name);
 
