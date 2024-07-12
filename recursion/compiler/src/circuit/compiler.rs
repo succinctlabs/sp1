@@ -141,8 +141,8 @@ where
     }
 
     /// Read a constant (a.k.a. immediate).
-    ///
-    /// Increments the mult, first creating an entry if it does not yet exist.
+    ///    
+    /// Does not increment the mult. Creates an entry if it does not yet exist.
     pub fn read_ghost_const(&mut self, imm: Imm<F, EF>) -> Address<F> {
         self.consts
             .entry(imm)
