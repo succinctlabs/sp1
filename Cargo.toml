@@ -1,5 +1,6 @@
 [workspace]
-members = [ "build",
+members = [
+  "build",
   "cli",
   "core",
   "derive",
