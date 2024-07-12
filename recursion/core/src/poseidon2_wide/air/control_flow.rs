@@ -64,8 +64,8 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         );
 
         builder
-            .when_not(local_control_flow.is_syscall_row)
-            .assert_zero(local_is_real);
+            .when(local_control_flow.is_syscall_row)
+            .assert_one(local_is_real);
     }
 
     /// This function will verify that all hash rows are before the compress rows and that the first
