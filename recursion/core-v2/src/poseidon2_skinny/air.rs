@@ -8,7 +8,7 @@ use p3_matrix::Matrix;
 
 use crate::{
     builder::SP1RecursionAirBuilder,
-    poseidon2_wide::{
+    poseidon2_skinny::{
         columns::{NUM_POSEIDON2_DEGREE3_COLS, NUM_POSEIDON2_DEGREE9_COLS},
         Poseidon2WideChip,
     },
@@ -53,17 +53,17 @@ where
         // For now, include only memory constraints.
         (0..WIDTH).for_each(|i| {
             builder.receive_single(
-                prep_local.memory_preprocessed.memory_prepr[i].addr,
+                prep_local.memory_preprocessed[i].addr,
                 local_row.state_var()[i],
-                prep_local.memory_preprocessed.memory_prepr[i].read_mult,
+                prep_local.memory_preprocessed[i].read_mult,
             )
         });
 
         (0..WIDTH).for_each(|i| {
             builder.send_single(
-                prep_local.memory_preprocessed.memory_prepr[i].addr,
+                prep_local.memory_preprocessed[i].addr,
                 local_row.state_var()[i],
-                prep_local.memory_preprocessed.memory_prepr[i].write_mult,
+                prep_local.memory_preprocessed[i].write_mult,
             )
         });
     }
