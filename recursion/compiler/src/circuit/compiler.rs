@@ -600,7 +600,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
+    use p3_baby_bear::DiffusionMatrixBabyBear;
     use p3_field::{Field, PrimeField32};
     use p3_symmetric::Permutation;
     use rand::{rngs::StdRng, Rng, SeedableRng};
@@ -658,6 +658,41 @@ mod tests {
             }
         }
 
+        test_operations(builder.operations);
+    }
+
+    #[test]
+    fn test_exp_reverse_bits() {
+        setup_logger();
+
+        let mut builder = AsmBuilder::<F, EF>::default();
+        let mut rng =
+            StdRng::seed_from_u64(0xEC0BEEF).sample_iter::<F, _>(rand::distributions::Standard);
+        for _ in 0..100 {
+            let power_f = rng.next().unwrap();
+            let power = power_f.as_canonical_u32();
+            let power_bits = (0..NUM_BITS).map(|i| (power >> i) & 1).collect::<Vec<_>>();
+
+            let input_felt = builder.eval(power_f);
+            let power_bits_felt = builder.num2bits_v2_f(input_felt);
+
+            let base = rng.next().unwrap();
+            let base_felt = builder.eval(base);
+            let result_felt = builder.exp_reverse_bits_v2(base_felt, power_bits_felt);
+
+            let expected = power_bits
+                .into_iter()
+                .rev()
+                .zip(std::iter::successors(Some(base), |x| Some(x.square())))
+                .map(|(bit, base_pow)| match bit {
+                    0 => F::one(),
+                    1 => base_pow,
+                    _ => panic!("not a bit: {bit}"),
+                })
+                .product::<F>();
+            let expected_felt: Felt<_> = builder.eval(expected);
+            builder.assert_felt_eq(result_felt, expected_felt);
+        }
         test_operations(builder.operations);
     }
 
