@@ -181,9 +181,13 @@ fn copy_elf_to_output_dir(
     let result_elf_path = elf_dir.join(elf_name);
 
     println!("Got here!");
+    println!("original_elf_path: {:?}", original_elf_path);
+    println!("result_elf_path: {:?}", result_elf_path);
 
     // Copy the ELF to the specified output directory.
     fs::copy(original_elf_path, &result_elf_path)?;
+
+    println!("Copying!");
 
     Ok(result_elf_path)
 }
