@@ -9,6 +9,7 @@ pub mod alu_base;
 pub mod alu_ext;
 pub mod builder;
 pub mod exp_reverse_bits;
+pub mod fri_fold;
 pub mod machine;
 pub mod mem;
 pub mod poseidon2_skinny;
@@ -119,9 +120,63 @@ pub struct ExpReverseBitsInstr<F> {
     pub mult: F,
 }
 
+/// The event encoding the inputs and outputs of an exp-reverse-bits operation. The `len` operand is
+/// now stored as the length of the `exp` field.
 #[derive(AlignedBorrow, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExpReverseBitsEvent<F> {
     pub base: F,
     pub exp: Vec<F>,
     pub result: F,
+}
+
+#[derive(AlignedBorrow, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FriFoldIo<V> {
+    pub ext_single: FriFoldExtSingleIo<Block<V>>,
+    pub ext_vec: FriFoldExtVecIo<Vec<Block<V>>>,
+    pub base_single: FriFoldBaseIo<V>,
+}
+
+/// The extension-field-valued single inputs to the FRI fold operation.
+#[derive(AlignedBorrow, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FriFoldExtSingleIo<V> {
+    pub z: V,
+    pub alpha: V,
+}
+
+/// The extension-field-valued vector inputs to the FRI fold operation.
+#[derive(AlignedBorrow, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FriFoldExtVecIo<V> {
+    pub mat_opening: V,
+    pub ps_at_z: V,
+    pub alpha_pow_input: V,
+    pub ro_input: V,
+    pub alpha_pow_output: V,
+    pub ro_output: V,
+}
+
+/// The base-field-valued inputs to the FRI fold operation.
+#[derive(AlignedBorrow, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FriFoldBaseIo<V> {
+    pub x: V,
+}
+
+/// An instruction invoking the FRI fold operation. Addresses for extension field elements are of the
+/// same type as for base field elements.
+#[derive(AlignedBorrow, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FriFoldInstr<F> {
+    pub base_single_addrs: FriFoldBaseIo<Address<F>>,
+    pub ext_single_addrs: FriFoldExtSingleIo<Address<F>>,
+    pub ext_vec_addrs: FriFoldExtVecIo<Vec<Address<F>>>,
+    pub alpha_pow_mults: Vec<F>,
+    pub ro_mults: Vec<F>,
+}
+
+/// The event encoding the data of a single iteration within the FRI fold operation.
+/// For any given event, we are accessing a single element of the `Vec` inputs, so that the event
+/// is not a type alias for `FriFoldIo` like many of the other events.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FriFoldEvent<F> {
+    pub base_single: FriFoldBaseIo<F>,
+    pub ext_single: FriFoldExtSingleIo<Block<F>>,
+    pub ext_vec: FriFoldExtVecIo<Block<F>>,
 }
