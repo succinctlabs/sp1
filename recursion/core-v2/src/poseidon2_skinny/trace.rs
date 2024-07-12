@@ -11,7 +11,7 @@ use tracing::instrument;
 
 use crate::{
     instruction::Instruction::Poseidon2Wide,
-    mem::MemoryPreprocessedColsNoVal,
+    mem::MemoryPreprocessedCols,
     poseidon2_skinny::{
         columns::{permutation::max, preprocessed::Poseidon2PreprocessedCols},
         external_linear_layer, internal_linear_layer, Poseidon2WideChip, NUM_EXTERNAL_ROUNDS,
@@ -160,26 +160,20 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
                     // and write once, at the last iteration.
                     if i == 0 {
                         cols.memory_preprocessed =
-                            instruction
-                                .addrs
-                                .input
-                                .map(|addr| MemoryPreprocessedColsNoVal {
-                                    addr,
-                                    read_mult: F::one(),
-                                    write_mult: F::zero(),
-                                    is_real: F::one(),
-                                });
+                            instruction.addrs.input.map(|addr| MemoryPreprocessedCols {
+                                addr,
+                                read_mult: F::one(),
+                                write_mult: F::zero(),
+                                is_real: F::one(),
+                            });
                     } else if i == NUM_EXTERNAL_ROUNDS + 1 {
                         cols.memory_preprocessed =
-                            instruction
-                                .addrs
-                                .output
-                                .map(|addr| MemoryPreprocessedColsNoVal {
-                                    addr,
-                                    read_mult: F::zero(),
-                                    write_mult: instruction.mults[i],
-                                    is_real: F::one(),
-                                });
+                            instruction.addrs.output.map(|addr| MemoryPreprocessedCols {
+                                addr,
+                                read_mult: F::zero(),
+                                write_mult: instruction.mults[i],
+                                is_real: F::one(),
+                            });
                     }
                 });
             });

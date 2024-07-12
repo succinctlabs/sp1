@@ -1,4 +1,5 @@
 use core::fmt::Debug;
+use instruction::HintBitsInstr;
 use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
 use p3_field::ExtensionField;
@@ -22,10 +23,8 @@ pub struct AsmCompiler<F, EF> {
     pub next_addr: F,
     /// Map the frame pointers of the variables to the "physical" addresses.
     pub fp_to_addr: HashMap<i32, Address<F>>,
-    /// Map base field constants to "physical" addresses and mults.
-    pub consts_f: HashMap<F, (Address<F>, F)>,
-    /// Map extension field constants to "physical" addresses and mults.
-    pub consts_ef: HashMap<EF, (Address<F>, F)>,
+    /// Map base or extension field constants to "physical" addresses and mults.
+    pub consts: HashMap<Imm<F, EF>, (Address<F>, F)>,
     /// Map each "physical" address to its read count.
     pub addr_to_mult: HashMap<Address<F>, F>,
 }
@@ -45,17 +44,30 @@ where
         id
     }
 
+    /// Map `fp` to its existing address without changing its mult.
+    ///
+    /// Ensures that `fp` has already been assigned an address.
+    pub fn read_ghost_fp(&mut self, fp: i32) -> Address<F> {
+        self.read_fp_internal(fp, false)
+    }
+
     /// Map `fp` to its existing address and increment its mult.
     ///
     /// Ensures that `fp` has already been assigned an address.
     pub fn read_fp(&mut self, fp: i32) -> Address<F> {
+        self.read_fp_internal(fp, true)
+    }
+
+    pub fn read_fp_internal(&mut self, fp: i32, increment_mult: bool) -> Address<F> {
         match self.fp_to_addr.entry(fp) {
             Entry::Vacant(entry) => panic!("expected entry in fp_to_addr: {entry:?}"),
             Entry::Occupied(entry) => {
-                // This is a read, so we increment the mult.
-                match self.addr_to_mult.get_mut(entry.get()) {
-                    Some(mult) => *mult += F::one(),
-                    None => panic!("expected entry in addr_mult: {entry:?}"),
+                if increment_mult {
+                    // This is a read, so we increment the mult.
+                    match self.addr_to_mult.get_mut(entry.get()) {
+                        Some(mult) => *mult += F::one(),
+                        None => panic!("expected entry in addr_mult: {entry:?}"),
+                    }
                 }
                 *entry.into_mut()
             }
@@ -82,14 +94,27 @@ where
     /// Increment the existing `mult` associated with `addr`.
     ///
     /// Ensures that `addr` has already been assigned a `mult`.
-    pub fn read_addr(&mut self, addr: Address<F>) -> F {
+    pub fn read_addr(&mut self, addr: Address<F>) -> &mut F {
+        self.read_addr_internal(addr, true)
+    }
+
+    /// Retrieves `mult` associated with `addr`.
+    ///
+    /// Ensures that `addr` has already been assigned a `mult`.
+    pub fn read_ghost_addr(&mut self, addr: Address<F>) -> &mut F {
+        self.read_addr_internal(addr, true)
+    }
+
+    fn read_addr_internal(&mut self, addr: Address<F>, increment_mult: bool) -> &mut F {
         match self.addr_to_mult.entry(addr) {
             Entry::Vacant(entry) => panic!("expected entry in addr_to_mult: {entry:?}"),
             Entry::Occupied(entry) => {
                 // This is a read, so we increment the mult.
                 let mult = entry.into_mut();
-                *mult += F::one();
-                *mult
+                if increment_mult {
+                    *mult += F::one();
+                }
+                mult
             }
         }
     }
@@ -97,32 +122,31 @@ where
     /// Associate a `mult` of zero with `addr`.
     ///
     /// Ensures that `addr` has not already been written to.
-    pub fn write_addr(&mut self, addr: Address<F>) -> F {
+    pub fn write_addr(&mut self, addr: Address<F>) -> &mut F {
         match self.addr_to_mult.entry(addr) {
-            Entry::Vacant(entry) => *entry.insert(F::zero()),
+            Entry::Vacant(entry) => entry.insert(F::zero()),
             Entry::Occupied(entry) => panic!("unexpected entry in addr_to_mult: {entry:?}"),
         }
     }
 
-    /// Read the base field constant.
+    /// Read a constant (a.k.a. immediate).
     ///
     /// Increments the mult, first creating an entry if it does not yet exist.
-    pub fn read_const_f(&mut self, f: F) -> Address<F> {
-        self.consts_f
-            .entry(f)
+    pub fn read_const(&mut self, imm: Imm<F, EF>) -> Address<F> {
+        self.consts
+            .entry(imm)
             .and_modify(|(_, x)| *x += F::one())
             .or_insert_with(|| (Self::alloc(&mut self.next_addr), F::one()))
             .0
     }
 
-    /// Read the base field constant.
-    ///
-    /// Increments the mult, first creating an entry if it does not yet exist.
-    pub fn read_const_ef(&mut self, ef: EF) -> Address<F> {
-        self.consts_ef
-            .entry(ef)
-            .and_modify(|(_, x)| *x += F::one())
-            .or_insert_with(|| (Self::alloc(&mut self.next_addr), F::one()))
+    /// Read a constant (a.k.a. immediate).
+    ///    
+    /// Does not increment the mult. Creates an entry if it does not yet exist.
+    pub fn read_ghost_const(&mut self, imm: Imm<F, EF>) -> Address<F> {
+        self.consts
+            .entry(imm)
+            .or_insert_with(|| (Self::alloc(&mut self.next_addr), F::zero()))
             .0
     }
 
@@ -233,6 +257,36 @@ where
         })
     }
 
+    fn exp_reverse_bits(
+        &mut self,
+        dst: impl Reg<F, EF>,
+        base: impl Reg<F, EF>,
+        exp: Vec<impl Reg<F, EF>>,
+    ) -> Instruction<F> {
+        Instruction::ExpReverseBitsLen(ExpReverseBitsInstr {
+            addrs: ExpReverseBitsIo {
+                result: dst.write(self),
+                base: base.read(self),
+                exp: exp.into_iter().map(|r| r.read(self)).collect(),
+            },
+            mult: F::zero(),
+        })
+    }
+
+    fn hint_bit_decomposition(
+        &mut self,
+        value: impl Reg<F, EF>,
+        output: Vec<impl Reg<F, EF>>,
+    ) -> Instruction<F> {
+        Instruction::HintBits(HintBitsInstr {
+            output_addrs_mults: output
+                .into_iter()
+                .map(|r| (r.write(self), F::zero()))
+                .collect(),
+            input_addr: value.read_ghost(self),
+        })
+    }
+
     pub fn compile_one(&mut self, ir_instr: DslIr<AsmConfig<F, EF>>) -> Vec<Instruction<F>> {
         // For readability. Avoids polluting outer scope.
         use BaseAluOpcode::*;
@@ -308,6 +362,12 @@ where
             DslIr::CircuitV2Poseidon2PermuteBabyBear(dst, src) => {
                 vec![self.poseidon2_permute(dst, src)]
             }
+            DslIr::CircuitV2ExpReverseBits(dst, base, exp) => {
+                vec![self.exp_reverse_bits(dst, base, exp)]
+            }
+            DslIr::CircuitV2HintBitsF(output, value) => {
+                vec![self.hint_bit_decomposition(value, output)]
+            }
 
             // DslIr::For(_, _, _, _, _) => todo!(),
             // DslIr::IfEq(_, _, _, _) => todo!(),
@@ -323,7 +383,6 @@ where
             // DslIr::StoreF(_, _, _) => todo!(),
             // DslIr::StoreE(_, _, _) => todo!(),
             // DslIr::CircuitNum2BitsV(_, _, _) => todo!(),
-            // DslIr::CircuitNum2BitsF(_, _) => todo!(),
             // DslIr::Poseidon2CompressBabyBear(_, _, _) => todo!(),
             // DslIr::Poseidon2AbsorbBabyBear(_, _) => todo!(),
             // DslIr::Poseidon2FinalizeBabyBear(_, _) => todo!(),
@@ -402,7 +461,16 @@ where
                     addrs: Poseidon2Io { ref output, .. },
                     mults,
                 }) => mults.iter_mut().zip(output).collect(),
-                Instruction::ExpReverseBitsLen(_) => todo!(),
+                Instruction::ExpReverseBitsLen(ExpReverseBitsInstr {
+                    addrs: ExpReverseBitsIo { ref result, .. },
+                    mult,
+                }) => vec![(mult, result)],
+                Instruction::HintBits(HintBitsInstr {
+                    output_addrs_mults, ..
+                }) => output_addrs_mults
+                    .iter_mut()
+                    .map(|(ref addr, mult)| (mult, addr))
+                    .collect(),
                 Instruction::FriFold(_) => todo!(),
             })
             .for_each(|(mult, addr): (&mut F, &Address<F>)| {
@@ -410,21 +478,11 @@ where
             });
         debug_assert!(self.addr_to_mult.is_empty());
         // Initialize constants.
-        let instrs_consts_f = self.consts_f.drain().map(|(f, (addr, mult))| {
+        let instrs_consts = self.consts.drain().map(|(imm, (addr, mult))| {
             Instruction::Mem(MemInstr {
                 addrs: MemIo { inner: addr },
                 vals: MemIo {
-                    inner: Block::from(f),
-                },
-                mult,
-                kind: MemAccessKind::Write,
-            })
-        });
-        let instrs_consts_ef = self.consts_ef.drain().map(|(ef, (addr, mult))| {
-            Instruction::Mem(MemInstr {
-                addrs: MemIo { inner: addr },
-                vals: MemIo {
-                    inner: ef.as_base_slice().into(),
+                    inner: imm.as_block(),
                 },
                 mult,
                 kind: MemAccessKind::Write,
@@ -434,10 +492,7 @@ where
         self.next_addr = Default::default();
         self.fp_to_addr.clear();
         // Place constant-initializing instructions at the top.
-        instrs_consts_f
-            .chain(instrs_consts_ef)
-            .chain(instrs)
-            .collect()
+        instrs_consts.chain(instrs).collect()
     }
 }
 
@@ -445,8 +500,8 @@ where
 ///
 /// Required to distinguish a base and extension field element at the type level,
 /// since the IR's instructions do not provide this information.
-#[derive(Debug, Clone, Copy)]
-enum Imm<F, EF> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Imm<F, EF> {
     /// Element of the base field `F`.
     F(F),
     /// Element of the extension field `EF`.
@@ -459,7 +514,7 @@ where
     EF: AbstractExtensionField<F>,
 {
     // Get a `Block` of memory representing this immediate.
-    fn as_block(&self) -> Block<F> {
+    pub fn as_block(&self) -> Block<F> {
         match self {
             Imm::F(f) => Block::from(*f),
             Imm::EF(ef) => ef.as_base_slice().into(),
@@ -472,8 +527,11 @@ trait Reg<F, EF> {
     /// Mark the register as to be read from, returning the "physical" address.
     fn read(&self, compiler: &mut AsmCompiler<F, EF>) -> Address<F>;
 
+    /// Get the "physical" address of the register, assigning a new address if necessary.
+    fn read_ghost(&self, compiler: &mut AsmCompiler<F, EF>) -> Address<F>;
+
     /// Mark the register as to be written to, returning the "physical" address.
-    fn write(&self, _compiler: &mut AsmCompiler<F, EF>) -> Address<F>;
+    fn write(&self, compiler: &mut AsmCompiler<F, EF>) -> Address<F>;
 }
 
 macro_rules! impl_reg_fp {
@@ -485,6 +543,9 @@ macro_rules! impl_reg_fp {
         {
             fn read(&self, compiler: &mut AsmCompiler<F, EF>) -> Address<F> {
                 compiler.read_fp(self.fp())
+            }
+            fn read_ghost(&self, compiler: &mut AsmCompiler<F, EF>) -> Address<F> {
+                compiler.read_ghost_fp(self.fp())
             }
             fn write(&self, compiler: &mut AsmCompiler<F, EF>) -> Address<F> {
                 compiler.write_fp(self.fp())
@@ -504,10 +565,11 @@ where
     EF: ExtensionField<F> + TwoAdicField,
 {
     fn read(&self, compiler: &mut AsmCompiler<F, EF>) -> Address<F> {
-        match self {
-            Imm::F(f) => compiler.read_const_f(*f),
-            Imm::EF(ef) => compiler.read_const_ef(*ef),
-        }
+        compiler.read_const(*self)
+    }
+
+    fn read_ghost(&self, compiler: &mut AsmCompiler<F, EF>) -> Address<F> {
+        compiler.read_ghost_const(*self)
     }
 
     fn write(&self, _compiler: &mut AsmCompiler<F, EF>) -> Address<F> {
@@ -525,6 +587,11 @@ where
         *self
     }
 
+    fn read_ghost(&self, compiler: &mut AsmCompiler<F, EF>) -> Address<F> {
+        compiler.read_ghost_addr(*self);
+        *self
+    }
+
     fn write(&self, compiler: &mut AsmCompiler<F, EF>) -> Address<F> {
         compiler.write_addr(*self);
         *self
@@ -534,7 +601,7 @@ where
 #[cfg(test)]
 mod tests {
     use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
-    use p3_field::Field;
+    use p3_field::{Field, PrimeField32};
     use p3_symmetric::Permutation;
     use rand::{rngs::StdRng, Rng, SeedableRng};
     use sp1_core::{
@@ -544,7 +611,7 @@ mod tests {
     use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
     use sp1_recursion_core_v2::{machine::RecursionAir, RecursionProgram, Runtime};
 
-    use crate::{asm::AsmBuilder, circuit::Poseidon2CircuitBuilder};
+    use crate::{asm::AsmBuilder, circuit::CircuitV2Builder};
 
     use super::*;
 
@@ -593,6 +660,31 @@ mod tests {
             builder.assert_felt_eq(lhs, rhs);
         }
 
+        test_operations(builder.operations);
+    }
+
+    #[test]
+    fn test_hint_bit_decomposition() {
+        setup_logger();
+
+        let mut builder = AsmBuilder::<F, EF>::default();
+        let mut rng =
+            StdRng::seed_from_u64(0xC0FFEE7AB1E).sample_iter::<F, _>(rand::distributions::Standard);
+        for _ in 0..1 {
+            let input_f = rng.next().unwrap();
+            let input = input_f.as_canonical_u32();
+            let output = (0..NUM_BITS).map(|i| (input >> i) & 1).collect::<Vec<_>>();
+
+            let input_felt = builder.eval(input_f);
+            let output_felts = builder.num2bits_v2_f(input_felt);
+            let expected: Vec<Felt<_>> = output
+                .into_iter()
+                .map(|x| builder.eval(F::from_canonical_u32(x)))
+                .collect();
+            for (lhs, rhs) in output_felts.into_iter().zip(expected) {
+                builder.assert_felt_eq(lhs, rhs);
+            }
+        }
         test_operations(builder.operations);
     }
 
