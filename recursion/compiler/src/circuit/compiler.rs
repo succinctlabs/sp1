@@ -646,7 +646,6 @@ mod tests {
     use p3_symmetric::Permutation;
     use rand::{rngs::StdRng, Rng, SeedableRng};
     use sp1_core::{
-        lookup::{debug_interactions_with_all_chips, InteractionKind},
         stark::StarkGenericConfig,
         utils::{inner_perm, run_test_machine, setup_logger, BabyBearPoseidon2Inner},
     };
@@ -664,7 +663,7 @@ mod tests {
 
     fn test_operations(operations: TracedVec<DslIr<AsmConfig<F, EF>>>) {
         let mut compiler = super::AsmCompiler::default();
-        let instructions = dbg!(compiler.compile(operations));
+        let instructions = compiler.compile(operations);
         let program = RecursionProgram { instructions };
         let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(
             &program,
@@ -675,16 +674,10 @@ mod tests {
         let config = SC::new();
         let machine = A::machine(config);
         let (pk, vk) = machine.setup(&program);
-        debug_interactions_with_all_chips(
-            &machine,
-            &pk,
-            &[runtime.record],
-            InteractionKind::all_kinds(),
-        );
-        // let result = run_test_machine(runtime.record, machine, pk, vk);
-        // if let Err(e) = result {
-        //     panic!("Verification failed: {:?}", e);
-        // }
+        let result = run_test_machine(runtime.record, machine, pk, vk);
+        if let Err(e) = result {
+            panic!("Verification failed: {:?}", e);
+        }
     }
 
     #[test]
