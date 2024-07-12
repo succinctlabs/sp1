@@ -14,7 +14,7 @@ use tracing::instrument;
 
 use crate::{
     builder::SP1RecursionAirBuilder,
-    mem::MemoryPreprocessedColsNoVal,
+    mem::MemoryPreprocessedCols,
     runtime::{ExecutionRecord, RecursionProgram},
     ExpReverseBitsInstr, Instruction,
 };
@@ -39,9 +39,9 @@ impl<const DEGREE: usize> Default for ExpReverseBitsLenChip<DEGREE> {
 #[derive(AlignedBorrow, Clone, Copy, Debug)]
 #[repr(C)]
 pub struct ExpReverseBitsLenPreprocessedCols<T: Copy> {
-    pub x_memory: MemoryPreprocessedColsNoVal<T>,
-    pub exponent_memory: MemoryPreprocessedColsNoVal<T>,
-    pub result_memory: MemoryPreprocessedColsNoVal<T>,
+    pub x_memory: MemoryPreprocessedCols<T>,
+    pub exponent_memory: MemoryPreprocessedCols<T>,
+    pub result_memory: MemoryPreprocessedCols<T>,
     pub iteration_num: T,
     pub is_first: T,
     pub is_last: T,
@@ -113,19 +113,19 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpReverseBitsLenCh
                     row.is_first = F::from_bool(i == 0);
                     row.is_last = F::from_bool(i == addrs.exp.len() - 1);
                     row.is_real = F::one();
-                    row.x_memory = MemoryPreprocessedColsNoVal {
+                    row.x_memory = MemoryPreprocessedCols {
                         addr: addrs.base,
                         read_mult: *mult * F::from_bool(i == 0),
                         write_mult: F::zero(),
                         is_real: F::one(),
                     };
-                    row.exponent_memory = MemoryPreprocessedColsNoVal {
+                    row.exponent_memory = MemoryPreprocessedCols {
                         addr: addrs.exp[i],
                         read_mult: F::one(),
                         write_mult: F::zero(),
                         is_real: F::one(),
                     };
-                    row.result_memory = MemoryPreprocessedColsNoVal {
+                    row.result_memory = MemoryPreprocessedCols {
                         addr: addrs.result,
                         read_mult: F::zero(),
                         write_mult: *mult * F::from_bool(i == addrs.exp.len() - 1),

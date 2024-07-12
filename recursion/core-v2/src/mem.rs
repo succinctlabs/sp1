@@ -1,4 +1,5 @@
 use core::borrow::Borrow;
+use instruction::HintBitsInstr;
 use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
@@ -18,7 +19,7 @@ pub const NUM_MEM_INIT_COLS: usize = core::mem::size_of::<MemoryCols<u8>>();
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct MemoryCols<F: Copy> {
-    _nothing: F,
+    val: Block<F>,
 }
 
 pub const NUM_MEM_PREPROCESSED_INIT_COLS: usize =
@@ -27,16 +28,6 @@ pub const NUM_MEM_PREPROCESSED_INIT_COLS: usize =
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct MemoryPreprocessedCols<F: Copy> {
-    pub addr: Address<F>,
-    pub val: Block<F>,
-    pub read_mult: F,
-    pub write_mult: F,
-    pub is_real: F,
-}
-
-#[derive(AlignedBorrow, Debug, Clone, Copy)]
-#[repr(C)]
-pub struct MemoryPreprocessedColsNoVal<F: Copy> {
     pub addr: Address<F>,
     pub read_mult: F,
     pub write_mult: F,
@@ -65,33 +56,47 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip {
         let rows = program
             .instructions
             .iter()
-            .filter_map(|instruction| {
-                let Instruction::Mem(MemInstr {
+            .flat_map(|instruction| match instruction {
+                Instruction::Mem(MemInstr {
                     addrs,
-                    vals,
+                    vals: _,
                     mult,
                     kind,
-                }) = instruction
-                else {
-                    return None;
-                };
-                let mult = mult.to_owned();
-                let (read_mult, write_mult): (F, F) = match kind {
-                    MemAccessKind::Read => (mult, F::zero()),
-                    MemAccessKind::Write => (F::zero(), mult),
-                };
+                }) => {
+                    let mult = mult.to_owned();
+                    let (read_mult, write_mult): (F, F) = match kind {
+                        MemAccessKind::Read => (mult, F::zero()),
+                        MemAccessKind::Write => (F::zero(), mult),
+                    };
 
-                let mut row = [F::zero(); NUM_MEM_PREPROCESSED_INIT_COLS];
-                let cols: &mut MemoryPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
-                *cols = MemoryPreprocessedCols {
-                    addr: addrs.inner,
-                    val: vals.inner,
-                    read_mult,
-                    write_mult,
-                    is_real: F::from_bool(true),
-                };
+                    let mut row = [F::zero(); NUM_MEM_PREPROCESSED_INIT_COLS];
+                    *row.as_mut_slice().borrow_mut() = MemoryPreprocessedCols {
+                        addr: addrs.inner,
+                        read_mult,
+                        write_mult,
+                        is_real: F::from_bool(true),
+                    };
 
-                Some(row)
+                    vec![row]
+                }
+                Instruction::HintBits(HintBitsInstr {
+                    output_addrs_mults,
+                    input_addr: _, // No receive interaction for the hint operation
+                }) => output_addrs_mults
+                    .iter()
+                    .map(|&(addr, write_mult)| {
+                        let mut row = [F::zero(); NUM_MEM_PREPROCESSED_INIT_COLS];
+                        *row.as_mut_slice().borrow_mut() = MemoryPreprocessedCols {
+                            addr,
+                            read_mult: F::zero(),
+                            write_mult,
+                            is_real: F::from_bool(true),
+                        };
+                        row
+                    })
+                    .collect(),
+
+                _ => vec![],
             })
             .collect::<Vec<_>>();
 
@@ -112,23 +117,20 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip {
     }
 
     fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
-        // let mem_events = input.mem_events.clone();
+        let mem_events = input.mem_events.clone();
 
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
-        // let rows = mem_events
-        //     .into_iter()
-        //     .map(|vals| {
-        //         let mut row = [F::zero(); NUM_MEM_INIT_COLS];
+        let rows = mem_events
+            .into_iter()
+            .map(|vals| {
+                let mut row = [F::zero(); NUM_MEM_INIT_COLS];
 
-        //         let MemEvent { inner: val } = vals;
-        //         let cols: &mut MemoryCols<_> = row.as_mut_slice().borrow_mut();
-        //         *cols = MemoryCols { val };
+                let MemEvent { inner: val } = vals;
+                let cols: &mut MemoryCols<_> = row.as_mut_slice().borrow_mut();
+                *cols = MemoryCols { val };
 
-        //         row
-        //     })
-        //     .collect::<Vec<_>>();
-        let rows = std::iter::repeat([F::zero(); NUM_MEM_INIT_COLS])
-            .take(input.mem_events.len())
+                row
+            })
             .collect::<Vec<_>>();
 
         // Convert the trace to a row major matrix.
@@ -153,6 +155,9 @@ where
     AB: SP1RecursionAirBuilder + PairBuilder,
 {
     fn eval(&self, builder: &mut AB) {
+        let main = builder.main();
+        let local = main.row_slice(0);
+        let local: &MemoryCols<AB::Var> = (*local).borrow();
         let prep = builder.preprocessed();
         let prep_local = prep.row_slice(0);
         let prep_local: &MemoryPreprocessedCols<AB::Var> = (*prep_local).borrow();
@@ -160,9 +165,9 @@ where
         // At most one should be true.
         // builder.assert_zero(local.read_mult * local.write_mult);
 
-        builder.receive_block(prep_local.addr, prep_local.val, prep_local.read_mult);
+        builder.receive_block(prep_local.addr, local.val, prep_local.read_mult);
 
-        builder.send_block(prep_local.addr, prep_local.val, prep_local.write_mult);
+        builder.send_block(prep_local.addr, local.val, prep_local.write_mult);
     }
 }
 

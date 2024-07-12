@@ -1,11 +1,11 @@
 use sp1_derive::AlignedBorrow;
 
-use crate::{mem::MemoryPreprocessedColsNoVal, poseidon2_wide::WIDTH};
+use crate::{mem::MemoryPreprocessedCols, poseidon2_wide::WIDTH};
 
 #[derive(AlignedBorrow, Clone, Copy, Debug)]
 #[repr(C)]
 pub struct Poseidon2MemoryPreprocessedCols<T: Copy> {
-    pub memory_prepr: [MemoryPreprocessedColsNoVal<T>; WIDTH],
+    pub memory_prepr: [MemoryPreprocessedCols<T>; WIDTH],
 }
 
 #[derive(AlignedBorrow, Clone, Copy, Debug)]
