@@ -286,6 +286,15 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                     expected_last_row_ending_cursor,
                 );
 
+            // Range check that input_len < 2^16.  This check is only needed for absorb syscall rows,
+            // but we send it for all absorb rows, since the `is_real` parameter must be an expression
+            // with at most degree 1.
+            builder.send_range_check(
+                AB::Expr::from_canonical_u8(RangeCheckOpcode::U16 as u8),
+                local_syscall_params.absorb().input_len,
+                send_range_check,
+            );
+
             // Range check that num_remaining_rows is between [0, 2^18-1].
             builder.send_range_check(
                 AB::Expr::from_canonical_u8(RangeCheckOpcode::U16 as u8),

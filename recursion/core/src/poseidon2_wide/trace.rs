@@ -229,6 +229,11 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                 syscall_params.hash_num = absorb_event.hash_num;
                 syscall_params.input_ptr = absorb_event.input_addr;
                 syscall_params.input_len = absorb_event.input_len;
+
+                output.add_range_check_events(&[RangeCheckEvent::new(
+                    RangeCheckOpcode::U16,
+                    absorb_event.input_len.as_canonical_u32() as u16,
+                )]);
             }
 
             // Populate the memory fields.
