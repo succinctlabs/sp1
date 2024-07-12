@@ -45,7 +45,6 @@ impl<C: Config> CircuitV2Builder<C> for Builder<C> {
         output
     }
     fn poseidon2_permute_v2(&mut self, array: [Felt<C::F>; WIDTH]) -> [Felt<C::F>; WIDTH] {
-        // Make new felts and then pass it along
         let output: [Felt<C::F>; WIDTH] = core::array::from_fn(|_| self.uninit());
         self.operations
             .push(DslIr::CircuitV2Poseidon2PermuteBabyBear(output, array));
