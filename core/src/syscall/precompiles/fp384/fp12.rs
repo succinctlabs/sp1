@@ -16,6 +16,7 @@ use crate::utils::{
     words_to_bytes_le_vec,
 };
 use amcl::bls381::fp12;
+use amcl::bls381::rom::MODULUS;
 use generic_array::GenericArray;
 use itertools::{izip, Itertools};
 use num::Zero;
@@ -45,17 +46,17 @@ pub struct Fp12MulEvent {
     pub shard: u32,
     pub channel: u32,
     pub clk: u32,
-    pub x_ptr: u32,
-    pub x: Vec<u32>,
-    pub y_ptr: u32,
-    pub y: Vec<u32>,
-    pub x_memory_records: Vec<MemoryWriteRecord>,
-    pub y_memory_records: Vec<MemoryReadRecord>,
+    pub a_ptr: u32,
+    pub a: Vec<u32>,
+    pub b_ptr: u32,
+    pub b: Vec<u32>,
+    pub a_memory_records: Vec<MemoryWriteRecord>,
+    pub b_memory_records: Vec<MemoryReadRecord>,
 }
 
 type WordsFieldElement = <U384Field as NumWords>::WordsFieldElement;
-const WORDS_FIELD_ELEMENT: usize = WordsFieldElement::USIZE;
-const WORDS_FP12_ELEMENT: usize = 12 * WORDS_FIELD_ELEMENT;
+const LIMBS_PER_WORD: usize = WordsFieldElement::USIZE;
+const FP12_WORDS: usize = 12 * LIMBS_PER_WORD;
 const NUM_FP_MULS: usize = 144;
 
 #[derive(Debug, Clone, AlignedBorrow)]
@@ -285,10 +286,15 @@ pub struct Fp12MulCols<F> {
     pub channel: F,
     pub clk: F,
     pub nonce: F,
-    pub x_ptr: F,
-    pub y_ptr: F,
-    pub x_memory: GenericArray<MemoryWriteCols<F>, WordsFieldElement>,
-    pub y_memory: GenericArray<MemoryReadCols<F>, WordsFieldElement>,
+
+    pub a_access: GenericArray<MemoryWriteCols<F>, WordsFieldElement>,
+    pub b_access: GenericArray<MemoryWriteCols<F>, WordsFieldElement>,
+
+    pub a_ptr: u32,
+    pub b_ptr: u32,
+    pub a: Vec<u32>,
+    pub b: Vec<u32>,
+
     pub output: AuxFp12MulCols<F>,
 }
 
@@ -300,6 +306,14 @@ impl Fp12MulChip {
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
     ];
+
+    // fn populate_field_ops(
+    //     blu_events: &mut Vec<ByteLookupEvent>,
+    //     shard: u32,
+    //     channel: u32,
+    //     cols: &mut WeierstrassAddAssignCols<F, E::BaseField>,
+
+    // )
 }
 
 impl<F: PrimeField32> MachineAir<F> for Fp12MulChip {
@@ -350,19 +364,19 @@ impl<F: PrimeField32> MachineAir<F> for Fp12MulChip {
                         cols.shard = F::from_canonical_u32(event.shard);
                         cols.channel = F::from_canonical_u32(event.channel);
                         cols.clk = F::from_canonical_u32(event.clk);
-                        cols.x_ptr = F::from_canonical_u32(event.x_ptr);
-                        cols.y_ptr = F::from_canonical_u32(event.y_ptr);
+                        cols.a0_ptr = F::from_canonical_u32(event.a0_ptr);
+                        cols.b0_ptr = F::from_canonical_u32(event.b0_ptr);
 
                         // Populate memory columns.
-                        for i in 0..WORDS_FIELD_ELEMENT {
-                            cols.x_memory[i].populate(
+                        for i in 0..LIMBS_PER_WORD {
+                            cols.a_access[i].populate(
                                 event.channel,
-                                event.x_memory_records[i],
+                                event.a_memory_records[i],
                                 &mut new_byte_lookup_events,
                             );
-                            cols.y_memory[i].populate(
+                            cols.b_access[i].populate(
                                 event.channel,
-                                event.y_memory_records[i],
+                                event.b_memory_records[i],
                                 &mut new_byte_lookup_events,
                             );
                         }
@@ -422,43 +436,42 @@ impl Syscall for Fp12MulChip {
     }
 
     fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
-        let x_ptr = arg1;
-        if x_ptr % 4 != 0 {
+        let a_ptr = arg1;
+        if a_ptr % 4 != 0 {
             panic!();
         }
-        let y_ptr = arg2;
-        if y_ptr % 4 != 0 {
+        let b_ptr = arg2;
+        if b_ptr % 4 != 0 {
             panic!();
         }
 
-        // First read the words for the x value. We can read a slice_unsafe here because we write
-        // the computed result to x later.
-        let x = rt.slice_unsafe(x_ptr, WORDS_FP12_ELEMENT);
+        let num_fp12_words = <U384Field as NumWords>::WordsFieldElement::USIZE / LIMBS_PER_WORD;
 
-        // Read the y value.
-        let (y_memory_records, y) = rt.mr_slice(y_ptr, WORDS_FP12_ELEMENT);
+        let a = rt.slice_unsafe(a_ptr, num_fp12_words);
+        let (b_memory_records, b) = rt.mr_slice(b_ptr, num_fp12_words);
+        rt.clk += 1;
 
-        let result = Fp12::from_words(&x.clone().try_into().unwrap())
-            * Fp12::from_words(&y.clone().try_into().unwrap());
+        let result =
+            Fp12::from_words(&a.try_into().unwrap()) * Fp12::from_words(&b.try_into().unwrap());
 
-        // Write the result to x and keep track of the memory records.
-        let x_memory_records = rt.mw_slice(x_ptr, &result.to_words());
+        let a_memory_records = rt.mw_slice(a_ptr, &result.to_words());
 
         let lookup_id = rt.syscall_lookup_id;
         let shard = rt.current_shard();
         let channel = rt.current_channel();
         let clk = rt.clk;
+
         rt.record_mut().fp12_mul_events.push(Fp12MulEvent {
             lookup_id,
             shard,
             channel,
             clk,
-            x_ptr,
-            x,
-            y_ptr,
-            y,
-            x_memory_records,
-            y_memory_records,
+            a_ptr,
+            a,
+            b_ptr,
+            b,
+            a_memory_records,
+            b_memory_records,
         });
 
         None
@@ -482,6 +495,7 @@ where
         let local: &Fp12MulCols<AB::Var> = (*local).borrow();
         let next = main.row_slice(1);
         let next: &Fp12MulCols<AB::Var> = (*next).borrow();
+        let num_fp12_words = <U384Field as NumWords>::WordsFieldElement::USIZE / LIMBS_PER_WORD;
 
         // Constrain the incrementing nonce.
         builder.when_first_row().assert_zero(local.nonce);
@@ -489,8 +503,64 @@ where
             .when_transition()
             .assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
-        let x_limbs = limbs_from_prev_access(&local.x_memory);
-        let y_limbs = limbs_from_access(&local.y_memory);
+        let a: [Limbs<AB::Var, _>; 12] = local
+            .a_access
+            .iter()
+            .chunks(FP12_WORDS)
+            .map(|x| limbs_from_prev_access(x))
+            .collect();
+        let b: [Limbs<AB::Var, _>; 12] = local
+            .b_access
+            .iter()
+            .chunks(FP12_WORDS)
+            .map(|x| limbs_from_prev_access(x))
+            .collect();
+
+        let eval =
+            Fp12MulChipEval::new(local.shard, local.channel, local.is_real, builder, MODULUS);
+
+        eval.fp12_mul(&a, &b);
+
+        for i in 0..FP12_WORDS * LIMBS_PER_WORD {
+            builder
+                .when(local.is_real)
+                .assert_eq(local.output.x[i], local.a_access[i / 4].value()[i % 4]);
+            builder.when(local.is_real).assert_eq(
+                local.y.result[i],
+                local.a_access[num_fp12_words + i / 4].value()[i % 4],
+            );
+        }
+
+        builder.eval_memory_access_slice(
+            local.shard,
+            local.channel,
+            local.clk.into(),
+            local.b_ptr,
+            &local.b_access,
+            local.is_real,
+        );
+
+        builder.eval_memory_access_slice(
+            local.shard,
+            local.channel,
+            local.clk + AB::F::from_canonical_u32(1),
+            local.b_ptr,
+            &local.b_access,
+            local.is_real,
+        );
+
+        let syscall_id_felt = U384Field::from_canonical_u32(SyscallCode::Fp12Mul as u32);
+
+        builder.receive_syscall(
+            local.shard,
+            local.channel,
+            local.clk,
+            local.nonce,
+            syscall_id_felt,
+            local.a_ptr,
+            local.b_ptr,
+            local.is_real,
+        );
     }
 }
 
@@ -880,7 +950,6 @@ where
     channel: u32,
     is_real: u32,
     builder: AB,
-    new_byte_lookup_events: Vec<ByteLookupEvent>,
     modulus: BigUint,
     _marker: PhantomData<F>,
 }
@@ -890,20 +959,12 @@ where
     AB: SP1AirBuilder,
     Limbs<AB::Var, <U384Field as NumLimbs>::Limbs>: Copy,
 {
-    fn new(
-        shard: u32,
-        channel: u32,
-        is_real: u32,
-        builder: AB,
-        new_byte_lookup_events: Vec<ByteLookupEvent>,
-        modulus: BigUint,
-    ) -> Self {
+    fn new(shard: u32, channel: u32, is_real: u32, builder: AB, modulus: BigUint) -> Self {
         Self {
             shard,
             channel,
             is_real,
             builder,
-            new_byte_lookup_events,
             modulus,
             _marker: PhantomData,
         }
