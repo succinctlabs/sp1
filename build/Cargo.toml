@@ -1,6 +1,6 @@
 [package]
 name = "sp1-build"
-version = "0.1.0"
+version = "0.0.1-test"
 edition = "2021"
 description = "Build an SP1 program."
 license = "MIT OR Apache-2.0"
