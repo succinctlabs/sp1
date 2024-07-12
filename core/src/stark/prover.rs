@@ -29,7 +29,9 @@ use crate::stark::PackedChallenge;
 use crate::stark::ProverConstraintFolder;
 use crate::utils::SP1CoreOpts;
 
-pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>: Send + Sync {
+pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
+    'static + Send + Sync
+{
     type MainData;
 
     type ShardCommitData;
@@ -166,7 +168,7 @@ impl Error for DefaultProverError {}
 
 impl<SC, A> MachineProver<SC, A> for DefaultProver<SC, A>
 where
-    SC: StarkGenericConfig + Send + Sync,
+    SC: 'static + StarkGenericConfig + Send + Sync,
     A: MachineAir<SC::Val>
         + for<'a> Air<ProverConstraintFolder<'a, SC>>
         + Air<InteractionBuilder<Val<SC>>>

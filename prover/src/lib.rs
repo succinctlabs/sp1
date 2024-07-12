@@ -262,7 +262,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             .get_or_insert_with(|| Arc::new(self));
         let program = Program::from(&pk.elf);
         let (proof, public_values_stream, cycles) = sp1_core::utils::prove_with_context(
-            &*self.core_prover,
+            self.core_prover.clone(),
             program,
             stdin,
             opts.core_opts,
