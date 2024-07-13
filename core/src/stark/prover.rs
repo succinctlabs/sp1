@@ -80,6 +80,7 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
         opts: <A::Record as MachineRecord>::Config,
     ) -> Result<Vec<ShardProof<SC>>, Self::Error>;
 
+    /// Create a proof for a batch of records.
     fn prove_records(
         &self,
         pk: &StarkProvingKey<SC>,
