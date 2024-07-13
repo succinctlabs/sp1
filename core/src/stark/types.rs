@@ -1,9 +1,18 @@
+use crate::air::MachineAir;
 use std::{
     fmt::Debug,
     fs::File,
     io::{BufReader, BufWriter, Seek},
 };
 
+use crate::lookup::InteractionBuilder;
+use p3_field::PrimeField32;
+
+use p3_air::Air;
+
+use crate::stark::MachineRecord;
+use crate::stark::{DefaultProver, MachineProver};
+use crate::stark::{ProverConstraintFolder, VerifierConstraintFolder};
 use bincode::{deserialize_from, Error};
 use hashbrown::HashMap;
 use p3_matrix::dense::RowMajorMatrix;
@@ -14,6 +23,8 @@ use size::Size;
 use tracing::trace;
 
 use super::{Challenge, Com, OpeningProof, PcsProverData, StarkGenericConfig, Val};
+
+use crate::utils::SP1CoreOpts;
 
 pub type QuotientOpenedValues<T> = Vec<T>;
 
@@ -45,7 +56,10 @@ impl<SC: StarkGenericConfig> ShardMainData<SC> {
         }
     }
 
-    pub fn save(&self, file: File) -> Result<ShardMainDataWrapper<SC>, Error>
+    pub fn save<A: MachineAir<SC::Val>>(
+        &self,
+        file: File,
+    ) -> Result<ShardMainDataWrapper<SC, A>, Error>
     where
         ShardMainData<SC>: Serialize,
     {
@@ -61,22 +75,34 @@ impl<SC: StarkGenericConfig> ShardMainData<SC> {
         Ok(ShardMainDataWrapper::TempFile(file, bytes_written))
     }
 
-    pub const fn to_in_memory(self) -> ShardMainDataWrapper<SC> {
+    pub const fn to_in_memory<A: MachineAir<SC::Val>>(self) -> ShardMainDataWrapper<SC, A> {
         ShardMainDataWrapper::InMemory(self)
     }
 }
 
-pub enum ShardMainDataWrapper<SC: StarkGenericConfig> {
+pub enum ShardMainDataWrapper<SC: StarkGenericConfig, A: MachineAir<SC::Val>> {
     InMemory(ShardMainData<SC>),
     TempFile(File, u64),
-    Empty(),
+    Shard(A::Record),
 }
 
-impl<SC: StarkGenericConfig> ShardMainDataWrapper<SC> {
-    pub fn materialize(self) -> Result<ShardMainData<SC>, Error>
-    where
-        ShardMainData<SC>: DeserializeOwned,
-    {
+impl<SC: StarkGenericConfig, A: MachineAir<SC::Val>> ShardMainDataWrapper<SC, A>
+where
+    ShardMainData<SC>: DeserializeOwned,
+    SC: 'static + StarkGenericConfig + Send + Sync,
+    A: MachineAir<SC::Val>
+        + for<'a> Air<ProverConstraintFolder<'a, SC>>
+        + Air<InteractionBuilder<Val<SC>>>
+        + for<'a> Air<VerifierConstraintFolder<'a, SC>>,
+    A::Record: MachineRecord<Config = SP1CoreOpts>,
+    SC::Val: PrimeField32,
+    Com<SC>: Send + Sync,
+    PcsProverData<SC>: Send + Sync,
+    OpeningProof<SC>: Send + Sync,
+    ShardMainData<SC>: Serialize + DeserializeOwned,
+    SC::Challenger: Clone,
+{
+    pub fn materialize(self, prover: &DefaultProver<SC, A>) -> Result<ShardMainData<SC>, Error> {
         match self {
             Self::InMemory(data) => Ok(data),
             Self::TempFile(file, _) => {
@@ -85,7 +111,7 @@ impl<SC: StarkGenericConfig> ShardMainDataWrapper<SC> {
                 let data = deserialize_from(&mut buffer)?;
                 Ok(data)
             }
-            Self::Empty() => unreachable!(),
+            Self::Shard(record) => Ok(prover.commit_main(&record)),
         }
     }
 }

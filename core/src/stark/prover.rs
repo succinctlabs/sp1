@@ -49,8 +49,8 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
 
     fn commit_shards(
         &self,
-        shards: &[A::Record],
-        opts: SP1CoreOpts,
+        shards: Vec<A::Record>,
+        opts: <A::Record as MachineRecord>::Config,
     ) -> (Vec<Com<SC>>, Vec<Self::ShardCommitData>);
 
     fn prove_shard(
@@ -75,7 +75,7 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
     fn prove_shards(
         &self,
         pk: &StarkProvingKey<SC>,
-        shards: Vec<A::Record>,
+        data: Vec<Self::ShardCommitData>,
         challenger: &mut SC::Challenger,
         opts: <A::Record as MachineRecord>::Config,
     ) -> Result<MachineProof<SC>, Self::Error>;
@@ -124,8 +124,30 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
             record.register_nonces(&opts);
         });
 
+        // Observe the preprocessed commitment.
+        pk.observe_into(challenger);
+        // Save the public values for each shard.
+        let public_values = records
+            .iter()
+            .map(|record| record.public_values::<SC::Val>()[0..self.num_pv_elts()].to_vec())
+            .collect::<Vec<_>>();
+
+        // Generate and commit the traces for each shard.
+        let (shard_commits, shard_data) = self.commit_shards(records, opts);
+
+        // Observe the challenges for each segment.
+        tracing::debug_span!("observing all challenges").in_scope(|| {
+            shard_commits
+                .into_iter()
+                .zip(public_values)
+                .for_each(|(commitment, pub_values)| {
+                    challenger.observe(commitment);
+                    challenger.observe_slice(&pub_values);
+                });
+        });
+
         tracing::info_span!("prove_shards")
-            .in_scope(|| self.prove_shards(pk, records, challenger, opts))
+            .in_scope(|| self.prove_shards(pk, shard_data, challenger, opts))
     }
 
     fn debug_constraints(
@@ -182,7 +204,7 @@ where
     SC::Challenger: Clone,
 {
     type MainData = ShardMainData<SC>;
-    type ShardCommitData = ShardMainDataWrapper<SC>;
+    type ShardCommitData = ShardMainDataWrapper<SC, A>;
 
     type Error = DefaultProverError;
 
@@ -512,54 +534,30 @@ where
     fn prove_shards(
         &self,
         pk: &StarkProvingKey<SC>,
-        shards: Vec<A::Record>,
+        data: Vec<Self::ShardCommitData>,
         challenger: &mut <SC as StarkGenericConfig>::Challenger,
         opts: SP1CoreOpts,
     ) -> Result<MachineProof<SC>, Self::Error> {
-        // Observe the preprocessed commitment.
-        pk.observe_into(challenger);
-        // Generate and commit the traces for each segment.
-        let (shard_commits, shard_data) = self.commit_shards(&shards, opts);
-
-        // Observe the challenges for each segment.
-        tracing::debug_span!("observing all challenges").in_scope(|| {
-            shard_commits
-                .into_iter()
-                .zip(shards.iter())
-                .for_each(|(commitment, shard)| {
-                    challenger.observe(commitment);
-                    challenger
-                        .observe_slice(&shard.public_values::<SC::Val>()[0..self.num_pv_elts()]);
-                });
-        });
-
         let finished = AtomicU32::new(0);
 
         // Generate a proof for each segment. Note that we clone the challenger so we can observe
         // identical global challenges across the segments.
         let chunking_multiplier = opts.shard_chunking_multiplier;
-        let chunk_size = std::cmp::max(chunking_multiplier * shards.len() / num_cpus::get(), 1);
-        let reconstruct_commitments = opts.reconstruct_commitments;
-        let shard_data_chunks = chunk_vec(shard_data, chunk_size);
-        let shard_chunks = chunk_vec(shards, chunk_size);
+        let chunk_size = std::cmp::max(chunking_multiplier * data.len() / num_cpus::get(), 1);
+        let shard_data_chunks = chunk_vec(data, chunk_size);
         let parent_span = tracing::debug_span!("open_shards");
         let shard_proofs = parent_span.in_scope(|| {
             shard_data_chunks
                 .into_par_iter()
-                .zip(shard_chunks.into_par_iter())
-                .map(|(datas, shards)| {
-                    datas
+                .map(|data_batch| {
+                    data_batch
                         .into_iter()
-                        .zip(shards)
-                        .map(|(data, shard)| {
+                        .map(|data| {
                             tracing::debug_span!(parent: &parent_span, "prove shard opening")
                                 .in_scope(|| {
-                                    let data = if reconstruct_commitments {
-                                        self.commit_main(&shard)
-                                    } else {
-                                        data.materialize()
-                                            .expect("failed to materialize shard main data")
-                                    };
+                                    let data = data
+                                        .materialize(self)
+                                        .expect("failed to materialize shard main data");
                                     let proof = self.prove_shard(pk, data, &mut challenger.clone());
                                     finished.fetch_add(1, Ordering::Relaxed);
                                     proof
@@ -636,7 +634,7 @@ where
 
     fn commit_shards(
         &self,
-        shards: &[A::Record],
+        shards: Vec<A::Record>,
         opts: SP1CoreOpts,
     ) -> (Vec<Com<SC>>, Vec<Self::ShardCommitData>) {
         // Get the number of shards that is the threshold for saving shards to disk instead of
@@ -645,20 +643,21 @@ where
         let finished = AtomicU32::new(0);
         let chunk_size = std::cmp::max(shards.len() / num_cpus::get(), 1);
         let parent_span = tracing::debug_span!("commit to all shards");
+        let shard_chunks = chunk_vec(shards, chunk_size);
         let (commitments, shard_main_data): (Vec<_>, Vec<_>) = parent_span.in_scope(|| {
-            shards
-                .par_chunks(chunk_size)
+            shard_chunks
+                .into_par_iter()
                 .map(|shard_batch| {
                     shard_batch
-                        .iter()
+                        .into_iter()
                         .map(|shard| {
                             tracing::debug_span!(parent: &parent_span, "commit to shard").in_scope(
                                 || {
-                                    let data = self.commit_main(shard);
+                                    let data = self.commit_main(&shard);
                                     finished.fetch_add(1, Ordering::Relaxed);
                                     let commitment = data.main_commit.clone();
                                     let data = if reconstruct_commitments {
-                                        ShardMainDataWrapper::Empty()
+                                        ShardMainDataWrapper::Shard(shard)
                                     } else {
                                         data.to_in_memory()
                                     };
@@ -669,8 +668,6 @@ where
                         .collect::<Vec<_>>()
                 })
                 .flatten()
-                .collect::<Vec<_>>()
-                .into_iter()
                 .unzip()
         });
 

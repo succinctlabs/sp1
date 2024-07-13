@@ -194,14 +194,22 @@ where
         std::thread::spawn(move || {
             let mut challenger = challenger;
             for records in rx.iter().take(nb_checkpoints) {
+                // Save the public values for each shard.
+                let public_values = records
+                    .iter()
+                    .map(|record| {
+                        record.public_values::<SC::Val>()[0..prover.machine().num_pv_elts()]
+                            .to_vec()
+                    })
+                    .collect::<Vec<_>>();
+
                 // Commit to the shards.
-                let (commitments, _) = prover.commit_shards(&records, opts);
+                let (commitments, _) = prover.commit_shards(records, opts);
 
                 // Observe the commitments.
-                for (commitment, shard) in commitments.into_iter().zip(records.iter()) {
+                for (commitment, pub_values) in commitments.into_iter().zip(public_values) {
                     challenger.observe(commitment);
-                    challenger
-                        .observe_slice(&shard.public_values::<SC::Val>()[0..prover.num_pv_elts()]);
+                    challenger.observe_slice(&pub_values);
                 }
             }
             challenger
