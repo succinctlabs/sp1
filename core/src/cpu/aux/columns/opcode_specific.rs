@@ -1,8 +1,11 @@
-use crate::cpu::columns::{AuipcCols, BranchCols, JumpCols, MemoryColumns};
 use std::fmt::{Debug, Formatter};
 use std::mem::{size_of, transmute};
 
+use super::auipc::AuipcCols;
+use super::branch::BranchCols;
 use super::ecall::EcallCols;
+use super::jump::JumpCols;
+use super::memory::MemoryColumns;
 
 pub const NUM_OPCODE_SPECIFIC_COLS: usize = size_of::<OpcodeSpecificCols<u8>>();
 

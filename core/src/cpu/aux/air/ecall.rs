@@ -1,9 +1,8 @@
 use p3_air::AirBuilder;
 use p3_field::AbstractField;
 
-use crate::air::{BaseAirBuilder, WordAirBuilder};
-use crate::cpu::air::{Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS};
-use crate::cpu::columns::CpuAuxCols;
+use crate::air::{BaseAirBuilder, Word, WordAirBuilder, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS};
+use crate::cpu::aux::columns::CpuAuxCols;
 use crate::cpu::CpuAuxChip;
 use crate::operations::{BabyBearWordRangeChecker, IsZeroOperation};
 use crate::runtime::SyscallCode;

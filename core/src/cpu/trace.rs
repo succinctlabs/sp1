@@ -11,9 +11,11 @@ use p3_maybe_rayon::prelude::ParallelIterator;
 use p3_maybe_rayon::prelude::ParallelSlice;
 use tracing::instrument;
 
-use super::columns::CpuAuxCols;
-use super::columns::NUM_CPU_OPCODE_SPECIFIC_COLS;
-use super::columns::{CPU_COL_MAP, NUM_CPU_COLS};
+use super::aux::columns::CpuAuxCols;
+use super::aux::columns::NUM_CPU_AUX_COLS;
+use super::main::columns::CpuCols;
+use super::main::columns::CPU_COL_MAP;
+use super::main::columns::NUM_CPU_COLS;
 use super::CpuAuxChip;
 use super::CpuChip;
 use super::CpuEvent;
@@ -23,7 +25,6 @@ use crate::alu::create_alu_lookups;
 use crate::alu::{self, AluEvent};
 use crate::bytes::event::ByteRecord;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
-use crate::cpu::columns::CpuCols;
 use crate::cpu::trace::ByteOpcode::{U16Range, U8Range};
 use crate::disassembler::WORD_SIZE;
 use crate::memory::MemoryCols;
@@ -274,14 +275,14 @@ impl<F: PrimeField32> MachineAir<F> for CpuAuxChip {
             .collect_vec();
 
         let num_real_rows = filtered_cpu_events.len();
-        let mut rows = vec![F::zero(); num_real_rows * NUM_CPU_OPCODE_SPECIFIC_COLS];
+        let mut rows = vec![F::zero(); num_real_rows * NUM_CPU_AUX_COLS];
 
         let chunk_size = std::cmp::max(num_real_rows / num_cpus::get(), 1);
-        rows.chunks_mut(chunk_size * NUM_CPU_OPCODE_SPECIFIC_COLS)
+        rows.chunks_mut(chunk_size * NUM_CPU_AUX_COLS)
             .enumerate()
             .par_bridge()
             .for_each(|(i, rows)| {
-                rows.chunks_mut(NUM_CPU_OPCODE_SPECIFIC_COLS)
+                rows.chunks_mut(NUM_CPU_AUX_COLS)
                     .enumerate()
                     .for_each(|(j, row)| {
                         let idx = i * chunk_size + j;
@@ -300,10 +301,10 @@ impl<F: PrimeField32> MachineAir<F> for CpuAuxChip {
         } else {
             num_real_rows.next_power_of_two()
         };
-        rows.resize(padded_nb_rows * NUM_CPU_OPCODE_SPECIFIC_COLS, F::zero());
+        rows.resize(padded_nb_rows * NUM_CPU_AUX_COLS, F::zero());
 
         // Convert the trace to a row major matrix.
-        RowMajorMatrix::new(rows, NUM_CPU_OPCODE_SPECIFIC_COLS)
+        RowMajorMatrix::new(rows, NUM_CPU_AUX_COLS)
     }
 
     #[instrument(
@@ -327,7 +328,7 @@ impl<F: PrimeField32> MachineAir<F> for CpuAuxChip {
                 let mut alu = HashMap::new();
                 let mut blu = HashMap::new();
                 ops.iter().for_each(|op| {
-                    let mut row = [F::zero(); NUM_CPU_OPCODE_SPECIFIC_COLS];
+                    let mut row = [F::zero(); NUM_CPU_AUX_COLS];
                     let cols: &mut CpuAuxCols<F> = row.as_mut_slice().borrow_mut();
                     let alu_events = self.event_to_row::<F>(op, &HashMap::new(), &mut blu, cols);
                     alu_events.into_iter().for_each(|(key, value)| {

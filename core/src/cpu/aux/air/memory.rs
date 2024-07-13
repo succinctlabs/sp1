@@ -2,7 +2,8 @@ use p3_air::AirBuilder;
 use p3_field::AbstractField;
 
 use crate::air::{BaseAirBuilder, SP1AirBuilder, Word, WordAirBuilder};
-use crate::cpu::columns::{CpuAuxCols, MemoryColumns};
+use crate::cpu::aux::columns::memory::MemoryColumns;
+use crate::cpu::aux::columns::CpuAuxCols;
 use crate::cpu::CpuAuxChip;
 use crate::memory::MemoryCols;
 use crate::operations::BabyBearWordRangeChecker;

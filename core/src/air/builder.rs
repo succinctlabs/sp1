@@ -11,8 +11,8 @@ use p3_uni_stark::{ProverConstraintFolder, SymbolicAirBuilder, VerifierConstrain
 use super::interaction::AirInteraction;
 use super::word::Word;
 use super::{BinomialExtension, WORD_SIZE};
-use crate::cpu::columns::InstructionCols;
-use crate::cpu::columns::OpcodeSelectorCols;
+use crate::cpu::main::columns::InstructionCols;
+use crate::cpu::main::columns::OpcodeSelectorCols;
 use crate::lookup::InteractionKind;
 use crate::memory::MemoryAccessCols;
 use crate::{bytes::ByteOpcode, memory::MemoryCols};

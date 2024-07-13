@@ -6,6 +6,7 @@ use crate::{
     operations::{BabyBearWordRangeChecker, IsZeroOperation},
 };
 
+#[allow(dead_code)]
 pub const NUM_ECALL_COLS: usize = size_of::<EcallCols<u8>>();
 
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]

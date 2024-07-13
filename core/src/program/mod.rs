@@ -10,8 +10,7 @@ use sp1_derive::AlignedBorrow;
 
 use crate::air::MachineAir;
 use crate::air::SP1AirBuilder;
-use crate::cpu::columns::InstructionCols;
-use crate::cpu::columns::OpcodeSelectorCols;
+use crate::cpu::main::columns::{InstructionCols, OpcodeSelectorCols};
 use crate::runtime::{ExecutionRecord, Program};
 use crate::utils::pad_to_power_of_two;
 

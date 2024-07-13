@@ -3,6 +3,7 @@ use std::mem::size_of;
 
 use crate::{air::Word, operations::BabyBearWordRangeChecker};
 
+#[allow(dead_code)]
 pub const NUM_AUIPC_COLS: usize = size_of::<AuipcCols<u8>>();
 
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]

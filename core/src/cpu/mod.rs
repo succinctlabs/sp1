@@ -1,6 +1,6 @@
-pub mod air;
-pub mod columns;
+pub mod aux;
 pub mod event;
+pub mod main;
 pub mod trace;
 
 pub use event::*;

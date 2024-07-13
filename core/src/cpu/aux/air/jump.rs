@@ -3,7 +3,7 @@ use p3_field::AbstractField;
 
 use crate::{
     air::BaseAirBuilder,
-    cpu::{columns::CpuAuxCols, CpuAuxChip},
+    cpu::{aux::columns::CpuAuxCols, CpuAuxChip},
     operations::BabyBearWordRangeChecker,
     runtime::Opcode,
     stark::SP1AirBuilder,

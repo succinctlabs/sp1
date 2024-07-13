@@ -1,7 +1,7 @@
 use p3_field::AbstractField;
 
 use crate::air::WordAirBuilder;
-use crate::cpu::columns::CpuCols;
+use crate::cpu::main::columns::CpuCols;
 use crate::memory::MemoryCols;
 use crate::runtime::MemoryAccessPosition;
 use crate::stark::{CpuChip, SP1AirBuilder};
