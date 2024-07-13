@@ -78,7 +78,18 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
         data: Vec<Self::ShardCommitData>,
         challenger: &mut SC::Challenger,
         opts: <A::Record as MachineRecord>::Config,
-    ) -> Result<MachineProof<SC>, Self::Error>;
+    ) -> Result<Vec<ShardProof<SC>>, Self::Error>;
+
+    fn prove_records(
+        &self,
+        pk: &StarkProvingKey<SC>,
+        records: Vec<A::Record>,
+        challenger: &mut SC::Challenger,
+        opts: <A::Record as MachineRecord>::Config,
+    ) -> Result<Vec<ShardProof<SC>>, Self::Error> {
+        let (_, data) = self.commit_shards(records, opts);
+        self.prove_shards(pk, data, challenger, opts)
+    }
 
     /// The stark config for the machine.
     fn config(&self) -> &SC {
@@ -146,8 +157,10 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
                 });
         });
 
-        tracing::info_span!("prove_shards")
-            .in_scope(|| self.prove_shards(pk, shard_data, challenger, opts))
+        let shard_proofs = tracing::info_span!("prove_shards")
+            .in_scope(|| self.prove_shards(pk, shard_data, challenger, opts))?;
+
+        Ok(MachineProof { shard_proofs })
     }
 
     fn debug_constraints(
@@ -537,7 +550,7 @@ where
         data: Vec<Self::ShardCommitData>,
         challenger: &mut <SC as StarkGenericConfig>::Challenger,
         opts: SP1CoreOpts,
-    ) -> Result<MachineProof<SC>, Self::Error> {
+    ) -> Result<Vec<ShardProof<SC>>, Self::Error> {
         let finished = AtomicU32::new(0);
 
         // Generate a proof for each segment. Note that we clone the challenger so we can observe
@@ -569,7 +582,7 @@ where
                 .collect::<Result<Vec<_>, Self::Error>>()
         })?;
 
-        Ok(MachineProof { shard_proofs })
+        Ok(shard_proofs)
     }
 
     fn commit_main(&self, shard: &A::Record) -> Self::MainData {

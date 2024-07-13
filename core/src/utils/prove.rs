@@ -284,23 +284,20 @@ where
     let (tx, rx) = sync_channel::<Vec<ExecutionRecord>>(
         opts.shard_batch_size * opts.shard_chunking_multiplier,
     );
+
+    // Disable the reconstruct commitments in case it was enabled.
+    let mut opts = opts;
+    opts.reconstruct_commitments = false;
+
+    // Prove the shards.
     let shard_proofs_handle = {
         let prover = prover.clone();
         std::thread::spawn(move || {
             let mut shard_proofs = Vec::<ShardProof<SC>>::new();
             for records in rx.iter().take(nb_checkpoints) {
-                let mut proofs = records
-                    .into_iter()
-                    .map(|shard| {
-                        let id = shard.public_values.shard;
-                        tracing::debug_span!("prove shard", shard = id).in_scope(|| {
-                            let shard_data = prover.commit_main(&shard);
-                            prover
-                                .prove_shard(&pk, shard_data, &mut challenger.clone())
-                                .unwrap()
-                        })
-                    })
-                    .collect::<Vec<_>>();
+                let mut proofs = prover
+                    .prove_records(&pk, records, &mut challenger.clone(), opts)
+                    .unwrap();
                 shard_proofs.append(&mut proofs);
             }
             shard_proofs
