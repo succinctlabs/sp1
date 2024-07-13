@@ -11,12 +11,12 @@ use p3_maybe_rayon::prelude::ParallelIterator;
 use p3_maybe_rayon::prelude::ParallelSlice;
 use tracing::instrument;
 
-use super::columns::CpuOpcodeSpecificCols;
+use super::columns::CpuAuxCols;
 use super::columns::NUM_CPU_OPCODE_SPECIFIC_COLS;
 use super::columns::{CPU_COL_MAP, NUM_CPU_COLS};
+use super::CpuAuxChip;
 use super::CpuChip;
 use super::CpuEvent;
-use super::CpuOpcodeSpecificChip;
 use crate::air::MachineAir;
 use crate::air::Word;
 use crate::alu::create_alu_lookups;
@@ -253,7 +253,7 @@ impl CpuChip {
     }
 }
 
-impl<F: PrimeField32> MachineAir<F> for CpuOpcodeSpecificChip {
+impl<F: PrimeField32> MachineAir<F> for CpuAuxChip {
     type Record = ExecutionRecord;
 
     type Program = Program;
@@ -285,7 +285,7 @@ impl<F: PrimeField32> MachineAir<F> for CpuOpcodeSpecificChip {
                     .enumerate()
                     .for_each(|(j, row)| {
                         let idx = i * chunk_size + j;
-                        let cols: &mut CpuOpcodeSpecificCols<F> = row.borrow_mut();
+                        let cols: &mut CpuAuxCols<F> = row.borrow_mut();
                         self.event_to_row(
                             filtered_cpu_events[idx],
                             &input.nonce_lookup,
@@ -328,7 +328,7 @@ impl<F: PrimeField32> MachineAir<F> for CpuOpcodeSpecificChip {
                 let mut blu = HashMap::new();
                 ops.iter().for_each(|op| {
                     let mut row = [F::zero(); NUM_CPU_OPCODE_SPECIFIC_COLS];
-                    let cols: &mut CpuOpcodeSpecificCols<F> = row.as_mut_slice().borrow_mut();
+                    let cols: &mut CpuAuxCols<F> = row.as_mut_slice().borrow_mut();
                     let alu_events = self.event_to_row::<F>(op, &HashMap::new(), &mut blu, cols);
                     alu_events.into_iter().for_each(|(key, value)| {
                         alu.entry(key).or_insert(Vec::default()).extend(value);
@@ -355,7 +355,7 @@ impl<F: PrimeField32> MachineAir<F> for CpuOpcodeSpecificChip {
     }
 }
 
-impl CpuOpcodeSpecificChip {
+impl CpuAuxChip {
     fn add_to_cpu_aux_chip(event: &CpuEvent) -> bool {
         let instruction = event.instruction;
         instruction.is_branch_instruction()
@@ -371,7 +371,7 @@ impl CpuOpcodeSpecificChip {
         event: &CpuEvent,
         nonce_lookup: &HashMap<usize, u32>,
         blu_events: &mut impl ByteRecord,
-        cols: &mut CpuOpcodeSpecificCols<F>,
+        cols: &mut CpuAuxCols<F>,
     ) -> HashMap<Opcode, Vec<alu::AluEvent>> {
         let mut new_alu_events = HashMap::new();
 
@@ -420,7 +420,7 @@ impl CpuOpcodeSpecificChip {
     /// Populate columns related to AUIPC.
     fn populate_auipc<F: PrimeField>(
         &self,
-        cols: &mut CpuOpcodeSpecificCols<F>,
+        cols: &mut CpuAuxCols<F>,
         event: &CpuEvent,
         alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
         nonce_lookup: &HashMap<usize, u32>,
@@ -458,7 +458,7 @@ impl CpuOpcodeSpecificChip {
     /// Populates columns related to branching.
     fn populate_branch<F: PrimeField>(
         &self,
-        cols: &mut CpuOpcodeSpecificCols<F>,
+        cols: &mut CpuAuxCols<F>,
         event: &CpuEvent,
         alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
         nonce_lookup: &HashMap<usize, u32>,
@@ -584,7 +584,7 @@ impl CpuOpcodeSpecificChip {
     /// Populate columns related to jumping.
     fn populate_jump<F: PrimeField>(
         &self,
-        cols: &mut CpuOpcodeSpecificCols<F>,
+        cols: &mut CpuAuxCols<F>,
         event: &CpuEvent,
         alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
         nonce_lookup: &HashMap<usize, u32>,
@@ -659,7 +659,7 @@ impl CpuOpcodeSpecificChip {
     /// Populates columns related to memory.
     fn populate_memory<F: PrimeField32>(
         &self,
-        cols: &mut CpuOpcodeSpecificCols<F>,
+        cols: &mut CpuAuxCols<F>,
         event: &CpuEvent,
         new_alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
         blu_events: &mut impl ByteRecord,
@@ -818,7 +818,7 @@ impl CpuOpcodeSpecificChip {
     /// Populate columns related to ECALL.
     fn populate_ecall<F: PrimeField>(
         &self,
-        cols: &mut CpuOpcodeSpecificCols<F>,
+        cols: &mut CpuAuxCols<F>,
         event: &CpuEvent,
         nonce_lookup: &HashMap<usize, u32>,
     ) {

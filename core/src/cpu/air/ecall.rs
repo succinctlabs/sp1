@@ -3,13 +3,13 @@ use p3_field::AbstractField;
 
 use crate::air::{BaseAirBuilder, WordAirBuilder};
 use crate::cpu::air::{Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS};
-use crate::cpu::columns::CpuOpcodeSpecificCols;
-use crate::cpu::CpuOpcodeSpecificChip;
+use crate::cpu::columns::CpuAuxCols;
+use crate::cpu::CpuAuxChip;
 use crate::operations::{BabyBearWordRangeChecker, IsZeroOperation};
 use crate::runtime::SyscallCode;
 use crate::stark::SP1AirBuilder;
 
-impl CpuOpcodeSpecificChip {
+impl CpuAuxChip {
     /// Constraints related to the ECALL opcode.
     ///
     /// This method will do the following:
@@ -18,7 +18,7 @@ impl CpuOpcodeSpecificChip {
     pub(crate) fn eval_ecall<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
-        local: &CpuOpcodeSpecificCols<AB::Var>,
+        local: &CpuAuxCols<AB::Var>,
     ) {
         let ecall_cols = local.opcode_specific_columns.ecall();
         let is_ecall_instruction = local.selectors.is_ecall_instruction::<AB>();
@@ -105,7 +105,7 @@ impl CpuOpcodeSpecificChip {
     pub(crate) fn eval_commit<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
-        local: &CpuOpcodeSpecificCols<AB::Var>,
+        local: &CpuAuxCols<AB::Var>,
         commit_digest: [Word<AB::Expr>; PV_DIGEST_NUM_WORDS],
         deferred_proofs_digest: [AB::Expr; POSEIDON_NUM_WORDS],
     ) {
@@ -187,7 +187,7 @@ impl CpuOpcodeSpecificChip {
     pub(crate) fn eval_halt<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
-        local: &CpuOpcodeSpecificCols<AB::Var>,
+        local: &CpuAuxCols<AB::Var>,
     ) {
         let is_halt = self.is_halt_syscall(builder, local);
 
@@ -204,7 +204,7 @@ impl CpuOpcodeSpecificChip {
     pub(crate) fn is_halt_syscall<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
-        local: &CpuOpcodeSpecificCols<AB::Var>,
+        local: &CpuAuxCols<AB::Var>,
     ) -> AB::Expr {
         let ecall_cols = local.opcode_specific_columns.ecall();
         let is_ecall_instruction = local.selectors.is_ecall_instruction::<AB>();
@@ -232,7 +232,7 @@ impl CpuOpcodeSpecificChip {
     pub(crate) fn get_is_commit_related_syscall<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
-        local: &CpuOpcodeSpecificCols<AB::Var>,
+        local: &CpuAuxCols<AB::Var>,
     ) -> (AB::Expr, AB::Expr) {
         let ecall_cols = local.opcode_specific_columns.ecall();
 

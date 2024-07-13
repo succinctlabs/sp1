@@ -2,12 +2,12 @@ use p3_air::AirBuilder;
 use p3_field::AbstractField;
 
 use crate::air::{BaseAirBuilder, SP1AirBuilder, Word, WordAirBuilder};
-use crate::cpu::columns::CpuOpcodeSpecificCols;
-use crate::cpu::CpuOpcodeSpecificChip;
+use crate::cpu::columns::CpuAuxCols;
+use crate::cpu::CpuAuxChip;
 use crate::operations::BabyBearWordRangeChecker;
 use crate::runtime::Opcode;
 
-impl CpuOpcodeSpecificChip {
+impl CpuAuxChip {
     /// Verifies all the branching related columns.
     ///
     /// It does this in few parts:
@@ -20,7 +20,7 @@ impl CpuOpcodeSpecificChip {
         &self,
         builder: &mut AB,
         is_branch_instruction: AB::Expr,
-        local: &CpuOpcodeSpecificCols<AB::Var>,
+        local: &CpuAuxCols<AB::Var>,
     ) {
         // Get the branch specific columns.
         let branch_cols = local.opcode_specific_columns.branch();

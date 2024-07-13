@@ -3,18 +3,18 @@ use p3_field::AbstractField;
 
 use crate::{
     air::BaseAirBuilder,
-    cpu::{columns::CpuOpcodeSpecificCols, CpuOpcodeSpecificChip},
+    cpu::{columns::CpuAuxCols, CpuAuxChip},
     operations::BabyBearWordRangeChecker,
     runtime::Opcode,
     stark::SP1AirBuilder,
 };
 
-impl CpuOpcodeSpecificChip {
+impl CpuAuxChip {
     /// Constraints related to jump operations.
     pub(crate) fn eval_jump_ops<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
-        local: &CpuOpcodeSpecificCols<AB::Var>,
+        local: &CpuAuxCols<AB::Var>,
     ) {
         // Get the jump specific columns
         let jump_columns = local.opcode_specific_columns.jump();

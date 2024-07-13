@@ -27,10 +27,10 @@ use crate::operations::BabyBearWordRangeChecker;
 use crate::runtime::Opcode;
 
 use super::columns::eval_channel_selectors;
-use super::columns::CpuOpcodeSpecificCols;
+use super::columns::CpuAuxCols;
 use super::columns::NUM_CPU_OPCODE_SPECIFIC_COLS;
 use super::columns::OPCODE_SELECTORS_COL_MAP;
-use super::CpuOpcodeSpecificChip;
+use super::CpuAuxChip;
 
 impl<AB> Air<AB> for CpuChip
 where
@@ -293,7 +293,7 @@ impl<F> BaseAir<F> for CpuChip {
     }
 }
 
-impl<AB> Air<AB> for CpuOpcodeSpecificChip
+impl<AB> Air<AB> for CpuAuxChip
 where
     AB: SP1AirBuilder + AirBuilderWithPublicValues,
     AB::Var: Sized,
@@ -301,7 +301,7 @@ where
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local = main.row_slice(0);
-        let local: &CpuOpcodeSpecificCols<AB::Var> = (*local).borrow();
+        let local: &CpuAuxCols<AB::Var> = (*local).borrow();
         let public_values_slice: [AB::Expr; SP1_PROOF_NUM_PV_ELTS] =
             core::array::from_fn(|i| builder.public_values()[i].into());
         let public_values: &PublicValues<Word<AB::Expr>, AB::Expr> =
@@ -369,12 +369,12 @@ where
     }
 }
 
-impl CpuOpcodeSpecificChip {
+impl CpuAuxChip {
     /// Constraints related to the AUIPC opcode.
     pub(crate) fn eval_auipc<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
-        local: &CpuOpcodeSpecificCols<AB::Var>,
+        local: &CpuAuxCols<AB::Var>,
     ) {
         // Get the auipc specific columns.
         let auipc_columns = local.opcode_specific_columns.auipc();
@@ -406,7 +406,7 @@ impl CpuOpcodeSpecificChip {
     }
 }
 
-impl<F> BaseAir<F> for CpuOpcodeSpecificChip {
+impl<F> BaseAir<F> for CpuAuxChip {
     fn width(&self) -> usize {
         NUM_CPU_OPCODE_SPECIFIC_COLS
     }

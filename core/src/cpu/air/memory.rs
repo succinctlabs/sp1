@@ -2,13 +2,13 @@ use p3_air::AirBuilder;
 use p3_field::AbstractField;
 
 use crate::air::{BaseAirBuilder, SP1AirBuilder, Word, WordAirBuilder};
-use crate::cpu::columns::{CpuOpcodeSpecificCols, MemoryColumns};
-use crate::cpu::CpuOpcodeSpecificChip;
+use crate::cpu::columns::{CpuAuxCols, MemoryColumns};
+use crate::cpu::CpuAuxChip;
 use crate::memory::MemoryCols;
 use crate::operations::BabyBearWordRangeChecker;
 use crate::runtime::{MemoryAccessPosition, Opcode};
 
-impl CpuOpcodeSpecificChip {
+impl CpuAuxChip {
     /// Constrains the addr_aligned, addr_offset, and addr_word memory columns.
     ///
     /// This method will do the following:
@@ -18,7 +18,7 @@ impl CpuOpcodeSpecificChip {
     pub(crate) fn eval_memory_address_and_access<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
-        local: &CpuOpcodeSpecificCols<AB::Var>,
+        local: &CpuAuxCols<AB::Var>,
         is_memory_instruction: AB::Expr,
     ) {
         // Get the memory specific columns.
@@ -116,7 +116,7 @@ impl CpuOpcodeSpecificChip {
     pub(crate) fn eval_memory_load<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
-        local: &CpuOpcodeSpecificCols<AB::Var>,
+        local: &CpuAuxCols<AB::Var>,
     ) {
         // Get the memory specific columns.
         let memory_columns = local.opcode_specific_columns.memory();
@@ -170,7 +170,7 @@ impl CpuOpcodeSpecificChip {
     pub(crate) fn eval_memory_store<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
-        local: &CpuOpcodeSpecificCols<AB::Var>,
+        local: &CpuAuxCols<AB::Var>,
     ) {
         let memory_columns = local.opcode_specific_columns.memory();
 
@@ -237,7 +237,7 @@ impl CpuOpcodeSpecificChip {
         &self,
         builder: &mut AB,
         memory_columns: &MemoryColumns<AB::Var>,
-        local: &CpuOpcodeSpecificCols<AB::Var>,
+        local: &CpuAuxCols<AB::Var>,
     ) {
         let mem_val = *memory_columns.memory_access.value();
 
@@ -293,7 +293,7 @@ impl CpuOpcodeSpecificChip {
         &self,
         builder: &mut AB,
         memory_columns: &MemoryColumns<AB::Var>,
-        local: &CpuOpcodeSpecificCols<AB::Var>,
+        local: &CpuAuxCols<AB::Var>,
         unsigned_mem_val: &Word<AB::Var>,
     ) {
         let is_mem = local.selectors.is_memory_instruction::<AB>();
@@ -318,7 +318,7 @@ impl CpuOpcodeSpecificChip {
         &self,
         builder: &mut AB,
         memory_columns: &MemoryColumns<AB::Var>,
-        local: &CpuOpcodeSpecificCols<AB::Var>,
+        local: &CpuAuxCols<AB::Var>,
     ) {
         let is_mem_op = local.selectors.is_memory_instruction::<AB>();
         let offset_is_zero = AB::Expr::one()

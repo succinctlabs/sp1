@@ -103,11 +103,11 @@ const fn make_col_map() -> CpuCols<usize> {
     unsafe { transmute::<[usize; NUM_CPU_COLS], CpuCols<usize>>(indices_arr) }
 }
 
-pub const NUM_CPU_OPCODE_SPECIFIC_COLS: usize = size_of::<CpuOpcodeSpecificCols<u8>>();
+pub const NUM_CPU_OPCODE_SPECIFIC_COLS: usize = size_of::<CpuAuxCols<u8>>();
 
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct CpuOpcodeSpecificCols<T: Copy> {
+pub struct CpuAuxCols<T: Copy> {
     /// The current shard.
     pub shard: T,
     /// The current clk.

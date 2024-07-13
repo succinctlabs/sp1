@@ -14,4 +14,4 @@ pub struct CpuChip;
 
 /// A chip that implements non alu opcodes.
 #[derive(Default)]
-pub struct CpuOpcodeSpecificChip;
+pub struct CpuAuxChip;
