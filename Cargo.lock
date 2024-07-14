@@ -5021,6 +5021,7 @@ dependencies = [
  "bincode",
  "lazy_static",
  "p3-baby-bear",
+ "paste",
  "sp1-core",
  "sp1-primitives",
  "sp1-recursion-compiler",
