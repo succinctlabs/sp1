@@ -137,6 +137,7 @@ jobs:
         run: |
           cd cli
           cargo install --force --locked --path .
+          ~/.sp1/bin/cargo-prove prove install-toolchain
           cd ~
 
       - name: Run cargo check

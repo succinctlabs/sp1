@@ -1,6 +1,6 @@
 [package]
 name = "sp1-recursion-static-program"
-version = "0.1.0"
+version = "0.0.2-test"
 edition = "2021"
 
 [dependencies]

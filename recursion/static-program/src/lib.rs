@@ -6,10 +6,10 @@ use sp1_core::{
     stark::{StarkProvingKey, StarkVerifyingKey},
     utils::BabyBearPoseidon2,
 };
-use sp1_recursion_core::runtime::RecursionProgram;
+use sp1_recursion_core::{runtime::RecursionProgram, stark::config::BabyBearPoseidon2Outer};
 
 macro_rules! include_and_deserialize {
-    ($name:ident) => {
+    ($name:ident, $config:ident) => {
         paste::item! {
             pub static [<$name _PROGRAM_BYTES>]: &[u8] =
                 include_bytes!(concat!(env!("OUT_DIR"), "/", stringify!($name), "_program.bin"));
@@ -29,13 +29,13 @@ macro_rules! include_and_deserialize {
                     );
                     res
                 };
-                pub static ref [<$name _PK>]: StarkProvingKey<BabyBearPoseidon2> = {
+                pub static ref [<$name _PK>]: StarkProvingKey<$config> = {
                     let start_time = Instant::now();
                     let res = bincode::deserialize(&[<$name _PK_BYTES>]).unwrap();
                     println!("{} pk deserialized in {:?}", stringify!($name), start_time.elapsed());
                     res
                 };
-                pub static ref [<$name _VK>]: StarkVerifyingKey<BabyBearPoseidon2> = {
+                pub static ref [<$name _VK>]: StarkVerifyingKey<$config> = {
                     let start_time = Instant::now();
                     let res = bincode::deserialize(&[<$name _VK_BYTES>]).unwrap();
                     println!("{} vk deserialized in {:?}", stringify!($name), start_time.elapsed());
@@ -46,8 +46,8 @@ macro_rules! include_and_deserialize {
     };
 }
 
-include_and_deserialize!(RECURSION);
-include_and_deserialize!(COMPRESS);
-include_and_deserialize!(SHRINK);
-include_and_deserialize!(WRAP);
-include_and_deserialize!(DEFERRED);
+include_and_deserialize!(RECURSION, BabyBearPoseidon2);
+include_and_deserialize!(COMPRESS, BabyBearPoseidon2);
+include_and_deserialize!(SHRINK, BabyBearPoseidon2);
+include_and_deserialize!(WRAP, BabyBearPoseidon2Outer);
+include_and_deserialize!(DEFERRED, BabyBearPoseidon2);

@@ -6,13 +6,15 @@ use p3_matrix::Matrix;
 use sp1_core::air::AirInteraction;
 use sp1_core::air::MachineAir;
 use sp1_core::lookup::InteractionKind;
-use sp1_core::utils::pad_rows_fixed;
+use sp1_core::utils::next_power_of_two;
+use sp1_core::utils::par_for_each_row;
 use std::borrow::{Borrow, BorrowMut};
 use tracing::instrument;
 
 use super::columns::MemoryInitCols;
+use crate::air::Block;
 use crate::air::SP1RecursionAirBuilder;
-use crate::memory::{Block, MemoryGlobalChip};
+use crate::memory::MemoryGlobalChip;
 use crate::runtime::{ExecutionRecord, RecursionProgram};
 
 pub(crate) const NUM_MEMORY_INIT_COLS: usize = size_of::<MemoryInitCols<u8>>();
@@ -44,74 +46,51 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
         input: &Self::Record,
         _output: &mut Self::Record,
     ) -> RowMajorMatrix<F> {
-        let mut rows = Vec::new();
+        let nb_events = input.first_memory_record.len() + input.last_memory_record.len();
+        let nb_rows = next_power_of_two(nb_events, self.fixed_log2_rows);
+        let mut values = vec![F::zero(); nb_rows * NUM_MEMORY_INIT_COLS];
 
-        // Fill in the initial memory records.
-        rows.extend(
-            input
-                .first_memory_record
-                .iter()
-                .map(|(addr, value)| {
-                    let mut row = [F::zero(); NUM_MEMORY_INIT_COLS];
-                    let cols: &mut MemoryInitCols<F> = row.as_mut_slice().borrow_mut();
-                    cols.addr = *addr;
-                    cols.timestamp = F::zero();
-                    cols.value = *value;
-                    cols.is_initialize = F::one();
+        par_for_each_row(&mut values, NUM_MEMORY_INIT_COLS, |i, row| {
+            if i >= nb_events {
+                return;
+            }
+            let cols: &mut MemoryInitCols<F> = row.borrow_mut();
 
-                    cols.is_real = F::one();
+            if i < input.first_memory_record.len() {
+                let (addr, value) = &input.first_memory_record[i];
+                cols.addr = *addr;
+                cols.timestamp = F::zero();
+                cols.value = *value;
+                cols.is_initialize = F::one();
 
-                    row
-                })
-                .collect::<Vec<_>>(),
-        );
+                cols.is_real = F::one();
+            } else {
+                let (addr, timestamp, value) =
+                    &input.last_memory_record[i - input.first_memory_record.len()];
+                let last = i == nb_events - 1;
+                let (next_addr, _, _) = if last {
+                    &(F::zero(), F::zero(), Block::from(F::zero()))
+                } else {
+                    &input.last_memory_record[i - input.first_memory_record.len() + 1]
+                };
+                cols.addr = *addr;
+                cols.timestamp = *timestamp;
+                cols.value = *value;
+                cols.is_finalize = F::one();
+                (cols.diff_16bit_limb, cols.diff_12bit_limb) = if !last {
+                    compute_addr_diff(*next_addr, *addr, true)
+                } else {
+                    (F::zero(), F::zero())
+                };
+                (cols.addr_16bit_limb, cols.addr_12bit_limb) =
+                    compute_addr_diff(*addr, F::zero(), false);
 
-        let num_mem_final = input.last_memory_record.len();
-        // Fill in the finalize memory records.
-        rows.extend(
-            input
-                .last_memory_record
-                .iter()
-                .zip(input.last_memory_record.iter().skip(1).chain([&(
-                    F::zero(),
-                    F::zero(),
-                    Block::from(F::zero()),
-                )]))
-                .enumerate()
-                .map(|(i, ((addr, timestamp, value), (next_addr, _, _)))| {
-                    let mut row = [F::zero(); NUM_MEMORY_INIT_COLS];
-                    let cols: &mut MemoryInitCols<F> = row.as_mut_slice().borrow_mut();
-                    cols.addr = *addr;
-                    cols.timestamp = *timestamp;
-                    cols.value = *value;
-                    cols.is_finalize = F::one();
-                    (cols.diff_16bit_limb, cols.diff_12bit_limb) = if i != num_mem_final - 1 {
-                        compute_addr_diff(*next_addr, *addr, true)
-                    } else {
-                        (F::zero(), F::zero())
-                    };
-                    (cols.addr_16bit_limb, cols.addr_12bit_limb) =
-                        compute_addr_diff(*addr, F::zero(), false);
+                cols.is_real = F::one();
+                cols.is_range_check = F::from_bool(!last);
+            }
+        });
 
-                    cols.is_real = F::one();
-                    cols.is_range_check = F::from_bool(i != num_mem_final - 1);
-
-                    row
-                })
-                .collect::<Vec<_>>(),
-        );
-
-        // Pad the trace to a power of two.
-        pad_rows_fixed(
-            &mut rows,
-            || [F::zero(); NUM_MEMORY_INIT_COLS],
-            self.fixed_log2_rows,
-        );
-
-        RowMajorMatrix::new(
-            rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_MEMORY_INIT_COLS,
-        )
+        RowMajorMatrix::new(values, NUM_MEMORY_INIT_COLS)
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
