@@ -92,19 +92,27 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         first_row_builder.assert_one(local_opcode_workspace.absorb().is_first_hash_row);
 
         // For absorb rows, constrain the following:
-        // 1) next row is either an absorb or syscall finalize.
-        // 2) when last absorb row, then the next row is a syscall row.
-        // 2) hash_num == hash_num'.
+        // 1) when last absorb row, then the next row is a either an absorb or finalize syscall row.
+        // 2) when not last absorb row, then the next row is an absorb non syscall row.
+        // 3) hash_num == hash_num'.
         {
             let mut transition_builder = builder.when_transition();
             let mut absorb_transition_builder =
                 transition_builder.when(local_control_flow.is_absorb);
 
             absorb_transition_builder
+                .when(local_opcode_workspace.absorb().is_last_row::<AB>())
                 .assert_one(next_control_flow.is_absorb + next_control_flow.is_finalize);
             absorb_transition_builder
                 .when(local_opcode_workspace.absorb().is_last_row::<AB>())
                 .assert_one(next_control_flow.is_syscall_row);
+
+            absorb_transition_builder
+                .when_not(local_opcode_workspace.absorb().is_last_row::<AB>())
+                .assert_one(next_control_flow.is_absorb);
+            absorb_transition_builder
+                .when_not(local_opcode_workspace.absorb().is_last_row::<AB>())
+                .assert_zero(next_control_flow.is_syscall_row);
 
             absorb_transition_builder
                 .when(next_control_flow.is_absorb)
