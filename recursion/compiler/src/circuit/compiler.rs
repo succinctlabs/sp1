@@ -604,7 +604,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
+    use p3_baby_bear::DiffusionMatrixBabyBear;
     use p3_field::{Field, PrimeField32};
     use p3_symmetric::Permutation;
     use rand::{rngs::StdRng, Rng, SeedableRng};
@@ -637,7 +637,7 @@ mod tests {
         let config = SC::new();
         let machine = A::machine(config);
         let (pk, vk) = machine.setup(&program);
-        let result = run_test_machine(runtime.record, machine, pk, vk);
+        let result = run_test_machine(vec![runtime.record], machine, pk, vk);
         if let Err(e) = result {
             panic!("Verification failed: {:?}", e);
         }
@@ -646,24 +646,57 @@ mod tests {
     #[test]
     fn test_poseidon2() {
         setup_logger();
-        type SC = BabyBearPoseidon2Outer;
-        type F = <SC as StarkGenericConfig>::Val;
-        type EF = <SC as StarkGenericConfig>::Challenge;
-
-        let rng = &mut rand::thread_rng();
-        let input_1: [BabyBear; WIDTH] =
-            core::array::from_fn(|_| rng.sample(rand::distributions::Standard));
-        let output_1 = inner_perm().permute(input_1);
 
         let mut builder = AsmBuilder::<F, EF>::default();
+        let mut rng = StdRng::seed_from_u64(0xCAFEDA7E)
+            .sample_iter::<[F; WIDTH], _>(rand::distributions::Standard);
+        for _ in 0..100 {
+            let input_1: [F; WIDTH] = rng.next().unwrap();
+            let output_1 = inner_perm().permute(input_1);
 
-        let input_1_felts = input_1.map(|x| builder.eval(x));
-        let output_1_felts = builder.poseidon2_permute_v2(input_1_felts);
-        let expected: [Felt<_>; WIDTH] = output_1.map(|x| builder.eval(x));
-        for (lhs, rhs) in output_1_felts.into_iter().zip(expected) {
-            builder.assert_felt_eq(lhs, rhs);
+            let input_1_felts = input_1.map(|x| builder.eval(x));
+            let output_1_felts = builder.poseidon2_permute_v2(input_1_felts);
+            let expected: [Felt<_>; WIDTH] = output_1.map(|x| builder.eval(x));
+            for (lhs, rhs) in output_1_felts.into_iter().zip(expected) {
+                builder.assert_felt_eq(lhs, rhs);
+            }
         }
 
+        test_operations(builder.operations);
+    }
+
+    #[test]
+    fn test_exp_reverse_bits() {
+        setup_logger();
+
+        let mut builder = AsmBuilder::<F, EF>::default();
+        let mut rng =
+            StdRng::seed_from_u64(0xEC0BEEF).sample_iter::<F, _>(rand::distributions::Standard);
+        for _ in 0..100 {
+            let power_f = rng.next().unwrap();
+            let power = power_f.as_canonical_u32();
+            let power_bits = (0..NUM_BITS).map(|i| (power >> i) & 1).collect::<Vec<_>>();
+
+            let input_felt = builder.eval(power_f);
+            let power_bits_felt = builder.num2bits_v2_f(input_felt);
+
+            let base = rng.next().unwrap();
+            let base_felt = builder.eval(base);
+            let result_felt = builder.exp_reverse_bits_v2(base_felt, power_bits_felt);
+
+            let expected = power_bits
+                .into_iter()
+                .rev()
+                .zip(std::iter::successors(Some(base), |x| Some(x.square())))
+                .map(|(bit, base_pow)| match bit {
+                    0 => F::one(),
+                    1 => base_pow,
+                    _ => panic!("not a bit: {bit}"),
+                })
+                .product::<F>();
+            let expected_felt: Felt<_> = builder.eval(expected);
+            builder.assert_felt_eq(result_felt, expected_felt);
+        }
         test_operations(builder.operations);
     }
 
@@ -674,7 +707,7 @@ mod tests {
         let mut builder = AsmBuilder::<F, EF>::default();
         let mut rng =
             StdRng::seed_from_u64(0xC0FFEE7AB1E).sample_iter::<F, _>(rand::distributions::Standard);
-        for _ in 0..1 {
+        for _ in 0..100 {
             let input_f = rng.next().unwrap();
             let input = input_f.as_canonical_u32();
             let output = (0..NUM_BITS).map(|i| (input >> i) & 1).collect::<Vec<_>>();

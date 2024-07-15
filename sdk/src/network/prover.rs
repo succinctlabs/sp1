@@ -1,5 +1,6 @@
 use std::{env, time::Duration};
 
+use crate::install::block_on;
 use crate::proto::network::ProofMode;
 use crate::{
     network::client::{NetworkClient, DEFAULT_PROVER_NETWORK_RPC},
@@ -10,7 +11,7 @@ use crate::{SP1Context, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, S
 use anyhow::Result;
 use serde::de::DeserializeOwned;
 use sp1_core::utils::SP1ProverOpts;
-use sp1_prover::utils::block_on;
+use sp1_prover::components::DefaultProverComponents;
 use sp1_prover::{SP1Prover, SP1Stdin, SP1_CIRCUIT_VERSION};
 use tokio::time::sleep;
 
@@ -19,7 +20,7 @@ use crate::provers::{LocalProver, ProverType};
 /// An implementation of [crate::ProverClient] that can generate proofs on a remote RPC server.
 pub struct NetworkProver {
     client: NetworkClient,
-    local_prover: LocalProver,
+    local_prover: LocalProver<DefaultProverComponents>,
 }
 
 impl NetworkProver {
@@ -56,7 +57,8 @@ impl NetworkProver {
             .unwrap_or(false);
 
         if !skip_simulation {
-            let (_, report) = SP1Prover::execute(elf, &stdin, Default::default())?;
+            let (_, report) =
+                SP1Prover::<DefaultProverComponents>::execute(elf, &stdin, Default::default())?;
             log::info!(
                 "Simulation complete, cycles: {}",
                 report.total_instruction_count()
@@ -119,7 +121,7 @@ impl NetworkProver {
     }
 }
 
-impl Prover for NetworkProver {
+impl Prover<DefaultProverComponents> for NetworkProver {
     fn id(&self) -> ProverType {
         ProverType::Network
     }
@@ -162,6 +164,7 @@ fn warn_if_not_default(opts: &SP1ProverOpts, context: &SP1Context) {
     let SP1Context {
         hook_registry,
         subproof_verifier,
+        ..
     } = context;
     if hook_registry.is_some() {
         tracing::warn!(

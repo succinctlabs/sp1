@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use p3_field::PrimeField32;
-use sp1_core::{air::PublicValues, stark::MachineRecord};
+use sp1_core::{air::PublicValues, stark::MachineRecord, utils::SP1CoreOpts};
 
 // TODO expand glob imports
 use crate::*;
@@ -25,15 +25,7 @@ pub struct ExecutionRecord<F> {
 }
 
 impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
-    type Config = ();
-
-    fn index(&self) -> u32 {
-        self.index
-    }
-
-    fn set_index(&mut self, index: u32) {
-        self.index = index;
-    }
+    type Config = SP1CoreOpts;
 
     fn stats(&self) -> hashbrown::HashMap<String, usize> {
         hashbrown::HashMap::from([("cpu_events".to_owned(), 1337usize)])
@@ -60,10 +52,6 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
         poseidon2_skinny_events.append(&mut other.poseidon2_skinny_events);
         exp_reverse_bits_len_events.append(&mut other.exp_reverse_bits_len_events);
         fri_fold_events.append(&mut other.fri_fold_events);
-    }
-
-    fn shard(self, _config: &Self::Config) -> Vec<Self> {
-        vec![self]
     }
 
     fn public_values<T: p3_field::AbstractField>(&self) -> Vec<T> {

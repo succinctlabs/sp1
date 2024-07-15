@@ -51,7 +51,9 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
 
         let pcs = config.pcs();
 
-        assert_eq!(chips.len(), opened_values.chips.len());
+        if chips.len() != opened_values.chips.len() {
+            return Err(VerificationError::ChipOpeningLengthMismatch);
+        }
 
         let log_degrees = opened_values
             .chips
@@ -198,12 +200,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             )
             .map_err(|_| VerificationError::OodEvaluationMismatch(chip.name()))?;
         }
-
-        // TODO MUST UNCOMMENT THIS BEFORE MERGING
-        // let nb_cpu_chips = chips.iter().filter(|chip| chip.name() == "CPU").count();
-        // if nb_cpu_chips != 1 {
-        //     return Err(VerificationError::MissingCpuChip);
-        // }
 
         Ok(())
     }
@@ -418,6 +414,7 @@ pub enum VerificationError<SC: StarkGenericConfig> {
     /// The shape of the opening arguments is invalid.
     OpeningShapeError(String, OpeningShapeError),
     MissingCpuChip,
+    ChipOpeningLengthMismatch,
 }
 
 impl Debug for OpeningShapeError {
@@ -484,6 +481,9 @@ impl<SC: StarkGenericConfig> Debug for VerificationError<SC> {
             VerificationError::MissingCpuChip => {
                 write!(f, "Missing CPU chip")
             }
+            VerificationError::ChipOpeningLengthMismatch => {
+                write!(f, "Chip opening length mismatch")
+            }
         }
     }
 }
@@ -502,6 +502,9 @@ impl<SC: StarkGenericConfig> Display for VerificationError<SC> {
             }
             VerificationError::MissingCpuChip => {
                 write!(f, "Missing CPU chip in shard")
+            }
+            VerificationError::ChipOpeningLengthMismatch => {
+                write!(f, "Chip opening length mismatch")
             }
         }
     }

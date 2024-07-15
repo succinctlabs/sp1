@@ -2,7 +2,9 @@ use sp1_core::{
     runtime::{ExecutionReport, HookEnv, SP1ContextBuilder},
     utils::{SP1CoreOpts, SP1ProverOpts},
 };
-use sp1_prover::{SP1Prover, SP1ProvingKey, SP1PublicValues, SP1Stdin};
+use sp1_prover::{
+    components::DefaultProverComponents, SP1Prover, SP1ProvingKey, SP1PublicValues, SP1Stdin,
+};
 
 use anyhow::{Ok, Result};
 
@@ -38,7 +40,9 @@ impl<'a> Execute<'a> {
             mut context_builder,
         } = self;
         let context = context_builder.build();
-        Ok(SP1Prover::execute(elf, &stdin, context)?)
+        Ok(SP1Prover::<DefaultProverComponents>::execute(
+            elf, &stdin, context,
+        )?)
     }
 
     /// Add a runtime [Hook](super::Hook) into the context.
@@ -63,17 +67,26 @@ impl<'a> Execute<'a> {
         self.context_builder.without_default_hooks();
         self
     }
+
+    /// Set the maximum number of cpu cycles to use for execution.
+    ///
+    /// If the cycle limit is exceeded, execution will return [sp1_core::runtime::ExecutionError::ExceededCycleLimit].
+    pub fn max_cycles(mut self, max_cycles: u64) -> Self {
+        self.context_builder.max_cycles(max_cycles);
+        self
+    }
 }
 
 /// Builder to prepare and configure proving execution of a program on an input.
 /// May be run with [Self::run].
 pub struct Prove<'a> {
-    prover: &'a dyn Prover,
+    prover: &'a dyn Prover<DefaultProverComponents>,
     kind: SP1ProofKind,
     context_builder: SP1ContextBuilder<'a>,
     pk: &'a SP1ProvingKey,
     stdin: SP1Stdin,
-    opts: SP1CoreOpts,
+    core_opts: SP1CoreOpts,
+    recursion_opts: SP1CoreOpts,
 }
 
 impl<'a> Prove<'a> {
@@ -81,14 +94,19 @@ impl<'a> Prove<'a> {
     ///
     /// Prefer using [ProverClient::prove](super::ProverClient::prove).
     /// See there for more documentation.
-    pub fn new(prover: &'a dyn Prover, pk: &'a SP1ProvingKey, stdin: SP1Stdin) -> Self {
+    pub fn new(
+        prover: &'a dyn Prover<DefaultProverComponents>,
+        pk: &'a SP1ProvingKey,
+        stdin: SP1Stdin,
+    ) -> Self {
         Self {
             prover,
             kind: Default::default(),
             pk,
             stdin,
             context_builder: Default::default(),
-            opts: Default::default(),
+            core_opts: SP1CoreOpts::default(),
+            recursion_opts: SP1CoreOpts::recursion(),
         }
     }
 
@@ -100,11 +118,12 @@ impl<'a> Prove<'a> {
             pk,
             stdin,
             mut context_builder,
-            opts,
+            core_opts,
+            recursion_opts,
         } = self;
         let opts = SP1ProverOpts {
-            core_opts: opts,
-            recursion_opts: opts,
+            core_opts,
+            recursion_opts,
         };
         let context = context_builder.build();
 
@@ -154,25 +173,33 @@ impl<'a> Prove<'a> {
 
     /// Set the shard size for proving.
     pub fn shard_size(mut self, value: usize) -> Self {
-        self.opts.shard_size = value;
+        self.core_opts.shard_size = value;
         self
     }
 
     /// Set the shard batch size for proving.
     pub fn shard_batch_size(mut self, value: usize) -> Self {
-        self.opts.shard_batch_size = value;
+        self.core_opts.shard_batch_size = value;
         self
     }
 
     /// Set the chunking multiplier for proving.
     pub fn shard_chunking_multiplier(mut self, value: usize) -> Self {
-        self.opts.shard_chunking_multiplier = value;
+        self.core_opts.shard_chunking_multiplier = value;
         self
     }
 
     /// Set whether we should reconstruct commitments while proving.
     pub fn reconstruct_commitments(mut self, value: bool) -> Self {
-        self.opts.reconstruct_commitments = value;
+        self.core_opts.reconstruct_commitments = value;
+        self
+    }
+
+    /// Set the maximum number of cpu cycles to use for execution.
+    ///
+    /// If the cycle limit is exceeded, execution will return [sp1_core::runtime::ExecutionError::ExceededCycleLimit].
+    pub fn cycle_limit(mut self, cycle_limit: u64) -> Self {
+        self.context_builder.max_cycles(cycle_limit);
         self
     }
 }

@@ -1,14 +1,14 @@
 use hashbrown::HashMap;
-use p3_maybe_rayon::prelude::ParallelBridge;
+use itertools::Itertools;
 use std::array;
 use std::borrow::BorrowMut;
 
 use p3_field::{PrimeField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_maybe_rayon::prelude::IntoParallelRefMutIterator;
+use p3_maybe_rayon::prelude::ParallelBridge;
 use p3_maybe_rayon::prelude::ParallelIterator;
 use p3_maybe_rayon::prelude::ParallelSlice;
-use p3_maybe_rayon::prelude::ParallelSliceMut;
 use tracing::instrument;
 
 use super::columns::{CPU_COL_MAP, NUM_CPU_COLS};
@@ -53,7 +53,13 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
                     .for_each(|(j, row)| {
                         let idx = i * chunk_size + j;
                         let cols: &mut CpuCols<F> = row.borrow_mut();
-                        self.event_to_row(&input.cpu_events[idx], &input.nonce_lookup, cols);
+                        let mut byte_lookup_events = Vec::new();
+                        self.event_to_row(
+                            &input.cpu_events[idx],
+                            &input.nonce_lookup,
+                            cols,
+                            &mut byte_lookup_events,
+                        );
                     });
             });
 
@@ -70,21 +76,21 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
     fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
         // Generate the trace rows for each event.
         let chunk_size = std::cmp::max(input.cpu_events.len() / num_cpus::get(), 1);
+
         let (alu_events, blu_events): (Vec<_>, Vec<_>) = input
             .cpu_events
             .par_chunks(chunk_size)
             .map(|ops: &[CpuEvent]| {
                 let mut alu = HashMap::new();
-                let mut blu: Vec<_> = Vec::with_capacity(ops.len() * 8);
+                // The blu map stores shard -> map(byte lookup event -> multiplicity).
+                let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
                 ops.iter().for_each(|op| {
                     let mut row = [F::zero(); NUM_CPU_COLS];
                     let cols: &mut CpuCols<F> = row.as_mut_slice().borrow_mut();
-                    let (alu_events, blu_events) =
-                        self.event_to_row::<F>(op, &HashMap::new(), cols);
+                    let alu_events = self.event_to_row::<F>(op, &HashMap::new(), cols, &mut blu);
                     alu_events.into_iter().for_each(|(key, value)| {
                         alu.entry(key).or_insert(Vec::default()).extend(value);
                     });
-                    blu.extend(blu_events);
                 });
                 (alu, blu)
             })
@@ -94,16 +100,11 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
             output.add_alu_events(alu_events_chunk);
         }
 
-        let mut blu_events = blu_events.into_iter().flatten().collect::<Vec<_>>();
-        blu_events.par_sort_unstable_by_key(|event| (event.shard, event.opcode));
-
-        for blu_event in blu_events.into_iter() {
-            output.add_byte_lookup_event(blu_event);
-        }
+        output.add_sharded_byte_lookup_events(blu_events.iter().collect_vec());
     }
 
-    fn included(&self, _: &Self::Record) -> bool {
-        true
+    fn included(&self, input: &Self::Record) -> bool {
+        !input.cpu_events.is_empty()
     }
 }
 
@@ -114,12 +115,12 @@ impl CpuChip {
         event: &CpuEvent,
         nonce_lookup: &HashMap<usize, u32>,
         cols: &mut CpuCols<F>,
-    ) -> (HashMap<Opcode, Vec<alu::AluEvent>>, Vec<ByteLookupEvent>) {
+        blu_events: &mut impl ByteRecord,
+    ) -> HashMap<Opcode, Vec<alu::AluEvent>> {
         let mut new_alu_events = HashMap::new();
-        let mut new_blu_events = Vec::new();
 
         // Populate shard and clk columns.
-        self.populate_shard_clk(cols, event, &mut new_blu_events);
+        self.populate_shard_clk(cols, event, blu_events);
 
         // Populate the nonce.
         cols.nonce = F::from_canonical_u32(
@@ -140,16 +141,13 @@ impl CpuChip {
 
         // Populate memory accesses for a, b, and c.
         if let Some(record) = event.a_record {
-            cols.op_a_access
-                .populate(event.channel, record, &mut new_blu_events);
+            cols.op_a_access.populate(event.channel, record, blu_events);
         }
         if let Some(MemoryRecordEnum::Read(record)) = event.b_record {
-            cols.op_b_access
-                .populate(event.channel, record, &mut new_blu_events);
+            cols.op_b_access.populate(event.channel, record, blu_events);
         }
         if let Some(MemoryRecordEnum::Read(record)) = event.c_record {
-            cols.op_c_access
-                .populate(event.channel, record, &mut new_blu_events);
+            cols.op_c_access.populate(event.channel, record, blu_events);
         }
 
         // Populate range checks for a.
@@ -161,7 +159,7 @@ impl CpuChip {
             .iter()
             .map(|x| x.as_canonical_u32())
             .collect::<Vec<_>>();
-        new_blu_events.push(ByteLookupEvent {
+        blu_events.add_byte_lookup_event(ByteLookupEvent {
             shard: event.shard,
             channel: event.channel,
             opcode: ByteOpcode::U8Range,
@@ -170,7 +168,7 @@ impl CpuChip {
             b: a_bytes[0],
             c: a_bytes[1],
         });
-        new_blu_events.push(ByteLookupEvent {
+        blu_events.add_byte_lookup_event(ByteLookupEvent {
             shard: event.shard,
             channel: event.channel,
             opcode: ByteOpcode::U8Range,
@@ -186,17 +184,11 @@ impl CpuChip {
         if let Some(record) = event.memory_record {
             memory_columns
                 .memory_access
-                .populate(event.channel, record, &mut new_blu_events)
+                .populate(event.channel, record, blu_events)
         }
 
         // Populate memory, branch, jump, and auipc specific fields.
-        self.populate_memory(
-            cols,
-            event,
-            &mut new_alu_events,
-            &mut new_blu_events,
-            nonce_lookup,
-        );
+        self.populate_memory(cols, event, &mut new_alu_events, blu_events, nonce_lookup);
         self.populate_branch(cols, event, &mut new_alu_events, nonce_lookup);
         self.populate_jump(cols, event, &mut new_alu_events, nonce_lookup);
         self.populate_auipc(cols, event, &mut new_alu_events, nonce_lookup);
@@ -211,7 +203,7 @@ impl CpuChip {
         // Assert that the instruction is not a no-op.
         cols.is_real = F::one();
 
-        (new_alu_events, new_blu_events)
+        new_alu_events
     }
 
     /// Populates the shard, channel, and clk related rows.
@@ -219,7 +211,7 @@ impl CpuChip {
         &self,
         cols: &mut CpuCols<F>,
         event: &CpuEvent,
-        new_blu_events: &mut Vec<ByteLookupEvent>,
+        blu_events: &mut impl ByteRecord,
     ) {
         cols.shard = F::from_canonical_u32(event.shard);
         cols.channel = F::from_canonical_u32(event.channel);
@@ -232,7 +224,7 @@ impl CpuChip {
 
         cols.channel_selectors.populate(event.channel);
 
-        new_blu_events.push(ByteLookupEvent::new(
+        blu_events.add_byte_lookup_event(ByteLookupEvent::new(
             event.shard,
             event.channel,
             U16Range,
@@ -241,7 +233,7 @@ impl CpuChip {
             0,
             0,
         ));
-        new_blu_events.push(ByteLookupEvent::new(
+        blu_events.add_byte_lookup_event(ByteLookupEvent::new(
             event.shard,
             event.channel,
             U16Range,
@@ -250,7 +242,7 @@ impl CpuChip {
             0,
             0,
         ));
-        new_blu_events.push(ByteLookupEvent::new(
+        blu_events.add_byte_lookup_event(ByteLookupEvent::new(
             event.shard,
             event.channel,
             U8Range,
@@ -267,7 +259,7 @@ impl CpuChip {
         cols: &mut CpuCols<F>,
         event: &CpuEvent,
         new_alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
-        new_blu_events: &mut Vec<ByteLookupEvent>,
+        blu_events: &mut impl ByteRecord,
         nonce_lookup: &HashMap<usize, u32>,
     ) {
         if !matches!(
@@ -401,7 +393,7 @@ impl CpuChip {
         // Add event to byte lookup for byte range checking each byte in the memory addr
         let addr_bytes = memory_addr.to_le_bytes();
         for byte_pair in addr_bytes.chunks_exact(2) {
-            new_blu_events.push(ByteLookupEvent {
+            blu_events.add_byte_lookup_event(ByteLookupEvent {
                 shard: event.shard,
                 channel: event.channel,
                 opcode: ByteOpcode::U8Range,
@@ -727,6 +719,21 @@ impl CpuChip {
             );
 
             is_halt = syscall_id == F::from_canonical_u32(SyscallCode::HALT.syscall_id());
+
+            // For halt and commit deferred proofs syscalls, we need to baby bear range check one of
+            // it's operands.
+            if is_halt {
+                ecall_cols.operand_to_check = event.b.into();
+                ecall_cols.operand_range_check_cols.populate(event.b);
+                cols.ecall_range_check_operand = F::one();
+            }
+
+            if syscall_id == F::from_canonical_u32(SyscallCode::COMMIT_DEFERRED_PROOFS.syscall_id())
+            {
+                ecall_cols.operand_to_check = event.c.into();
+                ecall_cols.operand_range_check_cols.populate(event.c);
+                cols.ecall_range_check_operand = F::one();
+            }
         }
 
         is_halt
@@ -766,6 +773,7 @@ mod tests {
 
     use crate::runtime::tests::ssz_withdrawals_program;
     use crate::runtime::{tests::simple_program, Runtime};
+    use crate::stark::DefaultProver;
     use crate::utils::{run_test, setup_logger, SP1CoreOpts};
 
     // #[test]
@@ -827,6 +835,6 @@ mod tests {
     fn prove_trace() {
         setup_logger();
         let program = simple_program();
-        run_test(program).unwrap();
+        run_test::<DefaultProver<_, _>>(program).unwrap();
     }
 }

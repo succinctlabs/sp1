@@ -29,6 +29,7 @@ main() {
       -C|--commit)      shift; SP1UP_COMMIT=$1;;
       --arch)           shift; SP1UP_ARCH=$1;;
       --platform)       shift; SP1UP_PLATFORM=$1;;
+      -t|--token)       shift; GITHUB_TOKEN=$1;;
       -h|--help)
         usage
         exit 0

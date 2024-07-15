@@ -8,6 +8,7 @@ use sp1_core::air::MachineAir;
 use sp1_core::stark::StarkMachine;
 use sp1_core::stark::{Com, ShardProof, StarkGenericConfig, StarkVerifyingKey};
 use sp1_core::utils::BabyBearPoseidon2;
+use sp1_primitives::types::RecursionProgramType;
 use sp1_recursion_compiler::config::InnerConfig;
 use sp1_recursion_compiler::ir::{Builder, Config, Felt, Var};
 use sp1_recursion_compiler::prelude::DslVariable;
@@ -52,9 +53,15 @@ where
     pub fn build(
         machine: &StarkMachine<BabyBearPoseidon2, A>,
         vk: &StarkVerifyingKey<BabyBearPoseidon2>,
-        is_compress: bool,
+        program_type: RecursionProgramType,
     ) -> RecursionProgram<BabyBear> {
-        let mut builder = Builder::<InnerConfig>::default();
+        assert!(matches!(
+            program_type,
+            RecursionProgramType::Shrink | RecursionProgramType::Wrap
+        ));
+
+        let mut builder = Builder::<InnerConfig>::new(program_type);
+
         let proof: ShardProofVariable<_> = builder.uninit();
         ShardProofHint::<BabyBearPoseidon2, A>::witness(&proof, &mut builder);
 
@@ -62,7 +69,7 @@ where
             config: const_fri_config(&mut builder, machine.config().pcs().fri_config()),
         };
 
-        SP1RootVerifier::verify(&mut builder, &pcs, machine, vk, &proof, is_compress);
+        SP1RootVerifier::verify(&mut builder, &pcs, machine, vk, &proof);
 
         builder.compile_program()
     }
@@ -89,7 +96,6 @@ where
         machine: &StarkMachine<SC, A>,
         vk: &StarkVerifyingKey<SC>,
         proof: &ShardProofVariable<C>,
-        is_compress: bool,
     ) {
         // Get the verifying key info from the vk.
         let vk = proof_data_from_vk(builder, vk, machine);
@@ -107,7 +113,6 @@ where
             challenger.observe(builder, element);
         }
         // verify proof.
-        let one = builder.constant(C::N::one());
         StarkVerifier::<C, SC>::verify_shard(
             builder,
             &vk,
@@ -115,7 +120,7 @@ where
             machine,
             &mut challenger,
             proof,
-            one,
+            true,
         );
 
         // Get the public inputs from the proof.
@@ -135,9 +140,9 @@ where
         // checking the `is_complete` flag in this program.
         builder.assert_felt_eq(public_values.is_complete, C::F::one());
 
-        // If the proof is a compress proof, assert that the vk is the same as the compress vk from
-        // the public values.
-        if is_compress {
+        // If this is a Shrink program (when it's verifying a compress proof), then assert that the
+        // vk is the same as the compress vk from the public values.
+        if matches!(builder.program_type, RecursionProgramType::Shrink) {
             let vk_digest = hash_vkey(builder, &vk);
             for (i, reduce_digest_elem) in public_values.compress_vk_digest.iter().enumerate() {
                 let vk_digest_elem = builder.get(&vk_digest, i);

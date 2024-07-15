@@ -6,6 +6,7 @@ mod options;
 #[cfg(any(test, feature = "programs"))]
 mod programs;
 mod prove;
+mod serde;
 mod tracer;
 
 pub use buffer::*;
@@ -13,6 +14,7 @@ pub use config::*;
 pub use logger::*;
 pub use options::*;
 pub use prove::*;
+pub use serde::*;
 pub use tracer::*;
 
 #[cfg(any(test, feature = "programs"))]

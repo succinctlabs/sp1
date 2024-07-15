@@ -3,8 +3,7 @@ use core::mem::size_of;
 use std::fmt::Debug;
 
 use generic_array::GenericArray;
-use num::BigUint;
-use num::Zero;
+use num::{BigUint, Zero};
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField32;
@@ -23,7 +22,7 @@ use crate::memory::MemoryReadWriteCols;
 use crate::operations::field::field_op::FieldOpCols;
 use crate::operations::field::field_op::FieldOperation;
 use crate::operations::field::field_sqrt::FieldSqrtCols;
-use crate::operations::field::params::{FieldParameters, NumWords};
+use crate::operations::field::params::{limbs_from_vec, FieldParameters, NumWords};
 use crate::operations::field::params::{Limbs, NumLimbs};
 use crate::operations::field::range::FieldRangeCols;
 use crate::runtime::ExecutionRecord;
@@ -103,7 +102,8 @@ impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDecompressChip<E> {
         x: BigUint,
     ) {
         // Y = sqrt(x^3 + b)
-        cols.range_x.populate(record, shard, channel, &x);
+        cols.range_x
+            .populate(record, shard, channel, &x, &E::BaseField::modulus());
         let x_2 = cols.x_2.populate(
             record,
             shard,
@@ -280,9 +280,15 @@ where
 
         let x: Limbs<AB::Var, <E::BaseField as NumLimbs>::Limbs> =
             limbs_from_prev_access(&local.x_access);
-        local
-            .range_x
-            .eval(builder, &x, local.shard, local.channel, local.is_real);
+        let max_num_limbs = E::BaseField::to_limbs_field_vec(&E::BaseField::modulus());
+        local.range_x.eval(
+            builder,
+            &x,
+            &limbs_from_vec::<AB::Expr, <E::BaseField as NumLimbs>::Limbs, AB::F>(max_num_limbs),
+            local.shard,
+            local.channel,
+            local.is_real,
+        );
         local.x_2.eval(
             builder,
             &x,
@@ -393,6 +399,7 @@ where
 #[cfg(test)]
 mod tests {
     use crate::io::SP1Stdin;
+    use crate::stark::DefaultProver;
     use crate::utils::{self, tests::BLS12381_DECOMPRESS_ELF};
     use crate::Program;
     use amcl::bls381::bls381::basic::key_pair_generate_g2;
@@ -416,7 +423,9 @@ mod tests {
         let (_, compressed) = key_pair_generate_g2(&mut RAND::new());
 
         let stdin = SP1Stdin::from(&compressed);
-        let mut public_values = run_test_io(Program::from(BLS12381_DECOMPRESS_ELF), stdin).unwrap();
+        let mut public_values =
+            run_test_io::<DefaultProver<_, _>>(Program::from(BLS12381_DECOMPRESS_ELF), stdin)
+                .unwrap();
 
         let mut result = [0; 96];
         public_values.read_slice(&mut result);
@@ -446,7 +455,8 @@ mod tests {
             let inputs = SP1Stdin::from(&compressed);
 
             let mut public_values =
-                run_test_io(Program::from(SECP256K1_DECOMPRESS_ELF), inputs).unwrap();
+                run_test_io::<DefaultProver<_, _>>(Program::from(SECP256K1_DECOMPRESS_ELF), inputs)
+                    .unwrap();
             let mut result = [0; 65];
             public_values.read_slice(&mut result);
             assert_eq!(result, decompressed);

@@ -1,27 +1,34 @@
 use anyhow::Result;
 use sp1_core::{runtime::SP1Context, utils::SP1ProverOpts};
-use sp1_prover::{SP1Prover, SP1Stdin};
+use sp1_prover::{components::SP1ProverComponents, SP1Prover, SP1Stdin};
+use sysinfo::System;
 
 use crate::{
-    Prover, SP1Proof, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
+    install::try_install_plonk_bn254_artifacts, Prover, SP1Proof, SP1ProofKind,
+    SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
 };
 
 use super::ProverType;
 
 /// An implementation of [crate::ProverClient] that can generate end-to-end proofs locally.
-pub struct LocalProver {
-    prover: SP1Prover,
+pub struct LocalProver<C: SP1ProverComponents> {
+    prover: SP1Prover<C>,
 }
 
-impl LocalProver {
+impl<C: SP1ProverComponents> LocalProver<C> {
     /// Creates a new [LocalProver].
     pub fn new() -> Self {
         let prover = SP1Prover::new();
         Self { prover }
     }
+
+    /// Creates a new [LocalProver] from an existing [SP1Prover].
+    pub fn from_prover(prover: SP1Prover<C>) -> Self {
+        Self { prover }
+    }
 }
 
-impl Prover for LocalProver {
+impl<C: SP1ProverComponents> Prover<C> for LocalProver<C> {
     fn id(&self) -> ProverType {
         ProverType::Local
     }
@@ -30,7 +37,7 @@ impl Prover for LocalProver {
         self.prover.setup(elf)
     }
 
-    fn sp1_prover(&self) -> &SP1Prover {
+    fn sp1_prover(&self) -> &SP1Prover<C> {
         &self.prover
     }
 
@@ -42,6 +49,13 @@ impl Prover for LocalProver {
         context: SP1Context<'a>,
         kind: SP1ProofKind,
     ) -> Result<SP1ProofWithPublicValues> {
+        let total_ram_gb = System::new_all().total_memory() / 1_000_000_000;
+        if kind == SP1ProofKind::Plonk && total_ram_gb <= 120 {
+            return Err(anyhow::anyhow!(
+                "not enough memory to generate plonk proof. at least 128GB is required."
+            ));
+        }
+
         let proof = self.prover.prove_core(pk, &stdin, opts, context)?;
         if kind == SP1ProofKind::Core {
             return Ok(SP1ProofWithPublicValues {
@@ -71,7 +85,7 @@ impl Prover for LocalProver {
                 &outer_proof.proof,
             )
         } else {
-            sp1_prover::build::try_install_plonk_bn254_artifacts()
+            try_install_plonk_bn254_artifacts()
         };
         let proof = self
             .prover
@@ -88,7 +102,7 @@ impl Prover for LocalProver {
     }
 }
 
-impl Default for LocalProver {
+impl<C: SP1ProverComponents> Default for LocalProver<C> {
     fn default() -> Self {
         Self::new()
     }
