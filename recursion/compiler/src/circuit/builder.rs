@@ -52,7 +52,7 @@ impl<C: Config> CircuitV2Builder<C> for Builder<C> {
             .push(DslIr::CircuitV2Poseidon2PermuteBabyBear(output, array));
         output
     }
-    /// Applies the Poseidon2 permutation to the given array.
+    /// Runs FRI fold.
     fn fri_fold_v2(&mut self, input: CircuitV2FriFoldInput<C>) -> CircuitV2FriFoldOutput<C> {
         let mut uninit_array = || {
             std::iter::from_fn(|| Some(self.uninit()))
