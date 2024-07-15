@@ -261,7 +261,7 @@ where
         &mut self,
         dst: impl Reg<F, EF>,
         base: impl Reg<F, EF>,
-        exp: Vec<impl Reg<F, EF>>,
+        exp: impl IntoIterator<Item = impl Reg<F, EF>>,
     ) -> Instruction<F> {
         Instruction::ExpReverseBitsLen(ExpReverseBitsInstr {
             addrs: ExpReverseBitsIo {
@@ -276,7 +276,7 @@ where
     fn hint_bit_decomposition(
         &mut self,
         value: impl Reg<F, EF>,
-        output: Vec<impl Reg<F, EF>>,
+        output: impl IntoIterator<Item = impl Reg<F, EF>>,
     ) -> Instruction<F> {
         Instruction::HintBits(HintBitsInstr {
             output_addrs_mults: output
@@ -284,6 +284,46 @@ where
                 .map(|r| (r.write(self), F::zero()))
                 .collect(),
             input_addr: value.read_ghost(self),
+        })
+    }
+
+    fn fri_fold(
+        &mut self,
+        CircuitV2FriFoldOutput {
+            alpha_pow_output,
+            ro_output,
+        }: CircuitV2FriFoldOutput<AsmConfig<F, EF>>,
+        CircuitV2FriFoldInput {
+            z,
+            alpha,
+            x,
+            mat_opening,
+            ps_at_z,
+            alpha_pow_input,
+            ro_input,
+        }: CircuitV2FriFoldInput<AsmConfig<F, EF>>,
+    ) -> Instruction<F> {
+        Instruction::FriFold(FriFoldInstr {
+            // Calculate before moving the vecs.
+            alpha_pow_mults: vec![F::zero(); alpha_pow_output.len()],
+            ro_mults: vec![F::zero(); ro_output.len()],
+
+            base_single_addrs: FriFoldBaseIo { x: x.read(self) },
+            ext_single_addrs: FriFoldExtSingleIo {
+                z: z.read(self),
+                alpha: alpha.read(self),
+            },
+            ext_vec_addrs: FriFoldExtVecIo {
+                mat_opening: mat_opening.into_iter().map(|e| e.read(self)).collect(),
+                ps_at_z: ps_at_z.into_iter().map(|e| e.read(self)).collect(),
+                alpha_pow_input: alpha_pow_input.into_iter().map(|e| e.read(self)).collect(),
+                ro_input: ro_input.into_iter().map(|e| e.read(self)).collect(),
+                alpha_pow_output: alpha_pow_output
+                    .into_iter()
+                    .map(|e| e.write(self))
+                    .collect(),
+                ro_output: ro_output.into_iter().map(|e| e.write(self)).collect(),
+            },
         })
     }
 
@@ -368,6 +408,7 @@ where
             DslIr::CircuitV2HintBitsF(output, value) => {
                 vec![self.hint_bit_decomposition(value, output)]
             }
+            DslIr::CircuitV2FriFold(output, input) => vec![self.fri_fold(output, input)],
 
             // DslIr::For(_, _, _, _, _) => todo!(),
             // DslIr::IfEq(_, _, _, _) => todo!(),
@@ -475,7 +516,21 @@ where
                     .iter_mut()
                     .map(|(ref addr, mult)| (mult, addr))
                     .collect(),
-                Instruction::FriFold(_) => todo!(),
+                Instruction::FriFold(FriFoldInstr {
+                    ext_vec_addrs:
+                        FriFoldExtVecIo {
+                            ref alpha_pow_output,
+                            ref ro_output,
+                            ..
+                        },
+                    alpha_pow_mults,
+                    ro_mults,
+                    ..
+                }) => alpha_pow_mults
+                    .iter_mut()
+                    .zip(alpha_pow_output)
+                    .chain(ro_mults.iter_mut().zip(ro_output))
+                    .collect(),
             })
             .for_each(|(mult, addr): (&mut F, &Address<F>)| {
                 *mult = self.addr_to_mult.remove(addr).unwrap()
@@ -537,6 +592,32 @@ trait Reg<F, EF> {
     /// Mark the register as to be written to, returning the "physical" address.
     fn write(&self, compiler: &mut AsmCompiler<F, EF>) -> Address<F>;
 }
+
+macro_rules! impl_reg_borrowed {
+    ($a:ty) => {
+        impl<F, EF, T> Reg<F, EF> for $a
+        where
+            T: Reg<F, EF> + ?Sized,
+        {
+            fn read(&self, compiler: &mut AsmCompiler<F, EF>) -> Address<F> {
+                (**self).read(compiler)
+            }
+
+            fn read_ghost(&self, compiler: &mut AsmCompiler<F, EF>) -> Address<F> {
+                (**self).read_ghost(compiler)
+            }
+
+            fn write(&self, compiler: &mut AsmCompiler<F, EF>) -> Address<F> {
+                (**self).write(compiler)
+            }
+        }
+    };
+}
+
+// Allow for more flexibility in arguments.
+impl_reg_borrowed!(&T);
+impl_reg_borrowed!(&mut T);
+impl_reg_borrowed!(Box<T>);
 
 macro_rules! impl_reg_fp {
     ($a:ty) => {
@@ -697,6 +778,66 @@ mod tests {
             let expected_felt: Felt<_> = builder.eval(expected);
             builder.assert_felt_eq(result_felt, expected_felt);
         }
+        test_operations(builder.operations);
+    }
+
+    #[test]
+    fn test_fri_fold() {
+        setup_logger();
+
+        let mut builder = AsmBuilder::<F, EF>::default();
+
+        let mut rng = StdRng::seed_from_u64(0xFEB29).sample_iter(rand::distributions::Standard);
+        let mut random_felt = move || -> F { rng.next().unwrap() };
+        let mut rng =
+            StdRng::seed_from_u64(0x0451).sample_iter::<[F; 4], _>(rand::distributions::Standard);
+        let mut random_ext = move || EF::from_base_slice(&rng.next().unwrap());
+
+        for i in 2..17 {
+            // Generate random values for the inputs.
+            let x = random_felt();
+            let z = random_ext();
+            let alpha = random_ext();
+
+            let alpha_pow_input = (0..i).map(|_| random_ext()).collect::<Vec<_>>();
+            let ro_input = (0..i).map(|_| random_ext()).collect::<Vec<_>>();
+
+            let ps_at_z = (0..i).map(|_| random_ext()).collect::<Vec<_>>();
+            let mat_opening = (0..i).map(|_| random_ext()).collect::<Vec<_>>();
+
+            // Compute the outputs from the inputs.
+            let alpha_pow_output = (0..i)
+                .map(|i| alpha_pow_input[i] * alpha)
+                .collect::<Vec<EF>>();
+            let ro_output = (0..i)
+                .map(|i| {
+                    ro_input[i] + alpha_pow_input[i] * (-ps_at_z[i] + mat_opening[i]) / (-z + x)
+                })
+                .collect::<Vec<EF>>();
+
+            // Compute inputs and outputs through the builder.
+            let input_vars = CircuitV2FriFoldInput {
+                z: builder.eval(z.cons()),
+                alpha: builder.eval(alpha.cons()),
+                x: builder.eval(x),
+                mat_opening: mat_opening.iter().map(|e| builder.eval(e.cons())).collect(),
+                ps_at_z: ps_at_z.iter().map(|e| builder.eval(e.cons())).collect(),
+                alpha_pow_input: alpha_pow_input
+                    .iter()
+                    .map(|e| builder.eval(e.cons()))
+                    .collect(),
+                ro_input: ro_input.iter().map(|e| builder.eval(e.cons())).collect(),
+            };
+
+            let output_vars = builder.fri_fold_v2(input_vars);
+            for (lhs, rhs) in std::iter::zip(output_vars.alpha_pow_output, alpha_pow_output) {
+                builder.assert_ext_eq(lhs, rhs.cons());
+            }
+            for (lhs, rhs) in std::iter::zip(output_vars.ro_output, ro_output) {
+                builder.assert_ext_eq(lhs, rhs.cons());
+            }
+        }
+
         test_operations(builder.operations);
     }
 

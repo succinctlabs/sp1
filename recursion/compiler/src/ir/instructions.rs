@@ -1,4 +1,6 @@
-use super::{Array, FriFoldInput, MemIndex, Ptr, TracedVec};
+use super::{
+    Array, CircuitV2FriFoldInput, CircuitV2FriFoldOutput, FriFoldInput, MemIndex, Ptr, TracedVec,
+};
 use super::{Config, Ext, Felt, Usize, Var};
 
 /// An intermeddiate instruction set for implementing programs.
@@ -263,6 +265,9 @@ pub enum DslIr<C: Config> {
     /// Executes a FRI fold operation. 1st field is the size of the fri fold input array.  2nd field
     /// is the fri fold input array.  See [`FriFoldInput`] for more details.
     FriFold(Var<C::N>, Array<C, FriFoldInput<C>>),
+    // FRI specific instructions.
+    /// Executes a FRI fold operation. Input is the fri fold input array.  See [`FriFoldInput`] for more details.
+    CircuitV2FriFold(CircuitV2FriFoldOutput<C>, CircuitV2FriFoldInput<C>),
     /// Select's a variable based on a condition. (select(cond, true_val, false_val) => output).
     /// Should only be used when target is a gnark circuit.
     CircuitSelectV(Var<C::N>, Var<C::N>, Var<C::N>, Var<C::N>),
