@@ -5,8 +5,8 @@ use sp1_recursion_core::runtime::D;
 
 use crate::{
     alu_base::BaseAluChip, alu_ext::ExtAluChip, exp_reverse_bits::ExpReverseBitsLenChip,
-    fri_fold::FriFoldChip, mem::MemoryChip, poseidon2_skinny::Poseidon2WideChip,
-    program::ProgramChip,
+    fri_fold::FriFoldChip, mem::MemoryChip, poseidon2_skinny::Poseidon2SkinnyChip,
+    poseidon2_wide::Poseidon2WideChip, program::ProgramChip,
 };
 
 #[derive(MachineAir)]
@@ -22,6 +22,7 @@ pub enum RecursionAir<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: u
     ExtAlu(ExtAluChip),
     // Cpu(CpuChip<F, DEGREE>),
     // MemoryGlobal(MemoryGlobalChip),
+    Poseidon2Skinny(Poseidon2SkinnyChip<DEGREE>),
     Poseidon2Wide(Poseidon2WideChip<DEGREE>),
     FriFold(FriFoldChip<DEGREE>),
     // RangeCheck(RangeCheckChip<F>),
@@ -63,6 +64,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
             RecursionAir::Memory(MemoryChip::default()),
             RecursionAir::BaseAlu(BaseAluChip::default()),
             RecursionAir::ExtAlu(ExtAluChip::default()),
+            RecursionAir::Poseidon2Skinny(Poseidon2SkinnyChip::<DEGREE>::default()),
             RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE>::default()),
             RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>::default()),
             RecursionAir::FriFold(FriFoldChip::<DEGREE>::default()),

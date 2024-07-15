@@ -1,7 +1,6 @@
 #![allow(clippy::needless_range_loop)]
 
 use std::borrow::Borrow;
-use std::borrow::BorrowMut;
 use std::ops::Deref;
 
 use p3_baby_bear::{MONTY_INVERSE, POSEIDON2_INTERNAL_MATRIX_DIAG_16_BABYBEAR_MONTY};
@@ -14,7 +13,7 @@ pub mod trace;
 
 use p3_poseidon2::matmul_internal;
 
-use self::columns::{Poseidon2, Poseidon2Degree3, Poseidon2Degree9, Poseidon2Mut};
+use self::columns::{permutation::Poseidon2, Poseidon2Degree3, Poseidon2Degree9};
 
 /// The width of the permutation.
 pub const WIDTH: usize = 16;
@@ -24,14 +23,13 @@ pub const NUM_EXTERNAL_ROUNDS: usize = 8;
 pub const NUM_INTERNAL_ROUNDS: usize = 13;
 pub const NUM_ROUNDS: usize = NUM_EXTERNAL_ROUNDS + NUM_INTERNAL_ROUNDS;
 
-/// A chip that implements the Poseidon2 permutation in the skinny variant (one external round per
-/// row and one row for all internal rounds).
-pub struct Poseidon2SkinnyChip<const DEGREE: usize> {
+/// A chip that implements addition for the opcode Poseidon2Wide.
+pub struct Poseidon2WideChip<const DEGREE: usize> {
     pub fixed_log2_rows: Option<usize>,
     pub pad: bool,
 }
 
-impl<const DEGREE: usize> Default for Poseidon2SkinnyChip<DEGREE> {
+impl<const DEGREE: usize> Default for Poseidon2WideChip<DEGREE> {
     fn default() -> Self {
         Self {
             fixed_log2_rows: None,
@@ -40,9 +38,9 @@ impl<const DEGREE: usize> Default for Poseidon2SkinnyChip<DEGREE> {
     }
 }
 
-impl<'a, const DEGREE: usize> Poseidon2SkinnyChip<DEGREE> {
+impl<'a, const DEGREE: usize> Poseidon2WideChip<DEGREE> {
     /// Transmute a row it to an immutable Poseidon2 instance.
-    pub(crate) fn convert<T>(row: impl Deref<Target = [T]>) -> Box<dyn Poseidon2<'a, T> + 'a>
+    pub(crate) fn convert<T>(row: impl Deref<Target = [T]>) -> Box<dyn Poseidon2<T> + 'a>
     where
         T: Copy + 'a,
     {
@@ -52,22 +50,6 @@ impl<'a, const DEGREE: usize> Poseidon2SkinnyChip<DEGREE> {
         } else if DEGREE == 9 || DEGREE == 17 {
             let convert: &Poseidon2Degree9<T> = (*row).borrow();
             Box::new(*convert)
-        } else {
-            panic!("Unsupported degree");
-        }
-    }
-
-    /// Transmute a row it to a mutable Poseidon2 instance.
-    pub(crate) fn convert_mut<'b: 'a, F: PrimeField32>(
-        &self,
-        row: &'b mut Vec<F>,
-    ) -> Box<dyn Poseidon2Mut<'a, F> + 'a> {
-        if DEGREE == 3 {
-            let convert: &mut Poseidon2Degree3<F> = row.as_mut_slice().borrow_mut();
-            Box::new(convert)
-        } else if DEGREE == 9 || DEGREE == 17 {
-            let convert: &mut Poseidon2Degree9<F> = row.as_mut_slice().borrow_mut();
-            Box::new(convert)
         } else {
             panic!("Unsupported degree");
         }
@@ -104,6 +86,14 @@ pub(crate) fn external_linear_layer<AF: AbstractField>(state: &mut [AF; WIDTH]) 
     for j in 0..WIDTH {
         state[j] += sums[j % 4].clone();
     }
+}
+
+pub(crate) fn external_linear_layer_immut<AF: AbstractField + Copy>(
+    state: &[AF; WIDTH],
+) -> [AF; WIDTH] {
+    let mut state = *state;
+    external_linear_layer(&mut state);
+    state
 }
 
 pub(crate) fn internal_linear_layer<F: AbstractField>(state: &mut [F; WIDTH]) {
@@ -161,7 +151,7 @@ pub(crate) mod tests {
         let instructions =
             (0..WIDTH)
                 .map(|i| instr::mem(MemAccessKind::Write, 1, i as u32, input[i]))
-                .chain(once(instr::poseidon2_skinny(
+                .chain(once(instr::poseidon2_wide(
                     [1; WIDTH],
                     std::array::from_fn(|i| (i + WIDTH) as u32),
                     std::array::from_fn(|i| i as u32),
@@ -173,7 +163,7 @@ pub(crate) mod tests {
                 .chain((0..WIDTH).map(|i| {
                     instr::mem(MemAccessKind::Write, 1, (2 * WIDTH + i) as u32, input_1[i])
                 }))
-                .chain(once(instr::poseidon2_skinny(
+                .chain(once(instr::poseidon2_wide(
                     [1; WIDTH],
                     std::array::from_fn(|i| (i + 3 * WIDTH) as u32),
                     std::array::from_fn(|i| (i + 2 * WIDTH) as u32),

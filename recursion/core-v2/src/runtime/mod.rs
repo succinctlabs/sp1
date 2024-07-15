@@ -65,6 +65,8 @@ pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
 
     pub nb_poseidons: usize,
 
+    pub nb_wide_poseidons: usize,
+
     pub nb_bit_decompositions: usize,
 
     pub nb_ext_ops: usize,
@@ -139,6 +141,7 @@ where
         Self {
             timestamp: 0,
             nb_poseidons: 0,
+            nb_wide_poseidons: 0,
             nb_bit_decompositions: 0,
             nb_exp_reverse_bits: 0,
             nb_ext_ops: 0,
@@ -160,7 +163,8 @@ where
 
     pub fn print_stats(&self) {
         tracing::debug!("Total Cycles: {}", self.timestamp);
-        tracing::debug!("Poseidon Operations: {}", self.nb_poseidons);
+        tracing::debug!("Poseidon Skinny Operations: {}", self.nb_poseidons);
+        tracing::debug!("Poseidon Wide Operations: {}", self.nb_wide_poseidons);
         tracing::debug!("Exp Reverse Bits Operations: {}", self.nb_exp_reverse_bits);
         tracing::debug!("FriFold Operations: {}", self.nb_fri_fold);
         tracing::debug!("Field Operations: {}", self.nb_base_ops);
@@ -288,11 +292,34 @@ where
                     }
                     self.record.mem_events.push(MemEvent { inner: val });
                 }
-                Instruction::Poseidon2Wide(Poseidon2WideInstr {
+                Instruction::Poseidon2Skinny(Poseidon2SkinnyInstr {
                     addrs: Poseidon2Io { input, output },
                     mults,
                 }) => {
                     self.nb_poseidons += 1;
+                    let in_vals = std::array::from_fn(|i| self.mr(input[i]).val[0]);
+                    let perm_output = self.perm.as_ref().unwrap().permute(in_vals);
+
+                    perm_output
+                        .iter()
+                        .zip(output)
+                        .zip(mults)
+                        .for_each(|((&val, addr), mult)| {
+                            self.mw(addr, Block::from(val), mult);
+                        });
+                    self.record
+                        .poseidon2_skinny_events
+                        .push(Poseidon2SkinnyEvent {
+                            input: in_vals,
+                            output: perm_output,
+                        });
+                }
+
+                Instruction::Poseidon2Wide(Poseidon2WideInstr {
+                    addrs: Poseidon2Io { input, output },
+                    mults,
+                }) => {
+                    self.nb_wide_poseidons += 1;
                     let in_vals = std::array::from_fn(|i| self.mr(input[i]).val[0]);
                     let perm_output = self.perm.as_ref().unwrap().permute(in_vals);
 

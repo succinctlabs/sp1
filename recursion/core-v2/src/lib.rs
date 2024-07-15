@@ -13,6 +13,7 @@ pub mod fri_fold;
 pub mod machine;
 pub mod mem;
 pub mod poseidon2_skinny;
+pub mod poseidon2_wide;
 pub mod program;
 pub mod runtime;
 
@@ -97,12 +98,12 @@ pub struct Poseidon2Io<V> {
 
 /// An instruction invoking the Poseidon2 permutation.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Poseidon2WideInstr<F> {
+pub struct Poseidon2SkinnyInstr<F> {
     pub addrs: Poseidon2Io<Address<F>>,
     pub mults: [F; WIDTH],
 }
 
-pub type Poseidon2WideEvent<F> = Poseidon2Io<F>;
+pub type Poseidon2SkinnyEvent<F> = Poseidon2Io<F>;
 
 /// The inputs and outputs to an exp-reverse-bits operation.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -112,6 +113,9 @@ pub struct ExpReverseBitsIo<V> {
     pub exp: Vec<V>,
     pub result: V,
 }
+
+pub type Poseidon2WideEvent<F> = Poseidon2Io<F>;
+pub type Poseidon2WideInstr<F> = Poseidon2SkinnyInstr<F>;
 
 /// An instruction invoking the exp-reverse-bits operation.
 #[derive(Clone, Debug, Serialize, Deserialize)]
