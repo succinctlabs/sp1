@@ -44,6 +44,7 @@ impl<C: Config> CircuitV2Builder<C> for Builder<C> {
             .push(DslIr::CircuitV2ExpReverseBits(output, input, power_bits));
         output
     }
+    /// Applies the Poseidon2 permutation to the given array.
     fn poseidon2_permute_v2(&mut self, array: [Felt<C::F>; WIDTH]) -> [Felt<C::F>; WIDTH] {
         let output: [Felt<C::F>; WIDTH] = core::array::from_fn(|_| self.uninit());
         self.operations

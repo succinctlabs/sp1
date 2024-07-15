@@ -155,14 +155,14 @@ pub struct FriFoldExtVecIo<V> {
 }
 
 /// The base-field-valued inputs to the FRI fold operation.
-#[derive(AlignedBorrow, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FriFoldBaseIo<V> {
     pub x: V,
 }
 
 /// An instruction invoking the FRI fold operation. Addresses for extension field elements are of the
 /// same type as for base field elements.
-#[derive(AlignedBorrow, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FriFoldInstr<F> {
     pub base_single_addrs: FriFoldBaseIo<Address<F>>,
     pub ext_single_addrs: FriFoldExtSingleIo<Address<F>>,
