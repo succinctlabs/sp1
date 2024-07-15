@@ -6,11 +6,11 @@ use crate::prelude::*;
 use sp1_recursion_core_v2::{poseidon2_skinny::WIDTH, NUM_BITS};
 
 pub trait CircuitV2Builder<C: Config> {
-    fn fri_fold_v2(&mut self, input: CircuitV2FriFoldInput<C>) -> CircuitV2FriFoldOutput<C>;
     fn num2bits_v2_f(&mut self, num: Felt<C::F>) -> Vec<Felt<C::F>>;
     fn exp_reverse_bits_v2(&mut self, input: Felt<C::F>, power_bits: Vec<Felt<C::F>>)
         -> Felt<C::F>;
     fn poseidon2_permute_v2(&mut self, state: [Felt<C::F>; WIDTH]) -> [Felt<C::F>; WIDTH];
+    fn fri_fold_v2(&mut self, input: CircuitV2FriFoldInput<C>) -> CircuitV2FriFoldOutput<C>;
 }
 
 impl<C: Config> CircuitV2Builder<C> for Builder<C> {
