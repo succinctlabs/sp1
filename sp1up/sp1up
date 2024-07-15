@@ -52,11 +52,6 @@ main() {
     fi
   fi
 
-  if [ "$SP1UP_RISCV" = true ]; then
-    install_riscv
-    exit 0
-  fi
-
   # Installs sp1 from a local repository if --path parameter is provided
   if [[ -n "$SP1UP_LOCAL_REPO" ]]; then
     need_cmd cargo
@@ -208,22 +203,49 @@ EOF
       done
     done
 
-    say "done"
+    say "done!"
+  fi
+
+  if [ "$SP1UP_RISCV" = true ]; then
+    install_riscv
+    say "done!"
   fi
 }
 
 install_riscv() {
+  mkdir -p "$SP1_DIR"
+
   say "installing RISC-V toolchain"
   uname_s=$(uname -s)
+  uname_m=$(uname -m)
+
   case $uname_s in
     Linux)
-      TOOLCHAIN_URL="https://github.com/stnolting/riscv-gcc-prebuilt/releases/download/rv32i-131023/riscv32-unknown-elf.gcc-13.2.0.tar.gz"
+      case $uname_m in
+        aarch64|arm64) TOOLCHAIN_URL="https://github.com/risc0/toolchain/releases/download/2022.02.25/riscv32im-ubuntu18-amd64.tar.xz" ;;
+        x86_64) TOOLCHAIN_URL="https://github.com/risc0/toolchain/releases/download/2022.03.25/riscv32im-linux-x86_64.tar.xz" ;;
+        *) err "unsupported architecture for Linux: $uname_m" ;;
+      esac
+      ;;
+    Darwin)
+      case $uname_m in
+        arm64) TOOLCHAIN_URL="https://github.com/risc0/toolchain/releases/download/2022.03.25/riscv32im-osx-arm64.tar.xz" ;;
+        x86_64) TOOLCHAIN_URL="https://github.com/risc0/toolchain/releases/download/2022.03.25/riscv32im-osx-x86_64.tar.xz" ;;
+        *) err "unsupported architecture for macOS: $uname_m" ;;
+      esac
+      ;;
+    MINGW*|MSYS*|CYGWIN*|Windows_NT)
+      case $uname_m in
+        x86_64) TOOLCHAIN_URL="https://github.com/risc0/toolchain/releases/download/2022.03.25/riscv32im-windows-x86_64.tar.xz" ;;
+        *) err "unsupported architecture for Windows: $uname_m" ;;
+      esac
       ;;
     *)
-      err "unsupported platform for RISC-V toolchain: $uname_s"
+      err "unsupported platform: $uname_s"
       ;;
   esac
-  TOOLCHAIN_ARCHIVE="/tmp/riscv32-unknown-elf.gcc-13.2.0.tar.gz"
+
+  TOOLCHAIN_ARCHIVE="/tmp/$(basename $TOOLCHAIN_URL)"
   TOOLCHAIN_INSTALL_DIR="$SP1_DIR/riscv"
 
   # Check if the RISC-V GCC prebuilt binary archive already exists, otherwise download it
@@ -239,14 +261,15 @@ install_riscv() {
   fi
 
   # Extract the downloaded archive into the target directory
-  ensure tar -xzf "$TOOLCHAIN_ARCHIVE" -C "$TOOLCHAIN_INSTALL_DIR" >/dev/null 2>&1
+  ensure tar -xvf "$TOOLCHAIN_ARCHIVE" -C "$TOOLCHAIN_INSTALL_DIR" >/dev/null 2>&1
   rm -f "$TOOLCHAIN_ARCHIVE"
 
   # Set environment variables for the RISC-V toolchain
   export PATH="$TOOLCHAIN_INSTALL_DIR/bin:$PATH"
   export CC=gcc
+  export CC_riscv32im_succinct_zkvm_elf="$TOOLCHAIN_INSTALL_DIR/bin/riscv32-unknown-elf-gcc"
 
-  say "RISC-V toolchain installed and environment variables set"
+  say "installed RISC-V toolchain and set environment variables"
 }
 
 usage() {
