@@ -220,7 +220,7 @@ pub fn eval_permutation_constraints<F, AB>(
         // entry * \prod_i rlc_i = \sum_i m_i * \prod_{j!=i} rlc_j.
 
         // First, we calculate the random linear combinations and multiplicities with the correct
-        // sign depending on wetther the interaction is a send or a recieve.
+        // sign depending on wetther the interaction is a send or a receive.
         let mut rlcs: Vec<AB::ExprEF> = Vec::with_capacity(batch_size);
         let mut multiplicities: Vec<AB::Expr> = Vec::with_capacity(batch_size);
         for (interaction, is_send) in chunk {

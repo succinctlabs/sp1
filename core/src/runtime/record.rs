@@ -305,7 +305,7 @@ impl MachineRecord for ExecutionRecord {
         // Create empty shards that we will fill in.
         let mut shards: Vec<ExecutionRecord> = Vec::new();
 
-        // Iterate throught he CPU events and fill in the shards.
+        // Iterate through the CPU events and fill in the shards.
         let mut start_idx = 0;
         let mut current_shard = self.cpu_events[0].shard;
         for (i, cpu_event) in self.cpu_events.iter().enumerate() {

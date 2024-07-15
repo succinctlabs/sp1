@@ -119,13 +119,13 @@ where
     ///
     /// The compression verifier can aggregate proofs of different kinds:
     /// - Core proofs: proofs which are recursive proof of a batch of SP1 shard proofs. The
-    ///   implementation in this function assumes a fixed recursive verifier speicified by
+    ///   implementation in this function assumes a fixed recursive verifier specified by
     ///   `recursive_vk`.
     /// - Deferred proofs: proofs which are recursive proof of a batch of deferred proofs. The
     ///   implementation in this function assumes a fixed deferred verification program specified
     ///   by `deferred_vk`.
     /// - Compress proofs: these are proofs which refer to a prove of this program. The key for
-    ///   it is part of public values will be propagated accross all levels of recursion and will
+    ///   it is part of public values will be propagated across all levels of recursion and will
     ///   be checked against itself as in [sp1_prover::Prover] or as in [super::SP1RootVerifier].
     pub fn verify(
         builder: &mut Builder<C>,
@@ -288,7 +288,7 @@ where
                     builder.assign(*digest, first_digest);
                 }
 
-                // Initiallize start pc.
+                // Initialize start pc.
                 builder.assign(
                     reduce_public_values.start_pc,
                     current_public_values.start_pc,
@@ -320,7 +320,7 @@ where
                     current_public_values.start_reconstruct_challenger,
                 );
 
-                // Assign the commited values and deferred proof digests.
+                // Assign the committed values and deferred proof digests.
                 for (word, current_word) in committed_value_digest
                     .iter()
                     .zip_eq(current_public_values.committed_value_digest.iter())
@@ -375,7 +375,7 @@ where
 
             // Assert that the start pc is equal to the current pc.
             builder.assert_felt_eq(pc, current_public_values.start_pc);
-            // Verfiy that the shard is equal to the current shard.
+            // Verify that the shard is equal to the current shard.
             builder.assert_felt_eq(shard, current_public_values.start_shard);
             // Assert that the leaf challenger is always the same.
 
@@ -391,7 +391,7 @@ where
                 current_public_values.start_reconstruct_challenger,
             );
 
-            // Assert that the commited digests are the same.
+            // Assert that the committed digests are the same.
             for (word, current_word) in committed_value_digest
                 .iter()
                 .zip_eq(current_public_values.committed_value_digest.iter())
@@ -465,7 +465,7 @@ where
         // Set the start reconstruct deferred digest to be the last reconstruct deferred digest.
         reduce_public_values.end_reconstruct_deferred_digest = reconstruct_deferred_digest;
 
-        // Assign the deffered proof digests.
+        // Assign the deferred proof digests.
         reduce_public_values.deferred_proofs_digest = deferred_proofs_digest;
         // Assign the committed value digests.
         reduce_public_values.committed_value_digest = committed_value_digest;

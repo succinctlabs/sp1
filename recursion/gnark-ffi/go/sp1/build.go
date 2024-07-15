@@ -17,7 +17,7 @@ import (
 )
 
 func Build(dataDir string) {
-	// Set the enviroment variable for the constraints file.
+	// Set the environment variable for the constraints file.
 	//
 	// TODO: There might be some non-determinism if a single process is running this command
 	// multiple times.

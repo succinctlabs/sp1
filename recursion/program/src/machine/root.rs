@@ -81,7 +81,7 @@ where
 {
     /// Verify a proof with given vk and aggregate their public values.
     ///
-    /// is_reduce : if the proof is a reduce proof, we will assert that the given vk indentifies
+    /// is_reduce : if the proof is a reduce proof, we will assert that the given vk identifies
     /// with the reduce vk digest of public inputs.
     pub fn verify(
         builder: &mut Builder<C>,

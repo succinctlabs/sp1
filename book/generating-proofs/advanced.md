@@ -61,7 +61,7 @@ SHARD_SIZE=4194304 RUST_LOG=info RUSTFLAGS='-C target-cpu=native' cargo run --re
 
 ## Memory Usage
 
-To reduce memory usage, set the `SHARD_BATCH_SIZE` enviroment variable depending on how much RAM
+To reduce memory usage, set the `SHARD_BATCH_SIZE` environment variable depending on how much RAM
 your machine has. A higher number will use more memory, but will be faster.
 
 ```rust,noplayground

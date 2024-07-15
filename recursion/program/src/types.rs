@@ -109,7 +109,7 @@ impl<C: Config> ChipOpening<C> {
     /// This method is used to convert a `ChipOpenedValuesVariable` into a `ChipOpenedValues`, which
     /// are the same values but with each opening converted from a dynamic array into a Rust vector.
     ///
-    /// *Safety*: This method also verifies that the legnth of the dynamic arrays match the expected
+    /// *Safety*: This method also verifies that the length of the dynamic arrays match the expected
     /// length of the vectors.
     pub fn from_variable<A>(
         builder: &mut Builder<C>,

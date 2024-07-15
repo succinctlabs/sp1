@@ -288,7 +288,7 @@ where
         deferred_public_values.start_reconstruct_challenger = values;
         deferred_public_values.end_reconstruct_challenger = values;
 
-        // Assign the deffered proof digests.
+        // Assign the deferred proof digests.
         deferred_public_values.end_reconstruct_deferred_digest =
             array::from_fn(|i| builder.get(&reconstruct_deferred_digest, i));
 

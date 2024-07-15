@@ -60,7 +60,7 @@ pub struct FriFoldCols<T: Copy> {
     pub m: T,
     pub input_ptr: T,
 
-    /// At the last iteraction of a FRI_FOLD invocation.
+    /// At the last iteration of a FRI_FOLD invocation.
     pub is_last_iteration: T,
 
     /// The inputs stored in memory.  All the values are just read from memory.

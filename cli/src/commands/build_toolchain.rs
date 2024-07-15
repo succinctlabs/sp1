@@ -10,7 +10,7 @@ pub struct BuildToolchainCmd {}
 
 impl BuildToolchainCmd {
     pub fn run(&self) -> Result<()> {
-        // Get enviroment variables.
+        // Get environment variables.
         let github_access_token = std::env::var("GITHUB_ACCESS_TOKEN");
         let build_dir = std::env::var("SP1_BUILD_DIR");
 

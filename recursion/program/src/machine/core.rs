@@ -145,7 +145,7 @@ where
         // Start and end shard indices.
         let initial_shard: Felt<_> = builder.uninit();
 
-        // The commited values digest and deferred proof digest. These will be checked to be the
+        // The committed values digest and deferred proof digest. These will be checked to be the
         // same for all proofs.
         let committed_value_digest: [Word<Felt<_>>; PV_DIGEST_NUM_WORDS] =
             array::from_fn(|_| Word(array::from_fn(|_| builder.uninit())));
@@ -206,7 +206,7 @@ where
                 builder.assign(start_pc, public_values.start_pc);
                 builder.assign(current_pc, public_values.start_pc);
 
-                // Commited public values digests.
+                // Committed public values digests.
                 for (word, first_word) in committed_value_digest
                     .iter()
                     .zip_eq(public_values.committed_value_digest.iter())

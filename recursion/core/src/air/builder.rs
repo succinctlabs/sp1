@@ -107,7 +107,7 @@ pub trait RecursionMemoryAirBuilder: RecursionInteractionAirBuilder {
         mem_access: &impl MemoryAccessTimestampCols<E>,
         is_real: impl Into<Self::Expr> + Clone,
     ) {
-        // We substract one since a diff of zero is not valid.
+        // We subtract one since a diff of zero is not valid.
         let diff_minus_one: Self::Expr =
             timestamp.into() - mem_access.prev_timestamp().clone().into() - Self::Expr::one();
 

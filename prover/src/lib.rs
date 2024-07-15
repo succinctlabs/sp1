@@ -1,6 +1,6 @@
 //! An end-to-end-prover implementation for the SP1 RISC-V zkVM.
 //!
-//! Seperates the proof generation process into multiple stages:
+//! Separates the proof generation process into multiple stages:
 //!
 //! 1. Generate shard proofs which split up and prove the valid execution of a RISC-V program.
 //! 2. Compress shard proofs into a single shard proof.

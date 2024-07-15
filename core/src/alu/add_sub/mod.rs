@@ -182,7 +182,7 @@ where
             local.is_add + local.is_sub,
         );
 
-        // Receive the arguments.  There are seperate receives for ADD and SUB.
+        // Receive the arguments.  There are separate receives for ADD and SUB.
         // For add, `add_operation.value` is `a`, `operand_1` is `b`, and `operand_2` is `c`.
         builder.receive_alu(
             Opcode::ADD.as_field::<AB::F>(),

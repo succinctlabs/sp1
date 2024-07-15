@@ -15,7 +15,7 @@ use super::{ExecutionRecord, MemoryAccessRecord, MemoryRecord};
 #[serde_as]
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ExecutionState {
-    /// The global clock keeps track of how many instrutions have been executed through all shards.
+    /// The global clock keeps track of how many instructions have been executed through all shards.
     pub global_clk: u64,
 
     /// The shard clock keeps track of how many shards have been executed.
@@ -26,7 +26,7 @@ pub struct ExecutionState {
     pub clk: u32,
 
     /// The channel alternates between 0 and [crate::bytes::NUM_BYTE_LOOKUP_CHANNELS],
-    /// used to controll byte lookup multiplicity.
+    /// used to control byte lookup multiplicity.
     pub channel: u32,
 
     /// The program counter.

@@ -30,7 +30,7 @@ fn main() {
         .finish()
         .init();
 
-    // Setup enviroment variables.
+    // Setup environment variables.
     std::env::set_var("RECONSTRUCT_COMMITMENTS", "false");
 
     // Initialize prover.

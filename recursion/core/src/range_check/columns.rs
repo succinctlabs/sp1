@@ -24,6 +24,6 @@ pub struct RangeCheckPreprocessedCols<T> {
 #[derive(Debug, Clone, Copy, AlignedBorrow)]
 #[repr(C)]
 pub struct RangeCheckMultCols<T> {
-    /// The multiplicites of each byte operation.
+    /// The multiplicities of each byte operation.
     pub multiplicities: [T; NUM_RANGE_CHECK_OPS],
 }

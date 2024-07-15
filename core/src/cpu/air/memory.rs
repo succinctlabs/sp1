@@ -211,7 +211,7 @@ impl CpuChip {
 
         // Get the memory offset flags.
         self.eval_offset_value_flags(builder, memory_columns, local);
-        // Compute the offset_is_zero flag.  The other offset flags are already contrained by the
+        // Compute the offset_is_zero flag.  The other offset flags are already constrained by the
         // method `eval_memory_address_and_access`, which is called in `eval_memory_address_and_access`.
         let offset_is_zero = AB::Expr::one()
             - memory_columns.offset_is_one
@@ -276,7 +276,7 @@ impl CpuChip {
     ) {
         let mem_val = *memory_columns.memory_access.value();
 
-        // Compute the offset_is_zero flag.  The other offset flags are already contrained by the
+        // Compute the offset_is_zero flag.  The other offset flags are already constrained by the
         // method `eval_memory_address_and_access`, which is called in `eval_memory_address_and_access`.
         let offset_is_zero = AB::Expr::one()
             - memory_columns.offset_is_one
@@ -290,7 +290,7 @@ impl CpuChip {
             + mem_val[3] * memory_columns.offset_is_three;
         let byte_value = Word::extend_expr::<AB>(mem_byte.clone());
 
-        // When the instruciton is LB or LBU, just use the lower byte.
+        // When the instrucition is LB or LBU, just use the lower byte.
         builder
             .when(local.selectors.is_lb + local.selectors.is_lbu)
             .assert_word_eq(byte_value, local.unsigned_mem_val.map(|x| x.into()));

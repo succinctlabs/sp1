@@ -159,7 +159,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
     /// The setup preprocessing phase.
     ///
     /// Given a program, this function generates the proving and verifying keys. The keys correspond
-    /// to the program code and other preprocessed colunms such as lookup tables.
+    /// to the program code and other preprocessed columns such as lookup tables.
     #[instrument("setup machine", level = "debug", skip_all)]
     pub fn setup(&self, program: &A::Program) -> (StarkProvingKey<SC>, StarkVerifyingKey<SC>) {
         let mut named_preprocessed_traces = tracing::debug_span!("generate preprocessed traces")
@@ -505,7 +505,7 @@ impl<SC: StarkGenericConfig> Debug for MachineVerificationError<SC> {
                 write!(f, "Too many shards")
             }
             MachineVerificationError::InvalidChipOccurence(s) => {
-                write!(f, "Invalid chip occurence: {}", s)
+                write!(f, "Invalid chip occurrence: {}", s)
             }
         }
     }
