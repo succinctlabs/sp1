@@ -826,17 +826,11 @@ mod tests {
             };
 
             let output_vars = builder.fri_fold_v2(input_vars);
-            for (lhs, rhs) in std::iter::zip(
-                output_vars.alpha_pow_output,
-                alpha_pow_output.into_iter().map(|x| x.cons()),
-            ) {
-                builder.assert_ext_eq(lhs, rhs);
+            for (lhs, rhs) in std::iter::zip(output_vars.alpha_pow_output, alpha_pow_output) {
+                builder.assert_ext_eq(lhs, rhs.cons());
             }
-            for (lhs, rhs) in std::iter::zip(
-                output_vars.ro_output,
-                ro_output.into_iter().map(|x| x.cons()),
-            ) {
-                builder.assert_ext_eq(lhs, rhs);
+            for (lhs, rhs) in std::iter::zip(output_vars.ro_output, ro_output) {
+                builder.assert_ext_eq(lhs, rhs.cons());
             }
         }
 
