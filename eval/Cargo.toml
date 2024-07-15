@@ -1,7 +1,8 @@
 [package]
 name = "sp1-eval"
-version = "0.0.2-test"
-edition = "2021"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
 publish = false
 
 

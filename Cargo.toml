@@ -19,6 +19,11 @@ members = [
 exclude = ["examples/target"]
 resolver = "2"
 
+[workspace.package]
+version = "0.0.2-test"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
 [profile.release]
 opt-level = 3
 
