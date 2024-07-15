@@ -52,6 +52,10 @@ main() {
     fi
   fi
 
+  if [ "$SP1UP_RISCV" = true ]; then
+    install_riscv
+  fi
+
   # Installs sp1 from a local repository if --path parameter is provided
   if [[ -n "$SP1UP_LOCAL_REPO" ]]; then
     need_cmd cargo
@@ -73,7 +77,7 @@ main() {
       ensure ln -s "$PWD/target/release/$bin" "$SP1_BIN_DIR/$bin"
     done
 
-    say "done"
+    say "done!"
     exit 0
   fi
 
@@ -92,37 +96,8 @@ main() {
 
     say "installing sp1 (version ${SP1UP_VERSION}, tag ${SP1UP_TAG})"
 
-    uname_s=$(uname -s)
-    PLATFORM=$(tolower "${SP1UP_PLATFORM:-$uname_s}")
-    EXT="tar.gz"
-    case $PLATFORM in
-      linux) ;;
-      darwin|mac*)
-        PLATFORM="darwin"
-        ;;
-      mingw*|win*)
-        EXT="zip"
-        PLATFORM="win32"
-        ;;
-      *)
-        err "unsupported platform: $PLATFORM"
-        ;;
-    esac
-
-    uname_m=$(uname -m)
-    ARCHITECTURE=$(tolower "${SP1UP_ARCH:-$uname_m}")
-    if [ "${ARCHITECTURE}" = "x86_64" ]; then
-      # Redirect stderr to /dev/null to avoid printing errors if non Rosetta.
-      if [ "$(sysctl -n sysctl.proc_translated 2>/dev/null)" = "1" ]; then
-        ARCHITECTURE="arm64" # Rosetta.
-      else
-        ARCHITECTURE="amd64" # Intel.
-      fi
-    elif [ "${ARCHITECTURE}" = "arm64" ] ||[ "${ARCHITECTURE}" = "aarch64" ] ; then
-      ARCHITECTURE="arm64" # Arm.
-    else
-      ARCHITECTURE="amd64" # Amd.
-    fi
+    determine_platform
+    determine_architecture
 
     # Compute the URL of the release tarball in the sp1 repository.
     RELEASE_URL="https://github.com/${SP1UP_REPO}/releases/download/${SP1UP_TAG}/"
@@ -164,11 +139,8 @@ EOF
     say "installing rust toolchain"
     ensure "$bin_path" prove install-toolchain
     say "installed rust toolchain"
-
-    say "done!"
-
-  # Install by cloning the repo with the provided branch/tag
   else
+    # Install by cloning the repo with the provided branch/tag
     need_cmd cargo
     SP1UP_BRANCH=${SP1UP_BRANCH:-main}
     REPO_PATH="$SP1_DIR/$SP1UP_REPO"
@@ -202,46 +174,40 @@ EOF
         fi
       done
     done
-
-    say "done!"
   fi
 
-  if [ "$SP1UP_RISCV" = true ]; then
-    install_riscv
-    say "done!"
-  fi
+  say "done!"
 }
 
 install_riscv() {
-  mkdir -p "$SP1_DIR"
-
   say "installing RISC-V toolchain"
-  uname_s=$(uname -s)
-  uname_m=$(uname -m)
 
-  case $uname_s in
-    Linux)
-      case $uname_m in
-        aarch64|arm64) TOOLCHAIN_URL="https://github.com/risc0/toolchain/releases/download/2022.02.25/riscv32im-ubuntu18-amd64.tar.xz" ;;
-        x86_64) TOOLCHAIN_URL="https://github.com/risc0/toolchain/releases/download/2022.03.25/riscv32im-linux-x86_64.tar.xz" ;;
-        *) err "unsupported architecture for Linux: $uname_m" ;;
+  determine_platform
+  determine_architecture
+
+  case $PLATFORM in
+    linux)
+      case $ARCHITECTURE in
+        arm64) TOOLCHAIN_URL="https://github.com/risc0/toolchain/releases/download/2022.02.25/riscv32im-ubuntu18-amd64.tar.xz" ;;
+        amd64) TOOLCHAIN_URL="https://github.com/risc0/toolchain/releases/download/2022.03.25/riscv32im-linux-x86_64.tar.xz" ;;
+        *) err "unsupported architecture for Linux: $ARCHITECTURE" ;;
       esac
       ;;
-    Darwin)
-      case $uname_m in
+    darwin)
+      case $ARCHITECTURE in
         arm64) TOOLCHAIN_URL="https://github.com/risc0/toolchain/releases/download/2022.03.25/riscv32im-osx-arm64.tar.xz" ;;
-        x86_64) TOOLCHAIN_URL="https://github.com/risc0/toolchain/releases/download/2022.03.25/riscv32im-osx-x86_64.tar.xz" ;;
-        *) err "unsupported architecture for macOS: $uname_m" ;;
+        amd64) TOOLCHAIN_URL="https://github.com/risc0/toolchain/releases/download/2022.03.25/riscv32im-osx-x86_64.tar.xz" ;;
+        *) err "unsupported architecture for macOS: $ARCHITECTURE" ;;
       esac
       ;;
-    MINGW*|MSYS*|CYGWIN*|Windows_NT)
-      case $uname_m in
-        x86_64) TOOLCHAIN_URL="https://github.com/risc0/toolchain/releases/download/2022.03.25/riscv32im-windows-x86_64.tar.xz" ;;
-        *) err "unsupported architecture for Windows: $uname_m" ;;
+    win32)
+      case $ARCHITECTURE in
+        amd64) TOOLCHAIN_URL="https://github.com/risc0/toolchain/releases/download/2022.03.25/riscv32im-windows-x86_64.tar.xz" ;;
+        *) err "unsupported architecture for Windows: $ARCHITECTURE" ;;
       esac
       ;;
     *)
-      err "unsupported platform: $uname_s"
+      err "unsupported platform: $PLATFORM"
       ;;
   esac
 
@@ -255,13 +221,22 @@ install_riscv() {
     ensure download "$TOOLCHAIN_URL" "$TOOLCHAIN_ARCHIVE"
   fi
 
+  # Create the ~/.sp1 directory if it doesn't exist
+  if [ ! -d "$SP1_DIR" ]; then
+    mkdir -p "$SP1_DIR"
+  fi
+
   # Create the target directory if it doesn't exist
   if [ ! -d "$TOOLCHAIN_INSTALL_DIR" ]; then
     mkdir -p "$TOOLCHAIN_INSTALL_DIR"
   fi
 
   # Extract the downloaded archive into the target directory
-  ensure tar -xvf "$TOOLCHAIN_ARCHIVE" -C "$TOOLCHAIN_INSTALL_DIR" >/dev/null 2>&1
+  if [ "$PLATFORM" = "win32" ]; then
+    ensure unzip "$TOOLCHAIN_ARCHIVE" -d "$TOOLCHAIN_INSTALL_DIR" >/dev/null 2>&1
+  else
+    ensure tar -xvf "$TOOLCHAIN_ARCHIVE" -C "$TOOLCHAIN_INSTALL_DIR" >/dev/null 2>&1
+  fi
   rm -f "$TOOLCHAIN_ARCHIVE"
 
   # Set environment variables for the RISC-V toolchain
@@ -269,7 +244,65 @@ install_riscv() {
   export CC=gcc
   export CC_riscv32im_succinct_zkvm_elf="$TOOLCHAIN_INSTALL_DIR/bin/riscv32-unknown-elf-gcc"
 
+  # Append to shell profile to persist environment variables
+  append_to_profile "export PATH=\"$TOOLCHAIN_INSTALL_DIR/bin:\$PATH\""
+  append_to_profile "export CC=gcc"
+  append_to_profile "export CC_riscv32im_succinct_zkvm_elf=\"$TOOLCHAIN_INSTALL_DIR/bin/riscv32-unknown-elf-gcc\""
+
   say "installed RISC-V toolchain and set environment variables"
+}
+
+append_to_profile() {
+  local profile
+  profile="$HOME/.profile"
+  if [ -n "$ZSH_VERSION" ]; then
+    profile="$HOME/.zshrc"
+  elif [ -n "$BASH_VERSION" ]; then
+    profile="$HOME/.bashrc"
+  fi
+
+  # Append the provided line to the profile file if it doesn't already exist
+  if ! grep -Fxq "$1" "$profile"; then
+    echo "$1" >> "$profile"
+  fi
+}
+
+determine_platform() {
+  uname_s=$(uname -s)
+  PLATFORM=$(tolower "${SP1UP_PLATFORM:-$uname_s}")
+  case $PLATFORM in
+    linux) ;;
+    darwin|mac*)
+      PLATFORM="darwin"
+      ;;
+    mingw*|win*)
+      PLATFORM="win32"
+      ;;
+    *)
+      err "unsupported platform: $PLATFORM"
+      ;;
+  esac
+  EXT="tar.gz"
+  if [ "$PLATFORM" = "win32" ]; then
+    EXT="zip"
+  fi
+}
+
+determine_architecture() {
+  uname_m=$(uname -m)
+  ARCHITECTURE=$(tolower "${SP1UP_ARCH:-$uname_m}")
+  if [ "${ARCHITECTURE}" = "x86_64" ]; then
+    # Redirect stderr to /dev/null to avoid printing errors if non Rosetta.
+    if [ "$(sysctl -n sysctl.proc_translated 2>/dev/null)" = "1" ]; then
+      ARCHITECTURE="arm64" # Rosetta.
+    else
+      ARCHITECTURE="amd64" # Intel.
+    fi
+  elif [ "${ARCHITECTURE}" = "arm64" ] || [ "${ARCHITECTURE}" = "aarch64" ]; then
+    ARCHITECTURE="arm64" # Arm.
+  else
+    ARCHITECTURE="amd64" # Amd.
+  fi
 }
 
 usage() {
@@ -368,6 +401,5 @@ Telegram   : https://t.me/succinct_sp1
 
 "
 }
-
 
 main "$@"
