@@ -981,19 +981,21 @@ where
             self.is_real,
         );
     }
-    fn mul(&mut self, dest: &mut FieldOpCols<F, _>, a: &AB, b: &AB) -> Limbs<F, _> {
+    fn mul(&mut self, dest: &mut FieldOpCols<F, U384Field>, a: &AB, b: &AB) -> Limbs<F, U384Field> {
         self.eval(dest, a, b, FieldOperation::Mul);
         dest.result
         // (a * b) % &self.modulus
     }
-    fn add(&mut self, dest: &mut FieldOpCols<F, _>, a: &AB, b: &AB) -> AB {
-        self.eval(dest, a, b, FieldOperation::Mul);
-        (a + b) % &self.modulus
+    fn add(&mut self, dest: &mut FieldOpCols<F, U384Field>, a: &AB, b: &AB) -> Limbs<F, U384Field> {
+        self.eval(dest, a, b, FieldOperation::Add);
+        dest.result
+        // (a + b) % &self.modulus
     }
-    fn sub(&mut self, dest: &mut FieldOpCols<F, _>, a: &AB, b: &AB) -> AB {
-        self.eval(dest, a, b, FieldOperation::Mul);
-        (a - b) % &self.modulus
+    fn sub(&mut self, dest: &mut FieldOpCols<F, U384Field>, a: &AB, b: &AB) -> Limbs<F, U384Field> {
+        self.eval(dest, a, b, FieldOperation::Sub);
+        dest.result
+        // (a - b) % &self.modulus
     }
 
-    build_fp12_mul_constraints!(Limbs<AB::Var, _>);
+    build_fp12_mul_constraints!(Limbs<AB::Var, U384Field>);
 }
