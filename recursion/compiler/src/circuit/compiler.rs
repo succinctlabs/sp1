@@ -287,6 +287,44 @@ where
         })
     }
 
+    fn fri_fold(
+        &mut self,
+        CircuitV2FriFoldInput {
+            z,
+            alpha,
+            x,
+            mat_opening,
+            ps_at_z,
+            alpha_pow_input,
+            ro_input,
+            alpha_pow_output,
+            ro_output,
+        }: CircuitV2FriFoldInput<AsmConfig<F, EF>>,
+    ) -> Instruction<F> {
+        Instruction::FriFold(FriFoldInstr {
+            // Calculate before moving the vecs.
+            alpha_pow_mults: vec![F::zero(); alpha_pow_output.len()],
+            ro_mults: vec![F::zero(); ro_output.len()],
+
+            base_single_addrs: FriFoldBaseIo { x: x.read(self) },
+            ext_single_addrs: FriFoldExtSingleIo {
+                z: z.read(self),
+                alpha: alpha.read(self),
+            },
+            ext_vec_addrs: FriFoldExtVecIo {
+                mat_opening: mat_opening.into_iter().map(|e| e.read(self)).collect(),
+                ps_at_z: ps_at_z.into_iter().map(|e| e.read(self)).collect(),
+                alpha_pow_input: alpha_pow_input.into_iter().map(|e| e.read(self)).collect(),
+                ro_input: ro_input.into_iter().map(|e| e.read(self)).collect(),
+                alpha_pow_output: alpha_pow_output
+                    .into_iter()
+                    .map(|e| e.write(self))
+                    .collect(),
+                ro_output: ro_output.into_iter().map(|e| e.write(self)).collect(),
+            },
+        })
+    }
+
     pub fn compile_one(&mut self, ir_instr: DslIr<AsmConfig<F, EF>>) -> Vec<Instruction<F>> {
         // For readability. Avoids polluting outer scope.
         use BaseAluOpcode::*;
@@ -368,6 +406,7 @@ where
             DslIr::CircuitV2HintBitsF(output, value) => {
                 vec![self.hint_bit_decomposition(value, output)]
             }
+            DslIr::CircuitV2FriFold(fri_fold_input) => vec![self.fri_fold(fri_fold_input)],
 
             // DslIr::For(_, _, _, _, _) => todo!(),
             // DslIr::IfEq(_, _, _, _) => todo!(),
@@ -471,7 +510,21 @@ where
                     .iter_mut()
                     .map(|(ref addr, mult)| (mult, addr))
                     .collect(),
-                Instruction::FriFold(_) => todo!(),
+                Instruction::FriFold(FriFoldInstr {
+                    ext_vec_addrs:
+                        FriFoldExtVecIo {
+                            ref alpha_pow_output,
+                            ref ro_output,
+                            ..
+                        },
+                    alpha_pow_mults,
+                    ro_mults,
+                    ..
+                }) => alpha_pow_mults
+                    .iter_mut()
+                    .zip(alpha_pow_output)
+                    .chain(ro_mults.iter_mut().zip(ro_output))
+                    .collect(),
             })
             .for_each(|(mult, addr): (&mut F, &Address<F>)| {
                 *mult = self.addr_to_mult.remove(addr).unwrap()
