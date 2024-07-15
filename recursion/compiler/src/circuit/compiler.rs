@@ -682,7 +682,7 @@ where
 #[cfg(test)]
 mod tests {
     use p3_baby_bear::DiffusionMatrixBabyBear;
-    use p3_field::{Field, PrimeField32};
+    use p3_field::{Field, PackedValue, PrimeField32};
     use p3_symmetric::Permutation;
     use rand::{rngs::StdRng, Rng, SeedableRng};
     use sp1_core::{
@@ -774,6 +774,72 @@ mod tests {
             let expected_felt: Felt<_> = builder.eval(expected);
             builder.assert_felt_eq(result_felt, expected_felt);
         }
+        test_operations(builder.operations);
+    }
+
+    #[test]
+    fn test_fri_fold() {
+        setup_logger();
+
+        let mut builder = AsmBuilder::<F, EF>::default();
+
+        let mut rng = StdRng::seed_from_u64(0xFEB29).sample_iter(rand::distributions::Standard);
+        let mut random_felt = move || -> F { rng.next().unwrap() };
+        let mut rng =
+            StdRng::seed_from_u64(0x0451).sample_iter::<[F; 4], _>(rand::distributions::Standard);
+        let mut random_ext = move || EF::from_base_slice(&rng.next().unwrap());
+
+        for i in 2..17 {
+            // Generate random values for the inputs.
+            let x = random_felt();
+            let z = random_ext();
+            let alpha = random_ext();
+
+            let alpha_pow_input = (0..i).map(|_| random_ext()).collect::<Vec<_>>();
+            let ro_input = (0..i).map(|_| random_ext()).collect::<Vec<_>>();
+
+            let ps_at_z = (0..i).map(|_| random_ext()).collect::<Vec<_>>();
+            let mat_opening = (0..i).map(|_| random_ext()).collect::<Vec<_>>();
+
+            // Compute the outputs from the inputs.
+            let alpha_pow_output = (0..i)
+                .map(|i| alpha_pow_input[i] * alpha)
+                .collect::<Vec<EF>>();
+            let ro_output = (0..i)
+                .map(|i| {
+                    ro_input[i] + alpha_pow_input[i] * (-ps_at_z[i] + mat_opening[i]) / (-z + x)
+                })
+                .collect::<Vec<EF>>();
+
+            // Compute inputs and outputs through the builder.
+            let input_vars = CircuitV2FriFoldInput {
+                z: builder.eval(z.cons()),
+                alpha: builder.eval(alpha.cons()),
+                x: builder.eval(x),
+                mat_opening: mat_opening.iter().map(|e| builder.eval(e.cons())).collect(),
+                ps_at_z: ps_at_z.iter().map(|e| builder.eval(e.cons())).collect(),
+                alpha_pow_input: alpha_pow_input
+                    .iter()
+                    .map(|e| builder.eval(e.cons()))
+                    .collect(),
+                ro_input: ro_input.iter().map(|e| builder.eval(e.cons())).collect(),
+            };
+
+            let output_vars = builder.fri_fold_v2(input_vars);
+            for (lhs, rhs) in std::iter::zip(
+                output_vars.alpha_pow_output,
+                alpha_pow_output.into_iter().map(|x| x.cons()),
+            ) {
+                builder.assert_ext_eq(lhs, rhs);
+            }
+            for (lhs, rhs) in std::iter::zip(
+                output_vars.ro_output,
+                ro_output.into_iter().map(|x| x.cons()),
+            ) {
+                builder.assert_ext_eq(lhs, rhs);
+            }
+        }
+
         test_operations(builder.operations);
     }
 
