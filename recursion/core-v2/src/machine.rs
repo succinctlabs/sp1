@@ -94,7 +94,8 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
             RecursionAir::Memory(MemoryChip::default()),
             RecursionAir::BaseAlu(BaseAluChip::default()),
             RecursionAir::ExtAlu(ExtAluChip::default()),
-            RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE> {
+            RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE>::default()),
+            RecursionAir::Poseidon2Skinny(Poseidon2SkinnyChip::<DEGREE> {
                 fixed_log2_rows: Some(poseidon2_padding),
                 pad: true,
             }),

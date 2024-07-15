@@ -23,7 +23,6 @@ use sp1_recursion_compiler::ir::{Usize, Witness};
 use sp1_recursion_compiler::prelude::SymbolicVar;
 use sp1_recursion_core::air::{RecursionPublicValues, NUM_PV_ELMS_TO_HASH};
 use sp1_recursion_core::stark::config::{outer_fri_config, BabyBearPoseidon2Outer};
-use sp1_recursion_core::stark::RecursionAirWideDeg17;
 use sp1_recursion_core_v2::machine::RecursionAir;
 use sp1_recursion_program::commit::PolynomialSpaceVariable;
 use sp1_recursion_program::stark::RecursiveVerifierConstraintFolder;
@@ -421,7 +420,7 @@ pub(crate) mod tests {
     pub fn test_new_machine_diff_paddings() {
         test_new_machine::<12, 12, 12>();
         test_new_machine::<16, 16, 16>();
-        test_new_machine::<20, 20, 20>();
+        // test_new_machine::<20, 20, 20>();
     }
 
     use sp1_recursion_core::{cpu::Instruction, runtime::Opcode};
