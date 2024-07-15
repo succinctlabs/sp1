@@ -6,6 +6,7 @@ use crate::prelude::*;
 use sp1_recursion_core_v2::{poseidon2_skinny::WIDTH, NUM_BITS};
 
 pub trait CircuitV2Builder<C: Config> {
+    fn fri_fold_v2(&mut self, input: CircuitV2FriFoldInput<C>) -> CircuitV2FriFoldOutput<C>;
     fn num2bits_v2_f(&mut self, num: Felt<C::F>) -> Vec<Felt<C::F>>;
     fn exp_reverse_bits_v2(&mut self, input: Felt<C::F>, power_bits: Vec<Felt<C::F>>)
         -> Felt<C::F>;
@@ -49,6 +50,21 @@ impl<C: Config> CircuitV2Builder<C> for Builder<C> {
         let output: [Felt<C::F>; WIDTH] = core::array::from_fn(|_| self.uninit());
         self.operations
             .push(DslIr::CircuitV2Poseidon2PermuteBabyBear(output, array));
+        output
+    }
+    /// Applies the Poseidon2 permutation to the given array.
+    fn fri_fold_v2(&mut self, input: CircuitV2FriFoldInput<C>) -> CircuitV2FriFoldOutput<C> {
+        let mut uninit_array = || {
+            std::iter::from_fn(|| Some(self.uninit()))
+                .take(NUM_BITS)
+                .collect()
+        };
+        let output = CircuitV2FriFoldOutput {
+            alpha_pow_output: uninit_array(),
+            ro_output: uninit_array(),
+        };
+        self.operations
+            .push(DslIr::CircuitV2FriFold(output.clone(), input));
         output
     }
 }

@@ -289,6 +289,10 @@ where
 
     fn fri_fold(
         &mut self,
+        CircuitV2FriFoldOutput {
+            alpha_pow_output,
+            ro_output,
+        }: CircuitV2FriFoldOutput<AsmConfig<F, EF>>,
         CircuitV2FriFoldInput {
             z,
             alpha,
@@ -297,8 +301,6 @@ where
             ps_at_z,
             alpha_pow_input,
             ro_input,
-            alpha_pow_output,
-            ro_output,
         }: CircuitV2FriFoldInput<AsmConfig<F, EF>>,
     ) -> Instruction<F> {
         Instruction::FriFold(FriFoldInstr {
@@ -406,7 +408,7 @@ where
             DslIr::CircuitV2HintBitsF(output, value) => {
                 vec![self.hint_bit_decomposition(value, output)]
             }
-            DslIr::CircuitV2FriFold(fri_fold_input) => vec![self.fri_fold(fri_fold_input)],
+            DslIr::CircuitV2FriFold(output, input) => vec![self.fri_fold(output, input)],
 
             // DslIr::For(_, _, _, _, _) => todo!(),
             // DslIr::IfEq(_, _, _, _) => todo!(),
