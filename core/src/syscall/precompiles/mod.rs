@@ -174,6 +174,8 @@ pub fn create_ec_decompress_event<E: EllipticCurve>(
     let computed_point: AffinePoint<E> = decompress_fn(&x_bytes_be, is_odd);
 
     let mut decompressed_y_bytes = computed_point.y.to_bytes_le();
+    print!("decompressed_y_bytes: {:?}", decompressed_y_bytes);
+
     decompressed_y_bytes.resize(num_limbs, 0u8);
     let y_words = bytes_to_words_le_vec(&decompressed_y_bytes);
 

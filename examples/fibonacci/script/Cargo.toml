@@ -5,6 +5,9 @@ edition = "2021"
 default-run = "fibonacci-script"
 publish = false
 
+[profile.release.build-override]
+opt-level = 3
+
 [dependencies]
 itertools = "0.12.1"
 sp1-sdk = { path = "../../../sdk", version = "0.0.2-test" }

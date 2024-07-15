@@ -15,3 +15,7 @@ members = [
   "patch-testing/script",
 ]
 resolver = "2"
+
+
+[profile.release.build-override]
+opt-level = 3
