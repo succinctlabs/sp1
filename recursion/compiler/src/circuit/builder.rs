@@ -10,6 +10,7 @@ pub trait CircuitV2Builder<C: Config> {
     fn exp_reverse_bits_v2(&mut self, input: Felt<C::F>, power_bits: Vec<Felt<C::F>>)
         -> Felt<C::F>;
     fn poseidon2_permute_v2(&mut self, state: [Felt<C::F>; WIDTH]) -> [Felt<C::F>; WIDTH];
+    fn fri_fold_v2(&mut self, input: CircuitV2FriFoldInput<C>) -> CircuitV2FriFoldOutput<C>;
 }
 
 impl<C: Config> CircuitV2Builder<C> for Builder<C> {
@@ -44,10 +45,26 @@ impl<C: Config> CircuitV2Builder<C> for Builder<C> {
             .push(DslIr::CircuitV2ExpReverseBits(output, input, power_bits));
         output
     }
+    /// Applies the Poseidon2 permutation to the given array.
     fn poseidon2_permute_v2(&mut self, array: [Felt<C::F>; WIDTH]) -> [Felt<C::F>; WIDTH] {
         let output: [Felt<C::F>; WIDTH] = core::array::from_fn(|_| self.uninit());
         self.operations
             .push(DslIr::CircuitV2Poseidon2PermuteBabyBear(output, array));
+        output
+    }
+    /// Runs FRI fold.
+    fn fri_fold_v2(&mut self, input: CircuitV2FriFoldInput<C>) -> CircuitV2FriFoldOutput<C> {
+        let mut uninit_array = || {
+            std::iter::from_fn(|| Some(self.uninit()))
+                .take(NUM_BITS)
+                .collect()
+        };
+        let output = CircuitV2FriFoldOutput {
+            alpha_pow_output: uninit_array(),
+            ro_output: uninit_array(),
+        };
+        self.operations
+            .push(DslIr::CircuitV2FriFold(output.clone(), input));
         output
     }
 }
