@@ -28,10 +28,10 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2SkinnyChip
     type Program = RecursionProgram<F>;
 
     fn name(&self) -> String {
-        format!("Poseidon2Wide {}", DEGREE)
+        format!("Poseidon2Skinny {}", DEGREE)
     }
 
-    #[instrument(name = "generate poseidon2 wide trace", level = "debug", skip_all, fields(rows = input.poseidon2_wide_events.len()))]
+    #[instrument(name = "generate poseidon2 skinny trace", level = "debug", skip_all, fields(rows = input.poseidon2_skinny_events.len()))]
     fn generate_trace(
         &self,
         input: &ExecutionRecord<F>,
@@ -41,7 +41,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2SkinnyChip
 
         let num_columns = <Poseidon2SkinnyChip<DEGREE> as BaseAir<F>>::width(self);
 
-        for event in &input.poseidon2_wide_events {
+        for event in &input.poseidon2_skinny_events {
             let mut row_add = vec![vec![F::zero(); num_columns]; NUM_EXTERNAL_ROUNDS + 2];
 
             // The first row should have event.input and [event.input[0].clone(); NUM_INTERNAL_ROUNDS-1]
@@ -101,7 +101,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2SkinnyChip
 
         #[cfg(debug_assertions)]
         println!(
-            "poseidon2 wide main trace dims is width: {:?}, height: {:?}",
+            "poseidon2 skinny main trace dims is width: {:?}, height: {:?}",
             trace.width(),
             trace.height()
         );
@@ -312,7 +312,7 @@ mod tests {
         let output_1 = permuter.permute(input_1);
 
         let shard = ExecutionRecord {
-            poseidon2_wide_events: vec![
+            poseidon2_skinny_events: vec![
                 Poseidon2SkinnyEvent {
                     input: input_0,
                     output: output_0,
@@ -339,7 +339,7 @@ mod tests {
         let input_1 = [F::rand(&mut rng); WIDTH];
         let output_1 = permuter.permute(input_1);
         let shard = ExecutionRecord {
-            poseidon2_wide_events: vec![
+            poseidon2_skinny_events: vec![
                 Poseidon2SkinnyEvent {
                     input: input_0,
                     output: output_0,

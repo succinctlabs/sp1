@@ -61,9 +61,9 @@ where
 
         (0..WIDTH).for_each(|i| {
             builder.send_single(
-                prep_local.memory_preprocessed[i].addr,
+                prep_local.memory_preprocessed[i + WIDTH].addr,
                 local_row.perm_output()[i],
-                prep_local.memory_preprocessed[i].write_mult,
+                prep_local.memory_preprocessed[i + WIDTH].write_mult,
             )
         });
     }

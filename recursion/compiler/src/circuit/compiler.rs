@@ -461,6 +461,10 @@ where
                     addrs: Poseidon2Io { ref output, .. },
                     mults,
                 }) => mults.iter_mut().zip(output).collect(),
+                Instruction::Poseidon2Wide(Poseidon2WideInstr {
+                    addrs: Poseidon2Io { ref output, .. },
+                    mults,
+                }) => mults.iter_mut().zip(output).collect(),
                 Instruction::ExpReverseBitsLen(ExpReverseBitsInstr {
                     addrs: ExpReverseBitsIo { ref result, .. },
                     mult,

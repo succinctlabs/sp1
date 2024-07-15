@@ -88,6 +88,14 @@ pub(crate) fn external_linear_layer<AF: AbstractField>(state: &mut [AF; WIDTH]) 
     }
 }
 
+pub(crate) fn external_linear_layer_immut<AF: AbstractField + Copy>(
+    state: &[AF; WIDTH],
+) -> [AF; WIDTH] {
+    let mut state = *state;
+    external_linear_layer(&mut state);
+    state
+}
+
 pub(crate) fn internal_linear_layer<F: AbstractField>(state: &mut [F; WIDTH]) {
     let matmul_constants: [<F as AbstractField>::F; WIDTH] =
         POSEIDON2_INTERNAL_MATRIX_DIAG_16_BABYBEAR_MONTY

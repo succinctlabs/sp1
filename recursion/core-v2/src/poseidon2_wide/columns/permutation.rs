@@ -1,4 +1,7 @@
-use std::{borrow::BorrowMut, mem::size_of};
+use std::{
+    borrow::{Borrow, BorrowMut},
+    mem::size_of,
+};
 
 use sp1_derive::AlignedBorrow;
 use sp1_recursion_core::poseidon2_wide::NUM_EXTERNAL_ROUNDS;
@@ -19,7 +22,7 @@ pub const fn max(a: usize, b: usize) -> usize {
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
 pub struct PermutationState<T: Copy> {
-    pub external_rounds_state: [[T; WIDTH]; NUM_EXTERNAL_ROUNDS],
+    pub external_rounds_state: [[T; WIDTH]; NUM_EXTERNAL_ROUNDS + 1],
     pub internal_rounds_state: [T; WIDTH],
     pub internal_rounds_s0: [T; NUM_INTERNAL_ROUNDS - 1],
     pub external_rounds_sbox: [[T; WIDTH]; NUM_EXTERNAL_ROUNDS],
@@ -182,20 +185,40 @@ pub type PermutationNoSboxHalfExternal<T> = PermutationNoSbox<T>;
 
 pub fn permutation_mut<'a, 'b: 'a, T, const DEGREE: usize>(
     row: &'b mut [T],
-) -> Box<dyn Poseidon2Mut<T> + 'a>
+) -> Box<&mut (dyn Poseidon2Mut<T> + 'a)>
 where
     T: Copy,
 {
     if DEGREE == 3 {
         let start = POSEIDON2_DEGREE3_COL_MAP.state.external_rounds_state[0][0];
         let end = start + size_of::<PermutationSBox<u8>>();
-        let convert: PermutationSBox<T> = *row[start..end].borrow_mut();
+        let convert: &mut PermutationSBox<T> = row[start..end].borrow_mut();
         Box::new(convert)
     } else if DEGREE == 9 || DEGREE == 17 {
         let start = POSEIDON2_DEGREE9_COL_MAP.state.external_rounds_state[0][0];
         let end = start + size_of::<PermutationNoSbox<u8>>();
 
-        let convert: PermutationNoSbox<T> = *row[start..end].borrow_mut();
+        let convert: &mut PermutationNoSbox<T> = row[start..end].borrow_mut();
+        Box::new(convert)
+    } else {
+        panic!("Unsupported degree");
+    }
+}
+
+pub fn permutation<'a, 'b: 'a, T, const DEGREE: usize>(row: &'b [T]) -> Box<dyn Poseidon2<T> + 'a>
+where
+    T: Copy,
+{
+    if DEGREE == 3 {
+        let start = POSEIDON2_DEGREE3_COL_MAP.state.external_rounds_state[0][0];
+        let end = start + size_of::<PermutationSBox<u8>>();
+        let convert: PermutationSBox<T> = *row[start..end].borrow();
+        Box::new(convert)
+    } else if DEGREE == 9 || DEGREE == 17 {
+        let start = POSEIDON2_DEGREE9_COL_MAP.state.external_rounds_state[0][0];
+        let end = start + size_of::<PermutationNoSbox<u8>>();
+
+        let convert: PermutationNoSbox<T> = *row[start..end].borrow();
         Box::new(convert)
     } else {
         panic!("Unsupported degree");

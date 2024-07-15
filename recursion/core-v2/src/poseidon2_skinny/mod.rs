@@ -24,7 +24,8 @@ pub const NUM_EXTERNAL_ROUNDS: usize = 8;
 pub const NUM_INTERNAL_ROUNDS: usize = 13;
 pub const NUM_ROUNDS: usize = NUM_EXTERNAL_ROUNDS + NUM_INTERNAL_ROUNDS;
 
-/// A chip that implements addition for the opcode Poseidon2Wide.
+/// A chip that implements the Poseidon2 permutation in the skinny variant (one external round per
+/// row and one row for all internal rounds).
 pub struct Poseidon2SkinnyChip<const DEGREE: usize> {
     pub fixed_log2_rows: Option<usize>,
     pub pad: bool,
@@ -160,7 +161,7 @@ pub(crate) mod tests {
         let instructions =
             (0..WIDTH)
                 .map(|i| instr::mem(MemAccessKind::Write, 1, i as u32, input[i]))
-                .chain(once(instr::poseidon2_wide(
+                .chain(once(instr::poseidon2_skinny(
                     [1; WIDTH],
                     std::array::from_fn(|i| (i + WIDTH) as u32),
                     std::array::from_fn(|i| i as u32),
@@ -172,7 +173,7 @@ pub(crate) mod tests {
                 .chain((0..WIDTH).map(|i| {
                     instr::mem(MemAccessKind::Write, 1, (2 * WIDTH + i) as u32, input_1[i])
                 }))
-                .chain(once(instr::poseidon2_wide(
+                .chain(once(instr::poseidon2_skinny(
                     [1; WIDTH],
                     std::array::from_fn(|i| (i + 3 * WIDTH) as u32),
                     std::array::from_fn(|i| (i + 2 * WIDTH) as u32),
