@@ -4,6 +4,9 @@ description = "Build an SP1 program."
 version = { workspace = true }
 edition = { workspace = true }
 license = { workspace = true }
+repository = { workspace = true }
+keywords = { workspace = true }
+categories = { workspace = true }
 
 [dependencies]
 cargo_metadata = "0.18.1"

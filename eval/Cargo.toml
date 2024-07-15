@@ -1,11 +1,13 @@
 [package]
+categories = { workspace = true }publish = false
+
+
 name = "sp1-eval"
 version = { workspace = true }
 edition = { workspace = true }
 license = { workspace = true }
-publish = false
-
-
+repository = { workspace = true }
+keywords = { workspace = true }
 [dependencies]
 sp1-core = { path = "../core", version = "0.0.2-test" }
 sp1-prover = { path = "../prover", version = "0.0.2-test" }

@@ -5,6 +5,9 @@ readme = "../README.md"
 version = { workspace = true }
 edition = { workspace = true }
 license = { workspace = true }
+repository = { workspace = true }
+keywords = { workspace = true }
+categories = { workspace = true }
 
 [dependencies]
 sp1-recursion-program = { path = "../recursion/program", version = "0.0.2-test" }
