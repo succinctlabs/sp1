@@ -261,7 +261,7 @@ where
         &mut self,
         dst: impl Reg<F, EF>,
         base: impl Reg<F, EF>,
-        exp: Vec<impl Reg<F, EF>>,
+        exp: impl IntoIterator<Item = impl Reg<F, EF>>,
     ) -> Instruction<F> {
         Instruction::ExpReverseBitsLen(ExpReverseBitsInstr {
             addrs: ExpReverseBitsIo {
@@ -276,7 +276,7 @@ where
     fn hint_bit_decomposition(
         &mut self,
         value: impl Reg<F, EF>,
-        output: Vec<impl Reg<F, EF>>,
+        output: impl IntoIterator<Item = impl Reg<F, EF>>,
     ) -> Instruction<F> {
         Instruction::HintBits(HintBitsInstr {
             output_addrs_mults: output
@@ -533,6 +533,32 @@ trait Reg<F, EF> {
     /// Mark the register as to be written to, returning the "physical" address.
     fn write(&self, compiler: &mut AsmCompiler<F, EF>) -> Address<F>;
 }
+
+macro_rules! impl_reg_borrowed {
+    ($a:ty) => {
+        impl<F, EF, T> Reg<F, EF> for $a
+        where
+            T: Reg<F, EF> + ?Sized,
+        {
+            fn read(&self, compiler: &mut AsmCompiler<F, EF>) -> Address<F> {
+                (**self).read(compiler)
+            }
+
+            fn read_ghost(&self, compiler: &mut AsmCompiler<F, EF>) -> Address<F> {
+                (**self).read_ghost(compiler)
+            }
+
+            fn write(&self, compiler: &mut AsmCompiler<F, EF>) -> Address<F> {
+                (**self).write(compiler)
+            }
+        }
+    };
+}
+
+// Allow for more flexibility in arguments.
+impl_reg_borrowed!(&T);
+impl_reg_borrowed!(&mut T);
+impl_reg_borrowed!(Box<T>);
 
 macro_rules! impl_reg_fp {
     ($a:ty) => {
