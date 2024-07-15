@@ -24,6 +24,7 @@ use sp1_recursion_compiler::prelude::SymbolicVar;
 use sp1_recursion_core::air::{RecursionPublicValues, NUM_PV_ELMS_TO_HASH};
 use sp1_recursion_core::stark::config::{outer_fri_config, BabyBearPoseidon2Outer};
 use sp1_recursion_core::stark::RecursionAirWideDeg17;
+use sp1_recursion_core_v2::machine::RecursionAir;
 use sp1_recursion_program::commit::PolynomialSpaceVariable;
 use sp1_recursion_program::stark::RecursiveVerifierConstraintFolder;
 use sp1_recursion_program::types::QuotientDataValues;
@@ -244,7 +245,7 @@ pub fn build_wrap_circuit(
     template_proof: ShardProof<OuterSC>,
 ) -> Vec<Constraint> {
     let outer_config = OuterSC::new();
-    let outer_machine = RecursionAirWideDeg17::<OuterF>::wrap_machine(outer_config);
+    let outer_machine = RecursionAir::<OuterF, 17>::machine(outer_config);
 
     let mut builder = Builder::<OuterConfig>::default();
     let mut challenger = MultiField32ChallengerVariable::new(&mut builder);
@@ -364,13 +365,69 @@ pub fn build_wrap_circuit(
 #[cfg(test)]
 pub(crate) mod tests {
 
-    use p3_field::PrimeField32;
-    use sp1_recursion_core::{
-        cpu::Instruction,
-        runtime::{Opcode, RecursionProgram},
-    };
+    use std::iter::once;
 
-    pub fn basic_program<F: PrimeField32>() -> RecursionProgram<F> {
+    use p3_baby_bear::DiffusionMatrixBabyBear;
+    use sp1_core::{
+        stark::StarkGenericConfig,
+        utils::{run_test_machine, setup_logger, BabyBearPoseidon2Inner},
+    };
+    // use sp1_recursion_compiler::{config::OuterConfig, constraints::ConstraintCompiler, ir::Felt};
+    use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
+
+    use super::build_wrap_circuit;
+    use sp1_recursion_core_v2::{
+        machine::RecursionAir, runtime::instruction as instr, BaseAluOpcode, MemAccessKind,
+        RecursionProgram, Runtime,
+    };
+    type SC = BabyBearPoseidon2Outer;
+    type F = <SC as StarkGenericConfig>::Val;
+    type EF = <SC as StarkGenericConfig>::Challenge;
+    type A = RecursionAir<F, 17>;
+
+    pub fn test_new_machine<
+        const FRI_FOLD_PADDING: usize,
+        const ERBL_PADDING: usize,
+        const POSEIDON2_PADDING: usize,
+    >() {
+        setup_logger();
+        let n = 10;
+
+        let instructions = once(instr::mem(MemAccessKind::Write, 1, 0, 0))
+            .chain(once(instr::mem(MemAccessKind::Write, 2, 1, 1)))
+            .chain((2..=n).map(|i| instr::base_alu(BaseAluOpcode::AddF, 2, i, i - 2, i - 1)))
+            .chain(once(instr::mem(MemAccessKind::Read, 1, n - 1, 34)))
+            .chain(once(instr::mem(MemAccessKind::Read, 2, n, 55)))
+            .collect::<Vec<_>>();
+
+        let program = RecursionProgram { instructions };
+        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(
+            &program,
+            BabyBearPoseidon2Inner::new().perm,
+        );
+        runtime.run();
+
+        let config = SC::new();
+        let machine =
+            A::machine_with_padding(config, FRI_FOLD_PADDING, POSEIDON2_PADDING, ERBL_PADDING);
+        let (pk, vk) = machine.setup(&program);
+        let result = run_test_machine(vec![runtime.record], machine, pk, vk.clone()).unwrap();
+
+        let constraints = build_wrap_circuit(&vk, result.shard_proofs[0].clone());
+        println!("Number of constraints: {:?}", constraints.len());
+    }
+
+    #[test]
+    pub fn test_new_machine_diff_paddings() {
+        test_new_machine::<12, 12, 12>();
+        test_new_machine::<16, 16, 16>();
+        test_new_machine::<20, 20, 20>();
+    }
+
+    use sp1_recursion_core::{cpu::Instruction, runtime::Opcode};
+
+    pub fn basic_program<F: p3_field::PrimeField32>(
+    ) -> sp1_recursion_core::runtime::RecursionProgram<F> {
         let zero = [F::zero(); 4];
         let one = [F::one(), F::zero(), F::zero(), F::zero()];
         let mut instructions = vec![Instruction::new(
@@ -409,7 +466,7 @@ pub(crate) mod tests {
             true,
             "".to_string(),
         ));
-        RecursionProgram::<F> {
+        sp1_recursion_core::runtime::RecursionProgram::<F> {
             instructions,
             traces: vec![None],
         }

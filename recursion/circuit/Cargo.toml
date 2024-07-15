@@ -19,6 +19,7 @@ itertools = "0.13.0"
 serde = { version = "1.0.204", features = ["derive"] }
 sp1-recursion-derive = { path = "../derive", version = "0.0.2-test" }
 sp1-recursion-compiler = { path = "../compiler", version = "0.0.2-test" }
+sp1-recursion-core-v2 = { path = "../core-v2", version = "0.0.2-test" }
 sp1-recursion-program = { path = "../program", version = "0.0.2-test" }
 p3-bn254-fr = { workspace = true }
 p3-baby-bear = { workspace = true }

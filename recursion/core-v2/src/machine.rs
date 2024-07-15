@@ -40,6 +40,19 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
         StarkMachine::new(config, chips, PROOF_MAX_NUM_PVS)
     }
 
+    pub fn machine_with_padding<SC: StarkGenericConfig<Val = F>>(
+        config: SC,
+        fri_fold_padding: usize,
+        poseidon2_padding: usize,
+        erbl_padding: usize,
+    ) -> StarkMachine<SC, Self> {
+        let chips = Self::get_all_with_padding(fri_fold_padding, poseidon2_padding, erbl_padding)
+            .into_iter()
+            .map(Chip::new)
+            .collect::<Vec<_>>();
+        StarkMachine::new(config, chips, PROOF_MAX_NUM_PVS)
+    }
+
     // /// A recursion machine with fixed trace sizes tuned to work specifically for the wrap layer.
     // pub fn wrap_machine<SC: StarkGenericConfig<Val = F>>(config: SC) -> StarkMachine<SC, Self> {
     //     let chips = Self::get_wrap_all()
@@ -68,6 +81,31 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
             RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE>::default()),
             RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>::default()),
             RecursionAir::FriFold(FriFoldChip::<DEGREE>::default()),
+        ]
+    }
+
+    pub fn get_all_with_padding(
+        fri_fold_padding: usize,
+        poseidon2_padding: usize,
+        erbl_padding: usize,
+    ) -> Vec<Self> {
+        vec![
+            RecursionAir::Program(ProgramChip::default()),
+            RecursionAir::Memory(MemoryChip::default()),
+            RecursionAir::BaseAlu(BaseAluChip::default()),
+            RecursionAir::ExtAlu(ExtAluChip::default()),
+            RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE> {
+                fixed_log2_rows: Some(poseidon2_padding),
+                pad: true,
+            }),
+            RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE> {
+                fixed_log2_rows: Some(erbl_padding),
+                pad: true,
+            }),
+            RecursionAir::FriFold(FriFoldChip::<DEGREE> {
+                fixed_log2_rows: Some(fri_fold_padding),
+                pad: true,
+            }),
         ]
     }
 
