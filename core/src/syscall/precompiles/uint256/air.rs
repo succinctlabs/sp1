@@ -397,9 +397,6 @@ where
         );
 
         // Assert that the correct result is being written to x_memory.
-        let rhs = value_as_limbs(&local.x_memory);
-        let lhs = local.output.result;
-
         builder
             .when(local.is_real)
             .assert_all_eq(local.output.result, value_as_limbs(&local.x_memory));

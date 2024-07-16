@@ -11,10 +11,7 @@ pub use fp12::*;
 
 use num_bigint::BigUint;
 
-use crate::{
-    operations::field::params::FieldParameters,
-    utils::{bytes_to_words_le, words_to_bytes_le_vec},
-};
+use crate::utils::{bytes_to_words_le, words_to_bytes_le_vec};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[repr(C)]
@@ -103,18 +100,11 @@ pub struct Fp2 {
 }
 
 impl Fp2 {
-    pub(crate) fn to_words(self) -> [u32; 24] {
+    pub(crate) fn get_words(self) -> [u32; 24] {
         let mut bytes = [0; 24];
         bytes[..12].copy_from_slice(&self.c0.to_words());
         bytes[12..].copy_from_slice(&self.c1.to_words());
         bytes
-    }
-
-    pub(crate) fn from_words(bytes: &[u32; 24]) -> Self {
-        Self {
-            c0: Fp::from_words(bytes[..12].try_into().unwrap()),
-            c1: Fp::from_words(bytes[12..].try_into().unwrap()),
-        }
     }
 
     fn mul_by_nonresidue(self) -> Self {
@@ -175,20 +165,12 @@ pub struct Fp6 {
 }
 
 impl Fp6 {
-    pub(crate) fn to_words(&self) -> [u32; 72] {
+    pub(crate) fn get_words(&self) -> [u32; 72] {
         let mut bytes = [0; 72];
-        bytes[..24].copy_from_slice(&self.c0.to_words());
-        bytes[24..48].copy_from_slice(&self.c1.to_words());
-        bytes[48..].copy_from_slice(&self.c2.to_words());
+        bytes[..24].copy_from_slice(&self.c0.get_words());
+        bytes[24..48].copy_from_slice(&self.c1.get_words());
+        bytes[48..].copy_from_slice(&self.c2.get_words());
         bytes
-    }
-
-    pub(crate) fn from_words(bytes: &[u32; 72]) -> Self {
-        Self {
-            c0: Fp2::from_words(bytes[..24].try_into().unwrap()),
-            c1: Fp2::from_words(bytes[24..48].try_into().unwrap()),
-            c2: Fp2::from_words(bytes[48..].try_into().unwrap()),
-        }
     }
 
     fn mul_by_nonresidue(&self) -> Fp6 {
@@ -289,18 +271,14 @@ pub struct Fp12 {
 }
 
 impl Fp12 {
-    pub(crate) fn to_words(self) -> [u32; 144] {
+    pub(crate) fn get_words(self) -> [u32; 144] {
         let mut bytes = [0; 144];
-        bytes[..72].copy_from_slice(&self.c0.to_words());
-        bytes[72..].copy_from_slice(&self.c1.to_words());
+        bytes[..72].copy_from_slice(&self.c0.get_words());
+        bytes[72..].copy_from_slice(&self.c1.get_words());
         bytes
     }
 
     pub(crate) fn from_words(bytes: &[u32; 144]) -> Self {
-        // Self {
-        //     c0: Fp6::from_words(bytes[..72].try_into().unwrap()),
-        //     c1: Fp6::from_words(bytes[72..].try_into().unwrap()),
-        // }
         unsafe { transmute::<[u32; 144], Self>(*bytes) }
     }
 }

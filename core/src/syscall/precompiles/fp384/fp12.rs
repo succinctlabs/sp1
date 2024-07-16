@@ -61,8 +61,8 @@ trait Fp12Builder<F> {
         dest: &mut SumOfProductsAuxillaryCols<F>,
         b: [&Self::DType; 6],
     ) -> [Self::DType; 4] {
-        let b00 = b[0];
-        let b01 = b[1];
+        let _b00 = b[0];
+        let _b01 = b[1];
         let b10 = b[2];
         let b11 = b[3];
         let b20 = b[4];
@@ -308,8 +308,8 @@ trait Fp12Builder<F> {
         let a20 = &a[4];
         let a21 = &a[5];
 
-        let c00 = self._sub(&mut dest.c00, &a20, &a21);
-        let c01 = self._add(&mut dest.c01, &a20, &a21);
+        let c00 = self._sub(&mut dest.c00, a20, a21);
+        let c01 = self._add(&mut dest.c01, a20, a21);
 
         let c10 = a00;
         let c11 = a01;
@@ -1032,7 +1032,7 @@ impl<P: FieldParameters> Syscall for Fp12MulChip<P> {
 
         let result = lhs * rhs;
 
-        let a_memory_records = rt.mw_slice(a_ptr, &result.to_words());
+        let a_memory_records = rt.mw_slice(a_ptr, &result.get_words());
 
         let lookup_id = rt.syscall_lookup_id;
         let shard = rt.current_shard();

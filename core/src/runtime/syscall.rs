@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 use strum_macros::EnumIter;
 
 use crate::runtime::{Register, Runtime};
-use crate::stark::Bls12381Parameters;
 use crate::syscall::precompiles::edwards::EdAddAssignChip;
 use crate::syscall::precompiles::edwards::EdDecompressChip;
 use crate::syscall::precompiles::fp384::{Fp12MulChip, FpMulChip};
