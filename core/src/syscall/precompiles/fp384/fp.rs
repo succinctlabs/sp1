@@ -2,7 +2,7 @@ use crate::air::{BaseAirBuilder, MachineAir, Polynomial, SP1AirBuilder, WORD_SIZ
 use crate::bytes::event::ByteRecord;
 use crate::memory::{value_as_limbs, MemoryReadCols, MemoryWriteCols};
 use crate::operations::field::field_op::{FieldOpCols, FieldOperation};
-use crate::operations::field::params::NumWords;
+use crate::operations::field::params::{limbs_from_vec, NumWords};
 use crate::operations::field::params::{Limbs, NumLimbs};
 use crate::operations::IsZeroOperation;
 use crate::runtime::{ExecutionRecord, Program, Syscall, SyscallCode};

@@ -106,3 +106,6 @@ pub const BLS12381_DOUBLE: u32 = 0x00_00_01_1F;
 
 /// Executes the `FP_MUL` precompile.
 pub const FP_MUL: u32 = 0x00_01_01_20;
+
+/// Executes the `FP12_MUL` precompile.
+pub const FP12_MUL: u32 = 0x00_01_01_21;
