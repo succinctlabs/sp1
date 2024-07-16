@@ -19,6 +19,12 @@ func Prove(dataDir string, witnessPath string) Proof {
 		}
 	}()
 
+	println("proving")
+	println("data_dir: ", dataDir)
+	println("witness_path: ", witnessPath)
+	println("circuit_path: ", circuitPath)
+	println("starting proving")
+
 	// Sanity check the required arguments have been provided.
 	if dataDir == "" {
 		panic("dataDirStr is required")
