@@ -273,7 +273,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.add_events = vec![AluEvent::new(0, 0, 0, Opcode::ADD, 14, 8, 6)];
+        shard.add_events = vec![AluEvent::new(0, 0, Opcode::ADD, 14, 8, 6)];
         let chip = AddSubChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
@@ -293,7 +293,6 @@ mod tests {
             shard.add_events.push(AluEvent::new(
                 0,
                 i % 2,
-                0,
                 Opcode::ADD,
                 result,
                 operand_1,
@@ -307,7 +306,6 @@ mod tests {
             shard.add_events.push(AluEvent::new(
                 0,
                 i % 2,
-                0,
                 Opcode::SUB,
                 result,
                 operand_1,

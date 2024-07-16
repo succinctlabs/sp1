@@ -1,7 +1,6 @@
-pub mod air;
-pub mod columns;
+pub mod aux;
 pub mod event;
-pub mod trace;
+pub mod main;
 
 pub use event::*;
 
@@ -11,3 +10,7 @@ pub const MAX_CPU_LOG_DEGREE: usize = 22;
 /// A chip that implements the CPU.
 #[derive(Default)]
 pub struct CpuChip;
+
+/// A chip that implements non ALU opcodes.
+#[derive(Default)]
+pub struct CpuAuxChip;

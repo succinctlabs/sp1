@@ -367,7 +367,6 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                                 lookup_id: event.sub_lookups[4],
                                 shard: event.shard,
                                 channel: event.channel,
-                                clk: event.clk,
                                 opcode: Opcode::ADD,
                                 a: 0,
                                 b: event.c,
@@ -380,7 +379,6 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                                 lookup_id: event.sub_lookups[5],
                                 shard: event.shard,
                                 channel: event.channel,
-                                clk: event.clk,
                                 opcode: Opcode::ADD,
                                 a: 0,
                                 b: remainder,
@@ -407,7 +405,6 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                         lookup_id: event.sub_lookups[0],
                         shard: event.shard,
                         channel: event.channel,
-                        clk: event.clk,
                         opcode: Opcode::MUL,
                         a: lower_word,
                         c: event.c,
@@ -427,7 +424,6 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                         lookup_id: event.sub_lookups[1],
                         shard: event.shard,
                         channel: event.channel,
-                        clk: event.clk,
                         opcode: {
                             if is_signed_operation(event.opcode) {
                                 Opcode::MULH
@@ -464,7 +460,6 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                             a: 1,
                             b: (remainder as i32).abs() as u32,
                             c: u32::max(1, (event.c as i32).abs() as u32),
-                            clk: event.clk,
                             sub_lookups: create_alu_lookups(),
                         }
                     } else {
@@ -483,7 +478,6 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                             a: 1,
                             b: remainder,
                             c: u32::max(1, event.c),
-                            clk: event.clk,
                             sub_lookups: create_alu_lookups(),
                         }
                     };
@@ -993,7 +987,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.divrem_events = vec![AluEvent::new(0, 0, 0, Opcode::DIVU, 2, 17, 3)];
+        shard.divrem_events = vec![AluEvent::new(0, 0, Opcode::DIVU, 2, 17, 3)];
         let chip = DivRemChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
@@ -1046,12 +1040,12 @@ mod tests {
             (Opcode::REM, 0, 1 << 31, neg(1)),
         ];
         for t in divrems.iter() {
-            divrem_events.push(AluEvent::new(0, 9, 0, t.0, t.1, t.2, t.3));
+            divrem_events.push(AluEvent::new(0, 9, t.0, t.1, t.2, t.3));
         }
 
         // Append more events until we have 1000 tests.
         for _ in 0..(1000 - divrems.len()) {
-            divrem_events.push(AluEvent::new(0, 0, 0, Opcode::DIVU, 1, 1, 1));
+            divrem_events.push(AluEvent::new(0, 0, Opcode::DIVU, 1, 1, 1));
         }
 
         let mut shard = ExecutionRecord::default();

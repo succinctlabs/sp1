@@ -1,22 +1,10 @@
-mod auipc;
-mod branch;
-mod channel;
-mod ecall;
-mod instruction;
-mod jump;
-mod memory;
-mod opcode;
-mod opcode_specific;
+pub mod channel;
+pub mod instruction;
+pub mod opcode;
 
-pub use auipc::*;
-pub use branch::*;
 pub use channel::*;
-pub use ecall::*;
 pub use instruction::*;
-pub use jump::*;
-pub use memory::*;
 pub use opcode::*;
-pub use opcode_specific::*;
 
 use p3_util::indices_arr;
 use sp1_derive::AlignedBorrow;
@@ -69,50 +57,18 @@ pub struct CpuCols<T: Copy> {
     pub op_b_access: MemoryReadCols<T>,
     pub op_c_access: MemoryReadCols<T>,
 
-    pub opcode_specific_columns: OpcodeSpecificCols<T>,
+    pub is_halt: T,
 
     /// Selector to label whether this row is a non padded row.
     pub is_real: T,
-
-    /// The branching column is equal to:
-    ///
-    /// > is_beq & a_eq_b ||
-    /// > is_bne & (a_lt_b | a_gt_b) ||
-    /// > (is_blt | is_bltu) & a_lt_b ||
-    /// > (is_bge | is_bgeu) & (a_eq_b | a_gt_b)
-    pub branching: T,
-
-    /// The not branching column is equal to:
-    ///
-    /// > is_beq & !a_eq_b ||
-    /// > is_bne & !(a_lt_b | a_gt_b) ||
-    /// > (is_blt | is_bltu) & !a_lt_b ||
-    /// > (is_bge | is_bgeu) & !(a_eq_b | a_gt_b)
-    pub not_branching: T,
-
-    /// The memory value is negative column is equal to:
-    ///
-    /// > (is_lbu | is_lhu) & (most_sig_byte_decomp[7] == 1)
-    pub mem_value_is_neg: T,
-
-    /// The unsigned memory value is the value after the offset logic is applied. Used for the load
-    /// memory opcodes (i.e. LB, LH, LW, LBU, and LHU).
-    pub unsigned_mem_val: Word<T>,
-
-    pub unsigned_mem_val_nonce: T,
-
-    /// The result of selectors.is_ecall * the send_to_table column for the ECALL opcode.
-    pub ecall_mul_send_to_table: T,
-
-    /// The result of selectors.is_ecall * (is_halt || is_commit_deferred_proofs)
-    pub ecall_range_check_operand: T,
-
-    /// This is true for all instructions that are not jumps, branches, and halt.  Those instructions
-    /// may move the program counter to a non sequential instruction.
-    pub is_sequential_instr: T,
 }
 
 impl<T: Copy> CpuCols<T> {
+    /// Gets the prev value of the first operand.
+    pub fn op_a_prev_val(&self) -> Word<T> {
+        *self.op_a_access.prev_value()
+    }
+
     /// Gets the value of the first operand.
     pub fn op_a_val(&self) -> Word<T> {
         *self.op_a_access.value()

@@ -3,6 +3,7 @@ use std::mem::size_of;
 
 use crate::{air::Word, operations::BabyBearWordRangeChecker};
 
+#[allow(dead_code)]
 pub const NUM_JUMP_COLS: usize = size_of::<JumpCols<u8>>();
 
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]

@@ -1,7 +1,7 @@
 use p3_field::AbstractField;
 
 use crate::air::WordAirBuilder;
-use crate::cpu::columns::CpuCols;
+use crate::cpu::main::columns::CpuCols;
 use crate::memory::MemoryCols;
 use crate::runtime::MemoryAccessPosition;
 use crate::stark::{CpuChip, SP1AirBuilder};
@@ -68,7 +68,7 @@ impl CpuChip {
 
         // If we are performing a branch or a store, then the value of `a` is the previous value.
         builder
-            .when(is_branch_instruction.clone() + self.is_store_instruction::<AB>(&local.selectors))
+            .when(is_branch_instruction.clone() + local.selectors.is_store_instruction::<AB>())
             .assert_word_eq(local.op_a_val(), local.op_a_access.prev_value);
     }
 }

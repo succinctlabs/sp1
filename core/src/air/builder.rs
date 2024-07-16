@@ -11,8 +11,8 @@ use p3_uni_stark::{ProverConstraintFolder, SymbolicAirBuilder, VerifierConstrain
 use super::interaction::AirInteraction;
 use super::word::Word;
 use super::{BinomialExtension, WORD_SIZE};
-use crate::cpu::columns::InstructionCols;
-use crate::cpu::columns::OpcodeSelectorCols;
+use crate::cpu::main::columns::InstructionCols;
+use crate::cpu::main::columns::OpcodeSelectorCols;
 use crate::lookup::InteractionKind;
 use crate::memory::MemoryAccessCols;
 use crate::{bytes::ByteOpcode, memory::MemoryCols};
@@ -653,6 +653,87 @@ pub trait ProgramAirBuilder: BaseAirBuilder {
     }
 }
 
+/// A trait which contains methods related to cpu instruction interactions in an AIR.
+pub trait InstructionAirBuilder: BaseAirBuilder {
+    /// Sends an instruction.
+    #[allow(clippy::too_many_arguments)]
+    fn send_instruction(
+        &mut self,
+        clk: impl Into<Self::Expr>,
+        shard: impl Into<Self::Expr>,
+        channel: impl Into<Self::Expr>,
+        pc: impl Into<Self::Expr>,
+        next_pc: impl Into<Self::Expr>,
+        selectors: OpcodeSelectorCols<impl Into<Self::Expr> + Copy>,
+        prev_op_a_val: Word<impl Into<Self::Expr> + Copy>,
+        op_a_val: Word<impl Into<Self::Expr> + Copy>,
+        op_b_val: Word<impl Into<Self::Expr> + Copy>,
+        op_c_val: Word<impl Into<Self::Expr> + Copy>,
+        op_a_0: impl Into<Self::Expr>,
+        is_halt: impl Into<Self::Expr>,
+        multiplicity: impl Into<Self::Expr>,
+    ) {
+        let values = once(clk.into())
+            .chain(once(shard.into()))
+            .chain(once(channel.into()))
+            .chain(once(pc.into()))
+            .chain(once(next_pc.into()))
+            .chain(selectors.into_iter().map(|x| x.into()))
+            .chain(prev_op_a_val.0.into_iter().map(|x| x.into()))
+            .chain(op_a_val.0.into_iter().map(|x| x.into()))
+            .chain(op_b_val.0.into_iter().map(|x| x.into()))
+            .chain(op_c_val.0.into_iter().map(|x| x.into()))
+            .chain(once(op_a_0.into()))
+            .chain(once(is_halt.into()))
+            .collect();
+
+        self.send(AirInteraction::new(
+            values,
+            multiplicity.into(),
+            InteractionKind::Instruction,
+        ));
+    }
+
+    /// Receives an instruction.
+    #[allow(clippy::too_many_arguments)]
+    fn receive_instruction(
+        &mut self,
+        clk: impl Into<Self::Expr>,
+        shard: impl Into<Self::Expr>,
+        channel: impl Into<Self::Expr>,
+        pc: impl Into<Self::Expr>,
+        next_pc: impl Into<Self::Expr>,
+        selectors: OpcodeSelectorCols<impl Into<Self::Expr> + Copy>,
+        prev_op_a_val: Word<impl Into<Self::Expr> + Copy>,
+        op_a_val: Word<impl Into<Self::Expr> + Copy>,
+        op_b_val: Word<impl Into<Self::Expr> + Copy>,
+        op_c_val: Word<impl Into<Self::Expr> + Copy>,
+        op_a_0: impl Into<Self::Expr>,
+        is_halt: impl Into<Self::Expr>,
+        multiplicity: impl Into<Self::Expr>,
+    ) {
+        let values = once(clk.into())
+            .chain(once(shard.into()))
+            .chain(once(channel.into()))
+            .chain(once(pc.into()))
+            .chain(once(next_pc.into()))
+            .chain(selectors.into_iter().map(|x| x.into()))
+            .chain(prev_op_a_val.0.into_iter().map(|x| x.into()))
+            .chain(op_a_val.0.into_iter().map(|x| x.into()))
+            .chain(op_b_val.0.into_iter().map(|x| x.into()))
+            .chain(op_c_val.0.into_iter().map(|x| x.into()))
+            .chain(once(op_a_0.into()))
+            .chain(once(is_halt.into()))
+            .collect();
+
+        self.receive(AirInteraction::new(
+            values,
+            multiplicity.into(),
+            InteractionKind::Instruction,
+        ));
+    }
+}
+
 pub trait ExtensionAirBuilder: BaseAirBuilder {
     /// Asserts that the two field extensions are equal.
     fn assert_ext_eq<I: Into<Self::Expr>>(
@@ -710,6 +791,7 @@ pub trait SP1AirBuilder:
     + AluAirBuilder
     + MemoryAirBuilder
     + ProgramAirBuilder
+    + InstructionAirBuilder
 {
 }
 
@@ -729,6 +811,7 @@ impl<AB: BaseAirBuilder> WordAirBuilder for AB {}
 impl<AB: BaseAirBuilder> AluAirBuilder for AB {}
 impl<AB: BaseAirBuilder> MemoryAirBuilder for AB {}
 impl<AB: BaseAirBuilder> ProgramAirBuilder for AB {}
+impl<AB: BaseAirBuilder> InstructionAirBuilder for AB {}
 impl<AB: BaseAirBuilder> ExtensionAirBuilder for AB {}
 impl<AB: BaseAirBuilder + AirBuilderWithPublicValues> MachineAirBuilder for AB {}
 impl<AB: BaseAirBuilder + AirBuilderWithPublicValues> SP1AirBuilder for AB {}
