@@ -194,11 +194,6 @@ where
 
         // Observe the preprocessed commitment.
         pk.observe_into(challenger);
-        // // Save the public values for each shard.
-        // let public_values = records
-        //     .iter()
-        //     .map(|record| record.public_values::<SC::Val>()[0..self.num_pv_elts()].to_vec())
-        //     .collect::<Vec<_>>();
 
         // Generate and commit the traces for each shard.
         let shard_data = records
