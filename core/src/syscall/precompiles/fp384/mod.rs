@@ -26,6 +26,14 @@ impl Fp {
         246, 160, 210, 48, 103, 191, 18, 133, 243, 132, 75, 119, 100, 215, 172, 75, 67, 182, 167,
         27, 75, 154, 230, 127, 57, 234, 17, 1, 26,
     ];
+    const R_INV: [u64; 6] = [
+        0xf4d38259380b4820,
+        0x7fe11274d898fafb,
+        0x343ea97914956dc8,
+        0x1797ab1458a88de9,
+        0xed5e64273c4f538b,
+        0x14fec701e8fb0ce9,
+    ];
     pub(crate) fn to_words(self) -> [u32; 12] {
         unsafe { transmute(self.0) }
     }
@@ -43,6 +51,9 @@ impl Mul for Fp {
         let lhs = BigUint::from_bytes_le(&words_to_bytes_le_vec(&other.to_words()));
 
         let out = (lhs * rhs) % BigUint::from_bytes_le(Self::MODULUS);
+        let out = (out * BigUint::from_slice(&Fp(Self::R_INV).to_words()))
+            % BigUint::from_bytes_le(Self::MODULUS);
+
         let mut padded = out.to_bytes_le();
         padded.resize(48, 0);
         Self::from_words(&bytes_to_words_le::<12>(&padded))
@@ -321,6 +332,36 @@ impl Mul for Fp12 {
 
         Fp12 { c0, c1 }
     }
+}
+
+#[test]
+fn test_fp_multiplication() {
+    let a = Fp([
+        0x0397_a383_2017_0cd4,
+        0x734c_1b2c_9e76_1d30,
+        0x5ed2_55ad_9a48_beb5,
+        0x095a_3c6b_22a7_fcfc,
+        0x2294_ce75_d4e2_6a27,
+        0x1333_8bd8_7001_1ebb,
+    ]);
+    let b = Fp([
+        0xb9c3_c7c5_b119_6af7,
+        0x2580_e208_6ce3_35c1,
+        0xf49a_ed3d_8a57_ef42,
+        0x41f2_81e4_9846_e878,
+        0xe076_2346_c384_52ce,
+        0x0652_e893_26e5_7dc0,
+    ]);
+    let c = Fp([
+        0xf96e_f3d7_11ab_5355,
+        0xe8d4_59ea_00f1_48dd,
+        0x53f7_354a_5f00_fa78,
+        0x9e34_a4f3_125c_5f83,
+        0x3fbe_0c47_ca74_c19e,
+        0x01b0_6a8b_bd4a_dfe4,
+    ]);
+
+    assert_eq!(a * b, c);
 }
 #[test]
 fn test_fp_addition() {
