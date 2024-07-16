@@ -258,19 +258,6 @@ where
             }
 
             records_tx.send(records).unwrap();
-
-            // let commitments = records
-            //     .par_iter()
-            //     .map(|record| prover.commit(record))
-            //     .collect::<Vec<_>>();
-
-            // for (commitment, record) in commitments.into_iter().zip(records) {
-            //     prover.update(
-            //         &mut challenger,
-            //         commitment,
-            //         &record.public_values::<SC::Val>()[0..prover.machine().num_pv_elts()],
-            //     );
-            // }
         }
         drop(records_tx);
         let challenger = challenger_handle.join().unwrap();
@@ -350,12 +337,6 @@ where
             records.append(&mut deferred);
 
             records_tx.send(records).unwrap();
-
-            // shard_proofs.par_extend(records.into_par_iter().map(|record| {
-            //     prover
-            //         .commit_and_open(&pk, record, &mut challenger.clone())
-            //         .unwrap()
-            // }));
         }
         drop(records_tx);
         let shard_proofs = shard_proofs.join().unwrap();

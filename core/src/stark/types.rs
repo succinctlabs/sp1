@@ -37,66 +37,7 @@ impl<SC: StarkGenericConfig> ShardMainData<SC> {
             public_values,
         }
     }
-
-    // pub fn save<A: MachineAir<SC::Val>>(
-    //     &self,
-    //     file: File,
-    // ) -> Result<ShardMainDataWrapper<SC, A>, Error>
-    // where
-    //     ShardMainData<SC>: Serialize,
-    // {
-    //     let mut writer = BufWriter::new(&file);
-    //     bincode::serialize_into(&mut writer, self)?;
-    //     drop(writer);
-    //     let metadata = file.metadata()?;
-    //     let bytes_written = metadata.len();
-    //     trace!(
-    //         "wrote {} while saving ShardMainData",
-    //         Size::from_bytes(bytes_written)
-    //     );
-    //     Ok(ShardMainDataWrapper::TempFile(file, bytes_written))
-    // }
-
-    // pub const fn to_in_memory<A: MachineAir<SC::Val>>(self) -> ShardMainDataWrapper<SC, A> {
-    //     ShardMainDataWrapper::InMemory(self)
-    // }
 }
-
-// pub enum ShardMainDataWrapper<SC: StarkGenericConfig, A: MachineAir<SC::Val>> {
-//     InMemory(ShardMainData<SC>),
-//     TempFile(File, u64),
-//     Shard(A::Record),
-// }
-
-// impl<SC: StarkGenericConfig, A: MachineAir<SC::Val>> ShardMainDataWrapper<SC, A>
-// where
-//     ShardMainData<SC>: DeserializeOwned,
-//     SC: 'static + StarkGenericConfig + Send + Sync,
-//     A: MachineAir<SC::Val>
-//         + for<'a> Air<ProverConstraintFolder<'a, SC>>
-//         + Air<InteractionBuilder<Val<SC>>>
-//         + for<'a> Air<VerifierConstraintFolder<'a, SC>>,
-//     A::Record: MachineRecord<Config = SP1CoreOpts>,
-//     SC::Val: PrimeField32,
-//     Com<SC>: Send + Sync,
-//     PcsProverData<SC>: Send + Sync,
-//     OpeningProof<SC>: Send + Sync,
-//     ShardMainData<SC>: Serialize + DeserializeOwned,
-//     SC::Challenger: Clone,
-// {
-//     pub fn materialize(self, prover: &DefaultProver<SC, A>) -> Result<ShardMainData<SC>, Error> {
-//         match self {
-//             Self::InMemory(data) => Ok(data),
-//             Self::TempFile(file, _) => {
-//                 let mut buffer = BufReader::new(&file);
-//                 buffer.seek(std::io::SeekFrom::Start(0))?;
-//                 let data = deserialize_from(&mut buffer)?;
-//                 Ok(data)
-//             }
-//             Self::Shard(record) => Ok(prover.commit_main(&record)),
-//         }
-//     }
-// }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShardCommitment<C> {
