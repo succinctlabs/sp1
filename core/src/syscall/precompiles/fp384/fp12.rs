@@ -1022,28 +1022,14 @@ impl<P: FieldParameters> Syscall for Fp12MulChip<P> {
         }
 
         // let num_fp12_words = <U384Field as NumWords>::WordsFieldElement::USIZE / LIMBS_PER_WORD;
-        println!("num_fp12_words: {:?}", NUM_FP_MULS);
-
         let a = rt.slice_unsafe(a_ptr, NUM_FP_MULS);
         let (b_memory_records, b) = rt.mr_slice(b_ptr, NUM_FP_MULS);
         rt.clk += 1;
 
-        println!("a: {:?}", a);
-        println!("len a: {:?}", a.len());
-        println!("b: {:?}", b);
-        println!("len b: {:?}", b.len());
-
         let lhs = Fp12::from_words(&(a.clone()).try_into().unwrap());
         let rhs = Fp12::from_words(&(b.clone()).try_into().unwrap());
 
-        println!("lhs {:?}", lhs);
-        println!("rhs {:?}", rhs);
-
         let result = lhs * rhs;
-
-        println!("result {:?}", result);
-
-        println!("result to words {:?}", result.to_words());
 
         let a_memory_records = rt.mw_slice(a_ptr, &result.to_words());
 
