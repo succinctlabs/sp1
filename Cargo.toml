@@ -12,6 +12,7 @@ members = [
   "recursion/compiler",
   "recursion/core",
   "recursion/core-v2",
+  "recursion/gnark-cli",
   "recursion/gnark-ffi",
   "recursion/program",
   "sdk",
@@ -19,6 +20,14 @@ members = [
 ]
 exclude = ["examples/target"]
 resolver = "2"
+
+[workspace.package]
+version = "0.0.2-test"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/succinctlabs/sp1"
+keywords = ["sp1", "succinct", "zero-knowledge", "zkvm"]
+categories = ["cryptography"]
 
 [profile.release]
 opt-level = 3
