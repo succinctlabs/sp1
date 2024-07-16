@@ -13,6 +13,7 @@
 
 pub mod build;
 pub mod components;
+pub mod new_circuit_tests;
 pub mod types;
 pub mod utils;
 pub mod verify;

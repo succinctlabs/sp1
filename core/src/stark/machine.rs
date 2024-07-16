@@ -383,12 +383,14 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                 let trace_width = traces[i].0.width();
                 let permutation_width = permutation_traces[i].width()
                     * <SC::Challenge as AbstractExtensionField<SC::Val>>::D;
+                let preprocessed_width = chips[i].preprocessed_width();
                 let total_width = trace_width + permutation_width;
                 tracing::debug!(
-                    "{:<11} | Main Cols = {:<5} | Perm Cols = {:<5} | Rows = {:<10} | Cells = {:<10}",
+                    "{:<11} | Main Cols = {:<5} | Perm Cols = {:<5} | Preprocessed Cols = {:<5} | Rows = {:<10} | Cells = {:<10}",
                     chips[i].name(),
                     trace_width,
                     permutation_width,
+                    preprocessed_width,
                     traces[i].0.height(),
                     total_width * traces[i].0.height(),
                 );

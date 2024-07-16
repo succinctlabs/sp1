@@ -4861,6 +4861,7 @@ dependencies = [
  "sp1-recursion-circuit",
  "sp1-recursion-compiler",
  "sp1-recursion-core",
+ "sp1-recursion-core-v2",
  "sp1-recursion-gnark-ffi",
  "sp1-recursion-program",
  "subtle-encoding",
