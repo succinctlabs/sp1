@@ -179,7 +179,6 @@ EOF
   say "done!"
 }
 
-# Downloads the C++ toolchain for RISC-V to SP1_BIN_DIR/riscv32-unknown-elf-gcc
 install_c_toolchain() {
   say "installing C++ toolchain for RISC-V"
 
@@ -212,29 +211,31 @@ install_c_toolchain() {
   esac
 
   TOOLCHAIN_ARCHIVE="/tmp/$(basename $TOOLCHAIN_URL)"
+  TOOLCHAIN_INSTALL_DIR="$SP1_DIR/riscv/riscv32im-${PLATFORM}-${ARCHITECTURE}"
 
-  # Check if the RISC-V GCC prebuilt binary archive already exists, otherwise download it
-  if [ -f "$TOOLCHAIN_ARCHIVE" ]; then
-    say "riscv-gcc-prebuilt archive already exists"
-  else
-    ensure download "$TOOLCHAIN_URL" "$TOOLCHAIN_ARCHIVE"
+  # Always re-download the RISC-V GCC prebuilt binary archive
+  ensure download "$TOOLCHAIN_URL" "$TOOLCHAIN_ARCHIVE"
+
+  # Create the ~/.sp1 directory if it doesn't exist
+  if [ ! -d "$SP1_DIR" ]; then
+    mkdir -p "$SP1_DIR"
   fi
 
-  # Extract the downloaded archive into a temporary directory
-  TEMP_DIR=$(mktemp -d)
+  # Create the target directory if it doesn't exist
+  if [ ! -d "$TOOLCHAIN_INSTALL_DIR" ]; then
+    mkdir -p "$TOOLCHAIN_INSTALL_DIR"
+  fi
+
+  # Extract the downloaded archive into the target directory
   if [ "$PLATFORM" = "win32" ]; then
-    ensure unzip "$TOOLCHAIN_ARCHIVE" -d "$TEMP_DIR" >/dev/null 2>&1
+    ensure unzip "$TOOLCHAIN_ARCHIVE" -d "$TOOLCHAIN_INSTALL_DIR" >/dev/null 2>&1
   else
-    ensure tar -xvf "$TOOLCHAIN_ARCHIVE" -C "$TEMP_DIR" >/dev/null 2>&1
+    ensure tar -xvf "$TOOLCHAIN_ARCHIVE" -C "$TOOLCHAIN_INSTALL_DIR" >/dev/null 2>&1
   fi
   rm -f "$TOOLCHAIN_ARCHIVE"
 
-  # Move the binaries to the target directory
-  mkdir -p "$SP1_BIN_DIR"
-  find "$TEMP_DIR" -name 'riscv32-unknown-elf-*' -exec mv {} "$SP1_BIN_DIR/" \;
-
-  # Clean up the temporary directory
-  rm -rf "$TEMP_DIR"
+  # Create a symbolic link to the gcc binary in the SP1_BIN_DIR
+  ln -sf "$TOOLCHAIN_INSTALL_DIR/bin/riscv32-unknown-elf-gcc" "$SP1_BIN_DIR/riscv32-unknown-elf-gcc"
 
   # Set environment variables for the RISC-V toolchain
   export PATH="$SP1_BIN_DIR:$PATH"
@@ -242,7 +243,6 @@ install_c_toolchain() {
 
   say "installed C++ toolchain for RISC-V and set environment variables"
 }
-
 
 determine_platform() {
   uname_s=$(uname -s)
