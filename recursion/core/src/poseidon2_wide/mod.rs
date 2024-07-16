@@ -209,7 +209,7 @@ pub(crate) mod tests {
                 let hash_num = i as u32;
                 let absorb_num = 0_u32;
                 let hash_and_absorb_num =
-                    BabyBear::from_canonical_u32(hash_num * (1 << 14) + absorb_num);
+                    BabyBear::from_canonical_u32(hash_num * (1 << 12) + absorb_num);
                 let start_addr = BabyBear::from_canonical_usize(i + 1);
                 let input_len = BabyBear::from_canonical_usize(*input_size);
 

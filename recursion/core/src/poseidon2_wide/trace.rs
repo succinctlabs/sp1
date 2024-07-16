@@ -259,9 +259,6 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                     RangeCheckOpcode::U16,
                     absorb_event.hash_num.as_canonical_u32() as u16,
                 )]);
-                if absorb_event.hash_num.as_canonical_u32() == 999u32 {
-                    println!("added range check event for hash_num 999");
-                }
                 absorb_workspace.absorb_num = absorb_event.absorb_num;
                 output.add_range_check_events(&[RangeCheckEvent::new(
                     RangeCheckOpcode::U12,
