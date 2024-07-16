@@ -245,7 +245,7 @@ pub fn build_wrap_circuit(
     template_proof: ShardProof<OuterSC>,
 ) -> Vec<Constraint> {
     let outer_config = OuterSC::new();
-    let outer_machine = RecursionAirWideDeg17::machine(outer_config);
+    let outer_machine = RecursionAirWideDeg17::<OuterF>::wrap_machine(outer_config);
 
     let mut builder = Builder::<OuterConfig>::default();
     let mut challenger = MultiField32ChallengerVariable::new(&mut builder);
