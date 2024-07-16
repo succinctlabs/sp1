@@ -8,7 +8,7 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 
 RUN curl -L https://sp1.succinct.xyz | bash && ~/.sp1/bin/sp1up
 
-# Install the C++ toolchain for RISC-V
+# Install the C++ toolchain for RISC-V and create a symlink to it in /root/.sp1/bin
 RUN mkdir -p /root/.sp1/riscv \
     && curl -L https://github.com/risc0/toolchain/releases/download/2022.03.25/riscv32im-linux-x86_64.tar.xz -o /tmp/riscv32im-linux-x86_64.tar.xz \
     && tar -xvf /tmp/riscv32im-linux-x86_64.tar.xz -C /root/.sp1/riscv/ \

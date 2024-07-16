@@ -84,7 +84,7 @@ To resolve this, re-install sp1 with the `--c-toolchain` flag:
 sp1up --c-toolchain
 ```
 
-This will install the RISC-V toolchain and set the `CC_riscv32im_succinct_zkvm_elf` environment
+This will install the C++ toolchain for RISC-V and set the `CC_riscv32im_succinct_zkvm_elf` environment
 variable to the path of the installed `riscv32-unknown-elf-gcc` binary. You can also use your own
 C++ toolchain be setting this variable manually:
 
