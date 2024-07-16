@@ -1,19 +1,19 @@
 [package]
 name = "sp1-prover"
-version = "0.0.0-test"
+version = "0.0.2-test"
 edition = "2021"
 description = "SP1 is a performant, 100% open-source, contributor-friendly zkVM."
 readme = "../README.md"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-sp1-recursion-program = { path = "../recursion/program" }
-sp1-recursion-circuit = { path = "../recursion/circuit" }
-sp1-recursion-compiler = { path = "../recursion/compiler" }
-sp1-recursion-core = { path = "../recursion/core" }
-sp1-recursion-gnark-ffi = { path = "../recursion/gnark-ffi" }
-sp1-core = { path = "../core" }
-sp1-primitives = { path = "../primitives" }
+sp1-recursion-program = { path = "../recursion/program", version = "0.0.2-test" }
+sp1-recursion-circuit = { path = "../recursion/circuit", version = "0.0.2-test" }
+sp1-recursion-compiler = { path = "../recursion/compiler", version = "0.0.2-test" }
+sp1-recursion-core = { path = "../recursion/core", version = "0.0.2-test" }
+sp1-recursion-gnark-ffi = { path = "../recursion/gnark-ffi", version = "0.0.2-test" }
+sp1-core = { path = "../core", version = "0.0.2-test" }
+sp1-primitives = { path = "../primitives", version = "0.0.2-test" }
 p3-field = { workspace = true }
 p3-challenger = { workspace = true }
 p3-baby-bear = { workspace = true }

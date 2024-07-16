@@ -57,7 +57,7 @@ fn test_compiler_conditionals() {
 
     let config = SC::default();
     let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
-    runtime.run();
+    runtime.run().unwrap();
 }
 
 #[test]
@@ -93,5 +93,5 @@ fn test_compiler_conditionals_v2() {
 
     let config = SC::default();
     let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
-    runtime.run();
+    runtime.run().unwrap();
 }
