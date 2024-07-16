@@ -963,7 +963,8 @@ impl<F: PrimeField32, P: FieldParameters> MachineAir<F> for Fp12MulChip<P> {
                             new_byte_lookup_events.clone(),
                             modulus,
                         );
-                        constraints.build_fp12_mul_constraints(&mut cols.output, &x, &y);
+                        let _result =
+                            constraints.build_fp12_mul_constraints(&mut cols.output, &x, &y);
                         new_byte_lookup_events = constraints.new_byte_lookup_events;
                         row
                     })
@@ -1008,7 +1009,7 @@ impl<F: PrimeField32, P: FieldParameters> MachineAir<F> for Fp12MulChip<P> {
 
 impl<P: FieldParameters> Syscall for Fp12MulChip<P> {
     fn num_extra_cycles(&self) -> u32 {
-        0
+        1
     }
 
     fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
