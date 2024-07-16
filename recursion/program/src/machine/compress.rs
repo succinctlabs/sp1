@@ -106,11 +106,7 @@ where
 impl<C: Config, SC, A> SP1CompressVerifier<C, SC, A>
 where
     C::F: PrimeField32 + TwoAdicField,
-    SC: StarkGenericConfig<
-        Val = C::F,
-        Challenge = C::EF,
-        Domain = TwoAdicMultiplicativeCoset<C::F>,
-    >,
+    SC: StarkGenericConfig<Val = C::F, Challenge = C::EF, Domain = TwoAdicMultiplicativeCoset<C::F>>,
     A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
     Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
 {
@@ -479,10 +475,13 @@ where
                     });
                 }
                 builder.if_eq(is_zero, C::N::zero()).then(|builder| {
-                    builder.assert_felt_eq(
-                        deferred_proofs_digest[0],
-                        current_public_values.deferred_proofs_digest[0],
-                    );
+                    #[allow(clippy::needless_range_loop)]
+                    for i in 0..deferred_proofs_digest.len() {
+                        builder.assert_felt_eq(
+                            deferred_proofs_digest[i],
+                            current_public_values.deferred_proofs_digest[i],
+                        );
+                    }
                 });
 
                 // Update the deferred proofs digest.
