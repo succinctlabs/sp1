@@ -2,7 +2,6 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::cmp::Reverse;
 use std::error::Error;
-use std::sync::atomic::{AtomicU32, Ordering};
 
 use itertools::Itertools;
 use p3_air::Air;
@@ -16,7 +15,7 @@ use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::*;
 use p3_util::log2_strict_usize;
 
-use super::{quotient_values, PcsProverData, StarkMachine, StarkVerifyingKey, Val};
+use super::{quotient_values, StarkMachine, Val};
 use super::{types::*, StarkGenericConfig};
 use super::{Com, OpeningProof};
 use super::{StarkProvingKey, VerifierConstraintFolder};
@@ -26,17 +25,15 @@ use crate::stark::record::MachineRecord;
 use crate::stark::DebugConstraintBuilder;
 use crate::stark::MachineChip;
 use crate::stark::PackedChallenge;
+use crate::stark::PcsProverData;
 use crate::stark::ProverConstraintFolder;
+use crate::stark::StarkVerifyingKey;
 use crate::utils::SP1CoreOpts;
 
 pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
     'static + Send + Sync
 {
-    type MainData;
-
-    type ShardCommitData;
-
-    type Error: Error;
+    type Error: Error + Send + Sync;
 
     /// Create a new prover from a given machine.
     fn new(machine: StarkMachine<SC, A>) -> Self;
@@ -44,53 +41,27 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
     /// A reference to the machine that this prover is using.
     fn machine(&self) -> &StarkMachine<SC, A>;
 
-    /// Commit to the main execution trace.
-    fn commit_main(&self, shard: &A::Record) -> Self::MainData;
+    /// Calculate the main commitment for a given record.
+    fn commit(&self, record: &A::Record) -> Com<SC>;
 
-    fn commit_shards(
-        &self,
-        shards: Vec<A::Record>,
-        opts: <A::Record as MachineRecord>::Config,
-    ) -> (Vec<Com<SC>>, Vec<Self::ShardCommitData>);
-
-    fn prove_shard(
+    /// Commit and generate a proof for a given record, using the given challenger.
+    fn commit_and_open(
         &self,
         pk: &StarkProvingKey<SC>,
-        shard_data: Self::MainData,
+        record: A::Record,
         challenger: &mut SC::Challenger,
     ) -> Result<ShardProof<SC>, Self::Error>;
 
-    fn generate_dependencies(
-        &self,
-        records: &mut [A::Record],
-        opts: &<A::Record as MachineRecord>::Config,
-    ) {
-        self.machine().generate_dependencies(records, opts)
-    }
-
-    fn setup(&self, program: &A::Program) -> (StarkProvingKey<SC>, StarkVerifyingKey<SC>) {
-        self.machine().setup(program)
-    }
-
-    fn prove_shards(
-        &self,
-        pk: &StarkProvingKey<SC>,
-        data: Vec<Self::ShardCommitData>,
-        challenger: &mut SC::Challenger,
-        opts: <A::Record as MachineRecord>::Config,
-    ) -> Result<Vec<ShardProof<SC>>, Self::Error>;
-
-    /// Create a proof for a batch of records.
-    fn prove_records(
+    /// Generate a proof for the given records.
+    fn prove(
         &self,
         pk: &StarkProvingKey<SC>,
         records: Vec<A::Record>,
         challenger: &mut SC::Challenger,
         opts: <A::Record as MachineRecord>::Config,
-    ) -> Result<Vec<ShardProof<SC>>, Self::Error> {
-        let (_, data) = self.commit_shards(records, opts);
-        self.prove_shards(pk, data, challenger, opts)
-    }
+    ) -> Result<MachineProof<SC>, Self::Error>
+    where
+        A: for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>;
 
     /// The stark config for the machine.
     fn config(&self) -> &SC {
@@ -112,56 +83,21 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
         self.machine().shard_chips(shard)
     }
 
-    /// Prove the execution record is valid.
-    ///
-    /// Given a proving key `pk` and a matching execution record `record`, this function generates
-    /// a STARK proof that the execution record is valid.
-    fn prove(
+    fn setup(&self, program: &A::Program) -> (StarkProvingKey<SC>, StarkVerifyingKey<SC>) {
+        self.machine().setup(program)
+    }
+
+    /// Update the challenger with the given shard data
+    fn update(
         &self,
-        pk: &StarkProvingKey<SC>,
-        mut records: Vec<A::Record>,
         challenger: &mut SC::Challenger,
-        opts: <A::Record as MachineRecord>::Config,
-    ) -> Result<MachineProof<SC>, Self::Error>
-    where
-        A: for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
-    {
-        let chips = self.machine().chips();
-        records.iter_mut().for_each(|record| {
-            chips.iter().for_each(|chip| {
-                let mut output = A::Record::default();
-                chip.generate_dependencies(record, &mut output);
-                record.append(&mut output);
-            });
-            record.register_nonces(&opts);
-        });
-
-        // Observe the preprocessed commitment.
-        pk.observe_into(challenger);
-        // Save the public values for each shard.
-        let public_values = records
-            .iter()
-            .map(|record| record.public_values::<SC::Val>()[0..self.num_pv_elts()].to_vec())
-            .collect::<Vec<_>>();
-
-        // Generate and commit the traces for each shard.
-        let (shard_commits, shard_data) = self.commit_shards(records, opts);
-
-        // Observe the challenges for each segment.
-        tracing::debug_span!("observing all challenges").in_scope(|| {
-            shard_commits
-                .into_iter()
-                .zip(public_values)
-                .for_each(|(commitment, pub_values)| {
-                    challenger.observe(commitment);
-                    challenger.observe_slice(&pub_values);
-                });
-        });
-
-        let shard_proofs = tracing::info_span!("prove_shards")
-            .in_scope(|| self.prove_shards(pk, shard_data, challenger, opts))?;
-
-        Ok(MachineProof { shard_proofs })
+        commitment: Com<SC>,
+        public_values: &[SC::Val],
+    ) {
+        // Observe the commitment.
+        challenger.observe(commitment);
+        // Observe the public values.
+        challenger.observe_slice(public_values);
     }
 
     fn debug_constraints(
@@ -176,6 +112,154 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
         self.machine().debug_constraints(pk, records, challenger)
     }
 }
+
+// pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
+//     'static + Send + Sync
+// {
+//     type MainData;
+
+//     type ShardCommitData;
+
+//     type Error: Error;
+
+//     /// Create a new prover from a given machine.
+//     fn new(machine: StarkMachine<SC, A>) -> Self;
+
+//     /// A reference to the machine that this prover is using.
+//     fn machine(&self) -> &StarkMachine<SC, A>;
+
+//     /// Commit to the main execution trace.
+//     fn commit_main(&self, shard: &A::Record) -> Self::MainData;
+
+//     fn commit_shards(
+//         &self,
+//         shards: Vec<A::Record>,
+//         opts: <A::Record as MachineRecord>::Config,
+//     ) -> (Vec<Com<SC>>, Vec<Self::ShardCommitData>);
+
+//     fn prove_shard(
+//         &self,
+//         pk: &StarkProvingKey<SC>,
+//         shard_data: Self::MainData,
+//         challenger: &mut SC::Challenger,
+//     ) -> Result<ShardProof<SC>, Self::Error>;
+
+//     fn generate_dependencies(
+//         &self,
+//         records: &mut [A::Record],
+//         opts: &<A::Record as MachineRecord>::Config,
+//     ) {
+//         self.machine().generate_dependencies(records, opts)
+//     }
+
+//     fn setup(&self, program: &A::Program) -> (StarkProvingKey<SC>, StarkVerifyingKey<SC>) {
+//         self.machine().setup(program)
+//     }
+
+//     fn prove_shards(
+//         &self,
+//         pk: &StarkProvingKey<SC>,
+//         data: Vec<Self::ShardCommitData>,
+//         challenger: &mut SC::Challenger,
+//         opts: <A::Record as MachineRecord>::Config,
+//     ) -> Result<Vec<ShardProof<SC>>, Self::Error>;
+
+//     /// Create a proof for a batch of records.
+//     fn prove_records(
+//         &self,
+//         pk: &StarkProvingKey<SC>,
+//         records: Vec<A::Record>,
+//         challenger: &mut SC::Challenger,
+//         opts: <A::Record as MachineRecord>::Config,
+//     ) -> Result<Vec<ShardProof<SC>>, Self::Error> {
+//         let (_, data) = self.commit_shards(records, opts);
+//         self.prove_shards(pk, data, challenger, opts)
+//     }
+
+//     /// The stark config for the machine.
+//     fn config(&self) -> &SC {
+//         self.machine().config()
+//     }
+
+//     fn num_pv_elts(&self) -> usize {
+//         self.machine().num_pv_elts()
+//     }
+
+//     fn shard_chips<'a, 'b>(
+//         &'a self,
+//         shard: &'b A::Record,
+//     ) -> impl Iterator<Item = &'b MachineChip<SC, A>>
+//     where
+//         'a: 'b,
+//         SC: 'b,
+//     {
+//         self.machine().shard_chips(shard)
+//     }
+
+//     /// Prove the execution record is valid.
+//     ///
+//     /// Given a proving key `pk` and a matching execution record `record`, this function generates
+//     /// a STARK proof that the execution record is valid.
+//     fn prove(
+//         &self,
+//         pk: &StarkProvingKey<SC>,
+//         mut records: Vec<A::Record>,
+//         challenger: &mut SC::Challenger,
+//         opts: <A::Record as MachineRecord>::Config,
+//     ) -> Result<MachineProof<SC>, Self::Error>
+//     where
+//         A: for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
+//     {
+//         let chips = self.machine().chips();
+//         records.iter_mut().for_each(|record| {
+//             chips.iter().for_each(|chip| {
+//                 let mut output = A::Record::default();
+//                 chip.generate_dependencies(record, &mut output);
+//                 record.append(&mut output);
+//             });
+//             record.register_nonces(&opts);
+//         });
+
+//         // Observe the preprocessed commitment.
+//         pk.observe_into(challenger);
+//         // Save the public values for each shard.
+//         let public_values = records
+//             .iter()
+//             .map(|record| record.public_values::<SC::Val>()[0..self.num_pv_elts()].to_vec())
+//             .collect::<Vec<_>>();
+
+//         // Generate and commit the traces for each shard.
+//         let (shard_commits, shard_data) = self.commit_shards(records, opts);
+
+//         // Observe the challenges for each segment.
+//         tracing::debug_span!("observing all challenges").in_scope(|| {
+//             shard_commits
+//                 .into_iter()
+//                 .zip(public_values)
+//                 .for_each(|(commitment, pub_values)| {
+//                     challenger.observe(commitment);
+//                     challenger.observe_slice(&pub_values);
+//                 });
+//         });
+
+//         let shard_proofs = tracing::info_span!("prove_shards")
+//             .in_scope(|| self.prove_shards(pk, shard_data, challenger, opts))?;
+
+//         Ok(MachineProof { shard_proofs })
+//     }
+
+//     fn debug_constraints(
+//         &self,
+//         pk: &StarkProvingKey<SC>,
+//         records: Vec<A::Record>,
+//         challenger: &mut SC::Challenger,
+//     ) where
+//         SC::Val: PrimeField32,
+//         A: for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
+//     {
+//         self.machine().debug_constraints(pk, records, challenger)
+//     }
+// }
 
 fn chunk_vec<T>(mut vec: Vec<T>, chunk_size: usize) -> Vec<Vec<T>> {
     let mut result = Vec::new();
@@ -217,9 +301,6 @@ where
     ShardMainData<SC>: Serialize + DeserializeOwned,
     SC::Challenger: Clone,
 {
-    type MainData = ShardMainData<SC>;
-    type ShardCommitData = ShardMainDataWrapper<SC, A>;
-
     type Error = DefaultProverError;
 
     fn new(machine: StarkMachine<SC, A>) -> Self {
@@ -230,7 +311,194 @@ where
         &self.machine
     }
 
+    fn commit(&self, record: &A::Record) -> Com<SC> {
+        self.commit_main(record).main_commit
+    }
+
+    /// Prove the execution record is valid.
+    ///
+    /// Given a proving key `pk` and a matching execution record `record`, this function generates
+    /// a STARK proof that the execution record is valid.
+    fn prove(
+        &self,
+        pk: &StarkProvingKey<SC>,
+        mut records: Vec<A::Record>,
+        challenger: &mut SC::Challenger,
+        opts: <A::Record as MachineRecord>::Config,
+    ) -> Result<MachineProof<SC>, Self::Error>
+    where
+        A: for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
+    {
+        let chips = self.machine().chips();
+        records.iter_mut().for_each(|record| {
+            chips.iter().for_each(|chip| {
+                let mut output = A::Record::default();
+                chip.generate_dependencies(record, &mut output);
+                record.append(&mut output);
+            });
+            record.register_nonces(&opts);
+        });
+
+        // Observe the preprocessed commitment.
+        pk.observe_into(challenger);
+        // // Save the public values for each shard.
+        // let public_values = records
+        //     .iter()
+        //     .map(|record| record.public_values::<SC::Val>()[0..self.num_pv_elts()].to_vec())
+        //     .collect::<Vec<_>>();
+
+        // Generate and commit the traces for each shard.
+        let shard_data = records
+            .into_par_iter()
+            .map(|record| self.commit_main(&record))
+            .collect::<Vec<_>>();
+
+        // Observe the challenges for each segment.
+        tracing::debug_span!("observing all challenges").in_scope(|| {
+            shard_data.iter().for_each(|data| {
+                challenger.observe(data.main_commit.clone());
+                challenger.observe_slice(&data.public_values[0..self.num_pv_elts()]);
+            });
+        });
+
+        let shard_proofs = tracing::info_span!("prove_shards").in_scope(|| {
+            shard_data
+                .into_par_iter()
+                .map(|data| self.prove_shard(pk, data, &mut challenger.clone()))
+                .collect::<Result<Vec<_>, _>>()
+        })?;
+
+        Ok(MachineProof { shard_proofs })
+    }
+
     /// Prove the program for the given shard and given a commitment to the main data.
+    fn commit_and_open(
+        &self,
+        pk: &StarkProvingKey<SC>,
+        record: A::Record,
+        challenger: &mut <SC as StarkGenericConfig>::Challenger,
+    ) -> Result<ShardProof<SC>, Self::Error> {
+        let shard_data = self.commit_main(&record);
+        self.prove_shard(pk, shard_data, challenger)
+    }
+
+    // fn prove_shards(
+    //     &self,
+    //     pk: &StarkProvingKey<SC>,
+    //     data: Vec<Self::ShardCommitData>,
+    //     challenger: &mut <SC as StarkGenericConfig>::Challenger,
+    //     opts: SP1CoreOpts,
+    // ) -> Result<Vec<ShardProof<SC>>, Self::Error> {
+    //     let finished = AtomicU32::new(0);
+
+    //     // Generate a proof for each segment. Note that we clone the challenger so we can observe
+    //     // identical global challenges across the segments.
+    //     let chunking_multiplier = opts.shard_chunking_multiplier;
+    //     let chunk_size = std::cmp::max(chunking_multiplier * data.len() / num_cpus::get(), 1);
+    //     let shard_data_chunks = chunk_vec(data, chunk_size);
+    //     let parent_span = tracing::debug_span!("open_shards");
+    //     let shard_proofs = parent_span.in_scope(|| {
+    //         shard_data_chunks
+    //             .into_par_iter()
+    //             .map(|data_batch| {
+    //                 data_batch
+    //                     .into_iter()
+    //                     .map(|data| {
+    //                         tracing::debug_span!(parent: &parent_span, "prove shard opening")
+    //                             .in_scope(|| {
+    //                                 let data = data
+    //                                     .materialize(self)
+    //                                     .expect("failed to materialize shard main data");
+    //                                 let proof = self.prove_shard(pk, data, &mut challenger.clone());
+    //                                 finished.fetch_add(1, Ordering::Relaxed);
+    //                                 proof
+    //                             })
+    //                     })
+    //                     .collect::<Vec<_>>()
+    //             })
+    //             .flatten()
+    //             .collect::<Result<Vec<_>, Self::Error>>()
+    //     })?;
+
+    //     Ok(shard_proofs)
+    // }
+}
+
+impl<SC, A> DefaultProver<SC, A>
+where
+    SC: 'static + StarkGenericConfig + Send + Sync,
+    A: MachineAir<SC::Val>
+        + for<'a> Air<ProverConstraintFolder<'a, SC>>
+        + Air<InteractionBuilder<Val<SC>>>
+        + for<'a> Air<VerifierConstraintFolder<'a, SC>>,
+    A::Record: MachineRecord<Config = SP1CoreOpts>,
+    SC::Val: PrimeField32,
+    Com<SC>: Send + Sync,
+    PcsProverData<SC>: Send + Sync,
+    OpeningProof<SC>: Send + Sync,
+    ShardMainData<SC>: Serialize + DeserializeOwned,
+    SC::Challenger: Clone,
+{
+    fn commit_main(&self, shard: &A::Record) -> ShardMainData<SC> {
+        // Filter the chips based on what is used.
+        let shard_chips = self.shard_chips(shard).collect::<Vec<_>>();
+
+        // For each chip, generate the trace.
+        let parent_span = tracing::debug_span!("generate traces for shard");
+        let mut named_traces = parent_span.in_scope(|| {
+                    shard_chips
+                        .par_iter()
+                        .map(|chip| {
+                            let chip_name = chip.name();
+
+                            // We need to create an outer span here because, for some reason,
+                            // the #[instrument] macro on the chip impl isn't attaching its span to `parent_span`
+                            // to avoid the unnecessary span, remove the #[instrument] macro.
+                            let trace =
+                                tracing::debug_span!(parent: &parent_span, "generate trace for chip", %chip_name)
+                                    .in_scope(|| chip.generate_trace(shard, &mut A::Record::default()));
+                            (chip_name, trace)
+                        })
+                        .collect::<Vec<_>>()
+                });
+
+        // Order the chips and traces by trace size (biggest first), and get the ordering map.
+        named_traces.sort_by_key(|(_, trace)| Reverse(trace.height()));
+
+        let pcs = self.config().pcs();
+
+        let domains_and_traces = named_traces
+            .iter()
+            .map(|(_, trace)| {
+                let domain = pcs.natural_domain_for_degree(trace.height());
+                (domain, trace.to_owned())
+            })
+            .collect::<Vec<_>>();
+
+        // Commit to the batch of traces.
+        let (main_commit, main_data) = pcs.commit(domains_and_traces);
+
+        // Get the chip ordering.
+        let chip_ordering = named_traces
+            .iter()
+            .enumerate()
+            .map(|(i, (name, _))| (name.to_owned(), i))
+            .collect();
+
+        let traces = named_traces
+            .into_iter()
+            .map(|(_, trace)| trace)
+            .collect::<Vec<_>>();
+
+        ShardMainData {
+            traces,
+            main_commit,
+            main_data,
+            chip_ordering,
+            public_values: shard.public_values(),
+        }
+    }
+
     fn prove_shard(
         &self,
         pk: &StarkProvingKey<SC>,
@@ -545,146 +813,45 @@ where
         })
     }
 
-    fn prove_shards(
-        &self,
-        pk: &StarkProvingKey<SC>,
-        data: Vec<Self::ShardCommitData>,
-        challenger: &mut <SC as StarkGenericConfig>::Challenger,
-        opts: SP1CoreOpts,
-    ) -> Result<Vec<ShardProof<SC>>, Self::Error> {
-        let finished = AtomicU32::new(0);
+    // fn commit_shards(
+    //     &self,
+    //     shards: Vec<A::Record>,
+    //     opts: SP1CoreOpts,
+    // ) -> (Vec<Com<SC>>, Vec<Self::ShardCommitData>) {
+    //     // Get the number of shards that is the threshold for saving shards to disk instead of
+    //     // keeping all the shards in memory.
+    //     let reconstruct_commitments = opts.reconstruct_commitments;
+    //     let finished = AtomicU32::new(0);
+    //     let chunk_size = std::cmp::max(shards.len() / num_cpus::get(), 1);
+    //     let parent_span = tracing::debug_span!("commit to all shards");
+    //     let shard_chunks = chunk_vec(shards, chunk_size);
+    //     let (commitments, shard_main_data): (Vec<_>, Vec<_>) = parent_span.in_scope(|| {
+    //         shard_chunks
+    //             .into_par_iter()
+    //             .map(|shard_batch| {
+    //                 shard_batch
+    //                     .into_iter()
+    //                     .map(|shard| {
+    //                         tracing::debug_span!(parent: &parent_span, "commit to shard").in_scope(
+    //                             || {
+    //                                 let data = self.commit_main(&shard);
+    //                                 finished.fetch_add(1, Ordering::Relaxed);
+    //                                 let commitment = data.main_commit.clone();
+    //                                 let data = if reconstruct_commitments {
+    //                                     ShardMainDataWrapper::Shard(shard)
+    //                                 } else {
+    //                                     data.to_in_memory()
+    //                                 };
+    //                                 (commitment, data)
+    //                             },
+    //                         )
+    //                     })
+    //                     .collect::<Vec<_>>()
+    //             })
+    //             .flatten()
+    //             .unzip()
+    //     });
 
-        // Generate a proof for each segment. Note that we clone the challenger so we can observe
-        // identical global challenges across the segments.
-        let chunking_multiplier = opts.shard_chunking_multiplier;
-        let chunk_size = std::cmp::max(chunking_multiplier * data.len() / num_cpus::get(), 1);
-        let shard_data_chunks = chunk_vec(data, chunk_size);
-        let parent_span = tracing::debug_span!("open_shards");
-        let shard_proofs = parent_span.in_scope(|| {
-            shard_data_chunks
-                .into_par_iter()
-                .map(|data_batch| {
-                    data_batch
-                        .into_iter()
-                        .map(|data| {
-                            tracing::debug_span!(parent: &parent_span, "prove shard opening")
-                                .in_scope(|| {
-                                    let data = data
-                                        .materialize(self)
-                                        .expect("failed to materialize shard main data");
-                                    let proof = self.prove_shard(pk, data, &mut challenger.clone());
-                                    finished.fetch_add(1, Ordering::Relaxed);
-                                    proof
-                                })
-                        })
-                        .collect::<Vec<_>>()
-                })
-                .flatten()
-                .collect::<Result<Vec<_>, Self::Error>>()
-        })?;
-
-        Ok(shard_proofs)
-    }
-
-    fn commit_main(&self, shard: &A::Record) -> Self::MainData {
-        // Filter the chips based on what is used.
-        let shard_chips = self.shard_chips(shard).collect::<Vec<_>>();
-
-        // For each chip, generate the trace.
-        let parent_span = tracing::debug_span!("generate traces for shard");
-        let mut named_traces = parent_span.in_scope(|| {
-                    shard_chips
-                        .par_iter()
-                        .map(|chip| {
-                            let chip_name = chip.name();
-
-                            // We need to create an outer span here because, for some reason,
-                            // the #[instrument] macro on the chip impl isn't attaching its span to `parent_span`
-                            // to avoid the unnecessary span, remove the #[instrument] macro.
-                            let trace =
-                                tracing::debug_span!(parent: &parent_span, "generate trace for chip", %chip_name)
-                                    .in_scope(|| chip.generate_trace(shard, &mut A::Record::default()));
-                            (chip_name, trace)
-                        })
-                        .collect::<Vec<_>>()
-                });
-
-        // Order the chips and traces by trace size (biggest first), and get the ordering map.
-        named_traces.sort_by_key(|(_, trace)| Reverse(trace.height()));
-
-        let pcs = self.config().pcs();
-
-        let domains_and_traces = named_traces
-            .iter()
-            .map(|(_, trace)| {
-                let domain = pcs.natural_domain_for_degree(trace.height());
-                (domain, trace.to_owned())
-            })
-            .collect::<Vec<_>>();
-
-        // Commit to the batch of traces.
-        let (main_commit, main_data) = pcs.commit(domains_and_traces);
-
-        // Get the chip ordering.
-        let chip_ordering = named_traces
-            .iter()
-            .enumerate()
-            .map(|(i, (name, _))| (name.to_owned(), i))
-            .collect();
-
-        let traces = named_traces
-            .into_iter()
-            .map(|(_, trace)| trace)
-            .collect::<Vec<_>>();
-
-        ShardMainData {
-            traces,
-            main_commit,
-            main_data,
-            chip_ordering,
-            public_values: shard.public_values(),
-        }
-    }
-
-    fn commit_shards(
-        &self,
-        shards: Vec<A::Record>,
-        opts: SP1CoreOpts,
-    ) -> (Vec<Com<SC>>, Vec<Self::ShardCommitData>) {
-        // Get the number of shards that is the threshold for saving shards to disk instead of
-        // keeping all the shards in memory.
-        let reconstruct_commitments = opts.reconstruct_commitments;
-        let finished = AtomicU32::new(0);
-        let chunk_size = std::cmp::max(shards.len() / num_cpus::get(), 1);
-        let parent_span = tracing::debug_span!("commit to all shards");
-        let shard_chunks = chunk_vec(shards, chunk_size);
-        let (commitments, shard_main_data): (Vec<_>, Vec<_>) = parent_span.in_scope(|| {
-            shard_chunks
-                .into_par_iter()
-                .map(|shard_batch| {
-                    shard_batch
-                        .into_iter()
-                        .map(|shard| {
-                            tracing::debug_span!(parent: &parent_span, "commit to shard").in_scope(
-                                || {
-                                    let data = self.commit_main(&shard);
-                                    finished.fetch_add(1, Ordering::Relaxed);
-                                    let commitment = data.main_commit.clone();
-                                    let data = if reconstruct_commitments {
-                                        ShardMainDataWrapper::Shard(shard)
-                                    } else {
-                                        data.to_in_memory()
-                                    };
-                                    (commitment, data)
-                                },
-                            )
-                        })
-                        .collect::<Vec<_>>()
-                })
-                .flatten()
-                .unzip()
-        });
-
-        (commitments, shard_main_data)
-    }
+    //     (commitments, shard_main_data)
+    // }
 }

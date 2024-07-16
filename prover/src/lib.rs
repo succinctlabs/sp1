@@ -19,8 +19,6 @@ pub mod verify;
 
 use std::borrow::Borrow;
 use std::path::Path;
-use std::sync::mpsc::sync_channel;
-use std::sync::mpsc::SyncSender;
 use std::sync::Arc;
 
 use components::{DefaultProverComponents, SP1ProverComponents};
@@ -46,7 +44,6 @@ use sp1_primitives::types::RecursionProgramType;
 use sp1_recursion_circuit::witness::Witnessable;
 use sp1_recursion_compiler::config::InnerConfig;
 use sp1_recursion_compiler::ir::Witness;
-use sp1_recursion_core::runtime::ExecutionRecord as RecursionExecutionRecord;
 use sp1_recursion_core::{
     air::RecursionPublicValues,
     runtime::{RecursionProgram, Runtime as RecursionRuntime},
@@ -62,7 +59,7 @@ use sp1_recursion_program::machine::{
 pub use sp1_recursion_program::machine::{
     SP1DeferredMemoryLayout, SP1RecursionMemoryLayout, SP1ReduceMemoryLayout, SP1RootMemoryLayout,
 };
-use tracing::instrument;
+use tracing::{info_span, instrument};
 pub use types::*;
 use utils::words_to_bytes;
 
@@ -133,16 +130,16 @@ pub struct SP1Prover<C: SP1ProverComponents = DefaultProverComponents> {
     pub wrap_vk: StarkVerifyingKey<OuterSC>,
 
     /// The machine used for proving the core step.
-    pub core_prover: Arc<C::CoreProver>,
+    pub core_prover: C::CoreProver,
 
     /// The machine used for proving the recursive and reduction steps.
-    pub compress_prover: Arc<C::CompressProver>,
+    pub compress_prover: C::CompressProver,
 
     /// The machine used for proving the shrink step.
-    pub shrink_prover: Arc<C::ShrinkProver>,
+    pub shrink_prover: C::ShrinkProver,
 
     /// The machine used for proving the wrapping step.
-    pub wrap_prover: Arc<C::WrapProver>,
+    pub wrap_prover: C::WrapProver,
 }
 
 impl<C: SP1ProverComponents> SP1Prover<C> {
@@ -208,10 +205,10 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             wrap_program,
             wrap_pk,
             wrap_vk,
-            core_prover: Arc::new(core_prover),
-            compress_prover: Arc::new(compress_prover),
-            shrink_prover: Arc::new(shrink_prover),
-            wrap_prover: Arc::new(wrap_prover),
+            core_prover,
+            compress_prover,
+            shrink_prover,
+            wrap_prover,
         }
     }
 
@@ -264,20 +261,21 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             .subproof_verifier
             .get_or_insert_with(|| Arc::new(self));
         let program = Program::from(&pk.elf);
-        let (proof, public_values_stream, cycles) = sp1_core::utils::prove_with_context(
-            self.core_prover.clone(),
-            program,
-            stdin,
-            opts.core_opts,
-            context,
-        )?;
+        let (proof, public_values_stream, cycles) =
+            sp1_core::utils::prove_with_context::<_, C::CoreProver>(
+                &self.core_prover,
+                program,
+                stdin,
+                opts.core_opts,
+                context,
+            )?;
         Self::check_for_high_cycles(cycles);
         let public_values = SP1PublicValues::from(&public_values_stream);
         Ok(SP1CoreProof {
             proof: SP1CoreProofData(proof.shard_proofs),
             stdin: stdin.clone(),
-            cycles,
             public_values,
+            cycles,
         })
     }
 
@@ -435,210 +433,94 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             batch_size,
         );
 
-        let (worker_tx, worker_rx) = sync_channel::<(
-            ReduceProgramType,
-            RecursionExecutionRecord<Val<InnerSC>>,
-            SP1ProverOpts,
-            oneshot::Sender<ShardProof<InnerSC>>,
-        )>(
-            opts.recursion_opts.shard_batch_size * opts.recursion_opts.shard_chunking_multiplier,
-        );
+        let mut reduce_proofs = Vec::new();
+        let shard_batch_size = opts.recursion_opts.shard_batch_size;
+        for inputs in core_inputs.chunks(shard_batch_size) {
+            let proofs = inputs
+                .into_par_iter()
+                .map(|input| {
+                    self.compress_machine_proof(input, &self.recursion_program, &self.rec_pk, opts)
+                        .map(|p| (p, ReduceProgramType::Core))
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            reduce_proofs.extend(proofs);
+        }
 
-        std::thread::scope(|s| {
-            // Spwan the worker thread.
-            s.spawn(move || {
-                for (job, record, opts, proof_tx) in worker_rx.iter() {
-                    let pk = match job {
-                        ReduceProgramType::Core => &self.rec_pk,
-                        ReduceProgramType::Deferred => &self.deferred_pk,
-                        ReduceProgramType::Reduce => &self.compress_pk,
-                    };
-                    let mut recursive_challenger = self.compress_prover.config().challenger();
-                    let proof = self
-                        .compress_prover
-                        .prove(
-                            pk,
-                            vec![record],
-                            &mut recursive_challenger,
-                            opts.recursion_opts,
-                        )
-                        .unwrap()
-                        .shard_proofs
-                        .pop()
-                        .unwrap();
-                    proof_tx.send(proof).unwrap();
-                }
-            });
+        // Run the deferred proofs programs.
+        for inputs in deferred_inputs.chunks(shard_batch_size) {
+            let proofs = inputs
+                .into_par_iter()
+                .map(|input| {
+                    self.compress_machine_proof(
+                        input,
+                        &self.deferred_program,
+                        &self.deferred_pk,
+                        opts,
+                    )
+                    .map(|p| (p, ReduceProgramType::Deferred))
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            reduce_proofs.extend(proofs);
+        }
 
-            // Continue to run the compress function, sending jobs to the worker thread.
+        // Iterate over the recursive proof batches until there is one proof remaining.
+        let mut is_complete;
+        loop {
+            tracing::debug!("Recursive proof layer size: {}", reduce_proofs.len());
+            is_complete = reduce_proofs.len() <= batch_size;
 
-            let mut reduce_proofs = Vec::new();
-            let shard_batch_size = opts.recursion_opts.shard_batch_size;
-            for inputs in core_inputs.chunks(shard_batch_size) {
-                let workers = (0..inputs.len())
-                    .map(|_| worker_tx.clone())
-                    .collect::<Vec<_>>();
-                let proofs = inputs
-                    .into_par_iter()
-                    .zip(workers)
-                    .map(|(input, tx)| {
-                        let proof_handle = self.compress_machine_proof_sync(
-                            input,
-                            opts,
-                            ReduceProgramType::Core,
-                            tx,
-                        );
-                        (proof_handle, ReduceProgramType::Core)
-                    })
-                    .collect::<Vec<_>>();
-                reduce_proofs.extend(proofs);
+            let compress_inputs = reduce_proofs.chunks(batch_size).collect::<Vec<_>>();
+            let batched_compress_inputs =
+                compress_inputs.chunks(shard_batch_size).collect::<Vec<_>>();
+            reduce_proofs = batched_compress_inputs
+                .into_par_iter()
+                .flat_map(|batches| {
+                    batches
+                        .par_iter()
+                        .map(|batch| {
+                            let (shard_proofs, kinds) =
+                                batch.iter().cloned().unzip::<_, _, Vec<_>, Vec<_>>();
+
+                            let input = SP1ReduceMemoryLayout {
+                                compress_vk: &self.compress_vk,
+                                recursive_machine: self.compress_prover.machine(),
+                                shard_proofs,
+                                kinds,
+                                is_complete,
+                            };
+
+                            self.compress_machine_proof(
+                                input,
+                                &self.compress_program,
+                                &self.compress_pk,
+                                opts,
+                            )
+                            .map(|p| (p, ReduceProgramType::Reduce))
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+
+            if reduce_proofs.len() == 1 {
+                break;
             }
+        }
+        debug_assert_eq!(reduce_proofs.len(), 1);
+        let reduce_proof = reduce_proofs.pop().unwrap();
 
-            // Run the deferred proofs programs.
-            for inputs in deferred_inputs.chunks(shard_batch_size) {
-                let workers = (0..inputs.len())
-                    .map(|_| worker_tx.clone())
-                    .collect::<Vec<_>>();
-                let proof_handles = inputs
-                    .into_par_iter()
-                    .zip(workers)
-                    .map(|(input, tx)| {
-                        let proof_handle = self.compress_machine_proof_sync(
-                            input,
-                            opts,
-                            ReduceProgramType::Deferred,
-                            tx,
-                        );
-                        (proof_handle, ReduceProgramType::Deferred)
-                    })
-                    .collect::<Vec<_>>();
-                reduce_proofs.extend(proof_handles);
-            }
-
-            let mut reduce_proofs = reduce_proofs
-                .into_iter()
-                .map(|(handle, kind)| (handle.recv().unwrap(), kind))
-                .collect::<Vec<_>>();
-
-            // Iterate over the recursive proof batches until there is one proof remaining.
-            let mut is_complete;
-            loop {
-                tracing::debug!("Recursive proof layer size: {}", reduce_proofs.len());
-                is_complete = reduce_proofs.len() <= batch_size;
-
-                let compress_inputs = reduce_proofs.chunks(batch_size).collect::<Vec<_>>();
-                let batched_compress_inputs = compress_inputs.chunks(shard_batch_size);
-                let reduce_proofs_handles = batched_compress_inputs
-                    .flat_map(|batches| {
-                        let workers = (0..batches.len())
-                            .map(|_| worker_tx.clone())
-                            .collect::<Vec<_>>();
-                        batches
-                            .par_iter()
-                            .zip(workers)
-                            .map(|(batch, tx)| {
-                                let (shard_proofs, kinds) =
-                                    batch.iter().cloned().unzip::<_, _, Vec<_>, Vec<_>>();
-
-                                let input = SP1ReduceMemoryLayout {
-                                    compress_vk: &self.compress_vk,
-                                    recursive_machine: self.compress_prover.machine(),
-                                    shard_proofs,
-                                    kinds,
-                                    is_complete,
-                                };
-
-                                let proof = self.compress_machine_proof_sync(
-                                    input,
-                                    opts,
-                                    ReduceProgramType::Reduce,
-                                    tx,
-                                );
-                                (proof, ReduceProgramType::Reduce)
-                            })
-                            .collect::<Vec<_>>()
-                    })
-                    .collect::<Vec<_>>();
-
-                reduce_proofs = reduce_proofs_handles
-                    .into_iter()
-                    .map(|(handle, kind)| (handle.recv().unwrap(), kind))
-                    .collect::<Vec<_>>();
-
-                if reduce_proofs.len() == 1 {
-                    break;
-                }
-            }
-
-            // Drop the worker_tx so that the worker thread can exit.
-            drop(worker_tx);
-
-            debug_assert_eq!(reduce_proofs.len(), 1);
-            let reduce_proof = reduce_proofs.pop().unwrap();
-
-            Ok(SP1ReduceProof {
-                proof: reduce_proof.0,
-            })
+        Ok(SP1ReduceProof {
+            proof: reduce_proof.0,
         })
     }
 
-    #[allow(clippy::type_complexity)]
-    pub fn compress_machine_proof_sync(
-        &self,
-        input: impl Hintable<InnerConfig>,
-        opts: SP1ProverOpts,
-        job: ReduceProgramType,
-        tx: SyncSender<(
-            ReduceProgramType,
-            RecursionExecutionRecord<Val<InnerSC>>,
-            SP1ProverOpts,
-            oneshot::Sender<ShardProof<InnerSC>>,
-        )>,
-    ) -> oneshot::Receiver<ShardProof<InnerSC>> {
-        let program = match job {
-            ReduceProgramType::Core => &self.recursion_program,
-            ReduceProgramType::Deferred => &self.deferred_program,
-            ReduceProgramType::Reduce => &self.compress_program,
-        };
-        let mut runtime = RecursionRuntime::<Val<InnerSC>, Challenge<InnerSC>, _>::new(
-            program,
-            self.compress_prover.config().perm.clone(),
-        );
-
-        let mut witness_stream = Vec::new();
-        witness_stream.extend(input.write());
-
-        runtime.witness_stream = witness_stream.into();
-        runtime.run().unwrap();
-        runtime.print_stats();
-
-        let (proof_tx, proof_rx) = oneshot::channel();
-
-        tx.send((job, runtime.record, opts, proof_tx)).unwrap();
-
-        proof_rx
-
-        // let mut recursive_challenger = self.compress_prover.config().challenger();
-        // self.compress_prover
-        //     .prove(
-        //         pk,
-        //         vec![runtime.record],
-        //         &mut recursive_challenger,
-        //         opts.recursion_opts,
-        //     )
-        //     .unwrap()
-        //     .shard_proofs
-        //     .pop()
-        //     .unwrap()
-    }
-
+    /// Generate a proof with the compress machine.
     pub fn compress_machine_proof(
         &self,
         input: impl Hintable<InnerConfig>,
         program: &RecursionProgram<BabyBear>,
         pk: &StarkProvingKey<InnerSC>,
         opts: SP1ProverOpts,
-    ) -> ShardProof<InnerSC> {
+    ) -> Result<ShardProof<InnerSC>, SP1RecursionProverError> {
         let mut runtime = RecursionRuntime::<Val<InnerSC>, Challenge<InnerSC>, _>::new(
             program,
             self.compress_prover.config().perm.clone(),
@@ -648,11 +530,14 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         witness_stream.extend(input.write());
 
         runtime.witness_stream = witness_stream.into();
-        runtime.run().unwrap();
+        runtime
+            .run()
+            .map_err(|e| SP1RecursionProverError::RuntimeError(e.to_string()))?;
         runtime.print_stats();
 
         let mut recursive_challenger = self.compress_prover.config().challenger();
-        self.compress_prover
+        let proof = self
+            .compress_prover
             .prove(
                 pk,
                 vec![runtime.record],
@@ -662,7 +547,9 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             .unwrap()
             .shard_proofs
             .pop()
-            .unwrap()
+            .unwrap();
+
+        Ok(proof)
     }
 
     /// Wrap a reduce proof into a STARK proven over a SNARK-friendly field.
@@ -689,7 +576,11 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         witness_stream.extend(input.write());
 
         runtime.witness_stream = witness_stream.into();
-        runtime.run().unwrap();
+
+        runtime
+            .run()
+            .map_err(|e| SP1RecursionProverError::RuntimeError(e.to_string()))?;
+
         runtime.print_stats();
         tracing::debug!("Compress program executed successfully");
 
@@ -733,7 +624,11 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         witness_stream.extend(input.write());
 
         runtime.witness_stream = witness_stream.into();
-        runtime.run().unwrap();
+
+        runtime
+            .run()
+            .map_err(|e| SP1RecursionProverError::RuntimeError(e.to_string()))?;
+
         runtime.print_stats();
         tracing::debug!("Wrap program executed successfully");
 

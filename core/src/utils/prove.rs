@@ -1,18 +1,19 @@
-use p3_baby_bear::BabyBear;
 use std::fs::File;
 use std::io::Seek;
 use std::io::{self};
-use std::sync::mpsc::sync_channel;
 use std::sync::Arc;
 use web_time::Instant;
 
-pub use baby_bear_blake3::BabyBearBlake3;
-use p3_challenger::CanObserve;
-use p3_field::PrimeField32;
+use p3_maybe_rayon::prelude::*;
+
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use size::Size;
 use thiserror::Error;
+
+pub use baby_bear_blake3::BabyBearBlake3;
+use p3_baby_bear::BabyBear;
+use p3_field::PrimeField32;
 
 use crate::air::MachineAir;
 use crate::io::{SP1PublicValues, SP1Stdin};
@@ -26,7 +27,7 @@ use crate::stark::ProverConstraintFolder;
 use crate::stark::StarkVerifyingKey;
 use crate::stark::Val;
 use crate::stark::VerifierConstraintFolder;
-use crate::stark::{Com, PcsProverData, RiscvAir, ShardProof, StarkProvingKey, UniConfig};
+use crate::stark::{Com, PcsProverData, RiscvAir, StarkProvingKey, UniConfig};
 use crate::stark::{MachineRecord, StarkMachine};
 use crate::utils::SP1CoreOpts;
 use crate::{
@@ -109,16 +110,16 @@ where
     SC::Challenger: 'static + Clone + Send,
     <SC as StarkGenericConfig>::Val: PrimeField32,
     OpeningProof<SC>: Send,
-    Com<SC>: Send,
+    Com<SC>: Send + Sync,
     PcsProverData<SC>: Send + Sync,
 {
     let machine = RiscvAir::machine(config);
-    let prover = Arc::new(P::new(machine));
-    prove_with_context::<SC, _>(prover, program, stdin, opts, Default::default())
+    let prover = P::new(machine);
+    prove_with_context::<SC, _>(&prover, program, stdin, opts, Default::default())
 }
 
 pub fn prove_with_context<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<SC::Val>>>(
-    prover: Arc<P>,
+    prover: &P,
     program: Program,
     stdin: &SP1Stdin,
     opts: SP1CoreOpts,
@@ -128,7 +129,7 @@ where
     SC::Val: PrimeField32,
     SC::Challenger: 'static + Clone + Send,
     OpeningProof<SC>: Send,
-    Com<SC>: Send,
+    Com<SC>: Send + Sync,
     PcsProverData<SC>: Send + Sync,
 {
     // Record the start of the process.
@@ -185,37 +186,6 @@ where
     let mut challenger = prover.config().challenger();
     vk.observe_into(&mut challenger);
 
-    let (tx, rx) = sync_channel::<Vec<ExecutionRecord>>(
-        opts.shard_batch_size * opts.shard_chunking_multiplier,
-    );
-
-    let challenger_handle = {
-        let prover = prover.clone();
-        std::thread::spawn(move || {
-            let mut challenger = challenger;
-            for records in rx.iter().take(nb_checkpoints) {
-                // Save the public values for each shard.
-                let public_values = records
-                    .iter()
-                    .map(|record| {
-                        record.public_values::<SC::Val>()[0..prover.machine().num_pv_elts()]
-                            .to_vec()
-                    })
-                    .collect::<Vec<_>>();
-
-                // Commit to the shards.
-                let (commitments, _) = prover.commit_shards(records, opts);
-
-                // Observe the commitments.
-                for (commitment, pub_values) in commitments.into_iter().zip(public_values) {
-                    challenger.observe(commitment);
-                    challenger.observe_slice(&pub_values);
-                }
-            }
-            challenger
-        })
-    };
-
     for (checkpoint_idx, checkpoint_file) in checkpoints.iter_mut().enumerate() {
         // Trace the checkpoint and reconstruct the execution records.
         let (mut records, _) = trace_checkpoint(program.clone(), checkpoint_file, opts);
@@ -232,7 +202,7 @@ where
 
         // Generate the dependencies.
         tracing::debug_span!("Generate dependencies", checkpoint_idx = checkpoint_idx)
-            .in_scope(|| prover.generate_dependencies(&mut records, &opts));
+            .in_scope(|| prover.machine().generate_dependencies(&mut records, &opts));
 
         // Defer events that are too expensive to include in every shard.
         for record in records.iter_mut() {
@@ -264,9 +234,19 @@ where
             debug_records.extend(records.clone());
         }
 
-        tx.send(records).unwrap();
+        let commitments = records
+            .par_iter()
+            .map(|record| prover.commit(record))
+            .collect::<Vec<_>>();
+
+        for (commitment, record) in commitments.into_iter().zip(records) {
+            prover.update(
+                &mut challenger,
+                commitment,
+                &record.public_values::<SC::Val>()[0..prover.machine().num_pv_elts()],
+            );
+        }
     }
-    let challenger = challenger_handle.join().unwrap();
     commit_span.exit();
 
     // Debug the constraints if debug assertions are enabled.
@@ -281,29 +261,11 @@ where
     let mut state = public_values.reset();
     let mut report_aggregate = ExecutionReport::default();
 
-    let (tx, rx) = sync_channel::<Vec<ExecutionRecord>>(
-        opts.shard_batch_size * opts.shard_chunking_multiplier,
-    );
-
     // Disable the reconstruct commitments in case it was enabled.
     let mut opts = opts;
     opts.reconstruct_commitments = false;
 
-    // Prove the shards.
-    let shard_proofs_handle = {
-        let prover = prover.clone();
-        std::thread::spawn(move || {
-            let mut shard_proofs = Vec::<ShardProof<SC>>::new();
-            for records in rx.iter().take(nb_checkpoints) {
-                let mut proofs = prover
-                    .prove_records(&pk, records, &mut challenger.clone(), opts)
-                    .unwrap();
-                shard_proofs.append(&mut proofs);
-            }
-            shard_proofs
-        })
-    };
-
+    let mut shard_proofs = Vec::new();
     for (checkpoint_idx, mut checkpoint_file) in checkpoints.into_iter().enumerate() {
         // Trace the checkpoint and reconstruct the execution records.
         let (mut records, report) = trace_checkpoint(program.clone(), &checkpoint_file, opts);
@@ -320,7 +282,7 @@ where
         }
 
         // Generate the dependencies.
-        prover.generate_dependencies(&mut records, &opts);
+        prover.machine().generate_dependencies(&mut records, &opts);
 
         // Defer events that are too expensive to include in every shard.
         for record in records.iter_mut() {
@@ -347,9 +309,12 @@ where
         }
         records.append(&mut deferred);
 
-        tx.send(records).unwrap();
+        shard_proofs.par_extend(records.into_par_iter().map(|record| {
+            prover
+                .commit_and_open(&pk, record, &mut challenger.clone())
+                .unwrap()
+        }));
     }
-    let shard_proofs = shard_proofs_handle.join().unwrap();
 
     // Log some of the `ExecutionReport` information.
     tracing::info!(
@@ -425,9 +390,9 @@ pub fn run_test_core<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
 > {
     let config = BabyBearPoseidon2::new();
     let machine = RiscvAir::machine(config);
-    let prover = Arc::new(P::new(machine));
+    let prover = P::new(machine);
     let (proof, output, _) = prove_with_context(
-        prover,
+        &prover,
         Program::clone(&runtime.program),
         &inputs,
         SP1CoreOpts::default(),
