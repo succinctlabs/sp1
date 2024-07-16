@@ -3,6 +3,7 @@ package sp1
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"os"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -11,6 +12,13 @@ import (
 )
 
 func Prove(dataDir string, witnessPath string) Proof {
+	// Recover panic if any.
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println("panic: ", r)
+		}
+	}()
+
 	// Sanity check the required arguments have been provided.
 	if dataDir == "" {
 		panic("dataDirStr is required")
