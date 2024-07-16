@@ -418,24 +418,28 @@ mod tests {
         let mut rand = RAND::new();
 
         let len = 100;
+        let num_tests = 1;
         let random_slice = (0..len).map(|_| rng.gen::<u8>()).collect::<Vec<u8>>();
         rand.seed(len, &random_slice);
-        let (_, compressed) = key_pair_generate_g2(&mut rand);
-        // let compressed = hex::decode("8dffed32f74d62cf8904a02fc7f564a224938c2571f138acd059c0d2f10914e77a1528b1616f77ff5d28079b88d8da8d").unwrap();
 
-        let stdin = SP1Stdin::from(&compressed);
-        let mut public_values =
-            run_test_io::<DefaultProver<_, _>>(Program::from(BLS12381_DECOMPRESS_ELF), stdin)
-                .unwrap();
+        for _ in 0..num_tests {
+            let (_, compressed) = key_pair_generate_g2(&mut rand);
+            // let compressed = hex::decode("8dffed32f74d62cf8904a02fc7f564a224938c2571f138acd059c0d2f10914e77a1528b1616f77ff5d28079b88d8da8d").unwrap();
 
-        let mut result = [0; 96];
-        public_values.read_slice(&mut result);
+            let stdin = SP1Stdin::from(&compressed);
+            let mut public_values =
+                run_test_io::<DefaultProver<_, _>>(Program::from(BLS12381_DECOMPRESS_ELF), stdin)
+                    .unwrap();
 
-        let point = deserialize_g1(&compressed).unwrap();
-        let x = point.getx().to_string();
-        let y = point.gety().to_string();
-        let decompressed = hex::decode(format!("{x}{y}")).unwrap();
-        assert_eq!(result, decompressed.as_slice());
+            let mut result = [0; 96];
+            public_values.read_slice(&mut result);
+
+            let point = deserialize_g1(&compressed).unwrap();
+            let x = point.getx().to_string();
+            let y = point.gety().to_string();
+            let decompressed = hex::decode(format!("{x}{y}")).unwrap();
+            assert_eq!(result, decompressed.as_slice());
+        }
     }
 
     #[test]
