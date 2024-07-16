@@ -6,9 +6,10 @@ use serde::{Deserialize, Serialize};
 use strum_macros::EnumIter;
 
 use crate::runtime::{Register, Runtime};
+use crate::stark::Bls12381Parameters;
 use crate::syscall::precompiles::edwards::EdAddAssignChip;
 use crate::syscall::precompiles::edwards::EdDecompressChip;
-use crate::syscall::precompiles::fp384::FpMulChip;
+use crate::syscall::precompiles::fp384::{Fp12MulChip, FpMulChip};
 use crate::syscall::precompiles::keccak256::KeccakPermuteChip;
 use crate::syscall::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::syscall::precompiles::uint256::Uint256MulChip;
@@ -20,7 +21,7 @@ use crate::syscall::{
     SyscallHalt, SyscallHintLen, SyscallHintRead, SyscallVerifySP1Proof, SyscallWrite,
 };
 use crate::utils::ec::edwards::ed25519::{Ed25519, Ed25519Parameters};
-use crate::utils::ec::weierstrass::bls12_381::Bls12381;
+use crate::utils::ec::weierstrass::bls12_381::{Bls12381, Bls12381BaseField};
 use crate::utils::ec::weierstrass::{bn254::Bn254, secp256k1::Secp256k1};
 use crate::{runtime::ExecutionRecord, runtime::MemoryReadRecord, runtime::MemoryWriteRecord};
 
@@ -322,6 +323,10 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Arc<dyn Syscall>> {
         Arc::new(WeierstrassDoubleAssignChip::<Bls12381>::new()),
     );
     syscall_map.insert(SyscallCode::FP_MUL, Arc::new(FpMulChip::new()));
+    syscall_map.insert(
+        SyscallCode::FP12_MUL,
+        Arc::new(Fp12MulChip::<Bls12381BaseField>::new()),
+    );
     syscall_map.insert(SyscallCode::UINT256_MUL, Arc::new(Uint256MulChip::new()));
     syscall_map.insert(
         SyscallCode::ENTER_UNCONSTRAINED,

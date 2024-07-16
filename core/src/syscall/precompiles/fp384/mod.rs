@@ -30,7 +30,7 @@ impl Fp {
     }
 
     pub(crate) fn from_words(bytes: &[u32; 12]) -> Self {
-        unsafe { Self(transmute(*bytes)) }
+        unsafe { Self(transmute::<[u32; 12], [u64; 6]>(*bytes)) }
     }
 }
 

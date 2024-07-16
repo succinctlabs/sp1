@@ -1,27 +1,20 @@
-use crate::air::{BaseAirBuilder, MachineAir, Polynomial, SP1AirBuilder, WORD_SIZE};
+use crate::air::{MachineAir, Polynomial, SP1AirBuilder};
 use crate::bytes::event::ByteRecord;
 use crate::bytes::ByteLookupEvent;
-use crate::memory::{value_as_limbs, MemoryCols, MemoryReadCols, MemoryWriteCols};
+use crate::memory::{MemoryCols, MemoryReadCols, MemoryWriteCols};
 use crate::operations::field::field_op::{FieldOpCols, FieldOperation};
-use crate::operations::field::params::{limbs_from_vec, FieldParameters, NumWords};
+use crate::operations::field::params::{FieldParameters, NumWords};
 use crate::operations::field::params::{Limbs, NumLimbs};
-use crate::operations::IsZeroOperation;
 use crate::runtime::{ExecutionRecord, Program, Syscall, SyscallCode};
 use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
 use crate::stark::MachineRecord;
 use crate::syscall::precompiles::SyscallContext;
 use crate::utils::ec::uint::U384Field;
-use crate::utils::{
-    bytes_to_words_le, limbs_from_access, limbs_from_prev_access, pad_rows, words_to_bytes_le,
-    words_to_bytes_le_vec,
-};
-use amcl::bls381::fp12;
-use amcl::bls381::rom::MODULUS;
-use elliptic_curve::{Field, PrimeField};
+use crate::utils::{limbs_from_prev_access, pad_rows, words_to_bytes_le};
 use generic_array::GenericArray;
 use itertools::{izip, Itertools};
+use num::BigUint;
 use num::Zero;
-use num::{BigUint, One};
 use p3_air::AirBuilder;
 use p3_air::{Air, BaseAir};
 use p3_field::AbstractField;
@@ -29,17 +22,14 @@ use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use serde::{Deserialize, Serialize};
-use serde_with::formats::SpaceSeparator;
 use sp1_derive::AlignedBorrow;
 use std::borrow::{Borrow, BorrowMut};
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::mem::size_of;
-use std::ops::{Add, Mul, Sub};
-use std::process::Output;
 use typenum::Unsigned;
 
-use super::{Fp12, Fp6};
+use super::Fp12;
 
 /// The number of columns in the FpMulCols.
 const NUM_COLS: usize = size_of::<Fp12MulCols<u8>>();
@@ -893,6 +883,14 @@ pub struct Fp12MulCols<F> {
 #[derive(Default)]
 pub struct Fp12MulChip<P: FieldParameters> {
     _phantom: PhantomData<P>,
+}
+
+impl<P: FieldParameters> Fp12MulChip<P> {
+    pub fn new() -> Self {
+        Self {
+            _phantom: PhantomData,
+        }
+    }
 }
 
 impl<F: PrimeField32, P: FieldParameters> MachineAir<F> for Fp12MulChip<P> {

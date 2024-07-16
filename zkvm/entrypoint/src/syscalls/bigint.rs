@@ -1,6 +1,6 @@
 use sp1_precompiles::{BIGINT_WIDTH_WORDS, FP_BIGINT_WIDTH_WORDS};
 
-use super::{syscall_fp384_mulmod, syscall_uint256_mulmod};
+use super::{syscall_fp12_mulmod, syscall_fp_mulmod, syscall_uint256_mulmod};
 
 /// Sets result to be (x op y) % modulus. Currently only multiplication is supported. If modulus is
 /// zero, the modulus applied is 2^256.
@@ -76,6 +76,34 @@ pub extern "C" fn sys_fp_bigint(
 
         // Call the uint256_mul syscall to multiply the x value with the concatenated y and modulus.
         // This syscall writes the result in-place, so it will mutate the result ptr appropriately.
-        syscall_fp384_mulmod(result_ptr, concat_ptr);
+        syscall_fp_mulmod(result_ptr, concat_ptr);
+    }
+}
+
+/// Sets result to be x * y with Fp12 arithmetic.
+#[allow(unused_variables)]
+#[no_mangle]
+pub extern "C" fn sys_fp12_bigint(
+    result: *mut [u32; 12 * FP_BIGINT_WIDTH_WORDS],
+    x: *const [u32; 12 * FP_BIGINT_WIDTH_WORDS],
+    y: *const [u32; 12 * FP_BIGINT_WIDTH_WORDS],
+) {
+    // Instantiate a new uninitialized array of words to place the concatenated y and modulus.
+    let mut concat_y_modulus =
+        core::mem::MaybeUninit::<[u32; FP_BIGINT_WIDTH_WORDS * 2 * 12]>::uninit();
+    unsafe {
+        let result_ptr = result as *mut u32;
+        let x_ptr = x as *const u32;
+        let y_ptr = y as *const u32;
+        let concat_ptr = concat_y_modulus.as_mut_ptr() as *mut u32;
+
+        // First copy the y value into the concatenated array.
+        core::ptr::copy_nonoverlapping(y_ptr, concat_ptr, 12 * FP_BIGINT_WIDTH_WORDS);
+        // Copy x into the result array, as our syscall will write the result into the first input.
+        core::ptr::copy_nonoverlapping(x as *const u32, result_ptr, 12 * FP_BIGINT_WIDTH_WORDS);
+
+        // Call the uint256_mul syscall to multiply the x value with the concatenated y and modulus.
+        // This syscall writes the result in-place, so it will mutate the result ptr appropriately.
+        syscall_fp12_mulmod(result_ptr, concat_ptr);
     }
 }
