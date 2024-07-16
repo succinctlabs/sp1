@@ -1,10 +1,13 @@
 [package]
 name = "sp1-cli"
-version = "0.0.2-test"
-edition = "2021"
 description = "SP1 is a performant, 100% open-source, contributor-friendly zkVM."
 readme = "../README.md"
-license = "MIT OR Apache-2.0"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+keywords = { workspace = true }
+categories = { workspace = true }
 
 [build-dependencies]
 vergen = { version = "8", default-features = false, features = [
@@ -17,7 +20,7 @@ vergen = { version = "8", default-features = false, features = [
 
 anyhow = { version = "1.0.83", features = ["backtrace"] }
 cargo_metadata = "0.18.1"
-clap = { version = "4.5.8", features = ["derive", "env"] }
+clap = { version = "4.5.9", features = ["derive", "env"] }
 sp1-build = { path = "../build", version = "0.0.2-test" }
 sp1-prover = { path = "../prover", version = "0.0.2-test" }
 sp1-sdk = { path = "../sdk", version = "0.0.2-test" }

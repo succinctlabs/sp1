@@ -1,10 +1,13 @@
 [package]
 name = "sp1-recursion-core"
-version = "0.0.2-test"
-edition = "2021"
 description = "SP1 is a performant, 100% open-source, contributor-friendly zkVM."
 readme = "../../README.md"
-license = "MIT OR Apache-2.0"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+keywords = { workspace = true }
+categories = { workspace = true }
 
 [dependencies]
 p3-field = { workspace = true }
@@ -30,7 +33,7 @@ p3-fri = { workspace = true }
 zkhash = "0.2.0"
 ff = { version = "0.13", features = ["derive", "derive_bits"] }
 serde = { version = "1.0", features = ["derive", "rc"] }
-serde_with = "3.8.3"
+serde_with = "3.9.0"
 backtrace = { version = "0.3.71", features = ["serde"] }
 arrayref = "0.3.7"
 static_assertions = "1.1.0"
