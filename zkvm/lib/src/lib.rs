@@ -90,4 +90,15 @@ extern "C" {
         y: *const [u32; 8],
         modulus: *const [u32; 8],
     );
+    /// Computes a 384-bit integer operation with a modulus.
+    pub fn sys_fp_bigint(
+        result: *mut [u32; 12],
+        op: u32,
+        x: *const [u32; 12],
+        y: *const [u32; 12],
+        modulus: *const [u32; 12],
+    );
+
+    /// Computes a Fp12 multiplication.
+    pub fn sys_fp12_bigint(result: *mut [u32; 144], x: *const [u32; 144], y: *const [u32; 144]);
 }
