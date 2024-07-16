@@ -4954,7 +4954,6 @@ dependencies = [
  "p3-symmetric",
  "p3-util",
  "rand",
- "rayon",
  "serde",
  "serde_with",
  "sp1-core",
@@ -4972,6 +4971,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
+]
+
+[[package]]
+name = "sp1-recursion-gnark-cli"
+version = "0.0.2-test"
+dependencies = [
+ "bincode",
+ "clap",
+ "sp1-recursion-gnark-ffi",
 ]
 
 [[package]]
