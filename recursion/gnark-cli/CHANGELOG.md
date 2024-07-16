@@ -1,5 +1,4 @@
 # Changelog
-
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
@@ -7,14 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.0.2-test.1](https://github.com/succinctlabs/sp1/compare/sp1-primitives-v0.0.2-test...sp1-primitives-v0.0.2-test.1) - 2024-07-16
+## [0.0.2-test.1](https://github.com/succinctlabs/sp1/compare/sp1-recursion-gnark-cli-v0.0.2-test...sp1-recursion-gnark-cli-v0.0.2-test.1) - 2024-07-16
 
 ### Added
 - publish sp1 to crates.io ([#1052](https://github.com/succinctlabs/sp1/pull/1052))
-- plonk circuit optimizations ([#972](https://github.com/succinctlabs/sp1/pull/972))
-- enable arbitrary constraint degree ([#593](https://github.com/succinctlabs/sp1/pull/593))
-- complete reduce program ([#565](https://github.com/succinctlabs/sp1/pull/565))
-- nested sp1 proof verification ([#494](https://github.com/succinctlabs/sp1/pull/494))
+- use docker by default for gnark ([#890](https://github.com/succinctlabs/sp1/pull/890))
 - new README img ([#226](https://github.com/succinctlabs/sp1/pull/226))
 - readme updates ([#205](https://github.com/succinctlabs/sp1/pull/205))
 - more final touches ([#194](https://github.com/succinctlabs/sp1/pull/194))
@@ -25,17 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - io::read io::write ([#126](https://github.com/succinctlabs/sp1/pull/126))
 - tracing, profiling, benchmarking ([#99](https://github.com/succinctlabs/sp1/pull/99))
 
-### Fixed
-- deferred proofs + cleanup hash_vkey ([#615](https://github.com/succinctlabs/sp1/pull/615))
-
 ### Other
 - use global workspace version ([#1102](https://github.com/succinctlabs/sp1/pull/1102))
 - fix release-plz ([#1088](https://github.com/succinctlabs/sp1/pull/1088))
 - add release-plz ([#1086](https://github.com/succinctlabs/sp1/pull/1086))
-- *(deps)* bump lazy_static from 1.4.0 to 1.5.0
-- *(deps)* bump itertools from 0.12.1 to 0.13.0
-- Clean up TOML files ([#796](https://github.com/succinctlabs/sp1/pull/796))
-- prover tweaks ([#610](https://github.com/succinctlabs/sp1/pull/610))
 - final touches for public release ([#239](https://github.com/succinctlabs/sp1/pull/239))
 - update docs with slight nits ([#224](https://github.com/succinctlabs/sp1/pull/224))
 - sp1 rename ([#212](https://github.com/succinctlabs/sp1/pull/212))
@@ -44,9 +33,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - rename succinct to curta ([#192](https://github.com/succinctlabs/sp1/pull/192))
 - better curta graphic ([#184](https://github.com/succinctlabs/sp1/pull/184))
 - Initial commit
-
-## [0.0.1-test](https://github.com/succinctlabs/sp1/compare/sp1-primitives-v0.0.0-test...sp1-primitives-v0.0.1-test) - 2024-07-11
-
-### Other
-
-- update Cargo.toml dependencies
