@@ -1,3 +1,4 @@
+mod auipc;
 mod branch;
 mod ecall;
 mod jump;
@@ -12,8 +13,6 @@ use p3_matrix::Matrix;
 use crate::{
     air::{PublicValues, Word, SP1_PROOF_NUM_PV_ELTS},
     cpu::CpuAuxChip,
-    operations::BabyBearWordRangeChecker,
-    runtime::Opcode,
     stark::SP1AirBuilder,
 };
 
@@ -33,6 +32,7 @@ where
         let public_values: &PublicValues<Word<AB::Expr>, AB::Expr> =
             public_values_slice.as_slice().borrow();
 
+        // Receive the instruction from the main cpu chip.
         builder.receive_instruction(
             local.clk,
             local.shard,
@@ -78,9 +78,11 @@ where
         );
 
         // HALT instruction.
-        self.eval_halt(builder, local);
+        self.eval_halt(builder, local, public_values);
 
-        // Eval the next_pc for sequence instructions.
+        // Verify local.next_pc value for sequential instructions.  Note that local.next_pc has
+        // already been verified for non sequential in their respective eval functions (e.g. eval_branch_ops,
+        // eval_jump_ops, and eval_halt).
         let is_halt = self.is_halt_syscall::<AB>(builder, local);
         builder.assert_eq(is_halt, local.is_halt);
         let is_sequence_instr = AB::Expr::one()
@@ -92,43 +94,6 @@ where
             .when(local.is_real)
             .when(is_sequence_instr)
             .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), local.next_pc);
-    }
-}
-
-impl CpuAuxChip {
-    /// Constraints related to the AUIPC opcode.
-    pub(crate) fn eval_auipc<AB: SP1AirBuilder>(
-        &self,
-        builder: &mut AB,
-        local: &CpuAuxCols<AB::Var>,
-    ) {
-        // Get the auipc specific columns.
-        let auipc_columns = local.opcode_specific_columns.auipc();
-
-        // Verify that the word form of local.pc is correct.
-        builder
-            .when(local.selectors.is_auipc)
-            .assert_eq(auipc_columns.pc.reduce::<AB>(), local.pc);
-
-        // Range check the pc.
-        BabyBearWordRangeChecker::<AB::F>::range_check(
-            builder,
-            auipc_columns.pc,
-            auipc_columns.pc_range_checker,
-            local.selectors.is_auipc.into(),
-        );
-
-        // Verify that op_a == pc + op_b.
-        builder.send_alu(
-            AB::Expr::from_canonical_u32(Opcode::ADD as u32),
-            local.op_a_val,
-            auipc_columns.pc,
-            local.op_b_val,
-            local.shard,
-            local.channel,
-            auipc_columns.auipc_nonce,
-            local.selectors.is_auipc,
-        );
     }
 }
 

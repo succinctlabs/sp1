@@ -77,8 +77,7 @@ where
             is_alu_instruction,
         );
 
-        // Handle the branch related instructions in the opcode specific table.
-        // This will basically ensure that local.next_pc is correct for branch instructions.
+        // Verify all non ALU instructions in the cpu aux table.
         builder.send_instruction(
             local.clk,
             local.shard,
@@ -110,15 +109,11 @@ where
             .when(local.is_halt + local.selectors.is_unimpl)
             .assert_zero(next.is_real);
 
-        builder.when(local.is_halt).assert_eq(
-            local.op_b_val().reduce::<AB>(),
-            public_values.exit_code.clone(),
-        );
-
         // Check that the shard and clk is updated correctly.
         self.eval_shard_clk(builder, local, next);
 
-        // Check public values constraints.
+        // Check public values constraints.  Note that the public value's exit value and commit/commit_deferred_proofs
+        // related values are checked in eval_halt and eval_commit.
         self.eval_public_values(builder, local, next, public_values);
 
         // Check that the is_real flag is correct.

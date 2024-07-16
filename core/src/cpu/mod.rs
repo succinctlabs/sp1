@@ -11,6 +11,6 @@ pub const MAX_CPU_LOG_DEGREE: usize = 22;
 #[derive(Default)]
 pub struct CpuChip;
 
-/// A chip that implements non alu opcodes.
+/// A chip that implements non ALU opcodes.
 #[derive(Default)]
 pub struct CpuAuxChip;

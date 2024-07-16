@@ -1,7 +1,9 @@
 use p3_air::AirBuilder;
 use p3_field::AbstractField;
 
-use crate::air::{BaseAirBuilder, Word, WordAirBuilder, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS};
+use crate::air::{
+    BaseAirBuilder, PublicValues, Word, WordAirBuilder, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS,
+};
 use crate::cpu::aux::columns::CpuAuxCols;
 use crate::cpu::CpuAuxChip;
 use crate::operations::{BabyBearWordRangeChecker, IsZeroOperation};
@@ -187,6 +189,7 @@ impl CpuAuxChip {
         &self,
         builder: &mut AB,
         local: &CpuAuxCols<AB::Var>,
+        public_values: &PublicValues<Word<AB::Expr>, AB::Expr>,
     ) {
         let is_halt = self.is_halt_syscall(builder, local);
 
@@ -197,6 +200,11 @@ impl CpuAuxChip {
         builder
             .when(is_halt.clone())
             .assert_word_eq(local.op_b_val, ecall_columns.operand_to_check);
+
+        builder.when(is_halt.clone()).assert_eq(
+            local.op_b_val.reduce::<AB>(),
+            public_values.exit_code.clone(),
+        );
     }
 
     /// Returns a boolean expression indicating whether the instruction is a HALT instruction.
