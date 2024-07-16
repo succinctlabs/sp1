@@ -27,7 +27,7 @@ main() {
       -p|--path)        shift; SP1UP_LOCAL_REPO=$1;;
       -P|--pr)          shift; SP1UP_PR=$1;;
       -C|--commit)      shift; SP1UP_COMMIT=$1;;
-      --riscv)          SP1UP_RISCV=true;;
+      -c|--c-toolchain) SP1UP_C_TOOLCHAIN=true;;
       --arch)           shift; SP1UP_ARCH=$1;;
       --platform)       shift; SP1UP_PLATFORM=$1;;
       -h|--help)
@@ -50,10 +50,6 @@ main() {
     else
       err "can't use --pr and --branch at the same time"
     fi
-  fi
-
-  if [ "$SP1UP_RISCV" = true ]; then
-    install_riscv
   fi
 
   # Installs sp1 from a local repository if --path parameter is provided
@@ -94,7 +90,7 @@ main() {
       SP1UP_TAG="${SP1UP_VERSION}"
     fi
 
-    say "installing sp1 (version ${SP1UP_VERSION}, tag ${SP1UP_TAG})"
+    say "installing SP1 (version ${SP1UP_VERSION}, tag ${SP1UP_TAG})"
 
     determine_platform
     determine_architecture
@@ -176,11 +172,15 @@ EOF
     done
   fi
 
+  if [ "$SP1UP_C_TOOLCHAIN" = true ]; then
+    install_c_toolchain
+  fi
+
   say "done!"
 }
 
-install_riscv() {
-  say "installing RISC-V toolchain"
+install_c_toolchain() {
+  say "installing C++ toolchain for RISC-V"
 
   determine_platform
   determine_architecture
@@ -212,7 +212,6 @@ install_riscv() {
   esac
 
   TOOLCHAIN_ARCHIVE="/tmp/$(basename $TOOLCHAIN_URL)"
-  TOOLCHAIN_INSTALL_DIR="$SP1_DIR/riscv"
 
   # Check if the RISC-V GCC prebuilt binary archive already exists, otherwise download it
   if [ -f "$TOOLCHAIN_ARCHIVE" ]; then
@@ -221,50 +220,18 @@ install_riscv() {
     ensure download "$TOOLCHAIN_URL" "$TOOLCHAIN_ARCHIVE"
   fi
 
-  # Create the ~/.sp1 directory if it doesn't exist
-  if [ ! -d "$SP1_DIR" ]; then
-    mkdir -p "$SP1_DIR"
-  fi
-
-  # Create the target directory if it doesn't exist
-  if [ ! -d "$TOOLCHAIN_INSTALL_DIR" ]; then
-    mkdir -p "$TOOLCHAIN_INSTALL_DIR"
-  fi
-
   # Extract the downloaded archive into the target directory
   if [ "$PLATFORM" = "win32" ]; then
-    ensure unzip "$TOOLCHAIN_ARCHIVE" -d "$TOOLCHAIN_INSTALL_DIR" >/dev/null 2>&1
+    ensure unzip "$TOOLCHAIN_ARCHIVE" -d "$SP1_BIN_DIR" >/dev/null 2>&1
   else
-    ensure tar -xvf "$TOOLCHAIN_ARCHIVE" -C "$TOOLCHAIN_INSTALL_DIR" >/dev/null 2>&1
+    ensure tar -xvf "$TOOLCHAIN_ARCHIVE" -C "$SP1_BIN_DIR" >/dev/null 2>&1
   fi
   rm -f "$TOOLCHAIN_ARCHIVE"
 
   # Set environment variables for the RISC-V toolchain
-  export PATH="$TOOLCHAIN_INSTALL_DIR/bin:$PATH"
-  export CC=gcc
-  export CC_riscv32im_succinct_zkvm_elf="$TOOLCHAIN_INSTALL_DIR/bin/riscv32-unknown-elf-gcc"
+  export CC_riscv32im_succinct_zkvm_elf="$SP1_BIN_DIR/riscv32-unknown-elf-gcc"
 
-  # Append to shell profile to persist environment variables
-  append_to_profile "export PATH=\"$TOOLCHAIN_INSTALL_DIR/bin:\$PATH\""
-  append_to_profile "export CC=gcc"
-  append_to_profile "export CC_riscv32im_succinct_zkvm_elf=\"$TOOLCHAIN_INSTALL_DIR/bin/riscv32-unknown-elf-gcc\""
-
-  say "installed RISC-V toolchain and set environment variables"
-}
-
-append_to_profile() {
-  local profile
-  profile="$HOME/.profile"
-  if [ -n "$ZSH_VERSION" ]; then
-    profile="$HOME/.zshrc"
-  elif [ -n "$BASH_VERSION" ]; then
-    profile="$HOME/.bashrc"
-  fi
-
-  # Append the provided line to the profile file if it doesn't already exist
-  if ! grep -Fxq "$1" "$profile"; then
-    echo "$1" >> "$profile"
-  fi
+  say "installed C++ toolchain for RISC-V and set environment variables"
 }
 
 determine_platform() {
@@ -315,16 +282,16 @@ USAGE:
     sp1up <OPTIONS>
 
 OPTIONS:
-    -h, --help      Print help information
-    -v, --version   Install a specific version
-    -b, --branch    Install a specific branch
-    -P, --pr        Install a specific Pull Request
-    -C, --commit    Install a specific commit
-    -r, --repo      Install from a remote GitHub repo (uses default branch if no other options are set)
-    -p, --path      Install a local repository
-    --riscv         Install the RISC-V toolchain
-    --arch          Install a specific architecture (supports amd64 and arm64)
-    --platform      Install a specific platform (supports win32, linux, and darwin)
+    -h, --help        Print help information
+    -v, --version     Install a specific version
+    -b, --branch      Install a specific branch
+    -P, --pr          Install a specific Pull Request
+    -C, --commit      Install a specific commit
+    -r, --repo        Install from a remote GitHub repo (uses default branch if no other options are set)
+    -p, --path        Install a local repository
+    -c, --c-toolchain Install a C++ toolchain for RISC-V (needed building programs that bind to C code)
+    --arch            Install a specific architecture (supports amd64 and arm64)
+    --platform        Install a specific platform (supports win32, linux, and darwin)
 EOF
 }
 
