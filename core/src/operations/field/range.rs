@@ -22,7 +22,7 @@ use super::params::Limbs;
 /// Operation columns for verifying that an element is within the range `[0, modulus)`.
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
-pub struct FieldRangeCols<T, P: FieldParameters> {
+pub struct FieldLtCols<T, P: FieldParameters> {
     /// Boolean flags to indicate the first byte in which the element is smaller than the modulus.
     pub(crate) byte_flags: Limbs<T, P::Limbs>,
 
@@ -31,19 +31,19 @@ pub struct FieldRangeCols<T, P: FieldParameters> {
     pub(crate) modulus_comparison_byte: T,
 }
 
-impl<F: PrimeField32, P: FieldParameters> FieldRangeCols<F, P> {
+impl<F: PrimeField32, P: FieldParameters> FieldLtCols<F, P> {
     pub fn populate(
         &mut self,
         record: &mut impl ByteRecord,
         shard: u32,
         channel: u32,
-        value: &BigUint,
-        modulus: &BigUint,
+        lhs: &BigUint,
+        rhs: &BigUint,
     ) {
-        assert!(value < modulus);
+        assert!(lhs < rhs);
 
-        let value_limbs = P::to_limbs(value);
-        let modulus = P::to_limbs(modulus);
+        let value_limbs = P::to_limbs(lhs);
+        let modulus = P::to_limbs(rhs);
 
         let mut byte_flags = vec![0u8; P::NB_LIMBS];
 
@@ -76,7 +76,7 @@ impl<F: PrimeField32, P: FieldParameters> FieldRangeCols<F, P> {
     }
 }
 
-impl<V: Copy, P: FieldParameters> FieldRangeCols<V, P> {
+impl<V: Copy, P: FieldParameters> FieldLtCols<V, P> {
     pub fn eval<
         AB: SP1AirBuilder<Var = V>,
         E1: Into<Polynomial<AB::Expr>> + Clone,
@@ -84,8 +84,8 @@ impl<V: Copy, P: FieldParameters> FieldRangeCols<V, P> {
     >(
         &self,
         builder: &mut AB,
-        element: &E1,
-        modulus: &E2,
+        lhs: &E1,
+        rhs: &E2,
         shard: impl Into<AB::Expr> + Clone,
         channel: impl Into<AB::Expr> + Clone,
         is_real: impl Into<AB::Expr> + Clone,
@@ -120,8 +120,8 @@ impl<V: Copy, P: FieldParameters> FieldRangeCols<V, P> {
         // most significant until the first inequality.
         let mut is_inequality_visited = AB::Expr::zero();
 
-        let modulus: Polynomial<_> = modulus.clone().into();
-        let element: Polynomial<_> = element.clone().into();
+        let modulus: Polynomial<_> = rhs.clone().into();
+        let element: Polynomial<_> = lhs.clone().into();
 
         let mut first_lt_byte = AB::Expr::zero();
         let mut modulus_comparison_byte = AB::Expr::zero();

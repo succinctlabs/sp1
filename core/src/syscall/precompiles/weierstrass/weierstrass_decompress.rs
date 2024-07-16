@@ -24,7 +24,7 @@ use crate::operations::field::field_op::FieldOperation;
 use crate::operations::field::field_sqrt::FieldSqrtCols;
 use crate::operations::field::params::{limbs_from_vec, FieldParameters, NumWords};
 use crate::operations::field::params::{Limbs, NumLimbs};
-use crate::operations::field::range::FieldRangeCols;
+use crate::operations::field::range::FieldLtCols;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::Program;
 use crate::runtime::Syscall;
@@ -58,7 +58,7 @@ pub struct WeierstrassDecompressCols<T, P: FieldParameters + NumWords> {
     pub is_odd: T,
     pub x_access: GenericArray<MemoryReadCols<T>, P::WordsFieldElement>,
     pub y_access: GenericArray<MemoryReadWriteCols<T>, P::WordsFieldElement>,
-    pub(crate) range_x: FieldRangeCols<T, P>,
+    pub(crate) range_x: FieldLtCols<T, P>,
     pub(crate) x_2: FieldOpCols<T, P>,
     pub(crate) x_3: FieldOpCols<T, P>,
     pub(crate) x_3_plus_b: FieldOpCols<T, P>,
@@ -420,8 +420,7 @@ mod tests {
         let len = 100;
         let random_slice = (0..len).map(|_| rng.gen::<u8>()).collect::<Vec<u8>>();
         rand.seed(len, &random_slice);
-        let (_, compressed) = key_pair_generate_g2(&mut RAND::new());
-        // let (_, compressed) = key_pair_generate_g2(&mut rand);
+        let (_, compressed) = key_pair_generate_g2(&mut rand);
         // let compressed = hex::decode("8dffed32f74d62cf8904a02fc7f564a224938c2571f138acd059c0d2f10914e77a1528b1616f77ff5d28079b88d8da8d").unwrap();
 
         let stdin = SP1Stdin::from(&compressed);
