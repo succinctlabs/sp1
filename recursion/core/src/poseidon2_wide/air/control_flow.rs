@@ -159,6 +159,9 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                 );
             finalize_transition_builder
                 .when(next_control_flow.is_absorb)
+                .assert_zero(next_opcode_workspace.absorb().hash_num);
+            finalize_transition_builder
+                .when(next_control_flow.is_absorb)
                 .assert_one(next_opcode_workspace.absorb().is_first_hash_row);
         }
 
@@ -284,6 +287,10 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                 local_control_flow.is_absorb_not_last_row,
                 local_control_flow.is_absorb
                     * (AB::Expr::one() - local_hash_workspace.is_last_row::<AB>()),
+            );
+            builder.assert_eq(
+                local_control_flow.is_absorb_not_last_row,
+                local_control_flow.is_absorb * local_hash_workspace.is_last_row::<AB>(),
             );
 
             builder.assert_eq(
