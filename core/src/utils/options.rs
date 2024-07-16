@@ -4,7 +4,8 @@ use crate::runtime::{SplitOpts, DEFERRED_SPLIT_THRESHOLD};
 
 const DEFAULT_SHARD_SIZE: usize = 1 << 22;
 const DEFAULT_SHARD_BATCH_SIZE: usize = 16;
-const DEFAULT_STREAM_CAPACITY: usize = 4;
+const DEFAULT_COMMIT_STREAM_CAPACITY: usize = 1;
+const DEFAULT_PROVE_STREAM_CAPACITY: usize = 1;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SP1ProverOpts {
@@ -25,7 +26,8 @@ impl Default for SP1ProverOpts {
 pub struct SP1CoreOpts {
     pub shard_size: usize,
     pub shard_batch_size: usize,
-    pub stream_capacity: usize,
+    pub commit_stream_capacity: usize,
+    pub prove_stream_capacity: usize,
     pub split_opts: SplitOpts,
     pub reconstruct_commitments: bool,
 }
@@ -44,9 +46,13 @@ impl Default for SP1CoreOpts {
                 |_| DEFAULT_SHARD_BATCH_SIZE,
                 |s| s.parse::<usize>().unwrap_or(DEFAULT_SHARD_BATCH_SIZE),
             ),
-            stream_capacity: env::var("STREAM_CAPACITY").map_or_else(
-                |_| DEFAULT_STREAM_CAPACITY,
-                |s| s.parse::<usize>().unwrap_or(DEFAULT_STREAM_CAPACITY),
+            commit_stream_capacity: env::var("COMMIT_STREAM_CAPACITY").map_or_else(
+                |_| DEFAULT_COMMIT_STREAM_CAPACITY,
+                |s| s.parse::<usize>().unwrap_or(DEFAULT_COMMIT_STREAM_CAPACITY),
+            ),
+            prove_stream_capacity: env::var("PROVE_STREAM_CAPACITY").map_or_else(
+                |_| DEFAULT_PROVE_STREAM_CAPACITY,
+                |s| s.parse::<usize>().unwrap_or(DEFAULT_PROVE_STREAM_CAPACITY),
             ),
             split_opts: SplitOpts::new(split_threshold),
             reconstruct_commitments: true,

@@ -189,7 +189,8 @@ where
 
     std::thread::scope(move |s| {
         // Spawn a thread for commiting to the shards.
-        let (records_tx, records_rx) = sync_channel::<Vec<ExecutionRecord>>(opts.stream_capacity);
+        let (records_tx, records_rx) =
+            sync_channel::<Vec<ExecutionRecord>>(opts.commit_stream_capacity);
         let challenger_handle = s.spawn(move || {
             for records in records_rx.iter() {
                 let commitments = records
@@ -288,7 +289,8 @@ where
         let mut report_aggregate = ExecutionReport::default();
 
         // Spawn a thread for proving the shards.
-        let (records_tx, records_rx) = sync_channel::<Vec<ExecutionRecord>>(opts.stream_capacity);
+        let (records_tx, records_rx) =
+            sync_channel::<Vec<ExecutionRecord>>(opts.prove_stream_capacity);
 
         let shard_proofs = s.spawn(move || {
             let mut shard_proofs = Vec::new();
