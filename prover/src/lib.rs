@@ -260,13 +260,12 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         context
             .subproof_verifier
             .get_or_insert_with(|| Arc::new(self));
-        let config = CoreSC::default();
         let program = Program::from(&pk.elf);
         let (proof, public_values_stream, cycles) =
             sp1_core::utils::prove_with_context::<_, C::CoreProver>(
+                &self.core_prover,
                 program,
                 stdin,
-                config,
                 opts.core_opts,
                 context,
             )?;
@@ -276,6 +275,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             proof: SP1CoreProofData(proof.shard_proofs),
             stdin: stdin.clone(),
             public_values,
+            cycles,
         })
     }
 
