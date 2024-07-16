@@ -895,21 +895,6 @@ pub struct Fp12MulChip<P: FieldParameters> {
     _phantom: PhantomData<P>,
 }
 
-// impl Fp12MulChip {
-// const MODULUS: &'static [u8] = &[
-//     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-//     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
-// ];
-
-// fn populate_field_ops(
-//     blu_events: &mut Vec<ByteLookupEvent>,
-//     shard: u32,
-//     channel: u32,
-//     cols: &mut WeierstrassAddAssignCols<F, E::BaseField>,
-
-// )
-// }
-
 impl<F: PrimeField32, P: FieldParameters> MachineAir<F> for Fp12MulChip<P> {
     type Record = ExecutionRecord;
 
@@ -1138,12 +1123,9 @@ where
         );
 
         let mut dest = local.output.clone();
-        eval.build_fp12_mul_constraints(&mut dest, &a, &b);
-        // let eval = Fp12MulChipEval::new(local.shard, local.channel, local.is_real, builder, MODULUS);
+        let _result = eval.build_fp12_mul_constraints(&mut dest, &a, &b).unwrap();
 
-        // eval.fp12_mul(&a, &b);
-
-        let output_results = local.output.get_results();
+        let output_results = dest.get_results();
         for i in 0..FP12_WORDS * LIMBS_PER_WORD {
             output_results.iter().for_each(|&result| {
                 builder
