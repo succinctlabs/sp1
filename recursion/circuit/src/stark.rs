@@ -10,14 +10,12 @@ use p3_air::Air;
 use p3_baby_bear::BabyBear;
 use p3_bn254_fr::Bn254Fr;
 use p3_commit::TwoAdicMultiplicativeCoset;
-use p3_field::extension::BinomialExtensionField;
 use p3_field::{AbstractField, TwoAdicField};
 use sp1_core::stark::{Com, ShardProof, PROOF_MAX_NUM_PVS};
 use sp1_core::{
     air::MachineAir,
     stark::{ShardCommitment, StarkGenericConfig, StarkMachine, StarkVerifyingKey},
 };
-use sp1_recursion_compiler::asm::AsmBuilder;
 use sp1_recursion_compiler::config::OuterConfig;
 use sp1_recursion_compiler::constraints::{Constraint, ConstraintCompiler};
 use sp1_recursion_compiler::ir::{Builder, Config, Ext, Felt, Var};
