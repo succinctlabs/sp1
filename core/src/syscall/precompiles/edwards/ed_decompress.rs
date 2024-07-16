@@ -53,7 +53,7 @@ use super::{WordsFieldElement, WORDS_FIELD_ELEMENT};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EdDecompressEvent {
-    pub lookup_id: usize,
+    pub lookup_id: u128,
     pub shard: u32,
     pub channel: u32,
     pub clk: u32,

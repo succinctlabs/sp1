@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 /// Elliptic curve add event.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ECAddEvent {
-    pub lookup_id: usize,
+    pub lookup_id: u128,
     pub shard: u32,
     pub channel: u32,
     pub clk: u32,
@@ -84,7 +84,7 @@ pub fn create_ec_add_event<E: EllipticCurve>(
 /// Elliptic curve double event.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ECDoubleEvent {
-    pub lookup_id: usize,
+    pub lookup_id: u128,
     pub shard: u32,
     pub channel: u32,
     pub clk: u32,
@@ -134,7 +134,7 @@ pub fn create_ec_double_event<E: EllipticCurve>(
 /// Elliptic curve point decompress event.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ECDecompressEvent {
-    pub lookup_id: usize,
+    pub lookup_id: u128,
     pub shard: u32,
     pub channel: u32,
     pub clk: u32,
