@@ -179,6 +179,7 @@ EOF
   say "done!"
 }
 
+# Downloads the C++ toolchain for RISC-V to SP1_BIN_DIR/riscv32-unknown-elf-gcc
 install_c_toolchain() {
   say "installing C++ toolchain for RISC-V"
 
@@ -188,7 +189,6 @@ install_c_toolchain() {
   case $PLATFORM in
     linux)
       case $ARCHITECTURE in
-        arm64) TOOLCHAIN_URL="https://github.com/risc0/toolchain/releases/download/2022.02.25/riscv32im-ubuntu18-amd64.tar.xz" ;;
         amd64) TOOLCHAIN_URL="https://github.com/risc0/toolchain/releases/download/2022.03.25/riscv32im-linux-x86_64.tar.xz" ;;
         *) err "unsupported architecture for Linux: $ARCHITECTURE" ;;
       esac
@@ -220,19 +220,29 @@ install_c_toolchain() {
     ensure download "$TOOLCHAIN_URL" "$TOOLCHAIN_ARCHIVE"
   fi
 
-  # Extract the downloaded archive into the target directory
+  # Extract the downloaded archive into a temporary directory
+  TEMP_DIR=$(mktemp -d)
   if [ "$PLATFORM" = "win32" ]; then
-    ensure unzip "$TOOLCHAIN_ARCHIVE" -d "$SP1_BIN_DIR" >/dev/null 2>&1
+    ensure unzip "$TOOLCHAIN_ARCHIVE" -d "$TEMP_DIR" >/dev/null 2>&1
   else
-    ensure tar -xvf "$TOOLCHAIN_ARCHIVE" -C "$SP1_BIN_DIR" >/dev/null 2>&1
+    ensure tar -xvf "$TOOLCHAIN_ARCHIVE" -C "$TEMP_DIR" >/dev/null 2>&1
   fi
   rm -f "$TOOLCHAIN_ARCHIVE"
 
+  # Move the binaries to the target directory
+  mkdir -p "$SP1_BIN_DIR"
+  find "$TEMP_DIR" -name 'riscv32-unknown-elf-*' -exec mv {} "$SP1_BIN_DIR/" \;
+
+  # Clean up the temporary directory
+  rm -rf "$TEMP_DIR"
+
   # Set environment variables for the RISC-V toolchain
+  export PATH="$SP1_BIN_DIR:$PATH"
   export CC_riscv32im_succinct_zkvm_elf="$SP1_BIN_DIR/riscv32-unknown-elf-gcc"
 
   say "installed C++ toolchain for RISC-V and set environment variables"
 }
+
 
 determine_platform() {
   uname_s=$(uname -s)
