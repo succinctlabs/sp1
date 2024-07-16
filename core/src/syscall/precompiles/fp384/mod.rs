@@ -2,6 +2,7 @@ mod fp;
 mod fp12;
 
 use std::{
+    marker::PhantomData,
     mem::transmute,
     ops::{Add, Mul, Neg, Sub},
 };
@@ -11,45 +12,39 @@ pub use fp12::*;
 
 use num_bigint::BigUint;
 
-use crate::utils::{bytes_to_words_le, words_to_bytes_le_vec};
+use crate::{
+    operations::field::params::FieldParameters,
+    utils::{bytes_to_words_le, words_to_bytes_le_vec},
+};
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Debug, PartialEq)]
 #[repr(C)]
-pub struct Fp(pub [u64; 6]);
+pub struct Fp<F: FieldParameters>(pub [u64; 6], PhantomData<F>);
 
-impl Fp {
-    const MODULUS: &'static [u8] = &[
-        171, 170, 255, 255, 255, 255, 254, 185, 255, 255, 83, 177, 254, 255, 171, 30, 36, 246, 176,
-        246, 160, 210, 48, 103, 191, 18, 133, 243, 132, 75, 119, 100, 215, 172, 75, 67, 182, 167,
-        27, 75, 154, 230, 127, 57, 234, 17, 1, 26,
-    ];
-    const R_INV: [u64; 6] = [
-        0xf4d38259380b4820,
-        0x7fe11274d898fafb,
-        0x343ea97914956dc8,
-        0x1797ab1458a88de9,
-        0xed5e64273c4f538b,
-        0x14fec701e8fb0ce9,
-    ];
+impl<F: FieldParameters> Fp<F> {
     pub(crate) fn to_words(self) -> [u32; 12] {
         unsafe { transmute(self.0) }
     }
 
     pub(crate) fn from_words(bytes: &[u32; 12]) -> Self {
-        unsafe { Self(transmute::<[u32; 12], [u64; 6]>(*bytes)) }
+        unsafe { Self(transmute::<[u32; 12], [u64; 6]>(*bytes), PhantomData::<F>) }
+    }
+
+    pub(crate) fn new(val: [u64; 6]) -> Self {
+        Self(val, PhantomData::<F>)
     }
 }
 
-impl Mul for Fp {
+impl<F: FieldParameters> Mul for Fp<F> {
     type Output = Self;
 
     fn mul(self, other: Self) -> Self::Output {
         let rhs = BigUint::from_bytes_le(&words_to_bytes_le_vec(&self.to_words()));
         let lhs = BigUint::from_bytes_le(&words_to_bytes_le_vec(&other.to_words()));
 
-        let out = (lhs * rhs) % BigUint::from_bytes_le(Self::MODULUS);
-        let out = (out * BigUint::from_slice(&Fp(Self::R_INV).to_words()))
-            % BigUint::from_bytes_le(Self::MODULUS);
+        let out = (lhs * rhs) % BigUint::from_bytes_le(F::MODULUS);
+        let r_inv = BigUint::from_bytes_le(F::R_INV);
+        let out = (out * BigUint::from_bytes_le(F::R_INV)) % BigUint::from_bytes_le(F::MODULUS);
 
         let mut padded = out.to_bytes_le();
         padded.resize(48, 0);
@@ -57,25 +52,25 @@ impl Mul for Fp {
     }
 }
 
-impl Add for Fp {
+impl<F: FieldParameters> Add for Fp<F> {
     type Output = Self;
 
     fn add(self, other: Self) -> Self::Output {
         let rhs = BigUint::from_bytes_le(&words_to_bytes_le_vec(&self.to_words()));
         let lhs = BigUint::from_bytes_le(&words_to_bytes_le_vec(&other.to_words()));
 
-        let out = (lhs + rhs) % BigUint::from_bytes_le(Self::MODULUS);
+        let out = (lhs + rhs) % BigUint::from_bytes_le(F::MODULUS);
         let mut padded = out.to_bytes_le();
         padded.resize(48, 0);
         Self::from_words(&bytes_to_words_le::<12>(&padded))
     }
 }
 
-impl Neg for Fp {
+impl<F: FieldParameters> Neg for Fp<F> {
     type Output = Self;
 
     fn neg(self) -> Self::Output {
-        let modulus = BigUint::from_bytes_le(Self::MODULUS);
+        let modulus = BigUint::from_bytes_le(F::MODULUS);
         let val = BigUint::from_bytes_le(&words_to_bytes_le_vec(&self.to_words()));
         let out = &modulus - (val % &modulus);
         let mut padded = out.to_bytes_le();
@@ -84,7 +79,7 @@ impl Neg for Fp {
     }
 }
 
-impl Sub for Fp {
+impl<F: FieldParameters> Sub for Fp<F> {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
@@ -92,14 +87,21 @@ impl Sub for Fp {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+impl<F: FieldParameters> Clone for Fp<F> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone(), self.1.clone())
+    }
+}
+impl<F: FieldParameters> Copy for Fp<F> {}
+
+#[derive(Debug, PartialEq)]
 #[repr(C)]
-pub struct Fp2 {
-    c0: Fp,
-    c1: Fp,
+pub struct Fp2<F: FieldParameters> {
+    c0: Fp<F>,
+    c1: Fp<F>,
 }
 
-impl Fp2 {
+impl<F: FieldParameters> Fp2<F> {
     pub(crate) fn get_words(self) -> [u32; 24] {
         let mut bytes = [0; 24];
         bytes[..12].copy_from_slice(&self.c0.to_words());
@@ -115,7 +117,7 @@ impl Fp2 {
     }
 }
 
-impl Mul for Fp2 {
+impl<F: FieldParameters> Mul for Fp2<F> {
     type Output = Self;
 
     fn mul(self, rhs: Self) -> Self::Output {
@@ -126,7 +128,7 @@ impl Mul for Fp2 {
     }
 }
 
-impl Add for Fp2 {
+impl<F: FieldParameters> Add for Fp2<F> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
@@ -137,7 +139,7 @@ impl Add for Fp2 {
     }
 }
 
-impl Neg for Fp2 {
+impl<F: FieldParameters> Neg for Fp2<F> {
     type Output = Self;
 
     fn neg(self) -> Self::Output {
@@ -148,7 +150,7 @@ impl Neg for Fp2 {
     }
 }
 
-impl Sub for Fp2 {
+impl<F: FieldParameters> Sub for Fp2<F> {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
@@ -156,15 +158,26 @@ impl Sub for Fp2 {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-#[repr(C)]
-pub struct Fp6 {
-    c0: Fp2,
-    c1: Fp2,
-    c2: Fp2,
+impl<F: FieldParameters> Clone for Fp2<F> {
+    fn clone(&self) -> Self {
+        Self {
+            c0: self.c0.clone(),
+            c1: self.c1.clone(),
+        }
+    }
 }
 
-impl Fp6 {
+impl<F: FieldParameters> Copy for Fp2<F> {}
+
+#[derive(Debug, PartialEq)]
+#[repr(C)]
+pub struct Fp6<F: FieldParameters> {
+    c0: Fp2<F>,
+    c1: Fp2<F>,
+    c2: Fp2<F>,
+}
+
+impl<F: FieldParameters> Fp6<F> {
     pub(crate) fn get_words(&self) -> [u32; 72] {
         let mut bytes = [0; 72];
         bytes[..24].copy_from_slice(&self.c0.get_words());
@@ -173,8 +186,8 @@ impl Fp6 {
         bytes
     }
 
-    fn mul_by_nonresidue(&self) -> Fp6 {
-        Fp6 {
+    fn mul_by_nonresidue(&self) -> Fp6<F> {
+        Fp6::<F> {
             c0: self.c2.mul_by_nonresidue(),
             c1: self.c0,
             c2: self.c1,
@@ -182,7 +195,7 @@ impl Fp6 {
     }
 }
 
-impl Mul for Fp6 {
+impl<F: FieldParameters> Mul for Fp6<F> {
     type Output = Self;
 
     fn mul(self, rhs: Self) -> Self::Output {
@@ -231,7 +244,7 @@ impl Mul for Fp6 {
     }
 }
 
-impl Add for Fp6 {
+impl<F: FieldParameters> Add for Fp6<F> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
@@ -243,7 +256,7 @@ impl Add for Fp6 {
     }
 }
 
-impl Neg for Fp6 {
+impl<F: FieldParameters> Neg for Fp6<F> {
     type Output = Self;
 
     fn neg(self) -> Self::Output {
@@ -255,7 +268,7 @@ impl Neg for Fp6 {
     }
 }
 
-impl Sub for Fp6 {
+impl<F: FieldParameters> Sub for Fp6<F> {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
@@ -263,14 +276,25 @@ impl Sub for Fp6 {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+impl<F: FieldParameters> Clone for Fp6<F> {
+    fn clone(&self) -> Self {
+        Self {
+            c0: self.c0.clone(),
+            c1: self.c1.clone(),
+            c2: self.c2.clone(),
+        }
+    }
+}
+impl<F: FieldParameters> Copy for Fp6<F> {}
+
+#[derive(Clone, Debug, PartialEq)]
 #[repr(C)]
-pub struct Fp12 {
-    c0: Fp6,
-    c1: Fp6,
+pub struct Fp12<F: FieldParameters> {
+    c0: Fp6<F>,
+    c1: Fp6<F>,
 }
 
-impl Fp12 {
+impl<F: FieldParameters> Fp12<F> {
     pub(crate) fn get_words(self) -> [u32; 144] {
         let mut bytes = [0; 144];
         bytes[..72].copy_from_slice(&self.c0.get_words());
@@ -283,7 +307,7 @@ impl Fp12 {
     }
 }
 
-impl Add for Fp12 {
+impl<F: FieldParameters> Add for Fp12<F> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
@@ -294,7 +318,7 @@ impl Add for Fp12 {
     }
 }
 
-impl Mul for Fp12 {
+impl<F: FieldParameters> Mul for Fp12<F> {
     type Output = Self;
 
     fn mul(self, rhs: Self) -> Self::Output {
@@ -314,11 +338,13 @@ impl Mul for Fp12 {
 
 #[cfg(test)]
 mod test {
+    use crate::utils::ec::weierstrass::bls12_381::Bls12381BaseField;
+
     use super::*;
 
     #[test]
     fn test_fp_multiplication() {
-        let a = Fp([
+        let a = Fp::<Bls12381BaseField>::new([
             0x0397_a383_2017_0cd4,
             0x734c_1b2c_9e76_1d30,
             0x5ed2_55ad_9a48_beb5,
@@ -326,7 +352,7 @@ mod test {
             0x2294_ce75_d4e2_6a27,
             0x1333_8bd8_7001_1ebb,
         ]);
-        let b = Fp([
+        let b = Fp::<Bls12381BaseField>::new([
             0xb9c3_c7c5_b119_6af7,
             0x2580_e208_6ce3_35c1,
             0xf49a_ed3d_8a57_ef42,
@@ -334,7 +360,7 @@ mod test {
             0xe076_2346_c384_52ce,
             0x0652_e893_26e5_7dc0,
         ]);
-        let c = Fp([
+        let c = Fp::<Bls12381BaseField>::new([
             0xf96e_f3d7_11ab_5355,
             0xe8d4_59ea_00f1_48dd,
             0x53f7_354a_5f00_fa78,
@@ -347,7 +373,7 @@ mod test {
     }
     #[test]
     fn test_fp_addition() {
-        let a = Fp([
+        let a = Fp::<Bls12381BaseField>::new([
             0x5360_bb59_7867_8032,
             0x7dd2_75ae_799e_128e,
             0x5c5b_5071_ce4f_4dcf,
@@ -355,7 +381,7 @@ mod test {
             0xc323_65c5_e73f_474a,
             0x115a_2a54_89ba_be5b,
         ]);
-        let b = Fp([
+        let b = Fp::<Bls12381BaseField>::new([
             0x9fd2_8773_3d23_dda0,
             0xb16b_f2af_738b_3554,
             0x3e57_a75b_d3cc_6d1d,
@@ -363,7 +389,7 @@ mod test {
             0xd319_a080_efb2_45fe,
             0x15fd_caa4_e4bb_2091,
         ]);
-        let c = Fp([
+        let c = Fp::<Bls12381BaseField>::new([
             0x3934_42cc_b58b_b327,
             0x1092_685f_3bd5_47e3,
             0x3382_252c_ab6a_c4c9,
@@ -377,7 +403,7 @@ mod test {
 
     #[test]
     fn test_fp_subtraction() {
-        let a = Fp([
+        let a = Fp::<Bls12381BaseField>::new([
             0x5360_bb59_7867_8032,
             0x7dd2_75ae_799e_128e,
             0x5c5b_5071_ce4f_4dcf,
@@ -385,7 +411,7 @@ mod test {
             0xc323_65c5_e73f_474a,
             0x115a_2a54_89ba_be5b,
         ]);
-        let b = Fp([
+        let b = Fp::<Bls12381BaseField>::new([
             0x9fd2_8773_3d23_dda0,
             0xb16b_f2af_738b_3554,
             0x3e57_a75b_d3cc_6d1d,
@@ -393,7 +419,7 @@ mod test {
             0xd319_a080_efb2_45fe,
             0x15fd_caa4_e4bb_2091,
         ]);
-        let c = Fp([
+        let c = Fp::<Bls12381BaseField>::new([
             0x6d8d_33e6_3b43_4d3d,
             0xeb12_82fd_b766_dd39,
             0x8534_7bb6_f133_d6d5,
@@ -407,7 +433,7 @@ mod test {
 
     #[test]
     fn test_fp_negation() {
-        let a = Fp([
+        let a = Fp::<Bls12381BaseField>::new([
             0x5360_bb59_7867_8032,
             0x7dd2_75ae_799e_128e,
             0x5c5b_5071_ce4f_4dcf,
@@ -415,7 +441,7 @@ mod test {
             0xc323_65c5_e73f_474a,
             0x115a_2a54_89ba_be5b,
         ]);
-        let b = Fp([
+        let b = Fp::<Bls12381BaseField>::new([
             0x669e_44a6_8798_2a79,
             0xa0d9_8a50_37b5_ed71,
             0x0ad5_822f_2861_a854,
@@ -430,7 +456,7 @@ mod test {
     #[test]
     fn test_fp2_multiplication() {
         let a = Fp2 {
-            c0: Fp([
+            c0: Fp::<Bls12381BaseField>::new([
                 0xc9a2_1831_63ee_70d4,
                 0xbc37_70a7_196b_5c91,
                 0xa247_f8c1_304c_5f44,
@@ -438,7 +464,7 @@ mod test {
                 0xe1d2_93e5_bbd9_19c9,
                 0x04b7_8e80_020e_f2ca,
             ]),
-            c1: Fp([
+            c1: Fp::<Bls12381BaseField>::new([
                 0x952e_a446_0462_618f,
                 0x238d_5edd_f025_c62f,
                 0xf6c9_4b01_2ea9_2e72,
@@ -448,7 +474,7 @@ mod test {
             ]),
         };
         let b = Fp2 {
-            c0: Fp([
+            c0: Fp::<Bls12381BaseField>::new([
                 0xa1e0_9175_a4d2_c1fe,
                 0x8b33_acfc_204e_ff12,
                 0xe244_15a1_1b45_6e42,
@@ -456,7 +482,7 @@ mod test {
                 0x1164_dbe8_667c_853c,
                 0x0788_557a_cc7d_9c79,
             ]),
-            c1: Fp([
+            c1: Fp::<Bls12381BaseField>::new([
                 0xda6a_87cc_6f48_fa36,
                 0x0fc7_b488_277c_1903,
                 0x9445_ac4a_dc44_8187,
@@ -466,7 +492,7 @@ mod test {
             ]),
         };
         let c = Fp2 {
-            c0: Fp([
+            c0: Fp::<Bls12381BaseField>::new([
                 0xf597_483e_27b4_e0f7,
                 0x610f_badf_811d_ae5f,
                 0x8432_af91_7714_327a,
@@ -474,7 +500,7 @@ mod test {
                 0xf05a_7bf8_bad0_eb01,
                 0x0954_9131_c003_ffae,
             ]),
-            c1: Fp([
+            c1: Fp::<Bls12381BaseField>::new([
                 0x963b_02d0_f93d_37cd,
                 0xc95c_e1cd_b30a_73d4,
                 0x3087_25fa_3126_f9b8,
@@ -490,7 +516,7 @@ mod test {
     #[test]
     fn test_fp2_addition() {
         let a = Fp2 {
-            c0: Fp([
+            c0: Fp::<Bls12381BaseField>::new([
                 0xc9a2_1831_63ee_70d4,
                 0xbc37_70a7_196b_5c91,
                 0xa247_f8c1_304c_5f44,
@@ -498,7 +524,7 @@ mod test {
                 0xe1d2_93e5_bbd9_19c9,
                 0x04b7_8e80_020e_f2ca,
             ]),
-            c1: Fp([
+            c1: Fp::<Bls12381BaseField>::new([
                 0x952e_a446_0462_618f,
                 0x238d_5edd_f025_c62f,
                 0xf6c9_4b01_2ea9_2e72,
@@ -508,7 +534,7 @@ mod test {
             ]),
         };
         let b = Fp2 {
-            c0: Fp([
+            c0: Fp::<Bls12381BaseField>::new([
                 0xa1e0_9175_a4d2_c1fe,
                 0x8b33_acfc_204e_ff12,
                 0xe244_15a1_1b45_6e42,
@@ -516,7 +542,7 @@ mod test {
                 0x1164_dbe8_667c_853c,
                 0x0788_557a_cc7d_9c79,
             ]),
-            c1: Fp([
+            c1: Fp::<Bls12381BaseField>::new([
                 0xda6a_87cc_6f48_fa36,
                 0x0fc7_b488_277c_1903,
                 0x9445_ac4a_dc44_8187,
@@ -526,7 +552,7 @@ mod test {
             ]),
         };
         let c = Fp2 {
-            c0: Fp([
+            c0: Fp::<Bls12381BaseField>::new([
                 0x6b82_a9a7_08c1_32d2,
                 0x476b_1da3_39ba_5ba4,
                 0x848c_0e62_4b91_cd87,
@@ -534,7 +560,7 @@ mod test {
                 0xf337_6fce_2255_9f06,
                 0x0c3f_e3fa_ce8c_8f43,
             ]),
-            c1: Fp([
+            c1: Fp::<Bls12381BaseField>::new([
                 0x6f99_2c12_73ab_5bc5,
                 0x3355_1366_17a1_df33,
                 0x8b0e_f74c_0aed_aff9,
@@ -550,7 +576,7 @@ mod test {
     #[test]
     fn test_fp2_subtraction() {
         let a = Fp2 {
-            c0: Fp([
+            c0: Fp::<Bls12381BaseField>::new([
                 0xc9a2_1831_63ee_70d4,
                 0xbc37_70a7_196b_5c91,
                 0xa247_f8c1_304c_5f44,
@@ -558,7 +584,7 @@ mod test {
                 0xe1d2_93e5_bbd9_19c9,
                 0x04b7_8e80_020e_f2ca,
             ]),
-            c1: Fp([
+            c1: Fp::<Bls12381BaseField>::new([
                 0x952e_a446_0462_618f,
                 0x238d_5edd_f025_c62f,
                 0xf6c9_4b01_2ea9_2e72,
@@ -568,7 +594,7 @@ mod test {
             ]),
         };
         let b = Fp2 {
-            c0: Fp([
+            c0: Fp::<Bls12381BaseField>::new([
                 0xa1e0_9175_a4d2_c1fe,
                 0x8b33_acfc_204e_ff12,
                 0xe244_15a1_1b45_6e42,
@@ -576,7 +602,7 @@ mod test {
                 0x1164_dbe8_667c_853c,
                 0x0788_557a_cc7d_9c79,
             ]),
-            c1: Fp([
+            c1: Fp::<Bls12381BaseField>::new([
                 0xda6a_87cc_6f48_fa36,
                 0x0fc7_b488_277c_1903,
                 0x9445_ac4a_dc44_8187,
@@ -586,7 +612,7 @@ mod test {
             ]),
         };
         let c = Fp2 {
-            c0: Fp([
+            c0: Fp::<Bls12381BaseField>::new([
                 0xe1c0_86bb_bf1b_5981,
                 0x4faf_c3a9_aa70_5d7e,
                 0x2734_b5c1_0bb7_e726,
@@ -594,7 +620,7 @@ mod test {
                 0x1b89_5fb3_98a8_4164,
                 0x1730_4aef_6f11_3cec,
             ]),
-            c1: Fp([
+            c1: Fp::<Bls12381BaseField>::new([
                 0x74c3_1c79_9519_1204,
                 0x3271_aa54_79fd_ad2b,
                 0xc9b4_7157_4915_a30f,
@@ -610,7 +636,7 @@ mod test {
     #[test]
     fn test_fp2_negation() {
         let a = Fp2 {
-            c0: Fp([
+            c0: Fp::<Bls12381BaseField>::new([
                 0xc9a2_1831_63ee_70d4,
                 0xbc37_70a7_196b_5c91,
                 0xa247_f8c1_304c_5f44,
@@ -618,7 +644,7 @@ mod test {
                 0xe1d2_93e5_bbd9_19c9,
                 0x04b7_8e80_020e_f2ca,
             ]),
-            c1: Fp([
+            c1: Fp::<Bls12381BaseField>::new([
                 0x952e_a446_0462_618f,
                 0x238d_5edd_f025_c62f,
                 0xf6c9_4b01_2ea9_2e72,
@@ -628,7 +654,7 @@ mod test {
             ]),
         };
         let b = Fp2 {
-            c0: Fp([
+            c0: Fp::<Bls12381BaseField>::new([
                 0xf05c_e7ce_9c11_39d7,
                 0x6274_8f57_97e8_a36d,
                 0xc4e8_d9df_c664_96df,
@@ -636,7 +662,7 @@ mod test {
                 0x6949_13d0_8772_930d,
                 0x1549_836a_3770_f3cf,
             ]),
-            c1: Fp([
+            c1: Fp::<Bls12381BaseField>::new([
                 0x24d0_5bb9_fb9d_491c,
                 0xfb1e_a120_c12e_39d0,
                 0x7067_879f_c807_c7b1,
@@ -654,7 +680,7 @@ mod test {
         let a = Fp12 {
             c0: Fp6 {
                 c0: Fp2 {
-                    c0: Fp([
+                    c0: Fp::<Bls12381BaseField>::new([
                         0x47f9_cb98_b1b8_2d58,
                         0x5fe9_11eb_a3aa_1d9d,
                         0x96bf_1b5f_4dd8_1db3,
@@ -662,7 +688,7 @@ mod test {
                         0xafa2_0b96_7464_0eab,
                         0x09bb_cea7_d8d9_497d,
                     ]),
-                    c1: Fp([
+                    c1: Fp::<Bls12381BaseField>::new([
                         0x0303_cb98_b166_2daa,
                         0xd931_10aa_0a62_1d5a,
                         0xbfa9_820c_5be4_a468,
@@ -672,7 +698,7 @@ mod test {
                     ]),
                 },
                 c1: Fp2 {
-                    c0: Fp([
+                    c0: Fp::<Bls12381BaseField>::new([
                         0x46f9_cb98_b162_d858,
                         0x0be9_109c_f7aa_1d57,
                         0xc791_bc55_fece_41d2,
@@ -680,7 +706,7 @@ mod test {
                         0xcb49_c1d9_c010_e60f,
                         0x0acd_b8e1_58bf_e3c8,
                     ]),
-                    c1: Fp([
+                    c1: Fp::<Bls12381BaseField>::new([
                         0x8aef_cb98_b15f_8306,
                         0x3ea1_108f_e4f2_1d54,
                         0xcf79_f69f_a1b7_df3b,
@@ -690,7 +716,7 @@ mod test {
                     ]),
                 },
                 c2: Fp2 {
-                    c0: Fp([
+                    c0: Fp::<Bls12381BaseField>::new([
                         0xcee5_cb98_b15c_2db4,
                         0x7159_1082_d23a_1d51,
                         0xd762_30e9_44a1_7ca4,
@@ -698,7 +724,7 @@ mod test {
                         0xa972_dc17_01fa_66e3,
                         0x12e3_1f2d_d6bd_e7d6,
                     ]),
-                    c1: Fp([
+                    c1: Fp::<Bls12381BaseField>::new([
                         0xad2a_cb98_b173_2d9d,
                         0x2cfd_10dd_0696_1d64,
                         0x0739_6b86_c6ef_24e8,
@@ -710,7 +736,7 @@ mod test {
             },
             c1: Fp6 {
                 c0: Fp2 {
-                    c0: Fp([
+                    c0: Fp::<Bls12381BaseField>::new([
                         0x47f9_cb98_b1b8_2d58,
                         0x5fe9_11eb_a3aa_1d9d,
                         0x96bf_1b5f_4dd8_1db3,
@@ -718,7 +744,7 @@ mod test {
                         0xafa2_0b96_7464_0eab,
                         0x09bb_cea7_d8d9_497d,
                     ]),
-                    c1: Fp([
+                    c1: Fp::<Bls12381BaseField>::new([
                         0x0303_cb98_b166_2daa,
                         0xd931_10aa_0a62_1d5a,
                         0xbfa9_820c_5be4_a468,
@@ -728,7 +754,7 @@ mod test {
                     ]),
                 },
                 c1: Fp2 {
-                    c0: Fp([
+                    c0: Fp::<Bls12381BaseField>::new([
                         0x46f9_cb98_b162_d858,
                         0x0be9_109c_f7aa_1d57,
                         0xc791_bc55_fece_41d2,
@@ -736,7 +762,7 @@ mod test {
                         0xcb49_c1d9_c010_e60f,
                         0x0acd_b8e1_58bf_e3c8,
                     ]),
-                    c1: Fp([
+                    c1: Fp::<Bls12381BaseField>::new([
                         0x8aef_cb98_b15f_8306,
                         0x3ea1_108f_e4f2_1d54,
                         0xcf79_f69f_a1b7_df3b,
@@ -746,7 +772,7 @@ mod test {
                     ]),
                 },
                 c2: Fp2 {
-                    c0: Fp([
+                    c0: Fp::<Bls12381BaseField>::new([
                         0xcee5_cb98_b15c_2db4,
                         0x7159_1082_d23a_1d51,
                         0xd762_30e9_44a1_7ca4,
@@ -754,7 +780,7 @@ mod test {
                         0xa972_dc17_01fa_66e3,
                         0x12e3_1f2d_d6bd_e7d6,
                     ]),
-                    c1: Fp([
+                    c1: Fp::<Bls12381BaseField>::new([
                         0xad2a_cb98_b173_2d9d,
                         0x2cfd_10dd_0696_1d64,
                         0x0739_6b86_c6ef_24e8,
@@ -769,7 +795,7 @@ mod test {
         let b = Fp12 {
             c0: Fp6 {
                 c0: Fp2 {
-                    c0: Fp([
+                    c0: Fp::<Bls12381BaseField>::new([
                         0x47f9_cb98_b1b8_2d58,
                         0x5fe9_11eb_a3aa_1d9d,
                         0x96bf_1b5f_4dd8_1db3,
@@ -777,7 +803,7 @@ mod test {
                         0xafa2_0b96_7464_0eab,
                         0x09bb_cea7_d8d9_497d,
                     ]),
-                    c1: Fp([
+                    c1: Fp::<Bls12381BaseField>::new([
                         0x0303_cb98_b166_2daa,
                         0xd931_10aa_0a62_1d5a,
                         0xbfa9_820c_5be4_a468,
@@ -787,7 +813,7 @@ mod test {
                     ]),
                 },
                 c1: Fp2 {
-                    c0: Fp([
+                    c0: Fp::<Bls12381BaseField>::new([
                         0x46f9_cb98_b162_d858,
                         0x0be9_109c_f7aa_1d57,
                         0xc791_bc55_fece_41d2,
@@ -795,7 +821,7 @@ mod test {
                         0xcb49_c1d9_c010_e60f,
                         0x0acd_b8e1_58bf_e348,
                     ]),
-                    c1: Fp([
+                    c1: Fp::<Bls12381BaseField>::new([
                         0x8aef_cb98_b15f_8306,
                         0x3ea1_108f_e4f2_1d54,
                         0xcf79_f69f_a1b7_df3b,
@@ -805,7 +831,7 @@ mod test {
                     ]),
                 },
                 c2: Fp2 {
-                    c0: Fp([
+                    c0: Fp::<Bls12381BaseField>::new([
                         0xcee5_cb98_b15c_2db4,
                         0x7159_1082_d23a_1d51,
                         0xd762_30e9_44a1_7ca4,
@@ -813,7 +839,7 @@ mod test {
                         0xa972_dc17_01fa_66e3,
                         0x12e3_1f2d_d6bd_e7d6,
                     ]),
-                    c1: Fp([
+                    c1: Fp::<Bls12381BaseField>::new([
                         0xad2a_cb98_b173_2d9d,
                         0x2cfd_10dd_0696_1d64,
                         0x0739_6b86_c6ef_24e8,
@@ -825,7 +851,7 @@ mod test {
             },
             c1: Fp6 {
                 c0: Fp2 {
-                    c0: Fp([
+                    c0: Fp::<Bls12381BaseField>::new([
                         0x47f9_cb98_b1b8_2d58,
                         0x5fe9_11eb_a3aa_1d9d,
                         0x96bf_1b5f_4dd2_1db3,
@@ -833,7 +859,7 @@ mod test {
                         0xafa2_0b96_7464_0eab,
                         0x09bb_cea7_d8d9_497d,
                     ]),
-                    c1: Fp([
+                    c1: Fp::<Bls12381BaseField>::new([
                         0x0303_cb98_b166_2daa,
                         0xd931_10aa_0a62_1d5a,
                         0xbfa9_820c_5be4_a468,
@@ -843,7 +869,7 @@ mod test {
                     ]),
                 },
                 c1: Fp2 {
-                    c0: Fp([
+                    c0: Fp::<Bls12381BaseField>::new([
                         0x46f9_cb98_b162_d858,
                         0x0be9_109c_f7aa_1d57,
                         0xc791_bc55_fece_41d2,
@@ -851,7 +877,7 @@ mod test {
                         0xcb49_c1d9_c010_e60f,
                         0x0acd_b8e1_58bf_e3c8,
                     ]),
-                    c1: Fp([
+                    c1: Fp::<Bls12381BaseField>::new([
                         0x8aef_cb98_b15f_8306,
                         0x3ea1_108f_e4f2_1d54,
                         0xcf79_f69f_a117_df3b,
@@ -861,7 +887,7 @@ mod test {
                     ]),
                 },
                 c2: Fp2 {
-                    c0: Fp([
+                    c0: Fp::<Bls12381BaseField>::new([
                         0xcee5_cb98_b15c_2db4,
                         0x7159_1082_d23a_1d51,
                         0xd762_30e9_44a1_7ca4,
@@ -869,7 +895,7 @@ mod test {
                         0xa972_dc17_01fa_66e3,
                         0x12e3_1f2d_d6bd_e7d6,
                     ]),
-                    c1: Fp([
+                    c1: Fp::<Bls12381BaseField>::new([
                         0xad2a_cb98_b173_2d9d,
                         0x2cfd_10dd_0696_1d64,
                         0x0739_6b86_c6ef_24e8,
@@ -884,7 +910,7 @@ mod test {
         let c = Fp12 {
             c0: Fp6 {
                 c0: Fp2 {
-                    c0: Fp([
+                    c0: Fp::<Bls12381BaseField>::new([
                         0xa45b_f6c5_b3a4_2b19,
                         0x0200_d762_6c52_63f8,
                         0x297e_7a60_d60b_b0f1,
@@ -892,7 +918,7 @@ mod test {
                         0x86ca_21f7_8516_f01f,
                         0x1055_c03a_d3fd_27dc,
                     ]),
-                    c1: Fp([
+                    c1: Fp::<Bls12381BaseField>::new([
                         0x41d6_bc97_38d9_f82a,
                         0x4958_35f2_505c_f4bb,
                         0xe0c6_adbe_be7e_cf64,
@@ -902,7 +928,7 @@ mod test {
                     ]),
                 },
                 c1: Fp2 {
-                    c0: Fp([
+                    c0: Fp::<Bls12381BaseField>::new([
                         0x472f_966b_5b9d_1634,
                         0x03d1_f0ce_0917_41a9,
                         0x34ca_698c_f1c3_c8bd,
@@ -910,7 +936,7 @@ mod test {
                         0xb46b_75d9_8308_fa8e,
                         0x0ffb_151f_935a_5e8b,
                     ]),
-                    c1: Fp([
+                    c1: Fp::<Bls12381BaseField>::new([
                         0x1004_6193_2dbf_0951,
                         0x6e1c_ca30_81b2_fc85,
                         0x8598_a480_771c_e6c4,
@@ -920,7 +946,7 @@ mod test {
                     ]),
                 },
                 c2: Fp2 {
-                    c0: Fp([
+                    c0: Fp::<Bls12381BaseField>::new([
                         0xfa2f_096f_b20e_2a79,
                         0xc897_b1f9_974e_92ae,
                         0x9b13_6dc8_155f_f642,
@@ -928,7 +954,7 @@ mod test {
                         0x0a7c_2b4f_449a_64fa,
                         0x0531_c850_beb1_0014,
                     ]),
-                    c1: Fp([
+                    c1: Fp::<Bls12381BaseField>::new([
                         0x1d0c_ecbb_80d2_2b00,
                         0x5745_9b1f_5370_5e9d,
                         0x157f_3e54_24d9_3210,
@@ -940,7 +966,7 @@ mod test {
             },
             c1: Fp6 {
                 c0: Fp2 {
-                    c0: Fp([
+                    c0: Fp::<Bls12381BaseField>::new([
                         0x5371_8b4b_f98e_147e,
                         0x6b45_60dc_7e72_117b,
                         0x245b_041f_3495_3a3b,
@@ -948,7 +974,7 @@ mod test {
                         0x86e2_5ed4_3dac_6dd5,
                         0x03f9_aea9_556d_0b4a,
                     ]),
-                    c1: Fp([
+                    c1: Fp::<Bls12381BaseField>::new([
                         0xd815_f8c4_928e_b7f7,
                         0xe5c6_f369_b12f_38df,
                         0xd813_a887_6637_b974,
@@ -958,7 +984,7 @@ mod test {
                     ]),
                 },
                 c1: Fp2 {
-                    c0: Fp([
+                    c0: Fp::<Bls12381BaseField>::new([
                         0x80ee_a18a_bdac_6d3f,
                         0x7db2_80c0_e268_71d7,
                         0xddb1_7314_5a5d_611a,
@@ -966,7 +992,7 @@ mod test {
                         0x96d8_e528_8519_da71,
                         0x01fb_69f1_9f32_8cb2,
                     ]),
-                    c1: Fp([
+                    c1: Fp::<Bls12381BaseField>::new([
                         0x47f2_ca61_c8ef_5aab,
                         0xf672_a0f7_5236_c02a,
                         0x32c6_1734_162e_1413,
@@ -976,7 +1002,7 @@ mod test {
                     ]),
                 },
                 c2: Fp2 {
-                    c0: Fp([
+                    c0: Fp::<Bls12381BaseField>::new([
                         0x736f_7154_a66f_e7b3,
                         0x137c_e332_4c34_b386,
                         0x5875_687b_cf2e_8b6b,
@@ -984,7 +1010,7 @@ mod test {
                         0x7e1f_7176_041a_ef83,
                         0x0868_26af_de2f_6675,
                     ]),
-                    c1: Fp([
+                    c1: Fp::<Bls12381BaseField>::new([
                         0x3828_0f15_38b5_50aa,
                         0x996c_9548_a355_fd10,
                         0x9107_92d3_4cef_59e8,

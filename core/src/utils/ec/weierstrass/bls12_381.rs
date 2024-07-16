@@ -41,6 +41,12 @@ impl FieldParameters for Bls12381BaseField {
         27, 75, 154, 230, 127, 57, 234, 17, 1, 26,
     ];
 
+    const R_INV: &'static [u8] = &[
+        32, 72, 11, 56, 89, 130, 211, 244, 251, 250, 152, 216, 116, 18, 225, 127, 200, 109, 149,
+        20, 121, 169, 62, 52, 233, 141, 168, 88, 20, 171, 151, 23, 139, 83, 79, 60, 39, 100, 94,
+        237, 233, 12, 251, 232, 1, 199, 254, 20,
+    ];
+
     // A rough witness-offset estimate given the size of the limbs and the size of the field.
     const WITNESS_OFFSET: usize = 1usize << 15;
 

@@ -1027,8 +1027,8 @@ impl<P: FieldParameters> Syscall for Fp12MulChip<P> {
         let (b_memory_records, b) = rt.mr_slice(b_ptr, NUM_FP_MULS);
         rt.clk += 1;
 
-        let lhs = Fp12::from_words(&(a.clone()).try_into().unwrap());
-        let rhs = Fp12::from_words(&(b.clone()).try_into().unwrap());
+        let lhs = Fp12::<P>::from_words(&(a.clone()).try_into().unwrap());
+        let rhs = Fp12::<P>::from_words(&(b.clone()).try_into().unwrap());
 
         let result = lhs * rhs;
 
