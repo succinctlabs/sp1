@@ -16,7 +16,7 @@ use crate::{
     utils::{bytes_to_words_le, words_to_bytes_le_vec},
 };
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 #[repr(C)]
 pub struct Fp(pub [u64; 6]);
 
@@ -42,7 +42,9 @@ impl Mul for Fp {
         let lhs = BigUint::from_bytes_be(&words_to_bytes_le_vec(&other.to_words()));
 
         let out = (lhs * rhs) % BigUint::from_bytes_le(Self::MODULUS);
-        Self::from_words(&bytes_to_words_le::<12>(&out.to_bytes_le()))
+        let mut padded = out.to_bytes_le();
+        padded.resize(48, 0);
+        Self::from_words(&bytes_to_words_le::<12>(&padded))
     }
 }
 
@@ -54,7 +56,9 @@ impl Add for Fp {
         let lhs = BigUint::from_bytes_be(&words_to_bytes_le_vec(&other.to_words()));
 
         let out = (lhs + rhs) % BigUint::from_bytes_le(Self::MODULUS);
-        Self::from_words(&bytes_to_words_le::<12>(&out.to_bytes_le()))
+        let mut padded = out.to_bytes_le();
+        padded.resize(48, 0);
+        Self::from_words(&bytes_to_words_le::<12>(&padded))
     }
 }
 
@@ -64,7 +68,9 @@ impl Neg for Fp {
     fn neg(self) -> Self::Output {
         let val = BigUint::from_bytes_be(&words_to_bytes_le_vec(&self.to_words()));
         let out = BigUint::from_bytes_le(Self::MODULUS) - val;
-        Self::from_words(&bytes_to_words_le::<12>(&out.to_bytes_le()))
+        let mut padded = out.to_bytes_le();
+        padded.resize(48, 0);
+        Self::from_words(&bytes_to_words_le::<12>(&padded))
     }
 }
 
@@ -76,7 +82,7 @@ impl Sub for Fp {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 #[repr(C)]
 pub struct Fp2 {
     c0: Fp,
@@ -139,7 +145,7 @@ impl Neg for Fp2 {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 #[repr(C)]
 pub struct Fp6 {
     c0: Fp2,
@@ -181,20 +187,19 @@ impl Mul for Fp6 {
         let b10_m_b11 = rhs.c1.c0 - rhs.c1.c1;
         let b20_p_b21 = rhs.c2.c0 + rhs.c2.c1;
         let b20_m_b21 = rhs.c2.c0 - rhs.c2.c1;
-        Fp6 {
-            c0: Fp2 {
-                c0: self.c0.c0 * rhs.c0.c0 - self.c0.c1 * rhs.c0.c1 + self.c1.c0 * b20_m_b21
-                    - self.c1.c1 * b20_p_b21
-                    + self.c2.c0 * b10_m_b11
-                    - self.c2.c1 * b10_p_b11,
 
-                c1: self.c0.c0 * rhs.c0.c1
-                    + self.c0.c1 * rhs.c0.c0
-                    + self.c1.c0 * b20_p_b21
-                    + self.c1.c1 * b20_m_b21
-                    + self.c2.c0 * b10_p_b11
-                    + self.c2.c1 * b10_m_b11,
-            },
+        let c00 = self.c0.c0 * rhs.c0.c0 - self.c0.c1 * rhs.c0.c1 + self.c1.c0 * b20_m_b21
+            - self.c1.c1 * b20_p_b21
+            + self.c2.c0 * b10_m_b11
+            - self.c2.c1 * b10_p_b11;
+        let c01 = self.c0.c0 * rhs.c0.c1
+            + self.c0.c1 * rhs.c0.c0
+            + self.c1.c0 * b20_p_b21
+            + self.c1.c1 * b20_m_b21
+            + self.c2.c0 * b10_p_b11
+            + self.c2.c1 * b10_m_b11;
+        Fp6 {
+            c0: Fp2 { c0: c00, c1: c01 },
             c1: Fp2 {
                 c0: self.c0.c0 * rhs.c1.c0 - self.c0.c1 * rhs.c1.c1 + self.c1.c0 * rhs.c0.c0
                     - self.c1.c1 * rhs.c0.c1
@@ -255,7 +260,7 @@ impl Sub for Fp6 {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 #[repr(C)]
 pub struct Fp12 {
     c0: Fp6,
@@ -271,10 +276,11 @@ impl Fp12 {
     }
 
     pub(crate) fn from_words(bytes: &[u32; 144]) -> Self {
-        Self {
-            c0: Fp6::from_words(bytes[..72].try_into().unwrap()),
-            c1: Fp6::from_words(bytes[72..].try_into().unwrap()),
-        }
+        // Self {
+        //     c0: Fp6::from_words(bytes[..72].try_into().unwrap()),
+        //     c1: Fp6::from_words(bytes[72..].try_into().unwrap()),
+        // }
+        unsafe { transmute::<[u32; 144], Self>(*bytes) }
     }
 }
 
