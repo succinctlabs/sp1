@@ -101,7 +101,7 @@ pub struct ExecutionRecord {
     /// The public values.
     pub public_values: PublicValues<u32, u32>,
 
-    pub nonce_lookup: HashMap<usize, u32>,
+    pub nonce_lookup: HashMap<u128, u32>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

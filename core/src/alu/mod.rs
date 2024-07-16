@@ -23,7 +23,7 @@ use crate::runtime::Opcode;
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct AluEvent {
     /// The lookup id of the event.
-    pub lookup_id: usize,
+    pub lookup_id: u128,
 
     /// The shard number, used for byte lookup table.
     pub shard: u32,
@@ -46,7 +46,7 @@ pub struct AluEvent {
     // The second input operand.
     pub c: u32,
 
-    pub sub_lookups: [usize; 6],
+    pub sub_lookups: [u128; 6],
 }
 
 impl AluEvent {
@@ -66,12 +66,12 @@ impl AluEvent {
     }
 }
 
-pub fn create_alu_lookup_id() -> usize {
+pub fn create_alu_lookup_id() -> u128 {
     let mut rng = rand::thread_rng();
     rng.gen()
 }
 
-pub fn create_alu_lookups() -> [usize; 6] {
+pub fn create_alu_lookups() -> [u128; 6] {
     let mut rng = rand::thread_rng();
     [
         rng.gen(),
