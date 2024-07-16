@@ -19,16 +19,16 @@ use crate::{
 use super::params::FieldParameters;
 use super::params::Limbs;
 
-/// Operation columns for verifying that an element is within the range `[0, modulus)`.
+/// Operation columns for verifying that `lhs < rhs`.
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
 pub struct FieldLtCols<T, P: FieldParameters> {
     /// Boolean flags to indicate the first byte in which the element is smaller than the modulus.
     pub(crate) byte_flags: Limbs<T, P::Limbs>,
 
-    pub(crate) comparison_byte: T,
+    pub(crate) lhs_comparison_byte: T,
 
-    pub(crate) modulus_comparison_byte: T,
+    pub(crate) rhs_comparison_byte: T,
 }
 
 impl<F: PrimeField32, P: FieldParameters> FieldLtCols<F, P> {
@@ -55,8 +55,8 @@ impl<F: PrimeField32, P: FieldParameters> FieldLtCols<F, P> {
             assert!(byte <= modulus_byte);
             if byte < modulus_byte {
                 *flag = 1;
-                self.comparison_byte = F::from_canonical_u8(*byte);
-                self.modulus_comparison_byte = F::from_canonical_u8(*modulus_byte);
+                self.lhs_comparison_byte = F::from_canonical_u8(*byte);
+                self.rhs_comparison_byte = F::from_canonical_u8(*modulus_byte);
                 record.add_byte_lookup_event(ByteLookupEvent {
                     opcode: ByteOpcode::LTU,
                     shard,
@@ -94,10 +94,10 @@ impl<V: Copy, P: FieldParameters> FieldLtCols<V, P> {
         Limbs<V, P::Limbs>: Copy,
     {
         // The byte flags give a specification of which byte is `first_eq`, i,e, the first most
-        // significant byte for which the element is smaller than the modulus. To verify the
+        // significant byte for which the lhs is smaller than the modulus. To verify the
         // less-than claim we need to check that:
-        // * For all bytes until `first_eq` the element byte is equal to the modulus byte.
-        // * For the `first_eq` byte the element byte is smaller than the modulus byte.
+        // * For all bytes until `first_eq` the lhs byte is equal to the modulus byte.
+        // * For the `first_eq` byte the lhs byte is smaller than the modulus byte.
         // * all byte flags are boolean.
         // * only one byte flag is set to one, and the rest are set to zero.
 
@@ -120,42 +120,42 @@ impl<V: Copy, P: FieldParameters> FieldLtCols<V, P> {
         // most significant until the first inequality.
         let mut is_inequality_visited = AB::Expr::zero();
 
-        let modulus: Polynomial<_> = rhs.clone().into();
-        let element: Polynomial<_> = lhs.clone().into();
+        let rhs: Polynomial<_> = rhs.clone().into();
+        let lhs: Polynomial<_> = lhs.clone().into();
 
-        let mut first_lt_byte = AB::Expr::zero();
-        let mut modulus_comparison_byte = AB::Expr::zero();
-        for (byte, modulus_byte, &flag) in izip!(
-            element.coefficients().iter().rev(),
-            modulus.coefficients().iter().rev(),
+        let mut lhs_comparison_byte = AB::Expr::zero();
+        let mut rhs_comparison_byte = AB::Expr::zero();
+        for (lhs_byte, rhs_byte, &flag) in izip!(
+            lhs.coefficients().iter().rev(),
+            rhs.coefficients().iter().rev(),
             self.byte_flags.0.iter().rev()
         ) {
             // Once the byte flag was set to one, we turn off the quality check flag.
             // We can do this by calculating the sum of the flags since only `1` is set to `1`.
             is_inequality_visited += flag.into();
 
-            first_lt_byte += byte.clone() * flag;
-            modulus_comparison_byte += flag.into() * modulus_byte.clone();
+            lhs_comparison_byte += lhs_byte.clone() * flag;
+            rhs_comparison_byte += flag.into() * rhs_byte.clone();
 
             builder
                 .when(is_real.clone())
                 .when_not(is_inequality_visited.clone())
-                .assert_eq(byte.clone(), modulus_byte.clone());
+                .assert_eq(lhs_byte.clone(), rhs_byte.clone());
         }
 
         builder
             .when(is_real.clone())
-            .assert_eq(self.comparison_byte, first_lt_byte);
+            .assert_eq(self.lhs_comparison_byte, lhs_comparison_byte);
         builder
             .when(is_real.clone())
-            .assert_eq(self.modulus_comparison_byte, modulus_comparison_byte);
+            .assert_eq(self.rhs_comparison_byte, rhs_comparison_byte);
 
         // Send the comparison interaction.
         builder.send_byte(
             ByteOpcode::LTU.as_field::<AB::F>(),
             AB::F::one(),
-            self.comparison_byte,
-            self.modulus_comparison_byte,
+            self.lhs_comparison_byte,
+            self.rhs_comparison_byte,
             shard,
             channel,
             is_real,
