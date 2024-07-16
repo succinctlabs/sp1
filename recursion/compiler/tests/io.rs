@@ -39,5 +39,5 @@ fn test_io() {
         vec![F::one().into(), F::one().into(), F::two().into()],
     ]
     .into();
-    runtime.run();
+    runtime.run().unwrap();
 }

@@ -1,6 +1,6 @@
 [package]
 name = "sp1-core"
-version = "0.0.0-test"
+version = "0.0.2-test"
 edition = "2021"
 description = "SP1 is a performant, 100% open-source, contributor-friendly zkVM."
 readme = "../README.md"
@@ -33,8 +33,8 @@ p3-symmetric = { workspace = true }
 p3-uni-stark = { workspace = true }
 p3-util = { workspace = true }
 rrs_lib = { package = "rrs-succinct", version = "0.1.0" }
-sp1-derive = { path = "../derive" }
-sp1-primitives = { path = "../primitives" }
+sp1-derive = { path = "../derive", version = "0.0.2-test" }
+sp1-primitives = { path = "../primitives", version = "0.0.2-test" }
 
 anyhow = "1.0.83"
 amcl = { package = "snowbridge-amcl", version = "1.0.2", default-features = false, features = [
@@ -71,7 +71,7 @@ tiny-keccak = { version = "2.0.2", features = ["keccak"] }
 criterion = "0.5.1"
 num = { version = "0.4.3", features = ["rand"] }
 rand = "0.8.5"
-sp1-zkvm = { path = "../zkvm/entrypoint" }
+sp1-zkvm = { path = "../zkvm/entrypoint", version = "0.0.2-test" }
 
 [features]
 neon = ["p3-blake3/neon"]
