@@ -179,6 +179,7 @@ EOF
   say "done!"
 }
 
+# Downloads the C++ toolchain for RISC-V and creates a symlink to it at SP1_BIN_DIR/riscv32-unknown-elf-gcc
 install_c_toolchain() {
   say "installing C++ toolchain for RISC-V"
 
@@ -211,20 +212,13 @@ install_c_toolchain() {
   esac
 
   TOOLCHAIN_ARCHIVE="/tmp/$(basename $TOOLCHAIN_URL)"
-  TOOLCHAIN_INSTALL_DIR="$SP1_DIR/riscv/riscv32im-${PLATFORM}-${ARCHITECTURE}"
+  TOOLCHAIN_INSTALL_DIR="$SP1_DIR/riscv"
 
   # Always re-download the RISC-V GCC prebuilt binary archive
   ensure download "$TOOLCHAIN_URL" "$TOOLCHAIN_ARCHIVE"
 
-  # Create the ~/.sp1 directory if it doesn't exist
-  if [ ! -d "$SP1_DIR" ]; then
-    mkdir -p "$SP1_DIR"
-  fi
-
-  # Create the target directory if it doesn't exist
-  if [ ! -d "$TOOLCHAIN_INSTALL_DIR" ]; then
-    mkdir -p "$TOOLCHAIN_INSTALL_DIR"
-  fi
+  # Create the ~/.sp1 and TOOLCHAIN_INSTALL_DIR directories if they don't exist
+  mkdir -p "$TOOLCHAIN_INSTALL_DIR"
 
   # Extract the downloaded archive into the target directory
   if [ "$PLATFORM" = "win32" ]; then
@@ -234,8 +228,12 @@ install_c_toolchain() {
   fi
   rm -f "$TOOLCHAIN_ARCHIVE"
 
-  # Create a symbolic link to the gcc binary in the SP1_BIN_DIR
-  ln -sf "$TOOLCHAIN_INSTALL_DIR/bin/riscv32-unknown-elf-gcc" "$SP1_BIN_DIR/riscv32-unknown-elf-gcc"
+  # Find the actual location of the gcc binary and create a symlink to it in SP1_BIN_DIR
+  GCC_PATH=$(find "$TOOLCHAIN_INSTALL_DIR" -name 'riscv32-unknown-elf-gcc' -type f | head -n 1)
+  if [ -z "$GCC_PATH" ]; then
+    err "riscv32-unknown-elf-gcc not found in extracted archive"
+  fi
+  ln -sf "$GCC_PATH" "$SP1_BIN_DIR/riscv32-unknown-elf-gcc"
 
   # Set environment variables for the RISC-V toolchain
   export PATH="$SP1_BIN_DIR:$PATH"
