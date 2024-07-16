@@ -185,7 +185,7 @@ impl<'a> Prove<'a> {
 
     /// Set the chunking multiplier for proving.
     pub fn shard_chunking_multiplier(mut self, value: usize) -> Self {
-        self.core_opts.shard_chunking_multiplier = value;
+        self.core_opts.stream_capacity = value;
         self
     }
 
