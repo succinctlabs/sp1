@@ -15,6 +15,8 @@ pub struct ControlFlow<T> {
     pub is_absorb_no_perm: T,
     /// Specifies if this row is for an absorb that is not the last row.
     pub is_absorb_not_last_row: T,
+    /// Specifies if this row is for an absorb that is the last row.
+    pub is_absorb_last_row: T,
 
     /// Specifies if this row is for finalize.
     pub is_finalize: T,

@@ -67,7 +67,7 @@ pub struct CompressParams<T> {
 #[repr(C)]
 pub struct AbsorbParams<T> {
     pub clk: T,
-    pub hash_num: T,
+    pub hash_and_absorb_num: T,
     pub input_ptr: T,
     pub input_len: T,
 }

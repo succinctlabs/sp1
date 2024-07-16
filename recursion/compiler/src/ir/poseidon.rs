@@ -35,9 +35,15 @@ impl<C: Config> Builder<C> {
     /// Applies the Poseidon2 absorb function to the given array.
     ///
     /// Reference: [p3_symmetric::PaddingFreeSponge]
-    pub fn poseidon2_absorb(&mut self, p2_hash_num: Var<C::N>, input: &Array<C, Felt<C::F>>) {
-        self.operations
-            .push(DslIr::Poseidon2AbsorbBabyBear(p2_hash_num, input.clone()));
+    pub fn poseidon2_absorb(
+        &mut self,
+        p2_hash_and_absorb_num: Var<C::N>,
+        input: &Array<C, Felt<C::F>>,
+    ) {
+        self.operations.push(DslIr::Poseidon2AbsorbBabyBear(
+            p2_hash_and_absorb_num,
+            input.clone(),
+        ));
     }
 
     /// Applies the Poseidon2 finalize to the given hash number.
@@ -128,9 +134,13 @@ impl<C: Config> Builder<C> {
         self.cycle_tracker("poseidon2-hash");
 
         let p2_hash_num = self.p2_hash_num;
+        let two_power_12: Var<_> = self.eval(C::N::from_canonical_u32(1 << 12));
+
         self.range(0, array.len()).for_each(|i, builder| {
             let subarray = builder.get(array, i);
-            builder.poseidon2_absorb(p2_hash_num, &subarray);
+            let p2_hash_and_absorb_num: Var<_> = builder.eval(p2_hash_num * two_power_12 + i);
+
+            builder.poseidon2_absorb(p2_hash_and_absorb_num, &subarray);
         });
 
         let output: Array<C, Felt<C::F>> = self.dyn_array(DIGEST_SIZE);
