@@ -78,11 +78,7 @@ impl SP1RecursiveVerifier<InnerConfig, BabyBearPoseidon2> {
 impl<C: Config, SC: StarkGenericConfig> SP1RecursiveVerifier<C, SC>
 where
     C::F: PrimeField32 + TwoAdicField,
-    SC: StarkGenericConfig<
-        Val = C::F,
-        Challenge = C::EF,
-        Domain = TwoAdicMultiplicativeCoset<C::F>,
-    >,
+    SC: StarkGenericConfig<Val = C::F, Challenge = C::EF, Domain = TwoAdicMultiplicativeCoset<C::F>>,
     Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
 {
     /// Verify a batch of SP1 shard proofs and aggregate their public values.
@@ -579,6 +575,14 @@ where
 
             // Collect the is_complete flag.
             let is_complete_felt = var2felt(builder, is_complete);
+
+            // Range check the address bits.
+            for i in 0..initial_previous_init_addr_bits.len() {
+                builder.assert_felt_bool(initial_previous_init_addr_bits[i]);
+                builder.assert_felt_bool(current_init_addr_bits[i]);
+                builder.assert_felt_bool(initial_previous_finalize_addr_bits[i]);
+                builder.assert_felt_bool(current_finalize_addr_bits[i]);
+            }
 
             // Initialize the public values we will commit to.
             let mut recursion_public_values_stream = [zero; RECURSIVE_PROOF_NUM_PV_ELTS];

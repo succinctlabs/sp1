@@ -296,6 +296,10 @@ impl<C: Config> Builder<C> {
         self.assert_ne::<Ext<C::F, C::EF>>(lhs, rhs);
     }
 
+    pub fn assert_felt_bool(&mut self, x: Felt<C::F>) {
+        self.assert_felt_eq(x * (x - C::F::one()), C::F::zero());
+    }
+
     pub fn lt(&mut self, lhs: Var<C::N>, rhs: Var<C::N>) -> Var<C::N> {
         let result = self.uninit();
         self.operations.push(DslIr::LessThan(result, lhs, rhs));

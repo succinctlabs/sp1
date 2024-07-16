@@ -106,11 +106,7 @@ where
 impl<C: Config, SC, A> SP1CompressVerifier<C, SC, A>
 where
     C::F: PrimeField32 + TwoAdicField,
-    SC: StarkGenericConfig<
-        Val = C::F,
-        Challenge = C::EF,
-        Domain = TwoAdicMultiplicativeCoset<C::F>,
-    >,
+    SC: StarkGenericConfig<Val = C::F, Challenge = C::EF, Domain = TwoAdicMultiplicativeCoset<C::F>>,
     A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
     Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
 {
@@ -544,6 +540,12 @@ where
                 builder.assign(*sum_element, *sum_element + *current_sum_element);
             }
         });
+
+        // Range check the address bits.
+        for i in 0..init_addr_bits.len() {
+            builder.assert_felt_bool(init_addr_bits[i]);
+            builder.assert_felt_bool(finalize_addr_bits[i]);
+        }
 
         // Update the global values from the last accumulated values.
         // Set sp1_vk digest to the one from the proof values.

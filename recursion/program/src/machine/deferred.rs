@@ -107,11 +107,7 @@ where
 impl<C: Config, SC, A> SP1DeferredVerifier<C, SC, A>
 where
     C::F: PrimeField32 + TwoAdicField,
-    SC: StarkGenericConfig<
-        Val = C::F,
-        Challenge = C::EF,
-        Domain = TwoAdicMultiplicativeCoset<C::F>,
-    >,
+    SC: StarkGenericConfig<Val = C::F, Challenge = C::EF, Domain = TwoAdicMultiplicativeCoset<C::F>>,
     A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
     Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
 {
@@ -264,6 +260,14 @@ where
 
         // Set the public values.
 
+        // Range check the address bits.
+        let init_addr_bits = core::array::from_fn(|i| builder.get(&init_addr_bits, i));
+        let finalize_addr_bits = core::array::from_fn(|i| builder.get(&finalize_addr_bits, i));
+        for i in 0..init_addr_bits.len() {
+            builder.assert_felt_bool(init_addr_bits[i]);
+            builder.assert_felt_bool(finalize_addr_bits[i]);
+        }
+
         // Set initial_pc, end_pc, initial_shard, and end_shard to be the hitned values.
         deferred_public_values.start_pc = end_pc;
         deferred_public_values.next_pc = end_pc;
@@ -271,11 +275,10 @@ where
         deferred_public_values.next_shard = end_shard;
         deferred_public_values.start_execution_shard = end_execution_shard;
         deferred_public_values.next_execution_shard = end_execution_shard;
+
         // Set the init and finalize address bits to be the hintred values.
-        let init_addr_bits = core::array::from_fn(|i| builder.get(&init_addr_bits, i));
         deferred_public_values.previous_init_addr_bits = init_addr_bits;
         deferred_public_values.last_init_addr_bits = init_addr_bits;
-        let finalize_addr_bits = core::array::from_fn(|i| builder.get(&finalize_addr_bits, i));
         deferred_public_values.previous_finalize_addr_bits = finalize_addr_bits;
         deferred_public_values.last_finalize_addr_bits = finalize_addr_bits;
 
