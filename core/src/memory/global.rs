@@ -306,6 +306,9 @@ where
             AB::Expr::one() - local.is_prev_addr_zero.result,
         );
 
+        // Ensure at least one real row.
+        builder.when_first_row().assert_one(local.is_real);
+
         // Constrain the inequality assertion in the first row.
         local.lt_cols.eval(
             builder,
@@ -313,6 +316,25 @@ where
             &local_addr_bits,
             local.is_first_comp,
         );
+
+        // Insure that there are no duplicate initializations by assuring there is exactly one
+        // initialization event of the zero address. This is done by assuring that when the previous
+        // address is zero, then the first row address is also zero, and that the second row is also
+        // real, and the less than comparison is being made.
+        builder
+            .when_first_row()
+            .when(local.is_prev_addr_zero.result)
+            .assert_zero(local.addr);
+        builder
+            .when_first_row()
+            .when(local.is_prev_addr_zero.result)
+            .assert_one(next.is_real);
+        // Ensure that in the address zero case the comparison is being made so that there is an
+        // address bigger than zero being committed to.
+        builder
+            .when_first_row()
+            .when(local.is_prev_addr_zero.result)
+            .assert_one(next.is_next_comp);
 
         // Make assertions for specific types of memory chips.
 
@@ -348,6 +370,14 @@ where
         // The last address is either:
         // - It's the last row and `is_real` is set to one.
         // - The flag `is_real` is set to one and the next `is_real` is set to zero.
+
+        // Constrain the `is_last_addr` flag.
+        builder.when_transition().assert_eq(
+            local.is_last_addr,
+            local.is_real * (AB::Expr::one() - next.is_real),
+        );
+
+        // Constrain the last address bits to be equal to the corresponding `last_addr_bits` value.
         for (local_bit, pub_bit) in local.addr_bits.bits.iter().zip(last_addr_bits.iter()) {
             builder
                 .when_last_row()
