@@ -115,7 +115,54 @@ jobs:
         env:
           CARGO_INCREMENTAL: 1
 
-  examples:
+  examples-base:
+    name: Examples (baseline)
+    runs-on: runs-on,runner=8cpu-linux-x64
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+        with:
+            ref: igor/bench # TODO: replace with benchmark baseline ref
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
+
+      - name: Install SP1 toolchain
+        run: |
+          curl -L https://sp1.succinct.xyz | bash
+          ~/.sp1/bin/sp1up 
+          ~/.sp1/bin/cargo-prove prove --version
+
+      - name: Install SP1 CLI
+        run: |
+          cd cli
+          cargo install --force --locked --path .
+          ~/.sp1/bin/cargo-prove prove install-toolchain
+          cd ~
+
+      - name: Run cargo check
+        run: |
+          RUSTFLAGS="-Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native" \
+          cargo check --manifest-path examples/Cargo.toml --all-targets --all-features
+
+      - name: Run benchmark
+        run: cargo run --manifest-path examples/Cargo.toml --release --bin bench-fibonacci -- run benchmark_base.json
+        env:
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
+          RUST_BACKTRACE: 1
+          FRI_QUERIES: 1
+          SP1_DEV: 1
+
+      - name: Upload benchmark result
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark_base.json
+          path: benchmark_base.json
+          if-no-files-found: error
+
+  examples-head:
     name: Examples
     runs-on: runs-on,runner=8cpu-linux-x64
     env:
@@ -144,6 +191,59 @@ jobs:
         run: |
           RUSTFLAGS="-Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native" \
           cargo check --manifest-path examples/Cargo.toml --all-targets --all-features
+
+      - name: Run benchmark
+        run: cargo run --manifest-path examples/Cargo.toml --release --bin bench-fibonacci -- run benchmark_head.json
+        env:
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
+          RUST_BACKTRACE: 1
+          FRI_QUERIES: 1
+          SP1_DEV: 1
+
+      - name: Upload benchmark result
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark_head.json
+          path: benchmark_head.json
+          if-no-files-found: error
+
+  examples-benchmark:
+    name: Examples (benchmark)
+    needs: [examples-head, examples-base]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
+
+      - name: Install SP1 toolchain
+        run: |
+          curl -L https://sp1.succinct.xyz | bash
+          ~/.sp1/bin/sp1up 
+          ~/.sp1/bin/cargo-prove prove --version
+
+      - name: Install SP1 CLI
+        run: |
+          cd cli
+          cargo install --force --locked --path .
+          ~/.sp1/bin/cargo-prove prove install-toolchain
+          cd ~
+
+      - name: Download result examples
+        uses: actions/download-artifact@v4
+        with:
+          name: benchmark_head.json
+
+      - name: Download result examples-base
+        uses: actions/download-artifact@v4
+        with:
+          name: benchmark_base.json
+
+      - name: Run benchmark comparison
+        run: |
+          cargo run --manifest-path examples/Cargo.toml --release --bin bench-fibonacci -- compare benchmark_base.json benchmark_head.json
 
   cli:
     name: CLI
