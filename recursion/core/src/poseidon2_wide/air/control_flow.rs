@@ -141,7 +141,8 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         // For finalize rows, constrain the following:
         // 1) next row is syscall compress or syscall absorb.
         // 2) if next row is absorb -> hash_num + 1 == hash_num'
-        // 3) if next row is absorb -> is_first_hash' == true
+        // 3) if next row is absorb -> absorb_num' == 0
+        // 4) if next row is absorb -> is_first_hash' == true
         {
             let mut transition_builder = builder.when_transition();
             let mut finalize_transition_builder =
