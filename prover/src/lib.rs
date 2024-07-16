@@ -59,7 +59,7 @@ use sp1_recursion_program::machine::{
 pub use sp1_recursion_program::machine::{
     SP1DeferredMemoryLayout, SP1RecursionMemoryLayout, SP1ReduceMemoryLayout, SP1RootMemoryLayout,
 };
-use tracing::{info_span, instrument};
+use tracing::instrument;
 pub use types::*;
 use utils::words_to_bytes;
 
