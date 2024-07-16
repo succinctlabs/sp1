@@ -8,7 +8,12 @@ publish = false
 [dependencies]
 itertools = "0.12.1"
 sp1-sdk = { path = "../../../sdk", version = "0.0.2-test" }
+sp1-core = { path = "../../../core", version = "0.0.2-test" }
 sha2 = "0.10.8"
+clap = { version = "4.5.8", features = ["derive"] }
+serde = { version = "1.0.204", features = ["derive"] }
+serde_json = "1.0.120"
+anyhow = "1.0.86"
 
 [build-dependencies]
 sp1-helper = { path = "../../../helper", version = "0.0.2-test" }
@@ -28,3 +33,7 @@ path = "bin/execute.rs"
 [[bin]]
 name = "fibonacci-script"
 path = "src/main.rs"
+
+[[bin]]
+name = "bench-fibonacci"
+path = "bin/bench.rs"

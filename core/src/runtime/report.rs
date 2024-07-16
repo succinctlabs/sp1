@@ -8,6 +8,7 @@ use super::*;
 
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct ExecutionReport {
+    pub total_cycles: u64,
     pub opcode_counts: HashMap<Opcode, u64>,
     pub syscall_counts: HashMap<SyscallCode, u64>,
 }

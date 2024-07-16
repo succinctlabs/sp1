@@ -617,6 +617,7 @@ impl<'a> Runtime<'a> {
                 .entry(instruction.opcode)
                 .and_modify(|c| *c += 1)
                 .or_insert(1);
+            self.report.total_cycles += 1;
         }
 
         match instruction.opcode {
