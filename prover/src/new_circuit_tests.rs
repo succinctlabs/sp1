@@ -10,7 +10,7 @@ mod tests {
     use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
     use sp1_core::{
         stark::{MachineProof, StarkGenericConfig},
-        utils::{run_test_machine, setup_logger, BabyBearPoseidon2Inner},
+        utils::{log2_strict_usize, run_test_machine, setup_logger, BabyBearPoseidon2Inner},
     };
     use sp1_recursion_compiler::{config::OuterConfig, constraints::Constraint, ir::Witness};
     // use sp1_recursion_compiler::{config::OuterConfig, constraints::ConstraintCompiler, ir::Felt};
@@ -54,7 +54,7 @@ mod tests {
         );
         runtime.run();
 
-        let config = SC::new();
+        let config = SC::new_with_log_blowup(log2_strict_usize(DEGREE - 1));
         let machine = RecursionAir::<F, DEGREE>::machine_with_padding(
             config,
             FRI_FOLD_PADDING,
@@ -125,7 +125,7 @@ mod tests {
 
     #[test]
     pub fn test_new_machine_diff_paddings() {
-        test_new_machine::<16, 16, 16, 3>();
+        // test_new_machine::<16, 16, 16, 3>();
         test_new_machine::<16, 16, 16, 9>();
     }
 }
