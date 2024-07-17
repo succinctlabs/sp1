@@ -143,26 +143,23 @@ fn create_local_command(args: &BuildArgs, program_dir: &Utf8PathBuf) -> Command 
 /// Execute the command and handle the output depending on the context.
 fn execute_command(
     mut command: Command,
-    build_with_helper: bool,
+    is_helper: bool,
     docker: bool,
     program_metadata: &cargo_metadata::Metadata,
 ) -> Result<()> {
-    if build_with_helper {
-        // Strip the rustc configuration if this is called by sp1-helper, otherwise it will attempt to
-        // compile the SP1 program with the toolchain of the normal build process, rather than the
-        // Succinct toolchain.
-        command.env_remove("RUSTC");
+    // Strip the rustc configuration, otherwise in the helper it will attempt to compile the SP1
+    // program with the toolchain of the normal build process, rather than the Succinct toolchain.
+    command.env_remove("RUSTC");
 
-        // Set the target directory to a subdirectory of the program's target directory to avoid
-        // build conflicts with the parent process. If removed, programs that share the same target
-        // directory (i.e. same workspace) as the script will hang indefinitely due to a file lock
-        // when building.
-        // Source: https://github.com/rust-lang/cargo/issues/6412
-        command.env(
-            "CARGO_TARGET_DIR",
-            program_metadata.target_directory.join(HELPER_TARGET_SUBDIR),
-        );
-    }
+    // Set the target directory to a subdirectory of the program's target directory to avoid
+    // build conflicts with the parent process. If removed, programs that share the same target
+    // directory (i.e. same workspace) as the script will hang indefinitely due to a file lock
+    // when building in the helper.
+    // Source: https://github.com/rust-lang/cargo/issues/6412
+    command.env(
+        "CARGO_TARGET_DIR",
+        program_metadata.target_directory.join(HELPER_TARGET_SUBDIR),
+    );
 
     // Add necessary tags for stdout and stderr from the command.
     let mut child = command
@@ -174,7 +171,7 @@ fn execute_command(
     let stderr = BufReader::new(child.stderr.take().unwrap());
 
     // Add the [sp1] or [docker] prefix to the output of the child process depending on the context.
-    let msg = match (build_with_helper, docker) {
+    let msg = match (is_helper, docker) {
         (true, true) => "[sp1] [docker] ",
         (true, false) => "[sp1] ",
         (false, true) => "[docker] ",
@@ -207,20 +204,15 @@ fn execute_command(
 /// Copy the ELF to the specified output directory.
 fn copy_elf_to_output_dir(
     args: &BuildArgs,
-    is_helper: bool,
     program_metadata: &cargo_metadata::Metadata,
 ) -> Result<Utf8PathBuf> {
     let root_package = program_metadata.root_package();
     let root_package_name = root_package.as_ref().map(|p| &p.name);
 
-    // The ELF is written to a target folder specified by the program's package. Note: If the ELF
-    // is built by sp1-helper, the target directory is a subdirectory of the program's target
-    // directory.
-    let mut original_elf_path = program_metadata.target_directory.clone();
-    if is_helper {
-        original_elf_path = original_elf_path.join(HELPER_TARGET_SUBDIR);
-    }
-    original_elf_path = original_elf_path
+    // The ELF is written to a target folder specified by the program's package.
+    let original_elf_path = program_metadata
+        .target_directory
+        .join(HELPER_TARGET_SUBDIR)
         .join(BUILD_TARGET)
         .join("release")
         .join(root_package_name.unwrap());
@@ -294,5 +286,5 @@ pub fn build_program(args: &BuildArgs, program_dir: Option<PathBuf>) -> Result<U
 
     execute_command(cmd, is_helper, args.docker, &program_metadata)?;
 
-    copy_elf_to_output_dir(args, is_helper, &program_metadata)
+    copy_elf_to_output_dir(args, &program_metadata)
 }
