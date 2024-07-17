@@ -218,6 +218,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                 control_flow.is_syscall_row = F::from_bool(is_syscall_row);
                 control_flow.is_absorb_no_perm = F::from_bool(!absorb_iter.do_perm);
                 control_flow.is_absorb_not_last_row = F::from_bool(!is_last_row);
+                control_flow.is_absorb_last_row = F::from_bool(is_last_row);
             }
 
             // Populate the syscall params fields.
@@ -226,9 +227,14 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                 let syscall_params = cols.syscall_params_mut().absorb_mut();
 
                 syscall_params.clk = absorb_event.clk;
-                syscall_params.hash_num = absorb_event.hash_num;
+                syscall_params.hash_and_absorb_num = absorb_event.hash_and_absorb_num;
                 syscall_params.input_ptr = absorb_event.input_addr;
                 syscall_params.input_len = absorb_event.input_len;
+
+                output.add_range_check_events(&[RangeCheckEvent::new(
+                    RangeCheckOpcode::U16,
+                    absorb_event.input_len.as_canonical_u32() as u16,
+                )]);
             }
 
             // Populate the memory fields.
@@ -247,6 +253,17 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             {
                 let mut cols = self.convert_mut(&mut absorb_row);
                 let absorb_workspace = cols.opcode_workspace_mut().absorb_mut();
+
+                absorb_workspace.hash_num = absorb_event.hash_num;
+                output.add_range_check_events(&[RangeCheckEvent::new(
+                    RangeCheckOpcode::U16,
+                    absorb_event.hash_num.as_canonical_u32() as u16,
+                )]);
+                absorb_workspace.absorb_num = absorb_event.absorb_num;
+                output.add_range_check_events(&[RangeCheckEvent::new(
+                    RangeCheckOpcode::U12,
+                    absorb_event.absorb_num.as_canonical_u32() as u16,
+                )]);
 
                 let num_remaining_rows = num_absorb_rows - 1 - iter_num;
                 absorb_workspace.num_remaining_rows = F::from_canonical_usize(num_remaining_rows);
@@ -302,11 +319,13 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                 absorb_workspace.previous_state = absorb_iter.previous_state;
                 absorb_workspace.state_cursor = F::from_canonical_usize(absorb_iter.state_cursor);
                 absorb_workspace.is_first_hash_row =
-                    F::from_bool(iter_num == 0 && absorb_event.is_first_aborb);
+                    F::from_bool(iter_num == 0 && absorb_event.absorb_num.is_zero());
 
                 absorb_workspace.start_mem_idx_bitmap[absorb_iter.state_cursor] = F::one();
                 if is_last_row {
                     absorb_workspace.end_mem_idx_bitmap[last_row_ending_cursor] = F::one();
+                } else {
+                    absorb_workspace.end_mem_idx_bitmap[7] = F::one();
                 }
             }
 

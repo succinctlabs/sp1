@@ -109,10 +109,10 @@ impl WeierstrassParameters for Bls12381Parameters {
     }
 }
 
-pub fn bls12381_decompress<E: EllipticCurve>(bytes_be: &[u8], is_odd: u32) -> AffinePoint<E> {
+pub fn bls12381_decompress<E: EllipticCurve>(bytes_be: &[u8], sign_bit: u32) -> AffinePoint<E> {
     let mut g1_bytes_be: [u8; 48] = bytes_be.try_into().unwrap();
     let mut flags = COMPRESION_FLAG;
-    if is_odd == 0 {
+    if sign_bit == 1 {
         flags |= Y_IS_ODD_FLAG;
     };
 
@@ -177,10 +177,10 @@ mod tests {
                 let y_neg = Bls12381BaseField::modulus() - y.clone();
 
                 // Set flags
-                let mut is_odd = 1;
+                let mut is_odd = 0;
                 if y > y_neg {
                     result[0] += Y_IS_ODD_FLAG;
-                    is_odd = 0;
+                    is_odd = 1;
                 }
                 result[0] += COMPRESION_FLAG;
 

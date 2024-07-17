@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 /// Elliptic curve add event.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ECAddEvent {
-    pub lookup_id: usize,
+    pub lookup_id: u128,
     pub shard: u32,
     pub channel: u32,
     pub clk: u32,
@@ -84,7 +84,7 @@ pub fn create_ec_add_event<E: EllipticCurve>(
 /// Elliptic curve double event.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ECDoubleEvent {
-    pub lookup_id: usize,
+    pub lookup_id: u128,
     pub shard: u32,
     pub channel: u32,
     pub clk: u32,
@@ -134,12 +134,12 @@ pub fn create_ec_double_event<E: EllipticCurve>(
 /// Elliptic curve point decompress event.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ECDecompressEvent {
-    pub lookup_id: usize,
+    pub lookup_id: u128,
     pub shard: u32,
     pub channel: u32,
     pub clk: u32,
     pub ptr: u32,
-    pub is_odd: bool,
+    pub sign_bit: bool,
     pub x_bytes: Vec<u8>,
     pub decompressed_y_bytes: Vec<u8>,
     pub x_memory_records: Vec<MemoryReadRecord>,
@@ -149,11 +149,11 @@ pub struct ECDecompressEvent {
 pub fn create_ec_decompress_event<E: EllipticCurve>(
     rt: &mut SyscallContext,
     slice_ptr: u32,
-    is_odd: u32,
+    sign_bit: u32,
 ) -> ECDecompressEvent {
     let start_clk = rt.clk;
     assert!(slice_ptr % 4 == 0, "slice_ptr must be 4-byte aligned");
-    assert!(is_odd <= 1, "is_odd must be 0 or 1");
+    assert!(sign_bit <= 1, "is_odd must be 0 or 1");
 
     let num_limbs = <E::BaseField as NumLimbs>::Limbs::USIZE;
     let num_words_field_element = num_limbs / 4;
@@ -171,7 +171,7 @@ pub fn create_ec_decompress_event<E: EllipticCurve>(
         _ => panic!("Unsupported curve"),
     };
 
-    let computed_point: AffinePoint<E> = decompress_fn(&x_bytes_be, is_odd);
+    let computed_point: AffinePoint<E> = decompress_fn(&x_bytes_be, sign_bit);
 
     let mut decompressed_y_bytes = computed_point.y.to_bytes_le();
     decompressed_y_bytes.resize(num_limbs, 0u8);
@@ -185,7 +185,7 @@ pub fn create_ec_decompress_event<E: EllipticCurve>(
         channel: rt.current_channel(),
         clk: start_clk,
         ptr: slice_ptr,
-        is_odd: is_odd != 0,
+        sign_bit: sign_bit != 0,
         x_bytes: x_bytes.to_vec(),
         decompressed_y_bytes,
         x_memory_records,

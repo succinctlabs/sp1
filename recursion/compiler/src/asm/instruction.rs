@@ -854,17 +854,19 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 false,
                 "".to_string(),
             ),
-            AsmInstruction::Poseidon2Absorb(hash_num, input_ptr, input_len) => Instruction::new(
-                Opcode::Poseidon2Absorb,
-                i32_f(hash_num),
-                i32_f_arr(input_ptr),
-                i32_f_arr(input_len),
-                F::zero(),
-                F::zero(),
-                false,
-                false,
-                "".to_string(),
-            ),
+            AsmInstruction::Poseidon2Absorb(hash_and_absorb_num, input_ptr, input_len) => {
+                Instruction::new(
+                    Opcode::Poseidon2Absorb,
+                    i32_f(hash_and_absorb_num),
+                    i32_f_arr(input_ptr),
+                    i32_f_arr(input_len),
+                    F::zero(),
+                    F::zero(),
+                    false,
+                    false,
+                    "".to_string(),
+                )
+            }
             AsmInstruction::Poseidon2Finalize(hash_num, output_ptr) => Instruction::new(
                 Opcode::Poseidon2Finalize,
                 i32_f(hash_num),
@@ -1174,15 +1176,15 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                     result, src1, src2
                 )
             }
-            AsmInstruction::Poseidon2Absorb(hash_num, input_ptr, input_len) => {
+            AsmInstruction::Poseidon2Absorb(hash_and_absorb_num, input_ptr, input_len) => {
                 write!(
                     f,
                     "poseidon2_absorb ({})fp, {})fp, ({})fp",
-                    hash_num, input_ptr, input_len,
+                    hash_and_absorb_num, input_ptr, input_len,
                 )
             }
             AsmInstruction::Poseidon2Finalize(hash_num, output_ptr) => {
-                write!(f, "poseidon2_finalize ({})fp, {})fp", hash_num, output_ptr,)
+                write!(f, "poseidon2_finalize ({})fp, ({})fp", hash_num, output_ptr,)
             }
             AsmInstruction::Commit(val, index) => {
                 write!(f, "commit ({})fp ({})fp", val, index)
