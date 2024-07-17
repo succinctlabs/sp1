@@ -17,8 +17,6 @@ mod bind {
 use bind::*;
 
 pub fn prove_plonk_bn254(data_dir: &str, witness_path: &str) -> PlonkBn254Proof {
-    println!("data_dir: {data_dir}");
-    println!("witness_path: {witness_path}");
     let data_dir = CString::new(data_dir).expect("CString::new failed");
     let witness_path = CString::new(witness_path).expect("CString::new failed");
 

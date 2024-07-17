@@ -2,12 +2,7 @@ package sp1
 
 import (
 	"bufio"
-	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
-	"fmt"
-	"io/ioutil"
 	"os"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -16,45 +11,20 @@ import (
 )
 
 func Prove(dataDir string, witnessPath string) Proof {
-	// Recover panic if any.
-	defer func() {
-		if r := recover(); r != nil {
-			fmt.Println("panic: ", r)
-		}
-	}()
-
-	println("proving")
-	println("data_dir: ", dataDir)
-	println("witness_path: ", witnessPath)
-	println("circuit_path: ", circuitPath)
-	println("starting proving")
-
-	scsFileOne, err := os.Open(dataDir + "/" + circuitPath)
-	if err != nil {
-		panic(err)
-	}
-	// Read all contents of the file into a byte slice
-	scsBytes, err := ioutil.ReadAll(scsFileOne)
-	if err != nil {
-		panic(err)
-	}
-	println("file length: ", len(scsBytes))
-	// Print sha256 hash of the file
-	hash := sha256.Sum256(scsBytes)
-	fmt.Printf("SHA256 hash of %s: %s\n", circuitPath, hex.EncodeToString(hash[:]))
-
-	scsFileOne.Close()
-
 	// Sanity check the required arguments have been provided.
 	if dataDir == "" {
 		panic("dataDirStr is required")
 	}
 	os.Setenv("CONSTRAINTS_JSON", dataDir+"/"+constraintsJsonFile)
 
-	// Reader from bytes
-	reader := bytes.NewReader(scsBytes)
+	// Read the R1CS.
+	scsFile, err := os.Open(dataDir + "/" + circuitPath)
+	if err != nil {
+		panic(err)
+	}
 	scs := plonk.NewCS(ecc.BN254)
-	scs.ReadFrom(reader)
+	scs.ReadFrom(scsFile)
+	defer scsFile.Close()
 
 	// Read the proving key.
 	pkFile, err := os.Open(dataDir + "/" + pkPath)
