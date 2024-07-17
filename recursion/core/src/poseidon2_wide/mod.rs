@@ -55,13 +55,13 @@ impl<'a, const DEGREE: usize> Poseidon2WideChip<DEGREE> {
     /// Transmute a row it to a mutable Poseidon2 instance.
     pub(crate) fn convert_mut<'b: 'a, F: PrimeField32>(
         &self,
-        row: &'b mut Vec<F>,
+        row: &'b mut [F],
     ) -> Box<dyn Poseidon2Mut<'a, F> + 'a> {
         if DEGREE == 3 {
-            let convert: &mut Poseidon2Degree3<F> = row.as_mut_slice().borrow_mut();
+            let convert: &mut Poseidon2Degree3<F> = row.borrow_mut();
             Box::new(convert)
         } else if DEGREE == 9 || DEGREE == 17 {
-            let convert: &mut Poseidon2Degree9<F> = row.as_mut_slice().borrow_mut();
+            let convert: &mut Poseidon2Degree9<F> = row.borrow_mut();
             Box::new(convert)
         } else {
             panic!("Unsupported degree");
