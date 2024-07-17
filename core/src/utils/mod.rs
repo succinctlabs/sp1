@@ -217,7 +217,7 @@ pub fn par_for_each_row<P, F>(
                 .chunks_mut(num_cols * num_rows_per_event)
                 .enumerate()
                 .for_each(|(j, row)| {
-                    processor(i * chunk_size + j, row);
+                    processor(i * chunk_size / num_rows_per_event + j, row);
                 });
         });
 }

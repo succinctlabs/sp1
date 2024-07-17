@@ -67,22 +67,26 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
         for event in &input.poseidon2_hash_events {
             match event {
                 Poseidon2HashEvent::Absorb(absorb_event) => {
-                    let num_absorb_rows = absorb_event.iterations.len();
-                    let absorb_rows = &mut rows[row_cursor..row_cursor + num_absorb_rows];
+                    let num_absorb_elements = absorb_event.iterations.len() * num_columns;
+                    let absorb_rows = &mut rows[row_cursor..row_cursor + num_absorb_elements];
                     self.populate_absorb_event(absorb_rows, absorb_event, num_columns, output);
-                    row_cursor += num_absorb_rows;
+                    row_cursor += num_absorb_elements;
                 }
 
                 Poseidon2HashEvent::Finalize(finalize_event) => {
-                    let finalize_row = &mut rows[row_cursor..row_cursor + 1];
+                    let finalize_row = &mut rows[row_cursor..row_cursor + num_columns];
                     self.populate_finalize_event(finalize_row, finalize_event);
-                    row_cursor += 1;
+                    row_cursor += num_columns;
                 }
             }
         }
 
         let compress_rows = &mut rows[row_cursor..];
         par_for_each_row(compress_rows, 2, num_columns, |i, rows| {
+            if i >= input.poseidon2_compress_events.len() {
+                return;
+            }
+
             self.populate_compress_event(rows, &input.poseidon2_compress_events[i], num_columns);
         });
 
