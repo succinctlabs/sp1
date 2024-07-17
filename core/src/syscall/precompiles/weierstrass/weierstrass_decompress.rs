@@ -458,6 +458,7 @@ where
                 //
                 // In order to endorce these constraints, we will use the auxillary choice columns.
 
+                // Get the choice columns from the row slice
                 let choice_cols: &LexicographicChoiceCols<AB::Var, E::BaseField> = (*local_slice)
                     [weierstrass_cols
                         ..weierstrass_cols
