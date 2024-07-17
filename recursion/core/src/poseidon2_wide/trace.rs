@@ -3,6 +3,7 @@ use std::borrow::Borrow;
 use p3_air::BaseAir;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
+use sp1_core::utils::next_power_of_two;
 use sp1_core::{air::MachineAir, utils::pad_rows_fixed};
 use sp1_primitives::RC_16_30_U32;
 use tracing::instrument;
@@ -34,9 +35,26 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
         input: &ExecutionRecord<F>,
         output: &mut ExecutionRecord<F>,
     ) -> RowMajorMatrix<F> {
-        let mut rows = Vec::new();
+        // Calculate the number of rows in the trace.
+        let mut nb_rows = 0;
+        for event in input.poseidon2_hash_events.iter() {
+            match event {
+                Poseidon2HashEvent::Absorb(absorb_event) => {
+                    nb_rows += absorb_event.iterations.len();
+                }
+                Poseidon2HashEvent::Finalize(_) => {
+                    nb_rows += 1;
+                }
+            }
+        }
+        nb_rows += (input.poseidon2_compress_events.len() * 2) as usize;
+
+        if self.pad {
+            nb_rows = next_power_of_two(nb_rows, self.fixed_log2_rows);
+        }
 
         let num_columns = <Poseidon2WideChip<DEGREE> as BaseAir<F>>::width(self);
+        let mut rows = vec![F::zero(); nb_rows * num_columns];
 
         // Populate the hash events.
         for event in &input.poseidon2_hash_events {
