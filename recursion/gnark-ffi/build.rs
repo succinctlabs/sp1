@@ -25,6 +25,7 @@ fn main() {
             let status = Command::new("go")
                 .current_dir("go")
                 .env("CGO_ENABLED", "1")
+                .env("GOEXPERIMENT", "cgocheck2")
                 .args([
                     "build",
                     "-o",
