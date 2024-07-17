@@ -143,7 +143,6 @@ fn create_local_command(args: &BuildArgs, program_dir: &Utf8PathBuf) -> Command 
 /// Execute the command and handle the output depending on the context.
 fn execute_command(
     mut command: Command,
-    is_helper: bool,
     docker: bool,
     program_metadata: &cargo_metadata::Metadata,
 ) -> Result<()> {
@@ -170,12 +169,10 @@ fn execute_command(
     let stdout = BufReader::new(child.stdout.take().unwrap());
     let stderr = BufReader::new(child.stderr.take().unwrap());
 
-    // Add the [sp1] or [docker] prefix to the output of the child process depending on the context.
-    let msg = match (is_helper, docker) {
-        (true, true) => "[sp1] [docker] ",
-        (true, false) => "[sp1] ",
-        (false, true) => "[docker] ",
-        (false, false) => "",
+    // Add prefix to the output of the process depending on the context.
+    let msg = match docker {
+        true => "[sp1] [docker] ",
+        false => "[sp1] ",
     };
 
     // Pipe stdout and stderr to the parent process with [docker] prefix
@@ -256,9 +253,6 @@ fn copy_elf_to_output_dir(
 ///
 /// * `Result<Utf8PathBuf>` - The path to the built program as a `Utf8PathBuf` on success, or an error on failure.
 pub fn build_program(args: &BuildArgs, program_dir: Option<PathBuf>) -> Result<Utf8PathBuf> {
-    // If the program directory is specified, this function was called by sp1-helper.
-    let is_helper = program_dir.is_some();
-
     // If the program directory is not specified, use the current directory.
     let program_dir = program_dir
         .unwrap_or_else(|| std::env::current_dir().expect("Failed to get current directory."));
@@ -284,7 +278,7 @@ pub fn build_program(args: &BuildArgs, program_dir: Option<PathBuf>) -> Result<U
         .exec()
         .unwrap();
 
-    execute_command(cmd, is_helper, args.docker, &program_metadata)?;
+    execute_command(cmd, args.docker, &program_metadata)?;
 
     copy_elf_to_output_dir(args, &program_metadata)
 }
