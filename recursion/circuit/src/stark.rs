@@ -11,6 +11,7 @@ use p3_baby_bear::BabyBear;
 use p3_bn254_fr::Bn254Fr;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::{AbstractField, TwoAdicField};
+use p3_util::log2_strict_usize;
 use sp1_core::stark::{Com, ShardProof, PROOF_MAX_NUM_PVS};
 use sp1_core::{
     air::MachineAir,
@@ -22,7 +23,9 @@ use sp1_recursion_compiler::ir::{Builder, Config, Ext, Felt, Var};
 use sp1_recursion_compiler::ir::{Usize, Witness};
 use sp1_recursion_compiler::prelude::SymbolicVar;
 use sp1_recursion_core::air::{RecursionPublicValues, NUM_PV_ELMS_TO_HASH};
-use sp1_recursion_core::stark::config::{outer_fri_config, BabyBearPoseidon2Outer};
+use sp1_recursion_core::stark::config::{
+    outer_fri_config, outer_fri_config_with_blowup, BabyBearPoseidon2Outer,
+};
 use sp1_recursion_core::stark::RecursionAirWideDeg17;
 use sp1_recursion_core_v2::machine::RecursionAir;
 use sp1_recursion_program::commit::PolynomialSpaceVariable;
@@ -47,7 +50,7 @@ where
         Domain = TwoAdicMultiplicativeCoset<C::F>,
     >,
 {
-    pub fn verify_shard<A>(
+    pub fn verify_shard<A, const DEGREE: usize>(
         builder: &mut Builder<C>,
         vk: &StarkVerifyingKey<SC>,
         machine: &StarkMachine<SC, A>,
@@ -208,7 +211,7 @@ where
         rounds.push(main_round);
         rounds.push(perm_round);
         rounds.push(quotient_round);
-        let config = outer_fri_config();
+        let config = outer_fri_config_with_blowup(log2_strict_usize(DEGREE - 1));
         verify_two_adic_pcs(builder, &config, &proof.opening_proof, challenger, rounds);
 
         for (i, sorted_chip) in sorted_chips.iter().enumerate() {
@@ -333,7 +336,7 @@ pub fn build_wrap_circuit(
     );
     challenger.observe_slice(&mut builder, pv_slice);
 
-    StarkVerifierCircuit::<OuterC, OuterSC>::verify_shard(
+    StarkVerifierCircuit::<OuterC, OuterSC>::verify_shard::<_, 17>(
         &mut builder,
         wrap_vk,
         &outer_machine,
@@ -458,7 +461,7 @@ pub fn build_wrap_circuit_new<const DEGREE: usize>(
     );
     challenger.observe_slice(&mut builder, pv_slice);
 
-    StarkVerifierCircuit::<OuterC, OuterSC>::verify_shard(
+    StarkVerifierCircuit::<OuterC, OuterSC>::verify_shard::<_, DEGREE>(
         &mut builder,
         wrap_vk,
         &outer_machine,

@@ -5,6 +5,7 @@ mod tests {
         fs::File,
         io::{Read, Write},
         iter::once,
+        thread,
     };
 
     use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
@@ -125,7 +126,18 @@ mod tests {
 
     #[test]
     pub fn test_new_machine_diff_paddings() {
-        // test_new_machine::<16, 16, 16, 3>();
-        test_new_machine::<16, 16, 16, 9>();
+        // let handle1 = thread::spawn(|| {
+        //     test_new_machine::<2, 2, 2, 5>();
+        // });
+        let handle2 = thread::spawn(|| {
+            test_new_machine::<2, 2, 2, 9>();
+        });
+        let handle3 = thread::spawn(|| {
+            test_new_machine::<2, 2, 2, 17>();
+        });
+
+        // handle1.join().unwrap();
+        handle2.join().unwrap();
+        handle3.join().unwrap();
     }
 }
