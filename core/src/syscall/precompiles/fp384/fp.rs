@@ -271,7 +271,7 @@ impl Syscall for FpMulChip {
         // Write the result to x and keep track of the memory records.
         let x_memory_records = rt.mw_slice(x_ptr, &result);
 
-        let lookup_id = rt.syscall_lookup_id;
+        let lookup_id = rt.syscall_lookup_id as usize;
         let shard = rt.current_shard();
         let channel = rt.current_channel();
         let clk = rt.clk;

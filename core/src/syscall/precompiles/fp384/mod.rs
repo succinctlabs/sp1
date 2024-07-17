@@ -17,7 +17,7 @@ use crate::{
     utils::{bytes_to_words_le, words_to_bytes_le_vec},
 };
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 #[repr(C)]
 pub struct Fp<F: FieldParameters>(pub [u64; 6], PhantomData<F>);
 
@@ -30,6 +30,7 @@ impl<F: FieldParameters> Fp<F> {
         unsafe { Self(transmute::<[u32; 12], [u64; 6]>(*bytes), PhantomData::<F>) }
     }
 
+    #[allow(dead_code)]
     pub(crate) fn new(val: [u64; 6]) -> Self {
         Self(val, PhantomData::<F>)
     }
@@ -43,7 +44,6 @@ impl<F: FieldParameters> Mul for Fp<F> {
         let lhs = BigUint::from_bytes_le(&words_to_bytes_le_vec(&other.to_words()));
 
         let out = (lhs * rhs) % BigUint::from_bytes_le(F::MODULUS);
-        let r_inv = BigUint::from_bytes_le(F::R_INV);
         let out = (out * BigUint::from_bytes_le(F::R_INV)) % BigUint::from_bytes_le(F::MODULUS);
 
         let mut padded = out.to_bytes_le();
@@ -87,14 +87,9 @@ impl<F: FieldParameters> Sub for Fp<F> {
     }
 }
 
-impl<F: FieldParameters> Clone for Fp<F> {
-    fn clone(&self) -> Self {
-        Self(self.0.clone(), self.1.clone())
-    }
-}
 impl<F: FieldParameters> Copy for Fp<F> {}
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 #[repr(C)]
 pub struct Fp2<F: FieldParameters> {
     c0: Fp<F>,
@@ -158,18 +153,9 @@ impl<F: FieldParameters> Sub for Fp2<F> {
     }
 }
 
-impl<F: FieldParameters> Clone for Fp2<F> {
-    fn clone(&self) -> Self {
-        Self {
-            c0: self.c0.clone(),
-            c1: self.c1.clone(),
-        }
-    }
-}
-
 impl<F: FieldParameters> Copy for Fp2<F> {}
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 #[repr(C)]
 pub struct Fp6<F: FieldParameters> {
     c0: Fp2<F>,
@@ -276,15 +262,6 @@ impl<F: FieldParameters> Sub for Fp6<F> {
     }
 }
 
-impl<F: FieldParameters> Clone for Fp6<F> {
-    fn clone(&self) -> Self {
-        Self {
-            c0: self.c0.clone(),
-            c1: self.c1.clone(),
-            c2: self.c2.clone(),
-        }
-    }
-}
 impl<F: FieldParameters> Copy for Fp6<F> {}
 
 #[derive(Clone, Debug, PartialEq)]

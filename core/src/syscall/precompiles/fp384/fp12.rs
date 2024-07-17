@@ -1034,7 +1034,7 @@ impl<P: FieldParameters> Syscall for Fp12MulChip<P> {
 
         let a_memory_records = rt.mw_slice(a_ptr, &result.get_words());
 
-        let lookup_id = rt.syscall_lookup_id;
+        let lookup_id = rt.syscall_lookup_id as usize;
         let shard = rt.current_shard();
         let channel = rt.current_channel();
         let clk = rt.clk;
