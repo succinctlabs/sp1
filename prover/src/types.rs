@@ -114,6 +114,7 @@ pub struct SP1ProofWithMetadata<P: Clone> {
     pub proof: P,
     pub stdin: SP1Stdin,
     pub public_values: SP1PublicValues,
+    pub cycles: u64,
 }
 
 impl<P: Serialize + DeserializeOwned + Clone> SP1ProofWithMetadata<P> {

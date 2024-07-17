@@ -737,23 +737,32 @@ where
                     self.nb_poseidons += 1;
                     let (a_val, b_val, c_val) = self.all_rr(&instruction);
 
-                    let hash_num = a_val[0];
+                    let hash_and_absorb_num = a_val[0];
                     let start_addr = b_val[0];
                     let input_len = c_val[0];
                     let timestamp = self.clk;
 
+                    let two_pow_12 = 1 << 12;
+
+                    let hash_and_absorb_num_u32 = hash_and_absorb_num.as_canonical_u32();
+                    let hash_num = F::from_canonical_u32(hash_and_absorb_num_u32 / two_pow_12);
+                    let absorb_num = F::from_canonical_u32(hash_and_absorb_num_u32 % two_pow_12);
+
+                    // Double check that hash_num is [0, 2^16 - 1] and absorb_num is [0, 2^12 - 1] since
+                    // that is what the AIR will enforce.
+                    assert!(hash_num.as_canonical_u32() < 1 << 16);
+                    assert!(absorb_num.as_canonical_u32() < 1 << 12);
+
                     // We currently don't support an input_len of 0, since it will need special logic in the AIR.
                     assert!(input_len > F::zero());
 
-                    let is_first_absorb = self.p2_current_hash_num.is_none()
-                        || self.p2_current_hash_num.unwrap() != hash_num;
-
                     let mut absorb_event = Poseidon2AbsorbEvent::new(
                         timestamp,
-                        hash_num,
+                        hash_and_absorb_num,
                         start_addr,
                         input_len,
-                        is_first_absorb,
+                        hash_num,
+                        absorb_num,
                     );
 
                     let memory_records: Vec<MemoryRecord<F>> = (0..input_len.as_canonical_u32())

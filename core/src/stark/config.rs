@@ -46,7 +46,7 @@ pub type PcsProverData<SC> = <<SC as StarkGenericConfig>::Pcs as Pcs<
 pub type Challenge<SC> = <SC as StarkGenericConfig>::Challenge;
 pub type Challenger<SC> = <SC as StarkGenericConfig>::Challenger;
 
-pub trait StarkGenericConfig: Send + Sync + Serialize + DeserializeOwned + Clone {
+pub trait StarkGenericConfig: 'static + Send + Sync + Serialize + DeserializeOwned + Clone {
     type Val: PrimeField;
 
     type Domain: PolynomialSpace<Val = Self::Val> + Sync;
