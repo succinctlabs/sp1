@@ -177,10 +177,10 @@ mod tests {
                 let y_neg = Bls12381BaseField::modulus() - y.clone();
 
                 // Set flags
-                let mut is_odd = 1;
+                let mut is_odd = 0;
                 if y > y_neg {
                     result[0] += Y_IS_ODD_FLAG;
-                    is_odd = 0;
+                    is_odd = 1;
                 }
                 result[0] += COMPRESION_FLAG;
 
