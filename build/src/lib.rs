@@ -140,8 +140,7 @@ fn create_local_command(args: &BuildArgs, program_dir: &Utf8PathBuf) -> Command 
     command
 }
 
-/// Execute the command and handle the output. Note: Strip the rustc configuration if this is called
-/// by sp1-helper so it uses the Succinct toolchain.
+/// Execute the command and handle the output depending on the context.
 fn execute_command(
     mut command: Command,
     build_with_helper: bool,
@@ -214,8 +213,9 @@ fn copy_elf_to_output_dir(
     let root_package = program_metadata.root_package();
     let root_package_name = root_package.as_ref().map(|p| &p.name);
 
-    // The ELF is written to a target folder specified by the program's package.
-    // Conditionally add HELPER_TARGET_SUBDIR to the path based on is_helper.
+    // The ELF is written to a target folder specified by the program's package. Note: If the ELF
+    // is built by sp1-helper, the target directory is a subdirectory of the program's target
+    // directory.
     let mut original_elf_path = program_metadata.target_directory.clone();
     if is_helper {
         original_elf_path = original_elf_path.join(HELPER_TARGET_SUBDIR);
