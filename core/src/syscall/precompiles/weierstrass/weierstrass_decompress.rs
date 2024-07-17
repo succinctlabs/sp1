@@ -434,8 +434,14 @@ where
         let y_limbs: Limbs<AB::Var, <E::BaseField as NumLimbs>::Limbs> =
             limbs_from_access(&local.y_access);
 
+        // Constrain the y value according the sign rule convention.
         match self.sign_rule {
             SignChoiceRule::LeastSignificantBit => {
+                // When the sign rule is LeastSignificantBit, the sign_bit should match the parity
+                // of the result. The parity of the square root result is given by the local.y.lsb
+                // value. Thus, if the sign_bit matches the local.y.lsb value, then the result
+                // should be the square root of the y value. Otherwise, the result should be the
+                // negative square root of the y value.
                 builder
                     .when(local.is_real)
                     .when_ne(local.y.lsb, AB::Expr::one() - local.sign_bit)
@@ -446,6 +452,12 @@ where
                     .assert_all_eq(local.neg_y.result, y_limbs);
             }
             SignChoiceRule::Lexicographic => {
+                // When the sign rule is Lexicographic, the sign_bit corresponds to whether
+                // the result is greater than or less its negative with respect to the lexicographic
+                // ordering, embedding prime field values as integers.
+                //
+                // In order to endorce these constraints, we will use the auxillary choice columns.
+
                 let choice_cols: &LexicographicChoiceCols<AB::Var, E::BaseField> = (*local_slice)
                     [weierstrass_cols
                         ..weierstrass_cols
@@ -458,7 +470,6 @@ where
                     limbs_from_vec::<AB::Expr, <E::BaseField as NumLimbs>::Limbs, AB::F>(
                         modulus_limbs,
                     );
-
                 choice_cols.neg_y_range_check.eval(
                     builder,
                     &local.neg_y.result,
