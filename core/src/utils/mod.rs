@@ -194,17 +194,12 @@ pub fn log2_strict_usize(n: usize) -> usize {
     res as usize
 }
 
-pub fn par_for_each_row<P, F>(
-    vec: &mut [F],
-    num_rows_per_event: usize,
-    num_cols: usize,
-    processor: P,
-) where
+pub fn par_for_each_row<P, F>(vec: &mut [F], num_elements_per_event: usize, processor: P)
+where
     F: Send,
     P: Fn(usize, &mut [F]) + Send + Sync,
 {
     // Split the vector into `num_cpus` chunks, but at least `num_cpus` rows per chunk.
-    let num_elements_per_event = num_cols * num_rows_per_event;
     assert!(vec.len() % num_elements_per_event == 0);
     let len = vec.len() / num_elements_per_event;
     let cpus = num_cpus::get();

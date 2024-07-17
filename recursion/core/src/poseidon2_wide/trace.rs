@@ -83,12 +83,8 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
         }
 
         // Populate the compress events.
-        let compress_rows = &mut rows[row_cursor..];
-        par_for_each_row(compress_rows, 2, num_columns, |i, rows| {
-            if i >= input.poseidon2_compress_events.len() {
-                return;
-            }
-
+        let compress_rows = &mut rows[row_cursor..nb_rows * num_columns];
+        par_for_each_row(compress_rows, num_columns * 2, |i, rows| {
             self.populate_compress_event(rows, &input.poseidon2_compress_events[i], num_columns);
         });
 
@@ -98,8 +94,10 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
         let padded_rows = trace.values.par_chunks_mut(num_columns).skip(nb_rows);
 
         if self.pad {
+            let mut dummy_row = vec![F::zero(); num_columns];
+            self.populate_permutation([F::zero(); WIDTH], None, &mut dummy_row);
             padded_rows.for_each(|padded_row| {
-                self.populate_permutation([F::zero(); WIDTH], None, padded_row);
+                padded_row.copy_from_slice(&dummy_row);
             });
         }
 

@@ -50,7 +50,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
         let nb_rows = next_power_of_two(nb_events, self.fixed_log2_rows);
         let mut values = vec![F::zero(); nb_rows * NUM_MEMORY_INIT_COLS];
 
-        par_for_each_row(&mut values, 1, NUM_MEMORY_INIT_COLS, |i, row| {
+        par_for_each_row(&mut values, NUM_MEMORY_INIT_COLS, |i, row| {
             if i >= nb_events {
                 return;
             }
