@@ -62,6 +62,10 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             local_row.syscall_params(),
             send_range_check,
         );
+
+        builder
+            .when(local_control_flow.is_syscall_row)
+            .assert_one(local_is_real);
     }
 
     /// This function will verify that all hash rows are before the compress rows and that the first
@@ -80,38 +84,56 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         local_is_real: AB::Expr,
         next_is_real: AB::Expr,
     ) {
-        // We require that the first row is an absorb syscall and that the hash_num == 0.
+        // We require that the first row is an absorb syscall and that the hash_num == 0 and absorb_num == 0.
         let mut first_row_builder = builder.when_first_row();
         first_row_builder.assert_one(local_control_flow.is_absorb);
         first_row_builder.assert_one(local_control_flow.is_syscall_row);
-        first_row_builder.assert_zero(local_syscall_params.absorb().hash_num);
+        first_row_builder.assert_zero(local_opcode_workspace.absorb().hash_num);
+        first_row_builder.assert_zero(local_opcode_workspace.absorb().absorb_num);
         first_row_builder.assert_one(local_opcode_workspace.absorb().is_first_hash_row);
 
-        let mut transition_builder = builder.when_transition();
-
         // For absorb rows, constrain the following:
-        // 1) next row is either an absorb or syscall finalize.
-        // 2) when last absorb row, then the next row is a syscall row.
-        // 2) hash_num == hash_num'.
+        // 1) when last absorb row, then the next row is a either an absorb or finalize syscall row.
+        // 2) when last absorb row and the next row is an absorb row, then absorb_num' = absorb_num + 1.
+        // 3) when not last absorb row, then the next row is an absorb non syscall row.
+        // 4) when not last absorb row, then absorb_num' = absorb_num.
+        // 5) hash_num == hash_num'.
         {
+            let mut transition_builder = builder.when_transition();
+
+            let mut absorb_last_row_builder =
+                transition_builder.when(local_control_flow.is_absorb_last_row);
+            absorb_last_row_builder
+                .assert_one(next_control_flow.is_absorb + next_control_flow.is_finalize);
+            absorb_last_row_builder.assert_one(next_control_flow.is_syscall_row);
+            absorb_last_row_builder
+                .when(next_control_flow.is_absorb)
+                .assert_eq(
+                    next_opcode_workspace.absorb().absorb_num,
+                    local_opcode_workspace.absorb().absorb_num + AB::Expr::one(),
+                );
+
+            let mut absorb_not_last_row_builder =
+                transition_builder.when(local_control_flow.is_absorb_not_last_row);
+            absorb_not_last_row_builder.assert_one(next_control_flow.is_absorb);
+            absorb_not_last_row_builder.assert_zero(next_control_flow.is_syscall_row);
+            absorb_not_last_row_builder.assert_eq(
+                local_opcode_workspace.absorb().absorb_num,
+                next_opcode_workspace.absorb().absorb_num,
+            );
+
             let mut absorb_transition_builder =
                 transition_builder.when(local_control_flow.is_absorb);
             absorb_transition_builder
-                .assert_one(next_control_flow.is_absorb + next_control_flow.is_finalize);
-            absorb_transition_builder
-                .when(local_opcode_workspace.absorb().is_last_row::<AB>())
-                .assert_one(next_control_flow.is_syscall_row);
-
-            absorb_transition_builder
                 .when(next_control_flow.is_absorb)
                 .assert_eq(
-                    local_syscall_params.absorb().hash_num,
-                    next_syscall_params.absorb().hash_num,
+                    local_opcode_workspace.absorb().hash_num,
+                    next_opcode_workspace.absorb().hash_num,
                 );
             absorb_transition_builder
                 .when(next_control_flow.is_finalize)
                 .assert_eq(
-                    local_syscall_params.absorb().hash_num,
+                    local_opcode_workspace.absorb().hash_num,
                     next_syscall_params.finalize().hash_num,
                 );
         }
@@ -119,8 +141,10 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         // For finalize rows, constrain the following:
         // 1) next row is syscall compress or syscall absorb.
         // 2) if next row is absorb -> hash_num + 1 == hash_num'
-        // 3) if next row is absorb -> is_first_hash' == true
+        // 3) if next row is absorb -> absorb_num' == 0
+        // 4) if next row is absorb -> is_first_hash' == true
         {
+            let mut transition_builder = builder.when_transition();
             let mut finalize_transition_builder =
                 transition_builder.when(local_control_flow.is_finalize);
 
@@ -132,8 +156,11 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                 .when(next_control_flow.is_absorb)
                 .assert_eq(
                     local_syscall_params.finalize().hash_num + AB::Expr::one(),
-                    next_syscall_params.absorb().hash_num,
+                    next_opcode_workspace.absorb().hash_num,
                 );
+            finalize_transition_builder
+                .when(next_control_flow.is_absorb)
+                .assert_zero(next_opcode_workspace.absorb().absorb_num);
             finalize_transition_builder
                 .when(next_control_flow.is_absorb)
                 .assert_one(next_opcode_workspace.absorb().is_first_hash_row);
@@ -143,26 +170,33 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         // 1) if compress syscall -> next row is a compress output
         // 2) if compress output -> next row is a compress syscall or not real
         {
+            builder.assert_eq(
+                local_control_flow.is_compress_output,
+                local_control_flow.is_compress
+                    * (AB::Expr::one() - local_control_flow.is_syscall_row),
+            );
+
+            let mut transition_builder = builder.when_transition();
+
             transition_builder
                 .when(local_control_flow.is_compress)
                 .when(local_control_flow.is_syscall_row)
                 .assert_one(next_control_flow.is_compress_output);
 
+            // When we are at a compress output row, then ensure next row is either not real or is a compress syscall row.
             transition_builder
                 .when(local_control_flow.is_compress_output)
                 .assert_one(
-                    next_control_flow.is_compress + (AB::Expr::one() - next_is_real.clone()),
+                    (AB::Expr::one() - next_is_real.clone())
+                        + next_control_flow.is_compress * next_control_flow.is_syscall_row,
                 );
-
-            transition_builder
-                .when(local_control_flow.is_compress_output)
-                .when(next_control_flow.is_compress)
-                .assert_one(next_control_flow.is_syscall_row);
         }
 
         // Constrain that there is only one is_real -> not is real transition.  Also contrain that
         // the last real row is a compress output row.
         {
+            let mut transition_builder = builder.when_transition();
+
             transition_builder
                 .when_not(local_is_real.clone())
                 .assert_zero(next_is_real.clone());
@@ -193,6 +227,29 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         let next_hash_workspace = next_opcode_workspace.absorb();
         let last_row_ending_cursor_is_seven =
             local_hash_workspace.last_row_ending_cursor_is_seven.result;
+
+        // Verify that the hash_num and absorb_num are correctly decomposed from the syscall
+        // hash_and_absorb_num param.
+        // Also range check that both hash_num is within [0, 2^16 - 1] and absorb_num is within [0, 2^12 - 1];
+        {
+            let mut absorb_builder = builder.when(local_control_flow.is_absorb);
+
+            absorb_builder.assert_eq(
+                local_hash_workspace.hash_num * AB::Expr::from_canonical_u32(1 << 12)
+                    + local_hash_workspace.absorb_num,
+                local_syscall_params.absorb().hash_and_absorb_num,
+            );
+            builder.send_range_check(
+                AB::Expr::from_canonical_u8(RangeCheckOpcode::U16 as u8),
+                local_hash_workspace.hash_num,
+                send_range_check,
+            );
+            builder.send_range_check(
+                AB::Expr::from_canonical_u8(RangeCheckOpcode::U12 as u8),
+                local_hash_workspace.absorb_num,
+                send_range_check,
+            );
+        }
 
         // Constrain the materialized control flow flags.
         {
@@ -232,12 +289,16 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                 local_control_flow.is_absorb
                     * (AB::Expr::one() - local_hash_workspace.is_last_row::<AB>()),
             );
+            builder.assert_eq(
+                local_control_flow.is_absorb_last_row,
+                local_control_flow.is_absorb * local_hash_workspace.is_last_row::<AB>(),
+            );
 
             builder.assert_eq(
                 local_control_flow.is_absorb_no_perm,
                 local_control_flow.is_absorb
                     * (AB::Expr::one() - local_hash_workspace.do_perm::<AB>()),
-            )
+            );
         }
 
         // For the absorb syscall row, ensure correct value of num_remaining_rows, last_row_num_consumed,
@@ -274,7 +335,16 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                     expected_last_row_ending_cursor,
                 );
 
-            // Range check that num_remaining_rows is between [0, 2^18-1].
+            // Range check that input_len < 2^16.  This check is only needed for absorb syscall rows,
+            // but we send it for all absorb rows, since the `is_real` parameter must be an expression
+            // with at most degree 1.
+            builder.send_range_check(
+                AB::Expr::from_canonical_u8(RangeCheckOpcode::U16 as u8),
+                local_syscall_params.absorb().input_len,
+                send_range_check,
+            );
+
+            // Range check that num_remaining_rows is between [0, 2^16-1].
             builder.send_range_check(
                 AB::Expr::from_canonical_u8(RangeCheckOpcode::U16 as u8),
                 local_hash_workspace.num_remaining_rows,

@@ -4,7 +4,7 @@
 //! # Layout of the poseidon2 chip:
 //!
 //! All the hash related rows should be in the first part of the chip and all the compress
-//! related rows in the second part.  E.g. the chip should has this format:
+//! related rows in the second part.  E.g. the chip should have this format:
 //!
 //! absorb row (for hash num 1)
 //! absorb row (for hash num 1)
@@ -34,7 +34,7 @@
 //! last_row_ending_cursor will be copied down to all of the rows.  Also, for the next absorb/finalize
 //! syscall, its state_cursor is set to (last_row_ending_cursor + 1) % RATE.
 //!
-//! From num_remaining_rows and syscall column, we know the absorb 's first row and last row.  
+//! From num_remaining_rows and syscall column, we know the absorb's first row and last row.
 //! From that fact, we can then enforce the following state writes.
 //!
 //! 1. is_first_row && is_last_row -> state writes are [state_cursor..state_cursor + last_row_ending_cursor]
