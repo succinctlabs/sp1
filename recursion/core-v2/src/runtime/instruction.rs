@@ -13,6 +13,7 @@ pub enum Instruction<F> {
     ExpReverseBitsLen(ExpReverseBitsInstr<F>),
     HintBits(HintBitsInstr<F>),
     FriFold(FriFoldInstr<F>),
+    Pv(PvInstr<F>),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

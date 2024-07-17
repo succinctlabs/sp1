@@ -15,6 +15,7 @@ pub mod mem;
 pub mod poseidon2_skinny;
 pub mod poseidon2_wide;
 pub mod program;
+pub mod public_values;
 pub mod runtime;
 
 pub use runtime::*;
@@ -183,4 +184,14 @@ pub struct FriFoldEvent<F> {
     pub base_single: FriFoldBaseIo<F>,
     pub ext_single: FriFoldExtSingleIo<Block<F>>,
     pub ext_vec: FriFoldExtVecIo<Block<F>>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PvInstr<F> {
+    pub addrs: [Address<F>; 8],
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PvEvent<F> {
+    pub vals: [F; 8],
 }

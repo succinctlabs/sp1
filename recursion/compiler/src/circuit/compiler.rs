@@ -445,7 +445,7 @@ where
             // DslIr::WitnessFelt(_, _) => todo!(),
             // DslIr::WitnessExt(_, _) => todo!(),
             // DslIr::Commit(_, _) => todo!(),
-            // DslIr::RegisterPublicValue(_) => todo!(),
+            DslIr::RegisterPublicValue(_) => todo!(),
             // DslIr::Halt => todo!(),
             // DslIr::CircuitCommitVkeyHash(_) => todo!(),
             // DslIr::CircuitCommitCommitedValuesDigest(_) => todo!(),
