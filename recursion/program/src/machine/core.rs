@@ -508,10 +508,13 @@ where
                     });
                 }
                 builder.if_eq(is_zero, C::N::zero()).then(|builder| {
-                    builder.assert_felt_eq(
-                        deferred_proofs_digest[0],
-                        public_values.deferred_proofs_digest[0],
-                    );
+                    #[allow(clippy::needless_range_loop)]
+                    for i in 0..deferred_proofs_digest.len() {
+                        builder.assert_felt_eq(
+                            deferred_proofs_digest[i],
+                            public_values.deferred_proofs_digest[i],
+                        );
+                    }
                 });
 
                 // If it's not a shard with "CPU", then the deferred proofs digest should not change.
