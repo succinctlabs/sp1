@@ -4,7 +4,7 @@ use crate::memory::{value_as_limbs, MemoryReadCols, MemoryWriteCols};
 use crate::operations::field::field_op::{FieldOpCols, FieldOperation};
 use crate::operations::field::params::NumWords;
 use crate::operations::field::params::{Limbs, NumLimbs};
-use crate::operations::field::range::FieldRangeCols;
+use crate::operations::field::range::FieldLtCols;
 use crate::operations::IsZeroOperation;
 use crate::runtime::{ExecutionRecord, Program, Syscall, SyscallCode};
 use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
@@ -97,7 +97,7 @@ pub struct Uint256MulCols<T> {
     // Output values. We compute (x * y) % modulus.
     pub output: FieldOpCols<T, U256Field>,
 
-    pub output_range_check: FieldRangeCols<T, U256Field>,
+    pub output_range_check: FieldLtCols<T, U256Field>,
 
     pub is_real: T,
 }

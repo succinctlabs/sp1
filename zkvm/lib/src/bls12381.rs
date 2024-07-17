@@ -41,10 +41,10 @@ pub fn decompress_pubkey(compressed_key: &[u8; 48]) -> Result<[u8; 96]> {
             let mut decompressed_key = [0u8; 96];
             decompressed_key[..48].copy_from_slice(compressed_key);
 
-            let is_odd = (decompressed_key[0] & 0b_0010_0000) >> 5 == 0;
+            let sign_bit = ((decompressed_key[0] & 0b_0010_0000) >> 5) == 1;
             decompressed_key[0] &= 0b_0001_1111;
             unsafe {
-                syscall_bls12381_decompress(&mut decompressed_key, is_odd);
+                syscall_bls12381_decompress(&mut decompressed_key, sign_bit);
             }
 
             Ok(decompressed_key)
