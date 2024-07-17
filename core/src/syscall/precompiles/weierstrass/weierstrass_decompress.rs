@@ -76,8 +76,18 @@ pub struct LexicographicChoiceCols<T, P: FieldParameters + NumWords> {
     pub when_neg_y_res_is_lt: T,
 }
 
+/// The convention for choosing the decompressed `y` value given a sign bit.
 pub enum SignChoiceRule {
+    /// Lease significant bit convention.
+    ///
+    /// In this convention, the `sign_bit` matches the pairty of the `y` value. This is the
+    /// convention used in the ECDSA signature scheme, for example, in the secp256k1 curve.
     LeastSignificantBit,
+    /// Lexicographic convention.
+    ///
+    /// In this convention, the `sign_bit` corresponds to whether the `y` value is larger than its
+    /// negative counterpart with respect to the embedding of ptime field elements as integers.
+    /// This onvention used in the BLS signature scheme, for example, in the BLS12-381 curve.
     Lexicographic,
 }
 
