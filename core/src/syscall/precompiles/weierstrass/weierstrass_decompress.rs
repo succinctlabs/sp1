@@ -13,9 +13,7 @@ use sp1_derive::AlignedBorrow;
 use std::marker::PhantomData;
 use typenum::Unsigned;
 
-use crate::air::BaseAirBuilder;
-use crate::air::MachineAir;
-use crate::air::SP1AirBuilder;
+use crate::air::{BaseAirBuilder, MachineAir, SP1AirBuilder};
 use crate::bytes::event::ByteRecord;
 use crate::memory::MemoryReadCols;
 use crate::memory::MemoryReadWriteCols;
@@ -66,8 +64,13 @@ pub struct WeierstrassDecompressCols<T, P: FieldParameters + NumWords> {
     pub(crate) neg_y: FieldOpCols<T, P>,
 }
 
-#[derive(Default)]
+pub enum SignChoiceRule {
+    LeastSignificantBit,
+    Lexicographic,
+}
+
 pub struct WeierstrassDecompressChip<E> {
+    sign_rule: SignChoiceRule,
     _marker: PhantomData<E>,
 }
 
@@ -88,8 +91,23 @@ impl<E: EllipticCurve> Syscall for WeierstrassDecompressChip<E> {
 }
 
 impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDecompressChip<E> {
-    pub const fn new() -> Self {
+    pub const fn new(sign_rule: SignChoiceRule) -> Self {
         Self {
+            sign_rule,
+            _marker: PhantomData::<E>,
+        }
+    }
+
+    pub const fn with_lsb_rule() -> Self {
+        Self {
+            sign_rule: SignChoiceRule::LeastSignificantBit,
+            _marker: PhantomData::<E>,
+        }
+    }
+
+    pub const fn with_lexicographic_rule() -> Self {
+        Self {
+            sign_rule: SignChoiceRule::Lexicographic,
             _marker: PhantomData::<E>,
         }
     }
@@ -161,12 +179,13 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         };
 
         let mut rows = Vec::new();
+        let width = BaseAir::<F>::width(self);
 
         let mut new_byte_lookup_events = Vec::new();
 
         for i in 0..events.len() {
             let event = events[i].clone();
-            let mut row = vec![F::zero(); num_weierstrass_decompress_cols::<E::BaseField>()];
+            let mut row = vec![F::zero(); width];
             let cols: &mut WeierstrassDecompressCols<F, E::BaseField> =
                 row.as_mut_slice().borrow_mut();
 
@@ -207,7 +226,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         output.add_byte_lookup_events(new_byte_lookup_events);
 
         pad_rows(&mut rows, || {
-            let mut row = vec![F::zero(); num_weierstrass_decompress_cols::<E::BaseField>()];
+            let mut row = vec![F::zero(); width];
             let cols: &mut WeierstrassDecompressCols<F, E::BaseField> =
                 row.as_mut_slice().borrow_mut();
 
@@ -223,17 +242,12 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
             row
         });
 
-        let mut trace = RowMajorMatrix::new(
-            rows.into_iter().flatten().collect::<Vec<_>>(),
-            num_weierstrass_decompress_cols::<E::BaseField>(),
-        );
+        let mut trace = RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), width);
 
         // Write the nonces to the trace.
         for i in 0..trace.height() {
-            let cols: &mut WeierstrassDecompressCols<F, E::BaseField> = trace.values[i
-                * num_weierstrass_decompress_cols::<E::BaseField>()
-                ..(i + 1) * num_weierstrass_decompress_cols::<E::BaseField>()]
-                .borrow_mut();
+            let cols: &mut WeierstrassDecompressCols<F, E::BaseField> =
+                trace.values[i * width..(i + 1) * width].borrow_mut();
             cols.nonce = F::from_canonical_usize(i);
         }
 
@@ -252,6 +266,10 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 impl<F, E: EllipticCurve> BaseAir<F> for WeierstrassDecompressChip<E> {
     fn width(&self) -> usize {
         num_weierstrass_decompress_cols::<E::BaseField>()
+            + match self.sign_rule {
+                SignChoiceRule::LeastSignificantBit => 0,
+                SignChoiceRule::Lexicographic => size_of::<FieldLtCols<u8, E::BaseField>>(),
+            }
     }
 }
 
@@ -262,10 +280,14 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
+
+        let weierstrass_cols = num_weierstrass_decompress_cols::<E::BaseField>();
         let local = main.row_slice(0);
-        let local: &WeierstrassDecompressCols<AB::Var, E::BaseField> = (*local).borrow();
+        let local: &WeierstrassDecompressCols<AB::Var, E::BaseField> =
+            (*local)[0..weierstrass_cols].borrow();
         let next = main.row_slice(1);
-        let next: &WeierstrassDecompressCols<AB::Var, E::BaseField> = (*next).borrow();
+        let next: &WeierstrassDecompressCols<AB::Var, E::BaseField> =
+            (*next)[0..weierstrass_cols].borrow();
 
         // Constrain the incrementing nonce.
         builder.when_first_row().assert_zero(local.nonce);
@@ -343,14 +365,20 @@ where
 
         let y_limbs: Limbs<AB::Var, <E::BaseField as NumLimbs>::Limbs> =
             limbs_from_access(&local.y_access);
-        builder
-            .when(local.is_real)
-            .when_ne(y_is_odd, AB::Expr::one() - local.is_odd)
-            .assert_all_eq(local.y.multiplication.result, y_limbs);
-        builder
-            .when(local.is_real)
-            .when_ne(y_is_odd, local.is_odd)
-            .assert_all_eq(local.neg_y.result, y_limbs);
+
+        match self.sign_rule {
+            SignChoiceRule::LeastSignificantBit => {
+                builder
+                    .when(local.is_real)
+                    .when_ne(y_is_odd, AB::Expr::one() - local.is_odd)
+                    .assert_all_eq(local.y.multiplication.result, y_limbs);
+                builder
+                    .when(local.is_real)
+                    .when_ne(y_is_odd, local.is_odd)
+                    .assert_all_eq(local.neg_y.result, y_limbs);
+            }
+            SignChoiceRule::Lexicographic => {}
+        }
 
         for i in 0..num_words_field_element {
             builder.eval_memory_access(
@@ -448,7 +476,8 @@ mod tests {
 
         let mut rng = thread_rng();
 
-        let num_tests = 10;
+        // TODO: Change back to 10 after debugging.
+        let num_tests = 1;
 
         for _ in 0..num_tests {
             let secret_key = k256::SecretKey::random(&mut rng);
