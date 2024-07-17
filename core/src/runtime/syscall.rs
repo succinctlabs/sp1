@@ -294,7 +294,7 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Arc<dyn Syscall>> {
     );
     syscall_map.insert(
         SyscallCode::SECP256K1_DECOMPRESS,
-        Arc::new(WeierstrassDecompressChip::<Secp256k1>::new()),
+        Arc::new(WeierstrassDecompressChip::<Secp256k1>::with_lsb_rule()),
     );
     syscall_map.insert(
         SyscallCode::BN254_ADD,
@@ -335,7 +335,7 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Arc<dyn Syscall>> {
     syscall_map.insert(SyscallCode::HINT_READ, Arc::new(SyscallHintRead::new()));
     syscall_map.insert(
         SyscallCode::BLS12381_DECOMPRESS,
-        Arc::new(WeierstrassDecompressChip::<Bls12381>::new()),
+        Arc::new(WeierstrassDecompressChip::<Bls12381>::with_lexicographic_rule()),
     );
     syscall_map.insert(SyscallCode::UINT256_MUL, Arc::new(Uint256MulChip::new()));
 
