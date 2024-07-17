@@ -2,6 +2,7 @@ package sp1
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -33,13 +34,13 @@ func Prove(dataDir string, witnessPath string) Proof {
 		panic(err)
 	}
 	// Read all contents of the file into a byte slice
-	bytes, err := ioutil.ReadAll(scsFileOne)
+	scsBytes, err := ioutil.ReadAll(scsFileOne)
 	if err != nil {
 		panic(err)
 	}
-	println("file length: ", len(bytes))
+	println("file length: ", len(scsBytes))
 	// Print sha256 hash of the file
-	hash := sha256.Sum256(bytes)
+	hash := sha256.Sum256(scsBytes)
 	fmt.Printf("SHA256 hash of %s: %s\n", circuitPath, hex.EncodeToString(hash[:]))
 
 	scsFileOne.Close()
@@ -50,14 +51,10 @@ func Prove(dataDir string, witnessPath string) Proof {
 	}
 	os.Setenv("CONSTRAINTS_JSON", dataDir+"/"+constraintsJsonFile)
 
-	// Read the R1CS.
-	scsFile, err := os.Open(dataDir + "/" + circuitPath)
-	if err != nil {
-		panic(err)
-	}
+	// Reader from bytes
+	reader := bytes.NewReader(scsBytes)
 	scs := plonk.NewCS(ecc.BN254)
-	scs.ReadFrom(scsFile)
-	defer scsFile.Close()
+	scs.ReadFrom(reader)
 
 	// Read the proving key.
 	pkFile, err := os.Open(dataDir + "/" + pkPath)
