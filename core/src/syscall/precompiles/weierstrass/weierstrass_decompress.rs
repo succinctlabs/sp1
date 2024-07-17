@@ -265,19 +265,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
                         &modulus,
                     );
                 }
-
                 if event.sign_bit {
-                    assert!(neg_y > decompressed_y);
-                    choice_cols.when_sqrt_y_res_is_lt = F::from_bool(is_y_eq_sqrt_y_result);
-                    choice_cols.when_neg_y_res_is_lt = F::from_bool(!is_y_eq_sqrt_y_result);
-                    choice_cols.comparison_lt_cols.populate(
-                        &mut new_byte_lookup_events,
-                        event.shard,
-                        event.channel,
-                        &decompressed_y,
-                        &neg_y,
-                    );
-                } else {
                     assert!(neg_y < decompressed_y);
                     choice_cols.when_sqrt_y_res_is_lt = F::from_bool(!is_y_eq_sqrt_y_result);
                     choice_cols.when_neg_y_res_is_lt = F::from_bool(is_y_eq_sqrt_y_result);
@@ -287,6 +275,17 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
                         event.channel,
                         &neg_y,
                         &decompressed_y,
+                    );
+                } else {
+                    assert!(neg_y > decompressed_y);
+                    choice_cols.when_sqrt_y_res_is_lt = F::from_bool(is_y_eq_sqrt_y_result);
+                    choice_cols.when_neg_y_res_is_lt = F::from_bool(!is_y_eq_sqrt_y_result);
+                    choice_cols.comparison_lt_cols.populate(
+                        &mut new_byte_lookup_events,
+                        event.shard,
+                        event.channel,
+                        &decompressed_y,
+                        &neg_y,
                     );
                 }
             }
@@ -500,25 +499,25 @@ where
                     .assert_zero(choice_cols.when_neg_y_res_is_lt);
 
                 // Assert that the flags are set correctly. When the sign_bit is true, we want that
-                // `y < neg_y`, and vice versa when the sign_bit is false. Hence, when should have:
-                // - When `sign_bit` is true , then when_sqrt_y_res_is_lt = (y == sqrt(y)).
-                // - When `sign_bit` is false, then when_neg_y_res_is_lt = (y != sqrt(y)).
-                // - When `sign_bit` is true , then when_sqrt_y_res_is_lt = (y == sqrt(y)).
-                // - When `sign_bit` is false, then when_neg_y_res_is_lt = (y != sqrt(y)).
+                // `neg_y < y`, and vice versa when the sign_bit is false. Hence, when should have:
+                // - When `sign_bit` is true , then when_sqrt_y_res_is_lt = (y != sqrt(y)).
+                // - When `sign_bit` is false, then when_neg_y_res_is_lt = (y == sqrt(y)).
+                // - When `sign_bit` is true , then when_sqrt_y_res_is_lt = (y != sqrt(y)).
+                // - When `sign_bit` is false, then when_neg_y_res_is_lt = (y == sqrt(y)).
                 //
                 // Since the when less-than flags are disjoint, we can assert that:
-                // - When `sign_bit` is true , then is_y_eq_sqrt_y_result == when_sqrt_y_res_is_lt.
-                // - When `sign_bit` is false, then is_y_eq_sqrt_y_result == when_neg_y_res_is_lt.
+                // - When `sign_bit` is true , then is_y_eq_sqrt_y_result == when_neg_y_res_is_lt.
+                // - When `sign_bit` is false, then is_y_eq_sqrt_y_result == when_sqrt_y_res_is_lt.
                 builder.when(local.is_real).when(local.sign_bit).assert_eq(
                     choice_cols.is_y_eq_sqrt_y_result,
-                    choice_cols.when_sqrt_y_res_is_lt,
+                    choice_cols.when_neg_y_res_is_lt,
                 );
                 builder
                     .when(local.is_real)
                     .when_not(local.sign_bit)
                     .assert_eq(
                         choice_cols.is_y_eq_sqrt_y_result,
-                        choice_cols.when_neg_y_res_is_lt,
+                        choice_cols.when_sqrt_y_res_is_lt,
                     );
 
                 // Assert the less-than comparisons according to the flags.
