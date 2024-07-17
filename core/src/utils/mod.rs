@@ -194,13 +194,17 @@ pub fn log2_strict_usize(n: usize) -> usize {
     res as usize
 }
 
-pub fn par_for_each_row<P, F>(vec: &mut [F], num_cols: usize, processor: P)
-where
+pub fn par_for_each_row<P, F>(
+    vec: &mut [F],
+    num_rows_per_event: usize,
+    num_cols: usize,
+    processor: P,
+) where
     F: Send,
     P: Fn(usize, &mut [F]) + Send + Sync,
 {
     // Split the vector into `num_cpus` chunks, but at least `num_cpus` rows per chunk.
-    let len = vec.len();
+    let len = vec.len() / num_rows_per_event;
     let cpus = num_cpus::get();
     let ceil_div = (len + cpus - 1) / cpus;
     let chunk_size = std::cmp::max(ceil_div, cpus);
@@ -209,8 +213,11 @@ where
         .enumerate()
         .par_bridge()
         .for_each(|(i, chunk)| {
-            chunk.chunks_mut(num_cols).enumerate().for_each(|(j, row)| {
-                processor(i * chunk_size + j, row);
-            });
+            chunk
+                .chunks_mut(num_cols * num_rows_per_event)
+                .enumerate()
+                .for_each(|(j, row)| {
+                    processor(i * chunk_size + j, row);
+                });
         });
 }

@@ -3,8 +3,12 @@ use std::borrow::Borrow;
 use p3_air::BaseAir;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
+use p3_maybe_rayon::prelude::IndexedParallelIterator;
+use p3_maybe_rayon::prelude::ParallelIterator;
+use p3_maybe_rayon::prelude::ParallelSliceMut;
+use sp1_core::air::MachineAir;
 use sp1_core::utils::next_power_of_two;
-use sp1_core::{air::MachineAir, utils::pad_rows_fixed};
+use sp1_core::utils::par_for_each_row;
 use sp1_primitives::RC_16_30_U32;
 use tracing::instrument;
 
@@ -47,48 +51,53 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
                 }
             }
         }
-        nb_rows += (input.poseidon2_compress_events.len() * 2) as usize;
+        nb_rows += input.poseidon2_compress_events.len() * 2;
 
-        if self.pad {
-            nb_rows = next_power_of_two(nb_rows, self.fixed_log2_rows);
-        }
+        let nb_padded_rows = if self.pad {
+            next_power_of_two(nb_rows, self.fixed_log2_rows)
+        } else {
+            nb_rows
+        };
 
         let num_columns = <Poseidon2WideChip<DEGREE> as BaseAir<F>>::width(self);
-        let mut rows = vec![F::zero(); nb_rows * num_columns];
+        let mut rows = vec![F::zero(); nb_padded_rows * num_columns];
 
         // Populate the hash events.
+        let mut row_cursor = 0;
         for event in &input.poseidon2_hash_events {
             match event {
                 Poseidon2HashEvent::Absorb(absorb_event) => {
-                    rows.extend(self.populate_absorb_event(absorb_event, num_columns, output));
+                    let num_absorb_rows = absorb_event.iterations.len();
+                    let absorb_rows = &mut rows[row_cursor..row_cursor + num_absorb_rows];
+                    self.populate_absorb_event(absorb_rows, absorb_event, num_columns, output);
+                    row_cursor += num_absorb_rows;
                 }
 
                 Poseidon2HashEvent::Finalize(finalize_event) => {
-                    rows.push(self.populate_finalize_event(finalize_event, num_columns));
+                    let finalize_row = &mut rows[row_cursor..row_cursor + 1];
+                    self.populate_finalize_event(finalize_row, finalize_event);
+                    row_cursor += 1;
                 }
             }
         }
 
-        // Populate the compress events.
-        for event in &input.poseidon2_compress_events {
-            rows.extend(self.populate_compress_event(event, num_columns));
-        }
-
-        if self.pad {
-            // Pad the trace to a power of two.
-            pad_rows_fixed(
-                &mut rows,
-                || {
-                    let mut padded_row = vec![F::zero(); num_columns];
-                    self.populate_permutation([F::zero(); WIDTH], None, &mut padded_row);
-                    padded_row
-                },
-                self.fixed_log2_rows,
-            );
-        }
+        let compress_rows = &mut rows[row_cursor..];
+        par_for_each_row(compress_rows, 2, num_columns, |i, rows| {
+            self.populate_compress_event(rows, &input.poseidon2_compress_events[i], num_columns);
+        });
 
         // Convert the trace to a row major matrix.
-        RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), num_columns)
+        let mut trace = RowMajorMatrix::new(rows, num_columns);
+
+        let padded_rows = trace.values.par_chunks_mut(num_columns).skip(nb_rows);
+
+        if self.pad {
+            padded_rows.for_each(|padded_row| {
+                self.populate_permutation([F::zero(); WIDTH], None, padded_row);
+            });
+        }
+
+        trace
     }
 
     fn included(&self, record: &Self::Record) -> bool {
@@ -99,15 +108,14 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
 impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
     pub fn populate_compress_event<F: PrimeField32>(
         &self,
+        rows: &mut [F],
         compress_event: &Poseidon2CompressEvent<F>,
         num_columns: usize,
-    ) -> Vec<Vec<F>> {
-        let mut compress_rows = Vec::new();
-
-        let mut input_row = vec![F::zero(); num_columns];
+    ) {
+        let input_row = &mut rows[0..num_columns];
         // Populate the control flow fields.
         {
-            let mut cols = self.convert_mut(&mut input_row);
+            let mut cols = self.convert_mut(input_row);
             let control_flow = cols.control_flow_mut();
 
             control_flow.is_compress = F::one();
@@ -116,7 +124,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
 
         // Populate the syscall params fields.
         {
-            let mut cols = self.convert_mut(&mut input_row);
+            let mut cols = self.convert_mut(input_row);
             let syscall_params = cols.syscall_params_mut().compress_mut();
 
             syscall_params.clk = compress_event.clk;
@@ -127,7 +135,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
 
         // Populate the memory fields.
         {
-            let mut cols = self.convert_mut(&mut input_row);
+            let mut cols = self.convert_mut(input_row);
             let memory = cols.memory_mut();
 
             memory.start_addr = compress_event.left;
@@ -140,7 +148,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
 
         // Populate the opcode workspace fields.
         {
-            let mut cols = self.convert_mut(&mut input_row);
+            let mut cols = self.convert_mut(input_row);
             let compress_cols = cols.opcode_workspace_mut().compress_mut();
             compress_cols.start_addr = compress_event.right;
 
@@ -155,14 +163,12 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         self.populate_permutation(
             compress_event.input,
             Some(compress_event.result_array),
-            &mut input_row,
+            input_row,
         );
 
-        compress_rows.push(input_row);
-
-        let mut output_row = vec![F::zero(); num_columns];
+        let output_row = &mut rows[num_columns..];
         {
-            let mut cols = self.convert_mut(&mut output_row);
+            let mut cols = self.convert_mut(output_row);
             let control_flow = cols.control_flow_mut();
 
             control_flow.is_compress = F::one();
@@ -170,7 +176,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         }
 
         {
-            let mut cols = self.convert_mut(&mut output_row);
+            let mut cols = self.convert_mut(output_row);
             let syscall_cols = cols.syscall_params_mut().compress_mut();
 
             syscall_cols.clk = compress_event.clk;
@@ -180,7 +186,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         }
 
         {
-            let mut cols = self.convert_mut(&mut output_row);
+            let mut cols = self.convert_mut(output_row);
             let memory = cols.memory_mut();
 
             memory.start_addr = compress_event.dst;
@@ -192,7 +198,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         }
 
         {
-            let mut cols = self.convert_mut(&mut output_row);
+            let mut cols = self.convert_mut(output_row);
             let compress_cols = cols.opcode_workspace_mut().compress_mut();
 
             compress_cols.start_addr = compress_event.dst + F::from_canonical_usize(WIDTH / 2);
@@ -202,20 +208,16 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             }
         }
 
-        self.populate_permutation(compress_event.result_array, None, &mut output_row);
-
-        compress_rows.push(output_row);
-        compress_rows
+        self.populate_permutation(compress_event.result_array, None, output_row);
     }
 
     pub fn populate_absorb_event<F: PrimeField32>(
         &self,
+        rows: &mut [F],
         absorb_event: &Poseidon2AbsorbEvent<F>,
         num_columns: usize,
         output: &mut ExecutionRecord<F>,
-    ) -> Vec<Vec<F>> {
-        let mut absorb_rows = Vec::new();
-
+    ) {
         // We currently don't support an input_len of 0, since it will need special logic in the AIR.
         assert!(absorb_event.input_len > F::zero());
 
@@ -223,13 +225,13 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         let num_absorb_rows = absorb_event.iterations.len();
 
         for (iter_num, absorb_iter) in absorb_event.iterations.iter().enumerate() {
-            let mut absorb_row = vec![F::zero(); num_columns];
+            let absorb_row = &mut rows[iter_num * num_columns..(iter_num + 1) * num_columns];
             let is_syscall_row = iter_num == 0;
             let is_last_row = iter_num == num_absorb_rows - 1;
 
             // Populate the control flow fields.
             {
-                let mut cols = self.convert_mut(&mut absorb_row);
+                let mut cols = self.convert_mut(absorb_row);
                 let control_flow = cols.control_flow_mut();
 
                 control_flow.is_absorb = F::one();
@@ -240,7 +242,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
 
             // Populate the syscall params fields.
             {
-                let mut cols = self.convert_mut(&mut absorb_row);
+                let mut cols = self.convert_mut(absorb_row);
                 let syscall_params = cols.syscall_params_mut().absorb_mut();
 
                 syscall_params.clk = absorb_event.clk;
@@ -251,7 +253,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
 
             // Populate the memory fields.
             {
-                let mut cols = self.convert_mut(&mut absorb_row);
+                let mut cols = self.convert_mut(absorb_row);
                 let memory = cols.memory_mut();
 
                 memory.start_addr = absorb_iter.start_addr;
@@ -263,7 +265,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
 
             // Populate the opcode workspace fields.
             {
-                let mut cols = self.convert_mut(&mut absorb_row);
+                let mut cols = self.convert_mut(absorb_row);
                 let absorb_workspace = cols.opcode_workspace_mut().absorb_mut();
 
                 let num_remaining_rows = num_absorb_rows - 1 - iter_num;
@@ -336,25 +338,19 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                 } else {
                     None
                 },
-                &mut absorb_row,
+                absorb_row,
             );
-
-            absorb_rows.push(absorb_row);
         }
-
-        absorb_rows
     }
 
     pub fn populate_finalize_event<F: PrimeField32>(
         &self,
+        row: &mut [F],
         finalize_event: &Poseidon2FinalizeEvent<F>,
-        num_columns: usize,
-    ) -> Vec<F> {
-        let mut finalize_row = vec![F::zero(); num_columns];
-
+    ) {
         // Populate the control flow fields.
         {
-            let mut cols = self.convert_mut(&mut finalize_row);
+            let mut cols = self.convert_mut(row);
             let control_flow = cols.control_flow_mut();
             control_flow.is_finalize = F::one();
             control_flow.is_syscall_row = F::one();
@@ -362,7 +358,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
 
         // Populate the syscall params fields.
         {
-            let mut cols = self.convert_mut(&mut finalize_row);
+            let mut cols = self.convert_mut(row);
 
             let syscall_params = cols.syscall_params_mut().finalize_mut();
             syscall_params.clk = finalize_event.clk;
@@ -372,7 +368,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
 
         // Populate the memory fields.
         {
-            let mut cols = self.convert_mut(&mut finalize_row);
+            let mut cols = self.convert_mut(row);
             let memory = cols.memory_mut();
 
             memory.start_addr = finalize_event.output_ptr;
@@ -384,7 +380,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
 
         // Populate the opcode workspace fields.
         {
-            let mut cols = self.convert_mut(&mut finalize_row);
+            let mut cols = self.convert_mut(row);
             let finalize_workspace = cols.opcode_workspace_mut().finalize_mut();
 
             finalize_workspace.previous_state = finalize_event.previous_state;
@@ -403,10 +399,8 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             } else {
                 None
             },
-            &mut finalize_row,
+            row,
         );
-
-        finalize_row
     }
 
     pub fn populate_permutation<F: PrimeField32>(

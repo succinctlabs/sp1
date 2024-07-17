@@ -194,7 +194,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpReverseBitsLenCh
         };
         let mut values = vec![F::zero(); nb_rows * NUM_EXP_REVERSE_BITS_LEN_COLS];
 
-        par_for_each_row(&mut values, NUM_EXP_REVERSE_BITS_LEN_COLS, |i, row| {
+        par_for_each_row(&mut values, 1, NUM_EXP_REVERSE_BITS_LEN_COLS, |i, row| {
             if i >= nb_events {
                 return;
             }
