@@ -2,8 +2,11 @@ package sp1
 
 import (
 	"bufio"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -24,6 +27,22 @@ func Prove(dataDir string, witnessPath string) Proof {
 	println("witness_path: ", witnessPath)
 	println("circuit_path: ", circuitPath)
 	println("starting proving")
+
+	scsFileOne, err := os.Open(dataDir + "/" + circuitPath)
+	if err != nil {
+		panic(err)
+	}
+	// Read all contents of the file into a byte slice
+	bytes, err := ioutil.ReadAll(scsFileOne)
+	if err != nil {
+		panic(err)
+	}
+	println("file length: ", len(bytes))
+	// Print sha256 hash of the file
+	hash := sha256.Sum256(bytes)
+	fmt.Printf("SHA256 hash of %s: %s\n", circuitPath, hex.EncodeToString(hash[:]))
+
+	scsFileOne.Close()
 
 	// Sanity check the required arguments have been provided.
 	if dataDir == "" {
