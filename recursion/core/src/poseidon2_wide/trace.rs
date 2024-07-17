@@ -62,7 +62,8 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
         let num_columns = <Poseidon2WideChip<DEGREE> as BaseAir<F>>::width(self);
         let mut rows = vec![F::zero(); nb_padded_rows * num_columns];
 
-        // Populate the hash events.
+        // Populate the hash events.  We do this serially, since each absorb event could populate a different
+        // number of rows.  Also, most of the rows are populated by the compress events.
         let mut row_cursor = 0;
         for event in &input.poseidon2_hash_events {
             match event {
@@ -81,6 +82,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
             }
         }
 
+        // Populate the compress events.
         let compress_rows = &mut rows[row_cursor..];
         par_for_each_row(compress_rows, 2, num_columns, |i, rows| {
             if i >= input.poseidon2_compress_events.len() {
