@@ -69,7 +69,8 @@ pub struct WeierstrassDecompressCols<T, P: FieldParameters + NumWords> {
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
 pub struct LexicographicChoiceCols<T, P: FieldParameters + NumWords> {
-    pub lt_cols: FieldLtCols<T, P>,
+    pub comparison_lt_cols: FieldLtCols<T, P>,
+    pub neg_y_range_check: FieldLtCols<T, P>,
     pub is_y_eq_sqrt_y_result: T,
     pub when_sqrt_y_res_is_lt: T,
     pub when_neg_y_res_is_lt: T,
@@ -246,11 +247,30 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
                 let is_y_eq_sqrt_y_result =
                     F::from_canonical_u8(event.decompressed_y_bytes[0] % 2) == lsb;
                 choice_cols.is_y_eq_sqrt_y_result = F::from_bool(is_y_eq_sqrt_y_result);
+
+                if is_y_eq_sqrt_y_result {
+                    choice_cols.neg_y_range_check.populate(
+                        &mut new_byte_lookup_events,
+                        event.shard,
+                        event.channel,
+                        &neg_y,
+                        &modulus,
+                    );
+                } else {
+                    choice_cols.neg_y_range_check.populate(
+                        &mut new_byte_lookup_events,
+                        event.shard,
+                        event.channel,
+                        &decompressed_y,
+                        &modulus,
+                    );
+                }
+
                 if event.sign_bit {
                     assert!(neg_y > decompressed_y);
                     choice_cols.when_sqrt_y_res_is_lt = F::from_bool(is_y_eq_sqrt_y_result);
                     choice_cols.when_neg_y_res_is_lt = F::from_bool(!is_y_eq_sqrt_y_result);
-                    choice_cols.lt_cols.populate(
+                    choice_cols.comparison_lt_cols.populate(
                         &mut new_byte_lookup_events,
                         event.shard,
                         event.channel,
@@ -261,7 +281,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
                     assert!(neg_y < decompressed_y);
                     choice_cols.when_sqrt_y_res_is_lt = F::from_bool(!is_y_eq_sqrt_y_result);
                     choice_cols.when_neg_y_res_is_lt = F::from_bool(is_y_eq_sqrt_y_result);
-                    choice_cols.lt_cols.populate(
+                    choice_cols.comparison_lt_cols.populate(
                         &mut new_byte_lookup_events,
                         event.shard,
                         event.channel,
@@ -433,6 +453,22 @@ where
                             + size_of::<LexicographicChoiceCols<u8, E::BaseField>>()]
                     .borrow();
 
+                // Range check the neg_y value since we are now using a lexicographic comparison.
+                let modulus_limbs = E::BaseField::to_limbs_field_vec(&E::BaseField::modulus());
+                let modulus_limbs =
+                    limbs_from_vec::<AB::Expr, <E::BaseField as NumLimbs>::Limbs, AB::F>(
+                        modulus_limbs,
+                    );
+
+                choice_cols.neg_y_range_check.eval(
+                    builder,
+                    &local.neg_y.result,
+                    &modulus_limbs,
+                    local.shard,
+                    local.channel,
+                    local.is_real,
+                );
+
                 // Assert that the flags are booleans.
                 builder.assert_bool(choice_cols.is_y_eq_sqrt_y_result);
                 builder.assert_bool(choice_cols.when_sqrt_y_res_is_lt);
@@ -487,7 +523,7 @@ where
 
                 // Assert the less-than comparisons according to the flags.
 
-                choice_cols.lt_cols.eval(
+                choice_cols.comparison_lt_cols.eval(
                     builder,
                     &local.y.multiplication.result,
                     &local.neg_y.result,
@@ -496,7 +532,7 @@ where
                     choice_cols.when_sqrt_y_res_is_lt,
                 );
 
-                choice_cols.lt_cols.eval(
+                choice_cols.comparison_lt_cols.eval(
                     builder,
                     &local.neg_y.result,
                     &local.y.multiplication.result,
