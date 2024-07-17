@@ -297,7 +297,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         // Write the nonces to the trace.
         for i in 0..trace.height() {
             let cols: &mut WeierstrassDecompressCols<F, E::BaseField> =
-                trace.values[i * width..(i + 1) * width].borrow_mut();
+                trace.values[i * width..i * width + weierstrass_width].borrow_mut();
             cols.nonce = F::from_canonical_usize(i);
         }
 
