@@ -463,8 +463,8 @@ where
                     .when_not(local.is_real)
                     .assert_zero(choice_cols.when_neg_y_res_is_lt);
 
-                // Assert that the flags are set correctly. When the sign_bit is true, we want
-                // that `y < neg_y`. Hence, when should have:
+                // Assert that the flags are set correctly. When the sign_bit is true, we want that
+                // `y < neg_y`, and vice versa when the sign_bit is false. Hence, when should have:
                 // - When `sign_bit` is true , then when_sqrt_y_res_is_lt = (y == sqrt(y)).
                 // - When `sign_bit` is false, then when_neg_y_res_is_lt = (y != sqrt(y)).
                 // - When `sign_bit` is true , then when_sqrt_y_res_is_lt = (y == sqrt(y)).
