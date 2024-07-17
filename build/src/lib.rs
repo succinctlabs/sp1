@@ -5,7 +5,7 @@ use std::{
     fs,
     io::{BufRead, BufReader},
     path::PathBuf,
-    process::{exit, Command, Stdio},
+    process::{Command, Stdio},
     thread,
 };
 
@@ -128,8 +128,11 @@ fn get_rust_compiler_flags() -> String {
 /// Get the command to build the program locally.
 fn create_local_command(args: &BuildArgs, program_dir: &Utf8PathBuf) -> Command {
     let mut command = Command::new("cargo");
+    let canonicalized_program_dir = program_dir
+        .canonicalize()
+        .expect("Failed to canonicalize program directory");
     command
-        .current_dir(program_dir.clone())
+        .current_dir(canonicalized_program_dir)
         .env("RUSTUP_TOOLCHAIN", "succinct")
         .env("CARGO_ENCODED_RUSTFLAGS", get_rust_compiler_flags())
         .args(&get_program_build_args(args));
@@ -138,12 +141,27 @@ fn create_local_command(args: &BuildArgs, program_dir: &Utf8PathBuf) -> Command 
 
 /// Execute the command and handle the output. Note: Strip the rustc configuration if this is called
 /// by sp1-helper so it uses the Succinct toolchain.
-fn execute_command(mut command: Command, build_with_helper: bool, docker: bool) -> Result<()> {
-    // Strip the rustc configuration if this is called by sp1-helper, otherwise it will attempt to
-    // compile the SP1 program with the toolchain of the normal build process, rather than the
-    // Succinct toolchain.
+fn execute_command(
+    mut command: Command,
+    build_with_helper: bool,
+    docker: bool,
+    program_metadata: &cargo_metadata::Metadata,
+) -> Result<()> {
     if build_with_helper {
+        // Strip the rustc configuration if this is called by sp1-helper, otherwise it will attempt to
+        // compile the SP1 program with the toolchain of the normal build process, rather than the
+        // Succinct toolchain.
         command.env_remove("RUSTC");
+
+        // Set the target directory to a subdirectory of the program's target directory to avoid
+        // build conflicts with the parent process. If removed, programs that share the same target
+        // directory (i.e. same workspace) as the script will hang indefinitely due to a file lock
+        // when building.
+        // Source: https://github.com/rust-lang/cargo/issues/6412
+        command.env(
+            "CARGO_TARGET_DIR",
+            program_metadata.target_directory.join("elf-compilation"),
+        );
     }
 
     // Add necessary tags for stdout and stderr from the command.
@@ -178,25 +196,30 @@ fn execute_command(mut command: Command, build_with_helper: bool, docker: bool) 
     let result = child.wait()?;
     if !result.success() {
         // Error message is already printed by cargo.
-        exit(result.code().unwrap_or(1))
+        panic!(
+            "cargo build failed with status code: {}",
+            result.code().unwrap_or(1)
+        )
     }
     Ok(())
 }
 
 /// Copy the ELF to the specified output directory.
-fn copy_elf_to_output_dir(args: &BuildArgs, program_dir: &Utf8PathBuf) -> Result<Utf8PathBuf> {
-    let program_metadata_file = program_dir.join("Cargo.toml");
-    let mut program_metadata_cmd = cargo_metadata::MetadataCommand::new();
-    let program_metadata = program_metadata_cmd
-        .manifest_path(program_metadata_file)
-        .exec()
-        .unwrap();
+fn copy_elf_to_output_dir(
+    args: &BuildArgs,
+    is_helper: bool,
+    program_metadata: &cargo_metadata::Metadata,
+) -> Result<Utf8PathBuf> {
     let root_package = program_metadata.root_package();
     let root_package_name = root_package.as_ref().map(|p| &p.name);
 
     // The ELF is written to a target folder specified by the program's package.
-    let original_elf_path = program_metadata
-        .target_directory
+    // Conditionally add "elf-compilation" to the path based on is_helper.
+    let mut original_elf_path = program_metadata.target_directory.clone();
+    if is_helper {
+        original_elf_path = original_elf_path.join("elf-compilation");
+    }
+    original_elf_path = original_elf_path
         .join(BUILD_TARGET)
         .join("release")
         .join(root_package_name.unwrap());
@@ -256,12 +279,19 @@ pub fn build_program(args: &BuildArgs, program_dir: Option<PathBuf>) -> Result<U
 
     // Get the command corresponding to Docker or local build.
     let cmd = if args.docker {
-        docker::create_docker_command(args, &metadata.workspace_root, &program_dir)?
+        docker::create_docker_command(args, &program_dir, &metadata.workspace_root)?
     } else {
         create_local_command(args, &program_dir)
     };
 
-    execute_command(cmd, is_helper, args.docker)?;
+    let program_metadata_file = program_dir.join("Cargo.toml");
+    let mut program_metadata_cmd = cargo_metadata::MetadataCommand::new();
+    let program_metadata = program_metadata_cmd
+        .manifest_path(program_metadata_file)
+        .exec()
+        .unwrap();
 
-    copy_elf_to_output_dir(args, &program_dir)
+    execute_command(cmd, is_helper, args.docker, &program_metadata)?;
+
+    copy_elf_to_output_dir(args, is_helper, &program_metadata)
 }
