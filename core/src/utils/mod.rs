@@ -204,20 +204,23 @@ pub fn par_for_each_row<P, F>(
     P: Fn(usize, &mut [F]) + Send + Sync,
 {
     // Split the vector into `num_cpus` chunks, but at least `num_cpus` rows per chunk.
-    let len = vec.len() / num_rows_per_event;
+    let num_elements_per_event = num_cols * num_rows_per_event;
+    assert!(vec.len() % num_elements_per_event == 0);
+    let len = vec.len() / num_elements_per_event;
     let cpus = num_cpus::get();
     let ceil_div = (len + cpus - 1) / cpus;
     let chunk_size = std::cmp::max(ceil_div, cpus);
 
-    vec.chunks_mut(chunk_size * num_cols)
+    vec.chunks_mut(chunk_size * num_elements_per_event)
         .enumerate()
         .par_bridge()
         .for_each(|(i, chunk)| {
             chunk
-                .chunks_mut(num_cols * num_rows_per_event)
+                .chunks_mut(num_elements_per_event)
                 .enumerate()
                 .for_each(|(j, row)| {
-                    processor(i * chunk_size / num_rows_per_event + j, row);
+                    assert!(row.len() == num_elements_per_event);
+                    processor(i * chunk_size + j, row);
                 });
         });
 }
