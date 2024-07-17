@@ -215,7 +215,7 @@ fn copy_elf_to_output_dir(
     let root_package_name = root_package.as_ref().map(|p| &p.name);
 
     // The ELF is written to a target folder specified by the program's package.
-    // Conditionally add "elf-compilation" to the path based on is_helper.
+    // Conditionally add HELPER_TARGET_SUBDIR to the path based on is_helper.
     let mut original_elf_path = program_metadata.target_directory.clone();
     if is_helper {
         original_elf_path = original_elf_path.join(HELPER_TARGET_SUBDIR);
