@@ -64,28 +64,28 @@ mod tests {
         let (pk, vk) = machine.setup(&program);
         let result = run_test_machine(vec![runtime.record], machine, pk, vk.clone()).unwrap();
 
-        let bytes = bincode::serialize(&result).unwrap();
+        // let bytes = bincode::serialize(&result).unwrap();
 
-        // Save the proof.
-        let mut file = File::create("test-proof.bin").unwrap();
-        file.write_all(bytes.as_slice()).unwrap();
+        // // Save the proof.
+        // let mut file = File::create("test-proof.bin").unwrap();
+        // file.write_all(bytes.as_slice()).unwrap();
 
-        // Load the proof.
-        let mut file = File::open("test-proof.bin").unwrap();
-        let mut bytes = Vec::new();
-        file.read_to_end(&mut bytes).unwrap();
+        // // Load the proof.
+        // let mut file = File::open("test-proof.bin").unwrap();
+        // let mut bytes = Vec::new();
+        // file.read_to_end(&mut bytes).unwrap();
 
-        let result: MachineProof<SC> = bincode::deserialize(&bytes).unwrap();
+        // let result: MachineProof<SC> = bincode::deserialize(&bytes).unwrap();
 
         println!("num shard proofs: {}", result.shard_proofs.len());
 
         let constraints = build_wrap_circuit_new::<DEGREE>(&vk, result.shard_proofs[0].clone());
 
-        let bytes = bincode::serialize(&constraints).unwrap();
+        // let bytes = bincode::serialize(&constraints).unwrap();
 
-        // Save the constraints.
-        let mut file = File::create("test-constraints.bin").unwrap();
-        file.write_all(bytes.as_slice()).unwrap();
+        // // Save the constraints.
+        // let mut file = File::create("test-constraints.bin").unwrap();
+        // file.write_all(bytes.as_slice()).unwrap();
 
         let pv: &RecursionPublicValues<_> =
             result.shard_proofs[0].public_values.as_slice().borrow();
@@ -102,23 +102,23 @@ mod tests {
         witness.write_commited_values_digest(committed_values_digest);
         witness.write_vkey_hash(vkey_hash);
 
-        // Save the witness to a file.
-        let mut file2 = File::create("test-witness.bin").unwrap();
-        let bytes2 = bincode::serialize(&witness).unwrap();
-        file2.write_all(bytes2.as_slice()).unwrap();
+        // // Save the witness to a file.
+        // let mut file2 = File::create("test-witness.bin").unwrap();
+        // let bytes2 = bincode::serialize(&witness).unwrap();
+        // file2.write_all(bytes2.as_slice()).unwrap();
 
-        // Load the constrints.
-        let mut file = File::open("test-constraints.bin").unwrap();
-        let mut bytes = Vec::new();
-        file.read_to_end(&mut bytes).unwrap();
+        // // Load the constrints.
+        // let mut file = File::open("test-constraints.bin").unwrap();
+        // let mut bytes = Vec::new();
+        // file.read_to_end(&mut bytes).unwrap();
 
-        // Load the witness.
-        let mut file2 = File::open("test-witness.bin").unwrap();
-        let mut bytes2 = Vec::new();
-        file2.read_to_end(&mut bytes2).unwrap();
+        // // Load the witness.
+        // let mut file2 = File::open("test-witness.bin").unwrap();
+        // let mut bytes2 = Vec::new();
+        // file2.read_to_end(&mut bytes2).unwrap();
 
-        let constraints: Vec<Constraint> = bincode::deserialize(&bytes).unwrap();
-        let witness: Witness<OuterConfig> = bincode::deserialize(&bytes2).unwrap();
+        // let constraints: Vec<Constraint> = bincode::deserialize(&bytes).unwrap();
+        // let witness: Witness<OuterConfig> = bincode::deserialize(&bytes2).unwrap();
 
         PlonkBn254Prover::test::<OuterConfig>(constraints, witness);
     }
