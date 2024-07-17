@@ -34,22 +34,22 @@ use super::Fp12;
 /// The number of columns in the FpMulCols.
 const NUM_COLS: usize = size_of::<Fp12MulCols<u8>>();
 
-trait Fp12Builder<F> {
+trait Fp12MulConstraints<F> {
     type DType: Clone;
 
-    fn _add(
+    fn add_fp12_element(
         &mut self,
         dest: &mut FieldOpCols<F, U384Field>,
         a: &Self::DType,
         b: &Self::DType,
     ) -> Self::DType;
-    fn _mul(
+    fn mul_fp12_element(
         &mut self,
         dest: &mut FieldOpCols<F, U384Field>,
         a: &Self::DType,
         b: &Self::DType,
     ) -> Self::DType;
-    fn _sub(
+    fn sub_fp12_element(
         &mut self,
         dest: &mut FieldOpCols<F, U384Field>,
         a: &Self::DType,
@@ -68,10 +68,10 @@ trait Fp12Builder<F> {
         let b20 = b[4];
         let b21 = b[5];
 
-        let b10_p_b11 = self._add(&mut dest.b10_p_b11, b10, b11);
-        let b10_m_b11 = self._sub(&mut dest.b10_m_b11, b10, b11);
-        let b20_p_b21 = self._add(&mut dest.b20_p_b21, b20, b21);
-        let b20_m_b21 = self._sub(&mut dest.b20_m_b21, b20, b21);
+        let b10_p_b11 = self.add_fp12_element(&mut dest.b10_p_b11, b10, b11);
+        let b10_m_b11 = self.sub_fp12_element(&mut dest.b10_m_b11, b10, b11);
+        let b20_p_b21 = self.add_fp12_element(&mut dest.b20_p_b21, b20, b21);
+        let b20_m_b21 = self.sub_fp12_element(&mut dest.b20_m_b21, b20, b21);
 
         [b10_p_b11, b10_m_b11, b20_p_b21, b20_m_b21]
     }
@@ -96,12 +96,12 @@ trait Fp12Builder<F> {
         let b20 = b[4].1;
         let b21 = b[5].1;
 
-        let a1_t_b1 = &self._mul(&mut dest.a1_t_b1, a00, b00);
-        let a2_t_b2 = &self._mul(&mut dest.a2_t_b2, a01, b01);
-        let a3_t_b3 = &self._mul(&mut dest.a3_t_b3, a10, b10);
-        let a4_t_b4 = &self._mul(&mut dest.a4_t_b4, a11, b11);
-        let a5_t_b5 = &self._mul(&mut dest.a5_t_b5, a20, b20);
-        let a6_t_b6 = &self._mul(&mut dest.a6_t_b6, a21, b21);
+        let a1_t_b1 = &self.mul_fp12_element(&mut dest.a1_t_b1, a00, b00);
+        let a2_t_b2 = &self.mul_fp12_element(&mut dest.a2_t_b2, a01, b01);
+        let a3_t_b3 = &self.mul_fp12_element(&mut dest.a3_t_b3, a10, b10);
+        let a4_t_b4 = &self.mul_fp12_element(&mut dest.a4_t_b4, a11, b11);
+        let a5_t_b5 = &self.mul_fp12_element(&mut dest.a5_t_b5, a20, b20);
+        let a6_t_b6 = &self.mul_fp12_element(&mut dest.a6_t_b6, a21, b21);
 
         let products = [a1_t_b1, a2_t_b2, a3_t_b3, a4_t_b4, a5_t_b5, a6_t_b6];
         let dests = [
@@ -123,9 +123,9 @@ trait Fp12Builder<F> {
 
         for (is_neg, dest, cur) in izip!(is_sub, dests, products).skip(1) {
             if is_neg {
-                sum = self._sub(dest, &sum, cur);
+                sum = self.sub_fp12_element(dest, &sum, cur);
             } else {
-                sum = self._add(dest, &sum, cur);
+                sum = self.add_fp12_element(dest, &sum, cur);
             }
         }
 
@@ -254,12 +254,12 @@ trait Fp12Builder<F> {
         let b20 = &b[4];
         let b21 = &b[5];
 
-        let a00_p_b00 = self._add(&mut dest.a00_p_b00, a00, b00);
-        let a01_p_b01 = self._add(&mut dest.a01_p_b01, a01, b01);
-        let a10_p_b10 = self._add(&mut dest.a10_p_b10, a10, b10);
-        let a11_p_b11 = self._add(&mut dest.a11_p_b11, a11, b11);
-        let a20_p_b20 = self._add(&mut dest.a20_p_b20, a20, b20);
-        let a21_p_b21 = self._add(&mut dest.a21_p_b21, a21, b21);
+        let a00_p_b00 = self.add_fp12_element(&mut dest.a00_p_b00, a00, b00);
+        let a01_p_b01 = self.add_fp12_element(&mut dest.a01_p_b01, a01, b01);
+        let a10_p_b10 = self.add_fp12_element(&mut dest.a10_p_b10, a10, b10);
+        let a11_p_b11 = self.add_fp12_element(&mut dest.a11_p_b11, a11, b11);
+        let a20_p_b20 = self.add_fp12_element(&mut dest.a20_p_b20, a20, b20);
+        let a21_p_b21 = self.add_fp12_element(&mut dest.a21_p_b21, a21, b21);
 
         [
             a00_p_b00, a01_p_b01, a10_p_b10, a11_p_b11, a20_p_b20, a21_p_b21,
@@ -285,12 +285,12 @@ trait Fp12Builder<F> {
         let b20 = &b[4];
         let b21 = &b[5];
 
-        let a00_m_b00 = self._sub(&mut dest.a00_p_b00, a00, b00);
-        let a01_m_b01 = self._sub(&mut dest.a01_p_b01, a01, b01);
-        let a10_m_b10 = self._sub(&mut dest.a10_p_b10, a10, b10);
-        let a11_m_b11 = self._sub(&mut dest.a11_p_b11, a11, b11);
-        let a20_m_b20 = self._sub(&mut dest.a20_p_b20, a20, b20);
-        let a21_m_b21 = self._sub(&mut dest.a21_p_b21, a21, b21);
+        let a00_m_b00 = self.sub_fp12_element(&mut dest.a00_p_b00, a00, b00);
+        let a01_m_b01 = self.sub_fp12_element(&mut dest.a01_p_b01, a01, b01);
+        let a10_m_b10 = self.sub_fp12_element(&mut dest.a10_p_b10, a10, b10);
+        let a11_m_b11 = self.sub_fp12_element(&mut dest.a11_p_b11, a11, b11);
+        let a20_m_b20 = self.sub_fp12_element(&mut dest.a20_p_b20, a20, b20);
+        let a21_m_b21 = self.sub_fp12_element(&mut dest.a21_p_b21, a21, b21);
 
         [
             a00_m_b00, a01_m_b01, a10_m_b10, a11_m_b11, a20_m_b20, a21_m_b21,
@@ -308,8 +308,8 @@ trait Fp12Builder<F> {
         let a20 = &a[4];
         let a21 = &a[5];
 
-        let c00 = self._sub(&mut dest.c00, a20, a21);
-        let c01 = self._add(&mut dest.c01, a20, a21);
+        let c00 = self.sub_fp12_element(&mut dest.c00, a20, a21);
+        let c01 = self.add_fp12_element(&mut dest.c01, a20, a21);
 
         let c10 = a00;
         let c11 = a01;
@@ -420,10 +420,10 @@ impl Fp12BuilderTrace {
     }
 }
 
-impl<F: PrimeField32> Fp12Builder<F> for Fp12BuilderTrace {
+impl<F: PrimeField32> Fp12MulConstraints<F> for Fp12BuilderTrace {
     type DType = BigUint;
 
-    fn _add(
+    fn add_fp12_element(
         &mut self,
         dest: &mut FieldOpCols<F, U384Field>,
         a: &Self::DType,
@@ -433,7 +433,7 @@ impl<F: PrimeField32> Fp12Builder<F> for Fp12BuilderTrace {
         (a + b) % &self.modulus
     }
 
-    fn _mul(
+    fn mul_fp12_element(
         &mut self,
         dest: &mut FieldOpCols<F, U384Field>,
         a: &Self::DType,
@@ -443,7 +443,7 @@ impl<F: PrimeField32> Fp12Builder<F> for Fp12BuilderTrace {
         (a * b) % &self.modulus
     }
 
-    fn _sub(
+    fn sub_fp12_element(
         &mut self,
         dest: &mut FieldOpCols<F, U384Field>,
         a: &Self::DType,
@@ -506,14 +506,14 @@ where
     }
 }
 
-impl<'a, AB> Fp12Builder<AB::Var> for Fp12BuilderEval<'a, AB>
+impl<'a, AB> Fp12MulConstraints<AB::Var> for Fp12BuilderEval<'a, AB>
 where
     AB: SP1AirBuilder,
     Limbs<AB::Var, <U384Field as NumLimbs>::Limbs>: Copy,
 {
     type DType = Limbs<AB::Var, <U384Field as NumLimbs>::Limbs>;
 
-    fn _add(
+    fn add_fp12_element(
         &mut self,
         dest: &mut FieldOpCols<AB::Var, U384Field>,
         a: &Self::DType,
@@ -523,7 +523,7 @@ where
         dest.result
     }
 
-    fn _mul(
+    fn mul_fp12_element(
         &mut self,
         dest: &mut FieldOpCols<AB::Var, U384Field>,
         a: &Self::DType,
@@ -533,7 +533,7 @@ where
         dest.result
     }
 
-    fn _sub(
+    fn sub_fp12_element(
         &mut self,
         dest: &mut FieldOpCols<AB::Var, U384Field>,
         a: &Self::DType,
