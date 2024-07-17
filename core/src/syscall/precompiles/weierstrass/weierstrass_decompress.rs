@@ -282,9 +282,9 @@ where
         let main = builder.main();
 
         let weierstrass_cols = num_weierstrass_decompress_cols::<E::BaseField>();
-        let local = main.row_slice(0);
+        let local_slice = main.row_slice(0);
         let local: &WeierstrassDecompressCols<AB::Var, E::BaseField> =
-            (*local)[0..weierstrass_cols].borrow();
+            (*local_slice)[0..weierstrass_cols].borrow();
         let next = main.row_slice(1);
         let next: &WeierstrassDecompressCols<AB::Var, E::BaseField> =
             (*next)[0..weierstrass_cols].borrow();
@@ -351,9 +351,6 @@ where
             local.is_real,
         );
 
-        // Interpret the lowest bit of Y as whether it is odd or not.
-        let y_is_odd = local.y.lsb;
-
         local.y.eval(
             builder,
             &local.x_3_plus_b.result,
@@ -370,14 +367,18 @@ where
             SignChoiceRule::LeastSignificantBit => {
                 builder
                     .when(local.is_real)
-                    .when_ne(y_is_odd, AB::Expr::one() - local.is_odd)
+                    .when_ne(local.y.lsb, AB::Expr::one() - local.is_odd)
                     .assert_all_eq(local.y.multiplication.result, y_limbs);
                 builder
                     .when(local.is_real)
-                    .when_ne(y_is_odd, local.is_odd)
+                    .when_ne(local.y.lsb, local.is_odd)
                     .assert_all_eq(local.neg_y.result, y_limbs);
             }
-            SignChoiceRule::Lexicographic => {}
+            SignChoiceRule::Lexicographic => {
+                let lt_cols: &FieldLtCols<AB::Var, E::BaseField> = (*local_slice)[weierstrass_cols
+                    ..weierstrass_cols + size_of::<FieldLtCols<u8, E::BaseField>>()]
+                    .borrow();
+            }
         }
 
         for i in 0..num_words_field_element {
