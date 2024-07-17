@@ -53,7 +53,7 @@ pub struct WeierstrassDecompressCols<T, P: FieldParameters + NumWords> {
     pub clk: T,
     pub nonce: T,
     pub ptr: T,
-    pub is_odd: T,
+    pub sign_bit: T,
     pub x_access: GenericArray<MemoryReadCols<T>, P::WordsFieldElement>,
     pub y_access: GenericArray<MemoryReadWriteCols<T>, P::WordsFieldElement>,
     pub(crate) range_x: FieldLtCols<T, P>,
@@ -62,6 +62,17 @@ pub struct WeierstrassDecompressCols<T, P: FieldParameters + NumWords> {
     pub(crate) x_3_plus_b: FieldOpCols<T, P>,
     pub(crate) y: FieldSqrtCols<T, P>,
     pub(crate) neg_y: FieldOpCols<T, P>,
+}
+
+/// A set of columns to compute `WeierstrassDecompress` that decompresses a point on a Weierstrass
+/// curve.
+#[derive(Debug, Clone, AlignedBorrow)]
+#[repr(C)]
+pub struct LexicographicChoiceCols<T, P: FieldParameters + NumWords> {
+    pub lt_cols: FieldLtCols<T, P>,
+    pub is_y_eq_sqrt_y_result: T,
+    pub when_sqrt_y_res_is_lt: T,
+    pub when_neg_y_res_is_lt: T,
 }
 
 pub enum SignChoiceRule {
@@ -179,15 +190,18 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         };
 
         let mut rows = Vec::new();
+        let weierstrass_width = num_weierstrass_decompress_cols::<E::BaseField>();
         let width = BaseAir::<F>::width(self);
 
         let mut new_byte_lookup_events = Vec::new();
+
+        let modulus = E::BaseField::modulus();
 
         for i in 0..events.len() {
             let event = events[i].clone();
             let mut row = vec![F::zero(); width];
             let cols: &mut WeierstrassDecompressCols<F, E::BaseField> =
-                row.as_mut_slice().borrow_mut();
+                row[0..weierstrass_width].borrow_mut();
 
             cols.is_real = F::from_bool(true);
             cols.shard = F::from_canonical_u32(event.shard);
@@ -195,7 +209,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
             cols.channel = F::from_canonical_u32(event.channel);
             cols.clk = F::from_canonical_u32(event.clk);
             cols.ptr = F::from_canonical_u32(event.ptr);
-            cols.is_odd = F::from_canonical_u32(event.is_odd as u32);
+            cols.sign_bit = F::from_bool(event.sign_bit);
 
             let x = BigUint::from_bytes_le(&event.x_bytes);
             Self::populate_field_ops(
@@ -221,6 +235,42 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
                 );
             }
 
+            if matches!(self.sign_rule, SignChoiceRule::Lexicographic) {
+                let lsb = cols.y.lsb;
+                let choice_cols: &mut LexicographicChoiceCols<F, E::BaseField> =
+                    row[weierstrass_width..width].borrow_mut();
+
+                let decompressed_y = BigUint::from_bytes_le(&event.decompressed_y_bytes);
+                let neg_y = &modulus - &decompressed_y;
+
+                let is_y_eq_sqrt_y_result =
+                    F::from_canonical_u8(event.decompressed_y_bytes[0] % 2) == lsb;
+                choice_cols.is_y_eq_sqrt_y_result = F::from_bool(is_y_eq_sqrt_y_result);
+                if event.sign_bit {
+                    assert!(neg_y > decompressed_y);
+                    choice_cols.when_sqrt_y_res_is_lt = F::from_bool(is_y_eq_sqrt_y_result);
+                    choice_cols.when_neg_y_res_is_lt = F::from_bool(!is_y_eq_sqrt_y_result);
+                    choice_cols.lt_cols.populate(
+                        &mut new_byte_lookup_events,
+                        event.shard,
+                        event.channel,
+                        &decompressed_y,
+                        &neg_y,
+                    );
+                } else {
+                    assert!(neg_y < decompressed_y);
+                    choice_cols.when_sqrt_y_res_is_lt = F::from_bool(!is_y_eq_sqrt_y_result);
+                    choice_cols.when_neg_y_res_is_lt = F::from_bool(is_y_eq_sqrt_y_result);
+                    choice_cols.lt_cols.populate(
+                        &mut new_byte_lookup_events,
+                        event.shard,
+                        event.channel,
+                        &neg_y,
+                        &decompressed_y,
+                    );
+                }
+            }
+
             rows.push(row);
         }
         output.add_byte_lookup_events(new_byte_lookup_events);
@@ -228,7 +278,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         pad_rows(&mut rows, || {
             let mut row = vec![F::zero(); width];
             let cols: &mut WeierstrassDecompressCols<F, E::BaseField> =
-                row.as_mut_slice().borrow_mut();
+                row.as_mut_slice()[0..weierstrass_width].borrow_mut();
 
             // take X of the generator as a dummy value to make sure Y^2 = X^3 + b holds
             let dummy_value = E::generator().0;
@@ -268,7 +318,9 @@ impl<F, E: EllipticCurve> BaseAir<F> for WeierstrassDecompressChip<E> {
         num_weierstrass_decompress_cols::<E::BaseField>()
             + match self.sign_rule {
                 SignChoiceRule::LeastSignificantBit => 0,
-                SignChoiceRule::Lexicographic => size_of::<FieldLtCols<u8, E::BaseField>>(),
+                SignChoiceRule::Lexicographic => {
+                    size_of::<LexicographicChoiceCols<u8, E::BaseField>>()
+                }
             }
     }
 }
@@ -298,7 +350,7 @@ where
         let num_limbs = <E::BaseField as NumLimbs>::Limbs::USIZE;
         let num_words_field_element = num_limbs / 4;
 
-        builder.assert_bool(local.is_odd);
+        builder.assert_bool(local.sign_bit);
 
         let x: Limbs<AB::Var, <E::BaseField as NumLimbs>::Limbs> =
             limbs_from_prev_access(&local.x_access);
@@ -367,17 +419,91 @@ where
             SignChoiceRule::LeastSignificantBit => {
                 builder
                     .when(local.is_real)
-                    .when_ne(local.y.lsb, AB::Expr::one() - local.is_odd)
+                    .when_ne(local.y.lsb, AB::Expr::one() - local.sign_bit)
                     .assert_all_eq(local.y.multiplication.result, y_limbs);
                 builder
                     .when(local.is_real)
-                    .when_ne(local.y.lsb, local.is_odd)
+                    .when_ne(local.y.lsb, local.sign_bit)
                     .assert_all_eq(local.neg_y.result, y_limbs);
             }
             SignChoiceRule::Lexicographic => {
-                let lt_cols: &FieldLtCols<AB::Var, E::BaseField> = (*local_slice)[weierstrass_cols
-                    ..weierstrass_cols + size_of::<FieldLtCols<u8, E::BaseField>>()]
+                let choice_cols: &LexicographicChoiceCols<AB::Var, E::BaseField> = (*local_slice)
+                    [weierstrass_cols
+                        ..weierstrass_cols
+                            + size_of::<LexicographicChoiceCols<u8, E::BaseField>>()]
                     .borrow();
+
+                // Assert that the flags are booleans.
+                builder.assert_bool(choice_cols.is_y_eq_sqrt_y_result);
+                builder.assert_bool(choice_cols.when_sqrt_y_res_is_lt);
+                builder.assert_bool(choice_cols.when_neg_y_res_is_lt);
+
+                // Assert that the `when` flags are disjoint:
+                builder.when(local.is_real).assert_one(
+                    choice_cols.when_sqrt_y_res_is_lt + choice_cols.when_neg_y_res_is_lt,
+                );
+
+                // Assert that the value of `y` matches the claimed value by the flags.
+
+                builder
+                    .when(local.is_real)
+                    .when(choice_cols.is_y_eq_sqrt_y_result)
+                    .assert_all_eq(local.y.multiplication.result, y_limbs);
+
+                builder
+                    .when(local.is_real)
+                    .when_not(choice_cols.is_y_eq_sqrt_y_result)
+                    .assert_all_eq(local.neg_y.result, y_limbs);
+
+                // Assert that the comparison only turns on when `is_real` is true.
+                builder
+                    .when_not(local.is_real)
+                    .assert_zero(choice_cols.when_sqrt_y_res_is_lt);
+                builder
+                    .when_not(local.is_real)
+                    .assert_zero(choice_cols.when_neg_y_res_is_lt);
+
+                // Assert that the flags are set correctly. When the sign_bit is true, we want
+                // that `y < neg_y`. Hence, when should have:
+                // - When `sign_bit` is true , then when_sqrt_y_res_is_lt = (y == sqrt(y)).
+                // - When `sign_bit` is false, then when_neg_y_res_is_lt = (y != sqrt(y)).
+                // - When `sign_bit` is true , then when_sqrt_y_res_is_lt = (y == sqrt(y)).
+                // - When `sign_bit` is false, then when_neg_y_res_is_lt = (y != sqrt(y)).
+                //
+                // Since the when less-than flags are disjoint, we can assert that:
+                // - When `sign_bit` is true , then is_y_eq_sqrt_y_result == when_sqrt_y_res_is_lt.
+                // - When `sign_bit` is false, then is_y_eq_sqrt_y_result == when_neg_y_res_is_lt.
+                builder.when(local.is_real).when(local.sign_bit).assert_eq(
+                    choice_cols.is_y_eq_sqrt_y_result,
+                    choice_cols.when_sqrt_y_res_is_lt,
+                );
+                builder
+                    .when(local.is_real)
+                    .when_not(local.sign_bit)
+                    .assert_eq(
+                        choice_cols.is_y_eq_sqrt_y_result,
+                        choice_cols.when_neg_y_res_is_lt,
+                    );
+
+                // Assert the less-than comparisons according to the flags.
+
+                choice_cols.lt_cols.eval(
+                    builder,
+                    &local.y.multiplication.result,
+                    &local.neg_y.result,
+                    local.shard,
+                    local.channel,
+                    choice_cols.when_sqrt_y_res_is_lt,
+                );
+
+                choice_cols.lt_cols.eval(
+                    builder,
+                    &local.neg_y.result,
+                    &local.y.multiplication.result,
+                    local.shard,
+                    local.channel,
+                    choice_cols.when_neg_y_res_is_lt,
+                );
             }
         }
 
@@ -419,7 +545,7 @@ where
             local.nonce,
             syscall_id,
             local.ptr,
-            local.is_odd,
+            local.sign_bit,
             local.is_real,
         );
     }
@@ -447,13 +573,12 @@ mod tests {
         let mut rand = RAND::new();
 
         let len = 100;
-        let num_tests = 1;
+        let num_tests = 10;
         let random_slice = (0..len).map(|_| rng.gen::<u8>()).collect::<Vec<u8>>();
         rand.seed(len, &random_slice);
 
         for _ in 0..num_tests {
             let (_, compressed) = key_pair_generate_g2(&mut rand);
-            // let compressed = hex::decode("8dffed32f74d62cf8904a02fc7f564a224938c2571f138acd059c0d2f10914e77a1528b1616f77ff5d28079b88d8da8d").unwrap();
 
             let stdin = SP1Stdin::from(&compressed);
             let mut public_values =
@@ -477,8 +602,7 @@ mod tests {
 
         let mut rng = thread_rng();
 
-        // TODO: Change back to 10 after debugging.
-        let num_tests = 1;
+        let num_tests = 10;
 
         for _ in 0..num_tests {
             let secret_key = k256::SecretKey::random(&mut rng);
