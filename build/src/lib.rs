@@ -15,6 +15,7 @@ use cargo_metadata::camino::Utf8PathBuf;
 const BUILD_TARGET: &str = "riscv32im-succinct-zkvm-elf";
 const DEFAULT_TAG: &str = "latest";
 const DEFAULT_OUTPUT_DIR: &str = "elf";
+const HELPER_TARGET_SUBDIR: &str = "elf-compilation";
 
 /// [`BuildArgs`] is a struct that holds various arguments used for building a program.
 ///
@@ -160,7 +161,7 @@ fn execute_command(
         // Source: https://github.com/rust-lang/cargo/issues/6412
         command.env(
             "CARGO_TARGET_DIR",
-            program_metadata.target_directory.join("elf-compilation"),
+            program_metadata.target_directory.join(HELPER_TARGET_SUBDIR),
         );
     }
 
@@ -217,7 +218,7 @@ fn copy_elf_to_output_dir(
     // Conditionally add "elf-compilation" to the path based on is_helper.
     let mut original_elf_path = program_metadata.target_directory.clone();
     if is_helper {
-        original_elf_path = original_elf_path.join("elf-compilation");
+        original_elf_path = original_elf_path.join(HELPER_TARGET_SUBDIR);
     }
     original_elf_path = original_elf_path
         .join(BUILD_TARGET)
