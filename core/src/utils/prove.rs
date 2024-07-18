@@ -509,8 +509,7 @@ fn trace_checkpoint(
     // We already passed the deferred proof verifier when creating checkpoints, so the proofs were
     // already verified. So here we use a noop verifier to not print any warnings.
     runtime.subproof_verifier = Arc::new(NoOpSubproofVerifier);
-    let (events, _) =
-        tracing::debug_span!("runtime.trace").in_scope(|| runtime.execute_record().unwrap());
+    let (events, _) = runtime.execute_record().unwrap();
     (events, runtime.report)
 }
 
