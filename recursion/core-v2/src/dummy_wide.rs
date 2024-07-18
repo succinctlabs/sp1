@@ -10,7 +10,7 @@ use sp1_derive::AlignedBorrow;
 use crate::{builder::SP1RecursionAirBuilder, *};
 
 #[derive(Default)]
-pub struct DummyWideChip<const COL_PADDING: usize> {}
+pub struct DummyWideChip<const COL_PADDING: usize, const NUM_CONSTRAINTS: usize> {}
 
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
@@ -18,13 +18,17 @@ pub struct DummyWideCols<F: Copy, const COL_PADDING: usize> {
     pub vals: [F; COL_PADDING],
 }
 
-impl<F: Field, const COL_PADDING: usize> BaseAir<F> for DummyWideChip<COL_PADDING> {
+impl<F: Field, const COL_PADDING: usize, const NUM_CONSTRAINTS: usize> BaseAir<F>
+    for DummyWideChip<COL_PADDING, NUM_CONSTRAINTS>
+{
     fn width(&self) -> usize {
         COL_PADDING
     }
 }
 
-impl<F: PrimeField32, const COL_PADDING: usize> MachineAir<F> for DummyWideChip<COL_PADDING> {
+impl<F: PrimeField32, const COL_PADDING: usize, const NUM_CONSTRAINTS: usize> MachineAir<F>
+    for DummyWideChip<COL_PADDING, NUM_CONSTRAINTS>
+{
     type Record = ExecutionRecord<F>;
 
     type Program = crate::RecursionProgram<F>;
@@ -46,13 +50,16 @@ impl<F: PrimeField32, const COL_PADDING: usize> MachineAir<F> for DummyWideChip<
     }
 }
 
-impl<AB, const COL_PADDING: usize> Air<AB> for DummyWideChip<COL_PADDING>
+impl<AB, const COL_PADDING: usize, const NUM_CONSTRAINTS: usize> Air<AB>
+    for DummyWideChip<COL_PADDING, NUM_CONSTRAINTS>
 where
     AB: SP1RecursionAirBuilder + PairBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local = main.row_slice(0);
-        builder.assert_zero(local[0]);
+        for _ in 0..NUM_CONSTRAINTS {
+            builder.assert_zero(local[0]);
+        }
     }
 }

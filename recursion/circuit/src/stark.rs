@@ -367,12 +367,17 @@ pub fn build_wrap_circuit(
 
 /// A function to build the Plonk constraints for a proof and a verifying key. The main difference
 /// between this function and the "old" one is that we use the RecursionAir machine from core-v2.
-pub fn build_wrap_circuit_new<const DEGREE: usize, const COL_PADDING: usize>(
+pub fn build_wrap_circuit_new<
+    const DEGREE: usize,
+    const COL_PADDING: usize,
+    const NUM_CONSTRAINTS: usize,
+>(
     wrap_vk: &StarkVerifyingKey<OuterSC>,
     template_proof: ShardProof<OuterSC>,
 ) -> Vec<Constraint> {
     let outer_config = OuterSC::new();
-    let outer_machine = RecursionAir::<OuterF, DEGREE, COL_PADDING>::machine(outer_config);
+    let outer_machine =
+        RecursionAir::<OuterF, DEGREE, COL_PADDING, NUM_CONSTRAINTS>::machine(outer_config);
 
     let mut builder = Builder::<OuterConfig>::default();
     let mut challenger = MultiField32ChallengerVariable::new(&mut builder);

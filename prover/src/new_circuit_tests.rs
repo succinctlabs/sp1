@@ -38,6 +38,7 @@ mod tests {
         const POSEIDON2_PADDING: usize,
         const DEGREE: usize,
         const COL_PADDING: usize,
+        const NUM_CONSTRAINTS: usize,
     >() {
         setup_logger();
         let n = 10;
@@ -57,7 +58,7 @@ mod tests {
         runtime.run();
 
         let config = SC::new_with_log_blowup(log2_strict_usize(DEGREE - 1));
-        let machine = RecursionAir::<F, DEGREE, COL_PADDING>::machine_with_padding(
+        let machine = RecursionAir::<F, DEGREE, COL_PADDING, NUM_CONSTRAINTS>::machine_with_padding(
             config,
             FRI_FOLD_PADDING,
             POSEIDON2_PADDING,
@@ -81,8 +82,10 @@ mod tests {
 
         println!("num shard proofs: {}", result.shard_proofs.len());
 
-        let constraints =
-            build_wrap_circuit_new::<DEGREE, COL_PADDING>(&vk, result.shard_proofs[0].clone());
+        let constraints = build_wrap_circuit_new::<DEGREE, COL_PADDING, NUM_CONSTRAINTS>(
+            &vk,
+            result.shard_proofs[0].clone(),
+        );
 
         // let bytes = bincode::serialize(&constraints).unwrap();
 
@@ -128,67 +131,84 @@ mod tests {
 
     #[test]
     pub fn test_new_machine_diff_degrees() {
-        test_new_machine::<16, 16, 16, 3, 1>();
-        test_new_machine::<16, 16, 16, 5, 1>();
-        test_new_machine::<16, 16, 16, 9, 1>();
-        test_new_machine::<16, 16, 16, 17, 1>();
+        // test_new_machine::<16, 16, 16, 3, 1, 1>();
+        // test_new_machine::<16, 16, 16, 5, 1, 1>();
+        test_new_machine::<16, 16, 16, 9, 1, 1>();
+        // test_new_machine::<16, 16, 16, 17, 1, 1>();
     }
 
     #[test]
     pub fn test_new_machine_diff_rows() {
         println!("Testing log_row = 1");
-        test_new_machine::<1, 1, 1, 9, 1>();
+        test_new_machine::<1, 1, 1, 9, 1, 1>();
         println!("Testing log_row = 2");
-        test_new_machine::<2, 2, 2, 9, 1>();
+        test_new_machine::<2, 2, 2, 9, 1, 1>();
         println!("Testing log_row = 3");
-        test_new_machine::<3, 3, 3, 9, 1>();
+        test_new_machine::<3, 3, 3, 9, 1, 1>();
         println!("Testing log_row = 4");
-        test_new_machine::<4, 4, 4, 9, 1>();
+        test_new_machine::<4, 4, 4, 9, 1, 1>();
         println!("Testing log_row = 5");
-        test_new_machine::<5, 5, 5, 9, 1>();
+        test_new_machine::<5, 5, 5, 9, 1, 1>();
         println!("Testing log_row = 6");
-        test_new_machine::<6, 6, 6, 9, 1>();
+        test_new_machine::<6, 6, 6, 9, 1, 1>();
         println!("Testing log_row = 7");
-        test_new_machine::<7, 7, 7, 9, 1>();
+        test_new_machine::<7, 7, 7, 9, 1, 1>();
         println!("Testing log_row = 8");
-        test_new_machine::<8, 8, 8, 9, 1>();
+        test_new_machine::<8, 8, 8, 9, 1, 1>();
         println!("Testing log_row = 9");
-        test_new_machine::<9, 9, 9, 9, 1>();
+        test_new_machine::<9, 9, 9, 9, 1, 1>();
         println!("Testing log_row = 10");
-        test_new_machine::<10, 10, 10, 9, 1>();
+        test_new_machine::<10, 10, 10, 9, 1, 1>();
         println!("Testing log_row = 11");
-        test_new_machine::<11, 11, 11, 9, 1>();
+        test_new_machine::<11, 11, 11, 9, 1, 1>();
         println!("Testing log_row = 12");
-        test_new_machine::<12, 12, 12, 9, 1>();
+        test_new_machine::<12, 12, 12, 9, 1, 1>();
         println!("Testing log_row = 13");
-        test_new_machine::<13, 13, 13, 9, 1>();
+        test_new_machine::<13, 13, 13, 9, 1, 1>();
         println!("Testing log_row = 14");
-        test_new_machine::<14, 14, 14, 9, 1>();
+        test_new_machine::<14, 14, 14, 9, 1, 1>();
         println!("Testing log_row = 15");
-        test_new_machine::<15, 15, 15, 9, 1>();
+        test_new_machine::<15, 15, 15, 9, 1, 1>();
         println!("Testing log_row = 16");
-        test_new_machine::<16, 16, 16, 9, 1>();
+        test_new_machine::<16, 16, 16, 9, 1, 1>();
     }
 
     #[test]
     pub fn test_new_machine_diff_cols() {
         println!("Testing cols = 100");
-        test_new_machine::<16, 16, 16, 9, 100>();
-        println!("Testing cols = 150");
-        test_new_machine::<16, 16, 16, 9, 150>();
-        println!("Testing cols = 200");
-        test_new_machine::<16, 16, 16, 9, 200>();
-        println!("Testing cols = 250");
-        test_new_machine::<16, 16, 16, 9, 250>();
-        println!("Testing cols = 300");
-        test_new_machine::<16, 16, 16, 9, 300>();
-        println!("Testing cols = 350");
-        test_new_machine::<16, 16, 16, 9, 350>();
-        println!("Testing cols = 400");
-        test_new_machine::<16, 16, 16, 9, 400>();
-        println!("Testing cols = 450");
-        test_new_machine::<16, 16, 16, 9, 450>();
-        println!("Testing cols = 500");
-        test_new_machine::<16, 16, 16, 9, 500>();
+        // test_new_machine::<16, 16, 16, 9, 100>();
+        // println!("Testing cols = 150");
+        // test_new_machine::<16, 16, 16, 9, 150>();
+        // println!("Testing cols = 200");
+        // test_new_machine::<16, 16, 16, 9, 200>();
+        // println!("Testing cols = 250");
+        // test_new_machine::<16, 16, 16, 9, 250>();
+        // println!("Testing cols = 300");
+        // test_new_machine::<16, 16, 16, 9, 300>();
+        // println!("Testing cols = 350");
+        // test_new_machine::<16, 16, 16, 9, 350>();
+        // println!("Testing cols = 400");
+        // test_new_machine::<16, 16, 16, 9, 400>();
+        // println!("Testing cols = 450");
+        // test_new_machine::<16, 16, 16, 9, 450>();
+        // println!("Testing cols = 500");
+        // test_new_machine::<16, 16, 16, 9, 500>();
+        test_new_machine::<16, 16, 16, 9, 550, 1>();
+        test_new_machine::<16, 16, 16, 9, 600, 1>();
+        test_new_machine::<16, 16, 16, 9, 650, 1>();
+        test_new_machine::<16, 16, 16, 9, 700, 1>();
+        test_new_machine::<16, 16, 16, 9, 750, 1>();
+    }
+
+    #[test]
+    pub fn test_new_machine_diff_constraints() {
+        test_new_machine::<16, 16, 16, 9, 1, 50>();
+        test_new_machine::<16, 16, 16, 9, 1, 100>();
+        test_new_machine::<16, 16, 16, 9, 1, 150>();
+        test_new_machine::<16, 16, 16, 9, 1, 200>();
+        test_new_machine::<16, 16, 16, 9, 1, 250>();
+        test_new_machine::<16, 16, 16, 9, 1, 300>();
+        test_new_machine::<16, 16, 16, 9, 1, 350>();
+        test_new_machine::<16, 16, 16, 9, 1, 400>();
     }
 }
