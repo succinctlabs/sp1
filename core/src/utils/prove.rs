@@ -195,9 +195,11 @@ where
         let _span = scope_span.enter();
 
         // Spawn a thread for commiting to the shards.
+        let commit_span = tracing::Span::current().clone();
         let (records_tx, records_rx) =
             sync_channel::<Vec<ExecutionRecord>>(opts.commit_stream_capacity);
         let challenger_handle = s.spawn(move || {
+            let _span = commit_span.enter();
             for records in records_rx.iter() {
                 let commitments = records
                     .par_iter()
