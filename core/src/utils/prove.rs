@@ -134,6 +134,9 @@ where
     Com<SC>: Send + Sync,
     PcsProverData<SC>: Send + Sync,
 {
+    let span = tracing::info_span!("prove_with_context");
+    let _span = span.enter();
+
     // Record the start of the process.
     let proving_start = Instant::now();
 
@@ -181,23 +184,20 @@ where
     #[cfg(debug_assertions)]
     let mut debug_records: Vec<ExecutionRecord> = Vec::new();
 
-    let commit_span = tracing::info_span!("Commit to shards").entered();
     let mut deferred = ExecutionRecord::new(program.clone().into());
     let mut state = public_values.reset();
     let nb_checkpoints = checkpoints.len();
     let mut challenger = prover.config().challenger();
     vk.observe_into(&mut challenger);
 
-    let span = tracing::info_span!("commit to shards");
+    let scope_span = tracing::Span::current().clone();
     std::thread::scope(move |s| {
-        let span_clone_1 = span.clone();
-        let span_clone_2 = span.clone();
-        let _span = span_clone_1.enter();
+        let _span = scope_span.enter();
+
         // Spawn a thread for commiting to the shards.
         let (records_tx, records_rx) =
             sync_channel::<Vec<ExecutionRecord>>(opts.commit_stream_capacity);
         let challenger_handle = s.spawn(move || {
-            let _span = span_clone_2.enter();
             for records in records_rx.iter() {
                 let commitments = records
                     .par_iter()
@@ -267,7 +267,6 @@ where
         }
         drop(records_tx);
         let challenger = challenger_handle.join().unwrap();
-        // commit_span.exit();
 
         // Debug the constraints if debug assertions are enabled.
         #[cfg(debug_assertions)]
@@ -285,8 +284,9 @@ where
         let (records_tx, records_rx) =
             sync_channel::<Vec<ExecutionRecord>>(opts.prove_stream_capacity);
 
+        let commit_and_open = tracing::Span::current().clone();
         let shard_proofs = s.spawn(move || {
-            let _span = span.enter();
+            let _span = commit_and_open.enter();
             let mut shard_proofs = Vec::new();
             for records in records_rx.iter() {
                 shard_proofs.par_extend(records.into_par_iter().map(|record| {
