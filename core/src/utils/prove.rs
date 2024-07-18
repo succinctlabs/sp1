@@ -267,7 +267,7 @@ where
         }
         drop(records_tx);
         let challenger = challenger_handle.join().unwrap();
-        commit_span.exit();
+        // commit_span.exit();
 
         // Debug the constraints if debug assertions are enabled.
         #[cfg(debug_assertions)]
