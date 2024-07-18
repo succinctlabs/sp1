@@ -37,7 +37,7 @@ opt-level = 3
 [profile.fast]
 inherits = "release"
 debug = true
-debug-assertions = true
+# debug-assertions = true
 
 [workspace.dependencies]
 p3-air = "0.1.3-succinct"
@@ -49,11 +49,9 @@ p3-util = "0.1.3-succinct"
 p3-challenger = "0.1.3-succinct"
 p3-dft = "0.1.3-succinct"
 p3-fri = "0.1.3-succinct"
-p3-goldilocks = "0.1.3-succinct"
 p3-keccak = "0.1.3-succinct"
 p3-keccak-air = "0.1.3-succinct"
 p3-blake3 = "0.1.3-succinct"
-p3-mds = "0.1.3-succinct"
 p3-merkle-tree = "0.1.3-succinct"
 p3-poseidon2 = "0.1.3-succinct"
 p3-symmetric = "0.1.3-succinct"

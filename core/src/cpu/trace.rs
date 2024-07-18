@@ -766,12 +766,14 @@ impl CpuChip {
 #[cfg(test)]
 mod tests {
     use p3_baby_bear::BabyBear;
+    use pyroscope::pyroscope::PyroscopeAgentReady;
     use tracing::info_span;
 
     use std::time::Instant;
 
     use super::*;
 
+    use crate::io::SP1Stdin;
     use crate::runtime::tests::ssz_withdrawals_program;
     use crate::runtime::{tests::simple_program, Runtime};
     use crate::stark::{DefaultProver, MachineProver, MachineRecord, RiscvAir};
@@ -843,7 +845,12 @@ mod tests {
     #[test]
     fn test_benchmark_tendermint_trace_shard() {
         setup_logger();
-        let program = Program::from(TENDERMINT_BENCHMARK_ELF);
+        let elf =
+            include_bytes!("../../../tests/tendermint-benchmark/elf/riscv32im-succinct-zkvm-elf");
+        let program = Program::from(elf);
+        let stdin =
+            include_bytes!("../../../../../go/vm-prover/cluster/tester/programs/reth/19266335.bin");
+        let stdin: SP1Stdin = bincode::deserialize(stdin).unwrap();
 
         // Execute one shard.
         let mut runtime = Runtime::new(program.clone(), SP1CoreOpts::default());
@@ -868,6 +875,8 @@ mod tests {
         let chips = machine.chips();
         let mut times = vec![];
 
+        let profiler = setup_profiler();
+        let profiler = profiler.start().unwrap();
         chips.iter().for_each(|chip| {
             let start = Instant::now();
             let mut output = ExecutionRecord::default();
@@ -875,6 +884,7 @@ mod tests {
             record.append(&mut output);
             times.push((chip.name(), start.elapsed()));
         });
+        let profiler = profiler.stop().unwrap();
 
         // Print times in descending order + percentage.
         let total_time = times
@@ -897,5 +907,22 @@ mod tests {
         // let prover = DefaultProver::new(machine);
 
         // prover.machine().generate_dependencies(records, opts)
+    }
+
+    use pyroscope::PyroscopeAgent;
+    use pyroscope_pprofrs::{pprof_backend, PprofConfig};
+    use tracing::info;
+
+    pub fn setup_profiler() -> PyroscopeAgent<PyroscopeAgentReady> {
+        // Configure profiling backend
+        let pprof_config = PprofConfig::new().sample_rate(1000);
+        let backend_impl = pprof_backend(pprof_config);
+
+        // Configure Pyroscope Agent
+        info!("starting pyroscope agent");
+        PyroscopeAgent::builder("http://localhost:4040", "sp1")
+            .backend(backend_impl)
+            .build()
+            .unwrap()
     }
 }

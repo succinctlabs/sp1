@@ -19,7 +19,9 @@ pub fn setup_logger() {
             .add_directive("p3_keccak_air=off".parse().unwrap())
             .add_directive("p3_fri=off".parse().unwrap())
             .add_directive("p3_dft=off".parse().unwrap())
-            .add_directive("p3_challenger=off".parse().unwrap());
+            .add_directive("p3_challenger=off".parse().unwrap())
+            .add_directive("pprof=error".parse().unwrap())
+            .add_directive("Pyroscope=error".parse().unwrap());
 
         // if the RUST_LOGGER environment variable is set, use it to determine which logger to configure
         // (tracing_forest or tracing_subscriber)
