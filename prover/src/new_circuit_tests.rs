@@ -207,8 +207,8 @@ mod tests {
         test_new_machine::<16, 16, 16, 9, 1, 1024>();
         test_new_machine::<16, 16, 16, 9, 1, 2048>();
         test_new_machine::<16, 16, 16, 9, 1, 4096>();
-        test_new_machine::<16, 16, 16, 9, 1, 9192>();
-        test_new_machine::<16, 16, 16, 9, 1, 18384>();
-        test_new_machine::<16, 16, 16, 9, 1, 36768>();
+        test_new_machine::<16, 16, 16, 9, 1, 8192>();
+        test_new_machine::<16, 16, 16, 9, 1, 16384>();
+        test_new_machine::<16, 16, 16, 9, 1, 32768>();
     }
 }
