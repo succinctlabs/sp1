@@ -7,7 +7,7 @@ use sp1_derive::AlignedBorrow;
 
 use super::field_op::FieldOpCols;
 use super::params::{limbs_from_vec, Limbs};
-use super::range::FieldRangeCols;
+use super::range::FieldLtCols;
 use crate::air::SP1AirBuilder;
 use crate::bytes::event::ByteRecord;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
@@ -27,7 +27,7 @@ pub struct FieldSqrtCols<T, P: FieldParameters> {
     /// since we'll receive the input again in the `eval` function.
     pub multiplication: FieldOpCols<T, P>,
 
-    pub range: FieldRangeCols<T, P>,
+    pub range: FieldLtCols<T, P>,
 
     // The least significant bit of the square root.
     pub lsb: T,
