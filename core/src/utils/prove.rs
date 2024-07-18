@@ -147,7 +147,7 @@ where
     let (pk, vk) = prover.setup(runtime.program.as_ref());
 
     // Execute the program, saving checkpoints at the start of every `shard_batch_size` cycle range.
-    let create_checkpoints_span = tracing::info_span!("create checkpoints").entered();
+    let create_checkpoints_span = tracing::debug_span!("create checkpoints").entered();
     let mut checkpoints = Vec::new();
     let (public_values_stream, public_values) = loop {
         // Execute the runtime until we reach a checkpoint.
@@ -196,9 +196,9 @@ where
             sync_channel::<Vec<ExecutionRecord>>(opts.commit_stream_capacity);
         let challenger_handle = s.spawn(move || {
             let _span = span.enter();
-            tracing::info_span!("phase 1 commiter").in_scope(|| {
+            tracing::debug_span!("phase 1 commiter").in_scope(|| {
                 for records in records_rx.iter() {
-                    let commitments = tracing::info_span!("batch").in_scope(|| {
+                    let commitments = tracing::debug_span!("batch").in_scope(|| {
                         let span = tracing::Span::current().clone();
                         records
                             .par_iter()
@@ -221,10 +221,10 @@ where
             challenger
         });
 
-        tracing::info_span!("phase 1 record generator").in_scope(|| {
+        tracing::debug_span!("phase 1 record generator").in_scope(|| {
             for (checkpoint_idx, checkpoint_file) in checkpoints.iter_mut().enumerate() {
                 // Trace the checkpoint and reconstruct the execution records.
-                let (mut records, _) = tracing::info_span!("trace checkpoint")
+                let (mut records, _) = tracing::debug_span!("trace checkpoint")
                     .in_scope(|| trace_checkpoint(program.clone(), checkpoint_file, opts));
                 reset_seek(&mut *checkpoint_file);
 
@@ -238,7 +238,7 @@ where
                 }
 
                 // Generate the dependencies.
-                tracing::info_span!("generate dependencies")
+                tracing::debug_span!("generate dependencies")
                     .in_scope(|| prover.machine().generate_dependencies(&mut records, &opts));
 
                 // Defer events that are too expensive to include in every shard.
@@ -298,9 +298,9 @@ where
         let shard_proofs = s.spawn(move || {
             let _span = commit_and_open.enter();
             let mut shard_proofs = Vec::new();
-            tracing::info_span!("phase 2 prover").in_scope(|| {
+            tracing::debug_span!("phase 2 prover").in_scope(|| {
                 for records in records_rx.iter() {
-                    tracing::info_span!("batch").in_scope(|| {
+                    tracing::debug_span!("batch").in_scope(|| {
                         let span = tracing::Span::current().clone();
                         shard_proofs.par_extend(records.into_par_iter().map(|record| {
                             let _span = span.enter();
@@ -314,10 +314,10 @@ where
             shard_proofs
         });
 
-        tracing::info_span!("phase 2 record generator").in_scope(|| {
+        tracing::debug_span!("phase 2 record generator").in_scope(|| {
             for (checkpoint_idx, mut checkpoint_file) in checkpoints.into_iter().enumerate() {
                 // Trace the checkpoint and reconstruct the execution records.
-                let (mut records, report) = tracing::info_span!("trace checkpoint")
+                let (mut records, report) = tracing::debug_span!("trace checkpoint")
                     .in_scope(|| trace_checkpoint(program.clone(), &checkpoint_file, opts));
                 report_aggregate += report;
                 reset_seek(&mut checkpoint_file);
@@ -332,7 +332,7 @@ where
                 }
 
                 // Generate the dependencies.
-                tracing::info_span!("generate dependencies")
+                tracing::debug_span!("generate dependencies")
                     .in_scope(|| prover.machine().generate_dependencies(&mut records, &opts));
 
                 // Defer events that are too expensive to include in every shard.
@@ -407,7 +407,7 @@ pub fn run_test_io<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
     program: Program,
     inputs: SP1Stdin,
 ) -> Result<SP1PublicValues, crate::stark::MachineVerificationError<BabyBearPoseidon2>> {
-    let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
+    let runtime = tracing::debug_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Runtime::new(program, SP1CoreOpts::default());
         runtime.write_vecs(&inputs.buffer);
         runtime.run().unwrap();
@@ -424,7 +424,7 @@ pub fn run_test<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
     crate::stark::MachineProof<BabyBearPoseidon2>,
     crate::stark::MachineVerificationError<BabyBearPoseidon2>,
 > {
-    let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
+    let runtime = tracing::debug_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Runtime::new(program, SP1CoreOpts::default());
         runtime.run().unwrap();
         runtime
