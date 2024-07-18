@@ -201,10 +201,12 @@ where
         let challenger_handle = s.spawn(move || {
             let _span = commit_span.enter();
             for records in records_rx.iter() {
-                let commitments = records
-                    .par_iter()
-                    .map(|record| prover.commit(record))
-                    .collect::<Vec<_>>();
+                let commitments = tracing::info_span!("commitv2").in_scope(|| {
+                    records
+                        .par_iter()
+                        .map(|record| prover.commit(record))
+                        .collect::<Vec<_>>()
+                });
                 for (commit, record) in commitments.into_iter().zip(records) {
                     prover.update(
                         &mut challenger,
@@ -231,7 +233,7 @@ where
             }
 
             // Generate the dependencies.
-            tracing::info_span!("Generate dependencies", checkpoint_idx = checkpoint_idx)
+            tracing::info_span!("generate dependencies", checkpoint_idx = checkpoint_idx)
                 .in_scope(|| prover.machine().generate_dependencies(&mut records, &opts));
 
             // Defer events that are too expensive to include in every shard.
