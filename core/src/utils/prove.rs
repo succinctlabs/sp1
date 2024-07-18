@@ -189,11 +189,13 @@ where
 
     let span = tracing::info_span!("commit to shards");
     std::thread::scope(move |s| {
-        let _span = span.enter();
+        let span_clone = span.clone();
+        let _span = span_clone.enter();
         // Spawn a thread for commiting to the shards.
         let (records_tx, records_rx) =
             sync_channel::<Vec<ExecutionRecord>>(opts.commit_stream_capacity);
         let challenger_handle = s.spawn(move || {
+            let _span = span.enter();
             for records in records_rx.iter() {
                 let commitments = records
                     .par_iter()
