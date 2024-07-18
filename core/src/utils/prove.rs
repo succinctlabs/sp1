@@ -198,10 +198,14 @@ where
         let challenger_handle = s.spawn(move || {
             let _span = commit_span.enter();
             for records in records_rx.iter() {
-                let commitments = tracing::info_span!("commitv2").in_scope(|| {
+                let commitments = tracing::info_span!("phase 1").in_scope(|| {
+                    let span = tracing::Span::current().clone();
                     records
                         .par_iter()
-                        .map(|record| prover.commit(record))
+                        .map(|record| {
+                            let _span = span.enter();
+                            prover.commit(record)
+                        })
                         .collect::<Vec<_>>()
                 });
                 for (commit, record) in commitments.into_iter().zip(records) {
@@ -230,8 +234,7 @@ where
             }
 
             // Generate the dependencies.
-            tracing::info_span!("generate dependencies", checkpoint_idx = checkpoint_idx)
-                .in_scope(|| prover.machine().generate_dependencies(&mut records, &opts));
+            prover.machine().generate_dependencies(&mut records, &opts);
 
             // Defer events that are too expensive to include in every shard.
             for record in records.iter_mut() {
@@ -289,7 +292,7 @@ where
         let shard_proofs = s.spawn(move || {
             let _span = commit_and_open.enter();
             let mut shard_proofs = Vec::new();
-            tracing::info_span!("commit_and_open_v2").in_scope(|| {
+            tracing::info_span!("phase 2").in_scope(|| {
                 for records in records_rx.iter() {
                     let span = tracing::Span::current().clone();
                     shard_proofs.par_extend(records.into_par_iter().map(|record| {
