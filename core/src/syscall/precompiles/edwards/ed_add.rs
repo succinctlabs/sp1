@@ -43,8 +43,8 @@ use crate::utils::ec::edwards::ed25519::Ed25519BaseField;
 use crate::utils::ec::edwards::EdwardsParameters;
 use crate::utils::ec::AffinePoint;
 use crate::utils::ec::EllipticCurve;
-use crate::utils::limbs_from_prev_access;
-use crate::utils::pad_rows;
+use crate::utils::{limbs_from_prev_access, next_power_of_two};
+use crate::utils::{pad_rows, par_for_each_row};
 
 pub const NUM_ED_ADD_COLS: usize = size_of::<EdAddAssignCols<u8>>();
 
@@ -163,40 +163,52 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
         input: &ExecutionRecord,
         _: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        let mut rows = input
-            .ed_add_events
-            .par_iter()
-            .map(|event| {
-                let mut row = [F::zero(); NUM_ED_ADD_COLS];
-                let cols: &mut EdAddAssignCols<F> = row.as_mut_slice().borrow_mut();
-                let mut blu = Vec::new();
-                self.event_to_row(event, cols, &mut blu);
-                row
-            })
-            .collect::<Vec<_>>();
+        let num_rows = next_power_of_two(input.ed_add_events.len(), None);
+        let mut values = vec![F::zero(); NUM_ED_ADD_COLS * num_rows];
 
-        pad_rows(&mut rows, || {
-            let mut row = [F::zero(); NUM_ED_ADD_COLS];
-            let cols: &mut EdAddAssignCols<F> = row.as_mut_slice().borrow_mut();
-            let zero = BigUint::zero();
-            Self::populate_field_ops(
-                &mut vec![],
-                0,
-                0,
-                cols,
-                zero.clone(),
-                zero.clone(),
-                zero.clone(),
-                zero,
-            );
-            row
+        let mut dummy_row = [F::zero(); NUM_ED_ADD_COLS];
+        let dummy_cols: &mut EdAddAssignCols<F> = dummy_row.as_mut_slice().borrow_mut();
+        let zero = BigUint::zero();
+        Self::populate_field_ops(
+            &mut vec![],
+            0,
+            0,
+            dummy_cols,
+            zero.clone(),
+            zero.clone(),
+            zero.clone(),
+            zero,
+        );
+
+        par_for_each_row(&mut values, NUM_ED_ADD_COLS, |i, row| {
+            let cols: &mut EdAddAssignCols<F> = row.borrow_mut();
+            if i < input.ed_add_events.len() {
+                let mut blu = Vec::new();
+                self.event_to_row(&input.ed_add_events[i], cols, &mut blu);
+            } else {
+                row.copy_from_slice(&dummy_row);
+            }
         });
 
+        // pad_rows(&mut rows, || {
+        //     let mut row = [F::zero(); NUM_ED_ADD_COLS];
+        //     let cols: &mut EdAddAssignCols<F> = row.as_mut_slice().borrow_mut();
+        //     let zero = BigUint::zero();
+        //     Self::populate_field_ops(
+        //         &mut vec![],
+        //         0,
+        //         0,
+        //         cols,
+        //         zero.clone(),
+        //         zero.clone(),
+        //         zero.clone(),
+        //         zero,
+        //     );
+        //     row
+        // });
+
         // Convert the trace to a row major matrix.
-        let mut trace = RowMajorMatrix::new(
-            rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_ED_ADD_COLS,
-        );
+        let mut trace = RowMajorMatrix::new(values, NUM_ED_ADD_COLS);
 
         // Write the nonces to the trace.
         for i in 0..trace.height() {

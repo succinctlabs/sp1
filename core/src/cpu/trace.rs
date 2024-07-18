@@ -766,6 +766,7 @@ impl CpuChip {
 #[cfg(test)]
 mod tests {
     use p3_baby_bear::BabyBear;
+    use tracing::info_span;
 
     use std::time::Instant;
 
@@ -773,8 +774,9 @@ mod tests {
 
     use crate::runtime::tests::ssz_withdrawals_program;
     use crate::runtime::{tests::simple_program, Runtime};
-    use crate::stark::DefaultProver;
-    use crate::utils::{run_test, setup_logger, SP1CoreOpts};
+    use crate::stark::{DefaultProver, MachineProver, MachineRecord, RiscvAir};
+    use crate::utils::tests::{TENDERMINT_BENCHMARK_ELF, TENDERMINT_ELF};
+    use crate::utils::{run_test, setup_logger, BabyBearPoseidon2, SP1CoreOpts};
 
     // #[test]
     // fn generate_trace() {
@@ -836,5 +838,64 @@ mod tests {
         setup_logger();
         let program = simple_program();
         run_test::<DefaultProver<_, _>>(program).unwrap();
+    }
+
+    #[test]
+    fn test_benchmark_tendermint_trace_shard() {
+        setup_logger();
+        let program = Program::from(TENDERMINT_BENCHMARK_ELF);
+
+        // Execute one shard.
+        let mut runtime = Runtime::new(program.clone(), SP1CoreOpts::default());
+        // Skip 6 shards.
+        runtime.shard_batch_size = 6;
+        let (_, _) = runtime.execute_state().unwrap();
+        // Record 1 shard.
+        runtime.shard_batch_size = 1;
+        let (mut records, _) = runtime.execute_record().unwrap();
+        let mut record = records.remove(records.len() - 1);
+
+        // Pretty print stats.
+        let mut stats = record.stats().into_iter().collect::<Vec<_>>();
+        stats.sort_by_key(|(_, v)| -(*v as i128));
+        for (k, v) in stats {
+            println!("{:>24}: {:>12}", k, v);
+        }
+
+        // Generate traces for shard.
+        let machine = RiscvAir::machine(BabyBearPoseidon2::new());
+
+        let chips = machine.chips();
+        let mut times = vec![];
+
+        chips.iter().for_each(|chip| {
+            let start = Instant::now();
+            let mut output = ExecutionRecord::default();
+            chip.generate_dependencies(&record, &mut output);
+            record.append(&mut output);
+            times.push((chip.name(), start.elapsed()));
+        });
+
+        // Print times in descending order + percentage.
+        let total_time = times
+            .iter()
+            .map(|(_, time)| time.as_secs_f64())
+            .sum::<f64>();
+        let mut sorted_times = times.into_iter().collect::<Vec<_>>();
+        sorted_times.sort_by_key(|(_, time)| time.as_millis());
+        sorted_times.reverse();
+        for (name, time) in sorted_times {
+            println!(
+                "{:>24}: {:.2}s ({:.2}%)",
+                name,
+                time.as_secs_f64(),
+                time.as_secs_f64() / total_time * 100.0
+            );
+        }
+        println!("total time: {:.2}s", total_time);
+
+        // let prover = DefaultProver::new(machine);
+
+        // prover.machine().generate_dependencies(records, opts)
     }
 }

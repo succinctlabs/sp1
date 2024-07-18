@@ -101,4 +101,7 @@ pub mod tests {
 
     pub const PANIC_ELF: &[u8] =
         include_bytes!("../../../tests/panic/elf/riscv32im-succinct-zkvm-elf");
+
+    pub const TENDERMINT_BENCHMARK_ELF: &[u8] =
+        include_bytes!("../../../tests/tendermint-benchmark/elf/riscv32im-succinct-zkvm-elf");
 }
