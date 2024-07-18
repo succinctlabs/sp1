@@ -47,6 +47,20 @@ impl SP1ProofWithPublicValues {
             _ => unimplemented!(),
         }
     }
+
+    /// For Plonk proofs, returns the proof in a byte encoding the onchain verifier accepts.
+    /// The bytes consist of the first four bytes of Plonk vkey hash followed by the encoded proof.
+    pub fn bytes(&self) -> Vec<u8> {
+        match &self.proof {
+            SP1Proof::Plonk(plonk_proof) => {
+                let mut bytes = Vec::with_capacity(4 + plonk_proof.encoded_proof.len());
+                bytes.extend_from_slice(&self.proof.plonk_vkey_hash[..4]);
+                bytes.extend_from_slice(&plonk_proof.encoded_proof);
+                bytes
+            }
+            _ => unimplemented!("only Plonk proofs are verifiable onchain"),
+        }
+    }
 }
 
 pub type SP1CoreProofVerificationError = MachineVerificationError<CoreSC>;
