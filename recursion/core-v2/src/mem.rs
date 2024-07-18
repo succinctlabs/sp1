@@ -1,5 +1,6 @@
 use core::borrow::Borrow;
 use instruction::HintBitsInstr;
+use itertools::Itertools;
 use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
@@ -7,9 +8,11 @@ use p3_matrix::Matrix;
 use sp1_core::air::MachineAir;
 use sp1_core::utils::pad_to_power_of_two;
 use sp1_derive::AlignedBorrow;
-use std::borrow::BorrowMut;
+use std::{borrow::BorrowMut, iter::zip};
 
 use crate::{builder::SP1RecursionAirBuilder, *};
+
+pub const NUM_MEM_ENTRIES_PER_ROW: usize = 16;
 
 #[derive(Default)]
 pub struct MemoryChip {}
@@ -19,7 +22,7 @@ pub const NUM_MEM_INIT_COLS: usize = core::mem::size_of::<MemoryCols<u8>>();
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct MemoryCols<F: Copy> {
-    val: Block<F>,
+    values: [Block<F>; NUM_MEM_ENTRIES_PER_ROW],
 }
 
 pub const NUM_MEM_PREPROCESSED_INIT_COLS: usize =
@@ -28,10 +31,15 @@ pub const NUM_MEM_PREPROCESSED_INIT_COLS: usize =
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct MemoryPreprocessedCols<F: Copy> {
+    accesses: [MemoryAccessCols<F>; NUM_MEM_ENTRIES_PER_ROW],
+}
+
+#[derive(AlignedBorrow, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct MemoryAccessCols<F: Copy> {
     pub addr: Address<F>,
     pub read_mult: F,
     pub write_mult: F,
-    pub is_real: F,
 }
 
 impl<F> BaseAir<F> for MemoryChip {
@@ -69,34 +77,35 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip {
                         MemAccessKind::Write => (F::zero(), mult),
                     };
 
-                    let mut row = [F::zero(); NUM_MEM_PREPROCESSED_INIT_COLS];
-                    *row.as_mut_slice().borrow_mut() = MemoryPreprocessedCols {
+                    vec![MemoryAccessCols {
                         addr: addrs.inner,
                         read_mult,
                         write_mult,
-                        is_real: F::from_bool(true),
-                    };
-
-                    vec![row]
+                    }]
                 }
                 Instruction::HintBits(HintBitsInstr {
                     output_addrs_mults,
                     input_addr: _, // No receive interaction for the hint operation
                 }) => output_addrs_mults
                     .iter()
-                    .map(|&(addr, write_mult)| {
-                        let mut row = [F::zero(); NUM_MEM_PREPROCESSED_INIT_COLS];
-                        *row.as_mut_slice().borrow_mut() = MemoryPreprocessedCols {
-                            addr,
-                            read_mult: F::zero(),
-                            write_mult,
-                            is_real: F::from_bool(true),
-                        };
-                        row
+                    .map(|&(addr, write_mult)| MemoryAccessCols {
+                        addr,
+                        read_mult: F::zero(),
+                        write_mult,
                     })
                     .collect(),
 
                 _ => vec![],
+            })
+            .chunks(NUM_MEM_ENTRIES_PER_ROW)
+            .into_iter()
+            .map(|row_accesses| {
+                let mut row = [F::zero(); NUM_MEM_PREPROCESSED_INIT_COLS];
+                let cols: &mut MemoryPreprocessedCols<_> = row.as_mut_slice().borrow_mut();
+                for (cell, access) in zip(&mut cols.accesses, row_accesses) {
+                    *cell = access;
+                }
+                row
             })
             .collect::<Vec<_>>();
 
@@ -117,18 +126,16 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip {
     }
 
     fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
-        let mem_events = input.mem_events.clone();
-
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
-        let rows = mem_events
-            .into_iter()
-            .map(|vals| {
+        let rows = input
+            .mem_events
+            .chunks(NUM_MEM_ENTRIES_PER_ROW)
+            .map(|row_events| {
                 let mut row = [F::zero(); NUM_MEM_INIT_COLS];
-
-                let MemEvent { inner: val } = vals;
                 let cols: &mut MemoryCols<_> = row.as_mut_slice().borrow_mut();
-                *cols = MemoryCols { val };
-
+                for (cell, vals) in zip(&mut cols.values, row_events) {
+                    *cell = vals.inner;
+                }
                 row
             })
             .collect::<Vec<_>>();
@@ -165,9 +172,10 @@ where
         // At most one should be true.
         // builder.assert_zero(local.read_mult * local.write_mult);
 
-        builder.receive_block(prep_local.addr, local.val, prep_local.read_mult);
-
-        builder.send_block(prep_local.addr, local.val, prep_local.write_mult);
+        for (value, access) in zip(local.values, prep_local.accesses) {
+            builder.receive_block(access.addr, value, access.read_mult);
+            builder.send_block(access.addr, value, access.write_mult);
+        }
     }
 }
 
