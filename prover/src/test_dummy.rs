@@ -1,5 +1,54 @@
 #[cfg(test)]
 mod tests {
+    use tracing::instrument::WithSubscriber;
+    use tracing_flame::FlameLayer;
+    use tracing_forest::ForestLayer;
+    use tracing_subscriber::{
+        fmt::format::FmtSpan, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Registry,
+    };
+
+    fn setup_global_logger() -> impl Drop {
+        let default_filter = "off";
+        let env_filter = EnvFilter::try_from_default_env()
+            .unwrap_or_else(|_| EnvFilter::new(default_filter))
+            .add_directive("p3_keccak_air=off".parse().unwrap())
+            .add_directive("p3_fri=off".parse().unwrap())
+            .add_directive("p3_dft=off".parse().unwrap())
+            .add_directive("p3_challenger=off".parse().unwrap());
+
+        // if the RUST_LOGGER environment variable is set, use it to determine which logger to configure
+        // (tracing_forest or tracing_subscriber)
+        // otherwise, default to 'forest'
+        let logger_type = std::env::var("RUST_LOGGER").unwrap_or_else(|_| "flat".to_string());
+
+        let reg = Registry::default().with(env_filter);
+        // let (flame_layer, _guard) = FlameLayer::with_file("../target/tracing.folded").unwrap();
+        let _guard = Box::new(());
+        // let reg = reg.with(flame_layer);
+        match logger_type.as_str() {
+            "forest" => {
+                reg.with(ForestLayer::default()).init();
+            }
+            "flat" => {
+                reg.with_subscriber(
+                    tracing_subscriber::fmt::Subscriber::builder()
+                        .compact()
+                        .with_file(false)
+                        .with_target(false)
+                        .with_thread_names(false)
+                        // .with_env_filter(env_filter)
+                        .with_span_events(FmtSpan::CLOSE)
+                        .finish(),
+                )
+                .into_inner()
+                .init();
+            }
+            _ => {
+                panic!("Invalid logger type: {}", logger_type);
+            }
+        }
+        _guard
+    }
 
     #[test]
     fn test_dummy_circuit() {
@@ -39,7 +88,7 @@ mod tests {
         type EF = <SC as StarkGenericConfig>::Challenge;
         // type A = RecursionAir<F, DEGREE>;
 
-        setup_logger();
+        let _guard = setup_global_logger();
 
         const FIELD_OPERATIONS: usize = 451653;
         const EXTENSION_OPERATIONS: usize = 82903;
@@ -58,12 +107,12 @@ mod tests {
         for _ in 0..FIELD_OPERATIONS {
             let a: Felt<_> = builder.eval(random_felt());
             let b: Felt<_> = builder.eval(random_felt());
-            let _ = a + b;
+            let _: Felt<_> = builder.eval(a + b);
         }
         for _ in 0..EXTENSION_OPERATIONS {
             let a: Ext<_, _> = builder.eval(random_ext().cons());
             let b: Ext<_, _> = builder.eval(random_ext().cons());
-            let _ = a + b;
+            let _: Ext<_, _> = builder.eval(a + b);
         }
 
         let operations = builder.operations;
