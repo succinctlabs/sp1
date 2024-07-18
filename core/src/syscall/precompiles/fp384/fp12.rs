@@ -2,6 +2,7 @@ use crate::air::{MachineAir, Polynomial, SP1AirBuilder};
 use crate::bytes::event::ByteRecord;
 use crate::bytes::ByteLookupEvent;
 use crate::memory::{MemoryCols, MemoryReadCols, MemoryWriteCols};
+use crate::operations::field::field_inner_product::FieldInnerProductCols;
 use crate::operations::field::field_op::{FieldOpCols, FieldOperation};
 use crate::operations::field::params::{FieldParameters, NumWords};
 use crate::operations::field::params::{Limbs, NumLimbs};
@@ -12,7 +13,7 @@ use crate::syscall::precompiles::SyscallContext;
 use crate::utils::ec::uint::U384Field;
 use crate::utils::{limbs_from_prev_access, pad_rows, words_to_bytes_le};
 use generic_array::GenericArray;
-use itertools::{izip, Itertools};
+use itertools::Itertools;
 use num::BigUint;
 use num::Zero;
 use p3_air::AirBuilder;
@@ -43,7 +44,7 @@ trait Fp12MulConstraints<F> {
         a: &Self::DType,
         b: &Self::DType,
     ) -> Self::DType;
-    fn mul_fp12_element(
+    fn _mul_fp12_element(
         &mut self,
         dest: &mut FieldOpCols<F, U384Field>,
         a: &Self::DType,
@@ -55,6 +56,8 @@ trait Fp12MulConstraints<F> {
         a: &Self::DType,
         b: &Self::DType,
     ) -> Self::DType;
+
+    fn inv(&mut self, dest: &mut FieldOpCols<F, U384Field>, a: &Self::DType) -> Self::DType;
 
     fn sum_of_products_aux(
         &mut self,
@@ -76,61 +79,12 @@ trait Fp12MulConstraints<F> {
         [b10_p_b11, b10_m_b11, b20_p_b21, b20_m_b21]
     }
 
-    fn sum_of_products(
+    fn inner_product(
         &mut self,
-        dest: &mut SumOfProductsCols<F>,
-        a: [(i8, &Self::DType); 6],
-        b: [(i8, &Self::DType); 6],
-    ) -> Self::DType {
-        let a00 = a[0].1;
-        let a01 = a[1].1;
-        let a10 = a[2].1;
-        let a11 = a[3].1;
-        let a20 = a[4].1;
-        let a21 = a[5].1;
-
-        let b00 = b[0].1;
-        let b01 = b[1].1;
-        let b10 = b[2].1;
-        let b11 = b[3].1;
-        let b20 = b[4].1;
-        let b21 = b[5].1;
-
-        let a1_t_b1 = &self.mul_fp12_element(&mut dest.a1_t_b1, a00, b00);
-        let a2_t_b2 = &self.mul_fp12_element(&mut dest.a2_t_b2, a01, b01);
-        let a3_t_b3 = &self.mul_fp12_element(&mut dest.a3_t_b3, a10, b10);
-        let a4_t_b4 = &self.mul_fp12_element(&mut dest.a4_t_b4, a11, b11);
-        let a5_t_b5 = &self.mul_fp12_element(&mut dest.a5_t_b5, a20, b20);
-        let a6_t_b6 = &self.mul_fp12_element(&mut dest.a6_t_b6, a21, b21);
-
-        let products = [a1_t_b1, a2_t_b2, a3_t_b3, a4_t_b4, a5_t_b5, a6_t_b6];
-        let dests = [
-            &mut dest.sum1,
-            &mut dest.sum2,
-            &mut dest.sum3,
-            &mut dest.sum4,
-            &mut dest.sum5,
-        ];
-
-        // Get negative coefficients in the sum of products.
-        let is_sub = a
-            .iter()
-            .zip(b.iter())
-            .map(|(a, b)| a.0 != b.0)
-            .collect_vec();
-
-        let mut sum = a1_t_b1.clone();
-
-        for (is_neg, dest, cur) in izip!(is_sub, dests, products).skip(1) {
-            if is_neg {
-                sum = self.sub_fp12_element(dest, &sum, cur);
-            } else {
-                sum = self.add_fp12_element(dest, &sum, cur);
-            }
-        }
-
-        sum
-    }
+        dest: &mut FieldInnerProductCols<F, U384Field>,
+        a: [&Self::DType; 6],
+        b: [&Self::DType; 6],
+    ) -> Self::DType;
 
     fn fp6_mul(
         &mut self,
@@ -154,82 +108,45 @@ trait Fp12MulConstraints<F> {
 
         let [b10_p_b11, b10_m_b11, b20_p_b21, b20_m_b21] =
             self.sum_of_products_aux(&mut dest.aux, [b00, b01, b10, b11, b20, b21]);
-        let c00 = self.sum_of_products(
+
+        let neg_a01 = self.inv(&mut dest.neg_a01, a01);
+        let neg_a11 = self.inv(&mut dest.neg_a11, a11);
+        let neg_a21 = self.inv(&mut dest.neg_a21, a21);
+
+        let c00 = self.inner_product(
             &mut dest.c00,
-            [(1, a00), (1, a01), (1, a10), (1, a11), (1, a20), (1, a21)],
-            [
-                (1, b00),
-                (-1, b01),
-                (1, &b20_m_b21),
-                (-1, &b20_p_b21),
-                (1, &b10_m_b11),
-                (-1, &b10_p_b11),
-            ],
+            [a00, &neg_a01, a10, &neg_a11, a20, &neg_a21],
+            [b00, b01, &b20_m_b21, &b20_p_b21, &b10_m_b11, &b10_p_b11],
         );
 
-        let c01 = self.sum_of_products(
+        let c01 = self.inner_product(
             &mut dest.c01,
-            [(1, a00), (1, a01), (1, a10), (1, a11), (1, a20), (1, a21)],
-            [
-                (1, b01),
-                (1, b00),
-                (1, &b20_p_b21),
-                (1, &b20_m_b21),
-                (1, &b10_p_b11),
-                (1, &b10_m_b11),
-            ],
+            [a00, a01, a10, a11, a20, a21],
+            [b01, b00, &b20_p_b21, &b20_m_b21, &b10_p_b11, &b10_m_b11],
         );
 
-        let c10 = self.sum_of_products(
+        let c10 = self.inner_product(
             &mut dest.c10,
-            [
-                (1, a00),
-                (-1, a01),
-                (1, a10),
-                (-1, a11),
-                (1, a20),
-                (-1, a21),
-            ],
-            [
-                (1, b10),
-                (1, b11),
-                (1, b00),
-                (1, b01),
-                (1, &b20_m_b21),
-                (1, &b20_p_b21),
-            ],
+            [a00, &neg_a01, a10, &neg_a11, a20, &neg_a21],
+            [b10, b11, b00, b01, &b20_m_b21, &b20_p_b21],
         );
 
-        let c11 = self.sum_of_products(
+        let c11 = self.inner_product(
             &mut dest.c11,
-            [(1, a00), (1, a01), (1, a10), (1, a11), (1, a20), (1, a21)],
-            [
-                (1, b11),
-                (1, b10),
-                (1, b01),
-                (1, b00),
-                (1, &b20_p_b21),
-                (1, &b20_m_b21),
-            ],
+            [a00, a01, a10, a11, a20, a21],
+            [b11, b10, b01, b00, &b20_p_b21, &b20_m_b21],
         );
 
-        let c20 = self.sum_of_products(
+        let c20 = self.inner_product(
             &mut dest.c20,
-            [
-                (1, a00),
-                (-1, a01),
-                (1, a10),
-                (-1, a11),
-                (1, a20),
-                (-1, a21),
-            ],
-            [(1, b20), (1, b21), (1, b10), (1, b11), (1, b00), (1, b01)],
+            [a00, &neg_a01, a10, &neg_a11, a20, &neg_a21],
+            [b20, b21, b10, b11, b00, b01],
         );
 
-        let c21 = self.sum_of_products(
+        let c21 = self.inner_product(
             &mut dest.c21,
-            [(1, a00), (1, a01), (1, a10), (1, a11), (1, a20), (1, a21)],
-            [(1, b21), (1, b20), (1, b11), (1, b10), (1, b01), (1, b00)],
+            [a00, a01, a10, a11, a20, a21],
+            [b21, b20, b11, b10, b01, b00],
         );
 
         [c00, c01, c10, c11, c20, c21]
@@ -433,7 +350,7 @@ impl<F: PrimeField32> Fp12MulConstraints<F> for Fp12BuilderTrace {
         (a + b) % &self.modulus
     }
 
-    fn mul_fp12_element(
+    fn _mul_fp12_element(
         &mut self,
         dest: &mut FieldOpCols<F, U384Field>,
         a: &Self::DType,
@@ -451,6 +368,32 @@ impl<F: PrimeField32> Fp12MulConstraints<F> for Fp12BuilderTrace {
     ) -> Self::DType {
         self.populate_with_modulus(dest, a, b, FieldOperation::Sub);
         (a - b) % &self.modulus
+    }
+
+    fn inv(&mut self, dest: &mut FieldOpCols<F, U384Field>, a: &Self::DType) -> Self::DType {
+        self.populate_with_modulus(dest, &self.modulus.clone(), a, FieldOperation::Sub);
+        self.modulus.clone() - a
+    }
+
+    fn inner_product(
+        &mut self,
+        dest: &mut FieldInnerProductCols<F, U384Field>,
+        a: [&Self::DType; 6],
+        b: [&Self::DType; 6],
+    ) -> Self::DType {
+        dest.populate(
+            &mut self.new_byte_lookup_events,
+            self.shard,
+            self.channel,
+            a.map(|x| x.clone()).as_ref(),
+            b.map(|x| x.clone()).as_ref(),
+        );
+
+        a.iter()
+            .zip(b.iter())
+            .fold(BigUint::zero(), |acc, (&a, &b)| {
+                (acc + (a * b)) % &self.modulus
+            })
     }
 }
 struct Fp12BuilderEval<'a, AB>
@@ -489,8 +432,8 @@ where
     fn eval_with_modulus(
         &mut self,
         dest: &mut FieldOpCols<AB::Var, U384Field>,
-        a: &Limbs<AB::Var, <U384Field as NumLimbs>::Limbs>,
-        b: &Limbs<AB::Var, <U384Field as NumLimbs>::Limbs>,
+        a: &(impl Into<Polynomial<AB::Expr>> + Clone),
+        b: &(impl Into<Polynomial<AB::Expr>> + Clone),
         op: FieldOperation,
     ) {
         dest.eval_with_modulus(
@@ -523,7 +466,7 @@ where
         dest.result
     }
 
-    fn mul_fp12_element(
+    fn _mul_fp12_element(
         &mut self,
         dest: &mut FieldOpCols<AB::Var, U384Field>,
         a: &Self::DType,
@@ -540,6 +483,28 @@ where
         b: &Self::DType,
     ) -> Self::DType {
         self.eval_with_modulus(dest, a, b, FieldOperation::Sub);
+        dest.result
+    }
+
+    fn inv(&mut self, dest: &mut FieldOpCols<AB::Var, U384Field>, a: &Self::DType) -> Self::DType {
+        self.eval_with_modulus(dest, &self.modulus.clone(), a, FieldOperation::Sub);
+        dest.result
+    }
+
+    fn inner_product(
+        &mut self,
+        dest: &mut FieldInnerProductCols<AB::Var, U384Field>,
+        a: [&Self::DType; 6],
+        b: [&Self::DType; 6],
+    ) -> Self::DType {
+        dest.eval(
+            self.builder,
+            a.map(|x| *x).as_ref(),
+            b.map(|x| *x).as_ref(),
+            self.shard,
+            self.channel,
+            self.is_real,
+        );
         dest.result
     }
 }
@@ -607,34 +572,47 @@ impl<F> SumOfProductsAuxillaryCols<F> {
 
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
-pub struct SumOfProductsCols<F> {
-    pub a1_t_b1: FieldOpCols<F, U384Field>,
-    pub a2_t_b2: FieldOpCols<F, U384Field>,
-    pub a3_t_b3: FieldOpCols<F, U384Field>,
-    pub a4_t_b4: FieldOpCols<F, U384Field>,
-    pub a5_t_b5: FieldOpCols<F, U384Field>,
-    pub a6_t_b6: FieldOpCols<F, U384Field>,
-    pub sum1: FieldOpCols<F, U384Field>,
-    pub sum2: FieldOpCols<F, U384Field>,
-    pub sum3: FieldOpCols<F, U384Field>,
-    pub sum4: FieldOpCols<F, U384Field>,
-    pub sum5: FieldOpCols<F, U384Field>,
+pub struct Fp6MulCols<F> {
+    pub aux: SumOfProductsAuxillaryCols<F>,
+    pub neg_a01: FieldOpCols<F, U384Field>,
+    pub neg_a11: FieldOpCols<F, U384Field>,
+    pub neg_a21: FieldOpCols<F, U384Field>,
+
+    // [a.c0.c0, -a.c0.c1, a.c1.c0, -a.c1.c1, a.c2.c0, -a.c2.c1]
+    // [b.c0.c0, b.c0.c1, b20_m_b21, b20_p_b21, b10_m_b11, b10_p_b11]
+    pub c00: FieldInnerProductCols<F, U384Field>,
+
+    // [a.c0.c0, a.c0.c1, a.c1.c0, a.c1.c1, a.c2.c0, a.c2.c1],
+    // [b.c0.c1, b.c0.c0, b20_p_b21, b20_m_b21, b10_p_b11, b10_m_b11],
+    pub c01: FieldInnerProductCols<F, U384Field>,
+
+    // [a.c0.c0, -a.c0.c1, a.c1.c0, -a.c1.c1, a.c2.c0, -a.c2.c1],
+    // [b.c1.c0, b.c1.c1, b.c0.c0, b.c0.c1, b20_m_b21, b20_p_b21],
+    pub c10: FieldInnerProductCols<F, U384Field>,
+
+    // [a.c0.c0, a.c0.c1, a.c1.c0, a.c1.c1, a.c2.c0, a.c2.c1],
+    // [b.c1.c1, b.c1.c0, b.c0.c1, b.c0.c0, b20_p_b21, b20_m_b21],
+    pub c11: FieldInnerProductCols<F, U384Field>,
+
+    // [a.c0.c0, -a.c0.c1, a.c1.c0, -a.c1.c1, a.c2.c0, -a.c2.c1],
+    // [b.c2.c0, b.c2.c1, b.c1.c0, b.c1.c1, b.c0.c0, b.c0.c1],
+    pub c20: FieldInnerProductCols<F, U384Field>,
+
+    // [a.c0.c0, a.c0.c1, a.c1.c0, a.c1.c1, a.c2.c0, a.c2.c1],
+    // [b.c2.c1, b.c2.c0, b.c1.c1, b.c1.c0, b.c0.c1, b.c0.c0],
+    pub c21: FieldInnerProductCols<F, U384Field>,
 }
 
-impl<F: PrimeField32> SumOfProductsCols<F> {
+impl<F: PrimeField32> Fp6MulCols<F> {
     fn pad_rows(&mut self) {
+        self.aux.pad_rows();
         [
-            &mut self.a1_t_b1,
-            &mut self.a2_t_b2,
-            &mut self.a3_t_b3,
-            &mut self.a4_t_b4,
-            &mut self.a5_t_b5,
-            &mut self.a6_t_b6,
-            &mut self.sum1,
-            &mut self.sum2,
-            &mut self.sum3,
-            &mut self.sum4,
-            &mut self.sum5,
+            &mut self.c00,
+            &mut self.c01,
+            &mut self.c10,
+            &mut self.c11,
+            &mut self.c20,
+            &mut self.c21,
         ]
         .iter_mut()
         .for_each(|dest| {
@@ -642,64 +620,23 @@ impl<F: PrimeField32> SumOfProductsCols<F> {
                 &mut vec![],
                 0,
                 0,
-                &BigUint::zero(),
-                &BigUint::zero(),
-                FieldOperation::Mul,
+                &(0..6).map(|_| BigUint::zero()).collect_vec(),
+                &(0..6).map(|_| BigUint::zero()).collect_vec(),
             );
         });
-    }
-}
 
-impl<F> SumOfProductsCols<F> {
-    fn get_results(&self) -> Vec<&Limbs<F, <U384Field as NumLimbs>::Limbs>> {
-        vec![
-            &self.sum1.result,
-            &self.sum2.result,
-            &self.sum3.result,
-            &self.sum4.result,
-            &self.sum5.result,
-        ]
-    }
-}
-
-#[derive(Debug, Clone, AlignedBorrow)]
-#[repr(C)]
-pub struct Fp6MulCols<F> {
-    pub aux: SumOfProductsAuxillaryCols<F>,
-    // [a.c0.c0, -a.c0.c1, a.c1.c0, -a.c1.c1, a.c2.c0, -a.c2.c1]
-    // [b.c0.c0, b.c0.c1, b20_m_b21, b20_p_b21, b10_m_b11, b10_p_b11]
-    pub c00: SumOfProductsCols<F>,
-
-    // [a.c0.c0, a.c0.c1, a.c1.c0, a.c1.c1, a.c2.c0, a.c2.c1],
-    // [b.c0.c1, b.c0.c0, b20_p_b21, b20_m_b21, b10_p_b11, b10_m_b11],
-    pub c01: SumOfProductsCols<F>,
-
-    // [a.c0.c0, -a.c0.c1, a.c1.c0, -a.c1.c1, a.c2.c0, -a.c2.c1],
-    // [b.c1.c0, b.c1.c1, b.c0.c0, b.c0.c1, b20_m_b21, b20_p_b21],
-    pub c10: SumOfProductsCols<F>,
-
-    // [a.c0.c0, a.c0.c1, a.c1.c0, a.c1.c1, a.c2.c0, a.c2.c1],
-    // [b.c1.c1, b.c1.c0, b.c0.c1, b.c0.c0, b20_p_b21, b20_m_b21],
-    pub c11: SumOfProductsCols<F>,
-
-    // [a.c0.c0, -a.c0.c1, a.c1.c0, -a.c1.c1, a.c2.c0, -a.c2.c1],
-    // [b.c2.c0, b.c2.c1, b.c1.c0, b.c1.c1, b.c0.c0, b.c0.c1],
-    pub c20: SumOfProductsCols<F>,
-
-    // [a.c0.c0, a.c0.c1, a.c1.c0, a.c1.c1, a.c2.c0, a.c2.c1],
-    // [b.c2.c1, b.c2.c0, b.c1.c1, b.c1.c0, b.c0.c1, b.c0.c0],
-    pub c21: SumOfProductsCols<F>,
-}
-
-impl<F: PrimeField32> Fp6MulCols<F> {
-    fn pad_rows(&mut self) {
-        self.aux.pad_rows();
-        self.c00.pad_rows();
-        self.c01.pad_rows();
-        self.c10.pad_rows();
-        self.c11.pad_rows();
-        self.c20.pad_rows();
-        self.c21.pad_rows();
+        [&mut self.neg_a01, &mut self.neg_a11, &mut self.neg_a21]
+            .iter_mut()
+            .for_each(|dest| {
+                dest.populate(
+                    &mut vec![],
+                    0,
+                    0,
+                    &BigUint::zero(),
+                    &BigUint::zero(),
+                    FieldOperation::Sub,
+                );
+            });
     }
 }
 
@@ -707,12 +644,19 @@ impl<F> Fp6MulCols<F> {
     fn get_results(&self) -> Vec<&Limbs<F, <U384Field as NumLimbs>::Limbs>> {
         let mut results = vec![];
         results.extend_from_slice(&self.aux.get_results());
-        results.extend_from_slice(&self.c00.get_results());
-        results.extend_from_slice(&self.c01.get_results());
-        results.extend_from_slice(&self.c10.get_results());
-        results.extend_from_slice(&self.c11.get_results());
-        results.extend_from_slice(&self.c20.get_results());
-        results.extend_from_slice(&self.c21.get_results());
+        [
+            &self.c00, &self.c01, &self.c10, &self.c11, &self.c20, &self.c21,
+        ]
+        .iter()
+        .for_each(|dest| {
+            results.push(&dest.result);
+        });
+
+        [&self.neg_a01, &self.neg_a11, &self.neg_a21]
+            .iter()
+            .for_each(|dest| {
+                results.push(&dest.result);
+            });
         results
     }
 }
@@ -1022,7 +966,6 @@ impl<P: FieldParameters> Syscall for Fp12MulChip<P> {
             panic!();
         }
 
-        // let num_fp12_words = <U384Field as NumWords>::WordsFieldElement::USIZE / LIMBS_PER_WORD;
         let a = rt.slice_unsafe(a_ptr, NUM_FP_MULS);
         let (b_memory_records, b) = rt.mr_slice(b_ptr, NUM_FP_MULS);
         rt.clk += 1;
@@ -1074,7 +1017,6 @@ where
         let local: &Fp12MulCols<AB::Var> = (*local).borrow();
         let next = main.row_slice(1);
         let next: &Fp12MulCols<AB::Var> = (*next).borrow();
-        // let num_fp12_words = <U384Field as NumWords>::WordsFieldElement::USIZE / LIMBS_PER_WORD;
 
         // Constrain the incrementing nonce.
         builder.when_first_row().assert_zero(local.nonce);
