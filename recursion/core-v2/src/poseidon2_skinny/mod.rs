@@ -46,7 +46,7 @@ impl<'a, const DEGREE: usize> Poseidon2SkinnyChip<DEGREE> {
     where
         T: Copy + 'a,
     {
-        if DEGREE == 3 {
+        if DEGREE == 3 || DEGREE == 5 {
             let convert: &Poseidon2Degree3<T> = (*row).borrow();
             Box::new(*convert)
         } else if DEGREE == 9 || DEGREE == 17 {
@@ -62,7 +62,7 @@ impl<'a, const DEGREE: usize> Poseidon2SkinnyChip<DEGREE> {
         &self,
         row: &'b mut Vec<F>,
     ) -> Box<dyn Poseidon2Mut<'a, F> + 'a> {
-        if DEGREE == 3 {
+        if DEGREE == 3 || DEGREE == 5 {
             let convert: &mut Poseidon2Degree3<F> = row.as_mut_slice().borrow_mut();
             Box::new(convert)
         } else if DEGREE == 9 || DEGREE == 17 {

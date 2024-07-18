@@ -3,6 +3,7 @@ use p3_air::{Air, BaseAir};
 use p3_field::Field;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
+use p3_matrix::Matrix;
 use sp1_core::air::MachineAir;
 use sp1_derive::AlignedBorrow;
 
@@ -41,7 +42,7 @@ impl<F: PrimeField32, const COL_PADDING: usize> MachineAir<F> for DummyWideChip<
     }
 
     fn included(&self, _record: &Self::Record) -> bool {
-        true
+        COL_PADDING != 0
     }
 }
 
@@ -49,5 +50,9 @@ impl<AB, const COL_PADDING: usize> Air<AB> for DummyWideChip<COL_PADDING>
 where
     AB: SP1RecursionAirBuilder + PairBuilder,
 {
-    fn eval(&self, _builder: &mut AB) {}
+    fn eval(&self, builder: &mut AB) {
+        let main = builder.main();
+        let local = main.row_slice(0);
+        builder.assert_zero(local[0]);
+    }
 }

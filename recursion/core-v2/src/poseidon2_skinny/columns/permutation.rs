@@ -132,7 +132,7 @@ pub fn permutation_mut<'a, 'b: 'a, T, const DEGREE: usize>(
 where
     T: Copy,
 {
-    if DEGREE == 3 {
+    if DEGREE == 3 || DEGREE == 5 {
         let start = POSEIDON2_DEGREE3_COL_MAP.permutation_cols.state.state_var[0];
         let end = start + size_of::<PermutationSBox<u8>>();
         let convert: PermutationSBox<T> = *row[start..end].borrow_mut();
