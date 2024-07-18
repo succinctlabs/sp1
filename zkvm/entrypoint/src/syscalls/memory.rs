@@ -12,7 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-const SYSTEM_START: usize = 0x0C00_0000;
+use crate::syscalls::sys_panic;
+
+// Memory addresses must be lower than BabyBear prime.
+const MAX_MEMORY: usize = 0x78000000;
+
+const OOM_MESSAGE: &str = "Memory limit exceeded (0x78000000)";
 
 #[allow(clippy::missing_safety_doc)]
 #[no_mangle]
@@ -39,11 +44,13 @@ pub unsafe extern "C" fn sys_alloc_aligned(bytes: usize, align: usize) -> *mut u
     }
 
     let ptr = heap_pos as *mut u8;
-    heap_pos += bytes;
+    heap_pos.checked_add(bytes).unwrap_or_else(|| {
+        sys_panic(OOM_MESSAGE.as_ptr(), OOM_MESSAGE.len());
+    });
 
     // Check to make sure heap doesn't collide with SYSTEM memory.
-    if SYSTEM_START < heap_pos {
-        panic!();
+    if MAX_MEMORY < heap_pos {
+        sys_panic(OOM_MESSAGE.as_ptr(), OOM_MESSAGE.len());
     }
 
     unsafe { HEAP_POS = heap_pos };
