@@ -400,6 +400,8 @@ impl ExecutionRecord {
     pub fn split(&mut self, last: bool, opts: SplitOpts) -> Vec<ExecutionRecord> {
         let mut shards = Vec::new();
 
+        println!("keccak split {}", opts.keccak_split_threshold);
+
         macro_rules! split_events {
             ($self:ident, $events:ident, $shards:ident, $threshold:expr, $exact:expr) => {
                 let events = std::mem::take(&mut $self.$events);

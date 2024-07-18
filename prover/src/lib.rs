@@ -295,6 +295,10 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         for batch in shard_proofs.chunks(batch_size) {
             let proofs = batch.to_vec();
 
+            let public_values: &PublicValues<Word<BabyBear>, BabyBear> =
+                proofs.last().unwrap().public_values.as_slice().borrow();
+            println!("core execution shard: {}", public_values.execution_shard);
+
             core_inputs.push(SP1RecursionMemoryLayout {
                 vk,
                 machine: self.core_prover.machine(),
@@ -513,7 +517,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         })
     }
 
-    /// Generate a proof with the compress machine.
     pub fn compress_machine_proof(
         &self,
         input: impl Hintable<InnerConfig>,
@@ -530,6 +533,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         witness_stream.extend(input.write());
 
         runtime.witness_stream = witness_stream.into();
+
         runtime
             .run()
             .map_err(|e| SP1RecursionProverError::RuntimeError(e.to_string()))?;

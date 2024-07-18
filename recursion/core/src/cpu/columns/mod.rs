@@ -1,7 +1,8 @@
-use std::mem::size_of;
+use std::mem::{size_of, transmute};
 
 use crate::memory::{MemoryReadCols, MemoryReadWriteCols};
 use p3_air::BaseAir;
+use sp1_core::utils::indices_arr;
 use sp1_derive::AlignedBorrow;
 
 mod branch;
@@ -21,6 +22,13 @@ use self::opcode_specific::OpcodeSpecificCols;
 use super::CpuChip;
 
 pub const NUM_CPU_COLS: usize = size_of::<CpuCols<u8>>();
+
+const fn make_col_map() -> CpuCols<usize> {
+    let indices_arr = indices_arr::<NUM_CPU_COLS>();
+    unsafe { transmute::<[usize; NUM_CPU_COLS], CpuCols<usize>>(indices_arr) }
+}
+
+pub(crate) const CPU_COL_MAP: CpuCols<usize> = make_col_map();
 
 impl<F: Send + Sync, const L: usize> BaseAir<F> for CpuChip<F, L> {
     fn width(&self) -> usize {
