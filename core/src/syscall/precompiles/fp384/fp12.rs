@@ -38,18 +38,21 @@ const NUM_COLS: usize = size_of::<Fp12MulCols<u8>>();
 trait Fp12MulConstraints<F> {
     type DType: Clone;
 
+    /// Add two Fp12 elements.
     fn add_fp12_element(
         &mut self,
         dest: &mut FieldOpCols<F, U384Field>,
         a: &Self::DType,
         b: &Self::DType,
     ) -> Self::DType;
+    /// Multiply two Fp12 elements.
     fn _mul_fp12_element(
         &mut self,
         dest: &mut FieldOpCols<F, U384Field>,
         a: &Self::DType,
         b: &Self::DType,
     ) -> Self::DType;
+    /// Subtract two Fp12 elements.
     fn sub_fp12_element(
         &mut self,
         dest: &mut FieldOpCols<F, U384Field>,
@@ -57,7 +60,16 @@ trait Fp12MulConstraints<F> {
         b: &Self::DType,
     ) -> Self::DType;
 
-    fn inv(&mut self, dest: &mut FieldOpCols<F, U384Field>, a: &Self::DType) -> Self::DType;
+    /// Compute the additive inverse of an Fp12 element.
+    fn addinv(&mut self, dest: &mut FieldOpCols<F, U384Field>, a: &Self::DType) -> Self::DType;
+
+    /// Compute the inner product of two arrays of Fp12 elements.
+    fn inner_product(
+        &mut self,
+        dest: &mut FieldInnerProductCols<F, U384Field>,
+        a: [&Self::DType; 6],
+        b: [&Self::DType; 6],
+    ) -> Self::DType;
 
     fn sum_of_products_aux(
         &mut self,
@@ -78,13 +90,6 @@ trait Fp12MulConstraints<F> {
 
         [b10_p_b11, b10_m_b11, b20_p_b21, b20_m_b21]
     }
-
-    fn inner_product(
-        &mut self,
-        dest: &mut FieldInnerProductCols<F, U384Field>,
-        a: [&Self::DType; 6],
-        b: [&Self::DType; 6],
-    ) -> Self::DType;
 
     fn fp6_mul(
         &mut self,
@@ -109,9 +114,9 @@ trait Fp12MulConstraints<F> {
         let [b10_p_b11, b10_m_b11, b20_p_b21, b20_m_b21] =
             self.sum_of_products_aux(&mut dest.aux, [b00, b01, b10, b11, b20, b21]);
 
-        let neg_a01 = self.inv(&mut dest.neg_a01, a01);
-        let neg_a11 = self.inv(&mut dest.neg_a11, a11);
-        let neg_a21 = self.inv(&mut dest.neg_a21, a21);
+        let neg_a01 = self.addinv(&mut dest.neg_a01, a01);
+        let neg_a11 = self.addinv(&mut dest.neg_a11, a11);
+        let neg_a21 = self.addinv(&mut dest.neg_a21, a21);
 
         let c00 = self.inner_product(
             &mut dest.c00,
@@ -243,8 +248,6 @@ trait Fp12MulConstraints<F> {
         a: &[Self::DType; 12],
         b: &[Self::DType; 12],
     ) -> Result<[Self::DType; 12], ()> {
-        // let fp12_mul =
-        //     |dest: &mut AuxFp12MulCols<F>, a: [Self::DType; 12], b: [Self::DType; 12]| -> [Self::DType; 12] {
         let ac0 = [
             a[0].clone(),
             a[1].clone(),
@@ -370,7 +373,7 @@ impl<F: PrimeField32> Fp12MulConstraints<F> for Fp12BuilderTrace {
         (a - b) % &self.modulus
     }
 
-    fn inv(&mut self, dest: &mut FieldOpCols<F, U384Field>, a: &Self::DType) -> Self::DType {
+    fn addinv(&mut self, dest: &mut FieldOpCols<F, U384Field>, a: &Self::DType) -> Self::DType {
         self.populate_with_modulus(dest, &self.modulus.clone(), a, FieldOperation::Sub);
         self.modulus.clone() - a
     }
@@ -486,7 +489,11 @@ where
         dest.result
     }
 
-    fn inv(&mut self, dest: &mut FieldOpCols<AB::Var, U384Field>, a: &Self::DType) -> Self::DType {
+    fn addinv(
+        &mut self,
+        dest: &mut FieldOpCols<AB::Var, U384Field>,
+        a: &Self::DType,
+    ) -> Self::DType {
         self.eval_with_modulus(dest, &self.modulus.clone(), a, FieldOperation::Sub);
         dest.result
     }
@@ -574,9 +581,9 @@ impl<F> SumOfProductsAuxillaryCols<F> {
 #[repr(C)]
 pub struct Fp6MulCols<F> {
     pub aux: SumOfProductsAuxillaryCols<F>,
-    pub neg_a01: FieldOpCols<F, U384Field>,
-    pub neg_a11: FieldOpCols<F, U384Field>,
-    pub neg_a21: FieldOpCols<F, U384Field>,
+    pub neg_a01: FieldOpCols<F, U384Field>, // -a.c0.c1
+    pub neg_a11: FieldOpCols<F, U384Field>, // -a.c1.c1
+    pub neg_a21: FieldOpCols<F, U384Field>, // -a.c2.c1
 
     // [a.c0.c0, -a.c0.c1, a.c1.c0, -a.c1.c1, a.c2.c0, -a.c2.c1]
     // [b.c0.c0, b.c0.c1, b20_m_b21, b20_p_b21, b10_m_b11, b10_p_b11]
@@ -859,7 +866,6 @@ impl<F: PrimeField32, P: FieldParameters> MachineAir<F> for Fp12MulChip<P> {
                     .map(|event| {
                         let mut row: [F; NUM_COLS] = [F::zero(); NUM_COLS];
                         let cols: &mut Fp12MulCols<F> = row.as_mut_slice().borrow_mut();
-                        // let x = [0..BigUint::from_bytes_le(bytes_to_words_le::<48>(&event.x[0..48]));
                         let x = (0..12)
                             .map(|i| {
                                 BigUint::from_bytes_le(&words_to_bytes_le::<48>(
