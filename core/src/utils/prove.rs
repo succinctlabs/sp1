@@ -234,7 +234,8 @@ where
             }
 
             // Generate the dependencies.
-            prover.machine().generate_dependencies(&mut records, &opts);
+            tracing::info_span!("generate dependencies")
+                .in_scope(|| prover.machine().generate_dependencies(&mut records, &opts));
 
             // Defer events that are too expensive to include in every shard.
             for record in records.iter_mut() {
