@@ -48,7 +48,6 @@ pub unsafe extern "C" fn sys_alloc_aligned(bytes: usize, align: usize) -> *mut u
         sys_panic(OOM_MESSAGE.as_ptr(), OOM_MESSAGE.len());
     });
 
-    // Check to make sure heap doesn't collide with SYSTEM memory.
     if MAX_MEMORY < heap_pos {
         sys_panic(OOM_MESSAGE.as_ptr(), OOM_MESSAGE.len());
     }
