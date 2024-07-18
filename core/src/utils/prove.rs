@@ -197,7 +197,7 @@ where
             sync_channel::<Vec<ExecutionRecord>>(opts.commit_stream_capacity);
         let challenger_handle = s.spawn(move || {
             let _span = span.enter();
-            tracing::info_span!("phase 1: commit the shards").in_scope(|| {
+            tracing::info_span!("phase 1 commit").in_scope(|| {
                 for records in records_rx.iter() {
                     let commitments = tracing::info_span!("batch").in_scope(|| {
                         let span = tracing::Span::current().clone();
@@ -225,7 +225,8 @@ where
         tracing::info_span!("phase 1 record generator").in_scope(|| {
             for (checkpoint_idx, checkpoint_file) in checkpoints.iter_mut().enumerate() {
                 // Trace the checkpoint and reconstruct the execution records.
-                let (mut records, _) = trace_checkpoint(program.clone(), checkpoint_file, opts);
+                let (mut records, _) = tracing::info_span!("trace checkpoint")
+                    .in_scope(|| trace_checkpoint(program.clone(), checkpoint_file, opts));
                 reset_seek(&mut *checkpoint_file);
 
                 // Update the public values & prover state for the shards which contain "cpu events".
@@ -298,7 +299,7 @@ where
         let shard_proofs = s.spawn(move || {
             let _span = commit_and_open.enter();
             let mut shard_proofs = Vec::new();
-            tracing::info_span!("phase 2: commit and open shards").in_scope(|| {
+            tracing::info_span!("phase 2 commit and open").in_scope(|| {
                 for records in records_rx.iter() {
                     tracing::info_span!("batch").in_scope(|| {
                         let span = tracing::Span::current().clone();
@@ -317,8 +318,8 @@ where
         tracing::info_span!("phase 2 record generator").in_scope(|| {
             for (checkpoint_idx, mut checkpoint_file) in checkpoints.into_iter().enumerate() {
                 // Trace the checkpoint and reconstruct the execution records.
-                let (mut records, report) =
-                    trace_checkpoint(program.clone(), &checkpoint_file, opts);
+                let (mut records, report) = tracing::info_span!("trace checkpoint")
+                    .in_scope(|| trace_checkpoint(program.clone(), &checkpoint_file, opts));
                 report_aggregate += report;
                 reset_seek(&mut checkpoint_file);
 
@@ -332,7 +333,8 @@ where
                 }
 
                 // Generate the dependencies.
-                prover.machine().generate_dependencies(&mut records, &opts);
+                tracing::info_span!("generate dependencies")
+                    .in_scope(|| prover.machine().generate_dependencies(&mut records, &opts));
 
                 // Defer events that are too expensive to include in every shard.
                 for record in records.iter_mut() {
