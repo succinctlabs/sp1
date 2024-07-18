@@ -9,8 +9,10 @@ mod tests {
     };
 
     use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
+    use p3_field::extension::BinomialExtensionField;
     use sp1_core::{
-        stark::{MachineProof, StarkGenericConfig},
+        air::BinomialExtension,
+        stark::{MachineProof, StarkGenericConfig, StarkMachine},
         utils::{log2_strict_usize, run_test_machine, setup_logger, BabyBearPoseidon2Inner},
     };
     use sp1_recursion_compiler::{config::OuterConfig, constraints::Constraint, ir::Witness};
@@ -30,19 +32,15 @@ mod tests {
     type SC = BabyBearPoseidon2Outer;
     type F = <SC as StarkGenericConfig>::Val;
     type EF = <SC as StarkGenericConfig>::Challenge;
-    // type A = RecursionAir<F, 3>;
 
-    pub fn test_new_machine<
-        const FRI_FOLD_PADDING: usize,
-        const ERBL_PADDING: usize,
-        const POSEIDON2_PADDING: usize,
-        const DEGREE: usize,
-        const COL_PADDING: usize,
-        const NUM_CONSTRAINTS: usize,
-    >() {
+    pub fn test_machine<F, const DEGREE: usize, const COL_PADDING: usize>(machine_maker: F)
+    where
+        F: Fn()
+            -> StarkMachine<BabyBearPoseidon2Outer, RecursionAir<BabyBear, DEGREE, COL_PADDING>>,
+    {
         setup_logger();
         let n = 10;
-
+        // Fibonacci(n)
         let instructions = once(instr::mem(MemAccessKind::Write, 1, 0, 0))
             .chain(once(instr::mem(MemAccessKind::Write, 2, 1, 1)))
             .chain((2..=n).map(|i| instr::base_alu(BaseAluOpcode::AddF, 2, i, i - 2, i - 1)))
@@ -50,48 +48,24 @@ mod tests {
             .chain(once(instr::mem(MemAccessKind::Read, 2, n, 55)))
             .collect::<Vec<_>>();
 
+        let machine = machine_maker();
         let program = RecursionProgram { instructions };
-        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(
-            &program,
-            BabyBearPoseidon2Inner::new().perm,
-        );
+        let mut runtime = Runtime::<
+            BabyBear,
+            BinomialExtensionField<BabyBear, 4>,
+            DiffusionMatrixBabyBear,
+        >::new(&program, BabyBearPoseidon2Inner::new().perm);
         runtime.run();
 
-        let config = SC::new_with_log_blowup(log2_strict_usize(DEGREE - 1));
-        let machine = RecursionAir::<F, DEGREE, COL_PADDING, NUM_CONSTRAINTS>::machine_with_padding(
-            config,
-            FRI_FOLD_PADDING,
-            POSEIDON2_PADDING,
-            ERBL_PADDING,
-        );
         let (pk, vk) = machine.setup(&program);
         let result = run_test_machine(vec![runtime.record], machine, pk, vk.clone()).unwrap();
 
-        // let bytes = bincode::serialize(&result).unwrap();
-
-        // // Save the proof.
-        // let mut file = File::create("test-proof.bin").unwrap();
-        // file.write_all(bytes.as_slice()).unwrap();
-
-        // // Load the proof.
-        // let mut file = File::open("test-proof.bin").unwrap();
-        // let mut bytes = Vec::new();
-        // file.read_to_end(&mut bytes).unwrap();
-
-        // let result: MachineProof<SC> = bincode::deserialize(&bytes).unwrap();
-
-        println!("num shard proofs: {}", result.shard_proofs.len());
-
-        let constraints = build_wrap_circuit_new::<DEGREE, COL_PADDING, NUM_CONSTRAINTS>(
+        let machine = machine_maker();
+        let constraints = build_wrap_circuit_new::<BabyBear, DEGREE, COL_PADDING>(
             &vk,
             result.shard_proofs[0].clone(),
+            machine,
         );
-
-        // let bytes = bincode::serialize(&constraints).unwrap();
-
-        // // Save the constraints.
-        // let mut file = File::create("test-constraints.bin").unwrap();
-        // file.write_all(bytes.as_slice()).unwrap();
 
         let pv: &RecursionPublicValues<_> =
             result.shard_proofs[0].public_values.as_slice().borrow();
@@ -108,107 +82,74 @@ mod tests {
         witness.write_commited_values_digest(committed_values_digest);
         witness.write_vkey_hash(vkey_hash);
 
-        // // Save the witness to a file.
-        // let mut file2 = File::create("test-witness.bin").unwrap();
-        // let bytes2 = bincode::serialize(&witness).unwrap();
-        // file2.write_all(bytes2.as_slice()).unwrap();
-
-        // // Load the constrints.
-        // let mut file = File::open("test-constraints.bin").unwrap();
-        // let mut bytes = Vec::new();
-        // file.read_to_end(&mut bytes).unwrap();
-
-        // // Load the witness.
-        // let mut file2 = File::open("test-witness.bin").unwrap();
-        // let mut bytes2 = Vec::new();
-        // file2.read_to_end(&mut bytes2).unwrap();
-
-        // let constraints: Vec<Constraint> = bincode::deserialize(&bytes).unwrap();
-        // let witness: Witness<OuterConfig> = bincode::deserialize(&bytes2).unwrap();
-
         PlonkBn254Prover::test::<OuterConfig>(constraints, witness);
+    }
+
+    pub fn machine_with_all_chips<const DEGREE: usize>(
+        log_erbl_rows: usize,
+        log_p2_rows: usize,
+        log_frifold_rows: usize,
+    ) -> StarkMachine<BabyBearPoseidon2Outer, RecursionAir<BabyBear, DEGREE, 0>> {
+        let config = SC::new_with_log_blowup(log2_strict_usize(DEGREE - 1));
+        RecursionAir::<BabyBear, DEGREE, 0>::machine_with_padding(
+            config,
+            log_frifold_rows,
+            log_p2_rows,
+            log_erbl_rows,
+        )
+    }
+
+    pub fn machine_with_dummy<const DEGREE: usize, const COL_PADDING: usize>(
+        log_height: usize,
+    ) -> StarkMachine<BabyBearPoseidon2Outer, RecursionAir<BabyBear, DEGREE, COL_PADDING>> {
+        let config = SC::new_with_log_blowup(log2_strict_usize(DEGREE - 1));
+        RecursionAir::<BabyBear, DEGREE, COL_PADDING>::dummy_machine(config, log_height)
     }
 
     #[test]
     pub fn test_new_machine_diff_degrees() {
-        // test_new_machine::<16, 16, 16, 3, 1, 1>();
-        // test_new_machine::<16, 16, 16, 5, 1, 1>();
-        test_new_machine::<16, 16, 16, 9, 1, 1>();
-        // test_new_machine::<16, 16, 16, 17, 1, 1>();
+        let machine_maker_3 = || machine_with_all_chips::<3>(16, 16, 16);
+        let machine_maker_5 = || machine_with_all_chips::<5>(16, 16, 16);
+        let machine_maker_9 = || machine_with_all_chips::<9>(16, 16, 16);
+        let machine_maker_17 = || machine_with_all_chips::<17>(16, 16, 16);
+        test_machine(machine_maker_3);
+        test_machine(machine_maker_5);
+        test_machine(machine_maker_9);
+        test_machine(machine_maker_17);
     }
 
     #[test]
     pub fn test_new_machine_diff_rows() {
-        println!("Testing log_row = 1");
-        test_new_machine::<1, 1, 1, 9, 1, 1>();
-        println!("Testing log_row = 2");
-        test_new_machine::<2, 2, 2, 9, 1, 1>();
-        println!("Testing log_row = 3");
-        test_new_machine::<3, 3, 3, 9, 1, 1>();
-        println!("Testing log_row = 4");
-        test_new_machine::<4, 4, 4, 9, 1, 1>();
-        println!("Testing log_row = 5");
-        test_new_machine::<5, 5, 5, 9, 1, 1>();
-        println!("Testing log_row = 6");
-        test_new_machine::<6, 6, 6, 9, 1, 1>();
-        println!("Testing log_row = 7");
-        test_new_machine::<7, 7, 7, 9, 1, 1>();
-        println!("Testing log_row = 8");
-        test_new_machine::<8, 8, 8, 9, 1, 1>();
-        println!("Testing log_row = 9");
-        test_new_machine::<9, 9, 9, 9, 1, 1>();
-        println!("Testing log_row = 10");
-        test_new_machine::<10, 10, 10, 9, 1, 1>();
-        println!("Testing log_row = 11");
-        test_new_machine::<11, 11, 11, 9, 1, 1>();
-        println!("Testing log_row = 12");
-        test_new_machine::<12, 12, 12, 9, 1, 1>();
-        println!("Testing log_row = 13");
-        test_new_machine::<13, 13, 13, 9, 1, 1>();
-        println!("Testing log_row = 14");
-        test_new_machine::<14, 14, 14, 9, 1, 1>();
-        println!("Testing log_row = 15");
-        test_new_machine::<15, 15, 15, 9, 1, 1>();
-        println!("Testing log_row = 16");
-        test_new_machine::<16, 16, 16, 9, 1, 1>();
+        let machine_maker = |i| machine_with_all_chips::<9>(i, i, i);
+        for i in 1..=16 {
+            test_machine(|| machine_maker(i));
+        }
     }
 
     #[test]
-    pub fn test_new_machine_diff_cols() {
-        println!("Testing cols = 100");
-        // test_new_machine::<16, 16, 16, 9, 100>();
-        // println!("Testing cols = 150");
-        // test_new_machine::<16, 16, 16, 9, 150>();
-        // println!("Testing cols = 200");
-        // test_new_machine::<16, 16, 16, 9, 200>();
-        // println!("Testing cols = 250");
-        // test_new_machine::<16, 16, 16, 9, 250>();
-        // println!("Testing cols = 300");
-        // test_new_machine::<16, 16, 16, 9, 300>();
-        // println!("Testing cols = 350");
-        // test_new_machine::<16, 16, 16, 9, 350>();
-        // println!("Testing cols = 400");
-        // test_new_machine::<16, 16, 16, 9, 400>();
-        // println!("Testing cols = 450");
-        // test_new_machine::<16, 16, 16, 9, 450>();
-        // println!("Testing cols = 500");
-        // test_new_machine::<16, 16, 16, 9, 500>();
-        test_new_machine::<16, 16, 16, 9, 550, 1>();
-        test_new_machine::<16, 16, 16, 9, 600, 1>();
-        test_new_machine::<16, 16, 16, 9, 650, 1>();
-        test_new_machine::<16, 16, 16, 9, 700, 1>();
-        test_new_machine::<16, 16, 16, 9, 750, 1>();
+    pub fn test_dummy_diff_cols() {
+        test_machine(|| machine_with_dummy::<9, 1>(16));
+        test_machine(|| machine_with_dummy::<9, 50>(16));
+        test_machine(|| machine_with_dummy::<9, 100>(16));
+        test_machine(|| machine_with_dummy::<9, 150>(16));
+        test_machine(|| machine_with_dummy::<9, 200>(16));
+        test_machine(|| machine_with_dummy::<9, 250>(16));
+        test_machine(|| machine_with_dummy::<9, 300>(16));
+        test_machine(|| machine_with_dummy::<9, 350>(16));
+        test_machine(|| machine_with_dummy::<9, 400>(16));
+        test_machine(|| machine_with_dummy::<9, 450>(16));
+        test_machine(|| machine_with_dummy::<9, 500>(16));
+        test_machine(|| machine_with_dummy::<9, 550>(16));
+        test_machine(|| machine_with_dummy::<9, 600>(16));
+        test_machine(|| machine_with_dummy::<9, 650>(16));
+        test_machine(|| machine_with_dummy::<9, 700>(16));
+        test_machine(|| machine_with_dummy::<9, 750>(16));
     }
 
     #[test]
-    pub fn test_new_machine_diff_constraints() {
-        test_new_machine::<16, 16, 16, 9, 1, 256>();
-        test_new_machine::<16, 16, 16, 9, 1, 512>();
-        test_new_machine::<16, 16, 16, 9, 1, 1024>();
-        test_new_machine::<16, 16, 16, 9, 1, 2048>();
-        test_new_machine::<16, 16, 16, 9, 1, 4096>();
-        test_new_machine::<16, 16, 16, 9, 1, 8192>();
-        test_new_machine::<16, 16, 16, 9, 1, 16384>();
-        test_new_machine::<16, 16, 16, 9, 1, 32768>();
+    pub fn test_skinny_dummy_diff_rows() {
+        for i in 2..=16 {
+            test_machine(|| machine_with_dummy::<9, 1>(i));
+        }
     }
 }

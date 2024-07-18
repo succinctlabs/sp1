@@ -133,8 +133,8 @@ pub(crate) mod tests {
         type SC = BabyBearPoseidon2Outer;
         type F = <SC as StarkGenericConfig>::Val;
         type EF = <SC as StarkGenericConfig>::Challenge;
-        type A = RecursionAir<F, 3, 1, 1>;
-        type B = RecursionAir<F, 9, 1, 1>;
+        type A = RecursionAir<F, 3, 1>;
+        type B = RecursionAir<F, 9, 1>;
 
         let input = [1; WIDTH];
         let output = inner_perm()

@@ -19,7 +19,6 @@ pub enum RecursionAir<
     F: PrimeField32 + BinomiallyExtendable<D>,
     const DEGREE: usize,
     const COL_PADDING: usize,
-    const NUM_CONSTRAINTS: usize,
 > {
     Program(ProgramChip<F>),
     Memory(MemoryChip),
@@ -33,15 +32,11 @@ pub enum RecursionAir<
     // RangeCheck(RangeCheckChip<F>),
     // Multi(MultiChip<DEGREE>),
     ExpReverseBitsLen(ExpReverseBitsLenChip<DEGREE>),
-    DummyWide(DummyWideChip<COL_PADDING, NUM_CONSTRAINTS>),
+    DummyWide(DummyWideChip<COL_PADDING>),
 }
 
-impl<
-        F: PrimeField32 + BinomiallyExtendable<D>,
-        const DEGREE: usize,
-        const COL_PADDING: usize,
-        const NUM_CONSTRAINTS: usize,
-    > RecursionAir<F, DEGREE, COL_PADDING, NUM_CONSTRAINTS>
+impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_PADDING: usize>
+    RecursionAir<F, DEGREE, COL_PADDING>
 {
     /// A recursion machine that can have dynamic trace sizes.
     pub fn machine<SC: StarkGenericConfig<Val = F>>(config: SC) -> StarkMachine<SC, Self> {
@@ -65,6 +60,17 @@ impl<
         StarkMachine::new(config, chips, PROOF_MAX_NUM_PVS)
     }
 
+    pub fn dummy_machine<SC: StarkGenericConfig<Val = F>>(
+        config: SC,
+        log_height: usize,
+    ) -> StarkMachine<SC, Self> {
+        let chips = vec![RecursionAir::DummyWide(DummyWideChip::new(log_height))];
+        StarkMachine::new(
+            config,
+            chips.into_iter().map(Chip::new).collect(),
+            PROOF_MAX_NUM_PVS,
+        )
+    }
     // /// A recursion machine with fixed trace sizes tuned to work specifically for the wrap layer.
     // pub fn wrap_machine<SC: StarkGenericConfig<Val = F>>(config: SC) -> StarkMachine<SC, Self> {
     //     let chips = Self::get_wrap_all()
@@ -93,7 +99,6 @@ impl<
             // RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE>::default()),
             RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>::default()),
             RecursionAir::FriFold(FriFoldChip::<DEGREE>::default()),
-            RecursionAir::DummyWide(DummyWideChip::<COL_PADDING, NUM_CONSTRAINTS>::default()),
         ]
     }
 
@@ -120,7 +125,6 @@ impl<
                 fixed_log2_rows: Some(fri_fold_padding),
                 pad: true,
             }),
-            RecursionAir::DummyWide(DummyWideChip::<COL_PADDING, NUM_CONSTRAINTS>::default()),
         ]
     }
 
@@ -191,7 +195,7 @@ mod tests {
     type SC = BabyBearPoseidon2Outer;
     type F = <SC as StarkGenericConfig>::Val;
     type EF = <SC as StarkGenericConfig>::Challenge;
-    type A = RecursionAir<F, 3, 1, 1>;
+    type A = RecursionAir<F, 3, 1>;
 
     fn test_instructions(instructions: Vec<Instruction<F>>) {
         let program = RecursionProgram { instructions };
