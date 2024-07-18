@@ -412,7 +412,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         opts: SP1ProverOpts,
     ) -> Result<SP1ReduceProof<InnerSC>, SP1RecursionProverError> {
         // Set the batch size for the reduction tree.
-        let batch_size = 3;
+        let batch_size = 2;
 
         let shard_proofs = &proof.proof.0;
 

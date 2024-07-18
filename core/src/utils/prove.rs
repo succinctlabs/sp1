@@ -180,14 +180,16 @@ where
     #[cfg(debug_assertions)]
     let mut debug_records: Vec<ExecutionRecord> = Vec::new();
 
-    let commit_span = tracing::debug_span!("Commit to shards").entered();
+    let commit_span = tracing::info_span!("Commit to shards").entered();
     let mut deferred = ExecutionRecord::new(program.clone().into());
     let mut state = public_values.reset();
     let nb_checkpoints = checkpoints.len();
     let mut challenger = prover.config().challenger();
     vk.observe_into(&mut challenger);
 
+    let span = tracing::info_span!("commit to shards");
     std::thread::scope(move |s| {
+        let _span = span.enter();
         // Spawn a thread for commiting to the shards.
         let (records_tx, records_rx) =
             sync_channel::<Vec<ExecutionRecord>>(opts.commit_stream_capacity);
@@ -223,7 +225,7 @@ where
             }
 
             // Generate the dependencies.
-            tracing::debug_span!("Generate dependencies", checkpoint_idx = checkpoint_idx)
+            tracing::info_span!("Generate dependencies", checkpoint_idx = checkpoint_idx)
                 .in_scope(|| prover.machine().generate_dependencies(&mut records, &opts));
 
             // Defer events that are too expensive to include in every shard.
