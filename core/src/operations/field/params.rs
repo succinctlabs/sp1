@@ -37,8 +37,6 @@ pub trait FieldParameters:
 
     /// The bytes of the modulus in little-endian order.
     const MODULUS: &'static [u8];
-    /// The bytes of the modulus inverse in little-endian order.
-    const R_INV: &'static [u8] = &[1];
 
     fn modulus() -> BigUint {
         biguint_from_limbs(Self::MODULUS)

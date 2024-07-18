@@ -44,7 +44,6 @@ impl<F: FieldParameters> Mul for Fp<F> {
         let lhs = BigUint::from_bytes_le(&words_to_bytes_le_vec(&other.to_words()));
 
         let out = (lhs * rhs) % BigUint::from_bytes_le(F::MODULUS);
-        let out = (out * BigUint::from_bytes_le(F::R_INV)) % BigUint::from_bytes_le(F::MODULUS);
 
         let mut padded = out.to_bytes_le();
         padded.resize(48, 0);
@@ -317,6 +316,17 @@ impl<F: FieldParameters> Mul for Fp12<F> {
 mod test {
     use crate::utils::ec::weierstrass::bls12_381::Bls12381BaseField;
 
+    // 0x14fec701e8fb0ce9ed5e64273c4f538b1797ab1458a88de9343ea97914956dc87fe11274d898fafbf4d38259380b4820
+    // R^{-1} mod p
+    const R_INV: [u64; 6] = [
+        0xf4d38259380b4820,
+        0x7fe11274d898fafb,
+        0x343ea97914956dc8,
+        0x1797ab1458a88de9,
+        0xed5e64273c4f538b,
+        0x14fec701e8fb0ce9,
+    ];
+
     use super::*;
 
     #[test]
@@ -346,7 +356,9 @@ mod test {
             0x01b0_6a8b_bd4a_dfe4,
         ]);
 
-        assert_eq!(a * b, c);
+        let r_inv = Fp::<Bls12381BaseField>::new(R_INV);
+
+        assert_eq!(a * b * r_inv, c);
     }
     #[test]
     fn test_fp_addition() {
@@ -487,7 +499,13 @@ mod test {
             ]),
         };
 
-        assert_eq!(a * b, c);
+        let r_inv = Fp::<Bls12381BaseField>::new(R_INV);
+        let a_times_b = a * b;
+        let a_times_b_times_r_inv = Fp2 {
+            c0: a_times_b.c0 * r_inv,
+            c1: a_times_b.c1 * r_inv,
+        };
+        assert_eq!(a_times_b_times_r_inv, c);
     }
 
     #[test]
@@ -999,6 +1017,38 @@ mod test {
             },
         };
 
-        assert_eq!(a * b, c);
+        let r_inv = Fp::<Bls12381BaseField>::new(R_INV);
+        let a_times_b = a * b;
+        let a_times_b_times_r_inv = Fp12 {
+            c0: Fp6 {
+                c0: Fp2 {
+                    c0: a_times_b.c0.c0.c0 * r_inv,
+                    c1: a_times_b.c0.c0.c1 * r_inv,
+                },
+                c1: Fp2 {
+                    c0: a_times_b.c0.c1.c0 * r_inv,
+                    c1: a_times_b.c0.c1.c1 * r_inv,
+                },
+                c2: Fp2 {
+                    c0: a_times_b.c0.c2.c0 * r_inv,
+                    c1: a_times_b.c0.c2.c1 * r_inv,
+                },
+            },
+            c1: Fp6 {
+                c0: Fp2 {
+                    c0: a_times_b.c1.c0.c0 * r_inv,
+                    c1: a_times_b.c1.c0.c1 * r_inv,
+                },
+                c1: Fp2 {
+                    c0: a_times_b.c1.c1.c0 * r_inv,
+                    c1: a_times_b.c1.c1.c1 * r_inv,
+                },
+                c2: Fp2 {
+                    c0: a_times_b.c1.c2.c0 * r_inv,
+                    c1: a_times_b.c1.c2.c1 * r_inv,
+                },
+            },
+        };
+        assert_eq!(a_times_b_times_r_inv, c);
     }
 }
