@@ -54,8 +54,10 @@ impl SP1ProofWithPublicValues {
         match &self.proof {
             SP1Proof::Plonk(plonk_proof) => {
                 let mut bytes = Vec::with_capacity(4 + plonk_proof.encoded_proof.len());
-                bytes.extend_from_slice(&self.proof.plonk_vkey_hash[..4]);
-                bytes.extend_from_slice(&plonk_proof.encoded_proof);
+                bytes.extend_from_slice(&plonk_proof.plonk_vkey_hash[..4]);
+                bytes.extend_from_slice(
+                    &hex::decode(&plonk_proof.encoded_proof).expect("Invalid Plonk proof"),
+                );
                 bytes
             }
             _ => unimplemented!("only Plonk proofs are verifiable onchain"),
