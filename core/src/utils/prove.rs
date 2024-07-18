@@ -134,9 +134,6 @@ where
     Com<SC>: Send + Sync,
     PcsProverData<SC>: Send + Sync,
 {
-    let span = tracing::info_span!("prove_with_context");
-    let _span = span.enter();
-
     // Record the start of the process.
     let proving_start = Instant::now();
 
@@ -294,7 +291,9 @@ where
             let mut shard_proofs = Vec::new();
             tracing::info_span!("commit_and_open_v2").in_scope(|| {
                 for records in records_rx.iter() {
+                    let span = tracing::Span::current().clone();
                     shard_proofs.par_extend(records.into_par_iter().map(|record| {
+                        let _span = span.enter();
                         prover
                             .commit_and_open(&pk, record, &mut challenger.clone())
                             .unwrap()
