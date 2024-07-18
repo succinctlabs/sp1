@@ -703,7 +703,7 @@ mod tests {
     type SC = BabyBearPoseidon2Outer;
     type F = <SC as StarkGenericConfig>::Val;
     type EF = <SC as StarkGenericConfig>::Challenge;
-    type A = RecursionAir<F, 3>;
+    type A = RecursionAir<F, 3, 0>;
 
     fn test_operations(operations: TracedVec<DslIr<AsmConfig<F, EF>>>) {
         let mut compiler = super::AsmCompiler::default();

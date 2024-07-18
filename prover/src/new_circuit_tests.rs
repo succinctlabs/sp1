@@ -37,6 +37,7 @@ mod tests {
         const ERBL_PADDING: usize,
         const POSEIDON2_PADDING: usize,
         const DEGREE: usize,
+        const COL_PADDING: usize,
     >() {
         setup_logger();
         let n = 10;
@@ -56,7 +57,7 @@ mod tests {
         runtime.run();
 
         let config = SC::new_with_log_blowup(log2_strict_usize(DEGREE - 1));
-        let machine = RecursionAir::<F, DEGREE>::machine_with_padding(
+        let machine = RecursionAir::<F, DEGREE, COL_PADDING>::machine_with_padding(
             config,
             FRI_FOLD_PADDING,
             POSEIDON2_PADDING,
@@ -80,7 +81,8 @@ mod tests {
 
         println!("num shard proofs: {}", result.shard_proofs.len());
 
-        let constraints = build_wrap_circuit_new::<DEGREE>(&vk, result.shard_proofs[0].clone());
+        let constraints =
+            build_wrap_circuit_new::<DEGREE, COL_PADDING>(&vk, result.shard_proofs[0].clone());
 
         // let bytes = bincode::serialize(&constraints).unwrap();
 
@@ -125,19 +127,67 @@ mod tests {
     }
 
     #[test]
-    pub fn test_new_machine_diff_paddings() {
-        // let handle1 = thread::spawn(|| {
-        //     test_new_machine::<2, 2, 2, 5>();
-        // });
-        let handle2 = thread::spawn(|| {
-            test_new_machine::<2, 2, 2, 9>();
-        });
-        let handle3 = thread::spawn(|| {
-            test_new_machine::<2, 2, 2, 17>();
-        });
+    pub fn test_new_machine_diff_degrees() {
+        test_new_machine::<2, 2, 2, 5, 0>();
+        test_new_machine::<2, 2, 2, 9, 0>();
+        test_new_machine::<2, 2, 2, 17, 0>();
+    }
 
-        // handle1.join().unwrap();
-        handle2.join().unwrap();
-        handle3.join().unwrap();
+    #[test]
+    pub fn test_new_machine_diff_rows() {
+        println!("Testing log_row = 1");
+        test_new_machine::<1, 1, 1, 3, 0>();
+        println!("Testing log_row = 2");
+        test_new_machine::<2, 2, 2, 3, 0>();
+        println!("Testing log_row = 3");
+        test_new_machine::<3, 3, 3, 3, 0>();
+        println!("Testing log_row = 4");
+        test_new_machine::<4, 4, 4, 3, 0>();
+        println!("Testing log_row = 5");
+        test_new_machine::<5, 5, 5, 3, 0>();
+        println!("Testing log_row = 6");
+        test_new_machine::<6, 6, 6, 3, 0>();
+        println!("Testing log_row = 7");
+        test_new_machine::<7, 7, 7, 3, 0>();
+        println!("Testing log_row = 8");
+        test_new_machine::<8, 8, 8, 3, 0>();
+        println!("Testing log_row = 9");
+        test_new_machine::<9, 9, 9, 3, 0>();
+        println!("Testing log_row = 10");
+        test_new_machine::<10, 10, 10, 3, 0>();
+        println!("Testing log_row = 11");
+        test_new_machine::<11, 11, 11, 3, 0>();
+        println!("Testing log_row = 12");
+        test_new_machine::<12, 12, 12, 3, 0>();
+        println!("Testing log_row = 13");
+        test_new_machine::<13, 13, 13, 3, 0>();
+        println!("Testing log_row = 14");
+        test_new_machine::<14, 14, 14, 3, 0>();
+        println!("Testing log_row = 15");
+        test_new_machine::<15, 15, 15, 3, 0>();
+        println!("Testing log_row = 16");
+        test_new_machine::<16, 16, 16, 3, 0>();
+    }
+
+    #[test]
+    pub fn test_new_machine_diff_cols() {
+        println!("Testing cols = 100");
+        test_new_machine::<16, 16, 16, 3, 100>();
+        println!("Testing cols = 150");
+        test_new_machine::<16, 16, 16, 3, 150>();
+        println!("Testing cols = 200");
+        test_new_machine::<16, 16, 16, 3, 200>();
+        println!("Testing cols = 250");
+        test_new_machine::<16, 16, 16, 3, 250>();
+        println!("Testing cols = 300");
+        test_new_machine::<16, 16, 16, 3, 300>();
+        println!("Testing cols = 350");
+        test_new_machine::<16, 16, 16, 3, 350>();
+        println!("Testing cols = 400");
+        test_new_machine::<16, 16, 16, 3, 400>();
+        println!("Testing cols = 450");
+        test_new_machine::<16, 16, 16, 3, 450>();
+        println!("Testing cols = 500");
+        test_new_machine::<16, 16, 16, 3, 500>();
     }
 }

@@ -4,9 +4,9 @@ use sp1_derive::MachineAir;
 use sp1_recursion_core::runtime::D;
 
 use crate::{
-    alu_base::BaseAluChip, alu_ext::ExtAluChip, exp_reverse_bits::ExpReverseBitsLenChip,
-    fri_fold::FriFoldChip, mem::MemoryChip, poseidon2_skinny::Poseidon2SkinnyChip,
-    poseidon2_wide::Poseidon2WideChip, program::ProgramChip,
+    alu_base::BaseAluChip, alu_ext::ExtAluChip, dummy_wide::DummyWideChip,
+    exp_reverse_bits::ExpReverseBitsLenChip, fri_fold::FriFoldChip, mem::MemoryChip,
+    poseidon2_skinny::Poseidon2SkinnyChip, poseidon2_wide::Poseidon2WideChip, program::ProgramChip,
 };
 
 #[derive(MachineAir)]
@@ -15,7 +15,11 @@ use crate::{
 #[program_path = "crate::RecursionProgram<F>"]
 #[builder_path = "crate::builder::SP1RecursionAirBuilder<F = F>"]
 #[eval_trait_bound = "AB::Var: 'static"]
-pub enum RecursionAir<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> {
+pub enum RecursionAir<
+    F: PrimeField32 + BinomiallyExtendable<D>,
+    const DEGREE: usize,
+    const COL_PADDING: usize,
+> {
     Program(ProgramChip<F>),
     Memory(MemoryChip),
     BaseAlu(BaseAluChip),
@@ -28,9 +32,12 @@ pub enum RecursionAir<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: u
     // RangeCheck(RangeCheckChip<F>),
     // Multi(MultiChip<DEGREE>),
     ExpReverseBitsLen(ExpReverseBitsLenChip<DEGREE>),
+    DummyWide(DummyWideChip<COL_PADDING>),
 }
 
-impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAir<F, DEGREE> {
+impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_PADDING: usize>
+    RecursionAir<F, DEGREE, COL_PADDING>
+{
     /// A recursion machine that can have dynamic trace sizes.
     pub fn machine<SC: StarkGenericConfig<Val = F>>(config: SC) -> StarkMachine<SC, Self> {
         let chips = Self::get_all()
@@ -81,6 +88,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
             RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE>::default()),
             RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>::default()),
             RecursionAir::FriFold(FriFoldChip::<DEGREE>::default()),
+            RecursionAir::DummyWide(DummyWideChip::<COL_PADDING>::default()),
         ]
     }
 
@@ -107,6 +115,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
                 fixed_log2_rows: Some(fri_fold_padding),
                 pad: true,
             }),
+            RecursionAir::DummyWide(DummyWideChip::<COL_PADDING>::default()),
         ]
     }
 
@@ -177,7 +186,7 @@ mod tests {
     type SC = BabyBearPoseidon2Outer;
     type F = <SC as StarkGenericConfig>::Val;
     type EF = <SC as StarkGenericConfig>::Challenge;
-    type A = RecursionAir<F, 3>;
+    type A = RecursionAir<F, 3, 0>;
 
     fn test_instructions(instructions: Vec<Instruction<F>>) {
         let program = RecursionProgram { instructions };
