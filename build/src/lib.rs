@@ -5,7 +5,7 @@ use std::{
     fs,
     io::{BufRead, BufReader},
     path::PathBuf,
-    process::{Command, Stdio},
+    process::{exit, Command, Stdio},
     thread,
 };
 
@@ -190,10 +190,7 @@ fn execute_command(
     let result = child.wait()?;
     if !result.success() {
         // Error message is already printed by cargo.
-        panic!(
-            "cargo build failed with status code: {}",
-            result.code().unwrap_or(1)
-        )
+        exit(result.code().unwrap_or(1))
     }
     Ok(())
 }

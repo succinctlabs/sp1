@@ -70,7 +70,7 @@ fn execute_build_cmd(
         )
     };
     if let Err(err) = path_output {
-        panic!("Failed to build program: {}.", err);
+        panic!("Failed to build SP1 program: {}.", err);
     }
 
     Ok(ExitStatus::default())
