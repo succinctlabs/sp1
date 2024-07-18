@@ -235,7 +235,7 @@ impl<C: Config> AsmCompiler<C> {
         dst: [impl Reg<C>; WIDTH],
         src: [impl Reg<C>; WIDTH],
     ) -> Instruction<C::F> {
-        Instruction::Poseidon2Skinny(Poseidon2SkinnyInstr {
+        Instruction::Poseidon2Wide(Poseidon2WideInstr {
             addrs: Poseidon2Io {
                 input: src.map(|r| r.read(self)),
                 output: dst.map(|r| r.write(self)),
