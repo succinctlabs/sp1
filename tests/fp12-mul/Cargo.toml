@@ -1,6 +1,6 @@
 [workspace]
 [package]
-name = "fp384-mul-test"
+name = "fp12-mul-test"
 version = "0.1.0"
 edition = "2021"
 
