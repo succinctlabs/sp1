@@ -3,7 +3,6 @@ use std::io::Seek;
 use std::io::{self};
 use std::sync::mpsc::sync_channel;
 use std::sync::Arc;
-use tracing::span;
 use web_time::Instant;
 
 use p3_maybe_rayon::prelude::*;
@@ -148,7 +147,7 @@ where
     let (pk, vk) = prover.setup(runtime.program.as_ref());
 
     // Execute the program, saving checkpoints at the start of every `shard_batch_size` cycle range.
-    let make_checkpoint_span = tracing::debug_span!("Execute and save checkpoints").entered();
+    let create_checkpoints_span = tracing::info_span!("create checkpoints").entered();
     let mut checkpoints = Vec::new();
     let (public_values_stream, public_values) = loop {
         // Execute the runtime until we reach a checkpoint.
@@ -175,7 +174,7 @@ where
             );
         }
     };
-    make_checkpoint_span.exit();
+    create_checkpoints_span.exit();
 
     // Commit to the shards.
     #[cfg(debug_assertions)]
@@ -197,7 +196,7 @@ where
             sync_channel::<Vec<ExecutionRecord>>(opts.commit_stream_capacity);
         let challenger_handle = s.spawn(move || {
             let _span = span.enter();
-            tracing::info_span!("phase 1 commit").in_scope(|| {
+            tracing::info_span!("phase 1 commiter").in_scope(|| {
                 for records in records_rx.iter() {
                     let commitments = tracing::info_span!("batch").in_scope(|| {
                         let span = tracing::Span::current().clone();
@@ -299,7 +298,7 @@ where
         let shard_proofs = s.spawn(move || {
             let _span = commit_and_open.enter();
             let mut shard_proofs = Vec::new();
-            tracing::info_span!("phase 2 commit and open").in_scope(|| {
+            tracing::info_span!("phase 2 prover").in_scope(|| {
                 for records in records_rx.iter() {
                     tracing::info_span!("batch").in_scope(|| {
                         let span = tracing::Span::current().clone();
