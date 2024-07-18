@@ -137,58 +137,58 @@ mod tests {
     #[test]
     pub fn test_new_machine_diff_rows() {
         println!("Testing log_row = 1");
-        test_new_machine::<1, 1, 1, 3, 1>();
+        test_new_machine::<1, 1, 1, 9, 1>();
         println!("Testing log_row = 2");
-        test_new_machine::<2, 2, 2, 3, 1>();
+        test_new_machine::<2, 2, 2, 9, 1>();
         println!("Testing log_row = 3");
-        test_new_machine::<3, 3, 3, 3, 1>();
+        test_new_machine::<3, 3, 3, 9, 1>();
         println!("Testing log_row = 4");
-        test_new_machine::<4, 4, 4, 3, 1>();
+        test_new_machine::<4, 4, 4, 9, 1>();
         println!("Testing log_row = 5");
-        test_new_machine::<5, 5, 5, 3, 1>();
+        test_new_machine::<5, 5, 5, 9, 1>();
         println!("Testing log_row = 6");
-        test_new_machine::<6, 6, 6, 3, 1>();
+        test_new_machine::<6, 6, 6, 9, 1>();
         println!("Testing log_row = 7");
-        test_new_machine::<7, 7, 7, 3, 1>();
+        test_new_machine::<7, 7, 7, 9, 1>();
         println!("Testing log_row = 8");
-        test_new_machine::<8, 8, 8, 3, 1>();
+        test_new_machine::<8, 8, 8, 9, 1>();
         println!("Testing log_row = 9");
-        test_new_machine::<9, 9, 9, 3, 1>();
+        test_new_machine::<9, 9, 9, 9, 1>();
         println!("Testing log_row = 10");
-        test_new_machine::<10, 10, 10, 3, 1>();
+        test_new_machine::<10, 10, 10, 9, 1>();
         println!("Testing log_row = 11");
-        test_new_machine::<11, 11, 11, 3, 1>();
+        test_new_machine::<11, 11, 11, 9, 1>();
         println!("Testing log_row = 12");
-        test_new_machine::<12, 12, 12, 3, 1>();
+        test_new_machine::<12, 12, 12, 9, 1>();
         println!("Testing log_row = 13");
-        test_new_machine::<13, 13, 13, 3, 1>();
+        test_new_machine::<13, 13, 13, 9, 1>();
         println!("Testing log_row = 14");
-        test_new_machine::<14, 14, 14, 3, 1>();
+        test_new_machine::<14, 14, 14, 9, 1>();
         println!("Testing log_row = 15");
-        test_new_machine::<15, 15, 15, 3, 1>();
+        test_new_machine::<15, 15, 15, 9, 1>();
         println!("Testing log_row = 16");
-        test_new_machine::<16, 16, 16, 3, 1>();
+        test_new_machine::<16, 16, 16, 9, 1>();
     }
 
     #[test]
     pub fn test_new_machine_diff_cols() {
         println!("Testing cols = 100");
-        test_new_machine::<16, 16, 16, 3, 100>();
+        test_new_machine::<16, 16, 16, 9, 100>();
         println!("Testing cols = 150");
-        test_new_machine::<16, 16, 16, 3, 150>();
+        test_new_machine::<16, 16, 16, 9, 150>();
         println!("Testing cols = 200");
-        test_new_machine::<16, 16, 16, 3, 200>();
+        test_new_machine::<16, 16, 16, 9, 200>();
         println!("Testing cols = 250");
-        test_new_machine::<16, 16, 16, 3, 250>();
+        test_new_machine::<16, 16, 16, 9, 250>();
         println!("Testing cols = 300");
-        test_new_machine::<16, 16, 16, 3, 300>();
+        test_new_machine::<16, 16, 16, 9, 300>();
         println!("Testing cols = 350");
-        test_new_machine::<16, 16, 16, 3, 350>();
+        test_new_machine::<16, 16, 16, 9, 350>();
         println!("Testing cols = 400");
-        test_new_machine::<16, 16, 16, 3, 400>();
+        test_new_machine::<16, 16, 16, 9, 400>();
         println!("Testing cols = 450");
-        test_new_machine::<16, 16, 16, 3, 450>();
+        test_new_machine::<16, 16, 16, 9, 450>();
         println!("Testing cols = 500");
-        test_new_machine::<16, 16, 16, 3, 500>();
+        test_new_machine::<16, 16, 16, 9, 500>();
     }
 }
