@@ -1,16 +1,16 @@
 mod docker;
 
+use anyhow::{Context, Result};
+use cargo_metadata::camino::Utf8PathBuf;
 use clap::Parser;
+use dirs::home_dir;
 use std::{
-    fs,
+    env, fs,
     io::{BufRead, BufReader},
     path::PathBuf,
     process::{exit, Command, Stdio},
     thread,
 };
-
-use anyhow::{Context, Result};
-use cargo_metadata::camino::Utf8PathBuf;
 
 const BUILD_TARGET: &str = "riscv32im-succinct-zkvm-elf";
 const DEFAULT_TAG: &str = "latest";
@@ -133,14 +133,18 @@ fn create_local_command(args: &BuildArgs, program_dir: &Utf8PathBuf) -> Command 
         .canonicalize()
         .expect("Failed to canonicalize program directory");
 
-    // Check if CC_riscv32im_succinct_zkvm_elf is set, if not, set it to the downloaded toolchain
-    if std::env::var("CC_riscv32im_succinct_zkvm_elf").is_err() {
-        let home_dir = std::env::var("HOME").expect("HOME environment variable is not set");
-        let cc_path = format!(
-            "{}/.config/.sp1/riscv/riscv32im-osx-arm64/bin/riscv32-unknown-elf-gcc",
-            home_dir
-        );
-        command.env("CC_riscv32im_succinct_zkvm_elf", cc_path);
+    // If CC_riscv32im_succinct_zkvm_elf is not set, set it to the default C++ toolchain
+    // downloaded by 'sp1up --c-toolchain'.
+    if env::var("CC_riscv32im_succinct_zkvm_elf").is_err() {
+        if let Some(home_dir) = home_dir() {
+            let cc_path = home_dir
+                .join(".sp1")
+                .join("bin")
+                .join("riscv32-unknown-elf-gcc");
+            if cc_path.exists() {
+                command.env("CC_riscv32im_succinct_zkvm_elf", cc_path);
+            }
+        }
     }
 
     command
