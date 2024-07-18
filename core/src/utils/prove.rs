@@ -221,57 +221,59 @@ where
             challenger
         });
 
-        for (checkpoint_idx, checkpoint_file) in checkpoints.iter_mut().enumerate() {
-            // Trace the checkpoint and reconstruct the execution records.
-            let (mut records, _) = trace_checkpoint(program.clone(), checkpoint_file, opts);
-            reset_seek(&mut *checkpoint_file);
+        tracing::info_span!("phase 1 record generator").in_scope(|| {
+            for (checkpoint_idx, checkpoint_file) in checkpoints.iter_mut().enumerate() {
+                // Trace the checkpoint and reconstruct the execution records.
+                let (mut records, _) = trace_checkpoint(program.clone(), checkpoint_file, opts);
+                reset_seek(&mut *checkpoint_file);
 
-            // Update the public values & prover state for the shards which contain "cpu events".
-            for record in records.iter_mut() {
-                state.shard += 1;
-                state.execution_shard = record.public_values.execution_shard;
-                state.start_pc = record.public_values.start_pc;
-                state.next_pc = record.public_values.next_pc;
-                record.public_values = state;
+                // Update the public values & prover state for the shards which contain "cpu events".
+                for record in records.iter_mut() {
+                    state.shard += 1;
+                    state.execution_shard = record.public_values.execution_shard;
+                    state.start_pc = record.public_values.start_pc;
+                    state.next_pc = record.public_values.next_pc;
+                    record.public_values = state;
+                }
+
+                // Generate the dependencies.
+                tracing::info_span!("generate dependencies")
+                    .in_scope(|| prover.machine().generate_dependencies(&mut records, &opts));
+
+                // Defer events that are too expensive to include in every shard.
+                for record in records.iter_mut() {
+                    deferred.append(&mut record.defer());
+                }
+
+                // See if any deferred shards are ready to be commited to.
+                let is_last_checkpoint = checkpoint_idx == nb_checkpoints - 1;
+                let mut deferred = deferred.split(is_last_checkpoint, opts.split_opts);
+
+                // Update the public values & prover state for the shards which do not contain "cpu events"
+                // before committing to them.
+                if !is_last_checkpoint {
+                    state.execution_shard += 1;
+                }
+                for record in deferred.iter_mut() {
+                    state.shard += 1;
+                    state.previous_init_addr_bits = record.public_values.previous_init_addr_bits;
+                    state.last_init_addr_bits = record.public_values.last_init_addr_bits;
+                    state.previous_finalize_addr_bits =
+                        record.public_values.previous_finalize_addr_bits;
+                    state.last_finalize_addr_bits = record.public_values.last_finalize_addr_bits;
+                    state.start_pc = state.next_pc;
+                    record.public_values = state;
+                }
+                records.append(&mut deferred);
+
+                #[cfg(debug_assertions)]
+                {
+                    debug_records.extend(records.clone());
+                }
+
+                records_tx.send(records).unwrap();
             }
-
-            // Generate the dependencies.
-            tracing::info_span!("generate dependencies")
-                .in_scope(|| prover.machine().generate_dependencies(&mut records, &opts));
-
-            // Defer events that are too expensive to include in every shard.
-            for record in records.iter_mut() {
-                deferred.append(&mut record.defer());
-            }
-
-            // See if any deferred shards are ready to be commited to.
-            let is_last_checkpoint = checkpoint_idx == nb_checkpoints - 1;
-            let mut deferred = deferred.split(is_last_checkpoint, opts.split_opts);
-
-            // Update the public values & prover state for the shards which do not contain "cpu events"
-            // before committing to them.
-            if !is_last_checkpoint {
-                state.execution_shard += 1;
-            }
-            for record in deferred.iter_mut() {
-                state.shard += 1;
-                state.previous_init_addr_bits = record.public_values.previous_init_addr_bits;
-                state.last_init_addr_bits = record.public_values.last_init_addr_bits;
-                state.previous_finalize_addr_bits =
-                    record.public_values.previous_finalize_addr_bits;
-                state.last_finalize_addr_bits = record.public_values.last_finalize_addr_bits;
-                state.start_pc = state.next_pc;
-                record.public_values = state;
-            }
-            records.append(&mut deferred);
-
-            #[cfg(debug_assertions)]
-            {
-                debug_records.extend(records.clone());
-            }
-
-            records_tx.send(records).unwrap();
-        }
+        });
         drop(records_tx);
         let challenger = challenger_handle.join().unwrap();
 
@@ -311,53 +313,55 @@ where
             shard_proofs
         });
 
-        // let mut shard_proofs = Vec::new();
-        for (checkpoint_idx, mut checkpoint_file) in checkpoints.into_iter().enumerate() {
-            // Trace the checkpoint and reconstruct the execution records.
-            let (mut records, report) = trace_checkpoint(program.clone(), &checkpoint_file, opts);
-            report_aggregate += report;
-            reset_seek(&mut checkpoint_file);
+        tracing::info_span!("phase 2 record generator").in_scope(|| {
+            for (checkpoint_idx, mut checkpoint_file) in checkpoints.into_iter().enumerate() {
+                // Trace the checkpoint and reconstruct the execution records.
+                let (mut records, report) =
+                    trace_checkpoint(program.clone(), &checkpoint_file, opts);
+                report_aggregate += report;
+                reset_seek(&mut checkpoint_file);
 
-            // Update the public values & prover state for the shards which contain "cpu events".
-            for record in records.iter_mut() {
-                state.shard += 1;
-                state.execution_shard = record.public_values.execution_shard;
-                state.start_pc = record.public_values.start_pc;
-                state.next_pc = record.public_values.next_pc;
-                record.public_values = state;
+                // Update the public values & prover state for the shards which contain "cpu events".
+                for record in records.iter_mut() {
+                    state.shard += 1;
+                    state.execution_shard = record.public_values.execution_shard;
+                    state.start_pc = record.public_values.start_pc;
+                    state.next_pc = record.public_values.next_pc;
+                    record.public_values = state;
+                }
+
+                // Generate the dependencies.
+                prover.machine().generate_dependencies(&mut records, &opts);
+
+                // Defer events that are too expensive to include in every shard.
+                for record in records.iter_mut() {
+                    deferred.append(&mut record.defer());
+                }
+
+                // See if any deferred shards are ready to be commited to.
+                let is_last_checkpoint = checkpoint_idx == nb_checkpoints - 1;
+                let mut deferred = deferred.split(is_last_checkpoint, opts.split_opts);
+
+                // Update the public values & prover state for the shards which do not contain "cpu events"
+                // before committing to them.
+                if !is_last_checkpoint {
+                    state.execution_shard += 1;
+                }
+                for record in deferred.iter_mut() {
+                    state.shard += 1;
+                    state.previous_init_addr_bits = record.public_values.previous_init_addr_bits;
+                    state.last_init_addr_bits = record.public_values.last_init_addr_bits;
+                    state.previous_finalize_addr_bits =
+                        record.public_values.previous_finalize_addr_bits;
+                    state.last_finalize_addr_bits = record.public_values.last_finalize_addr_bits;
+                    state.start_pc = state.next_pc;
+                    record.public_values = state;
+                }
+                records.append(&mut deferred);
+
+                records_tx.send(records).unwrap();
             }
-
-            // Generate the dependencies.
-            prover.machine().generate_dependencies(&mut records, &opts);
-
-            // Defer events that are too expensive to include in every shard.
-            for record in records.iter_mut() {
-                deferred.append(&mut record.defer());
-            }
-
-            // See if any deferred shards are ready to be commited to.
-            let is_last_checkpoint = checkpoint_idx == nb_checkpoints - 1;
-            let mut deferred = deferred.split(is_last_checkpoint, opts.split_opts);
-
-            // Update the public values & prover state for the shards which do not contain "cpu events"
-            // before committing to them.
-            if !is_last_checkpoint {
-                state.execution_shard += 1;
-            }
-            for record in deferred.iter_mut() {
-                state.shard += 1;
-                state.previous_init_addr_bits = record.public_values.previous_init_addr_bits;
-                state.last_init_addr_bits = record.public_values.last_init_addr_bits;
-                state.previous_finalize_addr_bits =
-                    record.public_values.previous_finalize_addr_bits;
-                state.last_finalize_addr_bits = record.public_values.last_finalize_addr_bits;
-                state.start_pc = state.next_pc;
-                record.public_values = state;
-            }
-            records.append(&mut deferred);
-
-            records_tx.send(records).unwrap();
-        }
+        });
         drop(records_tx);
         let shard_proofs = shard_proofs.join().unwrap();
 
