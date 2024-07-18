@@ -202,13 +202,13 @@ mod tests {
 
     #[test]
     pub fn test_new_machine_diff_constraints() {
-        test_new_machine::<16, 16, 16, 9, 1, 50>();
-        test_new_machine::<16, 16, 16, 9, 1, 100>();
-        test_new_machine::<16, 16, 16, 9, 1, 150>();
-        test_new_machine::<16, 16, 16, 9, 1, 200>();
-        test_new_machine::<16, 16, 16, 9, 1, 250>();
-        test_new_machine::<16, 16, 16, 9, 1, 300>();
-        test_new_machine::<16, 16, 16, 9, 1, 350>();
-        test_new_machine::<16, 16, 16, 9, 1, 400>();
+        test_new_machine::<16, 16, 16, 9, 1, 256>();
+        test_new_machine::<16, 16, 16, 9, 1, 512>();
+        test_new_machine::<16, 16, 16, 9, 1, 1024>();
+        test_new_machine::<16, 16, 16, 9, 1, 2048>();
+        test_new_machine::<16, 16, 16, 9, 1, 4096>();
+        test_new_machine::<16, 16, 16, 9, 1, 9192>();
+        test_new_machine::<16, 16, 16, 9, 1, 18384>();
+        test_new_machine::<16, 16, 16, 9, 1, 36768>();
     }
 }
