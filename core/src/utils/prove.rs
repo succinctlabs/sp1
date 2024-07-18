@@ -3,6 +3,7 @@ use std::io::Seek;
 use std::io::{self};
 use std::sync::mpsc::sync_channel;
 use std::sync::Arc;
+use tracing::span;
 use web_time::Instant;
 
 use p3_maybe_rayon::prelude::*;
@@ -189,13 +190,14 @@ where
 
     let span = tracing::info_span!("commit to shards");
     std::thread::scope(move |s| {
-        let span_clone = span.clone();
-        let _span = span_clone.enter();
+        let span_clone_1 = span.clone();
+        let span_clone_2 = span.clone();
+        let _span = span_clone_1.enter();
         // Spawn a thread for commiting to the shards.
         let (records_tx, records_rx) =
             sync_channel::<Vec<ExecutionRecord>>(opts.commit_stream_capacity);
         let challenger_handle = s.spawn(move || {
-            let _span = span.enter();
+            let _span = span_clone_2.enter();
             for records in records_rx.iter() {
                 let commitments = records
                     .par_iter()
@@ -284,6 +286,7 @@ where
             sync_channel::<Vec<ExecutionRecord>>(opts.prove_stream_capacity);
 
         let shard_proofs = s.spawn(move || {
+            let _span = span.enter();
             let mut shard_proofs = Vec::new();
             for records in records_rx.iter() {
                 shard_proofs.par_extend(records.into_par_iter().map(|record| {
