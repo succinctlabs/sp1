@@ -190,8 +190,6 @@ where
     let scope_span = tracing::Span::current().clone();
     std::thread::scope(move |s| {
         let _span = scope_span.enter();
-        let span = tracing::info_span!("phase 1");
-        let _span = span.enter();
 
         // Spawn a thread for commiting to the shards.
         let span = tracing::Span::current().clone();
@@ -199,25 +197,28 @@ where
             sync_channel::<Vec<ExecutionRecord>>(opts.commit_stream_capacity);
         let challenger_handle = s.spawn(move || {
             let _span = span.enter();
-            for records in records_rx.iter() {
-                let commitments = tracing::info_span!("phase 1 batch").in_scope(|| {
-                    let span = tracing::Span::current().clone();
-                    records
-                        .par_iter()
-                        .map(|record| {
-                            let _span = span.enter();
-                            prover.commit(record)
-                        })
-                        .collect::<Vec<_>>()
-                });
-                for (commit, record) in commitments.into_iter().zip(records) {
-                    prover.update(
-                        &mut challenger,
-                        commit,
-                        &record.public_values::<SC::Val>()[0..prover.machine().num_pv_elts()],
-                    );
+            tracing::info_span!("phase 1: commit the shards").in_scope(|| {
+                for records in records_rx.iter() {
+                    let commitments = tracing::info_span!("batch").in_scope(|| {
+                        let span = tracing::Span::current().clone();
+                        records
+                            .par_iter()
+                            .map(|record| {
+                                let _span = span.enter();
+                                prover.commit(record)
+                            })
+                            .collect::<Vec<_>>()
+                    });
+                    for (commit, record) in commitments.into_iter().zip(records) {
+                        prover.update(
+                            &mut challenger,
+                            commit,
+                            &record.public_values::<SC::Val>()[0..prover.machine().num_pv_elts()],
+                        );
+                    }
                 }
-            }
+            });
+
             challenger
         });
 
@@ -297,9 +298,9 @@ where
         let shard_proofs = s.spawn(move || {
             let _span = commit_and_open.enter();
             let mut shard_proofs = Vec::new();
-            tracing::info_span!("phase 2").in_scope(|| {
+            tracing::info_span!("phase 2: commit and open shards").in_scope(|| {
                 for records in records_rx.iter() {
-                    tracing::info_span!("phase 2 batch").in_scope(|| {
+                    tracing::info_span!("batch").in_scope(|| {
                         let span = tracing::Span::current().clone();
                         shard_proofs.par_extend(records.into_par_iter().map(|record| {
                             let _span = span.enter();
