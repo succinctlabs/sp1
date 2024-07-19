@@ -7,11 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [v1.0.0-rc.1](https://github.com/succinctlabs/sp1/compare/sp1-recursion-gnark-ffi-v0.0.2-test...sp1-recursion-gnark-ffi-vv1.0.0-rc.1) - 2024-07-19
+## [1.0.0-rc.1](https://github.com/succinctlabs/sp1/compare/sp1-recursion-gnark-ffi-v0.0.2-test...sp1-recursion-gnark-ffi-v1.0.0-rc.1) - 2024-07-19
 
 ### Added
 
-- v1.0.0-rc.1 ([#1126](https://github.com/succinctlabs/sp1/pull/1126))
+- 1.0.0-rc.1 ([#1126](https://github.com/succinctlabs/sp1/pull/1126))
 - publish sp1 to crates.io ([#1052](https://github.com/succinctlabs/sp1/pull/1052))
 - update verifier contract templates ([#963](https://github.com/succinctlabs/sp1/pull/963))
 - circuit version in proof ([#926](https://github.com/succinctlabs/sp1/pull/926))

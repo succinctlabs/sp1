@@ -7,11 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [v1.0.0-rc.1](https://github.com/succinctlabs/sp1/compare/sp1-core-v0.0.2-test...sp1-core-vv1.0.0-rc.1) - 2024-07-19
+## [1.0.0-rc.1](https://github.com/succinctlabs/sp1/compare/sp1-core-v0.0.2-test...sp1-core-v1.0.0-rc.1) - 2024-07-19
 
 ### Added
 
-- v1.0.0-rc.1 ([#1126](https://github.com/succinctlabs/sp1/pull/1126))
+- 1.0.0-rc.1 ([#1126](https://github.com/succinctlabs/sp1/pull/1126))
 - multi-threaded tracing ([#1124](https://github.com/succinctlabs/sp1/pull/1124))
 - parallel recursion tracegen ([#1095](https://github.com/succinctlabs/sp1/pull/1095))
 - publish sp1 to crates.io ([#1052](https://github.com/succinctlabs/sp1/pull/1052))

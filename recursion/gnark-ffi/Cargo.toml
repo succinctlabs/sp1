@@ -13,8 +13,8 @@ categories = { workspace = true }
 p3-field = { workspace = true }
 p3-symmetric = { workspace = true }
 p3-baby-bear = { workspace = true }
-sp1-recursion-compiler = { path = "../compiler", version = "v1.0.0-rc.1" }
-sp1-core = { path = "../../core", version = "v1.0.0-rc.1" }
+sp1-recursion-compiler = { path = "../compiler", version = "1.0.0-rc.1" }
+sp1-core = { path = "../../core", version = "1.0.0-rc.1" }
 serde = "1.0.204"
 serde_json = "1.0.120"
 tempfile = "3.10.1"

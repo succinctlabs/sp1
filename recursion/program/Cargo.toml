@@ -23,10 +23,10 @@ p3-baby-bear = { workspace = true }
 p3-dft = { workspace = true }
 p3-merkle-tree = { workspace = true }
 p3-poseidon2 = { workspace = true }
-sp1-recursion-core = { path = "../core", version = "v1.0.0-rc.1" }
-sp1-recursion-compiler = { path = "../compiler", version = "v1.0.0-rc.1" }
-sp1-core = { path = "../../core", version = "v1.0.0-rc.1" }
-sp1-primitives = { path = "../../primitives", version = "v1.0.0-rc.1" }
+sp1-recursion-core = { path = "../core", version = "1.0.0-rc.1" }
+sp1-recursion-compiler = { path = "../compiler", version = "1.0.0-rc.1" }
+sp1-core = { path = "../../core", version = "1.0.0-rc.1" }
+sp1-primitives = { path = "../../primitives", version = "1.0.0-rc.1" }
 itertools = "0.13.0"
 serde = { version = "1.0.204", features = ["derive"] }
 rand = "0.8.5"
