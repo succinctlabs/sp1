@@ -9,8 +9,8 @@ categories = { workspace = true }
 publish = false
 
 [dependencies]
-sp1-core = { path = "../core", version = "1.0.0-rc.1" }
-sp1-prover = { path = "../prover", version = "1.0.0-rc.1" }
+sp1-core = { workspace = true }
+sp1-prover = { workspace = true }
 
 clap = { version = "4.5.9", features = ["derive"] }
 csv = "1.3.0"

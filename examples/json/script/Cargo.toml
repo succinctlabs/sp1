@@ -7,8 +7,8 @@ publish = false
 [dependencies]
 serde = "1.0.197"
 serde_json = "1.0.114"
-sp1-sdk = { path = "../../../sdk", version = "1.0.0-rc.1" }
+sp1-sdk = { workspace = true }
 lib = { path = "../lib", version = "1.0.0-rc.1" }
 
 [build-dependencies]
-sp1-helper = { path = "../../../helper", version = "1.0.0-rc.1" }
+sp1-helper = { workspace = true }
