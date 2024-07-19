@@ -1,6 +1,6 @@
 [package]
 name = "lib"
-version = "0.0.2-test"
+version = "1.0.0-rc.1"
 edition = "2021"
 publish = false
 

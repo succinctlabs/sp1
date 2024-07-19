@@ -4689,7 +4689,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-build"
-version = "0.0.2-test"
+version = "1.0.0-rc.1"
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -4698,7 +4698,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-cli"
-version = "0.0.2-test"
+version = "1.0.0-rc.1"
 dependencies = [
  "anstyle",
  "anyhow",
@@ -4726,7 +4726,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core"
-version = "0.0.2-test"
+version = "1.0.0-rc.1"
 dependencies = [
  "anyhow",
  "arrayref",
@@ -4789,7 +4789,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-derive"
-version = "0.0.2-test"
+version = "1.0.0-rc.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4798,7 +4798,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-eval"
-version = "0.0.2-test"
+version = "1.0.0-rc.1"
 dependencies = [
  "clap",
  "csv",
@@ -4809,7 +4809,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-helper"
-version = "0.0.2-test"
+version = "1.0.0-rc.1"
 dependencies = [
  "cargo_metadata",
  "chrono",
@@ -4818,7 +4818,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "0.0.2-test"
+version = "1.0.0-rc.1"
 dependencies = [
  "anyhow",
  "bincode",
@@ -4831,7 +4831,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "0.0.2-test"
+version = "1.0.0-rc.1"
 dependencies = [
  "itertools 0.13.0",
  "lazy_static",
@@ -4843,7 +4843,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-prover"
-version = "0.0.2-test"
+version = "1.0.0-rc.1"
 dependencies = [
  "anyhow",
  "bincode",
@@ -4878,7 +4878,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-circuit"
-version = "0.0.2-test"
+version = "1.0.0-rc.1"
 dependencies = [
  "bincode",
  "ff 0.13.0",
@@ -4909,7 +4909,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-compiler"
-version = "0.0.2-test"
+version = "1.0.0-rc.1"
 dependencies = [
  "backtrace",
  "itertools 0.13.0",
@@ -4931,14 +4931,13 @@ dependencies = [
  "sp1-core",
  "sp1-primitives",
  "sp1-recursion-core",
- "sp1-recursion-core-v2",
  "sp1-recursion-derive",
  "tracing",
 ]
 
 [[package]]
 name = "sp1-recursion-core"
-version = "0.0.2-test"
+version = "1.0.0-rc.1"
 dependencies = [
  "arrayref",
  "backtrace",
@@ -5009,7 +5008,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-derive"
-version = "0.0.2-test"
+version = "1.0.0-rc.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5018,7 +5017,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-gnark-cli"
-version = "0.0.2-test"
+version = "1.0.0-rc.1"
 dependencies = [
  "bincode",
  "clap",
@@ -5027,7 +5026,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-gnark-ffi"
-version = "0.0.2-test"
+version = "1.0.0-rc.1"
 dependencies = [
  "anyhow",
  "bincode",
@@ -5051,7 +5050,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-program"
-version = "0.0.2-test"
+version = "1.0.0-rc.1"
 dependencies = [
  "itertools 0.13.0",
  "p3-air",
@@ -5079,7 +5078,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-sdk"
-version = "0.0.2-test"
+version = "1.0.0-rc.1"
 dependencies = [
  "alloy-sol-types",
  "anyhow",
@@ -5121,7 +5120,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "0.0.2-test"
+version = "1.0.0-rc.1"
 dependencies = [
  "bincode",
  "cfg-if",

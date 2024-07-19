@@ -1,0 +1,15 @@
+[workspace]
+[package]
+name = "bls12381-fp2-mul-test"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rand = "0.8"
+num = { version = "0.4.1" }
+sp1-zkvm = { path = "../../zkvm/entrypoint" }
+sp1-derive = { path = "../../derive" }
+field = { path = "../../../zkvm-pairings/field" }
+bytemuck = "1.15.0"
+bls12_381 = "0.8.0"
+num-bigint = "0.4.6"

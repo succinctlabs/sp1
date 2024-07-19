@@ -7,10 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.0.1-test](https://github.com/succinctlabs/sp1/compare/sp1-recursion-circuit-v0.0.0-test...sp1-recursion-circuit-v0.0.1-test) - 2024-07-11
+## [1.0.0-rc.1](https://github.com/succinctlabs/sp1/compare/sp1-recursion-circuit-v1.0.0-rc.1...sp1-recursion-circuit-v1.0.0-rc.1) - 2024-07-19
 
 ### Added
 
+- result instead of exit(1) on trap in recursion ([#1089](https://github.com/succinctlabs/sp1/pull/1089))
 - publish sp1 to crates.io ([#1052](https://github.com/succinctlabs/sp1/pull/1052))
 - critical constraint changes ([#1046](https://github.com/succinctlabs/sp1/pull/1046))
 - plonk circuit optimizations ([#972](https://github.com/succinctlabs/sp1/pull/972))
@@ -76,6 +77,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Other
 
+- use global workspace version ([#1102](https://github.com/succinctlabs/sp1/pull/1102))
+- fix release-plz ([#1088](https://github.com/succinctlabs/sp1/pull/1088))
+- add release-plz ([#1086](https://github.com/succinctlabs/sp1/pull/1086))
 - _(deps)_ bump serde from 1.0.203 to 1.0.204 ([#1063](https://github.com/succinctlabs/sp1/pull/1063))
 - _(deps)_ bump itertools from 0.12.1 to 0.13.0 ([#817](https://github.com/succinctlabs/sp1/pull/817))
 - circuit poseidon2 babybear ([#870](https://github.com/succinctlabs/sp1/pull/870))
