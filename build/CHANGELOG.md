@@ -1,4 +1,5 @@
 # Changelog
+
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
@@ -6,11 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.0.2-test.1](https://github.com/succinctlabs/sp1/compare/sp1-build-v0.0.2-test...sp1-build-v0.0.2-test.1) - 2024-07-19
+## [v1.0.0-rc.1](https://github.com/succinctlabs/sp1/compare/sp1-build-v0.0.2-test...sp1-build-vv1.0.0-rc.1) - 2024-07-19
 
 ### Fixed
+
 - `sp1-helper` workspace build ([#1119](https://github.com/succinctlabs/sp1/pull/1119))
 
 ### Other
-- *(deps)* bump clap from 4.5.8 to 4.5.9 ([#1107](https://github.com/succinctlabs/sp1/pull/1107))
+
+- _(deps)_ bump clap from 4.5.8 to 4.5.9 ([#1107](https://github.com/succinctlabs/sp1/pull/1107))
 - use global workspace version ([#1102](https://github.com/succinctlabs/sp1/pull/1102))

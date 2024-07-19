@@ -7,9 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.0.2-test.1](https://github.com/succinctlabs/sp1/compare/sp1-primitives-v0.0.2-test...sp1-primitives-v0.0.2-test.1) - 2024-07-19
+## [v1.0.0-rc.1](https://github.com/succinctlabs/sp1/compare/sp1-primitives-v0.0.2-test...sp1-primitives-vv1.0.0-rc.1) - 2024-07-19
 
 ### Added
+
 - publish sp1 to crates.io ([#1052](https://github.com/succinctlabs/sp1/pull/1052))
 - plonk circuit optimizations ([#972](https://github.com/succinctlabs/sp1/pull/972))
 - enable arbitrary constraint degree ([#593](https://github.com/succinctlabs/sp1/pull/593))
@@ -26,14 +27,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - tracing, profiling, benchmarking ([#99](https://github.com/succinctlabs/sp1/pull/99))
 
 ### Fixed
+
 - deferred proofs + cleanup hash_vkey ([#615](https://github.com/succinctlabs/sp1/pull/615))
 
 ### Other
+
 - use global workspace version ([#1102](https://github.com/succinctlabs/sp1/pull/1102))
 - fix release-plz ([#1088](https://github.com/succinctlabs/sp1/pull/1088))
 - add release-plz ([#1086](https://github.com/succinctlabs/sp1/pull/1086))
-- *(deps)* bump lazy_static from 1.4.0 to 1.5.0
-- *(deps)* bump itertools from 0.12.1 to 0.13.0
+- _(deps)_ bump lazy_static from 1.4.0 to 1.5.0
+- _(deps)_ bump itertools from 0.12.1 to 0.13.0
 - Clean up TOML files ([#796](https://github.com/succinctlabs/sp1/pull/796))
 - prover tweaks ([#610](https://github.com/succinctlabs/sp1/pull/610))
 - final touches for public release ([#239](https://github.com/succinctlabs/sp1/pull/239))
@@ -44,9 +47,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - rename succinct to curta ([#192](https://github.com/succinctlabs/sp1/pull/192))
 - better curta graphic ([#184](https://github.com/succinctlabs/sp1/pull/184))
 - Initial commit
-
-## [0.0.1-test](https://github.com/succinctlabs/sp1/compare/sp1-primitives-v0.0.0-test...sp1-primitives-v0.0.1-test) - 2024-07-11
-
-### Other
-
-- update Cargo.toml dependencies

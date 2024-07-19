@@ -21,10 +21,10 @@ p3-poseidon2 = { workspace = true }
 p3-symmetric = { workspace = true }
 p3-util = { workspace = true }
 
-sp1-core = { path = "../../core", version = "0.0.2-test.1" }
-sp1-primitives = { path = "../../primitives", version = "0.0.2-test.1" }
-sp1-recursion-core = { path = "../core", version = "0.0.2-test.1" }
-sp1-recursion-derive = { path = "../derive", version = "0.0.2-test.1" }
+sp1-core = { path = "../../core", version = "v1.0.0-rc.1" }
+sp1-primitives = { path = "../../primitives", version = "v1.0.0-rc.1" }
+sp1-recursion-core = { path = "../core", version = "v1.0.0-rc.1" }
+sp1-recursion-derive = { path = "../derive", version = "v1.0.0-rc.1" }
 
 itertools = "0.13.0"
 serde = { version = "1.0.204", features = ["derive"] }
