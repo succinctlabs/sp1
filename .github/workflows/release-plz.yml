@@ -7,7 +7,7 @@ permissions:
 on:
   push:
     branches:
-      - release-plz-2024-07-19T02-52-49Z
+      - dev
       # - main
 
 jobs:
