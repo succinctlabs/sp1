@@ -37,13 +37,12 @@ pub struct ByteLookupEvent {
 
 impl Hash for ByteLookupEvent {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        let combined: u128 = self.shard as u128
-            + ((self.channel as u128) << 32)
-            + ((self.opcode as u128) << 40)
-            + ((self.a1 as u128) << 48)
-            + ((self.a2 as u128) << 64)
-            + ((self.b as u128) << 72)
-            + ((self.c as u128) << 80);
+        let combined_limb_1 = self.shard as u64
+            + ((self.channel as u64) << 32)
+            + ((self.opcode as u64) << 40)
+            + ((self.a1 as u64) << 48);
+        let combined_limb_2 = self.a2 as u64 + ((self.b as u64) << 8) + ((self.c as u64) << 16);
+        let combined = combined_limb_1 as u128 + ((combined_limb_2 as u128) << 64);
 
         combined.hash(state);
     }
