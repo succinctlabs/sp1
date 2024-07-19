@@ -20,7 +20,7 @@ mod tests {
             alu_base::BaseAluChip, alu_ext::ExtAluChip, exp_reverse_bits::ExpReverseBitsLenChip,
             fri_fold::FriFoldChip, machine::RecursionAir, mem::MemoryChip,
             poseidon2_skinny::Poseidon2SkinnyChip, poseidon2_wide::Poseidon2WideChip,
-            program::ProgramChip, RecursionProgram, Runtime,
+            RecursionProgram, Runtime,
         };
 
         use sp1_recursion_compiler::{
@@ -79,7 +79,6 @@ mod tests {
 
         let config = SC::default();
         let chips: Vec<Chip<F, RecursionAir<F, DEGREE>>> = vec![
-            // RecursionAir::Program(ProgramChip::default()),
             RecursionAir::Memory(MemoryChip::default()),
             RecursionAir::BaseAlu(BaseAluChip::default()),
             RecursionAir::ExtAlu(ExtAluChip::default()),

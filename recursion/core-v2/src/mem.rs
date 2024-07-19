@@ -8,14 +8,16 @@ use p3_matrix::Matrix;
 use sp1_core::air::MachineAir;
 use sp1_core::utils::pad_to_power_of_two;
 use sp1_derive::AlignedBorrow;
-use std::{borrow::BorrowMut, iter::zip};
+use std::{borrow::BorrowMut, iter::zip, marker::PhantomData};
 
 use crate::{builder::SP1RecursionAirBuilder, *};
 
 pub const NUM_MEM_ENTRIES_PER_ROW: usize = 16;
 
 #[derive(Default)]
-pub struct MemoryChip {}
+pub struct MemoryChip<F> {
+    _data: PhantomData<F>,
+}
 
 pub const NUM_MEM_INIT_COLS: usize = core::mem::size_of::<MemoryCols<u8>>();
 
@@ -42,13 +44,13 @@ pub struct MemoryAccessCols<F: Copy> {
     pub write_mult: F,
 }
 
-impl<F> BaseAir<F> for MemoryChip {
+impl<F: Send + Sync> BaseAir<F> for MemoryChip<F> {
     fn width(&self) -> usize {
         NUM_MEM_INIT_COLS
     }
 }
 
-impl<F: PrimeField32> MachineAir<F> for MemoryChip {
+impl<F: PrimeField32> MachineAir<F> for MemoryChip<F> {
     type Record = crate::ExecutionRecord<F>;
 
     type Program = crate::RecursionProgram<F>;
@@ -157,7 +159,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip {
     }
 }
 
-impl<AB> Air<AB> for MemoryChip
+impl<AB> Air<AB> for MemoryChip<AB::F>
 where
     AB: SP1RecursionAirBuilder + PairBuilder,
 {

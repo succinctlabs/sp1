@@ -14,7 +14,6 @@ pub mod machine;
 pub mod mem;
 pub mod poseidon2_skinny;
 pub mod poseidon2_wide;
-pub mod program;
 pub mod runtime;
 
 pub use runtime::*;
