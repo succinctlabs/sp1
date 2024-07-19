@@ -26,7 +26,7 @@ mod tests {
         type SC = BabyBearPoseidon2Inner;
         type F = <SC as StarkGenericConfig>::Val;
         type EF = <SC as StarkGenericConfig>::Challenge;
-        // type A = RecursionAir<F, DEGREE>;
+        type A = RecursionAir<F, DEGREE>;
 
         setup_logger();
 
@@ -68,25 +68,25 @@ mod tests {
         runtime.run();
 
         let config = SC::default();
-        let chips: Vec<Chip<F, RecursionAir<F, DEGREE>>> = vec![
-            RecursionAir::Memory(MemoryChip::default()),
-            RecursionAir::BaseAlu(BaseAluChip::default()),
-            RecursionAir::ExtAlu(ExtAluChip::default()),
-            // RecursionAir::Poseidon2Skinny(
+        let chips: Vec<Chip<F, A>> = vec![
+            A::Memory(MemoryChip::default()),
+            A::BaseAlu(BaseAluChip::default()),
+            A::ExtAlu(ExtAluChip::default()),
+            // A::Poseidon2Skinny(
             //     sp1_recursion_core_v2::poseidon2_skinny::Poseidon2SkinnyChip::<DEGREE> {
             //         fixed_log2_rows: Some(((POSEIDON_OPERATIONS * 10 - 1).ilog2() + 1) as usize),
             //         pad: true,
             //     },
             // ),
-            RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE> {
+            A::Poseidon2Wide(Poseidon2WideChip::<DEGREE> {
                 fixed_log2_rows: Some(((POSEIDON_OPERATIONS - 1).ilog2() + 1) as usize),
                 pad: true,
             }),
-            RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE> {
+            A::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE> {
                 fixed_log2_rows: Some(((EXP_REVERSE_BITS_LEN_OPERATIONS - 1).ilog2() + 1) as usize),
                 pad: true,
             }),
-            RecursionAir::FriFold(FriFoldChip::<DEGREE> {
+            A::FriFold(FriFoldChip::<DEGREE> {
                 fixed_log2_rows: Some(((FRI_FOLD_OPERATIONS - 1).ilog2() + 1) as usize),
                 pad: true,
             }),
