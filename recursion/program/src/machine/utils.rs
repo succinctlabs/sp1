@@ -34,40 +34,40 @@ pub(crate) fn assert_complete<C: Config>(
         next_pc,
         start_shard,
         next_shard,
+        start_execution_shard,
+        next_execution_shard,
         cumulative_sum,
         start_reconstruct_deferred_digest,
         end_reconstruct_deferred_digest,
         leaf_challenger,
-        total_core_shards,
         ..
     } = public_values;
 
-    // Assert that `end_pc` is equal to zero (so program execution has completed)
+    // Assert that `next_pc` is equal to zero (so program execution has completed)
     builder.assert_felt_eq(*next_pc, C::F::zero());
 
-    // Assert that the start shard is equal to 1.
+    // Assert that start shard is equal to 1.
     builder.assert_felt_eq(*start_shard, C::F::one());
 
-    // Assert that total_core_shards is correct by ensuring it equals next_shard - 1.
-    builder.assert_felt_eq(*total_core_shards, *next_shard - C::F::one());
+    // Assert that the next shard is not equal to one. This guarantees that there is at least one shard.
+    builder.assert_felt_ne(*next_shard, C::F::one());
 
-    // The challenger has been fully verified.
+    // Assert that the start execution shard is equal to 1.
+    builder.assert_felt_eq(*start_execution_shard, C::F::one());
 
-    // The start_reconstruct_challenger should be the same as an empty challenger observing the
-    // verifier key and the start pc. This was already verified when verifying the leaf proofs so
-    // there is no need to assert it here.
+    // Assert that next shard is not equal to one. This guarantees that there is at least one shard
+    // with CPU.
+    builder.assert_felt_ne(*next_execution_shard, C::F::one());
 
     // Assert that the end reconstruct challenger is equal to the leaf challenger.
     assert_challenger_eq_pv(builder, end_reconstruct_challenger, *leaf_challenger);
 
-    // The deferred digest has been fully reconstructed.
-
-    // The start reconstruct digest should be zero.
+    // The start reconstruct deffered digest should be zero.
     for start_digest_word in start_reconstruct_deferred_digest {
         builder.assert_felt_eq(*start_digest_word, C::F::zero());
     }
 
-    // The end reconstruct digest should be equal to the deferred proofs digest.
+    // The end reconstruct deffered digest should be equal to the deferred proofs digest.
     for (end_digest_word, deferred_digest_word) in end_reconstruct_deferred_digest
         .iter()
         .zip_eq(deferred_proofs_digest.iter())
@@ -129,7 +129,7 @@ where
 }
 
 /// Calculates the digest of the recursion public values.
-pub(crate) fn calculate_public_values_digest<C: Config>(
+fn calculate_public_values_digest<C: Config>(
     builder: &mut Builder<C>,
     public_values: &RecursionPublicValues<Felt<C::F>>,
 ) -> Array<C, Felt<C::F>> {

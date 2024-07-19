@@ -1,10 +1,11 @@
 [package]
-version = "0.1.0"
 name = "cycle-tracking-script"
-edition = "2021"
+version = { workspace = true }
+edition = { workspace = true }
+publish = false
 
 [dependencies]
-sp1-sdk = { path = "../../../sdk" }
+sp1-sdk = { workspace = true }
 
 [build-dependencies]
-sp1-helper = { path = "../../../helper" }
+sp1-helper = { workspace = true }

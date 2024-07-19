@@ -1,8 +1,15 @@
 [package]
 name = "sp1-helper"
-version = "0.1.0"
-edition = "2021"
+description = "Crate for building SP1 programs with build scripts."
+readme = "../README.md"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+keywords = { workspace = true }
+categories = { workspace = true }
 
 [dependencies]
+sp1-build = { workspace = true }
 cargo_metadata = "0.18.1"
 chrono = { version = "0.4.38", default-features = false, features = ["clock"] }

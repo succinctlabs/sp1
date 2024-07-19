@@ -1,15 +1,17 @@
 use std::{env, time::Duration};
 
+use crate::install::block_on;
 use crate::proto::network::ProofMode;
 use crate::{
     network::client::{NetworkClient, DEFAULT_PROVER_NETWORK_RPC},
     proto::network::ProofStatus,
     Prover,
 };
-use crate::{SP1CompressedProof, SP1PlonkBn254Proof, SP1Proof, SP1ProvingKey, SP1VerifyingKey};
+use crate::{SP1Context, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey};
 use anyhow::Result;
 use serde::de::DeserializeOwned;
-use sp1_prover::utils::block_on;
+use sp1_core::utils::SP1ProverOpts;
+use sp1_prover::components::DefaultProverComponents;
 use sp1_prover::{SP1Prover, SP1Stdin, SP1_CIRCUIT_VERSION};
 use tokio::time::sleep;
 
@@ -18,7 +20,7 @@ use crate::provers::{LocalProver, ProverType};
 /// An implementation of [crate::ProverClient] that can generate proofs on a remote RPC server.
 pub struct NetworkProver {
     client: NetworkClient,
-    local_prover: LocalProver,
+    local_prover: LocalProver<DefaultProverComponents>,
 }
 
 impl NetworkProver {
@@ -55,7 +57,8 @@ impl NetworkProver {
             .unwrap_or(false);
 
         if !skip_simulation {
-            let (_, report) = SP1Prover::execute(elf, &stdin)?;
+            let (_, report) =
+                SP1Prover::<DefaultProverComponents>::execute(elf, &stdin, Default::default())?;
             log::info!(
                 "Simulation complete, cycles: {}",
                 report.total_instruction_count()
@@ -107,13 +110,18 @@ impl NetworkProver {
     }
 
     /// Requests a proof from the prover network and waits for it to be generated.
-    pub async fn prove<P: ProofType>(&self, elf: &[u8], stdin: SP1Stdin) -> Result<P> {
-        let proof_id = self.request_proof(elf, stdin, P::PROOF_MODE).await?;
+    pub async fn prove(
+        &self,
+        elf: &[u8],
+        stdin: SP1Stdin,
+        mode: ProofMode,
+    ) -> Result<SP1ProofWithPublicValues> {
+        let proof_id = self.request_proof(elf, stdin, mode).await?;
         self.wait_proof(&proof_id).await
     }
 }
 
-impl Prover for NetworkProver {
+impl Prover<DefaultProverComponents> for NetworkProver {
     fn id(&self) -> ProverType {
         ProverType::Network
     }
@@ -126,16 +134,16 @@ impl Prover for NetworkProver {
         self.local_prover.sp1_prover()
     }
 
-    fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Proof> {
-        block_on(self.prove(&pk.elf, stdin))
-    }
-
-    fn prove_compressed(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1CompressedProof> {
-        block_on(self.prove(&pk.elf, stdin))
-    }
-
-    fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkBn254Proof> {
-        block_on(self.prove(&pk.elf, stdin))
+    fn prove<'a>(
+        &'a self,
+        pk: &SP1ProvingKey,
+        stdin: SP1Stdin,
+        opts: SP1ProverOpts,
+        context: SP1Context<'a>,
+        kind: SP1ProofKind,
+    ) -> Result<SP1ProofWithPublicValues> {
+        warn_if_not_default(&opts, &context);
+        block_on(self.prove(&pk.elf, stdin, kind.into()))
     }
 }
 
@@ -145,19 +153,39 @@ impl Default for NetworkProver {
     }
 }
 
-/// A deserializable proof struct that has an associated ProofMode.
-pub trait ProofType: DeserializeOwned {
-    const PROOF_MODE: ProofMode;
+/// Warns if `opts` or `context` are not default values, since they are currently unsupported.
+fn warn_if_not_default(opts: &SP1ProverOpts, context: &SP1Context) {
+    let _guard = tracing::warn_span!("network_prover").entered();
+    if opts != &SP1ProverOpts::default() {
+        tracing::warn!("non-default opts will be ignored: {:?}", opts.core_opts);
+        tracing::warn!("custom SP1ProverOpts are currently unsupported by the network prover");
+    }
+    // Exhaustive match is done to ensure we update the warnings if the types change.
+    let SP1Context {
+        hook_registry,
+        subproof_verifier,
+        ..
+    } = context;
+    if hook_registry.is_some() {
+        tracing::warn!(
+            "non-default context.hook_registry will be ignored: {:?}",
+            hook_registry
+        );
+        tracing::warn!("custom runtime hooks are currently unsupported by the network prover");
+        tracing::warn!("proving may fail due to missing hooks");
+    }
+    if subproof_verifier.is_some() {
+        tracing::warn!("non-default context.subproof_verifier will be ignored");
+        tracing::warn!("custom subproof verifiers are currently unsupported by the network prover");
+    }
 }
 
-impl ProofType for SP1Proof {
-    const PROOF_MODE: ProofMode = ProofMode::Core;
-}
-
-impl ProofType for SP1CompressedProof {
-    const PROOF_MODE: ProofMode = ProofMode::Compressed;
-}
-
-impl ProofType for SP1PlonkBn254Proof {
-    const PROOF_MODE: ProofMode = ProofMode::Plonk;
+impl From<SP1ProofKind> for ProofMode {
+    fn from(value: SP1ProofKind) -> Self {
+        match value {
+            SP1ProofKind::Core => Self::Core,
+            SP1ProofKind::Compressed => Self::Compressed,
+            SP1ProofKind::Plonk => Self::Plonk,
+        }
+    }
 }

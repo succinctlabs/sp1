@@ -1,4 +1,4 @@
-use sp1_sdk::SP1Proof;
+use sp1_sdk::SP1ProofWithPublicValues;
 use std::time::Duration;
 use tokio::runtime::Runtime;
 
@@ -29,10 +29,10 @@ async fn get_light_blocks() -> (LightBlock, LightBlock) {
     let latest_commit = fetch_latest_commit(&client, &url).await.unwrap();
     let block: u64 = latest_commit.result.signed_header.header.height.into();
     println!("Latest block: {}", block);
-    let light_block_1 = fetch_light_block(block - 20, peer_id, BASE_URL)
+    let light_block_1 = fetch_light_block(2279100, peer_id, BASE_URL)
         .await
         .expect("Failed to generate light block 1");
-    let light_block_2 = fetch_light_block(block, peer_id, BASE_URL)
+    let light_block_2 = fetch_light_block(2279130, peer_id, BASE_URL)
         .await
         .expect("Failed to generate light block 2");
     (light_block_1, light_block_2)
@@ -63,7 +63,7 @@ fn main() {
 
     let client = ProverClient::new();
     let (pk, vk) = client.setup(TENDERMINT_ELF);
-    let proof = client.prove(&pk, stdin).expect("proving failed");
+    let proof = client.prove(&pk, stdin).compressed().run().expect("proving failed");
 
     // Verify proof.
     client.verify(&proof, &vk).expect("verification failed");
@@ -80,7 +80,7 @@ fn main() {
     proof
         .save("proof-with-pis.bin")
         .expect("saving proof failed");
-    let deserialized_proof = SP1Proof::load("proof-with-pis.bin").expect("loading proof failed");
+    let deserialized_proof = SP1ProofWithPublicValues::load("proof-with-pis.bin").expect("loading proof failed");
 
     // Verify the deserialized proof.
     client

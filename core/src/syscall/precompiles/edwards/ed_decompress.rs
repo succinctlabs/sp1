@@ -27,9 +27,9 @@ use crate::memory::MemoryWriteCols;
 use crate::operations::field::field_op::FieldOpCols;
 use crate::operations::field::field_op::FieldOperation;
 use crate::operations::field::field_sqrt::FieldSqrtCols;
-use crate::operations::field::params::FieldParameters;
 use crate::operations::field::params::Limbs;
-use crate::operations::field::range::FieldRangeCols;
+use crate::operations::field::params::{limbs_from_vec, FieldParameters};
+use crate::operations::field::range::FieldLtCols;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::MemoryReadRecord;
 use crate::runtime::MemoryWriteRecord;
@@ -53,7 +53,7 @@ use super::{WordsFieldElement, WORDS_FIELD_ELEMENT};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EdDecompressEvent {
-    pub lookup_id: usize,
+    pub lookup_id: u128,
     pub shard: u32,
     pub channel: u32,
     pub clk: u32,
@@ -84,7 +84,7 @@ pub struct EdDecompressCols<T> {
     pub sign: T,
     pub x_access: GenericArray<MemoryWriteCols<T>, WordsFieldElement>,
     pub y_access: GenericArray<MemoryReadCols<T>, WordsFieldElement>,
-    pub(crate) y_range: FieldRangeCols<T, Ed25519BaseField>,
+    pub(crate) y_range: FieldLtCols<T, Ed25519BaseField>,
     pub(crate) yy: FieldOpCols<T, Ed25519BaseField>,
     pub(crate) u: FieldOpCols<T, Ed25519BaseField>,
     pub(crate) dyy: FieldOpCols<T, Ed25519BaseField>,
@@ -141,7 +141,8 @@ impl<F: PrimeField32> EdDecompressCols<F> {
         y: &BigUint,
     ) {
         let one = BigUint::one();
-        self.y_range.populate(blu_events, shard, channel, y);
+        self.y_range
+            .populate(blu_events, shard, channel, y, &Ed25519BaseField::modulus());
         let yy = self
             .yy
             .populate(blu_events, shard, channel, y, y, FieldOperation::Mul);
@@ -186,8 +187,15 @@ impl<V: Copy> EdDecompressCols<V> {
         builder.assert_bool(self.sign);
 
         let y: Limbs<V, U32> = limbs_from_prev_access(&self.y_access);
-        self.y_range
-            .eval(builder, &y, self.shard, self.channel, self.is_real);
+        let max_num_limbs = P::to_limbs_field_vec(&Ed25519BaseField::modulus());
+        self.y_range.eval(
+            builder,
+            &y,
+            &limbs_from_vec::<AB::Expr, P::Limbs, AB::F>(max_num_limbs),
+            self.shard,
+            self.channel,
+            self.is_real,
+        );
         self.yy.eval(
             builder,
             &y,
@@ -454,6 +462,7 @@ where
 pub mod tests {
     use crate::{
         runtime::Program,
+        stark::DefaultProver,
         utils::{self, tests::ED_DECOMPRESS_ELF},
     };
 
@@ -461,6 +470,6 @@ pub mod tests {
     fn test_ed_decompress() {
         utils::setup_logger();
         let program = Program::from(ED_DECOMPRESS_ELF);
-        utils::run_test(program).unwrap();
+        utils::run_test::<DefaultProver<_, _>>(program).unwrap();
     }
 }

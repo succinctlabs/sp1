@@ -1,51 +1,44 @@
 [package]
 name = "sp1-prover"
-version = "0.1.0"
-edition = "2021"
+description = "SP1 is a performant, 100% open-source, contributor-friendly zkVM."
+readme = "../README.md"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+keywords = { workspace = true }
+categories = { workspace = true }
 
 [dependencies]
-sp1-recursion-program = { path = "../recursion/program" }
-sp1-recursion-circuit = { path = "../recursion/circuit" }
-sp1-recursion-compiler = { path = "../recursion/compiler" }
-sp1-recursion-core = { path = "../recursion/core" }
-sp1-recursion-gnark-ffi = { path = "../recursion/gnark-ffi" }
-sp1-core = { path = "../core" }
-sp1-primitives = { path = "../primitives" }
+sp1-recursion-program = { workspace = true }
+sp1-recursion-circuit = { workspace = true }
+sp1-recursion-compiler = { workspace = true }
+sp1-recursion-core = { workspace = true }
+sp1-recursion-gnark-ffi = { workspace = true }
+sp1-core = { workspace = true }
+sp1-primitives = { workspace = true }
 p3-field = { workspace = true }
 p3-challenger = { workspace = true }
 p3-baby-bear = { workspace = true }
 p3-bn254-fr = { workspace = true }
 p3-commit = { workspace = true }
-p3-util = { workspace = true }
 bincode = "1.3.3"
 serde = { version = "1.0", features = ["derive", "rc"] }
-backtrace = "0.3.71"
 rayon = "1.10.0"
 itertools = "0.13.0"
 tracing = "0.1.40"
 tracing-subscriber = "0.3.18"
-serde_json = "1.0.117"
-clap = { version = "4.5.7", features = ["derive", "env"] }
-sha2 = "0.10.8"
+serde_json = "1.0.120"
+clap = { version = "4.5.9", features = ["derive", "env"] }
 hex = "0.4.3"
 anyhow = "1.0.83"
-size = "0.4.1"
 dirs = "5.0.1"
 tempfile = "3.10.1"
-tokio = { version = "1.38.0", features = ["full"] }
-reqwest = { version = "0.12.4", features = [
-  "rustls-tls",
-  "trust-dns",
-  "stream",
-] }
-indicatif = "0.17.8"
-futures = "0.3.30"
 subtle-encoding = "0.5.1"
 serial_test = "3.1.1"
-num-bigint = "0.4.5"
+num-bigint = "0.4.6"
 thiserror = "1.0.60"
-bytemuck = "1.16.0"
-rand = "0.8.4"
+oneshot = "0.1.8"
 
 [[bin]]
 name = "build_plonk_bn254"
@@ -58,3 +51,4 @@ path = "scripts/e2e.rs"
 [features]
 neon = ["sp1-core/neon"]
 native-gnark = ["sp1-recursion-gnark-ffi/native"]
+export-tests = []

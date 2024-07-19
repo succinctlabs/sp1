@@ -9,31 +9,30 @@
 pub mod proto {
     pub mod network;
 }
+pub mod action;
 pub mod artifacts;
+pub mod install;
 #[cfg(feature = "network")]
 pub mod network;
 #[cfg(feature = "network")]
 pub use crate::network::prover::NetworkProver;
 
+pub mod proof;
 pub mod provers;
 pub mod utils {
     pub use sp1_core::utils::setup_logger;
 }
 
 use cfg_if::cfg_if;
+pub use proof::*;
 pub use provers::SP1VerificationError;
-use std::{env, fmt::Debug, fs::File, path::Path};
-
-use anyhow::{Ok, Result};
+use sp1_prover::components::DefaultProverComponents;
+use std::env;
 
 pub use provers::{LocalProver, MockProver, Prover};
 
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use sp1_core::{
-    runtime::ExecutionReport,
-    stark::{MachineVerificationError, ShardProof},
-    SP1_CIRCUIT_VERSION,
-};
+pub use sp1_core::runtime::{ExecutionReport, Hook, HookEnv, SP1Context, SP1ContextBuilder};
+use sp1_core::SP1_CIRCUIT_VERSION;
 pub use sp1_prover::{
     CoreSC, HashableKey, InnerSC, OuterSC, PlonkBn254Proof, SP1Prover, SP1ProvingKey,
     SP1PublicValues, SP1Stdin, SP1VerifyingKey,
@@ -42,30 +41,8 @@ pub use sp1_prover::{
 /// A client for interacting with SP1.
 pub struct ProverClient {
     /// The underlying prover implementation.
-    pub prover: Box<dyn Prover>,
+    pub prover: Box<dyn Prover<DefaultProverComponents>>,
 }
-
-/// A proof generated with SP1.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(bound(serialize = "P: Serialize + Debug + Clone"))]
-#[serde(bound(deserialize = "P: DeserializeOwned + Debug + Clone"))]
-pub struct SP1ProofWithPublicValues<P> {
-    pub proof: P,
-    pub stdin: SP1Stdin,
-    pub public_values: SP1PublicValues,
-    pub sp1_version: String,
-}
-
-/// A [SP1ProofWithPublicValues] generated with [ProverClient::prove].
-pub type SP1Proof = SP1ProofWithPublicValues<Vec<ShardProof<CoreSC>>>;
-pub type SP1ProofVerificationError = MachineVerificationError<CoreSC>;
-
-/// A [SP1ProofWithPublicValues] generated with [ProverClient::prove_compressed].
-pub type SP1CompressedProof = SP1ProofWithPublicValues<ShardProof<InnerSC>>;
-pub type SP1CompressedProofVerificationError = MachineVerificationError<InnerSC>;
-
-/// A [SP1ProofWithPublicValues] generated with [ProverClient::prove_plonk].
-pub type SP1PlonkBn254Proof = SP1ProofWithPublicValues<PlonkBn254Proof>;
 
 impl ProverClient {
     /// Creates a new [ProverClient].
@@ -172,21 +149,16 @@ impl ProverClient {
         }
     }
 
-    /// Gets the current version of the SP1 zkVM.
+    /// Prepare to execute the given program on the given input (without generating a proof).
+    /// The returned [action::Execute] may be configured via its methods before running.
+    /// For example, calling [action::Execute::with_hook] registers hooks for execution.
     ///
-    /// Note: This is not the same as the version of the SP1 SDK.
-    pub fn version(&self) -> String {
-        SP1_CIRCUIT_VERSION.to_string()
-    }
-
-    /// Executes the given program on the given input (without generating a proof).
-    ///
-    /// Returns the public values and execution report of the program after it has been executed.
-    ///
+    /// To execute, call [action::Execute::run], which returns
+    /// the public values and execution report of the program after it has been executed.
     ///
     /// ### Examples
     /// ```no_run
-    /// use sp1_sdk::{ProverClient, SP1Stdin};
+    /// use sp1_sdk::{ProverClient, SP1Stdin, SP1Context};
     ///
     /// // Load the program.
     /// let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
@@ -199,14 +171,73 @@ impl ProverClient {
     /// stdin.write(&10usize);
     ///
     /// // Execute the program on the inputs.
-    /// let (public_values, report) = client.execute(elf, stdin).unwrap();
+    /// let (public_values, report) = client.execute(elf, stdin).run().unwrap();
     /// ```
-    pub fn execute(
+    pub fn execute<'a>(&self, elf: &'a [u8], stdin: SP1Stdin) -> action::Execute<'a> {
+        action::Execute::new(elf, stdin)
+    }
+
+    /// Prepare to prove the execution of the given program with the given input in the default mode.
+    /// The returned [action::Prove] may be configured via its methods before running.
+    /// For example, calling [action::Prove::compress] sets the mode to compressed mode.
+    ///
+    /// To prove, call [action::Prove::run], which returns a proof of the program's execution.
+    /// By default the proof generated will not be compressed to constant size.
+    /// To create a more succinct proof, use the [Self::prove_compressed],
+    /// [Self::prove_plonk], or [Self::prove_plonk] methods.
+    ///
+    /// ### Examples
+    /// ```no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin, SP1Context};
+    ///
+    /// // Load the program.
+    /// let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+    ///
+    /// // Initialize the prover client.
+    /// let client = ProverClient::new();
+    ///
+    /// // Setup the program.
+    /// let (pk, vk) = client.setup(elf);
+    ///
+    /// // Setup the inputs.
+    /// let mut stdin = SP1Stdin::new();
+    /// stdin.write(&10usize);
+    ///
+    /// // Generate the proof.
+    /// let proof = client.prove(&pk, stdin).run().unwrap();
+    /// ```
+    pub fn prove<'a>(&'a self, pk: &'a SP1ProvingKey, stdin: SP1Stdin) -> action::Prove<'a> {
+        action::Prove::new(self.prover.as_ref(), pk, stdin)
+    }
+
+    /// Verifies that the given proof is valid and matches the given verification key produced by
+    /// [Self::setup].
+    ///
+    /// ### Examples
+    /// ```no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin};
+    ///
+    /// let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+    /// let client = ProverClient::new();
+    /// let (pk, vk) = client.setup(elf);
+    /// let mut stdin = SP1Stdin::new();
+    /// stdin.write(&10usize);
+    /// let proof = client.prove(&pk, stdin).run().unwrap();
+    /// client.verify(&proof, &vk).unwrap();
+    /// ```
+    pub fn verify(
         &self,
-        elf: &[u8],
-        stdin: SP1Stdin,
-    ) -> Result<(SP1PublicValues, ExecutionReport)> {
-        Ok(SP1Prover::execute(elf, &stdin)?)
+        proof: &SP1ProofWithPublicValues,
+        vk: &SP1VerifyingKey,
+    ) -> Result<(), SP1VerificationError> {
+        self.prover.verify(proof, vk)
+    }
+
+    /// Gets the current version of the SP1 zkVM.
+    ///
+    /// Note: This is not the same as the version of the SP1 SDK.
+    pub fn version(&self) -> String {
+        SP1_CIRCUIT_VERSION.to_string()
     }
 
     /// Setup a program to be proven and verified by the SP1 RISC-V zkVM by computing the proving
@@ -228,188 +259,6 @@ impl ProverClient {
     pub fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
         self.prover.setup(elf)
     }
-
-    /// Proves the execution of the given program with the given input in the default mode.
-    ///
-    /// Returns a proof of the program's execution. By default the proof generated will not be
-    /// compressed to constant size. To create a more succinct proof, use the [Self::prove_compressed],
-    /// [Self::prove_plonk], or [Self::prove_plonk] methods.
-    ///
-    /// ### Examples
-    /// ```no_run
-    /// use sp1_sdk::{ProverClient, SP1Stdin};
-    ///
-    /// // Load the program.
-    /// let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
-    ///
-    /// // Initialize the prover client.
-    /// let client = ProverClient::new();
-    ///
-    /// // Setup the program.
-    /// let (pk, vk) = client.setup(elf);
-    ///
-    /// // Setup the inputs.
-    /// let mut stdin = SP1Stdin::new();
-    /// stdin.write(&10usize);
-    ///
-    /// // Generate the proof.
-    /// let proof = client.prove(&pk, stdin).unwrap();
-    /// ```
-    pub fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Proof> {
-        self.prover.prove(pk, stdin)
-    }
-
-    /// Proves the execution of the given program with the given input in the compressed mode.
-    ///
-    /// Returns a compressed proof of the program's execution. The compressed proof is a succinct
-    /// proof that is of constant size and friendly for recursion and off-chain verification.
-    ///
-    /// ### Examples
-    /// ```no_run
-    /// use sp1_sdk::{ProverClient, SP1Stdin};
-    ///
-    /// // Load the program.
-    /// let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
-    ///
-    /// // Initialize the prover client.
-    /// let client = ProverClient::new();
-    ///
-    /// // Setup the program.
-    /// let (pk, vk) = client.setup(elf);
-    ///
-    /// // Setup the inputs.
-    /// let mut stdin = SP1Stdin::new();
-    /// stdin.write(&10usize);
-    ///
-    /// // Generate the proof.
-    /// let proof = client.prove_compressed(&pk, stdin).unwrap();
-    /// ```
-    pub fn prove_compressed(
-        &self,
-        pk: &SP1ProvingKey,
-        stdin: SP1Stdin,
-    ) -> Result<SP1CompressedProof> {
-        self.prover.prove_compressed(pk, stdin)
-    }
-
-    /// Proves the execution of the given program with the given input in the plonk bn254 mode.
-    ///
-    /// Returns a proof of the program's execution in the plonk bn254format. The proof is a succinct
-    /// proof that is of constant size and friendly for on-chain verification.
-    ///
-    /// ### Examples
-    /// ```no_run
-    /// use sp1_sdk::{ProverClient, SP1Stdin};
-    ///
-    /// // Load the program.
-    /// let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
-    ///
-    /// // Initialize the prover client.
-    /// let client = ProverClient::new();
-    ///
-    /// // Setup the program.
-    /// let (pk, vk) = client.setup(elf);
-    ///
-    /// // Setup the inputs.
-    /// let mut stdin = SP1Stdin::new();
-    /// stdin.write(&10usize);
-    ///
-    /// // Generate the proof.
-    /// let proof = client.prove_plonk(&pk, stdin).unwrap();
-    /// ```
-    /// Generates a plonk bn254 proof, verifiable onchain, of the given elf and stdin.
-    pub fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkBn254Proof> {
-        self.prover.prove_plonk(pk, stdin)
-    }
-
-    /// Verifies that the given proof is valid and matches the given verification key produced by
-    /// [Self::setup].
-    ///
-    /// ### Examples
-    /// ```no_run
-    /// use sp1_sdk::{ProverClient, SP1Stdin};
-    ///
-    /// let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
-    /// let client = ProverClient::new();
-    /// let (pk, vk) = client.setup(elf);
-    /// let mut stdin = SP1Stdin::new();
-    /// stdin.write(&10usize);
-    /// let proof = client.prove(&pk, stdin).unwrap();
-    /// client.verify(&proof, &vk).unwrap();
-    /// ```
-    pub fn verify(
-        &self,
-        proof: &SP1Proof,
-        vkey: &SP1VerifyingKey,
-    ) -> Result<(), SP1VerificationError> {
-        self.prover.verify(proof, vkey)
-    }
-
-    /// Verifies that the given compressed proof is valid and matches the given verification key
-    /// produced by [Self::setup].
-    ///
-    /// ### Examples
-    /// ```no_run
-    /// use sp1_sdk::{ProverClient, SP1Stdin};
-    ///
-    /// // Load the program.
-    /// let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
-    ///
-    /// // Initialize the prover client.
-    /// let client = ProverClient::new();
-    ///
-    /// // Setup the program.
-    /// let (pk, vk) = client.setup(elf);
-    ///
-    /// // Setup the inputs.
-    /// let mut stdin = SP1Stdin::new();
-    /// stdin.write(&10usize);
-    ///
-    /// // Generate the proof.
-    /// let proof = client.prove_compressed(&pk, stdin).unwrap();
-    /// client.verify_compressed(&proof, &vk).unwrap();
-    /// ```
-    pub fn verify_compressed(
-        &self,
-        proof: &SP1CompressedProof,
-        vkey: &SP1VerifyingKey,
-    ) -> Result<(), SP1VerificationError> {
-        self.prover.verify_compressed(proof, vkey)
-    }
-
-    /// Verifies that the given plonk bn254 proof is valid and matches the given verification key
-    /// produced by [Self::setup].
-    ///
-    /// ### Examples
-    /// ```no_run
-    /// use sp1_sdk::{ProverClient, SP1Stdin};
-    ///
-    /// // Load the program.
-    /// let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
-    ///
-    /// // Initialize the prover client.
-    /// let client = ProverClient::new();
-    ///
-    /// // Setup the program.
-    /// let (pk, vk) = client.setup(elf);
-    ///
-    /// // Setup the inputs.
-    /// let mut stdin = SP1Stdin::new();
-    /// stdin.write(&10usize);
-    ///
-    /// // Generate the proof.
-    /// let proof = client.prove_plonk(&pk, stdin).unwrap();
-    ///
-    /// // Verify the proof.
-    /// client.verify_plonk(&proof, &vk).unwrap();
-    /// ```
-    pub fn verify_plonk(
-        &self,
-        proof: &SP1PlonkBn254Proof,
-        vkey: &SP1VerifyingKey,
-    ) -> Result<(), SP1VerificationError> {
-        self.prover.verify_plonk(proof, vkey)
-    }
 }
 
 impl Default for ProverClient {
@@ -418,33 +267,12 @@ impl Default for ProverClient {
     }
 }
 
-impl<P: Debug + Clone + Serialize + DeserializeOwned> SP1ProofWithPublicValues<P> {
-    /// Saves the proof to a path.
-    pub fn save(&self, path: impl AsRef<Path>) -> Result<()> {
-        bincode::serialize_into(File::create(path).expect("failed to open file"), self)
-            .map_err(Into::into)
-    }
-
-    /// Loads a proof from a path.
-    pub fn load(path: impl AsRef<Path>) -> Result<Self> {
-        bincode::deserialize_from(File::open(path).expect("failed to open file"))
-            .map_err(Into::into)
-    }
-}
-
-impl SP1PlonkBn254Proof {
-    /// Returns the encoded proof bytes with a prefix of the VK hash.
-    pub fn bytes(&self) -> String {
-        format!(
-            "0x{}{}",
-            hex::encode(&self.proof.plonk_vkey_hash[..4]),
-            &self.proof.encoded_proof
-        )
-    }
-}
-
 #[cfg(test)]
 mod tests {
+
+    use std::sync::atomic::{AtomicU32, Ordering};
+
+    use sp1_core::runtime::{hook_ecrecover, FD_ECRECOVER_HOOK};
 
     use crate::{utils, ProverClient, SP1Stdin};
 
@@ -456,7 +284,46 @@ mod tests {
             include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
-        client.execute(elf, stdin).unwrap();
+        client.execute(elf, stdin).run().unwrap();
+    }
+
+    #[test]
+    fn test_execute_new() {
+        // Wrap the hook and check that it was called.
+        let call_ct = AtomicU32::new(0);
+        utils::setup_logger();
+        let client = ProverClient::local();
+        let elf = include_bytes!("../../tests/ecrecover/elf/riscv32im-succinct-zkvm-elf");
+        let stdin = SP1Stdin::new();
+        client
+            .execute(elf, stdin)
+            .with_hook(FD_ECRECOVER_HOOK, |env, buf| {
+                call_ct.fetch_add(1, Ordering::Relaxed);
+                hook_ecrecover(env, buf)
+            })
+            .run()
+            .unwrap();
+        assert_ne!(call_ct.into_inner(), 0);
+    }
+
+    #[test]
+    fn test_prove_new() {
+        // Wrap the hook and check that it was called.
+        let call_ct = AtomicU32::new(0);
+        utils::setup_logger();
+        let client = ProverClient::local();
+        let elf = include_bytes!("../../tests/ecrecover/elf/riscv32im-succinct-zkvm-elf");
+        let stdin = SP1Stdin::new();
+        let (pk, _) = client.setup(elf);
+        client
+            .prove(&pk, stdin)
+            .with_hook(FD_ECRECOVER_HOOK, |env, buf| {
+                call_ct.fetch_add(1, Ordering::Relaxed);
+                hook_ecrecover(env, buf)
+            })
+            .run()
+            .unwrap();
+        assert_ne!(call_ct.into_inner(), 0);
     }
 
     #[test]
@@ -467,7 +334,18 @@ mod tests {
         let elf = include_bytes!("../../tests/panic/elf/riscv32im-succinct-zkvm-elf");
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
-        client.execute(elf, stdin).unwrap();
+        client.execute(elf, stdin).run().unwrap();
+    }
+
+    #[should_panic]
+    #[test]
+    fn test_cycle_limit_fail() {
+        utils::setup_logger();
+        let client = ProverClient::local();
+        let elf = include_bytes!("../../tests/panic/elf/riscv32im-succinct-zkvm-elf");
+        let mut stdin = SP1Stdin::new();
+        stdin.write(&10usize);
+        client.execute(elf, stdin).max_cycles(1).run().unwrap();
     }
 
     #[test]
@@ -479,8 +357,8 @@ mod tests {
         let (pk, vk) = client.setup(elf);
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
-        let proof = client.prove_plonk(&pk, stdin).unwrap();
-        client.verify_plonk(&proof, &vk).unwrap();
+        let proof = client.prove(&pk, stdin).plonk().run().unwrap();
+        client.verify(&proof, &vk).unwrap();
     }
 
     #[test]
@@ -492,7 +370,7 @@ mod tests {
         let (pk, vk) = client.setup(elf);
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
-        let proof = client.prove_plonk(&pk, stdin).unwrap();
-        client.verify_plonk(&proof, &vk).unwrap();
+        let proof = client.prove(&pk, stdin).plonk().run().unwrap();
+        client.verify(&proof, &vk).unwrap();
     }
 }

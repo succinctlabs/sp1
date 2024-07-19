@@ -1,17 +1,15 @@
 #![allow(clippy::needless_range_loop)]
 
-use crate::air::RecursionMemoryAirBuilder;
 use crate::memory::{MemoryReadCols, MemoryReadSingleCols, MemoryReadWriteCols};
 use crate::runtime::Opcode;
 use core::borrow::Borrow;
-use itertools::Itertools;
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
-use sp1_core::air::{BaseAirBuilder, BinomialExtension, ExtensionAirBuilder, MachineAir};
-use sp1_core::utils::pad_rows_fixed;
+use sp1_core::air::{BaseAirBuilder, BinomialExtension, MachineAir};
+use sp1_core::utils::{next_power_of_two, par_for_each_row};
 use sp1_derive::AlignedBorrow;
 use std::borrow::BorrowMut;
 use tracing::instrument;
@@ -109,51 +107,46 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldChip<DEGREE>
         input: &ExecutionRecord<F>,
         _: &mut ExecutionRecord<F>,
     ) -> RowMajorMatrix<F> {
-        let mut rows = input
-            .fri_fold_events
-            .iter()
-            .map(|event| {
-                let mut row = [F::zero(); NUM_FRI_FOLD_COLS];
+        let nb_events = input.fri_fold_events.len();
+        let nb_rows = if self.pad {
+            next_power_of_two(nb_events, self.fixed_log2_rows)
+        } else {
+            nb_events
+        };
+        let mut values = vec![F::zero(); nb_rows * NUM_FRI_FOLD_COLS];
 
-                let cols: &mut FriFoldCols<F> = row.as_mut_slice().borrow_mut();
+        par_for_each_row(&mut values, NUM_FRI_FOLD_COLS, |i, row| {
+            if i >= nb_events {
+                return;
+            }
+            let event = &input.fri_fold_events[i];
+            let cols: &mut FriFoldCols<F> = row.borrow_mut();
 
-                cols.clk = event.clk;
-                cols.m = event.m;
-                cols.input_ptr = event.input_ptr;
-                cols.is_last_iteration = event.is_last_iteration;
-                cols.is_real = F::one();
+            cols.clk = event.clk;
+            cols.m = event.m;
+            cols.input_ptr = event.input_ptr;
+            cols.is_last_iteration = event.is_last_iteration;
+            cols.is_real = F::one();
 
-                cols.z.populate(&event.z);
-                cols.alpha.populate(&event.alpha);
-                cols.x.populate(&event.x);
-                cols.log_height.populate(&event.log_height);
-                cols.mat_opening_ptr.populate(&event.mat_opening_ptr);
-                cols.ps_at_z_ptr.populate(&event.ps_at_z_ptr);
-                cols.alpha_pow_ptr.populate(&event.alpha_pow_ptr);
-                cols.ro_ptr.populate(&event.ro_ptr);
+            cols.z.populate(&event.z);
+            cols.alpha.populate(&event.alpha);
+            cols.x.populate(&event.x);
+            cols.log_height.populate(&event.log_height);
+            cols.mat_opening_ptr.populate(&event.mat_opening_ptr);
+            cols.ps_at_z_ptr.populate(&event.ps_at_z_ptr);
+            cols.alpha_pow_ptr.populate(&event.alpha_pow_ptr);
+            cols.ro_ptr.populate(&event.ro_ptr);
 
-                cols.p_at_x.populate(&event.p_at_x);
-                cols.p_at_z.populate(&event.p_at_z);
+            cols.p_at_x.populate(&event.p_at_x);
+            cols.p_at_z.populate(&event.p_at_z);
 
-                cols.alpha_pow_at_log_height
-                    .populate(&event.alpha_pow_at_log_height);
-                cols.ro_at_log_height.populate(&event.ro_at_log_height);
-
-                row
-            })
-            .collect_vec();
-
-        // Pad the trace to a power of two.
-        if self.pad {
-            pad_rows_fixed(
-                &mut rows,
-                || [F::zero(); NUM_FRI_FOLD_COLS],
-                self.fixed_log2_rows,
-            );
-        }
+            cols.alpha_pow_at_log_height
+                .populate(&event.alpha_pow_at_log_height);
+            cols.ro_at_log_height.populate(&event.ro_at_log_height);
+        });
 
         // Convert the trace to a row major matrix.
-        let trace = RowMajorMatrix::new(rows.into_iter().flatten().collect(), NUM_FRI_FOLD_COLS);
+        let trace = RowMajorMatrix::new(values, NUM_FRI_FOLD_COLS);
 
         #[cfg(debug_assertions)]
         println!(
@@ -171,7 +164,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldChip<DEGREE>
 }
 
 impl<const DEGREE: usize> FriFoldChip<DEGREE> {
-    pub fn eval_fri_fold<AB: BaseAirBuilder + ExtensionAirBuilder + RecursionMemoryAirBuilder>(
+    pub fn eval_fri_fold<AB: SP1RecursionAirBuilder>(
         &self,
         builder: &mut AB,
         local: &FriFoldCols<AB::Var>,
@@ -179,16 +172,6 @@ impl<const DEGREE: usize> FriFoldChip<DEGREE> {
         receive_table: AB::Var,
         memory_access: AB::Var,
     ) {
-        // Dummy constraints to normalize to DEGREE when DEGREE > 3.
-        if DEGREE > 3 {
-            let lhs = (0..DEGREE)
-                .map(|_| local.is_real.into())
-                .product::<AB::Expr>();
-            let rhs = (0..DEGREE)
-                .map(|_| local.is_real.into())
-                .product::<AB::Expr>();
-            builder.assert_eq(lhs, rhs);
-        }
         // Constraint that the operands are sent from the CPU table.
         let first_iteration_clk = local.clk.into() - local.m.into();
         let total_num_iterations = local.m.into() + AB::Expr::one();
@@ -205,6 +188,26 @@ impl<const DEGREE: usize> FriFoldChip<DEGREE> {
         );
 
         builder.assert_bool(local.is_last_iteration);
+        builder.assert_bool(local.is_real);
+
+        builder
+            .when_transition()
+            .when_not(local.is_last_iteration)
+            .assert_eq(local.is_real, next.is_real);
+
+        builder
+            .when(local.is_last_iteration)
+            .assert_one(local.is_real);
+
+        builder
+            .when_transition()
+            .when_not(local.is_real)
+            .assert_zero(next.is_real);
+
+        builder
+            .when_last_row()
+            .when_not(local.is_last_iteration)
+            .assert_zero(local.is_real);
 
         // Ensure that all first iteration rows has a m value of 0.
         builder.when_first_row().assert_zero(local.m);
@@ -380,6 +383,16 @@ where
         let (local, next) = (main.row_slice(0), main.row_slice(1));
         let local: &FriFoldCols<AB::Var> = (*local).borrow();
         let next: &FriFoldCols<AB::Var> = (*next).borrow();
+
+        // Dummy constraints to normalize to DEGREE.
+        let lhs = (0..DEGREE)
+            .map(|_| local.is_real.into())
+            .product::<AB::Expr>();
+        let rhs = (0..DEGREE)
+            .map(|_| local.is_real.into())
+            .product::<AB::Expr>();
+        builder.assert_eq(lhs, rhs);
+
         self.eval_fri_fold::<AB>(
             builder,
             local,

@@ -15,32 +15,35 @@ func Prove(dataDir string, witnessPath string) Proof {
 	if dataDir == "" {
 		panic("dataDirStr is required")
 	}
-	os.Setenv("CONSTRAINTS_JSON", dataDir+"/"+CONSTRAINTS_JSON_FILE)
+	os.Setenv("CONSTRAINTS_JSON", dataDir+"/"+constraintsJsonFile)
 
 	// Read the R1CS.
-	scsFile, err := os.Open(dataDir + "/" + CIRCUIT_PATH)
+	scsFile, err := os.Open(dataDir + "/" + circuitPath)
 	if err != nil {
 		panic(err)
 	}
 	scs := plonk.NewCS(ecc.BN254)
 	scs.ReadFrom(scsFile)
+	defer scsFile.Close()
 
 	// Read the proving key.
-	pkFile, err := os.Open(dataDir + "/" + PK_PATH)
+	pkFile, err := os.Open(dataDir + "/" + pkPath)
 	if err != nil {
 		panic(err)
 	}
 	pk := plonk.NewProvingKey(ecc.BN254)
 	bufReader := bufio.NewReaderSize(pkFile, 1024*1024)
 	pk.UnsafeReadFrom(bufReader)
+	defer pkFile.Close()
 
 	// Read the verifier key.
-	vkFile, err := os.Open(dataDir + "/" + VK_PATH)
+	vkFile, err := os.Open(dataDir + "/" + vkPath)
 	if err != nil {
 		panic(err)
 	}
 	vk := plonk.NewVerifyingKey(ecc.BN254)
 	vk.ReadFrom(vkFile)
+	defer vkFile.Close()
 
 	// Read the file.
 	data, err := os.ReadFile(witnessPath)

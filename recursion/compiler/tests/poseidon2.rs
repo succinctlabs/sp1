@@ -4,6 +4,7 @@ use p3_symmetric::Permutation;
 use rand::thread_rng;
 use rand::Rng;
 use sp1_core::stark::StarkGenericConfig;
+use sp1_core::utils::setup_logger;
 use sp1_core::utils::BabyBearPoseidon2;
 use sp1_recursion_compiler::asm::AsmBuilder;
 use sp1_recursion_compiler::ir::Array;
@@ -55,7 +56,7 @@ fn test_compiler_poseidon2_permute() {
     let program = builder.compile_program();
 
     let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
-    runtime.run();
+    runtime.run().unwrap();
     println!(
         "The program executed successfully, number of cycles: {}",
         runtime.clk.as_canonical_u32() / 4
@@ -64,6 +65,7 @@ fn test_compiler_poseidon2_permute() {
 
 #[test]
 fn test_compiler_poseidon2_hash() {
+    setup_logger();
     type SC = BabyBearPoseidon2;
     type F = <SC as StarkGenericConfig>::Val;
     type EF = <SC as StarkGenericConfig>::Challenge;
@@ -74,19 +76,32 @@ fn test_compiler_poseidon2_hash() {
 
     let mut builder = AsmBuilder::<F, EF>::default();
 
-    let random_state_vals: [F; 42] = rng.gen();
-    println!("{:?}", random_state_vals);
+    let random_state_vals_1: [F; 42] = rng.gen();
+    println!("{:?}", random_state_vals_1);
+    let random_state_vals_2: [F; 42] = rng.gen();
+    println!("{:?}", random_state_vals_2);
 
-    let mut random_state_v1 = builder.dyn_array(random_state_vals.len());
-    for (i, val) in random_state_vals.iter().enumerate() {
+    let mut random_state_v1 =
+        builder.dyn_array(random_state_vals_1.len() + random_state_vals_2.len());
+    for (i, val) in random_state_vals_1.iter().enumerate() {
         builder.set(&mut random_state_v1, i, *val);
     }
-    let mut random_state_v2 = builder.dyn_array(random_state_vals.len());
-    for (i, val) in random_state_vals.iter().enumerate() {
-        builder.set(&mut random_state_v2, i, *val);
+    for (i, val) in random_state_vals_2.iter().enumerate() {
+        builder.set(&mut random_state_v1, i + random_state_vals_1.len(), *val);
     }
-    let mut nested_random_state = builder.dyn_array(1);
-    builder.set(&mut nested_random_state, 0, random_state_v2.clone());
+
+    let mut random_state_v2_1 = builder.dyn_array(random_state_vals_1.len());
+    for (i, val) in random_state_vals_1.iter().enumerate() {
+        builder.set(&mut random_state_v2_1, i, *val);
+    }
+    let mut random_state_v2_2 = builder.dyn_array(random_state_vals_2.len());
+    for (i, val) in random_state_vals_2.iter().enumerate() {
+        builder.set(&mut random_state_v2_2, i, *val);
+    }
+
+    let mut nested_random_state = builder.dyn_array(2);
+    builder.set(&mut nested_random_state, 0, random_state_v2_1.clone());
+    builder.set(&mut nested_random_state, 1, random_state_v2_2.clone());
 
     let result = builder.poseidon2_hash(&random_state_v1);
     let result_x = builder.poseidon2_hash_x(&nested_random_state);
@@ -100,11 +115,12 @@ fn test_compiler_poseidon2_hash() {
     let program = builder.compile_program();
 
     let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
-    runtime.run();
+    runtime.run().unwrap();
     println!(
         "The program executed successfully, number of cycles: {}",
         runtime.clk.as_canonical_u32() / 4
     );
+    runtime.print_stats();
 }
 
 #[test]
@@ -135,7 +151,7 @@ fn test_compiler_poseidon2_hash_v2() {
     let program = builder.compile_program();
 
     let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
-    runtime.run();
+    runtime.run().unwrap();
     println!(
         "The program executed successfully, number of cycles: {}",
         runtime.clk.as_canonical_u32() / 4

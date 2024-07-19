@@ -12,5 +12,29 @@ members = [
   "rsa/script",
   "ssz-withdrawals/script",
   "tendermint/script",
+  "patch-testing/script",
 ]
 resolver = "2"
+
+[workspace.package]
+version = "1.0.0-rc.1"
+edition = "2021"
+
+[workspace.dependencies]
+sp1-build = { path = "../build" }
+sp1-derive = { path = "../derive" }
+sp1-core = { path = "../core" }
+sp1-cli = { path = "../cli", default-features = false }
+sp1-eval = { path = "../eval", default-features = false }
+sp1-helper = { path = "../helper", default-features = false }
+sp1-primitives = { path = "../primitives" }
+sp1-prover = { path = "../prover" }
+sp1-recursion-compiler = { path = "../recursion/compiler" }
+sp1-recursion-core = { path = "../recursion/core", default-features = false }
+sp1-recursion-derive = { path = "../recursion/derive", default-features = false }
+sp1-recursion-gnark-ffi = { path = "../recursion/gnark-ffi", default-features = false }
+sp1-recursion-program = { path = "../recursion/program", default-features = false }
+sp1-recursion-circuit = { path = "../recursion/circuit", default-features = false }
+sp1-sdk = { path = "../sdk" }
+sp1-lib = { path = "../zkvm/lib", default-features = false }
+sp1-zkvm = { path = "../zkvm/entrypoint", default-features = false }

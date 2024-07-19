@@ -160,6 +160,7 @@ mod tests {
     use itertools::{izip, Itertools};
     use rand::{thread_rng, Rng};
     use serde::{de::DeserializeOwned, Serialize};
+    use sp1_core::stark::DefaultProver;
     use sp1_core::{
         io::SP1Stdin,
         runtime::Program,
@@ -169,6 +170,7 @@ mod tests {
         },
         utils::{BabyBearPoseidon2, SP1CoreOpts},
     };
+
     use sp1_recursion_core::stark::utils::{run_test_recursion, TestConfig};
 
     use p3_challenger::{CanObserve, FieldChallenger};
@@ -284,7 +286,7 @@ mod tests {
         let machine = A::machine(SC::default());
         let (_, vk) = machine.setup(&Program::from(elf));
         let mut challenger = machine.config().challenger();
-        let (proof, _) = sp1_core::utils::prove(
+        let (proof, _, _) = sp1_core::utils::prove::<_, DefaultProver<_, _>>(
             Program::from(elf),
             &SP1Stdin::new(),
             SC::default(),
@@ -379,6 +381,33 @@ mod tests {
         let expected_val = builder.exp_reverse_bits_len(x_felt, &x_bits, 5);
 
         builder.assert_felt_eq(expected_val, result);
+        builder.halt();
+
+        let program = builder.compile_program();
+
+        // We don't test with the config TestConfig::WideDeg17Wrap, since it doesn't have the
+        // `ExpReverseBitsLen` chip.
+        run_test_recursion(program.clone(), None, TestConfig::WideDeg3);
+        run_test_recursion(program, None, TestConfig::SkinnyDeg7);
+    }
+
+    #[test]
+    fn test_memory_finalize() {
+        type SC = BabyBearPoseidon2;
+        type F = <SC as StarkGenericConfig>::Val;
+        type EF = <SC as StarkGenericConfig>::Challenge;
+
+        let mut rng = thread_rng();
+
+        // Initialize a builder.
+        let mut builder = AsmBuilder::<F, EF>::default();
+
+        // Get a random var with `NUM_BITS` bits.
+        let x_val: F = rng.gen();
+
+        // Materialize the number as a var
+        let _x_felt: Felt<_> = builder.eval(x_val);
+
         builder.halt();
 
         let program = builder.compile_program();

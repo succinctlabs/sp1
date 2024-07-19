@@ -1,16 +1,14 @@
 use anstyle::*;
 use anyhow::Result;
 use clap::Parser;
+use sp1_build::{build_program, BuildArgs};
 use sp1_core::utils::{setup_logger, setup_tracer};
 use sp1_prover::SP1Stdin;
 use sp1_sdk::ProverClient;
 use std::time::Instant;
 use std::{env, fs::File, io::Read, path::PathBuf, str::FromStr};
 
-use crate::{
-    build::{build_program, BuildArgs},
-    util::{elapsed, write_status},
-};
+use crate::util::{elapsed, write_status};
 
 #[derive(Debug, Clone)]
 enum Input {
@@ -75,7 +73,7 @@ pub struct ProveCmd {
 
 impl ProveCmd {
     pub fn run(&self) -> Result<()> {
-        let elf_path = build_program(&self.build_args)?;
+        let elf_path = build_program(&self.build_args, None)?;
 
         if !self.profile {
             match env::var("RUST_LOG") {
@@ -115,7 +113,7 @@ impl ProveCmd {
         let start_time = Instant::now();
         let client = ProverClient::new();
         let (pk, _) = client.setup(&elf);
-        let proof = client.prove(&pk, stdin).unwrap();
+        let proof = client.prove(&pk, stdin).run().unwrap();
 
         if let Some(ref path) = self.output {
             proof

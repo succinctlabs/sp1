@@ -21,7 +21,7 @@ func Build(dataDir string) {
 	//
 	// TODO: There might be some non-determinism if a single process is running this command
 	// multiple times.
-	os.Setenv("CONSTRAINTS_JSON", dataDir+"/"+CONSTRAINTS_JSON_FILE)
+	os.Setenv("CONSTRAINTS_JSON", dataDir+"/"+constraintsJsonFile)
 
 	// Read the file.
 	witnessInputPath := dataDir + "/witness.json"
@@ -49,8 +49,8 @@ func Build(dataDir string) {
 	// Download the trusted setup.
 	var srs kzg.SRS = kzg.NewSRS(ecc.BN254)
 	var srsLagrange kzg.SRS = kzg.NewSRS(ecc.BN254)
-	srsFileName := dataDir + "/" + SRS_FILE
-	srsLagrangeFileName := dataDir + "/" + SRS_LAGRANGE_FILE
+	srsFileName := dataDir + "/" + srsFile
+	srsLagrangeFileName := dataDir + "/" + srsLagrangeFile
 
 	srsLagrangeFile, err := os.Create(srsLagrangeFileName)
 	if err != nil {
@@ -71,7 +71,6 @@ func Build(dataDir string) {
 			defer srsFile.Close()
 
 			_, err = srs.ReadFrom(srsFile)
-			srsFile.Close()
 			if err != nil {
 				panic(err)
 			}
@@ -89,22 +88,15 @@ func Build(dataDir string) {
 			defer srsFile.Close()
 
 			_, err = srs.ReadFrom(srsFile)
-			srsFile.Close()
 			if err != nil {
 				panic(err)
 			}
-
-			srsLagrangeFile, err := os.Open(srsLagrangeFileName)
-			if err != nil {
-				panic(err)
-			}
-			defer srsLagrangeFile.Close()
 
 			_, err = srsLagrange.ReadFrom(srsLagrangeFile)
-			srsLagrangeFile.Close()
 			if err != nil {
 				panic(err)
 			}
+
 		}
 	} else {
 		srs, srsLagrange, err = unsafekzg.NewSRS(scs)
@@ -160,14 +152,15 @@ func Build(dataDir string) {
 	os.MkdirAll(dataDir, 0755)
 
 	// Write the solidity verifier.
-	solidityVerifierFile, err := os.Create(dataDir + "/" + VERIFIER_CONTRACT_PATH)
+	solidityVerifierFile, err := os.Create(dataDir + "/" + verifierContractPath)
 	if err != nil {
 		panic(err)
 	}
 	vk.ExportSolidity(solidityVerifierFile)
+	defer solidityVerifierFile.Close()
 
 	// Write the R1CS.
-	scsFile, err := os.Create(dataDir + "/" + CIRCUIT_PATH)
+	scsFile, err := os.Create(dataDir + "/" + circuitPath)
 	if err != nil {
 		panic(err)
 	}
@@ -178,7 +171,7 @@ func Build(dataDir string) {
 	}
 
 	// Write the verifier key.
-	vkFile, err := os.Create(dataDir + "/" + VK_PATH)
+	vkFile, err := os.Create(dataDir + "/" + vkPath)
 	if err != nil {
 		panic(err)
 	}
@@ -189,7 +182,7 @@ func Build(dataDir string) {
 	}
 
 	// Write the proving key.
-	pkFile, err := os.Create(dataDir + "/" + PK_PATH)
+	pkFile, err := os.Create(dataDir + "/" + pkPath)
 	if err != nil {
 		panic(err)
 	}

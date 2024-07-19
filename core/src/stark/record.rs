@@ -1,19 +1,15 @@
-use std::collections::HashMap;
+use hashbrown::HashMap;
 
 use p3_field::AbstractField;
 
 pub trait MachineRecord: Default + Sized + Send + Sync + Clone {
-    type Config: Default;
-
-    fn index(&self) -> u32;
-
-    fn set_index(&mut self, index: u32);
+    type Config: 'static + Copy + Send + Sync;
 
     fn stats(&self) -> HashMap<String, usize>;
 
     fn append(&mut self, other: &mut Self);
 
-    fn shard(self, config: &Self::Config) -> Vec<Self>;
+    fn register_nonces(&mut self, _opts: &Self::Config) {}
 
     fn public_values<F: AbstractField>(&self) -> Vec<F>;
 }

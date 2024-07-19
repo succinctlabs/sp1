@@ -5,7 +5,7 @@ mod record;
 mod utils;
 
 use std::collections::VecDeque;
-use std::process::exit;
+use std::{array, fmt};
 use std::{marker::PhantomData, sync::Arc};
 
 use hashbrown::HashMap;
@@ -24,8 +24,10 @@ use crate::air::{Block, RECURSION_PUBLIC_VALUES_COL_MAP, RECURSIVE_PROOF_NUM_PV_
 use crate::cpu::CpuEvent;
 use crate::exp_reverse_bits::ExpReverseBitsLenEvent;
 use crate::fri_fold::FriFoldEvent;
-use crate::memory::MemoryRecord;
-use crate::poseidon2::Poseidon2Event;
+use crate::memory::{compute_addr_diff, MemoryRecord};
+use crate::poseidon2_wide::events::{
+    Poseidon2AbsorbEvent, Poseidon2CompressEvent, Poseidon2FinalizeEvent, Poseidon2HashEvent,
+};
 use crate::range_check::{RangeCheckEvent, RangeCheckOpcode};
 
 use p3_field::{ExtensionField, PrimeField32};
@@ -131,8 +133,29 @@ pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
         >,
     >,
 
+    p2_hash_state: [F; PERMUTATION_WIDTH],
+
+    p2_hash_state_cursor: usize,
+
+    p2_current_hash_num: Option<F>,
+
     _marker: PhantomData<EF>,
 }
+
+#[derive(Debug)]
+pub enum RuntimeError {
+    Trap(String),
+}
+
+impl fmt::Display for RuntimeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            RuntimeError::Trap(msg) => write!(f, "TRAP encountered: {}", msg),
+        }
+    }
+}
+
+impl std::error::Error for RuntimeError {}
 
 impl<F: PrimeField32, EF: ExtensionField<F>, Diffusion> Runtime<F, EF, Diffusion>
 where
@@ -179,6 +202,9 @@ where
             access: CpuRecord::default(),
             witness_stream: VecDeque::new(),
             cycle_tracker: HashMap::new(),
+            p2_hash_state: [F::zero(); PERMUTATION_WIDTH],
+            p2_hash_state_cursor: 0,
+            p2_current_hash_num: None,
             _marker: PhantomData,
         }
     }
@@ -209,6 +235,9 @@ where
             access: CpuRecord::default(),
             witness_stream: VecDeque::new(),
             cycle_tracker: HashMap::new(),
+            p2_hash_state: [F::zero(); PERMUTATION_WIDTH],
+            p2_hash_state_cursor: 0,
+            p2_current_hash_num: None,
             _marker: PhantomData,
         }
     }
@@ -266,6 +295,20 @@ where
         );
         self.record
             .add_range_check_events(&[diff_16bit_limb_event, diff_12bit_limb_event]);
+    }
+
+    /// Track the range checks for the memory finalize table. This will be used later to set the
+    /// multiplicities in the range check table. The parameter `subtract_one` should be `true` when
+    /// used for checking address uniqueness, and `false` when used to range-check the addresses
+    /// themselves.
+    fn track_addr_range_check(&mut self, addr: F, next_addr: F, subtract_one: bool) {
+        let (diff_16, diff_12) = compute_addr_diff(next_addr, addr, subtract_one);
+        let diff_16bit_limb_event =
+            RangeCheckEvent::new(RangeCheckOpcode::U16, diff_16.as_canonical_u32() as u16);
+        let diff_8bit_limb_event =
+            RangeCheckEvent::new(RangeCheckOpcode::U12, diff_12.as_canonical_u32() as u16);
+        self.record
+            .add_range_check_events(&[diff_16bit_limb_event, diff_8bit_limb_event]);
     }
 
     fn mr(&mut self, addr: F, timestamp: F) -> (MemoryRecord<F>, Block<F>) {
@@ -404,7 +447,7 @@ where
         (a_val, b_val, c_val)
     }
 
-    pub fn run(&mut self) {
+    pub fn run(&mut self) -> Result<(), RuntimeError> {
         let early_exit_ts = std::env::var("RECURSION_EARLY_EXIT_TS")
             .map_or(usize::MAX, |ts: String| ts.parse().unwrap());
         while self.pc < F::from_canonical_u32(self.program.instructions.len() as u32) {
@@ -593,20 +636,19 @@ where
                     let trace = self.program.traces[trap_pc].clone();
                     if let Some(mut trace) = trace {
                         trace.resolve();
-                        panic!("TRAP encountered. Backtrace:\n{:?}", trace);
+                        return Err(RuntimeError::Trap(format!("Backtrace:\n{:?}", trace)));
                     } else {
                         for nearby_pc in (0..trap_pc).rev() {
                             let trace = self.program.traces[nearby_pc].clone();
                             if let Some(mut trace) = trace {
                                 trace.resolve();
-                                eprintln!(
+                                return Err(RuntimeError::Trap(format!(
                                     "TRAP encountered at pc={}. Nearest trace at pc={}: {:?}",
                                     trap_pc, nearby_pc, trace
-                                );
-                                exit(1);
+                                )));
                             }
                         }
-                        panic!("TRAP encountered. No backtrace available");
+                        return Err(RuntimeError::Trap("No backtrace available".to_string()));
                     }
                 }
                 Opcode::HALT => {
@@ -675,16 +717,115 @@ where
                         ));
                     }
 
-                    self.record.poseidon2_events.push(Poseidon2Event {
-                        clk: timestamp,
-                        dst,
-                        left,
-                        right,
-                        input: array,
-                        result_array: result,
-                        input_records,
-                        result_records: result_records.try_into().unwrap(),
+                    self.record
+                        .poseidon2_compress_events
+                        .push(Poseidon2CompressEvent {
+                            clk: timestamp,
+                            dst,
+                            left,
+                            right,
+                            input: array,
+                            result_array: result,
+                            input_records,
+                            result_records: result_records.try_into().unwrap(),
+                        });
+
+                    (a, b, c) = (a_val, b_val, c_val);
+                }
+
+                Opcode::Poseidon2Absorb => {
+                    self.nb_poseidons += 1;
+                    let (a_val, b_val, c_val) = self.all_rr(&instruction);
+
+                    let hash_and_absorb_num = a_val[0];
+                    let start_addr = b_val[0];
+                    let input_len = c_val[0];
+                    let timestamp = self.clk;
+
+                    let two_pow_12 = 1 << 12;
+
+                    let hash_and_absorb_num_u32 = hash_and_absorb_num.as_canonical_u32();
+                    let hash_num = F::from_canonical_u32(hash_and_absorb_num_u32 / two_pow_12);
+                    let absorb_num = F::from_canonical_u32(hash_and_absorb_num_u32 % two_pow_12);
+
+                    // Double check that hash_num is [0, 2^16 - 1] and absorb_num is [0, 2^12 - 1] since
+                    // that is what the AIR will enforce.
+                    assert!(hash_num.as_canonical_u32() < 1 << 16);
+                    assert!(absorb_num.as_canonical_u32() < 1 << 12);
+
+                    // We currently don't support an input_len of 0, since it will need special logic in the AIR.
+                    assert!(input_len > F::zero());
+
+                    let mut absorb_event = Poseidon2AbsorbEvent::new(
+                        timestamp,
+                        hash_and_absorb_num,
+                        start_addr,
+                        input_len,
+                        hash_num,
+                        absorb_num,
+                    );
+
+                    let memory_records: Vec<MemoryRecord<F>> = (0..input_len.as_canonical_u32())
+                        .map(|i| self.mr(start_addr + F::from_canonical_u32(i), timestamp).0)
+                        .collect_vec();
+
+                    let permuter = self.perm.as_ref().unwrap().clone();
+                    absorb_event.populate_iterations(
+                        start_addr,
+                        input_len,
+                        &memory_records,
+                        &permuter,
+                        &mut self.p2_hash_state,
+                        &mut self.p2_hash_state_cursor,
+                    );
+
+                    // Update the current hash number.
+                    self.p2_current_hash_num = Some(hash_num);
+
+                    self.record
+                        .poseidon2_hash_events
+                        .push(Poseidon2HashEvent::Absorb(absorb_event));
+
+                    (a, b, c) = (a_val, b_val, c_val);
+                }
+
+                Opcode::Poseidon2Finalize => {
+                    self.nb_poseidons += 1;
+                    let (a_val, b_val, c_val) = self.all_rr(&instruction);
+
+                    let p2_hash_num = a_val[0];
+                    let output_ptr = b_val[0];
+                    let timestamp = self.clk;
+
+                    let do_perm = self.p2_hash_state_cursor != 0;
+                    let perm_output = self.perm.as_ref().unwrap().permute(self.p2_hash_state);
+                    let state = if do_perm {
+                        perm_output
+                    } else {
+                        self.p2_hash_state
+                    };
+                    let output_records: [MemoryRecord<F>; DIGEST_SIZE] = array::from_fn(|i| {
+                        self.mw(output_ptr + F::from_canonical_usize(i), state[i], timestamp)
                     });
+
+                    self.record
+                        .poseidon2_hash_events
+                        .push(Poseidon2HashEvent::Finalize(Poseidon2FinalizeEvent {
+                            clk: timestamp,
+                            hash_num: p2_hash_num,
+                            output_ptr,
+                            output_records,
+                            state_cursor: self.p2_hash_state_cursor,
+                            perm_input: self.p2_hash_state,
+                            perm_output,
+                            previous_state: self.p2_hash_state,
+                            state,
+                            do_perm,
+                        }));
+
+                    self.p2_hash_state_cursor = 0;
+                    self.p2_hash_state = [F::zero(); PERMUTATION_WIDTH];
+
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::HintBits => {
@@ -941,6 +1082,29 @@ where
                 entry.value,
             ))
         }
+        self.record
+            .last_memory_record
+            .sort_by_key(|(addr, _, _)| *addr);
+
+        // For all the records but the last, need to check that the next address is greater than the
+        // current address, and that the difference is bounded by 2^28. We also track that the current
+        // address is bounded by 2^28.
+        for i in 0..self.record.last_memory_record.len() - 1 {
+            self.track_addr_range_check(
+                self.record.last_memory_record[i].0,
+                self.record.last_memory_record[i + 1].0,
+                true,
+            );
+            self.track_addr_range_check(F::zero(), self.record.last_memory_record[i].0, false);
+        }
+        // Add the last range check event for the last memory address.
+        self.track_addr_range_check(
+            F::zero(),
+            self.record.last_memory_record.last().unwrap().0,
+            false,
+        );
+
+        Ok(())
     }
 }
 
@@ -952,7 +1116,7 @@ mod tests {
         utils::BabyBearPoseidon2,
     };
 
-    use super::{Instruction, Opcode, RecursionProgram, Runtime};
+    use super::{Instruction, Opcode, RecursionProgram, Runtime, RuntimeError};
 
     type SC = BabyBearPoseidon2;
     type F = <SC as StarkGenericConfig>::Val;
@@ -960,7 +1124,7 @@ mod tests {
     type A = RiscvAir<F>;
 
     #[test]
-    fn test_witness() {
+    fn test_witness_success() {
         let zero = F::zero();
         let zero_block = [F::zero(); 4];
         let program = RecursionProgram {
@@ -994,6 +1158,41 @@ mod tests {
         let mut runtime = Runtime::<F, EF, _>::new(&program, machine.config().perm.clone());
         runtime.witness_stream =
             vec![vec![F::two().into(), F::two().into(), F::two().into()]].into();
-        runtime.run();
+
+        let result = runtime.run();
+        assert!(result.is_ok(), "Expected run to complete successfully");
+    }
+
+    #[test]
+    fn test_witness_trap_error() {
+        let zero = F::zero();
+        let zero_block = [F::zero(); 4];
+        let trap_program = RecursionProgram {
+            traces: vec![None], // None trace for the TRAP instruction
+            instructions: vec![Instruction::new(
+                Opcode::TRAP,
+                zero,
+                zero_block,
+                zero_block,
+                zero,
+                zero,
+                false,
+                false,
+                "".to_string(),
+            )],
+        };
+        let machine = A::machine(SC::default());
+        let mut trap_runtime =
+            Runtime::<F, EF, _>::new(&trap_program, machine.config().perm.clone());
+
+        let trap_result = trap_runtime.run();
+        assert!(
+            trap_result.is_err(),
+            "Expected run to return an error due to TRAP instruction"
+        );
+
+        if let Err(RuntimeError::Trap(msg)) = trap_result {
+            println!("Caught expected trap error: {}", msg);
+        }
     }
 }

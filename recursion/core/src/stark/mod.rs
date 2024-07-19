@@ -4,8 +4,8 @@ pub mod utils;
 
 use crate::{
     cpu::CpuChip, exp_reverse_bits::ExpReverseBitsLenChip, fri_fold::FriFoldChip,
-    memory::MemoryGlobalChip, multi::MultiChip, poseidon2::Poseidon2Chip,
-    poseidon2_wide::Poseidon2WideChip, program::ProgramChip, range_check::RangeCheckChip,
+    memory::MemoryGlobalChip, multi::MultiChip, poseidon2_wide::Poseidon2WideChip,
+    program::ProgramChip, range_check::RangeCheckChip,
 };
 use core::iter::once;
 use p3_field::{extension::BinomiallyExtendable, PrimeField32};
@@ -16,19 +16,20 @@ use std::marker::PhantomData;
 use crate::runtime::D;
 
 pub type RecursionAirWideDeg3<F> = RecursionAir<F, 3>;
-pub type RecursionAirSkinnyDeg9<F> = RecursionAir<F, 9>;
+pub type RecursionAirWideDeg9<F> = RecursionAir<F, 9>;
+pub type RecursionAirWideDeg17<F> = RecursionAir<F, 17>;
 
 #[derive(MachineAir)]
 #[sp1_core_path = "sp1_core"]
 #[execution_record_path = "crate::runtime::ExecutionRecord<F>"]
 #[program_path = "crate::runtime::RecursionProgram<F>"]
 #[builder_path = "crate::air::SP1RecursionAirBuilder<F = F>"]
+#[eval_trait_bound = "AB::Var: 'static"]
 pub enum RecursionAir<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> {
     Program(ProgramChip),
     Cpu(CpuChip<F, DEGREE>),
     MemoryGlobal(MemoryGlobalChip),
     Poseidon2Wide(Poseidon2WideChip<DEGREE>),
-    Poseidon2Skinny(Poseidon2Chip),
     FriFold(FriFoldChip<DEGREE>),
     RangeCheck(RangeCheckChip<F>),
     Multi(MultiChip<DEGREE>),
@@ -76,6 +77,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
                 DEGREE,
             > {
                 fixed_log2_rows: None,
+                pad: true,
             })))
             .chain(once(RecursionAir::FriFold(FriFoldChip::<DEGREE> {
                 fixed_log2_rows: None,
@@ -123,15 +125,9 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
                 fixed_log2_rows: Some(19),
             })))
             .chain(once(RecursionAir::Multi(MultiChip {
-                fixed_log2_rows: Some(19),
+                fixed_log2_rows: Some(17),
             })))
             .chain(once(RecursionAir::RangeCheck(RangeCheckChip::default())))
-            .chain(once(RecursionAir::ExpReverseBitsLen(
-                ExpReverseBitsLenChip::<DEGREE> {
-                    fixed_log2_rows: None,
-                    pad: true,
-                },
-            )))
             .collect()
     }
 }

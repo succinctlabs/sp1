@@ -517,7 +517,32 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                         _ => unimplemented!(),
                     }
                 }
-
+                DslIr::Poseidon2AbsorbBabyBear(p2_hash_and_absorb_num, input) => match input {
+                    Array::Dyn(input, input_size) => {
+                        if let Usize::Var(input_size) = input_size {
+                            self.push(
+                                AsmInstruction::Poseidon2Absorb(
+                                    p2_hash_and_absorb_num.fp(),
+                                    input.fp(),
+                                    input_size.fp(),
+                                ),
+                                trace,
+                            );
+                        } else {
+                            unimplemented!();
+                        }
+                    }
+                    _ => unimplemented!(),
+                },
+                DslIr::Poseidon2FinalizeBabyBear(p2_hash_num, output) => match output {
+                    Array::Dyn(output, _) => {
+                        self.push(
+                            AsmInstruction::Poseidon2Finalize(p2_hash_num.fp(), output.fp()),
+                            trace,
+                        );
+                    }
+                    _ => unimplemented!(),
+                },
                 DslIr::Commit(val, index) => {
                     self.push(AsmInstruction::Commit(val.fp(), index.fp()), trace);
                 }

@@ -4,6 +4,7 @@ use crate::memory::{value_as_limbs, MemoryReadCols, MemoryWriteCols};
 use crate::operations::field::field_op::{FieldOpCols, FieldOperation};
 use crate::operations::field::params::NumWords;
 use crate::operations::field::params::{Limbs, NumLimbs};
+use crate::operations::field::range::FieldLtCols;
 use crate::operations::IsZeroOperation;
 use crate::runtime::{ExecutionRecord, Program, Syscall, SyscallCode};
 use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
@@ -15,8 +16,7 @@ use crate::utils::{
     words_to_bytes_le_vec,
 };
 use generic_array::GenericArray;
-use num::Zero;
-use num::{BigUint, One};
+use num::{BigUint, One, Zero};
 use p3_air::AirBuilder;
 use p3_air::{Air, BaseAir};
 use p3_field::AbstractField;
@@ -34,7 +34,7 @@ const NUM_COLS: usize = size_of::<Uint256MulCols<u8>>();
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Uint256MulEvent {
-    pub lookup_id: usize,
+    pub lookup_id: u128,
     pub shard: u32,
     pub channel: u32,
     pub clk: u32,
@@ -73,7 +73,7 @@ pub struct Uint256MulCols<T> {
     /// The clock cycle of the syscall.
     pub clk: T,
 
-    /// The none of the operation.
+    /// The nonce of the operation.
     pub nonce: T,
 
     /// The pointer to the first input.
@@ -88,11 +88,16 @@ pub struct Uint256MulCols<T> {
     pub y_memory: GenericArray<MemoryReadCols<T>, WordsFieldElement>,
     pub modulus_memory: GenericArray<MemoryReadCols<T>, WordsFieldElement>,
 
-    // Columns for checking if modulus is zero. If it's zero, then use 2^256 as the effective modulus.
+    /// Columns for checking if modulus is zero. If it's zero, then use 2^256 as the effective modulus.
     pub modulus_is_zero: IsZeroOperation<T>,
+
+    /// Column that is equal to is_real * (1 - modulus_is_zero.result).
+    pub modulus_is_not_zero: T,
 
     // Output values. We compute (x * y) % modulus.
     pub output: FieldOpCols<T, U256Field>,
+
+    pub output_range_check: FieldLtCols<T, U256Field>,
 
     pub is_real: T,
 }
@@ -167,7 +172,7 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
                         } else {
                             modulus.clone()
                         };
-                        cols.output.populate_with_modulus(
+                        let result = cols.output.populate_with_modulus(
                             &mut new_byte_lookup_events,
                             event.shard,
                             event.channel,
@@ -177,6 +182,17 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
                             // &modulus,
                             FieldOperation::Mul,
                         );
+
+                        cols.modulus_is_not_zero = F::one() - cols.modulus_is_zero.result;
+                        if cols.modulus_is_not_zero == F::one() {
+                            cols.output_range_check.populate(
+                                &mut new_byte_lookup_events,
+                                event.shard,
+                                event.channel,
+                                &result,
+                                &effective_modulus,
+                            );
+                        }
 
                         row
                     })
@@ -226,10 +242,12 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
 
 impl Syscall for Uint256MulChip {
     fn num_extra_cycles(&self) -> u32 {
-        0
+        1
     }
 
     fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
+        let clk = rt.clk;
+
         let x_ptr = arg1;
         if x_ptr % 4 != 0 {
             panic!();
@@ -269,13 +287,14 @@ impl Syscall for Uint256MulChip {
         // Convert the result to little endian u32 words.
         let result = bytes_to_words_le::<8>(&result_bytes);
 
+        // Increment clk so that the write is not at the same cycle as the read.
+        rt.clk += 1;
         // Write the result to x and keep track of the memory records.
         let x_memory_records = rt.mw_slice(x_ptr, &result);
 
         let lookup_id = rt.syscall_lookup_id;
         let shard = rt.current_shard();
         let channel = rt.current_channel();
-        let clk = rt.clk;
         rt.record_mut().uint256_mul_events.push(Uint256MulEvent {
             lookup_id,
             shard,
@@ -362,6 +381,21 @@ where
             local.is_real,
         );
 
+        // Verify the range of the output if the moduls is not zero.  Also, check the value of
+        // modulus_is_not_zero.
+        local.output_range_check.eval(
+            builder,
+            &local.output.result,
+            &modulus_limbs,
+            local.shard,
+            local.channel,
+            local.modulus_is_not_zero,
+        );
+        builder.assert_eq(
+            local.modulus_is_not_zero,
+            local.is_real * (AB::Expr::one() - modulus_is_zero.into()),
+        );
+
         // Assert that the correct result is being written to x_memory.
         builder
             .when(local.is_real)
@@ -371,7 +405,7 @@ where
         builder.eval_memory_access_slice(
             local.shard,
             local.channel,
-            local.clk.into(),
+            local.clk.into() + AB::Expr::one(),
             local.x_ptr,
             &local.x_memory,
             local.is_real,

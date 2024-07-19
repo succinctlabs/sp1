@@ -1,7 +1,13 @@
 [package]
 name = "sp1-recursion-circuit"
-version = "0.1.0"
-edition = "2021"
+description = "SP1 is a performant, 100% open-source, contributor-friendly zkVM."
+readme = "../../README.md"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+keywords = { workspace = true }
+categories = { workspace = true }
 
 [dependencies]
 p3-air = { workspace = true }
@@ -10,13 +16,13 @@ p3-commit = { workspace = true }
 p3-fri = { workspace = true }
 p3-matrix = { workspace = true }
 p3-util = { workspace = true }
-sp1-recursion-core = { path = "../core" }
-sp1-core = { path = "../../core" }
+sp1-recursion-core = { workspace = true }
+sp1-core = { workspace = true }
 itertools = "0.13.0"
-serde = { version = "1.0.201", features = ["derive"] }
-sp1-recursion-derive = { path = "../derive" }
-sp1-recursion-compiler = { path = "../compiler" }
-sp1-recursion-program = { path = "../program" }
+serde = { version = "1.0.204", features = ["derive"] }
+sp1-recursion-derive = { workspace = true }
+sp1-recursion-compiler = { workspace = true }
+sp1-recursion-program = { workspace = true }
 p3-bn254-fr = { workspace = true }
 p3-baby-bear = { workspace = true }
 bincode = "1.3.3"
@@ -28,9 +34,9 @@ p3-symmetric = { workspace = true }
 p3-dft = { workspace = true }
 p3-merkle-tree = { workspace = true }
 p3-poseidon2 = { workspace = true }
-zkhash = { git = "https://github.com/HorizenLabs/poseidon2" }
+zkhash = "0.2.0"
 rand = "0.8.5"
-sp1-recursion-gnark-ffi = { path = "../gnark-ffi" }
+sp1-recursion-gnark-ffi = { workspace = true }
 
 [features]
 native-gnark = ["sp1-recursion-gnark-ffi/native"]

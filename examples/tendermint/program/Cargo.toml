@@ -1,25 +1,20 @@
 [workspace]
 [package]
-version = "0.1.0"
 name = "tendermint-program"
+version = "1.0.0-rc.1"
 edition = "2021"
+publish = false
 
 [dependencies]
 sp1-zkvm = { path = "../../../zkvm/entrypoint" }
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 serde = { version = "1.0", default-features = false, features = ["derive"] }
-tendermint-light-client-verifier = { git = "https://github.com/i-m-aditya/tendermint-rs.git", branch = "i-m-aditya/break-loop-on-having-enough-voting-power", default-features = false, features = [
+tendermint-light-client-verifier = { version = "0.35.0", default-features = false, features = [
   "rust-crypto",
 ] }
-# tendermint-light-client-verifier = { version = "0.34.0", default-features = false, features = [
-#    "rust-crypto",
-# ] }
-# tendermint-light-client-verifier = { path = "../../../../tendermint-rs/light-client-verifier", default-features = false, features = [
-#     "rust-crypto",
-# ] }
 serde_cbor = "0.11.2"
 
 [patch.crates-io]
-sha2-v0-9-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", branch = "patch-v0.9.8" }
-sha2-v0-10-6 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", branch = "patch-v0.10.6" }
 ed25519-consensus = { git = "https://github.com/sp1-patches/ed25519-consensus", branch = "patch-v2.1.0" }
+sha2-v0-9-9 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", branch = "patch-v0.9.9" }
+sha2-v0-10-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", branch = "patch-v0.10.8" }

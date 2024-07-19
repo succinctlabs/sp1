@@ -1,17 +1,10 @@
-use std::{
-    collections::HashMap,
-    fmt::Debug,
-    fs::File,
-    io::{BufReader, BufWriter, Seek},
-};
+use std::fmt::Debug;
 
-use bincode::{deserialize_from, Error};
+use hashbrown::HashMap;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::dense::RowMajorMatrixView;
 use p3_matrix::stack::VerticalPair;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use size::Size;
-use tracing::trace;
+use serde::{Deserialize, Serialize};
 
 use super::{Challenge, Com, OpeningProof, PcsProverData, StarkGenericConfig, Val};
 
@@ -25,7 +18,6 @@ pub struct ShardMainData<SC: StarkGenericConfig> {
     pub main_commit: Com<SC>,
     pub main_data: PcsProverData<SC>,
     pub chip_ordering: HashMap<String, usize>,
-    pub index: usize,
     pub public_values: Vec<SC::Val>,
 }
 
@@ -35,7 +27,6 @@ impl<SC: StarkGenericConfig> ShardMainData<SC> {
         main_commit: Com<SC>,
         main_data: PcsProverData<SC>,
         chip_ordering: HashMap<String, usize>,
-        index: usize,
         public_values: Vec<Val<SC>>,
     ) -> Self {
         Self {
@@ -43,52 +34,7 @@ impl<SC: StarkGenericConfig> ShardMainData<SC> {
             main_commit,
             main_data,
             chip_ordering,
-            index,
             public_values,
-        }
-    }
-
-    pub fn save(&self, file: File) -> Result<ShardMainDataWrapper<SC>, Error>
-    where
-        ShardMainData<SC>: Serialize,
-    {
-        let mut writer = BufWriter::new(&file);
-        bincode::serialize_into(&mut writer, self)?;
-        drop(writer);
-        let metadata = file.metadata()?;
-        let bytes_written = metadata.len();
-        trace!(
-            "wrote {} while saving ShardMainData",
-            Size::from_bytes(bytes_written)
-        );
-        Ok(ShardMainDataWrapper::TempFile(file, bytes_written))
-    }
-
-    pub const fn to_in_memory(self) -> ShardMainDataWrapper<SC> {
-        ShardMainDataWrapper::InMemory(self)
-    }
-}
-
-pub enum ShardMainDataWrapper<SC: StarkGenericConfig> {
-    InMemory(ShardMainData<SC>),
-    TempFile(File, u64),
-    Empty(),
-}
-
-impl<SC: StarkGenericConfig> ShardMainDataWrapper<SC> {
-    pub fn materialize(self) -> Result<ShardMainData<SC>, Error>
-    where
-        ShardMainData<SC>: DeserializeOwned,
-    {
-        match self {
-            Self::InMemory(data) => Ok(data),
-            Self::TempFile(file, _) => {
-                let mut buffer = BufReader::new(&file);
-                buffer.seek(std::io::SeekFrom::Start(0))?;
-                let data = deserialize_from(&mut buffer)?;
-                Ok(data)
-            }
-            Self::Empty() => unreachable!(),
         }
     }
 }
@@ -124,7 +70,7 @@ pub struct ShardOpenedValues<T: Serialize> {
 /// The maximum number of elements that can be stored in the public values vec.  Both SP1 and recursive
 /// proofs need to pad their public_values vec to this length.  This is required since the recursion
 /// verification program expects the public values vec to be fixed length.
-pub const PROOF_MAX_NUM_PVS: usize = 241;
+pub const PROOF_MAX_NUM_PVS: usize = 370;
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(bound = "")]
@@ -157,6 +103,23 @@ impl<SC: StarkGenericConfig> ShardProof<SC> {
             .iter()
             .map(|c| c.cumulative_sum)
             .sum()
+    }
+
+    pub fn log_degree_cpu(&self) -> usize {
+        let idx = self.chip_ordering.get("CPU").expect("CPU chip not found");
+        self.opened_values.chips[*idx].log_degree
+    }
+
+    pub fn contains_cpu(&self) -> bool {
+        self.chip_ordering.contains_key("CPU")
+    }
+
+    pub fn contains_memory_init(&self) -> bool {
+        self.chip_ordering.contains_key("MemoryInit")
+    }
+
+    pub fn contains_memory_finalize(&self) -> bool {
+        self.chip_ordering.contains_key("MemoryFinalize")
     }
 }
 

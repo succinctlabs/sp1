@@ -1,4 +1,7 @@
+use std::{borrow::BorrowMut, mem::transmute};
+
 use p3_field::PrimeField32;
+use p3_util::indices_arr;
 use sp1_derive::AlignedBorrow;
 
 use crate::{
@@ -6,7 +9,14 @@ use crate::{
     runtime::{instruction_is_heap_expand, Opcode},
 };
 
-const OPCODE_COUNT: usize = core::mem::size_of::<OpcodeSelectorCols<u8>>();
+pub(crate) const OPCODE_COUNT: usize = core::mem::size_of::<OpcodeSelectorCols<u8>>();
+
+const fn make_col_map() -> OpcodeSelectorCols<usize> {
+    let indices_arr = indices_arr::<OPCODE_COUNT>();
+    unsafe { transmute::<[usize; OPCODE_COUNT], OpcodeSelectorCols<usize>>(indices_arr) }
+}
+
+pub(crate) const SELECTOR_COL_MAP: OpcodeSelectorCols<usize> = make_col_map();
 
 /// Selectors for the opcode.
 ///
@@ -70,8 +80,10 @@ impl<F: PrimeField32> OpcodeSelectorCols<F> {
             Opcode::TRAP => self.is_trap = F::one(),
             Opcode::HALT => self.is_halt = F::one(),
             Opcode::FRIFold => self.is_fri_fold = F::one(),
+            Opcode::Poseidon2Compress | Opcode::Poseidon2Absorb | Opcode::Poseidon2Finalize => {
+                self.is_poseidon = F::one()
+            }
             Opcode::ExpReverseBitsLen => self.is_exp_reverse_bits_len = F::one(),
-            Opcode::Poseidon2Compress => self.is_poseidon = F::one(),
             Opcode::Commit => self.is_commit = F::one(),
             Opcode::HintExt2Felt => self.is_ext_to_felt = F::one(),
 
@@ -106,29 +118,10 @@ impl<T: Copy> IntoIterator for &OpcodeSelectorCols<T> {
     type IntoIter = std::array::IntoIter<T, OPCODE_COUNT>;
 
     fn into_iter(self) -> Self::IntoIter {
-        [
-            self.is_add,
-            self.is_sub,
-            self.is_mul,
-            self.is_div,
-            self.is_ext,
-            self.is_load,
-            self.is_store,
-            self.is_beq,
-            self.is_bne,
-            self.is_bneinc,
-            self.is_jal,
-            self.is_jalr,
-            self.is_trap,
-            self.is_halt,
-            self.is_noop,
-            self.is_poseidon,
-            self.is_fri_fold,
-            self.is_commit,
-            self.is_ext_to_felt,
-            self.is_exp_reverse_bits_len,
-            self.is_heap_expand,
-        ]
-        .into_iter()
+        let mut array = [self.is_add; OPCODE_COUNT];
+        let mut_ref: &mut OpcodeSelectorCols<T> = array.as_mut_slice().borrow_mut();
+
+        *mut_ref = *self;
+        array.into_iter()
     }
 }

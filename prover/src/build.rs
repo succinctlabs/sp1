@@ -2,7 +2,9 @@ use std::borrow::Borrow;
 use std::path::PathBuf;
 
 use p3_baby_bear::BabyBear;
+use sp1_core::runtime::SP1Context;
 use sp1_core::stark::StarkVerifyingKey;
+use sp1_core::utils::SP1ProverOpts;
 use sp1_core::{io::SP1Stdin, stark::ShardProof};
 pub use sp1_recursion_circuit::stark::build_wrap_circuit;
 pub use sp1_recursion_circuit::witness::Witnessable;
@@ -12,29 +14,8 @@ use sp1_recursion_core::air::RecursionPublicValues;
 pub use sp1_recursion_core::stark::utils::sp1_dev_mode;
 use sp1_recursion_gnark_ffi::PlonkBn254Prover;
 
-use crate::install::install_plonk_bn254_artifacts;
 use crate::utils::{babybear_bytes_to_bn254, babybears_to_bn254, words_to_bytes};
-use crate::{OuterSC, SP1Prover, SP1_CIRCUIT_VERSION};
-
-/// Tries to install the PLONK artifacts if they are not already installed.
-pub fn try_install_plonk_bn254_artifacts() -> PathBuf {
-    let build_dir = plonk_bn254_artifacts_dir();
-
-    if build_dir.exists() {
-        println!(
-            "[sp1] plonk bn254 artifacts already seem to exist at {}. if you want to re-download them, delete the directory",
-            build_dir.display()
-        );
-    } else {
-        println!(
-            "[sp1] plonk bn254 artifacts for version {} do not exist at {}. downloading...",
-            SP1_CIRCUIT_VERSION,
-            build_dir.display()
-        );
-        install_plonk_bn254_artifacts(build_dir.clone());
-    }
-    build_dir
-}
+use crate::{OuterSC, SP1Prover};
 
 /// Tries to build the PLONK artifacts inside the development directory.
 pub fn try_build_plonk_bn254_artifacts_dev(
@@ -45,16 +26,6 @@ pub fn try_build_plonk_bn254_artifacts_dev(
     println!("[sp1] building plonk bn254 artifacts in development mode");
     build_plonk_bn254_artifacts(template_vk, template_proof, &build_dir);
     build_dir
-}
-
-/// Gets the directory where the PLONK artifacts are installed.
-fn plonk_bn254_artifacts_dir() -> PathBuf {
-    dirs::home_dir()
-        .unwrap()
-        .join(".sp1")
-        .join("circuits")
-        .join("plonk_bn254")
-        .join(SP1_CIRCUIT_VERSION)
 }
 
 /// Gets the directory where the PLONK artifacts are installed in development mode.
@@ -117,10 +88,12 @@ pub fn build_constraints_and_witness(
 /// Generate a dummy proof that we can use to build the circuit. We need this to know the shape of
 /// the proof.
 pub fn dummy_proof() -> (StarkVerifyingKey<OuterSC>, ShardProof<OuterSC>) {
-    let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+    let elf = include_bytes!("../elf/riscv32im-succinct-zkvm-elf");
 
     tracing::info!("initializing prover");
-    let prover = SP1Prover::new();
+    let prover: SP1Prover = SP1Prover::new();
+    let opts = SP1ProverOpts::default();
+    let context = SP1Context::default();
 
     tracing::info!("setup elf");
     let (pk, vk) = prover.setup(elf);
@@ -128,16 +101,16 @@ pub fn dummy_proof() -> (StarkVerifyingKey<OuterSC>, ShardProof<OuterSC>) {
     tracing::info!("prove core");
     let mut stdin = SP1Stdin::new();
     stdin.write(&500u32);
-    let core_proof = prover.prove_core(&pk, &stdin).unwrap();
+    let core_proof = prover.prove_core(&pk, &stdin, opts, context).unwrap();
 
     tracing::info!("compress");
-    let compressed_proof = prover.compress(&vk, core_proof, vec![]).unwrap();
+    let compressed_proof = prover.compress(&vk, core_proof, vec![], opts).unwrap();
 
     tracing::info!("shrink");
-    let shrink_proof = prover.shrink(compressed_proof).unwrap();
+    let shrink_proof = prover.shrink(compressed_proof, opts).unwrap();
 
     tracing::info!("wrap");
-    let wrapped_proof = prover.wrap_bn254(shrink_proof).unwrap();
+    let wrapped_proof = prover.wrap_bn254(shrink_proof, opts).unwrap();
 
     (prover.wrap_vk, wrapped_proof.proof)
 }

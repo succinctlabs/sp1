@@ -1,16 +1,17 @@
 [package]
-version = "0.1.0"
 name = "fibonacci-script"
-edition = "2021"
+version = { workspace = true }
+edition = { workspace = true }
 default-run = "fibonacci-script"
+publish = false
 
 [dependencies]
 itertools = "0.12.1"
-sp1-sdk = { path = "../../../sdk" }
+sp1-sdk = { workspace = true }
 sha2 = "0.10.8"
 
 [build-dependencies]
-sp1-helper = { path = "../../../helper" }
+sp1-helper = { workspace = true }
 
 [[bin]]
 name = "plonk_bn254"

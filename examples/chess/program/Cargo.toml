@@ -1,9 +1,10 @@
 [workspace]
 [package]
-version = "0.1.0"
 name = "chess-program"
+version = "1.0.0-rc.1"
 edition = "2021"
+publish = false
 
 [dependencies]
-chess = "3.2.0"
 sp1-zkvm = { path = "../../../zkvm/entrypoint" }
+chess = "3.2.0"

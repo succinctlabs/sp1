@@ -1,7 +1,13 @@
 [package]
 name = "sp1-cli"
-version = "0.1.0"
-edition = "2021"
+description = "SP1 is a performant, 100% open-source, contributor-friendly zkVM."
+readme = "../README.md"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+keywords = { workspace = true }
+categories = { workspace = true }
 
 [build-dependencies]
 vergen = { version = "8", default-features = false, features = [
@@ -11,12 +17,14 @@ vergen = { version = "8", default-features = false, features = [
 ] }
 
 [dependencies]
+
 anyhow = { version = "1.0.83", features = ["backtrace"] }
 cargo_metadata = "0.18.1"
-clap = { version = "4.5.7", features = ["derive", "env"] }
-sp1-prover = { path = "../prover" }
-sp1-sdk = { path = "../sdk" }
-sp1-core = { path = "../core" }
+clap = { version = "4.5.9", features = ["derive", "env"] }
+sp1-build = { workspace = true }
+sp1-prover = { workspace = true }
+sp1-sdk = { workspace = true }
+sp1-core = { workspace = true }
 reqwest = { version = "0.12.4", features = [
   "stream",
   "json",
@@ -31,9 +39,9 @@ rand = "0.8"
 downloader = { version = "0.2", default-features = false, features = [
   "rustls-tls",
 ] }
-serde_json = "1.0.117"
+serde_json = "1.0.120"
 yansi = "1.0.1"
 hex = "0.4.3"
 anstyle = "1.0.7"
-target-lexicon = "0.12.14"
+target-lexicon = "0.12.15"
 tempfile = "3.10.1"

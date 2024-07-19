@@ -32,6 +32,34 @@ impl<C: Config> Builder<C> {
         ));
     }
 
+    /// Applies the Poseidon2 absorb function to the given array.
+    ///
+    /// Reference: [p3_symmetric::PaddingFreeSponge]
+    pub fn poseidon2_absorb(
+        &mut self,
+        p2_hash_and_absorb_num: Var<C::N>,
+        input: &Array<C, Felt<C::F>>,
+    ) {
+        self.operations.push(DslIr::Poseidon2AbsorbBabyBear(
+            p2_hash_and_absorb_num,
+            input.clone(),
+        ));
+    }
+
+    /// Applies the Poseidon2 finalize to the given hash number.
+    ///
+    /// Reference: [p3_symmetric::PaddingFreeSponge]
+    pub fn poseidon2_finalize_mut(
+        &mut self,
+        p2_hash_num: Var<C::N>,
+        output: &Array<C, Felt<C::F>>,
+    ) {
+        self.operations.push(DslIr::Poseidon2FinalizeBabyBear(
+            p2_hash_num,
+            output.clone(),
+        ));
+    }
+
     /// Applies the Poseidon2 compression function to the given array.
     ///
     /// Reference: [p3_symmetric::TruncatedPermutation]
@@ -104,33 +132,24 @@ impl<C: Config> Builder<C> {
         array: &Array<C, Array<C, Felt<C::F>>>,
     ) -> Array<C, Felt<C::F>> {
         self.cycle_tracker("poseidon2-hash");
-        let mut state: Array<C, Felt<C::F>> = self.dyn_array(PERMUTATION_WIDTH);
 
-        let idx: Var<_> = self.eval(C::N::zero());
+        let p2_hash_num = self.p2_hash_num;
+        let two_power_12: Var<_> = self.eval(C::N::from_canonical_u32(1 << 12));
+
         self.range(0, array.len()).for_each(|i, builder| {
             let subarray = builder.get(array, i);
-            builder.range(0, subarray.len()).for_each(|j, builder| {
-                builder.cycle_tracker("poseidon2-hash-setup");
-                let element = builder.get(&subarray, j);
-                builder.set_value(&mut state, idx, element);
-                builder.assign(idx, idx + C::N::one());
-                builder.cycle_tracker("poseidon2-hash-setup");
-                builder
-                    .if_eq(idx, C::N::from_canonical_usize(HASH_RATE))
-                    .then(|builder| {
-                        builder.poseidon2_permute_mut(&state);
-                        builder.assign(idx, C::N::zero());
-                    });
-            });
+            let p2_hash_and_absorb_num: Var<_> = builder.eval(p2_hash_num * two_power_12 + i);
+
+            builder.poseidon2_absorb(p2_hash_and_absorb_num, &subarray);
         });
 
-        self.if_ne(idx, C::N::zero()).then(|builder| {
-            builder.poseidon2_permute_mut(&state);
-        });
+        let output: Array<C, Felt<C::F>> = self.dyn_array(DIGEST_SIZE);
+        self.poseidon2_finalize_mut(self.p2_hash_num, &output);
 
-        state.truncate(self, Usize::Const(DIGEST_SIZE));
+        self.assign(self.p2_hash_num, self.p2_hash_num + C::N::one());
+
         self.cycle_tracker("poseidon2-hash");
-        state
+        output
     }
 
     pub fn poseidon2_hash_ext(

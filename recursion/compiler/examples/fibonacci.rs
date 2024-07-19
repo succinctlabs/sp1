@@ -52,7 +52,7 @@ fn main() {
 
     let config = SC::new();
     let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
-    runtime.run();
+    runtime.run().unwrap();
 
     // let machine = RecursionAir::machine(config);
     // let (pk, vk) = machine.setup(&program);

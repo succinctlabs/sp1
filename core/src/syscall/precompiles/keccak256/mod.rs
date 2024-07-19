@@ -15,7 +15,7 @@ const STATE_NUM_WORDS: usize = STATE_SIZE * 2;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KeccakPermuteEvent {
-    pub lookup_id: usize,
+    pub lookup_id: u128,
     pub shard: u32,
     pub channel: u32,
     pub clk: u32,
@@ -41,6 +41,7 @@ impl KeccakPermuteChip {
 #[cfg(test)]
 pub mod permute_tests {
     use crate::runtime::SyscallCode;
+    use crate::stark::DefaultProver;
     use crate::utils::{run_test, SP1CoreOpts};
     use crate::{
         runtime::{Instruction, Opcode, Program, Runtime},
@@ -85,13 +86,13 @@ pub mod permute_tests {
         utils::setup_logger();
 
         let program = keccak_permute_program();
-        run_test(program).unwrap();
+        run_test::<DefaultProver<_, _>>(program).unwrap();
     }
 
     #[test]
     fn test_keccak_permute_program_prove() {
         utils::setup_logger();
         let program = Program::from(KECCAK_PERMUTE_ELF);
-        run_test(program).unwrap();
+        run_test::<DefaultProver<_, _>>(program).unwrap();
     }
 }

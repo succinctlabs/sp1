@@ -44,7 +44,7 @@ pub extern "C" fn syscall_bls12381_double(p: *mut u32) {
 /// The second half of the input array will be overwritten with the Y coordinate.
 #[allow(unused_variables)]
 #[no_mangle]
-pub extern "C" fn syscall_bls12381_decompress(point: &mut [u8; 96], is_odd: bool) {
+pub extern "C" fn syscall_bls12381_decompress(point: &mut [u8; 96], sign_bit: bool) {
     #[cfg(target_os = "zkvm")]
     {
         // Memory system/FpOps are little endian so we'll just flip the whole array before/after
@@ -55,7 +55,7 @@ pub extern "C" fn syscall_bls12381_decompress(point: &mut [u8; 96], is_odd: bool
                 "ecall",
                 in("t0") crate::syscalls::BLS12381_DECOMPRESS,
                 in("a0") p,
-                in("a1") is_odd as u8,
+                in("a1") sign_bit as u8,
             );
         }
         point.reverse();

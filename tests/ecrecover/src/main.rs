@@ -2,8 +2,8 @@
 sp1_zkvm::entrypoint!(main);
 
 use hex_literal::hex;
-use sp1_zkvm::precompiles::io;
-use sp1_zkvm::precompiles::secp256k1::ecrecover;
+use sp1_zkvm::lib::io;
+use sp1_zkvm::lib::secp256k1::ecrecover;
 
 pub fn main() {
     // recovery param: 1
@@ -12,7 +12,9 @@ pub fn main() {
     // pubkey: 044a071e8a6e10aada2b8cf39fa3b5fb3400b04e99ea8ae64ceea1a977dbeaf5d5f8c8fbd10b71ab14cd561f7df8eb6da50f8a8d81ba564342244d26d1d4211595
 
     let msg_hash = hex!("5ae8317d34d1e595e3fa7247db80c0af4320cce1116de187f8f7e2e099c0d8d0");
-    let sig = hex!("45c0b7f8c09a9e1f1cea0c25785594427b6bf8f9f878a8af0b1abbb48e16d0920d8becd0c220f67c51217eecfd7184ef0732481c843857e6bc7fc095c4f6b78801");
+    let sig = hex!(
+        "45c0b7f8c09a9e1f1cea0c25785594427b6bf8f9f878a8af0b1abbb48e16d0920d8becd0c220f67c51217eecfd7184ef0732481c843857e6bc7fc095c4f6b78801"
+    );
 
     let pubkey = ecrecover(&sig, &msg_hash).unwrap();
     io::commit_slice(&pubkey);

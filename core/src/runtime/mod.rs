@@ -1,3 +1,4 @@
+mod context;
 mod hooks;
 mod instruction;
 mod io;
@@ -13,6 +14,7 @@ mod syscall;
 mod utils;
 mod subproof;
 
+pub use context::*;
 pub use hooks::*;
 pub use instruction::*;
 pub use memory::*;
@@ -56,8 +58,11 @@ pub struct Runtime<'a> {
     /// The state of the execution.
     pub state: ExecutionState,
 
-    /// The trace of the execution.
+    /// The current trace of the execution that is being collected.
     pub record: ExecutionRecord,
+
+    /// The collected records, split by cpu cycles.
+    pub records: Vec<ExecutionRecord>,
 
     /// The memory accesses for the current cycle.
     pub memory_accesses: MemoryAccessRecord,
@@ -82,12 +87,16 @@ pub struct Runtime<'a> {
     /// the unconstrained block. The only thing preserved is writes to the input stream.
     pub unconstrained: bool,
 
+    /// The state of the runtime when in unconstrained mode.
     pub(crate) unconstrained_state: ForkState,
 
+    /// The mapping between syscall codes and their implementations.
     pub syscall_map: HashMap<SyscallCode, Arc<dyn Syscall>>,
 
+    /// The maximum number of cycles for a syscall.
     pub max_syscall_cycles: u32,
 
+    /// Whether to emit events during execution.
     pub emit_events: bool,
 
     /// Report of the program execution.
@@ -101,6 +110,12 @@ pub struct Runtime<'a> {
 
     /// Registry of hooks, to be invoked by writing to certain file descriptors.
     pub hook_registry: HookRegistry<'a>,
+
+    // The options for the runtime.
+    pub opts: SP1CoreOpts,
+
+    /// The maximum number of cpu cycles to use for execution.
+    pub max_cycles: Option<u64>,
 }
 
 #[derive(Error, Debug)]
@@ -113,13 +128,20 @@ pub enum ExecutionError {
     UnsupportedSyscall(u32),
     #[error("breakpoint encountered")]
     Breakpoint(),
+    #[error("exceeded cycle limit of {0}")]
+    ExceededCycleLimit(u64),
     #[error("got unimplemented as opcode")]
     Unimplemented(),
 }
 
 impl<'a> Runtime<'a> {
-    // Create a new runtime from a program.
+    // Create a new runtime from a program and options.
     pub fn new(program: Program, opts: SP1CoreOpts) -> Self {
+        Self::with_context(program, opts, Default::default())
+    }
+
+    /// Create a new runtime from a program, options, and a context.
+    pub fn with_context(program: Program, opts: SP1CoreOpts, context: SP1Context<'a>) -> Self {
         // Create a shared reference to the program.
         let program = Arc::new(program);
 
@@ -145,8 +167,14 @@ impl<'a> Runtime<'a> {
             .max()
             .unwrap_or(0);
 
+        let subproof_verifier = context
+            .subproof_verifier
+            .unwrap_or_else(|| Arc::new(DefaultSubproofVerifier::new()));
+        let hook_registry = context.hook_registry.unwrap_or_default();
+
         Self {
             record,
+            records: vec![],
             state: ExecutionState::new(program.pc_start),
             program,
             memory_accesses: MemoryAccessRecord::default(),
@@ -162,30 +190,31 @@ impl<'a> Runtime<'a> {
             max_syscall_cycles,
             report: ExecutionReport::default(),
             print_report: false,
-            subproof_verifier: Arc::new(DefaultSubproofVerifier::new()),
-            hook_registry: HookRegistry::default(),
+            subproof_verifier,
+            hook_registry,
+            opts,
+            max_cycles: context.max_cycles,
         }
     }
 
     /// Invokes the hook corresponding to the given file descriptor `fd` with the data `buf`,
     /// returning the resulting data.
     pub fn hook(&self, fd: u32, buf: &[u8]) -> Vec<Vec<u8>> {
-        self.hook_registry.table[&fd](self.hook_env(), buf)
+        self.hook_registry
+            .get(&fd)
+            .unwrap()
+            .invoke_hook(self.hook_env(), buf)
     }
 
     /// Prepare a `HookEnv` for use by hooks.
-    pub fn hook_env(&self) -> HookEnv {
+    pub fn hook_env<'b>(&'b self) -> HookEnv<'b, 'a> {
         HookEnv { runtime: self }
     }
 
     /// Recover runtime state from a program and existing execution state.
     pub fn recover(program: Program, state: ExecutionState, opts: SP1CoreOpts) -> Self {
-        let mut runtime = Self::new(program, opts);
+        let mut runtime = Self::new(program.clone(), opts);
         runtime.state = state;
-        let index: u32 = (runtime.state.global_clk / (runtime.shard_size / 4) as u64)
-            .try_into()
-            .unwrap();
-        runtime.record.index = index + 1;
         runtime
     }
 
@@ -416,8 +445,8 @@ impl<'a> Runtime<'a> {
         memory_store_value: Option<u32>,
         record: MemoryAccessRecord,
         exit_code: u32,
-        lookup_id: usize,
-        syscall_lookup_id: usize,
+        lookup_id: u128,
+        syscall_lookup_id: u128,
     ) {
         let cpu_event = CpuEvent {
             shard,
@@ -451,7 +480,7 @@ impl<'a> Runtime<'a> {
     }
 
     /// Emit an ALU event.
-    fn emit_alu(&mut self, clk: u32, opcode: Opcode, a: u32, b: u32, c: u32, lookup_id: usize) {
+    fn emit_alu(&mut self, clk: u32, opcode: Opcode, a: u32, b: u32, c: u32, lookup_id: u128) {
         let event = AluEvent {
             lookup_id,
             shard: self.shard(),
@@ -522,7 +551,7 @@ impl<'a> Runtime<'a> {
         a: u32,
         b: u32,
         c: u32,
-        lookup_id: usize,
+        lookup_id: u128,
     ) {
         self.rw(rd, a);
         if self.emit_events {
@@ -850,6 +879,24 @@ impl<'a> Runtime<'a> {
                 next_pc = precompile_next_pc;
                 self.state.clk += precompile_cycles;
                 exit_code = returned_exit_code;
+
+                // Update the syscall counts.
+                let syscall_count = self.state.syscall_counts.entry(syscall).or_insert(0);
+                let (threshold, multiplier) = match syscall {
+                    SyscallCode::KECCAK_PERMUTE => {
+                        (self.opts.split_opts.keccak_split_threshold, 24)
+                    }
+                    SyscallCode::SHA_EXTEND => {
+                        (self.opts.split_opts.sha_extend_split_threshold, 48)
+                    }
+                    SyscallCode::SHA_COMPRESS => {
+                        (self.opts.split_opts.sha_compress_split_threshold, 80)
+                    }
+                    _ => (self.opts.split_opts.deferred_shift_threshold, 1),
+                };
+                let nonce = (((*syscall_count as usize) % threshold) * multiplier) as u32;
+                self.record.nonce_lookup.insert(syscall_lookup_id, nonce);
+                *syscall_count += 1;
             }
             Opcode::EBREAK => {
                 return Err(ExecutionError::Breakpoint());
@@ -975,18 +1022,35 @@ impl<'a> Runtime<'a> {
             self.state.current_shard += 1;
             self.state.clk = 0;
             self.state.channel = 0;
+
+            self.bump_record();
+        }
+
+        // If the cycle limit is exceeded, return an error.
+        if let Some(max_cycles) = self.max_cycles {
+            if self.state.global_clk >= max_cycles {
+                return Err(ExecutionError::ExceededCycleLimit(max_cycles));
+            }
         }
 
         Ok(self.state.pc.wrapping_sub(self.program.pc_base)
             >= (self.program.instructions.len() * 4) as u32)
     }
 
+    pub fn bump_record(&mut self) {
+        let removed_record =
+            std::mem::replace(&mut self.record, ExecutionRecord::new(self.program.clone()));
+        let public_values = removed_record.public_values;
+        self.record.public_values = public_values;
+        self.records.push(removed_record);
+    }
+
     /// Execute up to `self.shard_batch_size` cycles, returning the events emitted and whether the program ended.
-    pub fn execute_record(&mut self) -> Result<(ExecutionRecord, bool), ExecutionError> {
+    pub fn execute_record(&mut self) -> Result<(Vec<ExecutionRecord>, bool), ExecutionError> {
         self.emit_events = true;
         self.print_report = true;
         let done = self.execute()?;
-        Ok((std::mem::take(&mut self.record), done))
+        Ok((std::mem::take(&mut self.records), done))
     }
 
     /// Execute up to `self.shard_batch_size` cycles, returning a copy of the prestate and whether the program ended.
@@ -1036,6 +1100,12 @@ impl<'a> Runtime<'a> {
 
     /// Executes up to `self.shard_batch_size` cycles of the program, returning whether the program has finished.
     fn execute(&mut self) -> Result<bool, ExecutionError> {
+        // Get the program.
+        let program = self.program.clone();
+
+        // Get the current shard.
+        let start_shard = self.state.current_shard;
+
         // If it's the first cycle, initialize the program.
         if self.state.global_clk == 0 {
             self.initialize();
@@ -1060,8 +1130,41 @@ impl<'a> Runtime<'a> {
             }
         }
 
+        // Get the final public values.
+        let public_values = self.record.public_values;
+
+        // Push the remaining execution record, if there are any CPU events.
+        if !self.record.cpu_events.is_empty() {
+            self.bump_record();
+        }
+
         if done {
             self.postprocess();
+
+            // Push the remaining execution record with memory initialize & finalize events.
+            self.bump_record();
+        }
+
+        // Set the global public values for all shards.
+        let mut last_next_pc = 0;
+        let mut last_exit_code = 0;
+        for (i, record) in self.records.iter_mut().enumerate() {
+            record.program = program.clone();
+            record.public_values = public_values;
+            record.public_values.committed_value_digest = public_values.committed_value_digest;
+            record.public_values.deferred_proofs_digest = public_values.deferred_proofs_digest;
+            record.public_values.execution_shard = start_shard + i as u32;
+            if !record.cpu_events.is_empty() {
+                record.public_values.start_pc = record.cpu_events[0].pc;
+                record.public_values.next_pc = record.cpu_events.last().unwrap().next_pc;
+                record.public_values.exit_code = record.cpu_events.last().unwrap().exit_code;
+                last_next_pc = record.public_values.next_pc;
+                last_exit_code = record.public_values.exit_code;
+            } else {
+                record.public_values.start_pc = last_next_pc;
+                record.public_values.next_pc = last_next_pc;
+                record.public_values.exit_code = last_exit_code;
+            }
         }
 
         Ok(done)
@@ -1090,7 +1193,9 @@ impl<'a> Runtime<'a> {
 
         // Ensure that all proofs and input bytes were read, otherwise warn the user.
         if self.state.proof_stream_ptr != self.state.proof_stream.len() {
-            panic!("Not all proofs were read. Proving will fail during recursion. Did you pass too many proofs in or forget to call verify_sp1_proof?");
+            panic!(
+                "Not all proofs were read. Proving will fail during recursion. Did you pass too many proofs in or forget to call verify_sp1_proof?"
+            );
         }
         if self.state.input_stream_ptr != self.state.input_stream.len() {
             log::warn!("Not all input bytes were read.");
@@ -1156,7 +1261,7 @@ pub mod tests {
     use crate::{
         runtime::Register,
         utils::{
-            tests::{FIBONACCI_ELF, PANIC_ELF, SSZ_WITHDRAWALS_ELF},
+            tests::{FIBONACCI_ELF, KECCAK_PERMUTE_ELF, PANIC_ELF},
             SP1CoreOpts,
         },
     };
@@ -1177,7 +1282,7 @@ pub mod tests {
     }
 
     pub fn ssz_withdrawals_program() -> Program {
-        Program::from(SSZ_WITHDRAWALS_ELF)
+        Program::from(KECCAK_PERMUTE_ELF)
     }
 
     pub fn panic_program() -> Program {

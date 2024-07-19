@@ -4,6 +4,7 @@ pub mod two_adic_pcs;
 pub mod types;
 
 pub use domain::*;
+use sp1_primitives::types::RecursionProgramType;
 use sp1_recursion_compiler::ir::ExtensionOperand;
 use sp1_recursion_compiler::ir::Ptr;
 use sp1_recursion_core::runtime::DIGEST_SIZE;
@@ -50,6 +51,10 @@ pub fn verify_shape_and_sample_challenges<C: Config>(
             let sample = challenger.sample_ext(builder);
             builder.set(&mut betas, i, sample);
         });
+
+    // Observe the final polynomial.
+    let final_poly_felts = builder.ext2felt(proof.final_poly);
+    challenger.observe_slice(builder, final_poly_felts);
 
     let num_query_proofs = proof.query_proofs.len().materialize(builder);
     builder
@@ -137,7 +142,11 @@ where
     let folded_eval: Ext<C::F, C::EF> = builder.eval(C::F::zero());
     let two_adic_generator_f = config.get_two_adic_generator(builder, log_max_height);
 
-    let x = builder.exp_reverse_bits_len_fast(two_adic_generator_f, index_bits, log_max_height);
+    let x = if matches!(builder.program_type, RecursionProgramType::Wrap) {
+        builder.exp_reverse_bits_len(two_adic_generator_f, index_bits, log_max_height)
+    } else {
+        builder.exp_reverse_bits_len_fast(two_adic_generator_f, index_bits, log_max_height)
+    };
 
     let log_max_height = log_max_height.materialize(builder);
     builder

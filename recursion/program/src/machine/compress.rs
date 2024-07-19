@@ -9,11 +9,12 @@ use p3_baby_bear::BabyBear;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::{AbstractField, PrimeField32, TwoAdicField};
 use serde::{Deserialize, Serialize};
-use sp1_core::air::MachineAir;
+use sp1_core::air::{MachineAir, WORD_SIZE};
 use sp1_core::air::{Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS};
 use sp1_core::stark::StarkMachine;
 use sp1_core::stark::{Com, ShardProof, StarkGenericConfig, StarkVerifyingKey};
 use sp1_core::utils::BabyBearPoseidon2;
+use sp1_primitives::types::RecursionProgramType;
 use sp1_recursion_compiler::config::InnerConfig;
 use sp1_recursion_compiler::ir::{Array, Builder, Config, Felt, Var};
 use sp1_recursion_compiler::prelude::DslVariable;
@@ -29,8 +30,8 @@ use crate::stark::{RecursiveVerifierConstraintFolder, StarkVerifier};
 use crate::types::ShardProofVariable;
 use crate::types::VerifyingKeyVariable;
 use crate::utils::{
-    assert_challenger_eq_pv, assign_challenger_from_pv, const_fri_config,
-    get_challenger_public_values, hash_vkey, var2felt,
+    assert_challenger_eq_pv, assign_challenger_from_pv, const_fri_config, felt2var,
+    get_challenger_public_values, hash_vkey,
 };
 
 use super::utils::{commit_public_values, proof_data_from_vk, verify_public_values_hash};
@@ -59,7 +60,6 @@ pub struct SP1ReduceMemoryLayout<'a, SC: StarkGenericConfig, A: MachineAir<SC::V
     pub shard_proofs: Vec<ShardProof<SC>>,
     pub is_complete: bool,
     pub kinds: Vec<ReduceProgramType>,
-    pub total_core_shards: usize,
 }
 
 #[derive(DslVariable, Clone)]
@@ -68,7 +68,6 @@ pub struct SP1ReduceMemoryLayoutVariable<C: Config> {
     pub shard_proofs: Array<C, ShardProofVariable<C>>,
     pub kinds: Array<C, Var<C::N>>,
     pub is_complete: Var<C::N>,
-    pub total_core_shards: Var<C::N>,
 }
 
 impl<A> SP1CompressVerifier<InnerConfig, BabyBearPoseidon2, A>
@@ -81,7 +80,7 @@ where
         recursive_vk: &StarkVerifyingKey<BabyBearPoseidon2>,
         deferred_vk: &StarkVerifyingKey<BabyBearPoseidon2>,
     ) -> RecursionProgram<BabyBear> {
-        let mut builder = Builder::<InnerConfig>::default();
+        let mut builder = Builder::<InnerConfig>::new(RecursionProgramType::Compress);
 
         let input: SP1ReduceMemoryLayoutVariable<_> = builder.uninit();
         SP1ReduceMemoryLayout::<BabyBearPoseidon2, A>::witness(&input, &mut builder);
@@ -140,16 +139,13 @@ where
             shard_proofs,
             kinds,
             is_complete,
-            total_core_shards,
         } = input;
-        let total_core_shards_felt = var2felt(builder, total_core_shards);
 
         // Initialize the values for the aggregated public output.
 
         let mut reduce_public_values_stream: Vec<Felt<_>> = (0..RECURSIVE_PROOF_NUM_PV_ELTS)
             .map(|_| builder.uninit())
             .collect();
-
         let reduce_public_values: &mut RecursionPublicValues<_> =
             reduce_public_values_stream.as_mut_slice().borrow_mut();
 
@@ -161,6 +157,7 @@ where
 
         // Assert that there is at least one proof.
         builder.assert_usize_ne(shard_proofs.len(), 0);
+
         // Assert that the number of proofs is equal to the number of kinds.
         builder.assert_usize_eq(shard_proofs.len(), kinds.len());
 
@@ -168,6 +165,7 @@ where
         let sp1_vk_digest: [Felt<_>; DIGEST_SIZE] = array::from_fn(|_| builder.uninit());
         let pc: Felt<_> = builder.uninit();
         let shard: Felt<_> = builder.uninit();
+        let execution_shard: Felt<_> = builder.uninit();
         let mut initial_reconstruct_challenger = DuplexChallengerVariable::new(builder);
         let mut reconstruct_challenger = DuplexChallengerVariable::new(builder);
         let mut leaf_challenger = DuplexChallengerVariable::new(builder);
@@ -178,6 +176,8 @@ where
         let reconstruct_deferred_digest: [Felt<_>; POSEIDON_NUM_WORDS] =
             core::array::from_fn(|_| builder.uninit());
         let cumulative_sum: [Felt<_>; D] = core::array::from_fn(|_| builder.eval(C::F::zero()));
+        let init_addr_bits: [Felt<_>; 32] = core::array::from_fn(|_| builder.uninit());
+        let finalize_addr_bits: [Felt<_>; 32] = core::array::from_fn(|_| builder.uninit());
 
         // Collect verifying keys for each kind of program.
         let recursive_vk_variable = proof_data_from_vk(builder, recursive_vk, machine);
@@ -192,6 +192,7 @@ where
         builder.range(0, shard_proofs.len()).for_each(|i, builder| {
             // Load the proof.
             let proof = builder.get(&shard_proofs, i);
+
             // Get the kind of proof we are verifying.
             let kind = builder.get(&kinds, i);
 
@@ -199,6 +200,7 @@ where
 
             // Initialize values for verifying key and proof data.
             let vk: VerifyingKeyVariable<_> = builder.uninit();
+
             // Set the correct value given the value of kind, and assert it must be one of the
             // valid values. We can do that by nested `if-else` statements.
             builder.if_eq(kind, core_kind).then_or_else(
@@ -216,8 +218,7 @@ where
                                     builder.assign(vk.clone(), compress_vk.clone());
                                 },
                                 |builder| {
-                                    // If the kind is not one of the valid values, raise
-                                    // an error.
+                                    // If the kind is not one of the valid values, raise an error.
                                     builder.error();
                                 },
                             );
@@ -230,17 +231,19 @@ where
 
             // Prepare a challenger.
             let mut challenger = DuplexChallengerVariable::new(builder);
+
             // Observe the vk and start pc.
             challenger.observe(builder, vk.commitment.clone());
             challenger.observe(builder, vk.pc_start);
+
             // Observe the main commitment and public values.
             challenger.observe(builder, proof.commitment.main_commit.clone());
             for j in 0..machine.num_pv_elts() {
                 let element = builder.get(&proof.public_values, j);
                 challenger.observe(builder, element);
             }
-            // verify proof.
-            let one_var = builder.constant(C::N::one());
+
+            // Verify proof.
             StarkVerifier::<C, SC>::verify_shard(
                 builder,
                 &vk,
@@ -248,7 +251,7 @@ where
                 machine,
                 &mut challenger,
                 &proof,
-                one_var,
+                true,
             );
 
             // Load the public values from the proof.
@@ -302,12 +305,42 @@ where
                     current_public_values.start_shard,
                 );
 
+                // Initialize start execution shard.
+                builder.assign(execution_shard, current_public_values.start_execution_shard);
+                builder.assign(
+                    reduce_public_values.start_execution_shard,
+                    current_public_values.start_execution_shard,
+                );
+
+                // Initialize the MemoryInitialize address bits.
+                for (bit, (first_bit, current_bit)) in init_addr_bits.iter().zip(
+                    reduce_public_values
+                        .previous_init_addr_bits
+                        .iter()
+                        .zip(current_public_values.previous_init_addr_bits.iter()),
+                ) {
+                    builder.assign(*bit, *current_bit);
+                    builder.assign(*first_bit, *current_bit);
+                }
+
+                // Initialize the MemoryFinalize address bits.
+                for (bit, (first_bit, current_bit)) in finalize_addr_bits.iter().zip(
+                    reduce_public_values
+                        .previous_finalize_addr_bits
+                        .iter()
+                        .zip(current_public_values.previous_finalize_addr_bits.iter()),
+                ) {
+                    builder.assign(*bit, *current_bit);
+                    builder.assign(*first_bit, *current_bit);
+                }
+
                 // Initialize the leaf challenger.
                 assign_challenger_from_pv(
                     builder,
                     &mut leaf_challenger,
                     current_public_values.leaf_challenger,
                 );
+
                 // Initialize the reconstruct challenger.
                 assign_challenger_from_pv(
                     builder,
@@ -336,20 +369,6 @@ where
                 {
                     builder.assign(*digest, *current_digest);
                 }
-
-                // Initialize the start reconstruct deferred digest.
-                for (digest, first_digest, global_digest) in izip!(
-                    reconstruct_deferred_digest.iter(),
-                    current_public_values
-                        .start_reconstruct_deferred_digest
-                        .iter(),
-                    reduce_public_values
-                        .start_reconstruct_deferred_digest
-                        .iter()
-                ) {
-                    builder.assign(*digest, *first_digest);
-                    builder.assign(*global_digest, *first_digest);
-                }
             });
 
             // Assert that the current values match the accumulated values.
@@ -363,7 +382,7 @@ where
                 builder.assert_felt_eq(*digest, *current_digest);
             }
 
-            // consistency checks for all accumulated values.
+            // Consistency checks for all accumulated values.
 
             // Assert that the sp1_vk digest is always the same.
             for (digest, current) in sp1_vk_digest
@@ -375,9 +394,30 @@ where
 
             // Assert that the start pc is equal to the current pc.
             builder.assert_felt_eq(pc, current_public_values.start_pc);
-            // Verfiy that the shard is equal to the current shard.
+
+            // Verify that the shard is equal to the current shard.
             builder.assert_felt_eq(shard, current_public_values.start_shard);
+
+            // Verfiy that the exeuction shard is equal to the current execution shard.
+            builder.assert_felt_eq(execution_shard, current_public_values.start_execution_shard);
+
             // Assert that the leaf challenger is always the same.
+
+            // Assert that the MemoryInitialize address bits are the same.
+            for (bit, current_bit) in init_addr_bits
+                .iter()
+                .zip(current_public_values.previous_init_addr_bits.iter())
+            {
+                builder.assert_felt_eq(*bit, *current_bit);
+            }
+
+            // Assert that the MemoryFinalize address bits are the same.
+            for (bit, current_bit) in finalize_addr_bits
+                .iter()
+                .zip(current_public_values.previous_finalize_addr_bits.iter())
+            {
+                builder.assert_felt_eq(*bit, *current_bit);
+            }
 
             assert_challenger_eq_pv(
                 builder,
@@ -391,31 +431,72 @@ where
                 current_public_values.start_reconstruct_challenger,
             );
 
-            // Assert that the commited digests are the same.
-            for (word, current_word) in committed_value_digest
-                .iter()
-                .zip_eq(current_public_values.committed_value_digest.iter())
+            // Digest constraints.
             {
-                for (byte, current_byte) in word.0.iter().zip_eq(current_word.0.iter()) {
-                    builder.assert_felt_eq(*byte, *current_byte);
+                // If `commited_value_digest` is not zero, then `public_values.commited_value_digest
+                // should be the current value.
+                let is_zero: Var<_> = builder.eval(C::N::one());
+                #[allow(clippy::needless_range_loop)]
+                for i in 0..committed_value_digest.len() {
+                    for j in 0..WORD_SIZE {
+                        let d = felt2var(builder, committed_value_digest[i][j]);
+                        builder.if_ne(d, C::N::zero()).then(|builder| {
+                            builder.assign(is_zero, C::N::zero());
+                        });
+                    }
+                }
+                builder.if_eq(is_zero, C::N::zero()).then(|builder| {
+                    #[allow(clippy::needless_range_loop)]
+                    for i in 0..committed_value_digest.len() {
+                        for j in 0..WORD_SIZE {
+                            builder.assert_felt_eq(
+                                committed_value_digest[i][j],
+                                current_public_values.committed_value_digest[i][j],
+                            );
+                        }
+                    }
+                });
+
+                // Update the committed value digest.
+                #[allow(clippy::needless_range_loop)]
+                for i in 0..committed_value_digest.len() {
+                    for j in 0..WORD_SIZE {
+                        builder.assign(
+                            committed_value_digest[i][j],
+                            current_public_values.committed_value_digest[i][j],
+                        );
+                    }
+                }
+
+                // If `deferred_proofs_digest` is not zero, then `public_values.deferred_proofs_digest
+                // should be the current value.
+                let is_zero: Var<_> = builder.eval(C::N::one());
+                #[allow(clippy::needless_range_loop)]
+                for i in 0..deferred_proofs_digest.len() {
+                    let d = felt2var(builder, deferred_proofs_digest[i]);
+                    builder.if_ne(d, C::N::zero()).then(|builder| {
+                        builder.assign(is_zero, C::N::zero());
+                    });
+                }
+                builder.if_eq(is_zero, C::N::zero()).then(|builder| {
+                    #[allow(clippy::needless_range_loop)]
+                    for i in 0..deferred_proofs_digest.len() {
+                        builder.assert_felt_eq(
+                            deferred_proofs_digest[i],
+                            current_public_values.deferred_proofs_digest[i],
+                        );
+                    }
+                });
+
+                // Update the deferred proofs digest.
+                #[allow(clippy::needless_range_loop)]
+                for i in 0..deferred_proofs_digest.len() {
+                    builder.assign(
+                        deferred_proofs_digest[i],
+                        current_public_values.deferred_proofs_digest[i],
+                    );
                 }
             }
-
-            // Assert that the deferred proof digests are the same.
-            for (digest, current_digest) in deferred_proofs_digest
-                .iter()
-                .zip_eq(current_public_values.deferred_proofs_digest.iter())
-            {
-                builder.assert_felt_eq(*digest, *current_digest);
-            }
-
-            // Assert that total_core_shards is the same.
-            builder.assert_felt_eq(
-                total_core_shards_felt,
-                current_public_values.total_core_shards,
-            );
-
-            // Update the accumulated values.
 
             // Update the deferred proof digest.
             for (digest, current_digest) in reconstruct_deferred_digest
@@ -428,8 +509,29 @@ where
             // Update the accumulated values.
             // Update pc to be the next pc.
             builder.assign(pc, current_public_values.next_pc);
+
             // Update the shard to be the next shard.
             builder.assign(shard, current_public_values.next_shard);
+
+            // Update the execution shard to be the next execution shard.
+            builder.assign(execution_shard, current_public_values.next_execution_shard);
+
+            // Update the MemoryInitialize address bits.
+            for (bit, next_bit) in init_addr_bits
+                .iter()
+                .zip(current_public_values.last_init_addr_bits.iter())
+            {
+                builder.assign(*bit, *next_bit);
+            }
+
+            // Update the MemoryFinalize address bits.
+            for (bit, next_bit) in finalize_addr_bits
+                .iter()
+                .zip(current_public_values.last_finalize_addr_bits.iter())
+            {
+                builder.assign(*bit, *next_bit);
+            }
+
             // Update the reconstruct challenger.
             assign_challenger_from_pv(
                 builder,
@@ -451,8 +553,14 @@ where
         reduce_public_values.sp1_vk_digest = sp1_vk_digest;
         // Set next_pc to be the last pc (which is the same as accumulated pc)
         reduce_public_values.next_pc = pc;
-        // Set next shard to be the last shard (which is the same as accumulated shard)
+        // Set next shard to be the last shard
         reduce_public_values.next_shard = shard;
+        // Set next execution shard to be the last execution shard
+        reduce_public_values.next_execution_shard = execution_shard;
+        // Set the MemoryInitialize address bits to be the last MemoryInitialize address bits.
+        reduce_public_values.last_init_addr_bits = init_addr_bits;
+        // Set the MemoryFinalize address bits to be the last MemoryFinalize address bits.
+        reduce_public_values.last_finalize_addr_bits = finalize_addr_bits;
         // Set the leaf challenger to it's value.
         let values = get_challenger_public_values(builder, &leaf_challenger);
         reduce_public_values.leaf_challenger = values;
@@ -464,15 +572,12 @@ where
         reduce_public_values.end_reconstruct_challenger = values;
         // Set the start reconstruct deferred digest to be the last reconstruct deferred digest.
         reduce_public_values.end_reconstruct_deferred_digest = reconstruct_deferred_digest;
-
-        // Assign the deffered proof digests.
+        // Assign the deferred proof digests.
         reduce_public_values.deferred_proofs_digest = deferred_proofs_digest;
         // Assign the committed value digests.
         reduce_public_values.committed_value_digest = committed_value_digest;
         // Assign the cumulative sum.
         reduce_public_values.cumulative_sum = cumulative_sum;
-        // Assign the total number of shards.
-        reduce_public_values.total_core_shards = total_core_shards_felt;
 
         // If the proof is complete, make completeness assertions and set the flag. Otherwise, check
         // the flag is zero and set the public value to zero.

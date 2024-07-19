@@ -1,5 +1,6 @@
 use std::borrow::BorrowMut;
 
+use hashbrown::HashMap;
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 
@@ -9,6 +10,7 @@ use super::{
 };
 use crate::{
     air::MachineAir,
+    bytes::ByteOpcode,
     runtime::{ExecutionRecord, Program},
 };
 
@@ -28,10 +30,7 @@ impl<F: Field> MachineAir<F> for ByteChip<F> {
     }
 
     fn generate_preprocessed_trace(&self, _program: &Self::Program) -> Option<RowMajorMatrix<F>> {
-        // OPT: We should be able to make this a constant. Also, trace / map should be separate.
-        // Since we only need the trace and not the map, we can just pass 0 as the shard.
-        let (trace, _) = Self::trace_and_map(0);
-
+        let trace = Self::trace();
         Some(trace)
     }
 
@@ -44,23 +43,28 @@ impl<F: Field> MachineAir<F> for ByteChip<F> {
         input: &ExecutionRecord,
         _output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        let shard = input.index;
-        let (_, event_map) = Self::trace_and_map(shard);
-
         let mut trace = RowMajorMatrix::new(
             vec![F::zero(); NUM_BYTE_MULT_COLS * NUM_ROWS],
             NUM_BYTE_MULT_COLS,
         );
 
-        for (lookup, mult) in input.byte_lookups[&shard].iter() {
-            let (row, index) = event_map[lookup];
+        let shard = input.public_values.execution_shard;
+        for (lookup, mult) in input
+            .byte_lookups
+            .get(&shard)
+            .unwrap_or(&HashMap::new())
+            .iter()
+        {
+            let row = if lookup.opcode != ByteOpcode::U16Range {
+                ((lookup.b << 8) + lookup.c) as usize
+            } else {
+                lookup.a1 as usize
+            };
+            let index = lookup.opcode as usize;
             let channel = lookup.channel as usize;
+
             let cols: &mut ByteMultCols<F> = trace.row_mut(row).borrow_mut();
-
-            // Update the trace multiplicity
             cols.mult_channels[channel].multiplicities[index] += F::from_canonical_usize(*mult);
-
-            // Set the shard column as the current shard.
             cols.shard = F::from_canonical_u32(shard);
         }
 

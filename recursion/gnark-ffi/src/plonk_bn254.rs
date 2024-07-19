@@ -81,31 +81,17 @@ impl PlonkBn254Prover {
         build_plonk_bn254(build_dir.to_str().unwrap());
 
         // Write the corresponding asset files to the build dir.
-        let sp1_mock_verifier_path = build_dir.join("SP1MockVerifier.sol");
-        let sp1_mock_verifier_str = include_str!("../assets/SP1MockVerifier.txt");
-        let mut mock_verifier_file = File::create(sp1_mock_verifier_path).unwrap();
-        mock_verifier_file
-            .write_all(sp1_mock_verifier_str.as_bytes())
-            .unwrap();
-
         let sp1_verifier_path = build_dir.join("SP1Verifier.sol");
         let vkey_hash = Self::get_vkey_hash(&build_dir);
         let sp1_verifier_str = include_str!("../assets/SP1Verifier.txt")
             .replace("{SP1_CIRCUIT_VERSION}", SP1_CIRCUIT_VERSION)
             .replace(
-                "{VKEY_HASH}",
+                "{VERIFIER_HASH}",
                 format!("0x{}", hex::encode(vkey_hash)).as_str(),
             );
         let mut sp1_verifier_file = File::create(sp1_verifier_path).unwrap();
         sp1_verifier_file
             .write_all(sp1_verifier_str.as_bytes())
-            .unwrap();
-
-        let interface_sp1_verifier_path = build_dir.join("ISP1Verifier.sol");
-        let interface_sp1_verifier_str = include_str!("../assets/ISP1Verifier.txt");
-        let mut interface_sp1_verifier_file = File::create(interface_sp1_verifier_path).unwrap();
-        interface_sp1_verifier_file
-            .write_all(interface_sp1_verifier_str.as_bytes())
             .unwrap();
     }
 

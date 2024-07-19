@@ -1,0 +1,15 @@
+[package]
+name = "patch-testing-script"
+version = { workspace = true }
+edition = { workspace = true }
+publish = false
+
+[dependencies]
+rand = "0.8"
+ed25519-consensus = "2.1.0"
+sp1-core = { workspace = true, features = ["neon"] }
+sp1-sdk = { workspace = true }
+tiny-keccak = { version = "2.0.2", features = ["keccak"] }
+
+[build-dependencies]
+sp1-helper = { workspace = true }

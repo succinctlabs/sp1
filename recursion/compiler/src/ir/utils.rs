@@ -140,6 +140,7 @@ impl<C: Config> Builder<C> {
         // Instantiate an array of length one and store the value of x.
         let mut x_copy_arr: Array<C, Felt<C::F>> = self.dyn_array(1);
         self.set(&mut x_copy_arr, 0, x);
+
         // Get a pointer to the address holding x.
         let x_copy_arr_ptr = match x_copy_arr {
             Array::Dyn(ptr, _) => ptr,
@@ -325,7 +326,7 @@ mod tests {
         let program = builder.compile_program();
 
         let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
-        runtime.run();
+        runtime.run().unwrap();
     }
 
     #[test]
@@ -362,6 +363,6 @@ mod tests {
         let program = builder.compile_program();
 
         let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
-        runtime.run();
+        runtime.run().unwrap();
     }
 }

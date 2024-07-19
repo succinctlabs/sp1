@@ -1,11 +1,12 @@
 [package]
-version = "0.1.0"
 name = "rsa-script"
-edition = "2021"
+version = { workspace = true }
+edition = { workspace = true }
+publish = false
 
 [dependencies]
 rsa = "0.6"
-sp1-sdk = { path = "../../../sdk" }
+sp1-sdk = { workspace = true }
 
 [build-dependencies]
-sp1-helper = { path = "../../../helper" }
+sp1-helper = { workspace = true }

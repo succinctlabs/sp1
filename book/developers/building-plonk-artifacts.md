@@ -1,7 +1,8 @@
-# Building Plonk BN254 Artifacts
+# Building PLONK Artifacts
 
-To build the Plonk Bn254 artifacts from scratch, you can use the `Makefile` inside the `prover` directory.
+To build the production Plonk Bn254 artifacts from scratch, you can use the `Makefile` inside the `prover` directory.
 
 ```shell,noplayground
-RUST_LOG=info make plonk-bn254
+cd prover
+RUST_LOG=info make build-plonk-bn254
 ```

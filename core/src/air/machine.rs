@@ -7,7 +7,7 @@ use crate::{runtime::Program, stark::MachineRecord};
 pub use sp1_derive::MachineAir;
 
 /// An AIR that is part of a multi table AIR arithmetization.
-pub trait MachineAir<F: Field>: BaseAir<F> {
+pub trait MachineAir<F: Field>: BaseAir<F> + 'static + Send + Sync {
     /// The execution record containing events for producing the air trace.
     type Record: MachineRecord;
 

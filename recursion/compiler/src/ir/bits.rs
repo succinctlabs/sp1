@@ -47,6 +47,15 @@ impl<C: Config> Builder<C> {
         output
     }
 
+    /// Range checks a felt to a certain number of bits.
+    pub fn range_check_f(&mut self, num: Felt<C::F>, num_bits: usize) {
+        let bits = self.num2bits_f(num);
+        self.range(num_bits, bits.len()).for_each(|i, builder| {
+            let bit = builder.get(&bits, i);
+            builder.assert_var_eq(bit, C::N::zero());
+        });
+    }
+
     /// Converts a felt to bits.
     pub fn num2bits_f(&mut self, num: Felt<C::F>) -> Array<C, Var<C::N>> {
         let output = self.dyn_array::<Var<_>>(NUM_BITS);

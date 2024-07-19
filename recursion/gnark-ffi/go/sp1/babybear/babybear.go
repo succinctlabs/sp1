@@ -13,10 +13,10 @@ import (
 	"github.com/consensys/gnark/std/rangecheck"
 )
 
-var MODULUS = new(big.Int).SetUint64(2013265921)
-var W = new(big.Int).SetUint64(11)
+var modulus = new(big.Int).SetUint64(2013265921)
 
 func init() {
+	// These functions must be public so Gnark's hint system can access them.
 	solver.RegisterHint(InvFHint)
 	solver.RegisterHint(InvEHint)
 	solver.RegisterHint(ReduceHint)
@@ -69,40 +69,40 @@ func (c *Chip) AddF(a, b Variable) Variable {
 	} else {
 		maxBits = b.NbBits
 	}
-	return c.ReduceFast(Variable{
+	return c.reduceFast(Variable{
 		Value:  c.api.Add(a.Value, b.Value),
 		NbBits: maxBits + 1,
 	})
 }
 
 func (c *Chip) SubF(a, b Variable) Variable {
-	negB := c.NegF(b)
+	negB := c.negF(b)
 	return c.AddF(a, negB)
 }
 
 func (c *Chip) MulF(a, b Variable) Variable {
-	return c.ReduceFast(Variable{
+	return c.reduceFast(Variable{
 		Value:  c.api.Mul(a.Value, b.Value),
 		NbBits: a.NbBits + b.NbBits,
 	})
 }
 
 func (c *Chip) MulFConst(a Variable, b int) Variable {
-	return c.ReduceFast(Variable{
+	return c.reduceFast(Variable{
 		Value:  c.api.Mul(a.Value, b),
 		NbBits: a.NbBits + 4,
 	})
 }
 
-func (c *Chip) NegF(a Variable) Variable {
+func (c *Chip) negF(a Variable) Variable {
 	if a.NbBits == 31 {
-		return Variable{Value: c.api.Sub(MODULUS, a.Value), NbBits: 31}
+		return Variable{Value: c.api.Sub(modulus, a.Value), NbBits: 31}
 	}
 	negOne := NewF("2013265920")
 	return c.MulF(a, negOne)
 }
 
-func (c *Chip) InvF(in Variable) Variable {
+func (c *Chip) invF(in Variable) Variable {
 	in = c.ReduceSlow(in)
 	result, err := c.api.Compiler().NewHint(InvFHint, 1, in.Value)
 	if err != nil {
@@ -243,10 +243,10 @@ func (c *Chip) DivE(a, b ExtensionVariable) ExtensionVariable {
 }
 
 func (c *Chip) NegE(a ExtensionVariable) ExtensionVariable {
-	v1 := c.NegF(a.Value[0])
-	v2 := c.NegF(a.Value[1])
-	v3 := c.NegF(a.Value[2])
-	v4 := c.NegF(a.Value[3])
+	v1 := c.negF(a.Value[0])
+	v2 := c.negF(a.Value[1])
+	v3 := c.negF(a.Value[2])
+	v4 := c.negF(a.Value[3])
 	return ExtensionVariable{Value: [4]Variable{v1, v2, v3, v4}}
 }
 
@@ -254,10 +254,10 @@ func (c *Chip) ToBinary(in Variable) []frontend.Variable {
 	return c.api.ToBinary(c.ReduceSlow(in).Value, 32)
 }
 
-func (p *Chip) ReduceFast(x Variable) Variable {
+func (p *Chip) reduceFast(x Variable) Variable {
 	if x.NbBits >= uint(120) {
 		return Variable{
-			Value:  p.ReduceWithMaxBits(x.Value, uint64(x.NbBits)),
+			Value:  p.reduceWithMaxBits(x.Value, uint64(x.NbBits)),
 			NbBits: 31,
 		}
 	}
@@ -269,12 +269,12 @@ func (p *Chip) ReduceSlow(x Variable) Variable {
 		return x
 	}
 	return Variable{
-		Value:  p.ReduceWithMaxBits(x.Value, uint64(x.NbBits)),
+		Value:  p.reduceWithMaxBits(x.Value, uint64(x.NbBits)),
 		NbBits: 31,
 	}
 }
 
-func (p *Chip) ReduceWithMaxBits(x frontend.Variable, maxNbBits uint64) frontend.Variable {
+func (p *Chip) reduceWithMaxBits(x frontend.Variable, maxNbBits uint64) frontend.Variable {
 	result, err := p.api.Compiler().NewHint(ReduceHint, 2, x)
 	if err != nil {
 		panic(err)
@@ -286,7 +286,7 @@ func (p *Chip) ReduceWithMaxBits(x frontend.Variable, maxNbBits uint64) frontend
 	remainder := result[1]
 	p.rangeChecker.Check(remainder, 31)
 
-	p.api.AssertIsEqual(x, p.api.Add(p.api.Mul(quotient, MODULUS), result[1]))
+	p.api.AssertIsEqual(x, p.api.Add(p.api.Mul(quotient, modulus), result[1]))
 
 	return remainder
 }
@@ -294,11 +294,11 @@ func (p *Chip) ReduceWithMaxBits(x frontend.Variable, maxNbBits uint64) frontend
 // The hint used to compute Reduce.
 func ReduceHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 	if len(inputs) != 1 {
-		panic("ReduceHint expects 1 input operand")
+		panic("reduceHint expects 1 input operand")
 	}
 	input := inputs[0]
-	quotient := new(big.Int).Div(input, MODULUS)
-	remainder := new(big.Int).Rem(input, MODULUS)
+	quotient := new(big.Int).Div(input, modulus)
+	remainder := new(big.Int).Rem(input, modulus)
 	results[0] = quotient
 	results[1] = remainder
 	return nil

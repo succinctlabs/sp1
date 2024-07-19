@@ -6,8 +6,8 @@ use p3_field::PrimeField32;
 use sp1_derive::AlignedBorrow;
 
 use super::field_op::FieldOpCols;
-use super::params::Limbs;
-use super::range::FieldRangeCols;
+use super::params::{limbs_from_vec, Limbs};
+use super::range::FieldLtCols;
 use crate::air::SP1AirBuilder;
 use crate::bytes::event::ByteRecord;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
@@ -27,7 +27,7 @@ pub struct FieldSqrtCols<T, P: FieldParameters> {
     /// since we'll receive the input again in the `eval` function.
     pub multiplication: FieldOpCols<T, P>,
 
-    pub range: FieldRangeCols<T, P>,
+    pub range: FieldLtCols<T, P>,
 
     // The least significant bit of the square root.
     pub lsb: T,
@@ -67,7 +67,7 @@ impl<F: PrimeField32, P: FieldParameters> FieldSqrtCols<F, P> {
         self.multiplication.result = P::to_limbs_field::<F, _>(&sqrt);
 
         // Populate the range columns.
-        self.range.populate(record, shard, channel, &sqrt);
+        self.range.populate(record, shard, channel, &sqrt, &modulus);
 
         let sqrt_bytes = P::to_limbs(&sqrt);
         self.lsb = F::from_canonical_u8(sqrt_bytes[0] & 1);
@@ -135,9 +135,11 @@ where
             is_real.clone(),
         );
 
+        let modulus_limbs = P::to_limbs_field_vec(&P::modulus());
         self.range.eval(
             builder,
             &sqrt,
+            &limbs_from_vec::<AB::Expr, P::Limbs, AB::F>(modulus_limbs),
             shard.clone(),
             channel.clone(),
             is_real.clone(),

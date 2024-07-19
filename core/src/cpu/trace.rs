@@ -1,10 +1,12 @@
+use hashbrown::HashMap;
+use itertools::Itertools;
 use std::array;
 use std::borrow::BorrowMut;
-use std::collections::HashMap;
 
 use p3_field::{PrimeField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
-use p3_maybe_rayon::prelude::IntoParallelRefIterator;
+use p3_maybe_rayon::prelude::IntoParallelRefMutIterator;
+use p3_maybe_rayon::prelude::ParallelBridge;
 use p3_maybe_rayon::prelude::ParallelIterator;
 use p3_maybe_rayon::prelude::ParallelSlice;
 use tracing::instrument;
@@ -36,46 +38,33 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
     fn generate_trace(
         &self,
         input: &ExecutionRecord,
-        output: &mut ExecutionRecord,
+        _: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        let mut new_alu_events = HashMap::new();
-        let mut new_blu_events = Vec::new();
+        let mut values = vec![F::zero(); input.cpu_events.len() * NUM_CPU_COLS];
 
-        // Generate the trace rows for each event.
-        let mut rows_with_events = input
-            .cpu_events
-            .par_iter()
-            .map(|op: &CpuEvent| self.event_to_row::<F>(*op, &input.nonce_lookup))
-            .collect::<Vec<_>>();
-
-        // No need to sort by the shard, since the cpu events are already partitioned by that.
-        rows_with_events.sort_unstable_by_key(|(event, _, _)| event[CPU_COL_MAP.clk]);
-
-        let mut rows = Vec::<F>::new();
-        rows_with_events.into_iter().for_each(|row_with_events| {
-            let (row, alu_events, blu_events) = row_with_events;
-            rows.extend(row);
-            for (key, value) in alu_events {
-                new_alu_events
-                    .entry(key)
-                    .and_modify(|op_new_events: &mut Vec<AluEvent>| {
-                        op_new_events.extend(value.clone())
-                    })
-                    .or_insert(value);
-            }
-            new_blu_events.extend(blu_events);
-        });
-
-        // Add the dependency events to the shard.
-        for (_, value) in new_alu_events.iter_mut() {
-            value.sort_unstable_by_key(|event| event.clk);
-        }
-        new_blu_events.sort_unstable_by_key(|event| event.a1);
-        output.add_alu_events(new_alu_events);
-        output.add_byte_lookup_events(new_blu_events);
+        let chunk_size = std::cmp::max(input.cpu_events.len() / num_cpus::get(), 1);
+        values
+            .chunks_mut(chunk_size * NUM_CPU_COLS)
+            .enumerate()
+            .par_bridge()
+            .for_each(|(i, rows)| {
+                rows.chunks_mut(NUM_CPU_COLS)
+                    .enumerate()
+                    .for_each(|(j, row)| {
+                        let idx = i * chunk_size + j;
+                        let cols: &mut CpuCols<F> = row.borrow_mut();
+                        let mut byte_lookup_events = Vec::new();
+                        self.event_to_row(
+                            &input.cpu_events[idx],
+                            &input.nonce_lookup,
+                            cols,
+                            &mut byte_lookup_events,
+                        );
+                    });
+            });
 
         // Convert the trace to a row major matrix.
-        let mut trace = RowMajorMatrix::new(rows, NUM_CPU_COLS);
+        let mut trace = RowMajorMatrix::new(values, NUM_CPU_COLS);
 
         // Pad the trace to a power of two.
         Self::pad_to_power_of_two::<F>(&mut trace.values);
@@ -87,38 +76,35 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
     fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
         // Generate the trace rows for each event.
         let chunk_size = std::cmp::max(input.cpu_events.len() / num_cpus::get(), 1);
-        let events = input
+
+        let (alu_events, blu_events): (Vec<_>, Vec<_>) = input
             .cpu_events
             .par_chunks(chunk_size)
             .map(|ops: &[CpuEvent]| {
                 let mut alu = HashMap::new();
-                let mut blu: Vec<_> = Vec::default();
+                // The blu map stores shard -> map(byte lookup event -> multiplicity).
+                let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
                 ops.iter().for_each(|op| {
-                    let (_, alu_events, blu_events) = self.event_to_row::<F>(*op, &HashMap::new());
+                    let mut row = [F::zero(); NUM_CPU_COLS];
+                    let cols: &mut CpuCols<F> = row.as_mut_slice().borrow_mut();
+                    let alu_events = self.event_to_row::<F>(op, &HashMap::new(), cols, &mut blu);
                     alu_events.into_iter().for_each(|(key, value)| {
                         alu.entry(key).or_insert(Vec::default()).extend(value);
                     });
-                    blu.extend(blu_events);
                 });
                 (alu, blu)
             })
-            .collect::<Vec<_>>();
+            .unzip();
 
-        events
-            .into_iter()
-            .for_each(|(mut alu_events, mut blu_events)| {
-                for (_, value) in alu_events.iter_mut() {
-                    value.sort_unstable_by_key(|event| event.clk);
-                }
-                // Add the dependency events to the shard.
-                output.add_alu_events(alu_events);
-                blu_events.sort_unstable_by_key(|event| event.a1);
-                output.add_byte_lookup_events(blu_events);
-            });
+        for alu_events_chunk in alu_events.into_iter() {
+            output.add_alu_events(alu_events_chunk);
+        }
+
+        output.add_sharded_byte_lookup_events(blu_events.iter().collect_vec());
     }
 
-    fn included(&self, _: &Self::Record) -> bool {
-        true
+    fn included(&self, input: &Self::Record) -> bool {
+        !input.cpu_events.is_empty()
     }
 }
 
@@ -126,21 +112,15 @@ impl CpuChip {
     /// Create a row from an event.
     fn event_to_row<F: PrimeField32>(
         &self,
-        event: CpuEvent,
-        nonce_lookup: &HashMap<usize, u32>,
-    ) -> (
-        [F; NUM_CPU_COLS],
-        HashMap<Opcode, Vec<alu::AluEvent>>,
-        Vec<ByteLookupEvent>,
-    ) {
+        event: &CpuEvent,
+        nonce_lookup: &HashMap<u128, u32>,
+        cols: &mut CpuCols<F>,
+        blu_events: &mut impl ByteRecord,
+    ) -> HashMap<Opcode, Vec<alu::AluEvent>> {
         let mut new_alu_events = HashMap::new();
-        let mut new_blu_events = Vec::new();
-
-        let mut row = [F::zero(); NUM_CPU_COLS];
-        let cols: &mut CpuCols<F> = row.as_mut_slice().borrow_mut();
 
         // Populate shard and clk columns.
-        self.populate_shard_clk(cols, event, &mut new_blu_events);
+        self.populate_shard_clk(cols, event, blu_events);
 
         // Populate the nonce.
         cols.nonce = F::from_canonical_u32(
@@ -161,16 +141,13 @@ impl CpuChip {
 
         // Populate memory accesses for a, b, and c.
         if let Some(record) = event.a_record {
-            cols.op_a_access
-                .populate(event.channel, record, &mut new_blu_events);
+            cols.op_a_access.populate(event.channel, record, blu_events);
         }
         if let Some(MemoryRecordEnum::Read(record)) = event.b_record {
-            cols.op_b_access
-                .populate(event.channel, record, &mut new_blu_events);
+            cols.op_b_access.populate(event.channel, record, blu_events);
         }
         if let Some(MemoryRecordEnum::Read(record)) = event.c_record {
-            cols.op_c_access
-                .populate(event.channel, record, &mut new_blu_events);
+            cols.op_c_access.populate(event.channel, record, blu_events);
         }
 
         // Populate range checks for a.
@@ -182,7 +159,7 @@ impl CpuChip {
             .iter()
             .map(|x| x.as_canonical_u32())
             .collect::<Vec<_>>();
-        new_blu_events.push(ByteLookupEvent {
+        blu_events.add_byte_lookup_event(ByteLookupEvent {
             shard: event.shard,
             channel: event.channel,
             opcode: ByteOpcode::U8Range,
@@ -191,7 +168,7 @@ impl CpuChip {
             b: a_bytes[0],
             c: a_bytes[1],
         });
-        new_blu_events.push(ByteLookupEvent {
+        blu_events.add_byte_lookup_event(ByteLookupEvent {
             shard: event.shard,
             channel: event.channel,
             opcode: ByteOpcode::U8Range,
@@ -207,17 +184,11 @@ impl CpuChip {
         if let Some(record) = event.memory_record {
             memory_columns
                 .memory_access
-                .populate(event.channel, record, &mut new_blu_events)
+                .populate(event.channel, record, blu_events)
         }
 
         // Populate memory, branch, jump, and auipc specific fields.
-        self.populate_memory(
-            cols,
-            event,
-            &mut new_alu_events,
-            &mut new_blu_events,
-            nonce_lookup,
-        );
+        self.populate_memory(cols, event, &mut new_alu_events, blu_events, nonce_lookup);
         self.populate_branch(cols, event, &mut new_alu_events, nonce_lookup);
         self.populate_jump(cols, event, &mut new_alu_events, nonce_lookup);
         self.populate_auipc(cols, event, &mut new_alu_events, nonce_lookup);
@@ -232,20 +203,28 @@ impl CpuChip {
         // Assert that the instruction is not a no-op.
         cols.is_real = F::one();
 
-        (row, new_alu_events, new_blu_events)
+        new_alu_events
     }
 
     /// Populates the shard, channel, and clk related rows.
     fn populate_shard_clk<F: PrimeField>(
         &self,
         cols: &mut CpuCols<F>,
-        event: CpuEvent,
-        new_blu_events: &mut Vec<ByteLookupEvent>,
+        event: &CpuEvent,
+        blu_events: &mut impl ByteRecord,
     ) {
         cols.shard = F::from_canonical_u32(event.shard);
         cols.channel = F::from_canonical_u32(event.channel);
+        cols.clk = F::from_canonical_u32(event.clk);
+
+        let clk_16bit_limb = event.clk & 0xffff;
+        let clk_8bit_limb = (event.clk >> 16) & 0xff;
+        cols.clk_16bit_limb = F::from_canonical_u32(clk_16bit_limb);
+        cols.clk_8bit_limb = F::from_canonical_u32(clk_8bit_limb);
+
         cols.channel_selectors.populate(event.channel);
-        new_blu_events.push(ByteLookupEvent::new(
+
+        blu_events.add_byte_lookup_event(ByteLookupEvent::new(
             event.shard,
             event.channel,
             U16Range,
@@ -254,13 +233,7 @@ impl CpuChip {
             0,
             0,
         ));
-
-        cols.clk = F::from_canonical_u32(event.clk);
-        let clk_16bit_limb = event.clk & 0xffff;
-        cols.clk_16bit_limb = F::from_canonical_u32(clk_16bit_limb);
-        let clk_8bit_limb = (event.clk >> 16) & 0xff;
-        cols.clk_8bit_limb = F::from_canonical_u32(clk_8bit_limb);
-        new_blu_events.push(ByteLookupEvent::new(
+        blu_events.add_byte_lookup_event(ByteLookupEvent::new(
             event.shard,
             event.channel,
             U16Range,
@@ -269,7 +242,7 @@ impl CpuChip {
             0,
             0,
         ));
-        new_blu_events.push(ByteLookupEvent::new(
+        blu_events.add_byte_lookup_event(ByteLookupEvent::new(
             event.shard,
             event.channel,
             U8Range,
@@ -284,10 +257,10 @@ impl CpuChip {
     fn populate_memory<F: PrimeField>(
         &self,
         cols: &mut CpuCols<F>,
-        event: CpuEvent,
+        event: &CpuEvent,
         new_alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
-        new_blu_events: &mut Vec<ByteLookupEvent>,
-        nonce_lookup: &HashMap<usize, u32>,
+        blu_events: &mut impl ByteRecord,
+        nonce_lookup: &HashMap<u128, u32>,
     ) {
         if !matches!(
             event.instruction.opcode,
@@ -420,7 +393,7 @@ impl CpuChip {
         // Add event to byte lookup for byte range checking each byte in the memory addr
         let addr_bytes = memory_addr.to_le_bytes();
         for byte_pair in addr_bytes.chunks_exact(2) {
-            new_blu_events.push(ByteLookupEvent {
+            blu_events.add_byte_lookup_event(ByteLookupEvent {
                 shard: event.shard,
                 channel: event.channel,
                 opcode: ByteOpcode::U8Range,
@@ -436,9 +409,9 @@ impl CpuChip {
     fn populate_branch<F: PrimeField>(
         &self,
         cols: &mut CpuCols<F>,
-        event: CpuEvent,
+        event: &CpuEvent,
         alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
-        nonce_lookup: &HashMap<usize, u32>,
+        nonce_lookup: &HashMap<u128, u32>,
     ) {
         if event.instruction.is_branch_instruction() {
             let branch_columns = cols.opcode_specific_columns.branch_mut();
@@ -565,9 +538,9 @@ impl CpuChip {
     fn populate_jump<F: PrimeField>(
         &self,
         cols: &mut CpuCols<F>,
-        event: CpuEvent,
+        event: &CpuEvent,
         alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
-        nonce_lookup: &HashMap<usize, u32>,
+        nonce_lookup: &HashMap<u128, u32>,
     ) {
         if event.instruction.is_jump_instruction() {
             let jump_columns = cols.opcode_specific_columns.jump_mut();
@@ -642,9 +615,9 @@ impl CpuChip {
     fn populate_auipc<F: PrimeField>(
         &self,
         cols: &mut CpuCols<F>,
-        event: CpuEvent,
+        event: &CpuEvent,
         alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
-        nonce_lookup: &HashMap<usize, u32>,
+        nonce_lookup: &HashMap<u128, u32>,
     ) {
         if matches!(event.instruction.opcode, Opcode::AUIPC) {
             let auipc_columns = cols.opcode_specific_columns.auipc_mut();
@@ -681,8 +654,8 @@ impl CpuChip {
     fn populate_ecall<F: PrimeField>(
         &self,
         cols: &mut CpuCols<F>,
-        event: CpuEvent,
-        nonce_lookup: &HashMap<usize, u32>,
+        event: &CpuEvent,
+        nonce_lookup: &HashMap<u128, u32>,
     ) -> bool {
         let mut is_halt = false;
 
@@ -746,6 +719,21 @@ impl CpuChip {
             );
 
             is_halt = syscall_id == F::from_canonical_u32(SyscallCode::HALT.syscall_id());
+
+            // For halt and commit deferred proofs syscalls, we need to baby bear range check one of
+            // it's operands.
+            if is_halt {
+                ecall_cols.operand_to_check = event.b.into();
+                ecall_cols.operand_range_check_cols.populate(event.b);
+                cols.ecall_range_check_operand = F::one();
+            }
+
+            if syscall_id == F::from_canonical_u32(SyscallCode::COMMIT_DEFERRED_PROOFS.syscall_id())
+            {
+                ecall_cols.operand_to_check = event.c.into();
+                ecall_cols.operand_range_check_cols.populate(event.c);
+                cols.ecall_range_check_operand = F::one();
+            }
         }
 
         is_halt
@@ -768,7 +756,7 @@ impl CpuChip {
             )
         };
 
-        rows[n_real_rows..].iter_mut().for_each(|padded_row| {
+        rows[n_real_rows..].par_iter_mut().for_each(|padded_row| {
             padded_row[CPU_COL_MAP.selectors.imm_b] = F::one();
             padded_row[CPU_COL_MAP.selectors.imm_c] = F::one();
         });
@@ -779,9 +767,13 @@ impl CpuChip {
 mod tests {
     use p3_baby_bear::BabyBear;
 
+    use std::time::Instant;
+
     use super::*;
 
+    use crate::runtime::tests::ssz_withdrawals_program;
     use crate::runtime::{tests::simple_program, Runtime};
+    use crate::stark::DefaultProver;
     use crate::utils::{run_test, setup_logger, SP1CoreOpts};
 
     // #[test]
@@ -819,22 +811,30 @@ mod tests {
 
     #[test]
     fn generate_trace_simple_program() {
-        let program = simple_program();
+        let program = ssz_withdrawals_program();
         let mut runtime = Runtime::new(program, SP1CoreOpts::default());
         runtime.run().unwrap();
+        println!("runtime: {:?}", runtime.state.global_clk);
         let chip = CpuChip::default();
-        let trace: RowMajorMatrix<BabyBear> =
+
+        let start = Instant::now();
+        <CpuChip as MachineAir<BabyBear>>::generate_dependencies(
+            &chip,
+            &runtime.record,
+            &mut ExecutionRecord::default(),
+        );
+        println!("generate dependencies: {:?}", start.elapsed());
+
+        let start = Instant::now();
+        let _: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&runtime.record, &mut ExecutionRecord::default());
-        for cpu_event in runtime.record.cpu_events {
-            println!("{:?}", cpu_event);
-        }
-        println!("{:?}", trace.values)
+        println!("generate trace: {:?}", start.elapsed());
     }
 
     #[test]
     fn prove_trace() {
         setup_logger();
         let program = simple_program();
-        run_test(program).unwrap();
+        run_test::<DefaultProver<_, _>>(program).unwrap();
     }
 }

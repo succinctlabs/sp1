@@ -1,8 +1,8 @@
 [workspace]
 [package]
-version = "0.1.0"
 name = "keccak-permute-test"
-edition = "2021"
+version = "1.0.0-rc.1"
+publish = false
 
 [dependencies]
 sp1-zkvm = { path = "../../zkvm/entrypoint" }

@@ -1,5 +1,6 @@
 [workspace]
 members = [
+  "build",
   "cli",
   "core",
   "derive",
@@ -10,6 +11,8 @@ members = [
   "recursion/circuit",
   "recursion/compiler",
   "recursion/core",
+  "recursion/derive",
+  "recursion/gnark-cli",
   "recursion/gnark-ffi",
   "recursion/program",
   "sdk",
@@ -17,6 +20,14 @@ members = [
 ]
 exclude = ["examples/target"]
 resolver = "2"
+
+[workspace.package]
+version = "1.0.0-rc.1"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/succinctlabs/sp1"
+keywords = ["sp1", "succinct", "zero-knowledge", "zkvm"]
+categories = ["cryptography"]
 
 [profile.release]
 opt-level = 3
@@ -30,26 +41,43 @@ debug = true
 debug-assertions = true
 
 [workspace.dependencies]
-p3-air = { git = "https://github.com/Plonky3/Plonky3.git", rev = "88ea2b866e41329817e4761429b4a5a2a9751c07" }
-p3-field = { git = "https://github.com/Plonky3/Plonky3.git", rev = "88ea2b866e41329817e4761429b4a5a2a9751c07" }
-p3-commit = { git = "https://github.com/Plonky3/Plonky3.git", rev = "88ea2b866e41329817e4761429b4a5a2a9751c07" }
-p3-matrix = { git = "https://github.com/Plonky3/Plonky3.git", rev = "88ea2b866e41329817e4761429b4a5a2a9751c07" }
-p3-baby-bear = { git = "https://github.com/Plonky3/Plonky3.git", features = [
-  "nightly-features",
-], rev = "88ea2b866e41329817e4761429b4a5a2a9751c07" }
-p3-util = { git = "https://github.com/Plonky3/Plonky3.git", rev = "88ea2b866e41329817e4761429b4a5a2a9751c07" }
-p3-challenger = { git = "https://github.com/Plonky3/Plonky3.git", rev = "88ea2b866e41329817e4761429b4a5a2a9751c07" }
-p3-dft = { git = "https://github.com/Plonky3/Plonky3.git", rev = "88ea2b866e41329817e4761429b4a5a2a9751c07" }
-p3-fri = { git = "https://github.com/Plonky3/Plonky3.git", rev = "88ea2b866e41329817e4761429b4a5a2a9751c07" }
-p3-keccak = { git = "https://github.com/Plonky3/Plonky3.git", rev = "88ea2b866e41329817e4761429b4a5a2a9751c07" }
-p3-keccak-air = { git = "https://github.com/Plonky3/Plonky3.git", rev = "88ea2b866e41329817e4761429b4a5a2a9751c07" }
-p3-blake3 = { git = "https://github.com/Plonky3/Plonky3.git", rev = "88ea2b866e41329817e4761429b4a5a2a9751c07" }
-p3-merkle-tree = { git = "https://github.com/Plonky3/Plonky3.git", rev = "88ea2b866e41329817e4761429b4a5a2a9751c07" }
-p3-poseidon2 = { git = "https://github.com/Plonky3/Plonky3.git", rev = "88ea2b866e41329817e4761429b4a5a2a9751c07" }
-p3-symmetric = { git = "https://github.com/Plonky3/Plonky3.git", rev = "88ea2b866e41329817e4761429b4a5a2a9751c07" }
-p3-uni-stark = { git = "https://github.com/Plonky3/Plonky3.git", rev = "88ea2b866e41329817e4761429b4a5a2a9751c07" }
-p3-maybe-rayon = { git = "https://github.com/Plonky3/Plonky3.git", rev = "88ea2b866e41329817e4761429b4a5a2a9751c07" }
-p3-bn254-fr = { git = "https://github.com/Plonky3/Plonky3.git", rev = "88ea2b866e41329817e4761429b4a5a2a9751c07" }
+sp1-build = { path = "build", version = "1.0.0-rc.1" }
+sp1-derive = { path = "derive", version = "1.0.0-rc.1" }
+sp1-core = { path = "core", version = "1.0.0-rc.1" }
+sp1-cli = { path = "cli", version = "1.0.0-rc.1", default-features = false }
+sp1-eval = { path = "eval", version = "1.0.0-rc.1", default-features = false }
+sp1-helper = { path = "helper", version = "1.0.0-rc.1", default-features = false }
+sp1-primitives = { path = "primitives", version = "1.0.0-rc.1" }
+sp1-prover = { path = "prover", version = "1.0.0-rc.1" }
+sp1-recursion-compiler = { path = "recursion/compiler", version = "1.0.0-rc.1" }
+sp1-recursion-core = { path = "recursion/core", version = "1.0.0-rc.1", default-features = false }
+sp1-recursion-derive = { path = "recursion/derive", version = "1.0.0-rc.1", default-features = false }
+sp1-recursion-gnark-ffi = { path = "recursion/gnark-ffi", version = "1.0.0-rc.1", default-features = false }
+sp1-recursion-program = { path = "recursion/program", version = "1.0.0-rc.1", default-features = false }
+sp1-recursion-circuit = { path = "recursion/circuit", version = "1.0.0-rc.1", default-features = false }
+sp1-sdk = { path = "sdk", version = "1.0.0-rc.1" }
+sp1-lib = { path = "zkvm/lib", version = "1.0.0-rc.1", default-features = false }
+sp1-zkvm = { path = "zkvm/entrypoint", version = "1.0.0-rc.1", default-features = false }
+p3-air = "0.1.3-succinct"
+p3-field = "0.1.3-succinct"
+p3-commit = "0.1.3-succinct"
+p3-matrix = "0.1.3-succinct"
+p3-baby-bear = { version = "0.1.3-succinct", features = ["nightly-features"] }
+p3-util = "0.1.3-succinct"
+p3-challenger = "0.1.3-succinct"
+p3-dft = "0.1.3-succinct"
+p3-fri = "0.1.3-succinct"
+p3-goldilocks = "0.1.3-succinct"
+p3-keccak = "0.1.3-succinct"
+p3-keccak-air = "0.1.3-succinct"
+p3-blake3 = "0.1.3-succinct"
+p3-mds = "0.1.3-succinct"
+p3-merkle-tree = "0.1.3-succinct"
+p3-poseidon2 = "0.1.3-succinct"
+p3-symmetric = "0.1.3-succinct"
+p3-uni-stark = "0.1.3-succinct"
+p3-maybe-rayon = "0.1.3-succinct"
+p3-bn254-fr = "0.1.3-succinct"
 
 # For local development. 
 

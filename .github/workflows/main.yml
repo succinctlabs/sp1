@@ -20,7 +20,7 @@ concurrency:
 jobs:
   plonk:
     name: Plonk Native
-    runs-on: runs-on,cpu=64,ram=256,family=m7i+m7a,hdd=80,image=ubuntu22-full-x64
+    runs-on: runs-on,cpu=64,ram=256,family=m7i+m7a,hdd=80,image=ubuntu22-full-x64,spot=false
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
@@ -39,9 +39,10 @@ jobs:
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_BACKTRACE: 1
+
   plonk-docker:
     name: Plonk Docker
-    runs-on: runs-on,cpu=64,ram=256,family=m7i+m7a,hdd=80,image=ubuntu22-full-x64
+    runs-on: runs-on,cpu=64,ram=256,family=m7i+m7a,hdd=80,image=ubuntu22-full-x64,spot=false
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
@@ -60,6 +61,7 @@ jobs:
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_BACKTRACE: 1
+
   check-branch:
     name: Check branch
     runs-on: ubuntu-latest
@@ -69,3 +71,71 @@ jobs:
         run: |
           echo "ERROR: You can only merge to main from dev, release/*, or hotfix/*."
           exit 1
+
+  ssz-withdrawals:
+    name: Example (SSZ Withdrawals)
+    runs-on: runs-on,runner=64cpu-linux-arm64,spot=false
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
+
+      - name: Install SP1 toolchain
+        run: |
+          curl -L https://sp1.succinct.xyz | bash
+          ~/.sp1/bin/sp1up 
+          ~/.sp1/bin/cargo-prove prove --version
+
+      - name: Install SP1 CLI
+        run: |
+          cd cli
+          cargo install --force --locked --path .
+          cd ~
+
+      - name: Run script
+        run: |
+          cd examples/ssz-withdrawals/program
+          cargo add sp1-zkvm --path $GITHUB_WORKSPACE/zkvm/entrypoint
+          cargo prove build
+          cd ../script
+          cargo remove sp1-sdk
+          cargo add sp1-sdk --path $GITHUB_WORKSPACE/sdk
+          SP1_DEV=1 RUST_LOG=info cargo run --release
+
+  tendermint:
+    name: Example (Tendermint)
+    runs-on: runs-on,runner=64cpu-linux-arm64,spot=false
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
+
+      - name: Install SP1 toolchain
+        run: |
+          curl -L https://sp1.succinct.xyz | bash
+          ~/.sp1/bin/sp1up 
+          ~/.sp1/bin/cargo-prove prove --version
+
+      - name: Install SP1 CLI
+        run: |
+          cd cli
+          cargo install --force --locked --path .
+          cd ~
+
+      - name: Run script
+        run: |
+          cd examples/tendermint/program
+          cargo add sp1-zkvm --path $GITHUB_WORKSPACE/zkvm/entrypoint
+          cargo prove build
+          cd ../script
+          cargo remove sp1-sdk
+          cargo add sp1-sdk --path $GITHUB_WORKSPACE/sdk
+          SP1_DEV=1 RUST_LOG=info cargo run --release

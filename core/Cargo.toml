@@ -1,14 +1,20 @@
 [package]
-edition = "2021"
 name = "sp1-core"
-version = "0.1.0"
+description = "SP1 is a performant, 100% open-source, contributor-friendly zkVM."
+readme = "../README.md"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+keywords = { workspace = true }
+categories = { workspace = true }
 
 [dependencies]
 bincode = "1.3.3"
 serde = { version = "1.0", features = ["derive", "rc"] }
 elf = "0.7.4"
 itertools = "0.13.0"
-log = "0.4.21"
+log = "0.4.22"
 nohash-hasher = "0.2.0"
 num = { version = "0.4.3" }
 p3-air = { workspace = true }
@@ -28,9 +34,9 @@ p3-poseidon2 = { workspace = true }
 p3-symmetric = { workspace = true }
 p3-uni-stark = { workspace = true }
 p3-util = { workspace = true }
-rrs-lib = { git = "https://github.com/GregAC/rrs.git" }
-sp1-derive = { path = "../derive" }
-sp1-primitives = { path = "../primitives" }
+rrs_lib = { package = "rrs-succinct", version = "0.1.0" }
+sp1-derive = { workspace = true }
+sp1-primitives = { workspace = true }
 
 anyhow = "1.0.83"
 amcl = { package = "snowbridge-amcl", version = "1.0.2", default-features = false, features = [
@@ -39,14 +45,14 @@ amcl = { package = "snowbridge-amcl", version = "1.0.2", default-features = fals
 arrayref = "0.3.7"
 blake3 = "1.5"
 cfg-if = "1.0.0"
-generic-array = { version = "1.0.0", features = ["alloc", "serde"] }
+generic-array = { version = "1.1.0", features = ["alloc", "serde"] }
 typenum = "1.17.0"
 curve25519-dalek = { version = "4.1.2" }
 elliptic-curve = "0.13.8"
 hex = "0.4.3"
 k256 = { version = "0.13.3", features = ["expose-field"] }
 num_cpus = "1.16.0"
-serde_with = "3.8.1"
+serde_with = "3.9.0"
 size = "0.4.1"
 tempfile = "3.10.1"
 tracing = "0.1.40"
@@ -57,16 +63,17 @@ strum = "0.26"
 web-time = "1.1.0"
 rayon-scan = "0.1.1"
 thiserror = "1.0.60"
-num-bigint = { version = "0.4.3", default-features = false }
+num-bigint = { version = "0.4.6", default-features = false }
 rand = "0.8.5"
 bytemuck = "1.16.0"
+hashbrown = { version = "0.14.5", features = ["serde", "inline-more"] }
 
 [dev-dependencies]
 tiny-keccak = { version = "2.0.2", features = ["keccak"] }
 criterion = "0.5.1"
 num = { version = "0.4.3", features = ["rand"] }
 rand = "0.8.5"
-sp1-zkvm = { path = "../zkvm/entrypoint" }
+sp1-zkvm = { workspace = true }
 
 [features]
 neon = ["p3-blake3/neon"]

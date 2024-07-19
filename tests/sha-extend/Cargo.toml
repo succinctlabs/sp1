@@ -1,8 +1,9 @@
 [workspace]
 [package]
-version = "0.1.0"
 name = "sha-extend-test"
+version = "1.0.0-rc.1"
 edition = "2021"
+publish = false
 
 [dependencies]
 sp1-zkvm = { path = "../../zkvm/entrypoint" }

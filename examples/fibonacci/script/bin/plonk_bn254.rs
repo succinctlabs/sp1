@@ -16,21 +16,20 @@ fn main() {
     // Generate the proof for the given program and input.
     let client = ProverClient::new();
     let (pk, vk) = client.setup(ELF);
-    let mut proof = client.prove_plonk(&pk, stdin).unwrap();
+    let proof = client.prove(&pk, stdin).plonk().run().unwrap();
 
     println!("generated proof");
 
-    // Read and verify the output.
-    let _ = proof.public_values.read::<u32>();
-    let a = proof.public_values.read::<u32>();
-    let b = proof.public_values.read::<u32>();
-    println!("a: {}", a);
-    println!("b: {}", b);
+    // Get the public values as bytes.
+    let public_values = proof.public_values.raw();
+    println!("public values: {:?}", public_values);
+
+    // Get the proof as bytes.
+    let solidity_proof = proof.raw();
+    println!("proof: {:?}", solidity_proof);
 
     // Verify proof and public values
-    client
-        .verify_plonk(&proof, &vk)
-        .expect("verification failed");
+    client.verify(&proof, &vk).expect("verification failed");
 
     // Save the proof.
     proof

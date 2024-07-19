@@ -5,6 +5,8 @@ use clap::Parser;
 use p3_baby_bear::BabyBear;
 use p3_field::PrimeField;
 use sp1_core::io::SP1Stdin;
+use sp1_core::runtime::SP1Context;
+use sp1_core::utils::SP1ProverOpts;
 use sp1_prover::utils::{babybear_bytes_to_bn254, babybears_to_bn254, words_to_bytes};
 use sp1_prover::SP1Prover;
 use sp1_recursion_circuit::stark::build_wrap_circuit;
@@ -28,26 +30,28 @@ pub fn main() {
     let args = Args::parse();
     let build_dir: PathBuf = args.build_dir.into();
 
-    let elf = include_bytes!("../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
+    let elf = include_bytes!("../elf/riscv32im-succinct-zkvm-elf");
 
     tracing::info!("initializing prover");
-    let prover = SP1Prover::new();
+    let prover: SP1Prover = SP1Prover::new();
+    let opts = SP1ProverOpts::default();
+    let context = SP1Context::default();
 
     tracing::info!("setup elf");
     let (pk, vk) = prover.setup(elf);
 
     tracing::info!("prove core");
     let stdin = SP1Stdin::new();
-    let core_proof = prover.prove_core(&pk, &stdin).unwrap();
+    let core_proof = prover.prove_core(&pk, &stdin, opts, context).unwrap();
 
     tracing::info!("Compress");
-    let reduced_proof = prover.compress(&vk, core_proof, vec![]).unwrap();
+    let reduced_proof = prover.compress(&vk, core_proof, vec![], opts).unwrap();
 
     tracing::info!("Shrink");
-    let compressed_proof = prover.shrink(reduced_proof).unwrap();
+    let compressed_proof = prover.shrink(reduced_proof, opts).unwrap();
 
     tracing::info!("wrap");
-    let wrapped_proof = prover.wrap_bn254(compressed_proof).unwrap();
+    let wrapped_proof = prover.wrap_bn254(compressed_proof, opts).unwrap();
 
     tracing::info!("building verifier constraints");
     let constraints = tracing::info_span!("wrap circuit")

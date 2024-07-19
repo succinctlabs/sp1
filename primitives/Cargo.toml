@@ -1,10 +1,16 @@
 [package]
 name = "sp1-primitives"
-version = "0.1.0"
-edition = "2021"
+description = "SP1 is a performant, 100% open-source, contributor-friendly zkVM."
+readme = "../README.md"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+keywords = { workspace = true }
+categories = { workspace = true }
 
 [dependencies]
-lazy_static = "1.4.0"
+lazy_static = "1.5.0"
 p3-field = { workspace = true }
 p3-baby-bear = { workspace = true }
 p3-poseidon2 = { workspace = true }
