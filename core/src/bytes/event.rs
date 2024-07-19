@@ -41,9 +41,9 @@ impl Hash for ByteLookupEvent {
             + ((self.channel as u128) << 32)
             + ((self.opcode as u128) << 40)
             + ((self.a1 as u128) << 48)
-            + ((self.a2 as u128) << 56)
-            + ((self.b as u128) << 64)
-            + ((self.c as u128) << 72);
+            + ((self.a2 as u128) << 64)
+            + ((self.b as u128) << 72)
+            + ((self.c as u128) << 80);
 
         combined.hash(state);
     }
