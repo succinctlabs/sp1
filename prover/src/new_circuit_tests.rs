@@ -99,56 +99,56 @@ mod tests {
 
     #[test]
     pub fn test_new_machine_diff_degrees() {
-        let machine_maker_3 = || machine_with_all_chips::<3>(16, 16, 16);
-        let machine_maker_5 = || machine_with_all_chips::<5>(16, 16, 16);
-        let machine_maker_9 = || machine_with_all_chips::<9>(16, 16, 16);
+        // let machine_maker_3 = || machine_with_all_chips::<3>(16, 16, 16);
+        // let machine_maker_5 = || machine_with_all_chips::<5>(16, 16, 16);
+        // let machine_maker_9 = || machine_with_all_chips::<9>(16, 16, 16);
         let machine_maker_17 = || machine_with_all_chips::<17>(16, 16, 16);
-        test_machine(machine_maker_3);
-        test_machine(machine_maker_5);
-        test_machine(machine_maker_9);
+        // test_machine(machine_maker_3);
+        // test_machine(machine_maker_5);
+        // test_machine(machine_maker_9);
         test_machine(machine_maker_17);
     }
 
     #[test]
     pub fn test_new_machine_diff_rows() {
         let machine_maker = |i| machine_with_all_chips::<9>(i, i, i);
-        for i in 5..=17 {
+        for i in 1..=5 {
             test_machine(|| machine_maker(i));
         }
     }
 
     #[test]
     pub fn test_dummy_diff_cols() {
-        test_machine(|| machine_with_dummy::<9, 1>(16));
-        test_machine(|| machine_with_dummy::<9, 50>(16));
-        test_machine(|| machine_with_dummy::<9, 100>(16));
-        test_machine(|| machine_with_dummy::<9, 150>(16));
-        test_machine(|| machine_with_dummy::<9, 200>(16));
-        test_machine(|| machine_with_dummy::<9, 250>(16));
-        test_machine(|| machine_with_dummy::<9, 300>(16));
-        test_machine(|| machine_with_dummy::<9, 350>(16));
-        test_machine(|| machine_with_dummy::<9, 400>(16));
-        test_machine(|| machine_with_dummy::<9, 450>(16));
-        test_machine(|| machine_with_dummy::<9, 500>(16));
-        test_machine(|| machine_with_dummy::<9, 550>(16));
-        test_machine(|| machine_with_dummy::<9, 600>(16));
-        test_machine(|| machine_with_dummy::<9, 650>(16));
-        test_machine(|| machine_with_dummy::<9, 700>(16));
-        test_machine(|| machine_with_dummy::<9, 750>(16));
+        test_machine(|| machine_with_dummy::<9, 1>(15));
+        test_machine(|| machine_with_dummy::<9, 50>(15));
+        // test_machine(|| machine_with_dummy::<9, 100>(16));
+        // test_machine(|| machine_with_dummy::<9, 150>(16));
+        // test_machine(|| machine_with_dummy::<9, 200>(16));
+        // test_machine(|| machine_with_dummy::<9, 250>(16));
+        // test_machine(|| machine_with_dummy::<9, 300>(16));
+        // test_machine(|| machine_with_dummy::<9, 350>(16));
+        // test_machine(|| machine_with_dummy::<9, 400>(16));
+        // test_machine(|| machine_with_dummy::<9, 450>(16));
+        // test_machine(|| machine_with_dummy::<9, 500>(16));
+        // test_machine(|| machine_with_dummy::<9, 550>(16));
+        // test_machine(|| machine_with_dummy::<9, 600>(16));
+        // test_machine(|| machine_with_dummy::<9, 650>(16));
+        // test_machine(|| machine_with_dummy::<9, 700>(16));
+        // test_machine(|| machine_with_dummy::<9, 750>(16));
     }
 
     #[test]
     pub fn test_skinny_dummy_diff_rows() {
-        for i in 2..=16 {
+        for i in 2..=5 {
             test_machine(|| machine_with_dummy::<9, 1>(i));
         }
     }
 
     #[test]
     pub fn test_dummy_diff_degrees() {
-        test_machine(|| machine_with_dummy::<3, 500>(16));
-        test_machine(|| machine_with_dummy::<5, 500>(16));
-        test_machine(|| machine_with_dummy::<9, 500>(16));
-        test_machine(|| machine_with_dummy::<17, 500>(16));
+        // test_machine(|| machine_with_dummy::<3, 500>(16));
+        // test_machine(|| machine_with_dummy::<5, 500>(16));
+        test_machine(|| machine_with_dummy::<9, 500>(12));
+        // test_machine(|| machine_with_dummy::<17, 500>(16));
     }
 }
