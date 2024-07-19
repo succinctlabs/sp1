@@ -105,6 +105,7 @@ impl<F: PrimeField32> Poseidon2AbsorbEvent<F> {
         }
 
         if *hash_state_cursor != 0 {
+            nb_permutes += 1;
             // Note that we still do a permutation, generate the trace and enforce permutation
             // constraints for every absorb and finalize row.
             self.iterations.push(Poseidon2AbsorbIteration {

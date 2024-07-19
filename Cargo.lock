@@ -4869,7 +4869,6 @@ dependencies = [
  "tempfile",
  "thiserror",
  "tracing",
- "tracing-forest",
  "tracing-subscriber",
 ]
 

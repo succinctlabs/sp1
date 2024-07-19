@@ -239,11 +239,7 @@ where
             .collect::<Vec<_>>();
 
         // Generate the permutation traces.
-        // let mut trace_results = Vec::with_capacity(chips.len());
-        // let mut permutation_traces = Vec::with_capacity(chips.len());
-        // let mut prep_traces = Vec::with_capacity(chips.len());
-        // let mut cumulative_sums = Vec::with_capacity(chips.len());
-        let (permutation_traces, (prep_traces, cumulative_sums)): (Vec<_>, (Vec<_>, Vec<_>)) =
+        let ((permutation_traces, prep_traces), cumulative_sums): ((Vec<_>, Vec<_>), Vec<_>) =
             tracing::debug_span!("generate permutation traces").in_scope(|| {
                 chips
                     .par_iter()
@@ -263,7 +259,7 @@ where
                             .last()
                             .copied()
                             .unwrap();
-                        (perm_trace, (preprocessed_trace, cumulative_sum))
+                        ((perm_trace, preprocessed_trace), cumulative_sum)
                     })
                     .unzip()
             });

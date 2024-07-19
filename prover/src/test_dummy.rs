@@ -2,34 +2,24 @@
 mod tests {
     #[test]
     fn test_dummy_circuit() {
-        use std::borrow::Borrow;
-
-        use crate::utils::{babybear_bytes_to_bn254, words_to_bytes};
         use p3_baby_bear::DiffusionMatrixBabyBear;
         use p3_field::AbstractExtensionField;
         use rand::{rngs::StdRng, Rng, SeedableRng};
         use sp1_core::{
             stark::{Chip, StarkGenericConfig, StarkMachine, PROOF_MAX_NUM_PVS},
-            utils::{log2_strict_usize, run_test_machine, setup_logger, BabyBearPoseidon2Inner},
-        };
-        use sp1_recursion_circuit::{stark::build_wrap_circuit_new, witness::Witnessable};
-        use sp1_recursion_core::{
-            air::RecursionPublicValues, stark::config::BabyBearPoseidon2Outer,
+            utils::{run_test_machine, setup_logger, BabyBearPoseidon2Inner},
         };
         use sp1_recursion_core_v2::{
             alu_base::BaseAluChip, alu_ext::ExtAluChip, exp_reverse_bits::ExpReverseBitsLenChip,
             fri_fold::FriFoldChip, machine::RecursionAir, mem::MemoryChip,
-            poseidon2_skinny::Poseidon2SkinnyChip, poseidon2_wide::Poseidon2WideChip,
-            RecursionProgram, Runtime,
+            poseidon2_wide::Poseidon2WideChip, RecursionProgram, Runtime,
         };
 
         use sp1_recursion_compiler::{
             asm::{AsmBuilder, AsmConfig},
             circuit::AsmCompiler,
-            config::OuterConfig,
             ir::*,
         };
-        use sp1_recursion_gnark_ffi::PlonkBn254Prover;
 
         const DEGREE: usize = 3;
 
@@ -44,7 +34,7 @@ mod tests {
         const SCALE: usize = 1;
         const FIELD_OPERATIONS: usize = 451653 * SCALE;
         const EXTENSION_OPERATIONS: usize = 82903 * SCALE;
-        const POSEIDON_OPERATIONS: usize = 33297 * SCALE;
+        const POSEIDON_OPERATIONS: usize = 34697 * SCALE;
         const EXP_REVERSE_BITS_LEN_OPERATIONS: usize = 35200 * SCALE;
         const FRI_FOLD_OPERATIONS: usize = 152800 * SCALE;
 
@@ -82,10 +72,12 @@ mod tests {
             RecursionAir::Memory(MemoryChip::default()),
             RecursionAir::BaseAlu(BaseAluChip::default()),
             RecursionAir::ExtAlu(ExtAluChip::default()),
-            // RecursionAir::Poseidon2Skinny(Poseidon2SkinnyChip::<DEGREE> {
-            //     fixed_log2_rows: Some(((POSEIDON_OPERATIONS * 10 - 1).ilog2() + 1) as usize),
-            //     pad: true,
-            // }),
+            // RecursionAir::Poseidon2Skinny(
+            //     sp1_recursion_core_v2::poseidon2_skinny::Poseidon2SkinnyChip::<DEGREE> {
+            //         fixed_log2_rows: Some(((POSEIDON_OPERATIONS * 10 - 1).ilog2() + 1) as usize),
+            //         pad: true,
+            //     },
+            // ),
             RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE> {
                 fixed_log2_rows: Some(((POSEIDON_OPERATIONS - 1).ilog2() + 1) as usize),
                 pad: true,

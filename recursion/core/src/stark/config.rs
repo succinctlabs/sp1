@@ -85,28 +85,6 @@ pub fn outer_fri_config() -> FriConfig<OuterChallengeMmcs> {
     }
 }
 
-/// The FRI config for outer recursion.
-pub fn outer_fri_config_with_blowup(log_blowup: usize) -> FriConfig<OuterChallengeMmcs> {
-    let perm = outer_perm();
-    let hash = OuterHash::new(perm.clone()).unwrap();
-    let compress = OuterCompress::new(perm.clone());
-    let challenge_mmcs = OuterChallengeMmcs::new(OuterValMmcs::new(hash, compress));
-    let num_queries = if utils::sp1_dev_mode() {
-        1
-    } else {
-        match std::env::var("FRI_QUERIES") {
-            Ok(value) => value.parse().unwrap(),
-            Err(_) => 100 / log_blowup,
-        }
-    };
-    FriConfig {
-        log_blowup,
-        num_queries,
-        proof_of_work_bits: 16,
-        mmcs: challenge_mmcs,
-    }
-}
-
 #[derive(Deserialize)]
 #[serde(from = "std::marker::PhantomData<BabyBearPoseidon2Outer>")]
 pub struct BabyBearPoseidon2Outer {

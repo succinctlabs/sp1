@@ -89,15 +89,13 @@ impl<F: PrimeField32> MachineAir<F> for BaseAluChip {
                 else {
                     return None;
                 };
-                let mult = mult.to_owned();
-
                 let mut access = BaseAluAccessCols {
                     addrs: addrs.to_owned(),
                     is_add: F::from_bool(false),
                     is_sub: F::from_bool(false),
                     is_mul: F::from_bool(false),
                     is_div: F::from_bool(false),
-                    mult,
+                    mult: mult.to_owned(),
                 };
                 let target_flag = match opcode {
                     BaseAluOpcode::AddF => &mut access.is_add,
