@@ -8,7 +8,7 @@ use sp1_recursion_core::air::Block;
 pub mod alu_base;
 pub mod alu_ext;
 pub mod builder;
-pub mod dummy_wide;
+pub mod dummy;
 pub mod exp_reverse_bits;
 pub mod fri_fold;
 pub mod machine;

@@ -4,7 +4,7 @@ use sp1_derive::MachineAir;
 use sp1_recursion_core::runtime::D;
 
 use crate::{
-    alu_base::BaseAluChip, alu_ext::ExtAluChip, dummy_wide::DummyWideChip,
+    alu_base::BaseAluChip, alu_ext::ExtAluChip, dummy::DummyChip,
     exp_reverse_bits::ExpReverseBitsLenChip, fri_fold::FriFoldChip, mem::MemoryChip,
     poseidon2_skinny::Poseidon2SkinnyChip, poseidon2_wide::Poseidon2WideChip, program::ProgramChip,
 };
@@ -32,7 +32,7 @@ pub enum RecursionAir<
     // RangeCheck(RangeCheckChip<F>),
     // Multi(MultiChip<DEGREE>),
     ExpReverseBitsLen(ExpReverseBitsLenChip<DEGREE>),
-    DummyWide(DummyWideChip<COL_PADDING>),
+    DummyWide(DummyChip<COL_PADDING>),
 }
 
 impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_PADDING: usize>
@@ -73,7 +73,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
         config: SC,
         log_height: usize,
     ) -> StarkMachine<SC, Self> {
-        let chips = vec![RecursionAir::DummyWide(DummyWideChip::new(log_height))];
+        let chips = vec![RecursionAir::DummyWide(DummyChip::new(log_height))];
         StarkMachine::new(
             config,
             chips.into_iter().map(Chip::new).collect(),

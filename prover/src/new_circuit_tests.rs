@@ -112,7 +112,7 @@ mod tests {
     #[test]
     pub fn test_new_machine_diff_rows() {
         let machine_maker = |i| machine_with_all_chips::<9>(i, i, i);
-        for i in 16..=22 {
+        for i in 5..=17 {
             test_machine(|| machine_maker(i));
         }
     }
