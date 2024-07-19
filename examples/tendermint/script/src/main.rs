@@ -29,10 +29,10 @@ async fn get_light_blocks() -> (LightBlock, LightBlock) {
     let latest_commit = fetch_latest_commit(&client, &url).await.unwrap();
     let block: u64 = latest_commit.result.signed_header.header.height.into();
     println!("Latest block: {}", block);
-    let light_block_1 = fetch_light_block(2029100, peer_id, BASE_URL)
+    let light_block_1 = fetch_light_block(2279100, peer_id, BASE_URL)
         .await
         .expect("Failed to generate light block 1");
-    let light_block_2 = fetch_light_block(2029130, peer_id, BASE_URL)
+    let light_block_2 = fetch_light_block(2279130, peer_id, BASE_URL)
         .await
         .expect("Failed to generate light block 2");
     (light_block_1, light_block_2)
