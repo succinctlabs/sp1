@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.0.0-rc.1](https://github.com/succinctlabs/sp1/compare/sp1-build-v0.0.2-test...sp1-build-v1.0.0-rc.1) - 2024-07-19
+## [1.0.0-rc.1](https://github.com/succinctlabs/sp1/compare/sp1-build-v1.0.0-rc.1...sp1-build-v1.0.0-rc.1) - 2024-07-19
 
 ### Fixed
 
