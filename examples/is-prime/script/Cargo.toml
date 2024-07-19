@@ -1,8 +1,8 @@
 [package]
 name = "is-prime-script"
-version = "1.0.0-rc.1"
-edition = "2021"
+version = { workspace = true }
+edition = { workspace = true }
 publish = false
 
 [dependencies]
-sp1-sdk = { path = "../../../sdk", version = "1.0.0-rc.1" }
+sp1-sdk = { workspace = true }
