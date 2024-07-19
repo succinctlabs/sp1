@@ -40,11 +40,13 @@ mod tests {
 
         let _guard = setup_logger();
 
-        const FIELD_OPERATIONS: usize = 451653;
-        const EXTENSION_OPERATIONS: usize = 82903;
-        const POSEIDON_OPERATIONS: usize = 33297;
-        const EXP_REVERSE_BITS_LEN_OPERATIONS: usize = 35200;
-        const FRI_FOLD_OPERATIONS: usize = 152800;
+        // To aid in testing.
+        const SCALE: usize = 1;
+        const FIELD_OPERATIONS: usize = 451653 * SCALE;
+        const EXTENSION_OPERATIONS: usize = 82903 * SCALE;
+        const POSEIDON_OPERATIONS: usize = 33297 * SCALE;
+        const EXP_REVERSE_BITS_LEN_OPERATIONS: usize = 35200 * SCALE;
+        const FRI_FOLD_OPERATIONS: usize = 152800 * SCALE;
 
         let mut builder = AsmBuilder::<F, EF>::default();
 
@@ -81,7 +83,10 @@ mod tests {
             RecursionAir::Memory(MemoryChip::default()),
             RecursionAir::BaseAlu(BaseAluChip::default()),
             RecursionAir::ExtAlu(ExtAluChip::default()),
-            // RecursionAir::Poseidon2Skinny(Poseidon2SkinnyChip::<DEGREE>::default()),
+            // RecursionAir::Poseidon2Skinny(Poseidon2SkinnyChip::<DEGREE> {
+            //     fixed_log2_rows: Some(((POSEIDON_OPERATIONS * 10 - 1).ilog2() + 1) as usize),
+            //     pad: true,
+            // }),
             RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE> {
                 fixed_log2_rows: Some(((POSEIDON_OPERATIONS - 1).ilog2() + 1) as usize),
                 pad: true,
