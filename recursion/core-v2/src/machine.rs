@@ -6,7 +6,7 @@ use sp1_recursion_core::runtime::D;
 use crate::{
     alu_base::BaseAluChip, alu_ext::ExtAluChip, dummy_wide::DummyWideChip,
     exp_reverse_bits::ExpReverseBitsLenChip, fri_fold::FriFoldChip, mem::MemoryChip,
-    poseidon2_skinny::Poseidon2SkinnyChip, program::ProgramChip,
+    poseidon2_skinny::Poseidon2SkinnyChip, poseidon2_wide::Poseidon2WideChip, program::ProgramChip,
 };
 
 #[derive(MachineAir)]
@@ -27,7 +27,7 @@ pub enum RecursionAir<
     // Cpu(CpuChip<F, DEGREE>),
     // MemoryGlobal(MemoryGlobalChip),
     Poseidon2Skinny(Poseidon2SkinnyChip<DEGREE>),
-    // Poseidon2Wide(Poseidon2WideChip<DEGREE>),
+    Poseidon2Wide(Poseidon2WideChip<DEGREE>),
     FriFold(FriFoldChip<DEGREE>),
     // RangeCheck(RangeCheckChip<F>),
     // Multi(MultiChip<DEGREE>),
@@ -41,6 +41,15 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
     /// A recursion machine that can have dynamic trace sizes.
     pub fn machine<SC: StarkGenericConfig<Val = F>>(config: SC) -> StarkMachine<SC, Self> {
         let chips = Self::get_all()
+            .into_iter()
+            .map(Chip::new)
+            .collect::<Vec<_>>();
+        StarkMachine::new(config, chips, PROOF_MAX_NUM_PVS)
+    }
+
+    /// A recursion machine that can have dynamic trace sizes, and uses the wide variant of Poseidon2.
+    pub fn machine_wide<SC: StarkGenericConfig<Val = F>>(config: SC) -> StarkMachine<SC, Self> {
+        let chips = Self::get_all_wide()
             .into_iter()
             .map(Chip::new)
             .collect::<Vec<_>>();
@@ -97,6 +106,19 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
             RecursionAir::ExtAlu(ExtAluChip::default()),
             RecursionAir::Poseidon2Skinny(Poseidon2SkinnyChip::<DEGREE>::default()),
             // RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE>::default()),
+            RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>::default()),
+            RecursionAir::FriFold(FriFoldChip::<DEGREE>::default()),
+        ]
+    }
+
+    pub fn get_all_wide() -> Vec<Self> {
+        vec![
+            RecursionAir::Program(ProgramChip::default()),
+            RecursionAir::Memory(MemoryChip::default()),
+            RecursionAir::BaseAlu(BaseAluChip::default()),
+            RecursionAir::ExtAlu(ExtAluChip::default()),
+            // RecursionAir::Poseidon2Skinny(Poseidon2SkinnyChip::<DEGREE>::default()),
+            RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE>::default()),
             RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>::default()),
             RecursionAir::FriFold(FriFoldChip::<DEGREE>::default()),
         ]
