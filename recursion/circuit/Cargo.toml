@@ -14,7 +14,6 @@ p3-fri = { workspace = true }
 p3-matrix = { workspace = true }
 p3-util = { workspace = true }
 sp1-recursion-core = { path = "../core", version = "0.0.2-test" }
-sp1-recursion-core-v2 = { path = "../core-v2", version = "0.0.2-test" }
 sp1-core = { path = "../../core", version = "0.0.2-test" }
 itertools = "0.13.0"
 serde = { version = "1.0.204", features = ["derive"] }
