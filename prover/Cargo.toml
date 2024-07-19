@@ -48,7 +48,3 @@ path = "scripts/e2e.rs"
 neon = ["sp1-core/neon"]
 native-gnark = ["sp1-recursion-gnark-ffi/native"]
 export-tests = []
-
-[dev-dependencies]
-sp1-recursion-core-v2 = { path = "../recursion/core-v2", version = "0.0.2-test" }
-rand = "0.8.5"

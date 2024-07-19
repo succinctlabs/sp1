@@ -13,7 +13,6 @@
 
 pub mod build;
 pub mod components;
-pub mod test_dummy;
 pub mod types;
 pub mod utils;
 pub mod verify;
