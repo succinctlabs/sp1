@@ -165,8 +165,8 @@ impl CpuChip {
             opcode: ByteOpcode::U8Range,
             a1: 0,
             a2: 0,
-            b: a_bytes[0],
-            c: a_bytes[1],
+            b: a_bytes[0] as u8,
+            c: a_bytes[1] as u8,
         });
         blu_events.add_byte_lookup_event(ByteLookupEvent {
             shard: event.shard,
@@ -174,8 +174,8 @@ impl CpuChip {
             opcode: ByteOpcode::U8Range,
             a1: 0,
             a2: 0,
-            b: a_bytes[2],
-            c: a_bytes[3],
+            b: a_bytes[2] as u8,
+            c: a_bytes[3] as u8,
         });
 
         // Populate memory accesses for reading from memory.
@@ -214,13 +214,13 @@ impl CpuChip {
         blu_events: &mut impl ByteRecord,
     ) {
         cols.shard = F::from_canonical_u32(event.shard);
-        cols.channel = F::from_canonical_u32(event.channel);
+        cols.channel = F::from_canonical_u8(event.channel);
         cols.clk = F::from_canonical_u32(event.clk);
 
-        let clk_16bit_limb = event.clk & 0xffff;
-        let clk_8bit_limb = (event.clk >> 16) & 0xff;
-        cols.clk_16bit_limb = F::from_canonical_u32(clk_16bit_limb);
-        cols.clk_8bit_limb = F::from_canonical_u32(clk_8bit_limb);
+        let clk_16bit_limb = (event.clk & 0xffff) as u16;
+        let clk_8bit_limb = ((event.clk >> 16) & 0xff) as u8;
+        cols.clk_16bit_limb = F::from_canonical_u16(clk_16bit_limb);
+        cols.clk_8bit_limb = F::from_canonical_u8(clk_8bit_limb);
 
         cols.channel_selectors.populate(event.channel);
 
@@ -228,7 +228,7 @@ impl CpuChip {
             event.shard,
             event.channel,
             U16Range,
-            event.shard,
+            event.shard as u16,
             0,
             0,
             0,
@@ -249,7 +249,7 @@ impl CpuChip {
             0,
             0,
             0,
-            clk_8bit_limb,
+            clk_8bit_limb as u8,
         ));
     }
 
@@ -399,8 +399,8 @@ impl CpuChip {
                 opcode: ByteOpcode::U8Range,
                 a1: 0,
                 a2: 0,
-                b: byte_pair[0] as u32,
-                c: byte_pair[1] as u32,
+                b: byte_pair[0],
+                c: byte_pair[1],
             });
         }
     }
@@ -773,8 +773,8 @@ mod tests {
 
     use crate::runtime::tests::ssz_withdrawals_program;
     use crate::runtime::{tests::simple_program, Runtime};
-    use crate::stark::DefaultProver;
-    use crate::utils::{run_test, setup_logger, SP1CoreOpts};
+    use crate::stark::{DefaultProver, MachineRecord, RiscvAir};
+    use crate::utils::{run_test, setup_logger, BabyBearPoseidon2, SP1CoreOpts};
 
     // #[test]
     // fn generate_trace() {
@@ -836,5 +836,66 @@ mod tests {
         setup_logger();
         let program = simple_program();
         run_test::<DefaultProver<_, _>>(program).unwrap();
+    }
+
+    #[test]
+    fn test_benchmark_tendermint_trace_shard() {
+        setup_logger();
+        let elf =
+            include_bytes!("../../../tests/tendermint-benchmark/elf/riscv32im-succinct-zkvm-elf");
+        let program = Program::from(elf);
+
+        // Execute one shard.
+        let mut runtime = Runtime::new(program.clone(), SP1CoreOpts::default());
+        // Skip 6 shards.
+        runtime.shard_batch_size = 6;
+        let (_, _) = runtime.execute_state().unwrap();
+        // Record 1 shard.
+        runtime.shard_batch_size = 1;
+        let (mut records, _) = runtime.execute_record().unwrap();
+        let mut record = records.remove(records.len() - 1);
+
+        // Pretty print stats.
+        let mut stats = record.stats().into_iter().collect::<Vec<_>>();
+        stats.sort_by_key(|(_, v)| -(*v as i128));
+        for (k, v) in stats {
+            println!("{:>24}: {:>12}", k, v);
+        }
+
+        // Generate traces for shard.
+        let machine = RiscvAir::machine(BabyBearPoseidon2::new());
+
+        let chips = machine.chips();
+        let mut times = vec![];
+
+        chips.iter().for_each(|chip| {
+            let start = Instant::now();
+            let mut output = ExecutionRecord::default();
+            chip.generate_dependencies(&record, &mut output);
+            record.append(&mut output);
+            times.push((chip.name(), start.elapsed()));
+        });
+
+        // Print times in descending order + percentage.
+        let total_time = times
+            .iter()
+            .map(|(_, time)| time.as_secs_f64())
+            .sum::<f64>();
+        let mut sorted_times = times.into_iter().collect::<Vec<_>>();
+        sorted_times.sort_by_key(|(_, time)| time.as_millis());
+        sorted_times.reverse();
+        for (name, time) in sorted_times {
+            println!(
+                "{:>24}: {:.2}s ({:.2}%)",
+                name,
+                time.as_secs_f64(),
+                time.as_secs_f64() / total_time * 100.0
+            );
+        }
+        println!("total time: {:.2}s", total_time);
+
+        // let prover = DefaultProver::new(machine);
+
+        // prover.machine().generate_dependencies(records, opts)
     }
 }

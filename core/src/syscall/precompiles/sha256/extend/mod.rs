@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 pub struct ShaExtendEvent {
     pub lookup_id: u128,
     pub shard: u32,
-    pub channel: u32,
+    pub channel: u8,
     pub clk: u32,
     pub w_ptr: u32,
     pub w_i_minus_15_reads: Vec<MemoryReadRecord>,
