@@ -38,7 +38,7 @@ mod tests {
         type EF = <SC as StarkGenericConfig>::Challenge;
         // type A = RecursionAir<F, DEGREE>;
 
-        let _guard = setup_logger();
+        setup_logger();
 
         // To aid in testing.
         const SCALE: usize = 1;
