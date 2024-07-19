@@ -37,7 +37,7 @@ tempfile = "3.10.1"
 subtle-encoding = "0.5.1"
 serial_test = "3.1.1"
 num-bigint = "0.4.6"
-thiserror = "1.0.60"
+thiserror = "1.0.63"
 oneshot = "0.1.8"
 
 [[bin]]
