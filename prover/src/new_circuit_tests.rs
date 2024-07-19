@@ -1,21 +1,14 @@
 #[cfg(test)]
 mod tests {
-    use std::{
-        borrow::Borrow,
-        fs::File,
-        io::{Read, Write},
-        iter::once,
-        thread,
-    };
+    use std::{borrow::Borrow, iter::once};
 
     use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
     use p3_field::extension::BinomialExtensionField;
     use sp1_core::{
-        air::BinomialExtension,
-        stark::{MachineProof, StarkGenericConfig, StarkMachine},
+        stark::StarkMachine,
         utils::{log2_strict_usize, run_test_machine, setup_logger, BabyBearPoseidon2Inner},
     };
-    use sp1_recursion_compiler::{config::OuterConfig, constraints::Constraint, ir::Witness};
+    use sp1_recursion_compiler::{config::OuterConfig, ir::Witness};
     // use sp1_recursion_compiler::{config::OuterConfig, constraints::ConstraintCompiler, ir::Felt};
     use sp1_recursion_core::{air::RecursionPublicValues, stark::config::BabyBearPoseidon2Outer};
     use sp1_recursion_gnark_ffi::PlonkBn254Prover;
@@ -30,8 +23,6 @@ mod tests {
 
     use crate::utils::{babybear_bytes_to_bn254, words_to_bytes};
     type SC = BabyBearPoseidon2Outer;
-    type F = <SC as StarkGenericConfig>::Val;
-    type EF = <SC as StarkGenericConfig>::Challenge;
 
     pub fn test_machine<F, const DEGREE: usize, const COL_PADDING: usize>(machine_maker: F)
     where
@@ -121,7 +112,7 @@ mod tests {
     #[test]
     pub fn test_new_machine_diff_rows() {
         let machine_maker = |i| machine_with_all_chips::<9>(i, i, i);
-        for i in 1..=16 {
+        for i in 16..=22 {
             test_machine(|| machine_maker(i));
         }
     }
@@ -151,5 +142,13 @@ mod tests {
         for i in 2..=16 {
             test_machine(|| machine_with_dummy::<9, 1>(i));
         }
+    }
+
+    #[test]
+    pub fn test_dummy_diff_degrees() {
+        test_machine(|| machine_with_dummy::<3, 500>(16));
+        test_machine(|| machine_with_dummy::<5, 500>(16));
+        test_machine(|| machine_with_dummy::<9, 500>(16));
+        test_machine(|| machine_with_dummy::<17, 500>(16));
     }
 }

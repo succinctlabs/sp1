@@ -6,7 +6,7 @@ use sp1_recursion_core::runtime::D;
 use crate::{
     alu_base::BaseAluChip, alu_ext::ExtAluChip, dummy_wide::DummyWideChip,
     exp_reverse_bits::ExpReverseBitsLenChip, fri_fold::FriFoldChip, mem::MemoryChip,
-    poseidon2_skinny::Poseidon2SkinnyChip, poseidon2_wide::Poseidon2WideChip, program::ProgramChip,
+    poseidon2_skinny::Poseidon2SkinnyChip, program::ProgramChip,
 };
 
 #[derive(MachineAir)]

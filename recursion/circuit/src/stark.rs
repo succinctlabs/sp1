@@ -23,9 +23,7 @@ use sp1_recursion_compiler::ir::{Builder, Config, Ext, Felt, Var};
 use sp1_recursion_compiler::ir::{Usize, Witness};
 use sp1_recursion_compiler::prelude::SymbolicVar;
 use sp1_recursion_core::air::{RecursionPublicValues, NUM_PV_ELMS_TO_HASH};
-use sp1_recursion_core::stark::config::{
-    outer_fri_config, outer_fri_config_with_blowup, BabyBearPoseidon2Outer,
-};
+use sp1_recursion_core::stark::config::{outer_fri_config_with_blowup, BabyBearPoseidon2Outer};
 use sp1_recursion_core::stark::RecursionAirWideDeg17;
 use sp1_recursion_core_v2::machine::RecursionAir;
 use sp1_recursion_program::commit::PolynomialSpaceVariable;
