@@ -209,29 +209,29 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
                             }
                         }
 
-                        let mut product = [0u16; PRODUCT_SIZE];
+                        let mut product = [0u32; PRODUCT_SIZE];
                         for i in 0..b.len() {
                             for j in 0..c.len() {
                                 if i + j < PRODUCT_SIZE {
-                                    product[i + j] += (b[i] as u16) * (c[j] as u16);
+                                    product[i + j] += (b[i] as u32) * (c[j] as u32);
                                 }
                             }
                         }
 
                         // Calculate the correct product using the `product` array. We store the correct carry
                         // value for verification.
-                        let base = (1 << BYTE_SIZE) as u16;
-                        let mut carry = [0u16; PRODUCT_SIZE];
+                        let base = (1 << BYTE_SIZE) as u32;
+                        let mut carry = [0u32; PRODUCT_SIZE];
                         for i in 0..PRODUCT_SIZE {
                             carry[i] = product[i] / base;
                             product[i] %= base;
                             if i + 1 < PRODUCT_SIZE {
                                 product[i + 1] += carry[i];
                             }
-                            cols.carry[i] = F::from_canonical_u16(carry[i]);
+                            cols.carry[i] = F::from_canonical_u32(carry[i]);
                         }
 
-                        cols.product = product.map(F::from_canonical_u16);
+                        cols.product = product.map(F::from_canonical_u32);
                         cols.a = Word(a_word.map(F::from_canonical_u8));
                         cols.b = Word(b_word.map(F::from_canonical_u8));
                         cols.c = Word(c_word.map(F::from_canonical_u8));
@@ -245,7 +245,11 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
 
                         // Range check.
                         {
-                            record.add_u16_range_checks(event.shard, event.channel, &carry);
+                            record.add_u16_range_checks(
+                                event.shard,
+                                event.channel,
+                                &carry.map(|x| x as u16),
+                            );
                             record.add_u8_range_checks(
                                 event.shard,
                                 event.channel,
