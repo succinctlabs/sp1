@@ -146,17 +146,6 @@ impl BabyBearPoseidon2Outer {
         let pcs = OuterPcs::new(27, dft, val_mmcs, fri_config);
         Self { pcs, perm }
     }
-
-    pub fn new_with_log_blowup(log_blowup: usize) -> Self {
-        let perm = outer_perm();
-        let hash = OuterHash::new(perm.clone()).unwrap();
-        let compress = OuterCompress::new(perm.clone());
-        let val_mmcs = OuterValMmcs::new(hash, compress);
-        let dft = OuterDft {};
-        let fri_config = outer_fri_config_with_blowup(log_blowup);
-        let pcs = OuterPcs::new(27, dft, val_mmcs, fri_config);
-        Self { pcs, perm }
-    }
 }
 
 impl Default for BabyBearPoseidon2Outer {

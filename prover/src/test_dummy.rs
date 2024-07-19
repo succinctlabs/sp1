@@ -83,7 +83,7 @@ mod tests {
 
         const DEGREE: usize = 3;
 
-        type SC = BabyBearPoseidon2Outer;
+        type SC = BabyBearPoseidon2Inner;
         type F = <SC as StarkGenericConfig>::Val;
         type EF = <SC as StarkGenericConfig>::Challenge;
         // type A = RecursionAir<F, DEGREE>;
@@ -125,17 +125,17 @@ mod tests {
         );
         runtime.run();
 
-        let config = SC::new_with_log_blowup(log2_strict_usize(DEGREE - 1));
-        let chips = vec![
-            RecursionAir::Program(ProgramChip::default()),
+        let config = SC::default();
+        let chips: Vec<Chip<F, RecursionAir<F, DEGREE>>> = vec![
+            // RecursionAir::Program(ProgramChip::default()),
             RecursionAir::Memory(MemoryChip::default()),
             RecursionAir::BaseAlu(BaseAluChip::default()),
             RecursionAir::ExtAlu(ExtAluChip::default()),
-            RecursionAir::Poseidon2Skinny(Poseidon2SkinnyChip::<DEGREE> {
+            RecursionAir::Poseidon2Skinny(Poseidon2SkinnyChip::<DEGREE>::default()),
+            RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE> {
                 fixed_log2_rows: Some(((POSEIDON_OPERATIONS - 1).ilog2() + 1) as usize),
                 pad: true,
             }),
-            // RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE>::default()),
             RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE> {
                 fixed_log2_rows: Some(((EXP_REVERSE_BITS_LEN_OPERATIONS - 1).ilog2() + 1) as usize),
                 pad: true,
@@ -147,7 +147,7 @@ mod tests {
         ]
         .into_iter()
         .map(Chip::new)
-        .collect::<Vec<_>>();
+        .collect();
         let machine = StarkMachine::new(config, chips, PROOF_MAX_NUM_PVS);
 
         // let machine = A::machine(config);
