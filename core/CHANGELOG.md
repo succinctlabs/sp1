@@ -7,10 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.0.1-test](https://github.com/succinctlabs/sp1/compare/sp1-core-v0.0.0-test...sp1-core-v0.0.1-test) - 2024-07-11
+## [1.0.0-rc.1](https://github.com/succinctlabs/sp1/compare/sp1-core-v1.0.0-rc.1...sp1-core-v1.0.0-rc.1) - 2024-07-19
 
 ### Added
 
+- 1.0.0-rc.1 ([#1126](https://github.com/succinctlabs/sp1/pull/1126))
+- multi-threaded tracing ([#1124](https://github.com/succinctlabs/sp1/pull/1124))
+- parallel recursion tracegen ([#1095](https://github.com/succinctlabs/sp1/pull/1095))
 - publish sp1 to crates.io ([#1052](https://github.com/succinctlabs/sp1/pull/1052))
 - critical constraint changes ([#1046](https://github.com/succinctlabs/sp1/pull/1046))
 - cycle limit ([#1027](https://github.com/succinctlabs/sp1/pull/1027))
@@ -219,6 +222,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- BLS381 decompress ([#1121](https://github.com/succinctlabs/sp1/pull/1121))
+- global memory assertions ([#1083](https://github.com/succinctlabs/sp1/pull/1083))
+- lookup id collisions ([#1114](https://github.com/succinctlabs/sp1/pull/1114))
 - correct permutation column counts in debug_constraints ([#1080](https://github.com/succinctlabs/sp1/pull/1080))
 - execution shard ([#1070](https://github.com/succinctlabs/sp1/pull/1070))
 - optimize serde for ExecutionState ([#1068](https://github.com/succinctlabs/sp1/pull/1068))
@@ -295,6 +301,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Other
 
+- poseidon2 parallel tracegen ([#1118](https://github.com/succinctlabs/sp1/pull/1118))
+- prover utilization ([#1100](https://github.com/succinctlabs/sp1/pull/1100))
+- _(deps)_ bump serde_with from 3.8.3 to 3.9.0 ([#1103](https://github.com/succinctlabs/sp1/pull/1103))
+- use global workspace version ([#1102](https://github.com/succinctlabs/sp1/pull/1102))
+- add more context to input stream panic ([#1091](https://github.com/succinctlabs/sp1/pull/1091))
+- fix release-plz ([#1088](https://github.com/succinctlabs/sp1/pull/1088))
+- add release-plz ([#1086](https://github.com/succinctlabs/sp1/pull/1086))
 - generate dependencies optimizations for CPU and ALU chips ([#1048](https://github.com/succinctlabs/sp1/pull/1048))
 - _(deps)_ bump serde_with from 3.8.1 to 3.8.3 ([#1064](https://github.com/succinctlabs/sp1/pull/1064))
 - _(deps)_ bump generic-array from 1.0.0 to 1.1.0 ([#1066](https://github.com/succinctlabs/sp1/pull/1066))
