@@ -21,10 +21,10 @@ vergen = { version = "8", default-features = false, features = [
 anyhow = { version = "1.0.83", features = ["backtrace"] }
 cargo_metadata = "0.18.1"
 clap = { version = "4.5.9", features = ["derive", "env"] }
-sp1-build = { path = "../build", version = "1.0.0-rc.1" }
-sp1-prover = { path = "../prover", version = "1.0.0-rc.1" }
-sp1-sdk = { path = "../sdk", version = "1.0.0-rc.1" }
-sp1-core = { path = "../core", version = "1.0.0-rc.1" }
+sp1-build = { workspace = true }
+sp1-prover = { workspace = true }
+sp1-sdk = { workspace = true }
+sp1-core = { workspace = true }
 reqwest = { version = "0.12.4", features = [
   "stream",
   "json",
