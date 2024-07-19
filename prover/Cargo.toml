@@ -52,5 +52,4 @@ export-tests = []
 [dev-dependencies]
 sp1-recursion-core-v2 = { path = "../recursion/core-v2", version = "0.0.2-test" }
 rand = "0.8.5"
-tracing-flame = "0.2.0"
 tracing-forest = { version = "0.1.6", features = ["ansi", "smallvec"] }
