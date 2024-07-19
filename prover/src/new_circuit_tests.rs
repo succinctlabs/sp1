@@ -139,7 +139,7 @@ mod tests {
 
     #[test]
     pub fn test_skinny_dummy_diff_rows() {
-        for i in 2..=5 {
+        for i in 4..=7 {
             test_machine(|| machine_with_dummy::<9, 1>(i));
         }
     }
