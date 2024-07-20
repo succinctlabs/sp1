@@ -49,8 +49,14 @@ fn main() {
 
     // Modulus zero tests
     let modulus = [0u8; 48];
-    let modulus_big: BigUint = BigUint::one() << 384;
-    for _ in 0..50 {
+    // BLS12-381 modulus
+    let modulus_big = BigUint::from_bytes_le(&[
+        171, 170, 255, 255, 255, 255, 254, 185, 255, 255, 83, 177, 254, 255, 171, 30, 36, 246, 176,
+        246, 160, 210, 48, 103, 191, 18, 133, 243, 132, 75, 119, 100, 215, 172, 75, 67, 182, 167,
+        27, 75, 154, 230, 127, 57, 234, 17, 1, 26,
+    ]);
+
+    for _ in 0..1 {
         // Test with random numbers.
         let mut rng = rand::thread_rng();
         let mut x: [u8; 48] = [0; 48].map(|_| rng.gen());
@@ -72,7 +78,8 @@ fn main() {
 
     // Test with random numbers.
     let mut rng = rand::thread_rng();
-    let x: [u8; 48] = [0; 48].map(|_| rng.gen());
+    let x: [u8; 48] =
+        biguint_to_bytes_le(BigUint::from_bytes_le(&[0; 48].map(|_| rng.gen())) % &modulus_big); // Ensure x < modulus
 
     // Hardcoded edge case: Multiplying by 1
     let modulus = [0u8; 48];

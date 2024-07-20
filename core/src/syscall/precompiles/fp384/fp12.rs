@@ -10,7 +10,7 @@ use crate::runtime::{ExecutionRecord, Program, Syscall, SyscallCode};
 use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
 use crate::stark::MachineRecord;
 use crate::syscall::precompiles::SyscallContext;
-use crate::utils::ec::uint::U384Field;
+use crate::utils::ec::weierstrass::bls12_381::Bls12381BaseField;
 use crate::utils::{limbs_from_prev_access, pad_rows, words_to_bytes_le};
 use generic_array::GenericArray;
 use itertools::Itertools;
@@ -41,32 +41,36 @@ trait Fp12MulConstraints<F> {
     /// Add two Fp12 elements.
     fn add_fp12_element(
         &mut self,
-        dest: &mut FieldOpCols<F, U384Field>,
+        dest: &mut FieldOpCols<F, Bls12381BaseField>,
         a: &Self::DType,
         b: &Self::DType,
     ) -> Self::DType;
     /// Multiply two Fp12 elements.
     fn _mul_fp12_element(
         &mut self,
-        dest: &mut FieldOpCols<F, U384Field>,
+        dest: &mut FieldOpCols<F, Bls12381BaseField>,
         a: &Self::DType,
         b: &Self::DType,
     ) -> Self::DType;
     /// Subtract two Fp12 elements.
     fn sub_fp12_element(
         &mut self,
-        dest: &mut FieldOpCols<F, U384Field>,
+        dest: &mut FieldOpCols<F, Bls12381BaseField>,
         a: &Self::DType,
         b: &Self::DType,
     ) -> Self::DType;
 
     /// Compute the additive inverse of an Fp12 element.
-    fn addinv(&mut self, dest: &mut FieldOpCols<F, U384Field>, a: &Self::DType) -> Self::DType;
+    fn addinv(
+        &mut self,
+        dest: &mut FieldOpCols<F, Bls12381BaseField>,
+        a: &Self::DType,
+    ) -> Self::DType;
 
     /// Compute the inner product of two arrays of Fp12 elements.
     fn inner_product(
         &mut self,
-        dest: &mut FieldInnerProductCols<F, U384Field>,
+        dest: &mut FieldInnerProductCols<F, Bls12381BaseField>,
         a: [&Self::DType; 6],
         b: [&Self::DType; 6],
     ) -> Self::DType;
@@ -323,7 +327,7 @@ impl Fp12BuilderTrace {
 
     fn populate_with_modulus<F: PrimeField32>(
         &mut self,
-        dest: &mut FieldOpCols<F, U384Field>,
+        dest: &mut FieldOpCols<F, Bls12381BaseField>,
         a: &BigUint,
         b: &BigUint,
         op: FieldOperation,
@@ -345,7 +349,7 @@ impl<F: PrimeField32> Fp12MulConstraints<F> for Fp12BuilderTrace {
 
     fn add_fp12_element(
         &mut self,
-        dest: &mut FieldOpCols<F, U384Field>,
+        dest: &mut FieldOpCols<F, Bls12381BaseField>,
         a: &Self::DType,
         b: &Self::DType,
     ) -> Self::DType {
@@ -355,7 +359,7 @@ impl<F: PrimeField32> Fp12MulConstraints<F> for Fp12BuilderTrace {
 
     fn _mul_fp12_element(
         &mut self,
-        dest: &mut FieldOpCols<F, U384Field>,
+        dest: &mut FieldOpCols<F, Bls12381BaseField>,
         a: &Self::DType,
         b: &Self::DType,
     ) -> Self::DType {
@@ -365,7 +369,7 @@ impl<F: PrimeField32> Fp12MulConstraints<F> for Fp12BuilderTrace {
 
     fn sub_fp12_element(
         &mut self,
-        dest: &mut FieldOpCols<F, U384Field>,
+        dest: &mut FieldOpCols<F, Bls12381BaseField>,
         a: &Self::DType,
         b: &Self::DType,
     ) -> Self::DType {
@@ -373,14 +377,18 @@ impl<F: PrimeField32> Fp12MulConstraints<F> for Fp12BuilderTrace {
         (a - b) % &self.modulus
     }
 
-    fn addinv(&mut self, dest: &mut FieldOpCols<F, U384Field>, a: &Self::DType) -> Self::DType {
+    fn addinv(
+        &mut self,
+        dest: &mut FieldOpCols<F, Bls12381BaseField>,
+        a: &Self::DType,
+    ) -> Self::DType {
         self.populate_with_modulus(dest, &self.modulus.clone(), a, FieldOperation::Sub);
         self.modulus.clone() - a
     }
 
     fn inner_product(
         &mut self,
-        dest: &mut FieldInnerProductCols<F, U384Field>,
+        dest: &mut FieldInnerProductCols<F, Bls12381BaseField>,
         a: [&Self::DType; 6],
         b: [&Self::DType; 6],
     ) -> Self::DType {
@@ -402,7 +410,7 @@ impl<F: PrimeField32> Fp12MulConstraints<F> for Fp12BuilderTrace {
 struct Fp12BuilderEval<'a, AB>
 where
     AB: SP1AirBuilder,
-    Limbs<AB::Var, <U384Field as NumLimbs>::Limbs>: Copy,
+    Limbs<AB::Var, <Bls12381BaseField as NumLimbs>::Limbs>: Copy,
 {
     shard: AB::Var,
     channel: AB::Var,
@@ -414,7 +422,7 @@ where
 impl<'a, AB> Fp12BuilderEval<'a, AB>
 where
     AB: SP1AirBuilder,
-    Limbs<AB::Var, <U384Field as NumLimbs>::Limbs>: Copy,
+    Limbs<AB::Var, <Bls12381BaseField as NumLimbs>::Limbs>: Copy,
 {
     fn new(
         shard: AB::Var,
@@ -434,7 +442,7 @@ where
 
     fn eval_with_modulus(
         &mut self,
-        dest: &mut FieldOpCols<AB::Var, U384Field>,
+        dest: &mut FieldOpCols<AB::Var, Bls12381BaseField>,
         a: &(impl Into<Polynomial<AB::Expr>> + Clone),
         b: &(impl Into<Polynomial<AB::Expr>> + Clone),
         op: FieldOperation,
@@ -455,13 +463,13 @@ where
 impl<'a, AB> Fp12MulConstraints<AB::Var> for Fp12BuilderEval<'a, AB>
 where
     AB: SP1AirBuilder,
-    Limbs<AB::Var, <U384Field as NumLimbs>::Limbs>: Copy,
+    Limbs<AB::Var, <Bls12381BaseField as NumLimbs>::Limbs>: Copy,
 {
-    type DType = Limbs<AB::Var, <U384Field as NumLimbs>::Limbs>;
+    type DType = Limbs<AB::Var, <Bls12381BaseField as NumLimbs>::Limbs>;
 
     fn add_fp12_element(
         &mut self,
-        dest: &mut FieldOpCols<AB::Var, U384Field>,
+        dest: &mut FieldOpCols<AB::Var, Bls12381BaseField>,
         a: &Self::DType,
         b: &Self::DType,
     ) -> Self::DType {
@@ -471,7 +479,7 @@ where
 
     fn _mul_fp12_element(
         &mut self,
-        dest: &mut FieldOpCols<AB::Var, U384Field>,
+        dest: &mut FieldOpCols<AB::Var, Bls12381BaseField>,
         a: &Self::DType,
         b: &Self::DType,
     ) -> Self::DType {
@@ -481,7 +489,7 @@ where
 
     fn sub_fp12_element(
         &mut self,
-        dest: &mut FieldOpCols<AB::Var, U384Field>,
+        dest: &mut FieldOpCols<AB::Var, Bls12381BaseField>,
         a: &Self::DType,
         b: &Self::DType,
     ) -> Self::DType {
@@ -491,7 +499,7 @@ where
 
     fn addinv(
         &mut self,
-        dest: &mut FieldOpCols<AB::Var, U384Field>,
+        dest: &mut FieldOpCols<AB::Var, Bls12381BaseField>,
         a: &Self::DType,
     ) -> Self::DType {
         self.eval_with_modulus(dest, &self.modulus.clone(), a, FieldOperation::Sub);
@@ -500,7 +508,7 @@ where
 
     fn inner_product(
         &mut self,
-        dest: &mut FieldInnerProductCols<AB::Var, U384Field>,
+        dest: &mut FieldInnerProductCols<AB::Var, Bls12381BaseField>,
         a: [&Self::DType; 6],
         b: [&Self::DType; 6],
     ) -> Self::DType {
@@ -530,7 +538,7 @@ pub struct Fp12MulEvent {
     pub b_memory_records: Vec<MemoryReadRecord>,
 }
 
-type WordsFieldElement = <U384Field as NumWords>::WordsFieldElement;
+type WordsFieldElement = <Bls12381BaseField as NumWords>::WordsFieldElement;
 const LIMBS_PER_WORD: usize = WordsFieldElement::USIZE;
 const FP12_WORDS: usize = 12 * LIMBS_PER_WORD;
 const NUM_FP_MULS: usize = 144;
@@ -538,10 +546,10 @@ const NUM_FP_MULS: usize = 144;
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
 pub struct SumOfProductsAuxillaryCols<F> {
-    pub b10_p_b11: FieldOpCols<F, U384Field>, // b.c1.c0 + b.c1.c1;
-    pub b10_m_b11: FieldOpCols<F, U384Field>, // b.c1.c0 - b.c1.c1;
-    pub b20_p_b21: FieldOpCols<F, U384Field>, // b.c2.c0 + b.c2.c1;
-    pub b20_m_b21: FieldOpCols<F, U384Field>, // b.c2.c0 - b.c2.c1;
+    pub b10_p_b11: FieldOpCols<F, Bls12381BaseField>, // b.c1.c0 + b.c1.c1;
+    pub b10_m_b11: FieldOpCols<F, Bls12381BaseField>, // b.c1.c0 - b.c1.c1;
+    pub b20_p_b21: FieldOpCols<F, Bls12381BaseField>, // b.c2.c0 + b.c2.c1;
+    pub b20_m_b21: FieldOpCols<F, Bls12381BaseField>, // b.c2.c0 - b.c2.c1;
 }
 
 impl<F: PrimeField32> SumOfProductsAuxillaryCols<F> {
@@ -567,7 +575,7 @@ impl<F: PrimeField32> SumOfProductsAuxillaryCols<F> {
 }
 
 impl<F> SumOfProductsAuxillaryCols<F> {
-    fn get_results(&self) -> Vec<&Limbs<F, <U384Field as NumLimbs>::Limbs>> {
+    fn get_results(&self) -> Vec<&Limbs<F, <Bls12381BaseField as NumLimbs>::Limbs>> {
         vec![
             &self.b10_p_b11.result,
             &self.b10_m_b11.result,
@@ -581,33 +589,33 @@ impl<F> SumOfProductsAuxillaryCols<F> {
 #[repr(C)]
 pub struct Fp6MulCols<F> {
     pub aux: SumOfProductsAuxillaryCols<F>,
-    pub neg_a01: FieldOpCols<F, U384Field>, // -a.c0.c1
-    pub neg_a11: FieldOpCols<F, U384Field>, // -a.c1.c1
-    pub neg_a21: FieldOpCols<F, U384Field>, // -a.c2.c1
+    pub neg_a01: FieldOpCols<F, Bls12381BaseField>, // -a.c0.c1
+    pub neg_a11: FieldOpCols<F, Bls12381BaseField>, // -a.c1.c1
+    pub neg_a21: FieldOpCols<F, Bls12381BaseField>, // -a.c2.c1
 
     // [a.c0.c0, -a.c0.c1, a.c1.c0, -a.c1.c1, a.c2.c0, -a.c2.c1]
     // [b.c0.c0, b.c0.c1, b20_m_b21, b20_p_b21, b10_m_b11, b10_p_b11]
-    pub c00: FieldInnerProductCols<F, U384Field>,
+    pub c00: FieldInnerProductCols<F, Bls12381BaseField>,
 
     // [a.c0.c0, a.c0.c1, a.c1.c0, a.c1.c1, a.c2.c0, a.c2.c1],
     // [b.c0.c1, b.c0.c0, b20_p_b21, b20_m_b21, b10_p_b11, b10_m_b11],
-    pub c01: FieldInnerProductCols<F, U384Field>,
+    pub c01: FieldInnerProductCols<F, Bls12381BaseField>,
 
     // [a.c0.c0, -a.c0.c1, a.c1.c0, -a.c1.c1, a.c2.c0, -a.c2.c1],
     // [b.c1.c0, b.c1.c1, b.c0.c0, b.c0.c1, b20_m_b21, b20_p_b21],
-    pub c10: FieldInnerProductCols<F, U384Field>,
+    pub c10: FieldInnerProductCols<F, Bls12381BaseField>,
 
     // [a.c0.c0, a.c0.c1, a.c1.c0, a.c1.c1, a.c2.c0, a.c2.c1],
     // [b.c1.c1, b.c1.c0, b.c0.c1, b.c0.c0, b20_p_b21, b20_m_b21],
-    pub c11: FieldInnerProductCols<F, U384Field>,
+    pub c11: FieldInnerProductCols<F, Bls12381BaseField>,
 
     // [a.c0.c0, -a.c0.c1, a.c1.c0, -a.c1.c1, a.c2.c0, -a.c2.c1],
     // [b.c2.c0, b.c2.c1, b.c1.c0, b.c1.c1, b.c0.c0, b.c0.c1],
-    pub c20: FieldInnerProductCols<F, U384Field>,
+    pub c20: FieldInnerProductCols<F, Bls12381BaseField>,
 
     // [a.c0.c0, a.c0.c1, a.c1.c0, a.c1.c1, a.c2.c0, a.c2.c1],
     // [b.c2.c1, b.c2.c0, b.c1.c1, b.c1.c0, b.c0.c1, b.c0.c0],
-    pub c21: FieldInnerProductCols<F, U384Field>,
+    pub c21: FieldInnerProductCols<F, Bls12381BaseField>,
 }
 
 impl<F: PrimeField32> Fp6MulCols<F> {
@@ -648,7 +656,7 @@ impl<F: PrimeField32> Fp6MulCols<F> {
 }
 
 impl<F> Fp6MulCols<F> {
-    fn get_results(&self) -> Vec<&Limbs<F, <U384Field as NumLimbs>::Limbs>> {
+    fn get_results(&self) -> Vec<&Limbs<F, <Bls12381BaseField as NumLimbs>::Limbs>> {
         let mut results = vec![];
         results.extend_from_slice(&self.aux.get_results());
         [
@@ -671,12 +679,12 @@ impl<F> Fp6MulCols<F> {
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
 pub struct Fp6AddCols<F> {
-    pub a00_p_b00: FieldOpCols<F, U384Field>, // a.c0.c0 + b.c0.c0
-    pub a01_p_b01: FieldOpCols<F, U384Field>, // a.c0.c1 + b.c0.c1
-    pub a10_p_b10: FieldOpCols<F, U384Field>, // a.c1.c0 + b.c1.c0
-    pub a11_p_b11: FieldOpCols<F, U384Field>, // a.c1.c1 + b.c1.c1
-    pub a20_p_b20: FieldOpCols<F, U384Field>, // a.c2.c0 + b.c2.c0
-    pub a21_p_b21: FieldOpCols<F, U384Field>, // a.c2.c1 + b.c2.c1
+    pub a00_p_b00: FieldOpCols<F, Bls12381BaseField>, // a.c0.c0 + b.c0.c0
+    pub a01_p_b01: FieldOpCols<F, Bls12381BaseField>, // a.c0.c1 + b.c0.c1
+    pub a10_p_b10: FieldOpCols<F, Bls12381BaseField>, // a.c1.c0 + b.c1.c0
+    pub a11_p_b11: FieldOpCols<F, Bls12381BaseField>, // a.c1.c1 + b.c1.c1
+    pub a20_p_b20: FieldOpCols<F, Bls12381BaseField>, // a.c2.c0 + b.c2.c0
+    pub a21_p_b21: FieldOpCols<F, Bls12381BaseField>, // a.c2.c1 + b.c2.c1
 }
 
 impl<F: PrimeField32> Fp6AddCols<F> {
@@ -704,7 +712,7 @@ impl<F: PrimeField32> Fp6AddCols<F> {
 }
 
 impl<F> Fp6AddCols<F> {
-    fn get_results(&self) -> [&Limbs<F, <U384Field as NumLimbs>::Limbs>; 6] {
+    fn get_results(&self) -> [&Limbs<F, <Bls12381BaseField as NumLimbs>::Limbs>; 6] {
         [
             &self.a00_p_b00.result,
             &self.a01_p_b01.result,
@@ -719,14 +727,14 @@ impl<F> Fp6AddCols<F> {
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
 pub struct Fp6MulByNonResidueCols<F> {
-    pub c00: FieldOpCols<F, U384Field>, // a.c2.c0 - a.c2.c1
-    pub c01: FieldOpCols<F, U384Field>, // a.c2.c0 + a.c2.c1
+    pub c00: FieldOpCols<F, Bls12381BaseField>, // a.c2.c0 - a.c2.c1
+    pub c01: FieldOpCols<F, Bls12381BaseField>, // a.c2.c0 + a.c2.c1
 
-    pub c10: FieldOpCols<F, U384Field>, // a.c0.c0
-    pub c11: FieldOpCols<F, U384Field>, // a.c0.c1
+    pub c10: FieldOpCols<F, Bls12381BaseField>, // a.c0.c0
+    pub c11: FieldOpCols<F, Bls12381BaseField>, // a.c0.c1
 
-    pub c20: FieldOpCols<F, U384Field>, // a.c1.c0
-    pub c21: FieldOpCols<F, U384Field>, // a.c1.c1
+    pub c20: FieldOpCols<F, Bls12381BaseField>, // a.c1.c0
+    pub c21: FieldOpCols<F, Bls12381BaseField>, // a.c1.c1
 }
 
 impl<F: PrimeField32> Fp6MulByNonResidueCols<F> {
@@ -754,7 +762,7 @@ impl<F: PrimeField32> Fp6MulByNonResidueCols<F> {
 }
 
 impl<F> Fp6MulByNonResidueCols<F> {
-    fn get_results(&self) -> Vec<&Limbs<F, <U384Field as NumLimbs>::Limbs>> {
+    fn get_results(&self) -> Vec<&Limbs<F, <Bls12381BaseField as NumLimbs>::Limbs>> {
         vec![
             &self.c00.result,
             &self.c01.result,
@@ -795,7 +803,7 @@ impl<F: PrimeField32> AuxFp12MulCols<F> {
 }
 
 impl<F> AuxFp12MulCols<F> {
-    fn get_results(&self) -> Vec<&Limbs<F, <U384Field as NumLimbs>::Limbs>> {
+    fn get_results(&self) -> Vec<&Limbs<F, <Bls12381BaseField as NumLimbs>::Limbs>> {
         let mut results = vec![];
         results.extend_from_slice(&self.aa.get_results());
         results.extend_from_slice(&self.bb.get_results());
@@ -1014,7 +1022,7 @@ impl<F, P: FieldParameters> BaseAir<F> for Fp12MulChip<P> {
 impl<AB, P> Air<AB> for Fp12MulChip<P>
 where
     AB: SP1AirBuilder,
-    Limbs<AB::Var, <U384Field as NumLimbs>::Limbs>: Copy,
+    Limbs<AB::Var, <Bls12381BaseField as NumLimbs>::Limbs>: Copy,
     P: FieldParameters + PrimeField32,
 {
     fn eval(&self, builder: &mut AB) {

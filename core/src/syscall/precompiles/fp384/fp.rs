@@ -2,21 +2,23 @@ use crate::air::{BaseAirBuilder, MachineAir, Polynomial, SP1AirBuilder, WORD_SIZ
 use crate::bytes::event::ByteRecord;
 use crate::memory::{value_as_limbs, MemoryReadCols, MemoryWriteCols};
 use crate::operations::field::field_op::{FieldOpCols, FieldOperation};
-use crate::operations::field::params::NumWords;
+use crate::operations::field::params::{FieldParameters, NumWords};
 use crate::operations::field::params::{Limbs, NumLimbs};
+use crate::operations::field::range::FieldRangeCols;
 use crate::operations::IsZeroOperation;
 use crate::runtime::{ExecutionRecord, Program, Syscall, SyscallCode};
 use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
 use crate::stark::MachineRecord;
 use crate::syscall::precompiles::SyscallContext;
-use crate::utils::ec::uint::U384Field;
+use crate::utils::ec::weierstrass::bls12_381::Bls12381BaseField;
 use crate::utils::{
     bytes_to_words_le, limbs_from_access, limbs_from_prev_access, pad_rows, words_to_bytes_le,
     words_to_bytes_le_vec,
 };
 use generic_array::GenericArray;
+use itertools::Itertools;
+use num::BigUint;
 use num::Zero;
-use num::{BigUint, One};
 use p3_air::AirBuilder;
 use p3_air::{Air, BaseAir};
 use p3_field::AbstractField;
@@ -57,7 +59,7 @@ impl FpMulChip {
     }
 }
 
-type WordsFieldElement = <U384Field as NumWords>::WordsFieldElement;
+type WordsFieldElement = <Bls12381BaseField as NumWords>::WordsFieldElement;
 const WORDS_FIELD_ELEMENT: usize = WordsFieldElement::USIZE;
 
 /// A set of columns for the FpMul operation.
@@ -73,7 +75,7 @@ pub struct FpMulCols<T> {
     /// The clock cycle of the syscall.
     pub clk: T,
 
-    /// The none of the operation.
+    /// The nonce of the operation.
     pub nonce: T,
 
     /// The pointer to the first input.
@@ -88,11 +90,16 @@ pub struct FpMulCols<T> {
     pub y_memory: GenericArray<MemoryReadCols<T>, WordsFieldElement>,
     pub modulus_memory: GenericArray<MemoryReadCols<T>, WordsFieldElement>,
 
-    // Columns for checking if modulus is zero. If it's zero, then use 2^384 as the effective modulus.
+    // Columns for checking if modulus is zero. If it's zero, then use the BLS12-381 prime as the effective modulus.
     pub modulus_is_zero: IsZeroOperation<T>,
 
-    // Output values. We compute (x + y) % modulus.
-    pub output: FieldOpCols<T, U384Field>,
+    /// Column that is equal to is_real * (1 - modulus_is_zero.result).
+    pub modulus_is_not_zero: T,
+
+    // Output values. We compute (x * y) % modulus.
+    pub output: FieldOpCols<T, Bls12381BaseField>,
+
+    pub output_range_check: FieldRangeCols<T, Bls12381BaseField>,
 
     pub is_real: T,
 }
@@ -125,10 +132,10 @@ impl<F: PrimeField32> MachineAir<F> for FpMulChip {
                         let cols: &mut FpMulCols<F> = row.as_mut_slice().borrow_mut();
 
                         // Decode uint384 points
-                        let x = BigUint::from_bytes_le(&words_to_bytes_le::<32>(&event.x));
-                        let y = BigUint::from_bytes_le(&words_to_bytes_le::<32>(&event.y));
+                        let x = BigUint::from_bytes_le(&words_to_bytes_le::<48>(&event.x));
+                        let y = BigUint::from_bytes_le(&words_to_bytes_le::<48>(&event.y));
                         let modulus =
-                            BigUint::from_bytes_le(&words_to_bytes_le::<32>(&event.modulus));
+                            BigUint::from_bytes_le(&words_to_bytes_le::<48>(&event.modulus));
 
                         // Assign basic values to the columns.
                         cols.is_real = F::one();
@@ -163,20 +170,30 @@ impl<F: PrimeField32> MachineAir<F> for FpMulChip {
 
                         // Populate the output column.
                         let effective_modulus = if modulus.is_zero() {
-                            BigUint::one() << 384
+                            Bls12381BaseField::modulus()
                         } else {
                             modulus.clone()
                         };
-                        cols.output.populate_with_modulus(
+                        let result = cols.output.populate_with_modulus(
                             &mut new_byte_lookup_events,
                             event.shard,
                             event.channel,
                             &x,
                             &y,
                             &effective_modulus,
-                            // &modulus,
                             FieldOperation::Mul,
                         );
+
+                        cols.modulus_is_not_zero = F::one() - cols.modulus_is_zero.result;
+                        if cols.modulus_is_not_zero == F::one() {
+                            cols.output_range_check.populate(
+                                &mut new_byte_lookup_events,
+                                event.shard,
+                                event.channel,
+                                &result,
+                                &effective_modulus,
+                            );
+                        }
 
                         row
                     })
@@ -230,6 +247,7 @@ impl Syscall for FpMulChip {
     }
 
     fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
+        let clk = rt.clk;
         let x_ptr = arg1;
         if x_ptr % 4 != 0 {
             panic!();
@@ -257,16 +275,18 @@ impl Syscall for FpMulChip {
 
         // Perform the multiplication and take the result modulo the modulus.
         let result: BigUint = if uint384_modulus.is_zero() {
-            let modulus = BigUint::one() << 384;
+            let modulus = Bls12381BaseField::modulus();
             (uint384_x * uint384_y) % modulus
         } else {
             (uint384_x * uint384_y) % uint384_modulus
         };
 
         let mut result_bytes = result.to_bytes_le();
-        result_bytes.resize(48, 0u8); // Pad the result to 32 bytes.
+        result_bytes.resize(48, 0u8); // Pad the result to 48 bytes.
                                       // Convert the result to little endian u32 words.
         let result = bytes_to_words_le::<12>(&result_bytes);
+
+        rt.clk += 1;
 
         // Write the result to x and keep track of the memory records.
         let x_memory_records = rt.mw_slice(x_ptr, &result);
@@ -274,7 +294,6 @@ impl Syscall for FpMulChip {
         let lookup_id = rt.syscall_lookup_id as usize;
         let shard = rt.current_shard();
         let channel = rt.current_channel();
-        let clk = rt.clk;
         rt.record_mut().fp_mul_events.push(FpMulEvent {
             lookup_id,
             shard,
@@ -303,7 +322,7 @@ impl<F> BaseAir<F> for FpMulChip {
 impl<AB> Air<AB> for FpMulChip
 where
     AB: SP1AirBuilder,
-    Limbs<AB::Var, <U384Field as NumLimbs>::Limbs>: Copy,
+    Limbs<AB::Var, <Bls12381BaseField as NumLimbs>::Limbs>: Copy,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
@@ -341,13 +360,14 @@ where
         // If the modulus is zero, we'll actually use 2^384 as the modulus, so nothing happens.
         // Otherwise, we use the modulus passed in.
         let modulus_is_zero = local.modulus_is_zero.result;
-        let mut coeff_2_384 = Vec::new();
-        coeff_2_384.resize(48, AB::Expr::zero());
-        coeff_2_384.push(AB::Expr::one());
+        let bls12_coeffs = Bls12381BaseField::MODULUS
+            .iter()
+            .map(|&limbs| AB::Expr::from_canonical_u8(limbs))
+            .collect_vec();
         let modulus_polynomial: Polynomial<AB::Expr> = modulus_limbs.into();
         let p_modulus: Polynomial<AB::Expr> = modulus_polynomial
             * (AB::Expr::one() - modulus_is_zero.into())
-            + Polynomial::from_coefficients(&coeff_2_384) * modulus_is_zero.into();
+            + Polynomial::from_coefficients(&bls12_coeffs) * modulus_is_zero.into();
 
         // Evaluate the uint384 multiplication
         local.output.eval_with_modulus(
@@ -361,6 +381,21 @@ where
             local.is_real,
         );
 
+        // Verify the range of the output if the moduls is not zero.  Also, check the value of
+        // modulus_is_not_zero.
+        local.output_range_check.eval(
+            builder,
+            &local.output.result,
+            &modulus_limbs,
+            local.shard,
+            local.channel,
+            local.modulus_is_not_zero,
+        );
+        builder.assert_eq(
+            local.modulus_is_not_zero,
+            local.is_real * (AB::Expr::one() - modulus_is_zero.into()),
+        );
+
         // Assert that the correct result is being written to x_memory.
         builder
             .when(local.is_real)
@@ -370,7 +405,7 @@ where
         builder.eval_memory_access_slice(
             local.shard,
             local.channel,
-            local.clk.into(),
+            local.clk.into() + AB::Expr::one(),
             local.x_ptr,
             &local.x_memory,
             local.is_real,

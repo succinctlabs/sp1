@@ -313,8 +313,16 @@ impl<F: FieldParameters> Mul for Fp12<F> {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
+    use crate::io::SP1Stdin;
+    use crate::stark::DefaultProver;
     use crate::utils::ec::weierstrass::bls12_381::Bls12381BaseField;
+    use crate::utils::run_test_io;
+    use crate::utils::tests::FP12_MUL_ELF;
+    use crate::{
+        runtime::Program,
+        utils::{run_test, setup_logger, tests::FP_MUL_ELF},
+    };
 
     // 0x14fec701e8fb0ce9ed5e64273c4f538b1797ab1458a88de9343ea97914956dc87fe11274d898fafbf4d38259380b4820
     // R^{-1} mod p
@@ -1050,5 +1058,19 @@ mod test {
             },
         };
         assert_eq!(a_times_b_times_r_inv, c);
+    }
+
+    #[test]
+    fn test_fp_precompile_mul() {
+        setup_logger();
+        let program = Program::from(FP_MUL_ELF);
+        run_test_io::<DefaultProver<_, _>>(program, SP1Stdin::new()).unwrap();
+    }
+
+    #[test]
+    fn test_fp12_precompile_mul() {
+        setup_logger();
+        let program = Program::from(FP12_MUL_ELF);
+        run_test::<DefaultProver<_, _>>(program).unwrap();
     }
 }

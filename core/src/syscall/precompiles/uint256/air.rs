@@ -179,7 +179,6 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
                             &x,
                             &y,
                             &effective_modulus,
-                            // &modulus,
                             FieldOperation::Mul,
                         );
 
@@ -272,6 +271,11 @@ impl Syscall for Uint256MulChip {
         let uint256_x = BigUint::from_bytes_le(&words_to_bytes_le_vec(&x));
         let uint256_y = BigUint::from_bytes_le(&words_to_bytes_le_vec(&y));
         let uint256_modulus = BigUint::from_bytes_le(&words_to_bytes_le_vec(&modulus));
+
+        // println!("uint256_x: {:?}", uint256_x);
+        // println!("uint256_y: {:?}", uint256_y);
+        // println!("uint256_modulus: {:?}", uint256_modulus);
+        // println!("WORDS_FIELD_ELEMENT: {:?}", WORDS_FIELD_ELEMENT);
 
         // Perform the multiplication and take the result modulo the modulus.
         let result: BigUint = if uint256_modulus.is_zero() {
