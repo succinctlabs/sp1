@@ -9,6 +9,7 @@ members = [
   "primitives",
   "prover",
   "recursion/circuit",
+  "recursion/circuit-v2",
   "recursion/compiler",
   "recursion/core",
   "recursion/core-v2",
