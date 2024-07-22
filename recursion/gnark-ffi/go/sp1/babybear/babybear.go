@@ -16,9 +16,10 @@ import (
 var modulus = new(big.Int).SetUint64(2013265921)
 
 func init() {
-	solver.RegisterHint(invFHint)
-	solver.RegisterHint(invEHint)
-	solver.RegisterHint(reduceHint)
+	// These functions must be public so Gnark's hint system can access them.
+	solver.RegisterHint(InvFHint)
+	solver.RegisterHint(InvEHint)
+	solver.RegisterHint(ReduceHint)
 }
 
 type Variable struct {
@@ -103,7 +104,7 @@ func (c *Chip) negF(a Variable) Variable {
 
 func (c *Chip) invF(in Variable) Variable {
 	in = c.ReduceSlow(in)
-	result, err := c.api.Compiler().NewHint(invFHint, 1, in.Value)
+	result, err := c.api.Compiler().NewHint(InvFHint, 1, in.Value)
 	if err != nil {
 		panic(err)
 	}
@@ -215,7 +216,7 @@ func (c *Chip) InvE(in ExtensionVariable) ExtensionVariable {
 	in.Value[1] = c.ReduceSlow(in.Value[1])
 	in.Value[2] = c.ReduceSlow(in.Value[2])
 	in.Value[3] = c.ReduceSlow(in.Value[3])
-	result, err := c.api.Compiler().NewHint(invEHint, 4, in.Value[0].Value, in.Value[1].Value, in.Value[2].Value, in.Value[3].Value)
+	result, err := c.api.Compiler().NewHint(InvEHint, 4, in.Value[0].Value, in.Value[1].Value, in.Value[2].Value, in.Value[3].Value)
 	if err != nil {
 		panic(err)
 	}
@@ -274,7 +275,7 @@ func (p *Chip) ReduceSlow(x Variable) Variable {
 }
 
 func (p *Chip) reduceWithMaxBits(x frontend.Variable, maxNbBits uint64) frontend.Variable {
-	result, err := p.api.Compiler().NewHint(reduceHint, 2, x)
+	result, err := p.api.Compiler().NewHint(ReduceHint, 2, x)
 	if err != nil {
 		panic(err)
 	}
@@ -291,7 +292,7 @@ func (p *Chip) reduceWithMaxBits(x frontend.Variable, maxNbBits uint64) frontend
 }
 
 // The hint used to compute Reduce.
-func reduceHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
+func ReduceHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 	if len(inputs) != 1 {
 		panic("reduceHint expects 1 input operand")
 	}
@@ -303,14 +304,14 @@ func reduceHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 	return nil
 }
 
-func invFHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
+func InvFHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 	a := C.uint(inputs[0].Uint64())
 	ainv := C.babybearinv(a)
 	results[0].SetUint64(uint64(ainv))
 	return nil
 }
 
-func invEHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
+func InvEHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 	a := C.uint(inputs[0].Uint64())
 	b := C.uint(inputs[1].Uint64())
 	c := C.uint(inputs[2].Uint64())

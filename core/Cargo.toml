@@ -1,11 +1,13 @@
 [package]
 name = "sp1-core"
-version = "0.0.2-test"
-edition = "2021"
 description = "SP1 is a performant, 100% open-source, contributor-friendly zkVM."
 readme = "../README.md"
-license = "MIT OR Apache-2.0"
-
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+keywords = { workspace = true }
+categories = { workspace = true }
 
 [dependencies]
 bincode = "1.3.3"
@@ -33,8 +35,8 @@ p3-symmetric = { workspace = true }
 p3-uni-stark = { workspace = true }
 p3-util = { workspace = true }
 rrs_lib = { package = "rrs-succinct", version = "0.1.0" }
-sp1-derive = { path = "../derive", version = "0.0.2-test" }
-sp1-primitives = { path = "../primitives", version = "0.0.2-test" }
+sp1-derive = { workspace = true }
+sp1-primitives = { workspace = true }
 
 anyhow = "1.0.83"
 amcl = { package = "snowbridge-amcl", version = "1.0.2", default-features = false, features = [
@@ -50,7 +52,7 @@ elliptic-curve = "0.13.8"
 hex = "0.4.3"
 k256 = { version = "0.13.3", features = ["expose-field"] }
 num_cpus = "1.16.0"
-serde_with = "3.8.3"
+serde_with = "3.9.0"
 size = "0.4.1"
 tempfile = "3.10.1"
 tracing = "0.1.40"
@@ -71,7 +73,7 @@ tiny-keccak = { version = "2.0.2", features = ["keccak"] }
 criterion = "0.5.1"
 num = { version = "0.4.3", features = ["rand"] }
 rand = "0.8.5"
-sp1-zkvm = { path = "../zkvm/entrypoint", version = "0.0.2-test" }
+sp1-zkvm = { workspace = true }
 
 [features]
 neon = ["p3-blake3/neon"]

@@ -78,8 +78,6 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
                 else {
                     return None;
                 };
-                let mult = mult.to_owned();
-
                 let mut row = [F::zero(); NUM_EXT_ALU_PREPROCESSED_COLS];
                 let cols: &mut ExtAluPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
                 *cols = ExtAluPreprocessedCols {
@@ -88,7 +86,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
                     is_sub: F::from_bool(false),
                     is_mul: F::from_bool(false),
                     is_div: F::from_bool(false),
-                    mult,
+                    mult: mult.to_owned(),
                     is_real: F::from_bool(true),
                 };
                 let target_flag = match opcode {

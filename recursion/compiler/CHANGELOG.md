@@ -7,10 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.0.1-test](https://github.com/succinctlabs/sp1/compare/sp1-recursion-compiler-v0.0.0-test...sp1-recursion-compiler-v0.0.1-test) - 2024-07-11
+## [1.0.0-rc.1](https://github.com/succinctlabs/sp1/compare/sp1-recursion-compiler-v1.0.0-rc.1...sp1-recursion-compiler-v1.0.0-rc.1) - 2024-07-19
 
 ### Added
 
+- result instead of exit(1) on trap in recursion ([#1089](https://github.com/succinctlabs/sp1/pull/1089))
 - publish sp1 to crates.io ([#1052](https://github.com/succinctlabs/sp1/pull/1052))
 - plonk circuit optimizations ([#972](https://github.com/succinctlabs/sp1/pull/972))
 - poseidon2 hash ([#885](https://github.com/succinctlabs/sp1/pull/885))
@@ -84,6 +85,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Allen's Poseidon2 fixes ([#1099](https://github.com/succinctlabs/sp1/pull/1099))
 - range check for shard number in recursion ([#952](https://github.com/succinctlabs/sp1/pull/952))
 - memory finalize duplicate address attack from audit ([#934](https://github.com/succinctlabs/sp1/pull/934))
 - _(recursion)_ num2bits fixes ([#732](https://github.com/succinctlabs/sp1/pull/732))
@@ -101,6 +103,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Other
 
+- use global workspace version ([#1102](https://github.com/succinctlabs/sp1/pull/1102))
+- fix release-plz ([#1088](https://github.com/succinctlabs/sp1/pull/1088))
+- add release-plz ([#1086](https://github.com/succinctlabs/sp1/pull/1086))
 - _(deps)_ bump serde from 1.0.203 to 1.0.204 ([#1063](https://github.com/succinctlabs/sp1/pull/1063))
 - Fixes from review.
 - Update recursion/compiler/src/ir/utils.rs

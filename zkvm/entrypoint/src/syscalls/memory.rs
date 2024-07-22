@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-const SYSTEM_START: usize = 0x0C00_0000;
+// Memory addresses must be lower than BabyBear prime.
+const MAX_MEMORY: usize = 0x78000000;
 
 #[allow(clippy::missing_safety_doc)]
 #[no_mangle]
@@ -39,11 +40,10 @@ pub unsafe extern "C" fn sys_alloc_aligned(bytes: usize, align: usize) -> *mut u
     }
 
     let ptr = heap_pos as *mut u8;
-    heap_pos += bytes;
+    let (heap_pos, overflowed) = heap_pos.overflowing_add(bytes);
 
-    // Check to make sure heap doesn't collide with SYSTEM memory.
-    if SYSTEM_START < heap_pos {
-        panic!();
+    if overflowed || MAX_MEMORY < heap_pos {
+        panic!("Memory limit exceeded (0x78000000)");
     }
 
     unsafe { HEAP_POS = heap_pos };

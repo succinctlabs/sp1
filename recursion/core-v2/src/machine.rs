@@ -6,7 +6,7 @@ use sp1_recursion_core::runtime::D;
 use crate::{
     alu_base::BaseAluChip, alu_ext::ExtAluChip, dummy::DummyChip,
     exp_reverse_bits::ExpReverseBitsLenChip, fri_fold::FriFoldChip, mem::MemoryChip,
-    poseidon2_skinny::Poseidon2SkinnyChip, poseidon2_wide::Poseidon2WideChip, program::ProgramChip,
+    poseidon2_skinny::Poseidon2SkinnyChip, poseidon2_wide::Poseidon2WideChip,
 };
 
 #[derive(MachineAir)]
@@ -100,7 +100,6 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
 
     pub fn get_all() -> Vec<Self> {
         vec![
-            RecursionAir::Program(ProgramChip::default()),
             RecursionAir::Memory(MemoryChip::default()),
             RecursionAir::BaseAlu(BaseAluChip::default()),
             RecursionAir::ExtAlu(ExtAluChip::default()),

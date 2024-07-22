@@ -11,7 +11,7 @@ use tracing::instrument;
 
 use crate::{
     instruction::Instruction::Poseidon2Wide,
-    mem::MemoryPreprocessedCols,
+    mem::MemoryAccessCols,
     poseidon2_wide::{
         columns::{permutation::permutation_mut, preprocessed::Poseidon2PreprocessedCols},
         external_linear_layer, external_linear_layer_immut, internal_linear_layer,
@@ -151,18 +151,16 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
                 // and write once, at the last iteration.
                 cols.memory_preprocessed = std::array::from_fn(|j| {
                     if j < WIDTH {
-                        MemoryPreprocessedCols {
+                        MemoryAccessCols {
                             addr: instruction.addrs.input[j],
                             read_mult: F::one(),
                             write_mult: F::zero(),
-                            is_real: F::one(),
                         }
                     } else {
-                        MemoryPreprocessedCols {
+                        MemoryAccessCols {
                             addr: instruction.addrs.output[j - WIDTH],
                             read_mult: F::zero(),
                             write_mult: instruction.mults[j - WIDTH],
-                            is_real: F::one(),
                         }
                     }
                 });

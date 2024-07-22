@@ -101,7 +101,7 @@ pub struct ExecutionRecord {
     /// The public values.
     pub public_values: PublicValues<u32, u32>,
 
-    pub nonce_lookup: HashMap<usize, u32>,
+    pub nonce_lookup: HashMap<u128, u32>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -394,8 +394,6 @@ impl ExecutionRecord {
     /// a "reasonable" number of deferred events.
     pub fn split(&mut self, last: bool, opts: SplitOpts) -> Vec<ExecutionRecord> {
         let mut shards = Vec::new();
-
-        println!("keccak split {}", opts.keccak_split_threshold);
 
         macro_rules! split_events {
             ($self:ident, $events:ident, $shards:ident, $threshold:expr, $exact:expr) => {

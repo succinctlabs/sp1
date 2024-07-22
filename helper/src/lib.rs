@@ -20,7 +20,10 @@ fn cargo_rerun_if_changed(metadata: &Metadata, program_dir: &Path) {
     ];
     for dir in dirs {
         if dir.exists() {
-            println!("cargo::rerun-if-changed={}", dir.display());
+            println!(
+                "cargo::rerun-if-changed={}",
+                dir.canonicalize().unwrap().display()
+            );
         }
     }
 
@@ -67,7 +70,7 @@ fn execute_build_cmd(
         )
     };
     if let Err(err) = path_output {
-        panic!("Failed to build program: {}.", err);
+        panic!("Failed to build SP1 program: {}.", err);
     }
 
     Ok(ExitStatus::default())

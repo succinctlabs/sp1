@@ -28,29 +28,32 @@ pub struct Poseidon2CompressEvent<F> {
 #[derive(Debug, Clone)]
 pub struct Poseidon2AbsorbEvent<F> {
     pub clk: F,
-    pub hash_num: F,   // from a_val
-    pub input_addr: F, // from b_val
-    pub input_len: F,  // from c_val
+    pub hash_and_absorb_num: F, // from a_val
+    pub input_addr: F,          // from b_val
+    pub input_len: F,           // from c_val
 
+    pub hash_num: F,
+    pub absorb_num: F,
     pub iterations: Vec<Poseidon2AbsorbIteration<F>>,
-    pub is_first_aborb: bool,
 }
 
 impl<F> Poseidon2AbsorbEvent<F> {
     pub(crate) fn new(
         clk: F,
-        hash_num: F,
+        hash_and_absorb_num: F,
         input_addr: F,
         input_len: F,
-        is_first_absorb: bool,
+        hash_num: F,
+        absorb_num: F,
     ) -> Self {
         Self {
             clk,
-            hash_num,
+            hash_and_absorb_num,
             input_addr,
             input_len,
+            hash_num,
+            absorb_num,
             iterations: Vec::new(),
-            is_first_aborb: is_first_absorb,
         }
     }
 }
@@ -64,7 +67,8 @@ impl<F: PrimeField32> Poseidon2AbsorbEvent<F> {
         permuter: &impl Permutation<[F; WIDTH]>,
         hash_state: &mut [F; WIDTH],
         hash_state_cursor: &mut usize,
-    ) {
+    ) -> usize {
+        let mut nb_permutes = 0;
         let mut input_records = Vec::new();
         let mut previous_state = *hash_state;
         let mut iter_num_consumed = 0;
@@ -81,6 +85,7 @@ impl<F: PrimeField32> Poseidon2AbsorbEvent<F> {
 
             // Do a permutation when the hash state is full.
             if *hash_state_cursor == RATE {
+                nb_permutes += 1;
                 let perm_input = *hash_state;
                 *hash_state = permuter.permute(*hash_state);
 
@@ -103,6 +108,7 @@ impl<F: PrimeField32> Poseidon2AbsorbEvent<F> {
         }
 
         if *hash_state_cursor != 0 {
+            nb_permutes += 1;
             // Note that we still do a permutation, generate the trace and enforce permutation
             // constraints for every absorb and finalize row.
             self.iterations.push(Poseidon2AbsorbIteration {
@@ -116,6 +122,7 @@ impl<F: PrimeField32> Poseidon2AbsorbEvent<F> {
                 do_perm: false,
             });
         }
+        nb_permutes
     }
 }
 

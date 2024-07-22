@@ -12,7 +12,11 @@ impl SyscallHintLen {
 impl Syscall for SyscallHintLen {
     fn execute(&self, ctx: &mut SyscallContext, _arg1: u32, _arg2: u32) -> Option<u32> {
         if ctx.rt.state.input_stream_ptr >= ctx.rt.state.input_stream.len() {
-            panic!("not enough vecs in hint input stream");
+            panic!(
+                "failed reading stdin due to insufficient input data: input_stream_ptr={}, input_stream_len={}",
+                ctx.rt.state.input_stream_ptr,
+                ctx.rt.state.input_stream.len()
+            );
         }
         Some(ctx.rt.state.input_stream[ctx.rt.state.input_stream_ptr].len() as u32)
     }
@@ -30,7 +34,11 @@ impl SyscallHintRead {
 impl Syscall for SyscallHintRead {
     fn execute(&self, ctx: &mut SyscallContext, ptr: u32, len: u32) -> Option<u32> {
         if ctx.rt.state.input_stream_ptr >= ctx.rt.state.input_stream.len() {
-            panic!("not enough vecs in hint input stream");
+            panic!(
+                "failed reading stdin due to insufficient input data: input_stream_ptr={}, input_stream_len={}",
+                ctx.rt.state.input_stream_ptr,
+                ctx.rt.state.input_stream.len()
+            );
         }
         let vec = &ctx.rt.state.input_stream[ctx.rt.state.input_stream_ptr];
         ctx.rt.state.input_stream_ptr += 1;

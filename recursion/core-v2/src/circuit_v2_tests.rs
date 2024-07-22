@@ -12,9 +12,9 @@ mod tests {
     use sp1_recursion_core::{air::RecursionPublicValues, stark::config::BabyBearPoseidon2Outer};
     use sp1_recursion_gnark_ffi::PlonkBn254Prover;
 
-    use crate::{stark::build_wrap_circuit_v2, witness::Witnessable};
+    use sp1_recursion_circuit::{stark::build_wrap_circuit_v2, witness::Witnessable};
 
-    use sp1_recursion_core_v2::{
+    use crate::{
         machine::RecursionAir, runtime::instruction as instr, BaseAluOpcode, MemAccessKind,
         RecursionProgram, Runtime,
     };
