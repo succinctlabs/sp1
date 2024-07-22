@@ -29,7 +29,9 @@ mod tests {
     type A = RecursionAir<F, DEGREE>;
 
     /// Rough test to give an idea of how long the compress stage would take on the v2 circuit
-    /// relative to the recursion VM. The constants below were manually populated by running
+    /// relative to the recursion VM.
+    ///
+    /// The constants below were manually populated by running
     /// `RUST_LOG=debug RUST_LOGGER=forest FRI_QUERIES=100 cargo test
     /// --release --package sp1-prover -- --exact tests::test_e2e`
     /// and writing down numbers from the first `prove_shards` section of the compress stage.
@@ -86,12 +88,6 @@ mod tests {
             A::Memory(MemoryChip::default()),
             A::BaseAlu(BaseAluChip::default()),
             A::ExtAlu(ExtAluChip::default()),
-            // A::Poseidon2Skinny(
-            //     sp1_recursion_core_v2::poseidon2_skinny::Poseidon2SkinnyChip::<DEGREE> {
-            //         fixed_log2_rows: Some(((POSEIDON_OPERATIONS * 10 - 1).ilog2() + 1) as usize),
-            //         pad: true,
-            //     },
-            // ),
             A::Poseidon2Wide(Poseidon2WideChip::<DEGREE> {
                 fixed_log2_rows: Some(((POSEIDON_OPERATIONS - 1).ilog2() + 1) as usize),
                 pad: true,
