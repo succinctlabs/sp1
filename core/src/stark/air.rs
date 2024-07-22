@@ -4,6 +4,7 @@ use crate::air::{MachineAir, SP1_PROOF_NUM_PV_ELTS};
 use crate::memory::{MemoryChipType, MemoryProgramChip};
 use crate::stark::Chip;
 use crate::syscall::precompiles::fp384::FpMulChip;
+use crate::utils::ec::weierstrass::bls12_381::Bls12381BaseField;
 use crate::StarkGenericConfig;
 use p3_field::PrimeField32;
 pub use riscv_chips::*;
@@ -99,7 +100,7 @@ pub enum RiscvAir<F: PrimeField32> {
     /// A precompile for uint256 mul.
     Uint256Mul(Uint256MulChip),
     /// A precompile for fp mul.
-    FpMul(FpMulChip),
+    FpMul(FpMulChip<Bls12381BaseField>),
     /// A precompile for decompressing a point on the BLS12-381 curve.
     Bls12381Decompress(WeierstrassDecompressChip<SwCurve<Bls12381Parameters>>),
 }
@@ -154,7 +155,7 @@ impl<F: PrimeField32> RiscvAir<F> {
         let bls12381_decompress =
             WeierstrassDecompressChip::<SwCurve<Bls12381Parameters>>::with_lexicographic_rule();
         let bls12381_decompress = WeierstrassDecompressChip::<SwCurve<Bls12381Parameters>>::new();
-        let fp_mul = FpMulChip::default();
+        let fp_mul = FpMulChip::<Bls12381BaseField>::default();
         chips.push(RiscvAir::FpMul(fp_mul));
         chips.push(RiscvAir::Bls12381Decompress(bls12381_decompress));
         let div_rem = DivRemChip::default();

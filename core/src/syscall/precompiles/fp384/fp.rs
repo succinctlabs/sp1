@@ -15,6 +15,7 @@ use crate::utils::{
     bytes_to_words_le, limbs_from_access, limbs_from_prev_access, pad_rows, words_to_bytes_le,
     words_to_bytes_le_vec,
 };
+use elliptic_curve::Field;
 use generic_array::GenericArray;
 use itertools::Itertools;
 use num::BigUint;
@@ -28,6 +29,7 @@ use p3_matrix::Matrix;
 use serde::{Deserialize, Serialize};
 use sp1_derive::AlignedBorrow;
 use std::borrow::{Borrow, BorrowMut};
+use std::marker::PhantomData;
 use std::mem::size_of;
 use typenum::Unsigned;
 
@@ -44,18 +46,20 @@ pub struct FpMulEvent {
     pub x: Vec<u32>,
     pub y_ptr: u32,
     pub y: Vec<u32>,
-    pub modulus: Vec<u32>,
     pub x_memory_records: Vec<MemoryWriteRecord>,
     pub y_memory_records: Vec<MemoryReadRecord>,
-    pub modulus_memory_records: Vec<MemoryReadRecord>,
 }
 
 #[derive(Default)]
-pub struct FpMulChip;
+pub struct FpMulChip<P> {
+    _phantom: PhantomData<P>,
+}
 
-impl FpMulChip {
+impl<P: FieldParameters> FpMulChip<P> {
     pub const fn new() -> Self {
-        Self
+        Self {
+            _phantom: PhantomData,
+        }
     }
 }
 
@@ -81,20 +85,13 @@ pub struct FpMulCols<T> {
     /// The pointer to the first input.
     pub x_ptr: T,
 
-    /// The pointer to the second input, which contains the y value and the modulus.
+    /// The pointer to the second input, which contains the y value.
     pub y_ptr: T,
 
     // Memory columns.
     // x_memory is written to with the result, which is why it is of type MemoryWriteCols.
     pub x_memory: GenericArray<MemoryWriteCols<T>, WordsFieldElement>,
     pub y_memory: GenericArray<MemoryReadCols<T>, WordsFieldElement>,
-    pub modulus_memory: GenericArray<MemoryReadCols<T>, WordsFieldElement>,
-
-    // Columns for checking if modulus is zero. If it's zero, then use the BLS12-381 prime as the effective modulus.
-    pub modulus_is_zero: IsZeroOperation<T>,
-
-    /// Column that is equal to is_real * (1 - modulus_is_zero.result).
-    pub modulus_is_not_zero: T,
 
     // Output values. We compute (x * y) % modulus.
     pub output: FieldOpCols<T, Bls12381BaseField>,
@@ -104,7 +101,7 @@ pub struct FpMulCols<T> {
     pub is_real: T,
 }
 
-impl<F: PrimeField32> MachineAir<F> for FpMulChip {
+impl<F: PrimeField32, P: FieldParameters> MachineAir<F> for FpMulChip<P> {
     type Record = ExecutionRecord;
     type Program = Program;
 
@@ -134,8 +131,6 @@ impl<F: PrimeField32> MachineAir<F> for FpMulChip {
                         // Decode uint384 points
                         let x = BigUint::from_bytes_le(&words_to_bytes_le::<48>(&event.x));
                         let y = BigUint::from_bytes_le(&words_to_bytes_le::<48>(&event.y));
-                        let modulus =
-                            BigUint::from_bytes_le(&words_to_bytes_le::<48>(&event.modulus));
 
                         // Assign basic values to the columns.
                         cols.is_real = F::one();
@@ -157,23 +152,10 @@ impl<F: PrimeField32> MachineAir<F> for FpMulChip {
                                 event.y_memory_records[i],
                                 &mut new_byte_lookup_events,
                             );
-                            cols.modulus_memory[i].populate(
-                                event.channel,
-                                event.modulus_memory_records[i],
-                                &mut new_byte_lookup_events,
-                            );
                         }
 
-                        let modulus_bytes = words_to_bytes_le_vec(&event.modulus);
-                        let modulus_byte_sum = modulus_bytes.iter().map(|b| *b as u32).sum::<u32>();
-                        IsZeroOperation::populate(&mut cols.modulus_is_zero, modulus_byte_sum);
-
                         // Populate the output column.
-                        let effective_modulus = if modulus.is_zero() {
-                            Bls12381BaseField::modulus()
-                        } else {
-                            modulus.clone()
-                        };
+                        let effective_modulus = P::modulus();
                         let result = cols.output.populate_with_modulus(
                             &mut new_byte_lookup_events,
                             event.shard,
@@ -184,16 +166,13 @@ impl<F: PrimeField32> MachineAir<F> for FpMulChip {
                             FieldOperation::Mul,
                         );
 
-                        cols.modulus_is_not_zero = F::one() - cols.modulus_is_zero.result;
-                        if cols.modulus_is_not_zero == F::one() {
-                            cols.output_range_check.populate(
-                                &mut new_byte_lookup_events,
-                                event.shard,
-                                event.channel,
-                                &result,
-                                &effective_modulus,
-                            );
-                        }
+                        cols.output_range_check.populate(
+                            &mut new_byte_lookup_events,
+                            event.shard,
+                            event.channel,
+                            &result,
+                            &effective_modulus,
+                        );
 
                         row
                     })
@@ -241,7 +220,7 @@ impl<F: PrimeField32> MachineAir<F> for FpMulChip {
     }
 }
 
-impl Syscall for FpMulChip {
+impl<P: FieldParameters> Syscall for FpMulChip<P> {
     fn num_extra_cycles(&self) -> u32 {
         1
     }
@@ -264,22 +243,13 @@ impl Syscall for FpMulChip {
         // Read the y value.
         let (y_memory_records, y) = rt.mr_slice(y_ptr, WORDS_FIELD_ELEMENT);
 
-        // The modulus is stored after the y value. We increment the pointer by the number of words.
-        let modulus_ptr = y_ptr + WORDS_FIELD_ELEMENT as u32 * WORD_SIZE as u32;
-        let (modulus_memory_records, modulus) = rt.mr_slice(modulus_ptr, WORDS_FIELD_ELEMENT);
-
         // Get the BigUint values for x, y, and the modulus.
         let uint384_x = BigUint::from_bytes_le(&words_to_bytes_le_vec(&x));
         let uint384_y = BigUint::from_bytes_le(&words_to_bytes_le_vec(&y));
-        let uint384_modulus = BigUint::from_bytes_le(&words_to_bytes_le_vec(&modulus));
 
         // Perform the multiplication and take the result modulo the modulus.
-        let result: BigUint = if uint384_modulus.is_zero() {
-            let modulus = Bls12381BaseField::modulus();
-            (uint384_x * uint384_y) % modulus
-        } else {
-            (uint384_x * uint384_y) % uint384_modulus
-        };
+        let modulus = Bls12381BaseField::modulus();
+        let result: BigUint = (uint384_x * uint384_y) % modulus;
 
         let mut result_bytes = result.to_bytes_le();
         result_bytes.resize(48, 0u8); // Pad the result to 48 bytes.
@@ -303,26 +273,25 @@ impl Syscall for FpMulChip {
             x,
             y_ptr,
             y,
-            modulus,
             x_memory_records,
             y_memory_records,
-            modulus_memory_records,
         });
 
         None
     }
 }
 
-impl<F> BaseAir<F> for FpMulChip {
+impl<F, P: FieldParameters> BaseAir<F> for FpMulChip<P> {
     fn width(&self) -> usize {
         NUM_COLS
     }
 }
 
-impl<AB> Air<AB> for FpMulChip
+impl<AB, P> Air<AB> for FpMulChip<P>
 where
     AB: SP1AirBuilder,
     Limbs<AB::Var, <Bls12381BaseField as NumLimbs>::Limbs>: Copy,
+    P: FieldParameters,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
@@ -341,33 +310,18 @@ where
         // the x_memory, since we write to it later.
         let x_limbs = limbs_from_prev_access(&local.x_memory);
         let y_limbs = limbs_from_access(&local.y_memory);
-        let modulus_limbs = limbs_from_access(&local.modulus_memory);
 
         // If the modulus is zero, then we don't perform the modulus operation.
         // Evaluate the modulus_is_zero operation by summing each byte of the modulus. The sum will
         // not overflow because we are summing 32 bytes.
-        let modulus_byte_sum = modulus_limbs
-            .0
-            .iter()
-            .fold(AB::Expr::zero(), |acc, &limb| acc + limb);
-        IsZeroOperation::<AB::F>::eval(
-            builder,
-            modulus_byte_sum,
-            local.modulus_is_zero,
-            local.is_real.into(),
-        );
-
         // If the modulus is zero, we'll actually use 2^384 as the modulus, so nothing happens.
         // Otherwise, we use the modulus passed in.
-        let modulus_is_zero = local.modulus_is_zero.result;
-        let bls12_coeffs = Bls12381BaseField::MODULUS
+        let modulus_coeffs = P::MODULUS
             .iter()
             .map(|&limbs| AB::Expr::from_canonical_u8(limbs))
             .collect_vec();
-        let modulus_polynomial: Polynomial<AB::Expr> = modulus_limbs.into();
-        let p_modulus: Polynomial<AB::Expr> = modulus_polynomial
-            * (AB::Expr::one() - modulus_is_zero.into())
-            + Polynomial::from_coefficients(&bls12_coeffs) * modulus_is_zero.into();
+
+        let p_modulus = Polynomial::from_coefficients(&modulus_coeffs);
 
         // Evaluate the uint384 multiplication
         local.output.eval_with_modulus(
@@ -386,14 +340,10 @@ where
         local.output_range_check.eval(
             builder,
             &local.output.result,
-            &modulus_limbs,
+            &p_modulus,
             local.shard,
             local.channel,
-            local.modulus_is_not_zero,
-        );
-        builder.assert_eq(
-            local.modulus_is_not_zero,
-            local.is_real * (AB::Expr::one() - modulus_is_zero.into()),
+            local.is_real,
         );
 
         // Assert that the correct result is being written to x_memory.
@@ -410,7 +360,6 @@ where
             &local.x_memory,
             local.is_real,
         );
-
         // Evaluate the y_ptr memory access. We concatenate y and modulus into a single array since
         // we read it contiguously from the y_ptr memory location.
         builder.eval_memory_access_slice(
@@ -418,7 +367,7 @@ where
             local.channel,
             local.clk.into(),
             local.y_ptr,
-            &[local.y_memory, local.modulus_memory].concat(),
+            &local.y_memory,
             local.is_real,
         );
 
@@ -428,7 +377,7 @@ where
             local.channel,
             local.clk,
             local.nonce,
-            AB::F::from_canonical_u32(SyscallCode::FP_MUL.syscall_id()),
+            AB::F::from_canonical_u32(SyscallCode::BLS12381_FPMUL.syscall_id()),
             local.x_ptr,
             local.y_ptr,
             local.is_real,
