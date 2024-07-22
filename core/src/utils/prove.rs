@@ -230,7 +230,11 @@ where
                         if let Ok((index, mut checkpoint, event_counts, done)) = received {
                             // Trace the checkpoint and reconstruct the execution records.
                             let (mut records, _) = tracing::debug_span!("trace checkpoint")
-                                .in_scope(|| trace_checkpoint(program.clone(), &checkpoint, opts));
+                                .in_scope(|| {
+                                    let mut opts_copy = opts;
+                                    opts_copy.event_counts = event_counts;
+                                    trace_checkpoint(program.clone(), &checkpoint, opts_copy)
+                                });
                             reset_seek(&mut checkpoint);
 
                             // Generate the dependencies.

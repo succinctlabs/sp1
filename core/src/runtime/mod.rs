@@ -41,7 +41,7 @@ use std::sync::Arc;
 use thiserror::Error;
 
 use crate::bytes::NUM_BYTE_LOOKUP_CHANNELS;
-use crate::cpu::LookupIds;
+use crate::cpu::CpuLookupIds;
 use crate::memory::MemoryInitializeFinalizeEvent;
 use crate::utils::SP1CoreOpts;
 use crate::{alu::AluEvent, cpu::CpuEvent};
@@ -467,7 +467,7 @@ impl<'a> Runtime<'a> {
         memory_store_value: Option<u32>,
         record: MemoryAccessRecord,
         exit_code: u32,
-        lookup_ids: LookupIds,
+        lookup_ids: CpuLookupIds,
     ) {
         let cpu_event = CpuEvent {
             shard,
@@ -521,7 +521,7 @@ impl<'a> Runtime<'a> {
         a: u32,
         b: u32,
         c: u32,
-        lookup_id: LookupIds,
+        lookup_id: CpuLookupIds,
     ) {
         self.rw(rd, a);
 
@@ -529,7 +529,7 @@ impl<'a> Runtime<'a> {
         let channel = self.channel();
 
         let sub_lookups = if self.emit_events {
-            LookupIds::new_sublookups(self)
+            CpuLookupIds::new_sublookups(self)
         } else {
             [0; 6]
         };
@@ -645,7 +645,7 @@ impl<'a> Runtime<'a> {
                 .or_insert(1);
         }
 
-        let lookup_ids = LookupIds::new(instruction, self);
+        let lookup_ids = CpuLookupIds::new(instruction, self);
 
         match instruction.opcode {
             // Arithmetic instructions.
@@ -871,7 +871,7 @@ impl<'a> Runtime<'a> {
 
                 let syscall_impl = self.get_syscall(syscall).cloned();
                 let syscall_lookup_id = match lookup_ids {
-                    LookupIds::SyscallLookupId(id) => id,
+                    CpuLookupIds::SyscallLookupId(id) => id,
                     _ => unreachable!(),
                 };
                 let mut precompile_rt = SyscallContext::new(self);
@@ -1328,14 +1328,14 @@ fn emit_alu(
     a: u32,
     b: u32,
     c: u32,
-    lookup_id: LookupIds,
+    lookup_id: CpuLookupIds,
     shard: u32,
     channel: u8,
     vec_to_add: &mut Vec<AluEvent>,
     sub_lookups: [u128; 6],
 ) {
     let lookup_id = match lookup_id {
-        LookupIds::AluLookupId(lookup_id) => lookup_id,
+        CpuLookupIds::AluLookupId(lookup_id) => lookup_id,
         _ => panic!("Expected AluLookupIds"),
     };
 
