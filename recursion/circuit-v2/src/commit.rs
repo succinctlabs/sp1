@@ -1,5 +1,5 @@
 use p3_commit::{LagrangeSelectors, PolynomialSpace};
-use sp1_recursion_compiler::ir::{Array, Builder, Config, Ext, FromConstant, Usize};
+use sp1_recursion_compiler::ir::{Builder, Config, Ext, FromConstant, Usize};
 
 use crate::fri::types::{FriConfigVariable, TwoAdicPcsRoundVariable};
 
@@ -20,8 +20,8 @@ pub trait PolynomialSpaceVariable<C: Config>: Sized + FromConstant<C> {
     fn split_domains(
         &self,
         builder: &mut Builder<C>,
-        log_num_chunks: impl Into<Usize<C::N>>,
-        num_chunks: impl Into<Usize<C::N>>,
+        log_num_chunks: usize,
+        num_chunks: usize,
     ) -> Vec<Self>;
 
     fn split_domains_const(&self, _: &mut Builder<C>, log_num_chunks: usize) -> Vec<Self>;
@@ -29,7 +29,7 @@ pub trait PolynomialSpaceVariable<C: Config>: Sized + FromConstant<C> {
     fn create_disjoint_domain(
         &self,
         builder: &mut Builder<C>,
-        log_degree: Usize<C::N>,
+        log_degree: usize,
         config: Option<FriConfigVariable<C>>,
     ) -> Self;
 }
@@ -45,7 +45,7 @@ pub trait PcsVariable<C: Config, Challenger> {
     fn natural_domain_for_log_degree(
         &self,
         builder: &mut Builder<C>,
-        log_degree: Usize<C::N>,
+        log_degree: usize,
     ) -> Self::Domain;
 
     fn verify(

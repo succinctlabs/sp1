@@ -1,4 +1,5 @@
 use p3_air::BaseAir;
+use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::{AbstractExtensionField, AbstractField};
 use sp1_core::{
     air::{MachineAir, Word, PV_DIGEST_NUM_WORDS, WORD_SIZE},
@@ -8,7 +9,7 @@ use sp1_recursion_compiler::prelude::*;
 
 use crate::fri::types::DigestVariable;
 use crate::fri::types::TwoAdicPcsProofVariable;
-use crate::fri::TwoAdicMultiplicativeCosetVariable;
+// use crate::fri::TwoAdicMultiplicativeCosetVariable;
 
 /// Reference: [sp1_core::stark::ShardProof]
 #[derive(Clone)]
@@ -39,7 +40,7 @@ pub struct VerifyingKeyVariable<C: Config> {
     pub commitment: DigestVariable<C>,
     pub pc_start: Felt<C::F>,
     pub preprocessed_sorted_idxs: Array<C, Var<C::N>>,
-    pub prep_domains: Array<C, TwoAdicMultiplicativeCosetVariable<C>>,
+    pub prep_domains: Array<C, TwoAdicMultiplicativeCoset<C::F>>,
 }
 
 /// Reference: [sp1_core::stark::ShardCommitment]

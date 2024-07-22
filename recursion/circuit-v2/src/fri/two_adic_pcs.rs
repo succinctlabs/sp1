@@ -1,5 +1,4 @@
 use std::iter::zip;
-use std::iter::zip;
 
 use itertools::Itertools;
 use p3_commit::PolynomialSpace;

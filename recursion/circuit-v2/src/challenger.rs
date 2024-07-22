@@ -115,9 +115,10 @@ impl<C: Config> DuplexChallengerVariable<C> {
         self.sponge_state[0..self.input_buffer.len()].copy_from_slice(self.input_buffer.as_slice());
         self.input_buffer.clear();
 
-        self.sponge_state = builder.poseidon2_permute_v2(self.sponge_state);
+        self.sponge_state = builder.poseidon2_permute_v2_wide(self.sponge_state);
 
-        self.output_buffer[0..PERMUTATION_WIDTH].copy_from_slice(&self.sponge_state);
+        self.output_buffer.clear();
+        self.output_buffer.extend_from_slice(&self.sponge_state);
     }
 
     fn observe(&mut self, builder: &mut Builder<C>, value: Felt<C::F>) {
@@ -138,7 +139,7 @@ impl<C: Config> DuplexChallengerVariable<C> {
 
     fn sample(&mut self, builder: &mut Builder<C>) -> Felt<C::F> {
         if !self.input_buffer.is_empty() || self.output_buffer.is_empty() {
-            self.clone().duplexing(builder);
+            self.duplexing(builder);
         }
 
         self.output_buffer
@@ -242,15 +243,94 @@ mod tests {
     use sp1_core::utils::BabyBearPoseidon2;
     use sp1_recursion_compiler::asm::AsmBuilder;
     use sp1_recursion_compiler::asm::AsmConfig;
+    use sp1_recursion_compiler::circuit::AsmCompiler;
     use sp1_recursion_compiler::ir::Felt;
-    use sp1_recursion_compiler::ir::Usize;
     use sp1_recursion_compiler::ir::Var;
 
+    use sp1_recursion_core::air::Block;
     use sp1_recursion_core::runtime::PERMUTATION_WIDTH;
-    use sp1_recursion_core::stark::utils::run_test_recursion;
-    use sp1_recursion_core::stark::utils::TestConfig;
+    use sp1_recursion_core_v2::machine::RecursionAir;
+    use sp1_recursion_core_v2::RecursionProgram;
+    use sp1_recursion_core_v2::Runtime;
 
     use crate::challenger::DuplexChallengerVariable;
+
+    use p3_baby_bear::BabyBear;
+    use sp1_core::utils;
+
+    use sp1_core::utils::run_test_machine;
+    use std::collections::VecDeque;
+
+    // Much of the following is stolen from `recursion/core/src/stark/mod.rs`.
+    #[derive(PartialEq, Clone, Debug)]
+    enum TestConfig {
+        All,
+        WideDeg3,
+        SkinnyDeg7,
+        // WideDeg17Wrap,
+    }
+
+    type Val = <BabyBearPoseidon2 as StarkGenericConfig>::Val;
+    type Challenge = <BabyBearPoseidon2 as StarkGenericConfig>::Challenge;
+
+    /// Takes in a program and runs it with the given witness and generates a proof with a variety of
+    /// machines depending on the provided test_config.
+    fn run_test_recursion(
+        program: RecursionProgram<Val>,
+        _witness: Option<VecDeque<Vec<Block<BabyBear>>>>,
+        test_config: TestConfig,
+    ) {
+        utils::setup_logger();
+        let config = BabyBearPoseidon2::default();
+
+        let mut runtime = Runtime::<Val, Challenge, _>::new(&program, config.perm.clone());
+        // if witness.is_some() {
+        //     runtime.witness_stream = witness.unwrap();
+        // }
+
+        runtime.run();
+        // match runtime.run() {
+        //     Ok(_) => {
+        //         println!(
+        //             "The program executed successfully, number of cycles: {}",
+        //             runtime.clk.as_canonical_u32() / 4
+        //         );
+        //     }
+        //     Err(e) => {
+        //         eprintln!("Runtime error: {:?}", e);
+        //         return;
+        //     }
+        // }
+
+        let records = vec![runtime.record];
+
+        if test_config == TestConfig::All || test_config == TestConfig::WideDeg3 {
+            let machine = RecursionAir::<_, 3>::machine(BabyBearPoseidon2::default());
+            let (pk, vk) = machine.setup(&program);
+            let result = run_test_machine(records.clone(), machine, pk, vk);
+            if let Err(e) = result {
+                panic!("Verification failed: {:?}", e);
+            }
+        }
+
+        if test_config == TestConfig::All || test_config == TestConfig::SkinnyDeg7 {
+            let machine = RecursionAir::<_, 9>::machine(BabyBearPoseidon2::compressed());
+            let (pk, vk) = machine.setup(&program);
+            let result = run_test_machine(records.clone(), machine, pk, vk);
+            if let Err(e) = result {
+                panic!("Verification failed: {:?}", e);
+            }
+        }
+
+        // if test_config == TestConfig::All || test_config == TestConfig::WideDeg17Wrap {
+        //     let machine = RecursionAir::<_, 17>::wrap_machine(BabyBearPoseidon2::compressed());
+        //     let (pk, vk) = machine.setup(&program);
+        //     let result = run_test_machine(records.clone(), machine, pk, vk);
+        //     if let Err(e) = result {
+        //         panic!("Verification failed: {:?}", e);
+        //     }
+        // }
+    }
 
     #[test]
     fn test_compiler_challenger() {
@@ -269,15 +349,15 @@ mod tests {
 
         let mut builder = AsmBuilder::<F, EF>::default();
 
-        let width: Var<_> = builder.eval(F::from_canonical_usize(PERMUTATION_WIDTH));
+        // let width: Var<_> = builder.eval(F::from_canonical_usize(PERMUTATION_WIDTH));
         let mut challenger = DuplexChallengerVariable::<AsmConfig<F, EF>> {
-            sponge_state: core::array::from_fn(|_| builder.uninit()),
+            sponge_state: core::array::from_fn(|_| builder.eval(F::zero())),
             input_buffer: vec![],
             output_buffer: vec![],
         };
         let one: Felt<_> = builder.eval(F::one());
         let two: Felt<_> = builder.eval(F::two());
-        builder.halt();
+        // builder.halt();
         challenger.observe(&mut builder, one);
         challenger.observe(&mut builder, two);
         challenger.observe(&mut builder, two);
@@ -285,9 +365,13 @@ mod tests {
         let element = challenger.sample(&mut builder);
 
         let expected_result: Felt<_> = builder.eval(result);
+        builder.print_f(element);
         builder.assert_felt_eq(expected_result, element);
 
-        let program = builder.compile_program();
+        // let program = builder.compile_program();
+        let mut compiler = AsmCompiler::<AsmConfig<F, EF>>::default();
+        let instructions = compiler.compile(builder.operations);
+        let program = RecursionProgram { instructions };
         run_test_recursion(program, None, TestConfig::All);
     }
 }

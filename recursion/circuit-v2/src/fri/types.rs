@@ -1,7 +1,7 @@
 use p3_commit::TwoAdicMultiplicativeCoset;
 use sp1_recursion_compiler::prelude::*;
 
-use crate::fri::TwoAdicMultiplicativeCosetVariable;
+// use crate::fri::TwoAdicMultiplicativeCosetVariable;
 
 pub type DigestVariable<C> = Vec<Felt<<C as Config>::F>>;
 
@@ -12,7 +12,7 @@ pub struct FriConfigVariable<C: Config> {
     pub num_queries: Var<C::N>,
     pub proof_of_work_bits: Var<C::N>,
     pub generators: Vec<Felt<C::F>>,
-    pub subgroups: Vec<TwoAdicMultiplicativeCosetVariable<C>>,
+    pub subgroups: Vec<TwoAdicMultiplicativeCoset<C::F>>,
 }
 
 #[derive(Clone)]

@@ -92,9 +92,9 @@ where
     fn split_domains(
         &self,
         builder: &mut Builder<C>,
-        log_num_chunks: impl Into<Usize<C::N>>,
-        num_chunks: impl Into<Usize<C::N>>,
-    ) -> Array<C, Self> {
+        log_num_chunks: usize,
+        num_chunks: usize,
+    ) -> Vec<Self> {
         let log_num_chunks = log_num_chunks.into();
         let num_chunks = num_chunks.into();
         let log_n: Var<_> = builder.eval(self.log_n - log_num_chunks);
@@ -103,20 +103,47 @@ where
         let g_dom = self.gen();
         let g = builder.exp_power_of_2_v::<Felt<C::F>>(g_dom, log_num_chunks);
 
-        let domain_power: Felt<_> = builder.eval(C::F::one());
+        let mut domain_power: Felt<_> = builder.eval(C::F::one());
 
-        let mut domains = builder.dyn_array(num_chunks);
+        // (0..num_chunks)
 
-        builder.range(0, num_chunks).for_each(|i, builder| {
+        // let mut domains = builder.dyn_array(num_chunks);
+
+        // let one: Felt<_> = builder.eval(C::F::one());
+        // let domain_powers =
+        //     std::iter::successors(Some(one), |&prev| Some(builder.eval(prev * g_dom)));
+        // let domains = domain_powers
+        //     .map(|domain_power| TwoAdicMultiplicativeCosetVariable {
+        //         log_n,
+        //         size,
+        //         shift: builder.eval(self.shift * domain_power),
+        //         g,
+        //     })
+        //     .collect();
+
+        let domains = std::iter::from_fn(|| {
             let domain = TwoAdicMultiplicativeCosetVariable {
                 log_n,
                 size,
                 shift: builder.eval(self.shift * domain_power),
                 g,
             };
-            builder.set(&mut domains, i, domain);
-            builder.assign(domain_power, domain_power * g_dom);
-        });
+            domain_power = builder.eval(domain_power * g_dom);
+            Some(domain)
+        })
+        .take(num_chunks)
+        .collect();
+
+        // builder.range(0, num_chunks).for_each(|i, builder| {
+        //     let domain = TwoAdicMultiplicativeCosetVariable {
+        //         log_n,
+        //         size,
+        //         shift: builder.eval(self.shift * domain_power),
+        //         g,
+        //     };
+        //     builder.set(&mut domains, i, domain);
+        //     builder.assign(domain_power, domain_power * g_dom);
+        // });
 
         domains
     }
