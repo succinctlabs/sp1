@@ -426,22 +426,34 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         });
 
         // Run the recursion and reduce programs.
-        let (core_inputs, deferred_inputs) = self.get_first_layer_inputs(
-            vk,
-            &leaf_challenger,
-            shard_proofs,
-            &deferred_proofs,
-            batch_size,
-        );
+        let (core_inputs, deferred_inputs) = tracing::debug_span!("get first layer inputs")
+            .in_scope(|| {
+                self.get_first_layer_inputs(
+                    vk,
+                    &leaf_challenger,
+                    shard_proofs,
+                    &deferred_proofs,
+                    batch_size,
+                )
+            });
 
         let mut reduce_proofs = Vec::new();
         let shard_batch_size = opts.recursion_opts.shard_batch_size;
         for inputs in core_inputs.chunks(shard_batch_size) {
+            let span = tracing::Span::current().clone();
             let proofs = inputs
                 .into_par_iter()
                 .map(|input| {
-                    self.compress_machine_proof(input, &self.recursion_program, &self.rec_pk, opts)
+                    let _span = span.enter();
+                    tracing::debug_span!("compress machine proof").in_scope(|| {
+                        self.compress_machine_proof(
+                            input,
+                            &self.recursion_program,
+                            &self.rec_pk,
+                            opts,
+                        )
                         .map(|p| (p, ReduceProgramType::Core))
+                    })
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             reduce_proofs.extend(proofs);
@@ -473,12 +485,14 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             let compress_inputs = reduce_proofs.chunks(batch_size).collect::<Vec<_>>();
             let batched_compress_inputs =
                 compress_inputs.chunks(shard_batch_size).collect::<Vec<_>>();
+            let span = tracing::Span::current().clone();
             reduce_proofs = batched_compress_inputs
                 .into_par_iter()
                 .flat_map(|batches| {
                     batches
                         .par_iter()
                         .map(|batch| {
+                            let _span = span.enter();
                             let (shard_proofs, kinds) =
                                 batch.iter().cloned().unzip::<_, _, Vec<_>, Vec<_>>();
 
@@ -490,13 +504,15 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                 is_complete,
                             };
 
-                            self.compress_machine_proof(
-                                input,
-                                &self.compress_program,
-                                &self.compress_pk,
-                                opts,
-                            )
-                            .map(|p| (p, ReduceProgramType::Reduce))
+                            tracing::debug_span!("compress machine proof").in_scope(|| {
+                                self.compress_machine_proof(
+                                    input,
+                                    &self.compress_program,
+                                    &self.compress_pk,
+                                    opts,
+                                )
+                                .map(|p| (p, ReduceProgramType::Reduce))
+                            })
                         })
                         .collect::<Vec<_>>()
                 })
@@ -527,6 +543,9 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             self.compress_prover.config().perm.clone(),
         );
 
+        let span = tracing::debug_span!("execute runtime");
+        let guard = span.enter();
+
         let mut witness_stream = Vec::new();
         witness_stream.extend(input.write());
 
@@ -535,6 +554,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             .run()
             .map_err(|e| SP1RecursionProverError::RuntimeError(e.to_string()))?;
         runtime.print_stats();
+
+        drop(guard);
 
         let mut recursive_challenger = self.compress_prover.config().challenger();
         let proof = self
