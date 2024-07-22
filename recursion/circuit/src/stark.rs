@@ -363,9 +363,8 @@ pub fn build_wrap_circuit(
     backend.emit(builder.operations)
 }
 
-/// A function to build the Plonk constraints for a proof and a verifying key. The main difference
-/// between this function and the "old" one is that we use the RecursionAir machine from core-v2.
-pub fn build_wrap_circuit_new<F, const DEGREE: usize, const COL_PADDING: usize>(
+/// A function to build the circuit for the wrap layer using the architecture of core-v2.
+pub fn build_wrap_circuit_v2<F, const DEGREE: usize, const COL_PADDING: usize>(
     wrap_vk: &StarkVerifyingKey<OuterSC>,
     template_proof: ShardProof<OuterSC>,
     outer_machine: StarkMachine<

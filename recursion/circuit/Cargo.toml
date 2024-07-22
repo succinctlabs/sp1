@@ -35,6 +35,7 @@ p3-poseidon2 = { workspace = true }
 zkhash = "0.2.0"
 rand = "0.8.5"
 sp1-recursion-gnark-ffi = { path = "../gnark-ffi", version = "0.0.2-test" }
+sp1-prover = { path = "../../prover", version = "0.0.2-test" }
 
 [features]
 native-gnark = ["sp1-recursion-gnark-ffi/native"]

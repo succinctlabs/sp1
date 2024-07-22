@@ -39,3 +39,7 @@ static_assertions = "1.1.0"
 
 [dev-dependencies]
 rand = "0.8.5"
+sp1-recursion-compiler = { path = "../compiler" }
+sp1-recursion-gnark-ffi = { path = "../gnark-ffi" }
+sp1-recursion-circuit = { path = "../circuit" }
+sp1-prover = { path = "../../prover" }

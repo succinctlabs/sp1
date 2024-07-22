@@ -5,6 +5,7 @@
 #![allow(type_alias_bounds)]
 
 pub mod challenger;
+pub mod circuit_v2_tests;
 pub mod constraints;
 pub mod domain;
 pub mod fri;

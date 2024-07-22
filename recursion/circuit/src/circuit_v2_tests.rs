@@ -9,19 +9,16 @@ mod tests {
         utils::{log2_strict_usize, run_test_machine, setup_logger, BabyBearPoseidon2Inner},
     };
     use sp1_recursion_compiler::{config::OuterConfig, ir::Witness};
-    // use sp1_recursion_compiler::{config::OuterConfig, constraints::ConstraintCompiler, ir::Felt};
     use sp1_recursion_core::{air::RecursionPublicValues, stark::config::BabyBearPoseidon2Outer};
     use sp1_recursion_gnark_ffi::PlonkBn254Prover;
 
-    use sp1_recursion_circuit::witness::Witnessable;
+    use crate::{stark::build_wrap_circuit_v2, witness::Witnessable};
 
-    use sp1_recursion_circuit::stark::build_wrap_circuit_new;
     use sp1_recursion_core_v2::{
         machine::RecursionAir, runtime::instruction as instr, BaseAluOpcode, MemAccessKind,
         RecursionProgram, Runtime,
     };
 
-    use crate::utils::{babybear_bytes_to_bn254, words_to_bytes};
     type SC = BabyBearPoseidon2Outer;
 
     pub fn test_machine<F, const DEGREE: usize, const COL_PADDING: usize>(machine_maker: F)
@@ -52,7 +49,7 @@ mod tests {
         let result = run_test_machine(vec![runtime.record], machine, pk, vk.clone()).unwrap();
 
         let machine = machine_maker();
-        let constraints = build_wrap_circuit_new::<BabyBear, DEGREE, COL_PADDING>(
+        let constraints = build_wrap_circuit_v2::<BabyBear, DEGREE, COL_PADDING>(
             &vk,
             result.shard_proofs[0].clone(),
             machine,
@@ -60,12 +57,13 @@ mod tests {
 
         let pv: &RecursionPublicValues<_> =
             result.shard_proofs[0].public_values.as_slice().borrow();
-        let vkey_hash = crate::utils::babybears_to_bn254(&pv.sp1_vk_digest);
+        let vkey_hash = sp1_prover::utils::babybears_to_bn254(&pv.sp1_vk_digest);
         let committed_values_digest_bytes: [BabyBear; 32] =
-            words_to_bytes(&pv.committed_value_digest)
+            sp1_prover::utils::words_to_bytes(&pv.committed_value_digest)
                 .try_into()
                 .unwrap();
-        let committed_values_digest = babybear_bytes_to_bn254(&committed_values_digest_bytes);
+        let committed_values_digest =
+            sp1_prover::utils::babybear_bytes_to_bn254(&committed_values_digest_bytes);
 
         // Build the witness.
         let mut witness = Witness::default();
