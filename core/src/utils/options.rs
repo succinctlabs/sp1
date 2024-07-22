@@ -6,6 +6,7 @@ const DEFAULT_SHARD_SIZE: usize = 1 << 22;
 const DEFAULT_SHARD_BATCH_SIZE: usize = 16;
 const DEFAULT_COMMIT_STREAM_CAPACITY: usize = 1;
 const DEFAULT_PROVE_STREAM_CAPACITY: usize = 1;
+const DEFAULT_TRACE_GEN_WORKERS: usize = 4;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SP1ProverOpts {
@@ -30,6 +31,7 @@ pub struct SP1CoreOpts {
     pub prove_stream_capacity: usize,
     pub split_opts: SplitOpts,
     pub reconstruct_commitments: bool,
+    pub trace_gen_workers: usize,
 }
 
 impl Default for SP1CoreOpts {
@@ -56,6 +58,10 @@ impl Default for SP1CoreOpts {
             ),
             split_opts: SplitOpts::new(split_threshold),
             reconstruct_commitments: true,
+            trace_gen_workers: env::var("TRACE_GEN_WORKERS").map_or_else(
+                |_| DEFAULT_TRACE_GEN_WORKERS,
+                |s| s.parse::<usize>().unwrap_or(DEFAULT_TRACE_GEN_WORKERS),
+            ),
         }
     }
 }

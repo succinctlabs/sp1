@@ -139,8 +139,6 @@ impl TurnBasedSync {
 
     fn wait_for_turn(&self, my_turn: usize) {
         let mut turn = self.current_turn.lock().unwrap();
-        println!("current turn {}", turn);
-        println!("my turn {}", my_turn);
         while *turn != my_turn {
             turn = self.cv.wait(turn).unwrap();
         }
@@ -148,7 +146,7 @@ impl TurnBasedSync {
 
     fn advance_turn(&self) {
         let mut turn = self.current_turn.lock().unwrap();
-        *turn = *turn + 1;
+        *turn += 1;
         self.cv.notify_all();
     }
 }
@@ -237,7 +235,7 @@ where
         let state = Arc::new(Mutex::new(PublicValues::<u32, u32>::default().reset()));
         let deferred = Arc::new(Mutex::new(ExecutionRecord::new(program.clone().into())));
         let mut p1_record_and_trace_gen_handles = Vec::new();
-        for _ in 0..4 {
+        for _ in 0..opts.trace_gen_workers {
             let record_gen_sync = Arc::clone(&p1_record_gen_sync);
             let trace_gen_sync = Arc::clone(&p1_trace_gen_sync);
             let checkpoints_rx = Arc::clone(&checkpoints_rx);
@@ -250,95 +248,96 @@ where
 
             let span = tracing::Span::current().clone();
             let handle = s.spawn(move || {
-                // Enter the span.
                 let _span = span.enter();
+                tracing::debug_span!("phase 1 trace generation").in_scope(|| {
+                    loop {
+                        // Receive the latest checkpoint.
+                        let received = { checkpoints_rx.lock().unwrap().recv() };
+                        if let Ok((index, mut checkpoint, done)) = received {
+                            // Trace the checkpoint and reconstruct the execution records.
+                            let (mut records, _) = tracing::debug_span!("trace checkpoint")
+                                .in_scope(|| trace_checkpoint(program.clone(), &checkpoint, opts));
+                            reset_seek(&mut checkpoint);
 
-                loop {
-                    // Receive the latest checkpoint.
-                    let received = { checkpoints_rx.lock().unwrap().recv() };
-                    if let Ok((index, mut checkpoint, done)) = received {
-                        // Trace the checkpoint and reconstruct the execution records.
-                        let (mut records, _) = tracing::debug_span!("trace checkpoint")
-                            .in_scope(|| trace_checkpoint(program.clone(), &checkpoint, opts));
-                        reset_seek(&mut checkpoint);
+                            // Generate the dependencies.
+                            tracing::debug_span!("generate dependencies").in_scope(|| {
+                                prover.machine().generate_dependencies(&mut records, &opts)
+                            });
 
-                        // Generate the dependencies.
-                        tracing::debug_span!("generate dependencies").in_scope(|| {
-                            prover.machine().generate_dependencies(&mut records, &opts)
-                        });
+                            // Wait for our turn to update the state.
+                            record_gen_sync.wait_for_turn(index);
 
-                        // Wait for our turn to update the state.
-                        record_gen_sync.wait_for_turn(index);
+                            // Update the public values & prover state for the shards which contain "cpu events".
+                            let mut state = state.lock().unwrap();
+                            for record in records.iter_mut() {
+                                state.shard += 1;
+                                state.execution_shard = record.public_values.execution_shard;
+                                state.start_pc = record.public_values.start_pc;
+                                state.next_pc = record.public_values.next_pc;
+                                state.committed_value_digest =
+                                    record.public_values.committed_value_digest;
+                                state.deferred_proofs_digest =
+                                    record.public_values.deferred_proofs_digest;
+                                record.public_values = *state;
+                            }
 
-                        // Update the public values & prover state for the shards which contain "cpu events".
-                        let mut state = state.lock().unwrap();
-                        for record in records.iter_mut() {
-                            state.shard += 1;
-                            state.execution_shard = record.public_values.execution_shard;
-                            state.start_pc = record.public_values.start_pc;
-                            state.next_pc = record.public_values.next_pc;
-                            state.committed_value_digest =
-                                record.public_values.committed_value_digest;
-                            state.deferred_proofs_digest =
-                                record.public_values.deferred_proofs_digest;
-                            record.public_values = *state;
+                            // Defer events that are too expensive to include in every shard.
+                            let mut deferred = deferred.lock().unwrap();
+                            for record in records.iter_mut() {
+                                deferred.append(&mut record.defer());
+                            }
+
+                            // See if any deferred shards are ready to be commited to.
+                            let mut deferred = deferred.split(done, opts.split_opts);
+
+                            // Update the public values & prover state for the shards which do not contain "cpu events"
+                            // before committing to them.
+                            if !done {
+                                state.execution_shard += 1;
+                            }
+                            for record in deferred.iter_mut() {
+                                state.shard += 1;
+                                state.previous_init_addr_bits =
+                                    record.public_values.previous_init_addr_bits;
+                                state.last_init_addr_bits =
+                                    record.public_values.last_init_addr_bits;
+                                state.previous_finalize_addr_bits =
+                                    record.public_values.previous_finalize_addr_bits;
+                                state.last_finalize_addr_bits =
+                                    record.public_values.last_finalize_addr_bits;
+                                state.start_pc = state.next_pc;
+                                record.public_values = *state;
+                            }
+                            records.append(&mut deferred);
+
+                            // Collect the checkpoints to be used again in the phase 2 prover.
+                            let mut checkpoints = checkpoints.lock().unwrap();
+                            checkpoints.push_back((index, checkpoint, done));
+
+                            // Let another worker update the state.
+                            record_gen_sync.advance_turn();
+
+                            // Generate the traces.
+                            let traces = records
+                                .par_iter()
+                                .map(|record| prover.generate_traces(record))
+                                .collect::<Vec<_>>();
+
+                            trace_gen_sync.wait_for_turn(index);
+
+                            // Send the records to the phase 1 prover.
+                            records_and_traces_tx
+                                .lock()
+                                .unwrap()
+                                .send((records, traces))
+                                .unwrap();
+
+                            trace_gen_sync.advance_turn();
+                        } else {
+                            break;
                         }
-
-                        // Defer events that are too expensive to include in every shard.
-                        let mut deferred = deferred.lock().unwrap();
-                        for record in records.iter_mut() {
-                            deferred.append(&mut record.defer());
-                        }
-
-                        // See if any deferred shards are ready to be commited to.
-                        let mut deferred = deferred.split(done, opts.split_opts);
-
-                        // Update the public values & prover state for the shards which do not contain "cpu events"
-                        // before committing to them.
-                        if !done {
-                            state.execution_shard += 1;
-                        }
-                        for record in deferred.iter_mut() {
-                            state.shard += 1;
-                            state.previous_init_addr_bits =
-                                record.public_values.previous_init_addr_bits;
-                            state.last_init_addr_bits = record.public_values.last_init_addr_bits;
-                            state.previous_finalize_addr_bits =
-                                record.public_values.previous_finalize_addr_bits;
-                            state.last_finalize_addr_bits =
-                                record.public_values.last_finalize_addr_bits;
-                            state.start_pc = state.next_pc;
-                            record.public_values = *state;
-                        }
-                        records.append(&mut deferred);
-
-                        // Collect the checkpoints to be used again in the phase 2 prover.
-                        let mut checkpoints = checkpoints.lock().unwrap();
-                        checkpoints.push_back((index, checkpoint, done));
-
-                        // Let another worker update the state.
-                        record_gen_sync.advance_turn();
-
-                        // Generate the traces.
-                        let traces = records
-                            .par_iter()
-                            .map(|record| prover.generate_traces(record))
-                            .collect::<Vec<_>>();
-
-                        trace_gen_sync.wait_for_turn(index);
-
-                        // Send the records to the phase 1 prover.
-                        records_and_traces_tx
-                            .lock()
-                            .unwrap()
-                            .send((records, traces))
-                            .unwrap();
-
-                        trace_gen_sync.advance_turn();
-                    } else {
-                        break;
                     }
-                }
+                })
             });
             p1_record_and_trace_gen_handles.push(handle);
         }
@@ -406,7 +405,7 @@ where
         let state = Arc::new(Mutex::new(PublicValues::<u32, u32>::default().reset()));
         let deferred = Arc::new(Mutex::new(ExecutionRecord::new(program.clone().into())));
         let mut p2_record_and_trace_gen_handles = Vec::new();
-        for _ in 0..4 {
+        for _ in 0..opts.trace_gen_workers {
             let record_gen_sync = Arc::clone(&p2_record_gen_sync);
             let trace_gen_sync = Arc::clone(&p2_trace_gen_sync);
             let records_and_traces_tx = Arc::clone(&p2_records_and_traces_tx);
@@ -419,93 +418,93 @@ where
 
             let span = tracing::Span::current().clone();
             let handle = s.spawn(move || {
-                // Enter the span.
                 let _span = span.enter();
+                tracing::debug_span!("phase 2 trace generation").in_scope(|| {
+                    loop {
+                        // Receive the latest checkpoint.
+                        let received = { checkpoints.lock().unwrap().pop_front() };
+                        if let Some((index, mut checkpoint, done)) = received {
+                            // Trace the checkpoint and reconstruct the execution records.
+                            let (mut records, report) = tracing::debug_span!("trace checkpoint")
+                                .in_scope(|| trace_checkpoint(program.clone(), &checkpoint, opts));
+                            *report_aggregate.lock().unwrap() += report;
+                            reset_seek(&mut checkpoint);
 
-                loop {
-                    // Receive the latest checkpoint.
-                    let received = { checkpoints.lock().unwrap().pop_front() };
-                    if let Some((index, mut checkpoint, done)) = received {
-                        println!("index of p2 {}", index);
-                        // Trace the checkpoint and reconstruct the execution records.
-                        let (mut records, report) = tracing::debug_span!("trace checkpoint")
-                            .in_scope(|| trace_checkpoint(program.clone(), &checkpoint, opts));
-                        *report_aggregate.lock().unwrap() += report;
-                        reset_seek(&mut checkpoint);
+                            // Generate the dependencies.
+                            tracing::debug_span!("generate dependencies").in_scope(|| {
+                                prover.machine().generate_dependencies(&mut records, &opts)
+                            });
 
-                        // Generate the dependencies.
-                        tracing::debug_span!("generate dependencies").in_scope(|| {
-                            prover.machine().generate_dependencies(&mut records, &opts)
-                        });
+                            // Wait for our turn to update the state.
+                            record_gen_sync.wait_for_turn(index);
 
-                        // Wait for our turn to update the state.
-                        record_gen_sync.wait_for_turn(index);
+                            // Update the public values & prover state for the shards which contain "cpu events".
+                            let mut state = state.lock().unwrap();
+                            for record in records.iter_mut() {
+                                state.shard += 1;
+                                state.execution_shard = record.public_values.execution_shard;
+                                state.start_pc = record.public_values.start_pc;
+                                state.next_pc = record.public_values.next_pc;
+                                state.committed_value_digest =
+                                    record.public_values.committed_value_digest;
+                                state.deferred_proofs_digest =
+                                    record.public_values.deferred_proofs_digest;
+                                record.public_values = *state;
+                            }
 
-                        // Update the public values & prover state for the shards which contain "cpu events".
-                        let mut state = state.lock().unwrap();
-                        for record in records.iter_mut() {
-                            state.shard += 1;
-                            state.execution_shard = record.public_values.execution_shard;
-                            state.start_pc = record.public_values.start_pc;
-                            state.next_pc = record.public_values.next_pc;
-                            state.committed_value_digest =
-                                record.public_values.committed_value_digest;
-                            state.deferred_proofs_digest =
-                                record.public_values.deferred_proofs_digest;
-                            record.public_values = *state;
+                            // Defer events that are too expensive to include in every shard.
+                            let mut deferred = deferred.lock().unwrap();
+                            for record in records.iter_mut() {
+                                deferred.append(&mut record.defer());
+                            }
+
+                            // See if any deferred shards are ready to be commited to.
+                            let mut deferred = deferred.split(done, opts.split_opts);
+
+                            // Update the public values & prover state for the shards which do not contain "cpu events"
+                            // before committing to them.
+                            if !done {
+                                state.execution_shard += 1;
+                            }
+                            for record in deferred.iter_mut() {
+                                state.shard += 1;
+                                state.previous_init_addr_bits =
+                                    record.public_values.previous_init_addr_bits;
+                                state.last_init_addr_bits =
+                                    record.public_values.last_init_addr_bits;
+                                state.previous_finalize_addr_bits =
+                                    record.public_values.previous_finalize_addr_bits;
+                                state.last_finalize_addr_bits =
+                                    record.public_values.last_finalize_addr_bits;
+                                state.start_pc = state.next_pc;
+                                record.public_values = *state;
+                            }
+                            records.append(&mut deferred);
+
+                            // Let another worker update the state.
+                            record_gen_sync.advance_turn();
+
+                            // Generate the traces.
+                            let traces = records
+                                .par_iter()
+                                .map(|record| prover.generate_traces(record))
+                                .collect::<Vec<_>>();
+
+                            trace_gen_sync.wait_for_turn(index);
+
+                            // Send the records to the phase 1 prover.
+                            records_and_traces_tx
+                                .lock()
+                                .unwrap()
+                                .send((records, traces))
+                                .unwrap();
+
+                            trace_gen_sync.advance_turn();
+                        } else {
+                            break;
                         }
-
-                        // Defer events that are too expensive to include in every shard.
-                        let mut deferred = deferred.lock().unwrap();
-                        for record in records.iter_mut() {
-                            deferred.append(&mut record.defer());
-                        }
-
-                        // See if any deferred shards are ready to be commited to.
-                        let mut deferred = deferred.split(done, opts.split_opts);
-
-                        // Update the public values & prover state for the shards which do not contain "cpu events"
-                        // before committing to them.
-                        if !done {
-                            state.execution_shard += 1;
-                        }
-                        for record in deferred.iter_mut() {
-                            state.shard += 1;
-                            state.previous_init_addr_bits =
-                                record.public_values.previous_init_addr_bits;
-                            state.last_init_addr_bits = record.public_values.last_init_addr_bits;
-                            state.previous_finalize_addr_bits =
-                                record.public_values.previous_finalize_addr_bits;
-                            state.last_finalize_addr_bits =
-                                record.public_values.last_finalize_addr_bits;
-                            state.start_pc = state.next_pc;
-                            record.public_values = *state;
-                        }
-                        records.append(&mut deferred);
-
-                        // Let another worker update the state.
-                        record_gen_sync.advance_turn();
-
-                        // Generate the traces.
-                        let traces = records
-                            .par_iter()
-                            .map(|record| prover.generate_traces(record))
-                            .collect::<Vec<_>>();
-
-                        trace_gen_sync.wait_for_turn(index);
-
-                        // Send the records to the phase 1 prover.
-                        records_and_traces_tx
-                            .lock()
-                            .unwrap()
-                            .send((records, traces))
-                            .unwrap();
-
-                        trace_gen_sync.advance_turn();
-                    } else {
-                        break;
                     }
-                }
+                })
             });
             p2_record_and_trace_gen_handles.push(handle);
         }
