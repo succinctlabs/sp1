@@ -20,8 +20,8 @@ pub enum RecursionAir<
     const DEGREE: usize,
     const COL_PADDING: usize,
 > {
-    Program(ProgramChip<F>),
-    Memory(MemoryChip),
+    // Program(ProgramChip<F>),
+    Memory(MemoryChip<F>),
     BaseAlu(BaseAluChip),
     ExtAlu(ExtAluChip),
     // Cpu(CpuChip<F, DEGREE>),
@@ -112,7 +112,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
 
     pub fn get_all_wide() -> Vec<Self> {
         vec![
-            RecursionAir::Program(ProgramChip::default()),
+            // RecursionAir::Program(ProgramChip::default()),
             RecursionAir::Memory(MemoryChip::default()),
             RecursionAir::BaseAlu(BaseAluChip::default()),
             RecursionAir::ExtAlu(ExtAluChip::default()),
@@ -129,7 +129,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
         erbl_padding: usize,
     ) -> Vec<Self> {
         vec![
-            RecursionAir::Program(ProgramChip::default()),
+            // RecursionAir::Program(ProgramChip::default()),
             RecursionAir::Memory(MemoryChip::default()),
             RecursionAir::BaseAlu(BaseAluChip::default()),
             RecursionAir::ExtAlu(ExtAluChip::default()),

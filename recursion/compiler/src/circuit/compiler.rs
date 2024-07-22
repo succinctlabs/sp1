@@ -245,15 +245,15 @@ impl<C: Config> AsmCompiler<C> {
     }
     fn poseidon2_permute_wide(
         &mut self,
-        dst: [impl Reg<F, EF>; WIDTH],
-        src: [impl Reg<F, EF>; WIDTH],
-    ) -> Instruction<F> {
+        dst: [impl Reg<C>; WIDTH],
+        src: [impl Reg<C>; WIDTH],
+    ) -> Instruction<C::F> {
         Instruction::Poseidon2Wide(Poseidon2WideInstr {
             addrs: Poseidon2Io {
                 input: src.map(|r| r.read(self)),
                 output: dst.map(|r| r.write(self)),
             },
-            mults: [F::zero(); WIDTH],
+            mults: [C::F::zero(); WIDTH],
         })
     }
 

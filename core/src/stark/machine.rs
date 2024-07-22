@@ -393,7 +393,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                     trace_width,
                     pre_width,
                     permutation_width,
-                    preprocessed_width,
                     traces[i].0.height(),
                     total_width * traces[i].0.height(),
                 );
