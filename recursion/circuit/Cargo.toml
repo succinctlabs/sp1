@@ -21,7 +21,6 @@ sp1-core = { workspace = true }
 itertools = "0.13.0"
 serde = { version = "1.0.204", features = ["derive"] }
 sp1-recursion-derive = { workspace = true }
-sp1-recursion-core-v2 = { workspace = true }
 sp1-recursion-compiler = { workspace = true }
 sp1-recursion-program = { workspace = true }
 p3-bn254-fr = { workspace = true }
