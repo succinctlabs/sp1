@@ -7,10 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.0.1-test](https://github.com/succinctlabs/sp1/compare/sp1-cli-v0.0.0-test...sp1-cli-v0.0.1-test) - 2024-07-11
+## [1.0.0-rc.1](https://github.com/succinctlabs/sp1/compare/sp1-cli-v1.0.0-rc.1...sp1-cli-v1.0.0-rc.1) - 2024-07-19
 
 ### Added
 
+- Add `BuildArgs` to `build_program` ([#995](https://github.com/succinctlabs/sp1/pull/995))
 - publish sp1 to crates.io ([#1052](https://github.com/succinctlabs/sp1/pull/1052))
 - _(cli)_ use GH token during installation to avoid rate limiting ([#1031](https://github.com/succinctlabs/sp1/pull/1031))
 - _(cli)_ build --docker accepts an optional image tag ([#1022](https://github.com/succinctlabs/sp1/pull/1022))
@@ -65,6 +66,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Other
 
+- _(deps)_ bump clap from 4.5.8 to 4.5.9 ([#1107](https://github.com/succinctlabs/sp1/pull/1107))
+- use global workspace version ([#1102](https://github.com/succinctlabs/sp1/pull/1102))
+- fix release-plz ([#1088](https://github.com/succinctlabs/sp1/pull/1088))
+- add release-plz ([#1086](https://github.com/succinctlabs/sp1/pull/1086))
 - _(deps)_ bump target-lexicon from 0.12.14 to 0.12.15 ([#1067](https://github.com/succinctlabs/sp1/pull/1067))
 - get docker url
 - hm

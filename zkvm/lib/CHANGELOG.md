@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.0.1-test](https://github.com/succinctlabs/sp1/compare/sp1-lib-v0.0.0-test...sp1-lib-v0.0.1-test) - 2024-07-11
+## [1.0.0-rc.1](https://github.com/succinctlabs/sp1/compare/sp1-lib-v1.0.0-rc.1...sp1-lib-v1.0.0-rc.1) - 2024-07-19
 
 ### Added
 
@@ -24,10 +24,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- BLS381 decompress ([#1121](https://github.com/succinctlabs/sp1/pull/1121))
 - handle mul_assign scalar zero ([#1077](https://github.com/succinctlabs/sp1/pull/1077))
 
 ### Other
 
+- use global workspace version ([#1102](https://github.com/succinctlabs/sp1/pull/1102))
+- fix release-plz ([#1088](https://github.com/succinctlabs/sp1/pull/1088))
+- add release-plz ([#1086](https://github.com/succinctlabs/sp1/pull/1086))
 - _(deps)_ bump serde from 1.0.203 to 1.0.204 ([#1063](https://github.com/succinctlabs/sp1/pull/1063))
 - hm
 - ignore
@@ -39,4 +43,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - readme cleanup ([#196](https://github.com/succinctlabs/sp1/pull/196))
 - rename succinct to curta ([#192](https://github.com/succinctlabs/sp1/pull/192))
 - better curta graphic ([#184](https://github.com/succinctlabs/sp1/pull/184))
-- Initial commit
+- Initial commits

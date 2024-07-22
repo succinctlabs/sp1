@@ -29,7 +29,7 @@ use crate::operations::field::field_op::FieldOperation;
 use crate::operations::field::field_sqrt::FieldSqrtCols;
 use crate::operations::field::params::Limbs;
 use crate::operations::field::params::{limbs_from_vec, FieldParameters};
-use crate::operations::field::range::FieldRangeCols;
+use crate::operations::field::range::FieldLtCols;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::MemoryReadRecord;
 use crate::runtime::MemoryWriteRecord;
@@ -53,7 +53,7 @@ use super::{WordsFieldElement, WORDS_FIELD_ELEMENT};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EdDecompressEvent {
-    pub lookup_id: usize,
+    pub lookup_id: u128,
     pub shard: u32,
     pub channel: u32,
     pub clk: u32,
@@ -84,7 +84,7 @@ pub struct EdDecompressCols<T> {
     pub sign: T,
     pub x_access: GenericArray<MemoryWriteCols<T>, WordsFieldElement>,
     pub y_access: GenericArray<MemoryReadCols<T>, WordsFieldElement>,
-    pub(crate) y_range: FieldRangeCols<T, Ed25519BaseField>,
+    pub(crate) y_range: FieldLtCols<T, Ed25519BaseField>,
     pub(crate) yy: FieldOpCols<T, Ed25519BaseField>,
     pub(crate) u: FieldOpCols<T, Ed25519BaseField>,
     pub(crate) dyy: FieldOpCols<T, Ed25519BaseField>,

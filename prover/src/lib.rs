@@ -260,13 +260,12 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         context
             .subproof_verifier
             .get_or_insert_with(|| Arc::new(self));
-        let config = CoreSC::default();
         let program = Program::from(&pk.elf);
         let (proof, public_values_stream, cycles) =
             sp1_core::utils::prove_with_context::<_, C::CoreProver>(
+                &self.core_prover,
                 program,
                 stdin,
-                config,
                 opts.core_opts,
                 context,
             )?;
@@ -276,6 +275,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             proof: SP1CoreProofData(proof.shard_proofs),
             stdin: stdin.clone(),
             public_values,
+            cycles,
         })
     }
 
@@ -294,10 +294,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         // Prepare the inputs for the recursion programs.
         for batch in shard_proofs.chunks(batch_size) {
             let proofs = batch.to_vec();
-
-            let public_values: &PublicValues<Word<BabyBear>, BabyBear> =
-                proofs.last().unwrap().public_values.as_slice().borrow();
-            println!("core execution shard: {}", public_values.execution_shard);
 
             core_inputs.push(SP1RecursionMemoryLayout {
                 vk,
@@ -517,6 +513,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         })
     }
 
+    /// Generate a proof with the compress machine.
     pub fn compress_machine_proof(
         &self,
         input: impl Hintable<InnerConfig>,
@@ -533,7 +530,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         witness_stream.extend(input.write());
 
         runtime.witness_stream = witness_stream.into();
-
         runtime
             .run()
             .map_err(|e| SP1RecursionProverError::RuntimeError(e.to_string()))?;

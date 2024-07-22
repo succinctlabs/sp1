@@ -128,7 +128,8 @@ impl<F: PrimeField32> RiscvAir<F> {
         chips.push(RiscvAir::Ed25519Add(ed_add_assign));
         let ed_decompress = EdDecompressChip::<Ed25519Parameters>::default();
         chips.push(RiscvAir::Ed25519Decompress(ed_decompress));
-        let k256_decompress = WeierstrassDecompressChip::<SwCurve<Secp256k1Parameters>>::new();
+        let k256_decompress =
+            WeierstrassDecompressChip::<SwCurve<Secp256k1Parameters>>::with_lsb_rule();
         chips.push(RiscvAir::K256Decompress(k256_decompress));
         let secp256k1_add_assign = WeierstrassAddAssignChip::<SwCurve<Secp256k1Parameters>>::new();
         chips.push(RiscvAir::Secp256k1Add(secp256k1_add_assign));
@@ -147,7 +148,8 @@ impl<F: PrimeField32> RiscvAir<F> {
         chips.push(RiscvAir::Bls12381Double(bls12381_double));
         let uint256_mul = Uint256MulChip::default();
         chips.push(RiscvAir::Uint256Mul(uint256_mul));
-        let bls12381_decompress = WeierstrassDecompressChip::<SwCurve<Bls12381Parameters>>::new();
+        let bls12381_decompress =
+            WeierstrassDecompressChip::<SwCurve<Bls12381Parameters>>::with_lexicographic_rule();
         chips.push(RiscvAir::Bls12381Decompress(bls12381_decompress));
         let div_rem = DivRemChip::default();
         chips.push(RiscvAir::DivRem(div_rem));

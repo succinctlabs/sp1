@@ -1,17 +1,20 @@
 [package]
 name = "sp1-recursion-gnark-ffi"
-version = "0.0.2-test"
-edition = "2021"
 description = "SP1 is a performant, 100% open-source, contributor-friendly zkVM."
 readme = "../../README.md"
-license = "MIT OR Apache-2.0"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+keywords = { workspace = true }
+categories = { workspace = true }
 
 [dependencies]
 p3-field = { workspace = true }
 p3-symmetric = { workspace = true }
 p3-baby-bear = { workspace = true }
-sp1-recursion-compiler = { path = "../compiler", version = "0.0.2-test" }
-sp1-core = { path = "../../core", version = "0.0.2-test" }
+sp1-recursion-compiler = { workspace = true }
+sp1-core = { workspace = true }
 serde = "1.0.204"
 serde_json = "1.0.120"
 tempfile = "3.10.1"
@@ -26,7 +29,7 @@ hex = "0.4.3"
 
 [build-dependencies]
 bindgen = "0.69.4"
-cc = "1.0"
+cc = "1.1"
 cfg-if = "1.0"
 
 [features]

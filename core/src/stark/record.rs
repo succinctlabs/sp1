@@ -3,7 +3,7 @@ use hashbrown::HashMap;
 use p3_field::AbstractField;
 
 pub trait MachineRecord: Default + Sized + Send + Sync + Clone {
-    type Config;
+    type Config: 'static + Copy + Send + Sync;
 
     fn stats(&self) -> HashMap<String, usize>;
 

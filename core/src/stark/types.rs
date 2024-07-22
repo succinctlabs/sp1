@@ -1,17 +1,10 @@
-use std::{
-    fmt::Debug,
-    fs::File,
-    io::{BufReader, BufWriter, Seek},
-};
+use std::fmt::Debug;
 
-use bincode::{deserialize_from, Error};
 use hashbrown::HashMap;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::dense::RowMajorMatrixView;
 use p3_matrix::stack::VerticalPair;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use size::Size;
-use tracing::trace;
+use serde::{Deserialize, Serialize};
 
 use super::{Challenge, Com, OpeningProof, PcsProverData, StarkGenericConfig, Val};
 
@@ -42,50 +35,6 @@ impl<SC: StarkGenericConfig> ShardMainData<SC> {
             main_data,
             chip_ordering,
             public_values,
-        }
-    }
-
-    pub fn save(&self, file: File) -> Result<ShardMainDataWrapper<SC>, Error>
-    where
-        ShardMainData<SC>: Serialize,
-    {
-        let mut writer = BufWriter::new(&file);
-        bincode::serialize_into(&mut writer, self)?;
-        drop(writer);
-        let metadata = file.metadata()?;
-        let bytes_written = metadata.len();
-        trace!(
-            "wrote {} while saving ShardMainData",
-            Size::from_bytes(bytes_written)
-        );
-        Ok(ShardMainDataWrapper::TempFile(file, bytes_written))
-    }
-
-    pub const fn to_in_memory(self) -> ShardMainDataWrapper<SC> {
-        ShardMainDataWrapper::InMemory(self)
-    }
-}
-
-pub enum ShardMainDataWrapper<SC: StarkGenericConfig> {
-    InMemory(ShardMainData<SC>),
-    TempFile(File, u64),
-    Empty(),
-}
-
-impl<SC: StarkGenericConfig> ShardMainDataWrapper<SC> {
-    pub fn materialize(self) -> Result<ShardMainData<SC>, Error>
-    where
-        ShardMainData<SC>: DeserializeOwned,
-    {
-        match self {
-            Self::InMemory(data) => Ok(data),
-            Self::TempFile(file, _) => {
-                let mut buffer = BufReader::new(&file);
-                buffer.seek(std::io::SeekFrom::Start(0))?;
-                let data = deserialize_from(&mut buffer)?;
-                Ok(data)
-            }
-            Self::Empty() => unreachable!(),
         }
     }
 }
