@@ -11,6 +11,7 @@ pub trait CircuitV2Builder<C: Config> {
         -> Felt<C::F>;
     fn poseidon2_permute_v2(&mut self, state: [Felt<C::F>; WIDTH]) -> [Felt<C::F>; WIDTH];
     fn fri_fold_v2(&mut self, input: CircuitV2FriFoldInput<C>) -> CircuitV2FriFoldOutput<C>;
+    fn poseidon2_permute_v2_wide(&mut self, state: [Felt<C::F>; WIDTH]) -> [Felt<C::F>; WIDTH];
 }
 
 impl<C: Config> CircuitV2Builder<C> for Builder<C> {
@@ -50,6 +51,13 @@ impl<C: Config> CircuitV2Builder<C> for Builder<C> {
         let output: [Felt<C::F>; WIDTH] = core::array::from_fn(|_| self.uninit());
         self.operations
             .push(DslIr::CircuitV2Poseidon2PermuteBabyBear(output, array));
+        output
+    }
+    /// Applies the Poseidon2 permutation to the given array using the wide precompile.
+    fn poseidon2_permute_v2_wide(&mut self, array: [Felt<C::F>; WIDTH]) -> [Felt<C::F>; WIDTH] {
+        let output: [Felt<C::F>; WIDTH] = core::array::from_fn(|_| self.uninit());
+        self.operations
+            .push(DslIr::CircuitV2Poseidon2PermuteBabyBearWide(output, array));
         output
     }
     /// Runs FRI fold.

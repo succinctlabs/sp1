@@ -256,6 +256,19 @@ where
             mults: [F::zero(); WIDTH],
         })
     }
+    fn poseidon2_permute_wide(
+        &mut self,
+        dst: [impl Reg<F, EF>; WIDTH],
+        src: [impl Reg<F, EF>; WIDTH],
+    ) -> Instruction<F> {
+        Instruction::Poseidon2Wide(Poseidon2WideInstr {
+            addrs: Poseidon2Io {
+                input: src.map(|r| r.read(self)),
+                output: dst.map(|r| r.write(self)),
+            },
+            mults: [F::zero(); WIDTH],
+        })
+    }
 
     fn exp_reverse_bits(
         &mut self,
@@ -400,6 +413,9 @@ where
             DslIr::AssertNeEI(lhs, rhs) => self.ext_assert_ne(lhs, Imm::EF(rhs)),
 
             DslIr::CircuitV2Poseidon2PermuteBabyBear(dst, src) => {
+                vec![self.poseidon2_permute_wide(dst, src)]
+            }
+            DslIr::CircuitV2Poseidon2PermuteBabyBearWide(dst, src) => {
                 vec![self.poseidon2_permute(dst, src)]
             }
             DslIr::CircuitV2ExpReverseBits(dst, base, exp) => {
@@ -737,6 +753,28 @@ mod tests {
 
             let input_1_felts = input_1.map(|x| builder.eval(x));
             let output_1_felts = builder.poseidon2_permute_v2(input_1_felts);
+            let expected: [Felt<_>; WIDTH] = output_1.map(|x| builder.eval(x));
+            for (lhs, rhs) in output_1_felts.into_iter().zip(expected) {
+                builder.assert_felt_eq(lhs, rhs);
+            }
+        }
+
+        test_operations(builder.operations);
+    }
+
+    #[test]
+    fn test_poseidon2_wide() {
+        setup_logger();
+
+        let mut builder = AsmBuilder::<F, EF>::default();
+        let mut rng = StdRng::seed_from_u64(0xCAFEDA7E)
+            .sample_iter::<[F; WIDTH], _>(rand::distributions::Standard);
+        for _ in 0..100 {
+            let input_1: [F; WIDTH] = rng.next().unwrap();
+            let output_1 = inner_perm().permute(input_1);
+
+            let input_1_felts = input_1.map(|x| builder.eval(x));
+            let output_1_felts = builder.poseidon2_permute_v2_wide(input_1_felts);
             let expected: [Felt<_>; WIDTH] = output_1.map(|x| builder.eval(x));
             for (lhs, rhs) in output_1_felts.into_iter().zip(expected) {
                 builder.assert_felt_eq(lhs, rhs);
