@@ -183,18 +183,6 @@ impl<'a> Prove<'a> {
         self
     }
 
-    /// Set the commit stream capacity for proving.
-    pub fn commit_stream_capacity(mut self, value: usize) -> Self {
-        self.core_opts.commit_stream_capacity = value;
-        self
-    }
-
-    /// Set the prove stream capacity for proving.
-    pub fn prove_stream_capacity(mut self, value: usize) -> Self {
-        self.core_opts.prove_stream_capacity = value;
-        self
-    }
-
     /// Set whether we should reconstruct commitments while proving.
     pub fn reconstruct_commitments(mut self, value: bool) -> Self {
         self.core_opts.reconstruct_commitments = value;

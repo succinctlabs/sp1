@@ -4,8 +4,9 @@ use crate::runtime::{SplitOpts, DEFERRED_SPLIT_THRESHOLD};
 
 const DEFAULT_SHARD_SIZE: usize = 1 << 22;
 const DEFAULT_SHARD_BATCH_SIZE: usize = 16;
-const DEFAULT_COMMIT_STREAM_CAPACITY: usize = 1;
-const DEFAULT_PROVE_STREAM_CAPACITY: usize = 1;
+const DEFAULT_TRACE_GEN_WORKERS: usize = 1;
+const DEFAULT_CHECKPOINTS_CHANNEL_CAPACITY: usize = 128;
+const DEFAULT_RECORDS_AND_TRACES_CHANNEL_CAPACITY: usize = 1;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SP1ProverOpts {
@@ -26,10 +27,11 @@ impl Default for SP1ProverOpts {
 pub struct SP1CoreOpts {
     pub shard_size: usize,
     pub shard_batch_size: usize,
-    pub commit_stream_capacity: usize,
-    pub prove_stream_capacity: usize,
     pub split_opts: SplitOpts,
     pub reconstruct_commitments: bool,
+    pub trace_gen_workers: usize,
+    pub checkpoints_channel_capacity: usize,
+    pub records_and_traces_channel_capacity: usize,
 }
 
 impl Default for SP1CoreOpts {
@@ -46,16 +48,27 @@ impl Default for SP1CoreOpts {
                 |_| DEFAULT_SHARD_BATCH_SIZE,
                 |s| s.parse::<usize>().unwrap_or(DEFAULT_SHARD_BATCH_SIZE),
             ),
-            commit_stream_capacity: env::var("COMMIT_STREAM_CAPACITY").map_or_else(
-                |_| DEFAULT_COMMIT_STREAM_CAPACITY,
-                |s| s.parse::<usize>().unwrap_or(DEFAULT_COMMIT_STREAM_CAPACITY),
-            ),
-            prove_stream_capacity: env::var("PROVE_STREAM_CAPACITY").map_or_else(
-                |_| DEFAULT_PROVE_STREAM_CAPACITY,
-                |s| s.parse::<usize>().unwrap_or(DEFAULT_PROVE_STREAM_CAPACITY),
-            ),
             split_opts: SplitOpts::new(split_threshold),
             reconstruct_commitments: true,
+            trace_gen_workers: env::var("TRACE_GEN_WORKERS").map_or_else(
+                |_| DEFAULT_TRACE_GEN_WORKERS,
+                |s| s.parse::<usize>().unwrap_or(DEFAULT_TRACE_GEN_WORKERS),
+            ),
+            checkpoints_channel_capacity: env::var("CHECKPOINTS_CHANNEL_CAPACITY").map_or_else(
+                |_| DEFAULT_CHECKPOINTS_CHANNEL_CAPACITY,
+                |s| {
+                    s.parse::<usize>()
+                        .unwrap_or(DEFAULT_CHECKPOINTS_CHANNEL_CAPACITY)
+                },
+            ),
+            records_and_traces_channel_capacity: env::var("RECORDS_AND_TRACES_CHANNEL_CAPACITY")
+                .map_or_else(
+                    |_| DEFAULT_RECORDS_AND_TRACES_CHANNEL_CAPACITY,
+                    |s| {
+                        s.parse::<usize>()
+                            .unwrap_or(DEFAULT_RECORDS_AND_TRACES_CHANNEL_CAPACITY)
+                    },
+                ),
         }
     }
 }
