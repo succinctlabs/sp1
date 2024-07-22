@@ -908,7 +908,6 @@ impl<'a> Runtime<'a> {
                     }
                     _ => (self.opts.split_opts.deferred_shift_threshold, 1),
                 };
-
                 let nonce = (((*syscall_count as usize) % threshold) * multiplier) as u32;
                 self.record.nonce_lookup.insert(syscall_lookup_id, nonce);
                 *syscall_count += 1;
