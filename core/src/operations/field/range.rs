@@ -36,7 +36,7 @@ impl<F: PrimeField32, P: FieldParameters> FieldLtCols<F, P> {
         &mut self,
         record: &mut impl ByteRecord,
         shard: u32,
-        channel: u32,
+        channel: u8,
         lhs: &BigUint,
         rhs: &BigUint,
     ) {
@@ -63,8 +63,8 @@ impl<F: PrimeField32, P: FieldParameters> FieldLtCols<F, P> {
                     channel,
                     a1: 1,
                     a2: 0,
-                    b: *byte as u32,
-                    c: *modulus_byte as u32,
+                    b: *byte,
+                    c: *modulus_byte,
                 });
                 break;
             }

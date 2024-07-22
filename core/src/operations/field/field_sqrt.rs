@@ -41,7 +41,7 @@ impl<F: PrimeField32, P: FieldParameters> FieldSqrtCols<F, P> {
         &mut self,
         record: &mut impl ByteRecord,
         shard: u32,
-        channel: u32,
+        channel: u8,
         a: &BigUint,
         sqrt_fn: impl Fn(&BigUint) -> BigUint,
     ) -> BigUint {
@@ -76,9 +76,9 @@ impl<F: PrimeField32, P: FieldParameters> FieldSqrtCols<F, P> {
             shard,
             channel,
             opcode: ByteOpcode::AND,
-            a1: self.lsb.as_canonical_u32(),
+            a1: self.lsb.as_canonical_u32() as u16,
             a2: 0,
-            b: sqrt_bytes[0] as u32,
+            b: sqrt_bytes[0],
             c: 1,
         };
         record.add_byte_lookup_event(and_event);

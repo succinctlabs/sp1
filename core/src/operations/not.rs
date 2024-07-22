@@ -22,7 +22,7 @@ impl<F: Field> NotOperation<F> {
         &mut self,
         record: &mut impl ByteRecord,
         shard: u32,
-        channel: u32,
+        channel: u8,
         x: u32,
     ) -> u32 {
         let expected = !x;

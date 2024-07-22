@@ -56,7 +56,7 @@ impl<F: Field> MachineAir<F> for ByteChip<F> {
             .iter()
         {
             let row = if lookup.opcode != ByteOpcode::U16Range {
-                ((lookup.b << 8) + lookup.c) as usize
+                (((lookup.b as u16) << 8) + lookup.c as u16) as usize
             } else {
                 lookup.a1 as usize
             };
