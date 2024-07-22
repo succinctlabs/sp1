@@ -22,7 +22,7 @@ use p3_field::PrimeField32;
 use crate::air::{MachineAir, PublicValues};
 use crate::io::{SP1PublicValues, SP1Stdin};
 use crate::lookup::InteractionBuilder;
-use crate::runtime::{ExecutionError, NoOpSubproofVerifier, SP1Context};
+use crate::runtime::{EventCounts, ExecutionError, NoOpSubproofVerifier, SP1Context};
 use crate::runtime::{ExecutionRecord, ExecutionReport};
 use crate::stark::DebugConstraintBuilder;
 use crate::stark::MachineProof;
@@ -179,7 +179,9 @@ where
                             .map_err(SP1CoreProverError::IoError)?;
 
                         // Send the checkpoint.
-                        checkpoints_tx.send((index, checkpoint_file, event_counts, done)).unwrap();
+                        checkpoints_tx
+                            .send((index, checkpoint_file, event_counts, done))
+                            .unwrap();
 
                         // If we've reached the final checkpoint, break out of the loop.
                         if done {

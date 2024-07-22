@@ -1330,7 +1330,7 @@ fn emit_alu(
     c: u32,
     lookup_id: LookupIds,
     shard: u32,
-    channel: u32,
+    channel: u8,
     vec_to_add: &mut Vec<AluEvent>,
     sub_lookups: [u128; 6],
 ) {
