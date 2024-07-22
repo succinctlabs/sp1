@@ -1,4 +1,5 @@
 mod buffer;
+mod concurrency;
 mod config;
 pub mod ec;
 mod logger;

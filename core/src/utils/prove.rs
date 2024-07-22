@@ -4,6 +4,7 @@ use std::io::Seek;
 use std::io::{self};
 use std::sync::mpsc::sync_channel;
 use std::sync::Arc;
+use std::sync::Mutex;
 use web_time::Instant;
 
 use p3_maybe_rayon::prelude::*;
@@ -32,6 +33,7 @@ use crate::stark::Val;
 use crate::stark::VerifierConstraintFolder;
 use crate::stark::{Com, PcsProverData, RiscvAir, StarkProvingKey, UniConfig};
 use crate::stark::{MachineRecord, StarkMachine};
+use crate::utils::concurrency::TurnBasedSync;
 use crate::utils::SP1CoreOpts;
 use crate::{
     runtime::{Program, Runtime},
@@ -120,35 +122,6 @@ where
     let prover = P::new(machine);
     let (pk, vk) = prover.setup(&program);
     prove_with_context::<SC, _>(&prover, &pk, &vk, program, stdin, opts, Default::default())
-}
-
-use std::sync::{Condvar, Mutex};
-
-struct TurnBasedSync {
-    current_turn: Mutex<usize>,
-    cv: Condvar,
-}
-
-impl TurnBasedSync {
-    fn new() -> Self {
-        TurnBasedSync {
-            current_turn: Mutex::new(0),
-            cv: Condvar::new(),
-        }
-    }
-
-    fn wait_for_turn(&self, my_turn: usize) {
-        let mut turn = self.current_turn.lock().unwrap();
-        while *turn != my_turn {
-            turn = self.cv.wait(turn).unwrap();
-        }
-    }
-
-    fn advance_turn(&self) {
-        let mut turn = self.current_turn.lock().unwrap();
-        *turn += 1;
-        self.cv.notify_all();
-    }
 }
 
 pub fn prove_with_context<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<SC::Val>>>(
@@ -533,7 +506,6 @@ where
                     });
                 }
             });
-            println!("exited phase 2 prover");
             shard_proofs
         });
 
@@ -541,11 +513,9 @@ where
         p2_record_and_trace_gen_handles
             .into_iter()
             .for_each(|handle| handle.join().unwrap());
-        println!("record and trace gen handles finished");
 
         // Wait until the phase 2 prover has finished.
         let shard_proofs = p2_prover_handle.join().unwrap();
-        println!("p2 porver handle finished");
 
         // Log some of the `ExecutionReport` information.
         let report_aggregate = report_aggregate.lock().unwrap();
