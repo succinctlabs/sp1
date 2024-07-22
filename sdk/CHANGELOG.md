@@ -7,10 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.0.1-test](https://github.com/succinctlabs/sp1/compare/sp1-sdk-v0.0.0-test...sp1-sdk-v0.0.1-test) - 2024-07-11
+## [1.0.0-rc.1](https://github.com/succinctlabs/sp1/compare/sp1-sdk-v1.0.0-rc.1...sp1-sdk-v1.0.0-rc.1) - 2024-07-19
 
 ### Added
 
+- 1.0.0-rc.1 ([#1126](https://github.com/succinctlabs/sp1/pull/1126))
 - publish sp1 to crates.io ([#1052](https://github.com/succinctlabs/sp1/pull/1052))
 - critical constraint changes ([#1046](https://github.com/succinctlabs/sp1/pull/1046))
 - cycle limit ([#1027](https://github.com/succinctlabs/sp1/pull/1027))
@@ -89,6 +90,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Other
 
+- export execution report ([#1112](https://github.com/succinctlabs/sp1/pull/1112))
+- prover utilization ([#1100](https://github.com/succinctlabs/sp1/pull/1100))
+- _(deps)_ bump async-trait from 0.1.80 to 0.1.81 ([#1105](https://github.com/succinctlabs/sp1/pull/1105))
+- _(deps)_ bump sysinfo from 0.30.12 to 0.30.13 ([#1106](https://github.com/succinctlabs/sp1/pull/1106))
+- use global workspace version ([#1102](https://github.com/succinctlabs/sp1/pull/1102))
+- fix release-plz ([#1088](https://github.com/succinctlabs/sp1/pull/1088))
+- add release-plz ([#1086](https://github.com/succinctlabs/sp1/pull/1086))
 - remove async crates `sp1-prover` ([#1042](https://github.com/succinctlabs/sp1/pull/1042))
 - _(deps)_ bump serde from 1.0.203 to 1.0.204 ([#1063](https://github.com/succinctlabs/sp1/pull/1063))
 - switch to p3 from crates.io ([#1038](https://github.com/succinctlabs/sp1/pull/1038))

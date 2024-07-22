@@ -7,10 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.0.1-test](https://github.com/succinctlabs/sp1/compare/sp1-recursion-gnark-ffi-v0.0.0-test...sp1-recursion-gnark-ffi-v0.0.1-test) - 2024-07-11
+## [1.0.0-rc.1](https://github.com/succinctlabs/sp1/compare/sp1-recursion-gnark-ffi-v1.0.0-rc.1...sp1-recursion-gnark-ffi-v1.0.0-rc.1) - 2024-07-19
 
 ### Added
 
+- 1.0.0-rc.1 ([#1126](https://github.com/succinctlabs/sp1/pull/1126))
 - publish sp1 to crates.io ([#1052](https://github.com/succinctlabs/sp1/pull/1052))
 - update verifier contract templates ([#963](https://github.com/succinctlabs/sp1/pull/963))
 - circuit version in proof ([#926](https://github.com/succinctlabs/sp1/pull/926))
@@ -55,6 +56,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Other
 
+- _(deps)_ bump cc from 1.0.100 to 1.1.5 ([#1104](https://github.com/succinctlabs/sp1/pull/1104))
+- use global workspace version ([#1102](https://github.com/succinctlabs/sp1/pull/1102))
+- fix release-plz ([#1088](https://github.com/succinctlabs/sp1/pull/1088))
+- add release-plz ([#1086](https://github.com/succinctlabs/sp1/pull/1086))
 - _(deps)_ bump serde from 1.0.203 to 1.0.204 ([#1063](https://github.com/succinctlabs/sp1/pull/1063))
 - _(contracts)_ remove mock verifier and interface autogen ([#1045](https://github.com/succinctlabs/sp1/pull/1045))
 - Merge branch 'dev' into dependabot/cargo/dev/log-0.4.22

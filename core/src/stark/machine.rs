@@ -244,12 +244,14 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         let chips = self.chips();
         records.iter_mut().for_each(|record| {
             chips.iter().for_each(|chip| {
-                let mut output = A::Record::default();
-                chip.generate_dependencies(record, &mut output);
-                record.append(&mut output);
+                tracing::debug_span!("chip dependencies", chip = chip.name()).in_scope(|| {
+                    let mut output = A::Record::default();
+                    chip.generate_dependencies(record, &mut output);
+                    record.append(&mut output);
+                });
             });
-            record.register_nonces(opts);
-        });
+            tracing::debug_span!("register nonces").in_scope(|| record.register_nonces(opts));
+        })
     }
 
     pub const fn config(&self) -> &SC {
@@ -284,7 +286,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
 
         tracing::debug_span!("verify shard proofs").in_scope(|| {
             for (i, shard_proof) in proof.shard_proofs.iter().enumerate() {
-                tracing::debug_span!("verifying shard", segment = i).in_scope(|| {
+                tracing::debug_span!("verifying shard", shard = i).in_scope(|| {
                     let chips = self
                         .shard_chips_ordered(&shard_proof.chip_ordering)
                         .collect::<Vec<_>>();
@@ -295,7 +297,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                         &mut challenger.clone(),
                         shard_proof,
                     )
-                    .map_err(MachineVerificationError::InvalidSegmentProof)
+                    .map_err(MachineVerificationError::InvalidShardProof)
                 })?;
             }
 
@@ -426,7 +428,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
 }
 
 pub enum MachineVerificationError<SC: StarkGenericConfig> {
-    InvalidSegmentProof(VerificationError<SC>),
+    InvalidShardProof(VerificationError<SC>),
     InvalidGlobalProof(VerificationError<SC>),
     NonZeroCumulativeSum,
     InvalidPublicValuesDigest,
@@ -442,8 +444,8 @@ pub enum MachineVerificationError<SC: StarkGenericConfig> {
 impl<SC: StarkGenericConfig> Debug for MachineVerificationError<SC> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            MachineVerificationError::InvalidSegmentProof(e) => {
-                write!(f, "Invalid segment proof: {:?}", e)
+            MachineVerificationError::InvalidShardProof(e) => {
+                write!(f, "Invalid shard proof: {:?}", e)
             }
             MachineVerificationError::InvalidGlobalProof(e) => {
                 write!(f, "Invalid global proof: {:?}", e)

@@ -23,7 +23,7 @@ WORKDIR /sp1/recursion/gnark-cli
 
 RUN \
   --mount=type=cache,target=target \
-  cargo build --release && cp target/release/sp1-recursion-gnark-cli /gnark-cli
+  cargo build --release && cp ../../target/release/sp1-recursion-gnark-cli /gnark-cli
 
 FROM rustlang/rust:nightly-bullseye-slim
 COPY --from=rust-builder /gnark-cli /gnark-cli

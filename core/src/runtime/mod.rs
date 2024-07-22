@@ -445,8 +445,8 @@ impl<'a> Runtime<'a> {
         memory_store_value: Option<u32>,
         record: MemoryAccessRecord,
         exit_code: u32,
-        lookup_id: usize,
-        syscall_lookup_id: usize,
+        lookup_id: u128,
+        syscall_lookup_id: u128,
     ) {
         let cpu_event = CpuEvent {
             shard,
@@ -480,7 +480,7 @@ impl<'a> Runtime<'a> {
     }
 
     /// Emit an ALU event.
-    fn emit_alu(&mut self, clk: u32, opcode: Opcode, a: u32, b: u32, c: u32, lookup_id: usize) {
+    fn emit_alu(&mut self, clk: u32, opcode: Opcode, a: u32, b: u32, c: u32, lookup_id: u128) {
         let event = AluEvent {
             lookup_id,
             shard: self.shard(),
@@ -551,7 +551,7 @@ impl<'a> Runtime<'a> {
         a: u32,
         b: u32,
         c: u32,
-        lookup_id: usize,
+        lookup_id: u128,
     ) {
         self.rw(rd, a);
         if self.emit_events {

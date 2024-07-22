@@ -7,10 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.0.1-test](https://github.com/succinctlabs/sp1/compare/sp1-recursion-program-v0.0.0-test...sp1-recursion-program-v0.0.1-test) - 2024-07-11
+## [1.0.0-rc.1](https://github.com/succinctlabs/sp1/compare/sp1-recursion-program-v1.0.0-rc.1...sp1-recursion-program-v1.0.0-rc.1) - 2024-07-19
 
 ### Added
 
+- parallel recursion tracegen ([#1095](https://github.com/succinctlabs/sp1/pull/1095))
+- result instead of exit(1) on trap in recursion ([#1089](https://github.com/succinctlabs/sp1/pull/1089))
 - publish sp1 to crates.io ([#1052](https://github.com/succinctlabs/sp1/pull/1052))
 - critical constraint changes ([#1046](https://github.com/succinctlabs/sp1/pull/1046))
 - suggest prover network if high cycles ([#1019](https://github.com/succinctlabs/sp1/pull/1019))
@@ -79,6 +81,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- incorrect checks on deferred digest ([#1116](https://github.com/succinctlabs/sp1/pull/1116))
 - use correct value for blowup ([#965](https://github.com/succinctlabs/sp1/pull/965))
 - p3 audit change ([#964](https://github.com/succinctlabs/sp1/pull/964))
 - some informational fixes from veridise audit ([#953](https://github.com/succinctlabs/sp1/pull/953))
@@ -98,6 +101,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Other
 
+- use global workspace version ([#1102](https://github.com/succinctlabs/sp1/pull/1102))
+- fix release-plz ([#1088](https://github.com/succinctlabs/sp1/pull/1088))
+- add release-plz ([#1086](https://github.com/succinctlabs/sp1/pull/1086))
 - _(deps)_ bump serde from 1.0.203 to 1.0.204 ([#1063](https://github.com/succinctlabs/sp1/pull/1063))
 - updated p3 dependency to 0.1.3 ([#1059](https://github.com/succinctlabs/sp1/pull/1059))
 - merge main -> dev ([#969](https://github.com/succinctlabs/sp1/pull/969))

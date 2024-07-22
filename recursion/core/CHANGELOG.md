@@ -7,10 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.0.1-test](https://github.com/succinctlabs/sp1/compare/sp1-recursion-core-v0.0.0-test...sp1-recursion-core-v0.0.1-test) - 2024-07-11
+## [1.0.0-rc.1](https://github.com/succinctlabs/sp1/compare/sp1-recursion-core-v1.0.0-rc.1...sp1-recursion-core-v1.0.0-rc.1) - 2024-07-19
 
 ### Added
 
+- parallel recursion tracegen ([#1095](https://github.com/succinctlabs/sp1/pull/1095))
+- result instead of exit(1) on trap in recursion ([#1089](https://github.com/succinctlabs/sp1/pull/1089))
 - publish sp1 to crates.io ([#1052](https://github.com/succinctlabs/sp1/pull/1052))
 - critical constraint changes ([#1046](https://github.com/succinctlabs/sp1/pull/1046))
 - plonk circuit optimizations ([#972](https://github.com/succinctlabs/sp1/pull/972))
@@ -98,6 +100,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Allen's Poseidon2 fixes ([#1099](https://github.com/succinctlabs/sp1/pull/1099))
+- Allen's exp_reverse_bits_len fixes ([#1074](https://github.com/succinctlabs/sp1/pull/1074))
 - multi-builder first/last row issue ([#997](https://github.com/succinctlabs/sp1/pull/997))
 - recursion runtime
 - changed fixed size for multi table ([#966](https://github.com/succinctlabs/sp1/pull/966))
@@ -127,6 +131,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Other
 
+- poseidon2 parallel tracegen ([#1118](https://github.com/succinctlabs/sp1/pull/1118))
+- _(deps)_ bump serde_with from 3.8.3 to 3.9.0 ([#1103](https://github.com/succinctlabs/sp1/pull/1103))
+- use global workspace version ([#1102](https://github.com/succinctlabs/sp1/pull/1102))
+- fix release-plz ([#1088](https://github.com/succinctlabs/sp1/pull/1088))
+- add release-plz ([#1086](https://github.com/succinctlabs/sp1/pull/1086))
 - _(deps)_ bump serde_with from 3.8.1 to 3.8.3 ([#1064](https://github.com/succinctlabs/sp1/pull/1064))
 - merge main -> dev ([#969](https://github.com/succinctlabs/sp1/pull/969))
 - format PR [#934](https://github.com/succinctlabs/sp1/pull/934) ([#939](https://github.com/succinctlabs/sp1/pull/939))

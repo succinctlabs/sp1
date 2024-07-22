@@ -183,9 +183,15 @@ impl<'a> Prove<'a> {
         self
     }
 
-    /// Set the chunking multiplier for proving.
-    pub fn shard_chunking_multiplier(mut self, value: usize) -> Self {
-        self.core_opts.shard_chunking_multiplier = value;
+    /// Set the commit stream capacity for proving.
+    pub fn commit_stream_capacity(mut self, value: usize) -> Self {
+        self.core_opts.commit_stream_capacity = value;
+        self
+    }
+
+    /// Set the prove stream capacity for proving.
+    pub fn prove_stream_capacity(mut self, value: usize) -> Self {
+        self.core_opts.prove_stream_capacity = value;
         self
     }
 
