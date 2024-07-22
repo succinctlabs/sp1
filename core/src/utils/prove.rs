@@ -176,15 +176,14 @@ where
 
     // Record the start of the process.
     let proving_start = Instant::now();
-
-    // Execute the program, saving checkpoints at the start of every `shard_batch_size` cycle range.
     let span = tracing::Span::current().clone();
     std::thread::scope(move |s| {
         let _span = span.enter();
 
         // Spawn the checkpoint generator thread.
         let checkpoint_generator_span = tracing::Span::current().clone();
-        let (checkpoints_tx, checkpoints_rx) = sync_channel::<(usize, File, bool)>(128);
+        let (checkpoints_tx, checkpoints_rx) =
+            sync_channel::<(usize, File, bool)>(opts.checkpoints_channel_capacity);
         let checkpoint_generator_handle: ScopedJoinHandle<Result<_, SP1CoreProverError>> =
             s.spawn(move || {
                 let _span = checkpoint_generator_span.enter();
@@ -224,10 +223,11 @@ where
         // Spawn the workers for phase 1 record generation.
         let p1_record_gen_sync = Arc::new(TurnBasedSync::new());
         let p1_trace_gen_sync = Arc::new(TurnBasedSync::new());
-        let (p1_records_and_traces_tx, p1_records_and_traces_rx) = sync_channel::<(
-            Vec<ExecutionRecord>,
-            Vec<Vec<(String, RowMajorMatrix<Val<SC>>)>>,
-        )>(4);
+        let (p1_records_and_traces_tx, p1_records_and_traces_rx) =
+            sync_channel::<(
+                Vec<ExecutionRecord>,
+                Vec<Vec<(String, RowMajorMatrix<Val<SC>>)>>,
+            )>(opts.records_and_traces_channel_capacity);
         let p1_records_and_traces_tx = Arc::new(Mutex::new(p1_records_and_traces_tx));
         let checkpoints_rx = Arc::new(Mutex::new(checkpoints_rx));
 
@@ -395,10 +395,11 @@ where
         // Spawn the phase 2 record generator thread.
         let p2_record_gen_sync = Arc::new(TurnBasedSync::new());
         let p2_trace_gen_sync = Arc::new(TurnBasedSync::new());
-        let (p2_records_and_traces_tx, p2_records_and_traces_rx) = sync_channel::<(
-            Vec<ExecutionRecord>,
-            Vec<Vec<(String, RowMajorMatrix<Val<SC>>)>>,
-        )>(4);
+        let (p2_records_and_traces_tx, p2_records_and_traces_rx) =
+            sync_channel::<(
+                Vec<ExecutionRecord>,
+                Vec<Vec<(String, RowMajorMatrix<Val<SC>>)>>,
+            )>(opts.records_and_traces_channel_capacity);
         let p2_records_and_traces_tx = Arc::new(Mutex::new(p2_records_and_traces_tx));
 
         let report_aggregate = Arc::new(Mutex::new(ExecutionReport::default()));
