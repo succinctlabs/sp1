@@ -209,8 +209,8 @@ pub enum DslIr<C: Config> {
     CircuitPoseidon2Permute([Var<C::N>; 3]),
     /// Permutates an array of BabyBear elements in the circuit.
     CircuitPoseidon2PermuteBabyBear([Felt<C::F>; 16]),
-    /// Permutates an array of BabyBear elements in the circuit.
-    CircuitV2Poseidon2PermuteBabyBear([Felt<C::F>; 16], [Felt<C::F>; 16]),
+    /// Permutates an array of BabyBear elements in the circuit using the skinny precompile.
+    CircuitV2Poseidon2PermuteBabyBearSkinny([Felt<C::F>; 16], [Felt<C::F>; 16]),
     /// Permutates an array of BabyBear elements in the circuit using the wide precompile.
     CircuitV2Poseidon2PermuteBabyBearWide([Felt<C::F>; 16], [Felt<C::F>; 16]),
 

@@ -9,7 +9,7 @@ pub trait CircuitV2Builder<C: Config> {
     fn num2bits_v2_f(&mut self, num: Felt<C::F>) -> Vec<Felt<C::F>>;
     fn exp_reverse_bits_v2(&mut self, input: Felt<C::F>, power_bits: Vec<Felt<C::F>>)
         -> Felt<C::F>;
-    fn poseidon2_permute_v2(&mut self, state: [Felt<C::F>; WIDTH]) -> [Felt<C::F>; WIDTH];
+    fn poseidon2_permute_v2_skinny(&mut self, state: [Felt<C::F>; WIDTH]) -> [Felt<C::F>; WIDTH];
     fn fri_fold_v2(&mut self, input: CircuitV2FriFoldInput<C>) -> CircuitV2FriFoldOutput<C>;
     fn poseidon2_permute_v2_wide(&mut self, state: [Felt<C::F>; WIDTH]) -> [Felt<C::F>; WIDTH];
 }
@@ -47,10 +47,12 @@ impl<C: Config> CircuitV2Builder<C> for Builder<C> {
         output
     }
     /// Applies the Poseidon2 permutation to the given array.
-    fn poseidon2_permute_v2(&mut self, array: [Felt<C::F>; WIDTH]) -> [Felt<C::F>; WIDTH] {
+    fn poseidon2_permute_v2_skinny(&mut self, array: [Felt<C::F>; WIDTH]) -> [Felt<C::F>; WIDTH] {
         let output: [Felt<C::F>; WIDTH] = core::array::from_fn(|_| self.uninit());
         self.operations
-            .push(DslIr::CircuitV2Poseidon2PermuteBabyBear(output, array));
+            .push(DslIr::CircuitV2Poseidon2PermuteBabyBearSkinny(
+                output, array,
+            ));
         output
     }
     /// Applies the Poseidon2 permutation to the given array using the wide precompile.
