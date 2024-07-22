@@ -86,7 +86,7 @@ jobs:
       # https://github.com/docker/build-push-action
       # https://github.com/docker/build-push-action/blob/master/docs/advanced/cache.md
       - name: Build and push Docker image
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile.gnark-ffi
