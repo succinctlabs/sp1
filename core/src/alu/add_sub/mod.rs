@@ -171,7 +171,7 @@ impl AddSubChip {
     ) {
         let is_add = event.opcode == Opcode::ADD;
         cols.shard = F::from_canonical_u32(event.shard);
-        cols.channel = F::from_canonical_u32(event.channel);
+        cols.channel = F::from_canonical_u8(event.channel);
         cols.is_add = F::from_bool(is_add);
         cols.is_sub = F::from_bool(!is_add);
 
@@ -286,7 +286,7 @@ mod tests {
         let mut challenger = config.challenger();
 
         let mut shard = ExecutionRecord::default();
-        for i in 0..1000 {
+        for i in 0..255 {
             let operand_1 = thread_rng().gen_range(0..u32::MAX);
             let operand_2 = thread_rng().gen_range(0..u32::MAX);
             let result = operand_1.wrapping_add(operand_2);
@@ -300,7 +300,7 @@ mod tests {
                 operand_2,
             ));
         }
-        for i in 0..1000 {
+        for i in 0..255 {
             let operand_1 = thread_rng().gen_range(0..u32::MAX);
             let operand_2 = thread_rng().gen_range(0..u32::MAX);
             let result = operand_1.wrapping_sub(operand_2);

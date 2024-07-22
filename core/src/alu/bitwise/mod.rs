@@ -141,7 +141,7 @@ impl BitwiseChip {
         let c = event.c.to_le_bytes();
 
         cols.shard = F::from_canonical_u32(event.shard);
-        cols.channel = F::from_canonical_u32(event.channel);
+        cols.channel = F::from_canonical_u8(event.channel);
         cols.a = Word::from(event.a);
         cols.b = Word::from(event.b);
         cols.c = Word::from(event.c);
@@ -155,10 +155,10 @@ impl BitwiseChip {
                 shard: event.shard,
                 channel: event.channel,
                 opcode: ByteOpcode::from(event.opcode),
-                a1: b_a as u32,
+                a1: b_a as u16,
                 a2: 0,
-                b: b_b as u32,
-                c: b_c as u32,
+                b: b_b,
+                c: b_c,
             };
             blu.add_byte_lookup_event(byte_event);
         }

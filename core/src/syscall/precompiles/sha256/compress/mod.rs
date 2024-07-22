@@ -22,7 +22,7 @@ pub const SHA_COMPRESS_K: [u32; 64] = [
 pub struct ShaCompressEvent {
     pub lookup_id: u128,
     pub shard: u32,
-    pub channel: u32,
+    pub channel: u8,
     pub clk: u32,
     pub w_ptr: u32,
     pub h_ptr: u32,

@@ -106,7 +106,7 @@ impl ShaExtendChip {
             cols.is_real = F::one();
             cols.populate_flags(j);
             cols.shard = F::from_canonical_u32(event.shard);
-            cols.channel = F::from_canonical_u32(event.channel);
+            cols.channel = F::from_canonical_u8(event.channel);
             cols.clk = F::from_canonical_u32(event.clk);
             cols.w_ptr = F::from_canonical_u32(event.w_ptr);
 

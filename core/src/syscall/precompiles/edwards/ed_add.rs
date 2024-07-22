@@ -89,7 +89,7 @@ impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
     fn populate_field_ops<F: PrimeField32>(
         record: &mut impl ByteRecord,
         shard: u32,
-        channel: u32,
+        channel: u8,
         cols: &mut EdAddAssignCols<F>,
         p_x: BigUint,
         p_y: BigUint,
@@ -252,7 +252,7 @@ impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
         // Populate basic columns.
         cols.is_real = F::one();
         cols.shard = F::from_canonical_u32(event.shard);
-        cols.channel = F::from_canonical_u32(event.channel);
+        cols.channel = F::from_canonical_u8(event.channel);
         cols.clk = F::from_canonical_u32(event.clk);
         cols.p_ptr = F::from_canonical_u32(event.p_ptr);
         cols.q_ptr = F::from_canonical_u32(event.q_ptr);
