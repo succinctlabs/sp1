@@ -46,10 +46,6 @@ use crate::memory::MemoryInitializeFinalizeEvent;
 use crate::utils::SP1CoreOpts;
 use crate::{alu::AluEvent, cpu::CpuEvent};
 
-pub trait LookupIdSampler {
-    fn sample(&mut self, num_lookup_ids: usize) -> &[u128];
-}
-
 /// An implementation of a runtime for the SP1 RISC-V zkVM.
 ///
 /// The runtime is responsible for executing a user program and tracing important events which occur
@@ -1291,6 +1287,10 @@ impl<'a> Runtime<'a> {
     }
 }
 
+pub trait LookupIdSampler {
+    fn sample(&mut self, num_lookup_ids: usize) -> &[u128];
+}
+
 impl<'a> LookupIdSampler for Runtime<'a> {
     fn sample(&mut self, num_lookup_ids: usize) -> &[u128] {
         if self.preallocated_random_nums.is_empty()
@@ -1342,8 +1342,8 @@ fn emit_alu(
     let event = AluEvent {
         lookup_id,
         shard,
-        clk,
         channel,
+        clk,
         opcode,
         a,
         b,
