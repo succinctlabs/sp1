@@ -264,6 +264,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let (proof, public_values_stream, cycles) =
             sp1_core::utils::prove_with_context::<_, C::CoreProver>(
                 &self.core_prover,
+                &pk.pk,
                 program,
                 stdin,
                 opts.core_opts,

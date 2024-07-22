@@ -67,7 +67,7 @@ pub struct CpuEvent {
     pub shard: u32,
 
     /// The current channel.
-    pub channel: u32,
+    pub channel: u8,
 
     /// The current clock.
     pub clk: u32,

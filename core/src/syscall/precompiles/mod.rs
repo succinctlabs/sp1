@@ -21,7 +21,7 @@ use serde::{Deserialize, Serialize};
 pub struct ECAddEvent {
     pub lookup_id: u128,
     pub shard: u32,
-    pub channel: u32,
+    pub channel: u8,
     pub clk: u32,
     pub p_ptr: u32,
     pub p: Vec<u32>,
@@ -86,7 +86,7 @@ pub fn create_ec_add_event<E: EllipticCurve>(
 pub struct ECDoubleEvent {
     pub lookup_id: u128,
     pub shard: u32,
-    pub channel: u32,
+    pub channel: u8,
     pub clk: u32,
     pub p_ptr: u32,
     pub p: Vec<u32>,
@@ -136,7 +136,7 @@ pub fn create_ec_double_event<E: EllipticCurve>(
 pub struct ECDecompressEvent {
     pub lookup_id: u128,
     pub shard: u32,
-    pub channel: u32,
+    pub channel: u8,
     pub clk: u32,
     pub ptr: u32,
     pub sign_bit: bool,

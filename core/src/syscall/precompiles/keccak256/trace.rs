@@ -69,7 +69,7 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
                             let cols: &mut KeccakMemCols<F> = row.as_mut_slice().borrow_mut();
 
                             cols.shard = F::from_canonical_u32(shard);
-                            cols.channel = F::from_canonical_u32(channel);
+                            cols.channel = F::from_canonical_u8(channel);
                             cols.clk = F::from_canonical_u32(start_clk);
                             cols.state_addr = F::from_canonical_u32(event.state_addr);
                             cols.is_real = F::one();

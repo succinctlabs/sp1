@@ -172,8 +172,8 @@ impl CpuChip {
             opcode: ByteOpcode::U8Range,
             a1: 0,
             a2: 0,
-            b: a_bytes[0],
-            c: a_bytes[1],
+            b: a_bytes[0] as u8,
+            c: a_bytes[1] as u8,
         });
         blu_events.add_byte_lookup_event(ByteLookupEvent {
             shard: event.shard,
@@ -181,8 +181,8 @@ impl CpuChip {
             opcode: ByteOpcode::U8Range,
             a1: 0,
             a2: 0,
-            b: a_bytes[2],
-            c: a_bytes[3],
+            b: a_bytes[2] as u8,
+            c: a_bytes[3] as u8,
         });
 
         // Populate memory accesses for reading from memory.
@@ -221,13 +221,13 @@ impl CpuChip {
         blu_events: &mut impl ByteRecord,
     ) {
         cols.shard = F::from_canonical_u32(event.shard);
-        cols.channel = F::from_canonical_u32(event.channel);
+        cols.channel = F::from_canonical_u8(event.channel);
         cols.clk = F::from_canonical_u32(event.clk);
 
-        let clk_16bit_limb = event.clk & 0xffff;
-        let clk_8bit_limb = (event.clk >> 16) & 0xff;
-        cols.clk_16bit_limb = F::from_canonical_u32(clk_16bit_limb);
-        cols.clk_8bit_limb = F::from_canonical_u32(clk_8bit_limb);
+        let clk_16bit_limb = (event.clk & 0xffff) as u16;
+        let clk_8bit_limb = ((event.clk >> 16) & 0xff) as u8;
+        cols.clk_16bit_limb = F::from_canonical_u16(clk_16bit_limb);
+        cols.clk_8bit_limb = F::from_canonical_u8(clk_8bit_limb);
 
         cols.channel_selectors.populate(event.channel);
 
@@ -235,7 +235,7 @@ impl CpuChip {
             event.shard,
             event.channel,
             U16Range,
-            event.shard,
+            event.shard as u16,
             0,
             0,
             0,
@@ -256,7 +256,7 @@ impl CpuChip {
             0,
             0,
             0,
-            clk_8bit_limb,
+            clk_8bit_limb as u8,
         ));
     }
 
@@ -410,8 +410,8 @@ impl CpuChip {
                 opcode: ByteOpcode::U8Range,
                 a1: 0,
                 a2: 0,
-                b: byte_pair[0] as u32,
-                c: byte_pair[1] as u32,
+                b: byte_pair[0],
+                c: byte_pair[1],
             });
         }
     }

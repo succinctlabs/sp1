@@ -7,10 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.0.1-test](https://github.com/succinctlabs/sp1/compare/sp1-prover-v0.0.0-test...sp1-prover-v0.0.1-test) - 2024-07-11
+## [1.0.0-rc.1](https://github.com/succinctlabs/sp1/compare/sp1-prover-v1.0.0-rc.1...sp1-prover-v1.0.0-rc.1) - 2024-07-19
 
 ### Added
 
+- 1.0.0-rc.1 ([#1126](https://github.com/succinctlabs/sp1/pull/1126))
+- parallel recursion tracegen ([#1095](https://github.com/succinctlabs/sp1/pull/1095))
+- result instead of exit(1) on trap in recursion ([#1089](https://github.com/succinctlabs/sp1/pull/1089))
 - publish sp1 to crates.io ([#1052](https://github.com/succinctlabs/sp1/pull/1052))
 - critical constraint changes ([#1046](https://github.com/succinctlabs/sp1/pull/1046))
 - suggest prover network if high cycles ([#1019](https://github.com/succinctlabs/sp1/pull/1019))
@@ -93,6 +96,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Other
 
+- prover utilization ([#1100](https://github.com/succinctlabs/sp1/pull/1100))
+- _(deps)_ bump clap from 4.5.8 to 4.5.9 ([#1107](https://github.com/succinctlabs/sp1/pull/1107))
+- use global workspace version ([#1102](https://github.com/succinctlabs/sp1/pull/1102))
+- fix release-plz ([#1088](https://github.com/succinctlabs/sp1/pull/1088))
+- add release-plz ([#1086](https://github.com/succinctlabs/sp1/pull/1086))
 - remove async crates `sp1-prover` ([#1042](https://github.com/succinctlabs/sp1/pull/1042))
 - Merge branch 'dev' into dependabot/cargo/dev/clap-4.5.8
 - _(deps)_ bump serde_json from 1.0.117 to 1.0.120 ([#1001](https://github.com/succinctlabs/sp1/pull/1001))

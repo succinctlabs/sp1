@@ -51,7 +51,7 @@ dependencies = [
 
 [[package]]
 name = "aggregation-script"
-version = "0.0.2-test"
+version = "1.0.0-rc.1"
 dependencies = [
  "hex",
  "sp1-helper",
@@ -394,9 +394,9 @@ checksum = "96d30a06541fbafbc7f82ed10c06164cfbd2c401138f6addd8404629c4b16711"
 
 [[package]]
 name = "async-trait"
-version = "0.1.80"
+version = "0.1.81"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c6fa2087f2753a7da8cc1c0dbfcf89579dd57458e36769de5ac750b4671737ca"
+checksum = "6e0c28dcc82d7c8ead5cb13beb15405b57b8546e93215673ff8ca0349a028107"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -757,13 +757,12 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.0.99"
+version = "1.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "96c51067fd44124faa7f870b4b1c969379ad32b2ba805aa959430ceaa384f695"
+checksum = "2aba8f4e9906c7ce3c73463f62a7f0c65183ada1a2d47e397cc8810827f9694f"
 dependencies = [
  "jobserver",
  "libc",
- "once_cell",
 ]
 
 [[package]]
@@ -783,7 +782,7 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "chess-script"
-version = "0.0.2-test"
+version = "1.0.0-rc.1"
 dependencies = [
  "sp1-helper",
  "sp1-sdk",
@@ -825,9 +824,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.5.8"
+version = "4.5.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "84b3edb18336f4df585bc9aa31dd99c036dfa5dc5e9a2939a722a188f3a8970d"
+checksum = "64acc1846d54c1fe936a78dc189c34e28d3f5afc348403f28ecf53660b9b8462"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -835,9 +834,9 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-version = "4.5.8"
+version = "4.5.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c1c09dd5ada6c6c78075d6fd0da3f90d8080651e2d6cc8eb2f1aaa4034ced708"
+checksum = "6fb8393d67ba2e7bfaf28a23458e4e2b543cc73a99595511eb207fdb8aede942"
 dependencies = [
  "anstream",
  "anstyle",
@@ -1115,7 +1114,7 @@ dependencies = [
 
 [[package]]
 name = "cycle-tracking-script"
-version = "0.0.2-test"
+version = "1.0.0-rc.1"
 dependencies = [
  "sp1-helper",
  "sp1-sdk",
@@ -1729,7 +1728,7 @@ checksum = "28dea519a9695b9977216879a3ebfddf92f1c08c05d984f8996aecd6ecdc811d"
 
 [[package]]
 name = "fibonacci-script"
-version = "0.0.2-test"
+version = "1.0.0-rc.1"
 dependencies = [
  "itertools 0.12.1",
  "sha2 0.10.8",
@@ -2463,7 +2462,7 @@ dependencies = [
 
 [[package]]
 name = "io-script"
-version = "0.0.2-test"
+version = "1.0.0-rc.1"
 dependencies = [
  "serde",
  "sp1-helper",
@@ -2478,7 +2477,7 @@ checksum = "8f518f335dce6725a761382244631d86cf0ccb2863413590b31338feb467f9c3"
 
 [[package]]
 name = "is-prime-script"
-version = "0.0.2-test"
+version = "1.0.0-rc.1"
 dependencies = [
  "sp1-sdk",
 ]
@@ -2542,7 +2541,7 @@ dependencies = [
 
 [[package]]
 name = "json-script"
-version = "0.0.2-test"
+version = "1.0.0-rc.1"
 dependencies = [
  "lib",
  "serde",
@@ -2629,7 +2628,7 @@ checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
 
 [[package]]
 name = "lib"
-version = "0.0.2-test"
+version = "1.0.0-rc.1"
 dependencies = [
  "serde",
 ]
@@ -3023,6 +3022,12 @@ name = "once_cell"
 version = "1.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3fdb12b2476b595f9358c5161aa467c2438859caa136dec86c26fdd2efe17b92"
+
+[[package]]
+name = "oneshot"
+version = "0.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e296cf87e61c9cfc1a61c3c63a0f7f286ed4554e0e22be84e8a38e1d264a2a29"
 
 [[package]]
 name = "opaque-debug"
@@ -3478,7 +3483,7 @@ checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
 name = "patch-testing-script"
-version = "0.0.2-test"
+version = "1.0.0-rc.1"
 dependencies = [
  "ed25519-consensus",
  "rand",
@@ -3978,7 +3983,7 @@ dependencies = [
 
 [[package]]
 name = "regex-script"
-version = "0.0.2-test"
+version = "1.0.0-rc.1"
 dependencies = [
  "sp1-helper",
  "sp1-sdk",
@@ -4205,7 +4210,7 @@ dependencies = [
 
 [[package]]
 name = "rsa-script"
-version = "0.0.2-test"
+version = "1.0.0-rc.1"
 dependencies = [
  "rsa",
  "sp1-helper",
@@ -4805,7 +4810,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-build"
-version = "0.0.2-test"
+version = "1.0.0-rc.1"
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -4814,7 +4819,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core"
-version = "0.0.2-test"
+version = "1.0.0-rc.1"
 dependencies = [
  "anyhow",
  "arrayref",
@@ -4874,7 +4879,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-derive"
-version = "0.0.2-test"
+version = "1.0.0-rc.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4883,7 +4888,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-helper"
-version = "0.0.2-test"
+version = "1.0.0-rc.1"
 dependencies = [
  "cargo_metadata",
  "chrono",
@@ -4892,7 +4897,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "0.0.2-test"
+version = "1.0.0-rc.1"
 dependencies = [
  "itertools 0.13.0",
  "lazy_static",
@@ -4904,7 +4909,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-prover"
-version = "0.0.2-test"
+version = "1.0.0-rc.1"
 dependencies = [
  "anyhow",
  "bincode",
@@ -4913,6 +4918,7 @@ dependencies = [
  "hex",
  "itertools 0.13.0",
  "num-bigint 0.4.6",
+ "oneshot",
  "p3-baby-bear",
  "p3-bn254-fr",
  "p3-challenger",
@@ -4938,7 +4944,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-circuit"
-version = "0.0.2-test"
+version = "1.0.0-rc.1"
 dependencies = [
  "bincode",
  "itertools 0.13.0",
@@ -4960,7 +4966,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-compiler"
-version = "0.0.2-test"
+version = "1.0.0-rc.1"
 dependencies = [
  "backtrace",
  "itertools 0.13.0",
@@ -4984,7 +4990,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-core"
-version = "0.0.2-test"
+version = "1.0.0-rc.1"
 dependencies = [
  "arrayref",
  "backtrace",
@@ -5018,7 +5024,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-derive"
-version = "0.0.2-test"
+version = "1.0.0-rc.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5027,7 +5033,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-gnark-ffi"
-version = "0.0.2-test"
+version = "1.0.0-rc.1"
 dependencies = [
  "anyhow",
  "bincode",
@@ -5051,7 +5057,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-program"
-version = "0.0.2-test"
+version = "1.0.0-rc.1"
 dependencies = [
  "itertools 0.13.0",
  "p3-air",
@@ -5079,7 +5085,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-sdk"
-version = "0.0.2-test"
+version = "1.0.0-rc.1"
 dependencies = [
  "alloy-sol-types",
  "anyhow",
@@ -5153,7 +5159,7 @@ dependencies = [
 
 [[package]]
 name = "ssz-withdrawals-script"
-version = "0.0.2-test"
+version = "1.0.0-rc.1"
 dependencies = [
  "sp1-helper",
  "sp1-sdk",
@@ -5389,7 +5395,7 @@ dependencies = [
 
 [[package]]
 name = "tendermint-script"
-version = "0.0.2-test"
+version = "1.0.0-rc.1"
 dependencies = [
  "bincode",
  "itertools 0.12.1",

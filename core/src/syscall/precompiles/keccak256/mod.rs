@@ -17,7 +17,7 @@ const STATE_NUM_WORDS: usize = STATE_SIZE * 2;
 pub struct KeccakPermuteEvent {
     pub lookup_id: u128,
     pub shard: u32,
-    pub channel: u32,
+    pub channel: u8,
     pub clk: u32,
     pub pre_state: [u64; STATE_SIZE],
     pub post_state: [u64; STATE_SIZE],

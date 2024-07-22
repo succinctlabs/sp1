@@ -41,7 +41,7 @@ jobs:
       - name: Log into registry ${{ env.REGISTRY }}
         # Ensure this doesn't trigger on PR's
         if: github.event_name != 'pull_request'
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -51,7 +51,7 @@ jobs:
       # https://github.com/docker/metadata-action
       - name: Extract Docker metadata
         id: meta
-        uses: docker/metadata-action@v4
+        uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
 
@@ -83,7 +83,7 @@ jobs:
       # https://github.com/docker/build-push-action
       # https://github.com/docker/build-push-action/blob/master/docs/advanced/cache.md
       - name: Build and push Docker image
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@v6
         with:
           context: ./cli/docker
           file: ./cli/docker/Dockerfile

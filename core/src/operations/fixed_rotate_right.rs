@@ -44,7 +44,7 @@ impl<F: Field> FixedRotateRightOperation<F> {
         &mut self,
         record: &mut impl ByteRecord,
         shard: u32,
-        channel: u32,
+        channel: u8,
         input: u32,
         rotation: usize,
     ) -> u32 {
@@ -78,10 +78,10 @@ impl<F: Field> FixedRotateRightOperation<F> {
                 shard,
                 channel,
                 opcode: ByteOpcode::ShrCarry,
-                a1: shift as u32,
-                a2: carry as u32,
-                b: b as u32,
-                c: c as u32,
+                a1: shift as u16,
+                a2: carry,
+                b,
+                c,
             };
             record.add_byte_lookup_event(byte_event);
 

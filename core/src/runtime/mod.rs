@@ -287,7 +287,7 @@ impl<'a> Runtime<'a> {
     }
 
     #[inline]
-    pub fn channel(&self) -> u32 {
+    pub fn channel(&self) -> u8 {
         self.state.channel
     }
 
@@ -456,7 +456,7 @@ impl<'a> Runtime<'a> {
     fn emit_cpu(
         &mut self,
         shard: u32,
-        channel: u32,
+        channel: u8,
         clk: u32,
         pc: u32,
         next_pc: u32,

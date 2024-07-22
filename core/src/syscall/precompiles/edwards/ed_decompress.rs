@@ -55,7 +55,7 @@ use super::{WordsFieldElement, WORDS_FIELD_ELEMENT};
 pub struct EdDecompressEvent {
     pub lookup_id: u128,
     pub shard: u32,
-    pub channel: u32,
+    pub channel: u8,
     pub clk: u32,
     pub ptr: u32,
     pub sign: bool,
@@ -103,7 +103,7 @@ impl<F: PrimeField32> EdDecompressCols<F> {
         let mut new_byte_lookup_events = Vec::new();
         self.is_real = F::from_bool(true);
         self.shard = F::from_canonical_u32(event.shard);
-        self.channel = F::from_canonical_u32(event.channel);
+        self.channel = F::from_canonical_u8(event.channel);
         self.clk = F::from_canonical_u32(event.clk);
         self.ptr = F::from_canonical_u32(event.ptr);
         self.nonce = F::from_canonical_u32(
@@ -137,7 +137,7 @@ impl<F: PrimeField32> EdDecompressCols<F> {
         &mut self,
         blu_events: &mut Vec<ByteLookupEvent>,
         shard: u32,
-        channel: u32,
+        channel: u8,
         y: &BigUint,
     ) {
         let one = BigUint::one();
