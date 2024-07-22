@@ -1,7 +1,64 @@
+use std::array;
+
 use serde::{Deserialize, Serialize};
 
 use crate::runtime::Instruction;
+use crate::runtime::LookupIdSampler;
 use crate::runtime::MemoryRecordEnum;
+use crate::runtime::Opcode;
+
+#[derive(Default, Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum LookupIds {
+    #[default]
+    /// Used for the default value of no lookupids.
+    DefaultLookupIds,
+    AluLookupId(u128),
+    SyscallLookupId(u128),
+    MemoryLookupIds([u128; 2]),
+    BranchLookupIds([u128; 3]),
+    JumpLookupIds([u128; 2]),
+    AuipcLookupId(u128),
+}
+
+impl LookupIds {
+    pub fn new(instr: Instruction, rng_sampler: &mut impl LookupIdSampler) -> Self {
+        let num_lookup_ids = if instr.is_alu_instruction()
+            || instr.is_ecall_instruction()
+            || instr.opcode == Opcode::AUIPC
+        {
+            1
+        } else if instr.is_branch_instruction() {
+            3
+        } else if instr.is_jump_instruction() || instr.is_memory_instruction() {
+            2
+        } else {
+            0
+        };
+
+        let lookup_ids = rng_sampler.sample(num_lookup_ids);
+
+        if instr.is_alu_instruction() {
+            LookupIds::AluLookupId(lookup_ids[0])
+        } else if instr.is_ecall_instruction() {
+            LookupIds::SyscallLookupId(lookup_ids[0])
+        } else if instr.is_memory_instruction() {
+            LookupIds::MemoryLookupIds([lookup_ids[0], lookup_ids[1]])
+        } else if instr.is_branch_instruction() {
+            LookupIds::BranchLookupIds([lookup_ids[0], lookup_ids[1], lookup_ids[2]])
+        } else if instr.is_jump_instruction() {
+            LookupIds::JumpLookupIds([lookup_ids[0], lookup_ids[1]])
+        } else if instr.opcode == Opcode::AUIPC {
+            LookupIds::AuipcLookupId(lookup_ids[0])
+        } else {
+            LookupIds::DefaultLookupIds
+        }
+    }
+
+    pub fn new_sublookups(rng_sampler: &mut impl LookupIdSampler) -> [u128; 6] {
+        let lookup_ids = rng_sampler.sample(6);
+        array::from_fn(|i| lookup_ids[i])
+    }
+}
 
 /// A standard format for describing CPU operations that need to be proven.
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
@@ -52,14 +109,5 @@ pub struct CpuEvent {
     /// Exit code called with halt.
     pub exit_code: u32,
 
-    pub alu_lookup_id: u128,
-    pub syscall_lookup_id: u128,
-    pub memory_add_lookup_id: u128,
-    pub memory_sub_lookup_id: u128,
-    pub branch_gt_lookup_id: u128,
-    pub branch_lt_lookup_id: u128,
-    pub branch_add_lookup_id: u128,
-    pub jump_jal_lookup_id: u128,
-    pub jump_jalr_lookup_id: u128,
-    pub auipc_lookup_id: u128,
+    pub lookup_ids: LookupIds,
 }

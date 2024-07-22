@@ -19,7 +19,10 @@ pub use hooks::*;
 pub use instruction::*;
 pub use memory::*;
 pub use opcode::*;
+use p3_maybe_rayon::prelude::ParallelBridge;
+use p3_maybe_rayon::prelude::ParallelIterator;
 pub use program::*;
+use rand::Rng;
 pub use record::*;
 pub use register::*;
 pub use report::*;
@@ -37,12 +40,15 @@ use std::sync::Arc;
 
 use thiserror::Error;
 
-use crate::alu::create_alu_lookup_id;
-use crate::alu::create_alu_lookups;
 use crate::bytes::NUM_BYTE_LOOKUP_CHANNELS;
+use crate::cpu::LookupIds;
 use crate::memory::MemoryInitializeFinalizeEvent;
 use crate::utils::SP1CoreOpts;
 use crate::{alu::AluEvent, cpu::CpuEvent};
+
+pub trait LookupIdSampler {
+    fn sample(&mut self, num_lookup_ids: usize) -> &[u128];
+}
 
 /// An implementation of a runtime for the SP1 RISC-V zkVM.
 ///
@@ -116,6 +122,9 @@ pub struct Runtime<'a> {
 
     /// The maximum number of cpu cycles to use for execution.
     pub max_cycles: Option<u64>,
+
+    pub preallocated_random_nums: Vec<u128>,
+    pub preallocated_random_nums_idx: usize,
 }
 
 #[derive(Error, Debug)]
@@ -133,6 +142,8 @@ pub enum ExecutionError {
     #[error("got unimplemented as opcode")]
     Unimplemented(),
 }
+
+const NUM_PREALLOCATED_RANDOM_NUMS: usize = 1_000_000;
 
 impl<'a> Runtime<'a> {
     // Create a new runtime from a program and options.
@@ -194,6 +205,8 @@ impl<'a> Runtime<'a> {
             hook_registry,
             opts,
             max_cycles: context.max_cycles,
+            preallocated_random_nums: Vec::with_capacity(NUM_PREALLOCATED_RANDOM_NUMS),
+            preallocated_random_nums_idx: 0,
         }
     }
 
@@ -431,6 +444,7 @@ impl<'a> Runtime<'a> {
 
     /// Emit a CPU event.
     #[allow(clippy::too_many_arguments)]
+    #[inline]
     fn emit_cpu(
         &mut self,
         shard: u32,
@@ -445,8 +459,7 @@ impl<'a> Runtime<'a> {
         memory_store_value: Option<u32>,
         record: MemoryAccessRecord,
         exit_code: u32,
-        lookup_id: u128,
-        syscall_lookup_id: u128,
+        lookup_ids: LookupIds,
     ) {
         let cpu_event = CpuEvent {
             shard,
@@ -464,23 +477,19 @@ impl<'a> Runtime<'a> {
             memory: memory_store_value,
             memory_record: record.memory,
             exit_code,
-            alu_lookup_id: lookup_id,
-            syscall_lookup_id,
-            memory_add_lookup_id: create_alu_lookup_id(),
-            memory_sub_lookup_id: create_alu_lookup_id(),
-            branch_lt_lookup_id: create_alu_lookup_id(),
-            branch_gt_lookup_id: create_alu_lookup_id(),
-            branch_add_lookup_id: create_alu_lookup_id(),
-            jump_jal_lookup_id: create_alu_lookup_id(),
-            jump_jalr_lookup_id: create_alu_lookup_id(),
-            auipc_lookup_id: create_alu_lookup_id(),
+            lookup_ids,
         };
 
         self.record.cpu_events.push(cpu_event);
     }
 
     /// Emit an ALU event.
-    fn emit_alu(&mut self, clk: u32, opcode: Opcode, a: u32, b: u32, c: u32, lookup_id: u128) {
+    fn emit_alu(&mut self, clk: u32, opcode: Opcode, a: u32, b: u32, c: u32, lookup_id: LookupIds) {
+        let lookup_id = match lookup_id {
+            LookupIds::AluLookupId(lookup_id) => lookup_id,
+            _ => panic!("Expected AluLookupIds"),
+        };
+
         let event = AluEvent {
             lookup_id,
             shard: self.shard(),
@@ -490,8 +499,9 @@ impl<'a> Runtime<'a> {
             a,
             b,
             c,
-            sub_lookups: create_alu_lookups(),
+            sub_lookups: LookupIds::new_sublookups(self),
         };
+
         match opcode {
             Opcode::ADD => {
                 self.record.add_events.push(event);
@@ -551,12 +561,13 @@ impl<'a> Runtime<'a> {
         a: u32,
         b: u32,
         c: u32,
-        lookup_id: u128,
+        lookup_id: LookupIds,
     ) {
         self.rw(rd, a);
         if self.emit_events {
             self.emit_alu(self.state.clk, instruction.opcode, a, b, c, lookup_id);
         }
+        self.state.num_alu_events += 1;
     }
 
     /// Fetch the input operand values for a load instruction.
@@ -608,9 +619,6 @@ impl<'a> Runtime<'a> {
         let mut memory_store_value: Option<u32> = None;
         self.memory_accesses = MemoryAccessRecord::default();
 
-        let lookup_id = create_alu_lookup_id();
-        let syscall_lookup_id = create_alu_lookup_id();
-
         if self.print_report && !self.unconstrained {
             self.report
                 .opcode_counts
@@ -619,57 +627,59 @@ impl<'a> Runtime<'a> {
                 .or_insert(1);
         }
 
+        let lookup_ids = LookupIds::new(instruction, self);
+
         match instruction.opcode {
             // Arithmetic instructions.
             Opcode::ADD => {
                 (rd, b, c) = self.alu_rr(instruction);
                 a = b.wrapping_add(c);
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+                self.alu_rw(instruction, rd, a, b, c, lookup_ids);
             }
             Opcode::SUB => {
                 (rd, b, c) = self.alu_rr(instruction);
                 a = b.wrapping_sub(c);
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+                self.alu_rw(instruction, rd, a, b, c, lookup_ids);
             }
             Opcode::XOR => {
                 (rd, b, c) = self.alu_rr(instruction);
                 a = b ^ c;
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+                self.alu_rw(instruction, rd, a, b, c, lookup_ids);
             }
             Opcode::OR => {
                 (rd, b, c) = self.alu_rr(instruction);
                 a = b | c;
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+                self.alu_rw(instruction, rd, a, b, c, lookup_ids);
             }
             Opcode::AND => {
                 (rd, b, c) = self.alu_rr(instruction);
                 a = b & c;
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+                self.alu_rw(instruction, rd, a, b, c, lookup_ids);
             }
             Opcode::SLL => {
                 (rd, b, c) = self.alu_rr(instruction);
                 a = b.wrapping_shl(c);
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+                self.alu_rw(instruction, rd, a, b, c, lookup_ids);
             }
             Opcode::SRL => {
                 (rd, b, c) = self.alu_rr(instruction);
                 a = b.wrapping_shr(c);
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+                self.alu_rw(instruction, rd, a, b, c, lookup_ids);
             }
             Opcode::SRA => {
                 (rd, b, c) = self.alu_rr(instruction);
                 a = (b as i32).wrapping_shr(c) as u32;
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+                self.alu_rw(instruction, rd, a, b, c, lookup_ids);
             }
             Opcode::SLT => {
                 (rd, b, c) = self.alu_rr(instruction);
                 a = if (b as i32) < (c as i32) { 1 } else { 0 };
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+                self.alu_rw(instruction, rd, a, b, c, lookup_ids);
             }
             Opcode::SLTU => {
                 (rd, b, c) = self.alu_rr(instruction);
                 a = if b < c { 1 } else { 0 };
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+                self.alu_rw(instruction, rd, a, b, c, lookup_ids);
             }
 
             // Load instructions.
@@ -842,6 +852,10 @@ impl<'a> Runtime<'a> {
                 }
 
                 let syscall_impl = self.get_syscall(syscall).cloned();
+                let syscall_lookup_id = match lookup_ids {
+                    LookupIds::SyscallLookupId(id) => id,
+                    _ => unreachable!(),
+                };
                 let mut precompile_rt = SyscallContext::new(self);
                 precompile_rt.syscall_lookup_id = syscall_lookup_id;
                 let (precompile_next_pc, precompile_cycles, returned_exit_code) =
@@ -894,6 +908,7 @@ impl<'a> Runtime<'a> {
                     }
                     _ => (self.opts.split_opts.deferred_shift_threshold, 1),
                 };
+
                 let nonce = (((*syscall_count as usize) % threshold) * multiplier) as u32;
                 self.record.nonce_lookup.insert(syscall_lookup_id, nonce);
                 *syscall_count += 1;
@@ -906,22 +921,22 @@ impl<'a> Runtime<'a> {
             Opcode::MUL => {
                 (rd, b, c) = self.alu_rr(instruction);
                 a = b.wrapping_mul(c);
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+                self.alu_rw(instruction, rd, a, b, c, lookup_ids);
             }
             Opcode::MULH => {
                 (rd, b, c) = self.alu_rr(instruction);
                 a = (((b as i32) as i64).wrapping_mul((c as i32) as i64) >> 32) as u32;
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+                self.alu_rw(instruction, rd, a, b, c, lookup_ids);
             }
             Opcode::MULHU => {
                 (rd, b, c) = self.alu_rr(instruction);
                 a = ((b as u64).wrapping_mul(c as u64) >> 32) as u32;
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+                self.alu_rw(instruction, rd, a, b, c, lookup_ids);
             }
             Opcode::MULHSU => {
                 (rd, b, c) = self.alu_rr(instruction);
                 a = (((b as i32) as i64).wrapping_mul(c as i64) >> 32) as u32;
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+                self.alu_rw(instruction, rd, a, b, c, lookup_ids);
             }
             Opcode::DIV => {
                 (rd, b, c) = self.alu_rr(instruction);
@@ -930,7 +945,7 @@ impl<'a> Runtime<'a> {
                 } else {
                     a = (b as i32).wrapping_div(c as i32) as u32;
                 }
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+                self.alu_rw(instruction, rd, a, b, c, lookup_ids);
             }
             Opcode::DIVU => {
                 (rd, b, c) = self.alu_rr(instruction);
@@ -939,7 +954,7 @@ impl<'a> Runtime<'a> {
                 } else {
                     a = b.wrapping_div(c);
                 }
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+                self.alu_rw(instruction, rd, a, b, c, lookup_ids);
             }
             Opcode::REM => {
                 (rd, b, c) = self.alu_rr(instruction);
@@ -948,7 +963,7 @@ impl<'a> Runtime<'a> {
                 } else {
                     a = (b as i32).wrapping_rem(c as i32) as u32;
                 }
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+                self.alu_rw(instruction, rd, a, b, c, lookup_ids);
             }
             Opcode::REMU => {
                 (rd, b, c) = self.alu_rr(instruction);
@@ -957,7 +972,7 @@ impl<'a> Runtime<'a> {
                 } else {
                     a = b.wrapping_rem(c);
                 }
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+                self.alu_rw(instruction, rd, a, b, c, lookup_ids);
             }
 
             // See https://github.com/riscv-non-isa/riscv-asm-manual/blob/master/riscv-asm.md#instruction-aliases
@@ -994,10 +1009,10 @@ impl<'a> Runtime<'a> {
                 memory_store_value,
                 self.memory_accesses,
                 exit_code,
-                lookup_id,
-                syscall_lookup_id,
+                lookup_ids,
             );
         };
+        self.state.num_cpu_events += 1;
         Ok(())
     }
 
@@ -1057,8 +1072,10 @@ impl<'a> Runtime<'a> {
     pub fn execute_state(&mut self) -> Result<(ExecutionState, bool), ExecutionError> {
         self.emit_events = false;
         self.print_report = false;
-        let state = self.state.clone();
+        let mut state = self.state.clone();
         let done = self.execute()?;
+        state.num_alu_events = self.state.num_alu_events;
+        state.num_cpu_events = self.state.num_cpu_events;
         Ok((state, done))
     }
 
@@ -1110,6 +1127,18 @@ impl<'a> Runtime<'a> {
         if self.state.global_clk == 0 {
             self.initialize();
         }
+
+        // Preallocate the cpu and alu events vec.
+        if self.emit_events {
+            self.record
+                .cpu_events
+                .reserve(self.state.num_cpu_events as usize);
+            self.record
+                .add_events
+                .reserve(self.state.num_alu_events as usize);
+        }
+        self.state.num_cpu_events = 0;
+        self.state.num_alu_events = 0;
 
         // Loop until we've executed `self.shard_batch_size` shards if `self.shard_batch_size` is set.
         let mut done = false;
@@ -1252,6 +1281,35 @@ impl<'a> Runtime<'a> {
 
     fn get_syscall(&mut self, code: SyscallCode) -> Option<&Arc<dyn Syscall>> {
         self.syscall_map.get(&code)
+    }
+}
+
+impl<'a> LookupIdSampler for Runtime<'a> {
+    fn sample(&mut self, num_lookup_ids: usize) -> &[u128] {
+        if self.preallocated_random_nums.is_empty()
+            || (self.preallocated_random_nums_idx + num_lookup_ids) >= NUM_PREALLOCATED_RANDOM_NUMS
+        {
+            let chunk_size = std::cmp::max(NUM_PREALLOCATED_RANDOM_NUMS / num_cpus::get(), 1);
+            self.preallocated_random_nums = vec![0; NUM_PREALLOCATED_RANDOM_NUMS];
+
+            self.preallocated_random_nums
+                .chunks_mut(chunk_size)
+                .par_bridge()
+                .for_each(|chunk| {
+                    let mut rng = rand::thread_rng();
+                    chunk.iter_mut().for_each(|num| {
+                        *num = rng.gen();
+                    });
+                });
+
+            self.preallocated_random_nums_idx = 0;
+        }
+
+        let rnd_nums = self.preallocated_random_nums
+            [self.preallocated_random_nums_idx..self.preallocated_random_nums_idx + num_lookup_ids]
+            .as_ref();
+        self.preallocated_random_nums_idx += num_lookup_ids;
+        rnd_nums
     }
 }
 

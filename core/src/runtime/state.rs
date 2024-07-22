@@ -75,6 +75,10 @@ pub struct ExecutionState {
 
     /// Keeps track of how many times a certain syscall has been called.
     pub syscall_counts: HashMap<SyscallCode, u64>,
+
+    pub num_cpu_events: usize,
+
+    pub num_alu_events: usize,
 }
 
 impl ExecutionState {
@@ -95,6 +99,8 @@ impl ExecutionState {
             proof_stream: Vec::new(),
             proof_stream_ptr: 0,
             syscall_counts: HashMap::new(),
+            num_cpu_events: 0,
+            num_alu_events: 0,
         }
     }
 }

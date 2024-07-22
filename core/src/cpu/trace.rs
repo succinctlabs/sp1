@@ -21,6 +21,7 @@ use crate::bytes::event::ByteRecord;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::cpu::columns::CpuCols;
 use crate::cpu::trace::ByteOpcode::{U16Range, U8Range};
+use crate::cpu::LookupIds;
 use crate::disassembler::WORD_SIZE;
 use crate::memory::MemoryCols;
 use crate::runtime::{ExecutionRecord, Opcode, Program};
@@ -123,9 +124,13 @@ impl CpuChip {
         self.populate_shard_clk(cols, event, blu_events);
 
         // Populate the nonce.
+        let alu_lookup_id = match event.lookup_ids {
+            LookupIds::AluLookupId(id) => id,
+            _ => panic!("Expected AluLookupId"),
+        };
         cols.nonce = F::from_canonical_u32(
             nonce_lookup
-                .get(&event.alu_lookup_id)
+                .get(&alu_lookup_id)
                 .copied()
                 .unwrap_or_default(),
         );
@@ -291,8 +296,12 @@ impl CpuChip {
         memory_columns.aa_least_sig_byte_decomp = array::from_fn(|i| F::from_bool(bits[i + 2]));
 
         // Add event to ALU check to check that addr == b + c
+        let (memory_add_lookup_id, memory_sub_lookup_id) = match event.lookup_ids {
+            LookupIds::MemoryLookupIds([add_id, sub_id]) => (add_id, sub_id),
+            _ => panic!("Expected MemoryLookupIds"),
+        };
         let add_event = AluEvent {
-            lookup_id: event.memory_add_lookup_id,
+            lookup_id: memory_add_lookup_id,
             shard: event.shard,
             channel: event.channel,
             clk: event.clk,
@@ -308,7 +317,7 @@ impl CpuChip {
             .or_insert(vec![add_event]);
         memory_columns.addr_word_nonce = F::from_canonical_u32(
             nonce_lookup
-                .get(&event.memory_add_lookup_id)
+                .get(&memory_add_lookup_id)
                 .copied()
                 .unwrap_or_default(),
         );
@@ -365,7 +374,7 @@ impl CpuChip {
                 if memory_columns.most_sig_byte_decomp[7] == F::one() {
                     cols.mem_value_is_neg = F::one();
                     let sub_event = AluEvent {
-                        lookup_id: event.memory_sub_lookup_id,
+                        lookup_id: memory_sub_lookup_id,
                         channel: event.channel,
                         shard: event.shard,
                         clk: event.clk,
@@ -377,7 +386,7 @@ impl CpuChip {
                     };
                     cols.unsigned_mem_val_nonce = F::from_canonical_u32(
                         nonce_lookup
-                            .get(&event.memory_sub_lookup_id)
+                            .get(&memory_sub_lookup_id)
                             .copied()
                             .unwrap_or_default(),
                     );
@@ -438,9 +447,15 @@ impl CpuChip {
                 Opcode::SLTU
             };
 
+            let (branch_lt_lookup_id, branch_gt_lookup_id, branch_add_lookup_id) =
+                match event.lookup_ids {
+                    LookupIds::BranchLookupIds([lt_id, gt_id, add_id]) => (lt_id, gt_id, add_id),
+                    _ => panic!("Expected BranchLookupIds"),
+                };
+
             // Add the ALU events for the comparisons
             let lt_comp_event = AluEvent {
-                lookup_id: event.branch_lt_lookup_id,
+                lookup_id: branch_lt_lookup_id,
                 shard: event.shard,
                 channel: event.channel,
                 clk: event.clk,
@@ -452,7 +467,7 @@ impl CpuChip {
             };
             branch_columns.a_lt_b_nonce = F::from_canonical_u32(
                 nonce_lookup
-                    .get(&event.branch_lt_lookup_id)
+                    .get(&branch_lt_lookup_id)
                     .copied()
                     .unwrap_or_default(),
             );
@@ -463,7 +478,7 @@ impl CpuChip {
                 .or_insert(vec![lt_comp_event]);
 
             let gt_comp_event = AluEvent {
-                lookup_id: event.branch_gt_lookup_id,
+                lookup_id: branch_gt_lookup_id,
                 shard: event.shard,
                 channel: event.channel,
                 clk: event.clk,
@@ -475,7 +490,7 @@ impl CpuChip {
             };
             branch_columns.a_gt_b_nonce = F::from_canonical_u32(
                 nonce_lookup
-                    .get(&event.branch_gt_lookup_id)
+                    .get(&branch_gt_lookup_id)
                     .copied()
                     .unwrap_or_default(),
             );
@@ -507,7 +522,7 @@ impl CpuChip {
                 cols.branching = F::one();
 
                 let add_event = AluEvent {
-                    lookup_id: event.branch_add_lookup_id,
+                    lookup_id: branch_add_lookup_id,
                     shard: event.shard,
                     channel: event.channel,
                     clk: event.clk,
@@ -519,7 +534,7 @@ impl CpuChip {
                 };
                 branch_columns.next_pc_nonce = F::from_canonical_u32(
                     nonce_lookup
-                        .get(&event.branch_add_lookup_id)
+                        .get(&branch_add_lookup_id)
                         .copied()
                         .unwrap_or_default(),
                 );
@@ -545,6 +560,11 @@ impl CpuChip {
         if event.instruction.is_jump_instruction() {
             let jump_columns = cols.opcode_specific_columns.jump_mut();
 
+            let (jump_jal_lookup_id, jump_jalr_lookup_id) = match event.lookup_ids {
+                LookupIds::JumpLookupIds([jal_id, jalr_id]) => (jal_id, jalr_id),
+                _ => panic!("Expected JumpLookupIds"),
+            };
+
             match event.instruction.opcode {
                 Opcode::JAL => {
                     let next_pc = event.pc.wrapping_add(event.b);
@@ -555,7 +575,7 @@ impl CpuChip {
                     jump_columns.next_pc_range_checker.populate(next_pc);
 
                     let add_event = AluEvent {
-                        lookup_id: event.jump_jal_lookup_id,
+                        lookup_id: jump_jal_lookup_id,
                         shard: event.shard,
                         channel: event.channel,
                         clk: event.clk,
@@ -567,7 +587,7 @@ impl CpuChip {
                     };
                     jump_columns.jal_nonce = F::from_canonical_u32(
                         nonce_lookup
-                            .get(&event.jump_jal_lookup_id)
+                            .get(&jump_jal_lookup_id)
                             .copied()
                             .unwrap_or_default(),
                     );
@@ -584,7 +604,7 @@ impl CpuChip {
                     jump_columns.next_pc_range_checker.populate(next_pc);
 
                     let add_event = AluEvent {
-                        lookup_id: event.jump_jalr_lookup_id,
+                        lookup_id: jump_jalr_lookup_id,
                         shard: event.shard,
                         channel: event.channel,
                         clk: event.clk,
@@ -596,7 +616,7 @@ impl CpuChip {
                     };
                     jump_columns.jalr_nonce = F::from_canonical_u32(
                         nonce_lookup
-                            .get(&event.jump_jalr_lookup_id)
+                            .get(&jump_jalr_lookup_id)
                             .copied()
                             .unwrap_or_default(),
                     );
@@ -625,8 +645,13 @@ impl CpuChip {
             auipc_columns.pc = Word::from(event.pc);
             auipc_columns.pc_range_checker.populate(event.pc);
 
+            let auipc_lookup_id = match event.lookup_ids {
+                LookupIds::AuipcLookupId(id) => id,
+                _ => panic!("Expected AuipcLookupId"),
+            };
+
             let add_event = AluEvent {
-                lookup_id: event.auipc_lookup_id,
+                lookup_id: auipc_lookup_id,
                 shard: event.shard,
                 channel: event.channel,
                 clk: event.clk,
@@ -638,7 +663,7 @@ impl CpuChip {
             };
             auipc_columns.auipc_nonce = F::from_canonical_u32(
                 nonce_lookup
-                    .get(&event.auipc_lookup_id)
+                    .get(&auipc_lookup_id)
                     .copied()
                     .unwrap_or_default(),
             );
@@ -710,10 +735,14 @@ impl CpuChip {
                 ecall_cols.index_bitmap[digest_idx] = F::one();
             }
 
+            let syscall_lookup_id = match event.lookup_ids {
+                LookupIds::SyscallLookupId(id) => id,
+                _ => panic!("Expected SyscallLookupId"),
+            };
             // Write the syscall nonce.
             ecall_cols.syscall_nonce = F::from_canonical_u32(
                 nonce_lookup
-                    .get(&event.syscall_lookup_id)
+                    .get(&syscall_lookup_id)
                     .copied()
                     .unwrap_or_default(),
             );
