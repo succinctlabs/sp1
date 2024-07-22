@@ -46,6 +46,8 @@ use crate::memory::MemoryInitializeFinalizeEvent;
 use crate::utils::SP1CoreOpts;
 use crate::{alu::AluEvent, cpu::CpuEvent};
 
+const NUM_PREALLOCATED_RANDOM_NUMS: usize = 1_000_000;
+
 /// An implementation of a runtime for the SP1 RISC-V zkVM.
 ///
 /// The runtime is responsible for executing a user program and tracing important events which occur
@@ -119,9 +121,13 @@ pub struct Runtime<'a> {
     /// The maximum number of cpu cycles to use for execution.
     pub max_cycles: Option<u64>,
 
-    pub preallocated_random_nums: Vec<u128>,
-    pub preallocated_random_nums_idx: usize,
+    // The preallocated lookup ids.
+    pub preallocated_lookup_ids: Vec<u128>,
 
+    // The index of the next preallocated lookup id.
+    pub preallocated_lookup_ids_idx: usize,
+
+    // The event counts for the current execution.
     pub event_counts: EventCounts,
 }
 
@@ -140,8 +146,6 @@ pub enum ExecutionError {
     #[error("got unimplemented as opcode")]
     Unimplemented(),
 }
-
-const NUM_PREALLOCATED_RANDOM_NUMS: usize = 1_000_000;
 
 impl<'a> Runtime<'a> {
     // Create a new runtime from a program and options.
@@ -212,8 +216,8 @@ impl<'a> Runtime<'a> {
             hook_registry,
             opts,
             max_cycles: context.max_cycles,
-            preallocated_random_nums: Vec::with_capacity(NUM_PREALLOCATED_RANDOM_NUMS),
-            preallocated_random_nums_idx: 0,
+            preallocated_lookup_ids: Vec::with_capacity(NUM_PREALLOCATED_RANDOM_NUMS),
+            preallocated_lookup_ids_idx: 0,
             event_counts: EventCounts::default(),
         }
     }
@@ -1293,13 +1297,13 @@ pub trait LookupIdSampler {
 
 impl<'a> LookupIdSampler for Runtime<'a> {
     fn sample(&mut self, num_lookup_ids: usize) -> &[u128] {
-        if self.preallocated_random_nums.is_empty()
-            || (self.preallocated_random_nums_idx + num_lookup_ids) >= NUM_PREALLOCATED_RANDOM_NUMS
+        if self.preallocated_lookup_ids.is_empty()
+            || (self.preallocated_lookup_ids_idx + num_lookup_ids) >= NUM_PREALLOCATED_RANDOM_NUMS
         {
             let chunk_size = std::cmp::max(NUM_PREALLOCATED_RANDOM_NUMS / num_cpus::get(), 1);
-            self.preallocated_random_nums = vec![0; NUM_PREALLOCATED_RANDOM_NUMS];
+            self.preallocated_lookup_ids = vec![0; NUM_PREALLOCATED_RANDOM_NUMS];
 
-            self.preallocated_random_nums
+            self.preallocated_lookup_ids
                 .chunks_mut(chunk_size)
                 .par_bridge()
                 .for_each(|chunk| {
@@ -1309,13 +1313,13 @@ impl<'a> LookupIdSampler for Runtime<'a> {
                     });
                 });
 
-            self.preallocated_random_nums_idx = 0;
+            self.preallocated_lookup_ids_idx = 0;
         }
 
-        let rnd_nums = self.preallocated_random_nums
-            [self.preallocated_random_nums_idx..self.preallocated_random_nums_idx + num_lookup_ids]
+        let rnd_nums = self.preallocated_lookup_ids
+            [self.preallocated_lookup_ids_idx..self.preallocated_lookup_ids_idx + num_lookup_ids]
             .as_ref();
-        self.preallocated_random_nums_idx += num_lookup_ids;
+        self.preallocated_lookup_ids_idx += num_lookup_ids;
         rnd_nums
     }
 }
