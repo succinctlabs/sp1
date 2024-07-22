@@ -44,7 +44,7 @@ jobs:
       - name: Log into registry ${{ env.REGISTRY }}
         # Ensure this doesn't trigger on PR's
         if: github.event_name != 'pull_request'
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
