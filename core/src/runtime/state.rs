@@ -75,10 +75,6 @@ pub struct ExecutionState {
 
     /// Keeps track of how many times a certain syscall has been called.
     pub syscall_counts: HashMap<SyscallCode, u64>,
-
-    pub num_cpu_events: usize,
-
-    pub num_alu_events: usize,
 }
 
 impl ExecutionState {
@@ -99,8 +95,6 @@ impl ExecutionState {
             proof_stream: Vec::new(),
             proof_stream_ptr: 0,
             syscall_counts: HashMap::new(),
-            num_cpu_events: 0,
-            num_alu_events: 0,
         }
     }
 }
@@ -138,4 +132,17 @@ impl ExecutionState {
         writer.seek(std::io::SeekFrom::Start(0))?;
         Ok(())
     }
+}
+
+#[derive(Debug, Clone, Default, Copy, PartialEq, Eq)]
+pub struct EventCounts {
+    pub(crate) num_cpu_events: usize,
+    pub(crate) num_add_events: usize,
+    pub(crate) num_sub_events: usize,
+    pub(crate) num_bitwise_events: usize,
+    pub(crate) num_shift_left_events: usize,
+    pub(crate) num_shift_right_events: usize,
+    pub(crate) num_lt_events: usize,
+    pub(crate) num_mul_events: usize,
+    pub(crate) num_divrem_events: usize,
 }

@@ -7,17 +7,17 @@ use crate::runtime::LookupIdSampler;
 use crate::runtime::MemoryRecordEnum;
 use crate::runtime::Opcode;
 
-#[derive(Default, Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum LookupIds {
-    #[default]
-    /// Used for the default value of no lookupids.
-    DefaultLookupIds,
     AluLookupId(u128),
     SyscallLookupId(u128),
     MemoryLookupIds([u128; 2]),
     BranchLookupIds([u128; 3]),
     JumpLookupIds([u128; 2]),
     AuipcLookupId(u128),
+
+    /// Used for the case of value of no lookupids.
+    DefaultLookupIds,
 }
 
 impl LookupIds {

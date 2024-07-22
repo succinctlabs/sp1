@@ -125,6 +125,8 @@ pub struct Runtime<'a> {
 
     pub preallocated_random_nums: Vec<u128>,
     pub preallocated_random_nums_idx: usize,
+
+    pub event_counts: EventCounts,
 }
 
 #[derive(Error, Debug)]
@@ -159,6 +161,15 @@ impl<'a> Runtime<'a> {
         // Create a default record with the program.
         let record = ExecutionRecord {
             program: program.clone(),
+            cpu_events: Vec::with_capacity(opts.event_counts.num_cpu_events),
+            add_events: Vec::with_capacity(opts.event_counts.num_add_events),
+            sub_events: Vec::with_capacity(opts.event_counts.num_sub_events),
+            bitwise_events: Vec::with_capacity(opts.event_counts.num_bitwise_events),
+            shift_left_events: Vec::with_capacity(opts.event_counts.num_shift_left_events),
+            shift_right_events: Vec::with_capacity(opts.event_counts.num_shift_right_events),
+            lt_events: Vec::with_capacity(opts.event_counts.num_lt_events),
+            mul_events: Vec::with_capacity(opts.event_counts.num_mul_events),
+            divrem_events: Vec::with_capacity(opts.event_counts.num_divrem_events),
             ..Default::default()
         };
 
@@ -207,6 +218,7 @@ impl<'a> Runtime<'a> {
             max_cycles: context.max_cycles,
             preallocated_random_nums: Vec::with_capacity(NUM_PREALLOCATED_RANDOM_NUMS),
             preallocated_random_nums_idx: 0,
+            event_counts: EventCounts::default(),
         }
     }
 
@@ -483,54 +495,6 @@ impl<'a> Runtime<'a> {
         self.record.cpu_events.push(cpu_event);
     }
 
-    /// Emit an ALU event.
-    fn emit_alu(&mut self, clk: u32, opcode: Opcode, a: u32, b: u32, c: u32, lookup_id: LookupIds) {
-        let lookup_id = match lookup_id {
-            LookupIds::AluLookupId(lookup_id) => lookup_id,
-            _ => panic!("Expected AluLookupIds"),
-        };
-
-        let event = AluEvent {
-            lookup_id,
-            shard: self.shard(),
-            clk,
-            channel: self.channel(),
-            opcode,
-            a,
-            b,
-            c,
-            sub_lookups: LookupIds::new_sublookups(self),
-        };
-
-        match opcode {
-            Opcode::ADD => {
-                self.record.add_events.push(event);
-            }
-            Opcode::SUB => {
-                self.record.sub_events.push(event);
-            }
-            Opcode::XOR | Opcode::OR | Opcode::AND => {
-                self.record.bitwise_events.push(event);
-            }
-            Opcode::SLL => {
-                self.record.shift_left_events.push(event);
-            }
-            Opcode::SRL | Opcode::SRA => {
-                self.record.shift_right_events.push(event);
-            }
-            Opcode::SLT | Opcode::SLTU => {
-                self.record.lt_events.push(event);
-            }
-            Opcode::MUL | Opcode::MULHU | Opcode::MULHSU | Opcode::MULH => {
-                self.record.mul_events.push(event);
-            }
-            Opcode::DIVU | Opcode::REMU | Opcode::DIV | Opcode::REM => {
-                self.record.divrem_events.push(event);
-            }
-            _ => {}
-        }
-    }
-
     /// Fetch the destination register and input operand values for an ALU instruction.
     fn alu_rr(&mut self, instruction: Instruction) -> (Register, u32, u32) {
         if !instruction.imm_c {
@@ -564,10 +528,68 @@ impl<'a> Runtime<'a> {
         lookup_id: LookupIds,
     ) {
         self.rw(rd, a);
+
+        let shard = self.shard();
+        let channel = self.channel();
+
+        let sub_lookups = if self.emit_events {
+            LookupIds::new_sublookups(self)
+        } else {
+            [0; 6]
+        };
+
+        let vec_to_add = match instruction.opcode {
+            Opcode::ADD => {
+                self.event_counts.num_add_events += 1;
+                &mut self.record.add_events
+            }
+            Opcode::SUB => {
+                self.event_counts.num_sub_events += 1;
+                &mut self.record.sub_events
+            }
+            Opcode::XOR | Opcode::OR | Opcode::AND => {
+                self.event_counts.num_bitwise_events += 1;
+                &mut self.record.bitwise_events
+            }
+            Opcode::SLL => {
+                self.event_counts.num_shift_left_events += 1;
+                &mut self.record.shift_left_events
+            }
+            Opcode::SRL | Opcode::SRA => {
+                self.event_counts.num_shift_right_events += 1;
+                &mut self.record.shift_right_events
+            }
+            Opcode::SLT | Opcode::SLTU => {
+                self.event_counts.num_lt_events += 1;
+                &mut self.record.lt_events
+            }
+            Opcode::MUL | Opcode::MULHU | Opcode::MULHSU | Opcode::MULH => {
+                self.event_counts.num_mul_events += 1;
+                &mut self.record.mul_events
+            }
+            Opcode::DIVU | Opcode::REMU | Opcode::DIV | Opcode::REM => {
+                self.event_counts.num_divrem_events += 1;
+                &mut self.record.divrem_events
+            }
+            _ => {
+                unreachable!()
+            }
+        };
+
         if self.emit_events {
-            self.emit_alu(self.state.clk, instruction.opcode, a, b, c, lookup_id);
+            emit_alu(
+                self.state.clk,
+                instruction.opcode,
+                a,
+                b,
+                c,
+                lookup_id,
+                shard,
+                channel,
+                vec_to_add,
+                sub_lookups,
+            );
         }
-        self.state.num_alu_events += 1;
     }
 
     /// Fetch the input operand values for a load instruction.
@@ -1011,7 +1033,7 @@ impl<'a> Runtime<'a> {
                 lookup_ids,
             );
         };
-        self.state.num_cpu_events += 1;
+        self.event_counts.num_cpu_events += 1;
         Ok(())
     }
 
@@ -1068,14 +1090,12 @@ impl<'a> Runtime<'a> {
     }
 
     /// Execute up to `self.shard_batch_size` cycles, returning a copy of the prestate and whether the program ended.
-    pub fn execute_state(&mut self) -> Result<(ExecutionState, bool), ExecutionError> {
+    pub fn execute_state(&mut self) -> Result<(ExecutionState, EventCounts, bool), ExecutionError> {
         self.emit_events = false;
         self.print_report = false;
-        let mut state = self.state.clone();
+        let state = self.state.clone();
         let done = self.execute()?;
-        state.num_alu_events = self.state.num_alu_events;
-        state.num_cpu_events = self.state.num_cpu_events;
-        Ok((state, done))
+        Ok((state, self.event_counts, done))
     }
 
     fn initialize(&mut self) {
@@ -1126,18 +1146,6 @@ impl<'a> Runtime<'a> {
         if self.state.global_clk == 0 {
             self.initialize();
         }
-
-        // Preallocate the cpu and alu events vec.
-        if self.emit_events {
-            self.record
-                .cpu_events
-                .reserve(self.state.num_cpu_events as usize);
-            self.record
-                .add_events
-                .reserve(self.state.num_alu_events as usize);
-        }
-        self.state.num_cpu_events = 0;
-        self.state.num_alu_events = 0;
 
         // Loop until we've executed `self.shard_batch_size` shards if `self.shard_batch_size` is set.
         let mut done = false;
@@ -1310,6 +1318,40 @@ impl<'a> LookupIdSampler for Runtime<'a> {
         self.preallocated_random_nums_idx += num_lookup_ids;
         rnd_nums
     }
+}
+
+/// Emit an ALU event.
+#[allow(clippy::too_many_arguments)]
+fn emit_alu(
+    clk: u32,
+    opcode: Opcode,
+    a: u32,
+    b: u32,
+    c: u32,
+    lookup_id: LookupIds,
+    shard: u32,
+    channel: u32,
+    vec_to_add: &mut Vec<AluEvent>,
+    sub_lookups: [u128; 6],
+) {
+    let lookup_id = match lookup_id {
+        LookupIds::AluLookupId(lookup_id) => lookup_id,
+        _ => panic!("Expected AluLookupIds"),
+    };
+
+    let event = AluEvent {
+        lookup_id,
+        shard,
+        clk,
+        channel,
+        opcode,
+        a,
+        b,
+        c,
+        sub_lookups,
+    };
+
+    vec_to_add.push(event);
 }
 
 #[cfg(test)]

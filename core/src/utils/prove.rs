@@ -149,9 +149,10 @@ where
     // Execute the program, saving checkpoints at the start of every `shard_batch_size` cycle range.
     let create_checkpoints_span = tracing::debug_span!("create checkpoints").entered();
     let mut checkpoints = Vec::new();
+    let mut event_counts = Vec::new();
     let (public_values_stream, public_values) = loop {
         // Execute the runtime until we reach a checkpoint.
-        let (checkpoint, done) = runtime
+        let (checkpoint, event_count, done) = runtime
             .execute_state()
             .map_err(SP1CoreProverError::ExecutionError)?;
 
@@ -161,6 +162,7 @@ where
             .save(&mut checkpoint_file)
             .map_err(SP1CoreProverError::IoError)?;
         checkpoints.push(checkpoint_file);
+        event_counts.push(event_count);
 
         // If we've reached the final checkpoint, break out of the loop.
         if done {

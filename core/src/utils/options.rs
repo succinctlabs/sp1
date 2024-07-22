@@ -1,6 +1,6 @@
 use std::env;
 
-use crate::runtime::{SplitOpts, DEFERRED_SPLIT_THRESHOLD};
+use crate::runtime::{EventCounts, SplitOpts, DEFERRED_SPLIT_THRESHOLD};
 
 const DEFAULT_SHARD_SIZE: usize = 1 << 22;
 const DEFAULT_SHARD_BATCH_SIZE: usize = 16;
@@ -30,6 +30,7 @@ pub struct SP1CoreOpts {
     pub prove_stream_capacity: usize,
     pub split_opts: SplitOpts,
     pub reconstruct_commitments: bool,
+    pub event_counts: EventCounts,
 }
 
 impl Default for SP1CoreOpts {
@@ -56,6 +57,7 @@ impl Default for SP1CoreOpts {
             ),
             split_opts: SplitOpts::new(split_threshold),
             reconstruct_commitments: true,
+            event_counts: EventCounts::default(),
         }
     }
 }
