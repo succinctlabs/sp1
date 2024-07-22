@@ -124,16 +124,18 @@ impl CpuChip {
         self.populate_shard_clk(cols, event, blu_events);
 
         // Populate the nonce.
-        let alu_lookup_id = match event.lookup_ids {
-            LookupIds::AluLookupId(id) => id,
-            _ => panic!("Expected AluLookupId"),
-        };
-        cols.nonce = F::from_canonical_u32(
-            nonce_lookup
-                .get(&alu_lookup_id)
-                .copied()
-                .unwrap_or_default(),
-        );
+        if event.instruction.is_alu_instruction() {
+            let alu_lookup_id = match event.lookup_ids {
+                LookupIds::AluLookupId(id) => id,
+                _ => panic!("Expected AluLookupId"),
+            };
+            cols.nonce = F::from_canonical_u32(
+                nonce_lookup
+                    .get(&alu_lookup_id)
+                    .copied()
+                    .unwrap_or_default(),
+            );
+        }
 
         // Populate basic fields.
         cols.pc = F::from_canonical_u32(event.pc);
