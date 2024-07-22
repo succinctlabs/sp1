@@ -7,8 +7,8 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use web_time::Instant;
 
+use p3_challenger::CanObserve;
 use p3_maybe_rayon::prelude::*;
-
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use size::Size;
@@ -120,14 +120,13 @@ where
 {
     let machine = RiscvAir::machine(config);
     let prover = P::new(machine);
-    let (pk, vk) = prover.setup(&program);
-    prove_with_context::<SC, _>(&prover, &pk, &vk, program, stdin, opts, Default::default())
+    let (pk, _) = prover.setup(&program);
+    prove_with_context::<SC, _>(&prover, &pk, program, stdin, opts, Default::default())
 }
 
 pub fn prove_with_context<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<SC::Val>>>(
     prover: &P,
     pk: &StarkProvingKey<SC>,
-    vk: &StarkVerifyingKey<SC>,
     program: Program,
     stdin: &SP1Stdin,
     opts: SP1CoreOpts,
@@ -318,7 +317,8 @@ where
 
         // Create the challenger and observe the verifying key.
         let mut challenger = prover.config().challenger();
-        vk.observe_into(&mut challenger);
+        challenger.observe(pk.commit.clone());
+        challenger.observe(pk.pc_start);
 
         // Spawn the phase 1 prover thread.
         let phase_1_prover_span = tracing::Span::current().clone();
@@ -594,11 +594,10 @@ pub fn run_test_core<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
     let config = BabyBearPoseidon2::new();
     let machine = RiscvAir::machine(config);
     let prover = P::new(machine);
-    let (pk, vk) = prover.setup(runtime.program.as_ref());
+    let (pk, _) = prover.setup(runtime.program.as_ref());
     let (proof, output, _) = prove_with_context(
         &prover,
         &pk,
-        &vk,
         Program::clone(&runtime.program),
         &inputs,
         SP1CoreOpts::default(),
