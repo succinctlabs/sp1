@@ -1,5 +1,3 @@
-changelog-seen = 2
-
 [build]
 target = ["riscv32im-succinct-zkvm-elf"]
 extended = true
