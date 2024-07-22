@@ -7,6 +7,7 @@ pub struct TurnBasedSync {
 }
 
 impl TurnBasedSync {
+    /// Creates a new [TurnBasedSync].
     pub fn new() -> Self {
         TurnBasedSync {
             current_turn: Mutex::new(0),
@@ -14,6 +15,7 @@ impl TurnBasedSync {
         }
     }
 
+    /// Waits for the current turn to be equal to the given turn.
     pub fn wait_for_turn(&self, my_turn: usize) {
         let mut turn = self.current_turn.lock().unwrap();
         while *turn != my_turn {
@@ -21,6 +23,7 @@ impl TurnBasedSync {
         }
     }
 
+    /// Advances the current turn.
     pub fn advance_turn(&self) {
         let mut turn = self.current_turn.lock().unwrap();
         *turn += 1;

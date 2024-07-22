@@ -45,7 +45,8 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
     fn generate_traces(&self, record: &A::Record) -> Vec<(String, RowMajorMatrix<Val<SC>>)>;
 
     /// Calculate the main commitment for a given record.
-    fn commit(&self, record: &A::Record, traces: Vec<(String, RowMajorMatrix<Val<SC>>)>) -> Com<SC>;
+    fn commit(&self, record: &A::Record, traces: Vec<(String, RowMajorMatrix<Val<SC>>)>)
+        -> Com<SC>;
 
     /// Commit and generate a proof for a given record, using the given challenger.
     fn commit_and_open(
@@ -169,10 +170,14 @@ where
     }
 
     fn generate_traces(&self, record: &A::Record) -> Vec<(String, RowMajorMatrix<Val<SC>>)> {
-       self.generate_main_traces(record) 
+        self.generate_main_traces(record)
     }
 
-    fn commit(&self, record: &A::Record, traces: Vec<(String, RowMajorMatrix<Val<SC>>)>) -> Com<SC> {
+    fn commit(
+        &self,
+        record: &A::Record,
+        traces: Vec<(String, RowMajorMatrix<Val<SC>>)>,
+    ) -> Com<SC> {
         self.commit_main(record, traces).main_commit
     }
 
@@ -258,31 +263,30 @@ where
     ShardMainData<SC>: Serialize + DeserializeOwned,
     SC::Challenger: Clone,
 {
-    fn generate_main_traces(&self, shard: &A::Record) -> Vec<(String, RowMajorMatrix<Val<SC>>)
-    > {
-         // Filter the chips based on what is used.
-         let shard_chips = self.shard_chips(shard).collect::<Vec<_>>();
+    fn generate_main_traces(&self, shard: &A::Record) -> Vec<(String, RowMajorMatrix<Val<SC>>)> {
+        // Filter the chips based on what is used.
+        let shard_chips = self.shard_chips(shard).collect::<Vec<_>>();
 
-         // For each chip, generate the trace.
-         let parent_span = tracing::debug_span!("generate traces for shard");
+        // For each chip, generate the trace.
+        let parent_span = tracing::debug_span!("generate traces for shard");
         parent_span.in_scope(|| {
             shard_chips
                 .par_iter()
                 .map(|chip| {
                     let chip_name = chip.name();
- 
-                             // We need to create an outer span here because, for some reason,
-                             // the #[instrument] macro on the chip impl isn't attaching its span to `parent_span`
-                             // to avoid the unnecessary span, remove the #[instrument] macro.
-                            let trace = tracing::debug_span!(parent: &parent_span, "generate trace for chip", %chip_name)
-                                     .in_scope(|| chip.generate_trace(shard, &mut A::Record::default()));
-                            (chip_name, trace)
-                         })
-                         .collect::<Vec<_>>()
+                    let trace = tracing::debug_span!(parent: &parent_span, "generate trace for chip", %chip_name)
+                                .in_scope(|| chip.generate_trace(shard, &mut A::Record::default()));
+                    (chip_name, trace)
+                    })
+                    .collect::<Vec<_>>()
                  })
     }
 
-    fn commit_main(&self, shard: &A::Record, mut named_traces: Vec<(String, RowMajorMatrix<Val<SC>>)>) -> ShardMainData<SC> {
+    fn commit_main(
+        &self,
+        shard: &A::Record,
+        mut named_traces: Vec<(String, RowMajorMatrix<Val<SC>>)>,
+    ) -> ShardMainData<SC> {
         // Order the chips and traces by trace size (biggest first), and get the ordering map.
         named_traces.sort_by_key(|(_, trace)| Reverse(trace.height()));
 
@@ -558,12 +562,8 @@ where
         });
 
         // Collect the opened values for each chip.
-        let [
-            preprocessed_values,
-            main_values,
-            permutation_values,
-            mut quotient_values,
-        ] = openings.try_into().unwrap();
+        let [preprocessed_values, main_values, permutation_values, mut quotient_values] =
+            openings.try_into().unwrap();
         assert!(main_values.len() == chips.len());
         let preprocessed_opened_values = preprocessed_values
             .into_iter()
