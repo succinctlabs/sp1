@@ -14,7 +14,7 @@ use tracing::instrument;
 
 use crate::{
     builder::SP1RecursionAirBuilder,
-    mem::MemoryPreprocessedCols,
+    mem::MemoryAccessCols,
     runtime::{ExecutionRecord, RecursionProgram},
     ExpReverseBitsInstr, Instruction,
 };
@@ -39,9 +39,9 @@ impl<const DEGREE: usize> Default for ExpReverseBitsLenChip<DEGREE> {
 #[derive(AlignedBorrow, Clone, Copy, Debug)]
 #[repr(C)]
 pub struct ExpReverseBitsLenPreprocessedCols<T: Copy> {
-    pub x_memory: MemoryPreprocessedCols<T>,
-    pub exponent_memory: MemoryPreprocessedCols<T>,
-    pub result_memory: MemoryPreprocessedCols<T>,
+    pub x_memory: MemoryAccessCols<T>,
+    pub exponent_memory: MemoryAccessCols<T>,
+    pub result_memory: MemoryAccessCols<T>,
     pub iteration_num: T,
     pub is_first: T,
     pub is_last: T,
@@ -113,23 +113,20 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpReverseBitsLenCh
                     row.is_first = F::from_bool(i == 0);
                     row.is_last = F::from_bool(i == addrs.exp.len() - 1);
                     row.is_real = F::one();
-                    row.x_memory = MemoryPreprocessedCols {
+                    row.x_memory = MemoryAccessCols {
                         addr: addrs.base,
                         read_mult: *mult * F::from_bool(i == 0),
                         write_mult: F::zero(),
-                        is_real: F::one(),
                     };
-                    row.exponent_memory = MemoryPreprocessedCols {
+                    row.exponent_memory = MemoryAccessCols {
                         addr: addrs.exp[i],
                         read_mult: F::one(),
                         write_mult: F::zero(),
-                        is_real: F::one(),
                     };
-                    row.result_memory = MemoryPreprocessedCols {
+                    row.result_memory = MemoryAccessCols {
                         addr: addrs.result,
                         read_mult: F::zero(),
                         write_mult: *mult * F::from_bool(i == addrs.exp.len() - 1),
-                        is_real: F::one(),
                     };
                 });
                 rows.extend(row_add);

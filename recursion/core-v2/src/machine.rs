@@ -6,7 +6,7 @@ use sp1_recursion_core::runtime::D;
 use crate::{
     alu_base::BaseAluChip, alu_ext::ExtAluChip, exp_reverse_bits::ExpReverseBitsLenChip,
     fri_fold::FriFoldChip, mem::MemoryChip, poseidon2_skinny::Poseidon2SkinnyChip,
-    poseidon2_wide::Poseidon2WideChip, program::ProgramChip,
+    poseidon2_wide::Poseidon2WideChip,
 };
 
 #[derive(MachineAir)]
@@ -16,8 +16,7 @@ use crate::{
 #[builder_path = "crate::builder::SP1RecursionAirBuilder<F = F>"]
 #[eval_trait_bound = "AB::Var: 'static"]
 pub enum RecursionAir<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> {
-    Program(ProgramChip<F>),
-    Memory(MemoryChip),
+    Memory(MemoryChip<F>),
     BaseAlu(BaseAluChip),
     ExtAlu(ExtAluChip),
     // Cpu(CpuChip<F, DEGREE>),
@@ -60,7 +59,6 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
 
     pub fn get_all() -> Vec<Self> {
         vec![
-            RecursionAir::Program(ProgramChip::default()),
             RecursionAir::Memory(MemoryChip::default()),
             RecursionAir::BaseAlu(BaseAluChip::default()),
             RecursionAir::ExtAlu(ExtAluChip::default()),

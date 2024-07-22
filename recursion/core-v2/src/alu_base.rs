@@ -1,16 +1,20 @@
 use core::borrow::Borrow;
+use itertools::Itertools;
 use p3_air::PairBuilder;
 use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::Field;
 use p3_field::PrimeField32;
+use p3_field::{AbstractField, Field};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use sp1_core::air::MachineAir;
 use sp1_core::utils::pad_to_power_of_two;
 use sp1_derive::AlignedBorrow;
 use std::borrow::BorrowMut;
+use std::iter::zip;
 
 use crate::{builder::SP1RecursionAirBuilder, *};
+
+pub const NUM_BASE_ALU_ENTRIES_PER_ROW: usize = 8;
 
 #[derive(Default)]
 pub struct BaseAluChip {}
@@ -20,6 +24,12 @@ pub const NUM_BASE_ALU_COLS: usize = core::mem::size_of::<BaseAluCols<u8>>();
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct BaseAluCols<F: Copy> {
+    pub values: [BaseAluValueCols<F>; NUM_BASE_ALU_ENTRIES_PER_ROW],
+}
+
+#[derive(AlignedBorrow, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct BaseAluValueCols<F: Copy> {
     pub vals: BaseAluIo<F>,
     pub sum: F,
     pub diff: F,
@@ -33,13 +43,18 @@ pub const NUM_BASE_ALU_PREPROCESSED_COLS: usize =
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct BaseAluPreprocessedCols<F: Copy> {
+    pub accesses: [BaseAluAccessCols<F>; NUM_BASE_ALU_ENTRIES_PER_ROW],
+}
+
+#[derive(AlignedBorrow, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct BaseAluAccessCols<F: Copy> {
     pub addrs: BaseAluIo<Address<F>>,
     pub is_add: F,
     pub is_sub: F,
     pub is_mul: F,
     pub is_div: F,
     pub mult: F,
-    pub is_real: F,
 }
 
 impl<F: Field> BaseAir<F> for BaseAluChip {
@@ -74,28 +89,33 @@ impl<F: PrimeField32> MachineAir<F> for BaseAluChip {
                 else {
                     return None;
                 };
-                let mult = mult.to_owned();
-
-                let mut row = [F::zero(); NUM_BASE_ALU_PREPROCESSED_COLS];
-                let cols: &mut BaseAluPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
-                *cols = BaseAluPreprocessedCols {
+                let mut access = BaseAluAccessCols {
                     addrs: addrs.to_owned(),
                     is_add: F::from_bool(false),
                     is_sub: F::from_bool(false),
                     is_mul: F::from_bool(false),
                     is_div: F::from_bool(false),
-                    mult,
-                    is_real: F::from_bool(true),
+                    mult: mult.to_owned(),
                 };
                 let target_flag = match opcode {
-                    BaseAluOpcode::AddF => &mut cols.is_add,
-                    BaseAluOpcode::SubF => &mut cols.is_sub,
-                    BaseAluOpcode::MulF => &mut cols.is_mul,
-                    BaseAluOpcode::DivF => &mut cols.is_div,
+                    BaseAluOpcode::AddF => &mut access.is_add,
+                    BaseAluOpcode::SubF => &mut access.is_sub,
+                    BaseAluOpcode::MulF => &mut access.is_mul,
+                    BaseAluOpcode::DivF => &mut access.is_div,
                 };
                 *target_flag = F::from_bool(true);
 
-                Some(row)
+                Some(access)
+            })
+            .chunks(NUM_BASE_ALU_ENTRIES_PER_ROW)
+            .into_iter()
+            .map(|row_accesses| {
+                let mut row = [F::zero(); NUM_BASE_ALU_PREPROCESSED_COLS];
+                let cols: &mut BaseAluPreprocessedCols<_> = row.as_mut_slice().borrow_mut();
+                for (cell, access) in zip(&mut cols.accesses, row_accesses) {
+                    *cell = access;
+                }
+                row
             })
             .collect::<Vec<_>>();
 
@@ -116,26 +136,26 @@ impl<F: PrimeField32> MachineAir<F> for BaseAluChip {
     }
 
     fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
-        let base_alu_events = input.base_alu_events.clone();
-
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
-        let rows = base_alu_events
-            .into_iter()
-            .map(|vals| {
+        let rows = input
+            .base_alu_events
+            .chunks(NUM_BASE_ALU_ENTRIES_PER_ROW)
+            .map(|row_events| {
                 let mut row = [F::zero(); NUM_BASE_ALU_COLS];
-
-                let BaseAluEvent {
-                    in1: v1, in2: v2, ..
-                } = vals;
-
                 let cols: &mut BaseAluCols<_> = row.as_mut_slice().borrow_mut();
-                *cols = BaseAluCols {
-                    vals,
-                    sum: v1 + v2,
-                    diff: v1 - v2,
-                    product: v1 * v2,
-                    quotient: v1.try_div(v2).unwrap_or(F::one()),
-                };
+                for (cell, &vals) in zip(&mut cols.values, row_events) {
+                    let BaseAluEvent {
+                        in1: v1, in2: v2, ..
+                    } = vals;
+
+                    *cell = BaseAluValueCols {
+                        vals,
+                        sum: v1 + v2,
+                        diff: v1 - v2,
+                        product: v1 * v2,
+                        quotient: v1.try_div(v2).unwrap_or(F::one()),
+                    };
+                }
 
                 row
             })
@@ -170,43 +190,44 @@ where
         let prep_local = prep.row_slice(0);
         let prep_local: &BaseAluPreprocessedCols<AB::Var> = (*prep_local).borrow();
 
-        let BaseAluCols {
-            vals: BaseAluIo { out, in1, in2 },
-            sum,
-            diff,
-            product,
-            quotient,
-        } = local;
+        for (value, access) in zip(local.values, prep_local.accesses) {
+            let BaseAluValueCols {
+                vals: BaseAluIo { out, in1, in2 },
+                sum,
+                diff,
+                product,
+                quotient,
+            } = value;
 
-        // Check exactly one flag is enabled.
-        builder.when(prep_local.is_real).assert_one(
-            prep_local.is_add + prep_local.is_sub + prep_local.is_mul + prep_local.is_div,
-        );
+            // Check exactly one flag is enabled.
+            let is_real = access.is_add + access.is_sub + access.is_mul + access.is_div;
+            builder.assert_eq(is_real.square(), is_real.clone());
 
-        let mut when_add = builder.when(prep_local.is_add);
-        when_add.assert_eq(*out, *sum);
-        when_add.assert_eq(*in1 + *in2, *sum);
+            let mut when_add = builder.when(access.is_add);
+            when_add.assert_eq(out, sum);
+            when_add.assert_eq(in1 + in2, sum);
 
-        let mut when_sub = builder.when(prep_local.is_sub);
-        when_sub.assert_eq(*out, *diff);
-        when_sub.assert_eq(*in1, *in2 + *diff);
+            let mut when_sub = builder.when(access.is_sub);
+            when_sub.assert_eq(out, diff);
+            when_sub.assert_eq(in1, in2 + diff);
 
-        let mut when_mul = builder.when(prep_local.is_mul);
-        when_mul.assert_eq(*out, *product);
-        when_mul.assert_eq(*in1 * *in2, *product);
+            let mut when_mul = builder.when(access.is_mul);
+            when_mul.assert_eq(out, product);
+            when_mul.assert_eq(in1 * in2, product);
 
-        let mut when_div = builder.when(prep_local.is_div);
-        when_div.assert_eq(*out, *quotient);
-        when_div.assert_eq(*in1, *in2 * *quotient);
+            let mut when_div = builder.when(access.is_div);
+            when_div.assert_eq(out, quotient);
+            when_div.assert_eq(in1, in2 * quotient);
 
-        // local.is_real is 0 or 1
-        // builder.assert_zero(local.is_real * (AB::Expr::one() - local.is_real));
+            // local.is_real is 0 or 1
+            // builder.assert_zero(local.is_real * (AB::Expr::one() - local.is_real));
 
-        builder.receive_single(prep_local.addrs.in1, *in1, prep_local.is_real);
+            builder.receive_single(access.addrs.in1, in1, is_real.clone());
 
-        builder.receive_single(prep_local.addrs.in2, *in2, prep_local.is_real);
+            builder.receive_single(access.addrs.in2, in2, is_real);
 
-        builder.send_single(prep_local.addrs.out, *out, prep_local.mult);
+            builder.send_single(access.addrs.out, out, access.mult);
+        }
     }
 }
 
