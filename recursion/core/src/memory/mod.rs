@@ -29,10 +29,7 @@ fn compute_diff<F: PrimeField32>(timestamp: F, prev_timestamp: F) -> (F, F) {
     let diff_minus_one = timestamp.as_canonical_u32() - prev_timestamp.as_canonical_u32() - 1;
     let diff_16bit_limb = diff_minus_one & 0xffff;
     let diff_12bit_limb = (diff_minus_one >> 16) & 0xfff;
-    (
-        F::from_canonical_u32(diff_16bit_limb),
-        F::from_canonical_u32(diff_12bit_limb),
-    )
+    (F::from_canonical_u32(diff_16bit_limb), F::from_canonical_u32(diff_12bit_limb))
 }
 
 impl<F: Clone + PrimeField32> MemoryRecord<F> {

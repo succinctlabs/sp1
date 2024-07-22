@@ -11,12 +11,7 @@ use crate::runtime::{Instruction, Program};
 impl Program {
     /// Create a new program.
     pub const fn new(instructions: Vec<Instruction>, pc_start: u32, pc_base: u32) -> Self {
-        Self {
-            instructions,
-            pc_start,
-            pc_base,
-            memory_image: BTreeMap::new(),
-        }
+        Self { instructions, pc_start, pc_base, memory_image: BTreeMap::new() }
     }
 
     /// Disassemble a RV32IM ELF to a program that be executed by the VM.

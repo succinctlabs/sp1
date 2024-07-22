@@ -35,9 +35,7 @@ impl<T: Add<Output = T> + Clone> Add for BinomialExtension<T> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
-        Self(core::array::from_fn(|i| {
-            self.0[i].clone() + rhs.0[i].clone()
-        }))
+        Self(core::array::from_fn(|i| self.0[i].clone() + rhs.0[i].clone()))
     }
 }
 
@@ -45,9 +43,7 @@ impl<T: Sub<Output = T> + Clone> Sub for BinomialExtension<T> {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        Self(core::array::from_fn(|i| {
-            self.0[i].clone() - rhs.0[i].clone()
-        }))
+        Self(core::array::from_fn(|i| self.0[i].clone() - rhs.0[i].clone()))
     }
 }
 

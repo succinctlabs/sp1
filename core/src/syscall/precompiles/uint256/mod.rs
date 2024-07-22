@@ -5,11 +5,11 @@ pub use air::*;
 #[cfg(test)]
 mod tests {
 
-    use crate::operations::field::params::FieldParameters;
-    use crate::stark::DefaultProver;
     use crate::{
         io::SP1Stdin,
+        operations::field::params::FieldParameters,
         runtime::Program,
+        stark::DefaultProver,
         utils::{
             self,
             ec::{uint256::U256Field, utils::biguint_from_limbs},

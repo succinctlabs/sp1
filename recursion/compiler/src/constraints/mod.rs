@@ -1,16 +1,15 @@
 pub mod opcodes;
 
 use core::fmt::Debug;
-use p3_field::AbstractExtensionField;
-use p3_field::Field;
-use p3_field::PrimeField;
+use p3_field::{AbstractExtensionField, Field, PrimeField};
 use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 
 use self::opcodes::ConstraintOpcode;
-use crate::ir::Config;
-use crate::ir::DslIr;
-use crate::prelude::TracedVec;
+use crate::{
+    ir::{Config, DslIr},
+    prelude::TracedVec,
+};
 
 /// A constraint is an operation and a list of nested arguments.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -39,10 +38,7 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
         let tmp_id = self.alloc_id();
         constraints.push(Constraint {
             opcode: ConstraintOpcode::ImmV,
-            args: vec![
-                vec![tmp_id.clone()],
-                vec![value.as_canonical_biguint().to_string()],
-            ],
+            args: vec![vec![tmp_id.clone()], vec![value.as_canonical_biguint().to_string()]],
         });
         tmp_id
     }
@@ -52,10 +48,7 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
         let tmp_id = self.alloc_id();
         constraints.push(Constraint {
             opcode: ConstraintOpcode::ImmF,
-            args: vec![
-                vec![tmp_id.clone()],
-                vec![value.as_canonical_biguint().to_string()],
-            ],
+            args: vec![vec![tmp_id.clone()], vec![value.as_canonical_biguint().to_string()]],
         });
         tmp_id
     }

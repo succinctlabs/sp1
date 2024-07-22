@@ -3,8 +3,7 @@ use std::borrow::BorrowMut;
 use hashbrown::HashMap;
 use itertools::Itertools;
 use p3_field::PrimeField32;
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{ParallelIterator, ParallelSlice};
 
 use super::{
@@ -137,8 +136,7 @@ impl ShaCompressChip {
             cols.octet_num[octet_num_idx] = F::one();
             cols.is_initialize = F::one();
 
-            cols.mem
-                .populate_read(channel, event.h_read_records[j], blu);
+            cols.mem.populate_read(channel, event.h_read_records[j], blu);
             cols.mem_addr = F::from_canonical_u32(event.h_ptr + (j * 4) as u32);
 
             cols.a = Word::from(event.h_read_records[0].value);
@@ -176,8 +174,7 @@ impl ShaCompressChip {
             cols.clk = F::from_canonical_u32(event.clk);
             cols.w_ptr = F::from_canonical_u32(event.w_ptr);
             cols.h_ptr = F::from_canonical_u32(event.h_ptr);
-            cols.mem
-                .populate_read(channel, event.w_i_read_records[j], blu);
+            cols.mem.populate_read(channel, event.w_i_read_records[j], blu);
             cols.mem_addr = F::from_canonical_u32(event.w_ptr + (j * 4) as u32);
 
             let a = h_array[0];
@@ -200,55 +197,36 @@ impl ShaCompressChip {
             let e_rr_6 = cols.e_rr_6.populate(blu, shard, channel, e, 6);
             let e_rr_11 = cols.e_rr_11.populate(blu, shard, channel, e, 11);
             let e_rr_25 = cols.e_rr_25.populate(blu, shard, channel, e, 25);
-            let s1_intermediate = cols
-                .s1_intermediate
-                .populate(blu, shard, channel, e_rr_6, e_rr_11);
-            let s1 = cols
-                .s1
-                .populate(blu, shard, channel, s1_intermediate, e_rr_25);
+            let s1_intermediate =
+                cols.s1_intermediate.populate(blu, shard, channel, e_rr_6, e_rr_11);
+            let s1 = cols.s1.populate(blu, shard, channel, s1_intermediate, e_rr_25);
 
             let e_and_f = cols.e_and_f.populate(blu, shard, channel, e, f);
             let e_not = cols.e_not.populate(blu, shard, channel, e);
             let e_not_and_g = cols.e_not_and_g.populate(blu, shard, channel, e_not, g);
             let ch = cols.ch.populate(blu, shard, channel, e_and_f, e_not_and_g);
 
-            let temp1 = cols.temp1.populate(
-                blu,
-                shard,
-                channel,
-                h,
-                s1,
-                ch,
-                event.w[j],
-                SHA_COMPRESS_K[j],
-            );
+            let temp1 =
+                cols.temp1.populate(blu, shard, channel, h, s1, ch, event.w[j], SHA_COMPRESS_K[j]);
 
             let a_rr_2 = cols.a_rr_2.populate(blu, shard, channel, a, 2);
             let a_rr_13 = cols.a_rr_13.populate(blu, shard, channel, a, 13);
             let a_rr_22 = cols.a_rr_22.populate(blu, shard, channel, a, 22);
-            let s0_intermediate = cols
-                .s0_intermediate
-                .populate(blu, shard, channel, a_rr_2, a_rr_13);
-            let s0 = cols
-                .s0
-                .populate(blu, shard, channel, s0_intermediate, a_rr_22);
+            let s0_intermediate =
+                cols.s0_intermediate.populate(blu, shard, channel, a_rr_2, a_rr_13);
+            let s0 = cols.s0.populate(blu, shard, channel, s0_intermediate, a_rr_22);
 
             let a_and_b = cols.a_and_b.populate(blu, shard, channel, a, b);
             let a_and_c = cols.a_and_c.populate(blu, shard, channel, a, c);
             let b_and_c = cols.b_and_c.populate(blu, shard, channel, b, c);
-            let maj_intermediate = cols
-                .maj_intermediate
-                .populate(blu, shard, channel, a_and_b, a_and_c);
-            let maj = cols
-                .maj
-                .populate(blu, shard, channel, maj_intermediate, b_and_c);
+            let maj_intermediate =
+                cols.maj_intermediate.populate(blu, shard, channel, a_and_b, a_and_c);
+            let maj = cols.maj.populate(blu, shard, channel, maj_intermediate, b_and_c);
 
             let temp2 = cols.temp2.populate(blu, shard, channel, s0, maj);
 
             let d_add_temp1 = cols.d_add_temp1.populate(blu, shard, channel, d, temp1);
-            let temp1_add_temp2 = cols
-                .temp1_add_temp2
-                .populate(blu, shard, channel, temp1, temp2);
+            let temp1_add_temp2 = cols.temp1_add_temp2.populate(blu, shard, channel, temp1, temp2);
 
             h_array[7] = g;
             h_array[6] = f;
@@ -267,11 +245,7 @@ impl ShaCompressChip {
             }
         }
 
-        let mut v: [u32; 8] = (0..8)
-            .map(|i| h_array[i])
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap();
+        let mut v: [u32; 8] = (0..8).map(|i| h_array[i]).collect::<Vec<_>>().try_into().unwrap();
 
         octet_num_idx += 1;
         // Store a, b, c, d, e, f, g, h.
@@ -289,10 +263,8 @@ impl ShaCompressChip {
             cols.octet_num[octet_num_idx] = F::one();
             cols.is_finalize = F::one();
 
-            cols.finalize_add
-                .populate(blu, shard, channel, og_h[j], h_array[j]);
-            cols.mem
-                .populate_write(channel, event.h_write_records[j], blu);
+            cols.finalize_add.populate(blu, shard, channel, og_h[j], h_array[j]);
+            cols.mem.populate_write(channel, event.h_write_records[j], blu);
             cols.mem_addr = F::from_canonical_u32(event.h_ptr + (j * 4) as u32);
 
             v[j] = h_array[j];

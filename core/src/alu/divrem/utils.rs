@@ -12,15 +12,9 @@ pub fn get_quotient_and_remainder(b: u32, c: u32, opcode: Opcode) -> (u32, u32) 
         // perform signed or unsigned division.
         (u32::MAX, b)
     } else if is_signed_operation(opcode) {
-        (
-            (b as i32).wrapping_div(c as i32) as u32,
-            (b as i32).wrapping_rem(c as i32) as u32,
-        )
+        ((b as i32).wrapping_div(c as i32) as u32, (b as i32).wrapping_rem(c as i32) as u32)
     } else {
-        (
-            (b as u32).wrapping_div(c as u32) as u32,
-            (b as u32).wrapping_rem(c as u32) as u32,
-        )
+        ((b as u32).wrapping_div(c as u32) as u32, (b as u32).wrapping_rem(c as u32) as u32)
     }
 }
 

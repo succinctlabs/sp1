@@ -1,8 +1,6 @@
 use p3_field::AbstractField;
-use sp1_core::stark::StarkGenericConfig;
-use sp1_core::utils::BabyBearPoseidon2;
-use sp1_recursion_compiler::asm::AsmBuilder;
-use sp1_recursion_compiler::prelude::*;
+use sp1_core::{stark::StarkGenericConfig, utils::BabyBearPoseidon2};
+use sp1_recursion_compiler::{asm::AsmBuilder, prelude::*};
 use sp1_recursion_core::runtime::Runtime;
 
 #[test]

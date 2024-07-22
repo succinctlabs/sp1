@@ -60,11 +60,7 @@ impl<'a> SP1ContextBuilder<'a> {
             });
         let subproof_verifier = take(&mut self.subproof_verifier);
         let cycle_limit = take(&mut self.max_cycles);
-        SP1Context {
-            hook_registry,
-            subproof_verifier,
-            max_cycles: cycle_limit,
-        }
+        SP1Context { hook_registry, subproof_verifier, max_cycles: cycle_limit }
     }
 
     /// Add a runtime [Hook](super::Hook) into the context.
@@ -116,11 +112,8 @@ mod tests {
 
     #[test]
     fn defaults() {
-        let SP1Context {
-            hook_registry,
-            subproof_verifier,
-            max_cycles: cycle_limit,
-        } = SP1Context::builder().build();
+        let SP1Context { hook_registry, subproof_verifier, max_cycles: cycle_limit } =
+            SP1Context::builder().build();
         assert!(hook_registry.is_none());
         assert!(subproof_verifier.is_none());
         assert!(cycle_limit.is_none());
@@ -142,21 +135,14 @@ mod tests {
 
     #[test]
     fn without_default_hooks_with_custom_hook() {
-        let SP1Context { hook_registry, .. } = SP1Context::builder()
-            .without_default_hooks()
-            .hook(30, |_, _| vec![])
-            .build();
-        assert_eq!(
-            &hook_registry.unwrap().table.into_keys().collect::<Vec<_>>(),
-            &[30]
-        );
+        let SP1Context { hook_registry, .. } =
+            SP1Context::builder().without_default_hooks().hook(30, |_, _| vec![]).build();
+        assert_eq!(&hook_registry.unwrap().table.into_keys().collect::<Vec<_>>(), &[30]);
     }
 
     #[test]
     fn subproof_verifier() {
-        let SP1Context {
-            subproof_verifier, ..
-        } = SP1Context::builder()
+        let SP1Context { subproof_verifier, .. } = SP1Context::builder()
             .subproof_verifier(Arc::new(DefaultSubproofVerifier::new()))
             .build();
         assert!(subproof_verifier.is_some());

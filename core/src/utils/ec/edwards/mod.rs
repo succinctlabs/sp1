@@ -5,8 +5,10 @@ use num::{BigUint, Zero};
 use serde::{Deserialize, Serialize};
 
 use super::CurveType;
-use crate::operations::field::params::{FieldParameters, NumLimbs};
-use crate::utils::ec::{AffinePoint, EllipticCurve, EllipticCurveParameters};
+use crate::{
+    operations::field::params::{FieldParameters, NumLimbs},
+    utils::ec::{AffinePoint, EllipticCurve, EllipticCurveParameters},
+};
 
 pub trait EdwardsParameters: EllipticCurveParameters {
     const D: GenericArray<u8, <Self::BaseField as NumLimbs>::Limbs>;
@@ -159,8 +161,8 @@ mod tests {
             assert_eq!(y_x_base, xy_base);
         }
 
-        let order = BigUint::from(2u32).pow(252)
-            + BigUint::from(27742317777372353535851937790883648493u128);
+        let order = BigUint::from(2u32).pow(252) +
+            BigUint::from(27742317777372353535851937790883648493u128);
         assert_eq!(base, &base + &(&base * &order));
     }
 }

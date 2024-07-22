@@ -69,11 +69,7 @@ impl<'a> Runtime<'a> {
         );
 
         if !self.unconstrained && self.state.global_clk % 10_000_000 == 0 {
-            log::info!(
-                "clk = {} pc = 0x{:x?}",
-                self.state.global_clk,
-                self.state.pc
-            );
+            log::info!("clk = {} pc = 0x{:x?}", self.state.global_clk, self.state.pc);
         }
     }
 }

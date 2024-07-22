@@ -2,14 +2,14 @@ use std::mem::size_of;
 
 use sp1_derive::AlignedBorrow;
 
-use crate::air::Word;
-use crate::memory::MemoryReadWriteCols;
-use crate::operations::Add5Operation;
-use crate::operations::AddOperation;
-use crate::operations::AndOperation;
-use crate::operations::FixedRotateRightOperation;
-use crate::operations::NotOperation;
-use crate::operations::XorOperation;
+use crate::{
+    air::Word,
+    memory::MemoryReadWriteCols,
+    operations::{
+        Add5Operation, AddOperation, AndOperation, FixedRotateRightOperation, NotOperation,
+        XorOperation,
+    },
+};
 
 pub const NUM_SHA_COMPRESS_COLS: usize = size_of::<ShaCompressCols<u8>>();
 

@@ -1,12 +1,7 @@
 use sp1_recursion_derive::DslVariable;
 
 use super::{Ext, Felt, Var};
-use crate::ir::Builder;
-use crate::ir::MemIndex;
-use crate::ir::MemVariable;
-use crate::ir::Ptr;
-use crate::ir::Variable;
-use crate::ir::{Array, Config};
+use crate::ir::{Array, Builder, Config, MemIndex, MemVariable, Ptr, Variable};
 
 #[derive(DslVariable, Debug, Clone)]
 pub struct FriFoldInput<C: Config> {

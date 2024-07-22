@@ -1,13 +1,14 @@
 use std::collections::BTreeMap;
 
 use p3_baby_bear::BabyBear;
-use p3_field::{AbstractField, PrimeField32};
-use p3_field::{Field, PrimeField64};
+use p3_field::{AbstractField, Field, PrimeField32, PrimeField64};
 use p3_matrix::Matrix;
 
 use super::InteractionKind;
-use crate::air::MachineAir;
-use crate::stark::{MachineChip, StarkGenericConfig, StarkMachine, StarkProvingKey, Val};
+use crate::{
+    air::MachineAir,
+    stark::{MachineChip, StarkGenericConfig, StarkMachine, StarkProvingKey, Val},
+};
 
 #[derive(Debug)]
 pub struct InteractionData<F: Field> {
@@ -50,30 +51,20 @@ pub fn debug_interactions<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
     pkey: &StarkProvingKey<SC>,
     record: &A::Record,
     interaction_kinds: Vec<InteractionKind>,
-) -> (
-    BTreeMap<String, Vec<InteractionData<Val<SC>>>>,
-    BTreeMap<String, Val<SC>>,
-) {
+) -> (BTreeMap<String, Vec<InteractionData<Val<SC>>>>, BTreeMap<String, Val<SC>>) {
     let mut key_to_vec_data = BTreeMap::new();
     let mut key_to_count = BTreeMap::new();
 
     let trace = chip.generate_trace(record, &mut A::Record::default());
     let mut pre_traces = pkey.traces.clone();
-    let mut preprocessed_trace = pkey
-        .chip_ordering
-        .get(&chip.name())
-        .map(|&index| pre_traces.get_mut(index).unwrap());
+    let mut preprocessed_trace =
+        pkey.chip_ordering.get(&chip.name()).map(|&index| pre_traces.get_mut(index).unwrap());
     let mut main = trace.clone();
     let height = trace.clone().height();
 
     let nb_send_interactions = chip.sends().len();
     for row in 0..height {
-        for (m, interaction) in chip
-            .sends()
-            .iter()
-            .chain(chip.receives().iter())
-            .enumerate()
-        {
+        for (m, interaction) in chip.sends().iter().chain(chip.receives().iter()).enumerate() {
             if !interaction_kinds.contains(&interaction.kind) {
                 continue;
             }
@@ -84,9 +75,8 @@ pub fn debug_interactions<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
                 .or_else(|| Some(&mut empty))
                 .unwrap();
             let is_send = m < nb_send_interactions;
-            let multiplicity_eval: Val<SC> = interaction
-                .multiplicity
-                .apply(preprocessed_row, main.row_mut(row));
+            let multiplicity_eval: Val<SC> =
+                interaction.multiplicity.apply(preprocessed_row, main.row_mut(row));
 
             if !multiplicity_eval.is_zero() {
                 let mut values = vec![];
@@ -94,22 +84,15 @@ pub fn debug_interactions<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
                     let expr: Val<SC> = value.apply(preprocessed_row, main.row_mut(row));
                     values.push(expr);
                 }
-                let key = format!(
-                    "{} {}",
-                    &interaction.kind.to_string(),
-                    vec_to_string(values)
-                );
-                key_to_vec_data
-                    .entry(key.clone())
-                    .or_insert_with(Vec::new)
-                    .push(InteractionData {
-                        chip_name: chip.name(),
-                        kind: interaction.kind,
-                        row,
-                        interaction_number: m,
-                        is_send,
-                        multiplicity: multiplicity_eval,
-                    });
+                let key = format!("{} {}", &interaction.kind.to_string(), vec_to_string(values));
+                key_to_vec_data.entry(key.clone()).or_insert_with(Vec::new).push(InteractionData {
+                    chip_name: chip.name(),
+                    kind: interaction.kind,
+                    row,
+                    interaction_number: m,
+                    is_send,
+                    multiplicity: multiplicity_eval,
+                });
                 let current = key_to_count.entry(key.clone()).or_insert(Val::<SC>::zero());
                 if is_send {
                     *current += multiplicity_eval;
@@ -147,9 +130,8 @@ where
                 debug_interactions::<SC, A>(chip, pkey, shard, interaction_kinds.clone());
             total_events += count.len();
             for (key, value) in count.iter() {
-                let entry = final_map
-                    .entry(key.clone())
-                    .or_insert((SC::Val::zero(), BTreeMap::new()));
+                let entry =
+                    final_map.entry(key.clone()).or_insert((SC::Val::zero(), BTreeMap::new()));
                 entry.0 += *value;
                 total += *value;
                 *entry.1.entry(chip.name()).or_insert(SC::Val::zero()) += *value;

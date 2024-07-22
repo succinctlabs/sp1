@@ -24,12 +24,11 @@ mod tests {
     use p3_baby_bear::BabyBear;
     use p3_bn254_fr::Bn254Fr;
     use p3_field::AbstractField;
-    use sp1_recursion_compiler::config::OuterConfig;
-    use sp1_recursion_compiler::constraints::ConstraintCompiler;
-    use sp1_recursion_compiler::ir::Config;
-    use sp1_recursion_compiler::ir::Ext;
-    use sp1_recursion_compiler::ir::ExtConst;
-    use sp1_recursion_compiler::ir::{Builder, Felt, Witness};
+    use sp1_recursion_compiler::{
+        config::OuterConfig,
+        constraints::ConstraintCompiler,
+        ir::{Builder, Config, Ext, ExtConst, Felt, Witness},
+    };
     use sp1_recursion_gnark_ffi::PlonkBn254Prover;
 
     #[test]
@@ -59,10 +58,7 @@ mod tests {
         // Testing high degree multiplication.
         let a_times_b_times_c: Felt<_> =
             builder.eval(a_val * b_val * a_val * b_val * a_val * b_val);
-        builder.assert_felt_eq(
-            a_times_b_times_c,
-            a_val * b_val * a_val * b_val * a_val * b_val,
-        );
+        builder.assert_felt_eq(a_times_b_times_c, a_val * b_val * a_val * b_val * a_val * b_val);
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
@@ -107,10 +103,7 @@ mod tests {
 
         // Testing large linear combination.
         let dot_product: Ext<_, _> = builder.eval(a * a + b * b + a * b);
-        builder.assert_ext_eq(
-            dot_product,
-            (a_val * a_val + b_val * b_val + a_val * b_val).cons(),
-        );
+        builder.assert_ext_eq(dot_product, (a_val * a_val + b_val * b_val + a_val * b_val).cons());
 
         // Testing high degree multiplication.
         let a_times_b_times_c: Ext<_, _> = builder.eval(a * b * a * b * a * b);

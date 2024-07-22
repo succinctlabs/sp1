@@ -3,26 +3,27 @@ use std::borrow::Borrow;
 use p3_air::BaseAir;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
-use p3_maybe_rayon::prelude::IndexedParallelIterator;
-use p3_maybe_rayon::prelude::ParallelIterator;
-use p3_maybe_rayon::prelude::ParallelSliceMut;
-use sp1_core::air::MachineAir;
-use sp1_core::utils::next_power_of_two;
-use sp1_core::utils::par_for_each_row;
+use p3_maybe_rayon::prelude::{IndexedParallelIterator, ParallelIterator, ParallelSliceMut};
+use sp1_core::{
+    air::MachineAir,
+    utils::{next_power_of_two, par_for_each_row},
+};
 use sp1_primitives::RC_16_30_U32;
 use tracing::instrument;
 
-use crate::poseidon2_wide::columns::permutation::permutation_mut;
-use crate::poseidon2_wide::events::Poseidon2HashEvent;
-use crate::range_check::{RangeCheckEvent, RangeCheckOpcode};
 use crate::{
-    poseidon2_wide::{external_linear_layer, NUM_EXTERNAL_ROUNDS, WIDTH},
+    poseidon2_wide::{
+        columns::permutation::permutation_mut, events::Poseidon2HashEvent, external_linear_layer,
+        NUM_EXTERNAL_ROUNDS, WIDTH,
+    },
+    range_check::{RangeCheckEvent, RangeCheckOpcode},
     runtime::{ExecutionRecord, RecursionProgram},
 };
 
-use super::events::{Poseidon2AbsorbEvent, Poseidon2CompressEvent, Poseidon2FinalizeEvent};
-use super::RATE;
-use super::{internal_linear_layer, Poseidon2WideChip, NUM_INTERNAL_ROUNDS};
+use super::{
+    events::{Poseidon2AbsorbEvent, Poseidon2CompressEvent, Poseidon2FinalizeEvent},
+    internal_linear_layer, Poseidon2WideChip, NUM_INTERNAL_ROUNDS, RATE,
+};
 
 impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<DEGREE> {
     type Record = ExecutionRecord<F>;
@@ -53,17 +54,15 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
         }
         nb_rows += input.poseidon2_compress_events.len() * 2;
 
-        let nb_padded_rows = if self.pad {
-            next_power_of_two(nb_rows, self.fixed_log2_rows)
-        } else {
-            nb_rows
-        };
+        let nb_padded_rows =
+            if self.pad { next_power_of_two(nb_rows, self.fixed_log2_rows) } else { nb_rows };
 
         let num_columns = <Poseidon2WideChip<DEGREE> as BaseAir<F>>::width(self);
         let mut rows = vec![F::zero(); nb_padded_rows * num_columns];
 
-        // Populate the hash events.  We do this serially, since each absorb event could populate a different
-        // number of rows.  Also, most of the rows are populated by the compress events.
+        // Populate the hash events.  We do this serially, since each absorb event could populate a
+        // different number of rows.  Also, most of the rows are populated by the compress
+        // events.
         let mut row_cursor = 0;
         for event in &input.poseidon2_hash_events {
             match event {
@@ -222,7 +221,8 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         num_columns: usize,
         output: &mut ExecutionRecord<F>,
     ) {
-        // We currently don't support an input_len of 0, since it will need special logic in the AIR.
+        // We currently don't support an input_len of 0, since it will need special logic in the
+        // AIR.
         assert!(absorb_event.input_len > F::zero());
 
         let mut last_row_ending_cursor = 0;
@@ -297,34 +297,30 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                 )]);
 
                 // Calculate last_row_num_consumed.
-                // For absorb calls that span multiple rows (e.g. the last row is not the syscall row),
-                // last_row_num_consumed = (input_len + state_cursor) % 8 at the syscall row.
-                // For absorb calls that are only one row, last_row_num_consumed = absorb_event.input_len.
+                // For absorb calls that span multiple rows (e.g. the last row is not the syscall
+                // row), last_row_num_consumed = (input_len + state_cursor) % 8 at
+                // the syscall row. For absorb calls that are only one row,
+                // last_row_num_consumed = absorb_event.input_len.
                 if is_syscall_row {
-                    last_row_ending_cursor = (absorb_iter.state_cursor
-                        + absorb_event.input_len.as_canonical_u32() as usize
-                        - 1)
-                        % RATE;
+                    last_row_ending_cursor = (absorb_iter.state_cursor +
+                        absorb_event.input_len.as_canonical_u32() as usize -
+                        1) %
+                        RATE;
                 }
 
                 absorb_workspace.last_row_ending_cursor =
                     F::from_canonical_usize(last_row_ending_cursor);
 
-                absorb_workspace
-                    .last_row_ending_cursor_is_seven
-                    .populate_from_field_element(
-                        F::from_canonical_usize(last_row_ending_cursor)
-                            - F::from_canonical_usize(7),
-                    );
+                absorb_workspace.last_row_ending_cursor_is_seven.populate_from_field_element(
+                    F::from_canonical_usize(last_row_ending_cursor) - F::from_canonical_usize(7),
+                );
 
                 (0..3).for_each(|i| {
                     absorb_workspace.last_row_ending_cursor_bitmap[i] =
                         F::from_bool((last_row_ending_cursor) & (1 << i) == (1 << i))
                 });
 
-                absorb_workspace
-                    .num_remaining_rows_is_zero
-                    .populate(num_remaining_rows as u32);
+                absorb_workspace.num_remaining_rows_is_zero.populate(num_remaining_rows as u32);
 
                 absorb_workspace.is_syscall_not_last_row =
                     F::from_bool(is_syscall_row && !is_last_row);
@@ -356,11 +352,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             // Populate the permutation fields.
             self.populate_permutation(
                 absorb_iter.perm_input,
-                if absorb_iter.do_perm {
-                    Some(absorb_iter.perm_output)
-                } else {
-                    None
-                },
+                if absorb_iter.do_perm { Some(absorb_iter.perm_output) } else { None },
                 absorb_row,
             );
         }
@@ -409,19 +401,13 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             finalize_workspace.previous_state = finalize_event.previous_state;
             finalize_workspace.state = finalize_event.state;
             finalize_workspace.state_cursor = F::from_canonical_usize(finalize_event.state_cursor);
-            finalize_workspace
-                .state_cursor_is_zero
-                .populate(finalize_event.state_cursor as u32);
+            finalize_workspace.state_cursor_is_zero.populate(finalize_event.state_cursor as u32);
         }
 
         // Populate the permutation fields.
         self.populate_permutation(
             finalize_event.perm_input,
-            if finalize_event.do_perm {
-                Some(finalize_event.perm_output)
-            } else {
-                None
-            },
+            if finalize_event.do_perm { Some(finalize_event.perm_output) } else { None },
             row,
         );
     }
@@ -493,12 +479,9 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             // Add round constants.
             //
             // Optimization: Since adding a constant is a degree 1 operation, we can avoid adding
-            // columns for it, and instead include it in the constraint for the x^3 part of the sbox.
-            let round = if r < NUM_EXTERNAL_ROUNDS / 2 {
-                r
-            } else {
-                r + NUM_INTERNAL_ROUNDS
-            };
+            // columns for it, and instead include it in the constraint for the x^3 part of the
+            // sbox.
+            let round = if r < NUM_EXTERNAL_ROUNDS / 2 { r } else { r + NUM_INTERNAL_ROUNDS };
             let mut add_rc = *round_state;
             for i in 0..WIDTH {
                 add_rc[i] += F::from_wrapped_u32(RC_16_30_U32[round][i]);

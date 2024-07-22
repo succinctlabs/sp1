@@ -46,20 +46,17 @@ impl<F: Field> BabyBearBitDecomposition<F> {
         }
 
         // Assert that bits2num(bits) == value.
-        builder
-            .when(is_real.clone())
-            .assert_eq(reconstructed_value, value);
+        builder.when(is_real.clone()).assert_eq(reconstructed_value, value);
 
         // Range check that value is less than baby bear modulus.  To do this, it is sufficient
-        // to just do comparisons for the most significant byte. BabyBear's modulus is (in big endian binary)
-        // 01111000_00000000_00000000_00000001.  So we need to check the following conditions:
+        // to just do comparisons for the most significant byte. BabyBear's modulus is (in big
+        // endian binary) 01111000_00000000_00000000_00000001.  So we need to check the
+        // following conditions:
         // 1) if most_sig_byte > 01111000, then fail.
         // 2) if most_sig_byte == 01111000, then value's lower sig bytes must all be 0.
         // 3) if most_sig_byte < 01111000, then pass.
         let most_sig_byte_decomp = &cols.bits[24..32];
-        builder
-            .when(is_real.clone())
-            .assert_zero(most_sig_byte_decomp[7]);
+        builder.when(is_real.clone()).assert_zero(most_sig_byte_decomp[7]);
 
         // Compute the product of the "top bits".
         builder.when(is_real.clone()).assert_eq(

@@ -1,21 +1,19 @@
-use std::fmt::Debug;
-use std::ops::{Div, Index, IndexMut};
-use std::slice::Iter;
+use std::{
+    fmt::Debug,
+    ops::{Div, Index, IndexMut},
+    slice::Iter,
+};
 
-use serde::de::DeserializeOwned;
-use serde::Serialize;
+use serde::{de::DeserializeOwned, Serialize};
 
-use typenum::Unsigned;
-use typenum::{U2, U4};
+use typenum::{Unsigned, U2, U4};
 
-use generic_array::sequence::GenericSequence;
-use generic_array::{ArrayLength, GenericArray};
+use generic_array::{sequence::GenericSequence, ArrayLength, GenericArray};
 use num::BigUint;
 
 use p3_field::Field;
 
-use crate::air::Polynomial;
-use crate::utils::ec::utils::biguint_from_limbs;
+use crate::{air::Polynomial, utils::ec::utils::biguint_from_limbs};
 
 pub const NB_BITS_PER_LIMB: usize = 8;
 
@@ -47,10 +45,7 @@ pub trait FieldParameters:
     }
 
     fn modulus_field_iter<F: Field>() -> impl Iterator<Item = F> {
-        Self::MODULUS
-            .iter()
-            .map(|x| F::from_canonical_u8(*x))
-            .take(Self::NB_LIMBS)
+        Self::MODULUS.iter().map(|x| F::from_canonical_u8(*x)).take(Self::NB_LIMBS)
     }
 
     /// Convert a BigUint to a Vec of u8 limbs (with len NB_LIMBS).
@@ -62,10 +57,7 @@ pub trait FieldParameters:
 
     /// Convert a BigUint to a Vec of F limbs (with len NB_LIMBS).
     fn to_limbs_field_vec<E: From<F>, F: Field>(x: &BigUint) -> Vec<E> {
-        Self::to_limbs(x)
-            .into_iter()
-            .map(|x| F::from_canonical_u8(x).into())
-            .collect::<Vec<_>>()
+        Self::to_limbs(x).into_iter().map(|x| F::from_canonical_u8(x).into()).collect::<Vec<_>>()
     }
 
     /// Convert a BigUint to Limbs<F, Self::Limbs>.

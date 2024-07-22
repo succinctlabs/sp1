@@ -1,22 +1,24 @@
 use itertools::{izip, Itertools};
 use p3_commit::PolynomialSpace;
-use p3_field::AbstractField;
-use p3_field::TwoAdicField;
+use p3_field::{AbstractField, TwoAdicField};
 use p3_fri::FriConfig;
 use p3_matrix::Dimensions;
 use p3_util::log2_strict_usize;
-use sp1_recursion_compiler::ir::{Builder, Config, Felt};
-use sp1_recursion_compiler::prelude::*;
+use sp1_recursion_compiler::{
+    ir::{Builder, Config, Felt},
+    prelude::*,
+};
 use sp1_recursion_core::stark::config::OuterChallengeMmcs;
 
-use crate::mmcs::verify_batch;
-use crate::types::FriChallenges;
-use crate::types::FriProofVariable;
-use crate::types::FriQueryProofVariable;
-use crate::types::OuterDigestVariable;
-use crate::types::TwoAdicPcsProofVariable;
-use crate::types::TwoAdicPcsRoundVariable;
-use crate::{challenger::MultiField32ChallengerVariable, DIGEST_SIZE};
+use crate::{
+    challenger::MultiField32ChallengerVariable,
+    mmcs::verify_batch,
+    types::{
+        FriChallenges, FriProofVariable, FriQueryProofVariable, OuterDigestVariable,
+        TwoAdicPcsProofVariable, TwoAdicPcsRoundVariable,
+    },
+    DIGEST_SIZE,
+};
 
 pub fn verify_shape_and_sample_challenges<C: Config>(
     builder: &mut Builder<C>,
@@ -43,14 +45,10 @@ pub fn verify_shape_and_sample_challenges<C: Config>(
     challenger.check_witness(builder, config.proof_of_work_bits, proof.pow_witness);
 
     let log_max_height = proof.commit_phase_commits.len() + config.log_blowup;
-    let query_indices: Vec<Var<_>> = (0..config.num_queries)
-        .map(|_| challenger.sample_bits(builder, log_max_height))
-        .collect();
+    let query_indices: Vec<Var<_>> =
+        (0..config.num_queries).map(|_| challenger.sample_bits(builder, log_max_height)).collect();
 
-    FriChallenges {
-        query_indices,
-        betas,
-    }
+    FriChallenges { query_indices, betas }
 }
 
 pub fn verify_two_adic_pcs<C: Config>(
@@ -80,10 +78,8 @@ pub fn verify_two_adic_pcs<C: Config>(
             for (batch_opening, round) in izip!(query_opening.clone(), &rounds) {
                 let batch_commit = round.batch_commit;
                 let mats = &round.mats;
-                let batch_heights = mats
-                    .iter()
-                    .map(|mat| mat.domain.size() << config.log_blowup)
-                    .collect_vec();
+                let batch_heights =
+                    mats.iter().map(|mat| mat.domain.size() << config.log_blowup).collect_vec();
                 let batch_dims = batch_heights
                     .iter()
                     .map(|&height| Dimensions { width: 0, height })
@@ -137,13 +133,7 @@ pub fn verify_two_adic_pcs<C: Config>(
         })
         .collect::<Vec<_>>();
 
-    verify_challenges(
-        builder,
-        config,
-        &proof.fri_proof,
-        &fri_challenges,
-        reduced_openings,
-    );
+    verify_challenges(builder, config, &proof.fri_proof, &fri_challenges, reduced_openings);
 }
 
 pub fn verify_challenges<C: Config>(
@@ -154,11 +144,9 @@ pub fn verify_challenges<C: Config>(
     reduced_openings: Vec<[Ext<C::F, C::EF>; 32]>,
 ) {
     let log_max_height = proof.commit_phase_commits.len() + config.log_blowup;
-    for (&index, query_proof, ro) in izip!(
-        &challenges.query_indices,
-        &proof.query_proofs,
-        reduced_openings
-    ) {
+    for (&index, query_proof, ro) in
+        izip!(&challenges.query_indices, &proof.query_proofs, reduced_openings)
+    {
         let folded_eval = verify_query(
             builder,
             proof.commit_phase_commits.clone(),
@@ -183,20 +171,16 @@ pub fn verify_query<C: Config>(
     log_max_height: usize,
 ) -> Ext<C::F, C::EF> {
     let mut folded_eval: Ext<C::F, C::EF> = builder.eval(SymbolicExt::from_f(C::EF::zero()));
-    let two_adic_generator = builder.eval(SymbolicExt::from_f(C::EF::two_adic_generator(
-        log_max_height,
-    )));
+    let two_adic_generator =
+        builder.eval(SymbolicExt::from_f(C::EF::two_adic_generator(log_max_height)));
     let index_bits = builder.num2bits_v_circuit(index, 32);
     let rev_reduced_index = builder.reverse_bits_len_circuit(index_bits.clone(), log_max_height);
     let mut x = builder.exp_e_bits(two_adic_generator, rev_reduced_index);
 
     let mut offset = 0;
-    for (log_folded_height, commit, step, beta) in izip!(
-        (0..log_max_height).rev(),
-        commit_phase_commits,
-        &proof.commit_phase_openings,
-        betas,
-    ) {
+    for (log_folded_height, commit, step, beta) in
+        izip!((0..log_max_height).rev(), commit_phase_commits, &proof.commit_phase_openings, betas,)
+    {
         folded_eval = builder.eval(folded_eval + reduced_openings[log_folded_height + 1]);
 
         let one: Var<_> = builder.eval(C::N::one());
@@ -212,10 +196,7 @@ pub fn verify_query<C: Config>(
             builder.ext2felt_circuit(evals_ext[1]).to_vec(),
         ];
 
-        let dims = &[Dimensions {
-            width: 2,
-            height: (1 << log_folded_height),
-        }];
+        let dims = &[Dimensions { width: 2, height: (1 << log_folded_height) }];
         verify_batch::<C, 4>(
             builder,
             commit,
@@ -305,15 +286,10 @@ pub mod tests {
                                 [commit; DIGEST_SIZE]
                             })
                             .collect::<Vec<_>>();
-                        FriCommitPhaseProofStepVariable {
-                            sibling_value,
-                            opening_proof,
-                        }
+                        FriCommitPhaseProofStepVariable { sibling_value, opening_proof }
                     })
                     .collect::<Vec<_>>();
-                FriQueryProofVariable {
-                    commit_phase_openings,
-                }
+                FriQueryProofVariable { commit_phase_openings }
             })
             .collect::<Vec<_>>();
 
@@ -357,31 +333,20 @@ pub mod tests {
                     .collect::<Vec<_>>()
             })
             .collect::<Vec<_>>();
-        TwoAdicPcsProofVariable {
-            fri_proof,
-            query_openings,
-        }
+        TwoAdicPcsProofVariable { fri_proof, query_openings }
     }
 
     pub fn const_two_adic_pcs_rounds(
         builder: &mut Builder<OuterConfig>,
         commit: [Bn254Fr; DIGEST_SIZE],
-        os: Vec<(
-            TwoAdicMultiplicativeCoset<OuterVal>,
-            Vec<(OuterChallenge, Vec<OuterChallenge>)>,
-        )>,
-    ) -> (
-        OuterDigestVariable<OuterConfig>,
-        Vec<TwoAdicPcsRoundVariable<OuterConfig>>,
-    ) {
+        os: Vec<(TwoAdicMultiplicativeCoset<OuterVal>, Vec<(OuterChallenge, Vec<OuterChallenge>)>)>,
+    ) -> (OuterDigestVariable<OuterConfig>, Vec<TwoAdicPcsRoundVariable<OuterConfig>>) {
         let commit: OuterDigestVariable<OuterConfig> = [builder.eval(commit[0])];
 
         let mut mats = Vec::new();
         for (domain, poly) in os.into_iter() {
-            let points: Vec<Ext<OuterVal, OuterChallenge>> = poly
-                .iter()
-                .map(|(p, _)| builder.eval(SymbolicExt::from_f(*p)))
-                .collect::<Vec<_>>();
+            let points: Vec<Ext<OuterVal, OuterChallenge>> =
+                poly.iter().map(|(p, _)| builder.eval(SymbolicExt::from_f(*p))).collect::<Vec<_>>();
             let values: Vec<Vec<Ext<OuterVal, OuterChallenge>>> = poly
                 .iter()
                 .map(|(_, v)| {
@@ -391,21 +356,11 @@ pub mod tests {
                         .collect::<Vec<_>>()
                 })
                 .collect::<Vec<_>>();
-            let mat = TwoAdicPcsMatsVariable {
-                domain,
-                points,
-                values,
-            };
+            let mat = TwoAdicPcsMatsVariable { domain, points, values };
             mats.push(mat);
         }
 
-        (
-            commit,
-            vec![TwoAdicPcsRoundVariable {
-                batch_commit: commit,
-                mats,
-            }],
-        )
+        (commit, vec![TwoAdicPcsRoundVariable { batch_commit: commit, mats }])
     }
 
     #[test]
@@ -418,12 +373,8 @@ pub mod tests {
         let compress = OuterCompress::new(perm.clone());
         let val_mmcs = OuterValMmcs::new(hash, compress);
         let dft = OuterDft {};
-        let pcs: OuterPcs = OuterPcs::new(
-            log_degrees.iter().copied().max().unwrap(),
-            dft,
-            val_mmcs,
-            fri_config,
-        );
+        let pcs: OuterPcs =
+            OuterPcs::new(log_degrees.iter().copied().max().unwrap(), dft, val_mmcs, fri_config);
 
         // Generate proof.
         let domains_and_polys = log_degrees
@@ -445,10 +396,7 @@ pub mod tests {
         let mut challenger = OuterChallenger::new(perm.clone()).unwrap();
         challenger.observe(commit);
         let zeta = challenger.sample_ext_element::<OuterChallenge>();
-        let points = domains_and_polys
-            .iter()
-            .map(|_| vec![zeta])
-            .collect::<Vec<_>>();
+        let points = domains_and_polys.iter().map(|_| vec![zeta]).collect::<Vec<_>>();
         let (_, proof) = pcs.open(vec![(&data, points)], &mut challenger);
 
         // Verify proof.
@@ -504,12 +452,8 @@ pub mod tests {
         let compress = OuterCompress::new(perm.clone());
         let val_mmcs = OuterValMmcs::new(hash, compress);
         let dft = OuterDft {};
-        let pcs: OuterPcs = OuterPcs::new(
-            log_degrees.iter().copied().max().unwrap(),
-            dft,
-            val_mmcs,
-            fri_config,
-        );
+        let pcs: OuterPcs =
+            OuterPcs::new(log_degrees.iter().copied().max().unwrap(), dft, val_mmcs, fri_config);
 
         // Generate proof.
         let domains_and_polys = log_degrees
@@ -531,10 +475,7 @@ pub mod tests {
         let mut challenger = OuterChallenger::new(perm.clone()).unwrap();
         challenger.observe(commit);
         let zeta = challenger.sample_ext_element::<OuterChallenge>();
-        let points = domains_and_polys
-            .iter()
-            .map(|_| vec![zeta])
-            .collect::<Vec<_>>();
+        let points = domains_and_polys.iter().map(|_| vec![zeta]).collect::<Vec<_>>();
         let (opening, proof) = pcs.open(vec![(&data, points)], &mut challenger);
 
         // Verify proof.
@@ -549,8 +490,7 @@ pub mod tests {
             .zip(&opening[0])
             .map(|((domain, _), mat_openings)| (*domain, vec![(zeta, mat_openings[0].clone())]))
             .collect();
-        pcs.verify(vec![(commit, os.clone())], &proof, &mut challenger)
-            .unwrap();
+        pcs.verify(vec![(commit, os.clone())], &proof, &mut challenger).unwrap();
 
         // Define circuit.
         let mut builder = Builder::<OuterConfig>::default();

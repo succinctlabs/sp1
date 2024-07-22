@@ -1,6 +1,8 @@
 #![allow(unused_imports)]
-use crate::utils::CurveOperations;
-use crate::{syscall_bls12381_add, syscall_bls12381_decompress, syscall_bls12381_double};
+use crate::{
+    syscall_bls12381_add, syscall_bls12381_decompress, syscall_bls12381_double,
+    utils::CurveOperations,
+};
 
 use amcl::bls381::bls381::utils::deserialize_g1;
 use anyhow::Result;

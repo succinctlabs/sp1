@@ -1,18 +1,15 @@
 use core::borrow::Borrow;
 use p3_air::AirBuilder;
 use p3_baby_bear::BabyBear;
-use p3_field::AbstractField;
-use p3_field::Field;
-use p3_field::PrimeField32;
-use p3_field::TwoAdicField;
+use p3_field::{AbstractField, Field, PrimeField32, TwoAdicField};
 use p3_matrix::Matrix;
 
-use crate::air::BaseAirBuilder;
-use crate::air::SP1AirBuilder;
-use crate::operations::IsZeroOperation;
+use crate::{
+    air::{BaseAirBuilder, SP1AirBuilder},
+    operations::IsZeroOperation,
+};
 
-use super::ShaExtendChip;
-use super::ShaExtendCols;
+use super::{ShaExtendChip, ShaExtendCols};
 
 impl<F: Field> ShaExtendCols<F> {
     pub fn populate_flags(&mut self, i: usize) {
@@ -23,12 +20,10 @@ impl<F: Field> ShaExtendCols<F> {
         self.cycle_16 = g.exp_u64((i + 1) as u64);
 
         // Populate the columns needed to track the start of a cycle of 16 rows.
-        self.cycle_16_start
-            .populate_from_field_element(self.cycle_16 - g);
+        self.cycle_16_start.populate_from_field_element(self.cycle_16 - g);
 
         // Populate the columns needed to track the end of a cycle of 16 rows.
-        self.cycle_16_end
-            .populate_from_field_element(self.cycle_16 - F::one());
+        self.cycle_16_end.populate_from_field_element(self.cycle_16 - F::one());
 
         // Populate the columns needed to keep track of cycles of 48 rows.
         let j = 16 + (i % 48);
@@ -57,14 +52,10 @@ impl ShaExtendChip {
         builder.when_first_row().assert_eq(local.cycle_16, g);
 
         // First row of the table must have i = 16.
-        builder
-            .when_first_row()
-            .assert_eq(local.i, AB::F::from_canonical_u32(16));
+        builder.when_first_row().assert_eq(local.i, AB::F::from_canonical_u32(16));
 
         // Every row's `cycle_16` must be previous multiplied by `g`.
-        builder
-            .when_transition()
-            .assert_eq(local.cycle_16 * g, next.cycle_16);
+        builder.when_transition().assert_eq(local.cycle_16 * g, next.cycle_16);
 
         // Constrain `cycle_16_start.result` to be `cycle_16 - g == 0`.
         IsZeroOperation::<AB::F>::eval(
@@ -83,17 +74,12 @@ impl ShaExtendChip {
         );
 
         // Constrain `cycle_48` to be [1, 0, 0] in the first row.
-        builder
-            .when_first_row()
-            .assert_eq(local.cycle_48[0], AB::F::one());
-        builder
-            .when_first_row()
-            .assert_eq(local.cycle_48[1], AB::F::zero());
-        builder
-            .when_first_row()
-            .assert_eq(local.cycle_48[2], AB::F::zero());
+        builder.when_first_row().assert_eq(local.cycle_48[0], AB::F::one());
+        builder.when_first_row().assert_eq(local.cycle_48[1], AB::F::zero());
+        builder.when_first_row().assert_eq(local.cycle_48[2], AB::F::zero());
 
-        // Shift the indices of `cycles_48` at the end of each 16 rows. Otherwise, keep them the same.
+        // Shift the indices of `cycles_48` at the end of each 16 rows. Otherwise, keep them the
+        // same.
         for i in 0..3 {
             builder
                 .when_transition()

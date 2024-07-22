@@ -4,17 +4,14 @@ use p3_challenger::DuplexChallenger;
 use p3_commit::ExtensionMmcs;
 use p3_dft::Radix2DitParallel;
 use p3_field::{extension::BinomialExtensionField, Field};
-use p3_fri::BatchOpening;
-use p3_fri::CommitPhaseProofStep;
-use p3_fri::QueryProof;
-use p3_fri::{FriConfig, FriProof, TwoAdicFriPcs, TwoAdicFriPcsProof};
+use p3_fri::{
+    BatchOpening, CommitPhaseProofStep, FriConfig, FriProof, QueryProof, TwoAdicFriPcs,
+    TwoAdicFriPcsProof,
+};
 use p3_merkle_tree::FieldMerkleTreeMmcs;
-use p3_poseidon2::Poseidon2;
-use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
-use p3_symmetric::Hash;
-use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
-use serde::Deserialize;
-use serde::Serialize;
+use p3_poseidon2::{Poseidon2, Poseidon2ExternalMatrixGeneral};
+use p3_symmetric::{Hash, PaddingFreeSponge, TruncatedPermutation};
+use serde::{Deserialize, Serialize};
 use sp1_primitives::poseidon2_init;
 
 pub const DIGEST_SIZE: usize = 8;
@@ -61,12 +58,7 @@ pub fn sp1_fri_config() -> FriConfig<InnerChallengeMmcs> {
         Ok(value) => value.parse().unwrap(),
         Err(_) => 100,
     };
-    FriConfig {
-        log_blowup: 1,
-        num_queries,
-        proof_of_work_bits: 16,
-        mmcs: challenge_mmcs,
-    }
+    FriConfig { log_blowup: 1, num_queries, proof_of_work_bits: 16, mmcs: challenge_mmcs }
 }
 
 /// The FRI config for inner recursion.
@@ -79,12 +71,7 @@ pub fn inner_fri_config() -> FriConfig<InnerChallengeMmcs> {
         Ok(value) => value.parse().unwrap(),
         Err(_) => 100,
     };
-    FriConfig {
-        log_blowup: 1,
-        num_queries,
-        proof_of_work_bits: 16,
-        mmcs: challenge_mmcs,
-    }
+    FriConfig { log_blowup: 1, num_queries, proof_of_work_bits: 16, mmcs: challenge_mmcs }
 }
 
 /// The recursion config used for recursive reduce circuit.

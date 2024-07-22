@@ -1,10 +1,11 @@
-use alloc::collections::BTreeMap;
-use alloc::format;
+use alloc::{collections::BTreeMap, format};
 use core::fmt;
 
 use p3_field::{ExtensionField, PrimeField32};
-use sp1_recursion_core::cpu::Instruction;
-use sp1_recursion_core::runtime::{canonical_i32_to_field, Opcode, PERMUTATION_WIDTH};
+use sp1_recursion_core::{
+    cpu::Instruction,
+    runtime::{canonical_i32_to_field, Opcode, PERMUTATION_WIDTH},
+};
 
 use super::A0;
 
@@ -188,10 +189,11 @@ pub enum AsmInstruction<F, EF> {
 
     CycleTracker(String),
 
-    /// ExpReverseBitsLen instruction: (mathematical description) given `x`, `exp`, `len`, bit-reverse the last `len` bits of
-    /// `exp` and raise `x` to the power of the resulting value. The arguments are a pointer to the
-    /// addresss at which `x` is located (will be written to with the result), a pointer to the
-    /// address containing the bits of `exp` stored as a little-endian bit array, and `len`.
+    /// ExpReverseBitsLen instruction: (mathematical description) given `x`, `exp`, `len`,
+    /// bit-reverse the last `len` bits of `exp` and raise `x` to the power of the resulting
+    /// value. The arguments are a pointer to the addresss at which `x` is located (will be
+    /// written to with the result), a pointer to the address containing the bits of `exp`
+    /// stored as a little-endian bit array, and `len`.
     ExpReverseBitsLen(i32, i32, i32),
 }
 
@@ -202,14 +204,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
 
     pub fn to_machine(self, pc: usize, label_to_pc: &BTreeMap<F, usize>) -> Instruction<F> {
         let i32_f = canonical_i32_to_field::<F>;
-        let i32_f_arr = |x: i32| {
-            [
-                canonical_i32_to_field::<F>(x),
-                F::zero(),
-                F::zero(),
-                F::zero(),
-            ]
-        };
+        let i32_f_arr = |x: i32| [canonical_i32_to_field::<F>(x), F::zero(), F::zero(), F::zero()];
         let f_u32 = |x: F| [x, F::zero(), F::zero(), F::zero()];
         let zero = [F::zero(), F::zero(), F::zero(), F::zero()];
         match self {
@@ -921,32 +916,16 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 write!(f, "lt  ({})fp, {}, {}", dst, left, right,)
             }
             AsmInstruction::LoadF(dst, src, index, offset, size) => {
-                write!(
-                    f,
-                    "lw    ({})fp, ({})fp, ({})fp, {}, {}",
-                    dst, src, index, offset, size
-                )
+                write!(f, "lw    ({})fp, ({})fp, ({})fp, {}, {}", dst, src, index, offset, size)
             }
             AsmInstruction::LoadFI(dst, src, index, offset, size) => {
-                write!(
-                    f,
-                    "lwi   ({})fp, ({})fp, {}, {}, {}",
-                    dst, src, index, offset, size
-                )
+                write!(f, "lwi   ({})fp, ({})fp, {}, {}, {}", dst, src, index, offset, size)
             }
             AsmInstruction::StoreF(dst, src, index, offset, size) => {
-                write!(
-                    f,
-                    "sw    ({})fp, ({})fp, ({})fp, {}, {}",
-                    dst, src, index, offset, size
-                )
+                write!(f, "sw    ({})fp, ({})fp, ({})fp, {}, {}", dst, src, index, offset, size)
             }
             AsmInstruction::StoreFI(dst, src, index, offset, size) => {
-                write!(
-                    f,
-                    "swi   ({})fp, ({})fp, {}, {}, {}",
-                    dst, src, index, offset, size
-                )
+                write!(f, "swi   ({})fp, ({})fp, {}, {}, {}", dst, src, index, offset, size)
             }
             AsmInstruction::AddF(dst, lhs, rhs) => {
                 write!(f, "add   ({})fp, ({})fp, ({})fp", dst, lhs, rhs)
@@ -979,32 +958,16 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 write!(f, "divin ({})fp, {}, ({})fp", dst, lhs, rhs)
             }
             AsmInstruction::LoadE(dst, src, index, offset, size) => {
-                write!(
-                    f,
-                    "le    ({})fp, ({})fp, ({})fp, {}, {}",
-                    dst, src, index, offset, size
-                )
+                write!(f, "le    ({})fp, ({})fp, ({})fp, {}, {}", dst, src, index, offset, size)
             }
             AsmInstruction::LoadEI(dst, src, index, offset, size) => {
-                write!(
-                    f,
-                    "lei   ({})fp, ({})fp, {}, {}, {}",
-                    dst, src, index, offset, size
-                )
+                write!(f, "lei   ({})fp, ({})fp, {}, {}, {}", dst, src, index, offset, size)
             }
             AsmInstruction::StoreE(dst, src, index, offset, size) => {
-                write!(
-                    f,
-                    "se    ({})fp, ({})fp, ({})fp, {}, {}",
-                    dst, src, index, offset, size
-                )
+                write!(f, "se    ({})fp, ({})fp, ({})fp, {}, {}", dst, src, index, offset, size)
             }
             AsmInstruction::StoreEI(dst, src, index, offset, size) => {
-                write!(
-                    f,
-                    "sei   ({})fp, ({})fp, {}, {}, {}",
-                    dst, src, index, offset, size
-                )
+                write!(f, "sei   ({})fp, ({})fp, {}, {}, {}", dst, src, index, offset, size)
             }
             AsmInstruction::AddE(dst, lhs, rhs) => {
                 write!(f, "eadd  ({})fp, ({})fp, ({})fp", dst, lhs, rhs)
@@ -1170,11 +1133,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 write!(f, "fri_fold ({})fp, ({})fp", m, input_ptr)
             }
             AsmInstruction::Poseidon2Compress(result, src1, src2) => {
-                write!(
-                    f,
-                    "poseidon2_compress ({})fp, {})fp, {})fp",
-                    result, src1, src2
-                )
+                write!(f, "poseidon2_compress ({})fp, {})fp, {})fp", result, src1, src2)
             }
             AsmInstruction::Poseidon2Absorb(hash_and_absorb_num, input_ptr, input_len) => {
                 write!(
@@ -1196,11 +1155,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 write!(f, "cycle-tracker {}", name)
             }
             AsmInstruction::ExpReverseBitsLen(base, ptr, len) => {
-                write!(
-                    f,
-                    "exp_reverse_bits_len ({})fp, ({})fp, ({})fp",
-                    base, ptr, len
-                )
+                write!(f, "exp_reverse_bits_len ({})fp, ({})fp, ({})fp", base, ptr, len)
             }
         }
     }

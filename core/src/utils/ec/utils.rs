@@ -8,10 +8,7 @@ pub fn biguint_to_bits_le(integer: &BigUint, num_bits: usize) -> Vec<bool> {
             bits.push(byte & (1 << i) != 0);
         }
     }
-    debug_assert!(
-        bits.len() <= num_bits,
-        "Number too large to fit in {num_bits} digits"
-    );
+    debug_assert!(bits.len() <= num_bits, "Number too large to fit in {num_bits} digits");
     bits.resize(num_bits, false);
     bits
 }

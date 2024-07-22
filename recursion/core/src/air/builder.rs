@@ -1,6 +1,8 @@
-use crate::cpu::{InstructionCols, OpcodeSelectorCols};
-use crate::memory::{MemoryAccessTimestampCols, MemoryCols};
-use crate::range_check::RangeCheckOpcode;
+use crate::{
+    cpu::{InstructionCols, OpcodeSelectorCols},
+    memory::{MemoryAccessTimestampCols, MemoryCols},
+    range_check::RangeCheckOpcode,
+};
 use core::iter::{once, repeat};
 use p3_air::{AirBuilder, AirBuilderWithPublicValues};
 use p3_field::AbstractField;
@@ -48,16 +50,8 @@ pub trait RecursionMemoryAirBuilder: RecursionInteractionAirBuilder {
             .chain(memory_access.value().clone().map(Into::into))
             .collect();
 
-        self.receive(AirInteraction::new(
-            prev_values,
-            is_real.clone(),
-            InteractionKind::Memory,
-        ));
-        self.send(AirInteraction::new(
-            current_values,
-            is_real,
-            InteractionKind::Memory,
-        ));
+        self.receive(AirInteraction::new(prev_values, is_real.clone(), InteractionKind::Memory));
+        self.send(AirInteraction::new(current_values, is_real, InteractionKind::Memory));
     }
 
     fn recursion_eval_memory_access_single<E: Into<Self::Expr> + Clone>(
@@ -88,16 +82,8 @@ pub trait RecursionMemoryAirBuilder: RecursionInteractionAirBuilder {
             .chain(repeat(Self::Expr::zero()).take(3))
             .collect();
 
-        self.receive(AirInteraction::new(
-            prev_values,
-            is_real.clone(),
-            InteractionKind::Memory,
-        ));
-        self.send(AirInteraction::new(
-            current_values,
-            is_real,
-            InteractionKind::Memory,
-        ));
+        self.receive(AirInteraction::new(prev_values, is_real.clone(), InteractionKind::Memory));
+        self.send(AirInteraction::new(current_values, is_real, InteractionKind::Memory));
     }
 
     /// Verifies that the memory access happens after the previous memory access.
@@ -125,8 +111,8 @@ pub trait RecursionMemoryAirBuilder: RecursionInteractionAirBuilder {
     ///
     /// This method verifies that the inputted is less than 2^24 by doing a 16 bit and 12 bit range
     /// check on it's limbs.  It will also verify that the limbs are correct.  This method is needed
-    /// since the memory access timestamp check (see [Self::eval_memory_access_timestamp]) needs to assume
-    /// the clk is within 28 bits.
+    /// since the memory access timestamp check (see [Self::eval_memory_access_timestamp]) needs to
+    /// assume the clk is within 28 bits.
     fn eval_range_check_28bits(
         &mut self,
         value: impl Into<Self::Expr>,
@@ -137,8 +123,8 @@ pub trait RecursionMemoryAirBuilder: RecursionInteractionAirBuilder {
         // Verify that value = limb_16 + limb_12 * 2^16.
         self.when(is_real.clone()).assert_eq(
             value,
-            limb_16.clone().into()
-                + limb_12.clone().into() * Self::Expr::from_canonical_u32(1 << 16),
+            limb_16.clone().into() +
+                limb_12.clone().into() * Self::Expr::from_canonical_u32(1 << 16),
         );
 
         // Send the range checks for the limbs.
@@ -230,11 +216,7 @@ pub trait RecursionInteractionAirBuilder: BaseAirBuilder {
     ) {
         let table_interaction_vals = table.iter().map(|x| x.clone().into());
         let values = once(opcode.into()).chain(table_interaction_vals).collect();
-        self.send(AirInteraction::new(
-            values,
-            is_real.into(),
-            InteractionKind::Syscall,
-        ));
+        self.send(AirInteraction::new(values, is_real.into(), InteractionKind::Syscall));
     }
 
     fn receive_table<E: Into<Self::Expr> + Clone>(
@@ -245,10 +227,6 @@ pub trait RecursionInteractionAirBuilder: BaseAirBuilder {
     ) {
         let table_interaction_vals = table.iter().map(|x| x.clone().into());
         let values = once(opcode.into()).chain(table_interaction_vals).collect();
-        self.receive(AirInteraction::new(
-            values,
-            is_real.into(),
-            InteractionKind::Syscall,
-        ));
+        self.receive(AirInteraction::new(values, is_real.into(), InteractionKind::Syscall));
     }
 }

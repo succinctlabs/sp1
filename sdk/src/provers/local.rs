@@ -87,9 +87,7 @@ impl<C: SP1ProverComponents> Prover<C> for LocalProver<C> {
         } else {
             try_install_plonk_bn254_artifacts()
         };
-        let proof = self
-            .prover
-            .wrap_plonk_bn254(outer_proof, &plonk_bn254_aritfacts);
+        let proof = self.prover.wrap_plonk_bn254(outer_proof, &plonk_bn254_aritfacts);
         if kind == SP1ProofKind::Plonk {
             return Ok(SP1ProofWithPublicValues {
                 proof: SP1Proof::Plonk(proof),

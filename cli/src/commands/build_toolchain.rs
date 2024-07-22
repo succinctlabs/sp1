@@ -31,10 +31,7 @@ impl BuildToolchainCmd {
                 let repo_url = match github_access_token {
                     Ok(github_access_token) => {
                         println!("Detected GITHUB_ACCESS_TOKEN, using it to clone rust.");
-                        format!(
-                            "https://{}@github.com/succinctlabs/rust",
-                            github_access_token
-                        )
+                        format!("https://{}@github.com/succinctlabs/rust", github_access_token)
                     }
                     Err(_) => {
                         println!("No GITHUB_ACCESS_TOKEN detected. If you get throttled by Github, set it to bypass the rate limit.");
@@ -52,10 +49,7 @@ impl BuildToolchainCmd {
                     ])
                     .current_dir(&temp_dir)
                     .run()?;
-                Command::new("git")
-                    .args(["reset", "--hard"])
-                    .current_dir(&dir)
-                    .run()?;
+                Command::new("git").args(["reset", "--hard"]).current_dir(&dir).run()?;
                 Command::new("git")
                     .args(["submodule", "update", "--init", "--recursive", "--progress"])
                     .current_dir(&dir)
@@ -66,40 +60,28 @@ impl BuildToolchainCmd {
 
         // Install our config.toml.
         let ci = std::env::var("CI").unwrap_or("false".to_string()) == "true";
-        let config_toml = if ci {
-            include_str!("config-ci.toml")
-        } else {
-            include_str!("config.toml")
-        };
+        let config_toml =
+            if ci { include_str!("config-ci.toml") } else { include_str!("config.toml") };
         let config_file = rust_dir.join("config.toml");
         std::fs::write(&config_file, config_toml)
             .with_context(|| format!("while writing configuration to {:?}", config_file))?;
 
         // Build the toolchain (stage 1).
         Command::new("python3")
-            .env(
-                "CARGO_TARGET_RISCV32IM_SUCCINCT_ZKVM_ELF_RUSTFLAGS",
-                "-Cpasses=loweratomic",
-            )
+            .env("CARGO_TARGET_RISCV32IM_SUCCINCT_ZKVM_ELF_RUSTFLAGS", "-Cpasses=loweratomic")
             .args(["x.py", "build"])
             .current_dir(&rust_dir)
             .run()?;
 
         // Build the toolchain (stage 2).
         Command::new("python3")
-            .env(
-                "CARGO_TARGET_RISCV32IM_SUCCINCT_ZKVM_ELF_RUSTFLAGS",
-                "-Cpasses=loweratomic",
-            )
+            .env("CARGO_TARGET_RISCV32IM_SUCCINCT_ZKVM_ELF_RUSTFLAGS", "-Cpasses=loweratomic")
             .args(["x.py", "build", "--stage", "2"])
             .current_dir(&rust_dir)
             .run()?;
 
         // Remove the existing toolchain from rustup, if it exists.
-        match Command::new("rustup")
-            .args(["toolchain", "remove", RUSTUP_TOOLCHAIN_NAME])
-            .run()
-        {
+        match Command::new("rustup").args(["toolchain", "remove", RUSTUP_TOOLCHAIN_NAME]).run() {
             Ok(_) => println!("Successfully removed existing toolchain."),
             Err(_) => println!("No existing toolchain to remove."),
         }

@@ -1,5 +1,4 @@
-use crate::utils::CurveOperations;
-use crate::{syscall_bn254_add, syscall_bn254_double};
+use crate::{syscall_bn254_add, syscall_bn254_double, utils::CurveOperations};
 
 #[derive(Copy, Clone)]
 pub struct Bn254;

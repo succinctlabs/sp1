@@ -34,29 +34,22 @@ where
 
         // Constrain the incrementing nonce.
         builder.when_first_row().assert_zero(local.nonce);
-        builder
-            .when_transition()
-            .assert_eq(local.nonce + AB::Expr::one(), next.nonce);
+        builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         let first_step = local.keccak.step_flags[0];
         let final_step = local.keccak.step_flags[NUM_ROUNDS - 1];
         let not_final_step = AB::Expr::one() - final_step;
 
         // Constrain memory in the first and last cycles.
-        builder.assert_eq(
-            (first_step + final_step) * local.is_real,
-            local.do_memory_check,
-        );
+        builder.assert_eq((first_step + final_step) * local.is_real, local.do_memory_check);
 
         // Constrain memory
         for i in 0..STATE_NUM_WORDS as u32 {
             // At the first cycle, verify that the memory has not changed since it's a memory read.
-            builder
-                .when(local.keccak.step_flags[0] * local.is_real)
-                .assert_word_eq(
-                    *local.state_mem[i as usize].value(),
-                    *local.state_mem[i as usize].prev_value(),
-                );
+            builder.when(local.keccak.step_flags[0] * local.is_real).assert_word_eq(
+                *local.state_mem[i as usize].value(),
+                *local.state_mem[i as usize].prev_value(),
+            );
 
             builder.eval_memory_access(
                 local.shard,
@@ -94,8 +87,8 @@ where
         // ensures that the table does not end abruptly.
         builder.when_last_row().assert_zero(local.is_real);
 
-        // Verify that local.a values are equal to the memory values in the 0 and 23rd rows of each cycle
-        // Memory values are 32 bit values (encoded as 4 8-bit columns).
+        // Verify that local.a values are equal to the memory values in the 0 and 23rd rows of each
+        // cycle Memory values are 32 bit values (encoded as 4 8-bit columns).
         // local.a values are 64 bit values (encoded as 4 16-bit columns).
         let expr_2_pow_8 = AB::Expr::from_canonical_u32(2u32.pow(8));
         for i in 0..STATE_SIZE as u32 {
@@ -120,13 +113,12 @@ where
                     .assert_eq(memory_limbs[i].clone(), a_value_limbs[i]);
             }
 
-            // On a final step row, verify memory matches with local.p3_keccak_cols.a_prime_prime_prime
+            // On a final step row, verify memory matches with
+            // local.p3_keccak_cols.a_prime_prime_prime
             for i in 0..U64_LIMBS {
                 builder.when(final_step * local.is_real).assert_eq(
                     memory_limbs[i].clone(),
-                    local
-                        .keccak
-                        .a_prime_prime_prime(y_idx as usize, x_idx as usize, i),
+                    local.keccak.a_prime_prime_prime(y_idx as usize, x_idx as usize, i),
                 )
             }
         }
@@ -151,14 +143,14 @@ where
 
 #[cfg(test)]
 mod test {
-    use crate::io::{SP1PublicValues, SP1Stdin};
-    use crate::runtime::Program;
-    use crate::stark::{DefaultProver, RiscvAir, StarkGenericConfig};
-    use crate::utils::SP1CoreOpts;
-    use crate::utils::{prove, setup_logger, tests::KECCAK256_ELF, BabyBearPoseidon2};
+    use crate::{
+        io::{SP1PublicValues, SP1Stdin},
+        runtime::Program,
+        stark::{DefaultProver, RiscvAir, StarkGenericConfig},
+        utils::{prove, setup_logger, tests::KECCAK256_ELF, BabyBearPoseidon2, SP1CoreOpts},
+    };
 
-    use rand::Rng;
-    use rand::SeedableRng;
+    use rand::{Rng, SeedableRng};
     use tiny_keccak::Hasher;
 
     const NUM_TEST_CASES: usize = 45;

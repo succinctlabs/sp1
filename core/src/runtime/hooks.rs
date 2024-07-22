@@ -1,10 +1,14 @@
 use core::fmt::Debug;
 
-use std::collections::HashMap;
-use std::sync::{Arc, RwLock, RwLockWriteGuard};
+use std::{
+    collections::HashMap,
+    sync::{Arc, RwLock, RwLockWriteGuard},
+};
 
-use k256::ecdsa::{RecoveryId, Signature, VerifyingKey};
-use k256::elliptic_curve::ops::Invert;
+use k256::{
+    ecdsa::{RecoveryId, Signature, VerifyingKey},
+    elliptic_curve::ops::Invert,
+};
 
 use super::Runtime;
 
@@ -54,9 +58,7 @@ impl<'a> HookRegistry<'a> {
 
     /// Create an empty registry.
     pub fn empty() -> Self {
-        Self {
-            table: Default::default(),
-        }
+        Self { table: Default::default() }
     }
 
     /// Get a hook with exclusive write access, if it exists.
@@ -99,11 +101,7 @@ pub struct HookEnv<'a, 'b: 'a> {
 }
 
 pub fn hook_ecrecover(_env: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
-    assert_eq!(
-        buf.len(),
-        65 + 32,
-        "ecrecover input should have length 65 + 32"
-    );
+    assert_eq!(buf.len(), 65 + 32, "ecrecover input should have length 65 + 32");
     let (sig, msg_hash) = buf.split_at(65);
     let sig: &[u8; 65] = sig.try_into().unwrap();
     let msg_hash: &[u8; 32] = msg_hash.try_into().unwrap();

@@ -1,13 +1,11 @@
 use p3_baby_bear::BabyBear;
-use sp1_core::stark::StarkGenericConfig;
-use sp1_core::utils;
-use sp1_core::utils::BabyBearPoseidon2;
+use sp1_core::{stark::StarkGenericConfig, utils, utils::BabyBearPoseidon2};
 
-use crate::air::Block;
-use crate::runtime::RecursionProgram;
-use crate::runtime::Runtime;
-use crate::stark::RecursionAirWideDeg3;
-use crate::stark::RecursionAirWideDeg9;
+use crate::{
+    air::Block,
+    runtime::{RecursionProgram, Runtime},
+    stark::{RecursionAirWideDeg3, RecursionAirWideDeg9},
+};
 use p3_field::PrimeField32;
 use sp1_core::utils::run_test_machine;
 use std::collections::VecDeque;

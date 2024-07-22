@@ -1,18 +1,19 @@
 use hashbrown::HashMap;
 use sp1_core::utils::SP1CoreOpts;
-use std::array;
-use std::sync::Arc;
+use std::{array, sync::Arc};
 
 use p3_field::{AbstractField, PrimeField32};
 use sp1_core::stark::{MachineRecord, PROOF_MAX_NUM_PVS};
 
 use super::RecursionProgram;
-use crate::air::Block;
-use crate::cpu::CpuEvent;
-use crate::exp_reverse_bits::ExpReverseBitsLenEvent;
-use crate::fri_fold::FriFoldEvent;
-use crate::poseidon2_wide::events::{Poseidon2CompressEvent, Poseidon2HashEvent};
-use crate::range_check::RangeCheckEvent;
+use crate::{
+    air::Block,
+    cpu::CpuEvent,
+    exp_reverse_bits::ExpReverseBitsLenEvent,
+    fri_fold::FriFoldEvent,
+    poseidon2_wide::events::{Poseidon2CompressEvent, Poseidon2HashEvent},
+    range_check::RangeCheckEvent,
+};
 
 #[derive(Default, Debug, Clone)]
 pub struct ExecutionRecord<F: Default> {
@@ -47,19 +48,10 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
     fn stats(&self) -> HashMap<String, usize> {
         let mut stats = HashMap::new();
         stats.insert("cpu_events".to_string(), self.cpu_events.len());
-        stats.insert(
-            "poseidon2_events".to_string(),
-            self.poseidon2_compress_events.len(),
-        );
-        stats.insert(
-            "poseidon2_events".to_string(),
-            self.poseidon2_hash_events.len(),
-        );
+        stats.insert("poseidon2_events".to_string(), self.poseidon2_compress_events.len());
+        stats.insert("poseidon2_events".to_string(), self.poseidon2_hash_events.len());
         stats.insert("fri_fold_events".to_string(), self.fri_fold_events.len());
-        stats.insert(
-            "range_check_events".to_string(),
-            self.range_check_events.len(),
-        );
+        stats.insert("range_check_events".to_string(), self.range_check_events.len());
         stats.insert(
             "exp_reverse_bits_len_events".to_string(),
             self.exp_reverse_bits_len_events.len(),
@@ -70,18 +62,13 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
     // NOTE: This should be unused.
     fn append(&mut self, other: &mut Self) {
         self.cpu_events.append(&mut other.cpu_events);
-        self.first_memory_record
-            .append(&mut other.first_memory_record);
-        self.last_memory_record
-            .append(&mut other.last_memory_record);
+        self.first_memory_record.append(&mut other.first_memory_record);
+        self.last_memory_record.append(&mut other.last_memory_record);
 
         // Merge the range check lookups.
         for (range_check_event, count) in std::mem::take(&mut other.range_check_events).into_iter()
         {
-            *self
-                .range_check_events
-                .entry(range_check_event)
-                .or_insert(0) += count;
+            *self.range_check_events.entry(range_check_event).or_insert(0) += count;
         }
     }
 

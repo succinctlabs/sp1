@@ -35,19 +35,17 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         for i in 0..WIDTH / 2 {
             builder.assert_bool(local_memory.memory_slot_used[i]);
 
-            // The memory slot flag will be used as the memory access multiplicity flag, so we need to
-            // ensure that those values are zero for all non real rows.
-            builder
-                .when_not(is_real.clone())
-                .assert_zero(local_memory.memory_slot_used[i]);
+            // The memory slot flag will be used as the memory access multiplicity flag, so we need
+            // to ensure that those values are zero for all non real rows.
+            builder.when_not(is_real.clone()).assert_zero(local_memory.memory_slot_used[i]);
 
             // For compress and finalize, all of the slots should be true.
             builder
                 .when(control_flow.is_compress + control_flow.is_finalize)
                 .assert_one(local_memory.memory_slot_used[i]);
 
-            // For absorb, need to make sure the memory_slots_used is consistent with the start_cursor and
-            // end_cursor (i.e. start_cursor + num_consumed);
+            // For absorb, need to make sure the memory_slots_used is consistent with the
+            // start_cursor and end_cursor (i.e. start_cursor + num_consumed);
             self.eval_absorb_memory_slots(builder, control_flow, local_memory, opcode_workspace);
         }
 
@@ -64,7 +62,8 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                 .assert_eq(syscall_params.compress().dst_ptr, local_memory.start_addr);
 
             // For absorb syscall rows, the start_addr should initially be from the syscall param's
-            // input_ptr, and for subsequent rows, it's incremented by the number of consumed elements.
+            // input_ptr, and for subsequent rows, it's incremented by the number of consumed
+            // elements.
             builder
                 .when(control_flow.is_absorb)
                 .when(control_flow.is_syscall_row)
@@ -75,10 +74,9 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             );
 
             // For finalize syscall rows, the start_addr should be the param's output ptr.
-            builder.when(control_flow.is_finalize).assert_eq(
-                syscall_params.finalize().output_ptr,
-                local_memory.start_addr,
-            );
+            builder
+                .when(control_flow.is_finalize)
+                .assert_eq(syscall_params.finalize().output_ptr, local_memory.start_addr);
         }
 
         // Contrain memory access for the first half of the memory accesses.
@@ -94,12 +92,10 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
 
                 let compress_syscall_row = control_flow.is_compress * control_flow.is_syscall_row;
                 // For read only accesses, assert the value didn't change.
-                builder
-                    .when(compress_syscall_row + control_flow.is_absorb)
-                    .assert_eq(
-                        *local_memory.memory_accesses[i].prev_value(),
-                        *local_memory.memory_accesses[i].value(),
-                    );
+                builder.when(compress_syscall_row + control_flow.is_absorb).assert_eq(
+                    *local_memory.memory_accesses[i].prev_value(),
+                    *local_memory.memory_accesses[i].value(),
+                );
 
                 addr = addr.clone() + local_memory.memory_slot_used[i].into();
             }
@@ -111,10 +107,9 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
 
             // Verify the start addr.
             let is_compress_syscall = control_flow.is_compress * control_flow.is_syscall_row;
-            builder.when(is_compress_syscall.clone()).assert_eq(
-                compress_workspace.start_addr,
-                syscall_params.compress().right_ptr,
-            );
+            builder
+                .when(is_compress_syscall.clone())
+                .assert_eq(compress_workspace.start_addr, syscall_params.compress().right_ptr);
             builder.when(control_flow.is_compress_output).assert_eq(
                 compress_workspace.start_addr,
                 syscall_params.compress().dst_ptr + AB::Expr::from_canonical_usize(WIDTH / 2),
@@ -147,11 +142,13 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         local_memory: &Memory<AB::Var>,
         opcode_workspace: &OpcodeWorkspace<AB::Var>,
     ) {
-        // To verify that the absorb memory slots are correct, we take the derivative of the memory slots,
-        // (e.g. memory_slot_used[i] - memory_slot_used[i - 1]), and assert the following:
+        // To verify that the absorb memory slots are correct, we take the derivative of the memory
+        // slots, (e.g. memory_slot_used[i] - memory_slot_used[i - 1]), and assert the
+        // following:
         // 1) when start_mem_idx_bitmap[i] == 1 -> derivative == 1
         // 2) when end_mem_idx_bitmap[i + 1] == 1 -> derivative == -1
-        // 3) when start_mem_idx_bitmap[i] == 0 and end_mem_idx_bitmap[i + 1] == 0 -> derivative == 0
+        // 3) when start_mem_idx_bitmap[i] == 0 and end_mem_idx_bitmap[i + 1] == 0 -> derivative ==
+        //    0
         let mut absorb_builder = builder.when(control_flow.is_absorb);
 
         let start_mem_idx_bitmap = opcode_workspace.absorb().start_mem_idx_bitmap;
@@ -165,15 +162,10 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
 
             let is_start_mem_idx = start_mem_idx_bitmap[i].into();
 
-            let is_previous_end_mem_idx = if i == 0 {
-                AB::Expr::zero()
-            } else {
-                end_mem_idx_bitmap[i - 1].into()
-            };
+            let is_previous_end_mem_idx =
+                if i == 0 { AB::Expr::zero() } else { end_mem_idx_bitmap[i - 1].into() };
 
-            absorb_builder
-                .when(is_start_mem_idx.clone())
-                .assert_one(derivative.clone());
+            absorb_builder.when(is_start_mem_idx.clone()).assert_one(derivative.clone());
 
             absorb_builder
                 .when(is_previous_end_mem_idx.clone())
@@ -223,9 +215,6 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         // When we are in the last row, end_mem_idx bitmap should equal last_row_ending_cursor.
         absorb_builder
             .when(opcode_workspace.absorb().is_last_row::<AB>())
-            .assert_eq(
-                end_mem_idx,
-                opcode_workspace.absorb().last_row_ending_cursor,
-            );
+            .assert_eq(end_mem_idx, opcode_workspace.absorb().last_row_ending_cursor);
     }
 }

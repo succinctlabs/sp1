@@ -155,12 +155,9 @@ impl<C: Config> Builder<C> {
             _ => panic!("Expected a dynamic array"),
         };
 
-        // Call the DslIR instruction ExpReverseBitsLen, which modifies the memory pointed to by `x_copy_arr_ptr`.
-        self.push(DslIr::ExpReverseBitsLen(
-            x_copy_arr_ptr,
-            ptr.address,
-            bit_len_var,
-        ));
+        // Call the DslIR instruction ExpReverseBitsLen, which modifies the memory pointed to by
+        // `x_copy_arr_ptr`.
+        self.push(DslIr::ExpReverseBitsLen(x_copy_arr_ptr, ptr.address, bit_len_var));
 
         // Return the value stored at the address pointed to by `x_copy_arr_ptr`.
         self.get(&x_copy_arr, 0)
@@ -213,8 +210,7 @@ impl<C: Config> Builder<C> {
         V: Variable<C> + Copy + Add<Output = V::Expression>,
     {
         let result: V = self.eval(base);
-        self.range(0, shift)
-            .for_each(|_, builder| builder.assign(result, result + result));
+        self.range(0, shift).for_each(|_, builder| builder.assign(result, result + result));
         result
     }
 
@@ -238,8 +234,7 @@ impl<C: Config> Builder<C> {
     /// Converts an ext to a slice of felts.
     pub fn ext2felt(&mut self, value: Ext<C::F, C::EF>) -> Array<C, Felt<C::F>> {
         let result = self.dyn_array(4);
-        self.operations
-            .push(DslIr::HintExt2Felt(result.clone(), value));
+        self.operations.push(DslIr::HintExt2Felt(result.clone(), value));
 
         // Verify that the decomposed extension element is correct.
         let mut reconstructed_ext: Ext<C::F, C::EF> = self.constant(C::EF::zero());
@@ -260,8 +255,7 @@ impl<C: Config> Builder<C> {
         let b = self.uninit();
         let c = self.uninit();
         let d = self.uninit();
-        self.operations
-            .push(DslIr::CircuitExt2Felt([a, b, c, d], value));
+        self.operations.push(DslIr::CircuitExt2Felt([a, b, c, d], value));
         [a, b, c, d]
     }
 }

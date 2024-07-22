@@ -4,15 +4,19 @@ use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_matrix::Matrix;
 
-use super::columns::{ShaCompressCols, NUM_SHA_COMPRESS_COLS};
-use super::{ShaCompressChip, SHA_COMPRESS_K};
-use crate::air::{BaseAirBuilder, SP1AirBuilder, Word, WordAirBuilder};
-use crate::memory::MemoryCols;
-use crate::operations::{
-    Add5Operation, AddOperation, AndOperation, FixedRotateRightOperation, NotOperation,
-    XorOperation,
+use super::{
+    columns::{ShaCompressCols, NUM_SHA_COMPRESS_COLS},
+    ShaCompressChip, SHA_COMPRESS_K,
 };
-use crate::runtime::SyscallCode;
+use crate::{
+    air::{BaseAirBuilder, SP1AirBuilder, Word, WordAirBuilder},
+    memory::MemoryCols,
+    operations::{
+        Add5Operation, AddOperation, AndOperation, FixedRotateRightOperation, NotOperation,
+        XorOperation,
+    },
+    runtime::SyscallCode,
+};
 
 impl<F> BaseAir<F> for ShaCompressChip {
     fn width(&self) -> usize {
@@ -32,9 +36,7 @@ where
 
         // Constrain the incrementing nonce.
         builder.when_first_row().assert_zero(local.nonce);
-        builder
-            .when_transition()
-            .assert_eq(local.nonce + AB::Expr::one(), next.nonce);
+        builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         self.eval_control_flow_flags(builder, local, next);
 
@@ -44,10 +46,7 @@ where
 
         self.eval_finalize_ops(builder, local);
 
-        builder.assert_eq(
-            local.start,
-            local.is_real * local.octet[0] * local.octet_num[0],
-        );
+        builder.assert_eq(local.start, local.is_real * local.octet[0] * local.octet_num[0]);
         builder.receive_syscall(
             local.shard,
             local.channel,
@@ -85,10 +84,7 @@ impl ShaCompressChip {
 
         // Verify correct transition for octet column.
         for i in 0..8 {
-            builder
-                .when_transition()
-                .when(local.octet[i])
-                .assert_one(next.octet[(i + 1) % 8])
+            builder.when_transition().when(local.octet[i]).assert_one(next.octet[(i + 1) % 8])
         }
 
         // Verify that all of the octet_num columns are bool.
@@ -106,7 +102,8 @@ impl ShaCompressChip {
         // The first row should have octet_num[0] = 1 if it's real.
         builder.when_first_row().assert_one(local.octet_num[0]);
 
-        // If current row is not last of an octet and next row is real, octet_num should be the same.
+        // If current row is not last of an octet and next row is real, octet_num should be the
+        // same.
         for i in 0..10 {
             builder
                 .when_transition()
@@ -123,12 +120,8 @@ impl ShaCompressChip {
         }
 
         // Constrain A-H columns
-        let vars = [
-            local.a, local.b, local.c, local.d, local.e, local.f, local.g, local.h,
-        ];
-        let next_vars = [
-            next.a, next.b, next.c, next.d, next.e, next.f, next.g, next.h,
-        ];
+        let vars = [local.a, local.b, local.c, local.d, local.e, local.f, local.g, local.h];
+        let next_vars = [next.a, next.b, next.c, next.d, next.e, next.f, next.g, next.h];
         for (i, var) in vars.iter().enumerate() {
             // For all initialize and finalize cycles, A-H should be the same in the next row. The
             // last cycle is an exception since the next row must be a new 80-cycle loop or nonreal.
@@ -150,24 +143,21 @@ impl ShaCompressChip {
         // Assert that the is_compression flag is correct.
         builder.assert_eq(
             local.is_compression,
-            (local.octet_num[1]
-                + local.octet_num[2]
-                + local.octet_num[3]
-                + local.octet_num[4]
-                + local.octet_num[5]
-                + local.octet_num[6]
-                + local.octet_num[7]
-                + local.octet_num[8])
-                * local.is_real,
+            (local.octet_num[1] +
+                local.octet_num[2] +
+                local.octet_num[3] +
+                local.octet_num[4] +
+                local.octet_num[5] +
+                local.octet_num[6] +
+                local.octet_num[7] +
+                local.octet_num[8]) *
+                local.is_real,
         );
 
         // Assert that the is_finalize flag is correct.
         builder.assert_eq(local.is_finalize, local.octet_num[9] * local.is_real);
 
-        builder.assert_eq(
-            local.is_last_row.into(),
-            local.octet[7] * local.octet_num[9],
-        );
+        builder.assert_eq(local.is_last_row.into(), local.octet[7] * local.octet_num[9]);
 
         // If this row is real and not the last cycle, then next row should have same inputs
         builder
@@ -206,10 +196,7 @@ impl ShaCompressChip {
             .assert_one(next.is_real);
 
         // Once the is_real flag is changed to false, it should not be changed back.
-        builder
-            .when_transition()
-            .when_not(local.is_real)
-            .assert_zero(next.is_real);
+        builder.when_transition().when_not(local.is_real).assert_zero(next.is_real);
 
         // Assert that the table ends in nonreal columns. Since each compress ecall is 80 cycles and
         // the table is padded to a power of 2, the last row of the table should always be padding.
@@ -248,10 +235,10 @@ impl ShaCompressChip {
         // Verify correct mem address for compression phase
         builder.when(local.is_compression).assert_eq(
             local.mem_addr,
-            local.w_ptr
-                + (((cycle_num - AB::Expr::one()) * AB::Expr::from_canonical_u32(8))
-                    + cycle_step.clone())
-                    * AB::Expr::from_canonical_u32(4),
+            local.w_ptr +
+                (((cycle_num - AB::Expr::one()) * AB::Expr::from_canonical_u32(8)) +
+                    cycle_step.clone()) *
+                    AB::Expr::from_canonical_u32(4),
         );
 
         // Verify correct mem address for finalize phase
@@ -262,9 +249,7 @@ impl ShaCompressChip {
 
         // In the initialize phase, verify that local.a, local.b, ... is correctly read from memory
         // and does not change
-        let vars = [
-            local.a, local.b, local.c, local.d, local.e, local.f, local.g, local.h,
-        ];
+        let vars = [local.a, local.b, local.c, local.d, local.e, local.f, local.g, local.h];
         for (i, var) in vars.iter().enumerate() {
             builder
                 .when(local.is_initialize)
@@ -398,13 +383,7 @@ impl ShaCompressChip {
         // Calculate temp1 := h + S1 + ch + k[i] + w[i].
         Add5Operation::<AB::F>::eval(
             builder,
-            &[
-                local.h,
-                local.s1.value,
-                local.ch.value,
-                local.k,
-                local.mem.access.value,
-            ],
+            &[local.h, local.s1.value, local.ch.value, local.k, local.mem.access.value],
             local.shard,
             local.channel,
             local.is_compression,
@@ -556,34 +535,16 @@ impl ShaCompressChip {
         // c := b
         // b := a
         // a := temp1 + temp2
-        builder
-            .when_transition()
-            .when(local.is_compression)
-            .assert_word_eq(next.h, local.g);
-        builder
-            .when_transition()
-            .when(local.is_compression)
-            .assert_word_eq(next.g, local.f);
-        builder
-            .when_transition()
-            .when(local.is_compression)
-            .assert_word_eq(next.f, local.e);
+        builder.when_transition().when(local.is_compression).assert_word_eq(next.h, local.g);
+        builder.when_transition().when(local.is_compression).assert_word_eq(next.g, local.f);
+        builder.when_transition().when(local.is_compression).assert_word_eq(next.f, local.e);
         builder
             .when_transition()
             .when(local.is_compression)
             .assert_word_eq(next.e, local.d_add_temp1.value);
-        builder
-            .when_transition()
-            .when(local.is_compression)
-            .assert_word_eq(next.d, local.c);
-        builder
-            .when_transition()
-            .when(local.is_compression)
-            .assert_word_eq(next.c, local.b);
-        builder
-            .when_transition()
-            .when(local.is_compression)
-            .assert_word_eq(next.b, local.a);
+        builder.when_transition().when(local.is_compression).assert_word_eq(next.d, local.c);
+        builder.when_transition().when(local.is_compression).assert_word_eq(next.c, local.b);
+        builder.when_transition().when(local.is_compression).assert_word_eq(next.b, local.a);
         builder
             .when_transition()
             .when(local.is_compression)
@@ -599,9 +560,7 @@ impl ShaCompressChip {
         // phase's 8 rows.
         // We can get the needed operand (a,b,c,...,h) by doing an inner product between octet and
         // [a,b,c,...,h] which will act as a selector.
-        let add_operands = [
-            local.a, local.b, local.c, local.d, local.e, local.f, local.g, local.h,
-        ];
+        let add_operands = [local.a, local.b, local.c, local.d, local.e, local.f, local.g, local.h];
         let zero = AB::Expr::zero();
         let mut filtered_operand = Word([zero.clone(), zero.clone(), zero.clone(), zero]);
         for (i, operand) in local.octet.iter().zip(add_operands.iter()) {

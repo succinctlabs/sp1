@@ -1,17 +1,19 @@
 use alloc::rc::Rc;
-use core::any::Any;
-use core::ops::{Add, Div, Mul, Neg, Sub};
-use std::any::TypeId;
-use std::hash::Hash;
-use std::iter::{Product, Sum};
-use std::mem;
-use std::ops::{AddAssign, DivAssign, MulAssign, SubAssign};
+use core::{
+    any::Any,
+    ops::{Add, Div, Mul, Neg, Sub},
+};
+use std::{
+    any::TypeId,
+    hash::Hash,
+    iter::{Product, Sum},
+    mem,
+    ops::{AddAssign, DivAssign, MulAssign, SubAssign},
+};
 
-use p3_field::{AbstractField, ExtensionField};
-use p3_field::{Field, FieldArray};
+use p3_field::{AbstractField, ExtensionField, Field, FieldArray};
 
-use super::Usize;
-use super::{Ext, Felt, Var};
+use super::{Ext, Felt, Usize, Var};
 
 const NUM_RANDOM_ELEMENTS: usize = 4;
 
@@ -33,20 +35,16 @@ pub fn ext_elements<F: Field, EF: ExtensionField<F>>() -> Digest<EF> {
 
 fn digest_id<F: Field>(id: u32) -> Digest<F> {
     let elements = elements();
-    Digest::from(elements.0.map(|e: F| {
-        (e + F::from_canonical_u32(id))
-            .try_inverse()
-            .unwrap_or(F::one())
-    }))
+    Digest::from(
+        elements.0.map(|e: F| (e + F::from_canonical_u32(id)).try_inverse().unwrap_or(F::one())),
+    )
 }
 
 fn digest_id_ext<F: Field, EF: ExtensionField<F>>(id: u32) -> Digest<EF> {
     let elements = ext_elements();
-    Digest::from(elements.0.map(|e: EF| {
-        (e + EF::from_canonical_u32(id))
-            .try_inverse()
-            .unwrap_or(EF::one())
-    }))
+    Digest::from(
+        elements.0.map(|e: EF| (e + EF::from_canonical_u32(id)).try_inverse().unwrap_or(EF::one())),
+    )
 }
 
 fn div_digests<F: Field>(a: Digest<F>, b: Digest<F>) -> Digest<F> {
@@ -491,10 +489,7 @@ impl<F: Field, EF: ExtensionField<F>, E: Any> Mul<E> for SymbolicExt<F, EF> {
         match rhs {
             ExtOperand::Base(f) => SymbolicExt::Mul(
                 Rc::new(self),
-                Rc::new(SymbolicExt::Base(
-                    Rc::new(SymbolicFelt::from(f)),
-                    rhs_digest,
-                )),
+                Rc::new(SymbolicExt::Base(Rc::new(SymbolicFelt::from(f)), rhs_digest)),
                 prod_digest,
             ),
             ExtOperand::Const(ef) => SymbolicExt::Mul(
@@ -504,10 +499,7 @@ impl<F: Field, EF: ExtensionField<F>, E: Any> Mul<E> for SymbolicExt<F, EF> {
             ),
             ExtOperand::Felt(f) => SymbolicExt::Mul(
                 Rc::new(self),
-                Rc::new(SymbolicExt::Base(
-                    Rc::new(SymbolicFelt::from(f)),
-                    rhs_digest,
-                )),
+                Rc::new(SymbolicExt::Base(Rc::new(SymbolicFelt::from(f)), rhs_digest)),
                 prod_digest,
             ),
             ExtOperand::Ext(e) => SymbolicExt::Mul(
@@ -553,30 +545,20 @@ impl<F: Field, EF: ExtensionField<F>, E: Any> Sub<E> for SymbolicExt<F, EF> {
         match rhs {
             ExtOperand::Base(f) => SymbolicExt::Sub(
                 Rc::new(self),
-                Rc::new(SymbolicExt::Base(
-                    Rc::new(SymbolicFelt::from(f)),
-                    rhs_digest,
-                )),
+                Rc::new(SymbolicExt::Base(Rc::new(SymbolicFelt::from(f)), rhs_digest)),
                 digest,
             ),
-            ExtOperand::Const(ef) => SymbolicExt::Sub(
-                Rc::new(self),
-                Rc::new(SymbolicExt::Const(ef, rhs_digest)),
-                digest,
-            ),
+            ExtOperand::Const(ef) => {
+                SymbolicExt::Sub(Rc::new(self), Rc::new(SymbolicExt::Const(ef, rhs_digest)), digest)
+            }
             ExtOperand::Felt(f) => SymbolicExt::Sub(
                 Rc::new(self),
-                Rc::new(SymbolicExt::Base(
-                    Rc::new(SymbolicFelt::from(f)),
-                    rhs_digest,
-                )),
+                Rc::new(SymbolicExt::Base(Rc::new(SymbolicFelt::from(f)), rhs_digest)),
                 digest,
             ),
-            ExtOperand::Ext(e) => SymbolicExt::Sub(
-                Rc::new(self),
-                Rc::new(SymbolicExt::Val(e, rhs_digest)),
-                digest,
-            ),
+            ExtOperand::Ext(e) => {
+                SymbolicExt::Sub(Rc::new(self), Rc::new(SymbolicExt::Val(e, rhs_digest)), digest)
+            }
             ExtOperand::SymFelt(f) => SymbolicExt::Sub(
                 Rc::new(self),
                 Rc::new(SymbolicExt::Base(Rc::new(f), rhs_digest)),
@@ -608,30 +590,20 @@ impl<F: Field, EF: ExtensionField<F>, E: Any> Div<E> for SymbolicExt<F, EF> {
         match rhs {
             ExtOperand::Base(f) => SymbolicExt::Div(
                 Rc::new(self),
-                Rc::new(SymbolicExt::Base(
-                    Rc::new(SymbolicFelt::from(f)),
-                    rhs_digest,
-                )),
+                Rc::new(SymbolicExt::Base(Rc::new(SymbolicFelt::from(f)), rhs_digest)),
                 digest,
             ),
-            ExtOperand::Const(ef) => SymbolicExt::Div(
-                Rc::new(self),
-                Rc::new(SymbolicExt::Const(ef, rhs_digest)),
-                digest,
-            ),
+            ExtOperand::Const(ef) => {
+                SymbolicExt::Div(Rc::new(self), Rc::new(SymbolicExt::Const(ef, rhs_digest)), digest)
+            }
             ExtOperand::Felt(f) => SymbolicExt::Div(
                 Rc::new(self),
-                Rc::new(SymbolicExt::Base(
-                    Rc::new(SymbolicFelt::from(f)),
-                    rhs_digest,
-                )),
+                Rc::new(SymbolicExt::Base(Rc::new(SymbolicFelt::from(f)), rhs_digest)),
                 digest,
             ),
-            ExtOperand::Ext(e) => SymbolicExt::Div(
-                Rc::new(self),
-                Rc::new(SymbolicExt::Val(e, rhs_digest)),
-                digest,
-            ),
+            ExtOperand::Ext(e) => {
+                SymbolicExt::Div(Rc::new(self), Rc::new(SymbolicExt::Val(e, rhs_digest)), digest)
+            }
             ExtOperand::SymFelt(f) => SymbolicExt::Div(
                 Rc::new(self),
                 Rc::new(SymbolicExt::Base(Rc::new(f), rhs_digest)),
@@ -669,7 +641,8 @@ impl<F: Field, EF: ExtensionField<F>> Neg for SymbolicExt<F, EF> {
     }
 }
 
-// Implement all operations between N, F, EF, and SymbolicVar<N>, SymbolicFelt<F>, SymbolicExt<F, EF>
+// Implement all operations between N, F, EF, and SymbolicVar<N>, SymbolicFelt<F>, SymbolicExt<F,
+// EF>
 
 impl<N: Field> Add<N> for SymbolicVar<N> {
     type Output = Self;

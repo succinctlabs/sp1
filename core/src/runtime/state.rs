@@ -9,10 +9,9 @@ use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
 use super::{ExecutionRecord, MemoryAccessRecord, MemoryRecord, SyscallCode};
-use crate::utils::{deserialize_hashmap_as_vec, serialize_hashmap_as_vec};
 use crate::{
     stark::{ShardProof, StarkVerifyingKey},
-    utils::BabyBearPoseidon2,
+    utils::{deserialize_hashmap_as_vec, serialize_hashmap_as_vec, BabyBearPoseidon2},
 };
 
 /// Holds data describing the current state of a program's execution.
@@ -59,10 +58,7 @@ pub struct ExecutionState {
     pub input_stream_ptr: usize,
 
     /// A stream of proofs inputted to the program.
-    pub proof_stream: Vec<(
-        ShardProof<BabyBearPoseidon2>,
-        StarkVerifyingKey<BabyBearPoseidon2>,
-    )>,
+    pub proof_stream: Vec<(ShardProof<BabyBearPoseidon2>, StarkVerifyingKey<BabyBearPoseidon2>)>,
 
     /// A ptr to the current position in the proof stream, incremented after verifying a proof.
     pub proof_stream_ptr: usize,
@@ -70,7 +66,8 @@ pub struct ExecutionState {
     /// A stream of public values from the program (global to entire program).
     pub public_values_stream: Vec<u8>,
 
-    /// A ptr to the current position in the public values stream, incremented when reading from public_values_stream.
+    /// A ptr to the current position in the public values stream, incremented when reading from
+    /// public_values_stream.
     pub public_values_stream_ptr: usize,
 
     /// Keeps track of how many times a certain syscall has been called.

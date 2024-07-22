@@ -1,9 +1,7 @@
 use p3_field::PrimeField32;
 use p3_symmetric::Permutation;
 
-use crate::memory::MemoryRecord;
-use crate::poseidon2_wide::WIDTH;
-use crate::runtime::DIGEST_SIZE;
+use crate::{memory::MemoryRecord, poseidon2_wide::WIDTH, runtime::DIGEST_SIZE};
 
 use super::RATE;
 

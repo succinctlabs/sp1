@@ -179,8 +179,8 @@ impl<C: Config> Builder<C> {
     /// SAFETY: This function assumes that the num_bits values are already verified to be boolean.
     ///
     /// The babybear modulus in LE bits is: 100_000_000_000_000_000_000_000_000_111_1.
-    /// To check that the num_bits array is less than that value, we first check if the most significant
-    /// bits are all 1.  If it is, then we assert that the other bits are all 0.
+    /// To check that the num_bits array is less than that value, we first check if the most
+    /// significant bits are all 1.  If it is, then we assert that the other bits are all 0.
     fn less_than_bb_modulus(&mut self, num_bits: Array<C, Var<C::N>>) {
         let one: Var<_> = self.eval(C::N::one());
         let zero: Var<_> = self.eval(C::N::zero());
@@ -197,7 +197,8 @@ impl<C: Config> Builder<C> {
             sum_least_sig_bits = self.eval(bit + sum_least_sig_bits);
         }
 
-        // If the most significant 4 bits are all 1, then check the sum of the least significant bits, else return zero.
+        // If the most significant 4 bits are all 1, then check the sum of the least significant
+        // bits, else return zero.
         let check: Var<_> =
             self.eval(most_sig_4_bits * sum_least_sig_bits + (one - most_sig_4_bits) * zero);
         self.assert_var_eq(check, zero);

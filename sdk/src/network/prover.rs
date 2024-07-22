@@ -1,18 +1,15 @@
 use std::{env, time::Duration};
 
-use crate::install::block_on;
-use crate::proto::network::ProofMode;
 use crate::{
+    install::block_on,
     network::client::{NetworkClient, DEFAULT_PROVER_NETWORK_RPC},
-    proto::network::ProofStatus,
-    Prover,
+    proto::network::{ProofMode, ProofStatus},
+    Prover, SP1Context, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
 };
-use crate::{SP1Context, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey};
 use anyhow::Result;
 use serde::de::DeserializeOwned;
 use sp1_core::utils::SP1ProverOpts;
-use sp1_prover::components::DefaultProverComponents;
-use sp1_prover::{SP1Prover, SP1Stdin, SP1_CIRCUIT_VERSION};
+use sp1_prover::{components::DefaultProverComponents, SP1Prover, SP1Stdin, SP1_CIRCUIT_VERSION};
 use tokio::time::sleep;
 
 use crate::provers::{LocalProver, ProverType};
@@ -37,10 +34,7 @@ impl NetworkProver {
         log::info!("Client circuit version: {}", version);
 
         let local_prover = LocalProver::new();
-        Self {
-            client: NetworkClient::new(private_key),
-            local_prover,
-        }
+        Self { client: NetworkClient::new(private_key), local_prover }
     }
 
     /// Requests a proof from the prover network, returning the proof ID.
@@ -52,17 +46,12 @@ impl NetworkProver {
     ) -> Result<String> {
         let client = &self.client;
 
-        let skip_simulation = env::var("SKIP_SIMULATION")
-            .map(|val| val == "true")
-            .unwrap_or(false);
+        let skip_simulation = env::var("SKIP_SIMULATION").map(|val| val == "true").unwrap_or(false);
 
         if !skip_simulation {
             let (_, report) =
                 SP1Prover::<DefaultProverComponents>::execute(elf, &stdin, Default::default())?;
-            log::info!(
-                "Simulation complete, cycles: {}",
-                report.total_instruction_count()
-            );
+            log::info!("Simulation complete, cycles: {}", report.total_instruction_count());
         } else {
             log::info!("Skipping simulation");
         }
@@ -72,10 +61,7 @@ impl NetworkProver {
         log::info!("Created {}", proof_id);
 
         if NetworkClient::rpc_url() == DEFAULT_PROVER_NETWORK_RPC {
-            log::info!(
-                "View in explorer: https://explorer.succinct.xyz/{}",
-                proof_id
-            );
+            log::info!("View in explorer: https://explorer.succinct.xyz/{}", proof_id);
         }
         Ok(proof_id)
     }
@@ -161,16 +147,9 @@ fn warn_if_not_default(opts: &SP1ProverOpts, context: &SP1Context) {
         tracing::warn!("custom SP1ProverOpts are currently unsupported by the network prover");
     }
     // Exhaustive match is done to ensure we update the warnings if the types change.
-    let SP1Context {
-        hook_registry,
-        subproof_verifier,
-        ..
-    } = context;
+    let SP1Context { hook_registry, subproof_verifier, .. } = context;
     if hook_registry.is_some() {
-        tracing::warn!(
-            "non-default context.hook_registry will be ignored: {:?}",
-            hook_registry
-        );
+        tracing::warn!("non-default context.hook_registry will be ignored: {:?}", hook_registry);
         tracing::warn!("custom runtime hooks are currently unsupported by the network prover");
         tracing::warn!("proving may fail due to missing hooks");
     }

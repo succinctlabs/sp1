@@ -19,31 +19,19 @@ impl Syscall for SyscallWrite {
         let write_buf = arg2;
         let nbytes = rt.register(a2);
         // Read nbytes from memory starting at write_buf.
-        let bytes = (0..nbytes)
-            .map(|i| rt.byte(write_buf + i))
-            .collect::<Vec<u8>>();
+        let bytes = (0..nbytes).map(|i| rt.byte(write_buf + i)).collect::<Vec<u8>>();
         let slice = bytes.as_slice();
         if fd == 1 {
             let s = core::str::from_utf8(slice).unwrap();
             if s.contains("cycle-tracker-start:") {
-                let fn_name = s
-                    .split("cycle-tracker-start:")
-                    .last()
-                    .unwrap()
-                    .trim_end()
-                    .trim_start();
+                let fn_name =
+                    s.split("cycle-tracker-start:").last().unwrap().trim_end().trim_start();
                 let depth = rt.cycle_tracker.len() as u32;
-                rt.cycle_tracker
-                    .insert(fn_name.to_string(), (rt.state.global_clk, depth));
+                rt.cycle_tracker.insert(fn_name.to_string(), (rt.state.global_clk, depth));
                 let padding = (0..depth).map(|_| "│ ").collect::<String>();
                 log::debug!("{}┌╴{}", padding, fn_name);
             } else if s.contains("cycle-tracker-end:") {
-                let fn_name = s
-                    .split("cycle-tracker-end:")
-                    .last()
-                    .unwrap()
-                    .trim_end()
-                    .trim_start();
+                let fn_name = s.split("cycle-tracker-end:").last().unwrap().trim_end().trim_start();
                 let (start, depth) = rt.cycle_tracker.remove(fn_name).unwrap_or((0, 0));
                 // Leftpad by 2 spaces for each depth.
                 let padding = (0..depth).map(|_| "│ ").collect::<String>();
@@ -55,18 +43,14 @@ impl Syscall for SyscallWrite {
             } else {
                 let flush_s = update_io_buf(ctx, fd, s);
                 if !flush_s.is_empty() {
-                    flush_s
-                        .into_iter()
-                        .for_each(|line| println!("stdout: {}", line));
+                    flush_s.into_iter().for_each(|line| println!("stdout: {}", line));
                 }
             }
         } else if fd == 2 {
             let s = core::str::from_utf8(slice).unwrap();
             let flush_s = update_io_buf(ctx, fd, s);
             if !flush_s.is_empty() {
-                flush_s
-                    .into_iter()
-                    .for_each(|line| println!("stderr: {}", line));
+                flush_s.into_iter().for_each(|line| println!("stderr: {}", line));
             }
         } else if fd == 3 {
             rt.state.public_values_stream.extend_from_slice(slice);
@@ -94,10 +78,7 @@ pub fn update_io_buf(ctx: &mut SyscallContext, fd: u32, s: &str) -> Vec<String> 
         let mut lines = prev_buf.split('\n').collect::<Vec<&str>>();
         let last = lines.pop().unwrap_or("");
         *entry = last.to_string();
-        lines
-            .into_iter()
-            .map(|line| line.to_string())
-            .collect::<Vec<String>>()
+        lines.into_iter().map(|line| line.to_string()).collect::<Vec<String>>()
     } else {
         vec![]
     }

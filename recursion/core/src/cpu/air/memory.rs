@@ -22,9 +22,7 @@ impl<F: Field, const L: usize> CpuChip<F, L> {
         let memory_cols = local.opcode_specific.memory();
 
         // Check that the memory_cols.memory_addr column equals the computed memory_addr.
-        builder
-            .when(is_memory_instr.clone())
-            .assert_eq(memory_addr, memory_cols.memory_addr);
+        builder.when(is_memory_instr.clone()).assert_eq(memory_addr, memory_cols.memory_addr);
 
         builder.recursion_eval_memory_access(
             local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::Memory as u32),
@@ -35,11 +33,11 @@ impl<F: Field, const L: usize> CpuChip<F, L> {
 
         // Constraints on the memory column depending on load or store.
         // We read from memory when it is a load.
-        builder.when(local.selectors.is_load).assert_block_eq(
-            *memory_cols.memory.prev_value(),
-            *memory_cols.memory.value(),
-        );
-        // When there is a store, we ensure that we are writing the value of the a operand to the memory.
+        builder
+            .when(local.selectors.is_load)
+            .assert_block_eq(*memory_cols.memory.prev_value(), *memory_cols.memory.value());
+        // When there is a store, we ensure that we are writing the value of the a operand to the
+        // memory.
         builder
             .when(is_memory_instr)
             .assert_block_eq(*local.a.value(), *memory_cols.memory.value());

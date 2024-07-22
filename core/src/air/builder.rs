@@ -1,21 +1,19 @@
-use std::array;
-use std::iter::once;
+use std::{array, iter::once};
 
 use itertools::Itertools;
-use p3_air::{AirBuilder, FilteredAirBuilder};
-use p3_air::{AirBuilderWithPublicValues, PermutationAirBuilder};
+use p3_air::{AirBuilder, AirBuilderWithPublicValues, FilteredAirBuilder, PermutationAirBuilder};
 use p3_field::{AbstractField, Field};
-use p3_uni_stark::StarkGenericConfig;
-use p3_uni_stark::{ProverConstraintFolder, SymbolicAirBuilder, VerifierConstraintFolder};
+use p3_uni_stark::{
+    ProverConstraintFolder, StarkGenericConfig, SymbolicAirBuilder, VerifierConstraintFolder,
+};
 
-use super::interaction::AirInteraction;
-use super::word::Word;
-use super::{BinomialExtension, WORD_SIZE};
-use crate::cpu::columns::InstructionCols;
-use crate::cpu::columns::OpcodeSelectorCols;
-use crate::lookup::InteractionKind;
-use crate::memory::MemoryAccessCols;
-use crate::{bytes::ByteOpcode, memory::MemoryCols};
+use super::{interaction::AirInteraction, word::Word, BinomialExtension, WORD_SIZE};
+use crate::{
+    bytes::ByteOpcode,
+    cpu::columns::{InstructionCols, OpcodeSelectorCols},
+    lookup::InteractionKind,
+    memory::{MemoryAccessCols, MemoryCols},
+};
 
 /// A Builder with the ability to encode the existance of interactions with other AIRs by sending
 /// and receiving messages.
@@ -100,16 +98,7 @@ pub trait ByteAirBuilder: BaseAirBuilder {
         channel: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
-        self.send_byte_pair(
-            opcode,
-            a,
-            Self::Expr::zero(),
-            b,
-            c,
-            shard,
-            channel,
-            multiplicity,
-        )
+        self.send_byte_pair(opcode, a, Self::Expr::zero(), b, c, shard, channel, multiplicity)
     }
 
     /// Sends a byte operation with two outputs to be processed.
@@ -152,16 +141,7 @@ pub trait ByteAirBuilder: BaseAirBuilder {
         channel: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
-        self.receive_byte_pair(
-            opcode,
-            a,
-            Self::Expr::zero(),
-            b,
-            c,
-            shard,
-            channel,
-            multiplicity,
-        )
+        self.receive_byte_pair(opcode, a, Self::Expr::zero(), b, c, shard, channel, multiplicity)
     }
 
     /// Receives a byte operation with two outputs to be processed.
@@ -222,11 +202,7 @@ pub trait WordAirBuilder: ByteAirBuilder {
         let mut result = Word::default();
         for i in 0..WORD_SIZE {
             result[i] = self.index_array(
-                array
-                    .iter()
-                    .map(|word| word[i].clone())
-                    .collect_vec()
-                    .as_slice(),
+                array.iter().map(|word| word[i].clone()).collect_vec().as_slice(),
                 index_bitmap,
             );
         }
@@ -240,9 +216,7 @@ pub trait WordAirBuilder: ByteAirBuilder {
         a: Word<impl Into<Self::Expr> + Clone>,
         b: Word<impl Into<Self::Expr> + Clone>,
     ) -> Word<Self::Expr> {
-        Word(array::from_fn(|i| {
-            self.if_else(condition.clone(), a[i].clone(), b[i].clone())
-        }))
+        Word(array::from_fn(|i| self.if_else(condition.clone(), a[i].clone(), b[i].clone())))
     }
 
     /// Check that each limb of the given slice is a u8.
@@ -325,11 +299,7 @@ pub trait AluAirBuilder: BaseAirBuilder {
             .chain(once(nonce.into()))
             .collect();
 
-        self.send(AirInteraction::new(
-            values,
-            multiplicity.into(),
-            InteractionKind::Alu,
-        ));
+        self.send(AirInteraction::new(values, multiplicity.into(), InteractionKind::Alu));
     }
 
     /// Receives an ALU operation to be processed.
@@ -354,11 +324,7 @@ pub trait AluAirBuilder: BaseAirBuilder {
             .chain(once(nonce.into()))
             .collect();
 
-        self.receive(AirInteraction::new(
-            values,
-            multiplicity.into(),
-            InteractionKind::Alu,
-        ));
+        self.receive(AirInteraction::new(values, multiplicity.into(), InteractionKind::Alu));
     }
 
     /// Sends an syscall operation to be processed (with "ECALL" opcode).
@@ -466,11 +432,7 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
             .collect();
 
         // The previous values get sent with multiplicity = 1, for "read".
-        self.send(AirInteraction::new(
-            prev_values,
-            do_check.clone(),
-            InteractionKind::Memory,
-        ));
+        self.send(AirInteraction::new(prev_values, do_check.clone(), InteractionKind::Memory));
 
         // The current values get "received", i.e. multiplicity = -1
         self.receive(AirInteraction::new(
@@ -523,9 +485,7 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
 
         // First verify that compare_clk's value is correct.
         self.when(do_check.clone()).assert_bool(compare_clk.clone());
-        self.when(do_check.clone())
-            .when(compare_clk.clone())
-            .assert_eq(shard.clone(), prev_shard);
+        self.when(do_check.clone()).when(compare_clk.clone()).assert_eq(shard.clone(), prev_shard);
 
         // Get the comparison timestamp values for the current and previous memory access.
         let prev_comp_value = self.if_else(
@@ -577,8 +537,8 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
         // Verify that value = limb_16 + limb_8 * 2^16.
         self.when(do_check.clone()).assert_eq(
             value,
-            limb_16.clone().into()
-                + limb_8.clone().into() * Self::Expr::from_canonical_u32(1 << 16),
+            limb_16.clone().into() +
+                limb_8.clone().into() * Self::Expr::from_canonical_u32(1 << 16),
         );
 
         // Send the range checks for the limbs.
@@ -622,11 +582,7 @@ pub trait ProgramAirBuilder: BaseAirBuilder {
             .chain(once(shard.into()))
             .collect();
 
-        self.send(AirInteraction::new(
-            values,
-            multiplicity.into(),
-            InteractionKind::Program,
-        ));
+        self.send(AirInteraction::new(values, multiplicity.into(), InteractionKind::Program));
     }
 
     /// Receives an instruction.
@@ -645,11 +601,7 @@ pub trait ProgramAirBuilder: BaseAirBuilder {
             .chain(once(shard.into()))
             .collect();
 
-        self.receive(AirInteraction::new(
-            values,
-            multiplicity.into(),
-            InteractionKind::Program,
-        ));
+        self.receive(AirInteraction::new(values, multiplicity.into(), InteractionKind::Program));
     }
 }
 
@@ -696,7 +648,8 @@ pub trait MultiTableAirBuilder: PermutationAirBuilder {
     fn cumulative_sum(&self) -> Self::Sum;
 }
 
-/// A trait that contains the common helper methods for building `SP1 recursion` and SP1 machine AIRs.
+/// A trait that contains the common helper methods for building `SP1 recursion` and SP1 machine
+/// AIRs.
 pub trait MachineAirBuilder:
     BaseAirBuilder + ExtensionAirBuilder + AirBuilderWithPublicValues
 {

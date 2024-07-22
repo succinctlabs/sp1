@@ -1,21 +1,14 @@
 use alloc::format;
 use core::marker::PhantomData;
-use std::collections::HashMap;
-use std::hash::Hash;
+use std::{collections::HashMap, hash::Hash};
 
-use p3_field::AbstractField;
-use p3_field::ExtensionField;
-use p3_field::Field;
-use serde::Deserialize;
-use serde::Serialize;
+use p3_field::{AbstractField, ExtensionField, Field};
+use serde::{Deserialize, Serialize};
 
-use super::ExtConst;
-use super::FromConstant;
-use super::MemIndex;
-use super::MemVariable;
-use super::Ptr;
-use super::SymbolicUsize;
-use super::{Builder, Config, DslIr, SymbolicExt, SymbolicFelt, SymbolicVar, Variable};
+use super::{
+    Builder, Config, DslIr, ExtConst, FromConstant, MemIndex, MemVariable, Ptr, SymbolicExt,
+    SymbolicFelt, SymbolicUsize, SymbolicVar, Variable,
+};
 
 /// A variable that represents a native field element.
 ///
@@ -230,9 +223,7 @@ impl<N: Field> Var<N> {
         cache: &mut HashMap<SymbolicVar<N>, Self>,
     ) {
         if let Some(v) = cache.get(&src) {
-            builder
-                .operations
-                .push(DslIr::AddVI(*self, *v, C::N::zero()));
+            builder.operations.push(DslIr::AddVI(*self, *v, C::N::zero()));
             return;
         }
         match src {
@@ -240,9 +231,7 @@ impl<N: Field> Var<N> {
                 builder.operations.push(DslIr::ImmV(*self, c));
             }
             SymbolicVar::Val(v, _) => {
-                builder
-                    .operations
-                    .push(DslIr::AddVI(*self, v, C::N::zero()));
+                builder.operations.push(DslIr::AddVI(*self, v, C::N::zero()));
             }
             SymbolicVar::Add(lhs, rhs, _) => match (&*lhs, &*rhs) {
                 (SymbolicVar::Const(lhs, _), SymbolicVar::Const(rhs, _)) => {
@@ -521,9 +510,7 @@ impl<F: Field> Felt<F> {
         cache: &mut HashMap<SymbolicFelt<F>, Self>,
     ) {
         if let Some(v) = cache.get(&src) {
-            builder
-                .operations
-                .push(DslIr::AddFI(*self, *v, C::F::zero()));
+            builder.operations.push(DslIr::AddFI(*self, *v, C::F::zero()));
             return;
         }
         match src {
@@ -531,9 +518,7 @@ impl<F: Field> Felt<F> {
                 builder.operations.push(DslIr::ImmF(*self, c));
             }
             SymbolicFelt::Val(v, _) => {
-                builder
-                    .operations
-                    .push(DslIr::AddFI(*self, v, C::F::zero()));
+                builder.operations.push(DslIr::AddFI(*self, v, C::F::zero()));
             }
             SymbolicFelt::Add(lhs, rhs, _) => match (&*lhs, &*rhs) {
                 (SymbolicFelt::Const(lhs, _), SymbolicFelt::Const(rhs, _)) => {
@@ -865,22 +850,16 @@ impl<F: Field, EF: ExtensionField<F>> Ext<F, EF> {
         base_cache: &mut HashMap<SymbolicFelt<F>, Felt<F>>,
     ) {
         if let Some(v) = ext_cache.get(&src) {
-            builder
-                .operations
-                .push(DslIr::AddEI(*self, *v, C::EF::zero()));
+            builder.operations.push(DslIr::AddEI(*self, *v, C::EF::zero()));
             return;
         }
         match src {
             SymbolicExt::Base(v, _) => match &*v {
                 SymbolicFelt::Const(c, _) => {
-                    builder
-                        .operations
-                        .push(DslIr::ImmE(*self, C::EF::from_base(*c)));
+                    builder.operations.push(DslIr::ImmE(*self, C::EF::from_base(*c)));
                 }
                 SymbolicFelt::Val(v, _) => {
-                    builder
-                        .operations
-                        .push(DslIr::AddEFFI(*self, *v, C::EF::zero()));
+                    builder.operations.push(DslIr::AddEFFI(*self, *v, C::EF::zero()));
                 }
                 v => {
                     let v_value = Felt::uninit(builder);
@@ -892,9 +871,7 @@ impl<F: Field, EF: ExtensionField<F>> Ext<F, EF> {
                 builder.operations.push(DslIr::ImmE(*self, c));
             }
             SymbolicExt::Val(v, _) => {
-                builder
-                    .operations
-                    .push(DslIr::AddEI(*self, v, C::EF::zero()));
+                builder.operations.push(DslIr::AddEI(*self, v, C::EF::zero()));
             }
             SymbolicExt::Add(lhs, rhs, _) => match (&*lhs, &*rhs) {
                 (SymbolicExt::Const(lhs, _), SymbolicExt::Const(rhs, _)) => {
@@ -916,9 +893,7 @@ impl<F: Field, EF: ExtensionField<F>> Ext<F, EF> {
                         let rhs_value: Felt<_> = Felt::uninit(builder);
                         rhs_value.assign_with_cache(rhs.clone(), builder, base_cache);
                         base_cache.insert(rhs.clone(), rhs_value);
-                        builder
-                            .operations
-                            .push(DslIr::AddEFFI(*self, rhs_value, *lhs));
+                        builder.operations.push(DslIr::AddEFFI(*self, rhs_value, *lhs));
                     }
                 },
                 (SymbolicExt::Const(lhs, _), rhs) => {

@@ -1,6 +1,5 @@
 use p3_air::AirBuilder;
-use p3_field::AbstractField;
-use p3_field::Field;
+use p3_field::{AbstractField, Field};
 use sp1_derive::AlignedBorrow;
 
 use crate::{bytes::NUM_BYTE_LOOKUP_CHANNELS, stark::SP1AirBuilder};
@@ -43,24 +42,17 @@ pub fn eval_channel_selectors<AB: SP1AirBuilder>(
     // Assert that the reconstructed channel is the same as the channel.
     builder.assert_eq(reconstruct_channel, channel.clone());
     // For disjointness, assert the sum of the selectors is 1.
-    builder
-        .when(local_is_real.clone())
-        .assert_eq(sum, AB::Expr::one());
+    builder.when(local_is_real.clone()).assert_eq(sum, AB::Expr::one());
 
     // Constrain the first row by asserting that the first selector on the first line is true.
-    builder
-        .when_first_row()
-        .assert_one(local.channel_selectors[0]);
+    builder.when_first_row().assert_one(local.channel_selectors[0]);
 
     // Constrain the transition by asserting that the selectors satisfy the recursion relation:
     // selectors_next[(i + 1) % NUM_BYTE_LOOKUP_CHANNELS] = selectors[i]
     for i in 0..NUM_BYTE_LOOKUP_CHANNELS as usize {
-        builder
-            .when_transition()
-            .when(next_is_real.clone())
-            .assert_eq(
-                local.channel_selectors[i],
-                next.channel_selectors[(i + 1) % NUM_BYTE_LOOKUP_CHANNELS as usize],
-            );
+        builder.when_transition().when(next_is_real.clone()).assert_eq(
+            local.channel_selectors[i],
+            next.channel_selectors[(i + 1) % NUM_BYTE_LOOKUP_CHANNELS as usize],
+        );
     }
 }

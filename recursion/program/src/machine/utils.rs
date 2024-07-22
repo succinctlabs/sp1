@@ -49,7 +49,8 @@ pub(crate) fn assert_complete<C: Config>(
     // Assert that start shard is equal to 1.
     builder.assert_felt_eq(*start_shard, C::F::one());
 
-    // Assert that the next shard is not equal to one. This guarantees that there is at least one shard.
+    // Assert that the next shard is not equal to one. This guarantees that there is at least one
+    // shard.
     builder.assert_felt_ne(*next_shard, C::F::one());
 
     // Assert that the start execution shard is equal to 1.
@@ -68,9 +69,8 @@ pub(crate) fn assert_complete<C: Config>(
     }
 
     // The end reconstruct deffered digest should be equal to the deferred proofs digest.
-    for (end_digest_word, deferred_digest_word) in end_reconstruct_deferred_digest
-        .iter()
-        .zip_eq(deferred_proofs_digest.iter())
+    for (end_digest_word, deferred_digest_word) in
+        end_reconstruct_deferred_digest.iter().zip_eq(deferred_proofs_digest.iter())
     {
         builder.assert_felt_eq(*end_digest_word, *deferred_digest_word);
     }
@@ -108,11 +108,7 @@ where
         builder.dyn_array::<TwoAdicMultiplicativeCosetVariable<_>>(prep_domains_val.len());
 
     for (i, value) in prep_sorted_indices_val.iter().enumerate() {
-        builder.set(
-            &mut prep_sorted_indices,
-            i,
-            C::N::from_canonical_usize(*value),
-        );
+        builder.set(&mut prep_sorted_indices, i, C::N::from_canonical_usize(*value));
     }
 
     for (i, value) in prep_domains_val.iter().enumerate() {

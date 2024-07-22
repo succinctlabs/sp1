@@ -27,10 +27,7 @@ impl<F: Field, const L: usize> CpuChip<F, L> {
             .when_not(next.is_real)
             .assert_one(is_system_instruction.clone());
 
-        builder
-            .when_last_row()
-            .when(local.is_real)
-            .assert_one(is_system_instruction.clone());
+        builder.when_last_row().when(local.is_real).assert_one(is_system_instruction.clone());
 
         // Verify that all other real rows are not TRAP or HALT.
         builder
@@ -40,12 +37,8 @@ impl<F: Field, const L: usize> CpuChip<F, L> {
             .assert_zero(is_system_instruction);
 
         // Verify the correct public value exit code.
-        builder
-            .when(local.selectors.is_trap)
-            .assert_one(public_values.exit_code.clone());
+        builder.when(local.selectors.is_trap).assert_one(public_values.exit_code.clone());
 
-        builder
-            .when(local.selectors.is_halt)
-            .assert_zero(public_values.exit_code.clone());
+        builder.when(local.selectors.is_halt).assert_zero(public_values.exit_code.clone());
     }
 }

@@ -1,8 +1,7 @@
 use sp1_core::SP1_CIRCUIT_VERSION;
 
 use crate::PlonkBn254Proof;
-use std::io::Write;
-use std::process::Command;
+use std::{io::Write, process::Command};
 
 /// Checks that docker is installed and running.
 fn check_docker() -> bool {
@@ -53,11 +52,7 @@ pub fn prove_plonk_bn254(data_dir: &str, witness_path: &str) -> PlonkBn254Proof 
 }
 
 pub fn build_plonk_bn254(data_dir: &str) {
-    let circuit_dir = if data_dir.ends_with("dev") {
-        "/circuit_dev"
-    } else {
-        "/circuit"
-    };
+    let circuit_dir = if data_dir.ends_with("dev") { "/circuit_dev" } else { "/circuit" };
     let mounts = [(data_dir, circuit_dir)];
     assert_docker();
     call_docker(&["build-plonk", circuit_dir], &mounts).expect("failed to build with docker");
@@ -80,14 +75,7 @@ pub fn verify_plonk_bn254(
     ];
     assert_docker();
     call_docker(
-        &[
-            "verify-plonk",
-            "/circuit",
-            "/proof",
-            vkey_hash,
-            committed_values_digest,
-            "/output",
-        ],
+        &["verify-plonk", "/circuit", "/proof", vkey_hash, committed_values_digest, "/output"],
         &mounts,
     )
     .expect("failed to verify with docker");
@@ -100,10 +88,7 @@ pub fn verify_plonk_bn254(
 }
 
 pub fn test_plonk_bn254(witness_json: &str, constraints_json: &str) {
-    let mounts = [
-        (constraints_json, "/constraints"),
-        (witness_json, "/witness"),
-    ];
+    let mounts = [(constraints_json, "/constraints"), (witness_json, "/witness")];
     assert_docker();
     call_docker(&["test-plonk", "/constraints", "/witness"], &mounts)
         .expect("failed to test with docker");

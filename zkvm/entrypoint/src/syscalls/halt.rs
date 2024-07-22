@@ -22,13 +22,12 @@ pub extern "C" fn syscall_halt(exit_code: u8) -> ! {
     unsafe {
         // When we halt, we retrieve the public values finalized digest.  This is the hash of all
         // the bytes written to the public values fd.
-        let pv_digest_bytes = core::mem::take(&mut zkvm::PUBLIC_VALUES_HASHER)
-            .unwrap()
-            .finalize();
+        let pv_digest_bytes = core::mem::take(&mut zkvm::PUBLIC_VALUES_HASHER).unwrap().finalize();
 
-        // For each digest word, call COMMIT ecall.  In the runtime, this will store the digest words
-        // into the runtime's execution record's public values digest.  In the AIR, it will be used
-        // to verify that the provided public values digest matches the one computed by the program.
+        // For each digest word, call COMMIT ecall.  In the runtime, this will store the digest
+        // words into the runtime's execution record's public values digest.  In the AIR, it
+        // will be used to verify that the provided public values digest matches the one
+        // computed by the program.
         for i in 0..PV_DIGEST_NUM_WORDS {
             // Convert the digest bytes into words, since we will call COMMIT one word at a time.
             let word = u32::from_le_bytes(pv_digest_bytes[i * 4..(i + 1) * 4].try_into().unwrap());

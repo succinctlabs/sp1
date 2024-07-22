@@ -1,42 +1,41 @@
-use core::borrow::{Borrow, BorrowMut};
-use core::mem::size_of;
+use core::{
+    borrow::{Borrow, BorrowMut},
+    mem::size_of,
+};
 use std::fmt::Debug;
 
 use generic_array::GenericArray;
 use num::{BigUint, Zero};
 use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::AbstractField;
-use p3_field::PrimeField32;
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
+use p3_field::{AbstractField, PrimeField32};
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_derive::AlignedBorrow;
 use std::marker::PhantomData;
 use typenum::Unsigned;
 
-use crate::air::{BaseAirBuilder, MachineAir, SP1AirBuilder};
-use crate::bytes::event::ByteRecord;
-use crate::memory::MemoryReadCols;
-use crate::memory::MemoryReadWriteCols;
-use crate::operations::field::field_op::FieldOpCols;
-use crate::operations::field::field_op::FieldOperation;
-use crate::operations::field::field_sqrt::FieldSqrtCols;
-use crate::operations::field::params::{limbs_from_vec, FieldParameters, NumWords};
-use crate::operations::field::params::{Limbs, NumLimbs};
-use crate::operations::field::range::FieldLtCols;
-use crate::runtime::ExecutionRecord;
-use crate::runtime::Program;
-use crate::runtime::Syscall;
-use crate::runtime::SyscallCode;
-use crate::syscall::precompiles::create_ec_decompress_event;
-use crate::syscall::precompiles::SyscallContext;
-use crate::utils::ec::weierstrass::bls12_381::bls12381_sqrt;
-use crate::utils::ec::weierstrass::secp256k1::secp256k1_sqrt;
-use crate::utils::ec::weierstrass::WeierstrassParameters;
-use crate::utils::ec::CurveType;
-use crate::utils::ec::EllipticCurve;
-use crate::utils::limbs_from_access;
-use crate::utils::limbs_from_prev_access;
-use crate::utils::{bytes_to_words_le_vec, pad_rows};
+use crate::{
+    air::{BaseAirBuilder, MachineAir, SP1AirBuilder},
+    bytes::event::ByteRecord,
+    memory::{MemoryReadCols, MemoryReadWriteCols},
+    operations::field::{
+        field_op::{FieldOpCols, FieldOperation},
+        field_sqrt::FieldSqrtCols,
+        params::{limbs_from_vec, FieldParameters, Limbs, NumLimbs, NumWords},
+        range::FieldLtCols,
+    },
+    runtime::{ExecutionRecord, Program, Syscall, SyscallCode},
+    syscall::precompiles::{create_ec_decompress_event, SyscallContext},
+    utils::{
+        bytes_to_words_le_vec,
+        ec::{
+            weierstrass::{
+                bls12_381::bls12381_sqrt, secp256k1::secp256k1_sqrt, WeierstrassParameters,
+            },
+            CurveType, EllipticCurve,
+        },
+        limbs_from_access, limbs_from_prev_access, pad_rows,
+    },
+};
 
 pub const fn num_weierstrass_decompress_cols<P: FieldParameters + NumWords>() -> usize {
     size_of::<WeierstrassDecompressCols<u8, P>>()
@@ -114,24 +113,15 @@ impl<E: EllipticCurve> Syscall for WeierstrassDecompressChip<E> {
 
 impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDecompressChip<E> {
     pub const fn new(sign_rule: SignChoiceRule) -> Self {
-        Self {
-            sign_rule,
-            _marker: PhantomData::<E>,
-        }
+        Self { sign_rule, _marker: PhantomData::<E> }
     }
 
     pub const fn with_lsb_rule() -> Self {
-        Self {
-            sign_rule: SignChoiceRule::LeastSignificantBit,
-            _marker: PhantomData::<E>,
-        }
+        Self { sign_rule: SignChoiceRule::LeastSignificantBit, _marker: PhantomData::<E> }
     }
 
     pub const fn with_lexicographic_rule() -> Self {
-        Self {
-            sign_rule: SignChoiceRule::Lexicographic,
-            _marker: PhantomData::<E>,
-        }
+        Self { sign_rule: SignChoiceRule::Lexicographic, _marker: PhantomData::<E> }
     }
 
     fn populate_field_ops<F: PrimeField32>(
@@ -142,36 +132,23 @@ impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDecompressChip<E> {
         x: BigUint,
     ) {
         // Y = sqrt(x^3 + b)
-        cols.range_x
-            .populate(record, shard, channel, &x, &E::BaseField::modulus());
-        let x_2 = cols.x_2.populate(
-            record,
-            shard,
-            channel,
-            &x.clone(),
-            &x.clone(),
-            FieldOperation::Mul,
-        );
-        let x_3 = cols
-            .x_3
-            .populate(record, shard, channel, &x_2, &x, FieldOperation::Mul);
+        cols.range_x.populate(record, shard, channel, &x, &E::BaseField::modulus());
+        let x_2 =
+            cols.x_2.populate(record, shard, channel, &x.clone(), &x.clone(), FieldOperation::Mul);
+        let x_3 = cols.x_3.populate(record, shard, channel, &x_2, &x, FieldOperation::Mul);
         let b = E::b_int();
         let x_3_plus_b =
-            cols.x_3_plus_b
-                .populate(record, shard, channel, &x_3, &b, FieldOperation::Add);
+            cols.x_3_plus_b.populate(record, shard, channel, &x_3, &b, FieldOperation::Add);
 
         let sqrt_fn = match E::CURVE_TYPE {
             CurveType::Secp256k1 => secp256k1_sqrt,
             CurveType::Bls12381 => bls12381_sqrt,
             _ => panic!("Unsupported curve"),
         };
-        let y = cols
-            .y
-            .populate(record, shard, channel, &x_3_plus_b, sqrt_fn);
+        let y = cols.y.populate(record, shard, channel, &x_3_plus_b, sqrt_fn);
 
         let zero = BigUint::zero();
-        cols.neg_y
-            .populate(record, shard, channel, &zero, &y, FieldOperation::Sub);
+        cols.neg_y.populate(record, shard, channel, &zero, &y, FieldOperation::Sub);
     }
 }
 
@@ -344,8 +321,8 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
 impl<F, E: EllipticCurve> BaseAir<F> for WeierstrassDecompressChip<E> {
     fn width(&self) -> usize {
-        num_weierstrass_decompress_cols::<E::BaseField>()
-            + match self.sign_rule {
+        num_weierstrass_decompress_cols::<E::BaseField>() +
+            match self.sign_rule {
                 SignChoiceRule::LeastSignificantBit => 0,
                 SignChoiceRule::Lexicographic => {
                     size_of::<LexicographicChoiceCols<u8, E::BaseField>>()
@@ -372,9 +349,7 @@ where
 
         // Constrain the incrementing nonce.
         builder.when_first_row().assert_zero(local.nonce);
-        builder
-            .when_transition()
-            .assert_eq(local.nonce + AB::Expr::one(), next.nonce);
+        builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         let num_limbs = <E::BaseField as NumLimbs>::Limbs::USIZE;
         let num_words_field_element = num_limbs / 4;
@@ -470,9 +445,8 @@ where
 
                 // Get the choice columns from the row slice
                 let choice_cols: &LexicographicChoiceCols<AB::Var, E::BaseField> = (*local_slice)
-                    [weierstrass_cols
-                        ..weierstrass_cols
-                            + size_of::<LexicographicChoiceCols<u8, E::BaseField>>()]
+                    [weierstrass_cols..
+                        weierstrass_cols + size_of::<LexicographicChoiceCols<u8, E::BaseField>>()]
                     .borrow();
 
                 // Range check the neg_y value since we are now using a lexicographic comparison.
@@ -513,12 +487,8 @@ where
                     .assert_all_eq(local.neg_y.result, y_limbs);
 
                 // Assert that the comparison only turns on when `is_real` is true.
-                builder
-                    .when_not(local.is_real)
-                    .assert_zero(choice_cols.when_sqrt_y_res_is_lt);
-                builder
-                    .when_not(local.is_real)
-                    .assert_zero(choice_cols.when_neg_y_res_is_lt);
+                builder.when_not(local.is_real).assert_zero(choice_cols.when_sqrt_y_res_is_lt);
+                builder.when_not(local.is_real).assert_zero(choice_cols.when_neg_y_res_is_lt);
 
                 // Assert that the flags are set correctly. When the sign_bit is true, we want that
                 // `neg_y < y`, and vice versa when the sign_bit is false. Hence, when should have:
@@ -530,17 +500,14 @@ where
                 // Since the when less-than flags are disjoint, we can assert that:
                 // - When `sign_bit` is true , then is_y_eq_sqrt_y_result == when_neg_y_res_is_lt.
                 // - When `sign_bit` is false, then is_y_eq_sqrt_y_result == when_sqrt_y_res_is_lt.
-                builder.when(local.is_real).when(local.sign_bit).assert_eq(
-                    choice_cols.is_y_eq_sqrt_y_result,
-                    choice_cols.when_neg_y_res_is_lt,
-                );
                 builder
                     .when(local.is_real)
-                    .when_not(local.sign_bit)
-                    .assert_eq(
-                        choice_cols.is_y_eq_sqrt_y_result,
-                        choice_cols.when_sqrt_y_res_is_lt,
-                    );
+                    .when(local.sign_bit)
+                    .assert_eq(choice_cols.is_y_eq_sqrt_y_result, choice_cols.when_neg_y_res_is_lt);
+                builder.when(local.is_real).when_not(local.sign_bit).assert_eq(
+                    choice_cols.is_y_eq_sqrt_y_result,
+                    choice_cols.when_sqrt_y_res_is_lt,
+                );
 
                 // Assert the less-than comparisons according to the flags.
 
@@ -610,18 +577,20 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::io::SP1Stdin;
-    use crate::stark::DefaultProver;
-    use crate::utils::{self, tests::BLS12381_DECOMPRESS_ELF};
-    use crate::Program;
-    use amcl::bls381::bls381::basic::key_pair_generate_g2;
-    use amcl::bls381::bls381::utils::deserialize_g1;
-    use amcl::rand::RAND;
+    use crate::{
+        io::SP1Stdin,
+        stark::DefaultProver,
+        utils::{self, tests::BLS12381_DECOMPRESS_ELF},
+        Program,
+    };
+    use amcl::{
+        bls381::bls381::{basic::key_pair_generate_g2, utils::deserialize_g1},
+        rand::RAND,
+    };
     use elliptic_curve::sec1::ToEncodedPoint;
     use rand::{thread_rng, Rng};
 
-    use crate::utils::run_test_io;
-    use crate::utils::tests::SECP256K1_DECOMPRESS_ELF;
+    use crate::utils::{run_test_io, tests::SECP256K1_DECOMPRESS_ELF};
 
     #[test]
     fn test_weierstrass_bls_decompress() {

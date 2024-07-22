@@ -1,8 +1,6 @@
-use alloc::collections::BTreeMap;
-use alloc::format;
+use alloc::{collections::BTreeMap, format};
 use backtrace::Backtrace;
-use core::fmt;
-use core::fmt::Display;
+use core::{fmt, fmt::Display};
 
 use p3_field::{ExtensionField, PrimeField32};
 use sp1_recursion_core::runtime::RecursionProgram;
@@ -74,10 +72,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AssemblyCode<F, EF> {
             }
         }
 
-        RecursionProgram {
-            instructions: machine_code,
-            traces,
-        }
+        RecursionProgram { instructions: machine_code, traces }
     }
 }
 
@@ -87,9 +82,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> Display for AssemblyCode<F, EF> {
             writeln!(
                 f,
                 "{}:",
-                self.labels
-                    .get(&F::from_canonical_u32(i as u32))
-                    .unwrap_or(&format!(".L{}", i))
+                self.labels.get(&F::from_canonical_u32(i as u32)).unwrap_or(&format!(".L{}", i))
             )?;
             for instruction in &block.0 {
                 write!(f, "        ")?;

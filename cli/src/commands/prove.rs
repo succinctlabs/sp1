@@ -5,8 +5,7 @@ use sp1_build::{build_program, BuildArgs};
 use sp1_core::utils::{setup_logger, setup_tracer};
 use sp1_prover::SP1Stdin;
 use sp1_sdk::ProverClient;
-use std::time::Instant;
-use std::{env, fs::File, io::Read, path::PathBuf, str::FromStr};
+use std::{env, fs::File, io::Read, path::PathBuf, str::FromStr, time::Instant};
 
 use crate::util::{elapsed, write_status};
 
@@ -21,8 +20,8 @@ fn is_valid_hex_string(s: &str) -> bool {
         return false;
     }
     // All hex digits with optional 0x prefix
-    s.starts_with("0x") && s[2..].chars().all(|c| c.is_ascii_hexdigit())
-        || s.chars().all(|c| c.is_ascii_hexdigit())
+    s.starts_with("0x") && s[2..].chars().all(|c| c.is_ascii_hexdigit()) ||
+        s.chars().all(|c| c.is_ascii_hexdigit())
 }
 
 impl FromStr for Input {
@@ -31,11 +30,7 @@ impl FromStr for Input {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if is_valid_hex_string(s) {
             // Remove 0x prefix if present
-            let s = if s.starts_with("0x") {
-                s.strip_prefix("0x").unwrap()
-            } else {
-                s
-            };
+            let s = if s.starts_with("0x") { s.strip_prefix("0x").unwrap() } else { s };
             if s.is_empty() {
                 return Ok(Input::HexBytes(Vec::new()));
             }
@@ -116,18 +111,12 @@ impl ProveCmd {
         let proof = client.prove(&pk, stdin).run().unwrap();
 
         if let Some(ref path) = self.output {
-            proof
-                .save(path.to_str().unwrap())
-                .expect("failed to save proof");
+            proof.save(path.to_str().unwrap()).expect("failed to save proof");
         }
 
         let elapsed = elapsed(start_time.elapsed());
         let green = AnsiColor::Green.on_default().effects(Effects::BOLD);
-        write_status(
-            &green,
-            "Finished",
-            format!("proving in {}", elapsed).as_str(),
-        );
+        write_status(&green, "Finished", format!("proving in {}", elapsed).as_str());
 
         Ok(())
     }

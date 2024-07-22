@@ -1,24 +1,17 @@
-use alloc::collections::BTreeMap;
-use alloc::vec;
+use alloc::{collections::BTreeMap, vec};
 use backtrace::Backtrace;
-use sp1_recursion_core::runtime::HEAP_PTR;
-use sp1_recursion_core::runtime::HEAP_START_ADDRESS;
+use sp1_recursion_core::runtime::{HEAP_PTR, HEAP_START_ADDRESS};
 use std::collections::BTreeSet;
 
-use p3_field::ExtensionField;
-use p3_field::PrimeField32;
-use p3_field::TwoAdicField;
+use p3_field::{ExtensionField, PrimeField32, TwoAdicField};
 use sp1_recursion_core::runtime::RecursionProgram;
 
-use super::config::AsmConfig;
-use super::IndexTriple;
-use super::ValueOrConst;
-use super::{AssemblyCode, BasicBlock};
-use crate::asm::AsmInstruction;
-use crate::ir::Array;
-use crate::ir::Usize;
-use crate::ir::{DslIr, Ext, Felt, Ptr, Var};
-use crate::prelude::TracedVec;
+use super::{config::AsmConfig, AssemblyCode, BasicBlock, IndexTriple, ValueOrConst};
+use crate::{
+    asm::AsmInstruction,
+    ir::{Array, DslIr, Ext, Felt, Ptr, Usize, Var},
+    prelude::TracedVec,
+};
 
 /// The zero address.
 pub(crate) const ZERO: i32 = 0;
@@ -135,10 +128,7 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                     self.push(AsmInstruction::AddEI(dst.fp(), lhs.fp(), rhs), trace);
                 }
                 DslIr::AddEFI(dst, lhs, rhs) => {
-                    self.push(
-                        AsmInstruction::AddEI(dst.fp(), lhs.fp(), EF::from_base(rhs)),
-                        trace,
-                    );
+                    self.push(AsmInstruction::AddEI(dst.fp(), lhs.fp(), EF::from_base(rhs)), trace);
                 }
                 DslIr::SubV(dst, lhs, rhs) => {
                     self.push(AsmInstruction::SubF(dst.fp(), lhs.fp(), rhs.fp()), trace);
@@ -183,10 +173,7 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                     self.push(AsmInstruction::DivE(dst.fp(), lhs.fp(), rhs.fp()), trace);
                 }
                 DslIr::DivEFI(dst, lhs, rhs) => {
-                    self.push(
-                        AsmInstruction::DivEI(dst.fp(), lhs.fp(), EF::from_base(rhs)),
-                        trace,
-                    );
+                    self.push(AsmInstruction::DivEI(dst.fp(), lhs.fp(), EF::from_base(rhs)), trace);
                 }
                 DslIr::DivEIN(dst, lhs, rhs) => {
                     self.push(AsmInstruction::DivEIN(dst.fp(), lhs, rhs.fp()), trace);
@@ -210,10 +197,7 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                     self.push(AsmInstruction::SubE(dst.fp(), lhs.fp(), rhs.fp()), trace);
                 }
                 DslIr::SubEFI(dst, lhs, rhs) => {
-                    self.push(
-                        AsmInstruction::SubEI(dst.fp(), lhs.fp(), EF::from_base(rhs)),
-                        trace,
-                    );
+                    self.push(AsmInstruction::SubEI(dst.fp(), lhs.fp(), EF::from_base(rhs)), trace);
                 }
                 DslIr::SubEIN(dst, lhs, rhs) => {
                     self.push(AsmInstruction::SubEIN(dst.fp(), lhs, rhs.fp()), trace);
@@ -225,10 +209,7 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                     self.push(AsmInstruction::SubEI(dst.fp(), lhs.fp(), rhs), trace);
                 }
                 DslIr::NegE(dst, src) => {
-                    self.push(
-                        AsmInstruction::SubEIN(dst.fp(), EF::zero(), src.fp()),
-                        trace,
-                    );
+                    self.push(AsmInstruction::SubEIN(dst.fp(), EF::zero(), src.fp()), trace);
                 }
                 DslIr::MulV(dst, lhs, rhs) => {
                     self.push(AsmInstruction::MulF(dst.fp(), lhs.fp(), rhs.fp()), trace);
@@ -252,10 +233,7 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                     self.push(AsmInstruction::MulE(dst.fp(), lhs.fp(), rhs.fp()), trace);
                 }
                 DslIr::MulEFI(dst, lhs, rhs) => {
-                    self.push(
-                        AsmInstruction::MulEI(dst.fp(), lhs.fp(), EF::from_base(rhs)),
-                        trace,
-                    );
+                    self.push(AsmInstruction::MulEI(dst.fp(), lhs.fp(), EF::from_base(rhs)), trace);
                 }
                 DslIr::IfEq(lhs, rhs, then_block, else_block) => {
                     let if_compiler = IfCompiler {
@@ -328,13 +306,8 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                     self.push(AsmInstruction::Break(label), trace);
                 }
                 DslIr::For(start, end, step_size, loop_var, block) => {
-                    let for_compiler = ForCompiler {
-                        compiler: self,
-                        start,
-                        end,
-                        step_size,
-                        loop_var,
-                    };
+                    let for_compiler =
+                        ForCompiler { compiler: self, start, end, step_size, loop_var };
                     for_compiler.for_each(move |_, builder| builder.build(block));
                 }
                 DslIr::AssertEqV(lhs, rhs) => {
@@ -550,10 +523,7 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                     self.push(AsmInstruction::RegisterPublicValue(val.fp()), trace);
                 }
                 DslIr::LessThan(dst, left, right) => {
-                    self.push(
-                        AsmInstruction::LessThan(dst.fp(), left.fp(), right.fp()),
-                        trace,
-                    );
+                    self.push(AsmInstruction::LessThan(dst.fp(), left.fp(), right.fp()), trace);
                 }
                 DslIr::CycleTracker(name) => {
                     self.push(AsmInstruction::CycleTracker(name.clone()), trace);
@@ -578,20 +548,11 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
         match len {
             Usize::Const(len) => {
                 let len = F::from_canonical_usize(len);
-                self.push(
-                    AsmInstruction::AddFI(ptr.fp(), HEAP_PTR, F::zero()),
-                    backtrace.clone(),
-                );
-                self.push(
-                    AsmInstruction::AddFI(HEAP_PTR, HEAP_PTR, len * size),
-                    backtrace,
-                );
+                self.push(AsmInstruction::AddFI(ptr.fp(), HEAP_PTR, F::zero()), backtrace.clone());
+                self.push(AsmInstruction::AddFI(HEAP_PTR, HEAP_PTR, len * size), backtrace);
             }
             Usize::Var(len) => {
-                self.push(
-                    AsmInstruction::AddFI(ptr.fp(), HEAP_PTR, F::zero()),
-                    backtrace.clone(),
-                );
+                self.push(AsmInstruction::AddFI(ptr.fp(), HEAP_PTR, F::zero()), backtrace.clone());
                 self.push(AsmInstruction::MulFI(A0, len.fp(), size), backtrace.clone());
                 self.push(AsmInstruction::AddF(HEAP_PTR, HEAP_PTR, A0), backtrace);
             }
@@ -605,21 +566,12 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
         is_eq: bool,
         backtrace: Option<Backtrace>,
     ) {
-        let if_compiler = IfCompiler {
-            compiler: self,
-            lhs,
-            rhs,
-            is_eq,
-        };
+        let if_compiler = IfCompiler { compiler: self, lhs, rhs, is_eq };
         if_compiler.then(|builder| builder.push(AsmInstruction::Trap, backtrace));
     }
 
     pub fn code(self) -> AssemblyCode<F, EF> {
-        let labels = self
-            .function_labels
-            .into_iter()
-            .map(|(k, v)| (v, k))
-            .collect();
+        let labels = self.function_labels.into_iter().map(|(k, v)| (v, k)).collect();
         AssemblyCode::new(self.basic_blocks, labels)
     }
 
@@ -650,10 +602,7 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
     }
 
     fn push(&mut self, instruction: AsmInstruction<F, EF>, backtrace: Option<Backtrace>) {
-        self.basic_blocks
-            .last_mut()
-            .unwrap()
-            .push(instruction, backtrace);
+        self.basic_blocks.last_mut().unwrap().push(instruction, backtrace);
     }
 }
 
@@ -671,12 +620,7 @@ impl<'a, F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField>
     where
         Func: FnOnce(&mut AsmCompiler<F, EF>),
     {
-        let Self {
-            compiler,
-            lhs,
-            rhs,
-            is_eq,
-        } = self;
+        let Self { compiler, lhs, rhs, is_eq } = self;
 
         // Get the label for the current block.
         let current_block = compiler.block_label();
@@ -699,12 +643,7 @@ impl<'a, F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField>
         ThenFunc: FnOnce(&mut AsmCompiler<F, EF>),
         ElseFunc: FnOnce(&mut AsmCompiler<F, EF>),
     {
-        let Self {
-            compiler,
-            lhs,
-            rhs,
-            is_eq,
-        } = self;
+        let Self { compiler, lhs, rhs, is_eq } = self;
 
         // Get the label for the current block, so we can generate the jump instruction into it.
         // conditional branc instruction to it, if the condition is not met.
@@ -821,9 +760,8 @@ impl<'a, F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField>
 
         // Replace the break instruction with a jump to the after loop block.
         for block in self.compiler.contains_break.iter() {
-            for instruction in self.compiler.basic_blocks[block.as_canonical_u32() as usize]
-                .0
-                .iter_mut()
+            for instruction in
+                self.compiler.basic_blocks[block.as_canonical_u32() as usize].0.iter_mut()
             {
                 if let AsmInstruction::Break(l) = instruction {
                     if *l == break_label {
@@ -845,10 +783,8 @@ impl<'a, F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField>
                 );
             }
             Usize::Var(var) => {
-                self.compiler.push(
-                    AsmInstruction::AddFI(self.loop_var.fp(), var.fp(), F::zero()),
-                    None,
-                );
+                self.compiler
+                    .push(AsmInstruction::AddFI(self.loop_var.fp(), var.fp(), F::zero()), None);
             }
         }
     }

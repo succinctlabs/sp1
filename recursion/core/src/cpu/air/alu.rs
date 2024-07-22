@@ -49,8 +49,6 @@ impl<F: Field, const L: usize> CpuChip<F, L> {
             .when(local.selectors.is_mul)
             .assert_ext_eq(a_ext.clone(), b_ext.clone() * c_ext.clone());
         // For div operation, we assert that b == a * c (equivalent to a == b / c).
-        builder
-            .when(local.selectors.is_div)
-            .assert_ext_eq(b_ext, a_ext * c_ext);
+        builder.when(local.selectors.is_div).assert_ext_eq(b_ext, a_ext * c_ext);
     }
 }

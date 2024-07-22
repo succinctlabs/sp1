@@ -26,24 +26,18 @@ impl<F: Field, const L: usize> CpuChip<F, L> {
         // Verify all elements in the index bitmap are bools.
         let mut bitmap_sum = AB::Expr::zero();
         for bit in public_values_cols.idx_bitmap.iter() {
-            builder
-                .when(is_commit_instruction.clone())
-                .assert_bool(*bit);
+            builder.when(is_commit_instruction.clone()).assert_bool(*bit);
             bitmap_sum += (*bit).into();
         }
         // When the instruction is COMMIT there should be exactly one set bit.
-        builder
-            .when(is_commit_instruction.clone())
-            .assert_one(bitmap_sum.clone());
+        builder.when(is_commit_instruction.clone()).assert_one(bitmap_sum.clone());
 
         // Verify that idx passed in the b operand corresponds to the set bit in index bitmap.
         for (i, bit) in public_values_cols.idx_bitmap.iter().enumerate() {
-            builder
-                .when(*bit * is_commit_instruction.clone())
-                .assert_block_eq(
-                    *local.b.prev_value(),
-                    AB::Expr::from_canonical_u32(i as u32).into(),
-                );
+            builder.when(*bit * is_commit_instruction.clone()).assert_block_eq(
+                *local.b.prev_value(),
+                AB::Expr::from_canonical_u32(i as u32).into(),
+            );
         }
 
         // Calculated the expected public value.

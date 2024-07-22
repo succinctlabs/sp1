@@ -43,27 +43,26 @@
 
 mod utils;
 
-use core::borrow::{Borrow, BorrowMut};
-use core::mem::size_of;
+use core::{
+    borrow::{Borrow, BorrowMut},
+    mem::size_of,
+};
 use hashbrown::HashMap;
 use itertools::Itertools;
 use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::AbstractField;
-use p3_field::PrimeField;
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
+use p3_field::{AbstractField, PrimeField};
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{ParallelIterator, ParallelSlice};
 use sp1_derive::AlignedBorrow;
 
-use crate::air::MachineAir;
-use crate::air::{SP1AirBuilder, Word};
-use crate::alu::sr::utils::{nb_bits_to_shift, nb_bytes_to_shift};
-use crate::bytes::event::ByteRecord;
-use crate::bytes::utils::shr_carry;
-use crate::bytes::{ByteLookupEvent, ByteOpcode};
-use crate::disassembler::WORD_SIZE;
-use crate::runtime::{ExecutionRecord, Opcode, Program};
-use crate::utils::pad_to_power_of_two;
+use crate::{
+    air::{MachineAir, SP1AirBuilder, Word},
+    alu::sr::utils::{nb_bits_to_shift, nb_bytes_to_shift},
+    bytes::{event::ByteRecord, utils::shr_carry, ByteLookupEvent, ByteOpcode},
+    disassembler::WORD_SIZE,
+    runtime::{ExecutionRecord, Opcode, Program},
+    utils::pad_to_power_of_two,
+};
 
 use super::AluEvent;
 
@@ -354,9 +353,7 @@ where
 
         // Constrain the incrementing nonce.
         builder.when_first_row().assert_zero(local.nonce);
-        builder
-            .when_transition()
-            .assert_eq(local.nonce + AB::Expr::one(), next.nonce);
+        builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         // Check that the MSB of most_significant_byte matches local.b_msb using lookup.
         {
@@ -400,17 +397,14 @@ where
 
             // Exactly one of the shift_by_n_bits must be 1.
             builder.assert_eq(
-                local
-                    .shift_by_n_bits
-                    .iter()
-                    .fold(zero.clone(), |acc, &x| acc + x),
+                local.shift_by_n_bits.iter().fold(zero.clone(), |acc, &x| acc + x),
                 one.clone(),
             );
 
             // The 2-bit number represented by the 3rd and 4th least significant bits of c is the
             // number of bytes to shift.
-            let num_bytes_to_shift = local.c_least_sig_byte[3]
-                + local.c_least_sig_byte[4] * AB::F::from_canonical_u32(2);
+            let num_bytes_to_shift = local.c_least_sig_byte[3] +
+                local.c_least_sig_byte[4] * AB::F::from_canonical_u32(2);
 
             // If shift_by_n_bytes[i] = 1, then i = num_bytes_to_shift.
             for i in 0..WORD_SIZE {
@@ -421,10 +415,7 @@ where
 
             // Exactly one of the shift_by_n_bytes must be 1.
             builder.assert_eq(
-                local
-                    .shift_by_n_bytes
-                    .iter()
-                    .fold(zero.clone(), |acc, &x| acc + x),
+                local.shift_by_n_bytes.iter().fold(zero.clone(), |acc, &x| acc + x),
                 one.clone(),
             );
         }
@@ -444,12 +435,10 @@ where
             // Shift the bytes of sign_extended_b by num_bytes_to_shift.
             for num_bytes_to_shift in 0..WORD_SIZE {
                 for i in 0..(LONG_WORD_SIZE - num_bytes_to_shift) {
-                    builder
-                        .when(local.shift_by_n_bytes[num_bytes_to_shift])
-                        .assert_eq(
-                            local.byte_shift_result[i],
-                            sign_extended_b[i + num_bytes_to_shift].clone(),
-                        );
+                    builder.when(local.shift_by_n_bytes[num_bytes_to_shift]).assert_eq(
+                        local.byte_shift_result[i],
+                        sign_extended_b[i + num_bytes_to_shift].clone(),
+                    );
                 }
             }
         }
@@ -543,8 +532,8 @@ where
 
         // Receive the arguments.
         builder.receive_alu(
-            local.is_srl * AB::F::from_canonical_u32(Opcode::SRL as u32)
-                + local.is_sra * AB::F::from_canonical_u32(Opcode::SRA as u32),
+            local.is_srl * AB::F::from_canonical_u32(Opcode::SRL as u32) +
+                local.is_sra * AB::F::from_canonical_u32(Opcode::SRA as u32),
             local.a,
             local.b,
             local.c,

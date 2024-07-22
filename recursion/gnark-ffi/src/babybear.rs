@@ -1,6 +1,7 @@
 use p3_baby_bear::BabyBear;
-use p3_field::PrimeField32;
-use p3_field::{extension::BinomialExtensionField, AbstractExtensionField, AbstractField, Field};
+use p3_field::{
+    extension::BinomialExtensionField, AbstractExtensionField, AbstractField, Field, PrimeField32,
+};
 
 #[no_mangle]
 pub extern "C" fn babybearextinv(a: u32, b: u32, c: u32, d: u32, i: u32) -> u32 {

@@ -32,20 +32,16 @@ pub struct KeccakPermuteChip {
 
 impl KeccakPermuteChip {
     pub const fn new() -> Self {
-        Self {
-            p3_keccak: KeccakAir {},
-        }
+        Self { p3_keccak: KeccakAir {} }
     }
 }
 
 #[cfg(test)]
 pub mod permute_tests {
-    use crate::runtime::SyscallCode;
-    use crate::stark::DefaultProver;
-    use crate::utils::{run_test, SP1CoreOpts};
     use crate::{
-        runtime::{Instruction, Opcode, Program, Runtime},
-        utils::{self, tests::KECCAK_PERMUTE_ELF},
+        runtime::{Instruction, Opcode, Program, Runtime, SyscallCode},
+        stark::DefaultProver,
+        utils::{self, run_test, tests::KECCAK_PERMUTE_ELF, SP1CoreOpts},
     };
 
     pub fn keccak_permute_program() -> Program {
@@ -58,14 +54,7 @@ pub mod permute_tests {
             ]);
         }
         instructions.extend(vec![
-            Instruction::new(
-                Opcode::ADD,
-                5,
-                0,
-                SyscallCode::KECCAK_PERMUTE as u32,
-                false,
-                true,
-            ),
+            Instruction::new(Opcode::ADD, 5, 0, SyscallCode::KECCAK_PERMUTE as u32, false, true),
             Instruction::new(Opcode::ADD, 10, 0, digest_ptr, false, true),
             Instruction::new(Opcode::ECALL, 5, 10, 11, false, false),
         ]);

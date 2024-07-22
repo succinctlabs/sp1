@@ -102,9 +102,7 @@ impl ProverClient {
     /// let client = ProverClient::mock();
     /// ```
     pub fn mock() -> Self {
-        Self {
-            prover: Box::new(MockProver::new()),
-        }
+        Self { prover: Box::new(MockProver::new()) }
     }
 
     /// Creates a new [ProverClient] with the local prover.
@@ -120,9 +118,7 @@ impl ProverClient {
     /// let client = ProverClient::local();
     /// ```
     pub fn local() -> Self {
-        Self {
-            prover: Box::new(LocalProver::new()),
-        }
+        Self { prover: Box::new(LocalProver::new()) }
     }
 
     /// Creates a new [ProverClient] with the network prover.
@@ -158,7 +154,7 @@ impl ProverClient {
     ///
     /// ### Examples
     /// ```no_run
-    /// use sp1_sdk::{ProverClient, SP1Stdin, SP1Context};
+    /// use sp1_sdk::{ProverClient, SP1Context, SP1Stdin};
     ///
     /// // Load the program.
     /// let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
@@ -177,8 +173,8 @@ impl ProverClient {
         action::Execute::new(elf, stdin)
     }
 
-    /// Prepare to prove the execution of the given program with the given input in the default mode.
-    /// The returned [action::Prove] may be configured via its methods before running.
+    /// Prepare to prove the execution of the given program with the given input in the default
+    /// mode. The returned [action::Prove] may be configured via its methods before running.
     /// For example, calling [action::Prove::compress] sets the mode to compressed mode.
     ///
     /// To prove, call [action::Prove::run], which returns a proof of the program's execution.
@@ -188,7 +184,7 @@ impl ProverClient {
     ///
     /// ### Examples
     /// ```no_run
-    /// use sp1_sdk::{ProverClient, SP1Stdin, SP1Context};
+    /// use sp1_sdk::{ProverClient, SP1Context, SP1Stdin};
     ///
     /// // Load the program.
     /// let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");

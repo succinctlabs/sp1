@@ -1,20 +1,24 @@
-use core::borrow::{Borrow, BorrowMut};
-use core::mem::size_of;
+use core::{
+    borrow::{Borrow, BorrowMut},
+    mem::size_of,
+};
 use std::array;
 
-use p3_air::BaseAir;
-use p3_air::{Air, AirBuilder};
+use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_derive::AlignedBorrow;
 
 use super::MemoryInitializeFinalizeEvent;
-use crate::air::{AirInteraction, BaseAirBuilder, PublicValues, SP1AirBuilder, Word};
-use crate::air::{MachineAir, SP1_PROOF_NUM_PV_ELTS};
-use crate::operations::{AssertLtColsBits, BabyBearBitDecomposition, IsZeroOperation};
-use crate::runtime::{ExecutionRecord, Program};
-use crate::utils::pad_to_power_of_two;
+use crate::{
+    air::{
+        AirInteraction, BaseAirBuilder, MachineAir, PublicValues, SP1AirBuilder, Word,
+        SP1_PROOF_NUM_PV_ELTS,
+    },
+    operations::{AssertLtColsBits, BabyBearBitDecomposition, IsZeroOperation},
+    runtime::{ExecutionRecord, Program},
+    utils::pad_to_power_of_two,
+};
 
 /// The type of memory chip that is being initialized.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -71,13 +75,8 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip {
         memory_events.sort_by_key(|event| event.addr);
         let rows: Vec<[F; NUM_MEMORY_INIT_COLS]> = (0..memory_events.len()) // OPT: change this to par_iter
             .map(|i| {
-                let MemoryInitializeFinalizeEvent {
-                    addr,
-                    value,
-                    shard,
-                    timestamp,
-                    used,
-                } = memory_events[i];
+                let MemoryInitializeFinalizeEvent { addr, value, shard, timestamp, used } =
+                    memory_events[i];
 
                 let mut row = [F::zero(); NUM_MEMORY_INIT_COLS];
                 let cols: &mut MemoryInitCols<F> = row.as_mut_slice().borrow_mut();
@@ -216,11 +215,7 @@ where
                 crate::lookup::InteractionKind::Memory,
             ));
         } else {
-            let mut values = vec![
-                local.shard.into(),
-                local.timestamp.into(),
-                local.addr.into(),
-            ];
+            let mut values = vec![local.shard.into(), local.timestamp.into(), local.addr.into()];
             values.extend(value);
             builder.send(AirInteraction::new(
                 values,
@@ -250,21 +245,11 @@ where
         // - In the last real row, we need to assert that addr = last_finalize_addr.
 
         // Assert that addr < addr' when the next row is real.
-        builder
-            .when_transition()
-            .assert_eq(next.is_next_comp, next.is_real);
-        next.lt_cols.eval(
-            builder,
-            &local.addr_bits.bits,
-            &next.addr_bits.bits,
-            next.is_next_comp,
-        );
+        builder.when_transition().assert_eq(next.is_next_comp, next.is_real);
+        next.lt_cols.eval(builder, &local.addr_bits.bits, &next.addr_bits.bits, next.is_next_comp);
 
         // Assert that the real rows are all padded to the top.
-        builder
-            .when_transition()
-            .when_not(local.is_real)
-            .assert_zero(next.is_real);
+        builder.when_transition().when_not(local.is_real).assert_zero(next.is_real);
 
         // Make assertions for the initial comparison.
 
@@ -301,47 +286,30 @@ where
 
         // Constrain the is_first_comp column.
         builder.assert_bool(local.is_first_comp);
-        builder.when_first_row().assert_eq(
-            local.is_first_comp,
-            AB::Expr::one() - local.is_prev_addr_zero.result,
-        );
+        builder
+            .when_first_row()
+            .assert_eq(local.is_first_comp, AB::Expr::one() - local.is_prev_addr_zero.result);
 
         // Ensure at least one real row.
         builder.when_first_row().assert_one(local.is_real);
 
         // Constrain the inequality assertion in the first row.
-        local.lt_cols.eval(
-            builder,
-            prev_addr_bits,
-            &local_addr_bits,
-            local.is_first_comp,
-        );
+        local.lt_cols.eval(builder, prev_addr_bits, &local_addr_bits, local.is_first_comp);
 
         // Insure that there are no duplicate initializations by assuring there is exactly one
         // initialization event of the zero address. This is done by assuring that when the previous
         // address is zero, then the first row address is also zero, and that the second row is also
         // real, and the less than comparison is being made.
-        builder
-            .when_first_row()
-            .when(local.is_prev_addr_zero.result)
-            .assert_zero(local.addr);
-        builder
-            .when_first_row()
-            .when(local.is_prev_addr_zero.result)
-            .assert_one(next.is_real);
+        builder.when_first_row().when(local.is_prev_addr_zero.result).assert_zero(local.addr);
+        builder.when_first_row().when(local.is_prev_addr_zero.result).assert_one(next.is_real);
         // Ensure that in the address zero case the comparison is being made so that there is an
         // address bigger than zero being committed to.
-        builder
-            .when_first_row()
-            .when(local.is_prev_addr_zero.result)
-            .assert_one(next.is_next_comp);
+        builder.when_first_row().when(local.is_prev_addr_zero.result).assert_one(next.is_next_comp);
 
         // Make assertions for specific types of memory chips.
 
         if self.kind == MemoryChipType::Initialize {
-            builder
-                .when(local.is_real)
-                .assert_eq(local.timestamp, AB::F::one());
+            builder.when(local.is_real).assert_eq(local.timestamp, AB::F::one());
         }
 
         // Constraints related to register %x0.
@@ -355,10 +323,7 @@ where
         // once, this can be constrained by the public values setting `previous_init_addr_bits` or
         // `previous_finalize_addr_bits` to zero.
         for i in 0..32 {
-            builder
-                .when_first_row()
-                .when_not(local.is_first_comp)
-                .assert_zero(local.value[i]);
+            builder.when_first_row().when_not(local.is_first_comp).assert_zero(local.value[i]);
         }
 
         // Make assertions for the final value. We need to connect the final valid address to the
@@ -372,17 +337,13 @@ where
         // - The flag `is_real` is set to one and the next `is_real` is set to zero.
 
         // Constrain the `is_last_addr` flag.
-        builder.when_transition().assert_eq(
-            local.is_last_addr,
-            local.is_real * (AB::Expr::one() - next.is_real),
-        );
+        builder
+            .when_transition()
+            .assert_eq(local.is_last_addr, local.is_real * (AB::Expr::one() - next.is_real));
 
         // Constrain the last address bits to be equal to the corresponding `last_addr_bits` value.
         for (local_bit, pub_bit) in local.addr_bits.bits.iter().zip(last_addr_bits.iter()) {
-            builder
-                .when_last_row()
-                .when(local.is_real)
-                .assert_eq(*local_bit, pub_bit.clone());
+            builder.when_last_row().when(local.is_real).assert_eq(*local_bit, pub_bit.clone());
             builder
                 .when_transition()
                 .when(local.is_last_addr)
@@ -395,12 +356,13 @@ where
 mod tests {
 
     use super::*;
-    use crate::lookup::{debug_interactions_with_all_chips, InteractionKind};
-    use crate::runtime::tests::simple_program;
-    use crate::runtime::Runtime;
-    use crate::stark::RiscvAir;
-    use crate::syscall::precompiles::sha256::extend_tests::sha_extend_program;
-    use crate::utils::{setup_logger, BabyBearPoseidon2, SP1CoreOpts};
+    use crate::{
+        lookup::{debug_interactions_with_all_chips, InteractionKind},
+        runtime::{tests::simple_program, Runtime},
+        stark::RiscvAir,
+        syscall::precompiles::sha256::extend_tests::sha_extend_program,
+        utils::{setup_logger, BabyBearPoseidon2, SP1CoreOpts},
+    };
     use p3_baby_bear::BabyBear;
 
     #[test]

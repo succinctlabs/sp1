@@ -1,16 +1,14 @@
-use std::borrow::Borrow;
-use std::path::PathBuf;
+use std::{borrow::Borrow, path::PathBuf};
 
 use clap::Parser;
 use p3_baby_bear::BabyBear;
 use p3_field::PrimeField;
-use sp1_core::io::SP1Stdin;
-use sp1_core::runtime::SP1Context;
-use sp1_core::utils::SP1ProverOpts;
-use sp1_prover::utils::{babybear_bytes_to_bn254, babybears_to_bn254, words_to_bytes};
-use sp1_prover::SP1Prover;
-use sp1_recursion_circuit::stark::build_wrap_circuit;
-use sp1_recursion_circuit::witness::Witnessable;
+use sp1_core::{io::SP1Stdin, runtime::SP1Context, utils::SP1ProverOpts};
+use sp1_prover::{
+    utils::{babybear_bytes_to_bn254, babybears_to_bn254, words_to_bytes},
+    SP1Prover,
+};
+use sp1_recursion_circuit::{stark::build_wrap_circuit, witness::Witnessable};
 use sp1_recursion_compiler::ir::Witness;
 use sp1_recursion_core::air::RecursionPublicValues;
 use sp1_recursion_gnark_ffi::PlonkBn254Prover;
@@ -60,9 +58,8 @@ pub fn main() {
     tracing::info!("building template witness");
     let pv: &RecursionPublicValues<_> = wrapped_proof.proof.public_values.as_slice().borrow();
     let vkey_hash = babybears_to_bn254(&pv.sp1_vk_digest);
-    let committed_values_digest_bytes: [BabyBear; 32] = words_to_bytes(&pv.committed_value_digest)
-        .try_into()
-        .unwrap();
+    let committed_values_digest_bytes: [BabyBear; 32] =
+        words_to_bytes(&pv.committed_value_digest).try_into().unwrap();
     let committed_values_digest = babybear_bytes_to_bn254(&committed_values_digest_bytes);
 
     let mut witness = Witness::default();
@@ -90,8 +87,5 @@ pub fn main() {
         &build_dir,
     );
 
-    println!(
-        "{:?}",
-        String::from_utf8(hex::encode(proof.encoded_proof)).unwrap()
-    );
+    println!("{:?}", String::from_utf8(hex::encode(proof.encoded_proof)).unwrap());
 }

@@ -143,30 +143,21 @@ impl<C: Config> ChipOpening<C> {
     where
         A: MachineAir<C::F>,
     {
-        let mut preprocessed = AirOpenedValues {
-            local: vec![],
-            next: vec![],
-        };
+        let mut preprocessed = AirOpenedValues { local: vec![], next: vec![] };
         let preprocess_width = chip.preprocessed_width();
         for i in 0..preprocess_width {
             preprocessed.local.push(opening.preprocessed.local[i]);
             preprocessed.next.push(opening.preprocessed.next[i]);
         }
 
-        let mut main = AirOpenedValues {
-            local: vec![],
-            next: vec![],
-        };
+        let mut main = AirOpenedValues { local: vec![], next: vec![] };
         let main_width = chip.width();
         for i in 0..main_width {
             main.local.push(opening.main.local[i]);
             main.next.push(opening.main.next[i]);
         }
 
-        let mut permutation = AirOpenedValues {
-            local: vec![],
-            next: vec![],
-        };
+        let mut permutation = AirOpenedValues { local: vec![], next: vec![] };
         let permutation_width = C::EF::D * chip.permutation_width();
 
         for i in 0..permutation_width {

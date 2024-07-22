@@ -10,9 +10,7 @@ use crate::{
 };
 use p3_field::{extension::BinomiallyExtendable, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
-use p3_maybe_rayon::prelude::IndexedParallelIterator;
-use p3_maybe_rayon::prelude::ParallelIterator;
-use p3_maybe_rayon::prelude::ParallelSliceMut;
+use p3_maybe_rayon::prelude::{IndexedParallelIterator, ParallelIterator, ParallelSliceMut};
 use sp1_core::{
     air::{BinomialExtension, MachineAir},
     utils::{next_power_of_two, par_for_each_row},
@@ -89,10 +87,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const L: usize> MachineAir<F> fo
             }
 
             // Populate the branch columns.
-            if matches!(
-                event.instruction.opcode,
-                Opcode::BEQ | Opcode::BNE | Opcode::BNEINC
-            ) {
+            if matches!(event.instruction.opcode, Opcode::BEQ | Opcode::BNE | Opcode::BNEINC) {
                 let branch_cols = cols.opcode_specific.branch_mut();
                 let a_ext: BinomialExtension<F> =
                     BinomialExtensionUtils::from_block(*cols.a.value());
@@ -105,9 +100,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const L: usize> MachineAir<F> fo
                     _ => unreachable!(),
                 };
 
-                branch_cols
-                    .comparison_diff
-                    .populate((comparison_diff).as_block());
+                branch_cols.comparison_diff.populate((comparison_diff).as_block());
                 branch_cols.comparison_diff_val = comparison_diff;
                 branch_cols.do_branch = F::from_bool(do_branch);
                 branch_cols.next_pc = if do_branch {
@@ -130,11 +123,8 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const L: usize> MachineAir<F> fo
         let mut trace = RowMajorMatrix::new(values, NUM_CPU_COLS);
 
         // Fill in the dummy values for the padding rows.
-        let padded_rows = trace
-            .values
-            .par_chunks_mut(NUM_CPU_COLS)
-            .enumerate()
-            .skip(input.cpu_events.len());
+        let padded_rows =
+            trace.values.par_chunks_mut(NUM_CPU_COLS).enumerate().skip(input.cpu_events.len());
         padded_rows.for_each(|(i, row)| {
             let cols: &mut CpuCols<F> = row.borrow_mut();
             cols.selectors.is_noop = F::one();

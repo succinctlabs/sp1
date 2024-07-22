@@ -1,19 +1,20 @@
-use core::borrow::{Borrow, BorrowMut};
-use core::mem::size_of;
+use core::{
+    borrow::{Borrow, BorrowMut},
+    mem::size_of,
+};
 use std::collections::HashMap;
 
 use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::PrimeField;
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_derive::AlignedBorrow;
 
-use crate::air::MachineAir;
-use crate::air::SP1AirBuilder;
-use crate::cpu::columns::InstructionCols;
-use crate::cpu::columns::OpcodeSelectorCols;
-use crate::runtime::{ExecutionRecord, Program};
-use crate::utils::pad_to_power_of_two;
+use crate::{
+    air::{MachineAir, SP1AirBuilder},
+    cpu::columns::{InstructionCols, OpcodeSelectorCols},
+    runtime::{ExecutionRecord, Program},
+    utils::pad_to_power_of_two,
+};
 
 /// The number of preprocessed program columns.
 pub const NUM_PROGRAM_PREPROCESSED_COLS: usize = size_of::<ProgramPreprocessedCols<u8>>();
@@ -108,10 +109,7 @@ impl<F: PrimeField> MachineAir<F> for ProgramChip {
         let mut instruction_counts = HashMap::new();
         input.cpu_events.iter().for_each(|event| {
             let pc = event.pc;
-            instruction_counts
-                .entry(pc)
-                .and_modify(|count| *count += 1)
-                .or_insert(1);
+            instruction_counts.entry(pc).and_modify(|count| *count += 1).or_insert(1);
         });
 
         let rows = input

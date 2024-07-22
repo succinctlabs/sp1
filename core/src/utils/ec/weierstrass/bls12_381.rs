@@ -1,16 +1,14 @@
-use amcl::bls381::big::Big;
-use amcl::bls381::bls381::utils::deserialize_g1;
-use amcl::bls381::fp::FP;
+use amcl::bls381::{big::Big, bls381::utils::deserialize_g1, fp::FP};
 use generic_array::GenericArray;
 use num::{BigUint, Num, Zero};
 use serde::{Deserialize, Serialize};
 use typenum::{U48, U94};
 
 use super::{SwCurve, WeierstrassParameters};
-use crate::operations::field::params::FieldParameters;
-use crate::operations::field::params::NumLimbs;
-use crate::utils::ec::CurveType;
-use crate::utils::ec::EllipticCurveParameters;
+use crate::{
+    operations::field::params::{FieldParameters, NumLimbs},
+    utils::ec::{CurveType, EllipticCurveParameters},
+};
 
 /// Bls12-381 curve parameter
 use crate::utils::ec::{AffinePoint, EllipticCurve};
@@ -150,10 +148,7 @@ mod tests {
 
     #[test]
     fn test_weierstrass_biguint_scalar_mul() {
-        assert_eq!(
-            biguint_from_limbs(Bls12381BaseField::MODULUS),
-            Bls12381BaseField::modulus()
-        );
+        assert_eq!(biguint_from_limbs(Bls12381BaseField::MODULUS), Bls12381BaseField::modulus());
     }
 
     #[test]

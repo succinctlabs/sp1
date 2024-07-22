@@ -1,36 +1,28 @@
 use p3_air::Air;
 use p3_commit::TwoAdicMultiplicativeCoset;
-use p3_field::AbstractField;
-use p3_field::TwoAdicField;
-use sp1_core::air::MachineAir;
-use sp1_core::stark::Com;
-use sp1_core::stark::GenericVerifierConstraintFolder;
-use sp1_core::stark::ShardProof;
-use sp1_core::stark::StarkGenericConfig;
-use sp1_core::stark::StarkMachine;
+use p3_field::{AbstractField, TwoAdicField};
+use sp1_core::{
+    air::MachineAir,
+    stark::{Com, GenericVerifierConstraintFolder, ShardProof, StarkGenericConfig, StarkMachine},
+};
 
 use sp1_core::stark::StarkVerifyingKey;
-use sp1_recursion_compiler::ir::Array;
-use sp1_recursion_compiler::ir::Ext;
-use sp1_recursion_compiler::ir::ExtConst;
-use sp1_recursion_compiler::ir::SymbolicExt;
-use sp1_recursion_compiler::ir::SymbolicVar;
-use sp1_recursion_compiler::ir::Var;
-use sp1_recursion_compiler::ir::{Builder, Config, Usize};
-use sp1_recursion_compiler::prelude::Felt;
+use sp1_recursion_compiler::{
+    ir::{Array, Builder, Config, Ext, ExtConst, SymbolicExt, SymbolicVar, Usize, Var},
+    prelude::Felt,
+};
 
 use sp1_recursion_core::runtime::DIGEST_SIZE;
 
-use crate::challenger::CanObserveVariable;
-use crate::challenger::DuplexChallengerVariable;
-use crate::challenger::FeltChallenger;
-use crate::commit::PolynomialSpaceVariable;
-use crate::fri::types::TwoAdicPcsMatsVariable;
-use crate::fri::types::TwoAdicPcsRoundVariable;
-use crate::fri::TwoAdicMultiplicativeCosetVariable;
-use crate::types::ShardCommitmentVariable;
-use crate::types::VerifyingKeyVariable;
-use crate::{commit::PcsVariable, fri::TwoAdicFriPcsVariable, types::ShardProofVariable};
+use crate::{
+    challenger::{CanObserveVariable, DuplexChallengerVariable, FeltChallenger},
+    commit::{PcsVariable, PolynomialSpaceVariable},
+    fri::{
+        types::{TwoAdicPcsMatsVariable, TwoAdicPcsRoundVariable},
+        TwoAdicFriPcsVariable, TwoAdicMultiplicativeCosetVariable,
+    },
+    types::{ShardCommitmentVariable, ShardProofVariable, VerifyingKeyVariable},
+};
 
 use crate::types::QuotientData;
 
@@ -127,22 +119,13 @@ where
         Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
     {
         builder.cycle_tracker("stage-c-verify-shard-setup");
-        let ShardProofVariable {
-            commitment,
-            opened_values,
-            opening_proof,
-            ..
-        } = proof;
+        let ShardProofVariable { commitment, opened_values, opening_proof, .. } = proof;
 
-        let ShardCommitmentVariable {
-            main_commit,
-            permutation_commit,
-            quotient_commit,
-        } = commitment;
+        let ShardCommitmentVariable { main_commit, permutation_commit, quotient_commit } =
+            commitment;
 
-        let permutation_challenges = (0..2)
-            .map(|_| challenger.sample_ext(builder))
-            .collect::<Vec<_>>();
+        let permutation_challenges =
+            (0..2).map(|_| challenger.sample_ext(builder)).collect::<Vec<_>>();
 
         challenger.observe(builder, permutation_commit.clone());
 
@@ -209,10 +192,8 @@ where
         let qc_index: Var<_> = builder.eval(C::N::zero());
         builder.range(0, num_shard_chips).for_each(|i, builder| {
             let opening = builder.get(&opened_values.chips, i);
-            let QuotientData {
-                log_quotient_degree,
-                quotient_size,
-            } = builder.get(&proof.quotient_data, i);
+            let QuotientData { log_quotient_degree, quotient_size } =
+                builder.get(&proof.quotient_data, i);
             let domain = pcs.natural_domain_for_log_degree(builder, Usize::Var(opening.log_degree));
             builder.set_value(&mut trace_domains, i, domain.clone());
 
@@ -272,22 +253,13 @@ where
         // Create the pcs rounds.
         let mut rounds = builder.dyn_array::<TwoAdicPcsRoundVariable<_>>(4);
         let prep_commit = vk.commitment.clone();
-        let prep_round = TwoAdicPcsRoundVariable {
-            batch_commit: prep_commit,
-            mats: prep_mats,
-        };
-        let main_round = TwoAdicPcsRoundVariable {
-            batch_commit: main_commit.clone(),
-            mats: main_mats,
-        };
-        let perm_round = TwoAdicPcsRoundVariable {
-            batch_commit: permutation_commit.clone(),
-            mats: perm_mats,
-        };
-        let quotient_round = TwoAdicPcsRoundVariable {
-            batch_commit: quotient_commit.clone(),
-            mats: quotient_mats,
-        };
+        let prep_round = TwoAdicPcsRoundVariable { batch_commit: prep_commit, mats: prep_mats };
+        let main_round =
+            TwoAdicPcsRoundVariable { batch_commit: main_commit.clone(), mats: main_mats };
+        let perm_round =
+            TwoAdicPcsRoundVariable { batch_commit: permutation_commit.clone(), mats: perm_mats };
+        let quotient_round =
+            TwoAdicPcsRoundVariable { batch_commit: quotient_commit.clone(), mats: quotient_mats };
         builder.set_value(&mut rounds, 0, prep_round);
         builder.set_value(&mut rounds, 1, main_round);
         builder.set_value(&mut rounds, 2, perm_round);
@@ -310,64 +282,55 @@ where
                 builder.assert_var_ne(index, C::N::from_canonical_usize(EMPTY));
             }
 
-            builder
-                .if_ne(index, C::N::from_canonical_usize(EMPTY))
-                .then(|builder| {
-                    let values = builder.get(&opened_values.chips, index);
-                    let trace_domain = builder.get(&trace_domains, index);
-                    let quotient_domain: TwoAdicMultiplicativeCosetVariable<_> =
-                        builder.get(&quotient_domains, index);
+            builder.if_ne(index, C::N::from_canonical_usize(EMPTY)).then(|builder| {
+                let values = builder.get(&opened_values.chips, index);
+                let trace_domain = builder.get(&trace_domains, index);
+                let quotient_domain: TwoAdicMultiplicativeCosetVariable<_> =
+                    builder.get(&quotient_domains, index);
 
-                    // Check that the quotient data matches the chip's data.
-                    let log_quotient_degree = chip.log_quotient_degree();
+                // Check that the quotient data matches the chip's data.
+                let log_quotient_degree = chip.log_quotient_degree();
 
-                    let quotient_size = 1 << log_quotient_degree;
-                    let chip_quotient_data = builder.get(&proof.quotient_data, index);
-                    builder.assert_usize_eq(
-                        chip_quotient_data.log_quotient_degree,
-                        log_quotient_degree,
-                    );
-                    builder.assert_usize_eq(chip_quotient_data.quotient_size, quotient_size);
+                let quotient_size = 1 << log_quotient_degree;
+                let chip_quotient_data = builder.get(&proof.quotient_data, index);
+                builder
+                    .assert_usize_eq(chip_quotient_data.log_quotient_degree, log_quotient_degree);
+                builder.assert_usize_eq(chip_quotient_data.quotient_size, quotient_size);
 
-                    // Get the domains from the chip itself.
-                    let qc_domains =
-                        quotient_domain.split_domains_const(builder, log_quotient_degree);
+                // Get the domains from the chip itself.
+                let qc_domains = quotient_domain.split_domains_const(builder, log_quotient_degree);
 
-                    // Verify the constraints.
-                    stacker::maybe_grow(16 * 1024 * 1024, 16 * 1024 * 1024, || {
-                        Self::verify_constraints(
-                            builder,
-                            chip,
-                            &values,
-                            proof.public_values.clone(),
-                            trace_domain,
-                            qc_domains,
-                            zeta,
-                            alpha,
-                            &permutation_challenges,
-                        );
-                    });
-
-                    // Increment the number of shard chips that are enabled.
-                    builder.assign(
-                        num_shard_chips_enabled,
-                        num_shard_chips_enabled + C::N::one(),
+                // Verify the constraints.
+                stacker::maybe_grow(16 * 1024 * 1024, 16 * 1024 * 1024, || {
+                    Self::verify_constraints(
+                        builder,
+                        chip,
+                        &values,
+                        proof.public_values.clone(),
+                        trace_domain,
+                        qc_domains,
+                        zeta,
+                        alpha,
+                        &permutation_challenges,
                     );
                 });
+
+                // Increment the number of shard chips that are enabled.
+                builder.assign(num_shard_chips_enabled, num_shard_chips_enabled + C::N::one());
+            });
         }
 
-        // Assert that the number of chips in `opened_values` matches the number of shard chips enabled.
+        // Assert that the number of chips in `opened_values` matches the number of shard chips
+        // enabled.
         builder.assert_var_eq(num_shard_chips_enabled, num_shard_chips);
 
         // If we're checking the cumulative sum, assert that the sum of the cumulative sums is zero.
         if check_cumulative_sum {
             let sum: Ext<_, _> = builder.eval(C::EF::zero().cons());
-            builder
-                .range(0, proof.opened_values.chips.len())
-                .for_each(|i, builder| {
-                    let cumulative_sum = builder.get(&proof.opened_values.chips, i).cumulative_sum;
-                    builder.assign(sum, sum + cumulative_sum);
-                });
+            builder.range(0, proof.opened_values.chips.len()).for_each(|i, builder| {
+                let cumulative_sum = builder.get(&proof.opened_values.chips, i).cumulative_sum;
+                builder.assign(sum, sum + cumulative_sum);
+            });
             builder.assert_ext_eq(sum, C::EF::zero().cons());
         }
 
@@ -377,53 +340,43 @@ where
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::borrow::BorrowMut;
-    use std::time::Instant;
+    use std::{borrow::BorrowMut, time::Instant};
 
-    use crate::challenger::CanObserveVariable;
-    use crate::challenger::FeltChallenger;
-    use crate::hints::Hintable;
-    use crate::machine::commit_public_values;
-    use crate::stark::DuplexChallengerVariable;
-    use crate::stark::Ext;
-    use crate::stark::ShardProofHint;
-    use crate::types::ShardCommitmentVariable;
+    use crate::{
+        challenger::{CanObserveVariable, FeltChallenger},
+        hints::Hintable,
+        machine::commit_public_values,
+        stark::{DuplexChallengerVariable, Ext, ShardProofHint},
+        types::ShardCommitmentVariable,
+    };
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_field::AbstractField;
     use rand::Rng;
-    use sp1_core::air::POSEIDON_NUM_WORDS;
-    use sp1_core::io::SP1Stdin;
-    use sp1_core::runtime::Program;
-    use sp1_core::stark::DefaultProver;
-    use sp1_core::stark::MachineProver;
-    use sp1_core::utils::setup_logger;
-    use sp1_core::utils::InnerChallenge;
-    use sp1_core::utils::InnerVal;
-    use sp1_core::utils::SP1CoreOpts;
     use sp1_core::{
-        stark::{RiscvAir, StarkGenericConfig},
-        utils::BabyBearPoseidon2,
+        air::POSEIDON_NUM_WORDS,
+        io::SP1Stdin,
+        runtime::Program,
+        stark::{DefaultProver, MachineProver, RiscvAir, StarkGenericConfig},
+        utils::{setup_logger, BabyBearPoseidon2, InnerChallenge, InnerVal, SP1CoreOpts},
     };
-    use sp1_recursion_compiler::config::InnerConfig;
-    use sp1_recursion_compiler::ir::Array;
-    use sp1_recursion_compiler::ir::Config;
-    use sp1_recursion_compiler::ir::Felt;
-    use sp1_recursion_compiler::prelude::Usize;
     use sp1_recursion_compiler::{
         asm::AsmBuilder,
-        ir::{Builder, ExtConst},
+        config::InnerConfig,
+        ir::{Array, Builder, Config, ExtConst, Felt},
+        prelude::Usize,
     };
 
-    use sp1_recursion_core::air::RecursionPublicValues;
-    use sp1_recursion_core::air::RECURSION_PUBLIC_VALUES_COL_MAP;
-    use sp1_recursion_core::air::RECURSIVE_PROOF_NUM_PV_ELTS;
-    use sp1_recursion_core::runtime::RecursionProgram;
-    use sp1_recursion_core::runtime::Runtime;
-    use sp1_recursion_core::runtime::DIGEST_SIZE;
+    use sp1_recursion_core::{
+        air::{
+            RecursionPublicValues, RECURSION_PUBLIC_VALUES_COL_MAP, RECURSIVE_PROOF_NUM_PV_ELTS,
+        },
+        runtime::{RecursionProgram, Runtime, DIGEST_SIZE},
+    };
 
-    use sp1_recursion_core::stark::utils::run_test_recursion;
-    use sp1_recursion_core::stark::utils::TestConfig;
-    use sp1_recursion_core::stark::RecursionAir;
+    use sp1_recursion_core::stark::{
+        utils::{run_test_recursion, TestConfig},
+        RecursionAir,
+    };
 
     type SC = BabyBearPoseidon2;
     type Challenge = <SC as StarkGenericConfig>::Challenge;
@@ -458,9 +411,8 @@ pub(crate) mod tests {
             challenger_val.observe_slice(&proof.public_values[0..machine.num_pv_elts()]);
         });
 
-        let permutation_challenges = (0..2)
-            .map(|_| challenger_val.sample_ext_element::<EF>())
-            .collect::<Vec<_>>();
+        let permutation_challenges =
+            (0..2).map(|_| challenger_val.sample_ext_element::<EF>()).collect::<Vec<_>>();
 
         // Observe all the commitments.
         let mut builder = Builder::<InnerConfig>::default();
@@ -491,15 +443,11 @@ pub(crate) mod tests {
         }
 
         // Sample the permutation challenges.
-        let permutation_challenges_var = (0..2)
-            .map(|_| challenger.sample_ext(&mut builder))
-            .collect::<Vec<_>>();
+        let permutation_challenges_var =
+            (0..2).map(|_| challenger.sample_ext(&mut builder)).collect::<Vec<_>>();
 
         for i in 0..2 {
-            builder.assert_ext_eq(
-                permutation_challenges_var[i],
-                permutation_challenges[i].cons(),
-            );
+            builder.assert_ext_eq(permutation_challenges_var[i], permutation_challenges[i].cons());
         }
         builder.halt();
 
@@ -514,9 +462,8 @@ pub(crate) mod tests {
         let hash_input = builder.constant(vec![vec![F::one()]]);
         builder.poseidon2_hash_x(&hash_input);
 
-        let mut public_values_stream: Vec<Felt<_>> = (0..RECURSIVE_PROOF_NUM_PV_ELTS)
-            .map(|_| builder.uninit())
-            .collect();
+        let mut public_values_stream: Vec<Felt<_>> =
+            (0..RECURSIVE_PROOF_NUM_PV_ELTS).map(|_| builder.uninit()).collect();
 
         let public_values: &mut RecursionPublicValues<_> =
             public_values_stream.as_mut_slice().borrow_mut();
@@ -554,9 +501,8 @@ pub(crate) mod tests {
         let record = runtime.record.clone();
 
         let mut challenger = prover.config().challenger();
-        let mut proof = prover
-            .prove(&pk, vec![record], &mut challenger, SP1CoreOpts::recursion())
-            .unwrap();
+        let mut proof =
+            prover.prove(&pk, vec![record], &mut challenger, SP1CoreOpts::recursion()).unwrap();
 
         let mut challenger = prover.config().challenger();
         let verification_result = prover.machine().verify(&vk, &proof, &mut challenger);

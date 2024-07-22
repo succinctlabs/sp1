@@ -45,12 +45,7 @@ impl<T: Copy> SyscallParams<T> {
         // All of the union's fields should have the same size, so just choose one of them to return
         // the elements.
         let compress = self.compress();
-        [
-            compress.clk,
-            compress.dst_ptr,
-            compress.left_ptr,
-            compress.right_ptr,
-        ]
+        [compress.clk, compress.dst_ptr, compress.left_ptr, compress.right_ptr]
     }
 }
 

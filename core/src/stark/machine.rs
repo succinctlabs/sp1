@@ -1,43 +1,25 @@
 use hashbrown::HashMap;
 use itertools::Itertools;
 use p3_air::Air;
-use p3_challenger::CanObserve;
-use p3_challenger::FieldChallenger;
+use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::Pcs;
-use p3_field::AbstractExtensionField;
-use p3_field::AbstractField;
-use p3_field::Field;
-use p3_field::PrimeField32;
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Dimensions;
-use p3_matrix::Matrix;
+use p3_field::{AbstractExtensionField, AbstractField, Field, PrimeField32};
+use p3_matrix::{dense::RowMajorMatrix, Dimensions, Matrix};
 use p3_maybe_rayon::prelude::*;
-use serde::de::DeserializeOwned;
-use serde::Deserialize;
-use serde::Serialize;
-use std::cmp::Reverse;
-use std::fmt::Debug;
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use std::{cmp::Reverse, fmt::Debug};
 use tracing::instrument;
 
-use super::debug_constraints;
-use super::Dom;
-use crate::air::MachineAir;
-use crate::air::MachineProgram;
-use crate::lookup::debug_interactions_with_all_chips;
-use crate::lookup::InteractionKind;
-use crate::stark::record::MachineRecord;
-use crate::stark::DebugConstraintBuilder;
-use crate::stark::ShardProof;
-use crate::stark::VerifierConstraintFolder;
+use super::{debug_constraints, Dom};
+use crate::{
+    air::{MachineAir, MachineProgram},
+    lookup::{debug_interactions_with_all_chips, InteractionKind},
+    stark::{record::MachineRecord, DebugConstraintBuilder, ShardProof, VerifierConstraintFolder},
+};
 
-use super::Chip;
-use super::Com;
-use super::MachineProof;
-use super::PcsProverData;
-use super::StarkGenericConfig;
-use super::Val;
-use super::VerificationError;
-use super::Verifier;
+use super::{
+    Chip, Com, MachineProof, PcsProverData, StarkGenericConfig, Val, VerificationError, Verifier,
+};
 
 pub type MachineChip<SC, A> = Chip<Val<SC>, A>;
 
@@ -54,11 +36,7 @@ pub struct StarkMachine<SC: StarkGenericConfig, A> {
 
 impl<SC: StarkGenericConfig, A> StarkMachine<SC, A> {
     pub const fn new(config: SC, chips: Vec<Chip<Val<SC>, A>>, num_pv_elts: usize) -> Self {
-        Self {
-            config,
-            chips,
-            num_pv_elts,
-        }
+        Self { config, chips, num_pv_elts }
     }
 }
 
@@ -147,10 +125,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
     }
 
     pub fn chips_sorted_indices(&self, proof: &ShardProof<SC>) -> Vec<Option<usize>> {
-        self.chips()
-            .iter()
-            .map(|chip| proof.chip_ordering.get(&chip.name()).cloned())
-            .collect()
+        self.chips().iter().map(|chip| proof.chip_ordering.get(&chip.name()).cloned()).collect()
     }
 
     /// The setup preprocessing phase.
@@ -193,10 +168,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             .iter()
             .map(|(name, trace)| {
                 let domain = pcs.natural_domain_for_degree(trace.height());
-                (
-                    (name.to_owned(), domain, trace.dimensions()),
-                    (domain, trace.to_owned()),
-                )
+                ((name.to_owned(), domain, trace.dimensions()), (domain, trace.to_owned()))
             })
             .unzip();
 
@@ -212,10 +184,8 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             .collect::<HashMap<_, _>>();
 
         // Get the preprocessed traces
-        let traces = named_preprocessed_traces
-            .into_iter()
-            .map(|(_, trace)| trace)
-            .collect::<Vec<_>>();
+        let traces =
+            named_preprocessed_traces.into_iter().map(|(_, trace)| trace).collect::<Vec<_>>();
 
         let pc_start = program.pc_start();
 
@@ -227,12 +197,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                 data,
                 chip_ordering: chip_ordering.clone(),
             },
-            StarkVerifyingKey {
-                commit,
-                pc_start,
-                chip_information,
-                chip_ordering,
-            },
+            StarkVerifyingKey { commit, pc_start, chip_information, chip_ordering },
         )
     }
 
@@ -287,9 +252,8 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         tracing::debug_span!("verify shard proofs").in_scope(|| {
             for (i, shard_proof) in proof.shard_proofs.iter().enumerate() {
                 tracing::debug_span!("verifying shard", shard = i).in_scope(|| {
-                    let chips = self
-                        .shard_chips_ordered(&shard_proof.chip_ordering)
-                        .collect::<Vec<_>>();
+                    let chips =
+                        self.shard_chips_ordered(&shard_proof.chip_ordering).collect::<Vec<_>>();
                     Verifier::verify_shard(
                         &self.config,
                         vk,
@@ -343,11 +307,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             // Generate the main trace for each chip.
             let pre_traces = chips
                 .iter()
-                .map(|chip| {
-                    pk.chip_ordering
-                        .get(&chip.name())
-                        .map(|index| &pk.traces[*index])
-                })
+                .map(|chip| pk.chip_ordering.get(&chip.name()).map(|index| &pk.traces[*index]))
                 .collect::<Vec<_>>();
             let mut traces = chips
                 .par_iter()
@@ -368,11 +328,8 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                             main_trace,
                             &permutation_challenges,
                         );
-                        let cumulative_sum = perm_trace
-                            .row_slice(main_trace.height() - 1)
-                            .last()
-                            .copied()
-                            .unwrap();
+                        let cumulative_sum =
+                            perm_trace.row_slice(main_trace.height() - 1).last().copied().unwrap();
                         (perm_trace, cumulative_sum)
                     })
                     .unzip_into_vecs(&mut permutation_traces, &mut cumulative_sums);
@@ -383,8 +340,8 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             // Compute some statistics.
             for i in 0..chips.len() {
                 let trace_width = traces[i].0.width();
-                let permutation_width = permutation_traces[i].width()
-                    * <SC::Challenge as AbstractExtensionField<SC::Val>>::D;
+                let permutation_width = permutation_traces[i].width() *
+                    <SC::Challenge as AbstractExtensionField<SC::Val>>::D;
                 let total_width = trace_width + permutation_width;
                 tracing::debug!(
                     "{:<11} | Main Cols = {:<5} | Perm Cols = {:<5} | Rows = {:<10} | Cells = {:<10}",
@@ -398,10 +355,8 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
 
             tracing::info_span!("debug constraints").in_scope(|| {
                 for i in 0..chips.len() {
-                    let permutation_trace = pk
-                        .chip_ordering
-                        .get(&chips[i].name())
-                        .map(|index| &pk.traces[*index]);
+                    let permutation_trace =
+                        pk.chip_ordering.get(&chips[i].name()).map(|index| &pk.traces[*index]);
                     debug_constraints::<SC, A>(
                         chips[i],
                         permutation_trace,
@@ -493,24 +448,18 @@ impl<SC: StarkGenericConfig> std::error::Error for MachineVerificationError<SC> 
 #[allow(non_snake_case)]
 pub mod tests {
 
-    use crate::io::SP1Stdin;
-    use crate::runtime::tests::fibonacci_program;
-    use crate::runtime::tests::simple_memory_program;
-    use crate::runtime::tests::simple_program;
-    use crate::runtime::tests::ssz_withdrawals_program;
-    use crate::runtime::Instruction;
-    use crate::runtime::Opcode;
-    use crate::runtime::Program;
-    use crate::stark::DefaultProver;
-    use crate::stark::RiscvAir;
-    use crate::stark::StarkProvingKey;
-    use crate::stark::StarkVerifyingKey;
-    use crate::utils;
-    use crate::utils::prove;
-    use crate::utils::run_test;
-    use crate::utils::setup_logger;
-    use crate::utils::BabyBearPoseidon2;
-    use crate::utils::SP1CoreOpts;
+    use crate::{
+        io::SP1Stdin,
+        runtime::{
+            tests::{
+                fibonacci_program, simple_memory_program, simple_program, ssz_withdrawals_program,
+            },
+            Instruction, Opcode, Program,
+        },
+        stark::{DefaultProver, RiscvAir, StarkProvingKey, StarkVerifyingKey},
+        utils,
+        utils::{prove, run_test, setup_logger, BabyBearPoseidon2, SP1CoreOpts},
+    };
 
     #[test]
     fn test_simple_prove() {
@@ -523,13 +472,8 @@ pub mod tests {
     fn test_shift_prove() {
         utils::setup_logger();
         let shift_ops = [Opcode::SRL, Opcode::SRA, Opcode::SLL];
-        let operands = [
-            (1, 1),
-            (1234, 5678),
-            (0xffff, 0xffff - 1),
-            (u32::MAX - 1, u32::MAX),
-            (u32::MAX, 0),
-        ];
+        let operands =
+            [(1, 1), (1234, 5678), (0xffff, 0xffff - 1), (u32::MAX - 1, u32::MAX), (u32::MAX, 0)];
         for shift_op in shift_ops.iter() {
             for op in operands.iter() {
                 let instructions = vec![
@@ -571,13 +515,8 @@ pub mod tests {
     fn test_mul_prove() {
         let mul_ops = [Opcode::MUL, Opcode::MULH, Opcode::MULHU, Opcode::MULHSU];
         utils::setup_logger();
-        let operands = [
-            (1, 1),
-            (1234, 5678),
-            (8765, 4321),
-            (0xffff, 0xffff - 1),
-            (u32::MAX - 1, u32::MAX),
-        ];
+        let operands =
+            [(1, 1), (1234, 5678), (8765, 4321), (0xffff, 0xffff - 1), (u32::MAX - 1, u32::MAX)];
         for mul_op in mul_ops.iter() {
             for operand in operands.iter() {
                 let instructions = vec![
@@ -714,15 +653,8 @@ pub mod tests {
             bincode::deserialize(&serialized_vk).unwrap();
         assert_eq!(vk.commit, deserialized_vk.commit);
         assert_eq!(vk.pc_start, deserialized_vk.pc_start);
-        assert_eq!(
-            vk.chip_information.len(),
-            deserialized_vk.chip_information.len()
-        );
-        for (a, b) in vk
-            .chip_information
-            .iter()
-            .zip(deserialized_vk.chip_information.iter())
-        {
+        assert_eq!(vk.chip_information.len(), deserialized_vk.chip_information.len());
+        for (a, b) in vk.chip_information.iter().zip(deserialized_vk.chip_information.iter()) {
             assert_eq!(a.0, b.0);
             assert_eq!(a.1.log_n, b.1.log_n);
             assert_eq!(a.1.shift, b.1.shift);

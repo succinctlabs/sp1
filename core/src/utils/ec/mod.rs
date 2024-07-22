@@ -4,15 +4,19 @@ pub mod uint256;
 pub mod utils;
 pub mod weierstrass;
 
-use std::fmt::{Debug, Display, Formatter, Result};
-use std::ops::{Add, Neg};
+use std::{
+    fmt::{Debug, Display, Formatter, Result},
+    ops::{Add, Neg},
+};
 use typenum::Unsigned;
 
 use num::BigUint;
 use serde::{de::DeserializeOwned, Serialize};
 
-use crate::air::WORD_SIZE;
-use crate::operations::field::params::{FieldParameters, NumWords};
+use crate::{
+    air::WORD_SIZE,
+    operations::field::params::{FieldParameters, NumWords},
+};
 
 pub const NUM_WORDS_FIELD_ELEMENT: usize = 8;
 pub const NUM_BYTES_FIELD_ELEMENT: usize = NUM_WORDS_FIELD_ELEMENT * WORD_SIZE;
@@ -51,29 +55,17 @@ pub struct AffinePoint<E> {
 impl<E: EllipticCurveParameters> AffinePoint<E> {
     #[allow(dead_code)]
     pub const fn new(x: BigUint, y: BigUint) -> Self {
-        Self {
-            x,
-            y,
-            _marker: std::marker::PhantomData,
-        }
+        Self { x, y, _marker: std::marker::PhantomData }
     }
 
     pub fn from_words_le(words: &[u32]) -> Self {
-        let x_bytes = words[0..words.len() / 2]
-            .iter()
-            .flat_map(|n| n.to_le_bytes())
-            .collect::<Vec<_>>();
-        let y_bytes = &words[words.len() / 2..]
-            .iter()
-            .flat_map(|n| n.to_le_bytes())
-            .collect::<Vec<_>>();
+        let x_bytes =
+            words[0..words.len() / 2].iter().flat_map(|n| n.to_le_bytes()).collect::<Vec<_>>();
+        let y_bytes =
+            &words[words.len() / 2..].iter().flat_map(|n| n.to_le_bytes()).collect::<Vec<_>>();
         let x = BigUint::from_bytes_le(x_bytes.as_slice());
         let y = BigUint::from_bytes_le(y_bytes.as_slice());
-        Self {
-            x,
-            y,
-            _marker: std::marker::PhantomData,
-        }
+        Self { x, y, _marker: std::marker::PhantomData }
     }
 
     pub fn to_words_le(&self) -> Vec<u32> {

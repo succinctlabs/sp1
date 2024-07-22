@@ -1,7 +1,7 @@
-use rrs_lib::instruction_formats::{
-    BType, IType, ITypeCSR, ITypeShamt, JType, RType, SType, UType,
+use rrs_lib::{
+    instruction_formats::{BType, IType, ITypeCSR, ITypeShamt, JType, RType, SType, UType},
+    process_instruction, InstructionProcessor,
 };
-use rrs_lib::{process_instruction, InstructionProcessor};
 
 use crate::runtime::{Instruction, Opcode, Register};
 
@@ -20,14 +20,7 @@ impl Instruction {
 
     /// Create a new instruction from an I-type instruction.
     pub const fn from_i_type(opcode: Opcode, dec_insn: IType) -> Self {
-        Self::new(
-            opcode,
-            dec_insn.rd as u32,
-            dec_insn.rs1 as u32,
-            dec_insn.imm as u32,
-            false,
-            true,
-        )
+        Self::new(opcode, dec_insn.rd as u32, dec_insn.rs1 as u32, dec_insn.imm as u32, false, true)
     }
 
     /// Create a new instruction from an I-type instruction with a shamt.
@@ -96,31 +89,19 @@ impl Instruction {
     /// Decode the instruction in the I-type format.
     #[inline(always)]
     pub fn i_type(&self) -> (Register, Register, u32) {
-        (
-            Register::from_u32(self.op_a),
-            Register::from_u32(self.op_b),
-            self.op_c,
-        )
+        (Register::from_u32(self.op_a), Register::from_u32(self.op_b), self.op_c)
     }
 
     /// Decode the instruction in the S-type format.
     #[inline(always)]
     pub fn s_type(&self) -> (Register, Register, u32) {
-        (
-            Register::from_u32(self.op_a),
-            Register::from_u32(self.op_b),
-            self.op_c,
-        )
+        (Register::from_u32(self.op_a), Register::from_u32(self.op_b), self.op_c)
     }
 
     /// Decode the instruction in the B-type format.
     #[inline(always)]
     pub fn b_type(&self) -> (Register, Register, u32) {
-        (
-            Register::from_u32(self.op_a),
-            Register::from_u32(self.op_b),
-            self.op_c,
-        )
+        (Register::from_u32(self.op_a), Register::from_u32(self.op_b), self.op_c)
     }
 
     /// Decode the instruction in the J-type format.
@@ -275,14 +256,7 @@ impl InstructionProcessor for InstructionTranspiler {
     }
 
     fn process_jal(&mut self, dec_insn: JType) -> Self::InstructionResult {
-        Instruction::new(
-            Opcode::JAL,
-            dec_insn.rd as u32,
-            dec_insn.imm as u32,
-            0,
-            true,
-            true,
-        )
+        Instruction::new(Opcode::JAL, dec_insn.rd as u32, dec_insn.imm as u32, 0, true, true)
     }
 
     fn process_jalr(&mut self, dec_insn: IType) -> Self::InstructionResult {
@@ -299,14 +273,7 @@ impl InstructionProcessor for InstructionTranspiler {
     /// LUI instructions are converted to an SLL instruction with imm_b and imm_c turned on.
     /// Additionally the op_c should be set to 12.
     fn process_lui(&mut self, dec_insn: UType) -> Self::InstructionResult {
-        Instruction::new(
-            Opcode::ADD,
-            dec_insn.rd as u32,
-            0,
-            dec_insn.imm as u32,
-            true,
-            true,
-        )
+        Instruction::new(Opcode::ADD, dec_insn.rd as u32, 0, dec_insn.imm as u32, true, true)
     }
 
     /// AUIPC instructions have the third operand set to imm << 12.

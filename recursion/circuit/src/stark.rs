@@ -1,37 +1,47 @@
-use std::borrow::Borrow;
-use std::marker::PhantomData;
+use std::{borrow::Borrow, marker::PhantomData};
 
-use crate::fri::verify_two_adic_pcs;
-use crate::poseidon2::Poseidon2CircuitBuilder;
-use crate::types::OuterDigestVariable;
-use crate::utils::{babybear_bytes_to_bn254, babybears_to_bn254, words_to_bytes};
-use crate::witness::Witnessable;
+use crate::{
+    fri::verify_two_adic_pcs,
+    poseidon2::Poseidon2CircuitBuilder,
+    types::OuterDigestVariable,
+    utils::{babybear_bytes_to_bn254, babybears_to_bn254, words_to_bytes},
+    witness::Witnessable,
+};
 use p3_air::Air;
 use p3_baby_bear::BabyBear;
 use p3_bn254_fr::Bn254Fr;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::{AbstractField, TwoAdicField};
-use sp1_core::stark::{Com, ShardProof, PROOF_MAX_NUM_PVS};
 use sp1_core::{
     air::MachineAir,
-    stark::{ShardCommitment, StarkGenericConfig, StarkMachine, StarkVerifyingKey},
+    stark::{
+        Com, ShardCommitment, ShardProof, StarkGenericConfig, StarkMachine, StarkVerifyingKey,
+        PROOF_MAX_NUM_PVS,
+    },
 };
-use sp1_recursion_compiler::config::OuterConfig;
-use sp1_recursion_compiler::constraints::{Constraint, ConstraintCompiler};
-use sp1_recursion_compiler::ir::{Builder, Config, Ext, Felt, Var};
-use sp1_recursion_compiler::ir::{Usize, Witness};
-use sp1_recursion_compiler::prelude::SymbolicVar;
-use sp1_recursion_core::air::{RecursionPublicValues, NUM_PV_ELMS_TO_HASH};
-use sp1_recursion_core::stark::config::{outer_fri_config, BabyBearPoseidon2Outer};
-use sp1_recursion_core::stark::RecursionAirWideDeg17;
-use sp1_recursion_program::commit::PolynomialSpaceVariable;
-use sp1_recursion_program::stark::RecursiveVerifierConstraintFolder;
-use sp1_recursion_program::types::QuotientDataValues;
+use sp1_recursion_compiler::{
+    config::OuterConfig,
+    constraints::{Constraint, ConstraintCompiler},
+    ir::{Builder, Config, Ext, Felt, Usize, Var, Witness},
+    prelude::SymbolicVar,
+};
+use sp1_recursion_core::{
+    air::{RecursionPublicValues, NUM_PV_ELMS_TO_HASH},
+    stark::{
+        config::{outer_fri_config, BabyBearPoseidon2Outer},
+        RecursionAirWideDeg17,
+    },
+};
+use sp1_recursion_program::{
+    commit::PolynomialSpaceVariable, stark::RecursiveVerifierConstraintFolder,
+    types::QuotientDataValues,
+};
 
-use crate::domain::{new_coset, TwoAdicMultiplicativeCosetVariable};
-use crate::types::TwoAdicPcsMatsVariable;
-use crate::types::TwoAdicPcsRoundVariable;
-use crate::{challenger::MultiField32ChallengerVariable, types::RecursionShardProofVariable};
+use crate::{
+    challenger::MultiField32ChallengerVariable,
+    domain::{new_coset, TwoAdicMultiplicativeCosetVariable},
+    types::{RecursionShardProofVariable, TwoAdicPcsMatsVariable, TwoAdicPcsRoundVariable},
+};
 
 #[derive(Debug, Clone, Copy)]
 pub struct StarkVerifierCircuit<C: Config, SC: StarkGenericConfig> {
@@ -62,21 +72,12 @@ where
         Com<SC>: Into<[Bn254Fr; 1]>,
         SymbolicVar<<C as Config>::N>: From<Bn254Fr>,
     {
-        let RecursionShardProofVariable {
-            commitment,
-            opened_values,
-            ..
-        } = proof;
+        let RecursionShardProofVariable { commitment, opened_values, .. } = proof;
 
-        let ShardCommitment {
-            main_commit,
-            permutation_commit,
-            quotient_commit,
-        } = commitment;
+        let ShardCommitment { main_commit, permutation_commit, quotient_commit } = commitment;
 
-        let permutation_challenges = (0..2)
-            .map(|_| challenger.sample_ext(builder))
-            .collect::<Vec<_>>();
+        let permutation_challenges =
+            (0..2).map(|_| challenger.sample_ext(builder)).collect::<Vec<_>>();
 
         challenger.observe_commitment(builder, *permutation_commit);
 
@@ -99,11 +100,7 @@ where
         let qc_points = vec![zeta];
 
         for (name, domain, _) in vk.chip_information.iter() {
-            let chip_idx = machine
-                .chips()
-                .iter()
-                .rposition(|chip| &chip.name() == name)
-                .unwrap();
+            let chip_idx = machine.chips().iter().rposition(|chip| &chip.name() == name).unwrap();
             let index = sorted_indices[chip_idx];
             let opening = &opened_values.chips[index];
 
@@ -115,10 +112,8 @@ where
             trace_points.push(zeta);
             trace_points.push(zeta_next);
 
-            let prep_values = vec![
-                opening.preprocessed.local.clone(),
-                opening.preprocessed.next.clone(),
-            ];
+            let prep_values =
+                vec![opening.preprocessed.local.clone(), opening.preprocessed.next.clone()];
             let prep_mat = TwoAdicPcsMatsVariable::<C> {
                 domain: *domain,
                 points: trace_points.clone(),
@@ -145,19 +140,14 @@ where
 
             let main_values = vec![opening.main.local.clone(), opening.main.next.clone()];
             let main_mat = TwoAdicPcsMatsVariable::<C> {
-                domain: TwoAdicMultiplicativeCoset {
-                    log_n: domain.log_n,
-                    shift: domain.shift,
-                },
+                domain: TwoAdicMultiplicativeCoset { log_n: domain.log_n, shift: domain.shift },
                 values: main_values,
                 points: trace_points.clone(),
             };
             main_mats.push(main_mat);
 
-            let perm_values = vec![
-                opening.permutation.local.clone(),
-                opening.permutation.next.clone(),
-            ];
+            let perm_values =
+                vec![opening.permutation.local.clone(), opening.permutation.next.clone()];
             let perm_mat = TwoAdicPcsMatsVariable::<C> {
                 domain: TwoAdicMultiplicativeCoset {
                     log_n: domain.clone().log_n,
@@ -187,22 +177,12 @@ where
         let mut rounds = Vec::new();
         let prep_commit_val: [Bn254Fr; 1] = vk.commit.clone().into();
         let prep_commit: OuterDigestVariable<C> = [builder.eval(prep_commit_val[0])];
-        let prep_round = TwoAdicPcsRoundVariable {
-            batch_commit: prep_commit,
-            mats: prep_mats,
-        };
-        let main_round = TwoAdicPcsRoundVariable {
-            batch_commit: *main_commit,
-            mats: main_mats,
-        };
-        let perm_round = TwoAdicPcsRoundVariable {
-            batch_commit: *permutation_commit,
-            mats: perm_mats,
-        };
-        let quotient_round = TwoAdicPcsRoundVariable {
-            batch_commit: *quotient_commit,
-            mats: quotient_mats,
-        };
+        let prep_round = TwoAdicPcsRoundVariable { batch_commit: prep_commit, mats: prep_mats };
+        let main_round = TwoAdicPcsRoundVariable { batch_commit: *main_commit, mats: main_mats };
+        let perm_round =
+            TwoAdicPcsRoundVariable { batch_commit: *permutation_commit, mats: perm_mats };
+        let quotient_round =
+            TwoAdicPcsRoundVariable { batch_commit: *quotient_commit, mats: quotient_mats };
         rounds.push(prep_round);
         rounds.push(main_round);
         rounds.push(perm_round);
@@ -286,9 +266,7 @@ pub fn build_wrap_circuit(
 
     // Convert pv.committed_value_digest into Bn254
     let pv_committed_values_digest_bytes: [Felt<_>; 32] =
-        words_to_bytes(&pv.committed_value_digest)
-            .try_into()
-            .unwrap();
+        words_to_bytes(&pv.committed_value_digest).try_into().unwrap();
     let pv_committed_values_digest: Var<_> =
         babybear_bytes_to_bn254(&mut builder, &pv_committed_values_digest_bytes);
 
@@ -303,23 +281,14 @@ pub fn build_wrap_circuit(
     let sorted_indices = outer_machine
         .chips()
         .iter()
-        .map(|chip| {
-            template_proof
-                .chip_ordering
-                .get(&chip.name())
-                .copied()
-                .unwrap_or(usize::MAX)
-        })
+        .map(|chip| template_proof.chip_ordering.get(&chip.name()).copied().unwrap_or(usize::MAX))
         .collect::<Vec<_>>();
 
     let chip_quotient_data = outer_machine
         .shard_chips_ordered(&template_proof.chip_ordering)
         .map(|chip| {
             let log_quotient_degree = chip.log_quotient_degree();
-            QuotientDataValues {
-                log_quotient_degree,
-                quotient_size: 1 << log_quotient_degree,
-            }
+            QuotientDataValues { log_quotient_degree, quotient_size: 1 << log_quotient_degree }
         })
         .collect();
 
@@ -409,9 +378,6 @@ pub(crate) mod tests {
             true,
             "".to_string(),
         ));
-        RecursionProgram::<F> {
-            instructions,
-            traces: vec![None],
-        }
+        RecursionProgram::<F> { instructions, traces: vec![None] }
     }
 }

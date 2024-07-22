@@ -25,8 +25,8 @@ pub struct MemoryInitCols<T> {
     // An additional column to indicate if the memory row is a padded row.
     pub is_real: T,
 
-    // A flag column for when range checks need to be applied to the diff columns. Range checks always
-    // need to be applied to the address columns.
+    // A flag column for when range checks need to be applied to the diff columns. Range checks
+    // always need to be applied to the address columns.
     pub is_range_check: T,
 }
 
@@ -91,14 +91,16 @@ pub struct MemoryAccessCols<T, TValue> {
     /// The previous timestamp that this memory access is being read from.
     pub prev_timestamp: T,
 
-    /// The following columns are decomposed limbs for the difference between the current access's timestamp
-    /// and the previous access's timestamp.  Note the actual value of the timestamp is either the
-    /// accesses' shard or clk depending on the value of compare_clk.
+    /// The following columns are decomposed limbs for the difference between the current access's
+    /// timestamp and the previous access's timestamp.  Note the actual value of the timestamp
+    /// is either the accesses' shard or clk depending on the value of compare_clk.
 
-    /// This column is the least significant 16 bit limb of current access timestamp - prev access timestamp.
+    /// This column is the least significant 16 bit limb of current access timestamp - prev access
+    /// timestamp.
     pub diff_16bit_limb: T,
 
-    /// This column is the most signficant 12 bit limb of current access timestamp - prev access timestamp.
+    /// This column is the most signficant 12 bit limb of current access timestamp - prev access
+    /// timestamp.
     pub diff_12bit_limb: T,
 }
 

@@ -103,11 +103,7 @@ impl Witnessable<C> for ShardCommitment<OuterDigest> {
         let main_commit = self.main_commit.read(builder);
         let permutation_commit = self.permutation_commit.read(builder);
         let quotient_commit = self.quotient_commit.read(builder);
-        ShardCommitment {
-            main_commit,
-            permutation_commit,
-            quotient_commit,
-        }
+        ShardCommitment { main_commit, permutation_commit, quotient_commit }
     }
 
     fn write(&self, witness: &mut Witness<C>) {
@@ -186,10 +182,7 @@ impl Witnessable<C> for OuterBatchOpening {
             .map(|a| a.into_iter().map(|b| vec![b]).collect())
             .collect();
         let opening_proof = self.opening_proof.read(builder);
-        BatchOpeningVariable {
-            opened_values,
-            opening_proof,
-        }
+        BatchOpeningVariable { opened_values, opening_proof }
     }
 
     fn write(&self, witness: &mut Witness<C>) {
@@ -206,10 +199,7 @@ impl Witnessable<C> for OuterCommitPhaseStep {
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let sibling_value = self.sibling_value.read(builder);
         let opening_proof = self.opening_proof.read(builder);
-        FriCommitPhaseProofStepVariable {
-            sibling_value,
-            opening_proof,
-        }
+        FriCommitPhaseProofStepVariable { sibling_value, opening_proof }
     }
 
     fn write(&self, witness: &mut Witness<C>) {
@@ -224,9 +214,7 @@ impl Witnessable<C> for OuterQueryProof {
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let commit_phase_openings = self.commit_phase_openings.read(builder);
-        FriQueryProofVariable {
-            commit_phase_openings,
-        }
+        FriQueryProofVariable { commit_phase_openings }
     }
 
     fn write(&self, witness: &mut Witness<C>) {
@@ -250,12 +238,7 @@ impl Witnessable<C> for OuterFriProof {
         let query_proofs = self.query_proofs.read(builder);
         let final_poly = self.final_poly.read(builder);
         let pow_witness = self.pow_witness.read(builder);
-        FriProofVariable {
-            commit_phase_commits,
-            query_proofs,
-            final_poly,
-            pow_witness,
-        }
+        FriProofVariable { commit_phase_commits, query_proofs, final_poly, pow_witness }
     }
 
     fn write(&self, witness: &mut Witness<C>) {
@@ -275,10 +258,7 @@ impl Witnessable<C> for OuterPcsProof {
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let fri_proof = self.fri_proof.read(builder);
         let query_openings = self.query_openings.read(builder);
-        TwoAdicPcsProofVariable {
-            fri_proof,
-            query_openings,
-        }
+        TwoAdicPcsProofVariable { fri_proof, query_openings }
     }
 
     fn write(&self, witness: &mut Witness<C>) {
@@ -304,12 +284,7 @@ impl Witnessable<C> for ShardProof<BabyBearPoseidon2Outer> {
         let public_values = self.public_values.read(builder);
         let public_values = builder.vec(public_values);
 
-        RecursionShardProofVariable {
-            commitment,
-            opened_values,
-            opening_proof,
-            public_values,
-        }
+        RecursionShardProofVariable { commitment, opened_values, opening_proof, public_values }
     }
 
     fn write(&self, witness: &mut Witness<C>) {

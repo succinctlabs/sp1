@@ -1,21 +1,20 @@
 #![allow(unused)]
 
-use crate::io::{self, FD_ECRECOVER_HOOK};
-use crate::unconstrained;
-use crate::utils::{AffinePoint, CurveOperations};
-use crate::{syscall_secp256k1_add, syscall_secp256k1_decompress, syscall_secp256k1_double};
+use crate::{
+    io::{self, FD_ECRECOVER_HOOK},
+    syscall_secp256k1_add, syscall_secp256k1_decompress, syscall_secp256k1_double, unconstrained,
+    utils::{AffinePoint, CurveOperations},
+};
 
-use anyhow::Context;
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use core::convert::TryInto;
-use k256::ecdsa::hazmat::bits2field;
-use k256::ecdsa::signature::hazmat::PrehashVerifier;
-use k256::ecdsa::{RecoveryId, Signature, VerifyingKey};
-use k256::elliptic_curve::ff::PrimeFieldBits;
-use k256::elliptic_curve::ops::Invert;
-use k256::elliptic_curve::sec1::ToEncodedPoint;
-use k256::elliptic_curve::PrimeField;
-use k256::{PublicKey, Scalar, Secp256k1};
+use k256::{
+    ecdsa::{
+        hazmat::bits2field, signature::hazmat::PrehashVerifier, RecoveryId, Signature, VerifyingKey,
+    },
+    elliptic_curve::{ff::PrimeFieldBits, ops::Invert, sec1::ToEncodedPoint, PrimeField},
+    PublicKey, Scalar, Secp256k1,
+};
 
 const NUM_WORDS: usize = 16;
 
