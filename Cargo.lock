@@ -4909,7 +4909,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-circuit-v2"
-version = "0.0.2-test"
+version = "1.0.0-rc.1"
 dependencies = [
  "bincode",
  "ff 0.13.0",
@@ -4940,7 +4940,7 @@ dependencies = [
  "sp1-recursion-program",
  "stacker",
  "tracing",
- "zkhash 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "zkhash",
 ]
 
 [[package]]
