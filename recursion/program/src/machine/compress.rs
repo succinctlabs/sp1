@@ -1,6 +1,8 @@
-use std::array;
-use std::borrow::{Borrow, BorrowMut};
-use std::marker::PhantomData;
+use std::{
+    array,
+    borrow::{Borrow, BorrowMut},
+    marker::PhantomData,
+};
 
 use crate::machine::utils::assert_complete;
 use itertools::{izip, Itertools};
@@ -9,29 +11,34 @@ use p3_baby_bear::BabyBear;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::{AbstractField, PrimeField32, TwoAdicField};
 use serde::{Deserialize, Serialize};
-use sp1_core::air::{MachineAir, WORD_SIZE};
-use sp1_core::air::{Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS};
-use sp1_core::stark::StarkMachine;
-use sp1_core::stark::{Com, ShardProof, StarkGenericConfig, StarkVerifyingKey};
-use sp1_core::utils::BabyBearPoseidon2;
+use sp1_core::{
+    air::{MachineAir, Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS, WORD_SIZE},
+    stark::{Com, ShardProof, StarkGenericConfig, StarkMachine, StarkVerifyingKey},
+    utils::BabyBearPoseidon2,
+};
 use sp1_primitives::types::RecursionProgramType;
-use sp1_recursion_compiler::config::InnerConfig;
-use sp1_recursion_compiler::ir::{Array, Builder, Config, Felt, Var};
-use sp1_recursion_compiler::prelude::DslVariable;
-use sp1_recursion_core::air::{RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS};
-use sp1_recursion_core::runtime::{RecursionProgram, D, DIGEST_SIZE};
+use sp1_recursion_compiler::{
+    config::InnerConfig,
+    ir::{Array, Builder, Config, Felt, Var},
+    prelude::DslVariable,
+};
+use sp1_recursion_core::{
+    air::{RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS},
+    runtime::{RecursionProgram, D, DIGEST_SIZE},
+};
 
 use sp1_recursion_compiler::prelude::*;
 
-use crate::challenger::{CanObserveVariable, DuplexChallengerVariable};
-use crate::fri::TwoAdicFriPcsVariable;
-use crate::hints::Hintable;
-use crate::stark::{RecursiveVerifierConstraintFolder, StarkVerifier};
-use crate::types::ShardProofVariable;
-use crate::types::VerifyingKeyVariable;
-use crate::utils::{
-    assert_challenger_eq_pv, assign_challenger_from_pv, const_fri_config, felt2var,
-    get_challenger_public_values, hash_vkey,
+use crate::{
+    challenger::{CanObserveVariable, DuplexChallengerVariable},
+    fri::TwoAdicFriPcsVariable,
+    hints::Hintable,
+    stark::{RecursiveVerifierConstraintFolder, StarkVerifier},
+    types::{ShardProofVariable, VerifyingKeyVariable},
+    utils::{
+        assert_challenger_eq_pv, assign_challenger_from_pv, const_fri_config, felt2var,
+        get_challenger_public_values, hash_vkey,
+    },
 };
 
 use super::utils::{commit_public_values, proof_data_from_vk, verify_public_values_hash};
@@ -88,14 +95,7 @@ where
         let pcs = TwoAdicFriPcsVariable {
             config: const_fri_config(&mut builder, machine.config().pcs().fri_config()),
         };
-        SP1CompressVerifier::verify(
-            &mut builder,
-            &pcs,
-            machine,
-            input,
-            recursive_vk,
-            deferred_vk,
-        );
+        SP1CompressVerifier::verify(&mut builder, &pcs, machine, input, recursive_vk, deferred_vk);
 
         builder.halt();
 
@@ -121,11 +121,11 @@ where
     ///   implementation in this function assumes a fixed recursive verifier speicified by
     ///   `recursive_vk`.
     /// - Deferred proofs: proofs which are recursive proof of a batch of deferred proofs. The
-    ///   implementation in this function assumes a fixed deferred verification program specified
-    ///   by `deferred_vk`.
-    /// - Compress proofs: these are proofs which refer to a prove of this program. The key for
-    ///   it is part of public values will be propagated accross all levels of recursion and will
-    ///   be checked against itself as in [sp1_prover::Prover] or as in [super::SP1RootVerifier].
+    ///   implementation in this function assumes a fixed deferred verification program specified by
+    ///   `deferred_vk`.
+    /// - Compress proofs: these are proofs which refer to a prove of this program. The key for it
+    ///   is part of public values will be propagated accross all levels of recursion and will be
+    ///   checked against itself as in [sp1_prover::Prover] or as in [super::SP1RootVerifier].
     pub fn verify(
         builder: &mut Builder<C>,
         pcs: &TwoAdicFriPcsVariable<C>,
@@ -134,18 +134,12 @@ where
         recursive_vk: &StarkVerifyingKey<SC>,
         deferred_vk: &StarkVerifyingKey<SC>,
     ) {
-        let SP1ReduceMemoryLayoutVariable {
-            compress_vk,
-            shard_proofs,
-            kinds,
-            is_complete,
-        } = input;
+        let SP1ReduceMemoryLayoutVariable { compress_vk, shard_proofs, kinds, is_complete } = input;
 
         // Initialize the values for the aggregated public output.
 
-        let mut reduce_public_values_stream: Vec<Felt<_>> = (0..RECURSIVE_PROOF_NUM_PV_ELTS)
-            .map(|_| builder.uninit())
-            .collect();
+        let mut reduce_public_values_stream: Vec<Felt<_>> =
+            (0..RECURSIVE_PROOF_NUM_PV_ELTS).map(|_| builder.uninit()).collect();
         let reduce_public_values: &mut RecursionPublicValues<_> =
             reduce_public_values_stream.as_mut_slice().borrow_mut();
 
@@ -272,38 +266,27 @@ where
                 // Initialize the start of deferred digests.
                 for (digest, current_digest, global_digest) in izip!(
                     reconstruct_deferred_digest.iter(),
-                    current_public_values
-                        .start_reconstruct_deferred_digest
-                        .iter(),
-                    reduce_public_values
-                        .start_reconstruct_deferred_digest
-                        .iter()
+                    current_public_values.start_reconstruct_deferred_digest.iter(),
+                    reduce_public_values.start_reconstruct_deferred_digest.iter()
                 ) {
                     builder.assign(*digest, *current_digest);
                     builder.assign(*global_digest, *current_digest);
                 }
 
                 // Initialize the sp1_vk digest
-                for (digest, first_digest) in sp1_vk_digest
-                    .iter()
-                    .zip(current_public_values.sp1_vk_digest)
+                for (digest, first_digest) in
+                    sp1_vk_digest.iter().zip(current_public_values.sp1_vk_digest)
                 {
                     builder.assign(*digest, first_digest);
                 }
 
                 // Initiallize start pc.
-                builder.assign(
-                    reduce_public_values.start_pc,
-                    current_public_values.start_pc,
-                );
+                builder.assign(reduce_public_values.start_pc, current_public_values.start_pc);
                 builder.assign(pc, current_public_values.start_pc);
 
                 // Initialize start shard.
                 builder.assign(shard, current_public_values.start_shard);
-                builder.assign(
-                    reduce_public_values.start_shard,
-                    current_public_values.start_shard,
-                );
+                builder.assign(reduce_public_values.start_shard, current_public_values.start_shard);
 
                 // Initialize start execution shard.
                 builder.assign(execution_shard, current_public_values.start_execution_shard);
@@ -374,21 +357,17 @@ where
             // Assert that the current values match the accumulated values.
 
             // Assert that the start deferred digest is equal to the current deferred digest.
-            for (digest, current_digest) in reconstruct_deferred_digest.iter().zip_eq(
-                current_public_values
-                    .start_reconstruct_deferred_digest
-                    .iter(),
-            ) {
+            for (digest, current_digest) in reconstruct_deferred_digest
+                .iter()
+                .zip_eq(current_public_values.start_reconstruct_deferred_digest.iter())
+            {
                 builder.assert_felt_eq(*digest, *current_digest);
             }
 
             // Consistency checks for all accumulated values.
 
             // Assert that the sp1_vk digest is always the same.
-            for (digest, current) in sp1_vk_digest
-                .iter()
-                .zip(current_public_values.sp1_vk_digest)
-            {
+            for (digest, current) in sp1_vk_digest.iter().zip(current_public_values.sp1_vk_digest) {
                 builder.assert_felt_eq(*digest, current);
             }
 
@@ -404,9 +383,8 @@ where
             // Assert that the leaf challenger is always the same.
 
             // Assert that the MemoryInitialize address bits are the same.
-            for (bit, current_bit) in init_addr_bits
-                .iter()
-                .zip(current_public_values.previous_init_addr_bits.iter())
+            for (bit, current_bit) in
+                init_addr_bits.iter().zip(current_public_values.previous_init_addr_bits.iter())
             {
                 builder.assert_felt_eq(*bit, *current_bit);
             }
@@ -468,8 +446,9 @@ where
                     }
                 }
 
-                // If `deferred_proofs_digest` is not zero, then `public_values.deferred_proofs_digest
-                // should be the current value.
+                // If `deferred_proofs_digest` is not zero, then
+                // `public_values.deferred_proofs_digest should be the current
+                // value.
                 let is_zero: Var<_> = builder.eval(C::N::one());
                 #[allow(clippy::needless_range_loop)]
                 for i in 0..deferred_proofs_digest.len() {
@@ -517,17 +496,15 @@ where
             builder.assign(execution_shard, current_public_values.next_execution_shard);
 
             // Update the MemoryInitialize address bits.
-            for (bit, next_bit) in init_addr_bits
-                .iter()
-                .zip(current_public_values.last_init_addr_bits.iter())
+            for (bit, next_bit) in
+                init_addr_bits.iter().zip(current_public_values.last_init_addr_bits.iter())
             {
                 builder.assign(*bit, *next_bit);
             }
 
             // Update the MemoryFinalize address bits.
-            for (bit, next_bit) in finalize_addr_bits
-                .iter()
-                .zip(current_public_values.last_finalize_addr_bits.iter())
+            for (bit, next_bit) in
+                finalize_addr_bits.iter().zip(current_public_values.last_finalize_addr_bits.iter())
             {
                 builder.assign(*bit, *next_bit);
             }
@@ -540,9 +517,8 @@ where
             );
 
             // Update the cumulative sum.
-            for (sum_element, current_sum_element) in cumulative_sum
-                .iter()
-                .zip_eq(current_public_values.cumulative_sum.iter())
+            for (sum_element, current_sum_element) in
+                cumulative_sum.iter().zip_eq(current_public_values.cumulative_sum.iter())
             {
                 builder.assign(*sum_element, *sum_element + *current_sum_element);
             }

@@ -37,10 +37,10 @@ pub struct ByteLookupEvent {
 
 impl Hash for ByteLookupEvent {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        let combined_limb_1 = self.shard as u64
-            + ((self.channel as u64) << 32)
-            + ((self.opcode as u64) << 40)
-            + ((self.a1 as u64) << 48);
+        let combined_limb_1 = self.shard as u64 +
+            ((self.channel as u64) << 32) +
+            ((self.opcode as u64) << 40) +
+            ((self.a1 as u64) << 48);
         let combined_limb_2 = self.a2 as u64 + ((self.b as u64) << 8) + ((self.c as u64) << 16);
         let combined = combined_limb_1 as u128 + ((combined_limb_2 as u128) << 64);
 
@@ -116,17 +116,13 @@ pub trait ByteRecord {
         self.add_u8_range_checks(
             shard,
             channel,
-            &field_values
-                .iter()
-                .map(|x| x.as_canonical_u32() as u8)
-                .collect::<Vec<_>>(),
+            &field_values.iter().map(|x| x.as_canonical_u32() as u8).collect::<Vec<_>>(),
         );
     }
 
     /// Adds `ByteLookupEvent`s to verify that all the bytes in the input slice are indeed bytes.
     fn add_u16_range_checks(&mut self, shard: u32, channel: u8, ls: &[u16]) {
-        ls.iter()
-            .for_each(|x| self.add_u16_range_check(shard, channel, *x));
+        ls.iter().for_each(|x| self.add_u16_range_check(shard, channel, *x));
     }
 
     /// Adds a `ByteLookupEvent` to compute the bitwise OR of the two input values.
@@ -147,15 +143,7 @@ impl ByteLookupEvent {
     /// Creates a new `ByteLookupEvent`.
     #[inline(always)]
     pub fn new(shard: u32, channel: u8, opcode: ByteOpcode, a1: u16, a2: u8, b: u8, c: u8) -> Self {
-        Self {
-            shard,
-            channel,
-            opcode,
-            a1,
-            a2,
-            b,
-            c,
-        }
+        Self { shard, channel, opcode, a1, a2, b, c }
     }
 }
 
@@ -201,10 +189,7 @@ pub(crate) fn add_sharded_byte_lookup_events(
         HashMap::new();
     for new_sharded_blu_events in new_events.into_iter() {
         for (shard, new_blu_map) in new_sharded_blu_events.into_iter() {
-            new_sharded_blu_map
-                .entry(*shard)
-                .or_insert(Vec::new())
-                .push(new_blu_map);
+            new_sharded_blu_map.entry(*shard).or_insert(Vec::new()).push(new_blu_map);
         }
     }
 
@@ -228,17 +213,14 @@ pub(crate) fn add_sharded_byte_lookup_events(
     });
 
     // Increment self's byte lookup events multiplicity.
-    shards
-        .par_iter()
-        .zip_eq(self_blu_maps.par_iter_mut())
-        .for_each(|(shard, self_blu_map)| {
-            let blu_map_vec = new_sharded_blu_map.get(shard).unwrap();
-            for blu_map in blu_map_vec.iter() {
-                for (blu_event, count) in blu_map.iter() {
-                    *self_blu_map.entry(*blu_event).or_insert(0) += count;
-                }
+    shards.par_iter().zip_eq(self_blu_maps.par_iter_mut()).for_each(|(shard, self_blu_map)| {
+        let blu_map_vec = new_sharded_blu_map.get(shard).unwrap();
+        for blu_map in blu_map_vec.iter() {
+            for (blu_event, count) in blu_map.iter() {
+                *self_blu_map.entry(*blu_event).or_insert(0) += count;
             }
-        });
+        }
+    });
 
     // Move ownership of the blu maps back to self.
     for (shard, blu) in shards.into_iter().zip(self_blu_maps.into_iter()) {

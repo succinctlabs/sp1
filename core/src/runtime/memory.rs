@@ -82,14 +82,7 @@ impl MemoryReadRecord {
         prev_timestamp: u32,
     ) -> Self {
         assert!(shard > prev_shard || ((shard == prev_shard) && (timestamp > prev_timestamp)));
-        Self {
-            value,
-            shard,
-            timestamp,
-            prev_shard,
-            prev_timestamp,
-            _private: (),
-        }
+        Self { value, shard, timestamp, prev_shard, prev_timestamp, _private: () }
     }
 }
 
@@ -103,14 +96,6 @@ impl MemoryWriteRecord {
         prev_timestamp: u32,
     ) -> Self {
         assert!(shard > prev_shard || ((shard == prev_shard) && (timestamp > prev_timestamp)),);
-        Self {
-            value,
-            shard,
-            timestamp,
-            prev_value,
-            prev_shard,
-            prev_timestamp,
-            _private: (),
-        }
+        Self { value, shard, timestamp, prev_value, prev_shard, prev_timestamp, _private: () }
     }
 }

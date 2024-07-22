@@ -1,13 +1,17 @@
 use p3_air::AirBuilder;
 use p3_field::AbstractField;
 
-use crate::air::{BaseAirBuilder, PublicValues, WordAirBuilder};
-use crate::cpu::air::{Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS};
-use crate::cpu::columns::{CpuCols, OpcodeSelectorCols};
-use crate::memory::MemoryCols;
-use crate::operations::{BabyBearWordRangeChecker, IsZeroOperation};
-use crate::runtime::SyscallCode;
-use crate::stark::{CpuChip, SP1AirBuilder};
+use crate::{
+    air::{BaseAirBuilder, PublicValues, WordAirBuilder},
+    cpu::{
+        air::{Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS},
+        columns::{CpuCols, OpcodeSelectorCols},
+    },
+    memory::MemoryCols,
+    operations::{BabyBearWordRangeChecker, IsZeroOperation},
+    runtime::SyscallCode,
+    stark::{CpuChip, SP1AirBuilder},
+};
 
 impl CpuChip {
     /// Whether the instruction is an ECALL instruction.
@@ -38,10 +42,8 @@ impl CpuChip {
         // Handle cases:
         // - is_ecall_instruction = 1 => ecall_mul_send_to_table == send_to_table
         // - is_ecall_instruction = 0 => ecall_mul_send_to_table == 0
-        builder.assert_eq(
-            local.ecall_mul_send_to_table,
-            send_to_table * is_ecall_instruction.clone(),
-        );
+        builder
+            .assert_eq(local.ecall_mul_send_to_table, send_to_table * is_ecall_instruction.clone());
 
         builder.send_syscall(
             local.shard,
@@ -58,8 +60,8 @@ impl CpuChip {
         let is_enter_unconstrained = {
             IsZeroOperation::<AB::F>::eval(
                 builder,
-                syscall_id
-                    - AB::Expr::from_canonical_u32(SyscallCode::ENTER_UNCONSTRAINED.syscall_id()),
+                syscall_id -
+                    AB::Expr::from_canonical_u32(SyscallCode::ENTER_UNCONSTRAINED.syscall_id()),
                 ecall_cols.is_enter_unconstrained,
                 is_ecall_instruction.clone(),
             );
@@ -92,8 +94,8 @@ impl CpuChip {
         // Verify value of ecall_range_check_operand column.
         builder.assert_eq(
             local.ecall_range_check_operand,
-            is_ecall_instruction
-                * (ecall_cols.is_halt.result + ecall_cols.is_commit_deferred_proofs.result),
+            is_ecall_instruction *
+                (ecall_cols.is_halt.result + ecall_cols.is_commit_deferred_proofs.result),
         );
 
         // Babybear range check the operand_to_check word.
@@ -135,8 +137,8 @@ impl CpuChip {
         // When it's some other syscall, there should be no set bits.
         builder
             .when(
-                local.selectors.is_ecall
-                    * (AB::Expr::one() - (is_commit.clone() + is_commit_deferred_proofs.clone())),
+                local.selectors.is_ecall *
+                    (AB::Expr::one() - (is_commit.clone() + is_commit_deferred_proofs.clone())),
             )
             .assert_zero(bitmap_sum);
 
@@ -151,20 +153,17 @@ impl CpuChip {
         for i in 0..3 {
             builder
                 .when(
-                    local.selectors.is_ecall
-                        * (is_commit.clone() + is_commit_deferred_proofs.clone()),
+                    local.selectors.is_ecall *
+                        (is_commit.clone() + is_commit_deferred_proofs.clone()),
                 )
-                .assert_eq(
-                    local.op_b_access.prev_value()[i + 1],
-                    AB::Expr::from_canonical_u32(0),
-                );
+                .assert_eq(local.op_b_access.prev_value()[i + 1], AB::Expr::from_canonical_u32(0));
         }
 
         // Retrieve the expected public values digest word to check against the one passed into the
-        // commit ecall. Note that for the interaction builder, it will not have any digest words, since
-        // it's used during AIR compilation time to parse for all send/receives. Since that interaction
-        // builder will ignore the other constraints of the air, it is safe to not include the
-        // verification check of the expected public values digest word.
+        // commit ecall. Note that for the interaction builder, it will not have any digest words,
+        // since it's used during AIR compilation time to parse for all send/receives. Since
+        // that interaction builder will ignore the other constraints of the air, it is safe
+        // to not include the verification check of the expected public values digest word.
         let expected_pv_digest_word =
             builder.index_word_array(&commit_digest, &ecall_columns.index_bitmap);
 
@@ -185,10 +184,7 @@ impl CpuChip {
 
         builder
             .when(local.selectors.is_ecall * is_commit_deferred_proofs)
-            .assert_eq(
-                expected_deferred_proofs_digest_element,
-                digest_word.reduce::<AB>(),
-            );
+            .assert_eq(expected_deferred_proofs_digest_element, digest_word.reduce::<AB>());
     }
 
     /// Constraint related to the halt and unimpl instruction.
@@ -215,10 +211,9 @@ impl CpuChip {
             .when(is_halt.clone())
             .assert_word_eq(local.op_b_val(), ecall_columns.operand_to_check);
 
-        builder.when(is_halt.clone()).assert_eq(
-            local.op_b_access.value().reduce::<AB>(),
-            public_values.exit_code.clone(),
-        );
+        builder
+            .when(is_halt.clone())
+            .assert_eq(local.op_b_access.value().reduce::<AB>(), public_values.exit_code.clone());
     }
 
     /// Returns a boolean expression indicating whether the instruction is a HALT instruction.
@@ -249,7 +244,8 @@ impl CpuChip {
         is_halt * is_ecall_instruction
     }
 
-    /// Returns two boolean expression indicating whether the instruction is a COMMIT or COMMIT_DEFERRED_PROOFS instruction.
+    /// Returns two boolean expression indicating whether the instruction is a COMMIT or
+    /// COMMIT_DEFERRED_PROOFS instruction.
     pub(crate) fn get_is_commit_related_syscall<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
@@ -279,8 +275,8 @@ impl CpuChip {
         let is_commit_deferred_proofs = {
             IsZeroOperation::<AB::F>::eval(
                 builder,
-                syscall_id
-                    - AB::Expr::from_canonical_u32(
+                syscall_id -
+                    AB::Expr::from_canonical_u32(
                         SyscallCode::COMMIT_DEFERRED_PROOFS.syscall_id(),
                     ),
                 ecall_cols.is_commit_deferred_proofs,

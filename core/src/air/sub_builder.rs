@@ -1,5 +1,7 @@
-use std::iter::{Skip, Take};
-use std::ops::{Deref, Range};
+use std::{
+    iter::{Skip, Take},
+    ops::{Deref, Range},
+};
 
 use p3_air::{AirBuilder, BaseAir};
 use p3_matrix::Matrix;
@@ -13,11 +15,7 @@ pub struct SubMatrixRowSlices<M: Matrix<T>, T: Send + Sync> {
 
 impl<M: Matrix<T>, T: Send + Sync> SubMatrixRowSlices<M, T> {
     pub const fn new(inner: M, column_range: Range<usize>) -> Self {
-        Self {
-            inner,
-            column_range,
-            _phantom: std::marker::PhantomData,
-        }
+        Self { inner, column_range, _phantom: std::marker::PhantomData }
     }
 }
 
@@ -27,10 +25,7 @@ impl<M: Matrix<T>, T: Send + Sync> Matrix<T> for SubMatrixRowSlices<M, T> {
 
     #[inline]
     fn row(&self, r: usize) -> Self::Row<'_> {
-        self.inner
-            .row(r)
-            .take(self.column_range.end)
-            .skip(self.column_range.start)
+        self.inner.row(r).take(self.column_range.end).skip(self.column_range.start)
     }
 
     #[inline]
@@ -60,11 +55,7 @@ pub struct SubAirBuilder<'a, AB: AirBuilder, SubAir: BaseAir<T>, T> {
 
 impl<'a, AB: AirBuilder, SubAir: BaseAir<T>, T> SubAirBuilder<'a, AB, SubAir, T> {
     pub fn new(inner: &'a mut AB, column_range: Range<usize>) -> Self {
-        Self {
-            inner,
-            column_range,
-            _phantom: std::marker::PhantomData,
-        }
+        Self { inner, column_range, _phantom: std::marker::PhantomData }
     }
 }
 

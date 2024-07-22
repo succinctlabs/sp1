@@ -68,10 +68,7 @@ impl NewCmd {
             "    \x1b[1m{}\x1b[0m {} ({})",
             Paint::green("Initialized"),
             self.name,
-            std::fs::canonicalize(root)
-                .expect("failed to canonicalize")
-                .to_str()
-                .unwrap()
+            std::fs::canonicalize(root).expect("failed to canonicalize").to_str().unwrap()
         );
 
         Ok(())

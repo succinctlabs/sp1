@@ -1,14 +1,15 @@
-use std::fs::File;
-use std::io::Seek;
-use std::io::{self};
-use std::sync::mpsc::sync_channel;
-use std::sync::Arc;
+use std::{
+    fs::File,
+    io::{
+        Seek, {self},
+    },
+    sync::{mpsc::sync_channel, Arc},
+};
 use web_time::Instant;
 
 use p3_maybe_rayon::prelude::*;
 
-use serde::de::DeserializeOwned;
-use serde::Serialize;
+use serde::{de::DeserializeOwned, Serialize};
 use size::Size;
 use thiserror::Error;
 
@@ -16,25 +17,21 @@ pub use baby_bear_blake3::BabyBearBlake3;
 use p3_baby_bear::BabyBear;
 use p3_field::PrimeField32;
 
-use crate::air::MachineAir;
-use crate::io::{SP1PublicValues, SP1Stdin};
-use crate::lookup::InteractionBuilder;
-use crate::runtime::{ExecutionError, NoOpSubproofVerifier, SP1Context};
-use crate::runtime::{ExecutionRecord, ExecutionReport};
-use crate::stark::DebugConstraintBuilder;
-use crate::stark::MachineProof;
-use crate::stark::MachineProver;
-use crate::stark::ProverConstraintFolder;
-use crate::stark::StarkVerifyingKey;
-use crate::stark::Val;
-use crate::stark::VerifierConstraintFolder;
-use crate::stark::{Com, PcsProverData, RiscvAir, StarkProvingKey, UniConfig};
-use crate::stark::{MachineRecord, StarkMachine};
-use crate::utils::SP1CoreOpts;
 use crate::{
-    runtime::{Program, Runtime},
-    stark::StarkGenericConfig,
-    stark::{DefaultProver, OpeningProof, ShardMainData},
+    air::MachineAir,
+    io::{SP1PublicValues, SP1Stdin},
+    lookup::InteractionBuilder,
+    runtime::{
+        ExecutionError, ExecutionRecord, ExecutionReport, NoOpSubproofVerifier, Program, Runtime,
+        SP1Context,
+    },
+    stark::{
+        Com, DebugConstraintBuilder, DefaultProver, MachineProof, MachineProver, MachineRecord,
+        OpeningProof, PcsProverData, ProverConstraintFolder, RiscvAir, ShardMainData,
+        StarkGenericConfig, StarkMachine, StarkProvingKey, StarkVerifyingKey, UniConfig, Val,
+        VerifierConstraintFolder,
+    },
+    utils::SP1CoreOpts,
 };
 
 const LOG_DEGREE_BOUND: usize = 31;
@@ -67,25 +64,15 @@ where
     let (pk, _) = prover.setup(runtime.program.as_ref());
 
     // Set the shard numbers.
-    runtime
-        .records
-        .iter_mut()
-        .enumerate()
-        .for_each(|(i, shard)| {
-            shard.public_values.shard = (i + 1) as u32;
-        });
+    runtime.records.iter_mut().enumerate().for_each(|(i, shard)| {
+        shard.public_values.shard = (i + 1) as u32;
+    });
 
     // Prove the program.
     let mut challenger = prover.config().challenger();
     let proving_start = Instant::now();
-    let proof = prover
-        .prove(
-            &pk,
-            runtime.records,
-            &mut challenger,
-            SP1CoreOpts::default(),
-        )
-        .unwrap();
+    let proof =
+        prover.prove(&pk, runtime.records, &mut challenger, SP1CoreOpts::default()).unwrap();
     let proving_duration = proving_start.elapsed().as_millis();
     let nb_bytes = bincode::serialize(&proof).unwrap().len();
 
@@ -151,26 +138,19 @@ where
     let mut checkpoints = Vec::new();
     let (public_values_stream, public_values) = loop {
         // Execute the runtime until we reach a checkpoint.
-        let (checkpoint, done) = runtime
-            .execute_state()
-            .map_err(SP1CoreProverError::ExecutionError)?;
+        let (checkpoint, done) =
+            runtime.execute_state().map_err(SP1CoreProverError::ExecutionError)?;
 
         // Save the checkpoint to a temp file.
         let mut checkpoint_file = tempfile::tempfile().map_err(SP1CoreProverError::IoError)?;
-        checkpoint
-            .save(&mut checkpoint_file)
-            .map_err(SP1CoreProverError::IoError)?;
+        checkpoint.save(&mut checkpoint_file).map_err(SP1CoreProverError::IoError)?;
         checkpoints.push(checkpoint_file);
 
         // If we've reached the final checkpoint, break out of the loop.
         if done {
             break (
                 runtime.state.public_values_stream,
-                runtime
-                    .records
-                    .last()
-                    .expect("at least one record")
-                    .public_values,
+                runtime.records.last().expect("at least one record").public_values,
             );
         }
     };
@@ -228,7 +208,8 @@ where
                     .in_scope(|| trace_checkpoint(program.clone(), checkpoint_file, opts));
                 reset_seek(&mut *checkpoint_file);
 
-                // Update the public values & prover state for the shards which contain "cpu events".
+                // Update the public values & prover state for the shards which contain "cpu
+                // events".
                 for record in records.iter_mut() {
                     state.shard += 1;
                     state.execution_shard = record.public_values.execution_shard;
@@ -250,8 +231,8 @@ where
                 let is_last_checkpoint = checkpoint_idx == nb_checkpoints - 1;
                 let mut deferred = deferred.split(is_last_checkpoint, opts.split_opts);
 
-                // Update the public values & prover state for the shards which do not contain "cpu events"
-                // before committing to them.
+                // Update the public values & prover state for the shards which do not contain "cpu
+                // events" before committing to them.
                 if !is_last_checkpoint {
                     state.execution_shard += 1;
                 }
@@ -304,9 +285,7 @@ where
                         let span = tracing::Span::current().clone();
                         shard_proofs.par_extend(records.into_par_iter().map(|record| {
                             let _span = span.enter();
-                            prover
-                                .commit_and_open(&pk, record, &mut challenger.clone())
-                                .unwrap()
+                            prover.commit_and_open(&pk, record, &mut challenger.clone()).unwrap()
                         }));
                     });
                 }
@@ -322,7 +301,8 @@ where
                 report_aggregate += report;
                 reset_seek(&mut checkpoint_file);
 
-                // Update the public values & prover state for the shards which contain "cpu events".
+                // Update the public values & prover state for the shards which contain "cpu
+                // events".
                 for record in records.iter_mut() {
                     state.shard += 1;
                     state.execution_shard = record.public_values.execution_shard;
@@ -344,8 +324,8 @@ where
                 let is_last_checkpoint = checkpoint_idx == nb_checkpoints - 1;
                 let mut deferred = deferred.split(is_last_checkpoint, opts.split_opts);
 
-                // Update the public values & prover state for the shards which do not contain "cpu events"
-                // before committing to them.
+                // Update the public values & prover state for the shards which do not contain "cpu
+                // events" before committing to them.
                 if !is_last_checkpoint {
                     state.execution_shard += 1;
                 }
@@ -374,8 +354,8 @@ where
             report_aggregate.total_syscall_count()
         );
 
-        // Print the opcode and syscall count tables like `du`: sorted by count (descending) and with
-        // the count in the first column.
+        // Print the opcode and syscall count tables like `du`: sorted by count (descending) and
+        // with the count in the first column.
         tracing::info!("execution report (opcode counts):");
         for line in ExecutionReport::sorted_table_lines(&report_aggregate.opcode_counts) {
             tracing::info!("  {line}");
@@ -486,9 +466,7 @@ where
     let start = Instant::now();
     let prover = DefaultProver::new(machine);
     let mut challenger = prover.config().challenger();
-    let proof = prover
-        .prove(&pk, records, &mut challenger, SP1CoreOpts::default())
-        .unwrap();
+    let proof = prover.prove(&pk, records, &mut challenger, SP1CoreOpts::default()).unwrap();
     let time = start.elapsed().as_millis();
     let nb_bytes = bincode::serialize(&proof).unwrap().len();
 
@@ -514,8 +492,7 @@ fn trace_checkpoint(
 }
 
 fn reset_seek(file: &mut File) {
-    file.seek(std::io::SeekFrom::Start(0))
-        .expect("failed to seek to start of tempfile");
+    file.seek(std::io::SeekFrom::Start(0)).expect("failed to seek to start of tempfile");
 }
 
 #[cfg(debug_assertions)]
@@ -597,8 +574,7 @@ pub mod baby_bear_poseidon2 {
     use p3_field::{extension::BinomialExtensionField, Field};
     use p3_fri::{FriConfig, TwoAdicFriPcs};
     use p3_merkle_tree::FieldMerkleTreeMmcs;
-    use p3_poseidon2::Poseidon2;
-    use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
+    use p3_poseidon2::{Poseidon2, Poseidon2ExternalMatrixGeneral};
     use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
     use serde::{Deserialize, Serialize};
     use sp1_primitives::RC_16_30;
@@ -653,12 +629,7 @@ pub mod baby_bear_poseidon2 {
             Ok(value) => value.parse().unwrap(),
             Err(_) => 100,
         };
-        FriConfig {
-            log_blowup: 1,
-            num_queries,
-            proof_of_work_bits: 16,
-            mmcs: challenge_mmcs,
-        }
+        FriConfig { log_blowup: 1, num_queries, proof_of_work_bits: 16, mmcs: challenge_mmcs }
     }
 
     pub fn compressed_fri_config() -> FriConfig<ChallengeMmcs> {
@@ -670,12 +641,7 @@ pub mod baby_bear_poseidon2 {
             Ok(value) => value.parse().unwrap(),
             Err(_) => 33,
         };
-        FriConfig {
-            log_blowup: 3,
-            num_queries,
-            proof_of_work_bits: 16,
-            mmcs: challenge_mmcs,
-        }
+        FriConfig { log_blowup: 3, num_queries, proof_of_work_bits: 16, mmcs: challenge_mmcs }
     }
 
     enum BabyBearPoseidon2Type {
@@ -700,11 +666,7 @@ pub mod baby_bear_poseidon2 {
             let dft = Dft {};
             let fri_config = default_fri_config();
             let pcs = Pcs::new(27, dft, val_mmcs, fri_config);
-            Self {
-                pcs,
-                perm,
-                config_type: BabyBearPoseidon2Type::Default,
-            }
+            Self { pcs, perm, config_type: BabyBearPoseidon2Type::Default }
         }
 
         pub fn compressed() -> Self {
@@ -715,11 +677,7 @@ pub mod baby_bear_poseidon2 {
             let dft = Dft {};
             let fri_config = compressed_fri_config();
             let pcs = Pcs::new(27, dft, val_mmcs, fri_config);
-            Self {
-                pcs,
-                perm,
-                config_type: BabyBearPoseidon2Type::Compressed,
-            }
+            Self { pcs, perm, config_type: BabyBearPoseidon2Type::Compressed }
         }
     }
 

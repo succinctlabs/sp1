@@ -87,22 +87,19 @@ impl<F: PrimeField32> OpcodeSelectorCols<F> {
             Opcode::Commit => self.is_commit = F::one(),
             Opcode::HintExt2Felt => self.is_ext_to_felt = F::one(),
 
-            Opcode::Hint
-            | Opcode::HintBits
-            | Opcode::PrintF
-            | Opcode::PrintE
-            | Opcode::RegisterPublicValue
-            | Opcode::CycleTracker => {
+            Opcode::Hint |
+            Opcode::HintBits |
+            Opcode::PrintF |
+            Opcode::PrintE |
+            Opcode::RegisterPublicValue |
+            Opcode::CycleTracker => {
                 self.is_noop = F::one();
             }
 
             Opcode::HintLen | Opcode::LessThanF => {}
         }
 
-        if matches!(
-            instruction.opcode,
-            Opcode::EADD | Opcode::ESUB | Opcode::EMUL | Opcode::EDIV
-        ) {
+        if matches!(instruction.opcode, Opcode::EADD | Opcode::ESUB | Opcode::EMUL | Opcode::EDIV) {
             self.is_ext = F::one();
         }
 

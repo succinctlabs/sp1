@@ -1,17 +1,19 @@
 use std::fmt::Debug;
 
-use num::BigUint;
-use num::Zero;
+use num::{BigUint, Zero};
 use p3_field::{AbstractField, PrimeField32};
 use sp1_derive::AlignedBorrow;
 
-use super::params::Limbs;
-use super::util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs};
-use super::util_air::eval_field_operation;
-use crate::air::Polynomial;
-use crate::air::SP1AirBuilder;
-use crate::bytes::event::ByteRecord;
-use crate::operations::field::params::FieldParameters;
+use super::{
+    params::Limbs,
+    util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs},
+    util_air::eval_field_operation,
+};
+use crate::{
+    air::{Polynomial, SP1AirBuilder},
+    bytes::event::ByteRecord,
+    operations::field::params::FieldParameters,
+};
 
 /// A set of columns to compute `InnerProduct([a], [b])` where a, b are emulated elements.
 ///
@@ -38,20 +40,13 @@ impl<F: PrimeField32, P: FieldParameters> FieldInnerProductCols<F, P> {
         a: &[BigUint],
         b: &[BigUint],
     ) -> BigUint {
-        let p_a_vec: Vec<Polynomial<F>> = a
-            .iter()
-            .map(|x| P::to_limbs_field::<F, _>(x).into())
-            .collect();
-        let p_b_vec: Vec<Polynomial<F>> = b
-            .iter()
-            .map(|x| P::to_limbs_field::<F, _>(x).into())
-            .collect();
+        let p_a_vec: Vec<Polynomial<F>> =
+            a.iter().map(|x| P::to_limbs_field::<F, _>(x).into()).collect();
+        let p_b_vec: Vec<Polynomial<F>> =
+            b.iter().map(|x| P::to_limbs_field::<F, _>(x).into()).collect();
 
         let modulus = &P::modulus();
-        let inner_product = a
-            .iter()
-            .zip(b.iter())
-            .fold(BigUint::zero(), |acc, (c, d)| acc + c * d);
+        let inner_product = a.iter().zip(b.iter()).fold(BigUint::zero(), |acc, (c, d)| acc + c * d);
 
         let result = &(&inner_product % modulus);
         let carry = &((&inner_product - result) / modulus);
@@ -67,9 +62,7 @@ impl<F: PrimeField32, P: FieldParameters> FieldInnerProductCols<F, P> {
         let p_inner_product = p_a_vec
             .into_iter()
             .zip(p_b_vec)
-            .fold(Polynomial::<F>::new(vec![F::zero()]), |acc, (c, d)| {
-                acc + &c * &d
-            });
+            .fold(Polynomial::<F>::new(vec![F::zero()]), |acc, (c, d)| acc + &c * &d);
         let p_vanishing = p_inner_product - &p_result - &p_carry * &p_modulus;
         assert_eq!(p_vanishing.degree(), P::NB_WITNESS_LIMBS);
 
@@ -168,21 +161,25 @@ mod tests {
 
     use crate::air::MachineAir;
 
-    use crate::operations::field::params::FieldParameters;
-    use crate::runtime::Program;
-    use crate::stark::StarkGenericConfig;
-    use crate::utils::ec::edwards::ed25519::Ed25519BaseField;
-    use crate::utils::{pad_to_power_of_two, BabyBearPoseidon2};
-    use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
-    use crate::{air::SP1AirBuilder, runtime::ExecutionRecord};
-    use core::borrow::{Borrow, BorrowMut};
-    use core::mem::size_of;
+    use crate::{
+        air::SP1AirBuilder,
+        operations::field::params::FieldParameters,
+        runtime::{ExecutionRecord, Program},
+        stark::StarkGenericConfig,
+        utils::{
+            ec::edwards::ed25519::Ed25519BaseField, pad_to_power_of_two, uni_stark_prove as prove,
+            uni_stark_verify as verify, BabyBearPoseidon2,
+        },
+    };
+    use core::{
+        borrow::{Borrow, BorrowMut},
+        mem::size_of,
+    };
     use num::bigint::RandBigInt;
     use p3_air::Air;
     use p3_baby_bear::BabyBear;
     use p3_field::AbstractField;
-    use p3_matrix::dense::RowMajorMatrix;
-    use p3_matrix::Matrix;
+    use p3_matrix::{dense::RowMajorMatrix, Matrix};
     use rand::thread_rng;
     use sp1_derive::AlignedBorrow;
 
@@ -201,9 +198,7 @@ mod tests {
 
     impl<P: FieldParameters> FieldIpChip<P> {
         pub const fn new() -> Self {
-            Self {
-                _phantom: std::marker::PhantomData,
-            }
+            Self { _phantom: std::marker::PhantomData }
         }
     }
 
@@ -249,10 +244,8 @@ mod tests {
                 })
                 .collect::<Vec<_>>();
             // Convert the trace to a row major matrix.
-            let mut trace = RowMajorMatrix::new(
-                rows.into_iter().flatten().collect::<Vec<_>>(),
-                NUM_TEST_COLS,
-            );
+            let mut trace =
+                RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_TEST_COLS);
 
             // Pad the trace to a power of two.
             pad_to_power_of_two::<NUM_TEST_COLS, F>(&mut trace.values);

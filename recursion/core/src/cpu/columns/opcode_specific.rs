@@ -1,12 +1,14 @@
-use std::fmt::{Debug, Formatter};
-use std::mem::{size_of, transmute};
+use std::{
+    fmt::{Debug, Formatter},
+    mem::{size_of, transmute},
+};
 
 use static_assertions::const_assert;
 
-use super::branch::BranchCols;
-use super::heap_expand::HeapExpandCols;
-use super::memory::MemoryCols;
-use super::public_values::PublicValuesCols;
+use super::{
+    branch::BranchCols, heap_expand::HeapExpandCols, memory::MemoryCols,
+    public_values::PublicValuesCols,
+};
 
 pub const NUM_OPCODE_SPECIFIC_COLS: usize = size_of::<OpcodeSpecificCols<u8>>();
 
@@ -25,9 +27,7 @@ impl<T: Copy + Default> Default for OpcodeSpecificCols<T> {
         // We must use the largest field to avoid uninitialized padding bytes.
         const_assert!(size_of::<MemoryCols<u8>>() == size_of::<OpcodeSpecificCols<u8>>());
 
-        OpcodeSpecificCols {
-            memory: MemoryCols::<T>::default(),
-        }
+        OpcodeSpecificCols { memory: MemoryCols::<T>::default() }
     }
 }
 

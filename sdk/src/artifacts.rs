@@ -22,10 +22,7 @@ pub fn export_solidity_plonk_bn254_verifier(output_dir: impl Into<PathBuf>) -> R
     let verifier_path = artifacts_dir.join("SP1Verifier.sol");
 
     if !verifier_path.exists() {
-        return Err(anyhow::anyhow!(
-            "verifier file not found at {:?}",
-            verifier_path
-        ));
+        return Err(anyhow::anyhow!("verifier file not found at {:?}", verifier_path));
     }
 
     std::fs::create_dir_all(&output_dir).context("Failed to create output directory.")?;
@@ -45,14 +42,9 @@ pub async fn download_file(
     url: &str,
     file: &mut File,
 ) -> std::result::Result<(), String> {
-    let res = client
-        .get(url)
-        .send()
-        .await
-        .or(Err(format!("Failed to GET from '{}'", &url)))?;
-    let total_size = res
-        .content_length()
-        .ok_or(format!("Failed to get content length from '{}'", &url))?;
+    let res = client.get(url).send().await.or(Err(format!("Failed to GET from '{}'", &url)))?;
+    let total_size =
+        res.content_length().ok_or(format!("Failed to get content length from '{}'", &url))?;
 
     let pb = ProgressBar::new(total_size);
     pb.set_style(ProgressStyle::default_bar()
@@ -65,8 +57,7 @@ pub async fn download_file(
 
     while let Some(item) = stream.next().await {
         let chunk = item.or(Err("Error while downloading file"))?;
-        file.write_all(&chunk)
-            .or(Err("Error while writing to file"))?;
+        file.write_all(&chunk).or(Err("Error while writing to file"))?;
         let new = min(downloaded + (chunk.len() as u64), total_size);
         downloaded = new;
         pb.set_position(new);

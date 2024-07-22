@@ -1,32 +1,36 @@
-use crate::air::{BaseAirBuilder, MachineAir, Polynomial, SP1AirBuilder, WORD_SIZE};
-use crate::bytes::event::ByteRecord;
-use crate::memory::{value_as_limbs, MemoryReadCols, MemoryWriteCols};
-use crate::operations::field::field_op::{FieldOpCols, FieldOperation};
-use crate::operations::field::params::NumWords;
-use crate::operations::field::params::{Limbs, NumLimbs};
-use crate::operations::field::range::FieldLtCols;
-use crate::operations::IsZeroOperation;
-use crate::runtime::{ExecutionRecord, Program, Syscall, SyscallCode};
-use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
-use crate::stark::MachineRecord;
-use crate::syscall::precompiles::SyscallContext;
-use crate::utils::ec::uint256::U256Field;
-use crate::utils::{
-    bytes_to_words_le, limbs_from_access, limbs_from_prev_access, pad_rows, words_to_bytes_le,
-    words_to_bytes_le_vec,
+use crate::{
+    air::{BaseAirBuilder, MachineAir, Polynomial, SP1AirBuilder, WORD_SIZE},
+    bytes::event::ByteRecord,
+    memory::{value_as_limbs, MemoryReadCols, MemoryWriteCols},
+    operations::{
+        field::{
+            field_op::{FieldOpCols, FieldOperation},
+            params::{Limbs, NumLimbs, NumWords},
+            range::FieldLtCols,
+        },
+        IsZeroOperation,
+    },
+    runtime::{
+        ExecutionRecord, MemoryReadRecord, MemoryWriteRecord, Program, Syscall, SyscallCode,
+    },
+    stark::MachineRecord,
+    syscall::precompiles::SyscallContext,
+    utils::{
+        bytes_to_words_le, ec::uint256::U256Field, limbs_from_access, limbs_from_prev_access,
+        pad_rows, words_to_bytes_le, words_to_bytes_le_vec,
+    },
 };
 use generic_array::GenericArray;
 use num::{BigUint, One, Zero};
-use p3_air::AirBuilder;
-use p3_air::{Air, BaseAir};
-use p3_field::AbstractField;
-use p3_field::PrimeField32;
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
+use p3_air::{Air, AirBuilder, BaseAir};
+use p3_field::{AbstractField, PrimeField32};
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use serde::{Deserialize, Serialize};
 use sp1_derive::AlignedBorrow;
-use std::borrow::{Borrow, BorrowMut};
-use std::mem::size_of;
+use std::{
+    borrow::{Borrow, BorrowMut},
+    mem::size_of,
+};
 use typenum::Unsigned;
 
 /// The number of columns in the Uint256MulCols.
@@ -88,7 +92,8 @@ pub struct Uint256MulCols<T> {
     pub y_memory: GenericArray<MemoryReadCols<T>, WordsFieldElement>,
     pub modulus_memory: GenericArray<MemoryReadCols<T>, WordsFieldElement>,
 
-    /// Columns for checking if modulus is zero. If it's zero, then use 2^256 as the effective modulus.
+    /// Columns for checking if modulus is zero. If it's zero, then use 2^256 as the effective
+    /// modulus.
     pub modulus_is_zero: IsZeroOperation<T>,
 
     /// Column that is equal to is_real * (1 - modulus_is_zero.result).
@@ -167,11 +172,8 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
                         IsZeroOperation::populate(&mut cols.modulus_is_zero, modulus_byte_sum);
 
                         // Populate the output column.
-                        let effective_modulus = if modulus.is_zero() {
-                            BigUint::one() << 256
-                        } else {
-                            modulus.clone()
-                        };
+                        let effective_modulus =
+                            if modulus.is_zero() { BigUint::one() << 256 } else { modulus.clone() };
                         let result = cols.output.populate_with_modulus(
                             &mut new_byte_lookup_events,
                             event.shard,
@@ -215,8 +217,7 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
 
             let x = BigUint::zero();
             let y = BigUint::zero();
-            cols.output
-                .populate(&mut vec![], 0, 0, &x, &y, FieldOperation::Mul);
+            cols.output.populate(&mut vec![], 0, 0, &x, &y, FieldOperation::Mul);
 
             row
         });
@@ -334,9 +335,7 @@ where
 
         // Constrain the incrementing nonce.
         builder.when_first_row().assert_zero(local.nonce);
-        builder
-            .when_transition()
-            .assert_eq(local.nonce + AB::Expr::one(), next.nonce);
+        builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         // We are computing (x * y) % modulus. The value of x is stored in the "prev_value" of
         // the x_memory, since we write to it later.
@@ -347,10 +346,8 @@ where
         // If the modulus is zero, then we don't perform the modulus operation.
         // Evaluate the modulus_is_zero operation by summing each byte of the modulus. The sum will
         // not overflow because we are summing 32 bytes.
-        let modulus_byte_sum = modulus_limbs
-            .0
-            .iter()
-            .fold(AB::Expr::zero(), |acc, &limb| acc + limb);
+        let modulus_byte_sum =
+            modulus_limbs.0.iter().fold(AB::Expr::zero(), |acc, &limb| acc + limb);
         IsZeroOperation::<AB::F>::eval(
             builder,
             modulus_byte_sum,
@@ -365,9 +362,9 @@ where
         coeff_2_256.resize(32, AB::Expr::zero());
         coeff_2_256.push(AB::Expr::one());
         let modulus_polynomial: Polynomial<AB::Expr> = modulus_limbs.into();
-        let p_modulus: Polynomial<AB::Expr> = modulus_polynomial
-            * (AB::Expr::one() - modulus_is_zero.into())
-            + Polynomial::from_coefficients(&coeff_2_256) * modulus_is_zero.into();
+        let p_modulus: Polynomial<AB::Expr> = modulus_polynomial *
+            (AB::Expr::one() - modulus_is_zero.into()) +
+            Polynomial::from_coefficients(&coeff_2_256) * modulus_is_zero.into();
 
         // Evaluate the uint256 multiplication
         local.output.eval_with_modulus(

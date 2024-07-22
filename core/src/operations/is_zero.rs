@@ -5,8 +5,7 @@
 //! The idea is that 1 - input * inverse is exactly the boolean value indicating whether the input
 //! is 0.
 use p3_air::AirBuilder;
-use p3_field::AbstractField;
-use p3_field::Field;
+use p3_field::{AbstractField, Field};
 use sp1_derive::AlignedBorrow;
 
 use crate::air::SP1AirBuilder;
@@ -59,15 +58,10 @@ impl<F: Field> IsZeroOperation<F> {
         // If the input is 0, then any product involving it is 0. If it is nonzero and its inverse
         // is correctly set, then the product is 1.
         let is_zero = one.clone() - cols.inverse * a.clone();
-        builder
-            .when(is_real.clone())
-            .assert_eq(is_zero, cols.result);
+        builder.when(is_real.clone()).assert_eq(is_zero, cols.result);
         builder.when(is_real.clone()).assert_bool(cols.result);
 
         // If the result is 1, then the input is 0.
-        builder
-            .when(is_real.clone())
-            .when(cols.result)
-            .assert_zero(a.clone());
+        builder.when(is_real.clone()).when(cols.result).assert_zero(a.clone());
     }
 }

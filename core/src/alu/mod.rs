@@ -73,12 +73,5 @@ pub fn create_alu_lookup_id() -> u128 {
 
 pub fn create_alu_lookups() -> [u128; 6] {
     let mut rng = rand::thread_rng();
-    [
-        rng.gen(),
-        rng.gen(),
-        rng.gen(),
-        rng.gen(),
-        rng.gen(),
-        rng.gen(),
-    ]
+    [rng.gen(), rng.gen(), rng.gen(), rng.gen(), rng.gen(), rng.gen()]
 }

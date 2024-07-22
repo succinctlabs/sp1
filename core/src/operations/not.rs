@@ -1,13 +1,12 @@
 use p3_air::AirBuilder;
-use p3_field::AbstractField;
-use p3_field::Field;
+use p3_field::{AbstractField, Field};
 use sp1_derive::AlignedBorrow;
 
-use crate::air::SP1AirBuilder;
-use crate::air::Word;
-use crate::bytes::event::ByteRecord;
-use crate::bytes::ByteOpcode;
-use crate::disassembler::WORD_SIZE;
+use crate::{
+    air::{SP1AirBuilder, Word},
+    bytes::{event::ByteRecord, ByteOpcode},
+    disassembler::WORD_SIZE,
+};
 
 /// A set of columns needed to compute the not of a word.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]

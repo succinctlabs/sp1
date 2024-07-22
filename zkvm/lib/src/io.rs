@@ -1,11 +1,10 @@
 #![allow(unused_unsafe)]
-use crate::syscall_write;
-use crate::{syscall_hint_len, syscall_hint_read};
-use serde::de::DeserializeOwned;
-use serde::Serialize;
-use std::alloc::Layout;
-use std::io::Result;
-use std::io::Write;
+use crate::{syscall_hint_len, syscall_hint_read, syscall_write};
+use serde::{de::DeserializeOwned, Serialize};
+use std::{
+    alloc::Layout,
+    io::{Result, Write},
+};
 
 /// The file descriptor for public values.
 pub const FD_PUBLIC_VALUES: u32 = 3;
@@ -106,9 +105,7 @@ pub fn read<T: DeserializeOwned>() -> T {
 /// sp1_zkvm::io::commit(&data);
 /// ```
 pub fn commit<T: Serialize>(value: &T) {
-    let writer = SyscallWriter {
-        fd: FD_PUBLIC_VALUES,
-    };
+    let writer = SyscallWriter { fd: FD_PUBLIC_VALUES };
     bincode::serialize_into(writer, value).expect("serialization failed");
 }
 
@@ -120,9 +117,7 @@ pub fn commit<T: Serialize>(value: &T) {
 /// sp1_zkvm::io::commit_slice(&data);
 /// ```
 pub fn commit_slice(buf: &[u8]) {
-    let mut my_writer = SyscallWriter {
-        fd: FD_PUBLIC_VALUES,
-    };
+    let mut my_writer = SyscallWriter { fd: FD_PUBLIC_VALUES };
     my_writer.write_all(buf).unwrap();
 }
 

@@ -1,34 +1,36 @@
 use p3_baby_bear::BabyBear;
 use p3_challenger::DuplexChallenger;
 use p3_commit::TwoAdicMultiplicativeCoset;
-use p3_field::TwoAdicField;
-use p3_field::{AbstractExtensionField, AbstractField};
-use sp1_core::air::{MachineAir, Word, PV_DIGEST_NUM_WORDS};
-use sp1_core::stark::StarkGenericConfig;
-use sp1_core::stark::{
-    AirOpenedValues, ChipOpenedValues, Com, RiscvAir, ShardCommitment, ShardOpenedValues,
-};
-use sp1_core::utils::{
-    BabyBearPoseidon2, InnerChallenge, InnerDigest, InnerDigestHash, InnerPcsProof, InnerPerm,
-    InnerVal,
+use p3_field::{AbstractExtensionField, AbstractField, TwoAdicField};
+use sp1_core::{
+    air::{MachineAir, Word, PV_DIGEST_NUM_WORDS},
+    stark::{
+        AirOpenedValues, ChipOpenedValues, Com, RiscvAir, ShardCommitment, ShardOpenedValues,
+        StarkGenericConfig,
+    },
+    utils::{
+        BabyBearPoseidon2, InnerChallenge, InnerDigest, InnerDigestHash, InnerPcsProof, InnerPerm,
+        InnerVal,
+    },
 };
 use sp1_recursion_compiler::{
     config::InnerConfig,
     ir::{Array, Builder, Config, Ext, Felt, MemVariable, Var},
 };
-use sp1_recursion_core::air::Block;
-use sp1_recursion_core::runtime::PERMUTATION_WIDTH;
+use sp1_recursion_core::{air::Block, runtime::PERMUTATION_WIDTH};
 
-use crate::challenger::DuplexChallengerVariable;
-use crate::fri::TwoAdicMultiplicativeCosetVariable;
-use crate::machine::*;
-use crate::stark::{ShardProofHint, VerifyingKeyHint};
-use crate::types::{
-    AirOpenedValuesVariable, ChipOpenedValuesVariable, Sha256DigestVariable,
-    ShardCommitmentVariable, ShardOpenedValuesVariable, ShardProofVariable, VerifyingKeyVariable,
+use crate::{
+    challenger::DuplexChallengerVariable,
+    fri::TwoAdicMultiplicativeCosetVariable,
+    machine::*,
+    stark::{ShardProofHint, VerifyingKeyHint},
+    types::{
+        AirOpenedValuesVariable, ChipOpenedValuesVariable, QuotientData, QuotientDataValues,
+        Sha256DigestVariable, ShardCommitmentVariable, ShardOpenedValuesVariable,
+        ShardProofVariable, VerifyingKeyVariable,
+    },
+    utils::{get_chip_quotient_data, get_preprocessed_data, get_sorted_indices},
 };
-use crate::types::{QuotientData, QuotientDataValues};
-use crate::utils::{get_chip_quotient_data, get_preprocessed_data, get_sorted_indices};
 
 pub trait Hintable<C: Config> {
     type HintVariable: MemVariable<C>;
@@ -90,10 +92,7 @@ impl Hintable<C> for [Word<BabyBear>; PV_DIGEST_NUM_WORDS] {
     }
 
     fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
-        vec![self
-            .iter()
-            .flat_map(|w| w.0.iter().map(|f| Block::from(*f)))
-            .collect::<Vec<_>>()]
+        vec![self.iter().flat_map(|w| w.0.iter().map(|f| Block::from(*f))).collect::<Vec<_>>()]
     }
 }
 
@@ -104,10 +103,7 @@ impl Hintable<C> for QuotientDataValues {
         let log_quotient_degree = usize::read(builder);
         let quotient_size = usize::read(builder);
 
-        QuotientData {
-            log_quotient_degree,
-            quotient_size,
-        }
+        QuotientData { log_quotient_degree, quotient_size }
     }
 
     fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
@@ -129,12 +125,7 @@ impl Hintable<C> for TwoAdicMultiplicativeCoset<InnerVal> {
         let size = usize::read(builder);
 
         // Initialize a domain.
-        TwoAdicMultiplicativeCosetVariable::<C> {
-            log_n,
-            size,
-            shift,
-            g: g_val,
-        }
+        TwoAdicMultiplicativeCosetVariable::<C> { log_n, size, shift, g: g_val }
     }
 
     fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
@@ -206,10 +197,7 @@ impl Hintable<C> for Vec<usize> {
     }
 
     fn write(&self) -> Vec<Vec<Block<InnerVal>>> {
-        vec![self
-            .iter()
-            .map(|x| Block::from(InnerVal::from_canonical_usize(*x)))
-            .collect()]
+        vec![self.iter().map(|x| Block::from(InnerVal::from_canonical_usize(*x))).collect()]
     }
 }
 
@@ -233,10 +221,7 @@ impl Hintable<C> for Vec<InnerChallenge> {
     }
 
     fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
-        vec![self
-            .iter()
-            .map(|x| Block::from((*x).as_base_slice()))
-            .collect()]
+        vec![self.iter().map(|x| Block::from((*x).as_base_slice())).collect()]
     }
 }
 
@@ -367,11 +352,7 @@ impl Hintable<C> for ShardCommitment<InnerDigestHash> {
         let main_commit = InnerDigest::read(builder);
         let permutation_commit = InnerDigest::read(builder);
         let quotient_commit = InnerDigest::read(builder);
-        ShardCommitmentVariable {
-            main_commit,
-            permutation_commit,
-            quotient_commit,
-        }
+        ShardCommitmentVariable { main_commit, permutation_commit, quotient_commit }
     }
 
     fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
@@ -436,12 +417,7 @@ impl<
         let pc_start = InnerVal::read(builder);
         let preprocessed_sorted_idxs = Vec::<usize>::read(builder);
         let prep_domains = Vec::<TwoAdicMultiplicativeCoset<InnerVal>>::read(builder);
-        VerifyingKeyVariable {
-            commitment,
-            pc_start,
-            preprocessed_sorted_idxs,
-            prep_domains,
-        }
+        VerifyingKeyVariable { commitment, pc_start, preprocessed_sorted_idxs, prep_domains }
     }
 
     fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
@@ -557,12 +533,7 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C> for SP1ReduceMemoryLayout<'a, Baby
         let kinds = Vec::<usize>::read(builder);
         let is_complete = builder.hint_var();
 
-        SP1ReduceMemoryLayoutVariable {
-            compress_vk,
-            shard_proofs,
-            kinds,
-            is_complete,
-        }
+        SP1ReduceMemoryLayoutVariable { compress_vk, shard_proofs, kinds, is_complete }
     }
 
     fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
@@ -665,11 +636,8 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
             .map(|proof| ShardProofHint::<BabyBearPoseidon2, A>::new(self.machine, proof))
             .collect::<Vec<_>>();
 
-        let committed_value_digest = self
-            .committed_value_digest
-            .iter()
-            .map(|w| w.0.to_vec())
-            .collect::<Vec<_>>();
+        let committed_value_digest =
+            self.committed_value_digest.iter().map(|w| w.0.to_vec()).collect::<Vec<_>>();
 
         stream.extend(compress_vk_hint.write());
         stream.extend(proof_hints.write());

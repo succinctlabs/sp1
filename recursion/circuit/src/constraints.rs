@@ -1,25 +1,23 @@
 use p3_air::Air;
 use p3_commit::LagrangeSelectors;
-use p3_field::AbstractExtensionField;
-use p3_field::AbstractField;
-use p3_field::TwoAdicField;
-use sp1_core::air::MachineAir;
-use sp1_core::stark::AirOpenedValues;
-use sp1_core::stark::PROOF_MAX_NUM_PVS;
-use sp1_core::stark::{MachineChip, StarkGenericConfig};
-use sp1_recursion_compiler::ir::Array;
-use sp1_recursion_compiler::ir::ExtensionOperand;
-use sp1_recursion_compiler::ir::Felt;
-use sp1_recursion_compiler::ir::{Builder, Config, Ext};
-use sp1_recursion_compiler::prelude::SymbolicExt;
+use p3_field::{AbstractExtensionField, AbstractField, TwoAdicField};
+use sp1_core::{
+    air::MachineAir,
+    stark::{AirOpenedValues, MachineChip, StarkGenericConfig, PROOF_MAX_NUM_PVS},
+};
+use sp1_recursion_compiler::{
+    ir::{Array, Builder, Config, Ext, ExtensionOperand, Felt},
+    prelude::SymbolicExt,
+};
 use sp1_recursion_program::commit::PolynomialSpaceVariable;
 
 use sp1_recursion_program::stark::RecursiveVerifierConstraintFolder;
 
-use crate::domain::TwoAdicMultiplicativeCosetVariable;
-use crate::stark::StarkVerifierCircuit;
-use crate::types::ChipOpenedValuesVariable;
-use crate::types::ChipOpening;
+use crate::{
+    domain::TwoAdicMultiplicativeCosetVariable,
+    stark::StarkVerifierCircuit,
+    types::{ChipOpenedValuesVariable, ChipOpening},
+};
 
 impl<C: Config, SC: StarkGenericConfig> StarkVerifierCircuit<C, SC>
 where
@@ -213,24 +211,15 @@ mod tests {
         <SC as sp1_core::stark::StarkGenericConfig>::Val:
             p3_field::extension::BinomiallyExtendable<4>,
     {
-        let ShardProof {
-            commitment,
-            opened_values,
-            ..
-        } = proof;
+        let ShardProof { commitment, opened_values, .. } = proof;
 
-        let ShardCommitment {
-            permutation_commit,
-            quotient_commit,
-            ..
-        } = commitment;
+        let ShardCommitment { permutation_commit, quotient_commit, .. } = commitment;
 
         // Extract verification metadata.
         let pcs = machine.config().pcs();
 
-        let permutation_challenges = (0..2)
-            .map(|_| challenger.sample_ext_element::<SC::Challenge>())
-            .collect::<Vec<_>>();
+        let permutation_challenges =
+            (0..2).map(|_| challenger.sample_ext_element::<SC::Challenge>()).collect::<Vec<_>>();
 
         challenger.observe(permutation_commit.clone());
 
@@ -241,20 +230,12 @@ mod tests {
 
         let zeta = challenger.sample_ext_element::<SC::Challenge>();
 
-        let chips = machine
-            .shard_chips_ordered(&proof.chip_ordering)
-            .collect::<Vec<_>>();
+        let chips = machine.shard_chips_ordered(&proof.chip_ordering).collect::<Vec<_>>();
 
-        let log_degrees = opened_values
-            .chips
-            .iter()
-            .map(|val| val.log_degree)
-            .collect::<Vec<_>>();
+        let log_degrees = opened_values.chips.iter().map(|val| val.log_degree).collect::<Vec<_>>();
 
-        let log_quotient_degrees = chips
-            .iter()
-            .map(|chip| chip.log_quotient_degree())
-            .collect::<Vec<_>>();
+        let log_quotient_degrees =
+            chips.iter().map(|chip| chip.log_quotient_degree()).collect::<Vec<_>>();
 
         let trace_domains = log_degrees
             .iter()
@@ -273,14 +254,7 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        (
-            chips,
-            trace_domains,
-            quotient_chunk_domains,
-            permutation_challenges,
-            alpha,
-            zeta,
-        )
+        (chips, trace_domains, quotient_chunk_domains, permutation_challenges, alpha, zeta)
     }
 
     #[test]
@@ -300,12 +274,7 @@ mod tests {
         let (pk, vk) = prover.setup(&program);
         let mut challenger = prover.config().challenger();
         let proof = prover
-            .prove(
-                &pk,
-                vec![runtime.record],
-                &mut challenger,
-                SP1CoreOpts::recursion(),
-            )
+            .prove(&pk, vec![runtime.record], &mut challenger, SP1CoreOpts::recursion())
             .unwrap();
 
         let mut challenger = prover.config().challenger();
@@ -338,11 +307,8 @@ mod tests {
                 let alpha = builder.eval(alpha_val.cons());
                 let zeta = builder.eval(zeta_val.cons());
                 let trace_domain = builder.constant(trace_domain_val);
-                let pv_felts = proof
-                    .public_values
-                    .iter()
-                    .map(|v| builder.constant(*v))
-                    .collect_vec();
+                let pv_felts =
+                    proof.public_values.iter().map(|v| builder.constant(*v)).collect_vec();
                 let public_values = builder.vec(pv_felts);
                 let qc_domains = qc_domains_vals
                     .iter()

@@ -1,5 +1,4 @@
-use core::fmt::Debug;
-use core::fmt::Display;
+use core::fmt::{Debug, Display};
 
 use p3_air::VirtualPairCol;
 use p3_field::Field;
@@ -61,11 +60,7 @@ impl<F: Field> Interaction<F> {
         multiplicity: VirtualPairCol<F>,
         kind: InteractionKind,
     ) -> Self {
-        Self {
-            values,
-            multiplicity,
-            kind,
-        }
+        Self { values, multiplicity, kind }
     }
 
     /// The index of the argument in the lookup table.
@@ -76,9 +71,7 @@ impl<F: Field> Interaction<F> {
 
 impl<F: Field> Debug for Interaction<F> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Interaction")
-            .field("kind", &self.kind)
-            .finish()
+        f.debug_struct("Interaction").field("kind", &self.kind).finish()
     }
 }
 

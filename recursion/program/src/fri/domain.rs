@@ -67,8 +67,8 @@ where
     ) -> LagrangeSelectors<Ext<<C as Config>::F, <C as Config>::EF>> {
         let unshifted_point: Ext<_, _> = builder.eval(point * self.shift.inverse());
         let z_h_expr = builder
-            .exp_power_of_2_v::<Ext<_, _>>(unshifted_point, Usize::Var(self.log_n))
-            - C::EF::one();
+            .exp_power_of_2_v::<Ext<_, _>>(unshifted_point, Usize::Var(self.log_n)) -
+            C::EF::one();
         let z_h: Ext<_, _> = builder.eval(z_h_expr);
 
         LagrangeSelectors {
@@ -168,8 +168,10 @@ pub(crate) mod tests {
     use super::*;
     use p3_commit::{Pcs, PolynomialSpace};
     use rand::{thread_rng, Rng};
-    use sp1_core::stark::Dom;
-    use sp1_core::{stark::StarkGenericConfig, utils::BabyBearPoseidon2};
+    use sp1_core::{
+        stark::{Dom, StarkGenericConfig},
+        utils::BabyBearPoseidon2,
+    };
 
     pub(crate) fn domain_assertions<F: TwoAdicField, C: Config<N = F, F = F>>(
         builder: &mut Builder<C>,
@@ -233,22 +235,12 @@ pub(crate) mod tests {
             let disjoint_domain_val =
                 domain_val.create_disjoint_domain(1 << (log_d_val + log_quotient_degree));
             let disjoint_domain = builder.constant(disjoint_domain_val);
-            domain_assertions(
-                &mut builder,
-                &disjoint_domain,
-                &disjoint_domain_val,
-                zeta_val,
-            );
+            domain_assertions(&mut builder, &disjoint_domain, &disjoint_domain_val, zeta_val);
 
             let log_degree: Usize<_> = builder.eval(Usize::Const(log_d_val) + log_quotient_degree);
             let disjoint_domain_gen =
                 domain.create_disjoint_domain(&mut builder, log_degree, Some(config_var.clone()));
-            domain_assertions(
-                &mut builder,
-                &disjoint_domain_gen,
-                &disjoint_domain_val,
-                zeta_val,
-            );
+            domain_assertions(&mut builder, &disjoint_domain_gen, &disjoint_domain_val, zeta_val);
 
             // Now try splited domains
             let qc_domains_val = disjoint_domain_val.split_domains(1 << log_quotient_degree);

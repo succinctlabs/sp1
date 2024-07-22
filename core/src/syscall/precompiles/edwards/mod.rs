@@ -4,8 +4,10 @@ mod ed_decompress;
 pub use ed_add::*;
 pub use ed_decompress::*;
 
-use crate::operations::field::params::{NumLimbs, NumWords};
-use crate::utils::ec::edwards::ed25519::Ed25519BaseField;
+use crate::{
+    operations::field::params::{NumLimbs, NumWords},
+    utils::ec::edwards::ed25519::Ed25519BaseField,
+};
 use typenum::Unsigned;
 
 pub(crate) type Limbs = <Ed25519BaseField as NumLimbs>::Limbs;

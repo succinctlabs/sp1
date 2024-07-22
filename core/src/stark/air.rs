@@ -1,41 +1,40 @@
 use super::StarkMachine;
 pub use crate::air::SP1AirBuilder;
-use crate::air::{MachineAir, SP1_PROOF_NUM_PV_ELTS};
-use crate::memory::{MemoryChipType, MemoryProgramChip};
-use crate::stark::Chip;
-use crate::StarkGenericConfig;
+use crate::{
+    air::{MachineAir, SP1_PROOF_NUM_PV_ELTS},
+    memory::{MemoryChipType, MemoryProgramChip},
+    stark::Chip,
+    StarkGenericConfig,
+};
 use p3_field::PrimeField32;
 pub use riscv_chips::*;
 use tracing::instrument;
 
 /// A module for importing all the different RISC-V chips.
 pub(crate) mod riscv_chips {
-    pub use crate::alu::AddSubChip;
-    pub use crate::alu::BitwiseChip;
-    pub use crate::alu::DivRemChip;
-    pub use crate::alu::LtChip;
-    pub use crate::alu::MulChip;
-    pub use crate::alu::ShiftLeft;
-    pub use crate::alu::ShiftRightChip;
-    pub use crate::bytes::ByteChip;
-    pub use crate::cpu::CpuChip;
-    pub use crate::memory::MemoryChip;
-    pub use crate::program::ProgramChip;
-    pub use crate::syscall::precompiles::edwards::EdAddAssignChip;
-    pub use crate::syscall::precompiles::edwards::EdDecompressChip;
-    pub use crate::syscall::precompiles::keccak256::KeccakPermuteChip;
-    pub use crate::syscall::precompiles::sha256::ShaCompressChip;
-    pub use crate::syscall::precompiles::sha256::ShaExtendChip;
-    pub use crate::syscall::precompiles::uint256::Uint256MulChip;
-    pub use crate::syscall::precompiles::weierstrass::WeierstrassAddAssignChip;
-    pub use crate::syscall::precompiles::weierstrass::WeierstrassDecompressChip;
-    pub use crate::syscall::precompiles::weierstrass::WeierstrassDoubleAssignChip;
-    pub use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
-    pub use crate::utils::ec::edwards::EdwardsCurve;
-    pub use crate::utils::ec::weierstrass::bls12_381::Bls12381Parameters;
-    pub use crate::utils::ec::weierstrass::bn254::Bn254Parameters;
-    pub use crate::utils::ec::weierstrass::secp256k1::Secp256k1Parameters;
-    pub use crate::utils::ec::weierstrass::SwCurve;
+    pub use crate::{
+        alu::{AddSubChip, BitwiseChip, DivRemChip, LtChip, MulChip, ShiftLeft, ShiftRightChip},
+        bytes::ByteChip,
+        cpu::CpuChip,
+        memory::MemoryChip,
+        program::ProgramChip,
+        syscall::precompiles::{
+            edwards::{EdAddAssignChip, EdDecompressChip},
+            keccak256::KeccakPermuteChip,
+            sha256::{ShaCompressChip, ShaExtendChip},
+            uint256::Uint256MulChip,
+            weierstrass::{
+                WeierstrassAddAssignChip, WeierstrassDecompressChip, WeierstrassDoubleAssignChip,
+            },
+        },
+        utils::ec::{
+            edwards::{ed25519::Ed25519Parameters, EdwardsCurve},
+            weierstrass::{
+                bls12_381::Bls12381Parameters, bn254::Bn254Parameters,
+                secp256k1::Secp256k1Parameters, SwCurve,
+            },
+        },
+    };
 }
 
 /// An AIR for encoding RISC-V execution.
@@ -104,10 +103,7 @@ pub enum RiscvAir<F: PrimeField32> {
 impl<F: PrimeField32> RiscvAir<F> {
     #[instrument("construct RiscvAir machine", level = "debug", skip_all)]
     pub fn machine<SC: StarkGenericConfig<Val = F>>(config: SC) -> StarkMachine<SC, Self> {
-        let chips = Self::get_all()
-            .into_iter()
-            .map(Chip::new)
-            .collect::<Vec<_>>();
+        let chips = Self::get_all().into_iter().map(Chip::new).collect::<Vec<_>>();
         StarkMachine::new(config, chips, SP1_PROOF_NUM_PV_ELTS)
     }
 

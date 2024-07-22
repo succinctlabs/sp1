@@ -1,8 +1,9 @@
-use std::collections::hash_map::Entry;
-use std::collections::HashMap;
-use std::fmt::{Display, Formatter, Result as FmtResult};
-use std::hash::Hash;
-use std::ops::{Add, AddAssign};
+use std::{
+    collections::{hash_map::Entry, HashMap},
+    fmt::{Display, Formatter, Result as FmtResult},
+    hash::Hash,
+    ops::{Add, AddAssign},
+};
 
 use super::*;
 
@@ -46,10 +47,7 @@ impl ExecutionReport {
             .map(|(label, ct)| (label.to_string().to_lowercase(), ct.to_string()))
             .collect::<Vec<_>>();
         // Calculate width for padding the counts.
-        let width = table_with_string_counts
-            .first()
-            .map(|(_, b)| b.len())
-            .unwrap_or_default();
+        let width = table_with_string_counts.first().map(|(_, b)| b.len()).unwrap_or_default();
         for (label, count) in table_with_string_counts {
             lines.push(format!("{count:>width$} {label}"));
         }
@@ -90,20 +88,12 @@ impl Add for ExecutionReport {
 
 impl Display for ExecutionReport {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        writeln!(
-            f,
-            "opcode counts ({} total instructions):",
-            self.total_instruction_count()
-        )?;
+        writeln!(f, "opcode counts ({} total instructions):", self.total_instruction_count())?;
         for line in Self::sorted_table_lines(&self.opcode_counts) {
             writeln!(f, "  {line}")?;
         }
 
-        writeln!(
-            f,
-            "syscall counts ({} total syscall instructions):",
-            self.total_syscall_count()
-        )?;
+        writeln!(f, "syscall counts ({} total syscall instructions):", self.total_syscall_count())?;
         for line in Self::sorted_table_lines(&self.syscall_counts) {
             writeln!(f, "  {line}")?;
         }

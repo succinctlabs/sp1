@@ -1108,10 +1108,8 @@ pub fn poseidon2_init(
     let mut round_constants = RC_16_30.to_vec();
     let internal_start = ROUNDS_F / 2;
     let internal_end = (ROUNDS_F / 2) + ROUNDS_P;
-    let internal_round_constants = round_constants
-        .drain(internal_start..internal_end)
-        .map(|vec| vec[0])
-        .collect::<Vec<_>>();
+    let internal_round_constants =
+        round_constants.drain(internal_start..internal_end).map(|vec| vec[0]).collect::<Vec<_>>();
     let external_round_constants = round_constants;
     Poseidon2::new(
         ROUNDS_F,

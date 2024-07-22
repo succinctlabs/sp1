@@ -1,27 +1,28 @@
-use std::collections::HashMap;
-use std::fmt;
-use std::sync::Arc;
+use std::{collections::HashMap, fmt, sync::Arc};
 
 use serde::{Deserialize, Serialize};
 use strum_macros::EnumIter;
 
-use crate::runtime::{Register, Runtime};
-use crate::syscall::precompiles::edwards::EdAddAssignChip;
-use crate::syscall::precompiles::edwards::EdDecompressChip;
-use crate::syscall::precompiles::keccak256::KeccakPermuteChip;
-use crate::syscall::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
-use crate::syscall::precompiles::uint256::Uint256MulChip;
-use crate::syscall::precompiles::weierstrass::WeierstrassAddAssignChip;
-use crate::syscall::precompiles::weierstrass::WeierstrassDecompressChip;
-use crate::syscall::precompiles::weierstrass::WeierstrassDoubleAssignChip;
-use crate::syscall::{
-    SyscallCommit, SyscallCommitDeferred, SyscallEnterUnconstrained, SyscallExitUnconstrained,
-    SyscallHalt, SyscallHintLen, SyscallHintRead, SyscallVerifySP1Proof, SyscallWrite,
+use crate::{
+    runtime::{ExecutionRecord, MemoryReadRecord, MemoryWriteRecord, Register, Runtime},
+    syscall::{
+        precompiles::{
+            edwards::{EdAddAssignChip, EdDecompressChip},
+            keccak256::KeccakPermuteChip,
+            sha256::{ShaCompressChip, ShaExtendChip},
+            uint256::Uint256MulChip,
+            weierstrass::{
+                WeierstrassAddAssignChip, WeierstrassDecompressChip, WeierstrassDoubleAssignChip,
+            },
+        },
+        SyscallCommit, SyscallCommitDeferred, SyscallEnterUnconstrained, SyscallExitUnconstrained,
+        SyscallHalt, SyscallHintLen, SyscallHintRead, SyscallVerifySP1Proof, SyscallWrite,
+    },
+    utils::ec::{
+        edwards::ed25519::{Ed25519, Ed25519Parameters},
+        weierstrass::{bls12_381::Bls12381, bn254::Bn254, secp256k1::Secp256k1},
+    },
 };
-use crate::utils::ec::edwards::ed25519::{Ed25519, Ed25519Parameters};
-use crate::utils::ec::weierstrass::bls12_381::Bls12381;
-use crate::utils::ec::weierstrass::{bn254::Bn254, secp256k1::Secp256k1};
-use crate::{runtime::ExecutionRecord, runtime::MemoryReadRecord, runtime::MemoryWriteRecord};
 
 /// A system call is invoked by the the `ecall` instruction with a specific value in register t0.
 /// The syscall number is a 32-bit integer, with the following layout (in litte-endian format)
@@ -157,9 +158,9 @@ impl fmt::Display for SyscallCode {
 pub trait Syscall: Send + Sync {
     /// Execute the syscall and return the resulting value of register a0. `arg1` and `arg2` are the
     /// values in registers X10 and X11, respectively. While not a hard requirement, the convention
-    /// is that the return value is only for system calls such as `HALT`. Most precompiles use `arg1`
-    /// and `arg2` to denote the addresses of the input data, and write the result to the memory at
-    /// `arg1`.
+    /// is that the return value is only for system calls such as `HALT`. Most precompiles use
+    /// `arg1` and `arg2` to denote the addresses of the input data, and write the result to the
+    /// memory at `arg1`.
     fn execute(&self, ctx: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32>;
 
     /// The number of extra cycles that the syscall takes to execute. Unless this syscall is complex
@@ -169,7 +170,8 @@ pub trait Syscall: Send + Sync {
     }
 }
 
-/// A runtime for syscalls that is protected so that developers cannot arbitrarily modify the runtime.
+/// A runtime for syscalls that is protected so that developers cannot arbitrarily modify the
+/// runtime.
 pub struct SyscallContext<'a, 'b: 'a> {
     current_shard: u32,
     pub clk: u32,
@@ -272,22 +274,12 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Arc<dyn Syscall>> {
     syscall_map.insert(SyscallCode::HALT, Arc::new(SyscallHalt {}));
     syscall_map.insert(SyscallCode::SHA_EXTEND, Arc::new(ShaExtendChip::new()));
     syscall_map.insert(SyscallCode::SHA_COMPRESS, Arc::new(ShaCompressChip::new()));
-    syscall_map.insert(
-        SyscallCode::ED_ADD,
-        Arc::new(EdAddAssignChip::<Ed25519>::new()),
-    );
-    syscall_map.insert(
-        SyscallCode::ED_DECOMPRESS,
-        Arc::new(EdDecompressChip::<Ed25519Parameters>::new()),
-    );
-    syscall_map.insert(
-        SyscallCode::KECCAK_PERMUTE,
-        Arc::new(KeccakPermuteChip::new()),
-    );
-    syscall_map.insert(
-        SyscallCode::SECP256K1_ADD,
-        Arc::new(WeierstrassAddAssignChip::<Secp256k1>::new()),
-    );
+    syscall_map.insert(SyscallCode::ED_ADD, Arc::new(EdAddAssignChip::<Ed25519>::new()));
+    syscall_map
+        .insert(SyscallCode::ED_DECOMPRESS, Arc::new(EdDecompressChip::<Ed25519Parameters>::new()));
+    syscall_map.insert(SyscallCode::KECCAK_PERMUTE, Arc::new(KeccakPermuteChip::new()));
+    syscall_map
+        .insert(SyscallCode::SECP256K1_ADD, Arc::new(WeierstrassAddAssignChip::<Secp256k1>::new()));
     syscall_map.insert(
         SyscallCode::SECP256K1_DOUBLE,
         Arc::new(WeierstrassDoubleAssignChip::<Secp256k1>::new()),
@@ -296,41 +288,23 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Arc<dyn Syscall>> {
         SyscallCode::SECP256K1_DECOMPRESS,
         Arc::new(WeierstrassDecompressChip::<Secp256k1>::with_lsb_rule()),
     );
-    syscall_map.insert(
-        SyscallCode::BN254_ADD,
-        Arc::new(WeierstrassAddAssignChip::<Bn254>::new()),
-    );
-    syscall_map.insert(
-        SyscallCode::BN254_DOUBLE,
-        Arc::new(WeierstrassDoubleAssignChip::<Bn254>::new()),
-    );
-    syscall_map.insert(
-        SyscallCode::BLS12381_ADD,
-        Arc::new(WeierstrassAddAssignChip::<Bls12381>::new()),
-    );
+    syscall_map.insert(SyscallCode::BN254_ADD, Arc::new(WeierstrassAddAssignChip::<Bn254>::new()));
+    syscall_map
+        .insert(SyscallCode::BN254_DOUBLE, Arc::new(WeierstrassDoubleAssignChip::<Bn254>::new()));
+    syscall_map
+        .insert(SyscallCode::BLS12381_ADD, Arc::new(WeierstrassAddAssignChip::<Bls12381>::new()));
     syscall_map.insert(
         SyscallCode::BLS12381_DOUBLE,
         Arc::new(WeierstrassDoubleAssignChip::<Bls12381>::new()),
     );
     syscall_map.insert(SyscallCode::UINT256_MUL, Arc::new(Uint256MulChip::new()));
-    syscall_map.insert(
-        SyscallCode::ENTER_UNCONSTRAINED,
-        Arc::new(SyscallEnterUnconstrained::new()),
-    );
-    syscall_map.insert(
-        SyscallCode::EXIT_UNCONSTRAINED,
-        Arc::new(SyscallExitUnconstrained::new()),
-    );
+    syscall_map
+        .insert(SyscallCode::ENTER_UNCONSTRAINED, Arc::new(SyscallEnterUnconstrained::new()));
+    syscall_map.insert(SyscallCode::EXIT_UNCONSTRAINED, Arc::new(SyscallExitUnconstrained::new()));
     syscall_map.insert(SyscallCode::WRITE, Arc::new(SyscallWrite::new()));
     syscall_map.insert(SyscallCode::COMMIT, Arc::new(SyscallCommit::new()));
-    syscall_map.insert(
-        SyscallCode::COMMIT_DEFERRED_PROOFS,
-        Arc::new(SyscallCommitDeferred::new()),
-    );
-    syscall_map.insert(
-        SyscallCode::VERIFY_SP1_PROOF,
-        Arc::new(SyscallVerifySP1Proof::new()),
-    );
+    syscall_map.insert(SyscallCode::COMMIT_DEFERRED_PROOFS, Arc::new(SyscallCommitDeferred::new()));
+    syscall_map.insert(SyscallCode::VERIFY_SP1_PROOF, Arc::new(SyscallVerifySP1Proof::new()));
     syscall_map.insert(SyscallCode::HINT_LEN, Arc::new(SyscallHintLen::new()));
     syscall_map.insert(SyscallCode::HINT_READ, Arc::new(SyscallHintRead::new()));
     syscall_map.insert(

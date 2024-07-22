@@ -4,8 +4,7 @@ use std::{
 };
 
 use p3_field::{AbstractField, ExtensionField, Field};
-use p3_matrix::dense::RowMajorMatrixView;
-use p3_matrix::stack::VerticalPair;
+use p3_matrix::{dense::RowMajorMatrixView, stack::VerticalPair};
 
 use super::{Challenge, PackedChallenge, PackedVal, StarkGenericConfig, Val};
 use crate::air::{EmptyMessageBuilder, MultiTableAirBuilder};

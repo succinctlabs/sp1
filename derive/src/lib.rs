@@ -26,13 +26,9 @@ extern crate proc_macro;
 
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::parse_macro_input;
-use syn::parse_quote;
-use syn::Data;
-use syn::DeriveInput;
-use syn::GenericParam;
-use syn::ItemFn;
-use syn::WherePredicate;
+use syn::{
+    parse_macro_input, parse_quote, Data, DeriveInput, GenericParam, ItemFn, WherePredicate,
+};
 
 #[proc_macro_derive(AlignedBorrow)]
 pub fn aligned_borrow_derive(input: TokenStream) -> TokenStream {
@@ -65,7 +61,8 @@ pub fn aligned_borrow_derive(input: TokenStream) -> TokenStream {
         })
         .collect::<Vec<_>>();
 
-    // Get impl generics (`<T, N: NumLimbs, const M: usize>`), type generics (`<T, N>`), where clause (`where T: Clone`)
+    // Get impl generics (`<T, N: NumLimbs, const M: usize>`), type generics (`<T, N>`), where
+    // clause (`where T: Clone`)
     let (impl_generics, type_generics, where_clause) = ast.generics.split_for_impl();
 
     let methods = quote! {
@@ -95,13 +92,7 @@ pub fn aligned_borrow_derive(input: TokenStream) -> TokenStream {
 
 #[proc_macro_derive(
     MachineAir,
-    attributes(
-        sp1_core_path,
-        execution_record_path,
-        program_path,
-        builder_path,
-        eval_trait_bound
-    )
+    attributes(sp1_core_path, execution_record_path, program_path, builder_path, eval_trait_bound)
 )]
 pub fn machine_air_derive(input: TokenStream) -> TokenStream {
     let ast: syn::DeriveInput = syn::parse(input).unwrap();
@@ -259,9 +250,7 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
             // Attach an extra generic AB : crate::air::SP1AirBuilder to the generics of the enum
             let generics = &ast.generics;
             let mut new_generics = generics.clone();
-            new_generics
-                .params
-                .push(syn::parse_quote! { AB: p3_air::PairBuilder + #builder_path });
+            new_generics.params.push(syn::parse_quote! { AB: p3_air::PairBuilder + #builder_path });
 
             let (air_impl_generics, _, _) = new_generics.split_for_impl();
 

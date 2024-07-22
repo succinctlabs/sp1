@@ -20,19 +20,13 @@ fn cargo_rerun_if_changed(metadata: &Metadata, program_dir: &Path) {
     ];
     for dir in dirs {
         if dir.exists() {
-            println!(
-                "cargo::rerun-if-changed={}",
-                dir.canonicalize().unwrap().display()
-            );
+            println!("cargo::rerun-if-changed={}", dir.canonicalize().unwrap().display());
         }
     }
 
     // Re-run the build script if the workspace root's Cargo.lock changes. If the program is its own
     // workspace, this will be the program's Cargo.lock.
-    println!(
-        "cargo:rerun-if-changed={}",
-        metadata.workspace_root.join("Cargo.lock").as_str()
-    );
+    println!("cargo:rerun-if-changed={}", metadata.workspace_root.join("Cargo.lock").as_str());
 
     // Re-run if any local dependency changes.
     for package in &metadata.packages {
@@ -50,8 +44,9 @@ fn execute_build_cmd(
     program_dir: &impl AsRef<std::path::Path>,
     args: Option<BuildArgs>,
 ) -> Result<std::process::ExitStatus, std::io::Error> {
-    // Check if RUSTC_WORKSPACE_WRAPPER is set to clippy-driver (i.e. if `cargo clippy` is the current
-    // compiler). If so, don't execute `cargo prove build` because it breaks rust-analyzer's `cargo clippy` feature.
+    // Check if RUSTC_WORKSPACE_WRAPPER is set to clippy-driver (i.e. if `cargo clippy` is the
+    // current compiler). If so, don't execute `cargo prove build` because it breaks
+    // rust-analyzer's `cargo clippy` feature.
     let is_clippy_driver = std::env::var("RUSTC_WORKSPACE_WRAPPER")
         .map(|val| val.contains("clippy-driver"))
         .unwrap_or(false);
@@ -64,10 +59,7 @@ fn execute_build_cmd(
     let path_output = if let Some(args) = args {
         sp1_build::build_program(&args, Some(program_dir.as_ref().to_path_buf()))
     } else {
-        sp1_build::build_program(
-            &BuildArgs::default(),
-            Some(program_dir.as_ref().to_path_buf()),
-        )
+        sp1_build::build_program(&BuildArgs::default(), Some(program_dir.as_ref().to_path_buf()))
     };
     if let Err(err) = path_output {
         panic!("Failed to build SP1 program: {}.", err);
@@ -78,8 +70,8 @@ fn execute_build_cmd(
 
 /// Builds the program if the program at the specified path, or one of its dependencies, changes.
 ///
-/// This function monitors the program and its dependencies for changes. If any changes are detected,
-/// it triggers a rebuild of the program.
+/// This function monitors the program and its dependencies for changes. If any changes are
+/// detected, it triggers a rebuild of the program.
 ///
 /// # Arguments
 ///
@@ -114,10 +106,7 @@ fn build_program_internal(path: &str, args: Option<BuildArgs>) {
     let mut metadata_cmd = cargo_metadata::MetadataCommand::new();
     let metadata = metadata_cmd.manifest_path(metadata_file).exec().unwrap();
     let root_package = metadata.root_package();
-    let root_package_name = root_package
-        .as_ref()
-        .map(|p| p.name.as_str())
-        .unwrap_or("Program");
+    let root_package_name = root_package.as_ref().map(|p| p.name.as_str()).unwrap_or("Program");
 
     // Skip the program build if the SP1_SKIP_PROGRAM_BUILD environment variable is set to true.
     let skip_program_build = std::env::var("SP1_SKIP_PROGRAM_BUILD")
@@ -137,9 +126,5 @@ fn build_program_internal(path: &str, args: Option<BuildArgs>) {
 
     let _ = execute_build_cmd(&program_dir, args);
 
-    println!(
-        "cargo:warning={} built at {}",
-        root_package_name,
-        current_datetime()
-    );
+    println!("cargo:warning={} built at {}", root_package_name, current_datetime());
 }

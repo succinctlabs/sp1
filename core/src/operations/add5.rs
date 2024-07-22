@@ -1,12 +1,11 @@
 use p3_air::AirBuilder;
-use p3_field::AbstractField;
-use p3_field::Field;
+use p3_field::{AbstractField, Field};
 use sp1_derive::AlignedBorrow;
 
-use crate::air::SP1AirBuilder;
-use crate::air::Word;
-use crate::air::WORD_SIZE;
-use crate::bytes::event::ByteRecord;
+use crate::{
+    air::{SP1AirBuilder, Word, WORD_SIZE},
+    bytes::event::ByteRecord,
+};
 
 /// A set of columns needed to compute the sum of five words.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
@@ -47,11 +46,8 @@ impl<F: Field> Add5Operation<F> {
         d_u32: u32,
         e_u32: u32,
     ) -> u32 {
-        let expected = a_u32
-            .wrapping_add(b_u32)
-            .wrapping_add(c_u32)
-            .wrapping_add(d_u32)
-            .wrapping_add(e_u32);
+        let expected =
+            a_u32.wrapping_add(b_u32).wrapping_add(c_u32).wrapping_add(d_u32).wrapping_add(e_u32);
 
         self.value = Word::from(expected);
         let a = a_u32.to_le_bytes();
@@ -119,11 +115,11 @@ impl<F: Field> Add5Operation<F> {
                 builder_is_real.assert_bool(cols.is_carry_3[i]);
                 builder_is_real.assert_bool(cols.is_carry_4[i]);
                 builder_is_real.assert_eq(
-                    cols.is_carry_0[i]
-                        + cols.is_carry_1[i]
-                        + cols.is_carry_2[i]
-                        + cols.is_carry_3[i]
-                        + cols.is_carry_4[i],
+                    cols.is_carry_0[i] +
+                        cols.is_carry_1[i] +
+                        cols.is_carry_2[i] +
+                        cols.is_carry_3[i] +
+                        cols.is_carry_4[i],
                     AB::Expr::one(),
                 );
             }
@@ -139,10 +135,10 @@ impl<F: Field> Add5Operation<F> {
             for i in 0..WORD_SIZE {
                 builder_is_real.assert_eq(
                     cols.carry[i],
-                    cols.is_carry_1[i] * one.clone()
-                        + cols.is_carry_2[i] * two
-                        + cols.is_carry_3[i] * three
-                        + cols.is_carry_4[i] * four,
+                    cols.is_carry_1[i] * one.clone() +
+                        cols.is_carry_2[i] * two +
+                        cols.is_carry_3[i] * three +
+                        cols.is_carry_4[i] * four,
                 );
             }
         }

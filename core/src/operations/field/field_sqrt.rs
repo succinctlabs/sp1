@@ -5,13 +5,16 @@ use p3_air::AirBuilder;
 use p3_field::PrimeField32;
 use sp1_derive::AlignedBorrow;
 
-use super::field_op::FieldOpCols;
-use super::params::{limbs_from_vec, Limbs};
-use super::range::FieldLtCols;
-use crate::air::SP1AirBuilder;
-use crate::bytes::event::ByteRecord;
-use crate::bytes::{ByteLookupEvent, ByteOpcode};
-use crate::operations::field::params::FieldParameters;
+use super::{
+    field_op::FieldOpCols,
+    params::{limbs_from_vec, Limbs},
+    range::FieldLtCols,
+};
+use crate::{
+    air::SP1AirBuilder,
+    bytes::{event::ByteRecord, ByteLookupEvent, ByteOpcode},
+    operations::field::params::FieldParameters,
+};
 use p3_field::AbstractField;
 
 /// A set of columns to compute the square root in emulated arithmetic.
@@ -62,8 +65,8 @@ impl<F: PrimeField32, P: FieldParameters> FieldSqrtCols<F, P> {
         // If the result is indeed the square root of a, then result * result = a.
         assert_eq!(sqrt_squared, a.clone());
 
-        // This is a hack to save a column in FieldSqrtCols. We will receive the value a again in the
-        // eval function, so we'll overwrite it with the sqrt.
+        // This is a hack to save a column in FieldSqrtCols. We will receive the value a again in
+        // the eval function, so we'll overwrite it with the sqrt.
         self.multiplication.result = P::to_limbs_field::<F, _>(&sqrt);
 
         // Populate the range columns.
@@ -179,22 +182,27 @@ mod tests {
 
     use crate::air::MachineAir;
 
-    use crate::bytes::event::ByteRecord;
-    use crate::operations::field::params::FieldParameters;
-    use crate::runtime::Program;
-    use crate::stark::StarkGenericConfig;
-    use crate::utils::ec::edwards::ed25519::{ed25519_sqrt, Ed25519BaseField};
-    use crate::utils::{pad_to_power_of_two, BabyBearPoseidon2};
-    use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
-    use crate::{air::SP1AirBuilder, runtime::ExecutionRecord};
-    use core::borrow::{Borrow, BorrowMut};
-    use core::mem::size_of;
+    use crate::{
+        air::SP1AirBuilder,
+        bytes::event::ByteRecord,
+        operations::field::params::FieldParameters,
+        runtime::{ExecutionRecord, Program},
+        stark::StarkGenericConfig,
+        utils::{
+            ec::edwards::ed25519::{ed25519_sqrt, Ed25519BaseField},
+            pad_to_power_of_two, uni_stark_prove as prove, uni_stark_verify as verify,
+            BabyBearPoseidon2,
+        },
+    };
+    use core::{
+        borrow::{Borrow, BorrowMut},
+        mem::size_of,
+    };
     use num::bigint::RandBigInt;
     use p3_air::Air;
     use p3_baby_bear::BabyBear;
     use p3_field::AbstractField;
-    use p3_matrix::dense::RowMajorMatrix;
-    use p3_matrix::Matrix;
+    use p3_matrix::{dense::RowMajorMatrix, Matrix};
     use rand::thread_rng;
     use sp1_derive::AlignedBorrow;
 
@@ -212,9 +220,7 @@ mod tests {
 
     impl<P: FieldParameters> EdSqrtChip<P> {
         pub const fn new() -> Self {
-            Self {
-                _phantom: std::marker::PhantomData,
-            }
+            Self { _phantom: std::marker::PhantomData }
         }
     }
 
@@ -260,10 +266,8 @@ mod tests {
                 })
                 .collect::<Vec<_>>();
             // Convert the trace to a row major matrix.
-            let mut trace = RowMajorMatrix::new(
-                rows.into_iter().flatten().collect::<Vec<_>>(),
-                NUM_TEST_COLS,
-            );
+            let mut trace =
+                RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_TEST_COLS);
 
             // Pad the trace to a power of two.
             pad_to_power_of_two::<NUM_TEST_COLS, F>(&mut trace.values);

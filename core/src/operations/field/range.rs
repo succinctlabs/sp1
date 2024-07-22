@@ -4,20 +4,17 @@ use std::fmt::Debug;
 use num::BigUint;
 
 use p3_air::AirBuilder;
-use p3_field::AbstractField;
-use p3_field::PrimeField32;
+use p3_field::{AbstractField, PrimeField32};
 
 use sp1_derive::AlignedBorrow;
 
-use crate::air::BaseAirBuilder;
 use crate::{
-    air::Polynomial,
+    air::{BaseAirBuilder, Polynomial},
     bytes::{event::ByteRecord, ByteLookupEvent, ByteOpcode},
     stark::SP1AirBuilder,
 };
 
-use super::params::FieldParameters;
-use super::params::Limbs;
+use super::params::{FieldParameters, Limbs};
 
 /// Operation columns for verifying that `lhs < rhs`.
 #[derive(Debug, Clone, AlignedBorrow)]
@@ -47,11 +44,9 @@ impl<F: PrimeField32, P: FieldParameters> FieldLtCols<F, P> {
 
         let mut byte_flags = vec![0u8; P::NB_LIMBS];
 
-        for (byte, modulus_byte, flag) in izip!(
-            value_limbs.iter().rev(),
-            modulus.iter().rev(),
-            byte_flags.iter_mut().rev()
-        ) {
+        for (byte, modulus_byte, flag) in
+            izip!(value_limbs.iter().rev(), modulus.iter().rev(), byte_flags.iter_mut().rev())
+        {
             assert!(byte <= modulus_byte);
             if byte < modulus_byte {
                 *flag = 1;
@@ -143,12 +138,8 @@ impl<V: Copy, P: FieldParameters> FieldLtCols<V, P> {
                 .assert_eq(lhs_byte.clone(), rhs_byte.clone());
         }
 
-        builder
-            .when(is_real.clone())
-            .assert_eq(self.lhs_comparison_byte, lhs_comparison_byte);
-        builder
-            .when(is_real.clone())
-            .assert_eq(self.rhs_comparison_byte, rhs_comparison_byte);
+        builder.when(is_real.clone()).assert_eq(self.lhs_comparison_byte, lhs_comparison_byte);
+        builder.when(is_real.clone()).assert_eq(self.rhs_comparison_byte, rhs_comparison_byte);
 
         // Send the comparison interaction.
         builder.send_byte(

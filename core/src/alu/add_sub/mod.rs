@@ -1,23 +1,23 @@
-use core::borrow::{Borrow, BorrowMut};
-use core::mem::size_of;
+use core::{
+    borrow::{Borrow, BorrowMut},
+    mem::size_of,
+};
 
 use hashbrown::HashMap;
 use itertools::Itertools;
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField};
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
-use p3_maybe_rayon::prelude::ParallelSlice;
-use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
+use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator, ParallelSlice};
 use sp1_derive::AlignedBorrow;
 
-use crate::air::MachineAir;
-use crate::air::{SP1AirBuilder, Word};
-use crate::bytes::event::ByteRecord;
-use crate::bytes::ByteLookupEvent;
-use crate::operations::AddOperation;
-use crate::runtime::{ExecutionRecord, Opcode, Program};
-use crate::utils::pad_to_power_of_two;
+use crate::{
+    air::{MachineAir, SP1AirBuilder, Word},
+    bytes::{event::ByteRecord, ByteLookupEvent},
+    operations::AddOperation,
+    runtime::{ExecutionRecord, Opcode, Program},
+    utils::pad_to_power_of_two,
+};
 
 use super::AluEvent;
 
@@ -78,15 +78,10 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
         _: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
         // Generate the rows for the trace.
-        let chunk_size = std::cmp::max(
-            (input.add_events.len() + input.sub_events.len()) / num_cpus::get(),
-            1,
-        );
-        let merged_events = input
-            .add_events
-            .iter()
-            .chain(input.sub_events.iter())
-            .collect::<Vec<_>>();
+        let chunk_size =
+            std::cmp::max((input.add_events.len() + input.sub_events.len()) / num_cpus::get(), 1);
+        let merged_events =
+            input.add_events.iter().chain(input.sub_events.iter()).collect::<Vec<_>>();
 
         let row_batches = merged_events
             .par_chunks(chunk_size)
@@ -111,10 +106,8 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
         }
 
         // Convert the trace to a row major matrix.
-        let mut trace = RowMajorMatrix::new(
-            rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_ADD_SUB_COLS,
-        );
+        let mut trace =
+            RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_ADD_SUB_COLS);
 
         // Pad the trace to a power of two.
         pad_to_power_of_two::<NUM_ADD_SUB_COLS, F>(&mut trace.values);
@@ -130,15 +123,11 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
     }
 
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
-        let chunk_size = std::cmp::max(
-            (input.add_events.len() + input.sub_events.len()) / num_cpus::get(),
-            1,
-        );
+        let chunk_size =
+            std::cmp::max((input.add_events.len() + input.sub_events.len()) / num_cpus::get(), 1);
 
-        let event_iter = input
-            .add_events
-            .chunks(chunk_size)
-            .chain(input.sub_events.chunks(chunk_size));
+        let event_iter =
+            input.add_events.chunks(chunk_size).chain(input.sub_events.chunks(chunk_size));
 
         let blu_batches = event_iter
             .par_bridge()
@@ -178,8 +167,7 @@ impl AddSubChip {
         let operand_1 = if is_add { event.b } else { event.a };
         let operand_2 = event.c;
 
-        cols.add_operation
-            .populate(blu, event.shard, event.channel, operand_1, operand_2);
+        cols.add_operation.populate(blu, event.shard, event.channel, operand_1, operand_2);
         cols.operand_1 = Word::from(operand_1);
         cols.operand_2 = Word::from(operand_2);
     }
@@ -204,9 +192,7 @@ where
 
         // Constrain the incrementing nonce.
         builder.when_first_row().assert_zero(local.nonce);
-        builder
-            .when_transition()
-            .assert_eq(local.nonce + AB::Expr::one(), next.nonce);
+        builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         // Evaluate the addition operation.
         AddOperation::<AB::F>::eval(

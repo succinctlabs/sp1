@@ -53,14 +53,12 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                 .when(local_opcode_workspace.absorb().is_first_hash_row)
                 .assert_all_zero(local_opcode_workspace.absorb().previous_state);
 
-            // Check that the state is equal to the permutation output when the permutation is applied.
+            // Check that the state is equal to the permutation output when the permutation is
+            // applied.
             builder
                 .when(control_flow.is_absorb)
                 .when(local_opcode_workspace.absorb().do_perm::<AB>())
-                .assert_all_eq(
-                    local_opcode_workspace.absorb().state,
-                    *permutation.perm_output(),
-                );
+                .assert_all_eq(local_opcode_workspace.absorb().state, *permutation.perm_output());
 
             // Construct the input into the permutation.
             let input: [AB::Expr; WIDTH] = array::from_fn(|i| {
@@ -75,33 +73,30 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                 }
             });
 
-            // Check that the state is equal the the permutation input when the permutation is not applied.
+            // Check that the state is equal the the permutation input when the permutation is not
+            // applied.
             builder
                 .when(control_flow.is_absorb_no_perm)
                 .assert_all_eq(local_opcode_workspace.absorb().state, input);
 
             // Check that the state is copied to the next row.
-            builder
-                .when_transition()
-                .when(control_flow.is_absorb)
-                .assert_all_eq(
-                    local_opcode_workspace.absorb().state,
-                    next_opcode_workspace.absorb().previous_state,
-                );
+            builder.when_transition().when(control_flow.is_absorb).assert_all_eq(
+                local_opcode_workspace.absorb().state,
+                next_opcode_workspace.absorb().previous_state,
+            );
         }
 
         // Finalize rows.
         {
-            // Check that the state is equal to the permutation output when the permutation is applied.
+            // Check that the state is equal to the permutation output when the permutation is
+            // applied.
             builder
                 .when(control_flow.is_finalize)
                 .when(local_opcode_workspace.finalize().do_perm::<AB>())
-                .assert_all_eq(
-                    local_opcode_workspace.finalize().state,
-                    *permutation.perm_output(),
-                );
+                .assert_all_eq(local_opcode_workspace.finalize().state, *permutation.perm_output());
 
-            // Check that the state is equal to the previous state when the permutation is not applied.
+            // Check that the state is equal to the previous state when the permutation is not
+            // applied.
             builder
                 .when(control_flow.is_finalize)
                 .when_not(local_opcode_workspace.finalize().do_perm::<AB>())

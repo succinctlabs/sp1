@@ -1,13 +1,12 @@
 use itertools::izip;
 
 use p3_air::AirBuilder;
-use p3_field::AbstractField;
-use p3_field::PrimeField32;
+use p3_field::{AbstractField, PrimeField32};
 
 use sp1_derive::AlignedBorrow;
 
-use crate::air::BaseAirBuilder;
 use crate::{
+    air::BaseAirBuilder,
     bytes::{event::ByteRecord, ByteLookupEvent, ByteOpcode},
     stark::SP1AirBuilder,
 };
@@ -127,12 +126,8 @@ impl<V: Copy, const N: usize> AssertLtColsBytes<V, N> {
                 .assert_eq(a_byte.clone(), b_byte.clone());
         }
 
-        builder
-            .when(is_real.clone())
-            .assert_eq(self.a_comparison_byte, first_lt_byte);
-        builder
-            .when(is_real.clone())
-            .assert_eq(self.b_comparison_byte, b_comparison_byte);
+        builder.when(is_real.clone()).assert_eq(self.a_comparison_byte, first_lt_byte);
+        builder.when(is_real.clone()).assert_eq(self.b_comparison_byte, b_comparison_byte);
 
         // Send the comparison interaction.
         builder.send_byte(
@@ -241,11 +236,7 @@ impl<V: Copy, const N: usize> AssertLtColsBits<V, N> {
                 .assert_eq(a_bit.clone(), b_bit.clone());
         }
 
-        builder
-            .when(is_real.clone())
-            .assert_eq(a_comparison_bit, AB::F::zero());
-        builder
-            .when(is_real.clone())
-            .assert_eq(b_comparison_bit, AB::F::one());
+        builder.when(is_real.clone()).assert_eq(a_comparison_bit, AB::F::zero());
+        builder.when(is_real.clone()).assert_eq(b_comparison_bit, AB::F::one());
     }
 }

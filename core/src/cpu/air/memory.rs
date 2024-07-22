@@ -1,12 +1,16 @@
 use p3_air::AirBuilder;
 use p3_field::AbstractField;
 
-use crate::air::{BaseAirBuilder, SP1AirBuilder, Word, WordAirBuilder};
-use crate::cpu::columns::{CpuCols, MemoryColumns, OpcodeSelectorCols};
-use crate::cpu::CpuChip;
-use crate::memory::MemoryCols;
-use crate::operations::BabyBearWordRangeChecker;
-use crate::runtime::{MemoryAccessPosition, Opcode};
+use crate::{
+    air::{BaseAirBuilder, SP1AirBuilder, Word, WordAirBuilder},
+    cpu::{
+        columns::{CpuCols, MemoryColumns, OpcodeSelectorCols},
+        CpuChip,
+    },
+    memory::MemoryCols,
+    operations::BabyBearWordRangeChecker,
+    runtime::{MemoryAccessPosition, Opcode},
+};
 
 impl CpuChip {
     /// Computes whether the opcode is a memory instruction.
@@ -14,14 +18,14 @@ impl CpuChip {
         &self,
         opcode_selectors: &OpcodeSelectorCols<AB::Var>,
     ) -> AB::Expr {
-        opcode_selectors.is_lb
-            + opcode_selectors.is_lbu
-            + opcode_selectors.is_lh
-            + opcode_selectors.is_lhu
-            + opcode_selectors.is_lw
-            + opcode_selectors.is_sb
-            + opcode_selectors.is_sh
-            + opcode_selectors.is_sw
+        opcode_selectors.is_lb +
+            opcode_selectors.is_lbu +
+            opcode_selectors.is_lh +
+            opcode_selectors.is_lhu +
+            opcode_selectors.is_lw +
+            opcode_selectors.is_sb +
+            opcode_selectors.is_sh +
+            opcode_selectors.is_sw
     }
 
     /// Computes whether the opcode is a load instruction.
@@ -29,11 +33,11 @@ impl CpuChip {
         &self,
         opcode_selectors: &OpcodeSelectorCols<AB::Var>,
     ) -> AB::Expr {
-        opcode_selectors.is_lb
-            + opcode_selectors.is_lbu
-            + opcode_selectors.is_lh
-            + opcode_selectors.is_lhu
-            + opcode_selectors.is_lw
+        opcode_selectors.is_lb +
+            opcode_selectors.is_lbu +
+            opcode_selectors.is_lh +
+            opcode_selectors.is_lhu +
+            opcode_selectors.is_lw
     }
 
     /// Computes whether the opcode is a store instruction.
@@ -49,7 +53,8 @@ impl CpuChip {
     /// This method will do the following:
     /// 1. Calculate that the unaligned address is correctly computed to be op_b.value + op_c.value.
     /// 2. Calculate that the address offset is address % 4.
-    /// 3. Assert the validity of the aligned address given the address offset and the unaligned address.
+    /// 3. Assert the validity of the aligned address given the address offset and the unaligned
+    ///    address.
     pub(crate) fn eval_memory_address_and_access<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
@@ -91,12 +96,10 @@ impl CpuChip {
         self.eval_offset_value_flags(builder, memory_columns, local);
 
         // Assert that reduce(addr_word) == addr_aligned + addr_offset.
-        builder
-            .when(is_memory_instruction.clone())
-            .assert_eq::<AB::Expr, AB::Expr>(
-                memory_columns.addr_aligned + memory_columns.addr_offset,
-                memory_columns.addr_word.reduce::<AB>(),
-            );
+        builder.when(is_memory_instruction.clone()).assert_eq::<AB::Expr, AB::Expr>(
+            memory_columns.addr_aligned + memory_columns.addr_offset,
+            memory_columns.addr_word.reduce::<AB>(),
+        );
 
         // Verify that the least significant byte of addr_word - addr_offset is divisible by 4.
         let offset = [
@@ -110,18 +113,12 @@ impl CpuChip {
             acc + AB::Expr::from_canonical_usize(index + 1) * value
         });
         let mut recomposed_byte = AB::Expr::zero();
-        memory_columns
-            .aa_least_sig_byte_decomp
-            .iter()
-            .enumerate()
-            .for_each(|(i, value)| {
-                builder
-                    .when(is_memory_instruction.clone())
-                    .assert_bool(*value);
+        memory_columns.aa_least_sig_byte_decomp.iter().enumerate().for_each(|(i, value)| {
+            builder.when(is_memory_instruction.clone()).assert_bool(*value);
 
-                recomposed_byte =
-                    recomposed_byte.clone() + AB::Expr::from_canonical_usize(1 << (i + 2)) * *value;
-            });
+            recomposed_byte =
+                recomposed_byte.clone() + AB::Expr::from_canonical_usize(1 << (i + 2)) * *value;
+        });
 
         builder
             .when(is_memory_instruction.clone())
@@ -139,12 +136,10 @@ impl CpuChip {
         );
 
         // On memory load instructions, make sure that the memory value is not changed.
-        builder
-            .when(self.is_load_instruction::<AB>(&local.selectors))
-            .assert_word_eq(
-                *memory_columns.memory_access.value(),
-                *memory_columns.memory_access.prev_value(),
-            );
+        builder.when(self.is_load_instruction::<AB>(&local.selectors)).assert_word_eq(
+            *memory_columns.memory_access.value(),
+            *memory_columns.memory_access.prev_value(),
+        );
     }
 
     /// Evaluates constraints related to loading from memory.
@@ -170,8 +165,8 @@ impl CpuChip {
         // matches the value of `local.mem_value_is_neg`.
         builder.assert_eq(
             local.mem_value_is_neg,
-            (local.selectors.is_lb + local.selectors.is_lh)
-                * memory_columns.most_sig_byte_decomp[7],
+            (local.selectors.is_lb + local.selectors.is_lh) *
+                memory_columns.most_sig_byte_decomp[7],
         );
 
         // When the memory value is negative, use the SUB opcode to compute the signed value of
@@ -212,11 +207,12 @@ impl CpuChip {
         // Get the memory offset flags.
         self.eval_offset_value_flags(builder, memory_columns, local);
         // Compute the offset_is_zero flag.  The other offset flags are already contrained by the
-        // method `eval_memory_address_and_access`, which is called in `eval_memory_address_and_access`.
-        let offset_is_zero = AB::Expr::one()
-            - memory_columns.offset_is_one
-            - memory_columns.offset_is_two
-            - memory_columns.offset_is_three;
+        // method `eval_memory_address_and_access`, which is called in
+        // `eval_memory_address_and_access`.
+        let offset_is_zero = AB::Expr::one() -
+            memory_columns.offset_is_one -
+            memory_columns.offset_is_two -
+            memory_columns.offset_is_three;
 
         // Compute the expected stored value for a SB instruction.
         let one = AB::Expr::one();
@@ -224,14 +220,14 @@ impl CpuChip {
         let mem_val = *memory_columns.memory_access.value();
         let prev_mem_val = *memory_columns.memory_access.prev_value();
         let sb_expected_stored_value = Word([
-            a_val[0] * offset_is_zero.clone()
-                + (one.clone() - offset_is_zero.clone()) * prev_mem_val[0],
-            a_val[0] * memory_columns.offset_is_one
-                + (one.clone() - memory_columns.offset_is_one) * prev_mem_val[1],
-            a_val[0] * memory_columns.offset_is_two
-                + (one.clone() - memory_columns.offset_is_two) * prev_mem_val[2],
-            a_val[0] * memory_columns.offset_is_three
-                + (one.clone() - memory_columns.offset_is_three) * prev_mem_val[3],
+            a_val[0] * offset_is_zero.clone() +
+                (one.clone() - offset_is_zero.clone()) * prev_mem_val[0],
+            a_val[0] * memory_columns.offset_is_one +
+                (one.clone() - memory_columns.offset_is_one) * prev_mem_val[1],
+            a_val[0] * memory_columns.offset_is_two +
+                (one.clone() - memory_columns.offset_is_two) * prev_mem_val[2],
+            a_val[0] * memory_columns.offset_is_three +
+                (one.clone() - memory_columns.offset_is_three) * prev_mem_val[3],
         ]);
         builder
             .when(local.selectors.is_sb)
@@ -243,16 +239,14 @@ impl CpuChip {
             .assert_zero(memory_columns.offset_is_one + memory_columns.offset_is_three);
 
         // When the instruction is SW, ensure that the offset is 0.
-        builder
-            .when(local.selectors.is_sw)
-            .assert_one(offset_is_zero.clone());
+        builder.when(local.selectors.is_sw).assert_one(offset_is_zero.clone());
 
         // Compute the expected stored value for a SH instruction.
         let a_is_lower_half = offset_is_zero;
         let a_is_upper_half = memory_columns.offset_is_two;
         let sh_expected_stored_value = Word([
-            a_val[0] * a_is_lower_half.clone()
-                + (one.clone() - a_is_lower_half.clone()) * prev_mem_val[0],
+            a_val[0] * a_is_lower_half.clone() +
+                (one.clone() - a_is_lower_half.clone()) * prev_mem_val[0],
             a_val[1] * a_is_lower_half.clone() + (one.clone() - a_is_lower_half) * prev_mem_val[1],
             a_val[0] * a_is_upper_half + (one.clone() - a_is_upper_half) * prev_mem_val[2],
             a_val[1] * a_is_upper_half + (one.clone() - a_is_upper_half) * prev_mem_val[3],
@@ -267,7 +261,8 @@ impl CpuChip {
             .assert_word_eq(mem_val.map(|x| x.into()), a_val.map(|x| x.into()));
     }
 
-    /// This function is used to evaluate the unsigned memory value for the load memory instructions.
+    /// This function is used to evaluate the unsigned memory value for the load memory
+    /// instructions.
     pub(crate) fn eval_unsigned_mem_value<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
@@ -277,17 +272,18 @@ impl CpuChip {
         let mem_val = *memory_columns.memory_access.value();
 
         // Compute the offset_is_zero flag.  The other offset flags are already contrained by the
-        // method `eval_memory_address_and_access`, which is called in `eval_memory_address_and_access`.
-        let offset_is_zero = AB::Expr::one()
-            - memory_columns.offset_is_one
-            - memory_columns.offset_is_two
-            - memory_columns.offset_is_three;
+        // method `eval_memory_address_and_access`, which is called in
+        // `eval_memory_address_and_access`.
+        let offset_is_zero = AB::Expr::one() -
+            memory_columns.offset_is_one -
+            memory_columns.offset_is_two -
+            memory_columns.offset_is_three;
 
         // Compute the byte value.
-        let mem_byte = mem_val[0] * offset_is_zero.clone()
-            + mem_val[1] * memory_columns.offset_is_one
-            + mem_val[2] * memory_columns.offset_is_two
-            + mem_val[3] * memory_columns.offset_is_three;
+        let mem_byte = mem_val[0] * offset_is_zero.clone() +
+            mem_val[1] * memory_columns.offset_is_one +
+            mem_val[2] * memory_columns.offset_is_two +
+            mem_val[3] * memory_columns.offset_is_three;
         let byte_value = Word::extend_expr::<AB>(mem_byte.clone());
 
         // When the instruciton is LB or LBU, just use the lower byte.
@@ -301,9 +297,7 @@ impl CpuChip {
             .assert_zero(memory_columns.offset_is_one + memory_columns.offset_is_three);
 
         // When the instruction is LW, ensure that the offset is zero.
-        builder
-            .when(local.selectors.is_lw)
-            .assert_one(offset_is_zero.clone());
+        builder.when(local.selectors.is_lw).assert_one(offset_is_zero.clone());
 
         let use_lower_half = offset_is_zero;
         let use_upper_half = memory_columns.offset_is_two;
@@ -318,9 +312,7 @@ impl CpuChip {
             .assert_word_eq(half_value, local.unsigned_mem_val.map(|x| x.into()));
 
         // When the instruction is LW, just use the word.
-        builder
-            .when(local.selectors.is_lw)
-            .assert_word_eq(mem_val, local.unsigned_mem_val);
+        builder.when(local.selectors.is_lw).assert_word_eq(mem_val, local.unsigned_mem_val);
     }
 
     /// Evaluates the decomposition of the most significant byte of the memory value.
@@ -334,18 +326,12 @@ impl CpuChip {
         let is_mem = self.is_memory_instruction::<AB>(&local.selectors);
         let mut recomposed_byte = AB::Expr::zero();
         for i in 0..8 {
-            builder
-                .when(is_mem.clone())
-                .assert_bool(memory_columns.most_sig_byte_decomp[i]);
+            builder.when(is_mem.clone()).assert_bool(memory_columns.most_sig_byte_decomp[i]);
             recomposed_byte +=
                 memory_columns.most_sig_byte_decomp[i] * AB::Expr::from_canonical_u8(1 << i);
         }
-        builder
-            .when(local.selectors.is_lb)
-            .assert_eq(recomposed_byte.clone(), unsigned_mem_val[0]);
-        builder
-            .when(local.selectors.is_lh)
-            .assert_eq(recomposed_byte, unsigned_mem_val[1]);
+        builder.when(local.selectors.is_lb).assert_eq(recomposed_byte.clone(), unsigned_mem_val[0]);
+        builder.when(local.selectors.is_lh).assert_eq(recomposed_byte, unsigned_mem_val[1]);
     }
 
     /// Evaluates the offset value flags.
@@ -356,10 +342,10 @@ impl CpuChip {
         local: &CpuCols<AB::Var>,
     ) {
         let is_mem_op = self.is_memory_instruction::<AB>(&local.selectors);
-        let offset_is_zero = AB::Expr::one()
-            - memory_columns.offset_is_one
-            - memory_columns.offset_is_two
-            - memory_columns.offset_is_three;
+        let offset_is_zero = AB::Expr::one() -
+            memory_columns.offset_is_one -
+            memory_columns.offset_is_two -
+            memory_columns.offset_is_three;
 
         let mut filtered_builder = builder.when(is_mem_op);
 
@@ -370,19 +356,15 @@ impl CpuChip {
 
         // Assert that only one of the value flags is true
         filtered_builder.assert_one(
-            offset_is_zero.clone()
-                + memory_columns.offset_is_one
-                + memory_columns.offset_is_two
-                + memory_columns.offset_is_three,
+            offset_is_zero.clone() +
+                memory_columns.offset_is_one +
+                memory_columns.offset_is_two +
+                memory_columns.offset_is_three,
         );
 
         // Assert that the correct value flag is set
-        filtered_builder
-            .when(offset_is_zero)
-            .assert_zero(memory_columns.addr_offset);
-        filtered_builder
-            .when(memory_columns.offset_is_one)
-            .assert_one(memory_columns.addr_offset);
+        filtered_builder.when(offset_is_zero).assert_zero(memory_columns.addr_offset);
+        filtered_builder.when(memory_columns.offset_is_one).assert_one(memory_columns.addr_offset);
         filtered_builder
             .when(memory_columns.offset_is_two)
             .assert_eq(memory_columns.addr_offset, AB::Expr::two());

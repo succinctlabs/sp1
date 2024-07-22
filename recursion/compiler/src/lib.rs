@@ -9,7 +9,6 @@ pub mod constraints;
 pub mod ir;
 
 pub mod prelude {
-    pub use crate::asm::AsmCompiler;
-    pub use crate::ir::*;
+    pub use crate::{asm::AsmCompiler, ir::*};
     pub use sp1_recursion_derive::DslVariable;
 }

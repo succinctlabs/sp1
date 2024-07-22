@@ -37,15 +37,11 @@ pub fn syscall_verify_sp1_proof(vk_digest: &[u32; 8], pv_digest: &[u8; 32]) {
         hash_input.extend_from_slice(deferred_proofs_digest);
 
         // Next 8 elements are vkey_digest
-        let vk_digest_babybear = vk_digest
-            .iter()
-            .map(|x| BabyBear::from_canonical_u32(*x))
-            .collect::<Vec<_>>();
+        let vk_digest_babybear =
+            vk_digest.iter().map(|x| BabyBear::from_canonical_u32(*x)).collect::<Vec<_>>();
         // Remaining 32 elements are pv_digest converted from u8 to BabyBear
-        let pv_digest_babybear = pv_digest
-            .iter()
-            .map(|b| BabyBear::from_canonical_u8(*b))
-            .collect::<Vec<_>>();
+        let pv_digest_babybear =
+            pv_digest.iter().map(|b| BabyBear::from_canonical_u8(*b)).collect::<Vec<_>>();
 
         *deferred_proofs_digest = hash_deferred_proof(
             deferred_proofs_digest,

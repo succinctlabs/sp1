@@ -2,9 +2,7 @@ use std::env;
 
 use tracing::level_filters::LevelFilter;
 use tracing_forest::ForestLayer;
-use tracing_subscriber::layer::SubscriberExt;
-use tracing_subscriber::util::SubscriberInitExt;
-use tracing_subscriber::{EnvFilter, Registry};
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Registry};
 
 /// A tracer to benchmark the performance of the vm.
 ///
@@ -21,8 +19,5 @@ pub fn setup_tracer() {
     } else if tracer_config == "debug" {
         env_filter = env_filter.add_directive("sp1_core=debug".parse().unwrap());
     }
-    Registry::default()
-        .with(env_filter)
-        .with(ForestLayer::default())
-        .init();
+    Registry::default().with(env_filter).with(ForestLayer::default()).init();
 }

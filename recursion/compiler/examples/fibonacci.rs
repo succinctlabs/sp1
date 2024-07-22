@@ -1,8 +1,9 @@
 use p3_field::AbstractField;
-use sp1_core::stark::StarkGenericConfig;
-use sp1_core::utils::BabyBearPoseidon2;
-use sp1_recursion_compiler::asm::AsmBuilder;
-use sp1_recursion_compiler::ir::{Felt, Var};
+use sp1_core::{stark::StarkGenericConfig, utils::BabyBearPoseidon2};
+use sp1_recursion_compiler::{
+    asm::AsmBuilder,
+    ir::{Felt, Var},
+};
 use sp1_recursion_core::runtime::Runtime;
 
 fn fibonacci(n: u32) -> u32 {

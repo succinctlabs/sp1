@@ -7,14 +7,8 @@ use std::process::{Command, Stdio};
 
 pub const RUSTUP_TOOLCHAIN_NAME: &str = "succinct";
 
-pub const SP1_VERSION_MESSAGE: &str = concat!(
-    "sp1",
-    " (",
-    env!("VERGEN_GIT_SHA"),
-    " ",
-    env!("VERGEN_BUILD_TIMESTAMP"),
-    ")"
-);
+pub const SP1_VERSION_MESSAGE: &str =
+    concat!("sp1", " (", env!("VERGEN_GIT_SHA"), " ", env!("VERGEN_BUILD_TIMESTAMP"), ")");
 
 trait CommandExecutor {
     fn run(&mut self) -> Result<()>;

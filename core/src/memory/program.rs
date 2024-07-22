@@ -1,18 +1,19 @@
-use core::borrow::{Borrow, BorrowMut};
-use core::mem::size_of;
+use core::{
+    borrow::{Borrow, BorrowMut},
+    mem::size_of,
+};
 use p3_air::{Air, AirBuilder, AirBuilderWithPublicValues, BaseAir, PairBuilder};
-use p3_field::AbstractField;
-use p3_field::PrimeField;
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
+use p3_field::{AbstractField, PrimeField};
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
 
 use sp1_derive::AlignedBorrow;
 
-use crate::air::{AirInteraction, PublicValues, SP1AirBuilder, SP1_PROOF_NUM_PV_ELTS};
-use crate::air::{MachineAir, Word};
-use crate::operations::IsZeroOperation;
-use crate::runtime::{ExecutionRecord, Program};
-use crate::utils::pad_to_power_of_two;
+use crate::{
+    air::{AirInteraction, MachineAir, PublicValues, SP1AirBuilder, Word, SP1_PROOF_NUM_PV_ELTS},
+    operations::IsZeroOperation,
+    runtime::{ExecutionRecord, Program},
+    utils::pad_to_power_of_two,
+};
 
 pub const NUM_MEMORY_PROGRAM_PREPROCESSED_COLS: usize =
     size_of::<MemoryProgramPreprocessedCols<u8>>();
@@ -102,18 +103,9 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
         input: &ExecutionRecord,
         _output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        let program_memory_addrs = input
-            .program
-            .memory_image
-            .keys()
-            .copied()
-            .collect::<Vec<_>>();
+        let program_memory_addrs = input.program.memory_image.keys().copied().collect::<Vec<_>>();
 
-        let mult = if input.public_values.shard == 1 {
-            F::one()
-        } else {
-            F::zero()
-        };
+        let mult = if input.public_values.shard == 1 { F::one() } else { F::zero() };
 
         // Generate the trace rows for each event.
         let rows = program_memory_addrs
@@ -187,9 +179,7 @@ where
             .assert_eq(mult_local.multiplicity, prep_local.is_real.into());
 
         // If it's not the first shard, then the multiplicity must be zero.
-        builder
-            .when_not(mult_local.is_first_shard.result)
-            .assert_zero(mult_local.multiplicity);
+        builder.when_not(mult_local.is_first_shard.result).assert_zero(mult_local.multiplicity);
 
         let mut values = vec![AB::Expr::zero(), AB::Expr::zero(), prep_local.addr.into()];
         values.extend(prep_local.value.map(Into::into));

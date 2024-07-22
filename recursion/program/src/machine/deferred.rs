@@ -1,32 +1,39 @@
-use std::array;
-use std::borrow::{Borrow, BorrowMut};
-use std::marker::PhantomData;
+use std::{
+    array,
+    borrow::{Borrow, BorrowMut},
+    marker::PhantomData,
+};
 
 use p3_air::Air;
 use p3_baby_bear::BabyBear;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::{AbstractField, PrimeField32, TwoAdicField};
-use sp1_core::air::{MachineAir, WORD_SIZE};
-use sp1_core::air::{Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS};
-use sp1_core::stark::StarkMachine;
-use sp1_core::stark::{Com, RiscvAir, ShardProof, StarkGenericConfig, StarkVerifyingKey};
-use sp1_core::utils::BabyBearPoseidon2;
+use sp1_core::{
+    air::{MachineAir, Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS, WORD_SIZE},
+    stark::{Com, RiscvAir, ShardProof, StarkGenericConfig, StarkMachine, StarkVerifyingKey},
+    utils::BabyBearPoseidon2,
+};
 use sp1_primitives::types::RecursionProgramType;
-use sp1_recursion_compiler::config::InnerConfig;
-use sp1_recursion_compiler::ir::{Array, Builder, Config, Felt, Var};
-use sp1_recursion_compiler::prelude::DslVariable;
-use sp1_recursion_core::air::{RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS};
-use sp1_recursion_core::runtime::{RecursionProgram, DIGEST_SIZE};
+use sp1_recursion_compiler::{
+    config::InnerConfig,
+    ir::{Array, Builder, Config, Felt, Var},
+    prelude::DslVariable,
+};
+use sp1_recursion_core::{
+    air::{RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS},
+    runtime::{RecursionProgram, DIGEST_SIZE},
+};
 
 use sp1_recursion_compiler::prelude::*;
 
-use crate::challenger::{CanObserveVariable, DuplexChallengerVariable};
-use crate::fri::TwoAdicFriPcsVariable;
-use crate::hints::Hintable;
-use crate::stark::{RecursiveVerifierConstraintFolder, StarkVerifier};
-use crate::types::ShardProofVariable;
-use crate::types::VerifyingKeyVariable;
-use crate::utils::{const_fri_config, get_challenger_public_values, hash_vkey, var2felt};
+use crate::{
+    challenger::{CanObserveVariable, DuplexChallengerVariable},
+    fri::TwoAdicFriPcsVariable,
+    hints::Hintable,
+    stark::{RecursiveVerifierConstraintFolder, StarkVerifier},
+    types::{ShardProofVariable, VerifyingKeyVariable},
+    utils::{const_fri_config, get_challenger_public_values, hash_vkey, var2felt},
+};
 
 use super::utils::{commit_public_values, verify_public_values_hash};
 
@@ -148,9 +155,8 @@ where
         } = input;
 
         // Initialize the values for the aggregated public output as all zeros.
-        let mut deferred_public_values_stream: Vec<Felt<_>> = (0..RECURSIVE_PROOF_NUM_PV_ELTS)
-            .map(|_| builder.eval(C::F::zero()))
-            .collect();
+        let mut deferred_public_values_stream: Vec<Felt<_>> =
+            (0..RECURSIVE_PROOF_NUM_PV_ELTS).map(|_| builder.eval(C::F::zero())).collect();
 
         let deferred_public_values: &mut RecursionPublicValues<_> =
             deferred_public_values_stream.as_mut_slice().borrow_mut();
@@ -170,10 +176,8 @@ where
 
         // Initialize the consistency check variable.
         let mut reconstruct_deferred_digest = builder.array(POSEIDON_NUM_WORDS);
-        for (i, first_digest) in deferred_public_values
-            .start_reconstruct_deferred_digest
-            .iter()
-            .enumerate()
+        for (i, first_digest) in
+            deferred_public_values.start_reconstruct_deferred_digest.iter().enumerate()
         {
             builder.set(&mut reconstruct_deferred_digest, i, *first_digest);
         }
@@ -232,7 +236,8 @@ where
             }
 
             // Update deferred proof digest
-            // poseidon2( current_digest[..8] || pv.sp1_vk_digest[..8] || pv.committed_value_digest[..32] )
+            // poseidon2( current_digest[..8] || pv.sp1_vk_digest[..8] ||
+            // pv.committed_value_digest[..32] )
             let mut poseidon_inputs = builder.array(48);
             for j in 0..DIGEST_SIZE {
                 let current_digest_element = builder.get(&reconstruct_deferred_digest, j);
@@ -284,10 +289,7 @@ where
         deferred_public_values.sp1_vk_digest = array::from_fn(|i| builder.get(&sp1_vk_digest, i));
 
         // Set the committed value digest to be the hitned value.
-        for (i, public_word) in deferred_public_values
-            .committed_value_digest
-            .iter_mut()
-            .enumerate()
+        for (i, public_word) in deferred_public_values.committed_value_digest.iter_mut().enumerate()
         {
             let hinted_word = builder.get(&committed_value_digest, i);
             public_word.0 = array::from_fn(|j| builder.get(&hinted_word, j));

@@ -1,16 +1,19 @@
-use std::borrow::Borrow;
-use std::panic::{self, AssertUnwindSafe};
-use std::process::exit;
+use std::{
+    borrow::Borrow,
+    panic::{self, AssertUnwindSafe},
+    process::exit,
+};
 
 use p3_air::{
     Air, AirBuilder, AirBuilderWithPublicValues, ExtensionBuilder, PairBuilder,
     PermutationAirBuilder,
 };
-use p3_field::{AbstractField, PrimeField32};
-use p3_field::{ExtensionField, Field};
-use p3_matrix::dense::RowMajorMatrixView;
-use p3_matrix::stack::VerticalPair;
-use p3_matrix::{dense::RowMajorMatrix, Matrix};
+use p3_field::{AbstractField, ExtensionField, Field, PrimeField32};
+use p3_matrix::{
+    dense::{RowMajorMatrix, RowMajorMatrixView},
+    stack::VerticalPair,
+    Matrix,
+};
 
 use super::{MachineChip, StarkGenericConfig, Val};
 use crate::air::{EmptyMessageBuilder, MachineAir, MultiTableAirBuilder};
@@ -117,10 +120,7 @@ fn catch_unwind_silent<F: FnOnce() -> R + panic::UnwindSafe, R>(f: F) -> std::th
 ///
 /// Note that this does not actually verify the proof.
 pub fn debug_cumulative_sums<F: Field, EF: ExtensionField<F>>(perms: &[RowMajorMatrix<EF>]) {
-    let sum: EF = perms
-        .iter()
-        .map(|perm| *perm.row_slice(perm.height() - 1).last().unwrap())
-        .sum();
+    let sum: EF = perms.iter().map(|perm| *perm.row_slice(perm.height() - 1).last().unwrap()).sum();
     assert_eq!(sum, EF::zero());
 }
 

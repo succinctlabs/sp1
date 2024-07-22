@@ -4,23 +4,21 @@ use anyhow::Result;
 use num_bigint::BigUint;
 use p3_baby_bear::BabyBear;
 use p3_field::{AbstractField, PrimeField};
-use sp1_core::air::{Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS, WORD_SIZE};
-use sp1_core::cpu::MAX_CPU_LOG_DEGREE;
-use sp1_core::runtime::SubproofVerifier;
-use sp1_core::stark::MachineProver;
 use sp1_core::{
-    air::PublicValues,
+    air::{PublicValues, Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS, WORD_SIZE},
+    cpu::MAX_CPU_LOG_DEGREE,
     io::SP1PublicValues,
-    stark::{MachineProof, MachineVerificationError, StarkGenericConfig},
+    runtime::SubproofVerifier,
+    stark::{MachineProof, MachineProver, MachineVerificationError, StarkGenericConfig},
     utils::BabyBearPoseidon2,
 };
 use sp1_recursion_core::{air::RecursionPublicValues, stark::config::BabyBearPoseidon2Outer};
 use sp1_recursion_gnark_ffi::{PlonkBn254Proof, PlonkBn254Prover};
 use thiserror::Error;
 
-use crate::components::SP1ProverComponents;
 use crate::{
-    CoreSC, HashableKey, OuterSC, SP1CoreProofData, SP1Prover, SP1ReduceProof, SP1VerifyingKey,
+    components::SP1ProverComponents, CoreSC, HashableKey, OuterSC, SP1CoreProofData, SP1Prover,
+    SP1ReduceProof, SP1VerifyingKey,
 };
 
 #[derive(Error, Debug)]
@@ -59,9 +57,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             if shard_proof.contains_cpu() {
                 let log_degree_cpu = shard_proof.log_degree_cpu();
                 if log_degree_cpu > MAX_CPU_LOG_DEGREE {
-                    return Err(MachineVerificationError::CpuLogDegreeTooLarge(
-                        log_degree_cpu,
-                    ));
+                    return Err(MachineVerificationError::CpuLogDegreeTooLarge(log_degree_cpu));
                 }
             }
         }
@@ -169,10 +165,14 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         // - `previous_finalize_addr_bits` should be zero.
         //
         // Transition:
-        // - For all shards, `previous_init_addr_bits` should equal `last_init_addr_bits` of the previous shard.
-        // - For all shards, `previous_finalize_addr_bits` should equal `last_finalize_addr_bits` of the previous shard.
-        // - For shards without "MemoryInit", `previous_init_addr_bits` should equal `last_init_addr_bits`.
-        // - For shards without "MemoryFinalize", `previous_finalize_addr_bits` should equal `last_finalize_addr_bits`.
+        // - For all shards, `previous_init_addr_bits` should equal `last_init_addr_bits` of the
+        //   previous shard.
+        // - For all shards, `previous_finalize_addr_bits` should equal `last_finalize_addr_bits` of
+        //   the previous shard.
+        // - For shards without "MemoryInit", `previous_init_addr_bits` should equal
+        //   `last_init_addr_bits`.
+        // - For shards without "MemoryFinalize", `previous_finalize_addr_bits` should equal
+        //   `last_finalize_addr_bits`.
         let mut last_init_addr_bits_prev = [BabyBear::zero(); 32];
         let mut last_finalize_addr_bits_prev = [BabyBear::zero(); 32];
         for shard_proof in proof.0.iter() {
@@ -186,15 +186,15 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 return Err(MachineVerificationError::InvalidPublicValues(
                     "last_init_addr_bits != last_finalize_addr_bits_prev",
                 ));
-            } else if !shard_proof.contains_memory_init()
-                && public_values.previous_init_addr_bits != public_values.last_init_addr_bits
+            } else if !shard_proof.contains_memory_init() &&
+                public_values.previous_init_addr_bits != public_values.last_init_addr_bits
             {
                 return Err(MachineVerificationError::InvalidPublicValues(
                     "previous_init_addr_bits != last_init_addr_bits",
                 ));
-            } else if !shard_proof.contains_memory_finalize()
-                && public_values.previous_finalize_addr_bits
-                    != public_values.last_finalize_addr_bits
+            } else if !shard_proof.contains_memory_finalize() &&
+                public_values.previous_finalize_addr_bits !=
+                    public_values.last_finalize_addr_bits
             {
                 return Err(MachineVerificationError::InvalidPublicValues(
                     "previous_finalize_addr_bits != last_finalize_addr_bits",
@@ -213,11 +213,13 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         // Transition:
         // - If `commited_value_digest_prev` is not zero, then `committed_value_digest` should equal
         //  `commited_value_digest_prev`. Otherwise, `committed_value_digest` should equal zero.
-        // - If `deferred_proofs_digest_prev` is not zero, then `deferred_proofs_digest` should equal
+        // - If `deferred_proofs_digest_prev` is not zero, then `deferred_proofs_digest` should
+        //   equal
         //  `deferred_proofs_digest_prev`. Otherwise, `deferred_proofs_digest` should equal zero.
         // - If it's not a shard with "CPU", then `commited_value_digest` should not change from the
         //  previous shard.
-        // - If it's not a shard with "CPU", then `deferred_proofs_digest` should not change from the
+        // - If it's not a shard with "CPU", then `deferred_proofs_digest` should not change from
+        //   the
         //  previous shard.
         let zero_commited_value_digest = [Word([BabyBear::zero(); WORD_SIZE]); PV_DIGEST_NUM_WORDS];
         let zero_deferred_proofs_digest = [BabyBear::zero(); POSEIDON_NUM_WORDS];
@@ -226,26 +228,26 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         for shard_proof in proof.0.iter() {
             let public_values: &PublicValues<Word<_>, _> =
                 shard_proof.public_values.as_slice().borrow();
-            if commited_value_digest_prev != zero_commited_value_digest
-                && public_values.committed_value_digest != commited_value_digest_prev
+            if commited_value_digest_prev != zero_commited_value_digest &&
+                public_values.committed_value_digest != commited_value_digest_prev
             {
                 return Err(MachineVerificationError::InvalidPublicValues(
                     "committed_value_digest != commited_value_digest_prev",
                 ));
-            } else if deferred_proofs_digest_prev != zero_deferred_proofs_digest
-                && public_values.deferred_proofs_digest != deferred_proofs_digest_prev
+            } else if deferred_proofs_digest_prev != zero_deferred_proofs_digest &&
+                public_values.deferred_proofs_digest != deferred_proofs_digest_prev
             {
                 return Err(MachineVerificationError::InvalidPublicValues(
                     "deferred_proofs_digest != deferred_proofs_digest_prev",
                 ));
-            } else if !shard_proof.contains_cpu()
-                && public_values.committed_value_digest != commited_value_digest_prev
+            } else if !shard_proof.contains_cpu() &&
+                public_values.committed_value_digest != commited_value_digest_prev
             {
                 return Err(MachineVerificationError::InvalidPublicValues(
                     "committed_value_digest != commited_value_digest_prev",
                 ));
-            } else if !shard_proof.contains_cpu()
-                && public_values.deferred_proofs_digest != deferred_proofs_digest_prev
+            } else if !shard_proof.contains_cpu() &&
+                public_values.deferred_proofs_digest != deferred_proofs_digest_prev
             {
                 return Err(MachineVerificationError::InvalidPublicValues(
                     "deferred_proofs_digest != deferred_proofs_digest_prev",
@@ -262,12 +264,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
         // Verify the shard proof.
         let mut challenger = self.core_prover.config().challenger();
-        let machine_proof = MachineProof {
-            shard_proofs: proof.0.to_vec(),
-        };
-        self.core_prover
-            .machine()
-            .verify(&vk.vk, &machine_proof, &mut challenger)?;
+        let machine_proof = MachineProof { shard_proofs: proof.0.to_vec() };
+        self.core_prover.machine().verify(&vk.vk, &machine_proof, &mut challenger)?;
 
         Ok(())
     }
@@ -279,9 +277,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         vk: &SP1VerifyingKey,
     ) -> Result<(), MachineVerificationError<CoreSC>> {
         let mut challenger = self.compress_prover.config().challenger();
-        let machine_proof = MachineProof {
-            shard_proofs: vec![proof.proof.clone()],
-        };
+        let machine_proof = MachineProof { shard_proofs: vec![proof.proof.clone()] };
         self.compress_prover.machine().verify(
             &self.compress_vk,
             &machine_proof,
@@ -292,27 +288,22 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let public_values: &RecursionPublicValues<_> =
             proof.proof.public_values.as_slice().borrow();
 
-        // `is_complete` should be 1. In the reduce program, this ensures that the proof is fully reduced.
+        // `is_complete` should be 1. In the reduce program, this ensures that the proof is fully
+        // reduced.
         if public_values.is_complete != BabyBear::one() {
-            return Err(MachineVerificationError::InvalidPublicValues(
-                "is_complete is not 1",
-            ));
+            return Err(MachineVerificationError::InvalidPublicValues("is_complete is not 1"));
         }
 
         // Verify that the proof is for the sp1 vkey we are expecting.
         let vkey_hash = vk.hash_babybear();
         if public_values.sp1_vk_digest != vkey_hash {
-            return Err(MachineVerificationError::InvalidPublicValues(
-                "sp1 vk hash mismatch",
-            ));
+            return Err(MachineVerificationError::InvalidPublicValues("sp1 vk hash mismatch"));
         }
 
         // Verify that the reduce program is the one we are expecting.
         let recursion_vkey_hash = self.compress_vk.hash_babybear();
         if public_values.compress_vk_digest != recursion_vkey_hash {
-            return Err(MachineVerificationError::InvalidPublicValues(
-                "recursion vk hash mismatch",
-            ));
+            return Err(MachineVerificationError::InvalidPublicValues("recursion vk hash mismatch"));
         }
 
         Ok(())
@@ -325,30 +316,23 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         vk: &SP1VerifyingKey,
     ) -> Result<(), MachineVerificationError<CoreSC>> {
         let mut challenger = self.shrink_prover.config().challenger();
-        let machine_proof = MachineProof {
-            shard_proofs: vec![proof.proof.clone()],
-        };
-        self.shrink_prover
-            .machine()
-            .verify(&self.shrink_vk, &machine_proof, &mut challenger)?;
+        let machine_proof = MachineProof { shard_proofs: vec![proof.proof.clone()] };
+        self.shrink_prover.machine().verify(&self.shrink_vk, &machine_proof, &mut challenger)?;
 
         // Validate public values
         let public_values: &RecursionPublicValues<_> =
             proof.proof.public_values.as_slice().borrow();
 
-        // `is_complete` should be 1. In the reduce program, this ensures that the proof is fully reduced.
+        // `is_complete` should be 1. In the reduce program, this ensures that the proof is fully
+        // reduced.
         if public_values.is_complete != BabyBear::one() {
-            return Err(MachineVerificationError::InvalidPublicValues(
-                "is_complete is not 1",
-            ));
+            return Err(MachineVerificationError::InvalidPublicValues("is_complete is not 1"));
         }
 
         // Verify that the proof is for the sp1 vkey we are expecting.
         let vkey_hash = vk.hash_babybear();
         if public_values.sp1_vk_digest != vkey_hash {
-            return Err(MachineVerificationError::InvalidPublicValues(
-                "sp1 vk hash mismatch",
-            ));
+            return Err(MachineVerificationError::InvalidPublicValues("sp1 vk hash mismatch"));
         }
 
         Ok(())
@@ -361,30 +345,23 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         vk: &SP1VerifyingKey,
     ) -> Result<(), MachineVerificationError<OuterSC>> {
         let mut challenger = self.wrap_prover.config().challenger();
-        let machine_proof = MachineProof {
-            shard_proofs: vec![proof.proof.clone()],
-        };
-        self.wrap_prover
-            .machine()
-            .verify(&self.wrap_vk, &machine_proof, &mut challenger)?;
+        let machine_proof = MachineProof { shard_proofs: vec![proof.proof.clone()] };
+        self.wrap_prover.machine().verify(&self.wrap_vk, &machine_proof, &mut challenger)?;
 
         // Validate public values
         let public_values: &RecursionPublicValues<_> =
             proof.proof.public_values.as_slice().borrow();
 
-        // `is_complete` should be 1. In the reduce program, this ensures that the proof is fully reduced.
+        // `is_complete` should be 1. In the reduce program, this ensures that the proof is fully
+        // reduced.
         if public_values.is_complete != BabyBear::one() {
-            return Err(MachineVerificationError::InvalidPublicValues(
-                "is_complete is not 1",
-            ));
+            return Err(MachineVerificationError::InvalidPublicValues("is_complete is not 1"));
         }
 
         // Verify that the proof is for the sp1 vkey we are expecting.
         let vkey_hash = vk.hash_babybear();
         if public_values.sp1_vk_digest != vkey_hash {
-            return Err(MachineVerificationError::InvalidPublicValues(
-                "sp1 vk hash mismatch",
-            ));
+            return Err(MachineVerificationError::InvalidPublicValues("sp1 vk hash mismatch"));
         }
 
         Ok(())
@@ -412,7 +389,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     }
 }
 
-/// Verify the vk_hash and public_values_hash in the public inputs of the PlonkBn254Proof match the expected values.
+/// Verify the vk_hash and public_values_hash in the public inputs of the PlonkBn254Proof match the
+/// expected values.
 pub fn verify_plonk_bn254_public_inputs(
     vk: &SP1VerifyingKey,
     public_values: &SP1PublicValues,
@@ -450,9 +428,7 @@ impl<C: SP1ProverComponents> SubproofVerifier for &SP1Prover<C> {
         }
         // Check that proof is valid.
         self.verify_compressed(
-            &SP1ReduceProof {
-                proof: proof.clone(),
-            },
+            &SP1ReduceProof { proof: proof.clone() },
             &SP1VerifyingKey { vk: vk.clone() },
         )?;
         // Check that the committed value digest matches the one from syscall

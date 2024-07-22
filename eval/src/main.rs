@@ -1,17 +1,13 @@
 use clap::{command, Parser};
 use csv::WriterBuilder;
 use serde::Serialize;
-use sp1_core::runtime::{Program, Runtime};
-use sp1_core::stark::DefaultProver;
-use sp1_core::utils::{
-    prove_simple, BabyBearBlake3, BabyBearKeccak, BabyBearPoseidon2, SP1CoreOpts,
+use sp1_core::{
+    runtime::{Program, Runtime},
+    stark::DefaultProver,
+    utils::{prove_simple, BabyBearBlake3, BabyBearKeccak, BabyBearPoseidon2, SP1CoreOpts},
 };
-use sp1_prover::utils::get_cycles;
-use sp1_prover::SP1Stdin;
-use std::fmt;
-use std::fs::OpenOptions;
-use std::io;
-use std::{fs, time::Instant};
+use sp1_prover::{utils::get_cycles, SP1Stdin};
+use std::{fmt, fs, fs::OpenOptions, io, time::Instant};
 
 /// An identifier used to select the hash function to evaluate.
 #[derive(clap::ValueEnum, Clone)]
@@ -198,10 +194,7 @@ fn write_report(report: PerformanceReport, benchmark_path: &str) -> io::Result<(
     // Check if the file exists and is empty to determine if the header needs to be written.
     let write_header = fs::metadata(benchmark_path).map_or(true, |meta| meta.len() == 0);
 
-    let file = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(benchmark_path)?;
+    let file = OpenOptions::new().create(true).append(true).open(benchmark_path)?;
 
     let mut writer = WriterBuilder::new().has_headers(false).from_writer(file);
 

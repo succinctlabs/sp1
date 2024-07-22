@@ -52,11 +52,7 @@ pub struct BuildArgs {
         default_value = DEFAULT_OUTPUT_DIR
     )]
     pub output_directory: String,
-    #[clap(
-        long,
-        action,
-        help = "Lock the dependencies, ensures that Cargo.lock doesn't update."
-    )]
+    #[clap(long, action, help = "Lock the dependencies, ensures that Cargo.lock doesn't update.")]
     pub locked: bool,
     #[clap(long, action, help = "Build without default features.")]
     pub no_default_features: bool,
@@ -129,9 +125,8 @@ fn get_rust_compiler_flags() -> String {
 /// Get the command to build the program locally.
 fn create_local_command(args: &BuildArgs, program_dir: &Utf8PathBuf) -> Command {
     let mut command = Command::new("cargo");
-    let canonicalized_program_dir = program_dir
-        .canonicalize()
-        .expect("Failed to canonicalize program directory");
+    let canonicalized_program_dir =
+        program_dir.canonicalize().expect("Failed to canonicalize program directory");
     command
         .current_dir(canonicalized_program_dir)
         .env("RUSTUP_TOOLCHAIN", "succinct")
@@ -155,10 +150,7 @@ fn execute_command(
     // directory (i.e. same workspace) as the script will hang indefinitely due to a file lock
     // when building in the helper.
     // Source: https://github.com/rust-lang/cargo/issues/6412
-    command.env(
-        "CARGO_TARGET_DIR",
-        program_metadata.target_directory.join(HELPER_TARGET_SUBDIR),
-    );
+    command.env("CARGO_TARGET_DIR", program_metadata.target_directory.join(HELPER_TARGET_SUBDIR));
 
     // Add necessary tags for stdout and stderr from the command.
     let mut child = command
@@ -224,11 +216,7 @@ fn copy_elf_to_output_dir(
         BUILD_TARGET.to_string()
     };
 
-    let elf_dir = program_metadata
-        .target_directory
-        .parent()
-        .unwrap()
-        .join(&args.output_directory);
+    let elf_dir = program_metadata.target_directory.parent().unwrap().join(&args.output_directory);
     fs::create_dir_all(&elf_dir)?;
     let result_elf_path = elf_dir.join(elf_name);
 
@@ -238,24 +226,25 @@ fn copy_elf_to_output_dir(
     Ok(result_elf_path)
 }
 
-/// Build a program with the specified [`BuildArgs`]. The `program_dir` is specified as an argument when
-/// the program is built via `build_program` in sp1-helper.
+/// Build a program with the specified [`BuildArgs`]. The `program_dir` is specified as an argument
+/// when the program is built via `build_program` in sp1-helper.
 ///
 /// # Arguments
 ///
-/// * `args` - A reference to a `BuildArgs` struct that holds various arguments used for building the program.
+/// * `args` - A reference to a `BuildArgs` struct that holds various arguments used for building
+///   the program.
 /// * `program_dir` - An optional `PathBuf` specifying the directory of the program to be built.
 ///
 /// # Returns
 ///
-/// * `Result<Utf8PathBuf>` - The path to the built program as a `Utf8PathBuf` on success, or an error on failure.
+/// * `Result<Utf8PathBuf>` - The path to the built program as a `Utf8PathBuf` on success, or an
+///   error on failure.
 pub fn build_program(args: &BuildArgs, program_dir: Option<PathBuf>) -> Result<Utf8PathBuf> {
     // If the program directory is not specified, use the current directory.
     let program_dir = program_dir
         .unwrap_or_else(|| std::env::current_dir().expect("Failed to get current directory."));
-    let program_dir: Utf8PathBuf = program_dir
-        .try_into()
-        .expect("Failed to convert PathBuf to Utf8PathBuf");
+    let program_dir: Utf8PathBuf =
+        program_dir.try_into().expect("Failed to convert PathBuf to Utf8PathBuf");
 
     // The root package name corresponds to the package name of the current directory.
     let metadata_cmd = cargo_metadata::MetadataCommand::new();
@@ -270,10 +259,8 @@ pub fn build_program(args: &BuildArgs, program_dir: Option<PathBuf>) -> Result<U
 
     let program_metadata_file = program_dir.join("Cargo.toml");
     let mut program_metadata_cmd = cargo_metadata::MetadataCommand::new();
-    let program_metadata = program_metadata_cmd
-        .manifest_path(program_metadata_file)
-        .exec()
-        .unwrap();
+    let program_metadata =
+        program_metadata_cmd.manifest_path(program_metadata_file).exec().unwrap();
 
     execute_command(cmd, args.docker, &program_metadata)?;
 

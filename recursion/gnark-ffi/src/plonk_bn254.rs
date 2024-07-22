@@ -4,13 +4,14 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::ffi::{build_plonk_bn254, prove_plonk_bn254, test_plonk_bn254, verify_plonk_bn254};
-use crate::witness::GnarkWitness;
+use crate::{
+    ffi::{build_plonk_bn254, prove_plonk_bn254, test_plonk_bn254, verify_plonk_bn254},
+    witness::GnarkWitness,
+};
 
 use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
-use sha2::Digest;
-use sha2::Sha256;
+use sha2::{Digest, Sha256};
 use sp1_core::SP1_CIRCUIT_VERSION;
 use sp1_recursion_compiler::{
     constraints::Constraint,
@@ -85,14 +86,9 @@ impl PlonkBn254Prover {
         let vkey_hash = Self::get_vkey_hash(&build_dir);
         let sp1_verifier_str = include_str!("../assets/SP1Verifier.txt")
             .replace("{SP1_CIRCUIT_VERSION}", SP1_CIRCUIT_VERSION)
-            .replace(
-                "{VERIFIER_HASH}",
-                format!("0x{}", hex::encode(vkey_hash)).as_str(),
-            );
+            .replace("{VERIFIER_HASH}", format!("0x{}", hex::encode(vkey_hash)).as_str());
         let mut sp1_verifier_file = File::create(sp1_verifier_path).unwrap();
-        sp1_verifier_file
-            .write_all(sp1_verifier_str.as_bytes())
-            .unwrap();
+        sp1_verifier_file.write_all(sp1_verifier_str.as_bytes()).unwrap();
     }
 
     /// Generates a PLONK proof given a witness.
@@ -103,15 +99,14 @@ impl PlonkBn254Prover {
         let serialized = serde_json::to_string(&gnark_witness).unwrap();
         witness_file.write_all(serialized.as_bytes()).unwrap();
 
-        let mut proof = prove_plonk_bn254(
-            build_dir.to_str().unwrap(),
-            witness_file.path().to_str().unwrap(),
-        );
+        let mut proof =
+            prove_plonk_bn254(build_dir.to_str().unwrap(), witness_file.path().to_str().unwrap());
         proof.plonk_vkey_hash = Self::get_vkey_hash(&build_dir);
         proof
     }
 
-    /// Verify a PLONK proof and verify that the supplied vkey_hash and committed_values_digest match.
+    /// Verify a PLONK proof and verify that the supplied vkey_hash and committed_values_digest
+    /// match.
     pub fn verify(
         &self,
         proof: &PlonkBn254Proof,

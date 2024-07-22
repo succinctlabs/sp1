@@ -1,21 +1,23 @@
-use std::borrow::Borrow;
-use std::path::PathBuf;
+use std::{borrow::Borrow, path::PathBuf};
 
 use p3_baby_bear::BabyBear;
-use sp1_core::runtime::SP1Context;
-use sp1_core::stark::StarkVerifyingKey;
-use sp1_core::utils::SP1ProverOpts;
-use sp1_core::{io::SP1Stdin, stark::ShardProof};
-pub use sp1_recursion_circuit::stark::build_wrap_circuit;
-pub use sp1_recursion_circuit::witness::Witnessable;
+use sp1_core::{
+    io::SP1Stdin,
+    runtime::SP1Context,
+    stark::{ShardProof, StarkVerifyingKey},
+    utils::SP1ProverOpts,
+};
+pub use sp1_recursion_circuit::{stark::build_wrap_circuit, witness::Witnessable};
 pub use sp1_recursion_compiler::ir::Witness;
 use sp1_recursion_compiler::{config::OuterConfig, constraints::Constraint};
 use sp1_recursion_core::air::RecursionPublicValues;
 pub use sp1_recursion_core::stark::utils::sp1_dev_mode;
 use sp1_recursion_gnark_ffi::PlonkBn254Prover;
 
-use crate::utils::{babybear_bytes_to_bn254, babybears_to_bn254, words_to_bytes};
-use crate::{OuterSC, SP1Prover};
+use crate::{
+    utils::{babybear_bytes_to_bn254, babybears_to_bn254, words_to_bytes},
+    OuterSC, SP1Prover,
+};
 
 /// Tries to build the PLONK artifacts inside the development directory.
 pub fn try_build_plonk_bn254_artifacts_dev(
@@ -30,16 +32,11 @@ pub fn try_build_plonk_bn254_artifacts_dev(
 
 /// Gets the directory where the PLONK artifacts are installed in development mode.
 pub fn plonk_bn254_artifacts_dev_dir() -> PathBuf {
-    dirs::home_dir()
-        .unwrap()
-        .join(".sp1")
-        .join("circuits")
-        .join("plonk_bn254")
-        .join("dev")
+    dirs::home_dir().unwrap().join(".sp1").join("circuits").join("plonk_bn254").join("dev")
 }
 
-/// Build the plonk bn254 artifacts to the given directory for the given verification key and template
-/// proof.
+/// Build the plonk bn254 artifacts to the given directory for the given verification key and
+/// template proof.
 pub fn build_plonk_bn254_artifacts(
     template_vk: &StarkVerifyingKey<OuterSC>,
     template_proof: &ShardProof<OuterSC>,
@@ -71,9 +68,8 @@ pub fn build_constraints_and_witness(
 
     let pv: &RecursionPublicValues<BabyBear> = template_proof.public_values.as_slice().borrow();
     let vkey_hash = babybears_to_bn254(&pv.sp1_vk_digest);
-    let committed_values_digest_bytes: [BabyBear; 32] = words_to_bytes(&pv.committed_value_digest)
-        .try_into()
-        .unwrap();
+    let committed_values_digest_bytes: [BabyBear; 32] =
+        words_to_bytes(&pv.committed_value_digest).try_into().unwrap();
     let committed_values_digest = babybear_bytes_to_bn254(&committed_values_digest_bytes);
 
     tracing::info!("building template witness");

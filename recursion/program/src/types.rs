@@ -6,9 +6,10 @@ use sp1_core::{
 };
 use sp1_recursion_compiler::prelude::*;
 
-use crate::fri::types::TwoAdicPcsProofVariable;
-use crate::fri::types::{DigestVariable, FriConfigVariable};
-use crate::fri::TwoAdicMultiplicativeCosetVariable;
+use crate::fri::{
+    types::{DigestVariable, FriConfigVariable, TwoAdicPcsProofVariable},
+    TwoAdicMultiplicativeCosetVariable,
+};
 
 /// Reference: [sp1_core::stark::ShardProof]
 #[derive(DslVariable, Clone)]
@@ -119,28 +120,18 @@ impl<C: Config> ChipOpening<C> {
     where
         A: MachineAir<C::F>,
     {
-        let mut preprocessed = AirOpenedValues {
-            local: vec![],
-            next: vec![],
-        };
+        let mut preprocessed = AirOpenedValues { local: vec![], next: vec![] };
         let preprocessed_width = chip.preprocessed_width();
         // Assert that the length of the dynamic arrays match the expected length of the vectors.
         builder.assert_usize_eq(preprocessed_width, opening.preprocessed.local.len());
         builder.assert_usize_eq(preprocessed_width, opening.preprocessed.next.len());
         // Collect the preprocessed values into vectors.
         for i in 0..preprocessed_width {
-            preprocessed
-                .local
-                .push(builder.get(&opening.preprocessed.local, i));
-            preprocessed
-                .next
-                .push(builder.get(&opening.preprocessed.next, i));
+            preprocessed.local.push(builder.get(&opening.preprocessed.local, i));
+            preprocessed.next.push(builder.get(&opening.preprocessed.next, i));
         }
 
-        let mut main = AirOpenedValues {
-            local: vec![],
-            next: vec![],
-        };
+        let mut main = AirOpenedValues { local: vec![], next: vec![] };
         let main_width = chip.width();
         // Assert that the length of the dynamic arrays match the expected length of the vectors.
         builder.assert_usize_eq(main_width, opening.main.local.len());
@@ -151,22 +142,15 @@ impl<C: Config> ChipOpening<C> {
             main.next.push(builder.get(&opening.main.next, i));
         }
 
-        let mut permutation = AirOpenedValues {
-            local: vec![],
-            next: vec![],
-        };
+        let mut permutation = AirOpenedValues { local: vec![], next: vec![] };
         let permutation_width = C::EF::D * chip.permutation_width();
         // Assert that the length of the dynamic arrays match the expected length of the vectors.
         builder.assert_usize_eq(permutation_width, opening.permutation.local.len());
         builder.assert_usize_eq(permutation_width, opening.permutation.next.len());
         // Collect the permutation values into vectors.
         for i in 0..permutation_width {
-            permutation
-                .local
-                .push(builder.get(&opening.permutation.local, i));
-            permutation
-                .next
-                .push(builder.get(&opening.permutation.next, i));
+            permutation.local.push(builder.get(&opening.permutation.local, i));
+            permutation.next.push(builder.get(&opening.permutation.next, i));
         }
 
         let num_quotient_chunks = 1 << chip.log_quotient_degree();

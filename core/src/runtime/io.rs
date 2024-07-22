@@ -1,10 +1,11 @@
 use std::io::Read;
 
-use crate::stark::{ShardProof, StarkVerifyingKey};
-use crate::utils::BabyBearPoseidon2;
+use crate::{
+    stark::{ShardProof, StarkVerifyingKey},
+    utils::BabyBearPoseidon2,
+};
 
-use serde::de::DeserializeOwned;
-use serde::Serialize;
+use serde::{de::DeserializeOwned, Serialize};
 
 use super::Runtime;
 
@@ -58,10 +59,11 @@ impl<'a> Runtime<'a> {
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::runtime::Program;
-    use crate::stark::DefaultProver;
-    use crate::utils::tests::IO_ELF;
-    use crate::utils::{self, prove_simple, BabyBearBlake3, SP1CoreOpts};
+    use crate::{
+        runtime::Program,
+        stark::DefaultProver,
+        utils::{self, prove_simple, tests::IO_ELF, BabyBearBlake3, SP1CoreOpts},
+    };
     use serde::Deserialize;
 
     #[derive(Serialize, Deserialize, Debug, PartialEq)]
@@ -72,18 +74,7 @@ pub mod tests {
     }
 
     fn points() -> (MyPointUnaligned, MyPointUnaligned) {
-        (
-            MyPointUnaligned {
-                x: 3,
-                y: 5,
-                b: true,
-            },
-            MyPointUnaligned {
-                x: 8,
-                y: 19,
-                b: true,
-            },
-        )
+        (MyPointUnaligned { x: 3, y: 5, b: true }, MyPointUnaligned { x: 8, y: 19, b: true })
     }
 
     #[test]
@@ -96,14 +87,7 @@ pub mod tests {
         runtime.write_stdin(&points.1);
         runtime.run().unwrap();
         let added_point = runtime.read_public_values::<MyPointUnaligned>();
-        assert_eq!(
-            added_point,
-            MyPointUnaligned {
-                x: 11,
-                y: 24,
-                b: true
-            }
-        );
+        assert_eq!(added_point, MyPointUnaligned { x: 11, y: 24, b: true });
     }
 
     #[test]

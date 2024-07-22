@@ -1,42 +1,33 @@
-use core::borrow::{Borrow, BorrowMut};
-use core::mem::size_of;
-use std::fmt::Debug;
-use std::marker::PhantomData;
+use core::{
+    borrow::{Borrow, BorrowMut},
+    mem::size_of,
+};
+use std::{fmt::Debug, marker::PhantomData};
 
 use typenum::Unsigned;
 
 use generic_array::GenericArray;
-use num::BigUint;
-use num::Zero;
-use p3_air::AirBuilder;
-use p3_air::{Air, BaseAir};
-use p3_field::AbstractField;
-use p3_field::PrimeField32;
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
+use num::{BigUint, Zero};
+use p3_air::{Air, AirBuilder, BaseAir};
+use p3_field::{AbstractField, PrimeField32};
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_derive::AlignedBorrow;
 
-use crate::air::MachineAir;
-use crate::air::SP1AirBuilder;
-use crate::bytes::event::ByteRecord;
-use crate::bytes::ByteLookupEvent;
-use crate::memory::MemoryCols;
-use crate::memory::MemoryReadCols;
-use crate::memory::MemoryWriteCols;
-use crate::operations::field::field_op::FieldOpCols;
-use crate::operations::field::field_op::FieldOperation;
-use crate::operations::field::params::{FieldParameters, Limbs, NumLimbs, NumWords};
-use crate::runtime::ExecutionRecord;
-use crate::runtime::Program;
-use crate::runtime::Syscall;
-use crate::runtime::SyscallCode;
-use crate::syscall::precompiles::create_ec_add_event;
-use crate::syscall::precompiles::SyscallContext;
-use crate::utils::ec::weierstrass::WeierstrassParameters;
-use crate::utils::ec::AffinePoint;
-use crate::utils::ec::CurveType;
-use crate::utils::ec::EllipticCurve;
-use crate::utils::{limbs_from_prev_access, pad_rows};
+use crate::{
+    air::{MachineAir, SP1AirBuilder},
+    bytes::{event::ByteRecord, ByteLookupEvent},
+    memory::{MemoryCols, MemoryReadCols, MemoryWriteCols},
+    operations::field::{
+        field_op::{FieldOpCols, FieldOperation},
+        params::{FieldParameters, Limbs, NumLimbs, NumWords},
+    },
+    runtime::{ExecutionRecord, Program, Syscall, SyscallCode},
+    syscall::precompiles::{create_ec_add_event, SyscallContext},
+    utils::{
+        ec::{weierstrass::WeierstrassParameters, AffinePoint, CurveType, EllipticCurve},
+        limbs_from_prev_access, pad_rows,
+    },
+};
 
 pub const fn num_weierstrass_add_cols<P: FieldParameters + NumWords>() -> usize {
     size_of::<WeierstrassAddAssignCols<u8, P>>()
@@ -93,9 +84,7 @@ impl<E: EllipticCurve> Syscall for WeierstrassAddAssignChip<E> {
 
 impl<E: EllipticCurve> WeierstrassAddAssignChip<E> {
     pub const fn new() -> Self {
-        Self {
-            _marker: PhantomData,
-        }
+        Self { _marker: PhantomData }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -310,9 +299,9 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
         // Write the nonces to the trace.
         for i in 0..trace.height() {
-            let cols: &mut WeierstrassAddAssignCols<F, E::BaseField> = trace.values[i
-                * num_weierstrass_add_cols::<E::BaseField>()
-                ..(i + 1) * num_weierstrass_add_cols::<E::BaseField>()]
+            let cols: &mut WeierstrassAddAssignCols<F, E::BaseField> = trace.values[i *
+                num_weierstrass_add_cols::<E::BaseField>()..
+                (i + 1) * num_weierstrass_add_cols::<E::BaseField>()]
                 .borrow_mut();
             cols.nonce = F::from_canonical_usize(i);
         }
@@ -350,9 +339,7 @@ where
 
         // Constrain the incrementing nonce.
         builder.when_first_row().assert_zero(local.nonce);
-        builder
-            .when_transition()
-            .assert_eq(local.nonce + AB::Expr::one(), next.nonce);
+        builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         let num_words_field_element = <E::BaseField as NumLimbs>::Limbs::USIZE / 4;
 
@@ -488,7 +475,8 @@ where
         builder.eval_memory_access_slice(
             local.shard,
             local.channel,
-            local.clk + AB::F::from_canonical_u32(1), // We read p at +1 since p, q could be the same.
+            local.clk + AB::F::from_canonical_u32(1), /* We read p at +1 since p, q could be the
+                                                       * same. */
             local.p_ptr,
             &local.p_access,
             local.is_real,
