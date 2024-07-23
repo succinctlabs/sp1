@@ -11,12 +11,16 @@ pub use bitwise::*;
 pub use divrem::*;
 pub use lt::*;
 pub use mul::*;
+use rand::Rng;
 pub use sll::*;
 pub use sr::*;
 
 use serde::{Deserialize, Serialize};
 
-use crate::runtime::Opcode;
+use crate::{
+    cpu::new_sublookups,
+    runtime::{LookupIdSampler, Opcode},
+};
 
 /// A standard format for describing ALU operations that need to be proven.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -49,7 +53,7 @@ pub struct AluEvent {
 }
 
 impl AluEvent {
-    /// Creates a new `AluEvent`.
+    /// Creates a new `AluEvent`.  This is only used in tests.
     pub fn new(shard: u32, channel: u8, clk: u32, opcode: Opcode, a: u32, b: u32, c: u32) -> Self {
         Self {
             lookup_id: 0,
@@ -60,7 +64,21 @@ impl AluEvent {
             a,
             b,
             c,
-            sub_lookups: None,
+            sub_lookups: Some(new_sublookups(&mut SimpleLookupIdSampler::default())),
         }
+    }
+}
+
+/// A simple lookup id sampler.  This is only used for tests.
+#[derive(Default)]
+struct SimpleLookupIdSampler {
+    lookup_ids: Vec<u128>,
+}
+
+impl LookupIdSampler for SimpleLookupIdSampler {
+    fn sample(&mut self, num_lookup_ids: usize) -> &[u128] {
+        let mut rng = rand::thread_rng();
+        self.lookup_ids = vec![rng.gen::<u128>(); num_lookup_ids];
+        self.lookup_ids.as_slice()
     }
 }
