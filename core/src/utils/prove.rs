@@ -20,9 +20,10 @@ use p3_baby_bear::BabyBear;
 use p3_field::PrimeField32;
 
 use crate::air::{MachineAir, PublicValues};
+use crate::cpu::EventCounts;
 use crate::io::{SP1PublicValues, SP1Stdin};
 use crate::lookup::InteractionBuilder;
-use crate::runtime::{EventCounts, ExecutionError, NoOpSubproofVerifier, SP1Context};
+use crate::runtime::{ExecutionError, NoOpSubproofVerifier, SP1Context};
 use crate::runtime::{ExecutionRecord, ExecutionReport};
 use crate::stark::DebugConstraintBuilder;
 use crate::stark::MachineProof;

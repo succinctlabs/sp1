@@ -133,16 +133,3 @@ impl ExecutionState {
         Ok(())
     }
 }
-
-#[derive(Debug, Clone, Default, Copy, PartialEq, Eq)]
-pub struct EventCounts {
-    pub(crate) num_cpu_events: usize,
-    pub(crate) num_add_events: usize,
-    pub(crate) num_sub_events: usize,
-    pub(crate) num_bitwise_events: usize,
-    pub(crate) num_shift_left_events: usize,
-    pub(crate) num_shift_right_events: usize,
-    pub(crate) num_lt_events: usize,
-    pub(crate) num_mul_events: usize,
-    pub(crate) num_divrem_events: usize,
-}

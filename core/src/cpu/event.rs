@@ -112,3 +112,19 @@ pub fn new_sublookups(rng_sampler: &mut impl LookupIdSampler) -> [u128; 6] {
     let lookup_ids = rng_sampler.sample(6);
     array::from_fn(|i| lookup_ids[i])
 }
+
+/// The number of cpu events and per opcode events of a runtime execution run.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EventCounts {
+    pub(crate) num_cpu_events: usize,
+    pub(crate) num_ops_events: [usize; Opcode::max_variant() + 1],
+}
+
+impl Default for EventCounts {
+    fn default() -> Self {
+        Self {
+            num_cpu_events: 0,
+            num_ops_events: array::from_fn(|_| 0),
+        }
+    }
+}
