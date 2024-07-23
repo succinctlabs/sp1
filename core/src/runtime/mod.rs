@@ -592,7 +592,7 @@ impl<'a> Runtime<'a> {
     ) {
         self.rw(rd, a);
 
-        self.event_counts.num_ops_events[instruction.opcode as usize] += 1;
+        self.event_counts.num_ops_events[instruction.opcode] += 1;
 
         if self.emit_events {
             let lookup_id = match lookup_id {

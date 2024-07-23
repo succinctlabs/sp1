@@ -1,10 +1,13 @@
-use std::{fmt::Display, ops::Index};
+use std::{
+    fmt::Display,
+    ops::{Index, IndexMut},
+};
 
 use p3_field::Field;
 use serde::{Deserialize, Serialize};
 use strum::VariantArray;
 
-const MAX_OPCODE_IDX: usize = Opcode::max_variant();
+pub(crate) const MAX_OPCODE_IDX: usize = max_variant();
 
 /// An opcode specifies which operation to execute.
 #[derive(
@@ -67,6 +70,19 @@ pub enum Opcode {
     UNIMP = 39,
 }
 
+const fn max_variant() -> usize {
+    let mut max = Opcode::VARIANTS[0] as usize;
+    let mut i = 1;
+    while i < Opcode::VARIANTS.len() {
+        if (Opcode::VARIANTS[i] as usize) > max {
+            max = Opcode::VARIANTS[i] as usize;
+        }
+        i += 1;
+    }
+
+    max
+}
+
 impl Display for Opcode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(self.mnemonic())
@@ -116,19 +132,6 @@ impl Opcode {
             Opcode::UNIMP => "unimp",
         }
     }
-
-    pub const fn max_variant() -> usize {
-        let mut max = Opcode::VARIANTS[0] as usize;
-        let mut i = 1;
-        while i < Opcode::VARIANTS.len() {
-            if (Opcode::VARIANTS[i] as usize) > max {
-                max = Opcode::VARIANTS[i] as usize;
-            }
-            i += 1;
-        }
-
-        max
-    }
 }
 
 impl Opcode {
@@ -141,5 +144,11 @@ impl<T> Index<Opcode> for [T; MAX_OPCODE_IDX + 1] {
     type Output = T;
     fn index(&self, idx: Opcode) -> &Self::Output {
         &self[idx as usize]
+    }
+}
+
+impl<T> IndexMut<Opcode> for [T; MAX_OPCODE_IDX + 1] {
+    fn index_mut(&mut self, idx: Opcode) -> &mut Self::Output {
+        &mut self[idx as usize]
     }
 }

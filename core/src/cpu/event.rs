@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::runtime::Instruction;
 use crate::runtime::LookupIdSampler;
 use crate::runtime::MemoryRecordEnum;
-use crate::runtime::Opcode;
+use crate::runtime::{Opcode, MAX_OPCODE_IDX};
 
 /// A standard format for describing CPU operations that need to be proven.
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
@@ -117,7 +117,7 @@ pub fn new_sublookups(rng_sampler: &mut impl LookupIdSampler) -> [u128; 6] {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EventCounts {
     pub(crate) num_cpu_events: usize,
-    pub(crate) num_ops_events: [usize; Opcode::max_variant() + 1],
+    pub(crate) num_ops_events: [usize; MAX_OPCODE_IDX + 1],
 }
 
 impl Default for EventCounts {
