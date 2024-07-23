@@ -12,7 +12,7 @@ This is likely due to two different versions of `alloy_sol_types` being used. To
 
 ```toml
 [dependencies]
-sp1-sdk = "1.0.0-rc.1"
+sp1-sdk = "1.1.0"
 ```
 
 This will configure out the `network` feature which will remove the dependency on `alloy_sol_types`
