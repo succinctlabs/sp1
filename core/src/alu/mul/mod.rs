@@ -480,6 +480,7 @@ mod tests {
 
     use crate::{
         air::MachineAir,
+        alu::tests::SimpleLookupIdSampler,
         stark::StarkGenericConfig,
         utils::{uni_stark_prove as prove, uni_stark_verify as verify},
     };
@@ -505,10 +506,12 @@ mod tests {
                 0,
                 0,
                 0,
+                0,
                 Opcode::MULHSU,
                 0x80004000,
                 0x80000000,
                 0xffff8000,
+                &mut SimpleLookupIdSampler::default(),
             ));
         }
         shard.mul_events = mul_events;
@@ -578,12 +581,32 @@ mod tests {
             (Opcode::MULH, 0xffffffff, 0x00000001, 0xffffffff),
         ];
         for t in mul_instructions.iter() {
-            mul_events.push(AluEvent::new(0, 0, 0, t.0, t.1, t.2, t.3));
+            mul_events.push(AluEvent::new(
+                0,
+                0,
+                0,
+                0,
+                t.0,
+                t.1,
+                t.2,
+                t.3,
+                &mut SimpleLookupIdSampler::default(),
+            ));
         }
 
         // Append more events until we have 1000 tests.
         for _ in 0..(1000 - mul_instructions.len()) {
-            mul_events.push(AluEvent::new(0, 0, 0, Opcode::MUL, 1, 1, 1));
+            mul_events.push(AluEvent::new(
+                0,
+                0,
+                0,
+                0,
+                Opcode::MUL,
+                1,
+                1,
+                1,
+                &mut SimpleLookupIdSampler::default(),
+            ));
         }
 
         shard.mul_events = mul_events;

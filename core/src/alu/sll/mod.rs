@@ -419,6 +419,7 @@ mod tests {
 
     use crate::{
         air::MachineAir,
+        alu::tests::SimpleLookupIdSampler,
         stark::StarkGenericConfig,
         utils::{uni_stark_prove as prove, uni_stark_verify as verify},
     };
@@ -436,7 +437,17 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.shift_left_events = vec![AluEvent::new(0, 0, 0, Opcode::SLL, 16, 8, 1)];
+        shard.shift_left_events = vec![AluEvent::new(
+            0,
+            0,
+            0,
+            0,
+            Opcode::SLL,
+            16,
+            8,
+            1,
+            &mut SimpleLookupIdSampler::default(),
+        )];
         let chip = ShiftLeft::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
@@ -471,7 +482,17 @@ mod tests {
             (Opcode::SLL, 0x00000000, 0x21212120, 0xffffffff),
         ];
         for t in shift_instructions.iter() {
-            shift_events.push(AluEvent::new(0, 0, 0, t.0, t.1, t.2, t.3));
+            shift_events.push(AluEvent::new(
+                0,
+                0,
+                0,
+                0,
+                t.0,
+                t.1,
+                t.2,
+                t.3,
+                &mut SimpleLookupIdSampler::default(),
+            ));
         }
 
         // Append more events until we have 1000 tests.

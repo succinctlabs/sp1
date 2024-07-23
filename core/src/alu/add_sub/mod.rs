@@ -258,6 +258,7 @@ mod tests {
 
     use crate::{
         air::MachineAir,
+        alu::tests::SimpleLookupIdSampler,
         stark::StarkGenericConfig,
         utils::{uni_stark_prove as prove, uni_stark_verify as verify},
     };
@@ -273,7 +274,17 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.add_events = vec![AluEvent::new(0, 0, 0, Opcode::ADD, 14, 8, 6)];
+        shard.add_events = vec![AluEvent::new(
+            0,
+            0,
+            0,
+            0,
+            Opcode::ADD,
+            14,
+            8,
+            6,
+            &mut SimpleLookupIdSampler::default(),
+        )];
         let chip = AddSubChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
@@ -292,12 +303,14 @@ mod tests {
             let result = operand_1.wrapping_add(operand_2);
             shard.add_events.push(AluEvent::new(
                 0,
+                0,
                 i % 2,
                 0,
                 Opcode::ADD,
                 result,
                 operand_1,
                 operand_2,
+                &mut SimpleLookupIdSampler::default(),
             ));
         }
         for i in 0..255 {
@@ -306,12 +319,14 @@ mod tests {
             let result = operand_1.wrapping_sub(operand_2);
             shard.add_events.push(AluEvent::new(
                 0,
+                0,
                 i % 2,
                 0,
                 Opcode::SUB,
                 result,
                 operand_1,
                 operand_2,
+                &mut SimpleLookupIdSampler::default(),
             ));
         }
 

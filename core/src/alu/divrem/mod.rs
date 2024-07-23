@@ -983,6 +983,7 @@ mod tests {
 
     use crate::{
         air::MachineAir,
+        alu::tests::SimpleLookupIdSampler,
         stark::StarkGenericConfig,
         utils::{uni_stark_prove as prove, uni_stark_verify as verify},
     };
@@ -1000,7 +1001,17 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.divrem_events = vec![AluEvent::new(0, 0, 0, Opcode::DIVU, 2, 17, 3)];
+        shard.divrem_events = vec![AluEvent::new(
+            0,
+            0,
+            0,
+            0,
+            Opcode::DIVU,
+            2,
+            17,
+            3,
+            &mut SimpleLookupIdSampler::default(),
+        )];
         let chip = DivRemChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
@@ -1053,12 +1064,32 @@ mod tests {
             (Opcode::REM, 0, 1 << 31, neg(1)),
         ];
         for t in divrems.iter() {
-            divrem_events.push(AluEvent::new(0, 9, 0, t.0, t.1, t.2, t.3));
+            divrem_events.push(AluEvent::new(
+                0,
+                0,
+                9,
+                0,
+                t.0,
+                t.1,
+                t.2,
+                t.3,
+                &mut SimpleLookupIdSampler::default(),
+            ));
         }
 
         // Append more events until we have 1000 tests.
         for _ in 0..(1000 - divrems.len()) {
-            divrem_events.push(AluEvent::new(0, 0, 0, Opcode::DIVU, 1, 1, 1));
+            divrem_events.push(AluEvent::new(
+                0,
+                0,
+                0,
+                0,
+                Opcode::DIVU,
+                1,
+                1,
+                1,
+                &mut SimpleLookupIdSampler::default(),
+            ));
         }
 
         let mut shard = ExecutionRecord::default();

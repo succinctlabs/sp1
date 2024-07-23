@@ -54,7 +54,7 @@ pub mod extend_tests {
 
     use crate::{
         air::MachineAir,
-        alu::AluEvent,
+        alu::{tests::SimpleLookupIdSampler, AluEvent},
         runtime::{ExecutionRecord, Instruction, Opcode, Program, SyscallCode},
         stark::DefaultProver,
         utils::{
@@ -93,7 +93,17 @@ pub mod extend_tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.add_events = vec![AluEvent::new(0, 0, 0, Opcode::ADD, 14, 8, 6)];
+        shard.add_events = vec![AluEvent::new(
+            0,
+            0,
+            0,
+            0,
+            Opcode::ADD,
+            14,
+            8,
+            6,
+            &mut SimpleLookupIdSampler::default(),
+        )];
         let chip = ShaExtendChip::new();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());

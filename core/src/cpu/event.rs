@@ -3,7 +3,6 @@ use std::array;
 use serde::{Deserialize, Serialize};
 
 use crate::runtime::Instruction;
-use crate::runtime::LookupIdSampler;
 use crate::runtime::MemoryRecordEnum;
 use crate::runtime::{Opcode, MAX_OPCODE_IDX};
 
@@ -107,10 +106,9 @@ impl CpuLookupIds {
     }
 }
 
-/// Create a set of lookup_ids for an ALU event sublookup field.
-pub fn new_sublookups(rng_sampler: &mut impl LookupIdSampler) -> [u128; 6] {
-    let lookup_ids = rng_sampler.sample(6);
-    array::from_fn(|i| lookup_ids[i])
+/// Trait for sampling lookup ids.
+pub trait LookupIdSampler {
+    fn sample(&mut self, num_lookup_ids: usize) -> &[u128];
 }
 
 /// The number of cpu events and per opcode events of a runtime execution run.

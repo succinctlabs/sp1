@@ -41,9 +41,9 @@ use std::sync::Arc;
 use thiserror::Error;
 
 use crate::bytes::NUM_BYTE_LOOKUP_CHANNELS;
-use crate::cpu::new_sublookups;
 use crate::cpu::CpuLookupIds;
 use crate::cpu::EventCounts;
+use crate::cpu::LookupIdSampler;
 use crate::memory::MemoryInitializeFinalizeEvent;
 use crate::utils::SP1CoreOpts;
 use crate::{alu::AluEvent, cpu::CpuEvent};
@@ -509,26 +509,17 @@ impl<'a> Runtime<'a> {
 
     /// Emit an ALU event.
     fn emit_alu(&mut self, clk: u32, opcode: Opcode, a: u32, b: u32, c: u32, lookup_id: u128) {
-        let sub_lookups = if matches!(
-            opcode,
-            Opcode::DIVU | Opcode::REMU | Opcode::DIV | Opcode::REM,
-        ) {
-            Some(new_sublookups(self))
-        } else {
-            None
-        };
-
-        let event = AluEvent {
+        let event = AluEvent::new(
             lookup_id,
-            shard: self.shard(),
+            self.shard(),
+            self.channel(),
             clk,
-            channel: self.channel(),
             opcode,
             a,
             b,
             c,
-            sub_lookups,
-        };
+            self,
+        );
         match opcode {
             Opcode::ADD => {
                 self.record.add_events.push(event);
@@ -1300,10 +1291,6 @@ impl<'a> Runtime<'a> {
     fn get_syscall(&mut self, code: SyscallCode) -> Option<&Arc<dyn Syscall>> {
         self.syscall_map.get(&code)
     }
-}
-
-pub trait LookupIdSampler {
-    fn sample(&mut self, num_lookup_ids: usize) -> &[u128];
 }
 
 impl<'a> LookupIdSampler for Runtime<'a> {

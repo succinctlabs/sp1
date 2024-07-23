@@ -491,6 +491,7 @@ mod tests {
 
     use crate::{
         air::MachineAir,
+        alu::tests::SimpleLookupIdSampler,
         stark::StarkGenericConfig,
         utils::{uni_stark_prove as prove, uni_stark_verify as verify},
     };
@@ -508,7 +509,17 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.lt_events = vec![AluEvent::new(0, 1, 0, Opcode::SLT, 0, 3, 2)];
+        shard.lt_events = vec![AluEvent::new(
+            0,
+            0,
+            1,
+            0,
+            Opcode::SLT,
+            0,
+            3,
+            2,
+            &mut SimpleLookupIdSampler::default(),
+        )];
         let chip = LtChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
@@ -536,21 +547,101 @@ mod tests {
         const NEG_4: u32 = 0b11111111111111111111111111111100;
         shard.lt_events = vec![
             // 0 == 3 < 2
-            AluEvent::new(0, 0, 0, Opcode::SLT, 0, 3, 2),
+            AluEvent::new(
+                0,
+                0,
+                0,
+                0,
+                Opcode::SLT,
+                0,
+                3,
+                2,
+                &mut SimpleLookupIdSampler::default(),
+            ),
             // 1 == 2 < 3
-            AluEvent::new(0, 0, 1, Opcode::SLT, 1, 2, 3),
+            AluEvent::new(
+                0,
+                0,
+                0,
+                1,
+                Opcode::SLT,
+                1,
+                2,
+                3,
+                &mut SimpleLookupIdSampler::default(),
+            ),
             // 0 == 5 < -3
-            AluEvent::new(0, 0, 3, Opcode::SLT, 0, 5, NEG_3),
+            AluEvent::new(
+                0,
+                0,
+                0,
+                3,
+                Opcode::SLT,
+                0,
+                5,
+                NEG_3,
+                &mut SimpleLookupIdSampler::default(),
+            ),
             // 1 == -3 < 5
-            AluEvent::new(0, 0, 2, Opcode::SLT, 1, NEG_3, 5),
+            AluEvent::new(
+                0,
+                0,
+                0,
+                2,
+                Opcode::SLT,
+                1,
+                NEG_3,
+                5,
+                &mut SimpleLookupIdSampler::default(),
+            ),
             // 0 == -3 < -4
-            AluEvent::new(0, 0, 4, Opcode::SLT, 0, NEG_3, NEG_4),
+            AluEvent::new(
+                0,
+                0,
+                0,
+                4,
+                Opcode::SLT,
+                0,
+                NEG_3,
+                NEG_4,
+                &mut SimpleLookupIdSampler::default(),
+            ),
             // 1 == -4 < -3
-            AluEvent::new(0, 0, 4, Opcode::SLT, 1, NEG_4, NEG_3),
+            AluEvent::new(
+                0,
+                0,
+                0,
+                4,
+                Opcode::SLT,
+                1,
+                NEG_4,
+                NEG_3,
+                &mut SimpleLookupIdSampler::default(),
+            ),
             // 0 == 3 < 3
-            AluEvent::new(0, 0, 5, Opcode::SLT, 0, 3, 3),
+            AluEvent::new(
+                0,
+                0,
+                0,
+                5,
+                Opcode::SLT,
+                0,
+                3,
+                3,
+                &mut SimpleLookupIdSampler::default(),
+            ),
             // 0 == -3 < -3
-            AluEvent::new(0, 0, 5, Opcode::SLT, 0, NEG_3, NEG_3),
+            AluEvent::new(
+                0,
+                0,
+                0,
+                5,
+                Opcode::SLT,
+                0,
+                NEG_3,
+                NEG_3,
+                &mut SimpleLookupIdSampler::default(),
+            ),
         ];
 
         prove_babybear_template(&mut shard);
@@ -563,17 +654,77 @@ mod tests {
         const LARGE: u32 = 0b11111111111111111111111111111101;
         shard.lt_events = vec![
             // 0 == 3 < 2
-            AluEvent::new(0, 0, 0, Opcode::SLTU, 0, 3, 2),
+            AluEvent::new(
+                0,
+                0,
+                0,
+                0,
+                Opcode::SLTU,
+                0,
+                3,
+                2,
+                &mut SimpleLookupIdSampler::default(),
+            ),
             // 1 == 2 < 3
-            AluEvent::new(0, 0, 1, Opcode::SLTU, 1, 2, 3),
+            AluEvent::new(
+                0,
+                0,
+                0,
+                1,
+                Opcode::SLTU,
+                1,
+                2,
+                3,
+                &mut SimpleLookupIdSampler::default(),
+            ),
             // 0 == LARGE < 5
-            AluEvent::new(0, 0, 2, Opcode::SLTU, 0, LARGE, 5),
+            AluEvent::new(
+                0,
+                0,
+                0,
+                2,
+                Opcode::SLTU,
+                0,
+                LARGE,
+                5,
+                &mut SimpleLookupIdSampler::default(),
+            ),
             // 1 == 5 < LARGE
-            AluEvent::new(0, 0, 3, Opcode::SLTU, 1, 5, LARGE),
+            AluEvent::new(
+                0,
+                0,
+                0,
+                3,
+                Opcode::SLTU,
+                1,
+                5,
+                LARGE,
+                &mut SimpleLookupIdSampler::default(),
+            ),
             // 0 == 0 < 0
-            AluEvent::new(0, 0, 5, Opcode::SLTU, 0, 0, 0),
+            AluEvent::new(
+                0,
+                0,
+                0,
+                5,
+                Opcode::SLTU,
+                0,
+                0,
+                0,
+                &mut SimpleLookupIdSampler::default(),
+            ),
             // 0 == LARGE < LARGE
-            AluEvent::new(0, 0, 5, Opcode::SLTU, 0, LARGE, LARGE),
+            AluEvent::new(
+                0,
+                0,
+                0,
+                5,
+                Opcode::SLTU,
+                0,
+                LARGE,
+                LARGE,
+                &mut SimpleLookupIdSampler::default(),
+            ),
         ];
 
         prove_babybear_template(&mut shard);
