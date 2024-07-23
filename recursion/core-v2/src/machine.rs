@@ -55,6 +55,15 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
             .collect::<Vec<_>>();
         StarkMachine::new(config, chips, PROOF_MAX_NUM_PVS)
     }
+    pub fn machine_with_all_chips<SC: StarkGenericConfig<Val = F>>(
+        config: SC,
+    ) -> StarkMachine<SC, Self> {
+        let chips = Self::get_skinny_and_wide()
+            .into_iter()
+            .map(Chip::new)
+            .collect::<Vec<_>>();
+        StarkMachine::new(config, chips, PROOF_MAX_NUM_PVS)
+    }
 
     pub fn machine_with_padding<SC: StarkGenericConfig<Val = F>>(
         config: SC,
@@ -117,6 +126,19 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
             RecursionAir::BaseAlu(BaseAluChip::default()),
             RecursionAir::ExtAlu(ExtAluChip::default()),
             // RecursionAir::Poseidon2Skinny(Poseidon2SkinnyChip::<DEGREE>::default()),
+            RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE>::default()),
+            RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>::default()),
+            RecursionAir::FriFold(FriFoldChip::<DEGREE>::default()),
+        ]
+    }
+
+    pub fn get_skinny_and_wide() -> Vec<Self> {
+        vec![
+            // RecursionAir::Program(ProgramChip::default()),
+            RecursionAir::Memory(MemoryChip::default()),
+            RecursionAir::BaseAlu(BaseAluChip::default()),
+            RecursionAir::ExtAlu(ExtAluChip::default()),
+            RecursionAir::Poseidon2Skinny(Poseidon2SkinnyChip::<DEGREE>::default()),
             RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE>::default()),
             RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>::default()),
             RecursionAir::FriFold(FriFoldChip::<DEGREE>::default()),

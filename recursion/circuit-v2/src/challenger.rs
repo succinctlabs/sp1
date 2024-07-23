@@ -255,7 +255,7 @@ mod tests {
 
         let records = vec![runtime.record];
 
-        let machine = RecursionAir::<_, 3>::machine(BabyBearPoseidon2::default());
+        let machine = RecursionAir::<_, 3, 0>::machine_with_all_chips(BabyBearPoseidon2::default());
         let (pk, vk) = machine.setup(&program);
         let result = run_test_machine(records.clone(), machine, pk, vk);
         if let Err(e) = result {

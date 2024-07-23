@@ -738,28 +738,9 @@ mod tests {
         let record = run(&program);
 
         let config = SC::new();
-        let machine = A::machine(config);
+        let machine = A::machine_with_all_chips(config);
         let (pk, vk) = machine.setup(&program);
         let result = run_test_machine(vec![record], machine, pk, vk);
-        if let Err(e) = result {
-            panic!("Verification failed: {:?}", e);
-        }
-    }
-
-    fn test_operations_wide(operations: TracedVec<DslIr<AsmConfig<F, EF>>>) {
-        let mut compiler = super::AsmCompiler::<AsmConfig<F, EF>>::default();
-        let instructions = compiler.compile(operations);
-        let program = RecursionProgram { instructions };
-        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(
-            &program,
-            BabyBearPoseidon2Inner::new().perm,
-        );
-        runtime.run();
-
-        let config = SC::new();
-        let machine = A::machine_wide(config);
-        let (pk, vk) = machine.setup(&program);
-        let result = run_test_machine(vec![runtime.record], machine, pk, vk);
         if let Err(e) = result {
             panic!("Verification failed: {:?}", e);
         }
@@ -806,7 +787,7 @@ mod tests {
             }
         }
 
-        test_operations_wide(builder.operations);
+        test_operations(builder.operations);
     }
 
     #[test]
