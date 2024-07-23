@@ -54,7 +54,7 @@ pub mod extend_tests {
 
     use crate::{
         air::MachineAir,
-        alu::{tests::SimpleLookupIdSampler, AluEvent},
+        alu::{AluEvent, SimpleLookupIdSampler},
         runtime::{ExecutionRecord, Instruction, Opcode, Program, SyscallCode},
         stark::DefaultProver,
         utils::{

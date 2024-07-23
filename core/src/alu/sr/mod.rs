@@ -560,7 +560,7 @@ where
 mod tests {
     use crate::{
         air::MachineAir,
-        alu::tests::SimpleLookupIdSampler,
+        alu::SimpleLookupIdSampler,
         stark::StarkGenericConfig,
         utils::{uni_stark_prove as prove, uni_stark_verify as verify},
     };

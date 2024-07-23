@@ -238,12 +238,11 @@ mod tests {
     use p3_matrix::dense::RowMajorMatrix;
 
     use crate::air::MachineAir;
-    use crate::alu::tests::SimpleLookupIdSampler;
     use crate::stark::StarkGenericConfig;
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
 
     use super::BitwiseChip;
-    use crate::alu::AluEvent;
+    use crate::alu::{AluEvent, SimpleLookupIdSampler};
     use crate::runtime::{ExecutionRecord, Opcode};
     use crate::utils::BabyBearPoseidon2;
 

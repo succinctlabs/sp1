@@ -13,6 +13,7 @@ pub use bitwise::*;
 pub use divrem::*;
 pub use lt::*;
 pub use mul::*;
+use rand::Rng;
 pub use sll::*;
 pub use sr::*;
 
@@ -92,23 +93,16 @@ fn new_sublookups(rng_sampler: &mut impl LookupIdSampler) -> [u128; 6] {
     array::from_fn(|i| lookup_ids[i])
 }
 
-#[cfg(test)]
-pub mod tests {
-    use rand::Rng;
+/// A simple lookup id sampler.  This is only used for tests.
+#[derive(Default)]
+pub struct SimpleLookupIdSampler {
+    lookup_ids: Vec<u128>,
+}
 
-    use crate::cpu::LookupIdSampler;
-
-    /// A simple lookup id sampler.  This is only used for tests.
-    #[derive(Default)]
-    pub struct SimpleLookupIdSampler {
-        lookup_ids: Vec<u128>,
-    }
-
-    impl LookupIdSampler for SimpleLookupIdSampler {
-        fn sample(&mut self, num_lookup_ids: usize) -> &[u128] {
-            let mut rng = rand::thread_rng();
-            self.lookup_ids = vec![rng.gen::<u128>(); num_lookup_ids];
-            self.lookup_ids.as_slice()
-        }
+impl LookupIdSampler for SimpleLookupIdSampler {
+    fn sample(&mut self, num_lookup_ids: usize) -> &[u128] {
+        let mut rng = rand::thread_rng();
+        self.lookup_ids = vec![rng.gen::<u128>(); num_lookup_ids];
+        self.lookup_ids.as_slice()
     }
 }
