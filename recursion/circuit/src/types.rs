@@ -28,7 +28,7 @@ pub struct RecursionShardOpenedValuesVariable<C: Config> {
 pub struct FriProofVariable<C: Config> {
     pub commit_phase_commits: Vec<OuterDigestVariable<C>>,
     pub query_proofs: Vec<FriQueryProofVariable<C>>,
-    pub final_poly: Ext<C::F, C::EF>,
+    pub final_poly: Vec<Ext<C::F, C::EF>>,
     pub pow_witness: Felt<C::F>,
 }
 

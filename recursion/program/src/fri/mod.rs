@@ -53,8 +53,13 @@ pub fn verify_shape_and_sample_challenges<C: Config>(
         });
 
     // Observe the final polynomial.
-    let final_poly_felts = builder.ext2felt(proof.final_poly);
-    challenger.observe_slice(builder, final_poly_felts);
+    builder
+        .range(0, proof.final_poly.len())
+        .for_each(|i, builder| {
+            let elt = builder.get(&proof.final_poly, i);
+            let felt = builder.ext2felt(elt);
+            challenger.observe_slice(builder, felt);
+        });
 
     let num_query_proofs = proof.query_proofs.len().materialize(builder);
     builder
@@ -63,10 +68,18 @@ pub fn verify_shape_and_sample_challenges<C: Config>(
             builder.error();
         });
 
+    let final_poly_len = proof.final_poly.len().materialize(builder);
+    builder
+        .if_ne(final_poly_len, config.log_max_poly_len)
+        .then(|builder| {
+            builder.error();
+        });
+
     challenger.check_witness(builder, config.proof_of_work_bits, proof.pow_witness);
 
     let num_commit_phase_commits = proof.commit_phase_commits.len().materialize(builder);
-    let log_max_height: Var<_> = builder.eval(num_commit_phase_commits + config.log_blowup);
+    let log_max_height: Var<_> =
+        builder.eval(num_commit_phase_commits + config.log_blowup + config.log_max_poly_len);
     let mut query_indices = builder.array(config.num_queries);
     builder.range(0, config.num_queries).for_each(|i, builder| {
         let index_bits = challenger.sample_bits(builder, Usize::Var(log_max_height));
@@ -94,7 +107,8 @@ pub fn verify_challenges<C: Config>(
     C::EF: TwoAdicField,
 {
     let nb_commit_phase_commits = proof.commit_phase_commits.len().materialize(builder);
-    let log_max_height = builder.eval(nb_commit_phase_commits + config.log_blowup);
+    let log_max_height =
+        builder.eval(nb_commit_phase_commits + config.log_blowup + config.log_max_poly_len);
     builder
         .range(0, challenges.query_indices.len())
         .for_each(|i, builder| {
@@ -113,7 +127,43 @@ pub fn verify_challenges<C: Config>(
                 Usize::Var(log_max_height),
             );
 
-            builder.assert_ext_eq(folded_eval, proof.final_poly);
+            let final_poly_index_bits_size: Usize<_> =
+                builder.eval(index_bits.len() - proof.commit_phase_commits.len());
+            let mut final_poly_index_bits = builder.array(final_poly_index_bits_size);
+            builder
+                .range(0, final_poly_index_bits_size)
+                .for_each(|j, builder| {
+                    let index: Usize<_> = builder.eval(j + proof.commit_phase_commits.len());
+                    let val = builder.get(&index_bits, index);
+                    builder.set(&mut final_poly_index_bits, j, val);
+                });
+
+            let two_adic_generator_f = config.get_two_adic_generator(builder, log_max_height);
+            let mut eval: Ext<_, _> = builder.eval(C::F::zero());
+            let mut x_pow: Ext<_, _> = builder.eval(C::F::one());
+            let x = if matches!(builder.program_type, RecursionProgramType::Wrap) {
+                builder.exp_reverse_bits_len(
+                    two_adic_generator_f,
+                    &final_poly_index_bits,
+                    log_max_height,
+                )
+            } else {
+                builder.exp_reverse_bits_len_fast(
+                    two_adic_generator_f,
+                    &final_poly_index_bits,
+                    log_max_height,
+                )
+            };
+
+            builder
+                .range(0, proof.final_poly.len())
+                .for_each(|j, builder| {
+                    let poly_coeff = builder.get(&proof.final_poly, j);
+                    eval = builder.eval(poly_coeff * x_pow);
+                    x_pow = builder.eval(x_pow * x);
+                });
+
+            builder.assert_ext_eq(folded_eval, eval);
         });
 }
 
