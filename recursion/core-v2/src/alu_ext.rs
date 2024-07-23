@@ -1,10 +1,7 @@
 use core::borrow::Borrow;
 use p3_air::PairBuilder;
-use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::extension::BinomialExtensionField;
+use p3_air::{Air, BaseAir};
 use p3_field::extension::BinomiallyExtendable;
-use p3_field::AbstractExtensionField;
-use p3_field::AbstractField;
 use p3_field::Field;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
@@ -186,7 +183,7 @@ where
 mod tests {
     use machine::RecursionAir;
     use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
-    use p3_field::AbstractField;
+    use p3_field::{extension::BinomialExtensionField, AbstractExtensionField, AbstractField};
     use p3_matrix::dense::RowMajorMatrix;
 
     use rand::{rngs::StdRng, Rng, SeedableRng};
