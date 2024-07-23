@@ -255,9 +255,10 @@ where
                         BaseAluOpcode::DivF => in1.try_div(in2).unwrap_or(AbstractField::one()),
                     };
                     self.mw(addrs.out, Block::from(out), mult);
-                    self.record
-                        .base_alu_events
-                        .push(BaseAluEvent { out, in1, in2 });
+                    self.record.base_alu_events.push(BaseAluEvent {
+                        io: BaseAluIo { out, in1, in2 },
+                        op: opcode,
+                    });
                 }
                 Instruction::ExtAlu(ExtAluInstr {
                     opcode,

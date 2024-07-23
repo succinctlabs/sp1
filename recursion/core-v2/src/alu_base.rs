@@ -2,8 +2,8 @@ use core::borrow::Borrow;
 use itertools::Itertools;
 use p3_air::PairBuilder;
 use p3_air::{Air, AirBuilder, BaseAir};
+use p3_field::Field;
 use p3_field::PrimeField32;
-use p3_field::{AbstractField, Field};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use sp1_core::air::MachineAir;
@@ -31,10 +31,7 @@ pub struct BaseAluCols<F: Copy> {
 #[repr(C)]
 pub struct BaseAluValueCols<F: Copy> {
     pub vals: BaseAluIo<F>,
-    pub sum: F,
-    pub diff: F,
-    pub product: F,
-    pub quotient: F,
+    pub result: F,
 }
 
 pub const NUM_BASE_ALU_PREPROCESSED_COLS: usize =
@@ -143,17 +140,20 @@ impl<F: PrimeField32> MachineAir<F> for BaseAluChip {
             .map(|row_events| {
                 let mut row = [F::zero(); NUM_BASE_ALU_COLS];
                 let cols: &mut BaseAluCols<_> = row.as_mut_slice().borrow_mut();
-                for (cell, &vals) in zip(&mut cols.values, row_events) {
-                    let BaseAluEvent {
-                        in1: v1, in2: v2, ..
-                    } = vals;
+                for (cell, vals) in zip(&mut cols.values, row_events) {
+                    let v1 = vals.io.in1;
+                    let v2 = vals.io.in2;
+
+                    let result = match vals.op {
+                        BaseAluOpcode::AddF => v1 + v2,
+                        BaseAluOpcode::SubF => v1 - v2,
+                        BaseAluOpcode::MulF => v1 * v2,
+                        BaseAluOpcode::DivF => v1.try_div(v2).unwrap_or(F::one()),
+                    };
 
                     *cell = BaseAluValueCols {
-                        vals,
-                        sum: v1 + v2,
-                        diff: v1 - v2,
-                        product: v1 * v2,
-                        quotient: v1.try_div(v2).unwrap_or(F::one()),
+                        vals: vals.io,
+                        result,
                     };
                 }
 
@@ -193,34 +193,28 @@ where
         for (value, access) in zip(local.values, prep_local.accesses) {
             let BaseAluValueCols {
                 vals: BaseAluIo { out, in1, in2 },
-                sum,
-                diff,
-                product,
-                quotient,
+                result,
             } = value;
 
             // Check exactly one flag is enabled.
             let is_real = access.is_add + access.is_sub + access.is_mul + access.is_div;
-            builder.assert_eq(is_real.square(), is_real.clone());
+            builder.assert_bool(is_real.clone());
 
             let mut when_add = builder.when(access.is_add);
-            when_add.assert_eq(out, sum);
-            when_add.assert_eq(in1 + in2, sum);
+            when_add.assert_eq(out, result);
+            when_add.assert_eq(in1 + in2, result);
 
             let mut when_sub = builder.when(access.is_sub);
-            when_sub.assert_eq(out, diff);
-            when_sub.assert_eq(in1, in2 + diff);
+            when_sub.assert_eq(out, result);
+            when_sub.assert_eq(in1, in2 + result);
 
             let mut when_mul = builder.when(access.is_mul);
-            when_mul.assert_eq(out, product);
-            when_mul.assert_eq(in1 * in2, product);
+            when_mul.assert_eq(out, result);
+            when_mul.assert_eq(in1 * in2, result);
 
             let mut when_div = builder.when(access.is_div);
-            when_div.assert_eq(out, quotient);
-            when_div.assert_eq(in1, in2 * quotient);
-
-            // local.is_real is 0 or 1
-            // builder.assert_zero(local.is_real * (AB::Expr::one() - local.is_real));
+            when_div.assert_eq(out, result);
+            when_div.assert_eq(in1, in2 * result);
 
             builder.receive_single(access.addrs.in1, in1, is_real.clone());
 
@@ -255,10 +249,13 @@ mod tests {
         type F = BabyBear;
 
         let shard = ExecutionRecord {
-            base_alu_events: vec![BaseAluIo {
-                out: F::one(),
-                in1: F::one(),
-                in2: F::one(),
+            base_alu_events: vec![BaseAluEvent {
+                io: BaseAluIo {
+                    out: F::one(),
+                    in1: F::one(),
+                    in2: F::one(),
+                },
+                op: BaseAluOpcode::AddF,
             }],
             ..Default::default()
         };
