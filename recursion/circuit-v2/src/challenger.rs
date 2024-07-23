@@ -1,14 +1,19 @@
+use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::AbstractField;
 use sp1_recursion_compiler::circuit::CircuitV2Builder;
-use sp1_recursion_compiler::prelude::MemIndex;
-use sp1_recursion_compiler::prelude::MemVariable;
-use sp1_recursion_compiler::prelude::Ptr;
-use sp1_recursion_compiler::prelude::Variable;
-use sp1_recursion_compiler::prelude::{Array, Builder, Config, DslVariable, Ext, Felt, Usize, Var};
+use sp1_recursion_compiler::prelude::{Builder, Config, Ext, Felt};
 use sp1_recursion_core_v2::runtime::{DIGEST_SIZE, HASH_RATE, PERMUTATION_WIDTH};
 
-use crate::fri::types::DigestVariable;
-use crate::types::VerifyingKeyVariable;
+pub type DigestVariable<C> = Vec<Felt<<C as Config>::F>>;
+
+/// Reference: [sp1_core::stark::VerifyingKey]
+#[derive(Clone)]
+pub struct VerifyingKeyVariable<C: Config> {
+    pub commitment: DigestVariable<C>,
+    pub pc_start: Felt<C::F>,
+    pub preprocessed_sorted_idxs: Vec<Felt<C::F>>,
+    pub prep_domains: Vec<TwoAdicMultiplicativeCoset<C::F>>,
+}
 
 /// Reference: [p3_challenger::CanObserve].
 pub trait CanObserveVariable<C: Config, V> {
@@ -238,7 +243,6 @@ impl<C: Config> FeltChallenger<C> for DuplexChallengerVariable<C> {
 mod tests {
     use p3_challenger::CanObserve;
     use p3_challenger::CanSample;
-    use p3_challenger::CanSampleBits;
     use p3_challenger::FieldChallenger;
     use p3_field::AbstractField;
     use sp1_core::stark::StarkGenericConfig;
