@@ -139,8 +139,8 @@ impl<F: PrimeField32> MachineAir<F> for BaseAluChip {
             .map(|row_events| {
                 let mut row = [F::zero(); NUM_BASE_ALU_COLS];
                 let cols: &mut BaseAluCols<_> = row.as_mut_slice().borrow_mut();
-                for (cell, event) in zip(&mut cols.values, row_events) {
-                    *cell = BaseAluValueCols { vals: event.io };
+                for (cell, &vals) in zip(&mut cols.values, row_events) {
+                    *cell = BaseAluValueCols { vals };
                 }
 
                 row
@@ -230,13 +230,10 @@ mod tests {
         type F = BabyBear;
 
         let shard = ExecutionRecord {
-            base_alu_events: vec![BaseAluEvent {
-                io: BaseAluIo {
-                    out: F::one(),
-                    in1: F::one(),
-                    in2: F::one(),
-                },
-                op: BaseAluOpcode::AddF,
+            base_alu_events: vec![BaseAluIo {
+                out: F::one(),
+                in1: F::one(),
+                in2: F::one(),
             }],
             ..Default::default()
         };

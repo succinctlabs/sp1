@@ -32,11 +32,7 @@ pub struct BaseAluIo<V> {
     pub in2: V,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct BaseAluEvent<F> {
-    pub io: BaseAluIo<F>,
-    pub op: BaseAluOpcode,
-}
+pub type BaseAluEvent<F> = BaseAluIo<F>;
 
 /// An instruction invoking the extension field ALU.
 #[derive(Clone, Debug, Serialize, Deserialize)]
