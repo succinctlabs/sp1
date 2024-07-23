@@ -3,14 +3,15 @@ mod opcode;
 mod program;
 mod record;
 
-use instruction::HintBitsInstr;
 pub use instruction::Instruction;
+use instruction::{FieldEltType, HintBitsInstr, PrintInstr};
 pub use opcode::*;
 use p3_util::reverse_bits_len;
 pub use program::*;
 pub use record::*;
 
 use std::borrow::Cow;
+use std::io::{stdout, Write};
 use std::{marker::PhantomData, sync::Arc};
 
 use hashbrown::hash_map::Entry;
@@ -60,7 +61,7 @@ pub struct CycleTrackerEntry {
 /// TODO fully document.
 /// Taken from [`sp1_recursion_core::runtime::Runtime`].
 /// Many missing things (compared to the old `Runtime`) will need to be implemented.
-pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
+pub struct Runtime<'a, F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
     pub timestamp: usize,
 
     pub nb_poseidons: usize,
@@ -81,6 +82,10 @@ pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
 
     pub nb_fri_fold: usize,
 
+    pub nb_print_f: usize,
+
+    pub nb_print_e: usize,
+
     /// The current clock.
     pub clk: F,
 
@@ -98,6 +103,9 @@ pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
 
     pub cycle_tracker: HashMap<String, CycleTrackerEntry>,
 
+    /// The stream that print statements write to.
+    pub debug_stdout: Box<dyn Write + 'a>,
+
     /// Entries for dealing with the Poseidon2 hash state.
     perm: Option<
         Poseidon2<
@@ -114,7 +122,7 @@ pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
     _marker_diffusion: PhantomData<Diffusion>,
 }
 
-impl<F: PrimeField32, EF: ExtensionField<F>, Diffusion> Runtime<F, EF, Diffusion>
+impl<'a, F: PrimeField32, EF: ExtensionField<F>, Diffusion> Runtime<'a, F, EF, Diffusion>
 where
     Poseidon2<
         F,
@@ -149,12 +157,15 @@ where
             nb_memory_ops: 0,
             nb_branch_ops: 0,
             nb_fri_fold: 0,
+            nb_print_f: 0,
+            nb_print_e: 0,
             clk: F::zero(),
             program: program.clone(),
             pc: F::zero(),
             memory: HashMap::new(),
             record,
             cycle_tracker: HashMap::new(),
+            debug_stdout: Box::new(stdout()),
             perm: Some(perm),
             _marker_ef: PhantomData,
             _marker_diffusion: PhantomData,
@@ -446,6 +457,22 @@ where
                         });
                     }
                 }
+
+                Instruction::Print(PrintInstr {
+                    field_elt_type,
+                    addr,
+                }) => match field_elt_type {
+                    FieldEltType::Base => {
+                        self.nb_print_f += 1;
+                        let f = self.mr_mult(addr, F::zero()).val[0];
+                        writeln!(self.debug_stdout, "PRINTF={f}").unwrap();
+                    }
+                    FieldEltType::Extension => {
+                        self.nb_print_e += 1;
+                        let ef = self.mr_mult(addr, F::zero()).val;
+                        writeln!(self.debug_stdout, "PRINTEF={ef:?}").unwrap();
+                    }
+                },
             }
 
             self.pc = next_pc;
