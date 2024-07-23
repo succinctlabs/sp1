@@ -43,9 +43,7 @@ pub trait CanSampleBitsVariable<C: Config> {
 #[derive(Clone)]
 pub struct DuplexChallengerVariable<C: Config> {
     pub sponge_state: [Felt<C::F>; PERMUTATION_WIDTH],
-    // pub nb_inputs: usize,
     pub input_buffer: Vec<Felt<C::F>>,
-    // pub nb_outputs: usize,
     pub output_buffer: Vec<Felt<C::F>>,
 }
 
@@ -54,9 +52,7 @@ impl<C: Config> DuplexChallengerVariable<C> {
     pub fn new(builder: &mut Builder<C>) -> Self {
         DuplexChallengerVariable::<C> {
             sponge_state: core::array::from_fn(|_| builder.eval(C::F::zero())),
-            // nb_inputs: 0,
             input_buffer: vec![],
-            // nb_outputs: 0,
             output_buffer: vec![],
         }
     }
@@ -64,19 +60,15 @@ impl<C: Config> DuplexChallengerVariable<C> {
     /// Creates a new challenger with the same state as an existing challenger.
     pub fn copy(&self, builder: &mut Builder<C>) -> Self {
         let DuplexChallengerVariable {
-            ref sponge_state,
-            // nb_inputs,
-            ref input_buffer,
-            // nb_outputs,
-            ref output_buffer,
-        } = *self;
+            sponge_state,
+            input_buffer,
+            output_buffer,
+        } = self;
         let sponge_state = sponge_state.map(|x| builder.eval(x));
         let mut copy_vec = |v: &Vec<Felt<C::F>>| v.iter().map(|x| builder.eval(*x)).collect();
         DuplexChallengerVariable::<C> {
             sponge_state,
-            // nb_inputs,
             input_buffer: copy_vec(input_buffer),
-            // nb_outputs,
             output_buffer: copy_vec(output_buffer),
         }
     }
