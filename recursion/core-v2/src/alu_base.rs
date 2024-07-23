@@ -31,7 +31,6 @@ pub struct BaseAluCols<F: Copy> {
 #[repr(C)]
 pub struct BaseAluValueCols<F: Copy> {
     pub vals: BaseAluIo<F>,
-    pub result: F,
 }
 
 pub const NUM_BASE_ALU_PREPROCESSED_COLS: usize =
@@ -140,21 +139,8 @@ impl<F: PrimeField32> MachineAir<F> for BaseAluChip {
             .map(|row_events| {
                 let mut row = [F::zero(); NUM_BASE_ALU_COLS];
                 let cols: &mut BaseAluCols<_> = row.as_mut_slice().borrow_mut();
-                for (cell, vals) in zip(&mut cols.values, row_events) {
-                    let v1 = vals.io.in1;
-                    let v2 = vals.io.in2;
-
-                    let result = match vals.op {
-                        BaseAluOpcode::AddF => v1 + v2,
-                        BaseAluOpcode::SubF => v1 - v2,
-                        BaseAluOpcode::MulF => v1 * v2,
-                        BaseAluOpcode::DivF => v1.try_div(v2).unwrap_or(F::one()),
-                    };
-
-                    *cell = BaseAluValueCols {
-                        vals: vals.io,
-                        result,
-                    };
+                for (cell, event) in zip(&mut cols.values, row_events) {
+                    *cell = BaseAluValueCols { vals: event.io };
                 }
 
                 row
@@ -193,7 +179,6 @@ where
         for (value, access) in zip(local.values, prep_local.accesses) {
             let BaseAluValueCols {
                 vals: BaseAluIo { out, in1, in2 },
-                result,
             } = value;
 
             // Check exactly one flag is enabled.
@@ -201,20 +186,16 @@ where
             builder.assert_bool(is_real.clone());
 
             let mut when_add = builder.when(access.is_add);
-            when_add.assert_eq(out, result);
-            when_add.assert_eq(in1 + in2, result);
+            when_add.assert_eq(in1 + in2, out);
 
             let mut when_sub = builder.when(access.is_sub);
-            when_sub.assert_eq(out, result);
-            when_sub.assert_eq(in1, in2 + result);
+            when_sub.assert_eq(in1, in2 + out);
 
             let mut when_mul = builder.when(access.is_mul);
-            when_mul.assert_eq(out, result);
-            when_mul.assert_eq(in1 * in2, result);
+            when_mul.assert_eq(in1 * in2, out);
 
             let mut when_div = builder.when(access.is_div);
-            when_div.assert_eq(out, result);
-            when_div.assert_eq(in1, in2 * result);
+            when_div.assert_eq(in1, in2 * out);
 
             builder.receive_single(access.addrs.in1, in1, is_real.clone());
 
