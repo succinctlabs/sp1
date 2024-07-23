@@ -1,18 +1,9 @@
 use core::fmt::Debug;
-use instruction::FieldEltType;
-use instruction::HintBitsInstr;
-use instruction::PrintInstr;
-use p3_field::AbstractExtensionField;
-use p3_field::AbstractField;
-use p3_field::Field;
-use p3_field::PrimeField;
-use p3_field::TwoAdicField;
+use instruction::{FieldEltType, HintBitsInstr, PrintInstr};
+use p3_field::{AbstractExtensionField, AbstractField, Field, PrimeField, TwoAdicField};
 use sp1_recursion_core::air::Block;
-use sp1_recursion_core_v2::poseidon2_skinny::WIDTH;
-use sp1_recursion_core_v2::BaseAluInstr;
-use sp1_recursion_core_v2::BaseAluOpcode;
-use std::collections::hash_map::Entry;
-use std::collections::HashMap;
+use sp1_recursion_core_v2::{poseidon2_skinny::WIDTH, BaseAluInstr, BaseAluOpcode};
+use std::collections::{hash_map::Entry, HashMap};
 
 use sp1_recursion_core_v2::*;
 
