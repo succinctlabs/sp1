@@ -185,17 +185,10 @@ where
             let is_real = access.is_add + access.is_sub + access.is_mul + access.is_div;
             builder.assert_bool(is_real.clone());
 
-            let mut when_add = builder.when(access.is_add);
-            when_add.assert_eq(in1 + in2, out);
-
-            let mut when_sub = builder.when(access.is_sub);
-            when_sub.assert_eq(in1, in2 + out);
-
-            let mut when_mul = builder.when(access.is_mul);
-            when_mul.assert_eq(in1 * in2, out);
-
-            let mut when_div = builder.when(access.is_div);
-            when_div.assert_eq(in1, in2 * out);
+            builder.when(access.is_add).assert_eq(in1 + in2, out);
+            builder.when(access.is_sub).assert_eq(in1, in2 + out);
+            builder.when(access.is_mul).assert_eq(in1 * in2, out);
+            builder.when(access.is_div).assert_eq(in1, in2 * out);
 
             builder.receive_single(access.addrs.in1, in1, is_real.clone());
 
