@@ -53,6 +53,7 @@ pub struct AluEvent {
 
 impl AluEvent {
     #[allow(clippy::too_many_arguments)]
+    #[inline]
     pub fn new(
         lookup_id: u128,
         shard: u32,
