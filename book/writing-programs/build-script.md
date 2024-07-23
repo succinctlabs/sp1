@@ -14,7 +14,7 @@ Make sure to also add `sp1-helper` as a build dependency in `script/Cargo.toml`:
 
 ```toml
 [build-dependencies]
-sp1-helper = { git = "https://github.com/succinctlabs/sp1.git" }
+sp1-helper = "1.0.1"
 ```
 
 If you run `RUST_LOG=info cargo run --release -vv`, you will see the following output from the build script if the program has changed, indicating that the program was rebuilt:

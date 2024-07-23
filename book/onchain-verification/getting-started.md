@@ -27,7 +27,5 @@ You can run the above script with `RUST_LOG=info cargo run --bin plonk_bn254 --r
 If you would like to run the PLONK prover directly without Docker, you must have Go 1.22 installed and enable the `native-plonk` feature in `sp1-sdk`. This path is not recommended and may require additional native dependencies.
 
 ```toml
-sp1-sdk = { features = ["native-plonk"] }
+sp1-sdk = { version = "1.0.1", features = ["native-plonk"] }
 ```
-
-
