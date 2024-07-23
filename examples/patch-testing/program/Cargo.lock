@@ -176,7 +176,7 @@ checksum = "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381"
 
 [[package]]
 name = "patch-testing-program"
-version = "1.0.0-rc.1"
+version = "1.0.1"
 dependencies = [
  "curve25519-dalek-ng",
  "ed25519-consensus",
@@ -285,7 +285,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "1.0.0-rc.1"
+version = "1.0.1"
 dependencies = [
  "anyhow",
  "bincode",
@@ -295,7 +295,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "1.0.0-rc.1"
+version = "1.0.1"
 dependencies = [
  "bincode",
  "cfg-if",
