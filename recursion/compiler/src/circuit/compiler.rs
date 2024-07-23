@@ -1,5 +1,7 @@
 use core::fmt::Debug;
+use instruction::FieldEltType;
 use instruction::HintBitsInstr;
+use instruction::PrintInstr;
 use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
 use p3_field::Field;
@@ -328,6 +330,20 @@ impl<C: Config> AsmCompiler<C> {
         })
     }
 
+    fn print_f(&mut self, addr: impl Reg<C>) -> Instruction<C::F> {
+        Instruction::Print(PrintInstr {
+            field_elt_type: FieldEltType::Base,
+            addr: addr.read_ghost(self),
+        })
+    }
+
+    fn print_e(&mut self, addr: impl Reg<C>) -> Instruction<C::F> {
+        Instruction::Print(PrintInstr {
+            field_elt_type: FieldEltType::Extension,
+            addr: addr.read_ghost(self),
+        })
+    }
+
     pub fn compile_one<F>(&mut self, ir_instr: DslIr<C>) -> Vec<Instruction<C::F>>
     where
         F: PrimeField + TwoAdicField,
@@ -440,9 +456,9 @@ impl<C: Config> AsmCompiler<C> {
             // DslIr::HintBitsU(_, _) => todo!(),
             // DslIr::HintBitsV(_, _) => todo!(),
             // DslIr::HintBitsF(_, _) => todo!(),
-            // DslIr::PrintV(_) => todo!(),
-            // DslIr::PrintF(_) => todo!(),
-            // DslIr::PrintE(_) => todo!(),
+            DslIr::PrintV(dst) => vec![self.print_f(dst)],
+            DslIr::PrintF(dst) => vec![self.print_f(dst)],
+            DslIr::PrintE(dst) => vec![self.print_e(dst)],
             // DslIr::Error() => todo!(),
             // DslIr::HintExt2Felt(_, _) => todo!(),
             // DslIr::HintLen(_) => todo!(),
@@ -501,12 +517,9 @@ impl<C: Config> AsmCompiler<C> {
                 Instruction::Mem(MemInstr {
                     addrs: MemIo { ref inner },
                     mult,
-                    kind,
+                    kind: MemAccessKind::Write,
                     ..
-                }) => match kind {
-                    MemAccessKind::Write => vec![(mult, inner)],
-                    _ => vec![],
-                },
+                }) => vec![(mult, inner)],
                 Instruction::Poseidon2Skinny(Poseidon2SkinnyInstr {
                     addrs: Poseidon2Io { ref output, .. },
                     mults,
@@ -540,6 +553,12 @@ impl<C: Config> AsmCompiler<C> {
                     .zip(alpha_pow_output)
                     .chain(ro_mults.iter_mut().zip(ro_output))
                     .collect(),
+                // Instructions that do not write to memory.
+                Instruction::Mem(MemInstr {
+                    kind: MemAccessKind::Read,
+                    ..
+                })
+                | Instruction::Print(_) => vec![],
             })
             .for_each(|(mult, addr): (&mut C::F, &Address<C::F>)| {
                 *mult = self.addr_to_mult.remove(addr).unwrap()
@@ -683,6 +702,8 @@ impl<C: Config> Reg<C> for Address<C::F> {
 
 #[cfg(test)]
 mod tests {
+    use std::{collections::VecDeque, io::BufRead, iter::zip};
+
     use p3_baby_bear::DiffusionMatrixBabyBear;
     use p3_field::{Field, PrimeField32};
     use p3_symmetric::Permutation;
@@ -707,19 +728,29 @@ mod tests {
     type A = RecursionAir<F, 3>;
 
     fn test_operations(operations: TracedVec<DslIr<AsmConfig<F, EF>>>) {
+        test_operations_with_runner(operations, |program| {
+            let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(
+                program,
+                BabyBearPoseidon2Inner::new().perm,
+            );
+            runtime.run();
+            runtime.record
+        });
+    }
+
+    fn test_operations_with_runner(
+        operations: TracedVec<DslIr<AsmConfig<F, EF>>>,
+        run: impl FnOnce(&RecursionProgram<F>) -> ExecutionRecord<F>,
+    ) {
         let mut compiler = super::AsmCompiler::<AsmConfig<F, EF>>::default();
         let instructions = compiler.compile(operations);
         let program = RecursionProgram { instructions };
-        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(
-            &program,
-            BabyBearPoseidon2Inner::new().perm,
-        );
-        runtime.run();
+        let record = run(&program);
 
         let config = SC::new();
         let machine = A::machine(config);
         let (pk, vk) = machine.setup(&program);
-        let result = run_test_machine(vec![runtime.record], machine, pk, vk);
+        let result = run_test_machine(vec![record], machine, pk, vk);
         if let Err(e) = result {
             panic!("Verification failed: {:?}", e);
         }
@@ -887,6 +918,56 @@ mod tests {
             }
         }
         test_operations(builder.operations);
+    }
+
+    #[test]
+    fn test_print() {
+        const ITERS: usize = 100;
+
+        setup_logger();
+
+        let mut builder = AsmBuilder::<F, EF>::default();
+
+        let input_fs = StdRng::seed_from_u64(0xC0FFEE7AB1E)
+            .sample_iter::<F, _>(rand::distributions::Standard)
+            .take(ITERS)
+            .collect::<Vec<_>>();
+
+        let input_efs = StdRng::seed_from_u64(0x7EA7AB1E)
+            .sample_iter::<[F; 4], _>(rand::distributions::Standard)
+            .take(ITERS)
+            .collect::<Vec<_>>();
+
+        let mut buf = VecDeque::<u8>::new();
+
+        for &input_f in input_fs.iter() {
+            let input_felt = builder.eval(input_f);
+            builder.print_f(input_felt);
+        }
+
+        for input_block in input_efs.iter() {
+            let input_ext = builder.eval(EF::from_base_slice(input_block).cons());
+            builder.print_e(input_ext);
+        }
+
+        test_operations_with_runner(builder.operations, |program| {
+            let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(
+                program,
+                BabyBearPoseidon2Inner::new().perm,
+            );
+            runtime.debug_stdout = Box::new(&mut buf);
+            runtime.run();
+            runtime.record
+        });
+
+        let input_str_fs = input_fs.into_iter().map(|elt| format!("{}", elt));
+        let input_str_efs = input_efs.into_iter().map(|elt| format!("{:?}", elt));
+        let input_strs = input_str_fs.chain(input_str_efs);
+
+        for (input_str, line) in zip(input_strs, buf.lines()) {
+            let line = line.unwrap();
+            assert!(line.contains(&input_str));
+        }
     }
 
     macro_rules! test_assert_fixture {

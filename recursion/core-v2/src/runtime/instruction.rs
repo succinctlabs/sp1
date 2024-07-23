@@ -13,6 +13,7 @@ pub enum Instruction<F> {
     ExpReverseBitsLen(ExpReverseBitsInstr<F>),
     HintBits(HintBitsInstr<F>),
     FriFold(FriFoldInstr<F>),
+    Print(PrintInstr<F>),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -21,6 +22,18 @@ pub struct HintBitsInstr<F> {
     pub output_addrs_mults: Vec<(Address<F>, F)>,
     /// Input value to decompose.
     pub input_addr: Address<F>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct PrintInstr<F> {
+    pub field_elt_type: FieldEltType,
+    pub addr: Address<F>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum FieldEltType {
+    Base,
+    Extension,
 }
 
 pub fn base_alu<F: AbstractField>(
