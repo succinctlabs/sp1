@@ -1,3 +1,5 @@
+use std::iter::zip;
+
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::AbstractField;
 use sp1_recursion_compiler::circuit::CircuitV2Builder;
@@ -79,42 +81,24 @@ impl<C: Config> DuplexChallengerVariable<C> {
         }
     }
 
-    // /// Asserts that the state of this challenger is equal to the state of another challenger.
-    // pub fn assert_eq(&self, builder: &mut Builder<C>, other: &Self) {
-    //     builder.assert_var_eq(self.nb_inputs, other.nb_inputs);
-    //     builder.assert_var_eq(self.nb_outputs, other.nb_outputs);
-    //     for i in 0..PERMUTATION_WIDTH {
-    //         let element = self.sponge_state[i];
-    //         let other_element = other.sponge_state[i];
-    //         builder.assert_felt_eq(element, other_element);
-    //     }
-    //     builder.range(0, self.nb_inputs).for_each(|i, builder| {
-    //         let element = self.input_buffer[i];
-    //         let other_element = other.input_buffer[i];
-    //         builder.assert_felt_eq(element, other_element);
-    //     });
-    //     builder.range(0, self.nb_outputs).for_each(|i, builder| {
-    //         let element = self.output_buffer[i];
-    //         let other_element = other.output_buffer[i];
-    //         builder.assert_felt_eq(element, other_element);
-    //     });
-    // }
+    /// Asserts that the state of this challenger is equal to the state of another challenger.
+    pub fn assert_eq(&self, builder: &mut Builder<C>, other: &Self) {
+        for (&element, &other_element) in zip(&self.sponge_state, &other.sponge_state) {
+            builder.assert_felt_eq(element, other_element);
+        }
+        for (&element, &other_element) in zip(&self.input_buffer, &other.input_buffer) {
+            builder.assert_felt_eq(element, other_element);
+        }
+        for (&element, &other_element) in zip(&self.output_buffer, &other.output_buffer) {
+            builder.assert_felt_eq(element, other_element);
+        }
+    }
 
-    // pub fn reset(&mut self, builder: &mut Builder<C>) {
-    //     let zero: Var<_> = builder.eval(C::N::zero());
-    //     let zero_felt: Felt<_> = builder.eval(C::F::zero());
-    //     for i in 0..PERMUTATION_WIDTH {
-    //         builder.set(&mut self.sponge_state, i, zero_felt);
-    //     }
-    //     builder.assign(self.nb_inputs, zero);
-    //     for i in 0..PERMUTATION_WIDTH {
-    //         builder.set(&mut self.input_buffer, i, zero_felt);
-    //     }
-    //     builder.assign(self.nb_outputs, zero);
-    //     for i in 0..PERMUTATION_WIDTH {
-    //         builder.set(&mut self.output_buffer, i, zero_felt);
-    //     }
-    // }
+    pub fn reset(&mut self, builder: &mut Builder<C>) {
+        self.sponge_state.fill(builder.eval(C::F::zero()));
+        self.input_buffer.clear();
+        self.output_buffer.clear();
+    }
 
     pub fn duplexing(&mut self, builder: &mut Builder<C>) {
         self.sponge_state[0..self.input_buffer.len()].copy_from_slice(self.input_buffer.as_slice());
