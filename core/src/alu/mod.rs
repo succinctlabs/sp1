@@ -11,7 +11,6 @@ pub use bitwise::*;
 pub use divrem::*;
 pub use lt::*;
 pub use mul::*;
-use rand::Rng;
 pub use sll::*;
 pub use sr::*;
 
@@ -46,7 +45,7 @@ pub struct AluEvent {
     // The second input operand.
     pub c: u32,
 
-    pub sub_lookups: [u128; 6],
+    pub sub_lookups: Option<[u128; 6]>,
 }
 
 impl AluEvent {
@@ -61,20 +60,7 @@ impl AluEvent {
             a,
             b,
             c,
-            sub_lookups: create_alu_lookups(),
+            sub_lookups: None,
         }
     }
-}
-
-#[inline]
-pub fn create_alu_lookups() -> [u128; 6] {
-    let mut rng = rand::thread_rng();
-    [
-        rng.gen(),
-        rng.gen(),
-        rng.gen(),
-        rng.gen(),
-        rng.gen(),
-        rng.gen(),
-    ]
 }

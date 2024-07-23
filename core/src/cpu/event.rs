@@ -72,6 +72,7 @@ pub enum CpuLookupIds {
 }
 
 impl CpuLookupIds {
+    /// Create a new set of lookup_ids for a given instruction.
     pub fn new(instr: Instruction, rng_sampler: &mut impl LookupIdSampler) -> Self {
         let num_lookup_ids = if instr.is_alu_instruction()
             || instr.is_ecall_instruction()
@@ -104,9 +105,10 @@ impl CpuLookupIds {
             CpuLookupIds::DefaultLookupIds
         }
     }
+}
 
-    pub fn new_sublookups(rng_sampler: &mut impl LookupIdSampler) -> [u128; 6] {
-        let lookup_ids = rng_sampler.sample(6);
-        array::from_fn(|i| lookup_ids[i])
-    }
+/// Create a set of lookup_ids for an ALU event sublookup field.
+pub fn new_sublookups(rng_sampler: &mut impl LookupIdSampler) -> [u128; 6] {
+    let lookup_ids = rng_sampler.sample(6);
+    array::from_fn(|i| lookup_ids[i])
 }

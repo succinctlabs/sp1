@@ -41,6 +41,7 @@ use std::sync::Arc;
 use thiserror::Error;
 
 use crate::bytes::NUM_BYTE_LOOKUP_CHANNELS;
+use crate::cpu::new_sublookups;
 use crate::cpu::CpuLookupIds;
 use crate::memory::MemoryInitializeFinalizeEvent;
 use crate::utils::SP1CoreOpts;
@@ -532,10 +533,14 @@ impl<'a> Runtime<'a> {
         let shard = self.shard();
         let channel = self.channel();
 
-        let sub_lookups = if self.emit_events {
-            CpuLookupIds::new_sublookups(self)
+        let sub_lookups = if self.emit_events
+            && matches!(
+                instruction.opcode,
+                Opcode::DIVU | Opcode::REMU | Opcode::DIV | Opcode::REM,
+            ) {
+            Some(new_sublookups(self))
         } else {
-            [0; 6]
+            None
         };
 
         let vec_to_add = match instruction.opcode {
@@ -1336,7 +1341,7 @@ fn emit_alu(
     shard: u32,
     channel: u8,
     vec_to_add: &mut Vec<AluEvent>,
-    sub_lookups: [u128; 6],
+    sub_lookups: Option<[u128; 6]>,
 ) {
     let lookup_id = match lookup_id {
         CpuLookupIds::AluLookupId(lookup_id) => lookup_id,

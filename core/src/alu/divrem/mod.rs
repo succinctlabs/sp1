@@ -76,7 +76,7 @@ use sp1_derive::AlignedBorrow;
 use crate::air::MachineAir;
 use crate::air::{SP1AirBuilder, Word};
 use crate::alu::divrem::utils::{get_msb, get_quotient_and_remainder, is_signed_operation};
-use crate::alu::{create_alu_lookups, AluEvent};
+use crate::alu::AluEvent;
 use crate::bytes::event::ByteRecord;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::disassembler::WORD_SIZE;
@@ -235,6 +235,13 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                     || event.opcode == Opcode::REM
                     || event.opcode == Opcode::DIV
             );
+
+            let sub_lookups = if let Some(sub_lookups) = event.sub_lookups {
+                sub_lookups
+            } else {
+                panic!("divrem events should have non-none sub_lookups");
+            };
+
             let mut row = [F::zero(); NUM_DIVREM_COLS];
             let cols: &mut DivRemCols<F> = row.as_mut_slice().borrow_mut();
 
@@ -284,7 +291,7 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                 cols.abs_c_alu_event_nonce = F::from_canonical_u32(
                     input
                         .nonce_lookup
-                        .get(&event.sub_lookups[4])
+                        .get(&sub_lookups[4])
                         .copied()
                         .unwrap_or_default(),
                 );
@@ -292,7 +299,7 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                 cols.abs_rem_alu_event_nonce = F::from_canonical_u32(
                     input
                         .nonce_lookup
-                        .get(&event.sub_lookups[5])
+                        .get(&sub_lookups[5])
                         .copied()
                         .unwrap_or_default(),
                 );
@@ -364,7 +371,7 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                         let mut add_events: Vec<AluEvent> = vec![];
                         if cols.abs_c_alu_event == F::one() {
                             add_events.push(AluEvent {
-                                lookup_id: event.sub_lookups[4],
+                                lookup_id: sub_lookups[4],
                                 shard: event.shard,
                                 channel: event.channel,
                                 clk: event.clk,
@@ -372,12 +379,12 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                                 a: 0,
                                 b: event.c,
                                 c: (event.c as i32).abs() as u32,
-                                sub_lookups: create_alu_lookups(),
+                                sub_lookups: None,
                             })
                         }
                         if cols.abs_rem_alu_event == F::one() {
                             add_events.push(AluEvent {
-                                lookup_id: event.sub_lookups[5],
+                                lookup_id: sub_lookups[5],
                                 shard: event.shard,
                                 channel: event.channel,
                                 clk: event.clk,
@@ -385,7 +392,7 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                                 a: 0,
                                 b: remainder,
                                 c: (remainder as i32).abs() as u32,
-                                sub_lookups: create_alu_lookups(),
+                                sub_lookups: None,
                             })
                         }
                         let mut alu_events = HashMap::new();
@@ -404,7 +411,7 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                     }
 
                     let lower_multiplication = AluEvent {
-                        lookup_id: event.sub_lookups[0],
+                        lookup_id: sub_lookups[0],
                         shard: event.shard,
                         channel: event.channel,
                         clk: event.clk,
@@ -412,19 +419,19 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                         a: lower_word,
                         c: event.c,
                         b: quotient,
-                        sub_lookups: create_alu_lookups(),
+                        sub_lookups: None,
                     };
                     cols.lower_nonce = F::from_canonical_u32(
                         input
                             .nonce_lookup
-                            .get(&event.sub_lookups[0])
+                            .get(&sub_lookups[0])
                             .copied()
                             .unwrap_or_default(),
                     );
                     output.add_mul_event(lower_multiplication);
 
                     let upper_multiplication = AluEvent {
-                        lookup_id: event.sub_lookups[1],
+                        lookup_id: sub_lookups[1],
                         shard: event.shard,
                         channel: event.channel,
                         clk: event.clk,
@@ -438,12 +445,12 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                         a: upper_word,
                         c: event.c,
                         b: quotient,
-                        sub_lookups: create_alu_lookups(),
+                        sub_lookups: None,
                     };
                     cols.upper_nonce = F::from_canonical_u32(
                         input
                             .nonce_lookup
-                            .get(&event.sub_lookups[1])
+                            .get(&sub_lookups[1])
                             .copied()
                             .unwrap_or_default(),
                     );
@@ -452,12 +459,12 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                         cols.abs_nonce = F::from_canonical_u32(
                             input
                                 .nonce_lookup
-                                .get(&event.sub_lookups[2])
+                                .get(&sub_lookups[2])
                                 .copied()
                                 .unwrap_or_default(),
                         );
                         AluEvent {
-                            lookup_id: event.sub_lookups[2],
+                            lookup_id: sub_lookups[2],
                             shard: event.shard,
                             channel: event.channel,
                             opcode: Opcode::SLTU,
@@ -465,18 +472,18 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                             b: (remainder as i32).abs() as u32,
                             c: u32::max(1, (event.c as i32).abs() as u32),
                             clk: event.clk,
-                            sub_lookups: create_alu_lookups(),
+                            sub_lookups: None,
                         }
                     } else {
                         cols.abs_nonce = F::from_canonical_u32(
                             input
                                 .nonce_lookup
-                                .get(&event.sub_lookups[3])
+                                .get(&sub_lookups[3])
                                 .copied()
                                 .unwrap_or_default(),
                         );
                         AluEvent {
-                            lookup_id: event.sub_lookups[3],
+                            lookup_id: sub_lookups[3],
                             shard: event.shard,
                             channel: event.channel,
                             opcode: Opcode::SLTU,
@@ -484,7 +491,7 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                             b: remainder,
                             c: u32::max(1, event.c),
                             clk: event.clk,
-                            sub_lookups: create_alu_lookups(),
+                            sub_lookups: None,
                         }
                     };
 

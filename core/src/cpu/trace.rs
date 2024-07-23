@@ -15,7 +15,6 @@ use super::columns::{CPU_COL_MAP, NUM_CPU_COLS};
 use super::{CpuChip, CpuEvent};
 use crate::air::MachineAir;
 use crate::air::Word;
-use crate::alu::create_alu_lookups;
 use crate::alu::{self, AluEvent};
 use crate::bytes::event::ByteRecord;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
@@ -311,7 +310,7 @@ impl CpuChip {
             a: memory_addr,
             b: event.b,
             c: event.c,
-            sub_lookups: create_alu_lookups(),
+            sub_lookups: None,
         };
         new_alu_events
             .entry(Opcode::ADD)
@@ -384,7 +383,7 @@ impl CpuChip {
                         a: event.a,
                         b: cols.unsigned_mem_val.to_u32(),
                         c: sign_value,
-                        sub_lookups: create_alu_lookups(),
+                        sub_lookups: None,
                     };
                     cols.unsigned_mem_val_nonce = F::from_canonical_u32(
                         nonce_lookup
@@ -465,7 +464,7 @@ impl CpuChip {
                 a: a_lt_b as u32,
                 b: event.a,
                 c: event.b,
-                sub_lookups: create_alu_lookups(),
+                sub_lookups: None,
             };
             branch_columns.a_lt_b_nonce = F::from_canonical_u32(
                 nonce_lookup
@@ -488,7 +487,7 @@ impl CpuChip {
                 a: a_gt_b as u32,
                 b: event.b,
                 c: event.a,
-                sub_lookups: create_alu_lookups(),
+                sub_lookups: None,
             };
             branch_columns.a_gt_b_nonce = F::from_canonical_u32(
                 nonce_lookup
@@ -532,7 +531,7 @@ impl CpuChip {
                     a: next_pc,
                     b: event.pc,
                     c: event.c,
-                    sub_lookups: create_alu_lookups(),
+                    sub_lookups: None,
                 };
                 branch_columns.next_pc_nonce = F::from_canonical_u32(
                     nonce_lookup
@@ -585,7 +584,7 @@ impl CpuChip {
                         a: next_pc,
                         b: event.pc,
                         c: event.b,
-                        sub_lookups: create_alu_lookups(),
+                        sub_lookups: None,
                     };
                     jump_columns.jal_nonce = F::from_canonical_u32(
                         nonce_lookup
@@ -614,7 +613,7 @@ impl CpuChip {
                         a: next_pc,
                         b: event.b,
                         c: event.c,
-                        sub_lookups: create_alu_lookups(),
+                        sub_lookups: None,
                     };
                     jump_columns.jalr_nonce = F::from_canonical_u32(
                         nonce_lookup
@@ -661,7 +660,7 @@ impl CpuChip {
                 a: event.a,
                 b: event.pc,
                 c: event.b,
-                sub_lookups: create_alu_lookups(),
+                sub_lookups: None,
             };
             auipc_columns.auipc_nonce = F::from_canonical_u32(
                 nonce_lookup
