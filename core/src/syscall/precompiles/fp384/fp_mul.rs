@@ -1,11 +1,10 @@
-use crate::air::{BaseAirBuilder, MachineAir, Polynomial, SP1AirBuilder, WORD_SIZE};
+use crate::air::{BaseAirBuilder, MachineAir, Polynomial, SP1AirBuilder};
 use crate::bytes::event::ByteRecord;
 use crate::memory::{value_as_limbs, MemoryReadCols, MemoryWriteCols};
 use crate::operations::field::field_op::{FieldOpCols, FieldOperation};
 use crate::operations::field::params::{FieldParameters, NumWords};
 use crate::operations::field::params::{Limbs, NumLimbs};
 use crate::operations::field::range::FieldRangeCols;
-use crate::operations::IsZeroOperation;
 use crate::runtime::{ExecutionRecord, Program, Syscall, SyscallCode};
 use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
 use crate::stark::MachineRecord;
@@ -15,7 +14,6 @@ use crate::utils::{
     bytes_to_words_le, limbs_from_access, limbs_from_prev_access, pad_rows, words_to_bytes_le,
     words_to_bytes_le_vec,
 };
-use elliptic_curve::Field;
 use generic_array::GenericArray;
 use itertools::Itertools;
 use num::BigUint;

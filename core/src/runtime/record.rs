@@ -18,6 +18,7 @@ use crate::runtime::MemoryInitializeFinalizeEvent;
 use crate::runtime::MemoryRecordEnum;
 use crate::stark::MachineRecord;
 use crate::syscall::precompiles::edwards::EdDecompressEvent;
+use crate::syscall::precompiles::fp384::FpAddEvent;
 use crate::syscall::precompiles::fp384::FpMulEvent;
 use crate::syscall::precompiles::keccak256::KeccakPermuteEvent;
 use crate::syscall::precompiles::sha256::{ShaCompressEvent, ShaExtendEvent};
@@ -100,6 +101,8 @@ pub struct ExecutionRecord {
     pub bls12381_decompress_events: Vec<ECDecompressEvent>,
 
     pub fp_mul_events: Vec<FpMulEvent>,
+
+    pub fp_add_events: Vec<FpAddEvent>,
 
     /// The public values.
     pub public_values: PublicValues<u32, u32>,

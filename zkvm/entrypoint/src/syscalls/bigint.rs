@@ -1,4 +1,4 @@
-use super::{syscall_bls12381_fp_mulmod, syscall_uint256_mulmod};
+use super::{syscall_bls12381_fp_addmod, syscall_bls12381_fp_mulmod, syscall_uint256_mulmod};
 
 pub const BIGINT_WIDTH_WORDS: usize = 8;
 pub const FP_BIGINT_WIDTH_WORDS: usize = 12;
@@ -62,6 +62,10 @@ pub extern "C" fn bls12381_sys_bigint(
 
         // Call the fp_mul syscall to multiply the x value with the concatenated y and modulus.
         // This syscall writes the result in-place, so it will mutate the result ptr appropriately.
-        syscall_bls12381_fp_mulmod(result_ptr, y_ptr);
+        if op == 0 {
+            syscall_bls12381_fp_mulmod(result_ptr, y_ptr);
+        } else {
+            syscall_bls12381_fp_addmod(result_ptr, y_ptr);
+        }
     }
 }
