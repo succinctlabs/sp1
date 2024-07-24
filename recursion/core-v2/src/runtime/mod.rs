@@ -4,13 +4,12 @@ mod program;
 mod record;
 
 pub use instruction::Instruction;
-use instruction::{FieldEltType, HintBitsInstr, PrintInstr};
+use instruction::{FieldEltType, HintBitsInstr, HintExt2FeltsInstr, PrintInstr};
 pub use opcode::*;
 use p3_util::reverse_bits_len;
 pub use program::*;
 pub use record::*;
 
-use std::borrow::Cow;
 use std::io::{stdout, Write};
 use std::{marker::PhantomData, sync::Arc};
 
@@ -187,31 +186,24 @@ where
         }
     }
 
-    /// Read from a memory address. Decrements the memory entry's mult count,
-    /// removing the entry if the mult is no longer positive.
+    /// Read from a memory address. Decrements the memory entry's mult count.
     ///
     /// # Panics
     /// Panics if the address is unassigned.
-    fn mr(&mut self, addr: Address<F>) -> Cow<MemoryEntry<F>> {
+    fn mr(&mut self, addr: Address<F>) -> &mut MemoryEntry<F> {
         self.mr_mult(addr, F::one())
     }
 
-    /// Read from a memory address. Reduces the memory entry's mult count by the given amount,
-    /// removing the entry if the mult is no longer positive.
+    /// Read from a memory address. Reduces the memory entry's mult count by the given amount.
     ///
     /// # Panics
     /// Panics if the address is unassigned.
-    fn mr_mult(&mut self, addr: Address<F>, mult: F) -> Cow<MemoryEntry<F>> {
+    fn mr_mult(&mut self, addr: Address<F>, mult: F) -> &mut MemoryEntry<F> {
         match self.memory.entry(addr) {
             Entry::Occupied(mut entry) => {
                 let entry_mult = &mut entry.get_mut().mult;
                 *entry_mult -= mult;
-                // We don't check for negative mult because I'm not sure how comparison in F works.
-                if entry_mult.is_zero() {
-                    Cow::Owned(entry.remove())
-                } else {
-                    Cow::Borrowed(entry.into_mut())
-                }
+                entry.into_mut()
             }
             Entry::Vacant(_) => panic!("tried to read from unassigned address: {addr:?}",),
         }
@@ -473,6 +465,19 @@ where
                         writeln!(self.debug_stdout, "PRINTEF={ef:?}").unwrap();
                     }
                 },
+                Instruction::HintExt2Felts(HintExt2FeltsInstr {
+                    output_addrs_mults,
+                    input_addr,
+                }) => {
+                    self.nb_bit_decompositions += 1;
+                    let fs = self.mr_mult(input_addr, F::zero()).val;
+                    // Write the bits to the array at dst.
+                    for (f, (addr, mult)) in fs.into_iter().zip(output_addrs_mults) {
+                        let felt = Block::from(f);
+                        self.mw(addr, felt, mult);
+                        self.record.mem_events.push(MemEvent { inner: felt });
+                    }
+                }
             }
 
             self.pc = next_pc;

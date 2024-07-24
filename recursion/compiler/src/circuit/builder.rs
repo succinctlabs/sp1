@@ -2,10 +2,10 @@
 
 use std::iter::repeat;
 
-use p3_field::AbstractField;
+use p3_field::{AbstractExtensionField, AbstractField};
 
 use crate::prelude::*;
-use sp1_recursion_core_v2::{poseidon2_skinny::WIDTH, DIGEST_SIZE, HASH_RATE, NUM_BITS};
+use sp1_recursion_core_v2::{poseidon2_skinny::WIDTH, D, DIGEST_SIZE, HASH_RATE, NUM_BITS};
 
 pub trait CircuitV2Builder<C: Config> {
     fn num2bits_v2_f(&mut self, num: Felt<C::F>) -> Vec<Felt<C::F>>;
@@ -19,6 +19,7 @@ pub trait CircuitV2Builder<C: Config> {
         input: impl IntoIterator<Item = Felt<C::F>>,
     ) -> [Felt<C::F>; DIGEST_SIZE];
     fn fri_fold_v2(&mut self, input: CircuitV2FriFoldInput<C>) -> CircuitV2FriFoldOutput<C>;
+    fn ext2felt_v2(&mut self, ext: Ext<C::F, C::EF>) -> [Felt<C::F>; D];
 }
 
 impl<C: Config> CircuitV2Builder<C> for Builder<C> {
@@ -98,17 +99,33 @@ impl<C: Config> CircuitV2Builder<C> for Builder<C> {
     }
     /// Runs FRI fold.
     fn fri_fold_v2(&mut self, input: CircuitV2FriFoldInput<C>) -> CircuitV2FriFoldOutput<C> {
-        let mut uninit_array = || {
+        let mut uninit_vec = || {
             std::iter::from_fn(|| Some(self.uninit()))
                 .take(NUM_BITS)
                 .collect()
         };
         let output = CircuitV2FriFoldOutput {
-            alpha_pow_output: uninit_array(),
-            ro_output: uninit_array(),
+            alpha_pow_output: uninit_vec(),
+            ro_output: uninit_vec(),
         };
         self.operations
             .push(DslIr::CircuitV2FriFold(output.clone(), input));
         output
+    }
+    /// Decomposes an ext into its felt coordinates.
+    fn ext2felt_v2(&mut self, ext: Ext<C::F, C::EF>) -> [Felt<C::F>; D] {
+        let felts = core::array::from_fn(|_| self.uninit());
+        self.operations.push(DslIr::CircuitExt2Felt(felts, ext));
+        // Verify that the decomposed extension element is correct.
+        let mut reconstructed_ext: Ext<C::F, C::EF> = self.constant(C::EF::zero());
+        for i in 0..4 {
+            let felt = felts[i];
+            let monomial: Ext<C::F, C::EF> = self.constant(C::EF::monomial(i));
+            reconstructed_ext = self.eval(reconstructed_ext + monomial * felt);
+        }
+
+        self.assert_ext_eq(reconstructed_ext, ext);
+
+        felts
     }
 }
