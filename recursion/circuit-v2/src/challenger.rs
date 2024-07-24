@@ -4,9 +4,9 @@ use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::AbstractField;
 use sp1_recursion_compiler::circuit::CircuitV2Builder;
 use sp1_recursion_compiler::prelude::{Builder, Config, Ext, Felt};
-use sp1_recursion_core_v2::runtime::{DIGEST_SIZE, HASH_RATE, PERMUTATION_WIDTH};
+use sp1_recursion_core_v2::runtime::{HASH_RATE, PERMUTATION_WIDTH};
 
-pub type DigestVariable<C> = Vec<Felt<<C as Config>::F>>;
+use crate::DigestVariable;
 
 /// Reference: [sp1_core::stark::VerifyingKey]
 #[derive(Clone)]
@@ -113,7 +113,7 @@ impl<C: Config> DuplexChallengerVariable<C> {
     }
 
     pub fn observe_commitment(&mut self, builder: &mut Builder<C>, commitment: DigestVariable<C>) {
-        for element in commitment.into_iter().take(DIGEST_SIZE) {
+        for element in commitment.into_iter() {
             self.observe(builder, element);
         }
     }
