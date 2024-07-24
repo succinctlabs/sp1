@@ -19,7 +19,7 @@ use super::WIDTH;
 
 impl<F, const DEGREE: usize> BaseAir<F> for Poseidon2SkinnyChip<DEGREE> {
     fn width(&self) -> usize {
-        if DEGREE == 3 {
+        if DEGREE == 3 || DEGREE == 5 {
             NUM_POSEIDON2_DEGREE3_COLS
         } else if DEGREE == 9 || DEGREE == 17 {
             NUM_POSEIDON2_DEGREE9_COLS

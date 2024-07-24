@@ -718,8 +718,7 @@ mod tests {
     type SC = BabyBearPoseidon2;
     type F = <SC as StarkGenericConfig>::Val;
     type EF = <SC as StarkGenericConfig>::Challenge;
-    type A = RecursionAir<F, 3>;
-
+    type A = RecursionAir<F, 3, 1>;
     fn test_operations(operations: TracedVec<DslIr<AsmConfig<F, EF>>>) {
         test_operations_with_runner(operations, |program| {
             let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(
@@ -741,7 +740,7 @@ mod tests {
         let record = run(&program);
 
         let config = SC::new();
-        let machine = A::machine(config);
+        let machine = A::machine_with_all_chips(config);
         let (pk, vk) = machine.setup(&program);
         let result = run_test_machine(vec![record], machine, pk, vk);
         if let Err(e) = result {

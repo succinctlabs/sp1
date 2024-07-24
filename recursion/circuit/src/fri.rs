@@ -67,6 +67,10 @@ pub fn verify_two_adic_pcs<C: Config>(
 
     let log_global_max_height = proof.fri_proof.commit_phase_commits.len() + config.log_blowup;
 
+    // The powers of alpha, where the ith element is alpha^i.
+    let mut alpha_pows: Vec<Ext<C::F, C::EF>> =
+        vec![builder.eval(SymbolicExt::from_f(C::EF::one()))];
+
     let reduced_openings = proof
         .query_openings
         .iter()
@@ -74,8 +78,9 @@ pub fn verify_two_adic_pcs<C: Config>(
         .map(|(query_opening, &index)| {
             let mut ro: [Ext<C::F, C::EF>; 32] =
                 [builder.eval(SymbolicExt::from_f(C::EF::zero())); 32];
-            let mut alpha_pow: [Ext<C::F, C::EF>; 32] =
-                [builder.eval(SymbolicExt::from_f(C::EF::one())); 32];
+
+            // An array of the current power for each log_height.
+            let mut log_height_pow = [0usize; 32];
 
             for (batch_opening, round) in izip!(query_opening.clone(), &rounds) {
                 let batch_commit = round.batch_commit;
@@ -125,9 +130,13 @@ pub fn verify_two_adic_pcs<C: Config>(
                         let mut acc: Ext<C::F, C::EF> =
                             builder.eval(SymbolicExt::from_f(C::EF::zero()));
                         for (p_at_x, &p_at_z) in izip!(mat_opening.clone(), ps_at_z) {
-                            acc =
-                                builder.eval(acc + (alpha_pow[log_height] * (p_at_z - p_at_x[0])));
-                            alpha_pow[log_height] = builder.eval(alpha_pow[log_height] * alpha);
+                            let pow = log_height_pow[log_height];
+                            // Fill in any missing powers of alpha.
+                            (alpha_pows.len()..pow + 1).for_each(|_| {
+                                alpha_pows.push(builder.eval(*alpha_pows.last().unwrap() * alpha));
+                            });
+                            acc = builder.eval(acc + (alpha_pows[pow] * (p_at_z - p_at_x[0])));
+                            log_height_pow[log_height] += 1;
                         }
                         ro[log_height] = builder.eval(ro[log_height] + acc / (*z - x));
                     }
