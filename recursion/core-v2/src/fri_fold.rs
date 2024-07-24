@@ -2,7 +2,7 @@
 
 use core::borrow::Borrow;
 use itertools::Itertools;
-use sp1_core::air::{BinomialExtension, ExtensionAirBuilder};
+use sp1_core::air::BinomialExtension;
 use std::borrow::BorrowMut;
 use tracing::instrument;
 
@@ -45,8 +45,6 @@ impl<const DEGREE: usize> Default for FriFoldChip<DEGREE> {
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct FriFoldPreprocessedCols<T: Copy> {
-    pub is_last_iteration: T,
-
     // Memory accesses for the single fields.
     pub z_mem: MemoryAccessCols<T>,
     pub alpha_mem: MemoryAccessCols<T>,
@@ -128,8 +126,6 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldChip<DEGREE>
 
                 row_add.iter_mut().enumerate().for_each(|(i, row)| {
                     let row: &mut FriFoldPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
-
-                    row.is_last_iteration = F::from_bool(i == ext_vec_addrs.ps_at_z.len() - 1);
 
                     // Only need to read z, x, and alpha on the first iteration, hence the
                     // multiplicities are i==0.
@@ -266,72 +262,71 @@ impl<const DEGREE: usize> FriFoldChip<DEGREE> {
         &self,
         builder: &mut AB,
         local: &FriFoldCols<AB::Var>,
-        next: &FriFoldCols<AB::Var>,
         local_prepr: &FriFoldPreprocessedCols<AB::Var>,
-        _receive_table: AB::Var,
-        _memory_access: AB::Var,
     ) {
-        // Constrain the memory accesses.
-
+        // Constrain mem read for x.
         builder.receive_single(local_prepr.x_mem.addr, local.x, local_prepr.x_mem.read_mult);
 
+        // Constrain mem read for z.
         builder.receive_block(local_prepr.z_mem.addr, local.z, local_prepr.z_mem.read_mult);
 
+        // Constrain mem read for alpha.
         builder.receive_block(
             local_prepr.alpha_mem.addr,
             local.alpha,
             local_prepr.alpha_mem.read_mult,
         );
 
+        // Constrain read for alpha_pow_input.
         builder.receive_block(
             local_prepr.alpha_pow_input_mem.addr,
             local.alpha_pow_input,
             local_prepr.alpha_pow_input_mem.read_mult,
         );
 
+        // Constrain read for ro_input.
         builder.receive_block(
             local_prepr.ro_input_mem.addr,
             local.ro_input,
             local_prepr.ro_input_mem.read_mult,
         );
 
+        // Constrain read for p_at_z.
         builder.receive_block(
             local_prepr.p_at_z_mem.addr,
             local.p_at_z,
             local_prepr.p_at_z_mem.read_mult,
         );
 
+        // Constrain read for p_at_x.
         builder.receive_block(
             local_prepr.p_at_x_mem.addr,
             local.p_at_x,
             local_prepr.p_at_x_mem.read_mult,
         );
 
+        // Constrain write for alpha_pow_output.
         builder.send_block(
             local_prepr.alpha_pow_output_mem.addr,
             local.alpha_pow_output,
             local_prepr.alpha_pow_output_mem.write_mult,
         );
 
+        // Constrain write for ro_output.
         builder.send_block(
             local_prepr.ro_output_mem.addr,
             local.ro_output,
             local_prepr.ro_output_mem.write_mult,
         );
 
-        // 2. Constrain new_value = old_value * alpha.
+        // 1. Constrain new_value = old_value * alpha.
         let alpha = local.alpha.as_extension::<AB>();
         let old_alpha_pow_at_log_height = local.alpha_pow_input.as_extension::<AB>();
         let new_alpha_pow_at_log_height = local.alpha_pow_output.as_extension::<AB>();
-        let next_alpha_pow_at_log_height = next.alpha_pow_input.as_extension::<AB>();
         builder.assert_ext_eq(
-            old_alpha_pow_at_log_height * alpha,
+            old_alpha_pow_at_log_height.clone() * alpha,
             new_alpha_pow_at_log_height.clone(),
         );
-        builder
-            .when_not(local_prepr.is_last_iteration)
-            .assert_ext_eq(next_alpha_pow_at_log_height, new_alpha_pow_at_log_height);
-
         // 2. Constrain new_value = old_alpha_pow_at_log_height * quotient + old_value,
         // where quotient = (p_at_x - p_at_z) / (x - z)
         // <=> (new_value - old_value) * (z - x) = old_alpha_pow_at_log_height * (p_at_x - p_at_z)
@@ -339,23 +334,13 @@ impl<const DEGREE: usize> FriFoldChip<DEGREE> {
         let p_at_x = local.p_at_x.as_extension::<AB>();
         let z = local.z.as_extension::<AB>();
         let x = local.x.into();
-        let ro_at_log_height = local.ro_output.as_extension::<AB>();
-        let new_ro_at_log_height = local.ro_input.as_extension::<AB>();
-        let old_alpha_pow_at_log_height = local.alpha_pow_input.as_extension::<AB>();
-        builder
-            .when_not(local_prepr.is_last_iteration)
-            .assert_ext_eq(
-                (new_ro_at_log_height.clone() - ro_at_log_height)
-                    * (BinomialExtension::from_base(x) - z),
-                (p_at_x - p_at_z) * old_alpha_pow_at_log_height,
-            );
-
-        let next_ro_at_log_height = next.ro_input.as_extension::<AB>();
-        builder.assert_ext_eq(next_ro_at_log_height, new_ro_at_log_height);
-    }
-
-    pub const fn do_receive_table<T: Copy>(local: &FriFoldPreprocessedCols<T>) -> T {
-        local.is_last_iteration
+        let ro_at_log_height = local.ro_input.as_extension::<AB>();
+        let new_ro_at_log_height = local.ro_output.as_extension::<AB>();
+        builder.assert_ext_eq(
+            (new_ro_at_log_height.clone() - ro_at_log_height)
+                * (BinomialExtension::from_base(x) - z),
+            (p_at_x - p_at_z) * old_alpha_pow_at_log_height,
+        );
     }
 
     pub const fn do_memory_access<T: Copy>(local: &FriFoldPreprocessedCols<T>) -> T {
@@ -369,9 +354,8 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let (local, next) = (main.row_slice(0), main.row_slice(1));
+        let local = main.row_slice(0);
         let local: &FriFoldCols<AB::Var> = (*local).borrow();
-        let next: &FriFoldCols<AB::Var> = (*next).borrow();
         let prepr = builder.preprocessed();
         let prepr_local = prepr.row_slice(0);
         let prepr_local: &FriFoldPreprocessedCols<AB::Var> = (*prepr_local).borrow();
@@ -385,16 +369,10 @@ where
             .product::<AB::Expr>();
         builder.assert_eq(lhs, rhs);
 
-        self.eval_fri_fold::<AB>(
-            builder,
-            local,
-            next,
-            prepr_local,
-            Self::do_receive_table::<AB::Var>(prepr_local),
-            Self::do_memory_access::<AB::Var>(prepr_local),
-        );
+        self.eval_fri_fold::<AB>(builder, local, prepr_local);
     }
 }
+
 #[cfg(test)]
 mod tests {
     use p3_field::AbstractExtensionField;
