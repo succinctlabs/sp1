@@ -208,7 +208,6 @@ mod tests {
         OpeningProof<SC>: Send + Sync,
         Com<SC>: Send + Sync,
         PcsProverData<SC>: Send + Sync,
-        ShardMainData<SC>: Serialize + DeserializeOwned,
         SC::Val: p3_field::PrimeField32,
         <SC as sp1_core::stark::StarkGenericConfig>::Val:
             p3_field::extension::BinomiallyExtendable<4>,
