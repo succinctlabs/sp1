@@ -167,11 +167,10 @@ mod tests {
     use p3_baby_bear::DiffusionMatrixBabyBear;
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_commit::{Pcs, PolynomialSpace};
-    use serde::{de::DeserializeOwned, Serialize};
     use sp1_core::{
         stark::{
             Chip, Com, CpuProver, Dom, MachineProver, OpeningProof, PcsProverData, ShardCommitment,
-            ShardMainData, ShardProof, StarkGenericConfig, StarkMachine,
+            ShardProof, StarkGenericConfig, StarkMachine,
         },
         utils::SP1CoreOpts,
     };
