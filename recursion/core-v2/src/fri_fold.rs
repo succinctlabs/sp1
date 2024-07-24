@@ -70,6 +70,7 @@ pub struct FriFoldCols<T: Copy> {
     pub z: Block<T>,
     pub alpha: Block<T>,
     pub x: T,
+    pub denom: Block<T>,
 
     pub p_at_x: Block<T>,
     pub p_at_z: Block<T>,
@@ -317,43 +318,6 @@ impl<const DEGREE: usize> FriFoldChip<DEGREE> {
             local.ro_output,
             local_prepr.ro_output_mem.write_mult,
         );
-
-        // // Constraint that the operands are sent from the CPU table.
-        // let first_iteration_clk = local.clk.into() - local.m.into();
-        // let total_num_iterations = local.m.into() + AB::Expr::one();
-        // let operands = [
-        //     first_iteration_clk,
-        //     total_num_iterations,
-        //     local.input_ptr.into(),
-        //     AB::Expr::zero(),
-        // ];
-        // builder.receive_table(
-        //     Opcode::FRIFold.as_field::<AB::F>(),
-        //     &operands,
-        //     receive_table,
-        // );
-
-        // builder.assert_bool(local.is_last_iteration);
-        // builder.assert_bool(local.is_real);
-
-        // builder
-        //     .when_transition()
-        //     .when_not(local.is_last_iteration)
-        //     .assert_eq(local.is_real, next.is_real);
-
-        // builder
-        //     .when(local.is_last_iteration)
-        //     .assert_one(local.is_real);
-
-        // builder
-        //     .when_transition()
-        //     .when_not(local.is_real)
-        //     .assert_zero(next.is_real);
-
-        // builder
-        //     .when_last_row()
-        //     .when_not(local.is_last_iteration)
-        //     .assert_zero(local.is_real);
 
         // // Ensure that all first iteration rows has a m value of 0.
         // builder.when_first_row().assert_zero(local.m);
