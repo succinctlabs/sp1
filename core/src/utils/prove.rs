@@ -38,7 +38,7 @@ use crate::utils::SP1CoreOpts;
 use crate::{
     runtime::{Program, Runtime},
     stark::StarkGenericConfig,
-    stark::{DefaultProver, OpeningProof, ShardMainData},
+    stark::{CpuProver, OpeningProof},
 };
 
 const LOG_DEGREE_BOUND: usize = 31;
@@ -62,7 +62,7 @@ where
     OpeningProof<SC>: Send + Sync,
     Com<SC>: Send + Sync,
     PcsProverData<SC>: Send + Sync,
-    ShardMainData<SC>: Serialize + DeserializeOwned,
+    // ShardMainData<SC>: Serialize + DeserializeOwned,
     <SC as StarkGenericConfig>::Val: PrimeField32,
 {
     // Setup the machine.
@@ -239,7 +239,8 @@ where
                             // Wait for our turn to update the state.
                             record_gen_sync.wait_for_turn(index);
 
-                            // Update the public values & prover state for the shards which contain "cpu events".
+                            // Update the public values & prover state for the shards which contain
+                            // "cpu events".
                             let mut state = state.lock().unwrap();
                             for record in records.iter_mut() {
                                 state.shard += 1;
@@ -262,8 +263,8 @@ where
                             // See if any deferred shards are ready to be commited to.
                             let mut deferred = deferred.split(done, opts.split_opts);
 
-                            // Update the public values & prover state for the shards which do not contain "cpu events"
-                            // before committing to them.
+                            // Update the public values & prover state for the shards which do not
+                            // contain "cpu events" before committing to them.
                             if !done {
                                 state.execution_shard += 1;
                             }
@@ -295,6 +296,7 @@ where
                                 .map(|record| prover.generate_traces(record))
                                 .collect::<Vec<_>>();
 
+                            // Wait for our turn.
                             trace_gen_sync.wait_for_turn(index);
 
                             // Send the records to the phase 1 prover.
@@ -327,25 +329,33 @@ where
             tracing::debug_span!("phase 1 prover").in_scope(|| {
                 for (records, traces) in p1_records_and_traces_rx.iter() {
                     tracing::debug_span!("batch").in_scope(|| {
-                        // Commit to the traces.
                         let span = tracing::Span::current().clone();
-                        let commitments = records
-                            .par_iter()
-                            .zip(traces.into_par_iter())
-                            .map(|(record, traces)| {
-                                let _span = span.enter();
-                                prover.commit(record, traces)
+
+                        // Collect the public values.
+                        let public_values = records
+                            .iter()
+                            .map(|record| {
+                                record.public_values::<SC::Val>()[0..prover.machine().num_pv_elts()]
+                                    .to_vec()
                             })
                             .collect::<Vec<_>>();
 
-                        // Update the challenger.
-                        for (commit, record) in commitments.into_iter().zip(records) {
-                            prover.update(
-                                &mut challenger,
-                                commit,
-                                &record.public_values::<SC::Val>()
-                                    [0..prover.machine().num_pv_elts()],
-                            );
+                        // Commit to each shard.
+                        let commitments = records
+                            .into_par_iter()
+                            .zip(traces.into_par_iter())
+                            .map(|(record, traces)| {
+                                let _span = span.enter();
+                                let data = prover.commit(record, traces);
+                                data.main_commit
+                            })
+                            .collect::<Vec<_>>();
+
+                        // Observe the commitments.
+                        for (commit, public_values) in
+                            commitments.into_iter().zip(public_values.into_iter())
+                        {
+                            prover.observe(&mut challenger, commit, &public_values);
                         }
                     });
                 }
@@ -412,7 +422,8 @@ where
                             // Wait for our turn to update the state.
                             record_gen_sync.wait_for_turn(index);
 
-                            // Update the public values & prover state for the shards which contain "cpu events".
+                            // Update the public values & prover state for the shards which contain
+                            // "cpu events".
                             let mut state = state.lock().unwrap();
                             for record in records.iter_mut() {
                                 state.shard += 1;
@@ -435,8 +446,8 @@ where
                             // See if any deferred shards are ready to be commited to.
                             let mut deferred = deferred.split(done, opts.split_opts);
 
-                            // Update the public values & prover state for the shards which do not contain "cpu events"
-                            // before committing to them.
+                            // Update the public values & prover state for the shards which do not
+                            // contain "cpu events" before committing to them.
                             if !done {
                                 state.execution_shard += 1;
                             }
@@ -495,11 +506,10 @@ where
                         let span = tracing::Span::current().clone();
                         shard_proofs.par_extend(
                             records.into_par_iter().zip(traces.into_par_iter()).map(
-                                |(record, trace)| {
+                                |(record, traces)| {
                                     let _span = span.enter();
-                                    prover
-                                        .commit_and_open(pk, record, trace, &mut challenger.clone())
-                                        .unwrap()
+                                    let data = prover.commit(record, traces);
+                                    prover.open(pk, data, &mut challenger.clone()).unwrap()
                                 },
                             ),
                         );
@@ -632,12 +642,11 @@ where
     SC::Val: p3_field::PrimeField32,
     SC::Challenger: Clone,
     Com<SC>: Send + Sync,
-    PcsProverData<SC>: Send + Sync,
+    PcsProverData<SC>: Send + Sync + Serialize + DeserializeOwned,
     OpeningProof<SC>: Send + Sync,
-    ShardMainData<SC>: Serialize + DeserializeOwned,
 {
     let start = Instant::now();
-    let prover = DefaultProver::new(machine);
+    let prover = CpuProver::new(machine);
     let mut challenger = prover.config().challenger();
     let proof = prover
         .prove(&pk, records, &mut challenger, SP1CoreOpts::default())

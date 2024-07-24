@@ -414,7 +414,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     ) -> Result<SP1ReduceProof<InnerSC>, SP1RecursionProverError> {
         // Set the batch size for the reduction tree.
         let batch_size = 2;
-
         let shard_proofs = &proof.proof.0;
 
         // Get the leaf challenger.
@@ -442,7 +441,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         for inputs in core_inputs.chunks(shard_batch_size) {
             let span = tracing::Span::current().clone();
             let proofs = inputs
-                .into_par_iter()
+                .into_iter()
                 .map(|input| {
                     let _span = span.enter();
                     tracing::debug_span!("compress machine proof").in_scope(|| {

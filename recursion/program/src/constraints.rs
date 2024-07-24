@@ -160,7 +160,7 @@ mod tests {
     use itertools::{izip, Itertools};
     use rand::{thread_rng, Rng};
     use serde::{de::DeserializeOwned, Serialize};
-    use sp1_core::stark::DefaultProver;
+    use sp1_core::stark::CpuProver;
     use sp1_core::{
         io::SP1Stdin,
         runtime::Program,
@@ -286,7 +286,7 @@ mod tests {
         let machine = A::machine(SC::default());
         let (_, vk) = machine.setup(&Program::from(elf));
         let mut challenger = machine.config().challenger();
-        let (proof, _, _) = sp1_core::utils::prove::<_, DefaultProver<_, _>>(
+        let (proof, _, _) = sp1_core::utils::prove::<_, CpuProver<_, _>>(
             Program::from(elf),
             &SP1Stdin::new(),
             SC::default(),

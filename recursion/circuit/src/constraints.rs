@@ -170,8 +170,8 @@ mod tests {
     use serde::{de::DeserializeOwned, Serialize};
     use sp1_core::{
         stark::{
-            Chip, Com, DefaultProver, Dom, MachineProver, OpeningProof, PcsProverData,
-            ShardCommitment, ShardMainData, ShardProof, StarkGenericConfig, StarkMachine,
+            Chip, Com, CpuProver, Dom, MachineProver, OpeningProof, PcsProverData, ShardCommitment,
+            ShardMainData, ShardProof, StarkGenericConfig, StarkMachine,
         },
         utils::SP1CoreOpts,
     };
@@ -296,7 +296,7 @@ mod tests {
         let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new_no_perm(&program);
         runtime.run().unwrap();
         let machine = A::machine(config);
-        let prover = DefaultProver::new(machine);
+        let prover = CpuProver::new(machine);
         let (pk, vk) = prover.setup(&program);
         let mut challenger = prover.config().challenger();
         let proof = prover

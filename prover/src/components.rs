@@ -1,4 +1,4 @@
-use sp1_core::stark::{DefaultProver, MachineProver, RiscvAir, StarkGenericConfig};
+use sp1_core::stark::{CpuProver, MachineProver, RiscvAir, StarkGenericConfig};
 
 use crate::{CompressAir, CoreSC, InnerSC, OuterSC, ReduceAir, WrapAir};
 
@@ -27,8 +27,8 @@ pub trait SP1ProverComponents: Send + Sync {
 pub struct DefaultProverComponents;
 
 impl SP1ProverComponents for DefaultProverComponents {
-    type CoreProver = DefaultProver<CoreSC, RiscvAir<<CoreSC as StarkGenericConfig>::Val>>;
-    type CompressProver = DefaultProver<InnerSC, ReduceAir<<InnerSC as StarkGenericConfig>::Val>>;
-    type ShrinkProver = DefaultProver<InnerSC, CompressAir<<InnerSC as StarkGenericConfig>::Val>>;
-    type WrapProver = DefaultProver<OuterSC, WrapAir<<OuterSC as StarkGenericConfig>::Val>>;
+    type CoreProver = CpuProver<CoreSC, RiscvAir<<CoreSC as StarkGenericConfig>::Val>>;
+    type CompressProver = CpuProver<InnerSC, ReduceAir<<InnerSC as StarkGenericConfig>::Val>>;
+    type ShrinkProver = CpuProver<InnerSC, CompressAir<<InnerSC as StarkGenericConfig>::Val>>;
+    type WrapProver = CpuProver<OuterSC, WrapAir<<OuterSC as StarkGenericConfig>::Val>>;
 }

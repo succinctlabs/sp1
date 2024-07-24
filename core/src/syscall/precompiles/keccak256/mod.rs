@@ -41,7 +41,7 @@ impl KeccakPermuteChip {
 #[cfg(test)]
 pub mod permute_tests {
     use crate::runtime::SyscallCode;
-    use crate::stark::DefaultProver;
+    use crate::stark::CpuProver;
     use crate::utils::{run_test, SP1CoreOpts};
     use crate::{
         runtime::{Instruction, Opcode, Program, Runtime},
@@ -86,13 +86,13 @@ pub mod permute_tests {
         utils::setup_logger();
 
         let program = keccak_permute_program();
-        run_test::<DefaultProver<_, _>>(program).unwrap();
+        run_test::<CpuProver<_, _>>(program).unwrap();
     }
 
     #[test]
     fn test_keccak_permute_program_prove() {
         utils::setup_logger();
         let program = Program::from(KECCAK_PERMUTE_ELF);
-        run_test::<DefaultProver<_, _>>(program).unwrap();
+        run_test::<CpuProver<_, _>>(program).unwrap();
     }
 }
