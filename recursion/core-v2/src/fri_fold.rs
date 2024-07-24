@@ -2,6 +2,7 @@
 
 use core::borrow::Borrow;
 use itertools::Itertools;
+use sp1_core::air::BinomialExtension;
 use std::borrow::BorrowMut;
 use tracing::instrument;
 
@@ -220,6 +221,9 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldChip<DEGREE>
 
                 cols.x = event.base_single.x;
                 cols.z = event.ext_single.z;
+                let x = BinomialExtension::from_base(event.base_single.x);
+                let z = BinomialExtension(event.ext_single.z.0);
+                cols.denom = (-z + x).as_base_slice().into();
                 cols.alpha = event.ext_single.alpha;
 
                 cols.p_at_z = event.ext_vec.ps_at_z;
