@@ -2,7 +2,7 @@
 
 use core::borrow::Borrow;
 use itertools::Itertools;
-use sp1_core::air::BinomialExtension;
+use sp1_core::air::{BinomialExtension, ExtensionAirBuilder};
 use std::borrow::BorrowMut;
 use tracing::instrument;
 
@@ -71,7 +71,6 @@ pub struct FriFoldCols<T: Copy> {
     pub z: Block<T>,
     pub alpha: Block<T>,
     pub x: T,
-    pub denom: Block<T>,
 
     pub p_at_x: Block<T>,
     pub p_at_z: Block<T>,
@@ -221,9 +220,6 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldChip<DEGREE>
 
                 cols.x = event.base_single.x;
                 cols.z = event.ext_single.z;
-                let x = BinomialExtension::from_base(event.base_single.x);
-                let z = BinomialExtension(event.ext_single.z.0);
-                cols.denom = (-z + x).as_base_slice().into();
                 cols.alpha = event.ext_single.alpha;
 
                 cols.p_at_z = event.ext_vec.ps_at_z;
@@ -270,7 +266,7 @@ impl<const DEGREE: usize> FriFoldChip<DEGREE> {
         &self,
         builder: &mut AB,
         local: &FriFoldCols<AB::Var>,
-        _next: &FriFoldCols<AB::Var>,
+        next: &FriFoldCols<AB::Var>,
         local_prepr: &FriFoldPreprocessedCols<AB::Var>,
         _receive_table: AB::Var,
         _memory_access: AB::Var,
@@ -323,46 +319,39 @@ impl<const DEGREE: usize> FriFoldChip<DEGREE> {
             local_prepr.ro_output_mem.write_mult,
         );
 
-        // // 2. Constrain new_value = old_value * alpha.
-        // let alpha = local.alpha.access.value.as_extension::<AB>();
-        // let alpha_pow_at_log_height = local
-        //     .alpha_pow_at_log_height
-        //     .prev_value
-        //     .as_extension::<AB>();
-        // let new_alpha_pow_at_log_height = local
-        //     .alpha_pow_at_log_height
-        //     .access
-        //     .value
-        //     .as_extension::<AB>();
+        // 2. Constrain new_value = old_value * alpha.
+        let alpha = local.alpha.as_extension::<AB>();
+        let old_alpha_pow_at_log_height = local.alpha_pow_input.as_extension::<AB>();
+        let new_alpha_pow_at_log_height = local.alpha_pow_output.as_extension::<AB>();
+        let next_alpha_pow_at_log_height = next.alpha_pow_input.as_extension::<AB>();
+        builder.assert_ext_eq(
+            old_alpha_pow_at_log_height * alpha,
+            new_alpha_pow_at_log_height.clone(),
+        );
+        builder
+            .when_not(local_prepr.is_last_iteration)
+            .assert_ext_eq(next_alpha_pow_at_log_height, new_alpha_pow_at_log_height);
 
-        // builder.assert_ext_eq(
-        //     alpha_pow_at_log_height.clone() * alpha,
-        //     new_alpha_pow_at_log_height,
-        // );
+        // 2. Constrain new_value = old_alpha_pow_at_log_height * quotient + old_value,
+        // where quotient = (p_at_x - p_at_z) / (x - z)
+        // <=> (new_value - old_value) * (z - x) = old_alpha_pow_at_log_height * (p_at_x - p_at_z)
+        let p_at_z = local.p_at_z.as_extension::<AB>();
+        let p_at_x = local.p_at_x.as_extension::<AB>();
+        let z = local.z.as_extension::<AB>();
+        let x = local.x.into();
+        let ro_at_log_height = local.ro_output.as_extension::<AB>();
+        let new_ro_at_log_height = local.ro_input.as_extension::<AB>();
+        let old_alpha_pow_at_log_height = local.alpha_pow_input.as_extension::<AB>();
+        builder
+            .when_not(local_prepr.is_last_iteration)
+            .assert_ext_eq(
+                (new_ro_at_log_height.clone() - ro_at_log_height)
+                    * (BinomialExtension::from_base(x) - z),
+                (p_at_x - p_at_z) * old_alpha_pow_at_log_height,
+            );
 
-        // // Update ro_at_log_height.
-        // // 1. Constrain old and new value against memory.
-        // builder.recursion_eval_memory_access(
-        //     local.clk,
-        //     local.ro_ptr.access.value.into() + local.log_height.access.value.into(),
-        //     &local.ro_at_log_height,
-        //     memory_access,
-        // );
-
-        // // 2. Constrain new_value = old_alpha_pow_at_log_height * quotient + old_value,
-        // // where quotient = (p_at_x - p_at_z) / (x - z)
-        // // <=> (new_value - old_value) * (z - x) = old_alpha_pow_at_log_height * (p_at_x - p_at_z)
-        // let p_at_z = local.p_at_z.access.value.as_extension::<AB>();
-        // let p_at_x = local.p_at_x.access.value.as_extension::<AB>();
-        // let z = local.z.access.value.as_extension::<AB>();
-        // let x = local.x.access.value.into();
-
-        // let ro_at_log_height = local.ro_at_log_height.prev_value.as_extension::<AB>();
-        // let new_ro_at_log_height = local.ro_at_log_height.access.value.as_extension::<AB>();
-        // builder.assert_ext_eq(
-        //     (new_ro_at_log_height - ro_at_log_height) * (BinomialExtension::from_base(x) - z),
-        //     (p_at_x - p_at_z) * alpha_pow_at_log_height,
-        // );
+        let next_ro_at_log_height = next.ro_input.as_extension::<AB>();
+        builder.assert_ext_eq(next_ro_at_log_height, new_ro_at_log_height);
     }
 
     pub const fn do_receive_table<T: Copy>(local: &FriFoldPreprocessedCols<T>) -> T {
