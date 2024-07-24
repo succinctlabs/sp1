@@ -461,7 +461,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         // Run the deferred proofs programs.
         for inputs in deferred_inputs.chunks(shard_batch_size) {
             let proofs = inputs
-                .into_par_iter()
+                .into_iter()
                 .map(|input| {
                     self.compress_machine_proof(
                         input,
@@ -486,10 +486,10 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 compress_inputs.chunks(shard_batch_size).collect::<Vec<_>>();
             let span = tracing::Span::current().clone();
             reduce_proofs = batched_compress_inputs
-                .into_par_iter()
+                .into_iter()
                 .flat_map(|batches| {
                     batches
-                        .par_iter()
+                        .iter()
                         .map(|batch| {
                             let _span = span.enter();
                             let (shard_proofs, kinds) =
