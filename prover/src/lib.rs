@@ -441,7 +441,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         for inputs in core_inputs.chunks(shard_batch_size) {
             let span = tracing::Span::current().clone();
             let proofs = inputs
-                .into_iter()
+                .into_par_iter()
                 .map(|input| {
                     let _span = span.enter();
                     tracing::debug_span!("compress machine proof").in_scope(|| {
@@ -461,7 +461,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         // Run the deferred proofs programs.
         for inputs in deferred_inputs.chunks(shard_batch_size) {
             let proofs = inputs
-                .into_iter()
+                .into_par_iter()
                 .map(|input| {
                     self.compress_machine_proof(
                         input,
@@ -489,7 +489,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 .into_iter()
                 .flat_map(|batches| {
                     batches
-                        .iter()
+                        .par_iter()
                         .map(|batch| {
                             let _span = span.enter();
                             let (shard_proofs, kinds) =
