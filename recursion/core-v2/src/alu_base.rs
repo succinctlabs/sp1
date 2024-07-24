@@ -2,8 +2,8 @@ use core::borrow::Borrow;
 use itertools::Itertools;
 use p3_air::PairBuilder;
 use p3_air::{Air, AirBuilder, BaseAir};
+use p3_field::Field;
 use p3_field::PrimeField32;
-use p3_field::{AbstractField, Field};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use sp1_core::air::MachineAir;
@@ -31,10 +31,6 @@ pub struct BaseAluCols<F: Copy> {
 #[repr(C)]
 pub struct BaseAluValueCols<F: Copy> {
     pub vals: BaseAluIo<F>,
-    pub sum: F,
-    pub diff: F,
-    pub product: F,
-    pub quotient: F,
 }
 
 pub const NUM_BASE_ALU_PREPROCESSED_COLS: usize =
@@ -144,17 +140,7 @@ impl<F: PrimeField32> MachineAir<F> for BaseAluChip {
                 let mut row = [F::zero(); NUM_BASE_ALU_COLS];
                 let cols: &mut BaseAluCols<_> = row.as_mut_slice().borrow_mut();
                 for (cell, &vals) in zip(&mut cols.values, row_events) {
-                    let BaseAluEvent {
-                        in1: v1, in2: v2, ..
-                    } = vals;
-
-                    *cell = BaseAluValueCols {
-                        vals,
-                        sum: v1 + v2,
-                        diff: v1 - v2,
-                        product: v1 * v2,
-                        quotient: v1.try_div(v2).unwrap_or(F::one()),
-                    };
+                    *cell = BaseAluValueCols { vals };
                 }
 
                 row
@@ -193,34 +179,16 @@ where
         for (value, access) in zip(local.values, prep_local.accesses) {
             let BaseAluValueCols {
                 vals: BaseAluIo { out, in1, in2 },
-                sum,
-                diff,
-                product,
-                quotient,
             } = value;
 
             // Check exactly one flag is enabled.
             let is_real = access.is_add + access.is_sub + access.is_mul + access.is_div;
-            builder.assert_eq(is_real.square(), is_real.clone());
+            builder.assert_bool(is_real.clone());
 
-            let mut when_add = builder.when(access.is_add);
-            when_add.assert_eq(out, sum);
-            when_add.assert_eq(in1 + in2, sum);
-
-            let mut when_sub = builder.when(access.is_sub);
-            when_sub.assert_eq(out, diff);
-            when_sub.assert_eq(in1, in2 + diff);
-
-            let mut when_mul = builder.when(access.is_mul);
-            when_mul.assert_eq(out, product);
-            when_mul.assert_eq(in1 * in2, product);
-
-            let mut when_div = builder.when(access.is_div);
-            when_div.assert_eq(out, quotient);
-            when_div.assert_eq(in1, in2 * quotient);
-
-            // local.is_real is 0 or 1
-            // builder.assert_zero(local.is_real * (AB::Expr::one() - local.is_real));
+            builder.when(access.is_add).assert_eq(in1 + in2, out);
+            builder.when(access.is_sub).assert_eq(in1, in2 + out);
+            builder.when(access.is_mul).assert_eq(in1 * in2, out);
+            builder.when(access.is_div).assert_eq(in1, in2 * out);
 
             builder.receive_single(access.addrs.in1, in1, is_real.clone());
 

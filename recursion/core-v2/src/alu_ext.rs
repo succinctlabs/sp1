@@ -1,10 +1,7 @@
 use core::borrow::Borrow;
 use p3_air::PairBuilder;
-use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::extension::BinomialExtensionField;
+use p3_air::{Air, BaseAir};
 use p3_field::extension::BinomiallyExtendable;
-use p3_field::AbstractExtensionField;
-use p3_field::AbstractField;
 use p3_field::Field;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
@@ -26,10 +23,6 @@ pub const NUM_EXT_ALU_COLS: usize = core::mem::size_of::<ExtAluCols<u8>>();
 #[repr(C)]
 pub struct ExtAluCols<F: Copy> {
     pub vals: ExtAluIo<Block<F>>,
-    pub sum: Block<F>,
-    pub diff: Block<F>,
-    pub product: Block<F>,
-    pub quotient: Block<F>,
 }
 
 pub const NUM_EXT_ALU_PREPROCESSED_COLS: usize = core::mem::size_of::<ExtAluPreprocessedCols<u8>>();
@@ -43,7 +36,6 @@ pub struct ExtAluPreprocessedCols<F: Copy> {
     pub is_mul: F,
     pub is_div: F,
     pub mult: F,
-    pub is_real: F,
 }
 
 impl<F: Field> BaseAir<F> for ExtAluChip {
@@ -87,7 +79,6 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
                     is_mul: F::from_bool(false),
                     is_div: F::from_bool(false),
                     mult: mult.to_owned(),
-                    is_real: F::from_bool(true),
                 };
                 let target_flag = match opcode {
                     ExtAluOpcode::AddE => &mut cols.is_add,
@@ -125,25 +116,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
             .into_iter()
             .map(|vals| {
                 let mut row = [F::zero(); NUM_EXT_ALU_COLS];
-
-                let (v1, v2) = (
-                    BinomialExtensionField::from_base_slice(&vals.in1.0),
-                    BinomialExtensionField::from_base_slice(&vals.in2.0),
-                );
-
-                let cols: &mut ExtAluCols<_> = row.as_mut_slice().borrow_mut();
-                *cols = ExtAluCols {
-                    vals,
-                    sum: (v1 + v2).as_base_slice().into(),
-                    diff: (v1 - v2).as_base_slice().into(),
-                    product: (v1 * v2).as_base_slice().into(),
-                    quotient: v1
-                        .try_div(v2)
-                        .unwrap_or(BinomialExtensionField::one())
-                        .as_base_slice()
-                        .into(),
-                };
-
+                *row.as_mut_slice().borrow_mut() = ExtAluCols { vals };
                 row
             })
             .collect::<Vec<_>>();
@@ -178,40 +151,29 @@ where
         let prep_local: &ExtAluPreprocessedCols<AB::Var> = (*prep_local).borrow();
 
         // Check exactly one flag is enabled.
-        builder.when(prep_local.is_real).assert_one(
-            prep_local.is_add + prep_local.is_sub + prep_local.is_mul + prep_local.is_div,
-        );
+        let is_real = prep_local.is_add + prep_local.is_sub + prep_local.is_mul + prep_local.is_div;
+        builder.assert_bool(is_real.clone());
 
         let in1 = local.vals.in1.as_extension::<AB>();
         let in2 = local.vals.in2.as_extension::<AB>();
         let out = local.vals.out.as_extension::<AB>();
-        let sum = local.sum.as_extension::<AB>();
-        let diff = local.diff.as_extension::<AB>();
-        let product = local.product.as_extension::<AB>();
-        let quotient = local.quotient.as_extension::<AB>();
 
-        let mut when_add = builder.when(prep_local.is_add);
-        when_add.assert_ext_eq(out.clone(), sum.clone());
-        when_add.assert_ext_eq(in1.clone() + in2.clone(), sum.clone());
+        builder
+            .when(prep_local.is_add)
+            .assert_ext_eq(in1.clone() + in2.clone(), out.clone());
+        builder
+            .when(prep_local.is_sub)
+            .assert_ext_eq(in1.clone(), in2.clone() + out.clone());
+        builder
+            .when(prep_local.is_mul)
+            .assert_ext_eq(in1.clone() * in2.clone(), out.clone());
+        builder
+            .when(prep_local.is_div)
+            .assert_ext_eq(in1, in2 * out);
 
-        let mut when_sub = builder.when(prep_local.is_sub);
-        when_sub.assert_ext_eq(out.clone(), diff.clone());
-        when_sub.assert_ext_eq(in1.clone(), in2.clone() + diff.clone());
+        builder.receive_block(prep_local.addrs.in1, local.vals.in1, is_real.clone());
 
-        let mut when_mul = builder.when(prep_local.is_mul);
-        when_mul.assert_ext_eq(out.clone(), product.clone());
-        when_mul.assert_ext_eq(in1.clone() * in2.clone(), product.clone());
-
-        let mut when_div = builder.when(prep_local.is_div);
-        when_div.assert_ext_eq(out, quotient.clone());
-        when_div.assert_ext_eq(in1, in2 * quotient);
-
-        // local.is_real is 0 or 1
-        // builder.assert_zero(local.is_real * (AB::Expr::one() - local.is_real));
-
-        builder.receive_block(prep_local.addrs.in1, local.vals.in1, prep_local.is_real);
-
-        builder.receive_block(prep_local.addrs.in2, local.vals.in2, prep_local.is_real);
+        builder.receive_block(prep_local.addrs.in2, local.vals.in2, is_real);
 
         builder.send_block(prep_local.addrs.out, local.vals.out, prep_local.mult);
     }
@@ -221,7 +183,7 @@ where
 mod tests {
     use machine::RecursionAir;
     use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
-    use p3_field::AbstractField;
+    use p3_field::{extension::BinomialExtensionField, AbstractExtensionField, AbstractField};
     use p3_matrix::dense::RowMajorMatrix;
 
     use rand::{rngs::StdRng, Rng, SeedableRng};
