@@ -321,25 +321,22 @@ impl<const DEGREE: usize> FriFoldChip<DEGREE> {
 
         // 1. Constrain new_value = old_value * alpha.
         let alpha = local.alpha.as_extension::<AB>();
-        let old_alpha_pow_at_log_height = local.alpha_pow_input.as_extension::<AB>();
-        let new_alpha_pow_at_log_height = local.alpha_pow_output.as_extension::<AB>();
-        builder.assert_ext_eq(
-            old_alpha_pow_at_log_height.clone() * alpha,
-            new_alpha_pow_at_log_height.clone(),
-        );
-        // 2. Constrain new_value = old_alpha_pow_at_log_height * quotient + old_value,
+        let old_alpha_pow = local.alpha_pow_input.as_extension::<AB>();
+        let new_alpha_pow = local.alpha_pow_output.as_extension::<AB>();
+        builder.assert_ext_eq(old_alpha_pow.clone() * alpha, new_alpha_pow.clone());
+
+        // 2. Constrain new_value = old_alpha_pow * quotient + old_ro,
         // where quotient = (p_at_x - p_at_z) / (x - z)
-        // <=> (new_value - old_value) * (z - x) = old_alpha_pow_at_log_height * (p_at_x - p_at_z)
+        // <=> (new_ro - old_ro) * (z - x) = old_alpha_pow * (p_at_x - p_at_z)
         let p_at_z = local.p_at_z.as_extension::<AB>();
         let p_at_x = local.p_at_x.as_extension::<AB>();
         let z = local.z.as_extension::<AB>();
         let x = local.x.into();
-        let ro_at_log_height = local.ro_input.as_extension::<AB>();
-        let new_ro_at_log_height = local.ro_output.as_extension::<AB>();
+        let old_ro = local.ro_input.as_extension::<AB>();
+        let new_ro = local.ro_output.as_extension::<AB>();
         builder.assert_ext_eq(
-            (new_ro_at_log_height.clone() - ro_at_log_height)
-                * (BinomialExtension::from_base(x) - z),
-            (p_at_x - p_at_z) * old_alpha_pow_at_log_height,
+            (new_ro.clone() - old_ro) * (BinomialExtension::from_base(x) - z),
+            (p_at_x - p_at_z) * old_alpha_pow,
         );
     }
 
