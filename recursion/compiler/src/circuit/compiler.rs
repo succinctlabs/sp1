@@ -1,8 +1,9 @@
+use chips::poseidon2_skinny::WIDTH;
 use core::fmt::Debug;
 use instruction::{FieldEltType, HintBitsInstr, HintExt2FeltsInstr, PrintInstr};
 use p3_field::{AbstractExtensionField, AbstractField, Field, PrimeField, TwoAdicField};
 use sp1_recursion_core::air::Block;
-use sp1_recursion_core_v2::{poseidon2_skinny::WIDTH, BaseAluInstr, BaseAluOpcode};
+use sp1_recursion_core_v2::{BaseAluInstr, BaseAluOpcode};
 use std::collections::{hash_map::Entry, HashMap};
 
 use sp1_recursion_core_v2::*;

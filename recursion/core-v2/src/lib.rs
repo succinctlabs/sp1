@@ -1,23 +1,17 @@
 use std::iter::once;
 
-use poseidon2_skinny::WIDTH;
 use serde::{Deserialize, Serialize};
 use sp1_derive::AlignedBorrow;
 use sp1_recursion_core::air::Block;
 
-pub mod alu_base;
-pub mod alu_ext;
 pub mod builder;
-pub mod dummy;
-pub mod exp_reverse_bits;
-pub mod fri_fold;
+pub mod chips;
 pub mod machine;
-pub mod mem;
-pub mod poseidon2_skinny;
-pub mod poseidon2_wide;
 pub mod runtime;
 
 pub use runtime::*;
+
+use crate::chips::poseidon2_skinny::WIDTH;
 
 #[derive(AlignedBorrow, Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[repr(C)]
