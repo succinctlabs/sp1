@@ -210,27 +210,6 @@ pub fn unconstrained_recover_ecdsa(sig: &[u8; 65], msg_hash: &[u8; 32]) -> ([u8;
     (recovered_bytes, s_inverse)
 }
 
-/// Recovers the Ethereum address that signed a given message hash using the provided signature.
-/// Matches the behavior of revm `ecrecover`: https://github.com/bluealloy/revm/blob/8700c8a222873a7b8e585e5c9d94edfff9e0de14/crates/precompile/src/secp256k1.rs#L55-L66
-/// # Arguments
-///
-/// * `sig` - The 64-byte ECDSA signature.
-/// * `rec_id` - The recovery ID (0, 1, 2, or 3)
-/// * `msg_hash` - The 32-byte Keccak-256 hash of the signed message.
-///
-/// # Returns
-/// The Ethereum address (left-padded with zeros to 32 bytes) that signed the message.
-#[cfg(feature = "ecrecover")]
-pub fn ecrecover(sig: &[u8; 64], rec_id: u8, msg_hash: &[u8; 32]) -> Result<[u8; 32]> {
-    let mut sig_bytes = [0; 65];
-    sig_bytes[..64].copy_from_slice(sig);
-    sig_bytes[64] = rec_id;
-    let pubkey = recover_ecdsa(&sig_bytes, msg_hash)?;
-    let mut eth_address = keccak256(&pubkey[1..]);
-    eth_address[..12].fill(0);
-    Ok(eth_address)
-}
-
 /// Recovers the public key that signed a given message hash using the provided signature.
 ///
 /// # Arguments
@@ -263,6 +242,7 @@ pub fn recover_ecdsa(sig: &[u8; 65], msg_hash: &[u8; 32]) -> Result<[u8; 65]> {
     }
 }
 
+#[cfg(feature = "ecrecover")]
 /// Simple interface to the [`keccak256`] hash function.
 ///
 /// [`keccak256`]: https://en.wikipedia.org/wiki/SHA-3
@@ -272,4 +252,25 @@ fn keccak256<T: AsRef<[u8]>>(bytes: T) -> [u8; 32] {
     hasher.update(bytes.as_ref());
     hasher.finalize(&mut output);
     output
+}
+
+#[cfg(feature = "ecrecover")]
+/// Recovers the Ethereum address that signed a given message hash using the provided signature.
+/// Matches the behavior of revm `ecrecover`: https://github.com/bluealloy/revm/blob/8700c8a222873a7b8e585e5c9d94edfff9e0de14/crates/precompile/src/secp256k1.rs#L55-L66
+/// # Arguments
+///
+/// * `sig` - The 64-byte ECDSA signature.
+/// * `rec_id` - The recovery ID (0, 1, 2, or 3)
+/// * `msg_hash` - The 32-byte Keccak-256 hash of the signed message.
+///
+/// # Returns
+/// The Ethereum address (left-padded with zeros to 32 bytes) that signed the message.
+pub fn ecrecover(sig: &[u8; 64], rec_id: u8, msg_hash: &[u8; 32]) -> Result<[u8; 32]> {
+    let mut sig_bytes = [0; 65];
+    sig_bytes[..64].copy_from_slice(sig);
+    sig_bytes[64] = rec_id;
+    let pubkey = recover_ecdsa(&sig_bytes, msg_hash)?;
+    let mut eth_address = keccak256(&pubkey[1..]);
+    eth_address[..12].fill(0);
+    Ok(eth_address)
 }
