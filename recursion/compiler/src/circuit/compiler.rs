@@ -322,6 +322,12 @@ impl<C: Config> AsmCompiler<C> {
         })
     }
 
+    fn commit_pv_hash(&mut self, pv_hash: [Felt<C::F>; DIGEST_SIZE]) {
+        Instruction::CommitPVHash(CommitPVHashInstr {
+            pv_addrs: pv_hash.map(|r| r.write(self)),
+        })
+    }
+
     fn print_f(&mut self, addr: impl Reg<C>) -> Instruction<C::F> {
         Instruction::Print(PrintInstr {
             field_elt_type: FieldEltType::Base,
@@ -432,6 +438,9 @@ impl<C: Config> AsmCompiler<C> {
                 vec![self.hint_bit_decomposition(value, output)]
             }
             DslIr::CircuitV2FriFold(output, input) => vec![self.fri_fold(output, input)],
+            DslIr::CircuitV2CommitPVHash(pv_hash) => {
+                vec![self.commit_pv_hash(pv_hash)]
+            }
 
             // DslIr::For(_, _, _, _, _) => todo!(),
             // DslIr::IfEq(_, _, _, _) => todo!(),
@@ -557,6 +566,9 @@ impl<C: Config> AsmCompiler<C> {
                     .iter_mut()
                     .map(|(ref addr, mult)| (mult, addr))
                     .collect(),
+                Instruction::CommitPVHash(CommitPVHashInstr { ref pv_addrs }) => {
+                    pv_addrs.iter().collect()
+                }
                 // Instructions that do not write to memory.
                 Instruction::Mem(MemInstr {
                     kind: MemAccessKind::Read,

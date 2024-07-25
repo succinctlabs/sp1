@@ -22,6 +22,8 @@ pub struct ExecutionRecord<F> {
     pub poseidon2_wide_events: Vec<Poseidon2WideEvent<F>>,
     pub exp_reverse_bits_len_events: Vec<ExpReverseBitsEvent<F>>,
     pub fri_fold_events: Vec<FriFoldEvent<F>>,
+
+    pub commit_pv_hash_events: Vec<CommitPVHashEvent<F>>,
 }
 
 impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
@@ -44,6 +46,7 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
             poseidon2_skinny_events,
             exp_reverse_bits_len_events,
             fri_fold_events,
+            commit_pv_hash_events,
         } = self;
         base_alu_events.append(&mut other.base_alu_events);
         ext_alu_events.append(&mut other.ext_alu_events);
@@ -52,6 +55,7 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
         poseidon2_skinny_events.append(&mut other.poseidon2_skinny_events);
         exp_reverse_bits_len_events.append(&mut other.exp_reverse_bits_len_events);
         fri_fold_events.append(&mut other.fri_fold_events);
+        commit_pv_hash_events.append(&mut other.commit_pv_hash_events);
     }
 
     fn public_values<T: p3_field::AbstractField>(&self) -> Vec<T> {

@@ -4,7 +4,7 @@ mod program;
 mod record;
 
 pub use instruction::Instruction;
-use instruction::{FieldEltType, HintBitsInstr, HintExt2FeltsInstr, PrintInstr};
+use instruction::{CommitPVInstr, FieldEltType, HintBitsInstr, HintExt2FeltsInstr, PrintInstr};
 pub use opcode::*;
 use p3_util::reverse_bits_len;
 pub use program::*;
@@ -448,6 +448,12 @@ where
                             },
                         });
                     }
+                }
+
+                Instruction::CommitPV(CommitPVInstr { pv_hash }) => {
+                    self.record
+                        .commit_pv_hash_events
+                        .push(CommitPVHashEvent { pv_hash });
                 }
 
                 Instruction::Print(PrintInstr {

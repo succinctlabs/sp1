@@ -15,6 +15,7 @@ pub enum Instruction<F> {
     FriFold(FriFoldInstr<F>),
     Print(PrintInstr<F>),
     HintExt2Felts(HintExt2FeltsInstr<F>),
+    CommitPV(CommitPVInstr<F>),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -37,6 +38,11 @@ pub struct HintExt2FeltsInstr<F> {
     pub output_addrs_mults: [(Address<F>, F); D],
     /// Input value to decompose.
     pub input_addr: Address<F>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CommitPVInstr<F> {
+    pub pv_hash: [F; DIGEST_SIZE],
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
