@@ -4828,6 +4828,7 @@ dependencies = [
  "k256",
  "serde",
  "snowbridge-amcl",
+ "tiny-keccak",
 ]
 
 [[package]]

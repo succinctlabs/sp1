@@ -27,10 +27,12 @@ k256 = { version = "0.13.3", features = [
   "std",
   "bits",
 ], optional = true }
+tiny-keccak = { version = "2.0.2", features = ["keccak"], optional = true }
 
 [features]
 default = []
 verify = []
 bn254 = []
+ecrecover = ["secp256k1", "dep:tiny-keccak"]
 secp256k1 = ["dep:k256"]
 bls12381 = ["dep:amcl", "dep:hex"]

@@ -98,6 +98,14 @@ pub struct HookEnv<'a, 'b: 'a> {
     pub runtime: &'a Runtime<'b>,
 }
 
+/// Hook for the `ecrecover` precompile.
+///
+/// # Arguments
+///
+/// * `buf` - A 97-byte array containing:
+///   - The first 64 bytes: The ECDSA signature
+///   - The next 1 byte: The recovery ID
+///   - The last 32 bytes: The message hash
 pub fn hook_ecrecover(_env: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
     assert_eq!(
         buf.len(),
