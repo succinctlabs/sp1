@@ -1,4 +1,5 @@
 use std::borrow::BorrowMut;
+use std::f32::MIN;
 
 use p3_field::PrimeField32;
 use p3_keccak_air::{generate_trace_rows, NUM_KECCAK_COLS, NUM_ROUNDS};
@@ -7,6 +8,7 @@ use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::{ParallelIterator, ParallelSlice};
 
 use crate::bytes::event::ByteRecord;
+use crate::utils::MIN_NUM_ROWS;
 use crate::{runtime::Program, stark::MachineRecord};
 
 use crate::{air::MachineAir, runtime::ExecutionRecord};
@@ -131,8 +133,8 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
 
         let nb_rows = rows.len();
         let mut padded_nb_rows = nb_rows.next_power_of_two();
-        if padded_nb_rows == 2 || padded_nb_rows == 1 {
-            padded_nb_rows = 4;
+        if padded_nb_rows < MIN_NUM_ROWS {
+            padded_nb_rows = MIN_NUM_ROWS;
         }
         if padded_nb_rows > nb_rows {
             let dummy_keccak_rows = generate_trace_rows::<F>(vec![[0; STATE_SIZE]]);

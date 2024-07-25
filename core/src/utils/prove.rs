@@ -655,6 +655,7 @@ pub mod baby_bear_poseidon2 {
         };
         FriConfig {
             log_blowup: 1,
+            log_final_poly_len: 1,
             num_queries,
             proof_of_work_bits: 16,
             mmcs: challenge_mmcs,
@@ -672,6 +673,7 @@ pub mod baby_bear_poseidon2 {
         };
         FriConfig {
             log_blowup: 3,
+            log_final_poly_len: 1,
             num_queries,
             proof_of_work_bits: 16,
             mmcs: challenge_mmcs,
@@ -843,6 +845,7 @@ pub(super) mod baby_bear_keccak {
 
             let fri_config = FriConfig {
                 log_blowup: 1,
+                log_final_poly_len: 1,
                 num_queries: 100,
                 proof_of_work_bits: 16,
                 mmcs: challenge_mmcs,
@@ -967,6 +970,7 @@ pub(super) mod baby_bear_blake3 {
             };
             let fri_config = FriConfig {
                 log_blowup: 1,
+                log_final_poly_len: 1,
                 num_queries,
                 proof_of_work_bits: 16,
                 mmcs: challenge_mmcs,

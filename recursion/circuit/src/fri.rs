@@ -34,15 +34,18 @@ pub fn verify_shape_and_sample_challenges<C: Config>(
     }
 
     // Observe the final polynomial.
-    let final_poly_felts = builder.ext2felt_circuit(proof.final_poly);
-    final_poly_felts.iter().for_each(|felt| {
-        challenger.observe(builder, *felt);
-    });
+    for i in 0..proof.final_poly.len() {
+        let felts = builder.ext2felt_circuit(proof.final_poly[i]);
+        felts.iter().for_each(|felt| {
+            challenger.observe(builder, *felt);
+        });
+    }
 
     assert_eq!(proof.query_proofs.len(), config.num_queries);
     challenger.check_witness(builder, config.proof_of_work_bits, proof.pow_witness);
 
-    let log_max_height = proof.commit_phase_commits.len() + config.log_blowup;
+    let log_max_height =
+        proof.commit_phase_commits.len() + config.log_blowup + config.log_final_poly_len;
     let query_indices: Vec<Var<_>> = (0..config.num_queries)
         .map(|_| challenger.sample_bits(builder, log_max_height))
         .collect();
@@ -65,7 +68,8 @@ pub fn verify_two_adic_pcs<C: Config>(
     let fri_challenges =
         verify_shape_and_sample_challenges(builder, config, &proof.fri_proof, challenger);
 
-    let log_global_max_height = proof.fri_proof.commit_phase_commits.len() + config.log_blowup;
+    let log_global_max_height =
+        proof.fri_proof.commit_phase_commits.len() + config.log_blowup + config.log_final_poly_len;
 
     // The powers of alpha, where the ith element is alpha^i.
     let mut alpha_pows: Vec<Ext<C::F, C::EF>> =
@@ -162,7 +166,8 @@ pub fn verify_challenges<C: Config>(
     challenges: &FriChallenges<C>,
     reduced_openings: Vec<[Ext<C::F, C::EF>; 32]>,
 ) {
-    let log_max_height = proof.commit_phase_commits.len() + config.log_blowup;
+    let log_max_height =
+        proof.commit_phase_commits.len() + config.log_blowup + config.log_final_poly_len;
     for (&index, query_proof, ro) in izip!(
         &challenges.query_indices,
         &proof.query_proofs,
@@ -178,7 +183,24 @@ pub fn verify_challenges<C: Config>(
             log_max_height,
         );
 
-        builder.assert_ext_eq(folded_eval, proof.final_poly);
+        // `index` is a query index, so it should be expressed in `log_max_height` bits.
+        let index_bits = builder.num2bits_v_circuit(index, log_max_height);
+        let mut eval: Ext<C::F, C::EF> = builder.eval(SymbolicExt::from_f(C::EF::zero()));
+        let mut x_pow: Ext<C::F, C::EF> = builder.eval(SymbolicExt::from_f(C::EF::one()));
+        let rev_reduced_index = builder.reverse_bits_len_circuit(
+            index_bits[proof.commit_phase_commits.len()..log_max_height].into(),
+            log_max_height,
+        );
+        let two_adic_generator = builder.eval(SymbolicExt::from_f(C::EF::two_adic_generator(
+            log_max_height,
+        )));
+        let x = builder.exp_e_bits(two_adic_generator, rev_reduced_index);
+
+        for coeff in &proof.final_poly {
+            eval = builder.eval(eval + *coeff * x_pow);
+            x_pow = builder.eval(x * x_pow);
+        }
+        builder.assert_ext_eq(folded_eval, eval);
     }
 }
 
@@ -330,7 +352,11 @@ pub mod tests {
         FriProofVariable {
             commit_phase_commits,
             query_proofs,
-            final_poly: builder.eval(SymbolicExt::from_f(fri_proof.final_poly)),
+            final_poly: fri_proof
+                .final_poly
+                .iter()
+                .map(|coeff| builder.eval(SymbolicExt::from_f(*coeff)))
+                .collect(),
             pow_witness: builder.eval(fri_proof.pow_witness),
         }
     }

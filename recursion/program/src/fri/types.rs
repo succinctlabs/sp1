@@ -7,6 +7,7 @@ pub type DigestVariable<C> = Array<C, Felt<<C as Config>::F>>;
 #[derive(DslVariable, Clone)]
 pub struct FriConfigVariable<C: Config> {
     pub log_blowup: Var<C::N>,
+    pub log_final_poly_len: Var<C::N>,
     pub blowup: Var<C::N>,
     pub num_queries: Var<C::N>,
     pub proof_of_work_bits: Var<C::N>,
@@ -18,7 +19,7 @@ pub struct FriConfigVariable<C: Config> {
 pub struct FriProofVariable<C: Config> {
     pub commit_phase_commits: Array<C, DigestVariable<C>>,
     pub query_proofs: Array<C, FriQueryProofVariable<C>>,
-    pub final_poly: Ext<C::F, C::EF>,
+    pub final_poly: Array<C, Ext<C::F, C::EF>>,
     pub pow_witness: Felt<C::F>,
 }
 
