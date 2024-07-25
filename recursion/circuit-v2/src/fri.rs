@@ -3,9 +3,9 @@ use p3_field::{AbstractField, TwoAdicField};
 use p3_matrix::Dimensions;
 use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
-    ir::{Builder, Config, ExtConst, Felt, SymbolicExt},
+    ir::{Builder, Config, Felt, SymbolicExt},
 };
-use std::{cmp::Reverse, iter::zip, ops::Add};
+use std::{cmp::Reverse, iter::zip};
 
 use crate::*;
 
