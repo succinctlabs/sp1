@@ -28,8 +28,6 @@ use p3_baby_bear::BabyBear;
 use p3_challenger::CanObserve;
 use p3_field::{AbstractField, PrimeField};
 use p3_matrix::dense::RowMajorMatrix;
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use rayon::prelude::*;
 use sp1_core::air::{PublicValues, Word};
 pub use sp1_core::io::{SP1PublicValues, SP1Stdin};
 use sp1_core::runtime::{ExecutionError, ExecutionReport, Runtime, SP1Context};
@@ -37,7 +35,7 @@ use sp1_core::stark::MachineProver;
 use sp1_core::stark::{Challenge, StarkProvingKey};
 use sp1_core::stark::{Challenger, MachineVerificationError};
 use sp1_core::utils::concurrency::TurnBasedSync;
-use sp1_core::utils::{log2_strict_usize, SP1CoreOpts, SP1ProverOpts, DIGEST_SIZE};
+use sp1_core::utils::{SP1CoreOpts, SP1ProverOpts, DIGEST_SIZE};
 use sp1_core::{
     runtime::Program,
     stark::{RiscvAir, ShardProof, StarkGenericConfig, StarkVerifyingKey, Val},
@@ -380,7 +378,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         shard_proofs: &[ShardProof<InnerSC>],
         deferred_proofs: &[ShardProof<InnerSC>],
         batch_size: usize,
-    ) -> Vec<SP1CompressMemoryLayoutFirstLayer<'a>> {
+    ) -> Vec<SP1CompressMemoryLayouts<'a>> {
         let is_complete = shard_proofs.len() == 1 && deferred_proofs.is_empty();
         let core_inputs = self.get_recursion_core_inputs(
             &vk.vk,
@@ -404,15 +402,11 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         );
 
         let mut inputs = Vec::new();
-        inputs.extend(
-            core_inputs
-                .into_iter()
-                .map(SP1CompressMemoryLayoutFirstLayer::Core),
-        );
+        inputs.extend(core_inputs.into_iter().map(SP1CompressMemoryLayouts::Core));
         inputs.extend(
             deferred_inputs
                 .into_iter()
-                .map(SP1CompressMemoryLayoutFirstLayer::Deferred),
+                .map(SP1CompressMemoryLayouts::Deferred),
         );
         inputs
     }
@@ -464,10 +458,9 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
             // Spawn a worker that sends the first layer inputs to a bounded channel.
             let input_sync = Arc::new(TurnBasedSync::new());
-            let (input_tx, input_rx) =
-                sync_channel::<(usize, usize, SP1CompressMemoryLayoutFirstLayer)>(
-                    opts.recursion_opts.checkpoints_channel_capacity,
-                );
+            let (input_tx, input_rx) = sync_channel::<(usize, usize, SP1CompressMemoryLayouts)>(
+                opts.recursion_opts.checkpoints_channel_capacity,
+            );
             let input_tx = Arc::new(Mutex::new(input_tx));
             {
                 let input_tx = Arc::clone(&input_tx);
@@ -509,7 +502,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                 "write witness stream"
                             )
                             .in_scope(|| match input {
-                                SP1CompressMemoryLayoutFirstLayer::Core(input) => {
+                                SP1CompressMemoryLayouts::Core(input) => {
                                     let mut witness_stream = Vec::new();
                                     witness_stream.extend(input.write());
                                     (
@@ -518,7 +511,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                         ReduceProgramType::Core,
                                     )
                                 }
-                                SP1CompressMemoryLayoutFirstLayer::Deferred(input) => {
+                                SP1CompressMemoryLayouts::Deferred(input) => {
                                     let mut witness_stream = Vec::new();
                                     witness_stream.extend(input.write());
                                     (
@@ -527,7 +520,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                         ReduceProgramType::Deferred,
                                     )
                                 }
-                                SP1CompressMemoryLayoutFirstLayer::Compress(input) => {
+                                SP1CompressMemoryLayouts::Compress(input) => {
                                     let mut witness_stream = Vec::new();
                                     witness_stream.extend(input.write());
                                     (
@@ -584,7 +577,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                             break;
                         }
                     }
-                    println!("record and trace thread exited");
                 });
             }
 
@@ -648,7 +640,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                 prover_sync.wait_for_turn(index);
 
                                 // Send the proof.
-                                println!("sending proof {} {}", index, height);
                                 proofs_tx
                                     .lock()
                                     .unwrap()
@@ -662,7 +653,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                             break;
                         }
                     }
-                    println!("prover thread exited");
                 });
                 prover_handles.push(handle);
             }
@@ -684,7 +674,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                     loop {
                         let received = { proofs_rx.lock().unwrap().recv() };
                         if let Ok((index, height, proof, program_type)) = received {
-                            println!("received proof {} {}", index, height);
                             batch.push((index, height, proof, program_type));
 
                             // Compute whether we've reached the root of the tree.
@@ -700,7 +689,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                             if let Some(first) = batch.first() {
                                 is_last = first.1 != height;
                             }
-                            println!("is_last: {}", is_last);
 
                             // If we're at the last input of a layer, we need to only include the
                             // first input, otherwise we include all inputs.
@@ -717,22 +705,15 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                 .iter()
                                 .map(|(_, _, _, program_type)| *program_type)
                                 .collect();
-                            let input = SP1CompressMemoryLayoutFirstLayer::Compress(
-                                SP1CompressMemoryLayout {
+                            let input =
+                                SP1CompressMemoryLayouts::Compress(SP1CompressMemoryLayout {
                                     compress_vk: &self.compress_vk,
                                     recursive_machine: self.compress_prover.machine(),
                                     shard_proofs,
                                     kinds,
                                     is_complete,
-                                },
-                            );
+                                });
 
-                            println!(
-                                "sending input {} {} {}",
-                                count,
-                                inputs[0].1 + 1,
-                                is_complete
-                            );
                             input_sync.wait_for_turn(count);
                             input_tx
                                 .lock()
@@ -758,7 +739,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                             break;
                         }
                     }
-                    println!("generate next layer inputs exited");
                 })
             };
 

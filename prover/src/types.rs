@@ -15,7 +15,6 @@ use sp1_core::{
     utils::DIGEST_SIZE,
 };
 use sp1_primitives::poseidon2_hash;
-use sp1_recursion_core::stark::RecursionAir;
 use sp1_recursion_core::{air::RecursionPublicValues, stark::config::BabyBearPoseidon2Outer};
 use sp1_recursion_gnark_ffi::plonk_bn254::PlonkBn254Proof;
 use sp1_recursion_program::machine::{
@@ -210,7 +209,8 @@ pub enum SP1RecursionProverError {
     RuntimeError(String),
 }
 
-pub enum SP1CompressMemoryLayoutFirstLayer<'a> {
+#[allow(clippy::large_enum_variant)]
+pub enum SP1CompressMemoryLayouts<'a> {
     Core(SP1RecursionMemoryLayout<'a, InnerSC, RiscvAir<BabyBear>>),
     Deferred(SP1DeferredMemoryLayout<'a, InnerSC, CompressAir<BabyBear>>),
     Compress(SP1CompressMemoryLayout<'a, InnerSC, CompressAir<BabyBear>>),
