@@ -669,13 +669,24 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                         batch.push((index, height, proof, program_type));
                         let is_complete = height == rounds;
 
+                        let mut is_last = false;
+                        if let Some(first) = batch.first() {
+                            is_last = first.1 != height;
+                        }
+
                         if !is_complete && batch.len() < batch_size {
                             continue;
                         }
 
+                        let batch2 = if is_last {
+                            vec![batch[0].clone()]
+                        } else {
+                            batch.clone()
+                        };
+
                         let shard_proofs =
                             batch.iter().map(|(_, _, proof, _)| proof.clone()).collect();
-                        let kinds = batch
+                        let kinds = batch2
                             .iter()
                             .map(|(_, _, _, program_type)| *program_type)
                             .collect();
@@ -702,7 +713,12 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                         if is_complete {
                             break;
                         }
-                        batch = Vec::new();
+
+                        if is_last {
+                            batch = vec![batch[1].clone()];
+                        } else {
+                            batch = Vec::new();
+                        }
                     } else {
                         break;
                     }
