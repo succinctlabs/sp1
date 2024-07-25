@@ -713,7 +713,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                         input_tx_2
                             .lock()
                             .unwrap()
-                            .send((*index, height + 1, input))
+                            .send((*index, batch2[0].1 + 1, input))
                             .unwrap();
                         input_sync.advance_turn();
                         *index += 1;
