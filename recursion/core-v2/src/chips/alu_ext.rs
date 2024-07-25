@@ -171,10 +171,12 @@ where
             .when(prep_local.is_div)
             .assert_ext_eq(in1, in2 * out);
 
+        // Read the inputs from memory.
         builder.receive_block(prep_local.addrs.in1, local.vals.in1, is_real.clone());
 
         builder.receive_block(prep_local.addrs.in2, local.vals.in2, is_real);
 
+        // Write the output to memory.
         builder.send_block(prep_local.addrs.out, local.vals.out, prep_local.mult);
     }
 }

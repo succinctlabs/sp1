@@ -18,10 +18,11 @@ use sp1_recursion_core::air::Block;
 
 use crate::{
     builder::SP1RecursionAirBuilder,
-    mem::MemoryAccessCols,
     runtime::{Instruction, RecursionProgram},
     ExecutionRecord, FriFoldInstr,
 };
+
+use super::mem::MemoryAccessCols;
 
 pub const NUM_FRI_FOLD_COLS: usize = core::mem::size_of::<FriFoldCols<u8>>();
 pub const NUM_FRI_FOLD_PREPROCESSED_COLS: usize =
@@ -407,6 +408,7 @@ mod tests {
     use rand::rngs::StdRng;
     use rand::Rng;
     use rand::SeedableRng;
+    use sp1_core::air::MachineAir;
     use sp1_core::utils::run_test_machine;
     use sp1_core::utils::setup_logger;
     use sp1_core::utils::BabyBearPoseidon2;
@@ -418,11 +420,10 @@ mod tests {
     use p3_baby_bear::DiffusionMatrixBabyBear;
     use p3_field::AbstractField;
     use p3_matrix::dense::RowMajorMatrix;
-    use sp1_core::air::MachineAir;
     use sp1_core::stark::StarkGenericConfig;
 
+    use crate::chips::fri_fold::FriFoldChip;
     use crate::{
-        fri_fold::FriFoldChip,
         machine::RecursionAir,
         runtime::{instruction as instr, ExecutionRecord},
         FriFoldBaseIo, FriFoldEvent, FriFoldExtSingleIo, FriFoldExtVecIo, Instruction,

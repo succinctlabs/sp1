@@ -14,10 +14,11 @@ use tracing::instrument;
 
 use crate::{
     builder::SP1RecursionAirBuilder,
-    mem::MemoryAccessCols,
     runtime::{ExecutionRecord, RecursionProgram},
     ExpReverseBitsInstr, Instruction,
 };
+
+use super::mem::MemoryAccessCols;
 
 pub const NUM_EXP_REVERSE_BITS_LEN_COLS: usize = core::mem::size_of::<ExpReverseBitsLenCols<u8>>();
 pub const NUM_EXP_REVERSE_BITS_LEN_PREPROCESSED_COLS: usize =
@@ -344,6 +345,7 @@ mod tests {
     use rand::rngs::StdRng;
     use rand::Rng;
     use rand::SeedableRng;
+    use sp1_core::air::MachineAir;
     use sp1_core::utils::run_test_machine;
     use sp1_core::utils::setup_logger;
     use sp1_core::utils::BabyBearPoseidon2;
@@ -354,10 +356,9 @@ mod tests {
     use p3_baby_bear::DiffusionMatrixBabyBear;
     use p3_field::{AbstractField, PrimeField32};
     use p3_matrix::dense::RowMajorMatrix;
-    use sp1_core::air::MachineAir;
     use sp1_core::stark::StarkGenericConfig;
 
-    use crate::exp_reverse_bits::ExpReverseBitsLenChip;
+    use crate::chips::exp_reverse_bits::ExpReverseBitsLenChip;
     use crate::machine::RecursionAir;
     use crate::runtime::instruction as instr;
     use crate::runtime::ExecutionRecord;

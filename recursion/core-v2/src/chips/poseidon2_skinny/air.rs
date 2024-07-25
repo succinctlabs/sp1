@@ -6,20 +6,15 @@ use std::borrow::Borrow;
 use p3_air::{Air, BaseAir, PairBuilder};
 use p3_matrix::Matrix;
 
-use crate::{
-    builder::SP1RecursionAirBuilder,
-    poseidon2_wide::{
-        columns::{NUM_POSEIDON2_DEGREE3_COLS, NUM_POSEIDON2_DEGREE9_COLS},
-        Poseidon2WideChip,
-    },
-};
+use crate::builder::SP1RecursionAirBuilder;
 
 use super::columns::preprocessed::Poseidon2PreprocessedCols;
-use super::WIDTH;
+use super::columns::{NUM_POSEIDON2_DEGREE3_COLS, NUM_POSEIDON2_DEGREE9_COLS};
+use super::{Poseidon2SkinnyChip, WIDTH};
 
-impl<F, const DEGREE: usize> BaseAir<F> for Poseidon2WideChip<DEGREE> {
+impl<F, const DEGREE: usize> BaseAir<F> for Poseidon2SkinnyChip<DEGREE> {
     fn width(&self) -> usize {
-        if DEGREE == 3 {
+        if DEGREE == 3 || DEGREE == 5 {
             NUM_POSEIDON2_DEGREE3_COLS
         } else if DEGREE == 9 || DEGREE == 17 {
             NUM_POSEIDON2_DEGREE9_COLS
@@ -29,7 +24,7 @@ impl<F, const DEGREE: usize> BaseAir<F> for Poseidon2WideChip<DEGREE> {
     }
 }
 
-impl<AB, const DEGREE: usize> Air<AB> for Poseidon2WideChip<DEGREE>
+impl<AB, const DEGREE: usize> Air<AB> for Poseidon2SkinnyChip<DEGREE>
 where
     AB: SP1RecursionAirBuilder + PairBuilder,
     AB::Var: 'static,
@@ -43,10 +38,10 @@ where
 
         // Dummy constraints to normalize to DEGREE.
         let lhs = (0..DEGREE)
-            .map(|_| local_row.external_rounds_state()[0][0].into())
+            .map(|_| local_row.state_var()[0].into())
             .product::<AB::Expr>();
         let rhs = (0..DEGREE)
-            .map(|_| local_row.external_rounds_state()[0][0].into())
+            .map(|_| local_row.state_var()[0].into())
             .product::<AB::Expr>();
         builder.assert_eq(lhs, rhs);
 
@@ -54,16 +49,16 @@ where
         (0..WIDTH).for_each(|i| {
             builder.receive_single(
                 prep_local.memory_preprocessed[i].addr,
-                local_row.external_rounds_state()[0][i],
+                local_row.state_var()[i],
                 prep_local.memory_preprocessed[i].read_mult,
             )
         });
 
         (0..WIDTH).for_each(|i| {
             builder.send_single(
-                prep_local.memory_preprocessed[i + WIDTH].addr,
-                local_row.perm_output()[i],
-                prep_local.memory_preprocessed[i + WIDTH].write_mult,
+                prep_local.memory_preprocessed[i].addr,
+                local_row.state_var()[i],
+                prep_local.memory_preprocessed[i].write_mult,
             )
         });
     }

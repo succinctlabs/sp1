@@ -5,7 +5,7 @@ use std::iter::repeat;
 use p3_field::{AbstractExtensionField, AbstractField};
 
 use crate::prelude::*;
-use sp1_recursion_core_v2::{poseidon2_skinny::WIDTH, D, DIGEST_SIZE, HASH_RATE, NUM_BITS};
+use sp1_recursion_core_v2::{chips::poseidon2_skinny::WIDTH, D, DIGEST_SIZE, HASH_RATE, NUM_BITS};
 
 pub trait CircuitV2Builder<C: Config> {
     fn num2bits_v2_f(&mut self, num: Felt<C::F>) -> Vec<Felt<C::F>>;

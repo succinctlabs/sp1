@@ -14,9 +14,12 @@ mod tests {
         utils::{run_test_machine, setup_logger, BabyBearPoseidon2Inner},
     };
     use sp1_recursion_core_v2::{
-        alu_base::BaseAluChip, alu_ext::ExtAluChip, exp_reverse_bits::ExpReverseBitsLenChip,
-        fri_fold::FriFoldChip, machine::RecursionAir, mem::MemoryChip,
-        poseidon2_wide::Poseidon2WideChip, RecursionProgram, Runtime,
+        chips::{
+            alu_base::BaseAluChip, alu_ext::ExtAluChip, exp_reverse_bits::ExpReverseBitsLenChip,
+            fri_fold::FriFoldChip, mem::MemoryChip, poseidon2_wide::Poseidon2WideChip,
+        },
+        machine::RecursionAir,
+        RecursionProgram, Runtime,
     };
 
     use crate::{asm::AsmBuilder, circuit::AsmCompiler, ir::*};
