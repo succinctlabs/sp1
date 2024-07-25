@@ -703,7 +703,12 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                             });
 
                         let mut index = count.lock().unwrap();
-                        println!("sending input {} {} {}", index, height + 1, is_complete);
+                        println!(
+                            "sending input {} {} {}",
+                            index,
+                            batch2[0].1 + 1,
+                            is_complete
+                        );
                         input_sync.wait_for_turn(*index);
                         input_tx_2
                             .lock()
