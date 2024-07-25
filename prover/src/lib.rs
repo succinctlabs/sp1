@@ -129,6 +129,22 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     /// Creates a new [SP1Prover].
     #[instrument(name = "initialize prover", level = "debug", skip_all)]
     pub fn new() -> Self {
+        let prover = Self::uninitialized();
+        // Initialize everything except wrap key which is a bit slow.
+        prover.recursion_program();
+        prover.deferred_program();
+        prover.compress_program();
+        prover.shrink_program();
+        prover.wrap_program();
+        prover.rec_keys();
+        prover.deferred_keys();
+        prover.compress_keys();
+        prover.shrink_keys();
+        prover
+    }
+
+    /// Creates a new [SP1Prover] with lazily initialized components.
+    pub fn uninitialized() -> Self {
         // Setup machines and provers.
         let core_machine = RiscvAir::machine(CoreSC::default());
         let core_prover = C::CoreProver::new(core_machine);
@@ -160,9 +176,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         }
     }
 
-    /// Fully initializes the programs, proving keys, and verifying keys that are normally
-    /// lazily initialized.
-    pub fn initialize(&mut self) {
+    /// Fully initializes the programs, proving keys, and verifying keys.
+    pub fn initialize(&self) {
         self.recursion_program();
         self.deferred_program();
         self.compress_program();
