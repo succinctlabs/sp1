@@ -60,6 +60,9 @@ pub struct ExpReverseBitsLenCols<T: Copy> {
     /// The previous accumulator squared.
     pub prev_accum_squared: T,
 
+    /// Is set to the value local.prev_accum_squared * local.multiplier.
+    pub prev_accum_squared_times_multiplier: T,
+
     /// The accumulator of the current iteration.
     pub accum: T,
 
@@ -185,6 +188,8 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpReverseBitsLenCh
                 } else {
                     F::one()
                 };
+                cols.prev_accum_squared_times_multiplier =
+                    cols.prev_accum_squared * cols.multiplier;
                 if i == event.exp.len() {
                     assert_eq!(event.result, accum);
                 }
@@ -279,10 +284,15 @@ impl<const DEGREE: usize> ExpReverseBitsLenChip<DEGREE> {
 
         // To get `next.accum`, we multiply `local.prev_accum_squared` by `local.multiplier` when not
         // `is_last`.
+        builder.when(local_prepr.is_real).assert_eq(
+            local.prev_accum_squared_times_multiplier,
+            local.prev_accum_squared * local.multiplier,
+        );
+
         builder
             .when(local_prepr.is_real)
             .when_not(local_prepr.is_last)
-            .assert_eq(local.accum, local.prev_accum_squared * local.multiplier);
+            .assert_eq(local.accum, local.prev_accum_squared_times_multiplier);
 
         // Constrain the accum_squared column.
         builder
