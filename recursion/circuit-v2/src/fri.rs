@@ -336,36 +336,32 @@ pub fn verify_batch<C: Config, const D: usize>(
 
 #[cfg(test)]
 mod tests {
-    use super::{verify_shape_and_sample_challenges, verify_two_adic_pcs, TwoAdicPcsRoundVariable};
+    use super::{verify_two_adic_pcs, TwoAdicPcsRoundVariable};
     use crate::challenger::tests::run_test_recursion;
     use crate::challenger::DuplexChallengerVariable;
-    use crate::{fri::FriQueryProofVariable, DIGEST_SIZE, *};
-    use p3_bn254_fr::Bn254Fr;
+    use crate::{
+        BatchOpeningVariable, DigestVariable, FriCommitPhaseProofStepVariable, FriProofVariable,
+        FriQueryProofVariable, TwoAdicPcsMatsVariable, TwoAdicPcsProofVariable, DIGEST_SIZE,
+    };
     use p3_challenger::CanObserve;
-    use p3_challenger::CanSample;
     use p3_challenger::FieldChallenger;
     use p3_commit::{Pcs, TwoAdicMultiplicativeCoset};
     use p3_field::AbstractField;
-    use p3_fri::{verifier, TwoAdicFriPcsProof};
+    use p3_fri::TwoAdicFriPcsProof;
     use p3_matrix::dense::RowMajorMatrix;
     use rand::rngs::OsRng;
     use sp1_core::stark::StarkGenericConfig;
-    use sp1_core::utils::*;
+    use sp1_core::utils::baby_bear_poseidon2::compressed_fri_config;
+    use sp1_core::utils::{
+        inner_fri_config, inner_perm, BabyBearPoseidon2, InnerChallenge, InnerChallengeMmcs,
+        InnerChallenger, InnerCompress, InnerDft, InnerFriProof, InnerHash, InnerPcs, InnerVal,
+        InnerValMmcs,
+    };
     use sp1_recursion_compiler::asm::AsmBuilder;
-    use sp1_recursion_compiler::asm::AsmConfig;
-    use sp1_recursion_compiler::circuit::AsmCompiler;
     use sp1_recursion_compiler::config::InnerConfig;
     use sp1_recursion_compiler::ir::Ext;
-    use sp1_recursion_compiler::ir::ExtConst;
     use sp1_recursion_compiler::ir::Felt;
-    use sp1_recursion_compiler::{
-        constraints::ConstraintCompiler,
-        ir::{Builder, SymbolicExt, Var, Witness},
-    };
-    use sp1_recursion_core_v2::machine::RecursionAir;
-    use sp1_recursion_core_v2::RecursionProgram;
-    use sp1_recursion_core_v2::Runtime;
-    use sp1_recursion_gnark_ffi::PlonkBn254Prover;
+    use sp1_recursion_compiler::ir::{Builder, SymbolicExt};
 
     type SC = BabyBearPoseidon2;
     type F = <SC as StarkGenericConfig>::Val;
@@ -511,7 +507,7 @@ mod tests {
         let mut rng = &mut OsRng;
         let log_degrees = &[19, 19];
         let perm = inner_perm();
-        let fri_config = inner_fri_config();
+        let fri_config = compressed_fri_config();
         let hash = InnerHash::new(perm.clone());
         let compress = InnerCompress::new(perm.clone());
         let val_mmcs = InnerValMmcs::new(hash, compress);
@@ -563,7 +559,7 @@ mod tests {
 
         // Define circuit.
         let mut builder = Builder::<InnerConfig>::default();
-        let config = inner_fri_config();
+        let config = compressed_fri_config();
         let proof = const_two_adic_pcs_proof(&mut builder, proof);
         let (commit, rounds) = const_two_adic_pcs_rounds(&mut builder, commit.into(), os);
         let mut challenger = DuplexChallengerVariable::new(&mut builder);
