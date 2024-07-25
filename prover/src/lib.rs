@@ -418,7 +418,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     }
 
     /// Reduce shards proofs to a single shard proof using the recursion prover.
-    #[instrument(name = "compress", level = "debug", skip_all)]
     pub fn compress(
         &self,
         vk: &SP1VerifyingKey,
@@ -431,27 +430,21 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let shard_proofs = &proof.proof.0;
 
         // Get the leaf challenger.
-        let leaf_challenger = tracing::debug_span!("get leaf challenger").in_scope(|| {
-            let mut leaf_challenger = self.core_prover.config().challenger();
-            vk.vk.observe_into(&mut leaf_challenger);
-            shard_proofs.iter().for_each(|proof| {
-                leaf_challenger.observe(proof.commitment.main_commit);
-                leaf_challenger
-                    .observe_slice(&proof.public_values[0..self.core_prover.num_pv_elts()]);
-            });
-            leaf_challenger
+        let mut leaf_challenger = self.core_prover.config().challenger();
+        vk.vk.observe_into(&mut leaf_challenger);
+        shard_proofs.iter().for_each(|proof| {
+            leaf_challenger.observe(proof.commitment.main_commit);
+            leaf_challenger.observe_slice(&proof.public_values[0..self.core_prover.num_pv_elts()]);
         });
 
         // Generate the first layer inputs.
-        let first_layer_inputs = tracing::debug_span!("get first layer inputs").in_scope(|| {
-            self.get_first_layer_inputs(
-                vk,
-                &leaf_challenger,
-                shard_proofs,
-                &deferred_proofs,
-                batch_size,
-            )
-        });
+        let first_layer_inputs = self.get_first_layer_inputs(
+            vk,
+            &leaf_challenger,
+            shard_proofs,
+            &deferred_proofs,
+            batch_size,
+        );
 
         // Calculate the expected height of the tree.
         let mut expected_height = 1;
@@ -464,7 +457,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         println!("first layer inputs len: {}", first_layer_inputs.len());
         println!("rounds: {}", expected_height);
 
-        // Generate the first layer proofs.
+        // Generate the proofs.
         let span = tracing::Span::current().clone();
         let proof = thread::scope(|s| {
             let _span = span.enter();
@@ -476,12 +469,10 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                     opts.recursion_opts.checkpoints_channel_capacity,
                 );
             let input_tx = Arc::new(Mutex::new(input_tx));
-            let span = tracing::Span::current().clone();
             {
                 let input_tx = Arc::clone(&input_tx);
                 let input_sync = Arc::clone(&input_sync);
                 s.spawn(move || {
-                    let _span = span.enter();
                     for (index, input) in first_layer_inputs.into_iter().enumerate() {
                         input_sync.wait_for_turn(index);
                         input_tx.lock().unwrap().send((index, 0, input)).unwrap();
@@ -507,98 +498,93 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 let record_and_trace_sync = Arc::clone(&record_and_trace_sync);
                 let record_and_trace_tx = Arc::clone(&record_and_trace_tx);
                 let input_rx = Arc::clone(&input_rx);
-                let span = tracing::Span::current().clone();
+                let span = tracing::debug_span!("generate records and traces");
                 s.spawn(move || {
                     let _span = span.enter();
-                    tracing::debug_span!("generate records and traces").in_scope(|| {
-                        loop {
-                            let received = { input_rx.lock().unwrap().recv() };
-                            if let Ok((index, height, input)) = received {
-                                // Get the program and witness stream.
-                                let (program, witness_stream, program_type) =
-                                    tracing::debug_span!("write witness stream").in_scope(|| {
-                                        match input {
-                                            SP1CompressMemoryLayoutFirstLayer::Core(input) => {
-                                                let mut witness_stream = Vec::new();
-                                                witness_stream.extend(input.write());
-                                                (
-                                                    &self.recursion_program,
-                                                    witness_stream,
-                                                    ReduceProgramType::Core,
-                                                )
-                                            }
-                                            SP1CompressMemoryLayoutFirstLayer::Deferred(input) => {
-                                                let mut witness_stream = Vec::new();
-                                                witness_stream.extend(input.write());
-                                                (
-                                                    &self.deferred_program,
-                                                    witness_stream,
-                                                    ReduceProgramType::Deferred,
-                                                )
-                                            }
-                                            SP1CompressMemoryLayoutFirstLayer::Compress(input) => {
-                                                let mut witness_stream = Vec::new();
-                                                witness_stream.extend(input.write());
-                                                (
-                                                    &self.compress_program,
-                                                    witness_stream,
-                                                    ReduceProgramType::Reduce,
-                                                )
-                                            }
-                                        }
-                                    });
+                    loop {
+                        let received = { input_rx.lock().unwrap().recv() };
+                        if let Ok((index, height, input)) = received {
+                            // Get the program and witness stream.
+                            let (program, witness_stream, program_type) = tracing::debug_span!(
+                                "write witness stream"
+                            )
+                            .in_scope(|| match input {
+                                SP1CompressMemoryLayoutFirstLayer::Core(input) => {
+                                    let mut witness_stream = Vec::new();
+                                    witness_stream.extend(input.write());
+                                    (
+                                        &self.recursion_program,
+                                        witness_stream,
+                                        ReduceProgramType::Core,
+                                    )
+                                }
+                                SP1CompressMemoryLayoutFirstLayer::Deferred(input) => {
+                                    let mut witness_stream = Vec::new();
+                                    witness_stream.extend(input.write());
+                                    (
+                                        &self.deferred_program,
+                                        witness_stream,
+                                        ReduceProgramType::Deferred,
+                                    )
+                                }
+                                SP1CompressMemoryLayoutFirstLayer::Compress(input) => {
+                                    let mut witness_stream = Vec::new();
+                                    witness_stream.extend(input.write());
+                                    (
+                                        &self.compress_program,
+                                        witness_stream,
+                                        ReduceProgramType::Reduce,
+                                    )
+                                }
+                            });
 
-                                // Execute the runtime.
-                                let record =
-                                    tracing::debug_span!("execute runtime").in_scope(|| {
-                                        let mut runtime = RecursionRuntime::<
-                                            Val<InnerSC>,
-                                            Challenge<InnerSC>,
-                                            _,
-                                        >::new(
-                                            program,
-                                            self.compress_prover.config().perm.clone(),
-                                        );
-                                        runtime.witness_stream = witness_stream.into();
-                                        runtime
-                                            .run()
-                                            .map_err(|e| {
-                                                SP1RecursionProverError::RuntimeError(e.to_string())
-                                            })
-                                            .unwrap();
-                                        runtime.record
-                                    });
-
-                                // Generate the dependencies.
-                                let mut records = vec![record];
-                                tracing::debug_span!("generate dependencies").in_scope(|| {
-                                    self.compress_prover
-                                        .machine()
-                                        .generate_dependencies(&mut records, &opts.recursion_opts)
-                                });
-
-                                // Generate the traces.
-                                let record = records.into_iter().next().unwrap();
-                                let traces = tracing::debug_span!("generate traces")
-                                    .in_scope(|| self.compress_prover.generate_traces(&record));
-
-                                // Wait for our turn to update the state.
-                                record_and_trace_sync.wait_for_turn(index);
-
-                                // Send the record and traces to the worker.
-                                record_and_trace_tx
-                                    .lock()
-                                    .unwrap()
-                                    .send((index, height, record, traces, program_type))
+                            // Execute the runtime.
+                            let record = tracing::debug_span!("execute runtime").in_scope(|| {
+                                let mut runtime =
+                                    RecursionRuntime::<Val<InnerSC>, Challenge<InnerSC>, _>::new(
+                                        program,
+                                        self.compress_prover.config().perm.clone(),
+                                    );
+                                runtime.witness_stream = witness_stream.into();
+                                runtime
+                                    .run()
+                                    .map_err(|e| {
+                                        SP1RecursionProverError::RuntimeError(e.to_string())
+                                    })
                                     .unwrap();
+                                runtime.record
+                            });
 
-                                // Advance the turn.
-                                record_and_trace_sync.advance_turn();
-                            } else {
-                                break;
-                            }
+                            // Generate the dependencies.
+                            let mut records = vec![record];
+                            tracing::debug_span!("generate dependencies").in_scope(|| {
+                                self.compress_prover
+                                    .machine()
+                                    .generate_dependencies(&mut records, &opts.recursion_opts)
+                            });
+
+                            // Generate the traces.
+                            let record = records.into_iter().next().unwrap();
+                            let traces = tracing::debug_span!("generate traces")
+                                .in_scope(|| self.compress_prover.generate_traces(&record));
+
+                            // Wait for our turn to update the state.
+                            record_and_trace_sync.wait_for_turn(index);
+
+                            // Send the record and traces to the worker.
+                            record_and_trace_tx
+                                .lock()
+                                .unwrap()
+                                .send((index, height, record, traces, program_type))
+                                .unwrap();
+
+                            // Advance the turn.
+                            record_and_trace_sync.advance_turn();
+                        } else {
+                            break;
                         }
-                    });
+                    }
+                    println!("record and trace thread exited");
                 });
             }
 
@@ -617,13 +603,13 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 let prover_sync = Arc::clone(&proofs_sync);
                 let record_and_trace_rx = Arc::clone(&record_and_trace_rx);
                 let proofs_tx = Arc::clone(&proofs_tx);
-                let span = tracing::Span::current().clone();
+                let span = tracing::debug_span!("prove");
                 let handle = s.spawn(move || {
                     let _span = span.enter();
-                    tracing::debug_span!("prove").in_scope(|| {
-                        loop {
-                            let received = { record_and_trace_rx.lock().unwrap().recv() };
-                            if let Ok((index, height, record, traces, program_type)) = received {
+                    loop {
+                        let received = { record_and_trace_rx.lock().unwrap().recv() };
+                        if let Ok((index, height, record, traces, program_type)) = received {
+                            tracing::debug_span!("batch").in_scope(|| {
                                 // Get the proving key.
                                 let pk = if program_type == ReduceProgramType::Core {
                                     &self.recursion_pk
@@ -671,20 +657,21 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
                                 // Advance the turn.
                                 prover_sync.advance_turn();
-                            } else {
-                                break;
-                            }
+                            });
+                        } else {
+                            break;
                         }
-                    });
+                    }
+                    println!("prover thread exited");
                 });
                 prover_handles.push(handle);
             }
 
             // Spawn a worker that generates inputs for the next layer.
-            let span = tracing::Span::current().clone();
             let handle = {
                 let input_tx = Arc::clone(&input_tx);
                 let proofs_rx = Arc::clone(&proofs_rx);
+                let span = tracing::debug_span!("generate next layer inputs");
                 s.spawn(move || {
                     let _span = span.enter();
                     let mut count = num_first_layer_inputs;
@@ -771,12 +758,14 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                             break;
                         }
                     }
+                    println!("generate next layer inputs exited");
                 })
             };
 
             // Wait for all the provers to finish.
             drop(input_tx);
             drop(record_and_trace_tx);
+            drop(proofs_tx);
             for handle in prover_handles {
                 handle.join().unwrap();
             }
