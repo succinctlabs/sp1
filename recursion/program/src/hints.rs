@@ -90,10 +90,11 @@ impl Hintable<C> for [Word<BabyBear>; PV_DIGEST_NUM_WORDS] {
     }
 
     fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
-        vec![self
-            .iter()
-            .flat_map(|w| w.0.iter().map(|f| Block::from(*f)))
-            .collect::<Vec<_>>()]
+        vec![
+            self.iter()
+                .flat_map(|w| w.0.iter().map(|f| Block::from(*f)))
+                .collect::<Vec<_>>(),
+        ]
     }
 }
 
@@ -206,10 +207,11 @@ impl Hintable<C> for Vec<usize> {
     }
 
     fn write(&self) -> Vec<Vec<Block<InnerVal>>> {
-        vec![self
-            .iter()
-            .map(|x| Block::from(InnerVal::from_canonical_usize(*x)))
-            .collect()]
+        vec![
+            self.iter()
+                .map(|x| Block::from(InnerVal::from_canonical_usize(*x)))
+                .collect(),
+        ]
     }
 }
 
@@ -233,10 +235,11 @@ impl Hintable<C> for Vec<InnerChallenge> {
     }
 
     fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
-        vec![self
-            .iter()
-            .map(|x| Block::from((*x).as_base_slice()))
-            .collect()]
+        vec![
+            self.iter()
+                .map(|x| Block::from((*x).as_base_slice()))
+                .collect(),
+        ]
     }
 }
 
@@ -420,14 +423,14 @@ impl Hintable<C> for DuplexChallenger<InnerVal, InnerPerm, 16, 8> {
 }
 
 impl<
-        'a,
-        SC: StarkGenericConfig<
+    'a,
+    SC: StarkGenericConfig<
             Pcs = <BabyBearPoseidon2 as StarkGenericConfig>::Pcs,
             Challenge = <BabyBearPoseidon2 as StarkGenericConfig>::Challenge,
             Challenger = <BabyBearPoseidon2 as StarkGenericConfig>::Challenger,
         >,
-        A: MachineAir<SC::Val>,
-    > Hintable<C> for VerifyingKeyHint<'a, SC, A>
+    A: MachineAir<SC::Val>,
+> Hintable<C> for VerifyingKeyHint<'a, SC, A>
 {
     type HintVariable = VerifyingKeyVariable<C>;
 
@@ -459,14 +462,14 @@ impl<
 
 // Implement Hintable<C> for ShardProof where SC is equivalent to BabyBearPoseidon2
 impl<
-        'a,
-        SC: StarkGenericConfig<
+    'a,
+    SC: StarkGenericConfig<
             Pcs = <BabyBearPoseidon2 as StarkGenericConfig>::Pcs,
             Challenge = <BabyBearPoseidon2 as StarkGenericConfig>::Challenge,
             Challenger = <BabyBearPoseidon2 as StarkGenericConfig>::Challenger,
         >,
-        A: MachineAir<SC::Val>,
-    > Hintable<C> for ShardProofHint<'a, SC, A>
+    A: MachineAir<SC::Val>,
+> Hintable<C> for ShardProofHint<'a, SC, A>
 where
     ShardCommitment<Com<SC>>: Hintable<C>,
 {
@@ -548,8 +551,10 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
     }
 }
 
-impl<'a, A: MachineAir<BabyBear>> Hintable<C> for SP1ReduceMemoryLayout<'a, BabyBearPoseidon2, A> {
-    type HintVariable = SP1ReduceMemoryLayoutVariable<C>;
+impl<'a, A: MachineAir<BabyBear>> Hintable<C>
+    for SP1CompressMemoryLayout<'a, BabyBearPoseidon2, A>
+{
+    type HintVariable = SP1CompressMemoryLayoutVariable<C>;
 
     fn read(builder: &mut Builder<C>) -> Self::HintVariable {
         let compress_vk = VerifyingKeyHint::<'a, BabyBearPoseidon2, A>::read(builder);
@@ -557,7 +562,7 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C> for SP1ReduceMemoryLayout<'a, Baby
         let kinds = Vec::<usize>::read(builder);
         let is_complete = builder.hint_var();
 
-        SP1ReduceMemoryLayoutVariable {
+        SP1CompressMemoryLayoutVariable {
             compress_vk,
             shard_proofs,
             kinds,
