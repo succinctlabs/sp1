@@ -100,7 +100,7 @@ impl<C: Config> DuplexChallengerVariable<C> {
         self.output_buffer.extend_from_slice(&self.sponge_state);
     }
 
-    fn observe(&mut self, builder: &mut Builder<C>, value: Felt<C::F>) {
+    pub fn observe(&mut self, builder: &mut Builder<C>, value: Felt<C::F>) {
         self.output_buffer.clear();
 
         self.input_buffer.push(value);
@@ -116,7 +116,7 @@ impl<C: Config> DuplexChallengerVariable<C> {
         }
     }
 
-    fn sample(&mut self, builder: &mut Builder<C>) -> Felt<C::F> {
+    pub fn sample(&mut self, builder: &mut Builder<C>) -> Felt<C::F> {
         if !self.input_buffer.is_empty() || self.output_buffer.is_empty() {
             self.duplexing(builder);
         }
@@ -126,7 +126,7 @@ impl<C: Config> DuplexChallengerVariable<C> {
             .expect("output buffer should be non-empty")
     }
 
-    fn sample_ext(&mut self, builder: &mut Builder<C>) -> Ext<C::F, C::EF> {
+    pub fn sample_ext(&mut self, builder: &mut Builder<C>) -> Ext<C::F, C::EF> {
         let a = self.sample(builder);
         let b = self.sample(builder);
         let c = self.sample(builder);
@@ -134,7 +134,7 @@ impl<C: Config> DuplexChallengerVariable<C> {
         builder.ext_from_base_slice(&[a, b, c, d])
     }
 
-    fn sample_bits(&mut self, builder: &mut Builder<C>, nb_bits: usize) -> Vec<Felt<C::F>> {
+    pub fn sample_bits(&mut self, builder: &mut Builder<C>, nb_bits: usize) -> Vec<Felt<C::F>> {
         let rand_f = self.sample(builder);
         let mut rand_f_bits = builder.num2bits_v2_f(rand_f, NUM_BITS);
         rand_f_bits.truncate(nb_bits);

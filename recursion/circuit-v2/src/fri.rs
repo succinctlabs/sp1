@@ -1,18 +1,185 @@
-use itertools::Itertools;
+use itertools::{izip, Itertools};
+use p3_commit::PolynomialSpace;
 use p3_field::{AbstractField, TwoAdicField};
+use p3_fri::FriConfig;
 use p3_matrix::Dimensions;
+use p3_util::log2_strict_usize;
 use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
     ir::{Builder, Config, Felt, SymbolicExt},
 };
 use std::{cmp::Reverse, iter::zip};
 
+use crate::challenger::DuplexChallengerVariable;
 use crate::*;
+
+pub fn verify_shape_and_sample_challenges<C: Config, Mmcs>(
+    builder: &mut Builder<C>,
+    config: &FriConfig<Mmcs>,
+    proof: &FriProofVariable<C>,
+    challenger: &mut DuplexChallengerVariable<C>,
+) -> FriChallenges<C> {
+    let mut betas = vec![];
+
+    for i in 0..proof.commit_phase_commits.len() {
+        let commitment: [Felt<C::F>; DIGEST_SIZE] = proof.commit_phase_commits[i];
+        challenger.observe_commitment(builder, commitment);
+        let sample = challenger.sample_ext(builder);
+        betas.push(sample);
+    }
+
+    // Observe the final polynomial.
+    let final_poly_felts = builder.ext2felt_circuit(proof.final_poly);
+    final_poly_felts.iter().for_each(|felt| {
+        challenger.observe(builder, *felt);
+    });
+
+    assert_eq!(proof.query_proofs.len(), config.num_queries);
+    challenger.check_witness(builder, config.proof_of_work_bits, proof.pow_witness);
+
+    let log_max_height = proof.commit_phase_commits.len() + config.log_blowup;
+    let query_indices: Vec<Vec<Felt<_>>> = (0..config.num_queries)
+        .map(|_| challenger.sample_bits(builder, log_max_height))
+        .collect();
+
+    FriChallenges {
+        query_indices,
+        betas,
+    }
+}
+
+pub fn verify_two_adic_pcs<C: Config, Mmcs>(
+    builder: &mut Builder<C>,
+    config: &FriConfig<Mmcs>,
+    proof: &TwoAdicPcsProofVariable<C>,
+    challenger: &mut DuplexChallengerVariable<C>,
+    rounds: Vec<TwoAdicPcsRoundVariable<C>>,
+) {
+    let alpha = challenger.sample_ext(builder);
+
+    let fri_challenges =
+        verify_shape_and_sample_challenges(builder, config, &proof.fri_proof, challenger);
+
+    let log_global_max_height = proof.fri_proof.commit_phase_commits.len() + config.log_blowup;
+
+    // The powers of alpha, where the ith element is alpha^i.
+    let mut alpha_pows: Vec<Ext<C::F, C::EF>> =
+        vec![builder.eval(SymbolicExt::from_f(C::EF::one()))];
+
+    let reduced_openings = proof
+        .query_openings
+        .iter()
+        .zip(&fri_challenges.query_indices)
+        .map(|(query_opening, index_bits)| {
+            let mut ro: [Ext<C::F, C::EF>; 32] =
+                [builder.eval(SymbolicExt::from_f(C::EF::zero())); 32];
+
+            // An array of the current power for each log_height.
+            let mut log_height_pow = [0usize; 32];
+
+            for (batch_opening, round) in izip!(query_opening.clone(), &rounds) {
+                let batch_commit = round.batch_commit;
+                let mats = &round.mats;
+                let batch_heights = mats
+                    .iter()
+                    .map(|mat| mat.domain.size() << config.log_blowup)
+                    .collect_vec();
+                let batch_dims = batch_heights
+                    .iter()
+                    .map(|&height| Dimensions { width: 0, height })
+                    .collect_vec();
+
+                let batch_max_height = batch_heights.iter().max().expect("Empty batch?");
+                let log_batch_max_height = log2_strict_usize(*batch_max_height);
+                let bits_reduced = log_global_max_height - log_batch_max_height;
+
+                let reduced_index_bits = index_bits[bits_reduced..].to_vec();
+
+                verify_batch::<C, 1>(
+                    builder,
+                    batch_commit,
+                    batch_dims,
+                    reduced_index_bits,
+                    batch_opening.opened_values.clone(),
+                    batch_opening.opening_proof.clone(),
+                );
+                for (mat_opening, mat) in izip!(batch_opening.opened_values.clone(), mats) {
+                    let mat_domain = mat.domain;
+                    let mat_points = &mat.points;
+                    let mat_values = &mat.values;
+                    let log_height = log2_strict_usize(mat_domain.size()) + config.log_blowup;
+
+                    let bits_reduced = log_global_max_height - log_height;
+                    let reduced_index_bits_trunc =
+                        index_bits[bits_reduced..(bits_reduced + log_height)].to_vec();
+
+                    let g = builder.generator();
+                    let two_adic_generator: Felt<_> =
+                        builder.eval(C::F::two_adic_generator(log_height));
+                    let two_adic_generator_exp =
+                        builder.exp_reverse_bits_v2(two_adic_generator, reduced_index_bits_trunc);
+                    let x: Felt<_> = builder.eval(g * two_adic_generator_exp);
+
+                    for (z, ps_at_z) in izip!(mat_points, mat_values) {
+                        let mut acc: Ext<C::F, C::EF> =
+                            builder.eval(SymbolicExt::from_f(C::EF::zero()));
+                        for (p_at_x, &p_at_z) in izip!(mat_opening.clone(), ps_at_z) {
+                            let pow = log_height_pow[log_height];
+                            // Fill in any missing powers of alpha.
+                            (alpha_pows.len()..pow + 1).for_each(|_| {
+                                alpha_pows.push(builder.eval(*alpha_pows.last().unwrap() * alpha));
+                            });
+                            acc = builder.eval(acc + (alpha_pows[pow] * (p_at_z - p_at_x[0])));
+                            log_height_pow[log_height] += 1;
+                        }
+                        ro[log_height] = builder.eval(ro[log_height] + acc / (*z - x));
+                    }
+                }
+            }
+            ro
+        })
+        .collect::<Vec<_>>();
+
+    verify_challenges(
+        builder,
+        config,
+        &proof.fri_proof,
+        &fri_challenges,
+        reduced_openings,
+    );
+}
+
+pub fn verify_challenges<C: Config, Mmcs>(
+    builder: &mut Builder<C>,
+    config: &FriConfig<Mmcs>,
+    proof: &FriProofVariable<C>,
+    challenges: &FriChallenges<C>,
+    reduced_openings: Vec<[Ext<C::F, C::EF>; 32]>,
+) {
+    let log_max_height = proof.commit_phase_commits.len() + config.log_blowup;
+    for (index_bits, query_proof, ro) in izip!(
+        &challenges.query_indices,
+        &proof.query_proofs,
+        reduced_openings
+    ) {
+        let folded_eval = verify_query(
+            builder,
+            proof.commit_phase_commits.clone(),
+            index_bits,
+            query_proof.clone(),
+            challenges.betas.clone(),
+            ro,
+            log_max_height,
+        );
+
+        builder.assert_ext_eq(folded_eval, proof.final_poly);
+    }
+}
 
 pub fn verify_query<C: Config>(
     builder: &mut Builder<C>,
     commit_phase_commits: Vec<DigestVariable<C>>,
-    index: Felt<C::F>,
+    index_bits: &[Felt<C::F>],
     proof: FriQueryProofVariable<C>,
     betas: Vec<Ext<C::F, C::EF>>,
     reduced_openings: [Ext<C::F, C::EF>; 32],
@@ -20,13 +187,12 @@ pub fn verify_query<C: Config>(
 ) -> Ext<C::F, C::EF> {
     let mut folded_eval: Ext<_, _> = builder.eval(SymbolicExt::from_f(C::EF::zero()));
     let two_adic_generator: Felt<_> = builder.eval(C::F::two_adic_generator(log_max_height));
-    let index_bits = builder.num2bits_v2_f(index, 32); // Magic number?
     index_bits
         .iter()
         .for_each(|&bit| builder.assert_felt_eq(bit * bit, bit)); // Is this line needed?
-    let mut x = builder.exp_reverse_bits_v2(two_adic_generator, index_bits.clone());
+    let mut x = builder.exp_reverse_bits_v2(two_adic_generator, index_bits.to_vec());
 
-    for (offset, (log_folded_height, commit, step, beta)) in itertools::izip!(
+    for (offset, (log_folded_height, commit, step, beta)) in izip!(
         (0..log_max_height).rev(),
         commit_phase_commits,
         &proof.commit_phase_openings,
