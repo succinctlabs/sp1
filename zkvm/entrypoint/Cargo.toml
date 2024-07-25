@@ -38,4 +38,5 @@ verify = [
 ]
 bn254 = ["sp1-lib/bn254"]
 secp256k1 = ["sp1-lib/secp256k1"]
+ecrecover = ["sp1-lib/ecrecover"]
 bls12381 = ["sp1-lib/bls12381"]

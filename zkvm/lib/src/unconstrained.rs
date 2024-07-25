@@ -1,6 +1,6 @@
 /// Executes a block of code unconstrained by the VM. This macro is useful for running code that
 /// helps provide information to the program but does not need to be constrained by the VM. For
-/// example, running `ecrecover` is expensive in the VM but verifying a signature when you know the
+/// example, running `recover_ecdsa` is expensive in the VM but verifying a signature when you know the
 /// public key is not. `unconstrained` can be used to provide the public key without spending VM CPU
 /// cycles.
 ///
