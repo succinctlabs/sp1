@@ -189,8 +189,8 @@ fn double_and_add_base(
 ///
 /// WARNING: The values are read from outside of the VM and are not constrained to be correct.
 /// Either use `decompress_pubkey` and `verify_signature` to verify the results of this function, or
-/// use `ecrecover`.
-pub fn unconstrained_ecrecover(sig: &[u8; 65], msg_hash: &[u8; 32]) -> ([u8; 33], Scalar) {
+/// use `recover_ecdsa`.
+pub fn unconstrained_recover_ecdsa(sig: &[u8; 65], msg_hash: &[u8; 32]) -> ([u8; 33], Scalar) {
     // The `unconstrained!` wrapper is used since none of these computations directly affect
     // the output values of the VM. The remainder of the function sets the constraints on the values
     // instead. Removing the `unconstrained!` wrapper slightly increases the cycle count.
@@ -248,7 +248,7 @@ pub fn ecrecover(sig: &[u8; 64], rec_id: u8, msg_hash: &[u8; 32]) -> Result<[u8;
 /// let pubkey = recover_ecdsa(&sig, &msg_hash)?;
 /// ```
 pub fn recover_ecdsa(sig: &[u8; 65], msg_hash: &[u8; 32]) -> Result<[u8; 65]> {
-    let (pubkey, s_inv) = unconstrained_ecrecover(sig, msg_hash);
+    let (pubkey, s_inv) = unconstrained_recover_ecdsa(sig, msg_hash);
     let pubkey = decompress_pubkey(&pubkey).context("decompress pubkey failed")?;
     let verified = verify_signature(
         &pubkey,
