@@ -448,8 +448,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             num_layer_inputs = (num_layer_inputs + 1) / 2;
             expected_height += 1;
         }
-        println!("first layer inputs len: {}", first_layer_inputs.len());
-        println!("rounds: {}", expected_height);
 
         // Generate the proofs.
         let span = tracing::Span::current().clone();
