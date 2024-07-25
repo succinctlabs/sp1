@@ -214,7 +214,7 @@ impl<C: Config> FeltChallenger<C> for DuplexChallengerVariable<C> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use p3_challenger::CanObserve;
     use p3_challenger::CanSample;
     use p3_challenger::FieldChallenger;
@@ -225,10 +225,12 @@ mod tests {
     use sp1_recursion_compiler::asm::AsmBuilder;
     use sp1_recursion_compiler::asm::AsmConfig;
     use sp1_recursion_compiler::circuit::AsmCompiler;
+    use sp1_recursion_compiler::ir::DslIr;
     use sp1_recursion_compiler::ir::Ext;
     use sp1_recursion_compiler::ir::ExtConst;
     use sp1_recursion_compiler::ir::Felt;
 
+    use sp1_recursion_compiler::ir::TracedVec;
     use sp1_recursion_core_v2::machine::RecursionAir;
     use sp1_recursion_core_v2::RecursionProgram;
     use sp1_recursion_core_v2::Runtime;
@@ -244,8 +246,13 @@ mod tests {
     /// A simplified version of some code from `recursion/core/src/stark/mod.rs`.
     /// Takes in a program and runs it with the given witness and generates a proof with a variety of
     /// machines depending on the provided test_config.
-    fn run_test_recursion(program: RecursionProgram<F>) {
+    pub(crate) fn run_test_recursion(operations: TracedVec<DslIr<AsmConfig<F, EF>>>) {
         setup_logger();
+
+        let mut compiler = AsmCompiler::<AsmConfig<F, EF>>::default();
+        let instructions = compiler.compile(operations);
+        let program = RecursionProgram { instructions };
+
         let config = BabyBearPoseidon2::default();
 
         let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
@@ -300,9 +307,6 @@ mod tests {
         builder.assert_ext_eq(expected_result_ef, element_ef);
 
         // let program = builder.compile_program();
-        let mut compiler = AsmCompiler::<AsmConfig<F, EF>>::default();
-        let instructions = compiler.compile(builder.operations);
-        let program = RecursionProgram { instructions };
-        run_test_recursion(program);
+        run_test_recursion(builder.operations);
     }
 }

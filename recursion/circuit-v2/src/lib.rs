@@ -56,7 +56,6 @@ pub struct TwoAdicPcsRoundVariable<C: Config> {
     pub mats: Vec<TwoAdicPcsMatsVariable<C>>,
 }
 
-#[allow(clippy::type_complexity)]
 #[derive(Clone)]
 pub struct TwoAdicPcsMatsVariable<C: Config> {
     pub domain: TwoAdicMultiplicativeCoset<C::F>,
