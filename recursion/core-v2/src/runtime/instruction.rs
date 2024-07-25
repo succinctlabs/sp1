@@ -14,6 +14,7 @@ pub enum Instruction<F> {
     HintBits(HintBitsInstr<F>),
     FriFold(FriFoldInstr<F>),
     Print(PrintInstr<F>),
+    HintExt2Felts(HintExt2FeltsInstr<F>),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -28,6 +29,14 @@ pub struct HintBitsInstr<F> {
 pub struct PrintInstr<F> {
     pub field_elt_type: FieldEltType,
     pub addr: Address<F>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct HintExt2FeltsInstr<F> {
+    /// Addresses and mults of the output bits.
+    pub output_addrs_mults: [(Address<F>, F); D],
+    /// Input value to decompose.
+    pub input_addr: Address<F>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

@@ -1,5 +1,5 @@
 use core::borrow::Borrow;
-use instruction::HintBitsInstr;
+use instruction::{HintBitsInstr, HintExt2FeltsInstr};
 use itertools::Itertools;
 use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::PrimeField32;
@@ -86,6 +86,17 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip<F> {
                     }]
                 }
                 Instruction::HintBits(HintBitsInstr {
+                    output_addrs_mults,
+                    input_addr: _, // No receive interaction for the hint operation
+                }) => output_addrs_mults
+                    .iter()
+                    .map(|&(addr, write_mult)| MemoryAccessCols {
+                        addr,
+                        read_mult: F::zero(),
+                        write_mult,
+                    })
+                    .collect(),
+                Instruction::HintExt2Felts(HintExt2FeltsInstr {
                     output_addrs_mults,
                     input_addr: _, // No receive interaction for the hint operation
                 }) => output_addrs_mults
