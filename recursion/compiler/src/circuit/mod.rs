@@ -26,7 +26,7 @@ mod tests {
     type SC = BabyBearPoseidon2Inner;
     type F = <SC as StarkGenericConfig>::Val;
     type EF = <SC as StarkGenericConfig>::Challenge;
-    type A = RecursionAir<F, DEGREE>;
+    type A = RecursionAir<F, DEGREE, 0>;
 
     /// Rough test to give an idea of how long the compress stage would take on the v2 circuit
     /// relative to the recursion VM.

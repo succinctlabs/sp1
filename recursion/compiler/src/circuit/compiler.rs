@@ -697,13 +697,15 @@ mod tests {
 
     use p3_baby_bear::DiffusionMatrixBabyBear;
     use p3_field::{Field, PrimeField32};
-    use p3_symmetric::Permutation;
+    use p3_symmetric::{CryptographicHasher, Permutation};
     use rand::{rngs::StdRng, Rng, SeedableRng};
     use sp1_core::{
         stark::StarkGenericConfig,
-        utils::{inner_perm, run_test_machine, setup_logger, BabyBearPoseidon2Inner},
+        utils::{
+            inner_perm, run_test_machine, setup_logger, BabyBearPoseidon2, BabyBearPoseidon2Inner,
+            InnerHash,
+        },
     };
-    use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
     use sp1_recursion_core_v2::{machine::RecursionAir, RecursionProgram, Runtime};
 
     use crate::{
@@ -713,11 +715,10 @@ mod tests {
 
     use super::*;
 
-    type SC = BabyBearPoseidon2Outer;
+    type SC = BabyBearPoseidon2;
     type F = <SC as StarkGenericConfig>::Val;
     type EF = <SC as StarkGenericConfig>::Challenge;
-    type A = RecursionAir<F, 3>;
-
+    type A = RecursionAir<F, 3, 1>;
     fn test_operations(operations: TracedVec<DslIr<AsmConfig<F, EF>>>) {
         test_operations_with_runner(operations, |program| {
             let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(
@@ -739,7 +740,7 @@ mod tests {
         let record = run(&program);
 
         let config = SC::new();
-        let machine = A::machine(config);
+        let machine = A::machine_with_all_chips(config);
         let (pk, vk) = machine.setup(&program);
         let result = run_test_machine(vec![record], machine, pk, vk);
         if let Err(e) = result {
@@ -789,6 +790,51 @@ mod tests {
         }
 
         test_operations(builder.operations);
+    }
+
+    #[test]
+    fn test_poseidon2_hash() {
+        let perm = inner_perm();
+        let hasher = InnerHash::new(perm.clone());
+
+        let input: [F; 26] = [
+            F::from_canonical_u32(0),
+            F::from_canonical_u32(1),
+            F::from_canonical_u32(2),
+            F::from_canonical_u32(2),
+            F::from_canonical_u32(2),
+            F::from_canonical_u32(2),
+            F::from_canonical_u32(2),
+            F::from_canonical_u32(2),
+            F::from_canonical_u32(2),
+            F::from_canonical_u32(2),
+            F::from_canonical_u32(2),
+            F::from_canonical_u32(2),
+            F::from_canonical_u32(2),
+            F::from_canonical_u32(2),
+            F::from_canonical_u32(2),
+            F::from_canonical_u32(3),
+            F::from_canonical_u32(3),
+            F::from_canonical_u32(3),
+            F::from_canonical_u32(3),
+            F::from_canonical_u32(3),
+            F::from_canonical_u32(3),
+            F::from_canonical_u32(3),
+            F::from_canonical_u32(3),
+            F::from_canonical_u32(3),
+            F::from_canonical_u32(3),
+            F::from_canonical_u32(3),
+        ];
+        let expected = hasher.hash_iter(input);
+        println!("{:?}", expected);
+
+        let mut builder = AsmBuilder::<F, EF>::default();
+        let input_felts: [Felt<_>; 26] = input.map(|x| builder.eval(x));
+        let result = builder.poseidon2_hash_v2(&input_felts);
+
+        for (actual_f, expected_f) in zip(result, expected) {
+            builder.assert_felt_eq(actual_f, expected_f);
+        }
     }
 
     #[test]

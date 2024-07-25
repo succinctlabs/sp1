@@ -11,6 +11,7 @@ use p3_baby_bear::BabyBear;
 use p3_bn254_fr::Bn254Fr;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::{AbstractField, TwoAdicField};
+use p3_util::log2_strict_usize;
 use sp1_core::stark::{Com, ShardProof, PROOF_MAX_NUM_PVS};
 use sp1_core::{
     air::MachineAir,
@@ -22,7 +23,7 @@ use sp1_recursion_compiler::ir::{Builder, Config, Ext, Felt, Var};
 use sp1_recursion_compiler::ir::{Usize, Witness};
 use sp1_recursion_compiler::prelude::SymbolicVar;
 use sp1_recursion_core::air::{RecursionPublicValues, NUM_PV_ELMS_TO_HASH};
-use sp1_recursion_core::stark::config::{outer_fri_config, BabyBearPoseidon2Outer};
+use sp1_recursion_core::stark::config::{outer_fri_config_with_blowup, BabyBearPoseidon2Outer};
 use sp1_recursion_core::stark::RecursionAirWideDeg17;
 use sp1_recursion_program::commit::PolynomialSpaceVariable;
 use sp1_recursion_program::stark::RecursiveVerifierConstraintFolder;
@@ -46,7 +47,7 @@ where
         Domain = TwoAdicMultiplicativeCoset<C::F>,
     >,
 {
-    pub fn verify_shard<A>(
+    pub fn verify_shard<A, const DEGREE: usize>(
         builder: &mut Builder<C>,
         vk: &StarkVerifyingKey<SC>,
         machine: &StarkMachine<SC, A>,
@@ -207,7 +208,7 @@ where
         rounds.push(main_round);
         rounds.push(perm_round);
         rounds.push(quotient_round);
-        let config = outer_fri_config();
+        let config = outer_fri_config_with_blowup(log2_strict_usize(DEGREE - 1));
         verify_two_adic_pcs(builder, &config, &proof.opening_proof, challenger, rounds);
 
         for (i, sorted_chip) in sorted_chips.iter().enumerate() {
@@ -332,7 +333,7 @@ pub fn build_wrap_circuit(
     );
     challenger.observe_slice(&mut builder, pv_slice);
 
-    StarkVerifierCircuit::<OuterC, OuterSC>::verify_shard(
+    StarkVerifierCircuit::<OuterC, OuterSC>::verify_shard::<_, 17>(
         &mut builder,
         wrap_vk,
         &outer_machine,
@@ -364,13 +365,10 @@ pub fn build_wrap_circuit(
 #[cfg(test)]
 pub(crate) mod tests {
 
-    use p3_field::PrimeField32;
-    use sp1_recursion_core::{
-        cpu::Instruction,
-        runtime::{Opcode, RecursionProgram},
-    };
+    use sp1_recursion_core::{cpu::Instruction, runtime::Opcode};
 
-    pub fn basic_program<F: PrimeField32>() -> RecursionProgram<F> {
+    pub fn basic_program<F: p3_field::PrimeField32>(
+    ) -> sp1_recursion_core::runtime::RecursionProgram<F> {
         let zero = [F::zero(); 4];
         let one = [F::one(), F::zero(), F::zero(), F::zero()];
         let mut instructions = vec![Instruction::new(
@@ -409,7 +407,7 @@ pub(crate) mod tests {
             true,
             "".to_string(),
         ));
-        RecursionProgram::<F> {
+        sp1_recursion_core::runtime::RecursionProgram::<F> {
             instructions,
             traces: vec![None],
         }

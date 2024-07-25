@@ -1,17 +1,24 @@
 //! An implementation of Poseidon2 over BN254.
 
+use std::iter::repeat;
+
 use p3_field::AbstractField;
 
 use crate::prelude::*;
-use sp1_recursion_core_v2::{poseidon2_skinny::WIDTH, NUM_BITS};
+use sp1_recursion_core_v2::{poseidon2_skinny::WIDTH, DIGEST_SIZE, HASH_RATE, NUM_BITS};
 
 pub trait CircuitV2Builder<C: Config> {
     fn num2bits_v2_f(&mut self, num: Felt<C::F>) -> Vec<Felt<C::F>>;
     fn exp_reverse_bits_v2(&mut self, input: Felt<C::F>, power_bits: Vec<Felt<C::F>>)
         -> Felt<C::F>;
     fn poseidon2_permute_v2_skinny(&mut self, state: [Felt<C::F>; WIDTH]) -> [Felt<C::F>; WIDTH];
-    fn fri_fold_v2(&mut self, input: CircuitV2FriFoldInput<C>) -> CircuitV2FriFoldOutput<C>;
     fn poseidon2_permute_v2_wide(&mut self, state: [Felt<C::F>; WIDTH]) -> [Felt<C::F>; WIDTH];
+    fn poseidon2_hash_v2(&mut self, array: &[Felt<C::F>]) -> [Felt<C::F>; DIGEST_SIZE];
+    fn poseidon2_compress_v2(
+        &mut self,
+        input: impl IntoIterator<Item = Felt<C::F>>,
+    ) -> [Felt<C::F>; DIGEST_SIZE];
+    fn fri_fold_v2(&mut self, input: CircuitV2FriFoldInput<C>) -> CircuitV2FriFoldOutput<C>;
 }
 
 impl<C: Config> CircuitV2Builder<C> for Builder<C> {
@@ -61,6 +68,33 @@ impl<C: Config> CircuitV2Builder<C> for Builder<C> {
         self.operations
             .push(DslIr::CircuitV2Poseidon2PermuteBabyBearWide(output, array));
         output
+    }
+    /// Applies the Poseidon2 permutation to the given array.
+    ///
+    /// Reference: [p3_symmetric::PaddingFreeSponge]
+    fn poseidon2_hash_v2(&mut self, input: &[Felt<C::F>]) -> [Felt<C::F>; DIGEST_SIZE] {
+        // static_assert(RATE < WIDTH)
+        let mut state = core::array::from_fn(|_| self.eval(C::F::zero()));
+        for input_chunk in input.chunks(HASH_RATE) {
+            state[..input_chunk.len()].copy_from_slice(input_chunk);
+            state = self.poseidon2_permute_v2_skinny(state);
+        }
+        let state: [Felt<C::F>; DIGEST_SIZE] = state[..DIGEST_SIZE].try_into().unwrap();
+        state
+    }
+    /// Applies the Poseidon2 compression function to the given array.
+    ///
+    /// Reference: [p3_symmetric::TruncatedPermutation]
+    fn poseidon2_compress_v2(
+        &mut self,
+        input: impl IntoIterator<Item = Felt<C::F>>,
+    ) -> [Felt<C::F>; DIGEST_SIZE] {
+        // debug_assert!(DIGEST_SIZE * N <= WIDTH);
+        let mut pre_iter = input.into_iter().chain(repeat(self.eval(C::F::default())));
+        let pre = core::array::from_fn(move |_| pre_iter.next().unwrap());
+        let post = self.poseidon2_permute_v2_skinny(pre);
+        let post: [Felt<C::F>; DIGEST_SIZE] = post[..DIGEST_SIZE].try_into().unwrap();
+        post
     }
     /// Runs FRI fold.
     fn fri_fold_v2(&mut self, input: CircuitV2FriFoldInput<C>) -> CircuitV2FriFoldOutput<C> {

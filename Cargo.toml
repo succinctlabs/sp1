@@ -58,6 +58,7 @@ sp1-recursion-derive = { path = "recursion/derive", version = "1.0.0-rc.1", defa
 sp1-recursion-gnark-ffi = { path = "recursion/gnark-ffi", version = "1.0.0-rc.1", default-features = false }
 sp1-recursion-program = { path = "recursion/program", version = "1.0.0-rc.1", default-features = false }
 sp1-recursion-circuit = { path = "recursion/circuit", version = "1.0.0-rc.1", default-features = false }
+sp1-recursion-circuit-v2 = { path = "recursion/circuit-v2", version = "1.0.0-rc.1", default-features = false }
 sp1-sdk = { path = "sdk", version = "1.0.0-rc.1" }
 sp1-lib = { path = "zkvm/lib", version = "1.0.0-rc.1", default-features = false }
 sp1-zkvm = { path = "zkvm/entrypoint", version = "1.0.0-rc.1", default-features = false }
