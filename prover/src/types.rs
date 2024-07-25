@@ -15,9 +15,12 @@ use sp1_core::{
     utils::DIGEST_SIZE,
 };
 use sp1_primitives::poseidon2_hash;
+use sp1_recursion_core::stark::RecursionAir;
 use sp1_recursion_core::{air::RecursionPublicValues, stark::config::BabyBearPoseidon2Outer};
 use sp1_recursion_gnark_ffi::plonk_bn254::PlonkBn254Proof;
-use sp1_recursion_program::machine::{SP1DeferredMemoryLayout, SP1RecursionMemoryLayout};
+use sp1_recursion_program::machine::{
+    SP1CompressMemoryLayout, SP1DeferredMemoryLayout, SP1RecursionMemoryLayout,
+};
 use thiserror::Error;
 
 use crate::utils::words_to_bytes_be;
@@ -210,4 +213,5 @@ pub enum SP1RecursionProverError {
 pub enum SP1CompressMemoryLayoutFirstLayer<'a> {
     Core(SP1RecursionMemoryLayout<'a, InnerSC, RiscvAir<BabyBear>>),
     Deferred(SP1DeferredMemoryLayout<'a, InnerSC, CompressAir<BabyBear>>),
+    Compress(SP1CompressMemoryLayout<'a, InnerSC, CompressAir<BabyBear>>),
 }

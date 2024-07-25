@@ -37,7 +37,7 @@ use sp1_core::stark::MachineProver;
 use sp1_core::stark::{Challenge, StarkProvingKey};
 use sp1_core::stark::{Challenger, MachineVerificationError};
 use sp1_core::utils::concurrency::TurnBasedSync;
-use sp1_core::utils::{SP1CoreOpts, SP1ProverOpts, DIGEST_SIZE};
+use sp1_core::utils::{log2_strict_usize, SP1CoreOpts, SP1ProverOpts, DIGEST_SIZE};
 use sp1_core::{
     runtime::Program,
     stark::{RiscvAir, ShardProof, StarkGenericConfig, StarkVerifyingKey, Val},
@@ -449,25 +449,46 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             )
         });
 
+        // Calculate the number of rounds.
+        println!("first layer inputs len: {}", first_layer_inputs.len());
+        let mut rounds = 1;
+        let mut count = first_layer_inputs.len();
+        let count2 = first_layer_inputs.len();
+        loop {
+            if count <= batch_size {
+                break;
+            }
+            count = count / 2 + (count % batch_size);
+            rounds += 1;
+        }
+        println!("rounds: {}", rounds);
+
         // Generate the first layer proofs.
         let span = tracing::Span::current().clone();
-        let mut reduce_proofs = thread::scope(|s| {
+        let proof = thread::scope(|s| {
             let _span = span.enter();
 
             // Spawn a worker that sends the first layer inputs to a bounded channel.
+            let input_sync = Arc::new(TurnBasedSync::new());
             let (input_tx, input_rx) =
-                sync_channel::<(usize, SP1CompressMemoryLayoutFirstLayer)>(1);
+                sync_channel::<(usize, usize, SP1CompressMemoryLayoutFirstLayer)>(4);
+            let input_tx = Arc::new(Mutex::new(input_tx));
             let span = tracing::Span::current().clone();
+            let input_tx_1 = Arc::clone(&input_tx);
+            let input_sync_1 = Arc::clone(&input_sync);
             s.spawn(move || {
                 let _span = span.enter();
                 for (index, input) in first_layer_inputs.into_iter().enumerate() {
-                    input_tx.send((index, input)).unwrap();
+                    input_sync_1.wait_for_turn(index);
+                    input_tx_1.lock().unwrap().send((index, 0, input)).unwrap();
+                    input_sync_1.advance_turn();
                 }
             });
 
             // Spawn workers who generate the records and traces.
             let record_and_trace_sync = Arc::new(TurnBasedSync::new());
             let (record_and_trace_tx, record_and_trace_rx) = sync_channel::<(
+                usize,
                 usize,
                 ExecutionRecord<BabyBear>,
                 Vec<(String, RowMajorMatrix<BabyBear>)>,
@@ -476,7 +497,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             let record_and_trace_tx = Arc::new(Mutex::new(record_and_trace_tx));
             let record_and_trace_rx = Arc::new(Mutex::new(record_and_trace_rx));
             let input_rx = Arc::new(Mutex::new(input_rx));
-            for _ in 0..1 {
+            for _ in 0..4 {
                 let record_and_trace_sync = Arc::clone(&record_and_trace_sync);
                 let record_and_trace_tx = Arc::clone(&record_and_trace_tx);
                 let input_rx = Arc::clone(&input_rx);
@@ -485,7 +506,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                     let _span = span.enter();
                     loop {
                         let received = { input_rx.lock().unwrap().recv() };
-                        if let Ok((index, input)) = received {
+                        if let Ok((index, height, input)) = received {
                             // Get the program and witness stream.
                             let (program, witness_stream, program_type) = match input {
                                 SP1CompressMemoryLayoutFirstLayer::Core(input) => {
@@ -504,6 +525,15 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                         &self.deferred_program,
                                         witness_stream,
                                         ReduceProgramType::Deferred,
+                                    )
+                                }
+                                SP1CompressMemoryLayoutFirstLayer::Compress(input) => {
+                                    let mut witness_stream = Vec::new();
+                                    witness_stream.extend(input.write());
+                                    (
+                                        &self.compress_program,
+                                        witness_stream,
+                                        ReduceProgramType::Reduce,
                                     )
                                 }
                             };
@@ -537,7 +567,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                             record_and_trace_tx
                                 .lock()
                                 .unwrap()
-                                .send((index, record, traces, program_type))
+                                .send((index, height, record, traces, program_type))
                                 .unwrap();
 
                             // Advance the turn.
@@ -550,26 +580,33 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             }
 
             // Spawn workers who generate the compress proofs.
+            let (proofs_tx, proofs_rx) = sync_channel::<(
+                usize,
+                usize,
+                ShardProof<BabyBearPoseidon2>,
+                ReduceProgramType,
+            )>(1);
+            let proofs_tx = Arc::new(Mutex::new(proofs_tx));
+            let proofs_rx = Arc::new(Mutex::new(proofs_rx));
             let prover_sync = Arc::new(TurnBasedSync::new());
-            let proofs = Arc::new(Mutex::new(Vec::new()));
             let mut prover_handles = Vec::new();
             for _ in 0..1 {
                 let prover_sync = Arc::clone(&prover_sync);
                 let record_and_trace_rx = Arc::clone(&record_and_trace_rx);
-                let proofs = Arc::clone(&proofs);
+                let proofs_tx = Arc::clone(&proofs_tx);
                 let span = tracing::Span::current().clone();
                 let handle = s.spawn(move || {
                     let _span = span.enter();
                     loop {
                         let received = { record_and_trace_rx.lock().unwrap().recv() };
-                        if let Ok((index, record, traces, program_type)) = received {
+                        if let Ok((index, height, record, traces, program_type)) = received {
                             // Get the proving key.
                             let pk = if program_type == ReduceProgramType::Core {
                                 &self.recursion_pk
                             } else if program_type == ReduceProgramType::Deferred {
                                 &self.deferred_pk
                             } else {
-                                unreachable!()
+                                &self.compress_pk
                             };
 
                             // Observe the proving key.
@@ -594,8 +631,13 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                             // Wait for our turn to update the state.
                             prover_sync.wait_for_turn(index);
 
-                            // Push the proof to the results.
-                            proofs.lock().unwrap().push((proof, program_type));
+                            // Send the proof.
+                            println!("sending proof {} {}", index, height);
+                            proofs_tx
+                                .lock()
+                                .unwrap()
+                                .send((index, height, proof, program_type))
+                                .unwrap();
 
                             // Advance the turn.
                             prover_sync.advance_turn();
@@ -603,73 +645,83 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                             break;
                         }
                     }
-                    println!("prover finished");
                 });
                 prover_handles.push(handle);
             }
 
-            // Wait for all the provers to finish.
-            drop(record_and_trace_tx);
-            for handle in prover_handles {
-                handle.join().unwrap();
-            }
-
-            let proofs: Vec<_> = proofs.lock().unwrap().clone();
-            proofs.to_vec()
-        });
-
-        // Iterate over the recursive proof batches until there is one proof remaining.
-        let mut is_complete;
-        loop {
-            tracing::debug!("Recursive proof layer size: {}", reduce_proofs.len());
-            is_complete = reduce_proofs.len() <= batch_size;
-
-            let compress_inputs = reduce_proofs.chunks(batch_size).collect::<Vec<_>>();
-            let batched_compress_inputs = compress_inputs.chunks(1).collect::<Vec<_>>();
+            // Spawn a worker that generates inputs for the next layer.
             let span = tracing::Span::current().clone();
-            reduce_proofs = batched_compress_inputs
-                .into_iter()
-                .flat_map(|batches| {
-                    batches
-                        .par_iter()
-                        .map(|batch| {
-                            let _span = span.enter();
-                            let (shard_proofs, kinds) =
-                                batch.iter().cloned().unzip::<_, _, Vec<_>, Vec<_>>();
+            let input_tx_2 = Arc::clone(&input_tx);
+            let count = Arc::new(Mutex::new(count2));
+            let proofs_rx_2 = Arc::clone(&proofs_rx);
+            let handle = s.spawn(move || {
+                let _span = span.enter();
+                let mut batch: Vec<(
+                    usize,
+                    usize,
+                    ShardProof<BabyBearPoseidon2>,
+                    ReduceProgramType,
+                )> = Vec::new();
+                loop {
+                    let received = { proofs_rx_2.lock().unwrap().recv() };
+                    if let Ok((index, height, proof, program_type)) = received {
+                        println!("received proof {} {}", index, height);
+                        batch.push((index, height, proof, program_type));
+                        let is_complete = height == rounds;
 
-                            let input = SP1CompressMemoryLayout {
+                        if !is_complete && batch.len() < batch_size {
+                            continue;
+                        }
+
+                        let shard_proofs =
+                            batch.iter().map(|(_, _, proof, _)| proof.clone()).collect();
+                        let kinds = batch
+                            .iter()
+                            .map(|(_, _, _, program_type)| *program_type)
+                            .collect();
+                        let input =
+                            SP1CompressMemoryLayoutFirstLayer::Compress(SP1CompressMemoryLayout {
                                 compress_vk: &self.compress_vk,
                                 recursive_machine: self.compress_prover.machine(),
                                 shard_proofs,
                                 kinds,
                                 is_complete,
-                            };
+                            });
 
-                            tracing::debug_span!("compress machine proof").in_scope(|| {
-                                self.compress_machine_proof(
-                                    input,
-                                    &self.compress_program,
-                                    &self.compress_pk,
-                                    opts,
-                                )
-                                .map(|p| (p, ReduceProgramType::Reduce))
-                            })
-                        })
-                        .collect::<Vec<_>>()
-                })
-                .collect::<Result<Vec<_>, _>>()
-                .unwrap();
+                        let mut index = count.lock().unwrap();
+                        println!("sending input {} {} {}", index, height + 1, is_complete);
+                        input_sync.wait_for_turn(*index);
+                        input_tx_2
+                            .lock()
+                            .unwrap()
+                            .send((*index, height + 1, input))
+                            .unwrap();
+                        input_sync.advance_turn();
+                        *index += 1;
 
-            if reduce_proofs.len() == 1 {
-                break;
+                        if is_complete {
+                            break;
+                        }
+                        batch = Vec::new();
+                    } else {
+                        break;
+                    }
+                }
+            });
+
+            // Wait for all the provers to finish.
+            drop(input_tx);
+            drop(record_and_trace_tx);
+            for handle in prover_handles {
+                handle.join().unwrap();
             }
-        }
-        debug_assert_eq!(reduce_proofs.len(), 1);
-        let reduce_proof = reduce_proofs.pop().unwrap();
+            handle.join().unwrap();
 
-        Ok(SP1ReduceProof {
-            proof: reduce_proof.0,
-        })
+            let proof = proofs_rx.lock().unwrap().recv().unwrap();
+            proof.2
+        });
+
+        Ok(SP1ReduceProof { proof })
     }
 
     /// Generate a proof with the compress machine.
