@@ -2,12 +2,12 @@
 
 use core::borrow::Borrow;
 use itertools::Itertools;
-use sp1_core::air::BinomialExtension;
+use sp1_core::air::{BaseAirBuilder, BinomialExtension, ExtensionAirBuilder};
 use std::borrow::BorrowMut;
 use tracing::instrument;
 
-use p3_air::PairBuilder;
 use p3_air::{Air, BaseAir};
+use p3_air::{AirBuilder, PairBuilder};
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
@@ -45,6 +45,8 @@ impl<const DEGREE: usize> Default for FriFoldChip<DEGREE> {
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct FriFoldPreprocessedCols<T: Copy> {
+    pub is_first: T,
+
     // Memory accesses for the single fields.
     pub z_mem: MemoryAccessCols<T>,
     pub alpha_mem: MemoryAccessCols<T>,
@@ -126,6 +128,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldChip<DEGREE>
 
                 row_add.iter_mut().enumerate().for_each(|(i, row)| {
                     let row: &mut FriFoldPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
+                    row.is_first = F::from_bool(i == 0);
 
                     // Only need to read z, x, and alpha on the first iteration, hence the
                     // multiplicities are i==0.
@@ -262,20 +265,46 @@ impl<const DEGREE: usize> FriFoldChip<DEGREE> {
         &self,
         builder: &mut AB,
         local: &FriFoldCols<AB::Var>,
+        next: &FriFoldCols<AB::Var>,
         local_prepr: &FriFoldPreprocessedCols<AB::Var>,
+        next_prepr: &FriFoldPreprocessedCols<AB::Var>,
     ) {
-        // Constrain mem read for x.
+        // Constrain mem read for x.  Read at the first fri fold row.
         builder.receive_single(local_prepr.x_mem.addr, local.x, local_prepr.x_mem.read_mult);
 
-        // Constrain mem read for z.
+        // Ensure that the x value is the same for all rows within a fri fold invocation.
+        builder
+            .when_transition()
+            .when(next_prepr.is_real)
+            .when_not(next_prepr.is_first)
+            .assert_eq(local.x, next.x);
+
+        // Constrain mem read for z.  Read at the first fri fold row.
         builder.receive_block(local_prepr.z_mem.addr, local.z, local_prepr.z_mem.read_mult);
 
-        // Constrain mem read for alpha.
+        // Ensure that the z value is the same for all rows within a fri fold invocation.
+        builder
+            .when_transition()
+            .when(next_prepr.is_real)
+            .when_not(next_prepr.is_first)
+            .assert_ext_eq(local.z.as_extension::<AB>(), next.z.as_extension::<AB>());
+
+        // Constrain mem read for alpha.  Read at the first fri fold row.
         builder.receive_block(
             local_prepr.alpha_mem.addr,
             local.alpha,
             local_prepr.alpha_mem.read_mult,
         );
+
+        // Ensure that the alpha value is the same for all rows within a fri fold invocation.
+        builder
+            .when_transition()
+            .when(next_prepr.is_real)
+            .when_not(next_prepr.is_first)
+            .assert_ext_eq(
+                local.alpha.as_extension::<AB>(),
+                next.alpha.as_extension::<AB>(),
+            );
 
         // Constrain read for alpha_pow_input.
         builder.receive_block(
@@ -351,11 +380,13 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let local = main.row_slice(0);
+        let (local, next) = (main.row_slice(0), main.row_slice(1));
         let local: &FriFoldCols<AB::Var> = (*local).borrow();
+        let next: &FriFoldCols<AB::Var> = (*next).borrow();
         let prepr = builder.preprocessed();
-        let prepr_local = prepr.row_slice(0);
+        let (prepr_local, prepr_next) = (prepr.row_slice(0), prepr.row_slice(1));
         let prepr_local: &FriFoldPreprocessedCols<AB::Var> = (*prepr_local).borrow();
+        let prepr_next: &FriFoldPreprocessedCols<AB::Var> = (*prepr_next).borrow();
 
         // Dummy constraints to normalize to DEGREE.
         let lhs = (0..DEGREE)
@@ -366,7 +397,7 @@ where
             .product::<AB::Expr>();
         builder.assert_eq(lhs, rhs);
 
-        self.eval_fri_fold::<AB>(builder, local, prepr_local);
+        self.eval_fri_fold::<AB>(builder, local, next, prepr_local, prepr_next);
     }
 }
 
