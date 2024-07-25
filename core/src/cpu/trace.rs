@@ -773,7 +773,7 @@ mod tests {
 
     use crate::runtime::tests::ssz_withdrawals_program;
     use crate::runtime::{tests::simple_program, Runtime};
-    use crate::stark::DefaultProver;
+    use crate::stark::CpuProver;
     use crate::utils::{run_test, setup_logger, SP1CoreOpts};
 
     // #[test]
@@ -835,6 +835,6 @@ mod tests {
     fn prove_trace() {
         setup_logger();
         let program = simple_program();
-        run_test::<DefaultProver<_, _>>(program).unwrap();
+        run_test::<CpuProver<_, _>>(program).unwrap();
     }
 }

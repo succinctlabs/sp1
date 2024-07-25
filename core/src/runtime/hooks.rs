@@ -130,7 +130,7 @@ pub fn hook_ecrecover(_env: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
 pub mod tests {
     use crate::{
         runtime::Program,
-        stark::DefaultProver,
+        stark::CpuProver,
         utils::{self, tests::ECRECOVER_ELF},
     };
 
@@ -157,6 +157,6 @@ pub mod tests {
     fn test_ecrecover_program_prove() {
         utils::setup_logger();
         let program = Program::from(ECRECOVER_ELF);
-        utils::run_test::<DefaultProver<_, _>>(program).unwrap();
+        utils::run_test::<CpuProver<_, _>>(program).unwrap();
     }
 }
