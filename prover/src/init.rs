@@ -117,7 +117,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     pub fn compress_keys(&self) -> &(StarkProvingKey<InnerSC>, StarkVerifyingKey<InnerSC>) {
         self.compress_keys.get_or_init(|| {
             debug_span!("init compress keys")
-                .in_scope(|| self.shrink_prover.setup(self.compress_program()))
+                .in_scope(|| self.compress_prover.setup(self.compress_program()))
         })
     }
 
