@@ -3,7 +3,7 @@ sp1_zkvm::entrypoint!(main);
 
 use hex_literal::hex;
 use sp1_zkvm::lib::io;
-use sp1_zkvm::lib::secp256k1::ecrecover;
+use sp1_zkvm::lib::secp256k1::{ecrecover, recover_ecdsa};
 
 pub fn main() {
     // recovery param: 1
@@ -16,7 +16,11 @@ pub fn main() {
         "45c0b7f8c09a9e1f1cea0c25785594427b6bf8f9f878a8af0b1abbb48e16d0920d8becd0c220f67c51217eecfd7184ef0732481c843857e6bc7fc095c4f6b78801"
     );
 
-    let pubkey = ecrecover(&sig, &msg_hash).unwrap();
+    let pubkey = recover_ecdsa(&sig, &msg_hash).unwrap();
     io::commit_slice(&pubkey);
     println!("pubkey: {:?}", pubkey);
+
+    let address = ecrecover(&sig[..64].try_into().unwrap(), sig[64], &msg_hash).unwrap();
+    io::commit_slice(&address);
+    println!("address: {:?}", address);
 }
