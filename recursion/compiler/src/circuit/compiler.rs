@@ -1,5 +1,5 @@
 use core::fmt::Debug;
-use instruction::{FieldEltType, HintBitsInstr, PrintInstr};
+use instruction::{FieldEltType, HintBitsInstr, HintExt2FeltsInstr, PrintInstr};
 use p3_field::{AbstractExtensionField, AbstractField, Field, PrimeField, TwoAdicField};
 use sp1_recursion_core::air::Block;
 use sp1_recursion_core_v2::{poseidon2_skinny::WIDTH, BaseAluInstr, BaseAluOpcode};
@@ -335,6 +335,13 @@ impl<C: Config> AsmCompiler<C> {
         })
     }
 
+    fn ext2felts(&mut self, felts: [impl Reg<C>; D], ext: impl Reg<C>) -> Instruction<C::F> {
+        Instruction::HintExt2Felts(HintExt2FeltsInstr {
+            output_addrs_mults: felts.map(|r| (r.write(self), C::F::zero())),
+            input_addr: ext.read_ghost(self),
+        })
+    }
+
     pub fn compile_one<F>(&mut self, ir_instr: DslIr<C>) -> Vec<Instruction<C::F>>
     where
         F: PrimeField + TwoAdicField,
@@ -468,8 +475,7 @@ impl<C: Config> AsmCompiler<C> {
             // DslIr::CircuitSelectV(_, _, _, _) => todo!(),
             // DslIr::CircuitSelectF(_, _, _, _) => todo!(),
             // DslIr::CircuitSelectE(_, _, _, _) => todo!(),
-            // DslIr::CircuitExt2Felt(_, _) => todo!(),
-            // DslIr::CircuitFelts2Ext(_, _) => todo!(),
+            DslIr::CircuitExt2Felt(felts, ext) => vec![self.ext2felts(felts, ext)],
             // DslIr::LessThan(_, _, _) => todo!(),
             // DslIr::CycleTracker(_) => todo!(),
             // DslIr::ExpReverseBitsLen(_, _, _) => todo!(),
@@ -543,6 +549,12 @@ impl<C: Config> AsmCompiler<C> {
                     .iter_mut()
                     .zip(alpha_pow_output)
                     .chain(ro_mults.iter_mut().zip(ro_output))
+                    .collect(),
+                Instruction::HintExt2Felts(HintExt2FeltsInstr {
+                    output_addrs_mults, ..
+                }) => output_addrs_mults
+                    .iter_mut()
+                    .map(|(ref addr, mult)| (mult, addr))
                     .collect(),
                 // Instructions that do not write to memory.
                 Instruction::Mem(MemInstr {
@@ -1005,6 +1017,28 @@ mod tests {
             let line = line.unwrap();
             assert!(line.contains(&input_str));
         }
+    }
+
+    #[test]
+    fn test_ext2felts() {
+        setup_logger();
+
+        let mut builder = AsmBuilder::<F, EF>::default();
+        let mut rng =
+            StdRng::seed_from_u64(0x3264).sample_iter::<[F; 4], _>(rand::distributions::Standard);
+        let mut random_ext = move || EF::from_base_slice(&rng.next().unwrap());
+        for _ in 0..100 {
+            let input = random_ext();
+            let output: &[F] = input.as_base_slice();
+
+            let input_ext = builder.eval(input.cons());
+            let output_felts = builder.ext2felt_v2(input_ext);
+            let expected: Vec<Felt<_>> = output.iter().map(|&x| builder.eval(x)).collect();
+            for (lhs, rhs) in output_felts.into_iter().zip(expected) {
+                builder.assert_felt_eq(lhs, rhs);
+            }
+        }
+        test_operations(builder.operations);
     }
 
     macro_rules! test_assert_fixture {
