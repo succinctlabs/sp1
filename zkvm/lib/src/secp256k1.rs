@@ -208,7 +208,23 @@ pub fn unconstrained_ecrecover(sig: &[u8; 65], msg_hash: &[u8; 32]) -> ([u8; 33]
     (recovered_bytes, s_inverse)
 }
 
-/// Given a signature and a message hash, returns the public key that signed the message.
+/// Recovers the public key that signed a given message hash using the provided signature.
+///
+/// # Arguments
+///
+/// * `sig` - A 65-byte array containing:
+///   - The first 64 bytes: The ECDSA signature (r, s) in big-endian format
+///   - The last byte: The recovery ID (0, 1, 2, or 3)
+/// * `msg_hash` - A 32-byte array containing the Keccak-256 hash of the signed message
+///
+/// # Example
+///
+/// ```
+/// let sig: [u8; 65] = [/* 64 bytes of signature */, /* 1 byte recovery ID */];
+/// let msg_hash: [u8; 32] = [/* 32 bytes of message hash */];
+/// let pubkey = ecrecover(&sig, &msg_hash)?;
+/// let eth_address = keccak256(&pubkey[1..])[12..];
+/// ```
 pub fn ecrecover(sig: &[u8; 65], msg_hash: &[u8; 32]) -> Result<[u8; 65]> {
     let (pubkey, s_inv) = unconstrained_ecrecover(sig, msg_hash);
     let pubkey = decompress_pubkey(&pubkey).context("decompress pubkey failed")?;
