@@ -1,13 +1,101 @@
 use itertools::Itertools;
-use p3_field::AbstractField;
+use p3_field::{AbstractField, TwoAdicField};
 use p3_matrix::Dimensions;
 use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
-    ir::{Builder, Config, Felt},
+    ir::{Builder, Config, ExtConst, Felt, SymbolicExt},
 };
-use std::{cmp::Reverse, iter::zip};
+use std::{cmp::Reverse, iter::zip, ops::Add};
 
-use crate::DigestVariable;
+use crate::*;
+
+pub fn verify_query<C: Config>(
+    builder: &mut Builder<C>,
+    commit_phase_commits: Vec<DigestVariable<C>>,
+    index: Felt<C::F>,
+    proof: FriQueryProofVariable<C>,
+    betas: Vec<Ext<C::F, C::EF>>,
+    reduced_openings: [Ext<C::F, C::EF>; 32],
+    log_max_height: usize,
+) -> Ext<C::F, C::EF> {
+    let mut folded_eval: Ext<_, _> = builder.eval(SymbolicExt::from_f(C::EF::zero()));
+    let two_adic_generator: Felt<_> = builder.eval(C::F::two_adic_generator(log_max_height));
+    let index_bits = builder.num2bits_v2_f(index, 32); // Magic number?
+    index_bits
+        .iter()
+        .for_each(|&bit| builder.assert_felt_eq(bit * bit, bit)); // Is this line needed?
+    let mut x = builder.exp_reverse_bits_v2(two_adic_generator, index_bits.clone());
+
+    for (offset, (log_folded_height, commit, step, beta)) in itertools::izip!(
+        (0..log_max_height).rev(),
+        commit_phase_commits,
+        &proof.commit_phase_openings,
+        betas,
+    )
+    .enumerate()
+    {
+        folded_eval = builder.eval(folded_eval + reduced_openings[log_folded_height + 1]);
+
+        let one: Felt<_> = builder.eval(C::F::one());
+        let index_sibling: Felt<_> = builder.eval(one - index_bits[offset]);
+        let index_pair = &index_bits[(offset + 1)..];
+
+        let evals_ext = {
+            // TODO factor this out into a function
+            let bit = index_sibling;
+            let true_fst = folded_eval;
+            let true_snd = step.sibling_value;
+
+            let one: Felt<_> = builder.eval(C::F::one());
+            let cobit: Felt<_> = builder.eval(one - bit);
+
+            let true_branch = [true_fst, true_snd];
+            let false_branch = [true_snd, true_fst];
+            zip(true_branch, false_branch)
+                .map(|(tx, fx)| builder.eval(tx * bit + fx * cobit))
+                .collect::<Vec<_>>()
+        };
+        let evals_felt = evals_ext
+            .iter()
+            .map(|&x| builder.ext2felt_v2(x).to_vec())
+            .collect::<Vec<_>>();
+
+        let dims = &[Dimensions {
+            width: 2,
+            height: (1 << log_folded_height),
+        }];
+        verify_batch::<C, 4>(
+            builder,
+            commit,
+            dims.to_vec(),
+            index_pair.to_vec(),
+            [evals_felt].to_vec(),
+            step.opening_proof.clone(),
+        );
+
+        let xs_new: Felt<_> = builder.eval(x * C::F::two_adic_generator(1));
+        let xs: Vec<Felt<C::F>> = {
+            // TODO factor this out into a function
+            let bit = index_sibling;
+            let true_fst = x;
+            let true_snd = xs_new;
+
+            let one: Felt<_> = builder.eval(C::F::one());
+            let cobit: Felt<_> = builder.eval(one - bit);
+
+            let true_branch = [true_fst, true_snd];
+            let false_branch = [true_snd, true_fst];
+            zip(true_branch, false_branch)
+                .map(|(tx, fx)| builder.eval(tx * bit + fx * cobit))
+                .collect::<Vec<_>>()
+        };
+        folded_eval = builder
+            .eval(evals_ext[0] + (beta - xs[0]) * (evals_ext[1] - evals_ext[0]) / (xs[1] - xs[0]));
+        x = builder.eval(x * x);
+    }
+
+    folded_eval
+}
 
 pub fn verify_batch<C: Config, const D: usize>(
     builder: &mut Builder<C>,
@@ -45,7 +133,6 @@ pub fn verify_batch<C: Config, const D: usize>(
     for (bit, sibling) in zip(index_bits, proof) {
         let one: Felt<_> = builder.eval(C::F::one());
         let cobit: Felt<_> = builder.eval(one - bit);
-        builder.assert_felt_eq(bit * cobit, C::F::zero()); // Is this line needed?
 
         let true_branch = sibling.into_iter().chain(root);
         let false_branch = root.into_iter().chain(sibling);
@@ -78,7 +165,5 @@ pub fn verify_batch<C: Config, const D: usize>(
         }
     }
 
-    for (e1, e2) in zip(root, commit) {
-        builder.assert_felt_eq(e1, e2);
-    }
+    zip(root, commit).for_each(|(e1, e2)| builder.assert_felt_eq(e1, e2));
 }

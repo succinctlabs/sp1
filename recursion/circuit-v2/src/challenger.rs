@@ -5,6 +5,7 @@ use p3_field::AbstractField;
 use sp1_recursion_compiler::circuit::CircuitV2Builder;
 use sp1_recursion_compiler::prelude::{Builder, Config, Ext, Felt};
 use sp1_recursion_core_v2::runtime::{HASH_RATE, PERMUTATION_WIDTH};
+use sp1_recursion_core_v2::NUM_BITS;
 
 use crate::DigestVariable;
 
@@ -75,15 +76,12 @@ impl<C: Config> DuplexChallengerVariable<C> {
 
     /// Asserts that the state of this challenger is equal to the state of another challenger.
     pub fn assert_eq(&self, builder: &mut Builder<C>, other: &Self) {
-        for (&element, &other_element) in zip(&self.sponge_state, &other.sponge_state) {
-            builder.assert_felt_eq(element, other_element);
-        }
-        for (&element, &other_element) in zip(&self.input_buffer, &other.input_buffer) {
-            builder.assert_felt_eq(element, other_element);
-        }
-        for (&element, &other_element) in zip(&self.output_buffer, &other.output_buffer) {
-            builder.assert_felt_eq(element, other_element);
-        }
+        zip(&self.sponge_state, &other.sponge_state)
+            .chain(zip(&self.input_buffer, &other.input_buffer))
+            .chain(zip(&self.output_buffer, &other.output_buffer))
+            .for_each(|(&element, &other_element)| {
+                builder.assert_felt_eq(element, other_element);
+            });
     }
 
     pub fn reset(&mut self, builder: &mut Builder<C>) {
@@ -138,7 +136,7 @@ impl<C: Config> DuplexChallengerVariable<C> {
 
     fn sample_bits(&mut self, builder: &mut Builder<C>, nb_bits: usize) -> Vec<Felt<C::F>> {
         let rand_f = self.sample(builder);
-        let mut rand_f_bits = builder.num2bits_v2_f(rand_f);
+        let mut rand_f_bits = builder.num2bits_v2_f(rand_f, NUM_BITS);
         rand_f_bits.truncate(nb_bits);
         rand_f_bits
     }

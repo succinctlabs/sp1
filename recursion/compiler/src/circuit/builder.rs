@@ -8,7 +8,7 @@ use crate::prelude::*;
 use sp1_recursion_core_v2::{poseidon2_skinny::WIDTH, D, DIGEST_SIZE, HASH_RATE, NUM_BITS};
 
 pub trait CircuitV2Builder<C: Config> {
-    fn num2bits_v2_f(&mut self, num: Felt<C::F>) -> Vec<Felt<C::F>>;
+    fn num2bits_v2_f(&mut self, num: Felt<C::F>, num_bits: usize) -> Vec<Felt<C::F>>;
     fn exp_reverse_bits_v2(&mut self, input: Felt<C::F>, power_bits: Vec<Felt<C::F>>)
         -> Felt<C::F>;
     fn poseidon2_permute_v2_skinny(&mut self, state: [Felt<C::F>; WIDTH]) -> [Felt<C::F>; WIDTH];
@@ -24,9 +24,9 @@ pub trait CircuitV2Builder<C: Config> {
 
 impl<C: Config> CircuitV2Builder<C> for Builder<C> {
     /// Converts a felt to bits inside a circuit.
-    fn num2bits_v2_f(&mut self, num: Felt<C::F>) -> Vec<Felt<C::F>> {
+    fn num2bits_v2_f(&mut self, num: Felt<C::F>, num_bits: usize) -> Vec<Felt<C::F>> {
         let output = std::iter::from_fn(|| Some(self.uninit()))
-            .take(NUM_BITS)
+            .take(num_bits)
             .collect::<Vec<_>>();
         self.push(DslIr::CircuitV2HintBitsF(output.clone(), num));
 
