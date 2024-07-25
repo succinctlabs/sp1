@@ -2,9 +2,9 @@
 
 When using SP1, we recommend using our deployed verifiers. Each contract is a [SP1VerifierGateway](https://github.com/succinctlabs/sp1-contracts/blob/main/contracts/src/ISP1VerifierGateway.sol) which can automatically routes your SP1 proof to the correct verifier based on the prover version.
 
-
 | Chain ID | Chain            | Gateway                                                                                                                         |
-|----------|------------------|---------------------------------------------------------------------------------------------------------------------------------|
+| -------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| 1        | Mainnet          | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://etherscan.io/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)           |
 | 11155111 | Sepolia          | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://sepolia.etherscan.io/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)   |
 | 17000    | Holesky          | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://holesky.etherscan.io/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)   |
 | 42161    | Arbitrum One     | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://arbiscan.io/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)            |
@@ -14,7 +14,7 @@ When using SP1, we recommend using our deployed verifiers. Each contract is a [S
 | 8453     | Base             | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://basescan.org/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)           |
 | 84532    | Base Sepolia     | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://sepolia.basescan.org/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)   |
 
-**Currently officially supported versions of SP1 are v1.0.7 and v1.0.8.** If you'd like official support for a verifier on a different chain, please ask in the [SP1 Telegram](https://t.me/succinct_sp1).
+**Currently officially supported version of SP1 is v1.0.1.** If you'd like official support for a verifier on a different chain, please ask in the [SP1 Telegram](https://t.me/succinct_sp1).
 
 ## ISP1Verifier Interface
 

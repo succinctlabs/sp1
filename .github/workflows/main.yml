@@ -67,7 +67,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check branch
-        if: github.head_ref != 'dev' && !startsWith(github.ref, 'release/') && !startsWith(github.ref, 'hotfix/')
+        if: github.head_ref != 'dev' && !startsWith(github.head_ref, 'release/') && !startsWith(github.head_ref, 'hotfix/')
         run: |
           echo "ERROR: You can only merge to main from dev, release/*, or hotfix/*."
           exit 1
