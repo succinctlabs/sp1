@@ -39,9 +39,9 @@ impl<const DEGREE: usize> Default for ExpReverseBitsLenChip<DEGREE> {
 #[derive(AlignedBorrow, Clone, Copy, Debug)]
 #[repr(C)]
 pub struct ExpReverseBitsLenPreprocessedCols<T: Copy> {
-    pub x_memory: MemoryAccessCols<T>,
-    pub exponent_memory: MemoryAccessCols<T>,
-    pub result_memory: MemoryAccessCols<T>,
+    pub x_mem: MemoryAccessCols<T>,
+    pub exponent_mem: MemoryAccessCols<T>,
+    pub result_mem: MemoryAccessCols<T>,
     pub iteration_num: T,
     pub is_first: T,
     pub is_last: T,
@@ -113,17 +113,17 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpReverseBitsLenCh
                     row.is_first = F::from_bool(i == 0);
                     row.is_last = F::from_bool(i == addrs.exp.len() - 1);
                     row.is_real = F::one();
-                    row.x_memory = MemoryAccessCols {
+                    row.x_mem = MemoryAccessCols {
                         addr: addrs.base,
                         read_mult: *mult * F::from_bool(i == 0),
                         write_mult: F::zero(),
                     };
-                    row.exponent_memory = MemoryAccessCols {
+                    row.exponent_mem = MemoryAccessCols {
                         addr: addrs.exp[i],
                         read_mult: F::one(),
                         write_mult: F::zero(),
                     };
-                    row.result_memory = MemoryAccessCols {
+                    row.result_mem = MemoryAccessCols {
                         addr: addrs.result,
                         read_mult: F::zero(),
                         write_mult: *mult * F::from_bool(i == addrs.exp.len() - 1),
@@ -226,20 +226,37 @@ impl<const DEGREE: usize> ExpReverseBitsLenChip<DEGREE> {
         &self,
         builder: &mut AB,
         local: &ExpReverseBitsLenCols<AB::Var>,
-        prepr: &ExpReverseBitsLenPreprocessedCols<AB::Var>,
+        local_prepr: &ExpReverseBitsLenPreprocessedCols<AB::Var>,
         _next: &ExpReverseBitsLenCols<AB::Var>,
         _memory_access: AB::Var,
     ) {
         // Dummy constraints to normalize to DEGREE when DEGREE > 3.
         if DEGREE > 3 {
             let lhs = (0..DEGREE)
-                .map(|_| prepr.is_real.into())
+                .map(|_| local_prepr.is_real.into())
                 .product::<AB::Expr>();
             let rhs = (0..DEGREE)
-                .map(|_| prepr.is_real.into())
+                .map(|_| local_prepr.is_real.into())
                 .product::<AB::Expr>();
             builder.assert_eq(lhs, rhs);
         }
+
+        // Constrain mem read for x.
+        builder.receive_single(local_prepr.x_mem.addr, local.x, local_prepr.x_mem.read_mult);
+
+        // Constrain mem read for exponent's bits.
+        builder.receive_single(
+            local_prepr.exponent_mem.addr,
+            local.current_bit,
+            local_prepr.exponent_mem.read_mult,
+        );
+
+        // Constrain mem write for the result.
+        builder.send_single(
+            local_prepr.result_mem.addr,
+            local.accum,
+            local_prepr.result_mem.write_mult,
+        );
 
         // // Constraint that the operands are sent from the CPU table.
         // let operands = [
