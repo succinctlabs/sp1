@@ -229,6 +229,20 @@ pub fn machine_with_all_chips<const DEGREE: usize>(
     )
 }
 
+pub fn machine_wide<const DEGREE: usize>(
+    log_erbl_rows: usize,
+    log_p2_rows: usize,
+    log_frifold_rows: usize,
+) -> StarkMachine<BabyBearPoseidon2Outer, RecursionAir<BabyBear, DEGREE, 0>> {
+    let config = SC::new_with_log_blowup(log2_strict_usize(DEGREE - 1));
+    RecursionAir::<BabyBear, DEGREE, 0>::machine_wide_with_padding(
+        config,
+        log_frifold_rows,
+        log_p2_rows,
+        log_erbl_rows,
+    )
+}
+
 #[cfg(test)]
 pub mod tests {
 

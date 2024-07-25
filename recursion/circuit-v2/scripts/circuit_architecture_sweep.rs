@@ -3,7 +3,7 @@
 use p3_baby_bear::BabyBear;
 
 use sp1_core::{stark::StarkMachine, utils::log2_strict_usize};
-use sp1_recursion_circuit_v2::build_wrap_v2::{machine_with_all_chips, test_machine};
+use sp1_recursion_circuit_v2::build_wrap_v2::{machine_wide, machine_with_all_chips, test_machine};
 use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
 use sp1_recursion_core_v2::machine::RecursionAir;
 
@@ -18,10 +18,10 @@ fn machine_with_dummy<const DEGREE: usize, const COL_PADDING: usize>(
 
 fn main() {
     // Test the performance of the full architecture with different degrees.
-    let machine_maker_3 = || machine_with_all_chips::<3>(16, 16, 16);
-    let machine_maker_5 = || machine_with_all_chips::<5>(16, 16, 16);
-    let machine_maker_9 = || machine_with_all_chips::<9>(16, 16, 16);
-    let machine_maker_17 = || machine_with_all_chips::<17>(16, 16, 16);
+    let machine_maker_3 = || machine_wide::<3>(16, 13, 16);
+    let machine_maker_5 = || machine_wide::<5>(16, 13, 16);
+    let machine_maker_9 = || machine_wide::<9>(16, 13, 16);
+    let machine_maker_17 = || machine_wide::<17>(16, 13, 16);
     test_machine(machine_maker_3);
     test_machine(machine_maker_5);
     test_machine(machine_maker_9);
@@ -29,7 +29,7 @@ fn main() {
 
     // Test the performance of the machine with the full architecture for different numbers of rows
     // in the precompiles. Degree is set to 9.
-    let machine_maker = |i| machine_with_all_chips::<9>(i, i, i);
+    let machine_maker = |i| machine_wide::<9>(i, i, i);
     for i in 1..=5 {
         test_machine(|| machine_maker(i));
     }

@@ -78,6 +78,19 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
         StarkMachine::new(config, chips, PROOF_MAX_NUM_PVS)
     }
 
+    pub fn machine_wide_with_padding<SC: StarkGenericConfig<Val = F>>(
+        config: SC,
+        fri_fold_padding: usize,
+        poseidon2_padding: usize,
+        erbl_padding: usize,
+    ) -> StarkMachine<SC, Self> {
+        let chips = Self::get_wide_with_padding(fri_fold_padding, poseidon2_padding, erbl_padding)
+            .into_iter()
+            .map(Chip::new)
+            .collect::<Vec<_>>();
+        StarkMachine::new(config, chips, PROOF_MAX_NUM_PVS)
+    }
+
     pub fn dummy_machine<SC: StarkGenericConfig<Val = F>>(
         config: SC,
         log_height: usize,
@@ -157,6 +170,31 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
             RecursionAir::ExtAlu(ExtAluChip::default()),
             // RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE>::default()),
             RecursionAir::Poseidon2Skinny(Poseidon2SkinnyChip::<DEGREE> {
+                fixed_log2_rows: Some(poseidon2_padding),
+                pad: true,
+            }),
+            RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE> {
+                fixed_log2_rows: Some(erbl_padding),
+                pad: true,
+            }),
+            RecursionAir::FriFold(FriFoldChip::<DEGREE> {
+                fixed_log2_rows: Some(fri_fold_padding),
+                pad: true,
+            }),
+        ]
+    }
+
+    pub fn get_wide_with_padding(
+        fri_fold_padding: usize,
+        poseidon2_padding: usize,
+        erbl_padding: usize,
+    ) -> Vec<Self> {
+        vec![
+            // RecursionAir::Program(ProgramChip::default()),
+            RecursionAir::Memory(MemoryChip::default()),
+            RecursionAir::BaseAlu(BaseAluChip::default()),
+            RecursionAir::ExtAlu(ExtAluChip::default()),
+            RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE> {
                 fixed_log2_rows: Some(poseidon2_padding),
                 pad: true,
             }),
