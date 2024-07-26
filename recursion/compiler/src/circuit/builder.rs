@@ -3,6 +3,7 @@
 use std::iter::repeat;
 
 use p3_field::{AbstractExtensionField, AbstractField};
+use sp1_recursion_core::air::RecursionPublicValues;
 
 use crate::prelude::*;
 use sp1_recursion_core_v2::{chips::poseidon2_skinny::WIDTH, D, DIGEST_SIZE, HASH_RATE, NUM_BITS};
@@ -20,8 +21,7 @@ pub trait CircuitV2Builder<C: Config> {
     ) -> [Felt<C::F>; DIGEST_SIZE];
     fn fri_fold_v2(&mut self, input: CircuitV2FriFoldInput<C>) -> CircuitV2FriFoldOutput<C>;
     fn ext2felt_v2(&mut self, ext: Ext<C::F, C::EF>) -> [Felt<C::F>; D];
-    fn register_pv_elm_v2(&mut self, pv_elm: Felt<C::F>);
-    fn commit_pv_hash_v2(&mut self, pv_hash: [Felt<C::F>; DIGEST_SIZE]);
+    fn commit_public_values_v2(&mut self, public_values: RecursionPublicValues<Felt<C::F>>);
 }
 
 impl<C: Config> CircuitV2Builder<C> for Builder<C> {
@@ -130,12 +130,10 @@ impl<C: Config> CircuitV2Builder<C> for Builder<C> {
 
         felts
     }
-    /// Registers a public values element.
-    fn register_pv_elm_v2(&mut self, pv_elm: Felt<C::F>) {
-        self.operations.push(DslIr::CircuitV2RegisterPVElm(pv_elm));
-    }
-    // Commits a public values hash.
-    fn commit_pv_hash_v2(&mut self, pv_hash: [Felt<C::F>; DIGEST_SIZE]) {
-        self.operations.push(DslIr::CircuitV2CommitPVHash(pv_hash));
+
+    // Commits public values.
+    fn commit_public_values_v2(&mut self, public_values: RecursionPublicValues<Felt<C::F>>) {
+        self.operations
+            .push(DslIr::CircuitV2CommitPublicValues(Box::new(public_values)));
     }
 }

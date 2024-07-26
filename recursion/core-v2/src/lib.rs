@@ -2,7 +2,7 @@ use std::iter::once;
 
 use serde::{Deserialize, Serialize};
 use sp1_derive::AlignedBorrow;
-use sp1_recursion_core::air::Block;
+use sp1_recursion_core::air::{Block, RecursionPublicValues};
 
 pub mod builder;
 pub mod chips;
@@ -13,7 +13,9 @@ pub use runtime::*;
 
 use crate::chips::poseidon2_skinny::WIDTH;
 
-#[derive(AlignedBorrow, Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(
+    AlignedBorrow, Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, Default,
+)]
 #[repr(C)]
 pub struct Address<F>(pub F);
 
@@ -179,17 +181,12 @@ pub struct FriFoldEvent<F> {
     pub ext_vec: FriFoldExtVecIo<Block<F>>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RegisterPVElmInstr<F> {
-    pub pv_elm: Address<F>,
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CommitPublicValuesInstr<F> {
+    pub pv_addrs: RecursionPublicValues<Address<F>>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CommitPVHashInstr<F> {
-    pub pv_addrs: [Address<F>; DIGEST_SIZE],
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CommitPVHashEvent<F> {
-    pub pv_hash: [F; DIGEST_SIZE],
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CommitPublicValuesEvent<F> {
+    pub public_values: RecursionPublicValues<F>,
 }

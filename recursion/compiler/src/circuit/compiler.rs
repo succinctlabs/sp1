@@ -2,11 +2,13 @@ use chips::poseidon2_skinny::WIDTH;
 use core::fmt::Debug;
 use instruction::{FieldEltType, HintBitsInstr, HintExt2FeltsInstr, PrintInstr};
 use p3_field::{AbstractExtensionField, AbstractField, Field, PrimeField, TwoAdicField};
-use sp1_recursion_core::air::Block;
+use sp1_recursion_core::air::{Block, RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS};
 use sp1_recursion_core_v2::{BaseAluInstr, BaseAluOpcode};
 use std::{
+    borrow::Borrow,
     collections::{hash_map::Entry, HashMap},
     iter::{repeat, zip},
+    mem::transmute,
 };
 
 use sp1_recursion_core_v2::*;
@@ -325,15 +327,22 @@ impl<C: Config> AsmCompiler<C> {
         })
     }
 
-    fn register_pv_elm(&mut self, pv_elm: impl Reg<C>) -> Instruction<C::F> {
-        Instruction::RegisterPVElm(RegisterPVElmInstr {
-            pv_elm: pv_elm.read(self),
-        })
-    }
+    fn commit_public_values(
+        &mut self,
+        public_values: &RecursionPublicValues<Felt<C::F>>,
+    ) -> Instruction<C::F> {
+        let pv_addrs =
+            unsafe {
+                transmute::<
+                    RecursionPublicValues<Felt<C::F>>,
+                    [Felt<C::F>; RECURSIVE_PROOF_NUM_PV_ELTS],
+                >(*public_values)
+            }
+            .map(|pv| pv.read(self));
 
-    fn commit_pv_hash(&mut self, pv_hash: [Felt<C::F>; DIGEST_SIZE]) -> Instruction<C::F> {
-        Instruction::CommitPVHash(CommitPVHashInstr {
-            pv_addrs: pv_hash.map(|r| r.write(self)),
+        let public_values_a: &RecursionPublicValues<Address<C::F>> = pv_addrs.as_slice().borrow();
+        Instruction::CommitPublicValues(CommitPublicValuesInstr {
+            pv_addrs: *public_values_a,
         })
     }
 
@@ -447,11 +456,8 @@ impl<C: Config> AsmCompiler<C> {
                 vec![self.hint_bit_decomposition(value, output)]
             }
             DslIr::CircuitV2FriFold(output, input) => vec![self.fri_fold(output, input)],
-            DslIr::CircuitV2RegisterPVElm(pv_elm) => {
-                vec![self.register_pv_elm(pv_elm)]
-            }
-            DslIr::CircuitV2CommitPVHash(pv_hash) => {
-                vec![self.commit_pv_hash(pv_hash)]
+            DslIr::CircuitV2CommitPublicValues(public_values) => {
+                vec![self.commit_public_values(&public_values)]
             }
 
             // DslIr::For(_, _, _, _, _) => todo!(),
@@ -583,8 +589,7 @@ impl<C: Config> AsmCompiler<C> {
                     kind: MemAccessKind::Read,
                     ..
                 })
-                | Instruction::RegisterPVElm(_)
-                | Instruction::CommitPVHash(_)
+                | Instruction::CommitPublicValues(_)
                 | Instruction::Print(_) => vec![],
             })
             .for_each(|(mult, addr): (&mut C::F, &Address<C::F>)| {

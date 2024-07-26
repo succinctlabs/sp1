@@ -1,7 +1,7 @@
 use p3_field::{extension::BinomiallyExtendable, PrimeField32};
-use sp1_core::stark::{Chip, StarkGenericConfig, StarkMachine};
+use sp1_core::stark::{Chip, StarkGenericConfig, StarkMachine, PROOF_MAX_NUM_PVS};
 use sp1_derive::MachineAir;
-use sp1_recursion_core::{air::RECURSIVE_PROOF_NUM_PV_ELTS, runtime::D};
+use sp1_recursion_core::runtime::D;
 
 use crate::chips::{
     alu_base::BaseAluChip, alu_ext::ExtAluChip, dummy::DummyChip,
@@ -46,7 +46,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
             .into_iter()
             .map(Chip::new)
             .collect::<Vec<_>>();
-        StarkMachine::new(config, chips, RECURSIVE_PROOF_NUM_PV_ELTS)
+        StarkMachine::new(config, chips, PROOF_MAX_NUM_PVS)
     }
 
     /// A recursion machine that can have dynamic trace sizes, and uses the wide variant of Poseidon2.
@@ -55,7 +55,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
             .into_iter()
             .map(Chip::new)
             .collect::<Vec<_>>();
-        StarkMachine::new(config, chips, RECURSIVE_PROOF_NUM_PV_ELTS)
+        StarkMachine::new(config, chips, PROOF_MAX_NUM_PVS)
     }
     pub fn machine_with_all_chips<SC: StarkGenericConfig<Val = F>>(
         config: SC,
@@ -64,7 +64,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
             .into_iter()
             .map(Chip::new)
             .collect::<Vec<_>>();
-        StarkMachine::new(config, chips, RECURSIVE_PROOF_NUM_PV_ELTS)
+        StarkMachine::new(config, chips, PROOF_MAX_NUM_PVS)
     }
 
     pub fn machine_with_padding<SC: StarkGenericConfig<Val = F>>(
@@ -77,7 +77,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
             .into_iter()
             .map(Chip::new)
             .collect::<Vec<_>>();
-        StarkMachine::new(config, chips, RECURSIVE_PROOF_NUM_PV_ELTS)
+        StarkMachine::new(config, chips, PROOF_MAX_NUM_PVS)
     }
 
     pub fn dummy_machine<SC: StarkGenericConfig<Val = F>>(
@@ -88,7 +88,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
         StarkMachine::new(
             config,
             chips.into_iter().map(Chip::new).collect(),
-            RECURSIVE_PROOF_NUM_PV_ELTS,
+            PROOF_MAX_NUM_PVS,
         )
     }
     // /// A recursion machine with fixed trace sizes tuned to work specifically for the wrap layer.

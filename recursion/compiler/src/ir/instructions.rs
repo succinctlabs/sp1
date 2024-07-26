@@ -1,4 +1,4 @@
-use sp1_core::utils::DIGEST_SIZE;
+use sp1_recursion_core::air::RecursionPublicValues;
 
 use super::{
     Array, CircuitV2FriFoldInput, CircuitV2FriFoldOutput, FriFoldInput, MemIndex, Ptr, TracedVec,
@@ -218,7 +218,7 @@ pub enum DslIr<C: Config> {
     /// Registers a public values element.
     CircuitV2RegisterPVElm(Felt<C::F>),
     /// Commits the public values hash.
-    CircuitV2CommitPVHash([Felt<C::F>; DIGEST_SIZE]),
+    CircuitV2CommitPublicValues(Box<RecursionPublicValues<Felt<C::F>>>),
 
     // Miscellaneous instructions.
     /// Decompose hint operation of a usize into an array. (output = num2bits(usize)).

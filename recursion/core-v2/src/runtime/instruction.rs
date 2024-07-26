@@ -1,4 +1,4 @@
-use std::array;
+use std::borrow::Borrow;
 
 use p3_field::{AbstractExtensionField, AbstractField};
 use serde::{Deserialize, Serialize};
@@ -17,8 +17,7 @@ pub enum Instruction<F> {
     FriFold(FriFoldInstr<F>),
     Print(PrintInstr<F>),
     HintExt2Felts(HintExt2FeltsInstr<F>),
-    RegisterPVElm(RegisterPVElmInstr<F>),
-    CommitPVHash(CommitPVHashInstr<F>),
+    CommitPublicValues(CommitPublicValuesInstr<F>),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -231,14 +230,15 @@ pub fn fri_fold<F: AbstractField>(
     })
 }
 
-pub fn register_pv_elm<F: AbstractField>(addr: u32) -> Instruction<F> {
-    Instruction::RegisterPVElm(RegisterPVElmInstr {
-        pv_elm: Address(F::from_canonical_u32(addr)),
-    })
-}
+pub fn commit_public_values<F: AbstractField>(
+    public_values_a: &RecursionPublicValues<u32>,
+) -> Instruction<F> {
+    let pv_a = public_values_a
+        .to_vec()
+        .map(|pv| Address(F::from_canonical_u32(pv)));
+    let pv_address: &RecursionPublicValues<Address<F>> = pv_a.as_slice().borrow();
 
-pub fn commit_pv_hash<F: AbstractField>(addrs: [u32; DIGEST_SIZE]) -> Instruction<F> {
-    Instruction::CommitPVHash(CommitPVHashInstr {
-        pv_addrs: array::from_fn(|i| Address(F::from_canonical_u32(addrs[i]))),
+    Instruction::CommitPublicValues(CommitPublicValuesInstr {
+        pv_addrs: pv_address.clone(),
     })
 }

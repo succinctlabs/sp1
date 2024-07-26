@@ -68,7 +68,7 @@ impl<F: PrimeField32> MachineAir<F> for PublicValuesChip {
             .instructions
             .iter()
             .filter_map(|instruction| {
-                if let Instruction::CommitPVHash(instr) = instruction {
+                if let Instruction::CommitPublicValues(instr) = instruction {
                     Some(instr)
                 } else {
                     None
@@ -82,7 +82,7 @@ impl<F: PrimeField32> MachineAir<F> for PublicValuesChip {
 
         // We only take 1 commit pv hash instruction, since our air only checks for one public values hash.
         for instr in commit_pv_hash_instrs.iter().take(1) {
-            for (i, addr) in instr.pv_addrs.iter().enumerate() {
+            for (i, addr) in instr.pv_addrs.digest.iter().enumerate() {
                 let mut row: [F; 11] = [F::zero(); NUM_PUBLIC_VALUES_PREPROCESSED_COLS];
                 let cols: &mut PublicValuesPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
                 cols.pv_idx[i] = F::one();
@@ -122,7 +122,7 @@ impl<F: PrimeField32> MachineAir<F> for PublicValuesChip {
 
         // We only take 1 commit pv hash instruction, since our air only checks for one public values hash.
         for event in input.commit_pv_hash_events.iter().take(1) {
-            for element in event.pv_hash.iter() {
+            for element in event.public_values.digest.iter() {
                 let mut row = [F::zero(); NUM_PUBLIC_VALUES_COLS];
                 let cols: &mut PublicValuesCols<F> = row.as_mut_slice().borrow_mut();
 
@@ -199,7 +199,7 @@ mod tests {
     use sp1_core::stark::StarkGenericConfig;
 
     use crate::chips::public_values::PublicValuesChip;
-    use crate::CommitPVHashEvent;
+    use crate::CommitPublicValuesEvent;
     use crate::{
         machine::RecursionAir,
         runtime::{instruction as instr, ExecutionRecord},
@@ -217,48 +217,24 @@ mod tests {
         let mut rng = StdRng::seed_from_u64(0xDEADBEEF);
         let mut random_felt = move || -> F { F::from_canonical_u32(rng.gen_range(0..1 << 16)) };
         let random_pv_elms: [F; RECURSIVE_PROOF_NUM_PV_ELTS] = array::from_fn(|_| random_felt());
-        let public_values: &RecursionPublicValues<F> = random_pv_elms.as_slice().borrow();
         let addr = 0u32;
-
-        let mut instructions = Vec::new();
-        // Allocate the memory for the public values hash.
         let public_values_a: [u32; RECURSIVE_PROOF_NUM_PV_ELTS] =
             array::from_fn(|i| i as u32 + addr);
 
-        for i in 0..NUM_PV_ELMS_TO_HASH {
+        let mut instructions = Vec::new();
+        // Allocate the memory for the public values hash.
+
+        for i in 0..RECURSIVE_PROOF_NUM_PV_ELTS {
+            let mult = (NUM_PV_ELMS_TO_HASH..NUM_PV_ELMS_TO_HASH + DIGEST_SIZE).contains(&i);
             instructions.push(instr::mem_block(
                 MemAccessKind::Write,
-                0,
+                mult as u32,
                 public_values_a[i],
                 random_pv_elms[i].into(),
             ));
-
-            instructions.push(instr::register_pv_elm(public_values_a[i]));
         }
-
         let public_values_a: &RecursionPublicValues<u32> = public_values_a.as_slice().borrow();
-
-        for (address, elm) in public_values_a
-            .digest
-            .iter()
-            .zip(public_values.digest.iter())
-        {
-            instructions.push(instr::mem_block(
-                MemAccessKind::Write,
-                1,
-                *address,
-                (*elm).into(),
-            ));
-        }
-        instructions.push(instr::commit_pv_hash(public_values_a.digest));
-
-        instructions.push(instr::mem_block(
-            MemAccessKind::Write,
-            0,
-            public_values_a.exit_code,
-            public_values.exit_code.into(),
-        ));
-        instructions.push(instr::register_pv_elm(public_values_a.exit_code));
+        instructions.push(instr::commit_public_values(public_values_a));
 
         let program = RecursionProgram {
             instructions,
@@ -283,12 +259,13 @@ mod tests {
         type F = BabyBear;
 
         let mut rng = StdRng::seed_from_u64(0xDEADBEEF);
-        let mut random_felt = move || -> F { F::from_canonical_u32(rng.gen_range(0..1 << 16)) };
-        let random_digest = [random_felt(); DIGEST_SIZE];
+        let random_felts: [F; RECURSIVE_PROOF_NUM_PV_ELTS] =
+            array::from_fn(|_| F::from_canonical_u32(rng.gen_range(0..1 << 16)));
+        let random_public_values: &RecursionPublicValues<F> = random_felts.as_slice().borrow();
 
         let shard = ExecutionRecord {
-            commit_pv_hash_events: vec![CommitPVHashEvent {
-                pv_hash: random_digest,
+            commit_pv_hash_events: vec![CommitPublicValuesEvent {
+                public_values: *random_public_values,
             }],
             ..Default::default()
         };

@@ -13,9 +13,11 @@ pub use record::*;
 
 use std::{
     array,
+    borrow::Borrow,
     fmt::Debug,
     io::{stdout, Write},
-    {marker::PhantomData, sync::Arc},
+    marker::PhantomData,
+    sync::Arc,
 };
 
 use hashbrown::hash_map::Entry;
@@ -27,7 +29,7 @@ use p3_symmetric::{CryptographicPermutation, Permutation};
 use p3_util::reverse_bits_len;
 use thiserror::Error;
 
-use sp1_recursion_core::air::Block;
+use sp1_recursion_core::air::{Block, RECURSIVE_PROOF_NUM_PV_ELTS};
 
 /// TODO expand glob import once things are organized enough
 use crate::*;
@@ -525,17 +527,18 @@ where
                     }
                 }
 
-                Instruction::RegisterPVElm(RegisterPVElmInstr { pv_elm }) => {
-                    let pv = self.mr(pv_elm).val[0];
-                    self.record.public_values.push(pv);
-                }
-
-                Instruction::CommitPVHash(CommitPVHashInstr { pv_addrs }) => {
-                    let pv_hash = array::from_fn(|i| self.mr(pv_addrs[i]).val[0]);
-                    self.record.public_values.extend(pv_hash);
+                Instruction::CommitPublicValues(CommitPublicValuesInstr {
+                    pv_addrs: public_values_addrs,
+                }) => {
+                    let pv_addrs = public_values_addrs.to_vec();
+                    let pv_values: [F; RECURSIVE_PROOF_NUM_PV_ELTS] =
+                        array::from_fn(|i| self.mr(pv_addrs[i]).val[0]);
+                    self.record.public_values = *pv_values.as_slice().borrow();
                     self.record
                         .commit_pv_hash_events
-                        .push(CommitPVHashEvent { pv_hash });
+                        .push(CommitPublicValuesEvent {
+                            public_values: self.record.public_values,
+                        });
                 }
 
                 Instruction::Print(PrintInstr {

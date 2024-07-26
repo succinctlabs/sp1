@@ -12,7 +12,10 @@ use sp1_core::{
 };
 use sp1_derive::AlignedBorrow;
 use static_assertions::const_assert_eq;
-use std::mem::{size_of, transmute};
+use std::{
+    borrow::BorrowMut,
+    mem::{size_of, transmute},
+};
 
 pub const PV_DIGEST_NUM_WORDS: usize = 8;
 
@@ -36,7 +39,7 @@ pub const NUM_PV_ELMS_TO_HASH: usize = RECURSION_PUBLIC_VALUES_COL_MAP.digest[0]
 // sp1_core should be set to `RECURSIVE_PROOF_NUM_PV_ELTS`.
 const_assert_eq!(RECURSIVE_PROOF_NUM_PV_ELTS, PROOF_MAX_NUM_PVS);
 
-#[derive(AlignedBorrow, Serialize, Deserialize, Clone, Copy, Default, Debug)]
+#[derive(AlignedBorrow, Serialize, Deserialize, PartialEq, Clone, Copy, Default, Debug)]
 #[repr(C)]
 pub struct ChallengerPublicValues<T> {
     pub sponge_state: [T; PERMUTATION_WIDTH],
@@ -134,4 +137,14 @@ pub struct RecursionPublicValues<T> {
     /// The exit code of the program.  Note that this is not part of the public values digest, since
     /// it's value will be individually constrained.
     pub exit_code: T,
+}
+
+impl<F: Default + Copy> RecursionPublicValues<F> {
+    pub fn to_vec(&self) -> [F; RECURSIVE_PROOF_NUM_PV_ELTS] {
+        let mut ret = [F::default(); RECURSIVE_PROOF_NUM_PV_ELTS];
+        let pv: &mut RecursionPublicValues<F> = ret.as_mut_slice().borrow_mut();
+
+        *pv = *self;
+        ret
+    }
 }
