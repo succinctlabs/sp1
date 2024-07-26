@@ -325,6 +325,12 @@ impl<C: Config> AsmCompiler<C> {
         })
     }
 
+    fn register_pv_elm(&mut self, pv_elm: impl Reg<C>) -> Instruction<C::F> {
+        Instruction::RegisterPVElm(RegisterPVElmInstr {
+            pv_elm: pv_elm.read(self),
+        })
+    }
+
     fn commit_pv_hash(&mut self, pv_hash: [Felt<C::F>; DIGEST_SIZE]) -> Instruction<C::F> {
         Instruction::CommitPVHash(CommitPVHashInstr {
             pv_addrs: pv_hash.map(|r| r.write(self)),
@@ -441,6 +447,9 @@ impl<C: Config> AsmCompiler<C> {
                 vec![self.hint_bit_decomposition(value, output)]
             }
             DslIr::CircuitV2FriFold(output, input) => vec![self.fri_fold(output, input)],
+            DslIr::CircuitV2RegisterPVElm(pv_elm) => {
+                vec![self.register_pv_elm(pv_elm)]
+            }
             DslIr::CircuitV2CommitPVHash(pv_hash) => {
                 vec![self.commit_pv_hash(pv_hash)]
             }
@@ -574,6 +583,7 @@ impl<C: Config> AsmCompiler<C> {
                     kind: MemAccessKind::Read,
                     ..
                 })
+                | Instruction::RegisterPVElm(_)
                 | Instruction::CommitPVHash(_)
                 | Instruction::Print(_) => vec![],
             })

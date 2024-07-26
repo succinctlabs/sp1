@@ -186,6 +186,7 @@ mod tests {
     use sp1_core::utils::BabyBearPoseidon2;
     use sp1_core::utils::DIGEST_SIZE;
     use sp1_recursion_core::air::RecursionPublicValues;
+    use sp1_recursion_core::air::NUM_PV_ELMS_TO_HASH;
     use sp1_recursion_core::air::RECURSIVE_PROOF_NUM_PV_ELTS;
     use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
     use std::array;
@@ -216,6 +217,7 @@ mod tests {
         let mut rng = StdRng::seed_from_u64(0xDEADBEEF);
         let mut random_felt = move || -> F { F::from_canonical_u32(rng.gen_range(0..1 << 16)) };
         let random_pv_elms: [F; RECURSIVE_PROOF_NUM_PV_ELTS] = array::from_fn(|_| random_felt());
+        let public_values: &RecursionPublicValues<F> = random_pv_elms.as_slice().borrow();
         let addr = 0u32;
 
         let mut instructions = Vec::new();
@@ -223,18 +225,40 @@ mod tests {
         let public_values_a: [u32; RECURSIVE_PROOF_NUM_PV_ELTS] =
             array::from_fn(|i| i as u32 + addr);
 
-        for i in 0..RECURSIVE_PROOF_NUM_PV_ELTS {
+        for i in 0..NUM_PV_ELMS_TO_HASH {
             instructions.push(instr::mem_block(
                 MemAccessKind::Write,
-                1,
+                0,
                 public_values_a[i] as u32,
                 random_pv_elms[i].into(),
             ));
+
+            instructions.push(instr::register_pv_elm(public_values_a[i]));
         }
 
         let public_values_a: &RecursionPublicValues<u32> = public_values_a.as_slice().borrow();
 
+        for (address, elm) in public_values_a
+            .digest
+            .iter()
+            .zip(public_values.digest.iter())
+        {
+            instructions.push(instr::mem_block(
+                MemAccessKind::Write,
+                1,
+                *address,
+                (*elm).into(),
+            ));
+        }
         instructions.push(instr::commit_pv_hash(public_values_a.digest));
+
+        instructions.push(instr::mem_block(
+            MemAccessKind::Write,
+            0,
+            public_values_a.exit_code,
+            public_values.exit_code.into(),
+        ));
+        instructions.push(instr::register_pv_elm(public_values_a.exit_code));
 
         let program = RecursionProgram {
             instructions,

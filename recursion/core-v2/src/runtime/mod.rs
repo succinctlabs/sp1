@@ -525,9 +525,14 @@ where
                     }
                 }
 
+                Instruction::RegisterPVElm(RegisterPVElmInstr { pv_elm }) => {
+                    let pv = self.mr(pv_elm).val[0];
+                    self.record.public_values.push(pv);
+                }
+
                 Instruction::CommitPVHash(CommitPVHashInstr { pv_addrs }) => {
                     let pv_hash = array::from_fn(|i| self.mr(pv_addrs[i]).val[0]);
-                    self.record.public_values = pv_hash;
+                    self.record.public_values.extend(pv_hash);
                     self.record
                         .commit_pv_hash_events
                         .push(CommitPVHashEvent { pv_hash });

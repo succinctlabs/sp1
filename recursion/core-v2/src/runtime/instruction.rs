@@ -17,6 +17,7 @@ pub enum Instruction<F> {
     FriFold(FriFoldInstr<F>),
     Print(PrintInstr<F>),
     HintExt2Felts(HintExt2FeltsInstr<F>),
+    RegisterPVElm(RegisterPVElmInstr<F>),
     CommitPVHash(CommitPVHashInstr<F>),
 }
 
@@ -227,6 +228,12 @@ pub fn fri_fold<F: AbstractField>(
             .iter()
             .map(|mult| F::from_canonical_u32(*mult))
             .collect(),
+    })
+}
+
+pub fn register_pv_elm<F: AbstractField>(addr: u32) -> Instruction<F> {
+    Instruction::RegisterPVElm(RegisterPVElmInstr {
+        pv_elm: Address(F::from_canonical_u32(addr)),
     })
 }
 

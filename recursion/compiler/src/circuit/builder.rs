@@ -20,6 +20,7 @@ pub trait CircuitV2Builder<C: Config> {
     ) -> [Felt<C::F>; DIGEST_SIZE];
     fn fri_fold_v2(&mut self, input: CircuitV2FriFoldInput<C>) -> CircuitV2FriFoldOutput<C>;
     fn ext2felt_v2(&mut self, ext: Ext<C::F, C::EF>) -> [Felt<C::F>; D];
+    fn register_pv_hash_v2(&mut self, pv_elm: Felt<C::F>);
     fn commit_pv_hash_v2(&mut self, pv_hash: [Felt<C::F>; DIGEST_SIZE]);
 }
 
@@ -128,6 +129,10 @@ impl<C: Config> CircuitV2Builder<C> for Builder<C> {
         self.assert_ext_eq(reconstructed_ext, ext);
 
         felts
+    }
+
+    fn register_pv_hash_v2(&mut self, pv_elm: Felt<C::F>) {
+        self.operations.push(DslIr::CircuitV2RegisterPVElm(pv_elm));
     }
 
     fn commit_pv_hash_v2(&mut self, pv_hash: [Felt<C::F>; DIGEST_SIZE]) {

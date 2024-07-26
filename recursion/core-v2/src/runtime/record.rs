@@ -16,7 +16,7 @@ pub struct ExecutionRecord<F> {
     pub ext_alu_events: Vec<ExtAluEvent<F>>,
     pub mem_events: Vec<MemEvent<F>>,
     /// The public values.
-    pub public_values: [F; DIGEST_SIZE],
+    pub public_values: Vec<F>,
 
     pub poseidon2_skinny_events: Vec<Poseidon2SkinnyEvent<F>>,
     pub poseidon2_wide_events: Vec<Poseidon2WideEvent<F>>,

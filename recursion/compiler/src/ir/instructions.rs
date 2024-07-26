@@ -215,6 +215,8 @@ pub enum DslIr<C: Config> {
     CircuitV2Poseidon2PermuteBabyBearSkinny([Felt<C::F>; 16], [Felt<C::F>; 16]),
     /// Permutates an array of BabyBear elements in the circuit using the wide precompile.
     CircuitV2Poseidon2PermuteBabyBearWide([Felt<C::F>; 16], [Felt<C::F>; 16]),
+    /// Registers a public values element.
+    CircuitV2RegisterPVElm(Felt<C::F>),
     /// Commits the public values hash.
     CircuitV2CommitPVHash([Felt<C::F>; DIGEST_SIZE]),
 

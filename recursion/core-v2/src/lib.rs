@@ -180,6 +180,11 @@ pub struct FriFoldEvent<F> {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RegisterPVElmInstr<F> {
+    pub pv_elm: Address<F>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CommitPVHashInstr<F> {
     pub pv_addrs: [Address<F>; DIGEST_SIZE],
 }
