@@ -5,7 +5,7 @@ use std::iter::repeat;
 use p3_field::{AbstractExtensionField, AbstractField};
 
 use crate::prelude::*;
-use sp1_recursion_core_v2::{chips::poseidon2_skinny::WIDTH, D, DIGEST_SIZE, HASH_RATE, NUM_BITS};
+use sp1_recursion_core_v2::{chips::poseidon2_skinny::WIDTH, D, DIGEST_SIZE, HASH_RATE};
 
 pub trait CircuitV2Builder<C: Config> {
     fn num2bits_v2_f(&mut self, num: Felt<C::F>, num_bits: usize) -> Vec<Felt<C::F>>;
@@ -101,7 +101,7 @@ impl<C: Config> CircuitV2Builder<C> for Builder<C> {
     fn fri_fold_v2(&mut self, input: CircuitV2FriFoldInput<C>) -> CircuitV2FriFoldOutput<C> {
         let mut uninit_vec = || {
             std::iter::from_fn(|| Some(self.uninit()))
-                .take(NUM_BITS)
+                .take(input.ro_input.len())
                 .collect()
         };
         let output = CircuitV2FriFoldOutput {

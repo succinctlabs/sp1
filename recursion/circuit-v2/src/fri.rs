@@ -8,7 +8,10 @@ use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
     ir::{Builder, Config, Felt, SymbolicExt},
 };
-use std::{cmp::Reverse, iter::zip};
+use std::{
+    cmp::Reverse,
+    iter::{repeat_with, zip},
+};
 
 use crate::challenger::DuplexChallengerVariable;
 use crate::*;
@@ -19,14 +22,14 @@ pub fn verify_shape_and_sample_challenges<C: Config, Mmcs>(
     proof: &FriProofVariable<C>,
     challenger: &mut DuplexChallengerVariable<C>,
 ) -> FriChallenges<C> {
-    let mut betas = vec![];
-
-    for i in 0..proof.commit_phase_commits.len() {
-        let commitment: [Felt<C::F>; DIGEST_SIZE] = proof.commit_phase_commits[i];
-        challenger.observe_commitment(builder, commitment);
-        let sample = challenger.sample_ext(builder);
-        betas.push(sample);
-    }
+    let betas = proof
+        .commit_phase_commits
+        .iter()
+        .map(|&commitment| {
+            challenger.observe_commitment(builder, commitment);
+            challenger.sample_ext(builder)
+        })
+        .collect();
 
     // Observe the final polynomial.
     let final_poly_felts = builder.ext2felt_circuit(proof.final_poly);
@@ -38,9 +41,10 @@ pub fn verify_shape_and_sample_challenges<C: Config, Mmcs>(
     challenger.check_witness(builder, config.proof_of_work_bits, proof.pow_witness);
 
     let log_max_height = proof.commit_phase_commits.len() + config.log_blowup;
-    let query_indices: Vec<Vec<Felt<_>>> = (0..config.num_queries)
-        .map(|_| challenger.sample_bits(builder, log_max_height))
-        .collect();
+    let query_indices: Vec<Vec<Felt<_>>> =
+        repeat_with(|| challenger.sample_bits(builder, log_max_height))
+            .take(config.num_queries)
+            .collect();
 
     FriChallenges {
         query_indices,
@@ -129,7 +133,8 @@ pub fn verify_two_adic_pcs<C: Config, Mmcs>(
                             (alpha_pows.len()..pow + 1).for_each(|_| {
                                 alpha_pows.push(builder.eval(*alpha_pows.last().unwrap() * alpha));
                             });
-                            acc = builder.eval(acc + (alpha_pows[pow] * (p_at_z - p_at_x[0])));
+                            let p_at_x_0 = builder.ext2felt_v2(p_at_x)[0];
+                            acc = builder.eval(acc + (alpha_pows[pow] * (p_at_z - p_at_x_0)));
                             log_height_pow[log_height] += 1;
                         }
                         ro[log_height] = builder.eval(ro[log_height] + acc / (*z - x));
@@ -221,10 +226,6 @@ pub fn verify_query<C: Config>(
                 .map(|(tx, fx)| builder.eval(tx * bit + fx * cobit))
                 .collect::<Vec<_>>()
         };
-        let evals_felt = evals_ext
-            .iter()
-            .map(|&x| builder.ext2felt_v2(x).to_vec())
-            .collect::<Vec<_>>();
 
         let dims = &[Dimensions {
             width: 2,
@@ -235,7 +236,7 @@ pub fn verify_query<C: Config>(
             commit,
             dims.to_vec(),
             index_pair.to_vec(),
-            [evals_felt].to_vec(),
+            [evals_ext.clone()].to_vec(),
             step.opening_proof.clone(),
         );
 
@@ -268,9 +269,18 @@ pub fn verify_batch<C: Config, const D: usize>(
     commit: DigestVariable<C>,
     dimensions: Vec<Dimensions>,
     index_bits: Vec<Felt<C::F>>,
-    opened_values: Vec<Vec<Vec<Felt<C::F>>>>,
+    opened_values: Vec<Vec<Ext<C::F, C::EF>>>,
     proof: Vec<DigestVariable<C>>,
 ) {
+    let opened_values = opened_values
+        .into_iter()
+        .map(|value| {
+            value
+                .into_iter()
+                .map(|ext| builder.ext2felt_v2(ext))
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
     let mut heights_tallest_first = dimensions
         .iter()
         .enumerate()
@@ -284,14 +294,10 @@ pub fn verify_batch<C: Config, const D: usize>(
         .height
         .next_power_of_two();
 
-    let ext_slice: Vec<Vec<Felt<C::F>>> = heights_tallest_first
+    let felt_slice: Vec<Felt<C::F>> = heights_tallest_first
         .peeking_take_while(|(_, dims)| dims.height.next_power_of_two() == curr_height_padded)
         .flat_map(|(i, _)| opened_values[i].as_slice())
-        .cloned()
-        .collect::<Vec<_>>();
-    let felt_slice: Vec<Felt<C::F>> = ext_slice
-        .iter()
-        .flat_map(|ext| ext.as_slice())
+        .flatten()
         .cloned()
         .collect::<Vec<_>>();
     let mut root = builder.poseidon2_hash_v2(&felt_slice);
@@ -315,14 +321,10 @@ pub fn verify_batch<C: Config, const D: usize>(
             .filter(|h| h.next_power_of_two() == curr_height_padded);
 
         if let Some(next_height) = next_height {
-            let ext_slice: Vec<Vec<Felt<C::F>>> = heights_tallest_first
+            let felt_slice: Vec<Felt<C::F>> = heights_tallest_first
                 .peeking_take_while(|(_, dims)| dims.height == next_height)
                 .flat_map(|(i, _)| opened_values[i].as_slice())
-                .cloned()
-                .collect::<Vec<_>>();
-            let felt_slice: Vec<Felt<C::F>> = ext_slice
-                .iter()
-                .flat_map(|ext| ext.as_slice())
+                .flatten()
                 .cloned()
                 .collect::<Vec<_>>();
             let next_height_openings_digest = builder.poseidon2_hash_v2(&felt_slice);
@@ -331,12 +333,16 @@ pub fn verify_batch<C: Config, const D: usize>(
         }
     }
 
+    zip(root, commit).for_each(|(e1, e2)| {
+        builder.print_f(e1);
+        builder.print_f(e2);
+    });
     zip(root, commit).for_each(|(e1, e2)| builder.assert_felt_eq(e1, e2));
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{verify_two_adic_pcs, TwoAdicPcsRoundVariable};
+    use super::*;
     use crate::challenger::tests::run_test_recursion;
     use crate::challenger::DuplexChallengerVariable;
     use crate::{
@@ -359,7 +365,6 @@ mod tests {
     use sp1_recursion_compiler::asm::AsmBuilder;
     use sp1_recursion_compiler::config::InnerConfig;
     use sp1_recursion_compiler::ir::Ext;
-    use sp1_recursion_compiler::ir::Felt;
     use sp1_recursion_compiler::ir::{Builder, SymbolicExt};
 
     type SC = BabyBearPoseidon2;
@@ -376,8 +381,7 @@ mod tests {
             .iter()
             .map(|commit| {
                 let commit: [F; DIGEST_SIZE] = (*commit).into();
-                let commit: Felt<_> = builder.eval(commit[0]);
-                [commit; DIGEST_SIZE]
+                commit.map(|x| builder.eval(x))
             })
             .collect::<Vec<_>>();
 
@@ -436,7 +440,7 @@ mod tests {
                             .map(|opened_value| {
                                 opened_value
                                     .iter()
-                                    .map(|value| vec![builder.eval::<Felt<InnerVal>, _>(*value)])
+                                    .map(|value| builder.eval(*value))
                                     .collect::<Vec<_>>()
                             })
                             .collect::<Vec<_>>(),
@@ -500,6 +504,90 @@ mod tests {
             }],
         )
     }
+
+    // #[test]
+    // fn test_fri_verify_shape_and_sample_challenges() {
+    //     let mut rng = &mut OsRng;
+    //     let log_degrees = &[16, 9, 7, 4, 2];
+    //     let perm = inner_perm();
+    //     let fri_config = compressed_fri_config();
+    //     let hash = InnerHash::new(perm.clone());
+    //     let compress = InnerCompress::new(perm.clone());
+    //     let val_mmcs = InnerValMmcs::new(hash, compress);
+    //     let dft = InnerDft {};
+    //     let pcs: InnerPcs = InnerPcs::new(
+    //         log_degrees.iter().copied().max().unwrap(),
+    //         dft,
+    //         val_mmcs,
+    //         fri_config,
+    //     );
+
+    //     // Generate proof.
+    //     let domains_and_polys = log_degrees
+    //         .iter()
+    //         .map(|&d| {
+    //             (
+    //                 <InnerPcs as Pcs<InnerChallenge, InnerChallenger>>::natural_domain_for_degree(
+    //                     &pcs,
+    //                     1 << d,
+    //                 ),
+    //                 RowMajorMatrix::<InnerVal>::rand(&mut rng, 1 << d, 10),
+    //             )
+    //         })
+    //         .collect::<Vec<_>>();
+    //     let (commit, data) = <InnerPcs as Pcs<InnerChallenge, InnerChallenger>>::commit(
+    //         &pcs,
+    //         domains_and_polys.clone(),
+    //     );
+    //     let mut challenger = InnerChallenger::new(perm.clone());
+    //     challenger.observe(commit);
+    //     let zeta = challenger.sample_ext_element::<InnerChallenge>();
+    //     let points = domains_and_polys
+    //         .iter()
+    //         .map(|_| vec![zeta])
+    //         .collect::<Vec<_>>();
+    //     let (_, proof) = pcs.open(vec![(&data, points)], &mut challenger);
+
+    //     // Verify proof.
+    //     let mut challenger = InnerChallenger::new(perm.clone());
+    //     challenger.observe(commit);
+    //     let _: InnerChallenge = challenger.sample();
+    //     let fri_challenges_gt = verifier::verify_shape_and_sample_challenges(
+    //         &compressed_fri_config(),
+    //         &proof.fri_proof,
+    //         &mut challenger,
+    //     )
+    //     .unwrap();
+
+    //     // Define circuit.
+    //     let mut builder = Builder::<InnerConfig>::default();
+    //     let config = compressed_fri_config();
+    //     let fri_proof = const_fri_proof(&mut builder, proof.fri_proof);
+
+    //     let mut challenger = DuplexChallengerVariable::new(&mut builder);
+    //     let commit: [_; DIGEST_SIZE] = commit.into();
+    //     let commit = commit.map(|x| builder.eval(x));
+    //     challenger.observe_commitment(&mut builder, commit);
+    //     let _ = challenger.sample_ext(&mut builder);
+    //     let fri_challenges =
+    //         verify_shape_and_sample_challenges(&mut builder, &config, &fri_proof, &mut challenger);
+
+    //     for i in 0..fri_challenges_gt.betas.len() {
+    //         builder.assert_ext_eq(
+    //             SymbolicExt::from_f(fri_challenges_gt.betas[i]),
+    //             fri_challenges.betas[i],
+    //         );
+    //     }
+
+    //     for i in 0..fri_challenges_gt.query_indices.len() {
+    //         builder.assert_var_eq(
+    //             F::from_canonical_usize(fri_challenges_gt.query_indices[i]),
+    //             fri_challenges.query_indices[i],
+    //         );
+    //     }
+
+    //     run_test_recursion(builder.operations);
+    // }
 
     #[test]
     fn test_verify_two_adic_pcs() {

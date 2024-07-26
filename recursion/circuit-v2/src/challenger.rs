@@ -91,10 +91,12 @@ impl<C: Config> DuplexChallengerVariable<C> {
     }
 
     pub fn duplexing(&mut self, builder: &mut Builder<C>) {
+        assert!(self.input_buffer.len() <= HASH_RATE);
+
         self.sponge_state[0..self.input_buffer.len()].copy_from_slice(self.input_buffer.as_slice());
         self.input_buffer.clear();
 
-        self.sponge_state = builder.poseidon2_permute_v2_wide(self.sponge_state);
+        self.sponge_state = builder.poseidon2_permute_v2_skinny(self.sponge_state);
 
         self.output_buffer.clear();
         self.output_buffer.extend_from_slice(&self.sponge_state);
@@ -111,7 +113,7 @@ impl<C: Config> DuplexChallengerVariable<C> {
     }
 
     pub fn observe_commitment(&mut self, builder: &mut Builder<C>, commitment: DigestVariable<C>) {
-        for element in commitment.into_iter() {
+        for element in commitment {
             self.observe(builder, element);
         }
     }

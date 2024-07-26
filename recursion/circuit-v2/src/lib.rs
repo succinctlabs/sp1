@@ -46,7 +46,7 @@ pub struct TwoAdicPcsProofVariable<C: Config> {
 
 #[derive(Clone)]
 pub struct BatchOpeningVariable<C: Config> {
-    pub opened_values: Vec<Vec<Vec<Felt<C::F>>>>,
+    pub opened_values: Vec<Vec<Ext<C::F, C::EF>>>,
     pub opening_proof: Vec<DigestVariable<C>>,
 }
 
