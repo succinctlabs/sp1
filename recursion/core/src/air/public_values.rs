@@ -139,6 +139,7 @@ pub struct RecursionPublicValues<T> {
     pub exit_code: T,
 }
 
+/// Converts the public values to an array of elements.
 impl<F: Default + Copy> RecursionPublicValues<F> {
     pub fn to_vec(&self) -> [F; RECURSIVE_PROOF_NUM_PV_ELTS] {
         let mut ret = [F::default(); RECURSIVE_PROOF_NUM_PV_ELTS];

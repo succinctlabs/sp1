@@ -181,11 +181,14 @@ pub struct FriFoldEvent<F> {
     pub ext_vec: FriFoldExtVecIo<Block<F>>,
 }
 
+/// An instruction that will save the public values to the execution record and will commit to
+/// it's digest.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CommitPublicValuesInstr<F> {
     pub pv_addrs: RecursionPublicValues<Address<F>>,
 }
 
+/// The event for committing to the public values.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CommitPublicValuesEvent<F> {
     pub public_values: RecursionPublicValues<F>,
