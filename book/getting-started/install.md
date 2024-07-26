@@ -11,6 +11,7 @@ build the toolchain and CLI from source.
 
 ## Option 1: Prebuilt Binaries (Recommended)
 
+<!-- TODO: Shouldn't this work on any machine with the docker option now? I think we should update the docs to reflect this -->
 Currently our prebuilt binaries are built on Ubuntu 20.04 (22.04 on ARM) and macOS. If your OS uses an older GLIBC version, it's possible these may not work and you will need to [build the toolchain from source](#option-2-building-from-source).
 
 sp1up is the SP1 toolchain installer. Open your terminal and run the following command and follow the instructions:
@@ -42,7 +43,14 @@ If this works, go to the [next section](./quickstart.md) to compile and prove a 
 
 ### Troubleshooting
 
+#### Rate-limiting
+
 If you experience [rate-limiting](https://docs.github.com/en/rest/using-the-rest-api/getting-started-with-the-rest-api?apiVersion=2022-11-28#rate-limiting) when using the `sp1up` command, you can resolve this by using the `--token` flag and providing your GitHub token.
+
+<!-- We should add an example command here and also give instructions on how to get a Github token here -->
+
+
+#### Conflicting `cargo-prove` installations
 
 If you have installed `cargo-prove` from source, it may conflict with `sp1up`'s `cargo-prove` installation or vice versa. You can remove the `cargo-prove` that was installed from source with the following command:
 
@@ -57,6 +65,10 @@ rm ~/.sp1/bin/cargo-prove
 ```
 
 ## Option 2: Building from Source
+
+{{#warning }}
+**Warning:** This option will take a long time to build and is only recommended for advanced users. 
+{{/warning}}
 
 Make sure you have installed the [dependencies](https://github.com/rust-lang/rust/blob/master/INSTALL.md#dependencies) needed to build the rust toolchain from source.
 

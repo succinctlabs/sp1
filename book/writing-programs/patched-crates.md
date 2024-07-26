@@ -50,6 +50,8 @@ sha3 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sh
 
 An example of using patched crates is available in our [Tendermint Example](https://github.com/succinctlabs/sp1/blob/main/examples/tendermint/program/Cargo.toml#L22-L25).
 
+<!-- Can we link to the examples/testing of the patched crates here. It would also be interseting to see the decrease in cycle count for those functions with the patches. -->
+
 ### Verifying Patch Usage: Cargo
 
 You can check if the patch was applied by using cargo's tree command to print the dependencies of the crate you patched.

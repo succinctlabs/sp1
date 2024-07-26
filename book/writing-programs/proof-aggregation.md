@@ -1,11 +1,16 @@
 # Proof Aggregation
 
-SP1 supports proof aggregation and recursion, which allows you to verify proofs within a proof. Use cases include:
+SP1 supports proof aggregation and recursion, which allows you to verify an SP1 proof within SP1. Use cases include:
 
-- Reducing on-chain verification costs by aggregating multiple proofs into a single proof.
-- Proving logic that is split into multiple proofs, such as proving a statement about a rollup's state transition function.
+- Reducing on-chain verification costs by aggregating multiple SP1 proofs into a single SP1 proof.
+- Proving logic that is split into multiple proofs, such as proving a statement about a rollup's state transition function by proving each block individually and aggregating these proofs to produce a final proof of a range of blocks.
 
 **For an example of how to use proof aggregation and recursion in SP1, refer to the [aggregation example](https://github.com/succinctlabs/sp1/blob/main/examples/aggregation/script/src/main.rs).**
+
+<!-- Remove the TODO here:  https://github.com/succinctlabs/sp1/blob/main/examples/aggregation/program/src/main.rs#L62 -->
+
+
+<!-- I think this could be a lot better just by walking through the aggregation example, since otherwise it's hard to tell what's going on. --> 
 
 ## Verifying Proofs inside the zkVM 
 

@@ -19,6 +19,8 @@ use k256::{PublicKey, Scalar, Secp256k1};
 
 const NUM_WORDS: usize = 16;
 
+pub type Secp256k1AffinePoint = AffinePoint<Secp256k1Operations, NUM_WORDS>;
+
 #[derive(Copy, Clone)]
 pub struct Secp256k1Operations;
 
@@ -29,6 +31,7 @@ impl CurveOperations<NUM_WORDS> for Secp256k1Operations {
         4212184248, 2621952143, 2793755673, 4246189128, 235997352, 1571093500, 648266853,
         1211816567,
     ];
+
     fn add_assign(limbs: &mut [u32; NUM_WORDS], other: &[u32; NUM_WORDS]) {
         unsafe {
             syscall_secp256k1_add(limbs.as_mut_ptr(), other.as_ptr());

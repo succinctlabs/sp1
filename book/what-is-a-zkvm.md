@@ -12,3 +12,21 @@ Conceptually, you can think of the SP1 zkVM as proving the evaluation of a funct
 As a practical example, `f` could be a simple Fibonacci [program](https://github.com/succinctlabs/sp1/blob/main/examples/fibonacci/program/src/main.rs). The process of generating a proof and verifying it can be seen [here](https://github.com/succinctlabs/sp1/blob/main/examples/fibonacci/script/src/main.rs).
 
 For blockchain applications, the verification usually happens inside of a [smart contract](https://github.com/succinctlabs/sp1-project-template/blob/main/contracts/src/Fibonacci.sol).
+
+## How does SP1 Work?
+
+* Compilation to RISC-V ISA
+* Prove the execution of a program that gets compiled to the RISC-V ISA
+
+
+Rust -> RISC-V ISA -> SP1 zkVM -> Proof
+
+## Proof System 
+
+For more technical details, check out the SP1 technical note that explains our proof system in detail. In short, we use:
+
+* STARKs + FRI over the Baby Bear field
+* We use performant STARK recursion that allows us to prove the execution of arbitrarily long programs
+* We have a system of performant precompiles that allow us to get performance gains
+
+

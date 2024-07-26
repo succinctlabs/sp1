@@ -1,9 +1,11 @@
 #![allow(unused_imports)]
-use crate::utils::CurveOperations;
+use crate::utils::{AffinePoint, CurveOperations};
 use crate::{syscall_bls12381_add, syscall_bls12381_decompress, syscall_bls12381_double};
 
 use amcl::bls381::bls381::utils::deserialize_g1;
 use anyhow::Result;
+
+pub type Bls12381Point = AffinePoint<Bls12381, NUM_WORDS>;
 
 #[derive(Copy, Clone)]
 pub struct Bls12381;

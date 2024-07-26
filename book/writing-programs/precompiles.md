@@ -19,6 +19,8 @@ If you are an advanced user you can interact with the precompiles directly using
 
 Here is a list of all available system calls & precompiles.
 
+<!-- TODO: we should significantly beef up the amount of documentation and docstrings on the extern C precompiles and clean up the pointers. -->
+
 ```rust,noplayground
 {{#include ../../zkvm/lib/src/lib.rs}}
 ```

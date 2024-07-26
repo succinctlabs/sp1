@@ -30,7 +30,7 @@ This will compile the ELF that can be executed in the zkVM and put the executabl
 For production builds of programs, you can build your program inside a Docker container which will generate a **reproducible ELF** on all platforms. To do so, just use the `--docker` flag and the `--tag` flag with the release version you want to use. For example:
 
 ```bash
-cargo prove build --docker --tag v1.0.5-testnet
+cargo prove build --docker --tag v1.0.1
 ```
 
 To verify that your build is reproducible, you can compute the SHA-512 hash of the ELF on different platforms and systems with:
@@ -42,7 +42,7 @@ f9afb8caaef10de9a8aad484c4dd3bfa54ba7218f3fc245a20e8a03ed40b38c617e175328515968a
 
 ## Manual Project Setup
 
-You can also manually setup a project. First create a new cargo project:
+You can also manually setup a project. First create a new Rust project using `cargo`:
 
 ```bash
 cargo new program
@@ -61,7 +61,7 @@ name = "program"
 edition = "2021"
 
 [dependencies]
-sp1-zkvm = { git = "https://github.com/succinctlabs/sp1.git" }
+sp1-zkvm = "1.0.1"
 ```
 
 The `sp1-zkvm` crate includes necessary utilities for your program, including handling inputs and outputs,
@@ -69,12 +69,11 @@ precompiles, patches, and more.
 
 ### main.rs
 
-Inside the `src/main.rs` file, you must make sure to include these two lines to ensure that the crate
-properly compiles.
+Inside the `src/main.rs` file, you must make sure to include these two lines to ensure that your program properly compiles to a valid SP1 program.
 
 ```rust,noplayground
 #![no_main]
 sp1_zkvm::entrypoint!(main);
 ```
 
-These two lines of code wrap your main function with some additional logic to ensure that your program compiles correctly with the RISCV target.
+These two lines of code wrap your main function with some additional logic to ensure that your program compiles correctly with the RISC-V target.

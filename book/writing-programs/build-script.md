@@ -10,7 +10,7 @@ If you want your program crate to be built automatically whenever you build/run 
 {{#include ../../examples/fibonacci/script/build.rs}}
 ```
 
-Make sure to also add `sp1-helper` as a build dependency in `script/Cargo.toml`:
+The path passed in to `build_program` should point to the directory containing the `Cargo.toml` file for your program. Make sure to also add `sp1-helper` as a build dependency in `script/Cargo.toml`:
 
 ```toml
 [build-dependencies]
@@ -28,3 +28,8 @@ If you run `RUST_LOG=info cargo run --release -vv`, you will see the following o
 [fibonacci-script 0.1.0] [sp1]     Finished release [optimized] target(s) in 0.15s
 warning: fibonacci-script@0.1.0: fibonacci-program built at 2024-03-02 22:01:26```
 ````
+
+
+## Custom arguments in build script
+
+<!-- TODO: Ratan should put in documentation for doing more advanced versions of the build_program -->

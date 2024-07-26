@@ -24,7 +24,7 @@ Our prover requires keeping large matrices (i.e., traces) in memory to generate 
 have a minimum memory requirement, meaning that if you have less than this amount of memory, the process will OOM.
 
 This effect is most noticeable when using the PLONK prover, which requires around 128GB of RAM to generate a proof. We use PLONK to avoid
-having to perform a trusted setup, which other SNARK provers like Groth16 require. We have future optimizations planned to reduce
+having to perform a trusted setup, which other SNARKs like Groth16 require. We have future optimizations planned to reduce
 the memory requirements of the PLONK prover substantially.
 
 ### Disk
@@ -32,3 +32,10 @@ the memory requirements of the PLONK prover substantially.
 Disk is required to install the SP1 zkVM toolchain and to install the trused setup artifacts, if you plan to locally build the PLONK prover.
 
 Furthermore, disk is used to checkpoint the state of the program execution, which is required to generate the proofs. 
+
+### Prover Network (Recommended Usage)
+
+<!-- TODO: link to prover netwokr section -->
+We *strongly recommend* that developers who want to use SP1 for non-trivial programs generate proofs on our [Prover Network's](...) private beta. The prover network generates SP1 proofs across multiple machines, reducing latency and also runs SP1 on optimized hardware instances that result in faster + cheaper proof generation times.
+
+We recommend that for any production benchmarking, you use the prover network to estimate latency and costs of proof generation.

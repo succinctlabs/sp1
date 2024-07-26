@@ -101,6 +101,35 @@ impl<C: CurveOperations<NUM_WORDS> + Copy, const NUM_WORDS: usize> AffinePoint<C
         debug_assert!(le_bytes.len() == NUM_WORDS * 4);
         le_bytes
     }
+
+    /// Computes the multiscalar multiplication of a and b, where a and b are bit arrays.
+    /// It is assumed that a and b are little endian bit representations of the scalars.
+    pub fn msm(a_bits_le: &[bool], A: &Self, b_bits_le: &[bool], B: &Self) -> Option<Self> {
+        let mut res: Option<Self> = None;
+        let mut temp_A = *A;
+        let mut temp_B = *B;
+
+        for (a_bit, b_bit) in a_bits_le.iter().zip(b_bits_le) {
+            if *a_bit {
+                match res.as_mut() {
+                    Some(res) => res.add_assign(&temp_A),
+                    None => res = Some(temp_A),
+                };
+            }
+
+            if *b_bit {
+                match res.as_mut() {
+                    Some(res) => res.add_assign(&temp_B),
+                    None => res = Some(temp_B),
+                };
+            }
+
+            temp_A.double();
+            temp_B.double();
+        }
+
+        res
+    }
 }
 
 /// Converts a slice of words to a byte array in little endian.
