@@ -34,6 +34,8 @@
         // "examples/regex/script/Cargo.toml",
         // "examples/rsa/program/Cargo.toml",
         // "examples/rsa/script/Cargo.toml",
+        // "examples/patch-testing/program/Cargo.toml",
+        // "examples/patch-testing/script/Cargo.toml",
         // "examples/ssz-withdrawals/program/Cargo.toml",
         // "examples/ssz-withdrawals/script/Cargo.toml",
         // "examples/tendermint/program/Cargo.toml",

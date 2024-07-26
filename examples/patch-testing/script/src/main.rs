@@ -1,5 +1,3 @@
-use ed25519_consensus::{SigningKey, VerificationKey};
-use rand::thread_rng;
 use sp1_sdk::{utils, ProverClient, SP1Stdin};
 
 const PATCH_TEST_ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
@@ -8,17 +6,7 @@ const PATCH_TEST_ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succin
 fn main() {
     utils::setup_logger();
 
-    let mut stdin = SP1Stdin::new();
-
-    let sk = SigningKey::new(thread_rng());
-    let vk = VerificationKey::from(&sk);
-
-    let msg = b"ed25519-consensus test message";
-
-    let sig = sk.sign(msg);
-    stdin.write(&sig);
-    stdin.write(&vk);
-    stdin.write_vec(msg.to_vec());
+    let stdin = SP1Stdin::new();
 
     let client = ProverClient::new();
     let (_, report) = client

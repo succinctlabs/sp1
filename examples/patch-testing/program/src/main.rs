@@ -24,7 +24,19 @@ fn keccak256<T: AsRef<[u8]>>(bytes: T) -> [u8; 32] {
     output
 }
 
-/// Verify that the patch on recover_ecdsa on secp256k1 correctly patches the ecrecover function.
+/// Verify that the ed25519-consensus correctly patches ed25519 signature verification.
+fn test_ed25519_consensus() {
+    // Example from ed25519-consensus docs.
+    let vk = hex!("9194c3ead03f5848111db696fe1196fbbeffc69342d51c7cf5e91c502de91eb4");
+    let msg = hex!("656432353531392d636f6e73656e7375732074657374206d657373616765");
+    let sig = hex!("69261ea5df799b20fc6eeb49aa79f572c8f1e2ba88b37dff184cc55d4e3653d876419bffcc47e5343cdd5fd78121bb32f1c377a5ed505106ad37f19980218f0d");
+
+    let vk: VerificationKey = vk.try_into().unwrap();
+    let sig: Signature = sig.into();
+    vk.verify(&sig, &msg).unwrap();
+}
+
+/// Emits SECP256K1_ADD, SECP256K1_DOUBLE, and SECP256K1_DECOMPRESS syscalls.
 fn test_secp256k1_patch() {
     // Sourced from ecrecover test: https://github.com/paradigmxyz/reth/blob/18ebc5eaee307dcc1f09c097426770f6dfc3c206/crates/primitives/src/transaction/util.rs#L56
     let vrfy = Secp256k1::verification_only();
@@ -40,18 +52,22 @@ fn test_secp256k1_patch() {
     assert_eq!(eth_address[12..], out);
 }
 
-/// To add testing for a new patch, add a new case to the function below.
-fn main() {
+/// Emits ED_DECOMPRESS syscalls.
+fn test_curve25519_dalek_ng() {
     let input = [1u8; 32];
+    let y = CompressedEdwardsY(input);
+    let _ = y.decompress();
+}
 
-    let sig: Signature = sp1_zkvm::io::read();
-    let vk: VerificationKey = sp1_zkvm::io::read();
-    let msg: Vec<u8> = sp1_zkvm::io::read_vec();
+/// Emits KECCAK_PERMUTE syscalls.
+fn test_keccak() {
+    let input = [1u8; 32];
+    let _ = keccak256(input);
+}
 
-    // Test Keccak.
-    keccak256(input);
-
-    // Test SHA256.
+/// Emits SHA_COMPRESS and SHA_EXTEND syscalls.
+fn test_sha256() {
+    let input = [1u8; 32];
     let mut sha256_9_8 = Sha256_9_8::new();
     sha256_9_8.update(input);
     let _ = sha256_9_8.finalize();
@@ -60,17 +76,19 @@ fn main() {
     sha256_10_6.update(input);
     let _ = sha256_10_6.finalize();
 
+    // Can't have two different sha256 versions for the same major version.
     // let mut sha256_10_8 = Sha256_10_8::new();
     // sha256_10_8.update(input);
     // let output_10_8 = sha256_10_8.finalize();
+}
 
-    // Test curve25519-dalek-ng.
-    let y = CompressedEdwardsY(input);
-    let _ = y.decompress();
-
-    // Test ed25519-consensus.
-    assert_eq!(vk.verify(&sig, &msg[..]), Ok(()));
-
-    // Test secp256k1 patch.
+/// To add testing for a new patch, add a new case to the function below.
+fn main() {
+    // TODO: Specify which syscalls are linked to each function invocation, iterate
+    // over this list that is shared between the program and script.
+    test_keccak();
+    test_sha256();
+    test_curve25519_dalek_ng();
+    test_ed25519_consensus();
     test_secp256k1_patch();
 }
