@@ -10,6 +10,7 @@ keywords = { workspace = true }
 categories = { workspace = true }
 
 [dependencies]
+p3-matrix = { workspace = true }
 sp1-recursion-program = { workspace = true }
 sp1-recursion-circuit = { workspace = true }
 sp1-recursion-compiler = { workspace = true }
