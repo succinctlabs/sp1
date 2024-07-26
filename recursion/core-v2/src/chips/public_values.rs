@@ -3,13 +3,13 @@ use std::borrow::{Borrow, BorrowMut};
 use p3_air::{Air, AirBuilder, BaseAir, PairBuilder};
 use p3_field::PrimeField32;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
-use sp1_core::air::MachineAir;
+use sp1_core::{air::MachineAir, utils::pad_rows_fixed};
 use sp1_derive::AlignedBorrow;
 
 use crate::{
     builder::SP1RecursionAirBuilder,
     runtime::{Instruction, RecursionProgram},
-    CommitPVHashInstr, ExecutionRecord,
+    ExecutionRecord,
 };
 
 use crate::DIGEST_SIZE;
@@ -75,25 +75,31 @@ impl<F: PrimeField32> MachineAir<F> for PublicValuesChip {
             })
             .collect::<Vec<_>>();
 
-        assert!(
-            commit_pv_hash_instrs.len() == 1,
-            "Expected exactly one CommitPVHash instruction."
-        );
-
-        let CommitPVHashInstr { pv_addrs } = commit_pv_hash_instrs[0];
-        for (i, addr) in pv_addrs.iter().enumerate() {
-            let mut row = [F::zero(); NUM_PUBLIC_VALUES_PREPROCESSED_COLS];
-            let cols: &mut PublicValuesPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
-            cols.pv_idx[i] = F::one();
-            cols.pv_mem = MemoryAccessCols {
-                addr: *addr,
-                read_mult: F::one(),
-                write_mult: F::zero(),
-            };
-            rows.push(row);
+        if commit_pv_hash_instrs.len() != 1 {
+            tracing::warn!("Expected exactly one CommitPVHash instruction.");
         }
 
-        assert!(rows.len() == DIGEST_SIZE);
+        // We only take 1 commit pv hash instruction, since our air only checks for one public values hash.
+        for instr in commit_pv_hash_instrs.iter().take(1) {
+            for (i, addr) in instr.pv_addrs.iter().enumerate() {
+                let mut row: [F; 11] = [F::zero(); NUM_PUBLIC_VALUES_PREPROCESSED_COLS];
+                let cols: &mut PublicValuesPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
+                cols.pv_idx[i] = F::one();
+                cols.pv_mem = MemoryAccessCols {
+                    addr: *addr,
+                    read_mult: F::one(),
+                    write_mult: F::zero(),
+                };
+                rows.push(row);
+            }
+        }
+
+        // Pad the preprocessed rows to 8 rows.
+        pad_rows_fixed(
+            &mut rows,
+            || [F::zero(); NUM_PUBLIC_VALUES_PREPROCESSED_COLS],
+            Some(3),
+        );
 
         let trace = RowMajorMatrix::new(
             rows.into_iter().flatten().collect(),
@@ -107,15 +113,30 @@ impl<F: PrimeField32> MachineAir<F> for PublicValuesChip {
         input: &ExecutionRecord<F>,
         _: &mut ExecutionRecord<F>,
     ) -> RowMajorMatrix<F> {
-        assert!(input.commit_pv_hash_events.len() == 1);
-
-        let mut rows = [F::zero(); NUM_PUBLIC_VALUES_COLS * DIGEST_SIZE];
-        for (i, event) in input.commit_pv_hash_events[0].pv_hash.iter().enumerate() {
-            rows[i] = *event;
+        if input.commit_pv_hash_events.len() != 1 {
+            tracing::warn!("Expected exactly one CommitPVHash event.");
         }
 
+        assert!(input.commit_pv_hash_events.len() == 1);
+
+        let mut rows: Vec<[F; NUM_PUBLIC_VALUES_COLS]> = Vec::new();
+
+        // We only take 1 commit pv hash instruction, since our air only checks for one public values hash.
+        for event in input.commit_pv_hash_events.iter().take(1) {
+            for element in event.pv_hash.iter() {
+                let mut row = [F::zero(); NUM_PUBLIC_VALUES_COLS];
+                let cols: &mut PublicValuesCols<F> = row.as_mut_slice().borrow_mut();
+
+                cols.pv_element = *element;
+                rows.push(row);
+            }
+        }
+
+        // Pad the trace to 8 rows.
+        pad_rows_fixed(&mut rows, || [F::zero(); NUM_PUBLIC_VALUES_COLS], Some(3));
+
         // Convert the trace to a row major matrix.
-        RowMajorMatrix::new(rows.to_vec(), NUM_PUBLIC_VALUES_COLS)
+        RowMajorMatrix::new(rows.into_iter().flatten().collect(), NUM_PUBLIC_VALUES_COLS)
     }
 
     fn included(&self, _record: &Self::Record) -> bool {
