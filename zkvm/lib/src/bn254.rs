@@ -1,4 +1,4 @@
-use crate::utils::AffinePointV2;
+use crate::utils::AffinePoint;
 use crate::{syscall_bn254_add, syscall_bn254_double};
 
 /// The number of limbs in [Bn254AffinePoint].
@@ -9,7 +9,7 @@ pub const N: usize = 16;
 #[repr(align(4))]
 pub struct Bn254AffinePoint(pub [u32; N]);
 
-impl AffinePointV2<N> for Bn254AffinePoint {
+impl AffinePoint<N> for Bn254AffinePoint {
     /// The generator has been taken from py_pairing python library by the Ethereum Foundation:
     ///
     /// https://github.com/ethereum/py_pairing/blob/5f609da/py_ecc/bn128/bn128_field_elements.py

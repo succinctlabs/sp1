@@ -1,4 +1,4 @@
-use crate::utils::AffinePointV2;
+use crate::utils::AffinePoint;
 use crate::{syscall_bls12381_add, syscall_bls12381_double};
 
 /// The number of limbs in [Bls12381AffinePoint].
@@ -9,7 +9,7 @@ pub const N: usize = 24;
 #[repr(align(4))]
 pub struct Bls12381AffinePoint(pub [u32; N]);
 
-impl AffinePointV2<N> for Bls12381AffinePoint {
+impl AffinePoint<N> for Bls12381AffinePoint {
     /// The generator was taken from "py_ecc" python library by the Ethereum Foundation:
     ///
     /// https://github.com/ethereum/py_ecc/blob/7b9e1b3/py_ecc/bls12_381/bls12_381_curve.py#L38-L45

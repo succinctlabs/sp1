@@ -1,4 +1,4 @@
-pub trait AffinePointV2<const N: usize>: Clone + Sized {
+pub trait AffinePoint<const N: usize>: Clone + Sized {
     /// The generator.
     const GENERATOR: [u32; N];
 

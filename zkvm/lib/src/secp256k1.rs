@@ -1,4 +1,4 @@
-use crate::utils::AffinePointV2;
+use crate::utils::AffinePoint;
 use crate::{syscall_secp256k1_add, syscall_secp256k1_double};
 
 /// The number of limbs in [Bn254AffinePoint].
@@ -9,7 +9,7 @@ pub const N: usize = 16;
 #[repr(align(4))]
 pub struct Secp256k1AffinePoint(pub [u32; N]);
 
-impl AffinePointV2<N> for Secp256k1AffinePoint {
+impl AffinePoint<N> for Secp256k1AffinePoint {
     /// The values are taken from https://en.bitcoin.it/wiki/Secp256k1.
     const GENERATOR: [u32; N] = [
         385357720, 1509065051, 768485593, 43777243, 3464956679, 1436574357, 4191992748, 2042521214,
