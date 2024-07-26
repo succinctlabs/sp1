@@ -4,6 +4,7 @@ pub mod two_adic_pcs;
 pub mod types;
 
 pub use domain::*;
+use p3_util::reverse_bits_len;
 use sp1_primitives::types::RecursionProgramType;
 use sp1_recursion_compiler::ir::ExtensionOperand;
 use sp1_recursion_compiler::ir::Ptr;
@@ -101,7 +102,7 @@ pub fn verify_challenges<C: Config>(
 {
     let nb_commit_phase_commits = proof.commit_phase_commits.len().materialize(builder);
     let log_max_height =
-        builder.eval(nb_commit_phase_commits + config.log_blowup + config.log_blowup);
+        builder.eval(nb_commit_phase_commits + config.log_blowup + config.log_final_poly_len);
     builder
         .range(0, challenges.query_indices.len())
         .for_each(|i, builder| {
@@ -121,12 +122,19 @@ pub fn verify_challenges<C: Config>(
             );
 
             // Bitshift the index bits to the right.
-            let final_poly_index_bits =
-                index_bits.slice(builder, proof.commit_phase_commits.len(), index_bits.len());
+            // let index_length = commit_phase.len().materialize(builder);
+            let mut final_poly_index_bits = builder.array(log_max_height);
+            builder
+                .range(0, log_max_height)
+                .for_each(|j, builder| builder.set(&mut final_poly_index_bits, j, C::N::zero()));
 
-            let mut eval: Ext<_, _> = builder.eval(C::F::zero());
+            let nb_bits: Var<_> = builder.eval(index_bits.len() - nb_commit_phase_commits);
+            builder.range(0, nb_bits).for_each(|j, builder| {
+                let new_index: Var<_> = builder.eval(j + nb_commit_phase_commits);
+                let bit = builder.get(&index_bits, new_index);
+                builder.set(&mut final_poly_index_bits, j, bit);
+            });
 
-            let mut x_pow: Ext<_, _> = builder.eval(C::F::one());
             let two_adic_generator_f = config.get_two_adic_generator(builder, log_max_height);
 
             let x = if matches!(builder.program_type, RecursionProgramType::Wrap) {
@@ -142,12 +150,19 @@ pub fn verify_challenges<C: Config>(
                     log_max_height,
                 )
             };
+
+            builder.print_f(two_adic_generator_f);
+            builder.print_f(x);
+
+            let eval: Ext<_, _> = builder.eval(C::F::zero());
+            let x_pow: Ext<_, _> = builder.eval(C::F::one());
+
             builder
                 .range(0, proof.final_poly.len())
                 .for_each(|j, builder| {
                     let poly_coeff = builder.get(&proof.final_poly, j);
-                    eval = builder.eval(eval + poly_coeff * x_pow);
-                    x_pow = builder.eval(x_pow * x);
+                    builder.assign(eval, eval + poly_coeff * x_pow);
+                    builder.assign(x_pow, x_pow * x);
                 });
 
             builder.assert_ext_eq(folded_eval, eval);

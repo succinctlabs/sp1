@@ -185,8 +185,8 @@ pub fn verify_challenges<C: Config>(
 
         // `index` is a query index, so it should be expressed in `log_max_height` bits.
         let index_bits = builder.num2bits_v_circuit(index, log_max_height);
-        let mut eval: Ext<C::F, C::EF> = builder.eval(SymbolicExt::from_f(C::EF::zero()));
-        let mut x_pow: Ext<C::F, C::EF> = builder.eval(SymbolicExt::from_f(C::EF::one()));
+        let eval: Ext<C::F, C::EF> = builder.eval(SymbolicExt::from_f(C::EF::zero()));
+        let x_pow: Ext<C::F, C::EF> = builder.eval(SymbolicExt::from_f(C::EF::one()));
         let rev_reduced_index = builder.reverse_bits_len_circuit(
             index_bits[proof.commit_phase_commits.len()..log_max_height].into(),
             log_max_height,
@@ -197,8 +197,8 @@ pub fn verify_challenges<C: Config>(
         let x = builder.exp_e_bits(two_adic_generator, rev_reduced_index);
 
         for coeff in &proof.final_poly {
-            eval = builder.eval(eval + *coeff * x_pow);
-            x_pow = builder.eval(x * x_pow);
+            builder.assign(eval, eval + *coeff * x_pow);
+            builder.assign(x, x * x_pow);
         }
         builder.assert_ext_eq(folded_eval, eval);
     }

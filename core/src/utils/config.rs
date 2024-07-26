@@ -63,7 +63,7 @@ pub fn sp1_fri_config() -> FriConfig<InnerChallengeMmcs> {
     };
     FriConfig {
         log_blowup: 1,
-        log_final_poly_len: 1,
+        log_final_poly_len: 5,
         num_queries,
         proof_of_work_bits: 16,
         mmcs: challenge_mmcs,
@@ -82,7 +82,7 @@ pub fn inner_fri_config() -> FriConfig<InnerChallengeMmcs> {
     };
     FriConfig {
         log_blowup: 1,
-        log_final_poly_len: 1,
+        log_final_poly_len: 5,
         num_queries,
         proof_of_work_bits: 16,
         mmcs: challenge_mmcs,
