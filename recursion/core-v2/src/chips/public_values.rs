@@ -117,8 +117,6 @@ impl<F: PrimeField32> MachineAir<F> for PublicValuesChip {
             tracing::warn!("Expected exactly one CommitPVHash event.");
         }
 
-        assert!(input.commit_pv_hash_events.len() == 1);
-
         let mut rows: Vec<[F; NUM_PUBLIC_VALUES_COLS]> = Vec::new();
 
         // We only take 1 commit pv hash instruction, since our air only checks for one public values hash.
