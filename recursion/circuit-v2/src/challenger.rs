@@ -96,8 +96,7 @@ impl<C: Config> DuplexChallengerVariable<C> {
         self.sponge_state[0..self.input_buffer.len()].copy_from_slice(self.input_buffer.as_slice());
         self.input_buffer.clear();
 
-        // BUG HERE (change to wide to make it work)
-        self.sponge_state = builder.poseidon2_permute_v2_skinny(self.sponge_state);
+        self.sponge_state = builder.poseidon2_permute_v2_wide(self.sponge_state);
 
         self.output_buffer.clear();
         self.output_buffer.extend_from_slice(&self.sponge_state);
@@ -263,15 +262,6 @@ pub(crate) mod tests {
 
         let machine = RecursionAir::<_, 3, 0>::machine_with_all_chips(BabyBearPoseidon2::default());
         let (pk, vk) = machine.setup(&program);
-
-        // Run with RUST_LOG=debug
-        // TODO remove
-        assert!(sp1_core::lookup::debug_interactions_with_all_chips(
-            &machine,
-            &pk,
-            &records,
-            sp1_core::lookup::InteractionKind::all_kinds(),
-        ));
 
         let result = run_test_machine(records.clone(), machine, pk, vk);
         if let Err(e) = result {
