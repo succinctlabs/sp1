@@ -7,37 +7,14 @@ pub mod syscalls;
 pub mod io {
     pub use sp1_lib::io::*;
 }
+
 #[cfg(feature = "lib")]
 pub mod lib {
     pub use sp1_lib::*;
 }
 
-#[macro_export]
-macro_rules! entrypoint {
-    ($path:path) => {
-        const ZKVM_ENTRY: fn() = $path;
-
-        use $crate::heap::SimpleAlloc;
-
-        #[global_allocator]
-        static HEAP: SimpleAlloc = SimpleAlloc;
-
-        mod zkvm_generated_main {
-
-            #[no_mangle]
-            fn main() {
-                super::ZKVM_ENTRY()
-            }
-        }
-    };
-}
-
 #[cfg(all(target_os = "zkvm", feature = "libm"))]
 mod libm;
-
-/// The number of 32 bit words that the public values digest is composed of.
-pub const PV_DIGEST_NUM_WORDS: usize = 8;
-pub const POSEIDON_NUM_WORDS: usize = 8;
 
 #[cfg(target_os = "zkvm")]
 mod zkvm {
@@ -98,7 +75,7 @@ mod zkvm {
         sym STACK_TOP
     );
 
-    fn zkvm_getrandom(s: &mut [u8]) -> Result<(), Error> {
+    pub fn zkvm_getrandom(s: &mut [u8]) -> Result<(), Error> {
         unsafe {
             crate::syscalls::sys_rand(s.as_mut_ptr(), s.len());
         }
@@ -107,4 +84,24 @@ mod zkvm {
     }
 
     register_custom_getrandom!(zkvm_getrandom);
+}
+
+#[macro_export]
+macro_rules! entrypoint {
+    ($path:path) => {
+        const ZKVM_ENTRY: fn() = $path;
+
+        use $crate::heap::SimpleAlloc;
+
+        #[global_allocator]
+        static HEAP: SimpleAlloc = SimpleAlloc;
+
+        mod zkvm_generated_main {
+
+            #[no_mangle]
+            fn main() {
+                super::ZKVM_ENTRY()
+            }
+        }
+    };
 }

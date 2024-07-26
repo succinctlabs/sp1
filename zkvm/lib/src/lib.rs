@@ -1,4 +1,4 @@
-//! System calls for the SP1 zkVM.
+//! Syscalls for the SP1 zkVM.
 
 #[cfg(feature = "bls12381")]
 pub mod bls12381;

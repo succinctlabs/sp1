@@ -165,17 +165,3 @@ impl<F: AbstractField> From<PublicValues<u32, u32>> for PublicValues<Word<F>, F>
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use crate::air::public_values;
-
-    /// Check that the PI_DIGEST_NUM_WORDS number match the zkVM crate's.
-    #[test]
-    fn test_public_values_digest_num_words_consistency_zkvm() {
-        assert_eq!(
-            public_values::PV_DIGEST_NUM_WORDS,
-            sp1_zkvm::PV_DIGEST_NUM_WORDS
-        );
-    }
-}
