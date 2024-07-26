@@ -19,7 +19,7 @@ mod tests {
             fri_fold::FriFoldChip, mem::MemoryChip, poseidon2_wide::Poseidon2WideChip,
         },
         machine::RecursionAir,
-        RecursionProgram, Runtime,
+        Runtime,
     };
 
     use crate::{asm::AsmBuilder, circuit::AsmCompiler, ir::*};
@@ -77,8 +77,7 @@ mod tests {
 
         let operations = builder.operations;
         let mut compiler = AsmCompiler::default();
-        let instructions = compiler.compile(operations);
-        let program = RecursionProgram { instructions };
+        let program = compiler.compile(operations);
         let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(
             &program,
             BabyBearPoseidon2Inner::new().perm,

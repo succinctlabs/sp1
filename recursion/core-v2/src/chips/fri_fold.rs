@@ -567,7 +567,10 @@ mod tests {
             })
             .collect::<Vec<Instruction<F>>>();
 
-        let program = RecursionProgram { instructions };
+        let program = RecursionProgram {
+            instructions,
+            traces: Default::default(),
+        };
 
         let config = SC::new();
 

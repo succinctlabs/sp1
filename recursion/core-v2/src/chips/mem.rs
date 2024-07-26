@@ -266,6 +266,7 @@ mod tests {
                 instr::mem(MemAccessKind::Write, 1, 1, 2),
                 instr::mem(MemAccessKind::Read, 1, 1, 2),
             ],
+            traces: Default::default(),
         });
     }
 
@@ -277,6 +278,7 @@ mod tests {
                 instr::mem(MemAccessKind::Write, 1, 1, 2),
                 instr::mem(MemAccessKind::Read, 999, 1, 2),
             ],
+            traces: Default::default(),
         });
     }
 
@@ -288,6 +290,7 @@ mod tests {
                 instr::mem(MemAccessKind::Write, 1, 1, 2),
                 instr::mem(MemAccessKind::Read, 1, 999, 2),
             ],
+            traces: Default::default(),
         });
     }
 
@@ -299,6 +302,7 @@ mod tests {
                 instr::mem(MemAccessKind::Write, 1, 1, 2),
                 instr::mem(MemAccessKind::Read, 1, 1, 999),
             ],
+            traces: Default::default(),
         });
     }
 }

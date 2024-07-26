@@ -4,7 +4,10 @@ use instruction::{FieldEltType, HintBitsInstr, HintExt2FeltsInstr, PrintInstr};
 use p3_field::{AbstractExtensionField, AbstractField, Field, PrimeField, TwoAdicField};
 use sp1_recursion_core::air::Block;
 use sp1_recursion_core_v2::{BaseAluInstr, BaseAluOpcode};
-use std::collections::{hash_map::Entry, HashMap};
+use std::{
+    collections::{hash_map::Entry, HashMap},
+    iter::{repeat, zip},
+};
 
 use sp1_recursion_core_v2::*;
 
@@ -485,7 +488,7 @@ impl<C: Config> AsmCompiler<C> {
     }
 
     /// Emit the instructions from a list of operations in the DSL.
-    pub fn compile<F>(&mut self, operations: TracedVec<DslIr<C>>) -> Vec<Instruction<C::F>>
+    pub fn compile<F>(&mut self, operations: TracedVec<DslIr<C>>) -> RecursionProgram<C::F>
     where
         F: PrimeField + TwoAdicField,
         C: Config<N = F, F = F> + Debug,
@@ -494,14 +497,14 @@ impl<C: Config> AsmCompiler<C> {
         // This step also counts the number of times each address is read from.
         let mut instrs = operations
             .into_iter()
-            .flat_map(|(ir_instr, _)| self.compile_one(ir_instr))
+            .flat_map(|(ir_instr, trace)| zip(self.compile_one(ir_instr), repeat(trace)))
             .collect::<Vec<_>>();
 
         // Replace the mults using the address count data gathered in this previous.
         // Exhaustive match for refactoring purposes.
         instrs
             .iter_mut()
-            .flat_map(|asm_instr| match asm_instr {
+            .flat_map(|(asm_instr, _)| match asm_instr {
                 Instruction::BaseAlu(BaseAluInstr {
                     mult,
                     addrs: BaseAluIo { ref out, .. },
@@ -583,7 +586,11 @@ impl<C: Config> AsmCompiler<C> {
         self.next_addr = Default::default();
         self.fp_to_addr.clear();
         // Place constant-initializing instructions at the top.
-        instrs_consts.chain(instrs).collect()
+        let (instructions, traces) = zip(instrs_consts, repeat(None)).chain(instrs).unzip();
+        RecursionProgram {
+            instructions,
+            traces,
+        }
     }
 }
 
@@ -748,8 +755,7 @@ mod tests {
         run: impl FnOnce(&RecursionProgram<F>) -> ExecutionRecord<F>,
     ) {
         let mut compiler = super::AsmCompiler::<AsmConfig<F, EF>>::default();
-        let instructions = compiler.compile(operations);
-        let program = RecursionProgram { instructions };
+        let program = compiler.compile(operations);
         let record = run(&program);
 
         let config = SC::new();

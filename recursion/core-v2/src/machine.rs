@@ -241,7 +241,10 @@ mod tests {
     type A = RecursionAir<F, 3, 1>;
 
     fn test_instructions(instructions: Vec<Instruction<F>>) {
-        let program = RecursionProgram { instructions };
+        let program = RecursionProgram {
+            instructions,
+            traces: Default::default(),
+        };
         let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(
             &program,
             BabyBearPoseidon2Inner::new().perm,

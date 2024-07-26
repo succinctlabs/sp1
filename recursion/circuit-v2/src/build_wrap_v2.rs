@@ -178,7 +178,10 @@ where
         .collect::<Vec<_>>();
 
     let machine = machine_maker();
-    let program = RecursionProgram { instructions };
+    let program = RecursionProgram {
+        instructions,
+        traces: Default::default(),
+    };
     let mut runtime = Runtime::<
         BabyBear,
         BinomialExtensionField<BabyBear, 4>,

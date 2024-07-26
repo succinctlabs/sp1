@@ -173,7 +173,10 @@ pub(crate) mod tests {
                 }))
                 .collect::<Vec<_>>();
 
-        let program = RecursionProgram { instructions };
+        let program = RecursionProgram {
+            instructions,
+            traces: Default::default(),
+        };
         let mut runtime =
             Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program, BabyBearPoseidon2::new().perm);
         runtime.run();
