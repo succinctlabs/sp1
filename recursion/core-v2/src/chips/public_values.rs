@@ -23,7 +23,7 @@ pub const NUM_PUBLIC_VALUES_PREPROCESSED_COLS: usize =
 #[derive(Default)]
 pub struct PublicValuesChip<const DEGREE: usize> {}
 
-/// The preprocessed columns for a FRI fold invocation.
+/// The preprocessed columns for the CommitPVHash instruction.
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct PublicValuesPreprocessedCols<T: Copy> {
@@ -31,6 +31,7 @@ pub struct PublicValuesPreprocessedCols<T: Copy> {
     pub pv_mem: MemoryAccessCols<T>,
 }
 
+/// The cols for a CommitPVHash invocation.
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct PublicValuesCols<T: Copy> {
@@ -149,5 +150,95 @@ where
                 .when(local_prepr.pv_idx[i])
                 .assert_eq(pv_elms[i].clone(), local.pv_element);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use rand::rngs::StdRng;
+    use rand::Rng;
+    use rand::SeedableRng;
+    use sp1_core::air::MachineAir;
+    use sp1_core::utils::run_test_machine;
+    use sp1_core::utils::setup_logger;
+    use sp1_core::utils::BabyBearPoseidon2;
+    use sp1_core::utils::DIGEST_SIZE;
+    use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
+    use std::array;
+
+    use p3_baby_bear::BabyBear;
+    use p3_baby_bear::DiffusionMatrixBabyBear;
+    use p3_field::AbstractField;
+    use p3_matrix::dense::RowMajorMatrix;
+    use sp1_core::stark::StarkGenericConfig;
+
+    use crate::chips::public_values::PublicValuesChip;
+    use crate::CommitPVHashEvent;
+    use crate::{
+        machine::RecursionAir,
+        runtime::{instruction as instr, ExecutionRecord},
+        MemAccessKind, RecursionProgram, Runtime,
+    };
+
+    #[test]
+    fn prove_babybear_circuit_public_values() {
+        setup_logger();
+        type SC = BabyBearPoseidon2Outer;
+        type F = <SC as StarkGenericConfig>::Val;
+        type EF = <SC as StarkGenericConfig>::Challenge;
+        type A = RecursionAir<F, 3, 1>;
+
+        let mut rng = StdRng::seed_from_u64(0xDEADBEEF);
+        let mut random_felt = move || -> F { F::from_canonical_u32(rng.gen_range(0..1 << 16)) };
+        let random_pv_hash: [F; DIGEST_SIZE] = array::from_fn(|_| random_felt());
+        let addr = 0u32;
+
+        let mut instructions = Vec::new();
+        // Allocate the memory for the public values hash.
+        let public_values_hash_a: [u32; DIGEST_SIZE] = array::from_fn(|i| i as u32 + addr);
+
+        for i in 0..DIGEST_SIZE {
+            instructions.push(instr::mem_block(
+                MemAccessKind::Write,
+                1,
+                public_values_hash_a[i] as u32,
+                random_pv_hash[i].into(),
+            ));
+        }
+
+        instructions.push(instr::commit_pv_hash(public_values_hash_a));
+
+        let program = RecursionProgram { instructions };
+
+        let config = SC::new();
+
+        let mut runtime =
+            Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program, BabyBearPoseidon2::new().perm);
+        runtime.run();
+        let machine = A::machine(config);
+        let (pk, vk) = machine.setup(&program);
+        let result = run_test_machine(vec![runtime.record], machine, pk, vk);
+        if let Err(e) = result {
+            panic!("Verification failed: {:?}", e);
+        }
+    }
+
+    #[test]
+    fn generate_public_values_circuit_trace() {
+        type F = BabyBear;
+
+        let mut rng = StdRng::seed_from_u64(0xDEADBEEF);
+        let mut random_felt = move || -> F { F::from_canonical_u32(rng.gen_range(0..1 << 16)) };
+        let random_digest = [random_felt(); DIGEST_SIZE];
+
+        let shard = ExecutionRecord {
+            commit_pv_hash_events: vec![CommitPVHashEvent {
+                pv_hash: random_digest,
+            }],
+            ..Default::default()
+        };
+        let chip = PublicValuesChip::<3>::default();
+        let trace: RowMajorMatrix<F> = chip.generate_trace(&shard, &mut ExecutionRecord::default());
+        println!("{:?}", trace.values)
     }
 }

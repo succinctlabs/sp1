@@ -22,7 +22,6 @@ pub struct ExecutionRecord<F> {
     pub poseidon2_wide_events: Vec<Poseidon2WideEvent<F>>,
     pub exp_reverse_bits_len_events: Vec<ExpReverseBitsEvent<F>>,
     pub fri_fold_events: Vec<FriFoldEvent<F>>,
-
     pub commit_pv_hash_events: Vec<CommitPVHashEvent<F>>,
 }
 

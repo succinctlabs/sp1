@@ -1,3 +1,5 @@
+use std::array;
+
 use p3_field::{AbstractExtensionField, AbstractField};
 use serde::{Deserialize, Serialize};
 
@@ -225,5 +227,11 @@ pub fn fri_fold<F: AbstractField>(
             .iter()
             .map(|mult| F::from_canonical_u32(*mult))
             .collect(),
+    })
+}
+
+pub fn commit_pv_hash<F: AbstractField>(addrs: [u32; DIGEST_SIZE]) -> Instruction<F> {
+    Instruction::CommitPVHash(CommitPVHashInstr {
+        pv_addrs: array::from_fn(|i| Address(F::from_canonical_u32(addrs[i]))),
     })
 }
