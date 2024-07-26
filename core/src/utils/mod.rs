@@ -91,10 +91,7 @@ pub fn pad_rows_fixed<R: Clone>(
 ) {
     let nb_rows = rows.len();
     let dummy_row = row_fn();
-    rows.resize(
-        next_power_of_two(nb_rows, size_log2).max(MIN_NUM_ROWS),
-        dummy_row,
-    );
+    rows.resize(next_power_of_two(nb_rows, size_log2), dummy_row);
 }
 
 /// Returns the next power of two that is >= `n` and >= 16. If `fixed_power` is set, it will return
@@ -120,8 +117,8 @@ pub fn next_power_of_two(n: usize, fixed_power: Option<usize>) -> usize {
         }
         None => {
             let mut padded_nb_rows = n.next_power_of_two();
-            if padded_nb_rows < 16 {
-                padded_nb_rows = 16;
+            if padded_nb_rows < MIN_NUM_ROWS {
+                padded_nb_rows = MIN_NUM_ROWS;
             }
             padded_nb_rows
         }

@@ -7,6 +7,7 @@ use p3_matrix::Dimensions;
 use p3_util::log2_strict_usize;
 use sp1_recursion_compiler::ir::{Builder, Config, Felt};
 use sp1_recursion_compiler::prelude::*;
+use sp1_recursion_core::runtime::NUM_BITS;
 use sp1_recursion_core::stark::config::OuterChallengeMmcs;
 
 use crate::mmcs::verify_batch;
@@ -183,14 +184,26 @@ pub fn verify_challenges<C: Config>(
             log_max_height,
         );
 
-        // `index` is a query index, so it should be expressed in `log_max_height` bits.
-        let index_bits = builder.num2bits_v_circuit(index, log_max_height);
+        let index_bits = builder.num2bits_v_circuit(index, 32);
         let eval: Ext<C::F, C::EF> = builder.eval(SymbolicExt::from_f(C::EF::zero()));
         let x_pow: Ext<C::F, C::EF> = builder.eval(SymbolicExt::from_f(C::EF::one()));
-        let rev_reduced_index = builder.reverse_bits_len_circuit(
-            index_bits[proof.commit_phase_commits.len()..log_max_height].into(),
-            log_max_height,
+        println!("index bits len: {:?}", index_bits.len());
+        println!(
+            "proof commit phase len: {:?}",
+            proof.commit_phase_commits.len()
         );
+        println!("log max height: {:?}", log_max_height);
+
+        let final_poly_index_bits: Vec<Var<C::N>> = vec![builder.eval(C::N::zero()); 32];
+        for i in 0..(32 - proof.commit_phase_commits.len()) {
+            builder.assign(
+                final_poly_index_bits[i],
+                index_bits[i + proof.commit_phase_commits.len()],
+            );
+        }
+
+        let rev_reduced_index =
+            builder.reverse_bits_len_circuit(final_poly_index_bits, log_max_height);
         let two_adic_generator = builder.eval(SymbolicExt::from_f(C::EF::two_adic_generator(
             log_max_height,
         )));
