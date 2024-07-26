@@ -178,13 +178,16 @@ where
         .collect::<Vec<_>>();
 
     let machine = machine_maker();
-    let program = RecursionProgram { instructions };
+    let program = RecursionProgram {
+        instructions,
+        traces: Default::default(),
+    };
     let mut runtime = Runtime::<
         BabyBear,
         BinomialExtensionField<BabyBear, 4>,
         DiffusionMatrixBabyBear,
     >::new(&program, BabyBearPoseidon2Inner::new().perm);
-    runtime.run();
+    runtime.run().unwrap();
 
     let (pk, vk) = machine.setup(&program);
     let result = run_test_machine(vec![runtime.record], machine, pk, vk.clone()).unwrap();

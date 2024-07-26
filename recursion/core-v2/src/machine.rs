@@ -3,7 +3,7 @@ use sp1_core::stark::{Chip, StarkGenericConfig, StarkMachine, PROOF_MAX_NUM_PVS}
 use sp1_derive::MachineAir;
 use sp1_recursion_core::runtime::D;
 
-use crate::{
+use crate::chips::{
     alu_base::BaseAluChip, alu_ext::ExtAluChip, dummy::DummyChip,
     exp_reverse_bits::ExpReverseBitsLenChip, fri_fold::FriFoldChip, mem::MemoryChip,
     poseidon2_skinny::Poseidon2SkinnyChip, poseidon2_wide::Poseidon2WideChip,
@@ -241,12 +241,15 @@ mod tests {
     type A = RecursionAir<F, 3, 1>;
 
     fn test_instructions(instructions: Vec<Instruction<F>>) {
-        let program = RecursionProgram { instructions };
+        let program = RecursionProgram {
+            instructions,
+            traces: Default::default(),
+        };
         let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(
             &program,
             BabyBearPoseidon2Inner::new().perm,
         );
-        runtime.run();
+        runtime.run().unwrap();
 
         let config = SC::new();
         let machine = A::machine(config);

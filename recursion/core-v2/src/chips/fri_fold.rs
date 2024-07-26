@@ -2,11 +2,12 @@
 
 use core::borrow::Borrow;
 use itertools::Itertools;
+use sp1_core::air::{BaseAirBuilder, BinomialExtension, ExtensionAirBuilder};
 use std::borrow::BorrowMut;
 use tracing::instrument;
 
-use p3_air::PairBuilder;
 use p3_air::{Air, BaseAir};
+use p3_air::{AirBuilder, PairBuilder};
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
@@ -17,10 +18,11 @@ use sp1_recursion_core::air::Block;
 
 use crate::{
     builder::SP1RecursionAirBuilder,
-    mem::MemoryAccessCols,
     runtime::{Instruction, RecursionProgram},
     ExecutionRecord, FriFoldInstr,
 };
+
+use super::mem::MemoryAccessCols;
 
 pub const NUM_FRI_FOLD_COLS: usize = core::mem::size_of::<FriFoldCols<u8>>();
 pub const NUM_FRI_FOLD_PREPROCESSED_COLS: usize =
@@ -44,7 +46,7 @@ impl<const DEGREE: usize> Default for FriFoldChip<DEGREE> {
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct FriFoldPreprocessedCols<T: Copy> {
-    pub is_last_iteration: T,
+    pub is_first: T,
 
     // Memory accesses for the single fields.
     pub z_mem: MemoryAccessCols<T>,
@@ -127,8 +129,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldChip<DEGREE>
 
                 row_add.iter_mut().enumerate().for_each(|(i, row)| {
                     let row: &mut FriFoldPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
-
-                    row.is_last_iteration = F::from_bool(i == ext_vec_addrs.ps_at_z.len() - 1);
+                    row.is_first = F::from_bool(i == 0);
 
                     // Only need to read z, x, and alpha on the first iteration, hence the
                     // multiplicities are i==0.
@@ -265,254 +266,108 @@ impl<const DEGREE: usize> FriFoldChip<DEGREE> {
         &self,
         builder: &mut AB,
         local: &FriFoldCols<AB::Var>,
-        _next: &FriFoldCols<AB::Var>,
+        next: &FriFoldCols<AB::Var>,
         local_prepr: &FriFoldPreprocessedCols<AB::Var>,
-        _receive_table: AB::Var,
-        _memory_access: AB::Var,
+        next_prepr: &FriFoldPreprocessedCols<AB::Var>,
     ) {
-        // Constrain the memory accesses.
-
+        // Constrain mem read for x.  Read at the first fri fold row.
         builder.receive_single(local_prepr.x_mem.addr, local.x, local_prepr.x_mem.read_mult);
 
+        // Ensure that the x value is the same for all rows within a fri fold invocation.
+        builder
+            .when_transition()
+            .when(next_prepr.is_real)
+            .when_not(next_prepr.is_first)
+            .assert_eq(local.x, next.x);
+
+        // Constrain mem read for z.  Read at the first fri fold row.
         builder.receive_block(local_prepr.z_mem.addr, local.z, local_prepr.z_mem.read_mult);
 
+        // Ensure that the z value is the same for all rows within a fri fold invocation.
+        builder
+            .when_transition()
+            .when(next_prepr.is_real)
+            .when_not(next_prepr.is_first)
+            .assert_ext_eq(local.z.as_extension::<AB>(), next.z.as_extension::<AB>());
+
+        // Constrain mem read for alpha.  Read at the first fri fold row.
         builder.receive_block(
             local_prepr.alpha_mem.addr,
             local.alpha,
             local_prepr.alpha_mem.read_mult,
         );
 
+        // Ensure that the alpha value is the same for all rows within a fri fold invocation.
+        builder
+            .when_transition()
+            .when(next_prepr.is_real)
+            .when_not(next_prepr.is_first)
+            .assert_ext_eq(
+                local.alpha.as_extension::<AB>(),
+                next.alpha.as_extension::<AB>(),
+            );
+
+        // Constrain read for alpha_pow_input.
         builder.receive_block(
             local_prepr.alpha_pow_input_mem.addr,
             local.alpha_pow_input,
             local_prepr.alpha_pow_input_mem.read_mult,
         );
 
+        // Constrain read for ro_input.
         builder.receive_block(
             local_prepr.ro_input_mem.addr,
             local.ro_input,
             local_prepr.ro_input_mem.read_mult,
         );
 
+        // Constrain read for p_at_z.
         builder.receive_block(
             local_prepr.p_at_z_mem.addr,
             local.p_at_z,
             local_prepr.p_at_z_mem.read_mult,
         );
 
+        // Constrain read for p_at_x.
         builder.receive_block(
             local_prepr.p_at_x_mem.addr,
             local.p_at_x,
             local_prepr.p_at_x_mem.read_mult,
         );
 
+        // Constrain write for alpha_pow_output.
         builder.send_block(
             local_prepr.alpha_pow_output_mem.addr,
             local.alpha_pow_output,
             local_prepr.alpha_pow_output_mem.write_mult,
         );
 
+        // Constrain write for ro_output.
         builder.send_block(
             local_prepr.ro_output_mem.addr,
             local.ro_output,
             local_prepr.ro_output_mem.write_mult,
         );
 
-        // // Constraint that the operands are sent from the CPU table.
-        // let first_iteration_clk = local.clk.into() - local.m.into();
-        // let total_num_iterations = local.m.into() + AB::Expr::one();
-        // let operands = [
-        //     first_iteration_clk,
-        //     total_num_iterations,
-        //     local.input_ptr.into(),
-        //     AB::Expr::zero(),
-        // ];
-        // builder.receive_table(
-        //     Opcode::FRIFold.as_field::<AB::F>(),
-        //     &operands,
-        //     receive_table,
-        // );
+        // 1. Constrain new_value = old_value * alpha.
+        let alpha = local.alpha.as_extension::<AB>();
+        let old_alpha_pow = local.alpha_pow_input.as_extension::<AB>();
+        let new_alpha_pow = local.alpha_pow_output.as_extension::<AB>();
+        builder.assert_ext_eq(old_alpha_pow.clone() * alpha, new_alpha_pow.clone());
 
-        // builder.assert_bool(local.is_last_iteration);
-        // builder.assert_bool(local.is_real);
-
-        // builder
-        //     .when_transition()
-        //     .when_not(local.is_last_iteration)
-        //     .assert_eq(local.is_real, next.is_real);
-
-        // builder
-        //     .when(local.is_last_iteration)
-        //     .assert_one(local.is_real);
-
-        // builder
-        //     .when_transition()
-        //     .when_not(local.is_real)
-        //     .assert_zero(next.is_real);
-
-        // builder
-        //     .when_last_row()
-        //     .when_not(local.is_last_iteration)
-        //     .assert_zero(local.is_real);
-
-        // // Ensure that all first iteration rows has a m value of 0.
-        // builder.when_first_row().assert_zero(local.m);
-        // builder
-        //     .when(local.is_last_iteration)
-        //     .when_transition()
-        //     .when(next.is_real)
-        //     .assert_zero(next.m);
-
-        // // Ensure that all rows for a FRI FOLD invocation have the same input_ptr and sequential clk and m values.
-        // builder
-        //     .when_transition()
-        //     .when_not(local.is_last_iteration)
-        //     .when(next.is_real)
-        //     .assert_eq(next.m, local.m + AB::Expr::one());
-        // builder
-        //     .when_transition()
-        //     .when_not(local.is_last_iteration)
-        //     .when(next.is_real)
-        //     .assert_eq(local.input_ptr, next.input_ptr);
-        // builder
-        //     .when_transition()
-        //     .when_not(local.is_last_iteration)
-        //     .when(next.is_real)
-        //     .assert_eq(local.clk + AB::Expr::one(), next.clk);
-
-        // // Constrain read for `z` at `input_ptr`
-        // builder.recursion_eval_memory_access(
-        //     local.clk,
-        //     local.input_ptr + AB::Expr::zero(),
-        //     &local.z,
-        //     memory_access,
-        // );
-
-        // // Constrain read for `alpha`
-        // builder.recursion_eval_memory_access(
-        //     local.clk,
-        //     local.input_ptr + AB::Expr::one(),
-        //     &local.alpha,
-        //     memory_access,
-        // );
-
-        // // Constrain read for `x`
-        // builder.recursion_eval_memory_access_single(
-        //     local.clk,
-        //     local.input_ptr + AB::Expr::from_canonical_u32(2),
-        //     &local.x,
-        //     memory_access,
-        // );
-
-        // // Constrain read for `log_height`
-        // builder.recursion_eval_memory_access_single(
-        //     local.clk,
-        //     local.input_ptr + AB::Expr::from_canonical_u32(3),
-        //     &local.log_height,
-        //     memory_access,
-        // );
-
-        // // Constrain read for `mat_opening_ptr`
-        // builder.recursion_eval_memory_access_single(
-        //     local.clk,
-        //     local.input_ptr + AB::Expr::from_canonical_u32(4),
-        //     &local.mat_opening_ptr,
-        //     memory_access,
-        // );
-
-        // // Constrain read for `ps_at_z_ptr`
-        // builder.recursion_eval_memory_access_single(
-        //     local.clk,
-        //     local.input_ptr + AB::Expr::from_canonical_u32(6),
-        //     &local.ps_at_z_ptr,
-        //     memory_access,
-        // );
-
-        // // Constrain read for `alpha_pow_ptr`
-        // builder.recursion_eval_memory_access_single(
-        //     local.clk,
-        //     local.input_ptr + AB::Expr::from_canonical_u32(8),
-        //     &local.alpha_pow_ptr,
-        //     memory_access,
-        // );
-
-        // // Constrain read for `ro_ptr`
-        // builder.recursion_eval_memory_access_single(
-        //     local.clk,
-        //     local.input_ptr + AB::Expr::from_canonical_u32(10),
-        //     &local.ro_ptr,
-        //     memory_access,
-        // );
-
-        // // Constrain read for `p_at_x`
-        // builder.recursion_eval_memory_access(
-        //     local.clk,
-        //     local.mat_opening_ptr.access.value.into() + local.m.into(),
-        //     &local.p_at_x,
-        //     memory_access,
-        // );
-
-        // // Constrain read for `p_at_z`
-        // builder.recursion_eval_memory_access(
-        //     local.clk,
-        //     local.ps_at_z_ptr.access.value.into() + local.m.into(),
-        //     &local.p_at_z,
-        //     memory_access,
-        // );
-
-        // // Update alpha_pow_at_log_height.
-        // // 1. Constrain old and new value against memory
-        // builder.recursion_eval_memory_access(
-        //     local.clk,
-        //     local.alpha_pow_ptr.access.value.into() + local.log_height.access.value.into(),
-        //     &local.alpha_pow_at_log_height,
-        //     memory_access,
-        // );
-
-        // // 2. Constrain new_value = old_value * alpha.
-        // let alpha = local.alpha.access.value.as_extension::<AB>();
-        // let alpha_pow_at_log_height = local
-        //     .alpha_pow_at_log_height
-        //     .prev_value
-        //     .as_extension::<AB>();
-        // let new_alpha_pow_at_log_height = local
-        //     .alpha_pow_at_log_height
-        //     .access
-        //     .value
-        //     .as_extension::<AB>();
-
-        // builder.assert_ext_eq(
-        //     alpha_pow_at_log_height.clone() * alpha,
-        //     new_alpha_pow_at_log_height,
-        // );
-
-        // // Update ro_at_log_height.
-        // // 1. Constrain old and new value against memory.
-        // builder.recursion_eval_memory_access(
-        //     local.clk,
-        //     local.ro_ptr.access.value.into() + local.log_height.access.value.into(),
-        //     &local.ro_at_log_height,
-        //     memory_access,
-        // );
-
-        // // 2. Constrain new_value = old_alpha_pow_at_log_height * quotient + old_value,
-        // // where quotient = (p_at_x - p_at_z) / (x - z)
-        // // <=> (new_value - old_value) * (z - x) = old_alpha_pow_at_log_height * (p_at_x - p_at_z)
-        // let p_at_z = local.p_at_z.access.value.as_extension::<AB>();
-        // let p_at_x = local.p_at_x.access.value.as_extension::<AB>();
-        // let z = local.z.access.value.as_extension::<AB>();
-        // let x = local.x.access.value.into();
-
-        // let ro_at_log_height = local.ro_at_log_height.prev_value.as_extension::<AB>();
-        // let new_ro_at_log_height = local.ro_at_log_height.access.value.as_extension::<AB>();
-        // builder.assert_ext_eq(
-        //     (new_ro_at_log_height - ro_at_log_height) * (BinomialExtension::from_base(x) - z),
-        //     (p_at_x - p_at_z) * alpha_pow_at_log_height,
-        // );
-    }
-
-    pub const fn do_receive_table<T: Copy>(local: &FriFoldPreprocessedCols<T>) -> T {
-        local.is_last_iteration
+        // 2. Constrain new_value = old_alpha_pow * quotient + old_ro,
+        // where quotient = (p_at_x - p_at_z) / (x - z)
+        // <=> (new_ro - old_ro) * (z - x) = old_alpha_pow * (p_at_x - p_at_z)
+        let p_at_z = local.p_at_z.as_extension::<AB>();
+        let p_at_x = local.p_at_x.as_extension::<AB>();
+        let z = local.z.as_extension::<AB>();
+        let x = local.x.into();
+        let old_ro = local.ro_input.as_extension::<AB>();
+        let new_ro = local.ro_output.as_extension::<AB>();
+        builder.assert_ext_eq(
+            (new_ro.clone() - old_ro) * (BinomialExtension::from_base(x) - z),
+            (p_at_x - p_at_z) * old_alpha_pow,
+        );
     }
 
     pub const fn do_memory_access<T: Copy>(local: &FriFoldPreprocessedCols<T>) -> T {
@@ -530,8 +385,9 @@ where
         let local: &FriFoldCols<AB::Var> = (*local).borrow();
         let next: &FriFoldCols<AB::Var> = (*next).borrow();
         let prepr = builder.preprocessed();
-        let prepr_local = prepr.row_slice(0);
+        let (prepr_local, prepr_next) = (prepr.row_slice(0), prepr.row_slice(1));
         let prepr_local: &FriFoldPreprocessedCols<AB::Var> = (*prepr_local).borrow();
+        let prepr_next: &FriFoldPreprocessedCols<AB::Var> = (*prepr_next).borrow();
 
         // Dummy constraints to normalize to DEGREE.
         let lhs = (0..DEGREE)
@@ -542,22 +398,17 @@ where
             .product::<AB::Expr>();
         builder.assert_eq(lhs, rhs);
 
-        self.eval_fri_fold::<AB>(
-            builder,
-            local,
-            next,
-            prepr_local,
-            Self::do_receive_table::<AB::Var>(prepr_local),
-            Self::do_memory_access::<AB::Var>(prepr_local),
-        );
+        self.eval_fri_fold::<AB>(builder, local, next, prepr_local, prepr_next);
     }
 }
+
 #[cfg(test)]
 mod tests {
     use p3_field::AbstractExtensionField;
     use rand::rngs::StdRng;
     use rand::Rng;
     use rand::SeedableRng;
+    use sp1_core::air::MachineAir;
     use sp1_core::utils::run_test_machine;
     use sp1_core::utils::setup_logger;
     use sp1_core::utils::BabyBearPoseidon2;
@@ -569,11 +420,10 @@ mod tests {
     use p3_baby_bear::DiffusionMatrixBabyBear;
     use p3_field::AbstractField;
     use p3_matrix::dense::RowMajorMatrix;
-    use sp1_core::air::MachineAir;
     use sp1_core::stark::StarkGenericConfig;
 
+    use crate::chips::fri_fold::FriFoldChip;
     use crate::{
-        fri_fold::FriFoldChip,
         machine::RecursionAir,
         runtime::{instruction as instr, ExecutionRecord},
         FriFoldBaseIo, FriFoldEvent, FriFoldExtSingleIo, FriFoldExtVecIo, Instruction,
@@ -717,13 +567,16 @@ mod tests {
             })
             .collect::<Vec<Instruction<F>>>();
 
-        let program = RecursionProgram { instructions };
+        let program = RecursionProgram {
+            instructions,
+            traces: Default::default(),
+        };
 
         let config = SC::new();
 
         let mut runtime =
             Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program, BabyBearPoseidon2::new().perm);
-        runtime.run();
+        runtime.run().unwrap();
         let machine = A::machine(config);
         let (pk, vk) = machine.setup(&program);
         let result = run_test_machine(vec![runtime.record], machine, pk, vk);

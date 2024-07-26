@@ -2,10 +2,9 @@ use std::{borrow::BorrowMut, mem::size_of};
 
 use sp1_derive::AlignedBorrow;
 
-use crate::poseidon2_skinny::{
-    columns::{POSEIDON2_DEGREE3_COL_MAP, POSEIDON2_DEGREE9_COL_MAP},
-    NUM_INTERNAL_ROUNDS, WIDTH,
-};
+use crate::chips::poseidon2_skinny::{NUM_INTERNAL_ROUNDS, WIDTH};
+
+use super::{POSEIDON2_DEGREE3_COL_MAP, POSEIDON2_DEGREE9_COL_MAP};
 
 pub const fn max(a: usize, b: usize) -> usize {
     if a > b {

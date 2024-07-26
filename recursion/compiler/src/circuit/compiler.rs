@@ -1,9 +1,13 @@
+use chips::poseidon2_skinny::WIDTH;
 use core::fmt::Debug;
-use instruction::{FieldEltType, HintBitsInstr, PrintInstr};
+use instruction::{FieldEltType, HintBitsInstr, HintExt2FeltsInstr, PrintInstr};
 use p3_field::{AbstractExtensionField, AbstractField, Field, PrimeField, TwoAdicField};
 use sp1_recursion_core::air::Block;
-use sp1_recursion_core_v2::{poseidon2_skinny::WIDTH, BaseAluInstr, BaseAluOpcode};
-use std::collections::{hash_map::Entry, HashMap};
+use sp1_recursion_core_v2::{BaseAluInstr, BaseAluOpcode};
+use std::{
+    collections::{hash_map::Entry, HashMap},
+    iter::{repeat, zip},
+};
 
 use sp1_recursion_core_v2::*;
 
@@ -335,6 +339,13 @@ impl<C: Config> AsmCompiler<C> {
         })
     }
 
+    fn ext2felts(&mut self, felts: [impl Reg<C>; D], ext: impl Reg<C>) -> Instruction<C::F> {
+        Instruction::HintExt2Felts(HintExt2FeltsInstr {
+            output_addrs_mults: felts.map(|r| (r.write(self), C::F::zero())),
+            input_addr: ext.read_ghost(self),
+        })
+    }
+
     pub fn compile_one<F>(&mut self, ir_instr: DslIr<C>) -> Vec<Instruction<C::F>>
     where
         F: PrimeField + TwoAdicField,
@@ -468,8 +479,7 @@ impl<C: Config> AsmCompiler<C> {
             // DslIr::CircuitSelectV(_, _, _, _) => todo!(),
             // DslIr::CircuitSelectF(_, _, _, _) => todo!(),
             // DslIr::CircuitSelectE(_, _, _, _) => todo!(),
-            // DslIr::CircuitExt2Felt(_, _) => todo!(),
-            // DslIr::CircuitFelts2Ext(_, _) => todo!(),
+            DslIr::CircuitExt2Felt(felts, ext) => vec![self.ext2felts(felts, ext)],
             // DslIr::LessThan(_, _, _) => todo!(),
             // DslIr::CycleTracker(_) => todo!(),
             // DslIr::ExpReverseBitsLen(_, _, _) => todo!(),
@@ -478,7 +488,7 @@ impl<C: Config> AsmCompiler<C> {
     }
 
     /// Emit the instructions from a list of operations in the DSL.
-    pub fn compile<F>(&mut self, operations: TracedVec<DslIr<C>>) -> Vec<Instruction<C::F>>
+    pub fn compile<F>(&mut self, operations: TracedVec<DslIr<C>>) -> RecursionProgram<C::F>
     where
         F: PrimeField + TwoAdicField,
         C: Config<N = F, F = F> + Debug,
@@ -487,14 +497,14 @@ impl<C: Config> AsmCompiler<C> {
         // This step also counts the number of times each address is read from.
         let mut instrs = operations
             .into_iter()
-            .flat_map(|(ir_instr, _)| self.compile_one(ir_instr))
+            .flat_map(|(ir_instr, trace)| zip(self.compile_one(ir_instr), repeat(trace)))
             .collect::<Vec<_>>();
 
         // Replace the mults using the address count data gathered in this previous.
         // Exhaustive match for refactoring purposes.
         instrs
             .iter_mut()
-            .flat_map(|asm_instr| match asm_instr {
+            .flat_map(|(asm_instr, _)| match asm_instr {
                 Instruction::BaseAlu(BaseAluInstr {
                     mult,
                     addrs: BaseAluIo { ref out, .. },
@@ -544,6 +554,12 @@ impl<C: Config> AsmCompiler<C> {
                     .zip(alpha_pow_output)
                     .chain(ro_mults.iter_mut().zip(ro_output))
                     .collect(),
+                Instruction::HintExt2Felts(HintExt2FeltsInstr {
+                    output_addrs_mults, ..
+                }) => output_addrs_mults
+                    .iter_mut()
+                    .map(|(ref addr, mult)| (mult, addr))
+                    .collect(),
                 // Instructions that do not write to memory.
                 Instruction::Mem(MemInstr {
                     kind: MemAccessKind::Read,
@@ -570,7 +586,11 @@ impl<C: Config> AsmCompiler<C> {
         self.next_addr = Default::default();
         self.fp_to_addr.clear();
         // Place constant-initializing instructions at the top.
-        instrs_consts.chain(instrs).collect()
+        let (instructions, traces) = zip(instrs_consts, repeat(None)).chain(instrs).unzip();
+        RecursionProgram {
+            instructions,
+            traces,
+        }
     }
 }
 
@@ -725,7 +745,7 @@ mod tests {
                 program,
                 BabyBearPoseidon2Inner::new().perm,
             );
-            runtime.run();
+            runtime.run().unwrap();
             runtime.record
         });
     }
@@ -735,8 +755,7 @@ mod tests {
         run: impl FnOnce(&RecursionProgram<F>) -> ExecutionRecord<F>,
     ) {
         let mut compiler = super::AsmCompiler::<AsmConfig<F, EF>>::default();
-        let instructions = compiler.compile(operations);
-        let program = RecursionProgram { instructions };
+        let program = compiler.compile(operations);
         let record = run(&program);
 
         let config = SC::new();
@@ -993,7 +1012,7 @@ mod tests {
                 BabyBearPoseidon2Inner::new().perm,
             );
             runtime.debug_stdout = Box::new(&mut buf);
-            runtime.run();
+            runtime.run().unwrap();
             runtime.record
         });
 
@@ -1005,6 +1024,28 @@ mod tests {
             let line = line.unwrap();
             assert!(line.contains(&input_str));
         }
+    }
+
+    #[test]
+    fn test_ext2felts() {
+        setup_logger();
+
+        let mut builder = AsmBuilder::<F, EF>::default();
+        let mut rng =
+            StdRng::seed_from_u64(0x3264).sample_iter::<[F; 4], _>(rand::distributions::Standard);
+        let mut random_ext = move || EF::from_base_slice(&rng.next().unwrap());
+        for _ in 0..100 {
+            let input = random_ext();
+            let output: &[F] = input.as_base_slice();
+
+            let input_ext = builder.eval(input.cons());
+            let output_felts = builder.ext2felt_v2(input_ext);
+            let expected: Vec<Felt<_>> = output.iter().map(|&x| builder.eval(x)).collect();
+            for (lhs, rhs) in output_felts.into_iter().zip(expected) {
+                builder.assert_felt_eq(lhs, rhs);
+            }
+        }
+        test_operations(builder.operations);
     }
 
     macro_rules! test_assert_fixture {

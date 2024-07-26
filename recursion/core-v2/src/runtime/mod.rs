@@ -3,16 +3,19 @@ mod opcode;
 mod program;
 mod record;
 
+// Avoid triggering annoying branch of thiserror derive macro.
+use backtrace::Backtrace as Trace;
 pub use instruction::Instruction;
-use instruction::{FieldEltType, HintBitsInstr, PrintInstr};
+use instruction::{FieldEltType, HintBitsInstr, HintExt2FeltsInstr, PrintInstr};
 pub use opcode::*;
-use p3_util::reverse_bits_len;
 pub use program::*;
 pub use record::*;
 
-use std::borrow::Cow;
-use std::io::{stdout, Write};
-use std::{marker::PhantomData, sync::Arc};
+use std::{
+    fmt::Debug,
+    io::{stdout, Write},
+    {marker::PhantomData, sync::Arc},
+};
 
 use hashbrown::hash_map::Entry;
 use hashbrown::HashMap;
@@ -20,6 +23,8 @@ use itertools::Itertools;
 use p3_field::{AbstractField, ExtensionField, PrimeField32};
 use p3_poseidon2::{Poseidon2, Poseidon2ExternalMatrixGeneral};
 use p3_symmetric::{CryptographicPermutation, Permutation};
+use p3_util::reverse_bits_len;
+use thiserror::Error;
 
 use sp1_recursion_core::air::Block;
 
@@ -122,6 +127,32 @@ pub struct Runtime<'a, F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
     _marker_diffusion: PhantomData<Diffusion>,
 }
 
+#[derive(Error, Debug)]
+pub enum RuntimeError<F: Debug, EF: Debug> {
+    #[error(
+        "attempted to perform base field division {in1:?}/{in2:?} \
+        from instruction {instr:?} at pc {pc:?}\nnearest pc with backtrace:\n{trace:?}"
+    )]
+    DivFOutOfDomain {
+        in1: F,
+        in2: F,
+        instr: BaseAluInstr<F>,
+        pc: usize,
+        trace: Option<(usize, Trace)>,
+    },
+    #[error(
+        "attempted to perform extension field division {in1:?}/{in2:?} \
+        from instruction {instr:?} at pc {pc:?}\nnearest pc with backtrace:\n{trace:?}"
+    )]
+    DivEOutOfDomain {
+        in1: EF,
+        in2: EF,
+        instr: ExtAluInstr<F>,
+        pc: usize,
+        trace: Option<(usize, Trace)>,
+    },
+}
+
 impl<'a, F: PrimeField32, EF: ExtensionField<F>, Diffusion> Runtime<'a, F, EF, Diffusion>
 where
     Poseidon2<
@@ -187,31 +218,24 @@ where
         }
     }
 
-    /// Read from a memory address. Decrements the memory entry's mult count,
-    /// removing the entry if the mult is no longer positive.
+    /// Read from a memory address. Decrements the memory entry's mult count.
     ///
     /// # Panics
     /// Panics if the address is unassigned.
-    fn mr(&mut self, addr: Address<F>) -> Cow<MemoryEntry<F>> {
+    fn mr(&mut self, addr: Address<F>) -> &mut MemoryEntry<F> {
         self.mr_mult(addr, F::one())
     }
 
-    /// Read from a memory address. Reduces the memory entry's mult count by the given amount,
-    /// removing the entry if the mult is no longer positive.
+    /// Read from a memory address. Reduces the memory entry's mult count by the given amount.
     ///
     /// # Panics
     /// Panics if the address is unassigned.
-    fn mr_mult(&mut self, addr: Address<F>, mult: F) -> Cow<MemoryEntry<F>> {
+    fn mr_mult(&mut self, addr: Address<F>, mult: F) -> &mut MemoryEntry<F> {
         match self.memory.entry(addr) {
             Entry::Occupied(mut entry) => {
                 let entry_mult = &mut entry.get_mut().mult;
                 *entry_mult -= mult;
-                // We don't check for negative mult because I'm not sure how comparison in F works.
-                if entry_mult.is_zero() {
-                    Cow::Owned(entry.remove())
-                } else {
-                    Cow::Borrowed(entry.into_mut())
-                }
+                entry.into_mut()
             }
             Entry::Vacant(_) => panic!("tried to read from unassigned address: {addr:?}",),
         }
@@ -228,8 +252,26 @@ where
         }
     }
 
+    fn nearest_pc_backtrace(&mut self) -> Option<(usize, Trace)> {
+        let trap_pc = self.pc.as_canonical_u32() as usize;
+        let trace = self.program.traces[trap_pc].clone();
+        if let Some(mut trace) = trace {
+            trace.resolve();
+            Some((trap_pc, trace))
+        } else {
+            (0..trap_pc)
+                .rev()
+                .filter_map(|nearby_pc| {
+                    let mut trace = self.program.traces.get(nearby_pc)?.clone()?;
+                    trace.resolve();
+                    Some((nearby_pc, trace))
+                })
+                .next()
+        }
+    }
+
     /// Compare to [sp1_recursion_core::runtime::Runtime::run].
-    pub fn run(&mut self) {
+    pub fn run(&mut self) -> Result<(), RuntimeError<F, EF>> {
         let early_exit_ts = std::env::var("RECURSION_EARLY_EXIT_TS")
             .map_or(usize::MAX, |ts: String| ts.parse().unwrap());
         while self.pc < F::from_canonical_u32(self.program.instructions.len() as u32) {
@@ -239,11 +281,13 @@ where
             let next_clk = self.clk + F::from_canonical_u32(4);
             let next_pc = self.pc + F::one();
             match instruction {
-                Instruction::BaseAlu(BaseAluInstr {
-                    opcode,
-                    mult,
-                    addrs,
-                }) => {
+                Instruction::BaseAlu(
+                    instr @ BaseAluInstr {
+                        opcode,
+                        mult,
+                        addrs,
+                    },
+                ) => {
                     self.nb_base_ops += 1;
                     let in1 = self.mr(addrs.in1).val[0];
                     let in2 = self.mr(addrs.in2).val[0];
@@ -258,12 +302,24 @@ where
                     self.record
                         .base_alu_events
                         .push(BaseAluEvent { out, in1, in2 });
+                    // Check for division exceptions and error. Note that 0/0 is defined to be 1.
+                    if opcode == BaseAluOpcode::DivF && !in1.is_zero() && in2.is_zero() {
+                        return Err(RuntimeError::DivFOutOfDomain {
+                            in1,
+                            in2,
+                            instr,
+                            pc: self.pc.as_canonical_u32() as usize,
+                            trace: self.nearest_pc_backtrace(),
+                        });
+                    }
                 }
-                Instruction::ExtAlu(ExtAluInstr {
-                    opcode,
-                    mult,
-                    addrs,
-                }) => {
+                Instruction::ExtAlu(
+                    instr @ ExtAluInstr {
+                        opcode,
+                        mult,
+                        addrs,
+                    },
+                ) => {
                     self.nb_ext_ops += 1;
                     let in1 = self.mr(addrs.in1).val;
                     let in2 = self.mr(addrs.in2).val;
@@ -283,6 +339,16 @@ where
                     self.record
                         .ext_alu_events
                         .push(ExtAluEvent { out, in1, in2 });
+                    // Check for division exceptions and error. Note that 0/0 is defined to be 1.
+                    if opcode == ExtAluOpcode::DivE && !in1_ef.is_zero() && in2_ef.is_zero() {
+                        return Err(RuntimeError::DivEOutOfDomain {
+                            in1: in1_ef,
+                            in2: in2_ef,
+                            instr,
+                            pc: self.pc.as_canonical_u32() as usize,
+                            trace: self.nearest_pc_backtrace(),
+                        });
+                    }
                 }
                 Instruction::Mem(MemInstr {
                     addrs: MemIo { inner: addr },
@@ -473,6 +539,19 @@ where
                         writeln!(self.debug_stdout, "PRINTEF={ef:?}").unwrap();
                     }
                 },
+                Instruction::HintExt2Felts(HintExt2FeltsInstr {
+                    output_addrs_mults,
+                    input_addr,
+                }) => {
+                    self.nb_bit_decompositions += 1;
+                    let fs = self.mr_mult(input_addr, F::zero()).val;
+                    // Write the bits to the array at dst.
+                    for (f, (addr, mult)) in fs.into_iter().zip(output_addrs_mults) {
+                        let felt = Block::from(f);
+                        self.mw(addr, felt, mult);
+                        self.record.mem_events.push(MemEvent { inner: felt });
+                    }
+                }
             }
 
             self.pc = next_pc;
@@ -483,5 +562,6 @@ where
                 break;
             }
         }
+        Ok(())
     }
 }

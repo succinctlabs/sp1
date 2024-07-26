@@ -1,5 +1,4 @@
-use std::borrow::BorrowMut;
-use std::mem::size_of;
+use std::{borrow::BorrowMut, mem::size_of};
 
 use itertools::Itertools;
 use p3_air::BaseAir;
@@ -10,14 +9,20 @@ use sp1_primitives::RC_16_30_U32;
 use tracing::instrument;
 
 use crate::{
-    instruction::Instruction::Poseidon2Wide,
-    mem::MemoryAccessCols,
-    poseidon2_wide::{
-        columns::{permutation::permutation_mut, preprocessed::Poseidon2PreprocessedCols},
-        external_linear_layer, external_linear_layer_immut, internal_linear_layer,
-        Poseidon2WideChip, NUM_EXTERNAL_ROUNDS, NUM_INTERNAL_ROUNDS, WIDTH,
+    chips::{
+        mem::MemoryAccessCols,
+        poseidon2_wide::{
+            columns::permutation::permutation_mut, external_linear_layer_immut, Poseidon2WideChip,
+            NUM_EXTERNAL_ROUNDS, WIDTH,
+        },
     },
+    instruction::Instruction::Poseidon2Wide,
     ExecutionRecord, RecursionProgram,
+};
+
+use super::{
+    columns::preprocessed::Poseidon2PreprocessedCols, external_linear_layer, internal_linear_layer,
+    NUM_INTERNAL_ROUNDS,
 };
 
 const PREPROCESSED_POSEIDON2_WIDTH: usize = size_of::<Poseidon2PreprocessedCols<u8>>();
@@ -285,7 +290,7 @@ mod tests {
     use zkhash::ark_ff::UniformRand;
 
     use crate::{
-        poseidon2_wide::{Poseidon2WideChip, WIDTH},
+        chips::poseidon2_wide::{Poseidon2WideChip, WIDTH},
         ExecutionRecord, Poseidon2SkinnyEvent,
     };
 

@@ -4973,6 +4973,7 @@ dependencies = [
  "sp1-primitives",
  "sp1-recursion-core",
  "static_assertions",
+ "thiserror",
  "tracing",
  "zkhash",
 ]
