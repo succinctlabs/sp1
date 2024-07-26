@@ -15,9 +15,7 @@ This is likely due to two different versions of `alloy_sol_types` being used. To
 sp1-sdk = { version = "1.0.1", default-features = false }
 ```
 
-This will configure out the `network` feature which will remove the dependency on `alloy_sol_types`
-This will configure out the `network` feature which will remove the dependency on `alloy_sol_types`
-and configure out the `NetworkProver`.
+This will configure out the `network` feature which will remove the dependency on `alloy_sol_types` and configure out the `NetworkProver`.
 
 ## Rust Version Errors
 
