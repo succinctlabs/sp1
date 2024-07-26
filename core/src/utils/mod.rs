@@ -24,6 +24,8 @@ use crate::{memory::MemoryCols, operations::field::params::Limbs};
 use generic_array::ArrayLength;
 use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
 
+pub const MIN_NUM_ROWS: usize = 1 << 5;
+
 pub const fn indices_arr<const N: usize>() -> [usize; N] {
     let mut indices_arr = [0; N];
     let mut i = 0;
@@ -37,8 +39,8 @@ pub const fn indices_arr<const N: usize>() -> [usize; N] {
 pub fn pad_to_power_of_two<const N: usize, T: Clone + Default>(values: &mut Vec<T>) {
     debug_assert!(values.len() % N == 0);
     let mut n_real_rows = values.len() / N;
-    if n_real_rows < 16 {
-        n_real_rows = 16;
+    if n_real_rows < MIN_NUM_ROWS {
+        n_real_rows = MIN_NUM_ROWS;
     }
     values.resize(n_real_rows.next_power_of_two() * N, T::default());
 }
@@ -72,8 +74,8 @@ pub fn limbs_from_access<T: Copy, N: ArrayLength, M: MemoryCols<T>>(cols: &[M]) 
 pub fn pad_rows<T: Clone>(rows: &mut Vec<T>, row_fn: impl Fn() -> T) {
     let nb_rows = rows.len();
     let mut padded_nb_rows = nb_rows.next_power_of_two();
-    if padded_nb_rows < 16 {
-        padded_nb_rows = 16;
+    if padded_nb_rows < MIN_NUM_ROWS {
+        padded_nb_rows = MIN_NUM_ROWS;
     }
     if padded_nb_rows == nb_rows {
         return;
@@ -115,8 +117,8 @@ pub fn next_power_of_two(n: usize, fixed_power: Option<usize>) -> usize {
         }
         None => {
             let mut padded_nb_rows = n.next_power_of_two();
-            if padded_nb_rows < 16 {
-                padded_nb_rows = 16;
+            if padded_nb_rows < MIN_NUM_ROWS {
+                padded_nb_rows = MIN_NUM_ROWS;
             }
             padded_nb_rows
         }

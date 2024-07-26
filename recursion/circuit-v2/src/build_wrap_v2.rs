@@ -239,7 +239,7 @@ pub mod tests {
 
     #[test]
     fn test_build_wrap() {
-        let machine_maker = || machine_with_all_chips::<9>(3, 3, 3);
+        let machine_maker = || machine_with_all_chips::<9>(5, 5, 5);
         test_machine(machine_maker);
     }
 }
