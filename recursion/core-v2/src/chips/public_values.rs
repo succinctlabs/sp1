@@ -229,7 +229,7 @@ mod tests {
             instructions.push(instr::mem_block(
                 MemAccessKind::Write,
                 0,
-                public_values_a[i] as u32,
+                public_values_a[i],
                 random_pv_elms[i].into(),
             ));
 
