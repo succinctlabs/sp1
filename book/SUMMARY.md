@@ -64,6 +64,8 @@
 
 # Developers
 
+- [Usage in CI](./developers/usage-in-ci.md)
+
 - [Building PLONK Artifacts](./developers/building-plonk-artifacts.md)
 
 - [Common Issues](./developers/common-issues.md)
