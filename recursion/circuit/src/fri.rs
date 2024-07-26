@@ -185,28 +185,22 @@ pub fn verify_challenges<C: Config>(
         );
 
         let index_bits = builder.num2bits_v_circuit(index, 32);
+        let final_poly_index_bits = index_bits
+            .into_iter()
+            .skip(proof.commit_phase_commits.len())
+            .chain(
+                std::iter::repeat(builder.eval(C::N::zero()))
+                    .take(32 - proof.commit_phase_commits.len()),
+            )
+            .collect_vec();
         let eval: Ext<C::F, C::EF> = builder.eval(SymbolicExt::from_f(C::EF::zero()));
         let x_pow: Ext<C::F, C::EF> = builder.eval(SymbolicExt::from_f(C::EF::one()));
-        println!("index bits len: {:?}", index_bits.len());
-        println!(
-            "proof commit phase len: {:?}",
-            proof.commit_phase_commits.len()
-        );
-        println!("log max height: {:?}", log_max_height);
-
-        let final_poly_index_bits: Vec<Var<C::N>> = vec![builder.eval(C::N::zero()); 32];
-        for i in 0..(32 - proof.commit_phase_commits.len()) {
-            builder.assign(
-                final_poly_index_bits[i],
-                index_bits[i + proof.commit_phase_commits.len()],
-            );
-        }
 
         let rev_reduced_index =
             builder.reverse_bits_len_circuit(final_poly_index_bits, log_max_height);
-        let two_adic_generator = builder.eval(SymbolicExt::from_f(C::EF::two_adic_generator(
-            log_max_height,
-        )));
+        let two_adic_generator: Ext<_, _> = builder.eval(SymbolicExt::from_f(
+            C::EF::two_adic_generator(log_max_height),
+        ));
         let x = builder.exp_e_bits(two_adic_generator, rev_reduced_index);
 
         for coeff in &proof.final_poly {

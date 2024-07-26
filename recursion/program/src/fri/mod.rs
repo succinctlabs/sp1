@@ -9,6 +9,7 @@ use sp1_primitives::types::RecursionProgramType;
 use sp1_recursion_compiler::ir::ExtensionOperand;
 use sp1_recursion_compiler::ir::Ptr;
 use sp1_recursion_core::runtime::DIGEST_SIZE;
+use sp1_recursion_core::runtime::NUM_BITS;
 pub use two_adic_pcs::*;
 
 use p3_field::AbstractField;
@@ -122,18 +123,25 @@ pub fn verify_challenges<C: Config>(
             );
 
             // Bitshift the index bits to the right.
-            // let index_length = commit_phase.len().materialize(builder);
-            let mut final_poly_index_bits: Array<C, Var<C::N>> = builder.array(32);
+            // let final_poly_index_bits_short: Array<C, Var<C::N>> =
+            //     index_bits.shift(builder, nb_commit_phase_commits);
+            let mut final_poly_index_bits = builder.array(NUM_BITS);
+            let final_poly_num_bits: Var<_> =
+                builder.eval(index_bits.len() - nb_commit_phase_commits);
             builder
-                .range(0, 32)
-                .for_each(|j, builder| builder.set(&mut final_poly_index_bits, j, C::N::zero()));
+                .range(0, final_poly_num_bits)
+                .for_each(|i, builder| {
+                    let new_index: Var<_> = builder.eval(i + nb_commit_phase_commits);
+                    let bit: Var<_> = builder.get(&index_bits, new_index);
+                    builder.set(&mut final_poly_index_bits, i, bit);
+                });
 
-            let nb_bits: Var<_> = builder.eval(index_bits.len() - nb_commit_phase_commits);
-            builder.range(0, nb_bits).for_each(|j, builder| {
-                let new_index: Var<_> = builder.eval(j + nb_commit_phase_commits);
-                let bit = builder.get(&index_bits, new_index);
-                builder.set(&mut final_poly_index_bits, j, bit);
-            });
+            builder
+                .range(final_poly_num_bits, NUM_BITS)
+                .for_each(|i, builder| {
+                    let zero: Var<_> = builder.eval(C::N::zero());
+                    builder.set(&mut final_poly_index_bits, i, zero);
+                });
 
             let two_adic_generator_f = config.get_two_adic_generator(builder, log_max_height);
 
@@ -151,12 +159,10 @@ pub fn verify_challenges<C: Config>(
                 )
             };
 
-            builder.print_f(two_adic_generator_f);
-            // builder.print_f(x);
-
             let eval: Ext<_, _> = builder.eval(C::F::zero());
             let x_pow: Ext<_, _> = builder.eval(C::F::one());
 
+            // Evaluate the final polynomial at x, and check consistency with `folded_eval`.
             builder
                 .range(0, proof.final_poly.len())
                 .for_each(|j, builder| {
