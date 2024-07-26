@@ -4,12 +4,13 @@ mod program;
 mod record;
 
 pub use instruction::Instruction;
-use instruction::{CommitPVInstr, FieldEltType, HintBitsInstr, HintExt2FeltsInstr, PrintInstr};
+use instruction::{CommitPVHashInstr, FieldEltType, HintBitsInstr, HintExt2FeltsInstr, PrintInstr};
 pub use opcode::*;
 use p3_util::reverse_bits_len;
 pub use program::*;
 pub use record::*;
 
+use std::array;
 use std::io::{stdout, Write};
 use std::{marker::PhantomData, sync::Arc};
 
@@ -450,7 +451,8 @@ where
                     }
                 }
 
-                Instruction::CommitPV(CommitPVInstr { pv_hash }) => {
+                Instruction::CommitPVHash(CommitPVHashInstr { pv_hash_addrs }) => {
+                    let pv_hash = array::from_fn(|i| self.mr(pv_hash_addrs[i]).val[0]);
                     self.record
                         .commit_pv_hash_events
                         .push(CommitPVHashEvent { pv_hash });

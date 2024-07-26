@@ -15,7 +15,7 @@ pub enum Instruction<F> {
     FriFold(FriFoldInstr<F>),
     Print(PrintInstr<F>),
     HintExt2Felts(HintExt2FeltsInstr<F>),
-    CommitPV(CommitPVInstr<F>),
+    CommitPVHash(CommitPVHashInstr<F>),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -41,8 +41,8 @@ pub struct HintExt2FeltsInstr<F> {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct CommitPVInstr<F> {
-    pub pv_hash: [F; DIGEST_SIZE],
+pub struct CommitPVHashInstr<F> {
+    pub pv_hash_addrs: [Address<F>; DIGEST_SIZE],
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
