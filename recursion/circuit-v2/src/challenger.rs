@@ -251,7 +251,7 @@ mod tests {
         let config = BabyBearPoseidon2::default();
 
         let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
-        runtime.run();
+        runtime.run().unwrap();
 
         let records = vec![runtime.record];
 
@@ -303,8 +303,7 @@ mod tests {
 
         // let program = builder.compile_program();
         let mut compiler = AsmCompiler::<AsmConfig<F, EF>>::default();
-        let instructions = compiler.compile(builder.operations);
-        let program = RecursionProgram { instructions };
+        let program = compiler.compile(builder.operations);
         run_test_recursion(program);
     }
 }
