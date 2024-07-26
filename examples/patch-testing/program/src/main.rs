@@ -24,18 +24,6 @@ fn keccak256<T: AsRef<[u8]>>(bytes: T) -> [u8; 32] {
     output
 }
 
-/// Verify that the ed25519-consensus correctly patches ed25519 signature verification.
-fn test_ed25519_consensus() {
-    // Example from ed25519-consensus docs.
-    let vk = hex!("9194c3ead03f5848111db696fe1196fbbeffc69342d51c7cf5e91c502de91eb4");
-    let msg = hex!("656432353531392d636f6e73656e7375732074657374206d657373616765");
-    let sig = hex!("69261ea5df799b20fc6eeb49aa79f572c8f1e2ba88b37dff184cc55d4e3653d876419bffcc47e5343cdd5fd78121bb32f1c377a5ed505106ad37f19980218f0d");
-
-    let vk: VerificationKey = vk.try_into().unwrap();
-    let sig: Signature = sig.into();
-    vk.verify(&sig, &msg).unwrap();
-}
-
 /// Emits SECP256K1_ADD, SECP256K1_DOUBLE, and SECP256K1_DECOMPRESS syscalls.
 fn test_secp256k1_patch() {
     // Sourced from ecrecover test: https://github.com/paradigmxyz/reth/blob/18ebc5eaee307dcc1f09c097426770f6dfc3c206/crates/primitives/src/transaction/util.rs#L56
@@ -50,6 +38,18 @@ fn test_secp256k1_patch() {
         .unwrap();
     let eth_address = keccak256(&public.serialize_uncompressed()[1..]);
     assert_eq!(eth_address[12..], out);
+}
+
+/// Emits ED_ADD and ED_DECOMPRESS syscalls.
+fn test_ed25519_consensus() {
+    // Example from ed25519-consensus docs.
+    let vk = hex!("9194c3ead03f5848111db696fe1196fbbeffc69342d51c7cf5e91c502de91eb4");
+    let msg = hex!("656432353531392d636f6e73656e7375732074657374206d657373616765");
+    let sig = hex!("69261ea5df799b20fc6eeb49aa79f572c8f1e2ba88b37dff184cc55d4e3653d876419bffcc47e5343cdd5fd78121bb32f1c377a5ed505106ad37f19980218f0d");
+
+    let vk: VerificationKey = vk.try_into().unwrap();
+    let sig: Signature = sig.into();
+    vk.verify(&sig, &msg).unwrap();
 }
 
 /// Emits ED_DECOMPRESS syscalls.
