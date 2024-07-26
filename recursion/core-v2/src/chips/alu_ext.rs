@@ -171,10 +171,12 @@ where
             .when(prep_local.is_div)
             .assert_ext_eq(in1, in2 * out);
 
+        // Read the inputs from memory.
         builder.receive_block(prep_local.addrs.in1, local.vals.in1, is_real.clone());
 
         builder.receive_block(prep_local.addrs.in2, local.vals.in2, is_real);
 
+        // Write the output to memory.
         builder.send_block(prep_local.addrs.out, local.vals.out, prep_local.mult);
     }
 }
@@ -252,12 +254,15 @@ mod tests {
             })
             .collect::<Vec<Instruction<F>>>();
 
-        let program = RecursionProgram { instructions };
+        let program = RecursionProgram {
+            instructions,
+            traces: Default::default(),
+        };
         let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(
             &program,
             BabyBearPoseidon2Inner::new().perm,
         );
-        runtime.run();
+        runtime.run().unwrap();
 
         let config = SC::new();
         let machine = A::machine(config);

@@ -232,7 +232,6 @@ pub(crate) mod tests {
 
     use sp1_recursion_compiler::ir::TracedVec;
     use sp1_recursion_core_v2::machine::RecursionAir;
-    use sp1_recursion_core_v2::RecursionProgram;
     use sp1_recursion_core_v2::Runtime;
 
     use crate::challenger::DuplexChallengerVariable;
@@ -250,13 +249,12 @@ pub(crate) mod tests {
         setup_logger();
 
         let mut compiler = AsmCompiler::<AsmConfig<F, EF>>::default();
-        let instructions = compiler.compile(operations);
-        let program = RecursionProgram { instructions };
+        let program = compiler.compile(operations);
 
         let config = BabyBearPoseidon2::default();
 
         let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
-        runtime.run();
+        runtime.run().unwrap();
 
         let records = vec![runtime.record];
 

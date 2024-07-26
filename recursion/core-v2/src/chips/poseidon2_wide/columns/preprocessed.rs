@@ -1,6 +1,6 @@
 use sp1_derive::AlignedBorrow;
 
-use crate::{mem::MemoryAccessCols, poseidon2_wide::WIDTH};
+use crate::chips::{mem::MemoryAccessCols, poseidon2_wide::WIDTH};
 
 #[derive(AlignedBorrow, Clone, Copy, Debug)]
 #[repr(C)]

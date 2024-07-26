@@ -1,5 +1,4 @@
-use std::borrow::BorrowMut;
-use std::mem::size_of;
+use std::{borrow::BorrowMut, mem::size_of};
 
 use itertools::Itertools;
 use p3_air::BaseAir;
@@ -10,14 +9,19 @@ use sp1_primitives::RC_16_30_U32;
 use tracing::instrument;
 
 use crate::{
-    instruction::Instruction::Poseidon2Skinny,
-    mem::MemoryAccessCols,
-    poseidon2_skinny::{
-        columns::{permutation::max, preprocessed::Poseidon2PreprocessedCols},
-        external_linear_layer, internal_linear_layer, Poseidon2SkinnyChip, NUM_EXTERNAL_ROUNDS,
-        NUM_INTERNAL_ROUNDS, WIDTH,
+    chips::{
+        mem::MemoryAccessCols,
+        poseidon2_skinny::{
+            external_linear_layer, Poseidon2SkinnyChip, NUM_EXTERNAL_ROUNDS, NUM_INTERNAL_ROUNDS,
+        },
     },
+    instruction::Instruction::Poseidon2Skinny,
     ExecutionRecord, RecursionProgram,
+};
+
+use super::{
+    columns::{permutation::max, preprocessed::Poseidon2PreprocessedCols},
+    internal_linear_layer, WIDTH,
 };
 
 const PREPROCESSED_POSEIDON2_WIDTH: usize = size_of::<Poseidon2PreprocessedCols<u8>>();
@@ -294,7 +298,7 @@ mod tests {
     use zkhash::ark_ff::UniformRand;
 
     use crate::{
-        poseidon2_skinny::{Poseidon2SkinnyChip, WIDTH},
+        chips::poseidon2_skinny::{Poseidon2SkinnyChip, WIDTH},
         ExecutionRecord, Poseidon2SkinnyEvent,
     };
 

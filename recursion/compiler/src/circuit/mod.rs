@@ -14,9 +14,12 @@ mod tests {
         utils::{run_test_machine, setup_logger, BabyBearPoseidon2Inner},
     };
     use sp1_recursion_core_v2::{
-        alu_base::BaseAluChip, alu_ext::ExtAluChip, exp_reverse_bits::ExpReverseBitsLenChip,
-        fri_fold::FriFoldChip, machine::RecursionAir, mem::MemoryChip,
-        poseidon2_wide::Poseidon2WideChip, RecursionProgram, Runtime,
+        chips::{
+            alu_base::BaseAluChip, alu_ext::ExtAluChip, exp_reverse_bits::ExpReverseBitsLenChip,
+            fri_fold::FriFoldChip, mem::MemoryChip, poseidon2_wide::Poseidon2WideChip,
+        },
+        machine::RecursionAir,
+        Runtime,
     };
 
     use crate::{asm::AsmBuilder, circuit::AsmCompiler, ir::*};
@@ -74,13 +77,12 @@ mod tests {
 
         let operations = builder.operations;
         let mut compiler = AsmCompiler::default();
-        let instructions = compiler.compile(operations);
-        let program = RecursionProgram { instructions };
+        let program = compiler.compile(operations);
         let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(
             &program,
             BabyBearPoseidon2Inner::new().perm,
         );
-        runtime.run();
+        runtime.run().unwrap();
 
         // Construct the machine ourselves so we can pad the tables, avoiding `A::machine`.
         let config = SC::default();

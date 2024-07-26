@@ -353,9 +353,8 @@ mod tests {
     use sp1_core::stark::StarkGenericConfig;
     use sp1_core::utils::baby_bear_poseidon2::compressed_fri_config;
     use sp1_core::utils::{
-        inner_fri_config, inner_perm, BabyBearPoseidon2, InnerChallenge, InnerChallengeMmcs,
-        InnerChallenger, InnerCompress, InnerDft, InnerFriProof, InnerHash, InnerPcs, InnerVal,
-        InnerValMmcs,
+        inner_perm, BabyBearPoseidon2, InnerChallenge, InnerChallengeMmcs, InnerChallenger,
+        InnerCompress, InnerDft, InnerFriProof, InnerHash, InnerPcs, InnerVal, InnerValMmcs,
     };
     use sp1_recursion_compiler::asm::AsmBuilder;
     use sp1_recursion_compiler::config::InnerConfig;
