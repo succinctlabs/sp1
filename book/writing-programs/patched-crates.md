@@ -18,6 +18,7 @@ Under the hood, we use [precompiles](./precompiles.md) to achieve tremendous per
 | curve25519-dalek    | [sp1-patches/curve25519-dalek](https://github.com/sp1-patches/curve25519-dalek)       | ed25519 verify         |
 | revm-precompile     | [sp1-patches/revm](https://github.com/sp1-patches/revm)                               | ecrecover precompile   |
 | reth-primitives     | [sp1-patches/reth](https://github.com/sp1-patches/reth)                               | ecrecover transactions |
+| secp256k1           | [sp1-patches/rust-secp256k1](https://github.com/sp1-patches/rust-secp256k1)           | ecrecover precompile for recover_ecdsa |
 
 ## Using Patched Crates
 
@@ -38,6 +39,7 @@ ed25519-consensus = { git = "https://github.com/sp1-patches/ed25519-consensus", 
 tiny-keccak = { git = "https://github.com/sp1-patches/tiny-keccak", branch = "patch-v2.0.2" }
 revm = { git = "https://github.com/sp1-patches/revm", branch = "patch-v5.0.0" }
 reth-primitives = { git = "https://github.com/sp1-patches/reth", default-features = false, branch = "sp1-reth" }
+secp256k1 = { git = "https://github.com/sp1-patches/rust-secp256k1", branch = "patch-secp256k1-v0.29.0" }
 ```
 
 If you are patching a crate from Github instead of from crates.io, you need to specify the
