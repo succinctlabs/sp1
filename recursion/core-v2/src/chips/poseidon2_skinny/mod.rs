@@ -189,7 +189,7 @@ pub(crate) mod tests {
         };
         let mut runtime =
             Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program, BabyBearPoseidon2::new().perm);
-        runtime.run();
+        runtime.run().unwrap();
 
         let config = SC::new();
         let machine_deg_3 = A::machine(config);

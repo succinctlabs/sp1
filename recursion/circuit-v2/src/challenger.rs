@@ -251,7 +251,7 @@ mod tests {
         let config = BabyBearPoseidon2::default();
 
         let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
-        runtime.run();
+        runtime.run().unwrap();
 
         let records = vec![runtime.record];
 

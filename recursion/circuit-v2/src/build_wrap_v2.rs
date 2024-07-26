@@ -187,7 +187,7 @@ where
         BinomialExtensionField<BabyBear, 4>,
         DiffusionMatrixBabyBear,
     >::new(&program, BabyBearPoseidon2Inner::new().perm);
-    runtime.run();
+    runtime.run().unwrap();
 
     let (pk, vk) = machine.setup(&program);
     let result = run_test_machine(vec![runtime.record], machine, pk, vk.clone()).unwrap();

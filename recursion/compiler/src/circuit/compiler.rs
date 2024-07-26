@@ -745,7 +745,7 @@ mod tests {
                 program,
                 BabyBearPoseidon2Inner::new().perm,
             );
-            runtime.run();
+            runtime.run().unwrap();
             runtime.record
         });
     }
@@ -1012,7 +1012,7 @@ mod tests {
                 BabyBearPoseidon2Inner::new().perm,
             );
             runtime.debug_stdout = Box::new(&mut buf);
-            runtime.run();
+            runtime.run().unwrap();
             runtime.record
         });
 

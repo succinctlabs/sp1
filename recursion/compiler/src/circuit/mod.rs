@@ -82,7 +82,7 @@ mod tests {
             &program,
             BabyBearPoseidon2Inner::new().perm,
         );
-        runtime.run();
+        runtime.run().unwrap();
 
         // Construct the machine ourselves so we can pad the tables, avoiding `A::machine`.
         let config = SC::default();

@@ -262,7 +262,7 @@ mod tests {
             &program,
             BabyBearPoseidon2Inner::new().perm,
         );
-        runtime.run();
+        runtime.run().unwrap();
 
         let config = SC::new();
         let machine = A::machine(config);
