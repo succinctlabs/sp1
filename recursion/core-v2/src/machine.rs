@@ -1,8 +1,5 @@
 use p3_field::{extension::BinomiallyExtendable, PrimeField32};
-use sp1_core::{
-    stark::{Chip, StarkGenericConfig, StarkMachine},
-    utils::DIGEST_SIZE,
-};
+use sp1_core::stark::{Chip, StarkGenericConfig, StarkMachine, PROOF_MAX_NUM_PVS};
 use sp1_derive::MachineAir;
 use sp1_recursion_core::runtime::D;
 
@@ -49,7 +46,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
             .into_iter()
             .map(Chip::new)
             .collect::<Vec<_>>();
-        StarkMachine::new(config, chips, DIGEST_SIZE)
+        StarkMachine::new(config, chips, PROOF_MAX_NUM_PVS)
     }
 
     /// A recursion machine that can have dynamic trace sizes, and uses the wide variant of Poseidon2.
@@ -58,7 +55,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
             .into_iter()
             .map(Chip::new)
             .collect::<Vec<_>>();
-        StarkMachine::new(config, chips, DIGEST_SIZE)
+        StarkMachine::new(config, chips, PROOF_MAX_NUM_PVS)
     }
     pub fn machine_with_all_chips<SC: StarkGenericConfig<Val = F>>(
         config: SC,
@@ -67,7 +64,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
             .into_iter()
             .map(Chip::new)
             .collect::<Vec<_>>();
-        StarkMachine::new(config, chips, DIGEST_SIZE)
+        StarkMachine::new(config, chips, PROOF_MAX_NUM_PVS)
     }
 
     pub fn machine_with_padding<SC: StarkGenericConfig<Val = F>>(
@@ -80,7 +77,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
             .into_iter()
             .map(Chip::new)
             .collect::<Vec<_>>();
-        StarkMachine::new(config, chips, DIGEST_SIZE)
+        StarkMachine::new(config, chips, PROOF_MAX_NUM_PVS)
     }
 
     pub fn dummy_machine<SC: StarkGenericConfig<Val = F>>(
@@ -91,7 +88,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
         StarkMachine::new(
             config,
             chips.into_iter().map(Chip::new).collect(),
-            DIGEST_SIZE,
+            PROOF_MAX_NUM_PVS,
         )
     }
     // /// A recursion machine with fixed trace sizes tuned to work specifically for the wrap layer.

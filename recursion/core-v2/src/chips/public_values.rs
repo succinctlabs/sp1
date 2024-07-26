@@ -5,6 +5,7 @@ use p3_field::PrimeField32;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core::{air::MachineAir, utils::pad_rows_fixed};
 use sp1_derive::AlignedBorrow;
+use sp1_recursion_core::air::{RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS};
 
 use crate::{
     builder::SP1RecursionAirBuilder,
@@ -154,7 +155,9 @@ where
         let local_prepr = prepr.row_slice(0);
         let local_prepr: &PublicValuesPreprocessedCols<AB::Var> = (*local_prepr).borrow();
         let pv = builder.public_values();
-        let pv_elms: [AB::Expr; DIGEST_SIZE] = core::array::from_fn(|i| pv[i].into());
+        let pv_elms: [AB::Expr; RECURSIVE_PROOF_NUM_PV_ELTS] =
+            core::array::from_fn(|i| pv[i].into());
+        let public_values: &RecursionPublicValues<AB::Expr> = pv_elms.as_slice().borrow();
 
         // Constrain mem read for the public value element.
         builder.receive_single(
@@ -163,11 +166,11 @@ where
             local_prepr.pv_mem.read_mult,
         );
 
-        for i in 0..DIGEST_SIZE {
+        for (i, pv_elm) in public_values.digest.iter().enumerate() {
             // Ensure that the public value element is the same for all rows within a fri fold invocation.
             builder
                 .when(local_prepr.pv_idx[i])
-                .assert_eq(pv_elms[i].clone(), local.pv_element);
+                .assert_eq(pv_elm.clone(), local.pv_element);
         }
     }
 }
@@ -182,8 +185,11 @@ mod tests {
     use sp1_core::utils::setup_logger;
     use sp1_core::utils::BabyBearPoseidon2;
     use sp1_core::utils::DIGEST_SIZE;
+    use sp1_recursion_core::air::RecursionPublicValues;
+    use sp1_recursion_core::air::RECURSIVE_PROOF_NUM_PV_ELTS;
     use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
     use std::array;
+    use std::borrow::Borrow;
 
     use p3_baby_bear::BabyBear;
     use p3_baby_bear::DiffusionMatrixBabyBear;
@@ -209,23 +215,26 @@ mod tests {
 
         let mut rng = StdRng::seed_from_u64(0xDEADBEEF);
         let mut random_felt = move || -> F { F::from_canonical_u32(rng.gen_range(0..1 << 16)) };
-        let random_pv_hash: [F; DIGEST_SIZE] = array::from_fn(|_| random_felt());
+        let random_pv_elms: [F; RECURSIVE_PROOF_NUM_PV_ELTS] = array::from_fn(|_| random_felt());
         let addr = 0u32;
 
         let mut instructions = Vec::new();
         // Allocate the memory for the public values hash.
-        let public_values_hash_a: [u32; DIGEST_SIZE] = array::from_fn(|i| i as u32 + addr);
+        let public_values_a: [u32; RECURSIVE_PROOF_NUM_PV_ELTS] =
+            array::from_fn(|i| i as u32 + addr);
 
-        for i in 0..DIGEST_SIZE {
+        for i in 0..RECURSIVE_PROOF_NUM_PV_ELTS {
             instructions.push(instr::mem_block(
                 MemAccessKind::Write,
                 1,
-                public_values_hash_a[i] as u32,
-                random_pv_hash[i].into(),
+                public_values_a[i] as u32,
+                random_pv_elms[i].into(),
             ));
         }
 
-        instructions.push(instr::commit_pv_hash(public_values_hash_a));
+        let public_values_a: &RecursionPublicValues<u32> = public_values_a.as_slice().borrow();
+
+        instructions.push(instr::commit_pv_hash(public_values_a.digest));
 
         let program = RecursionProgram {
             instructions,
