@@ -567,13 +567,16 @@ mod tests {
             })
             .collect::<Vec<Instruction<F>>>();
 
-        let program = RecursionProgram { instructions };
+        let program = RecursionProgram {
+            instructions,
+            traces: Default::default(),
+        };
 
         let config = SC::new();
 
         let mut runtime =
             Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program, BabyBearPoseidon2::new().perm);
-        runtime.run();
+        runtime.run().unwrap();
         let machine = A::machine(config);
         let (pk, vk) = machine.setup(&program);
         let result = run_test_machine(vec![runtime.record], machine, pk, vk);
