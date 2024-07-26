@@ -1343,7 +1343,6 @@ dependencies = [
  "rand_core",
  "sec1",
  "subtle",
- "tap",
  "zeroize",
 ]
 
@@ -4824,10 +4823,7 @@ dependencies = [
  "anyhow",
  "bincode",
  "cfg-if",
- "hex",
- "k256",
  "serde",
- "snowbridge-amcl",
 ]
 
 [[package]]
