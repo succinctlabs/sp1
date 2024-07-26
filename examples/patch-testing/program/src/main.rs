@@ -61,7 +61,7 @@ fn main() {
     let hash = hex!("47173285a8d7341e5e972fc677286384f802f8ef42a5ec5f03bbfa254cb01fad");
     let out = address!("c08b5542d177ac6686946920409741463a15dddb");
     let rec_id = RecoveryId::from_i32(sig[64] as i32).unwrap();
-    let recoverable_sig = RecoverableSignature::from_compact(&sig, rec_id).unwrap();
+    let recoverable_sig = RecoverableSignature::from_compact(&sig[..64], rec_id).unwrap();
     let public = vrfy
         .recover_ecdsa(&Message::from_digest(hash), &recoverable_sig)
         .unwrap();

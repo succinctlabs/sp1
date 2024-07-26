@@ -47,5 +47,7 @@ fn main() {
         .syscall_counts
         .contains_key(&sp1_core::runtime::SyscallCode::KECCAK_PERMUTE));
 
+    println!("Syscall counts: {:?}", report.syscall_counts);
+
     println!("Successfully executed the program & confirmed syscalls.");
 }
