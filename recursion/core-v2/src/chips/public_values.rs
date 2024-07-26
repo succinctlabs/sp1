@@ -34,7 +34,7 @@ pub struct PublicValuesPreprocessedCols<T: Copy> {
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct PublicValuesCols<T: Copy> {
-    pub pv: T,
+    pub pv_element: T,
 }
 
 impl<F, const DEGREE: usize> BaseAir<F> for PublicValuesChip<DEGREE> {
@@ -99,5 +99,23 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for PublicValuesChip<DE
             NUM_PUBLIC_VALUES_PREPROCESSED_COLS,
         );
         Some(trace)
+    }
+
+    fn generate_trace(
+        &self,
+        input: &ExecutionRecord<F>,
+        _: &mut ExecutionRecord<F>,
+    ) -> RowMajorMatrix<F> {
+        assert!(input.commit_pv_hash_events.len() == 1);
+
+        let mut rows = [F::zero(); NUM_PUBLIC_VALUES_COLS * DIGEST_SIZE];
+        for (i, event) in input.commit_pv_hash_events[0].pv_hash.iter().enumerate() {
+            rows[i] = *event;
+        }
+
+        // Convert the trace to a row major matrix.
+        let trace = RowMajorMatrix::new(rows.to_vec(), NUM_PUBLIC_VALUES_COLS);
+
+        trace
     }
 }
