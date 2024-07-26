@@ -16,12 +16,15 @@ pub mod lib {
 #[cfg(all(target_os = "zkvm", feature = "libm"))]
 mod libm;
 
+/// The number of 32 bit words that the public values digest is composed of.
+pub const PV_DIGEST_NUM_WORDS: usize = 8;
+pub const POSEIDON_NUM_WORDS: usize = 8;
+
 #[cfg(target_os = "zkvm")]
 mod zkvm {
     use crate::syscalls::syscall_halt;
 
     use cfg_if::cfg_if;
-    use getrandom::{register_custom_getrandom, Error};
     use sha2::{Digest, Sha256};
 
     cfg_if! {
@@ -75,7 +78,7 @@ mod zkvm {
         sym STACK_TOP
     );
 
-    pub fn zkvm_getrandom(s: &mut [u8]) -> Result<(), Error> {
+    pub fn zkvm_getrandom(s: &mut [u8]) -> Result<(), getrandom::Error> {
         unsafe {
             crate::syscalls::sys_rand(s.as_mut_ptr(), s.len());
         }
@@ -83,7 +86,7 @@ mod zkvm {
         Ok(())
     }
 
-    register_custom_getrandom!(zkvm_getrandom);
+    getrandom::register_custom_getrandom!(zkvm_getrandom);
 }
 
 #[macro_export]

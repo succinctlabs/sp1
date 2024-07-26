@@ -34,7 +34,7 @@ pub extern "C" fn syscall_halt(exit_code: u8) -> ! {
             asm!("ecall", in("t0") crate::syscalls::COMMIT, in("a0") i, in("a1") word);
         }
 
-        cfg_if! {
+        cfg_if::cfg_if! {
             if #[cfg(feature = "verify")] {
                 let deferred_proofs_digest = zkvm::DEFERRED_PROOFS_DIGEST.as_mut().unwrap();
 
