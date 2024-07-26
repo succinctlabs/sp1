@@ -121,9 +121,7 @@ pub fn verify_challenges<C: Config>(
                 Usize::Var(log_max_height),
             );
 
-            // Bitshift the index bits to the right.
-            // let final_poly_index_bits_short: Array<C, Var<C::N>> =
-            //     index_bits.shift(builder, nb_commit_phase_commits);
+            // Bit shift the index bits to the right.
             let mut final_poly_index_bits = builder.array(NUM_BITS);
             let final_poly_num_bits: Var<_> =
                 builder.eval(index_bits.len() - nb_commit_phase_commits);

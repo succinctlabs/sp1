@@ -7,6 +7,7 @@ use p3_matrix::Dimensions;
 use p3_util::log2_strict_usize;
 use sp1_recursion_compiler::ir::{Builder, Config, Felt};
 use sp1_recursion_compiler::prelude::*;
+use sp1_recursion_core::runtime::NUM_BITS;
 use sp1_recursion_core::stark::config::OuterChallengeMmcs;
 
 use crate::mmcs::verify_batch;
@@ -183,17 +184,15 @@ pub fn verify_challenges<C: Config>(
             log_max_height,
         );
 
-        let index_bits = builder.num2bits_v_circuit(index, 32);
+        let index_bits = builder.num2bits_v_circuit(index, NUM_BITS);
         let final_poly_index_bits = index_bits
             .into_iter()
             .skip(proof.commit_phase_commits.len())
             .chain(
                 std::iter::repeat(builder.eval(C::N::zero()))
-                    .take(32 - proof.commit_phase_commits.len()),
+                    .take(NUM_BITS - proof.commit_phase_commits.len()),
             )
             .collect_vec();
-        let eval: Ext<C::F, C::EF> = builder.eval(SymbolicExt::from_f(C::EF::zero()));
-        let x_pow: Ext<C::F, C::EF> = builder.eval(SymbolicExt::from_f(C::EF::one()));
 
         let rev_reduced_index =
             builder.reverse_bits_len_circuit(final_poly_index_bits, log_max_height);
@@ -202,9 +201,14 @@ pub fn verify_challenges<C: Config>(
         ));
         let x = builder.exp_e_bits(two_adic_generator, rev_reduced_index);
 
+        // Initialize the running parameters for evaluating the polynomial.
+        let eval: Ext<C::F, C::EF> = builder.eval(SymbolicExt::from_f(C::EF::zero()));
+        let x_pow: Ext<C::F, C::EF> = builder.eval(SymbolicExt::from_f(C::EF::one()));
+
+        // Evaluate the polynomial.
         for coeff in &proof.final_poly {
             builder.assign(eval, eval + *coeff * x_pow);
-            builder.assign(x, x * x_pow);
+            builder.assign(x_pow, x * x_pow);
         }
         builder.assert_ext_eq(folded_eval, eval);
     }
