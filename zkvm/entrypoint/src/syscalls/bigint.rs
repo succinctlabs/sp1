@@ -4,6 +4,11 @@ pub const BIGINT_WIDTH_WORDS: usize = 8;
 
 /// Sets result to be (x op y) % modulus. Currently only multiplication is supported. If modulus is
 /// zero, the modulus applied is 2^256.
+
+/// Sets `result` to be `(x op y) % modulus`.
+///
+/// Currently only multiplication is supported and `op` is not used. If the modulus is zero, then
+/// the modulus applied is 2^256.
 #[allow(unused_variables)]
 #[no_mangle]
 pub extern "C" fn sys_bigint(

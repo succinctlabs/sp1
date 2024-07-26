@@ -6,6 +6,7 @@ pub const N: usize = 16;
 
 /// An affine point on the Secp256k1 curve.
 #[derive(Copy, Clone)]
+#[repr(align(4))]
 pub struct Secp256k1AffinePoint(pub [u32; N]);
 
 impl AffinePointV2<N> for Secp256k1AffinePoint {

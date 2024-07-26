@@ -6,6 +6,7 @@ pub const N: usize = 16;
 
 /// An affine point on the BLS12-381 curve.
 #[derive(Copy, Clone)]
+#[repr(align(4))]
 pub struct Bn254AffinePoint(pub [u32; N]);
 
 impl AffinePointV2<N> for Bn254AffinePoint {
