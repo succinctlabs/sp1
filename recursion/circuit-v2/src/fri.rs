@@ -349,11 +349,11 @@ mod tests {
         BatchOpeningVariable, DigestVariable, FriCommitPhaseProofStepVariable, FriProofVariable,
         FriQueryProofVariable, TwoAdicPcsMatsVariable, TwoAdicPcsProofVariable, DIGEST_SIZE,
     };
-    use p3_challenger::CanObserve;
     use p3_challenger::FieldChallenger;
+    use p3_challenger::{CanObserve, CanSample};
     use p3_commit::{Pcs, TwoAdicMultiplicativeCoset};
     use p3_field::AbstractField;
-    use p3_fri::TwoAdicFriPcsProof;
+    use p3_fri::{verifier, TwoAdicFriPcsProof};
     use p3_matrix::dense::RowMajorMatrix;
     use rand::rngs::OsRng;
     use sp1_core::stark::StarkGenericConfig;
@@ -505,89 +505,91 @@ mod tests {
         )
     }
 
-    // #[test]
-    // fn test_fri_verify_shape_and_sample_challenges() {
-    //     let mut rng = &mut OsRng;
-    //     let log_degrees = &[16, 9, 7, 4, 2];
-    //     let perm = inner_perm();
-    //     let fri_config = compressed_fri_config();
-    //     let hash = InnerHash::new(perm.clone());
-    //     let compress = InnerCompress::new(perm.clone());
-    //     let val_mmcs = InnerValMmcs::new(hash, compress);
-    //     let dft = InnerDft {};
-    //     let pcs: InnerPcs = InnerPcs::new(
-    //         log_degrees.iter().copied().max().unwrap(),
-    //         dft,
-    //         val_mmcs,
-    //         fri_config,
-    //     );
+    #[test]
+    fn test_fri_verify_shape_and_sample_challenges() {
+        let mut rng = &mut OsRng;
+        let log_degrees = &[16, 9, 7, 4, 2];
+        let perm = inner_perm();
+        let fri_config = compressed_fri_config();
+        let hash = InnerHash::new(perm.clone());
+        let compress = InnerCompress::new(perm.clone());
+        let val_mmcs = InnerValMmcs::new(hash, compress);
+        let dft = InnerDft {};
+        let pcs: InnerPcs = InnerPcs::new(
+            log_degrees.iter().copied().max().unwrap(),
+            dft,
+            val_mmcs,
+            fri_config,
+        );
 
-    //     // Generate proof.
-    //     let domains_and_polys = log_degrees
-    //         .iter()
-    //         .map(|&d| {
-    //             (
-    //                 <InnerPcs as Pcs<InnerChallenge, InnerChallenger>>::natural_domain_for_degree(
-    //                     &pcs,
-    //                     1 << d,
-    //                 ),
-    //                 RowMajorMatrix::<InnerVal>::rand(&mut rng, 1 << d, 10),
-    //             )
-    //         })
-    //         .collect::<Vec<_>>();
-    //     let (commit, data) = <InnerPcs as Pcs<InnerChallenge, InnerChallenger>>::commit(
-    //         &pcs,
-    //         domains_and_polys.clone(),
-    //     );
-    //     let mut challenger = InnerChallenger::new(perm.clone());
-    //     challenger.observe(commit);
-    //     let zeta = challenger.sample_ext_element::<InnerChallenge>();
-    //     let points = domains_and_polys
-    //         .iter()
-    //         .map(|_| vec![zeta])
-    //         .collect::<Vec<_>>();
-    //     let (_, proof) = pcs.open(vec![(&data, points)], &mut challenger);
+        // Generate proof.
+        let domains_and_polys = log_degrees
+            .iter()
+            .map(|&d| {
+                (
+                    <InnerPcs as Pcs<InnerChallenge, InnerChallenger>>::natural_domain_for_degree(
+                        &pcs,
+                        1 << d,
+                    ),
+                    RowMajorMatrix::<InnerVal>::rand(&mut rng, 1 << d, 10),
+                )
+            })
+            .collect::<Vec<_>>();
+        let (commit, data) = <InnerPcs as Pcs<InnerChallenge, InnerChallenger>>::commit(
+            &pcs,
+            domains_and_polys.clone(),
+        );
+        let mut challenger = InnerChallenger::new(perm.clone());
+        challenger.observe(commit);
+        let zeta = challenger.sample_ext_element::<InnerChallenge>();
+        let points = domains_and_polys
+            .iter()
+            .map(|_| vec![zeta])
+            .collect::<Vec<_>>();
+        let (_, proof) = pcs.open(vec![(&data, points)], &mut challenger);
 
-    //     // Verify proof.
-    //     let mut challenger = InnerChallenger::new(perm.clone());
-    //     challenger.observe(commit);
-    //     let _: InnerChallenge = challenger.sample();
-    //     let fri_challenges_gt = verifier::verify_shape_and_sample_challenges(
-    //         &compressed_fri_config(),
-    //         &proof.fri_proof,
-    //         &mut challenger,
-    //     )
-    //     .unwrap();
+        // Verify proof.
+        let mut challenger = InnerChallenger::new(perm.clone());
+        challenger.observe(commit);
+        let _: InnerChallenge = challenger.sample();
+        let fri_challenges_gt = verifier::verify_shape_and_sample_challenges(
+            &compressed_fri_config(),
+            &proof.fri_proof,
+            &mut challenger,
+        )
+        .unwrap();
 
-    //     // Define circuit.
-    //     let mut builder = Builder::<InnerConfig>::default();
-    //     let config = compressed_fri_config();
-    //     let fri_proof = const_fri_proof(&mut builder, proof.fri_proof);
+        // Define circuit.
+        let mut builder = Builder::<InnerConfig>::default();
+        let config = compressed_fri_config();
+        let fri_proof = const_fri_proof(&mut builder, proof.fri_proof);
 
-    //     let mut challenger = DuplexChallengerVariable::new(&mut builder);
-    //     let commit: [_; DIGEST_SIZE] = commit.into();
-    //     let commit = commit.map(|x| builder.eval(x));
-    //     challenger.observe_commitment(&mut builder, commit);
-    //     let _ = challenger.sample_ext(&mut builder);
-    //     let fri_challenges =
-    //         verify_shape_and_sample_challenges(&mut builder, &config, &fri_proof, &mut challenger);
+        let mut challenger = DuplexChallengerVariable::new(&mut builder);
+        let commit: [_; DIGEST_SIZE] = commit.into();
+        let commit = commit.map(|x| builder.eval(x));
+        challenger.observe_commitment(&mut builder, commit);
+        let _ = challenger.sample_ext(&mut builder);
+        let fri_challenges =
+            verify_shape_and_sample_challenges(&mut builder, &config, &fri_proof, &mut challenger);
 
-    //     for i in 0..fri_challenges_gt.betas.len() {
-    //         builder.assert_ext_eq(
-    //             SymbolicExt::from_f(fri_challenges_gt.betas[i]),
-    //             fri_challenges.betas[i],
-    //         );
-    //     }
+        for i in 0..fri_challenges_gt.betas.len() {
+            builder.assert_ext_eq(
+                SymbolicExt::from_f(fri_challenges_gt.betas[i]),
+                fri_challenges.betas[i],
+            );
+        }
 
-    //     for i in 0..fri_challenges_gt.query_indices.len() {
-    //         builder.assert_var_eq(
-    //             F::from_canonical_usize(fri_challenges_gt.query_indices[i]),
-    //             fri_challenges.query_indices[i],
-    //         );
-    //     }
+        for i in 0..fri_challenges_gt.query_indices.len() {
+            let query_indices =
+                builder.bits2num_v2_f(fri_challenges.query_indices[i].iter().cloned());
+            builder.assert_felt_eq(
+                F::from_canonical_usize(fri_challenges_gt.query_indices[i]),
+                query_indices,
+            );
+        }
 
-    //     run_test_recursion(builder.operations);
-    // }
+        run_test_recursion(builder.operations);
+    }
 
     #[test]
     fn test_verify_two_adic_pcs() {
