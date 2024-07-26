@@ -121,10 +121,12 @@ pub fn verify_challenges<C: Config>(
                 Usize::Var(log_max_height),
             );
 
-            // Bit shift the index bits to the right.
             let mut final_poly_index_bits = builder.array(NUM_BITS);
             let final_poly_num_bits: Var<_> =
                 builder.eval(index_bits.len() - nb_commit_phase_commits);
+
+            // Skip the first `nb_commit_phase_commits` bits of `index_bits` and load them into
+            // `final_poly_index_bits`.
             builder
                 .range(0, final_poly_num_bits)
                 .for_each(|i, builder| {
@@ -133,6 +135,7 @@ pub fn verify_challenges<C: Config>(
                     builder.set(&mut final_poly_index_bits, i, bit);
                 });
 
+            // Pad the remaining bits of `final_poly_index_bits` with zeros.
             builder
                 .range(final_poly_num_bits, NUM_BITS)
                 .for_each(|i, builder| {
@@ -156,6 +159,7 @@ pub fn verify_challenges<C: Config>(
                 )
             };
 
+            // Initialize the running values to compute the polynomial evaluation.
             let eval: Ext<_, _> = builder.eval(C::F::zero());
             let x_pow: Ext<_, _> = builder.eval(C::F::one());
 
@@ -167,7 +171,6 @@ pub fn verify_challenges<C: Config>(
                     builder.assign(eval, eval + poly_coeff * x_pow);
                     builder.assign(x_pow, x_pow * x);
                 });
-
             builder.assert_ext_eq(folded_eval, eval);
         });
 }

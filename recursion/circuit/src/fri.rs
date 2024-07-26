@@ -185,6 +185,8 @@ pub fn verify_challenges<C: Config>(
         );
 
         let index_bits = builder.num2bits_v_circuit(index, NUM_BITS);
+        // Collect all the bits from `commit_phase_commits.len()` onwards (bit shift), then append
+        // zeroes to get something of length NUM_BITS.
         let final_poly_index_bits = index_bits
             .into_iter()
             .skip(proof.commit_phase_commits.len())
@@ -194,6 +196,8 @@ pub fn verify_challenges<C: Config>(
             )
             .collect_vec();
 
+        // Compute the power of the two-adic generator at which we evaluate the final
+        // polynomial.
         let rev_reduced_index =
             builder.reverse_bits_len_circuit(final_poly_index_bits, log_max_height);
         let two_adic_generator: Ext<_, _> = builder.eval(SymbolicExt::from_f(
