@@ -7,7 +7,6 @@ use p3_matrix::Dimensions;
 use p3_util::log2_strict_usize;
 use sp1_recursion_compiler::ir::{Builder, Config, Felt};
 use sp1_recursion_compiler::prelude::*;
-use sp1_recursion_core::runtime::NUM_BITS;
 use sp1_recursion_core::stark::config::OuterChallengeMmcs;
 
 use crate::mmcs::verify_batch;

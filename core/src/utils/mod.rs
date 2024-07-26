@@ -24,7 +24,7 @@ use crate::{memory::MemoryCols, operations::field::params::Limbs};
 use generic_array::ArrayLength;
 use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
 
-pub const MIN_NUM_ROWS: usize = 1 << 9;
+pub const MIN_NUM_ROWS: usize = 1 << 5;
 
 pub const fn indices_arr<const N: usize>() -> [usize; N] {
     let mut indices_arr = [0; N];

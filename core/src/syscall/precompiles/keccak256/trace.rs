@@ -1,5 +1,4 @@
 use std::borrow::BorrowMut;
-use std::f32::MIN;
 
 use p3_field::PrimeField32;
 use p3_keccak_air::{generate_trace_rows, NUM_KECCAK_COLS, NUM_ROUNDS};

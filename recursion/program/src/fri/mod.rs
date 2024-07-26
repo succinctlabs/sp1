@@ -4,7 +4,6 @@ pub mod two_adic_pcs;
 pub mod types;
 
 pub use domain::*;
-use p3_util::reverse_bits_len;
 use sp1_primitives::types::RecursionProgramType;
 use sp1_recursion_compiler::ir::ExtensionOperand;
 use sp1_recursion_compiler::ir::Ptr;
