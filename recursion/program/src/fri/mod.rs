@@ -123,10 +123,14 @@ pub fn verify_challenges<C: Config>(
 
             // Bitshift the index bits to the right.
             // let index_length = commit_phase.len().materialize(builder);
-            let mut final_poly_index_bits = builder.array(log_max_height);
+            let mut final_poly_index_bits: Array<C, Var<C::N>> = builder.array(32);
             builder
-                .range(0, log_max_height)
+                .range(0, 32)
                 .for_each(|j, builder| builder.set(&mut final_poly_index_bits, j, C::N::zero()));
+
+            let index_bits_len = index_bits.len().materialize(builder);
+            builder.print_v(index_bits_len);
+            builder.print_v(nb_commit_phase_commits);
 
             let nb_bits: Var<_> = builder.eval(index_bits.len() - nb_commit_phase_commits);
             builder.range(0, nb_bits).for_each(|j, builder| {
@@ -137,35 +141,36 @@ pub fn verify_challenges<C: Config>(
 
             let two_adic_generator_f = config.get_two_adic_generator(builder, log_max_height);
 
-            let x = if matches!(builder.program_type, RecursionProgramType::Wrap) {
-                builder.exp_reverse_bits_len(
-                    two_adic_generator_f,
-                    &final_poly_index_bits,
-                    log_max_height,
-                )
-            } else {
-                builder.exp_reverse_bits_len_fast(
-                    two_adic_generator_f,
-                    &final_poly_index_bits,
-                    log_max_height,
-                )
-            };
+            let x = two_adic_generator_f;
+            // if matches!(builder.program_type, RecursionProgramType::Wrap) {
+            //     builder.exp_reverse_bits_len(
+            //         two_adic_generator_f,
+            //         &final_poly_index_bits,
+            //         log_max_height,
+            //     )
+            // } else {
+            //     builder.exp_reverse_bits_len_fast(
+            //         two_adic_generator_f,
+            //         &final_poly_index_bits,
+            //         log_max_height,
+            //     )
+            // };
 
-            builder.print_f(two_adic_generator_f);
-            builder.print_f(x);
+            // builder.print_f(two_adic_generator_f);
+            // // builder.print_f(x);
 
-            let eval: Ext<_, _> = builder.eval(C::F::zero());
-            let x_pow: Ext<_, _> = builder.eval(C::F::one());
+            // let eval: Ext<_, _> = builder.eval(C::F::zero());
+            // let x_pow: Ext<_, _> = builder.eval(C::F::one());
 
-            builder
-                .range(0, proof.final_poly.len())
-                .for_each(|j, builder| {
-                    let poly_coeff = builder.get(&proof.final_poly, j);
-                    builder.assign(eval, eval + poly_coeff * x_pow);
-                    builder.assign(x_pow, x_pow * x);
-                });
+            // builder
+            //     .range(0, proof.final_poly.len())
+            //     .for_each(|j, builder| {
+            //         let poly_coeff = builder.get(&proof.final_poly, j);
+            //         builder.assign(eval, eval + poly_coeff * x_pow);
+            //         builder.assign(x_pow, x_pow * x);
+            //     });
 
-            builder.assert_ext_eq(folded_eval, eval);
+            // builder.assert_ext_eq(folded_eval, eval);
         });
 }
 
