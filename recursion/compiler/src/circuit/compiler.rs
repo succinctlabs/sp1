@@ -322,7 +322,7 @@ impl<C: Config> AsmCompiler<C> {
         })
     }
 
-    fn commit_pv_hash(&mut self, pv_hash: [Felt<C::F>; DIGEST_SIZE]) {
+    fn commit_pv_hash(&mut self, pv_hash: [Felt<C::F>; DIGEST_SIZE]) -> Instruction<C::F> {
         Instruction::CommitPVHash(CommitPVHashInstr {
             pv_addrs: pv_hash.map(|r| r.write(self)),
         })
@@ -566,14 +566,12 @@ impl<C: Config> AsmCompiler<C> {
                     .iter_mut()
                     .map(|(ref addr, mult)| (mult, addr))
                     .collect(),
-                Instruction::CommitPVHash(CommitPVHashInstr { ref pv_addrs }) => {
-                    pv_addrs.iter().collect()
-                }
                 // Instructions that do not write to memory.
                 Instruction::Mem(MemInstr {
                     kind: MemAccessKind::Read,
                     ..
                 })
+                | Instruction::CommitPVHash(_)
                 | Instruction::Print(_) => vec![],
             })
             .for_each(|(mult, addr): (&mut C::F, &Address<C::F>)| {

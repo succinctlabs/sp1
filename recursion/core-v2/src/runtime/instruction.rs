@@ -41,11 +41,6 @@ pub struct HintExt2FeltsInstr<F> {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct CommitPVHashInstr<F> {
-    pub pv_hash_addrs: [Address<F>; DIGEST_SIZE],
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum FieldEltType {
     Base,
     Extension,

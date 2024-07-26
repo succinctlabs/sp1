@@ -1,15 +1,15 @@
-use std::borrow::BorrowMut;
+use std::borrow::{Borrow, BorrowMut};
 
-use p3_air::BaseAir;
+use p3_air::{Air, AirBuilder, BaseAir, PairBuilder};
 use p3_field::PrimeField32;
-use p3_matrix::dense::RowMajorMatrix;
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core::air::MachineAir;
 use sp1_derive::AlignedBorrow;
 
 use crate::{
-    instruction::CommitPVHashInstr,
+    builder::SP1RecursionAirBuilder,
     runtime::{Instruction, RecursionProgram},
-    ExecutionRecord,
+    CommitPVHashInstr, ExecutionRecord,
 };
 
 use crate::DIGEST_SIZE;
@@ -79,8 +79,8 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for PublicValuesChip<DE
             "Expected exactly one CommitPVHash instruction."
         );
 
-        let CommitPVHashInstr { pv_hash_addrs } = commit_pv_hash_instrs[0];
-        for (i, addr) in pv_hash_addrs.iter().enumerate() {
+        let CommitPVHashInstr { pv_addrs } = commit_pv_hash_instrs[0];
+        for (i, addr) in pv_addrs.iter().enumerate() {
             let mut row = [F::zero(); NUM_PUBLIC_VALUES_PREPROCESSED_COLS];
             let cols: &mut PublicValuesPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
             cols.pv_idx[i] = F::one();
@@ -114,8 +114,40 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for PublicValuesChip<DE
         }
 
         // Convert the trace to a row major matrix.
-        let trace = RowMajorMatrix::new(rows.to_vec(), NUM_PUBLIC_VALUES_COLS);
+        RowMajorMatrix::new(rows.to_vec(), NUM_PUBLIC_VALUES_COLS)
+    }
 
-        trace
+    fn included(&self, _record: &Self::Record) -> bool {
+        true
+    }
+}
+
+impl<AB, const DEGREE: usize> Air<AB> for PublicValuesChip<DEGREE>
+where
+    AB: SP1RecursionAirBuilder + PairBuilder,
+{
+    fn eval(&self, builder: &mut AB) {
+        let main = builder.main();
+        let local = main.row_slice(0);
+        let local: &PublicValuesCols<AB::Var> = (*local).borrow();
+        let prepr = builder.preprocessed();
+        let local_prepr = prepr.row_slice(0);
+        let local_prepr: &PublicValuesPreprocessedCols<AB::Var> = (*local_prepr).borrow();
+        let pv = builder.public_values();
+        let pv_elms: [AB::Expr; DIGEST_SIZE] = core::array::from_fn(|i| pv[i].into());
+
+        // Constrain mem read for the public value element.
+        builder.receive_single(
+            local_prepr.pv_mem.addr,
+            local.pv_element,
+            local_prepr.pv_mem.read_mult,
+        );
+
+        for i in 0..DIGEST_SIZE {
+            // Ensure that the public value element is the same for all rows within a fri fold invocation.
+            builder
+                .when(local_prepr.pv_idx[i])
+                .assert_eq(pv_elms[i].clone(), local.pv_element);
+        }
     }
 }

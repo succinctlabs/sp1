@@ -131,6 +131,6 @@ impl<C: Config> CircuitV2Builder<C> for Builder<C> {
     }
 
     fn commit_pv_hash_v2(&mut self, pv_hash: [Felt<C::F>; DIGEST_SIZE]) {
-        self.operations.push(DslIr::CircuitV2CommitPvHash(pv_hash));
+        self.operations.push(DslIr::CircuitV2CommitPVHash(pv_hash));
     }
 }

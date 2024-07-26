@@ -1,3 +1,5 @@
+use sp1_core::utils::DIGEST_SIZE;
+
 use super::{
     Array, CircuitV2FriFoldInput, CircuitV2FriFoldOutput, FriFoldInput, MemIndex, Ptr, TracedVec,
 };
@@ -214,7 +216,7 @@ pub enum DslIr<C: Config> {
     /// Permutates an array of BabyBear elements in the circuit using the wide precompile.
     CircuitV2Poseidon2PermuteBabyBearWide([Felt<C::F>; 16], [Felt<C::F>; 16]),
     /// Commits the public values hash.
-    CircuitV2CommitPVHash([Felt<C::F>; 16]),
+    CircuitV2CommitPVHash([Felt<C::F>; DIGEST_SIZE]),
 
     // Miscellaneous instructions.
     /// Decompose hint operation of a usize into an array. (output = num2bits(usize)).

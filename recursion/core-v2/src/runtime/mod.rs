@@ -4,7 +4,7 @@ mod program;
 mod record;
 
 pub use instruction::Instruction;
-use instruction::{CommitPVHashInstr, FieldEltType, HintBitsInstr, HintExt2FeltsInstr, PrintInstr};
+use instruction::{FieldEltType, HintBitsInstr, HintExt2FeltsInstr, PrintInstr};
 pub use opcode::*;
 use p3_util::reverse_bits_len;
 pub use program::*;
@@ -451,8 +451,8 @@ where
                     }
                 }
 
-                Instruction::CommitPVHash(CommitPVHashInstr { pv_hash_addrs }) => {
-                    let pv_hash = array::from_fn(|i| self.mr(pv_hash_addrs[i]).val[0]);
+                Instruction::CommitPVHash(CommitPVHashInstr { pv_addrs }) => {
+                    let pv_hash = array::from_fn(|i| self.mr(pv_addrs[i]).val[0]);
                     self.record
                         .commit_pv_hash_events
                         .push(CommitPVHashEvent { pv_hash });
