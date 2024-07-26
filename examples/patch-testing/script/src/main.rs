@@ -34,7 +34,7 @@ fn main() {
         .syscall_counts
         .contains_key(&sp1_core::runtime::SyscallCode::SHA_EXTEND));
 
-    // Confirm there was at least 1 ED25519_COMPUTE syscalls.
+    // Confirm there was at least 1 of each ED25519 syscalls.
     assert!(report
         .syscall_counts
         .contains_key(&sp1_core::runtime::SyscallCode::ED_ADD));
@@ -47,7 +47,16 @@ fn main() {
         .syscall_counts
         .contains_key(&sp1_core::runtime::SyscallCode::KECCAK_PERMUTE));
 
-    println!("Syscall counts: {:?}", report.syscall_counts);
+    // Confirm there was at least 1 of each SECP256K1 syscall.
+    assert!(report
+        .syscall_counts
+        .contains_key(&sp1_core::runtime::SyscallCode::SECP256K1_ADD));
+    assert!(report
+        .syscall_counts
+        .contains_key(&sp1_core::runtime::SyscallCode::SECP256K1_DECOMPRESS));
+    assert!(report
+        .syscall_counts
+        .contains_key(&sp1_core::runtime::SyscallCode::SECP256K1_DOUBLE));
 
     println!("Successfully executed the program & confirmed syscalls.");
 }

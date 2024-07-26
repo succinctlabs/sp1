@@ -24,6 +24,22 @@ fn keccak256<T: AsRef<[u8]>>(bytes: T) -> [u8; 32] {
     output
 }
 
+/// Verify that the patch on recover_ecdsa on secp256k1 correctly patches the ecrecover function.
+fn test_secp256k1_patch() {
+    // Sourced from ecrecover test: https://github.com/paradigmxyz/reth/blob/18ebc5eaee307dcc1f09c097426770f6dfc3c206/crates/primitives/src/transaction/util.rs#L56
+    let vrfy = Secp256k1::verification_only();
+    let sig = hex!("650acf9d3f5f0a2c799776a1254355d5f4061762a237396a99a0e0e3fc2bcd6729514a0dacb2e623ac4abd157cb18163ff942280db4d5caad66ddf941ba12e0300");
+    let hash = hex!("47173285a8d7341e5e972fc677286384f802f8ef42a5ec5f03bbfa254cb01fad");
+    let out = address!("c08b5542d177ac6686946920409741463a15dddb");
+    let rec_id = RecoveryId::from_i32(sig[64] as i32).unwrap();
+    let recoverable_sig = RecoverableSignature::from_compact(&sig[..64], rec_id).unwrap();
+    let public = vrfy
+        .recover_ecdsa(&Message::from_digest(hash), &recoverable_sig)
+        .unwrap();
+    let eth_address = keccak256(&public.serialize_uncompressed()[1..]);
+    assert_eq!(eth_address[12..], out);
+}
+
 /// To add testing for a new patch, add a new case to the function below.
 fn main() {
     let input = [1u8; 32];
@@ -56,15 +72,5 @@ fn main() {
     assert_eq!(vk.verify(&sig, &msg[..]), Ok(()));
 
     // Test secp256k1 patch.
-    let vrfy = Secp256k1::verification_only();
-    let sig = hex!("650acf9d3f5f0a2c799776a1254355d5f4061762a237396a99a0e0e3fc2bcd6729514a0dacb2e623ac4abd157cb18163ff942280db4d5caad66ddf941ba12e0300");
-    let hash = hex!("47173285a8d7341e5e972fc677286384f802f8ef42a5ec5f03bbfa254cb01fad");
-    let out = address!("c08b5542d177ac6686946920409741463a15dddb");
-    let rec_id = RecoveryId::from_i32(sig[64] as i32).unwrap();
-    let recoverable_sig = RecoverableSignature::from_compact(&sig[..64], rec_id).unwrap();
-    let public = vrfy
-        .recover_ecdsa(&Message::from_digest(hash), &recoverable_sig)
-        .unwrap();
-    let eth_address = keccak256(&public.serialize_uncompressed()[1..]);
-    assert_eq!(eth_address[12..], out);
+    test_secp256k1_patch();
 }
