@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use p3_field::PrimeField32;
-use sp1_core::{air::PublicValues, stark::MachineRecord, utils::SP1CoreOpts};
+use p3_field::{AbstractField, PrimeField32};
+use sp1_core::{stark::MachineRecord, utils::SP1CoreOpts};
 
 // TODO expand glob imports
 use crate::*;
@@ -16,7 +16,7 @@ pub struct ExecutionRecord<F> {
     pub ext_alu_events: Vec<ExtAluEvent<F>>,
     pub mem_events: Vec<MemEvent<F>>,
     /// The public values.
-    pub public_values: PublicValues<u32, u32>,
+    pub public_values: [F; DIGEST_SIZE],
 
     pub poseidon2_skinny_events: Vec<Poseidon2SkinnyEvent<F>>,
     pub poseidon2_wide_events: Vec<Poseidon2WideEvent<F>>,
@@ -57,7 +57,9 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
         commit_pv_hash_events.append(&mut other.commit_pv_hash_events);
     }
 
-    fn public_values<T: p3_field::AbstractField>(&self) -> Vec<T> {
-        self.public_values.to_vec()
+    fn public_values<T: AbstractField>(&self) -> Vec<T> {
+        let convert = |x: &F| T::from_canonical_u32(x.as_canonical_u32());
+
+        self.public_values.iter().map(convert).collect()
     }
 }

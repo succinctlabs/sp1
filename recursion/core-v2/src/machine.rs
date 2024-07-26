@@ -7,6 +7,7 @@ use crate::chips::{
     alu_base::BaseAluChip, alu_ext::ExtAluChip, dummy::DummyChip,
     exp_reverse_bits::ExpReverseBitsLenChip, fri_fold::FriFoldChip, mem::MemoryChip,
     poseidon2_skinny::Poseidon2SkinnyChip, poseidon2_wide::Poseidon2WideChip,
+    public_values::PublicValuesChip,
 };
 
 #[derive(MachineAir)]
@@ -32,6 +33,7 @@ pub enum RecursionAir<
     // RangeCheck(RangeCheckChip<F>),
     // Multi(MultiChip<DEGREE>),
     ExpReverseBitsLen(ExpReverseBitsLenChip<DEGREE>),
+    PublicValues(PublicValuesChip),
     DummyWide(DummyChip<COL_PADDING>),
 }
 
@@ -116,6 +118,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
             // RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE>::default()),
             RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>::default()),
             RecursionAir::FriFold(FriFoldChip::<DEGREE>::default()),
+            RecursionAir::PublicValues(PublicValuesChip::default()),
         ]
     }
 
@@ -129,6 +132,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
             RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE>::default()),
             RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>::default()),
             RecursionAir::FriFold(FriFoldChip::<DEGREE>::default()),
+            RecursionAir::PublicValues(PublicValuesChip::default()),
         ]
     }
 
@@ -142,6 +146,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
             RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE>::default()),
             RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>::default()),
             RecursionAir::FriFold(FriFoldChip::<DEGREE>::default()),
+            RecursionAir::PublicValues(PublicValuesChip::default()),
         ]
     }
 
@@ -168,6 +173,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
                 fixed_log2_rows: Some(fri_fold_padding),
                 pad: true,
             }),
+            RecursionAir::PublicValues(PublicValuesChip::default()),
         ]
     }
 

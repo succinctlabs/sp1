@@ -21,7 +21,7 @@ pub const NUM_PUBLIC_VALUES_PREPROCESSED_COLS: usize =
     core::mem::size_of::<PublicValuesPreprocessedCols<u8>>();
 
 #[derive(Default)]
-pub struct PublicValuesChip<const DEGREE: usize> {}
+pub struct PublicValuesChip {}
 
 /// The preprocessed columns for the CommitPVHash instruction.
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
@@ -38,13 +38,13 @@ pub struct PublicValuesCols<T: Copy> {
     pub pv_element: T,
 }
 
-impl<F, const DEGREE: usize> BaseAir<F> for PublicValuesChip<DEGREE> {
+impl<F> BaseAir<F> for PublicValuesChip {
     fn width(&self) -> usize {
         NUM_PUBLIC_VALUES_COLS
     }
 }
 
-impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for PublicValuesChip<DEGREE> {
+impl<F: PrimeField32> MachineAir<F> for PublicValuesChip {
     type Record = ExecutionRecord<F>;
 
     type Program = RecursionProgram<F>;
@@ -123,7 +123,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for PublicValuesChip<DE
     }
 }
 
-impl<AB, const DEGREE: usize> Air<AB> for PublicValuesChip<DEGREE>
+impl<AB> Air<AB> for PublicValuesChip
 where
     AB: SP1RecursionAirBuilder + PairBuilder,
 {
@@ -237,7 +237,7 @@ mod tests {
             }],
             ..Default::default()
         };
-        let chip = PublicValuesChip::<3>::default();
+        let chip = PublicValuesChip::default();
         let trace: RowMajorMatrix<F> = chip.generate_trace(&shard, &mut ExecutionRecord::default());
         println!("{:?}", trace.values)
     }
