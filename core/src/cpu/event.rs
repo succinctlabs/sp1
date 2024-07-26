@@ -1,7 +1,10 @@
+use std::array;
+
 use serde::{Deserialize, Serialize};
 
 use crate::runtime::Instruction;
 use crate::runtime::MemoryRecordEnum;
+use crate::runtime::{Opcode, MAX_OPCODE_IDX};
 
 /// A standard format for describing CPU operations that need to be proven.
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
@@ -52,14 +55,74 @@ pub struct CpuEvent {
     /// Exit code called with halt.
     pub exit_code: u32,
 
-    pub alu_lookup_id: u128,
-    pub syscall_lookup_id: u128,
-    pub memory_add_lookup_id: u128,
-    pub memory_sub_lookup_id: u128,
-    pub branch_gt_lookup_id: u128,
-    pub branch_lt_lookup_id: u128,
-    pub branch_add_lookup_id: u128,
-    pub jump_jal_lookup_id: u128,
-    pub jump_jalr_lookup_id: u128,
-    pub auipc_lookup_id: u128,
+    pub lookup_ids: CpuLookupIds,
+}
+
+/// An enum for the set of lookup_ids for each cpu event.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum CpuLookupIds {
+    AluLookupId(u128),
+    SyscallLookupId(u128),
+    MemoryLookupIds([u128; 2]),
+    BranchLookupIds([u128; 3]),
+    JumpLookupIds([u128; 2]),
+    AuipcLookupId(u128),
+    DefaultLookupIds,
+}
+
+impl CpuLookupIds {
+    /// Create a new set of lookup_ids for a given instruction.
+    pub fn new(instr: Instruction, rng_sampler: &mut impl LookupIdSampler) -> Self {
+        let num_lookup_ids = if instr.is_alu_instruction()
+            || instr.is_ecall_instruction()
+            || instr.opcode == Opcode::AUIPC
+        {
+            1
+        } else if instr.is_branch_instruction() {
+            3
+        } else if instr.is_jump_instruction() || instr.is_memory_instruction() {
+            2
+        } else {
+            0
+        };
+
+        let lookup_ids = rng_sampler.sample(num_lookup_ids);
+
+        if instr.is_alu_instruction() {
+            CpuLookupIds::AluLookupId(lookup_ids[0])
+        } else if instr.is_ecall_instruction() {
+            CpuLookupIds::SyscallLookupId(lookup_ids[0])
+        } else if instr.is_memory_instruction() {
+            CpuLookupIds::MemoryLookupIds([lookup_ids[0], lookup_ids[1]])
+        } else if instr.is_branch_instruction() {
+            CpuLookupIds::BranchLookupIds([lookup_ids[0], lookup_ids[1], lookup_ids[2]])
+        } else if instr.is_jump_instruction() {
+            CpuLookupIds::JumpLookupIds([lookup_ids[0], lookup_ids[1]])
+        } else if instr.opcode == Opcode::AUIPC {
+            CpuLookupIds::AuipcLookupId(lookup_ids[0])
+        } else {
+            CpuLookupIds::DefaultLookupIds
+        }
+    }
+}
+
+/// Trait for sampling lookup ids.
+pub trait LookupIdSampler {
+    fn sample(&mut self, num_lookup_ids: usize) -> &[u128];
+}
+
+/// The number of cpu events and per opcode events of a runtime execution run.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EventCounts {
+    pub(crate) num_cpu_events: usize,
+    pub(crate) num_ops_events: [usize; MAX_OPCODE_IDX + 1],
+}
+
+impl Default for EventCounts {
+    fn default() -> Self {
+        Self {
+            num_cpu_events: 0,
+            num_ops_events: array::from_fn(|_| 0),
+        }
+    }
 }

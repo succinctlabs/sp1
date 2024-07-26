@@ -1,6 +1,9 @@
 use std::env;
 
-use crate::runtime::{SplitOpts, DEFERRED_SPLIT_THRESHOLD};
+use crate::{
+    cpu::EventCounts,
+    runtime::{SplitOpts, DEFERRED_SPLIT_THRESHOLD},
+};
 
 const DEFAULT_SHARD_SIZE: usize = 1 << 22;
 const DEFAULT_SHARD_BATCH_SIZE: usize = 16;
@@ -32,6 +35,7 @@ pub struct SP1CoreOpts {
     pub trace_gen_workers: usize,
     pub checkpoints_channel_capacity: usize,
     pub records_and_traces_channel_capacity: usize,
+    pub event_counts: EventCounts,
 }
 
 impl Default for SP1CoreOpts {
@@ -69,6 +73,7 @@ impl Default for SP1CoreOpts {
                             .unwrap_or(DEFAULT_RECORDS_AND_TRACES_CHANNEL_CAPACITY)
                     },
                 ),
+            event_counts: EventCounts::default(),
         }
     }
 }

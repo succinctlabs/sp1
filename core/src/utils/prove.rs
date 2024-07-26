@@ -20,6 +20,7 @@ use p3_baby_bear::BabyBear;
 use p3_field::PrimeField32;
 
 use crate::air::{MachineAir, PublicValues};
+use crate::cpu::EventCounts;
 use crate::io::{SP1PublicValues, SP1Stdin};
 use crate::lookup::InteractionBuilder;
 use crate::runtime::{ExecutionError, NoOpSubproofVerifier, SP1Context};
@@ -155,7 +156,7 @@ where
         // Spawn the checkpoint generator thread.
         let checkpoint_generator_span = tracing::Span::current().clone();
         let (checkpoints_tx, checkpoints_rx) =
-            sync_channel::<(usize, File, bool)>(opts.checkpoints_channel_capacity);
+            sync_channel::<(usize, File, EventCounts, bool)>(opts.checkpoints_channel_capacity);
         let checkpoint_generator_handle: ScopedJoinHandle<Result<_, SP1CoreProverError>> =
             s.spawn(move || {
                 let _span = checkpoint_generator_span.enter();
@@ -167,7 +168,7 @@ where
                         let _span = span.enter();
 
                         // Execute the runtime until we reach a checkpoint.
-                        let (checkpoint, done) = runtime
+                        let (checkpoint, event_counts, done) = runtime
                             .execute_state()
                             .map_err(SP1CoreProverError::ExecutionError)?;
 
@@ -179,7 +180,9 @@ where
                             .map_err(SP1CoreProverError::IoError)?;
 
                         // Send the checkpoint.
-                        checkpoints_tx.send((index, checkpoint_file, done)).unwrap();
+                        checkpoints_tx
+                            .send((index, checkpoint_file, event_counts, done))
+                            .unwrap();
 
                         // If we've reached the final checkpoint, break out of the loop.
                         if done {
@@ -225,10 +228,14 @@ where
                     loop {
                         // Receive the latest checkpoint.
                         let received = { checkpoints_rx.lock().unwrap().recv() };
-                        if let Ok((index, mut checkpoint, done)) = received {
+                        if let Ok((index, mut checkpoint, event_counts, done)) = received {
                             // Trace the checkpoint and reconstruct the execution records.
                             let (mut records, _) = tracing::debug_span!("trace checkpoint")
-                                .in_scope(|| trace_checkpoint(program.clone(), &checkpoint, opts));
+                                .in_scope(|| {
+                                    let mut opts_copy = opts;
+                                    opts_copy.event_counts = event_counts;
+                                    trace_checkpoint(program.clone(), &checkpoint, opts_copy)
+                                });
                             reset_seek(&mut checkpoint);
 
                             // Generate the dependencies.
