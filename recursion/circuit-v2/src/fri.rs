@@ -6,11 +6,12 @@ use p3_matrix::Dimensions;
 use p3_util::log2_strict_usize;
 use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
-    ir::{Builder, Config, Felt, SymbolicExt},
+    ir::{Builder, CircuitV2FriFoldInput, CircuitV2FriFoldOutput, Config, Felt, SymbolicExt},
 };
 use std::{
     cmp::Reverse,
     iter::{repeat_with, zip},
+    mem::take,
 };
 
 use crate::challenger::DuplexChallengerVariable;
@@ -78,12 +79,9 @@ pub fn verify_two_adic_pcs<C: Config, Mmcs>(
             let mut ro: [Ext<C::F, C::EF>; 32] =
                 [builder.eval(SymbolicExt::from_f(C::EF::zero())); 32];
 
-            // An array of the current power for each log_height.
-            let mut log_height_pow = [0usize; 32];
-
-            for (batch_opening, round) in izip!(query_opening.clone(), &rounds) {
+            for (batch_opening, round) in izip!(query_opening, rounds.clone()) {
                 let batch_commit = round.batch_commit;
-                let mats = &round.mats;
+                let mats = round.mats;
                 let batch_heights = mats
                     .iter()
                     .map(|mat| mat.domain.size() << config.log_blowup)
@@ -107,10 +105,10 @@ pub fn verify_two_adic_pcs<C: Config, Mmcs>(
                     batch_opening.opened_values.clone(),
                     batch_opening.opening_proof.clone(),
                 );
-                for (mat_opening, mat) in izip!(batch_opening.opened_values.clone(), mats) {
+                for (mat_opening, mat) in izip!(&batch_opening.opened_values, mats) {
                     let mat_domain = mat.domain;
-                    let mat_points = &mat.points;
-                    let mat_values = &mat.values;
+                    let mat_points = mat.points;
+                    let mat_values = mat.values;
                     let log_height = log2_strict_usize(mat_domain.size()) + config.log_blowup;
 
                     let bits_reduced = log_global_max_height - log_height;
@@ -125,19 +123,21 @@ pub fn verify_two_adic_pcs<C: Config, Mmcs>(
                     let x: Felt<_> = builder.eval(g * two_adic_generator_exp);
 
                     for (z, ps_at_z) in izip!(mat_points, mat_values) {
-                        let mut acc: Ext<C::F, C::EF> =
-                            builder.eval(SymbolicExt::from_f(C::EF::zero()));
-                        for (p_at_x, &p_at_z) in izip!(mat_opening.clone(), ps_at_z) {
-                            let pow = log_height_pow[log_height];
-                            // Fill in any missing powers of alpha.
-                            (alpha_pows.len()..pow + 1).for_each(|_| {
-                                alpha_pows.push(builder.eval(*alpha_pows.last().unwrap() * alpha));
-                            });
-                            let p_at_x_0 = builder.ext2felt_v2(p_at_x)[0];
-                            acc = builder.eval(acc + (alpha_pows[pow] * (p_at_z - p_at_x_0)));
-                            log_height_pow[log_height] += 1;
-                        }
-                        ro[log_height] = builder.eval(ro[log_height] + acc / (*z - x));
+                        let CircuitV2FriFoldOutput {
+                            alpha_pow_output,
+                            ro_output,
+                        } = builder.fri_fold_v2(CircuitV2FriFoldInput {
+                            z,
+                            alpha,
+                            x,
+                            mat_opening: mat_opening.clone(),
+                            ps_at_z,
+                            alpha_pow_input: take(&mut alpha_pows),
+                            ro_input: ro.to_vec(),
+                        });
+                        alpha_pows = alpha_pow_output;
+
+                        ro = ro_output.try_into().unwrap();
                     }
                 }
             }

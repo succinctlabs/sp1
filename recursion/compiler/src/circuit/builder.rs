@@ -114,14 +114,14 @@ impl<C: Config> CircuitV2Builder<C> for Builder<C> {
     }
     /// Runs FRI fold.
     fn fri_fold_v2(&mut self, input: CircuitV2FriFoldInput<C>) -> CircuitV2FriFoldOutput<C> {
-        let mut uninit_vec = || {
+        let mut uninit_vec = |len| {
             std::iter::from_fn(|| Some(self.uninit()))
-                .take(input.ro_input.len())
+                .take(len)
                 .collect()
         };
         let output = CircuitV2FriFoldOutput {
-            alpha_pow_output: uninit_vec(),
-            ro_output: uninit_vec(),
+            alpha_pow_output: uninit_vec(input.alpha_pow_input.len()),
+            ro_output: uninit_vec(input.ro_input.len()),
         };
         self.operations
             .push(DslIr::CircuitV2FriFold(output.clone(), input));
