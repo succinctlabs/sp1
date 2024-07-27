@@ -9,11 +9,11 @@ use sp1_recursion_compiler::config::InnerConfig;
 use sp1_recursion_core::runtime::RecursionProgram;
 pub use sp1_recursion_gnark_ffi::plonk_bn254::PlonkBn254Proof;
 pub use sp1_recursion_program::machine::ReduceProgramType;
+pub use sp1_recursion_program::machine::{
+    SP1CompressMemoryLayout, SP1DeferredMemoryLayout, SP1RecursionMemoryLayout, SP1RootMemoryLayout,
+};
 use sp1_recursion_program::machine::{
     SP1CompressVerifier, SP1DeferredVerifier, SP1RecursiveVerifier, SP1RootVerifier,
-};
-pub use sp1_recursion_program::machine::{
-    SP1DeferredMemoryLayout, SP1RecursionMemoryLayout, SP1ReduceMemoryLayout, SP1RootMemoryLayout,
 };
 use tracing::debug_span;
 
@@ -44,7 +44,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             debug_span!("init compress program").in_scope(|| {
                 SP1CompressVerifier::<InnerConfig, _, _>::build(
                     self.compress_prover.machine(),
-                    self.rec_vk(),
+                    self.recursion_vk(),
                     self.deferred_vk(),
                 )
             })
@@ -78,21 +78,21 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     }
 
     /// The proving and verifying keys for the recursion step.
-    pub fn rec_keys(&self) -> &(StarkProvingKey<InnerSC>, StarkVerifyingKey<InnerSC>) {
-        self.rec_keys.get_or_init(|| {
+    pub fn recursion_keys(&self) -> &(StarkProvingKey<InnerSC>, StarkVerifyingKey<InnerSC>) {
+        self.recursion_keys.get_or_init(|| {
             debug_span!("init recursion keys")
                 .in_scope(|| self.compress_prover.setup(self.recursion_program()))
         })
     }
 
     /// The proving key for the recursion step.
-    pub fn rec_pk(&self) -> &StarkProvingKey<InnerSC> {
-        &self.rec_keys().0
+    pub fn recursion_pk(&self) -> &StarkProvingKey<InnerSC> {
+        &self.recursion_keys().0
     }
 
     /// The verifying key for the recursion step.
-    pub fn rec_vk(&self) -> &StarkVerifyingKey<InnerSC> {
-        &self.rec_keys().1
+    pub fn recursion_vk(&self) -> &StarkVerifyingKey<InnerSC> {
+        &self.recursion_keys().1
     }
 
     /// The proving and verifying keys for the deferred step.

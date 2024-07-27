@@ -12,12 +12,11 @@ This is likely due to two different versions of `alloy_sol_types` being used. To
 
 ```toml
 [dependencies]
-sp1-sdk = { version = "0.1.0", default-features = false }
+sp1-sdk = { version = "1.0.1", default-features = false }
 ```
 
-This will configure out the `network` feature which will remove the dependency on `alloy_sol_types` 
+This will configure out the `network` feature which will remove the dependency on `alloy_sol_types`
 and configure out the `NetworkProver`.
-
 
 ## Rust Version Errors
 
@@ -48,13 +47,16 @@ To fix this, you can:
   ```
 
 ## Stack Overflow Errors
+
 If you encounter the following in a script using `sp1-sdk`:
 
 ```
 thread 'main' has overflowed its stack
 fatal runtime error: stack overflow
 ```
+
 ```
 Segmentation fault (core dumped)
 ```
+
 Re-run your script with `--release`.
