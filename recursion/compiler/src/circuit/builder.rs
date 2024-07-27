@@ -93,7 +93,7 @@ impl<C: Config> CircuitV2Builder<C> for Builder<C> {
         let mut state = core::array::from_fn(|_| self.eval(C::F::zero()));
         for input_chunk in input.chunks(HASH_RATE) {
             state[..input_chunk.len()].copy_from_slice(input_chunk);
-            state = self.poseidon2_permute_v2_skinny(state);
+            state = self.poseidon2_permute_v2_wide(state);
         }
         let state: [Felt<C::F>; DIGEST_SIZE] = state[..DIGEST_SIZE].try_into().unwrap();
         state
@@ -108,7 +108,7 @@ impl<C: Config> CircuitV2Builder<C> for Builder<C> {
         // debug_assert!(DIGEST_SIZE * N <= WIDTH);
         let mut pre_iter = input.into_iter().chain(repeat(self.eval(C::F::default())));
         let pre = core::array::from_fn(move |_| pre_iter.next().unwrap());
-        let post = self.poseidon2_permute_v2_skinny(pre);
+        let post = self.poseidon2_permute_v2_wide(pre);
         let post: [Felt<C::F>; DIGEST_SIZE] = post[..DIGEST_SIZE].try_into().unwrap();
         post
     }
