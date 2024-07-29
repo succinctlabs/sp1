@@ -441,14 +441,19 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         );
 
         // Calculate the expected height of the tree.
+        let mut last_index_at_height = Vec::new();
         let mut expected_height = 1;
         let num_first_layer_inputs = first_layer_inputs.len();
         let mut num_layer_inputs = num_first_layer_inputs;
+        let mut index = 0;
         while num_layer_inputs > batch_size {
+            last_index_at_height.push(index + num_layer_inputs - 1);
+            index += num_layer_inputs;
             num_layer_inputs = (num_layer_inputs + 2) / batch_size;
             expected_height += 1;
         }
         println!("expected height: {}", expected_height);
+        println!("last index at height: {:?}", last_index_at_height);
 
         // Generate the proofs.
         let span = tracing::Span::current().clone();
@@ -680,7 +685,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                             let is_complete = height == expected_height;
 
                             // If it's not complete, and we haven't reached the batch size, continue.
-                            if !is_complete && batch.len() < batch_size {
+                            if !is_complete && last_index_at_height[height] != index {
                                 continue;
                             }
 
