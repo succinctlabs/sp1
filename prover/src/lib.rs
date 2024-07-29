@@ -105,13 +105,13 @@ pub struct SP1Prover<C: SP1ProverComponents = DefaultProverComponents> {
     /// The shrink program that compresses a proof into a succinct proof.
     pub shrink_program: OnceLock<RecursionProgram<BabyBear>>,
 
-    /// The proving key and verifying key ffor the compress step.
+    /// The proving key and verifying key for the compress step.
     pub shrink_keys: OnceLock<(StarkProvingKey<InnerSC>, StarkVerifyingKey<InnerSC>)>,
 
     /// The wrap program that wraps a proof into a SNARK-friendly field.
     pub wrap_program: OnceLock<RecursionProgram<BabyBear>>,
 
-    /// The proving key and verifying key ffor the wrap step.
+    /// The proving key and verifying key for the wrap step.
     pub wrap_keys: OnceLock<(StarkProvingKey<OuterSC>, StarkVerifyingKey<OuterSC>)>,
 
     /// The machine used for proving the core step.
