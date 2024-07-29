@@ -191,14 +191,14 @@ pub(crate) mod tests {
             Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program, BabyBearPoseidon2::new().perm);
         runtime.run().unwrap();
 
-        // let config = SC::new();
-        // let machine_deg_3 = A::machine(config);
-        // let (pk_3, vk_3) = machine_deg_3.setup(&program);
-        // let result_deg_3 =
-        //     run_test_machine(vec![runtime.record.clone()], machine_deg_3, pk_3, vk_3);
-        // if let Err(e) = result_deg_3 {
-        //     panic!("Verification failed: {:?}", e);
-        // }
+        let config = SC::new();
+        let machine_deg_3 = A::machine(config);
+        let (pk_3, vk_3) = machine_deg_3.setup(&program);
+        let result_deg_3 =
+            run_test_machine(vec![runtime.record.clone()], machine_deg_3, pk_3, vk_3);
+        if let Err(e) = result_deg_3 {
+            panic!("Verification failed: {:?}", e);
+        }
 
         let config = SC::new();
         let machine_deg_9 = B::machine(config);
