@@ -13,6 +13,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
+	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/test/unsafekzg"
 	"github.com/succinctlabs/sp1-recursion-gnark/sp1/trusted_setup"
 )
@@ -43,10 +44,12 @@ func Build(dataDir string) {
 
 	// Compile the circuit.
 	fmt.Println("groth16 szn")
+	p := profile.Start(profile.WithPath("gnark.pprof"))
 	r1cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
 	if err != nil {
 		panic(err)
 	}
+	p.Stop()
 
 	fmt.Println("Groth16 circuit constraints:", r1cs.GetNbConstraints())
 
