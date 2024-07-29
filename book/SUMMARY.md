@@ -67,3 +67,5 @@
 - [Building PLONK Artifacts](./developers/building-plonk-artifacts.md)
 
 - [Common Issues](./developers/common-issues.md)
+
+- [RV32IM Implementation Details](./developers/rv32im-implementation.md)
