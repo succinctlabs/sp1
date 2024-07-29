@@ -1,6 +1,7 @@
 //! The air module contains the AIR constraints for the poseidon2 chip.  
 //! At the moment, we're only including memory constraints to test the new memory argument.
 
+use std::array;
 use std::borrow::Borrow;
 
 use p3_air::{Air, AirBuilder, BaseAir, PairBuilder};
@@ -64,22 +65,51 @@ where
             )
         });
 
-        // self.eval_external_round(
-        //     builder,
-        //     local_row,
-        //     next_row,
-        //     prep_local.round_counters_preprocessed.round_constants,
-        //     prep_local.round_counters_preprocessed.is_external_round,
-        // );
+        self.eval_input_round(
+            builder,
+            local_row.as_ref(),
+            next_row.as_ref(),
+            prep_local.round_counters_preprocessed.is_input_round,
+        );
+
+        self.eval_external_round(
+            builder,
+            local_row.as_ref(),
+            next_row.as_ref(),
+            prep_local.round_counters_preprocessed.round_constants,
+            prep_local.round_counters_preprocessed.is_external_round,
+        );
     }
 }
 
 impl<const DEGREE: usize> Poseidon2SkinnyChip<DEGREE> {
+    fn eval_input_round<AB: SP1RecursionAirBuilder>(
+        &self,
+        builder: &mut AB,
+        local_row: &dyn Poseidon2<AB::Var>,
+        next_row: &dyn Poseidon2<AB::Var>,
+        is_input_row: AB::Var,
+    ) where
+        AB::Var: 'static,
+    {
+        let mut local_state: [AB::Expr; WIDTH] =
+            array::from_fn(|i| local_row.state_var()[i].into());
+
+        external_linear_layer(&mut local_state);
+
+        let next_state = next_row.state_var();
+        for i in 0..WIDTH {
+            builder
+                .when(is_input_row)
+                .assert_eq(next_state[i], local_state[i].clone());
+        }
+    }
+
     fn eval_external_round<AB: SP1RecursionAirBuilder>(
         &self,
         builder: &mut AB,
-        local_row: Box<dyn Poseidon2<AB::Var>>,
-        next_row: Box<dyn Poseidon2<AB::Var>>,
+        local_row: &dyn Poseidon2<AB::Var>,
+        next_row: &dyn Poseidon2<AB::Var>,
         round_constants: [AB::Var; WIDTH],
         is_external_row: AB::Var,
     ) where
@@ -116,10 +146,10 @@ impl<const DEGREE: usize> Poseidon2SkinnyChip<DEGREE> {
 
         let next_state = next_row.state_var();
         for i in 0..WIDTH {
-            // builder
-            //     .when_transition()
-            //     .when(is_external_row)
-            //     .assert_eq(next_state[i], state[i].clone());
+            builder
+                .when_transition()
+                .when(is_external_row)
+                .assert_eq(next_state[i], state[i].clone());
         }
     }
 

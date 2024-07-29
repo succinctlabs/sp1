@@ -154,17 +154,23 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2SkinnyChip
 
                     // Set the round-counter columns.
                     cols.round_counters_preprocessed.is_input_round = F::from_bool(i == 0);
-                    let is_external_round = i != INTERNAL_ROUND_IDX && i != 0;
+                    let is_external_round =
+                        i != 0 && i != INTERNAL_ROUND_IDX && i != NUM_EXTERNAL_ROUNDS + 2;
                     cols.round_counters_preprocessed.is_external_round =
                         F::from_bool(is_external_round);
                     cols.round_counters_preprocessed.is_internal_round =
-                        F::from_bool(INTERNAL_ROUND_IDX == i);
+                        F::from_bool(i == INTERNAL_ROUND_IDX);
 
                     (0..WIDTH).for_each(|j| {
                         cols.round_counters_preprocessed.round_constants[j] = if is_external_round {
-                            let external_round_num =
-                                if i < INTERNAL_ROUND_IDX { i - 1 } else { i - 2 };
-                            F::from_wrapped_u32(RC_16_30_U32[external_round_num][j])
+                            let r = i - 1;
+                            let round = if r < NUM_EXTERNAL_ROUNDS / 2 {
+                                r
+                            } else {
+                                r + NUM_INTERNAL_ROUNDS - 1
+                            };
+
+                            F::from_wrapped_u32(RC_16_30_U32[round][j])
                         } else if i == INTERNAL_ROUND_IDX {
                             F::from_wrapped_u32(RC_16_30_U32[NUM_EXTERNAL_ROUNDS / 2 + j][0])
                         } else {
