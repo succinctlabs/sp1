@@ -141,12 +141,12 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2SkinnyChip
 
         let mut rows = vec![
             [F::zero(); PREPROCESSED_POSEIDON2_WIDTH];
-            num_instructions * (NUM_EXTERNAL_ROUNDS + 2)
+            num_instructions * (NUM_EXTERNAL_ROUNDS + 3)
         ];
 
-        // Iterate over the instructions and take NUM_EXTERNAL_ROUNDS + 2 rows for each instruction.
+        // Iterate over the instructions and take NUM_EXTERNAL_ROUNDS + 3 rows for each instruction.
         instructions
-            .zip_eq(&rows.iter_mut().chunks(NUM_EXTERNAL_ROUNDS + 2))
+            .zip_eq(&rows.iter_mut().chunks(NUM_EXTERNAL_ROUNDS + 3))
             .for_each(|(instruction, row_add)| {
                 row_add.into_iter().enumerate().for_each(|(i, row)| {
                     let cols: &mut Poseidon2PreprocessedCols<_> =
