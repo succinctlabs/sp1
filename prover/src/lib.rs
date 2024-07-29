@@ -441,13 +441,14 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         );
 
         // Calculate the expected height of the tree.
-        let mut expected_height = 1;
+        let mut expected_height = 0;
         let num_first_layer_inputs = first_layer_inputs.len();
         let mut num_layer_inputs = num_first_layer_inputs;
         while num_layer_inputs > batch_size {
-            num_layer_inputs = (num_layer_inputs + 1) / 2;
+            num_layer_inputs = (num_layer_inputs + 2) / batch_size;
             expected_height += 1;
         }
+        println!("expected height: {}", expected_height);
 
         // Generate the proofs.
         let span = tracing::Span::current().clone();
@@ -672,6 +673,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                     loop {
                         let received = { proofs_rx.lock().unwrap().recv() };
                         if let Ok((index, height, proof, program_type)) = received {
+                            println!("received proof for index {} at height {}", index, height);
                             batch.push((index, height, proof, program_type));
 
                             // Compute whether we've reached the root of the tree.
@@ -687,11 +689,15 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                             if let Some(first) = batch.first() {
                                 is_last = first.1 != height;
                             }
+                            let last_idx = batch
+                                .iter()
+                                .position(|(_, lol, _, _)| height == *lol)
+                                .unwrap();
 
                             // If we're at the last input of a layer, we need to only include the
                             // first input, otherwise we include all inputs.
                             let inputs = if is_last {
-                                vec![batch[0].clone()]
+                                batch[..last_idx].to_vec()
                             } else {
                                 batch.clone()
                             };
@@ -713,6 +719,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                 });
 
                             input_sync.wait_for_turn(count);
+                            println!("sending input for index {} at height {}", count, height);
                             input_tx
                                 .lock()
                                 .unwrap()
@@ -729,7 +736,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                             // If we were at the last input of a layer, we keep everything but the
                             // first input. Otherwise, we empty the batch.
                             if is_last {
-                                batch = vec![batch[1].clone()];
+                                batch = batch[last_idx..].to_vec();
                             } else {
                                 batch = Vec::new();
                             }
