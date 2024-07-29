@@ -1,11 +1,8 @@
 //! Syscalls for the SP1 zkVM.
 
-#[cfg(feature = "bls12381")]
 pub mod bls12381;
-#[cfg(feature = "bn254")]
 pub mod bn254;
 pub mod io;
-#[cfg(feature = "secp256k1")]
 pub mod secp256k1;
 pub mod unconstrained;
 pub mod utils;
