@@ -685,7 +685,10 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                             let is_complete = height == expected_height;
 
                             // If it's not complete, and we haven't reached the batch size, continue.
-                            if !is_complete && last_index_at_height[height] != index {
+                            if !is_complete
+                                && batch.len() < batch_size
+                                && last_index_at_height[height] != index
+                            {
                                 continue;
                             }
 
