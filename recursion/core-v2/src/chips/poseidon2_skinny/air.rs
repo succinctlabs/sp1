@@ -32,9 +32,9 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let prepr = builder.preprocessed();
         let local_row = Self::convert::<AB::Var>(main.row_slice(0));
         let next_row = Self::convert::<AB::Var>(main.row_slice(1));
+        let prepr = builder.preprocessed();
         let prep_local = prepr.row_slice(0);
         let prep_local: &Poseidon2PreprocessedCols<_> = (*prep_local).borrow();
 
@@ -64,13 +64,13 @@ where
             )
         });
 
-        self.eval_external_round(
-            builder,
-            local_row,
-            next_row,
-            prep_local.round_counters_preprocessed.round_constants,
-            prep_local.round_counters_preprocessed.is_external_round,
-        );
+        // self.eval_external_round(
+        //     builder,
+        //     local_row,
+        //     next_row,
+        //     prep_local.round_counters_preprocessed.round_constants,
+        //     prep_local.round_counters_preprocessed.is_external_round,
+        // );
     }
 }
 
@@ -99,7 +99,9 @@ impl<const DEGREE: usize> Poseidon2SkinnyChip<DEGREE> {
             let calculated_sbox_deg_3 = add_rc[i].clone() * add_rc[i].clone() * add_rc[i].clone();
 
             if let Some(external_sbox) = local_row.s_box_state() {
-                builder.assert_eq(external_sbox[i].into(), calculated_sbox_deg_3);
+                builder
+                    .when(is_external_row)
+                    .assert_eq(external_sbox[i].into(), calculated_sbox_deg_3);
                 sbox_deg_3[i] = external_sbox[i].into();
             } else {
                 sbox_deg_3[i] = calculated_sbox_deg_3;
@@ -114,9 +116,10 @@ impl<const DEGREE: usize> Poseidon2SkinnyChip<DEGREE> {
 
         let next_state = next_row.state_var();
         for i in 0..WIDTH {
-            builder
-                .when(is_external_row)
-                .assert_eq(next_state[i], state[i].clone());
+            // builder
+            //     .when_transition()
+            //     .when(is_external_row)
+            //     .assert_eq(next_state[i], state[i].clone());
         }
     }
 

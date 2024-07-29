@@ -26,6 +26,8 @@ use super::{
 
 const PREPROCESSED_POSEIDON2_WIDTH: usize = size_of::<Poseidon2PreprocessedCols<u8>>();
 
+const INTERNAL_ROUND_IDX: usize = NUM_EXTERNAL_ROUNDS / 2 + 1;
+
 impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2SkinnyChip<DEGREE> {
     type Record = ExecutionRecord<F>;
 
@@ -46,45 +48,49 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2SkinnyChip
         let num_columns = <Poseidon2SkinnyChip<DEGREE> as BaseAir<F>>::width(self);
 
         for event in &input.poseidon2_skinny_events {
-            let mut row_add = vec![vec![F::zero(); num_columns]; NUM_EXTERNAL_ROUNDS + 2];
+            // We have one row for input, one row for output, NUM_EXTERNAL_ROUNDS rows for the external rounds,
+            // and one row for all internal rounds.
+            let mut row_add = vec![vec![F::zero(); num_columns]; NUM_EXTERNAL_ROUNDS + 3];
 
             // The first row should have event.input and [event.input[0].clone(); NUM_INTERNAL_ROUNDS-1]
             // in its state columns. The sbox_state will be modified in the computation of the
             // first row.
             {
-                let mut cols = self.convert_mut(&mut row_add[0]);
-                *cols.get_cols_mut().0 = event.input;
+                let (first_row, second_row) = &mut row_add[0..2].split_at_mut(1);
+                let mut input_cols = self.convert_mut(&mut first_row[0]);
+                *input_cols.get_cols_mut().0 = event.input;
+
+                let mut next_cols = self.convert_mut(&mut second_row[0]);
+                let (next_state, _, _) = next_cols.get_cols_mut();
+                *next_state = event.input;
+                external_linear_layer(next_state);
             }
 
             // For each external round, and once for all the internal rounds at the same time, apply
             // the corresponding operation. This will change the sbox state in row i, and the state
             // and internal_rounds_s0 variable in row i+1.
-            for i in 0..NUM_EXTERNAL_ROUNDS + 1 {
-                let (next_state_var, next_internal_rounds_s0) = {
+            for i in 1..NUM_EXTERNAL_ROUNDS + 2 {
+                let next_state_var = {
                     let mut cols = self.convert_mut(&mut row_add[i]);
                     let (state, internal_state_s0, mut sbox_state) = cols.get_cols_mut();
-                    let mut state = *state;
-                    if i == 0 {
-                        external_linear_layer(&mut state);
-                    }
-                    let (next_state_var, next_internal_rounds_s0) = if i != NUM_EXTERNAL_ROUNDS / 2
-                    {
-                        (
-                            self.populate_external_round(&state, &mut sbox_state, i),
-                            [state[0]; NUM_INTERNAL_ROUNDS - 1],
-                        )
+
+                    if i != INTERNAL_ROUND_IDX {
+                        self.populate_external_round(state, &mut sbox_state, i - 1)
                     } else {
-                        self.populate_internal_rounds(&state, internal_state_s0, &mut sbox_state)
-                    };
-                    (next_state_var, next_internal_rounds_s0)
+                        // Populate the internal rounds.
+                        self.populate_internal_rounds(state, internal_state_s0, &mut sbox_state)
+                    }
                 };
                 let mut next_cols = self.convert_mut(&mut row_add[i + 1]);
-                let (next_state, internal_state_s0, _) = next_cols.get_cols_mut();
+                let (next_state, _, _) = next_cols.get_cols_mut();
                 *next_state = next_state_var;
-                *internal_state_s0 = next_internal_rounds_s0;
-                if i == NUM_EXTERNAL_ROUNDS {
-                    debug_assert_eq!(next_state_var, event.output);
-                }
+            }
+
+            // Check that the permutation is computed correctly.
+            {
+                let last_row = &row_add[NUM_EXTERNAL_ROUNDS + 2];
+                let output_cols = Poseidon2SkinnyChip::<DEGREE>::convert(last_row.as_slice());
+                debug_assert_eq!(*output_cols.state_var(), event.output);
             }
             rows.extend(row_add.into_iter());
         }
@@ -147,16 +153,22 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2SkinnyChip
                         (*row).as_mut_slice().borrow_mut();
 
                     // Set the round-counter columns.
+                    cols.round_counters_preprocessed.is_input_round = F::from_bool(i == 0);
+                    let is_external_round = i != INTERNAL_ROUND_IDX && i != 0;
                     cols.round_counters_preprocessed.is_external_round =
-                        F::from_bool((i != NUM_EXTERNAL_ROUNDS / 2 + 1) && i > 1);
+                        F::from_bool(is_external_round);
                     cols.round_counters_preprocessed.is_internal_round =
-                        F::from_bool(i == NUM_EXTERNAL_ROUNDS / 2 + 1);
-                    cols.round_counters_preprocessed.is_first_round = F::from_bool(i == 0);
+                        F::from_bool(INTERNAL_ROUND_IDX == i);
+
                     (0..WIDTH).for_each(|j| {
-                        cols.round_counters_preprocessed.round_constants[j] = if i <= 1 {
-                            F::zero()
+                        cols.round_counters_preprocessed.round_constants[j] = if is_external_round {
+                            let external_round_num =
+                                if i < INTERNAL_ROUND_IDX { i - 1 } else { i - 2 };
+                            F::from_wrapped_u32(RC_16_30_U32[external_round_num][j])
+                        } else if i == INTERNAL_ROUND_IDX {
+                            F::from_wrapped_u32(RC_16_30_U32[NUM_EXTERNAL_ROUNDS / 2 + j][0])
                         } else {
-                            F::from_wrapped_u32(RC_16_30_U32[i - 2][j])
+                            F::zero()
                         };
                     });
 
@@ -169,7 +181,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2SkinnyChip
                                 read_mult: F::one(),
                                 write_mult: F::zero(),
                             });
-                    } else if i == NUM_EXTERNAL_ROUNDS + 1 {
+                    } else if i == NUM_EXTERNAL_ROUNDS + 2 {
                         cols.memory_preprocessed =
                             instruction.addrs.output.map(|addr| MemoryAccessCols {
                                 addr,
@@ -246,7 +258,7 @@ impl<const DEGREE: usize> Poseidon2SkinnyChip<DEGREE> {
         state: &[F; WIDTH],
         internal_rounds_s0: &mut [F; NUM_INTERNAL_ROUNDS - 1],
         sbox: &mut Option<&mut [F; WIDTH]>,
-    ) -> ([F; WIDTH], [F; NUM_INTERNAL_ROUNDS - 1]) {
+    ) -> [F; WIDTH] {
         let mut new_state = *state;
         let mut sbox_deg_3: [F; max(WIDTH, NUM_INTERNAL_ROUNDS)] =
             [F::zero(); max(WIDTH, NUM_INTERNAL_ROUNDS)];
@@ -283,7 +295,7 @@ impl<const DEGREE: usize> Poseidon2SkinnyChip<DEGREE> {
             *sbox = sbox_deg_3;
         }
 
-        (ret_state, *internal_rounds_s0)
+        ret_state
     }
 }
 
