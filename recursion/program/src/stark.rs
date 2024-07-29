@@ -106,11 +106,7 @@ pub type RecursiveVerifierConstraintFolder<'a, C> = GenericVerifierConstraintFol
 impl<C: Config, SC: StarkGenericConfig> StarkVerifier<C, SC>
 where
     C::F: TwoAdicField,
-    SC: StarkGenericConfig<
-        Val = C::F,
-        Challenge = C::EF,
-        Domain = TwoAdicMultiplicativeCoset<C::F>,
-    >,
+    SC: StarkGenericConfig<Val = C::F, Challenge = C::EF, Domain = TwoAdicMultiplicativeCoset<C::F>>,
 {
     pub fn verify_shard<A>(
         builder: &mut Builder<C>,
@@ -303,7 +299,6 @@ where
 
         let num_shard_chips_enabled: Var<_> = builder.eval(C::N::zero());
         for (i, chip) in machine.chips().iter().enumerate() {
-            tracing::debug!("verifying constraints for chip: {}", chip.name());
             let index = builder.get(&proof.sorted_idxs, i);
 
             if chip.preprocessed_width() > 0 {
