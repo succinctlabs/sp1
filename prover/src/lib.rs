@@ -452,6 +452,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             num_layer_inputs = (num_layer_inputs + 2) / batch_size;
             expected_height += 1;
         }
+        last_index_at_height.push(index + num_layer_inputs - 1);
         println!("expected height: {}", expected_height);
         println!("last index at height: {:?}", last_index_at_height);
 
