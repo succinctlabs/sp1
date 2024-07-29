@@ -441,7 +441,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         );
 
         // Calculate the expected height of the tree.
-        let mut expected_height = 0;
+        let mut expected_height = 1;
         let num_first_layer_inputs = first_layer_inputs.len();
         let mut num_layer_inputs = num_first_layer_inputs;
         while num_layer_inputs > batch_size {
