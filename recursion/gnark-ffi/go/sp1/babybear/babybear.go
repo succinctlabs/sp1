@@ -288,6 +288,8 @@ func (p *Chip) reduceWithMaxBits(x frontend.Variable, maxNbBits uint64) frontend
 	p.api.ToBinary(remainder, 31)
 	// p.rangeChecker.Check(remainder, 31)
 
+	// x == quotient * modulus + remainder
+	// todo: missing validity check on bits?
 	p.api.AssertIsEqual(x, p.api.Add(p.api.Mul(quotient, modulus), result[1]))
 
 	return remainder
