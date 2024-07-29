@@ -4693,6 +4693,7 @@ dependencies = [
  "anyhow",
  "cargo_metadata",
  "clap",
+ "dirs",
 ]
 
 [[package]]
