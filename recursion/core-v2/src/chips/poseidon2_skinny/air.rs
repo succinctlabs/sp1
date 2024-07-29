@@ -12,7 +12,9 @@ use crate::builder::SP1RecursionAirBuilder;
 
 use super::columns::preprocessed::Poseidon2PreprocessedCols;
 use super::columns::{Poseidon2, NUM_POSEIDON2_DEGREE3_COLS, NUM_POSEIDON2_DEGREE9_COLS};
-use super::{external_linear_layer, Poseidon2SkinnyChip, WIDTH};
+use super::{
+    external_linear_layer, internal_linear_layer, Poseidon2SkinnyChip, NUM_INTERNAL_ROUNDS, WIDTH,
+};
 
 impl<F, const DEGREE: usize> BaseAir<F> for Poseidon2SkinnyChip<DEGREE> {
     fn width(&self) -> usize {
@@ -78,6 +80,14 @@ where
             next_row.as_ref(),
             prep_local.round_counters_preprocessed.round_constants,
             prep_local.round_counters_preprocessed.is_external_round,
+        );
+
+        self.eval_internal_rounds(
+            builder,
+            local_row.as_ref(),
+            next_row.as_ref(),
+            prep_local.round_counters_preprocessed.round_constants,
+            prep_local.round_counters_preprocessed.is_internal_round,
         );
     }
 }
@@ -153,45 +163,56 @@ impl<const DEGREE: usize> Poseidon2SkinnyChip<DEGREE> {
         }
     }
 
-    // fn eval_internal_rounds<AB: SP1RecursionAirBuilder>(
-    //     &self,
-    //     builder: &mut AB,
-    //     perm_cols: &dyn Permutation<AB::Var>,
-    // ) {
-    //     let state = &perm_cols.internal_rounds_state();
-    //     let s0 = perm_cols.internal_rounds_s0();
-    //     let mut state: [AB::Expr; WIDTH] = core::array::from_fn(|i| state[i].into());
-    //     for r in 0..NUM_INTERNAL_ROUNDS {
-    //         // Add the round constant.
-    //         let round = r + NUM_EXTERNAL_ROUNDS / 2;
-    //         let add_rc = if r == 0 {
-    //             state[0].clone()
-    //         } else {
-    //             s0[r - 1].into()
-    //         } + AB::Expr::from_wrapped_u32(RC_16_30_U32[round][0]);
+    fn eval_internal_rounds<AB: SP1RecursionAirBuilder>(
+        &self,
+        builder: &mut AB,
+        local_row: &dyn Poseidon2<AB::Var>,
+        next_row: &dyn Poseidon2<AB::Var>,
+        round_constants: [AB::Var; WIDTH],
+        is_internal_row: AB::Var,
+    ) where
+        AB::Var: 'static,
+    {
+        let local_state = local_row.state_var();
 
-    //         let mut sbox_deg_3 = add_rc.clone() * add_rc.clone() * add_rc.clone();
-    //         if let Some(internal_sbox) = perm_cols.internal_rounds_sbox() {
-    //             builder.assert_eq(internal_sbox[r], sbox_deg_3);
-    //             sbox_deg_3 = internal_sbox[r].into();
-    //         }
+        let s0 = local_row.internal_rounds_s0();
+        let mut state: [AB::Expr; WIDTH] = core::array::from_fn(|i| local_state[i].into());
+        for r in 0..NUM_INTERNAL_ROUNDS {
+            // Add the round constant.
+            let add_rc = if r == 0 {
+                state[0].clone()
+            } else {
+                s0[r - 1].into()
+            } + round_constants[r];
 
-    //         // See `populate_internal_rounds` for why we don't have columns for the sbox output here.
-    //         let sbox_deg_7 = sbox_deg_3.clone() * sbox_deg_3.clone() * add_rc.clone();
+            let mut sbox_deg_3 = add_rc.clone() * add_rc.clone() * add_rc.clone();
+            if let Some(internal_sbox) = local_row.s_box_state() {
+                builder
+                    .when(is_internal_row)
+                    .assert_eq(internal_sbox[r], sbox_deg_3);
+                sbox_deg_3 = internal_sbox[r].into();
+            }
 
-    //         // Apply the linear layer.
-    //         // See `populate_internal_rounds` for why we don't have columns for the new state here.
-    //         state[0] = sbox_deg_7.clone();
-    //         internal_linear_layer(&mut state);
+            // See `populate_internal_rounds` for why we don't have columns for the sbox output here.
+            let sbox_deg_7 = sbox_deg_3.clone() * sbox_deg_3.clone() * add_rc.clone();
 
-    //         if r < NUM_INTERNAL_ROUNDS - 1 {
-    //             builder.assert_eq(s0[r], state[0].clone());
-    //         }
-    //     }
+            // Apply the linear layer.
+            // See `populate_internal_rounds` for why we don't have columns for the new state here.
+            state[0] = sbox_deg_7.clone();
+            internal_linear_layer(&mut state);
 
-    //     let external_state = perm_cols.external_rounds_state()[NUM_EXTERNAL_ROUNDS / 2];
-    //     for i in 0..WIDTH {
-    //         builder.assert_eq(external_state[i], state[i].clone())
-    //     }
-    // }
+            if r < NUM_INTERNAL_ROUNDS - 1 {
+                builder
+                    .when(is_internal_row)
+                    .assert_eq(s0[r], state[0].clone());
+            }
+        }
+
+        let next_state = next_row.state_var();
+        for i in 0..WIDTH {
+            builder
+                .when(is_internal_row)
+                .assert_eq(next_state[i], state[i].clone())
+        }
+    }
 }
