@@ -43,6 +43,13 @@ func NewChip(api frontend.API) *Chip {
 	}
 }
 
+func Zero() Variable {
+	return Variable{
+		Value:  frontend.Variable(0),
+		NbBits: 0,
+	}
+}
+
 func NewF(value string) Variable {
 	return Variable{
 		Value:  frontend.Variable(value),
@@ -184,10 +191,10 @@ func (c *Chip) SubEF(a ExtensionVariable, b Variable) ExtensionVariable {
 
 func (c *Chip) MulE(a, b ExtensionVariable) ExtensionVariable {
 	v2 := [4]Variable{
-		NewF("0"),
-		NewF("0"),
-		NewF("0"),
-		NewF("0"),
+		Zero(),
+		Zero(),
+		Zero(),
+		Zero(),
 	}
 
 	for i := 0; i < 4; i++ {
@@ -255,7 +262,7 @@ func (c *Chip) ToBinary(in Variable) []frontend.Variable {
 }
 
 func (p *Chip) reduceFast(x Variable) Variable {
-	if x.NbBits >= uint(222) {
+	if x.NbBits >= uint(120) {
 		return Variable{
 			Value:  p.reduceWithMaxBits(x.Value, uint64(x.NbBits)),
 			NbBits: 31,
