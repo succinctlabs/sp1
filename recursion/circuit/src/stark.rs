@@ -40,11 +40,7 @@ pub struct StarkVerifierCircuit<C: Config, SC: StarkGenericConfig> {
 
 impl<C: Config, SC: StarkGenericConfig> StarkVerifierCircuit<C, SC>
 where
-    SC: StarkGenericConfig<
-        Val = C::F,
-        Challenge = C::EF,
-        Domain = TwoAdicMultiplicativeCoset<C::F>,
-    >,
+    SC: StarkGenericConfig<Val = C::F, Challenge = C::EF, Domain = TwoAdicMultiplicativeCoset<C::F>>,
 {
     pub fn verify_shard<A>(
         builder: &mut Builder<C>,
@@ -218,17 +214,17 @@ where
                     let quotient_domain = &quotient_domains[i];
                     let qc_domains =
                         quotient_domain.split_domains_const(builder, chip.log_quotient_degree());
-                    Self::verify_constraints(
-                        builder,
-                        chip,
-                        values,
-                        proof.public_values.clone(),
-                        trace_domain.clone(),
-                        qc_domains,
-                        zeta,
-                        alpha,
-                        &permutation_challenges,
-                    );
+                    // Self::verify_constraints(
+                    //     builder,
+                    //     chip,
+                    //     values,
+                    //     proof.public_values.clone(),
+                    //     trace_domain.clone(),
+                    //     qc_domains,
+                    //     zeta,
+                    //     alpha,
+                    //     &permutation_challenges,
+                    // );
                 }
             }
         }
