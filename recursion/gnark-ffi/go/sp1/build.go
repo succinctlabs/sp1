@@ -42,6 +42,7 @@ func Build(dataDir string) {
 	circuit := NewCircuit(witnessInput)
 
 	// Compile the circuit.
+	fmt.Println("groth16 szn")
 	r1cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
 	if err != nil {
 		panic(err)
