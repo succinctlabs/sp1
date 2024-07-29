@@ -190,21 +190,28 @@ func (c *Chip) SubEF(a ExtensionVariable, b Variable) ExtensionVariable {
 }
 
 func (c *Chip) MulE(a, b ExtensionVariable) ExtensionVariable {
-	v2 := [4]Variable{
-		Zero(),
-		Zero(),
-		Zero(),
-		Zero(),
-	}
 
+	v3 := [4]frontend.Variable{
+		frontend.Variable(0),
+		frontend.Variable(0),
+		frontend.Variable(0),
+		frontend.Variable(0),
+	}
 	for i := 0; i < 4; i++ {
 		for j := 0; j < 4; j++ {
 			if i+j >= 4 {
-				v2[i+j-4] = c.AddF(v2[i+j-4], c.MulFConst(c.MulF(a.Value[i], b.Value[j]), 11))
+				v3[i+j-4] = c.api.Add(v3[i+j-4], c.api.Mul(c.api.Mul(a.Value[i].Value, b.Value[j].Value), 11))
 			} else {
-				v2[i+j] = c.AddF(v2[i+j], c.MulF(a.Value[i], b.Value[j]))
+				v3[i+j] = c.api.Add(v3[i+j], c.api.Mul(a.Value[i].Value, b.Value[j].Value))
 			}
 		}
+	}
+
+	v2 := [4]Variable{
+		c.ReduceSlow(Variable{Value: v3[0], NbBits: 254}),
+		c.ReduceSlow(Variable{Value: v3[1], NbBits: 254}),
+		c.ReduceSlow(Variable{Value: v3[2], NbBits: 254}),
+		c.ReduceSlow(Variable{Value: v3[3], NbBits: 254}),
 	}
 
 	return ExtensionVariable{Value: v2}
