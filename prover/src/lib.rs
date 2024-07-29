@@ -719,7 +719,11 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                 });
 
                             input_sync.wait_for_turn(count);
-                            println!("sending input for index {} at height {}", count, height);
+                            println!(
+                                "sending input for index {} at height {}",
+                                count,
+                                inputs[0].1 + 1
+                            );
                             input_tx
                                 .lock()
                                 .unwrap()
