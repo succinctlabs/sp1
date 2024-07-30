@@ -419,11 +419,6 @@ impl ExecutionRecord {
                             };
                             last_pct = 0;
                         }
-                        // $shards.push(ExecutionRecord {
-                        //     $events: chunks.remainder().to_vec(),
-                        //     program: self.program.clone(),
-                        //     ..Default::default()
-                        // });
                     }
                 }
                 let mut event_shards = chunks
