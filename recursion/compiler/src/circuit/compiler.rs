@@ -2,11 +2,12 @@ use chips::poseidon2_skinny::WIDTH;
 use core::fmt::Debug;
 use instruction::{FieldEltType, HintBitsInstr, HintExt2FeltsInstr, PrintInstr};
 use p3_field::{AbstractExtensionField, AbstractField, Field, PrimeField, TwoAdicField};
+use sp1_core::runtime::ExecutionReport;
 use sp1_recursion_core::air::Block;
 use sp1_recursion_core_v2::{BaseAluInstr, BaseAluOpcode};
 use std::{
     collections::{hash_map::Entry, HashMap},
-    iter::{repeat, zip},
+    iter::{once, repeat, zip},
 };
 
 use sp1_recursion_core_v2::*;
@@ -517,7 +518,7 @@ impl<C: Config> AsmCompiler<C> {
         let (mut instrs, cycle_tracker_root_span) = {
             let mut parents = vec![];
             // Create and enter the root span.
-            let mut current_span = CycleTrackerSpan::new("Root".to_string());
+            let mut current_span = CycleTrackerSpan::new("cycle tracker root span".to_string());
             let instrs = annotated_instrs
                 .into_iter()
                 .filter_map(|(item, trace)| match item {
@@ -538,7 +539,7 @@ impl<C: Config> AsmCompiler<C> {
                         let mut parent_span = parents
                             .pop()
                             .expect("should be exiting non-root cycle tracker span");
-                        // Add spanned instructions to parent.
+                        // // Add spanned instructions to parent.
                         for (&instr_name, &ct) in current_span.instr_cts.iter() {
                             parent_span
                                 .instr_cts
@@ -558,7 +559,9 @@ impl<C: Config> AsmCompiler<C> {
             }
             (instrs, current_span)
         };
-        tracing::info!("{cycle_tracker_root_span:?}");
+        for line in cycle_tracker_root_span.to_lines() {
+            tracing::info!("{}", line);
+        }
 
         // Replace the mults using the address count data gathered in this previous.
         // Exhaustive match for refactoring purposes.
@@ -683,6 +686,33 @@ impl CycleTrackerSpan {
             name,
             ..Default::default()
         }
+    }
+
+    pub fn total_cycles(&self) -> usize {
+        self.instr_cts
+            .values()
+            .cloned()
+            .chain(self.children.iter().map(|x| x.total_cycles()))
+            .sum()
+    }
+
+    pub fn to_lines(&self) -> Vec<String> {
+        let Self {
+            name,
+            instr_cts,
+            children,
+        } = self;
+
+        once(name.to_string())
+            .chain(
+                children
+                    .iter()
+                    .flat_map(|c| c.to_lines())
+                    .chain(ExecutionReport::sorted_table_lines(instr_cts))
+                    .map(|line| format!("│  {line}")),
+            )
+            .chain(once(format!("└╴ {} cycles total", self.total_cycles())))
+            .collect()
     }
 }
 
@@ -1084,7 +1114,7 @@ mod tests {
 
     #[test]
     fn test_print_and_cycle_tracker() {
-        const ITERS: usize = 10;
+        const ITERS: usize = 5;
 
         setup_logger();
 
