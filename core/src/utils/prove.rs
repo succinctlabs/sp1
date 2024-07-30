@@ -485,7 +485,6 @@ where
 {
     let start = Instant::now();
     let prover = DefaultProver::new(machine);
-
     let mut challenger = prover.config().challenger();
     let proof = prover
         .prove(&pk, records, &mut challenger, SP1CoreOpts::default())
