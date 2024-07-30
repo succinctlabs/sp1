@@ -115,7 +115,8 @@ pub fn hook_ecrecover(_env: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
         sig = sig_normalized;
         recovery_id ^= 1
     };
-    let recid = RecoveryId::from_byte(recovery_id).expect("Recovery ID is valid");
+    let recid = RecoveryId::from_byte(recovery_id)
+        .expect(&format!("Recovery ID is invalid: {}", recovery_id));
 
     let recovered_key = VerifyingKey::recover_from_prehash(&msg_hash[..], &sig, recid).unwrap();
     let bytes = recovered_key.to_sec1_bytes();
