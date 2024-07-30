@@ -80,6 +80,7 @@ where
 }
 
 impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
+    /// Eval the constraints for the external rounds.
     fn eval_external_round<AB>(
         &self,
         builder: &mut AB,
@@ -140,6 +141,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         }
     }
 
+    /// Eval the constraints for the internal rounds.
     fn eval_internal_rounds<AB>(&self, builder: &mut AB, local_row: &dyn Poseidon2<AB::Var>)
     where
         AB: SP1RecursionAirBuilder + PairBuilder,
