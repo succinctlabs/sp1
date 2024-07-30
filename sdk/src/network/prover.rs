@@ -58,7 +58,9 @@ impl NetworkProver {
 
         if !skip_simulation {
             let (_, report) =
-                SP1Prover::<DefaultProverComponents>::execute(elf, &stdin, Default::default())?;
+                self.local_prover
+                    .sp1_prover()
+                    .execute(elf, &stdin, Default::default())?;
             log::info!(
                 "Simulation complete, cycles: {}",
                 report.total_instruction_count()

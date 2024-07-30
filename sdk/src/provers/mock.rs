@@ -57,8 +57,7 @@ impl Prover<DefaultProverComponents> for MockProver {
     ) -> Result<SP1ProofWithPublicValues> {
         match kind {
             SP1ProofKind::Core => {
-                let (public_values, _) =
-                    SP1Prover::<DefaultProverComponents>::execute(&pk.elf, &stdin, context)?;
+                let (public_values, _) = self.prover.execute(&pk.elf, &stdin, context)?;
                 Ok(SP1ProofWithPublicValues {
                     proof: SP1Proof::Core(vec![]),
                     stdin,
@@ -67,8 +66,7 @@ impl Prover<DefaultProverComponents> for MockProver {
                 })
             }
             SP1ProofKind::Compressed => {
-                let (public_values, _) =
-                    SP1Prover::<DefaultProverComponents>::execute(&pk.elf, &stdin, context)?;
+                let (public_values, _) = self.prover.execute(&pk.elf, &stdin, context)?;
                 Ok(SP1ProofWithPublicValues {
                     proof: SP1Proof::Compressed(ShardProof {
                         commitment: ShardCommitment {
@@ -95,8 +93,7 @@ impl Prover<DefaultProverComponents> for MockProver {
                 })
             }
             SP1ProofKind::Plonk => {
-                let (public_values, _) =
-                    SP1Prover::<DefaultProverComponents>::execute(&pk.elf, &stdin, context)?;
+                let (public_values, _) = self.prover.execute(&pk.elf, &stdin, context)?;
                 Ok(SP1ProofWithPublicValues {
                     proof: SP1Proof::Plonk(PlonkBn254Proof {
                         public_inputs: [

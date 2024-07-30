@@ -228,11 +228,13 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
     /// Generate a proof of an SP1 program with the specified inputs.
     #[instrument(name = "execute", level = "info", skip_all)]
-    pub fn execute(
+    pub fn execute<'a>(
+        &'a self,
         elf: &[u8],
         stdin: &SP1Stdin,
-        context: SP1Context,
+        mut context: SP1Context<'a>,
     ) -> Result<(SP1PublicValues, ExecutionReport), ExecutionError> {
+        context.subproof_verifier.replace(Arc::new(self));
         let program = Program::from(elf);
         let opts = SP1CoreOpts::default();
         let mut runtime = Runtime::with_context(program, opts, context);
@@ -257,9 +259,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         opts: SP1ProverOpts,
         mut context: SP1Context<'a>,
     ) -> Result<SP1CoreProof, SP1CoreProverError> {
-        context
-            .subproof_verifier
-            .get_or_insert_with(|| Arc::new(self));
+        context.subproof_verifier.replace(Arc::new(self));
         let program = Program::from(&pk.elf);
         let (proof, public_values_stream, cycles) =
             sp1_core::utils::prove_with_context::<_, C::CoreProver>(
