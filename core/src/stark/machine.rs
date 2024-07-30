@@ -387,8 +387,8 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                 let pre_width = traces[i].1.map_or(0, |x| x.width());
                 let permutation_width = permutation_traces[i].width()
                     * <SC::Challenge as AbstractExtensionField<SC::Val>>::D;
-                total_cols += trace_width + pre_width + permutation_width;
                 let total_width = trace_width + pre_width + permutation_width;
+                total_cols += total_width;
                 tracing::debug!(
                     "{:<11} | Main Cols = {:<5} | Pre Cols = {:<5} | Perm Cols = {:<5} | Rows = {:<10} | Cells = {:<10}",
                     chips[i].name(),
