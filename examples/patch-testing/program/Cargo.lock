@@ -421,6 +421,7 @@ dependencies = [
 [[package]]
 name = "ecdsa"
 version = "0.16.9"
+source = "git+https://github.com/sp1-patches/signatures?branch=patch-ecdsa-v0.16.9#7287741945b54df8a008da58f3d2e9020d15472e"
 dependencies = [
  "anyhow",
  "cfg-if",
@@ -430,7 +431,7 @@ dependencies = [
  "hex-literal",
  "rfc6979",
  "signature",
- "sp1-lib",
+ "sp1-lib 1.0.1 (git+https://github.com/succinctlabs/sp1.git?branch=john/lib-refactor)",
  "spki",
 ]
 
@@ -812,9 +813,13 @@ dependencies = [
 
 [[package]]
 name = "ppv-lite86"
-version = "0.2.17"
+version = "0.2.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5b40af805b3121feab8a3c29f04d8ad262fa8e0561883e7653e024ae4479e6de"
+checksum = "2288c0e17cc8d342c712bb43a257a80ebffce59cdb33d5000d8348f3ec02528b"
+dependencies = [
+ "zerocopy",
+ "zerocopy-derive",
+]
 
 [[package]]
 name = "primitive-types"
@@ -934,6 +939,7 @@ checksum = "7a66a03ae7c801facd77a29370b4faec201768915ac14a721ba36f20bc9c209b"
 [[package]]
 name = "rfc6979"
 version = "0.4.0"
+source = "git+https://github.com/sp1-patches/signatures?branch=patch-ecdsa-v0.16.9#7287741945b54df8a008da58f3d2e9020d15472e"
 dependencies = [
  "hmac",
  "subtle",
@@ -1140,13 +1146,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp1-lib"
+version = "1.0.1"
+source = "git+https://github.com/succinctlabs/sp1.git?branch=john/lib-refactor#d412a24c036e346b11384308e1f8c6f638782515"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "cfg-if",
+ "serde",
+]
+
+[[package]]
 name = "sp1-utils"
 version = "1.0.1"
 dependencies = [
  "alloy-primitives",
  "anyhow",
  "k256",
- "sp1-lib",
+ "sp1-lib 1.0.1",
 ]
 
 [[package]]
@@ -1162,7 +1179,7 @@ dependencies = [
  "rand",
  "serde",
  "sha2 0.10.8",
- "sp1-lib",
+ "sp1-lib 1.0.1",
 ]
 
 [[package]]
@@ -1264,9 +1281,9 @@ dependencies = [
 
 [[package]]
 name = "toml_datetime"
-version = "0.6.7"
+version = "0.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f8fb9f64314842840f1d940ac544da178732128f1c78c21772e876579e0da1db"
+checksum = "0dd7358ecb8fc2f8d014bf86f6f638ce72ba252a2c3a2572f2a795f1d23efb41"
 
 [[package]]
 name = "toml_edit"
@@ -1431,6 +1448,27 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "05f360fc0b24296329c78fda852a1e9ae82de9cf7b27dae4b7f62f118f77b9ed"
 dependencies = [
  "tap",
+]
+
+[[package]]
+name = "zerocopy"
+version = "0.7.35"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b9b4fd18abc82b8136838da5d50bae7bdea537c574d8dc1a34ed098d6c166f0"
+dependencies = [
+ "byteorder",
+ "zerocopy-derive",
+]
+
+[[package]]
+name = "zerocopy-derive"
+version = "0.7.35"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fa4f8080344d4671fb4e831a13ad1e68092748387dfc4f55e356242fae12ce3e"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.72",
 ]
 
 [[package]]

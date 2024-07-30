@@ -4,7 +4,6 @@ sp1_zkvm::entrypoint!(main);
 use alloy_primitives::{address, hex, Signature};
 use curve25519_dalek_ng::edwards::CompressedEdwardsY;
 use ed25519_consensus::{Signature as Ed25519Signature, VerificationKey as Ed25519VerificationKey};
-// use k256::ecdsa::{RecoveryId, Signature as K256Signature};
 use sha2_v0_10_6::{Digest as Digest_10_6, Sha256 as Sha256_10_6};
 // use sha2_v0_10_8::{Digest as Digest_10_8, Sha256 as Sha256_10_8};
 use sha2_v0_9_8::{Digest as Digest_9_8, Sha256 as Sha256_9_8};
