@@ -394,7 +394,7 @@ impl ExecutionRecord {
     /// a "reasonable" number of deferred events.
     pub fn split(&mut self, last: bool, opts: SplitOpts) -> Vec<ExecutionRecord> {
         let mut shards = Vec::new();
-        let mut last = ExecutionRecord {
+        let mut last_shard = ExecutionRecord {
             program: self.program.clone(),
             ..Default::default()
         };
@@ -408,7 +408,7 @@ impl ExecutionRecord {
                 } else {
                     let remainder = chunks.remainder().to_vec();
                     if !remainder.is_empty() {
-                        last.$events = chunks.remainder().to_vec();
+                        last_shard.$events = chunks.remainder().to_vec();
                     }
                 }
                 let mut event_shards = chunks
@@ -522,7 +522,7 @@ impl ExecutionRecord {
         );
 
         if last {
-            self.shards.push(last);
+            self.shards.push(last_shard);
 
             self.memory_initialize_events
                 .sort_by_key(|event| event.addr);
