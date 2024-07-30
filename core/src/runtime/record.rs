@@ -535,6 +535,7 @@ impl ExecutionRecord {
             opts.deferred_shift_threshold,
             last
         );
+        _ = last_pct;
 
         if last {
             shards.push(last_shard);
