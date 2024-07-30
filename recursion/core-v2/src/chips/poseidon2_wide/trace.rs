@@ -62,8 +62,6 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
                 ) = permutation.get_cols_mut();
 
                 external_rounds_state[0] = event.input;
-                external_rounds_state[1] =
-                    external_linear_layer_immut(&external_rounds_state[0].clone());
 
                 // Apply the first half of external rounds.
                 for r in 0..NUM_EXTERNAL_ROUNDS / 2 {
@@ -72,12 +70,12 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
                     if r == NUM_EXTERNAL_ROUNDS / 2 - 1 {
                         *internal_rounds_state = next_state;
                     } else {
-                        external_rounds_state[r + 2] = next_state;
+                        external_rounds_state[r + 1] = next_state;
                     }
                 }
 
                 // Apply the internal rounds.
-                external_rounds_state[NUM_EXTERNAL_ROUNDS / 2 + 1] = self.populate_internal_rounds(
+                external_rounds_state[NUM_EXTERNAL_ROUNDS / 2] = self.populate_internal_rounds(
                     internal_rounds_state,
                     internal_rounds_s0,
                     &mut internal_sbox,
@@ -93,7 +91,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
                             assert_eq!(event.output[i], next_state[i]);
                         }
                     } else {
-                        external_rounds_state[r + 2] = next_state;
+                        external_rounds_state[r + 1] = next_state;
                     }
                 }
             }
@@ -195,7 +193,12 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         r: usize,
     ) -> [F; WIDTH] {
         let mut state = {
-            let round_state: &[F; WIDTH] = &external_rounds_state[r + 1];
+            // For the first round, apply the linear layer.
+            let round_state: &[F; WIDTH] = if r == 0 {
+                &external_linear_layer_immut(&external_rounds_state[r])
+            } else {
+                &external_rounds_state[r]
+            };
 
             // Add round constants.
             //
