@@ -81,15 +81,20 @@ pub trait AffinePoint<const N: usize>: Clone + Sized {
 
     /// Performs multi-scalar multiplication (MSM) on slices of bit vectors and points.
     /// Note: a and b should be in little endian order.
-    fn multi_scalar_multiplication(a: &[bool], A: Self, b: &[bool], B: Self) -> Option<Self> {
+    fn multi_scalar_multiplication(
+        a_bits: &[bool],
+        a: Self,
+        b_bits: &[bool],
+        b: Self,
+    ) -> Option<Self> {
         let mut res: Option<Self> = None;
-        let mut temp_a = A.clone();
-        let mut temp_b = B.clone();
-        for (a_bit, b_bit) in a.iter().zip(b.iter()) {
+        let mut temp_a = a.clone();
+        let mut temp_b = b.clone();
+        for (a_bit, b_bit) in a_bits.iter().zip(b_bits.iter()) {
             if *a_bit {
                 match res.as_mut() {
                     Some(res) => res.add_assign(&temp_a),
-                    None => res = Some(temp_a.clone()), 
+                    None => res = Some(temp_a.clone()),
                 };
             }
 
