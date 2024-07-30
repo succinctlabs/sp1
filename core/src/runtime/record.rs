@@ -522,8 +522,6 @@ impl ExecutionRecord {
         );
 
         if last {
-            shards.push(last_shard);
-
             self.memory_initialize_events
                 .sort_by_key(|event| event.addr);
             self.memory_finalize_events.sort_by_key(|event| event.addr);
@@ -568,8 +566,10 @@ impl ExecutionRecord {
                 }
                 shard.public_values.last_finalize_addr_bits = finalize_addr_bits;
 
-                shards.push(shard);
+                last_shard.append(&mut shard);
             }
+
+            shards.push(last_shard);
         }
 
         shards

@@ -231,6 +231,15 @@ where
                                 .in_scope(|| trace_checkpoint(program.clone(), &checkpoint, opts));
                             reset_seek(&mut checkpoint);
 
+                            let empty = records.iter().position(|record| {
+                                record.cpu_events.is_empty()
+                                    && record.memory_initialize_events.is_empty()
+                                    && record.memory_finalize_events.is_empty()
+                            });
+                            if let Some(empty) = empty {
+                                records.remove(empty);
+                            }
+
                             // Generate the dependencies.
                             tracing::debug_span!("generate dependencies").in_scope(|| {
                                 prover.machine().generate_dependencies(&mut records, &opts)
