@@ -421,7 +421,6 @@ dependencies = [
 [[package]]
 name = "ecdsa"
 version = "0.16.9"
-source = "git+https://github.com/sp1-patches/signatures?branch=patch-ecdsa-v0.16.9#7287741945b54df8a008da58f3d2e9020d15472e"
 dependencies = [
  "anyhow",
  "cfg-if",
@@ -939,7 +938,6 @@ checksum = "7a66a03ae7c801facd77a29370b4faec201768915ac14a721ba36f20bc9c209b"
 [[package]]
 name = "rfc6979"
 version = "0.4.0"
-source = "git+https://github.com/sp1-patches/signatures?branch=patch-ecdsa-v0.16.9#7287741945b54df8a008da58f3d2e9020d15472e"
 dependencies = [
  "hmac",
  "subtle",
@@ -1148,7 +1146,7 @@ dependencies = [
 [[package]]
 name = "sp1-lib"
 version = "1.0.1"
-source = "git+https://github.com/succinctlabs/sp1.git?branch=john/lib-refactor#d412a24c036e346b11384308e1f8c6f638782515"
+source = "git+https://github.com/succinctlabs/sp1.git?branch=john/lib-refactor#3c64082264f81e8b0c7ef8e00d1b5655c015cc34"
 dependencies = [
  "anyhow",
  "bincode",

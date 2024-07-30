@@ -46,6 +46,6 @@ fn main() {
         .syscall_counts
         .contains_key(&sp1_core::runtime::SyscallCode::SECP256K1_DECOMPRESS));
 
-    println!("Total syscalls: {:?}", report.total_instruction_count());
+    println!("Total instructions: {:?}", report.total_instruction_count());
     println!("Successfully executed the program & confirmed syscalls.");
 }
