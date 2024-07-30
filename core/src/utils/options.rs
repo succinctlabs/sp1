@@ -4,6 +4,7 @@ use crate::runtime::{SplitOpts, DEFERRED_SPLIT_THRESHOLD};
 
 const DEFAULT_SHARD_SIZE: usize = 1 << 22;
 const DEFAULT_SHARD_BATCH_SIZE: usize = 16;
+const DEFAULT_RECURSION_BATCH_SIZE: usize = 2;
 const DEFAULT_TRACE_GEN_WORKERS: usize = 1;
 const DEFAULT_CHECKPOINTS_CHANNEL_CAPACITY: usize = 128;
 const DEFAULT_RECORDS_AND_TRACES_CHANNEL_CAPACITY: usize = 1;
@@ -27,6 +28,7 @@ impl Default for SP1ProverOpts {
 pub struct SP1CoreOpts {
     pub shard_size: usize,
     pub shard_batch_size: usize,
+    pub recursion_batch_size: usize,
     pub split_opts: SplitOpts,
     pub reconstruct_commitments: bool,
     pub trace_gen_workers: usize,
@@ -47,6 +49,10 @@ impl Default for SP1CoreOpts {
             shard_batch_size: env::var("SHARD_BATCH_SIZE").map_or_else(
                 |_| DEFAULT_SHARD_BATCH_SIZE,
                 |s| s.parse::<usize>().unwrap_or(DEFAULT_SHARD_BATCH_SIZE),
+            ),
+            recursion_batch_size: env::var("RECURSION_BATCH_SIZE").map_or_else(
+                |_| DEFAULT_RECURSION_BATCH_SIZE,
+                |s| s.parse::<usize>().unwrap_or(DEFAULT_RECURSION_BATCH_SIZE),
             ),
             split_opts: SplitOpts::new(split_threshold),
             reconstruct_commitments: true,
