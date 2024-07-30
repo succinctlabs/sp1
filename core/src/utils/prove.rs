@@ -243,21 +243,6 @@ where
                             // Wait for our turn to update the state.
                             record_gen_sync.wait_for_turn(index);
 
-                            // Update the public values & prover state for the shards which contain
-                            // "cpu events".
-                            let mut state = state.lock().unwrap();
-                            for record in records.iter_mut() {
-                                state.shard += 1;
-                                state.execution_shard = record.public_values.execution_shard;
-                                state.start_pc = record.public_values.start_pc;
-                                state.next_pc = record.public_values.next_pc;
-                                state.committed_value_digest =
-                                    record.public_values.committed_value_digest;
-                                state.deferred_proofs_digest =
-                                    record.public_values.deferred_proofs_digest;
-                                record.public_values = *state;
-                            }
-
                             // Defer events that are too expensive to include in every shard.
                             let mut deferred = deferred.lock().unwrap();
                             for record in records.iter_mut() {
@@ -272,6 +257,21 @@ where
                             });
                             if let Some(empty) = empty {
                                 records.remove(empty);
+                            }
+
+                            // Update the public values & prover state for the shards which contain
+                            // "cpu events".
+                            let mut state = state.lock().unwrap();
+                            for record in records.iter_mut() {
+                                state.shard += 1;
+                                state.execution_shard = record.public_values.execution_shard;
+                                state.start_pc = record.public_values.start_pc;
+                                state.next_pc = record.public_values.next_pc;
+                                state.committed_value_digest =
+                                    record.public_values.committed_value_digest;
+                                state.deferred_proofs_digest =
+                                    record.public_values.deferred_proofs_digest;
+                                record.public_values = *state;
                             }
 
                             // See if any deferred shards are ready to be commited to.
@@ -440,21 +440,6 @@ where
                             // Wait for our turn to update the state.
                             record_gen_sync.wait_for_turn(index);
 
-                            // Update the public values & prover state for the shards which contain
-                            // "cpu events".
-                            let mut state = state.lock().unwrap();
-                            for record in records.iter_mut() {
-                                state.shard += 1;
-                                state.execution_shard = record.public_values.execution_shard;
-                                state.start_pc = record.public_values.start_pc;
-                                state.next_pc = record.public_values.next_pc;
-                                state.committed_value_digest =
-                                    record.public_values.committed_value_digest;
-                                state.deferred_proofs_digest =
-                                    record.public_values.deferred_proofs_digest;
-                                record.public_values = *state;
-                            }
-
                             // Defer events that are too expensive to include in every shard.
                             let mut deferred = deferred.lock().unwrap();
                             for record in records.iter_mut() {
@@ -469,6 +454,21 @@ where
                             });
                             if let Some(empty) = empty {
                                 records.remove(empty);
+                            }
+
+                            // Update the public values & prover state for the shards which contain
+                            // "cpu events".
+                            let mut state = state.lock().unwrap();
+                            for record in records.iter_mut() {
+                                state.shard += 1;
+                                state.execution_shard = record.public_values.execution_shard;
+                                state.start_pc = record.public_values.start_pc;
+                                state.next_pc = record.public_values.next_pc;
+                                state.committed_value_digest =
+                                    record.public_values.committed_value_digest;
+                                state.deferred_proofs_digest =
+                                    record.public_values.deferred_proofs_digest;
+                                record.public_values = *state;
                             }
 
                             // See if any deferred shards are ready to be commited to.

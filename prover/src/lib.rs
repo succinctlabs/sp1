@@ -412,6 +412,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     }
 
     /// Reduce shards proofs to a single shard proof using the recursion prover.
+    #[instrument(name = "compress", level = "info", skip_all)]
     pub fn compress(
         &self,
         vk: &SP1VerifyingKey,
@@ -420,7 +421,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         opts: SP1ProverOpts,
     ) -> Result<SP1ReduceProof<InnerSC>, SP1RecursionProverError> {
         // Set the batch size for the reduction tree.
-        let batch_size = 3;
+        let batch_size = 4;
         let shard_proofs = &proof.proof.0;
 
         // Get the leaf challenger.
@@ -453,8 +454,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             expected_height += 1;
         }
         last_index_at_height.push(index + num_layer_inputs - 1);
-        println!("expected height: {}", expected_height);
-        println!("last index at height: {:?}", last_index_at_height);
 
         // Generate the proofs.
         let span = tracing::Span::current().clone();
@@ -547,7 +546,10 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                 runtime
                                     .run()
                                     .map_err(|e| {
-                                        SP1RecursionProverError::RuntimeError(e.to_string())
+                                        eprintln!("{}", e.to_string());
+                                        SP1RecursionProverError::RuntimeError(
+                                            "runtime error".to_string(),
+                                        )
                                     })
                                     .unwrap();
                                 runtime.record
@@ -679,7 +681,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                     loop {
                         let received = { proofs_rx.lock().unwrap().recv() };
                         if let Ok((index, height, proof, program_type)) = received {
-                            println!("received proof for index {} at height {}", index, height);
                             batch.push((index, height, proof, program_type));
 
                             // Compute whether we've reached the root of the tree.
@@ -728,16 +729,13 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                 });
 
                             input_sync.wait_for_turn(count);
-                            println!(
-                                "sending input for index {} at height {}",
-                                count,
-                                inputs[0].1 + 1
-                            );
+
                             input_tx
                                 .lock()
                                 .unwrap()
                                 .send((count, inputs[0].1 + 1, input))
                                 .unwrap();
+
                             input_sync.advance_turn();
                             count += 1;
 
