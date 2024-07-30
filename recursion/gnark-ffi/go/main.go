@@ -22,6 +22,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
+	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/test/unsafekzg"
 	"github.com/succinctlabs/sp1-recursion-gnark/sp1"
 	"github.com/succinctlabs/sp1-recursion-gnark/sp1/babybear"
@@ -113,7 +114,9 @@ func TestMain() error {
 	// Compile the circuit.
 	circuit := sp1.NewCircuit(inputs)
 	builder := scs.NewBuilder
+	p := profile.Start()
 	scs, err := frontend.Compile(ecc.BN254.ScalarField(), builder, &circuit)
+	p.Stop()
 	if err != nil {
 		return err
 	}
