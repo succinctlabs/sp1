@@ -4,10 +4,10 @@ sp1_zkvm::entrypoint!(main);
 use alloy_primitives::{address, hex, Address, Signature};
 use curve25519_dalek_ng::edwards::CompressedEdwardsY;
 use ed25519_consensus::{Signature as Ed25519Signature, VerificationKey as Ed25519VerificationKey};
-use k256::ecdsa::{RecoveryId, Signature as K256Signature};
+// use k256::ecdsa::{RecoveryId, Signature as K256Signature};
 use sha2_v0_10_6::{Digest as Digest_10_6, Sha256 as Sha256_10_6};
 // use sha2_v0_10_8::{Digest as Digest_10_8, Sha256 as Sha256_10_8};
-use k256::elliptic_curve::sec1::ToEncodedPoint;
+use k256::{ecdsa::VerifyingKey, elliptic_curve::sec1::ToEncodedPoint, PublicKey};
 use sha2_v0_9_8::{Digest as Digest_9_8, Sha256 as Sha256_9_8};
 use std::str::FromStr;
 use tiny_keccak::{Hasher, Keccak};
@@ -69,11 +69,32 @@ fn test_sha256() {
 /// Source: https://github.com/alloy-rs/core/blob/adcf7adfa1f35c56e6331bab85b8c56d32a465f1/crates/primitives/src/signature/sig.rs#L620-L631
 fn test_k256_patch() {
     // Note
+
     let sig = Signature::from_str(
         "b91467e570a6466aa9e9876cbcd013baba02900b8979d43fe208a4a4f339f5fd6007e74cd82e037b800186422fc2da167c747ef045e5d18a5f5d4300f8e1a0291c"
     ).expect("could not parse signature");
     let expected = address!("2c7536E3605D9C16a7a3D7b1898e529396a65c23");
-    assert_eq!(sig.recover_address_from_msg("Some data").unwrap(), expected);
+
+    let secp_public_key = [
+        4, 78u8, 59, 129, 175, 156, 34, 52, 202, 208, 157, 103, 156, 230, 3, 94, 209, 57, 35, 71, 206,
+        100, 206, 64, 95, 93, 205, 54, 34, 138, 37, 222, 110, 71, 253, 53, 196, 33, 93, 30, 223,
+        83, 230, 248, 61, 227, 68, 97, 92, 231, 25, 189, 176, 253, 135, 143, 110, 215, 111, 6, 221,
+        39, 121, 86, 222,
+    ];
+
+    // Convert secp256k1 public key to Ethereum address
+    let public_key = VerifyingKey::from_sec1_bytes(&secp_public_key).unwrap();
+
+    let ethereum_address = Address::from_public_key(&public_key);
+    println!("ethereum address: {:?}", ethereum_address);
+
+    // Convert Ethereum address to secp256k1 public key
+    // let public_key =
+    //     PublicKey::from_sec1_bytes(address!("2c7536E3605D9C16a7a3D7b1898e529396a65c23").as_ref())
+    //         .unwrap();
+    // println!("public key: {:?}", public_key. 
+
+    assert_eq!(sig.recover_address_from_msg("Some data").expect("could not recover address"), expected); 
 }
 
 /// To add testing for a new patch, add a new case to the function below.
@@ -84,5 +105,5 @@ fn main() {
     test_sha256();
     test_curve25519_dalek_ng();
     test_ed25519_consensus();
-    test_k256_patch();
+    test_k256_patch();    
 }

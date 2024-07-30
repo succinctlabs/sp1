@@ -29,5 +29,4 @@ sha2-v0-9-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", packag
 sha2-v0-10-6 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", branch = "patch-sha2-v0.10.6" }
 # sha2-v0-10-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", branch = "patch-sha2-v0.10.8" }
 curve25519-dalek-ng = { git = "https://github.com/sp1-patches/curve25519-dalek-ng", branch = "patch-v4.1.1" }
-# k256 = { path = "../../../../../sp1-patches/elliptic-curves/k256" }
-# k256 = { path = "../../../../../sp1-patches/elliptic-curves/k256", branch = "patch-k256-v0.13.3" }
+ecdsa = { path = "../../../../../sp1-patches/signatures/ecdsa" }
