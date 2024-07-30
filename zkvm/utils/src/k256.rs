@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use k256::{
     ecdsa::hazmat::bits2field,
     elliptic_curve::{ff::PrimeFieldBits, PrimeField},
@@ -12,37 +12,6 @@ use sp1_lib::{
 use sp1_lib::{secp256k1::Secp256k1AffinePoint, unconstrained};
 
 use k256::{ecdsa::Signature, Scalar, Secp256k1};
-
-#[allow(non_snake_case)]
-pub(crate) fn double_and_add_base(
-    a: &Scalar,
-    A: &Secp256k1AffinePoint,
-    b: &Scalar,
-    B: &Secp256k1AffinePoint,
-) -> Option<Secp256k1AffinePoint> {
-    let mut res: Option<Secp256k1AffinePoint> = None;
-    let mut temp_A = *A;
-    let mut temp_B = *B;
-    let a_bits = a.to_le_bits();
-    let b_bits = b.to_le_bits();
-    for (a_bit, b_bit) in a_bits.iter().zip(b_bits) {
-        if *a_bit {
-            match res.as_mut() {
-                Some(res) => res.add_assign(&temp_A),
-                None => res = Some(temp_A),
-            };
-        }
-        if b_bit {
-            match res.as_mut() {
-                Some(res) => res.add_assign(&temp_B),
-                None => res = Some(temp_B),
-            };
-        }
-        temp_A.double();
-        temp_B.double();
-    }
-    res
-}
 
 /// Outside of the VM, computes the pubkey and s_inverse value from a signature and a message hash.
 ///
@@ -104,13 +73,26 @@ pub(crate) fn verify_signature(
     };
     let u1 = z * s_inv;
     let u2 = *r * s_inv;
-    let res = double_and_add_base(
-        &u1,
-        &Secp256k1AffinePoint(Secp256k1AffinePoint::GENERATOR),
-        &u2,
-        &affine,
+
+    let u1_le_bits = u1.to_le_bits();
+    let u2_le_bits = u2.to_le_bits();
+
+    let res = Secp256k1AffinePoint::multi_scalar_multiplication(
+        u1_le_bits
+            .iter()
+            .map(|b| *b)
+            .collect::<Vec<bool>>()
+            .as_slice(),
+        Secp256k1AffinePoint(Secp256k1AffinePoint::GENERATOR),
+        u2_le_bits
+            .iter()
+            .map(|b| *b)
+            .collect::<Vec<bool>>()
+            .as_slice(),
+        affine,
     )
     .unwrap();
+
     let mut x_bytes_be = [0u8; 32];
     for i in 0..8 {
         x_bytes_be[i * 4..(i * 4) + 4].copy_from_slice(&res.0[i].to_le_bytes());
@@ -140,4 +122,44 @@ pub(crate) fn decompress_pubkey(compressed_key: &[u8; 33]) -> Result<[u8; 65]> {
     result[0] = 4;
     result[1..].copy_from_slice(&decompressed_key);
     Ok(result)
+}
+
+/// Given a signature and a message hash, returns the public key that signed the message.
+pub fn ecrecover(sig: &[u8; 65], msg_hash: &[u8; 32]) -> Result<[u8; 65]> {
+    let (pubkey, s_inv) = unconstrained_recover_ecdsa(sig, msg_hash);
+    let pubkey = decompress_pubkey(&pubkey).context("decompress pubkey failed")?;
+    println!("Decompressed pubkey: {:?}", pubkey);
+    let verified = verify_signature(
+        &pubkey,
+        msg_hash,
+        &Signature::from_slice(&sig[..64]).unwrap(),
+        Some(&s_inv),
+    );
+    if verified {
+        Ok(pubkey)
+    } else {
+        Err(anyhow!("failed to verify signature"))
+    }
+}
+
+mod tests {
+    use alloy_primitives::{address, Address};
+    use k256::{ecdsa::Signature, PublicKey};
+
+    use crate::k256::ecrecover;
+    use std::str::FromStr;
+
+    #[test]
+    fn test_decompress_pubkey() {
+        let sig = Signature::from_str(
+            "b91467e570a6466aa9e9876cbcd013baba02900b8979d43fe208a4a4f339f5fd6007e74cd82e037b800186422fc2da167c747ef045e5d18a5f5d4300f8e1a0291c"
+        ).expect("could not parse signature");
+        let expected = address!("2c7536E3605D9C16a7a3D7b1898e529396a65c23");
+        let msg_hash = alloy_primitives::eip191_hash_message("Some data");
+
+        let pubkey = ecrecover(sig.to_bytes().as_slice().try_into().unwrap(), &msg_hash).unwrap();
+
+        let secp_public_key = PublicKey::from_sec1_bytes(&pubkey[1..]).unwrap();
+        assert_eq!(Address::from_raw_public_key(&pubkey[1..]), expected);
+    }
 }

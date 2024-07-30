@@ -13,3 +13,4 @@ categories = { workspace = true }
 k256 = { version = "0.13.3", features = ["ecdsa", "bits"] }
 sp1-lib = { path = "../lib" }
 anyhow = "1"
+alloy-primitives = "0.7"
