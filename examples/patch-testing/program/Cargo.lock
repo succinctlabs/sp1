@@ -659,7 +659,6 @@ dependencies = [
  "elliptic-curve",
  "once_cell",
  "sha2 0.10.8",
- "signature",
 ]
 
 [[package]]
@@ -785,7 +784,6 @@ dependencies = [
  "k256",
  "sha2 0.10.8",
  "sha2 0.9.8",
- "sp1-utils",
  "sp1-zkvm",
  "tiny-keccak",
 ]
@@ -1154,16 +1152,6 @@ dependencies = [
  "bincode",
  "cfg-if",
  "serde",
-]
-
-[[package]]
-name = "sp1-utils"
-version = "1.0.1"
-dependencies = [
- "alloy-primitives",
- "anyhow",
- "k256",
- "sp1-lib 1.0.1",
 ]
 
 [[package]]
