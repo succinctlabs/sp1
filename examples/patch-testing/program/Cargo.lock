@@ -423,9 +423,11 @@ name = "ecdsa"
 version = "0.16.9"
 dependencies = [
  "anyhow",
+ "cfg-if",
  "der",
  "digest 0.10.7",
  "elliptic-curve",
+ "hex-literal",
  "rfc6979",
  "signature",
  "sp1-lib",
