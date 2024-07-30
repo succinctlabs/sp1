@@ -621,7 +621,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
                                 // Observe the commitment.
                                 tracing::debug_span!("observe commitment").in_scope(|| {
-                                    challenger.observe(data.main_commit);
+                                    challenger.observe(data.main_commit.clone());
                                     challenger.observe_slice(
                                         &data.public_values[0..self.compress_prover.num_pv_elts()],
                                     );
