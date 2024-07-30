@@ -33,6 +33,7 @@ use crate::stark::Val;
 use crate::stark::VerifierConstraintFolder;
 use crate::stark::{Com, PcsProverData, RiscvAir, StarkProvingKey, UniConfig};
 use crate::stark::{MachineRecord, StarkMachine};
+use crate::utils::chunk_vec;
 use crate::utils::concurrency::TurnBasedSync;
 use crate::utils::SP1CoreOpts;
 use crate::{
@@ -300,11 +301,17 @@ where
                             trace_gen_sync.wait_for_turn(index);
 
                             // Send the records to the phase 1 prover.
-                            records_and_traces_tx
-                                .lock()
-                                .unwrap()
-                                .send((records, traces))
-                                .unwrap();
+                            let chunked_records = chunk_vec(records, opts.shard_batch_size);
+                            let chunked_traces = chunk_vec(traces, opts.shard_batch_size);
+                            chunked_records.into_iter().zip(chunked_traces).for_each(
+                                |(records, traces)| {
+                                    records_and_traces_tx
+                                        .lock()
+                                        .unwrap()
+                                        .send((records, traces))
+                                        .unwrap();
+                                },
+                            );
 
                             trace_gen_sync.advance_turn();
                         } else {
@@ -347,7 +354,9 @@ where
                             .map(|(record, traces)| {
                                 let _span = span.enter();
                                 let data = prover.commit(record, traces);
-                                data.main_commit
+                                let main_commit = data.main_commit.clone();
+                                drop(data);
+                                main_commit
                             })
                             .collect::<Vec<_>>();
 
@@ -478,11 +487,17 @@ where
                             trace_gen_sync.wait_for_turn(index);
 
                             // Send the records to the phase 1 prover.
-                            records_and_traces_tx
-                                .lock()
-                                .unwrap()
-                                .send((records, traces))
-                                .unwrap();
+                            let chunked_records = chunk_vec(records, opts.shard_batch_size);
+                            let chunked_traces = chunk_vec(traces, opts.shard_batch_size);
+                            chunked_records.into_iter().zip(chunked_traces).for_each(
+                                |(records, traces)| {
+                                    records_and_traces_tx
+                                        .lock()
+                                        .unwrap()
+                                        .send((records, traces))
+                                        .unwrap();
+                                },
+                            );
 
                             trace_gen_sync.advance_turn();
                         } else {
