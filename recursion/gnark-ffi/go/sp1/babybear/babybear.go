@@ -72,6 +72,10 @@ func NewF(value string) Variable {
 		nbBits = 1
 	}
 
+	if nbBits > 31 {
+		nbBits = 31
+	}
+
 	return Variable{
 		Value:  frontend.Variable(value),
 		NbBits: uint(nbBits),
@@ -290,7 +294,7 @@ func (c *Chip) ToBinary(in Variable) []frontend.Variable {
 }
 
 func (p *Chip) reduceFast(x Variable) Variable {
-	if x.NbBits >= uint(100) {
+	if x.NbBits >= uint(120) {
 		return Variable{
 			Value:  p.reduceWithMaxBits(x.Value, uint64(x.NbBits)),
 			NbBits: 31,
