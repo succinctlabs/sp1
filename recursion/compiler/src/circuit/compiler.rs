@@ -518,7 +518,7 @@ impl<C: Config> AsmCompiler<C> {
         let (mut instrs, cycle_tracker_root_span) = {
             let mut parents = vec![];
             // Create and enter the root span.
-            let mut current_span = CycleTrackerSpan::new("cycle tracker root span".to_string());
+            let mut current_span = CycleTrackerSpan::new("cycle tracker".to_string());
             let instrs = annotated_instrs
                 .into_iter()
                 .filter_map(|(item, trace)| match item {
