@@ -487,9 +487,6 @@ where
     let prover = DefaultProver::new(machine);
 
     let mut challenger = prover.config().challenger();
-    prover.debug_constraints(&pk, records.clone(), &mut challenger);
-
-    let mut challenger = prover.config().challenger();
     let proof = prover
         .prove(&pk, records, &mut challenger, SP1CoreOpts::default())
         .unwrap();
