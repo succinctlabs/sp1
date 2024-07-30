@@ -68,4 +68,4 @@
 
 - [Common Issues](./developers/common-issues.md)
 
-- [RV32IM Implementation Details](./developers/rv32im-implementation.md)
+- [RV32IM Specification](./developers/rv32im-specification.md)
