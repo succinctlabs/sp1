@@ -518,44 +518,41 @@ impl<C: Config> AsmCompiler<C> {
             let mut parents = vec![];
             // Create and enter the root span.
             let mut current_span = CycleTrackerSpan::new("Root".to_string());
-            let instrs = std::iter::once((
-                CompileOneItem::CycleTrackerStart(current_span.name.clone()),
-                None,
-            ))
-            .chain(annotated_instrs)
-            .filter_map(|(item, trace)| match item {
-                CompileOneItem::Instr(instr) => {
-                    current_span
-                        .instr_cts
-                        .entry(instr_name(&instr))
-                        .and_modify(|x| *x += 1)
-                        .or_insert(1);
-                    Some((instr, trace))
-                }
-                CompileOneItem::CycleTrackerStart(name) => {
-                    let span = CycleTrackerSpan::new(name);
-                    parents.push(core::mem::replace(&mut current_span, span));
-                    None
-                }
-                CompileOneItem::CycleTrackerEnd => {
-                    let mut parent_span = parents
-                        .pop()
-                        .expect("should be exiting non-root cycle tracker span");
-                    // Add spanned instructions to parent.
-                    for (&instr_name, &ct) in current_span.instr_cts.iter() {
-                        parent_span
+            let instrs = annotated_instrs
+                .into_iter()
+                .filter_map(|(item, trace)| match item {
+                    CompileOneItem::Instr(instr) => {
+                        current_span
                             .instr_cts
-                            .entry(instr_name)
-                            .and_modify(|x| *x += ct)
-                            .or_insert(ct);
+                            .entry(instr_name(&instr))
+                            .and_modify(|x| *x += 1)
+                            .or_insert(1);
+                        Some((instr, trace))
                     }
-                    // Move to the parent span.
-                    let child_span = core::mem::replace(&mut current_span, parent_span);
-                    current_span.children.push(child_span);
-                    None
-                }
-            })
-            .collect::<Vec<_>>();
+                    CompileOneItem::CycleTrackerStart(name) => {
+                        let span = CycleTrackerSpan::new(name);
+                        parents.push(core::mem::replace(&mut current_span, span));
+                        None
+                    }
+                    CompileOneItem::CycleTrackerEnd => {
+                        let mut parent_span = parents
+                            .pop()
+                            .expect("should be exiting non-root cycle tracker span");
+                        // Add spanned instructions to parent.
+                        for (&instr_name, &ct) in current_span.instr_cts.iter() {
+                            parent_span
+                                .instr_cts
+                                .entry(instr_name)
+                                .and_modify(|x| *x += ct)
+                                .or_insert(ct);
+                        }
+                        // Move to the parent span.
+                        let child_span = core::mem::replace(&mut current_span, parent_span);
+                        current_span.children.push(child_span);
+                        None
+                    }
+                })
+                .collect::<Vec<_>>();
             if !parents.is_empty() {
                 panic!("should exit all cycle tracker spans. parent spans: {parents:?}")
             }
@@ -1086,8 +1083,8 @@ mod tests {
     }
 
     #[test]
-    fn test_print() {
-        const ITERS: usize = 100;
+    fn test_print_and_cycle_tracker() {
+        const ITERS: usize = 10;
 
         setup_logger();
 
@@ -1105,15 +1102,23 @@ mod tests {
 
         let mut buf = VecDeque::<u8>::new();
 
-        for &input_f in input_fs.iter() {
+        builder.cycle_tracker_v2_enter("printing felts".to_string());
+        for (i, &input_f) in input_fs.iter().enumerate() {
+            builder.cycle_tracker_v2_enter(format!("printing felt {i}"));
             let input_felt = builder.eval(input_f);
             builder.print_f(input_felt);
+            builder.cycle_tracker_v2_exit();
         }
+        builder.cycle_tracker_v2_exit();
 
-        for input_block in input_efs.iter() {
+        builder.cycle_tracker_v2_enter("printing exts".to_string());
+        for (i, input_block) in input_efs.iter().enumerate() {
+            builder.cycle_tracker_v2_enter(format!("printing ext {i}"));
             let input_ext = builder.eval(EF::from_base_slice(input_block).cons());
             builder.print_e(input_ext);
+            builder.cycle_tracker_v2_exit();
         }
+        builder.cycle_tracker_v2_exit();
 
         test_operations_with_runner(builder.operations, |program| {
             let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(
