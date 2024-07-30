@@ -243,22 +243,6 @@ where
                             // Wait for our turn to update the state.
                             record_gen_sync.wait_for_turn(index);
 
-                            // Defer events that are too expensive to include in every shard.
-                            let mut deferred = deferred.lock().unwrap();
-                            for record in records.iter_mut() {
-                                deferred.append(&mut record.defer());
-                            }
-
-                            // Cleanup the records.
-                            let empty = records.iter().position(|record| {
-                                record.cpu_events.is_empty()
-                                    && record.memory_initialize_events.is_empty()
-                                    && record.memory_finalize_events.is_empty()
-                            });
-                            if let Some(empty) = empty {
-                                records.remove(empty);
-                            }
-
                             // Update the public values & prover state for the shards which contain
                             // "cpu events".
                             let mut state = state.lock().unwrap();
@@ -274,12 +258,14 @@ where
                                 record.public_values = *state;
                             }
 
+                            // Defer events that are too expensive to include in every shard.
+                            let mut deferred = deferred.lock().unwrap();
+                            for record in records.iter_mut() {
+                                deferred.append(&mut record.defer());
+                            }
+
                             // See if any deferred shards are ready to be commited to.
                             let mut deferred = deferred.split(done, opts.split_opts);
-
-                            for record in deferred.iter() {
-                                println!("deferred: {:?}", record.stats());
-                            }
 
                             // Update the public values & prover state for the shards which do not
                             // contain "cpu events" before committing to them.
@@ -440,22 +426,6 @@ where
                             // Wait for our turn to update the state.
                             record_gen_sync.wait_for_turn(index);
 
-                            // Defer events that are too expensive to include in every shard.
-                            let mut deferred = deferred.lock().unwrap();
-                            for record in records.iter_mut() {
-                                deferred.append(&mut record.defer());
-                            }
-
-                            // Cleanup the records.
-                            let empty = records.iter().position(|record| {
-                                record.cpu_events.is_empty()
-                                    && record.memory_initialize_events.is_empty()
-                                    && record.memory_finalize_events.is_empty()
-                            });
-                            if let Some(empty) = empty {
-                                records.remove(empty);
-                            }
-
                             // Update the public values & prover state for the shards which contain
                             // "cpu events".
                             let mut state = state.lock().unwrap();
@@ -469,6 +439,12 @@ where
                                 state.deferred_proofs_digest =
                                     record.public_values.deferred_proofs_digest;
                                 record.public_values = *state;
+                            }
+
+                            // Defer events that are too expensive to include in every shard.
+                            let mut deferred = deferred.lock().unwrap();
+                            for record in records.iter_mut() {
+                                deferred.append(&mut record.defer());
                             }
 
                             // See if any deferred shards are ready to be commited to.
