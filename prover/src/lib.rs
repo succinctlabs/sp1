@@ -420,7 +420,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         opts: SP1ProverOpts,
     ) -> Result<SP1ReduceProof<InnerSC>, SP1RecursionProverError> {
         // Set the batch size for the reduction tree.
-        let batch_size = 4;
+        let batch_size = 3;
         let shard_proofs = &proof.proof.0;
 
         // Get the leaf challenger.
@@ -449,7 +449,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         while num_layer_inputs > batch_size {
             last_index_at_height.push(index + num_layer_inputs - 1);
             index += num_layer_inputs;
-            num_layer_inputs = (num_layer_inputs + (batch_size - 1)) / batch_size;
+            num_layer_inputs = (num_layer_inputs + 2) / batch_size;
             expected_height += 1;
         }
         last_index_at_height.push(index + num_layer_inputs - 1);
