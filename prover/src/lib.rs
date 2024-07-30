@@ -546,7 +546,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                 runtime
                                     .run()
                                     .map_err(|e| {
-                                        eprintln!("{}", e.to_string());
+                                        eprintln!("{}", e);
                                         SP1RecursionProverError::RuntimeError(
                                             "runtime error".to_string(),
                                         )
