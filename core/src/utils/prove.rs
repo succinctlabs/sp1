@@ -231,10 +231,6 @@ where
                                 .in_scope(|| trace_checkpoint(program.clone(), &checkpoint, opts));
                             reset_seek(&mut checkpoint);
 
-                            for record in records.iter() {
-                                println!("record: {:?}", record.stats());
-                            }
-
                             // Generate the dependencies.
                             tracing::debug_span!("generate dependencies").in_scope(|| {
                                 prover.machine().generate_dependencies(&mut records, &opts)
