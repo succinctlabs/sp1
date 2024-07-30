@@ -15,7 +15,7 @@ cfg_if::cfg_if! {
 
 /// Halts the program with the given exit code.
 ///
-/// Before we halt, we make sure to commit to the public values.
+/// Before halting, the syscall will commit to the public values.
 #[allow(unused_variables)]
 pub extern "C" fn syscall_halt(exit_code: u8) -> ! {
     #[cfg(target_os = "zkvm")]

@@ -1,6 +1,6 @@
 //! Syscalls for the SP1 zkVM.
 //!
-//! More information on these syscalls can be found in the zkVM entrypoint
+//! Documentation for these syscalls can be found in the zkVM entrypoint
 //! `sp1_zkvm::syscalls` module.
 
 pub mod bls12381;
@@ -41,9 +41,6 @@ extern "C" {
     pub fn syscall_secp256k1_double(p: *mut [u32; 16]);
 
     /// Executes an Secp256k1 curve decompression on the given point.
-    ///
-    /// More information on this syscall can be found in the zkVM entrypoint
-    /// [`sp1_zkvm::syscalls::secp256k1::syscall_secp256k1_decompress`].
     pub fn syscall_secp256k1_decompress(point: &mut [u8; 64], is_odd: bool);
 
     /// Executes a Bn254 curve addition on the given points.

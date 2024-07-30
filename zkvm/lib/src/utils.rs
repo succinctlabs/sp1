@@ -118,12 +118,6 @@ pub enum MulAssignError {
     ScalarIsZero,
 }
 
-/// Errors that can occur during an MSM of [`AffinePoint`]'s.
-#[derive(Debug)]
-pub enum MSMError {
-    ScalarIsZero,
-}
-
 /// Converts a slice of words to a byte array in little endian.
 pub fn words_to_bytes_le(words: &[u32]) -> Vec<u8> {
     words

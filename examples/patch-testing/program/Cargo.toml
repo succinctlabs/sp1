@@ -16,10 +16,7 @@ sha2-v0-10-6 = { version = "0.10.6", package = "sha2" }
 ed25519-consensus = "2.1.0"
 tiny-keccak = { version = "2.0.2", features = ["keccak"] }
 curve25519-dalek-ng = "4.1"
-k256 = { version = "0.13", default-features = false, features = [
-    "ecdsa",
-    "bits",
-] }
+k256 = { version = "0.13", default-features = false, features = ["ecdsa"] }
 alloy-primitives = { version = "0.7", features = ["k256"] }
 
 [patch.crates-io]
