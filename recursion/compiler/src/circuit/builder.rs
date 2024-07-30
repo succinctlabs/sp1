@@ -20,6 +20,8 @@ pub trait CircuitV2Builder<C: Config> {
     ) -> [Felt<C::F>; DIGEST_SIZE];
     fn fri_fold_v2(&mut self, input: CircuitV2FriFoldInput<C>) -> CircuitV2FriFoldOutput<C>;
     fn ext2felt_v2(&mut self, ext: Ext<C::F, C::EF>) -> [Felt<C::F>; D];
+    fn cycle_tracker_v2_enter(&mut self, name: String);
+    fn cycle_tracker_v2_exit(&mut self);
 }
 
 impl<C: Config> CircuitV2Builder<C> for Builder<C> {
@@ -127,5 +129,11 @@ impl<C: Config> CircuitV2Builder<C> for Builder<C> {
         self.assert_ext_eq(reconstructed_ext, ext);
 
         felts
+    }
+    fn cycle_tracker_v2_enter(&mut self, name: String) {
+        self.operations.push(DslIr::CycleTrackerV2Start(name));
+    }
+    fn cycle_tracker_v2_exit(&mut self) {
+        self.operations.push(DslIr::CycleTrackerV2End);
     }
 }

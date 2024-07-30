@@ -142,7 +142,7 @@ impl<C: Config> AsmCompiler<C> {
             .0
     }
 
-    fn mem_write_const(&mut self, dst: impl Reg<C>, src: Imm<C::F, C::EF>) -> Instruction<C::F> {
+    fn mem_write_const(&mut self, dst: impl Reg<C>, src: Imm<C::F, C::EF>) -> CompileOneItem<C::F> {
         Instruction::Mem(MemInstr {
             addrs: MemIo {
                 inner: dst.write(self),
@@ -153,6 +153,7 @@ impl<C: Config> AsmCompiler<C> {
             mult: C::F::zero(),
             kind: MemAccessKind::Write,
         })
+        .into()
     }
 
     fn base_alu(
@@ -161,7 +162,7 @@ impl<C: Config> AsmCompiler<C> {
         dst: impl Reg<C>,
         lhs: impl Reg<C>,
         rhs: impl Reg<C>,
-    ) -> Instruction<C::F> {
+    ) -> CompileOneItem<C::F> {
         Instruction::BaseAlu(BaseAluInstr {
             opcode,
             mult: C::F::zero(),
@@ -171,6 +172,7 @@ impl<C: Config> AsmCompiler<C> {
                 in2: rhs.read(self),
             },
         })
+        .into()
     }
 
     fn ext_alu(
@@ -179,7 +181,7 @@ impl<C: Config> AsmCompiler<C> {
         dst: impl Reg<C>,
         lhs: impl Reg<C>,
         rhs: impl Reg<C>,
-    ) -> Instruction<C::F> {
+    ) -> CompileOneItem<C::F> {
         Instruction::ExtAlu(ExtAluInstr {
             opcode,
             mult: C::F::zero(),
@@ -189,9 +191,10 @@ impl<C: Config> AsmCompiler<C> {
                 in2: rhs.read(self),
             },
         })
+        .into()
     }
 
-    fn base_assert_eq(&mut self, lhs: impl Reg<C>, rhs: impl Reg<C>) -> Vec<Instruction<C::F>> {
+    fn base_assert_eq(&mut self, lhs: impl Reg<C>, rhs: impl Reg<C>) -> Vec<CompileOneItem<C::F>> {
         use BaseAluOpcode::*;
         let [diff, out] = core::array::from_fn(|_| Self::alloc(&mut self.next_addr));
         vec![
@@ -200,7 +203,7 @@ impl<C: Config> AsmCompiler<C> {
         ]
     }
 
-    fn base_assert_ne(&mut self, lhs: impl Reg<C>, rhs: impl Reg<C>) -> Vec<Instruction<C::F>> {
+    fn base_assert_ne(&mut self, lhs: impl Reg<C>, rhs: impl Reg<C>) -> Vec<CompileOneItem<C::F>> {
         use BaseAluOpcode::*;
         let [diff, out] = core::array::from_fn(|_| Self::alloc(&mut self.next_addr));
         vec![
@@ -209,7 +212,7 @@ impl<C: Config> AsmCompiler<C> {
         ]
     }
 
-    fn ext_assert_eq(&mut self, lhs: impl Reg<C>, rhs: impl Reg<C>) -> Vec<Instruction<C::F>> {
+    fn ext_assert_eq(&mut self, lhs: impl Reg<C>, rhs: impl Reg<C>) -> Vec<CompileOneItem<C::F>> {
         use ExtAluOpcode::*;
         let [diff, out] = core::array::from_fn(|_| Self::alloc(&mut self.next_addr));
         vec![
@@ -218,7 +221,7 @@ impl<C: Config> AsmCompiler<C> {
         ]
     }
 
-    fn ext_assert_ne(&mut self, lhs: impl Reg<C>, rhs: impl Reg<C>) -> Vec<Instruction<C::F>> {
+    fn ext_assert_ne(&mut self, lhs: impl Reg<C>, rhs: impl Reg<C>) -> Vec<CompileOneItem<C::F>> {
         use ExtAluOpcode::*;
         let [diff, out] = core::array::from_fn(|_| Self::alloc(&mut self.next_addr));
         vec![
@@ -231,7 +234,7 @@ impl<C: Config> AsmCompiler<C> {
         &mut self,
         dst: [impl Reg<C>; WIDTH],
         src: [impl Reg<C>; WIDTH],
-    ) -> Instruction<C::F> {
+    ) -> CompileOneItem<C::F> {
         Instruction::Poseidon2Skinny(Poseidon2WideInstr {
             addrs: Poseidon2Io {
                 input: src.map(|r| r.read(self)),
@@ -239,13 +242,14 @@ impl<C: Config> AsmCompiler<C> {
             },
             mults: [C::F::zero(); WIDTH],
         })
+        .into()
     }
 
     fn poseidon2_permute_wide(
         &mut self,
         dst: [impl Reg<C>; WIDTH],
         src: [impl Reg<C>; WIDTH],
-    ) -> Instruction<C::F> {
+    ) -> CompileOneItem<C::F> {
         Instruction::Poseidon2Wide(Poseidon2WideInstr {
             addrs: Poseidon2Io {
                 input: src.map(|r| r.read(self)),
@@ -253,6 +257,7 @@ impl<C: Config> AsmCompiler<C> {
             },
             mults: [C::F::zero(); WIDTH],
         })
+        .into()
     }
 
     fn exp_reverse_bits(
@@ -260,7 +265,7 @@ impl<C: Config> AsmCompiler<C> {
         dst: impl Reg<C>,
         base: impl Reg<C>,
         exp: impl IntoIterator<Item = impl Reg<C>>,
-    ) -> Instruction<C::F> {
+    ) -> CompileOneItem<C::F> {
         Instruction::ExpReverseBitsLen(ExpReverseBitsInstr {
             addrs: ExpReverseBitsIo {
                 result: dst.write(self),
@@ -269,13 +274,14 @@ impl<C: Config> AsmCompiler<C> {
             },
             mult: C::F::zero(),
         })
+        .into()
     }
 
     fn hint_bit_decomposition(
         &mut self,
         value: impl Reg<C>,
         output: impl IntoIterator<Item = impl Reg<C>>,
-    ) -> Instruction<C::F> {
+    ) -> CompileOneItem<C::F> {
         Instruction::HintBits(HintBitsInstr {
             output_addrs_mults: output
                 .into_iter()
@@ -283,6 +289,7 @@ impl<C: Config> AsmCompiler<C> {
                 .collect(),
             input_addr: value.read_ghost(self),
         })
+        .into()
     }
 
     fn fri_fold(
@@ -300,7 +307,7 @@ impl<C: Config> AsmCompiler<C> {
             alpha_pow_input,
             ro_input,
         }: CircuitV2FriFoldInput<C>,
-    ) -> Instruction<C::F> {
+    ) -> CompileOneItem<C::F> {
         Instruction::FriFold(FriFoldInstr {
             // Calculate before moving the vecs.
             alpha_pow_mults: vec![C::F::zero(); alpha_pow_output.len()],
@@ -323,30 +330,34 @@ impl<C: Config> AsmCompiler<C> {
                 ro_output: ro_output.into_iter().map(|e| e.write(self)).collect(),
             },
         })
+        .into()
     }
 
-    fn print_f(&mut self, addr: impl Reg<C>) -> Instruction<C::F> {
+    fn print_f(&mut self, addr: impl Reg<C>) -> CompileOneItem<C::F> {
         Instruction::Print(PrintInstr {
             field_elt_type: FieldEltType::Base,
             addr: addr.read_ghost(self),
         })
+        .into()
     }
 
-    fn print_e(&mut self, addr: impl Reg<C>) -> Instruction<C::F> {
+    fn print_e(&mut self, addr: impl Reg<C>) -> CompileOneItem<C::F> {
         Instruction::Print(PrintInstr {
             field_elt_type: FieldEltType::Extension,
             addr: addr.read_ghost(self),
         })
+        .into()
     }
 
-    fn ext2felts(&mut self, felts: [impl Reg<C>; D], ext: impl Reg<C>) -> Instruction<C::F> {
+    fn ext2felts(&mut self, felts: [impl Reg<C>; D], ext: impl Reg<C>) -> CompileOneItem<C::F> {
         Instruction::HintExt2Felts(HintExt2FeltsInstr {
             output_addrs_mults: felts.map(|r| (r.write(self), C::F::zero())),
             input_addr: ext.read_ghost(self),
         })
+        .into()
     }
 
-    pub fn compile_one<F>(&mut self, ir_instr: DslIr<C>) -> Vec<Instruction<C::F>>
+    pub fn compile_one<F>(&mut self, ir_instr: DslIr<C>) -> Vec<CompileOneItem<C::F>>
     where
         F: PrimeField + TwoAdicField,
         C: Config<N = F, F = F> + Debug,
@@ -483,6 +494,8 @@ impl<C: Config> AsmCompiler<C> {
             // DslIr::LessThan(_, _, _) => todo!(),
             // DslIr::CycleTracker(_) => todo!(),
             // DslIr::ExpReverseBitsLen(_, _, _) => todo!(),
+            DslIr::CycleTrackerV2Start(name) => vec![CompileOneItem::CycleTrackerStart(name)],
+            DslIr::CycleTrackerV2End => vec![CompileOneItem::CycleTrackerEnd],
             instr => panic!("unsupported instruction: {instr:?}"),
         }
     }
@@ -495,10 +508,60 @@ impl<C: Config> AsmCompiler<C> {
     {
         // Compile each IR instruction into a list of ASM instructions, then combine them.
         // This step also counts the number of times each address is read from.
-        let mut instrs = operations
+        let annotated_instrs = operations
             .into_iter()
             .flat_map(|(ir_instr, trace)| zip(self.compile_one(ir_instr), repeat(trace)))
             .collect::<Vec<_>>();
+
+        // Cycle tracking logic.
+        let (mut instrs, cycle_tracker_root_span) = {
+            let mut parents = vec![];
+            // Create and enter the root span.
+            let mut current_span = CycleTrackerSpan::new("Root".to_string());
+            let instrs = std::iter::once((
+                CompileOneItem::CycleTrackerStart(current_span.name.clone()),
+                None,
+            ))
+            .chain(annotated_instrs)
+            .filter_map(|(item, trace)| match item {
+                CompileOneItem::Instr(instr) => {
+                    current_span
+                        .instr_cts
+                        .entry(instr_name(&instr))
+                        .and_modify(|x| *x += 1)
+                        .or_insert(1);
+                    Some((instr, trace))
+                }
+                CompileOneItem::CycleTrackerStart(name) => {
+                    let span = CycleTrackerSpan::new(name);
+                    parents.push(core::mem::replace(&mut current_span, span));
+                    None
+                }
+                CompileOneItem::CycleTrackerEnd => {
+                    let mut parent_span = parents
+                        .pop()
+                        .expect("should be exiting non-root cycle tracker span");
+                    // Add spanned instructions to parent.
+                    for (&instr_name, &ct) in current_span.instr_cts.iter() {
+                        parent_span
+                            .instr_cts
+                            .entry(instr_name)
+                            .and_modify(|x| *x += ct)
+                            .or_insert(ct);
+                    }
+                    // Move to the parent span.
+                    let child_span = core::mem::replace(&mut current_span, parent_span);
+                    current_span.children.push(child_span);
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+            if !parents.is_empty() {
+                panic!("should exit all cycle tracker spans. parent spans: {parents:?}")
+            }
+            (instrs, current_span)
+        };
+        tracing::info!("{cycle_tracker_root_span:?}");
 
         // Replace the mults using the address count data gathered in this previous.
         // Exhaustive match for refactoring purposes.
@@ -591,6 +654,52 @@ impl<C: Config> AsmCompiler<C> {
             instructions,
             traces,
         }
+    }
+}
+
+/// Used for cycle tracking.
+fn instr_name<F>(instr: &Instruction<F>) -> &'static str {
+    match instr {
+        Instruction::BaseAlu(_) => "BaseAlu",
+        Instruction::ExtAlu(_) => "ExtAlu",
+        Instruction::Mem(_) => "Mem",
+        Instruction::Poseidon2Skinny(_) => "Poseidon2Skinny",
+        Instruction::Poseidon2Wide(_) => "Poseidon2Wide",
+        Instruction::ExpReverseBitsLen(_) => "ExpReverseBitsLen",
+        Instruction::HintBits(_) => "HintBits",
+        Instruction::FriFold(_) => "FriFold",
+        Instruction::Print(_) => "Print",
+        Instruction::HintExt2Felts(_) => "HintExt2Felts",
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+struct CycleTrackerSpan {
+    name: String,
+    instr_cts: HashMap<&'static str, usize>,
+    children: Vec<CycleTrackerSpan>,
+}
+
+impl CycleTrackerSpan {
+    pub fn new(name: String) -> Self {
+        Self {
+            name,
+            ..Default::default()
+        }
+    }
+}
+
+/// Instruction or annotation. Result of compiling one `DslIr` item.
+#[derive(Debug, Clone)]
+pub enum CompileOneItem<F> {
+    Instr(Instruction<F>),
+    CycleTrackerStart(String),
+    CycleTrackerEnd,
+}
+
+impl<F> From<Instruction<F>> for CompileOneItem<F> {
+    fn from(value: Instruction<F>) -> Self {
+        CompileOneItem::Instr(value)
     }
 }
 
