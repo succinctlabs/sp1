@@ -36,14 +36,14 @@ impl AffinePoint<N> for Bls12381AffinePoint {
         let a = self.limbs_mut();
         let b = other.limbs_ref();
         unsafe {
-            syscall_bls12381_add(a.as_mut_ptr(), b.as_ptr());
+            syscall_bls12381_add(a, b);
         }
     }
 
     fn double(&mut self) {
         let a = self.limbs_mut();
         unsafe {
-            syscall_bls12381_double(a.as_mut_ptr());
+            syscall_bls12381_double(a);
         }
     }
 }

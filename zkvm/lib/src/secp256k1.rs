@@ -33,14 +33,14 @@ impl AffinePoint<N> for Secp256k1AffinePoint {
         let a = self.limbs_mut();
         let b = other.limbs_ref();
         unsafe {
-            syscall_secp256k1_add(a.as_mut_ptr(), b.as_ptr());
+            syscall_secp256k1_add(a, b);
         }
     }
 
     fn double(&mut self) {
         let a = self.limbs_mut();
         unsafe {
-            syscall_secp256k1_double(a.as_mut_ptr());
+            syscall_secp256k1_double(a);
         }
     }
 }
