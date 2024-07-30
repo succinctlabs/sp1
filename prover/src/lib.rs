@@ -450,7 +450,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         while num_layer_inputs > batch_size {
             last_index_at_height.push(index + num_layer_inputs - 1);
             index += num_layer_inputs;
-            num_layer_inputs = (num_layer_inputs + 2) / batch_size;
+            num_layer_inputs = (num_layer_inputs + (batch_size - 1)) / batch_size;
             expected_height += 1;
         }
         last_index_at_height.push(index + num_layer_inputs - 1);
