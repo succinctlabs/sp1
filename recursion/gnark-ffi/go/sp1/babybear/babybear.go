@@ -32,14 +32,16 @@ type ExtensionVariable struct {
 }
 
 type Chip struct {
-	api          frontend.API
-	rangeChecker frontend.Rangechecker
+	api                  frontend.API
+	rangeChecker         frontend.Rangechecker
+	ReduceMaxBitsCounter int
 }
 
 func NewChip(api frontend.API) *Chip {
 	return &Chip{
-		api:          api,
-		rangeChecker: rangecheck.New(api),
+		api:                  api,
+		rangeChecker:         rangecheck.New(api),
+		ReduceMaxBitsCounter: 0,
 	}
 }
 
@@ -279,6 +281,7 @@ func (p *Chip) reduceWithMaxBits(x frontend.Variable, maxNbBits uint64) frontend
 	if err != nil {
 		panic(err)
 	}
+	p.ReduceMaxBitsCounter++
 
 	quotient := result[0]
 	p.api.ToBinary(quotient, int(maxNbBits-31))

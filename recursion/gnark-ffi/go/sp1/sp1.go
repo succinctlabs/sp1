@@ -200,5 +200,7 @@ func (circuit *Circuit) Define(api frontend.API) error {
 		}
 	}
 
+	fmt.Println("BabyBear API ReduceMaxBitsCount:", hashBabyBearAPI.FieldApi.ReduceMaxBitsCounter)
+	fmt.Println("Field API ReduceMaxBitsCount: ", fieldAPI.ReduceMaxBitsCounter)
 	return nil
 }
