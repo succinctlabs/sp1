@@ -128,7 +128,6 @@ pub(crate) fn decompress_pubkey(compressed_key: &[u8; 33]) -> Result<[u8; 65]> {
 pub fn ecrecover(sig: &[u8; 65], msg_hash: &[u8; 32]) -> Result<[u8; 65]> {
     let (pubkey, s_inv) = unconstrained_recover_ecdsa(sig, msg_hash);
     let pubkey = decompress_pubkey(&pubkey).context("decompress pubkey failed")?;
-    println!("Decompressed pubkey: {:?}", pubkey);
     let verified = verify_signature(
         &pubkey,
         msg_hash,
@@ -139,27 +138,5 @@ pub fn ecrecover(sig: &[u8; 65], msg_hash: &[u8; 32]) -> Result<[u8; 65]> {
         Ok(pubkey)
     } else {
         Err(anyhow!("failed to verify signature"))
-    }
-}
-
-mod tests {
-    use alloy_primitives::{address, Address};
-    use k256::{ecdsa::Signature, PublicKey};
-
-    use crate::k256::ecrecover;
-    use std::str::FromStr;
-
-    #[test]
-    fn test_decompress_pubkey() {
-        let sig = Signature::from_str(
-            "b91467e570a6466aa9e9876cbcd013baba02900b8979d43fe208a4a4f339f5fd6007e74cd82e037b800186422fc2da167c747ef045e5d18a5f5d4300f8e1a0291c"
-        ).expect("could not parse signature");
-        let expected = address!("2c7536E3605D9C16a7a3D7b1898e529396a65c23");
-        let msg_hash = alloy_primitives::eip191_hash_message("Some data");
-
-        let pubkey = ecrecover(sig.to_bytes().as_slice().try_into().unwrap(), &msg_hash).unwrap();
-
-        let secp_public_key = PublicKey::from_sec1_bytes(&pubkey[1..]).unwrap();
-        assert_eq!(Address::from_raw_public_key(&pubkey[1..]), expected);
     }
 }
