@@ -398,7 +398,7 @@ pub fn cycle_tracker<C: Config + std::fmt::Debug>(operations: &[DslIr<C>]) -> Cy
             let op_dbg_str = format!("{op:?}");
             let op_name = op_dbg_str[..op_dbg_str
                 .chars()
-                .take_while(|x| x.is_ascii_alphabetic())
+                .take_while(|x| x.is_alphanumeric())
                 .count()]
                 .to_owned();
             current_span
