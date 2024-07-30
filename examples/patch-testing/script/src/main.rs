@@ -35,6 +35,17 @@ fn main() {
         .syscall_counts
         .contains_key(&sp1_core::runtime::SyscallCode::KECCAK_PERMUTE));
 
+    // Confirm there was at least 1 SECP256K1_ADD, SECP256K1_DOUBLE and SECP256K1_DECOMPRESS syscall.
+    assert!(report
+        .syscall_counts
+        .contains_key(&sp1_core::runtime::SyscallCode::SECP256K1_ADD));
+    assert!(report
+        .syscall_counts
+        .contains_key(&sp1_core::runtime::SyscallCode::SECP256K1_DOUBLE));
+    assert!(report
+        .syscall_counts
+        .contains_key(&sp1_core::runtime::SyscallCode::SECP256K1_DECOMPRESS));
+
     println!("Total syscalls: {:?}", report.total_instruction_count());
     println!("Successfully executed the program & confirmed syscalls.");
 }

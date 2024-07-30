@@ -21,6 +21,7 @@ k256 = { version = "0.13", default-features = false, features = [
     "bits",
 ] }
 alloy-primitives = { version = "0.7", features = ["k256"] }
+sp1-utils = { path = "../../../zkvm/utils" }
 
 [patch.crates-io]
 tiny-keccak = { git = "https://github.com/sp1-patches/tiny-keccak", branch = "patch-v2.0.2" }
