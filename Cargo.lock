@@ -5086,6 +5086,7 @@ dependencies = [
 name = "sp1-utils"
 version = "1.0.1"
 dependencies = [
+ "alloy-primitives",
  "anyhow",
  "k256",
  "sp1-lib",

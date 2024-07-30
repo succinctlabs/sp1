@@ -28,7 +28,7 @@ pub extern "C" fn syscall_secp256k1_add(p: *mut [u32; 16], q: *mut [u32; 16]) {
 
 /// Double a Secp256k1 point.
 ///
-/// The result is stored in the first point.
+/// The result is stored in-place in the supplied buffer.
 ///
 /// ### Safety
 ///
@@ -53,8 +53,9 @@ pub extern "C" fn syscall_secp256k1_double(p: *mut [u32; 16]) {
 
 /// Decompresses a compressed Secp256k1 point.
 ///
-/// The input array should be 32 bytes long, with the first 16 bytes containing the X coordinate in
-/// big-endian format. The second half of the input will be overwritten with the decompressed point.
+/// The input array should be 64 bytes long, with the first 32 bytes containing the X coordinate in
+/// big-endian format. The second half of the input will be overwritten with the Y coordinate of the
+/// decompressed point in big-endian format using the point's parity (is_odd).
 ///
 /// ### Safety
 ///
