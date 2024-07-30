@@ -8,6 +8,7 @@ use serde::Deserialize;
 use serde::Serialize;
 use sp1_recursion_compiler::ir::Config;
 use sp1_recursion_compiler::ir::Witness;
+use anyhow::Result;
 
 /// A witness that can be used to initialize values for witness generation inside Gnark.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -55,9 +56,10 @@ impl GnarkWitness {
     }
 
     /// Saves the witness to a given path.
-    pub fn save(&self, path: &str) {
-        let serialized = serde_json::to_string(self).unwrap();
-        let mut file = File::create(path).unwrap();
-        file.write_all(serialized.as_bytes()).unwrap();
+    pub fn save(&self, path: &str) -> Result<()>{
+        let serialized = serde_json::to_string(self)?;
+        let mut file = File::create(path)?;
+        file.write_all(serialized.as_bytes())?;
+        Ok(())
     }
 }
