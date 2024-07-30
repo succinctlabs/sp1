@@ -522,7 +522,7 @@ impl ExecutionRecord {
         );
 
         if last {
-            self.shards.push(last_shard);
+            shards.push(last_shard);
 
             self.memory_initialize_events
                 .sort_by_key(|event| event.addr);
