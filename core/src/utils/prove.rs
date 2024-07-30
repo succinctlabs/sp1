@@ -33,6 +33,7 @@ use crate::stark::Val;
 use crate::stark::VerifierConstraintFolder;
 use crate::stark::{Com, PcsProverData, RiscvAir, StarkProvingKey, UniConfig};
 use crate::stark::{MachineRecord, StarkMachine};
+use crate::utils::chunk_vec;
 use crate::utils::concurrency::TurnBasedSync;
 use crate::utils::SP1CoreOpts;
 use crate::{
@@ -300,16 +301,17 @@ where
                             trace_gen_sync.wait_for_turn(index);
 
                             // Send the records to the phase 1 prover.
-                            records
-                                .chunks(opts.shard_batch_size)
-                                .zip(traces.chunks(opts.shard_batch_size))
-                                .for_each(|(records, traces)| {
+                            let chunked_records = chunk_vec(records, opts.shard_batch_size);
+                            let chunked_traces = chunk_vec(traces, opts.shard_batch_size);
+                            chunked_records.into_iter().zip(chunked_traces).for_each(
+                                |(records, traces)| {
                                     records_and_traces_tx
                                         .lock()
                                         .unwrap()
-                                        .send((records.to_vec(), traces.to_vec()))
+                                        .send((records, traces))
                                         .unwrap();
-                                });
+                                },
+                            );
 
                             trace_gen_sync.advance_turn();
                         } else {
@@ -485,16 +487,17 @@ where
                             trace_gen_sync.wait_for_turn(index);
 
                             // Send the records to the phase 1 prover.
-                            records
-                                .chunks(opts.shard_batch_size)
-                                .zip(traces.chunks(opts.shard_batch_size))
-                                .for_each(|(records, traces)| {
+                            let chunked_records = chunk_vec(records, opts.shard_batch_size);
+                            let chunked_traces = chunk_vec(traces, opts.shard_batch_size);
+                            chunked_records.into_iter().zip(chunked_traces).for_each(
+                                |(records, traces)| {
                                     records_and_traces_tx
                                         .lock()
                                         .unwrap()
-                                        .send((records.to_vec(), traces.to_vec()))
+                                        .send((records, traces))
                                         .unwrap();
-                                });
+                                },
+                            );
 
                             trace_gen_sync.advance_turn();
                         } else {
