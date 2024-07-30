@@ -1343,6 +1343,7 @@ dependencies = [
  "rand_core",
  "sec1",
  "subtle",
+ "tap",
  "zeroize",
 ]
 
@@ -5079,6 +5080,15 @@ dependencies = [
  "tracing",
  "twirp-rs",
  "vergen",
+]
+
+[[package]]
+name = "sp1-utils"
+version = "1.0.1"
+dependencies = [
+ "anyhow",
+ "k256",
+ "sp1-lib",
 ]
 
 [[package]]
