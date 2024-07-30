@@ -231,13 +231,8 @@ where
                                 .in_scope(|| trace_checkpoint(program.clone(), &checkpoint, opts));
                             reset_seek(&mut checkpoint);
 
-                            let empty = records.iter().position(|record| {
-                                record.cpu_events.is_empty()
-                                    && record.memory_initialize_events.is_empty()
-                                    && record.memory_finalize_events.is_empty()
-                            });
-                            if let Some(empty) = empty {
-                                records.remove(empty);
+                            for record in records.iter() {
+                                println!("record: {:?}", record.stats());
                             }
 
                             // Generate the dependencies.
@@ -269,8 +264,22 @@ where
                                 deferred.append(&mut record.defer());
                             }
 
+                            // Cleanup the records.
+                            let empty = records.iter().position(|record| {
+                                record.cpu_events.is_empty()
+                                    && record.memory_initialize_events.is_empty()
+                                    && record.memory_finalize_events.is_empty()
+                            });
+                            if let Some(empty) = empty {
+                                records.remove(empty);
+                            }
+
                             // See if any deferred shards are ready to be commited to.
                             let mut deferred = deferred.split(done, opts.split_opts);
+
+                            for record in deferred.iter() {
+                                println!("deferred: {:?}", record.stats());
+                            }
 
                             // Update the public values & prover state for the shards which do not
                             // contain "cpu events" before committing to them.
@@ -450,6 +459,16 @@ where
                             let mut deferred = deferred.lock().unwrap();
                             for record in records.iter_mut() {
                                 deferred.append(&mut record.defer());
+                            }
+
+                            // Cleanup the records.
+                            let empty = records.iter().position(|record| {
+                                record.cpu_events.is_empty()
+                                    && record.memory_initialize_events.is_empty()
+                                    && record.memory_finalize_events.is_empty()
+                            });
+                            if let Some(empty) = empty {
+                                records.remove(empty);
                             }
 
                             // See if any deferred shards are ready to be commited to.

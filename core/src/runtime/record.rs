@@ -394,10 +394,6 @@ impl ExecutionRecord {
     /// a "reasonable" number of deferred events.
     pub fn split(&mut self, last: bool, opts: SplitOpts) -> Vec<ExecutionRecord> {
         let mut shards = Vec::new();
-        let mut last_shard = ExecutionRecord {
-            program: self.program.clone(),
-            ..Default::default()
-        };
 
         macro_rules! split_events {
             ($self:ident, $events:ident, $shards:ident, $threshold:expr, $exact:expr) => {
@@ -408,7 +404,11 @@ impl ExecutionRecord {
                 } else {
                     let remainder = chunks.remainder().to_vec();
                     if !remainder.is_empty() {
-                        last_shard.$events = chunks.remainder().to_vec();
+                        $shards.push(ExecutionRecord {
+                            $events: chunks.remainder().to_vec(),
+                            program: self.program.clone(),
+                            ..Default::default()
+                        });
                     }
                 }
                 let mut event_shards = chunks
@@ -566,10 +566,8 @@ impl ExecutionRecord {
                 }
                 shard.public_values.last_finalize_addr_bits = finalize_addr_bits;
 
-                last_shard.append(&mut shard);
+                shards.push(shard);
             }
-
-            shards.push(last_shard);
         }
 
         shards
