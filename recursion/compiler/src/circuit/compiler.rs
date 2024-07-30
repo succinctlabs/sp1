@@ -658,7 +658,7 @@ impl<C: Config> AsmCompiler<C> {
 }
 
 /// Used for cycle tracking.
-fn instr_name<F>(instr: &Instruction<F>) -> &'static str {
+const fn instr_name<F>(instr: &Instruction<F>) -> &'static str {
     match instr {
         Instruction::BaseAlu(_) => "BaseAlu",
         Instruction::ExtAlu(_) => "ExtAlu",

@@ -382,7 +382,7 @@ pub fn cycle_tracker<C: Config + std::fmt::Debug>(operations: &[DslIr<C>]) -> Cy
                 let mut parent_span = parents.pop().unwrap_or_else(|| {
                     panic!("should be exiting non-root cycle tracker span. root: {current_span:?}")
                 });
-                // // Add spanned instructions to parent.
+                // Add spanned instructions to parent.
                 for (instr_name, &ct) in current_span.instr_cts.iter() {
                     parent_span
                         .instr_cts
