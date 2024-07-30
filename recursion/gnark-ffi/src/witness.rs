@@ -1,6 +1,7 @@
 use std::fs::File;
 use std::io::Write;
 
+use anyhow::Result;
 use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
 use p3_field::PrimeField;
@@ -8,7 +9,6 @@ use serde::Deserialize;
 use serde::Serialize;
 use sp1_recursion_compiler::ir::Config;
 use sp1_recursion_compiler::ir::Witness;
-use anyhow::Result;
 
 /// A witness that can be used to initialize values for witness generation inside Gnark.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -56,7 +56,7 @@ impl GnarkWitness {
     }
 
     /// Saves the witness to a given path.
-    pub fn save(&self, path: &str) -> Result<()>{
+    pub fn save(&self, path: &str) -> Result<()> {
         let serialized = serde_json::to_string(self)?;
         let mut file = File::create(path)?;
         file.write_all(serialized.as_bytes())?;
