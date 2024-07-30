@@ -378,6 +378,7 @@ where
             });
 
         // Compute some statistics.
+        let mut total_cols = 0;
         for i in 0..chips.len() {
             let trace_width = traces[i].width();
             let prep_width = prep_traces[i].map_or(0, |x| x.width());
@@ -394,7 +395,9 @@ where
                 traces[i].height(),
                 total_width * traces[i].height(),
             );
+            total_cols += total_width;
         }
+        tracing::debug!("Total cols = {}", total_cols);
 
         let domains_and_perm_traces =
             tracing::debug_span!("flatten permutation traces and collect domains").in_scope(|| {
