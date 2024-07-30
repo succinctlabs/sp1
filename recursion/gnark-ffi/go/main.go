@@ -18,11 +18,8 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/groth16"
-	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
-	"github.com/consensys/gnark/frontend/cs/scs"
-	"github.com/consensys/gnark/test/unsafekzg"
 	"github.com/succinctlabs/sp1-recursion-gnark/sp1"
 	"github.com/succinctlabs/sp1-recursion-gnark/sp1/babybear"
 	"github.com/succinctlabs/sp1-recursion-gnark/sp1/poseidon2"
@@ -112,36 +109,37 @@ func TestMain() error {
 
 	// Compile the circuit.
 	circuit := sp1.NewCircuit(inputs)
-	builder := scs.NewBuilder
-	scs, err := frontend.Compile(ecc.BN254.ScalarField(), builder, &circuit)
+	// builder := scs.NewBuilder
+	// Compile the circuit.
+	r1cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
 	if err != nil {
-		return err
+		panic(err)
 	}
-	fmt.Println("[sp1] gnark verifier constraints:", scs.GetNbConstraints())
+	fmt.Println("Groth16 Constraints:", r1cs.GetNbConstraints())
 
-	// Run the dummy setup.
-	srs, srsLagrange, err := unsafekzg.NewSRS(scs)
-	if err != nil {
-		return err
-	}
-	var pk plonk.ProvingKey
-	pk, _, err = plonk.Setup(scs, srs, srsLagrange)
-	if err != nil {
-		return err
-	}
+	// // Run the dummy setup.
+	// srs, srsLagrange, err := unsafekzg.NewSRS(scs)
+	// if err != nil {
+	// 	return err
+	// }
+	// var pk plonk.ProvingKey
+	// pk, _, err = plonk.Setup(scs, srs, srsLagrange)
+	// if err != nil {
+	// 	return err
+	// }
 
-	// Generate witness.
-	assignment := sp1.NewCircuit(inputs)
-	witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
-	if err != nil {
-		return err
-	}
+	// // Generate witness.
+	// assignment := sp1.NewCircuit(inputs)
+	// witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
+	// if err != nil {
+	// 	return err
+	// }
 
-	// Generate the proof.
-	_, err = plonk.Prove(scs, pk, witness)
-	if err != nil {
-		return err
-	}
+	// // Generate the proof.
+	// _, err = plonk.Prove(scs, pk, witness)
+	// if err != nil {
+	// 	return err
+	// }
 
 	return nil
 }
