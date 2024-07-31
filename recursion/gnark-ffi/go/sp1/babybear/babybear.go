@@ -353,16 +353,10 @@ func InvFHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 }
 
 func InvEHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
-	p := big.NewInt(15*(1<<27) + 1)
-	aReduced := new(big.Int).Mod(inputs[0], p)
-	bReduced := new(big.Int).Mod(inputs[1], p)
-	cReduced := new(big.Int).Mod(inputs[2], p)
-	dReduced := new(big.Int).Mod(inputs[3], p)
-
-	a := C.uint(aReduced.Uint64())
-	b := C.uint(bReduced.Uint64())
-	c := C.uint(cReduced.Uint64())
-	d := C.uint(dReduced.Uint64())
+	a := C.uint(inputs[0].Uint64())
+	b := C.uint(inputs[1].Uint64())
+	c := C.uint(inputs[2].Uint64())
+	d := C.uint(inputs[3].Uint64())
 
 	ainv := C.babybearextinv(a, b, c, d, 0)
 	binv := C.babybearextinv(a, b, c, d, 1)
