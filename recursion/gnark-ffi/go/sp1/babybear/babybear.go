@@ -286,6 +286,24 @@ func (p *Chip) reduceWithMaxBits(x frontend.Variable, maxNbBits uint64) frontend
 	remainder := result[1]
 	p.rangeChecker.Check(remainder, 31)
 
+	remainderBits := p.api.ToBinary(result[1], 31)
+
+	highBits := frontend.Variable(0)
+	lowBits := frontend.Variable(0)
+
+	for i := 0; i < 27; i++ {
+		lowBits = p.api.Add(lowBits, remainderBits[i])
+	}
+
+	for i := 27; i < 31; i++ {
+		highBits = p.api.Add(highBits, remainderBits[i])
+	}
+
+	highBitsSubFour := p.api.Sub(highBits, 4)
+	highBitsSubFourInv := p.api.Select(p.api.IsZero(highBitsSubFour), frontend.Variable(0), p.api.Inverse(highBitsSubFour))
+	highBitsEqFour := p.api.Add(p.api.Mul(highBitsSubFour, highBitsSubFourInv), 1)
+	p.api.AssertIsEqual(p.api.Mul(highBitsEqFour, lowBits), frontend.Variable(0))
+
 	p.api.AssertIsEqual(x, p.api.Add(p.api.Mul(quotient, modulus), result[1]))
 
 	return remainder
