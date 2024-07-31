@@ -133,6 +133,7 @@ pub fn verify_two_adic_pcs<C: Config>(
                             builder.reduce_e(new_alpha_pow);
                             alpha_pow[log_height] = new_alpha_pow;
                         }
+                        // builder.reduce_e(acc);
                         ro[log_height] = builder.eval(ro[log_height] + acc / (*z - x));
                     }
                 }
@@ -237,6 +238,7 @@ pub fn verify_query<C: Config>(
         folded_eval = builder
             .eval(evals_ext[0] + (beta - xs[0]) * (evals_ext[1] - evals_ext[0]) / (xs[1] - xs[0]));
         x = builder.eval(x * x);
+        // builder.reduce_e(x);
         offset += 1;
     }
 
