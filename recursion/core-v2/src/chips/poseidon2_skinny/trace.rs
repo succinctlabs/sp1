@@ -153,15 +153,15 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2SkinnyChip
 
                     (0..WIDTH).for_each(|j| {
                         cols.round_counters_preprocessed.round_constants[j] = if is_external_round {
-                            let round = if r < NUM_EXTERNAL_ROUNDS / 2 {
+                            let round = if r < INTERNAL_ROUND_IDX {
                                 r
                             } else {
-                                r + NUM_INTERNAL_ROUNDS
+                                r + NUM_INTERNAL_ROUNDS - 1
                             };
 
                             F::from_wrapped_u32(RC_16_30_U32[round][j])
                         } else if r == INTERNAL_ROUND_IDX {
-                            F::from_wrapped_u32(RC_16_30_U32[NUM_EXTERNAL_ROUNDS / 2 + j][0])
+                            F::from_wrapped_u32(RC_16_30_U32[INTERNAL_ROUND_IDX + j][0])
                         } else {
                             F::zero()
                         };
@@ -220,7 +220,7 @@ impl<const DEGREE: usize> Poseidon2SkinnyChip<DEGREE> {
 
             // Optimization: Since adding a constant is a degree 1 operation, we can avoid adding
             // columns for it, and instead include it in the constraint for the x^3 part of the sbox.
-            let round = if r < NUM_EXTERNAL_ROUNDS / 2 {
+            let round = if r < INTERNAL_ROUND_IDX {
                 r
             } else {
                 r + NUM_INTERNAL_ROUNDS - 1
@@ -258,7 +258,7 @@ impl<const DEGREE: usize> Poseidon2SkinnyChip<DEGREE> {
             // Add the round constant to the 0th state element.
             // Optimization: Since adding a constant is a degree 1 operation, we can avoid adding
             // columns for it, just like for external rounds.
-            let round = r + NUM_EXTERNAL_ROUNDS / 2;
+            let round = r + INTERNAL_ROUND_IDX;
             let add_rc = new_state[0] + F::from_wrapped_u32(RC_16_30_U32[round][0]);
 
             // Apply the sboxes.
