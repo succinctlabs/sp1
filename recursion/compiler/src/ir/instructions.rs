@@ -18,6 +18,7 @@ pub enum DslIr<C: Config> {
     ImmE(Ext<C::F, C::EF>, C::EF),
 
     /// Force the reduction of an extension field element.
+    ReduceF(Felt<C::F>),
     ReduceE(Ext<C::F, C::EF>),
 
     // Additions.

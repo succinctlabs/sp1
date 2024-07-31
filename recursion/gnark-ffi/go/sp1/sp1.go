@@ -88,6 +88,8 @@ func (circuit *Circuit) Define(api frontend.API) error {
 			felts[cs.Args[0][0]] = fieldAPI.AddF(felts[cs.Args[1][0]], felts[cs.Args[2][0]])
 		case "AddE":
 			exts[cs.Args[0][0]] = fieldAPI.AddE(exts[cs.Args[1][0]], exts[cs.Args[2][0]])
+		case "ReduceF":
+			felts[cs.Args[0][0]] = fieldAPI.ReduceF(felts[cs.Args[0][0]])
 		case "ReduceE":
 			exts[cs.Args[0][0]] = fieldAPI.ReduceE(exts[cs.Args[0][0]])
 		case "AddEF":
