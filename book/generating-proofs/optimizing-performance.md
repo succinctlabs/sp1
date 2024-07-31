@@ -14,7 +14,7 @@ RUSTFLAGS='-C target-cpu=native' cargo run --release
 RUSTFLAGS='-C target-cpu=native -C target_feature=+avx512ifma,+avx512vl' cargo run --release
 ```
 
-## Enviroment Variables (Advanced)
+## Environment Variables (Advanced)
 
 `SHARD_SIZE`: The number of cycles that will be proven in each "shard" in the SP1 zkVM. This value
 must be set to a power of two. 
