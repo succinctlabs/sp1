@@ -47,4 +47,5 @@ pub enum ConstraintOpcode {
     CommitCommitedValuesDigest,
     CircuitFelts2Ext,
     PermuteBabyBear,
+    ReduceE,
 }

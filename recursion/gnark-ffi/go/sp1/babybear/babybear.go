@@ -35,6 +35,12 @@ type Chip struct {
 	api                  frontend.API
 	rangeChecker         frontend.Rangechecker
 	ReduceMaxBitsCounter int
+	AddFCounter          int
+	MulFCounter          int
+	AddEFCounter         int
+	MulEFCounter         int
+	AddECounter          int
+	MulECounter          int
 }
 
 func NewChip(api frontend.API) *Chip {
@@ -66,6 +72,7 @@ func Felts2Ext(a, b, c, d Variable) ExtensionVariable {
 
 func (c *Chip) AddF(a, b Variable) Variable {
 	var maxBits uint
+	c.AddFCounter++
 	if a.NbBits > b.NbBits {
 		maxBits = a.NbBits
 	} else {
@@ -83,6 +90,7 @@ func (c *Chip) SubF(a, b Variable) Variable {
 }
 
 func (c *Chip) MulF(a, b Variable) Variable {
+	c.MulFCounter++
 	return c.reduceFast(Variable{
 		Value:  c.api.Mul(a.Value, b.Value),
 		NbBits: a.NbBits + b.NbBits,
@@ -159,11 +167,13 @@ func (c *Chip) SelectE(cond frontend.Variable, a, b ExtensionVariable) Extension
 }
 
 func (c *Chip) AddEF(a ExtensionVariable, b Variable) ExtensionVariable {
+	c.AddEFCounter++
 	v1 := c.AddF(a.Value[0], b)
 	return ExtensionVariable{Value: [4]Variable{v1, a.Value[1], a.Value[2], a.Value[3]}}
 }
 
 func (c *Chip) AddE(a, b ExtensionVariable) ExtensionVariable {
+	c.AddECounter++
 	v1 := c.AddF(a.Value[0], b.Value[0])
 	v2 := c.AddF(a.Value[1], b.Value[1])
 	v3 := c.AddF(a.Value[2], b.Value[2])
@@ -185,6 +195,7 @@ func (c *Chip) SubEF(a ExtensionVariable, b Variable) ExtensionVariable {
 }
 
 func (c *Chip) MulE(a, b ExtensionVariable) ExtensionVariable {
+	c.MulECounter++
 	v2 := [4]Variable{
 		NewF("0"),
 		NewF("0"),
@@ -206,6 +217,7 @@ func (c *Chip) MulE(a, b ExtensionVariable) ExtensionVariable {
 }
 
 func (c *Chip) MulEF(a ExtensionVariable, b Variable) ExtensionVariable {
+	c.MulEFCounter++
 	v1 := c.MulF(a.Value[0], b)
 	v2 := c.MulF(a.Value[1], b)
 	v3 := c.MulF(a.Value[2], b)
@@ -274,6 +286,13 @@ func (p *Chip) ReduceSlow(x Variable) Variable {
 		Value:  p.reduceWithMaxBits(x.Value, uint64(x.NbBits)),
 		NbBits: 31,
 	}
+}
+
+func (p *Chip) ReduceE(x ExtensionVariable) ExtensionVariable {
+	for i := 0; i < 4; i++ {
+		x.Value[i] = p.ReduceSlow(x.Value[i])
+	}
+	return x
 }
 
 func (p *Chip) reduceWithMaxBits(x frontend.Variable, maxNbBits uint64) frontend.Variable {

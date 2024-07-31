@@ -358,6 +358,10 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
                         vec![a[3].id()],
                     ],
                 }),
+                DslIr::ReduceE(a) => constraints.push(Constraint {
+                    opcode: ConstraintOpcode::ReduceE,
+                    args: vec![vec![a.id()]],
+                }),
                 _ => panic!("unsupported {:?}", instruction),
             };
         }

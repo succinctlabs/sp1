@@ -17,6 +17,9 @@ pub enum DslIr<C: Config> {
     /// Assigns an ext field immediate to an extension field element (ext = ext field imm).
     ImmE(Ext<C::F, C::EF>, C::EF),
 
+    /// Force the reduction of an extension field element.
+    ReduceE(Ext<C::F, C::EF>),
+
     // Additions.
     /// Add two variables (var = var + var).
     AddV(Var<C::N>, Var<C::N>, Var<C::N>),

@@ -88,6 +88,8 @@ func (circuit *Circuit) Define(api frontend.API) error {
 			felts[cs.Args[0][0]] = fieldAPI.AddF(felts[cs.Args[1][0]], felts[cs.Args[2][0]])
 		case "AddE":
 			exts[cs.Args[0][0]] = fieldAPI.AddE(exts[cs.Args[1][0]], exts[cs.Args[2][0]])
+		case "ReduceE":
+			exts[cs.Args[0][0]] = fieldAPI.ReduceE(exts[cs.Args[0][0]])
 		case "AddEF":
 			exts[cs.Args[0][0]] = fieldAPI.AddEF(exts[cs.Args[1][0]], felts[cs.Args[2][0]])
 		case "SubV":
@@ -202,5 +204,18 @@ func (circuit *Circuit) Define(api frontend.API) error {
 
 	fmt.Println("BabyBear API ReduceMaxBitsCount:", hashBabyBearAPI.FieldApi.ReduceMaxBitsCounter)
 	fmt.Println("Field API ReduceMaxBitsCount: ", fieldAPI.ReduceMaxBitsCounter)
+	fmt.Println("Field API AddFCounter: ", fieldAPI.AddFCounter)
+	fmt.Println("Field API AddECounter: ", fieldAPI.AddECounter)
+	fmt.Println("Field API AddEFCounter: ", fieldAPI.AddEFCounter)
+	fmt.Println("Field API MulFCounter: ", fieldAPI.MulFCounter)
+	fmt.Println("Field API MulECounter: ", fieldAPI.MulECounter)
+	fmt.Println("Field API MulEFCounter: ", fieldAPI.MulEFCounter)
+	fmt.Println("BabyBear API AddFCounter: ", hashBabyBearAPI.FieldApi.AddFCounter)
+	fmt.Println("BabyBear API MulFCounter: ", hashBabyBearAPI.FieldApi.MulFCounter)
+	fmt.Println("BabyBear API AddEFCounter: ", hashBabyBearAPI.FieldApi.AddEFCounter)
+	fmt.Println("BabyBear API MulEFCounter: ", hashBabyBearAPI.FieldApi.MulEFCounter)
+	fmt.Println("BabyBear API AddECounter: ", hashBabyBearAPI.FieldApi.AddECounter)
+	fmt.Println("BabyBear API MulECounter: ", hashBabyBearAPI.FieldApi.MulECounter)
+
 	return nil
 }

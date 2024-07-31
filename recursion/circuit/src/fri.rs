@@ -60,6 +60,7 @@ pub fn verify_two_adic_pcs<C: Config>(
     challenger: &mut MultiField32ChallengerVariable<C>,
     rounds: Vec<TwoAdicPcsRoundVariable<C>>,
 ) {
+    let mut counter = 0;
     let alpha = challenger.sample_ext(builder);
 
     let fri_challenges =
@@ -115,25 +116,30 @@ pub fn verify_two_adic_pcs<C: Config>(
                     let mat_values = &mat.values;
                     let log_height = log2_strict_usize(mat_domain.size()) + config.log_blowup;
 
-                    let bits_reduced = log_global_max_height - log_height;
-                    let rev_reduced_index = builder
-                        .reverse_bits_len_circuit(index_bits[bits_reduced..].to_vec(), log_height);
+                    // let bits_reduced = log_global_max_height - log_height;
+                    // let rev_reduced_index = builder
+                    //     .reverse_bits_len_circuit(index_bits[bits_reduced..].to_vec(), log_height);
 
-                    let g = builder.generator();
-                    let two_adic_generator: Felt<_> =
-                        builder.eval(C::F::two_adic_generator(log_height));
-                    let two_adic_generator_exp =
-                        builder.exp_f_bits(two_adic_generator, rev_reduced_index);
-                    let x: Felt<_> = builder.eval(g * two_adic_generator_exp);
+                    // let g = builder.generator();
+                    // let two_adic_generator: Felt<_> =
+                    //     builder.eval(C::F::two_adic_generator(log_height));
+                    // let two_adic_generator_exp =
+                    //     builder.exp_f_bits(two_adic_generator, rev_reduced_index);
+                    // let x: Felt<_> = builder.eval(g * two_adic_generator_exp);
+                    let x: Felt<_> = builder.eval(C::F::one());
 
                     for (z, ps_at_z) in izip!(mat_points, mat_values) {
                         let mut acc: Ext<C::F, C::EF> =
                             builder.eval(SymbolicExt::from_f(C::EF::zero()));
+                        counter += 1;
                         for (p_at_x, &p_at_z) in izip!(mat_opening.clone(), ps_at_z) {
                             let pow = log_height_pow[log_height];
+
                             // Fill in any missing powers of alpha.
                             (alpha_pows.len()..pow + 1).for_each(|_| {
-                                alpha_pows.push(builder.eval(*alpha_pows.last().unwrap() * alpha));
+                                let alpha = builder.eval(*alpha_pows.last().unwrap() * alpha);
+                                builder.operations.push(DslIr::ReduceE(alpha));
+                                alpha_pows.push(alpha);
                             });
                             acc = builder.eval(acc + (alpha_pows[pow] * (p_at_z - p_at_x[0])));
                             log_height_pow[log_height] += 1;
@@ -145,6 +151,8 @@ pub fn verify_two_adic_pcs<C: Config>(
             ro
         })
         .collect::<Vec<_>>();
+
+    println!("Counter: {}", counter);
 
     verify_challenges(
         builder,
