@@ -127,7 +127,7 @@ func (c *Chip) negF(a Variable) Variable {
 }
 
 func (c *Chip) invF(in Variable) Variable {
-	in = c.ReduceSlow(in)
+	// in = c.ReduceSlow(in)
 	result, err := c.api.Compiler().NewHint(InvFHint, 1, in.Value)
 	if err != nil {
 		panic(err)
@@ -346,7 +346,9 @@ func ReduceHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 }
 
 func InvFHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
-	a := C.uint(inputs[0].Uint64())
+	p := big.NewInt(15*(1<<27) + 1)
+	aReduced := new(big.Int).Mod(inputs[0], p)
+	a := C.uint(aReduced.Uint64())
 	ainv := C.babybearinv(a)
 	results[0].SetUint64(uint64(ainv))
 	return nil
