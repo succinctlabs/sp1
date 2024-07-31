@@ -6,7 +6,10 @@ use p3_matrix::Dimensions;
 use p3_util::log2_strict_usize;
 use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
-    ir::{Builder, CircuitV2FriFoldInput, CircuitV2FriFoldOutput, Config, Felt, SymbolicExt},
+    ir::{
+        Builder, CircuitV2FriFoldInput, CircuitV2FriFoldOutput, Config, ExtConst, Felt,
+        SymbolicExt, SymbolicFelt,
+    },
 };
 use std::{
     cmp::Reverse,
@@ -53,6 +56,23 @@ pub fn verify_shape_and_sample_challenges<C: Config, Mmcs>(
     }
 }
 
+/// TODO remove this
+fn exp_reverse_bits<C: Config>(
+    builder: &mut Builder<C>,
+    mut base: Felt<C::F>,
+    bits: &[Felt<C::F>],
+) -> Felt<C::F> {
+    let mut acc: Felt<_> = builder.constant(C::F::one());
+    let one: Felt<_> = builder.constant(C::F::one());
+    for &bit in bits.iter().rev() {
+        let cobit: Felt<_> = builder.eval(one - bit);
+        let comb = base * bit + one * cobit;
+        acc = builder.eval(acc * comb);
+        base = builder.eval(base * base);
+    }
+    acc
+}
+
 pub fn verify_two_adic_pcs<C: Config, Mmcs>(
     builder: &mut Builder<C>,
     config: &FriConfig<Mmcs>,
@@ -68,8 +88,10 @@ pub fn verify_two_adic_pcs<C: Config, Mmcs>(
     let log_global_max_height = proof.fri_proof.commit_phase_commits.len() + config.log_blowup;
 
     // The powers of alpha, where the ith element is alpha^i.
-    let mut alpha_pows: Vec<Ext<C::F, C::EF>> =
-        vec![builder.eval(SymbolicExt::from_f(C::EF::one()))];
+    let mut alpha_pows: Vec<Ext<C::F, C::EF>> = [builder.constant(C::EF::one()); 32].to_vec();
+
+    // An array of the current power for each log_height.
+    let mut log_height_pow = [0usize; 32];
 
     let reduced_openings = proof
         .query_openings
@@ -79,7 +101,7 @@ pub fn verify_two_adic_pcs<C: Config, Mmcs>(
             let mut ro: [Ext<C::F, C::EF>; 32] =
                 [builder.eval(SymbolicExt::from_f(C::EF::zero())); 32];
 
-            for (batch_opening, round) in izip!(query_opening, rounds.clone()) {
+            for (batch_opening, round) in izip!(query_opening, rounds.iter().cloned()) {
                 let batch_commit = round.batch_commit;
                 let mats = round.mats;
                 let batch_heights = mats
@@ -122,22 +144,36 @@ pub fn verify_two_adic_pcs<C: Config, Mmcs>(
                         builder.exp_reverse_bits_v2(two_adic_generator, reduced_index_bits_trunc);
                     let x: Felt<_> = builder.eval(g * two_adic_generator_exp);
 
-                    for (z, ps_at_z) in izip!(mat_points, mat_values) {
-                        let CircuitV2FriFoldOutput {
-                            alpha_pow_output,
-                            ro_output,
-                        } = builder.fri_fold_v2(CircuitV2FriFoldInput {
-                            z,
-                            alpha,
-                            x,
-                            mat_opening: mat_opening.clone(),
-                            ps_at_z,
-                            alpha_pow_input: take(&mut alpha_pows),
-                            ro_input: ro.to_vec(),
-                        });
-                        alpha_pows = alpha_pow_output;
+                    // for (z, ps_at_z) in izip!(mat_points, mat_values) {
+                    //     let CircuitV2FriFoldOutput {
+                    //         alpha_pow_output,
+                    //         ro_output,
+                    //     } = builder.fri_fold_v2(CircuitV2FriFoldInput {
+                    //         z,
+                    //         alpha,
+                    //         x,
+                    //         mat_opening: mat_opening.clone(),
+                    //         ps_at_z,
+                    //         alpha_pow_input: take(&mut alpha_pows),
+                    //         ro_input: ro.to_vec(),
+                    //     });
+                    //     alpha_pows = alpha_pow_output;
 
-                        ro = ro_output.try_into().unwrap();
+                    //     ro = ro_output.try_into().unwrap();
+                    // }
+                    for (z, ps_at_z) in izip!(mat_points, mat_values) {
+                        let mut acc: Ext<C::F, C::EF> =
+                            builder.eval(SymbolicExt::from_f(C::EF::zero()));
+                        for (p_at_x, p_at_z) in izip!(mat_opening.clone(), ps_at_z) {
+                            let pow = log_height_pow[log_height];
+                            // Fill in any missing powers of alpha.
+                            (alpha_pows.len()..pow + 1).for_each(|_| {
+                                alpha_pows.push(builder.eval(*alpha_pows.last().unwrap() * alpha));
+                            });
+                            acc = builder.eval(acc + (alpha_pows[pow] * (p_at_z - p_at_x[0])));
+                            log_height_pow[log_height] += 1;
+                        }
+                        ro[log_height] = builder.eval(ro[log_height] + acc / (z - x));
                     }
                 }
             }
@@ -190,12 +226,12 @@ pub fn verify_query<C: Config>(
     reduced_openings: [Ext<C::F, C::EF>; 32],
     log_max_height: usize,
 ) -> Ext<C::F, C::EF> {
-    let mut folded_eval: Ext<_, _> = builder.eval(SymbolicExt::from_f(C::EF::zero()));
-    let two_adic_generator: Felt<_> = builder.eval(C::F::two_adic_generator(log_max_height));
-    index_bits
-        .iter()
-        .for_each(|&bit| builder.assert_felt_eq(bit * bit, bit)); // Is this line needed?
-    let mut x = builder.exp_reverse_bits_v2(two_adic_generator, index_bits.to_vec());
+    let mut folded_eval: Ext<_, _> = builder.constant(C::EF::zero());
+    let two_adic_generator: Felt<_> = builder.constant(C::F::two_adic_generator(log_max_height));
+
+    let x_felt =
+        builder.exp_reverse_bits_v2(two_adic_generator, index_bits[..log_max_height].to_vec());
+    let mut x: Ext<_, _> = builder.eval(SymbolicExt::one() * SymbolicFelt::from(x_felt));
 
     for (offset, (log_folded_height, commit, step, beta)) in izip!(
         (0..log_max_height).rev(),
@@ -207,7 +243,7 @@ pub fn verify_query<C: Config>(
     {
         folded_eval = builder.eval(folded_eval + reduced_openings[log_folded_height + 1]);
 
-        let one: Felt<_> = builder.eval(C::F::one());
+        let one: Felt<_> = builder.constant(C::F::one());
         let index_sibling: Felt<_> = builder.eval(one - index_bits[offset]);
         let index_pair = &index_bits[(offset + 1)..];
 
@@ -217,7 +253,7 @@ pub fn verify_query<C: Config>(
             let true_fst = folded_eval;
             let true_snd = step.sibling_value;
 
-            let one: Felt<_> = builder.eval(C::F::one());
+            let one: Felt<_> = builder.constant(C::F::one());
             let cobit: Felt<_> = builder.eval(one - bit);
 
             let true_branch = [true_fst, true_snd];
@@ -226,6 +262,10 @@ pub fn verify_query<C: Config>(
                 .map(|(tx, fx)| builder.eval(tx * bit + fx * cobit))
                 .collect::<Vec<_>>()
         };
+        let evals_felt = vec![
+            builder.ext2felt_v2(evals_ext[0]).to_vec(),
+            builder.ext2felt_v2(evals_ext[1]).to_vec(),
+        ];
 
         let dims = &[Dimensions {
             width: 2,
@@ -236,12 +276,12 @@ pub fn verify_query<C: Config>(
             commit,
             dims.to_vec(),
             index_pair.to_vec(),
-            [evals_ext.clone()].to_vec(),
+            [evals_felt].to_vec(),
             step.opening_proof.clone(),
         );
 
-        let xs_new: Felt<_> = builder.eval(x * C::F::two_adic_generator(1));
-        let xs: Vec<Felt<C::F>> = {
+        let xs_new: Ext<_, _> = builder.eval(x * C::EF::two_adic_generator(1));
+        let xs: Vec<Ext<_, _>> = {
             // TODO factor this out into a function
             let bit = index_sibling;
             let true_fst = x;
@@ -269,18 +309,9 @@ pub fn verify_batch<C: Config, const D: usize>(
     commit: DigestVariable<C>,
     dimensions: Vec<Dimensions>,
     index_bits: Vec<Felt<C::F>>,
-    opened_values: Vec<Vec<Ext<C::F, C::EF>>>,
+    opened_values: Vec<Vec<Vec<Felt<C::F>>>>,
     proof: Vec<DigestVariable<C>>,
 ) {
-    let opened_values = opened_values
-        .into_iter()
-        .map(|value| {
-            value
-                .into_iter()
-                .map(|ext| builder.ext2felt_v2(ext))
-                .collect::<Vec<_>>()
-        })
-        .collect::<Vec<_>>();
     let mut heights_tallest_first = dimensions
         .iter()
         .enumerate()
@@ -294,10 +325,14 @@ pub fn verify_batch<C: Config, const D: usize>(
         .height
         .next_power_of_two();
 
-    let felt_slice: Vec<Felt<C::F>> = heights_tallest_first
+    let ext_slice: Vec<Vec<Felt<C::F>>> = heights_tallest_first
         .peeking_take_while(|(_, dims)| dims.height.next_power_of_two() == curr_height_padded)
         .flat_map(|(i, _)| opened_values[i].as_slice())
-        .flatten()
+        .cloned()
+        .collect::<Vec<_>>();
+    let felt_slice: Vec<Felt<C::F>> = ext_slice
+        .iter()
+        .flat_map(|ext| ext.as_slice())
         .cloned()
         .collect::<Vec<_>>();
     let mut root = builder.poseidon2_hash_v2(&felt_slice);
@@ -321,10 +356,14 @@ pub fn verify_batch<C: Config, const D: usize>(
             .filter(|h| h.next_power_of_two() == curr_height_padded);
 
         if let Some(next_height) = next_height {
-            let felt_slice: Vec<Felt<C::F>> = heights_tallest_first
+            let ext_slice: Vec<Vec<Felt<C::F>>> = heights_tallest_first
                 .peeking_take_while(|(_, dims)| dims.height == next_height)
                 .flat_map(|(i, _)| opened_values[i].as_slice())
-                .flatten()
+                .cloned()
+                .collect::<Vec<_>>();
+            let felt_slice: Vec<Felt<C::F>> = ext_slice
+                .iter()
+                .flat_map(|ext| ext.as_slice())
                 .cloned()
                 .collect::<Vec<_>>();
             let next_height_openings_digest = builder.poseidon2_hash_v2(&felt_slice);
@@ -333,10 +372,6 @@ pub fn verify_batch<C: Config, const D: usize>(
         }
     }
 
-    zip(root, commit).for_each(|(e1, e2)| {
-        builder.print_f(e1);
-        builder.print_f(e2);
-    });
     zip(root, commit).for_each(|(e1, e2)| builder.assert_felt_eq(e1, e2));
 }
 
@@ -355,17 +390,18 @@ mod tests {
     use p3_field::AbstractField;
     use p3_fri::{verifier, TwoAdicFriPcsProof};
     use p3_matrix::dense::RowMajorMatrix;
-    use rand::rngs::OsRng;
+    use rand::rngs::{OsRng, StdRng};
+    use rand::SeedableRng;
     use sp1_core::stark::StarkGenericConfig;
-    use sp1_core::utils::baby_bear_poseidon2::compressed_fri_config;
     use sp1_core::utils::{
-        inner_perm, BabyBearPoseidon2, InnerChallenge, InnerChallengeMmcs, InnerChallenger,
-        InnerCompress, InnerDft, InnerFriProof, InnerHash, InnerPcs, InnerVal, InnerValMmcs,
+        inner_fri_config, inner_perm, BabyBearPoseidon2, InnerChallenge, InnerChallengeMmcs,
+        InnerChallenger, InnerCompress, InnerDft, InnerFriProof, InnerHash, InnerPcs, InnerVal,
+        InnerValMmcs,
     };
     use sp1_recursion_compiler::asm::AsmBuilder;
     use sp1_recursion_compiler::config::InnerConfig;
+    use sp1_recursion_compiler::ir::Ext;
     use sp1_recursion_compiler::ir::{Builder, SymbolicExt};
-    use sp1_recursion_compiler::ir::{Ext, ExtConst};
 
     type SC = BabyBearPoseidon2;
     type F = <SC as StarkGenericConfig>::Val;
@@ -440,7 +476,7 @@ mod tests {
                             .map(|opened_value| {
                                 opened_value
                                     .iter()
-                                    .map(|value| builder.eval(*value))
+                                    .map(|value| vec![builder.eval(*value)])
                                     .collect::<Vec<_>>()
                             })
                             .collect::<Vec<_>>(),
@@ -552,11 +588,7 @@ mod tests {
             .into_iter()
             .map(|x| {
                 x.into_iter()
-                    .map(|y| {
-                        let expr = EF::from(y);
-                        let eval: Ext<_, _> = builder.eval(expr.cons());
-                        eval
-                    })
+                    .map(|y| vec![builder.eval::<Felt<_>, _>(y)])
                     .collect()
             })
             .collect();
@@ -584,7 +616,7 @@ mod tests {
         let mut rng = &mut OsRng;
         let log_degrees = &[16, 9, 7, 4, 2];
         let perm = inner_perm();
-        let fri_config = compressed_fri_config();
+        let fri_config = inner_fri_config();
         let hash = InnerHash::new(perm.clone());
         let compress = InnerCompress::new(perm.clone());
         let val_mmcs = InnerValMmcs::new(hash, compress);
@@ -616,9 +648,8 @@ mod tests {
         let mut challenger = InnerChallenger::new(perm.clone());
         challenger.observe(commit);
         let zeta = challenger.sample_ext_element::<InnerChallenge>();
-        let points = domains_and_polys
-            .iter()
-            .map(|_| vec![zeta])
+        let points = repeat_with(|| vec![zeta])
+            .take(domains_and_polys.len())
             .collect::<Vec<_>>();
         let (_, proof) = pcs.open(vec![(&data, points)], &mut challenger);
 
@@ -627,7 +658,7 @@ mod tests {
         challenger.observe(commit);
         let _: InnerChallenge = challenger.sample();
         let fri_challenges_gt = verifier::verify_shape_and_sample_challenges(
-            &compressed_fri_config(),
+            &inner_fri_config(),
             &proof.fri_proof,
             &mut challenger,
         )
@@ -635,7 +666,7 @@ mod tests {
 
         // Define circuit.
         let mut builder = Builder::<InnerConfig>::default();
-        let config = compressed_fri_config();
+        let config = inner_fri_config();
         let fri_proof = const_fri_proof(&mut builder, proof.fri_proof);
 
         let mut challenger = DuplexChallengerVariable::new(&mut builder);
@@ -667,10 +698,10 @@ mod tests {
 
     #[test]
     fn test_verify_two_adic_pcs() {
-        let mut rng = &mut OsRng;
+        let mut rng = StdRng::seed_from_u64(0xDEADBEEF);
         let log_degrees = &[19, 19];
         let perm = inner_perm();
-        let fri_config = compressed_fri_config();
+        let fri_config = inner_fri_config();
         let hash = InnerHash::new(perm.clone());
         let compress = InnerCompress::new(perm.clone());
         let val_mmcs = InnerValMmcs::new(hash, compress);
@@ -722,7 +753,7 @@ mod tests {
 
         // Define circuit.
         let mut builder = Builder::<InnerConfig>::default();
-        let config = compressed_fri_config();
+        let config = inner_fri_config();
         let proof = const_two_adic_pcs_proof(&mut builder, proof);
         let (commit, rounds) = const_two_adic_pcs_rounds(&mut builder, commit.into(), os);
         let mut challenger = DuplexChallengerVariable::new(&mut builder);
