@@ -757,8 +757,8 @@ pub mod tests {
         let prover: SP1Prover<C> = SP1Prover::<C>::new();
         let context = SP1Context::default();
 
-        // tracing::info!("setup elf");
-        // let (pk, vk) = prover.setup(elf);
+        tracing::info!("setup elf");
+        let (pk, vk) = prover.setup(elf);
 
         // tracing::info!("prove core");
         // let stdin = SP1Stdin::new();
