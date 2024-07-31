@@ -6,7 +6,7 @@ The prover network currently only supports specific versions of SP1:
 | ----------- | -------------------------- | ----------------- |
 | Prod        | `https://rpc.succinct.xyz` | v1.0.1            |
 
-If you submit a proof request to the prover network and your are not using the supported version, you will receive an error message.
+If you submit a proof request to the prover network and you are not using the supported version, you will receive an error message.
 
 ## Changing versions
 
