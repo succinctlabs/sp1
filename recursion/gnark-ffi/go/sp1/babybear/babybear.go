@@ -256,8 +256,8 @@ func (c *Chip) InvE(in ExtensionVariable) ExtensionVariable {
 	linv := Variable{Value: result[3], NbBits: 31}
 	out := ExtensionVariable{Value: [4]Variable{xinv, yinv, zinv, linv}}
 
-	// product := c.MulE(in, out)
-	// c.AssertIsEqualE(product, NewE([]string{"1", "0", "0", "0"}))
+	product := c.MulE(in, out)
+	c.AssertIsEqualE(product, NewE([]string{"1", "0", "0", "0"}))
 
 	return out
 }
