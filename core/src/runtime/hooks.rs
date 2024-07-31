@@ -104,7 +104,7 @@ pub struct HookEnv<'a, 'b: 'a> {
 ///
 /// * `env` - The environment in which the hook is invoked.
 /// * `buf` - The buffer containing the signature and message hash.
-///     - The signature is 65 bytes, the first 64 bytes are the signature and the last byte is the 
+///     - The signature is 65 bytes, the first 64 bytes are the signature and the last byte is the
 /// recovery ID.
 ///     - The message hash is 32 bytes.
 ///
