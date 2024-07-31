@@ -16,14 +16,6 @@ pub const NUM_EXTERNAL_ROUNDS: usize = 8;
 pub const NUM_INTERNAL_ROUNDS: usize = 13;
 pub const NUM_ROUNDS: usize = NUM_EXTERNAL_ROUNDS + NUM_INTERNAL_ROUNDS;
 
-pub const fn max(a: usize, b: usize) -> usize {
-    if a > b {
-        a
-    } else {
-        b
-    }
-}
-
 /// A chip that implements the Poseidon2 permutation in the skinny variant (one external round per
 /// row and one row for all internal rounds).
 pub struct Poseidon2SkinnyChip<const DEGREE: usize> {

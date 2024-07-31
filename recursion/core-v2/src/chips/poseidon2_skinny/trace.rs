@@ -4,7 +4,6 @@ use std::{
 };
 
 use itertools::Itertools;
-use p3_air::BaseAir;
 use p3_field::PrimeField32;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core::{air::MachineAir, utils::pad_rows_fixed};
@@ -15,19 +14,21 @@ use crate::{
     chips::{
         mem::MemoryAccessCols,
         poseidon2_skinny::{
-            columns::Poseidon2, external_linear_layer, Poseidon2SkinnyChip, NUM_EXTERNAL_ROUNDS,
-            NUM_INTERNAL_ROUNDS,
+            columns::{Poseidon2, NUM_POSEIDON2_COLS},
+            external_linear_layer, Poseidon2SkinnyChip, NUM_EXTERNAL_ROUNDS, NUM_INTERNAL_ROUNDS,
         },
     },
     instruction::Instruction::Poseidon2Skinny,
     ExecutionRecord, RecursionProgram,
 };
 
-use super::{columns::preprocessed::Poseidon2PreprocessedCols, internal_linear_layer, max, WIDTH};
+use super::{columns::preprocessed::Poseidon2PreprocessedCols, internal_linear_layer, WIDTH};
 
 const PREPROCESSED_POSEIDON2_WIDTH: usize = size_of::<Poseidon2PreprocessedCols<u8>>();
 
-const INTERNAL_ROUND_IDX: usize = NUM_EXTERNAL_ROUNDS / 2;
+const INTERNAL_ROUND_IDX: usize = NUM_EXTERNAL_ROUNDS / 2 + 1;
+const INPUT_ROUND_IDX: usize = 0;
+const OUTPUT_ROUND_IDX: usize = NUM_EXTERNAL_ROUNDS + 2;
 
 impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2SkinnyChip<DEGREE> {
     type Record = ExecutionRecord<F>;
@@ -46,40 +47,46 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2SkinnyChip
     ) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
-        let num_columns = <Poseidon2SkinnyChip<DEGREE> as BaseAir<F>>::width(self);
-
         for event in &input.poseidon2_skinny_events {
             // We have one row for input, one row for output, NUM_EXTERNAL_ROUNDS rows for the external rounds,
             // and one row for all internal rounds.
-            let mut row_add = vec![vec![F::zero(); num_columns]; NUM_EXTERNAL_ROUNDS + 2];
+            let mut row_add = [[F::zero(); NUM_POSEIDON2_COLS]; NUM_EXTERNAL_ROUNDS + 3];
 
-            let first_row_cols: &mut Poseidon2<F> = row_add[0].as_mut_slice().borrow_mut();
-            first_row_cols.state_var = event.input;
+            // The first row should have event.input and [event.input[0].clone(); NUM_INTERNAL_ROUNDS-1]
+            // in its state columns. The sbox_state will be modified in the computation of the
+            // first row.
+            {
+                let (first_row, second_row) = &mut row_add[0..2].split_at_mut(1);
+                let input_cols: &mut Poseidon2<F> = first_row[0].as_mut_slice().borrow_mut();
+                input_cols.state_var = event.input;
+
+                let next_cols: &mut Poseidon2<F> = second_row[0].as_mut_slice().borrow_mut();
+                next_cols.state_var = event.input;
+                external_linear_layer(&mut next_cols.state_var);
+            }
 
             // For each external round, and once for all the internal rounds at the same time, apply
             // the corresponding operation. This will change the state and internal_rounds_s0 variable
             // in row r+1.
-            for r in 0..NUM_EXTERNAL_ROUNDS + 1 {
+            for i in 1..OUTPUT_ROUND_IDX {
                 let next_state_var = {
-                    let cols: &mut Poseidon2<F> = row_add[r].as_mut_slice().borrow_mut();
+                    let cols: &mut Poseidon2<F> = row_add[i].as_mut_slice().borrow_mut();
                     let state = cols.state_var;
 
-                    if r != INTERNAL_ROUND_IDX {
-                        self.populate_external_round(&state, r)
+                    if i != INTERNAL_ROUND_IDX {
+                        self.populate_external_round(&state, i - 1)
                     } else {
                         // Populate the internal rounds.
                         self.populate_internal_rounds(&state, &mut cols.internal_rounds_s0)
                     }
                 };
-                let next_row_cols: &mut Poseidon2<F> = row_add[r + 1].as_mut_slice().borrow_mut();
+                let next_row_cols: &mut Poseidon2<F> = row_add[i + 1].as_mut_slice().borrow_mut();
                 next_row_cols.state_var = next_state_var;
             }
 
             // Check that the permutation is computed correctly.
             {
-                let last_row_cols: &Poseidon2<F> =
-                    row_add[NUM_EXTERNAL_ROUNDS + 1].as_slice().borrow();
-
+                let last_row_cols: &Poseidon2<F> = row_add[OUTPUT_ROUND_IDX].as_slice().borrow();
                 debug_assert_eq!(last_row_cols.state_var, event.output);
             }
             rows.extend(row_add.into_iter());
@@ -90,14 +97,16 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2SkinnyChip
             // This will need to be adjusted when the AIR constraints are implemented.
             pad_rows_fixed(
                 &mut rows,
-                || vec![F::zero(); num_columns],
+                || [F::zero(); NUM_POSEIDON2_COLS],
                 self.fixed_log2_rows,
             );
         }
 
         // Convert the trace to a row major matrix.
-        let trace =
-            RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), num_columns);
+        let trace = RowMajorMatrix::new(
+            rows.into_iter().flatten().collect::<Vec<_>>(),
+            NUM_POSEIDON2_COLS,
+        );
 
         #[cfg(debug_assertions)]
         println!(
@@ -131,37 +140,41 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2SkinnyChip
 
         let mut rows = vec![
             [F::zero(); PREPROCESSED_POSEIDON2_WIDTH];
-            num_instructions * (NUM_EXTERNAL_ROUNDS + 2)
+            num_instructions * (NUM_EXTERNAL_ROUNDS + 3)
         ];
 
-        // Iterate over the instructions and take NUM_EXTERNAL_ROUNDS + 2 rows for each instruction.
-        // We have one extra round for the internal rounds and one extra round for the output.
+        // Iterate over the instructions and take NUM_EXTERNAL_ROUNDS + 3 rows for each instruction.
+        // We have one extra round for the internal rounds, one extra round for the input,
+        // and one extra round for the output.
         instructions
-            .zip_eq(&rows.iter_mut().chunks(NUM_EXTERNAL_ROUNDS + 2))
+            .zip_eq(&rows.iter_mut().chunks(NUM_EXTERNAL_ROUNDS + 3))
             .for_each(|(instruction, row_add)| {
-                row_add.into_iter().enumerate().for_each(|(r, row)| {
+                row_add.into_iter().enumerate().for_each(|(i, row)| {
                     let cols: &mut Poseidon2PreprocessedCols<_> =
                         (*row).as_mut_slice().borrow_mut();
 
                     // Set the round-counter columns.
-                    cols.round_counters_preprocessed.is_first_round = F::from_bool(r == 0);
-                    let is_external_round = r != INTERNAL_ROUND_IDX && r != NUM_EXTERNAL_ROUNDS + 1;
+                    cols.round_counters_preprocessed.is_input_round =
+                        F::from_bool(i == INPUT_ROUND_IDX);
+                    let is_external_round =
+                        i != INPUT_ROUND_IDX && i != INTERNAL_ROUND_IDX && i != OUTPUT_ROUND_IDX;
                     cols.round_counters_preprocessed.is_external_round =
                         F::from_bool(is_external_round);
                     cols.round_counters_preprocessed.is_internal_round =
-                        F::from_bool(r == INTERNAL_ROUND_IDX);
+                        F::from_bool(i == INTERNAL_ROUND_IDX);
 
                     (0..WIDTH).for_each(|j| {
                         cols.round_counters_preprocessed.round_constants[j] = if is_external_round {
-                            let round = if r < INTERNAL_ROUND_IDX {
+                            let r = i - 1;
+                            let round = if i < INTERNAL_ROUND_IDX {
                                 r
                             } else {
                                 r + NUM_INTERNAL_ROUNDS - 1
                             };
 
                             F::from_wrapped_u32(RC_16_30_U32[round][j])
-                        } else if r == INTERNAL_ROUND_IDX {
-                            F::from_wrapped_u32(RC_16_30_U32[INTERNAL_ROUND_IDX + j][0])
+                        } else if i == INTERNAL_ROUND_IDX {
+                            F::from_wrapped_u32(RC_16_30_U32[NUM_EXTERNAL_ROUNDS / 2 + j][0])
                         } else {
                             F::zero()
                         };
@@ -169,19 +182,19 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2SkinnyChip
 
                     // Set the memory columns. We read once, at the first iteration,
                     // and write once, at the last iteration.
-                    if r == 0 {
+                    if i == INPUT_ROUND_IDX {
                         cols.memory_preprocessed =
                             instruction.addrs.input.map(|addr| MemoryAccessCols {
                                 addr,
                                 read_mult: F::one(),
                                 write_mult: F::zero(),
                             });
-                    } else if r == NUM_EXTERNAL_ROUNDS + 1 {
+                    } else if i == OUTPUT_ROUND_IDX {
                         cols.memory_preprocessed =
                             instruction.addrs.output.map(|addr| MemoryAccessCols {
                                 addr,
                                 read_mult: F::zero(),
-                                write_mult: instruction.mults[r],
+                                write_mult: instruction.mults[i],
                             });
                     }
                 });
@@ -210,37 +223,30 @@ impl<const DEGREE: usize> Poseidon2SkinnyChip<DEGREE> {
         r: usize,
     ) -> [F; WIDTH] {
         let mut state = {
-            // For the first round, apply the external linear layer.
-            let mut state = *round_state;
-            if r == 0 {
-                external_linear_layer(&mut state);
-            }
-
             // Add round constants.
 
             // Optimization: Since adding a constant is a degree 1 operation, we can avoid adding
             // columns for it, and instead include it in the constraint for the x^3 part of the sbox.
-            let round = if r < INTERNAL_ROUND_IDX {
+            let round = if r < NUM_EXTERNAL_ROUNDS / 2 {
                 r
             } else {
                 r + NUM_INTERNAL_ROUNDS - 1
             };
-            (0..WIDTH).for_each(|i| state[i] += F::from_wrapped_u32(RC_16_30_U32[round][i]));
+            let mut add_rc = *round_state;
+            (0..WIDTH).for_each(|i| add_rc[i] += F::from_wrapped_u32(RC_16_30_U32[round][i]));
 
             // Apply the sboxes.
             // Optimization: since the linear layer that comes after the sbox is degree 1, we can
             // avoid adding columns for the result of the sbox, and instead include the x^3 -> x^7
             // part of the sbox in the constraint for the linear layer
             let mut sbox_deg_7: [F; 16] = [F::zero(); WIDTH];
-            let mut sbox_deg_3: [F; 16] = [F::zero(); WIDTH];
             for i in 0..WIDTH {
-                sbox_deg_3[i] = state[i] * state[i] * state[i];
-                sbox_deg_7[i] = sbox_deg_3[i] * sbox_deg_3[i] * state[i];
+                let sbox_deg_3 = add_rc[i] * add_rc[i] * add_rc[i];
+                sbox_deg_7[i] = sbox_deg_3 * sbox_deg_3 * add_rc[i];
             }
 
             sbox_deg_7
         };
-
         // Apply the linear layer.
         external_linear_layer(&mut state);
         state
@@ -252,20 +258,18 @@ impl<const DEGREE: usize> Poseidon2SkinnyChip<DEGREE> {
         internal_rounds_s0: &mut [F; NUM_INTERNAL_ROUNDS - 1],
     ) -> [F; WIDTH] {
         let mut new_state = *state;
-        let mut sbox_deg_3: [F; max(WIDTH, NUM_INTERNAL_ROUNDS)] =
-            [F::zero(); max(WIDTH, NUM_INTERNAL_ROUNDS)];
-        for r in 0..NUM_INTERNAL_ROUNDS {
+        (0..NUM_INTERNAL_ROUNDS).for_each(|r| {
             // Add the round constant to the 0th state element.
             // Optimization: Since adding a constant is a degree 1 operation, we can avoid adding
             // columns for it, just like for external rounds.
-            let round = r + INTERNAL_ROUND_IDX;
+            let round = r + NUM_EXTERNAL_ROUNDS / 2;
             let add_rc = new_state[0] + F::from_wrapped_u32(RC_16_30_U32[round][0]);
 
             // Apply the sboxes.
             // Optimization: since the linear layer that comes after the sbox is degree 1, we can
             // avoid adding columns for the result of the sbox, just like for external rounds.
-            sbox_deg_3[r] = add_rc * add_rc * add_rc;
-            let sbox_deg_7 = sbox_deg_3[r] * sbox_deg_3[r] * add_rc;
+            let sbox_deg_3 = add_rc * add_rc * add_rc;
+            let sbox_deg_7 = sbox_deg_3 * sbox_deg_3 * add_rc;
 
             // Apply the linear layer.
             new_state[0] = sbox_deg_7;
@@ -279,7 +283,7 @@ impl<const DEGREE: usize> Poseidon2SkinnyChip<DEGREE> {
             if r < NUM_INTERNAL_ROUNDS - 1 {
                 internal_rounds_s0[r] = new_state[0];
             }
-        }
+        });
 
         new_state
     }

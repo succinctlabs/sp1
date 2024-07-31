@@ -68,6 +68,8 @@ where
             )
         });
 
+        self.eval_input_round(builder, local_row, prep_local, next_row);
+
         self.eval_external_round(builder, local_row, prep_local, next_row);
 
         self.eval_internal_rounds(
@@ -81,31 +83,39 @@ where
 }
 
 impl<const DEGREE: usize> Poseidon2SkinnyChip<DEGREE> {
+    fn eval_input_round<AB: SP1RecursionAirBuilder>(
+        &self,
+        builder: &mut AB,
+        local_row: &Poseidon2<AB::Var>,
+        prep_local: &Poseidon2PreprocessedCols<AB::Var>,
+        next_row: &Poseidon2<AB::Var>,
+    ) {
+        let mut state: [AB::Expr; WIDTH] = array::from_fn(|i| local_row.state_var[i].into());
+
+        // Apply the linear layer.
+        external_linear_layer(&mut state);
+
+        let next_state = next_row.state_var;
+        for i in 0..WIDTH {
+            builder
+                .when_transition()
+                .when(prep_local.round_counters_preprocessed.is_input_round)
+                .assert_eq(next_state[i], state[i].clone());
+        }
+    }
+
     fn eval_external_round<AB: SP1RecursionAirBuilder>(
         &self,
         builder: &mut AB,
         local_row: &Poseidon2<AB::Var>,
         prep_local: &Poseidon2PreprocessedCols<AB::Var>,
         next_row: &Poseidon2<AB::Var>,
-    ) where
-        AB::Var: 'static,
-    {
-        let mut state_ell: [AB::Expr; WIDTH] = array::from_fn(|i| local_row.state_var[i].into());
-
-        // For the first external round, we should apply the external linear layer.
-        external_linear_layer(&mut state_ell);
-
-        let state: [AB::Expr; WIDTH] = array::from_fn(|i| {
-            builder.if_else(
-                prep_local.round_counters_preprocessed.is_first_round,
-                state_ell[i].clone(),
-                local_row.state_var[i],
-            )
-        });
+    ) {
+        let local_state = local_row.state_var;
 
         // Add the round constants.
         let add_rc: [AB::Expr; WIDTH] = core::array::from_fn(|i| {
-            state[i].clone() + prep_local.round_counters_preprocessed.round_constants[i]
+            local_state[i].into() + prep_local.round_counters_preprocessed.round_constants[i]
         });
 
         // Apply the sboxes.
@@ -136,9 +146,7 @@ impl<const DEGREE: usize> Poseidon2SkinnyChip<DEGREE> {
         next_row: &Poseidon2<AB::Var>,
         round_constants: [AB::Var; WIDTH],
         is_internal_row: AB::Var,
-    ) where
-        AB::Var: 'static,
-    {
+    ) {
         let local_state = local_row.state_var;
 
         let s0 = local_row.internal_rounds_s0;
