@@ -6,9 +6,7 @@ package babybear
 import "C"
 
 import (
-	"math"
 	"math/big"
-	"strconv"
 
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
@@ -54,30 +52,9 @@ func NewChip(api frontend.API) *Chip {
 }
 
 func NewF(value string) Variable {
-	// Convert string to integer
-	intValue, err := strconv.Atoi(value)
-	if err != nil {
-		// Handle error if the string is not a valid integer
-		panic(err)
-	}
-	// Compute the number of bits
-	nbBits := 0
-	if intValue > 0 {
-		nbBits = int(math.Floor(math.Log2(float64(intValue)))) + 1
-	} else if intValue < 0 {
-		// For negative numbers, we need one additional bit for the sign
-		nbBits = int(math.Floor(math.Log2(float64(-intValue)))) + 2
-	} else {
-		// Special case for 0, which needs 1 bit
-		nbBits = 1
-	}
-	// Cap nbBits at 31
-	if nbBits > 31 {
-		nbBits = 31
-	}
 	return Variable{
 		Value:  frontend.Variable(value),
-		NbBits: uint(nbBits),
+		NbBits: 31,
 	}
 }
 
@@ -299,7 +276,7 @@ func (c *Chip) ToBinary(in Variable) []frontend.Variable {
 }
 
 func (p *Chip) reduceFast(x Variable) Variable {
-	if x.NbBits >= uint(100) {
+	if x.NbBits >= uint(120) {
 		return Variable{
 			Value:  p.reduceWithMaxBits(x.Value, uint64(x.NbBits)),
 			NbBits: 31,
