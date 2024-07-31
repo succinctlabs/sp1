@@ -39,7 +39,7 @@ let input_proof = client
 let mut stdin = SP1Stdin::new();
 stdin.write_proof(proof, input_vk);
 
-// Generate a proof that will recusively verify / aggregate the input proof.
+// Generate a proof that will recursively verify / aggregate the input proof.
 let aggregation_proof = client
     .prove(&aggregation_pk, stdin)
     .compressed()
