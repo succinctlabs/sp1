@@ -52,12 +52,6 @@ func NewChip(api frontend.API) *Chip {
 }
 
 func NewF(value string) Variable {
-	if value == "0" {
-		return Zero()
-	} else if value == "1" {
-		return One()
-	}
-
 	return Variable{
 		Value:  frontend.Variable(value),
 		NbBits: 31,
