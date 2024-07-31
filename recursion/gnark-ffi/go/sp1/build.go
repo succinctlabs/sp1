@@ -11,6 +11,7 @@ import (
 	"github.com/consensys/gnark-crypto/kzg"
 	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/test/unsafekzg"
 	"github.com/succinctlabs/sp1-recursion-gnark/sp1/trusted_setup"
@@ -39,6 +40,12 @@ func Build(dataDir string) {
 
 	// Initialize the circuit.
 	circuit := NewCircuit(witnessInput)
+
+	r1cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("Groth16 Constraints:", r1cs.GetNbConstraints())
 
 	// Compile the circuit.
 	scs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &circuit)
