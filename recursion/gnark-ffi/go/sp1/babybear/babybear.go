@@ -41,6 +41,7 @@ type Chip struct {
 	MulEFCounter         int
 	AddECounter          int
 	MulECounter          int
+	ReduceMaxBitsMap     map[string]int
 }
 
 func NewChip(api frontend.API) *Chip {
@@ -48,6 +49,7 @@ func NewChip(api frontend.API) *Chip {
 		api:                  api,
 		rangeChecker:         rangecheck.New(api),
 		ReduceMaxBitsCounter: 0,
+		ReduceMaxBitsMap:     make(map[string]int),
 	}
 }
 
@@ -92,41 +94,61 @@ func (c *Chip) AddF(a, b Variable) Variable {
 	} else {
 		maxBits = b.NbBits
 	}
-	return c.reduceFast(Variable{
+	curNumReduce := c.ReduceMaxBitsCounter
+	retVal := c.reduceFast(Variable{
 		Value:  c.api.Add(a.Value, b.Value),
 		NbBits: maxBits + 1,
 	})
+	c.ReduceMaxBitsMap["AddF"] += c.ReduceMaxBitsCounter - curNumReduce
+	return retVal
+
 }
 
 func (c *Chip) SubF(a, b Variable) Variable {
+	curNumReduce := c.ReduceMaxBitsCounter
 	negB := c.negF(b)
-	return c.AddF(a, negB)
+	retVal := c.AddF(a, negB)
+	c.ReduceMaxBitsMap["SubF"] += c.ReduceMaxBitsCounter - curNumReduce
+	return retVal
 }
 
 func (c *Chip) MulF(a, b Variable) Variable {
 	c.MulFCounter++
-	return c.reduceFast(Variable{
+	curNumReduce := c.ReduceMaxBitsCounter
+	retVal := c.reduceFast(Variable{
 		Value:  c.api.Mul(a.Value, b.Value),
 		NbBits: a.NbBits + b.NbBits,
 	})
+	c.ReduceMaxBitsMap["MulF"] += c.ReduceMaxBitsCounter - curNumReduce
+	return retVal
 }
 
 func (c *Chip) MulFConst(a Variable, b int) Variable {
-	return c.reduceFast(Variable{
+	curNumReduce := c.ReduceMaxBitsCounter
+	retVal := c.reduceFast(Variable{
 		Value:  c.api.Mul(a.Value, b),
 		NbBits: a.NbBits + 4,
 	})
+	c.ReduceMaxBitsMap["MulFConst"] += c.ReduceMaxBitsCounter - curNumReduce
+	return retVal
 }
 
 func (c *Chip) negF(a Variable) Variable {
+	var retVal Variable
+	curNumReduce := c.ReduceMaxBitsCounter
 	if a.NbBits == 31 {
-		return Variable{Value: c.api.Sub(modulus, a.Value), NbBits: 31}
+		retVal = Variable{Value: c.api.Sub(modulus, a.Value), NbBits: 31}
+	} else {
+		negOne := NewF("2013265920")
+		retVal = c.MulF(a, negOne)
 	}
-	negOne := NewF("2013265920")
-	return c.MulF(a, negOne)
+
+	c.ReduceMaxBitsMap["negF"] += c.ReduceMaxBitsCounter - curNumReduce
+	return retVal
 }
 
 func (c *Chip) invF(in Variable) Variable {
+	curNumReduce := c.ReduceMaxBitsCounter
 	in = c.ReduceSlow(in)
 	result, err := c.api.Compiler().NewHint(InvFHint, 1, in.Value)
 	if err != nil {
@@ -139,38 +161,47 @@ func (c *Chip) invF(in Variable) Variable {
 	}
 	product := c.MulF(in, xinv)
 	c.AssertIsEqualF(product, NewF("1"))
+	c.ReduceMaxBitsMap["invF"] += c.ReduceMaxBitsCounter - curNumReduce
 
 	return xinv
 }
 
 func (c *Chip) AssertIsEqualF(a, b Variable) {
+	curNumReduce := c.ReduceMaxBitsCounter
 	a2 := c.ReduceSlow(a)
 	b2 := c.ReduceSlow(b)
 	c.api.AssertIsEqual(a2.Value, b2.Value)
+	c.ReduceMaxBitsMap["AssertIsEqualF"] += c.ReduceMaxBitsCounter - curNumReduce
 }
 
 func (c *Chip) AssertIsEqualE(a, b ExtensionVariable) {
+	curNumReduce := c.ReduceMaxBitsCounter
 	c.AssertIsEqualF(a.Value[0], b.Value[0])
 	c.AssertIsEqualF(a.Value[1], b.Value[1])
 	c.AssertIsEqualF(a.Value[2], b.Value[2])
 	c.AssertIsEqualF(a.Value[3], b.Value[3])
+	c.ReduceMaxBitsMap["AssertIsEqualE"] += c.ReduceMaxBitsCounter - curNumReduce
 }
 
 func (c *Chip) SelectF(cond frontend.Variable, a, b Variable) Variable {
+	curNumReduce := c.ReduceMaxBitsCounter
 	var nbBits uint
 	if a.NbBits > b.NbBits {
 		nbBits = a.NbBits
 	} else {
 		nbBits = b.NbBits
 	}
-	return Variable{
+	retVal := Variable{
 		Value:  c.api.Select(cond, a.Value, b.Value),
 		NbBits: nbBits,
 	}
+	c.ReduceMaxBitsMap["SelectF"] += c.ReduceMaxBitsCounter - curNumReduce
+	return retVal
 }
 
 func (c *Chip) SelectE(cond frontend.Variable, a, b ExtensionVariable) ExtensionVariable {
-	return ExtensionVariable{
+	curNumReduce := c.ReduceMaxBitsCounter
+	retVal := ExtensionVariable{
 		Value: [4]Variable{
 			c.SelectF(cond, a.Value[0], b.Value[0]),
 			c.SelectF(cond, a.Value[1], b.Value[1]),
@@ -178,33 +209,43 @@ func (c *Chip) SelectE(cond frontend.Variable, a, b ExtensionVariable) Extension
 			c.SelectF(cond, a.Value[3], b.Value[3]),
 		},
 	}
+	c.ReduceMaxBitsMap["SelectE"] += c.ReduceMaxBitsCounter - curNumReduce
+	return retVal
 }
 
 func (c *Chip) AddEF(a ExtensionVariable, b Variable) ExtensionVariable {
 	c.AddEFCounter++
+	curNumReduce := c.ReduceMaxBitsCounter
 	v1 := c.AddF(a.Value[0], b)
+	c.ReduceMaxBitsMap["AddEF"] += c.ReduceMaxBitsCounter - curNumReduce
 	return ExtensionVariable{Value: [4]Variable{v1, a.Value[1], a.Value[2], a.Value[3]}}
 }
 
 func (c *Chip) AddE(a, b ExtensionVariable) ExtensionVariable {
 	c.AddECounter++
+	curNumReduce := c.ReduceMaxBitsCounter
 	v1 := c.AddF(a.Value[0], b.Value[0])
 	v2 := c.AddF(a.Value[1], b.Value[1])
 	v3 := c.AddF(a.Value[2], b.Value[2])
 	v4 := c.AddF(a.Value[3], b.Value[3])
+	c.ReduceMaxBitsMap["AddE"] += c.ReduceMaxBitsCounter - curNumReduce
 	return ExtensionVariable{Value: [4]Variable{v1, v2, v3, v4}}
 }
 
 func (c *Chip) SubE(a, b ExtensionVariable) ExtensionVariable {
+	curNumReduce := c.ReduceMaxBitsCounter
 	v1 := c.SubF(a.Value[0], b.Value[0])
 	v2 := c.SubF(a.Value[1], b.Value[1])
 	v3 := c.SubF(a.Value[2], b.Value[2])
 	v4 := c.SubF(a.Value[3], b.Value[3])
+	c.ReduceMaxBitsMap["SubE"] += c.ReduceMaxBitsCounter - curNumReduce
 	return ExtensionVariable{Value: [4]Variable{v1, v2, v3, v4}}
 }
 
 func (c *Chip) SubEF(a ExtensionVariable, b Variable) ExtensionVariable {
+	curNumReduce := c.ReduceMaxBitsCounter
 	v1 := c.SubF(a.Value[0], b)
+	c.ReduceMaxBitsMap["SubEF"] += c.ReduceMaxBitsCounter - curNumReduce
 	return ExtensionVariable{Value: [4]Variable{v1, a.Value[1], a.Value[2], a.Value[3]}}
 }
 
@@ -216,7 +257,7 @@ func (c *Chip) MulE(a, b ExtensionVariable) ExtensionVariable {
 		Zero(),
 		Zero(),
 	}
-
+	curNumReduce := c.ReduceMaxBitsCounter
 	for i := 0; i < 4; i++ {
 		for j := 0; j < 4; j++ {
 			if i+j >= 4 {
@@ -226,20 +267,24 @@ func (c *Chip) MulE(a, b ExtensionVariable) ExtensionVariable {
 			}
 		}
 	}
+	c.ReduceMaxBitsMap["MulE"] += c.ReduceMaxBitsCounter - curNumReduce
 
 	return ExtensionVariable{Value: v2}
 }
 
 func (c *Chip) MulEF(a ExtensionVariable, b Variable) ExtensionVariable {
 	c.MulEFCounter++
+	curNumReduce := c.ReduceMaxBitsCounter
 	v1 := c.MulF(a.Value[0], b)
 	v2 := c.MulF(a.Value[1], b)
 	v3 := c.MulF(a.Value[2], b)
 	v4 := c.MulF(a.Value[3], b)
+	c.ReduceMaxBitsMap["MulEF"] += c.ReduceMaxBitsCounter - curNumReduce
 	return ExtensionVariable{Value: [4]Variable{v1, v2, v3, v4}}
 }
 
 func (c *Chip) InvE(in ExtensionVariable) ExtensionVariable {
+	curNumReduce := c.ReduceMaxBitsCounter
 	in.Value[0] = c.ReduceSlow(in.Value[0])
 	in.Value[1] = c.ReduceSlow(in.Value[1])
 	in.Value[2] = c.ReduceSlow(in.Value[2])
@@ -258,6 +303,7 @@ func (c *Chip) InvE(in ExtensionVariable) ExtensionVariable {
 
 	product := c.MulE(in, out)
 	c.AssertIsEqualE(product, NewE([]string{"1", "0", "0", "0"}))
+	c.ReduceMaxBitsMap["InvE"] += c.ReduceMaxBitsCounter - curNumReduce
 
 	return out
 }
@@ -267,20 +313,28 @@ func (c *Chip) Ext2Felt(in ExtensionVariable) [4]Variable {
 }
 
 func (c *Chip) DivE(a, b ExtensionVariable) ExtensionVariable {
+	curNumReduce := c.ReduceMaxBitsCounter
 	bInv := c.InvE(b)
-	return c.MulE(a, bInv)
+	retVal := c.MulE(a, bInv)
+	c.ReduceMaxBitsMap["DivE"] += c.ReduceMaxBitsCounter - curNumReduce
+	return retVal
 }
 
 func (c *Chip) NegE(a ExtensionVariable) ExtensionVariable {
+	curNumReduce := c.ReduceMaxBitsCounter
 	v1 := c.negF(a.Value[0])
 	v2 := c.negF(a.Value[1])
 	v3 := c.negF(a.Value[2])
 	v4 := c.negF(a.Value[3])
+	c.ReduceMaxBitsMap["NegE"] += c.ReduceMaxBitsCounter - curNumReduce
 	return ExtensionVariable{Value: [4]Variable{v1, v2, v3, v4}}
 }
 
 func (c *Chip) ToBinary(in Variable) []frontend.Variable {
-	return c.api.ToBinary(c.ReduceSlow(in).Value, 32)
+	curNumReduce := c.ReduceMaxBitsCounter
+	retVal := c.api.ToBinary(c.ReduceSlow(in).Value, 32)
+	c.ReduceMaxBitsMap["ToBinary"] += c.ReduceMaxBitsCounter - curNumReduce
+	return retVal
 }
 
 func (p *Chip) reduceFast(x Variable) Variable {

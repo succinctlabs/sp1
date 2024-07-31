@@ -366,6 +366,10 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
                     opcode: ConstraintOpcode::ReduceE,
                     args: vec![vec![a.id()]],
                 }),
+                DslIr::CycleTracker(a) => constraints.push(Constraint {
+                    opcode: ConstraintOpcode::CycleTracker,
+                    args: vec![vec![a]],
+                }),
                 _ => panic!("unsupported {:?}", instruction),
             };
         }

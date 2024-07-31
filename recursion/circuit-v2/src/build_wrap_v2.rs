@@ -27,7 +27,7 @@ use sp1_recursion_circuit::{
 use sp1_recursion_compiler::{
     config::OuterConfig,
     constraints::{Constraint, ConstraintCompiler},
-    ir::{Builder, Config, Ext, Felt, Usize, Var, Witness},
+    ir::{Builder, Config, DslIr, Ext, Felt, Usize, Var, Witness},
 };
 use sp1_recursion_core::{air::RecursionPublicValues, stark::config::BabyBearPoseidon2Outer};
 use sp1_recursion_program::types::QuotientDataValues;
@@ -158,6 +158,10 @@ where
     // for (calculated_elm, expected_elm) in calculated_digest.iter().zip(expected_digest.iter()) {
     //     builder.assert_felt_eq(*expected_elm, *calculated_elm);
     // }
+
+    builder
+        .operations
+        .push(DslIr::CycleTracker("Hello world".to_string()));
 
     let mut backend = ConstraintCompiler::<OuterConfig>::default();
     backend.emit(builder.operations)

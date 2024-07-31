@@ -19,7 +19,7 @@ use sp1_core::{
 };
 use sp1_recursion_compiler::config::OuterConfig;
 use sp1_recursion_compiler::constraints::{Constraint, ConstraintCompiler};
-use sp1_recursion_compiler::ir::{Builder, Config, Ext, Felt, Var};
+use sp1_recursion_compiler::ir::{Builder, Config, DslIr, Ext, Felt, Var};
 use sp1_recursion_compiler::ir::{Usize, Witness};
 use sp1_recursion_compiler::prelude::SymbolicVar;
 use sp1_recursion_core::air::{RecursionPublicValues, NUM_PV_ELMS_TO_HASH};
@@ -357,6 +357,10 @@ pub fn build_wrap_circuit(
     for (calculated_elm, expected_elm) in calculated_digest.iter().zip(expected_digest.iter()) {
         builder.assert_felt_eq(*expected_elm, *calculated_elm);
     }
+
+    builder
+        .operations
+        .push(DslIr::CycleTracker("Hello World".to_string()));
 
     let mut backend = ConstraintCompiler::<OuterConfig>::default();
     backend.emit(builder.operations)

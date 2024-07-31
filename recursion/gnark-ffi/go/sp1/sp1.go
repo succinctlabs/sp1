@@ -199,6 +199,9 @@ func (circuit *Circuit) Define(api frontend.API) error {
 			api.AssertIsEqual(circuit.CommitedValuesDigest, element)
 		case "CircuitFelts2Ext":
 			exts[cs.Args[0][0]] = babybear.Felts2Ext(felts[cs.Args[1][0]], felts[cs.Args[2][0]], felts[cs.Args[3][0]], felts[cs.Args[4][0]])
+		case "CycleTracker":
+			fmt.Println("BabyBear API Reduce Counts: ", hashBabyBearAPI.FieldApi.ReduceMaxBitsMap)
+			fmt.Println("Field API Reduce Counts: ", fieldAPI.ReduceMaxBitsMap)
 		default:
 			return fmt.Errorf("unhandled opcode: %s", cs.Opcode)
 		}

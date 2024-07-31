@@ -49,4 +49,5 @@ pub enum ConstraintOpcode {
     PermuteBabyBear,
     ReduceF,
     ReduceE,
+    CycleTracker,
 }
