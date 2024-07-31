@@ -183,6 +183,10 @@ pub enum DslIr<C: Config> {
     /// Store extension field at address
     StoreE(Ext<C::F, C::EF>, Ptr<C::N>, MemIndex<C::N>),
 
+    /// Force reduction of field elements in circuit.
+    ReduceE(Ext<C::F, C::EF>),
+    ReduceF(Felt<C::F>),
+
     // Bits.
     /// Decompose a variable into size bits (bits = num2bits(var, size)). Should only be used when target is a gnark circuit.
     CircuitNum2BitsV(Var<C::N>, usize, Vec<Var<C::N>>),

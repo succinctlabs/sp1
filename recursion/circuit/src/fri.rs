@@ -119,7 +119,9 @@ pub fn verify_two_adic_pcs<C: Config>(
                         builder.eval(C::F::two_adic_generator(log_height));
                     let two_adic_generator_exp =
                         builder.exp_f_bits(two_adic_generator, rev_reduced_index);
+                    builder.reduce_f(two_adic_generator_exp);
                     let x: Felt<_> = builder.eval(g * two_adic_generator_exp);
+                    builder.reduce_f(x);
 
                     for (z, ps_at_z) in izip!(mat_points, mat_values) {
                         let mut acc: Ext<C::F, C::EF> =
@@ -127,7 +129,9 @@ pub fn verify_two_adic_pcs<C: Config>(
                         for (p_at_x, &p_at_z) in izip!(mat_opening.clone(), ps_at_z) {
                             acc =
                                 builder.eval(acc + (alpha_pow[log_height] * (p_at_z - p_at_x[0])));
-                            alpha_pow[log_height] = builder.eval(alpha_pow[log_height] * alpha);
+                            let new_alpha_pow = builder.eval(alpha_pow[log_height] * alpha);
+                            builder.reduce_e(new_alpha_pow);
+                            alpha_pow[log_height] = new_alpha_pow;
                         }
                         ro[log_height] = builder.eval(ro[log_height] + acc / (*z - x));
                     }
