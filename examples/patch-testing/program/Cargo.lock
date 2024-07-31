@@ -425,10 +425,23 @@ source = "git+https://github.com/sp1-patches/signatures?branch=patch-ecdsa-v0.16
 dependencies = [
  "anyhow",
  "cfg-if",
- "der",
  "digest 0.10.7",
  "elliptic-curve",
  "hex-literal",
+ "signature",
+ "sp1-lib 1.0.1 (git+https://github.com/succinctlabs/sp1.git?branch=john/lib-refactor)",
+ "spki",
+]
+
+[[package]]
+name = "ecdsa"
+version = "0.16.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ee27f32b5c5292967d2d4a9d7f1e0b0aed2c15daded5a60300e4abb9d8020bca"
+dependencies = [
+ "der",
+ "digest 0.10.7",
+ "elliptic-curve",
  "rfc6979",
  "signature",
  "sp1-lib 1.0.1 (git+https://github.com/succinctlabs/sp1.git?branch=john/lib-refactor)",
@@ -653,7 +666,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "956ff9b67e26e1a6a866cb758f12c6f8746208489e3e4a4b5580802f2f0a587b"
 dependencies = [
  "cfg-if",
- "ecdsa",
+ "ecdsa 0.16.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "elliptic-curve",
  "once_cell",
  "sha2 0.10.8",
@@ -780,6 +793,7 @@ dependencies = [
  "curve25519-dalek-ng",
  "ed25519-consensus",
  "k256",
+ "secp256k1",
  "sha2 0.10.8",
  "sha2 0.9.8",
  "sp1-zkvm",
@@ -935,7 +949,8 @@ checksum = "7a66a03ae7c801facd77a29370b4faec201768915ac14a721ba36f20bc9c209b"
 [[package]]
 name = "rfc6979"
 version = "0.4.0"
-source = "git+https://github.com/sp1-patches/signatures?branch=patch-ecdsa-v0.16.9#1ae9726ff9420a770a191316b962468746ef36af"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f8dd2a808d456c4a54e300a23e9f5a67e122c3024119acbfd73e3bf664491cb2"
 dependencies = [
  "hmac",
  "subtle",
@@ -1045,6 +1060,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "secp256k1"
+version = "0.29.0"
+dependencies = [
+ "cfg-if",
+ "ecdsa 0.16.9",
+ "elliptic-curve",
+ "k256",
+ "secp256k1-sys",
+]
+
+[[package]]
+name = "secp256k1-sys"
+version = "0.10.0"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "semver"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1143,6 +1176,17 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
+version = "1.0.1"
+source = "git+https://github.com/succinctlabs/sp1.git?branch=john/lib-refactor#d412a24c036e346b11384308e1f8c6f638782515"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "cfg-if",
+ "serde",
+]
+
+[[package]]
+name = "sp1-utils"
 version = "1.0.1"
 source = "git+https://github.com/succinctlabs/sp1.git?branch=john/lib-refactor#f04b6d42f16590212c7630e9b454670abb39507a"
 dependencies = [

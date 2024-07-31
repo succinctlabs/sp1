@@ -18,6 +18,8 @@ tiny-keccak = { version = "2.0.2", features = ["keccak"] }
 curve25519-dalek-ng = "4.1"
 k256 = { version = "0.13", default-features = false, features = ["ecdsa"] }
 alloy-primitives = { version = "0.7", features = ["k256"] }
+sp1-utils = { path = "../../../zkvm/utils" }
+secp256k1 = { path = "../../../../rust-secp256k1", features = ["recovery", "global-context"] }
 
 [patch.crates-io]
 tiny-keccak = { git = "https://github.com/sp1-patches/tiny-keccak", branch = "patch-v2.0.2" }
