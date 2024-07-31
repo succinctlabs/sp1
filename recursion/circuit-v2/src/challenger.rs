@@ -137,7 +137,9 @@ impl<C: Config> DuplexChallengerVariable<C> {
     }
 
     pub fn sample_bits(&mut self, builder: &mut Builder<C>, nb_bits: usize) -> Vec<Felt<C::F>> {
+        assert!(nb_bits <= NUM_BITS);
         let rand_f = self.sample(builder);
+        // builder.print_f(rand_f);
         let mut rand_f_bits = builder.num2bits_v2_f(rand_f, NUM_BITS);
         rand_f_bits.truncate(nb_bits);
         rand_f_bits
@@ -223,7 +225,7 @@ pub(crate) mod tests {
     use p3_field::AbstractField;
     use sp1_core::stark::StarkGenericConfig;
     use sp1_core::utils::setup_logger;
-    use sp1_core::utils::BabyBearPoseidon2;
+    use sp1_core::utils::BabyBearPoseidon2Inner;
     use sp1_recursion_compiler::asm::AsmBuilder;
     use sp1_recursion_compiler::asm::AsmConfig;
     use sp1_recursion_compiler::circuit::AsmCompiler;
@@ -240,7 +242,7 @@ pub(crate) mod tests {
 
     use sp1_core::utils::run_test_machine;
 
-    type SC = BabyBearPoseidon2;
+    type SC = BabyBearPoseidon2Inner;
     type F = <SC as StarkGenericConfig>::Val;
     type EF = <SC as StarkGenericConfig>::Challenge;
 
@@ -253,14 +255,14 @@ pub(crate) mod tests {
         let mut compiler = AsmCompiler::<AsmConfig<F, EF>>::default();
         let program = compiler.compile(operations);
 
-        let config = BabyBearPoseidon2::default();
+        let config = SC::default();
 
         let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
         runtime.run().unwrap();
 
         let records = vec![runtime.record];
 
-        let machine = RecursionAir::<_, 3, 0>::machine_with_all_chips(BabyBearPoseidon2::default());
+        let machine = RecursionAir::<_, 3, 0>::machine_with_all_chips(config);
         let (pk, vk) = machine.setup(&program);
 
         let result = run_test_machine(records.clone(), machine, pk, vk);
