@@ -141,6 +141,7 @@ pub fn verify_two_adic_pcs<C: Config>(
                                 builder.operations.push(DslIr::ReduceE(alpha));
                                 alpha_pows.push(alpha);
                             });
+
                             acc = builder.eval(acc + (alpha_pows[pow] * (p_at_z - p_at_x[0])));
                             log_height_pow[log_height] += 1;
                         }
