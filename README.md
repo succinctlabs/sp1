@@ -1,6 +1,6 @@
 # SP1
 
-[![Telegram Chat][tg-badge]][tg-url]
+![Telegram Chat][tg-url]
 
 ![SP1](./assets/sp1.png)
 
@@ -12,8 +12,7 @@ SP1 is inspired by the open-source software movement and takes a collaborative a
 | [Docs](https://succinctlabs.github.io/sp1)
 | [Examples](https://github.com/succinctlabs/sp1/tree/main/examples)
 
-[tg-badge]: https://img.shields.io/endpoint?color=neon&logo=telegram&label=chat&url=https://tg.sumanjay.workers.dev/succinct_sp1
-[tg-url]: https://t.me/succinct_sp1
+[tg-url]: https://t.me/+AzG4ws-kD24yMGYx
 
 ## For Developers: Build with SP1
 
