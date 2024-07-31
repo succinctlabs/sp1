@@ -286,7 +286,8 @@ func (p *Chip) reduceWithMaxBits(x frontend.Variable, maxNbBits uint64) frontend
 	remainder := result[1]
 	p.rangeChecker.Check(remainder, 31)
 
-	remainderBits := p.api.ToBinary(result[1], 31)
+	// Check that the remainder has size less than the BabyBear modulus.
+	remainderBits := p.api.ToBinary(remainder, 31)
 
 	highBits := frontend.Variable(0)
 	lowBits := frontend.Variable(0)
