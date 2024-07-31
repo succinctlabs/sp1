@@ -16,7 +16,7 @@ env:
 jobs:
   prepare:
     name: Prepare release
-    runs-on: runs-on,runner=8cpu-linux-x64
+    runs-on: [runs-on,runner=8cpu-linux-x64,"run-id=${{ github.run_id }}"]
     timeout-minutes: 30
     outputs:
       tag_name: ${{ steps.release_info.outputs.tag_name }}
