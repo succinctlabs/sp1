@@ -16,7 +16,7 @@ use crate::{
             NUM_EXTERNAL_ROUNDS, WIDTH,
         },
     },
-    instruction::Instruction::Poseidon2Wide,
+    instruction::Instruction::Poseidon2,
     ExecutionRecord, RecursionProgram,
 };
 
@@ -36,7 +36,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
         format!("Poseidon2Wide {}", DEGREE)
     }
 
-    #[instrument(name = "generate poseidon2 wide trace", level = "debug", skip_all, fields(rows = input.poseidon2_wide_events.len()))]
+    #[instrument(name = "generate poseidon2 wide trace", level = "debug", skip_all, fields(rows = input.poseidon2_events.len()))]
     fn generate_trace(
         &self,
         input: &ExecutionRecord<F>,
@@ -46,7 +46,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
 
         let num_columns = <Poseidon2WideChip<DEGREE> as BaseAir<F>>::width(self);
 
-        for event in &input.poseidon2_wide_events {
+        for event in &input.poseidon2_events {
             let mut input_row = vec![F::zero(); num_columns];
 
             {
@@ -138,7 +138,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
                 .instructions
                 .iter()
                 .filter_map(|instruction| match instruction {
-                    Poseidon2Wide(instr) => Some(instr),
+                    Poseidon2(instr) => Some(instr),
                     _ => None,
                 });
 
@@ -291,7 +291,7 @@ mod tests {
 
     use crate::{
         chips::poseidon2_wide::{Poseidon2WideChip, WIDTH},
-        ExecutionRecord, Poseidon2SkinnyEvent,
+        ExecutionRecord, Poseidon2Event,
     };
 
     #[test]
@@ -306,12 +306,12 @@ mod tests {
         let output_1 = permuter.permute(input_1);
 
         let shard = ExecutionRecord {
-            poseidon2_wide_events: vec![
-                Poseidon2SkinnyEvent {
+            poseidon2_events: vec![
+                Poseidon2Event {
                     input: input_0,
                     output: output_0,
                 },
-                Poseidon2SkinnyEvent {
+                Poseidon2Event {
                     input: input_1,
                     output: output_1,
                 },
@@ -334,12 +334,12 @@ mod tests {
         let output_1 = permuter.permute(input_1);
 
         let shard = ExecutionRecord {
-            poseidon2_wide_events: vec![
-                Poseidon2SkinnyEvent {
+            poseidon2_events: vec![
+                Poseidon2Event {
                     input: input_0,
                     output: output_0,
                 },
-                Poseidon2SkinnyEvent {
+                Poseidon2Event {
                     input: input_1,
                     output: output_1,
                 },

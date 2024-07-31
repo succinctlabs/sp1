@@ -227,26 +227,12 @@ impl<C: Config> AsmCompiler<C> {
         ]
     }
 
-    fn poseidon2_permute_skinny(
+    fn poseidon2_permute(
         &mut self,
         dst: [impl Reg<C>; WIDTH],
         src: [impl Reg<C>; WIDTH],
     ) -> Instruction<C::F> {
-        Instruction::Poseidon2Skinny(Poseidon2WideInstr {
-            addrs: Poseidon2Io {
-                input: src.map(|r| r.read(self)),
-                output: dst.map(|r| r.write(self)),
-            },
-            mults: [C::F::zero(); WIDTH],
-        })
-    }
-
-    fn poseidon2_permute_wide(
-        &mut self,
-        dst: [impl Reg<C>; WIDTH],
-        src: [impl Reg<C>; WIDTH],
-    ) -> Instruction<C::F> {
-        Instruction::Poseidon2Wide(Poseidon2WideInstr {
+        Instruction::Poseidon2(Poseidon2Instr {
             addrs: Poseidon2Io {
                 input: src.map(|r| r.read(self)),
                 output: dst.map(|r| r.write(self)),
@@ -422,11 +408,8 @@ impl<C: Config> AsmCompiler<C> {
             DslIr::AssertNeFI(lhs, rhs) => self.base_assert_ne(lhs, Imm::F(rhs)),
             DslIr::AssertNeEI(lhs, rhs) => self.ext_assert_ne(lhs, Imm::EF(rhs)),
 
-            DslIr::CircuitV2Poseidon2PermuteBabyBearSkinny(dst, src) => {
-                vec![self.poseidon2_permute_skinny(dst, src)]
-            }
-            DslIr::CircuitV2Poseidon2PermuteBabyBearWide(dst, src) => {
-                vec![self.poseidon2_permute_wide(dst, src)]
+            DslIr::CircuitV2Poseidon2PermuteBabyBear(dst, src) => {
+                vec![self.poseidon2_permute(dst, src)]
             }
             DslIr::CircuitV2ExpReverseBits(dst, base, exp) => {
                 vec![self.exp_reverse_bits(dst, base, exp)]
@@ -521,11 +504,7 @@ impl<C: Config> AsmCompiler<C> {
                     kind: MemAccessKind::Write,
                     ..
                 }) => vec![(mult, inner)],
-                Instruction::Poseidon2Skinny(Poseidon2SkinnyInstr {
-                    addrs: Poseidon2Io { ref output, .. },
-                    mults,
-                }) => mults.iter_mut().zip(output).collect(),
-                Instruction::Poseidon2Wide(Poseidon2WideInstr {
+                Instruction::Poseidon2(Poseidon2SkinnyInstr {
                     addrs: Poseidon2Io { ref output, .. },
                     mults,
                 }) => mults.iter_mut().zip(output).collect(),
@@ -779,29 +758,7 @@ mod tests {
             let output_1 = inner_perm().permute(input_1);
 
             let input_1_felts = input_1.map(|x| builder.eval(x));
-            let output_1_felts = builder.poseidon2_permute_v2_skinny(input_1_felts);
-            let expected: [Felt<_>; WIDTH] = output_1.map(|x| builder.eval(x));
-            for (lhs, rhs) in output_1_felts.into_iter().zip(expected) {
-                builder.assert_felt_eq(lhs, rhs);
-            }
-        }
-
-        test_operations(builder.operations);
-    }
-
-    #[test]
-    fn test_poseidon2_wide() {
-        setup_logger();
-
-        let mut builder = AsmBuilder::<F, EF>::default();
-        let mut rng = StdRng::seed_from_u64(0xCAFEDA7E)
-            .sample_iter::<[F; WIDTH], _>(rand::distributions::Standard);
-        for _ in 0..100 {
-            let input_1: [F; WIDTH] = rng.next().unwrap();
-            let output_1 = inner_perm().permute(input_1);
-
-            let input_1_felts = input_1.map(|x| builder.eval(x));
-            let output_1_felts = builder.poseidon2_permute_v2_wide(input_1_felts);
+            let output_1_felts = builder.poseidon2_permute_v2(input_1_felts);
             let expected: [Felt<_>; WIDTH] = output_1.map(|x| builder.eval(x));
             for (lhs, rhs) in output_1_felts.into_iter().zip(expected) {
                 builder.assert_felt_eq(lhs, rhs);

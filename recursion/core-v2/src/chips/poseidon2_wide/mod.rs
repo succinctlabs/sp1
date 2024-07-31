@@ -151,7 +151,7 @@ pub(crate) mod tests {
         let instructions =
             (0..WIDTH)
                 .map(|i| instr::mem(MemAccessKind::Write, 1, i as u32, input[i]))
-                .chain(once(instr::poseidon2_wide(
+                .chain(once(instr::poseidon2(
                     [1; WIDTH],
                     std::array::from_fn(|i| (i + WIDTH) as u32),
                     std::array::from_fn(|i| i as u32),
@@ -163,7 +163,7 @@ pub(crate) mod tests {
                 .chain((0..WIDTH).map(|i| {
                     instr::mem(MemAccessKind::Write, 1, (2 * WIDTH + i) as u32, input_1[i])
                 }))
-                .chain(once(instr::poseidon2_wide(
+                .chain(once(instr::poseidon2(
                     [1; WIDTH],
                     std::array::from_fn(|i| (i + 3 * WIDTH) as u32),
                     std::array::from_fn(|i| (i + 2 * WIDTH) as u32),

@@ -96,7 +96,7 @@ impl<C: Config> DuplexChallengerVariable<C> {
         self.sponge_state[0..self.input_buffer.len()].copy_from_slice(self.input_buffer.as_slice());
         self.input_buffer.clear();
 
-        self.sponge_state = builder.poseidon2_permute_v2_wide(self.sponge_state);
+        self.sponge_state = builder.poseidon2_permute_v2(self.sponge_state);
 
         self.output_buffer.clear();
         self.output_buffer.extend_from_slice(&self.sponge_state);
