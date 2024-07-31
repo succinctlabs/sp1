@@ -214,7 +214,7 @@ version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0700ddab506f33b20a03b13996eccd309a48e5ff77d0d95926aa0210fb4e95f1"
 dependencies = [
- "bit-vec",
+ "bit-vec 0.6.3",
 ]
 
 [[package]]
@@ -222,6 +222,12 @@ name = "bit-vec"
 version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "349f9b6a179ed607305526ca489b34ad0a41aed5f7980fa90eb03160b69598fb"
+
+[[package]]
+name = "bit-vec"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5e764a1d40d510daf35e07be9eb06e75770908c27d411ee6c92109c9840eaaf7"
 
 [[package]]
 name = "bitflags"
@@ -421,9 +427,10 @@ dependencies = [
 [[package]]
 name = "ecdsa"
 version = "0.16.9"
-source = "git+https://github.com/sp1-patches/signatures?branch=patch-ecdsa-v0.16.9#e69c2f06f469a4425c5cb774ed61d5f6ccff989a"
+source = "git+https://github.com/sp1-patches/signatures?branch=patch-ecdsa-v0.16.9#f0712cc3303281b6564cb298362dce50d103d082"
 dependencies = [
  "anyhow",
+ "bit-vec 0.8.0",
  "cfg-if",
  "der",
  "digest 0.10.7",
@@ -853,7 +860,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b4c2511913b88df1637da85cc8d96ec8e43a3f8bb8ccb71ee1ac240d6f3df58d"
 dependencies = [
  "bit-set",
- "bit-vec",
+ "bit-vec 0.6.3",
  "bitflags",
  "lazy_static",
  "num-traits",
@@ -935,7 +942,7 @@ checksum = "7a66a03ae7c801facd77a29370b4faec201768915ac14a721ba36f20bc9c209b"
 [[package]]
 name = "rfc6979"
 version = "0.4.0"
-source = "git+https://github.com/sp1-patches/signatures?branch=patch-ecdsa-v0.16.9#e69c2f06f469a4425c5cb774ed61d5f6ccff989a"
+source = "git+https://github.com/sp1-patches/signatures?branch=patch-ecdsa-v0.16.9#f0712cc3303281b6564cb298362dce50d103d082"
 dependencies = [
  "hmac",
  "subtle",
@@ -1144,7 +1151,7 @@ dependencies = [
 [[package]]
 name = "sp1-lib"
 version = "1.0.1"
-source = "git+https://github.com/succinctlabs/sp1.git?branch=john/lib-refactor#116a37db862cea1fa4f6d29b91532aadca8e7e56"
+source = "git+https://github.com/succinctlabs/sp1.git?branch=john/lib-refactor#cad4893a333f297df83ad55d3a213b77918e395b"
 dependencies = [
  "anyhow",
  "bincode",

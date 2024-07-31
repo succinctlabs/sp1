@@ -100,5 +100,5 @@ fn main() {
 
     println!("cycle-tracker-start: k256");
     test_k256_patch();
-    println!("cycle-tracker-end: k256"); 
+    println!("cycle-tracker-end: k256");
 }
