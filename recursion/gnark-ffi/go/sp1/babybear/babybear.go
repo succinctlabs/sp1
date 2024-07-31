@@ -240,10 +240,6 @@ func (c *Chip) MulEF(a ExtensionVariable, b Variable) ExtensionVariable {
 }
 
 func (c *Chip) InvE(in ExtensionVariable) ExtensionVariable {
-	in.Value[0] = c.ReduceSlow(in.Value[0])
-	in.Value[1] = c.ReduceSlow(in.Value[1])
-	in.Value[2] = c.ReduceSlow(in.Value[2])
-	in.Value[3] = c.ReduceSlow(in.Value[3])
 	result, err := c.api.Compiler().NewHint(InvEHint, 4, in.Value[0].Value, in.Value[1].Value, in.Value[2].Value, in.Value[3].Value)
 	if err != nil {
 		panic(err)
@@ -352,10 +348,11 @@ func InvFHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 }
 
 func InvEHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
-	a := C.uint(inputs[0].Uint64())
-	b := C.uint(inputs[1].Uint64())
-	c := C.uint(inputs[2].Uint64())
-	d := C.uint(inputs[3].Uint64())
+	p := uint64(15*(1<<27) + 1)
+	a := C.uint(inputs[0].Uint64() % p)
+	b := C.uint(inputs[1].Uint64() % p)
+	c := C.uint(inputs[2].Uint64() % p)
+	d := C.uint(inputs[3].Uint64() % p)
 	ainv := C.babybearextinv(a, b, c, d, 0)
 	binv := C.babybearextinv(a, b, c, d, 1)
 	cinv := C.babybearextinv(a, b, c, d, 2)
