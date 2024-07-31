@@ -204,10 +204,10 @@ func (c *Chip) SubEF(a ExtensionVariable, b Variable) ExtensionVariable {
 func (c *Chip) MulE(a, b ExtensionVariable) ExtensionVariable {
 	c.MulECounter++
 	v2 := [4]Variable{
-		Zero(),
-		Zero(),
-		Zero(),
-		Zero(),
+		NewF("0"),
+		NewF("0"),
+		NewF("0"),
+		NewF("0"),
 	}
 
 	for i := 0; i < 4; i++ {
