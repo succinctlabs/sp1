@@ -116,17 +116,17 @@ pub fn verify_two_adic_pcs<C: Config>(
                     let mat_values = &mat.values;
                     let log_height = log2_strict_usize(mat_domain.size()) + config.log_blowup;
 
-                    // let bits_reduced = log_global_max_height - log_height;
-                    // let rev_reduced_index = builder
-                    //     .reverse_bits_len_circuit(index_bits[bits_reduced..].to_vec(), log_height);
+                    let bits_reduced = log_global_max_height - log_height;
+                    let rev_reduced_index = builder
+                        .reverse_bits_len_circuit(index_bits[bits_reduced..].to_vec(), log_height);
 
-                    // let g = builder.generator();
-                    // let two_adic_generator: Felt<_> =
-                    //     builder.eval(C::F::two_adic_generator(log_height));
-                    // let two_adic_generator_exp =
-                    //     builder.exp_f_bits(two_adic_generator, rev_reduced_index);
-                    // let x: Felt<_> = builder.eval(g * two_adic_generator_exp);
-                    let x: Felt<_> = builder.eval(C::F::one());
+                    let g = builder.generator();
+                    let two_adic_generator: Felt<_> =
+                        builder.eval(C::F::two_adic_generator(log_height));
+                    let two_adic_generator_exp =
+                        builder.exp_f_bits(two_adic_generator, rev_reduced_index);
+                    let x: Felt<_> = builder.eval(g * two_adic_generator_exp);
+                    // let x: Felt<_> = builder.eval(C::F::one());
 
                     for (z, ps_at_z) in izip!(mat_points, mat_values) {
                         let mut acc: Ext<C::F, C::EF> =
