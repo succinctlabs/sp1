@@ -58,6 +58,13 @@ func NewF(value string) Variable {
 	}
 }
 
+func Zero() Variable {
+	return Variable{
+		Value:  frontend.Variable("0"),
+		NbBits: 0,
+	}
+}
+
 func NewE(value []string) ExtensionVariable {
 	a := NewF(value[0])
 	b := NewF(value[1])
@@ -197,10 +204,10 @@ func (c *Chip) SubEF(a ExtensionVariable, b Variable) ExtensionVariable {
 func (c *Chip) MulE(a, b ExtensionVariable) ExtensionVariable {
 	c.MulECounter++
 	v2 := [4]Variable{
-		NewF("0"),
-		NewF("0"),
-		NewF("0"),
-		NewF("0"),
+		Zero(),
+		Zero(),
+		Zero(),
+		Zero(),
 	}
 
 	for i := 0; i < 4; i++ {
@@ -303,12 +310,10 @@ func (p *Chip) reduceWithMaxBits(x frontend.Variable, maxNbBits uint64) frontend
 	p.ReduceMaxBitsCounter++
 
 	quotient := result[0]
-	p.rangeChecker.Check(quotient, int(maxNbBits-31))
-	// p.api.ToBinary(quotient, int(maxNbBits-31))
+	p.api.ToBinary(quotient, int(maxNbBits-31))
 
 	remainder := result[1]
-	p.rangeChecker.Check(remainder, 31)
-	// p.api.ToBinary(remainder, 31)
+	p.api.ToBinary(remainder, 31)
 
 	p.api.AssertIsEqual(x, p.api.Add(p.api.Mul(quotient, modulus), result[1]))
 

@@ -6,11 +6,14 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/kzg"
+	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/test/unsafekzg"
 	"github.com/succinctlabs/sp1-recursion-gnark/sp1/trusted_setup"
@@ -40,11 +43,32 @@ func Build(dataDir string) {
 	// Initialize the circuit.
 	circuit := NewCircuit(witnessInput)
 
-	// r1cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// fmt.Println("Groth16 Constraints:", r1cs.GetNbConstraints())
+	r1cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("Groth16 Constraints:", r1cs.GetNbConstraints())
+
+	pk2, err := groth16.DummySetup(r1cs)
+	if err != nil {
+		panic(err)
+	}
+
+	// Generate proof.
+	start := time.Now()
+	assignment := NewCircuit(witnessInput)
+	witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
+	if err != nil {
+		panic(err)
+	}
+
+	_, err = groth16.Prove(r1cs, pk2, witness)
+	if err != nil {
+		panic(err)
+	}
+
+	// Print the proof time.
+	fmt.Println("Groth16 proof time:", time.Since(start))
 
 	// Compile the circuit.
 	scs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &circuit)
@@ -134,8 +158,8 @@ func Build(dataDir string) {
 	}
 
 	// Generate proof.
-	assignment := NewCircuit(witnessInput)
-	witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
+	assignment = NewCircuit(witnessInput)
+	witness, err = frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
 	if err != nil {
 		panic(err)
 	}
