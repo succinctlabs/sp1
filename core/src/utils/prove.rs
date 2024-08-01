@@ -30,7 +30,7 @@ use crate::stark::Val;
 use crate::stark::VerifierConstraintFolder;
 use crate::stark::{Com, PcsProverData, RiscvAir, StarkProvingKey, UniConfig};
 use crate::stark::{MachineRecord, StarkMachine};
-use crate::utils::SP1CoreOpts;
+use crate::utils::{sorted_table_lines, SP1CoreOpts};
 use crate::{
     runtime::{Program, Runtime},
     stark::StarkGenericConfig,
@@ -377,11 +377,11 @@ where
         // Print the opcode and syscall count tables like `du`: sorted by count (descending) and with
         // the count in the first column.
         tracing::info!("execution report (opcode counts):");
-        for line in ExecutionReport::sorted_table_lines(&report_aggregate.opcode_counts) {
+        for line in sorted_table_lines(&report_aggregate.opcode_counts) {
             tracing::info!("  {line}");
         }
         tracing::info!("execution report (syscall counts):");
-        for line in ExecutionReport::sorted_table_lines(&report_aggregate.syscall_counts) {
+        for line in sorted_table_lines(&report_aggregate.syscall_counts) {
             tracing::info!("  {line}");
         }
 

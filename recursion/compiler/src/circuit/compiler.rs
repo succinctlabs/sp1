@@ -2,7 +2,7 @@ use chips::poseidon2_skinny::WIDTH;
 use core::fmt::Debug;
 use instruction::{FieldEltType, HintBitsInstr, HintExt2FeltsInstr, PrintInstr};
 use p3_field::{AbstractExtensionField, AbstractField, Field, PrimeField, TwoAdicField};
-use sp1_core::runtime::ExecutionReport;
+use sp1_core::utils::sorted_table_lines;
 use sp1_recursion_core::air::Block;
 use sp1_recursion_core_v2::{BaseAluInstr, BaseAluOpcode};
 use std::{
@@ -708,7 +708,7 @@ impl CycleTrackerSpan {
                 children
                     .iter()
                     .flat_map(|c| c.to_lines())
-                    .chain(ExecutionReport::sorted_table_lines(instr_cts))
+                    .chain(sorted_table_lines(instr_cts))
                     .map(|line| format!("│  {line}")),
             )
             .chain(once(format!("└╴ {} cycles total", self.total_cycles())))

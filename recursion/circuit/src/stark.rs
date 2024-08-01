@@ -13,11 +13,11 @@ use p3_bn254_fr::Bn254Fr;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::{AbstractField, TwoAdicField};
 use p3_util::log2_strict_usize;
-use sp1_core::runtime::ExecutionReport;
-use sp1_core::stark::{Com, ShardProof, PROOF_MAX_NUM_PVS};
 use sp1_core::{
     air::MachineAir,
+    stark::{Com, ShardProof, PROOF_MAX_NUM_PVS},
     stark::{ShardCommitment, StarkGenericConfig, StarkMachine, StarkVerifyingKey},
+    utils::sorted_table_lines,
 };
 use sp1_recursion_compiler::config::OuterConfig;
 use sp1_recursion_compiler::constraints::{Constraint, ConstraintCompiler};
@@ -449,8 +449,7 @@ impl CycleTrackerSpan {
                 children
                     .iter()
                     .flat_map(|c| c.to_lines())
-                    // Inline or extract this if the weird dependency bothers you enough.
-                    .chain(ExecutionReport::sorted_table_lines(instr_cts))
+                    .chain(sorted_table_lines(instr_cts))
                     .map(|line| format!("│  {line}")),
             )
             .chain(once(format!("└╴ {} cycles total", self.total_cycles())))
