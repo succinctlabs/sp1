@@ -224,7 +224,7 @@ pub(crate) mod tests {
     use p3_field::AbstractField;
     use sp1_core::stark::StarkGenericConfig;
     use sp1_core::utils::setup_logger;
-    use sp1_core::utils::BabyBearPoseidon2Inner;
+    use sp1_core::utils::BabyBearPoseidon2;
     use sp1_recursion_compiler::asm::AsmBuilder;
     use sp1_recursion_compiler::asm::AsmConfig;
     use sp1_recursion_compiler::circuit::AsmCompiler;
@@ -241,7 +241,7 @@ pub(crate) mod tests {
 
     use sp1_core::utils::run_test_machine;
 
-    type SC = BabyBearPoseidon2Inner;
+    type SC = BabyBearPoseidon2;
     type F = <SC as StarkGenericConfig>::Val;
     type EF = <SC as StarkGenericConfig>::Challenge;
 
@@ -262,7 +262,7 @@ pub(crate) mod tests {
         let records = vec![runtime.record];
 
         // Run with the poseidon2 wide chip.
-        let wide_machine = RecursionAir::<_, 3, 0>::machine_wide(BabyBearPoseidon2::default());
+        let wide_machine = RecursionAir::<_, 3, 0>::machine_wide(SC::default());
         let (pk, vk) = wide_machine.setup(&program);
         let result = run_test_machine(records.clone(), wide_machine, pk, vk);
         if let Err(e) = result {
@@ -270,7 +270,7 @@ pub(crate) mod tests {
         }
 
         // Run with the poseidon2 skinny chip.
-        let skinny_machine = RecursionAir::<_, 9, 0>::machine(BabyBearPoseidon2::compressed());
+        let skinny_machine = RecursionAir::<_, 9, 0>::machine(SC::compressed());
         let (pk, vk) = skinny_machine.setup(&program);
         let result = run_test_machine(records.clone(), skinny_machine, pk, vk);
         if let Err(e) = result {
