@@ -80,10 +80,7 @@ pub trait AffinePoint<const N: usize>: Clone + Sized {
     }
 
     /// Performs a scalar multiplication of a point by a scalar in little endian.
-    fn scalar_multiplication(
-        a_bits_le: &[bool],
-        a: Self,
-    ) -> Option<Self> {
+    fn scalar_multiplication(a_bits_le: &[bool], a: Self) -> Option<Self> {
         let mut res: Option<Self> = None;
         let mut temp_a = a.clone();
         for a_bit in a_bits_le.iter() {
