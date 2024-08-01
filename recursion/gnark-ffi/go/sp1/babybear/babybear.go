@@ -301,7 +301,7 @@ func (p *Chip) reduceWithMaxBits(x frontend.Variable, maxNbBits uint64) frontend
 	// Check that the hint is correct.
 	p.api.AssertIsEqual(
 		p.api.Add(
-			p.api.Mul(highLimb, uint64(math.Pow(2, 27))),
+			p.api.Mul(highLimb, frontend.Variable(uint64(math.Pow(2, 27)))),
 			lowLimb,
 		),
 		remainder,
@@ -309,9 +309,18 @@ func (p *Chip) reduceWithMaxBits(x frontend.Variable, maxNbBits uint64) frontend
 	p.rangeChecker.Check(highLimb, 4)
 	p.rangeChecker.Check(lowLimb, 27)
 
-	highLimbEqFifteen := p.api.IsZero(p.api.Sub(highLimb, frontend.Variable(15)))
-	lowLimbEqZero := p.api.IsZero(lowLimb)
-	p.api.AssertIsEqual(p.api.Mul(highLimbEqFifteen, lowLimbEqZero), frontend.Variable(0))
+	// If the most significant bits are all 1, then we need to check that the least significant bits
+	// are all zero in order for element to be less than the BabyBear modulus. Otherwise, we don't
+	// need to do any checks, since we already know that the element is less than the BabyBear modulus.
+	shouldCheck := p.api.IsZero(p.api.Sub(highLimb, uint64(math.Pow(2, 4))-1))
+	p.api.AssertIsEqual(
+		p.api.Select(
+			shouldCheck,
+			lowLimb,
+			frontend.Variable(0),
+		),
+		frontend.Variable(0),
+	)
 
 	p.api.AssertIsEqual(x, p.api.Add(p.api.Mul(quotient, modulus), result[1]))
 
@@ -338,7 +347,8 @@ func InvFHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 	return nil
 }
 
-// The hint used to split a BabyBear Variable into a 4 bit limb and a 27 bit limb.
+// The hint used to split a BabyBear Variable into a 4 bit limb (the most significant bits) and a
+// 27 bit limb.
 func SplitLimbsHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 	if len(inputs) != 1 {
 		panic("SplitLimbsHint expects 1 input operand")
