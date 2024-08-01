@@ -24,9 +24,12 @@ twirp = { git = "https://github.com/github/twirp-rs.git" }
 ctrlc = "3.4.4"
 
 [build-dependencies]
-vergen = { version = "8", default-features = false, features = ["build", "git", "git2"] }
-prost-build = "0.13"
-twirp-build = { git = "https://github.com/github/twirp-rs.git" }
+prost-build = { version = "0.13", optional = true }
+twirp-build = { git = "https://github.com/github/twirp-rs.git", optional = true }
 
 [dev-dependencies]
 sp1-core = { workspace = true, features = ["programs"] }
+
+[features]
+default = []
+protobuf = ["dep:prost-build", "dep:twirp-build"]

@@ -5210,7 +5210,6 @@ dependencies = [
  "tracing-subscriber",
  "twirp",
  "twirp-build",
- "vergen",
 ]
 
 [[package]]

@@ -4,7 +4,6 @@ pub mod proto {
 }
 
 use core::time::Duration;
-use std::io::BufRead;
 use std::process::Command;
 use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -16,7 +15,6 @@ use serde::{Deserialize, Serialize};
 use sp1_core::io::SP1Stdin;
 use sp1_core::stark::ShardProof;
 use sp1_core::utils::SP1CoreProverError;
-use sp1_core::utils::SP1ProverOpts;
 use sp1_prover::types::SP1ProvingKey;
 use sp1_prover::InnerSC;
 use sp1_prover::SP1CoreProof;
@@ -73,12 +71,12 @@ impl SP1ProverClient {
         let image_name = "jtguibas/sp1-gpu:latest";
 
         let cleaned_up = Arc::new(AtomicBool::new(false));
-        let cleanup_name = container_name.clone();
+        let cleanup_name = container_name;
         let cleanup_flag = cleaned_up.clone();
 
         // Spawn a new thread to start the Docker container.
         std::thread::spawn(move || {
-            let status = Command::new("sudo")
+            Command::new("sudo")
                 .args(&[
                     "docker",
                     "run",
@@ -99,10 +97,6 @@ impl SP1ProverClient {
                 .stderr(Stdio::inherit())
                 .status()
                 .expect("failed to start Docker container");
-
-            if !status.success() {
-                panic!("docker container exited with an error");
-            }
         });
 
         ctrlc::set_handler(move || {
@@ -205,6 +199,7 @@ fn cleanup_container(container_name: &str) {
 
 #[cfg(test)]
 mod tests {
+    use sp1_core::utils;
     use sp1_core::utils::tests::FIBONACCI_ELF;
     use sp1_prover::components::DefaultProverComponents;
     use sp1_prover::{InnerSC, SP1CoreProof, SP1Prover, SP1ReduceProof};
@@ -217,6 +212,8 @@ mod tests {
 
     #[test]
     fn test_client() {
+        utils::setup_logger();
+
         let client = SP1ProverClient::new();
 
         let prover = SP1Prover::<DefaultProverComponents>::new();
