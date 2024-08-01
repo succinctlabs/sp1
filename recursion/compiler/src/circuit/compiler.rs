@@ -536,7 +536,7 @@ impl<C: Config> AsmCompiler<C> {
                 .collect::<Vec<_>>();
             (instrs, span_builder.finish().unwrap())
         };
-        for line in cycle_tracker_root_span.to_lines() {
+        for line in cycle_tracker_root_span.lines() {
             tracing::info!("{}", line);
         }
 

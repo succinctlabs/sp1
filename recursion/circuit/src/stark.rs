@@ -369,7 +369,7 @@ pub fn build_wrap_circuit(
     }
 
     // Print out cycle tracking info.
-    for line in cycle_tracker(&builder.operations.vec).unwrap().to_lines() {
+    for line in cycle_tracker(&builder.operations.vec).unwrap().lines() {
         println!("{}", line);
     }
 

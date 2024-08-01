@@ -4,8 +4,10 @@ use thiserror::Error;
 
 use super::sorted_table_lines;
 
+/// A builder to create a [`Span`].
+/// `S` is the type of span names and `T` is the type of item names.
 #[derive(Debug, Clone)]
-pub struct SpanBuilder<S, T> {
+pub struct SpanBuilder<S, T = S> {
     pub parents: Vec<Span<S, T>>,
     pub current_span: Span<S, T>,
 }
@@ -15,6 +17,7 @@ where
     S: Display,
     T: Ord + Display + Hash,
 {
+    /// Create an empty builder with the given name for the root span.
     pub fn new(name: S) -> Self {
         Self {
             parents: Default::default(),
@@ -22,6 +25,7 @@ where
         }
     }
 
+    /// Add an item to this span.
     pub fn item(&mut self, item_name: impl Into<T>) -> &mut Self
     where
         T: Hash + Eq,
@@ -34,6 +38,7 @@ where
         self
     }
 
+    /// Enter a new child span with the given name.
     pub fn enter(&mut self, span_name: S) -> &mut Self {
         let span = Span::new(span_name);
         self.parents
@@ -41,6 +46,9 @@ where
         self
     }
 
+    /// Exit the current span, moving back to its parent.
+    ///
+    /// Yields an error if the current span is the root span, which may not be exited.
     pub fn exit(&mut self) -> Result<&mut Self, SpanBuilderExitError>
     where
         T: Clone + Hash + Eq,
@@ -64,6 +72,9 @@ where
         Ok(self)
     }
 
+    /// Get the root span, consuming the builder.
+    ///
+    /// Yields an error if the current span is not the root span.
     pub fn finish(self) -> Result<Span<S, T>, SpanBuilderFinishError> {
         if self.parents.is_empty() {
             Ok(self.current_span)
@@ -95,8 +106,10 @@ pub enum SpanBuilderFinishError {
     OpenSpan(String),
 }
 
+/// A span for counting items in a recursive structure. Create and populate using [`SpanBuilder`].
+/// `S` is the type of span names and `T` is the type of item names.
 #[derive(Debug, Clone, Default)]
-pub struct Span<S, T> {
+pub struct Span<S, T = S> {
     pub name: S,
     pub cts: HashMap<T, usize>,
     pub children: Vec<Span<S, T>>,
@@ -107,6 +120,7 @@ where
     S: Display,
     T: Ord + Display + Hash,
 {
+    /// Create a new span with the given name.
     pub fn new(name: S) -> Self {
         Self {
             name,
@@ -115,6 +129,7 @@ where
         }
     }
 
+    /// Calculate the total number of items counted by this span and its children.
     pub fn total(&self) -> usize {
         self.cts
             .values()
@@ -123,7 +138,8 @@ where
             .sum()
     }
 
-    pub fn to_lines(&self) -> Vec<String> {
+    /// Format and yield lines describing this span. Appropriate for logging.
+    pub fn lines(&self) -> Vec<String> {
         let Self {
             name,
             cts: instr_cts,
@@ -134,7 +150,7 @@ where
             .chain(
                 children
                     .iter()
-                    .flat_map(|c| c.to_lines())
+                    .flat_map(|c| c.lines())
                     .chain(sorted_table_lines(instr_cts))
                     .map(|line| format!("│  {line}")),
             )
