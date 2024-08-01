@@ -286,7 +286,6 @@ func (p *Chip) reduceWithMaxBits(x frontend.Variable, maxNbBits uint64) frontend
 	p.rangeChecker.Check(quotient, int(maxNbBits-31))
 
 	remainder := result[1]
-	p.rangeChecker.Check(remainder, 31)
 
 	// Check that the remainder has size less than the BabyBear modulus, by decomposing it into a 27
 	// bit limb and a 4 bit limb.
@@ -297,6 +296,17 @@ func (p *Chip) reduceWithMaxBits(x frontend.Variable, maxNbBits uint64) frontend
 
 	lowLimb := new_result[0]
 	highLimb := new_result[1]
+
+	// Check that the hint is correct.
+	p.api.AssertIsEqual(
+		p.api.Add(
+			p.api.Mul(highLimb, uint64(math.Pow(2, 27))),
+			lowLimb,
+		),
+		remainder,
+	)
+	p.rangeChecker.Check(highLimb, 4)
+	p.rangeChecker.Check(lowLimb, 27)
 
 	highLimbEqFifteen := p.api.IsZero(p.api.Sub(highLimb, frontend.Variable(15)))
 	lowLimbEqZero := p.api.IsZero(lowLimb)
