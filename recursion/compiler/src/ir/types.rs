@@ -1042,7 +1042,8 @@ impl<F: Field, EF: ExtensionField<F>> Ext<F, EF> {
                     builder.push(DslIr::SubE(*self, *lhs, *rhs));
                 }
                 (SymbolicExt::Val(lhs, _), SymbolicExt::Base(rhs, _)) => {
-                    builder.push(DslIr::SubEF(*self, *lhs, *rhs));
+                    let rhs = builder.eval(rhs.clone());
+                    builder.push(DslIr::SubEF(*self, *lhs, rhs));
                 }
                 (SymbolicExt::Val(lhs, _), rhs) => {
                     let rhs_value = Self::uninit(builder);
