@@ -20,7 +20,7 @@ use super::{
 impl<F, const DEGREE: usize> BaseAir<F> for Poseidon2SkinnyChip<DEGREE> {
     fn width(&self) -> usize {
         // We only support machines with degree 9.
-        assert!(DEGREE == 9);
+        assert!(DEGREE >= 9);
         NUM_POSEIDON2_COLS
     }
 }
@@ -32,7 +32,7 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         // We only support machines with degree 9.
-        assert!(DEGREE == 9);
+        assert!(DEGREE >= 9);
 
         let main = builder.main();
         let (local_row, next_row) = (main.row_slice(0), main.row_slice(1));

@@ -26,7 +26,7 @@ pub struct Poseidon2SkinnyChip<const DEGREE: usize> {
 impl<const DEGREE: usize> Default for Poseidon2SkinnyChip<DEGREE> {
     fn default() -> Self {
         // We only support machines with degree 9.
-        assert!(DEGREE == 9);
+        assert!(DEGREE >= 9);
         Self {
             fixed_log2_rows: None,
             pad: true,
