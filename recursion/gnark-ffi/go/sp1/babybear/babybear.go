@@ -340,6 +340,17 @@ func ReduceHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 	return nil
 }
 
+func (p *Chip) ReduceE(x ExtensionVariable) ExtensionVariable {
+	for i := 0; i < 4; i++ {
+		x.Value[i] = p.ReduceSlow(x.Value[i])
+	}
+	return x
+}
+
+func (p *Chip) ReduceF(x Variable) Variable {
+	return p.ReduceSlow(x)
+}
+
 func InvFHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 	a := C.uint(inputs[0].Uint64())
 	ainv := C.babybearinv(a)

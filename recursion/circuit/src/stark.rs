@@ -86,6 +86,8 @@ where
 
         let zeta = challenger.sample_ext(builder);
 
+        // builder.reduce_e(zeta);
+
         let num_shard_chips = opened_values.chips.len();
         let mut trace_domains = Vec::new();
         let mut quotient_domains = Vec::new();
@@ -140,6 +142,7 @@ where
 
             let mut trace_points = Vec::new();
             let zeta_next = domain.next_point(builder, zeta);
+            // builder.reduce_e(zeta_next);
             trace_points.push(zeta);
             trace_points.push(zeta_next);
 
