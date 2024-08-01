@@ -7,6 +7,7 @@ mod options;
 mod programs;
 mod prove;
 mod serde;
+mod span;
 mod tracer;
 
 use std::{
@@ -20,6 +21,7 @@ pub use logger::*;
 pub use options::*;
 pub use prove::*;
 pub use serde::*;
+pub use span::*;
 pub use tracer::*;
 
 #[cfg(any(test, feature = "programs"))]
