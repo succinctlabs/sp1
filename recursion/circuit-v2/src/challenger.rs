@@ -139,7 +139,6 @@ impl<C: Config> DuplexChallengerVariable<C> {
     pub fn sample_bits(&mut self, builder: &mut Builder<C>, nb_bits: usize) -> Vec<Felt<C::F>> {
         assert!(nb_bits <= NUM_BITS);
         let rand_f = self.sample(builder);
-        // builder.print_f(rand_f);
         let mut rand_f_bits = builder.num2bits_v2_f(rand_f, NUM_BITS);
         rand_f_bits.truncate(nb_bits);
         rand_f_bits
