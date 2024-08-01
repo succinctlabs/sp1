@@ -302,7 +302,7 @@ func (p *Chip) reduceWithMaxBits(x frontend.Variable, maxNbBits uint64) frontend
 	}
 
 	highBitsSubFour := p.api.Sub(highBits, frontend.Variable(4))
-	highBitsSubFourInv := p.api.Select(p.api.IsZero(highBitsSubFour), frontend.Variable(0), p.api.Neg(p.api.Inverse(highBitsSubFour)))
+	highBitsSubFourInv := p.api.Select(p.api.IsZero(highBitsSubFour), p.api.Neg(p.api.Inverse(highBitsSubFour)), frontend.Variable(0))
 	highBitsEqFour := p.api.Add(p.api.Mul(highBitsSubFour, highBitsSubFourInv), 1)
 	p.api.AssertIsEqual(p.api.Mul(highBitsEqFour, lowBits), frontend.Variable(0))
 
