@@ -26,3 +26,6 @@ twirp = { git = "https://github.com/github/twirp-rs.git" }
 vergen = { version = "8", default-features = false, features = ["build", "git", "git2"] }
 prost-build = "0.13"
 twirp-build = { git = "https://github.com/github/twirp-rs.git" }
+
+[dev-dependencies]
+sp1-core = { workspace = true, features = ["programs"] }
