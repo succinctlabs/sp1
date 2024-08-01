@@ -1,3 +1,4 @@
+use std::time::Instant;
 use std::{env, time::Duration};
 
 use crate::install::block_on;
@@ -21,6 +22,7 @@ use crate::provers::{LocalProver, ProverType};
 pub struct NetworkProver {
     client: NetworkClient,
     local_prover: LocalProver<DefaultProverComponents>,
+    timeout: Option<Duration>,
 }
 
 impl NetworkProver {
@@ -40,6 +42,7 @@ impl NetworkProver {
         Self {
             client: NetworkClient::new(private_key),
             local_prover,
+            timeout: Some(Duration::from_secs(60)),
         }
     }
 
@@ -83,10 +86,20 @@ impl NetworkProver {
     }
 
     /// Waits for a proof to be generated and returns the proof.
-    pub async fn wait_proof<P: DeserializeOwned>(&self, proof_id: &str) -> Result<P> {
+    pub async fn wait_proof<P: DeserializeOwned>(
+        &self,
+        proof_id: &str,
+    ) -> Result<P> {
         let client = &self.client;
         let mut is_claimed = false;
+        let timeout = self.timeout;
+        let start_time = Instant::now();
         loop {
+            if let Some(timeout) = timeout {
+                if start_time.elapsed() > timeout {
+                    return Err(anyhow::anyhow!("proof generation timed out"));
+                }
+            }
             let (status, maybe_proof) = client.get_proof_status::<P>(proof_id).await?;
 
             match status.status() {

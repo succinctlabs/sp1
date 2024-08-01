@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use sp1_core::{
     runtime::{ExecutionReport, HookEnv, SP1ContextBuilder},
     utils::{SP1CoreOpts, SP1ProverOpts},
@@ -79,6 +81,11 @@ impl<'a> Execute<'a> {
     }
 }
 
+#[derive(Default)]
+pub struct NetworkOpts {
+    pub timeout: Option<Duration>,
+}
+
 /// Builder to prepare and configure proving execution of a program on an input.
 /// May be run with [Self::run].
 pub struct Prove<'a> {
@@ -89,6 +96,7 @@ pub struct Prove<'a> {
     stdin: SP1Stdin,
     core_opts: SP1CoreOpts,
     recursion_opts: SP1CoreOpts,
+    network_opts: NetworkOpts,
 }
 
 impl<'a> Prove<'a> {
@@ -109,6 +117,7 @@ impl<'a> Prove<'a> {
             context_builder: Default::default(),
             core_opts: SP1CoreOpts::default(),
             recursion_opts: SP1CoreOpts::recursion(),
+            network_opts: NetworkOpts::default(),
         }
     }
 
@@ -122,6 +131,7 @@ impl<'a> Prove<'a> {
             mut context_builder,
             core_opts,
             recursion_opts,
+            network_opts,
         } = self;
         let opts = SP1ProverOpts {
             core_opts,
@@ -196,6 +206,12 @@ impl<'a> Prove<'a> {
     /// If the cycle limit is exceeded, execution will return [sp1_core::runtime::ExecutionError::ExceededCycleLimit].
     pub fn cycle_limit(mut self, cycle_limit: u64) -> Self {
         self.context_builder.max_cycles(cycle_limit);
+        self
+    }
+
+    /// Timeout for the proof generation.
+    pub fn timeout(mut self, timeout: Duration) -> Self {
+        self.network_opts.timeout = Some(timeout);
         self
     }
 }
