@@ -94,7 +94,7 @@ func (c *Chip) AddF(a, b Variable) Variable {
 	}
 	return c.reduceFast(Variable{
 		Value:  c.api.Add(a.Value, b.Value),
-		NbBits: maxBits,
+		NbBits: maxBits + 1,
 	})
 }
 
@@ -138,7 +138,7 @@ func (c *Chip) negF(a Variable) Variable {
 }
 
 func (c *Chip) invF(in Variable) Variable {
-	// in = c.ReduceSlow(in)
+	in = c.ReduceSlow(in)
 	result, err := c.api.Compiler().NewHint(InvFHint, 1, in.Value)
 	if err != nil {
 		panic(err)
@@ -148,8 +148,8 @@ func (c *Chip) invF(in Variable) Variable {
 		Value:  result[0],
 		NbBits: 31,
 	}
-	// product := c.MulF(in, xinv)
-	// c.AssertIsEqualF(product, NewF("1"))
+	product := c.MulF(in, xinv)
+	c.AssertIsEqualF(product, NewF("1"))
 
 	return xinv
 }
@@ -262,8 +262,8 @@ func (c *Chip) InvE(in ExtensionVariable) ExtensionVariable {
 	linv := Variable{Value: result[3], NbBits: 31}
 	out := ExtensionVariable{Value: [4]Variable{xinv, yinv, zinv, linv}}
 
-	// product := c.MulE(in, out)
-	// c.AssertIsEqualE(product, NewE([]string{"1", "0", "0", "0"}))
+	product := c.MulE(in, out)
+	c.AssertIsEqualE(product, NewE([]string{"1", "0", "0", "0"}))
 
 	return out
 }
