@@ -869,7 +869,7 @@ mod tests {
             let power_bits = (0..NUM_BITS).map(|i| (power >> i) & 1).collect::<Vec<_>>();
 
             let input_felt = builder.eval(power_f);
-            let power_bits_felt = builder.num2bits_v2_f(input_felt);
+            let power_bits_felt = builder.num2bits_v2_f(input_felt, NUM_BITS);
 
             let base = rng.next().unwrap();
             let base_felt = builder.eval(base);
@@ -964,7 +964,7 @@ mod tests {
             let output = (0..NUM_BITS).map(|i| (input >> i) & 1).collect::<Vec<_>>();
 
             let input_felt = builder.eval(input_f);
-            let output_felts = builder.num2bits_v2_f(input_felt);
+            let output_felts = builder.num2bits_v2_f(input_felt, NUM_BITS);
             let expected: Vec<Felt<_>> = output
                 .into_iter()
                 .map(|x| builder.eval(F::from_canonical_u32(x)))
