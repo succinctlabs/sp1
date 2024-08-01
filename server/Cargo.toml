@@ -21,6 +21,7 @@ tokio = { version = "^1.38.0", features = ["full"] }
 tracing = "0.1.40"
 tracing-subscriber = "0.3.18"
 twirp = { git = "https://github.com/github/twirp-rs.git" }
+ctrlc = "3.4.4"
 
 [build-dependencies]
 vergen = { version = "8", default-features = false, features = ["build", "git", "git2"] }

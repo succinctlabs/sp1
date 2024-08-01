@@ -10,7 +10,7 @@ use web_time::Instant;
 use p3_challenger::CanObserve;
 use p3_maybe_rayon::prelude::*;
 use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use size::Size;
 use std::thread::ScopedJoinHandle;
 use thiserror::Error;
