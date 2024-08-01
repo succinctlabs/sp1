@@ -313,17 +313,6 @@ func (p *Chip) reduceWithMaxBits(x frontend.Variable, maxNbBits uint64) frontend
 	return remainder
 }
 
-func InvWithZeroHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
-	if inputs[0] == big.NewInt(0) {
-		results[0].SetUint64(0)
-		return nil
-	}
-	a := C.uint(inputs[0].Uint64())
-	ainv := C.babybearinv(a)
-	results[0].SetUint64(uint64(ainv))
-	return nil
-}
-
 // The hint used to compute Reduce.
 func ReduceHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 	if len(inputs) != 1 {
