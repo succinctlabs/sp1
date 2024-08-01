@@ -41,6 +41,7 @@ use crate::alu::create_alu_lookup_id;
 use crate::alu::create_alu_lookups;
 use crate::bytes::NUM_BYTE_LOOKUP_CHANNELS;
 use crate::memory::MemoryInitializeFinalizeEvent;
+use crate::memory::MemoryLocalEvent;
 use crate::utils::SP1CoreOpts;
 use crate::{alu::AluEvent, cpu::CpuEvent};
 
@@ -307,12 +308,13 @@ impl<'a> Runtime<'a> {
         record.shard = shard;
         record.timestamp = timestamp;
 
-        // Construct the memory read record.
-        let mrr = MemoryReadRecord::new(value, shard, timestamp, prev_shard, prev_timestamp);
+        self.record.memory_records.push(MemoryLocalEvent {
+            addr,
+            value,
+            timestamp,
+        });
 
-        self.record.memory_records.push(MemoryRecordEnum::Read(mrr));
-
-        mrr
+        MemoryReadRecord::new(value, shard, timestamp, prev_shard, prev_timestamp)
     }
 
     /// Write a word to memory and create an access record.
@@ -354,21 +356,21 @@ impl<'a> Runtime<'a> {
         record.shard = shard;
         record.timestamp = timestamp;
 
+        self.record.memory_records.push(MemoryLocalEvent {
+            addr,
+            value,
+            timestamp,
+        });
+
         // Construct the memory write record.
-        let mwr = MemoryWriteRecord::new(
+        MemoryWriteRecord::new(
             value,
             shard,
             timestamp,
             prev_value,
             prev_shard,
             prev_timestamp,
-        );
-
-        self.record
-            .memory_records
-            .push(MemoryRecordEnum::Write(mwr));
-
-        mwr
+        )
     }
 
     /// Read from memory, assuming that all addresses are aligned.

@@ -6,6 +6,7 @@ mod trace;
 
 pub use columns::*;
 pub use global::*;
+pub use local::*;
 pub use program::*;
 
 use serde::{Deserialize, Serialize};

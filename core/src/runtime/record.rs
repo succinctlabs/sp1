@@ -14,6 +14,7 @@ use crate::bytes::event::add_sharded_byte_lookup_events;
 use crate::bytes::event::ByteRecord;
 use crate::bytes::ByteLookupEvent;
 use crate::cpu::CpuEvent;
+use crate::memory::MemoryLocalEvent;
 use crate::runtime::MemoryInitializeFinalizeEvent;
 use crate::runtime::MemoryRecordEnum;
 use crate::stark::MachineRecord;
@@ -98,7 +99,7 @@ pub struct ExecutionRecord {
 
     pub bls12381_decompress_events: Vec<ECDecompressEvent>,
 
-    pub memory_records: Vec<MemoryRecordEnum>,
+    pub memory_records: Vec<MemoryLocalEvent>,
 
     /// The public values.
     pub public_values: PublicValues<u32, u32>,
