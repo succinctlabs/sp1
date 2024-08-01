@@ -2,12 +2,12 @@ use chips::poseidon2_skinny::WIDTH;
 use core::fmt::Debug;
 use instruction::{FieldEltType, HintBitsInstr, HintExt2FeltsInstr, PrintInstr};
 use p3_field::{AbstractExtensionField, AbstractField, Field, PrimeField, TwoAdicField};
-use sp1_core::utils::sorted_table_lines;
+use sp1_core::utils::SpanBuilder;
 use sp1_recursion_core::air::Block;
 use sp1_recursion_core_v2::{BaseAluInstr, BaseAluOpcode};
 use std::{
     collections::{hash_map::Entry, HashMap},
-    iter::{once, repeat, zip},
+    iter::{repeat, zip},
 };
 
 use sp1_recursion_core_v2::*;
@@ -516,48 +516,25 @@ impl<C: Config> AsmCompiler<C> {
 
         // Cycle tracking logic.
         let (mut instrs, cycle_tracker_root_span) = {
-            let mut parents = vec![];
-            // Create and enter the root span.
-            let mut current_span = CycleTrackerSpan::new("cycle tracker".to_string());
+            let mut span_builder = SpanBuilder::<_, &'static str>::new("cycle_tracker".to_string());
             let instrs = annotated_instrs
                 .into_iter()
                 .filter_map(|(item, trace)| match item {
                     CompileOneItem::Instr(instr) => {
-                        current_span
-                            .instr_cts
-                            .entry(instr_name(&instr))
-                            .and_modify(|x| *x += 1)
-                            .or_insert(1);
+                        span_builder.item(instr_name(&instr));
                         Some((instr, trace))
                     }
                     CompileOneItem::CycleTrackerStart(name) => {
-                        let span = CycleTrackerSpan::new(name);
-                        parents.push(core::mem::replace(&mut current_span, span));
+                        span_builder.enter(name);
                         None
                     }
                     CompileOneItem::CycleTrackerEnd => {
-                        let mut parent_span = parents
-                            .pop()
-                            .expect("should be exiting non-root cycle tracker span");
-                        // // Add spanned instructions to parent.
-                        for (&instr_name, &ct) in current_span.instr_cts.iter() {
-                            parent_span
-                                .instr_cts
-                                .entry(instr_name)
-                                .and_modify(|x| *x += ct)
-                                .or_insert(ct);
-                        }
-                        // Move to the parent span.
-                        let child_span = core::mem::replace(&mut current_span, parent_span);
-                        current_span.children.push(child_span);
+                        span_builder.exit().unwrap();
                         None
                     }
                 })
                 .collect::<Vec<_>>();
-            if !parents.is_empty() {
-                panic!("should exit all cycle tracker spans. parent spans: {parents:?}")
-            }
-            (instrs, current_span)
+            (instrs, span_builder.finish().unwrap())
         };
         for line in cycle_tracker_root_span.to_lines() {
             tracing::info!("{}", line);
@@ -670,49 +647,6 @@ const fn instr_name<F>(instr: &Instruction<F>) -> &'static str {
         Instruction::FriFold(_) => "FriFold",
         Instruction::Print(_) => "Print",
         Instruction::HintExt2Felts(_) => "HintExt2Felts",
-    }
-}
-
-#[derive(Debug, Clone, Default)]
-struct CycleTrackerSpan {
-    name: String,
-    instr_cts: HashMap<&'static str, usize>,
-    children: Vec<CycleTrackerSpan>,
-}
-
-impl CycleTrackerSpan {
-    pub fn new(name: String) -> Self {
-        Self {
-            name,
-            ..Default::default()
-        }
-    }
-
-    pub fn total_cycles(&self) -> usize {
-        self.instr_cts
-            .values()
-            .cloned()
-            .chain(self.children.iter().map(|x| x.total_cycles()))
-            .sum()
-    }
-
-    pub fn to_lines(&self) -> Vec<String> {
-        let Self {
-            name,
-            instr_cts,
-            children,
-        } = self;
-
-        once(name.to_string())
-            .chain(
-                children
-                    .iter()
-                    .flat_map(|c| c.to_lines())
-                    .chain(sorted_table_lines(instr_cts))
-                    .map(|line| format!("│  {line}")),
-            )
-            .chain(once(format!("└╴ {} cycles total", self.total_cycles())))
-            .collect()
     }
 }
 

@@ -1,5 +1,5 @@
 use std::borrow::Borrow;
-use std::iter::once;
+use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use crate::fri::verify_two_adic_pcs;
@@ -13,13 +13,13 @@ use p3_bn254_fr::Bn254Fr;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::{AbstractField, TwoAdicField};
 use p3_util::log2_strict_usize;
+use sp1_core::utils::{Span, SpanBuilder, SpanBuilderError};
 use sp1_core::{
     air::MachineAir,
     stark::{
         Com, ShardCommitment, ShardProof, StarkGenericConfig, StarkMachine, StarkVerifyingKey,
         PROOF_MAX_NUM_PVS,
     },
-    utils::sorted_table_lines,
 };
 use sp1_recursion_compiler::{
     config::OuterConfig,
@@ -368,7 +368,8 @@ pub fn build_wrap_circuit(
         builder.assert_felt_eq(*expected_elm, *calculated_elm);
     }
 
-    for line in cycle_tracker(&builder.operations.vec).to_lines() {
+    // Print out cycle tracking info.
+    for line in cycle_tracker(&builder.operations.vec).unwrap().to_lines() {
         println!("{}", line);
     }
 
@@ -376,31 +377,16 @@ pub fn build_wrap_circuit(
     backend.emit(builder.operations)
 }
 
-pub fn cycle_tracker<C: Config + std::fmt::Debug>(operations: &[DslIr<C>]) -> CycleTrackerSpan {
-    // Cycle tracking logic.
-    let mut parents = vec![];
-    // Create and enter the root span.
-    let mut current_span = CycleTrackerSpan::new("cycle tracker".to_string());
-    operations.iter().for_each(|op| {
+pub fn cycle_tracker<'a, C: Config + Debug + 'a>(
+    operations: impl IntoIterator<Item = &'a DslIr<C>>,
+) -> Result<Span<String, String>, SpanBuilderError> {
+    let mut span_builder = SpanBuilder::new("cycle_tracker".to_string());
+    for op in operations.into_iter() {
         if let DslIr::CycleTracker(name) = op {
-            if current_span.name != *name {
-                let span = CycleTrackerSpan::new(name.to_owned());
-                parents.push(core::mem::replace(&mut current_span, span));
+            if span_builder.current_span.name != *name {
+                span_builder.enter(name.to_owned());
             } else {
-                let mut parent_span = parents.pop().unwrap_or_else(|| {
-                    panic!("should be exiting non-root cycle tracker span. root: {current_span:?}")
-                });
-                // Add spanned instructions to parent.
-                for (instr_name, &ct) in current_span.instr_cts.iter() {
-                    parent_span
-                        .instr_cts
-                        .entry(instr_name.to_owned())
-                        .and_modify(|x| *x += ct)
-                        .or_insert(ct);
-                }
-                // Move to the parent span.
-                let child_span = core::mem::replace(&mut current_span, parent_span);
-                current_span.children.push(child_span);
+                span_builder.exit().map_err(SpanBuilderError::from)?;
             }
         } else {
             let op_dbg_str = format!("{op:?}");
@@ -409,60 +395,10 @@ pub fn cycle_tracker<C: Config + std::fmt::Debug>(operations: &[DslIr<C>]) -> Cy
                 .take_while(|x| x.is_alphanumeric())
                 .count()]
                 .to_owned();
-            current_span
-                .instr_cts
-                .entry(op_name.to_owned())
-                .and_modify(|x| *x += 1)
-                .or_insert(1);
-        }
-    });
-    if !parents.is_empty() {
-        panic!("should exit all cycle tracker spans. parent spans: {parents:?}")
-    }
-    current_span
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct CycleTrackerSpan {
-    name: String,
-    instr_cts: std::collections::HashMap<String, usize>,
-    children: Vec<CycleTrackerSpan>,
-}
-
-impl CycleTrackerSpan {
-    pub fn new(name: String) -> Self {
-        Self {
-            name,
-            ..Default::default()
+            span_builder.item(op_name);
         }
     }
-
-    pub fn total_cycles(&self) -> usize {
-        self.instr_cts
-            .values()
-            .cloned()
-            .chain(self.children.iter().map(|x| x.total_cycles()))
-            .sum()
-    }
-
-    pub fn to_lines(&self) -> Vec<String> {
-        let Self {
-            name,
-            instr_cts,
-            children,
-        } = self;
-
-        once(name.to_string())
-            .chain(
-                children
-                    .iter()
-                    .flat_map(|c| c.to_lines())
-                    .chain(sorted_table_lines(instr_cts))
-                    .map(|line| format!("│  {line}")),
-            )
-            .chain(once(format!("└╴ {} cycles total", self.total_cycles())))
-            .collect()
-    }
+    span_builder.finish().map_err(SpanBuilderError::from)
 }
 
 #[cfg(test)]
