@@ -302,13 +302,25 @@ func (p *Chip) reduceWithMaxBits(x frontend.Variable, maxNbBits uint64) frontend
 	}
 
 	highBitsSubFour := p.api.Sub(highBits, frontend.Variable(4))
-	highBitsSubFourInv := p.api.Select(p.api.IsZero(highBitsSubFour), p.api.Neg(p.api.Inverse(highBitsSubFour)), frontend.Variable(0))
+	div := p.api.DivUnchecked(frontend.Variable(1), highBitsSubFour)
+	highBitsSubFourInv := p.api.Select(p.api.IsZero(highBitsSubFour), frontend.Variable(0), div)
 	highBitsEqFour := p.api.Add(p.api.Mul(highBitsSubFour, highBitsSubFourInv), 1)
 	p.api.AssertIsEqual(p.api.Mul(highBitsEqFour, lowBits), frontend.Variable(0))
 
 	p.api.AssertIsEqual(x, p.api.Add(p.api.Mul(quotient, modulus), result[1]))
 
 	return remainder
+}
+
+func InvWithZeroHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
+	if inputs[0] == big.NewInt(0) {
+		results[0].SetUint64(0)
+		return nil
+	}
+	a := C.uint(inputs[0].Uint64())
+	ainv := C.babybearinv(a)
+	results[0].SetUint64(uint64(ainv))
+	return nil
 }
 
 // The hint used to compute Reduce.
