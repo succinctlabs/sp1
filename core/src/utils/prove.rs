@@ -44,7 +44,7 @@ use crate::{
 
 const LOG_DEGREE_BOUND: usize = 31;
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Serialize, Deserialize)]
 pub enum SP1CoreProverError {
     #[error("failed to execute program: {0}")]
     ExecutionError(ExecutionError),

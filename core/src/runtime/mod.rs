@@ -118,7 +118,7 @@ pub struct Runtime<'a> {
     pub max_cycles: Option<u64>,
 }
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Serialize, Deserialize)]
 pub enum ExecutionError {
     #[error("execution failed with exit code {0}")]
     HaltWithNonZeroExitCode(u32),
