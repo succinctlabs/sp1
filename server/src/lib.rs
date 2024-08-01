@@ -4,7 +4,9 @@ pub mod proto {
 }
 
 use core::time::Duration;
+use std::io::BufRead;
 use std::process::Command;
+use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
@@ -70,37 +72,41 @@ impl SP1ProverClient {
         let container_name = "sp1-gpu";
         let image_name = "jtguibas/sp1-gpu:latest";
 
-        // Start the docker container.
-        let status = Command::new("sudo")
-            .args(&[
-                "docker",
-                "run",
-                "-d",
-                "-e",
-                "RUST_LOG=debug",
-                "-p",
-                "3000:3000",
-                "--rm",
-                "--runtime=nvidia",
-                "--gpus",
-                "all",
-                "--name",
-                container_name,
-                image_name,
-            ])
-            .status()
-            .unwrap();
-
-        if !status.success() {
-            panic!("Failed to start Docker container");
-        }
-
         let cleaned_up = Arc::new(AtomicBool::new(false));
         let cleanup_name = container_name.clone();
         let cleanup_flag = cleaned_up.clone();
 
+        // Spawn a new thread to start the Docker container.
+        std::thread::spawn(move || {
+            let status = Command::new("sudo")
+                .args(&[
+                    "docker",
+                    "run",
+                    "-e",
+                    "RUST_LOG=debug",
+                    "-p",
+                    "3000:3000",
+                    "--rm",
+                    "--runtime=nvidia",
+                    "--gpus",
+                    "all",
+                    "--name",
+                    &container_name,
+                    &image_name,
+                ])
+                .stdin(Stdio::inherit())
+                .stdout(Stdio::inherit())
+                .stderr(Stdio::inherit())
+                .status()
+                .expect("failed to start Docker container");
+
+            if !status.success() {
+                panic!("docker container exited with an error");
+            }
+        });
+
         ctrlc::set_handler(move || {
-            println!("Received Ctrl+C, cleaning up...");
+            tracing::debug!("received Ctrl+C, cleaning up...");
             if !cleanup_flag.load(Ordering::SeqCst) {
                 cleanup_container(&cleanup_name);
                 cleanup_flag.store(true, Ordering::SeqCst);
@@ -110,7 +116,7 @@ impl SP1ProverClient {
         .unwrap();
 
         std::thread::sleep(Duration::from_secs(10));
-        println!("sleeping for 10 seconds to allow container to start");
+        tracing::debug!("sleeping for 10 seconds to allow server to start");
 
         SP1ProverClient {
             client: Client::from_base_url(
@@ -179,7 +185,7 @@ impl SP1ProverClient {
 impl Drop for SP1ProverClient {
     fn drop(&mut self) {
         if !self.cleaned_up.load(Ordering::SeqCst) {
-            println!("Dropping SP1ProverClient, cleaning up...");
+            tracing::debug!("dropping SP1ProverClient, cleaning up...");
             cleanup_container(&self.container_name);
             self.cleaned_up.store(true, Ordering::SeqCst);
         }
@@ -188,12 +194,12 @@ impl Drop for SP1ProverClient {
 
 /// Cleans up the a docker container with the given name.
 fn cleanup_container(container_name: &str) {
-    println!("Cleaning up container: {}", container_name);
+    tracing::debug!("cleaning up container: {}", container_name);
     if let Err(e) = Command::new("sudo")
         .args(&["docker", "rm", "-f", container_name])
         .status()
     {
-        eprintln!("Failed to remove container: {}", e);
+        eprintln!("failed to remove container: {}", e);
     }
 }
 
