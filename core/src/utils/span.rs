@@ -1,27 +1,31 @@
-use std::{borrow::Cow, collections::HashMap, iter::once, mem::take};
+use std::{collections::HashMap, fmt::Display, hash::Hash, iter::once};
 
 use thiserror::Error;
 
 use super::sorted_table_lines;
 
-#[derive(Debug, Clone, Default)]
-pub struct SpanBuilder<'a> {
-    pub parents: Vec<Span<'a>>,
-    pub current_span: Span<'a>,
+#[derive(Debug, Clone)]
+pub struct SpanBuilder<S, T> {
+    pub parents: Vec<Span<S, T>>,
+    pub current_span: Span<S, T>,
 }
 
-impl<'a> SpanBuilder<'a> {
-    pub fn new(name: String) -> Self {
+impl<S, T> SpanBuilder<S, T>
+where
+    S: Display,
+    T: Ord + Display + Hash,
+{
+    pub fn new(name: S) -> Self {
         Self {
-            current_span: Span {
-                name,
-                ..Default::default()
-            },
-            ..Default::default()
+            parents: Default::default(),
+            current_span: Span::new(name),
         }
     }
 
-    pub fn item(&mut self, item_name: impl Into<Cow<'a, str>>) -> &mut Self {
+    pub fn item(&mut self, item_name: impl Into<T>) -> &mut Self
+    where
+        T: Hash + Eq,
+    {
         self.current_span
             .cts
             .entry(item_name.into())
@@ -30,14 +34,17 @@ impl<'a> SpanBuilder<'a> {
         self
     }
 
-    pub fn enter(&mut self, span_name: String) -> &mut Self {
+    pub fn enter(&mut self, span_name: S) -> &mut Self {
         let span = Span::new(span_name);
         self.parents
             .push(core::mem::replace(&mut self.current_span, span));
         self
     }
 
-    pub fn exit(&mut self) -> Result<&mut Self, SpanBuilderExitError> {
+    pub fn exit(&mut self) -> Result<&mut Self, SpanBuilderExitError>
+    where
+        T: Clone + Hash + Eq,
+    {
         let mut parent_span = self
             .parents
             .pop()
@@ -57,11 +64,14 @@ impl<'a> SpanBuilder<'a> {
         Ok(self)
     }
 
-    pub fn finish(&mut self) -> Result<Span<'a>, SpanBuilderFinishError> {
-        self.parents
-            .is_empty()
-            .then(|| take(&mut self.current_span))
-            .ok_or_else(|| SpanBuilderFinishError::OpenSpan(self.current_span.name.clone()))
+    pub fn finish(self) -> Result<Span<S, T>, SpanBuilderFinishError> {
+        if self.parents.is_empty() {
+            Ok(self.current_span)
+        } else {
+            Err(SpanBuilderFinishError::OpenSpan(
+                self.current_span.name.to_string(),
+            ))
+        }
     }
 }
 
@@ -86,17 +96,22 @@ pub enum SpanBuilderFinishError {
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct Span<'a> {
-    pub name: String,
-    pub cts: HashMap<Cow<'a, str>, usize>,
-    pub children: Vec<Span<'a>>,
+pub struct Span<S, T> {
+    pub name: S,
+    pub cts: HashMap<T, usize>,
+    pub children: Vec<Span<S, T>>,
 }
 
-impl<'a> Span<'a> {
-    pub fn new(name: String) -> Self {
+impl<S, T> Span<S, T>
+where
+    S: Display,
+    T: Ord + Display + Hash,
+{
+    pub fn new(name: S) -> Self {
         Self {
             name,
-            ..Default::default()
+            cts: Default::default(),
+            children: Default::default(),
         }
     }
 
@@ -115,7 +130,7 @@ impl<'a> Span<'a> {
             children,
         } = self;
 
-        once(name.to_string())
+        once(format!("{}", name))
             .chain(
                 children
                     .iter()
