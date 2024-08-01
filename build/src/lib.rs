@@ -147,6 +147,11 @@ fn create_local_command(args: &BuildArgs, program_dir: &Utf8PathBuf) -> Command 
         }
     }
 
+    command.env(
+        "CFLAGS_riscv32im_succinct_zkvm_elf",
+        "-march=rv32im -nostdlib",
+    );
+
     command
         .current_dir(canonicalized_program_dir)
         .env("RUSTUP_TOOLCHAIN", "succinct")
