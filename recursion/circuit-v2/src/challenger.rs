@@ -4,9 +4,10 @@ use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::AbstractField;
 use sp1_recursion_compiler::circuit::CircuitV2Builder;
 use sp1_recursion_compiler::prelude::{Builder, Config, Ext, Felt};
-use sp1_recursion_core_v2::runtime::{DIGEST_SIZE, HASH_RATE, PERMUTATION_WIDTH};
+use sp1_recursion_core_v2::runtime::{HASH_RATE, PERMUTATION_WIDTH};
+use sp1_recursion_core_v2::NUM_BITS;
 
-pub type DigestVariable<C> = Vec<Felt<<C as Config>::F>>;
+use crate::DigestVariable;
 
 /// Reference: [sp1_core::stark::VerifyingKey]
 #[derive(Clone)]
@@ -75,15 +76,12 @@ impl<C: Config> DuplexChallengerVariable<C> {
 
     /// Asserts that the state of this challenger is equal to the state of another challenger.
     pub fn assert_eq(&self, builder: &mut Builder<C>, other: &Self) {
-        for (&element, &other_element) in zip(&self.sponge_state, &other.sponge_state) {
-            builder.assert_felt_eq(element, other_element);
-        }
-        for (&element, &other_element) in zip(&self.input_buffer, &other.input_buffer) {
-            builder.assert_felt_eq(element, other_element);
-        }
-        for (&element, &other_element) in zip(&self.output_buffer, &other.output_buffer) {
-            builder.assert_felt_eq(element, other_element);
-        }
+        zip(&self.sponge_state, &other.sponge_state)
+            .chain(zip(&self.input_buffer, &other.input_buffer))
+            .chain(zip(&self.output_buffer, &other.output_buffer))
+            .for_each(|(&element, &other_element)| {
+                builder.assert_felt_eq(element, other_element);
+            });
     }
 
     pub fn reset(&mut self, builder: &mut Builder<C>) {
@@ -93,6 +91,8 @@ impl<C: Config> DuplexChallengerVariable<C> {
     }
 
     pub fn duplexing(&mut self, builder: &mut Builder<C>) {
+        assert!(self.input_buffer.len() <= HASH_RATE);
+
         self.sponge_state[0..self.input_buffer.len()].copy_from_slice(self.input_buffer.as_slice());
         self.input_buffer.clear();
 
@@ -102,7 +102,7 @@ impl<C: Config> DuplexChallengerVariable<C> {
         self.output_buffer.extend_from_slice(&self.sponge_state);
     }
 
-    fn observe(&mut self, builder: &mut Builder<C>, value: Felt<C::F>) {
+    pub fn observe(&mut self, builder: &mut Builder<C>, value: Felt<C::F>) {
         self.output_buffer.clear();
 
         self.input_buffer.push(value);
@@ -113,12 +113,12 @@ impl<C: Config> DuplexChallengerVariable<C> {
     }
 
     pub fn observe_commitment(&mut self, builder: &mut Builder<C>, commitment: DigestVariable<C>) {
-        for element in commitment.into_iter().take(DIGEST_SIZE) {
+        for element in commitment {
             self.observe(builder, element);
         }
     }
 
-    fn sample(&mut self, builder: &mut Builder<C>) -> Felt<C::F> {
+    pub fn sample(&mut self, builder: &mut Builder<C>) -> Felt<C::F> {
         if !self.input_buffer.is_empty() || self.output_buffer.is_empty() {
             self.duplexing(builder);
         }
@@ -128,7 +128,7 @@ impl<C: Config> DuplexChallengerVariable<C> {
             .expect("output buffer should be non-empty")
     }
 
-    fn sample_ext(&mut self, builder: &mut Builder<C>) -> Ext<C::F, C::EF> {
+    pub fn sample_ext(&mut self, builder: &mut Builder<C>) -> Ext<C::F, C::EF> {
         let a = self.sample(builder);
         let b = self.sample(builder);
         let c = self.sample(builder);
@@ -136,9 +136,10 @@ impl<C: Config> DuplexChallengerVariable<C> {
         builder.ext_from_base_slice(&[a, b, c, d])
     }
 
-    fn sample_bits(&mut self, builder: &mut Builder<C>, nb_bits: usize) -> Vec<Felt<C::F>> {
+    pub fn sample_bits(&mut self, builder: &mut Builder<C>, nb_bits: usize) -> Vec<Felt<C::F>> {
+        assert!(nb_bits <= NUM_BITS);
         let rand_f = self.sample(builder);
-        let mut rand_f_bits = builder.num2bits_v2_f(rand_f);
+        let mut rand_f_bits = builder.num2bits_v2_f(rand_f, NUM_BITS);
         rand_f_bits.truncate(nb_bits);
         rand_f_bits
     }
@@ -216,47 +217,53 @@ impl<C: Config> FeltChallenger<C> for DuplexChallengerVariable<C> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use p3_challenger::CanObserve;
     use p3_challenger::CanSample;
     use p3_challenger::FieldChallenger;
     use p3_field::AbstractField;
     use sp1_core::stark::StarkGenericConfig;
     use sp1_core::utils::setup_logger;
-    use sp1_core::utils::BabyBearPoseidon2;
+    use sp1_core::utils::BabyBearPoseidon2Inner;
     use sp1_recursion_compiler::asm::AsmBuilder;
     use sp1_recursion_compiler::asm::AsmConfig;
     use sp1_recursion_compiler::circuit::AsmCompiler;
+    use sp1_recursion_compiler::ir::DslIr;
     use sp1_recursion_compiler::ir::Ext;
     use sp1_recursion_compiler::ir::ExtConst;
     use sp1_recursion_compiler::ir::Felt;
 
+    use sp1_recursion_compiler::ir::TracedVec;
     use sp1_recursion_core_v2::machine::RecursionAir;
-    use sp1_recursion_core_v2::RecursionProgram;
     use sp1_recursion_core_v2::Runtime;
 
     use crate::challenger::DuplexChallengerVariable;
 
     use sp1_core::utils::run_test_machine;
 
-    type SC = BabyBearPoseidon2;
+    type SC = BabyBearPoseidon2Inner;
     type F = <SC as StarkGenericConfig>::Val;
     type EF = <SC as StarkGenericConfig>::Challenge;
 
     /// A simplified version of some code from `recursion/core/src/stark/mod.rs`.
     /// Takes in a program and runs it with the given witness and generates a proof with a variety of
     /// machines depending on the provided test_config.
-    fn run_test_recursion(program: RecursionProgram<F>) {
+    pub(crate) fn run_test_recursion(operations: TracedVec<DslIr<AsmConfig<F, EF>>>) {
         setup_logger();
-        let config = BabyBearPoseidon2::default();
+
+        let mut compiler = AsmCompiler::<AsmConfig<F, EF>>::default();
+        let program = compiler.compile(operations);
+
+        let config = SC::default();
 
         let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
         runtime.run().unwrap();
 
         let records = vec![runtime.record];
 
-        let machine = RecursionAir::<_, 3, 0>::machine_with_all_chips(BabyBearPoseidon2::default());
+        let machine = RecursionAir::<_, 3, 0>::machine_with_all_chips(config);
         let (pk, vk) = machine.setup(&program);
+
         let result = run_test_machine(records.clone(), machine, pk, vk);
         if let Err(e) = result {
             panic!("Verification failed: {:?}", e);
@@ -302,8 +309,6 @@ mod tests {
         builder.assert_ext_eq(expected_result_ef, element_ef);
 
         // let program = builder.compile_program();
-        let mut compiler = AsmCompiler::<AsmConfig<F, EF>>::default();
-        let program = compiler.compile(builder.operations);
-        run_test_recursion(program);
+        run_test_recursion(builder.operations);
     }
 }
