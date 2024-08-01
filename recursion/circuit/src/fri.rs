@@ -43,11 +43,26 @@ pub fn verify_shape_and_sample_challenges<C: Config>(
     challenger.check_witness(builder, config.proof_of_work_bits, proof.pow_witness);
 
     let log_max_height = proof.commit_phase_commits.len() + config.log_blowup;
+
+    let mut precomputed_generator_powers: Vec<Ext<_, _>> = vec![
+        builder.eval(SymbolicExt::from_f(C::EF::one())),
+        builder.eval(SymbolicExt::from_f(C::EF::two_adic_generator(
+            log_max_height,
+        ))),
+    ];
+
+    let mut cur = precomputed_generator_powers[1];
+    for _ in 2..log_max_height {
+        cur = builder.eval(cur * cur);
+        precomputed_generator_powers.push(cur);
+    }
+
     let query_indices: Vec<Var<_>> = (0..config.num_queries)
         .map(|_| challenger.sample_bits(builder, log_max_height))
         .collect();
 
     FriChallenges {
+        precomputed_generator_powers,
         query_indices,
         betas,
     }
@@ -185,6 +200,7 @@ pub fn verify_challenges<C: Config>(
             challenges.betas.clone(),
             ro,
             log_max_height,
+            challenges.precomputed_generator_powers.clone(),
         );
 
         builder.assert_ext_eq(folded_eval, proof.final_poly);
@@ -199,14 +215,12 @@ pub fn verify_query<C: Config>(
     betas: Vec<Ext<C::F, C::EF>>,
     reduced_openings: [Ext<C::F, C::EF>; 32],
     log_max_height: usize,
+    precomputed_generator_powers: Vec<Ext<C::F, C::EF>>,
 ) -> Ext<C::F, C::EF> {
     let mut folded_eval: Ext<C::F, C::EF> = builder.eval(SymbolicExt::from_f(C::EF::zero()));
-    let two_adic_generator = builder.eval(SymbolicExt::from_f(C::EF::two_adic_generator(
-        log_max_height,
-    )));
     let index_bits = builder.num2bits_v_circuit(index, 32);
     let rev_reduced_index = builder.reverse_bits_len_circuit(index_bits.clone(), log_max_height);
-    let mut x = builder.exp_e_bits(two_adic_generator, rev_reduced_index);
+    let mut x = builder.exp_e_bits_precomputed(rev_reduced_index, &precomputed_generator_powers);
 
     let mut offset = 0;
     for (log_folded_height, commit, step, beta) in izip!(

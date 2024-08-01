@@ -101,6 +101,22 @@ impl<C: Config> Builder<C> {
         result
     }
 
+    /// Exponentiates a extension to a list of bits in little endian. Uses precomputed powers
+    /// of x.
+    pub fn exp_e_bits_precomputed(
+        &mut self,
+        power_bits: Vec<Var<C::N>>,
+        two_adic_powers_of_x: &[Ext<C::F, C::EF>],
+    ) -> Ext<C::F, C::EF> {
+        let mut result = self.eval(SymbolicExt::from_f(C::EF::one()));
+        for i in 0..power_bits.len() {
+            let bit = power_bits[i];
+            let tmp = self.eval(result * two_adic_powers_of_x[i]);
+            result = self.select_ef(bit, tmp, result);
+        }
+        result
+    }
+
     /// Exponetiates a varibale to a list of reversed bits with a given length.
     ///
     /// Reference: [p3_util::reverse_bits_len]
