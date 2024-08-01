@@ -256,12 +256,12 @@ mod tests {
         let records = vec![runtime.record];
 
         // Run with the poseidon2 wide chip.
-        // let wide_machine = RecursionAir::<_, 3, 0>::machine_wide(BabyBearPoseidon2::default());
-        // let (pk, vk) = wide_machine.setup(&program);
-        // let result = run_test_machine(records.clone(), wide_machine, pk, vk);
-        // if let Err(e) = result {
-        //     panic!("Verification failed: {:?}", e);
-        // }
+        let wide_machine = RecursionAir::<_, 3, 0>::machine_wide(BabyBearPoseidon2::default());
+        let (pk, vk) = wide_machine.setup(&program);
+        let result = run_test_machine(records.clone(), wide_machine, pk, vk);
+        if let Err(e) = result {
+            panic!("Verification failed: {:?}", e);
+        }
 
         // Run with the poseidon2 skinny chip.
         let skinny_machine = RecursionAir::<_, 9, 0>::machine(BabyBearPoseidon2::compressed());
