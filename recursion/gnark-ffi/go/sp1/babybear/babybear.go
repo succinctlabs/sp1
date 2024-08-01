@@ -123,8 +123,18 @@ func (c *Chip) negF(a Variable) Variable {
 		return Variable{Value: c.api.Sub(modulus, a.Value), NbBits: 31}
 	}
 
-	negOne := NewF("2013265920")
-	return c.MulF(a, negOne)
+	ub := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(a.NbBits)), big.NewInt(0))
+	divisor := new(big.Int).Div(ub, modulus)
+	divisorPlusOne := new(big.Int).Add(divisor, big.NewInt(1))
+	liftedModulus := new(big.Int).Mul(divisorPlusOne, modulus)
+
+	return Variable{
+		Value:  c.api.Sub(liftedModulus, a.Value),
+		NbBits: a.NbBits,
+	}
+
+	// negOne := NewF("2013265920")
+	// return c.MulF(a, negOne)
 }
 
 func (c *Chip) invF(in Variable) Variable {
