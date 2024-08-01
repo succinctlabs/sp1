@@ -7,7 +7,6 @@ configure-args = []
 [rust]
 lld = true
 llvm-tools = true
-channel = "nightly"
 
 [llvm]
 download-ci-llvm = false
