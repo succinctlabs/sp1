@@ -10,6 +10,6 @@ use sp1_prover::types::SP1ProvingKey;
 
 #[derive(Serialize, Deserialize)]
 pub struct ProveCoreRequestPayload {
-    pk: SP1ProvingKey,
-    stdin: SP1Stdin,
+    pub pk: SP1ProvingKey,
+    pub stdin: SP1Stdin,
 }
