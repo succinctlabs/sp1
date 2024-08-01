@@ -2,8 +2,11 @@
 sp1_zkvm::entrypoint!(main);
 
 use alloy_primitives::{address, hex, Signature};
-use curve25519_dalek_ng::edwards::CompressedEdwardsY;
-use ed25519_consensus::{Signature as Ed25519Signature, VerificationKey as Ed25519VerificationKey};
+use curve25519_dalek_ng::edwards::{CompressedEdwardsY as CompressedEdwardsY_dalek_ng};
+use curve25519_dalek::edwards::{CompressedEdwardsY as CompressedEdwardsY_dalek};
+use ed25519_consensus::{Signature as Ed25519ConsensusSignature, VerificationKey as Ed25519ConsensusVerificationKey};
+use ed25519_dalek::{Signature as Ed25519DalekSignature, VerifyingKey as Ed25519DalekVerifiyingKey, Verifier};
+
 use sha2_v0_10_6::{Digest as Digest_10_6, Sha256 as Sha256_10_6};
 // use sha2_v0_10_8::{Digest as Digest_10_8, Sha256 as Sha256_10_8};
 use sha2_v0_9_8::{Digest as Digest_9_8, Sha256 as Sha256_9_8};
@@ -22,21 +25,40 @@ fn keccak256<T: AsRef<[u8]>>(bytes: T) -> [u8; 32] {
 }
 
 /// Emits ED_ADD and ED_DECOMPRESS syscalls.
+fn test_ed25519_dalek() {
+    // Example signature and message.
+    let vk = hex!("9194c3ead03f5848111db696fe1196fbbeffc69342d51c7cf5e91c502de91eb4");
+    let msg = hex!("656432353531392d636f6e73656e7375732074657374206d657373616765");
+    let sig = hex!("69261ea5df799b20fc6eeb49aa79f572c8f1e2ba88b37dff184cc55d4e3653d876419bffcc47e5343cdd5fd78121bb32f1c377a5ed505106ad37f19980218f0d");
+
+    let vk = Ed25519DalekVerifiyingKey::from_bytes(&vk).unwrap();
+    let sig = Ed25519DalekSignature::from_bytes(&sig);
+    vk.verify(&msg, &sig).unwrap();
+}
+
+/// Emits ED_ADD and ED_DECOMPRESS syscalls.
 fn test_ed25519_consensus() {
     // Example signature and message.
     let vk = hex!("9194c3ead03f5848111db696fe1196fbbeffc69342d51c7cf5e91c502de91eb4");
     let msg = hex!("656432353531392d636f6e73656e7375732074657374206d657373616765");
     let sig = hex!("69261ea5df799b20fc6eeb49aa79f572c8f1e2ba88b37dff184cc55d4e3653d876419bffcc47e5343cdd5fd78121bb32f1c377a5ed505106ad37f19980218f0d");
 
-    let vk: Ed25519VerificationKey = vk.try_into().unwrap();
-    let sig: Ed25519Signature = sig.into();
+    let vk: Ed25519ConsensusVerificationKey = vk.try_into().unwrap();
+    let sig: Ed25519ConsensusSignature = sig.into();
     vk.verify(&sig, &msg).unwrap();
 }
 
-/// Emits ED_DECOMPRESS syscalls.
+/// Emits ED_DECOMPRESSz syscalls.
 fn test_curve25519_dalek_ng() {
     let input = [1u8; 32];
-    let y = CompressedEdwardsY(input);
+    let y = CompressedEdwardsY_dalek_ng(input);
+    let _ = y.decompress();
+}
+
+/// Emits ED_DECOMPRESS syscalls.
+fn test_curve25519_dalek() {
+    let input = [1u8; 32];
+    let y = CompressedEdwardsY_dalek(input);
     let _ = y.decompress();
 }
 
@@ -90,9 +112,17 @@ fn main() {
     test_sha256();
     println!("cycle-tracker-end: sha256");
 
-    println!("cycle-tracker-start: curve25519");
+    println!("cycle-tracker-start: curve25519-dalek-ng");
     test_curve25519_dalek_ng();
-    println!("cycle-tracker-end: curve25519");
+    println!("cycle-tracker-end: curve25519-dalek-ng");
+
+    println!("cycle-tracker-start: curve25519-dalek");
+    test_curve25519_dalek();
+    println!("cycle-tracker-end: curve25519-dalek");
+
+    println!("cycle-tracker-start: ed25519-dalek");
+    test_ed25519_dalek();
+    println!("cycle-tracker-end: ed25519-dalek");
 
     println!("cycle-tracker-start: ed25519");
     test_ed25519_consensus();

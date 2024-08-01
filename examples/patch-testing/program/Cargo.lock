@@ -352,6 +352,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "curve25519-dalek"
+version = "4.1.3"
+source = "git+https://github.com/sp1-patches/curve25519-dalek?branch=patch-curve25519-v4.1.3#aef63c8c44cbc4213a3bb3682884648a51479609"
+dependencies = [
+ "anyhow",
+ "cfg-if",
+ "cpufeatures",
+ "curve25519-dalek-derive",
+ "digest 0.10.7",
+ "fiat-crypto",
+ "rustc_version 0.4.0",
+ "sp1-lib 1.0.1 (git+https://github.com/succinctlabs/sp1.git?branch=ratan/add-ed-decompress-test)",
+ "subtle",
+ "zeroize",
+]
+
+[[package]]
+name = "curve25519-dalek-derive"
+version = "0.1.1"
+source = "git+https://github.com/sp1-patches/curve25519-dalek?branch=patch-curve25519-v4.1.3#aef63c8c44cbc4213a3bb3682884648a51479609"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.72",
+]
+
+[[package]]
 name = "curve25519-dalek-ng"
 version = "4.1.1"
 source = "git+https://github.com/sp1-patches/curve25519-dalek-ng?branch=new-patch-v4.1.1#5397bfecb130f88aee5664737f76f3b1be4722db"
@@ -439,6 +466,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "ed25519"
+version = "2.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "115531babc129696a58c64a4fef0a8bf9e9698629fb97e9e40767d235cfbcd53"
+dependencies = [
+ "pkcs8",
+ "signature",
+]
+
+[[package]]
 name = "ed25519-consensus"
 version = "2.1.0"
 source = "git+https://github.com/sp1-patches/ed25519-consensus?branch=patch-new-v2.1.0#e0eaf514f61ac8ca732dd4fa79706802d0166677"
@@ -449,6 +486,20 @@ dependencies = [
  "serde",
  "sha2 0.9.8",
  "thiserror",
+ "zeroize",
+]
+
+[[package]]
+name = "ed25519-dalek"
+version = "2.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4a3daa8e81a3963a60642bcc1f90a670680bd4a77535faa384e9d1c79d620871"
+dependencies = [
+ "curve25519-dalek",
+ "ed25519",
+ "serde",
+ "sha2 0.10.8",
+ "subtle",
  "zeroize",
 ]
 
@@ -519,6 +570,12 @@ dependencies = [
  "rand_core",
  "subtle",
 ]
+
+[[package]]
+name = "fiat-crypto"
+version = "0.2.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "28dea519a9695b9977216879a3ebfddf92f1c08c05d984f8996aecd6ecdc811d"
 
 [[package]]
 name = "fixed-hash"
@@ -780,8 +837,10 @@ name = "patch-testing-program"
 version = "1.0.1"
 dependencies = [
  "alloy-primitives",
+ "curve25519-dalek",
  "curve25519-dalek-ng",
  "ed25519-consensus",
+ "ed25519-dalek",
  "k256",
  "sha2 0.10.8",
  "sha2 0.9.8",
@@ -1157,7 +1216,7 @@ dependencies = [
 [[package]]
 name = "sp1-lib"
 version = "1.0.1"
-source = "git+https://github.com/succinctlabs/sp1.git?branch=ratan/add-ed-decompress-test#3ce28caee5a878dddeaa46d8ede4c37ad7be40d3"
+source = "git+https://github.com/succinctlabs/sp1.git?branch=ratan/add-ed-decompress-test#3e4491c3f1abdd5f881ac139f341032b880f8b3e"
 dependencies = [
  "anyhow",
  "bincode",
