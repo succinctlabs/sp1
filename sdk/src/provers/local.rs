@@ -81,7 +81,7 @@ impl<C: SP1ProverComponents> Prover<C> for LocalProver<C> {
 
         let plonk_bn254_aritfacts = if sp1_prover::build::sp1_dev_mode() {
             sp1_prover::build::try_build_plonk_bn254_artifacts_dev(
-                &self.prover.wrap_vk,
+                self.prover.wrap_vk(),
                 &outer_proof.proof,
             )
         } else {
