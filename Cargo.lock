@@ -5174,6 +5174,8 @@ dependencies = [
  "prost-types",
  "serde",
  "serde_json",
+ "sp1-core",
+ "sp1-prover",
  "tokio",
  "tracing",
  "tracing-subscriber",
