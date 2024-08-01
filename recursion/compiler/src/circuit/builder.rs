@@ -5,10 +5,14 @@ use std::iter::repeat;
 use p3_field::{AbstractExtensionField, AbstractField};
 
 use crate::prelude::*;
-use sp1_recursion_core_v2::{chips::poseidon2_skinny::WIDTH, D, DIGEST_SIZE, HASH_RATE, NUM_BITS};
+use sp1_recursion_core_v2::{chips::poseidon2_skinny::WIDTH, D, DIGEST_SIZE, HASH_RATE};
 
 pub trait CircuitV2Builder<C: Config> {
-    fn num2bits_v2_f(&mut self, num: Felt<C::F>) -> Vec<Felt<C::F>>;
+    fn bits2num_v2_f(
+        &mut self,
+        bits: impl IntoIterator<Item = Felt<<C as Config>::F>>,
+    ) -> Felt<C::F>;
+    fn num2bits_v2_f(&mut self, num: Felt<C::F>, num_bits: usize) -> Vec<Felt<C::F>>;
     fn exp_reverse_bits_v2(&mut self, input: Felt<C::F>, power_bits: Vec<Felt<C::F>>)
         -> Felt<C::F>;
     fn poseidon2_permute_v2(&mut self, state: [Felt<C::F>; WIDTH]) -> [Felt<C::F>; WIDTH];
@@ -22,10 +26,21 @@ pub trait CircuitV2Builder<C: Config> {
 }
 
 impl<C: Config> CircuitV2Builder<C> for Builder<C> {
+    fn bits2num_v2_f(
+        &mut self,
+        bits: impl IntoIterator<Item = Felt<<C as Config>::F>>,
+    ) -> Felt<<C as Config>::F> {
+        let mut num: Felt<_> = self.eval(C::F::zero());
+        for (i, bit) in bits.into_iter().enumerate() {
+            // Add `bit * 2^i` to the sum.
+            num = self.eval(num + bit * C::F::from_wrapped_u32(1 << i));
+        }
+        num
+    }
     /// Converts a felt to bits inside a circuit.
-    fn num2bits_v2_f(&mut self, num: Felt<C::F>) -> Vec<Felt<C::F>> {
+    fn num2bits_v2_f(&mut self, num: Felt<C::F>, num_bits: usize) -> Vec<Felt<C::F>> {
         let output = std::iter::from_fn(|| Some(self.uninit()))
-            .take(NUM_BITS)
+            .take(num_bits)
             .collect::<Vec<_>>();
         self.push(DslIr::CircuitV2HintBitsF(output.clone(), num));
 
@@ -34,7 +49,7 @@ impl<C: Config> CircuitV2Builder<C> for Builder<C> {
             .enumerate()
             .map(|(i, &bit)| {
                 self.assert_felt_eq(bit * (bit - C::F::one()), C::F::zero());
-                bit * C::F::from_canonical_u32(1 << i)
+                bit * C::F::from_wrapped_u32(1 << i)
             })
             .sum();
 
@@ -90,14 +105,14 @@ impl<C: Config> CircuitV2Builder<C> for Builder<C> {
     }
     /// Runs FRI fold.
     fn fri_fold_v2(&mut self, input: CircuitV2FriFoldInput<C>) -> CircuitV2FriFoldOutput<C> {
-        let mut uninit_vec = || {
+        let mut uninit_vec = |len| {
             std::iter::from_fn(|| Some(self.uninit()))
-                .take(NUM_BITS)
+                .take(len)
                 .collect()
         };
         let output = CircuitV2FriFoldOutput {
-            alpha_pow_output: uninit_vec(),
-            ro_output: uninit_vec(),
+            alpha_pow_output: uninit_vec(input.alpha_pow_input.len()),
+            ro_output: uninit_vec(input.ro_input.len()),
         };
         self.operations
             .push(DslIr::CircuitV2FriFold(output.clone(), input));
