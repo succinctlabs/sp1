@@ -35,6 +35,7 @@ use std::io::BufWriter;
 use std::io::Write;
 use std::sync::Arc;
 
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::alu::create_alu_lookup_id;

@@ -10,7 +10,7 @@ use web_time::Instant;
 use p3_challenger::CanObserve;
 use p3_maybe_rayon::prelude::*;
 use serde::de::DeserializeOwned;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use size::Size;
 use std::thread::ScopedJoinHandle;
 use thiserror::Error;
@@ -44,7 +44,7 @@ use crate::{
 
 const LOG_DEGREE_BOUND: usize = 31;
 
-#[derive(Error, Debug, Serialize, Deserialize)]
+#[derive(Error, Debug)]
 pub enum SP1CoreProverError {
     #[error("failed to execute program: {0}")]
     ExecutionError(ExecutionError),
