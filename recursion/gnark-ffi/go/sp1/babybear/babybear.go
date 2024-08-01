@@ -6,6 +6,8 @@ package babybear
 import "C"
 
 import (
+	"fmt"
+	"math"
 	"math/big"
 
 	"github.com/consensys/gnark/constraint/solver"
@@ -286,23 +288,19 @@ func (p *Chip) reduceWithMaxBits(x frontend.Variable, maxNbBits uint64) frontend
 	remainder := result[1]
 	p.rangeChecker.Check(remainder, 31)
 
-	// Check that the remainder has size less than the BabyBear modulus, by decomposing it into its
-	// bits.
-	remainderBits := p.api.ToBinary(remainder, 31)
-
-	highBits := frontend.Variable(0)
-	lowBits := frontend.Variable(0)
-
-	for i := 0; i < 27; i++ {
-		lowBits = p.api.Add(lowBits, remainderBits[i])
+	// Check that the remainder has size less than the BabyBear modulus, by decomposing it into a 27
+	// bit limb and a 4 bit limb.
+	new_result, new_err := p.api.Compiler().NewHint(SplitLimbsHint, 2, remainder)
+	if new_err != nil {
+		panic(new_err)
 	}
 
-	for i := 27; i < 31; i++ {
-		highBits = p.api.Add(highBits, remainderBits[i])
-	}
+	lowLimb := new_result[0]
+	highLimb := new_result[1]
 
-	highBitsEqFour := p.api.IsZero(p.api.Sub(highBits, frontend.Variable(4)))
-	p.api.AssertIsEqual(p.api.Mul(highBitsEqFour, lowBits), frontend.Variable(0))
+	highLimbEqFifteen := p.api.IsZero(p.api.Sub(highLimb, frontend.Variable(15)))
+	lowLimbEqZero := p.api.IsZero(lowLimb)
+	p.api.AssertIsEqual(p.api.Mul(highLimbEqFifteen, lowLimbEqZero), frontend.Variable(0))
 
 	p.api.AssertIsEqual(x, p.api.Add(p.api.Mul(quotient, modulus), result[1]))
 
@@ -326,6 +324,29 @@ func InvFHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 	a := C.uint(inputs[0].Uint64())
 	ainv := C.babybearinv(a)
 	results[0].SetUint64(uint64(ainv))
+	return nil
+}
+
+// The hint used to split a BabyBear Variable into 1 s7 s.
+func SplitLimbsHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
+	if len(inputs) != 1 {
+		panic("SplitLimbsHint expects 1 input operand")
+	}
+
+	// The BabyBear field element
+	input := inputs[0]
+
+	if input.Cmp(modulus) == 0 || input.Cmp(modulus) == 1 {
+		return fmt.Errorf("input is not in the field")
+	}
+
+	two_27 := big.NewInt(int64(math.Pow(2, 27)))
+
+	// The most significant bits
+	results[0] = new(big.Int).Rem(input, two_27)
+	// The least significant bits
+	results[1] = new(big.Int).Quo(input, two_27)
+
 	return nil
 }
 
