@@ -15,21 +15,29 @@ use p3_field::{AbstractField, TwoAdicField};
 use p3_util::log2_strict_usize;
 use sp1_core::{
     air::MachineAir,
-    stark::{Com, ShardProof, PROOF_MAX_NUM_PVS},
-    stark::{ShardCommitment, StarkGenericConfig, StarkMachine, StarkVerifyingKey},
+    stark::{
+        Com, ShardCommitment, ShardProof, StarkGenericConfig, StarkMachine, StarkVerifyingKey,
+        PROOF_MAX_NUM_PVS,
+    },
     utils::sorted_table_lines,
 };
-use sp1_recursion_compiler::config::OuterConfig;
-use sp1_recursion_compiler::constraints::{Constraint, ConstraintCompiler};
-use sp1_recursion_compiler::ir::{Builder, Config, DslIr, Ext, Felt, Var};
-use sp1_recursion_compiler::ir::{Usize, Witness};
-use sp1_recursion_compiler::prelude::SymbolicVar;
-use sp1_recursion_core::air::{RecursionPublicValues, NUM_PV_ELMS_TO_HASH};
-use sp1_recursion_core::stark::config::{outer_fri_config_with_blowup, BabyBearPoseidon2Outer};
-use sp1_recursion_core::stark::RecursionAirWideDeg17;
-use sp1_recursion_program::commit::PolynomialSpaceVariable;
-use sp1_recursion_program::stark::RecursiveVerifierConstraintFolder;
-use sp1_recursion_program::types::QuotientDataValues;
+use sp1_recursion_compiler::{
+    config::OuterConfig,
+    constraints::{Constraint, ConstraintCompiler},
+    ir::{Builder, Config, DslIr, Ext, Felt, Usize, Var, Witness},
+    prelude::SymbolicVar,
+};
+use sp1_recursion_core::{
+    air::{RecursionPublicValues, NUM_PV_ELMS_TO_HASH},
+    stark::{
+        config::{outer_fri_config_with_blowup, BabyBearPoseidon2Outer},
+        RecursionAirWideDeg17,
+    },
+};
+use sp1_recursion_program::{
+    commit::PolynomialSpaceVariable, stark::RecursiveVerifierConstraintFolder,
+    types::QuotientDataValues,
+};
 
 use crate::domain::{new_coset, TwoAdicMultiplicativeCosetVariable};
 use crate::types::TwoAdicPcsMatsVariable;
