@@ -38,7 +38,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_prove_core() {
-        let client = Client::from_base_url(Url::parse("http://127.0.0.1:3000").unwrap()).unwrap();
+        let client =
+            Client::from_base_url(Url::parse("http://localhost:3000/twirp/").unwrap()).unwrap();
 
         let prover = SP1Prover::<DefaultProverComponents>::new();
         let (pk, vk) = prover.setup(FIBONACCI_ELF);
