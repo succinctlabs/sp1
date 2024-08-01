@@ -1,7 +1,7 @@
 use crate::utils::AffinePoint;
 use crate::{syscall_secp256k1_add, syscall_secp256k1_double};
 
-/// The number of limbs in [Bn254AffinePoint].
+/// The number of limbs in [Secp256k1AffinePoint].
 pub const N: usize = 16;
 
 /// An affine point on the Secp256k1 curve.

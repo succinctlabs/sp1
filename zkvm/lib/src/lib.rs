@@ -5,6 +5,7 @@
 
 pub mod bls12381;
 pub mod bn254;
+pub mod ed25519;
 pub mod io;
 pub mod secp256k1;
 pub mod unconstrained;
@@ -29,7 +30,7 @@ extern "C" {
     pub fn syscall_sha256_compress(w: *mut [u32; 64], state: *mut [u32; 8]);
 
     /// Executes an Ed25519 curve addition on the given points.
-    pub fn syscall_ed_add(p: *mut [u32; 16], q: *mut [u32; 16]);
+    pub fn syscall_ed_add(p: *mut [u32; 16], q: *const [u32; 16]);
 
     /// Executes an Ed25519 curve decompression on the given point.
     pub fn syscall_ed_decompress(point: &mut [u8; 64]);
