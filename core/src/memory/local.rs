@@ -35,6 +35,7 @@ pub struct MemoryLocalCols<T> {
     pub value: T,
 }
 
+#[derive(Default)]
 /// A memory chip that can initialize or finalize values in memory.
 pub struct MemoryLocalChip {}
 
