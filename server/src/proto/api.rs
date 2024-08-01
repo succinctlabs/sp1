@@ -13,6 +13,20 @@ pub struct ProveCoreResponse {
     #[prost(bytes = "vec", tag = "1")]
     pub result: ::prost::alloc::vec::Vec<u8>,
 }
+#[derive(serde::Serialize, serde::Deserialize)]
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CompressRequest {
+    #[prost(bytes = "vec", tag = "1")]
+    pub data: ::prost::alloc::vec::Vec<u8>,
+}
+#[derive(serde::Serialize, serde::Deserialize)]
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CompressResponse {
+    #[prost(bytes = "vec", tag = "1")]
+    pub result: ::prost::alloc::vec::Vec<u8>,
+}
 pub use twirp;
 pub const SERVICE_FQN: &str = "/api.ProverService";
 #[twirp::async_trait::async_trait]
@@ -22,6 +36,11 @@ pub trait ProverService {
         ctx: twirp::Context,
         req: ProveCoreRequest,
     ) -> Result<ProveCoreResponse, twirp::TwirpErrorResponse>;
+    async fn compress(
+        &self,
+        ctx: twirp::Context,
+        req: CompressRequest,
+    ) -> Result<CompressResponse, twirp::TwirpErrorResponse>;
 }
 pub fn router<T>(api: std::sync::Arc<T>) -> twirp::Router
 where
@@ -34,6 +53,12 @@ where
                 api.prove_core(ctx, req).await
             },
         )
+        .route(
+            "/Compress",
+            |api: std::sync::Arc<T>, ctx: twirp::Context, req: CompressRequest| async move {
+                api.compress(ctx, req).await
+            },
+        )
         .build()
 }
 #[twirp::async_trait::async_trait]
@@ -42,6 +67,10 @@ pub trait ProverServiceClient: Send + Sync + std::fmt::Debug {
         &self,
         req: ProveCoreRequest,
     ) -> Result<ProveCoreResponse, twirp::ClientError>;
+    async fn compress(
+        &self,
+        req: CompressRequest,
+    ) -> Result<CompressResponse, twirp::ClientError>;
 }
 #[twirp::async_trait::async_trait]
 impl ProverServiceClient for twirp::client::Client {
@@ -50,5 +79,11 @@ impl ProverServiceClient for twirp::client::Client {
         req: ProveCoreRequest,
     ) -> Result<ProveCoreResponse, twirp::ClientError> {
         self.request("api.ProverService/ProveCore", req).await
+    }
+    async fn compress(
+        &self,
+        req: CompressRequest,
+    ) -> Result<CompressResponse, twirp::ClientError> {
+        self.request("api.ProverService/Compress", req).await
     }
 }
