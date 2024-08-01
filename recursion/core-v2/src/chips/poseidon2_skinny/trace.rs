@@ -1,4 +1,5 @@
 use std::{
+    array,
     borrow::{Borrow, BorrowMut},
     mem::size_of,
 };
@@ -192,12 +193,11 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2SkinnyChip
                                 write_mult: F::zero(),
                             });
                     } else if i == OUTPUT_ROUND_IDX {
-                        cols.memory_preprocessed =
-                            instruction.addrs.output.map(|addr| MemoryAccessCols {
-                                addr,
-                                read_mult: F::zero(),
-                                write_mult: instruction.mults[i],
-                            });
+                        cols.memory_preprocessed = array::from_fn(|i| MemoryAccessCols {
+                            addr: instruction.addrs.output[i],
+                            read_mult: F::zero(),
+                            write_mult: instruction.mults[i],
+                        });
                     }
                 });
             });
