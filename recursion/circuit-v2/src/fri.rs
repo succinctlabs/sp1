@@ -6,12 +6,12 @@ use p3_matrix::Dimensions;
 use p3_util::log2_strict_usize;
 use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
-    ir::{Builder, Config, Felt, FromConstant, SymbolicExt, SymbolicFelt, Variable},
+    ir::{Builder, Config, Felt, SymbolicExt, SymbolicFelt, Variable},
 };
 use std::{
     cmp::Reverse,
     iter::{once, repeat, repeat_with, zip},
-    ops::{Add, Mul, Sub},
+    ops::{Add, Mul},
 };
 
 use crate::challenger::DuplexChallengerVariable;
@@ -67,14 +67,14 @@ pub fn verify_two_adic_pcs<C: Config, Mmcs>(
 
     let log_global_max_height = proof.fri_proof.commit_phase_commits.len() + config.log_blowup;
 
-    // The powers of alpha, where the ith element is alpha^i.
-    let mut alpha_pows: Vec<Ext<C::F, C::EF>> = [builder.constant(C::EF::one()); 32].to_vec();
-
     let reduced_openings = proof
         .query_openings
         .iter()
         .zip(&fri_challenges.query_indices)
         .map(|(query_opening, index_bits)| {
+            // The powers of alpha, where the ith element is alpha^i.
+            let mut alpha_pows: Vec<Ext<C::F, C::EF>> =
+                [builder.constant(C::EF::one()); 32].to_vec();
             let mut ro: [Ext<C::F, C::EF>; 32] =
                 [builder.eval(SymbolicExt::from_f(C::EF::zero())); 32];
 
@@ -726,5 +726,8 @@ mod tests {
         verify_two_adic_pcs(&mut builder, &config, &proof, &mut challenger, rounds);
 
         run_test_recursion(builder.operations);
+        // let mut backend = ConstraintCompiler::<InnerConfig>::default();
+        // let constraints = backend.emit(builder.operations);
+        // PlonkBn254Prover::test::<InnerConfig>(constraints.clone(), Witness::default());
     }
 }
