@@ -15,6 +15,7 @@ members = [
   "recursion/gnark-cli",
   "recursion/gnark-ffi",
   "recursion/program",
+  "server",
   "sdk",
   "zkvm/*",
 ]
