@@ -94,7 +94,7 @@ func (c *Chip) AddF(a, b Variable) Variable {
 	}
 	return c.reduceFast(Variable{
 		Value:  c.api.Add(a.Value, b.Value),
-		NbBits: maxBits + 1,
+		NbBits: maxBits,
 	})
 }
 
