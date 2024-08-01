@@ -717,7 +717,6 @@ mod tests {
     type SC = BabyBearPoseidon2;
     type F = <SC as StarkGenericConfig>::Val;
     type EF = <SC as StarkGenericConfig>::Challenge;
-    type A = RecursionAir<F, 3, 1>;
     fn test_operations(operations: TracedVec<DslIr<AsmConfig<F, EF>>>) {
         test_operations_with_runner(operations, |program| {
             let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(
@@ -737,17 +736,25 @@ mod tests {
         let program = compiler.compile(operations);
         let record = run(&program);
 
-        let config = SC::new();
-        let machine = A::machine_with_all_chips(config);
-        let (pk, vk) = machine.setup(&program);
-        let result = run_test_machine(vec![record], machine, pk, vk);
+        // Run with the poseidon2 wide chip.
+        let wide_machine = RecursionAir::<_, 3, 0>::machine_wide(BabyBearPoseidon2::default());
+        let (pk, vk) = wide_machine.setup(&program);
+        let result = run_test_machine(vec![record.clone()], wide_machine, pk, vk);
+        if let Err(e) = result {
+            panic!("Verification failed: {:?}", e);
+        }
+
+        // Run with the poseidon2 skinny chip.
+        let skinny_machine = RecursionAir::<_, 9, 0>::machine(BabyBearPoseidon2::compressed());
+        let (pk, vk) = skinny_machine.setup(&program);
+        let result = run_test_machine(vec![record.clone()], skinny_machine, pk, vk);
         if let Err(e) = result {
             panic!("Verification failed: {:?}", e);
         }
     }
 
     #[test]
-    fn test_poseidon2_skinny() {
+    fn test_poseidon2() {
         setup_logger();
 
         let mut builder = AsmBuilder::<F, EF>::default();
