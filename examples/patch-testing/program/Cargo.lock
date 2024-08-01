@@ -354,7 +354,7 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek-ng"
 version = "4.1.1"
-source = "git+https://github.com/sp1-patches/curve25519-dalek-ng?branch=new-patch-v4.1.1#43cf3c1a70898572cae4f9f2ba47d473be3554eb"
+source = "git+https://github.com/sp1-patches/curve25519-dalek-ng?branch=new-patch-v4.1.1#5397bfecb130f88aee5664737f76f3b1be4722db"
 dependencies = [
  "anyhow",
  "byteorder",
@@ -1157,7 +1157,7 @@ dependencies = [
 [[package]]
 name = "sp1-lib"
 version = "1.0.1"
-source = "git+https://github.com/succinctlabs/sp1.git?branch=ratan/add-ed-decompress-test#e136d5dc394aeaacc4480fe23c1bdd0f9aeff485"
+source = "git+https://github.com/succinctlabs/sp1.git?branch=ratan/add-ed-decompress-test#3ce28caee5a878dddeaa46d8ede4c37ad7be40d3"
 dependencies = [
  "anyhow",
  "bincode",
