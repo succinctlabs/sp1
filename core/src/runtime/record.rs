@@ -98,6 +98,8 @@ pub struct ExecutionRecord {
 
     pub bls12381_decompress_events: Vec<ECDecompressEvent>,
 
+    pub memory_records: Vec<MemoryRecordEnum>,
+
     /// The public values.
     pub public_values: PublicValues<u32, u32>,
 

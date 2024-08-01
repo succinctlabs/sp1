@@ -1,5 +1,6 @@
 mod columns;
 mod global;
+mod local;
 mod program;
 mod trace;
 

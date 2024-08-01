@@ -308,7 +308,11 @@ impl<'a> Runtime<'a> {
         record.timestamp = timestamp;
 
         // Construct the memory read record.
-        MemoryReadRecord::new(value, shard, timestamp, prev_shard, prev_timestamp)
+        let mrr = MemoryReadRecord::new(value, shard, timestamp, prev_shard, prev_timestamp);
+
+        self.record.memory_records.push(MemoryRecordEnum::Read(mrr));
+
+        mrr
     }
 
     /// Write a word to memory and create an access record.
@@ -351,14 +355,20 @@ impl<'a> Runtime<'a> {
         record.timestamp = timestamp;
 
         // Construct the memory write record.
-        MemoryWriteRecord::new(
+        let mwr = MemoryWriteRecord::new(
             value,
             shard,
             timestamp,
             prev_value,
             prev_shard,
             prev_timestamp,
-        )
+        );
+
+        self.record
+            .memory_records
+            .push(MemoryRecordEnum::Write(mwr));
+
+        mwr
     }
 
     /// Read from memory, assuming that all addresses are aligned.
