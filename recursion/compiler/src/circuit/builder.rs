@@ -34,7 +34,7 @@ impl<C: Config> CircuitV2Builder<C> for Builder<C> {
         let mut num: Felt<_> = self.eval(C::F::zero());
         for (i, bit) in bits.into_iter().enumerate() {
             // Add `bit * 2^i` to the sum.
-            num = self.eval(num + bit * C::F::from_canonical_u32(1 << i));
+            num = self.eval(num + bit * C::F::from_wrapped_u32(1 << i));
         }
         num
     }
@@ -50,7 +50,7 @@ impl<C: Config> CircuitV2Builder<C> for Builder<C> {
             .enumerate()
             .map(|(i, &bit)| {
                 self.assert_felt_eq(bit * (bit - C::F::one()), C::F::zero());
-                bit * C::F::from_canonical_u32(1 << i)
+                bit * C::F::from_wrapped_u32(1 << i)
             })
             .sum();
 
