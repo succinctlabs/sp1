@@ -48,5 +48,4 @@ pub enum ConstraintOpcode {
     CircuitFelts2Ext,
     PermuteBabyBear,
     ReduceE,
-    ReduceF,
 }

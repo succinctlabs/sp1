@@ -67,6 +67,10 @@ pub fn verify_two_adic_pcs<C: Config>(
 
     let log_global_max_height = proof.fri_proof.commit_phase_commits.len() + config.log_blowup;
 
+    // The powers of alpha, where the ith element is alpha^i.
+    let mut alpha_pows: Vec<Ext<C::F, C::EF>> =
+        vec![builder.eval(SymbolicExt::from_f(C::EF::one()))];
+
     let reduced_openings = proof
         .query_openings
         .iter()
@@ -74,8 +78,8 @@ pub fn verify_two_adic_pcs<C: Config>(
         .map(|(query_opening, &index)| {
             let mut ro: [Ext<C::F, C::EF>; 32] =
                 [builder.eval(SymbolicExt::from_f(C::EF::zero())); 32];
-            let mut alpha_pow: [Ext<C::F, C::EF>; 32] =
-                [builder.eval(SymbolicExt::from_f(C::EF::one())); 32];
+            // An array of the current power for each log_height.
+            let mut log_height_pow = [0usize; 32];
 
             for (batch_opening, round) in izip!(query_opening.clone(), &rounds) {
                 let batch_commit = round.batch_commit;
@@ -119,19 +123,21 @@ pub fn verify_two_adic_pcs<C: Config>(
                         builder.eval(C::F::two_adic_generator(log_height));
                     let two_adic_generator_exp =
                         builder.exp_f_bits(two_adic_generator, rev_reduced_index);
-                    builder.reduce_f(two_adic_generator_exp);
                     let x: Felt<_> = builder.eval(g * two_adic_generator_exp);
-                    builder.reduce_f(x);
 
                     for (z, ps_at_z) in izip!(mat_points, mat_values) {
                         let mut acc: Ext<C::F, C::EF> =
                             builder.eval(SymbolicExt::from_f(C::EF::zero()));
                         for (p_at_x, &p_at_z) in izip!(mat_opening.clone(), ps_at_z) {
-                            acc =
-                                builder.eval(acc + (alpha_pow[log_height] * (p_at_z - p_at_x[0])));
-                            let new_alpha_pow = builder.eval(alpha_pow[log_height] * alpha);
-                            builder.reduce_e(new_alpha_pow);
-                            alpha_pow[log_height] = new_alpha_pow;
+                            let pow = log_height_pow[log_height];
+                            // Fill in any missing powers of alpha.
+                            (alpha_pows.len()..pow + 1).for_each(|_| {
+                                let new_alpha = builder.eval(*alpha_pows.last().unwrap() * alpha);
+                                builder.reduce_e(new_alpha);
+                                alpha_pows.push(new_alpha);
+                            });
+                            acc = builder.eval(acc + (alpha_pows[pow] * (p_at_z - p_at_x[0])));
+                            log_height_pow[log_height] += 1;
                         }
                         // builder.reduce_e(acc);
                         ro[log_height] = builder.eval(ro[log_height] + acc / (*z - x));

@@ -519,10 +519,6 @@ impl<C: Config> Builder<C> {
         self.operations.push(DslIr::ReduceE(ext));
     }
 
-    pub fn reduce_f(&mut self, felt: Felt<C::F>) {
-        self.operations.push(DslIr::ReduceF(felt));
-    }
-
     pub fn cycle_tracker(&mut self, name: &str) {
         self.operations.push(DslIr::CycleTracker(name.to_string()));
     }
