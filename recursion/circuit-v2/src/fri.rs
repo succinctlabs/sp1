@@ -6,16 +6,12 @@ use p3_matrix::Dimensions;
 use p3_util::log2_strict_usize;
 use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
-    ir::{
-        Builder, CircuitV2FriFoldInput, CircuitV2FriFoldOutput, Config, ExtConst, Felt,
-        SymbolicExt, SymbolicFelt,
-    },
+    ir::{Builder, Config, Felt, FromConstant, SymbolicExt, SymbolicFelt, Variable},
 };
 use std::{
     cmp::Reverse,
-    fmt::Debug,
-    iter::{repeat_with, zip},
-    mem::take,
+    iter::{once, repeat, repeat_with, zip},
+    ops::{Add, Mul, Sub},
 };
 
 use crate::challenger::DuplexChallengerVariable;
@@ -57,54 +53,6 @@ pub fn verify_shape_and_sample_challenges<C: Config, Mmcs>(
     }
 }
 
-/// TODO remove this
-fn exp_reverse_bits<C: Config>(
-    builder: &mut Builder<C>,
-    mut base: Felt<C::F>,
-    bits: &[Felt<C::F>],
-) -> Felt<C::F> {
-    let mut acc: Felt<_> = builder.constant(C::F::one());
-    let one: Felt<_> = builder.constant(C::F::one());
-    for &bit in bits.iter().rev() {
-        let cobit: Felt<_> = builder.eval(one - bit);
-        let comb = base * bit + one * cobit;
-        acc = builder.eval(acc * comb);
-        base = builder.eval(base * base);
-    }
-    acc
-}
-
-/// TODO remove this
-trait DebugVisitor<C: Config> {
-    fn debug_visit(&self, builder: &mut Builder<C>, label: usize);
-}
-
-impl<C: Config> DebugVisitor<C> for Felt<C::F> {
-    fn debug_visit(&self, builder: &mut Builder<C>, label: usize) {
-        let label_f = builder.constant(C::F::from_canonical_usize(label));
-        builder.print_f(label_f);
-        builder.print_f(*self);
-    }
-}
-
-impl<C: Config> DebugVisitor<C> for Ext<C::F, C::EF> {
-    fn debug_visit(&self, builder: &mut Builder<C>, label: usize) {
-        let label_f = builder.constant(C::F::from_canonical_usize(label));
-        builder.print_f(label_f);
-        builder.print_e(*self);
-    }
-}
-
-impl<C: Config, T: DebugVisitor<C>> DebugVisitor<C> for [T] {
-    fn debug_visit(&self, builder: &mut Builder<C>, label: usize) {
-        let label_f = builder.constant(C::F::from_canonical_usize(label));
-        builder.print_f(label_f);
-        for (i, x) in self.iter().enumerate() {
-            x.debug_visit(builder, label * 1000 + i);
-        }
-    }
-}
-
 pub fn verify_two_adic_pcs<C: Config, Mmcs>(
     builder: &mut Builder<C>,
     config: &FriConfig<Mmcs>,
@@ -121,9 +69,6 @@ pub fn verify_two_adic_pcs<C: Config, Mmcs>(
 
     // The powers of alpha, where the ith element is alpha^i.
     let mut alpha_pows: Vec<Ext<C::F, C::EF>> = [builder.constant(C::EF::one()); 32].to_vec();
-
-    // An array of the current power for each log_height.
-    let mut log_height_pow = [0usize; 32];
 
     let reduced_openings = proof
         .query_openings
@@ -186,31 +131,6 @@ pub fn verify_two_adic_pcs<C: Config, Mmcs>(
                         }
                         ro[log_height] = builder.eval(ro[log_height] + acc / (*z - x));
                     }
-
-                    // --------
-
-                    // x.debug_visit(builder, 1000);
-                    // for (z, ps_at_z) in izip!(mat_points, mat_values) {
-                    //     z.debug_visit(builder, 2000);
-
-                    //     let mut acc: Ext<C::F, C::EF> =
-                    //         builder.eval(SymbolicExt::from_f(C::EF::zero()));
-                    //     for (p_at_x, p_at_z) in izip!(mat_opening.clone(), ps_at_z) {
-                    //         p_at_x.debug_visit(builder, 3000);
-                    //         p_at_z.debug_visit(builder, 4000);
-
-                    //         let pow = log_height_pow[log_height];
-
-                    //         // Fill in any missing powers of alpha.
-                    //         (alpha_pows.len()..pow + 1).for_each(|_| {
-                    //             alpha_pows.push(builder.eval(*alpha_pows.last().unwrap() * alpha));
-                    //         });
-                    //         acc = builder.eval(acc + (alpha_pows[pow] * (p_at_z - p_at_x[0])));
-                    //         log_height_pow[log_height] += 1;
-                    //     }
-                    //     ro[log_height] = builder.eval(ro[log_height] + acc / (z - x));
-                    //     ro[log_height].debug_visit(builder, 5000);
-                    // }
                 }
             }
             ro
@@ -240,38 +160,6 @@ pub fn verify_challenges<C: Config, Mmcs>(
         .zip(&proof.query_proofs)
         .zip(reduced_openings)
     {
-        // for (i, x) in proof.commit_phase_commits.iter().enumerate() {
-        //     for (j, y) in x.iter().enumerate() {
-        //         let label = builder.constant(C::F::from_canonical_usize(1000000 + i * 1000 + j));
-        //         builder.print_f(label);
-        //         builder.print_f(*y);
-        //     }
-        // }
-        // for (i, x) in index_bits.iter().enumerate() {
-        //     let label = builder.constant(C::F::from_canonical_usize(2000000 + i));
-        //     builder.print_f(label);
-        //     builder.print_f(*x);
-        // }
-        // // let x = 0b01101000111000110101;
-        // // let x = 0b10101100011100010110;
-        // // for (i, x) in query_proof.commit_phase_openings.iter().enumerate() {
-        // //     for (j, y) in x.iter().enumerate() {
-        // //         let label = builder.constant(C::F::from_canonical_usize(3000000 + i * 1000 + j));
-        // //         builder.print_f(label);
-        // //         builder.print_f(*y);
-        // //     }
-        // // }
-        // for (i, x) in challenges.betas.iter().enumerate() {
-        //     let label = builder.constant(C::F::from_canonical_usize(4000000 + i));
-        //     builder.print_f(label);
-        //     builder.print_e(*x);
-        // }
-        // for (i, x) in ro.iter().enumerate() {
-        //     let label = builder.constant(C::F::from_canonical_usize(5000000 + i));
-        //     builder.print_f(label);
-        //     builder.print_e(*x);
-        // }
-        // dbg!(log_max_height);
         let folded_eval = verify_query(
             builder,
             proof.commit_phase_commits.clone(),
@@ -315,21 +203,13 @@ pub fn verify_query<C: Config>(
         let index_sibling: Felt<_> = builder.eval(one - index_bits[offset]);
         let index_pair = &index_bits[(offset + 1)..];
 
-        let evals_ext = {
-            // TODO factor this out into a function
-            let bit = index_sibling;
-            let true_fst = folded_eval;
-            let true_snd = step.sibling_value;
-
-            let one: Felt<_> = builder.constant(C::F::one());
-            let cobit: Felt<_> = builder.eval(one - bit);
-
-            let true_branch = [true_fst, true_snd];
-            let false_branch = [true_snd, true_fst];
-            zip(true_branch, false_branch)
-                .map(|(tx, fx)| builder.eval(tx * bit + fx * cobit))
-                .collect::<Vec<_>>()
-        };
+        let evals_ext = select_chain(
+            builder,
+            index_sibling,
+            once(step.sibling_value),
+            once(folded_eval),
+        )
+        .collect::<Vec<_>>();
         let evals_felt = vec![
             builder.ext2felt_v2(evals_ext[0]).to_vec(),
             builder.ext2felt_v2(evals_ext[1]).to_vec(),
@@ -349,21 +229,7 @@ pub fn verify_query<C: Config>(
         );
 
         let xs_new: Ext<_, _> = builder.eval(x * C::EF::two_adic_generator(1));
-        let xs: Vec<Ext<_, _>> = {
-            // TODO factor this out into a function
-            let bit = index_sibling;
-            let true_fst = x;
-            let true_snd = xs_new;
-
-            let one: Felt<_> = builder.eval(C::F::one());
-            let cobit: Felt<_> = builder.eval(one - bit);
-
-            let true_branch = [true_fst, true_snd];
-            let false_branch = [true_snd, true_fst];
-            zip(true_branch, false_branch)
-                .map(|(tx, fx)| builder.eval(tx * bit + fx * cobit))
-                .collect::<Vec<_>>()
-        };
+        let xs = select_chain(builder, index_sibling, once(xs_new), once(x)).collect::<Vec<_>>();
         folded_eval = builder
             .eval(evals_ext[0] + (beta - xs[0]) * (evals_ext[1] - evals_ext[0]) / (xs[1] - xs[0]));
         x = builder.eval(x * x);
@@ -406,14 +272,7 @@ pub fn verify_batch<C: Config, const D: usize>(
     let mut root = builder.poseidon2_hash_v2(&felt_slice);
 
     for (bit, sibling) in zip(index_bits, proof) {
-        let one: Felt<_> = builder.eval(C::F::one());
-        let cobit: Felt<_> = builder.eval(one - bit);
-
-        let true_branch = sibling.into_iter().chain(root);
-        let false_branch = root.into_iter().chain(sibling);
-        let pre_root = zip(true_branch, false_branch)
-            .map(|(tx, fx)| builder.eval(bit * tx + cobit * fx))
-            .collect::<Vec<_>>();
+        let pre_root = select_chain(builder, bit, root, sibling).collect::<Vec<_>>();
 
         root = builder.poseidon2_compress_v2(pre_root);
         curr_height_padded >>= 1;
@@ -441,6 +300,41 @@ pub fn verify_batch<C: Config, const D: usize>(
     }
 
     zip(root, commit).for_each(|(e1, e2)| builder.assert_felt_eq(e1, e2));
+}
+
+fn select_chain<'a, C, R, S>(
+    builder: &'a mut Builder<C>,
+    should_swap: R,
+    first: impl IntoIterator<Item = S> + Clone + 'a,
+    second: impl IntoIterator<Item = S> + Clone + 'a,
+) -> impl Iterator<Item = S> + 'a
+where
+    C: Config,
+    R: Variable<C> + Into<<R as Variable<C>>::Expression> + 'a,
+    S: Variable<C> + Into<<S as Variable<C>>::Expression> + 'a,
+    <R as Variable<C>>::Expression: AbstractField + 'a,
+    <S as Variable<C>>::Expression: Add<Output = <S as Variable<C>>::Expression>
+        + Mul<<R as Variable<C>>::Expression, Output = <S as Variable<C>>::Expression>
+        + 'a,
+{
+    let should_swap: <R as Variable<C>>::Expression = should_swap.into();
+    let one = <R as Variable<C>>::Expression::one();
+    let shouldnt_swap = one - should_swap.clone();
+
+    let id_branch = first
+        .clone()
+        .into_iter()
+        .chain(second.clone())
+        .map(<S as Variable<C>>::Expression::from);
+    let swap_branch = second
+        .into_iter()
+        .chain(first)
+        .map(<S as Variable<C>>::Expression::from);
+    zip(
+        zip(id_branch, swap_branch),
+        zip(repeat(shouldnt_swap), repeat(should_swap)),
+    )
+    .map(|((id_v, sw_v), (id_c, sw_c))| builder.eval(id_v * id_c + sw_v * sw_c))
 }
 
 #[cfg(test)]
@@ -832,8 +726,5 @@ mod tests {
         verify_two_adic_pcs(&mut builder, &config, &proof, &mut challenger, rounds);
 
         run_test_recursion(builder.operations);
-        // let mut backend = ConstraintCompiler::<InnerConfig>::default();
-        // let constraints = backend.emit(builder.operations);
-        // PlonkBn254Prover::test::<InnerConfig>(constraints.clone(), Witness::default());
     }
 }
