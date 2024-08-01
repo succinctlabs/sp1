@@ -29,10 +29,11 @@ pub struct CompressRequestPayload {
 mod tests {
     use sp1_core::utils::tests::FIBONACCI_ELF;
     use sp1_prover::components::DefaultProverComponents;
-    use sp1_prover::{SP1CoreProof, SP1Prover};
+    use sp1_prover::{InnerSC, SP1CoreProof, SP1Prover, SP1ReduceProof};
     use twirp::url::Url;
     use twirp::Client;
 
+    use crate::CompressRequestPayload;
     use crate::SP1Stdin;
     use crate::{proto::api::ProverServiceClient, ProveCoreRequestPayload};
 
@@ -53,5 +54,21 @@ mod tests {
         let proof = client.prove_core(request).await.unwrap();
         let proof: SP1CoreProof = bincode::deserialize(&proof.result).unwrap();
         prover.verify(&proof.proof, &vk).unwrap();
+
+        tracing::info!("compress");
+        let payload = CompressRequestPayload {
+            vk: vk.clone(),
+            proof,
+            deferred_proofs: vec![],
+        };
+        let request = crate::proto::api::CompressRequest {
+            data: bincode::serialize(&payload).unwrap(),
+        };
+        let compressed_proof = client.compress(request).await.unwrap();
+        let compressed_proof: SP1ReduceProof<InnerSC> =
+            bincode::deserialize(&compressed_proof.result).unwrap();
+
+        tracing::info!("verify compressed");
+        prover.verify_compressed(&compressed_proof, &vk).unwrap();
     }
 }
