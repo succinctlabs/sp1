@@ -717,6 +717,7 @@ dependencies = [
  "elliptic-curve",
  "once_cell",
  "sha2 0.10.8",
+ "signature",
 ]
 
 [[package]]
@@ -842,6 +843,7 @@ dependencies = [
  "ed25519-consensus",
  "ed25519-dalek",
  "k256",
+ "secp256k1",
  "sha2 0.10.8",
  "sha2 0.9.8",
  "sp1-zkvm",
@@ -1106,6 +1108,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "secp256k1"
+version = "0.29.0"
+source = "git+https://github.com/sp1-patches/rust-secp256k1?branch=patch-secp256k1-v0.29.0#f1c383508f5ebd6b1e423616e38e21f882769f33"
+dependencies = [
+ "cfg-if",
+ "ecdsa",
+ "elliptic-curve",
+ "k256",
+ "secp256k1-sys",
+]
+
+[[package]]
+name = "secp256k1-sys"
+version = "0.10.0"
+source = "git+https://github.com/sp1-patches/rust-secp256k1?branch=patch-secp256k1-v0.29.0#f1c383508f5ebd6b1e423616e38e21f882769f33"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "semver"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1216,7 +1238,7 @@ dependencies = [
 [[package]]
 name = "sp1-lib"
 version = "1.0.1"
-source = "git+https://github.com/succinctlabs/sp1.git?branch=ratan/add-ed-decompress-test#3e4491c3f1abdd5f881ac139f341032b880f8b3e"
+source = "git+https://github.com/succinctlabs/sp1.git?branch=ratan/add-ed-decompress-test#d7b7b4cf4246cb1b289ccaa765181bc55be05088"
 dependencies = [
  "anyhow",
  "bincode",
