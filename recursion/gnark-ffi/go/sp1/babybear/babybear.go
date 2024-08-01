@@ -6,6 +6,8 @@ package babybear
 import "C"
 
 import (
+	"fmt"
+	"math"
 	"math/big"
 
 	"github.com/consensys/gnark/constraint/solver"
@@ -381,6 +383,40 @@ func (p *Chip) reduceWithMaxBits(x frontend.Variable, maxNbBits uint64) frontend
 	remainder := result[1]
 	p.api.ToBinary(remainder, 31)
 
+	// Check that the remainder has size less than the BabyBear modulus, by decomposing it into a 27
+	// bit limb and a 4 bit limb.
+	new_result, new_err := p.api.Compiler().NewHint(SplitLimbsHint, 2, remainder)
+	if new_err != nil {
+		panic(new_err)
+	}
+
+	lowLimb := new_result[0]
+	highLimb := new_result[1]
+
+	// Check that the hint is correct.
+	p.api.AssertIsEqual(
+		p.api.Add(
+			p.api.Mul(highLimb, frontend.Variable(uint64(math.Pow(2, 27)))),
+			lowLimb,
+		),
+		remainder,
+	)
+	p.rangeChecker.Check(highLimb, 4)
+	p.rangeChecker.Check(lowLimb, 27)
+
+	// If the most significant bits are all 1, then we need to check that the least significant bits
+	// are all zero in order for element to be less than the BabyBear modulus. Otherwise, we don't
+	// need to do any checks, since we already know that the element is less than the BabyBear modulus.
+	shouldCheck := p.api.IsZero(p.api.Sub(highLimb, uint64(math.Pow(2, 4))-1))
+	p.api.AssertIsEqual(
+		p.api.Select(
+			shouldCheck,
+			lowLimb,
+			frontend.Variable(0),
+		),
+		frontend.Variable(0),
+	)
+
 	p.api.AssertIsEqual(x, p.api.Add(p.api.Mul(quotient, modulus), result[1]))
 
 	return remainder
@@ -396,6 +432,30 @@ func ReduceHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 	remainder := new(big.Int).Rem(input, modulus)
 	results[0] = quotient
 	results[1] = remainder
+	return nil
+}
+
+// The hint used to split a BabyBear Variable into a 4 bit limb (the most significant bits) and a
+// 27 bit limb.
+func SplitLimbsHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
+	if len(inputs) != 1 {
+		panic("SplitLimbsHint expects 1 input operand")
+	}
+
+	// The BabyBear field element
+	input := inputs[0]
+
+	if input.Cmp(modulus) == 0 || input.Cmp(modulus) == 1 {
+		return fmt.Errorf("input is not in the field")
+	}
+
+	two_27 := big.NewInt(int64(math.Pow(2, 27)))
+
+	// The least significant bits
+	results[0] = new(big.Int).Rem(input, two_27)
+	// The most significant bits
+	results[1] = new(big.Int).Quo(input, two_27)
+
 	return nil
 }
 
