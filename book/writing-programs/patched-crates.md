@@ -53,6 +53,7 @@ An example of using patched crates is available in our [Tendermint Example](http
 
 To accelerate Ed25519 operations, you'll need to patch crates depending on if you're using `ed25519-consensus` or `ed25519-dalek`.
 
+Generally, `ed25519-consensus` has better performance than `ed25519-dalek` by a factor of 2.
 ### Patches
 
 Apply the following patches based on your original crate usage:
@@ -82,7 +83,7 @@ Apply the following patches based on your original crate usage:
 
 To accelerate Secp256k1 operations, you'll need to patch `k256` or `secp256k1` depending on your usage.
 
-Generally, if a crate you're using (ex. `revm`) has support for using `k256` instead of `secp256k1`, you should use `k256` for better performance in signature recovery.
+Generally, if a crate you're using (ex. `revm`) has support for using `k256` instead of `secp256k1`, you should use `k256` for better performance in signature recovery for 4-5x better performance.
 
 ### Patches
 
