@@ -126,7 +126,6 @@ pub fn verify_two_adic_pcs<C: Config>(
                     let two_adic_generator_exp =
                         builder.exp_f_bits(two_adic_generator, rev_reduced_index);
                     let x: Felt<_> = builder.eval(g * two_adic_generator_exp);
-                    builder.operations.push(DslIr::ReduceF(x));
 
                     for (z, ps_at_z) in izip!(mat_points, mat_values) {
                         let mut acc: Ext<C::F, C::EF> =
