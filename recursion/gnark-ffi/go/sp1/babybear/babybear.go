@@ -22,6 +22,7 @@ func init() {
 	solver.RegisterHint(InvFHint)
 	solver.RegisterHint(InvEHint)
 	solver.RegisterHint(ReduceHint)
+	solver.RegisterHint(SplitLimbsHint)
 }
 
 type Variable struct {
@@ -337,7 +338,7 @@ func InvFHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 	return nil
 }
 
-// The hint used to split a BabyBear Variable into 1 s7 s.
+// The hint used to split a BabyBear Variable into a 4 bit limb and a 27 bit limb.
 func SplitLimbsHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 	if len(inputs) != 1 {
 		panic("SplitLimbsHint expects 1 input operand")
@@ -352,9 +353,9 @@ func SplitLimbsHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 
 	two_27 := big.NewInt(int64(math.Pow(2, 27)))
 
-	// The most significant bits
-	results[0] = new(big.Int).Rem(input, two_27)
 	// The least significant bits
+	results[0] = new(big.Int).Rem(input, two_27)
+	// The most significant bits
 	results[1] = new(big.Int).Quo(input, two_27)
 
 	return nil
