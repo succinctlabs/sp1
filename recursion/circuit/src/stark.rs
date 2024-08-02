@@ -1,4 +1,5 @@
 use std::borrow::Borrow;
+use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use crate::fri::verify_two_adic_pcs;
@@ -12,22 +13,31 @@ use p3_bn254_fr::Bn254Fr;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::{AbstractField, TwoAdicField};
 use p3_util::log2_strict_usize;
-use sp1_core::stark::{Com, ShardProof, PROOF_MAX_NUM_PVS};
+use sp1_core::utils::{Span, SpanBuilder, SpanBuilderError};
 use sp1_core::{
     air::MachineAir,
-    stark::{ShardCommitment, StarkGenericConfig, StarkMachine, StarkVerifyingKey},
+    stark::{
+        Com, ShardCommitment, ShardProof, StarkGenericConfig, StarkMachine, StarkVerifyingKey,
+        PROOF_MAX_NUM_PVS,
+    },
 };
-use sp1_recursion_compiler::config::OuterConfig;
-use sp1_recursion_compiler::constraints::{Constraint, ConstraintCompiler};
-use sp1_recursion_compiler::ir::{Builder, Config, Ext, Felt, Var};
-use sp1_recursion_compiler::ir::{Usize, Witness};
-use sp1_recursion_compiler::prelude::SymbolicVar;
-use sp1_recursion_core::air::{RecursionPublicValues, NUM_PV_ELMS_TO_HASH};
-use sp1_recursion_core::stark::config::{outer_fri_config_with_blowup, BabyBearPoseidon2Outer};
-use sp1_recursion_core::stark::RecursionAirWideDeg17;
-use sp1_recursion_program::commit::PolynomialSpaceVariable;
-use sp1_recursion_program::stark::RecursiveVerifierConstraintFolder;
-use sp1_recursion_program::types::QuotientDataValues;
+use sp1_recursion_compiler::{
+    config::OuterConfig,
+    constraints::{Constraint, ConstraintCompiler},
+    ir::{Builder, Config, DslIr, Ext, Felt, Usize, Var, Witness},
+    prelude::SymbolicVar,
+};
+use sp1_recursion_core::{
+    air::{RecursionPublicValues, NUM_PV_ELMS_TO_HASH},
+    stark::{
+        config::{outer_fri_config_with_blowup, BabyBearPoseidon2Outer},
+        RecursionAirWideDeg17,
+    },
+};
+use sp1_recursion_program::{
+    commit::PolynomialSpaceVariable, stark::RecursiveVerifierConstraintFolder,
+    types::QuotientDataValues,
+};
 
 use crate::domain::{new_coset, TwoAdicMultiplicativeCosetVariable};
 use crate::types::TwoAdicPcsMatsVariable;
@@ -358,8 +368,37 @@ pub fn build_wrap_circuit(
         builder.assert_felt_eq(*expected_elm, *calculated_elm);
     }
 
+    // Print out cycle tracking info.
+    for line in cycle_tracker(&builder.operations.vec).unwrap().lines() {
+        println!("{}", line);
+    }
+
     let mut backend = ConstraintCompiler::<OuterConfig>::default();
     backend.emit(builder.operations)
+}
+
+pub fn cycle_tracker<'a, C: Config + Debug + 'a>(
+    operations: impl IntoIterator<Item = &'a DslIr<C>>,
+) -> Result<Span<String, String>, SpanBuilderError> {
+    let mut span_builder = SpanBuilder::new("cycle_tracker".to_string());
+    for op in operations.into_iter() {
+        if let DslIr::CycleTracker(name) = op {
+            if span_builder.current_span.name != *name {
+                span_builder.enter(name.to_owned());
+            } else {
+                span_builder.exit().map_err(SpanBuilderError::from)?;
+            }
+        } else {
+            let op_dbg_str = format!("{op:?}");
+            let op_name = op_dbg_str[..op_dbg_str
+                .chars()
+                .take_while(|x| x.is_alphanumeric())
+                .count()]
+                .to_owned();
+            span_builder.item(op_name);
+        }
+    }
+    span_builder.finish().map_err(SpanBuilderError::from)
 }
 
 #[cfg(test)]
