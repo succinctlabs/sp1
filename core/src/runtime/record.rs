@@ -104,7 +104,7 @@ pub struct ExecutionRecord {
     pub nonce_lookup: HashMap<u128, u32>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SplitOpts {
     pub deferred_shift_threshold: usize,
     pub keccak_split_threshold: usize,
