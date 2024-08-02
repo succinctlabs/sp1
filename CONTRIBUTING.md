@@ -10,7 +10,7 @@ or an expert, we can use your help.
 This document will help you get started. **Do not let the document intimidate you**.
 It should be considered as a guide to help you navigate the process.
 
-The [Telegram](https://t.me/succinct_sp1) is available for any concerns you may have that are not covered in this guide.
+The [Telegram](https://t.me/+AzG4ws-kD24yMGYx) is available for any concerns you may have that are not covered in this guide.
 
 If you contribute to this project, your contributions will be made to the project under both Apache 2.0 and the MIT
 license.

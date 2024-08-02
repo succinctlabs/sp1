@@ -94,4 +94,4 @@ forge install succinctlabs/sp1-contracts@main-0.8.15
 ```
 
 If there is different versions that you need but there aren't branches for them yet, please ask in
-the [SP1 Telegram](https://t.me/succinct_sp1).
+the [SP1 Telegram](https://t.me/+AzG4ws-kD24yMGYx).
