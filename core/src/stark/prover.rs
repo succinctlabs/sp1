@@ -310,7 +310,7 @@ where
                 trace_width,
                 permutation_width * <SC::Challenge as AbstractExtensionField<SC::Val>>::D,
                 traces[i].height(),
-                total_width * traces[i].height(),
+                trace_width * traces[i].height(),
             );
         }
 

@@ -29,6 +29,12 @@ pub enum MemoryRecordEnum {
     Write(MemoryWriteRecord),
 }
 
+impl Default for MemoryRecordEnum {
+    fn default() -> Self {
+        MemoryRecordEnum::Read(MemoryReadRecord::default())
+    }
+}
+
 #[allow(clippy::manual_non_exhaustive)]
 #[derive(Debug, Copy, Clone, Default, Serialize, Deserialize)]
 pub struct MemoryReadRecord {
