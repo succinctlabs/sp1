@@ -602,6 +602,48 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
             do_check,
         )
     }
+
+    fn send_memory_access(
+        &mut self,
+        channel: impl Into<Self::Expr>,
+        addr: impl Into<Self::Expr>,
+        value: Word<impl Into<Self::Expr> + Clone>,
+        clk: impl Into<Self::Expr>,
+        do_check: impl Into<Self::Expr>,
+    ) {
+        let values = once(channel.into())
+            .chain(once(addr.into()))
+            .chain(value.0.into_iter().map(|x| x.into()))
+            .chain(once(clk.into()))
+            .collect();
+
+        self.send(AirInteraction::new(
+            values,
+            do_check.into().clone(),
+            InteractionKind::MemoryAccess,
+        ));
+    }
+
+    fn receive_memory_access(
+        &mut self,
+        channel: impl Into<Self::Expr>,
+        addr: impl Into<Self::Expr>,
+        value: Word<impl Into<Self::Expr> + Clone>,
+        clk: impl Into<Self::Expr>,
+        do_check: impl Into<Self::Expr>,
+    ) {
+        let values = once(channel.into())
+            .chain(once(addr.into()))
+            .chain(value.0.into_iter().map(|x| x.into()))
+            .chain(once(clk.into()))
+            .collect();
+
+        self.receive(AirInteraction::new(
+            values,
+            do_check.into().clone(),
+            InteractionKind::MemoryAccess,
+        ));
+    }
 }
 
 /// A trait which contains methods related to program interactions in an AIR.

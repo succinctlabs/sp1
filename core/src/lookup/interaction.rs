@@ -37,6 +37,9 @@ pub enum InteractionKind {
 
     /// Interaction with a syscall.
     Syscall = 8,
+
+    /// Memory access.
+    MemoryAccess = 9,
 }
 
 impl InteractionKind {
@@ -93,6 +96,7 @@ impl Display for InteractionKind {
             InteractionKind::Range => write!(f, "Range"),
             InteractionKind::Field => write!(f, "Field"),
             InteractionKind::Syscall => write!(f, "Syscall"),
+            InteractionKind::MemoryAccess => write!(f, "MemoryAccess"),
         }
     }
 }

@@ -32,6 +32,14 @@ impl CpuChip {
         //     AB::Expr::one() - local.selectors.imm_b,
         // );
 
+        builder.send_memory_access(
+            local.channel,
+            local.instruction.op_b[0],
+            local.op_b_val(),
+            local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::B as u32),
+            AB::Expr::one() - local.selectors.imm_b,
+        );
+
         // builder.eval_memory_access(
         //     local.shard,
         //     local.channel,
@@ -40,6 +48,14 @@ impl CpuChip {
         //     &local.op_c_access,
         //     AB::Expr::one() - local.selectors.imm_c,
         // );
+
+        builder.send_memory_access(
+            local.channel,
+            local.instruction.op_c[0],
+            local.op_c_val(),
+            local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::C as u32),
+            AB::Expr::one() - local.selectors.imm_c,
+        );
 
         // If we are writing to register 0, then the new value should be zero.
         // builder
@@ -60,6 +76,14 @@ impl CpuChip {
         //     &local.op_a_access,
         //     local.is_real,
         // );
+
+        builder.send_memory_access(
+            local.channel,
+            local.instruction.op_a[0],
+            local.op_a_val(),
+            local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::A as u32),
+            local.is_real,
+        );
 
         // Always range check the word value in `op_a`, as JUMP instructions may witness
         // an invalid word and write it to memory.

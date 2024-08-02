@@ -1,17 +1,22 @@
-use std::{borrow::BorrowMut, mem::size_of};
+use std::{
+    borrow::{Borrow, BorrowMut},
+    mem::size_of,
+};
 
 use p3_air::{Air, BaseAir};
 use p3_field::PrimeField32;
-use p3_matrix::dense::RowMajorMatrix;
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use serde::{Deserialize, Serialize};
 use sp1_derive::AlignedBorrow;
 
 use crate::{
-    air::{MachineAir, Word},
+    air::{MachineAir, PublicValues, Word, SP1_PROOF_NUM_PV_ELTS},
     runtime::{ExecutionRecord, MemoryRecordEnum, Program},
     stark::SP1AirBuilder,
     utils::pad_rows_fixed,
 };
+
+use super::{MemoryAccessCols, MemoryReadWriteCols};
 
 pub(crate) const NUM_MEMORY_LOCAL_COLS: usize = size_of::<MemoryLocalCols<u8>>();
 
@@ -24,6 +29,8 @@ pub struct MemoryLocalEvent {
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct MemoryLocalCols<T> {
+    pub channel: T,
+
     /// The address of the memory access.
     pub addr: T,
 
@@ -45,6 +52,8 @@ pub struct MemoryLocalCols<T> {
     pub diff_8bit_limb: T,
 
     pub compare_clk: T,
+
+    pub is_real: T,
 }
 
 #[derive(Default)]
@@ -130,5 +139,41 @@ impl<AB> Air<AB> for MemoryLocalChip
 where
     AB: SP1AirBuilder,
 {
-    fn eval(&self, _builder: &mut AB) {}
+    fn eval(&self, builder: &mut AB) {
+        let main = builder.main();
+        let local = main.row_slice(0);
+        let local: &MemoryLocalCols<AB::Var> = (*local).borrow();
+
+        let public_values_slice: [AB::Expr; SP1_PROOF_NUM_PV_ELTS] =
+            core::array::from_fn(|i| builder.public_values()[i].into());
+        let public_values: &PublicValues<Word<AB::Expr>, AB::Expr> =
+            public_values_slice.as_slice().borrow();
+
+        builder.receive_memory_access(
+            local.channel,
+            local.addr,
+            local.value,
+            local.clk,
+            local.is_real,
+        );
+
+        builder.eval_memory_access(
+            public_values.shard.clone(),
+            local.channel,
+            local.clk,
+            local.addr,
+            &MemoryReadWriteCols {
+                prev_value: local.prev_value,
+                access: MemoryAccessCols {
+                    value: local.value,
+                    prev_clk: local.prev_clk,
+                    prev_shard: local.prev_shard,
+                    diff_16bit_limb: local.diff_16bit_limb,
+                    diff_8bit_limb: local.diff_8bit_limb,
+                    compare_clk: local.compare_clk,
+                },
+            },
+            local.is_real,
+        )
+    }
 }
