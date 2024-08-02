@@ -245,6 +245,10 @@ pub enum DslIr<C: Config> {
     HintFelts(Array<C, Felt<C::F>>),
     /// Hint an array of extension field elements.
     HintExts(Array<C, Ext<C::F, C::EF>>),
+    /// Hint an array of field elements.
+    CircuitV2HintFelts(Vec<Felt<C::F>>),
+    /// Hint an array of extension field elements.
+    CircuitV2HintExts(Vec<Ext<C::F, C::EF>>),
     /// Witness a variable. Should only be used when target is a gnark circuit.
     WitnessVar(Var<C::N>, u32),
     /// Witness a field element. Should only be used when target is a gnark circuit.

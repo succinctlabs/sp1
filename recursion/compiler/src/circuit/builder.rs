@@ -26,6 +26,10 @@ pub trait CircuitV2Builder<C: Config> {
     fn ext2felt_v2(&mut self, ext: Ext<C::F, C::EF>) -> [Felt<C::F>; D];
     fn cycle_tracker_v2_enter(&mut self, name: String);
     fn cycle_tracker_v2_exit(&mut self);
+    fn hint_ext_v2(&mut self) -> Ext<C::F, C::EF>;
+    fn hint_felt_v2(&mut self) -> Felt<C::F>;
+    fn hint_exts_v2(&mut self, len: usize) -> Vec<Ext<C::F, C::EF>>;
+    fn hint_felts_v2(&mut self, len: usize) -> Vec<Felt<C::F>>;
 }
 
 impl<C: Config> CircuitV2Builder<C> for Builder<C> {
@@ -150,5 +154,30 @@ impl<C: Config> CircuitV2Builder<C> for Builder<C> {
     }
     fn cycle_tracker_v2_exit(&mut self) {
         self.operations.push(DslIr::CycleTrackerV2Exit);
+    }
+    /// Hint a single felt.
+    fn hint_felt_v2(&mut self) -> Felt<C::F> {
+        self.hint_felts_v2(1)[0]
+    }
+
+    /// Hint a single ext.
+    fn hint_ext_v2(&mut self) -> Ext<C::F, C::EF> {
+        self.hint_exts_v2(1)[0]
+    }
+    /// Hint a vector of felts.
+    fn hint_felts_v2(&mut self, len: usize) -> Vec<Felt<C::F>> {
+        let arr = std::iter::from_fn(|| Some(self.uninit()))
+            .take(len)
+            .collect::<Vec<_>>();
+        self.operations.push(DslIr::CircuitV2HintFelts(arr.clone()));
+        arr
+    }
+    /// Hint a vector of exts.
+    fn hint_exts_v2(&mut self, len: usize) -> Vec<Ext<C::F, C::EF>> {
+        let arr = std::iter::from_fn(|| Some(self.uninit()))
+            .take(len)
+            .collect::<Vec<_>>();
+        self.operations.push(DslIr::CircuitV2HintExts(arr.clone()));
+        arr
     }
 }
