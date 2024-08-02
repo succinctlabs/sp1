@@ -131,7 +131,7 @@ To check if a precompile is used by your program, you can view SP1's ExecutionRe
 
 For example, if you wanted to check `sha256` was used, you would look for `SHA_EXTEND` and `SHA_COMPRESS` in `syscall_counts`.
 
-An example of this is available in our [Patch Testing Example](https://github.com/succinctlabs/sp1/blob/dd032eb23949828d244d1ad1f1569aa78155837c/examples/patch-testing/program/src/main.rs).
+An example of this is available in our [Patch Testing Example](https://github.com/succinctlabs/sp1/blob/dd032eb23949828d244d1ad1f1569aa78155837c/examples/patch-testing/script/src/main.rs).
 
 ### Cargo Version Issues
 
