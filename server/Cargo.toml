@@ -28,7 +28,7 @@ prost-build = { version = "0.13", optional = true }
 twirp-build = { git = "https://github.com/github/twirp-rs.git", optional = true }
 
 [dev-dependencies]
-sp1-core = { workspace = true, features = ["programs"] }
+# sp1-core = { workspace = true, features = ["programs"] }
 
 [features]
 default = []
