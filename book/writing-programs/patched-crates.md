@@ -6,17 +6,18 @@ Under the hood, we use [precompiles](./precompiles.md) to achieve tremendous per
 **If you know of a library or library version that you think should be patched, please open an issue or a pull request!**
 
 ## Supported Libraries
-| Crate Name          | Repository                                                                            | Notes                  |
-| ------------------- | ------------------------------------------------------------------------------------- | ---------------------- |
-| sha2                | [sp1-patches/RustCrypto-hashes](https://github.com/sp1-patches/RustCrypto-hashes)     | sha256                 |
-| sha3                | [sp1-patches/RustCrypto-hashes](https://github.com/sp1-patches/RustCrypto-hashes)     | keccak256              |
-| bigint              | [sp1-patches/RustCrypto-bigint](https://github.com/sp1-patches/RustCrypto-bigint)     | bigint                 |
-| tiny-keccak         | [sp1-patches/tiny-keccak](https://github.com/sp1-patches/tiny-keccak)                 | keccak256              |
-| ed25519-consensus   | [sp1-patches/ed25519-consensus](http://github.com/sp1-patches/ed25519-consensus)      | ed25519 verify         |
-| curve25519-dalek-ng | [sp1-patches/curve25519-dalek-ng](https://github.com/sp1-patches/curve25519-dalek-ng) | ed25519 verify         |
-| curve25519-dalek    | [sp1-patches/curve25519-dalek](https://github.com/sp1-patches/curve25519-dalek)       | ed25519 verify         |
-| ecdsa-core          | [sp1-patches/signatures](http://github.com/sp1-patches/signatures)                    | secp256k1 verify       |
-| secp256k1           | [sp1-patches/rust-secp256k1](http://github.com/sp1-patches/rust-secp256k1)            | secp256k1 verify       |
+
+| Crate Name          | Repository                                                                            | Notes            |
+| ------------------- | ------------------------------------------------------------------------------------- | ---------------- |
+| sha2                | [sp1-patches/RustCrypto-hashes](https://github.com/sp1-patches/RustCrypto-hashes)     | sha256           |
+| sha3                | [sp1-patches/RustCrypto-hashes](https://github.com/sp1-patches/RustCrypto-hashes)     | keccak256        |
+| bigint              | [sp1-patches/RustCrypto-bigint](https://github.com/sp1-patches/RustCrypto-bigint)     | bigint           |
+| tiny-keccak         | [sp1-patches/tiny-keccak](https://github.com/sp1-patches/tiny-keccak)                 | keccak256        |
+| ed25519-consensus   | [sp1-patches/ed25519-consensus](http://github.com/sp1-patches/ed25519-consensus)      | ed25519 verify   |
+| curve25519-dalek-ng | [sp1-patches/curve25519-dalek-ng](https://github.com/sp1-patches/curve25519-dalek-ng) | ed25519 verify   |
+| curve25519-dalek    | [sp1-patches/curve25519-dalek](https://github.com/sp1-patches/curve25519-dalek)       | ed25519 verify   |
+| ecdsa-core          | [sp1-patches/signatures](http://github.com/sp1-patches/signatures)                    | secp256k1 verify |
+| secp256k1           | [sp1-patches/rust-secp256k1](http://github.com/sp1-patches/rust-secp256k1)            | secp256k1 verify |
 
 ## Using Patched Crates
 
@@ -54,30 +55,33 @@ An example of using patched crates is available in our [Tendermint Example](http
 To accelerate Ed25519 operations, you'll need to patch crates depending on if you're using `ed25519-consensus` or `ed25519-dalek`.
 
 Generally, `ed25519-consensus` has better performance than `ed25519-dalek` by a factor of 2.
+
 ### Patches
 
 Apply the following patches based on what crates are in your dependencies.
 
 - `ed25519-consensus`
-    ```toml
-    ed25519-consensus = { git = "https://github.com/sp1-patches/ed25519-consensus", branch = "patch-v2.1.0" }
-    ```
 
-    Note: The curve operations for Ed25519 occur mainly inside of `curve25519-dalek-ng`, but the crate also exposes
-    a `u32_backend` feature flag which accelerates signature recovery by 10% over the default `u64_backend`, which is why
-    `ed25519-consensus` is patched rather than `ed25519-dalek`.
+  ```toml
+  ed25519-consensus = { git = "https://github.com/sp1-patches/ed25519-consensus", branch = "patch-v2.1.0" }
+  ```
+
+  Note: The curve operations for Ed25519 occur mainly inside of `curve25519-dalek-ng`, but the crate also exposes
+  a `u32_backend` feature flag which accelerates signature recovery by 10% over the default `u64_backend`, which is why
+  `ed25519-consensus` is patched rather than `ed25519-dalek`.
 
 - `ed25519-dalek`
-    ```toml
-    curve25519-dalek = { git = "https://github.com/sp1-patches/curve25519-dalek", branch = "patch-curve25519-v4.1.3" }
-    ```
 
-    Note: The curve operations occur inside of the `curve25519-dalek` crate.
+  ```toml
+  curve25519-dalek = { git = "https://github.com/sp1-patches/curve25519-dalek", branch = "patch-curve25519-v4.1.3" }
+  ```
+
+  Note: The curve operations occur inside of the `curve25519-dalek` crate.
 
 - `curve25519-dalek`
-    ```toml
-    curve25519-dalek = { git = "https://github.com/sp1-patches/curve25519-dalek-ng", branch = "patch-v4.1.3" }
-    ```
+  ```toml
+  curve25519-dalek = { git = "https://github.com/sp1-patches/curve25519-dalek-ng", branch = "patch-v4.1.3" }
+  ```
 
 ## Secp256k1 Acceleration
 
@@ -90,19 +94,20 @@ Generally, if a crate you're using (ex. `revm`) has support for using `k256` ins
 Apply the following patches based on what crates are in your dependencies.
 
 - `k256`
-    ```toml
-    ecdsa-core = { git = "https://github.com/sp1-patches/signatures", package = "ecdsa", branch = "patch-ecdsa-v0.16.9" }
-    ```
 
-    Note: The curve operations for `k256` are inside of the `ecdsa-core` crate.
+  ```toml
+  ecdsa-core = { git = "https://github.com/sp1-patches/signatures", package = "ecdsa", branch = "patch-ecdsa-v0.16.9" }
+  ```
+
+  Note: The curve operations for `k256` are inside of the `ecdsa-core` crate.
 
 - `secp256k1`
-    ```toml
-    secp256k1 = { git = "https://github.com/sp1-patches/rust-secp256k1", branch = "patch-v0.29.0" }
-    ```
-
+  ```toml
+  secp256k1 = { git = "https://github.com/sp1-patches/rust-secp256k1", branch = "patch-v0.29.0" }
+  ```
 
 ## Troubleshooting
+
 ### Verifying Patch Usage: Cargo
 
 You can check if the patch was applied by using cargo's tree command to print the dependencies of the crate you patched.
@@ -126,7 +131,7 @@ To check if a precompile is used by your program, you can view SP1's ExecutionRe
 
 For example, if you wanted to check `sha256` was used, you would look for `SHA_EXTEND` and `SHA_COMPRESS` in `syscall_counts`.
 
-An example of this is available in our [Patch Testing Example](../../examples/patch-testing/script/src/main.rs).
+An example of this is available in our [Patch Testing Example](https://github.com/succinctlabs/sp1/blob/dd032eb23949828d244d1ad1f1569aa78155837c/examples/patch-testing/program/src/main.rs).
 
 ### Cargo Version Issues
 
