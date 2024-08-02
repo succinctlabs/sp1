@@ -3,8 +3,12 @@ use core::fmt::Debug;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock, RwLockWriteGuard};
 
+use field::common::Bls12381Curve;
+use field::fp12::Fp12;
 use k256::ecdsa::{RecoveryId, Signature, VerifyingKey};
 use k256::elliptic_curve::ops::Invert;
+
+use crate::utils::hints::bls::get_root_and_scaling_factor;
 
 use super::Runtime;
 
@@ -13,6 +17,7 @@ pub type BoxedHook<'a> = Arc<RwLock<dyn Hook + Send + Sync + 'a>>;
 
 /// The file descriptor through which to access `hook_ecrecover`.
 pub const FD_ECRECOVER_HOOK: u32 = 5;
+pub const FD_BLS_HOOK: u32 = 6;
 
 /// A runtime hook. May be called during execution by writing to a specified file descriptor,
 /// accepting and returning arbitrary data.
@@ -74,6 +79,7 @@ impl<'a> Default for HookRegistry<'a> {
             // Note: To ensure any `fd` value is synced with `zkvm/precompiles/src/io.rs`,
             // add an assertion to the test `hook_fds_match` below.
             (FD_ECRECOVER_HOOK, hookify(hook_ecrecover)),
+            (FD_BLS_HOOK, hookify(bls_hint)),
         ]);
 
         Self { table }
@@ -96,6 +102,12 @@ impl<'a> Debug for HookRegistry<'a> {
 /// Environment that a hook may read from.
 pub struct HookEnv<'a, 'b: 'a> {
     pub runtime: &'a Runtime<'b>,
+}
+
+pub fn bls_hint(_env: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
+    let x: Fp12<Bls12381Curve> = Fp12::from_bytes(buf.try_into().unwrap());
+    let (root, w_full) = get_root_and_scaling_factor(&x);
+    vec![root.to_bytes().to_vec(), w_full.to_bytes().to_vec()]
 }
 
 pub fn hook_ecrecover(_env: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
