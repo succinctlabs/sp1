@@ -48,7 +48,7 @@ RUSTFLAGS='-C target-cpu=native' cargo run --release
 Currently there is support for AVX512 and NEON SIMD instructions. For NEON, you must also enable the `sp1-sdk` feature `neon` in your script crate's `Cargo.toml` file.
 
 ```toml
-sp1-sdk = { version = "1.0.1", features = ["neon"] }
+sp1-sdk = { version = "1.1.0", features = ["neon"] }
 ```
 
 ## Performance

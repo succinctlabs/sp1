@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0](https://github.com/succinctlabs/sp1/compare/sp1-recursion-gnark-ffi-v1.0.1...sp1-recursion-gnark-ffi-v1.1.0) - 2024-08-02
+
+### Added
+- update tg ([#1214](https://github.com/succinctlabs/sp1/pull/1214))
+
+### Fixed
+- BabyBear range check Gnark ([#1225](https://github.com/succinctlabs/sp1/pull/1225))
+
+### Other
+- *(deps)* bump serde_json from 1.0.120 to 1.0.121 ([#1196](https://github.com/succinctlabs/sp1/pull/1196))
+
 ## [1.0.0-rc.1](https://github.com/succinctlabs/sp1/compare/sp1-recursion-gnark-ffi-v1.0.0-rc.1...sp1-recursion-gnark-ffi-v1.0.0-rc.1) - 2024-07-19
 
 ### Added

@@ -51,7 +51,7 @@ dependencies = [
 
 [[package]]
 name = "aggregation-script"
-version = "1.0.1"
+version = "1.1.0"
 dependencies = [
  "hex",
  "sp1-helper",
@@ -782,7 +782,7 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "chess-script"
-version = "1.0.1"
+version = "1.1.0"
 dependencies = [
  "sp1-helper",
  "sp1-sdk",
@@ -1114,7 +1114,7 @@ dependencies = [
 
 [[package]]
 name = "cycle-tracking-script"
-version = "1.0.1"
+version = "1.1.0"
 dependencies = [
  "sp1-helper",
  "sp1-sdk",
@@ -1726,7 +1726,7 @@ checksum = "28dea519a9695b9977216879a3ebfddf92f1c08c05d984f8996aecd6ecdc811d"
 
 [[package]]
 name = "fibonacci-script"
-version = "1.0.1"
+version = "1.1.0"
 dependencies = [
  "itertools 0.12.1",
  "sha2 0.10.8",
@@ -2460,7 +2460,7 @@ dependencies = [
 
 [[package]]
 name = "io-script"
-version = "1.0.1"
+version = "1.1.0"
 dependencies = [
  "serde",
  "sp1-helper",
@@ -2475,7 +2475,7 @@ checksum = "8f518f335dce6725a761382244631d86cf0ccb2863413590b31338feb467f9c3"
 
 [[package]]
 name = "is-prime-script"
-version = "1.0.1"
+version = "1.1.0"
 dependencies = [
  "sp1-sdk",
 ]
@@ -2539,7 +2539,7 @@ dependencies = [
 
 [[package]]
 name = "json-script"
-version = "1.0.1"
+version = "1.1.0"
 dependencies = [
  "lib",
  "serde",
@@ -2626,7 +2626,7 @@ checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
 
 [[package]]
 name = "lib"
-version = "1.0.1"
+version = "1.1.0"
 dependencies = [
  "serde",
 ]
@@ -3482,7 +3482,7 @@ checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
 name = "patch-testing-script"
-version = "1.0.1"
+version = "1.1.0"
 dependencies = [
  "sp1-core",
  "sp1-helper",
@@ -3981,7 +3981,7 @@ dependencies = [
 
 [[package]]
 name = "regex-script"
-version = "1.0.1"
+version = "1.1.0"
 dependencies = [
  "sp1-helper",
  "sp1-sdk",
@@ -4208,7 +4208,7 @@ dependencies = [
 
 [[package]]
 name = "rsa-script"
-version = "1.0.1"
+version = "1.1.0"
 dependencies = [
  "rsa",
  "sp1-helper",
@@ -4809,7 +4809,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-build"
-version = "1.0.1"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -4819,7 +4819,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core"
-version = "1.0.1"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "arrayref",
@@ -4880,7 +4880,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-derive"
-version = "1.0.1"
+version = "1.1.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4889,7 +4889,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-helper"
-version = "1.0.1"
+version = "1.1.0"
 dependencies = [
  "cargo_metadata",
  "chrono",
@@ -4898,7 +4898,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "1.0.1"
+version = "1.1.0"
 dependencies = [
  "itertools 0.13.0",
  "lazy_static",
@@ -4910,7 +4910,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-prover"
-version = "1.0.1"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "bincode",
@@ -4946,7 +4946,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-circuit"
-version = "1.0.1"
+version = "1.1.0"
 dependencies = [
  "bincode",
  "itertools 0.13.0",
@@ -4968,7 +4968,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-compiler"
-version = "1.0.1"
+version = "1.1.0"
 dependencies = [
  "backtrace",
  "itertools 0.13.0",
@@ -4992,7 +4992,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-core"
-version = "1.0.1"
+version = "1.1.0"
 dependencies = [
  "arrayref",
  "backtrace",
@@ -5026,7 +5026,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-derive"
-version = "1.0.1"
+version = "1.1.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5035,7 +5035,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-gnark-ffi"
-version = "1.0.1"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "bincode",
@@ -5059,7 +5059,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-program"
-version = "1.0.1"
+version = "1.1.0"
 dependencies = [
  "itertools 0.13.0",
  "p3-air",
@@ -5087,7 +5087,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-sdk"
-version = "1.0.1"
+version = "1.1.0"
 dependencies = [
  "alloy-sol-types",
  "anyhow",
@@ -5161,7 +5161,7 @@ dependencies = [
 
 [[package]]
 name = "ssz-withdrawals-script"
-version = "1.0.1"
+version = "1.1.0"
 dependencies = [
  "sp1-helper",
  "sp1-sdk",
@@ -5397,7 +5397,7 @@ dependencies = [
 
 [[package]]
 name = "tendermint-script"
-version = "1.0.1"
+version = "1.1.0"
 dependencies = [
  "bincode",
  "itertools 0.12.1",

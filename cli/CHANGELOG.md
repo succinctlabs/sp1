@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0](https://github.com/succinctlabs/sp1/compare/sp1-cli-v1.0.1...sp1-cli-v1.1.0) - 2024-08-02
+
+### Added
+- update tg ([#1214](https://github.com/succinctlabs/sp1/pull/1214))
+- use C++ toolchain when building programs that need C ([#1092](https://github.com/succinctlabs/sp1/pull/1092))
+
+### Fixed
+- remove nightly in toolchain config ([#1216](https://github.com/succinctlabs/sp1/pull/1216))
+
+### Other
+- *(deps)* bump serde_json from 1.0.120 to 1.0.121 ([#1196](https://github.com/succinctlabs/sp1/pull/1196))
+- *(deps)* bump anstyle from 1.0.7 to 1.0.8 ([#1194](https://github.com/succinctlabs/sp1/pull/1194))
+- Merge branch 'main' into dev
+
 ## [1.0.0-rc.1](https://github.com/succinctlabs/sp1/compare/sp1-cli-v1.0.0-rc.1...sp1-cli-v1.0.0-rc.1) - 2024-07-19
 
 ### Added
