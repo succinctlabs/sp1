@@ -146,9 +146,9 @@ impl<C: Config> CircuitV2Builder<C> for Builder<C> {
         felts
     }
     fn cycle_tracker_v2_enter(&mut self, name: String) {
-        self.operations.push(DslIr::CycleTrackerV2Start(name));
+        self.operations.push(DslIr::CycleTrackerV2Enter(name));
     }
     fn cycle_tracker_v2_exit(&mut self) {
-        self.operations.push(DslIr::CycleTrackerV2End);
+        self.operations.push(DslIr::CycleTrackerV2Exit);
     }
 }

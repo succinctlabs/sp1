@@ -495,8 +495,8 @@ impl<C: Config> AsmCompiler<C> {
             // DslIr::LessThan(_, _, _) => todo!(),
             // DslIr::CycleTracker(_) => todo!(),
             // DslIr::ExpReverseBitsLen(_, _, _) => todo!(),
-            DslIr::CycleTrackerV2Start(name) => vec![CompileOneItem::CycleTrackerStart(name)],
-            DslIr::CycleTrackerV2End => vec![CompileOneItem::CycleTrackerEnd],
+            DslIr::CycleTrackerV2Enter(name) => vec![CompileOneItem::CycleTrackerEnter(name)],
+            DslIr::CycleTrackerV2Exit => vec![CompileOneItem::CycleTrackerExit],
             instr => panic!("unsupported instruction: {instr:?}"),
         }
     }
@@ -524,11 +524,11 @@ impl<C: Config> AsmCompiler<C> {
                         span_builder.item(instr_name(&instr));
                         Some((instr, trace))
                     }
-                    CompileOneItem::CycleTrackerStart(name) => {
+                    CompileOneItem::CycleTrackerEnter(name) => {
                         span_builder.enter(name);
                         None
                     }
-                    CompileOneItem::CycleTrackerEnd => {
+                    CompileOneItem::CycleTrackerExit => {
                         span_builder.exit().unwrap();
                         None
                     }
@@ -654,8 +654,8 @@ const fn instr_name<F>(instr: &Instruction<F>) -> &'static str {
 #[derive(Debug, Clone)]
 pub enum CompileOneItem<F> {
     Instr(Instruction<F>),
-    CycleTrackerStart(String),
-    CycleTrackerEnd,
+    CycleTrackerEnter(String),
+    CycleTrackerExit,
 }
 
 impl<F> From<Instruction<F>> for CompileOneItem<F> {

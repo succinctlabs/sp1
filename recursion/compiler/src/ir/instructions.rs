@@ -295,9 +295,9 @@ pub enum DslIr<C: Config> {
     /// Tracks the number of cycles used by a block of code annotated by the string input.
     CycleTracker(String),
     /// Tracks the number of cycles used by a block of code annotated by the string input.
-    CycleTrackerV2Start(String),
+    CycleTrackerV2Enter(String),
     /// Tracks the number of cycles used by a block of code annotated by the string input.
-    CycleTrackerV2End,
+    CycleTrackerV2Exit,
 
     // Reverse bits exponentiation.
     ExpReverseBitsLen(Ptr<C::N>, Var<C::N>, Var<C::N>),
