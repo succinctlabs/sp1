@@ -1,26 +1,44 @@
-use crate::utils::CurveOperations;
+use crate::utils::AffinePoint;
 use crate::{syscall_bn254_add, syscall_bn254_double};
 
+/// The number of limbs in [Bn254AffinePoint].
+pub const N: usize = 16;
+
+/// An affine point on the BLS12-381 curve.
 #[derive(Copy, Clone)]
-pub struct Bn254;
+#[repr(align(4))]
+pub struct Bn254AffinePoint(pub [u32; N]);
 
-const NUM_WORDS: usize = 16;
-
-impl CurveOperations<NUM_WORDS> for Bn254 {
+impl AffinePoint<N> for Bn254AffinePoint {
     /// The generator has been taken from py_pairing python library by the Ethereum Foundation:
     ///
     /// https://github.com/ethereum/py_pairing/blob/5f609da/py_ecc/bn128/bn128_field_elements.py
-    const GENERATOR: [u32; NUM_WORDS] = [1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0];
+    const GENERATOR: [u32; N] = [1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0];
 
-    fn add_assign(limbs: &mut [u32; NUM_WORDS], other: &[u32; NUM_WORDS]) {
+    fn new(limbs: [u32; N]) -> Self {
+        Self(limbs)
+    }
+
+    fn limbs_ref(&self) -> &[u32; N] {
+        &self.0
+    }
+
+    fn limbs_mut(&mut self) -> &mut [u32; N] {
+        &mut self.0
+    }
+
+    fn add_assign(&mut self, other: &Self) {
+        let a = self.limbs_mut();
+        let b = other.limbs_ref();
         unsafe {
-            syscall_bn254_add(limbs.as_mut_ptr(), other.as_ptr());
+            syscall_bn254_add(a, b);
         }
     }
 
-    fn double(limbs: &mut [u32; NUM_WORDS]) {
+    fn double(&mut self) {
+        let a = self.limbs_mut();
         unsafe {
-            syscall_bn254_double(limbs.as_mut_ptr());
+            syscall_bn254_double(a);
         }
     }
 }
