@@ -200,6 +200,7 @@ pub fn verify_query<C: Config>(
     let index_bits = builder.num2bits_v_circuit(index, 32);
     let rev_reduced_index = builder.reverse_bits_len_circuit(index_bits.clone(), log_max_height);
     let mut x = builder.exp_e_bits(two_adic_generator, rev_reduced_index);
+    builder.reduce_e(x);
 
     let mut offset = 0;
     for (log_folded_height, commit, step, beta) in izip!(
@@ -244,6 +245,7 @@ pub fn verify_query<C: Config>(
         folded_eval = builder
             .eval(evals_ext[0] + (beta - xs[0]) * (evals_ext[1] - evals_ext[0]) / (xs[1] - xs[0]));
         x = builder.eval(x * x);
+        builder.reduce_e(x);
         offset += 1;
     }
 
