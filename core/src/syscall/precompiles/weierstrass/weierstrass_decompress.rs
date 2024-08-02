@@ -137,7 +137,7 @@ impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDecompressChip<E> {
     fn populate_field_ops<F: PrimeField32>(
         record: &mut impl ByteRecord,
         shard: u32,
-        channel: u32,
+        channel: u8,
         cols: &mut WeierstrassDecompressCols<F, E::BaseField>,
         x: BigUint,
     ) {
@@ -216,8 +216,8 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
             cols.is_real = F::from_bool(true);
             cols.shard = F::from_canonical_u32(event.shard);
-            cols.channel = F::from_canonical_u32(event.channel);
-            cols.channel = F::from_canonical_u32(event.channel);
+            cols.channel = F::from_canonical_u8(event.channel);
+            cols.channel = F::from_canonical_u8(event.channel);
             cols.clk = F::from_canonical_u32(event.clk);
             cols.ptr = F::from_canonical_u32(event.ptr);
             cols.sign_bit = F::from_bool(event.sign_bit);
@@ -611,7 +611,7 @@ where
 #[cfg(test)]
 mod tests {
     use crate::io::SP1Stdin;
-    use crate::stark::DefaultProver;
+    use crate::stark::CpuProver;
     use crate::utils::{self, tests::BLS12381_DECOMPRESS_ELF};
     use crate::Program;
     use amcl::bls381::bls381::basic::key_pair_generate_g2;
@@ -639,7 +639,7 @@ mod tests {
 
             let stdin = SP1Stdin::from(&compressed);
             let mut public_values =
-                run_test_io::<DefaultProver<_, _>>(Program::from(BLS12381_DECOMPRESS_ELF), stdin)
+                run_test_io::<CpuProver<_, _>>(Program::from(BLS12381_DECOMPRESS_ELF), stdin)
                     .unwrap();
 
             let mut result = [0; 96];
@@ -671,7 +671,7 @@ mod tests {
             let inputs = SP1Stdin::from(&compressed);
 
             let mut public_values =
-                run_test_io::<DefaultProver<_, _>>(Program::from(SECP256K1_DECOMPRESS_ELF), inputs)
+                run_test_io::<CpuProver<_, _>>(Program::from(SECP256K1_DECOMPRESS_ELF), inputs)
                     .unwrap();
             let mut result = [0; 65];
             public_values.read_slice(&mut result);

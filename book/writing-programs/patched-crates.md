@@ -16,8 +16,6 @@ Under the hood, we use [precompiles](./precompiles.md) to achieve tremendous per
 | ed25519-consensus   | [sp1-patches/ed25519-consensus](http://github.com/sp1-patches/ed25519-consensus)      | ed25519 verify         |
 | curve25519-dalek-ng | [sp1-patches/curve25519-dalek-ng](https://github.com/sp1-patches/curve25519-dalek-ng) | ed25519 verify         |
 | curve25519-dalek    | [sp1-patches/curve25519-dalek](https://github.com/sp1-patches/curve25519-dalek)       | ed25519 verify         |
-| revm-precompile     | [sp1-patches/revm](https://github.com/sp1-patches/revm)                               | ecrecover precompile   |
-| reth-primitives     | [sp1-patches/reth](https://github.com/sp1-patches/reth)                               | ecrecover transactions |
 
 ## Using Patched Crates
 
@@ -36,8 +34,6 @@ curve25519-dalek = { git = "https://github.com/sp1-patches/curve25519-dalek", br
 curve25519-dalek-ng = { git = "https://github.com/sp1-patches/curve25519-dalek-ng", branch = "patch-v4.1.1" }
 ed25519-consensus = { git = "https://github.com/sp1-patches/ed25519-consensus", branch = "patch-v2.1.0" }
 tiny-keccak = { git = "https://github.com/sp1-patches/tiny-keccak", branch = "patch-v2.0.2" }
-revm = { git = "https://github.com/sp1-patches/revm", branch = "patch-v5.0.0" }
-reth-primitives = { git = "https://github.com/sp1-patches/reth", default-features = false, branch = "sp1-reth" }
 ```
 
 If you are patching a crate from Github instead of from crates.io, you need to specify the

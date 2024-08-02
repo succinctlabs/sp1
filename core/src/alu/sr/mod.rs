@@ -233,7 +233,7 @@ impl ShiftRightChip {
         // Initialize cols with basic operands and flags derived from the current event.
         {
             cols.shard = F::from_canonical_u32(event.shard);
-            cols.channel = F::from_canonical_u32(event.channel);
+            cols.channel = F::from_canonical_u8(event.channel);
             cols.a = Word::from(event.a);
             cols.b = Word::from(event.b);
             cols.c = Word::from(event.c);
@@ -255,9 +255,9 @@ impl ShiftRightChip {
                 shard: event.shard,
                 channel: event.channel,
                 opcode: ByteOpcode::MSB,
-                a1: ((most_significant_byte >> 7) & 1) as u32,
+                a1: ((most_significant_byte >> 7) & 1) as u16,
                 a2: 0,
-                b: most_significant_byte as u32,
+                b: most_significant_byte,
                 c: 0,
             }]);
         }
@@ -305,10 +305,10 @@ impl ShiftRightChip {
                     shard: event.shard,
                     channel: event.channel,
                     opcode: ByteOpcode::ShrCarry,
-                    a1: shift as u32,
-                    a2: carry as u32,
-                    b: byte_shift_result[i] as u32,
-                    c: num_bits_to_shift as u32,
+                    a1: shift as u16,
+                    a2: carry,
+                    b: byte_shift_result[i],
+                    c: num_bits_to_shift as u8,
                 };
                 blu.add_byte_lookup_event(byte_event);
 

@@ -16,7 +16,7 @@ p3-baby-bear = { workspace = true }
 sp1-recursion-compiler = { workspace = true }
 sp1-core = { workspace = true }
 serde = "1.0.204"
-serde_json = "1.0.120"
+serde_json = "1.0.121"
 tempfile = "3.10.1"
 rand = "0.8"
 log = "0.4.22"
