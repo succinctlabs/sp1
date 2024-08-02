@@ -8,7 +8,10 @@
 use crate::PlonkBn254Proof;
 use cfg_if::cfg_if;
 use sp1_core::SP1_CIRCUIT_VERSION;
-use std::ffi::{c_char, CString};
+use std::{
+    env,
+    ffi::{c_char, CString},
+};
 
 #[allow(warnings, clippy::all)]
 mod bind {
@@ -73,9 +76,16 @@ pub fn test_plonk_bn254(witness_json: &str, constraints_json: &str) {
     unsafe {
         let witness_json = CString::new(witness_json).expect("CString::new failed");
         let build_dir = CString::new(constraints_json).expect("CString::new failed");
+        let range_checker = match env::var("RANGE_CHECKER") {
+            Ok(value) => value,
+            Err(_) => "true".to_string(),
+        };
+        let range_checker = CString::new(range_checker).expect("CString::new failed");
+
         let err_ptr = bind::TestPlonkBn254(
             witness_json.as_ptr() as *mut c_char,
             build_dir.as_ptr() as *mut c_char,
+            range_checker.as_ptr() as *mut c_char,
         );
         if !err_ptr.is_null() {
             // Safety: The error message is returned from the go code and is guaranteed to be valid.

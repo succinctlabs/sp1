@@ -1,5 +1,5 @@
-use std::borrow::Borrow;
 use std::iter::once;
+use std::{borrow::Borrow, os};
 
 use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
 use p3_bn254_fr::Bn254Fr;
@@ -29,7 +29,9 @@ use sp1_recursion_compiler::{
     constraints::{Constraint, ConstraintCompiler},
     ir::{Builder, Config, DslIr, Ext, Felt, Usize, Var, Witness},
 };
-use sp1_recursion_core::{air::RecursionPublicValues, stark::config::BabyBearPoseidon2Outer};
+use sp1_recursion_core::{
+    air::RecursionPublicValues, range_check, stark::config::BabyBearPoseidon2Outer,
+};
 use sp1_recursion_program::types::QuotientDataValues;
 
 type OuterSC = BabyBearPoseidon2Outer;

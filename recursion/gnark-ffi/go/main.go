@@ -72,13 +72,15 @@ func VerifyPlonkBn254(dataDir *C.char, proof *C.char, vkeyHash *C.char, commited
 var testMutex = &sync.Mutex{}
 
 //export TestPlonkBn254
-func TestPlonkBn254(witnessPath *C.char, constraintsJson *C.char) *C.char {
+func TestPlonkBn254(witnessPath *C.char, constraintsJson *C.char, rangeChecker *C.char) *C.char {
 	// Because of the global env variables used here, we need to lock this function
 	testMutex.Lock()
 	witnessPathString := C.GoString(witnessPath)
 	constraintsJsonString := C.GoString(constraintsJson)
+	rangeCheckerString := C.GoString(rangeChecker)
 	os.Setenv("WITNESS_JSON", witnessPathString)
 	os.Setenv("CONSTRAINTS_JSON", constraintsJsonString)
+	os.Setenv("RANGE_CHECKER", rangeCheckerString)
 	err := TestMain()
 	testMutex.Unlock()
 	if err != nil {

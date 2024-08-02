@@ -218,6 +218,10 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
                     opcode: ConstraintOpcode::MulEF,
                     args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
                 }),
+                DslIr::DivF(a, b, c) => constraints.push(Constraint {
+                    opcode: ConstraintOpcode::DivF,
+                    args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
+                }),
                 DslIr::DivFIN(a, b, c) => {
                     let tmp = self.alloc_f(&mut constraints, b.inverse());
                     constraints.push(Constraint {

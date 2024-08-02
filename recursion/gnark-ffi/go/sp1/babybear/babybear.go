@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"os"
 
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
@@ -99,7 +100,7 @@ func (c *Chip) AddF(a, b Variable) Variable {
 	curNumReduce := c.ReduceMaxBitsCounter
 	retVal := c.reduceFast(Variable{
 		Value:  c.api.Add(a.Value, b.Value),
-		NbBits: maxBits + 1,
+		NbBits: maxBits,
 	})
 	c.ReduceMaxBitsMap["AddF"] += c.ReduceMaxBitsCounter - curNumReduce
 	return retVal
@@ -115,6 +116,7 @@ func (c *Chip) SubF(a, b Variable) Variable {
 }
 
 func (c *Chip) MulF(a, b Variable) (Variable, Variable, Variable) {
+	curNumReduce := c.ReduceMaxBitsCounter
 	varC := a
 	varD := b
 
@@ -125,6 +127,7 @@ func (c *Chip) MulF(a, b Variable) (Variable, Variable, Variable) {
 			varD = Variable{Value: c.reduceWithMaxBits(varD.Value, uint64(varD.NbBits)), NbBits: 31}
 		}
 	}
+	c.MulFCounter += c.ReduceMaxBitsCounter - curNumReduce
 
 	return Variable{
 		Value:  c.api.Mul(varC.Value, varD.Value),
@@ -290,8 +293,8 @@ func (c *Chip) MulEF(a ExtensionVariable, b Variable) ExtensionVariable {
 	c.MulEFCounter++
 	curNumReduce := c.ReduceMaxBitsCounter
 	v1, _, newB := c.MulF(a.Value[0], b)
-	v2, _, _ := c.MulF(a.Value[1], newB)
-	v3, _, _ := c.MulF(a.Value[2], newB)
+	v2, _, newB := c.MulF(a.Value[1], newB)
+	v3, _, newB := c.MulF(a.Value[2], newB)
 	v4, _, _ := c.MulF(a.Value[3], newB)
 	c.ReduceMaxBitsMap["MulEF"] += c.ReduceMaxBitsCounter - curNumReduce
 	return ExtensionVariable{Value: [4]Variable{v1, v2, v3, v4}}
@@ -324,6 +327,12 @@ func (c *Chip) InvE(in ExtensionVariable) ExtensionVariable {
 
 func (c *Chip) Ext2Felt(in ExtensionVariable) [4]Variable {
 	return in.Value
+}
+
+func (c *Chip) DivF(a, b Variable) Variable {
+	bInv := c.invF(b)
+	x, _, _ := c.MulF(a, bInv)
+	return x
 }
 
 func (c *Chip) DivE(a, b ExtensionVariable) ExtensionVariable {
@@ -390,44 +399,57 @@ func (p *Chip) reduceWithMaxBits(x frontend.Variable, maxNbBits uint64) frontend
 	p.ReduceMaxBitsCounter++
 
 	quotient := result[0]
-	p.api.ToBinary(quotient, int(maxNbBits-31))
+	// p.api.ToBinary(quotient, int(maxNbBits-31))
 
 	remainder := result[1]
-	p.api.ToBinary(remainder, 31)
 
-	// Check that the remainder has size less than the BabyBear modulus, by decomposing it into a 27
-	// bit limb and a 4 bit limb.
-	new_result, new_err := p.api.Compiler().NewHint(SplitLimbsHint, 2, remainder)
-	if new_err != nil {
-		panic(new_err)
-	}
+	if os.Getenv("RANGE_CHECKER") == "true" {
+		// Check that the remainder has size less than the BabyBear modulus, by decomposing it into a 27
+		// bit limb and a 4 bit limb.
+		new_result, new_err := p.api.Compiler().NewHint(SplitLimbsHint, 2, remainder)
+		if new_err != nil {
+			panic(new_err)
+		}
 
-	lowLimb := new_result[0]
-	highLimb := new_result[1]
+		lowLimb := new_result[0]
+		highLimb := new_result[1]
 
-	// Check that the hint is correct.
-	p.api.AssertIsEqual(
-		p.api.Add(
-			p.api.Mul(highLimb, frontend.Variable(uint64(math.Pow(2, 27)))),
-			lowLimb,
-		),
-		remainder,
-	)
-	p.rangeChecker.Check(highLimb, 4)
-	p.rangeChecker.Check(lowLimb, 27)
+		// Check that the hint is correct.
+		p.api.AssertIsEqual(
+			p.api.Add(
+				p.api.Mul(highLimb, frontend.Variable(uint64(math.Pow(2, 27)))),
+				lowLimb,
+			),
+			remainder,
+		)
+		p.rangeChecker.Check(highLimb, 4)
+		p.rangeChecker.Check(lowLimb, 27)
 
-	// If the most significant bits are all 1, then we need to check that the least significant bits
-	// are all zero in order for element to be less than the BabyBear modulus. Otherwise, we don't
-	// need to do any checks, since we already know that the element is less than the BabyBear modulus.
-	shouldCheck := p.api.IsZero(p.api.Sub(highLimb, uint64(math.Pow(2, 4))-1))
-	p.api.AssertIsEqual(
-		p.api.Select(
-			shouldCheck,
-			lowLimb,
+		// If the most significant bits are all 1, then we need to check that the least significant bits
+		// are all zero in order for element to be less than the BabyBear modulus. Otherwise, we don't
+		// need to do any checks, since we already know that the element is less than the BabyBear modulus.
+		shouldCheck := p.api.IsZero(p.api.Sub(highLimb, uint64(math.Pow(2, 4))-1))
+		p.api.AssertIsEqual(
+			p.api.Select(
+				shouldCheck,
+				lowLimb,
+				frontend.Variable(0),
+			),
 			frontend.Variable(0),
-		),
-		frontend.Variable(0),
-	)
+		)
+	} else {
+		bits := p.api.ToBinary(remainder, 31)
+		lowBits := frontend.Variable(0)
+		highBits := frontend.Variable(0)
+		for i := 0; i < 27; i++ {
+			lowBits = p.api.Add(lowBits, bits[i])
+		}
+		for i := 27; i < 31; i++ {
+			highBits = p.api.Add(highBits, bits[i])
+		}
+		highBitsIsFour := p.api.IsZero(p.api.Sub(highBits, 4))
+		p.api.AssertIsEqual(p.api.Select(highBitsIsFour, lowBits, frontend.Variable(0)), frontend.Variable(0))
+	}
 
 	p.api.AssertIsEqual(x, p.api.Add(p.api.Mul(quotient, modulus), result[1]))
 

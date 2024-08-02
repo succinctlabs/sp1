@@ -994,39 +994,13 @@ impl<F: Field, EF: ExtensionField<F>> Ext<F, EF> {
                 (SymbolicExt::Val(lhs, _), SymbolicExt::Val(rhs, _)) => {
                     builder.push(DslIr::MulE(*self, *lhs, *rhs));
                 }
-                (lhs, SymbolicExt::Base(rhs, _)) => {
-                    let lhs_value = Self::uninit(builder);
-                    lhs_value.assign_with_caches(lhs.clone(), builder, ext_cache, base_cache);
-                    ext_cache.insert(lhs.clone(), lhs_value);
-                    match rhs.as_ref() {
-                        SymbolicFelt::Const(rhs, _) => {
-                            builder.push(DslIr::MulEFI(*self, lhs_value, *rhs));
-                        }
-                        SymbolicFelt::Val(rhs, _) => {
-                            builder.push(DslIr::MulEF(*self, lhs_value, *rhs));
-                        }
-                        rhs => {
-                            let rhs = builder.eval(rhs.clone());
-                            builder.push(DslIr::MulEF(*self, lhs_value, rhs));
-                        }
-                    }
-                }
-                (SymbolicExt::Base(lhs, _), rhs) => {
-                    let rhs_value = Self::uninit(builder);
-                    rhs_value.assign_with_caches(rhs.clone(), builder, ext_cache, base_cache);
-                    ext_cache.insert(rhs.clone(), rhs_value);
-                    match lhs.as_ref() {
-                        SymbolicFelt::Const(lhs, _) => {
-                            builder.push(DslIr::MulEFI(*self, rhs_value, *lhs));
-                        }
-                        SymbolicFelt::Val(lhs, _) => {
-                            builder.push(DslIr::MulEF(*self, rhs_value, *lhs));
-                        }
-                        lhs => {
-                            let lhs = builder.eval(lhs.clone());
-                            builder.push(DslIr::MulEF(*self, rhs_value, lhs));
-                        }
-                    }
+
+                (SymbolicExt::Base(lhs, _), SymbolicExt::Val(rhs, _)) => {
+                    let lhs_val: Felt<_> = builder.uninit();
+                    let s = lhs.clone();
+                    let z = (*s).clone();
+                    lhs_val.assign_with_cache(z, builder, base_cache);
+                    builder.push(DslIr::MulEF(*self, *rhs, lhs_val));
                 }
                 (SymbolicExt::Val(lhs, _), rhs) => {
                     let rhs_value = Self::uninit(builder);
@@ -1040,6 +1014,19 @@ impl<F: Field, EF: ExtensionField<F>> Ext<F, EF> {
                     ext_cache.insert(lhs.clone(), lhs_value);
                     builder.push(DslIr::MulEI(*self, lhs_value, *rhs));
                 }
+                (lhs, SymbolicExt::Base(rhs, _)) => {
+                    let rhs_val: Felt<_> = builder.uninit();
+                    let s = rhs.clone();
+                    let z = (*s).clone();
+                    rhs_val.assign_with_cache(z, builder, base_cache);
+
+                    let lhs_value = Self::uninit(builder);
+                    lhs_value.assign_with_caches(lhs.clone(), builder, ext_cache, base_cache);
+                    ext_cache.insert(lhs.clone(), lhs_value);
+
+                    builder.push(DslIr::MulEF(*self, lhs_value, rhs_val));
+                }
+
                 (lhs, SymbolicExt::Val(rhs, _)) => {
                     let lhs_value = Self::uninit(builder);
                     lhs_value.assign_with_caches(lhs.clone(), builder, ext_cache, base_cache);

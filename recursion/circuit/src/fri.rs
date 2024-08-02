@@ -264,8 +264,10 @@ pub fn verify_query<C: Config>(
             builder.select_f(index_sibling, x, xs_new),
             builder.select_f(index_sibling, xs_new, x),
         ];
-        folded_eval = builder
-            .eval(evals_ext[0] + (beta - xs[0]) * (evals_ext[1] - evals_ext[0]) / (xs[1] - xs[0]));
+        let one: Felt<_> = builder.eval(C::F::one());
+        let inv: Felt<_> = builder.eval(one / (xs[1] - xs[0]));
+        folded_eval =
+            builder.eval(evals_ext[0] + (beta - xs[0]) * (evals_ext[1] - evals_ext[0]) * inv);
         x = builder.eval(x * x);
         offset += 1;
     }
