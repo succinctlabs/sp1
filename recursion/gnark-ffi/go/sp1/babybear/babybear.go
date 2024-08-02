@@ -46,6 +46,13 @@ func NewChip(api frontend.API) *Chip {
 	}
 }
 
+func Zero() Variable {
+	return Variable{
+		Value:  frontend.Variable("0"),
+		NbBits: 0,
+	}
+}
+
 func NewF(value string) Variable {
 	return Variable{
 		Value:  frontend.Variable(value),
@@ -101,8 +108,16 @@ func (c *Chip) negF(a Variable) Variable {
 	if a.NbBits == 31 {
 		return Variable{Value: c.api.Sub(modulus, a.Value), NbBits: 31}
 	}
-	negOne := NewF("2013265920")
-	return c.MulF(a, negOne)
+
+	ub := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(a.NbBits)), big.NewInt(0))
+	divisor := new(big.Int).Div(ub, modulus)
+	divisorPlusOne := new(big.Int).Add(divisor, big.NewInt(1))
+	liftedModulus := new(big.Int).Mul(divisorPlusOne, modulus)
+
+	return Variable{
+		Value:  c.api.Sub(liftedModulus, a.Value),
+		NbBits: a.NbBits,
+	}
 }
 
 func (c *Chip) invF(in Variable) Variable {
@@ -187,10 +202,10 @@ func (c *Chip) SubEF(a ExtensionVariable, b Variable) ExtensionVariable {
 
 func (c *Chip) MulE(a, b ExtensionVariable) ExtensionVariable {
 	v2 := [4]Variable{
-		NewF("0"),
-		NewF("0"),
-		NewF("0"),
-		NewF("0"),
+		Zero(),
+		Zero(),
+		Zero(),
+		Zero(),
 	}
 
 	for i := 0; i < 4; i++ {
@@ -258,7 +273,7 @@ func (c *Chip) ToBinary(in Variable) []frontend.Variable {
 }
 
 func (p *Chip) reduceFast(x Variable) Variable {
-	if x.NbBits >= uint(120) {
+	if x.NbBits >= uint(125) {
 		return Variable{
 			Value:  p.reduceWithMaxBits(x.Value, uint64(x.NbBits)),
 			NbBits: 31,
