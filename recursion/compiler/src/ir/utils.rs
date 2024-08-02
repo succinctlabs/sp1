@@ -1,7 +1,9 @@
 use p3_field::{AbstractExtensionField, AbstractField};
 use std::ops::{Add, Mul, MulAssign};
 
-use super::{Array, Builder, Config, DslIr, Ext, Felt, SymbolicExt, Usize, Var, Variable};
+use super::{
+    Array, Builder, Config, DslIr, Ext, Felt, SymbolicExt, SymbolicFelt, Usize, Var, Variable,
+};
 
 impl<C: Config> Builder<C> {
     /// The generator for the field.
@@ -101,18 +103,18 @@ impl<C: Config> Builder<C> {
         result
     }
 
-    /// Exponentiates a extension to a list of bits in little endian. Uses precomputed powers
+    /// Exponentiates a felt x to a list of bits in little endian. Uses precomputed powers
     /// of x.
-    pub fn exp_e_bits_precomputed(
+    pub fn exp_f_bits_precomputed(
         &mut self,
         power_bits: Vec<Var<C::N>>,
-        two_adic_powers_of_x: &[Ext<C::F, C::EF>],
-    ) -> Ext<C::F, C::EF> {
-        let mut result = self.eval(SymbolicExt::from_f(C::EF::one()));
+        two_adic_powers_of_x: &[Felt<C::F>],
+    ) -> Felt<C::F> {
+        let mut result: Felt<_> = self.eval(C::F::one());
         for i in 0..power_bits.len() {
             let bit = power_bits[i];
             let tmp = self.eval(result * two_adic_powers_of_x[i]);
-            result = self.select_ef(bit, tmp, result);
+            result = self.select_f(bit, tmp, result);
         }
         result
     }

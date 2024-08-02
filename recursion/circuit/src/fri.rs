@@ -44,9 +44,9 @@ pub fn verify_shape_and_sample_challenges<C: Config>(
 
     let log_max_height = proof.commit_phase_commits.len() + config.log_blowup;
 
-    let mut precomputed_generator_powers: Vec<Ext<_, _>> = vec![
-        builder.eval(SymbolicExt::from_f(C::EF::one())),
-        builder.eval(SymbolicExt::from_f(C::EF::two_adic_generator(
+    let mut precomputed_generator_powers: Vec<Felt<_>> = vec![
+        builder.eval(SymbolicFelt::from_f(C::F::one())),
+        builder.eval(SymbolicFelt::from_f(C::F::two_adic_generator(
             log_max_height,
         ))),
     ];
@@ -187,6 +187,8 @@ pub fn verify_challenges<C: Config>(
     reduced_openings: Vec<[Ext<C::F, C::EF>; 32]>,
 ) {
     let log_max_height = proof.commit_phase_commits.len() + config.log_blowup;
+    println!("Log max height: {}", log_max_height);
+    println!("Num queries: {}", config.num_queries);
     for (&index, query_proof, ro) in izip!(
         &challenges.query_indices,
         &proof.query_proofs,
@@ -215,12 +217,12 @@ pub fn verify_query<C: Config>(
     betas: Vec<Ext<C::F, C::EF>>,
     reduced_openings: [Ext<C::F, C::EF>; 32],
     log_max_height: usize,
-    precomputed_generator_powers: Vec<Ext<C::F, C::EF>>,
+    precomputed_generator_powers: Vec<Felt<C::F>>,
 ) -> Ext<C::F, C::EF> {
     let mut folded_eval: Ext<C::F, C::EF> = builder.eval(SymbolicExt::from_f(C::EF::zero()));
     let index_bits = builder.num2bits_v_circuit(index, 32);
     let rev_reduced_index = builder.reverse_bits_len_circuit(index_bits.clone(), log_max_height);
-    let mut x = builder.exp_e_bits_precomputed(rev_reduced_index, &precomputed_generator_powers);
+    let mut x = builder.exp_f_bits_precomputed(rev_reduced_index, &precomputed_generator_powers);
 
     let mut offset = 0;
     for (log_folded_height, commit, step, beta) in izip!(
@@ -257,10 +259,10 @@ pub fn verify_query<C: Config>(
             step.opening_proof.clone(),
         );
 
-        let xs_new = builder.eval(x * C::EF::two_adic_generator(1));
+        let xs_new = builder.eval(x * C::F::two_adic_generator(1));
         let xs = [
-            builder.select_ef(index_sibling, x, xs_new),
-            builder.select_ef(index_sibling, xs_new, x),
+            builder.select_f(index_sibling, x, xs_new),
+            builder.select_f(index_sibling, xs_new, x),
         ];
         folded_eval = builder
             .eval(evals_ext[0] + (beta - xs[0]) * (evals_ext[1] - evals_ext[0]) / (xs[1] - xs[0]));

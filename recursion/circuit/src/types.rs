@@ -48,7 +48,7 @@ pub struct FriQueryProofVariable<C: Config> {
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/verifier.rs#L22
 #[derive(Clone)]
 pub struct FriChallenges<C: Config> {
-    pub precomputed_generator_powers: Vec<Ext<C::F, C::EF>>,
+    pub precomputed_generator_powers: Vec<Felt<C::F>>,
     pub query_indices: Vec<Var<C::N>>,
     pub betas: Vec<Ext<C::F, C::EF>>,
 }
