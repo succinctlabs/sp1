@@ -1,6 +1,7 @@
 use std::time::Instant;
 use std::{env, time::Duration};
 
+use crate::action::{NetworkOpts, ProveOpts};
 use crate::install::block_on;
 use crate::proto::network::ProofMode;
 use crate::{
@@ -22,7 +23,6 @@ use crate::provers::{LocalProver, ProverType};
 pub struct NetworkProver {
     client: NetworkClient,
     local_prover: LocalProver<DefaultProverComponents>,
-    timeout: Option<Duration>,
 }
 
 impl NetworkProver {
@@ -42,7 +42,6 @@ impl NetworkProver {
         Self {
             client: NetworkClient::new(private_key),
             local_prover,
-            timeout: Some(Duration::from_secs(60)),
         }
     }
 
@@ -89,17 +88,18 @@ impl NetworkProver {
     pub async fn wait_proof<P: DeserializeOwned>(
         &self,
         proof_id: &str,
+        timeout: Option<Duration>,
     ) -> Result<P> {
         let client = &self.client;
         let mut is_claimed = false;
-        let timeout = self.timeout;
         let start_time = Instant::now();
         loop {
             if let Some(timeout) = timeout {
                 if start_time.elapsed() > timeout {
-                    return Err(anyhow::anyhow!("proof generation timed out"));
+                    return Err(anyhow::anyhow!("Proof generation timed out."));
                 }
             }
+
             let (status, maybe_proof) = client.get_proof_status::<P>(proof_id).await?;
 
             match status.status() {
@@ -130,9 +130,10 @@ impl NetworkProver {
         elf: &[u8],
         stdin: SP1Stdin,
         mode: ProofMode,
+        network_opts: NetworkOpts,
     ) -> Result<SP1ProofWithPublicValues> {
         let proof_id = self.request_proof(elf, stdin, mode).await?;
-        self.wait_proof(&proof_id).await
+        self.wait_proof(&proof_id, network_opts.timeout).await
     }
 }
 
@@ -153,12 +154,12 @@ impl Prover<DefaultProverComponents> for NetworkProver {
         &'a self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
-        opts: SP1ProverOpts,
+        opts: ProveOpts,
         context: SP1Context<'a>,
         kind: SP1ProofKind,
     ) -> Result<SP1ProofWithPublicValues> {
-        warn_if_not_default(&opts, &context);
-        block_on(self.prove(&pk.elf, stdin, kind.into()))
+        warn_if_not_default(&opts.sp1_prover_opts, &context);
+        block_on(self.prove(&pk.elf, stdin, kind.into(), opts.network_opts))
     }
 }
 

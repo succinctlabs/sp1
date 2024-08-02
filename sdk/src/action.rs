@@ -10,6 +10,12 @@ use anyhow::{Ok, Result};
 
 use crate::{Prover, SP1ProofKind, SP1ProofWithPublicValues};
 
+#[derive(Clone, Default)]
+pub struct ProveOpts {
+    pub sp1_prover_opts: SP1ProverOpts,
+    pub network_opts: NetworkOpts,
+}
+
 /// Builder to prepare and configure execution of a program on an input.
 /// May be run with [Self::run].
 pub struct Execute<'a> {
@@ -81,7 +87,7 @@ impl<'a> Execute<'a> {
     }
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct NetworkOpts {
     pub timeout: Option<Duration>,
 }
@@ -137,9 +143,13 @@ impl<'a> Prove<'a> {
             core_opts,
             recursion_opts,
         };
+        let prove_opts = ProveOpts {
+            sp1_prover_opts: opts,
+            network_opts,
+        };
         let context = context_builder.build();
 
-        prover.prove(pk, stdin, opts, context, kind)
+        prover.prove(pk, stdin, prove_opts, context, kind)
     }
 
     /// Set the proof kind to the core mode. This is the default.

@@ -6,7 +6,6 @@ pub use local::LocalProver;
 pub use mock::MockProver;
 use sp1_core::runtime::SP1Context;
 use sp1_core::stark::MachineVerificationError;
-use sp1_core::utils::SP1ProverOpts;
 use sp1_core::SP1_CIRCUIT_VERSION;
 use sp1_prover::components::SP1ProverComponents;
 use sp1_prover::CoreSC;
@@ -18,6 +17,7 @@ use sp1_prover::{SP1ProvingKey, SP1Stdin, SP1VerifyingKey};
 use strum_macros::EnumString;
 use thiserror::Error;
 
+use crate::action::ProveOpts;
 use crate::install::try_install_plonk_bn254_artifacts;
 use crate::SP1Proof;
 use crate::SP1ProofKind;
@@ -60,7 +60,7 @@ pub trait Prover<C: SP1ProverComponents>: Send + Sync {
         &'a self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
-        opts: SP1ProverOpts,
+        opts: ProveOpts,
         context: SP1Context<'a>,
         kind: SP1ProofKind,
     ) -> Result<SP1ProofWithPublicValues>;

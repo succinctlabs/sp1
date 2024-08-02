@@ -2,8 +2,8 @@
 use hashbrown::HashMap;
 
 use crate::{
-    Prover, SP1Proof, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerificationError,
-    SP1VerifyingKey,
+    action::ProveOpts, Prover, SP1Proof, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey,
+    SP1VerificationError, SP1VerifyingKey,
 };
 use anyhow::Result;
 use p3_baby_bear::BabyBear;
@@ -12,7 +12,6 @@ use p3_fri::{FriProof, TwoAdicFriPcsProof};
 use sp1_core::{
     runtime::SP1Context,
     stark::{ShardCommitment, ShardOpenedValues, ShardProof},
-    utils::SP1ProverOpts,
 };
 use sp1_prover::{
     components::DefaultProverComponents, verify::verify_plonk_bn254_public_inputs, HashableKey,
@@ -51,7 +50,7 @@ impl Prover<DefaultProverComponents> for MockProver {
         &'a self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
-        opts: SP1ProverOpts,
+        opts: ProveOpts,
         context: SP1Context<'a>,
         kind: SP1ProofKind,
     ) -> Result<SP1ProofWithPublicValues> {
