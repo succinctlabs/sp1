@@ -7,10 +7,7 @@ use sp1_prover::{components::DefaultProverComponents, SP1ProvingKey, SP1PublicVa
 use anyhow::{Ok, Result};
 use std::time::Duration;
 
-use crate::{
-    provers::{NetworkOpts, ProofOpts},
-    Prover, SP1ProofKind, SP1ProofWithPublicValues,
-};
+use crate::{provers::ProofOpts, Prover, SP1ProofKind, SP1ProofWithPublicValues};
 
 /// Builder to prepare and configure execution of a program on an input.
 /// May be run with [Self::run].
@@ -93,7 +90,7 @@ pub struct Prove<'a> {
     stdin: SP1Stdin,
     core_opts: SP1CoreOpts,
     recursion_opts: SP1CoreOpts,
-    network_opts: NetworkOpts,
+    timeout: Option<Duration>,
 }
 
 impl<'a> Prove<'a> {
@@ -114,7 +111,7 @@ impl<'a> Prove<'a> {
             context_builder: Default::default(),
             core_opts: SP1CoreOpts::default(),
             recursion_opts: SP1CoreOpts::recursion(),
-            network_opts: NetworkOpts::default(),
+            timeout: None,
         }
     }
 
@@ -128,7 +125,7 @@ impl<'a> Prove<'a> {
             mut context_builder,
             core_opts,
             recursion_opts,
-            network_opts,
+            timeout,
         } = self;
         let opts = SP1ProverOpts {
             core_opts,
@@ -136,7 +133,7 @@ impl<'a> Prove<'a> {
         };
         let proof_opts = ProofOpts {
             sp1_prover_opts: opts,
-            network_opts,
+            timeout,
         };
         let context = context_builder.build();
 
@@ -210,10 +207,11 @@ impl<'a> Prove<'a> {
         self
     }
 
-    /// Timeout for proof generation. This parameter is only used when the prover is run in network
-    /// mode.
+    /// Set the timeout for the proof's generation.
+    ///
+    /// This parameter is only used when the prover is run in network mode.
     pub fn timeout(mut self, timeout: Duration) -> Self {
-        self.network_opts.timeout = Some(timeout);
+        self.timeout = Some(timeout);
         self
     }
 }

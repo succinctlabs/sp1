@@ -16,7 +16,7 @@ use sp1_prover::components::DefaultProverComponents;
 use sp1_prover::{SP1Prover, SP1Stdin, SP1_CIRCUIT_VERSION};
 use tokio::time::sleep;
 
-use crate::provers::{LocalProver, NetworkOpts, ProofOpts, ProverType};
+use crate::provers::{LocalProver, ProofOpts, ProverType};
 
 /// An implementation of [crate::ProverClient] that can generate proofs on a remote RPC server.
 pub struct NetworkProver {
@@ -130,10 +130,10 @@ impl NetworkProver {
         elf: &[u8],
         stdin: SP1Stdin,
         mode: ProofMode,
-        network_opts: NetworkOpts,
+        timeout: Option<Duration>,
     ) -> Result<SP1ProofWithPublicValues> {
         let proof_id = self.request_proof(elf, stdin, mode).await?;
-        self.wait_proof(&proof_id, network_opts.timeout).await
+        self.wait_proof(&proof_id, timeout).await
     }
 }
 
@@ -159,7 +159,7 @@ impl Prover<DefaultProverComponents> for NetworkProver {
         kind: SP1ProofKind,
     ) -> Result<SP1ProofWithPublicValues> {
         warn_if_not_default(&opts.sp1_prover_opts, &context);
-        block_on(self.prove(&pk.elf, stdin, kind.into(), opts.network_opts))
+        block_on(self.prove(&pk.elf, stdin, kind.into(), opts.timeout))
     }
 }
 

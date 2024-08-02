@@ -32,17 +32,12 @@ pub enum ProverType {
     Network,
 }
 
-/// Configuration for a specific proof. Includes the options for running the prover
-/// and the network options for the proof.
+/// Options to configure proof generation.
 #[derive(Clone, Default)]
 pub struct ProofOpts {
+    /// Options to configure the SP1 prover.
     pub sp1_prover_opts: SP1ProverOpts,
-    pub network_opts: NetworkOpts,
-}
-
-/// Configuration for the network options for the proof.
-#[derive(Clone, Default)]
-pub struct NetworkOpts {
+    /// Optional timeout duration for proof generation.
     pub timeout: Option<Duration>,
 }
 
