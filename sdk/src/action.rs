@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use sp1_core::{
     runtime::{ExecutionReport, HookEnv, SP1ContextBuilder},
     utils::{SP1CoreOpts, SP1ProverOpts},
@@ -7,6 +5,7 @@ use sp1_core::{
 use sp1_prover::{components::DefaultProverComponents, SP1ProvingKey, SP1PublicValues, SP1Stdin};
 
 use anyhow::{Ok, Result};
+use std::time::Duration;
 
 use crate::{Prover, SP1ProofKind, SP1ProofWithPublicValues};
 
