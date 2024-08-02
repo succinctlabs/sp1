@@ -4,7 +4,7 @@ version = 3
 
 [[package]]
 name = "aggregation-program"
-version = "1.0.1"
+version = "1.1.0"
 dependencies = [
  "hex",
  "sha2",
@@ -388,7 +388,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "1.0.1"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "bincode",
@@ -398,7 +398,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "1.0.1"
+version = "1.1.0"
 dependencies = [
  "itertools 0.13.0",
  "lazy_static",
@@ -410,7 +410,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "1.0.1"
+version = "1.1.0"
 dependencies = [
  "bincode",
  "cfg-if",

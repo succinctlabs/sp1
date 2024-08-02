@@ -1,6 +1,6 @@
 # Prover Network: Setup
 
-> **Currently, the supported version of SP1 on the prover network is `v1.0.1`.**
+> **Currently, the supported version of SP1 on the prover network is `v1.1.0`.**
 
 So far we've explored how to generate proofs locally, but this can actually be inconvenient on local machines due to high memory / CPU requirements, especially for very large programs.
 
