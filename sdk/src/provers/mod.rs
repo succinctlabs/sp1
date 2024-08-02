@@ -1,8 +1,6 @@
 mod local;
 mod mock;
 
-use std::time::Duration;
-
 use anyhow::Result;
 pub use local::LocalProver;
 pub use mock::MockProver;
@@ -17,6 +15,7 @@ use sp1_prover::SP1CoreProofData;
 use sp1_prover::SP1Prover;
 use sp1_prover::SP1ReduceProof;
 use sp1_prover::{SP1ProvingKey, SP1Stdin, SP1VerifyingKey};
+use std::time::Duration;
 use strum_macros::EnumString;
 use thiserror::Error;
 
