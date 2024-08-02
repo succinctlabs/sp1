@@ -56,7 +56,7 @@ To accelerate Ed25519 operations, you'll need to patch crates depending on if yo
 Generally, `ed25519-consensus` has better performance than `ed25519-dalek` by a factor of 2.
 ### Patches
 
-Apply the following patches based on your original crate usage:
+Apply the following patches based on what crates are in your dependencies.
 
 - `ed25519-consensus`
     ```toml
@@ -87,7 +87,7 @@ Generally, if a crate you're using (ex. `revm`) has support for using `k256` ins
 
 ### Patches
 
-To accelerate Secp256k1 operations, apply the following patches based on your crate usage:
+Apply the following patches based on what crates are in your dependencies.
 
 - `k256`
     ```toml
