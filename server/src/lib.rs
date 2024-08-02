@@ -77,7 +77,7 @@ impl SP1ProverServer {
         // Spawn a new thread to start the Docker container.
         std::thread::spawn(move || {
             Command::new("sudo")
-                .args(&[
+                .args([
                     "docker",
                     "run",
                     "-e",
@@ -89,8 +89,8 @@ impl SP1ProverServer {
                     "--gpus",
                     "all",
                     "--name",
-                    &container_name,
-                    &image_name,
+                    container_name,
+                    image_name,
                 ])
                 .stdin(Stdio::inherit())
                 .stdout(Stdio::inherit())
@@ -102,7 +102,7 @@ impl SP1ProverServer {
         ctrlc::set_handler(move || {
             tracing::debug!("received Ctrl+C, cleaning up...");
             if !cleanup_flag.load(Ordering::SeqCst) {
-                cleanup_container(&cleanup_name);
+                cleanup_container(cleanup_name);
                 cleanup_flag.store(true, Ordering::SeqCst);
             }
             std::process::exit(0);
@@ -176,6 +176,12 @@ impl SP1ProverServer {
     }
 }
 
+impl Default for SP1ProverServer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Drop for SP1ProverServer {
     fn drop(&mut self) {
         if !self.cleaned_up.load(Ordering::SeqCst) {
@@ -190,7 +196,7 @@ impl Drop for SP1ProverServer {
 fn cleanup_container(container_name: &str) {
     tracing::debug!("cleaning up container: {}", container_name);
     if let Err(e) = Command::new("sudo")
-        .args(&["docker", "rm", "-f", container_name])
+        .args(["docker", "rm", "-f", container_name])
         .status()
     {
         eprintln!("failed to remove container: {}", e);
