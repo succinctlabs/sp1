@@ -7,15 +7,10 @@ use sp1_prover::{components::DefaultProverComponents, SP1ProvingKey, SP1PublicVa
 use anyhow::{Ok, Result};
 use std::time::Duration;
 
-use crate::{Prover, SP1ProofKind, SP1ProofWithPublicValues};
-
-/// Configuration for a specific proof. Includes the options for running the prover
-/// and the network options for the proof.
-#[derive(Clone, Default)]
-pub struct ProofConfig {
-    pub sp1_prover_opts: SP1ProverOpts,
-    pub network_opts: NetworkOpts,
-}
+use crate::{
+    provers::{NetworkOpts, ProofOpts},
+    Prover, SP1ProofKind, SP1ProofWithPublicValues,
+};
 
 /// Builder to prepare and configure execution of a program on an input.
 /// May be run with [Self::run].
@@ -88,12 +83,6 @@ impl<'a> Execute<'a> {
     }
 }
 
-/// Configuration for the network options for the proof.
-#[derive(Clone, Default)]
-pub struct NetworkOpts {
-    pub timeout: Option<Duration>,
-}
-
 /// Builder to prepare and configure proving execution of a program on an input.
 /// May be run with [Self::run].
 pub struct Prove<'a> {
@@ -145,7 +134,7 @@ impl<'a> Prove<'a> {
             core_opts,
             recursion_opts,
         };
-        let prove_opts = ProofConfig {
+        let prove_opts = ProofOpts {
             sp1_prover_opts: opts,
             network_opts,
         };

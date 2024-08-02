@@ -2,8 +2,8 @@
 use hashbrown::HashMap;
 
 use crate::{
-    action::ProofConfig, Prover, SP1Proof, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey,
-    SP1VerificationError, SP1VerifyingKey,
+    Prover, SP1Proof, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerificationError,
+    SP1VerifyingKey,
 };
 use anyhow::Result;
 use p3_baby_bear::BabyBear;
@@ -18,7 +18,7 @@ use sp1_prover::{
     PlonkBn254Proof, SP1Prover, SP1Stdin,
 };
 
-use super::ProverType;
+use super::{ProofOpts, ProverType};
 
 /// An implementation of [crate::ProverClient] that can generate mock proofs.
 pub struct MockProver {
@@ -50,7 +50,7 @@ impl Prover<DefaultProverComponents> for MockProver {
         &'a self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
-        opts: ProofConfig,
+        opts: ProofOpts,
         context: SP1Context<'a>,
         kind: SP1ProofKind,
     ) -> Result<SP1ProofWithPublicValues> {

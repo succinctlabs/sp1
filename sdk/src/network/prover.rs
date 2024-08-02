@@ -1,7 +1,6 @@
 use std::time::Instant;
 use std::{env, time::Duration};
 
-use crate::action::{NetworkOpts, ProofConfig};
 use crate::install::block_on;
 use crate::proto::network::ProofMode;
 use crate::{
@@ -17,7 +16,7 @@ use sp1_prover::components::DefaultProverComponents;
 use sp1_prover::{SP1Prover, SP1Stdin, SP1_CIRCUIT_VERSION};
 use tokio::time::sleep;
 
-use crate::provers::{LocalProver, ProverType};
+use crate::provers::{LocalProver, NetworkOpts, ProofOpts, ProverType};
 
 /// An implementation of [crate::ProverClient] that can generate proofs on a remote RPC server.
 pub struct NetworkProver {
@@ -155,7 +154,7 @@ impl Prover<DefaultProverComponents> for NetworkProver {
         &'a self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
-        opts: ProofConfig,
+        opts: ProofOpts,
         context: SP1Context<'a>,
         kind: SP1ProofKind,
     ) -> Result<SP1ProofWithPublicValues> {

@@ -4,8 +4,8 @@ use sp1_prover::{components::SP1ProverComponents, SP1Prover, SP1Stdin};
 use sysinfo::System;
 
 use crate::{
-    action::ProofConfig, install::try_install_plonk_bn254_artifacts, Prover, SP1Proof,
-    SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
+    install::try_install_plonk_bn254_artifacts, provers::ProofOpts, Prover, SP1Proof, SP1ProofKind,
+    SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
 };
 
 use super::ProverType;
@@ -45,7 +45,7 @@ impl<C: SP1ProverComponents> Prover<C> for LocalProver<C> {
         &'a self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
-        opts: ProofConfig,
+        opts: ProofOpts,
         context: SP1Context<'a>,
         kind: SP1ProofKind,
     ) -> Result<SP1ProofWithPublicValues> {

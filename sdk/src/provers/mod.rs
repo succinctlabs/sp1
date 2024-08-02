@@ -1,11 +1,14 @@
 mod local;
 mod mock;
 
+use std::time::Duration;
+
 use anyhow::Result;
 pub use local::LocalProver;
 pub use mock::MockProver;
 use sp1_core::runtime::SP1Context;
 use sp1_core::stark::MachineVerificationError;
+use sp1_core::utils::SP1ProverOpts;
 use sp1_core::SP1_CIRCUIT_VERSION;
 use sp1_prover::components::SP1ProverComponents;
 use sp1_prover::CoreSC;
@@ -17,7 +20,6 @@ use sp1_prover::{SP1ProvingKey, SP1Stdin, SP1VerifyingKey};
 use strum_macros::EnumString;
 use thiserror::Error;
 
-use crate::action::ProofConfig;
 use crate::install::try_install_plonk_bn254_artifacts;
 use crate::SP1Proof;
 use crate::SP1ProofKind;
@@ -29,6 +31,20 @@ pub enum ProverType {
     Local,
     Mock,
     Network,
+}
+
+/// Configuration for a specific proof. Includes the options for running the prover
+/// and the network options for the proof.
+#[derive(Clone, Default)]
+pub struct ProofOpts {
+    pub sp1_prover_opts: SP1ProverOpts,
+    pub network_opts: NetworkOpts,
+}
+
+/// Configuration for the network options for the proof.
+#[derive(Clone, Default)]
+pub struct NetworkOpts {
+    pub timeout: Option<Duration>,
 }
 
 #[derive(Error, Debug)]
@@ -60,7 +76,7 @@ pub trait Prover<C: SP1ProverComponents>: Send + Sync {
         &'a self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
-        opts: ProofConfig,
+        opts: ProofOpts,
         context: SP1Context<'a>,
         kind: SP1ProofKind,
     ) -> Result<SP1ProofWithPublicValues>;
