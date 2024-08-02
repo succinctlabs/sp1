@@ -113,6 +113,7 @@ where
 
             let mut trace_points = Vec::new();
             let zeta_next = domain_var.next_point(builder, zeta);
+            builder.reduce_e(zeta);
 
             trace_points.push(zeta);
             trace_points.push(zeta_next);
@@ -142,6 +143,7 @@ where
 
             let mut trace_points = Vec::new();
             let zeta_next = domain.next_point(builder, zeta);
+            builder.reduce_e(zeta_next);
             // builder.reduce_e(zeta_next);
             trace_points.push(zeta);
             trace_points.push(zeta_next);
