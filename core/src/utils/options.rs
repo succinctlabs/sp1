@@ -10,6 +10,7 @@ const DEFAULT_TRACE_GEN_WORKERS: usize = 1;
 const DEFAULT_CHECKPOINTS_CHANNEL_CAPACITY: usize = 128;
 const DEFAULT_RECORDS_AND_TRACES_CHANNEL_CAPACITY: usize = 1;
 
+/// Options to configure the SP1 prover for core and recursive proofs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SP1ProverOpts {
     pub core_opts: SP1CoreOpts,

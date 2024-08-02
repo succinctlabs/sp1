@@ -12,14 +12,13 @@ use p3_fri::{FriProof, TwoAdicFriPcsProof};
 use sp1_core::{
     runtime::SP1Context,
     stark::{ShardCommitment, ShardOpenedValues, ShardProof},
-    utils::SP1ProverOpts,
 };
 use sp1_prover::{
     components::DefaultProverComponents, verify::verify_plonk_bn254_public_inputs, HashableKey,
     PlonkBn254Proof, SP1Prover, SP1Stdin,
 };
 
-use super::ProverType;
+use super::{ProofOpts, ProverType};
 
 /// An implementation of [crate::ProverClient] that can generate mock proofs.
 pub struct MockProver {
@@ -51,7 +50,7 @@ impl Prover<DefaultProverComponents> for MockProver {
         &'a self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
-        opts: SP1ProverOpts,
+        opts: ProofOpts,
         context: SP1Context<'a>,
         kind: SP1ProofKind,
     ) -> Result<SP1ProofWithPublicValues> {
