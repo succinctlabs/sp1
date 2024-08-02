@@ -30,7 +30,7 @@ fn main() {
         246, 160, 210, 48, 103, 191, 18, 133, 243, 132, 75, 119, 100, 215, 172, 75, 67, 182, 167,
         27, 75, 154, 230, 127, 57, 234, 17, 1, 26,
     ]);
-    for _ in 0..1 {
+    for _ in 0..10 {
         // Test with random numbers.
         let mut rng = rand::thread_rng();
         let mut x: [u8; 48] = [0; 48].map(|_| rng.gen());

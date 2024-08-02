@@ -1,8 +1,10 @@
 mod buffer;
 mod config;
 pub mod ec;
+pub(crate) mod hints;
 mod logger;
 mod options;
+
 #[cfg(any(test, feature = "programs"))]
 mod programs;
 mod prove;

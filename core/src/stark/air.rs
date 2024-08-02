@@ -3,8 +3,7 @@ pub use crate::air::SP1AirBuilder;
 use crate::air::{MachineAir, SP1_PROOF_NUM_PV_ELTS};
 use crate::memory::{MemoryChipType, MemoryProgramChip};
 use crate::stark::Chip;
-use crate::syscall::precompiles::fp384::FpMulChip;
-use crate::utils::ec::weierstrass::bls12_381::Bls12381BaseField;
+use crate::syscall::precompiles::fptower::{Fp2MulAssignChip, FpAddAssignChip, FpMulAssignChip};
 use crate::StarkGenericConfig;
 use p3_field::PrimeField32;
 pub use riscv_chips::*;
@@ -99,8 +98,12 @@ pub enum RiscvAir<F: PrimeField32> {
     Bls12381Double(WeierstrassDoubleAssignChip<SwCurve<Bls12381Parameters>>),
     /// A precompile for uint256 mul.
     Uint256Mul(Uint256MulChip),
-    /// A precompile for fp mul.
-    FpMul(FpMulChip<Bls12381BaseField>),
+    /// A precompile for BLS12-381 fp add.
+    Bls12381FpAdd(FpAddAssignChip<SwCurve<Bls12381Parameters>>),
+    /// A precompile for BLS12-381 fp mul.
+    Bls12381FpMul(FpMulAssignChip<SwCurve<Bls12381Parameters>>),
+    /// A precompile for BLS12-381 Fp2 mul.
+    Bls12381Fp2Mul(Fp2MulAssignChip<SwCurve<Bls12381Parameters>>),
     /// A precompile for decompressing a point on the BLS12-381 curve.
     Bls12381Decompress(WeierstrassDecompressChip<SwCurve<Bls12381Parameters>>),
 }
@@ -154,9 +157,13 @@ impl<F: PrimeField32> RiscvAir<F> {
         chips.push(RiscvAir::Uint256Mul(uint256_mul));
         let bls12381_decompress =
             WeierstrassDecompressChip::<SwCurve<Bls12381Parameters>>::with_lexicographic_rule();
+        let bls12381_fp_add = FpAddAssignChip::<SwCurve<Bls12381Parameters>>::new();
+        chips.push(RiscvAir::Bls12381FpAdd(bls12381_fp_add));
+        let bls12381_fp_mul = FpMulAssignChip::<SwCurve<Bls12381Parameters>>::new();
+        chips.push(RiscvAir::Bls12381FpMul(bls12381_fp_mul));
+        let bls12381_fp2_mul = Fp2MulAssignChip::<SwCurve<Bls12381Parameters>>::new();
+        chips.push(RiscvAir::Bls12381Fp2Mul(bls12381_fp2_mul));
         let bls12381_decompress = WeierstrassDecompressChip::<SwCurve<Bls12381Parameters>>::new();
-        let fp_mul = FpMulChip::<Bls12381BaseField>::default();
-        chips.push(RiscvAir::FpMul(fp_mul));
         chips.push(RiscvAir::Bls12381Decompress(bls12381_decompress));
         let div_rem = DivRemChip::default();
         chips.push(RiscvAir::DivRem(div_rem));

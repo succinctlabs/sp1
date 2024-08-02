@@ -111,3 +111,6 @@ pub const BLS12381_FPMUL: u32 = 0x00_01_01_20;
 
 /// Executes the `BLS12_381_FPADD` precompile.
 pub const BLS12381_FPADD: u32 = 0x00_01_01_21;
+
+/// Executes the `BLS12_381_FP2MUL` precompile.
+pub const BLS12381_FP2MUL: u32 = 0x00_01_01_22;
