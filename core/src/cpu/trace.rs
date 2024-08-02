@@ -135,48 +135,62 @@ impl CpuChip {
         cols.next_pc = F::from_canonical_u32(event.next_pc);
         cols.instruction.populate(event.instruction);
         cols.selectors.populate(event.instruction);
-        *cols.op_a_access.value_mut() = event.a.into();
-        *cols.op_b_access.value_mut() = event.b.into();
-        *cols.op_c_access.value_mut() = event.c.into();
+        // *cols.op_a_access.value_mut() = event.a.into();
+        // *cols.op_b_access.value_mut() = event.b.into();
+        // *cols.op_c_access.value_mut() = event.c.into();
+        cols.op_a_value = event.a.into();
+        cols.op_b_value = event.b.into();
+        cols.op_c_value = event.c.into();
 
         // Populate memory accesses for a, b, and c.
+        // if let Some(record) = event.a_record {
+        //     cols.op_a_access.populate(event.channel, record, blu_events);
+        // }
         if let Some(record) = event.a_record {
-            cols.op_a_access.populate(event.channel, record, blu_events);
-        }
-        if let Some(MemoryRecordEnum::Read(record)) = event.b_record {
-            cols.op_b_access.populate(event.channel, record, blu_events);
-        }
-        if let Some(MemoryRecordEnum::Read(record)) = event.c_record {
-            cols.op_c_access.populate(event.channel, record, blu_events);
+            match record {
+                MemoryRecordEnum::Read(_) => {
+                    cols.op_a_prev_value = record.value().into();
+                }
+                MemoryRecordEnum::Write(record) => {
+                    cols.op_a_prev_value = record.prev_value.into();
+                }
+            }
         }
 
+        // if let Some(MemoryRecordEnum::Read(record)) = event.b_record {
+        //     cols.op_b_access.populate(event.channel, record, blu_events);
+        // }
+        // if let Some(MemoryRecordEnum::Read(record)) = event.c_record {
+        //     cols.op_c_access.populate(event.channel, record, blu_events);
+        // }
+
         // Populate range checks for a.
-        let a_bytes = cols
-            .op_a_access
-            .access
-            .value
-            .0
-            .iter()
-            .map(|x| x.as_canonical_u32())
-            .collect::<Vec<_>>();
-        blu_events.add_byte_lookup_event(ByteLookupEvent {
-            shard: event.shard,
-            channel: event.channel,
-            opcode: ByteOpcode::U8Range,
-            a1: 0,
-            a2: 0,
-            b: a_bytes[0] as u8,
-            c: a_bytes[1] as u8,
-        });
-        blu_events.add_byte_lookup_event(ByteLookupEvent {
-            shard: event.shard,
-            channel: event.channel,
-            opcode: ByteOpcode::U8Range,
-            a1: 0,
-            a2: 0,
-            b: a_bytes[2] as u8,
-            c: a_bytes[3] as u8,
-        });
+        // let a_bytes = cols
+        //     .op_a_access
+        //     .access
+        //     .value
+        //     .0
+        //     .iter()
+        //     .map(|x| x.as_canonical_u32())
+        //     .collect::<Vec<_>>();
+        // blu_events.add_byte_lookup_event(ByteLookupEvent {
+        //     shard: event.shard,
+        //     channel: event.channel,
+        //     opcode: ByteOpcode::U8Range,
+        //     a1: 0,
+        //     a2: 0,
+        //     b: a_bytes[0] as u8,
+        //     c: a_bytes[1] as u8,
+        // });
+        // blu_events.add_byte_lookup_event(ByteLookupEvent {
+        //     shard: event.shard,
+        //     channel: event.channel,
+        //     opcode: ByteOpcode::U8Range,
+        //     a1: 0,
+        //     a2: 0,
+        //     b: a_bytes[2] as u8,
+        //     c: a_bytes[3] as u8,
+        // });
 
         // Populate memory accesses for reading from memory.
         assert_eq!(event.memory_record.is_some(), event.memory.is_some());
@@ -664,9 +678,11 @@ impl CpuChip {
             // Look at `ecall_eval` in cpu/air/mod.rs for the corresponding constraint and explanation.
             let ecall_cols = cols.opcode_specific_columns.ecall_mut();
 
-            cols.ecall_mul_send_to_table = cols.selectors.is_ecall * cols.op_a_access.prev_value[1];
+            // cols.ecall_mul_send_to_table = cols.selectors.is_ecall * cols.op_a_access.prev_value[1];
+            cols.ecall_mul_send_to_table = cols.selectors.is_ecall * cols.op_a_value[2];
 
-            let syscall_id = cols.op_a_access.prev_value[0];
+            // let syscall_id = cols.op_a_access.prev_value[0];
+            let syscall_id = cols.op_a_value[0];
             // let send_to_table = cols.op_a_access.prev_value[1];
             // let num_cycles = cols.op_a_access.prev_value[2];
 
@@ -706,7 +722,8 @@ impl CpuChip {
                 || syscall_id
                     == F::from_canonical_u32(SyscallCode::COMMIT_DEFERRED_PROOFS.syscall_id())
             {
-                let digest_idx = cols.op_b_access.value().to_u32() as usize;
+                // let digest_idx = cols.op_b_access.value().to_u32() as usize;
+                let digest_idx = cols.op_b_value.to_u32() as usize;
                 ecall_cols.index_bitmap[digest_idx] = F::one();
             }
 

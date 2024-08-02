@@ -305,12 +305,13 @@ where
             let total_width = trace_width
                 + permutation_width * <SC::Challenge as AbstractExtensionField<SC::Val>>::D;
             tracing::debug!(
-                "{:<15} | Main Cols = {:<5} | Perm Cols = {:<5} | Rows = {:<5} | Cells = {:<10}",
+                "{:<15} | Main Cols = {:<5} | Perm Cols = {:<5} | Rows = {:<5} | Non Perm Cells = {:<10} | Total Cells = {:<10}",
                 chips[i].name(),
                 trace_width,
                 permutation_width * <SC::Challenge as AbstractExtensionField<SC::Val>>::D,
                 traces[i].height(),
                 trace_width * traces[i].height(),
+                total_width * traces[i].height()
             );
         }
 

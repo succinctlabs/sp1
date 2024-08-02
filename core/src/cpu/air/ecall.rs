@@ -28,7 +28,8 @@ impl CpuChip {
         let is_ecall_instruction = self.is_ecall_instruction::<AB>(&local.selectors);
 
         // The syscall code is the read-in value of op_a at the start of the instruction.
-        let syscall_code = local.op_a_access.prev_value();
+        // let syscall_code = local.op_a_access.prev_value();
+        let syscall_code = local.op_a_val();
 
         // We interpret the syscall_code as little-endian bytes and interpret each byte as a u8
         // with different information.
@@ -84,10 +85,14 @@ impl CpuChip {
             .assert_word_eq(local.op_a_val(), zero_word);
 
         // When the syscall is not one of ENTER_UNCONSTRAINED or HINT_LEN, op_a shouldn't change.
+        // builder
+        //     .when(is_ecall_instruction.clone())
+        //     .when_not(is_enter_unconstrained + is_hint_len)
+        //     .assert_word_eq(local.op_a_val(), local.op_a_access.prev_value);
         builder
             .when(is_ecall_instruction.clone())
             .when_not(is_enter_unconstrained + is_hint_len)
-            .assert_word_eq(local.op_a_val(), local.op_a_access.prev_value);
+            .assert_word_eq(local.op_a_val(), local.op_a_prev_value);
 
         // Verify value of ecall_range_check_operand column.
         builder.assert_eq(
@@ -142,22 +147,31 @@ impl CpuChip {
 
         // Verify that word_idx corresponds to the set bit in index bitmap.
         for (i, bit) in ecall_columns.index_bitmap.iter().enumerate() {
-            builder.when(*bit * local.selectors.is_ecall).assert_eq(
-                local.op_b_access.prev_value()[0],
-                AB::Expr::from_canonical_u32(i as u32),
-            );
+            // builder.when(*bit * local.selectors.is_ecall).assert_eq(
+            //     local.op_b_access.prev_value()[0],
+            //     AB::Expr::from_canonical_u32(i as u32),
+            // );
+            builder
+                .when(*bit * local.selectors.is_ecall)
+                .assert_eq(local.op_b_value[0], AB::Expr::from_canonical_u32(i as u32));
         }
         // Verify that the 3 upper bytes of the word_idx are 0.
         for i in 0..3 {
+            // builder
+            //     .when(
+            //         local.selectors.is_ecall
+            //             * (is_commit.clone() + is_commit_deferred_proofs.clone()),
+            //     )
+            //     .assert_eq(
+            //         local.op_b_access.prev_value()[i + 1],
+            //         AB::Expr::from_canonical_u32(0),
+            //     );
             builder
                 .when(
                     local.selectors.is_ecall
                         * (is_commit.clone() + is_commit_deferred_proofs.clone()),
                 )
-                .assert_eq(
-                    local.op_b_access.prev_value()[i + 1],
-                    AB::Expr::from_canonical_u32(0),
-                );
+                .assert_eq(local.op_b_value[i + 1], AB::Expr::from_canonical_u32(0));
         }
 
         // Retrieve the expected public values digest word to check against the one passed into the
@@ -168,12 +182,13 @@ impl CpuChip {
         let expected_pv_digest_word =
             builder.index_word_array(&commit_digest, &ecall_columns.index_bitmap);
 
-        let digest_word = local.op_c_access.prev_value();
+        // let digest_word = local.op_c_access.prev_value();
+        let digest_word = local.op_c_value;
 
         // Verify the public_values_digest_word.
         builder
             .when(local.selectors.is_ecall * is_commit)
-            .assert_word_eq(expected_pv_digest_word, *digest_word);
+            .assert_word_eq(expected_pv_digest_word, digest_word);
 
         let expected_deferred_proofs_digest_element =
             builder.index_array(&deferred_proofs_digest, &ecall_columns.index_bitmap);
@@ -181,7 +196,7 @@ impl CpuChip {
         // Verify that the operand that was range checked is digest_word.
         builder
             .when(local.selectors.is_ecall * is_commit_deferred_proofs.clone())
-            .assert_word_eq(*digest_word, ecall_columns.operand_to_check);
+            .assert_word_eq(digest_word, ecall_columns.operand_to_check);
 
         builder
             .when(local.selectors.is_ecall * is_commit_deferred_proofs)
@@ -215,8 +230,12 @@ impl CpuChip {
             .when(is_halt.clone())
             .assert_word_eq(local.op_b_val(), ecall_columns.operand_to_check);
 
+        // builder.when(is_halt.clone()).assert_eq(
+        //     local.op_b_access.value().reduce::<AB>(),
+        //     public_values.exit_code.clone(),
+        // );
         builder.when(is_halt.clone()).assert_eq(
-            local.op_b_access.value().reduce::<AB>(),
+            local.op_b_value.reduce::<AB>(),
             public_values.exit_code.clone(),
         );
     }
@@ -231,7 +250,8 @@ impl CpuChip {
         let is_ecall_instruction = self.is_ecall_instruction::<AB>(&local.selectors);
 
         // The syscall code is the read-in value of op_a at the start of the instruction.
-        let syscall_code = local.op_a_access.prev_value();
+        // let syscall_code = local.op_a_access.prev_value();
+        let syscall_code = local.op_a_prev_value;
 
         let syscall_id = syscall_code[0];
 
@@ -260,7 +280,8 @@ impl CpuChip {
         let is_ecall_instruction = self.is_ecall_instruction::<AB>(&local.selectors);
 
         // The syscall code is the read-in value of op_a at the start of the instruction.
-        let syscall_code = local.op_a_access.prev_value();
+        // let syscall_code = local.op_a_access.prev_value();
+        let syscall_code = local.op_a_value;
 
         let syscall_id = syscall_code[0];
 
@@ -300,7 +321,8 @@ impl CpuChip {
         let is_ecall_instruction = self.is_ecall_instruction::<AB>(&local.selectors);
 
         // The syscall code is the read-in value of op_a at the start of the instruction.
-        let syscall_code = local.op_a_access.prev_value();
+        // let syscall_code = local.op_a_access.prev_value();
+        let syscall_code = local.op_a_prev_value;
 
         let num_extra_cycles = syscall_code[2];
 
