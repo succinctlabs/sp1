@@ -11,13 +11,13 @@ const babybearNumInternalRounds = 13
 
 type Poseidon2BabyBearChip struct {
 	api      frontend.API
-	fieldApi *babybear.Chip
+	FieldApi *babybear.Chip
 }
 
 func NewBabyBearChip(api frontend.API) *Poseidon2BabyBearChip {
 	return &Poseidon2BabyBearChip{
 		api:      api,
-		fieldApi: babybear.NewChip(api),
+		FieldApi: babybear.NewChip(api),
 	}
 }
 
@@ -37,7 +37,7 @@ func (p *Poseidon2BabyBearChip) PermuteMut(state *[BABYBEAR_WIDTH]babybear.Varia
 	// The internal rounds.
 	p_end := roundsFBeggining + babybearNumInternalRounds
 	for r := roundsFBeggining; r < p_end; r++ {
-		state[0] = p.fieldApi.AddF(state[0], rc16[r][0])
+		state[0] = p.FieldApi.AddF(state[0], rc16[r][0])
 		state[0] = p.sboxP(state[0])
 		p.diffusionPermuteMut(state)
 	}
@@ -52,20 +52,20 @@ func (p *Poseidon2BabyBearChip) PermuteMut(state *[BABYBEAR_WIDTH]babybear.Varia
 
 func (p *Poseidon2BabyBearChip) addRc(state *[BABYBEAR_WIDTH]babybear.Variable, rc [BABYBEAR_WIDTH]babybear.Variable) {
 	for i := 0; i < BABYBEAR_WIDTH; i++ {
-		state[i] = p.fieldApi.AddF(state[i], rc[i])
+		state[i] = p.FieldApi.AddF(state[i], rc[i])
 	}
 }
 
 func (p *Poseidon2BabyBearChip) sboxP(input babybear.Variable) babybear.Variable {
 	zero := babybear.NewF("0")
-	inputCpy := p.fieldApi.AddF(input, zero)
-	inputCpy = p.fieldApi.ReduceSlow(inputCpy)
+	inputCpy := p.FieldApi.AddF(input, zero)
+	inputCpy = p.FieldApi.ReduceSlow(inputCpy)
 	inputValue := inputCpy.Value
 	i2 := p.api.Mul(inputValue, inputValue)
 	i4 := p.api.Mul(i2, i2)
 	i6 := p.api.Mul(i4, i2)
 	i7 := p.api.Mul(i6, inputValue)
-	i7bb := p.fieldApi.ReduceSlow(babybear.Variable{
+	i7bb := p.FieldApi.ReduceSlow(babybear.Variable{
 		Value:  i7,
 		NbBits: 31 * 7,
 	})
@@ -79,15 +79,15 @@ func (p *Poseidon2BabyBearChip) sbox(state *[BABYBEAR_WIDTH]babybear.Variable) {
 }
 
 func (p *Poseidon2BabyBearChip) mdsLightPermutation4x4(state []babybear.Variable) {
-	t01 := p.fieldApi.AddF(state[0], state[1])
-	t23 := p.fieldApi.AddF(state[2], state[3])
-	t0123 := p.fieldApi.AddF(t01, t23)
-	t01123 := p.fieldApi.AddF(t0123, state[1])
-	t01233 := p.fieldApi.AddF(t0123, state[3])
-	state[3] = p.fieldApi.AddF(t01233, p.fieldApi.MulFConst(state[0], 2))
-	state[1] = p.fieldApi.AddF(t01123, p.fieldApi.MulFConst(state[2], 2))
-	state[0] = p.fieldApi.AddF(t01123, t01)
-	state[2] = p.fieldApi.AddF(t01233, t23)
+	t01 := p.FieldApi.AddF(state[0], state[1])
+	t23 := p.FieldApi.AddF(state[2], state[3])
+	t0123 := p.FieldApi.AddF(t01, t23)
+	t01123 := p.FieldApi.AddF(t0123, state[1])
+	t01233 := p.FieldApi.AddF(t0123, state[3])
+	state[3] = p.FieldApi.AddF(t01233, p.FieldApi.MulFConst(state[0], 2))
+	state[1] = p.FieldApi.AddF(t01123, p.FieldApi.MulFConst(state[2], 2))
+	state[0] = p.FieldApi.AddF(t01123, t01)
+	state[2] = p.FieldApi.AddF(t01233, t23)
 }
 
 func (p *Poseidon2BabyBearChip) externalLinearLayer(state *[BABYBEAR_WIDTH]babybear.Variable) {
@@ -102,14 +102,14 @@ func (p *Poseidon2BabyBearChip) externalLinearLayer(state *[BABYBEAR_WIDTH]babyb
 		state[3],
 	}
 	for i := 4; i < BABYBEAR_WIDTH; i += 4 {
-		sums[0] = p.fieldApi.AddF(sums[0], state[i])
-		sums[1] = p.fieldApi.AddF(sums[1], state[i+1])
-		sums[2] = p.fieldApi.AddF(sums[2], state[i+2])
-		sums[3] = p.fieldApi.AddF(sums[3], state[i+3])
+		sums[0] = p.FieldApi.AddF(sums[0], state[i])
+		sums[1] = p.FieldApi.AddF(sums[1], state[i+1])
+		sums[2] = p.FieldApi.AddF(sums[2], state[i+2])
+		sums[3] = p.FieldApi.AddF(sums[3], state[i+3])
 	}
 
 	for i := 0; i < BABYBEAR_WIDTH; i++ {
-		state[i] = p.fieldApi.AddF(state[i], sums[i%4])
+		state[i] = p.FieldApi.AddF(state[i], sums[i%4])
 	}
 }
 
@@ -135,7 +135,7 @@ func (p *Poseidon2BabyBearChip) diffusionPermuteMut(state *[BABYBEAR_WIDTH]babyb
 	montyInverse := babybear.NewF("943718400")
 	p.matmulInternal(state, &matInternalDiagM1)
 	for i := 0; i < BABYBEAR_WIDTH; i++ {
-		state[i] = p.fieldApi.MulF(state[i], montyInverse)
+		state[i] = p.FieldApi.MulF(state[i], montyInverse)
 	}
 
 }
@@ -146,11 +146,11 @@ func (p *Poseidon2BabyBearChip) matmulInternal(
 ) {
 	sum := babybear.NewF("0")
 	for i := 0; i < BABYBEAR_WIDTH; i++ {
-		sum = p.fieldApi.AddF(sum, state[i])
+		sum = p.FieldApi.AddF(sum, state[i])
 	}
 
 	for i := 0; i < BABYBEAR_WIDTH; i++ {
-		state[i] = p.fieldApi.MulF(state[i], matInternalDiagM1[i])
-		state[i] = p.fieldApi.AddF(state[i], sum)
+		state[i] = p.FieldApi.MulF(state[i], matInternalDiagM1[i])
+		state[i] = p.FieldApi.AddF(state[i], sum)
 	}
 }

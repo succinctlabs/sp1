@@ -60,6 +60,7 @@ pub fn verify_two_adic_pcs<C: Config>(
     challenger: &mut MultiField32ChallengerVariable<C>,
     rounds: Vec<TwoAdicPcsRoundVariable<C>>,
 ) {
+    let mut counter = 0;
     let alpha = challenger.sample_ext(builder);
 
     let fri_challenges =
@@ -129,12 +130,17 @@ pub fn verify_two_adic_pcs<C: Config>(
                     for (z, ps_at_z) in izip!(mat_points, mat_values) {
                         let mut acc: Ext<C::F, C::EF> =
                             builder.eval(SymbolicExt::from_f(C::EF::zero()));
+                        counter += 1;
                         for (p_at_x, &p_at_z) in izip!(mat_opening.clone(), ps_at_z) {
                             let pow = log_height_pow[log_height];
+
                             // Fill in any missing powers of alpha.
                             (alpha_pows.len()..pow + 1).for_each(|_| {
-                                alpha_pows.push(builder.eval(*alpha_pows.last().unwrap() * alpha));
+                                let alpha = builder.eval(*alpha_pows.last().unwrap() * alpha);
+                                builder.operations.push(DslIr::ReduceE(alpha));
+                                alpha_pows.push(alpha);
                             });
+
                             acc = builder.eval(acc + (alpha_pows[pow] * (p_at_z - p_at_x[0])));
                             log_height_pow[log_height] += 1;
                         }
@@ -145,6 +151,8 @@ pub fn verify_two_adic_pcs<C: Config>(
             ro
         })
         .collect::<Vec<_>>();
+
+    println!("Counter: {}", counter);
 
     verify_challenges(
         builder,
