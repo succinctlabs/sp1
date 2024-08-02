@@ -399,8 +399,6 @@ func (p *Chip) reduceWithMaxBits(x frontend.Variable, maxNbBits uint64) frontend
 	p.ReduceMaxBitsCounter++
 
 	quotient := result[0]
-	// p.api.ToBinary(quotient, int(maxNbBits-31))
-
 	remainder := result[1]
 
 	if os.Getenv("RANGE_CHECKER") == "true" {
@@ -439,6 +437,7 @@ func (p *Chip) reduceWithMaxBits(x frontend.Variable, maxNbBits uint64) frontend
 		)
 	} else {
 		bits := p.api.ToBinary(remainder, 31)
+		p.api.ToBinary(quotient, int(maxNbBits-31))
 		lowBits := frontend.Variable(0)
 		highBits := frontend.Variable(0)
 		for i := 0; i < 27; i++ {
