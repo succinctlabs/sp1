@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use sp1_derive::AlignedBorrow;
 
 use crate::{
-    air::MachineAir,
+    air::{MachineAir, Word},
     runtime::{ExecutionRecord, MemoryRecordEnum, Program},
     stark::SP1AirBuilder,
     utils::pad_rows_fixed,
@@ -28,7 +28,9 @@ pub struct MemoryLocalCols<T> {
     pub addr: T,
 
     /// Value of the memory access.
-    pub value: T,
+    pub value: Word<T>,
+
+    pub prev_value: Word<T>,
 
     /// The clk of the memory access.
     pub clk: T,
@@ -77,8 +79,10 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
 
             cols.addr = F::from_canonical_u32(mem_record.addr);
 
-            let (value, shard, clk, prev_shard, prev_clk) = match mem_record.mem_record {
+            let (value, prev_value, shard, clk, prev_shard, prev_clk) = match mem_record.mem_record
+            {
                 MemoryRecordEnum::Read(read_record) => (
+                    read_record.value,
                     read_record.value,
                     read_record.shard,
                     read_record.timestamp,
@@ -87,6 +91,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
                 ),
                 MemoryRecordEnum::Write(write_record) => (
                     write_record.value,
+                    write_record.prev_value,
                     write_record.shard,
                     write_record.timestamp,
                     write_record.prev_shard,
@@ -94,7 +99,8 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
                 ),
             };
 
-            cols.value = F::from_canonical_u32(value);
+            cols.value = value.into();
+            cols.prev_value = prev_value.into();
             cols.clk = F::from_canonical_u32(clk);
             cols.prev_shard = F::from_canonical_u32(prev_shard);
             cols.prev_clk = F::from_canonical_u32(prev_clk);
