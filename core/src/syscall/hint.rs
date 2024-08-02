@@ -83,7 +83,7 @@ mod tests {
     use crate::{
         io::SP1Stdin,
         runtime::Program,
-        stark::DefaultProver,
+        stark::CpuProver,
         utils::{prove, setup_logger, BabyBearPoseidon2, SP1CoreOpts},
     };
 
@@ -105,6 +105,6 @@ mod tests {
         let program = Program::from(HINT_IO_ELF);
 
         let config = BabyBearPoseidon2::new();
-        prove::<_, DefaultProver<_, _>>(program, &stdin, config, SP1CoreOpts::default()).unwrap();
+        prove::<_, CpuProver<_, _>>(program, &stdin, config, SP1CoreOpts::default()).unwrap();
     }
 }

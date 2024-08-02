@@ -41,14 +41,14 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: check
-          toolchain: nightly-2024-04-17
+          toolchain: 1.79.0
           args: --all-targets --all-features
 
       - name: Run cargo test core-v2
         uses: actions-rs/cargo@v1
         with:
           command: test
-          toolchain: nightly-2024-04-17
+          toolchain: 1.79.0
           args: --release --package sp1-recursion-core-v2 --package sp1-recursion-circuit-v2 --features native-gnark
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
@@ -60,7 +60,13 @@ jobs:
           
   test-x86:
     name: Test (x86-64)
-    runs-on: runs-on,runner=64cpu-linux-x64,spot=false
+    runs-on:
+      [
+        runs-on,
+        runner=64cpu-linux-x64,
+        spot=false,
+        "run-id=${{ github.run_id }}",
+      ]
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
@@ -74,14 +80,14 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: check
-          toolchain: nightly-2024-04-17
+          toolchain: 1.79.0
           args: --all-targets --all-features
 
       - name: Run cargo test
         uses: actions-rs/cargo@v1
         with:
           command: test
-          toolchain: nightly-2024-04-17
+          toolchain: 1.79.0
           args: --release --features native-gnark
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
@@ -91,7 +97,13 @@ jobs:
 
   test-arm:
     name: Test (ARM)
-    runs-on: runs-on,runner=64cpu-linux-arm64,spot=false
+    runs-on:
+      [
+        runs-on,
+        runner=64cpu-linux-arm64,
+        spot=false,
+        "run-id=${{ github.run_id }}",
+      ]
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
@@ -105,14 +117,14 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: check
-          toolchain: nightly-2024-04-17
+          toolchain: 1.79.0
           args: --all-targets --all-features
 
       - name: Run cargo test
         uses: actions-rs/cargo@v1
         with:
           command: test
-          toolchain: nightly-2024-04-17
+          toolchain: 1.79.0
           args: --release --features native-gnark
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
@@ -122,7 +134,7 @@ jobs:
 
   lint:
     name: Formatting & Clippy
-    runs-on: runs-on,runner=8cpu-linux-x64
+    runs-on: [runs-on, runner=8cpu-linux-x64, "run-id=${{ github.run_id }}"]
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
@@ -150,7 +162,7 @@ jobs:
 
   examples:
     name: Examples
-    runs-on: runs-on,runner=8cpu-linux-x64
+    runs-on: [runs-on, runner=8cpu-linux-x64, "run-id=${{ github.run_id }}"]
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
@@ -180,7 +192,7 @@ jobs:
 
   cli:
     name: CLI
-    runs-on: runs-on,runner=8cpu-linux-x64
+    runs-on: [runs-on, runner=8cpu-linux-x64, "run-id=${{ github.run_id }}"]
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:

@@ -41,7 +41,7 @@ jobs:
           ./eval.sh
 
       - name: Upload Benchmark as Artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: benchmark-results-${{ matrix.arch }}
           path: benchmark.csv

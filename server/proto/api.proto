@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package api;
+
+service ProverService {
+    rpc ProveCore(ProveCoreRequest) returns (ProveCoreResponse) {}
+    rpc Compress(CompressRequest) returns (CompressResponse) {}
+}
+
+message ProveCoreRequest {
+    bytes data = 1;
+}
+
+message ProveCoreResponse {
+    bytes result = 1;
+}
+
+message CompressRequest {
+    bytes data = 1;
+}
+
+message CompressResponse {
+    bytes result = 1;
+}

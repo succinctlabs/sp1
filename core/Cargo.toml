@@ -42,7 +42,7 @@ anyhow = "1.0.83"
 amcl = { package = "snowbridge-amcl", version = "1.0.2", default-features = false, features = [
   "bls381",
 ] }
-arrayref = "0.3.7"
+arrayref = "0.3.8"
 blake3 = "1.5"
 cfg-if = "1.0.0"
 generic-array = { version = "1.1.0", features = ["alloc", "serde"] }
@@ -62,11 +62,12 @@ strum_macros = "0.26"
 strum = "0.26"
 web-time = "1.1.0"
 rayon-scan = "0.1.1"
-thiserror = "1.0.60"
+thiserror = "1.0.63"
 num-bigint = { version = "0.4.6", default-features = false }
 rand = "0.8.5"
 bytemuck = "1.16.0"
 hashbrown = { version = "0.14.5", features = ["serde", "inline-more"] }
+static_assertions = "1.1.0"
 
 [dev-dependencies]
 tiny-keccak = { version = "2.0.2", features = ["keccak"] }

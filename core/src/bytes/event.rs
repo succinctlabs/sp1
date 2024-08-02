@@ -1,3 +1,5 @@
+use std::hash::{Hash, Hasher};
+
 use hashbrown::HashMap;
 use itertools::Itertools;
 use p3_field::PrimeField32;
@@ -9,28 +11,41 @@ use serde::{Deserialize, Serialize};
 use super::ByteOpcode;
 
 /// A byte lookup event.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ByteLookupEvent {
     /// The shard number, used for byte lookup table.
     pub shard: u32,
 
     // The channel multiplicity identifier.
-    pub channel: u32,
+    pub channel: u8,
 
     /// The opcode of the operation.
     pub opcode: ByteOpcode,
 
     /// The first output operand.
-    pub a1: u32,
+    pub a1: u16,
 
     /// The second output operand.
-    pub a2: u32,
+    pub a2: u8,
 
     /// The first input operand.
-    pub b: u32,
+    pub b: u8,
 
     /// The second input operand.
-    pub c: u32,
+    pub c: u8,
+}
+
+impl Hash for ByteLookupEvent {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        let combined_limb_1 = self.shard as u64
+            + ((self.channel as u64) << 32)
+            + ((self.opcode as u64) << 40)
+            + ((self.a1 as u64) << 48);
+        let combined_limb_2 = self.a2 as u64 + ((self.b as u64) << 8) + ((self.c as u64) << 16);
+        let combined = combined_limb_1 as u128 + ((combined_limb_2 as u128) << 64);
+
+        combined.hash(state);
+    }
 }
 
 /// A type that can record byte lookup events.
@@ -52,20 +67,20 @@ pub trait ByteRecord {
     }
 
     /// Adds a `ByteLookupEvent` to verify `a` and `b are indeed bytes to the shard.
-    fn add_u8_range_check(&mut self, shard: u32, channel: u32, a: u8, b: u8) {
+    fn add_u8_range_check(&mut self, shard: u32, channel: u8, a: u8, b: u8) {
         self.add_byte_lookup_event(ByteLookupEvent {
             shard,
             channel,
             opcode: ByteOpcode::U8Range,
             a1: 0,
             a2: 0,
-            b: a as u32,
-            c: b as u32,
+            b: a,
+            c: b,
         });
     }
 
     /// Adds a `ByteLookupEvent` to verify `a` is indeed u16.
-    fn add_u16_range_check(&mut self, shard: u32, channel: u32, a: u32) {
+    fn add_u16_range_check(&mut self, shard: u32, channel: u8, a: u16) {
         self.add_byte_lookup_event(ByteLookupEvent {
             shard,
             channel,
@@ -78,7 +93,7 @@ pub trait ByteRecord {
     }
 
     /// Adds `ByteLookupEvent`s to verify that all the bytes in the input slice are indeed bytes.
-    fn add_u8_range_checks(&mut self, shard: u32, channel: u32, bytes: &[u8]) {
+    fn add_u8_range_checks(&mut self, shard: u32, channel: u8, bytes: &[u8]) {
         let mut index = 0;
         while index + 1 < bytes.len() {
             self.add_u8_range_check(shard, channel, bytes[index], bytes[index + 1]);
@@ -95,7 +110,7 @@ pub trait ByteRecord {
     fn add_u8_range_checks_field<F: PrimeField32>(
         &mut self,
         shard: u32,
-        channel: u32,
+        channel: u8,
         field_values: &[F],
     ) {
         self.add_u8_range_checks(
@@ -109,21 +124,21 @@ pub trait ByteRecord {
     }
 
     /// Adds `ByteLookupEvent`s to verify that all the bytes in the input slice are indeed bytes.
-    fn add_u16_range_checks(&mut self, shard: u32, channel: u32, ls: &[u32]) {
+    fn add_u16_range_checks(&mut self, shard: u32, channel: u8, ls: &[u16]) {
         ls.iter()
             .for_each(|x| self.add_u16_range_check(shard, channel, *x));
     }
 
     /// Adds a `ByteLookupEvent` to compute the bitwise OR of the two input values.
-    fn lookup_or(&mut self, shard: u32, channel: u32, b: u8, c: u8) {
+    fn lookup_or(&mut self, shard: u32, channel: u8, b: u8, c: u8) {
         self.add_byte_lookup_event(ByteLookupEvent {
             shard,
             channel,
             opcode: ByteOpcode::OR,
-            a1: (b | c) as u32,
+            a1: (b | c) as u16,
             a2: 0,
-            b: b as u32,
-            c: c as u32,
+            b,
+            c,
         });
     }
 }
@@ -131,15 +146,7 @@ pub trait ByteRecord {
 impl ByteLookupEvent {
     /// Creates a new `ByteLookupEvent`.
     #[inline(always)]
-    pub fn new(
-        shard: u32,
-        channel: u32,
-        opcode: ByteOpcode,
-        a1: u32,
-        a2: u32,
-        b: u32,
-        c: u32,
-    ) -> Self {
+    pub fn new(shard: u32, channel: u8, opcode: ByteOpcode, a1: u16, a2: u8, b: u8, c: u8) -> Self {
         Self {
             shard,
             channel,

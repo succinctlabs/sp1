@@ -22,7 +22,7 @@ pub const SHA_COMPRESS_K: [u32; 64] = [
 pub struct ShaCompressEvent {
     pub lookup_id: u128,
     pub shard: u32,
-    pub channel: u32,
+    pub channel: u8,
     pub clk: u32,
     pub w_ptr: u32,
     pub h_ptr: u32,
@@ -54,7 +54,7 @@ pub mod compress_tests {
 
     use crate::{
         runtime::{Instruction, Opcode, Program, SyscallCode},
-        stark::DefaultProver,
+        stark::CpuProver,
         utils::{run_test, setup_logger, tests::SHA_COMPRESS_ELF},
     };
 
@@ -94,13 +94,13 @@ pub mod compress_tests {
     fn prove_babybear() {
         setup_logger();
         let program = sha_compress_program();
-        run_test::<DefaultProver<_, _>>(program).unwrap();
+        run_test::<CpuProver<_, _>>(program).unwrap();
     }
 
     #[test]
     fn test_sha_compress_program() {
         setup_logger();
         let program = Program::from(SHA_COMPRESS_ELF);
-        run_test::<DefaultProver<_, _>>(program).unwrap();
+        run_test::<CpuProver<_, _>>(program).unwrap();
     }
 }
