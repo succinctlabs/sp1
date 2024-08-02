@@ -83,7 +83,7 @@ Apply the following patches based on your original crate usage:
 
 To accelerate Secp256k1 operations, you'll need to patch `k256` or `secp256k1` depending on your usage.
 
-Generally, if a crate you're using (ex. `revm`) has support for using `k256` instead of `secp256k1`, you should use `k256` for better performance in signature recovery for 4-5x better performance.
+Generally, if a crate you're using (ex. `revm`) has support for using `k256` instead of `secp256k1`, you should use `k256`.
 
 ### Patches
 
