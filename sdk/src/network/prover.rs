@@ -84,7 +84,7 @@ impl NetworkProver {
         Ok(proof_id)
     }
 
-    /// Waits for a proof to be generated and returns the proof. If a timeout is supplied, the 
+    /// Waits for a proof to be generated and returns the proof. If a timeout is supplied, the
     /// function will return an error if the proof is not generated within the timeout.
     pub async fn wait_proof<P: DeserializeOwned>(
         &self,
