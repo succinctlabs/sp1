@@ -17,7 +17,7 @@ use sp1_prover::{SP1ProvingKey, SP1Stdin, SP1VerifyingKey};
 use strum_macros::EnumString;
 use thiserror::Error;
 
-use crate::action::ProveOpts;
+use crate::action::ProofConfig;
 use crate::install::try_install_plonk_bn254_artifacts;
 use crate::SP1Proof;
 use crate::SP1ProofKind;
@@ -60,7 +60,7 @@ pub trait Prover<C: SP1ProverComponents>: Send + Sync {
         &'a self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
-        opts: ProveOpts,
+        opts: ProofConfig,
         context: SP1Context<'a>,
         kind: SP1ProofKind,
     ) -> Result<SP1ProofWithPublicValues>;

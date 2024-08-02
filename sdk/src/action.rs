@@ -10,8 +10,10 @@ use anyhow::{Ok, Result};
 
 use crate::{Prover, SP1ProofKind, SP1ProofWithPublicValues};
 
+/// Configuration for a specific proof. Includes the options for running the prover
+/// and the network options for the proof.
 #[derive(Clone, Default)]
-pub struct ProveOpts {
+pub struct ProofConfig {
     pub sp1_prover_opts: SP1ProverOpts,
     pub network_opts: NetworkOpts,
 }
@@ -143,7 +145,7 @@ impl<'a> Prove<'a> {
             core_opts,
             recursion_opts,
         };
-        let prove_opts = ProveOpts {
+        let prove_opts = ProofConfig {
             sp1_prover_opts: opts,
             network_opts,
         };

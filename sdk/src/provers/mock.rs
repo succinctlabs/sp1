@@ -2,7 +2,7 @@
 use hashbrown::HashMap;
 
 use crate::{
-    action::ProveOpts, Prover, SP1Proof, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey,
+    action::ProofConfig, Prover, SP1Proof, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey,
     SP1VerificationError, SP1VerifyingKey,
 };
 use anyhow::Result;
@@ -50,7 +50,7 @@ impl Prover<DefaultProverComponents> for MockProver {
         &'a self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
-        opts: ProveOpts,
+        opts: ProofConfig,
         context: SP1Context<'a>,
         kind: SP1ProofKind,
     ) -> Result<SP1ProofWithPublicValues> {

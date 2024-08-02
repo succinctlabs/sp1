@@ -1,7 +1,7 @@
 use std::time::Instant;
 use std::{env, time::Duration};
 
-use crate::action::{NetworkOpts, ProveOpts};
+use crate::action::{NetworkOpts, ProofConfig};
 use crate::install::block_on;
 use crate::proto::network::ProofMode;
 use crate::{
@@ -154,7 +154,7 @@ impl Prover<DefaultProverComponents> for NetworkProver {
         &'a self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
-        opts: ProveOpts,
+        opts: ProofConfig,
         context: SP1Context<'a>,
         kind: SP1ProofKind,
     ) -> Result<SP1ProofWithPublicValues> {
