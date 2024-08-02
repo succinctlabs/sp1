@@ -89,6 +89,7 @@ impl<'a> Execute<'a> {
     }
 }
 
+/// Configuration for the network options for the proof.
 #[derive(Clone, Default)]
 pub struct NetworkOpts {
     pub timeout: Option<Duration>,
