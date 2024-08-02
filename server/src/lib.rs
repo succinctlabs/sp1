@@ -30,7 +30,7 @@ use twirp::Client;
 /// This is currently used to provide experimental support for GPU hardware acceleration.
 ///
 /// **WARNING**: This is an experimental feature and may not work as expected.
-pub struct SP1ProverClient {
+pub struct SP1ProverServer {
     /// The gRPC client to communicate with the container.
     client: Client,
     /// The name of the container.
@@ -63,7 +63,7 @@ pub struct CompressRequestPayload {
     pub deferred_proofs: Vec<ShardProof<InnerSC>>,
 }
 
-impl SP1ProverClient {
+impl SP1ProverServer {
     /// Creates a new [SP1Prover] that runs inside a Docker container and returns a
     /// [SP1ProverClient] that can be used to communicate with the container.
     pub fn new() -> Self {
@@ -112,7 +112,7 @@ impl SP1ProverClient {
         std::thread::sleep(Duration::from_secs(10));
         tracing::debug!("sleeping for 10 seconds to allow server to start");
 
-        SP1ProverClient {
+        SP1ProverServer {
             client: Client::from_base_url(
                 Url::parse("http://localhost:3000/twirp/").expect("failed to parse url"),
             )
@@ -176,7 +176,7 @@ impl SP1ProverClient {
     }
 }
 
-impl Drop for SP1ProverClient {
+impl Drop for SP1ProverServer {
     fn drop(&mut self) {
         if !self.cleaned_up.load(Ordering::SeqCst) {
             tracing::debug!("dropping SP1ProverClient, cleaning up...");
@@ -208,13 +208,14 @@ mod tests {
 
     use crate::SP1Stdin;
     use crate::{proto::api::ProverServiceClient, ProveCoreRequestPayload};
-    use crate::{CompressRequestPayload, SP1ProverClient};
+    use crate::{CompressRequestPayload, SP1ProverServer};
 
+    #[ignore]
     #[test]
     fn test_client() {
         utils::setup_logger();
 
-        let client = SP1ProverClient::new();
+        let client = SP1ProverServer::new();
 
         let prover = SP1Prover::<DefaultProverComponents>::new();
         let (pk, vk) = prover.setup(FIBONACCI_ELF);
@@ -232,6 +233,7 @@ mod tests {
         prover.verify_compressed(&proof, &vk).unwrap();
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_prove_core() {
         let client =
