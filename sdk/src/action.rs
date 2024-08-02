@@ -134,13 +134,13 @@ impl<'a> Prove<'a> {
             core_opts,
             recursion_opts,
         };
-        let prove_opts = ProofOpts {
+        let proof_opts = ProofOpts {
             sp1_prover_opts: opts,
             network_opts,
         };
         let context = context_builder.build();
 
-        prover.prove(pk, stdin, prove_opts, context, kind)
+        prover.prove(pk, stdin, proof_opts, context, kind)
     }
 
     /// Set the proof kind to the core mode. This is the default.
@@ -210,7 +210,8 @@ impl<'a> Prove<'a> {
         self
     }
 
-    /// Timeout for the proof generation.
+    /// Timeout for proof generation. This parameter is only used when the prover is run in network
+    /// mode.
     pub fn timeout(mut self, timeout: Duration) -> Self {
         self.network_opts.timeout = Some(timeout);
         self
