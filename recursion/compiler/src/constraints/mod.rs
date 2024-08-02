@@ -207,6 +207,13 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
                         args: vec![vec![a.id()], vec![b.id()], vec![tmp]],
                     });
                 }
+                DslIr::MulFI(a, b, c) => {
+                    let tmp = self.alloc_f(&mut constraints, c);
+                    constraints.push(Constraint {
+                        opcode: ConstraintOpcode::MulF,
+                        args: vec![vec![a.id()], vec![b.id()], vec![tmp]],
+                    });
+                }
                 DslIr::MulEF(a, b, c) => constraints.push(Constraint {
                     opcode: ConstraintOpcode::MulEF,
                     args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
