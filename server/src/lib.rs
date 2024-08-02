@@ -109,8 +109,8 @@ impl SP1ProverServer {
         })
         .unwrap();
 
-        std::thread::sleep(Duration::from_secs(10));
         tracing::debug!("sleeping for 10 seconds to allow server to start");
+        std::thread::sleep(Duration::from_secs(10));
 
         SP1ProverServer {
             client: Client::from_base_url(
