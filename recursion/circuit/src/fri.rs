@@ -139,7 +139,6 @@ pub fn verify_two_adic_pcs<C: Config>(
                             acc = builder.eval(acc + (alpha_pows[pow] * (p_at_z - p_at_x[0])));
                             log_height_pow[log_height] += 1;
                         }
-                        // builder.reduce_e(acc);
                         ro[log_height] = builder.eval(ro[log_height] + acc / (*z - x));
                     }
                 }
