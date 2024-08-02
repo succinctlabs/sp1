@@ -47,18 +47,7 @@ pub fn verify_shape_and_sample_challenges<C: Config>(
         .map(|_| challenger.sample_bits(builder, log_max_height))
         .collect();
 
-    let mut cur = builder.eval(SymbolicExt::from_f(C::EF::two_adic_generator(
-        log_max_height,
-    )));
-    let mut precomputed_generator_powers: Vec<Ext<_, _>> =
-        vec![builder.eval(SymbolicExt::from_f(C::EF::one())), cur];
-    for _ in 2..log_max_height {
-        cur = builder.eval(cur * cur);
-        precomputed_generator_powers.push(cur);
-    }
-
     FriChallenges {
-        precomputed_generator_powers,
         query_indices,
         betas,
     }
@@ -189,7 +178,6 @@ pub fn verify_challenges<C: Config>(
             challenges.betas.clone(),
             ro,
             log_max_height,
-            &challenges.precomputed_generator_powers,
         );
 
         builder.assert_ext_eq(folded_eval, proof.final_poly);
@@ -204,13 +192,14 @@ pub fn verify_query<C: Config>(
     betas: Vec<Ext<C::F, C::EF>>,
     reduced_openings: [Ext<C::F, C::EF>; 32],
     log_max_height: usize,
-    precomputed_generator_powers: &[Ext<C::F, C::EF>],
 ) -> Ext<C::F, C::EF> {
     let mut folded_eval: Ext<C::F, C::EF> = builder.eval(SymbolicExt::from_f(C::EF::zero()));
-
+    let two_adic_generator = builder.eval(SymbolicExt::from_f(C::EF::two_adic_generator(
+        log_max_height,
+    )));
     let index_bits = builder.num2bits_v_circuit(index, 32);
     let rev_reduced_index = builder.reverse_bits_len_circuit(index_bits.clone(), log_max_height);
-    let mut x = builder.exp_e_bits_precomputed(precomputed_generator_powers, rev_reduced_index);
+    let mut x = builder.exp_e_bits(two_adic_generator, rev_reduced_index);
 
     let mut offset = 0;
     for (log_folded_height, commit, step, beta) in izip!(
@@ -255,7 +244,6 @@ pub fn verify_query<C: Config>(
         folded_eval = builder
             .eval(evals_ext[0] + (beta - xs[0]) * (evals_ext[1] - evals_ext[0]) / (xs[1] - xs[0]));
         x = builder.eval(x * x);
-        // builder.reduce_e(x);
         offset += 1;
     }
 
