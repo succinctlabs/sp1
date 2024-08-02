@@ -1,5 +1,7 @@
 use std::env;
 
+use serde::{Deserialize, Serialize};
+
 use crate::runtime::{SplitOpts, DEFERRED_SPLIT_THRESHOLD};
 
 const DEFAULT_SHARD_SIZE: usize = 1 << 22;
@@ -8,7 +10,7 @@ const DEFAULT_TRACE_GEN_WORKERS: usize = 1;
 const DEFAULT_CHECKPOINTS_CHANNEL_CAPACITY: usize = 128;
 const DEFAULT_RECORDS_AND_TRACES_CHANNEL_CAPACITY: usize = 1;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SP1ProverOpts {
     pub core_opts: SP1CoreOpts,
     pub recursion_opts: SP1CoreOpts,
@@ -23,7 +25,7 @@ impl Default for SP1ProverOpts {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SP1CoreOpts {
     pub shard_size: usize,
     pub shard_batch_size: usize,
