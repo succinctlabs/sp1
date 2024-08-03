@@ -57,6 +57,12 @@ func NewChip(api frontend.API) *Chip {
 }
 
 func NewF(value string) Variable {
+	if value == "0" || value == "1" {
+		return Variable{
+			Value:  frontend.Variable(value),
+			NbBits: 0,
+		}
+	}
 	return Variable{
 		Value:  frontend.Variable(value),
 		NbBits: 31,
@@ -66,14 +72,14 @@ func NewF(value string) Variable {
 func Zero() Variable {
 	return Variable{
 		Value:  frontend.Variable("0"),
-		NbBits: 0,
+		NbBits: 1,
 	}
 }
 
 func One() Variable {
 	return Variable{
 		Value:  frontend.Variable("1"),
-		NbBits: 0,
+		NbBits: 1,
 	}
 }
 
@@ -437,7 +443,6 @@ func (p *Chip) reduceWithMaxBits(x frontend.Variable, maxNbBits uint64) frontend
 		)
 	} else {
 		bits := p.api.ToBinary(remainder, 31)
-		p.api.ToBinary(quotient, int(maxNbBits-31))
 		lowBits := frontend.Variable(0)
 		highBits := frontend.Variable(0)
 		for i := 0; i < 27; i++ {
