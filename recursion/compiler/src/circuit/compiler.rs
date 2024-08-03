@@ -1,6 +1,8 @@
 use chips::poseidon2_skinny::WIDTH;
 use core::fmt::Debug;
-use instruction::{FieldEltType, HintBitsInstr, HintExt2FeltsInstr, PrintInstr};
+use instruction::{
+    FieldEltType, HintBitsInstr, HintExt2FeltsInstr, HintExtsInstr, HintFeltsInstr, PrintInstr,
+};
 use p3_field::{AbstractExtensionField, AbstractField, Field, PrimeField, TwoAdicField};
 use sp1_core::utils::SpanBuilder;
 use sp1_recursion_core::air::Block;
@@ -358,6 +360,26 @@ impl<C: Config> AsmCompiler<C> {
         .into()
     }
 
+    fn hint_felts(&mut self, output: &[impl Reg<C>]) -> CompileOneItem<C::F> {
+        Instruction::HintFelts(HintFeltsInstr {
+            output_addrs_mults: output
+                .iter()
+                .map(|r| (r.write(self), C::F::zero()))
+                .collect(),
+        })
+        .into()
+    }
+
+    fn hint_exts(&mut self, output: &[impl Reg<C>]) -> CompileOneItem<C::F> {
+        Instruction::HintExts(HintExtsInstr {
+            output_addrs_mults: output
+                .iter()
+                .map(|r| (r.write(self), C::F::zero()))
+                .collect(),
+        })
+        .into()
+    }
+
     pub fn compile_one<F>(&mut self, ir_instr: DslIr<C>) -> Vec<CompileOneItem<C::F>>
     where
         F: PrimeField + TwoAdicField,
@@ -451,8 +473,8 @@ impl<C: Config> AsmCompiler<C> {
             DslIr::PrintV(dst) => vec![self.print_f(dst)],
             DslIr::PrintF(dst) => vec![self.print_f(dst)],
             DslIr::PrintE(dst) => vec![self.print_e(dst)],
-            DslIr::CircuitV2HintFelts(output) => todo!(),
-            DslIr::CircuitV2HintExts(output) => todo!(),
+            DslIr::CircuitV2HintFelts(output) => vec![self.hint_felts(&output)],
+            DslIr::CircuitV2HintExts(output) => vec![self.hint_exts(&output)],
             DslIr::CircuitExt2Felt(felts, ext) => vec![self.ext2felts(felts, ext)],
             DslIr::CycleTrackerV2Enter(name) => vec![CompileOneItem::CycleTrackerEnter(name)],
             DslIr::CycleTrackerV2Exit => vec![CompileOneItem::CycleTrackerExit],
@@ -534,6 +556,12 @@ impl<C: Config> AsmCompiler<C> {
                 }) => vec![(mult, result)],
                 Instruction::HintBits(HintBitsInstr {
                     output_addrs_mults, ..
+                })
+                | Instruction::HintFelts(HintFeltsInstr {
+                    output_addrs_mults, ..
+                })
+                | Instruction::HintExts(HintExtsInstr {
+                    output_addrs_mults, ..
                 }) => output_addrs_mults
                     .iter_mut()
                     .map(|(ref addr, mult)| (mult, addr))
@@ -606,6 +634,8 @@ const fn instr_name<F>(instr: &Instruction<F>) -> &'static str {
         Instruction::FriFold(_) => "FriFold",
         Instruction::Print(_) => "Print",
         Instruction::HintExt2Felts(_) => "HintExt2Felts",
+        Instruction::HintFelts(_) => "HintFelts",
+        Instruction::HintExts(_) => "HintExts",
     }
 }
 
