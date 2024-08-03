@@ -354,7 +354,7 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek"
 version = "4.1.3"
-source = "git+https://github.com/sp1-patches/curve25519-dalek?branch=patch-curve25519-v4.1.3#aef63c8c44cbc4213a3bb3682884648a51479609"
+source = "git+https://github.com/sp1-patches/curve25519-dalek?branch=patch-curve25519-v4.1.3#1d73fd95f1a76bee8f46643cf78bbccc1fb06ede"
 dependencies = [
  "anyhow",
  "cfg-if",
@@ -363,7 +363,7 @@ dependencies = [
  "digest 0.10.7",
  "fiat-crypto",
  "rustc_version 0.4.0",
- "sp1-lib 1.0.1 (git+https://github.com/succinctlabs/sp1.git?branch=ratan/add-ed-decompress-test)",
+ "sp1-lib 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "subtle",
  "zeroize",
 ]
@@ -371,7 +371,7 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek-derive"
 version = "0.1.1"
-source = "git+https://github.com/sp1-patches/curve25519-dalek?branch=patch-curve25519-v4.1.3#aef63c8c44cbc4213a3bb3682884648a51479609"
+source = "git+https://github.com/sp1-patches/curve25519-dalek?branch=patch-curve25519-v4.1.3#1d73fd95f1a76bee8f46643cf78bbccc1fb06ede"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -381,14 +381,14 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek-ng"
 version = "4.1.1"
-source = "git+https://github.com/sp1-patches/curve25519-dalek-ng?branch=new-patch-v4.1.1#5397bfecb130f88aee5664737f76f3b1be4722db"
+source = "git+https://github.com/sp1-patches/curve25519-dalek-ng?branch=patch-v4.1.1#8dd77b20f3e78965a0cc57070a04465b9d52c49e"
 dependencies = [
  "anyhow",
  "byteorder",
  "cfg-if",
  "digest 0.9.0",
  "rand_core",
- "sp1-lib 1.0.1 (git+https://github.com/succinctlabs/sp1.git?branch=ratan/add-ed-decompress-test)",
+ "sp1-lib 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "subtle-ng",
  "zeroize",
 ]
@@ -451,7 +451,7 @@ dependencies = [
 [[package]]
 name = "ecdsa"
 version = "0.16.9"
-source = "git+https://github.com/sp1-patches/signatures?branch=patch-ecdsa-v0.16.9#5d48cf0a71337464eccaa7423fbd28221b760a4f"
+source = "git+https://github.com/sp1-patches/signatures?branch=patch-ecdsa-v0.16.9#1caae137b2b2c458b8a542b1c4e9fb40293c67a3"
 dependencies = [
  "anyhow",
  "cfg-if",
@@ -461,7 +461,7 @@ dependencies = [
  "hex-literal",
  "rfc6979",
  "signature",
- "sp1-lib 1.0.1 (git+https://github.com/succinctlabs/sp1.git?branch=john/lib-refactor)",
+ "sp1-lib 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "spki",
 ]
 
@@ -478,7 +478,7 @@ dependencies = [
 [[package]]
 name = "ed25519-consensus"
 version = "2.1.0"
-source = "git+https://github.com/sp1-patches/ed25519-consensus?branch=patch-new-v2.1.0#e0eaf514f61ac8ca732dd4fa79706802d0166677"
+source = "git+https://github.com/sp1-patches/ed25519-consensus?branch=patch-v2.1.0#2b2c4b43344bc4daf5b1326f367f2d9d661eeabb"
 dependencies = [
  "curve25519-dalek-ng",
  "hex",
@@ -998,7 +998,7 @@ checksum = "7a66a03ae7c801facd77a29370b4faec201768915ac14a721ba36f20bc9c209b"
 [[package]]
 name = "rfc6979"
 version = "0.4.0"
-source = "git+https://github.com/sp1-patches/signatures?branch=patch-ecdsa-v0.16.9#5d48cf0a71337464eccaa7423fbd28221b760a4f"
+source = "git+https://github.com/sp1-patches/signatures?branch=patch-ecdsa-v0.16.9#1caae137b2b2c458b8a542b1c4e9fb40293c67a3"
 dependencies = [
  "hmac",
  "subtle",
@@ -1226,19 +1226,9 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "1.0.1"
-source = "git+https://github.com/succinctlabs/sp1.git?branch=john/lib-refactor#8f7b81634a315def4ee14933ab96743c39985d73"
-dependencies = [
- "anyhow",
- "bincode",
- "cfg-if",
- "serde",
-]
-
-[[package]]
-name = "sp1-lib"
-version = "1.0.1"
-source = "git+https://github.com/succinctlabs/sp1.git?branch=ratan/add-ed-decompress-test#312d3e9e096695335367b4778b126578e925d1cf"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "de4c2cc40e1019faac8cdbe61172c7be09960cfe240c712be46df3795c53fce8"
 dependencies = [
  "anyhow",
  "bincode",
@@ -1259,7 +1249,7 @@ dependencies = [
  "rand",
  "serde",
  "sha2 0.10.8",
- "sp1-lib 1.0.1",
+ "sp1-lib 1.1.0",
 ]
 
 [[package]]
