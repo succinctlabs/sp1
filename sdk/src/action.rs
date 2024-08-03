@@ -2,18 +2,17 @@ use sp1_core::{
     runtime::{ExecutionReport, HookEnv, SP1ContextBuilder},
     utils::{SP1CoreOpts, SP1ProverOpts},
 };
-use sp1_prover::{
-    components::DefaultProverComponents, SP1Prover, SP1ProvingKey, SP1PublicValues, SP1Stdin,
-};
+use sp1_prover::{components::DefaultProverComponents, SP1ProvingKey, SP1PublicValues, SP1Stdin};
 
 use anyhow::{Ok, Result};
+use std::time::Duration;
 
-use crate::{Prover, SP1ProofKind, SP1ProofWithPublicValues};
+use crate::{provers::ProofOpts, Prover, SP1ProofKind, SP1ProofWithPublicValues};
 
 /// Builder to prepare and configure execution of a program on an input.
 /// May be run with [Self::run].
-#[derive(Default)]
 pub struct Execute<'a> {
+    prover: &'a dyn Prover<DefaultProverComponents>,
     context_builder: SP1ContextBuilder<'a>,
     elf: &'a [u8],
     stdin: SP1Stdin,
@@ -24,8 +23,13 @@ impl<'a> Execute<'a> {
     ///
     /// Prefer using [ProverClient::execute](super::ProverClient::execute).
     /// See there for more documentation.
-    pub fn new(elf: &'a [u8], stdin: SP1Stdin) -> Self {
+    pub fn new(
+        prover: &'a dyn Prover<DefaultProverComponents>,
+        elf: &'a [u8],
+        stdin: SP1Stdin,
+    ) -> Self {
         Self {
+            prover,
             elf,
             stdin,
             context_builder: Default::default(),
@@ -35,14 +39,13 @@ impl<'a> Execute<'a> {
     /// Execute the program on the input, consuming the built action `self`.
     pub fn run(self) -> Result<(SP1PublicValues, ExecutionReport)> {
         let Self {
+            prover,
             elf,
             stdin,
             mut context_builder,
         } = self;
         let context = context_builder.build();
-        Ok(SP1Prover::<DefaultProverComponents>::execute(
-            elf, &stdin, context,
-        )?)
+        Ok(prover.sp1_prover().execute(elf, &stdin, context)?)
     }
 
     /// Add a runtime [Hook](super::Hook) into the context.
@@ -87,6 +90,7 @@ pub struct Prove<'a> {
     stdin: SP1Stdin,
     core_opts: SP1CoreOpts,
     recursion_opts: SP1CoreOpts,
+    timeout: Option<Duration>,
 }
 
 impl<'a> Prove<'a> {
@@ -107,6 +111,7 @@ impl<'a> Prove<'a> {
             context_builder: Default::default(),
             core_opts: SP1CoreOpts::default(),
             recursion_opts: SP1CoreOpts::recursion(),
+            timeout: None,
         }
     }
 
@@ -120,14 +125,19 @@ impl<'a> Prove<'a> {
             mut context_builder,
             core_opts,
             recursion_opts,
+            timeout,
         } = self;
         let opts = SP1ProverOpts {
             core_opts,
             recursion_opts,
         };
+        let proof_opts = ProofOpts {
+            sp1_prover_opts: opts,
+            timeout,
+        };
         let context = context_builder.build();
 
-        prover.prove(pk, stdin, opts, context, kind)
+        prover.prove(pk, stdin, proof_opts, context, kind)
     }
 
     /// Set the proof kind to the core mode. This is the default.
@@ -183,18 +193,6 @@ impl<'a> Prove<'a> {
         self
     }
 
-    /// Set the commit stream capacity for proving.
-    pub fn commit_stream_capacity(mut self, value: usize) -> Self {
-        self.core_opts.commit_stream_capacity = value;
-        self
-    }
-
-    /// Set the prove stream capacity for proving.
-    pub fn prove_stream_capacity(mut self, value: usize) -> Self {
-        self.core_opts.prove_stream_capacity = value;
-        self
-    }
-
     /// Set whether we should reconstruct commitments while proving.
     pub fn reconstruct_commitments(mut self, value: bool) -> Self {
         self.core_opts.reconstruct_commitments = value;
@@ -206,6 +204,14 @@ impl<'a> Prove<'a> {
     /// If the cycle limit is exceeded, execution will return [sp1_core::runtime::ExecutionError::ExceededCycleLimit].
     pub fn cycle_limit(mut self, cycle_limit: u64) -> Self {
         self.context_builder.max_cycles(cycle_limit);
+        self
+    }
+
+    /// Set the timeout for the proof's generation.
+    ///
+    /// This parameter is only used when the prover is run in network mode.
+    pub fn timeout(mut self, timeout: Duration) -> Self {
+        self.timeout = Some(timeout);
         self
     }
 }

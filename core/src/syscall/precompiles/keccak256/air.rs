@@ -153,7 +153,7 @@ where
 mod test {
     use crate::io::{SP1PublicValues, SP1Stdin};
     use crate::runtime::Program;
-    use crate::stark::{DefaultProver, RiscvAir, StarkGenericConfig};
+    use crate::stark::{CpuProver, RiscvAir, StarkGenericConfig};
     use crate::utils::SP1CoreOpts;
     use crate::utils::{prove, setup_logger, tests::KECCAK256_ELF, BabyBearPoseidon2};
 
@@ -191,8 +191,7 @@ mod test {
 
         let program = Program::from(KECCAK256_ELF);
         let (proof, public_values, _) =
-            prove::<_, DefaultProver<_, _>>(program, &stdin, config, SP1CoreOpts::default())
-                .unwrap();
+            prove::<_, CpuProver<_, _>>(program, &stdin, config, SP1CoreOpts::default()).unwrap();
         let mut public_values = SP1PublicValues::from(&public_values);
 
         let config = BabyBearPoseidon2::new();

@@ -98,6 +98,21 @@ pub struct HookEnv<'a, 'b: 'a> {
     pub runtime: &'a Runtime<'b>,
 }
 
+/// Recovers the public key from the signature and message hash using the k256 crate.
+///
+/// # Arguments
+///
+/// * `env` - The environment in which the hook is invoked.
+/// * `buf` - The buffer containing the signature and message hash.
+///     - The signature is 65 bytes, the first 64 bytes are the signature and the last byte is the
+/// recovery ID.
+///     - The message hash is 32 bytes.
+///
+/// The result is returned as a pair of bytes, where the first 32 bytes are the X coordinate
+/// and the second 32 bytes are the Y coordinate of the decompressed point.
+///
+/// WARNING: This function is used to recover the public key outside of the zkVM context. These
+/// values must be constrained by the zkVM for correctness.
 pub fn hook_ecrecover(_env: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
     assert_eq!(
         buf.len(),
@@ -115,7 +130,7 @@ pub fn hook_ecrecover(_env: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
         sig = sig_normalized;
         recovery_id ^= 1
     };
-    let recid = RecoveryId::from_byte(recovery_id).expect("Recovery ID is valid");
+    let recid = RecoveryId::from_byte(recovery_id).expect("Computed recovery ID is invalid!");
 
     let recovered_key = VerifyingKey::recover_from_prehash(&msg_hash[..], &sig, recid).unwrap();
     let bytes = recovered_key.to_sec1_bytes();
@@ -130,7 +145,7 @@ pub fn hook_ecrecover(_env: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
 pub mod tests {
     use crate::{
         runtime::Program,
-        stark::DefaultProver,
+        stark::CpuProver,
         utils::{self, tests::ECRECOVER_ELF},
     };
 
@@ -157,6 +172,6 @@ pub mod tests {
     fn test_ecrecover_program_prove() {
         utils::setup_logger();
         let program = Program::from(ECRECOVER_ELF);
-        utils::run_test::<DefaultProver<_, _>>(program).unwrap();
+        utils::run_test::<CpuProver<_, _>>(program).unwrap();
     }
 }

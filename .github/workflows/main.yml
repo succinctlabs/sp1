@@ -20,7 +20,17 @@ concurrency:
 jobs:
   plonk:
     name: Plonk Native
-    runs-on: runs-on,cpu=64,ram=256,family=m7i+m7a,hdd=80,image=ubuntu22-full-x64,spot=false
+    runs-on:
+      [
+        runs-on,
+        cpu=64,
+        ram=256,
+        family=m7i+m7a,
+        hdd=80,
+        image=ubuntu22-full-x64,
+        spot=false,
+        "run-id=${{ github.run_id }}",
+      ]
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
@@ -34,7 +44,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          toolchain: nightly-2024-04-17
+          toolchain: 1.79.0
           args: --release -p sp1-sdk --features native-gnark -- test_e2e_prove_plonk --nocapture
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
@@ -42,7 +52,17 @@ jobs:
 
   plonk-docker:
     name: Plonk Docker
-    runs-on: runs-on,cpu=64,ram=256,family=m7i+m7a,hdd=80,image=ubuntu22-full-x64,spot=false
+    runs-on:
+      [
+        runs-on,
+        cpu=64,
+        ram=256,
+        family=m7i+m7a,
+        hdd=80,
+        image=ubuntu22-full-x64,
+        spot=false,
+        "run-id=${{ github.run_id }}",
+      ]
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
@@ -56,7 +76,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          toolchain: nightly-2024-04-17
+          toolchain: 1.79.0
           args: --release -p sp1-sdk -- test_e2e_prove_plonk --nocapture
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
@@ -64,7 +84,7 @@ jobs:
 
   check-branch:
     name: Check branch
-    runs-on: ubuntu-latest
+    runs-on: [ubuntu-latest, "run-id=${{ github.run_id }}"]
     steps:
       - name: Check branch
         if: github.head_ref != 'dev' && !startsWith(github.head_ref, 'release/') && !startsWith(github.head_ref, 'hotfix/')
@@ -74,7 +94,13 @@ jobs:
 
   ssz-withdrawals:
     name: Example (SSZ Withdrawals)
-    runs-on: runs-on,runner=64cpu-linux-arm64,spot=false
+    runs-on:
+      [
+        runs-on,
+        runner=64cpu-linux-arm64,
+        spot=false,
+        "run-id=${{ github.run_id }}",
+      ]
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
@@ -108,7 +134,13 @@ jobs:
 
   tendermint:
     name: Example (Tendermint)
-    runs-on: runs-on,runner=64cpu-linux-arm64,spot=false
+    runs-on:
+      [
+        runs-on,
+        runner=64cpu-linux-arm64,
+        spot=false,
+        "run-id=${{ github.run_id }}",
+      ]
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:

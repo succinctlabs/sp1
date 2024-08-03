@@ -8,6 +8,7 @@ use p3_commit::{Pcs, TwoAdicMultiplicativeCoset};
 use p3_field::PrimeField;
 use p3_field::{AbstractField, PrimeField32, TwoAdicField};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use sp1_core::stark::RiscvAir;
 use sp1_core::{
     io::{SP1PublicValues, SP1Stdin},
     stark::{ShardProof, StarkGenericConfig, StarkProvingKey, StarkVerifyingKey},
@@ -16,9 +17,13 @@ use sp1_core::{
 use sp1_primitives::poseidon2_hash;
 use sp1_recursion_core::{air::RecursionPublicValues, stark::config::BabyBearPoseidon2Outer};
 use sp1_recursion_gnark_ffi::plonk_bn254::PlonkBn254Proof;
+use sp1_recursion_program::machine::{
+    SP1CompressMemoryLayout, SP1DeferredMemoryLayout, SP1RecursionMemoryLayout,
+};
 use thiserror::Error;
 
 use crate::utils::words_to_bytes_be;
+use crate::CompressAir;
 use crate::{utils::babybear_bytes_to_bn254, words_to_bytes};
 use crate::{utils::babybears_to_bn254, CoreSC, InnerSC};
 
@@ -202,4 +207,11 @@ pub enum SP1ReduceProofWrapper {
 pub enum SP1RecursionProverError {
     #[error("Runtime error: {0}")]
     RuntimeError(String),
+}
+
+#[allow(clippy::large_enum_variant)]
+pub enum SP1CompressMemoryLayouts<'a> {
+    Core(SP1RecursionMemoryLayout<'a, InnerSC, RiscvAir<BabyBear>>),
+    Deferred(SP1DeferredMemoryLayout<'a, InnerSC, CompressAir<BabyBear>>),
+    Compress(SP1CompressMemoryLayout<'a, InnerSC, CompressAir<BabyBear>>),
 }

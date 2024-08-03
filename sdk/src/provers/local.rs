@@ -1,10 +1,10 @@
 use anyhow::Result;
-use sp1_core::{runtime::SP1Context, utils::SP1ProverOpts};
+use sp1_core::runtime::SP1Context;
 use sp1_prover::{components::SP1ProverComponents, SP1Prover, SP1Stdin};
 use sysinfo::System;
 
 use crate::{
-    install::try_install_plonk_bn254_artifacts, Prover, SP1Proof, SP1ProofKind,
+    install::try_install_plonk_bn254_artifacts, provers::ProofOpts, Prover, SP1Proof, SP1ProofKind,
     SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
 };
 
@@ -45,7 +45,7 @@ impl<C: SP1ProverComponents> Prover<C> for LocalProver<C> {
         &'a self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
-        opts: SP1ProverOpts,
+        opts: ProofOpts,
         context: SP1Context<'a>,
         kind: SP1ProofKind,
     ) -> Result<SP1ProofWithPublicValues> {
@@ -56,7 +56,9 @@ impl<C: SP1ProverComponents> Prover<C> for LocalProver<C> {
             ));
         }
 
-        let proof = self.prover.prove_core(pk, &stdin, opts, context)?;
+        let proof = self
+            .prover
+            .prove_core(pk, &stdin, opts.sp1_prover_opts, context)?;
         if kind == SP1ProofKind::Core {
             return Ok(SP1ProofWithPublicValues {
                 proof: SP1Proof::Core(proof.proof.0),
@@ -67,7 +69,9 @@ impl<C: SP1ProverComponents> Prover<C> for LocalProver<C> {
         }
         let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
         let public_values = proof.public_values.clone();
-        let reduce_proof = self.prover.compress(&pk.vk, proof, deferred_proofs, opts)?;
+        let reduce_proof =
+            self.prover
+                .compress(&pk.vk, proof, deferred_proofs, opts.sp1_prover_opts)?;
         if kind == SP1ProofKind::Compressed {
             return Ok(SP1ProofWithPublicValues {
                 proof: SP1Proof::Compressed(reduce_proof.proof),
@@ -76,12 +80,14 @@ impl<C: SP1ProverComponents> Prover<C> for LocalProver<C> {
                 sp1_version: self.version().to_string(),
             });
         }
-        let compress_proof = self.prover.shrink(reduce_proof, opts)?;
-        let outer_proof = self.prover.wrap_bn254(compress_proof, opts)?;
+        let compress_proof = self.prover.shrink(reduce_proof, opts.sp1_prover_opts)?;
+        let outer_proof = self
+            .prover
+            .wrap_bn254(compress_proof, opts.sp1_prover_opts)?;
 
         let plonk_bn254_aritfacts = if sp1_prover::build::sp1_dev_mode() {
             sp1_prover::build::try_build_plonk_bn254_artifacts_dev(
-                &self.prover.wrap_vk,
+                self.prover.wrap_vk(),
                 &outer_proof.proof,
             )
         } else {

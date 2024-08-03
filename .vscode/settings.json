@@ -30,6 +30,8 @@
         // "examples/io/script/Cargo.toml",
         // "examples/json/program/Cargo.toml",
         // "examples/json/script/Cargo.toml",
+        // "examples/patch-testing/program/Cargo.toml",
+        // "examples/patch-testing/script/Cargo.toml",
         // "examples/regex/program/Cargo.toml",
         // "examples/regex/script/Cargo.toml",
         // "examples/rsa/program/Cargo.toml",

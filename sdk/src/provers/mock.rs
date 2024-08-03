@@ -12,14 +12,13 @@ use p3_fri::{FriProof, TwoAdicFriPcsProof};
 use sp1_core::{
     runtime::SP1Context,
     stark::{ShardCommitment, ShardOpenedValues, ShardProof},
-    utils::SP1ProverOpts,
 };
 use sp1_prover::{
     components::DefaultProverComponents, verify::verify_plonk_bn254_public_inputs, HashableKey,
     PlonkBn254Proof, SP1Prover, SP1Stdin,
 };
 
-use super::ProverType;
+use super::{ProofOpts, ProverType};
 
 /// An implementation of [crate::ProverClient] that can generate mock proofs.
 pub struct MockProver {
@@ -51,14 +50,13 @@ impl Prover<DefaultProverComponents> for MockProver {
         &'a self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
-        opts: SP1ProverOpts,
+        opts: ProofOpts,
         context: SP1Context<'a>,
         kind: SP1ProofKind,
     ) -> Result<SP1ProofWithPublicValues> {
         match kind {
             SP1ProofKind::Core => {
-                let (public_values, _) =
-                    SP1Prover::<DefaultProverComponents>::execute(&pk.elf, &stdin, context)?;
+                let (public_values, _) = self.prover.execute(&pk.elf, &stdin, context)?;
                 Ok(SP1ProofWithPublicValues {
                     proof: SP1Proof::Core(vec![]),
                     stdin,
@@ -67,8 +65,7 @@ impl Prover<DefaultProverComponents> for MockProver {
                 })
             }
             SP1ProofKind::Compressed => {
-                let (public_values, _) =
-                    SP1Prover::<DefaultProverComponents>::execute(&pk.elf, &stdin, context)?;
+                let (public_values, _) = self.prover.execute(&pk.elf, &stdin, context)?;
                 Ok(SP1ProofWithPublicValues {
                     proof: SP1Proof::Compressed(ShardProof {
                         commitment: ShardCommitment {
@@ -95,8 +92,7 @@ impl Prover<DefaultProverComponents> for MockProver {
                 })
             }
             SP1ProofKind::Plonk => {
-                let (public_values, _) =
-                    SP1Prover::<DefaultProverComponents>::execute(&pk.elf, &stdin, context)?;
+                let (public_values, _) = self.prover.execute(&pk.elf, &stdin, context)?;
                 Ok(SP1ProofWithPublicValues {
                     proof: SP1Proof::Plonk(PlonkBn254Proof {
                         public_inputs: [

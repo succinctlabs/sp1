@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0](https://github.com/succinctlabs/sp1/compare/sp1-recursion-program-v1.0.1...sp1-recursion-program-v1.1.0) - 2024-08-02
+
+### Added
+- update tg ([#1214](https://github.com/succinctlabs/sp1/pull/1214))
+- streaming recursion ([#1175](https://github.com/succinctlabs/sp1/pull/1175))
+
+### Other
+- Merge branch 'main' into dev
+- prover trait cleanup ([#1170](https://github.com/succinctlabs/sp1/pull/1170))
+- add audit reports ([#1142](https://github.com/succinctlabs/sp1/pull/1142))
+
 ## [1.0.0-rc.1](https://github.com/succinctlabs/sp1/compare/sp1-recursion-program-v1.0.0-rc.1...sp1-recursion-program-v1.0.0-rc.1) - 2024-07-19
 
 ### Added
