@@ -223,8 +223,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
     fn name(&self) -> String {
         match E::CURVE_TYPE {
-            // CurveType::Secp256k1 => "Secp256k1AddAssign".to_string(),
-            // CurveType::Bn254 => "Bn254AddAssign".to_string(),
+            // CurveType::Bn254 => "Bn254Fp2MulAssign".to_string(),
             CurveType::Bls12381 => "Bls12831Fp2MulAssign".to_string(),
             _ => panic!("Unsupported curve"),
         }
@@ -232,8 +231,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
     fn generate_trace(&self, input: &Self::Record, output: &mut Self::Record) -> RowMajorMatrix<F> {
         let events = match E::CURVE_TYPE {
-            // CurveType::Secp256k1 => &input.secp256k1_add_events,
-            // CurveType::Bn254 => &input.bn254_add_events,
+            // CurveType::Bn254 => &input.bn254_fp2_mul_events,
             CurveType::Bls12381 => &input.bls12381_fp2_mul_events,
             _ => panic!("Unsupported curve"),
         };

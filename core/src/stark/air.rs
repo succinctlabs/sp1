@@ -23,6 +23,9 @@ pub(crate) mod riscv_chips {
     pub use crate::program::ProgramChip;
     pub use crate::syscall::precompiles::edwards::EdAddAssignChip;
     pub use crate::syscall::precompiles::edwards::EdDecompressChip;
+    pub use crate::syscall::precompiles::fptower::Fp2MulAssignChip;
+    pub use crate::syscall::precompiles::fptower::FpAddAssignChip;
+    pub use crate::syscall::precompiles::fptower::FpMulAssignChip;
     pub use crate::syscall::precompiles::keccak256::KeccakPermuteChip;
     pub use crate::syscall::precompiles::sha256::ShaCompressChip;
     pub use crate::syscall::precompiles::sha256::ShaExtendChip;
@@ -99,6 +102,12 @@ pub enum RiscvAir<F: PrimeField32> {
     Uint256Mul(Uint256MulChip),
     /// A precompile for decompressing a point on the BLS12-381 curve.
     Bls12381Decompress(WeierstrassDecompressChip<SwCurve<Bls12381Parameters>>),
+    /// A precompile for BLS12-381 fp addition.
+    Bls12381FpAdd(FpAddAssignChip<SwCurve<Bls12381Parameters>>),
+    /// A precompile for BLS12-381 fp multiplication.
+    Bls12381FpMul(FpMulAssignChip<SwCurve<Bls12381Parameters>>),
+    /// A precompile for BLS12-381 fp2 multiplication.
+    Bls12381Fp2Mul(Fp2MulAssignChip<SwCurve<Bls12381Parameters>>),
 }
 
 impl<F: PrimeField32> RiscvAir<F> {
@@ -148,6 +157,12 @@ impl<F: PrimeField32> RiscvAir<F> {
         chips.push(RiscvAir::Bls12381Double(bls12381_double));
         let uint256_mul = Uint256MulChip::default();
         chips.push(RiscvAir::Uint256Mul(uint256_mul));
+        let bls12381_fp_add = FpAddAssignChip::<SwCurve<Bls12381Parameters>>::new();
+        chips.push(RiscvAir::Bls12381FpAdd(bls12381_fp_add));
+        let bls12381_fp_mul = FpMulAssignChip::<SwCurve<Bls12381Parameters>>::new();
+        chips.push(RiscvAir::Bls12381FpMul(bls12381_fp_mul));
+        let bls12381_fp2_mul = Fp2MulAssignChip::<SwCurve<Bls12381Parameters>>::new();
+        chips.push(RiscvAir::Bls12381Fp2Mul(bls12381_fp2_mul));
         let bls12381_decompress =
             WeierstrassDecompressChip::<SwCurve<Bls12381Parameters>>::with_lexicographic_rule();
         chips.push(RiscvAir::Bls12381Decompress(bls12381_decompress));

@@ -6,7 +6,7 @@ pub use fp2_mul::*;
 pub use fp_add::*;
 pub use fp_mul::*;
 
-// #[cfg(test)]
+#[cfg(test)]
 mod tests {
     use crate::Program;
     use crate::{
