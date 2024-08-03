@@ -362,7 +362,6 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Arc<dyn Syscall>> {
         SyscallCode::BLS12381_DECOMPRESS,
         Arc::new(WeierstrassDecompressChip::<Bls12381>::with_lexicographic_rule()),
     );
-    syscall_map.insert(SyscallCode::UINT256_MUL, Arc::new(Uint256MulChip::new()));
 
     syscall_map
 }

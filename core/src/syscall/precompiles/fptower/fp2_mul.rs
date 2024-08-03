@@ -6,7 +6,6 @@ use crate::memory::{value_as_limbs, MemoryCols, MemoryReadCols, MemoryWriteCols}
 use crate::operations::field::field_op::{FieldOpCols, FieldOperation};
 use crate::operations::field::params::{FieldParameters, NumWords};
 use crate::operations::field::params::{Limbs, NumLimbs};
-use crate::operations::field::range::FieldRangeCols;
 use crate::runtime::{ExecutionRecord, Program, Syscall, SyscallCode, SyscallContext};
 use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
 use crate::stark::MachineRecord;

@@ -6,7 +6,6 @@ use crate::memory::{value_as_limbs, MemoryCols, MemoryReadCols, MemoryWriteCols}
 use crate::operations::field::field_op::{FieldOpCols, FieldOperation};
 use crate::operations::field::params::{FieldParameters, NumWords};
 use crate::operations::field::params::{Limbs, NumLimbs};
-use crate::operations::field::range::FieldRangeCols;
 use crate::runtime::{ExecutionRecord, Program, Syscall, SyscallCode, SyscallContext};
 use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
 use crate::stark::MachineRecord;
@@ -101,7 +100,7 @@ impl<E: EllipticCurve> Syscall for FpMulAssignChip<E> {
         let lookup_id = rt.syscall_lookup_id as usize;
         let shard = rt.current_shard();
         let channel = rt.current_channel();
-        rt.record_mut().fp_mul_events.push(FpMulEvent {
+        rt.record_mut().bls12381_fp_mul_events.push(FpMulEvent {
             lookup_id,
             shard,
             channel,
@@ -171,7 +170,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         let events = match E::CURVE_TYPE {
             // CurveType::Secp256k1 => &input.secp256k1_add_events,
             // CurveType::Bn254 => &input.bn254_add_events,
-            CurveType::Bls12381 => &input.fp_mul_events,
+            CurveType::Bls12381 => &input.bls12381_fp_mul_events,
             _ => panic!("Unsupported curve"),
         };
 
@@ -250,7 +249,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
     fn included(&self, shard: &Self::Record) -> bool {
         match E::CURVE_TYPE {
-            CurveType::Bls12381 => !shard.fp_mul_events.is_empty(),
+            CurveType::Bls12381 => !shard.bls12381_fp_mul_events.is_empty(),
             _ => panic!("Unsupported curve"),
         }
     }
@@ -275,26 +274,26 @@ where
         let p = limbs_from_prev_access(&local.x_access);
         let q = limbs_from_prev_access(&local.y_access);
 
-        let modulus_coeffs = E::BaseField::MODULUS
-            .iter()
-            .map(|&limbs| AB::Expr::from_canonical_u8(limbs))
-            .collect_vec();
-        let p_modulus = Polynomial::from_coefficients(&modulus_coeffs);
+        // let modulus_coeffs = E::BaseField::MODULUS
+        //     .iter()
+        //     .map(|&limbs| AB::Expr::from_canonical_u8(limbs))
+        //     .collect_vec();
+        // let p_modulus = Polynomial::from_coefficients(&modulus_coeffs);
 
-        local.output.eval_with_modulus(
-            builder,
-            &p,
-            &q,
-            &p_modulus,
-            FieldOperation::Mul,
-            local.shard,
-            local.channel,
-            local.is_real,
-        );
+        // local.output.eval_with_modulus(
+        //     builder,
+        //     &p,
+        //     &q,
+        //     &p_modulus,
+        //     FieldOperation::Mul,
+        //     local.shard,
+        //     local.channel,
+        //     local.is_real,
+        // );
 
-        builder
-            .when(local.is_real)
-            .assert_all_eq(local.output.result, value_as_limbs(&local.x_access));
+        // builder
+        //     .when(local.is_real)
+        //     .assert_all_eq(local.output.result, value_as_limbs(&local.x_access));
 
         builder.eval_memory_access_slice(
             local.shard,

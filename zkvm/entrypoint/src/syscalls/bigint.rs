@@ -1,6 +1,7 @@
-use super::syscall_uint256_mulmod;
+use super::{syscall_bls12381_fp_addmod, syscall_bls12381_fp_mulmod, syscall_uint256_mulmod};
 
 pub const BIGINT_WIDTH_WORDS: usize = 8;
+pub const FP_BIGINT_WIDTH_WORDS: usize = 12;
 
 /// Sets result to be (x op y) % modulus. Currently only multiplication is supported. If modulus is
 /// zero, the modulus applied is 2^256.
@@ -38,5 +39,33 @@ pub extern "C" fn sys_bigint(
         // Call the uint256_mul syscall to multiply the x value with the concatenated y and modulus.
         // This syscall writes the result in-place, so it will mutate the result ptr appropriately.
         syscall_uint256_mulmod(result_ptr, concat_ptr);
+    }
+}
+
+/// Sets result to be (x op y) % modulus. Currently only multiplication is supported. If modulus is
+/// zero, the modulus applied is 2^384.
+#[allow(unused_variables)]
+#[no_mangle]
+pub extern "C" fn bls12381_sys_bigint(
+    result: *mut [u32; FP_BIGINT_WIDTH_WORDS],
+    op: u32,
+    x: *const [u32; FP_BIGINT_WIDTH_WORDS],
+    y: *const [u32; FP_BIGINT_WIDTH_WORDS],
+) {
+    unsafe {
+        let result_ptr = result as *mut u32;
+        let x_ptr = x as *const u32;
+        let y_ptr = y as *const u32;
+
+        // Copy x into the result array, as our syscall will write the result into the first input.
+        core::ptr::copy_nonoverlapping(x as *const u32, result_ptr, FP_BIGINT_WIDTH_WORDS);
+
+        // Call the fp_mul syscall to multiply the x value with the concatenated y and modulus.
+        // This syscall writes the result in-place, so it will mutate the result ptr appropriately.
+        if op == 0 {
+            syscall_bls12381_fp_mulmod(result_ptr, y_ptr);
+        } else {
+            syscall_bls12381_fp_addmod(result_ptr, y_ptr);
+        }
     }
 }

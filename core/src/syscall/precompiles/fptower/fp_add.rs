@@ -97,7 +97,7 @@ impl<E: EllipticCurve> Syscall for FpAddAssignChip<E> {
         let lookup_id = rt.syscall_lookup_id as usize;
         let shard = rt.current_shard();
         let channel = rt.current_channel();
-        rt.record_mut().fp_add_events.push(FpAddEvent {
+        rt.record_mut().bls12381_fp_add_events.push(FpAddEvent {
             lookup_id,
             shard,
             channel,
@@ -167,7 +167,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         let events = match E::CURVE_TYPE {
             // CurveType::Secp256k1 => &input.secp256k1_add_events,
             // CurveType::Bn254 => &input.bn254_add_events,
-            CurveType::Bls12381 => &input.fp_add_events,
+            CurveType::Bls12381 => &input.bls12381_fp_add_events,
             _ => panic!("Unsupported curve"),
         };
 
@@ -246,7 +246,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
     fn included(&self, shard: &Self::Record) -> bool {
         match E::CURVE_TYPE {
-            CurveType::Bls12381 => !shard.fp_add_events.is_empty(),
+            CurveType::Bls12381 => !shard.bls12381_fp_add_events.is_empty(),
             _ => panic!("Unsupported curve"),
         }
     }
@@ -315,7 +315,7 @@ where
             // }
             // CurveType::Bn254 => AB::F::from_canonical_u32(SyscallCode::BN254_ADD.syscall_id()),
             CurveType::Bls12381 => {
-                AB::F::from_canonical_u32(SyscallCode::BLS12381_FPMUL.syscall_id())
+                AB::F::from_canonical_u32(SyscallCode::BLS12381_FPADD.syscall_id())
             }
             _ => panic!("Unsupported curve"),
         };

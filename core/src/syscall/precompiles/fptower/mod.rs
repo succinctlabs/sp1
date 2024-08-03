@@ -9,10 +9,9 @@ pub use fp_mul::*;
 #[cfg(test)]
 mod tests {
     use crate::stark::DefaultProver;
-    use crate::utils::tests::{BLS12381_FP2_MUL_ELF, BLS12381_FP_ADD_ELF, BLS12381_FP_MUL_ELF};
     use crate::utils::{
         self,
-        tests::{BLS12381_ADD_ELF, BLS12381_MUL_ELF},
+        tests::{BLS12381_FP2_MUL_ELF, BLS12381_FP_ADD_ELF, BLS12381_FP_MUL_ELF},
     };
     use crate::Program;
 

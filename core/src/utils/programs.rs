@@ -102,12 +102,12 @@ pub mod tests {
     pub const PANIC_ELF: &[u8] =
         include_bytes!("../../../tests/panic/elf/riscv32im-succinct-zkvm-elf");
 
-    // pub const BLS12381_FP_ADD_ELF: &[u8] =
-    //     include_bytes!("../../../tests/fp-add/elf/riscv32im-succinct-zkvm-elf");
+    pub const BLS12381_FP_ADD_ELF: &[u8] =
+        include_bytes!("../../../tests/bls12381-fp-add/elf/riscv32im-succinct-zkvm-elf");
 
-    // pub const BLS12381_FP_MUL_ELF: &[u8] =
-    //     include_bytes!("../../../tests/fp-mul/elf/riscv32im-succinct-zkvm-elf");
+    pub const BLS12381_FP_MUL_ELF: &[u8] =
+        include_bytes!("../../../tests/bls12381-fp-mul/elf/riscv32im-succinct-zkvm-elf");
 
-    // pub const BLS12381_FP2_MUL_ELF: &[u8] =
-    //     include_bytes!("../../../tests/bls12381-fp2-mul/elf/riscv32im-succinct-zkvm-elf");
+    pub const BLS12381_FP2_MUL_ELF: &[u8] =
+        include_bytes!("../../../tests/bls12381-fp2-mul/elf/riscv32im-succinct-zkvm-elf");
 }

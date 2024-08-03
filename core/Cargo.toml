@@ -35,10 +35,8 @@ p3-symmetric = { workspace = true }
 p3-uni-stark = { workspace = true }
 p3-util = { workspace = true }
 rrs_lib = { package = "rrs-succinct", version = "0.1.0" }
-# sp1-derive = { workspace = true }
-# sp1-primitives = { workspace = true }
-sp1-derive = { path = "../derive", version = "0.0.2-test" }
-sp1-primitives = { path = "../primitives", version = "0.0.2-test" }
+sp1-derive = { workspace = true }
+sp1-primitives = { workspace = true }
 field = { path = "../../zkvm-pairings/field" }
 
 anyhow = "1.0.83"

@@ -1740,6 +1740,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "28dea519a9695b9977216879a3ebfddf92f1c08c05d984f8996aecd6ecdc811d"
 
 [[package]]
+name = "field"
+version = "0.1.0"
+dependencies = [
+ "cfg-if",
+ "ff 0.13.0",
+ "num-bigint 0.4.6",
+ "rand",
+ "rand_core",
+ "sp1-derive",
+ "sp1-zkvm",
+ "subtle",
+]
+
+[[package]]
 name = "fixed-hash"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4738,6 +4752,7 @@ dependencies = [
  "curve25519-dalek",
  "elf",
  "elliptic-curve",
+ "field",
  "generic-array 1.1.0",
  "hashbrown 0.14.5",
  "hex",
@@ -5208,9 +5223,9 @@ dependencies = [
 
 [[package]]
 name = "subtle"
-version = "2.6.0"
+version = "2.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0d0208408ba0c3df17ed26eb06992cb1a1268d41b2c0e12e65203fbe3972cee5"
+checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
 name = "subtle-encoding"
