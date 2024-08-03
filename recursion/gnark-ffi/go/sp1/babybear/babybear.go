@@ -443,6 +443,7 @@ func (p *Chip) reduceWithMaxBits(x frontend.Variable, maxNbBits uint64) frontend
 		)
 	} else {
 		bits := p.api.ToBinary(remainder, 31)
+		p.api.ToBinary(quotient, max(int(maxNbBits-31), 0))
 		lowBits := frontend.Variable(0)
 		highBits := frontend.Variable(0)
 		for i := 0; i < 27; i++ {
