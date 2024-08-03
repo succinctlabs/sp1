@@ -57,11 +57,10 @@ func NewChip(api frontend.API) *Chip {
 }
 
 func NewF(value string) Variable {
-	if value == "0" || value == "1" {
-		return Variable{
-			Value:  frontend.Variable(value),
-			NbBits: 0,
-		}
+	if value == "0" {
+		return Zero()
+	} else if value == "1" {
+		return One()
 	}
 	return Variable{
 		Value:  frontend.Variable(value),
@@ -126,7 +125,7 @@ func (c *Chip) MulF(a, b Variable) (Variable, Variable, Variable) {
 	varC := a
 	varD := b
 
-	for varC.NbBits+varD.NbBits > 250 {
+	for varC.NbBits+varD.NbBits > 252 {
 		if varC.NbBits > varD.NbBits {
 			varC = Variable{Value: c.reduceWithMaxBits(varC.Value, uint64(varC.NbBits)), NbBits: 31}
 		} else {
@@ -398,6 +397,9 @@ func (p *Chip) ReduceE(x ExtensionVariable) ExtensionVariable {
 }
 
 func (p *Chip) reduceWithMaxBits(x frontend.Variable, maxNbBits uint64) frontend.Variable {
+	if maxNbBits <= 31 {
+		return x
+	}
 	result, err := p.api.Compiler().NewHint(ReduceHint, 2, x)
 	if err != nil {
 		panic(err)
@@ -408,6 +410,7 @@ func (p *Chip) reduceWithMaxBits(x frontend.Variable, maxNbBits uint64) frontend
 	remainder := result[1]
 
 	if os.Getenv("RANGE_CHECKER") == "true" {
+		p.rangeChecker.Check(quotient, int(maxNbBits-31))
 		// Check that the remainder has size less than the BabyBear modulus, by decomposing it into a 27
 		// bit limb and a 4 bit limb.
 		new_result, new_err := p.api.Compiler().NewHint(SplitLimbsHint, 2, remainder)
@@ -443,7 +446,7 @@ func (p *Chip) reduceWithMaxBits(x frontend.Variable, maxNbBits uint64) frontend
 		)
 	} else {
 		bits := p.api.ToBinary(remainder, 31)
-		p.api.ToBinary(quotient, max(int(maxNbBits-31), 0))
+		p.api.ToBinary(quotient, int(maxNbBits-31))
 		lowBits := frontend.Variable(0)
 		highBits := frontend.Variable(0)
 		for i := 0; i < 27; i++ {
