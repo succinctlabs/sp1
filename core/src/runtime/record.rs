@@ -18,6 +18,9 @@ use crate::runtime::MemoryInitializeFinalizeEvent;
 use crate::runtime::MemoryRecordEnum;
 use crate::stark::MachineRecord;
 use crate::syscall::precompiles::edwards::EdDecompressEvent;
+use crate::syscall::precompiles::fptower::Fp2MulEvent;
+use crate::syscall::precompiles::fptower::FpAddEvent;
+use crate::syscall::precompiles::fptower::FpMulEvent;
 use crate::syscall::precompiles::keccak256::KeccakPermuteEvent;
 use crate::syscall::precompiles::sha256::{ShaCompressEvent, ShaExtendEvent};
 use crate::syscall::precompiles::uint256::Uint256MulEvent;
@@ -97,6 +100,12 @@ pub struct ExecutionRecord {
     pub memory_finalize_events: Vec<MemoryInitializeFinalizeEvent>,
 
     pub bls12381_decompress_events: Vec<ECDecompressEvent>,
+
+    pub bls12381_fp_add_events: Vec<FpAddEvent>,
+
+    pub bls12381_fp_mul_events: Vec<FpMulEvent>,
+
+    pub bls12381_fp2_mul_events: Vec<Fp2MulEvent>,
 
     /// The public values.
     pub public_values: PublicValues<u32, u32>,
@@ -192,6 +201,18 @@ impl MachineRecord for ExecutionRecord {
             self.uint256_mul_events.len(),
         );
         stats.insert(
+            "bls12381_fp_add_event".to_string(),
+            self.bls12381_fp_add_events.len(),
+        );
+        stats.insert(
+            "bls12381_fp_mul_event".to_string(),
+            self.bls12381_fp_mul_events.len(),
+        );
+        stats.insert(
+            "bls12381_fp2_mul_event".to_string(),
+            self.bls12381_fp2_mul_events.len(),
+        );
+        stats.insert(
             "bls12381_decompress_events".to_string(),
             self.bls12381_decompress_events.len(),
         );
@@ -249,9 +270,12 @@ impl MachineRecord for ExecutionRecord {
             .append(&mut other.bls12381_double_events);
         self.uint256_mul_events
             .append(&mut other.uint256_mul_events);
-        self.bls12381_decompress_events
-            .append(&mut other.bls12381_decompress_events);
-
+        self.bls12381_fp_add_events
+            .append(&mut other.bls12381_fp_add_events);
+        self.bls12381_fp_mul_events
+            .append(&mut other.bls12381_fp_mul_events);
+        self.bls12381_fp2_mul_events
+            .append(&mut other.bls12381_fp2_mul_events);
         if self.byte_lookups.is_empty() {
             self.byte_lookups = std::mem::take(&mut other.byte_lookups);
         } else {
@@ -383,6 +407,9 @@ impl ExecutionRecord {
             ed_decompress_events: std::mem::take(&mut self.ed_decompress_events),
             k256_decompress_events: std::mem::take(&mut self.k256_decompress_events),
             uint256_mul_events: std::mem::take(&mut self.uint256_mul_events),
+            bls12381_fp_add_events: std::mem::take(&mut self.bls12381_fp_add_events),
+            bls12381_fp_mul_events: std::mem::take(&mut self.bls12381_fp_mul_events),
+            bls12381_fp2_mul_events: std::mem::take(&mut self.bls12381_fp2_mul_events),
             bls12381_decompress_events: std::mem::take(&mut self.bls12381_decompress_events),
             memory_initialize_events: std::mem::take(&mut self.memory_initialize_events),
             memory_finalize_events: std::mem::take(&mut self.memory_finalize_events),
@@ -516,6 +543,27 @@ impl ExecutionRecord {
         split_events!(
             self,
             bls12381_decompress_events,
+            shards,
+            opts.deferred_shift_threshold,
+            last
+        );
+        split_events!(
+            self,
+            bls12381_fp_add_events,
+            shards,
+            opts.deferred_shift_threshold,
+            last
+        );
+        split_events!(
+            self,
+            bls12381_fp_mul_events,
+            shards,
+            opts.deferred_shift_threshold,
+            last
+        );
+        split_events!(
+            self,
+            bls12381_fp2_mul_events,
             shards,
             opts.deferred_shift_threshold,
             last

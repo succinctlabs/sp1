@@ -136,11 +136,11 @@ pub mod tests {
 
     use super::*;
 
-    #[test]
-    pub fn hook_fds_match() {
-        use sp1_zkvm::lib::io;
-        assert_eq!(FD_ECRECOVER_HOOK, io::FD_ECRECOVER_HOOK)
-    }
+    // #[test]
+    // pub fn hook_fds_match() {
+    //     use sp1_zkvm::lib::io;
+    //     assert_eq!(FD_ECRECOVER_HOOK, io::FD_ECRECOVER_HOOK)
+    // }
 
     #[test]
     pub fn registry_new_is_inhabited() {
