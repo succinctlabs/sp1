@@ -1,3 +1,4 @@
+use std::time::Instant;
 use std::{env, time::Duration};
 
 use crate::install::block_on;
@@ -15,7 +16,7 @@ use sp1_prover::components::DefaultProverComponents;
 use sp1_prover::{SP1Prover, SP1Stdin, SP1_CIRCUIT_VERSION};
 use tokio::time::sleep;
 
-use crate::provers::{LocalProver, ProverType};
+use crate::provers::{LocalProver, ProofOpts, ProverType};
 
 /// An implementation of [crate::ProverClient] that can generate proofs on a remote RPC server.
 pub struct NetworkProver {
@@ -58,7 +59,9 @@ impl NetworkProver {
 
         if !skip_simulation {
             let (_, report) =
-                SP1Prover::<DefaultProverComponents>::execute(elf, &stdin, Default::default())?;
+                self.local_prover
+                    .sp1_prover()
+                    .execute(elf, &stdin, Default::default())?;
             log::info!(
                 "Simulation complete, cycles: {}",
                 report.total_instruction_count()
@@ -80,11 +83,23 @@ impl NetworkProver {
         Ok(proof_id)
     }
 
-    /// Waits for a proof to be generated and returns the proof.
-    pub async fn wait_proof<P: DeserializeOwned>(&self, proof_id: &str) -> Result<P> {
+    /// Waits for a proof to be generated and returns the proof. If a timeout is supplied, the
+    /// function will return an error if the proof is not generated within the timeout.
+    pub async fn wait_proof<P: DeserializeOwned>(
+        &self,
+        proof_id: &str,
+        timeout: Option<Duration>,
+    ) -> Result<P> {
         let client = &self.client;
         let mut is_claimed = false;
+        let start_time = Instant::now();
         loop {
+            if let Some(timeout) = timeout {
+                if start_time.elapsed() > timeout {
+                    return Err(anyhow::anyhow!("Proof generation timed out."));
+                }
+            }
+
             let (status, maybe_proof) = client.get_proof_status::<P>(proof_id).await?;
 
             match status.status() {
@@ -115,9 +130,10 @@ impl NetworkProver {
         elf: &[u8],
         stdin: SP1Stdin,
         mode: ProofMode,
+        timeout: Option<Duration>,
     ) -> Result<SP1ProofWithPublicValues> {
         let proof_id = self.request_proof(elf, stdin, mode).await?;
-        self.wait_proof(&proof_id).await
+        self.wait_proof(&proof_id, timeout).await
     }
 }
 
@@ -138,12 +154,12 @@ impl Prover<DefaultProverComponents> for NetworkProver {
         &'a self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
-        opts: SP1ProverOpts,
+        opts: ProofOpts,
         context: SP1Context<'a>,
         kind: SP1ProofKind,
     ) -> Result<SP1ProofWithPublicValues> {
-        warn_if_not_default(&opts, &context);
-        block_on(self.prove(&pk.elf, stdin, kind.into()))
+        warn_if_not_default(&opts.sp1_prover_opts, &context);
+        block_on(self.prove(&pk.elf, stdin, kind.into(), opts.timeout))
     }
 }
 

@@ -15,6 +15,7 @@ use sp1_prover::SP1CoreProofData;
 use sp1_prover::SP1Prover;
 use sp1_prover::SP1ReduceProof;
 use sp1_prover::{SP1ProvingKey, SP1Stdin, SP1VerifyingKey};
+use std::time::Duration;
 use strum_macros::EnumString;
 use thiserror::Error;
 
@@ -29,6 +30,15 @@ pub enum ProverType {
     Local,
     Mock,
     Network,
+}
+
+/// Options to configure proof generation.
+#[derive(Clone, Default)]
+pub struct ProofOpts {
+    /// Options to configure the SP1 prover.
+    pub sp1_prover_opts: SP1ProverOpts,
+    /// Optional timeout duration for proof generation.
+    pub timeout: Option<Duration>,
 }
 
 #[derive(Error, Debug)]
@@ -60,7 +70,7 @@ pub trait Prover<C: SP1ProverComponents>: Send + Sync {
         &'a self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
-        opts: SP1ProverOpts,
+        opts: ProofOpts,
         context: SP1Context<'a>,
         kind: SP1ProofKind,
     ) -> Result<SP1ProofWithPublicValues>;

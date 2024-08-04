@@ -14,7 +14,7 @@ Note that to use the macro, you must add the `sp1-derive` crate to your dependen
 
 ```toml
 [dependencies]
-sp1-derive = "1.0.1"
+sp1-derive = "1.1.0"
 ```
 
 In the script for proof generation, setup the logger with `utils::setup_logger()` and run the script with `RUST_LOG=info cargo run --release`. You should see the following output:

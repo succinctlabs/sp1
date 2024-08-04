@@ -41,30 +41,57 @@ contract Fibonacci {
     address public verifier;
 
     /// @notice The verification key for the fibonacci program.
-    bytes32 public fibonacciProgramVkey;
+    bytes32 public fibonacciProgramVKey;
 
-    constructor(address _verifier, bytes32 _fibonacciProgramVkey) {
+    constructor(address _verifier, bytes32 _fibonacciProgramVKey) {
         verifier = _verifier;
-        fibonacciProgramVkey = _fibonacciProgramVkey;
+        fibonacciProgramVKey = _fibonacciProgramVKey;
     }
 
     /// @notice The entrypoint for verifying the proof of a fibonacci number.
-    /// @param proof The encoded proof.
-    /// @param publicValues The encoded public values.
-    function verifyFibonacciProof(bytes calldata proof, bytes calldata publicValues)
+    /// @param _proofBytes The encoded proof.
+    /// @param _publicValues The encoded public values.
+    function verifyFibonacciProof(bytes calldata _publicValues, bytes calldata _proofBytes)
         public
         view
         returns (uint32, uint32, uint32)
     {
-        ISP1Verifier(verifier).verifyProof(fibonacciProgramVkey, publicValues, proof);
-        (uint32 n, uint32 a, uint32 b) = abi.decode(publicValues, (uint32, uint32, uint32));
+        ISP1Verifier(verifier).verifyProof(fibonacciProgramVKey, _publicValues, _proofBytes);
+        (uint32 n, uint32 a, uint32 b) = abi.decode(_publicValues, (uint32, uint32, uint32));
         return (n, a, b);
     }
 }
+
 ```
 
 For more details on the contracts, refer to the [sp1-contracts](https://github.com/succinctlabs/sp1-contracts) repo.
 
 ### Testing
 
-To test the contract, we recommend setting up [Foundry Tests](https://book.getfoundry.sh/forge/tests). We have an example of such a test in the [SP1 Project Template](https://github.com/succinctlabs/sp1-project-template/blob/dev/contracts/test/Fibonacci.t.sol).
+To test the contract, we recommend setting up [Foundry
+Tests](https://book.getfoundry.sh/forge/tests). We have an example of such a test in the [SP1
+Project
+Template](https://github.com/succinctlabs/sp1-project-template/blob/dev/contracts/test/Fibonacci.t.sol).
+
+### Solidity Versions
+
+The officially deployed contracts are built using Solidity 0.8.20 and exist on the
+[sp1-contracts main](https://github.com/succinctlabs/sp1-contracts/tree/main) branch.
+
+If you need to use different versions that are compatible with your contracts, there are also other
+branches you can install that contain different versions. For
+example for branch [main-0.8.15](https://github.com/succinctlabs/sp1-contracts/tree/main-0.8.15)
+contains the contracts with:
+
+```c++
+pragma solidity ^0.8.15;
+```
+
+and you can install it with:
+
+```sh
+forge install succinctlabs/sp1-contracts@main-0.8.15
+```
+
+If there is different versions that you need but there aren't branches for them yet, please ask in
+the [SP1 Telegram](https://t.me/+AzG4ws-kD24yMGYx).

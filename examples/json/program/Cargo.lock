@@ -90,7 +90,7 @@ checksum = "49f1f14873335454500d59611f1cf4a4b0f786f9ac11f4312a78e4cf2566695b"
 
 [[package]]
 name = "json-program"
-version = "1.0.1"
+version = "1.1.0"
 dependencies = [
  "lib",
  "serde",
@@ -106,7 +106,7 @@ checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 
 [[package]]
 name = "lib"
-version = "1.0.1"
+version = "1.1.0"
 dependencies = [
  "serde",
 ]
@@ -233,7 +233,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "1.0.1"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "bincode",
@@ -243,7 +243,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "1.0.1"
+version = "1.1.0"
 dependencies = [
  "bincode",
  "cfg-if",

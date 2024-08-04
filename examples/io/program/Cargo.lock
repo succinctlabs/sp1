@@ -84,7 +84,7 @@ dependencies = [
 
 [[package]]
 name = "io-program"
-version = "1.0.1"
+version = "1.1.0"
 dependencies = [
  "serde",
  "sp1-zkvm",
@@ -201,7 +201,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "1.0.1"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "bincode",
@@ -211,7 +211,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "1.0.1"
+version = "1.1.0"
 dependencies = [
  "bincode",
  "cfg-if",

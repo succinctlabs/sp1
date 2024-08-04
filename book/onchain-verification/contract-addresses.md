@@ -14,7 +14,7 @@ When using SP1, we recommend using our deployed verifiers. Each contract is a [S
 | 8453     | Base             | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://basescan.org/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)           |
 | 84532    | Base Sepolia     | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://sepolia.basescan.org/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)   |
 
-**Currently officially supported version of SP1 is v1.0.1.** If you'd like official support for a verifier on a different chain, please ask in the [SP1 Telegram](https://t.me/succinct_sp1).
+**Currently officially supported version of SP1 is v1.1.0.** If you'd like official support for a verifier on a different chain, please ask in the [SP1 Telegram](https://t.me/+AzG4ws-kD24yMGYx).
 
 ## ISP1Verifier Interface
 
