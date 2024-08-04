@@ -21,7 +21,6 @@ version = "1.1.0"
 edition = "2021"
 
 [workspace.dependencies]
-sp1-build = { path = "../build" }
 sp1-derive = { path = "../derive" }
 sp1-core = { path = "../core" }
 sp1-cli = { path = "../cli", default-features = false }
