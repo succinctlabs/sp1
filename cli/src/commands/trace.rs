@@ -39,38 +39,39 @@ use textwrap::wrap;
     about = "Trace a program execution and analyze cycle counts."
 )]
 pub struct TraceCmd {
+    /// Include the "top" number of functions.
     #[arg(short, long, default_value_t = 30)]
-    /// Include the "top" number of functions
     top: usize,
 
-    #[arg(long)]
     /// Don't print stack aware instruction counts
+    #[arg(long)]
     no_stack_counts: bool,
 
+    /// Don't print raw (stack un-aware) instruction counts.
     #[arg(long)]
-    /// Don't print raw (stack un-aware) instruction counts
     no_raw_counts: bool,
 
+    /// Path to the ELF.
     #[arg(long, required = true)]
-    /// Path to the ELF
     elf: String,
 
+    /// Path to the trace file. Simply run the program with `TRACE_FILE=trace.log` environment
+    /// variable. File must be one u64 program counter per line
     #[arg(long, required = true)]
-    /// Path to the trace file. Simply run the program with `TRACE_FILE=trace.log` environment variable.
-    /// File must be one u64 program counter per line
     trace: String,
 
+    /// Strip the hashes from the function name while printing.
     #[arg(short, long)]
-    /// Strip the hashes from the function name while printing
     keep_hashes: bool,
 
+    /// Function name to target for getting stack counts.
     #[arg(short, long)]
-    /// Function name to target for getting stack counts
     function_name: Option<String>,
 
+    /// Exclude functions matching these patterns from display.
+    ///
+    /// Usage: `-e func1 -e func2 -e func3`.
     #[arg(short, long)]
-    /// Exclude functions matching these patterns from display
-    /// usage: -e func1 -e func2 -e func3
     exclude_view: Vec<String>,
 }
 
@@ -288,18 +289,18 @@ impl TraceCmd {
                     break;
                 }
             }
-            // Parse pc from hex
+
+            // Parse pc from hex.
             let mut pc_bytes = [0u8; 4];
             buf.read_exact(&mut pc_bytes).unwrap();
             let pc = u32::from_be_bytes(pc_bytes) as u64;
 
-            // Only 1 instruction per opcode
+            // Only 1 instruction per opcode.
             let num_instructions = 1;
 
-            // Raw counts without considering the callgraph at all
-            // we're just checking if the PC belongs to a function
-            // if so we're incrementing. This would ignore the call stack
-            // so for example "main" would only have a hundred instructions or so
+            // Raw counts without considering the callgraph at all we're just checking if the PC
+            // belongs to a function if so we're incrementing. This would ignore the call stack
+            // so for example "main" would only have a hundred instructions or so.
             if let Ok(index) = function_ranges.binary_search_by(|&(start, end, _)| {
                 if pc < start {
                     Ordering::Greater
@@ -317,11 +318,10 @@ impl TraceCmd {
                     .or_insert(0) += num_instructions;
             }
 
-            // The next section considers the callstack
-            // We build a callstack and maintain it based on some rules
-            // Functions lower in the stack get their counts incremented
+            // The next section considers the callstack. We build a callstack and maintain it based
+            // on some rules. Functions lower in the stack get their counts incremented.
 
-            // we are still in the current function
+            // We are still in the current function.
             if pc > current_function_range.0 && pc <= current_function_range.1 {
                 increment_stack_counts(
                     &mut instruction_counts,
@@ -333,7 +333,7 @@ impl TraceCmd {
                 continue;
             }
 
-            // jump to a new function (or the same one)
+            // Jump to a new function (or the same one).
             if let Some(f) = start_lookup.get(&pc) {
                 increment_stack_counts(
                     &mut instruction_counts,
@@ -342,18 +342,21 @@ impl TraceCmd {
                     &function_name,
                     num_instructions,
                 );
-                // jump to a new function (not recursive)
+
+                // Jump to a new function (not recursive).
                 if !function_stack.contains(f) {
                     function_stack.push(f.clone());
                     current_function_range = *func_range_lookup.get(f).unwrap();
                 }
             } else {
-                // this means pc now points to an instruction that is
+                // This means pc now points to an instruction that is
+                //
                 // 1. not in the current function's range
                 // 2. not a new function call
-                // we now account for a new possibility where we're returning to a function in the stack
-                // this need not be the immediate parent and can be any of the existing functions in the stack
-                // due to some optimizations that the compiler can make
+                //
+                // We now account for a new possibility where we're returning to a function in the
+                // stack this need not be the immediate parent and can be any of the existing
+                // functions in the stack due to some optimizations that the compiler can make.
                 let mut unwind_point = 0;
                 let mut unwind_found = false;
                 for (c, f) in function_stack.iter().enumerate() {
@@ -364,7 +367,8 @@ impl TraceCmd {
                         break;
                     }
                 }
-                // unwinding until the parent
+
+                // Unwinding until the parent.
                 if unwind_found {
                     function_stack.truncate(unwind_point + 1);
                     increment_stack_counts(
@@ -377,8 +381,8 @@ impl TraceCmd {
                     continue;
                 }
 
-                // if no unwind point has been found, that means we jumped to some random location
-                // so we'll just increment the counts for everything in the stack
+                // If no unwind point has been found, that means we jumped to some random location
+                // so we'll just increment the counts for everything in the stack.
                 increment_stack_counts(
                     &mut instruction_counts,
                     &function_stack,
