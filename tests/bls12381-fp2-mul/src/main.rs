@@ -6,11 +6,23 @@ use rand::Rng;
 use sp1_zkvm::syscalls::syscall_bls12381_fp2_mulmod;
 use std::{mem::transmute, str::FromStr};
 
-fn random_u64_6() -> [u64; 6] {
+const MODULUS: &str = "4002409555221667393417789825735904156556882819939007885332058136124031650490837864442687629129015664037894272559787";
+
+fn random_u64_6(modulus: &BigUint) -> [u64; 6] {
     let mut rng = rand::thread_rng();
     let mut arr = [0u64; 6];
+    let modulus_bytes = modulus.to_bytes_le();
+    let modulus_u64: [u64; 6] = [
+        u64::from_le_bytes(modulus_bytes[0..8].try_into().unwrap()),
+        u64::from_le_bytes(modulus_bytes[8..16].try_into().unwrap()),
+        u64::from_le_bytes(modulus_bytes[16..24].try_into().unwrap()),
+        u64::from_le_bytes(modulus_bytes[24..32].try_into().unwrap()),
+        u64::from_le_bytes(modulus_bytes[32..40].try_into().unwrap()),
+        u64::from_le_bytes(modulus_bytes[40..48].try_into().unwrap()),
+    ];
+
     for i in 0..6 {
-        arr[i] = rng.gen::<u64>();
+        arr[i] = rng.gen_range(0..modulus_u64[i]);
     }
     arr
 }
@@ -50,13 +62,13 @@ fn fp2_mul(
 }
 
 pub fn main() {
-    let modulus = BigUint::from_str("4002409555221667393417789825735904156556882819939007885332058136124031650490837864442687629129015664037894272559787").unwrap();
+    let modulus = BigUint::from_str(MODULUS).unwrap();
 
     for _ in 0..10 {
-        let a_c0 = random_u64_6();
-        let a_c1 = random_u64_6();
-        let b_c0 = random_u64_6();
-        let b_c1 = random_u64_6();
+        let a_c0 = random_u64_6(&modulus);
+        let a_c1 = random_u64_6(&modulus);
+        let b_c0 = random_u64_6(&modulus);
+        let b_c1 = random_u64_6(&modulus);
 
         let a_c0_bigint = u64_6_to_biguint(&a_c0);
         let a_c1_bigint = u64_6_to_biguint(&a_c1);

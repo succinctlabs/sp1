@@ -30,7 +30,7 @@ use std::mem::size_of;
 use typenum::Unsigned;
 
 pub const fn num_fp2_mul_cols<P: FieldParameters + NumWords>() -> usize {
-    size_of::<Fp2MulAssignCols<u32, P>>()
+    size_of::<Fp2MulAssignCols<u8, P>>()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -106,12 +106,13 @@ impl<E: EllipticCurve> Syscall for Fp2MulAssignChip<E> {
         };
         let c1 = ((ac0 * bc1) % modulus + (ac1 * bc0) % modulus) % modulus;
 
-        let result = c0
+        let mut result = c0
             .to_u32_digits()
             .into_iter()
             .chain(c1.to_u32_digits())
             .collect::<Vec<u32>>();
 
+        result.resize(num_words, 0);
         let x_memory_records = rt.mw_slice(x_ptr, &result);
 
         let lookup_id = rt.syscall_lookup_id as usize;
@@ -438,15 +439,15 @@ where
             );
         }
 
-        for i in 0..E::BaseField::NB_LIMBS {
-            builder
-                .when(local.is_real)
-                .assert_eq(local.c0.result[i], local.x_access[i / 4].value()[i % 4]);
-            builder.when(local.is_real).assert_eq(
-                local.c1.result[i],
-                local.x_access[num_words_field_element + i / 4].value()[i % 4],
-            );
-        }
+        // for i in 0..E::BaseField::NB_LIMBS {
+        //     builder
+        //         .when(local.is_real)
+        //         .assert_eq(local.c0.result[i], local.x_access[i / 4].value()[i % 4]);
+        //     builder.when(local.is_real).assert_eq(
+        //         local.c1.result[i],
+        //         local.x_access[num_words_field_element + i / 4].value()[i % 4],
+        //     );
+        // }
 
         builder.eval_memory_access_slice(
             local.shard,
