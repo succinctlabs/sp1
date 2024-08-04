@@ -36,6 +36,8 @@ pub fn create_docker_command(
 
     // Mount the entire workspace, and set the working directory to the program dir. Note: If the
     // program dir has local dependencies outside of the workspace, building with Docker will fail.
+    println!("workspace_root: {}", workspace_root);
+    println!("program_dir: {}", program_dir);
     let workspace_root_path = format!("{}:/root/program", workspace_root);
     let program_dir_path = format!(
         "/root/program/{}",
