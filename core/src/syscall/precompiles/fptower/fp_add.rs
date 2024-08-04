@@ -15,8 +15,8 @@ use itertools::Itertools;
 use num::BigUint;
 use num::Zero;
 use p3_air::{Air, BaseAir};
-use p3_field::AbstractField;
 use p3_field::PrimeField32;
+use p3_field::{AbstractField, PackedValue};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use serde::{Deserialize, Serialize};
@@ -27,7 +27,7 @@ use std::mem::size_of;
 use typenum::Unsigned;
 
 pub const fn num_fp_add_cols<P: FieldParameters + NumWords>() -> usize {
-    size_of::<FpAddAssignCols<u32, P>>()
+    size_of::<FpAddAssignCols<u8, P>>()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -81,7 +81,6 @@ impl<E: EllipticCurve> Syscall for FpAddAssignChip<E> {
 
         let x = rt.slice_unsafe(x_ptr, num_words);
         let (y_memory_records, y) = rt.mr_slice(y_ptr, num_words);
-        rt.clk += 1;
 
         let a = BigUint::from_slice(&x);
         let b = BigUint::from_slice(&y);
@@ -90,8 +89,10 @@ impl<E: EllipticCurve> Syscall for FpAddAssignChip<E> {
 
         let result = (a + b) % modulus;
         let mut result = result.to_u32_digits();
-        result.resize(E::NB_LIMBS, 0);
+        // result.resize(num_words, 0);
+        result.resize(12, 0);
 
+        rt.clk += 1;
         let x_memory_records = rt.mw_slice(x_ptr, &result);
 
         let lookup_id = rt.syscall_lookup_id as usize;

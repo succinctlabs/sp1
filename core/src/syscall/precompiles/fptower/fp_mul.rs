@@ -30,7 +30,7 @@ use std::mem::size_of;
 use typenum::Unsigned;
 
 pub const fn num_fp_mul_cols<P: FieldParameters + NumWords>() -> usize {
-    size_of::<FpMulAssignCols<u32, P>>()
+    size_of::<FpMulAssignCols<u8, P>>()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -93,7 +93,7 @@ impl<E: EllipticCurve> Syscall for FpMulAssignChip<E> {
 
         let result = (a * b) % modulus;
         let mut result = result.to_u32_digits();
-        result.resize(E::NB_LIMBS, 0);
+        result.resize(num_words, 0);
 
         let x_memory_records = rt.mw_slice(x_ptr, &result);
 
