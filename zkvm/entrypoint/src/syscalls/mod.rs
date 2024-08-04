@@ -109,8 +109,11 @@ pub const BLS12381_DOUBLE: u32 = 0x00_00_01_1F;
 /// Executes the `BLS12381_FP_ADD` precompile.
 pub const BLS12381_FP_ADD: u32 = 0x00_01_01_20;
 
+/// Executes the `BLS12381_FP_SUB` precompile.
+pub const BLS12381_FP_SUB: u32 = 0x00_01_01_21;
+
 /// Executes the `BLS12381_FP_MUL` precompile.
-pub const BLS12381_FP_MUL: u32 = 0x00_01_01_21;
+pub const BLS12381_FP_MUL: u32 = 0x00_01_01_22;
 
 /// Executes the `BLS12381_FP2_MUL` precompile.
-pub const BLS12381_FP2_MUL: u32 = 0x00_01_01_22;
+pub const BLS12381_FP2_MUL: u32 = 0x00_01_01_23;

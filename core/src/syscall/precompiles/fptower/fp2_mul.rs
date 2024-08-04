@@ -1,14 +1,12 @@
-use crate::air::{BaseAirBuilder, MachineAir, Polynomial, SP1AirBuilder};
-use crate::alu::MulChip;
+use crate::air::{MachineAir, Polynomial, SP1AirBuilder};
 use crate::bytes::event::ByteRecord;
 use crate::bytes::ByteLookupEvent;
-use crate::memory::{value_as_limbs, MemoryCols, MemoryReadCols, MemoryWriteCols};
+use crate::memory::{MemoryReadCols, MemoryWriteCols};
 use crate::operations::field::field_op::{FieldOpCols, FieldOperation};
 use crate::operations::field::params::{FieldParameters, NumWords};
 use crate::operations::field::params::{Limbs, NumLimbs};
 use crate::runtime::{ExecutionRecord, Program, Syscall, SyscallCode, SyscallContext};
 use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
-use crate::stark::MachineRecord;
 use crate::utils::ec::weierstrass::WeierstrassParameters;
 use crate::utils::ec::{CurveType, EllipticCurve};
 use crate::utils::{limbs_from_prev_access, pad_rows, words_to_bytes_le_vec};

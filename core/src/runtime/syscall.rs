@@ -5,10 +5,11 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use strum_macros::EnumIter;
 
+use crate::operations::field::field_op::FieldOperation;
 use crate::runtime::{Register, Runtime};
 use crate::syscall::precompiles::edwards::EdAddAssignChip;
 use crate::syscall::precompiles::edwards::EdDecompressChip;
-use crate::syscall::precompiles::fptower::{Fp2MulAssignChip, FpAddAssignChip, FpMulAssignChip};
+use crate::syscall::precompiles::fptower::{Fp2MulAssignChip, FpOpChip};
 use crate::syscall::precompiles::keccak256::KeccakPermuteChip;
 use crate::syscall::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::syscall::precompiles::uint256::Uint256MulChip;
@@ -107,11 +108,14 @@ pub enum SyscallCode {
     /// Executes the `BLS12381_FP_ADD` precompile.
     BLS12381_FP_ADD = 0x00_00_01_20,
 
+    /// Executes the `BLS12381_FP_SUB` precompile.
+    BLS12381_FP_SUB = 0x00_00_01_21,
+
     /// Executes the `BLS12381_FP_MUL` precompile.
-    BLS12381_FP_MUL = 0x00_00_01_21,
+    BLS12381_FP_MUL = 0x00_00_01_22,
 
     /// Executes the `BLS12381_FP2_MUL` precompile.
-    BLS12381_FP2_MUL = 0x00_00_01_22,
+    BLS12381_FP2_MUL = 0x00_00_01_23,
 }
 
 impl SyscallCode {
@@ -141,8 +145,9 @@ impl SyscallCode {
             0x00_00_00_F1 => SyscallCode::HINT_READ,
             0x00_01_01_1D => SyscallCode::UINT256_MUL,
             0x00_01_01_20 => SyscallCode::BLS12381_FP_ADD,
-            0x00_01_01_21 => SyscallCode::BLS12381_FP_MUL,
-            0x00_01_01_22 => SyscallCode::BLS12381_FP2_MUL,
+            0x00_01_01_21 => SyscallCode::BLS12381_FP_SUB,
+            0x00_01_01_22 => SyscallCode::BLS12381_FP_MUL,
+            0x00_01_01_23 => SyscallCode::BLS12381_FP2_MUL,
             0x00_00_01_1C => SyscallCode::BLS12381_DECOMPRESS,
             _ => panic!("invalid syscall number: {}", value),
         }
@@ -328,11 +333,15 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Arc<dyn Syscall>> {
     syscall_map.insert(SyscallCode::UINT256_MUL, Arc::new(Uint256MulChip::new()));
     syscall_map.insert(
         SyscallCode::BLS12381_FP_ADD,
-        Arc::new(FpAddAssignChip::<Bls12381>::new()),
+        Arc::new(FpOpChip::<Bls12381>::new(FieldOperation::Add)),
+    );
+    syscall_map.insert(
+        SyscallCode::BLS12381_FP_SUB,
+        Arc::new(FpOpChip::<Bls12381>::new(FieldOperation::Sub)),
     );
     syscall_map.insert(
         SyscallCode::BLS12381_FP_MUL,
-        Arc::new(FpMulAssignChip::<Bls12381>::new()),
+        Arc::new(FpOpChip::<Bls12381>::new(FieldOperation::Mul)),
     );
     syscall_map.insert(
         SyscallCode::BLS12381_FP2_MUL,
@@ -458,6 +467,9 @@ mod tests {
                 }
                 SyscallCode::BLS12381_FP_MUL => {
                     assert_eq!(code as u32, sp1_zkvm::syscalls::BLS12381_FP_MUL)
+                }
+                SyscallCode::BLS12381_FP_SUB => {
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::BLS12381_FP_SUB)
                 }
                 SyscallCode::BLS12381_FP2_MUL => {
                     assert_eq!(code as u32, sp1_zkvm::syscalls::BLS12381_FP2_MUL)

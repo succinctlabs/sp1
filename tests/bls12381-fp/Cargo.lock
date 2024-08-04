@@ -39,7 +39,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "bls12381-fp-mul-test"
+name = "bls12381-fp-test"
 version = "1.0.1"
 dependencies = [
  "num-bigint",

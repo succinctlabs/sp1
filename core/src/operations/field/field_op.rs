@@ -3,6 +3,7 @@ use std::fmt::Debug;
 use num::{BigUint, Zero};
 use p3_air::AirBuilder;
 use p3_field::PrimeField32;
+use serde::{Deserialize, Serialize};
 use sp1_derive::AlignedBorrow;
 
 use super::params::{FieldParameters, Limbs};
@@ -14,7 +15,7 @@ use crate::bytes::event::ByteRecord;
 use typenum::Unsigned;
 
 /// Airthmetic operation for emulating modular arithmetic.
-#[derive(PartialEq, Copy, Clone, Debug)]
+#[derive(PartialEq, Copy, Clone, Debug, Serialize, Deserialize)]
 pub enum FieldOperation {
     Add,
     Mul,
