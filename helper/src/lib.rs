@@ -1,7 +1,10 @@
+mod docker;
+mod program;
+
 use cargo_metadata::Metadata;
 use chrono::Local;
-pub use sp1_build::BuildArgs;
-use std::{path::Path, process::ExitStatus};
+pub use program::{execute_build_program, BuildArgs};
+use std::path::Path;
 
 fn current_datetime() -> String {
     let now = Local::now();
@@ -42,38 +45,6 @@ fn cargo_rerun_if_changed(metadata: &Metadata, program_dir: &Path) {
             }
         }
     }
-}
-
-/// Executes the `cargo prove build` command in the program directory. If there are any cargo prove
-/// build arguments, they are added to the command.
-fn execute_build_cmd(
-    program_dir: &impl AsRef<std::path::Path>,
-    args: Option<BuildArgs>,
-) -> Result<std::process::ExitStatus, std::io::Error> {
-    // Check if RUSTC_WORKSPACE_WRAPPER is set to clippy-driver (i.e. if `cargo clippy` is the current
-    // compiler). If so, don't execute `cargo prove build` because it breaks rust-analyzer's `cargo clippy` feature.
-    let is_clippy_driver = std::env::var("RUSTC_WORKSPACE_WRAPPER")
-        .map(|val| val.contains("clippy-driver"))
-        .unwrap_or(false);
-    if is_clippy_driver {
-        println!("cargo:warning=Skipping build due to clippy invocation.");
-        return Ok(std::process::ExitStatus::default());
-    }
-
-    // Build the program with the given arguments.
-    let path_output = if let Some(args) = args {
-        sp1_build::build_program(&args, Some(program_dir.as_ref().to_path_buf()))
-    } else {
-        sp1_build::build_program(
-            &BuildArgs::default(),
-            Some(program_dir.as_ref().to_path_buf()),
-        )
-    };
-    if let Err(err) = path_output {
-        panic!("Failed to build SP1 program: {}.", err);
-    }
-
-    Ok(ExitStatus::default())
 }
 
 /// Builds the program if the program at the specified path, or one of its dependencies, changes.
@@ -135,7 +106,27 @@ fn build_program_internal(path: &str, args: Option<BuildArgs>) {
     // Activate the build command if the dependencies change.
     cargo_rerun_if_changed(&metadata, program_dir);
 
-    let _ = execute_build_cmd(&program_dir, args);
+    // Check if RUSTC_WORKSPACE_WRAPPER is set to clippy-driver (i.e. if `cargo clippy` is the current
+    // compiler). If so, don't execute `cargo prove build` because it breaks rust-analyzer's `cargo clippy` feature.
+    let is_clippy_driver = std::env::var("RUSTC_WORKSPACE_WRAPPER")
+        .map(|val| val.contains("clippy-driver"))
+        .unwrap_or(false);
+    if is_clippy_driver {
+        println!("cargo:warning=Skipping build due to clippy invocation.");
+    }
+
+    // Build the program with the given arguments.
+    let path_output = if let Some(args) = args {
+        crate::program::execute_build_program(&args, Some(program_dir.to_path_buf()))
+    } else {
+        crate::program::execute_build_program(
+            &BuildArgs::default(),
+            Some(program_dir.to_path_buf()),
+        )
+    };
+    if let Err(err) = path_output {
+        panic!("Failed to build SP1 program: {}.", err);
+    }
 
     println!(
         "cargo:warning={} built at {}",

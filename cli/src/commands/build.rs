@@ -1,6 +1,6 @@
 use anyhow::Result;
 use clap::Parser;
-use sp1_build::{build_program, BuildArgs};
+use sp1_helper::{execute_build_program, BuildArgs};
 
 #[derive(Parser)]
 #[command(name = "build", about = "Build a program")]
@@ -14,7 +14,7 @@ pub struct BuildCmd {
 
 impl BuildCmd {
     pub fn run(&self) -> Result<()> {
-        build_program(&self.build_args, None)?;
+        execute_build_program(&self.build_args, None)?;
 
         Ok(())
     }

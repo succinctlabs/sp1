@@ -4797,7 +4797,6 @@ dependencies = [
  "reqwest 0.12.5",
  "serde",
  "serde_json",
- "sp1-build",
  "sp1-core",
  "sp1-prover",
  "sp1-sdk",
@@ -4896,9 +4895,11 @@ dependencies = [
 name = "sp1-helper"
 version = "1.1.0"
 dependencies = [
+ "anyhow",
  "cargo_metadata",
  "chrono",
- "sp1-build",
+ "clap",
+ "dirs",
 ]
 
 [[package]]
