@@ -3,11 +3,8 @@ use clap::Parser;
 use sp1_build::{build_program, BuildArgs};
 
 #[derive(Parser)]
-#[command(name = "build", about = "Build a program")]
+#[command(name = "build", about = "Compile an SP1 program")]
 pub struct BuildCmd {
-    #[clap(long, action)]
-    verbose: bool,
-
     #[clap(flatten)]
     build_args: BuildArgs,
 }

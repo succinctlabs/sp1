@@ -10,7 +10,7 @@ use sha2::Sha256;
 pub fn main() {
     // Read an input to the program.
     //
-    // Behind the scenes, this compiles down to a custom system call which handles reading inputs
+    // Behind the scenes, this compiles down to a system call which handles reading inputs
     let pk_der = sp1_zkvm::io::read::<Vec<u8>>();
     let message = sp1_zkvm::io::read::<Vec<u8>>();
     let signature = sp1_zkvm::io::read::<Vec<u8>>();
@@ -37,6 +37,6 @@ pub fn main() {
 
     // Write the output of the program.
     //
-    // Behind the scenes, this also compiles down to a custom system call which handles writing
+    // Behind the scenes, this also compiles down to a system call which handles writing
     sp1_zkvm::io::commit(&verified);
 }

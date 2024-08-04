@@ -18,21 +18,24 @@
 
 # Writing Programs
 
+- [Overview](./writing-programs/overview.md)
+
 - [Setup](./writing-programs/setup.md)
 
 - [Basics](./writing-programs/basics.md)
 
+- [Compiling Programs](./writing-programs/compiling.md)
+
 - [Inputs & Outputs](./writing-programs/inputs-and-outputs.md)
 
-- [Precompiles](./writing-programs/precompiles.md)
-
 - [Patched Crates](./writing-programs/patched-crates.md)
+
+- [Precompiles](./writing-programs/precompiles.md)
 
 - [Cycle Tracking](./writing-programs/cycle-tracking.md)
 
 - [Proof Aggregation](./writing-programs/proof-aggregation.md)
 
-- [Build Script](./writing-programs/build-script.md)
 
 # Generating Proofs
 
@@ -46,6 +49,14 @@
 
 - [Optimizing Performance](./generating-proofs/optimizing-performance.md)
 
+# Prover Network
+
+- [Setup](./prover-network/setup.md)
+
+- [Usage](./prover-network/usage.md)
+
+- [Supported Versions](./prover-network/versions.md)
+
 # Onchain Verification
 
 - [Setup](./onchain-verification/getting-started.md)
@@ -54,13 +65,9 @@
 
 - [Contract Addresses](./onchain-verification/contract-addresses.md)
 
-# Prover Network
+# Performance Benchmarks
 
-- [Setup](./prover-network/setup.md)
-
-- [Usage](./prover-network/usage.md)
-
-- [Supported Versions](./prover-network/versions.md)
+- [Benchmarks](./benchmarks.md)
 
 # Developers
 

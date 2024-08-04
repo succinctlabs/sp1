@@ -1,7 +1,9 @@
 # Installation
 
 SP1 currently runs on Linux and macOS. You can either use prebuilt binaries through sp1up or
-build the toolchain and CLI from source.
+build the Succinct [Rust toolchain](https://rust-lang.github.io/rustup/concepts/toolchains.html) and CLI from source.
+
+The Succinct Rust toolchain has support for the compilation target for the Succinct zkVM (`riscv32im-succinct-zkvm-elf`). The `cargo prove` CLI provides convenient commands for compiling SP1 programs and other helper functionality.
 
 ## Requirements
 
@@ -33,10 +35,21 @@ This will install two things:
 1. The `succinct` Rust toolchain which has support for the `riscv32im-succinct-zkvm-elf` compilation target.
 2. `cargo prove` CLI tool that will let you compile provable programs and then prove their correctness.
 
-You can verify the installation by running `cargo prove --version`:
+You can verify the installation of the CLI by running `cargo prove --version`:
 
 ```bash
 cargo prove --version
+```
+
+You can check the version of the Succinct Rust toolchain by running:
+
+```bash
+RUSTUP_TOOLCHAIN=succinct cargo --version
+```
+or equivalently:
+
+```bash
+cargo +succinct --version
 ```
 
 If this works, go to the [next section](./quickstart.md) to compile and prove a simple zkVM program.
@@ -45,9 +58,10 @@ If this works, go to the [next section](./quickstart.md) to compile and prove a 
 
 #### Rate-limiting
 
-If you experience [rate-limiting](https://docs.github.com/en/rest/using-the-rest-api/getting-started-with-the-rest-api?apiVersion=2022-11-28#rate-limiting) when using the `sp1up` command, you can resolve this by using the `--token` flag and providing your GitHub token.
+If you experience [rate-limiting](https://docs.github.com/en/rest/using-the-rest-api/getting-started-with-the-rest-api?apiVersion=2022-11-28#rate-limiting) when using the `sp1up` command, you can resolve this by using the `--token` flag and providing your GitHub token. To create a Github token, follow the instructions [here](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens#creating-a-personal-access-token-classic).
 
 <!-- We should add an example command here and also give instructions on how to get a Github token here -->
+<!-- When I try to sp1up --token it doesn't work -->
 
 
 #### Conflicting `cargo-prove` installations
@@ -66,9 +80,9 @@ rm ~/.sp1/bin/cargo-prove
 
 ## Option 2: Building from Source
 
-{{#warning }}
+<div class="warning">
 **Warning:** This option will take a long time to build and is only recommended for advanced users. 
-{{/warning}}
+</div>
 
 Make sure you have installed the [dependencies](https://github.com/rust-lang/rust/blob/master/INSTALL.md#dependencies) needed to build the rust toolchain from source.
 

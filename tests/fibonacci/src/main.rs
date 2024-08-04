@@ -11,7 +11,7 @@ sp1_zkvm::entrypoint!(main);
 pub fn main() {
     // Read an input to the program.
     //
-    // Behind the scenes, this compiles down to a custom system call which handles reading inputs
+    // Behind the scenes, this compiles down to a system call which handles reading inputs
     // from the prover.
     let n = 10;
     // Compute the n'th fibonacci number, using normal Rust code.

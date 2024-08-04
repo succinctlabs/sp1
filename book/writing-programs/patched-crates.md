@@ -7,6 +7,8 @@ Under the hood, we use [precompiles](./precompiles.md) to achieve tremendous per
 
 ## Supported Libraries
 
+This is a list of libraries that we have patched and the functionality they provide.
+
 | Crate Name          | Repository                                                                            | Notes                  |
 | ------------------- | ------------------------------------------------------------------------------------- | ---------------------- |
 | sha2                | [sp1-patches/RustCrypto-hashes](https://github.com/sp1-patches/RustCrypto-hashes)     | sha256                 |

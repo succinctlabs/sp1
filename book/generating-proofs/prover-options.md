@@ -27,7 +27,10 @@ client.prove(&pk, stdin).compressed().run().unwrap();
 
 ## PLONK
 
-> WARNING: The PLONK prover requires around 128GB of RAM and is only guaranteed to work on official releases of SP1.
+<div class="warning">
+WARNING: The PLONK prover requires around 128GB of RAM and is only guaranteed to work on official releases of SP1.
+</div>
+
 
 The PLONK prover mode generates a SNARK proof with extremely small proof size and low verification cost.
 This mode is necessary for generating proofs that can be verified onchain for around ~300k gas.
