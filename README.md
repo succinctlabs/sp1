@@ -1,8 +1,6 @@
 # SP1
 
-[![Telegram Chat][tg-badge]][tg-url]
-
-![](./assets/sp1.png)
+![SP1](./assets/sp1.png)
 
 SP1 is a performant, open-source, contributor-friendly zero-knowledge virtual machine (zkVM) that can prove the execution of arbitrary Rust (or any LLVM-compiled language) programs. SP1 makes ZK accessible to *any developer*, by making it easy to write ZKP programs in normal Rust code, with a blazing fast prover. 
 
@@ -11,9 +9,7 @@ SP1 is inspired by the open-source software movement and takes a collaborative a
 **[Install](https://succinctlabs.github.io/sp1/getting-started/install.html)**
 | [Docs](https://succinctlabs.github.io/sp1)
 | [Examples](https://github.com/succinctlabs/sp1/tree/main/examples)
-
-[tg-badge]: https://img.shields.io/endpoint?color=neon&logo=telegram&label=chat&url=https://tg.sumanjay.workers.dev/succinct_sp1
-[tg-url]: https://t.me/succinct_sp1
+| [Telegram Chat](https://t.me/+AzG4ws-kD24yMGYx)
 
 ## Getting Started 
 

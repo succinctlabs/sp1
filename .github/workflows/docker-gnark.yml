@@ -15,7 +15,13 @@ on:
 jobs:
   test-docker:
     name: Test
-    runs-on: runs-on,runner=64cpu-linux-arm64,spot=false
+    runs-on:
+      [
+        runs-on,
+        runner=64cpu-linux-arm64,
+        spot=false,
+        "run-id=${{ github.run_id }}",
+      ]
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
@@ -35,5 +41,5 @@ jobs:
           SP1_GNARK_IMAGE: sp1-gnark
         with:
           command: test
-          toolchain: nightly-2024-04-17
+          toolchain: 1.79.0
           args: --release -p sp1-prover -- --exact tests::test_e2e

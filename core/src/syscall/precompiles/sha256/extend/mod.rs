@@ -56,7 +56,7 @@ pub mod extend_tests {
         air::MachineAir,
         alu::AluEvent,
         runtime::{ExecutionRecord, Instruction, Opcode, Program, SyscallCode},
-        stark::DefaultProver,
+        stark::CpuProver,
         utils::{
             self, run_test,
             tests::{SHA2_ELF, SHA_EXTEND_ELF},
@@ -104,20 +104,20 @@ pub mod extend_tests {
     fn test_sha_prove() {
         utils::setup_logger();
         let program = sha_extend_program();
-        run_test::<DefaultProver<_, _>>(program).unwrap();
+        run_test::<CpuProver<_, _>>(program).unwrap();
     }
 
     #[test]
     fn test_sha256_program() {
         utils::setup_logger();
         let program = Program::from(SHA2_ELF);
-        run_test::<DefaultProver<_, _>>(program).unwrap();
+        run_test::<CpuProver<_, _>>(program).unwrap();
     }
 
     #[test]
     fn test_sha_extend_program() {
         utils::setup_logger();
         let program = Program::from(SHA_EXTEND_ELF);
-        run_test::<DefaultProver<_, _>>(program).unwrap();
+        run_test::<CpuProver<_, _>>(program).unwrap();
     }
 }

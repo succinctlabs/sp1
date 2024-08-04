@@ -515,6 +515,10 @@ impl<C: Config> Builder<C> {
             .push(DslIr::CircuitCommitCommitedValuesDigest(var));
     }
 
+    pub fn reduce_e(&mut self, ext: Ext<C::F, C::EF>) {
+        self.operations.push(DslIr::ReduceE(ext));
+    }
+
     pub fn cycle_tracker(&mut self, name: &str) {
         self.operations.push(DslIr::CycleTracker(name.to_string()));
     }
