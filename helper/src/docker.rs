@@ -42,20 +42,13 @@ pub fn create_docker_command(
         "/root/program/{}",
         program_dir.strip_prefix(workspace_root).unwrap()
     );
-    println!("program_dir_path: {}", program_dir_path);
-    println!("workspace_root_path: {}", workspace_root_path);
 
-    let target_dir = program_metadata.target_directory.join(crate::HELPER_TARGET_SUBDIR);
-    println!("target_dir: {}", target_dir);
-    // If the target directory does't exist, create it.
-    if !target_dir.exists() {
-        std::fs::create_dir_all(&target_dir).unwrap();
-    }
+    // This is the target directory in the context of the Docker container.
+    let target_dir = format!("/root/program/target/{}", crate::HELPER_TARGET_SUBDIR);
 
     // Add docker-specific arguments.
     let mut docker_args = vec![
         "run".to_string(),
-        "--rm".to_string(),
         "--platform".to_string(),
         "linux/amd64".to_string(),
         "-v".to_string(),
