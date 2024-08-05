@@ -135,15 +135,15 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldChip<DEGREE>
                     // multiplicities are i==0.
                     row.z_mem = MemoryAccessCols {
                         addr: ext_single_addrs.z,
-                        mult: F::neg_one() * F::from_bool(i == 0),
+                        mult: -F::from_bool(i == 0),
                     };
                     row.x_mem = MemoryAccessCols {
                         addr: base_single_addrs.x,
-                        mult: F::neg_one() * F::from_bool(i == 0),
+                        mult: -F::from_bool(i == 0),
                     };
                     row.alpha_mem = MemoryAccessCols {
                         addr: ext_single_addrs.alpha,
-                        mult: F::neg_one() * F::from_bool(i == 0),
+                        mult: -F::from_bool(i == 0),
                     };
 
                     // Read the memory for the input vectors.

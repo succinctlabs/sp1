@@ -122,7 +122,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpReverseBitsLenCh
                     row.is_real = F::one();
                     row.x_mem = MemoryAccessCols {
                         addr: addrs.base,
-                        mult: *mult * F::neg_one() * F::from_bool(i == 0),
+                        mult: -F::from_bool(i == 0) * *mult,
                     };
                     row.exponent_mem = MemoryAccessCols {
                         addr: addrs.exp[i],
@@ -249,11 +249,7 @@ impl<const DEGREE: usize> ExpReverseBitsLenChip<DEGREE> {
         }
 
         // Constrain mem read for x.  The read mult is one for only the first row, and zero for all others.
-        builder.send_single(
-            local_prepr.x_mem.addr,
-            local.x,
-            local_prepr.x_mem.mult,
-        );
+        builder.send_single(local_prepr.x_mem.addr, local.x, local_prepr.x_mem.mult);
 
         // Ensure that the value at the x memory access is unchanged when not `is_last`.
         builder
