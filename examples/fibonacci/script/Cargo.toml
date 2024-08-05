@@ -10,11 +10,16 @@ clap = { version = "4.0", features = ["derive", "env"] }
 tracing = "0.1.40"
 hex = "0.4.3"
 itertools = "0.12.1"
-sp1-sdk = { workspace = true }
-sha2 = "0.10.8"
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 serde = { version = "1.0", default-features = false, features = ["derive"] }
+sha2 = "0.10.8"
+anyhow = "1.0.83"
+sysinfo = "0.30.13"
 alloy-sol-types = "0.7.2"
+
+sp1-sdk = { workspace = true }
+sp1-prover = { workspace = true }
+sp1-core = { workspace = true }
 
 [build-dependencies]
 sp1-helper = { workspace = true }

@@ -1744,14 +1744,18 @@ name = "fibonacci-script"
 version = "1.0.1"
 dependencies = [
  "alloy-sol-types",
+ "anyhow",
  "clap",
  "hex",
  "itertools 0.12.1",
  "serde",
  "serde_json",
  "sha2",
+ "sp1-core",
  "sp1-helper",
+ "sp1-prover",
  "sp1-sdk",
+ "sysinfo",
  "tracing",
 ]
 
