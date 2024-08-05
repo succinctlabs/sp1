@@ -166,14 +166,12 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2SkinnyChip
                         cols.memory_preprocessed =
                             instruction.addrs.input.map(|addr| MemoryAccessCols {
                                 addr,
-                                read_mult: F::one(),
-                                write_mult: F::zero(),
+                                write_mult: F::neg_one(),
                             });
                     } else if i == NUM_EXTERNAL_ROUNDS + 1 {
                         cols.memory_preprocessed =
                             instruction.addrs.output.map(|addr| MemoryAccessCols {
                                 addr,
-                                read_mult: F::zero(),
                                 write_mult: instruction.mults[i],
                             });
                     }

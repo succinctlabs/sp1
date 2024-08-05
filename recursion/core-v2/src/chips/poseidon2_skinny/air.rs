@@ -47,14 +47,6 @@ where
 
         // For now, include only memory constraints.
         (0..WIDTH).for_each(|i| {
-            builder.receive_single(
-                prep_local.memory_preprocessed[i].addr,
-                local_row.state_var()[i],
-                prep_local.memory_preprocessed[i].read_mult,
-            )
-        });
-
-        (0..WIDTH).for_each(|i| {
             builder.send_single(
                 prep_local.memory_preprocessed[i].addr,
                 local_row.state_var()[i],

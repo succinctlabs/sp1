@@ -122,17 +122,14 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpReverseBitsLenCh
                     row.is_real = F::one();
                     row.x_mem = MemoryAccessCols {
                         addr: addrs.base,
-                        read_mult: *mult * F::from_bool(i == 0),
-                        write_mult: F::zero(),
+                        write_mult: *mult * F::neg_one() * F::from_bool(i == 0),
                     };
                     row.exponent_mem = MemoryAccessCols {
                         addr: addrs.exp[i],
-                        read_mult: F::one(),
-                        write_mult: F::zero(),
+                        write_mult: F::neg_one(),
                     };
                     row.result_mem = MemoryAccessCols {
                         addr: addrs.result,
-                        read_mult: F::zero(),
                         write_mult: *mult * F::from_bool(i == addrs.exp.len() - 1),
                     };
                 });
@@ -252,7 +249,11 @@ impl<const DEGREE: usize> ExpReverseBitsLenChip<DEGREE> {
         }
 
         // Constrain mem read for x.  The read mult is one for only the first row, and zero for all others.
-        builder.receive_single(local_prepr.x_mem.addr, local.x, local_prepr.x_mem.read_mult);
+        builder.send_single(
+            local_prepr.x_mem.addr,
+            local.x,
+            local_prepr.x_mem.write_mult,
+        );
 
         // Ensure that the value at the x memory access is unchanged when not `is_last`.
         builder
@@ -262,10 +263,10 @@ impl<const DEGREE: usize> ExpReverseBitsLenChip<DEGREE> {
             .assert_eq(local.x, next.x);
 
         // Constrain mem read for exponent's bits.  The read mult is one for all real rows.
-        builder.receive_single(
+        builder.send_single(
             local_prepr.exponent_mem.addr,
             local.current_bit,
-            local_prepr.exponent_mem.read_mult,
+            local_prepr.exponent_mem.write_mult,
         );
 
         // The accumulator needs to start with the multiplier for every `is_first` row.
