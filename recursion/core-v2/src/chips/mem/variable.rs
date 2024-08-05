@@ -61,23 +61,6 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip<F> {
             .instructions
             .iter()
             .flat_map(|instruction| match instruction {
-                Instruction::Mem(MemInstr {
-                    addrs,
-                    vals: _,
-                    mult,
-                    kind,
-                }) => {
-                    let mult = mult.to_owned();
-                    let mult = match kind {
-                        MemAccessKind::Read => -mult,
-                        MemAccessKind::Write => mult,
-                    };
-
-                    vec![MemoryAccessCols {
-                        addr: addrs.inner,
-                        mult,
-                    }]
-                }
                 Instruction::HintBits(HintBitsInstr {
                     output_addrs_mults,
                     input_addr: _, // No receive interaction for the hint operation
@@ -126,7 +109,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip<F> {
     fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
         let rows = input
-            .mem_events
+            .mem_var_events
             .chunks(NUM_MEM_ENTRIES_PER_ROW)
             .map(|row_events| {
                 let mut row = [F::zero(); NUM_MEM_INIT_COLS];
@@ -215,7 +198,7 @@ mod tests {
     #[test]
     pub fn generate_trace() {
         let shard = ExecutionRecord::<BabyBear> {
-            mem_events: vec![
+            mem_var_events: vec![
                 MemEvent {
                     inner: BabyBear::one().into(),
                 },

@@ -14,7 +14,8 @@ pub struct ExecutionRecord<F> {
 
     pub base_alu_events: Vec<BaseAluEvent<F>>,
     pub ext_alu_events: Vec<ExtAluEvent<F>>,
-    pub mem_events: Vec<MemEvent<F>>,
+    pub mem_const_count: usize,
+    pub mem_var_events: Vec<MemEvent<F>>,
     /// The public values.
     pub public_values: PublicValues<u32, u32>,
 
@@ -38,7 +39,8 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
             index: _,
             base_alu_events,
             ext_alu_events,
-            mem_events,
+            mem_const_count,
+            mem_var_events,
             public_values: _,
             poseidon2_wide_events,
             poseidon2_skinny_events,
@@ -47,7 +49,8 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
         } = self;
         base_alu_events.append(&mut other.base_alu_events);
         ext_alu_events.append(&mut other.ext_alu_events);
-        mem_events.append(&mut other.mem_events);
+        *mem_const_count += other.mem_const_count;
+        mem_var_events.append(&mut other.mem_var_events);
         poseidon2_wide_events.append(&mut other.poseidon2_wide_events);
         poseidon2_skinny_events.append(&mut other.poseidon2_skinny_events);
         exp_reverse_bits_len_events.append(&mut other.exp_reverse_bits_len_events);
