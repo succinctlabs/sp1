@@ -13,7 +13,7 @@ use std::{
 const BUILD_TARGET: &str = "riscv32im-succinct-zkvm-elf";
 const DEFAULT_TAG: &str = "latest";
 const DEFAULT_OUTPUT_DIR: &str = "elf";
-const HELPER_TARGET_SUBDIR: &str = "elf-compilation";
+pub const HELPER_TARGET_SUBDIR: &str = "elf-compilation";
 
 /// [`BuildArgs`] is a struct that holds various arguments used for building a program.
 ///
@@ -78,7 +78,7 @@ impl Default for BuildArgs {
 }
 
 /// Get the arguments to build the program with the arguments from the [`BuildArgs`] struct.
-pub(crate)fn get_program_build_args(args: &BuildArgs) -> Vec<String> {
+pub(crate) fn get_program_build_args(args: &BuildArgs) -> Vec<String> {
     let mut build_args = vec![
         "build".to_string(),
         "--release".to_string(),
@@ -163,15 +163,18 @@ fn execute_command(
     // program with the toolchain of the normal build process, rather than the Succinct toolchain.
     command.env_remove("RUSTC");
 
-    // Set the target directory to a subdirectory of the program's target directory to avoid
-    // build conflicts with the parent process. If removed, programs that share the same target
-    // directory (i.e. same workspace) as the script will hang indefinitely due to a file lock
-    // when building in the helper.
-    // Source: https://github.com/rust-lang/cargo/issues/6412
-    command.env(
-        "CARGO_TARGET_DIR",
-        program_metadata.target_directory.join(HELPER_TARGET_SUBDIR),
-    );
+    let final_target_dir = program_metadata.target_directory.join(HELPER_TARGET_SUBDIR);
+    if !docker {
+        // Set the target directory to a subdirectory of the program's target directory to avoid
+        // build conflicts with the parent process. If removed, programs that share the same target
+        // directory (i.e. same workspace) as the script will hang indefinitely due to a file lock
+        // when building in the helper.
+        // Source: https://github.com/rust-lang/cargo/issues/6412
+        command.env(
+            "CARGO_TARGET_DIR",
+            final_target_dir,
+        );
+    }
 
     // Add necessary tags for stdout and stderr from the command.
     let mut child = command
@@ -262,7 +265,10 @@ fn copy_elf_to_output_dir(
 /// # Returns
 ///
 /// * `Result<Utf8PathBuf>` - The path to the built program as a `Utf8PathBuf` on success, or an error on failure.
-pub fn execute_build_program(args: &BuildArgs, program_dir: Option<PathBuf>) -> Result<Utf8PathBuf> {
+pub fn execute_build_program(
+    args: &BuildArgs,
+    program_dir: Option<PathBuf>,
+) -> Result<Utf8PathBuf> {
     // If the program directory is not specified, use the current directory.
     let program_dir = program_dir
         .unwrap_or_else(|| std::env::current_dir().expect("Failed to get current directory."));
@@ -274,19 +280,19 @@ pub fn execute_build_program(args: &BuildArgs, program_dir: Option<PathBuf>) -> 
     let metadata_cmd = cargo_metadata::MetadataCommand::new();
     let metadata = metadata_cmd.exec().unwrap();
 
-    // Get the command corresponding to Docker or local build.
-    let cmd = if args.docker {
-        crate::docker::create_docker_command(args, &program_dir, &metadata.workspace_root)?
-    } else {
-        create_local_command(args, &program_dir)
-    };
-
     let program_metadata_file = program_dir.join("Cargo.toml");
     let mut program_metadata_cmd = cargo_metadata::MetadataCommand::new();
     let program_metadata = program_metadata_cmd
         .manifest_path(program_metadata_file)
         .exec()
-        .unwrap();
+        .expect("Failed to get program metadata. Confirm that the program directory is valid.");
+
+    // Get the command corresponding to Docker or local build.
+    let cmd = if args.docker {
+        crate::docker::create_docker_command(args, &program_dir, &program_metadata, &metadata.workspace_root)?
+    } else {
+        create_local_command(args, &program_dir)
+    };
 
     execute_command(cmd, args.docker, &program_metadata)?;
 

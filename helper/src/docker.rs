@@ -18,6 +18,7 @@ fn get_docker_image(tag: &str) -> String {
 pub fn create_docker_command(
     args: &BuildArgs,
     program_dir: &Utf8PathBuf,
+    program_metadata: &cargo_metadata::Metadata,
     workspace_root: &Utf8PathBuf,
 ) -> Result<Command> {
     let image = get_docker_image(&args.tag);
@@ -36,22 +37,27 @@ pub fn create_docker_command(
 
     // Mount the entire workspace, and set the working directory to the program dir. Note: If the
     // program dir has local dependencies outside of the workspace, building with Docker will fail.
-    let workspace_root_path = format!("{}:/root/program", workspace_root);
+    let workspace_root_path = format!("{}:/root", workspace_root);
     let program_dir_path = format!(
-        "/root/program/{}",
+        "/root/{}",
         program_dir.strip_prefix(workspace_root).unwrap()
     );
+
+    // This is the target directory in the context of the Docker container.
+    // TODO: Use the target directory specified from the program metadata.
+    let target_dir = format!("/root/program/target/{}", crate::HELPER_TARGET_SUBDIR);
 
     // Add docker-specific arguments.
     let mut docker_args = vec![
         "run".to_string(),
-        "--rm".to_string(),
         "--platform".to_string(),
         "linux/amd64".to_string(),
         "-v".to_string(),
         workspace_root_path,
         "-w".to_string(),
         program_dir_path,
+        "-e".to_string(),
+        format!("CARGO_TARGET_DIR={}", target_dir),
         "-e".to_string(),
         "RUSTUP_TOOLCHAIN=succinct".to_string(),
         "-e".to_string(),
