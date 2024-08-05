@@ -1,8 +1,8 @@
 # sp1-helper
 Lightweight crate used to build SP1 programs. Also used by `sp1-cli`.
 
-Exposes `build_program`, which builds an SP1 program in the local environment To configure the build
-with additional arguments, use `build_program_with_args`.
+Exposes `build_program`, which builds an SP1 program in the local environment. To configure the 
+build with additional arguments, use `build_program_with_args`.
 
 ## Usage
 
