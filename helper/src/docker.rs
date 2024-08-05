@@ -42,19 +42,17 @@ pub(crate) fn create_docker_command(
     // Mount the entire workspace, and set the working directory to the program dir. Note: If the
     // program dir has local dependencies outside of the workspace, building with Docker will fail.
     let workspace_root_path = format!("{}:/root/program", workspace_root);
-    let program_dir_path = match canonicalized_program_dir {
-        dir if dir == workspace_root => "/root/program".to_string(),
-        dir => format!(
-            "/root/program/{}",
-            dir.strip_prefix(workspace_root).unwrap()
-        ),
-    };
+    let program_dir_path = format!(
+        "/root/program/{}",
+        canonicalized_program_dir
+            .strip_prefix(workspace_root)
+            .unwrap()
+    );
 
+    // Get the target directory for the ELF in the context of the Docker container.
     let relative_target_dir = (program_metadata.target_directory)
         .strip_prefix(workspace_root)
         .unwrap();
-
-    // This is the target directory in the context of the Docker container.
     let target_dir = format!(
         "/root/program/{}/{}/{}",
         relative_target_dir,

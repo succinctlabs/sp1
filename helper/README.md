@@ -1,12 +1,15 @@
 # sp1-helper
 Lightweight crate used to build SP1 programs. Also used by `sp1-cli`.
 
-Exposes `build_program`, which builds an SP1 program in the local environment or in a docker container with the specified parameters from `BuildArgs`.
+Exposes `build_program`, which builds an SP1 program in the local environment To configure the build
+with additional arguments, use `build_program_with_args`.
 
 ## Usage
 
 ```rust
-use sp1_helper::build_program;
+use sp1_helper::{build_program, build_program_with_args};
+
+build_program("path/to/program");
 
 build_program_with_args("path/to/program", &BuildArgs::default());
 ```
