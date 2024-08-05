@@ -167,23 +167,11 @@ where
         let prep_local = prep.row_slice(0);
         let prep_local: &MemoryPreprocessedCols<AB::Var> = (*prep_local).borrow();
 
-        // At most one should be true.
-        // builder.assert_zero(local.read_mult * local.mult);
-
         for (value, access) in zip(local.values, prep_local.accesses) {
             builder.send_block(access.addr, value, access.mult);
         }
     }
 }
-
-/*
-
-1) make a dummy program for loop 100: x' = x*x + x
-2) make mem_init chip and mul chip with 3 columns each that prove a = b + c and a = b * c respectively.
-and then also fill in generate_trace and eval and write test (look at mem_init_sub in core for test example).
-you will also need to write your own execution record struct but look at recursion-core for how we did that
-
-*/
 
 #[cfg(test)]
 mod tests {
