@@ -44,6 +44,7 @@ pub fn create_docker_command(
     );
 
     // This is the target directory in the context of the Docker container.
+    // TODO: Use the target directory specified from the program metadata.
     let target_dir = format!("/root/program/target/{}", crate::HELPER_TARGET_SUBDIR);
 
     // Add docker-specific arguments.
