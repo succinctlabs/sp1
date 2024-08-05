@@ -41,10 +41,10 @@ pub(crate) fn create_docker_command(
 
     // Mount the entire workspace, and set the working directory to the program dir. Note: If the
     // program dir has local dependencies outside of the workspace, building with Docker will fail.
-    let workspace_root_path = format!("{}:/root", workspace_root);
+    let workspace_root_path = format!("{}:/root/program", workspace_root);
     let program_dir_path = match canonicalized_program_dir {
-        dir if dir == workspace_root => "/root".to_string(),
-        dir => format!("/root/{}", dir.strip_prefix(workspace_root).unwrap()),
+        dir if dir == workspace_root => "/root/program".to_string(),
+        dir => format!("/root/program/{}", dir.strip_prefix(workspace_root).unwrap()),
     };
 
     let relative_target_dir = (program_metadata.target_directory)
@@ -53,7 +53,7 @@ pub(crate) fn create_docker_command(
 
     // This is the target directory in the context of the Docker container.
     let target_dir = format!(
-        "/root/{}/{}/{}",
+        "/root/program/{}/{}/{}",
         relative_target_dir,
         crate::HELPER_TARGET_SUBDIR,
         "docker"

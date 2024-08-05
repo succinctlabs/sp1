@@ -211,9 +211,8 @@ pub fn execute_build_program(
     // If the program directory is not specified, use the current directory.
     let program_dir = program_dir
         .unwrap_or_else(|| std::env::current_dir().expect("Failed to get current directory."));
-    let program_dir: Utf8PathBuf = program_dir
-        .try_into()
-        .expect("Failed to convert PathBuf to Utf8PathBuf");
+    let program_dir_path = program_dir.canonicalize()?;
+    let program_dir: Utf8PathBuf = program_dir_path.try_into()?;
 
     // Get the program metadata.
     let program_metadata_file = program_dir.join("Cargo.toml");
