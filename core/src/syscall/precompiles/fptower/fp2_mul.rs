@@ -222,7 +222,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
     fn name(&self) -> String {
         match E::CURVE_TYPE {
-            // CurveType::Bn254 => "Bn254Fp2MulAssign".to_string(),
+            CurveType::Bn254 => "Bn254Fp2MulAssign".to_string(),
             CurveType::Bls12381 => "Bls12831Fp2MulAssign".to_string(),
             _ => panic!("Unsupported curve"),
         }
@@ -230,7 +230,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
     fn generate_trace(&self, input: &Self::Record, output: &mut Self::Record) -> RowMajorMatrix<F> {
         let events = match E::CURVE_TYPE {
-            // CurveType::Bn254 => &input.bn254_fp2_mul_events,
+            CurveType::Bn254 => &input.bn254_fp2_mul_events,
             CurveType::Bls12381 => &input.bls12381_fp2_mul_events,
             _ => panic!("Unsupported curve"),
         };
@@ -325,6 +325,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
     fn included(&self, shard: &Self::Record) -> bool {
         match E::CURVE_TYPE {
+            CurveType::Bn254 => !shard.bn254_fp2_mul_events.is_empty(),
             CurveType::Bls12381 => !shard.bls12381_fp2_mul_events.is_empty(),
             _ => panic!("Unsupported curve"),
         }
@@ -468,7 +469,7 @@ where
             // CurveType::Secp256k1 => {
             //     AB::F::from_canonical_u32(SyscallCode::SECP256K1_ADD.syscall_id())
             // }
-            // CurveType::Bn254 => AB::F::from_canonical_u32(SyscallCode::BN254_ADD.syscall_id()),
+            CurveType::Bn254 => AB::F::from_canonical_u32(SyscallCode::BN254_FP2_MUL.syscall_id()),
             CurveType::Bls12381 => {
                 AB::F::from_canonical_u32(SyscallCode::BLS12381_FP2_MUL.syscall_id())
             }

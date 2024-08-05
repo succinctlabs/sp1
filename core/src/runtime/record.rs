@@ -101,10 +101,20 @@ pub struct ExecutionRecord {
     pub bls12381_decompress_events: Vec<ECDecompressEvent>,
 
     pub bls12381_fp_add_events: Vec<FpOpEvent>,
+
     pub bls12381_fp_sub_events: Vec<FpOpEvent>,
+
     pub bls12381_fp_mul_events: Vec<FpOpEvent>,
 
     pub bls12381_fp2_mul_events: Vec<Fp2MulEvent>,
+
+    pub bn254_fp_add_events: Vec<FpOpEvent>,
+
+    pub bn254_fp_sub_events: Vec<FpOpEvent>,
+
+    pub bn254_fp_mul_events: Vec<FpOpEvent>,
+
+    pub bn254_fp2_mul_events: Vec<Fp2MulEvent>,
 
     /// The public values.
     pub public_values: PublicValues<u32, u32>,

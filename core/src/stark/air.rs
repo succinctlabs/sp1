@@ -106,6 +106,10 @@ pub enum RiscvAir<F: PrimeField32> {
     Bls12381Fp(FpOpChip<SwCurve<Bls12381Parameters>>),
     /// A precompile for BLS12-381 fp2 multiplication.
     Bls12381Fp2Mul(Fp2MulAssignChip<SwCurve<Bls12381Parameters>>),
+    /// A precompile for BN-254 fp opeartion.
+    Bn254Fp(FpOpChip<SwCurve<Bn254Parameters>>),
+    /// A precompile for BN-254 fp2 multiplication.
+    Bn254Fp2Mul(Fp2MulAssignChip<SwCurve<Bn254Parameters>>),
 }
 
 impl<F: PrimeField32> RiscvAir<F> {
@@ -163,6 +167,14 @@ impl<F: PrimeField32> RiscvAir<F> {
         chips.push(RiscvAir::Bls12381Fp(bls12381_fp_mul));
         let bls12381_fp2_mul = Fp2MulAssignChip::<SwCurve<Bls12381Parameters>>::new();
         chips.push(RiscvAir::Bls12381Fp2Mul(bls12381_fp2_mul));
+        let bn254_fp_add = FpOpChip::<SwCurve<Bn254Parameters>>::new(FieldOperation::Add);
+        chips.push(RiscvAir::Bn254Fp(bn254_fp_add));
+        let bn254_fp_sub = FpOpChip::<SwCurve<Bn254Parameters>>::new(FieldOperation::Sub);
+        chips.push(RiscvAir::Bn254Fp(bn254_fp_sub));
+        let bn254_fp_mul = FpOpChip::<SwCurve<Bn254Parameters>>::new(FieldOperation::Mul);
+        chips.push(RiscvAir::Bn254Fp(bn254_fp_mul));
+        let bn254_fp2_mul = Fp2MulAssignChip::<SwCurve<Bn254Parameters>>::new();
+        chips.push(RiscvAir::Bn254Fp2Mul(bn254_fp2_mul));
         let bls12381_decompress =
             WeierstrassDecompressChip::<SwCurve<Bls12381Parameters>>::with_lexicographic_rule();
         chips.push(RiscvAir::Bls12381Decompress(bls12381_decompress));

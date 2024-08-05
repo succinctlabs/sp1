@@ -35,7 +35,6 @@ pub struct FpOpEvent {
     pub lookup_id: usize,
     pub shard: u32,
     pub channel: u8,
-    pub op: FieldOperation,
     pub clk: u32,
     pub x_ptr: u32,
     pub x: Vec<u32>,
@@ -94,7 +93,7 @@ impl<E: EllipticCurve> Syscall for FpOpChip<E> {
             _ => panic!("Unsupported operation"),
         };
         let mut result = result.to_u32_digits();
-        result.resize(12, 0);
+        result.resize(num_words, 0);
 
         rt.clk += 1;
         let x_memory_records = rt.mw_slice(x_ptr, &result);
@@ -102,20 +101,62 @@ impl<E: EllipticCurve> Syscall for FpOpChip<E> {
         let lookup_id = rt.syscall_lookup_id as usize;
         let shard = rt.current_shard();
         let channel = rt.current_channel();
-        let op = self.op;
-        rt.record_mut().bls12381_fp_add_events.push(FpOpEvent {
-            lookup_id,
-            shard,
-            channel,
-            op,
-            clk,
-            x_ptr,
-            x,
-            y_ptr,
-            y,
-            x_memory_records,
-            y_memory_records,
-        });
+        match E::CURVE_TYPE {
+            CurveType::Bn254 => {
+                let event = FpOpEvent {
+                    lookup_id,
+                    shard,
+                    channel,
+                    clk,
+                    x_ptr,
+                    x,
+                    y_ptr,
+                    y,
+                    x_memory_records,
+                    y_memory_records,
+                };
+                match self.op {
+                    FieldOperation::Add => {
+                        rt.record_mut().bn254_fp_add_events.push(event);
+                    }
+                    FieldOperation::Sub => {
+                        rt.record_mut().bn254_fp_sub_events.push(event);
+                    }
+                    FieldOperation::Mul => {
+                        rt.record_mut().bn254_fp_mul_events.push(event);
+                    }
+                    _ => panic!("Unsupported operation"),
+                }
+            }
+            CurveType::Bls12381 => {
+                let event = FpOpEvent {
+                    lookup_id,
+                    shard,
+                    channel,
+                    clk,
+                    x_ptr,
+                    x,
+                    y_ptr,
+                    y,
+                    x_memory_records,
+                    y_memory_records,
+                };
+                match self.op {
+                    FieldOperation::Add => {
+                        rt.record_mut().bls12381_fp_add_events.push(event);
+                    }
+                    FieldOperation::Sub => {
+                        rt.record_mut().bls12381_fp_sub_events.push(event);
+                    }
+                    FieldOperation::Mul => {
+                        rt.record_mut().bls12381_fp_mul_events.push(event);
+                    }
+                    _ => panic!("Unsupported operation"),
+                }
+            }
+            _ => panic!("Unsupported curve"),
+        }
+
         None
     }
 
@@ -162,8 +203,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F> fo
             _ => panic!("Unsupported operation"),
         };
         match E::CURVE_TYPE {
-            // CurveType::Secp256k1 => "Secp256k1AddAssign".to_string(),
-            // CurveType::Bn254 => "Bn254AddAssign".to_string(),
+            CurveType::Bn254 => format!("Bn254Fp{}Assign", op).to_string(),
             CurveType::Bls12381 => format!("Bls12381Fp{}Assign", op).to_string(),
             _ => panic!("Unsupported curve"),
         }
@@ -171,8 +211,12 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F> fo
 
     fn generate_trace(&self, input: &Self::Record, output: &mut Self::Record) -> RowMajorMatrix<F> {
         let events = match E::CURVE_TYPE {
-            // CurveType::Secp256k1 => &input.secp256k1_add_events,
-            // CurveType::Bn254 => &input.bn254_add_events,
+            CurveType::Bn254 => match self.op {
+                FieldOperation::Add => &input.bn254_fp_add_events,
+                FieldOperation::Sub => &input.bn254_fp_sub_events,
+                FieldOperation::Mul => &input.bn254_fp_mul_events,
+                _ => panic!("Unsupported operation"),
+            },
             CurveType::Bls12381 => match self.op {
                 FieldOperation::Add => &input.bls12381_fp_add_events,
                 FieldOperation::Sub => &input.bls12381_fp_sub_events,
@@ -258,7 +302,18 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F> fo
 
     fn included(&self, shard: &Self::Record) -> bool {
         match E::CURVE_TYPE {
-            CurveType::Bls12381 => !shard.bls12381_fp_add_events.is_empty(),
+            CurveType::Bn254 => match self.op {
+                FieldOperation::Add => !shard.bn254_fp_add_events.is_empty(),
+                FieldOperation::Sub => !shard.bn254_fp_sub_events.is_empty(),
+                FieldOperation::Mul => !shard.bn254_fp_mul_events.is_empty(),
+                _ => panic!("Unsupported operation"),
+            },
+            CurveType::Bls12381 => match self.op {
+                FieldOperation::Add => !shard.bls12381_fp_add_events.is_empty(),
+                FieldOperation::Sub => !shard.bls12381_fp_sub_events.is_empty(),
+                FieldOperation::Mul => !shard.bls12381_fp_mul_events.is_empty(),
+                _ => panic!("Unsupported operation"),
+            },
             _ => panic!("Unsupported curve"),
         }
     }
@@ -325,7 +380,18 @@ where
             // CurveType::Secp256k1 => {
             //     AB::F::from_canonical_u32(SyscallCode::SECP256K1_ADD.syscall_id())
             // }
-            // CurveType::Bn254 => AB::F::from_canonical_u32(SyscallCode::BN254_ADD.syscall_id()),
+            CurveType::Bn254 => match self.op {
+                FieldOperation::Add => {
+                    AB::F::from_canonical_u32(SyscallCode::BN254_FP_ADD.syscall_id())
+                }
+                FieldOperation::Sub => {
+                    AB::F::from_canonical_u32(SyscallCode::BN254_FP_SUB.syscall_id())
+                }
+                FieldOperation::Mul => {
+                    AB::F::from_canonical_u32(SyscallCode::BN254_FP_MUL.syscall_id())
+                }
+                _ => panic!("Unsupported operation"),
+            },
             CurveType::Bls12381 => match self.op {
                 FieldOperation::Add => {
                     AB::F::from_canonical_u32(SyscallCode::BLS12381_FP_ADD.syscall_id())

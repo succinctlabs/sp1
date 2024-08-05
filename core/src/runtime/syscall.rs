@@ -116,6 +116,18 @@ pub enum SyscallCode {
 
     /// Executes the `BLS12381_FP2_MUL` precompile.
     BLS12381_FP2_MUL = 0x00_00_01_23,
+
+    /// Executes the `BN254_FP_ADD` precompile.
+    BN254_FP_ADD = 0x00_00_01_24,
+
+    /// Executes the `BN254_FP_SUB` precompile.
+    BN254_FP_SUB = 0x00_00_01_25,
+
+    /// Executes the `BN254_FP_MUL` precompile.
+    BN254_FP_MUL = 0x00_00_01_26,
+
+    /// Executes the `BN254_FP2_MUL` precompile.
+    BN254_FP2_MUL = 0x00_00_01_27,
 }
 
 impl SyscallCode {
@@ -148,6 +160,10 @@ impl SyscallCode {
             0x00_01_01_21 => SyscallCode::BLS12381_FP_SUB,
             0x00_01_01_22 => SyscallCode::BLS12381_FP_MUL,
             0x00_01_01_23 => SyscallCode::BLS12381_FP2_MUL,
+            0x00_01_01_24 => SyscallCode::BN254_FP_ADD,
+            0x00_01_01_25 => SyscallCode::BN254_FP_SUB,
+            0x00_01_01_26 => SyscallCode::BN254_FP_MUL,
+            0x00_01_01_27 => SyscallCode::BN254_FP2_MUL,
             0x00_00_01_1C => SyscallCode::BLS12381_DECOMPRESS,
             _ => panic!("invalid syscall number: {}", value),
         }
@@ -348,6 +364,22 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Arc<dyn Syscall>> {
         Arc::new(Fp2MulAssignChip::<Bls12381>::new()),
     );
     syscall_map.insert(
+        SyscallCode::BN254_FP_ADD,
+        Arc::new(FpOpChip::<Bn254>::new(FieldOperation::Add)),
+    );
+    syscall_map.insert(
+        SyscallCode::BN254_FP_SUB,
+        Arc::new(FpOpChip::<Bn254>::new(FieldOperation::Sub)),
+    );
+    syscall_map.insert(
+        SyscallCode::BN254_FP_MUL,
+        Arc::new(FpOpChip::<Bn254>::new(FieldOperation::Mul)),
+    );
+    syscall_map.insert(
+        SyscallCode::BN254_FP2_MUL,
+        Arc::new(Fp2MulAssignChip::<Bn254>::new()),
+    );
+    syscall_map.insert(
         SyscallCode::ENTER_UNCONSTRAINED,
         Arc::new(SyscallEnterUnconstrained::new()),
     );
@@ -473,6 +505,18 @@ mod tests {
                 }
                 SyscallCode::BLS12381_FP2_MUL => {
                     assert_eq!(code as u32, sp1_zkvm::syscalls::BLS12381_FP2_MUL)
+                }
+                SyscallCode::BN254_FP_ADD => {
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::BN254_FP_ADD)
+                }
+                SyscallCode::BN254_FP_MUL => {
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::BN254_FP_MUL)
+                }
+                SyscallCode::BN254_FP_SUB => {
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::BN254_FP_SUB)
+                }
+                SyscallCode::BN254_FP2_MUL => {
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::BN254_FP2_MUL)
                 }
             }
         }
