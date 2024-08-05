@@ -20,7 +20,10 @@ pub trait FpOpField: FieldParameters + NumWords {
 
 #[cfg(test)]
 mod tests {
-    use crate::utils::tests::{BLS12381_FP2_ADDSUB_ELF, BN254_FP_ELF};
+
+    use crate::utils::tests::{
+        BLS12381_FP2_ADDSUB_ELF, BN254_FP2_ADDSUB_ELF, BN254_FP2_MUL_ELF, BN254_FP_ELF,
+    };
     use crate::Program;
     use crate::{
         stark::CpuProver,
@@ -55,6 +58,20 @@ mod tests {
     fn test_bn254_fp() {
         utils::setup_logger();
         let program = Program::from(BN254_FP_ELF);
+        utils::run_test::<CpuProver<_, _>>(program).unwrap();
+    }
+
+    #[test]
+    fn test_bn254_fp2_addsub() {
+        utils::setup_logger();
+        let program = Program::from(BN254_FP2_ADDSUB_ELF);
+        utils::run_test::<CpuProver<_, _>>(program).unwrap();
+    }
+
+    #[test]
+    fn test_bn254_fp2_mul() {
+        utils::setup_logger();
+        let program = Program::from(BN254_FP2_MUL_ELF);
         utils::run_test::<CpuProver<_, _>>(program).unwrap();
     }
 }
