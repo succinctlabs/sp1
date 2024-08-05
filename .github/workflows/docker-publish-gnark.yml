@@ -66,8 +66,8 @@ jobs:
         id: docker_tagging
         run: |
           if [[ "${{ github.event_name }}" == 'workflow_dispatch' ]]; then
-            echo "manual trigger from workflow_dispatch, assigning tag ${{ github.event.inputs.tags }}"
-            echo "docker_tags=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.event.inputs.tags }}" >> $GITHUB_OUTPUT
+            echo "manual trigger from workflow_dispatch, assigning tag v1.1.0"
+            echo "docker_tags=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:v1.1.0" >> $GITHUB_OUTPUT
           elif [[ "${{ github.event_name }}" == 'schedule' ]]; then
             echo "cron trigger, assigning nightly tag"
             echo "docker_tags=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:nightly,${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:nightly-${GITHUB_SHA}" >> $GITHUB_OUTPUT
@@ -98,5 +98,5 @@ jobs:
           cache-to: type=gha,mode=max
           build-args: |
             BUILDTIME=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
-            VERSION=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.version'] }}
+            VERSION=v1.1.0
             REVISION=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.revision'] }}
