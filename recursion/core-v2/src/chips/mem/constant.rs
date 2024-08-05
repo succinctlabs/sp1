@@ -66,7 +66,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip<F> {
                     kind,
                 }) => {
                     let mult = mult.to_owned();
-                    let write_mult = match kind {
+                    let mult = match kind {
                         MemAccessKind::Read => -mult,
                         MemAccessKind::Write => mult,
                     };
@@ -75,7 +75,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip<F> {
                         vals.inner,
                         MemoryAccessCols {
                             addr: addrs.inner,
-                            write_mult,
+                            mult,
                         },
                     ))
                 }
@@ -141,7 +141,7 @@ where
         let prep_local: &MemoryPreprocessedCols<AB::Var> = (*prep_local).borrow();
 
         for (value, access) in prep_local.values_and_accesses {
-            builder.send_block(access.addr, value, access.write_mult);
+            builder.send_block(access.addr, value, access.mult);
         }
     }
 }
