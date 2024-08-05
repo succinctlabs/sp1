@@ -312,8 +312,7 @@ where
         local.output.eval_with_modulus(
             builder,
             &p,
-            &q,
-            &p_modulus,
+            &qt & p_modulus,
             self.op,
             local.shard,
             local.channel,

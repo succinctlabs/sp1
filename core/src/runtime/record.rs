@@ -270,6 +270,8 @@ impl MachineRecord for ExecutionRecord {
             .append(&mut other.bls12381_fp_events);
         self.bls12381_fp2_mul_events
             .append(&mut other.bls12381_fp2_mul_events);
+        self.bls12381_decompress_events
+            .append(&mut other.bls12381_decompress_events);
         if self.byte_lookups.is_empty() {
             self.byte_lookups = std::mem::take(&mut other.byte_lookups);
         } else {
