@@ -7,3 +7,4 @@ publish = false
 
 [dependencies]
 sp1-zkvm = { path = "../../../zkvm/entrypoint" }
+alloy-sol-types = "0.7.2"
