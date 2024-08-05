@@ -1,11 +1,17 @@
 mod docker;
 mod program;
 
+pub use program::execute_build_program;
+
 use cargo_metadata::Metadata;
 use chrono::Local;
-pub use program::execute_build_program;
-pub(crate) use program::HELPER_TARGET_SUBDIR;
+use clap::Parser;
 use std::path::Path;
+
+const BUILD_TARGET: &str = "riscv32im-succinct-zkvm-elf";
+const DEFAULT_TAG: &str = "latest";
+const DEFAULT_OUTPUT_DIR: &str = "elf";
+const HELPER_TARGET_SUBDIR: &str = "elf-compilation";
 
 /// [`BuildArgs`] is a struct that holds various arguments used for building a program.
 ///
@@ -180,8 +186,11 @@ fn build_program_internal(path: &str, args: Option<BuildArgs>) {
 
     // Build the program with the given arguments.
     let build_args = args.unwrap_or_default();
+    let canonicalized_program_dir = program_dir
+        .canonicalize()
+        .expect("Failed to canonicalize program directory");
     let path_output =
-        crate::program::execute_build_program(&build_args, Some(program_dir.to_path_buf()));
+        crate::program::execute_build_program(&build_args, Some(canonicalized_program_dir));
     if let Err(err) = path_output {
         panic!("Failed to build SP1 program: {}.", err);
     }

@@ -3,7 +3,10 @@ use std::process::{exit, Command, Stdio};
 use anyhow::{Context, Result};
 use cargo_metadata::camino::Utf8PathBuf;
 
-use crate::program::{get_program_build_args, get_rust_compiler_flags, BuildArgs};
+use crate::{
+    program::{get_program_build_args, get_rust_compiler_flags},
+    BuildArgs,
+};
 
 /// Uses SP1_DOCKER_IMAGE environment variable if set, otherwise constructs the image to use based
 /// on the provided tag.
@@ -17,9 +20,8 @@ fn get_docker_image(tag: &str) -> String {
 /// Creates a Docker command to build the program.
 pub fn create_docker_command(
     args: &BuildArgs,
-    program_dir: &Utf8PathBuf,
+    canonicalized_program_dir: &Utf8PathBuf,
     program_metadata: &cargo_metadata::Metadata,
-    workspace_root: &Utf8PathBuf,
 ) -> Result<Command> {
     let image = get_docker_image(&args.tag);
 
@@ -35,17 +37,22 @@ pub fn create_docker_command(
         exit(1);
     }
 
+    let workspace_root = &program_metadata.workspace_root;
+
     // Mount the entire workspace, and set the working directory to the program dir. Note: If the
     // program dir has local dependencies outside of the workspace, building with Docker will fail.
     let workspace_root_path = format!("{}:/root", workspace_root);
     let program_dir_path = format!(
         "/root/{}",
-        program_dir.strip_prefix(workspace_root).unwrap()
+        canonicalized_program_dir
+            .strip_prefix(&workspace_root)
+            .unwrap()
     );
 
+    let relative_target_dir = (&program_metadata.target_directory).strip_prefix(workspace_root).unwrap();
+
     // This is the target directory in the context of the Docker container.
-    // TODO: Use the target directory specified from the program metadata.
-    let target_dir = format!("/root/program/target/{}", crate::HELPER_TARGET_SUBDIR);
+    let target_dir = format!("/root/{}/{}/{}", relative_target_dir, crate::HELPER_TARGET_SUBDIR, "docker");
 
     // Add docker-specific arguments.
     let mut docker_args = vec![
@@ -72,6 +79,8 @@ pub fn create_docker_command(
     docker_args.extend_from_slice(&get_program_build_args(args));
 
     let mut command = Command::new("docker");
-    command.current_dir(program_dir.clone()).args(&docker_args);
+    command
+        .current_dir(canonicalized_program_dir.clone())
+        .args(&docker_args);
     Ok(command)
 }
