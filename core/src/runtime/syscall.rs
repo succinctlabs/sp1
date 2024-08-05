@@ -107,40 +107,40 @@ pub enum SyscallCode {
     BLS12381_DOUBLE = 0x00_00_01_1F,
 
     /// Executes the `BLS12381_FP_ADD` precompile.
-    BLS12381_FP_ADD = 0x00_00_01_20,
+    BLS12381_FP_ADD = 0x00_01_01_20,
 
     /// Executes the `BLS12381_FP_SUB` precompile.
-    BLS12381_FP_SUB = 0x00_00_01_21,
+    BLS12381_FP_SUB = 0x00_01_01_21,
 
     /// Executes the `BLS12381_FP_MUL` precompile.
-    BLS12381_FP_MUL = 0x00_00_01_22,
+    BLS12381_FP_MUL = 0x00_01_01_22,
 
     /// Executes the `BLS12381_FP2_ADD` precompile.
-    BLS12381_FP2_ADD = 0x00_00_01_23,
+    BLS12381_FP2_ADD = 0x00_01_01_23,
 
     /// Executes the `BLS12381_FP2_SUB` precompile.
-    BLS12381_FP2_SUB = 0x00_00_01_24,
+    BLS12381_FP2_SUB = 0x00_01_01_24,
 
     /// Executes the `BLS12381_FP2_MUL` precompile.
-    BLS12381_FP2_MUL = 0x00_00_01_25,
+    BLS12381_FP2_MUL = 0x00_01_01_25,
 
     /// Executes the `BN254_FP_ADD` precompile.
-    BN254_FP_ADD = 0x00_00_01_26,
+    BN254_FP_ADD = 0x00_01_01_26,
 
     /// Executes the `BN254_FP_SUB` precompile.
-    BN254_FP_SUB = 0x00_00_01_27,
+    BN254_FP_SUB = 0x00_01_01_27,
 
     /// Executes the `BN254_FP_MUL` precompile.
-    BN254_FP_MUL = 0x00_00_01_28,
+    BN254_FP_MUL = 0x00_01_01_28,
 
     /// Executes the `BN254_FP2_ADD` precompile.
-    BN254_FP2_ADD = 0x00_00_01_29,
+    BN254_FP2_ADD = 0x00_01_01_29,
 
     /// Executes the `BN254_FP2_SUB` precompile.
-    BN254_FP2_SUB = 0x00_00_01_2A,
+    BN254_FP2_SUB = 0x00_01_01_2A,
 
     /// Executes the `BN254_FP2_MUL` precompile.
-    BN254_FP2_MUL = 0x00_00_01_2B,
+    BN254_FP2_MUL = 0x00_01_01_2B,
 }
 
 impl SyscallCode {
@@ -538,11 +538,11 @@ mod tests {
                 SyscallCode::BLS12381_FP_ADD => {
                     assert_eq!(code as u32, sp1_zkvm::syscalls::BLS12381_FP_ADD)
                 }
-                SyscallCode::BLS12381_FP_MUL => {
-                    assert_eq!(code as u32, sp1_zkvm::syscalls::BLS12381_FP_MUL)
-                }
                 SyscallCode::BLS12381_FP_SUB => {
                     assert_eq!(code as u32, sp1_zkvm::syscalls::BLS12381_FP_SUB)
+                }
+                SyscallCode::BLS12381_FP_MUL => {
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::BLS12381_FP_MUL)
                 }
                 SyscallCode::BLS12381_FP2_ADD => {
                     assert_eq!(code as u32, sp1_zkvm::syscalls::BLS12381_FP2_ADD)
@@ -556,11 +556,11 @@ mod tests {
                 SyscallCode::BN254_FP_ADD => {
                     assert_eq!(code as u32, sp1_zkvm::syscalls::BN254_FP_ADD)
                 }
-                SyscallCode::BN254_FP_MUL => {
-                    assert_eq!(code as u32, sp1_zkvm::syscalls::BN254_FP_MUL)
-                }
                 SyscallCode::BN254_FP_SUB => {
                     assert_eq!(code as u32, sp1_zkvm::syscalls::BN254_FP_SUB)
+                }
+                SyscallCode::BN254_FP_MUL => {
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::BN254_FP_MUL)
                 }
                 SyscallCode::BN254_FP2_ADD => {
                     assert_eq!(code as u32, sp1_zkvm::syscalls::BN254_FP2_ADD)
