@@ -24,7 +24,7 @@ twirp = { package = "twirp-rs", version = "0.3.0-succinct" }
 ctrlc = "3.4.4"
 
 [build-dependencies]
-prost-build = { version = "0.12", optional = true }
+prost-build = { version = "0.13", optional = true }
 twirp-build = { package = "twirp-build-rs", version = "0.3.0-succinct", optional = true }
 
 [dev-dependencies]
