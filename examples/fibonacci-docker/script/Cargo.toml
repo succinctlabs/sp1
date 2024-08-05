@@ -2,7 +2,6 @@
 name = "fibonacci-docker-script"
 version = { workspace = true }
 edition = { workspace = true }
-default-run = "fibonacci-script"
 publish = false
 
 [dependencies]
