@@ -1,7 +1,8 @@
 pub mod constant;
 pub mod variable;
 
-pub use constant::MemoryChip;
+pub use constant::MemoryChip as MemoryConstChip;
+pub use variable::MemoryChip as MemoryVarChip;
 
 use sp1_derive::AlignedBorrow;
 

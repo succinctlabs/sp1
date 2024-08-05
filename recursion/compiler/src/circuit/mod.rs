@@ -16,7 +16,7 @@ mod tests {
     use sp1_recursion_core_v2::{
         chips::{
             alu_base::BaseAluChip, alu_ext::ExtAluChip, exp_reverse_bits::ExpReverseBitsLenChip,
-            fri_fold::FriFoldChip, mem::MemoryChip, poseidon2_wide::Poseidon2WideChip,
+            fri_fold::FriFoldChip, mem::MemoryConstChip, poseidon2_wide::Poseidon2WideChip,
         },
         machine::RecursionAir,
         Runtime,
@@ -87,7 +87,7 @@ mod tests {
         // Construct the machine ourselves so we can pad the tables, avoiding `A::machine`.
         let config = SC::default();
         let chips: Vec<Chip<F, A>> = vec![
-            A::Memory(MemoryChip::default()),
+            A::Memory(MemoryConstChip::default()),
             A::BaseAlu(BaseAluChip::default()),
             A::ExtAlu(ExtAluChip::default()),
             A::Poseidon2Wide(Poseidon2WideChip::<DEGREE> {
