@@ -47,7 +47,7 @@ pub fn create_docker_command(
     // Add docker-specific arguments.
     let mut docker_args = vec![
         "run".to_string(),
-        "--rm".to_string(),
+        // "--rm".to_string(),
         "--platform".to_string(),
         "linux/amd64".to_string(),
         "-v".to_string(),

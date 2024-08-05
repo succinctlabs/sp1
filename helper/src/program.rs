@@ -223,6 +223,7 @@ fn copy_elf_to_output_dir(
         .join(BUILD_TARGET)
         .join("release")
         .join(root_package_name.unwrap());
+    println!("original_elf_path: {}", original_elf_path);
 
     // The order of precedence for the ELF name is:
     // 1. --elf_name flag
@@ -244,6 +245,11 @@ fn copy_elf_to_output_dir(
         .join(&args.output_directory);
     fs::create_dir_all(&elf_dir)?;
     let result_elf_path = elf_dir.join(elf_name);
+
+    println!("original_elf_path: {}", original_elf_path);
+
+    println!("result_elf_path: {}", result_elf_path);
+
 
     // Copy the ELF to the specified output directory.
     fs::copy(original_elf_path, &result_elf_path)?;
