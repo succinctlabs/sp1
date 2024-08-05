@@ -4,6 +4,7 @@ mod program;
 use cargo_metadata::Metadata;
 use chrono::Local;
 pub use program::{execute_build_program, BuildArgs};
+pub(crate) use program::HELPER_TARGET_SUBDIR;
 use std::path::Path;
 
 fn current_datetime() -> String {

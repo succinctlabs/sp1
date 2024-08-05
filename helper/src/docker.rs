@@ -18,6 +18,7 @@ fn get_docker_image(tag: &str) -> String {
 pub fn create_docker_command(
     args: &BuildArgs,
     program_dir: &Utf8PathBuf,
+    program_metadata: &cargo_metadata::Metadata,
     workspace_root: &Utf8PathBuf,
 ) -> Result<Command> {
     let image = get_docker_image(&args.tag);
@@ -41,6 +42,15 @@ pub fn create_docker_command(
         "/root/program/{}",
         program_dir.strip_prefix(workspace_root).unwrap()
     );
+    println!("program_dir_path: {}", program_dir_path);
+    println!("workspace_root_path: {}", workspace_root_path);
+
+    let target_dir = program_metadata.target_directory.join(crate::HELPER_TARGET_SUBDIR);
+    println!("target_dir: {}", target_dir);
+    // If the target directory does't exist, create it.
+    if !target_dir.exists() {
+        std::fs::create_dir_all(&target_dir).unwrap();
+    }
 
     // Add docker-specific arguments.
     let mut docker_args = vec![
@@ -52,6 +62,8 @@ pub fn create_docker_command(
         workspace_root_path,
         "-w".to_string(),
         program_dir_path,
+        "-e".to_string(),
+        format!("CARGO_TARGET_DIR={}", target_dir),
         "-e".to_string(),
         "RUSTUP_TOOLCHAIN=succinct".to_string(),
         "-e".to_string(),
