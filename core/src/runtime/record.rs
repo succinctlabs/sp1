@@ -551,7 +551,35 @@ impl ExecutionRecord {
         );
         split_events!(
             self,
+            bls12381_fp2_addsub_events,
+            shards,
+            opts.deferred_shift_threshold,
+            last
+        );
+        split_events!(
+            self,
             bls12381_fp2_mul_events,
+            shards,
+            opts.deferred_shift_threshold,
+            last
+        );
+        split_events!(
+            self,
+            bn254_fp_events,
+            shards,
+            opts.deferred_shift_threshold,
+            last
+        );
+        split_events!(
+            self,
+            bn254_fp2_addsub_events,
+            shards,
+            opts.deferred_shift_threshold,
+            last
+        );
+        split_events!(
+            self,
+            bn254_fp2_mul_events,
             shards,
             opts.deferred_shift_threshold,
             last
