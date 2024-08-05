@@ -45,11 +45,11 @@ pub fn create_docker_command(
     let program_dir_path = format!(
         "/root/{}",
         canonicalized_program_dir
-            .strip_prefix(&workspace_root)
+            .strip_prefix(workspace_root)
             .unwrap()
     );
 
-    let relative_target_dir = (&program_metadata.target_directory)
+    let relative_target_dir = (program_metadata.target_directory)
         .strip_prefix(workspace_root)
         .unwrap();
 
