@@ -1,7 +1,5 @@
 mod docker;
-mod program;
-
-pub use program::execute_build_program;
+pub mod program;
 
 use cargo_metadata::Metadata;
 use chrono::Local;

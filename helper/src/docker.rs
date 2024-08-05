@@ -49,10 +49,17 @@ pub fn create_docker_command(
             .unwrap()
     );
 
-    let relative_target_dir = (&program_metadata.target_directory).strip_prefix(workspace_root).unwrap();
+    let relative_target_dir = (&program_metadata.target_directory)
+        .strip_prefix(workspace_root)
+        .unwrap();
 
     // This is the target directory in the context of the Docker container.
-    let target_dir = format!("/root/{}/{}/{}", relative_target_dir, crate::HELPER_TARGET_SUBDIR, "docker");
+    let target_dir = format!(
+        "/root/{}/{}/{}",
+        relative_target_dir,
+        crate::HELPER_TARGET_SUBDIR,
+        "docker"
+    );
 
     // Add docker-specific arguments.
     let mut docker_args = vec![

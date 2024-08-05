@@ -2,7 +2,7 @@ use anstyle::*;
 use anyhow::Result;
 use clap::Parser;
 use sp1_core::utils::{setup_logger, setup_tracer};
-use sp1_helper::{execute_build_program, BuildArgs};
+use sp1_helper::{program::execute_build_program, BuildArgs};
 use sp1_prover::SP1Stdin;
 use sp1_sdk::ProverClient;
 use std::time::Instant;
