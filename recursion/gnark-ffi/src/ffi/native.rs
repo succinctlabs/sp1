@@ -76,6 +76,10 @@ pub fn test_plonk_bn254(witness_json: &str, constraints_json: &str) {
     unsafe {
         let witness_json = CString::new(witness_json).expect("CString::new failed");
         let build_dir = CString::new(constraints_json).expect("CString::new failed");
+        println!(
+            "RANGE_CHECKER env variable set to: {:?}",
+            env::var("RANGE_CHECKER")
+        );
         let range_checker = match env::var("RANGE_CHECKER") {
             Ok(value) => value,
             Err(_) => "true".to_string(),

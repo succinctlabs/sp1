@@ -81,6 +81,7 @@ func TestPlonkBn254(witnessPath *C.char, constraintsJson *C.char, rangeChecker *
 	os.Setenv("WITNESS_JSON", witnessPathString)
 	os.Setenv("CONSTRAINTS_JSON", constraintsJsonString)
 	os.Setenv("RANGE_CHECKER", rangeCheckerString)
+	fmt.Print(rangeCheckerString)
 	err := TestMain()
 	testMutex.Unlock()
 	if err != nil {

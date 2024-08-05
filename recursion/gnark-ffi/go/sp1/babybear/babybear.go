@@ -459,7 +459,7 @@ func (p *Chip) reduceWithMaxBits(x frontend.Variable, maxNbBits uint64) frontend
 		p.api.AssertIsEqual(p.api.Select(highBitsIsFour, lowBits, frontend.Variable(0)), frontend.Variable(0))
 	}
 
-	p.api.AssertIsEqual(x, p.api.Add(p.api.Mul(quotient, modulus), result[1]))
+	p.api.AssertIsEqual(x, p.api.Add(p.api.Mul(quotient, modulus), remainder))
 
 	return remainder
 }
