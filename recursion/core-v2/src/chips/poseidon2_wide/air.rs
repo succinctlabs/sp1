@@ -57,7 +57,7 @@ where
             builder.send_single(
                 prep_local.memory_preprocessed[i].addr,
                 local_row.external_rounds_state()[0][i],
-                prep_local.memory_preprocessed[i].write_mult,
+                prep_local.memory_preprocessed[i].mult,
             )
         });
 
@@ -65,7 +65,7 @@ where
             builder.send_single(
                 prep_local.memory_preprocessed[i + WIDTH].addr,
                 local_row.perm_output()[i],
-                prep_local.memory_preprocessed[i + WIDTH].write_mult,
+                prep_local.memory_preprocessed[i + WIDTH].mult,
             )
         });
 

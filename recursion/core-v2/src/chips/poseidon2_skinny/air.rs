@@ -50,7 +50,7 @@ where
             builder.send_single(
                 prep_local.memory_preprocessed[i].addr,
                 local_row.state_var()[i],
-                prep_local.memory_preprocessed[i].write_mult,
+                prep_local.memory_preprocessed[i].mult,
             )
         });
     }

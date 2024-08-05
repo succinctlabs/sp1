@@ -135,43 +135,43 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldChip<DEGREE>
                     // multiplicities are i==0.
                     row.z_mem = MemoryAccessCols {
                         addr: ext_single_addrs.z,
-                        write_mult: F::neg_one() * F::from_bool(i == 0),
+                        mult: F::neg_one() * F::from_bool(i == 0),
                     };
                     row.x_mem = MemoryAccessCols {
                         addr: base_single_addrs.x,
-                        write_mult: F::neg_one() * F::from_bool(i == 0),
+                        mult: F::neg_one() * F::from_bool(i == 0),
                     };
                     row.alpha_mem = MemoryAccessCols {
                         addr: ext_single_addrs.alpha,
-                        write_mult: F::neg_one() * F::from_bool(i == 0),
+                        mult: F::neg_one() * F::from_bool(i == 0),
                     };
 
                     // Read the memory for the input vectors.
                     row.alpha_pow_input_mem = MemoryAccessCols {
                         addr: ext_vec_addrs.alpha_pow_input[i],
-                        write_mult: F::neg_one(),
+                        mult: F::neg_one(),
                     };
                     row.ro_input_mem = MemoryAccessCols {
                         addr: ext_vec_addrs.ro_input[i],
-                        write_mult: F::neg_one(),
+                        mult: F::neg_one(),
                     };
                     row.p_at_z_mem = MemoryAccessCols {
                         addr: ext_vec_addrs.ps_at_z[i],
-                        write_mult: F::neg_one(),
+                        mult: F::neg_one(),
                     };
                     row.p_at_x_mem = MemoryAccessCols {
                         addr: ext_vec_addrs.mat_opening[i],
-                        write_mult: F::neg_one(),
+                        mult: F::neg_one(),
                     };
 
                     // Write the memory for the output vectors.
                     row.alpha_pow_output_mem = MemoryAccessCols {
                         addr: ext_vec_addrs.alpha_pow_output[i],
-                        write_mult: alpha_pow_mults[i],
+                        mult: alpha_pow_mults[i],
                     };
                     row.ro_output_mem = MemoryAccessCols {
                         addr: ext_vec_addrs.ro_output[i],
-                        write_mult: ro_mults[i],
+                        mult: ro_mults[i],
                     };
 
                     row.is_real = F::one();
@@ -262,11 +262,7 @@ impl<const DEGREE: usize> FriFoldChip<DEGREE> {
         next_prepr: &FriFoldPreprocessedCols<AB::Var>,
     ) {
         // Constrain mem read for x.  Read at the first fri fold row.
-        builder.send_single(
-            local_prepr.x_mem.addr,
-            local.x,
-            local_prepr.x_mem.write_mult,
-        );
+        builder.send_single(local_prepr.x_mem.addr, local.x, local_prepr.x_mem.mult);
 
         // Ensure that the x value is the same for all rows within a fri fold invocation.
         builder
@@ -276,11 +272,7 @@ impl<const DEGREE: usize> FriFoldChip<DEGREE> {
             .assert_eq(local.x, next.x);
 
         // Constrain mem read for z.  Read at the first fri fold row.
-        builder.send_block(
-            local_prepr.z_mem.addr,
-            local.z,
-            local_prepr.z_mem.write_mult,
-        );
+        builder.send_block(local_prepr.z_mem.addr, local.z, local_prepr.z_mem.mult);
 
         // Ensure that the z value is the same for all rows within a fri fold invocation.
         builder
@@ -293,7 +285,7 @@ impl<const DEGREE: usize> FriFoldChip<DEGREE> {
         builder.send_block(
             local_prepr.alpha_mem.addr,
             local.alpha,
-            local_prepr.alpha_mem.write_mult,
+            local_prepr.alpha_mem.mult,
         );
 
         // Ensure that the alpha value is the same for all rows within a fri fold invocation.
@@ -310,42 +302,42 @@ impl<const DEGREE: usize> FriFoldChip<DEGREE> {
         builder.send_block(
             local_prepr.alpha_pow_input_mem.addr,
             local.alpha_pow_input,
-            local_prepr.alpha_pow_input_mem.write_mult,
+            local_prepr.alpha_pow_input_mem.mult,
         );
 
         // Constrain read for ro_input.
         builder.send_block(
             local_prepr.ro_input_mem.addr,
             local.ro_input,
-            local_prepr.ro_input_mem.write_mult,
+            local_prepr.ro_input_mem.mult,
         );
 
         // Constrain read for p_at_z.
         builder.send_block(
             local_prepr.p_at_z_mem.addr,
             local.p_at_z,
-            local_prepr.p_at_z_mem.write_mult,
+            local_prepr.p_at_z_mem.mult,
         );
 
         // Constrain read for p_at_x.
         builder.send_block(
             local_prepr.p_at_x_mem.addr,
             local.p_at_x,
-            local_prepr.p_at_x_mem.write_mult,
+            local_prepr.p_at_x_mem.mult,
         );
 
         // Constrain write for alpha_pow_output.
         builder.send_block(
             local_prepr.alpha_pow_output_mem.addr,
             local.alpha_pow_output,
-            local_prepr.alpha_pow_output_mem.write_mult,
+            local_prepr.alpha_pow_output_mem.mult,
         );
 
         // Constrain write for ro_output.
         builder.send_block(
             local_prepr.ro_output_mem.addr,
             local.ro_output,
-            local_prepr.ro_output_mem.write_mult,
+            local_prepr.ro_output_mem.mult,
         );
 
         // 1. Constrain new_value = old_value * alpha.
