@@ -15,8 +15,7 @@ pub enum Instruction<F> {
     FriFold(FriFoldInstr<F>),
     Print(PrintInstr<F>),
     HintExt2Felts(HintExt2FeltsInstr<F>),
-    HintFelts(HintFeltsInstr<F>),
-    HintExts(HintExtsInstr<F>),
+    Hint(HintInstr<F>),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -34,14 +33,8 @@ pub struct PrintInstr<F> {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct HintFeltsInstr<F> {
+pub struct HintInstr<F> {
     /// Addresses and mults of the output felts.
-    pub output_addrs_mults: Vec<(Address<F>, F)>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct HintExtsInstr<F> {
-    /// Addresses and mults of the output exts.
     pub output_addrs_mults: Vec<(Address<F>, F)>,
 }
 

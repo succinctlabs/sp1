@@ -6,9 +6,7 @@ mod record;
 // Avoid triggering annoying branch of thiserror derive macro.
 use backtrace::Backtrace as Trace;
 pub use instruction::Instruction;
-use instruction::{
-    FieldEltType, HintBitsInstr, HintExt2FeltsInstr, HintExtsInstr, HintFeltsInstr, PrintInstr,
-};
+use instruction::{FieldEltType, HintBitsInstr, HintExt2FeltsInstr, HintInstr, PrintInstr};
 pub use opcode::*;
 pub use program::*;
 pub use record::*;
@@ -17,6 +15,7 @@ use std::{
     collections::VecDeque,
     fmt::Debug,
     io::{stdout, Write},
+    iter::zip,
     marker::PhantomData,
     sync::Arc,
 };
@@ -159,7 +158,7 @@ pub enum RuntimeError<F: Debug, EF: Debug> {
     },
     #[error("failed to print to `debug_stdout`: {0}")]
     DebugPrint(#[from] std::io::Error),
-    #[error("attempted to read `Vec<{0:?}>` from empty witness tream")]
+    #[error("attempted to read vec of {0:?} from empty witness tream")]
     EmptyWitnessStream(FieldEltType),
 }
 
@@ -564,18 +563,15 @@ where
                         self.record.mem_var_events.push(MemEvent { inner: felt });
                     }
                 }
-                Instruction::HintFelts(HintFeltsInstr { output_addrs_mults }) => {
+                Instruction::Hint(HintInstr { output_addrs_mults }) => {
                     let witness = self
                         .witness_stream
                         .pop_front()
                         .ok_or(RuntimeError::EmptyWitnessStream(FieldEltType::Base))?;
-                    // TODO write to some unconstrained memory table
-                }
-                Instruction::HintExts(HintExtsInstr { output_addrs_mults }) => {
-                    let witness = self
-                        .witness_stream
-                        .pop_front()
-                        .ok_or(RuntimeError::EmptyWitnessStream(FieldEltType::Extension))?;
+                    for ((addr, mult), val) in zip(output_addrs_mults, witness) {
+                        self.mw(addr, val, mult);
+                        self.record.mem_events.push(MemEvent { inner: val });
+                    }
                 }
             }
 
