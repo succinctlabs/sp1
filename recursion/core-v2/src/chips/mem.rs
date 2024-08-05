@@ -36,12 +36,15 @@ pub struct MemoryPreprocessedCols<F: Copy> {
     accesses: [MemoryAccessCols<F>; NUM_MEM_ENTRIES_PER_ROW],
 }
 
+/// Data describing in what manner to access a particular memory block.
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct MemoryAccessCols<F: Copy> {
+    /// The address to access.
     pub addr: Address<F>,
-    pub read_mult: F,
-    pub write_mult: F,
+    /// The multiplicity which to read/write.
+    /// "Positive" values indicate a write, and "negative" values indicate a read.
+    pub mult: F,
 }
 
 impl<F: Send + Sync> BaseAir<F> for MemoryChip<F> {
@@ -74,15 +77,14 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip<F> {
                     kind,
                 }) => {
                     let mult = mult.to_owned();
-                    let (read_mult, write_mult): (F, F) = match kind {
-                        MemAccessKind::Read => (mult, F::zero()),
-                        MemAccessKind::Write => (F::zero(), mult),
+                    let mult = match kind {
+                        MemAccessKind::Read => -mult,
+                        MemAccessKind::Write => mult,
                     };
 
                     vec![MemoryAccessCols {
                         addr: addrs.inner,
-                        read_mult,
-                        write_mult,
+                        mult,
                     }]
                 }
                 Instruction::HintBits(HintBitsInstr {
@@ -90,22 +92,14 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip<F> {
                     input_addr: _, // No receive interaction for the hint operation
                 }) => output_addrs_mults
                     .iter()
-                    .map(|&(addr, write_mult)| MemoryAccessCols {
-                        addr,
-                        read_mult: F::zero(),
-                        write_mult,
-                    })
+                    .map(|&(addr, mult)| MemoryAccessCols { addr, mult })
                     .collect(),
                 Instruction::HintExt2Felts(HintExt2FeltsInstr {
                     output_addrs_mults,
                     input_addr: _, // No receive interaction for the hint operation
                 }) => output_addrs_mults
                     .iter()
-                    .map(|&(addr, write_mult)| MemoryAccessCols {
-                        addr,
-                        read_mult: F::zero(),
-                        write_mult,
-                    })
+                    .map(|&(addr, mult)| MemoryAccessCols { addr, mult })
                     .collect(),
 
                 _ => vec![],
@@ -186,8 +180,7 @@ where
         // builder.assert_zero(local.read_mult * local.write_mult);
 
         for (value, access) in zip(local.values, prep_local.accesses) {
-            builder.receive_block(access.addr, value, access.read_mult);
-            builder.send_block(access.addr, value, access.write_mult);
+            builder.send_block(access.addr, value, access.mult);
         }
     }
 }

@@ -109,14 +109,12 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
                     if j < WIDTH {
                         MemoryAccessCols {
                             addr: instruction.addrs.input[j],
-                            read_mult: F::one(),
-                            write_mult: F::zero(),
+                            mult: F::neg_one(),
                         }
                     } else {
                         MemoryAccessCols {
                             addr: instruction.addrs.output[j - WIDTH],
-                            read_mult: F::zero(),
-                            write_mult: instruction.mults[j - WIDTH],
+                            mult: instruction.mults[j - WIDTH],
                         }
                     }
                 });

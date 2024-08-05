@@ -54,10 +54,10 @@ where
 
         // For now, include only memory constraints.
         (0..WIDTH).for_each(|i| {
-            builder.receive_single(
+            builder.send_single(
                 prep_local.memory_preprocessed[i].addr,
                 local_row.external_rounds_state()[0][i],
-                prep_local.memory_preprocessed[i].read_mult,
+                prep_local.memory_preprocessed[i].mult,
             )
         });
 
@@ -65,7 +65,7 @@ where
             builder.send_single(
                 prep_local.memory_preprocessed[i + WIDTH].addr,
                 local_row.perm_output()[i],
-                prep_local.memory_preprocessed[i + WIDTH].write_mult,
+                prep_local.memory_preprocessed[i + WIDTH].mult,
             )
         });
 
