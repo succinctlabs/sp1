@@ -1,6 +1,5 @@
 [workspace]
 members = [
-  # "build",
   "cli",
   "core",
   "derive",
