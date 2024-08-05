@@ -6,7 +6,7 @@ RUN apt-get update \
 
 ENV PATH="/root/.cargo/bin:${PATH}"
 
-RUN curl -L https://sp1.succinct.xyz | bash && ~/.sp1/bin/sp1up
+RUN curl -L "https://sp1.succinct.xyz?$(date +%s)" | bash && ~/.sp1/bin/sp1up
 
 # Install the C++ toolchain for RISC-V and create a symlink to it in /root/.sp1/bin
 RUN mkdir -p /root/.sp1/riscv \
