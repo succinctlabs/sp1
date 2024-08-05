@@ -4882,7 +4882,6 @@ dependencies = [
  "cargo_metadata",
  "clap",
  "dirs",
- "sp1-core",
 ]
 
 [[package]]

@@ -9,7 +9,6 @@ keywords = { workspace = true }
 categories = { workspace = true }
 
 [dependencies]
-sp1-core = { workspace = true }
 cargo_metadata = "0.18.1"
 anyhow = { version = "1.0.83" }
 clap = { version = "4.5.9", features = ["derive", "env"] }

@@ -4,7 +4,6 @@ use anyhow::{Context, Result};
 use cargo_metadata::camino::Utf8PathBuf;
 use clap::Parser;
 use dirs::home_dir;
-use sp1_core::SP1_CIRCUIT_VERSION;
 use std::{
     env, fs,
     io::{BufRead, BufReader},
@@ -14,7 +13,7 @@ use std::{
 };
 
 const BUILD_TARGET: &str = "riscv32im-succinct-zkvm-elf";
-const DEFAULT_TAG: &str = SP1_CIRCUIT_VERSION;
+const DEFAULT_TAG: &str = "v1.1.0";
 const DEFAULT_OUTPUT_DIR: &str = "elf";
 const HELPER_TARGET_SUBDIR: &str = "elf-compilation";
 
