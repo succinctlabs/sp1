@@ -1,7 +1,7 @@
-use crate::air::{MachineAir, Polynomial, SP1AirBuilder};
+use crate::air::{BaseAirBuilder, MachineAir, Polynomial, SP1AirBuilder};
 use crate::bytes::event::ByteRecord;
 use crate::bytes::ByteLookupEvent;
-use crate::memory::{MemoryReadCols, MemoryWriteCols};
+use crate::memory::{value_as_limbs, MemoryReadCols, MemoryWriteCols};
 use crate::operations::field::field_op::{FieldOpCols, FieldOperation};
 use crate::operations::field::params::NumWords;
 use crate::operations::field::params::{Limbs, NumLimbs};
@@ -298,13 +298,6 @@ where
         let local = main.row_slice(0);
         let local: &FpOpCols<AB::Var, P> = (*local).borrow();
 
-        // let is_real = match self.op {
-        //     FieldOperation::Add => local.is_add,
-        //     FieldOperation::Sub => local.is_sub,
-        //     FieldOperation::Mul => local.is_mul,
-        //     _ => panic!("Unsupported operation"),
-        // };
-
         builder.assert_eq(local.is_real, local.is_add + local.is_sub + local.is_mul);
 
         let p = limbs_from_prev_access(&local.x_access);
@@ -326,6 +319,10 @@ where
             local.channel,
             local.is_real,
         );
+
+        builder
+            .when(local.is_real)
+            .assert_all_eq(local.output.result, value_as_limbs(&local.x_access));
 
         builder.eval_memory_access_slice(
             local.shard,

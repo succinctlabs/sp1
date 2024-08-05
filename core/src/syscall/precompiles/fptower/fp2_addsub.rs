@@ -1,7 +1,7 @@
-use crate::air::{MachineAir, Polynomial, SP1AirBuilder};
+use crate::air::{BaseAirBuilder, MachineAir, Polynomial, SP1AirBuilder};
 use crate::bytes::event::ByteRecord;
 use crate::bytes::ByteLookupEvent;
-use crate::memory::{MemoryReadCols, MemoryWriteCols};
+use crate::memory::{value_as_limbs, MemoryReadCols, MemoryWriteCols};
 use crate::operations::field::field_op::{FieldOpCols, FieldOperation};
 use crate::operations::field::params::NumWords;
 use crate::operations::field::params::{Limbs, NumLimbs};
@@ -368,16 +368,14 @@ where
             );
         }
 
-        // for i in 0..P::NB_LIMBS {
-        //     builder
-        //         .when(local.is_real)
-        //         .assert_eq(local.c0.result[i], local.x_access[i / 4].value()[i % 4]);
-        //     builder.when(local.is_real).assert_eq(
-        //         local.c1.result[i],
-        //         local.x_access[num_words_field_element + i / 4].value()[i % 4],
-        //     );
-        // }
-
+        builder.when(local.is_real).assert_all_eq(
+            local.c0.result,
+            value_as_limbs(&local.x_access[0..num_words_field_element]),
+        );
+        builder.when(local.is_real).assert_all_eq(
+            local.c1.result,
+            value_as_limbs(&local.x_access[num_words_field_element..]),
+        );
         builder.eval_memory_access_slice(
             local.shard,
             local.channel,
