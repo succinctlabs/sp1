@@ -100,6 +100,12 @@ extern "C" {
     /// Executes a BLS12-381 field multiplication on the given inputs.
     pub fn syscall_bls12381_fp_mulmod(p: *mut u32, q: *const u32);
 
+    /// Executes a BLS12-381 Fp2 addition on the given inputs.
+    pub fn syscall_bls12381_fp2_addmod(p: *mut u32, q: *const u32);
+
+    /// Executes a BLS12-381 Fp2 subtraction on the given inputs.
+    pub fn syscall_bls12381_fp2_submod(p: *mut u32, q: *const u32);
+
     /// Executes a BLS12-381 Fp2 multiplication on the given inputs.
     pub fn syscall_bls12381_fp2_mulmod(p: *mut u32, q: *const u32);
 
@@ -111,6 +117,12 @@ extern "C" {
 
     /// Executes a BN254 field multiplication on the given inputs.
     pub fn syscall_bn254_fp_mulmod(p: *mut u32, q: *const u32);
+
+    /// Executes a BN254 Fp2 addition on the given inputs.
+    pub fn syscall_bn254_fp2_addmod(p: *mut u32, q: *const u32);
+
+    /// Executes a BN254 Fp2 subtraction on the given inputs.
+    pub fn syscall_bn254_fp2_submod(p: *mut u32, q: *const u32);
 
     /// Executes a BN254 Fp2 multiplication on the given inputs.
     pub fn syscall_bn254_fp2_mulmod(p: *mut u32, q: *const u32);

@@ -209,7 +209,7 @@ impl<V: Copy, P: FieldParameters> FieldOpCols<V, P> {
             FieldOperation::Sub | FieldOperation::Div => (self.result.into(), p_a_param),
         };
         let p_carry: Polynomial<<AB as AirBuilder>::Expr> = self.carry.into();
-        let p_op = match op {
+        let p_op: Polynomial<<AB as AirBuilder>::Expr> = match op {
             FieldOperation::Add | FieldOperation::Sub => p_a + p_b,
             FieldOperation::Mul | FieldOperation::Div => p_a * p_b,
         };

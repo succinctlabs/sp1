@@ -18,8 +18,7 @@ use crate::runtime::MemoryInitializeFinalizeEvent;
 use crate::runtime::MemoryRecordEnum;
 use crate::stark::MachineRecord;
 use crate::syscall::precompiles::edwards::EdDecompressEvent;
-use crate::syscall::precompiles::fptower::Fp2MulEvent;
-use crate::syscall::precompiles::fptower::FpOpEvent;
+use crate::syscall::precompiles::fptower::{Fp2AddSubEvent, Fp2MulEvent, FpOpEvent};
 use crate::syscall::precompiles::keccak256::KeccakPermuteEvent;
 use crate::syscall::precompiles::sha256::{ShaCompressEvent, ShaExtendEvent};
 use crate::syscall::precompiles::uint256::Uint256MulEvent;
@@ -100,19 +99,13 @@ pub struct ExecutionRecord {
 
     pub bls12381_decompress_events: Vec<ECDecompressEvent>,
 
-    pub bls12381_fp_add_events: Vec<FpOpEvent>,
+    pub bls12381_fp_events: Vec<FpOpEvent>,
 
-    pub bls12381_fp_sub_events: Vec<FpOpEvent>,
-
-    pub bls12381_fp_mul_events: Vec<FpOpEvent>,
+    pub bls12381_fp2_addsub_events: Vec<Fp2AddSubEvent>,
 
     pub bls12381_fp2_mul_events: Vec<Fp2MulEvent>,
 
-    pub bn254_fp_add_events: Vec<FpOpEvent>,
-
-    pub bn254_fp_sub_events: Vec<FpOpEvent>,
-
-    pub bn254_fp_mul_events: Vec<FpOpEvent>,
+    pub bn254_fp_events: Vec<FpOpEvent>,
 
     pub bn254_fp2_mul_events: Vec<Fp2MulEvent>,
 
@@ -211,7 +204,7 @@ impl MachineRecord for ExecutionRecord {
         );
         stats.insert(
             "bls12381_fp_event".to_string(),
-            self.bls12381_fp_add_events.len(),
+            self.bls12381_fp_events.len(),
         );
         stats.insert(
             "bls12381_decompress_events".to_string(),
@@ -271,8 +264,8 @@ impl MachineRecord for ExecutionRecord {
             .append(&mut other.bls12381_double_events);
         self.uint256_mul_events
             .append(&mut other.uint256_mul_events);
-        self.bls12381_fp_add_events
-            .append(&mut other.bls12381_fp_add_events);
+        self.bls12381_fp_events
+            .append(&mut other.bls12381_fp_events);
         self.bls12381_fp2_mul_events
             .append(&mut other.bls12381_fp2_mul_events);
         if self.byte_lookups.is_empty() {
@@ -406,7 +399,7 @@ impl ExecutionRecord {
             ed_decompress_events: std::mem::take(&mut self.ed_decompress_events),
             k256_decompress_events: std::mem::take(&mut self.k256_decompress_events),
             uint256_mul_events: std::mem::take(&mut self.uint256_mul_events),
-            bls12381_fp_add_events: std::mem::take(&mut self.bls12381_fp_add_events),
+            bls12381_fp_events: std::mem::take(&mut self.bls12381_fp_events),
             bls12381_fp2_mul_events: std::mem::take(&mut self.bls12381_fp2_mul_events),
             bls12381_decompress_events: std::mem::take(&mut self.bls12381_decompress_events),
             memory_initialize_events: std::mem::take(&mut self.memory_initialize_events),
@@ -547,7 +540,7 @@ impl ExecutionRecord {
         );
         split_events!(
             self,
-            bls12381_fp_add_events,
+            bls12381_fp_events,
             shards,
             opts.deferred_shift_threshold,
             last
