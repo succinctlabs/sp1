@@ -164,7 +164,6 @@ fn execute_command(
     command.env_remove("RUSTC");
 
     let final_target_dir = program_metadata.target_directory.join(HELPER_TARGET_SUBDIR);
-    println!("final_target_dir: {}", final_target_dir);
     if !docker {
         // Set the target directory to a subdirectory of the program's target directory to avoid
         // build conflicts with the parent process. If removed, programs that share the same target
@@ -286,7 +285,7 @@ pub fn execute_build_program(
     let program_metadata = program_metadata_cmd
         .manifest_path(program_metadata_file)
         .exec()
-        .unwrap();
+        .expect("Failed to get program metadata. Confirm that the program directory is valid.");
 
     // Get the command corresponding to Docker or local build.
     let cmd = if args.docker {
