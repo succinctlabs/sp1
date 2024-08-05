@@ -18,6 +18,7 @@ pub use context::*;
 pub use hooks::*;
 pub use instruction::*;
 pub use memory::*;
+use nohash_hasher::BuildNoHashHasher;
 pub use opcode::*;
 pub use program::*;
 pub use record::*;
@@ -117,6 +118,10 @@ pub struct Runtime<'a> {
 
     /// The maximum number of cpu cycles to use for execution.
     pub max_cycles: Option<u64>,
+
+    /// Memory addresses that were touched in this batch of shards. Used to minimize the size of
+    /// checkpoints.
+    pub touched_memory: HashMap<u32, (), BuildNoHashHasher<u32>>,
 }
 
 #[derive(Error, Debug, Serialize, Deserialize)]
@@ -195,6 +200,7 @@ impl<'a> Runtime<'a> {
             hook_registry,
             opts,
             max_cycles: context.max_cycles,
+            touched_memory: Default::default(),
         }
     }
 
@@ -274,6 +280,7 @@ impl<'a> Runtime<'a> {
     /// Read a word from memory and create an access record.
     pub fn mr(&mut self, addr: u32, shard: u32, timestamp: u32) -> MemoryReadRecord {
         // Get the memory record entry.
+        self.touched_memory.insert(addr, ());
         let entry = self.state.memory.entry(addr);
 
         // If we're in unconstrained mode, we don't want to modify state, so we'll save the
@@ -315,6 +322,7 @@ impl<'a> Runtime<'a> {
     /// Write a word to memory and create an access record.
     pub fn mw(&mut self, addr: u32, value: u32, shard: u32, timestamp: u32) -> MemoryWriteRecord {
         // Get the memory record entry.
+        self.touched_memory.insert(addr, ());
         let entry = self.state.memory.entry(addr);
 
         // If we're in unconstrained mode, we don't want to modify state, so we'll save the
@@ -1054,12 +1062,31 @@ impl<'a> Runtime<'a> {
         Ok((std::mem::take(&mut self.records), done))
     }
 
-    /// Execute up to `self.shard_batch_size` cycles, returning a copy of the prestate and whether the program ended.
+    /// Execute up to `self.shard_batch_size` cycles, returning the checkpoint from before execution
+    /// and whether the program ended.
     pub fn execute_state(&mut self) -> Result<(ExecutionState, bool), ExecutionError> {
+        self.touched_memory.clear();
         self.emit_events = false;
         self.print_report = false;
-        let state = self.state.clone();
+        let mut state = self.state.clone();
         let done = self.execute()?;
+        // Remove the untouched addresses from the checkpoint. Skip if `done` since we need all of
+        // `state.memory` for MemoryFinalize
+        let touched_memory = std::mem::take(&mut self.touched_memory);
+        if !done {
+            let all_memory = std::mem::take(&mut state.memory);
+            for (addr, _) in &touched_memory {
+                if let Some(record) = all_memory.get(&addr) {
+                    state.memory.insert(*addr, *record);
+                }
+            }
+            let all_uninitialized_memory = std::mem::take(&mut state.uninitialized_memory);
+            for (addr, _) in touched_memory {
+                if let Some(record) = all_uninitialized_memory.get(&addr) {
+                    state.uninitialized_memory.insert(addr, *record);
+                }
+            }
+        }
         Ok((state, done))
     }
 
