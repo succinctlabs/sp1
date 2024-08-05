@@ -1,0 +1,16 @@
+[package]
+name = "fibonacci-docker-script"
+version = { workspace = true }
+edition = { workspace = true }
+default-run = "fibonacci-script"
+publish = false
+
+[dependencies]
+itertools = "0.12.1"
+sp1-sdk = "1.1.0"
+sha2 = "0.10.8"
+
+[build-dependencies]
+# TODO: Remove once this PR is merged. Because the Docker build requires mounting the workspace,
+# and local sp1-helper is outside of the examples/ workspace, we need to use a git dependency.
+sp1-helper = { git = "https://github.com/succinctlabs/sp1.git", branch = "ratan/consolidate-helper-build" }

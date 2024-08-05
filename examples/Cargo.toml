@@ -4,6 +4,7 @@ members = [
   "chess/script",
   "cycle-tracking/script",
   "fibonacci/script",
+  "fibonacci-docker/script",
   "io/script",
   "is-prime/script",
   "json/lib",
