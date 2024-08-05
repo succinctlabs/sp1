@@ -18,7 +18,7 @@ fn get_docker_image(tag: &str) -> String {
 }
 
 /// Creates a Docker command to build the program.
-pub fn create_docker_command(
+pub(crate) fn create_docker_command(
     args: &BuildArgs,
     canonicalized_program_dir: &Utf8PathBuf,
     program_metadata: &cargo_metadata::Metadata,
@@ -42,12 +42,10 @@ pub fn create_docker_command(
     // Mount the entire workspace, and set the working directory to the program dir. Note: If the
     // program dir has local dependencies outside of the workspace, building with Docker will fail.
     let workspace_root_path = format!("{}:/root", workspace_root);
-    let program_dir_path = format!(
-        "/root/{}",
-        canonicalized_program_dir
-            .strip_prefix(workspace_root)
-            .unwrap()
-    );
+    let program_dir_path = match canonicalized_program_dir {
+        dir if dir == workspace_root => "/root".to_string(),
+        dir => format!("/root/{}", dir.strip_prefix(workspace_root).unwrap()),
+    };
 
     let relative_target_dir = (program_metadata.target_directory)
         .strip_prefix(workspace_root)
