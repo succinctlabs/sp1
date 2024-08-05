@@ -292,6 +292,8 @@ pub enum DslIr<C: Config> {
     CircuitExt2Felt([Felt<C::F>; 4], Ext<C::F, C::EF>),
     /// Converts a slice of felts to an ext. Should only be used when target is a gnark circuit.
     CircuitFelts2Ext([Felt<C::F>; 4], Ext<C::F, C::EF>),
+    /// Converts a felt to a var. Should only be used when target is a gnark circuit.
+    CircuitFelt2Var(Felt<C::F>, Var<C::N>),
 
     // Debugging instructions.
     /// Executes less than (var = var < var).  This operation is NOT constrained.

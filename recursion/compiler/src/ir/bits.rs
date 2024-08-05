@@ -92,6 +92,14 @@ impl<C: Config> Builder<C> {
         output
     }
 
+    /// Converts a felt to a var inside a circuit.
+    pub fn felt2var_circuit(&mut self, num: Felt<C::F>) -> Var<C::N> {
+        let output = self.uninit();
+        self.push(DslIr::CircuitFelt2Var(num, output));
+
+        output
+    }
+
     /// Convert bits to a variable.
     pub fn bits2num_v(&mut self, bits: &Array<C, Var<C::N>>) -> Var<C::N> {
         let num: Var<_> = self.eval(C::N::zero());
