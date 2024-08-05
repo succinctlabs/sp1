@@ -4771,16 +4771,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sp1-build"
-version = "1.1.0"
-dependencies = [
- "anyhow",
- "cargo_metadata",
- "clap",
- "dirs",
-]
-
-[[package]]
 name = "sp1-cli"
 version = "1.1.0"
 dependencies = [
@@ -4798,6 +4788,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sp1-core",
+ "sp1-helper",
  "sp1-prover",
  "sp1-sdk",
  "target-lexicon",
