@@ -1,8 +1,10 @@
 use std::{
+    array,
     borrow::{Borrow, BorrowMut},
     mem::size_of,
 };
 
+use itertools::Itertools;
 use p3_air::{Air, BaseAir};
 use p3_field::PrimeField32;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
@@ -26,9 +28,10 @@ pub struct MemoryLocalEvent {
     pub mem_record: MemoryRecordEnum,
 }
 
+const NUM_SINGLE_MEMORY_LOCAL_COLS: usize = size_of::<SingeMemoryLocalCols<u8>>();
+
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
-#[repr(C)]
-pub struct MemoryLocalCols<T> {
+pub struct SingeMemoryLocalCols<T> {
     pub channel: T,
 
     /// The address of the memory access.
@@ -54,6 +57,12 @@ pub struct MemoryLocalCols<T> {
     pub compare_clk: T,
 
     pub is_real: T,
+}
+
+#[derive(AlignedBorrow, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct MemoryLocalCols<T> {
+    mem_accesses: [SingeMemoryLocalCols<T>; 3],
 }
 
 #[derive(Default)]
@@ -82,47 +91,63 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
     ) -> RowMajorMatrix<F> {
         let mut rows: Vec<[F; NUM_MEMORY_LOCAL_COLS]> = Vec::new();
 
-        input.memory_records.iter().for_each(|mem_record| {
-            let mut row = [F::zero(); NUM_MEMORY_LOCAL_COLS];
-            let cols: &mut MemoryLocalCols<F> = row.as_mut_slice().borrow_mut();
+        println!("num memory records: {}", input.memory_records.len());
 
-            cols.addr = F::from_canonical_u32(mem_record.addr);
+        input
+            .memory_records
+            .iter()
+            .chunks(3)
+            .into_iter()
+            .for_each(|mem_records| {
+                let mut single_access_rows: [F; NUM_SINGLE_MEMORY_LOCAL_COLS * 3] =
+                    array::from_fn(|_| F::zero());
 
-            let (value, prev_value, shard, clk, prev_shard, prev_clk) = match mem_record.mem_record
-            {
-                MemoryRecordEnum::Read(read_record) => (
-                    read_record.value,
-                    read_record.value,
-                    read_record.shard,
-                    read_record.timestamp,
-                    read_record.prev_shard,
-                    read_record.prev_timestamp,
-                ),
-                MemoryRecordEnum::Write(write_record) => (
-                    write_record.value,
-                    write_record.prev_value,
-                    write_record.shard,
-                    write_record.timestamp,
-                    write_record.prev_shard,
-                    write_record.prev_timestamp,
-                ),
-            };
+                for (i, mem_record) in mem_records.enumerate() {
+                    let mut row = [F::zero(); NUM_SINGLE_MEMORY_LOCAL_COLS];
+                    let cols: &mut SingeMemoryLocalCols<F> = row.as_mut_slice().borrow_mut();
 
-            cols.value = value.into();
-            cols.prev_value = prev_value.into();
-            cols.clk = F::from_canonical_u32(clk);
-            cols.prev_shard = F::from_canonical_u32(prev_shard);
-            cols.prev_clk = F::from_canonical_u32(prev_clk);
-            cols.compare_clk = F::from_bool(shard == prev_shard);
+                    cols.addr = F::from_canonical_u32(mem_record.addr);
 
-            let diff_minus_one = clk - prev_clk - 1;
-            let diff_16bit_limb = (diff_minus_one & 0xffff) as u16;
-            cols.diff_16bit_limb = F::from_canonical_u16(diff_16bit_limb);
-            let diff_8bit_limb = (diff_minus_one >> 16) & 0xff;
-            cols.diff_8bit_limb = F::from_canonical_u32(diff_8bit_limb);
+                    let (value, prev_value, shard, clk, prev_shard, prev_clk) =
+                        match mem_record.mem_record {
+                            MemoryRecordEnum::Read(read_record) => (
+                                read_record.value,
+                                read_record.value,
+                                read_record.shard,
+                                read_record.timestamp,
+                                read_record.prev_shard,
+                                read_record.prev_timestamp,
+                            ),
+                            MemoryRecordEnum::Write(write_record) => (
+                                write_record.value,
+                                write_record.prev_value,
+                                write_record.shard,
+                                write_record.timestamp,
+                                write_record.prev_shard,
+                                write_record.prev_timestamp,
+                            ),
+                        };
 
-            rows.push(row);
-        });
+                    cols.value = value.into();
+                    cols.prev_value = prev_value.into();
+                    cols.clk = F::from_canonical_u32(clk);
+                    cols.prev_shard = F::from_canonical_u32(prev_shard);
+                    cols.prev_clk = F::from_canonical_u32(prev_clk);
+                    cols.compare_clk = F::from_bool(shard == prev_shard);
+
+                    let diff_minus_one = clk - prev_clk - 1;
+                    let diff_16bit_limb = (diff_minus_one & 0xffff) as u16;
+                    cols.diff_16bit_limb = F::from_canonical_u16(diff_16bit_limb);
+                    let diff_8bit_limb = (diff_minus_one >> 16) & 0xff;
+                    cols.diff_8bit_limb = F::from_canonical_u32(diff_8bit_limb);
+
+                    single_access_rows
+                        [i * NUM_SINGLE_MEMORY_LOCAL_COLS..(i + 1) * NUM_SINGLE_MEMORY_LOCAL_COLS]
+                        .copy_from_slice(&row);
+                }
+
+                rows.push(single_access_rows);
+            });
 
         pad_rows_fixed(&mut rows, || [F::zero(); NUM_MEMORY_LOCAL_COLS], None);
 
@@ -149,31 +174,35 @@ where
         let public_values: &PublicValues<Word<AB::Expr>, AB::Expr> =
             public_values_slice.as_slice().borrow();
 
-        builder.receive_memory_access(
-            local.channel,
-            local.addr,
-            local.value,
-            local.clk,
-            local.is_real,
-        );
+        for i in 0..3 {
+            let single_access = &local.mem_accesses[i];
 
-        builder.eval_memory_access(
-            public_values.shard.clone(),
-            local.channel,
-            local.clk,
-            local.addr,
-            &MemoryReadWriteCols {
-                prev_value: local.prev_value,
-                access: MemoryAccessCols {
-                    value: local.value,
-                    prev_clk: local.prev_clk,
-                    prev_shard: local.prev_shard,
-                    diff_16bit_limb: local.diff_16bit_limb,
-                    diff_8bit_limb: local.diff_8bit_limb,
-                    compare_clk: local.compare_clk,
+            builder.receive_memory_access(
+                single_access.channel,
+                single_access.addr,
+                single_access.value,
+                single_access.clk,
+                single_access.is_real,
+            );
+
+            builder.eval_memory_access(
+                public_values.shard.clone(),
+                single_access.channel,
+                single_access.clk,
+                single_access.addr,
+                &MemoryReadWriteCols {
+                    prev_value: single_access.prev_value,
+                    access: MemoryAccessCols {
+                        value: single_access.value,
+                        prev_clk: single_access.prev_clk,
+                        prev_shard: single_access.prev_shard,
+                        diff_16bit_limb: single_access.diff_16bit_limb,
+                        diff_8bit_limb: single_access.diff_8bit_limb,
+                        compare_clk: single_access.compare_clk,
+                    },
                 },
-            },
-            local.is_real,
-        )
+                single_access.is_real,
+            )
+        }
     }
 }
