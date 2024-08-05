@@ -15,68 +15,6 @@ const DEFAULT_TAG: &str = "latest";
 const DEFAULT_OUTPUT_DIR: &str = "elf";
 pub const HELPER_TARGET_SUBDIR: &str = "elf-compilation";
 
-/// [`BuildArgs`] is a struct that holds various arguments used for building a program.
-///
-/// This struct can be used to configure the build process, including options for using Docker,
-/// specifying binary and ELF names, ignoring Rust version checks, and enabling specific features.
-#[derive(Clone, Parser, Debug)]
-pub struct BuildArgs {
-    #[clap(long, action, help = "Build using Docker for reproducible builds.")]
-    pub docker: bool,
-    #[clap(
-        long,
-        help = "The ghcr.io/succinctlabs/sp1 image tag to use when building with docker.",
-        default_value = DEFAULT_TAG
-    )]
-    pub tag: String,
-    #[clap(long, action, value_delimiter = ',', help = "Build with features.")]
-    pub features: Vec<String>,
-    #[clap(long, action, help = "Ignore Rust version check.")]
-    pub ignore_rust_version: bool,
-    #[clap(
-        alias = "bin",
-        long,
-        action,
-        help = "If building a binary, specify the name.",
-        default_value = ""
-    )]
-    pub binary: String,
-    #[clap(long, action, help = "ELF binary name.", default_value = "")]
-    pub elf_name: String,
-    #[clap(
-        long,
-        action,
-        help = "The output directory for the built program.",
-        default_value = DEFAULT_OUTPUT_DIR
-    )]
-    pub output_directory: String,
-    #[clap(
-        long,
-        action,
-        help = "Lock the dependencies, ensures that Cargo.lock doesn't update."
-    )]
-    pub locked: bool,
-    #[clap(long, action, help = "Build without default features.")]
-    pub no_default_features: bool,
-}
-
-// Implement default args to match clap defaults.
-impl Default for BuildArgs {
-    fn default() -> Self {
-        Self {
-            docker: false,
-            tag: DEFAULT_TAG.to_string(),
-            features: vec![],
-            ignore_rust_version: false,
-            binary: "".to_string(),
-            elf_name: "".to_string(),
-            output_directory: DEFAULT_OUTPUT_DIR.to_string(),
-            locked: false,
-            no_default_features: false,
-        }
-    }
-}
-
 /// Get the arguments to build the program with the arguments from the [`BuildArgs`] struct.
 pub(crate) fn get_program_build_args(args: &BuildArgs) -> Vec<String> {
     let mut build_args = vec![
@@ -163,7 +101,6 @@ fn execute_command(
     // program with the toolchain of the normal build process, rather than the Succinct toolchain.
     command.env_remove("RUSTC");
 
-    let final_target_dir = program_metadata.target_directory.join(HELPER_TARGET_SUBDIR);
     if !docker {
         // Set the target directory to a subdirectory of the program's target directory to avoid
         // build conflicts with the parent process. If removed, programs that share the same target
@@ -172,7 +109,7 @@ fn execute_command(
         // Source: https://github.com/rust-lang/cargo/issues/6412
         command.env(
             "CARGO_TARGET_DIR",
-            final_target_dir,
+            program_metadata.target_directory.join(HELPER_TARGET_SUBDIR),
         );
     }
 
@@ -289,7 +226,12 @@ pub fn execute_build_program(
 
     // Get the command corresponding to Docker or local build.
     let cmd = if args.docker {
-        crate::docker::create_docker_command(args, &program_dir, &program_metadata, &metadata.workspace_root)?
+        crate::docker::create_docker_command(
+            args,
+            &program_dir,
+            &program_metadata,
+            &metadata.workspace_root,
+        )?
     } else {
         create_local_command(args, &program_dir)
     };

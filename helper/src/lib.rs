@@ -3,9 +3,71 @@ mod program;
 
 use cargo_metadata::Metadata;
 use chrono::Local;
-pub use program::{execute_build_program, BuildArgs};
+pub use program::execute_build_program;
 pub(crate) use program::HELPER_TARGET_SUBDIR;
 use std::path::Path;
+
+/// [`BuildArgs`] is a struct that holds various arguments used for building a program.
+///
+/// This struct can be used to configure the build process, including options for using Docker,
+/// specifying binary and ELF names, ignoring Rust version checks, and enabling specific features.
+#[derive(Clone, Parser, Debug)]
+pub struct BuildArgs {
+    #[clap(long, action, help = "Build using Docker for reproducible builds.")]
+    pub docker: bool,
+    #[clap(
+        long,
+        help = "The ghcr.io/succinctlabs/sp1 image tag to use when building with docker.",
+        default_value = DEFAULT_TAG
+    )]
+    pub tag: String,
+    #[clap(long, action, value_delimiter = ',', help = "Build with features.")]
+    pub features: Vec<String>,
+    #[clap(long, action, help = "Ignore Rust version check.")]
+    pub ignore_rust_version: bool,
+    #[clap(
+        alias = "bin",
+        long,
+        action,
+        help = "If building a binary, specify the name.",
+        default_value = ""
+    )]
+    pub binary: String,
+    #[clap(long, action, help = "ELF binary name.", default_value = "")]
+    pub elf_name: String,
+    #[clap(
+        long,
+        action,
+        help = "The output directory for the built program.",
+        default_value = DEFAULT_OUTPUT_DIR
+    )]
+    pub output_directory: String,
+    #[clap(
+        long,
+        action,
+        help = "Lock the dependencies, ensures that Cargo.lock doesn't update."
+    )]
+    pub locked: bool,
+    #[clap(long, action, help = "Build without default features.")]
+    pub no_default_features: bool,
+}
+
+// Implement default args to match clap defaults.
+impl Default for BuildArgs {
+    fn default() -> Self {
+        Self {
+            docker: false,
+            tag: DEFAULT_TAG.to_string(),
+            features: vec![],
+            ignore_rust_version: false,
+            binary: "".to_string(),
+            elf_name: "".to_string(),
+            output_directory: DEFAULT_OUTPUT_DIR.to_string(),
+            locked: false,
+            no_default_features: false,
+        }
+    }
+}
 
 fn current_datetime() -> String {
     let now = Local::now();
@@ -117,14 +179,9 @@ fn build_program_internal(path: &str, args: Option<BuildArgs>) {
     }
 
     // Build the program with the given arguments.
-    let path_output = if let Some(args) = args {
-        crate::program::execute_build_program(&args, Some(program_dir.to_path_buf()))
-    } else {
-        crate::program::execute_build_program(
-            &BuildArgs::default(),
-            Some(program_dir.to_path_buf()),
-        )
-    };
+    let build_args = args.unwrap_or_default();
+    let path_output =
+        crate::program::execute_build_program(&build_args, Some(program_dir.to_path_buf()));
     if let Err(err) = path_output {
         panic!("Failed to build SP1 program: {}.", err);
     }
