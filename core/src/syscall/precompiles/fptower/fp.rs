@@ -1,14 +1,12 @@
-use crate::air::{BaseAirBuilder, MachineAir, Polynomial, SP1AirBuilder};
+use crate::air::{MachineAir, Polynomial, SP1AirBuilder};
 use crate::bytes::event::ByteRecord;
 use crate::bytes::ByteLookupEvent;
-use crate::memory::{value_as_limbs, MemoryReadCols, MemoryWriteCols};
+use crate::memory::{MemoryReadCols, MemoryWriteCols};
 use crate::operations::field::field_op::{FieldOpCols, FieldOperation};
-use crate::operations::field::params::{FieldParameters, NumWords};
+use crate::operations::field::params::NumWords;
 use crate::operations::field::params::{Limbs, NumLimbs};
 use crate::runtime::{ExecutionRecord, Program, Syscall, SyscallCode, SyscallContext};
 use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
-use crate::utils::ec::weierstrass::WeierstrassParameters;
-use crate::utils::ec::{CurveType, EllipticCurve};
 use crate::utils::{limbs_from_prev_access, pad_rows, words_to_bytes_le_vec};
 use generic_array::GenericArray;
 use itertools::Itertools;
@@ -26,7 +24,9 @@ use std::marker::PhantomData;
 use std::mem::size_of;
 use typenum::Unsigned;
 
-pub const fn num_fp_cols<P: FieldParameters + NumWords>() -> usize {
+use super::{FieldType, FpOpField};
+
+pub const fn num_fp_cols<P: FpOpField>() -> usize {
     size_of::<FpOpCols<u8, P>>()
 }
 
@@ -48,7 +48,7 @@ pub struct FpOpEvent {
 /// A set of columns for the FpAdd operation.
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
-pub struct FpOpCols<T, P: FieldParameters + NumWords> {
+pub struct FpOpCols<T, P: FpOpField> {
     pub is_real: T,
     pub shard: T,
     pub channel: T,
@@ -69,7 +69,7 @@ pub struct FpOpChip<P> {
     _marker: PhantomData<P>,
 }
 
-impl<E: EllipticCurve> Syscall for FpOpChip<E> {
+impl<P: FpOpField> Syscall for FpOpChip<P> {
     fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
         let clk = rt.clk;
         let x_ptr = arg1;
@@ -81,12 +81,12 @@ impl<E: EllipticCurve> Syscall for FpOpChip<E> {
             panic!();
         }
 
-        let num_words = <E::BaseField as NumWords>::WordsFieldElement::USIZE;
+        let num_words = <P as NumWords>::WordsFieldElement::USIZE;
 
         let x = rt.slice_unsafe(x_ptr, num_words);
         let (y_memory_records, y) = rt.mr_slice(y_ptr, num_words);
 
-        let modulus = &BigUint::from_bytes_le(E::BaseField::MODULUS);
+        let modulus = &BigUint::from_bytes_le(P::MODULUS);
         let a = BigUint::from_slice(&x) % modulus;
         let b = BigUint::from_slice(&y) % modulus;
 
@@ -105,8 +105,8 @@ impl<E: EllipticCurve> Syscall for FpOpChip<E> {
         let lookup_id = rt.syscall_lookup_id as usize;
         let shard = rt.current_shard();
         let channel = rt.current_channel();
-        match E::CURVE_TYPE {
-            CurveType::Bn254 => {
+        match P::FIELD_TYPE {
+            FieldType::Bn254 => {
                 rt.record_mut().bn254_fp_events.push(FpOpEvent {
                     lookup_id,
                     shard,
@@ -121,7 +121,7 @@ impl<E: EllipticCurve> Syscall for FpOpChip<E> {
                     y_memory_records,
                 });
             }
-            CurveType::Bls12381 => {
+            FieldType::Bls12381 => {
                 rt.record_mut().bls12381_fp_events.push(FpOpEvent {
                     lookup_id,
                     shard,
@@ -136,7 +136,6 @@ impl<E: EllipticCurve> Syscall for FpOpChip<E> {
                     y_memory_records,
                 });
             }
-            _ => panic!("Unsupported curve"),
         }
 
         None
@@ -147,7 +146,7 @@ impl<E: EllipticCurve> Syscall for FpOpChip<E> {
     }
 }
 
-impl<E: EllipticCurve> FpOpChip<E> {
+impl<P: FpOpField> FpOpChip<P> {
     pub const fn new(op: FieldOperation) -> Self {
         Self {
             op,
@@ -160,19 +159,19 @@ impl<E: EllipticCurve> FpOpChip<E> {
         blu_events: &mut Vec<ByteLookupEvent>,
         shard: u32,
         channel: u8,
-        cols: &mut FpOpCols<F, E::BaseField>,
+        cols: &mut FpOpCols<F, P>,
         p: BigUint,
         q: BigUint,
         op: FieldOperation,
     ) {
-        let modulus_bytes = E::BaseField::MODULUS;
+        let modulus_bytes = P::MODULUS;
         let modulus = BigUint::from_bytes_le(modulus_bytes);
         cols.output
             .populate_with_modulus(blu_events, shard, channel, &p, &q, &modulus, op);
     }
 }
 
-impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F> for FpOpChip<E> {
+impl<F: PrimeField32, P: FpOpField> MachineAir<F> for FpOpChip<P> {
     type Record = ExecutionRecord;
 
     type Program = Program;
@@ -184,18 +183,16 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F> fo
             FieldOperation::Mul => "Mul",
             _ => panic!("Unsupported operation"),
         };
-        match E::CURVE_TYPE {
-            CurveType::Bn254 => format!("Bn254Fp{}Assign", op).to_string(),
-            CurveType::Bls12381 => format!("Bls12381Fp{}Assign", op).to_string(),
-            _ => panic!("Unsupported curve"),
+        match P::FIELD_TYPE {
+            FieldType::Bn254 => format!("Bn254Fp{}Assign", op).to_string(),
+            FieldType::Bls12381 => format!("Bls12381Fp{}Assign", op).to_string(),
         }
     }
 
     fn generate_trace(&self, input: &Self::Record, output: &mut Self::Record) -> RowMajorMatrix<F> {
-        let events = match E::CURVE_TYPE {
-            CurveType::Bn254 => &input.bn254_fp_events,
-            CurveType::Bls12381 => &input.bls12381_fp_events,
-            _ => panic!("Unsupported curve"),
+        let events = match P::FIELD_TYPE {
+            FieldType::Bn254 => &input.bn254_fp_events,
+            FieldType::Bls12381 => &input.bls12381_fp_events,
         };
 
         let mut rows = Vec::new();
@@ -206,10 +203,10 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F> fo
             if event.op != self.op {
                 continue;
             }
-            let mut row = vec![F::zero(); num_fp_cols::<E::BaseField>()];
-            let cols: &mut FpOpCols<F, E::BaseField> = row.as_mut_slice().borrow_mut();
+            let mut row = vec![F::zero(); num_fp_cols::<P>()];
+            let cols: &mut FpOpCols<F, P> = row.as_mut_slice().borrow_mut();
 
-            let modulus = &BigUint::from_bytes_le(E::BaseField::MODULUS);
+            let modulus = &BigUint::from_bytes_le(P::MODULUS);
             let p = BigUint::from_bytes_le(&words_to_bytes_le_vec(&event.x)) % modulus;
             let q = BigUint::from_bytes_le(&words_to_bytes_le_vec(&event.y)) % modulus;
 
@@ -254,8 +251,8 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F> fo
         output.add_byte_lookup_events(new_byte_lookup_events);
 
         pad_rows(&mut rows, || {
-            let mut row = vec![F::zero(); num_fp_cols::<E::BaseField>()];
-            let cols: &mut FpOpCols<F, E::BaseField> = row.as_mut_slice().borrow_mut();
+            let mut row = vec![F::zero(); num_fp_cols::<P>()];
+            let cols: &mut FpOpCols<F, P> = row.as_mut_slice().borrow_mut();
             let zero = BigUint::zero();
             Self::populate_field_ops(&mut vec![], 0, 0, cols, zero.clone(), zero, self.op);
             row
@@ -264,14 +261,13 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F> fo
         // Convert the trace to a row major matrix.
         let mut trace = RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
-            num_fp_cols::<E::BaseField>(),
+            num_fp_cols::<P>(),
         );
 
         // Write the nonces to the trace.
         for i in 0..trace.height() {
-            let cols: &mut FpOpCols<F, E::BaseField> = trace.values
-                [i * num_fp_cols::<E::BaseField>()..(i + 1) * num_fp_cols::<E::BaseField>()]
-                .borrow_mut();
+            let cols: &mut FpOpCols<F, P> =
+                trace.values[i * num_fp_cols::<P>()..(i + 1) * num_fp_cols::<P>()].borrow_mut();
             cols.nonce = F::from_canonical_usize(i);
         }
 
@@ -279,29 +275,28 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F> fo
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        match E::CURVE_TYPE {
-            CurveType::Bn254 => !shard.bn254_fp_events.is_empty(),
-            CurveType::Bls12381 => !shard.bls12381_fp_events.is_empty(),
-            _ => panic!("Unsupported curve"),
+        match P::FIELD_TYPE {
+            FieldType::Bn254 => !shard.bn254_fp_events.is_empty(),
+            FieldType::Bls12381 => !shard.bls12381_fp_events.is_empty(),
         }
     }
 }
 
-impl<F, E: EllipticCurve> BaseAir<F> for FpOpChip<E> {
+impl<F, P: FpOpField> BaseAir<F> for FpOpChip<P> {
     fn width(&self) -> usize {
-        num_fp_cols::<E::BaseField>()
+        num_fp_cols::<P>()
     }
 }
 
-impl<AB, E: EllipticCurve> Air<AB> for FpOpChip<E>
+impl<AB, P: FpOpField> Air<AB> for FpOpChip<P>
 where
     AB: SP1AirBuilder,
-    Limbs<AB::Var, <E::BaseField as NumLimbs>::Limbs>: Copy,
+    Limbs<AB::Var, <P as NumLimbs>::Limbs>: Copy,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local = main.row_slice(0);
-        let local: &FpOpCols<AB::Var, E::BaseField> = (*local).borrow();
+        let local: &FpOpCols<AB::Var, P> = (*local).borrow();
 
         // let is_real = match self.op {
         //     FieldOperation::Add => local.is_add,
@@ -315,7 +310,7 @@ where
         let p = limbs_from_prev_access(&local.x_access);
         let q = limbs_from_prev_access(&local.y_access);
 
-        let modulus_coeffs = E::BaseField::MODULUS
+        let modulus_coeffs = P::MODULUS
             .iter()
             .map(|&limbs| AB::Expr::from_canonical_u8(limbs))
             .collect_vec();
@@ -349,8 +344,8 @@ where
             local.is_real,
         );
 
-        let syscall_id_felt = match E::CURVE_TYPE {
-            CurveType::Bn254 => match self.op {
+        let syscall_id_felt = match P::FIELD_TYPE {
+            FieldType::Bn254 => match self.op {
                 FieldOperation::Add => {
                     AB::F::from_canonical_u32(SyscallCode::BN254_FP_ADD.syscall_id())
                 }
@@ -362,7 +357,7 @@ where
                 }
                 _ => panic!("Unsupported operation"),
             },
-            CurveType::Bls12381 => match self.op {
+            FieldType::Bls12381 => match self.op {
                 FieldOperation::Add => {
                     AB::F::from_canonical_u32(SyscallCode::BLS12381_FP_ADD.syscall_id())
                 }
@@ -374,7 +369,6 @@ where
                 }
                 _ => panic!("Unsupported operation"),
             },
-            _ => panic!("Unsupported curve"),
         };
 
         builder.receive_syscall(

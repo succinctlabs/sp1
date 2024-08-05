@@ -107,6 +107,8 @@ pub struct ExecutionRecord {
 
     pub bn254_fp_events: Vec<FpOpEvent>,
 
+    pub bn254_fp2_addsub_events: Vec<Fp2AddSubEvent>,
+
     pub bn254_fp2_mul_events: Vec<Fp2MulEvent>,
 
     /// The public values.

@@ -4,6 +4,9 @@ use crate::air::{MachineAir, SP1_PROOF_NUM_PV_ELTS};
 use crate::memory::{MemoryChipType, MemoryProgramChip};
 use crate::operations::field::field_op::FieldOperation;
 use crate::stark::Chip;
+use crate::syscall::precompiles::fptower::Fp2AddSubAssignChip;
+use crate::utils::ec::weierstrass::bls12_381::Bls12381BaseField;
+use crate::utils::ec::weierstrass::bn254::Bn254BaseField;
 use crate::StarkGenericConfig;
 use p3_field::PrimeField32;
 pub use riscv_chips::*;
@@ -102,14 +105,18 @@ pub enum RiscvAir<F: PrimeField32> {
     Uint256Mul(Uint256MulChip),
     /// A precompile for decompressing a point on the BLS12-381 curve.
     Bls12381Decompress(WeierstrassDecompressChip<SwCurve<Bls12381Parameters>>),
-    /// A precompile for BLS12-381 fp opeartion.
-    Bls12381Fp(FpOpChip<SwCurve<Bls12381Parameters>>),
+    /// A precompile for BLS12-381 fp operation.
+    Bls12381Fp(FpOpChip<Bls12381BaseField>),
     /// A precompile for BLS12-381 fp2 multiplication.
-    Bls12381Fp2Mul(Fp2MulAssignChip<SwCurve<Bls12381Parameters>>),
-    /// A precompile for BN-254 fp opeartion.
-    Bn254Fp(FpOpChip<SwCurve<Bn254Parameters>>),
+    Bls12381Fp2Mul(Fp2MulAssignChip<Bls12381BaseField>),
+    /// A precompile for BLS12-381 fp2 addition/subtraction.
+    Bls12381Fp2AddSub(Fp2AddSubAssignChip<Bls12381BaseField>),
+    /// A precompile for BN-254 fp operation.
+    Bn254Fp(FpOpChip<Bn254BaseField>),
     /// A precompile for BN-254 fp2 multiplication.
-    Bn254Fp2Mul(Fp2MulAssignChip<SwCurve<Bn254Parameters>>),
+    Bn254Fp2Mul(Fp2MulAssignChip<Bn254BaseField>),
+    /// A precompile for BN-254 fp2 addition/subtraction.
+    Bn254Fp2AddSub(Fp2AddSubAssignChip<Bn254BaseField>),
 }
 
 impl<F: PrimeField32> RiscvAir<F> {
@@ -159,21 +166,29 @@ impl<F: PrimeField32> RiscvAir<F> {
         chips.push(RiscvAir::Bls12381Double(bls12381_double));
         let uint256_mul = Uint256MulChip::default();
         chips.push(RiscvAir::Uint256Mul(uint256_mul));
-        let bls12381_fp_add = FpOpChip::<SwCurve<Bls12381Parameters>>::new(FieldOperation::Add);
+        let bls12381_fp_add = FpOpChip::<Bls12381BaseField>::new(FieldOperation::Add);
         chips.push(RiscvAir::Bls12381Fp(bls12381_fp_add));
-        let bls12381_fp_sub = FpOpChip::<SwCurve<Bls12381Parameters>>::new(FieldOperation::Sub);
+        let bls12381_fp_sub = FpOpChip::<Bls12381BaseField>::new(FieldOperation::Sub);
         chips.push(RiscvAir::Bls12381Fp(bls12381_fp_sub));
-        let bls12381_fp_mul = FpOpChip::<SwCurve<Bls12381Parameters>>::new(FieldOperation::Mul);
+        let bls12381_fp2_add = Fp2AddSubAssignChip::<Bls12381BaseField>::new(FieldOperation::Add);
+        chips.push(RiscvAir::Bls12381Fp2AddSub(bls12381_fp2_add));
+        let bls12381_fp2_sub = Fp2AddSubAssignChip::<Bls12381BaseField>::new(FieldOperation::Sub);
+        chips.push(RiscvAir::Bls12381Fp2AddSub(bls12381_fp2_sub));
+        let bls12381_fp_mul = FpOpChip::<Bls12381BaseField>::new(FieldOperation::Mul);
         chips.push(RiscvAir::Bls12381Fp(bls12381_fp_mul));
-        let bls12381_fp2_mul = Fp2MulAssignChip::<SwCurve<Bls12381Parameters>>::new();
+        let bls12381_fp2_mul = Fp2MulAssignChip::<Bls12381BaseField>::new();
         chips.push(RiscvAir::Bls12381Fp2Mul(bls12381_fp2_mul));
-        let bn254_fp_add = FpOpChip::<SwCurve<Bn254Parameters>>::new(FieldOperation::Add);
+        let bn254_fp_add = FpOpChip::<Bn254BaseField>::new(FieldOperation::Add);
         chips.push(RiscvAir::Bn254Fp(bn254_fp_add));
-        let bn254_fp_sub = FpOpChip::<SwCurve<Bn254Parameters>>::new(FieldOperation::Sub);
+        let bn254_fp_sub = FpOpChip::<Bn254BaseField>::new(FieldOperation::Sub);
         chips.push(RiscvAir::Bn254Fp(bn254_fp_sub));
-        let bn254_fp_mul = FpOpChip::<SwCurve<Bn254Parameters>>::new(FieldOperation::Mul);
+        let bn254_fp_mul = FpOpChip::<Bn254BaseField>::new(FieldOperation::Mul);
         chips.push(RiscvAir::Bn254Fp(bn254_fp_mul));
-        let bn254_fp2_mul = Fp2MulAssignChip::<SwCurve<Bn254Parameters>>::new();
+        let bn254_fp2_add = Fp2AddSubAssignChip::<Bn254BaseField>::new(FieldOperation::Add);
+        chips.push(RiscvAir::Bn254Fp2AddSub(bn254_fp2_add));
+        let bn254_fp2_sub = Fp2AddSubAssignChip::<Bn254BaseField>::new(FieldOperation::Sub);
+        chips.push(RiscvAir::Bn254Fp2AddSub(bn254_fp2_sub));
+        let bn254_fp2_mul = Fp2MulAssignChip::<Bn254BaseField>::new();
         chips.push(RiscvAir::Bn254Fp2Mul(bn254_fp2_mul));
         let bls12381_decompress =
             WeierstrassDecompressChip::<SwCurve<Bls12381Parameters>>::with_lexicographic_rule();

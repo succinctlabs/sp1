@@ -21,7 +21,8 @@ use crate::syscall::{
     SyscallHalt, SyscallHintLen, SyscallHintRead, SyscallVerifySP1Proof, SyscallWrite,
 };
 use crate::utils::ec::edwards::ed25519::{Ed25519, Ed25519Parameters};
-use crate::utils::ec::weierstrass::bls12_381::Bls12381;
+use crate::utils::ec::weierstrass::bls12_381::{Bls12381, Bls12381BaseField};
+use crate::utils::ec::weierstrass::bn254::Bn254BaseField;
 use crate::utils::ec::weierstrass::{bn254::Bn254, secp256k1::Secp256k1};
 use crate::{runtime::ExecutionRecord, runtime::MemoryReadRecord, runtime::MemoryWriteRecord};
 
@@ -365,51 +366,59 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Arc<dyn Syscall>> {
     syscall_map.insert(SyscallCode::UINT256_MUL, Arc::new(Uint256MulChip::new()));
     syscall_map.insert(
         SyscallCode::BLS12381_FP_ADD,
-        Arc::new(FpOpChip::<Bls12381>::new(FieldOperation::Add)),
+        Arc::new(FpOpChip::<Bls12381BaseField>::new(FieldOperation::Add)),
     );
     syscall_map.insert(
         SyscallCode::BLS12381_FP_SUB,
-        Arc::new(FpOpChip::<Bls12381>::new(FieldOperation::Sub)),
+        Arc::new(FpOpChip::<Bls12381BaseField>::new(FieldOperation::Sub)),
     );
     syscall_map.insert(
         SyscallCode::BLS12381_FP_MUL,
-        Arc::new(FpOpChip::<Bls12381>::new(FieldOperation::Mul)),
+        Arc::new(FpOpChip::<Bls12381BaseField>::new(FieldOperation::Mul)),
     );
     syscall_map.insert(
         SyscallCode::BLS12381_FP2_ADD,
-        Arc::new(FpOpChip::<Bls12381>::new(FieldOperation::Add)),
+        Arc::new(Fp2AddSubAssignChip::<Bls12381BaseField>::new(
+            FieldOperation::Add,
+        )),
     );
     syscall_map.insert(
         SyscallCode::BLS12381_FP2_SUB,
-        Arc::new(FpOpChip::<Bls12381>::new(FieldOperation::Sub)),
+        Arc::new(Fp2AddSubAssignChip::<Bls12381BaseField>::new(
+            FieldOperation::Sub,
+        )),
     );
     syscall_map.insert(
         SyscallCode::BLS12381_FP2_MUL,
-        Arc::new(Fp2MulAssignChip::<Bls12381>::new()),
+        Arc::new(Fp2MulAssignChip::<Bls12381BaseField>::new()),
     );
     syscall_map.insert(
         SyscallCode::BN254_FP_ADD,
-        Arc::new(FpOpChip::<Bn254>::new(FieldOperation::Add)),
+        Arc::new(FpOpChip::<Bn254BaseField>::new(FieldOperation::Add)),
     );
     syscall_map.insert(
         SyscallCode::BN254_FP_SUB,
-        Arc::new(FpOpChip::<Bn254>::new(FieldOperation::Sub)),
+        Arc::new(FpOpChip::<Bn254BaseField>::new(FieldOperation::Sub)),
     );
     syscall_map.insert(
         SyscallCode::BN254_FP_MUL,
-        Arc::new(FpOpChip::<Bn254>::new(FieldOperation::Mul)),
+        Arc::new(FpOpChip::<Bn254BaseField>::new(FieldOperation::Mul)),
     );
     syscall_map.insert(
         SyscallCode::BN254_FP2_ADD,
-        Arc::new(Fp2AddSubAssignChip::<Bn254>::new(FieldOperation::Add)),
+        Arc::new(Fp2AddSubAssignChip::<Bn254BaseField>::new(
+            FieldOperation::Add,
+        )),
     );
     syscall_map.insert(
         SyscallCode::BN254_FP2_SUB,
-        Arc::new(Fp2AddSubAssignChip::<Bn254>::new(FieldOperation::Sub)),
+        Arc::new(Fp2AddSubAssignChip::<Bn254BaseField>::new(
+            FieldOperation::Sub,
+        )),
     );
     syscall_map.insert(
         SyscallCode::BN254_FP2_MUL,
-        Arc::new(Fp2MulAssignChip::<Bn254>::new()),
+        Arc::new(Fp2MulAssignChip::<Bn254BaseField>::new()),
     );
     syscall_map.insert(
         SyscallCode::ENTER_UNCONSTRAINED,
