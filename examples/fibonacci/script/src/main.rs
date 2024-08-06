@@ -12,9 +12,11 @@ pub mod worker;
 
 use alloy_sol_types::{sol, SolType};
 use clap::Parser;
+use operator::{operator_phase1, prove_begin};
 use serde::{Deserialize, Serialize};
 use sp1_sdk::{HashableKey, SP1ProofWithPublicValues, SP1VerifyingKey};
 use std::path::PathBuf;
+use worker::worker_phase1;
 
 /// The arguments for the prove command.
 #[derive(Parser, Debug, Clone)]
@@ -39,30 +41,47 @@ fn main() {
     let args = ProveArgs::parse();
 
     // Setup the prover client.
-    let (client, stdin, pk, vk) = common::init_client(args.clone());
-    println!("n: {}", args.n);
+    let (public_values_stream, public_values, mut checkpoints, cycles) =
+        prove_begin(args.clone()).unwrap();
 
-    if args.evm {
-        // Generate the proof.
-        let proof = client
-            .prove(&pk, stdin)
-            .plonk()
-            .run()
-            .expect("failed to generate proof");
-        create_plonk_fixture(&proof, &vk);
-    } else {
-        // Generate the proof.
-        let proof = client
-            .prove(&pk, stdin)
-            .run()
-            .expect("failed to generate proof");
+    let mut indexed_commitments = Vec::new();
+    let num_checkpoints = checkpoints.len();
+    for (idx, checkpoint) in checkpoints.iter_mut().enumerate() {
+        let is_last_checkpoint = idx == num_checkpoints - 1;
+        let result = worker_phase1(
+            &args,
+            idx as u32,
+            checkpoint,
+            is_last_checkpoint,
+            public_values,
+        )
+        .unwrap();
+        indexed_commitments.push(result);
+        tracing::info!("{:?}-th phase1 worker done", idx);
+    }
+
+    let proof = operator_phase1(
+        args.clone(),
+        indexed_commitments,
+        public_values_stream,
+        cycles,
+    )
+    .unwrap();
+    println!("Successfully generated proof!");
+
+    if !args.evm {
         let (_, _, fib_n) =
             PublicValuesTuple::abi_decode(proof.public_values.as_slice(), false).unwrap();
         println!("Successfully generated proof!");
         println!("fib(n): {}", fib_n);
-
-        // Verify the proof.
-        client.verify(&proof, &vk).expect("failed to verify proof");
+    } else {
+        // Generate the proof.
+        // let proof = client
+        //     .prove(&pk, stdin)
+        //     .plonk()
+        //     .run()
+        //     .expect("failed to generate proof");
+        // create_plonk_fixture(&proof, &vk);
     }
 }
 
