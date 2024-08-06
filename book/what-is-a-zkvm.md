@@ -18,7 +18,7 @@ For blockchain applications, the verification usually happens inside of a [smart
 At a high level, SP1 works with the following steps:
 
 * Write a program in Rust that defines the logic of your computation for which you want to generate a ZKP.
-* Compile the program to the RISC-V ISA (a standard Rust compilation target) using the `cargo prove` CLI tool (installation instructions [here](./getting-started/)) and generate a RISC-V ELF file.
+* Compile the program to the RISC-V ISA (a standard Rust compilation target) using the `cargo prove` CLI tool (installation instructions [here](./getting-started/install.md)) and generate a RISC-V ELF file.
 * SP1 will prove the correct execution of arbitrary RISC-V programs by generating a STARK proof of execution.
 * Developers can leverage the `sp1-sdk` crate to generate proofs with their ELF and input data. Under the hood the `sp1-sdk` will either generate proofs locally or use a beta version of Succinct's prover network to generate proofs.
 
