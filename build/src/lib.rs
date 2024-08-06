@@ -227,6 +227,7 @@ fn copy_elf_to_output_dir(
     let original_elf_path = program_metadata
         .target_directory
         .join(target_dir_suffix)
+        .join(BUILD_TARGET)
         .join("release")
         .join(root_package_name.unwrap());
 
