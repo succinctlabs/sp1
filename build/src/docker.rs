@@ -18,9 +18,15 @@ fn get_docker_image(tag: &str) -> String {
 pub fn create_docker_command(
     args: &BuildArgs,
     program_dir: &Utf8PathBuf,
-    workspace_root: &Utf8PathBuf,
+    program_metadata: &cargo_metadata::Metadata,
 ) -> Result<Command> {
     let image = get_docker_image(&args.tag);
+    let canonicalized_program_dir: Utf8PathBuf = program_dir
+        .canonicalize()
+        .expect("Failed to canonicalize program directory")
+        .try_into()
+        .unwrap();
+    let workspace_root = &program_metadata.workspace_root;
 
     // Check if docker is installed and running.
     let docker_check = Command::new("docker")
@@ -39,7 +45,19 @@ pub fn create_docker_command(
     let workspace_root_path = format!("{}:/root/program", workspace_root);
     let program_dir_path = format!(
         "/root/program/{}",
-        program_dir.strip_prefix(workspace_root).unwrap()
+        canonicalized_program_dir
+            .strip_prefix(workspace_root)
+            .unwrap()
+    );
+
+    let relative_target_dir = (program_metadata.target_directory)
+        .strip_prefix(workspace_root)
+        .unwrap();
+    let target_dir = format!(
+        "/root/program/{}/{}/{}",
+        relative_target_dir,
+        crate::HELPER_TARGET_SUBDIR,
+        "docker"
     );
 
     // Add docker-specific arguments.
@@ -52,6 +70,8 @@ pub fn create_docker_command(
         workspace_root_path,
         "-w".to_string(),
         program_dir_path,
+        "-e".to_string(),
+        format!("CARGO_TARGET_DIR={}", target_dir),
         "-e".to_string(),
         "RUSTUP_TOOLCHAIN=succinct".to_string(),
         "-e".to_string(),

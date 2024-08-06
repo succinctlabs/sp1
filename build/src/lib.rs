@@ -218,11 +218,17 @@ fn copy_elf_to_output_dir(
     let root_package = program_metadata.root_package();
     let root_package_name = root_package.as_ref().map(|p| &p.name);
 
-    // The ELF is written to a target folder specified by the program's package.
+    // The ELF is written to a target folder specified by the program's package. If built with Docker,
+    // includes /docker after HELPER_TARGET_SUBDIR.
+    let target_dir_suffix = if args.docker {
+        format!("{}/{}", HELPER_TARGET_SUBDIR, "docker")
+    } else {
+        HELPER_TARGET_SUBDIR.to_string()
+    };
+
     let original_elf_path = program_metadata
         .target_directory
-        .join(HELPER_TARGET_SUBDIR)
-        .join(BUILD_TARGET)
+        .join(target_dir_suffix)
         .join("release")
         .join(root_package_name.unwrap());
 
@@ -272,23 +278,20 @@ pub fn build_program(args: &BuildArgs, program_dir: Option<PathBuf>) -> Result<U
         .try_into()
         .expect("Failed to convert PathBuf to Utf8PathBuf");
 
-    // The root package name corresponds to the package name of the current directory.
-    let metadata_cmd = cargo_metadata::MetadataCommand::new();
-    let metadata = metadata_cmd.exec().unwrap();
-
-    // Get the command corresponding to Docker or local build.
-    let cmd = if args.docker {
-        docker::create_docker_command(args, &program_dir, &metadata.workspace_root)?
-    } else {
-        create_local_command(args, &program_dir)
-    };
-
+    // Get the program metadata.
     let program_metadata_file = program_dir.join("Cargo.toml");
     let mut program_metadata_cmd = cargo_metadata::MetadataCommand::new();
     let program_metadata = program_metadata_cmd
         .manifest_path(program_metadata_file)
         .exec()
         .unwrap();
+
+    // Get the command corresponding to Docker or local build.
+    let cmd = if args.docker {
+        docker::create_docker_command(args, &program_dir, &program_metadata)?
+    } else {
+        create_local_command(args, &program_dir)
+    };
 
     execute_command(cmd, args.docker, &program_metadata)?;
 
