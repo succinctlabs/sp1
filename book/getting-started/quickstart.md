@@ -119,7 +119,7 @@ ls elf # should show riscv32im-succinct-zkvm-elf
 
 Please see the [Recommended Workflow](../generating-proofs/recommended-workflow.md) section for more details on how to develop your SP1 program and generate proofs.
 
-We *strongly recommend* that developers who want to use SP1 for non-trivial programs generate proofs on the beta version of our [Prover Network](../generating-proofs/prover-network/). The prover network generates SP1 proofs across multiple machines, reducing latency and also runs SP1 on optimized hardware instances that result in faster + cheaper proof generation times.
+We *strongly recommend* that developers who want to use SP1 for non-trivial programs generate proofs on the beta version of our [Prover Network](../generating-proofs/prover-network.md). The prover network generates SP1 proofs across multiple machines, reducing latency and also runs SP1 on optimized hardware instances that result in faster + cheaper proof generation times.
 
 We recommend that for any production benchmarking, you use the prover network to estimate latency and costs of proof generation. We also would love to chat with your team directly to help you get started with the prover network--please fill out this [form](https://partner.succinct.xyz/).
 
