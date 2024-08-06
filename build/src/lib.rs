@@ -17,49 +17,55 @@ const DEFAULT_TAG: &str = "v1.1.0";
 const DEFAULT_OUTPUT_DIR: &str = "elf";
 const HELPER_TARGET_SUBDIR: &str = "elf-compilation";
 
-/// [`BuildArgs`] is a struct that holds various arguments used for building a program.
+/// Compile an SP1 program.
 ///
-/// This struct can be used to configure the build process, including options for using Docker,
+/// Additional arguments are useful for configuring the build process, including options for using Docker,
 /// specifying binary and ELF names, ignoring Rust version checks, and enabling specific features.
 #[derive(Clone, Parser, Debug)]
 pub struct BuildArgs {
-    #[clap(long, action, help = "Build using Docker for reproducible builds.")]
+    #[clap(
+        long,
+        action,
+        help = "Run compilation using a Docker container for reproducible builds."
+    )]
     pub docker: bool,
     #[clap(
         long,
-        help = "The ghcr.io/succinctlabs/sp1 image tag to use when building with docker.",
+        help = "The ghcr.io/succinctlabs/sp1 image tag to use when building with Docker.",
         default_value = DEFAULT_TAG
     )]
     pub tag: String,
-    #[clap(long, action, value_delimiter = ',', help = "Build with features.")]
+    #[clap(
+        long,
+        action,
+        value_delimiter = ',',
+        help = "Space or comma separated list of features to activate"
+    )]
     pub features: Vec<String>,
-    #[clap(long, action, help = "Ignore Rust version check.")]
+    #[clap(long, action, help = "Do not activate the `default` feature")]
+    pub no_default_features: bool,
+    #[clap(long, action, help = "Ignore `rust-version` specification in packages")]
     pub ignore_rust_version: bool,
+    #[clap(long, action, help = "Assert that `Cargo.lock` will remain unchanged")]
+    pub locked: bool,
     #[clap(
         alias = "bin",
         long,
         action,
-        help = "If building a binary, specify the name.",
+        help = "Build only the specified binary",
         default_value = ""
     )]
     pub binary: String,
-    #[clap(long, action, help = "ELF binary name.", default_value = "")]
+    #[clap(long, action, help = "ELF binary name", default_value = "")]
     pub elf_name: String,
     #[clap(
+        alias = "out-dir",
         long,
         action,
-        help = "The output directory for the built program.",
+        help = "Copy the compiled ELF to this directory",
         default_value = DEFAULT_OUTPUT_DIR
     )]
     pub output_directory: String,
-    #[clap(
-        long,
-        action,
-        help = "Lock the dependencies, ensures that Cargo.lock doesn't update."
-    )]
-    pub locked: bool,
-    #[clap(long, action, help = "Build without default features.")]
-    pub no_default_features: bool,
 }
 
 // Implement default args to match clap defaults.

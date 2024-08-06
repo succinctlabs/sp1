@@ -47,11 +47,13 @@ Note that we elegantly handle nested cycle tracking, as you can see above.
 The `cycle-tracker` annotation is a convenient way to track cycles for specific sections of code. However, sometimes it can also be useful to track what functions are taking the most cycles across the entire program, without having to annotate every function individually.
 
 First, we need to generate a trace file of the program counter at each cycle while the program is executing. This can be done by simply setting the `TRACE_FILE` environment variable with the path of the file you want to write the trace to. For example, you can run the following command in the `script` directory for any example program:
+
 ```bash
 TRACE_FILE=trace.log RUST_LOG=info cargo run --release
 ```
 
 When the `TRACE_FILE` environment variable is set, as SP1's RISC-V runtime is executing, it will write a log of the program counter to the file specified by `TRACE_FILE`. 
+
 
 Next, we can use the `cargo prove` CLI with the `trace` command to analyze the trace file and generate a table of instruction counts. This can be done with the following command:
 
@@ -107,4 +109,3 @@ Total instructions in trace: 17053
 | syscall_hint_read                      | 3                 |
 +----------------------------------------+-------------------+
 ```
-

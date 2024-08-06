@@ -10,8 +10,20 @@ fn main() {
     // Create an input stream and write '500' to it.
     let n = 1000u32;
 
+    // The input stream that the program will read from using `sp1_zkvm::io::read`. Note that the
+    // types of the elements in the input stream must match the types being read in the program.
     let mut stdin = SP1Stdin::new();
     stdin.write(&n);
+
+    // Create a `ProverClient` method.
+    let client = ProverClient::new();
+
+    // Execute the program using the `ProverClient.execute` method, without generating a proof.
+    let (_public_values, report) = client.execute(ELF, stdin.clone()).run().unwrap();
+    println!(
+        "Executed program with {} cycles",
+        report.total_instruction_count()
+    );
 
     // Generate the proof for the given program and input.
     let client = ProverClient::new();
@@ -21,6 +33,8 @@ fn main() {
     println!("generated proof");
 
     // Read and verify the output.
+    // Note that this output is read from values commited to in the program
+    // using `sp1_zkvm::io::commit`.
     let _ = proof.public_values.read::<u32>();
     let a = proof.public_values.read::<u32>();
     let b = proof.public_values.read::<u32>();

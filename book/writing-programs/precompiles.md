@@ -1,8 +1,7 @@
 # Precompiles
 
-Precompiles are built into the SP1 zkVM and accelerate commonly used operations such as elliptic curve arithmetic and hashing. 
-Under the hood, precompiles are implemented as custom tables dedicated to proving one or few operations. **They typically improve the performance
-of executing expensive operations by a few orders of magnitude.**
+Precompiles are built into the SP1 zkVM and accelerate commonly used operations such as elliptic curve arithmetic and hashing. Under the hood, precompiles are implemented as custom STARK tables dedicated to proving one or few operations. **They typically improve the performance
+of executing expensive operations in SP1 by a few orders of magnitude.**
 
 Inside the zkVM, precompiles are exposed as system calls executed through the `ecall` RISC-V instruction.
 Each precompile has a unique system call number and implements an interface for the computation.
@@ -11,7 +10,7 @@ SP1 also has been designed specifically to make it easy for external contributor
 To learn more about this, you can look at implementations of existing precompiles in the [precompiles](https://github.com/succinctlabs/sp1/tree/main/core/src/syscall/precompiles) folder. More documentation on this will be coming soon.
 
 **To use precompiles, we typically recommend you interact with them through [patches](./patched-crates.md), which are crates modified
-to use these precompiles under the hood.**
+to use these precompiles under the hood, without requiring you to call system calls directly.**
 
 ## Specification
 

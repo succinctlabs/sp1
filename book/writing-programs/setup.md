@@ -11,38 +11,9 @@ cargo prove new <name>
 cd program
 ```
 
-## Build with CLI (Development)
-
-> WARNING: This may not generate a reproducible ELF which is necessary for verifying that your binary corresponds to given source code.
->
-> Use the [reproducible build system](#build-with-docker-production) for production builds.
-
-To build the program while in development, simply run:
-
-```bash
-cargo prove build
-```
-
-This will compile the ELF that can be executed in the zkVM and put the executable in `elf/riscv32im-succinct-zkvm-elf`.
-
-## Build with Docker (Production)
-
-For production builds of programs, you can build your program inside a Docker container which will generate a **reproducible ELF** on all platforms. To do so, just use the `--docker` flag and the `--tag` flag with the release version you want to use. For example:
-
-```bash
-cargo prove build --docker --tag v1.1.0
-```
-
-To verify that your build is reproducible, you can compute the SHA-512 hash of the ELF on different platforms and systems with:
-
-```bash
-$ shasum -a 512 elf/riscv32im-succinct-zkvm-elf
-f9afb8caaef10de9a8aad484c4dd3bfa54ba7218f3fc245a20e8a03ed40b38c617e175328515968aecbd3c38c47b2ca034a99e6dbc928512894f20105b03a203
-```
-
 ## Manual Project Setup
 
-You can also manually setup a project. First create a new cargo project:
+You can also manually setup a project. First create a new Rust project using `cargo`:
 
 ```bash
 cargo new program
@@ -51,7 +22,7 @@ cd program
 
 ### Cargo Manifest
 
-Inside this crate, add the `sp1-zkvm` crate as a dependency. Your `Cargo.toml` should look like as follows:
+Inside this crate, add the `sp1-zkvm` crate as a dependency. Your `Cargo.toml` should look like the following:
 
 ```rust,noplayground
 [workspace]
@@ -69,12 +40,11 @@ precompiles, patches, and more.
 
 ### main.rs
 
-Inside the `src/main.rs` file, you must make sure to include these two lines to ensure that the crate
-properly compiles.
+Inside the `src/main.rs` file, you must make sure to include these two lines to ensure that your program properly compiles to a valid SP1 program.
 
 ```rust,noplayground
 #![no_main]
 sp1_zkvm::entrypoint!(main);
 ```
 
-These two lines of code wrap your main function with some additional logic to ensure that your program compiles correctly with the RISCV target.
+These two lines of code wrap your main function with some additional logic to ensure that your program compiles correctly with the RISC-V target.
