@@ -1,4 +1,4 @@
-# sp1-helper
+# sp1-build
 Lightweight crate used to build SP1 programs. Also used by `sp1-cli`.
 
 Exposes `build_program`, which builds an SP1 program in the local environment. To configure the 
@@ -7,7 +7,7 @@ build with additional arguments, use `build_program_with_args`.
 ## Usage
 
 ```rust
-use sp1_helper::{build_program, build_program_with_args};
+use sp1_build::{build_program, build_program_with_args};
 
 build_program("path/to/program");
 

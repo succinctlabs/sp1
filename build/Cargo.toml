@@ -1,5 +1,5 @@
 [package]
-name = "sp1-helper"
+name = "sp1-build"
 description = "Crate for building SP1 programs with build scripts."
 readme = "../README.md"
 version = { workspace = true }
@@ -9,8 +9,9 @@ repository = { workspace = true }
 keywords = { workspace = true }
 categories = { workspace = true }
 
-[package.metadata]
-deprecated = "This crate is deprecated. Please use sp1_build instead."
-
 [dependencies]
-sp1-build = { workspace = true }
+cargo_metadata = "0.18.1"
+chrono = { version = "0.4.38", default-features = false, features = ["clock"] }
+anyhow = { version = "1.0.83" }
+clap = { version = "4.5.9", features = ["derive", "env"] }
+dirs = "5.0.1"

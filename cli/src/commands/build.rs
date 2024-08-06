@@ -1,6 +1,6 @@
 use anyhow::Result;
 use clap::Parser;
-use sp1_helper::{execute_build_program, BuildArgs};
+use sp1_build::{execute_build_program, BuildArgs};
 
 #[derive(Parser)]
 #[command(name = "build", about = "Build a program")]
