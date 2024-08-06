@@ -2,7 +2,7 @@
 
 ## Use-Cases
 
-Zero-knowledge proofs (ZKPs) are a powerful primitive that enable **erifiable computation**. With ZKPs, anyone can verify a cryptographic proof that a program has executed correctly, without needing to trust the prover, re-execute the program or even know the inputs to the program.
+Zero-knowledge proofs (ZKPs) are a powerful primitive that enable **verifiable computation**. With ZKPs, anyone can verify a cryptographic proof that a program has executed correctly, without needing to trust the prover, re-execute the program or even know the inputs to the program.
 
 Historically, building ZKP systems has been extremely complicated, requiring large teams with specialized cryptography expertise and taking years to go to production. SP1 is a performant, general-purpose zkVM that solves this problem and creates a future where all blockchain infrastructure, including rollups, bridges, coprocessors, and more, utilize ZKPs **via maintainable software written in Rust**.
 

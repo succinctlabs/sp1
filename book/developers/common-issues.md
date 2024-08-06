@@ -1,5 +1,15 @@
 # Common Issues
 
+## Bus Error
+
+If you are running a executable that uses the `sp1-sdk` crate, you may encounter a bus error like this:
+
+```txt
+zsh: bus error
+```
+
+This is fixed by running with the `--release` flag, as the `sp1-sdk` crate only supports release builds as of right now.
+
 ## Alloy Errors
 
 If you are using a library that depends on `alloy_sol_types`, and encounter an error like this:
@@ -19,7 +29,7 @@ This will configure out the `network` feature which will remove the dependency o
 
 ## Rust Version Errors
 
-If you are using `alloy` or another library that has an MSRV (minimum support rust version) of 1.76.0
+If you are using `alloy` or another library that has an MSRV (minimum supported rust version) of 1.76.0
 or higher, you may encounter an error like this when building your program.
 
 ```txt

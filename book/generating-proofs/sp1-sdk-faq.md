@@ -19,7 +19,7 @@ RUST_LOG=info cargo run --release
 
 SP1 supports CPU hardware acceleration using AVX256/512 and NEON SIMD instructions. To enable the acceleration, you can use the `RUSTFLAGS` environment variable to generate code that is optimized for your CPU.
 
-**AVX256 / NEON**:
+**AVX2 / NEON**:
 ```bash
 RUSTFLAGS='-C target-cpu=native' cargo run --release
 ```

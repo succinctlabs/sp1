@@ -18,8 +18,8 @@ fn main() {
     // Create a `ProverClient` method.
     let client = ProverClient::new();
 
-    // Execute the program using the `ProverClient.execute` method.
-    let (report, public_values) = client.execute(ELF, stdin).run().unwrap();
+    // Execute the program using the `ProverClient.execute` method, without generating a proof.
+    let (_public_values, report) = client.execute(ELF, stdin).run().unwrap();
     println!(
         "Executed program with {} cycles",
         report.total_instruction_count()

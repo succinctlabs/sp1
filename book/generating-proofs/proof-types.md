@@ -19,7 +19,7 @@ client.prove(&pk, stdin).run().unwrap();
 ## Compressed
 
 The compressed prover mode generates STARK proofs that have constant size. Use this in settings where you
-care about **verification cost / proof size**. This is useful for applications where you want to recursively verify SP1 proofs within SP1 (see the [proof aggregation](../writing-programs/proof-aggregation.md) section).
+care about **verification cost / proof size**. This is useful for applications where you want to recursively verify SP1 proofs within SP1 (see the [proof aggregation](../writing-programs/proof-aggregation.md) section). 
 
 ```rust,noplayground
 let client = ProverClient::new();

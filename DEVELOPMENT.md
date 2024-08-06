@@ -15,7 +15,7 @@ cargo test
 
 We recommend you install the [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer) extension.
 
-Note that if you use `cargo prove new` inside a monorepo, you will need to add the manifest file to `rust-analyzer.linkedProjects` to get full IDE support.
+Note that if you use `cargo prove new` inside a monorepo, you will need to add the path to the Cargo.toml file to `rust-analyzer.linkedProjects` to get full IDE support.
 
 **Debug Constraint Failure**
 
