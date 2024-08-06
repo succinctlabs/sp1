@@ -40,7 +40,7 @@ Note that **latency is not the same as cost**, because we parallelize proof gene
 
 #### Benchmarking on small vs. large programs
 
-In SP1, there is a fixed overhead for proving that is independent of your program's cycle count. This means that benchmarking on *small programs* is not representative of the performance of larger programs. To get an idea of the scale of programs for real-world workloads, you can refer to our [benchmarking blog post](https://blog.succinct.xyz/benchmarking-sp1-1.0.1) and also some numbers below:
+In SP1, there is a fixed overhead for proving that is independent of your program's cycle count. This means that benchmarking on *small programs* is not representative of the performance of larger programs. To get an idea of the scale of programs for real-world workloads, you can refer to our [benchmarking blog post](https://blog.succinct.xyz/sp1-production-benchmarks) and also some numbers below:
 
 * An average Ethereum block can be between 100-500M cycles (including merkle proof verification for storage and execution of transactions) with our `keccak` and `secp256k1` precompiles.
 * For a Tendermint light client, the average cycle count can be between 10M and 50M cycles (including our ed25519 precompiles).

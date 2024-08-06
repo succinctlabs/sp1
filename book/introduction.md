@@ -12,7 +12,7 @@ SP1 is a performant, open-source zero-knowledge virtual machine (zkVM) that veri
 [tg-badge]: https://img.shields.io/endpoint?color=neon&logo=telegram&label=chat&url=https%3A%2F%2Ftg.sumanjay.workers.dev%2Fsuccinct%5Fsp1
 [tg-url]: https://t.me/+AzG4ws-kD24yMGYx
 
-SP1 has undergone multiple audits from leading ZK security firms and is currently used in production by many top blockchain teams. Read more about SP1's extensive set of features and users [here](https://blog.succinct.xyz/sp1-production-release).
+SP1 has undergone multiple audits from leading ZK security firms and is currently used in production by many top blockchain teams.
 
 ## The future of ZK is writing normal code
 
