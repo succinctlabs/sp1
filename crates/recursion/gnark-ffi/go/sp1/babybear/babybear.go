@@ -53,7 +53,19 @@ func Zero() Variable {
 	}
 }
 
+func One() Variable {
+	return Variable{
+		Value:  frontend.Variable("1"),
+		NbBits: 1,
+	}
+}
+
 func NewF(value string) Variable {
+	if value == "0" {
+		return Zero()
+	} else if value == "1" {
+		return One()
+	}
 	return Variable{
 		Value:  frontend.Variable(value),
 		NbBits: 31,
@@ -283,7 +295,7 @@ func (p *Chip) reduceFast(x Variable) Variable {
 }
 
 func (p *Chip) ReduceSlow(x Variable) Variable {
-	if x.NbBits == 31 {
+	if x.NbBits > 31 {
 		return x
 	}
 	return Variable{
