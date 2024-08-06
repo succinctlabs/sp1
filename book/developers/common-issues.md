@@ -26,11 +26,9 @@ or higher, you may encounter an error like this when building your program.
 package `alloy v0.1.1 cannot be built because it requires rustc 1.76 or newer, while the currently active rustc version is 1.75.0-nightly`
 ```
 
-This is due to the fact that the Succinct Rust toolchain is built with version 1.75, which is older
-than the MSRV of the `alloy` crate. Note: Once the Succinct Rust toolchain is updated, this error will
-go away.
+This is due to the fact that the Succinct Rust toolchain might be built with a lower version than the MSRV of the crates you are using. You can check the version of the Succinct Rust toolchain by running `cargo +succinct --version`. If we have released a more recent version of the Succinct Rust toolchain, you can update it by running `sp1up` again to update the toolchain and CLI to the latest version.
 
-To fix this, you can:
+You can also fix this issue with the following:
 
 - If using `cargo prove build` directly, pass the `--ignore-rust-version` flag:
 
@@ -38,7 +36,7 @@ To fix this, you can:
   cargo prove build --ignore-rust-version
   ```
 
-- If using `build_program`, set `ignore_rust_version` to true inside the `BuildArgs` struct and use
+- If using `build_program` in an `build.rs` file with the `sp1-build` crate, set `ignore_rust_version` to true inside the `BuildArgs` struct and use
   `build_program_with_args`:
 
   ```rust
@@ -63,6 +61,8 @@ Segmentation fault (core dumped)
 ```
 
 Re-run your script with `--release`.
+
+Note that the core `sp1-core` library and `sp1-recursion` require being compiled with the `release` profile.
 
 ## C Binding Errors
 

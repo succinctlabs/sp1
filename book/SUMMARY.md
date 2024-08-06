@@ -14,11 +14,9 @@
 
 - [Project Template](./getting-started/project-template.md)
 
-- [Hardware Requirements](./getting-started/hardware-requirements.md)
+- [Proof Generation Requirements](./getting-started/hardware-requirements.md)
 
 # Writing Programs
-
-- [Overview](./writing-programs/overview.md)
 
 - [Setup](./writing-programs/setup.md)
 
@@ -43,25 +41,22 @@
 
 - [Basics](./generating-proofs/basics.md)
 
-- [Prover Options](./generating-proofs/prover-options.md)
+- [Proof Types](./generating-proofs/proof-types.md)
 
-- [Development Options](./generating-proofs/development-options.md)
+- [Recommended Workflow](./generating-proofs/recommended-workflow.md)
 
-- [Optimizing Performance](./generating-proofs/optimizing-performance.md)
+- [Prover Network Beta](./generating-proofs/prover-network.md)
+    - [Usage](./generating-proofs/prover-network/usage.md)
+    - [Supported Versions](./generating-proofs/prover-network/versions.md)
 
-# Prover Network
+- [FAQ](./generating-proofs/sp1-sdk-faq.md)
 
-- [Setup](./prover-network/setup.md)
-
-- [Usage](./prover-network/usage.md)
-
-- [Supported Versions](./prover-network/versions.md)
 
 # Onchain Verification
 
 - [Setup](./onchain-verification/getting-started.md)
 
-- [Solidity SDK](./onchain-verification/solidity-sdk.md)
+- [Solidity Verifier](./onchain-verification/solidity-sdk.md)
 
 - [Contract Addresses](./onchain-verification/contract-addresses.md)
 
@@ -71,10 +66,12 @@
 
 # Developers
 
+- [Common Issues](./developers/common-issues.md)
+
 - [Usage in CI](./developers/usage-in-ci.md)
+
+- [RV32IM Specification](./developers/rv32im-specification.md)
 
 - [Building PLONK Artifacts](./developers/building-plonk-artifacts.md)
 
-- [Common Issues](./developers/common-issues.md)
 
-- [RV32IM Specification](./developers/rv32im-specification.md)

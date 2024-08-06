@@ -22,7 +22,7 @@ cd program
 
 ### Cargo Manifest
 
-Inside this crate, add the `sp1-zkvm` crate as a dependency. Your `Cargo.toml` should look like as follows:
+Inside this crate, add the `sp1-zkvm` crate as a dependency. Your `Cargo.toml` should look like the following:
 
 ```rust,noplayground
 [workspace]

@@ -3,8 +3,6 @@
 SP1 currently runs on Linux and macOS. You can either use prebuilt binaries through sp1up or
 build the Succinct [Rust toolchain](https://rust-lang.github.io/rustup/concepts/toolchains.html) and CLI from source.
 
-The Succinct Rust toolchain has support for the compilation target for the Succinct zkVM (`riscv32im-succinct-zkvm-elf`). The `cargo prove` CLI provides convenient commands for compiling SP1 programs and other helper functionality.
-
 ## Requirements
 
 - [Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)
@@ -12,9 +10,6 @@ The Succinct Rust toolchain has support for the compilation target for the Succi
 - [Docker](https://docs.docker.com/get-docker/)
 
 ## Option 1: Prebuilt Binaries (Recommended)
-
-<!-- TODO: Shouldn't this work on any machine with the docker option now? I think we should update the docs to reflect this -->
-Currently our prebuilt binaries are built on Ubuntu 20.04 (22.04 on ARM) and macOS. If your OS uses an older GLIBC version, it's possible these may not work and you will need to [build the toolchain from source](#option-2-building-from-source).
 
 sp1up is the SP1 toolchain installer. Open your terminal and run the following command and follow the instructions:
 
@@ -24,7 +19,7 @@ curl -L https://sp1.succinct.xyz | bash
 
 Then simply follow the instructions on-screen, which will make the `sp1up` command available in your CLI.
 
-After following the instructions, you can run `sp1up` to install the toolchain:
+After following the instructions, you can run `sp1up` to install the toolchain and the `cargo prove` CLI:
 
 ```bash
 sp1up
@@ -33,7 +28,7 @@ sp1up
 This will install two things:
 
 1. The `succinct` Rust toolchain which has support for the `riscv32im-succinct-zkvm-elf` compilation target.
-2. `cargo prove` CLI tool that will let you compile provable programs and then prove their correctness.
+2. `cargo prove` CLI tool that provides convenient commands for compiling SP1 programs and other helper functionality.
 
 You can verify the installation of the CLI by running `cargo prove --version`:
 
@@ -63,6 +58,9 @@ If you experience [rate-limiting](https://docs.github.com/en/rest/using-the-rest
 <!-- We should add an example command here and also give instructions on how to get a Github token here -->
 <!-- When I try to sp1up --token it doesn't work -->
 
+#### Unsupported OS Architectures
+
+Currently our prebuilt binaries are built on Ubuntu 20.04 (22.04 on ARM) and macOS. If your OS uses an older GLIBC version, it's possible these may not work and you will need to [build the toolchain from source](#option-2-building-from-source).
 
 #### Conflicting `cargo-prove` installations
 
@@ -78,10 +76,11 @@ Or, you can remove the `cargo-prove` that was installed through `sp1up`:
 rm ~/.sp1/bin/cargo-prove
 ```
 
+
 ## Option 2: Building from Source
 
 <div class="warning">
-**Warning:** This option will take a long time to build and is only recommended for advanced users. 
+Warning: This option will take a long time to build and is only recommended for advanced users. 
 </div>
 
 Make sure you have installed the [dependencies](https://github.com/rust-lang/rust/blob/master/INSTALL.md#dependencies) needed to build the rust toolchain from source.
