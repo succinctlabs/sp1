@@ -158,8 +158,13 @@ pub enum RuntimeError<F: Debug, EF: Debug> {
     },
     #[error("failed to print to `debug_stdout`: {0}")]
     DebugPrint(#[from] std::io::Error),
-    #[error("attempted to read vec of {0:?} from empty witness tream")]
+    #[error("attempted to read vec of {0:?} from empty witness stream")]
     EmptyWitnessStream(FieldEltType),
+    #[error("attempted to write to memory vec of len {mem_vec_len} witness of size {witness_len}")]
+    WitnessLenMismatch {
+        mem_vec_len: usize,
+        witness_len: usize,
+    },
 }
 
 impl<'a, F: PrimeField32, EF: ExtensionField<F>, Diffusion> Runtime<'a, F, EF, Diffusion>
@@ -568,9 +573,16 @@ where
                         .witness_stream
                         .pop_front()
                         .ok_or(RuntimeError::EmptyWitnessStream(FieldEltType::Base))?;
+                    // Check the lengths are the same.
+                    if output_addrs_mults.len() != witness.len() {
+                        return Err(RuntimeError::WitnessLenMismatch {
+                            mem_vec_len: output_addrs_mults.len(),
+                            witness_len: witness.len(),
+                        });
+                    }
                     for ((addr, mult), val) in zip(output_addrs_mults, witness) {
                         self.mw(addr, val, mult);
-                        self.record.mem_events.push(MemEvent { inner: val });
+                        self.record.mem_var_events.push(MemEvent { inner: val });
                     }
                 }
             }
