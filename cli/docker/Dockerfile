@@ -6,7 +6,11 @@ RUN apt-get update \
 
 ENV PATH="/root/.cargo/bin:${PATH}"
 
-RUN curl -L https://sp1.succinct.xyz | bash && ~/.sp1/bin/sp1up
+ARG BUILDTIME
+
+# Use the BUILDTIME argument to break caching and force a new layer
+RUN echo "Cache bust: ${BUILDTIME}" > /dev/null && \
+    curl -L https://sp1.succinct.xyz | bash && ~/.sp1/bin/sp1up
 
 # Install the C++ toolchain for RISC-V and create a symlink to it in /root/.sp1/bin
 RUN mkdir -p /root/.sp1/riscv \
