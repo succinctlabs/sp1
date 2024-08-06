@@ -2,7 +2,7 @@
 
 When writing a program, it is useful to know how many RISC-V cycles a portion of the program takes to identify potential performance bottlenecks. SP1 provides a way to track the number of cycles spent in a portion of the program.
 
-## Tracking Cycles
+## Tracking Cycles with Annotations
 
 To track the number of cycles spent in a portion of the program, you can either put `println!("cycle-tracker-start: block name")` + `println!("cycle-tracker-end: block name")` statements (block name must be same between start and end) around the portion of your program you want to profile or use the `#[sp1_derive::cycle_tracker]` macro on a function. An example is shown below:
 
@@ -42,19 +42,20 @@ stdout: result: 2940
 
 Note that we elegantly handle nested cycle tracking, as you can see above.
 
-
 ## Tracking Cycles with Tracing
 
 The `cycle-tracker` annotation is a convenient way to track cycles for specific sections of code. However, sometimes it can also be useful to track what functions are taking the most cycles across the entire program, without having to annotate every function individually.
 
-First, we need to generate a trace file of the program counter at each cycle while the program is executing. This can be done by simply setting the `TRACE_FILE` environment variable to the path of the file you want to write the trace to. For example, you can run the following command in the `script` directory for any example program:
+First, we need to generate a trace file of the program counter at each cycle while the program is executing. This can be done by simply setting the `TRACE_FILE` environment variable with the path of the file you want to write the trace to. For example, you can run the following command in the `script` directory for any example program:
+
 ```bash
 TRACE_FILE=trace.log RUST_LOG=info cargo run --release
 ```
 
 When the `TRACE_FILE` environment variable is set, as SP1's RISC-V runtime is executing, it will write a log of the program counter to the file specified by `TRACE_FILE`. 
 
-Next, we can use the `trace` CLI command to analyze the trace file and generate a table of instruction counts. This can be done with the following command:
+
+Next, we can use the `cargo prove` CLI with the `trace` command to analyze the trace file and generate a table of instruction counts. This can be done with the following command:
 
 ```bash
 cargo prove trace --elf <path_to_program_elf> --trace <path_to_trace_file>
