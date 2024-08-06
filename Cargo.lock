@@ -1745,9 +1745,11 @@ version = "1.0.1"
 dependencies = [
  "alloy-sol-types",
  "anyhow",
+ "bincode",
  "clap",
  "hex",
  "itertools 0.12.1",
+ "p3-baby-bear",
  "serde",
  "serde_json",
  "sha2",
@@ -1756,6 +1758,7 @@ dependencies = [
  "sp1-prover",
  "sp1-sdk",
  "sysinfo",
+ "tempfile",
  "tracing",
 ]
 

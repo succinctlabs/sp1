@@ -498,7 +498,7 @@ where
     Ok(proof)
 }
 
-fn trace_checkpoint(
+pub fn trace_checkpoint(
     program: Program,
     file: &File,
     opts: SP1CoreOpts,
@@ -513,7 +513,7 @@ fn trace_checkpoint(
     (events, runtime.report)
 }
 
-fn reset_seek(file: &mut File) {
+pub fn reset_seek(file: &mut File) {
     file.seek(std::io::SeekFrom::Start(0))
         .expect("failed to seek to start of tempfile");
 }

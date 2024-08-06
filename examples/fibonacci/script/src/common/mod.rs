@@ -1,5 +1,8 @@
 use anyhow::Result;
-use sp1_core::{runtime::Program, utils::SP1CoreOpts};
+use sp1_core::{
+    runtime::{Program, Runtime},
+    utils::SP1CoreOpts,
+};
 use sp1_prover::types::{SP1ProvingKey, SP1VerifyingKey};
 use sp1_sdk::{ProverClient, SP1Context, SP1ContextBuilder, SP1ProofKind, SP1Stdin};
 use std::sync::Arc;
@@ -49,4 +52,18 @@ pub fn bootstrap<'a>(
     let program = Program::from(pk.elf.as_slice());
 
     Ok((program, core_opts, context))
+}
+
+pub fn build_runtime<'a>(
+    program: Program,
+    stdin: &SP1Stdin,
+    opts: SP1CoreOpts,
+    context: SP1Context<'a>,
+) -> Runtime<'a> {
+    let mut runtime = Runtime::with_context(program, opts, context);
+    runtime.write_vecs(&stdin.buffer);
+    for proof in stdin.proofs.iter() {
+        runtime.write_proof(proof.0.clone(), proof.1.clone());
+    }
+    runtime
 }
