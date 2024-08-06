@@ -78,14 +78,12 @@ impl ProverServiceClient for twirp::client::Client {
         &self,
         req: ProveCoreRequest,
     ) -> Result<ProveCoreResponse, twirp::ClientError> {
-        let url = self.base_url.join("api.ProverService/ProveCore")?;
-        self.request(url, req).await
+        self.request("api.ProverService/ProveCore", req).await
     }
     async fn compress(
         &self,
         req: CompressRequest,
     ) -> Result<CompressResponse, twirp::ClientError> {
-        let url = self.base_url.join("api.ProverService/Compress")?;
-        self.request(url, req).await
+        self.request("api.ProverService/Compress", req).await
     }
 }
