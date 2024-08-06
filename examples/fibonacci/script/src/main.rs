@@ -8,6 +8,7 @@
 
 pub mod common;
 pub mod operator;
+pub mod worker;
 
 use alloy_sol_types::{sol, SolType};
 use clap::Parser;

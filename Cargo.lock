@@ -1750,6 +1750,7 @@ dependencies = [
  "hex",
  "itertools 0.12.1",
  "p3-baby-bear",
+ "p3-symmetric",
  "serde",
  "serde_json",
  "sha2",
