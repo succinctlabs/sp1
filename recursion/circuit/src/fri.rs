@@ -237,6 +237,9 @@ pub fn verify_query<C: Config>(
         let index_sibling: Var<_> = builder.eval(one - index_bits.clone()[offset]);
         let index_pair = &index_bits[(offset + 1)..];
 
+        builder.operations.push(DslIr::ReduceE(folded_eval));
+        builder.operations.push(DslIr::ReduceE(step.sibling_value));
+
         let evals_ext = [
             builder.select_ef(index_sibling, folded_eval, step.sibling_value),
             builder.select_ef(index_sibling, step.sibling_value, folded_eval),
