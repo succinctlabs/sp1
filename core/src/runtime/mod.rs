@@ -15,6 +15,7 @@ mod utils;
 mod subproof;
 
 pub use context::*;
+use hashbrown::HashSet;
 pub use hooks::*;
 pub use instruction::*;
 pub use memory::*;
@@ -121,7 +122,7 @@ pub struct Runtime<'a> {
 
     /// Memory addresses that were touched in this batch of shards. Used to minimize the size of
     /// checkpoints.
-    pub touched_memory: HashMap<u32, (), BuildNoHashHasher<u32>>,
+    pub touched_memory: HashSet<u32, BuildNoHashHasher<u32>>,
 }
 
 #[derive(Error, Debug, Serialize, Deserialize)]
@@ -280,7 +281,7 @@ impl<'a> Runtime<'a> {
     /// Read a word from memory and create an access record.
     pub fn mr(&mut self, addr: u32, shard: u32, timestamp: u32) -> MemoryReadRecord {
         // Get the memory record entry.
-        self.touched_memory.insert(addr, ());
+        self.touched_memory.insert(addr);
         let entry = self.state.memory.entry(addr);
 
         // If we're in unconstrained mode, we don't want to modify state, so we'll save the
@@ -322,7 +323,7 @@ impl<'a> Runtime<'a> {
     /// Write a word to memory and create an access record.
     pub fn mw(&mut self, addr: u32, value: u32, shard: u32, timestamp: u32) -> MemoryWriteRecord {
         // Get the memory record entry.
-        self.touched_memory.insert(addr, ());
+        self.touched_memory.insert(addr);
         let entry = self.state.memory.entry(addr);
 
         // If we're in unconstrained mode, we don't want to modify state, so we'll save the
@@ -1077,13 +1078,13 @@ impl<'a> Runtime<'a> {
             let all_memory = std::mem::take(&mut state.memory);
             state.memory = touched_memory
                 .iter()
-                .filter_map(|(addr, _)| all_memory.get(addr).map(|record| (*addr, *record)))
+                .filter_map(|addr| all_memory.get(addr).map(|record| (*addr, *record)))
                 .collect();
 
             let all_uninitialized_memory = std::mem::take(&mut state.uninitialized_memory);
             state.uninitialized_memory = touched_memory
                 .into_iter()
-                .filter_map(|(addr, _)| {
+                .filter_map(|addr| {
                     all_uninitialized_memory
                         .get(&addr)
                         .map(|record| (addr, *record))
