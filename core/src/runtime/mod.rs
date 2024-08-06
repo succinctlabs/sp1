@@ -1075,17 +1075,16 @@ impl<'a> Runtime<'a> {
         // `state.memory` for MemoryFinalize
         let touched_memory = std::mem::take(&mut self.touched_memory);
         if !done {
-            let all_memory = std::mem::take(&mut state.memory);
             state.memory = touched_memory
                 .iter()
-                .filter_map(|addr| all_memory.get(addr).map(|record| (*addr, *record)))
+                .filter_map(|addr| state.memory.get(addr).map(|record| (*addr, *record)))
                 .collect();
 
-            let all_uninitialized_memory = std::mem::take(&mut state.uninitialized_memory);
             state.uninitialized_memory = touched_memory
                 .into_iter()
                 .filter_map(|addr| {
-                    all_uninitialized_memory
+                    state
+                        .uninitialized_memory
                         .get(&addr)
                         .map(|record| (addr, *record))
                 })
