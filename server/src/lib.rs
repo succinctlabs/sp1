@@ -68,7 +68,7 @@ impl SP1ProverServer {
     /// [SP1ProverClient] that can be used to communicate with the container.
     pub fn new() -> Self {
         let container_name = "sp1-gpu";
-        let image_name = "jtguibas/sp1-gpu:v1.1.0";
+        let image_name = "jtguibas/sp1-gpu:v1.1.5";
 
         let cleaned_up = Arc::new(AtomicBool::new(false));
         let cleanup_name = container_name;
