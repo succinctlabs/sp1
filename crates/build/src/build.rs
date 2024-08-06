@@ -4,12 +4,13 @@ use anyhow::Result;
 use cargo_metadata::camino::Utf8PathBuf;
 
 use crate::{
-    utils::{cargo_rerun_if_changed, current_datetime},
+    command::{docker::create_docker_command, local::create_local_command, utils::execute_command},
+    utils::{cargo_rerun_if_changed, copy_elf_to_output_dir, current_datetime},
     BuildArgs,
 };
 
 /// Build a program with the specified [`BuildArgs`]. The `program_dir` is specified as an argument when
-/// the program is built via `build_program` in sp1-helper.
+/// the program is built via `build_program`.
 ///
 /// # Arguments
 ///
@@ -40,14 +41,14 @@ pub fn execute_build_program(
 
     // Get the command corresponding to Docker or local build.
     let cmd = if args.docker {
-        crate::command::docker::create_docker_command(args, &program_dir, &program_metadata)?
+        create_docker_command(args, &program_dir, &program_metadata)?
     } else {
-        crate::command::local::create_local_command(args, &program_dir, &program_metadata)
+        create_local_command(args, &program_dir, &program_metadata)
     };
 
-    crate::command::utils::execute_command(cmd, args.docker)?;
+    execute_command(cmd, args.docker)?;
 
-    crate::utils::copy_elf_to_output_dir(args, &program_metadata)
+    copy_elf_to_output_dir(args, &program_metadata)
 }
 
 /// Internal helper function to build the program with or without arguments.
@@ -91,9 +92,9 @@ pub(crate) fn build_program_internal(path: &str, args: Option<BuildArgs>) {
 
     // Build the program with the given arguments.
     let path_output = if let Some(args) = args {
-        crate::execute_build_program(&args, Some(program_dir.to_path_buf()))
+        execute_build_program(&args, Some(program_dir.to_path_buf()))
     } else {
-        crate::execute_build_program(&BuildArgs::default(), Some(program_dir.to_path_buf()))
+        execute_build_program(&BuildArgs::default(), Some(program_dir.to_path_buf()))
     };
     if let Err(err) = path_output {
         panic!("Failed to build SP1 program: {}.", err);
