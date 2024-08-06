@@ -50,6 +50,7 @@ pub fn create_docker_command(
             .unwrap()
     );
 
+    // Get the target directory for the ELF in the context of the Docker container.
     let relative_target_dir = (program_metadata.target_directory)
         .strip_prefix(workspace_root)
         .unwrap();
