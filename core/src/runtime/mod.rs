@@ -1075,17 +1075,20 @@ impl<'a> Runtime<'a> {
         let touched_memory = std::mem::take(&mut self.touched_memory);
         if !done {
             let all_memory = std::mem::take(&mut state.memory);
-            for (addr, _) in &touched_memory {
-                if let Some(record) = all_memory.get(&addr) {
-                    state.memory.insert(*addr, *record);
-                }
-            }
+            state.memory = touched_memory
+                .iter()
+                .filter_map(|(addr, _)| all_memory.get(addr).map(|record| (*addr, *record)))
+                .collect();
+
             let all_uninitialized_memory = std::mem::take(&mut state.uninitialized_memory);
-            for (addr, _) in touched_memory {
-                if let Some(record) = all_uninitialized_memory.get(&addr) {
-                    state.uninitialized_memory.insert(addr, *record);
-                }
-            }
+            state.uninitialized_memory = touched_memory
+                .into_iter()
+                .filter_map(|(addr, _)| {
+                    all_uninitialized_memory
+                        .get(&addr)
+                        .map(|record| (addr, *record))
+                })
+                .collect();
         }
         Ok((state, done))
     }
