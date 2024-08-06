@@ -102,11 +102,22 @@ func (c *Chip) SubF(a, b Variable) Variable {
 	return c.AddF(a, negB)
 }
 
-func (c *Chip) MulF(a, b Variable) Variable {
-	return c.reduceFast(Variable{
-		Value:  c.api.Mul(a.Value, b.Value),
-		NbBits: a.NbBits + b.NbBits,
-	})
+func (c *Chip) MulF(a, b Variable) (Variable, Variable, Variable) {
+	varC := a
+	varD := b
+
+	for varC.NbBits+varD.NbBits > 250 {
+		if varC.NbBits > varD.NbBits {
+			varC = Variable{Value: c.reduceWithMaxBits(varC.Value, uint64(varC.NbBits)), NbBits: 31}
+		} else {
+			varD = Variable{Value: c.reduceWithMaxBits(varD.Value, uint64(varD.NbBits)), NbBits: 31}
+		}
+	}
+
+	return Variable{
+		Value:  c.api.Mul(varC.Value, varD.Value),
+		NbBits: varC.NbBits + varD.NbBits,
+	}, varC, varD
 }
 
 func (c *Chip) MulFConst(a Variable, b int) Variable {
@@ -143,7 +154,7 @@ func (c *Chip) invF(in Variable) Variable {
 		Value:  result[0],
 		NbBits: 31,
 	}
-	product := c.MulF(in, xinv)
+	product, _, _ := c.MulF(in, xinv)
 	c.AssertIsEqualF(product, NewF("1"))
 
 	return xinv
@@ -219,14 +230,19 @@ func (c *Chip) MulE(a, b ExtensionVariable) ExtensionVariable {
 		Zero(),
 		Zero(),
 	}
+	varA := a.Value
+	varB := b.Value
 
 	for i := 0; i < 4; i++ {
 		for j := 0; j < 4; j++ {
+			newVal, newA, newB := c.MulF(varA[i], varB[j])
 			if i+j >= 4 {
-				v2[i+j-4] = c.AddF(v2[i+j-4], c.MulFConst(c.MulF(a.Value[i], b.Value[j]), 11))
+				v2[i+j-4] = c.AddF(v2[i+j-4], c.MulFConst(newVal, 11))
 			} else {
-				v2[i+j] = c.AddF(v2[i+j], c.MulF(a.Value[i], b.Value[j]))
+				v2[i+j] = c.AddF(v2[i+j], newVal)
 			}
+			varA[i] = newA
+			varB[j] = newB
 		}
 	}
 
@@ -234,10 +250,10 @@ func (c *Chip) MulE(a, b ExtensionVariable) ExtensionVariable {
 }
 
 func (c *Chip) MulEF(a ExtensionVariable, b Variable) ExtensionVariable {
-	v1 := c.MulF(a.Value[0], b)
-	v2 := c.MulF(a.Value[1], b)
-	v3 := c.MulF(a.Value[2], b)
-	v4 := c.MulF(a.Value[3], b)
+	v1, _, newB := c.MulF(a.Value[0], b)
+	v2, _, newB := c.MulF(a.Value[1], newB)
+	v3, _, newB := c.MulF(a.Value[2], newB)
+	v4, _, _ := c.MulF(a.Value[3], newB)
 	return ExtensionVariable{Value: [4]Variable{v1, v2, v3, v4}}
 }
 
@@ -285,7 +301,7 @@ func (c *Chip) ToBinary(in Variable) []frontend.Variable {
 }
 
 func (p *Chip) reduceFast(x Variable) Variable {
-	if x.NbBits >= uint(126) {
+	if x.NbBits >= uint(252) {
 		return Variable{
 			Value:  p.reduceWithMaxBits(x.Value, uint64(x.NbBits)),
 			NbBits: 31,
@@ -295,7 +311,7 @@ func (p *Chip) reduceFast(x Variable) Variable {
 }
 
 func (p *Chip) ReduceSlow(x Variable) Variable {
-	if x.NbBits > 31 {
+	if x.NbBits <= 31 {
 		return x
 	}
 	return Variable{
