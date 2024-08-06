@@ -52,7 +52,7 @@ An example of using patched crates is available in our [Tendermint Example](http
 
 ## Ed25519 Acceleration
 
-To accelerate Ed25519 operations, you'll need to patch crates depending on if you're using the `ed25519-consensus` or `ed25519-dalek` in your program or dependencies.
+To accelerate Ed25519 operations, you'll need to patch crates depending on if you're using the `ed25519-consensus` or `ed25519-dalek` library in your program or dependencies.
 
 Generally, `ed25519-consensus` has better performance than `ed25519-dalek` by a factor of 2.
 

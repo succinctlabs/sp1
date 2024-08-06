@@ -60,9 +60,6 @@
 
 - [Contract Addresses](./onchain-verification/contract-addresses.md)
 
-# Performance Benchmarks
-
-- [Benchmarks](./benchmarks.md)
 
 # Developers
 

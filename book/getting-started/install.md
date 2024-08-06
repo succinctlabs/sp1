@@ -55,8 +55,7 @@ If this works, go to the [next section](./quickstart.md) to compile and prove a 
 
 If you experience [rate-limiting](https://docs.github.com/en/rest/using-the-rest-api/getting-started-with-the-rest-api?apiVersion=2022-11-28#rate-limiting) when using the `sp1up` command, you can resolve this by using the `--token` flag and providing your GitHub token. To create a Github token, follow the instructions [here](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens#creating-a-personal-access-token-classic).
 
-<!-- We should add an example command here and also give instructions on how to get a Github token here -->
-<!-- When I try to sp1up --token it doesn't work -->
+<!-- TODO: We should add an example command here -->
 
 #### Unsupported OS Architectures
 
