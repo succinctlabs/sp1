@@ -127,7 +127,11 @@ fn get_rust_compiler_flags() -> String {
 }
 
 /// Get the command to build the program locally.
-fn create_local_command(args: &BuildArgs, program_dir: &Utf8PathBuf) -> Command {
+fn create_local_command(
+    args: &BuildArgs,
+    program_dir: &Utf8PathBuf,
+    program_metadata: &cargo_metadata::Metadata,
+) -> Command {
     let mut command = Command::new("cargo");
     let canonicalized_program_dir = program_dir
         .canonicalize()
@@ -147,34 +151,28 @@ fn create_local_command(args: &BuildArgs, program_dir: &Utf8PathBuf) -> Command 
         }
     }
 
+    // When executing the local command:
+    // 1. Set the target directory to a subdirectory of the program's target directory to avoid build
+    // conflicts with the parent process. Source: https://github.com/rust-lang/cargo/issues/6412
+    // 2. Set the rustup toolchain to succinct.
+    // 3. Set the encoded rust flags.
+    // 4. Remove the rustc configuration, otherwise in a build script it will attempt to compile the
+    //    program with the toolchain of the normal build process, rather than the Succinct toolchain.
     command
         .current_dir(canonicalized_program_dir)
         .env("RUSTUP_TOOLCHAIN", "succinct")
         .env("CARGO_ENCODED_RUSTFLAGS", get_rust_compiler_flags())
+        .env_remove("RUSTC")
+        .env(
+            "CARGO_TARGET_DIR",
+            program_metadata.target_directory.join(HELPER_TARGET_SUBDIR),
+        )
         .args(&get_program_build_args(args));
     command
 }
 
 /// Execute the command and handle the output depending on the context.
-fn execute_command(
-    mut command: Command,
-    docker: bool,
-    program_metadata: &cargo_metadata::Metadata,
-) -> Result<()> {
-    // Strip the rustc configuration, otherwise in the helper it will attempt to compile the SP1
-    // program with the toolchain of the normal build process, rather than the Succinct toolchain.
-    command.env_remove("RUSTC");
-
-    // Set the target directory to a subdirectory of the program's target directory to avoid
-    // build conflicts with the parent process. If removed, programs that share the same target
-    // directory (i.e. same workspace) as the script will hang indefinitely due to a file lock
-    // when building in the helper.
-    // Source: https://github.com/rust-lang/cargo/issues/6412
-    command.env(
-        "CARGO_TARGET_DIR",
-        program_metadata.target_directory.join(HELPER_TARGET_SUBDIR),
-    );
-
+fn execute_command(mut command: Command, docker: bool) -> Result<()> {
     // Add necessary tags for stdout and stderr from the command.
     let mut child = command
         .stdout(Stdio::piped())
@@ -290,10 +288,10 @@ pub fn build_program(args: &BuildArgs, program_dir: Option<PathBuf>) -> Result<U
     let cmd = if args.docker {
         docker::create_docker_command(args, &program_dir, &program_metadata)?
     } else {
-        create_local_command(args, &program_dir)
+        create_local_command(args, &program_dir, &program_metadata)
     };
 
-    execute_command(cmd, args.docker, &program_metadata)?;
+    execute_command(cmd, args.docker)?;
 
     copy_elf_to_output_dir(args, &program_metadata)
 }

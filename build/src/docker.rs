@@ -60,10 +60,15 @@ pub fn create_docker_command(
         "docker"
     );
 
-    // Add docker-specific arguments.
+    // When executing the Docker command:
+    // 1. Set the target directory to a subdirectory of the program's target directory to avoid build
+    // conflicts with the parent process. Source: https://github.com/rust-lang/cargo/issues/6412
+    // 2. Set the rustup toolchain to succinct.
+    // 3. Set the encoded rust flags.
+    // Note: In Docker, you can't use the .env command to set environment variables, you have to use
+    // the -e flag.
     let mut docker_args = vec![
         "run".to_string(),
-        "--rm".to_string(),
         "--platform".to_string(),
         "linux/amd64".to_string(),
         "-v".to_string(),
@@ -86,6 +91,8 @@ pub fn create_docker_command(
     docker_args.extend_from_slice(&get_program_build_args(args));
 
     let mut command = Command::new("docker");
-    command.current_dir(program_dir.clone()).args(&docker_args);
+    command
+        .current_dir(canonicalized_program_dir.clone())
+        .args(&docker_args);
     Ok(command)
 }
