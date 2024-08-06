@@ -1,4 +1,4 @@
-# Prover Network: Setup
+# Prover Network Beta
 
 > **Currently, the supported version of SP1 on the prover network is `v1.1.0`.**
 
@@ -14,6 +14,8 @@ Network. Completing this form requires you to complete the [key setup](#key-setu
 ## Key Setup
 
 The prover network uses Secp256k1 keypairs for authentication, similar to Ethereum wallets. You may generate a new keypair explicitly for use with the prover network, or use an existing keypair. **You do not need to hold any funds in this account, it is used solely for access control.**
+
+After you have your whitelisted key, read the [Usage](./prover-network/usage.md) section to learn how to use it.
 
 ### Generate a new keypair with `cast`
 
@@ -36,7 +38,7 @@ cast wallet new
 
 which will give you an output similar to this:
 
-![Screenshot from running 'cast wallet new' to generate an SP1_PRIVATE_KEY.](key.png)
+![Screenshot from running 'cast wallet new' to generate an SP1_PRIVATE_KEY.](./prover-network/key.png)
 
 The "Address" what you should submit in the [form](https://forms.gle/rTUvhstS8PFfv9B3A), in the example above this is `0x552f0FC6D736ed965CE07a3D71aA639De15B627b`. The "Private key" should be kept safe and
 secure. When interacting with the network, you will set your `SP1_PRIVATE_KEY` environment variable

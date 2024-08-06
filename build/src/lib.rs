@@ -13,53 +13,59 @@ use std::{
 };
 
 const BUILD_TARGET: &str = "riscv32im-succinct-zkvm-elf";
-const DEFAULT_TAG: &str = "latest";
+const DEFAULT_TAG: &str = "v1.1.0";
 const DEFAULT_OUTPUT_DIR: &str = "elf";
 const HELPER_TARGET_SUBDIR: &str = "elf-compilation";
 
-/// [`BuildArgs`] is a struct that holds various arguments used for building a program.
+/// Compile an SP1 program.
 ///
-/// This struct can be used to configure the build process, including options for using Docker,
+/// Additional arguments are useful for configuring the build process, including options for using Docker,
 /// specifying binary and ELF names, ignoring Rust version checks, and enabling specific features.
 #[derive(Clone, Parser, Debug)]
 pub struct BuildArgs {
-    #[clap(long, action, help = "Build using Docker for reproducible builds.")]
+    #[clap(
+        long,
+        action,
+        help = "Run compilation using a Docker container for reproducible builds."
+    )]
     pub docker: bool,
     #[clap(
         long,
-        help = "The ghcr.io/succinctlabs/sp1 image tag to use when building with docker.",
+        help = "The ghcr.io/succinctlabs/sp1 image tag to use when building with Docker.",
         default_value = DEFAULT_TAG
     )]
     pub tag: String,
-    #[clap(long, action, value_delimiter = ',', help = "Build with features.")]
+    #[clap(
+        long,
+        action,
+        value_delimiter = ',',
+        help = "Space or comma separated list of features to activate"
+    )]
     pub features: Vec<String>,
-    #[clap(long, action, help = "Ignore Rust version check.")]
+    #[clap(long, action, help = "Do not activate the `default` feature")]
+    pub no_default_features: bool,
+    #[clap(long, action, help = "Ignore `rust-version` specification in packages")]
     pub ignore_rust_version: bool,
+    #[clap(long, action, help = "Assert that `Cargo.lock` will remain unchanged")]
+    pub locked: bool,
     #[clap(
         alias = "bin",
         long,
         action,
-        help = "If building a binary, specify the name.",
+        help = "Build only the specified binary",
         default_value = ""
     )]
     pub binary: String,
-    #[clap(long, action, help = "ELF binary name.", default_value = "")]
+    #[clap(long, action, help = "ELF binary name", default_value = "")]
     pub elf_name: String,
     #[clap(
+        alias = "out-dir",
         long,
         action,
-        help = "The output directory for the built program.",
+        help = "Copy the compiled ELF to this directory",
         default_value = DEFAULT_OUTPUT_DIR
     )]
     pub output_directory: String,
-    #[clap(
-        long,
-        action,
-        help = "Lock the dependencies, ensures that Cargo.lock doesn't update."
-    )]
-    pub locked: bool,
-    #[clap(long, action, help = "Build without default features.")]
-    pub no_default_features: bool,
 }
 
 // Implement default args to match clap defaults.
@@ -127,7 +133,11 @@ fn get_rust_compiler_flags() -> String {
 }
 
 /// Get the command to build the program locally.
-fn create_local_command(args: &BuildArgs, program_dir: &Utf8PathBuf) -> Command {
+fn create_local_command(
+    args: &BuildArgs,
+    program_dir: &Utf8PathBuf,
+    program_metadata: &cargo_metadata::Metadata,
+) -> Command {
     let mut command = Command::new("cargo");
     let canonicalized_program_dir = program_dir
         .canonicalize()
@@ -147,34 +157,28 @@ fn create_local_command(args: &BuildArgs, program_dir: &Utf8PathBuf) -> Command 
         }
     }
 
+    // When executing the local command:
+    // 1. Set the target directory to a subdirectory of the program's target directory to avoid build
+    // conflicts with the parent process. Source: https://github.com/rust-lang/cargo/issues/6412
+    // 2. Set the rustup toolchain to succinct.
+    // 3. Set the encoded rust flags.
+    // 4. Remove the rustc configuration, otherwise in a build script it will attempt to compile the
+    //    program with the toolchain of the normal build process, rather than the Succinct toolchain.
     command
         .current_dir(canonicalized_program_dir)
         .env("RUSTUP_TOOLCHAIN", "succinct")
         .env("CARGO_ENCODED_RUSTFLAGS", get_rust_compiler_flags())
+        .env_remove("RUSTC")
+        .env(
+            "CARGO_TARGET_DIR",
+            program_metadata.target_directory.join(HELPER_TARGET_SUBDIR),
+        )
         .args(&get_program_build_args(args));
     command
 }
 
 /// Execute the command and handle the output depending on the context.
-fn execute_command(
-    mut command: Command,
-    docker: bool,
-    program_metadata: &cargo_metadata::Metadata,
-) -> Result<()> {
-    // Strip the rustc configuration, otherwise in the helper it will attempt to compile the SP1
-    // program with the toolchain of the normal build process, rather than the Succinct toolchain.
-    command.env_remove("RUSTC");
-
-    // Set the target directory to a subdirectory of the program's target directory to avoid
-    // build conflicts with the parent process. If removed, programs that share the same target
-    // directory (i.e. same workspace) as the script will hang indefinitely due to a file lock
-    // when building in the helper.
-    // Source: https://github.com/rust-lang/cargo/issues/6412
-    command.env(
-        "CARGO_TARGET_DIR",
-        program_metadata.target_directory.join(HELPER_TARGET_SUBDIR),
-    );
-
+fn execute_command(mut command: Command, docker: bool) -> Result<()> {
     // Add necessary tags for stdout and stderr from the command.
     let mut child = command
         .stdout(Stdio::piped())
@@ -218,10 +222,17 @@ fn copy_elf_to_output_dir(
     let root_package = program_metadata.root_package();
     let root_package_name = root_package.as_ref().map(|p| &p.name);
 
-    // The ELF is written to a target folder specified by the program's package.
+    // The ELF is written to a target folder specified by the program's package. If built with Docker,
+    // includes /docker after HELPER_TARGET_SUBDIR.
+    let target_dir_suffix = if args.docker {
+        format!("{}/{}", HELPER_TARGET_SUBDIR, "docker")
+    } else {
+        HELPER_TARGET_SUBDIR.to_string()
+    };
+
     let original_elf_path = program_metadata
         .target_directory
-        .join(HELPER_TARGET_SUBDIR)
+        .join(target_dir_suffix)
         .join(BUILD_TARGET)
         .join("release")
         .join(root_package_name.unwrap());
@@ -272,17 +283,7 @@ pub fn build_program(args: &BuildArgs, program_dir: Option<PathBuf>) -> Result<U
         .try_into()
         .expect("Failed to convert PathBuf to Utf8PathBuf");
 
-    // The root package name corresponds to the package name of the current directory.
-    let metadata_cmd = cargo_metadata::MetadataCommand::new();
-    let metadata = metadata_cmd.exec().unwrap();
-
-    // Get the command corresponding to Docker or local build.
-    let cmd = if args.docker {
-        docker::create_docker_command(args, &program_dir, &metadata.workspace_root)?
-    } else {
-        create_local_command(args, &program_dir)
-    };
-
+    // Get the program metadata.
     let program_metadata_file = program_dir.join("Cargo.toml");
     let mut program_metadata_cmd = cargo_metadata::MetadataCommand::new();
     let program_metadata = program_metadata_cmd
@@ -290,7 +291,14 @@ pub fn build_program(args: &BuildArgs, program_dir: Option<PathBuf>) -> Result<U
         .exec()
         .unwrap();
 
-    execute_command(cmd, args.docker, &program_metadata)?;
+    // Get the command corresponding to Docker or local build.
+    let cmd = if args.docker {
+        docker::create_docker_command(args, &program_dir, &program_metadata)?
+    } else {
+        create_local_command(args, &program_dir, &program_metadata)
+    };
+
+    execute_command(cmd, args.docker)?;
 
     copy_elf_to_output_dir(args, &program_metadata)
 }

@@ -19,8 +19,8 @@ SP1_PROVER=network SP1_PRIVATE_KEY=... RUST_LOG=info cargo run --release
 
 - `SP1_PROVER` should be set to `network` when using the prover network.
 
-- `SP1_PRIVATE_KEY` should be set to your [private key](./setup.md#key-setup). You will need
-  to be using a [permissioned](./setup.md#get-access) key to use the network.
+- `SP1_PRIVATE_KEY` should be set to your [private key](../prover-network.md#key-setup). You will need
+  to be using a [whitelisted](../prover-network.md#get-access) key to use the network.
 
 When you call any of the prove functions in ProverClient now, it will first simulate your program, then wait for it to be proven through the network and finally return the proof.
 
@@ -28,7 +28,7 @@ When you call any of the prove functions in ProverClient now, it will first simu
 
 You can view your proof and other running proofs on the [explorer](https://explorer.succinct.xyz/). The page for your proof will show details such as the stage of your proof and the cycles used. It also shows the program hash which is the keccak256 of the program bytes.
 
-![Screenshot from explorer.succinct.xyz showing the details of a proof including status, stage, type, program, requester, prover, CPU cycles used, time requested, and time claimed.](explorer.png)
+![Screenshot from explorer.succinct.xyz showing the details of a proof including status, stage, type, program, requester, prover, CPU cycles used, time requested, and time claimed.](./explorer.png)
 
 ## Advanced Usage
 

@@ -52,7 +52,7 @@ An example of using patched crates is available in our [Tendermint Example](http
 
 ## Ed25519 Acceleration
 
-To accelerate Ed25519 operations, you'll need to patch crates depending on if you're using `ed25519-consensus` or `ed25519-dalek`.
+To accelerate Ed25519 operations, you'll need to patch crates depending on if you're using the `ed25519-consensus` or `ed25519-dalek` library in your program or dependencies.
 
 Generally, `ed25519-consensus` has better performance than `ed25519-dalek` by a factor of 2.
 
@@ -99,7 +99,7 @@ Apply the following patches based on what crates are in your dependencies.
   ecdsa-core = { git = "https://github.com/sp1-patches/signatures", package = "ecdsa", branch = "patch-ecdsa-v0.16.9" }
   ```
 
-  Note: The curve operations for `k256` are inside of the `ecdsa-core` crate.
+  Note: The curve operations for `k256` are inside of the `ecdsa-core` crate, so you don't need to patch `k256` itself, and just patching `ecdsa-core` is enough.
 
 - `secp256k1`
   ```toml

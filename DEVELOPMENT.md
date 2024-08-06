@@ -11,12 +11,18 @@ cd core
 cargo test
 ```
 
+### Tips
+
+We recommend you install the [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer) extension.
+
+Note that if you use `cargo prove new` inside a monorepo, you will need to add the path to the Cargo.toml file to `rust-analyzer.linkedProjects` to get full IDE support.
+
 **Debug Constraint Failure**
 
-To debug constraint failures, you can use the `--features debug` feature alongside `--no-default-features` to eliminate the "perf" feature. For example:
+To debug constraint failures, you can use the `--features debug` feature. For example:
 
 ```
-RUST_LOG=info RUST_BACKTRACE=1 cargo test syscall::precompiles::edwards::ed_add::tests::test_ed_add_simple --release --features debug --no-default-features -- --nocapture
+RUST_LOG=info RUST_BACKTRACE=1 cargo test syscall::precompiles::edwards::ed_add::tests::test_ed_add_simple --release --features debug -- --nocapture
 ```
 
 ## Contributing to Docs
