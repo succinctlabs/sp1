@@ -77,7 +77,7 @@ pub fn prove_begin_impl(
     ))
 }
 
-pub fn operator_phase1(
+pub fn operator_phase1_impl(
     args: ProveArgs,
     commitments_vec: Vec<Vec<CommitmentType>>,
     records_vec: Vec<Vec<RecordType>>,
