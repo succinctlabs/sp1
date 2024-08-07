@@ -90,17 +90,16 @@ enum CycleTrackerCommand {
 
 /// Parse a cycle tracker command from a string. If the string does not match any known command, returns None.
 fn parse_cycle_tracker_command(s: &str) -> Option<CycleTrackerCommand> {
-    if let Some((command, fn_name)) = s.split_once(':') {
-        let trimmed_name = fn_name.trim().to_string();
-        match command {
-            "cycle-tracker-start" => Some(CycleTrackerCommand::Start(trimmed_name)),
-            "cycle-tracker-end" => Some(CycleTrackerCommand::End(trimmed_name)),
-            "cycle-tracker-report-start" => Some(CycleTrackerCommand::ReportStart(trimmed_name)),
-            "cycle-tracker-report-end" => Some(CycleTrackerCommand::ReportEnd(trimmed_name)),
-            _ => None,
-        };
+    let (command, fn_name) = s.split_once(':')?;
+    let trimmed_name = fn_name.trim().to_string();
+
+    match command {
+        "cycle-tracker-start" => Some(CycleTrackerCommand::Start(trimmed_name)),
+        "cycle-tracker-end" => Some(CycleTrackerCommand::End(trimmed_name)),
+        "cycle-tracker-report-start" => Some(CycleTrackerCommand::ReportStart(trimmed_name)),
+        "cycle-tracker-report-end" => Some(CycleTrackerCommand::ReportEnd(trimmed_name)),
+        _ => None,
     }
-    None
 }
 
 /// Handle a cycle tracker command.
