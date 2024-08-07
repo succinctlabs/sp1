@@ -12,11 +12,11 @@ pub mod worker;
 
 use alloy_sol_types::{sol, SolType};
 use clap::Parser;
-use operator::{operator_phase1, prove_begin};
+use operator::{operator_phase1, operator_phase2, prove_begin};
 use serde::{Deserialize, Serialize};
 use sp1_sdk::{HashableKey, SP1ProofWithPublicValues, SP1VerifyingKey};
 use std::path::PathBuf;
-use worker::worker_phase1;
+use worker::{worker_phase1, worker_phase2, RecordType};
 
 /// The arguments for the prove command.
 #[derive(Parser, Debug, Clone)]
@@ -60,14 +60,22 @@ fn main() {
         tracing::info!("{:?}-th phase1 worker done", idx);
     }
 
-    let proof = operator_phase1(
-        args.clone(),
-        indexed_commitments,
-        public_values_stream,
-        cycles,
-    )
-    .unwrap();
-    println!("Successfully generated proof!");
+    let challenger = operator_phase1(args.clone(), indexed_commitments.clone()).unwrap();
+
+    let records_vec: Vec<Vec<RecordType>> = indexed_commitments
+        .into_iter()
+        .map(|(_, pairs)| pairs.into_iter().map(|(_, record)| record).collect())
+        .collect();
+
+    let mut shard_proofs_vec = Vec::new();
+    for (idx, records) in records_vec.into_iter().enumerate() {
+        let shard_proof = worker_phase2(args.clone(), challenger.clone(), records).unwrap();
+        shard_proofs_vec.push(shard_proof);
+        tracing::info!("{:?}-th phase2 worker done", idx);
+    }
+
+    let proof =
+        operator_phase2(args.clone(), shard_proofs_vec, public_values_stream, cycles).unwrap();
 
     if !args.evm {
         let (_, _, fib_n) =

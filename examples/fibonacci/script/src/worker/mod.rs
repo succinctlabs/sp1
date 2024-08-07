@@ -1,15 +1,18 @@
-use std::fs::File;
-
 use crate::common;
+use crate::common::build_runtime;
+use crate::operator::ChallengerType;
 use crate::ProveArgs;
 use anyhow::Result;
 use p3_baby_bear::BabyBear;
 use p3_symmetric::Hash;
-use sp1_core::air::PublicValues;
-use sp1_core::runtime::ExecutionRecord;
-use sp1_core::stark::{MachineProver, MachineRecord};
-use sp1_core::utils::{reset_seek, trace_checkpoint};
+use sp1_core::{
+    air::PublicValues,
+    runtime::ExecutionRecord,
+    stark::{MachineProver, MachineRecord, ShardProof},
+    utils::{reset_seek, trace_checkpoint, BabyBearPoseidon2},
+};
 use sp1_sdk::ExecutionReport;
+use std::fs::File;
 
 pub type CommitmentType = Hash<BabyBear, BabyBear, 8>;
 pub type RecordType = ExecutionRecord;
@@ -101,4 +104,34 @@ pub fn worker_phase1(
         .collect::<Vec<_>>();
 
     Ok((idx, commitments))
+}
+
+pub fn worker_phase2(
+    args: ProveArgs,
+    challenger: ChallengerType,
+    records: Vec<RecordType>,
+) -> Result<Vec<ShardProof<BabyBearPoseidon2>>> {
+    let (client, stdin, pk, _) = common::init_client(args.clone());
+    let (program, core_opts, context) = common::bootstrap(&client, &pk).unwrap();
+    // Execute the program.
+    let runtime = build_runtime(program, &stdin, core_opts, context);
+
+    let (stark_pk, _) = client
+        .prover
+        .sp1_prover()
+        .core_prover
+        .setup(runtime.program.as_ref());
+
+    let mut shard_proofs = Vec::new();
+    for record in records {
+        let shard_proof = client
+            .prover
+            .sp1_prover()
+            .core_prover
+            .commit_and_open(&stark_pk, record, &mut challenger.clone())
+            .unwrap();
+        shard_proofs.push(shard_proof);
+    }
+
+    Ok(shard_proofs)
 }

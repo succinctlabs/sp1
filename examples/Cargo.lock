@@ -1737,6 +1737,8 @@ dependencies = [
  "hex",
  "itertools 0.12.1",
  "p3-baby-bear",
+ "p3-challenger",
+ "p3-poseidon2",
  "p3-symmetric",
  "serde",
  "serde_json",
