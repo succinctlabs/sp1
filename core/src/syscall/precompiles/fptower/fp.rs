@@ -303,6 +303,13 @@ where
 
         // builder.assert_eq(local.is_real, local.is_add + local.is_sub + local.is_mul);
 
+        // Check that operations flags are boolean.
+        builder.assert_bool(local.is_add);
+        builder.assert_bool(local.is_sub);
+        builder.assert_bool(local.is_mul);
+        // Check that only one of them is set.
+        builder.assert_eq(local.is_add + local.is_sub + local.is_mul, AB::Expr::one());
+
         let p = limbs_from_prev_access(&local.x_access);
         let q = limbs_from_prev_access(&local.y_access);
 
