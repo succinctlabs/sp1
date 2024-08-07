@@ -120,24 +120,11 @@ func (c *Chip) SubF(a, b Variable) Variable {
 	return retVal
 }
 
-func (c *Chip) MulF(a, b Variable) (Variable, Variable, Variable) {
-	curNumReduce := c.ReduceMaxBitsCounter
-	varC := a
-	varD := b
-
-	for varC.NbBits+varD.NbBits > 252 {
-		if varC.NbBits > varD.NbBits {
-			varC = Variable{Value: c.reduceWithMaxBits(varC.Value, uint64(varC.NbBits)), NbBits: 31}
-		} else {
-			varD = Variable{Value: c.reduceWithMaxBits(varD.Value, uint64(varD.NbBits)), NbBits: 31}
-		}
-	}
-	c.MulFCounter += c.ReduceMaxBitsCounter - curNumReduce
-
-	return Variable{
-		Value:  c.api.Mul(varC.Value, varD.Value),
-		NbBits: varC.NbBits + varD.NbBits,
-	}, varC, varD
+func (c *Chip) MulF(a, b Variable) Variable {
+	return c.reduceFast(Variable{
+		Value:  c.api.Mul(a.Value, b.Value),
+		NbBits: a.NbBits + b.NbBits,
+	})
 }
 
 func (c *Chip) MulFConst(a Variable, b int) Variable {
@@ -157,7 +144,7 @@ func (c *Chip) negF(a Variable) Variable {
 		retVal = Variable{Value: c.api.Sub(modulus, a.Value), NbBits: 31}
 	} else {
 		negOne := NewF("2013265920")
-		retVal, _, _ = c.MulF(a, negOne)
+		retVal = c.MulF(a, negOne)
 	}
 
 	c.ReduceMaxBitsMap["negF"] += c.ReduceMaxBitsCounter - curNumReduce
@@ -176,7 +163,7 @@ func (c *Chip) invF(in Variable) Variable {
 		Value:  result[0],
 		NbBits: 31,
 	}
-	product, _, _ := c.MulF(in, xinv)
+	product := c.MulF(in, xinv)
 	c.AssertIsEqualF(product, NewF("1"))
 	c.ReduceMaxBitsMap["invF"] += c.ReduceMaxBitsCounter - curNumReduce
 
@@ -275,18 +262,14 @@ func (c *Chip) MulE(a, b ExtensionVariable) ExtensionVariable {
 		Zero(),
 	}
 
-	newA := a
-	newB := b
 	for i := 0; i < 4; i++ {
 		for j := 0; j < 4; j++ {
-			newVal, newAEntry, newBEntry := c.MulF(newA.Value[i], newB.Value[j])
+			newVal := c.MulF(a.Value[i], b.Value[j])
 			if i+j >= 4 {
 				v2[i+j-4] = c.AddF(v2[i+j-4], c.MulFConst(newVal, 11))
 			} else {
 				v2[i+j] = c.AddF(v2[i+j], newVal)
 			}
-			newA.Value[i] = newAEntry
-			newB.Value[j] = newBEntry
 		}
 	}
 
@@ -297,10 +280,10 @@ func (c *Chip) MulE(a, b ExtensionVariable) ExtensionVariable {
 func (c *Chip) MulEF(a ExtensionVariable, b Variable) ExtensionVariable {
 	c.MulEFCounter++
 	curNumReduce := c.ReduceMaxBitsCounter
-	v1, _, newB := c.MulF(a.Value[0], b)
-	v2, _, newB := c.MulF(a.Value[1], newB)
-	v3, _, newB := c.MulF(a.Value[2], newB)
-	v4, _, _ := c.MulF(a.Value[3], newB)
+	v1 := c.MulF(a.Value[0], b)
+	v2 := c.MulF(a.Value[1], b)
+	v3 := c.MulF(a.Value[2], b)
+	v4 := c.MulF(a.Value[3], b)
 	c.ReduceMaxBitsMap["MulEF"] += c.ReduceMaxBitsCounter - curNumReduce
 	return ExtensionVariable{Value: [4]Variable{v1, v2, v3, v4}}
 }
@@ -336,7 +319,7 @@ func (c *Chip) Ext2Felt(in ExtensionVariable) [4]Variable {
 
 func (c *Chip) DivF(a, b Variable) Variable {
 	bInv := c.invF(b)
-	x, _, _ := c.MulF(a, bInv)
+	x := c.MulF(a, bInv)
 	return x
 }
 
@@ -366,7 +349,7 @@ func (c *Chip) ToBinary(in Variable) []frontend.Variable {
 }
 
 func (p *Chip) reduceFast(x Variable) Variable {
-	if x.NbBits >= uint(252) {
+	if x.NbBits >= uint(126) {
 		return Variable{
 			Value:  p.reduceWithMaxBits(x.Value, uint64(x.NbBits)),
 			NbBits: 31,
@@ -376,7 +359,7 @@ func (p *Chip) reduceFast(x Variable) Variable {
 }
 
 func (p *Chip) ReduceSlow(x Variable) Variable {
-	if x.NbBits == 31 {
+	if x.NbBits <= 31 {
 		return x
 	}
 	return Variable{

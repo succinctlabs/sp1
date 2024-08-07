@@ -135,7 +135,7 @@ func (p *Poseidon2BabyBearChip) diffusionPermuteMut(state *[BABYBEAR_WIDTH]babyb
 	montyInverse := babybear.NewF("943718400")
 	p.matmulInternal(state, &matInternalDiagM1)
 	for i := 0; i < BABYBEAR_WIDTH; i++ {
-		state[i], _, _ = p.FieldApi.MulF(state[i], montyInverse)
+		state[i] = p.FieldApi.MulF(state[i], montyInverse)
 	}
 
 }
@@ -150,7 +150,7 @@ func (p *Poseidon2BabyBearChip) matmulInternal(
 	}
 
 	for i := 0; i < BABYBEAR_WIDTH; i++ {
-		state[i], _, _ = p.FieldApi.MulF(state[i], matInternalDiagM1[i])
+		state[i] = p.FieldApi.MulF(state[i], matInternalDiagM1[i])
 		state[i] = p.FieldApi.AddF(state[i], sum)
 	}
 }

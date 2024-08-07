@@ -1026,7 +1026,6 @@ impl<F: Field, EF: ExtensionField<F>> Ext<F, EF> {
 
                     builder.push(DslIr::MulEF(*self, lhs_value, rhs_val));
                 }
-
                 (lhs, SymbolicExt::Val(rhs, _)) => {
                     let lhs_value = Self::uninit(builder);
                     lhs_value.assign_with_caches(lhs.clone(), builder, ext_cache, base_cache);
