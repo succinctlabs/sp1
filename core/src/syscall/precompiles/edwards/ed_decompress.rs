@@ -37,7 +37,6 @@ use crate::runtime::Program;
 use crate::runtime::Syscall;
 use crate::runtime::SyscallCode;
 use crate::syscall::precompiles::SyscallContext;
-use crate::utils::bytes_to_words_le;
 use crate::utils::ec::edwards::ed25519::decompress;
 use crate::utils::ec::edwards::ed25519::ed25519_sqrt;
 use crate::utils::ec::edwards::ed25519::Ed25519BaseField;
@@ -46,8 +45,8 @@ use crate::utils::ec::COMPRESSED_POINT_BYTES;
 use crate::utils::ec::NUM_BYTES_FIELD_ELEMENT;
 use crate::utils::limbs_from_access;
 use crate::utils::limbs_from_prev_access;
-use crate::utils::pad_rows;
 use crate::utils::words_to_bytes_le;
+use crate::utils::{bytes_to_words_le, pad_rows_fixed};
 
 use super::{WordsFieldElement, WORDS_FIELD_ELEMENT};
 
@@ -403,13 +402,17 @@ impl<F: PrimeField32, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E
             rows.push(row);
         }
 
-        pad_rows(&mut rows, || {
-            let mut row = [F::zero(); NUM_ED_DECOMPRESS_COLS];
-            let cols: &mut EdDecompressCols<F> = row.as_mut_slice().borrow_mut();
-            let zero = BigUint::zero();
-            cols.populate_field_ops::<E>(&mut vec![], 0, 0, &zero);
-            row
-        });
+        pad_rows_fixed(
+            &mut rows,
+            || {
+                let mut row = [F::zero(); NUM_ED_DECOMPRESS_COLS];
+                let cols: &mut EdDecompressCols<F> = row.as_mut_slice().borrow_mut();
+                let zero = BigUint::zero();
+                cols.populate_field_ops::<E>(&mut vec![], 0, 0, &zero);
+                row
+            },
+            fixed_log2_rows,
+        );
 
         let mut trace = RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),

@@ -131,10 +131,15 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
         }
 
         let nb_rows = rows.len();
-        let mut padded_nb_rows = nb_rows.next_power_of_two();
-        if padded_nb_rows == 2 || padded_nb_rows == 1 {
-            padded_nb_rows = 4;
-        }
+        let padded_nb_rows = if let Some(fixed_log2_rows) = fixed_log2_rows {
+            1 << fixed_log2_rows
+        } else {
+            let mut padded_nb_rows = nb_rows.next_power_of_two();
+            if padded_nb_rows == 2 || padded_nb_rows == 1 {
+                padded_nb_rows = 4;
+            }
+            padded_nb_rows
+        };
         if padded_nb_rows > nb_rows {
             let dummy_keccak_rows = generate_trace_rows::<F>(vec![[0; STATE_SIZE]]);
             let mut dummy_rows = Vec::new();

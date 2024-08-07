@@ -12,8 +12,8 @@ use crate::stark::MachineRecord;
 use crate::syscall::precompiles::SyscallContext;
 use crate::utils::ec::uint256::U256Field;
 use crate::utils::{
-    bytes_to_words_le, limbs_from_access, limbs_from_prev_access, pad_rows, words_to_bytes_le,
-    words_to_bytes_le_vec,
+    bytes_to_words_le, limbs_from_access, limbs_from_prev_access, pad_rows_fixed,
+    words_to_bytes_le, words_to_bytes_le_vec,
 };
 use generic_array::GenericArray;
 use num::{BigUint, One, Zero};
@@ -210,17 +210,21 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
             output.append(&mut record);
         }
 
-        pad_rows(&mut rows, || {
-            let mut row: [F; NUM_COLS] = [F::zero(); NUM_COLS];
-            let cols: &mut Uint256MulCols<F> = row.as_mut_slice().borrow_mut();
+        pad_rows_fixed(
+            &mut rows,
+            || {
+                let mut row: [F; NUM_COLS] = [F::zero(); NUM_COLS];
+                let cols: &mut Uint256MulCols<F> = row.as_mut_slice().borrow_mut();
 
-            let x = BigUint::zero();
-            let y = BigUint::zero();
-            cols.output
-                .populate(&mut vec![], 0, 0, &x, &y, FieldOperation::Mul);
+                let x = BigUint::zero();
+                let y = BigUint::zero();
+                cols.output
+                    .populate(&mut vec![], 0, 0, &x, &y, FieldOperation::Mul);
 
-            row
-        });
+                row
+            },
+            fixed_log2_rows,
+        );
 
         // Convert the trace to a row major matrix.
         let mut trace =

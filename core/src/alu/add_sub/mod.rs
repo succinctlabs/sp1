@@ -17,7 +17,7 @@ use crate::bytes::event::ByteRecord;
 use crate::bytes::ByteLookupEvent;
 use crate::operations::AddOperation;
 use crate::runtime::{ExecutionRecord, Opcode, Program};
-use crate::utils::pad_to_power_of_two;
+use crate::utils::pad_to_power_of_two_fixed;
 
 use super::AluEvent;
 
@@ -118,7 +118,7 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
         );
 
         // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_ADD_SUB_COLS, F>(&mut trace.values);
+        pad_to_power_of_two_fixed::<NUM_ADD_SUB_COLS, F>(&mut trace.values, fixed_log2_rows);
 
         // Write the nonces to the trace.
         for i in 0..trace.height() {

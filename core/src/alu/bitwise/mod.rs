@@ -16,7 +16,7 @@ use crate::air::{SP1AirBuilder, Word};
 use crate::bytes::event::ByteRecord;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::runtime::{ExecutionRecord, Opcode, Program};
-use crate::utils::pad_to_power_of_two;
+use crate::utils::pad_to_power_of_two_fixed;
 
 use super::AluEvent;
 
@@ -93,7 +93,7 @@ impl<F: PrimeField> MachineAir<F> for BitwiseChip {
         );
 
         // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_BITWISE_COLS, F>(&mut trace.values);
+        pad_to_power_of_two_fixed::<NUM_BITWISE_COLS, F>(&mut trace.values, fixed_log2_rows);
 
         for i in 0..trace.height() {
             let cols: &mut BitwiseCols<F> =

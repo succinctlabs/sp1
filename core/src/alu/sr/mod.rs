@@ -63,7 +63,7 @@ use crate::bytes::utils::shr_carry;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::disassembler::WORD_SIZE;
 use crate::runtime::{ExecutionRecord, Opcode, Program};
-use crate::utils::pad_to_power_of_two;
+use crate::utils::pad_to_power_of_two_fixed;
 
 use super::AluEvent;
 
@@ -170,7 +170,7 @@ impl<F: PrimeField> MachineAir<F> for ShiftRightChip {
         );
 
         // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_SHIFT_RIGHT_COLS, F>(&mut trace.values);
+        pad_to_power_of_two_fixed::<NUM_SHIFT_RIGHT_COLS, F>(&mut trace.values, fixed_log2_rows);
 
         // Create the template for the padded rows. These are fake rows that don't fail on some
         // sanity checks.

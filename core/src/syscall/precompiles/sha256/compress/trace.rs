@@ -15,7 +15,7 @@ use crate::{
     air::{MachineAir, Word},
     bytes::{event::ByteRecord, ByteLookupEvent},
     runtime::{ExecutionRecord, Program},
-    utils::pad_rows,
+    utils::pad_rows_fixed,
 };
 
 impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
@@ -44,7 +44,11 @@ impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
 
         let num_real_rows = rows.len();
 
-        pad_rows(&mut rows, || [F::zero(); NUM_SHA_COMPRESS_COLS]);
+        pad_rows_fixed(
+            &mut rows,
+            || [F::zero(); NUM_SHA_COMPRESS_COLS],
+            fixed_log2_rows,
+        );
 
         // Set the octet_num and octect columns for the padded rows.
         let mut octet_num = 0;

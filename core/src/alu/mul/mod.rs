@@ -50,7 +50,7 @@ use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::disassembler::WORD_SIZE;
 use crate::runtime::{ExecutionRecord, Opcode, Program};
 use crate::stark::MachineRecord;
-use crate::utils::pad_to_power_of_two;
+use crate::utils::pad_to_power_of_two_fixed;
 
 /// The number of main trace columns for `MulChip`.
 pub const NUM_MUL_COLS: usize = size_of::<MulCols<u8>>();
@@ -276,7 +276,7 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
             RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_MUL_COLS);
 
         // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_MUL_COLS, F>(&mut trace.values);
+        pad_to_power_of_two_fixed::<NUM_MUL_COLS, F>(&mut trace.values, fixed_log2_rows);
 
         // Write the nonces to the trace.
         for i in 0..trace.height() {

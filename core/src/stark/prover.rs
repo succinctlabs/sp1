@@ -92,6 +92,16 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
         for (shape_index, shape) in shapes.iter().enumerate() {
             let mut fits = true;
             let mut shape_total_rows = 0;
+            // Check that all chips in the record are in the shape.
+            for (chip_name, _) in min_rows_map.iter() {
+                if !shape.contains_key(chip_name) {
+                    fits = false;
+                    break;
+                }
+            }
+            if !fits {
+                continue;
+            }
             // Check that the shape has enough rows for each chip and calculate the total rows.
             for (chip_name, fixed_log2_rows) in shape {
                 let fixed_rows = 1 << fixed_log2_rows;
@@ -100,13 +110,6 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
                     continue;
                 }
                 if min_rows_map[chip_name] > fixed_rows {
-                    fits = false;
-                    break;
-                }
-            }
-            // Check that all chips in the record are in the shape.
-            for (chip_name, _) in min_rows_map.iter() {
-                if !shape.contains_key(chip_name) {
                     fits = false;
                     break;
                 }

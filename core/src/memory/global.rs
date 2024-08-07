@@ -14,7 +14,7 @@ use crate::air::{AirInteraction, BaseAirBuilder, PublicValues, SP1AirBuilder, Wo
 use crate::air::{MachineAir, SP1_PROOF_NUM_PV_ELTS};
 use crate::operations::{AssertLtColsBits, BabyBearBitDecomposition, IsZeroOperation};
 use crate::runtime::{ExecutionRecord, Program};
-use crate::utils::pad_to_power_of_two;
+use crate::utils::pad_to_power_of_two_fixed;
 
 /// The type of memory chip that is being initialized.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -132,7 +132,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip {
             NUM_MEMORY_INIT_COLS,
         );
 
-        pad_to_power_of_two::<NUM_MEMORY_INIT_COLS, F>(&mut trace.values);
+        pad_to_power_of_two_fixed::<NUM_MEMORY_INIT_COLS, F>(&mut trace.values, fixed_log2_rows);
 
         trace
     }
