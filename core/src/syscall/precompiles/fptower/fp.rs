@@ -254,6 +254,9 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for FpOpChip<P> {
             let mut row = vec![F::zero(); num_fp_cols::<P>()];
             let cols: &mut FpOpCols<F, P> = row.as_mut_slice().borrow_mut();
             let zero = BigUint::zero();
+            cols.is_add = F::from_canonical_u8((self.op == FieldOperation::Add) as u8);
+            cols.is_sub = F::from_canonical_u8((self.op == FieldOperation::Sub) as u8);
+            cols.is_mul = F::from_canonical_u8((self.op == FieldOperation::Mul) as u8);
             Self::populate_field_ops(&mut vec![], 0, 0, cols, zero.clone(), zero, self.op);
             row
         });
@@ -298,7 +301,7 @@ where
         let local = main.row_slice(0);
         let local: &FpOpCols<AB::Var, P> = (*local).borrow();
 
-        builder.assert_eq(local.is_real, local.is_add + local.is_sub + local.is_mul);
+        // builder.assert_eq(local.is_real, local.is_add + local.is_sub + local.is_mul);
 
         let p = limbs_from_prev_access(&local.x_access);
         let q = limbs_from_prev_access(&local.y_access);
@@ -309,12 +312,15 @@ where
             .collect_vec();
         let p_modulus = Polynomial::from_coefficients(&modulus_coeffs);
 
-        local.output.eval_with_modulus(
+        local.output.eval_variable(
             builder,
             &p,
             &q,
             &p_modulus,
-            self.op,
+            local.is_add,
+            local.is_sub,
+            local.is_mul,
+            AB::F::zero(),
             local.shard,
             local.channel,
             local.is_real,
