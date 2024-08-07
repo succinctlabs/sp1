@@ -33,7 +33,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
     type Program = RecursionProgram<F>;
 
     fn name(&self) -> String {
-        format!("Poseidon2Wide {}", DEGREE)
+        format!("Poseidon2WideDeg{}", DEGREE)
     }
 
     #[instrument(name = "generate poseidon2 wide trace", level = "debug", skip_all, fields(rows = input.poseidon2_wide_events.len()))]

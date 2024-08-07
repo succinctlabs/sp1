@@ -1,3 +1,5 @@
+use sp1_recursion_core::air::RecursionPublicValues;
+
 use super::{
     Array, CircuitV2FriFoldInput, CircuitV2FriFoldOutput, FriFoldInput, MemIndex, Ptr, TracedVec,
 };
@@ -216,6 +218,8 @@ pub enum DslIr<C: Config> {
     CircuitV2Poseidon2PermuteBabyBearSkinny([Felt<C::F>; 16], [Felt<C::F>; 16]),
     /// Permutates an array of BabyBear elements in the circuit using the wide precompile.
     CircuitV2Poseidon2PermuteBabyBearWide([Felt<C::F>; 16], [Felt<C::F>; 16]),
+    /// Commits the public values.
+    CircuitV2CommitPublicValues(Box<RecursionPublicValues<Felt<C::F>>>),
 
     // Miscellaneous instructions.
     /// Decompose hint operation of a usize into an array. (output = num2bits(usize)).
@@ -245,6 +249,10 @@ pub enum DslIr<C: Config> {
     HintFelts(Array<C, Felt<C::F>>),
     /// Hint an array of extension field elements.
     HintExts(Array<C, Ext<C::F, C::EF>>),
+    /// Hint an array of field elements.
+    CircuitV2HintFelts(Vec<Felt<C::F>>),
+    /// Hint an array of extension field elements.
+    CircuitV2HintExts(Vec<Ext<C::F, C::EF>>),
     /// Witness a variable. Should only be used when target is a gnark circuit.
     WitnessVar(Var<C::N>, u32),
     /// Witness a field element. Should only be used when target is a gnark circuit.

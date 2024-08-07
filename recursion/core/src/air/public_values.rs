@@ -12,7 +12,10 @@ use sp1_core::{
 };
 use sp1_derive::AlignedBorrow;
 use static_assertions::const_assert_eq;
-use std::mem::{size_of, transmute};
+use std::{
+    borrow::BorrowMut,
+    mem::{size_of, transmute},
+};
 
 pub const PV_DIGEST_NUM_WORDS: usize = 8;
 
@@ -134,4 +137,15 @@ pub struct RecursionPublicValues<T> {
     /// The exit code of the program.  Note that this is not part of the public values digest, since
     /// it's value will be individually constrained.
     pub exit_code: T,
+}
+
+/// Converts the public values to an array of elements.
+impl<F: Default + Copy> RecursionPublicValues<F> {
+    pub fn to_vec(&self) -> [F; RECURSIVE_PROOF_NUM_PV_ELTS] {
+        let mut ret = [F::default(); RECURSIVE_PROOF_NUM_PV_ELTS];
+        let pv: &mut RecursionPublicValues<F> = ret.as_mut_slice().borrow_mut();
+
+        *pv = *self;
+        ret
+    }
 }

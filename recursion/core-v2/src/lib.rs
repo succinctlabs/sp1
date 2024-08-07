@@ -2,7 +2,7 @@ use std::iter::once;
 
 use serde::{Deserialize, Serialize};
 use sp1_derive::AlignedBorrow;
-use sp1_recursion_core::air::Block;
+use sp1_recursion_core::air::{Block, RecursionPublicValues};
 
 pub mod builder;
 pub mod chips;
@@ -13,7 +13,9 @@ pub use runtime::*;
 
 use crate::chips::poseidon2_skinny::WIDTH;
 
-#[derive(AlignedBorrow, Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(
+    AlignedBorrow, Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, Default,
+)]
 #[repr(C)]
 pub struct Address<F>(pub F);
 
@@ -177,4 +179,17 @@ pub struct FriFoldEvent<F> {
     pub base_single: FriFoldBaseIo<F>,
     pub ext_single: FriFoldExtSingleIo<Block<F>>,
     pub ext_vec: FriFoldExtVecIo<Block<F>>,
+}
+
+/// An instruction that will save the public values to the execution record and will commit to
+/// it's digest.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CommitPublicValuesInstr<F> {
+    pub pv_addrs: RecursionPublicValues<Address<F>>,
+}
+
+/// The event for committing to the public values.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CommitPublicValuesEvent<F> {
+    pub public_values: RecursionPublicValues<F>,
 }

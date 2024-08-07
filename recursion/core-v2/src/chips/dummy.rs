@@ -45,7 +45,7 @@ impl<F: PrimeField32, const COL_PADDING: usize> MachineAir<F> for DummyChip<COL_
     type Program = crate::RecursionProgram<F>;
 
     fn name(&self) -> String {
-        "Dummy wide".to_string()
+        "DummyWide".to_string()
     }
 
     fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {
