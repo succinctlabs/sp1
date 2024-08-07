@@ -42,6 +42,19 @@ stdout: result: 2940
 
 Note that we elegantly handle nested cycle tracking, as you can see above.
 
+### Get Tracked Cycle Counts
+To include tracked cycle counts in the `ExecutionReport` when using `ProverClient::execute`, use the following annotations:
+
+```rust,noplayground
+fn main() {
+  println!("cycle-tracker-report-start: block name");
+  // ...
+  println!("cycle-tracker-report-end: block name");
+}
+```
+
+This will log the cycle count for `main_function` and include it in the `ExecutionReport`.
+
 ## Tracking Cycles with Tracing
 
 The `cycle-tracker` annotation is a convenient way to track cycles for specific sections of code. However, sometimes it can also be useful to track what functions are taking the most cycles across the entire program, without having to annotate every function individually.
