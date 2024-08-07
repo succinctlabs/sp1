@@ -95,7 +95,7 @@ pub fn worker_phase1_impl(
     Ok((commitments, records))
 }
 
-pub fn worker_phase2(
+pub fn worker_phase2_impl(
     args: ProveArgs,
     challenger: ChallengerType,
     records: Vec<RecordType>,

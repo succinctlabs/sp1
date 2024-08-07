@@ -1,8 +1,12 @@
 pub mod steps;
 
-use crate::ProveArgs;
-use sp1_core::runtime::ExecutionState;
-use steps::worker_phase1_impl;
+use crate::{
+    common::{self, types::RecordType},
+    operator::utils::ChallengerState,
+    ProveArgs,
+};
+use sp1_core::{runtime::ExecutionState, stark::MachineProver};
+use steps::{worker_phase1_impl, worker_phase2_impl};
 
 pub fn worker_phase1(
     args: &Vec<u8>,
@@ -30,4 +34,21 @@ pub fn worker_phase1(
 
     *o_commitments = bincode::serialize(&commitments).unwrap();
     *o_records = bincode::serialize(&records).unwrap();
+}
+
+pub fn worker_phase2(
+    args: &Vec<u8>,
+    challenger_state: &Vec<u8>,
+    records: &[u8],
+    o_shard_proofs: &mut Vec<u8>,
+) {
+    let args_obj = ProveArgs::from_slice(args.as_slice());
+    let (client, _, _, _) = common::init_client(args_obj.clone());
+    let challenger = ChallengerState::from_bytes(challenger_state.as_slice())
+        .to_challenger(&client.prover.sp1_prover().core_prover.config().perm);
+    let records: Vec<RecordType> = bincode::deserialize(records).unwrap();
+
+    let shard_proofs = worker_phase2_impl(args_obj, challenger, records).unwrap();
+    let result = bincode::serialize(&shard_proofs.as_slice()).unwrap();
+    *o_shard_proofs = result;
 }

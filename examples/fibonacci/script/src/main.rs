@@ -12,14 +12,10 @@ pub mod worker;
 
 use alloy_sol_types::SolType;
 use clap::Parser;
-use common::types::RecordType;
 use fibonacci_script::{ProveArgs, PublicValuesTuple};
 use operator::steps::operator_phase2;
-use operator::utils::ChallengerState;
 use operator::{operator_phase1, prove_begin};
-use sp1_core::stark::MachineProver;
-use worker::steps::worker_phase2;
-use worker::worker_phase1;
+use worker::{worker_phase1, worker_phase2};
 
 fn main() {
     // Setup the logger.
@@ -74,21 +70,23 @@ fn main() {
         &mut challenger_state,
     );
 
-    let records_vec: Vec<Vec<RecordType>> = records_vec
-        .into_iter()
-        .map(|record| bincode::deserialize(record.as_slice()).unwrap())
-        .collect();
-
-    let (client, _, _, _) = common::init_client(args.clone());
-    let challenger = ChallengerState::from_bytes(challenger_state.as_slice())
-        .to_challenger(&client.prover.sp1_prover().core_prover.config().perm);
     let mut shard_proofs_vec = Vec::new();
     for (idx, records) in records_vec.into_iter().enumerate() {
-        let shard_proof = worker_phase2(args.clone(), challenger.clone(), records).unwrap();
-        shard_proofs_vec.push(shard_proof);
+        let mut shard_proofs = Vec::new();
+        worker_phase2(
+            &serialize_args,
+            &challenger_state,
+            records.as_slice(),
+            &mut shard_proofs,
+        );
+        shard_proofs_vec.push(shard_proofs);
         tracing::info!("{:?}-th phase2 worker done", idx);
     }
 
+    let shard_proofs_vec = shard_proofs_vec
+        .into_iter()
+        .map(|shard_proofs| bincode::deserialize(shard_proofs.as_slice()).unwrap())
+        .collect();
     let proof =
         operator_phase2(args.clone(), shard_proofs_vec, public_values_stream, cycles).unwrap();
 
