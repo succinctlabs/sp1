@@ -1,10 +1,7 @@
 use sp1_sdk::{utils, ProverClient, SP1ProofWithPublicValues, SP1Stdin};
 
-/// The ELF with normal cycle tracking.
-const NORMAL_ELF: &[u8] = include_bytes!("../../program/elf/normal");
-
-/// The ELF with cycle tracking that gets added to the execution report.
-const REPORT_ELF: &[u8] = include_bytes!("../../program/elf/report");
+/// The ELF we want to execute inside the zkVM.
+const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
 
 fn main() {
     // Setup a tracer for logging.
@@ -13,24 +10,25 @@ fn main() {
     // Create an input stream.
     let stdin = SP1Stdin::new();
 
-    // Generate the proof for the cycle tracking program.
+    // Generate the proof for the given program.
     let client = ProverClient::new();
+    let (pk, vk) = client.setup(ELF);
+    let proof = client.prove(&pk, stdin).run().expect("proving failed");
 
-    // Execute the normal ELF, which shows the cycle tracking.
-    let (_, report) = client
-        .execute(NORMAL_ELF, stdin.clone())
-        .run()
-        .expect("execution failed");
+    // Verify proof.
+    client.verify(&proof, &vk).expect("verification failed");
 
-    // Execute the report ELF, and print the tracked cycles added to the report.
-    let (_, report) = client
-        .execute(REPORT_ELF, stdin.clone())
-        .run()
-        .expect("execution failed");
+    // Test a round trip of proof serialization and deserialization.
+    proof
+        .save("proof-with-pis.bin")
+        .expect("saving proof failed");
+    let deserialized_proof =
+        SP1ProofWithPublicValues::load("proof-with-pis.bin").expect("loading proof failed");
 
-    // Print the cycles added to the report.
-    // Print all the keys from report.cycle_tracker.
-    for (key, value) in report.cycle_tracker {
-        println!("{}: {}", key, value);
-    }
+    // Verify the deserialized proof.
+    client
+        .verify(&deserialized_proof, &vk)
+        .expect("verification failed");
+
+    println!("successfully generated and verified proof for the program!")
 }
