@@ -6,15 +6,18 @@ mod record;
 // Avoid triggering annoying branch of thiserror derive macro.
 use backtrace::Backtrace as Trace;
 pub use instruction::Instruction;
-use instruction::{FieldEltType, HintBitsInstr, HintExt2FeltsInstr, PrintInstr};
+use instruction::{FieldEltType, HintBitsInstr, HintExt2FeltsInstr, HintInstr, PrintInstr};
 pub use opcode::*;
 pub use program::*;
 pub use record::*;
 
 use std::{
+    collections::VecDeque,
     fmt::Debug,
     io::{stdout, Write},
-    {marker::PhantomData, sync::Arc},
+    iter::zip,
+    marker::PhantomData,
+    sync::Arc,
 };
 
 use hashbrown::hash_map::Entry;
@@ -106,6 +109,8 @@ pub struct Runtime<'a, F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
     /// The execution record.
     pub record: ExecutionRecord<F>,
 
+    pub witness_stream: VecDeque<Vec<Block<F>>>,
+
     pub cycle_tracker: HashMap<String, CycleTrackerEntry>,
 
     /// The stream that print statements write to.
@@ -151,6 +156,15 @@ pub enum RuntimeError<F: Debug, EF: Debug> {
         pc: usize,
         trace: Option<(usize, Trace)>,
     },
+    #[error("failed to print to `debug_stdout`: {0}")]
+    DebugPrint(#[from] std::io::Error),
+    #[error("attempted to read from empty witness stream")]
+    EmptyWitnessStream,
+    #[error("attempted to write to memory vec of len {mem_vec_len} witness of size {witness_len}")]
+    WitnessLenMismatch {
+        mem_vec_len: usize,
+        witness_len: usize,
+    },
 }
 
 impl<'a, F: PrimeField32, EF: ExtensionField<F>, Diffusion> Runtime<'a, F, EF, Diffusion>
@@ -195,6 +209,7 @@ where
             pc: F::zero(),
             memory: HashMap::new(),
             record,
+            witness_stream: VecDeque::new(),
             cycle_tracker: HashMap::new(),
             debug_stdout: Box::new(stdout()),
             perm: Some(perm),
@@ -531,14 +546,15 @@ where
                     FieldEltType::Base => {
                         self.nb_print_f += 1;
                         let f = self.mr_mult(addr, F::zero()).val[0];
-                        writeln!(self.debug_stdout, "PRINTF={f}").unwrap();
+                        writeln!(self.debug_stdout, "PRINTF={f}")
                     }
                     FieldEltType::Extension => {
                         self.nb_print_e += 1;
                         let ef = self.mr_mult(addr, F::zero()).val;
-                        writeln!(self.debug_stdout, "PRINTEF={ef:?}").unwrap();
+                        writeln!(self.debug_stdout, "PRINTEF={ef:?}")
                     }
-                },
+                }
+                .map_err(RuntimeError::DebugPrint)?,
                 Instruction::HintExt2Felts(HintExt2FeltsInstr {
                     output_addrs_mults,
                     input_addr,
@@ -550,6 +566,23 @@ where
                         let felt = Block::from(f);
                         self.mw(addr, felt, mult);
                         self.record.mem_var_events.push(MemEvent { inner: felt });
+                    }
+                }
+                Instruction::Hint(HintInstr { output_addrs_mults }) => {
+                    let witness = self
+                        .witness_stream
+                        .pop_front()
+                        .ok_or(RuntimeError::EmptyWitnessStream)?;
+                    // Check the lengths are the same.
+                    if output_addrs_mults.len() != witness.len() {
+                        return Err(RuntimeError::WitnessLenMismatch {
+                            mem_vec_len: output_addrs_mults.len(),
+                            witness_len: witness.len(),
+                        });
+                    }
+                    for ((addr, mult), val) in zip(output_addrs_mults, witness) {
+                        self.mw(addr, val, mult);
+                        self.record.mem_var_events.push(MemEvent { inner: val });
                     }
                 }
             }

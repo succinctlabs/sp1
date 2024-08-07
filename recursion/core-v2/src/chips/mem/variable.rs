@@ -1,5 +1,5 @@
 use core::borrow::Borrow;
-use instruction::{HintBitsInstr, HintExt2FeltsInstr};
+use instruction::{HintBitsInstr, HintExt2FeltsInstr, HintInstr};
 use itertools::Itertools;
 use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::PrimeField32;
@@ -50,7 +50,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip<F> {
     type Program = crate::RecursionProgram<F>;
 
     fn name(&self) -> String {
-        "Memory Variables".to_string()
+        "MemoryVar".to_string()
     }
     fn preprocessed_width(&self) -> usize {
         NUM_MEM_PREPROCESSED_INIT_COLS
@@ -61,7 +61,8 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip<F> {
             .instructions
             .iter()
             .flat_map(|instruction| match instruction {
-                Instruction::HintBits(HintBitsInstr {
+                Instruction::Hint(HintInstr { output_addrs_mults })
+                | Instruction::HintBits(HintBitsInstr {
                     output_addrs_mults,
                     input_addr: _, // No receive interaction for the hint operation
                 }) => output_addrs_mults
