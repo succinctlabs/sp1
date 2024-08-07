@@ -117,7 +117,7 @@ func (c *Chip) MulFConst(a Variable, b int) Variable {
 }
 
 func (c *Chip) negF(a Variable) Variable {
-	if a.NbBits == 31 {
+	if a.NbBits <= 31 {
 		return Variable{Value: c.api.Sub(modulus, a.Value), NbBits: 31}
 	}
 
@@ -295,7 +295,7 @@ func (p *Chip) reduceFast(x Variable) Variable {
 }
 
 func (p *Chip) ReduceSlow(x Variable) Variable {
-	if x.NbBits > 31 {
+	if x.NbBits <= 31 {
 		return x
 	}
 	return Variable{
