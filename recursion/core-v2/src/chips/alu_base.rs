@@ -65,7 +65,7 @@ impl<F: PrimeField32> MachineAir<F> for BaseAluChip {
     type Program = crate::RecursionProgram<F>;
 
     fn name(&self) -> String {
-        "Base field Alu".to_string()
+        "BaseAlu".to_string()
     }
 
     fn preprocessed_width(&self) -> usize {
