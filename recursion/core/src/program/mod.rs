@@ -18,7 +18,6 @@ use crate::runtime::{ExecutionRecord, RecursionProgram};
 
 pub const NUM_PROGRAM_PREPROCESSED_COLS: usize = size_of::<ProgramPreprocessedCols<u8>>();
 pub const NUM_PROGRAM_MULT_COLS: usize = size_of::<ProgramMultiplicityCols<u8>>();
-const MAX_PROGRAM_SIZE: usize = 2097152;
 
 /// The column layout for the chip.
 #[derive(AlignedBorrow, Clone, Copy, Default)]
@@ -62,7 +61,7 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
         let max_program_size = match std::env::var("MAX_RECURSION_PROGRAM_SIZE") {
             Ok(value) => value.parse().unwrap(),
-            Err(_) => std::cmp::min(MAX_PROGRAM_SIZE, program.instructions.len()),
+            Err(_) => program.instructions.len(),
         };
         assert!(
             max_program_size >= program.instructions.len(),
@@ -119,7 +118,7 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
 
         let max_program_size = match std::env::var("MAX_RECURSION_PROGRAM_SIZE") {
             Ok(value) => value.parse().unwrap(),
-            Err(_) => std::cmp::min(MAX_PROGRAM_SIZE, input.program.instructions.len()),
+            Err(_) => input.program.instructions.len(),
         };
         assert!(
             max_program_size >= input.program.instructions.len(),

@@ -1,9 +1,13 @@
 use std::fmt::Debug;
 
 use num::{BigUint, Zero};
-use p3_air::AirBuilder;
-use p3_field::PrimeField32;
+
 use serde::{Deserialize, Serialize};
+
+use p3_air::AirBuilder;
+use p3_field::AbstractField;
+use p3_field::PrimeField32;
+
 use sp1_derive::AlignedBorrow;
 
 use super::params::{FieldParameters, Limbs};
@@ -185,6 +189,52 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
 }
 
 impl<V: Copy, P: FieldParameters> FieldOpCols<V, P> {
+    /// Allows the an evaluation over ADD/SUB  determined by a boolean flag.
+    #[allow(clippy::too_many_arguments)]
+    pub fn eval_adds_sub_variable<AB: SP1AirBuilder<Var = V>>(
+        &self,
+        builder: &mut AB,
+        a: &(impl Into<Polynomial<AB::Expr>> + Clone),
+        b: &(impl Into<Polynomial<AB::Expr>> + Clone),
+        modulus: &(impl Into<Polynomial<AB::Expr>> + Clone),
+        operation_flag: impl Into<AB::Expr> + Clone,
+        shard: impl Into<AB::Expr> + Clone,
+        channel: impl Into<AB::Expr> + Clone,
+        is_real: impl Into<AB::Expr> + Clone,
+    ) where
+        V: Into<AB::Expr>,
+        Limbs<V, P::Limbs>: Copy,
+    {
+        let p_a_param: Polynomial<AB::Expr> = (a).clone().into();
+        let p_b: Polynomial<AB::Expr> = (b).clone().into();
+
+        let p_res_param: Polynomial<AB::Expr> = self.result.into();
+        let op_flag: AB::Expr = operation_flag.into();
+        let (p_a, p_result): (Polynomial<_>, Polynomial<_>) = (
+            p_a_param.clone() * op_flag.clone()
+                + p_res_param.clone() * (AB::Expr::one() - op_flag.clone()),
+            p_res_param * op_flag.clone() + p_a_param * (AB::Expr::one() - op_flag.clone()),
+        );
+        let p_op = p_a + p_b;
+        // {
+        //     FieldOperation::Add | FieldOperation::Mul => (p_a_param, self.result.into()),
+        //     FieldOperation::Sub | FieldOperation::Div => (self.result.into(), p_a_param),
+        // };
+        // let p_op: Polynomial<<AB as AirBuilder>::Expr> = match op {
+        //     FieldOperation::Add | FieldOperation::Sub => p_a + p_b,
+        //     FieldOperation::Mul | FieldOperation::Div => p_a * p_b,
+        // };
+        self.eval_with_polynomials(
+            builder,
+            p_op,
+            modulus.clone(),
+            p_result,
+            shard,
+            channel,
+            is_real,
+        );
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn eval_with_modulus<AB: SP1AirBuilder<Var = V>>(
         &self,
@@ -202,17 +252,44 @@ impl<V: Copy, P: FieldParameters> FieldOpCols<V, P> {
     {
         let p_a_param: Polynomial<AB::Expr> = (a).clone().into();
         let p_b: Polynomial<AB::Expr> = (b).clone().into();
-        let p_modulus: Polynomial<AB::Expr> = (modulus).clone().into();
 
         let (p_a, p_result): (Polynomial<_>, Polynomial<_>) = match op {
             FieldOperation::Add | FieldOperation::Mul => (p_a_param, self.result.into()),
             FieldOperation::Sub | FieldOperation::Div => (self.result.into(), p_a_param),
         };
-        let p_carry: Polynomial<<AB as AirBuilder>::Expr> = self.carry.into();
         let p_op: Polynomial<<AB as AirBuilder>::Expr> = match op {
             FieldOperation::Add | FieldOperation::Sub => p_a + p_b,
             FieldOperation::Mul | FieldOperation::Div => p_a * p_b,
         };
+        self.eval_with_polynomials(
+            builder,
+            p_op,
+            modulus.clone(),
+            p_result,
+            shard,
+            channel,
+            is_real,
+        );
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn eval_with_polynomials<AB: SP1AirBuilder<Var = V>>(
+        &self,
+        builder: &mut AB,
+        op: impl Into<Polynomial<AB::Expr>>,
+        modulus: impl Into<Polynomial<AB::Expr>>,
+        result: impl Into<Polynomial<AB::Expr>>,
+        shard: impl Into<AB::Expr> + Clone,
+        channel: impl Into<AB::Expr> + Clone,
+        is_real: impl Into<AB::Expr> + Clone,
+    ) where
+        V: Into<AB::Expr>,
+        Limbs<V, P::Limbs>: Copy,
+    {
+        let p_op: Polynomial<AB::Expr> = op.into();
+        let p_result: Polynomial<AB::Expr> = result.into();
+        let p_modulus: Polynomial<AB::Expr> = modulus.into();
+        let p_carry: Polynomial<<AB as AirBuilder>::Expr> = self.carry.into();
         let p_op_minus_result: Polynomial<AB::Expr> = p_op - &p_result;
         let p_vanishing = p_op_minus_result - &(&p_carry * &p_modulus);
         let p_witness_low = self.witness_low.0.iter().into();
