@@ -46,6 +46,7 @@ impl Syscall for SyscallWrite {
             match parse_cycle_tracker_command(s) {
                 Some(command) => handle_cycle_tracker_command(rt, command),
                 None => {
+                    // If the string does not match any known command, print it to stdout.
                     let flush_s = update_io_buf(ctx, fd, s);
                     if !flush_s.is_empty() {
                         flush_s
