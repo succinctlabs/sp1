@@ -12,14 +12,12 @@ pub mod worker;
 
 use alloy_sol_types::SolType;
 use clap::Parser;
-use common::types::RecordType;
+use common::types::{CommitmentType, RecordType};
 use fibonacci_script::{ProveArgs, PublicValuesTuple};
 use operator::prove_begin;
 use operator::steps::{operator_phase1, operator_phase2};
-use sp1_core::air::PublicValues;
-use sp1_core::runtime::ExecutionState;
-use std::fs::File;
-use worker::steps::{worker_phase1, worker_phase2};
+use worker::steps::worker_phase2;
+use worker::worker_phase1;
 
 fn main() {
     // Setup the logger.
@@ -44,42 +42,40 @@ fn main() {
 
     let public_values_stream: Vec<u8> =
         bincode::deserialize(public_values_stream.as_slice()).unwrap();
-    let public_values: PublicValues<u32, u32> =
-        bincode::deserialize(public_values.as_slice()).unwrap();
-
-    let mut checkpoints: Vec<File> = checkpoints
-        .into_iter()
-        .map(|checkpoint| {
-            let execution_state: ExecutionState =
-                bincode::deserialize(checkpoint.as_slice()).unwrap();
-            let mut checkpoint_file = tempfile::tempfile().unwrap();
-            execution_state.save(&mut checkpoint_file).unwrap();
-            checkpoint_file
-        })
-        .collect();
 
     let mut commitments_vec = Vec::new();
+    let mut records_vec = Vec::new();
     let num_checkpoints = checkpoints.len();
     for (idx, checkpoint) in checkpoints.iter_mut().enumerate() {
         let is_last_checkpoint = idx == num_checkpoints - 1;
-        let result = worker_phase1(
-            args.clone(),
+        let mut commitments = Vec::new();
+        let mut records = Vec::new();
+        worker_phase1(
+            &serialize_args,
             idx as u32,
             checkpoint,
             is_last_checkpoint,
-            public_values,
-        )
-        .unwrap();
-        commitments_vec.push(result);
+            &public_values,
+            &mut commitments,
+            &mut records,
+        );
+        commitments_vec.push(commitments);
+        records_vec.push(records);
         tracing::info!("{:?}-th phase1 worker done", idx);
     }
 
-    let challenger = operator_phase1(args.clone(), commitments_vec.clone()).unwrap();
-
-    let records_vec: Vec<Vec<RecordType>> = commitments_vec
-        .into_iter()
-        .map(|pairs| pairs.into_iter().map(|(_, record)| record).collect())
+    let commitments_vec: Vec<Vec<CommitmentType>> = commitments_vec
+        .iter()
+        .map(|commitments| bincode::deserialize(commitments.as_slice()).unwrap())
         .collect();
+    let records_vec: Vec<Vec<RecordType>> = records_vec
+        .iter()
+        .map(|records| bincode::deserialize(records.as_slice()).unwrap())
+        .collect();
+
+    let challenger =
+        operator_phase1(args.clone(), commitments_vec.clone(), records_vec.clone()).unwrap();
+    println!("Successfully generated proof!");
 
     let mut shard_proofs_vec = Vec::new();
     for (idx, records) in records_vec.into_iter().enumerate() {

@@ -1,13 +1,15 @@
 use crate::common;
 use crate::common::types::{
-    ChallengerType, CheckpointType, CommitmentPairType, PublicValueStreamType, PublicValuesType,
+    ChallengerType, CheckpointType, CommitmentType, PublicValueStreamType, PublicValuesType,
+    RecordType,
 };
 use crate::ProveArgs;
 use anyhow::Result;
 use p3_baby_bear::BabyBear;
+use sp1_core::stark::MachineRecord;
 use sp1_core::{
     runtime::Runtime,
-    stark::{MachineProof, MachineProver, MachineRecord, ShardProof, StarkGenericConfig},
+    stark::{MachineProof, MachineProver, ShardProof, StarkGenericConfig},
     utils::{BabyBearPoseidon2, SP1CoreProverError},
 };
 use sp1_prover::{SP1CoreProof, SP1CoreProofData};
@@ -77,8 +79,14 @@ pub fn prove_begin_impl(
 
 pub fn operator_phase1(
     args: ProveArgs,
-    indexed_commitments: Vec<Vec<CommitmentPairType>>,
+    commitments_vec: Vec<Vec<CommitmentType>>,
+    records_vec: Vec<Vec<RecordType>>,
 ) -> Result<ChallengerType> {
+    if commitments_vec.len() != records_vec.len() {
+        return Err(anyhow::anyhow!(
+            "commitments_vec and records_vec must have the same length"
+        ));
+    }
     let (client, stdin, pk, _) = common::init_client(args.clone());
     let (program, core_opts, context) = common::bootstrap(&client, &pk).unwrap();
 
@@ -95,9 +103,8 @@ pub fn operator_phase1(
     let mut challenger = client.prover.sp1_prover().core_prover.config().challenger();
     stark_vk.observe_into(&mut challenger);
 
-    let mut records = Vec::new();
-    for commitment_pair in indexed_commitments {
-        for (commitment, record) in commitment_pair {
+    for (commitments, records) in commitments_vec.into_iter().zip(records_vec.into_iter()) {
+        for (commitment, record) in commitments.into_iter().zip(records.into_iter()) {
             client.prover.sp1_prover().core_prover.update(
                 &mut challenger,
                 commitment,
@@ -108,7 +115,6 @@ pub fn operator_phase1(
                     .machine()
                     .num_pv_elts()],
             );
-            records.push(record);
         }
     }
 

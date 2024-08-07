@@ -1,5 +1,5 @@
 use crate::common;
-use crate::common::types::{ChallengerType, CommitmentPairType, RecordType};
+use crate::common::types::{ChallengerType, CommitmentType, RecordType};
 use crate::ProveArgs;
 use anyhow::Result;
 use sp1_core::{
@@ -11,13 +11,13 @@ use sp1_core::{
 use sp1_sdk::ExecutionReport;
 use std::fs::File;
 
-pub fn worker_phase1(
+pub fn worker_phase1_impl(
     args: ProveArgs,
     idx: u32,
     checkpoint: &mut File,
     is_last_checkpoint: bool,
     public_values: PublicValues<u32, u32>,
-) -> Result<Vec<CommitmentPairType>> {
+) -> Result<(Vec<CommitmentType>, Vec<RecordType>)> {
     let (client, _, pk, _) = common::init_client(args);
     let (program, core_opts, _) = common::bootstrap(&client, &pk).unwrap();
 
@@ -88,14 +88,11 @@ pub fn worker_phase1(
 
     // Committing to the shards.
     let commitments = records
-        .into_iter()
-        .map(|record| {
-            let commitment = client.prover.sp1_prover().core_prover.commit(&record);
-            (commitment, record)
-        })
+        .iter()
+        .map(|record| client.prover.sp1_prover().core_prover.commit(record))
         .collect::<Vec<_>>();
 
-    Ok(commitments)
+    Ok((commitments, records))
 }
 
 pub fn worker_phase2(

@@ -18,4 +18,3 @@ pub type ChallengerType = DuplexChallenger<
 
 pub type CommitmentType = Hash<BabyBear, BabyBear, 8>;
 pub type RecordType = ExecutionRecord;
-pub type CommitmentPairType = (CommitmentType, RecordType);
