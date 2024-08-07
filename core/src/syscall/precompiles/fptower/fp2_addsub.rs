@@ -196,9 +196,14 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2AddSubAssignChip<P> {
     type Program = Program;
 
     fn name(&self) -> String {
+        let op = match self.op {
+            FieldOperation::Add => "Add".to_string(),
+            FieldOperation::Sub => "Sub".to_string(),
+            _ => unreachable!("Invalid operation"),
+        };
         match P::FIELD_TYPE {
-            FieldType::Bn254 => "Bn254Fp2AddSubAssign".to_string(),
-            FieldType::Bls12381 => "Bls12831Fp2AddSubAssign".to_string(),
+            FieldType::Bn254 => format!("Bn254Fp2{}Assign", op),
+            FieldType::Bls12381 => format!("Bls12831Fp2{}Assign", op),
         }
     }
 
