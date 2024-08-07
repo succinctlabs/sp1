@@ -87,6 +87,7 @@ enum CycleTrackerCommand {
     ReportEnd(String),
 }
 
+/// Parse a cycle tracker command from a string. If the string does not match any known command, returns None.
 fn parse_cycle_tracker_command(s: &str) -> Option<CycleTrackerCommand> {
     match s.split_once(':') {
         Some(("cycle-tracker-start", name)) => {
@@ -105,6 +106,7 @@ fn parse_cycle_tracker_command(s: &str) -> Option<CycleTrackerCommand> {
     }
 }
 
+/// Handle a cycle tracker command.
 fn handle_cycle_tracker_command(rt: &mut Runtime, command: CycleTrackerCommand) {
     match command {
         CycleTrackerCommand::Start(name) | CycleTrackerCommand::ReportStart(name) => {
