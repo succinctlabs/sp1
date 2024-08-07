@@ -113,6 +113,8 @@ fn handle_cycle_tracker_command(rt: &mut Runtime, command: CycleTrackerCommand) 
             end_cycle_tracker(rt, &name);
         }
         CycleTrackerCommand::ReportEnd(name) => {
+            // Attempt to end the cycle tracker and accumulate the total cycles in the fn_name's
+            // entry in the ExecutionReport.
             if let Some(total_cycles) = end_cycle_tracker(rt, &name) {
                 rt.report
                     .cycle_tracker
