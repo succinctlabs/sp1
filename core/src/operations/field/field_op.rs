@@ -382,6 +382,10 @@ mod tests {
         fn included(&self, _: &Self::Record) -> bool {
             true
         }
+
+        fn min_rows(&self, _: &Self::Record) -> usize {
+            1 << 8
+        }
     }
 
     impl<F: Field, P: FieldParameters> BaseAir<F> for FieldOpChip<P> {

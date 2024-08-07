@@ -219,6 +219,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         &self,
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
+        fixed_log2_rows: Option<usize>,
     ) -> RowMajorMatrix<F> {
         let events = match E::CURVE_TYPE {
             CurveType::Secp256k1 => &input.secp256k1_add_events,
@@ -325,6 +326,15 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
             CurveType::Secp256k1 => !shard.secp256k1_add_events.is_empty(),
             CurveType::Bn254 => !shard.bn254_add_events.is_empty(),
             CurveType::Bls12381 => !shard.bls12381_add_events.is_empty(),
+            _ => panic!("Unsupported curve"),
+        }
+    }
+
+    fn min_rows(&self, shard: &Self::Record) -> usize {
+        match E::CURVE_TYPE {
+            CurveType::Secp256k1 => shard.secp256k1_add_events.len(),
+            CurveType::Bn254 => shard.bn254_add_events.len(),
+            CurveType::Bls12381 => shard.bls12381_add_events.len(),
             _ => panic!("Unsupported curve"),
         }
     }

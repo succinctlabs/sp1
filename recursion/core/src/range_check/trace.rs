@@ -60,4 +60,8 @@ impl<F: PrimeField32> MachineAir<F> for RangeCheckChip<F> {
     fn included(&self, _shard: &Self::Record) -> bool {
         true
     }
+
+    fn min_rows(&self, _shard: &Self::Record) -> usize {
+        NUM_ROWS
+    }
 }

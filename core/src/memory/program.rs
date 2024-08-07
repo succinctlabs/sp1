@@ -101,6 +101,7 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
         &self,
         input: &ExecutionRecord,
         _output: &mut ExecutionRecord,
+        fixed_log2_rows: Option<usize>,
     ) -> RowMajorMatrix<F> {
         let program_memory_addrs = input
             .program
@@ -141,6 +142,10 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
 
     fn included(&self, _: &Self::Record) -> bool {
         true
+    }
+
+    fn min_rows(&self, shard: &Self::Record) -> usize {
+        shard.program.memory_image.len()
     }
 }
 

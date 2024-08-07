@@ -224,6 +224,7 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
         &self,
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
+        fixed_log2_rows: Option<usize>,
     ) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let mut rows: Vec<[F; NUM_DIVREM_COLS]> = vec![];
@@ -549,6 +550,10 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
 
     fn included(&self, shard: &Self::Record) -> bool {
         !shard.divrem_events.is_empty()
+    }
+
+    fn min_rows(&self, shard: &Self::Record) -> usize {
+        shard.divrem_events.len()
     }
 }
 

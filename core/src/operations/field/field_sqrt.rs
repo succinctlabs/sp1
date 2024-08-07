@@ -274,6 +274,10 @@ mod tests {
         fn included(&self, _: &Self::Record) -> bool {
             true
         }
+
+        fn min_rows(&self, shard: &Self::Record) -> usize {
+            1 << 8
+        }
     }
 
     impl<F: Field, P: FieldParameters> BaseAir<F> for EdSqrtChip<P> {
@@ -309,7 +313,7 @@ mod tests {
         let chip: EdSqrtChip<Ed25519BaseField> = EdSqrtChip::new();
         let shard = ExecutionRecord::default();
         let _: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&shard, &mut ExecutionRecord::default());
+            chip.generate_trace(&shard, &mut ExecutionRecord::default(), None);
         // println!("{:?}", trace.values)
     }
 
@@ -321,7 +325,7 @@ mod tests {
         let chip: EdSqrtChip<Ed25519BaseField> = EdSqrtChip::new();
         let shard = ExecutionRecord::default();
         let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&shard, &mut ExecutionRecord::default());
+            chip.generate_trace(&shard, &mut ExecutionRecord::default(), None);
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();

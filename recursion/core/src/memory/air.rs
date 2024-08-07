@@ -96,6 +96,10 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
     fn included(&self, shard: &Self::Record) -> bool {
         !shard.first_memory_record.is_empty() || !shard.last_memory_record.is_empty()
     }
+
+    fn min_rows(&self, shard: &Self::Record) -> usize {
+        shard.first_memory_record.len() + shard.last_memory_record.len()
+    }
 }
 
 impl<F> BaseAir<F> for MemoryGlobalChip {

@@ -118,6 +118,7 @@ impl<F: PrimeField> MachineAir<F> for ShiftLeft {
         &self,
         input: &ExecutionRecord,
         _: &mut ExecutionRecord,
+        fixed_log2_rows: Option<usize>,
     ) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let mut rows: Vec<[F; NUM_SHIFT_LEFT_COLS]> = vec![];
@@ -185,6 +186,10 @@ impl<F: PrimeField> MachineAir<F> for ShiftLeft {
 
     fn included(&self, shard: &Self::Record) -> bool {
         !shard.shift_left_events.is_empty()
+    }
+
+    fn min_rows(&self, shard: &Self::Record) -> usize {
+        shard.shift_left_events.len()
     }
 }
 

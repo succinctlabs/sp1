@@ -1,7 +1,7 @@
 use super::StarkMachine;
 pub use crate::air::SP1AirBuilder;
 use crate::air::{MachineAir, SP1_PROOF_NUM_PV_ELTS};
-use crate::memory::{MemoryChipType, MemoryProgramChip};
+use crate::memory::MemoryChipType;
 use crate::stark::Chip;
 use crate::StarkGenericConfig;
 use p3_field::PrimeField32;
@@ -20,6 +20,7 @@ pub(crate) mod riscv_chips {
     pub use crate::bytes::ByteChip;
     pub use crate::cpu::CpuChip;
     pub use crate::memory::MemoryChip;
+    pub use crate::memory::MemoryProgramChip;
     pub use crate::program::ProgramChip;
     pub use crate::syscall::precompiles::edwards::EdAddAssignChip;
     pub use crate::syscall::precompiles::edwards::EdDecompressChip;

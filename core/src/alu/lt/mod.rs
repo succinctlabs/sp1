@@ -111,6 +111,7 @@ impl<F: PrimeField32> MachineAir<F> for LtChip {
         &self,
         input: &ExecutionRecord,
         _: &mut ExecutionRecord,
+        fixed_log2_rows: Option<usize>,
     ) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let rows = input
@@ -165,6 +166,10 @@ impl<F: PrimeField32> MachineAir<F> for LtChip {
 
     fn included(&self, shard: &Self::Record) -> bool {
         !shard.lt_events.is_empty()
+    }
+
+    fn min_rows(&self, shard: &Self::Record) -> usize {
+        shard.lt_events.len()
     }
 }
 

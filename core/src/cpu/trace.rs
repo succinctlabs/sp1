@@ -39,6 +39,7 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
         &self,
         input: &ExecutionRecord,
         _: &mut ExecutionRecord,
+        fixed_log2_rows: Option<usize>,
     ) -> RowMajorMatrix<F> {
         let mut values = vec![F::zero(); input.cpu_events.len() * NUM_CPU_COLS];
 
@@ -67,7 +68,7 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
         let mut trace = RowMajorMatrix::new(values, NUM_CPU_COLS);
 
         // Pad the trace to a power of two.
-        Self::pad_to_power_of_two::<F>(&mut trace.values);
+        Self::pad::<F>(&mut trace.values, fixed_log2_rows);
 
         trace
     }
@@ -105,6 +106,10 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
 
     fn included(&self, input: &Self::Record) -> bool {
         !input.cpu_events.is_empty()
+    }
+
+    fn min_rows(&self, shard: &Self::Record) -> usize {
+        shard.cpu_events.len()
     }
 }
 
@@ -739,9 +744,11 @@ impl CpuChip {
         is_halt
     }
 
-    fn pad_to_power_of_two<F: PrimeField>(values: &mut Vec<F>) {
+    fn pad<F: PrimeField>(values: &mut Vec<F>, fixed_log2_rows: Option<usize>) {
         let n_real_rows = values.len() / NUM_CPU_COLS;
-        let padded_nb_rows = if n_real_rows < 16 {
+        let padded_nb_rows = if let Some(fixed_log2_rows) = fixed_log2_rows {
+            1 << fixed_log2_rows
+        } else if n_real_rows < 16 {
             16
         } else {
             n_real_rows.next_power_of_two()
@@ -827,7 +834,7 @@ mod tests {
 
         let start = Instant::now();
         let _: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&runtime.record, &mut ExecutionRecord::default());
+            chip.generate_trace(&runtime.record, &mut ExecutionRecord::default(), None);
         println!("generate trace: {:?}", start.elapsed());
     }
 

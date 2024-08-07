@@ -76,6 +76,7 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
         &self,
         input: &ExecutionRecord,
         _: &mut ExecutionRecord,
+        fixed_log2_rows: Option<usize>,
     ) -> RowMajorMatrix<F> {
         // Generate the rows for the trace.
         let chunk_size = std::cmp::max(
@@ -158,6 +159,10 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
 
     fn included(&self, shard: &Self::Record) -> bool {
         !shard.add_events.is_empty() || !shard.sub_events.is_empty()
+    }
+
+    fn min_rows(&self, shard: &Self::Record) -> usize {
+        shard.add_events.len() + shard.sub_events.len()
     }
 }
 

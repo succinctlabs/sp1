@@ -242,6 +242,10 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpReverseBitsLenCh
     fn included(&self, record: &Self::Record) -> bool {
         !record.exp_reverse_bits_len_events.is_empty()
     }
+
+    fn min_rows(&self, shard: &Self::Record) -> usize {
+        shard.exp_reverse_bits_len_events.len()
+    }
 }
 
 impl<const DEGREE: usize> ExpReverseBitsLenChip<DEGREE> {

@@ -269,6 +269,10 @@ mod tests {
         fn included(&self, _: &Self::Record) -> bool {
             true
         }
+
+        fn min_rows(&self, _: &Self::Record) -> usize {
+            1 << 8
+        }
     }
 
     impl<F: Field, P: FieldParameters> BaseAir<F> for FieldDenChip<P> {
@@ -303,7 +307,7 @@ mod tests {
         let shard = ExecutionRecord::default();
         let chip: FieldDenChip<Ed25519BaseField> = FieldDenChip::new(true);
         let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&shard, &mut ExecutionRecord::default());
+            chip.generate_trace(&shard, &mut ExecutionRecord::default(), None);
         println!("{:?}", trace.values)
     }
 
@@ -316,7 +320,7 @@ mod tests {
 
         let chip: FieldDenChip<Ed25519BaseField> = FieldDenChip::new(true);
         let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&shard, &mut ExecutionRecord::default());
+            chip.generate_trace(&shard, &mut ExecutionRecord::default(), None);
         // This it to test that the proof DOESN'T work if messed up.
         // let row = trace.row_mut(0);
         // row[0] = BabyBear::from_canonical_u8(0);

@@ -114,6 +114,7 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
         &self,
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
+        fixed_log2_rows: Option<usize>,
     ) -> RowMajorMatrix<F> {
         // Generate the trace rows & corresponding records for each chunk of events concurrently.
         let rows_and_records = input
@@ -237,6 +238,10 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
 
     fn included(&self, shard: &Self::Record) -> bool {
         !shard.uint256_mul_events.is_empty()
+    }
+
+    fn min_rows(&self, shard: &Self::Record) -> usize {
+        shard.uint256_mul_events.len()
     }
 }
 
