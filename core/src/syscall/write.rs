@@ -25,7 +25,7 @@ impl Syscall for SyscallWrite {
         let slice = bytes.as_slice();
         if fd == 1 {
             let s = core::str::from_utf8(slice).unwrap();
-            if s.contains("cycle-tracker-start:") {
+            if s.contains("cycle-tracker-start:") || s.contains("cycle-tracker-report-start:") {
                 let fn_name = s
                     .split("cycle-tracker-start:")
                     .last()
@@ -37,7 +37,7 @@ impl Syscall for SyscallWrite {
                     .insert(fn_name.to_string(), (rt.state.global_clk, depth));
                 let padding = (0..depth).map(|_| "│ ").collect::<String>();
                 log::info!("{}┌╴{}", padding, fn_name);
-            } else if s.contains("cycle-tracker-end:") {
+            } else if s.contains("cycle-tracker-end:") || s.contains("cycle-tracker-report-end:") {
                 let fn_name = s
                     .split("cycle-tracker-end:")
                     .last()
@@ -47,11 +47,23 @@ impl Syscall for SyscallWrite {
                 let (start, depth) = rt.cycle_tracker.remove(fn_name).unwrap_or((0, 0));
                 // Leftpad by 2 spaces for each depth.
                 let padding = (0..depth).map(|_| "│ ").collect::<String>();
+
+                let total_cycles = rt.state.global_clk - start as u64;
                 log::info!(
                     "{}└╴{} cycles",
                     padding,
-                    num_to_comma_separated(rt.state.global_clk - start as u64)
+                    num_to_comma_separated(total_cycles)
                 );
+
+                // If cycle-tracker-report, add to the final cycle tracker mapping.
+                if s.contains("cycle-tracker-report-end:") {
+                    // Add or accumulate the current cycle tracker to the report.
+                    rt.report
+                        .cycle_tracker
+                        .entry(fn_name.to_string())
+                        .and_modify(|cycles| *cycles += total_cycles)
+                        .or_insert(total_cycles);
+                }
             } else {
                 let flush_s = update_io_buf(ctx, fd, s);
                 if !flush_s.is_empty() {
