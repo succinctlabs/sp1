@@ -39,7 +39,7 @@ pub const NUM_PV_ELMS_TO_HASH: usize = RECURSION_PUBLIC_VALUES_COL_MAP.digest[0]
 // sp1_core should be set to `RECURSIVE_PROOF_NUM_PV_ELTS`.
 const_assert_eq!(RECURSIVE_PROOF_NUM_PV_ELTS, PROOF_MAX_NUM_PVS);
 
-#[derive(AlignedBorrow, Serialize, Deserialize, PartialEq, Clone, Copy, Default, Debug)]
+#[derive(AlignedBorrow, Serialize, Deserialize, Clone, Copy, Default, Debug)]
 #[repr(C)]
 pub struct ChallengerPublicValues<T> {
     pub sponge_state: [T; PERMUTATION_WIDTH],
