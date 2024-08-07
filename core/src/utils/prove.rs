@@ -24,7 +24,6 @@ use crate::io::{SP1PublicValues, SP1Stdin};
 use crate::lookup::InteractionBuilder;
 use crate::runtime::{ExecutionError, NoOpSubproofVerifier, SP1Context};
 use crate::runtime::{ExecutionRecord, ExecutionReport};
-use crate::stark::DebugConstraintBuilder;
 use crate::stark::MachineProof;
 use crate::stark::MachineProver;
 use crate::stark::ProverConstraintFolder;
@@ -32,6 +31,7 @@ use crate::stark::StarkVerifyingKey;
 use crate::stark::Val;
 use crate::stark::VerifierConstraintFolder;
 use crate::stark::{Com, PcsProverData, RiscvAir, StarkProvingKey, UniConfig};
+use crate::stark::{DebugConstraintBuilder, SP1_CORE_PROOF_SHAPES};
 use crate::stark::{MachineRecord, StarkMachine};
 use crate::utils::chunk_vec;
 use crate::utils::concurrency::TurnBasedSync;
@@ -295,7 +295,9 @@ where
                             // Generate the traces.
                             let traces = records
                                 .par_iter()
-                                .map(|record| prover.generate_traces(record))
+                                .map(|record| {
+                                    prover.generate_fixed_traces(record, &SP1_CORE_PROOF_SHAPES)
+                                })
                                 .collect::<Vec<_>>();
 
                             // Wait for our turn.
@@ -482,7 +484,9 @@ where
                             // Generate the traces.
                             let traces = records
                                 .par_iter()
-                                .map(|record| prover.generate_traces(record))
+                                .map(|record| {
+                                    prover.generate_fixed_traces(record, &SP1_CORE_PROOF_SHAPES)
+                                })
                                 .collect::<Vec<_>>();
 
                             trace_gen_sync.wait_for_turn(index);

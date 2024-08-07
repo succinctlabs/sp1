@@ -12,7 +12,6 @@ lazy_static::lazy_static! {
 
 fn core_proof_shapes<F: PrimeField32>() -> Vec<HashMap<String, usize>> {
     let cpu = RiscvAir::<F>::Cpu(CpuChip::default());
-    let program = RiscvAir::<F>::Program(ProgramChip::default());
     let sha_extend = RiscvAir::<F>::Sha256Extend(ShaExtendChip::default());
     let sha_compress = RiscvAir::<F>::Sha256Compress(ShaCompressChip::default());
     let ed_add_assign =
@@ -51,36 +50,47 @@ fn core_proof_shapes<F: PrimeField32>() -> Vec<HashMap<String, usize>> {
     let lt = RiscvAir::<F>::Lt(LtChip::default());
     let memory_init = RiscvAir::<F>::MemoryInit(MemoryChip::new(MemoryChipType::Initialize));
     let memory_finalize = RiscvAir::<F>::MemoryFinal(MemoryChip::new(MemoryChipType::Finalize));
-    let program_memory_init = RiscvAir::<F>::ProgramMemory(MemoryProgramChip::new());
-    let byte = RiscvAir::<F>::ByteLookup(ByteChip::<F>::default());
 
-    vec![HashMap::from([
-        (cpu.name(), 22),
-        (program.name(), 1),
-        (sha_extend.name(), 1),
-        (sha_compress.name(), 1),
-        (ed_add_assign.name(), 1),
-        (ed_decompress.name(), 1),
-        (k256_decompress.name(), 1),
-        (secp256k1_add_assign.name(), 1),
-        (secp256k1_double_assign.name(), 1),
-        (keccak_permute.name(), 1),
-        (bn254_add_assign.name(), 1),
-        (bn254_double_assign.name(), 1),
-        (bls12381_add.name(), 1),
-        (bls12381_double.name(), 1),
-        (uint256_mul.name(), 1),
-        (bls12381_decompress.name(), 1),
-        (div_rem.name(), 1),
-        (add.name(), 1),
-        (bitwise.name(), 1),
-        (mul.name(), 1),
-        (shift_right.name(), 1),
-        (shift_left.name(), 1),
-        (lt.name(), 1),
-        (memory_init.name(), 1),
-        (memory_finalize.name(), 1),
-        (program_memory_init.name(), 1),
-        (byte.name(), 1),
-    ])]
+    vec![
+        HashMap::from([
+            (cpu.name(), 22),
+            // Byte table is constant size.
+            // (sha_extend.name(), 1),
+            // (sha_compress.name(), 1),
+            // (ed_add_assign.name(), 1),
+            // (ed_decompress.name(), 1),
+            // (k256_decompress.name(), 1),
+            // (secp256k1_add_assign.name(), 1),
+            // (secp256k1_double_assign.name(), 1),
+            // (keccak_permute.name(), 1),
+            // (bn254_add_assign.name(), 1),
+            // (bn254_double_assign.name(), 1),
+            // (bls12381_add.name(), 1),
+            // (bls12381_double.name(), 1),
+            // (uint256_mul.name(), 1),
+            // (bls12381_decompress.name(), 1),
+            // (div_rem.name(), 1),
+            // (add.name(), 1),
+            // (bitwise.name(), 1),
+            // (mul.name(), 1),
+            // (shift_right.name(), 1),
+            // (shift_left.name(), 1),
+            // (lt.name(), 1),
+            // (memory_init.name(), 1),
+            // (memory_finalize.name(), 1),
+            // (program_memory_init.name(), 1),
+            // (byte.name(), 1),
+        ]),
+        HashMap::from([
+            (cpu.name(), 22),
+            (add.name(), 20),
+            (mul.name(), 20),
+            (lt.name(), 20),
+            (div_rem.name(), 20),
+            (shift_left.name(), 20),
+            (shift_right.name(), 20),
+            (bitwise.name(), 20),
+        ]),
+        HashMap::from([(memory_init.name(), 22), (memory_finalize.name(), 22)]),
+    ]
 }

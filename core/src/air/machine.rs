@@ -36,9 +36,7 @@ pub trait MachineAir<F: Field>: BaseAir<F> + 'static + Send + Sync {
     }
 
     /// Whether this execution record contains events for this air.
-    fn included(&self, shard: &Self::Record) -> bool {
-        self.min_rows(shard) > 0
-    }
+    fn included(&self, shard: &Self::Record) -> bool;
 
     /// The minimum number of rows required for this record.
     fn min_rows(&self, shard: &Self::Record) -> usize;

@@ -1001,7 +1001,7 @@ mod tests {
         shard.divrem_events = vec![AluEvent::new(0, 0, 0, Opcode::DIVU, 2, 17, 3)];
         let chip = DivRemChip::default();
         let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&shard, &mut ExecutionRecord::default());
+            chip.generate_trace(&shard, &mut ExecutionRecord::default(), None);
         println!("{:?}", trace.values)
     }
 
@@ -1063,7 +1063,7 @@ mod tests {
         shard.divrem_events = divrem_events;
         let chip = DivRemChip::default();
         let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&shard, &mut ExecutionRecord::default());
+            chip.generate_trace(&shard, &mut ExecutionRecord::default(), None);
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();

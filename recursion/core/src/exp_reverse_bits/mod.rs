@@ -527,8 +527,11 @@ mod tests {
             "input exec: {:?}",
             input_exec.exp_reverse_bits_len_events.len()
         );
-        let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(
+            &input_exec,
+            &mut ExecutionRecord::<BabyBear>::default(),
+            None,
+        );
         println!(
             "trace dims is width: {:?}, height: {:?}",
             trace.width(),

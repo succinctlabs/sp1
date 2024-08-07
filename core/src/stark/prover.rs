@@ -79,22 +79,32 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
     fn generate_fixed_traces(
         &self,
         record: &A::Record,
-        mut shapes: Vec<HashMap<String, usize>>,
-    ) -> Vec<RowMajorMatrix<Val<SC>>> {
+        shapes: &[HashMap<String, usize>],
+    ) -> Vec<(String, RowMajorMatrix<Val<SC>>)> {
         let mut total_rows = u64::MAX;
         let mut best_shape_index = None;
         let shard_chips = self.shard_chips(record).collect::<Vec<_>>();
+        // For now, preprocessed traces are not included in the min_rows calculation. Those chips
+        // will just have hardcoded 2^22 rows for now.
         let min_rows_map = shard_chips
             .iter()
+            .filter(|chip| chip.preprocessed_width() == 0)
             .map(|chip| (chip.name(), chip.min_rows(record)))
             .collect::<HashMap<_, _>>();
+        let preprocessed_chips = shard_chips
+            .iter()
+            .filter(|chip| chip.preprocessed_width() > 0)
+            .collect::<Vec<_>>();
         // Find the shape that fits with the smallest total rows.
+        println!("rows_map: {:?}", min_rows_map);
         for (shape_index, shape) in shapes.iter().enumerate() {
+            println!("shape {}: {:?}", shape_index, shape);
             let mut fits = true;
             let mut shape_total_rows = 0;
             // Check that all chips in the record are in the shape.
             for (chip_name, _) in min_rows_map.iter() {
                 if !shape.contains_key(chip_name) {
+                    println!("shape {} doesn't have chip {}", shape_index, chip_name);
                     fits = false;
                     break;
                 }
@@ -110,6 +120,10 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
                     continue;
                 }
                 if min_rows_map[chip_name] > fixed_rows {
+                    println!(
+                        "shape {} doesn't have enough rows for chip {}, need {}, got {}",
+                        shape_index, chip_name, min_rows_map[chip_name], fixed_rows
+                    );
                     fits = false;
                     break;
                 }
@@ -120,7 +134,7 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
             }
         }
         let shape_index = best_shape_index.expect("no shapes fit");
-        let shape = shapes.swap_remove(shape_index);
+        let shape = shapes[shape_index].clone();
 
         let parent_span = tracing::debug_span!("generate traces for shard");
         parent_span.in_scope(|| {
@@ -128,10 +142,22 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
                 .par_iter()
                 .map(|chip| {
                     let chip_name = chip.name();
-                    tracing::debug_span!(parent: &parent_span, "generate trace for chip", %chip_name).in_scope(|| chip.generate_trace(record, &mut A::Record::default(), Some(shape[&chip_name])))
-                    })
-                    .collect::<Vec<_>>()
-                 })
+                    let fixed_log2_rows = if chip.preprocessed_width() > 0 {
+                        // TODO: Hardcoded 22 for now.
+                        if chip_name == "Byte" {
+                            16
+                        } else {
+                            22
+                        }
+                    } else {
+                        shape[&chip_name]
+                    };
+                    println!("chip {}, fixed_log2_rows {}", chip_name, fixed_log2_rows);
+                    let trace = tracing::debug_span!(parent: &parent_span, "generate trace for chip", %chip_name).in_scope(|| chip.generate_trace(record, &mut A::Record::default(), Some(fixed_log2_rows)));
+                    (chip_name, trace)
+                })
+                .collect::<Vec<_>>()
+        })
     }
 
     /// Commit to the main traces.

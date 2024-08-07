@@ -425,12 +425,12 @@ mod tests {
         let chip: MemoryChip = MemoryChip::new(MemoryChipType::Initialize);
 
         let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&shard, &mut ExecutionRecord::default());
+            chip.generate_trace(&shard, &mut ExecutionRecord::default(), None);
         println!("{:?}", trace.values);
 
         let chip: MemoryChip = MemoryChip::new(MemoryChipType::Finalize);
         let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&shard, &mut ExecutionRecord::default());
+            chip.generate_trace(&shard, &mut ExecutionRecord::default(), None);
         println!("{:?}", trace.values);
 
         for mem_event in shard.memory_finalize_events {

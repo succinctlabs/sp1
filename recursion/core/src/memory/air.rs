@@ -45,6 +45,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
         &self,
         input: &Self::Record,
         _output: &mut Self::Record,
+        _fixed_log2_rows: Option<usize>,
     ) -> RowMajorMatrix<F> {
         let nb_events = input.first_memory_record.len() + input.last_memory_record.len();
         let nb_rows = next_power_of_two(nb_events, self.fixed_log2_rows);
@@ -269,8 +270,11 @@ mod tests {
             .push((BabyBear::zero(), Block::from(BabyBear::zero())));
 
         println!("input exec: {:?}", input_exec.last_memory_record.len());
-        let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(
+            &input_exec,
+            &mut ExecutionRecord::<BabyBear>::default(),
+            None,
+        );
         println!(
             "trace dims is width: {:?}, height: {:?}",
             trace.width(),

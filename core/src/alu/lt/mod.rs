@@ -516,7 +516,7 @@ mod tests {
         shard.lt_events = vec![AluEvent::new(0, 1, 0, Opcode::SLT, 0, 3, 2)];
         let chip = LtChip::default();
         let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&shard, &mut ExecutionRecord::default());
+            chip.generate_trace(&shard, &mut ExecutionRecord::default(), None);
         println!("{:?}", trace.values)
     }
 
@@ -526,7 +526,7 @@ mod tests {
 
         let chip = LtChip::default();
         let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(shard, &mut ExecutionRecord::default());
+            chip.generate_trace(shard, &mut ExecutionRecord::default(), None);
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();

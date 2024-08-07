@@ -100,6 +100,7 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
         &self,
         input: &ExecutionRecord<F>,
         _output: &mut ExecutionRecord<F>,
+        _fixed_log2_rows: Option<usize>,
     ) -> RowMajorMatrix<F> {
         // Collect the number of times each instruction is called from the cpu events.
         // Store it as a map of PC -> count.

@@ -174,6 +174,15 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                             chip.name()
                         );
 
+                        println!(
+                            "chip {}, preprocessed_width {}",
+                            chip.name(),
+                            prep_trace
+                                .as_ref()
+                                .map(|t| t.values.len() / expected_width)
+                                .unwrap_or(0)
+                        );
+
                         (chip.name(), prep_trace)
                     })
                     .filter(|(_, prep_trace)| prep_trace.is_some())
