@@ -189,15 +189,20 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
 }
 
 impl<V: Copy, P: FieldParameters> FieldOpCols<V, P> {
-    /// Allows the an evaluation over ADD/SUB  determined by a boolean flag.
+    /// Allows an evaluation over opetations specified by bollean flags.
+    ///
+    /// The operations flags are determined as follows:
+    /// - operation_type_flag: 1 for ADD and SUBm 0 for MUL and DIV
+    /// - operation_direction_flag: 1 for ADD and MUL and 0 for SUB and DIV
     #[allow(clippy::too_many_arguments)]
-    pub fn eval_adds_sub_variable<AB: SP1AirBuilder<Var = V>>(
+    pub fn eval_variable<AB: SP1AirBuilder<Var = V>>(
         &self,
         builder: &mut AB,
         a: &(impl Into<Polynomial<AB::Expr>> + Clone),
         b: &(impl Into<Polynomial<AB::Expr>> + Clone),
         modulus: &(impl Into<Polynomial<AB::Expr>> + Clone),
-        operation_flag: impl Into<AB::Expr> + Clone,
+        operation_type_flag: impl Into<AB::Expr> + Clone,
+        operation_direction_flag: impl Into<AB::Expr> + Clone,
         shard: impl Into<AB::Expr> + Clone,
         channel: impl Into<AB::Expr> + Clone,
         is_real: impl Into<AB::Expr> + Clone,
@@ -209,13 +214,15 @@ impl<V: Copy, P: FieldParameters> FieldOpCols<V, P> {
         let p_b: Polynomial<AB::Expr> = (b).clone().into();
 
         let p_res_param: Polynomial<AB::Expr> = self.result.into();
-        let op_flag: AB::Expr = operation_flag.into();
+        let op_flag: AB::Expr = operation_direction_flag.into();
         let (p_a, p_result): (Polynomial<_>, Polynomial<_>) = (
             p_a_param.clone() * op_flag.clone()
                 + p_res_param.clone() * (AB::Expr::one() - op_flag.clone()),
             p_res_param * op_flag.clone() + p_a_param * (AB::Expr::one() - op_flag.clone()),
         );
-        let p_op = p_a + p_b;
+        let op_type_flag: AB::Expr = operation_type_flag.into();
+        let p_op = (p_a.clone() + p_b.clone()) * op_type_flag.clone()
+            + (p_a * p_b) * (AB::Expr::one() - op_type_flag.clone());
         // {
         //     FieldOperation::Add | FieldOperation::Mul => (p_a_param, self.result.into()),
         //     FieldOperation::Sub | FieldOperation::Div => (self.result.into(), p_a_param),
