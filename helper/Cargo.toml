@@ -9,7 +9,8 @@ repository = { workspace = true }
 keywords = { workspace = true }
 categories = { workspace = true }
 
+[package.metadata]
+deprecated = "This crate is deprecated. Please use sp1_build instead."
+
 [dependencies]
 sp1-build = { workspace = true }
-cargo_metadata = "0.18.1"
-chrono = { version = "0.4.38", default-features = false, features = ["clock"] }

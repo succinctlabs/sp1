@@ -9,4 +9,4 @@ sp1-core = { workspace = true, features = ["neon"] }
 sp1-sdk = { workspace = true }
 
 [build-dependencies]
-sp1-helper = { workspace = true }
+sp1-build = { workspace = true }
