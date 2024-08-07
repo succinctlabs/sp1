@@ -8,7 +8,6 @@ use std::sync::Mutex;
 use web_time::Instant;
 
 use p3_challenger::CanObserve;
-use p3_maybe_rayon::prelude::*;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use size::Size;
@@ -146,6 +145,7 @@ where
     for proof in stdin.proofs.iter() {
         runtime.write_proof(proof.0.clone(), proof.1.clone());
     }
+    println!("size of program memory is {}", program.memory_image.len());
 
     // Record the start of the process.
     let proving_start = Instant::now();
@@ -220,6 +220,7 @@ where
             let program = program.clone();
 
             let span = tracing::Span::current().clone();
+
             let handle = s.spawn(move || {
                 let _span = span.enter();
                 tracing::debug_span!("phase 1 trace generation").in_scope(|| {
@@ -293,8 +294,21 @@ where
 
                             // Generate the traces.
                             let traces = records
-                                .par_iter()
-                                .map(|record| prover.generate_traces(record))
+                                .iter()
+                                .enumerate()
+                                .map(|(shard, record)| {
+                                    println!("generating trace for shard {}", shard);
+                                    println!(
+                                        "size of shard init memory is {}",
+                                        record.shard_first_mem_access.len()
+                                    );
+                                    println!(
+                                        "size of shard final memory is {}",
+                                        record.shard_last_mem_access.len()
+                                    );
+
+                                    prover.generate_traces(record)
+                                })
                                 .collect::<Vec<_>>();
 
                             // Wait for our turn.
@@ -349,10 +363,12 @@ where
 
                         // Commit to each shard.
                         let commitments = records
-                            .into_par_iter()
-                            .zip(traces.into_par_iter())
-                            .map(|(record, traces)| {
+                            .into_iter()
+                            .enumerate()
+                            .zip(traces.into_iter())
+                            .map(|((shard, record), traces)| {
                                 let _span = span.enter();
+                                println!("p1 commitment for shard {}", shard);
                                 let data = prover.commit(record, traces);
                                 let main_commit = data.main_commit.clone();
                                 drop(data);
@@ -480,13 +496,13 @@ where
 
                             // Generate the traces.
                             let traces = records
-                                .par_iter()
+                                .iter()
                                 .map(|record| prover.generate_traces(record))
                                 .collect::<Vec<_>>();
 
                             trace_gen_sync.wait_for_turn(index);
 
-                            // Send the records to the phase 1 prover.
+                            // Send the records to the phase 2 prover.
                             let chunked_records = chunk_vec(records, opts.shard_batch_size);
                             let chunked_traces = chunk_vec(traces, opts.shard_batch_size);
                             chunked_records.into_iter().zip(chunked_traces).for_each(
@@ -519,10 +535,11 @@ where
                 for (records, traces) in p2_records_and_traces_rx.into_iter() {
                     tracing::debug_span!("batch").in_scope(|| {
                         let span = tracing::Span::current().clone();
-                        shard_proofs.par_extend(
-                            records.into_par_iter().zip(traces.into_par_iter()).map(
-                                |(record, traces)| {
+                        shard_proofs.extend(
+                            records.into_iter().enumerate().zip(traces.into_iter()).map(
+                                |((shard, record), traces)| {
                                     let _span = span.enter();
+                                    println!("p2 shard {}", shard);
                                     let data = prover.commit(record, traces);
                                     prover.open(pk, data, &mut challenger.clone()).unwrap()
                                 },

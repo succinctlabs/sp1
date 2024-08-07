@@ -559,8 +559,11 @@ where
 
         // Generate and commit the traces for each shard.
         let shard_data = records
-            .into_par_iter()
-            .map(|record| {
+            // .into_par_iter()
+            .into_iter()
+            .enumerate()
+            .map(|(shard, record)| {
+                println!("generating traces for shard {}", shard);
                 let named_traces = self.generate_traces(&record);
                 self.commit(record, named_traces)
             })

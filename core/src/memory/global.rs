@@ -58,6 +58,21 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip {
         input: &ExecutionRecord,
         _output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
+        match self.kind {
+            MemoryChipType::Initialize => {
+                println!(
+                    "Num memory init events: {}",
+                    input.memory_initialize_events.len()
+                );
+            }
+            MemoryChipType::Finalize => {
+                println!(
+                    "Num memory finalize events: {}",
+                    input.memory_finalize_events.len()
+                );
+            }
+        }
+
         let mut memory_events = match self.kind {
             MemoryChipType::Initialize => input.memory_initialize_events.clone(),
             MemoryChipType::Finalize => input.memory_finalize_events.clone(),

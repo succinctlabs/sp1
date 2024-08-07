@@ -315,6 +315,15 @@ impl<'a> Runtime<'a> {
             mem_record: MemoryRecordEnum::Read(mrr),
         });
 
+        self.record
+            .shard_first_mem_access
+            .entry(addr)
+            .or_insert(MemoryRecordEnum::Read(mrr));
+
+        self.record
+            .shard_last_mem_access
+            .insert(addr, MemoryRecordEnum::Read(mrr));
+
         mrr
     }
 
@@ -371,6 +380,15 @@ impl<'a> Runtime<'a> {
             addr,
             mem_record: MemoryRecordEnum::Write(mwr),
         });
+
+        self.record
+            .shard_first_mem_access
+            .entry(addr)
+            .or_insert(MemoryRecordEnum::Write(mwr));
+
+        self.record
+            .shard_last_mem_access
+            .insert(addr, MemoryRecordEnum::Write(mwr));
 
         mwr
     }
@@ -1115,6 +1133,11 @@ impl<'a> Runtime<'a> {
     /// Executes up to `self.shard_batch_size` cycles of the program, returning whether the program has finished.
     fn execute(&mut self) -> Result<bool, ExecutionError> {
         // Get the program.
+        println!(
+            "Calling execute with shard_batch_size of {}",
+            self.shard_batch_size
+        );
+
         let program = self.program.clone();
 
         // Get the current shard.
@@ -1129,6 +1152,7 @@ impl<'a> Runtime<'a> {
         let mut done = false;
         let mut current_shard = self.state.current_shard;
         let mut num_shards_executed = 0;
+
         loop {
             if self.execute_cycle()? {
                 done = true;

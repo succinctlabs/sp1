@@ -1,11 +1,13 @@
 mod columns;
 mod global;
+mod inter_shard;
 mod local;
 mod program;
 mod trace;
 
 pub use columns::*;
 pub use global::*;
+pub use inter_shard::*;
 pub use local::*;
 pub use program::*;
 
