@@ -12,6 +12,10 @@ fn main() {
 
     // Generate the proof for the given program.
     let client = ProverClient::new();
+    let (_, report) = client.execute(ELF, stdin.clone()).run().expect("execution failed");
+
+    println!("{}", report.cycle_tracker.get("setup").unwrap());
+
     let (pk, vk) = client.setup(ELF);
     let proof = client.prove(&pk, stdin).run().expect("proving failed");
 
