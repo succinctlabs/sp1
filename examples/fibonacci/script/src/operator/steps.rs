@@ -49,7 +49,7 @@ fn generate_checkpoints(
     Ok((public_values_stream, public_values, checkpoints))
 }
 
-pub fn prove_begin(
+pub fn prove_begin_impl(
     args: ProveArgs,
 ) -> Result<(
     PublicValueStreamType,

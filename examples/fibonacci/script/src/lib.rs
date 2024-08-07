@@ -9,7 +9,7 @@ use sp1_sdk::{HashableKey, SP1ProofWithPublicValues, SP1VerifyingKey};
 use std::path::PathBuf;
 
 /// The arguments for the prove command.
-#[derive(Parser, Debug, Clone)]
+#[derive(Parser, Debug, Clone, Serialize, Deserialize)]
 #[clap(author, version, about, long_about = None)]
 pub struct ProveArgs {
     #[clap(long, default_value = "20")]
@@ -17,6 +17,16 @@ pub struct ProveArgs {
 
     #[clap(long, default_value = "false")]
     pub evm: bool,
+}
+
+impl ProveArgs {
+    pub fn to_bytes(&self) -> Vec<u8> {
+        bincode::serialize(self).unwrap()
+    }
+
+    pub fn from_slice(args: &[u8]) -> Self {
+        bincode::deserialize(args).unwrap()
+    }
 }
 
 /// The public values encoded as a tuple that can be easily deserialized inside Solidity.

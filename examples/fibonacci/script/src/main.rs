@@ -14,7 +14,11 @@ use alloy_sol_types::SolType;
 use clap::Parser;
 use common::types::RecordType;
 use fibonacci_script::{ProveArgs, PublicValuesTuple};
-use operator::steps::{operator_phase1, operator_phase2, prove_begin};
+use operator::prove_begin;
+use operator::steps::{operator_phase1, operator_phase2};
+use sp1_core::air::PublicValues;
+use sp1_core::runtime::ExecutionState;
+use std::fs::File;
 use worker::steps::{worker_phase1, worker_phase2};
 
 fn main() {
@@ -24,8 +28,35 @@ fn main() {
     let args = ProveArgs::parse();
 
     // Setup the prover client.
-    let (public_values_stream, public_values, mut checkpoints, cycles) =
-        prove_begin(args.clone()).unwrap();
+    let serialize_args = bincode::serialize(&args).unwrap();
+
+    let mut public_values_stream = Vec::new();
+    let mut public_values = Vec::new();
+    let mut checkpoints = Vec::new();
+    let mut cycles = 0;
+    prove_begin(
+        &serialize_args,
+        &mut public_values_stream,
+        &mut public_values,
+        &mut checkpoints,
+        &mut cycles,
+    );
+
+    let public_values_stream: Vec<u8> =
+        bincode::deserialize(public_values_stream.as_slice()).unwrap();
+    let public_values: PublicValues<u32, u32> =
+        bincode::deserialize(public_values.as_slice()).unwrap();
+
+    let mut checkpoints: Vec<File> = checkpoints
+        .into_iter()
+        .map(|checkpoint| {
+            let execution_state: ExecutionState =
+                bincode::deserialize(checkpoint.as_slice()).unwrap();
+            let mut checkpoint_file = tempfile::tempfile().unwrap();
+            execution_state.save(&mut checkpoint_file).unwrap();
+            checkpoint_file
+        })
+        .collect();
 
     let mut indexed_commitments = Vec::new();
     let num_checkpoints = checkpoints.len();
