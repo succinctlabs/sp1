@@ -90,21 +90,17 @@ enum CycleTrackerCommand {
 
 /// Parse a cycle tracker command from a string. If the string does not match any known command, returns None.
 fn parse_cycle_tracker_command(s: &str) -> Option<CycleTrackerCommand> {
-    match s.split_once(':') {
-        Some(("cycle-tracker-start", name)) => {
-            Some(CycleTrackerCommand::Start(name.trim().to_string()))
-        }
-        Some(("cycle-tracker-end", name)) => {
-            Some(CycleTrackerCommand::End(name.trim().to_string()))
-        }
-        Some(("cycle-tracker-report-start", name)) => {
-            Some(CycleTrackerCommand::ReportStart(name.trim().to_string()))
-        }
-        Some(("cycle-tracker-report-end", name)) => {
-            Some(CycleTrackerCommand::ReportEnd(name.trim().to_string()))
-        }
-        _ => None,
+    if let Some((command, fn_name)) = s.split_once(':') {
+        let trimmed_name = fn_name.trim().to_string();
+        match command {
+            "cycle-tracker-start" => Some(CycleTrackerCommand::Start(trimmed_name)),
+            "cycle-tracker-end" => Some(CycleTrackerCommand::End(trimmed_name)),
+            "cycle-tracker-report-start" => Some(CycleTrackerCommand::ReportStart(trimmed_name)),
+            "cycle-tracker-report-end" => Some(CycleTrackerCommand::ReportEnd(trimmed_name)),
+            _ => None,
+        };
     }
+    None
 }
 
 /// Handle a cycle tracker command.
@@ -153,6 +149,7 @@ fn end_cycle_tracker(rt: &mut Runtime, name: &str) -> Option<u64> {
     None
 }
 
+/// Update the io buffer for the given file descriptor with the given string.
 fn update_io_buf(ctx: &mut SyscallContext, fd: u32, s: &str) -> Vec<String> {
     let rt = &mut ctx.rt;
     let entry = rt.io_buf.entry(fd).or_default();
