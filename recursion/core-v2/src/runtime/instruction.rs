@@ -1,3 +1,5 @@
+use std::borrow::Borrow;
+
 use p3_field::{AbstractExtensionField, AbstractField};
 use serde::{Deserialize, Serialize};
 
@@ -15,6 +17,7 @@ pub enum Instruction<F> {
     FriFold(FriFoldInstr<F>),
     Print(PrintInstr<F>),
     HintExt2Felts(HintExt2FeltsInstr<F>),
+    CommitPublicValues(CommitPublicValuesInstr<F>),
     Hint(HintInstr<F>),
 }
 
@@ -231,5 +234,18 @@ pub fn fri_fold<F: AbstractField>(
             .iter()
             .map(|mult| F::from_canonical_u32(*mult))
             .collect(),
+    })
+}
+
+pub fn commit_public_values<F: AbstractField>(
+    public_values_a: &RecursionPublicValues<u32>,
+) -> Instruction<F> {
+    let pv_a = public_values_a
+        .to_vec()
+        .map(|pv| Address(F::from_canonical_u32(pv)));
+    let pv_address: &RecursionPublicValues<Address<F>> = pv_a.as_slice().borrow();
+
+    Instruction::CommitPublicValues(CommitPublicValuesInstr {
+        pv_addrs: pv_address.clone(),
     })
 }

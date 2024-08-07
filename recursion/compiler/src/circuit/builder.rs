@@ -3,6 +3,7 @@
 use std::iter::repeat;
 
 use p3_field::{AbstractExtensionField, AbstractField};
+use sp1_recursion_core::air::RecursionPublicValues;
 
 use crate::prelude::*;
 use sp1_recursion_core_v2::{chips::poseidon2_skinny::WIDTH, D, DIGEST_SIZE, HASH_RATE};
@@ -24,6 +25,7 @@ pub trait CircuitV2Builder<C: Config> {
     ) -> [Felt<C::F>; DIGEST_SIZE];
     fn fri_fold_v2(&mut self, input: CircuitV2FriFoldInput<C>) -> CircuitV2FriFoldOutput<C>;
     fn ext2felt_v2(&mut self, ext: Ext<C::F, C::EF>) -> [Felt<C::F>; D];
+    fn commit_public_values_v2(&mut self, public_values: RecursionPublicValues<Felt<C::F>>);
     fn cycle_tracker_v2_enter(&mut self, name: String);
     fn cycle_tracker_v2_exit(&mut self);
     fn hint_ext_v2(&mut self) -> Ext<C::F, C::EF>;
@@ -155,6 +157,12 @@ impl<C: Config> CircuitV2Builder<C> for Builder<C> {
         self.assert_ext_eq(reconstructed_ext, ext);
 
         felts
+    }
+
+    // Commits public values.
+    fn commit_public_values_v2(&mut self, public_values: RecursionPublicValues<Felt<C::F>>) {
+        self.operations
+            .push(DslIr::CircuitV2CommitPublicValues(Box::new(public_values)));
     }
 
     fn cycle_tracker_v2_enter(&mut self, name: String) {

@@ -3,11 +3,13 @@ use core::fmt::Debug;
 use instruction::{FieldEltType, HintBitsInstr, HintExt2FeltsInstr, HintInstr, PrintInstr};
 use p3_field::{AbstractExtensionField, AbstractField, Field, PrimeField, TwoAdicField};
 use sp1_core::utils::SpanBuilder;
-use sp1_recursion_core::air::Block;
+use sp1_recursion_core::air::{Block, RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS};
 use sp1_recursion_core_v2::{BaseAluInstr, BaseAluOpcode};
 use std::{
+    borrow::Borrow,
     collections::{hash_map::Entry, HashMap},
     iter::{repeat, zip},
+    mem::transmute,
 };
 
 use sp1_recursion_core_v2::*;
@@ -334,6 +336,26 @@ impl<C: Config> AsmCompiler<C> {
         .into()
     }
 
+    fn commit_public_values(
+        &mut self,
+        public_values: &RecursionPublicValues<Felt<C::F>>,
+    ) -> CompileOneItem<C::F> {
+        let pv_addrs =
+            unsafe {
+                transmute::<
+                    RecursionPublicValues<Felt<C::F>>,
+                    [Felt<C::F>; RECURSIVE_PROOF_NUM_PV_ELTS],
+                >(*public_values)
+            }
+            .map(|pv| pv.read(self));
+
+        let public_values_a: &RecursionPublicValues<Address<C::F>> = pv_addrs.as_slice().borrow();
+        Instruction::CommitPublicValues(CommitPublicValuesInstr {
+            pv_addrs: *public_values_a,
+        })
+        .into()
+    }
+
     fn print_f(&mut self, addr: impl Reg<C>) -> CompileOneItem<C::F> {
         Instruction::Print(PrintInstr {
             field_elt_type: FieldEltType::Base,
@@ -457,6 +479,9 @@ impl<C: Config> AsmCompiler<C> {
                 vec![self.hint_bit_decomposition(value, output)]
             }
             DslIr::CircuitV2FriFold(output, input) => vec![self.fri_fold(output, input)],
+            DslIr::CircuitV2CommitPublicValues(public_values) => {
+                vec![self.commit_public_values(&public_values)]
+            }
 
             DslIr::PrintV(dst) => vec![self.print_f(dst)],
             DslIr::PrintF(dst) => vec![self.print_f(dst)],
@@ -577,6 +602,7 @@ impl<C: Config> AsmCompiler<C> {
                     kind: MemAccessKind::Read,
                     ..
                 })
+                | Instruction::CommitPublicValues(_)
                 | Instruction::Print(_) => vec![],
             })
             .for_each(|(mult, addr): (&mut C::F, &Address<C::F>)| {
@@ -620,6 +646,7 @@ const fn instr_name<F>(instr: &Instruction<F>) -> &'static str {
         Instruction::Print(_) => "Print",
         Instruction::HintExt2Felts(_) => "HintExt2Felts",
         Instruction::Hint(_) => "Hint",
+        Instruction::CommitPublicValues(_) => "CommitPublicValues",
     }
 }
 

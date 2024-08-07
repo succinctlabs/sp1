@@ -12,6 +12,8 @@ pub use program::*;
 pub use record::*;
 
 use std::{
+    array,
+    borrow::Borrow,
     collections::VecDeque,
     fmt::Debug,
     io::{stdout, Write},
@@ -29,7 +31,7 @@ use p3_symmetric::{CryptographicPermutation, Permutation};
 use p3_util::reverse_bits_len;
 use thiserror::Error;
 
-use sp1_recursion_core::air::Block;
+use sp1_recursion_core::air::{Block, RECURSIVE_PROOF_NUM_PV_ELTS};
 
 /// TODO expand glob import once things are organized enough
 use crate::*;
@@ -537,6 +539,20 @@ where
                             },
                         });
                     }
+                }
+
+                Instruction::CommitPublicValues(CommitPublicValuesInstr {
+                    pv_addrs: public_values_addrs,
+                }) => {
+                    let pv_addrs = public_values_addrs.to_vec();
+                    let pv_values: [F; RECURSIVE_PROOF_NUM_PV_ELTS] =
+                        array::from_fn(|i| self.mr(pv_addrs[i]).val[0]);
+                    self.record.public_values = *pv_values.as_slice().borrow();
+                    self.record
+                        .commit_pv_hash_events
+                        .push(CommitPublicValuesEvent {
+                            public_values: self.record.public_values,
+                        });
                 }
 
                 Instruction::Print(PrintInstr {
