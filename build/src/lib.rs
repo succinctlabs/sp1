@@ -224,10 +224,17 @@ fn copy_elf_to_output_dir(
 
     // The ELF is written to a target folder specified by the program's package. If built with Docker,
     // includes /docker after HELPER_TARGET_SUBDIR.
-    let target_dir_suffix = if args.docker {
-        format!("{}/{}", HELPER_TARGET_SUBDIR, "docker")
+    let mut target_dir_suffix = HELPER_TARGET_SUBDIR.to_string();
+    if args.docker {
+        target_dir_suffix = format!("{}/{}", HELPER_TARGET_SUBDIR, "docker");
+    }
+
+    // The ELF's file name is the binary name if it's specified. Otherwise, it is the root package
+    // name.
+    let original_elf_file_name = if !args.binary.is_empty() {
+        args.binary.clone()
     } else {
-        HELPER_TARGET_SUBDIR.to_string()
+        root_package_name.unwrap().clone()
     };
 
     let original_elf_path = program_metadata
@@ -235,7 +242,7 @@ fn copy_elf_to_output_dir(
         .join(target_dir_suffix)
         .join(BUILD_TARGET)
         .join("release")
-        .join(root_package_name.unwrap());
+        .join(original_elf_file_name);
 
     // The order of precedence for the ELF name is:
     // 1. --elf_name flag

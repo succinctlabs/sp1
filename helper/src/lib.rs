@@ -61,14 +61,10 @@ fn execute_build_cmd(
     }
 
     // Build the program with the given arguments.
-    let path_output = if let Some(args) = args {
-        sp1_build::build_program(&args, Some(program_dir.as_ref().to_path_buf()))
-    } else {
-        sp1_build::build_program(
-            &BuildArgs::default(),
-            Some(program_dir.as_ref().to_path_buf()),
-        )
-    };
+    let path_output = sp1_build::build_program(
+        &args.unwrap_or_default(),
+        Some(program_dir.as_ref().to_path_buf()),
+    );
     if let Err(err) = path_output {
         panic!("Failed to build SP1 program: {}.", err);
     }
