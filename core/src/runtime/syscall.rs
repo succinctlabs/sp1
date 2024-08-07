@@ -203,7 +203,7 @@ impl<'a, 'b> SyscallContext<'a, 'b> {
         self.rt.state.current_shard
     }
 
-    pub fn current_channel(&self) -> u32 {
+    pub fn current_channel(&self) -> u8 {
         self.rt.state.channel
     }
 

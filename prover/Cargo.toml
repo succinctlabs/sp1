@@ -10,6 +10,7 @@ keywords = { workspace = true }
 categories = { workspace = true }
 
 [dependencies]
+p3-matrix = { workspace = true }
 sp1-recursion-program = { workspace = true }
 sp1-recursion-circuit = { workspace = true }
 sp1-recursion-compiler = { workspace = true }
@@ -28,7 +29,7 @@ rayon = "1.10.0"
 itertools = "0.13.0"
 tracing = "0.1.40"
 tracing-subscriber = "0.3.18"
-serde_json = "1.0.120"
+serde_json = "1.0.121"
 clap = { version = "4.5.9", features = ["derive", "env"] }
 hex = "0.4.3"
 anyhow = "1.0.83"
@@ -37,7 +38,7 @@ tempfile = "3.10.1"
 subtle-encoding = "0.5.1"
 serial_test = "3.1.1"
 num-bigint = "0.4.6"
-thiserror = "1.0.60"
+thiserror = "1.0.63"
 oneshot = "0.1.8"
 
 [[bin]]

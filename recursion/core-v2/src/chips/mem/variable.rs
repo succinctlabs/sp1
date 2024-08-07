@@ -1,5 +1,5 @@
 use core::borrow::Borrow;
-use instruction::{HintBitsInstr, HintExt2FeltsInstr};
+use instruction::{HintBitsInstr, HintExt2FeltsInstr, HintInstr};
 use itertools::Itertools;
 use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::PrimeField32;
@@ -11,6 +11,8 @@ use sp1_derive::AlignedBorrow;
 use std::{borrow::BorrowMut, iter::zip, marker::PhantomData};
 
 use crate::{builder::SP1RecursionAirBuilder, *};
+
+use super::MemoryAccessCols;
 
 pub const NUM_MEM_ENTRIES_PER_ROW: usize = 16;
 
@@ -36,14 +38,6 @@ pub struct MemoryPreprocessedCols<F: Copy> {
     accesses: [MemoryAccessCols<F>; NUM_MEM_ENTRIES_PER_ROW],
 }
 
-#[derive(AlignedBorrow, Debug, Clone, Copy)]
-#[repr(C)]
-pub struct MemoryAccessCols<F: Copy> {
-    pub addr: Address<F>,
-    pub read_mult: F,
-    pub write_mult: F,
-}
-
 impl<F: Send + Sync> BaseAir<F> for MemoryChip<F> {
     fn width(&self) -> usize {
         NUM_MEM_INIT_COLS
@@ -56,7 +50,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip<F> {
     type Program = crate::RecursionProgram<F>;
 
     fn name(&self) -> String {
-        "Memory".to_string()
+        "MemoryVar".to_string()
     }
     fn preprocessed_width(&self) -> usize {
         NUM_MEM_PREPROCESSED_INIT_COLS
@@ -67,45 +61,20 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip<F> {
             .instructions
             .iter()
             .flat_map(|instruction| match instruction {
-                Instruction::Mem(MemInstr {
-                    addrs,
-                    vals: _,
-                    mult,
-                    kind,
-                }) => {
-                    let mult = mult.to_owned();
-                    let (read_mult, write_mult): (F, F) = match kind {
-                        MemAccessKind::Read => (mult, F::zero()),
-                        MemAccessKind::Write => (F::zero(), mult),
-                    };
-
-                    vec![MemoryAccessCols {
-                        addr: addrs.inner,
-                        read_mult,
-                        write_mult,
-                    }]
-                }
-                Instruction::HintBits(HintBitsInstr {
+                Instruction::Hint(HintInstr { output_addrs_mults })
+                | Instruction::HintBits(HintBitsInstr {
                     output_addrs_mults,
                     input_addr: _, // No receive interaction for the hint operation
                 }) => output_addrs_mults
                     .iter()
-                    .map(|&(addr, write_mult)| MemoryAccessCols {
-                        addr,
-                        read_mult: F::zero(),
-                        write_mult,
-                    })
+                    .map(|&(addr, mult)| MemoryAccessCols { addr, mult })
                     .collect(),
                 Instruction::HintExt2Felts(HintExt2FeltsInstr {
                     output_addrs_mults,
                     input_addr: _, // No receive interaction for the hint operation
                 }) => output_addrs_mults
                     .iter()
-                    .map(|&(addr, write_mult)| MemoryAccessCols {
-                        addr,
-                        read_mult: F::zero(),
-                        write_mult,
-                    })
+                    .map(|&(addr, mult)| MemoryAccessCols { addr, mult })
                     .collect(),
 
                 _ => vec![],
@@ -141,7 +110,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip<F> {
     fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
         let rows = input
-            .mem_events
+            .mem_var_events
             .chunks(NUM_MEM_ENTRIES_PER_ROW)
             .map(|row_events| {
                 let mut row = [F::zero(); NUM_MEM_INIT_COLS];
@@ -182,24 +151,11 @@ where
         let prep_local = prep.row_slice(0);
         let prep_local: &MemoryPreprocessedCols<AB::Var> = (*prep_local).borrow();
 
-        // At most one should be true.
-        // builder.assert_zero(local.read_mult * local.write_mult);
-
         for (value, access) in zip(local.values, prep_local.accesses) {
-            builder.receive_block(access.addr, value, access.read_mult);
-            builder.send_block(access.addr, value, access.write_mult);
+            builder.send_block(access.addr, value, access.mult);
         }
     }
 }
-
-/*
-
-1) make a dummy program for loop 100: x' = x*x + x
-2) make mem_init chip and mul chip with 3 columns each that prove a = b + c and a = b * c respectively.
-and then also fill in generate_trace and eval and write test (look at mem_init_sub in core for test example).
-you will also need to write your own execution record struct but look at recursion-core for how we did that
-
-*/
 
 #[cfg(test)]
 mod tests {
@@ -243,7 +199,7 @@ mod tests {
     #[test]
     pub fn generate_trace() {
         let shard = ExecutionRecord::<BabyBear> {
-            mem_events: vec![
+            mem_var_events: vec![
                 MemEvent {
                     inner: BabyBear::one().into(),
                 },

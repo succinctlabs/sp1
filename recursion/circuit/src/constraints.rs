@@ -141,6 +141,8 @@ where
     ) where
         A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
     {
+        builder.cycle_tracker("verify constraints");
+
         let opening = ChipOpening::from_variable(builder, chip, opening);
         let sels = trace_domain.selectors_at_point(builder, zeta);
 
@@ -157,6 +159,8 @@ where
         let quotient: Ext<_, _> = Self::recompute_quotient(builder, &opening, qc_domains, zeta);
 
         builder.assert_ext_eq(folded_constraints * sels.inv_zeroifier, quotient);
+
+        builder.cycle_tracker("verify constraints");
     }
 }
 
@@ -167,11 +171,10 @@ mod tests {
     use p3_baby_bear::DiffusionMatrixBabyBear;
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_commit::{Pcs, PolynomialSpace};
-    use serde::{de::DeserializeOwned, Serialize};
     use sp1_core::{
         stark::{
-            Chip, Com, DefaultProver, Dom, MachineProver, OpeningProof, PcsProverData,
-            ShardCommitment, ShardMainData, ShardProof, StarkGenericConfig, StarkMachine,
+            Chip, Com, CpuProver, Dom, MachineProver, OpeningProof, PcsProverData, ShardCommitment,
+            ShardProof, StarkGenericConfig, StarkMachine,
         },
         utils::SP1CoreOpts,
     };
@@ -208,7 +211,6 @@ mod tests {
         OpeningProof<SC>: Send + Sync,
         Com<SC>: Send + Sync,
         PcsProverData<SC>: Send + Sync,
-        ShardMainData<SC>: Serialize + DeserializeOwned,
         SC::Val: p3_field::PrimeField32,
         <SC as sp1_core::stark::StarkGenericConfig>::Val:
             p3_field::extension::BinomiallyExtendable<4>,
@@ -296,7 +298,7 @@ mod tests {
         let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new_no_perm(&program);
         runtime.run().unwrap();
         let machine = A::machine(config);
-        let prover = DefaultProver::new(machine);
+        let prover = CpuProver::new(machine);
         let (pk, vk) = prover.setup(&program);
         let mut challenger = prover.config().challenger();
         let proof = prover

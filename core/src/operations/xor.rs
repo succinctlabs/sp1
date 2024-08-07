@@ -22,7 +22,7 @@ impl<F: Field> XorOperation<F> {
         &mut self,
         record: &mut impl ByteRecord,
         shard: u32,
-        channel: u32,
+        channel: u8,
         x: u32,
         y: u32,
     ) -> u32 {
@@ -37,10 +37,10 @@ impl<F: Field> XorOperation<F> {
                 shard,
                 channel,
                 opcode: ByteOpcode::XOR,
-                a1: xor as u32,
+                a1: xor as u16,
                 a2: 0,
-                b: x_bytes[i] as u32,
-                c: y_bytes[i] as u32,
+                b: x_bytes[i],
+                c: y_bytes[i],
             };
             record.add_byte_lookup_event(byte_event);
         }

@@ -104,7 +104,7 @@ pub struct ExecutionRecord {
     pub nonce_lookup: HashMap<u128, u32>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SplitOpts {
     pub deferred_shift_threshold: usize,
     pub keccak_split_threshold: usize,
@@ -120,7 +120,7 @@ impl SplitOpts {
             keccak_split_threshold: deferred_shift_threshold / 24,
             sha_extend_split_threshold: deferred_shift_threshold / 48,
             sha_compress_split_threshold: deferred_shift_threshold / 80,
-            memory_split_threshold: deferred_shift_threshold,
+            memory_split_threshold: deferred_shift_threshold * 4,
         }
     }
 }
@@ -520,8 +520,11 @@ impl ExecutionRecord {
             opts.deferred_shift_threshold,
             last
         );
+        // _ = last_pct;
 
         if last {
+            // shards.push(last_shard);
+
             self.memory_initialize_events
                 .sort_by_key(|event| event.addr);
             self.memory_finalize_events.sort_by_key(|event| event.addr);

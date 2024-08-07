@@ -36,7 +36,7 @@ impl Syscall for SyscallWrite {
                 rt.cycle_tracker
                     .insert(fn_name.to_string(), (rt.state.global_clk, depth));
                 let padding = (0..depth).map(|_| "│ ").collect::<String>();
-                log::debug!("{}┌╴{}", padding, fn_name);
+                log::info!("{}┌╴{}", padding, fn_name);
             } else if s.contains("cycle-tracker-end:") {
                 let fn_name = s
                     .split("cycle-tracker-end:")

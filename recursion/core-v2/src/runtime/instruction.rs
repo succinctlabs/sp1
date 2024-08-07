@@ -18,6 +18,7 @@ pub enum Instruction<F> {
     Print(PrintInstr<F>),
     HintExt2Felts(HintExt2FeltsInstr<F>),
     CommitPublicValues(CommitPublicValuesInstr<F>),
+    Hint(HintInstr<F>),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -32,6 +33,12 @@ pub struct HintBitsInstr<F> {
 pub struct PrintInstr<F> {
     pub field_elt_type: FieldEltType,
     pub addr: Address<F>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct HintInstr<F> {
+    /// Addresses and mults of the output felts.
+    pub output_addrs_mults: Vec<(Address<F>, F)>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

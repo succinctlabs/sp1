@@ -173,8 +173,8 @@ impl ProverClient {
     /// // Execute the program on the inputs.
     /// let (public_values, report) = client.execute(elf, stdin).run().unwrap();
     /// ```
-    pub fn execute<'a>(&self, elf: &'a [u8], stdin: SP1Stdin) -> action::Execute<'a> {
-        action::Execute::new(elf, stdin)
+    pub fn execute<'a>(&'a self, elf: &'a [u8], stdin: SP1Stdin) -> action::Execute<'a> {
+        action::Execute::new(self.prover.as_ref(), elf, stdin)
     }
 
     /// Prepare to prove the execution of the given program with the given input in the default mode.

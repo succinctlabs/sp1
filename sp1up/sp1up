@@ -27,6 +27,7 @@ main() {
       -p|--path)        shift; SP1UP_LOCAL_REPO=$1;;
       -P|--pr)          shift; SP1UP_PR=$1;;
       -C|--commit)      shift; SP1UP_COMMIT=$1;;
+      -c|--c-toolchain) SP1UP_C_TOOLCHAIN=true;;
       --arch)           shift; SP1UP_ARCH=$1;;
       --platform)       shift; SP1UP_PLATFORM=$1;;
       -t|--token)       shift; GITHUB_TOKEN=$1;;
@@ -73,7 +74,7 @@ main() {
       ensure ln -s "$PWD/target/release/$bin" "$SP1_BIN_DIR/$bin"
     done
 
-    say "done"
+    say "done!"
     exit 0
   fi
 
@@ -90,39 +91,10 @@ main() {
       SP1UP_TAG="${SP1UP_VERSION}"
     fi
 
-    say "installing sp1 (version ${SP1UP_VERSION}, tag ${SP1UP_TAG})"
+    say "installing SP1 (version ${SP1UP_VERSION}, tag ${SP1UP_TAG})"
 
-    uname_s=$(uname -s)
-    PLATFORM=$(tolower "${SP1UP_PLATFORM:-$uname_s}")
-    EXT="tar.gz"
-    case $PLATFORM in
-      linux) ;;
-      darwin|mac*)
-        PLATFORM="darwin"
-        ;;
-      mingw*|win*)
-        EXT="zip"
-        PLATFORM="win32"
-        ;;
-      *)
-        err "unsupported platform: $PLATFORM"
-        ;;
-    esac
-
-    uname_m=$(uname -m)
-    ARCHITECTURE=$(tolower "${SP1UP_ARCH:-$uname_m}")
-    if [ "${ARCHITECTURE}" = "x86_64" ]; then
-      # Redirect stderr to /dev/null to avoid printing errors if non Rosetta.
-      if [ "$(sysctl -n sysctl.proc_translated 2>/dev/null)" = "1" ]; then
-        ARCHITECTURE="arm64" # Rosetta.
-      else
-        ARCHITECTURE="amd64" # Intel.
-      fi
-    elif [ "${ARCHITECTURE}" = "arm64" ] ||[ "${ARCHITECTURE}" = "aarch64" ] ; then
-      ARCHITECTURE="arm64" # Arm.
-    else
-      ARCHITECTURE="amd64" # Amd.
-    fi
+    determine_platform
+    determine_architecture
 
     # Compute the URL of the release tarball in the sp1 repository.
     RELEASE_URL="https://github.com/${SP1UP_REPO}/releases/download/${SP1UP_TAG}/"
@@ -164,11 +136,8 @@ EOF
     say "installing rust toolchain"
     ensure "$bin_path" prove install-toolchain
     say "installed rust toolchain"
-
-    say "done!"
-
-  # Install by cloning the repo with the provided branch/tag
   else
+    # Install by cloning the repo with the provided branch/tag
     need_cmd cargo
     SP1UP_BRANCH=${SP1UP_BRANCH:-main}
     REPO_PATH="$SP1_DIR/$SP1UP_REPO"
@@ -202,8 +171,113 @@ EOF
         fi
       done
     done
+  fi
 
-    say "done"
+  if [ "$SP1UP_C_TOOLCHAIN" = true ]; then
+    install_c_toolchain
+  fi
+
+  say "done!"
+}
+
+# Downloads the C++ toolchain for RISC-V and creates a symlink to it at SP1_BIN_DIR/riscv32-unknown-elf-gcc
+install_c_toolchain() {
+  say "installing C++ toolchain for RISC-V"
+
+  determine_platform
+  determine_architecture
+
+  case $PLATFORM in
+    linux)
+      case $ARCHITECTURE in
+        amd64) TOOLCHAIN_URL="https://github.com/risc0/toolchain/releases/download/2022.03.25/riscv32im-linux-x86_64.tar.xz" ;;
+        *) err "unsupported architecture for Linux: $ARCHITECTURE" ;;
+      esac
+      ;;
+    darwin)
+      case $ARCHITECTURE in
+        arm64) TOOLCHAIN_URL="https://github.com/risc0/toolchain/releases/download/2022.03.25/riscv32im-osx-arm64.tar.xz" ;;
+        amd64) TOOLCHAIN_URL="https://github.com/risc0/toolchain/releases/download/2022.03.25/riscv32im-osx-x86_64.tar.xz" ;;
+        *) err "unsupported architecture for macOS: $ARCHITECTURE" ;;
+      esac
+      ;;
+    win32)
+      case $ARCHITECTURE in
+        amd64) TOOLCHAIN_URL="https://github.com/risc0/toolchain/releases/download/2022.03.25/riscv32im-windows-x86_64.tar.xz" ;;
+        *) err "unsupported architecture for Windows: $ARCHITECTURE" ;;
+      esac
+      ;;
+    *)
+      err "unsupported platform: $PLATFORM"
+      ;;
+  esac
+
+  TOOLCHAIN_ARCHIVE="/tmp/$(basename $TOOLCHAIN_URL)"
+  TOOLCHAIN_INSTALL_DIR="$SP1_DIR/riscv"
+
+  # Always re-download the RISC-V GCC prebuilt binary archive
+  ensure download "$TOOLCHAIN_URL" "$TOOLCHAIN_ARCHIVE"
+
+  # Create the ~/.sp1 and TOOLCHAIN_INSTALL_DIR directories if they don't exist
+  mkdir -p "$TOOLCHAIN_INSTALL_DIR"
+
+  # Extract the downloaded archive into the target directory
+  if [ "$PLATFORM" = "win32" ]; then
+    ensure unzip "$TOOLCHAIN_ARCHIVE" -d "$TOOLCHAIN_INSTALL_DIR" >/dev/null 2>&1
+  else
+    ensure tar -xvf "$TOOLCHAIN_ARCHIVE" -C "$TOOLCHAIN_INSTALL_DIR" >/dev/null 2>&1
+  fi
+  rm -f "$TOOLCHAIN_ARCHIVE"
+
+  # Find the actual location of the gcc binary and create a symlink to it in SP1_BIN_DIR
+  GCC_PATH=$(find "$TOOLCHAIN_INSTALL_DIR" -name 'riscv32-unknown-elf-gcc' -type f | head -n 1)
+  if [ -z "$GCC_PATH" ]; then
+    err "riscv32-unknown-elf-gcc not found in extracted archive"
+  fi
+  ln -sf "$GCC_PATH" "$SP1_BIN_DIR/riscv32-unknown-elf-gcc"
+
+  # Set environment variables for the RISC-V toolchain
+  export PATH="$SP1_BIN_DIR:$PATH"
+  export CC_riscv32im_succinct_zkvm_elf="$SP1_BIN_DIR/riscv32-unknown-elf-gcc"
+
+  say "installed C++ toolchain for RISC-V and set environment variables"
+}
+
+determine_platform() {
+  uname_s=$(uname -s)
+  PLATFORM=$(tolower "${SP1UP_PLATFORM:-$uname_s}")
+  case $PLATFORM in
+    linux) ;;
+    darwin|mac*)
+      PLATFORM="darwin"
+      ;;
+    mingw*|win*)
+      PLATFORM="win32"
+      ;;
+    *)
+      err "unsupported platform: $PLATFORM"
+      ;;
+  esac
+  EXT="tar.gz"
+  if [ "$PLATFORM" = "win32" ]; then
+    EXT="zip"
+  fi
+}
+
+determine_architecture() {
+  uname_m=$(uname -m)
+  ARCHITECTURE=$(tolower "${SP1UP_ARCH:-$uname_m}")
+  if [ "${ARCHITECTURE}" = "x86_64" ]; then
+    # Redirect stderr to /dev/null to avoid printing errors if non Rosetta.
+    if [ "$(sysctl -n sysctl.proc_translated 2>/dev/null)" = "1" ]; then
+      ARCHITECTURE="arm64" # Rosetta.
+    else
+      ARCHITECTURE="amd64" # Intel.
+    fi
+  elif [ "${ARCHITECTURE}" = "arm64" ] || [ "${ARCHITECTURE}" = "aarch64" ]; then
+    ARCHITECTURE="arm64" # Arm.
+  else
+    ARCHITECTURE="amd64" # Amd.
   fi
 }
 
@@ -211,21 +285,23 @@ usage() {
   cat 1>&2 <<EOF
 The installer for the SP1.
 
-Update or revert to a specific sp1 version with ease.
+Update or revert to a specific SP1 version with ease.
 
 USAGE:
     sp1up <OPTIONS>
 
 OPTIONS:
-    -h, --help      Print help information
-    -v, --version   Install a specific version
-    -b, --branch    Install a specific branch
-    -P, --pr        Install a specific Pull Request
-    -C, --commit    Install a specific commit
-    -r, --repo      Install from a remote GitHub repo (uses default branch if no other options are set)
-    -p, --path      Install a local repository
-    --arch          Install a specific architecture (supports amd64 and arm64)
-    --platform      Install a specific platform (supports win32, linux, and darwin)
+    -h, --help        Print help information
+    -v, --version     Install a specific version
+    -b, --branch      Install a specific branch
+    -P, --pr          Install a specific Pull Request
+    -C, --commit      Install a specific commit
+    -r, --repo        Install from a remote GitHub repo (uses default branch if no other options are set)
+    -p, --path        Install a local repository
+    -c, --c-toolchain Install a C++ toolchain for RISC-V (needed building programs that bind to C code)
+    --arch            Install a specific architecture (supports amd64 and arm64)
+    --platform        Install a specific platform (supports win32, linux, and darwin)
+    -t, --token       GitHub token to use for avoiding API rate limits
 EOF
 }
 
@@ -296,7 +372,7 @@ banner() {
 
 Repo       : https://github.com/succinctlabs/sp1
 Book       : https://succinctlabs.github.io/sp1
-Telegram   : https://t.me/succinct_sp1
+Telegram   : https://t.me/+AzG4ws-kD24yMGYx
 
 ._______ ._______ ._______ ._______ ._______ ._______ ._______ ._______ ._______ 
 

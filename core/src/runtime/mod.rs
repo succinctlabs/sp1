@@ -35,6 +35,7 @@ use std::io::BufWriter;
 use std::io::Write;
 use std::sync::Arc;
 
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::alu::create_alu_lookup_id;
@@ -118,7 +119,7 @@ pub struct Runtime<'a> {
     pub max_cycles: Option<u64>,
 }
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Serialize, Deserialize)]
 pub enum ExecutionError {
     #[error("execution failed with exit code {0}")]
     HaltWithNonZeroExitCode(u32),
@@ -266,7 +267,7 @@ impl<'a> Runtime<'a> {
     }
 
     #[inline]
-    pub fn channel(&self) -> u32 {
+    pub fn channel(&self) -> u8 {
         self.state.channel
     }
 
@@ -434,7 +435,7 @@ impl<'a> Runtime<'a> {
     fn emit_cpu(
         &mut self,
         shard: u32,
-        channel: u32,
+        channel: u8,
         clk: u32,
         pc: u32,
         next_pc: u32,

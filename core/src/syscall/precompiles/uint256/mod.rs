@@ -6,7 +6,7 @@ pub use air::*;
 mod tests {
 
     use crate::operations::field::params::FieldParameters;
-    use crate::stark::DefaultProver;
+    use crate::stark::CpuProver;
     use crate::{
         io::SP1Stdin,
         runtime::Program,
@@ -22,7 +22,7 @@ mod tests {
     fn test_uint256_mul() {
         utils::setup_logger();
         let program = Program::from(UINT256_MUL_ELF);
-        run_test_io::<DefaultProver<_, _>>(program, SP1Stdin::new()).unwrap();
+        run_test_io::<CpuProver<_, _>>(program, SP1Stdin::new()).unwrap();
     }
 
     #[test]

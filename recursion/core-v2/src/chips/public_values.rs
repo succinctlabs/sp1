@@ -83,13 +83,12 @@ impl<F: PrimeField32> MachineAir<F> for PublicValuesChip {
         // We only take 1 commit pv hash instruction, since our air only checks for one public values hash.
         for instr in commit_pv_hash_instrs.iter().take(1) {
             for (i, addr) in instr.pv_addrs.digest.iter().enumerate() {
-                let mut row: [F; 11] = [F::zero(); NUM_PUBLIC_VALUES_PREPROCESSED_COLS];
+                let mut row = [F::zero(); NUM_PUBLIC_VALUES_PREPROCESSED_COLS];
                 let cols: &mut PublicValuesPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
                 cols.pv_idx[i] = F::one();
                 cols.pv_mem = MemoryAccessCols {
                     addr: *addr,
-                    read_mult: F::one(),
-                    write_mult: F::zero(),
+                    mult: F::neg_one(),
                 };
                 rows.push(row);
             }
@@ -160,10 +159,10 @@ where
         let public_values: &RecursionPublicValues<AB::Expr> = pv_elms.as_slice().borrow();
 
         // Constrain mem read for the public value element.
-        builder.receive_single(
+        builder.send_single(
             local_prepr.pv_mem.addr,
             local.pv_element,
-            local_prepr.pv_mem.read_mult,
+            local_prepr.pv_mem.mult,
         );
 
         for (i, pv_elm) in public_values.digest.iter().enumerate() {

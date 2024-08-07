@@ -28,7 +28,7 @@ impl<F: PrimeField32, const N: usize> AssertLtColsBytes<F, N> {
         &mut self,
         record: &mut impl ByteRecord,
         shard: u32,
-        channel: u32,
+        channel: u8,
         a: &[u8],
         b: &[u8],
     ) {
@@ -48,8 +48,8 @@ impl<F: PrimeField32, const N: usize> AssertLtColsBytes<F, N> {
                     channel,
                     a1: 1,
                     a2: 0,
-                    b: *a_byte as u32,
-                    c: *b_byte as u32,
+                    b: *a_byte,
+                    c: *b_byte,
                 });
                 break;
             }

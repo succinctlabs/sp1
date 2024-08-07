@@ -394,7 +394,7 @@ pub(crate) mod tests {
     use sp1_core::air::POSEIDON_NUM_WORDS;
     use sp1_core::io::SP1Stdin;
     use sp1_core::runtime::Program;
-    use sp1_core::stark::DefaultProver;
+    use sp1_core::stark::CpuProver;
     use sp1_core::stark::MachineProver;
     use sp1_core::utils::setup_logger;
     use sp1_core::utils::InnerChallenge;
@@ -441,7 +441,7 @@ pub(crate) mod tests {
         let machine = A::machine(SC::default());
         let (_, vk) = machine.setup(&Program::from(elf));
         let mut challenger_val = machine.config().challenger();
-        let (proof, _, _) = sp1_core::utils::prove::<_, DefaultProver<_, _>>(
+        let (proof, _, _) = sp1_core::utils::prove::<_, CpuProver<_, _>>(
             Program::from(elf),
             &SP1Stdin::new(),
             SC::default(),
@@ -549,7 +549,7 @@ pub(crate) mod tests {
         runtime.run().unwrap();
 
         let machine = RecursionAir::<_, 3>::machine(SC::default());
-        let prover = DefaultProver::new(machine);
+        let prover = CpuProver::new(machine);
         let (pk, vk) = prover.setup(&program);
         let record = runtime.record.clone();
 

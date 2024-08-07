@@ -358,6 +358,13 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
                         vec![a[3].id()],
                     ],
                 }),
+                // Ignore cycle tracker instruction.
+                // It currently serves as a marker for calculation at compile time.
+                DslIr::CycleTracker(_) => (),
+                DslIr::ReduceE(a) => constraints.push(Constraint {
+                    opcode: ConstraintOpcode::ReduceE,
+                    args: vec![vec![a.id()]],
+                }),
                 _ => panic!("unsupported {:?}", instruction),
             };
         }

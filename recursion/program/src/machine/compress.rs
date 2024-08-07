@@ -43,7 +43,7 @@ pub struct SP1CompressVerifier<C: Config, SC: StarkGenericConfig, A> {
 }
 
 /// The different types of programs that can be verified by the `SP1ReduceVerifier`.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ReduceProgramType {
     /// A batch of proofs that are all SP1 Core proofs.
     Core = 0,
@@ -54,7 +54,7 @@ pub enum ReduceProgramType {
 }
 
 /// An input layout for the reduce verifier.
-pub struct SP1ReduceMemoryLayout<'a, SC: StarkGenericConfig, A: MachineAir<SC::Val>> {
+pub struct SP1CompressMemoryLayout<'a, SC: StarkGenericConfig, A: MachineAir<SC::Val>> {
     pub compress_vk: &'a StarkVerifyingKey<SC>,
     pub recursive_machine: &'a StarkMachine<SC, A>,
     pub shard_proofs: Vec<ShardProof<SC>>,
@@ -63,7 +63,7 @@ pub struct SP1ReduceMemoryLayout<'a, SC: StarkGenericConfig, A: MachineAir<SC::V
 }
 
 #[derive(DslVariable, Clone)]
-pub struct SP1ReduceMemoryLayoutVariable<C: Config> {
+pub struct SP1CompressMemoryLayoutVariable<C: Config> {
     pub compress_vk: VerifyingKeyVariable<C>,
     pub shard_proofs: Array<C, ShardProofVariable<C>>,
     pub kinds: Array<C, Var<C::N>>,
@@ -82,8 +82,8 @@ where
     ) -> RecursionProgram<BabyBear> {
         let mut builder = Builder::<InnerConfig>::new(RecursionProgramType::Compress);
 
-        let input: SP1ReduceMemoryLayoutVariable<_> = builder.uninit();
-        SP1ReduceMemoryLayout::<BabyBearPoseidon2, A>::witness(&input, &mut builder);
+        let input: SP1CompressMemoryLayoutVariable<_> = builder.uninit();
+        SP1CompressMemoryLayout::<BabyBearPoseidon2, A>::witness(&input, &mut builder);
 
         let pcs = TwoAdicFriPcsVariable {
             config: const_fri_config(&mut builder, machine.config().pcs().fri_config()),
@@ -130,11 +130,11 @@ where
         builder: &mut Builder<C>,
         pcs: &TwoAdicFriPcsVariable<C>,
         machine: &StarkMachine<SC, A>,
-        input: SP1ReduceMemoryLayoutVariable<C>,
+        input: SP1CompressMemoryLayoutVariable<C>,
         recursive_vk: &StarkVerifyingKey<SC>,
         deferred_vk: &StarkVerifyingKey<SC>,
     ) {
-        let SP1ReduceMemoryLayoutVariable {
+        let SP1CompressMemoryLayoutVariable {
             compress_vk,
             shard_proofs,
             kinds,

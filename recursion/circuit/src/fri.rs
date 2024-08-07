@@ -60,6 +60,7 @@ pub fn verify_two_adic_pcs<C: Config>(
     challenger: &mut MultiField32ChallengerVariable<C>,
     rounds: Vec<TwoAdicPcsRoundVariable<C>>,
 ) {
+    builder.cycle_tracker("2adic");
     let alpha = challenger.sample_ext(builder);
 
     let fri_challenges =
@@ -78,7 +79,6 @@ pub fn verify_two_adic_pcs<C: Config>(
         .map(|(query_opening, &index)| {
             let mut ro: [Ext<C::F, C::EF>; 32] =
                 [builder.eval(SymbolicExt::from_f(C::EF::zero())); 32];
-
             // An array of the current power for each log_height.
             let mut log_height_pow = [0usize; 32];
 
@@ -127,25 +127,31 @@ pub fn verify_two_adic_pcs<C: Config>(
                     let x: Felt<_> = builder.eval(g * two_adic_generator_exp);
 
                     for (z, ps_at_z) in izip!(mat_points, mat_values) {
+                        builder.cycle_tracker("2adic-hotloop");
                         let mut acc: Ext<C::F, C::EF> =
                             builder.eval(SymbolicExt::from_f(C::EF::zero()));
                         for (p_at_x, &p_at_z) in izip!(mat_opening.clone(), ps_at_z) {
                             let pow = log_height_pow[log_height];
                             // Fill in any missing powers of alpha.
                             (alpha_pows.len()..pow + 1).for_each(|_| {
-                                alpha_pows.push(builder.eval(*alpha_pows.last().unwrap() * alpha));
+                                let new_alpha = builder.eval(*alpha_pows.last().unwrap() * alpha);
+                                builder.reduce_e(new_alpha);
+                                alpha_pows.push(new_alpha);
                             });
                             acc = builder.eval(acc + (alpha_pows[pow] * (p_at_z - p_at_x[0])));
                             log_height_pow[log_height] += 1;
                         }
                         ro[log_height] = builder.eval(ro[log_height] + acc / (*z - x));
+                        builder.cycle_tracker("2adic-hotloop");
                     }
                 }
             }
             ro
         })
         .collect::<Vec<_>>();
+    builder.cycle_tracker("2adic");
 
+    builder.cycle_tracker("challenges");
     verify_challenges(
         builder,
         config,
@@ -153,6 +159,7 @@ pub fn verify_two_adic_pcs<C: Config>(
         &fri_challenges,
         reduced_openings,
     );
+    builder.cycle_tracker("challenges");
 }
 
 pub fn verify_challenges<C: Config>(
@@ -198,6 +205,7 @@ pub fn verify_query<C: Config>(
     let index_bits = builder.num2bits_v_circuit(index, 32);
     let rev_reduced_index = builder.reverse_bits_len_circuit(index_bits.clone(), log_max_height);
     let mut x = builder.exp_e_bits(two_adic_generator, rev_reduced_index);
+    builder.reduce_e(x);
 
     let mut offset = 0;
     for (log_folded_height, commit, step, beta) in izip!(
@@ -242,6 +250,7 @@ pub fn verify_query<C: Config>(
         folded_eval = builder
             .eval(evals_ext[0] + (beta - xs[0]) * (evals_ext[1] - evals_ext[0]) / (xs[1] - xs[0]));
         x = builder.eval(x * x);
+        builder.reduce_e(x);
         offset += 1;
     }
 

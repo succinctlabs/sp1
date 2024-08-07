@@ -55,7 +55,7 @@ pub fn main() {
 
     tracing::info!("building verifier constraints");
     let constraints = tracing::info_span!("wrap circuit")
-        .in_scope(|| build_wrap_circuit(&prover.wrap_vk, wrapped_proof.proof.clone()));
+        .in_scope(|| build_wrap_circuit(prover.wrap_vk(), wrapped_proof.proof.clone()));
 
     tracing::info!("building template witness");
     let pv: &RecursionPublicValues<_> = wrapped_proof.proof.public_values.as_slice().borrow();

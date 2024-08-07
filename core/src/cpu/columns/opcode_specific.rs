@@ -2,6 +2,8 @@ use crate::cpu::columns::{AuipcCols, BranchCols, JumpCols, MemoryColumns};
 use std::fmt::{Debug, Formatter};
 use std::mem::{size_of, transmute};
 
+use static_assertions::const_assert;
+
 use super::ecall::EcallCols;
 
 pub const NUM_OPCODE_SPECIFIC_COLS: usize = size_of::<OpcodeSpecificCols<u8>>();
@@ -19,6 +21,9 @@ pub union OpcodeSpecificCols<T: Copy> {
 
 impl<T: Copy + Default> Default for OpcodeSpecificCols<T> {
     fn default() -> Self {
+        // We must use the largest field to avoid uninitialized padding bytes.
+        const_assert!(size_of::<MemoryColumns<u8>>() == size_of::<OpcodeSpecificCols<u8>>());
+
         OpcodeSpecificCols {
             memory: MemoryColumns::default(),
         }

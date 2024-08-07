@@ -1,7 +1,8 @@
 use chips::poseidon2_skinny::WIDTH;
 use core::fmt::Debug;
-use instruction::{FieldEltType, HintBitsInstr, HintExt2FeltsInstr, PrintInstr};
+use instruction::{FieldEltType, HintBitsInstr, HintExt2FeltsInstr, HintInstr, PrintInstr};
 use p3_field::{AbstractExtensionField, AbstractField, Field, PrimeField, TwoAdicField};
+use sp1_core::utils::SpanBuilder;
 use sp1_recursion_core::air::{Block, RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS};
 use sp1_recursion_core_v2::{BaseAluInstr, BaseAluOpcode};
 use std::{
@@ -144,7 +145,7 @@ impl<C: Config> AsmCompiler<C> {
             .0
     }
 
-    fn mem_write_const(&mut self, dst: impl Reg<C>, src: Imm<C::F, C::EF>) -> Instruction<C::F> {
+    fn mem_write_const(&mut self, dst: impl Reg<C>, src: Imm<C::F, C::EF>) -> CompileOneItem<C::F> {
         Instruction::Mem(MemInstr {
             addrs: MemIo {
                 inner: dst.write(self),
@@ -155,6 +156,7 @@ impl<C: Config> AsmCompiler<C> {
             mult: C::F::zero(),
             kind: MemAccessKind::Write,
         })
+        .into()
     }
 
     fn base_alu(
@@ -163,7 +165,7 @@ impl<C: Config> AsmCompiler<C> {
         dst: impl Reg<C>,
         lhs: impl Reg<C>,
         rhs: impl Reg<C>,
-    ) -> Instruction<C::F> {
+    ) -> CompileOneItem<C::F> {
         Instruction::BaseAlu(BaseAluInstr {
             opcode,
             mult: C::F::zero(),
@@ -173,6 +175,7 @@ impl<C: Config> AsmCompiler<C> {
                 in2: rhs.read(self),
             },
         })
+        .into()
     }
 
     fn ext_alu(
@@ -181,7 +184,7 @@ impl<C: Config> AsmCompiler<C> {
         dst: impl Reg<C>,
         lhs: impl Reg<C>,
         rhs: impl Reg<C>,
-    ) -> Instruction<C::F> {
+    ) -> CompileOneItem<C::F> {
         Instruction::ExtAlu(ExtAluInstr {
             opcode,
             mult: C::F::zero(),
@@ -191,9 +194,10 @@ impl<C: Config> AsmCompiler<C> {
                 in2: rhs.read(self),
             },
         })
+        .into()
     }
 
-    fn base_assert_eq(&mut self, lhs: impl Reg<C>, rhs: impl Reg<C>) -> Vec<Instruction<C::F>> {
+    fn base_assert_eq(&mut self, lhs: impl Reg<C>, rhs: impl Reg<C>) -> Vec<CompileOneItem<C::F>> {
         use BaseAluOpcode::*;
         let [diff, out] = core::array::from_fn(|_| Self::alloc(&mut self.next_addr));
         vec![
@@ -202,7 +206,7 @@ impl<C: Config> AsmCompiler<C> {
         ]
     }
 
-    fn base_assert_ne(&mut self, lhs: impl Reg<C>, rhs: impl Reg<C>) -> Vec<Instruction<C::F>> {
+    fn base_assert_ne(&mut self, lhs: impl Reg<C>, rhs: impl Reg<C>) -> Vec<CompileOneItem<C::F>> {
         use BaseAluOpcode::*;
         let [diff, out] = core::array::from_fn(|_| Self::alloc(&mut self.next_addr));
         vec![
@@ -211,7 +215,7 @@ impl<C: Config> AsmCompiler<C> {
         ]
     }
 
-    fn ext_assert_eq(&mut self, lhs: impl Reg<C>, rhs: impl Reg<C>) -> Vec<Instruction<C::F>> {
+    fn ext_assert_eq(&mut self, lhs: impl Reg<C>, rhs: impl Reg<C>) -> Vec<CompileOneItem<C::F>> {
         use ExtAluOpcode::*;
         let [diff, out] = core::array::from_fn(|_| Self::alloc(&mut self.next_addr));
         vec![
@@ -220,7 +224,7 @@ impl<C: Config> AsmCompiler<C> {
         ]
     }
 
-    fn ext_assert_ne(&mut self, lhs: impl Reg<C>, rhs: impl Reg<C>) -> Vec<Instruction<C::F>> {
+    fn ext_assert_ne(&mut self, lhs: impl Reg<C>, rhs: impl Reg<C>) -> Vec<CompileOneItem<C::F>> {
         use ExtAluOpcode::*;
         let [diff, out] = core::array::from_fn(|_| Self::alloc(&mut self.next_addr));
         vec![
@@ -233,7 +237,7 @@ impl<C: Config> AsmCompiler<C> {
         &mut self,
         dst: [impl Reg<C>; WIDTH],
         src: [impl Reg<C>; WIDTH],
-    ) -> Instruction<C::F> {
+    ) -> CompileOneItem<C::F> {
         Instruction::Poseidon2Skinny(Poseidon2WideInstr {
             addrs: Poseidon2Io {
                 input: src.map(|r| r.read(self)),
@@ -241,13 +245,14 @@ impl<C: Config> AsmCompiler<C> {
             },
             mults: [C::F::zero(); WIDTH],
         })
+        .into()
     }
 
     fn poseidon2_permute_wide(
         &mut self,
         dst: [impl Reg<C>; WIDTH],
         src: [impl Reg<C>; WIDTH],
-    ) -> Instruction<C::F> {
+    ) -> CompileOneItem<C::F> {
         Instruction::Poseidon2Wide(Poseidon2WideInstr {
             addrs: Poseidon2Io {
                 input: src.map(|r| r.read(self)),
@@ -255,6 +260,7 @@ impl<C: Config> AsmCompiler<C> {
             },
             mults: [C::F::zero(); WIDTH],
         })
+        .into()
     }
 
     fn exp_reverse_bits(
@@ -262,7 +268,7 @@ impl<C: Config> AsmCompiler<C> {
         dst: impl Reg<C>,
         base: impl Reg<C>,
         exp: impl IntoIterator<Item = impl Reg<C>>,
-    ) -> Instruction<C::F> {
+    ) -> CompileOneItem<C::F> {
         Instruction::ExpReverseBitsLen(ExpReverseBitsInstr {
             addrs: ExpReverseBitsIo {
                 result: dst.write(self),
@@ -271,13 +277,14 @@ impl<C: Config> AsmCompiler<C> {
             },
             mult: C::F::zero(),
         })
+        .into()
     }
 
     fn hint_bit_decomposition(
         &mut self,
         value: impl Reg<C>,
         output: impl IntoIterator<Item = impl Reg<C>>,
-    ) -> Instruction<C::F> {
+    ) -> CompileOneItem<C::F> {
         Instruction::HintBits(HintBitsInstr {
             output_addrs_mults: output
                 .into_iter()
@@ -285,6 +292,7 @@ impl<C: Config> AsmCompiler<C> {
                 .collect(),
             input_addr: value.read_ghost(self),
         })
+        .into()
     }
 
     fn fri_fold(
@@ -302,7 +310,7 @@ impl<C: Config> AsmCompiler<C> {
             alpha_pow_input,
             ro_input,
         }: CircuitV2FriFoldInput<C>,
-    ) -> Instruction<C::F> {
+    ) -> CompileOneItem<C::F> {
         Instruction::FriFold(FriFoldInstr {
             // Calculate before moving the vecs.
             alpha_pow_mults: vec![C::F::zero(); alpha_pow_output.len()],
@@ -325,12 +333,13 @@ impl<C: Config> AsmCompiler<C> {
                 ro_output: ro_output.into_iter().map(|e| e.write(self)).collect(),
             },
         })
+        .into()
     }
 
     fn commit_public_values(
         &mut self,
         public_values: &RecursionPublicValues<Felt<C::F>>,
-    ) -> Instruction<C::F> {
+    ) -> CompileOneItem<C::F> {
         let pv_addrs =
             unsafe {
                 transmute::<
@@ -344,30 +353,44 @@ impl<C: Config> AsmCompiler<C> {
         Instruction::CommitPublicValues(CommitPublicValuesInstr {
             pv_addrs: *public_values_a,
         })
+        .into()
     }
 
-    fn print_f(&mut self, addr: impl Reg<C>) -> Instruction<C::F> {
+    fn print_f(&mut self, addr: impl Reg<C>) -> CompileOneItem<C::F> {
         Instruction::Print(PrintInstr {
             field_elt_type: FieldEltType::Base,
             addr: addr.read_ghost(self),
         })
+        .into()
     }
 
-    fn print_e(&mut self, addr: impl Reg<C>) -> Instruction<C::F> {
+    fn print_e(&mut self, addr: impl Reg<C>) -> CompileOneItem<C::F> {
         Instruction::Print(PrintInstr {
             field_elt_type: FieldEltType::Extension,
             addr: addr.read_ghost(self),
         })
+        .into()
     }
 
-    fn ext2felts(&mut self, felts: [impl Reg<C>; D], ext: impl Reg<C>) -> Instruction<C::F> {
+    fn ext2felts(&mut self, felts: [impl Reg<C>; D], ext: impl Reg<C>) -> CompileOneItem<C::F> {
         Instruction::HintExt2Felts(HintExt2FeltsInstr {
             output_addrs_mults: felts.map(|r| (r.write(self), C::F::zero())),
             input_addr: ext.read_ghost(self),
         })
+        .into()
     }
 
-    pub fn compile_one<F>(&mut self, ir_instr: DslIr<C>) -> Vec<Instruction<C::F>>
+    fn hint(&mut self, output: &[impl Reg<C>]) -> CompileOneItem<C::F> {
+        Instruction::Hint(HintInstr {
+            output_addrs_mults: output
+                .iter()
+                .map(|r| (r.write(self), C::F::zero()))
+                .collect(),
+        })
+        .into()
+    }
+
+    pub fn compile_one<F>(&mut self, ir_instr: DslIr<C>) -> Vec<CompileOneItem<C::F>>
     where
         F: PrimeField + TwoAdicField,
         C: Config<N = F, F = F> + Debug,
@@ -460,53 +483,14 @@ impl<C: Config> AsmCompiler<C> {
                 vec![self.commit_public_values(&public_values)]
             }
 
-            // DslIr::For(_, _, _, _, _) => todo!(),
-            // DslIr::IfEq(_, _, _, _) => todo!(),
-            // DslIr::IfNe(_, _, _, _) => todo!(),
-            // DslIr::IfEqI(_, _, _, _) => todo!(),
-            // DslIr::IfNeI(_, _, _, _) => todo!(),
-            // DslIr::Break => todo!(),
-            // DslIr::Alloc(_, _, _) => todo!(),
-            // DslIr::LoadV(_, _, _) => todo!(),
-            // DslIr::LoadF(_, _, _) => todo!(),
-            // DslIr::LoadE(_, _, _) => todo!(),
-            // DslIr::StoreV(_, _, _) => todo!(),
-            // DslIr::StoreF(_, _, _) => todo!(),
-            // DslIr::StoreE(_, _, _) => todo!(),
-            // DslIr::CircuitNum2BitsV(_, _, _) => todo!(),
-            // DslIr::Poseidon2CompressBabyBear(_, _, _) => todo!(),
-            // DslIr::Poseidon2AbsorbBabyBear(_, _) => todo!(),
-            // DslIr::Poseidon2FinalizeBabyBear(_, _) => todo!(),
-            // DslIr::CircuitPoseidon2Permute(_) => todo!(),
-            // DslIr::CircuitPoseidon2PermuteBabyBear(_) => todo!(),
-            // DslIr::HintBitsU(_, _) => todo!(),
-            // DslIr::HintBitsV(_, _) => todo!(),
-            // DslIr::HintBitsF(_, _) => todo!(),
             DslIr::PrintV(dst) => vec![self.print_f(dst)],
             DslIr::PrintF(dst) => vec![self.print_f(dst)],
             DslIr::PrintE(dst) => vec![self.print_e(dst)],
-            // DslIr::Error() => todo!(),
-            // DslIr::HintExt2Felt(_, _) => todo!(),
-            // DslIr::HintLen(_) => todo!(),
-            // DslIr::HintVars(_) => todo!(),
-            // DslIr::HintFelts(_) => todo!(),
-            // DslIr::HintExts(_) => todo!(),
-            // DslIr::WitnessVar(_, _) => todo!(),
-            // DslIr::WitnessFelt(_, _) => todo!(),
-            // DslIr::WitnessExt(_, _) => todo!(),
-            // DslIr::Commit(_, _) => todo!(),
-            // DslIr::RegisterPublicValue(_) => todo!(),
-            // DslIr::Halt => todo!(),
-            // DslIr::CircuitCommitVkeyHash(_) => todo!(),
-            // DslIr::CircuitCommitCommitedValuesDigest(_) => todo!(),
-            // DslIr::FriFold(_, _) => todo!(),
-            // DslIr::CircuitSelectV(_, _, _, _) => todo!(),
-            // DslIr::CircuitSelectF(_, _, _, _) => todo!(),
-            // DslIr::CircuitSelectE(_, _, _, _) => todo!(),
+            DslIr::CircuitV2HintFelts(output) => vec![self.hint(&output)],
+            DslIr::CircuitV2HintExts(output) => vec![self.hint(&output)],
             DslIr::CircuitExt2Felt(felts, ext) => vec![self.ext2felts(felts, ext)],
-            // DslIr::LessThan(_, _, _) => todo!(),
-            // DslIr::CycleTracker(_) => todo!(),
-            // DslIr::ExpReverseBitsLen(_, _, _) => todo!(),
+            DslIr::CycleTrackerV2Enter(name) => vec![CompileOneItem::CycleTrackerEnter(name)],
+            DslIr::CycleTrackerV2Exit => vec![CompileOneItem::CycleTrackerExit],
             instr => panic!("unsupported instruction: {instr:?}"),
         }
     }
@@ -519,10 +503,36 @@ impl<C: Config> AsmCompiler<C> {
     {
         // Compile each IR instruction into a list of ASM instructions, then combine them.
         // This step also counts the number of times each address is read from.
-        let mut instrs = operations
+        let annotated_instrs = operations
             .into_iter()
             .flat_map(|(ir_instr, trace)| zip(self.compile_one(ir_instr), repeat(trace)))
             .collect::<Vec<_>>();
+
+        // Cycle tracking logic.
+        let (mut instrs, cycle_tracker_root_span) = {
+            let mut span_builder = SpanBuilder::<_, &'static str>::new("cycle_tracker".to_string());
+            let instrs = annotated_instrs
+                .into_iter()
+                .filter_map(|(item, trace)| match item {
+                    CompileOneItem::Instr(instr) => {
+                        span_builder.item(instr_name(&instr));
+                        Some((instr, trace))
+                    }
+                    CompileOneItem::CycleTrackerEnter(name) => {
+                        span_builder.enter(name);
+                        None
+                    }
+                    CompileOneItem::CycleTrackerExit => {
+                        span_builder.exit().unwrap();
+                        None
+                    }
+                })
+                .collect::<Vec<_>>();
+            (instrs, span_builder.finish().unwrap())
+        };
+        for line in cycle_tracker_root_span.lines() {
+            tracing::info!("{}", line);
+        }
 
         // Replace the mults using the address count data gathered in this previous.
         // Exhaustive match for refactoring purposes.
@@ -558,6 +568,9 @@ impl<C: Config> AsmCompiler<C> {
                     mult,
                 }) => vec![(mult, result)],
                 Instruction::HintBits(HintBitsInstr {
+                    output_addrs_mults, ..
+                })
+                | Instruction::Hint(HintInstr {
                     output_addrs_mults, ..
                 }) => output_addrs_mults
                     .iter_mut()
@@ -616,6 +629,38 @@ impl<C: Config> AsmCompiler<C> {
             instructions,
             traces,
         }
+    }
+}
+
+/// Used for cycle tracking.
+const fn instr_name<F>(instr: &Instruction<F>) -> &'static str {
+    match instr {
+        Instruction::BaseAlu(_) => "BaseAlu",
+        Instruction::ExtAlu(_) => "ExtAlu",
+        Instruction::Mem(_) => "Mem",
+        Instruction::Poseidon2Skinny(_) => "Poseidon2Skinny",
+        Instruction::Poseidon2Wide(_) => "Poseidon2Wide",
+        Instruction::ExpReverseBitsLen(_) => "ExpReverseBitsLen",
+        Instruction::HintBits(_) => "HintBits",
+        Instruction::FriFold(_) => "FriFold",
+        Instruction::Print(_) => "Print",
+        Instruction::HintExt2Felts(_) => "HintExt2Felts",
+        Instruction::Hint(_) => "Hint",
+        Instruction::CommitPublicValues(_) => "CommitPublicValues",
+    }
+}
+
+/// Instruction or annotation. Result of compiling one `DslIr` item.
+#[derive(Debug, Clone)]
+pub enum CompileOneItem<F> {
+    Instr(Instruction<F>),
+    CycleTrackerEnter(String),
+    CycleTrackerExit,
+}
+
+impl<F> From<Instruction<F>> for CompileOneItem<F> {
+    fn from(value: Instruction<F>) -> Self {
+        CompileOneItem::Instr(value)
     }
 }
 
@@ -894,7 +939,7 @@ mod tests {
             let power_bits = (0..NUM_BITS).map(|i| (power >> i) & 1).collect::<Vec<_>>();
 
             let input_felt = builder.eval(power_f);
-            let power_bits_felt = builder.num2bits_v2_f(input_felt);
+            let power_bits_felt = builder.num2bits_v2_f(input_felt, NUM_BITS);
 
             let base = rng.next().unwrap();
             let base_felt = builder.eval(base);
@@ -989,7 +1034,7 @@ mod tests {
             let output = (0..NUM_BITS).map(|i| (input >> i) & 1).collect::<Vec<_>>();
 
             let input_felt = builder.eval(input_f);
-            let output_felts = builder.num2bits_v2_f(input_felt);
+            let output_felts = builder.num2bits_v2_f(input_felt, NUM_BITS);
             let expected: Vec<Felt<_>> = output
                 .into_iter()
                 .map(|x| builder.eval(F::from_canonical_u32(x)))
@@ -1002,8 +1047,8 @@ mod tests {
     }
 
     #[test]
-    fn test_print() {
-        const ITERS: usize = 100;
+    fn test_print_and_cycle_tracker() {
+        const ITERS: usize = 5;
 
         setup_logger();
 
@@ -1021,15 +1066,23 @@ mod tests {
 
         let mut buf = VecDeque::<u8>::new();
 
-        for &input_f in input_fs.iter() {
+        builder.cycle_tracker_v2_enter("printing felts".to_string());
+        for (i, &input_f) in input_fs.iter().enumerate() {
+            builder.cycle_tracker_v2_enter(format!("printing felt {i}"));
             let input_felt = builder.eval(input_f);
             builder.print_f(input_felt);
+            builder.cycle_tracker_v2_exit();
         }
+        builder.cycle_tracker_v2_exit();
 
-        for input_block in input_efs.iter() {
+        builder.cycle_tracker_v2_enter("printing exts".to_string());
+        for (i, input_block) in input_efs.iter().enumerate() {
+            builder.cycle_tracker_v2_enter(format!("printing ext {i}"));
             let input_ext = builder.eval(EF::from_base_slice(input_block).cons());
             builder.print_e(input_ext);
+            builder.cycle_tracker_v2_exit();
         }
+        builder.cycle_tracker_v2_exit();
 
         test_operations_with_runner(builder.operations, |program| {
             let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(

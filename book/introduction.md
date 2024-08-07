@@ -9,7 +9,7 @@
 SP1 is a performant, 100% open-source, contributor-friendly zero-knowledge virtual machine (zkVM) that verifies the execution of arbitrary Rust (or any LLVM-compiled language) programs. 
 
 [tg-badge]: https://img.shields.io/endpoint?color=neon&logo=telegram&label=chat&url=https%3A%2F%2Ftg.sumanjay.workers.dev%2Fsuccinct%5Fsp1
-[tg-url]: https://t.me/succinct_sp1
+[tg-url]: https://t.me/+AzG4ws-kD24yMGYx
 
 ## The future of truth is programmable
 

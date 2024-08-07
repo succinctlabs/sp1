@@ -181,7 +181,7 @@ impl LtChip {
         let c = event.c.to_le_bytes();
 
         cols.shard = F::from_canonical_u32(event.shard);
-        cols.channel = F::from_canonical_u32(event.channel);
+        cols.channel = F::from_canonical_u8(event.channel);
         cols.a = Word(a.map(F::from_canonical_u8));
         cols.b = Word(b.map(F::from_canonical_u8));
         cols.c = Word(c.map(F::from_canonical_u8));
@@ -197,19 +197,19 @@ impl LtChip {
             shard: event.shard,
             channel: event.channel,
             opcode: ByteOpcode::AND,
-            a1: masked_b as u32,
+            a1: masked_b as u16,
             a2: 0,
-            b: b[3] as u32,
-            c: 0x7f as u32,
+            b: b[3],
+            c: 0x7f,
         });
         blu.add_byte_lookup_event(ByteLookupEvent {
             shard: event.shard,
             channel: event.channel,
             opcode: ByteOpcode::AND,
-            a1: masked_c as u32,
+            a1: masked_c as u16,
             a2: 0,
-            b: c[3] as u32,
-            c: 0x7f as u32,
+            b: c[3],
+            c: 0x7f,
         });
 
         let mut b_comp = b;
@@ -261,10 +261,10 @@ impl LtChip {
             shard: event.shard,
             channel: event.channel,
             opcode: ByteOpcode::LTU,
-            a1: cols.sltu.as_canonical_u32(),
+            a1: cols.sltu.as_canonical_u32() as u16,
             a2: 0,
-            b: cols.comparison_bytes[0].as_canonical_u32(),
-            c: cols.comparison_bytes[1].as_canonical_u32(),
+            b: cols.comparison_bytes[0].as_canonical_u32() as u8,
+            c: cols.comparison_bytes[1].as_canonical_u32() as u8,
         });
     }
 }

@@ -36,7 +36,7 @@ const NUM_COLS: usize = size_of::<Uint256MulCols<u8>>();
 pub struct Uint256MulEvent {
     pub lookup_id: u128,
     pub shard: u32,
-    pub channel: u32,
+    pub channel: u8,
     pub clk: u32,
     pub x_ptr: u32,
     pub x: Vec<u32>,
@@ -138,7 +138,7 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
                         // Assign basic values to the columns.
                         cols.is_real = F::one();
                         cols.shard = F::from_canonical_u32(event.shard);
-                        cols.channel = F::from_canonical_u32(event.channel);
+                        cols.channel = F::from_canonical_u8(event.channel);
                         cols.clk = F::from_canonical_u32(event.clk);
                         cols.x_ptr = F::from_canonical_u32(event.x_ptr);
                         cols.y_ptr = F::from_canonical_u32(event.y_ptr);
