@@ -12,13 +12,13 @@ use sp1_sdk::ExecutionReport;
 use std::fs::File;
 
 pub fn worker_phase1(
-    args: &ProveArgs,
+    args: ProveArgs,
     idx: u32,
     checkpoint: &mut File,
     is_last_checkpoint: bool,
     public_values: PublicValues<u32, u32>,
-) -> Result<(u32, Vec<CommitmentPairType>)> {
-    let (client, _, pk, _) = common::init_client(args.clone());
+) -> Result<Vec<CommitmentPairType>> {
+    let (client, _, pk, _) = common::init_client(args);
     let (program, core_opts, _) = common::bootstrap(&client, &pk).unwrap();
 
     let mut deferred = ExecutionRecord::new(program.clone().into());
@@ -95,7 +95,7 @@ pub fn worker_phase1(
         })
         .collect::<Vec<_>>();
 
-    Ok((idx, commitments))
+    Ok(commitments)
 }
 
 pub fn worker_phase2(

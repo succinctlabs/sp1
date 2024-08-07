@@ -58,27 +58,27 @@ fn main() {
         })
         .collect();
 
-    let mut indexed_commitments = Vec::new();
+    let mut commitments_vec = Vec::new();
     let num_checkpoints = checkpoints.len();
     for (idx, checkpoint) in checkpoints.iter_mut().enumerate() {
         let is_last_checkpoint = idx == num_checkpoints - 1;
         let result = worker_phase1(
-            &args,
+            args.clone(),
             idx as u32,
             checkpoint,
             is_last_checkpoint,
             public_values,
         )
         .unwrap();
-        indexed_commitments.push(result);
+        commitments_vec.push(result);
         tracing::info!("{:?}-th phase1 worker done", idx);
     }
 
-    let challenger = operator_phase1(args.clone(), indexed_commitments.clone()).unwrap();
+    let challenger = operator_phase1(args.clone(), commitments_vec.clone()).unwrap();
 
-    let records_vec: Vec<Vec<RecordType>> = indexed_commitments
+    let records_vec: Vec<Vec<RecordType>> = commitments_vec
         .into_iter()
-        .map(|(_, pairs)| pairs.into_iter().map(|(_, record)| record).collect())
+        .map(|pairs| pairs.into_iter().map(|(_, record)| record).collect())
         .collect();
 
     let mut shard_proofs_vec = Vec::new();

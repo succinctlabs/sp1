@@ -77,7 +77,7 @@ pub fn prove_begin_impl(
 
 pub fn operator_phase1(
     args: ProveArgs,
-    indexed_commitments: Vec<(u32, Vec<CommitmentPairType>)>,
+    indexed_commitments: Vec<Vec<CommitmentPairType>>,
 ) -> Result<ChallengerType> {
     let (client, stdin, pk, _) = common::init_client(args.clone());
     let (program, core_opts, context) = common::bootstrap(&client, &pk).unwrap();
@@ -95,14 +95,8 @@ pub fn operator_phase1(
     let mut challenger = client.prover.sp1_prover().core_prover.config().challenger();
     stark_vk.observe_into(&mut challenger);
 
-    let mut prev_idx = 0;
     let mut records = Vec::new();
-    for (idx, commitment_pair) in indexed_commitments {
-        if idx != 0 && idx != prev_idx + 1 {
-            panic!("commitments must be indexed sequentially");
-        }
-        prev_idx = idx;
-
+    for commitment_pair in indexed_commitments {
         for (commitment, record) in commitment_pair {
             client.prover.sp1_prover().core_prover.update(
                 &mut challenger,
