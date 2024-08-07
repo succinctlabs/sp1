@@ -13,8 +13,8 @@ pub mod worker;
 use alloy_sol_types::SolType;
 use clap::Parser;
 use fibonacci_script::{ProveArgs, PublicValuesTuple};
-use operator::steps::operator_phase2;
-use operator::{operator_phase1, prove_begin};
+use operator::{operator_phase1, operator_phase2, prove_begin};
+use sp1_sdk::proof;
 use worker::{worker_phase1, worker_phase2};
 
 fn main() {
@@ -37,9 +37,6 @@ fn main() {
         &mut checkpoints,
         &mut cycles,
     );
-
-    let public_values_stream: Vec<u8> =
-        bincode::deserialize(public_values_stream.as_slice()).unwrap();
 
     let mut commitments_vec = Vec::new();
     let mut records_vec = Vec::new();
@@ -83,12 +80,16 @@ fn main() {
         tracing::info!("{:?}-th phase2 worker done", idx);
     }
 
-    let shard_proofs_vec = shard_proofs_vec
-        .into_iter()
-        .map(|shard_proofs| bincode::deserialize(shard_proofs.as_slice()).unwrap())
-        .collect();
-    let proof =
-        operator_phase2(args.clone(), shard_proofs_vec, public_values_stream, cycles).unwrap();
+    let mut proof = Vec::new();
+    operator_phase2(
+        &serialize_args,
+        &shard_proofs_vec,
+        &public_values_stream,
+        cycles,
+        &mut proof,
+    );
+
+    let proof = bincode::deserialize::<proof::SP1ProofWithPublicValues>(&proof).unwrap();
 
     if !args.evm {
         let (_, _, fib_n) =

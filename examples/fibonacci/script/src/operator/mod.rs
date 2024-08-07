@@ -5,7 +5,8 @@ use crate::{
     common::types::{CommitmentType, RecordType},
     ProveArgs,
 };
-use steps::{operator_phase1_impl, prove_begin_impl};
+use sp1_core::{stark::ShardProof, utils::BabyBearPoseidon2};
+use steps::{operator_phase1_impl, operator_phase2_impl, prove_begin_impl};
 use utils::{read_bin_file_to_vec, ChallengerState};
 
 pub fn prove_begin(
@@ -46,4 +47,26 @@ pub fn operator_phase1(
 
     let challenger = operator_phase1_impl(args_obj, commitments_vec, records_vec).unwrap();
     *o_challenger_state = ChallengerState::from(&challenger).to_bytes();
+}
+
+pub fn operator_phase2(
+    args: &Vec<u8>,
+    shard_proofs_vec: &[Vec<u8>],
+    public_values_stream: &[u8],
+    cycles: u64,
+    o_proof: &mut Vec<u8>,
+) {
+    let args_obj = ProveArgs::from_slice(args.as_slice());
+    let shard_proofs_vec_obj: Vec<Vec<ShardProof<BabyBearPoseidon2>>> = shard_proofs_vec
+        .iter()
+        .map(|shard_proofs| bincode::deserialize(shard_proofs).unwrap())
+        .collect();
+    let proof = operator_phase2_impl(
+        args_obj,
+        shard_proofs_vec_obj,
+        public_values_stream.to_vec(),
+        cycles,
+    )
+    .unwrap();
+    *o_proof = bincode::serialize(&proof).unwrap();
 }

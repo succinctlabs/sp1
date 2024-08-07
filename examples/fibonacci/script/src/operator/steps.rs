@@ -121,7 +121,7 @@ pub fn operator_phase1_impl(
     Ok(challenger)
 }
 
-pub fn operator_phase2(
+pub fn operator_phase2_impl(
     args: ProveArgs,
     shard_proofs_vec: Vec<Vec<ShardProof<BabyBearPoseidon2>>>,
     public_values_stream: PublicValueStreamType,
