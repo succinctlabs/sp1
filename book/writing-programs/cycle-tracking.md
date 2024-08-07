@@ -53,7 +53,7 @@ fn main() {
 }
 ```
 
-This will log the cycle count for `main_function` and include it in the `ExecutionReport`.
+This will log the cycle count for `main_function` and include it in the `ExecutionReport` in the `cycle_tracker` map.
 
 ## Tracking Cycles with Tracing
 
