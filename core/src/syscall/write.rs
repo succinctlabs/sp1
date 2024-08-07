@@ -149,6 +149,7 @@ fn end_cycle_tracker(rt: &mut Runtime, name: &str) -> Option<u64> {
     None
 }
 
+/// Update the io buffer for the given file descriptor with the given string.
 fn update_io_buf(ctx: &mut SyscallContext, fd: u32, s: &str) -> Vec<String> {
     let rt = &mut ctx.rt;
     let entry = rt.io_buf.entry(fd).or_default();
