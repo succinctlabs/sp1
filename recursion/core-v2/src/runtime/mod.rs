@@ -367,7 +367,7 @@ where
                         }
                         MemAccessKind::Write => drop(self.mw(addr, val, mult)),
                     }
-                    self.record.mem_events.push(MemEvent { inner: val });
+                    self.record.mem_const_count += 1;
                 }
                 Instruction::Poseidon2Skinny(Poseidon2SkinnyInstr {
                     addrs: Poseidon2Io { input, output },
@@ -447,7 +447,7 @@ where
                     // Write the bits to the array at dst.
                     for (bit, (addr, mult)) in bits.into_iter().zip(output_addrs_mults) {
                         self.mw(addr, bit, mult);
-                        self.record.mem_events.push(MemEvent { inner: bit });
+                        self.record.mem_var_events.push(MemEvent { inner: bit });
                     }
                 }
 
@@ -549,7 +549,7 @@ where
                     for (f, (addr, mult)) in fs.into_iter().zip(output_addrs_mults) {
                         let felt = Block::from(f);
                         self.mw(addr, felt, mult);
-                        self.record.mem_events.push(MemEvent { inner: felt });
+                        self.record.mem_var_events.push(MemEvent { inner: felt });
                     }
                 }
             }
