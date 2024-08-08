@@ -1,47 +1,108 @@
-use sp1_sdk::{utils, ProverClient, SP1ProofWithPublicValues, SP1Stdin};
+//! An end-to-end example of using the SP1 SDK to generate a proof of a program that can be verified
+//! on-chain.
+//!
+//! You can run this script using the following command:
+//! ```shell
+//! RUST_LOG=info cargo run --package fibonacci-script --bin prove --release
+//! ```
 
-/// The ELF we want to execute inside the zkVM.
-const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
+pub mod common;
+pub mod operator;
+pub mod worker;
+
+use alloy_sol_types::SolType;
+use clap::Parser;
+use fibonacci_script::{ProveArgs, PublicValuesTuple};
+use operator::{operator_phase1, operator_phase2, prove_begin};
+use sp1_sdk::proof;
+use worker::{worker_phase1, worker_phase2};
 
 fn main() {
-    // Setup logging.
-    utils::setup_logger();
+    // Setup the logger.
+    sp1_sdk::utils::setup_logger();
+    // Parse the command line arguments.
+    let args = ProveArgs::parse();
 
-    // Create an input stream and write '500' to it.
-    let n = 1u32;
+    // Setup the prover client.
+    let serialize_args = bincode::serialize(&args).unwrap();
 
-    let mut stdin = SP1Stdin::new();
-    stdin.write(&n);
+    let mut public_values_stream = Vec::new();
+    let mut public_values = Vec::new();
+    let mut checkpoints = Vec::new();
+    let mut cycles = 0;
+    prove_begin(
+        &serialize_args,
+        &mut public_values_stream,
+        &mut public_values,
+        &mut checkpoints,
+        &mut cycles,
+    );
 
-    // Generate the proof for the given program and input.
-    let client = ProverClient::new();
-    let (pk, vk) = client.setup(ELF);
-    let mut proof = client.prove(&pk, stdin).run().unwrap();
+    let mut commitments_vec = Vec::new();
+    let mut records_vec = Vec::new();
+    let num_checkpoints = checkpoints.len();
+    for (idx, checkpoint) in checkpoints.iter_mut().enumerate() {
+        let is_last_checkpoint = idx == num_checkpoints - 1;
+        let mut commitments = Vec::new();
+        let mut records = Vec::new();
+        worker_phase1(
+            &serialize_args,
+            idx as u32,
+            checkpoint,
+            is_last_checkpoint,
+            &public_values,
+            &mut commitments,
+            &mut records,
+        );
+        commitments_vec.push(commitments);
+        records_vec.push(records);
+        tracing::info!("{:?}-th phase1 worker done", idx);
+    }
 
-    println!("generated proof");
+    let mut challenger_state = Vec::new();
+    operator_phase1(
+        &serialize_args,
+        &commitments_vec,
+        &records_vec,
+        &mut challenger_state,
+    );
 
-    // Read and verify the output.
-    let _ = proof.public_values.read::<u32>();
-    let a = proof.public_values.read::<u32>();
-    let b = proof.public_values.read::<u32>();
+    let mut shard_proofs_vec = Vec::new();
+    for (idx, records) in records_vec.into_iter().enumerate() {
+        let mut shard_proofs = Vec::new();
+        worker_phase2(
+            &serialize_args,
+            &challenger_state,
+            records.as_slice(),
+            &mut shard_proofs,
+        );
+        shard_proofs_vec.push(shard_proofs);
+        tracing::info!("{:?}-th phase2 worker done", idx);
+    }
 
-    println!("a: {}", a);
-    println!("b: {}", b);
+    let mut proof = Vec::new();
+    operator_phase2(
+        &serialize_args,
+        &shard_proofs_vec,
+        &public_values_stream,
+        cycles,
+        &mut proof,
+    );
 
-    // Verify proof and public values
-    client.verify(&proof, &vk).expect("verification failed");
+    let proof = bincode::deserialize::<proof::SP1ProofWithPublicValues>(&proof).unwrap();
 
-    // Test a round trip of proof serialization and deserialization.
-    proof
-        .save("proof-with-pis.bin")
-        .expect("saving proof failed");
-    let deserialized_proof =
-        SP1ProofWithPublicValues::load("proof-with-pis.bin").expect("loading proof failed");
-
-    // Verify the deserialized proof.
-    client
-        .verify(&deserialized_proof, &vk)
-        .expect("verification failed");
-
-    println!("successfully generated and verified proof for the program!")
+    if !args.evm {
+        let (_, _, fib_n) =
+            PublicValuesTuple::abi_decode(proof.public_values.as_slice(), false).unwrap();
+        println!("Successfully generated proof!");
+        println!("fib(n): {}", fib_n);
+    } else {
+        // Generate the proof.
+        // let proof = client
+        //     .prove(&pk, stdin)
+        //     .plonk()
+        //     .run()
+        //     .expect("failed to generate proof");
+        // create_plonk_fixture(&proof, &vk);
+    }
 }

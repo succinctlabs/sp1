@@ -17,6 +17,7 @@ members = [
   "recursion/program",
   "sdk",
   "zkvm/*",
+  "examples/fibonacci/script",
 ]
 exclude = ["examples/target"]
 resolver = "2"

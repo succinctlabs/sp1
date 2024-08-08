@@ -1730,10 +1730,26 @@ checksum = "28dea519a9695b9977216879a3ebfddf92f1c08c05d984f8996aecd6ecdc811d"
 name = "fibonacci-script"
 version = "1.0.1"
 dependencies = [
+ "alloy-sol-types",
+ "anyhow",
+ "bincode",
+ "clap",
+ "hex",
  "itertools 0.12.1",
+ "p3-baby-bear",
+ "p3-challenger",
+ "p3-poseidon2",
+ "p3-symmetric",
+ "serde",
+ "serde_json",
  "sha2 0.10.8",
+ "sp1-core",
  "sp1-helper",
+ "sp1-prover",
  "sp1-sdk",
+ "sysinfo",
+ "tempfile",
+ "tracing",
 ]
 
 [[package]]

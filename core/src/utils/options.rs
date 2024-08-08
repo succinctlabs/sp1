@@ -2,7 +2,8 @@ use std::env;
 
 use crate::runtime::{SplitOpts, DEFERRED_SPLIT_THRESHOLD};
 
-const DEFAULT_SHARD_SIZE: usize = 1 << 22;
+// const DEFAULT_SHARD_SIZE: usize = 1 << 22;
+const DEFAULT_SHARD_SIZE: usize = 128;
 const DEFAULT_SHARD_BATCH_SIZE: usize = 16;
 const DEFAULT_COMMIT_STREAM_CAPACITY: usize = 1;
 const DEFAULT_PROVE_STREAM_CAPACITY: usize = 1;
