@@ -27,3 +27,11 @@ Open-source is a core part of SP1's ethos and key to its advantages. We wish to 
 
 We are always looking for contributors interested in tasks big and small, including minor chores across the codebase, optimizing performance, adding precompiles for commonly used cryptographic operations, adding documentation, creating new example programs and more. Please reach out in the Telegram chat if interested!
 
+## Acknowledgements
+
+We would like to acknowledge the projects below whose previous work has been instrumental in making this project a reality.
+
+- [Plonky3](https://github.com/Plonky3/Plonky3): The SP1's prover is powered by the Plonky3 toolkit.
+- [Valida](https://github.com/valida-xyz/valida): The SP1 cross-table lookups, prover, borrow macro, and chip design, including constraints, are inspired by Valida.
+- [RISC0](https://github.com/risc0/risc0): The SP1 rust toolchain, install/build scripts, and our RISCV runtime borrow code from RISC0.
+- [Cairo](https://docs.cairo-lang.org/how_cairo_works/builtins.html): Cairo introduced the idea of "builtins" which allow zkVMs to accelerate certain operations. However, the complexity of "builtins" was embedded in the CPU, limiting their complexity. SP1 extends this idea by executing on a vision of easily extensible "precompiles" that can be added as additional tables alongside the CPU.
