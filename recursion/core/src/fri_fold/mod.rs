@@ -161,6 +161,10 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldChip<DEGREE>
     fn included(&self, record: &Self::Record) -> bool {
         !record.fri_fold_events.is_empty()
     }
+
+    fn min_rows(&self, shard: &Self::Record) -> usize {
+        shard.fri_fold_events.len()
+    }
 }
 
 impl<const DEGREE: usize> FriFoldChip<DEGREE> {

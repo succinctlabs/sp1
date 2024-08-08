@@ -51,6 +51,23 @@ pub fn pad_to_power_of_two<const N: usize, T: Clone + Default>(values: &mut Vec<
     values.resize(n_real_rows.next_power_of_two() * N, T::default());
 }
 
+pub fn pad_to_power_of_two_fixed<const N: usize, T: Clone + Default>(
+    values: &mut Vec<T>,
+    fixed_log2_rows: Option<usize>,
+) {
+    debug_assert!(values.len() % N == 0);
+    let num_rows = if let Some(fixed_log2_rows) = fixed_log2_rows {
+        1 << fixed_log2_rows
+    } else {
+        let mut n_real_rows = values.len() / N;
+        if n_real_rows < 16 {
+            n_real_rows = 16;
+        }
+        n_real_rows.next_power_of_two()
+    };
+    values.resize(num_rows * N, T::default());
+}
+
 pub fn limbs_from_prev_access<T: Copy, N: ArrayLength, M: MemoryCols<T>>(
     cols: &[M],
 ) -> Limbs<T, N> {

@@ -17,7 +17,7 @@ use crate::bytes::event::ByteRecord;
 use crate::bytes::ByteLookupEvent;
 use crate::operations::AddOperation;
 use crate::runtime::{ExecutionRecord, Opcode, Program};
-use crate::utils::pad_to_power_of_two;
+use crate::utils::pad_to_power_of_two_fixed;
 
 use super::AluEvent;
 
@@ -76,6 +76,7 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
         &self,
         input: &ExecutionRecord,
         _: &mut ExecutionRecord,
+        fixed_log2_rows: Option<usize>,
     ) -> RowMajorMatrix<F> {
         // Generate the rows for the trace.
         let chunk_size = std::cmp::max(
@@ -117,7 +118,7 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
         );
 
         // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_ADD_SUB_COLS, F>(&mut trace.values);
+        pad_to_power_of_two_fixed::<NUM_ADD_SUB_COLS, F>(&mut trace.values, fixed_log2_rows);
 
         // Write the nonces to the trace.
         for i in 0..trace.height() {
@@ -158,6 +159,10 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
 
     fn included(&self, shard: &Self::Record) -> bool {
         !shard.add_events.is_empty() || !shard.sub_events.is_empty()
+    }
+
+    fn min_rows(&self, shard: &Self::Record) -> usize {
+        shard.add_events.len() + shard.sub_events.len()
     }
 }
 
@@ -276,7 +281,7 @@ mod tests {
         shard.add_events = vec![AluEvent::new(0, 0, 0, Opcode::ADD, 14, 8, 6)];
         let chip = AddSubChip::default();
         let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&shard, &mut ExecutionRecord::default());
+            chip.generate_trace(&shard, &mut ExecutionRecord::default(), None);
         println!("{:?}", trace.values)
     }
 
@@ -317,7 +322,7 @@ mod tests {
 
         let chip = AddSubChip::default();
         let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&shard, &mut ExecutionRecord::default());
+            chip.generate_trace(&shard, &mut ExecutionRecord::default(), None);
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();

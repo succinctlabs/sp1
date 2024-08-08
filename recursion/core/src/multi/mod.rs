@@ -77,6 +77,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for MultiChip<DEGREE> {
         &self,
         input: &ExecutionRecord<F>,
         output: &mut ExecutionRecord<F>,
+        _fixed_log2_rows: Option<usize>,
     ) -> RowMajorMatrix<F> {
         let fri_fold_chip = FriFoldChip::<DEGREE> {
             fixed_log2_rows: None,
@@ -86,8 +87,8 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for MultiChip<DEGREE> {
             fixed_log2_rows: None,
             pad: false,
         };
-        let fri_fold_trace = fri_fold_chip.generate_trace(input, output);
-        let mut poseidon2_trace = poseidon2.generate_trace(input, output);
+        let fri_fold_trace = fri_fold_chip.generate_trace(input, output, None);
+        let mut poseidon2_trace = poseidon2.generate_trace(input, output, None);
 
         let fri_fold_height = fri_fold_trace.height();
         let poseidon2_height = poseidon2_trace.height();
@@ -154,6 +155,10 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for MultiChip<DEGREE> {
 
     fn included(&self, _: &Self::Record) -> bool {
         true
+    }
+
+    fn min_rows(&self, shard: &Self::Record) -> usize {
+        todo!()
     }
 }
 
@@ -374,8 +379,11 @@ mod tests {
         };
 
         let input_exec = generate_test_execution_record(false);
-        let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(
+            &input_exec,
+            &mut ExecutionRecord::<BabyBear>::default(),
+            None,
+        );
         println!(
             "trace dims is width: {:?}, height: {:?}",
             trace.width(),

@@ -48,7 +48,7 @@ use crate::bytes::event::ByteRecord;
 use crate::bytes::ByteLookupEvent;
 use crate::disassembler::WORD_SIZE;
 use crate::runtime::{ExecutionRecord, Opcode, Program};
-use crate::utils::pad_to_power_of_two;
+use crate::utils::pad_to_power_of_two_fixed;
 
 use super::AluEvent;
 
@@ -118,6 +118,7 @@ impl<F: PrimeField> MachineAir<F> for ShiftLeft {
         &self,
         input: &ExecutionRecord,
         _: &mut ExecutionRecord,
+        fixed_log2_rows: Option<usize>,
     ) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let mut rows: Vec<[F; NUM_SHIFT_LEFT_COLS]> = vec![];
@@ -137,7 +138,7 @@ impl<F: PrimeField> MachineAir<F> for ShiftLeft {
         );
 
         // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_SHIFT_LEFT_COLS, F>(&mut trace.values);
+        pad_to_power_of_two_fixed::<NUM_SHIFT_LEFT_COLS, F>(&mut trace.values, fixed_log2_rows);
 
         // Create the template for the padded rows. These are fake rows that don't fail on some
         // sanity checks.
@@ -185,6 +186,10 @@ impl<F: PrimeField> MachineAir<F> for ShiftLeft {
 
     fn included(&self, shard: &Self::Record) -> bool {
         !shard.shift_left_events.is_empty()
+    }
+
+    fn min_rows(&self, shard: &Self::Record) -> usize {
+        shard.shift_left_events.len()
     }
 }
 
@@ -439,7 +444,7 @@ mod tests {
         shard.shift_left_events = vec![AluEvent::new(0, 0, 0, Opcode::SLL, 16, 8, 1)];
         let chip = ShiftLeft::default();
         let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&shard, &mut ExecutionRecord::default());
+            chip.generate_trace(&shard, &mut ExecutionRecord::default(), None);
         println!("{:?}", trace.values)
     }
 
@@ -483,7 +488,7 @@ mod tests {
         shard.shift_left_events = shift_events;
         let chip = ShiftLeft::default();
         let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&shard, &mut ExecutionRecord::default());
+            chip.generate_trace(&shard, &mut ExecutionRecord::default(), None);
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();

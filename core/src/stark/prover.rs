@@ -1,8 +1,10 @@
 use core::fmt::Display;
+use hashbrown::HashMap;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::cmp::Reverse;
 use std::error::Error;
+use std::usize;
 
 use itertools::Itertools;
 use p3_air::Air;
@@ -67,11 +69,95 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
                    .map(|chip| {
                        let chip_name = chip.name();
                        let trace = tracing::debug_span!(parent: &parent_span, "generate trace for chip", %chip_name)
-                                   .in_scope(|| chip.generate_trace(record, &mut A::Record::default()));
+                                   .in_scope(|| chip.generate_trace(record, &mut A::Record::default(), None));
                        (chip_name, trace)
                        })
                        .collect::<Vec<_>>()
                     })
+    }
+
+    fn generate_fixed_traces(
+        &self,
+        record: &A::Record,
+        shapes: &[HashMap<String, usize>],
+    ) -> Vec<(String, RowMajorMatrix<Val<SC>>)> {
+        let mut total_rows = u64::MAX;
+        let mut best_shape_index = None;
+        let shard_chips = self.shard_chips(record).collect::<Vec<_>>();
+        // For now, preprocessed traces are not included in the min_rows calculation. Those chips
+        // will just have hardcoded 2^22 rows for now.
+        let min_rows_map = shard_chips
+            .iter()
+            .filter(|chip| chip.preprocessed_width() == 0)
+            .map(|chip| (chip.name(), chip.min_rows(record)))
+            .collect::<HashMap<_, _>>();
+        let preprocessed_chips = shard_chips
+            .iter()
+            .filter(|chip| chip.preprocessed_width() > 0)
+            .collect::<Vec<_>>();
+        // Find the shape that fits with the smallest total rows.
+        println!("rows_map: {:?}", min_rows_map);
+        for (shape_index, shape) in shapes.iter().enumerate() {
+            println!("shape {}: {:?}", shape_index, shape);
+            let mut fits = true;
+            let mut shape_total_rows = 0;
+            // Check that all chips in the record are in the shape.
+            for (chip_name, _) in min_rows_map.iter() {
+                if !shape.contains_key(chip_name) {
+                    println!("shape {} doesn't have chip {}", shape_index, chip_name);
+                    fits = false;
+                    break;
+                }
+            }
+            if !fits {
+                continue;
+            }
+            // Check that the shape has enough rows for each chip and calculate the total rows.
+            for (chip_name, fixed_log2_rows) in shape {
+                let fixed_rows = 1 << fixed_log2_rows;
+                shape_total_rows += fixed_rows as u64;
+                if !min_rows_map.contains_key(chip_name) {
+                    continue;
+                }
+                if min_rows_map[chip_name] > fixed_rows {
+                    println!(
+                        "shape {} doesn't have enough rows for chip {}, need {}, got {}",
+                        shape_index, chip_name, min_rows_map[chip_name], fixed_rows
+                    );
+                    fits = false;
+                    break;
+                }
+            }
+            if fits && shape_total_rows < total_rows {
+                best_shape_index = Some(shape_index);
+                total_rows = shape_total_rows;
+            }
+        }
+        let shape_index = best_shape_index.expect("no shapes fit");
+        let shape = shapes[shape_index].clone();
+
+        let parent_span = tracing::debug_span!("generate traces for shard");
+        parent_span.in_scope(|| {
+            shard_chips
+                .par_iter()
+                .map(|chip| {
+                    let chip_name = chip.name();
+                    let fixed_log2_rows = if chip.preprocessed_width() > 0 {
+                        // TODO: Hardcoded 22 for now.
+                        if chip_name == "Byte" {
+                            16
+                        } else {
+                            22
+                        }
+                    } else {
+                        shape[&chip_name]
+                    };
+                    println!("chip {}, fixed_log2_rows {}", chip_name, fixed_log2_rows);
+                    let trace = tracing::debug_span!(parent: &parent_span, "generate trace for chip", %chip_name).in_scope(|| chip.generate_trace(record, &mut A::Record::default(), Some(fixed_log2_rows)));
+                    (chip_name, trace)
+                })
+                .collect::<Vec<_>>()
+        })
     }
 
     /// Commit to the main traces.

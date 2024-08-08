@@ -82,7 +82,7 @@ use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::disassembler::WORD_SIZE;
 use crate::operations::{IsEqualWordOperation, IsZeroWordOperation};
 use crate::runtime::{ExecutionRecord, Opcode, Program};
-use crate::utils::pad_to_power_of_two;
+use crate::utils::pad_to_power_of_two_fixed;
 
 /// The number of main trace columns for `DivRemChip`.
 pub const NUM_DIVREM_COLS: usize = size_of::<DivRemCols<u8>>();
@@ -224,6 +224,7 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
         &self,
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
+        fixed_log2_rows: Option<usize>,
     ) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let mut rows: Vec<[F; NUM_DIVREM_COLS]> = vec![];
@@ -515,7 +516,7 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
         );
 
         // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_DIVREM_COLS, F>(&mut trace.values);
+        pad_to_power_of_two_fixed::<NUM_DIVREM_COLS, F>(&mut trace.values, fixed_log2_rows);
 
         // Create the template for the padded rows. These are fake rows that don't fail on some
         // sanity checks.
@@ -549,6 +550,10 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
 
     fn included(&self, shard: &Self::Record) -> bool {
         !shard.divrem_events.is_empty()
+    }
+
+    fn min_rows(&self, shard: &Self::Record) -> usize {
+        shard.divrem_events.len()
     }
 }
 
@@ -996,7 +1001,7 @@ mod tests {
         shard.divrem_events = vec![AluEvent::new(0, 0, 0, Opcode::DIVU, 2, 17, 3)];
         let chip = DivRemChip::default();
         let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&shard, &mut ExecutionRecord::default());
+            chip.generate_trace(&shard, &mut ExecutionRecord::default(), None);
         println!("{:?}", trace.values)
     }
 
@@ -1058,7 +1063,7 @@ mod tests {
         shard.divrem_events = divrem_events;
         let chip = DivRemChip::default();
         let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&shard, &mut ExecutionRecord::default());
+            chip.generate_trace(&shard, &mut ExecutionRecord::default(), None);
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();

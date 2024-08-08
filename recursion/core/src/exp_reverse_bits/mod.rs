@@ -242,6 +242,10 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpReverseBitsLenCh
     fn included(&self, record: &Self::Record) -> bool {
         !record.exp_reverse_bits_len_events.is_empty()
     }
+
+    fn min_rows(&self, shard: &Self::Record) -> usize {
+        shard.exp_reverse_bits_len_events.len()
+    }
 }
 
 impl<const DEGREE: usize> ExpReverseBitsLenChip<DEGREE> {
@@ -523,8 +527,11 @@ mod tests {
             "input exec: {:?}",
             input_exec.exp_reverse_bits_len_events.len()
         );
-        let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(
+            &input_exec,
+            &mut ExecutionRecord::<BabyBear>::default(),
+            None,
+        );
         println!(
             "trace dims is width: {:?}, height: {:?}",
             trace.width(),

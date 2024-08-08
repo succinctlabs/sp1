@@ -14,7 +14,7 @@ use crate::air::{AirInteraction, BaseAirBuilder, PublicValues, SP1AirBuilder, Wo
 use crate::air::{MachineAir, SP1_PROOF_NUM_PV_ELTS};
 use crate::operations::{AssertLtColsBits, BabyBearBitDecomposition, IsZeroOperation};
 use crate::runtime::{ExecutionRecord, Program};
-use crate::utils::pad_to_power_of_two;
+use crate::utils::pad_to_power_of_two_fixed;
 
 /// The type of memory chip that is being initialized.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -61,6 +61,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip {
         &self,
         input: &ExecutionRecord,
         _output: &mut ExecutionRecord,
+        fixed_log2_rows: Option<usize>,
     ) -> RowMajorMatrix<F> {
         let mut memory_events = match self.kind {
             MemoryChipType::Initialize => input.memory_initialize_events.clone(),
@@ -131,7 +132,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip {
             NUM_MEMORY_INIT_COLS,
         );
 
-        pad_to_power_of_two::<NUM_MEMORY_INIT_COLS, F>(&mut trace.values);
+        pad_to_power_of_two_fixed::<NUM_MEMORY_INIT_COLS, F>(&mut trace.values, fixed_log2_rows);
 
         trace
     }
@@ -140,6 +141,13 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip {
         match self.kind {
             MemoryChipType::Initialize => !shard.memory_initialize_events.is_empty(),
             MemoryChipType::Finalize => !shard.memory_finalize_events.is_empty(),
+        }
+    }
+
+    fn min_rows(&self, shard: &Self::Record) -> usize {
+        match self.kind {
+            MemoryChipType::Initialize => shard.memory_initialize_events.len(),
+            MemoryChipType::Finalize => shard.memory_finalize_events.len(),
         }
     }
 }
@@ -417,12 +425,12 @@ mod tests {
         let chip: MemoryChip = MemoryChip::new(MemoryChipType::Initialize);
 
         let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&shard, &mut ExecutionRecord::default());
+            chip.generate_trace(&shard, &mut ExecutionRecord::default(), None);
         println!("{:?}", trace.values);
 
         let chip: MemoryChip = MemoryChip::new(MemoryChipType::Finalize);
         let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&shard, &mut ExecutionRecord::default());
+            chip.generate_trace(&shard, &mut ExecutionRecord::default(), None);
         println!("{:?}", trace.values);
 
         for mem_event in shard.memory_finalize_events {

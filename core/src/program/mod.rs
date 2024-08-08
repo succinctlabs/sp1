@@ -13,7 +13,7 @@ use crate::air::SP1AirBuilder;
 use crate::cpu::columns::InstructionCols;
 use crate::cpu::columns::OpcodeSelectorCols;
 use crate::runtime::{ExecutionRecord, Program};
-use crate::utils::pad_to_power_of_two;
+use crate::utils::{pad_to_power_of_two, pad_to_power_of_two_fixed};
 
 /// The number of preprocessed program columns.
 pub const NUM_PROGRAM_PREPROCESSED_COLS: usize = size_of::<ProgramPreprocessedCols<u8>>();
@@ -87,7 +87,7 @@ impl<F: PrimeField> MachineAir<F> for ProgramChip {
         );
 
         // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_PROGRAM_PREPROCESSED_COLS, F>(&mut trace.values);
+        pad_to_power_of_two_fixed::<NUM_PROGRAM_PREPROCESSED_COLS, F>(&mut trace.values, Some(22));
 
         Some(trace)
     }
@@ -100,6 +100,7 @@ impl<F: PrimeField> MachineAir<F> for ProgramChip {
         &self,
         input: &ExecutionRecord,
         _output: &mut ExecutionRecord,
+        fixed_log2_rows: Option<usize>,
     ) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
 
@@ -138,13 +139,17 @@ impl<F: PrimeField> MachineAir<F> for ProgramChip {
         );
 
         // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_PROGRAM_MULT_COLS, F>(&mut trace.values);
+        pad_to_power_of_two_fixed::<NUM_PROGRAM_MULT_COLS, F>(&mut trace.values, fixed_log2_rows);
 
         trace
     }
 
     fn included(&self, _: &Self::Record) -> bool {
         true
+    }
+
+    fn min_rows(&self, shard: &Self::Record) -> usize {
+        shard.program.instructions.len()
     }
 }
 
@@ -215,7 +220,7 @@ mod tests {
         };
         let chip = ProgramChip::new();
         let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&shard, &mut ExecutionRecord::default());
+            chip.generate_trace(&shard, &mut ExecutionRecord::default(), None);
         println!("{:?}", trace.values)
     }
 }

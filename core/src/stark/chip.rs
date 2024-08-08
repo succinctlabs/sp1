@@ -184,8 +184,13 @@ where
         <A as MachineAir<F>>::generate_preprocessed_trace(&self.air, program)
     }
 
-    fn generate_trace(&self, input: &A::Record, output: &mut A::Record) -> RowMajorMatrix<F> {
-        self.air.generate_trace(input, output)
+    fn generate_trace(
+        &self,
+        input: &A::Record,
+        output: &mut A::Record,
+        fixed_log2_rows: Option<usize>,
+    ) -> RowMajorMatrix<F> {
+        self.air.generate_trace(input, output, fixed_log2_rows)
     }
 
     fn generate_dependencies(&self, input: &A::Record, output: &mut A::Record) {
@@ -194,6 +199,10 @@ where
 
     fn included(&self, shard: &Self::Record) -> bool {
         self.air.included(shard)
+    }
+
+    fn min_rows(&self, shard: &Self::Record) -> usize {
+        self.air.min_rows(shard)
     }
 }
 

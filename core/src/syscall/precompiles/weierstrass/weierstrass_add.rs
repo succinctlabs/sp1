@@ -36,7 +36,7 @@ use crate::utils::ec::weierstrass::WeierstrassParameters;
 use crate::utils::ec::AffinePoint;
 use crate::utils::ec::CurveType;
 use crate::utils::ec::EllipticCurve;
-use crate::utils::{limbs_from_prev_access, pad_rows};
+use crate::utils::{limbs_from_prev_access, pad_rows_fixed};
 
 pub const fn num_weierstrass_add_cols<P: FieldParameters + NumWords>() -> usize {
     size_of::<WeierstrassAddAssignCols<u8, P>>()
@@ -219,6 +219,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         &self,
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
+        fixed_log2_rows: Option<usize>,
     ) -> RowMajorMatrix<F> {
         let events = match E::CURVE_TYPE {
             CurveType::Secp256k1 => &input.secp256k1_add_events,
@@ -284,23 +285,27 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         }
         output.add_byte_lookup_events(new_byte_lookup_events);
 
-        pad_rows(&mut rows, || {
-            let mut row = vec![F::zero(); num_weierstrass_add_cols::<E::BaseField>()];
-            let cols: &mut WeierstrassAddAssignCols<F, E::BaseField> =
-                row.as_mut_slice().borrow_mut();
-            let zero = BigUint::zero();
-            Self::populate_field_ops(
-                &mut vec![],
-                0,
-                0,
-                cols,
-                zero.clone(),
-                zero.clone(),
-                zero.clone(),
-                zero,
-            );
-            row
-        });
+        pad_rows_fixed(
+            &mut rows,
+            || {
+                let mut row = vec![F::zero(); num_weierstrass_add_cols::<E::BaseField>()];
+                let cols: &mut WeierstrassAddAssignCols<F, E::BaseField> =
+                    row.as_mut_slice().borrow_mut();
+                let zero = BigUint::zero();
+                Self::populate_field_ops(
+                    &mut vec![],
+                    0,
+                    0,
+                    cols,
+                    zero.clone(),
+                    zero.clone(),
+                    zero.clone(),
+                    zero,
+                );
+                row
+            },
+            fixed_log2_rows,
+        );
 
         // Convert the trace to a row major matrix.
         let mut trace = RowMajorMatrix::new(
@@ -325,6 +330,15 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
             CurveType::Secp256k1 => !shard.secp256k1_add_events.is_empty(),
             CurveType::Bn254 => !shard.bn254_add_events.is_empty(),
             CurveType::Bls12381 => !shard.bls12381_add_events.is_empty(),
+            _ => panic!("Unsupported curve"),
+        }
+    }
+
+    fn min_rows(&self, shard: &Self::Record) -> usize {
+        match E::CURVE_TYPE {
+            CurveType::Secp256k1 => shard.secp256k1_add_events.len(),
+            CurveType::Bn254 => shard.bn254_add_events.len(),
+            CurveType::Bls12381 => shard.bls12381_add_events.len(),
             _ => panic!("Unsupported curve"),
         }
     }

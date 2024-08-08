@@ -8,6 +8,7 @@ mod permutation;
 mod prover;
 mod quotient;
 mod record;
+mod shape;
 mod types;
 mod util;
 mod verifier;
@@ -22,6 +23,7 @@ pub use permutation::*;
 pub use prover::*;
 pub use quotient::*;
 pub use record::*;
+pub use shape::*;
 pub use types::*;
 pub use verifier::*;
 

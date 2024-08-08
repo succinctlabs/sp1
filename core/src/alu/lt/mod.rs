@@ -16,7 +16,7 @@ use crate::air::{SP1AirBuilder, Word};
 use crate::bytes::event::ByteRecord;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::runtime::{ExecutionRecord, Opcode, Program};
-use crate::utils::pad_to_power_of_two;
+use crate::utils::pad_to_power_of_two_fixed;
 
 use super::AluEvent;
 
@@ -111,6 +111,7 @@ impl<F: PrimeField32> MachineAir<F> for LtChip {
         &self,
         input: &ExecutionRecord,
         _: &mut ExecutionRecord,
+        fixed_log2_rows: Option<usize>,
     ) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let rows = input
@@ -131,7 +132,7 @@ impl<F: PrimeField32> MachineAir<F> for LtChip {
             RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_LT_COLS);
 
         // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_LT_COLS, F>(&mut trace.values);
+        pad_to_power_of_two_fixed::<NUM_LT_COLS, F>(&mut trace.values, fixed_log2_rows);
 
         // Write the nonces to the trace.
         for i in 0..trace.height() {
@@ -165,6 +166,10 @@ impl<F: PrimeField32> MachineAir<F> for LtChip {
 
     fn included(&self, shard: &Self::Record) -> bool {
         !shard.lt_events.is_empty()
+    }
+
+    fn min_rows(&self, shard: &Self::Record) -> usize {
+        shard.lt_events.len()
     }
 }
 
@@ -511,7 +516,7 @@ mod tests {
         shard.lt_events = vec![AluEvent::new(0, 1, 0, Opcode::SLT, 0, 3, 2)];
         let chip = LtChip::default();
         let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&shard, &mut ExecutionRecord::default());
+            chip.generate_trace(&shard, &mut ExecutionRecord::default(), None);
         println!("{:?}", trace.values)
     }
 
@@ -521,7 +526,7 @@ mod tests {
 
         let chip = LtChip::default();
         let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(shard, &mut ExecutionRecord::default());
+            chip.generate_trace(shard, &mut ExecutionRecord::default(), None);
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();

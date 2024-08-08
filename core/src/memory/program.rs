@@ -12,7 +12,7 @@ use crate::air::{AirInteraction, PublicValues, SP1AirBuilder, SP1_PROOF_NUM_PV_E
 use crate::air::{MachineAir, Word};
 use crate::operations::IsZeroOperation;
 use crate::runtime::{ExecutionRecord, Program};
-use crate::utils::pad_to_power_of_two;
+use crate::utils::{pad_to_power_of_two, pad_to_power_of_two_fixed};
 
 pub const NUM_MEMORY_PROGRAM_PREPROCESSED_COLS: usize =
     size_of::<MemoryProgramPreprocessedCols<u8>>();
@@ -88,7 +88,10 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
         );
 
         // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_MEMORY_PROGRAM_PREPROCESSED_COLS, F>(&mut trace.values);
+        pad_to_power_of_two_fixed::<NUM_MEMORY_PROGRAM_PREPROCESSED_COLS, F>(
+            &mut trace.values,
+            Some(22),
+        );
 
         Some(trace)
     }
@@ -101,6 +104,7 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
         &self,
         input: &ExecutionRecord,
         _output: &mut ExecutionRecord,
+        fixed_log2_rows: Option<usize>,
     ) -> RowMajorMatrix<F> {
         let program_memory_addrs = input
             .program
@@ -134,13 +138,20 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
         );
 
         // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_MEMORY_PROGRAM_MULT_COLS, F>(&mut trace.values);
+        pad_to_power_of_two_fixed::<NUM_MEMORY_PROGRAM_MULT_COLS, F>(
+            &mut trace.values,
+            fixed_log2_rows,
+        );
 
         trace
     }
 
     fn included(&self, _: &Self::Record) -> bool {
         true
+    }
+
+    fn min_rows(&self, shard: &Self::Record) -> usize {
+        shard.program.memory_image.len()
     }
 }
 

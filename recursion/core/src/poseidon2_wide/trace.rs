@@ -38,6 +38,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
         &self,
         input: &ExecutionRecord<F>,
         output: &mut ExecutionRecord<F>,
+        _fixed_log2_rows: Option<usize>,
     ) -> RowMajorMatrix<F> {
         // Calculate the number of rows in the trace.
         let mut nb_rows = 0;
@@ -106,6 +107,10 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
 
     fn included(&self, record: &Self::Record) -> bool {
         !record.poseidon2_compress_events.is_empty()
+    }
+
+    fn min_rows(&self, shard: &Self::Record) -> usize {
+        shard.poseidon2_compress_events.len()
     }
 }
 

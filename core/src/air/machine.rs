@@ -16,20 +16,30 @@ pub trait MachineAir<F: Field>: BaseAir<F> + 'static + Send + Sync {
     /// A unique identifier for this AIR as part of a machine.
     fn name(&self) -> String;
 
-    /// Generate the trace for a given execution record.
+    /// Generate the trace for a given execution record. If a fixed log2 rows is provided, the
+    /// trace should be padded to that size. Otherwise, it should just be padded to nearest power
+    /// of two.
     ///
     /// - `input` is the execution record containing the events to be written to the trace.
     /// - `output` is the execution record containing events that the `MachineAir` can add to
     ///    the record such as byte lookup requests.
-    fn generate_trace(&self, input: &Self::Record, output: &mut Self::Record) -> RowMajorMatrix<F>;
+    fn generate_trace(
+        &self,
+        input: &Self::Record,
+        output: &mut Self::Record,
+        fixed_log2_rows: Option<usize>,
+    ) -> RowMajorMatrix<F>;
 
     /// Generate the dependencies for a given execution record.
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
-        self.generate_trace(input, output);
+        self.generate_trace(input, output, None);
     }
 
     /// Whether this execution record contains events for this air.
     fn included(&self, shard: &Self::Record) -> bool;
+
+    /// The minimum number of rows required for this record.
+    fn min_rows(&self, shard: &Self::Record) -> usize;
 
     /// The width of the preprocessed trace.
     fn preprocessed_width(&self) -> usize {

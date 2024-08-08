@@ -150,4 +150,8 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const L: usize> MachineAir<F> fo
     fn included(&self, _: &Self::Record) -> bool {
         true
     }
+
+    fn min_rows(&self, shard: &Self::Record) -> usize {
+        shard.cpu_events.len()
+    }
 }

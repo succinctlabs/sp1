@@ -50,7 +50,7 @@ use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::disassembler::WORD_SIZE;
 use crate::runtime::{ExecutionRecord, Opcode, Program};
 use crate::stark::MachineRecord;
-use crate::utils::pad_to_power_of_two;
+use crate::utils::pad_to_power_of_two_fixed;
 
 /// The number of main trace columns for `MulChip`.
 pub const NUM_MUL_COLS: usize = size_of::<MulCols<u8>>();
@@ -138,6 +138,7 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
         &self,
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
+        fixed_log2_rows: Option<usize>,
     ) -> RowMajorMatrix<F> {
         let mul_events = input.mul_events.clone();
         // Compute the chunk size based on the number of events and the number of CPUs.
@@ -275,7 +276,7 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
             RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_MUL_COLS);
 
         // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_MUL_COLS, F>(&mut trace.values);
+        pad_to_power_of_two_fixed::<NUM_MUL_COLS, F>(&mut trace.values, fixed_log2_rows);
 
         // Write the nonces to the trace.
         for i in 0..trace.height() {
@@ -289,6 +290,10 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
 
     fn included(&self, shard: &Self::Record) -> bool {
         !shard.mul_events.is_empty()
+    }
+
+    fn min_rows(&self, shard: &Self::Record) -> usize {
+        shard.mul_events.len()
     }
 }
 
@@ -514,7 +519,7 @@ mod tests {
         shard.mul_events = mul_events;
         let chip = MulChip::default();
         let _trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&shard, &mut ExecutionRecord::default());
+            chip.generate_trace(&shard, &mut ExecutionRecord::default(), None);
     }
 
     #[test]
@@ -589,7 +594,7 @@ mod tests {
         shard.mul_events = mul_events;
         let chip = MulChip::default();
         let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&shard, &mut ExecutionRecord::default());
+            chip.generate_trace(&shard, &mut ExecutionRecord::default(), None);
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();

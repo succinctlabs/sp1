@@ -4946,6 +4946,7 @@ dependencies = [
  "hex",
  "itertools 0.13.0",
  "k256",
+ "lazy_static",
  "log",
  "nohash-hasher",
  "num",
