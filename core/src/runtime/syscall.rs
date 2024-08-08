@@ -197,6 +197,17 @@ impl SyscallCode {
     pub fn num_cycles(&self) -> u32 {
         (*self as u32).to_le_bytes()[2].into()
     }
+
+    /// Map a syscall to another one in order to coalesce their counts.
+    pub fn count_map(&self) -> Self {
+        match self {
+            SyscallCode::BN254_FP_SUB => SyscallCode::BN254_FP_ADD,
+            SyscallCode::BN254_FP_MUL => SyscallCode::BN254_FP_ADD,
+            SyscallCode::BLS12381_FP_SUB => SyscallCode::BLS12381_FP_ADD,
+            SyscallCode::BLS12381_FP_MUL => SyscallCode::BLS12381_FP_ADD,
+            _ => *self,
+        }
+    }
 }
 
 impl fmt::Display for SyscallCode {
