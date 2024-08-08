@@ -6,9 +6,9 @@ use crate::{
     ProveArgs,
 };
 use sp1_core::{runtime::ExecutionState, stark::MachineProver};
-use steps::{worker_phase1_impl, worker_phase2_impl};
+use steps::{worker_commit_checkpoint_impl, worker_prove_checkpoint_impl};
 
-pub fn worker_phase1(
+pub fn worker_commit_checkpoint(
     args: &Vec<u8>,
     idx: u32,
     checkpoint: &Vec<u8>,
@@ -23,7 +23,7 @@ pub fn worker_phase1(
     execution_state.save(&mut checkpoint_file).unwrap();
     let public_values_obj = bincode::deserialize(public_values).unwrap();
 
-    let (commitments, records) = worker_phase1_impl(
+    let (commitments, records) = worker_commit_checkpoint_impl(
         args_obj,
         idx,
         &mut checkpoint_file,
@@ -36,7 +36,7 @@ pub fn worker_phase1(
     *o_records = bincode::serialize(&records).unwrap();
 }
 
-pub fn worker_phase2(
+pub fn worker_prove_checkpoint(
     args: &Vec<u8>,
     challenger_state: &Vec<u8>,
     records: &[u8],
@@ -48,7 +48,7 @@ pub fn worker_phase2(
         .to_challenger(&client.prover.sp1_prover().core_prover.config().perm);
     let records: Vec<RecordType> = bincode::deserialize(records).unwrap();
 
-    let shard_proofs = worker_phase2_impl(args_obj, challenger, records).unwrap();
+    let shard_proofs = worker_prove_checkpoint_impl(args_obj, challenger, records).unwrap();
     let result = bincode::serialize(&shard_proofs.as_slice()).unwrap();
     *o_shard_proofs = result;
 }

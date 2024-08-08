@@ -16,7 +16,7 @@ use sp1_core::{
 use sp1_prover::{SP1CoreProof, SP1CoreProofData, SP1ProofWithMetadata};
 use sp1_sdk::{SP1Proof, SP1ProofWithPublicValues, SP1PublicValues};
 
-fn generate_checkpoints(
+fn operator_split_into_checkpoints(
     runtime: &mut Runtime,
 ) -> Result<(PublicValueStreamType, PublicValuesType, Vec<CheckpointType>), SP1CoreProverError> {
     // Execute the program, saving checkpoints at the start of every `shard_batch_size` cycle range.
@@ -52,7 +52,7 @@ fn generate_checkpoints(
     Ok((public_values_stream, public_values, checkpoints))
 }
 
-pub fn prove_begin_impl(
+pub fn operator_split_into_checkpoints_impl(
     args: ProveArgs,
 ) -> Result<(
     PublicValueStreamType,
@@ -68,7 +68,7 @@ pub fn prove_begin_impl(
     let mut runtime = common::build_runtime(program, &stdin, core_opts, context);
 
     let (public_values_stream, public_values, checkpoints) =
-        generate_checkpoints(&mut runtime).unwrap();
+        operator_split_into_checkpoints(&mut runtime).unwrap();
 
     Ok((
         public_values_stream,
@@ -78,7 +78,7 @@ pub fn prove_begin_impl(
     ))
 }
 
-pub fn operator_phase1_impl(
+pub fn operator_absorb_commits_impl(
     args: ProveArgs,
     commitments_vec: Vec<Vec<CommitmentType>>,
     records_vec: Vec<Vec<RecordType>>,
@@ -122,7 +122,7 @@ pub fn operator_phase1_impl(
     Ok(challenger)
 }
 
-pub fn operator_phase2_impl(
+pub fn construct_sp1_core_proof_impl(
     args: ProveArgs,
     shard_proofs_vec: Vec<Vec<ShardProof<BabyBearPoseidon2>>>,
     public_values_stream: PublicValueStreamType,
@@ -153,7 +153,10 @@ pub fn operator_phase2_impl(
     Ok(sp1_core_proof)
 }
 
-pub fn operator_core_end(args: &Vec<u8>, core_proof: &Vec<u8>) -> Result<SP1ProofWithPublicValues> {
+pub fn construct_core_proof(
+    args: &Vec<u8>,
+    core_proof: &Vec<u8>,
+) -> Result<SP1ProofWithPublicValues> {
     let args_obj = ProveArgs::from_slice(args.as_slice());
     let core_proof_obj: SP1CoreProof = bincode::deserialize(core_proof).unwrap();
 

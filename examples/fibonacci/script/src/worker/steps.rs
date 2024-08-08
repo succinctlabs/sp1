@@ -11,7 +11,7 @@ use sp1_core::{
 use sp1_sdk::ExecutionReport;
 use std::fs::File;
 
-pub fn worker_phase1_impl(
+pub fn worker_commit_checkpoint_impl(
     args: ProveArgs,
     idx: u32,
     checkpoint: &mut File,
@@ -95,7 +95,7 @@ pub fn worker_phase1_impl(
     Ok((commitments, records))
 }
 
-pub fn worker_phase2_impl(
+pub fn worker_prove_checkpoint_impl(
     args: ProveArgs,
     challenger: ChallengerType,
     records: Vec<RecordType>,

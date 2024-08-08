@@ -12,8 +12,10 @@ pub mod worker;
 
 use clap::Parser;
 use fibonacci_script::{ProveArgs, PublicValuesTuple};
-use operator::{operator_phase1, operator_phase2, prove_begin, steps::operator_core_end};
-use worker::{worker_phase1, worker_phase2};
+use operator::{
+    operator_absorb_commits, operator_construct_sp1_core_proof, operator_split_into_checkpoints,
+};
+use worker::{worker_commit_checkpoint, worker_prove_checkpoint};
 
 fn main() {
     // Setup the logger.
@@ -28,7 +30,7 @@ fn main() {
     let mut public_values = Vec::new();
     let mut checkpoints = Vec::new();
     let mut cycles = 0;
-    prove_begin(
+    operator_split_into_checkpoints(
         &serialize_args,
         &mut public_values_stream,
         &mut public_values,
@@ -43,7 +45,7 @@ fn main() {
         let is_last_checkpoint = idx == num_checkpoints - 1;
         let mut commitments = Vec::new();
         let mut records = Vec::new();
-        worker_phase1(
+        worker_commit_checkpoint(
             &serialize_args,
             idx as u32,
             checkpoint,
@@ -58,7 +60,7 @@ fn main() {
     }
 
     let mut challenger_state = Vec::new();
-    operator_phase1(
+    operator_absorb_commits(
         &serialize_args,
         &commitments_vec,
         &records_vec,
@@ -68,7 +70,7 @@ fn main() {
     let mut shard_proofs_vec = Vec::new();
     for (idx, records) in records_vec.into_iter().enumerate() {
         let mut shard_proofs = Vec::new();
-        worker_phase2(
+        worker_prove_checkpoint(
             &serialize_args,
             &challenger_state,
             records.as_slice(),
@@ -80,24 +82,11 @@ fn main() {
 
     // Core proof.
     let mut proof = Vec::new();
-    operator_phase2(
+    operator_construct_sp1_core_proof(
         &serialize_args,
         &shard_proofs_vec,
         &public_values_stream,
         cycles,
         &mut proof,
     );
-
-    if !args.evm {
-        let _proof = operator_core_end(&serialize_args, &proof);
-        return;
-    } else {
-        // Generate the proof.
-        // let proof = client
-        //     .prove(&pk, stdin)
-        //     .plonk()
-        //     .run()
-        //     .expect("failed to generate proof");
-        // create_plonk_fixture(&proof, &vk);
-    }
 }
