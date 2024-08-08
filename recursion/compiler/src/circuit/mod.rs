@@ -158,7 +158,7 @@ mod tests {
         .into();
         runtime.run().unwrap();
 
-        let machine = A::machine(SC::new());
+        let machine = A::machine_wide(SC::new());
 
         let (pk, vk) = machine.setup(&program);
         let result =

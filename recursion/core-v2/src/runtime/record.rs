@@ -23,8 +23,7 @@ pub struct ExecutionRecord<F> {
     /// The public values.
     pub public_values: RecursionPublicValues<F>,
 
-    pub poseidon2_skinny_events: Vec<Poseidon2SkinnyEvent<F>>,
-    pub poseidon2_wide_events: Vec<Poseidon2WideEvent<F>>,
+    pub poseidon2_events: Vec<Poseidon2Event<F>>,
     pub exp_reverse_bits_len_events: Vec<ExpReverseBitsEvent<F>>,
     pub fri_fold_events: Vec<FriFoldEvent<F>>,
     pub commit_pv_hash_events: Vec<CommitPublicValuesEvent<F>>,
@@ -47,8 +46,7 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
             mem_const_count,
             mem_var_events,
             public_values: _,
-            poseidon2_wide_events,
-            poseidon2_skinny_events,
+            poseidon2_events,
             exp_reverse_bits_len_events,
             fri_fold_events,
             commit_pv_hash_events,
@@ -57,8 +55,7 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
         ext_alu_events.append(&mut other.ext_alu_events);
         *mem_const_count += other.mem_const_count;
         mem_var_events.append(&mut other.mem_var_events);
-        poseidon2_wide_events.append(&mut other.poseidon2_wide_events);
-        poseidon2_skinny_events.append(&mut other.poseidon2_skinny_events);
+        poseidon2_events.append(&mut other.poseidon2_events);
         exp_reverse_bits_len_events.append(&mut other.exp_reverse_bits_len_events);
         fri_fold_events.append(&mut other.fri_fold_events);
         commit_pv_hash_events.append(&mut other.commit_pv_hash_events);

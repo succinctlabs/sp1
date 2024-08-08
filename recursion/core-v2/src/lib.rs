@@ -99,7 +99,7 @@ pub struct Poseidon2SkinnyInstr<F> {
     pub mults: [F; WIDTH],
 }
 
-pub type Poseidon2SkinnyEvent<F> = Poseidon2Io<F>;
+pub type Poseidon2Event<F> = Poseidon2Io<F>;
 
 /// The inputs and outputs to an exp-reverse-bits operation.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -111,7 +111,7 @@ pub struct ExpReverseBitsIo<V> {
 }
 
 pub type Poseidon2WideEvent<F> = Poseidon2Io<F>;
-pub type Poseidon2WideInstr<F> = Poseidon2SkinnyInstr<F>;
+pub type Poseidon2Instr<F> = Poseidon2SkinnyInstr<F>;
 
 /// An instruction invoking the exp-reverse-bits operation.
 #[derive(Clone, Debug, Serialize, Deserialize)]

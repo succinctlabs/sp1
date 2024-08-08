@@ -386,7 +386,7 @@ where
                     }
                     self.record.mem_const_count += 1;
                 }
-                Instruction::Poseidon2Skinny(Poseidon2SkinnyInstr {
+                Instruction::Poseidon2(Poseidon2Instr {
                     addrs: Poseidon2Io { input, output },
                     mults,
                 }) => {
@@ -401,30 +401,7 @@ where
                         .for_each(|((&val, addr), mult)| {
                             self.mw(addr, Block::from(val), mult);
                         });
-                    self.record
-                        .poseidon2_skinny_events
-                        .push(Poseidon2SkinnyEvent {
-                            input: in_vals,
-                            output: perm_output,
-                        });
-                }
-
-                Instruction::Poseidon2Wide(Poseidon2WideInstr {
-                    addrs: Poseidon2Io { input, output },
-                    mults,
-                }) => {
-                    self.nb_wide_poseidons += 1;
-                    let in_vals = std::array::from_fn(|i| self.mr(input[i]).val[0]);
-                    let perm_output = self.perm.as_ref().unwrap().permute(in_vals);
-
-                    perm_output
-                        .iter()
-                        .zip(output)
-                        .zip(mults)
-                        .for_each(|((&val, addr), mult)| {
-                            self.mw(addr, Block::from(val), mult);
-                        });
-                    self.record.poseidon2_wide_events.push(Poseidon2WideEvent {
+                    self.record.poseidon2_events.push(Poseidon2Event {
                         input: in_vals,
                         output: perm_output,
                     });

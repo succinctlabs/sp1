@@ -201,18 +201,13 @@ where
 
 #[cfg(test)]
 mod tests {
-    use machine::RecursionAir;
-    use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
+    use machine::tests::run_recursion_test_machines;
+    use p3_baby_bear::BabyBear;
     use p3_field::AbstractField;
     use p3_matrix::dense::RowMajorMatrix;
 
     use rand::{rngs::StdRng, Rng, SeedableRng};
-    use sp1_core::{
-        air::MachineAir,
-        stark::StarkGenericConfig,
-        utils::{run_test_machine, BabyBearPoseidon2},
-    };
-    use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
+    use sp1_core::{air::MachineAir, stark::StarkGenericConfig, utils::BabyBearPoseidon2};
 
     use super::*;
 
@@ -237,10 +232,8 @@ mod tests {
 
     #[test]
     pub fn four_ops() {
-        type SC = BabyBearPoseidon2Outer;
+        type SC = BabyBearPoseidon2;
         type F = <SC as StarkGenericConfig>::Val;
-        type EF = <SC as StarkGenericConfig>::Challenge;
-        type A = RecursionAir<F, 3, 1>;
 
         let mut rng = StdRng::seed_from_u64(0xDEADBEEF);
         let mut random_felt = move || -> F { rng.sample(rand::distributions::Standard) };
@@ -274,16 +267,6 @@ mod tests {
             traces: Default::default(),
         };
 
-        let config = SC::new();
-
-        let mut runtime =
-            Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program, BabyBearPoseidon2::new().perm);
-        runtime.run().unwrap();
-        let machine = A::machine(config);
-        let (pk, vk) = machine.setup(&program);
-        let result = run_test_machine(vec![runtime.record], machine, pk, vk);
-        if let Err(e) = result {
-            panic!("Verification failed: {:?}", e);
-        }
+        run_recursion_test_machines(program);
     }
 }

@@ -233,27 +233,12 @@ impl<C: Config> AsmCompiler<C> {
         ]
     }
 
-    fn poseidon2_permute_skinny(
+    fn poseidon2_permute(
         &mut self,
         dst: [impl Reg<C>; WIDTH],
         src: [impl Reg<C>; WIDTH],
     ) -> CompileOneItem<C::F> {
-        Instruction::Poseidon2Skinny(Poseidon2WideInstr {
-            addrs: Poseidon2Io {
-                input: src.map(|r| r.read(self)),
-                output: dst.map(|r| r.write(self)),
-            },
-            mults: [C::F::zero(); WIDTH],
-        })
-        .into()
-    }
-
-    fn poseidon2_permute_wide(
-        &mut self,
-        dst: [impl Reg<C>; WIDTH],
-        src: [impl Reg<C>; WIDTH],
-    ) -> CompileOneItem<C::F> {
-        Instruction::Poseidon2Wide(Poseidon2WideInstr {
+        Instruction::Poseidon2(Poseidon2Instr {
             addrs: Poseidon2Io {
                 input: src.map(|r| r.read(self)),
                 output: dst.map(|r| r.write(self)),
@@ -466,11 +451,8 @@ impl<C: Config> AsmCompiler<C> {
             DslIr::AssertNeFI(lhs, rhs) => self.base_assert_ne(lhs, Imm::F(rhs)),
             DslIr::AssertNeEI(lhs, rhs) => self.ext_assert_ne(lhs, Imm::EF(rhs)),
 
-            DslIr::CircuitV2Poseidon2PermuteBabyBearSkinny(dst, src) => {
-                vec![self.poseidon2_permute_skinny(dst, src)]
-            }
-            DslIr::CircuitV2Poseidon2PermuteBabyBearWide(dst, src) => {
-                vec![self.poseidon2_permute_wide(dst, src)]
+            DslIr::CircuitV2Poseidon2PermuteBabyBear(dst, src) => {
+                vec![self.poseidon2_permute(dst, src)]
             }
             DslIr::CircuitV2ExpReverseBits(dst, base, exp) => {
                 vec![self.exp_reverse_bits(dst, base, exp)]
@@ -555,11 +537,7 @@ impl<C: Config> AsmCompiler<C> {
                     kind: MemAccessKind::Write,
                     ..
                 }) => vec![(mult, inner)],
-                Instruction::Poseidon2Skinny(Poseidon2SkinnyInstr {
-                    addrs: Poseidon2Io { ref output, .. },
-                    mults,
-                }) => mults.iter_mut().zip(output).collect(),
-                Instruction::Poseidon2Wide(Poseidon2WideInstr {
+                Instruction::Poseidon2(Poseidon2SkinnyInstr {
                     addrs: Poseidon2Io { ref output, .. },
                     mults,
                 }) => mults.iter_mut().zip(output).collect(),
@@ -638,8 +616,7 @@ const fn instr_name<F>(instr: &Instruction<F>) -> &'static str {
         Instruction::BaseAlu(_) => "BaseAlu",
         Instruction::ExtAlu(_) => "ExtAlu",
         Instruction::Mem(_) => "Mem",
-        Instruction::Poseidon2Skinny(_) => "Poseidon2Skinny",
-        Instruction::Poseidon2Wide(_) => "Poseidon2Wide",
+        Instruction::Poseidon2(_) => "Poseidon2",
         Instruction::ExpReverseBitsLen(_) => "ExpReverseBitsLen",
         Instruction::HintBits(_) => "HintBits",
         Instruction::FriFold(_) => "FriFold",
@@ -808,7 +785,6 @@ mod tests {
     type SC = BabyBearPoseidon2;
     type F = <SC as StarkGenericConfig>::Val;
     type EF = <SC as StarkGenericConfig>::Challenge;
-    type A = RecursionAir<F, 3, 1>;
     fn test_operations(operations: TracedVec<DslIr<AsmConfig<F, EF>>>) {
         test_operations_with_runner(operations, |program| {
             let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(
@@ -828,17 +804,25 @@ mod tests {
         let program = compiler.compile(operations);
         let record = run(&program);
 
-        let config = SC::new();
-        let machine = A::machine_with_all_chips(config);
-        let (pk, vk) = machine.setup(&program);
-        let result = run_test_machine(vec![record], machine, pk, vk);
+        // Run with the poseidon2 wide chip.
+        let wide_machine = RecursionAir::<_, 3, 0>::machine_wide(BabyBearPoseidon2::default());
+        let (pk, vk) = wide_machine.setup(&program);
+        let result = run_test_machine(vec![record.clone()], wide_machine, pk, vk);
+        if let Err(e) = result {
+            panic!("Verification failed: {:?}", e);
+        }
+
+        // Run with the poseidon2 skinny chip.
+        let skinny_machine = RecursionAir::<_, 9, 0>::machine(BabyBearPoseidon2::compressed());
+        let (pk, vk) = skinny_machine.setup(&program);
+        let result = run_test_machine(vec![record.clone()], skinny_machine, pk, vk);
         if let Err(e) = result {
             panic!("Verification failed: {:?}", e);
         }
     }
 
     #[test]
-    fn test_poseidon2_skinny() {
+    fn test_poseidon2() {
         setup_logger();
 
         let mut builder = AsmBuilder::<F, EF>::default();
@@ -849,29 +833,7 @@ mod tests {
             let output_1 = inner_perm().permute(input_1);
 
             let input_1_felts = input_1.map(|x| builder.eval(x));
-            let output_1_felts = builder.poseidon2_permute_v2_skinny(input_1_felts);
-            let expected: [Felt<_>; WIDTH] = output_1.map(|x| builder.eval(x));
-            for (lhs, rhs) in output_1_felts.into_iter().zip(expected) {
-                builder.assert_felt_eq(lhs, rhs);
-            }
-        }
-
-        test_operations(builder.operations);
-    }
-
-    #[test]
-    fn test_poseidon2_wide() {
-        setup_logger();
-
-        let mut builder = AsmBuilder::<F, EF>::default();
-        let mut rng = StdRng::seed_from_u64(0xCAFEDA7E)
-            .sample_iter::<[F; WIDTH], _>(rand::distributions::Standard);
-        for _ in 0..100 {
-            let input_1: [F; WIDTH] = rng.next().unwrap();
-            let output_1 = inner_perm().permute(input_1);
-
-            let input_1_felts = input_1.map(|x| builder.eval(x));
-            let output_1_felts = builder.poseidon2_permute_v2_wide(input_1_felts);
+            let output_1_felts = builder.poseidon2_permute_v2(input_1_felts);
             let expected: [Felt<_>; WIDTH] = output_1.map(|x| builder.eval(x));
             for (lhs, rhs) in output_1_felts.into_iter().zip(expected) {
                 builder.assert_felt_eq(lhs, rhs);
