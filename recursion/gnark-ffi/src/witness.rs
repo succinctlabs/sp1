@@ -1,6 +1,7 @@
 use std::fs::File;
 use std::io::Write;
 
+use anyhow::Result;
 use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
 use p3_field::PrimeField;
@@ -55,9 +56,10 @@ impl GnarkWitness {
     }
 
     /// Saves the witness to a given path.
-    pub fn save(&self, path: &str) {
-        let serialized = serde_json::to_string(self).unwrap();
-        let mut file = File::create(path).unwrap();
-        file.write_all(serialized.as_bytes()).unwrap();
+    pub fn save(&self, path: &str) -> Result<()> {
+        let serialized = serde_json::to_string(self)?;
+        let mut file = File::create(path)?;
+        file.write_all(serialized.as_bytes())?;
+        Ok(())
     }
 }
