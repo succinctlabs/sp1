@@ -155,7 +155,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use machine::RecursionAir;
+    use machine::{tests::run_recursion_test_machines, RecursionAir};
     use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
     use p3_field::AbstractField;
     use p3_matrix::dense::RowMajorMatrix;
@@ -184,7 +184,7 @@ mod tests {
         runtime.run().unwrap();
 
         let config = SC::new();
-        let machine = A::machine(config);
+        let machine = A::machine_wide(config);
         let (pk, vk) = machine.setup(&program);
         let result = run_test_machine(vec![runtime.record], machine, pk, vk);
         if let Err(e) = result {
@@ -213,7 +213,7 @@ mod tests {
 
     #[test]
     pub fn prove_basic_mem() {
-        prove_program(RecursionProgram {
+        run_recursion_test_machines(RecursionProgram {
             instructions: vec![
                 instr::mem(MemAccessKind::Write, 1, 1, 2),
                 instr::mem(MemAccessKind::Read, 1, 1, 2),
