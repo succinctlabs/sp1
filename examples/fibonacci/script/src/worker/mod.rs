@@ -1,10 +1,8 @@
-use crate::common;
 use crate::common::build_runtime;
-use crate::operator::ChallengerType;
+use crate::common::types::{ChallengerType, RecordType};
+use crate::common::{self, types::CommitmentPairType};
 use crate::ProveArgs;
 use anyhow::Result;
-use p3_baby_bear::BabyBear;
-use p3_symmetric::Hash;
 use sp1_core::{
     air::PublicValues,
     runtime::ExecutionRecord,
@@ -13,10 +11,6 @@ use sp1_core::{
 };
 use sp1_sdk::ExecutionReport;
 use std::fs::File;
-
-pub type CommitmentType = Hash<BabyBear, BabyBear, 8>;
-pub type RecordType = ExecutionRecord;
-pub type CommitmentPairType = (CommitmentType, RecordType);
 
 pub fn worker_phase1(
     args: &ProveArgs,

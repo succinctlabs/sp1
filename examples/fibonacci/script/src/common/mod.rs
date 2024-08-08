@@ -1,3 +1,5 @@
+pub mod types;
+
 use anyhow::Result;
 use sp1_core::{
     runtime::{Program, Runtime},

@@ -12,9 +12,10 @@ pub mod worker;
 
 use alloy_sol_types::SolType;
 use clap::Parser;
+use common::types::RecordType;
 use fibonacci_script::{ProveArgs, PublicValuesTuple};
 use operator::{operator_phase1, operator_phase2, prove_begin};
-use worker::{worker_phase1, worker_phase2, RecordType};
+use worker::{worker_phase1, worker_phase2};
 
 fn main() {
     // Setup the logger.

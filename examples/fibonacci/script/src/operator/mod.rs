@@ -1,31 +1,20 @@
 use crate::common;
-use crate::worker::CommitmentPairType;
+use crate::common::types::{
+    ChallengerType, CheckpointType, CommitmentPairType, PublicValueStreamType, PublicValuesType,
+};
 use crate::ProveArgs;
 use anyhow::Result;
 use core::panic;
-use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
-use p3_challenger::DuplexChallenger;
-use p3_poseidon2::{Poseidon2, Poseidon2ExternalMatrixGeneral};
+use p3_baby_bear::BabyBear;
+use sp1_core::stark::MachineRecord;
 use sp1_core::utils::BabyBearPoseidon2;
 use sp1_core::{
-    air::PublicValues,
     runtime::Runtime,
-    stark::{MachineProof, MachineProver, MachineRecord, ShardProof, StarkGenericConfig},
+    stark::{MachineProof, MachineProver, ShardProof, StarkGenericConfig},
     utils::SP1CoreProverError,
 };
 use sp1_prover::{SP1CoreProof, SP1CoreProofData};
 use sp1_sdk::{SP1Proof, SP1ProofWithPublicValues, SP1PublicValues};
-use std::fs::File;
-
-pub type PublicValueStreamType = Vec<u8>;
-pub type PublicValuesType = PublicValues<u32, u32>;
-pub type CheckpointType = File;
-pub type ChallengerType = DuplexChallenger<
-    BabyBear,
-    Poseidon2<BabyBear, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 16, 7>,
-    16,
-    8,
->;
 
 pub fn generate_checkpoints(
     runtime: &mut Runtime,
