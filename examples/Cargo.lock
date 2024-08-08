@@ -51,7 +51,7 @@ dependencies = [
 
 [[package]]
 name = "aggregation-script"
-version = "1.0.0-rc.1"
+version = "1.0.1"
 dependencies = [
  "hex",
  "sp1-helper",
@@ -88,9 +88,9 @@ checksum = "5c6cb57a04249c6480766f7f7cef5467412af1490f8d1e243141daddada3264f"
 
 [[package]]
 name = "alloy-primitives"
-version = "0.7.6"
+version = "0.7.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f783611babedbbe90db3478c120fb5f5daacceffc210b39adc0af4fe0da70bad"
+checksum = "ccb3ead547f4532bc8af961649942f0b9c16ee9226e26caa3f38420651cc0bf4"
 dependencies = [
  "alloy-rlp",
  "bytes",
@@ -120,9 +120,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-sol-macro"
-version = "0.7.6"
+version = "0.7.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4bad41a7c19498e3f6079f7744656328699f8ea3e783bdd10d85788cd439f572"
+checksum = "2b40397ddcdcc266f59f959770f601ce1280e699a91fc1862f29cef91707cd09"
 dependencies = [
  "alloy-sol-macro-expander",
  "alloy-sol-macro-input",
@@ -134,9 +134,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-sol-macro-expander"
-version = "0.7.6"
+version = "0.7.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fd9899da7d011b4fe4c406a524ed3e3f963797dbc93b45479d60341d3a27b252"
+checksum = "867a5469d61480fea08c7333ffeca52d5b621f5ca2e44f271b117ec1fc9a0525"
 dependencies = [
  "alloy-sol-macro-input",
  "const-hex",
@@ -152,9 +152,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-sol-macro-input"
-version = "0.7.6"
+version = "0.7.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d32d595768fdc61331a132b6f65db41afae41b9b97d36c21eb1b955c422a7e60"
+checksum = "2e482dc33a32b6fadbc0f599adea520bd3aaa585c141a80b404d0a3e3fa72528"
 dependencies = [
  "const-hex",
  "dunce",
@@ -167,9 +167,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-sol-types"
-version = "0.7.6"
+version = "0.7.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a49042c6d3b66a9fe6b2b5a8bf0d39fc2ae1ee0310a2a26ffedd79fb097878dd"
+checksum = "a91ca40fa20793ae9c3841b83e74569d1cc9af29a2f5237314fd3452d51e38c7"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-macro",
@@ -382,9 +382,9 @@ dependencies = [
 
 [[package]]
 name = "arrayref"
-version = "0.3.7"
+version = "0.3.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6b4930d2cb77ce62f89ee5d5289b4ac049559b1c45539271f5ed4fdc7db34545"
+checksum = "9d151e35f61089500b617991b791fc8bfd237ae50cd5950803758a179b41e67a"
 
 [[package]]
 name = "arrayvec"
@@ -782,7 +782,7 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "chess-script"
-version = "1.0.0-rc.1"
+version = "1.0.1"
 dependencies = [
  "sp1-helper",
  "sp1-sdk",
@@ -1114,7 +1114,7 @@ dependencies = [
 
 [[package]]
 name = "cycle-tracking-script"
-version = "1.0.0-rc.1"
+version = "1.0.1"
 dependencies = [
  "sp1-helper",
  "sp1-sdk",
@@ -1728,7 +1728,7 @@ checksum = "28dea519a9695b9977216879a3ebfddf92f1c08c05d984f8996aecd6ecdc811d"
 
 [[package]]
 name = "fibonacci-script"
-version = "1.0.0-rc.1"
+version = "1.0.1"
 dependencies = [
  "itertools 0.12.1",
  "sha2 0.10.8",
@@ -2462,7 +2462,7 @@ dependencies = [
 
 [[package]]
 name = "io-script"
-version = "1.0.0-rc.1"
+version = "1.0.1"
 dependencies = [
  "serde",
  "sp1-helper",
@@ -2477,7 +2477,7 @@ checksum = "8f518f335dce6725a761382244631d86cf0ccb2863413590b31338feb467f9c3"
 
 [[package]]
 name = "is-prime-script"
-version = "1.0.0-rc.1"
+version = "1.0.1"
 dependencies = [
  "sp1-sdk",
 ]
@@ -2541,7 +2541,7 @@ dependencies = [
 
 [[package]]
 name = "json-script"
-version = "1.0.0-rc.1"
+version = "1.0.1"
 dependencies = [
  "lib",
  "serde",
@@ -2628,7 +2628,7 @@ checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
 
 [[package]]
 name = "lib"
-version = "1.0.0-rc.1"
+version = "1.0.1"
 dependencies = [
  "serde",
 ]
@@ -3483,7 +3483,7 @@ checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
 name = "patch-testing-script"
-version = "1.0.0-rc.1"
+version = "1.0.1"
 dependencies = [
  "ed25519-consensus",
  "rand",
@@ -3983,7 +3983,7 @@ dependencies = [
 
 [[package]]
 name = "regex-script"
-version = "1.0.0-rc.1"
+version = "1.0.1"
 dependencies = [
  "sp1-helper",
  "sp1-sdk",
@@ -4210,7 +4210,7 @@ dependencies = [
 
 [[package]]
 name = "rsa-script"
-version = "1.0.0-rc.1"
+version = "1.0.1"
 dependencies = [
  "rsa",
  "sp1-helper",
@@ -4810,16 +4810,17 @@ dependencies = [
 
 [[package]]
 name = "sp1-build"
-version = "1.0.0-rc.1"
+version = "1.0.1"
 dependencies = [
  "anyhow",
  "cargo_metadata",
  "clap",
+ "dirs",
 ]
 
 [[package]]
 name = "sp1-core"
-version = "1.0.0-rc.1"
+version = "1.0.1"
 dependencies = [
  "anyhow",
  "arrayref",
@@ -4866,6 +4867,7 @@ dependencies = [
  "snowbridge-amcl",
  "sp1-derive",
  "sp1-primitives",
+ "static_assertions",
  "strum",
  "strum_macros",
  "tempfile",
@@ -4879,7 +4881,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-derive"
-version = "1.0.0-rc.1"
+version = "1.0.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4888,7 +4890,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-helper"
-version = "1.0.0-rc.1"
+version = "1.0.1"
 dependencies = [
  "cargo_metadata",
  "chrono",
@@ -4897,7 +4899,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "1.0.0-rc.1"
+version = "1.0.1"
 dependencies = [
  "itertools 0.13.0",
  "lazy_static",
@@ -4909,7 +4911,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-prover"
-version = "1.0.0-rc.1"
+version = "1.0.1"
 dependencies = [
  "anyhow",
  "bincode",
@@ -4924,6 +4926,7 @@ dependencies = [
  "p3-challenger",
  "p3-commit",
  "p3-field",
+ "p3-matrix",
  "rayon",
  "serde",
  "serde_json",
@@ -4944,7 +4947,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-circuit"
-version = "1.0.0-rc.1"
+version = "1.0.1"
 dependencies = [
  "bincode",
  "itertools 0.13.0",
@@ -4966,7 +4969,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-compiler"
-version = "1.0.0-rc.1"
+version = "1.0.1"
 dependencies = [
  "backtrace",
  "itertools 0.13.0",
@@ -4990,7 +4993,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-core"
-version = "1.0.0-rc.1"
+version = "1.0.1"
 dependencies = [
  "arrayref",
  "backtrace",
@@ -5024,7 +5027,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-derive"
-version = "1.0.0-rc.1"
+version = "1.0.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5033,7 +5036,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-gnark-ffi"
-version = "1.0.0-rc.1"
+version = "1.0.1"
 dependencies = [
  "anyhow",
  "bincode",
@@ -5057,7 +5060,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-program"
-version = "1.0.0-rc.1"
+version = "1.0.1"
 dependencies = [
  "itertools 0.13.0",
  "p3-air",
@@ -5085,7 +5088,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-sdk"
-version = "1.0.0-rc.1"
+version = "1.0.1"
 dependencies = [
  "alloy-sol-types",
  "anyhow",
@@ -5159,7 +5162,7 @@ dependencies = [
 
 [[package]]
 name = "ssz-withdrawals-script"
-version = "1.0.0-rc.1"
+version = "1.0.1"
 dependencies = [
  "sp1-helper",
  "sp1-sdk",
@@ -5257,9 +5260,9 @@ dependencies = [
 
 [[package]]
 name = "syn-solidity"
-version = "0.7.6"
+version = "0.7.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d71e19bca02c807c9faa67b5a47673ff231b6e7449b251695188522f1dc44b2"
+checksum = "c837dc8852cb7074e46b444afb81783140dab12c58867b49fb3898fbafedf7ea"
 dependencies = [
  "paste",
  "proc-macro2",
@@ -5395,7 +5398,7 @@ dependencies = [
 
 [[package]]
 name = "tendermint-script"
-version = "1.0.0-rc.1"
+version = "1.0.1"
 dependencies = [
  "bincode",
  "itertools 0.12.1",
@@ -5414,18 +5417,18 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
-version = "1.0.61"
+version = "1.0.63"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c546c80d6be4bc6a00c0f01730c08df82eaa7a7a61f11d656526506112cc1709"
+checksum = "c0342370b38b6a11b6cc11d6a805569958d54cfa061a29969c3b5ce2ea405724"
 dependencies = [
  "thiserror-impl",
 ]
 
 [[package]]
 name = "thiserror-impl"
-version = "1.0.61"
+version = "1.0.63"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "46c3384250002a6d5af4d114f2845d37b57521033f30d5c3f46c4d70e1197533"
+checksum = "a4558b58466b9ad7ca0f102865eccc95938dca1a74a856f2b57b6629050da261"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5501,9 +5504,9 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "tokio"
-version = "1.38.0"
+version = "1.38.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba4f4a02a7a80d6f274636f0aa95c7e383b912d41fe721a31f29e29698585a4a"
+checksum = "eb2caba9f80616f438e09748d5acda951967e1ea58508ef53d9c6402485a46df"
 dependencies = [
  "backtrace",
  "bytes",

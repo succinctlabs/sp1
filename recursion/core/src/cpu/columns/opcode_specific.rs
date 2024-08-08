@@ -1,6 +1,8 @@
 use std::fmt::{Debug, Formatter};
 use std::mem::{size_of, transmute};
 
+use static_assertions::const_assert;
+
 use super::branch::BranchCols;
 use super::heap_expand::HeapExpandCols;
 use super::memory::MemoryCols;
@@ -20,8 +22,11 @@ pub union OpcodeSpecificCols<T: Copy> {
 
 impl<T: Copy + Default> Default for OpcodeSpecificCols<T> {
     fn default() -> Self {
+        // We must use the largest field to avoid uninitialized padding bytes.
+        const_assert!(size_of::<MemoryCols<u8>>() == size_of::<OpcodeSpecificCols<u8>>());
+
         OpcodeSpecificCols {
-            branch: BranchCols::<T>::default(),
+            memory: MemoryCols::<T>::default(),
         }
     }
 }

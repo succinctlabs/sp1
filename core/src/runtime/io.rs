@@ -59,7 +59,7 @@ impl<'a> Runtime<'a> {
 pub mod tests {
     use super::*;
     use crate::runtime::Program;
-    use crate::stark::DefaultProver;
+    use crate::stark::CpuProver;
     use crate::utils::tests::IO_ELF;
     use crate::utils::{self, prove_simple, BabyBearBlake3, SP1CoreOpts};
     use serde::Deserialize;
@@ -116,6 +116,6 @@ pub mod tests {
         runtime.write_stdin(&points.1);
         runtime.run().unwrap();
         let config = BabyBearBlake3::new();
-        prove_simple::<_, DefaultProver<_, _>>(config, runtime).unwrap();
+        prove_simple::<_, CpuProver<_, _>>(config, runtime).unwrap();
     }
 }

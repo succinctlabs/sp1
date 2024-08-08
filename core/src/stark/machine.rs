@@ -400,13 +400,13 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
 
             tracing::info_span!("debug constraints").in_scope(|| {
                 for i in 0..chips.len() {
-                    let permutation_trace = pk
+                    let preprocessed_trace = pk
                         .chip_ordering
                         .get(&chips[i].name())
                         .map(|index| &pk.traces[*index]);
                     debug_constraints::<SC, A>(
                         chips[i],
-                        permutation_trace,
+                        preprocessed_trace,
                         &traces[i].0,
                         &permutation_traces[i],
                         &permutation_challenges,
@@ -415,6 +415,10 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                 }
             });
         }
+
+        tracing::info!("Constraints verified successfully");
+
+        println!("Cumulative sum: {}", cumulative_sum);
 
         // If the cumulative sum is not zero, debug the interactions.
         if !cumulative_sum.is_zero() {
@@ -503,7 +507,7 @@ pub mod tests {
     use crate::runtime::Instruction;
     use crate::runtime::Opcode;
     use crate::runtime::Program;
-    use crate::stark::DefaultProver;
+    use crate::stark::CpuProver;
     use crate::stark::RiscvAir;
     use crate::stark::StarkProvingKey;
     use crate::stark::StarkVerifyingKey;
@@ -518,7 +522,7 @@ pub mod tests {
     fn test_simple_prove() {
         utils::setup_logger();
         let program = simple_program();
-        run_test::<DefaultProver<_, _>>(program).unwrap();
+        run_test::<CpuProver<_, _>>(program).unwrap();
     }
 
     #[test]
@@ -540,7 +544,7 @@ pub mod tests {
                     Instruction::new(*shift_op, 31, 29, 3, false, false),
                 ];
                 let program = Program::new(instructions, 0, 0);
-                run_test::<DefaultProver<_, _>>(program).unwrap();
+                run_test::<CpuProver<_, _>>(program).unwrap();
             }
         }
     }
@@ -554,7 +558,7 @@ pub mod tests {
             Instruction::new(Opcode::SUB, 31, 30, 29, false, false),
         ];
         let program = Program::new(instructions, 0, 0);
-        run_test::<DefaultProver<_, _>>(program).unwrap();
+        run_test::<CpuProver<_, _>>(program).unwrap();
     }
 
     #[test]
@@ -566,7 +570,7 @@ pub mod tests {
             Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
         ];
         let program = Program::new(instructions, 0, 0);
-        run_test::<DefaultProver<_, _>>(program).unwrap();
+        run_test::<CpuProver<_, _>>(program).unwrap();
     }
 
     #[test]
@@ -588,7 +592,7 @@ pub mod tests {
                     Instruction::new(*mul_op, 31, 30, 29, false, false),
                 ];
                 let program = Program::new(instructions, 0, 0);
-                run_test::<DefaultProver<_, _>>(program).unwrap();
+                run_test::<CpuProver<_, _>>(program).unwrap();
             }
         }
     }
@@ -604,7 +608,7 @@ pub mod tests {
                 Instruction::new(*lt_op, 31, 30, 29, false, false),
             ];
             let program = Program::new(instructions, 0, 0);
-            run_test::<DefaultProver<_, _>>(program).unwrap();
+            run_test::<CpuProver<_, _>>(program).unwrap();
         }
     }
 
@@ -620,7 +624,7 @@ pub mod tests {
                 Instruction::new(*bitwise_op, 31, 30, 29, false, false),
             ];
             let program = Program::new(instructions, 0, 0);
-            run_test::<DefaultProver<_, _>>(program).unwrap();
+            run_test::<CpuProver<_, _>>(program).unwrap();
         }
     }
 
@@ -643,7 +647,7 @@ pub mod tests {
                     Instruction::new(*div_rem_op, 31, 29, 30, false, false),
                 ];
                 let program = Program::new(instructions, 0, 0);
-                run_test::<DefaultProver<_, _>>(program).unwrap();
+                run_test::<CpuProver<_, _>>(program).unwrap();
             }
         }
     }
@@ -652,7 +656,7 @@ pub mod tests {
     fn test_fibonacci_prove_simple() {
         setup_logger();
         let program = fibonacci_program();
-        run_test::<DefaultProver<_, _>>(program).unwrap();
+        run_test::<CpuProver<_, _>>(program).unwrap();
     }
 
     #[test]
@@ -664,7 +668,7 @@ pub mod tests {
         let mut opts = SP1CoreOpts::default();
         opts.shard_size = 1024;
         opts.shard_batch_size = 2;
-        prove::<_, DefaultProver<_, _>>(program, &stdin, BabyBearPoseidon2::new(), opts).unwrap();
+        prove::<_, CpuProver<_, _>>(program, &stdin, BabyBearPoseidon2::new(), opts).unwrap();
     }
 
     #[test]
@@ -672,7 +676,7 @@ pub mod tests {
         setup_logger();
         let program = fibonacci_program();
         let stdin = SP1Stdin::new();
-        prove::<_, DefaultProver<_, _>>(
+        prove::<_, CpuProver<_, _>>(
             program,
             &stdin,
             BabyBearPoseidon2::new(),
@@ -685,14 +689,14 @@ pub mod tests {
     fn test_simple_memory_program_prove() {
         setup_logger();
         let program = simple_memory_program();
-        run_test::<DefaultProver<_, _>>(program).unwrap();
+        run_test::<CpuProver<_, _>>(program).unwrap();
     }
 
     #[test]
     fn test_ssz_withdrawal() {
         setup_logger();
         let program = ssz_withdrawals_program();
-        run_test::<DefaultProver<_, _>>(program).unwrap();
+        run_test::<CpuProver<_, _>>(program).unwrap();
     }
 
     #[test]

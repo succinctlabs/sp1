@@ -39,9 +39,9 @@ rand = "0.8"
 downloader = { version = "0.2", default-features = false, features = [
   "rustls-tls",
 ] }
-serde_json = "1.0.120"
+serde_json = "1.0.121"
 yansi = "1.0.1"
 hex = "0.4.3"
-anstyle = "1.0.7"
+anstyle = "1.0.8"
 target-lexicon = "0.12.15"
 tempfile = "3.10.1"

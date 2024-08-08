@@ -28,7 +28,7 @@ impl<AB: SP1AirBuilder + PairBuilder> Air<AB> for ByteChip<AB::F> {
 
         // Send all the lookups for each operation.
         for channel in 0..NUM_BYTE_LOOKUP_CHANNELS {
-            let channel_f = AB::F::from_canonical_u32(channel);
+            let channel_f = AB::F::from_canonical_u8(channel);
             let channel = channel as usize;
             for (i, opcode) in ByteOpcode::all().iter().enumerate() {
                 let field_op = opcode.as_field::<AB::F>();

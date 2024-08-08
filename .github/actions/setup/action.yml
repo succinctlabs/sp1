@@ -37,11 +37,11 @@ runs:
           ~/.cargo/git/db/
           target/
           ~/.rustup/
-        key: rust-nightly-2024-04-17-${{ hashFiles('**/Cargo.toml') }}
-        restore-keys: rust-nightly-2024-04-17-
+        key: rust-1.79.0-${{ hashFiles('**/Cargo.toml') }}
+        restore-keys: rust-1.79.0-
 
     - name: Setup toolchain
       id: rustc-toolchain
       shell: bash
       run: |
-        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain nightly-2024-04-17 -y
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain 1.79.0 -y

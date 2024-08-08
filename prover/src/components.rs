@@ -1,6 +1,6 @@
-use sp1_core::stark::{DefaultProver, MachineProver, RiscvAir, StarkGenericConfig};
+use sp1_core::stark::{CpuProver, MachineProver, RiscvAir, StarkGenericConfig};
 
-use crate::{CompressAir, CoreSC, InnerSC, OuterSC, ReduceAir, WrapAir};
+use crate::{CompressAir, CoreSC, InnerSC, OuterSC, ShrinkAir, WrapAir};
 
 pub trait SP1ProverComponents: Send + Sync {
     /// The prover for making SP1 core proofs.
@@ -9,12 +9,12 @@ pub trait SP1ProverComponents: Send + Sync {
         + Sync;
 
     /// The prover for making SP1 recursive proofs.
-    type CompressProver: MachineProver<InnerSC, ReduceAir<<InnerSC as StarkGenericConfig>::Val>>
+    type CompressProver: MachineProver<InnerSC, CompressAir<<InnerSC as StarkGenericConfig>::Val>>
         + Send
         + Sync;
 
     /// The prover for shrinking compressed proofs.
-    type ShrinkProver: MachineProver<InnerSC, CompressAir<<InnerSC as StarkGenericConfig>::Val>>
+    type ShrinkProver: MachineProver<InnerSC, ShrinkAir<<InnerSC as StarkGenericConfig>::Val>>
         + Send
         + Sync;
 
@@ -27,8 +27,8 @@ pub trait SP1ProverComponents: Send + Sync {
 pub struct DefaultProverComponents;
 
 impl SP1ProverComponents for DefaultProverComponents {
-    type CoreProver = DefaultProver<CoreSC, RiscvAir<<CoreSC as StarkGenericConfig>::Val>>;
-    type CompressProver = DefaultProver<InnerSC, ReduceAir<<InnerSC as StarkGenericConfig>::Val>>;
-    type ShrinkProver = DefaultProver<InnerSC, CompressAir<<InnerSC as StarkGenericConfig>::Val>>;
-    type WrapProver = DefaultProver<OuterSC, WrapAir<<OuterSC as StarkGenericConfig>::Val>>;
+    type CoreProver = CpuProver<CoreSC, RiscvAir<<CoreSC as StarkGenericConfig>::Val>>;
+    type CompressProver = CpuProver<InnerSC, CompressAir<<InnerSC as StarkGenericConfig>::Val>>;
+    type ShrinkProver = CpuProver<InnerSC, ShrinkAir<<InnerSC as StarkGenericConfig>::Val>>;
+    type WrapProver = CpuProver<OuterSC, WrapAir<<OuterSC as StarkGenericConfig>::Val>>;
 }

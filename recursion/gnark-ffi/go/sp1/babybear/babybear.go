@@ -6,6 +6,8 @@ package babybear
 import "C"
 
 import (
+	"fmt"
+	"math"
 	"math/big"
 
 	"github.com/consensys/gnark/constraint/solver"
@@ -20,6 +22,7 @@ func init() {
 	solver.RegisterHint(InvFHint)
 	solver.RegisterHint(InvEHint)
 	solver.RegisterHint(ReduceHint)
+	solver.RegisterHint(SplitLimbsHint)
 }
 
 type Variable struct {
@@ -40,6 +43,13 @@ func NewChip(api frontend.API) *Chip {
 	return &Chip{
 		api:          api,
 		rangeChecker: rangecheck.New(api),
+	}
+}
+
+func Zero() Variable {
+	return Variable{
+		Value:  frontend.Variable("0"),
+		NbBits: 0,
 	}
 }
 
@@ -98,8 +108,16 @@ func (c *Chip) negF(a Variable) Variable {
 	if a.NbBits == 31 {
 		return Variable{Value: c.api.Sub(modulus, a.Value), NbBits: 31}
 	}
-	negOne := NewF("2013265920")
-	return c.MulF(a, negOne)
+
+	ub := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(a.NbBits)), big.NewInt(0))
+	divisor := new(big.Int).Div(ub, modulus)
+	divisorPlusOne := new(big.Int).Add(divisor, big.NewInt(1))
+	liftedModulus := new(big.Int).Mul(divisorPlusOne, modulus)
+
+	return Variable{
+		Value:  c.api.Sub(liftedModulus, a.Value),
+		NbBits: a.NbBits,
+	}
 }
 
 func (c *Chip) invF(in Variable) Variable {
@@ -184,10 +202,10 @@ func (c *Chip) SubEF(a ExtensionVariable, b Variable) ExtensionVariable {
 
 func (c *Chip) MulE(a, b ExtensionVariable) ExtensionVariable {
 	v2 := [4]Variable{
-		NewF("0"),
-		NewF("0"),
-		NewF("0"),
-		NewF("0"),
+		Zero(),
+		Zero(),
+		Zero(),
+		Zero(),
 	}
 
 	for i := 0; i < 4; i++ {
@@ -255,7 +273,7 @@ func (c *Chip) ToBinary(in Variable) []frontend.Variable {
 }
 
 func (p *Chip) reduceFast(x Variable) Variable {
-	if x.NbBits >= uint(120) {
+	if x.NbBits >= uint(126) {
 		return Variable{
 			Value:  p.reduceWithMaxBits(x.Value, uint64(x.NbBits)),
 			NbBits: 31,
@@ -284,7 +302,40 @@ func (p *Chip) reduceWithMaxBits(x frontend.Variable, maxNbBits uint64) frontend
 	p.rangeChecker.Check(quotient, int(maxNbBits-31))
 
 	remainder := result[1]
-	p.rangeChecker.Check(remainder, 31)
+
+	// Check that the remainder has size less than the BabyBear modulus, by decomposing it into a 27
+	// bit limb and a 4 bit limb.
+	new_result, new_err := p.api.Compiler().NewHint(SplitLimbsHint, 2, remainder)
+	if new_err != nil {
+		panic(new_err)
+	}
+
+	lowLimb := new_result[0]
+	highLimb := new_result[1]
+
+	// Check that the hint is correct.
+	p.api.AssertIsEqual(
+		p.api.Add(
+			p.api.Mul(highLimb, frontend.Variable(uint64(math.Pow(2, 27)))),
+			lowLimb,
+		),
+		remainder,
+	)
+	p.rangeChecker.Check(highLimb, 4)
+	p.rangeChecker.Check(lowLimb, 27)
+
+	// If the most significant bits are all 1, then we need to check that the least significant bits
+	// are all zero in order for element to be less than the BabyBear modulus. Otherwise, we don't
+	// need to do any checks, since we already know that the element is less than the BabyBear modulus.
+	shouldCheck := p.api.IsZero(p.api.Sub(highLimb, uint64(math.Pow(2, 4))-1))
+	p.api.AssertIsEqual(
+		p.api.Select(
+			shouldCheck,
+			lowLimb,
+			frontend.Variable(0),
+		),
+		frontend.Variable(0),
+	)
 
 	p.api.AssertIsEqual(x, p.api.Add(p.api.Mul(quotient, modulus), result[1]))
 
@@ -304,10 +355,41 @@ func ReduceHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 	return nil
 }
 
+func (p *Chip) ReduceE(x ExtensionVariable) ExtensionVariable {
+	for i := 0; i < 4; i++ {
+		x.Value[i] = p.ReduceSlow(x.Value[i])
+	}
+	return x
+}
+
 func InvFHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 	a := C.uint(inputs[0].Uint64())
 	ainv := C.babybearinv(a)
 	results[0].SetUint64(uint64(ainv))
+	return nil
+}
+
+// The hint used to split a BabyBear Variable into a 4 bit limb (the most significant bits) and a
+// 27 bit limb.
+func SplitLimbsHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
+	if len(inputs) != 1 {
+		panic("SplitLimbsHint expects 1 input operand")
+	}
+
+	// The BabyBear field element
+	input := inputs[0]
+
+	if input.Cmp(modulus) == 0 || input.Cmp(modulus) == 1 {
+		return fmt.Errorf("input is not in the field")
+	}
+
+	two_27 := big.NewInt(int64(math.Pow(2, 27)))
+
+	// The least significant bits
+	results[0] = new(big.Int).Rem(input, two_27)
+	// The most significant bits
+	results[1] = new(big.Int).Quo(input, two_27)
+
 	return nil
 }
 

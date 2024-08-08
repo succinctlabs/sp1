@@ -21,11 +21,9 @@ pub const fn max(a: usize, b: usize) -> usize {
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
 pub struct PermutationState<T: Copy> {
-    pub external_rounds_state: [[T; WIDTH]; NUM_EXTERNAL_ROUNDS + 1],
+    pub external_rounds_state: [[T; WIDTH]; NUM_EXTERNAL_ROUNDS],
     pub internal_rounds_state: [T; WIDTH],
     pub internal_rounds_s0: [T; NUM_INTERNAL_ROUNDS - 1],
-    pub external_rounds_sbox: [[T; WIDTH]; NUM_EXTERNAL_ROUNDS],
-    pub internal_rounds_sbox: [T; NUM_INTERNAL_ROUNDS],
     pub output_state: [T; WIDTH],
 }
 

@@ -16,7 +16,7 @@ env:
 jobs:
   prepare:
     name: Prepare release
-    runs-on: runs-on,runner=8cpu-linux-x64
+    runs-on: [runs-on, runner=8cpu-linux-x64, "run-id=${{ github.run_id }}"]
     timeout-minutes: 30
     outputs:
       tag_name: ${{ steps.release_info.outputs.tag_name }}
@@ -32,7 +32,7 @@ jobs:
         with:
           pull_token: ${{ secrets.PULL_TOKEN }}
 
-      # If it's a nightly release, tag with the release time. If the tag is `main`, we want to use 
+      # If it's a nightly release, tag with the release time. If the tag is `main`, we want to use
       # `latest` as the tag name. Else, use the tag name as is.
       - name: Compute release name and tag
         id: release_info
@@ -117,7 +117,7 @@ jobs:
         id: rustc-toolchain
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly-2024-04-17
+          toolchain: 1.79.0
           profile: minimal
           override: true
           targets: ${{ matrix.target }}
@@ -126,12 +126,12 @@ jobs:
         with:
           key: ${{ matrix.target }}
           cache-on-failure: true
-      
+
       - name: Install go
         uses: actions/setup-go@v5
         with:
-          go-version: '^1.22.1'
-        
+          go-version: "^1.22.1"
+
       - name: Check go installation
         run: |
           go version
@@ -201,7 +201,7 @@ jobs:
 
       # Creates the release for this specific version
       - name: Create release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           name: ${{ needs.prepare.outputs.release_name }}
           tag_name: ${{ needs.prepare.outputs.tag_name }}
@@ -215,7 +215,7 @@ jobs:
       # tagged `nightly` for compatibility with `sp1up`
       - name: Update nightly release
         if: ${{ env.IS_NIGHTLY }}
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           name: "Nightly"
           tag_name: "nightly"

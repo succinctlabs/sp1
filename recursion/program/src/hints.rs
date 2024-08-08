@@ -548,8 +548,10 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
     }
 }
 
-impl<'a, A: MachineAir<BabyBear>> Hintable<C> for SP1ReduceMemoryLayout<'a, BabyBearPoseidon2, A> {
-    type HintVariable = SP1ReduceMemoryLayoutVariable<C>;
+impl<'a, A: MachineAir<BabyBear>> Hintable<C>
+    for SP1CompressMemoryLayout<'a, BabyBearPoseidon2, A>
+{
+    type HintVariable = SP1CompressMemoryLayoutVariable<C>;
 
     fn read(builder: &mut Builder<C>) -> Self::HintVariable {
         let compress_vk = VerifyingKeyHint::<'a, BabyBearPoseidon2, A>::read(builder);
@@ -557,7 +559,7 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C> for SP1ReduceMemoryLayout<'a, Baby
         let kinds = Vec::<usize>::read(builder);
         let is_complete = builder.hint_var();
 
-        SP1ReduceMemoryLayoutVariable {
+        SP1CompressMemoryLayoutVariable {
             compress_vk,
             shard_proofs,
             kinds,

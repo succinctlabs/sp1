@@ -199,9 +199,9 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
                                         shard: event.shard,
                                         channel: event.channel,
                                         opcode: ByteOpcode::MSB,
-                                        a1: get_msb(*word) as u32,
+                                        a1: get_msb(*word) as u16,
                                         a2: 0,
-                                        b: most_significant_byte as u32,
+                                        b: most_significant_byte,
                                         c: 0,
                                     });
                                 }
@@ -220,7 +220,7 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
 
                         // Calculate the correct product using the `product` array. We store the correct carry
                         // value for verification.
-                        let base = 1 << BYTE_SIZE;
+                        let base = (1 << BYTE_SIZE) as u32;
                         let mut carry = [0u32; PRODUCT_SIZE];
                         for i in 0..PRODUCT_SIZE {
                             carry[i] = product[i] / base;
@@ -241,11 +241,15 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
                         cols.is_mulhu = F::from_bool(event.opcode == Opcode::MULHU);
                         cols.is_mulhsu = F::from_bool(event.opcode == Opcode::MULHSU);
                         cols.shard = F::from_canonical_u32(event.shard);
-                        cols.channel = F::from_canonical_u32(event.channel);
+                        cols.channel = F::from_canonical_u8(event.channel);
 
                         // Range check.
                         {
-                            record.add_u16_range_checks(event.shard, event.channel, &carry);
+                            record.add_u16_range_checks(
+                                event.shard,
+                                event.channel,
+                                &carry.map(|x| x as u16),
+                            );
                             record.add_u8_range_checks(
                                 event.shard,
                                 event.channel,

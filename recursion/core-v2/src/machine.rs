@@ -4,9 +4,15 @@ use sp1_derive::MachineAir;
 use sp1_recursion_core::runtime::D;
 
 use crate::chips::{
-    alu_base::BaseAluChip, alu_ext::ExtAluChip, dummy::DummyChip,
-    exp_reverse_bits::ExpReverseBitsLenChip, fri_fold::FriFoldChip, mem::MemoryChip,
-    poseidon2_skinny::Poseidon2SkinnyChip, poseidon2_wide::Poseidon2WideChip,
+    alu_base::BaseAluChip,
+    alu_ext::ExtAluChip,
+    dummy::DummyChip,
+    exp_reverse_bits::ExpReverseBitsLenChip,
+    fri_fold::FriFoldChip,
+    mem::{MemoryConstChip, MemoryVarChip},
+    poseidon2_skinny::Poseidon2SkinnyChip,
+    poseidon2_wide::Poseidon2WideChip,
+    public_values::PublicValuesChip,
 };
 
 #[derive(MachineAir)]
@@ -21,7 +27,8 @@ pub enum RecursionAir<
     const COL_PADDING: usize,
 > {
     // Program(ProgramChip<F>),
-    Memory(MemoryChip<F>),
+    MemoryConst(MemoryConstChip<F>),
+    MemoryVar(MemoryVarChip<F>),
     BaseAlu(BaseAluChip),
     ExtAlu(ExtAluChip),
     // Cpu(CpuChip<F, DEGREE>),
@@ -32,6 +39,7 @@ pub enum RecursionAir<
     // RangeCheck(RangeCheckChip<F>),
     // Multi(MultiChip<DEGREE>),
     ExpReverseBitsLen(ExpReverseBitsLenChip<DEGREE>),
+    PublicValues(PublicValuesChip),
     DummyWide(DummyChip<COL_PADDING>),
 }
 
@@ -100,26 +108,30 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
 
     pub fn get_all() -> Vec<Self> {
         vec![
-            RecursionAir::Memory(MemoryChip::default()),
+            RecursionAir::MemoryConst(MemoryConstChip::default()),
+            RecursionAir::MemoryVar(MemoryVarChip::default()),
             RecursionAir::BaseAlu(BaseAluChip::default()),
             RecursionAir::ExtAlu(ExtAluChip::default()),
             RecursionAir::Poseidon2Skinny(Poseidon2SkinnyChip::<DEGREE>::default()),
             // RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE>::default()),
             RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>::default()),
             RecursionAir::FriFold(FriFoldChip::<DEGREE>::default()),
+            RecursionAir::PublicValues(PublicValuesChip::default()),
         ]
     }
 
     pub fn get_all_wide() -> Vec<Self> {
         vec![
             // RecursionAir::Program(ProgramChip::default()),
-            RecursionAir::Memory(MemoryChip::default()),
+            RecursionAir::MemoryConst(MemoryConstChip::default()),
+            RecursionAir::MemoryVar(MemoryVarChip::default()),
             RecursionAir::BaseAlu(BaseAluChip::default()),
             RecursionAir::ExtAlu(ExtAluChip::default()),
             // RecursionAir::Poseidon2Skinny(Poseidon2SkinnyChip::<DEGREE>::default()),
             RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE>::default()),
             RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>::default()),
             RecursionAir::FriFold(FriFoldChip::<DEGREE>::default()),
+            RecursionAir::PublicValues(PublicValuesChip::default()),
         ]
     }
 
@@ -130,7 +142,8 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
     ) -> Vec<Self> {
         vec![
             // RecursionAir::Program(ProgramChip::default()),
-            RecursionAir::Memory(MemoryChip::default()),
+            RecursionAir::MemoryConst(MemoryConstChip::default()),
+            RecursionAir::MemoryVar(MemoryVarChip::default()),
             RecursionAir::BaseAlu(BaseAluChip::default()),
             RecursionAir::ExtAlu(ExtAluChip::default()),
             // RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE>::default()),
@@ -146,6 +159,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
                 fixed_log2_rows: Some(fri_fold_padding),
                 pad: true,
             }),
+            RecursionAir::PublicValues(PublicValuesChip::default()),
         ]
     }
 

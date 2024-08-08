@@ -34,7 +34,7 @@ impl<F: PrimeField32, P: FieldParameters> FieldInnerProductCols<F, P> {
         &mut self,
         record: &mut impl ByteRecord,
         shard: u32,
-        channel: u32,
+        channel: u8,
         a: &[BigUint],
         b: &[BigUint],
     ) -> BigUint {

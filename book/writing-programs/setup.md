@@ -30,7 +30,7 @@ This will compile the ELF that can be executed in the zkVM and put the executabl
 For production builds of programs, you can build your program inside a Docker container which will generate a **reproducible ELF** on all platforms. To do so, just use the `--docker` flag and the `--tag` flag with the release version you want to use. For example:
 
 ```bash
-cargo prove build --docker --tag v1.0.5-testnet
+cargo prove build --docker --tag v1.0.1
 ```
 
 To verify that your build is reproducible, you can compute the SHA-512 hash of the ELF on different platforms and systems with:
@@ -61,7 +61,7 @@ name = "program"
 edition = "2021"
 
 [dependencies]
-sp1-zkvm = { git = "https://github.com/succinctlabs/sp1.git" }
+sp1-zkvm = "1.0.1"
 ```
 
 The `sp1-zkvm` crate includes necessary utilities for your program, including handling inputs and outputs,

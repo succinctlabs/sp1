@@ -6,6 +6,8 @@ use typenum::{U32, U62};
 use super::{SwCurve, WeierstrassParameters};
 use crate::operations::field::params::FieldParameters;
 use crate::operations::field::params::NumLimbs;
+use crate::syscall::precompiles::fptower::FieldType;
+use crate::syscall::precompiles::fptower::FpOpField;
 use crate::utils::ec::CurveType;
 use crate::utils::ec::EllipticCurveParameters;
 
@@ -37,6 +39,10 @@ impl FieldParameters for Bn254BaseField {
         )
         .unwrap()
     }
+}
+
+impl FpOpField for Bn254BaseField {
+    const FIELD_TYPE: FieldType = FieldType::Bn254;
 }
 
 impl NumLimbs for Bn254BaseField {

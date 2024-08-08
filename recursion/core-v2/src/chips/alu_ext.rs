@@ -50,7 +50,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
     type Program = crate::RecursionProgram<F>;
 
     fn name(&self) -> String {
-        "Extension field Alu".to_string()
+        "ExtAlu".to_string()
     }
 
     fn preprocessed_width(&self) -> usize {

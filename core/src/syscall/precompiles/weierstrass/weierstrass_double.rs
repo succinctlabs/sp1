@@ -102,7 +102,7 @@ impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDoubleAssignChip<E> {
     fn populate_field_ops<F: PrimeField32>(
         blu_events: &mut Vec<ByteLookupEvent>,
         shard: u32,
-        channel: u32,
+        channel: u8,
         cols: &mut WeierstrassDoubleAssignCols<F, E::BaseField>,
         p_x: BigUint,
         p_y: BigUint,
@@ -272,7 +272,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
                         // Populate basic columns.
                         cols.is_real = F::one();
                         cols.shard = F::from_canonical_u32(event.shard);
-                        cols.channel = F::from_canonical_u32(event.channel);
+                        cols.channel = F::from_canonical_u8(event.channel);
                         cols.clk = F::from_canonical_u32(event.clk);
                         cols.p_ptr = F::from_canonical_u32(event.p_ptr);
 
@@ -549,7 +549,7 @@ pub mod tests {
 
     use crate::{
         runtime::Program,
-        stark::DefaultProver,
+        stark::CpuProver,
         utils::{
             run_test, setup_logger,
             tests::{BLS12381_DOUBLE_ELF, BN254_DOUBLE_ELF, SECP256K1_DOUBLE_ELF},
@@ -560,20 +560,20 @@ pub mod tests {
     fn test_secp256k1_double_simple() {
         setup_logger();
         let program = Program::from(SECP256K1_DOUBLE_ELF);
-        run_test::<DefaultProver<_, _>>(program).unwrap();
+        run_test::<CpuProver<_, _>>(program).unwrap();
     }
 
     #[test]
     fn test_bn254_double_simple() {
         setup_logger();
         let program = Program::from(BN254_DOUBLE_ELF);
-        run_test::<DefaultProver<_, _>>(program).unwrap();
+        run_test::<CpuProver<_, _>>(program).unwrap();
     }
 
     #[test]
     fn test_bls12381_double_simple() {
         setup_logger();
         let program = Program::from(BLS12381_DOUBLE_ELF);
-        run_test::<DefaultProver<_, _>>(program).unwrap();
+        run_test::<CpuProver<_, _>>(program).unwrap();
     }
 }

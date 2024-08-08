@@ -61,11 +61,12 @@ impl<T> Polynomial<T> {
     {
         let len = self.coefficients.len();
         let mut result = Vec::with_capacity(len - 1);
+        let r_inv = r.inverse();
 
-        result.push(-self.coefficients[0] / r);
+        result.push(-self.coefficients[0] * r_inv);
         for i in 1..len - 1 {
             let element = result[i - 1] - self.coefficients[i];
-            result.push(element / r);
+            result.push(element * r_inv);
         }
         Self {
             coefficients: result,

@@ -1,7 +1,7 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use sp1_core::io::SP1Stdin;
 use sp1_core::runtime::{Program, Runtime};
-use sp1_core::stark::DefaultProver;
+use sp1_core::stark::CpuProver;
 use sp1_core::utils::{prove, BabyBearPoseidon2, SP1CoreOpts};
 
 #[allow(unreachable_code)]
@@ -21,7 +21,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
             format!("main:{}:{}", p.split('/').last().unwrap(), cycles),
             |b| {
                 b.iter(|| {
-                    prove::<_, DefaultProver<_, _>>(
+                    prove::<_, CpuProver<_, _>>(
                         black_box(program.clone()),
                         &SP1Stdin::new(),
                         BabyBearPoseidon2::new(),

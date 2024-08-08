@@ -22,7 +22,7 @@ impl<F: Field> OrOperation<F> {
         &mut self,
         record: &mut ExecutionRecord,
         shard: u32,
-        channel: u32,
+        channel: u8,
         x: u32,
         y: u32,
     ) -> u32 {

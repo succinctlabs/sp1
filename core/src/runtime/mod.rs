@@ -35,6 +35,7 @@ use std::io::BufWriter;
 use std::io::Write;
 use std::sync::Arc;
 
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::alu::create_alu_lookup_id;
@@ -118,7 +119,7 @@ pub struct Runtime<'a> {
     pub max_cycles: Option<u64>,
 }
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Serialize, Deserialize)]
 pub enum ExecutionError {
     #[error("execution failed with exit code {0}")]
     HaltWithNonZeroExitCode(u32),
@@ -266,7 +267,7 @@ impl<'a> Runtime<'a> {
     }
 
     #[inline]
-    pub fn channel(&self) -> u32 {
+    pub fn channel(&self) -> u8 {
         self.state.channel
     }
 
@@ -434,7 +435,7 @@ impl<'a> Runtime<'a> {
     fn emit_cpu(
         &mut self,
         shard: u32,
-        channel: u32,
+        channel: u8,
         clk: u32,
         pc: u32,
         next_pc: u32,
@@ -881,8 +882,13 @@ impl<'a> Runtime<'a> {
                 exit_code = returned_exit_code;
 
                 // Update the syscall counts.
-                let syscall_count = self.state.syscall_counts.entry(syscall).or_insert(0);
-                let (threshold, multiplier) = match syscall {
+                let syscall_for_count = syscall.count_map();
+                let syscall_count = self
+                    .state
+                    .syscall_counts
+                    .entry(syscall_for_count)
+                    .or_insert(0);
+                let (threshold, multiplier) = match syscall_for_count {
                     SyscallCode::KECCAK_PERMUTE => {
                         (self.opts.split_opts.keccak_split_threshold, 24)
                     }

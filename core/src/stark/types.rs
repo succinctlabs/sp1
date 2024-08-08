@@ -1,31 +1,27 @@
 use std::fmt::Debug;
 
 use hashbrown::HashMap;
-use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::dense::RowMajorMatrixView;
 use p3_matrix::stack::VerticalPair;
 use serde::{Deserialize, Serialize};
 
-use super::{Challenge, Com, OpeningProof, PcsProverData, StarkGenericConfig, Val};
+use super::{Challenge, Com, OpeningProof, StarkGenericConfig, Val};
 
 pub type QuotientOpenedValues<T> = Vec<T>;
 
-#[derive(Serialize, Deserialize)]
-#[serde(bound(serialize = "PcsProverData<SC>: Serialize"))]
-#[serde(bound(deserialize = "PcsProverData<SC>: Deserialize<'de>"))]
-pub struct ShardMainData<SC: StarkGenericConfig> {
-    pub traces: Vec<RowMajorMatrix<Val<SC>>>,
+pub struct ShardMainData<SC: StarkGenericConfig, M, P> {
+    pub traces: Vec<M>,
     pub main_commit: Com<SC>,
-    pub main_data: PcsProverData<SC>,
+    pub main_data: P,
     pub chip_ordering: HashMap<String, usize>,
     pub public_values: Vec<SC::Val>,
 }
 
-impl<SC: StarkGenericConfig> ShardMainData<SC> {
+impl<SC: StarkGenericConfig, M, P> ShardMainData<SC, M, P> {
     pub const fn new(
-        traces: Vec<RowMajorMatrix<Val<SC>>>,
+        traces: Vec<M>,
         main_commit: Com<SC>,
-        main_data: PcsProverData<SC>,
+        main_data: P,
         chip_ordering: HashMap<String, usize>,
         public_values: Vec<Val<SC>>,
     ) -> Self {

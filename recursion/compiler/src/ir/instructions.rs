@@ -1,3 +1,5 @@
+use sp1_recursion_core::air::RecursionPublicValues;
+
 use super::{
     Array, CircuitV2FriFoldInput, CircuitV2FriFoldOutput, FriFoldInput, MemIndex, Ptr, TracedVec,
 };
@@ -185,6 +187,9 @@ pub enum DslIr<C: Config> {
     /// Store extension field at address
     StoreE(Ext<C::F, C::EF>, Ptr<C::N>, MemIndex<C::N>),
 
+    /// Force reduction of field elements in circuit.
+    ReduceE(Ext<C::F, C::EF>),
+
     // Bits.
     /// Decompose a variable into size bits (bits = num2bits(var, size)). Should only be used when target is a gnark circuit.
     CircuitNum2BitsV(Var<C::N>, usize, Vec<Var<C::N>>),
@@ -211,6 +216,8 @@ pub enum DslIr<C: Config> {
     CircuitPoseidon2PermuteBabyBear([Felt<C::F>; 16]),
     /// Permutates an array of BabyBear elements in the circuit using the skinny precompile.
     CircuitV2Poseidon2PermuteBabyBear([Felt<C::F>; 16], [Felt<C::F>; 16]),
+    /// Commits the public values.
+    CircuitV2CommitPublicValues(Box<RecursionPublicValues<Felt<C::F>>>),
 
     // Miscellaneous instructions.
     /// Decompose hint operation of a usize into an array. (output = num2bits(usize)).
@@ -240,6 +247,10 @@ pub enum DslIr<C: Config> {
     HintFelts(Array<C, Felt<C::F>>),
     /// Hint an array of extension field elements.
     HintExts(Array<C, Ext<C::F, C::EF>>),
+    /// Hint an array of field elements.
+    CircuitV2HintFelts(Vec<Felt<C::F>>),
+    /// Hint an array of extension field elements.
+    CircuitV2HintExts(Vec<Ext<C::F, C::EF>>),
     /// Witness a variable. Should only be used when target is a gnark circuit.
     WitnessVar(Var<C::N>, u32),
     /// Witness a field element. Should only be used when target is a gnark circuit.
@@ -292,6 +303,10 @@ pub enum DslIr<C: Config> {
     LessThan(Var<C::N>, Var<C::N>, Var<C::N>),
     /// Tracks the number of cycles used by a block of code annotated by the string input.
     CycleTracker(String),
+    /// Tracks the number of cycles used by a block of code annotated by the string input.
+    CycleTrackerV2Enter(String),
+    /// Tracks the number of cycles used by a block of code annotated by the string input.
+    CycleTrackerV2Exit,
 
     // Reverse bits exponentiation.
     ExpReverseBitsLen(Ptr<C::N>, Var<C::N>, Var<C::N>),

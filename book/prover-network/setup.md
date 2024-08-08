@@ -1,6 +1,6 @@
 # Prover Network: Setup
 
-> **Currently, the supported version of SP1 on the prover network is `v1.0.5-testnet`.**
+> **Currently, the supported version of SP1 on the prover network is `v1.0.1`.**
 
 So far we've explored how to generate proofs locally, but this can actually be inconvenient on local machines due to high memory / CPU requirements, especially for very large programs.
 
@@ -16,6 +16,7 @@ Network. Completing this form requires you to complete the [key setup](#key-setu
 The prover network uses Secp256k1 keypairs for authentication, similar to Ethereum wallets. You may generate a new keypair explicitly for use with the prover network, or use an existing keypair. **You do not need to hold any funds in this account, it is used solely for access control.**
 
 ### Generate a new keypair with `cast`
+
 Prover network keypair credentials can be generated using the
 [cast](https://book.getfoundry.sh/cast/) CLI tool.
 

@@ -37,7 +37,7 @@ impl<F: Field> Add4Operation<F> {
         &mut self,
         record: &mut impl ByteRecord,
         shard: u32,
-        channel: u32,
+        channel: u8,
         a_u32: u32,
         b_u32: u32,
         c_u32: u32,

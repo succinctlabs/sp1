@@ -11,7 +11,6 @@ cargo prove new <name>
 cd script
 ```
 
-
 ## Manual
 
 You can also manually setup a project. First create a new cargo project:
@@ -33,7 +32,7 @@ name = "script"
 edition = "2021"
 
 [dependencies]
-sp1-sdk = { git = "https://github.com/succinctlabs/sp1.git" }
+sp1-sdk = "1.0.1"
 ```
 
 The `sp1-sdk` crate includes the necessary utilities to generate, save, and verify proofs.

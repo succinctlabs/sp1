@@ -37,7 +37,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2SkinnyChip
     type Program = RecursionProgram<F>;
 
     fn name(&self) -> String {
-        format!("Poseidon2Skinny {}", DEGREE)
+        format!("Poseidon2SkinnyDeg{}", DEGREE)
     }
 
     #[instrument(name = "generate poseidon2 skinny trace", level = "debug", skip_all, fields(rows = input.poseidon2_events.len()))]
@@ -189,14 +189,12 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2SkinnyChip
                         cols.memory_preprocessed =
                             instruction.addrs.input.map(|addr| MemoryAccessCols {
                                 addr,
-                                read_mult: F::one(),
-                                write_mult: F::zero(),
+                                mult: F::neg_one(),
                             });
                     } else if i == OUTPUT_ROUND_IDX {
                         cols.memory_preprocessed = array::from_fn(|i| MemoryAccessCols {
                             addr: instruction.addrs.output[i],
-                            read_mult: F::zero(),
-                            write_mult: instruction.mults[i],
+                            mult: instruction.mults[i],
                         });
                     }
                 });
