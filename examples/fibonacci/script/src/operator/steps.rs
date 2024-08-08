@@ -61,11 +61,11 @@ pub fn operator_split_into_checkpoints_impl(
     u64,
 )> {
     let (client, stdin, pk, _) = common::init_client(args.clone());
-    let (program, core_opts, context) = common::bootstrap(&client, &pk).unwrap();
+    let (program, opts, context) = common::bootstrap(&client, &pk).unwrap();
     tracing::info!("Program size = {}", program.instructions.len());
 
     // Execute the program.
-    let mut runtime = common::build_runtime(program, &stdin, core_opts, context);
+    let mut runtime = common::build_runtime(program, &stdin, opts, context);
 
     let (public_values_stream, public_values, checkpoints) =
         operator_split_into_checkpoints(&mut runtime).unwrap();
@@ -89,10 +89,10 @@ pub fn operator_absorb_commits_impl(
         ));
     }
     let (client, stdin, pk, _) = common::init_client(args.clone());
-    let (program, core_opts, context) = common::bootstrap(&client, &pk).unwrap();
+    let (program, opts, context) = common::bootstrap(&client, &pk).unwrap();
 
     // Execute the program.
-    let runtime = common::build_runtime(program, &stdin, core_opts, context);
+    let runtime = common::build_runtime(program, &stdin, opts, context);
 
     // Setup the machine.
     let (_, stark_vk) = client

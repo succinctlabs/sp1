@@ -3,7 +3,7 @@ pub mod types;
 use anyhow::Result;
 use sp1_core::{
     runtime::{Program, Runtime},
-    utils::SP1CoreOpts,
+    utils::SP1ProverOpts,
 };
 use sp1_prover::types::{SP1ProvingKey, SP1VerifyingKey};
 use sp1_sdk::{ProverClient, SP1Context, SP1ContextBuilder, SP1ProofKind, SP1Stdin};
@@ -31,9 +31,9 @@ pub fn init_client(args: ProveArgs) -> (ProverClient, SP1Stdin, SP1ProvingKey, S
 pub fn bootstrap<'a>(
     client: &'a ProverClient,
     pk: &SP1ProvingKey,
-) -> Result<(Program, SP1CoreOpts, SP1Context<'a>)> {
+) -> Result<(Program, SP1ProverOpts, SP1Context<'a>)> {
     let kind = SP1ProofKind::default();
-    let core_opts = SP1CoreOpts::default();
+    let opts = SP1ProverOpts::default();
 
     let mut context_builder = SP1ContextBuilder::default();
     let mut context = context_builder.build();
@@ -53,16 +53,16 @@ pub fn bootstrap<'a>(
 
     let program = Program::from(pk.elf.as_slice());
 
-    Ok((program, core_opts, context))
+    Ok((program, opts, context))
 }
 
 pub fn build_runtime<'a>(
     program: Program,
     stdin: &SP1Stdin,
-    opts: SP1CoreOpts,
+    opts: SP1ProverOpts,
     context: SP1Context<'a>,
 ) -> Runtime<'a> {
-    let mut runtime = Runtime::with_context(program, opts, context);
+    let mut runtime = Runtime::with_context(program, opts.core_opts, context);
     runtime.write_vecs(&stdin.buffer);
     for proof in stdin.proofs.iter() {
         runtime.write_proof(proof.0.clone(), proof.1.clone());

@@ -19,15 +19,15 @@ pub fn worker_commit_checkpoint_impl(
     public_values: PublicValues<u32, u32>,
 ) -> Result<(Vec<CommitmentType>, Vec<RecordType>)> {
     let (client, _, pk, _) = common::init_client(args);
-    let (program, core_opts, _) = common::bootstrap(&client, &pk).unwrap();
+    let (program, opts, _) = common::bootstrap(&client, &pk).unwrap();
 
     let mut deferred = ExecutionRecord::new(program.clone().into());
     let mut state = public_values.reset();
-    let shards_in_checkpoint = core_opts.shard_batch_size as u32;
+    let shards_in_checkpoint = opts.core_opts.shard_batch_size as u32;
     state.shard = idx * shards_in_checkpoint;
 
     // Trace the checkpoint and reconstruct the execution records.
-    let (mut records, report) = trace_checkpoint(program.clone(), checkpoint, core_opts);
+    let (mut records, report) = trace_checkpoint(program.clone(), checkpoint, opts.core_opts);
     // Log some of the `ExecutionReport` information.
     tracing::info!(
         "execution report (totals): total_cycles={}, total_syscall_cycles={}",
@@ -59,7 +59,7 @@ pub fn worker_commit_checkpoint_impl(
         .sp1_prover()
         .core_prover
         .machine()
-        .generate_dependencies(&mut records, &core_opts);
+        .generate_dependencies(&mut records, &opts.core_opts);
 
     // Defer events that are too expensive to include in every shard.
     for record in records.iter_mut() {
@@ -67,7 +67,7 @@ pub fn worker_commit_checkpoint_impl(
     }
 
     // See if any deferred shards are ready to be committed to.
-    let mut deferred = deferred.split(is_last_checkpoint, core_opts.split_opts);
+    let mut deferred = deferred.split(is_last_checkpoint, opts.core_opts.split_opts);
 
     // Update the public values & prover state for the shards which do not contain "cpu events"
     // before committing to them.
@@ -101,9 +101,9 @@ pub fn worker_prove_checkpoint_impl(
     records: Vec<RecordType>,
 ) -> Result<Vec<ShardProof<BabyBearPoseidon2>>> {
     let (client, stdin, pk, _) = common::init_client(args.clone());
-    let (program, core_opts, context) = common::bootstrap(&client, &pk).unwrap();
+    let (program, opts, context) = common::bootstrap(&client, &pk).unwrap();
     // Execute the program.
-    let runtime = common::build_runtime(program, &stdin, core_opts, context);
+    let runtime = common::build_runtime(program, &stdin, opts, context);
 
     let (stark_pk, _) = client
         .prover
