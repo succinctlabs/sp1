@@ -100,9 +100,9 @@ where
                         // Calculate: other_domain.zp_at_point(zeta)
                         //     * other_domain.zp_at_point(domain.first_point()).inverse()
                         let first_point = domain.first_point(builder);
-                        let first_point_ext = first_point.to_operand().symbolic();
-                        let first_point: Ext<_, _> = builder.eval(first_point_ext);
-                        let z = other_domain.zp_at_point(builder, first_point);
+                        // let first_point_ext = first_point.to_operand().symbolic();
+                        // let first_point: Ext<_, _> = builder.eval(first_point_ext);
+                        let z = other_domain.zp_at_point_f(builder, first_point);
                         other_domain.zp_at_point(builder, zeta) * z.inverse()
                     })
                     .product::<SymbolicExt<_, _>>()
