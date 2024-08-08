@@ -1,5 +1,3 @@
-use ed25519_consensus::{SigningKey, VerificationKey};
-use rand::thread_rng;
 use sp1_sdk::{utils, ProverClient, SP1Stdin};
 
 const PATCH_TEST_ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
@@ -8,17 +6,7 @@ const PATCH_TEST_ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succin
 fn main() {
     utils::setup_logger();
 
-    let mut stdin = SP1Stdin::new();
-
-    let sk = SigningKey::new(thread_rng());
-    let vk = VerificationKey::from(&sk);
-
-    let msg = b"ed25519-consensus test message";
-
-    let sig = sk.sign(msg);
-    stdin.write(&sig);
-    stdin.write(&vk);
-    stdin.write_vec(msg.to_vec());
+    let stdin = SP1Stdin::new();
 
     let client = ProverClient::new();
     let (_, report) = client
@@ -34,7 +22,7 @@ fn main() {
         .syscall_counts
         .contains_key(&sp1_core::runtime::SyscallCode::SHA_EXTEND));
 
-    // Confirm there was at least 1 ED25519_COMPUTE syscalls.
+    // Confirm there was at least 1 of each ED25519 syscall.
     assert!(report
         .syscall_counts
         .contains_key(&sp1_core::runtime::SyscallCode::ED_ADD));
@@ -47,5 +35,17 @@ fn main() {
         .syscall_counts
         .contains_key(&sp1_core::runtime::SyscallCode::KECCAK_PERMUTE));
 
+    // Confirm there was at least 1 SECP256K1_ADD, SECP256K1_DOUBLE and SECP256K1_DECOMPRESS syscall.
+    assert!(report
+        .syscall_counts
+        .contains_key(&sp1_core::runtime::SyscallCode::SECP256K1_ADD));
+    assert!(report
+        .syscall_counts
+        .contains_key(&sp1_core::runtime::SyscallCode::SECP256K1_DOUBLE));
+    assert!(report
+        .syscall_counts
+        .contains_key(&sp1_core::runtime::SyscallCode::SECP256K1_DECOMPRESS));
+
+    println!("Total instructions: {:?}", report.total_instruction_count());
     println!("Successfully executed the program & confirmed syscalls.");
 }

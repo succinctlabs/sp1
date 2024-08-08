@@ -4,7 +4,7 @@
 
 set -e
 
-echo Installing sp1up...
+echo "🚀 Installing sp1up..." && echo 
 
 BASE_DIR=$HOME
 SP1_DIR=${SP1_DIR-"$BASE_DIR/.sp1"}
@@ -57,5 +57,13 @@ if [[ "$OSTYPE" =~ ^darwin ]] && [[ ! -f /usr/local/opt/openssl/lib/libssl.3.dyl
     echo && echo "warning: libusb not found. You may need to install it manually on MacOS via Homebrew (brew install openssl)."
 fi
 
-echo && echo "Detected your preferred shell is ${PREF_SHELL} and added sp1up to PATH. Run 'source ${PROFILE}' or start a new terminal session to use sp1up."
-echo "Then, simply run 'sp1up' to install SP1."
+echo && echo "✅ Installation complete!"
+
+echo && echo "🔍 Detected shell: ${PREF_SHELL}"
+echo "🔗 Added sp1up to PATH"
+
+echo && echo "To start using sp1up, please run:"
+echo && echo "▶ source ${PROFILE}"
+echo "▶ sp1up"
+
+echo && echo "🎉 Enjoy using sp1up! For help, type 'sp1up --help'"

@@ -6,17 +6,28 @@
 
 ![](./sp1.png)
 
-SP1 is a performant, 100% open-source, contributor-friendly zero-knowledge virtual machine (zkVM) that verifies the execution of arbitrary Rust (or any LLVM-compiled language) programs. 
+
+SP1 is a performant, open-source zero-knowledge virtual machine (zkVM) that verifies the execution of arbitrary Rust (or any LLVM-compiled language) programs. 
 
 [tg-badge]: https://img.shields.io/endpoint?color=neon&logo=telegram&label=chat&url=https%3A%2F%2Ftg.sumanjay.workers.dev%2Fsuccinct%5Fsp1
 [tg-url]: https://t.me/+AzG4ws-kD24yMGYx
 
-## The future of truth is programmable
+SP1 has undergone multiple audits from leading ZK security firms and is currently used in production by many top blockchain teams.
 
-**The future of ZK is writing normal code.**  Zero-knowledge proofs (ZKPs) are a powerful primitive that will enable a new generation of more secure, scalable and innovative blockchain architectures that rely on truth not trust. But ZKP adoption has been held back because it is “moon math”, requiring specialized knowledge in obscure ZKP frameworks and hard to maintain one-off deployments. 
+## The future of ZK is writing normal code
 
-Performant, general-purpose zkVMs, like SP1, will obsolete the current paradigm of specialized teams hand rolling their own custom ZK stack and create a future where all blockchain infrastructure, including rollups, bridges, coprocessors, and more, utilize ZKPs via **maintainable software** written in Rust (or other LLVM-compiled languages).
+Zero-knowledge proofs (ZKPs) are one of the most critical technologies to blockchain scaling, interoperability and privacy. But, historically building ZKP systems was extrememly complicated--requiring large teams with specialized cryptography expertise and taking years to go to production. 
 
-## Built from day one to be customizable and maintained by a diverse ecosystem of contributors
+SP1 provides a performant, general-purpose zkVM that enables **any developer** to use ZKPs by writing normal code (in Rust), and get cheap and fast proofs. SP1 will enable ZKPs to become mainstream, introducing a a new era of verifiability for all of blockchain infrastructure and beyond.
 
-SP1 is 100% open-source (MIT / Apache 2.0) with no code obfuscation and built to be contributor friendly, with all development done in the open. Unlike existing zkVMs whose constraint logic is closed-source and impossible to modify, SP1 is modularly architected and designed to be customizable from day one. This customizability (unique to SP1) allows for users to add “precompiles” to the core zkVM logic that yield substantial performance gains, making SP1’s performance not only SOTA vs. existing zkVMs, but also competitive with circuits in a variety of use-cases.
+
+## SP1 enables a diversity of use-cases
+
+ZKPs enable a diversity of use-cases in blockchain and beyond, including:
+
+* Rollups: Use SP1 to generate a ZKP for the state transition function of your rollup and connect to Ethereum, Bitcoin or other chains with full validity proofs or ZK fraud proofs.
+* Interoperability: Use SP1 for fast-finality, cross rollup interoperability
+* Bridges: Use SP1 to generate a ZKP for verifying consensus of L1s, including Tendermint, Ethereum’s Light Client protocol and more, for bridging between chains.
+* Oracles: Use SP1 for large scale computations with onchain state, including consensus data and storage data.
+* Aggregation: Use SP1 to aggregate and verify other ZKPs for reduced onchain verification costs.
+* Privacy: Use SP1 for onchain privacy, including private transactions and private state.

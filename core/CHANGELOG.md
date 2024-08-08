@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0](https://github.com/succinctlabs/sp1/compare/sp1-core-v1.0.1...sp1-core-v1.1.0) - 2024-08-02
+
+### Added
+- experimental gpu support ([#1219](https://github.com/succinctlabs/sp1/pull/1219))
+- update tg ([#1214](https://github.com/succinctlabs/sp1/pull/1214))
+- streaming recursion ([#1175](https://github.com/succinctlabs/sp1/pull/1175))
+- streaming prover for core ([#1146](https://github.com/succinctlabs/sp1/pull/1146))
+
+### Fixed
+- memory global generate_dependencies ([#1220](https://github.com/succinctlabs/sp1/pull/1220))
+- device oom ([#1202](https://github.com/succinctlabs/sp1/pull/1202))
+- cycle tracking logs ([#1178](https://github.com/succinctlabs/sp1/pull/1178))
+- UB from `OpcodeSpecificCols` union ([#1050](https://github.com/succinctlabs/sp1/pull/1050))
+
+### Other
+- merge main into dev ([#1180](https://github.com/succinctlabs/sp1/pull/1180))
+- prover trait cleanup ([#1170](https://github.com/succinctlabs/sp1/pull/1170))
+- *(deps)* bump arrayref from 0.3.7 to 0.3.8 ([#1154](https://github.com/succinctlabs/sp1/pull/1154))
+- *(deps)* bump thiserror from 1.0.61 to 1.0.63 ([#1136](https://github.com/succinctlabs/sp1/pull/1136))
+- generate dep optimizations ([#1125](https://github.com/succinctlabs/sp1/pull/1125))
+- add audit reports ([#1142](https://github.com/succinctlabs/sp1/pull/1142))
+
 ## [1.0.0-rc.1](https://github.com/succinctlabs/sp1/compare/sp1-core-v1.0.0-rc.1...sp1-core-v1.0.0-rc.1) - 2024-07-19
 
 ### Added
