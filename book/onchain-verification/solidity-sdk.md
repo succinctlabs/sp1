@@ -1,4 +1,4 @@
-# Solidity SDK
+# Solidity Verifier
 
 We maintain a suite of [contracts](https://github.com/succinctlabs/sp1-contracts/tree/main) used for verifying SP1 proofs onchain. We highly recommend using [Foundry](https://book.getfoundry.sh/).
 

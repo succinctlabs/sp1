@@ -1,6 +1,4 @@
-use cfg_if::cfg_if;
-
-cfg_if! {
+cfg_if::cfg_if! {
     if #[cfg(target_os = "zkvm")] {
         use core::arch::asm;
         use sha2::Digest;
@@ -9,13 +7,15 @@ cfg_if! {
     }
 }
 
-cfg_if! {
+cfg_if::cfg_if! {
     if #[cfg(all(target_os = "zkvm", feature = "verify"))] {
         use p3_field::PrimeField32;
     }
 }
 
-/// Halts the program.
+/// Halts the program with the given exit code.
+///
+/// Before halting, the syscall will commit to the public values.
 #[allow(unused_variables)]
 pub extern "C" fn syscall_halt(exit_code: u8) -> ! {
     #[cfg(target_os = "zkvm")]
@@ -31,12 +31,11 @@ pub extern "C" fn syscall_halt(exit_code: u8) -> ! {
         // into the runtime's execution record's public values digest.  In the AIR, it will be used
         // to verify that the provided public values digest matches the one computed by the program.
         for i in 0..PV_DIGEST_NUM_WORDS {
-            // Convert the digest bytes into words, since we will call COMMIT one word at a time.
             let word = u32::from_le_bytes(pv_digest_bytes[i * 4..(i + 1) * 4].try_into().unwrap());
             asm!("ecall", in("t0") crate::syscalls::COMMIT, in("a0") i, in("a1") word);
         }
 
-        cfg_if! {
+        cfg_if::cfg_if! {
             if #[cfg(feature = "verify")] {
                 let deferred_proofs_digest = zkvm::DEFERRED_PROOFS_DIGEST.as_mut().unwrap();
 

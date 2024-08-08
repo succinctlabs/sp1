@@ -11,7 +11,7 @@ sp1_zkvm::entrypoint!(main);
 pub fn main() {
     // Read an input to the program.
     //
-    // Behind the scenes, this compiles down to a custom system call which handles reading inputs
+    // Behind the scenes, this compiles down to a system call which handles reading inputs
     // from the prover.
     let n = sp1_zkvm::io::read::<u32>();
 
@@ -30,7 +30,7 @@ pub fn main() {
 
     // Write the output of the program.
     //
-    // Behind the scenes, this also compiles down to a custom system call which handles writing
+    // Behind the scenes, this also compiles down to a system call which handles writing
     // outputs to the prover.
     sp1_zkvm::io::commit(&a);
     sp1_zkvm::io::commit(&b);
