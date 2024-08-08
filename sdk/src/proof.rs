@@ -43,7 +43,7 @@ impl SP1ProofWithPublicValues {
     /// Returns the raw proof as a string.
     pub fn raw(&self) -> String {
         match &self.proof {
-            SP1Proof::Plonk(plonk) => plonk.raw_proof.clone(),
+            SP1Proof::Plonk(plonk) => plonk.raw_proof().clone(),
             _ => unimplemented!(),
         }
     }
@@ -53,11 +53,11 @@ impl SP1ProofWithPublicValues {
     pub fn bytes(&self) -> Vec<u8> {
         match &self.proof {
             SP1Proof::Plonk(plonk_proof) => {
-                let mut bytes = Vec::with_capacity(4 + plonk_proof.encoded_proof.len());
-                bytes.extend_from_slice(&plonk_proof.plonk_vkey_hash[..4]);
-                bytes.extend_from_slice(
-                    &hex::decode(&plonk_proof.encoded_proof).expect("Invalid Plonk proof"),
-                );
+                let encoded_proof = plonk_proof.encoded_proof();
+                let vkey_hash = plonk_proof.plonk_vkey_hash();
+                let mut bytes = Vec::with_capacity(4 + encoded_proof.len());
+                bytes.extend_from_slice(&vkey_hash[..4]);
+                bytes.extend_from_slice(encoded_proof.as_bytes());
                 bytes
             }
             _ => unimplemented!("only Plonk proofs are verifiable onchain"),
