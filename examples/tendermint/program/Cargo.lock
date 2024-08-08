@@ -573,7 +573,7 @@ checksum = "77549399552de45a898a580c1b41d445bf730df867cc44e6c0233bbc4b8329de"
 
 [[package]]
 name = "sp1-lib"
-version = "1.0.1"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "bincode",
@@ -583,7 +583,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "1.0.1"
+version = "1.1.0"
 dependencies = [
  "bincode",
  "cfg-if",
@@ -694,7 +694,7 @@ dependencies = [
 
 [[package]]
 name = "tendermint-program"
-version = "1.0.1"
+version = "1.1.0"
 dependencies = [
  "serde",
  "serde_cbor",

@@ -5,8 +5,9 @@ use sp1_core::{
 use sp1_prover::{components::DefaultProverComponents, SP1ProvingKey, SP1PublicValues, SP1Stdin};
 
 use anyhow::{Ok, Result};
+use std::time::Duration;
 
-use crate::{Prover, SP1ProofKind, SP1ProofWithPublicValues};
+use crate::{provers::ProofOpts, Prover, SP1ProofKind, SP1ProofWithPublicValues};
 
 /// Builder to prepare and configure execution of a program on an input.
 /// May be run with [Self::run].
@@ -89,6 +90,7 @@ pub struct Prove<'a> {
     stdin: SP1Stdin,
     core_opts: SP1CoreOpts,
     recursion_opts: SP1CoreOpts,
+    timeout: Option<Duration>,
 }
 
 impl<'a> Prove<'a> {
@@ -109,6 +111,7 @@ impl<'a> Prove<'a> {
             context_builder: Default::default(),
             core_opts: SP1CoreOpts::default(),
             recursion_opts: SP1CoreOpts::recursion(),
+            timeout: None,
         }
     }
 
@@ -122,14 +125,19 @@ impl<'a> Prove<'a> {
             mut context_builder,
             core_opts,
             recursion_opts,
+            timeout,
         } = self;
         let opts = SP1ProverOpts {
             core_opts,
             recursion_opts,
         };
+        let proof_opts = ProofOpts {
+            sp1_prover_opts: opts,
+            timeout,
+        };
         let context = context_builder.build();
 
-        prover.prove(pk, stdin, opts, context, kind)
+        prover.prove(pk, stdin, proof_opts, context, kind)
     }
 
     /// Set the proof kind to the core mode. This is the default.
@@ -196,6 +204,14 @@ impl<'a> Prove<'a> {
     /// If the cycle limit is exceeded, execution will return [sp1_core::runtime::ExecutionError::ExceededCycleLimit].
     pub fn cycle_limit(mut self, cycle_limit: u64) -> Self {
         self.context_builder.max_cycles(cycle_limit);
+        self
+    }
+
+    /// Set the timeout for the proof's generation.
+    ///
+    /// This parameter is only used when the prover is run in network mode.
+    pub fn timeout(mut self, timeout: Duration) -> Self {
+        self.timeout = Some(timeout);
         self
     }
 }

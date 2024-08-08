@@ -1,11 +1,12 @@
-//! System calls for the SP1 zkVM.
+//! Syscalls for the SP1 zkVM.
+//!
+//! Documentation for these syscalls can be found in the zkVM entrypoint
+//! `sp1_zkvm::syscalls` module.
 
-#[cfg(feature = "bls12381")]
 pub mod bls12381;
-#[cfg(feature = "bn254")]
 pub mod bn254;
+pub mod ed25519;
 pub mod io;
-#[cfg(feature = "secp256k1")]
 pub mod secp256k1;
 pub mod unconstrained;
 pub mod utils;
@@ -23,43 +24,43 @@ extern "C" {
     pub fn syscall_read(fd: u32, read_buf: *mut u8, nbytes: usize);
 
     /// Executes the SHA-256 extend operation on the given word array.
-    pub fn syscall_sha256_extend(w: *mut u32);
+    pub fn syscall_sha256_extend(w: *mut [u32; 64]);
 
     /// Executes the SHA-256 compress operation on the given word array and a given state.
-    pub fn syscall_sha256_compress(w: *mut u32, state: *mut u32);
+    pub fn syscall_sha256_compress(w: *mut [u32; 64], state: *mut [u32; 8]);
 
     /// Executes an Ed25519 curve addition on the given points.
-    pub fn syscall_ed_add(p: *mut u32, q: *mut u32);
+    pub fn syscall_ed_add(p: *mut [u32; 16], q: *const [u32; 16]);
 
     /// Executes an Ed25519 curve decompression on the given point.
     pub fn syscall_ed_decompress(point: &mut [u8; 64]);
 
     /// Executes an Sepc256k1 curve addition on the given points.
-    pub fn syscall_secp256k1_add(p: *mut u32, q: *const u32);
+    pub fn syscall_secp256k1_add(p: *mut [u32; 16], q: *const [u32; 16]);
 
     /// Executes an Secp256k1 curve doubling on the given point.
-    pub fn syscall_secp256k1_double(p: *mut u32);
+    pub fn syscall_secp256k1_double(p: *mut [u32; 16]);
 
     /// Executes an Secp256k1 curve decompression on the given point.
     pub fn syscall_secp256k1_decompress(point: &mut [u8; 64], is_odd: bool);
 
     /// Executes a Bn254 curve addition on the given points.
-    pub fn syscall_bn254_add(p: *mut u32, q: *const u32);
+    pub fn syscall_bn254_add(p: *mut [u32; 16], q: *const [u32; 16]);
 
     /// Executes a Bn254 curve doubling on the given point.
-    pub fn syscall_bn254_double(p: *mut u32);
+    pub fn syscall_bn254_double(p: *mut [u32; 16]);
 
     /// Executes a BLS12-381 curve addition on the given points.
-    pub fn syscall_bls12381_add(p: *mut u32, q: *const u32);
+    pub fn syscall_bls12381_add(p: *mut [u32; 24], q: *const [u32; 24]);
 
     /// Executes a BLS12-381 curve doubling on the given point.
-    pub fn syscall_bls12381_double(p: *mut u32);
+    pub fn syscall_bls12381_double(p: *mut [u32; 24]);
 
     /// Executes the Keccak-256 permutation on the given state.
-    pub fn syscall_keccak_permute(state: *mut u64);
+    pub fn syscall_keccak_permute(state: *mut [u64; 25]);
 
     /// Executes an uint256 multiplication on the given inputs.
-    pub fn syscall_uint256_mulmod(x: *mut u32, y: *const u32);
+    pub fn syscall_uint256_mulmod(x: *mut [u32; 8], y: *const [u32; 8]);
 
     /// Enters unconstrained mode.
     pub fn syscall_enter_unconstrained() -> bool;

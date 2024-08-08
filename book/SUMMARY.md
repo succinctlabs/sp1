@@ -14,7 +14,7 @@
 
 - [Project Template](./getting-started/project-template.md)
 
-- [Hardware Requirements](./getting-started/hardware-requirements.md)
+- [Proof Generation Requirements](./getting-started/hardware-requirements.md)
 
 # Writing Programs
 
@@ -22,17 +22,18 @@
 
 - [Basics](./writing-programs/basics.md)
 
+- [Compiling Programs](./writing-programs/compiling.md)
+
 - [Inputs & Outputs](./writing-programs/inputs-and-outputs.md)
 
-- [Precompiles](./writing-programs/precompiles.md)
-
 - [Patched Crates](./writing-programs/patched-crates.md)
+
+- [Precompiles](./writing-programs/precompiles.md)
 
 - [Cycle Tracking](./writing-programs/cycle-tracking.md)
 
 - [Proof Aggregation](./writing-programs/proof-aggregation.md)
 
-- [Build Script](./writing-programs/build-script.md)
 
 # Generating Proofs
 
@@ -40,34 +41,34 @@
 
 - [Basics](./generating-proofs/basics.md)
 
-- [Prover Options](./generating-proofs/prover-options.md)
+- [Proof Types](./generating-proofs/proof-types.md)
 
-- [Development Options](./generating-proofs/development-options.md)
+- [Recommended Workflow](./generating-proofs/recommended-workflow.md)
 
-- [Optimizing Performance](./generating-proofs/optimizing-performance.md)
+- [Prover Network Beta](./generating-proofs/prover-network.md)
+    - [Usage](./generating-proofs/prover-network/usage.md)
+    - [Supported Versions](./generating-proofs/prover-network/versions.md)
+
+- [FAQ](./generating-proofs/sp1-sdk-faq.md)
+
 
 # Onchain Verification
 
 - [Setup](./onchain-verification/getting-started.md)
 
-- [Solidity SDK](./onchain-verification/solidity-sdk.md)
+- [Solidity Verifier](./onchain-verification/solidity-sdk.md)
 
 - [Contract Addresses](./onchain-verification/contract-addresses.md)
 
-# Prover Network
-
-- [Setup](./prover-network/setup.md)
-
-- [Usage](./prover-network/usage.md)
-
-- [Supported Versions](./prover-network/versions.md)
 
 # Developers
 
+- [Common Issues](./developers/common-issues.md)
+
 - [Usage in CI](./developers/usage-in-ci.md)
+
+- [RV32IM Specification](./developers/rv32im-specification.md)
 
 - [Building PLONK Artifacts](./developers/building-plonk-artifacts.md)
 
-- [Common Issues](./developers/common-issues.md)
 
-- [RV32IM Specification](./developers/rv32im-specification.md)
