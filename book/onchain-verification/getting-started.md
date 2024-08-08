@@ -3,7 +3,6 @@
 The best way to get started with verifying SP1 proofs on-chain is to refer to the [SP1 Project Template](https://github.com/succinctlabs/sp1-project-template/tree/main).
 
 - The template [program](https://github.com/succinctlabs/sp1-project-template/blob/main/program/src/main.rs) shows how to write outputs that can be decoded in Solidity.
-- The template [script](https://github.com/succinctlabs/sp1-project-template/blob/main/script/src/bin/prove.rs) shows how to generate the proof using the SDK and save it to a file.
 - The template [contract](https://github.com/succinctlabs/sp1-project-template/blob/main/contracts/src/Fibonacci.sol) shows how to verify the proof onchain using Solidity.
 
 Refer to the section on [Contract Addresses](./contract-addresses.md) for the addresses of the deployed verifiers.
