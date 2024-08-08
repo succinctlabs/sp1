@@ -11,11 +11,7 @@ pub mod operator;
 pub mod worker;
 
 use clap::Parser;
-use fibonacci_script::{ProveArgs, PublicValuesTuple};
-use operator::{
-    operator_absorb_commits, operator_construct_sp1_core_proof, operator_split_into_checkpoints,
-};
-use worker::{worker_commit_checkpoint, worker_prove_checkpoint};
+use fibonacci_script::{scenario, ProveArgs};
 
 fn main() {
     // Setup the logger.
@@ -23,70 +19,6 @@ fn main() {
     // Parse the command line arguments.
     let args = ProveArgs::parse();
 
-    // Setup the prover client.
-    let serialize_args = bincode::serialize(&args).unwrap();
-
-    let mut public_values_stream = Vec::new();
-    let mut public_values = Vec::new();
-    let mut checkpoints = Vec::new();
-    let mut cycles = 0;
-    operator_split_into_checkpoints(
-        &serialize_args,
-        &mut public_values_stream,
-        &mut public_values,
-        &mut checkpoints,
-        &mut cycles,
-    );
-
-    let mut commitments_vec = Vec::new();
-    let mut records_vec = Vec::new();
-    let num_checkpoints = checkpoints.len();
-    for (idx, checkpoint) in checkpoints.iter_mut().enumerate() {
-        let is_last_checkpoint = idx == num_checkpoints - 1;
-        let mut commitments = Vec::new();
-        let mut records = Vec::new();
-        worker_commit_checkpoint(
-            &serialize_args,
-            idx as u32,
-            checkpoint,
-            is_last_checkpoint,
-            &public_values,
-            &mut commitments,
-            &mut records,
-        );
-        commitments_vec.push(commitments);
-        records_vec.push(records);
-        tracing::info!("{:?}-th phase1 worker done", idx);
-    }
-
-    let mut challenger_state = Vec::new();
-    operator_absorb_commits(
-        &serialize_args,
-        &commitments_vec,
-        &records_vec,
-        &mut challenger_state,
-    );
-
-    let mut shard_proofs_vec = Vec::new();
-    for (idx, records) in records_vec.into_iter().enumerate() {
-        let mut shard_proofs = Vec::new();
-        worker_prove_checkpoint(
-            &serialize_args,
-            &challenger_state,
-            records.as_slice(),
-            &mut shard_proofs,
-        );
-        shard_proofs_vec.push(shard_proofs);
-        tracing::info!("{:?}-th phase2 worker done", idx);
-    }
-
-    // Core proof.
-    let mut proof = Vec::new();
-    operator_construct_sp1_core_proof(
-        &serialize_args,
-        &shard_proofs_vec,
-        &public_values_stream,
-        cycles,
-        &mut proof,
-    );
+    let raw_core_proof = scenario::core_prove::mpc_prove_core(args.clone()).unwrap();
+    let _ = scenario::core_prove::scenario_end(args, &raw_core_proof);
 }

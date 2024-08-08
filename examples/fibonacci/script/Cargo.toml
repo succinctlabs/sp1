@@ -6,7 +6,7 @@ default-run = "fibonacci-script"
 publish = false
 
 [dependencies]
-clap = { version = "4.0", features = ["derive", "env"] }
+clap = { version = "3.1.0", features = ["derive", "env"] }
 tracing = "0.1.40"
 hex = "0.4.3"
 itertools = "0.12.1"

@@ -1,16 +1,24 @@
 pub mod common;
 pub mod operator;
+pub mod scenario;
 pub mod worker;
 
 use alloy_sol_types::{sol, SolType};
-use clap::Parser;
+use clap::{ArgEnum, Parser};
 use serde::{Deserialize, Serialize};
 use sp1_sdk::{HashableKey, SP1ProofWithPublicValues, SP1VerifyingKey};
 use std::path::PathBuf;
 
+#[derive(ArgEnum, Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[clap(rename_all = "kebab_case")]
+pub enum ProofType {
+    CORE,
+    COMPRESS,
+    PLONK,
+}
+
 /// The arguments for the prove command.
 #[derive(Parser, Debug, Clone, Serialize, Deserialize)]
-#[clap(author, version, about, long_about = None)]
 pub struct ProveArgs {
     #[clap(long, default_value = "20")]
     pub n: u32,
