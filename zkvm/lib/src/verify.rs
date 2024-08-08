@@ -1,10 +1,11 @@
 use crate::syscall_verify_sp1_proof;
 
-/// Verifies the next proof in the proof input stream given a pkey digest and public values digest.
+/// Verifies the next proof in the proof input stream given a verification key digest and public
+/// values digest. If the proof is invalid, the function will panic.
 ///
-/// Note: sp1_zkvm must also have feature `verify` enabled for this function to work.
-pub fn verify_sp1_proof(pkey_digest: &[u32; 8], pv_digest: &[u8; 32]) {
+/// Enable this function in `sp1-lib` with the `verify` feature.
+pub fn verify_sp1_proof(vk_digest: &[u32; 8], pv_digest: &[u8; 32]) {
     unsafe {
-        syscall_verify_sp1_proof(pkey_digest, pv_digest);
+        syscall_verify_sp1_proof(vk_digest, pv_digest);
     }
 }
