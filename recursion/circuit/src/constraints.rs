@@ -8,7 +8,6 @@ use sp1_core::stark::AirOpenedValues;
 use sp1_core::stark::PROOF_MAX_NUM_PVS;
 use sp1_core::stark::{MachineChip, StarkGenericConfig};
 use sp1_recursion_compiler::ir::Array;
-use sp1_recursion_compiler::ir::ExtensionOperand;
 use sp1_recursion_compiler::ir::Felt;
 use sp1_recursion_compiler::ir::{Builder, Config, Ext};
 use sp1_recursion_compiler::prelude::SymbolicExt;
