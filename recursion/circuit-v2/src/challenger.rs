@@ -14,7 +14,7 @@ use crate::DigestVariable;
 pub struct VerifyingKeyVariable<C: Config> {
     pub commitment: DigestVariable<C>,
     pub pc_start: Felt<C::F>,
-    pub preprocessed_sorted_idxs: Vec<Felt<C::F>>,
+    pub preprocessed_sorted_idxs: Vec<usize>,
     pub prep_domains: Vec<TwoAdicMultiplicativeCoset<C::F>>,
 }
 
