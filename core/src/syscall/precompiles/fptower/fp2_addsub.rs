@@ -55,6 +55,7 @@ pub struct Fp2AddSubAssignCols<T, P: FpOpField> {
     pub channel: T,
     pub nonce: T,
     pub clk: T,
+    pub is_add: T,
     pub x_ptr: T,
     pub y_ptr: T,
     pub x_access: GenericArray<MemoryWriteCols<T>, P::WordsCurvePoint>,
@@ -65,10 +66,14 @@ pub struct Fp2AddSubAssignCols<T, P: FpOpField> {
 
 pub struct Fp2AddSubAssignChip<P> {
     _marker: PhantomData<P>,
-    op: FieldOperation,
 }
 
-impl<P: FpOpField> Syscall for Fp2AddSubAssignChip<P> {
+pub struct Fp2AddSubSyscall<P> {
+    op: FieldOperation,
+    _marker: PhantomData<P>,
+}
+
+impl<P: FpOpField> Syscall for Fp2AddSubSyscall<P> {
     fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
         let clk = rt.clk;
         let x_ptr = arg1;
@@ -161,11 +166,19 @@ impl<P: FpOpField> Syscall for Fp2AddSubAssignChip<P> {
     }
 }
 
-impl<P: FpOpField> Fp2AddSubAssignChip<P> {
+impl<P: FpOpField> Fp2AddSubSyscall<P> {
     pub const fn new(op: FieldOperation) -> Self {
         Self {
-            _marker: PhantomData,
             op,
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<P: FpOpField> Fp2AddSubAssignChip<P> {
+    pub const fn new() -> Self {
+        Self {
+            _marker: PhantomData,
         }
     }
 
@@ -196,14 +209,9 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2AddSubAssignChip<P> {
     type Program = Program;
 
     fn name(&self) -> String {
-        let op = match self.op {
-            FieldOperation::Add => "Add".to_string(),
-            FieldOperation::Sub => "Sub".to_string(),
-            _ => unreachable!("Invalid operation"),
-        };
         match P::FIELD_TYPE {
-            FieldType::Bn254 => format!("Bn254Fp2{}Assign", op),
-            FieldType::Bls12381 => format!("Bls12831Fp2{}Assign", op),
+            FieldType::Bn254 => "Bn254Fp2AddSubAssign".to_string(),
+            FieldType::Bls12381 => "Bls12831Fp2AddSubAssign".to_string(),
         }
     }
 
@@ -218,9 +226,7 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2AddSubAssignChip<P> {
 
         for i in 0..events.len() {
             let event = &events[i];
-            if event.op != self.op {
-                continue;
-            }
+
             let mut row = vec![F::zero(); num_fp2_addsub_cols::<P>()];
             let cols: &mut Fp2AddSubAssignCols<F, P> = row.as_mut_slice().borrow_mut();
 
@@ -247,7 +253,7 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2AddSubAssignChip<P> {
                 p_y,
                 q_x,
                 q_y,
-                self.op,
+                event.op,
             );
 
             // Populate the memory access columns.
@@ -283,7 +289,7 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2AddSubAssignChip<P> {
                 zero.clone(),
                 zero.clone(),
                 zero,
-                self.op,
+                FieldOperation::Add,
             );
             row
         });
@@ -350,23 +356,29 @@ where
         let p_modulus = Polynomial::from_coefficients(&modulus_coeffs);
 
         {
-            local.c0.eval_with_modulus(
+            local.c0.eval_variable(
                 builder,
                 &p_x,
                 &q_x,
                 &p_modulus,
-                self.op,
+                local.is_add,
+                AB::Expr::one() - local.is_add,
+                AB::F::zero(),
+                AB::F::zero(),
                 local.shard,
                 local.channel,
                 local.is_real,
             );
 
-            local.c1.eval_with_modulus(
+            local.c1.eval_variable(
                 builder,
                 &p_y,
                 &q_y,
                 &p_modulus,
-                self.op,
+                local.is_add,
+                AB::Expr::one() - local.is_add,
+                AB::F::zero(),
+                AB::F::zero(),
                 local.shard,
                 local.channel,
                 local.is_real,
@@ -398,26 +410,40 @@ where
             local.is_real,
         );
 
-        let syscall_id_felt = match P::FIELD_TYPE {
-            FieldType::Bn254 => match self.op {
-                FieldOperation::Add => {
-                    AB::F::from_canonical_u32(SyscallCode::BN254_FP2_ADD.syscall_id())
-                }
-                FieldOperation::Sub => {
-                    AB::F::from_canonical_u32(SyscallCode::BN254_FP2_SUB.syscall_id())
-                }
-                _ => panic!("Invalid operation"),
-            },
-            FieldType::Bls12381 => match self.op {
-                FieldOperation::Add => {
-                    AB::F::from_canonical_u32(SyscallCode::BLS12381_FP2_ADD.syscall_id())
-                }
-                FieldOperation::Sub => {
-                    AB::F::from_canonical_u32(SyscallCode::BLS12381_FP2_SUB.syscall_id())
-                }
-                _ => panic!("Invalid operation"),
-            },
+        let (add_syscall_id, sub_syscall_id) = match P::FIELD_TYPE {
+            FieldType::Bn254 => (
+                AB::F::from_canonical_u32(SyscallCode::BN254_FP2_ADD.syscall_id()),
+                AB::F::from_canonical_u32(SyscallCode::BN254_FP2_SUB.syscall_id()),
+            ),
+            FieldType::Bls12381 => (
+                AB::F::from_canonical_u32(SyscallCode::BLS12381_FP2_ADD.syscall_id()),
+                AB::F::from_canonical_u32(SyscallCode::BLS12381_FP2_SUB.syscall_id()),
+            ),
         };
+
+        let syscall_id_felt =
+            local.is_add * add_syscall_id + (AB::Expr::one() - local.is_add) * sub_syscall_id;
+
+        // let syscall_id_felt = match P::FIELD_TYPE {
+        //     FieldType::Bn254 => match self.op {
+        //         FieldOperation::Add => {
+        //             AB::F::from_canonical_u32(SyscallCode::BN254_FP2_ADD.syscall_id())
+        //         }
+        //         FieldOperation::Sub => {
+        //             AB::F::from_canonical_u32(SyscallCode::BN254_FP2_SUB.syscall_id())
+        //         }
+        //         _ => panic!("Invalid operation"),
+        //     },
+        //     FieldType::Bls12381 => match self.op {
+        //         FieldOperation::Add => {
+        //             AB::F::from_canonical_u32(SyscallCode::BLS12381_FP2_ADD.syscall_id())
+        //         }
+        //         FieldOperation::Sub => {
+        //             AB::F::from_canonical_u32(SyscallCode::BLS12381_FP2_SUB.syscall_id())
+        //         }
+        //         _ => panic!("Invalid operation"),
+        //     },
+        // };
 
         builder.receive_syscall(
             local.shard,
