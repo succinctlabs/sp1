@@ -882,8 +882,13 @@ impl<'a> Runtime<'a> {
                 exit_code = returned_exit_code;
 
                 // Update the syscall counts.
-                let syscall_count = self.state.syscall_counts.entry(syscall).or_insert(0);
-                let (threshold, multiplier) = match syscall {
+                let syscall_for_count = syscall.count_map();
+                let syscall_count = self
+                    .state
+                    .syscall_counts
+                    .entry(syscall_for_count)
+                    .or_insert(0);
+                let (threshold, multiplier) = match syscall_for_count {
                     SyscallCode::KECCAK_PERMUTE => {
                         (self.opts.split_opts.keccak_split_threshold, 24)
                     }
