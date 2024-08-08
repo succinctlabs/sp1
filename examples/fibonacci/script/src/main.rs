@@ -10,11 +10,9 @@ pub mod common;
 pub mod operator;
 pub mod worker;
 
-use alloy_sol_types::SolType;
 use clap::Parser;
 use fibonacci_script::{ProveArgs, PublicValuesTuple};
-use operator::{operator_phase1, operator_phase2, prove_begin};
-use sp1_sdk::proof;
+use operator::{operator_phase1, operator_phase2, prove_begin, steps::operator_core_end};
 use worker::{worker_phase1, worker_phase2};
 
 fn main() {
@@ -80,6 +78,7 @@ fn main() {
         tracing::info!("{:?}-th phase2 worker done", idx);
     }
 
+    // Core proof.
     let mut proof = Vec::new();
     operator_phase2(
         &serialize_args,
@@ -89,13 +88,9 @@ fn main() {
         &mut proof,
     );
 
-    let proof = bincode::deserialize::<proof::SP1ProofWithPublicValues>(&proof).unwrap();
-
     if !args.evm {
-        let (_, _, fib_n) =
-            PublicValuesTuple::abi_decode(proof.public_values.as_slice(), false).unwrap();
-        println!("Successfully generated proof!");
-        println!("fib(n): {}", fib_n);
+        let _proof = operator_core_end(&serialize_args, &proof);
+        return;
     } else {
         // Generate the proof.
         // let proof = client
