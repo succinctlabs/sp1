@@ -39,7 +39,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "bls12381-fp2-mul-test"
+name = "bn254-fp2-addsub-test"
 version = "1.0.1"
 dependencies = [
  "num-bigint",

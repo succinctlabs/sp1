@@ -238,6 +238,7 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2AddSubAssignChip<P> {
             let q_y = BigUint::from_bytes_le(&words_to_bytes_le_vec(&q[q.len() / 2..]));
 
             cols.is_real = F::one();
+            cols.is_add = F::from_bool(event.op == FieldOperation::Add);
             cols.shard = F::from_canonical_u32(event.shard);
             cols.channel = F::from_canonical_u8(event.channel);
             cols.clk = F::from_canonical_u32(event.clk);
@@ -279,6 +280,7 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2AddSubAssignChip<P> {
         pad_rows(&mut rows, || {
             let mut row = vec![F::zero(); num_fp2_addsub_cols::<P>()];
             let cols: &mut Fp2AddSubAssignCols<F, P> = row.as_mut_slice().borrow_mut();
+            cols.is_add = F::one();
             let zero = BigUint::zero();
             Self::populate_field_ops(
                 &mut vec![],
@@ -336,6 +338,9 @@ where
         let local: &Fp2AddSubAssignCols<AB::Var, P> = (*local).borrow();
         let next = main.row_slice(1);
         let next: &Fp2AddSubAssignCols<AB::Var, P> = (*next).borrow();
+
+        // Constrain the `is_add` flag to be boolean.
+        builder.assert_bool(local.is_add);
 
         builder.when_first_row().assert_zero(local.nonce);
         builder
@@ -423,27 +428,6 @@ where
 
         let syscall_id_felt =
             local.is_add * add_syscall_id + (AB::Expr::one() - local.is_add) * sub_syscall_id;
-
-        // let syscall_id_felt = match P::FIELD_TYPE {
-        //     FieldType::Bn254 => match self.op {
-        //         FieldOperation::Add => {
-        //             AB::F::from_canonical_u32(SyscallCode::BN254_FP2_ADD.syscall_id())
-        //         }
-        //         FieldOperation::Sub => {
-        //             AB::F::from_canonical_u32(SyscallCode::BN254_FP2_SUB.syscall_id())
-        //         }
-        //         _ => panic!("Invalid operation"),
-        //     },
-        //     FieldType::Bls12381 => match self.op {
-        //         FieldOperation::Add => {
-        //             AB::F::from_canonical_u32(SyscallCode::BLS12381_FP2_ADD.syscall_id())
-        //         }
-        //         FieldOperation::Sub => {
-        //             AB::F::from_canonical_u32(SyscallCode::BLS12381_FP2_SUB.syscall_id())
-        //         }
-        //         _ => panic!("Invalid operation"),
-        //     },
-        // };
 
         builder.receive_syscall(
             local.shard,
