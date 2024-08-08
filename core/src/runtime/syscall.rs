@@ -9,7 +9,7 @@ use crate::operations::field::field_op::FieldOperation;
 use crate::runtime::{Register, Runtime};
 use crate::syscall::precompiles::edwards::EdAddAssignChip;
 use crate::syscall::precompiles::edwards::EdDecompressChip;
-use crate::syscall::precompiles::fptower::{Fp2AddSubAssignChip, Fp2MulAssignChip, FpOpChip};
+use crate::syscall::precompiles::fptower::{Fp2AddSubAssignChip, Fp2MulAssignChip, FpOpSyscall};
 use crate::syscall::precompiles::keccak256::KeccakPermuteChip;
 use crate::syscall::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::syscall::precompiles::uint256::Uint256MulChip;
@@ -366,15 +366,15 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Arc<dyn Syscall>> {
     syscall_map.insert(SyscallCode::UINT256_MUL, Arc::new(Uint256MulChip::new()));
     syscall_map.insert(
         SyscallCode::BLS12381_FP_ADD,
-        Arc::new(FpOpChip::<Bls12381BaseField>::new(FieldOperation::Add)),
+        Arc::new(FpOpSyscall::<Bls12381BaseField>::new(FieldOperation::Add)),
     );
     syscall_map.insert(
         SyscallCode::BLS12381_FP_SUB,
-        Arc::new(FpOpChip::<Bls12381BaseField>::new(FieldOperation::Sub)),
+        Arc::new(FpOpSyscall::<Bls12381BaseField>::new(FieldOperation::Sub)),
     );
     syscall_map.insert(
         SyscallCode::BLS12381_FP_MUL,
-        Arc::new(FpOpChip::<Bls12381BaseField>::new(FieldOperation::Mul)),
+        Arc::new(FpOpSyscall::<Bls12381BaseField>::new(FieldOperation::Mul)),
     );
     syscall_map.insert(
         SyscallCode::BLS12381_FP2_ADD,
@@ -394,15 +394,15 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Arc<dyn Syscall>> {
     );
     syscall_map.insert(
         SyscallCode::BN254_FP_ADD,
-        Arc::new(FpOpChip::<Bn254BaseField>::new(FieldOperation::Add)),
+        Arc::new(FpOpSyscall::<Bn254BaseField>::new(FieldOperation::Add)),
     );
     syscall_map.insert(
         SyscallCode::BN254_FP_SUB,
-        Arc::new(FpOpChip::<Bn254BaseField>::new(FieldOperation::Sub)),
+        Arc::new(FpOpSyscall::<Bn254BaseField>::new(FieldOperation::Sub)),
     );
     syscall_map.insert(
         SyscallCode::BN254_FP_MUL,
-        Arc::new(FpOpChip::<Bn254BaseField>::new(FieldOperation::Mul)),
+        Arc::new(FpOpSyscall::<Bn254BaseField>::new(FieldOperation::Mul)),
     );
     syscall_map.insert(
         SyscallCode::BN254_FP2_ADD,

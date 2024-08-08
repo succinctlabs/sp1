@@ -65,11 +65,15 @@ pub struct FpOpCols<T, P: FpOpField> {
 }
 
 pub struct FpOpChip<P> {
+    _marker: PhantomData<P>,
+}
+
+pub struct FpOpSyscall<P> {
     op: FieldOperation,
     _marker: PhantomData<P>,
 }
 
-impl<P: FpOpField> Syscall for FpOpChip<P> {
+impl<P: FpOpField> Syscall for FpOpSyscall<P> {
     fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
         let clk = rt.clk;
         let x_ptr = arg1;
@@ -146,10 +150,18 @@ impl<P: FpOpField> Syscall for FpOpChip<P> {
     }
 }
 
-impl<P: FpOpField> FpOpChip<P> {
+impl<P: FpOpField> FpOpSyscall<P> {
     pub const fn new(op: FieldOperation) -> Self {
         Self {
             op,
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<P: FpOpField> FpOpChip<P> {
+    pub const fn new() -> Self {
+        Self {
             _marker: PhantomData,
         }
     }
@@ -177,15 +189,9 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for FpOpChip<P> {
     type Program = Program;
 
     fn name(&self) -> String {
-        let op = match self.op {
-            FieldOperation::Add => "Add",
-            FieldOperation::Sub => "Sub",
-            FieldOperation::Mul => "Mul",
-            _ => panic!("Unsupported operation"),
-        };
         match P::FIELD_TYPE {
-            FieldType::Bn254 => format!("Bn254Fp{}Assign", op).to_string(),
-            FieldType::Bls12381 => format!("Bls12381Fp{}Assign", op).to_string(),
+            FieldType::Bn254 => "Bn254FpOpAssign".to_string(),
+            FieldType::Bls12381 => "Bls12381FpOpAssign".to_string(),
         }
     }
 
@@ -200,9 +206,7 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for FpOpChip<P> {
 
         for i in 0..events.len() {
             let event = &events[i];
-            if event.op != self.op {
-                continue;
-            }
+
             let mut row = vec![F::zero(); num_fp_cols::<P>()];
             let cols: &mut FpOpCols<F, P> = row.as_mut_slice().borrow_mut();
 
@@ -210,10 +214,10 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for FpOpChip<P> {
             let p = BigUint::from_bytes_le(&words_to_bytes_le_vec(&event.x)) % modulus;
             let q = BigUint::from_bytes_le(&words_to_bytes_le_vec(&event.y)) % modulus;
 
-            cols.is_add = F::from_canonical_u8((self.op == FieldOperation::Add) as u8);
-            cols.is_sub = F::from_canonical_u8((self.op == FieldOperation::Sub) as u8);
-            cols.is_mul = F::from_canonical_u8((self.op == FieldOperation::Mul) as u8);
-            cols.is_real = F::from_canonical_u32(1);
+            cols.is_add = F::from_canonical_u8((event.op == FieldOperation::Add) as u8);
+            cols.is_sub = F::from_canonical_u8((event.op == FieldOperation::Sub) as u8);
+            cols.is_mul = F::from_canonical_u8((event.op == FieldOperation::Mul) as u8);
+            cols.is_real = F::one();
             cols.shard = F::from_canonical_u32(event.shard);
             cols.channel = F::from_canonical_u8(event.channel);
             cols.clk = F::from_canonical_u32(event.clk);
@@ -227,7 +231,7 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for FpOpChip<P> {
                 cols,
                 p,
                 q,
-                self.op,
+                event.op,
             );
 
             // Populate the memory access columns.
@@ -254,10 +258,16 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for FpOpChip<P> {
             let mut row = vec![F::zero(); num_fp_cols::<P>()];
             let cols: &mut FpOpCols<F, P> = row.as_mut_slice().borrow_mut();
             let zero = BigUint::zero();
-            cols.is_add = F::from_canonical_u8((self.op == FieldOperation::Add) as u8);
-            cols.is_sub = F::from_canonical_u8((self.op == FieldOperation::Sub) as u8);
-            cols.is_mul = F::from_canonical_u8((self.op == FieldOperation::Mul) as u8);
-            Self::populate_field_ops(&mut vec![], 0, 0, cols, zero.clone(), zero, self.op);
+            cols.is_add = F::from_canonical_u8(1);
+            Self::populate_field_ops(
+                &mut vec![],
+                0,
+                0,
+                cols,
+                zero.clone(),
+                zero,
+                FieldOperation::Add,
+            );
             row
         });
 
@@ -300,8 +310,6 @@ where
         let main = builder.main();
         let local = main.row_slice(0);
         let local: &FpOpCols<AB::Var, P> = (*local).borrow();
-
-        // builder.assert_eq(local.is_real, local.is_add + local.is_sub + local.is_mul);
 
         // Check that operations flags are boolean.
         builder.assert_bool(local.is_add);
@@ -354,32 +362,24 @@ where
             local.is_real,
         );
 
-        let syscall_id_felt = match P::FIELD_TYPE {
-            FieldType::Bn254 => match self.op {
-                FieldOperation::Add => {
-                    AB::F::from_canonical_u32(SyscallCode::BN254_FP_ADD.syscall_id())
-                }
-                FieldOperation::Sub => {
-                    AB::F::from_canonical_u32(SyscallCode::BN254_FP_SUB.syscall_id())
-                }
-                FieldOperation::Mul => {
-                    AB::F::from_canonical_u32(SyscallCode::BN254_FP_MUL.syscall_id())
-                }
-                _ => panic!("Unsupported operation"),
-            },
-            FieldType::Bls12381 => match self.op {
-                FieldOperation::Add => {
-                    AB::F::from_canonical_u32(SyscallCode::BLS12381_FP_ADD.syscall_id())
-                }
-                FieldOperation::Sub => {
-                    AB::F::from_canonical_u32(SyscallCode::BLS12381_FP_SUB.syscall_id())
-                }
-                FieldOperation::Mul => {
-                    AB::F::from_canonical_u32(SyscallCode::BLS12381_FP_MUL.syscall_id())
-                }
-                _ => panic!("Unsupported operation"),
-            },
+        // Select the correct syscall id based on the operation flags.
+        //
+        // *Remark*: If support for division is added, we will need to add the division syscall id.
+        let (add_syscall_id, sub_syscall_id, mul_syscall_id) = match P::FIELD_TYPE {
+            FieldType::Bn254 => (
+                AB::F::from_canonical_u32(SyscallCode::BN254_FP_ADD.syscall_id()),
+                AB::F::from_canonical_u32(SyscallCode::BN254_FP_SUB.syscall_id()),
+                AB::F::from_canonical_u32(SyscallCode::BN254_FP_MUL.syscall_id()),
+            ),
+            FieldType::Bls12381 => (
+                AB::F::from_canonical_u32(SyscallCode::BLS12381_FP_ADD.syscall_id()),
+                AB::F::from_canonical_u32(SyscallCode::BLS12381_FP_SUB.syscall_id()),
+                AB::F::from_canonical_u32(SyscallCode::BLS12381_FP_MUL.syscall_id()),
+            ),
         };
+        let syscall_id_felt = local.is_add * add_syscall_id
+            + local.is_sub * sub_syscall_id
+            + local.is_mul * mul_syscall_id;
 
         builder.receive_syscall(
             local.shard,

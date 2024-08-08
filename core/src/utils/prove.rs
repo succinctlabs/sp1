@@ -148,6 +148,9 @@ where
         runtime.write_proof(proof.0.clone(), proof.1.clone());
     }
 
+    #[cfg(feature = "debug")]
+    let (all_records_tx, all_records_rx) = std::sync::mpsc::channel::<Vec<ExecutionRecord>>();
+
     // Record the start of the process.
     let proving_start = Instant::now();
     let span = tracing::Span::current().clone();
@@ -221,12 +224,17 @@ where
             let program = program.clone();
 
             let span = tracing::Span::current().clone();
+
+            #[cfg(feature = "debug")]
+            let all_records_tx = all_records_tx.clone();
+
             let handle = s.spawn(move || {
                 let _span = span.enter();
                 tracing::debug_span!("phase 1 trace generation").in_scope(|| {
                     loop {
                         // Receive the latest checkpoint.
                         let received = { checkpoints_rx.lock().unwrap().recv() };
+
                         if let Ok((index, mut checkpoint, done)) = received {
                             // Trace the checkpoint and reconstruct the execution records.
                             let (mut records, _) = tracing::debug_span!("trace checkpoint")
@@ -292,6 +300,9 @@ where
                             // Let another worker update the state.
                             record_gen_sync.advance_turn();
 
+                            #[cfg(feature = "debug")]
+                            all_records_tx.send(records.clone()).unwrap();
+
                             // Generate the traces.
                             let traces = records
                                 .par_iter()
@@ -324,6 +335,8 @@ where
             p1_record_and_trace_gen_handles.push(handle);
         }
         drop(p1_records_and_traces_tx);
+        #[cfg(feature = "debug")]
+        drop(all_records_tx);
 
         // Create the challenger and observe the verifying key.
         let mut challenger = prover.config().challenger();
@@ -574,6 +587,15 @@ where
             (cycles as f64 / (proving_time * 1000.0) as f64),
             bincode::serialize(&proof).unwrap().len(),
         );
+
+        #[cfg(feature = "debug")]
+        {
+            let all_records = all_records_rx.iter().flatten().collect::<Vec<_>>();
+            let mut challenger = prover.machine().config().challenger();
+            prover
+                .machine()
+                .debug_constraints(pk, all_records, &mut challenger);
+        }
 
         Ok((proof, public_values_stream, cycles))
     })
