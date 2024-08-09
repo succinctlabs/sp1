@@ -29,18 +29,18 @@ This will configure out the `network` feature which will remove the dependency o
 
 ## Rust Version Errors
 
-If you are using `alloy` or another library that has an MSRV (minimum supported rust version) of 1.76.0
+If you are using a library that has an MSRV (minimum supported rust version) of 1.76.0
 or higher, you may encounter an error like this when building your program.
 
 ```txt
 package `alloy v0.1.1 cannot be built because it requires rustc 1.76 or newer, while the currently active rustc version is 1.75.0-nightly`
 ```
 
-This is due to the fact that the Succinct Rust toolchain might be built with a lower version than the MSRV of the crates you are using. You can check the version of the Succinct Rust toolchain by running `cargo +succinct --version`. If we have released a more recent version of the Succinct Rust toolchain, you can update it by running `sp1up` again to update the toolchain and CLI to the latest version.
+This is due to the fact that the Succinct Rust toolchain might be built with a lower version than the MSRV of the crates you are using. You can check the version of the Succinct Rust toolchain by running `cargo +succinct --version`. The Succinct Rust toolchain's latest version is 1.79, and you can update to the latest version by running [`sp1up`](../getting-started/install.md).
 
-You can also fix this issue with the following:
+If that doesn't work (i.e. the MSRV of the crates you are using is still higher than the version of the Succinct Rust toolchain), you can try the following:
 
-- If using `cargo prove build` directly, pass the `--ignore-rust-version` flag:
+- If you're using `cargo prove build` directly, pass the `--ignore-rust-version` flag:
 
   ```bash
   cargo prove build --ignore-rust-version
@@ -99,3 +99,23 @@ C++ toolchain be setting this variable manually:
 ```bash
 export CC_riscv32im_succinct_zkvm_elf=/path/to/toolchain
 ```
+
+## Compilation Errors with [`sp1-lib::syscall_verify_sp1_proof`](https://docs.rs/sp1-lib/latest/sp1_lib/fn.syscall_verify_sp1_proof.html) 
+
+If you are using the [`sp1-lib::syscall_verify_sp1_proof`](https://docs.rs/sp1-lib/latest/sp1_lib/fn.syscall_verify_sp1_proof.html) function, you may encounter compilation errors when building your program.
+
+```bash
+  [sp1]    = note: rust-lld: error: undefined symbol: syscall_verify_sp1_proof
+  [sp1]            >>> referenced by sp1_lib.b593533d149f0f6e-cgu.0
+  [sp1]            >>>               sp1_lib-8f5deb4c47d01871.sp1_lib.b593533d149f0f6e-cgu.0.rcgu.o:(sp1_lib::verify::verify_sp1_proof::h5c1bb38f11b3fe71) in ...
+  [sp1]            
+  [sp1]  
+  [sp1]  error: could not compile `package-name` (bin "package-name") due to 1 previous error
+  ```
+
+  To resolve this, ensure that you're importing both `sp1-lib` and `sp1-zkvm` with the verify feature enabled.
+  ```toml
+  [dependencies]
+  sp1-lib = { version = "<VERSION>", features = ["verify"] }
+  sp1-zkvm = { version = "<VERSION>", features = ["verify"] }
+  ```
