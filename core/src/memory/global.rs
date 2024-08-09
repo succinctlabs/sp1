@@ -9,19 +9,12 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use sp1_derive::AlignedBorrow;
 
-use super::MemoryInitializeFinalizeEvent;
+use super::{MemoryChipType, MemoryInitializeFinalizeEvent};
 use crate::air::{AirInteraction, BaseAirBuilder, PublicValues, SP1AirBuilder, Word};
 use crate::air::{MachineAir, SP1_PROOF_NUM_PV_ELTS};
 use crate::operations::{AssertLtColsBits, BabyBearBitDecomposition, IsZeroOperation};
 use crate::runtime::{ExecutionRecord, Program};
 use crate::utils::pad_to_power_of_two;
-
-/// The type of memory chip that is being initialized.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MemoryChipType {
-    Initialize,
-    Finalize,
-}
 
 /// A memory chip that can initialize or finalize values in memory.
 pub struct MemoryChip {

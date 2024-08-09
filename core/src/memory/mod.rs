@@ -12,6 +12,13 @@ use serde::{Deserialize, Serialize};
 
 use crate::runtime::MemoryRecord;
 
+/// The type of memory chip that is being initialized.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MemoryChipType {
+    Initialize,
+    Finalize,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MemoryInitializeFinalizeEvent {
     pub addr: u32,
