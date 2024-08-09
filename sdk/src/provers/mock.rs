@@ -94,15 +94,15 @@ impl Prover<DefaultProverComponents> for MockProver {
             SP1ProofKind::Plonk => {
                 let (public_values, _) = self.prover.execute(&pk.elf, &stdin, context)?;
                 Ok(SP1ProofWithPublicValues {
-                    proof: SP1Proof::Plonk(PlonkBn254Proof {
-                        public_inputs: [
+                    proof: SP1Proof::Plonk(PlonkBn254Proof::new(
+                        [
                             pk.vk.hash_bn254().as_canonical_biguint().to_string(),
                             public_values.hash().to_string(),
                         ],
-                        encoded_proof: "".to_string(),
-                        raw_proof: "".to_string(),
-                        plonk_vkey_hash: [0; 32],
-                    }),
+                        "".to_string(),
+                        "".to_string(),
+                        [0; 32],
+                    )),
                     stdin,
                     public_values,
                     sp1_version: self.version().to_string(),
@@ -117,10 +117,12 @@ impl Prover<DefaultProverComponents> for MockProver {
         vkey: &SP1VerifyingKey,
     ) -> Result<(), SP1VerificationError> {
         match &bundle.proof {
-            SP1Proof::Plonk(PlonkBn254Proof { public_inputs, .. }) => {
-                verify_plonk_bn254_public_inputs(vkey, &bundle.public_values, public_inputs)
-                    .map_err(SP1VerificationError::Plonk)
-            }
+            SP1Proof::Plonk(plonk) => verify_plonk_bn254_public_inputs(
+                vkey,
+                &bundle.public_values,
+                &plonk.public_inputs(),
+            )
+            .map_err(SP1VerificationError::Plonk),
             _ => Ok(()),
         }
     }

@@ -400,13 +400,14 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     ) -> Result<()> {
         let prover = PlonkBn254Prover::new();
 
-        let vkey_hash = BigUint::from_str(&proof.public_inputs[0])?;
-        let committed_values_digest = BigUint::from_str(&proof.public_inputs[1])?;
+        let public_inputs = proof.public_inputs();
+        let vkey_hash = BigUint::from_str(&public_inputs[0])?;
+        let committed_values_digest = BigUint::from_str(&public_inputs[1])?;
 
         // Verify the proof with the corresponding public inputs.
         prover.verify(proof, &vkey_hash, &committed_values_digest, build_dir);
 
-        verify_plonk_bn254_public_inputs(vk, public_values, &proof.public_inputs)?;
+        verify_plonk_bn254_public_inputs(vk, public_values, &public_inputs)?;
 
         Ok(())
     }

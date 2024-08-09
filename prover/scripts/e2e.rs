@@ -92,6 +92,6 @@ pub fn main() {
 
     println!(
         "{:?}",
-        String::from_utf8(hex::encode(proof.encoded_proof)).unwrap()
+        String::from_utf8(hex::encode(proof.encoded_proof())).unwrap()
     );
 }
