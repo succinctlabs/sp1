@@ -153,7 +153,7 @@ pub mod tests {
 
     #[test]
     pub fn hook_fds_match() {
-        use sp1_zkvm::lib::io;
+        use sp1_lib::io;
         assert_eq!(FD_ECRECOVER_HOOK, io::FD_ECRECOVER_HOOK)
     }
 
