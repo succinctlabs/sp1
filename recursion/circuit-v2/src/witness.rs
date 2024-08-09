@@ -32,18 +32,18 @@ use crate::{
 pub type Witness<C> = Block<<C as Config>::F>;
 
 /// TODO change the name. For now, the name is unique to prevent confusion.
-pub trait Lookable<C: Config> {
-    type LookVariable;
+pub trait Witnessable<C: Config> {
+    type WitnessVariable;
 
-    fn read(&self, builder: &mut Builder<C>) -> Self::LookVariable;
+    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable;
 
     fn write(&self) -> Vec<Witness<C>>;
 }
 
-impl<'a, C: Config, T: Lookable<C>> Lookable<C> for &'a T {
-    type LookVariable = T::LookVariable;
+impl<'a, C: Config, T: Witnessable<C>> Witnessable<C> for &'a T {
+    type WitnessVariable = T::WitnessVariable;
 
-    fn read(&self, builder: &mut Builder<C>) -> Self::LookVariable {
+    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         (*self).read(builder)
     }
 
@@ -54,10 +54,10 @@ impl<'a, C: Config, T: Lookable<C>> Lookable<C> for &'a T {
 
 // TODO Bn254Fr
 
-impl<C: Config<F = InnerVal>> Lookable<C> for InnerVal {
-    type LookVariable = Felt<InnerVal>;
+impl<C: Config<F = InnerVal>> Witnessable<C> for InnerVal {
+    type WitnessVariable = Felt<InnerVal>;
 
-    fn read(&self, builder: &mut Builder<C>) -> Self::LookVariable {
+    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         builder.hint_felt_v2()
     }
 
@@ -66,10 +66,10 @@ impl<C: Config<F = InnerVal>> Lookable<C> for InnerVal {
     }
 }
 
-impl<C: Config<F = InnerVal, EF = InnerChallenge>> Lookable<C> for InnerChallenge {
-    type LookVariable = Ext<InnerVal, InnerChallenge>;
+impl<C: Config<F = InnerVal, EF = InnerChallenge>> Witnessable<C> for InnerChallenge {
+    type WitnessVariable = Ext<InnerVal, InnerChallenge>;
 
-    fn read(&self, builder: &mut Builder<C>) -> Self::LookVariable {
+    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         builder.hint_ext_v2()
     }
 
@@ -78,10 +78,10 @@ impl<C: Config<F = InnerVal, EF = InnerChallenge>> Lookable<C> for InnerChalleng
     }
 }
 
-impl<C: Config, T: Lookable<C>, const N: usize> Lookable<C> for [T; N] {
-    type LookVariable = [T::LookVariable; N];
+impl<C: Config, T: Witnessable<C>, const N: usize> Witnessable<C> for [T; N] {
+    type WitnessVariable = [T::WitnessVariable; N];
 
-    fn read(&self, builder: &mut Builder<C>) -> Self::LookVariable {
+    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         self.iter()
             .map(|x| x.read(builder))
             .collect::<Vec<_>>()
@@ -100,10 +100,10 @@ impl<C: Config, T: Lookable<C>, const N: usize> Lookable<C> for [T; N] {
     }
 }
 
-impl<C: Config, T: Lookable<C>> Lookable<C> for Vec<T> {
-    type LookVariable = Vec<T::LookVariable>;
+impl<C: Config, T: Witnessable<C>> Witnessable<C> for Vec<T> {
+    type WitnessVariable = Vec<T::WitnessVariable>;
 
-    fn read(&self, builder: &mut Builder<C>) -> Self::LookVariable {
+    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         self.iter().map(|x| x.read(builder)).collect()
     }
 
@@ -114,19 +114,19 @@ impl<C: Config, T: Lookable<C>> Lookable<C> for Vec<T> {
 
 type C = InnerConfig;
 
-impl<'a, SC, A> Lookable<C> for ShardProofHint<'a, SC, A>
+impl<'a, SC, A> Witnessable<C> for ShardProofHint<'a, SC, A>
 where
     SC: StarkGenericConfig<
         Pcs = <BabyBearPoseidon2 as StarkGenericConfig>::Pcs,
         Challenge = <BabyBearPoseidon2 as StarkGenericConfig>::Challenge,
         Challenger = <BabyBearPoseidon2 as StarkGenericConfig>::Challenger,
     >,
-    ShardCommitment<sp1_core::stark::Com<SC>>: Lookable<C>,
+    ShardCommitment<sp1_core::stark::Com<SC>>: Witnessable<C>,
     A: MachineAir<<SC as StarkGenericConfig>::Val>,
 {
-    type LookVariable = ShardProofVariable<C>;
+    type WitnessVariable = ShardProofVariable<C>;
 
-    fn read(&self, builder: &mut Builder<C>) -> Self::LookVariable {
+    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let commitment = self.proof.commitment.read(builder);
         let opened_values = self.proof.opened_values.read(builder);
         let opening_proof = self.proof.opening_proof.read(builder);
@@ -149,20 +149,20 @@ where
             self.proof.commitment.write(),
             self.proof.opened_values.write(),
             self.proof.opening_proof.write(),
-            Lookable::<C>::write(&self.proof.public_values),
+            Witnessable::<C>::write(&self.proof.public_values),
         ]
         .concat()
     }
 }
 
-impl Lookable<C> for ShardCommitment<InnerDigestHash> {
-    type LookVariable = ShardCommitmentVariable<C>;
+impl Witnessable<C> for ShardCommitment<InnerDigestHash> {
+    type WitnessVariable = ShardCommitmentVariable<C>;
 
-    fn read(&self, builder: &mut Builder<C>) -> Self::LookVariable {
+    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let main_commit = InnerDigest::from(self.main_commit).read(builder);
         let permutation_commit = InnerDigest::from(self.permutation_commit).read(builder);
         let quotient_commit = InnerDigest::from(self.quotient_commit).read(builder);
-        Self::LookVariable {
+        Self::WitnessVariable {
             main_commit,
             permutation_commit,
             quotient_commit,
@@ -171,20 +171,20 @@ impl Lookable<C> for ShardCommitment<InnerDigestHash> {
 
     fn write(&self) -> Vec<Witness<C>> {
         [
-            Lookable::<C>::write(&InnerDigest::from(self.main_commit)),
-            Lookable::<C>::write(&InnerDigest::from(self.permutation_commit)),
-            Lookable::<C>::write(&InnerDigest::from(self.quotient_commit)),
+            Witnessable::<C>::write(&InnerDigest::from(self.main_commit)),
+            Witnessable::<C>::write(&InnerDigest::from(self.permutation_commit)),
+            Witnessable::<C>::write(&InnerDigest::from(self.quotient_commit)),
         ]
         .concat()
     }
 }
 
-impl Lookable<C> for ShardOpenedValues<InnerChallenge> {
-    type LookVariable = ShardOpenedValuesVariable<C>;
+impl Witnessable<C> for ShardOpenedValues<InnerChallenge> {
+    type WitnessVariable = ShardOpenedValuesVariable<C>;
 
-    fn read(&self, builder: &mut Builder<C>) -> Self::LookVariable {
+    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let chips = self.chips.read(builder);
-        Self::LookVariable { chips }
+        Self::WitnessVariable { chips }
     }
 
     fn write(&self) -> Vec<Witness<C>> {
@@ -192,17 +192,17 @@ impl Lookable<C> for ShardOpenedValues<InnerChallenge> {
     }
 }
 
-impl Lookable<C> for ChipOpenedValues<InnerChallenge> {
-    type LookVariable = ChipOpenedValuesVariable<C>;
+impl Witnessable<C> for ChipOpenedValues<InnerChallenge> {
+    type WitnessVariable = ChipOpenedValuesVariable<C>;
 
-    fn read(&self, builder: &mut Builder<C>) -> Self::LookVariable {
+    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let preprocessed = self.preprocessed.read(builder);
         let main = self.main.read(builder);
         let permutation = self.permutation.read(builder);
         let quotient = self.quotient.read(builder);
         let cumulative_sum = self.cumulative_sum.read(builder);
         let log_degree = self.log_degree;
-        Self::LookVariable {
+        Self::WitnessVariable {
             preprocessed,
             main,
             permutation,
@@ -217,37 +217,37 @@ impl Lookable<C> for ChipOpenedValues<InnerChallenge> {
             self.preprocessed.write(),
             self.main.write(),
             self.permutation.write(),
-            Lookable::<C>::write(&self.quotient),
-            Lookable::<C>::write(&self.cumulative_sum),
+            Witnessable::<C>::write(&self.quotient),
+            Witnessable::<C>::write(&self.cumulative_sum),
         ]
         .concat()
     }
 }
 
-impl Lookable<C> for AirOpenedValues<InnerChallenge> {
-    type LookVariable = AirOpenedValuesVariable<C>;
+impl Witnessable<C> for AirOpenedValues<InnerChallenge> {
+    type WitnessVariable = AirOpenedValuesVariable<C>;
 
-    fn read(&self, builder: &mut Builder<C>) -> Self::LookVariable {
+    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let local = self.local.read(builder);
         let next = self.next.read(builder);
-        Self::LookVariable { local, next }
+        Self::WitnessVariable { local, next }
     }
 
     fn write(&self) -> Vec<Witness<C>> {
         let mut stream = Vec::new();
-        stream.extend(Lookable::<C>::write(&self.local));
-        stream.extend(Lookable::<C>::write(&self.next));
+        stream.extend(Witnessable::<C>::write(&self.local));
+        stream.extend(Witnessable::<C>::write(&self.next));
         stream
     }
 }
 
-impl Lookable<C> for InnerPcsProof {
-    type LookVariable = TwoAdicPcsProofVariable<C>;
+impl Witnessable<C> for InnerPcsProof {
+    type WitnessVariable = TwoAdicPcsProofVariable<C>;
 
-    fn read(&self, builder: &mut Builder<C>) -> Self::LookVariable {
+    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let fri_proof = self.fri_proof.read(builder);
         let query_openings = self.query_openings.read(builder);
-        Self::LookVariable {
+        Self::WitnessVariable {
             fri_proof,
             query_openings,
         }
@@ -258,10 +258,10 @@ impl Lookable<C> for InnerPcsProof {
     }
 }
 
-impl Lookable<C> for InnerBatchOpening {
-    type LookVariable = BatchOpeningVariable<C>;
+impl Witnessable<C> for InnerBatchOpening {
+    type WitnessVariable = BatchOpeningVariable<C>;
 
-    fn read(&self, builder: &mut Builder<C>) -> Self::LookVariable {
+    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let opened_values = self
             .opened_values
             .read(builder)
@@ -269,7 +269,7 @@ impl Lookable<C> for InnerBatchOpening {
             .map(|a| a.into_iter().map(|b| vec![b]).collect())
             .collect();
         let opening_proof = self.opening_proof.read(builder);
-        Self::LookVariable {
+        Self::WitnessVariable {
             opened_values,
             opening_proof,
         }
@@ -277,17 +277,17 @@ impl Lookable<C> for InnerBatchOpening {
 
     fn write(&self) -> Vec<Witness<C>> {
         [
-            Lookable::<C>::write(&self.opened_values),
-            Lookable::<C>::write(&self.opening_proof),
+            Witnessable::<C>::write(&self.opened_values),
+            Witnessable::<C>::write(&self.opening_proof),
         ]
         .concat()
     }
 }
 
-impl Lookable<C> for InnerFriProof {
-    type LookVariable = FriProofVariable<C>;
+impl Witnessable<C> for InnerFriProof {
+    type WitnessVariable = FriProofVariable<C>;
 
-    fn read(&self, builder: &mut Builder<C>) -> Self::LookVariable {
+    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let commit_phase_commits = self
             .commit_phase_commits
             .iter()
@@ -299,7 +299,7 @@ impl Lookable<C> for InnerFriProof {
         let query_proofs = self.query_proofs.read(builder);
         let final_poly = self.final_poly.read(builder);
         let pow_witness = self.pow_witness.read(builder);
-        Self::LookVariable {
+        Self::WitnessVariable {
             commit_phase_commits,
             query_proofs,
             final_poly,
@@ -313,23 +313,23 @@ impl Lookable<C> for InnerFriProof {
                 .iter()
                 .flat_map(|commit| {
                     let commit = Borrow::<InnerDigest>::borrow(commit);
-                    Lookable::<C>::write(commit)
+                    Witnessable::<C>::write(commit)
                 })
                 .collect(),
             self.query_proofs.write(),
-            Lookable::<C>::write(&self.final_poly),
-            Lookable::<C>::write(&self.pow_witness),
+            Witnessable::<C>::write(&self.final_poly),
+            Witnessable::<C>::write(&self.pow_witness),
         ]
         .concat()
     }
 }
 
-impl Lookable<C> for QueryProof<InnerChallenge, InnerChallengeMmcs> {
-    type LookVariable = FriQueryProofVariable<C>;
+impl Witnessable<C> for QueryProof<InnerChallenge, InnerChallengeMmcs> {
+    type WitnessVariable = FriQueryProofVariable<C>;
 
-    fn read(&self, builder: &mut Builder<C>) -> Self::LookVariable {
+    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let commit_phase_openings = self.commit_phase_openings.read(builder);
-        Self::LookVariable {
+        Self::WitnessVariable {
             commit_phase_openings,
         }
     }
@@ -339,13 +339,13 @@ impl Lookable<C> for QueryProof<InnerChallenge, InnerChallengeMmcs> {
     }
 }
 
-impl Lookable<C> for CommitPhaseProofStep<InnerChallenge, InnerChallengeMmcs> {
-    type LookVariable = FriCommitPhaseProofStepVariable<C>;
+impl Witnessable<C> for CommitPhaseProofStep<InnerChallenge, InnerChallengeMmcs> {
+    type WitnessVariable = FriCommitPhaseProofStepVariable<C>;
 
-    fn read(&self, builder: &mut Builder<C>) -> Self::LookVariable {
+    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let sibling_value = self.sibling_value.read(builder);
         let opening_proof = self.opening_proof.read(builder);
-        Self::LookVariable {
+        Self::WitnessVariable {
             sibling_value,
             opening_proof,
         }
@@ -353,8 +353,8 @@ impl Lookable<C> for CommitPhaseProofStep<InnerChallenge, InnerChallengeMmcs> {
 
     fn write(&self) -> Vec<Witness<C>> {
         [
-            Lookable::<C>::write(&self.sibling_value),
-            Lookable::<C>::write(&self.opening_proof),
+            Witnessable::<C>::write(&self.sibling_value),
+            Witnessable::<C>::write(&self.opening_proof),
         ]
         .concat()
     }

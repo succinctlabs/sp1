@@ -446,7 +446,7 @@ pub(crate) mod tests {
 
     use super::*;
     use crate::challenger::tests::run_test_recursion;
-    use crate::lookable::*;
+    use crate::witness::*;
 
     type SC = BabyBearPoseidon2;
     type F = InnerVal;

@@ -238,7 +238,7 @@ pub(crate) mod tests {
     use sp1_recursion_core_v2::Runtime;
 
     use crate::challenger::DuplexChallengerVariable;
-    use crate::lookable::Witness;
+    use crate::witness::Witness;
 
     use sp1_core::utils::run_test_machine;
 
