@@ -19,7 +19,7 @@ pub(crate) mod riscv_chips {
     pub use crate::alu::ShiftRightChip;
     pub use crate::bytes::ByteChip;
     pub use crate::cpu::CpuChip;
-    pub use crate::memory::MemoryChip;
+    pub use crate::memory::{MemoryChip, MemoryLocalChip};
     pub use crate::program::ProgramChip;
     pub use crate::syscall::precompiles::edwards::EdAddAssignChip;
     pub use crate::syscall::precompiles::edwards::EdDecompressChip;
@@ -66,9 +66,13 @@ pub enum RiscvAir<F: PrimeField32> {
     /// A lookup table for byte operations.
     ByteLookup(ByteChip<F>),
     /// A table for initializing the memory state.
-    MemoryInit(MemoryChip),
+    MemoryGlobalInit(MemoryChip),
     /// A table for finalizing the memory state.
-    MemoryFinal(MemoryChip),
+    MemoryGlobalFinal(MemoryChip),
+    /// A table for initializing the memory state.
+    MemoryLocalInit(MemoryLocalChip),
+    /// A table for finalizing the memory state.
+    MemoryLocalFinal(MemoryLocalChip),
     /// A table for initializing the program memory.
     ProgramMemory(MemoryProgramChip),
     /// A precompile for sha256 extend.
@@ -165,10 +169,14 @@ impl<F: PrimeField32> RiscvAir<F> {
         chips.push(RiscvAir::ShiftLeft(shift_left));
         let lt = LtChip::default();
         chips.push(RiscvAir::Lt(lt));
-        let memory_init = MemoryChip::new(MemoryChipType::Initialize);
-        chips.push(RiscvAir::MemoryInit(memory_init));
-        let memory_finalize = MemoryChip::new(MemoryChipType::Finalize);
-        chips.push(RiscvAir::MemoryFinal(memory_finalize));
+        let memory_global_init = MemoryChip::new(MemoryChipType::Initialize);
+        chips.push(RiscvAir::MemoryGlobalInit(memory_global_init));
+        let memory_global_finalize = MemoryChip::new(MemoryChipType::Finalize);
+        chips.push(RiscvAir::MemoryGlobalFinal(memory_global_finalize));
+        let memory_local_init = MemoryLocalChip::new(MemoryChipType::Initialize);
+        chips.push(RiscvAir::MemoryLocalInit(memory_local_init));
+        let memory_local_finalize = MemoryLocalChip::new(MemoryChipType::Finalize);
+        chips.push(RiscvAir::MemoryLocalFinal(memory_local_finalize));
         let program_memory_init = MemoryProgramChip::new();
         chips.push(RiscvAir::ProgramMemory(program_memory_init));
         let byte = ByteChip::default();

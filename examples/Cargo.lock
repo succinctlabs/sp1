@@ -4809,7 +4809,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-build"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -4819,7 +4819,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "anyhow",
  "arrayref",
@@ -4880,7 +4880,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-derive"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4889,7 +4889,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-helper"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "cargo_metadata",
  "chrono",
@@ -4898,7 +4898,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "itertools 0.13.0",
  "lazy_static",
@@ -4910,7 +4910,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-prover"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "anyhow",
  "bincode",
@@ -4946,7 +4946,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-circuit"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "bincode",
  "itertools 0.13.0",
@@ -4968,7 +4968,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-compiler"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "backtrace",
  "itertools 0.13.0",
@@ -4992,7 +4992,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-core"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "arrayref",
  "backtrace",
@@ -5026,7 +5026,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-derive"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5035,7 +5035,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-gnark-ffi"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "anyhow",
  "bincode",
@@ -5059,7 +5059,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-program"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "itertools 0.13.0",
  "p3-air",
@@ -5087,7 +5087,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-sdk"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "alloy-sol-types",
  "anyhow",

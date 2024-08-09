@@ -41,8 +41,8 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip {
 
     fn name(&self) -> String {
         match self.kind {
-            MemoryChipType::Initialize => "MemoryInit".to_string(),
-            MemoryChipType::Finalize => "MemoryFinalize".to_string(),
+            MemoryChipType::Initialize => "MemoryGlobalInit".to_string(),
+            MemoryChipType::Finalize => "MemoryGlobalFinalize".to_string(),
         }
     }
 
@@ -56,8 +56,20 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip {
         _output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
         let mut memory_events = match self.kind {
-            MemoryChipType::Initialize => input.global_memory_initialize_events.clone(),
-            MemoryChipType::Finalize => input.global_memory_finalize_events.clone(),
+            MemoryChipType::Initialize => {
+                println!(
+                    "Global memory initialize table: {:?}",
+                    input.global_memory_initialize_events.len()
+                );
+                input.global_memory_initialize_events.clone()
+            }
+            MemoryChipType::Finalize => {
+                println!(
+                    "Global memory finalize table: {:?}",
+                    input.global_memory_finalize_events.len()
+                );
+                input.global_memory_finalize_events.clone()
+            }
         };
 
         let previous_addr_bits = match self.kind {

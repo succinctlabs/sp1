@@ -69,8 +69,20 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
         _output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
         let local_memory_accesses = match self.kind {
-            MemoryChipType::Initialize => &input.local_memory_initialize_access,
-            MemoryChipType::Finalize => &input.local_memory_finalize_access,
+            MemoryChipType::Initialize => {
+                println!(
+                    "Local memory initialize table: {:?}",
+                    input.local_memory_initialize_access.len()
+                );
+                &input.local_memory_initialize_access
+            }
+            MemoryChipType::Finalize => {
+                println!(
+                    "Local memory finalize table: {:?}",
+                    input.local_memory_finalize_access.len()
+                );
+                &input.local_memory_finalize_access
+            }
         };
 
         let mut rows =

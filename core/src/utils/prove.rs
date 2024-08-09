@@ -1,3 +1,4 @@
+use p3_matrix::Matrix;
 use std::collections::VecDeque;
 use std::fs::File;
 use std::io::Seek;
@@ -349,10 +350,25 @@ where
 
                         // Commit to each shard.
                         let commitments = records
-                            .into_par_iter()
-                            .zip(traces.into_par_iter())
+                            .into_iter()
+                            .zip(traces.into_iter())
                             .map(|(record, traces)| {
                                 let _span = span.enter();
+
+                                // let chips = prover.machine().shard_chips(&record).collect::<Vec<_>>();
+                                for (name, trace) in traces.clone() {
+                                    let trace_width = trace.width();
+                                    let trace_height = trace.height();
+                                    tracing::debug!(
+                                        "Phase 1 area: {:<15} | Main Cols = {:<5} | Rows = {:<5} | Cells = {:<10}",
+                                        name,
+                                        trace_width,
+                                        trace_height,
+                                        trace_width * trace_height,
+                                    );
+
+                                }
+
                                 let data = prover.commit(record, traces);
                                 let main_commit = data.main_commit.clone();
                                 drop(data);
