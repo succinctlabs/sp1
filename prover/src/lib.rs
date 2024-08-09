@@ -762,11 +762,13 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         drop(guard);
 
         let mut challenger = self.compress_prover.config().challenger();
-        self.compress_prover.machine().debug_constraints(
-            pk,
-            vec![runtime.record.clone()],
-            &mut challenger,
-        );
+        let mut records_clone = vec![runtime.record.clone()];
+        self.compress_prover
+            .machine()
+            .generate_dependencies(&mut records_clone, &opts.recursion_opts);
+        self.compress_prover
+            .machine()
+            .debug_constraints(pk, records_clone, &mut challenger);
 
         let mut recursive_challenger = self.compress_prover.config().challenger();
         let proof = self
