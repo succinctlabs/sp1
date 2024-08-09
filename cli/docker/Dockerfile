@@ -10,18 +10,7 @@ ARG BUILDTIME
 
 # Use the BUILDTIME argument to break caching and force a new layer
 RUN echo "Cache bust: ${BUILDTIME}" > /dev/null && \
-    curl -L https://sp1.succinct.xyz | bash && ~/.sp1/bin/sp1up
-
-# Install the C++ toolchain for RISC-V and create a symlink to it in /root/.sp1/bin
-RUN mkdir -p /root/.sp1/riscv \
-    && curl -L https://github.com/risc0/toolchain/releases/download/2022.03.25/riscv32im-linux-x86_64.tar.xz -o /tmp/riscv32im-linux-x86_64.tar.xz \
-    && tar -xvf /tmp/riscv32im-linux-x86_64.tar.xz -C /root/.sp1/riscv/ \
-    && rm -f /tmp/riscv32im-linux-x86_64.tar.xz \
-    && find /root/.sp1/riscv -name 'riscv32-unknown-elf-gcc' -type f -exec ln -sf {} /root/.sp1/bin/riscv32-unknown-elf-gcc \;
-
-# Add the C++ toolchain to the path and the CC environment variable
-ENV PATH="/root/.sp1/bin:${PATH}"
-ENV CC_riscv32im_succinct_zkvm_elf=/root/.sp1/bin/riscv32-unknown-elf-gcc
+    curl -L https://sp1.succinct.xyz | bash && ~/.sp1/bin/sp1up --c-toolchain
 
 WORKDIR /root/program
 
