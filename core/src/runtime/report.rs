@@ -12,6 +12,7 @@ use super::*;
 pub struct ExecutionReport {
     pub opcode_counts: HashMap<Opcode, u64>,
     pub syscall_counts: HashMap<SyscallCode, u64>,
+    pub cycle_tracker: HashMap<String, u64>,
 }
 
 impl ExecutionReport {

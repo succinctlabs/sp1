@@ -1,3 +1,5 @@
+use std::borrow::Borrow;
+
 use p3_field::{AbstractExtensionField, AbstractField};
 use serde::{Deserialize, Serialize};
 
@@ -8,13 +10,13 @@ pub enum Instruction<F> {
     BaseAlu(BaseAluInstr<F>),
     ExtAlu(ExtAluInstr<F>),
     Mem(MemInstr<F>),
-    Poseidon2Skinny(Poseidon2SkinnyInstr<F>),
-    Poseidon2Wide(Poseidon2WideInstr<F>),
+    Poseidon2(Poseidon2Instr<F>),
     ExpReverseBitsLen(ExpReverseBitsInstr<F>),
     HintBits(HintBitsInstr<F>),
     FriFold(FriFoldInstr<F>),
     Print(PrintInstr<F>),
     HintExt2Felts(HintExt2FeltsInstr<F>),
+    CommitPublicValues(CommitPublicValuesInstr<F>),
     Hint(HintInstr<F>),
 }
 
@@ -131,26 +133,12 @@ pub fn mem_block<F: AbstractField>(
     })
 }
 
-pub fn poseidon2_skinny<F: AbstractField>(
+pub fn poseidon2<F: AbstractField>(
     mults: [u32; WIDTH],
     output: [u32; WIDTH],
     input: [u32; WIDTH],
 ) -> Instruction<F> {
-    Instruction::Poseidon2Skinny(Poseidon2SkinnyInstr {
-        mults: mults.map(F::from_canonical_u32),
-        addrs: Poseidon2Io {
-            output: output.map(F::from_canonical_u32).map(Address),
-            input: input.map(F::from_canonical_u32).map(Address),
-        },
-    })
-}
-
-pub fn poseidon2_wide<F: AbstractField>(
-    mults: [u32; WIDTH],
-    output: [u32; WIDTH],
-    input: [u32; WIDTH],
-) -> Instruction<F> {
-    Instruction::Poseidon2Wide(Poseidon2WideInstr {
+    Instruction::Poseidon2(Poseidon2Instr {
         mults: mults.map(F::from_canonical_u32),
         addrs: Poseidon2Io {
             output: output.map(F::from_canonical_u32).map(Address),
@@ -231,5 +219,18 @@ pub fn fri_fold<F: AbstractField>(
             .iter()
             .map(|mult| F::from_canonical_u32(*mult))
             .collect(),
+    })
+}
+
+pub fn commit_public_values<F: AbstractField>(
+    public_values_a: &RecursionPublicValues<u32>,
+) -> Instruction<F> {
+    let pv_a = public_values_a
+        .to_vec()
+        .map(|pv| Address(F::from_canonical_u32(pv)));
+    let pv_address: &RecursionPublicValues<Address<F>> = pv_a.as_slice().borrow();
+
+    Instruction::CommitPublicValues(CommitPublicValuesInstr {
+        pv_addrs: pv_address.clone(),
     })
 }

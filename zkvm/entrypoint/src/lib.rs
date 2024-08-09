@@ -7,29 +7,10 @@ pub mod syscalls;
 pub mod io {
     pub use sp1_lib::io::*;
 }
+
 #[cfg(feature = "lib")]
 pub mod lib {
     pub use sp1_lib::*;
-}
-
-#[macro_export]
-macro_rules! entrypoint {
-    ($path:path) => {
-        const ZKVM_ENTRY: fn() = $path;
-
-        use $crate::heap::SimpleAlloc;
-
-        #[global_allocator]
-        static HEAP: SimpleAlloc = SimpleAlloc;
-
-        mod zkvm_generated_main {
-
-            #[no_mangle]
-            fn main() {
-                super::ZKVM_ENTRY()
-            }
-        }
-    };
 }
 
 #[cfg(all(target_os = "zkvm", feature = "libm"))]
@@ -44,7 +25,6 @@ mod zkvm {
     use crate::syscalls::syscall_halt;
 
     use cfg_if::cfg_if;
-    use getrandom::{register_custom_getrandom, Error};
     use sha2::{Digest, Sha256};
 
     cfg_if! {
@@ -98,7 +78,7 @@ mod zkvm {
         sym STACK_TOP
     );
 
-    fn zkvm_getrandom(s: &mut [u8]) -> Result<(), Error> {
+    pub fn zkvm_getrandom(s: &mut [u8]) -> Result<(), getrandom::Error> {
         unsafe {
             crate::syscalls::sys_rand(s.as_mut_ptr(), s.len());
         }
@@ -106,5 +86,25 @@ mod zkvm {
         Ok(())
     }
 
-    register_custom_getrandom!(zkvm_getrandom);
+    getrandom::register_custom_getrandom!(zkvm_getrandom);
+}
+
+#[macro_export]
+macro_rules! entrypoint {
+    ($path:path) => {
+        const ZKVM_ENTRY: fn() = $path;
+
+        use $crate::heap::SimpleAlloc;
+
+        #[global_allocator]
+        static HEAP: SimpleAlloc = SimpleAlloc;
+
+        mod zkvm_generated_main {
+
+            #[no_mangle]
+            fn main() {
+                super::ZKVM_ENTRY()
+            }
+        }
+    };
 }

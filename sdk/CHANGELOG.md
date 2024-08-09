@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0](https://github.com/succinctlabs/sp1/compare/sp1-sdk-v1.0.1...sp1-sdk-v1.1.0) - 2024-08-02
+
+### Added
+- update tg ([#1214](https://github.com/succinctlabs/sp1/pull/1214))
+- lazy init prover programs and keys ([#1177](https://github.com/succinctlabs/sp1/pull/1177))
+- streaming prover for core ([#1146](https://github.com/succinctlabs/sp1/pull/1146))
+
+### Fixed
+- verify subproof in execute ([#1204](https://github.com/succinctlabs/sp1/pull/1204))
+
+### Other
+- *(deps)* bump serde_json from 1.0.120 to 1.0.121 ([#1196](https://github.com/succinctlabs/sp1/pull/1196))
+- *(deps)* bump tokio from 1.38.1 to 1.39.2 ([#1195](https://github.com/succinctlabs/sp1/pull/1195))
+- Merge branch 'main' into dev
+- *(deps)* bump alloy-sol-types from 0.7.6 to 0.7.7 ([#1152](https://github.com/succinctlabs/sp1/pull/1152))
+- *(deps)* bump thiserror from 1.0.61 to 1.0.63 ([#1136](https://github.com/succinctlabs/sp1/pull/1136))
+- *(deps)* bump tokio from 1.38.0 to 1.38.1 ([#1137](https://github.com/succinctlabs/sp1/pull/1137))
+- add audit reports ([#1142](https://github.com/succinctlabs/sp1/pull/1142))
+
 ## [1.0.0-rc.1](https://github.com/succinctlabs/sp1/compare/sp1-sdk-v1.0.0-rc.1...sp1-sdk-v1.0.0-rc.1) - 2024-07-19
 
 ### Added

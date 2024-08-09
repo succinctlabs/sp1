@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0](https://github.com/succinctlabs/sp1/compare/sp1-recursion-core-v1.0.1...sp1-recursion-core-v1.1.0) - 2024-08-02
+
+### Added
+- update tg ([#1214](https://github.com/succinctlabs/sp1/pull/1214))
+
+### Fixed
+- UB from `OpcodeSpecificCols` union ([#1050](https://github.com/succinctlabs/sp1/pull/1050))
+
+### Other
+- Merge branch 'main' into dev
+- *(deps)* bump arrayref from 0.3.7 to 0.3.8 ([#1154](https://github.com/succinctlabs/sp1/pull/1154))
+- add audit reports ([#1142](https://github.com/succinctlabs/sp1/pull/1142))
+
 ## [1.0.0-rc.1](https://github.com/succinctlabs/sp1/compare/sp1-recursion-core-v1.0.0-rc.1...sp1-recursion-core-v1.0.0-rc.1) - 2024-07-19
 
 ### Added

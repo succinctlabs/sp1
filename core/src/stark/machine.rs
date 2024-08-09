@@ -400,13 +400,13 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
 
             tracing::info_span!("debug constraints").in_scope(|| {
                 for i in 0..chips.len() {
-                    let permutation_trace = pk
+                    let preprocessed_trace = pk
                         .chip_ordering
                         .get(&chips[i].name())
                         .map(|index| &pk.traces[*index]);
                     debug_constraints::<SC, A>(
                         chips[i],
-                        permutation_trace,
+                        preprocessed_trace,
                         &traces[i].0,
                         &permutation_traces[i],
                         &permutation_challenges,
@@ -415,6 +415,10 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                 }
             });
         }
+
+        tracing::info!("Constraints verified successfully");
+
+        println!("Cumulative sum: {}", cumulative_sum);
 
         // If the cumulative sum is not zero, debug the interactions.
         if !cumulative_sum.is_zero() {

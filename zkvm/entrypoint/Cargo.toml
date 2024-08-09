@@ -36,6 +36,3 @@ verify = [
   "dep:p3-field",
   "sp1-lib/verify",
 ]
-bn254 = ["sp1-lib/bn254"]
-secp256k1 = ["sp1-lib/secp256k1"]
-bls12381 = ["sp1-lib/bls12381"]

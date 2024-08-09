@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0](https://github.com/succinctlabs/sp1/compare/sp1-zkvm-v1.0.1...sp1-zkvm-v1.1.0) - 2024-08-02
+
+### Added
+- update tg ([#1214](https://github.com/succinctlabs/sp1/pull/1214))
+
+### Fixed
+- mutable static ref warning in halt syscall ([#1217](https://github.com/succinctlabs/sp1/pull/1217))
+
 ## [1.0.0-rc.1](https://github.com/succinctlabs/sp1/compare/sp1-zkvm-v1.0.0-rc.1...sp1-zkvm-v1.0.0-rc.1) - 2024-07-19
 
 ### Added

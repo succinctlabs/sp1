@@ -12,6 +12,8 @@ pub use program::*;
 pub use record::*;
 
 use std::{
+    array,
+    borrow::Borrow,
     collections::VecDeque,
     fmt::Debug,
     io::{stdout, Write},
@@ -29,7 +31,7 @@ use p3_symmetric::{CryptographicPermutation, Permutation};
 use p3_util::reverse_bits_len;
 use thiserror::Error;
 
-use sp1_recursion_core::air::Block;
+use sp1_recursion_core::air::{Block, RECURSIVE_PROOF_NUM_PV_ELTS};
 
 /// TODO expand glob import once things are organized enough
 use crate::*;
@@ -379,7 +381,7 @@ where
                     }
                     self.record.mem_const_count += 1;
                 }
-                Instruction::Poseidon2Skinny(Poseidon2SkinnyInstr {
+                Instruction::Poseidon2(Poseidon2Instr {
                     addrs: Poseidon2Io { input, output },
                     mults,
                 }) => {
@@ -394,30 +396,7 @@ where
                         .for_each(|((&val, addr), mult)| {
                             self.mw(addr, Block::from(val), mult);
                         });
-                    self.record
-                        .poseidon2_skinny_events
-                        .push(Poseidon2SkinnyEvent {
-                            input: in_vals,
-                            output: perm_output,
-                        });
-                }
-
-                Instruction::Poseidon2Wide(Poseidon2WideInstr {
-                    addrs: Poseidon2Io { input, output },
-                    mults,
-                }) => {
-                    self.nb_wide_poseidons += 1;
-                    let in_vals = std::array::from_fn(|i| self.mr(input[i]).val[0]);
-                    let perm_output = self.perm.as_ref().unwrap().permute(in_vals);
-
-                    perm_output
-                        .iter()
-                        .zip(output)
-                        .zip(mults)
-                        .for_each(|((&val, addr), mult)| {
-                            self.mw(addr, Block::from(val), mult);
-                        });
-                    self.record.poseidon2_wide_events.push(Poseidon2WideEvent {
+                    self.record.poseidon2_events.push(Poseidon2Event {
                         input: in_vals,
                         output: perm_output,
                     });
@@ -532,6 +511,20 @@ where
                             },
                         });
                     }
+                }
+
+                Instruction::CommitPublicValues(CommitPublicValuesInstr {
+                    pv_addrs: public_values_addrs,
+                }) => {
+                    let pv_addrs = public_values_addrs.to_vec();
+                    let pv_values: [F; RECURSIVE_PROOF_NUM_PV_ELTS] =
+                        array::from_fn(|i| self.mr(pv_addrs[i]).val[0]);
+                    self.record.public_values = *pv_values.as_slice().borrow();
+                    self.record
+                        .commit_pv_hash_events
+                        .push(CommitPublicValuesEvent {
+                            public_values: self.record.public_values,
+                        });
                 }
 
                 Instruction::Print(PrintInstr {

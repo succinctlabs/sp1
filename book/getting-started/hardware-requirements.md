@@ -1,7 +1,14 @@
-# Hardware Requirements
+# Proof Generation Requirements
 
-The hardware requirements for SP1 depend on what features you want to use. These requirements can also
-change over time as the design of the zKVM evolves. 
+## Prover Network (Recommended)
+
+We recommend that developers who want to use SP1 for non-trivial programs generate proofs on our [Prover Network's](../generating-proofs/prover-network.md) private beta. The prover network generates SP1 proofs across multiple machines, reducing latency and also runs SP1 on optimized hardware instances that result in faster + cheaper proof generation times (including SP1's GPU prover that is not yet available for local proving).
+
+We recommend that for any production benchmarking, you use the prover network to estimate latency and costs of proof generation.
+
+## Local Proving
+
+If you want to generate SP1 proofs locally, here is an overview of the hardware requirements required. These requires depend on which [types of proofs](../generating-proofs/proof-types.md) you want to generate and can also change over time as the design of the zKVM evolves.
 
 **The most important requirement is CPU for performance/latency and RAM to prevent running out of memory.**
 
@@ -24,7 +31,7 @@ Our prover requires keeping large matrices (i.e., traces) in memory to generate 
 have a minimum memory requirement, meaning that if you have less than this amount of memory, the process will OOM.
 
 This effect is most noticeable when using the PLONK prover, which requires around 128GB of RAM to generate a proof. We use PLONK to avoid
-having to perform a trusted setup, which other SNARK provers like Groth16 require. We have future optimizations planned to reduce
+having to perform a trusted setup, which other SNARKs like Groth16 require. We have future optimizations planned to reduce
 the memory requirements of the PLONK prover substantially.
 
 ### Disk
@@ -32,3 +39,4 @@ the memory requirements of the PLONK prover substantially.
 Disk is required to install the SP1 zkVM toolchain and to install the trused setup artifacts, if you plan to locally build the PLONK prover.
 
 Furthermore, disk is used to checkpoint the state of the program execution, which is required to generate the proofs. 
+

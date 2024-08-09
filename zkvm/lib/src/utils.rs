@@ -1,72 +1,65 @@
-pub trait CurveOperations<const NUM_WORDS: usize> {
-    const GENERATOR: [u32; NUM_WORDS];
+pub trait AffinePoint<const N: usize>: Clone + Sized {
+    /// The generator.
+    const GENERATOR: [u32; N];
 
-    fn add_assign(limbs: &mut [u32; NUM_WORDS], other: &[u32; NUM_WORDS]);
-    fn double(limbs: &mut [u32; NUM_WORDS]);
-}
+    /// Creates a new [`AffinePoint`] from the given limbs.
+    fn new(limbs: [u32; N]) -> Self;
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct AffinePoint<C: CurveOperations<NUM_WORDS>, const NUM_WORDS: usize> {
-    pub(crate) limbs: [u32; NUM_WORDS],
-    _marker: std::marker::PhantomData<C>,
-}
+    /// Returns a reference to the limbs.
+    fn limbs_ref(&self) -> &[u32; N];
 
-#[derive(Debug)]
-pub enum MulAssignError {
-    ZeroScalar,
-}
+    /// Returns a mutable reference to the limbs.
+    fn limbs_mut(&mut self) -> &mut [u32; N];
 
-impl<C: CurveOperations<NUM_WORDS> + Copy, const NUM_WORDS: usize> AffinePoint<C, NUM_WORDS> {
-    const GENERATOR: [u32; NUM_WORDS] = C::GENERATOR;
+    /// Creates a new [`AffinePoint`] from the given x and y coordinates.
+    ///
+    /// The bytes are the concatenated little endian representations of the coordinates.
+    fn from(x: &[u8], y: &[u8]) -> Self {
+        debug_assert!(x.len() == N * 2);
+        debug_assert!(y.len() == N * 2);
 
-    pub const fn generator_in_affine() -> Self {
-        Self {
-            limbs: Self::GENERATOR,
-            _marker: std::marker::PhantomData,
-        }
-    }
+        let mut limbs = [0u32; N];
+        let x = bytes_to_words_le(x);
+        let y = bytes_to_words_le(y);
 
-    pub const fn new(limbs: [u32; NUM_WORDS]) -> Self {
-        Self {
-            limbs,
-            _marker: std::marker::PhantomData,
-        }
-    }
+        debug_assert!(x.len() == N / 2);
+        debug_assert!(y.len() == N / 2);
 
-    /// x_bytes and y_bytes are the concatenated little endian representations of the x and y coordinates.
-    /// The length of x_bytes and y_bytes must each be NUM_WORDS * 2.
-    pub fn from(x_bytes: &[u8], y_bytes: &[u8]) -> Self {
-        debug_assert!(x_bytes.len() == NUM_WORDS * 2);
-        debug_assert!(y_bytes.len() == NUM_WORDS * 2);
-
-        let mut limbs = [0u32; NUM_WORDS];
-        let x = bytes_to_words_le(x_bytes);
-        let y = bytes_to_words_le(y_bytes);
-        debug_assert!(x.len() == NUM_WORDS / 2);
-        debug_assert!(y.len() == NUM_WORDS / 2);
-
-        limbs[..(NUM_WORDS / 2)].copy_from_slice(&x);
-        limbs[(NUM_WORDS / 2)..].copy_from_slice(&y);
+        limbs[..(N / 2)].copy_from_slice(&x);
+        limbs[(N / 2)..].copy_from_slice(&y);
         Self::new(limbs)
     }
 
-    pub fn add_assign(&mut self, other: &AffinePoint<C, NUM_WORDS>) {
-        C::add_assign(&mut self.limbs, &other.limbs);
+    /// Creates a new [`AffinePoint`] from the given bytes in little endian.
+    fn from_le_bytes(bytes: &[u8]) -> Self {
+        let limbs = bytes_to_words_le(bytes);
+        debug_assert!(limbs.len() == N);
+        Self::new(limbs.try_into().unwrap())
     }
 
-    pub fn double(&mut self) {
-        C::double(&mut self.limbs);
+    /// Creates a new [`AffinePoint`] from the given bytes in big endian.
+    fn to_le_bytes(&self) -> Vec<u8> {
+        let le_bytes = words_to_bytes_le(self.limbs_ref());
+        debug_assert!(le_bytes.len() == N * 4);
+        le_bytes
     }
 
-    pub fn mul_assign(&mut self, scalar: &[u32]) -> Result<(), MulAssignError> {
-        debug_assert!(scalar.len() == NUM_WORDS / 2);
+    /// Adds the given [`AffinePoint`] to `self`.
+    fn add_assign(&mut self, other: &Self);
+
+    /// Doubles `self`.
+    fn double(&mut self);
+
+    /// Multiplies `self` by the given scalar.
+    fn mul_assign(&mut self, scalar: &[u32]) -> Result<(), MulAssignError> {
+        debug_assert!(scalar.len() == N / 2);
 
         let mut res: Option<Self> = None;
-        let mut temp = *self;
+        let mut temp = self.clone();
 
         let scalar_is_zero = scalar.iter().all(|&words| words == 0);
         if scalar_is_zero {
-            return Err(MulAssignError::ZeroScalar);
+            return Err(MulAssignError::ScalarIsZero);
         }
 
         for &words in scalar.iter() {
@@ -74,7 +67,7 @@ impl<C: CurveOperations<NUM_WORDS> + Copy, const NUM_WORDS: usize> AffinePoint<C
                 if (words >> i) & 1 == 1 {
                     match res.as_mut() {
                         Some(res) => res.add_assign(&temp),
-                        None => res = Some(temp),
+                        None => res = Some(temp.clone()),
                     };
                 }
 
@@ -86,21 +79,43 @@ impl<C: CurveOperations<NUM_WORDS> + Copy, const NUM_WORDS: usize> AffinePoint<C
         Ok(())
     }
 
-    pub fn from_le_bytes(limbs: &[u8]) -> Self {
-        let u32_limbs = bytes_to_words_le(limbs);
-        debug_assert!(u32_limbs.len() == NUM_WORDS);
+    /// Performs multi-scalar multiplication (MSM) on slices of bit vectors and points. Note:
+    /// a_bits_le and b_bits_le should be in little endian order.
+    fn multi_scalar_multiplication(
+        a_bits_le: &[bool],
+        a: Self,
+        b_bits_le: &[bool],
+        b: Self,
+    ) -> Option<Self> {
+        let mut res: Option<Self> = None;
+        let mut temp_a = a.clone();
+        let mut temp_b = b.clone();
+        for (a_bit, b_bit) in a_bits_le.iter().zip(b_bits_le.iter()) {
+            if *a_bit {
+                match res.as_mut() {
+                    Some(res) => res.add_assign(&temp_a),
+                    None => res = Some(temp_a.clone()),
+                };
+            }
 
-        Self {
-            limbs: u32_limbs.try_into().unwrap(),
-            _marker: std::marker::PhantomData,
+            if *b_bit {
+                match res.as_mut() {
+                    Some(res) => res.add_assign(&temp_b),
+                    None => res = Some(temp_b.clone()),
+                };
+            }
+
+            temp_a.double();
+            temp_b.double();
         }
+        res
     }
+}
 
-    pub fn to_le_bytes(&self) -> Vec<u8> {
-        let le_bytes = words_to_bytes_le(&self.limbs);
-        debug_assert!(le_bytes.len() == NUM_WORDS * 4);
-        le_bytes
-    }
+/// Errors that can occur during scalar multiplication of an [`AffinePoint`].
+#[derive(Debug)]
+pub enum MulAssignError {
+    ScalarIsZero,
 }
 
 /// Converts a slice of words to a byte array in little endian.

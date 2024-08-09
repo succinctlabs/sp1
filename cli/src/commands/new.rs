@@ -29,6 +29,12 @@ impl NewCmd {
             fs::create_dir(&self.name)?;
         }
 
+        println!(
+            "     \x1b[1m{}\x1b[0m {}",
+            Paint::green("Cloning"),
+            TEMPLATE_REPOSITORY_URL
+        );
+
         // Clone the repository with the specified version.
         let output = Command::new("git")
             .arg("clone")
@@ -65,7 +71,7 @@ impl NewCmd {
         }
 
         println!(
-            "    \x1b[1m{}\x1b[0m {} ({})",
+            " \x1b[1m{}\x1b[0m {} ({})",
             Paint::green("Initialized"),
             self.name,
             std::fs::canonicalize(root)

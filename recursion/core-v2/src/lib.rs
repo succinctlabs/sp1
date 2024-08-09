@@ -2,7 +2,7 @@ use std::iter::once;
 
 use serde::{Deserialize, Serialize};
 use sp1_derive::AlignedBorrow;
-use sp1_recursion_core::air::Block;
+use sp1_recursion_core::air::{Block, RecursionPublicValues};
 
 pub mod builder;
 pub mod chips;
@@ -13,7 +13,9 @@ pub use runtime::*;
 
 use crate::chips::poseidon2_skinny::WIDTH;
 
-#[derive(AlignedBorrow, Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(
+    AlignedBorrow, Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, Default,
+)]
 #[repr(C)]
 pub struct Address<F>(pub F);
 
@@ -97,7 +99,7 @@ pub struct Poseidon2SkinnyInstr<F> {
     pub mults: [F; WIDTH],
 }
 
-pub type Poseidon2SkinnyEvent<F> = Poseidon2Io<F>;
+pub type Poseidon2Event<F> = Poseidon2Io<F>;
 
 /// The inputs and outputs to an exp-reverse-bits operation.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -109,7 +111,7 @@ pub struct ExpReverseBitsIo<V> {
 }
 
 pub type Poseidon2WideEvent<F> = Poseidon2Io<F>;
-pub type Poseidon2WideInstr<F> = Poseidon2SkinnyInstr<F>;
+pub type Poseidon2Instr<F> = Poseidon2SkinnyInstr<F>;
 
 /// An instruction invoking the exp-reverse-bits operation.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -177,4 +179,17 @@ pub struct FriFoldEvent<F> {
     pub base_single: FriFoldBaseIo<F>,
     pub ext_single: FriFoldExtSingleIo<Block<F>>,
     pub ext_vec: FriFoldExtVecIo<Block<F>>,
+}
+
+/// An instruction that will save the public values to the execution record and will commit to
+/// it's digest.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CommitPublicValuesInstr<F> {
+    pub pv_addrs: RecursionPublicValues<Address<F>>,
+}
+
+/// The event for committing to the public values.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CommitPublicValuesEvent<F> {
+    pub public_values: RecursionPublicValues<F>,
 }

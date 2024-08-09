@@ -12,6 +12,7 @@ use crate::chips::{
     mem::{MemoryConstChip, MemoryVarChip},
     poseidon2_skinny::Poseidon2SkinnyChip,
     poseidon2_wide::Poseidon2WideChip,
+    public_values::PublicValuesChip,
 };
 
 #[derive(MachineAir)]
@@ -38,6 +39,7 @@ pub enum RecursionAir<
     // RangeCheck(RangeCheckChip<F>),
     // Multi(MultiChip<DEGREE>),
     ExpReverseBitsLen(ExpReverseBitsLenChip<DEGREE>),
+    PublicValues(PublicValuesChip),
     DummyWide(DummyChip<COL_PADDING>),
 }
 
@@ -56,15 +58,6 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
     /// A recursion machine that can have dynamic trace sizes, and uses the wide variant of Poseidon2.
     pub fn machine_wide<SC: StarkGenericConfig<Val = F>>(config: SC) -> StarkMachine<SC, Self> {
         let chips = Self::get_all_wide()
-            .into_iter()
-            .map(Chip::new)
-            .collect::<Vec<_>>();
-        StarkMachine::new(config, chips, PROOF_MAX_NUM_PVS)
-    }
-    pub fn machine_with_all_chips<SC: StarkGenericConfig<Val = F>>(
-        config: SC,
-    ) -> StarkMachine<SC, Self> {
-        let chips = Self::get_skinny_and_wide()
             .into_iter()
             .map(Chip::new)
             .collect::<Vec<_>>();
@@ -123,6 +116,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
             // RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE>::default()),
             RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>::default()),
             RecursionAir::FriFold(FriFoldChip::<DEGREE>::default()),
+            RecursionAir::PublicValues(PublicValuesChip::default()),
         ]
     }
 
@@ -137,20 +131,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
             RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE>::default()),
             RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>::default()),
             RecursionAir::FriFold(FriFoldChip::<DEGREE>::default()),
-        ]
-    }
-
-    pub fn get_skinny_and_wide() -> Vec<Self> {
-        vec![
-            // RecursionAir::Program(ProgramChip::default()),
-            RecursionAir::MemoryConst(MemoryConstChip::default()),
-            RecursionAir::MemoryVar(MemoryVarChip::default()),
-            RecursionAir::BaseAlu(BaseAluChip::default()),
-            RecursionAir::ExtAlu(ExtAluChip::default()),
-            RecursionAir::Poseidon2Skinny(Poseidon2SkinnyChip::<DEGREE>::default()),
-            RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE>::default()),
-            RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>::default()),
-            RecursionAir::FriFold(FriFoldChip::<DEGREE>::default()),
+            RecursionAir::PublicValues(PublicValuesChip::default()),
         ]
     }
 
@@ -178,6 +159,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
                 fixed_log2_rows: Some(fri_fold_padding),
                 pad: true,
             }),
+            RecursionAir::PublicValues(PublicValuesChip::default()),
         ]
     }
 
@@ -227,7 +209,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
 
     use machine::RecursionAir;
     use p3_baby_bear::DiffusionMatrixBabyBear;
@@ -238,36 +220,46 @@ mod tests {
     use rand::prelude::*;
     use sp1_core::{
         stark::StarkGenericConfig,
-        utils::{run_test_machine, BabyBearPoseidon2Inner},
+        utils::{run_test_machine, BabyBearPoseidon2},
     };
-    use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
 
     // TODO expand glob import
     use crate::{runtime::instruction as instr, *};
 
-    type SC = BabyBearPoseidon2Outer;
+    type SC = BabyBearPoseidon2;
     type F = <SC as StarkGenericConfig>::Val;
     type EF = <SC as StarkGenericConfig>::Challenge;
-    type A = RecursionAir<F, 3, 1>;
+    type A = RecursionAir<F, 3, 0>;
+    type B = RecursionAir<F, 9, 0>;
+
+    /// Runs the given program on machines that use the wide and skinny Poseidon2 chips.
+    pub fn run_recursion_test_machines(program: RecursionProgram<F>) {
+        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program, SC::new().perm);
+        runtime.run().unwrap();
+
+        // Run with the poseidon2 wide chip.
+        let wide_machine = A::machine_wide(BabyBearPoseidon2::default());
+        let (pk, vk) = wide_machine.setup(&program);
+        let result = run_test_machine(vec![runtime.record.clone()], wide_machine, pk, vk);
+        if let Err(e) = result {
+            panic!("Verification failed: {:?}", e);
+        }
+
+        // Run with the poseidon2 skinny chip.
+        let skinny_machine = B::machine(BabyBearPoseidon2::compressed());
+        let (pk, vk) = skinny_machine.setup(&program);
+        let result = run_test_machine(vec![runtime.record], skinny_machine, pk, vk);
+        if let Err(e) = result {
+            panic!("Verification failed: {:?}", e);
+        }
+    }
 
     fn test_instructions(instructions: Vec<Instruction<F>>) {
         let program = RecursionProgram {
             instructions,
             traces: Default::default(),
         };
-        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(
-            &program,
-            BabyBearPoseidon2Inner::new().perm,
-        );
-        runtime.run().unwrap();
-
-        let config = SC::new();
-        let machine = A::machine(config);
-        let (pk, vk) = machine.setup(&program);
-        let result = run_test_machine(vec![runtime.record], machine, pk, vk);
-        if let Err(e) = result {
-            panic!("Verification failed: {:?}", e);
-        }
+        run_recursion_test_machines(program);
     }
 
     #[test]

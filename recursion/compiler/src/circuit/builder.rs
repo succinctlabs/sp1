@@ -3,6 +3,7 @@
 use std::iter::repeat;
 
 use p3_field::{AbstractExtensionField, AbstractField};
+use sp1_recursion_core::air::RecursionPublicValues;
 
 use crate::prelude::*;
 use sp1_recursion_core_v2::{chips::poseidon2_skinny::WIDTH, D, DIGEST_SIZE, HASH_RATE};
@@ -15,8 +16,7 @@ pub trait CircuitV2Builder<C: Config> {
     fn num2bits_v2_f(&mut self, num: Felt<C::F>, num_bits: usize) -> Vec<Felt<C::F>>;
     fn exp_reverse_bits_v2(&mut self, input: Felt<C::F>, power_bits: Vec<Felt<C::F>>)
         -> Felt<C::F>;
-    fn poseidon2_permute_v2_skinny(&mut self, state: [Felt<C::F>; WIDTH]) -> [Felt<C::F>; WIDTH];
-    fn poseidon2_permute_v2_wide(&mut self, state: [Felt<C::F>; WIDTH]) -> [Felt<C::F>; WIDTH];
+    fn poseidon2_permute_v2(&mut self, state: [Felt<C::F>; WIDTH]) -> [Felt<C::F>; WIDTH];
     fn poseidon2_hash_v2(&mut self, array: &[Felt<C::F>]) -> [Felt<C::F>; DIGEST_SIZE];
     fn poseidon2_compress_v2(
         &mut self,
@@ -24,6 +24,7 @@ pub trait CircuitV2Builder<C: Config> {
     ) -> [Felt<C::F>; DIGEST_SIZE];
     fn fri_fold_v2(&mut self, input: CircuitV2FriFoldInput<C>) -> CircuitV2FriFoldOutput<C>;
     fn ext2felt_v2(&mut self, ext: Ext<C::F, C::EF>) -> [Felt<C::F>; D];
+    fn commit_public_values_v2(&mut self, public_values: RecursionPublicValues<Felt<C::F>>);
     fn cycle_tracker_v2_enter(&mut self, name: String);
     fn cycle_tracker_v2_exit(&mut self);
     fn hint_ext_v2(&mut self) -> Ext<C::F, C::EF>;
@@ -79,19 +80,10 @@ impl<C: Config> CircuitV2Builder<C> for Builder<C> {
     }
 
     /// Applies the Poseidon2 permutation to the given array.
-    fn poseidon2_permute_v2_skinny(&mut self, array: [Felt<C::F>; WIDTH]) -> [Felt<C::F>; WIDTH] {
+    fn poseidon2_permute_v2(&mut self, array: [Felt<C::F>; WIDTH]) -> [Felt<C::F>; WIDTH] {
         let output: [Felt<C::F>; WIDTH] = core::array::from_fn(|_| self.uninit());
         self.operations
-            .push(DslIr::CircuitV2Poseidon2PermuteBabyBearSkinny(
-                output, array,
-            ));
-        output
-    }
-    /// Applies the Poseidon2 permutation to the given array using the wide precompile.
-    fn poseidon2_permute_v2_wide(&mut self, array: [Felt<C::F>; WIDTH]) -> [Felt<C::F>; WIDTH] {
-        let output: [Felt<C::F>; WIDTH] = core::array::from_fn(|_| self.uninit());
-        self.operations
-            .push(DslIr::CircuitV2Poseidon2PermuteBabyBearWide(output, array));
+            .push(DslIr::CircuitV2Poseidon2PermuteBabyBear(output, array));
         output
     }
 
@@ -103,7 +95,7 @@ impl<C: Config> CircuitV2Builder<C> for Builder<C> {
         let mut state = core::array::from_fn(|_| self.eval(C::F::zero()));
         for input_chunk in input.chunks(HASH_RATE) {
             state[..input_chunk.len()].copy_from_slice(input_chunk);
-            state = self.poseidon2_permute_v2_wide(state);
+            state = self.poseidon2_permute_v2(state);
         }
         let state: [Felt<C::F>; DIGEST_SIZE] = state[..DIGEST_SIZE].try_into().unwrap();
         state
@@ -119,7 +111,7 @@ impl<C: Config> CircuitV2Builder<C> for Builder<C> {
         // debug_assert!(DIGEST_SIZE * N <= WIDTH);
         let mut pre_iter = input.into_iter().chain(repeat(self.eval(C::F::default())));
         let pre = core::array::from_fn(move |_| pre_iter.next().unwrap());
-        let post = self.poseidon2_permute_v2_wide(pre);
+        let post = self.poseidon2_permute_v2(pre);
         let post: [Felt<C::F>; DIGEST_SIZE] = post[..DIGEST_SIZE].try_into().unwrap();
         post
     }
@@ -155,6 +147,12 @@ impl<C: Config> CircuitV2Builder<C> for Builder<C> {
         self.assert_ext_eq(reconstructed_ext, ext);
 
         felts
+    }
+
+    // Commits public values.
+    fn commit_public_values_v2(&mut self, public_values: RecursionPublicValues<Felt<C::F>>) {
+        self.operations
+            .push(DslIr::CircuitV2CommitPublicValues(Box::new(public_values)));
     }
 
     fn cycle_tracker_v2_enter(&mut self, name: String) {

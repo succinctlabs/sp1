@@ -343,35 +343,29 @@ mod tests {
     use rand::Rng;
     use rand::SeedableRng;
     use sp1_core::air::MachineAir;
-    use sp1_core::utils::run_test_machine;
     use sp1_core::utils::setup_logger;
-    use sp1_core::utils::BabyBearPoseidon2;
     use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
     use std::iter::once;
 
     use p3_baby_bear::BabyBear;
-    use p3_baby_bear::DiffusionMatrixBabyBear;
     use p3_field::{AbstractField, PrimeField32};
     use p3_matrix::dense::RowMajorMatrix;
     use sp1_core::stark::StarkGenericConfig;
 
     use crate::chips::exp_reverse_bits::ExpReverseBitsLenChip;
-    use crate::machine::RecursionAir;
+    use crate::machine::tests::run_recursion_test_machines;
     use crate::runtime::instruction as instr;
     use crate::runtime::ExecutionRecord;
     use crate::ExpReverseBitsEvent;
     use crate::Instruction;
     use crate::MemAccessKind;
     use crate::RecursionProgram;
-    use crate::Runtime;
 
     #[test]
     fn prove_babybear_circuit_erbl() {
         setup_logger();
         type SC = BabyBearPoseidon2Outer;
         type F = <SC as StarkGenericConfig>::Val;
-        type EF = <SC as StarkGenericConfig>::Challenge;
-        type A = RecursionAir<F, 3, 1>;
 
         let mut rng = StdRng::seed_from_u64(0xDEADBEEF);
         let mut random_felt = move || -> F { F::from_canonical_u32(rng.gen_range(0..1 << 16)) };
@@ -431,17 +425,7 @@ mod tests {
             traces: Default::default(),
         };
 
-        let config = SC::new();
-
-        let mut runtime =
-            Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program, BabyBearPoseidon2::new().perm);
-        runtime.run().unwrap();
-        let machine = A::machine(config);
-        let (pk, vk) = machine.setup(&program);
-        let result = run_test_machine(vec![runtime.record], machine, pk, vk);
-        if let Err(e) = result {
-            panic!("Verification failed: {:?}", e);
-        }
+        run_recursion_test_machines(program);
     }
 
     #[test]

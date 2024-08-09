@@ -1,9 +1,3 @@
-#![allow(clippy::needless_range_loop)]
-
-use std::borrow::Borrow;
-use std::borrow::BorrowMut;
-use std::ops::Deref;
-
 use p3_baby_bear::{MONTY_INVERSE, POSEIDON2_INTERNAL_MATRIX_DIAG_16_BABYBEAR_MONTY};
 use p3_field::AbstractField;
 use p3_field::PrimeField32;
@@ -13,8 +7,6 @@ pub mod columns;
 pub mod trace;
 
 use p3_poseidon2::matmul_internal;
-
-use self::columns::{Poseidon2, Poseidon2Degree3, Poseidon2Degree9, Poseidon2Mut};
 
 /// The width of the permutation.
 pub const WIDTH: usize = 16;
@@ -33,47 +25,14 @@ pub struct Poseidon2SkinnyChip<const DEGREE: usize> {
 
 impl<const DEGREE: usize> Default for Poseidon2SkinnyChip<DEGREE> {
     fn default() -> Self {
+        // We only support machines with degree 9.
+        assert!(DEGREE >= 9);
         Self {
             fixed_log2_rows: None,
             pad: true,
         }
     }
 }
-
-impl<'a, const DEGREE: usize> Poseidon2SkinnyChip<DEGREE> {
-    /// Transmute a row it to an immutable Poseidon2 instance.
-    pub(crate) fn convert<T>(row: impl Deref<Target = [T]>) -> Box<dyn Poseidon2<'a, T> + 'a>
-    where
-        T: Copy + 'a,
-    {
-        if DEGREE == 3 || DEGREE == 5 {
-            let convert: &Poseidon2Degree3<T> = (*row).borrow();
-            Box::new(*convert)
-        } else if DEGREE == 9 || DEGREE == 17 {
-            let convert: &Poseidon2Degree9<T> = (*row).borrow();
-            Box::new(*convert)
-        } else {
-            panic!("Unsupported degree");
-        }
-    }
-
-    /// Transmute a row it to a mutable Poseidon2 instance.
-    pub(crate) fn convert_mut<'b: 'a, F: PrimeField32>(
-        &self,
-        row: &'b mut Vec<F>,
-    ) -> Box<dyn Poseidon2Mut<'a, F> + 'a> {
-        if DEGREE == 3 || DEGREE == 5 {
-            let convert: &mut Poseidon2Degree3<F> = row.as_mut_slice().borrow_mut();
-            Box::new(convert)
-        } else if DEGREE == 9 || DEGREE == 17 {
-            let convert: &mut Poseidon2Degree9<F> = row.as_mut_slice().borrow_mut();
-            Box::new(convert)
-        } else {
-            panic!("Unsupported degree");
-        }
-    }
-}
-
 pub fn apply_m_4<AF>(x: &mut [AF])
 where
     AF: AbstractField,
@@ -143,7 +102,6 @@ pub(crate) mod tests {
         type SC = BabyBearPoseidon2Outer;
         type F = <SC as StarkGenericConfig>::Val;
         type EF = <SC as StarkGenericConfig>::Challenge;
-        type A = RecursionAir<F, 3, 1>;
         type B = RecursionAir<F, 9, 1>;
 
         let input = [1; WIDTH];
@@ -161,7 +119,7 @@ pub(crate) mod tests {
         let instructions =
             (0..WIDTH)
                 .map(|i| instr::mem(MemAccessKind::Write, 1, i as u32, input[i]))
-                .chain(once(instr::poseidon2_skinny(
+                .chain(once(instr::poseidon2(
                     [1; WIDTH],
                     std::array::from_fn(|i| (i + WIDTH) as u32),
                     std::array::from_fn(|i| i as u32),
@@ -173,7 +131,7 @@ pub(crate) mod tests {
                 .chain((0..WIDTH).map(|i| {
                     instr::mem(MemAccessKind::Write, 1, (2 * WIDTH + i) as u32, input_1[i])
                 }))
-                .chain(once(instr::poseidon2_skinny(
+                .chain(once(instr::poseidon2(
                     [1; WIDTH],
                     std::array::from_fn(|i| (i + 3 * WIDTH) as u32),
                     std::array::from_fn(|i| (i + 2 * WIDTH) as u32),
@@ -190,15 +148,6 @@ pub(crate) mod tests {
         let mut runtime =
             Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program, BabyBearPoseidon2::new().perm);
         runtime.run().unwrap();
-
-        let config = SC::new();
-        let machine_deg_3 = A::machine(config);
-        let (pk_3, vk_3) = machine_deg_3.setup(&program);
-        let result_deg_3 =
-            run_test_machine(vec![runtime.record.clone()], machine_deg_3, pk_3, vk_3);
-        if let Err(e) = result_deg_3 {
-            panic!("Verification failed: {:?}", e);
-        }
 
         let config = SC::new();
         let machine_deg_9 = B::machine(config);

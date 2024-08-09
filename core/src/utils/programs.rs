@@ -96,6 +96,24 @@ pub mod tests {
     pub const BLS12381_DECOMPRESS_ELF: &[u8] =
         include_bytes!("../../../tests/bls12381-decompress/elf/riscv32im-succinct-zkvm-elf");
 
+    pub const BLS12381_FP_ELF: &[u8] =
+        include_bytes!("../../../tests/bls12381-fp/elf/riscv32im-succinct-zkvm-elf");
+
+    pub const BLS12381_FP2_MUL_ELF: &[u8] =
+        include_bytes!("../../../tests/bls12381-fp2-mul/elf/riscv32im-succinct-zkvm-elf");
+
+    pub const BLS12381_FP2_ADDSUB_ELF: &[u8] =
+        include_bytes!("../../../tests/bls12381-fp2-addsub/elf/riscv32im-succinct-zkvm-elf");
+
+    pub const BN254_FP_ELF: &[u8] =
+        include_bytes!("../../../tests/bn254-fp/elf/riscv32im-succinct-zkvm-elf");
+
+    pub const BN254_FP2_ADDSUB_ELF: &[u8] =
+        include_bytes!("../../../tests/bn254-fp2-addsub/elf/riscv32im-succinct-zkvm-elf");
+
+    pub const BN254_FP2_MUL_ELF: &[u8] =
+        include_bytes!("../../../tests/bn254-fp2-mul/elf/riscv32im-succinct-zkvm-elf");
+
     pub const VERIFY_PROOF_ELF: &[u8] =
         include_bytes!("../../../tests/verify-proof/elf/riscv32im-succinct-zkvm-elf");
 
