@@ -4,11 +4,14 @@ use core::fmt::Display;
 use p3_air::VirtualPairCol;
 use p3_field::Field;
 
+use crate::air::MessageScope;
+
 /// An interaction for a lookup or a permutation argument.
 pub struct Interaction<F: Field> {
     pub values: Vec<VirtualPairCol<F>>,
     pub multiplicity: VirtualPairCol<F>,
     pub kind: InteractionKind,
+    pub scope: MessageScope,
 }
 
 /// The type of interaction for a lookup argument.
@@ -60,11 +63,13 @@ impl<F: Field> Interaction<F> {
         values: Vec<VirtualPairCol<F>>,
         multiplicity: VirtualPairCol<F>,
         kind: InteractionKind,
+        scope: MessageScope,
     ) -> Self {
         Self {
             values,
             multiplicity,
             kind,
+            scope,
         }
     }
 

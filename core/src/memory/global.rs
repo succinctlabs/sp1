@@ -10,7 +10,7 @@ use p3_matrix::Matrix;
 use sp1_derive::AlignedBorrow;
 
 use super::{MemoryChipType, MemoryInitializeFinalizeEvent};
-use crate::air::{AirInteraction, BaseAirBuilder, PublicValues, SP1AirBuilder, Word};
+use crate::air::{AirInteraction, BaseAirBuilder, MessageScope, PublicValues, SP1AirBuilder, Word};
 use crate::air::{MachineAir, SP1_PROOF_NUM_PV_ELTS};
 use crate::operations::{AssertLtColsBits, BabyBearBitDecomposition, IsZeroOperation};
 use crate::runtime::{ExecutionRecord, Program};
@@ -219,11 +219,14 @@ where
         if self.kind == MemoryChipType::Initialize {
             let mut values = vec![AB::Expr::zero(), AB::Expr::zero(), local.addr.into()];
             values.extend(value.map(Into::into));
-            builder.receive(AirInteraction::new(
-                values,
-                local.is_real.into(),
-                crate::lookup::InteractionKind::Memory,
-            ));
+            builder.receive(
+                AirInteraction::new(
+                    values,
+                    local.is_real.into(),
+                    crate::lookup::InteractionKind::Memory,
+                ),
+                MessageScope::Global,
+            );
         } else {
             let mut values = vec![
                 local.shard.into(),
@@ -231,11 +234,14 @@ where
                 local.addr.into(),
             ];
             values.extend(value);
-            builder.send(AirInteraction::new(
-                values,
-                local.is_real.into(),
-                crate::lookup::InteractionKind::Memory,
-            ));
+            builder.send(
+                AirInteraction::new(
+                    values,
+                    local.is_real.into(),
+                    crate::lookup::InteractionKind::Memory,
+                ),
+                MessageScope::Global,
+            );
         }
 
         // Canonically decompose the address into bits so we can do comparisons.

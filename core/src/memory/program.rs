@@ -8,7 +8,9 @@ use p3_matrix::Matrix;
 
 use sp1_derive::AlignedBorrow;
 
-use crate::air::{AirInteraction, PublicValues, SP1AirBuilder, SP1_PROOF_NUM_PV_ELTS};
+use crate::air::{
+    AirInteraction, MessageScope, PublicValues, SP1AirBuilder, SP1_PROOF_NUM_PV_ELTS,
+};
 use crate::air::{MachineAir, Word};
 use crate::operations::IsZeroOperation;
 use crate::runtime::{ExecutionRecord, Program};
@@ -193,10 +195,13 @@ where
 
         let mut values = vec![AB::Expr::zero(), AB::Expr::zero(), prep_local.addr.into()];
         values.extend(prep_local.value.map(Into::into));
-        builder.receive(AirInteraction::new(
-            values,
-            mult_local.multiplicity.into(),
-            crate::lookup::InteractionKind::Memory,
-        ));
+        builder.receive(
+            AirInteraction::new(
+                values,
+                mult_local.multiplicity.into(),
+                crate::lookup::InteractionKind::Memory,
+            ),
+            MessageScope::Global,
+        );
     }
 }

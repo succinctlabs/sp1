@@ -17,18 +17,23 @@ use crate::lookup::InteractionKind;
 use crate::memory::MemoryAccessCols;
 use crate::{bytes::ByteOpcode, memory::MemoryCols};
 
+pub enum MessageScope {
+    Shard,
+    Global,
+}
+
 /// A Builder with the ability to encode the existance of interactions with other AIRs by sending
 /// and receiving messages.
 pub trait MessageBuilder<M> {
-    fn send(&mut self, message: M);
+    fn send(&mut self, message: M, scope: MessageScope);
 
-    fn receive(&mut self, message: M);
+    fn receive(&mut self, message: M, scope: MessageScope);
 }
 
 impl<AB: EmptyMessageBuilder, M> MessageBuilder<M> for AB {
-    fn send(&mut self, _message: M) {}
+    fn send(&mut self, _message: M, _scope: MessageScope) {}
 
-    fn receive(&mut self, _message: M) {}
+    fn receive(&mut self, _message: M, _scope: MessageScope) {}
 }
 
 /// A message builder for which sending and receiving messages is a no-op.
@@ -125,19 +130,22 @@ pub trait ByteAirBuilder: BaseAirBuilder {
         channel: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
-        self.send(AirInteraction::new(
-            vec![
-                opcode.into(),
-                a1.into(),
-                a2.into(),
-                b.into(),
-                c.into(),
-                shard.into(),
-                channel.into(),
-            ],
-            multiplicity.into(),
-            InteractionKind::Byte,
-        ));
+        self.send(
+            AirInteraction::new(
+                vec![
+                    opcode.into(),
+                    a1.into(),
+                    a2.into(),
+                    b.into(),
+                    c.into(),
+                    shard.into(),
+                    channel.into(),
+                ],
+                multiplicity.into(),
+                InteractionKind::Byte,
+            ),
+            MessageScope::Global,
+        );
     }
 
     /// Receives a byte operation to be processed.
@@ -177,19 +185,22 @@ pub trait ByteAirBuilder: BaseAirBuilder {
         channel: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
-        self.receive(AirInteraction::new(
-            vec![
-                opcode.into(),
-                a1.into(),
-                a2.into(),
-                b.into(),
-                c.into(),
-                shard.into(),
-                channel.into(),
-            ],
-            multiplicity.into(),
-            InteractionKind::Byte,
-        ));
+        self.receive(
+            AirInteraction::new(
+                vec![
+                    opcode.into(),
+                    a1.into(),
+                    a2.into(),
+                    b.into(),
+                    c.into(),
+                    shard.into(),
+                    channel.into(),
+                ],
+                multiplicity.into(),
+                InteractionKind::Byte,
+            ),
+            MessageScope::Global,
+        );
     }
 }
 
@@ -325,11 +336,10 @@ pub trait AluAirBuilder: BaseAirBuilder {
             .chain(once(nonce.into()))
             .collect();
 
-        self.send(AirInteraction::new(
-            values,
-            multiplicity.into(),
-            InteractionKind::Alu,
-        ));
+        self.send(
+            AirInteraction::new(values, multiplicity.into(), InteractionKind::Alu),
+            MessageScope::Global,
+        );
     }
 
     /// Receives an ALU operation to be processed.
@@ -354,11 +364,10 @@ pub trait AluAirBuilder: BaseAirBuilder {
             .chain(once(nonce.into()))
             .collect();
 
-        self.receive(AirInteraction::new(
-            values,
-            multiplicity.into(),
-            InteractionKind::Alu,
-        ));
+        self.receive(
+            AirInteraction::new(values, multiplicity.into(), InteractionKind::Alu),
+            MessageScope::Global,
+        );
     }
 
     /// Sends an syscall operation to be processed (with "ECALL" opcode).
@@ -374,19 +383,22 @@ pub trait AluAirBuilder: BaseAirBuilder {
         arg2: impl Into<Self::Expr> + Clone,
         multiplicity: impl Into<Self::Expr>,
     ) {
-        self.send(AirInteraction::new(
-            vec![
-                shard.clone().into(),
-                channel.clone().into(),
-                clk.clone().into(),
-                nonce.clone().into(),
-                syscall_id.clone().into(),
-                arg1.clone().into(),
-                arg2.clone().into(),
-            ],
-            multiplicity.into(),
-            InteractionKind::Syscall,
-        ));
+        self.send(
+            AirInteraction::new(
+                vec![
+                    shard.clone().into(),
+                    channel.clone().into(),
+                    clk.clone().into(),
+                    nonce.clone().into(),
+                    syscall_id.clone().into(),
+                    arg1.clone().into(),
+                    arg2.clone().into(),
+                ],
+                multiplicity.into(),
+                InteractionKind::Syscall,
+            ),
+            MessageScope::Global,
+        );
     }
 
     /// Receives a syscall operation to be processed.
@@ -402,19 +414,22 @@ pub trait AluAirBuilder: BaseAirBuilder {
         arg2: impl Into<Self::Expr> + Clone,
         multiplicity: impl Into<Self::Expr>,
     ) {
-        self.receive(AirInteraction::new(
-            vec![
-                shard.clone().into(),
-                channel.clone().into(),
-                clk.clone().into(),
-                nonce.clone().into(),
-                syscall_id.clone().into(),
-                arg1.clone().into(),
-                arg2.clone().into(),
-            ],
-            multiplicity.into(),
-            InteractionKind::Syscall,
-        ));
+        self.receive(
+            AirInteraction::new(
+                vec![
+                    shard.clone().into(),
+                    channel.clone().into(),
+                    clk.clone().into(),
+                    nonce.clone().into(),
+                    syscall_id.clone().into(),
+                    arg1.clone().into(),
+                    arg2.clone().into(),
+                ],
+                multiplicity.into(),
+                InteractionKind::Syscall,
+            ),
+            MessageScope::Global,
+        );
     }
 }
 
@@ -466,18 +481,16 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
             .collect();
 
         // The previous values get sent with multiplicity = 1, for "read".
-        self.send(AirInteraction::new(
-            prev_values,
-            do_check.clone(),
-            InteractionKind::Memory,
-        ));
+        self.send(
+            AirInteraction::new(prev_values, do_check.clone(), InteractionKind::Memory),
+            MessageScope::Global,
+        );
 
         // The current values get "received", i.e. multiplicity = -1
-        self.receive(AirInteraction::new(
-            current_values,
-            do_check.clone(),
-            InteractionKind::Memory,
-        ));
+        self.receive(
+            AirInteraction::new(current_values, do_check.clone(), InteractionKind::Memory),
+            MessageScope::Global,
+        );
     }
 
     /// Constraints a memory read or write to a slice of `MemoryAccessCols`.
@@ -622,11 +635,10 @@ pub trait ProgramAirBuilder: BaseAirBuilder {
             .chain(once(shard.into()))
             .collect();
 
-        self.send(AirInteraction::new(
-            values,
-            multiplicity.into(),
-            InteractionKind::Program,
-        ));
+        self.send(
+            AirInteraction::new(values, multiplicity.into(), InteractionKind::Program),
+            MessageScope::Global,
+        );
     }
 
     /// Receives an instruction.
@@ -645,11 +657,10 @@ pub trait ProgramAirBuilder: BaseAirBuilder {
             .chain(once(shard.into()))
             .collect();
 
-        self.receive(AirInteraction::new(
-            values,
-            multiplicity.into(),
-            InteractionKind::Program,
-        ));
+        self.receive(
+            AirInteraction::new(values, multiplicity.into(), InteractionKind::Program),
+            MessageScope::Global,
+        );
     }
 }
 
@@ -714,12 +725,12 @@ pub trait SP1AirBuilder:
 }
 
 impl<'a, AB: AirBuilder + MessageBuilder<M>, M> MessageBuilder<M> for FilteredAirBuilder<'a, AB> {
-    fn send(&mut self, message: M) {
-        self.inner.send(message);
+    fn send(&mut self, message: M, scope: MessageScope) {
+        self.inner.send(message, scope);
     }
 
-    fn receive(&mut self, message: M) {
-        self.inner.receive(message);
+    fn receive(&mut self, message: M, scope: MessageScope) {
+        self.inner.receive(message, scope);
     }
 }
 
