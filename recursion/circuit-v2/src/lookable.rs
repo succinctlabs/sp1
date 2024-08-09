@@ -1,3 +1,5 @@
+use std::borrow::Borrow;
+
 use p3_field::AbstractExtensionField;
 
 use p3_fri::{CommitPhaseProofStep, QueryProof};
@@ -290,7 +292,7 @@ impl Lookable<C> for InnerFriProof {
             .commit_phase_commits
             .iter()
             .map(|commit| {
-                let commit: InnerDigest = (*commit).into();
+                let commit: &InnerDigest = commit.borrow();
                 commit.read(builder)
             })
             .collect();
@@ -310,8 +312,8 @@ impl Lookable<C> for InnerFriProof {
             self.commit_phase_commits
                 .iter()
                 .flat_map(|commit| {
-                    let commit: InnerDigest = (*commit).into();
-                    Lookable::<C>::write(&commit)
+                    let commit = Borrow::<InnerDigest>::borrow(commit);
+                    Lookable::<C>::write(commit)
                 })
                 .collect(),
             self.query_proofs.write(),

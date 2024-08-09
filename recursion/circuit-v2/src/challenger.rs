@@ -261,8 +261,9 @@ pub(crate) mod tests {
         let config = SC::default();
 
         let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
-        runtime.run().unwrap();
         runtime.witness_stream.extend(witness_stream);
+        runtime.run().unwrap();
+        assert!(runtime.witness_stream.is_empty());
 
         let records = vec![runtime.record];
 
