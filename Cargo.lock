@@ -4976,6 +4976,7 @@ dependencies = [
  "size",
  "snowbridge-amcl",
  "sp1-derive",
+ "sp1-lib",
  "sp1-primitives",
  "sp1-zkvm",
  "static_assertions",

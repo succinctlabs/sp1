@@ -75,6 +75,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
 
         let mut rows =
             Vec::<[F; NUM_MEMORY_LOCAL_INIT_COLS]>::with_capacity(local_memory_accesses.len());
+
         for (addr, mem_access) in local_memory_accesses.iter() {
             let mut row = [F::zero(); NUM_MEMORY_LOCAL_INIT_COLS];
             let cols: &mut MemoryLocalInitCols<F> = row.as_mut_slice().borrow_mut();
@@ -129,7 +130,7 @@ mod tests {
         let program = simple_program();
         let mut runtime = Runtime::new(program, SP1CoreOpts::default());
         runtime.run().unwrap();
-        let shard = runtime.record.clone();
+        let shard = runtime.records[0].clone();
 
         let chip: MemoryLocalChip = MemoryLocalChip::new(MemoryChipType::Initialize);
 
