@@ -101,7 +101,6 @@ where
         let mut trace_domains = Vec::new();
         let mut quotient_domains = Vec::new();
 
-        let mut prep_mats: Vec<TwoAdicPcsMatsVariable<_>> = Vec::new();
         let mut main_mats: Vec<TwoAdicPcsMatsVariable<_>> = Vec::new();
         let mut perm_mats: Vec<TwoAdicPcsMatsVariable<_>> = Vec::new();
 
@@ -109,45 +108,46 @@ where
 
         let qc_points = vec![zeta];
 
-        for (name, domain, _) in vk.chip_information.iter() {
-            let chip_idx = machine
-                .chips()
-                .iter()
-                .rposition(|chip| &chip.name() == name)
-                .unwrap();
-            let index = sorted_indices[chip_idx];
-            let opening = &opened_values.chips[index];
+        let prep_mats: Vec<TwoAdicPcsMatsVariable<_>> = vk
+            .chip_information
+            .iter()
+            .map(|(name, domain, _)| {
+                let chip_idx = machine
+                    .chips()
+                    .iter()
+                    .rposition(|chip| &chip.name() == name)
+                    .unwrap();
+                let index = sorted_indices[chip_idx];
+                let opening = &opened_values.chips[index];
 
-            let domain_var: TwoAdicMultiplicativeCosetVariable<_> = builder.constant(*domain);
+                let domain_var: TwoAdicMultiplicativeCosetVariable<_> = builder.constant(*domain);
 
-            let mut trace_points = Vec::new();
-            let zeta_next = domain_var.next_point(builder, zeta);
+                let mut trace_points = Vec::new();
+                let zeta_next = domain_var.next_point(builder, zeta);
 
-            trace_points.push(zeta);
-            trace_points.push(zeta_next);
+                trace_points.push(zeta);
+                trace_points.push(zeta_next);
 
-            let prep_values = vec![
-                opening.preprocessed.local.clone(),
-                opening.preprocessed.next.clone(),
-            ];
-            let prep_mat = TwoAdicPcsMatsVariable::<C> {
-                domain: *domain,
-                points: trace_points.clone(),
-                values: prep_values,
-            };
-            prep_mats.push(prep_mat);
-        }
+                let prep_values = vec![
+                    opening.preprocessed.local.clone(),
+                    opening.preprocessed.next.clone(),
+                ];
+                TwoAdicPcsMatsVariable::<C> {
+                    domain: *domain,
+                    points: trace_points.clone(),
+                    values: prep_values,
+                }
+            })
+            .collect::<Vec<_>>();
 
-        for i in 0..num_shard_chips {
+        (0..num_shard_chips).for_each(|i| {
             let opening = &opened_values.chips[i];
             let log_quotient_degree = chip_quotient_data[i].log_quotient_degree;
             let domain = new_coset(builder, opening.log_degree);
-            trace_domains.push(domain.clone());
 
             let log_quotient_size = opening.log_degree + log_quotient_degree;
             let quotient_domain =
                 domain.create_disjoint_domain(builder, Usize::Const(log_quotient_size), None);
-            quotient_domains.push(quotient_domain.clone());
 
             let mut trace_points = Vec::new();
             let zeta_next = domain.next_point(builder, zeta);
@@ -163,7 +163,6 @@ where
                 values: main_values,
                 points: trace_points.clone(),
             };
-            main_mats.push(main_mat);
 
             let perm_values = vec![
                 opening.permutation.local.clone(),
@@ -177,23 +176,26 @@ where
                 values: perm_values,
                 points: trace_points,
             };
-            perm_mats.push(perm_mat);
 
-            let qc_domains = quotient_domain.split_domains_const(builder, log_quotient_degree);
-            for (j, qc_dom) in qc_domains.into_iter().enumerate() {
-                let qc_vals_array = opening.quotient[j].clone();
-                let qc_values = vec![qc_vals_array];
-                let qc_mat = TwoAdicPcsMatsVariable::<C> {
+            let qc_mats = quotient_domain
+                .split_domains_const(builder, log_quotient_degree)
+                .into_iter()
+                .enumerate()
+                .map(|(j, qc_dom)| TwoAdicPcsMatsVariable::<C> {
                     domain: TwoAdicMultiplicativeCoset {
                         log_n: qc_dom.clone().log_n,
                         shift: qc_dom.clone().shift,
                     },
-                    values: qc_values,
+                    values: vec![opening.quotient[j].clone()],
                     points: qc_points.clone(),
-                };
-                quotient_mats.push(qc_mat);
-            }
-        }
+                });
+
+            trace_domains.push(domain.clone());
+            quotient_domains.push(quotient_domain.clone());
+            main_mats.push(main_mat);
+            perm_mats.push(perm_mat);
+            quotient_mats.extend(qc_mats);
+        });
 
         let mut rounds = Vec::new();
         let prep_commit_val: [Bn254Fr; 1] = vk.commit.clone().into();

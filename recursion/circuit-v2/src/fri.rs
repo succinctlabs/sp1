@@ -655,7 +655,7 @@ mod tests {
             );
         }
 
-        run_test_recursion(builder.operations);
+        run_test_recursion(builder.operations, None);
     }
 
     #[test]
@@ -725,7 +725,7 @@ mod tests {
         builder.assert_ext_eq(x1, x2);
         verify_two_adic_pcs(&mut builder, &config, &proof, &mut challenger, rounds);
 
-        run_test_recursion(builder.operations);
+        run_test_recursion(builder.operations, std::iter::empty());
         // let mut backend = ConstraintCompiler::<InnerConfig>::default();
         // let constraints = backend.emit(builder.operations);
         // PlonkBn254Prover::test::<InnerConfig>(constraints.clone(), Witness::default());
