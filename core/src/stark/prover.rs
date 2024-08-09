@@ -305,12 +305,13 @@ where
             let total_width = trace_width
                 + permutation_width * <SC::Challenge as AbstractExtensionField<SC::Val>>::D;
             tracing::debug!(
-                "{:<15} | Main Cols = {:<5} | Perm Cols = {:<5} | Rows = {:<5} | Cells = {:<10}",
+                "{:<15} | Main Cols = {:<5} | Perm Cols = {:<5} | Rows = {:<5} | Non Perm Cells = {:<10} | Total Cells = {:<10}",
                 chips[i].name(),
                 trace_width,
                 permutation_width * <SC::Challenge as AbstractExtensionField<SC::Val>>::D,
                 traces[i].height(),
-                total_width * traces[i].height(),
+                trace_width * traces[i].height(),
+                total_width * traces[i].height()
             );
         }
 
@@ -558,8 +559,11 @@ where
 
         // Generate and commit the traces for each shard.
         let shard_data = records
-            .into_par_iter()
-            .map(|record| {
+            // .into_par_iter()
+            .into_iter()
+            .enumerate()
+            .map(|(shard, record)| {
+                println!("generating traces for shard {}", shard);
                 let named_traces = self.generate_traces(&record);
                 self.commit(record, named_traces)
             })

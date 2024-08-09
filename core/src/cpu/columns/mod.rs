@@ -65,9 +65,13 @@ pub struct CpuCols<T: Copy> {
     pub selectors: OpcodeSelectorCols<T>,
 
     /// Operand values, either from registers or immediate values.
-    pub op_a_access: MemoryReadWriteCols<T>,
-    pub op_b_access: MemoryReadCols<T>,
-    pub op_c_access: MemoryReadCols<T>,
+    // pub op_a_access: MemoryReadWriteCols<T>,
+    // pub op_b_access: MemoryReadCols<T>,
+    // pub op_c_access: MemoryReadCols<T>,
+    pub op_a_value: Word<T>,
+    pub op_a_prev_value: Word<T>,
+    pub op_b_value: Word<T>,
+    pub op_c_value: Word<T>,
 
     pub opcode_specific_columns: OpcodeSpecificCols<T>,
 
@@ -115,17 +119,20 @@ pub struct CpuCols<T: Copy> {
 impl<T: Copy> CpuCols<T> {
     /// Gets the value of the first operand.
     pub fn op_a_val(&self) -> Word<T> {
-        *self.op_a_access.value()
+        // *self.op_a_access.value()
+        self.op_a_value
     }
 
     /// Gets the value of the second operand.
     pub fn op_b_val(&self) -> Word<T> {
-        *self.op_b_access.value()
+        // *self.op_b_access.value()
+        self.op_b_value
     }
 
     /// Gets the value of the third operand.
     pub fn op_c_val(&self) -> Word<T> {
-        *self.op_c_access.value()
+        // *self.op_c_access.value()
+        self.op_c_value
     }
 }
 

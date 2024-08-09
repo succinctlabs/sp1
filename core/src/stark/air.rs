@@ -1,7 +1,7 @@
 use super::StarkMachine;
 pub use crate::air::SP1AirBuilder;
 use crate::air::{MachineAir, SP1_PROOF_NUM_PV_ELTS};
-use crate::memory::{MemoryChipType, MemoryProgramChip};
+use crate::memory::{MemoryChipType, MemoryLocalChip, MemoryProgramChip};
 use crate::stark::Chip;
 use crate::StarkGenericConfig;
 use p3_field::PrimeField32;
@@ -71,6 +71,8 @@ pub enum RiscvAir<F: PrimeField32> {
     MemoryFinal(MemoryChip),
     /// A table for initializing the program memory.
     ProgramMemory(MemoryProgramChip),
+    /// A table for local memory.
+    MemoryLocal(MemoryLocalChip),
     /// A precompile for sha256 extend.
     Sha256Extend(ShaExtendChip),
     /// A precompile for sha256 compress.
@@ -171,6 +173,8 @@ impl<F: PrimeField32> RiscvAir<F> {
         chips.push(RiscvAir::MemoryFinal(memory_finalize));
         let program_memory_init = MemoryProgramChip::new();
         chips.push(RiscvAir::ProgramMemory(program_memory_init));
+        let memory_local = MemoryLocalChip::default();
+        chips.push(RiscvAir::MemoryLocal(memory_local));
         let byte = ByteChip::default();
         chips.push(RiscvAir::ByteLookup(byte));
 

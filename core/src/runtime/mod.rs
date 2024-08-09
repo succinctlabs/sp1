@@ -44,6 +44,7 @@ use crate::alu::create_alu_lookup_id;
 use crate::alu::create_alu_lookups;
 use crate::bytes::NUM_BYTE_LOOKUP_CHANNELS;
 use crate::memory::MemoryInitializeFinalizeEvent;
+use crate::memory::MemoryLocalEvent;
 use crate::utils::SP1CoreOpts;
 use crate::{alu::AluEvent, cpu::CpuEvent};
 
@@ -316,8 +317,23 @@ impl<'a> Runtime<'a> {
         record.shard = shard;
         record.timestamp = timestamp;
 
-        // Construct the memory read record.
-        MemoryReadRecord::new(value, shard, timestamp, prev_shard, prev_timestamp)
+        let mrr = MemoryReadRecord::new(value, shard, timestamp, prev_shard, prev_timestamp);
+
+        self.record.memory_records.push(MemoryLocalEvent {
+            addr,
+            mem_record: MemoryRecordEnum::Read(mrr),
+        });
+
+        self.record
+            .shard_first_mem_access
+            .entry(addr)
+            .or_insert(MemoryRecordEnum::Read(mrr));
+
+        self.record
+            .shard_last_mem_access
+            .insert(addr, MemoryRecordEnum::Read(mrr));
+
+        mrr
     }
 
     /// Write a word to memory and create an access record.
@@ -361,14 +377,30 @@ impl<'a> Runtime<'a> {
         record.timestamp = timestamp;
 
         // Construct the memory write record.
-        MemoryWriteRecord::new(
+        let mwr = MemoryWriteRecord::new(
             value,
             shard,
             timestamp,
             prev_value,
             prev_shard,
             prev_timestamp,
-        )
+        );
+
+        self.record.memory_records.push(MemoryLocalEvent {
+            addr,
+            mem_record: MemoryRecordEnum::Write(mwr),
+        });
+
+        self.record
+            .shard_first_mem_access
+            .entry(addr)
+            .or_insert(MemoryRecordEnum::Write(mwr));
+
+        self.record
+            .shard_last_mem_access
+            .insert(addr, MemoryRecordEnum::Write(mwr));
+
+        mwr
     }
 
     /// Read from memory, assuming that all addresses are aligned.
@@ -1132,6 +1164,11 @@ impl<'a> Runtime<'a> {
     /// Executes up to `self.shard_batch_size` cycles of the program, returning whether the program has finished.
     fn execute(&mut self) -> Result<bool, ExecutionError> {
         // Get the program.
+        println!(
+            "Calling execute with shard_batch_size of {}",
+            self.shard_batch_size
+        );
+
         let program = self.program.clone();
 
         // Get the current shard.
@@ -1146,6 +1183,7 @@ impl<'a> Runtime<'a> {
         let mut done = false;
         let mut current_shard = self.state.current_shard;
         let mut num_shards_executed = 0;
+
         loop {
             if self.execute_cycle()? {
                 done = true;
