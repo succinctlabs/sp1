@@ -109,7 +109,7 @@ pub struct Runtime<'a, F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
     /// The execution record.
     pub record: ExecutionRecord<F>,
 
-    pub witness_stream: VecDeque<Vec<Block<F>>>,
+    pub witness_stream: VecDeque<Block<F>>,
 
     pub cycle_tracker: HashMap<String, CycleTrackerEntry>,
 
@@ -160,11 +160,6 @@ pub enum RuntimeError<F: Debug, EF: Debug> {
     DebugPrint(#[from] std::io::Error),
     #[error("attempted to read from empty witness stream")]
     EmptyWitnessStream,
-    #[error("attempted to write to memory vec of len {mem_vec_len} witness of size {witness_len}")]
-    WitnessLenMismatch {
-        mem_vec_len: usize,
-        witness_len: usize,
-    },
 }
 
 impl<'a, F: PrimeField32, EF: ExtensionField<F>, Diffusion> Runtime<'a, F, EF, Diffusion>
@@ -569,19 +564,19 @@ where
                     }
                 }
                 Instruction::Hint(HintInstr { output_addrs_mults }) => {
-                    let witness = self
-                        .witness_stream
-                        .pop_front()
-                        .ok_or(RuntimeError::EmptyWitnessStream)?;
-                    // Check the lengths are the same.
-                    if output_addrs_mults.len() != witness.len() {
-                        return Err(RuntimeError::WitnessLenMismatch {
-                            mem_vec_len: output_addrs_mults.len(),
-                            witness_len: witness.len(),
-                        });
+                    // Check that enough Blocks can be read, so `drain` does not panic.
+                    if self.witness_stream.len() < output_addrs_mults.len() {
+                        return Err(RuntimeError::EmptyWitnessStream);
                     }
+                    let witness = self.witness_stream.drain(0..output_addrs_mults.len());
                     for ((addr, mult), val) in zip(output_addrs_mults, witness) {
-                        self.mw(addr, val, mult);
+                        // Inline [`Self::mw`] to mutably borrow multiple fields of `self`.
+                        match self.memory.entry(addr) {
+                            Entry::Occupied(entry) => {
+                                panic!("tried to write to assigned address: {entry:?}")
+                            }
+                            Entry::Vacant(entry) => drop(entry.insert(MemoryEntry { val, mult })),
+                        }
                         self.record.mem_var_events.push(MemEvent { inner: val });
                     }
                 }

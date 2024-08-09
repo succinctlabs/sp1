@@ -155,6 +155,7 @@ mod tests {
             vec![F::one().into()],
             vec![F::zero().into()],
         ]
+        .concat()
         .into();
         runtime.run().unwrap();
 
@@ -185,36 +186,12 @@ mod tests {
         let mut compiler = AsmCompiler::default();
         let program = compiler.compile(operations);
         let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program, SC::new().perm);
-        runtime.witness_stream = [vec![F::one().into(), F::one().into(), F::two().into()]].into();
+        runtime.witness_stream = [vec![F::one().into(), F::one().into(), F::two().into()]]
+            .concat()
+            .into();
 
         match runtime.run() {
             Err(RuntimeError::EmptyWitnessStream) => (),
-            Ok(_) => panic!("should not succeed"),
-            Err(x) => panic!("should not yield error variant: {}", x),
-        }
-    }
-
-    #[test]
-    fn test_mismatched_witness_size() {
-        const MEM_VEC_LEN: usize = 3;
-        const WITNESS_LEN: usize = 5;
-
-        let mut builder = AsmBuilder::<F, EF>::default();
-
-        let felts = builder.hint_felts_v2(MEM_VEC_LEN);
-        assert_eq!(felts.len(), MEM_VEC_LEN);
-
-        let operations = builder.operations;
-        let mut compiler = AsmCompiler::default();
-        let program = compiler.compile(operations);
-        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program, SC::new().perm);
-        runtime.witness_stream = [vec![F::zero().into(); WITNESS_LEN]].into();
-
-        match runtime.run() {
-            Err(RuntimeError::WitnessLenMismatch {
-                mem_vec_len: MEM_VEC_LEN,
-                witness_len: WITNESS_LEN,
-            }) => (),
             Ok(_) => panic!("should not succeed"),
             Err(x) => panic!("should not yield error variant: {}", x),
         }

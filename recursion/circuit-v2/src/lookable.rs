@@ -27,7 +27,7 @@ use crate::{
     TwoAdicPcsProofVariable,
 };
 
-pub type Witness<C> = Vec<Block<<C as Config>::F>>;
+pub type Witness<C> = Block<<C as Config>::F>;
 
 /// TODO change the name. For now, the name is unique to prevent confusion.
 pub trait Lookable<C: Config> {
@@ -48,7 +48,7 @@ impl<C: Config<F = InnerVal>> Lookable<C> for InnerVal {
     }
 
     fn write(&self) -> Vec<Witness<C>> {
-        vec![vec![Block::from(*self)]]
+        vec![Block::from(*self)]
     }
 }
 
@@ -60,7 +60,7 @@ impl<C: Config<F = InnerVal>, const N: usize> Lookable<C> for [InnerVal; N] {
     }
 
     fn write(&self) -> Vec<Witness<C>> {
-        vec![self.iter().map(|x| Block::from(*x)).collect()]
+        self.iter().map(|x| Block::from(*x)).collect()
     }
 }
 
@@ -72,7 +72,7 @@ impl<C: Config<F = InnerVal, EF = InnerChallenge>> Lookable<C> for InnerChalleng
     }
 
     fn write(&self) -> Vec<Witness<C>> {
-        vec![vec![Block::from(self.as_base_slice())]]
+        vec![Block::from(self.as_base_slice())]
     }
 }
 
@@ -86,10 +86,9 @@ impl<C: Config<F = InnerVal, EF = InnerChallenge>, const N: usize> Lookable<C>
     }
 
     fn write(&self) -> Vec<Witness<C>> {
-        vec![self
-            .iter()
+        self.iter()
             .map(|x| Block::from(x.as_base_slice()))
-            .collect()]
+            .collect()
     }
 }
 
