@@ -1,6 +1,6 @@
 use std::{borrow::BorrowMut, mem::size_of};
 
-use p3_air::BaseAir;
+use p3_air::{Air, BaseAir};
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use sp1_derive::AlignedBorrow;
@@ -8,6 +8,7 @@ use sp1_derive::AlignedBorrow;
 use crate::{
     air::{MachineAir, Word},
     runtime::{ExecutionRecord, Program},
+    stark::SP1AirBuilder,
     utils::pad_to_power_of_two,
 };
 
@@ -102,4 +103,11 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
             MemoryChipType::Finalize => !shard.local_memory_finalize_access.is_empty(),
         }
     }
+}
+
+impl<AB> Air<AB> for MemoryLocalChip
+where
+    AB: SP1AirBuilder,
+{
+    fn eval(&self, builder: &mut AB) {}
 }
