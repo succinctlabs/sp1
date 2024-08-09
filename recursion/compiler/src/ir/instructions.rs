@@ -191,6 +191,8 @@ pub enum DslIr<C: Config> {
     CircuitNum2BitsV(Var<C::N>, usize, Vec<Var<C::N>>),
     /// Decompose a field element into bits (bits = num2bits(felt)). Should only be used when target is a gnark circuit.
     CircuitNum2BitsF(Felt<C::F>, Vec<Var<C::N>>),
+    /// Convert a Felt to a Var in a circuit. Avoids decomposing to bits and then reconstructing.
+    CircuitFelt2Var(Felt<C::F>, Var<C::N>),
 
     // Hashing.
     /// Permutes an array of baby bear elements using Poseidon2 (output = p2_permute(array)).

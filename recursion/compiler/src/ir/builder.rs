@@ -519,6 +519,12 @@ impl<C: Config> Builder<C> {
         self.operations.push(DslIr::ReduceE(ext));
     }
 
+    pub fn felt2var_circuit(&mut self, felt: Felt<C::F>) -> Var<C::N> {
+        let var = self.uninit();
+        self.operations.push(DslIr::CircuitFelt2Var(felt, var));
+        var
+    }
+
     pub fn cycle_tracker(&mut self, name: &str) {
         self.operations.push(DslIr::CycleTracker(name.to_string()));
     }
