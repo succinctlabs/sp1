@@ -3,12 +3,9 @@ use std::iter::zip;
 use p3_air::Air;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::TwoAdicField;
-use serde::Deserialize;
-use serde::Serialize;
 
 use sp1_core::air::MachineAir;
 use sp1_core::stark::Com;
-use sp1_core::stark::ShardCommitment;
 use sp1_core::stark::ShardProof;
 use sp1_core::stark::StarkGenericConfig;
 use sp1_core::stark::StarkMachine;
@@ -25,10 +22,11 @@ use sp1_recursion_program::{
     commit::PolynomialSpaceVariable, stark::RecursiveVerifierConstraintFolder,
     types::QuotientDataValues,
 };
+use utils::get_chip_quotient_data;
+use utils::get_sorted_indices;
 
 use crate::challenger::*;
 use crate::domain::*;
-use crate::lookable::*;
 use crate::*;
 // use crate::commit::PolynomialSpaceVariable;
 // use crate::fri::types::TwoAdicPcsMatsVariable;
@@ -50,6 +48,13 @@ pub struct ShardProofVariable<C: Config> {
     pub quotient_data: Vec<QuotientDataValues>,
     pub sorted_idxs: Vec<usize>,
 }
+
+// #[derive(Clone)]
+// pub struct ShardProofData<C: Config> {
+//     pub variables: ShardProofVariable<C>,
+//     pub quotient_data: Vec<QuotientDataValues>,
+//     pub sorted_idxs: Vec<usize>,
+// }
 
 /// Reference: [sp1_core::stark::ShardCommitment]
 #[derive(Debug, Clone)]
@@ -121,11 +126,18 @@ pub struct StarkVerifier<C: Config, SC: StarkGenericConfig> {
 pub struct ShardProofHint<'a, SC: StarkGenericConfig, A> {
     pub machine: &'a StarkMachine<SC, A>,
     pub proof: &'a ShardProof<SC>,
+    pub quotient_data: Vec<QuotientDataValues>,
+    pub sorted_idxs: Vec<usize>,
 }
 
 impl<'a, SC: StarkGenericConfig, A: MachineAir<SC::Val>> ShardProofHint<'a, SC, A> {
-    pub const fn new(machine: &'a StarkMachine<SC, A>, proof: &'a ShardProof<SC>) -> Self {
-        Self { machine, proof }
+    pub fn new(machine: &'a StarkMachine<SC, A>, proof: &'a ShardProof<SC>) -> Self {
+        Self {
+            machine,
+            proof,
+            quotient_data: get_chip_quotient_data(machine, proof),
+            sorted_idxs: get_sorted_indices(machine, proof),
+        }
     }
 }
 
@@ -413,20 +425,13 @@ where
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::borrow::BorrowMut;
     use std::collections::VecDeque;
-    use std::time::Instant;
 
     use crate::challenger::CanObserveVariable;
     use p3_challenger::{CanObserve, FieldChallenger};
-    use p3_field::AbstractField;
-    use rand::Rng;
-    use sp1_core::air::POSEIDON_NUM_WORDS;
     use sp1_core::io::SP1Stdin;
     use sp1_core::runtime::Program;
     use sp1_core::stark::CpuProver;
-    use sp1_core::stark::MachineProver;
-    use sp1_core::utils::setup_logger;
     use sp1_core::utils::InnerChallenge;
     use sp1_core::utils::InnerVal;
     use sp1_core::utils::SP1CoreOpts;
@@ -435,29 +440,15 @@ pub(crate) mod tests {
         utils::BabyBearPoseidon2,
     };
     use sp1_recursion_compiler::config::InnerConfig;
-    use sp1_recursion_compiler::ir::{Config, Ext, Felt, FromConstant};
-    use sp1_recursion_compiler::prelude::Usize;
-    use sp1_recursion_compiler::{
-        asm::AsmBuilder,
-        ir::{Builder, ExtConst},
-    };
+    use sp1_recursion_compiler::ir::{Builder, ExtConst};
 
-    use sp1_recursion_core::air::RecursionPublicValues;
-    use sp1_recursion_core::air::RECURSION_PUBLIC_VALUES_COL_MAP;
-    use sp1_recursion_core::air::RECURSIVE_PROOF_NUM_PV_ELTS;
-    use sp1_recursion_core::runtime::RecursionProgram;
-    use sp1_recursion_core::runtime::Runtime;
     use sp1_recursion_core::runtime::DIGEST_SIZE;
-
-    use sp1_recursion_core::stark::utils::TestConfig;
-    use sp1_recursion_core::stark::RecursionAir;
-    use sp1_recursion_program::machine::commit_public_values;
 
     use super::*;
     use crate::challenger::tests::run_test_recursion;
+    use crate::lookable::*;
 
     type SC = BabyBearPoseidon2;
-    type Challenge = <SC as StarkGenericConfig>::Challenge;
     type F = InnerVal;
     type EF = InnerChallenge;
     type C = InnerConfig;
@@ -497,8 +488,8 @@ pub(crate) mod tests {
         let mut builder = Builder::<InnerConfig>::default();
 
         // Add a hash invocation, since the poseidon2 table expects that it's in the first row.
-        let hash_input = builder.constant(vec![vec![F::one()]]);
-        builder.poseidon2_hash_x(&hash_input);
+        // let hash_input = vec![builder.constant(F::one())];
+        // builder.poseidon2_hash_v2(&hash_input);
 
         let mut challenger = DuplexChallengerVariable::new(&mut builder);
 

@@ -218,8 +218,6 @@ impl<C: Config> FeltChallenger<C> for DuplexChallengerVariable<C> {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::collections::VecDeque;
-
     use p3_challenger::CanObserve;
     use p3_challenger::CanSample;
     use p3_challenger::FieldChallenger;

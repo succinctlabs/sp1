@@ -8,7 +8,7 @@ use sp1_core::{
     },
     utils::{
         BabyBearPoseidon2, InnerBatchOpening, InnerChallenge, InnerChallengeMmcs, InnerDigest,
-        InnerDigestHash, InnerFriProof, InnerPcsProof, InnerVal, DIGEST_SIZE,
+        InnerDigestHash, InnerFriProof, InnerPcsProof, InnerVal,
     },
 };
 use sp1_recursion_compiler::{
@@ -23,7 +23,6 @@ use crate::{
         AirOpenedValuesVariable, ChipOpenedValuesVariable, ShardCommitmentVariable,
         ShardOpenedValuesVariable, ShardProofHint, ShardProofVariable,
     },
-    utils::{get_chip_quotient_data, get_sorted_indices},
     BatchOpeningVariable, FriCommitPhaseProofStepVariable, FriProofVariable, FriQueryProofVariable,
     TwoAdicPcsProofVariable,
 };
@@ -125,8 +124,9 @@ where
         let opened_values = self.proof.opened_values.read(builder);
         let opening_proof = self.proof.opening_proof.read(builder);
         let public_values = self.proof.public_values.read(builder);
-        let quotient_data = Vec::<QuotientDataValues>::read(builder);
-        let sorted_idxs = todo!();
+        // Hopefully these clones are cheap...
+        let quotient_data = self.quotient_data.clone();
+        let sorted_idxs = self.sorted_idxs.clone();
         ShardProofVariable {
             commitment,
             opened_values,
@@ -138,16 +138,11 @@ where
     }
 
     fn write(&self) -> Vec<Witness<C>> {
-        let quotient_data = get_chip_quotient_data(self.machine, self.proof);
-        let sorted_idxs = get_sorted_indices(self.machine, self.proof);
-
         [
             self.proof.commitment.write(),
             self.proof.opened_values.write(),
             self.proof.opening_proof.write(),
             Lookable::<C>::write(&self.proof.public_values),
-            quotient_data.write(),
-            sorted_indices.write(),
         ]
         .concat()
     }

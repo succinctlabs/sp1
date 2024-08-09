@@ -368,7 +368,10 @@ impl<C: Config> AsmCompiler<C> {
         .into()
     }
 
-    pub fn compile_one<F>(&mut self, ir_instr: DslIr<C>) -> Vec<CompileOneItem<C::F>>
+    pub fn compile_one<F>(
+        &mut self,
+        ir_instr: DslIr<C>,
+    ) -> Result<Vec<CompileOneItem<C::F>>, Box<DslIr<C>>>
     where
         F: PrimeField + TwoAdicField,
         C: Config<N = F, F = F> + Debug,
@@ -378,95 +381,95 @@ impl<C: Config> AsmCompiler<C> {
         use ExtAluOpcode::*;
 
         match ir_instr {
-            DslIr::ImmV(dst, src) => vec![self.mem_write_const(dst, Imm::F(src))],
-            DslIr::ImmF(dst, src) => vec![self.mem_write_const(dst, Imm::F(src))],
-            DslIr::ImmE(dst, src) => vec![self.mem_write_const(dst, Imm::EF(src))],
+            DslIr::ImmV(dst, src) => Ok(vec![self.mem_write_const(dst, Imm::F(src))]),
+            DslIr::ImmF(dst, src) => Ok(vec![self.mem_write_const(dst, Imm::F(src))]),
+            DslIr::ImmE(dst, src) => Ok(vec![self.mem_write_const(dst, Imm::EF(src))]),
 
-            DslIr::AddV(dst, lhs, rhs) => vec![self.base_alu(AddF, dst, lhs, rhs)],
-            DslIr::AddVI(dst, lhs, rhs) => vec![self.base_alu(AddF, dst, lhs, Imm::F(rhs))],
-            DslIr::AddF(dst, lhs, rhs) => vec![self.base_alu(AddF, dst, lhs, rhs)],
-            DslIr::AddFI(dst, lhs, rhs) => vec![self.base_alu(AddF, dst, lhs, Imm::F(rhs))],
-            DslIr::AddE(dst, lhs, rhs) => vec![self.ext_alu(AddE, dst, lhs, rhs)],
-            DslIr::AddEI(dst, lhs, rhs) => vec![self.ext_alu(AddE, dst, lhs, Imm::EF(rhs))],
-            DslIr::AddEF(dst, lhs, rhs) => vec![self.ext_alu(AddE, dst, lhs, rhs)],
-            DslIr::AddEFI(dst, lhs, rhs) => vec![self.ext_alu(AddE, dst, lhs, Imm::F(rhs))],
-            DslIr::AddEFFI(dst, lhs, rhs) => vec![self.ext_alu(AddE, dst, lhs, Imm::EF(rhs))],
+            DslIr::AddV(dst, lhs, rhs) => Ok(vec![self.base_alu(AddF, dst, lhs, rhs)]),
+            DslIr::AddVI(dst, lhs, rhs) => Ok(vec![self.base_alu(AddF, dst, lhs, Imm::F(rhs))]),
+            DslIr::AddF(dst, lhs, rhs) => Ok(vec![self.base_alu(AddF, dst, lhs, rhs)]),
+            DslIr::AddFI(dst, lhs, rhs) => Ok(vec![self.base_alu(AddF, dst, lhs, Imm::F(rhs))]),
+            DslIr::AddE(dst, lhs, rhs) => Ok(vec![self.ext_alu(AddE, dst, lhs, rhs)]),
+            DslIr::AddEI(dst, lhs, rhs) => Ok(vec![self.ext_alu(AddE, dst, lhs, Imm::EF(rhs))]),
+            DslIr::AddEF(dst, lhs, rhs) => Ok(vec![self.ext_alu(AddE, dst, lhs, rhs)]),
+            DslIr::AddEFI(dst, lhs, rhs) => Ok(vec![self.ext_alu(AddE, dst, lhs, Imm::F(rhs))]),
+            DslIr::AddEFFI(dst, lhs, rhs) => Ok(vec![self.ext_alu(AddE, dst, lhs, Imm::EF(rhs))]),
 
-            DslIr::SubV(dst, lhs, rhs) => vec![self.base_alu(SubF, dst, lhs, rhs)],
-            DslIr::SubVI(dst, lhs, rhs) => vec![self.base_alu(SubF, dst, lhs, Imm::F(rhs))],
-            DslIr::SubVIN(dst, lhs, rhs) => vec![self.base_alu(SubF, dst, Imm::F(lhs), rhs)],
-            DslIr::SubF(dst, lhs, rhs) => vec![self.base_alu(SubF, dst, lhs, rhs)],
-            DslIr::SubFI(dst, lhs, rhs) => vec![self.base_alu(SubF, dst, lhs, Imm::F(rhs))],
-            DslIr::SubFIN(dst, lhs, rhs) => vec![self.base_alu(SubF, dst, Imm::F(lhs), rhs)],
-            DslIr::SubE(dst, lhs, rhs) => vec![self.ext_alu(SubE, dst, lhs, rhs)],
-            DslIr::SubEI(dst, lhs, rhs) => vec![self.ext_alu(SubE, dst, lhs, Imm::EF(rhs))],
-            DslIr::SubEIN(dst, lhs, rhs) => vec![self.ext_alu(SubE, dst, Imm::EF(lhs), rhs)],
-            DslIr::SubEFI(dst, lhs, rhs) => vec![self.ext_alu(SubE, dst, lhs, Imm::F(rhs))],
-            DslIr::SubEF(dst, lhs, rhs) => vec![self.ext_alu(SubE, dst, lhs, rhs)],
+            DslIr::SubV(dst, lhs, rhs) => Ok(vec![self.base_alu(SubF, dst, lhs, rhs)]),
+            DslIr::SubVI(dst, lhs, rhs) => Ok(vec![self.base_alu(SubF, dst, lhs, Imm::F(rhs))]),
+            DslIr::SubVIN(dst, lhs, rhs) => Ok(vec![self.base_alu(SubF, dst, Imm::F(lhs), rhs)]),
+            DslIr::SubF(dst, lhs, rhs) => Ok(vec![self.base_alu(SubF, dst, lhs, rhs)]),
+            DslIr::SubFI(dst, lhs, rhs) => Ok(vec![self.base_alu(SubF, dst, lhs, Imm::F(rhs))]),
+            DslIr::SubFIN(dst, lhs, rhs) => Ok(vec![self.base_alu(SubF, dst, Imm::F(lhs), rhs)]),
+            DslIr::SubE(dst, lhs, rhs) => Ok(vec![self.ext_alu(SubE, dst, lhs, rhs)]),
+            DslIr::SubEI(dst, lhs, rhs) => Ok(vec![self.ext_alu(SubE, dst, lhs, Imm::EF(rhs))]),
+            DslIr::SubEIN(dst, lhs, rhs) => Ok(vec![self.ext_alu(SubE, dst, Imm::EF(lhs), rhs)]),
+            DslIr::SubEFI(dst, lhs, rhs) => Ok(vec![self.ext_alu(SubE, dst, lhs, Imm::F(rhs))]),
+            DslIr::SubEF(dst, lhs, rhs) => Ok(vec![self.ext_alu(SubE, dst, lhs, rhs)]),
 
-            DslIr::MulV(dst, lhs, rhs) => vec![self.base_alu(MulF, dst, lhs, rhs)],
-            DslIr::MulVI(dst, lhs, rhs) => vec![self.base_alu(MulF, dst, lhs, Imm::F(rhs))],
-            DslIr::MulF(dst, lhs, rhs) => vec![self.base_alu(MulF, dst, lhs, rhs)],
-            DslIr::MulFI(dst, lhs, rhs) => vec![self.base_alu(MulF, dst, lhs, Imm::F(rhs))],
-            DslIr::MulE(dst, lhs, rhs) => vec![self.ext_alu(MulE, dst, lhs, rhs)],
-            DslIr::MulEI(dst, lhs, rhs) => vec![self.ext_alu(MulE, dst, lhs, Imm::EF(rhs))],
-            DslIr::MulEFI(dst, lhs, rhs) => vec![self.ext_alu(MulE, dst, lhs, Imm::F(rhs))],
-            DslIr::MulEF(dst, lhs, rhs) => vec![self.ext_alu(MulE, dst, lhs, rhs)],
+            DslIr::MulV(dst, lhs, rhs) => Ok(vec![self.base_alu(MulF, dst, lhs, rhs)]),
+            DslIr::MulVI(dst, lhs, rhs) => Ok(vec![self.base_alu(MulF, dst, lhs, Imm::F(rhs))]),
+            DslIr::MulF(dst, lhs, rhs) => Ok(vec![self.base_alu(MulF, dst, lhs, rhs)]),
+            DslIr::MulFI(dst, lhs, rhs) => Ok(vec![self.base_alu(MulF, dst, lhs, Imm::F(rhs))]),
+            DslIr::MulE(dst, lhs, rhs) => Ok(vec![self.ext_alu(MulE, dst, lhs, rhs)]),
+            DslIr::MulEI(dst, lhs, rhs) => Ok(vec![self.ext_alu(MulE, dst, lhs, Imm::EF(rhs))]),
+            DslIr::MulEFI(dst, lhs, rhs) => Ok(vec![self.ext_alu(MulE, dst, lhs, Imm::F(rhs))]),
+            DslIr::MulEF(dst, lhs, rhs) => Ok(vec![self.ext_alu(MulE, dst, lhs, rhs)]),
 
-            DslIr::DivF(dst, lhs, rhs) => vec![self.base_alu(DivF, dst, lhs, rhs)],
-            DslIr::DivFI(dst, lhs, rhs) => vec![self.base_alu(DivF, dst, lhs, Imm::F(rhs))],
-            DslIr::DivFIN(dst, lhs, rhs) => vec![self.base_alu(DivF, dst, Imm::F(lhs), rhs)],
-            DslIr::DivE(dst, lhs, rhs) => vec![self.ext_alu(DivE, dst, lhs, rhs)],
-            DslIr::DivEI(dst, lhs, rhs) => vec![self.ext_alu(DivE, dst, lhs, Imm::EF(rhs))],
-            DslIr::DivEIN(dst, lhs, rhs) => vec![self.ext_alu(DivE, dst, Imm::EF(lhs), rhs)],
-            DslIr::DivEFI(dst, lhs, rhs) => vec![self.ext_alu(DivE, dst, lhs, Imm::F(rhs))],
-            DslIr::DivEFIN(dst, lhs, rhs) => vec![self.ext_alu(DivE, dst, Imm::F(lhs), rhs)],
-            DslIr::DivEF(dst, lhs, rhs) => vec![self.ext_alu(DivE, dst, lhs, rhs)],
+            DslIr::DivF(dst, lhs, rhs) => Ok(vec![self.base_alu(DivF, dst, lhs, rhs)]),
+            DslIr::DivFI(dst, lhs, rhs) => Ok(vec![self.base_alu(DivF, dst, lhs, Imm::F(rhs))]),
+            DslIr::DivFIN(dst, lhs, rhs) => Ok(vec![self.base_alu(DivF, dst, Imm::F(lhs), rhs)]),
+            DslIr::DivE(dst, lhs, rhs) => Ok(vec![self.ext_alu(DivE, dst, lhs, rhs)]),
+            DslIr::DivEI(dst, lhs, rhs) => Ok(vec![self.ext_alu(DivE, dst, lhs, Imm::EF(rhs))]),
+            DslIr::DivEIN(dst, lhs, rhs) => Ok(vec![self.ext_alu(DivE, dst, Imm::EF(lhs), rhs)]),
+            DslIr::DivEFI(dst, lhs, rhs) => Ok(vec![self.ext_alu(DivE, dst, lhs, Imm::F(rhs))]),
+            DslIr::DivEFIN(dst, lhs, rhs) => Ok(vec![self.ext_alu(DivE, dst, Imm::F(lhs), rhs)]),
+            DslIr::DivEF(dst, lhs, rhs) => Ok(vec![self.ext_alu(DivE, dst, lhs, rhs)]),
 
-            DslIr::NegV(dst, src) => vec![self.base_alu(SubF, dst, Imm::F(C::F::zero()), src)],
-            DslIr::NegF(dst, src) => vec![self.base_alu(SubF, dst, Imm::F(C::F::zero()), src)],
-            DslIr::NegE(dst, src) => vec![self.ext_alu(SubE, dst, Imm::EF(C::EF::zero()), src)],
-            DslIr::InvV(dst, src) => vec![self.base_alu(DivF, dst, Imm::F(C::F::one()), src)],
-            DslIr::InvF(dst, src) => vec![self.base_alu(DivF, dst, Imm::F(C::F::one()), src)],
-            DslIr::InvE(dst, src) => vec![self.ext_alu(DivE, dst, Imm::F(C::F::one()), src)],
+            DslIr::NegV(dst, src) => Ok(vec![self.base_alu(SubF, dst, Imm::F(C::F::zero()), src)]),
+            DslIr::NegF(dst, src) => Ok(vec![self.base_alu(SubF, dst, Imm::F(C::F::zero()), src)]),
+            DslIr::NegE(dst, src) => Ok(vec![self.ext_alu(SubE, dst, Imm::EF(C::EF::zero()), src)]),
+            DslIr::InvV(dst, src) => Ok(vec![self.base_alu(DivF, dst, Imm::F(C::F::one()), src)]),
+            DslIr::InvF(dst, src) => Ok(vec![self.base_alu(DivF, dst, Imm::F(C::F::one()), src)]),
+            DslIr::InvE(dst, src) => Ok(vec![self.ext_alu(DivE, dst, Imm::F(C::F::one()), src)]),
 
-            DslIr::AssertEqV(lhs, rhs) => self.base_assert_eq(lhs, rhs),
-            DslIr::AssertEqF(lhs, rhs) => self.base_assert_eq(lhs, rhs),
-            DslIr::AssertEqE(lhs, rhs) => self.ext_assert_eq(lhs, rhs),
-            DslIr::AssertEqVI(lhs, rhs) => self.base_assert_eq(lhs, Imm::F(rhs)),
-            DslIr::AssertEqFI(lhs, rhs) => self.base_assert_eq(lhs, Imm::F(rhs)),
-            DslIr::AssertEqEI(lhs, rhs) => self.ext_assert_eq(lhs, Imm::EF(rhs)),
+            DslIr::AssertEqV(lhs, rhs) => Ok(self.base_assert_eq(lhs, rhs)),
+            DslIr::AssertEqF(lhs, rhs) => Ok(self.base_assert_eq(lhs, rhs)),
+            DslIr::AssertEqE(lhs, rhs) => Ok(self.ext_assert_eq(lhs, rhs)),
+            DslIr::AssertEqVI(lhs, rhs) => Ok(self.base_assert_eq(lhs, Imm::F(rhs))),
+            DslIr::AssertEqFI(lhs, rhs) => Ok(self.base_assert_eq(lhs, Imm::F(rhs))),
+            DslIr::AssertEqEI(lhs, rhs) => Ok(self.ext_assert_eq(lhs, Imm::EF(rhs))),
 
-            DslIr::AssertNeV(lhs, rhs) => self.base_assert_ne(lhs, rhs),
-            DslIr::AssertNeF(lhs, rhs) => self.base_assert_ne(lhs, rhs),
-            DslIr::AssertNeE(lhs, rhs) => self.ext_assert_ne(lhs, rhs),
-            DslIr::AssertNeVI(lhs, rhs) => self.base_assert_ne(lhs, Imm::F(rhs)),
-            DslIr::AssertNeFI(lhs, rhs) => self.base_assert_ne(lhs, Imm::F(rhs)),
-            DslIr::AssertNeEI(lhs, rhs) => self.ext_assert_ne(lhs, Imm::EF(rhs)),
+            DslIr::AssertNeV(lhs, rhs) => Ok(self.base_assert_ne(lhs, rhs)),
+            DslIr::AssertNeF(lhs, rhs) => Ok(self.base_assert_ne(lhs, rhs)),
+            DslIr::AssertNeE(lhs, rhs) => Ok(self.ext_assert_ne(lhs, rhs)),
+            DslIr::AssertNeVI(lhs, rhs) => Ok(self.base_assert_ne(lhs, Imm::F(rhs))),
+            DslIr::AssertNeFI(lhs, rhs) => Ok(self.base_assert_ne(lhs, Imm::F(rhs))),
+            DslIr::AssertNeEI(lhs, rhs) => Ok(self.ext_assert_ne(lhs, Imm::EF(rhs))),
 
             DslIr::CircuitV2Poseidon2PermuteBabyBearSkinny(dst, src) => {
-                vec![self.poseidon2_permute_skinny(dst, src)]
+                Ok(vec![self.poseidon2_permute_skinny(dst, src)])
             }
             DslIr::CircuitV2Poseidon2PermuteBabyBearWide(dst, src) => {
-                vec![self.poseidon2_permute_wide(dst, src)]
+                Ok(vec![self.poseidon2_permute_wide(dst, src)])
             }
             DslIr::CircuitV2ExpReverseBits(dst, base, exp) => {
-                vec![self.exp_reverse_bits(dst, base, exp)]
+                Ok(vec![self.exp_reverse_bits(dst, base, exp)])
             }
             DslIr::CircuitV2HintBitsF(output, value) => {
-                vec![self.hint_bit_decomposition(value, output)]
+                Ok(vec![self.hint_bit_decomposition(value, output)])
             }
-            DslIr::CircuitV2FriFold(output, input) => vec![self.fri_fold(output, input)],
+            DslIr::CircuitV2FriFold(output, input) => Ok(vec![self.fri_fold(output, input)]),
 
-            DslIr::PrintV(dst) => vec![self.print_f(dst)],
-            DslIr::PrintF(dst) => vec![self.print_f(dst)],
-            DslIr::PrintE(dst) => vec![self.print_e(dst)],
-            DslIr::CircuitV2HintFelts(output) => vec![self.hint(&output)],
-            DslIr::CircuitV2HintExts(output) => vec![self.hint(&output)],
-            DslIr::CircuitExt2Felt(felts, ext) => vec![self.ext2felts(felts, ext)],
-            DslIr::CycleTrackerV2Enter(name) => vec![CompileOneItem::CycleTrackerEnter(name)],
-            DslIr::CycleTrackerV2Exit => vec![CompileOneItem::CycleTrackerExit],
-            instr => panic!("unsupported instruction: {instr:?}"),
+            DslIr::PrintV(dst) => Ok(vec![self.print_f(dst)]),
+            DslIr::PrintF(dst) => Ok(vec![self.print_f(dst)]),
+            DslIr::PrintE(dst) => Ok(vec![self.print_e(dst)]),
+            DslIr::CircuitV2HintFelts(output) => Ok(vec![self.hint(&output)]),
+            DslIr::CircuitV2HintExts(output) => Ok(vec![self.hint(&output)]),
+            DslIr::CircuitExt2Felt(felts, ext) => Ok(vec![self.ext2felts(felts, ext)]),
+            DslIr::CycleTrackerV2Enter(name) => Ok(vec![CompileOneItem::CycleTrackerEnter(name)]),
+            DslIr::CycleTrackerV2Exit => Ok(vec![CompileOneItem::CycleTrackerExit]),
+            instr => Err(Box::new(instr)), // Saves on space
         }
     }
 
@@ -480,7 +483,14 @@ impl<C: Config> AsmCompiler<C> {
         // This step also counts the number of times each address is read from.
         let annotated_instrs = operations
             .into_iter()
-            .flat_map(|(ir_instr, trace)| zip(self.compile_one(ir_instr), repeat(trace)))
+            .flat_map(|(ir_instr, trace)| {
+                zip(
+                    self.compile_one(ir_instr).unwrap_or_else(|instr| {
+                        panic!("unsupported instruction: {instr:?}\nbacktrace: {trace:?}")
+                    }),
+                    repeat(trace),
+                )
+            })
             .collect::<Vec<_>>();
 
         // Cycle tracking logic.
