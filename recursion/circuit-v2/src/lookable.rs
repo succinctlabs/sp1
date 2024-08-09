@@ -38,6 +38,18 @@ pub trait Lookable<C: Config> {
     fn write(&self) -> Vec<Witness<C>>;
 }
 
+impl<'a, C: Config, T: Lookable<C>> Lookable<C> for &'a T {
+    type LookVariable = T::LookVariable;
+
+    fn read(&self, builder: &mut Builder<C>) -> Self::LookVariable {
+        (*self).read(builder)
+    }
+
+    fn write(&self) -> Vec<Witness<C>> {
+        (*self).write()
+    }
+}
+
 // TODO Bn254Fr
 
 impl<C: Config<F = InnerVal>> Lookable<C> for InnerVal {
@@ -49,18 +61,6 @@ impl<C: Config<F = InnerVal>> Lookable<C> for InnerVal {
 
     fn write(&self) -> Vec<Witness<C>> {
         vec![Block::from(*self)]
-    }
-}
-
-impl<C: Config<F = InnerVal>, const N: usize> Lookable<C> for [InnerVal; N] {
-    type LookVariable = [Felt<InnerVal>; N];
-
-    fn read(&self, builder: &mut Builder<C>) -> Self::LookVariable {
-        builder.hint_felts_v2(N).try_into().unwrap()
-    }
-
-    fn write(&self) -> Vec<Witness<C>> {
-        self.iter().map(|x| Block::from(*x)).collect()
     }
 }
 
@@ -76,19 +76,25 @@ impl<C: Config<F = InnerVal, EF = InnerChallenge>> Lookable<C> for InnerChalleng
     }
 }
 
-impl<C: Config<F = InnerVal, EF = InnerChallenge>, const N: usize> Lookable<C>
-    for [InnerChallenge; N]
-{
-    type LookVariable = [Ext<InnerVal, InnerChallenge>; N];
+impl<C: Config, T: Lookable<C>, const N: usize> Lookable<C> for [T; N] {
+    type LookVariable = [T::LookVariable; N];
 
     fn read(&self, builder: &mut Builder<C>) -> Self::LookVariable {
-        builder.hint_exts_v2(N).try_into().unwrap()
+        self.iter()
+            .map(|x| x.read(builder))
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap_or_else(|x: Vec<_>| {
+                // Cannot just `.unwrap()` without requiring Debug bounds.
+                panic!(
+                    "could not coerce vec of len {} into array of len {N}",
+                    x.len()
+                )
+            })
     }
 
     fn write(&self) -> Vec<Witness<C>> {
-        self.iter()
-            .map(|x| Block::from(x.as_base_slice()))
-            .collect()
+        self.iter().flat_map(|x| x.write()).collect()
     }
 }
 
@@ -211,7 +217,6 @@ impl Lookable<C> for ChipOpenedValues<InnerChallenge> {
             self.permutation.write(),
             Lookable::<C>::write(&self.quotient),
             Lookable::<C>::write(&self.cumulative_sum),
-            // self.log_degree.write(),
         ]
         .concat()
     }
