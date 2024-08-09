@@ -21,6 +21,7 @@ use tracing::instrument;
 
 use super::debug_constraints;
 use super::Dom;
+use crate::air::InteractionScope;
 use crate::air::MachineAir;
 use crate::air::MachineProgram;
 use crate::lookup::debug_interactions_with_all_chips;
@@ -308,7 +309,8 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         tracing::debug_span!("verify cumulative sum is 0").in_scope(|| {
             let mut sum = SC::Challenge::zero();
             for proof in proof.shard_proofs.iter() {
-                sum += proof.cumulative_sum();
+                sum += proof.cumulative_sum(InteractionScope::Global);
+                sum += proof.cumulative_sum(InteractionScope::Local);
             }
             match sum.is_zero() {
                 true => Ok(()),

@@ -8,7 +8,7 @@ use p3_matrix::dense::RowMajorMatrixView;
 use p3_matrix::stack::VerticalPair;
 
 use super::{Challenge, PackedChallenge, PackedVal, StarkGenericConfig, Val};
-use crate::air::{EmptyMessageBuilder, MultiTableAirBuilder};
+use crate::air::{EmptyMessageBuilder, InteractionScope, MultiTableAirBuilder};
 use p3_air::{
     AirBuilder, AirBuilderWithPublicValues, ExtensionBuilder, PairBuilder, PermutationAirBuilder,
 };
@@ -104,8 +104,11 @@ impl<'a, SC: StarkGenericConfig> PermutationAirBuilder for ProverConstraintFolde
 impl<'a, SC: StarkGenericConfig> MultiTableAirBuilder for ProverConstraintFolder<'a, SC> {
     type Sum = PackedChallenge<SC>;
 
-    fn cumulative_sum(&self) -> Self::Sum {
-        PackedChallenge::<SC>::from_f(self.cumulative_sum)
+    fn cumulative_sum(&self, scope: InteractionScope) -> Self::Sum {
+        PackedChallenge::<SC>::from_f(match scope {
+            InteractionScope::Global => self.cumulative_sums[0],
+            InteractionScope::Local => self.cumulative_sums[1],
+        })
     }
 }
 
@@ -140,7 +143,7 @@ pub struct GenericVerifierConstraintFolder<'a, F, EF, PubVar, Var, Expr> {
     pub main: VerticalPair<RowMajorMatrixView<'a, Var>, RowMajorMatrixView<'a, Var>>,
     pub perm: [VerticalPair<RowMajorMatrixView<'a, Var>, RowMajorMatrixView<'a, Var>>; 2],
     pub perm_challenges: [&'a [Var]; 2],
-    pub cumulative_sum: Var,
+    pub cumulative_sums: [Var; 2],
     pub is_first_row: Var,
     pub is_last_row: Var,
     pub is_transition: Var,
@@ -324,8 +327,11 @@ where
 {
     type Sum = Var;
 
-    fn cumulative_sum(&self) -> Self::Sum {
-        self.cumulative_sum
+    fn cumulative_sum(&self, scope: InteractionScope) -> Self::Sum {
+        match scope {
+            InteractionScope::Global => self.cumulative_sums[0],
+            InteractionScope::Local => self.cumulative_sums[1],
+        }
     }
 }
 

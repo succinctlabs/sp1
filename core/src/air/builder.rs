@@ -704,7 +704,7 @@ pub trait ExtensionAirBuilder: BaseAirBuilder {
 pub trait MultiTableAirBuilder: PermutationAirBuilder {
     type Sum: Into<Self::ExprEF>;
 
-    fn cumulative_sum(&self) -> Self::Sum;
+    fn cumulative_sum(&self, scope: InteractionScope) -> Self::Sum;
 }
 
 /// A trait that contains the common helper methods for building `SP1 recursion` and SP1 machine AIRs.
