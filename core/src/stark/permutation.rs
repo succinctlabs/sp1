@@ -66,9 +66,10 @@ pub fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
     receives: &[Interaction<F>],
     preprocessed: Option<&RowMajorMatrix<F>>,
     main: &RowMajorMatrix<F>,
-    random_elements: &[EF],
+    global_random_elements: &[EF],
+    local_random_elements: &[EF],
     batch_size: usize,
-) -> RowMajorMatrix<EF> {
+) -> (RowMajorMatrix<EF>, RowMajorMatrix<EF>) {
     // Generate the RLC elements to uniquely identify each interaction.
     let alpha = random_elements[0];
 

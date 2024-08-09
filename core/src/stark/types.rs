@@ -5,6 +5,8 @@ use p3_matrix::dense::RowMajorMatrixView;
 use p3_matrix::stack::VerticalPair;
 use serde::{Deserialize, Serialize};
 
+use crate::air::InteractionScope;
+
 use super::{Challenge, Com, OpeningProof, StarkGenericConfig, Val};
 
 pub type QuotientOpenedValues<T> = Vec<T>;
@@ -38,7 +40,8 @@ impl<SC: StarkGenericConfig, M, P> ShardMainData<SC, M, P> {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShardCommitment<C> {
     pub main_commit: C,
-    pub permutation_commit: C,
+    pub global_permutation_commit: C,
+    pub local_permutation_commit: C,
     pub quotient_commit: C,
 }
 
@@ -52,9 +55,11 @@ pub struct AirOpenedValues<T> {
 pub struct ChipOpenedValues<T: Serialize> {
     pub preprocessed: AirOpenedValues<T>,
     pub main: AirOpenedValues<T>,
-    pub permutation: AirOpenedValues<T>,
+    pub global_permutation: AirOpenedValues<T>,
+    pub local_permutation: AirOpenedValues<T>,
     pub quotient: Vec<Vec<T>>,
-    pub cumulative_sum: T,
+    pub global_cumulative_sum: T,
+    pub local_cumulative_sum: T,
     pub log_degree: usize,
 }
 
@@ -93,11 +98,14 @@ impl<T: Send + Sync + Clone> AirOpenedValues<T> {
 }
 
 impl<SC: StarkGenericConfig> ShardProof<SC> {
-    pub fn cumulative_sum(&self) -> Challenge<SC> {
+    pub fn cumulative_sum(&self, scope: InteractionScope) -> Challenge<SC> {
         self.opened_values
             .chips
             .iter()
-            .map(|c| c.cumulative_sum)
+            .map(|c| match scope {
+                InteractionScope::Global => c.global_cumulative_sum,
+                InteractionScope::Local => c.local_cumulative_sum,
+            })
             .sum()
     }
 

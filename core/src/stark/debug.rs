@@ -128,9 +128,9 @@ pub fn debug_cumulative_sums<F: Field, EF: ExtensionField<F>>(perms: &[RowMajorM
 pub struct DebugConstraintBuilder<'a, F: Field, EF: ExtensionField<F>> {
     pub(crate) preprocessed: VerticalPair<RowMajorMatrixView<'a, F>, RowMajorMatrixView<'a, F>>,
     pub(crate) main: VerticalPair<RowMajorMatrixView<'a, F>, RowMajorMatrixView<'a, F>>,
-    pub(crate) perm: VerticalPair<RowMajorMatrixView<'a, EF>, RowMajorMatrixView<'a, EF>>,
+    pub(crate) perm: [VerticalPair<RowMajorMatrixView<'a, EF>, RowMajorMatrixView<'a, EF>>; 2],
     pub(crate) cumulative_sum: EF,
-    pub(crate) perm_challenges: &'a [EF],
+    pub(crate) perm_challenges: [&'a [EF]; 2],
     pub(crate) is_first_row: F,
     pub(crate) is_last_row: F,
     pub(crate) is_transition: F,
@@ -163,12 +163,12 @@ where
 
     type RandomVar = EF;
 
-    fn permutation(&self) -> Self::MP {
-        self.perm
+    fn permutation(&self) -> &[Self::MP] {
+        self.perm.as_slice()
     }
 
-    fn permutation_randomness(&self) -> &[Self::EF] {
-        self.perm_challenges
+    fn permutation_randomness(&self) -> &[&[Self::EF]] {
+        self.perm_challenges.as_slice()
     }
 }
 

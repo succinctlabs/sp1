@@ -114,8 +114,9 @@ where
         &self,
         preprocessed: Option<&RowMajorMatrix<F>>,
         main: &RowMajorMatrix<F>,
-        random_elements: &[EF],
-    ) -> RowMajorMatrix<EF>
+        global_random_elements: &[EF],
+        local_random_elements: &[EF],
+    ) -> (RowMajorMatrix<EF>, RowMajorMatrix<EF>)
     where
         F: PrimeField,
     {
@@ -125,7 +126,8 @@ where
             &self.receives,
             preprocessed,
             main,
-            random_elements,
+            global_random_elements,
+            local_random_elements,
             batch_size,
         )
     }

@@ -19,12 +19,12 @@ pub struct ProverConstraintFolder<'a, SC: StarkGenericConfig> {
         VerticalPair<RowMajorMatrixView<'a, PackedVal<SC>>, RowMajorMatrixView<'a, PackedVal<SC>>>,
     pub main:
         VerticalPair<RowMajorMatrixView<'a, PackedVal<SC>>, RowMajorMatrixView<'a, PackedVal<SC>>>,
-    pub perm: VerticalPair<
+    pub perms: [VerticalPair<
         RowMajorMatrixView<'a, PackedChallenge<SC>>,
         RowMajorMatrixView<'a, PackedChallenge<SC>>,
-    >,
-    pub perm_challenges: &'a [PackedChallenge<SC>],
-    pub cumulative_sum: SC::Challenge,
+    >; 2],
+    pub perm_challenges: [&'a [PackedChallenge<SC>]; 2],
+    pub cumulative_sums: [SC::Challenge; 2],
     pub is_first_row: PackedVal<SC>,
     pub is_last_row: PackedVal<SC>,
     pub is_transition: PackedVal<SC>,
@@ -92,12 +92,12 @@ impl<'a, SC: StarkGenericConfig> PermutationAirBuilder for ProverConstraintFolde
 
     type RandomVar = PackedChallenge<SC>;
 
-    fn permutation(&self) -> Self::MP {
-        self.perm
+    fn permutation(&self) -> &[Self::MP] {
+        self.perms.as_slice()
     }
 
-    fn permutation_randomness(&self) -> &[Self::RandomVar] {
-        self.perm_challenges
+    fn permutation_randomness(&self) -> &[&[Self::RandomVar]] {
+        self.perm_challenges.as_slice()
     }
 }
 
@@ -138,8 +138,8 @@ pub type VerifierConstraintFolder<'a, SC> = GenericVerifierConstraintFolder<
 pub struct GenericVerifierConstraintFolder<'a, F, EF, PubVar, Var, Expr> {
     pub preprocessed: VerticalPair<RowMajorMatrixView<'a, Var>, RowMajorMatrixView<'a, Var>>,
     pub main: VerticalPair<RowMajorMatrixView<'a, Var>, RowMajorMatrixView<'a, Var>>,
-    pub perm: VerticalPair<RowMajorMatrixView<'a, Var>, RowMajorMatrixView<'a, Var>>,
-    pub perm_challenges: &'a [Var],
+    pub perm: [VerticalPair<RowMajorMatrixView<'a, Var>, RowMajorMatrixView<'a, Var>>; 2],
+    pub perm_challenges: [&'a [Var]; 2],
     pub cumulative_sum: Var,
     pub is_first_row: Var,
     pub is_last_row: Var,
@@ -284,12 +284,12 @@ where
     type MP = VerticalPair<RowMajorMatrixView<'a, Var>, RowMajorMatrixView<'a, Var>>;
     type RandomVar = Var;
 
-    fn permutation(&self) -> Self::MP {
-        self.perm
+    fn permutation(&self) -> &[Self::MP] {
+        self.perm.as_slice()
     }
 
-    fn permutation_randomness(&self) -> &[Self::Var] {
-        self.perm_challenges
+    fn permutation_randomness(&self) -> &[&[Self::Var]] {
+        self.perm_challenges.as_slice()
     }
 }
 

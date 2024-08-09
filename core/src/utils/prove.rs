@@ -8,7 +8,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use web_time::Instant;
 
-use p3_challenger::CanObserve;
+use p3_challenger::{CanObserve, FieldChallenger};
 use p3_maybe_rayon::prelude::*;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -398,7 +398,14 @@ where
             .for_each(|handle| handle.join().unwrap());
 
         // Wait until the phase 1 prover has completely finished.
-        let challenger = phase_1_prover_handle.join().unwrap();
+        let mut challenger = phase_1_prover_handle.join().unwrap();
+
+        // Sample for the global permutation challenges.
+        // Obtain the challenges used for the global permutation argument.
+        let mut global_permutation_challenges: Vec<SC::Challenge> = Vec::new();
+        for _ in 0..2 {
+            global_permutation_challenges.push(challenger.sample_ext_element());
+        }
 
         // Spawn the phase 2 record generator thread.
         let p2_record_gen_sync = Arc::new(TurnBasedSync::new());
@@ -540,7 +547,14 @@ where
                                 |(record, traces)| {
                                     let _span = span.enter();
                                     let data = prover.commit(record, traces);
-                                    prover.open(pk, data, &mut challenger.clone()).unwrap()
+                                    prover
+                                        .open(
+                                            pk,
+                                            data,
+                                            &mut challenger.clone(),
+                                            &global_permutation_challenges,
+                                        )
+                                        .unwrap()
                                 },
                             ),
                         );

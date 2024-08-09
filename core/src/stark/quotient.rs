@@ -22,13 +22,15 @@ use super::Val;
 #[allow(clippy::too_many_arguments)]
 pub fn quotient_values<SC, A, Mat>(
     chip: &Chip<Val<SC>, A>,
-    cumulative_sum: SC::Challenge,
+    cumulative_sums: [SC::Challenge; 2],
     trace_domain: Domain<SC>,
     quotient_domain: Domain<SC>,
     preprocessed_trace_on_quotient_domain: Mat,
     main_trace_on_quotient_domain: Mat,
-    permutation_trace_on_quotient_domain: Mat,
-    perm_challenges: &[PackedChallenge<SC>],
+    global_permutation_trace_on_quotient_domain: Mat,
+    global_perm_challenges: &[PackedChallenge<SC>],
+    local_permutation_trace_on_quotient_domain: Mat,
+    local_perm_challenges: &[PackedChallenge<SC>],
     alpha: SC::Challenge,
     public_values: &[Val<SC>],
 ) -> Vec<SC::Challenge>
@@ -40,7 +42,8 @@ where
     let quotient_size = quotient_domain.size();
     let prep_width = preprocessed_trace_on_quotient_domain.width();
     let main_width = main_trace_on_quotient_domain.width();
-    let perm_width = permutation_trace_on_quotient_domain.width();
+    let global_perm_width = global_permutation_trace_on_quotient_domain.width();
+    let local_perm_width = local_permutation_trace_on_quotient_domain.width();
     let sels = trace_domain.selectors_on_coset(quotient_domain);
 
     let qdb = log2_strict_usize(quotient_domain.size()) - log2_strict_usize(trace_domain.size());
@@ -99,24 +102,48 @@ where
                 })
                 .collect();
 
-            let perm_local: Vec<_> = (0..perm_width)
+            let global_perm_local: Vec<_> = (0..global_perm_width)
                 .step_by(ext_degree)
                 .map(|col| {
                     PackedChallenge::<SC>::from_base_fn(|i| {
                         PackedVal::<SC>::from_fn(|offset| {
-                            permutation_trace_on_quotient_domain
+                            global_permutation_trace_on_quotient_domain
                                 .get(wrap(i_start + offset), col + i)
                         })
                     })
                 })
                 .collect();
 
-            let perm_next: Vec<_> = (0..perm_width)
+            let global_perm_next: Vec<_> = (0..global_perm_width)
                 .step_by(ext_degree)
                 .map(|col| {
                     PackedChallenge::<SC>::from_base_fn(|i| {
                         PackedVal::<SC>::from_fn(|offset| {
-                            permutation_trace_on_quotient_domain
+                            global_permutation_trace_on_quotient_domain
+                                .get(wrap(i_start + next_step + offset), col + i)
+                        })
+                    })
+                })
+                .collect();
+
+            let local_perm_local: Vec<_> = (0..local_perm_width)
+                .step_by(ext_degree)
+                .map(|col| {
+                    PackedChallenge::<SC>::from_base_fn(|i| {
+                        PackedVal::<SC>::from_fn(|offset| {
+                            local_permutation_trace_on_quotient_domain
+                                .get(wrap(i_start + offset), col + i)
+                        })
+                    })
+                })
+                .collect();
+
+            let local_perm_next: Vec<_> = (0..local_perm_width)
+                .step_by(ext_degree)
+                .map(|col| {
+                    PackedChallenge::<SC>::from_base_fn(|i| {
+                        PackedVal::<SC>::from_fn(|offset| {
+                            local_permutation_trace_on_quotient_domain
                                 .get(wrap(i_start + next_step + offset), col + i)
                         })
                     })
@@ -124,6 +151,15 @@ where
                 .collect();
 
             let accumulator = PackedChallenge::<SC>::zero();
+            let global_perm = VerticalPair::new(
+                RowMajorMatrixView::new_row(&global_perm_local),
+                RowMajorMatrixView::new_row(&global_perm_next),
+            );
+            let local_perm = VerticalPair::new(
+                RowMajorMatrixView::new_row(&local_perm_local),
+                RowMajorMatrixView::new_row(&local_perm_next),
+            );
+
             let mut folder = ProverConstraintFolder {
                 preprocessed: VerticalPair::new(
                     RowMajorMatrixView::new_row(&prep_local),
@@ -133,12 +169,9 @@ where
                     RowMajorMatrixView::new_row(&local),
                     RowMajorMatrixView::new_row(&next),
                 ),
-                perm: VerticalPair::new(
-                    RowMajorMatrixView::new_row(&perm_local),
-                    RowMajorMatrixView::new_row(&perm_next),
-                ),
-                perm_challenges,
-                cumulative_sum,
+                perms: [global_perm, local_perm],
+                perm_challenges: [global_perm_challenges, local_perm_challenges],
+                cumulative_sums,
                 is_first_row,
                 is_last_row,
                 is_transition,

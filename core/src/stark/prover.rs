@@ -101,6 +101,7 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
         pk: &StarkProvingKey<SC>,
         data: ShardMainData<SC, Self::DeviceMatrix, Self::DeviceProverData>,
         challenger: &mut SC::Challenger,
+        global_permutation_challenges: &[SC::Challenge],
     ) -> Result<ShardProof<SC>, Self::Error>;
 
     /// Generate a proof for the given records.
@@ -231,6 +232,7 @@ where
         pk: &StarkProvingKey<SC>,
         mut data: ShardMainData<SC, Self::DeviceMatrix, Self::DeviceProverData>,
         challenger: &mut <SC as StarkGenericConfig>::Challenger,
+        global_permutation_challenges: &[SC::Challenge],
     ) -> Result<ShardProof<SC>, Self::Error> {
         let chips = self
             .machine()
@@ -261,20 +263,27 @@ where
             .map(|degree| pcs.natural_domain_for_degree(*degree))
             .collect::<Vec<_>>();
 
-        // Obtain the challenges used for the permutation argument.
-        let mut permutation_challenges: Vec<SC::Challenge> = Vec::new();
+        // Observe the main commitment.
+        challenger.observe(data.main_commit.clone());
+
+        // Obtain the challenges used for the local permutation argument.
+        let mut local_permutation_challenges: Vec<SC::Challenge> = Vec::new();
         for _ in 0..2 {
-            permutation_challenges.push(challenger.sample_ext_element());
+            local_permutation_challenges.push(challenger.sample_ext_element());
         }
-        let packed_perm_challenges = permutation_challenges
-            .iter()
-            .map(|c| PackedChallenge::<SC>::from_f(*c))
-            .collect::<Vec<_>>();
+
+        let [packed_global_perm_challenges, packed_local_perm_challenges] =
+            [global_permutation_challenges, &local_permutation_challenges].map(|challenges| {
+                challenges
+                    .iter()
+                    .map(|c| PackedChallenge::<SC>::from_f(*c))
+                    .collect::<Vec<_>>()
+            });
 
         // Generate the permutation traces.
         let mut permutation_traces = Vec::with_capacity(chips.len());
         let mut cumulative_sums = Vec::with_capacity(chips.len());
-        tracing::debug_span!("generate permutation traces").in_scope(|| {
+        tracing::debug_span!("generate global and local permutation traces").in_scope(|| {
             chips
                 .par_iter()
                 .zip(traces.par_iter_mut())
@@ -283,25 +292,36 @@ where
                         .chip_ordering
                         .get(&chip.name())
                         .map(|&index| &pk.traces[index]);
-                    let perm_trace = chip.generate_permutation_trace(
+                    let (global_perm_trace, local_perm_trace) = chip.generate_permutation_trace(
                         preprocessed_trace,
                         main_trace,
-                        &permutation_challenges,
+                        &global_permutation_challenges,
+                        &local_permutation_challenges,
                     );
-                    let cumulative_sum = perm_trace
-                        .row_slice(main_trace.height() - 1)
-                        .last()
-                        .copied()
-                        .unwrap();
-                    (perm_trace, cumulative_sum)
+                    let [global_cumulative_sums, local_cumulative_sums] =
+                        [&global_perm_trace, &local_perm_trace].map(|perm_trace| {
+                            perm_trace
+                                .row_slice(perm_trace.height() - 1)
+                                .last()
+                                .copied()
+                                .unwrap()
+                        });
+                    (
+                        (global_perm_trace, local_perm_trace),
+                        (global_cumulative_sums, local_cumulative_sums),
+                    )
                 })
                 .unzip_into_vecs(&mut permutation_traces, &mut cumulative_sums);
         });
 
+        let (global_permutation_traces, local_permutation_traces): (Vec<_>, Vec<_>) =
+            permutation_traces.into_iter().unzip();
+
         // Compute some statistics.
         for i in 0..chips.len() {
             let trace_width = traces[i].width();
-            let permutation_width = permutation_traces[i].width();
+            let permutation_width =
+                global_permutation_traces[i].width() + local_permutation_traces[i].width();
             let total_width = trace_width
                 + permutation_width * <SC::Challenge as AbstractExtensionField<SC::Val>>::D;
             tracing::debug!(
@@ -315,23 +335,30 @@ where
         }
 
         let domains_and_perm_traces =
-            tracing::debug_span!("flatten permutation traces and collect domains").in_scope(|| {
-                permutation_traces
-                    .into_iter()
-                    .zip(trace_domains.iter())
-                    .map(|(perm_trace, domain)| {
-                        let trace = perm_trace.flatten_to_base();
-                        (*domain, trace.to_owned())
+            tracing::debug_span!("flatten global and local permutation traces and collect domains")
+                .in_scope(|| {
+                    [global_permutation_traces, local_permutation_traces].map(|perm_traces| {
+                        perm_traces
+                            .into_iter()
+                            .zip(trace_domains.iter())
+                            .map(|(perm_trace, domain)| {
+                                let trace = perm_trace.flatten_to_base();
+                                (*domain, trace.to_owned())
+                            })
+                            .collect::<Vec<_>>()
                     })
-                    .collect::<Vec<_>>()
-            });
+                });
 
         let pcs = config.pcs();
 
-        let (permutation_commit, permutation_data) =
-            tracing::debug_span!("commit to permutation traces")
-                .in_scope(|| pcs.commit(domains_and_perm_traces));
-        challenger.observe(permutation_commit.clone());
+        let [(global_permutation_commit, global_permutation_data), (local_permutation_commit, local_permutation_data)] =
+            tracing::debug_span!("commit to global and local permutation traces").in_scope(|| {
+                domains_and_perm_traces.map(|scoped_domains_and_perm_traces| {
+                    pcs.commit(scoped_domains_and_perm_traces)
+                })
+            });
+        challenger.observe(global_permutation_commit.clone());
+        challenger.observe(local_permutation_commit.clone());
 
         // Compute the quotient polynomial for all chips.
 
@@ -370,18 +397,31 @@ where
                             let main_trace_on_quotient_domains = pcs
                                 .get_evaluations_on_domain(&data.main_data, i, *quotient_domain)
                                 .to_row_major_matrix();
-                            let permutation_trace_on_quotient_domains = pcs
-                                .get_evaluations_on_domain(&permutation_data, i, *quotient_domain)
+                            let global_permutation_trace_on_quotient_domains = pcs
+                                .get_evaluations_on_domain(
+                                    &global_permutation_data,
+                                    i,
+                                    *quotient_domain,
+                                )
+                                .to_row_major_matrix();
+                            let local_permutation_trace_on_quotient_domains = pcs
+                                .get_evaluations_on_domain(
+                                    &local_permutation_data,
+                                    i,
+                                    *quotient_domain,
+                                )
                                 .to_row_major_matrix();
                             quotient_values(
                                 chips[i],
-                                cumulative_sums[i],
+                                cumulative_sums[i].into(),
                                 trace_domains[i],
                                 *quotient_domain,
                                 preprocessed_trace_on_quotient_domains,
                                 main_trace_on_quotient_domains,
-                                permutation_trace_on_quotient_domains,
-                                &packed_perm_challenges,
+                                global_permutation_trace_on_quotient_domains,
+                                &packed_global_perm_challenges,
+                                local_permutation_trace_on_quotient_domains,
+                                &packed_local_perm_challenges,
                                 alpha,
                                 &data.public_values,
                             )
@@ -452,7 +492,8 @@ where
                 vec![
                     (&pk.data, preprocessed_opening_points),
                     (&data.main_data, trace_opening_points.clone()),
-                    (&permutation_data, trace_opening_points),
+                    (&global_permutation_data, trace_opening_points.clone()),
+                    (&local_permutation_data, trace_opening_points),
                     (&quotient_data, quotient_opening_points),
                 ],
                 challenger,
@@ -460,31 +501,26 @@ where
         });
 
         // Collect the opened values for each chip.
-        let [preprocessed_values, main_values, permutation_values, mut quotient_values] =
+        let [preprocessed_values, main_values, global_permutation_values, local_permutation_values, mut quotient_values] =
             openings.try_into().unwrap();
         assert!(main_values.len() == chips.len());
-        let preprocessed_opened_values = preprocessed_values
-            .into_iter()
-            .map(|op| {
-                let [local, next] = op.try_into().unwrap();
-                AirOpenedValues { local, next }
-            })
-            .collect::<Vec<_>>();
+        let [preprocessed_opened_values, main_opened_values, global_permutation_opened_values, local_permutation_opened_values] =
+            [
+                preprocessed_values,
+                main_values,
+                global_permutation_values,
+                local_permutation_values,
+            ]
+            .map(|values| {
+                values
+                    .into_iter()
+                    .map(|op| {
+                        let [local, next] = op.try_into().unwrap();
+                        AirOpenedValues { local, next }
+                    })
+                    .collect::<Vec<_>>()
+            });
 
-        let main_opened_values = main_values
-            .into_iter()
-            .map(|op| {
-                let [local, next] = op.try_into().unwrap();
-                AirOpenedValues { local, next }
-            })
-            .collect::<Vec<_>>();
-        let permutation_opened_values = permutation_values
-            .into_iter()
-            .map(|op| {
-                let [local, next] = op.try_into().unwrap();
-                AirOpenedValues { local, next }
-            })
-            .collect::<Vec<_>>();
         let mut quotient_opened_values = Vec::with_capacity(log_quotient_degrees.len());
         for log_quotient_degree in log_quotient_degrees.iter() {
             let degree = 1 << *log_quotient_degree;
@@ -494,13 +530,23 @@ where
 
         let opened_values = main_opened_values
             .into_iter()
-            .zip_eq(permutation_opened_values)
+            .zip_eq(global_permutation_opened_values)
+            .zip_eq(local_permutation_opened_values)
             .zip_eq(quotient_opened_values)
             .zip_eq(cumulative_sums)
             .zip_eq(log_degrees.iter())
             .enumerate()
             .map(
-                |(i, ((((main, permutation), quotient), cumulative_sum), log_degree))| {
+                |(
+                    i,
+                    (
+                        (
+                            (((main, global_permutation), local_permutation), quotient),
+                            cumulative_sum,
+                        ),
+                        log_degree,
+                    ),
+                )| {
                     let preprocessed = pk
                         .chip_ordering
                         .get(&chips[i].name())
@@ -512,9 +558,11 @@ where
                     ChipOpenedValues {
                         preprocessed,
                         main,
-                        permutation,
+                        global_permutation,
+                        local_permutation,
                         quotient,
-                        cumulative_sum,
+                        global_cumulative_sum: cumulative_sum.0,
+                        local_cumulative_sum: cumulative_sum.1,
                         log_degree: *log_degree,
                     }
                 },
@@ -524,7 +572,8 @@ where
         Ok(ShardProof::<SC> {
             commitment: ShardCommitment {
                 main_commit: data.main_commit.clone(),
-                permutation_commit,
+                global_permutation_commit,
+                local_permutation_commit,
                 quotient_commit,
             },
             opened_values: ShardOpenedValues {
@@ -573,10 +622,23 @@ where
             });
         });
 
+        // Obtain the challenges used for the global permutation argument.
+        let mut global_permutation_challenges: Vec<SC::Challenge> = Vec::new();
+        for _ in 0..2 {
+            global_permutation_challenges.push(challenger.sample_ext_element());
+        }
+
         let shard_proofs = tracing::info_span!("prove_shards").in_scope(|| {
             shard_data
                 .into_par_iter()
-                .map(|data| self.open(pk, data, &mut challenger.clone()))
+                .map(|data| {
+                    self.open(
+                        pk,
+                        data,
+                        &mut challenger.clone(),
+                        &global_permutation_challenges,
+                    )
+                })
                 .collect::<Result<Vec<_>, _>>()
         })?;
 

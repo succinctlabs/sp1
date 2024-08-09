@@ -18,7 +18,7 @@ use crate::memory::MemoryAccessCols;
 use crate::{bytes::ByteOpcode, memory::MemoryCols};
 
 pub enum InteractionScope {
-    Shard,
+    Local,
     Global,
 }
 
