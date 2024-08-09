@@ -97,16 +97,16 @@ pub struct ExecutionRecord {
 
     pub global_memory_finalize_events: Vec<MemoryInitializeFinalizeEvent>,
 
+    pub local_memory_initialize_access: HashMap<u32, MemoryRecord>,
+
+    pub local_memory_finalize_access: HashMap<u32, MemoryRecord>,
+
     pub bls12381_decompress_events: Vec<ECDecompressEvent>,
 
     /// The public values.
     pub public_values: PublicValues<u32, u32>,
 
     pub nonce_lookup: HashMap<u128, u32>,
-
-    pub local_memory_previous_access: HashMap<u32, MemoryRecord>,
-
-    pub local_memory_final_access: HashMap<u32, MemoryRecord>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

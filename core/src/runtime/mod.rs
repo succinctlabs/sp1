@@ -314,11 +314,10 @@ impl<'a> Runtime<'a> {
         let prev_shard = record.shard;
         let prev_timestamp = record.timestamp;
 
-        // Update the local_memory_previous_access if this is the first time access this address for
-        // the shard.
+        // Insert into local_memory_initialize_access for this shard's first access of this address.
         if !self.unconstrained {
             self.record
-                .local_memory_previous_access
+                .local_memory_initialize_access
                 .entry(addr)
                 .or_insert(*record);
         }
@@ -326,10 +325,10 @@ impl<'a> Runtime<'a> {
         record.shard = shard;
         record.timestamp = timestamp;
 
-        // Update the local_memory_final_access.
+        // Update the local_memory_finalize_access.
         if !self.unconstrained {
             self.record
-                .local_memory_final_access
+                .local_memory_finalize_access
                 .entry(addr)
                 .insert(*record);
         }
@@ -375,11 +374,10 @@ impl<'a> Runtime<'a> {
         let prev_shard = record.shard;
         let prev_timestamp = record.timestamp;
 
-        // Update the local_memory_previous_access if this is the first time access this address for
-        // the shard.
+        // Insert into local_memory_initialize_access for this shard's first access of this address.
         if !self.unconstrained {
             self.record
-                .local_memory_previous_access
+                .local_memory_initialize_access
                 .entry(addr)
                 .or_insert(*record);
         }
@@ -388,10 +386,10 @@ impl<'a> Runtime<'a> {
         record.shard = shard;
         record.timestamp = timestamp;
 
-        // Update the local_memory_final_access.
+        // Update the local_memory_finalize_access.
         if !self.unconstrained {
             self.record
-                .local_memory_final_access
+                .local_memory_finalize_access
                 .entry(addr)
                 .insert(*record);
         }
