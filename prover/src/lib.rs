@@ -763,7 +763,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
         let mut challenger = self.compress_prover.config().challenger();
         self.compress_prover.machine().debug_constraints(
-            self.compress_pk(),
+            pk,
             vec![runtime.record.clone()],
             &mut challenger,
         );
