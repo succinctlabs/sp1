@@ -761,6 +761,13 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
         drop(guard);
 
+        let mut challenger = self.compress_prover.config().challenger();
+        self.compress_prover.machine().debug_constraints(
+            self.compress_pk(),
+            records.clone(),
+            &mut challenger,
+        );
+
         let mut recursive_challenger = self.compress_prover.config().challenger();
         let proof = self
             .compress_prover
