@@ -17,7 +17,7 @@ use crate::lookup::InteractionKind;
 use crate::memory::MemoryAccessCols;
 use crate::{bytes::ByteOpcode, memory::MemoryCols};
 
-pub enum MessageScope {
+pub enum InteractionScope {
     Shard,
     Global,
 }
@@ -25,15 +25,15 @@ pub enum MessageScope {
 /// A Builder with the ability to encode the existance of interactions with other AIRs by sending
 /// and receiving messages.
 pub trait MessageBuilder<M> {
-    fn send(&mut self, message: M, scope: MessageScope);
+    fn send(&mut self, message: M, scope: InteractionScope);
 
-    fn receive(&mut self, message: M, scope: MessageScope);
+    fn receive(&mut self, message: M, scope: InteractionScope);
 }
 
 impl<AB: EmptyMessageBuilder, M> MessageBuilder<M> for AB {
-    fn send(&mut self, _message: M, _scope: MessageScope) {}
+    fn send(&mut self, _message: M, _scope: InteractionScope) {}
 
-    fn receive(&mut self, _message: M, _scope: MessageScope) {}
+    fn receive(&mut self, _message: M, _scope: InteractionScope) {}
 }
 
 /// A message builder for which sending and receiving messages is a no-op.
@@ -144,7 +144,7 @@ pub trait ByteAirBuilder: BaseAirBuilder {
                 multiplicity.into(),
                 InteractionKind::Byte,
             ),
-            MessageScope::Global,
+            InteractionScope::Global,
         );
     }
 
@@ -199,7 +199,7 @@ pub trait ByteAirBuilder: BaseAirBuilder {
                 multiplicity.into(),
                 InteractionKind::Byte,
             ),
-            MessageScope::Global,
+            InteractionScope::Global,
         );
     }
 }
@@ -338,7 +338,7 @@ pub trait AluAirBuilder: BaseAirBuilder {
 
         self.send(
             AirInteraction::new(values, multiplicity.into(), InteractionKind::Alu),
-            MessageScope::Global,
+            InteractionScope::Global,
         );
     }
 
@@ -366,7 +366,7 @@ pub trait AluAirBuilder: BaseAirBuilder {
 
         self.receive(
             AirInteraction::new(values, multiplicity.into(), InteractionKind::Alu),
-            MessageScope::Global,
+            InteractionScope::Global,
         );
     }
 
@@ -397,7 +397,7 @@ pub trait AluAirBuilder: BaseAirBuilder {
                 multiplicity.into(),
                 InteractionKind::Syscall,
             ),
-            MessageScope::Global,
+            InteractionScope::Global,
         );
     }
 
@@ -428,7 +428,7 @@ pub trait AluAirBuilder: BaseAirBuilder {
                 multiplicity.into(),
                 InteractionKind::Syscall,
             ),
-            MessageScope::Global,
+            InteractionScope::Global,
         );
     }
 }
@@ -483,13 +483,13 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
         // The previous values get sent with multiplicity = 1, for "read".
         self.send(
             AirInteraction::new(prev_values, do_check.clone(), InteractionKind::Memory),
-            MessageScope::Global,
+            InteractionScope::Global,
         );
 
         // The current values get "received", i.e. multiplicity = -1
         self.receive(
             AirInteraction::new(current_values, do_check.clone(), InteractionKind::Memory),
-            MessageScope::Global,
+            InteractionScope::Global,
         );
     }
 
@@ -637,7 +637,7 @@ pub trait ProgramAirBuilder: BaseAirBuilder {
 
         self.send(
             AirInteraction::new(values, multiplicity.into(), InteractionKind::Program),
-            MessageScope::Global,
+            InteractionScope::Global,
         );
     }
 
@@ -659,7 +659,7 @@ pub trait ProgramAirBuilder: BaseAirBuilder {
 
         self.receive(
             AirInteraction::new(values, multiplicity.into(), InteractionKind::Program),
-            MessageScope::Global,
+            InteractionScope::Global,
         );
     }
 }
@@ -725,11 +725,11 @@ pub trait SP1AirBuilder:
 }
 
 impl<'a, AB: AirBuilder + MessageBuilder<M>, M> MessageBuilder<M> for FilteredAirBuilder<'a, AB> {
-    fn send(&mut self, message: M, scope: MessageScope) {
+    fn send(&mut self, message: M, scope: InteractionScope) {
         self.inner.send(message, scope);
     }
 
-    fn receive(&mut self, message: M, scope: MessageScope) {
+    fn receive(&mut self, message: M, scope: InteractionScope) {
         self.inner.receive(message, scope);
     }
 }

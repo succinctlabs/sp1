@@ -10,7 +10,9 @@ use p3_matrix::Matrix;
 use sp1_derive::AlignedBorrow;
 
 use super::{MemoryChipType, MemoryInitializeFinalizeEvent};
-use crate::air::{AirInteraction, BaseAirBuilder, MessageScope, PublicValues, SP1AirBuilder, Word};
+use crate::air::{
+    AirInteraction, BaseAirBuilder, InteractionScope, PublicValues, SP1AirBuilder, Word,
+};
 use crate::air::{MachineAir, SP1_PROOF_NUM_PV_ELTS};
 use crate::operations::{AssertLtColsBits, BabyBearBitDecomposition, IsZeroOperation};
 use crate::runtime::{ExecutionRecord, Program};
@@ -225,7 +227,7 @@ where
                     local.is_real.into(),
                     crate::lookup::InteractionKind::Memory,
                 ),
-                MessageScope::Global,
+                InteractionScope::Global,
             );
         } else {
             let mut values = vec![
@@ -240,7 +242,7 @@ where
                     local.is_real.into(),
                     crate::lookup::InteractionKind::Memory,
                 ),
-                MessageScope::Global,
+                InteractionScope::Global,
             );
         }
 

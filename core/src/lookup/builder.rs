@@ -4,7 +4,7 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_uni_stark::{Entry, SymbolicExpression, SymbolicVariable};
 
 use crate::{
-    air::{AirInteraction, MessageBuilder, MessageScope},
+    air::{AirInteraction, MessageBuilder, InteractionScope},
     stark::PROOF_MAX_NUM_PVS,
 };
 
@@ -91,7 +91,7 @@ impl<F: Field> PairBuilder for InteractionBuilder<F> {
 }
 
 impl<F: Field> MessageBuilder<AirInteraction<SymbolicExpression<F>>> for InteractionBuilder<F> {
-    fn send(&mut self, message: AirInteraction<SymbolicExpression<F>>, scope: MessageScope) {
+    fn send(&mut self, message: AirInteraction<SymbolicExpression<F>>, scope: InteractionScope) {
         let values = message
             .values
             .into_iter()
@@ -104,7 +104,7 @@ impl<F: Field> MessageBuilder<AirInteraction<SymbolicExpression<F>>> for Interac
             .push(Interaction::new(values, multiplicity, message.kind, scope));
     }
 
-    fn receive(&mut self, message: AirInteraction<SymbolicExpression<F>>, scope: MessageScope) {
+    fn receive(&mut self, message: AirInteraction<SymbolicExpression<F>>, scope: InteractionScope) {
         let values = message
             .values
             .into_iter()
@@ -256,7 +256,7 @@ mod tests {
                     AB::F::from_canonical_u32(3).into(),
                     InteractionKind::Alu,
                 ),
-                MessageScope::Global,
+                InteractionScope::Global,
             );
             builder.send(
                 AirInteraction::new(
@@ -264,12 +264,12 @@ mod tests {
                     AB::F::from_canonical_u32(5).into(),
                     InteractionKind::Alu,
                 ),
-                MessageScope::Global,
+                InteractionScope::Global,
             );
 
             builder.receive(
                 AirInteraction::new(vec![x.into()], y.into(), InteractionKind::Byte),
-                MessageScope::Global,
+                InteractionScope::Global,
             );
         }
     }

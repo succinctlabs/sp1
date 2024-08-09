@@ -9,7 +9,7 @@ use p3_matrix::Matrix;
 use sp1_derive::AlignedBorrow;
 
 use crate::air::{
-    AirInteraction, MessageScope, PublicValues, SP1AirBuilder, SP1_PROOF_NUM_PV_ELTS,
+    AirInteraction, InteractionScope, PublicValues, SP1AirBuilder, SP1_PROOF_NUM_PV_ELTS,
 };
 use crate::air::{MachineAir, Word};
 use crate::operations::IsZeroOperation;
@@ -201,7 +201,7 @@ where
                 mult_local.multiplicity.into(),
                 crate::lookup::InteractionKind::Memory,
             ),
-            MessageScope::Global,
+            InteractionScope::Global,
         );
     }
 }
