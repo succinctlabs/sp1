@@ -8,6 +8,7 @@ use serde::Serialize;
 
 use sp1_core::air::MachineAir;
 use sp1_core::stark::Com;
+use sp1_core::stark::ShardCommitment;
 use sp1_core::stark::ShardProof;
 use sp1_core::stark::StarkGenericConfig;
 use sp1_core::stark::StarkMachine;
@@ -15,7 +16,7 @@ use sp1_core::stark::{AirOpenedValues, ChipOpenedValues};
 
 use sp1_core::stark::StarkVerifyingKey;
 use sp1_core::utils::inner_fri_config;
-use sp1_recursion_compiler::ir::*;
+use sp1_recursion_compiler::ir::{Builder, Config, Ext, ExtConst, FromConstant, Usize};
 use sp1_recursion_compiler::prelude::Felt;
 
 use sp1_recursion_core::runtime::DIGEST_SIZE;
@@ -27,6 +28,7 @@ use sp1_recursion_program::{
 
 use crate::challenger::*;
 use crate::domain::*;
+use crate::lookable::*;
 use crate::*;
 // use crate::commit::PolynomialSpaceVariable;
 // use crate::fri::types::TwoAdicPcsMatsVariable;
@@ -41,7 +43,7 @@ use crate::*;
 /// Reference: [sp1_core::stark::ShardProof]
 #[derive(Clone)]
 pub struct ShardProofVariable<C: Config> {
-    pub commitment: ShardCommitment<DigestVariable<C>>,
+    pub commitment: ShardCommitmentVariable<C>,
     pub opened_values: ShardOpenedValuesVariable<C>,
     pub opening_proof: TwoAdicPcsProofVariable<C>,
     pub public_values: Vec<Felt<C::F>>,
@@ -49,11 +51,12 @@ pub struct ShardProofVariable<C: Config> {
     pub sorted_idxs: Vec<usize>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ShardCommitment<C> {
-    pub main_commit: C,
-    pub permutation_commit: C,
-    pub quotient_commit: C,
+/// Reference: [sp1_core::stark::ShardCommitment]
+#[derive(Debug, Clone)]
+pub struct ShardCommitmentVariable<C: Config> {
+    pub main_commit: DigestVariable<C>,
+    pub permutation_commit: DigestVariable<C>,
+    pub quotient_commit: DigestVariable<C>,
 }
 
 /// Reference: [sp1_core::stark::ShardOpenedValues]
@@ -166,7 +169,7 @@ where
             ..
         } = proof;
 
-        let ShardCommitment {
+        let ShardCommitmentVariable {
             main_commit,
             permutation_commit,
             quotient_commit,
@@ -200,33 +203,32 @@ where
         let prep_mats: Vec<TwoAdicPcsMatsVariable<_>> = {
             let mut ms = zip(
                 &vk.preprocessed_sorted_idxs,
-                zip(&vk.prep_domains, machine.preprocessed_chip_ids()),
-            )
-            .map(|(preprocessed_sorted_id, (&domain, chip_id))| {
-                (preprocessed_sorted_id, {
-                    // Get index within all sorted chips.
-                    let chip_sorted_id = proof.sorted_idxs[chip_id];
-                    // Get opening from proof.
-                    let opening = &opened_values.chips[chip_sorted_id];
+                zip(&vk.prep_domains, machine.preprocessed_chip_ids()).map(|(&domain, chip_id)| {
+                    {
+                        // Get index within all sorted chips.
+                        let chip_sorted_id = proof.sorted_idxs[chip_id];
+                        // Get opening from proof.
+                        let opening = &opened_values.chips[chip_sorted_id];
 
-                    let domain_var: TwoAdicMultiplicativeCosetVariable<_> =
-                        builder.constant(domain);
+                        let domain_var: TwoAdicMultiplicativeCosetVariable<_> =
+                            builder.constant(domain);
 
-                    let zeta_next = domain_var.next_point(builder, zeta);
-                    let trace_points = vec![zeta, zeta_next];
+                        let zeta_next = domain_var.next_point(builder, zeta);
+                        let trace_points = vec![zeta, zeta_next];
 
-                    let prep_values = vec![
-                        opening.preprocessed.local.clone(),
-                        opening.preprocessed.next.clone(),
-                    ];
+                        let prep_values = vec![
+                            opening.preprocessed.local.clone(),
+                            opening.preprocessed.next.clone(),
+                        ];
 
-                    TwoAdicPcsMatsVariable::<C> {
-                        domain,
-                        values: prep_values,
-                        points: trace_points,
+                        TwoAdicPcsMatsVariable::<C> {
+                            domain,
+                            values: prep_values,
+                            points: trace_points,
+                        }
                     }
-                })
-            })
+                }),
+            )
             .collect::<Vec<_>>();
             // Invert the `vk.preprocessed_sorted_idxs` permutation.
             ms.sort_unstable_by_key(|(x, _)| *x);
@@ -409,229 +411,213 @@ where
     }
 }
 
-// #[cfg(test)]
-// pub(crate) mod tests {
-//     use std::borrow::BorrowMut;
-//     use std::time::Instant;
+#[cfg(test)]
+pub(crate) mod tests {
+    use std::borrow::BorrowMut;
+    use std::collections::VecDeque;
+    use std::time::Instant;
 
-//     use crate::challenger::CanObserveVariable;
-//     use crate::challenger::FeltChallenger;
-//     use crate::hints::Hintable;
-//     use crate::machine::commit_public_values;
-//     use crate::stark::DuplexChallengerVariable;
-//     use crate::stark::Ext;
-//     use crate::stark::ShardProofHint;
-//     use crate::types::ShardCommitmentVariable;
-//     use p3_challenger::{CanObserve, FieldChallenger};
-//     use p3_field::AbstractField;
-//     use rand::Rng;
-//     use sp1_core::air::POSEIDON_NUM_WORDS;
-//     use sp1_core::io::SP1Stdin;
-//     use sp1_core::runtime::Program;
-//     use sp1_core::stark::CpuProver;
-//     use sp1_core::stark::MachineProver;
-//     use sp1_core::utils::setup_logger;
-//     use sp1_core::utils::InnerChallenge;
-//     use sp1_core::utils::InnerVal;
-//     use sp1_core::utils::SP1CoreOpts;
-//     use sp1_core::{
-//         stark::{RiscvAir, StarkGenericConfig},
-//         utils::BabyBearPoseidon2,
-//     };
-//     use sp1_recursion_compiler::config::InnerConfig;
-//     use sp1_recursion_compiler::ir::Array;
-//     use sp1_recursion_compiler::ir::Config;
-//     use sp1_recursion_compiler::ir::Felt;
-//     use sp1_recursion_compiler::prelude::Usize;
-//     use sp1_recursion_compiler::{
-//         asm::AsmBuilder,
-//         ir::{Builder, ExtConst},
-//     };
+    use crate::challenger::CanObserveVariable;
+    use p3_challenger::{CanObserve, FieldChallenger};
+    use p3_field::AbstractField;
+    use rand::Rng;
+    use sp1_core::air::POSEIDON_NUM_WORDS;
+    use sp1_core::io::SP1Stdin;
+    use sp1_core::runtime::Program;
+    use sp1_core::stark::CpuProver;
+    use sp1_core::stark::MachineProver;
+    use sp1_core::utils::setup_logger;
+    use sp1_core::utils::InnerChallenge;
+    use sp1_core::utils::InnerVal;
+    use sp1_core::utils::SP1CoreOpts;
+    use sp1_core::{
+        stark::{RiscvAir, StarkGenericConfig},
+        utils::BabyBearPoseidon2,
+    };
+    use sp1_recursion_compiler::config::InnerConfig;
+    use sp1_recursion_compiler::ir::{Config, Ext, Felt, FromConstant};
+    use sp1_recursion_compiler::prelude::Usize;
+    use sp1_recursion_compiler::{
+        asm::AsmBuilder,
+        ir::{Builder, ExtConst},
+    };
 
-//     use sp1_recursion_core::air::RecursionPublicValues;
-//     use sp1_recursion_core::air::RECURSION_PUBLIC_VALUES_COL_MAP;
-//     use sp1_recursion_core::air::RECURSIVE_PROOF_NUM_PV_ELTS;
-//     use sp1_recursion_core::runtime::RecursionProgram;
-//     use sp1_recursion_core::runtime::Runtime;
-//     use sp1_recursion_core::runtime::DIGEST_SIZE;
+    use sp1_recursion_core::air::RecursionPublicValues;
+    use sp1_recursion_core::air::RECURSION_PUBLIC_VALUES_COL_MAP;
+    use sp1_recursion_core::air::RECURSIVE_PROOF_NUM_PV_ELTS;
+    use sp1_recursion_core::runtime::RecursionProgram;
+    use sp1_recursion_core::runtime::Runtime;
+    use sp1_recursion_core::runtime::DIGEST_SIZE;
 
-//     use sp1_recursion_core::stark::utils::run_test_recursion;
-//     use sp1_recursion_core::stark::utils::TestConfig;
-//     use sp1_recursion_core::stark::RecursionAir;
+    use sp1_recursion_core::stark::utils::TestConfig;
+    use sp1_recursion_core::stark::RecursionAir;
+    use sp1_recursion_program::machine::commit_public_values;
 
-//     type SC = BabyBearPoseidon2;
-//     type Challenge = <SC as StarkGenericConfig>::Challenge;
-//     type F = InnerVal;
-//     type EF = InnerChallenge;
-//     type C = InnerConfig;
-//     type A = RiscvAir<F>;
+    use super::*;
+    use crate::challenger::tests::run_test_recursion;
 
-//     #[test]
-//     fn test_permutation_challenges() {
-//         // Generate a dummy proof.
-//         sp1_core::utils::setup_logger();
-//         let elf = include_bytes!("../../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
+    type SC = BabyBearPoseidon2;
+    type Challenge = <SC as StarkGenericConfig>::Challenge;
+    type F = InnerVal;
+    type EF = InnerChallenge;
+    type C = InnerConfig;
+    type A = RiscvAir<F>;
 
-//         let machine = A::machine(SC::default());
-//         let (_, vk) = machine.setup(&Program::from(elf));
-//         let mut challenger_val = machine.config().challenger();
-//         let (proof, _, _) = sp1_core::utils::prove::<_, CpuProver<_, _>>(
-//             Program::from(elf),
-//             &SP1Stdin::new(),
-//             SC::default(),
-//             SP1CoreOpts::default(),
-//         )
-//         .unwrap();
-//         let proofs = proof.shard_proofs;
-//         println!("Proof generated successfully");
+    #[test]
+    fn test_permutation_challenges() {
+        // Generate a dummy proof.
+        sp1_core::utils::setup_logger();
+        let elf = include_bytes!("../../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
 
-//         challenger_val.observe(vk.commit);
+        let machine = A::machine(SC::default());
+        let (_, vk) = machine.setup(&Program::from(elf));
+        let mut challenger_val = machine.config().challenger();
+        let (proof, _, _) = sp1_core::utils::prove::<_, CpuProver<_, _>>(
+            Program::from(elf),
+            &SP1Stdin::new(),
+            SC::default(),
+            SP1CoreOpts::default(),
+        )
+        .unwrap();
+        let proofs = proof.shard_proofs;
+        println!("Proof generated successfully");
 
-//         proofs.iter().for_each(|proof| {
-//             challenger_val.observe(proof.commitment.main_commit);
-//             challenger_val.observe_slice(&proof.public_values[0..machine.num_pv_elts()]);
-//         });
+        challenger_val.observe(vk.commit);
 
-//         let permutation_challenges = (0..2)
-//             .map(|_| challenger_val.sample_ext_element::<EF>())
-//             .collect::<Vec<_>>();
+        proofs.iter().for_each(|proof| {
+            challenger_val.observe(proof.commitment.main_commit);
+            challenger_val.observe_slice(&proof.public_values[0..machine.num_pv_elts()]);
+        });
 
-//         // Observe all the commitments.
-//         let mut builder = Builder::<InnerConfig>::default();
+        let permutation_challenges = (0..2)
+            .map(|_| challenger_val.sample_ext_element::<EF>())
+            .collect::<Vec<_>>();
 
-//         // Add a hash invocation, since the poseidon2 table expects that it's in the first row.
-//         let hash_input = builder.constant(vec![vec![F::one()]]);
-//         builder.poseidon2_hash_x(&hash_input);
+        // Observe all the commitments.
+        let mut builder = Builder::<InnerConfig>::default();
 
-//         let mut challenger = DuplexChallengerVariable::new(&mut builder);
+        // Add a hash invocation, since the poseidon2 table expects that it's in the first row.
+        let hash_input = builder.constant(vec![vec![F::one()]]);
+        builder.poseidon2_hash_x(&hash_input);
 
-//         let preprocessed_commit_val: [F; DIGEST_SIZE] = vk.commit.into();
-//         let preprocessed_commit: Vec<_> = builder.constant(preprocessed_commit_val.to_vec());
-//         challenger.observe(&mut builder, preprocessed_commit);
+        let mut challenger = DuplexChallengerVariable::new(&mut builder);
 
-//         let mut witness_stream = Vec::new();
-//         for proof in proofs {
-//             let proof_hint = ShardProofHint::new(&machine, &proof);
-//             witness_stream.extend(proof_hint.write());
-//             let proof = ShardProofHint::<SC, A>::read(&mut builder);
-//             let ShardCommitmentVariable { main_commit, .. } = proof.commitment;
-//             challenger.observe(&mut builder, main_commit);
-//             let pv_slice = proof.public_values.slice(
-//                 &mut builder,
-//                 Usize::Const(0),
-//                 Usize::Const(machine.num_pv_elts()),
-//             );
-//             challenger.observe_slice(&mut builder, pv_slice);
-//         }
+        let preprocessed_commit_val: [F; DIGEST_SIZE] = vk.commit.into();
+        let preprocessed_commit = builder.constant(preprocessed_commit_val);
+        challenger.observe_commitment(&mut builder, preprocessed_commit);
 
-//         // Sample the permutation challenges.
-//         let permutation_challenges_var = (0..2)
-//             .map(|_| challenger.sample_ext(&mut builder))
-//             .collect::<Vec<_>>();
+        let mut witness_stream = VecDeque::<Witness<C>>::new();
+        for proof in proofs {
+            let proof_hint = ShardProofHint::new(&machine, &proof);
+            witness_stream.extend(proof_hint.write());
+            let proof = proof_hint.read(&mut builder);
+            let ShardCommitmentVariable { main_commit, .. } = proof.commitment;
+            challenger.observe_commitment(&mut builder, main_commit);
+            let pv_slice = &proof.public_values[..machine.num_pv_elts()];
+            challenger.observe_slice(&mut builder, pv_slice.iter().cloned());
+        }
 
-//         for i in 0..2 {
-//             builder.assert_ext_eq(
-//                 permutation_challenges_var[i],
-//                 permutation_challenges[i].cons(),
-//             );
-//         }
-//         builder.halt();
+        // Sample the permutation challenges.
+        let permutation_challenges_var = (0..2)
+            .map(|_| challenger.sample_ext(&mut builder))
+            .collect::<Vec<_>>();
 
-//         let program = builder.compile_program();
-//         run_test_recursion(program, Some(witness_stream.into()), TestConfig::All);
-//     }
+        for i in 0..2 {
+            builder.assert_ext_eq(
+                permutation_challenges_var[i],
+                permutation_challenges[i].cons(),
+            );
+        }
 
-//     fn test_public_values_program() -> RecursionProgram<InnerVal> {
-//         let mut builder = Builder::<InnerConfig>::default();
+        run_test_recursion(builder.operations, witness_stream);
+    }
 
-//         // Add a hash invocation, since the poseidon2 table expects that it's in the first row.
-//         let hash_input = builder.constant(vec![vec![F::one()]]);
-//         builder.poseidon2_hash_x(&hash_input);
+    // fn test_public_values_program() -> RecursionProgram<InnerVal> {
+    //     let mut builder = Builder::<InnerConfig>::default();
 
-//         let mut public_values_stream: Vec<Felt<_>> = (0..RECURSIVE_PROOF_NUM_PV_ELTS)
-//             .map(|_| builder.uninit())
-//             .collect();
+    //     // Add a hash invocation, since the poseidon2 table expects that it's in the first row.
+    //     let hash_input = builder.constant(vec![vec![F::one()]]);
+    //     builder.poseidon2_hash_x(&hash_input);
 
-//         let public_values: &mut RecursionPublicValues<_> =
-//             public_values_stream.as_mut_slice().borrow_mut();
+    //     let mut public_values_stream: Vec<Felt<_>> = (0..RECURSIVE_PROOF_NUM_PV_ELTS)
+    //         .map(|_| builder.uninit())
+    //         .collect();
 
-//         public_values.sp1_vk_digest = [builder.constant(<C as Config>::F::zero()); DIGEST_SIZE];
-//         public_values.next_pc = builder.constant(<C as Config>::F::one());
-//         public_values.next_execution_shard = builder.constant(<C as Config>::F::two());
-//         public_values.end_reconstruct_deferred_digest =
-//             [builder.constant(<C as Config>::F::from_canonical_usize(3)); POSEIDON_NUM_WORDS];
+    //     let public_values: &mut RecursionPublicValues<_> =
+    //         public_values_stream.as_mut_slice().borrow_mut();
 
-//         public_values.deferred_proofs_digest =
-//             [builder.constant(<C as Config>::F::from_canonical_usize(4)); POSEIDON_NUM_WORDS];
+    //     public_values.sp1_vk_digest = [builder.constant(<C as Config>::F::zero()); DIGEST_SIZE];
+    //     public_values.next_pc = builder.constant(<C as Config>::F::one());
+    //     public_values.next_execution_shard = builder.constant(<C as Config>::F::two());
+    //     public_values.end_reconstruct_deferred_digest =
+    //         [builder.constant(<C as Config>::F::from_canonical_usize(3)); POSEIDON_NUM_WORDS];
 
-//         public_values.cumulative_sum =
-//             [builder.constant(<C as Config>::F::from_canonical_usize(5)); 4];
+    //     public_values.deferred_proofs_digest =
+    //         [builder.constant(<C as Config>::F::from_canonical_usize(4)); POSEIDON_NUM_WORDS];
 
-//         commit_public_values(&mut builder, public_values);
-//         builder.halt();
+    //     public_values.cumulative_sum =
+    //         [builder.constant(<C as Config>::F::from_canonical_usize(5)); 4];
 
-//         builder.compile_program()
-//     }
+    //     commit_public_values(&mut builder, public_values);
+    //     builder.halt();
 
-//     #[test]
-//     fn test_public_values_failure() {
-//         let program = test_public_values_program();
+    //     builder.compile_program()
+    // }
 
-//         let config = SC::default();
+    // #[test]
+    // fn test_public_values_failure() {
+    //     let program = test_public_values_program();
 
-//         let mut runtime = Runtime::<InnerVal, Challenge, _>::new(&program, config.perm.clone());
-//         runtime.run().unwrap();
+    //     let config = SC::default();
 
-//         let machine = RecursionAir::<_, 3>::machine(SC::default());
-//         let prover = CpuProver::new(machine);
-//         let (pk, vk) = prover.setup(&program);
-//         let record = runtime.record.clone();
+    //     let mut runtime = Runtime::<InnerVal, Challenge, _>::new(&program, config.perm.clone());
+    //     runtime.run().unwrap();
 
-//         let mut challenger = prover.config().challenger();
-//         let mut proof = prover
-//             .prove(&pk, vec![record], &mut challenger, SP1CoreOpts::recursion())
-//             .unwrap();
+    //     let machine = RecursionAir::<_, 3>::machine(SC::default());
+    //     let prover = CpuProver::new(machine);
+    //     let (pk, vk) = prover.setup(&program);
+    //     let record = runtime.record.clone();
 
-//         let mut challenger = prover.config().challenger();
-//         let verification_result = prover.machine().verify(&vk, &proof, &mut challenger);
-//         if verification_result.is_err() {
-//             panic!("Proof should verify successfully");
-//         }
+    //     let mut challenger = prover.config().challenger();
+    //     let mut proof = prover
+    //         .prove(&pk, vec![record], &mut challenger, SP1CoreOpts::recursion())
+    //         .unwrap();
 
-//         // Corrupt the public values.
-//         proof.shard_proofs[0].public_values[RECURSION_PUBLIC_VALUES_COL_MAP.digest[0]] =
-//             InnerVal::zero();
-//         let verification_result = prover.machine().verify(&vk, &proof, &mut challenger);
-//         if verification_result.is_ok() {
-//             panic!("Proof should not verify successfully");
-//         }
-//     }
+    //     let mut challenger = prover.config().challenger();
+    //     let verification_result = prover.machine().verify(&vk, &proof, &mut challenger);
+    //     if verification_result.is_err() {
+    //         panic!("Proof should verify successfully");
+    //     }
 
-//     #[test]
-//     #[ignore]
-//     fn test_kitchen_sink() {
-//         setup_logger();
+    //     // Corrupt the public values.
+    //     proof.shard_proofs[0].public_values[RECURSION_PUBLIC_VALUES_COL_MAP.digest[0]] =
+    //         InnerVal::zero();
+    //     let verification_result = prover.machine().verify(&vk, &proof, &mut challenger);
+    //     if verification_result.is_ok() {
+    //         panic!("Proof should not verify successfully");
+    //     }
+    // }
 
-//         let time = Instant::now();
-//         let mut builder = AsmBuilder::<F, EF>::default();
+    // #[test]
+    // #[ignore]
+    // fn test_kitchen_sink() {
+    //     setup_logger();
 
-//         let a: Felt<_> = builder.eval(F::from_canonical_u32(23));
-//         let b: Felt<_> = builder.eval(F::from_canonical_u32(17));
-//         let a_plus_b = builder.eval(a + b);
-//         let mut rng = rand::thread_rng();
-//         let a_ext_val = rng.gen::<EF>();
-//         let b_ext_val = rng.gen::<EF>();
-//         let a_ext: Ext<_, _> = builder.eval(a_ext_val.cons());
-//         let b_ext: Ext<_, _> = builder.eval(b_ext_val.cons());
-//         let a_plus_b_ext = builder.eval(a_ext + b_ext);
-//         builder.print_f(a_plus_b);
-//         builder.print_e(a_plus_b_ext);
-//         builder.halt();
+    //     let mut builder = AsmBuilder::<F, EF>::default();
 
-//         let program = builder.compile_program();
-//         let elapsed = time.elapsed();
-//         println!("Building took: {:?}", elapsed);
+    //     let a: Felt<_> = builder.eval(F::from_canonical_u32(23));
+    //     let b: Felt<_> = builder.eval(F::from_canonical_u32(17));
+    //     let a_plus_b = builder.eval(a + b);
+    //     let mut rng = rand::thread_rng();
+    //     let a_ext_val = rng.gen::<EF>();
+    //     let b_ext_val = rng.gen::<EF>();
+    //     let a_ext: Ext<_, _> = builder.eval(a_ext_val.cons());
+    //     let b_ext: Ext<_, _> = builder.eval(b_ext_val.cons());
+    //     let a_plus_b_ext = builder.eval(a_ext + b_ext);
+    //     builder.print_f(a_plus_b);
+    //     builder.print_e(a_plus_b_ext);
+    //     builder.halt();
 
-//         run_test_recursion(program, None, TestConfig::All);
-//     }
-// }
+    //     run_test_recursion(builder.operations, None);
+    // }
+}

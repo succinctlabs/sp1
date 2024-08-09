@@ -8,8 +8,9 @@ pub mod build_wrap_v2;
 pub mod challenger;
 pub mod domain;
 pub mod fri;
+pub mod lookable;
 pub mod stark;
-pub mod witness;
+pub mod utils;
 
 pub type DigestVariable<C> = [Felt<<C as Config>::F>; DIGEST_SIZE];
 

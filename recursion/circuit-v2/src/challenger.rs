@@ -218,6 +218,8 @@ impl<C: Config> FeltChallenger<C> for DuplexChallengerVariable<C> {
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use std::collections::VecDeque;
+
     use p3_challenger::CanObserve;
     use p3_challenger::CanSample;
     use p3_challenger::FieldChallenger;
@@ -238,6 +240,7 @@ pub(crate) mod tests {
     use sp1_recursion_core_v2::Runtime;
 
     use crate::challenger::DuplexChallengerVariable;
+    use crate::lookable::Witness;
 
     use sp1_core::utils::run_test_machine;
 
@@ -248,7 +251,10 @@ pub(crate) mod tests {
     /// A simplified version of some code from `recursion/core/src/stark/mod.rs`.
     /// Takes in a program and runs it with the given witness and generates a proof with a variety of
     /// machines depending on the provided test_config.
-    pub(crate) fn run_test_recursion(operations: TracedVec<DslIr<AsmConfig<F, EF>>>) {
+    pub(crate) fn run_test_recursion(
+        operations: TracedVec<DslIr<AsmConfig<F, EF>>>,
+        witness_stream: impl IntoIterator<Item = Witness<AsmConfig<F, EF>>>,
+    ) {
         setup_logger();
 
         let mut compiler = AsmCompiler::<AsmConfig<F, EF>>::default();
@@ -258,6 +264,7 @@ pub(crate) mod tests {
 
         let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
         runtime.run().unwrap();
+        runtime.witness_stream.extend(witness_stream);
 
         let records = vec![runtime.record];
 
@@ -309,6 +316,6 @@ pub(crate) mod tests {
         builder.assert_ext_eq(expected_result_ef, element_ef);
 
         // let program = builder.compile_program();
-        run_test_recursion(builder.operations);
+        run_test_recursion(builder.operations, None);
     }
 }
