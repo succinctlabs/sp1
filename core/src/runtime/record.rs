@@ -7,6 +7,7 @@ use p3_field::AbstractField;
 use serde::{Deserialize, Serialize};
 
 use super::program::Program;
+use super::MemoryRecord;
 use super::Opcode;
 use crate::air::PublicValues;
 use crate::alu::AluEvent;
@@ -92,9 +93,9 @@ pub struct ExecutionRecord {
 
     pub uint256_mul_events: Vec<Uint256MulEvent>,
 
-    pub memory_initialize_events: Vec<MemoryInitializeFinalizeEvent>,
+    pub global_memory_initialize_events: Vec<MemoryInitializeFinalizeEvent>,
 
-    pub memory_finalize_events: Vec<MemoryInitializeFinalizeEvent>,
+    pub global_memory_finalize_events: Vec<MemoryInitializeFinalizeEvent>,
 
     pub bls12381_decompress_events: Vec<ECDecompressEvent>,
 
@@ -102,6 +103,10 @@ pub struct ExecutionRecord {
     pub public_values: PublicValues<u32, u32>,
 
     pub nonce_lookup: HashMap<u128, u32>,
+
+    pub local_memory_previous_access: HashMap<u32, MemoryRecord>,
+
+    pub local_memory_final_access: HashMap<u32, MemoryRecord>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -197,11 +202,11 @@ impl MachineRecord for ExecutionRecord {
         );
         stats.insert(
             "memory_initialize_events".to_string(),
-            self.memory_initialize_events.len(),
+            self.global_memory_initialize_events.len(),
         );
         stats.insert(
             "memory_finalize_events".to_string(),
-            self.memory_finalize_events.len(),
+            self.global_memory_finalize_events.len(),
         );
         if !self.cpu_events.is_empty() {
             let shard = self.cpu_events[0].shard;
@@ -258,10 +263,10 @@ impl MachineRecord for ExecutionRecord {
             self.add_sharded_byte_lookup_events(vec![&other.byte_lookups]);
         }
 
-        self.memory_initialize_events
-            .append(&mut other.memory_initialize_events);
-        self.memory_finalize_events
-            .append(&mut other.memory_finalize_events);
+        self.global_memory_initialize_events
+            .append(&mut other.global_memory_initialize_events);
+        self.global_memory_finalize_events
+            .append(&mut other.global_memory_finalize_events);
     }
 
     fn register_nonces(&mut self, _opts: &Self::Config) {
@@ -384,8 +389,10 @@ impl ExecutionRecord {
             k256_decompress_events: std::mem::take(&mut self.k256_decompress_events),
             uint256_mul_events: std::mem::take(&mut self.uint256_mul_events),
             bls12381_decompress_events: std::mem::take(&mut self.bls12381_decompress_events),
-            memory_initialize_events: std::mem::take(&mut self.memory_initialize_events),
-            memory_finalize_events: std::mem::take(&mut self.memory_finalize_events),
+            global_memory_initialize_events: std::mem::take(
+                &mut self.global_memory_initialize_events,
+            ),
+            global_memory_finalize_events: std::mem::take(&mut self.global_memory_finalize_events),
             ..Default::default()
         }
     }
@@ -525,17 +532,18 @@ impl ExecutionRecord {
         if last {
             // shards.push(last_shard);
 
-            self.memory_initialize_events
+            self.global_memory_initialize_events
                 .sort_by_key(|event| event.addr);
-            self.memory_finalize_events.sort_by_key(|event| event.addr);
+            self.global_memory_finalize_events
+                .sort_by_key(|event| event.addr);
 
             let mut init_addr_bits = [0; 32];
             let mut finalize_addr_bits = [0; 32];
             for mem_chunks in self
-                .memory_initialize_events
+                .global_memory_initialize_events
                 .chunks(opts.memory_split_threshold)
                 .zip_longest(
-                    self.memory_finalize_events
+                    self.global_memory_finalize_events
                         .chunks(opts.memory_split_threshold),
                 )
             {
@@ -549,7 +557,7 @@ impl ExecutionRecord {
                 let mut shard = ExecutionRecord::default();
                 shard.program = self.program.clone();
                 shard
-                    .memory_initialize_events
+                    .global_memory_initialize_events
                     .extend_from_slice(mem_init_chunk);
                 shard.public_values.previous_init_addr_bits = init_addr_bits;
                 if let Some(last_event) = mem_init_chunk.last() {
@@ -559,7 +567,7 @@ impl ExecutionRecord {
                 shard.public_values.last_init_addr_bits = init_addr_bits;
 
                 shard
-                    .memory_finalize_events
+                    .global_memory_finalize_events
                     .extend_from_slice(mem_finalize_chunk);
                 shard.public_values.previous_finalize_addr_bits = finalize_addr_bits;
                 if let Some(last_event) = mem_finalize_chunk.last() {

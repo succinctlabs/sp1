@@ -63,8 +63,8 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip {
         _output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
         let mut memory_events = match self.kind {
-            MemoryChipType::Initialize => input.memory_initialize_events.clone(),
-            MemoryChipType::Finalize => input.memory_finalize_events.clone(),
+            MemoryChipType::Initialize => input.global_memory_initialize_events.clone(),
+            MemoryChipType::Finalize => input.global_memory_finalize_events.clone(),
         };
 
         let previous_addr_bits = match self.kind {
@@ -138,8 +138,8 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip {
 
     fn included(&self, shard: &Self::Record) -> bool {
         match self.kind {
-            MemoryChipType::Initialize => !shard.memory_initialize_events.is_empty(),
-            MemoryChipType::Finalize => !shard.memory_finalize_events.is_empty(),
+            MemoryChipType::Initialize => !shard.global_memory_initialize_events.is_empty(),
+            MemoryChipType::Finalize => !shard.global_memory_finalize_events.is_empty(),
         }
     }
 }
@@ -425,7 +425,7 @@ mod tests {
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
         println!("{:?}", trace.values);
 
-        for mem_event in shard.memory_finalize_events {
+        for mem_event in shard.global_memory_finalize_events {
             println!("{:?}", mem_event);
         }
     }

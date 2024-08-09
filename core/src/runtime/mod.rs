@@ -313,8 +313,26 @@ impl<'a> Runtime<'a> {
         let value = record.value;
         let prev_shard = record.shard;
         let prev_timestamp = record.timestamp;
+
+        // Update the local_memory_previous_access if this is the first time access this address for
+        // the shard.
+        if !self.unconstrained {
+            self.record
+                .local_memory_previous_access
+                .entry(addr)
+                .or_insert(*record);
+        }
+
         record.shard = shard;
         record.timestamp = timestamp;
+
+        // Update the local_memory_final_access.
+        if !self.unconstrained {
+            self.record
+                .local_memory_final_access
+                .entry(addr)
+                .insert(*record);
+        }
 
         // Construct the memory read record.
         MemoryReadRecord::new(value, shard, timestamp, prev_shard, prev_timestamp)
@@ -356,9 +374,27 @@ impl<'a> Runtime<'a> {
         let prev_value = record.value;
         let prev_shard = record.shard;
         let prev_timestamp = record.timestamp;
+
+        // Update the local_memory_previous_access if this is the first time access this address for
+        // the shard.
+        if !self.unconstrained {
+            self.record
+                .local_memory_previous_access
+                .entry(addr)
+                .or_insert(*record);
+        }
+
         record.value = value;
         record.shard = shard;
         record.timestamp = timestamp;
+
+        // Update the local_memory_final_access.
+        if !self.unconstrained {
+            self.record
+                .local_memory_final_access
+                .entry(addr)
+                .insert(*record);
+        }
 
         // Construct the memory write record.
         MemoryWriteRecord::new(
@@ -1233,7 +1269,7 @@ impl<'a> Runtime<'a> {
         }
 
         // SECTION: Set up all MemoryInitializeFinalizeEvents needed for memory argument.
-        let memory_finalize_events = &mut self.record.memory_finalize_events;
+        let memory_finalize_events = &mut self.record.global_memory_finalize_events;
 
         // We handle the addr = 0 case separately, as we constrain it to be 0 in the first row
         // of the memory finalize table so it must be first in the array of events.
@@ -1252,7 +1288,7 @@ impl<'a> Runtime<'a> {
             addr_0_final_record,
         ));
 
-        let memory_initialize_events = &mut self.record.memory_initialize_events;
+        let memory_initialize_events = &mut self.record.global_memory_initialize_events;
         let addr_0_initialize_event =
             MemoryInitializeFinalizeEvent::initialize(0, 0, addr_0_record.is_some());
         memory_initialize_events.push(addr_0_initialize_event);
