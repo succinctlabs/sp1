@@ -38,11 +38,11 @@ pub struct ExecutionState {
 
     /// The memory which instructions operate over. Values contain the memory value and last shard
     /// + timestamp that each memory address was accessed.
-    #[serde(
-        serialize_with = "serialize_hashmap_as_vec",
-        deserialize_with = "deserialize_hashmap_as_vec"
-    )]
-    pub memory: HashMap<u32, MemoryRecord, BuildNoHashHasher<u32>>,
+    // #[serde(
+    //     serialize_with = "serialize_hashmap_as_vec",
+    //     deserialize_with = "deserialize_hashmap_as_vec"
+    // )]
+    pub memory: Vec<Option<MemoryRecord>>,
 
     /// Uninitialized memory addresses that have a specific value they should be initialized with.
     /// SyscallHintRead uses this to write hint data into uninitialized memory.
@@ -86,7 +86,8 @@ impl ExecutionState {
             clk: 0,
             channel: 0,
             pc: pc_start,
-            memory: HashMap::default(),
+            // Init 2GB of memory with addresses. Note: Only word-aligned addresses are initialized.
+            memory: Vec::with_capacity(0x78000000),
             uninitialized_memory: HashMap::default(),
             input_stream: Vec::new(),
             input_stream_ptr: 0,

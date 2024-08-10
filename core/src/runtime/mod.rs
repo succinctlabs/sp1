@@ -231,7 +231,7 @@ impl<'a> Runtime<'a> {
         let mut registers = [0; 32];
         for i in 0..32 {
             let addr = Register::from_u32(i as u32) as u32;
-            registers[i] = match self.state.memory.get(&addr) {
+            registers[i] = match self.state.memory[addr as usize] {
                 Some(record) => record.value,
                 None => 0,
             };
@@ -242,7 +242,7 @@ impl<'a> Runtime<'a> {
     /// Get the current value of a register.
     pub fn register(&self, register: Register) -> u32 {
         let addr = register as u32;
-        match self.state.memory.get(&addr) {
+        match self.state.memory[addr as usize] {
             Some(record) => record.value,
             None => 0,
         }
@@ -250,7 +250,7 @@ impl<'a> Runtime<'a> {
 
     /// Get the current value of a word.
     pub fn word(&self, addr: u32) -> u32 {
-        match self.state.memory.get(&addr) {
+        match self.state.memory[addr as usize] {
             Some(record) => record.value,
             None => 0,
         }
@@ -282,32 +282,32 @@ impl<'a> Runtime<'a> {
     pub fn mr(&mut self, addr: u32, shard: u32, timestamp: u32) -> MemoryReadRecord {
         // Get the memory record entry.
         self.touched_memory.insert(addr);
-        let entry = self.state.memory.entry(addr);
+        let entry = self.state.memory[addr as usize];
 
         // If we're in unconstrained mode, we don't want to modify state, so we'll save the
         // original state if it's the first time modifying it.
         if self.unconstrained {
             let record = match entry {
-                Entry::Occupied(ref entry) => Some(entry.get()),
-                Entry::Vacant(_) => None,
+                Some(record) => Some(record),
+                None => None,
             };
             self.unconstrained_state
                 .memory_diff
                 .entry(addr)
-                .or_insert(record.copied());
+                .or_insert(record);
         }
 
         // If it's the first time accessing this address, initialize previous values.
         let record: &mut MemoryRecord = match entry {
-            Entry::Occupied(entry) => entry.into_mut(),
-            Entry::Vacant(entry) => {
+            Some(mut record) => &mut record,
+            None => {
                 // If addr has a specific value to be initialized with, use that, otherwise 0.
                 let value = self.state.uninitialized_memory.get(&addr).unwrap_or(&0);
-                entry.insert(MemoryRecord {
+                MemoryRecord {
                     value: *value,
                     shard: 0,
                     timestamp: 0,
-                })
+                }
             }
         };
         let value = record.value;
@@ -324,25 +324,21 @@ impl<'a> Runtime<'a> {
     pub fn mw(&mut self, addr: u32, value: u32, shard: u32, timestamp: u32) -> MemoryWriteRecord {
         // Get the memory record entry.
         self.touched_memory.insert(addr);
-        let entry = self.state.memory.entry(addr);
+        let entry = self.state.memory[addr as usize].as_mut();
 
         // If we're in unconstrained mode, we don't want to modify state, so we'll save the
         // original state if it's the first time modifying it.
         if self.unconstrained {
-            let record = match entry {
-                Entry::Occupied(ref entry) => Some(entry.get()),
-                Entry::Vacant(_) => None,
-            };
             self.unconstrained_state
                 .memory_diff
                 .entry(addr)
-                .or_insert(record.copied());
+                .or_insert(entry.copied());
         }
 
         // If it's the first time accessing this address, initialize previous values.
         let record: &mut MemoryRecord = match entry {
-            Entry::Occupied(entry) => entry.into_mut(),
-            Entry::Vacant(entry) => {
+            Some(record) => record,
+            None => {
                 // If addr has a specific value to be initialized with, use that, otherwise 0.
                 let value = self.state.uninitialized_memory.get(&addr).unwrap_or(&0);
 
@@ -1075,10 +1071,14 @@ impl<'a> Runtime<'a> {
         // `state.memory` for MemoryFinalize
         let touched_memory = std::mem::take(&mut self.touched_memory);
         if !done {
-            state.memory = touched_memory
-                .iter()
-                .filter_map(|addr| state.memory.get(addr).map(|record| (*addr, *record)))
-                .collect();
+            
+            for i in 0..state.memory.len() {
+                if touched_memory.contains(&(i as u32)) {
+                    state.memory[i] = state.memory[i].clone();
+                } else {
+                    state.memory[i] = None;
+                }
+            }
 
             state.uninitialized_memory = touched_memory
                 .into_iter()
@@ -1099,14 +1099,11 @@ impl<'a> Runtime<'a> {
 
         tracing::debug!("loading memory image");
         for (addr, value) in self.program.memory_image.iter() {
-            self.state.memory.insert(
-                *addr,
-                MemoryRecord {
-                    value: *value,
-                    shard: 0,
-                    timestamp: 0,
-                },
-            );
+            self.state.memory[*addr as usize] = Some(MemoryRecord {
+                value: *value,
+                shard: 0,
+                timestamp: 0,
+            });
         }
     }
 
@@ -1237,11 +1234,11 @@ impl<'a> Runtime<'a> {
 
         // We handle the addr = 0 case separately, as we constrain it to be 0 in the first row
         // of the memory finalize table so it must be first in the array of events.
-        let addr_0_record = self.state.memory.get(&0u32);
+        let addr_0_record = self.state.memory[0];
 
         let addr_0_final_record = match addr_0_record {
             Some(record) => record,
-            None => &MemoryRecord {
+            None => MemoryRecord {
                 value: 0,
                 shard: 0,
                 timestamp: 1,
@@ -1249,7 +1246,7 @@ impl<'a> Runtime<'a> {
         };
         memory_finalize_events.push(MemoryInitializeFinalizeEvent::finalize_from_record(
             0,
-            addr_0_final_record,
+            &addr_0_final_record,
         ));
 
         let memory_initialize_events = &mut self.record.memory_initialize_events;
@@ -1257,26 +1254,30 @@ impl<'a> Runtime<'a> {
             MemoryInitializeFinalizeEvent::initialize(0, 0, addr_0_record.is_some());
         memory_initialize_events.push(addr_0_initialize_event);
 
-        for addr in self.state.memory.keys() {
-            if addr == &0 {
+        for (i, record) in self.state.memory.iter().enumerate() {
+            if i == 0 {
                 // Handled above.
                 continue;
             }
 
             // Program memory is initialized in the MemoryProgram chip and doesn't require any events,
             // so we only send init events for other memory addresses.
-            if !self.record.program.memory_image.contains_key(addr) {
-                let initial_value = self.state.uninitialized_memory.get(addr).unwrap_or(&0);
+            if !self.record.program.memory_image.contains_key(&(i as u32)) {
+                let initial_value = self
+                    .state
+                    .uninitialized_memory
+                    .get(&(i as u32))
+                    .unwrap_or(&0);
                 memory_initialize_events.push(MemoryInitializeFinalizeEvent::initialize(
-                    *addr,
+                    i as u32,
                     *initial_value,
                     true,
                 ));
             }
 
-            let record = *self.state.memory.get(addr).unwrap();
+            let record = self.state.memory[i].unwrap();
             memory_finalize_events.push(MemoryInitializeFinalizeEvent::finalize_from_record(
-                *addr, &record,
+                i as u32, &record,
             ));
         }
     }
