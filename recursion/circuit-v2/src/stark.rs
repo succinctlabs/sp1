@@ -27,6 +27,7 @@ use utils::get_sorted_indices;
 
 use crate::challenger::*;
 use crate::domain::*;
+use crate::fri::verify_two_adic_pcs;
 use crate::*;
 // use crate::commit::PolynomialSpaceVariable;
 // use crate::fri::types::TwoAdicPcsMatsVariable;
@@ -152,7 +153,7 @@ impl<'a, SC: StarkGenericConfig, A: MachineAir<SC::Val>> VerifyingKeyHint<'a, SC
     }
 }
 
-impl<C: Config, SC: StarkGenericConfig> StarkVerifier<C, SC>
+impl<C: Config, SC> StarkVerifier<C, SC>
 where
     C::F: TwoAdicField,
     SC: StarkGenericConfig<
@@ -329,7 +330,7 @@ where
         // Verify the pcs proof
         // builder.cycle_tracker("stage-d-verify-pcs");
         let config = inner_fri_config();
-        crate::fri::verify_two_adic_pcs(builder, &config, opening_proof, challenger, rounds);
+        verify_two_adic_pcs::<_, _>(builder, &config, opening_proof, challenger, rounds);
         // builder.cycle_tracker("stage-d-verify-pcs");
 
         // builder.cycle_tracker("stage-e-verify-constraints");

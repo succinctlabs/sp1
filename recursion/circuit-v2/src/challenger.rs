@@ -34,6 +34,8 @@ pub trait FeltChallenger<C: Config>:
     CanObserveVariable<C, Felt<C::F>> + CanSampleVariable<C, Felt<C::F>> + CanSampleBitsVariable<C>
 {
     fn sample_ext(&mut self, builder: &mut Builder<C>) -> Ext<C::F, C::EF>;
+
+    fn check_witness(&mut self, builder: &mut Builder<C>, nb_bits: usize, witness: Felt<C::F>);
 }
 
 pub trait CanSampleBitsVariable<C: Config> {
@@ -128,28 +130,12 @@ impl<C: Config> DuplexChallengerVariable<C> {
             .expect("output buffer should be non-empty")
     }
 
-    pub fn sample_ext(&mut self, builder: &mut Builder<C>) -> Ext<C::F, C::EF> {
-        let a = self.sample(builder);
-        let b = self.sample(builder);
-        let c = self.sample(builder);
-        let d = self.sample(builder);
-        builder.ext_from_base_slice(&[a, b, c, d])
-    }
-
     pub fn sample_bits(&mut self, builder: &mut Builder<C>, nb_bits: usize) -> Vec<Felt<C::F>> {
         assert!(nb_bits <= NUM_BITS);
         let rand_f = self.sample(builder);
         let mut rand_f_bits = builder.num2bits_v2_f(rand_f, NUM_BITS);
         rand_f_bits.truncate(nb_bits);
         rand_f_bits
-    }
-
-    pub fn check_witness(&mut self, builder: &mut Builder<C>, nb_bits: usize, witness: Felt<C::F>) {
-        self.observe(builder, witness);
-        let element_bits = self.sample_bits(builder, nb_bits);
-        for bit in element_bits {
-            builder.assert_felt_eq(bit, C::F::zero());
-        }
     }
 }
 
@@ -212,7 +198,24 @@ impl<C: Config> CanObserveVariable<C, VerifyingKeyVariable<C>> for DuplexChallen
 
 impl<C: Config> FeltChallenger<C> for DuplexChallengerVariable<C> {
     fn sample_ext(&mut self, builder: &mut Builder<C>) -> Ext<C::F, C::EF> {
-        DuplexChallengerVariable::sample_ext(self, builder)
+        let a = self.sample(builder);
+        let b = self.sample(builder);
+        let c = self.sample(builder);
+        let d = self.sample(builder);
+        builder.ext_from_base_slice(&[a, b, c, d])
+    }
+
+    fn check_witness(
+        &mut self,
+        builder: &mut Builder<C>,
+        nb_bits: usize,
+        witness: Felt<<C as Config>::F>,
+    ) {
+        self.observe(builder, witness);
+        let element_bits = self.sample_bits(builder, nb_bits);
+        for bit in element_bits {
+            builder.assert_felt_eq(bit, C::F::zero());
+        }
     }
 }
 
@@ -238,6 +241,7 @@ pub(crate) mod tests {
     use sp1_recursion_core_v2::Runtime;
 
     use crate::challenger::DuplexChallengerVariable;
+    use crate::challenger::FeltChallenger;
     use crate::witness::Witness;
 
     use sp1_core::utils::run_test_machine;
