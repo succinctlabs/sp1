@@ -1,5 +1,6 @@
 use std::hash::Hash;
 
+use itertools::Itertools;
 use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::{ExtensionField, Field, PrimeField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
@@ -7,7 +8,7 @@ use p3_uni_stark::{get_max_constraint_degree, SymbolicAirBuilder};
 use p3_util::log2_ceil_usize;
 
 use crate::{
-    air::{MachineAir, MultiTableAirBuilder, SP1AirBuilder},
+    air::{InteractionScope, MachineAir, MultiTableAirBuilder, SP1AirBuilder},
     lookup::{Interaction, InteractionBuilder, InteractionKind},
 };
 
@@ -133,11 +134,19 @@ where
     }
 
     #[inline]
-    pub fn permutation_width(&self) -> usize {
-        permutation_trace_width(
-            self.sends().len() + self.receives().len(),
-            self.logup_batch_size(),
-        )
+    pub fn permutation_width(&self, scope: InteractionScope) -> usize {
+        let sends = self
+            .sends()
+            .iter()
+            .filter(|x| x.scope == scope)
+            .collect_vec();
+        let receives = self
+            .receives()
+            .iter()
+            .filter(|x| x.scope == scope)
+            .collect_vec();
+
+        permutation_trace_width(sends.len() + receives.len(), self.logup_batch_size())
     }
 
     #[inline]

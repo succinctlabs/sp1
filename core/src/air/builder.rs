@@ -17,6 +17,8 @@ use crate::lookup::InteractionKind;
 use crate::memory::MemoryAccessCols;
 use crate::{bytes::ByteOpcode, memory::MemoryCols};
 
+/// The scope of an interaction.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InteractionScope {
     Local,
     Global,

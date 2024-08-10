@@ -21,6 +21,7 @@ use super::OpeningError;
 use super::StarkGenericConfig;
 use super::StarkVerifyingKey;
 use super::Val;
+use crate::air::InteractionScope;
 use crate::air::MachineAir;
 use crate::stark::MachineChip;
 
@@ -34,6 +35,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         chips: &[&MachineChip<SC, A>],
         challenger: &mut SC::Challenger,
         proof: &ShardProof<SC>,
+        global_permutation_challenges: &[SC::Challenge],
     ) -> Result<(), VerificationError<SC>>
     where
         A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
@@ -73,15 +75,19 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
 
         let ShardCommitment {
             main_commit,
-            permutation_commit,
+            global_permutation_commit,
+            local_permutation_commit,
             quotient_commit,
         } = commitment;
 
-        let permutation_challenges = (0..2)
+        challenger.observe(main_commit.clone());
+
+        let local_permutation_challenges = (0..2)
             .map(|_| challenger.sample_ext_element::<SC::Challenge>())
             .collect::<Vec<_>>();
 
-        challenger.observe(permutation_commit.clone());
+        challenger.observe(global_permutation_commit.clone());
+        challenger.observe(local_permutation_commit.clone());
 
         let alpha = challenger.sample_ext_element::<SC::Challenge>();
 
@@ -106,36 +112,50 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             })
             .collect::<Vec<_>>();
 
-        let main_domains_points_and_opens = trace_domains
-            .iter()
-            .zip_eq(opened_values.chips.iter())
-            .map(|(domain, values)| {
-                (
-                    *domain,
-                    vec![
-                        (zeta, values.main.local.clone()),
-                        (domain.next_point(zeta).unwrap(), values.main.next.clone()),
-                    ],
-                )
-            })
-            .collect::<Vec<_>>();
+        // let [main_domains_points_and_opens, global_perm_domains_points_and_opens, local_perm_domains_points_and_opens] =
 
-        let perm_domains_points_and_opens = trace_domains
+        let (
+            (main_domains_points_and_opens, global_perm_domains_points_and_opens),
+            local_perm_domains_and_points_and_opens,
+        ) = trace_domains
             .iter()
             .zip_eq(opened_values.chips.iter())
             .map(|(domain, values)| {
                 (
-                    *domain,
-                    vec![
-                        (zeta, values.permutation.local.clone()),
+                    (
                         (
-                            domain.next_point(zeta).unwrap(),
-                            values.permutation.next.clone(),
+                            *domain,
+                            vec![
+                                (zeta, values.main.local.clone()),
+                                (domain.next_point(zeta).unwrap(), values.main.next.clone()),
+                            ],
                         ),
-                    ],
+                        (
+                            *domain,
+                            vec![
+                                (zeta, values.global_permutation.local.clone()),
+                                (
+                                    domain.next_point(zeta).unwrap(),
+                                    values.global_permutation.next.clone(),
+                                ),
+                            ],
+                        ),
+                    ),
+                    (
+                        *domain,
+                        vec![
+                            (zeta, values.local_permutation.local.clone()),
+                            (
+                                domain.next_point(zeta).unwrap(),
+                                values.local_permutation.next.clone(),
+                            ),
+                        ],
+                    ),
                 )
             })
-            .collect::<Vec<_>>();
+            .collect::<Vec<_>>()
+            .into_iter()
+            .unzip();
 
         let quotient_chunk_domains = trace_domains
             .iter()
@@ -169,7 +189,14 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
                 vec![
                     (vk.commit.clone(), preprocessed_domains_points_and_opens),
                     (main_commit.clone(), main_domains_points_and_opens),
-                    (permutation_commit.clone(), perm_domains_points_and_opens),
+                    (
+                        global_permutation_commit.clone(),
+                        global_perm_domains_points_and_opens,
+                    ),
+                    (
+                        local_permutation_commit.clone(),
+                        local_perm_domains_and_points_and_opens,
+                    ),
                     (quotient_commit.clone(), quotient_domains_points_and_opens),
                 ],
                 opening_proof,
@@ -195,7 +222,8 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
                 qc_domains,
                 zeta,
                 alpha,
-                &permutation_challenges,
+                &global_permutation_challenges,
+                &local_permutation_challenges,
                 public_values,
             )
             .map_err(|_| VerificationError::OodEvaluationMismatch(chip.name()))?;
@@ -237,17 +265,25 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         }
 
         // Verify that the permutation width matches the expected value for the chip.
-        if opening.permutation.local.len() != chip.permutation_width() * SC::Challenge::D {
-            return Err(OpeningShapeError::PermutationWidthMismatch(
-                chip.permutation_width(),
-                opening.permutation.local.len(),
-            ));
-        }
-        if opening.permutation.next.len() != chip.permutation_width() * SC::Challenge::D {
-            return Err(OpeningShapeError::PermutationWidthMismatch(
-                chip.permutation_width(),
-                opening.permutation.next.len(),
-            ));
+        for (perm, scope) in [
+            (&opening.global_permutation, InteractionScope::Global),
+            (&opening.local_permutation, InteractionScope::Local),
+        ]
+        .iter()
+        {
+            if perm.local.len() != chip.permutation_width(*scope) * SC::Challenge::D {
+                return Err(OpeningShapeError::PermutationWidthMismatch(
+                    chip.permutation_width(*scope),
+                    perm.local.len(),
+                ));
+            };
+
+            if perm.next.len() != chip.permutation_width(*scope) * SC::Challenge::D {
+                return Err(OpeningShapeError::PermutationWidthMismatch(
+                    chip.permutation_width(*scope),
+                    perm.next.len(),
+                ));
+            };
         }
 
         // Verift that the number of quotient chunks matches the expected value for the chip.
@@ -279,7 +315,8 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         qc_domains: Vec<Domain<SC>>,
         zeta: SC::Challenge,
         alpha: SC::Challenge,
-        permutation_challenges: &[SC::Challenge],
+        global_permutation_challenges: &[SC::Challenge],
+        local_permutation_challenges: &[SC::Challenge],
         public_values: &[Val<SC>],
     ) -> Result<(), OodEvaluationMismatch>
     where
@@ -295,7 +332,8 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             opening,
             &sels,
             alpha,
-            permutation_challenges,
+            global_permutation_challenges,
+            local_permutation_challenges,
             public_values,
         );
 
@@ -312,7 +350,8 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         opening: &ChipOpenedValues<SC::Challenge>,
         selectors: &LagrangeSelectors<SC::Challenge>,
         alpha: SC::Challenge,
-        permutation_challenges: &[SC::Challenge],
+        global_permutation_challenges: &[SC::Challenge],
+        local_permutation_challenges: &[SC::Challenge],
         public_values: &[Val<SC>],
     ) -> SC::Challenge
     where
@@ -331,17 +370,21 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
                 .collect::<Vec<SC::Challenge>>()
         };
 
-        let perm_opening = AirOpenedValues {
-            local: unflatten(&opening.permutation.local),
-            next: unflatten(&opening.permutation.next),
+        let global_perm_opening = AirOpenedValues {
+            local: unflatten(&opening.global_permutation.local),
+            next: unflatten(&opening.global_permutation.next),
+        };
+        let local_perm_opening = AirOpenedValues {
+            local: unflatten(&opening.local_permutation.local),
+            next: unflatten(&opening.local_permutation.next),
         };
 
         let mut folder = VerifierConstraintFolder::<SC> {
             preprocessed: opening.preprocessed.view(),
             main: opening.main.view(),
-            perm: perm_opening.view(),
-            perm_challenges: permutation_challenges,
-            cumulative_sum: opening.cumulative_sum,
+            perms: [global_perm_opening.view(), local_perm_opening.view()],
+            perm_challenges: [global_permutation_challenges, local_permutation_challenges],
+            cumulative_sums: [opening.global_cumulative_sum, opening.local_cumulative_sum],
             is_first_row: selectors.is_first_row,
             is_last_row: selectors.is_last_row,
             is_transition: selectors.is_transition,

@@ -141,7 +141,7 @@ pub type VerifierConstraintFolder<'a, SC> = GenericVerifierConstraintFolder<
 pub struct GenericVerifierConstraintFolder<'a, F, EF, PubVar, Var, Expr> {
     pub preprocessed: VerticalPair<RowMajorMatrixView<'a, Var>, RowMajorMatrixView<'a, Var>>,
     pub main: VerticalPair<RowMajorMatrixView<'a, Var>, RowMajorMatrixView<'a, Var>>,
-    pub perm: [VerticalPair<RowMajorMatrixView<'a, Var>, RowMajorMatrixView<'a, Var>>; 2],
+    pub perms: [VerticalPair<RowMajorMatrixView<'a, Var>, RowMajorMatrixView<'a, Var>>; 2],
     pub perm_challenges: [&'a [Var]; 2],
     pub cumulative_sums: [Var; 2],
     pub is_first_row: Var,
@@ -288,7 +288,7 @@ where
     type RandomVar = Var;
 
     fn permutation(&self) -> &[Self::MP] {
-        self.perm.as_slice()
+        self.perms.as_slice()
     }
 
     fn permutation_randomness(&self) -> &[&[Self::Var]] {

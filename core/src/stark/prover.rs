@@ -143,11 +143,13 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
         pk: &StarkProvingKey<SC>,
         records: Vec<A::Record>,
         challenger: &mut SC::Challenger,
+        global_permutation_challenges: &[SC::Challenge],
     ) where
         SC::Val: PrimeField32,
         A: for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
     {
-        self.machine().debug_constraints(pk, records, challenger)
+        self.machine()
+            .debug_constraints(pk, records, challenger, global_permutation_challenges)
     }
 }
 

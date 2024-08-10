@@ -285,6 +285,12 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             return Err(MachineVerificationError::EmptyProof);
         }
 
+        // Obtain the challenges used for the global permutation argument.
+        let mut global_permutation_challenges: Vec<SC::Challenge> = Vec::new();
+        for _ in 0..2 {
+            global_permutation_challenges.push(challenger.sample_ext_element());
+        }
+
         tracing::debug_span!("verify shard proofs").in_scope(|| {
             for (i, shard_proof) in proof.shard_proofs.iter().enumerate() {
                 tracing::debug_span!("verifying shard", shard = i).in_scope(|| {
@@ -297,6 +303,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                         &chips,
                         &mut challenger.clone(),
                         shard_proof,
+                        &global_permutation_challenges,
                     )
                     .map_err(MachineVerificationError::InvalidShardProof)
                 })?;
@@ -325,16 +332,17 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         pk: &StarkProvingKey<SC>,
         records: Vec<A::Record>,
         challenger: &mut SC::Challenger,
+        global_permutation_challenges: &[SC::Challenge],
     ) where
         SC::Val: PrimeField32,
         A: for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
     {
         tracing::debug!("checking constraints for each shard");
 
-        // Obtain the challenges used for the permutation argument.
-        let mut permutation_challenges: Vec<SC::Challenge> = Vec::new();
+        // Obtain the challenges used for the local permutation argument.
+        let mut local_permutation_challenges: Vec<SC::Challenge> = Vec::new();
         for _ in 0..2 {
-            permutation_challenges.push(challenger.sample_ext_element());
+            local_permutation_challenges.push(challenger.sample_ext_element());
         }
 
         let mut cumulative_sum = SC::Challenge::zero();
@@ -365,27 +373,45 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                     .par_iter()
                     .zip(traces.par_iter_mut())
                     .map(|(chip, (main_trace, pre_trace))| {
-                        let perm_trace = chip.generate_permutation_trace(
-                            *pre_trace,
-                            main_trace,
-                            &permutation_challenges,
-                        );
-                        let cumulative_sum = perm_trace
-                            .row_slice(main_trace.height() - 1)
-                            .last()
-                            .copied()
-                            .unwrap();
-                        (perm_trace, cumulative_sum)
+                        let (global_perm_trace, local_perm_trace) = chip
+                            .generate_permutation_trace(
+                                *pre_trace,
+                                main_trace,
+                                &global_permutation_challenges,
+                                &local_permutation_challenges,
+                            );
+                        let [global_cumulative_sums, local_cumulative_sums] =
+                            [&global_perm_trace, &local_perm_trace].map(|perm_trace| {
+                                perm_trace
+                                    .row_slice(perm_trace.height() - 1)
+                                    .last()
+                                    .copied()
+                                    .unwrap()
+                            });
+                        (
+                            (global_perm_trace, local_perm_trace),
+                            (global_cumulative_sums, local_cumulative_sums),
+                        )
                     })
                     .unzip_into_vecs(&mut permutation_traces, &mut cumulative_sums);
             });
 
-            cumulative_sum += cumulative_sums.iter().copied().sum::<SC::Challenge>();
+            let (global_permutation_traces, local_permutation_traces): (Vec<_>, Vec<_>) =
+                permutation_traces.into_iter().unzip();
+            let (global_cumulative_sums, local_cumulative_sums): (Vec<_>, Vec<_>) =
+                cumulative_sums.into_iter().unzip();
+
+            cumulative_sum += global_cumulative_sums
+                .iter()
+                .copied()
+                .sum::<SC::Challenge>()
+                + local_cumulative_sums.iter().copied().sum::<SC::Challenge>();
 
             // Compute some statistics.
             for i in 0..chips.len() {
                 let trace_width = traces[i].0.width();
-                let permutation_width = permutation_traces[i].width()
+                let permutation_width = (global_permutation_traces[i].width()
+                    + local_permutation_traces[i].width())
                     * <SC::Challenge as AbstractExtensionField<SC::Val>>::D;
                 let total_width = trace_width + permutation_width;
                 tracing::debug!(
@@ -408,8 +434,10 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                         chips[i],
                         permutation_trace,
                         &traces[i].0,
-                        &permutation_traces[i],
-                        &permutation_challenges,
+                        &global_permutation_traces[i],
+                        &local_permutation_traces[i],
+                        &global_permutation_challenges,
+                        &local_permutation_challenges,
                         shard.public_values(),
                     );
                 }

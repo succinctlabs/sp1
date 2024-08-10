@@ -13,7 +13,7 @@ use p3_matrix::stack::VerticalPair;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 
 use super::{MachineChip, StarkGenericConfig, Val};
-use crate::air::{EmptyMessageBuilder, MachineAir, MultiTableAirBuilder};
+use crate::air::{EmptyMessageBuilder, InteractionScope, MachineAir, MultiTableAirBuilder};
 
 /// Checks that the constraints of the given AIR are satisfied, including the permutation trace.
 ///
@@ -22,30 +22,40 @@ pub fn debug_constraints<SC, A>(
     chip: &MachineChip<SC, A>,
     preprocessed: Option<&RowMajorMatrix<Val<SC>>>,
     main: &RowMajorMatrix<Val<SC>>,
-    perm: &RowMajorMatrix<SC::Challenge>,
-    perm_challenges: &[SC::Challenge],
+    global_perm: &RowMajorMatrix<SC::Challenge>,
+    local_perm: &RowMajorMatrix<SC::Challenge>,
+    global_perm_challenges: &[SC::Challenge],
+    local_perm_challenges: &[SC::Challenge],
     public_values: Vec<Val<SC>>,
 ) where
     SC: StarkGenericConfig,
     Val<SC>: PrimeField32,
     A: MachineAir<Val<SC>> + for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
 {
-    assert_eq!(main.height(), perm.height());
+    assert_eq!(main.height(), global_perm.height());
+    assert_eq!(main.height(), local_perm.height());
     let height = main.height();
     if height == 0 {
         return;
     }
 
-    let cumulative_sum = perm.row_slice(perm.height() - 1).last().copied().unwrap();
+    let global_cumulative_sum = global_perm
+        .row_slice(global_perm.height() - 1)
+        .last()
+        .copied()
+        .unwrap();
+    let local_cumulative_sum = local_perm
+        .row_slice(local_perm.height() - 1)
+        .last()
+        .copied()
+        .unwrap();
 
     // Check that constraints are satisfied.
     (0..height).for_each(|i| {
         let i_next = (i + 1) % height;
 
-        let main_local = main.row_slice(i);
-        let main_local = &(*main_local);
-        let main_next = main.row_slice(i_next);
-        let main_next = &(*main_next);
+        let (main_local, main_next) = (main.row_slice(i), main.row_slice(i_next));
+        let (main_local, main_next) = (&(*main_local), &(*main_next));
         let preprocessed_local = if let Some(preprocessed) = preprocessed {
             let row = preprocessed.row_slice(i);
             let row: &[_] = (*row).borrow();
@@ -60,10 +70,12 @@ pub fn debug_constraints<SC, A>(
         } else {
             Vec::new()
         };
-        let perm_local = perm.row_slice(i);
-        let perm_local = &(*perm_local);
-        let perm_next = perm.row_slice(i_next);
-        let perm_next = &(*perm_next);
+        let (global_perm_local, global_perm_next) =
+            (global_perm.row_slice(i), global_perm.row_slice(i_next));
+        let (global_perm_local, global_perm_next) = (&(*global_perm_local), &(*global_perm_next));
+        let (local_perm_local, local_perm_next) =
+            (local_perm.row_slice(i), local_perm.row_slice(i_next));
+        let (local_perm_local, local_perm_next) = (&(*local_perm_local), &(*local_perm_next));
 
         let public_values = public_values.to_vec();
         let mut builder = DebugConstraintBuilder {
@@ -75,12 +87,18 @@ pub fn debug_constraints<SC, A>(
                 RowMajorMatrixView::new_row(main_local),
                 RowMajorMatrixView::new_row(main_next),
             ),
-            perm: VerticalPair::new(
-                RowMajorMatrixView::new_row(perm_local),
-                RowMajorMatrixView::new_row(perm_next),
-            ),
-            perm_challenges,
-            cumulative_sum,
+            perms: [
+                VerticalPair::new(
+                    RowMajorMatrixView::new_row(global_perm_local),
+                    RowMajorMatrixView::new_row(global_perm_next),
+                ),
+                VerticalPair::new(
+                    RowMajorMatrixView::new_row(local_perm_local),
+                    RowMajorMatrixView::new_row(local_perm_next),
+                ),
+            ],
+            perm_challenges: [global_perm_challenges, local_perm_challenges],
+            cumulative_sums: [global_cumulative_sum, local_cumulative_sum],
             is_first_row: Val::<SC>::zero(),
             is_last_row: Val::<SC>::zero(),
             is_transition: Val::<SC>::one(),
@@ -128,8 +146,8 @@ pub fn debug_cumulative_sums<F: Field, EF: ExtensionField<F>>(perms: &[RowMajorM
 pub struct DebugConstraintBuilder<'a, F: Field, EF: ExtensionField<F>> {
     pub(crate) preprocessed: VerticalPair<RowMajorMatrixView<'a, F>, RowMajorMatrixView<'a, F>>,
     pub(crate) main: VerticalPair<RowMajorMatrixView<'a, F>, RowMajorMatrixView<'a, F>>,
-    pub(crate) perm: [VerticalPair<RowMajorMatrixView<'a, EF>, RowMajorMatrixView<'a, EF>>; 2],
-    pub(crate) cumulative_sum: EF,
+    pub(crate) perms: [VerticalPair<RowMajorMatrixView<'a, EF>, RowMajorMatrixView<'a, EF>>; 2],
+    pub(crate) cumulative_sums: [EF; 2],
     pub(crate) perm_challenges: [&'a [EF]; 2],
     pub(crate) is_first_row: F,
     pub(crate) is_last_row: F,
@@ -164,7 +182,7 @@ where
     type RandomVar = EF;
 
     fn permutation(&self) -> &[Self::MP] {
-        self.perm.as_slice()
+        self.perms.as_slice()
     }
 
     fn permutation_randomness(&self) -> &[&[Self::EF]] {
@@ -257,8 +275,11 @@ where
 {
     type Sum = EF;
 
-    fn cumulative_sum(&self) -> Self::Sum {
-        self.cumulative_sum
+    fn cumulative_sum(&self, scope: InteractionScope) -> Self::Sum {
+        match scope {
+            InteractionScope::Global => self.cumulative_sums[0],
+            InteractionScope::Local => self.cumulative_sums[1],
+        }
     }
 }
 
