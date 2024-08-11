@@ -2,6 +2,17 @@
 #[derive(serde::Serialize, serde::Deserialize)]
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ReadyRequest {}
+#[derive(serde::Serialize, serde::Deserialize)]
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ReadyResponse {
+    #[prost(bool, tag = "1")]
+    pub ready: bool,
+}
+#[derive(serde::Serialize, serde::Deserialize)]
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ProveCoreRequest {
     #[prost(bytes = "vec", tag = "1")]
     pub data: ::prost::alloc::vec::Vec<u8>,
@@ -59,6 +70,11 @@ pub use twirp;
 pub const SERVICE_FQN: &str = "/api.ProverService";
 #[twirp::async_trait::async_trait]
 pub trait ProverService {
+    async fn ready(
+        &self,
+        ctx: twirp::Context,
+        req: ReadyRequest,
+    ) -> Result<ReadyResponse, twirp::TwirpErrorResponse>;
     async fn prove_core(
         &self,
         ctx: twirp::Context,
@@ -85,6 +101,12 @@ where
     T: ProverService + Send + Sync + 'static,
 {
     twirp::details::TwirpRouterBuilder::new(api)
+        .route(
+            "/Ready",
+            |api: std::sync::Arc<T>, ctx: twirp::Context, req: ReadyRequest| async move {
+                api.ready(ctx, req).await
+            },
+        )
         .route(
             "/ProveCore",
             |api: std::sync::Arc<T>, ctx: twirp::Context, req: ProveCoreRequest| async move {
@@ -113,6 +135,10 @@ where
 }
 #[twirp::async_trait::async_trait]
 pub trait ProverServiceClient: Send + Sync + std::fmt::Debug {
+    async fn ready(
+        &self,
+        req: ReadyRequest,
+    ) -> Result<ReadyResponse, twirp::ClientError>;
     async fn prove_core(
         &self,
         req: ProveCoreRequest,
@@ -129,6 +155,13 @@ pub trait ProverServiceClient: Send + Sync + std::fmt::Debug {
 }
 #[twirp::async_trait::async_trait]
 impl ProverServiceClient for twirp::client::Client {
+    async fn ready(
+        &self,
+        req: ReadyRequest,
+    ) -> Result<ReadyResponse, twirp::ClientError> {
+        let url = self.base_url.join("api.ProverService/Ready")?;
+        self.request(url, req).await
+    }
     async fn prove_core(
         &self,
         req: ProveCoreRequest,

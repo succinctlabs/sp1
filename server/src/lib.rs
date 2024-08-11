@@ -91,6 +91,10 @@ impl SP1ProverServer {
         let cleanup_name = container_name;
         let cleanup_flag = cleaned_up.clone();
 
+        // TODO: pull container if not present
+        // TODO: inherit RUST_LOG from the environment
+        // TODO: hit ready endpoint to check if container is ready
+
         // Spawn a new thread to start the Docker container.
         std::thread::spawn(move || {
             Command::new("sudo")
@@ -141,7 +145,7 @@ impl SP1ProverServer {
 
     /// Executes the [sp1_prover::SP1Prover::prove_core] method inside the container.
     ///
-    /// TODO: We can probably create a trait to unify [sp1_prover::SP1Prover] and [SP1ProverClient].
+    /// You will need at least 24GB of VRAM to run this method.
     ///
     /// **WARNING**: This is an experimental feature and may not work as expected.
     pub fn prove_core(
@@ -166,7 +170,7 @@ impl SP1ProverServer {
 
     /// Executes the [sp1_prover::SP1Prover::compress] method inside the container.
     ///
-    /// TODO: We can probably create a trait to unify [sp1_prover::SP1Prover] and [SP1ProverClient].
+    /// You will need at least 24GB of VRAM to run this method.
     ///
     /// **WARNING**: This is an experimental feature and may not work as expected.
     pub fn compress(
@@ -194,7 +198,7 @@ impl SP1ProverServer {
 
     /// Executes the [sp1_prover::SP1Prover::shrink] method inside the container.
     ///
-    /// TODO: We can probably create a trait to unify [sp1_prover::SP1Prover] and [SP1ProverClient].
+    /// You will need at least 40GB of VRAM to run this method.
     ///
     /// **WARNING**: This is an experimental feature and may not work as expected.
     pub fn shrink(
@@ -218,7 +222,7 @@ impl SP1ProverServer {
 
     /// Executes the [sp1_prover::SP1Prover::wrap_bn254] method inside the container.
     ///
-    /// TODO: We can probably create a trait to unify [sp1_prover::SP1Prover] and [SP1ProverClient].
+    /// You will need at least 40GB of VRAM to run this method.
     ///
     /// **WARNING**: This is an experimental feature and may not work as expected.
     pub fn wrap_bn254(
@@ -286,9 +290,8 @@ mod tests {
     fn test_client() {
         utils::setup_logger();
 
-        let client = SP1ProverServer::new();
-
         let prover = SP1Prover::<DefaultProverComponents>::new();
+        let client = SP1ProverServer::new();
         let (pk, vk) = prover.setup(FIBONACCI_ELF);
 
         println!("proving core");
