@@ -49,8 +49,11 @@
     - [Usage](./generating-proofs/prover-network/usage.md)
     - [Supported Versions](./generating-proofs/prover-network/versions.md)
 
-- [FAQ](./generating-proofs/sp1-sdk-faq.md)
+- [Hardware Acceleration](./generating-proofs/hardware-acceleration.md)
+    - [AVX](./generating-proofs/hardware-acceleration/avx.md)
+    - [CUDA](./generating-proofs/hardware-acceleration/cuda.md)
 
+- [FAQ](./generating-proofs/sp1-sdk-faq.md)
 
 # Onchain Verification
 
