@@ -11,6 +11,7 @@ use std::sync::Arc;
 
 use crate::proto::api::ProverServiceClient;
 
+use proto::api::ReadyRequest;
 use serde::{Deserialize, Serialize};
 use sp1_core::io::SP1Stdin;
 use sp1_core::stark::ShardProof;
@@ -91,18 +92,21 @@ impl SP1ProverServer {
         let cleanup_name = container_name;
         let cleanup_flag = cleaned_up.clone();
 
-        // TODO: pull container if not present
-        // TODO: inherit RUST_LOG from the environment
-        // TODO: hit ready endpoint to check if container is ready
+        // Pull the docker image if it's not present.
+        Command::new("sudo")
+            .args(["docker", "pull", image_name])
+            .status()
+            .expect("failed to pull docker image");
 
-        // Spawn a new thread to start the Docker container.
+        // Start the docker container.
+        let rust_log_level = std::env::var("RUST_LOG").unwrap_or("none".to_string());
         std::thread::spawn(move || {
             Command::new("sudo")
                 .args([
                     "docker",
                     "run",
                     "-e",
-                    "RUST_LOG=debug",
+                    format!("RUST_LOG={}", rust_log_level).as_str(),
                     "-p",
                     "3000:3000",
                     "--rm",
@@ -113,13 +117,11 @@ impl SP1ProverServer {
                     container_name,
                     image_name,
                 ])
-                .stdin(Stdio::inherit())
-                .stdout(Stdio::inherit())
-                .stderr(Stdio::inherit())
                 .status()
                 .expect("failed to start Docker container");
         });
 
+        // Kill the container on control-c.
         ctrlc::set_handler(move || {
             tracing::debug!("received Ctrl+C, cleaning up...");
             if !cleanup_flag.load(Ordering::SeqCst) {
@@ -130,8 +132,30 @@ impl SP1ProverServer {
         })
         .unwrap();
 
-        tracing::debug!("sleeping for 20 seconds to allow server to start");
-        std::thread::sleep(Duration::from_secs(20));
+        // Wait a few seconds for the container to start.
+        std::thread::sleep(Duration::from_secs(2));
+
+        // Check if the container is ready.
+        let client = Client::from_base_url(
+            Url::parse("http://localhost:3000/twirp/").expect("failed to parse url"),
+        )
+        .expect("failed to create client");
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            tracing::info!("waiting for proving server to be ready");
+            loop {
+                let request = ReadyRequest {};
+                let response = client.ready(request).await;
+                if let Ok(response) = response {
+                    if response.ready {
+                        tracing::info!("proving server is ready");
+                        break;
+                    }
+                }
+                tracing::info!("proving server is not ready, retrying...");
+                std::thread::sleep(Duration::from_secs(2));
+            }
+        });
 
         SP1ProverServer {
             client: Client::from_base_url(
@@ -263,7 +287,6 @@ impl Drop for SP1ProverServer {
 
 /// Cleans up the a docker container with the given name.
 fn cleanup_container(container_name: &str) {
-    tracing::debug!("cleaning up container: {}", container_name);
     if let Err(e) = Command::new("sudo")
         .args(["docker", "rm", "-f", container_name])
         .status()
