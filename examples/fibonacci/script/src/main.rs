@@ -26,7 +26,6 @@ fn main() {
     );
 
     // Generate the proof for the given program and input.
-    let client = ProverClient::new();
     let (pk, vk) = client.setup(ELF);
     let mut proof = client.prove(&pk, stdin).run().unwrap();
 

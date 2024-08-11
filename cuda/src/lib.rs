@@ -4,6 +4,9 @@ pub mod proto {
 }
 
 use core::time::Duration;
+use std::io::BufReader;
+use std::io::Read;
+use std::io::Write;
 use std::process::Command;
 use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -32,7 +35,7 @@ use twirp::Client;
 /// This is currently used to provide experimental support for GPU hardware acceleration.
 ///
 /// **WARNING**: This is an experimental feature and may not work as expected.
-pub struct SP1ProverServer {
+pub struct SP1CudaProver {
     /// The gRPC client to communicate with the container.
     client: Client,
     /// The name of the container.
@@ -81,7 +84,7 @@ pub struct WrapRequestPayload {
     pub reduced_proof: SP1ReduceProof<InnerSC>,
 }
 
-impl SP1ProverServer {
+impl SP1CudaProver {
     /// Creates a new [SP1Prover] that runs inside a Docker container and returns a
     /// [SP1ProverClient] that can be used to communicate with the container.
     pub fn new() -> Self {
@@ -95,30 +98,45 @@ impl SP1ProverServer {
         // Pull the docker image if it's not present.
         Command::new("sudo")
             .args(["docker", "pull", image_name])
-            .status()
+            .output()
             .expect("failed to pull docker image");
 
         // Start the docker container.
         let rust_log_level = std::env::var("RUST_LOG").unwrap_or("none".to_string());
+        let mut child = Command::new("sudo")
+            .args([
+                "docker",
+                "run",
+                "-e",
+                format!("RUST_LOG={}", rust_log_level).as_str(),
+                "-p",
+                "3000:3000",
+                "--rm",
+                "--runtime=nvidia",
+                "--gpus",
+                "all",
+                "--name",
+                container_name,
+                image_name,
+            ])
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("failed to start Docker container");
+
+        let stdout = child.stdout.take().unwrap();
         std::thread::spawn(move || {
-            Command::new("sudo")
-                .args([
-                    "docker",
-                    "run",
-                    "-e",
-                    format!("RUST_LOG={}", rust_log_level).as_str(),
-                    "-p",
-                    "3000:3000",
-                    "--rm",
-                    "--runtime=nvidia",
-                    "--gpus",
-                    "all",
-                    "--name",
-                    container_name,
-                    image_name,
-                ])
-                .status()
-                .expect("failed to start Docker container");
+            let mut reader = BufReader::new(stdout);
+            let mut buffer = [0; 1024];
+            loop {
+                match reader.read(&mut buffer) {
+                    Ok(0) => break,
+                    Ok(n) => {
+                        std::io::stdout().write_all(&buffer[..n]).unwrap();
+                        std::io::stdout().flush().unwrap();
+                    }
+                    Err(_) => break,
+                }
+            }
         });
 
         // Kill the container on control-c.
@@ -157,7 +175,7 @@ impl SP1ProverServer {
             }
         });
 
-        SP1ProverServer {
+        SP1CudaProver {
             client: Client::from_base_url(
                 Url::parse("http://localhost:3000/twirp/").expect("failed to parse url"),
             )
@@ -269,13 +287,13 @@ impl SP1ProverServer {
     }
 }
 
-impl Default for SP1ProverServer {
+impl Default for SP1CudaProver {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Drop for SP1ProverServer {
+impl Drop for SP1CudaProver {
     fn drop(&mut self) {
         if !self.cleaned_up.load(Ordering::SeqCst) {
             tracing::debug!("dropping SP1ProverClient, cleaning up...");
@@ -289,6 +307,7 @@ impl Drop for SP1ProverServer {
 fn cleanup_container(container_name: &str) {
     if let Err(e) = Command::new("sudo")
         .args(["docker", "rm", "-f", container_name])
+        .stdin(Stdio::null())
         .status()
     {
         eprintln!("failed to remove container: {}", e);
@@ -307,14 +326,14 @@ mod tests {
 
     use crate::SP1Stdin;
     use crate::{proto::api::ProverServiceClient, ProveCoreRequestPayload};
-    use crate::{CompressRequestPayload, SP1ProverServer};
+    use crate::{CompressRequestPayload, SP1CudaProver};
 
     #[test]
     fn test_client() {
         utils::setup_logger();
 
         let prover = SP1Prover::<DefaultProverComponents>::new();
-        let client = SP1ProverServer::new();
+        let client = SP1CudaProver::new();
         let (pk, vk) = prover.setup(FIBONACCI_ELF);
 
         println!("proving core");
