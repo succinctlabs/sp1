@@ -63,6 +63,20 @@ pub struct CompressRequestPayload {
     pub deferred_proofs: Vec<ShardProof<InnerSC>>,
 }
 
+/// The payload for the [sp1_prover::SP1Prover::shrink] method.
+///
+/// We use this object to serialize and deserialize the payload from the client to the server.
+pub struct ShrinkRequestPayload {
+    pub reduced_proof: SP1ReduceProof<InnerSC>,
+}
+
+/// The payload for the [sp1_prover::SP1Prover::wrap_bn254] method.
+///
+/// We use this object to serialize and deserialize the payload from the client to the server.
+pub struct WrapRequestPayload {
+    pub reduced_proof: SP1ReduceProof<InnerSC>,
+}
+
 impl SP1ProverServer {
     /// Creates a new [SP1Prover] that runs inside a Docker container and returns a
     /// [SP1ProverClient] that can be used to communicate with the container.

@@ -5,6 +5,8 @@ package api;
 service ProverService {
     rpc ProveCore(ProveCoreRequest) returns (ProveCoreResponse) {}
     rpc Compress(CompressRequest) returns (CompressResponse) {}
+    rpc Shrink(ShrinkRequest) returns (ShrinkResponse) {}
+    rpc Wrap(WrapRequest) returns (WrapResponse) {}
 }
 
 message ProveCoreRequest {
@@ -20,5 +22,21 @@ message CompressRequest {
 }
 
 message CompressResponse {
+    bytes result = 1;
+}
+
+message ShrinkRequest {
+    bytes data = 1;
+}
+
+message ShrinkResponse {
+    bytes result = 1;
+}
+
+message WrapRequest {
+    bytes data = 1;
+}
+
+message WrapResponse {
     bytes result = 1;
 }
