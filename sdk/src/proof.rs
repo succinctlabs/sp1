@@ -53,6 +53,13 @@ impl SP1ProofWithPublicValues {
     pub fn bytes(&self) -> Vec<u8> {
         match &self.proof {
             SP1Proof::Plonk(plonk_proof) => {
+                if plonk_proof.encoded_proof.is_empty() {
+                    // If the proof is empty, then we are working with a mock proof.
+                    // The mock SP1 verifier expects an empty byte array for verification,
+                    // so we return empty bytes for compatibility with the mock verifier.
+                    return Vec::new();
+                }
+
                 let mut bytes = Vec::with_capacity(4 + plonk_proof.encoded_proof.len());
                 bytes.extend_from_slice(&plonk_proof.plonk_vkey_hash[..4]);
                 bytes.extend_from_slice(
