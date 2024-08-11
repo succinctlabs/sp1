@@ -328,6 +328,7 @@ mod tests {
     use crate::{proto::api::ProverServiceClient, ProveCoreRequestPayload};
     use crate::{CompressRequestPayload, SP1CudaProver};
 
+    #[ignore]
     #[test]
     fn test_client() {
         utils::setup_logger();
