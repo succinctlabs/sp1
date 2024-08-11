@@ -17,6 +17,7 @@ use sp1_core::stark::ShardProof;
 use sp1_core::utils::SP1CoreProverError;
 use sp1_prover::types::SP1ProvingKey;
 use sp1_prover::InnerSC;
+use sp1_prover::OuterSC;
 use sp1_prover::SP1CoreProof;
 use sp1_prover::SP1RecursionProverError;
 use sp1_prover::SP1ReduceProof;
@@ -84,7 +85,7 @@ impl SP1ProverServer {
     /// [SP1ProverClient] that can be used to communicate with the container.
     pub fn new() -> Self {
         let container_name = "sp1-gpu";
-        let image_name = "jtguibas/sp1-gpu:v1.1.5";
+        let image_name = "jtguibas/sp1-gpu:v1.2.0";
 
         let cleaned_up = Arc::new(AtomicBool::new(false));
         let cleanup_name = container_name;
@@ -190,6 +191,54 @@ impl SP1ProverServer {
         let proof: SP1ReduceProof<InnerSC> = bincode::deserialize(&response.result).unwrap();
         Ok(proof)
     }
+
+    /// Executes the [sp1_prover::SP1Prover::shrink] method inside the container.
+    ///
+    /// TODO: We can probably create a trait to unify [sp1_prover::SP1Prover] and [SP1ProverClient].
+    ///
+    /// **WARNING**: This is an experimental feature and may not work as expected.
+    pub fn shrink(
+        &self,
+        reduced_proof: SP1ReduceProof<InnerSC>,
+    ) -> Result<SP1ReduceProof<InnerSC>, SP1RecursionProverError> {
+        let payload = ShrinkRequestPayload {
+            reduced_proof: reduced_proof.clone(),
+        };
+        let request = crate::proto::api::ShrinkRequest {
+            data: bincode::serialize(&payload).unwrap(),
+        };
+
+        let rt = Runtime::new().unwrap();
+        let response = rt
+            .block_on(async { self.client.shrink(request).await })
+            .unwrap();
+        let proof: SP1ReduceProof<InnerSC> = bincode::deserialize(&response.result).unwrap();
+        Ok(proof)
+    }
+
+    /// Executes the [sp1_prover::SP1Prover::wrap_bn254] method inside the container.
+    ///
+    /// TODO: We can probably create a trait to unify [sp1_prover::SP1Prover] and [SP1ProverClient].
+    ///
+    /// **WARNING**: This is an experimental feature and may not work as expected.
+    pub fn wrap_bn254(
+        &self,
+        reduced_proof: SP1ReduceProof<InnerSC>,
+    ) -> Result<SP1ReduceProof<OuterSC>, SP1RecursionProverError> {
+        let payload = WrapRequestPayload {
+            reduced_proof: reduced_proof.clone(),
+        };
+        let request = crate::proto::api::WrapRequest {
+            data: bincode::serialize(&payload).unwrap(),
+        };
+
+        let rt = Runtime::new().unwrap();
+        let response = rt
+            .block_on(async { self.client.wrap(request).await })
+            .unwrap();
+        let proof: SP1ReduceProof<OuterSC> = bincode::deserialize(&response.result).unwrap();
+        Ok(proof)
+    }
 }
 
 impl Default for SP1ProverServer {
@@ -221,8 +270,9 @@ fn cleanup_container(container_name: &str) {
 
 #[cfg(test)]
 mod tests {
-    use sp1_core::utils;
+    use sp1_core::runtime::SP1Context;
     use sp1_core::utils::tests::FIBONACCI_ELF;
+    use sp1_core::utils::{self, SP1ProverOpts};
     use sp1_prover::components::DefaultProverComponents;
     use sp1_prover::{InnerSC, SP1CoreProof, SP1Prover, SP1ReduceProof};
     use twirp::url::Url;
@@ -232,7 +282,6 @@ mod tests {
     use crate::{proto::api::ProverServiceClient, ProveCoreRequestPayload};
     use crate::{CompressRequestPayload, SP1ProverServer};
 
-    #[ignore]
     #[test]
     fn test_client() {
         utils::setup_logger();
@@ -253,6 +302,18 @@ mod tests {
 
         println!("verifying compress");
         prover.verify_compressed(&proof, &vk).unwrap();
+
+        println!("proving shrink");
+        let proof = client.shrink(proof).unwrap();
+
+        println!("verifying shrink");
+        prover.verify_shrink(&proof, &vk).unwrap();
+
+        println!("proving wrap_bn254");
+        let proof = client.wrap_bn254(proof).unwrap();
+
+        println!("verifying wrap_bn254");
+        prover.verify_wrap_bn254(&proof, &vk).unwrap();
     }
 
     #[ignore]
