@@ -12,8 +12,7 @@ use crate::stark::MachineRecord;
 use crate::syscall::precompiles::SyscallContext;
 use crate::utils::ec::uint256::U256Field;
 use crate::utils::{
-    bytes_to_words_le, limbs_from_access, limbs_from_prev_access, pad_rows, words_to_bytes_le,
-    words_to_bytes_le_vec,
+    limbs_from_access, limbs_from_prev_access, pad_rows, words_to_bytes_le, words_to_bytes_le_vec,
 };
 use generic_array::GenericArray;
 use num::{BigUint, One, Zero};
@@ -29,12 +28,14 @@ use std::borrow::{Borrow, BorrowMut};
 use std::mem::size_of;
 use typenum::Unsigned;
 
-/// The number of columns in the Uint256MulCols.
-const NUM_COLS: usize = size_of::<Uint256MulCols<u8>>();
+/// The number of columns in the Uint256OpCols.
+pub const fn num_uint256_cols() -> usize {
+    size_of::<Uint256OpCols<u8>>()
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Uint256MulEvent {
-    pub lookup_id: u128,
+pub struct Uint256OpEvent {
+    pub lookup_id: usize,
     pub shard: u32,
     pub channel: u8,
     pub clk: u32,
@@ -43,27 +44,34 @@ pub struct Uint256MulEvent {
     pub y_ptr: u32,
     pub y: Vec<u32>,
     pub modulus: Vec<u32>,
+    pub op: FieldOperation,
     pub x_memory_records: Vec<MemoryWriteRecord>,
     pub y_memory_records: Vec<MemoryReadRecord>,
     pub modulus_memory_records: Vec<MemoryReadRecord>,
 }
 
 #[derive(Default)]
-pub struct Uint256MulChip;
+pub struct Uint256OpChip;
 
-impl Uint256MulChip {
-    pub const fn new() -> Self {
-        Self
+pub struct Uint256OpSyscall {
+    op: FieldOperation,
+}
+
+impl Uint256OpSyscall {
+    pub fn new(op: FieldOperation) -> Self {
+        Self { op }
     }
 }
 
 type WordsFieldElement = <U256Field as NumWords>::WordsFieldElement;
 const WORDS_FIELD_ELEMENT: usize = WordsFieldElement::USIZE;
 
-/// A set of columns for the Uint256Mul operation.
+/// A set of columns for the Uint256Op operation.
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
-pub struct Uint256MulCols<T> {
+pub struct Uint256OpCols<T> {
+    pub is_real: T,
+
     /// The shard number of the syscall.
     pub shard: T,
 
@@ -99,15 +107,17 @@ pub struct Uint256MulCols<T> {
 
     pub output_range_check: FieldLtCols<T, U256Field>,
 
-    pub is_real: T,
+    pub is_add: T,
+    pub is_sub: T,
+    pub is_mul: T,
 }
 
-impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
+impl<F: PrimeField32> MachineAir<F> for Uint256OpChip {
     type Record = ExecutionRecord;
     type Program = Program;
 
     fn name(&self) -> String {
-        "Uint256MulMod".to_string()
+        "Uint256OpMod".to_string()
     }
 
     fn generate_trace(
@@ -115,9 +125,10 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
+        const NUM_COLS: usize = num_uint256_cols();
         // Generate the trace rows & corresponding records for each chunk of events concurrently.
         let rows_and_records = input
-            .uint256_mul_events
+            .uint256_op_events
             .chunks(1)
             .map(|events| {
                 let mut records = ExecutionRecord::default();
@@ -127,7 +138,10 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
                     .iter()
                     .map(|event| {
                         let mut row: [F; NUM_COLS] = [F::zero(); NUM_COLS];
-                        let cols: &mut Uint256MulCols<F> = row.as_mut_slice().borrow_mut();
+                        let cols: &mut Uint256OpCols<F> = row.as_mut_slice().borrow_mut();
+
+                        println!("x len: {}", event.x.len());
+                        println!("y len: {}", event.y.len());
 
                         // Decode uint256 points
                         let x = BigUint::from_bytes_le(&words_to_bytes_le::<32>(&event.x));
@@ -136,12 +150,15 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
                             BigUint::from_bytes_le(&words_to_bytes_le::<32>(&event.modulus));
 
                         // Assign basic values to the columns.
-                        cols.is_real = F::one();
                         cols.shard = F::from_canonical_u32(event.shard);
                         cols.channel = F::from_canonical_u8(event.channel);
                         cols.clk = F::from_canonical_u32(event.clk);
                         cols.x_ptr = F::from_canonical_u32(event.x_ptr);
                         cols.y_ptr = F::from_canonical_u32(event.y_ptr);
+                        cols.is_add = F::from_canonical_u8((event.op == FieldOperation::Add) as u8);
+                        cols.is_sub = F::from_canonical_u8((event.op == FieldOperation::Sub) as u8);
+                        cols.is_mul = F::from_canonical_u8((event.op == FieldOperation::Mul) as u8);
+                        cols.is_real = F::one();
 
                         // Populate memory columns.
                         for i in 0..WORDS_FIELD_ELEMENT {
@@ -180,7 +197,7 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
                             &y,
                             &effective_modulus,
                             // &modulus,
-                            FieldOperation::Mul,
+                            event.op,
                         );
 
                         cols.modulus_is_not_zero = F::one() - cols.modulus_is_zero.result;
@@ -211,12 +228,12 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
 
         pad_rows(&mut rows, || {
             let mut row: [F; NUM_COLS] = [F::zero(); NUM_COLS];
-            let cols: &mut Uint256MulCols<F> = row.as_mut_slice().borrow_mut();
+            let cols: &mut Uint256OpCols<F> = row.as_mut_slice().borrow_mut();
 
             let x = BigUint::zero();
             let y = BigUint::zero();
             cols.output
-                .populate(&mut vec![], 0, 0, &x, &y, FieldOperation::Mul);
+                .populate(&mut vec![], 0, 0, &x, &y, FieldOperation::Add);
 
             row
         });
@@ -227,7 +244,7 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
 
         // Write the nonces to the trace.
         for i in 0..trace.height() {
-            let cols: &mut Uint256MulCols<F> =
+            let cols: &mut Uint256OpCols<F> =
                 trace.values[i * NUM_COLS..(i + 1) * NUM_COLS].borrow_mut();
             cols.nonce = F::from_canonical_usize(i);
         }
@@ -236,18 +253,19 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        !shard.uint256_mul_events.is_empty()
+        !shard.uint256_op_events.is_empty()
     }
 }
 
-impl Syscall for Uint256MulChip {
-    fn num_extra_cycles(&self) -> u32 {
-        1
+impl<F> BaseAir<F> for Uint256OpChip {
+    fn width(&self) -> usize {
+        num_uint256_cols()
     }
+}
 
+impl Syscall for Uint256OpSyscall {
     fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
         let clk = rt.clk;
-
         let x_ptr = arg1;
         if x_ptr % 4 != 0 {
             panic!();
@@ -269,42 +287,42 @@ impl Syscall for Uint256MulChip {
         let (modulus_memory_records, modulus) = rt.mr_slice(modulus_ptr, WORDS_FIELD_ELEMENT);
 
         // Get the BigUint values for x, y, and the modulus.
-        let uint256_x = BigUint::from_bytes_le(&words_to_bytes_le_vec(&x));
-        let uint256_y = BigUint::from_bytes_le(&words_to_bytes_le_vec(&y));
-        let uint256_modulus = BigUint::from_bytes_le(&words_to_bytes_le_vec(&modulus));
+        let modulus = &BigUint::from_bytes_le(&words_to_bytes_le_vec(&modulus));
+        let modulus = &modulus
+            .is_zero()
+            .then(|| BigUint::one() << 256)
+            .unwrap_or(modulus.clone());
 
-        // Perform the multiplication and take the result modulo the modulus.
-        let result: BigUint = if uint256_modulus.is_zero() {
-            let modulus = BigUint::one() << 256;
-            (uint256_x * uint256_y) % modulus
-        } else {
-            (uint256_x * uint256_y) % uint256_modulus
+        let x = &(BigUint::from_bytes_le(&words_to_bytes_le_vec(&x)) % modulus);
+        let y = &(BigUint::from_bytes_le(&words_to_bytes_le_vec(&y)) % modulus);
+
+        let result = match self.op {
+            FieldOperation::Add => (x + y) % modulus,
+            FieldOperation::Sub => (x + modulus - y) % modulus,
+            FieldOperation::Mul => (x * y) % modulus,
+            _ => panic!(),
         };
 
-        let mut result_bytes = result.to_bytes_le();
-        result_bytes.resize(32, 0u8); // Pad the result to 32 bytes.
+        let mut result_limbs = result.to_u32_digits();
+        result_limbs.resize(32, 0u32); // Pad the result to 32 bytes.
 
-        // Convert the result to little endian u32 words.
-        let result = bytes_to_words_le::<8>(&result_bytes);
-
-        // Increment clk so that the write is not at the same cycle as the read.
         rt.clk += 1;
-        // Write the result to x and keep track of the memory records.
-        let x_memory_records = rt.mw_slice(x_ptr, &result);
+        let x_memory_records = rt.mw_slice(x_ptr, &result_limbs);
 
-        let lookup_id = rt.syscall_lookup_id;
+        let lookup_id = rt.syscall_lookup_id as usize;
         let shard = rt.current_shard();
         let channel = rt.current_channel();
-        rt.record_mut().uint256_mul_events.push(Uint256MulEvent {
+        rt.record_mut().uint256_op_events.push(Uint256OpEvent {
             lookup_id,
             shard,
             channel,
             clk,
             x_ptr,
-            x,
+            x: x.to_u32_digits(),
             y_ptr,
-            y,
-            modulus,
+            y: y.to_u32_digits(),
+            modulus: modulus.to_u32_digits(),
+            op: self.op,
             x_memory_records,
             y_memory_records,
             modulus_memory_records,
@@ -312,15 +330,13 @@ impl Syscall for Uint256MulChip {
 
         None
     }
-}
 
-impl<F> BaseAir<F> for Uint256MulChip {
-    fn width(&self) -> usize {
-        NUM_COLS
+    fn num_extra_cycles(&self) -> u32 {
+        1
     }
 }
 
-impl<AB> Air<AB> for Uint256MulChip
+impl<AB> Air<AB> for Uint256OpChip
 where
     AB: SP1AirBuilder,
     Limbs<AB::Var, <U256Field as NumLimbs>::Limbs>: Copy,
@@ -328,9 +344,16 @@ where
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local = main.row_slice(0);
-        let local: &Uint256MulCols<AB::Var> = (*local).borrow();
+        let local: &Uint256OpCols<AB::Var> = (*local).borrow();
         let next = main.row_slice(1);
-        let next: &Uint256MulCols<AB::Var> = (*next).borrow();
+        let next: &Uint256OpCols<AB::Var> = (*next).borrow();
+
+        // Check that operations flags are boolean.
+        builder.assert_bool(local.is_add);
+        builder.assert_bool(local.is_sub);
+        builder.assert_bool(local.is_mul);
+        // Check that only one of them is set.
+        builder.assert_eq(local.is_add + local.is_sub + local.is_mul, AB::Expr::one());
 
         // Constrain the incrementing nonce.
         builder.when_first_row().assert_zero(local.nonce);
@@ -370,12 +393,15 @@ where
             + Polynomial::from_coefficients(&coeff_2_256) * modulus_is_zero.into();
 
         // Evaluate the uint256 multiplication
-        local.output.eval_with_modulus(
+        local.output.eval_variable(
             builder,
             &x_limbs,
             &y_limbs,
             &p_modulus,
-            FieldOperation::Mul,
+            local.is_add,
+            local.is_sub,
+            local.is_mul,
+            AB::F::zero(),
             local.shard,
             local.channel,
             local.is_real,
@@ -422,13 +448,24 @@ where
             local.is_real,
         );
 
+        // Select the correct syscall id based on the operation flags.
+        //
+        // *Remark*: If support for division is added, we will need to add the division syscall id.
+        let add_syscall_id = AB::F::from_canonical_u32(SyscallCode::UINT256_ADD.syscall_id());
+        let sub_syscall_id = AB::F::from_canonical_u32(SyscallCode::UINT256_SUB.syscall_id());
+        let mul_syscall_id = AB::F::from_canonical_u32(SyscallCode::UINT256_MUL.syscall_id());
+
+        let syscall_id_felt = local.is_add * add_syscall_id
+            + local.is_sub * sub_syscall_id
+            + local.is_mul * mul_syscall_id;
+
         // Receive the arguments.
         builder.receive_syscall(
             local.shard,
             local.channel,
             local.clk,
             local.nonce,
-            AB::F::from_canonical_u32(SyscallCode::UINT256_MUL.syscall_id()),
+            syscall_id_felt,
             local.x_ptr,
             local.y_ptr,
             local.is_real,

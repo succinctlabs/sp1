@@ -21,7 +21,7 @@ use crate::syscall::precompiles::edwards::EdDecompressEvent;
 use crate::syscall::precompiles::fptower::{Fp2AddSubEvent, Fp2MulEvent, FpOpEvent};
 use crate::syscall::precompiles::keccak256::KeccakPermuteEvent;
 use crate::syscall::precompiles::sha256::{ShaCompressEvent, ShaExtendEvent};
-use crate::syscall::precompiles::uint256::Uint256MulEvent;
+use crate::syscall::precompiles::uint256::Uint256OpEvent;
 use crate::syscall::precompiles::ECDecompressEvent;
 use crate::syscall::precompiles::{ECAddEvent, ECDoubleEvent};
 use crate::utils::SP1CoreOpts;
@@ -91,7 +91,7 @@ pub struct ExecutionRecord {
 
     pub bls12381_double_events: Vec<ECDoubleEvent>,
 
-    pub uint256_mul_events: Vec<Uint256MulEvent>,
+    pub uint256_op_events: Vec<Uint256OpEvent>,
 
     pub memory_initialize_events: Vec<MemoryInitializeFinalizeEvent>,
 
@@ -201,8 +201,8 @@ impl MachineRecord for ExecutionRecord {
             self.bls12381_double_events.len(),
         );
         stats.insert(
-            "uint256_mul_events".to_string(),
-            self.uint256_mul_events.len(),
+            "uint256_op_events".to_string(),
+            self.uint256_op_events.len(),
         );
         stats.insert(
             "bls12381_fp_event".to_string(),
@@ -281,8 +281,7 @@ impl MachineRecord for ExecutionRecord {
             .append(&mut other.bls12381_add_events);
         self.bls12381_double_events
             .append(&mut other.bls12381_double_events);
-        self.uint256_mul_events
-            .append(&mut other.uint256_mul_events);
+        self.uint256_op_events.append(&mut other.uint256_op_events);
         self.bls12381_fp_events
             .append(&mut other.bls12381_fp_events);
         self.bls12381_fp2_addsub_events
@@ -426,7 +425,7 @@ impl ExecutionRecord {
             ed_add_events: std::mem::take(&mut self.ed_add_events),
             ed_decompress_events: std::mem::take(&mut self.ed_decompress_events),
             k256_decompress_events: std::mem::take(&mut self.k256_decompress_events),
-            uint256_mul_events: std::mem::take(&mut self.uint256_mul_events),
+            uint256_op_events: std::mem::take(&mut self.uint256_op_events),
             bls12381_fp_events: std::mem::take(&mut self.bls12381_fp_events),
             bls12381_fp2_mul_events: std::mem::take(&mut self.bls12381_fp2_mul_events),
             bls12381_decompress_events: std::mem::take(&mut self.bls12381_decompress_events),
@@ -554,7 +553,7 @@ impl ExecutionRecord {
         );
         split_events!(
             self,
-            uint256_mul_events,
+            uint256_op_events,
             shards,
             opts.deferred_shift_threshold,
             last

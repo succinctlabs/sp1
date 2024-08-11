@@ -12,7 +12,7 @@ use crate::syscall::precompiles::edwards::EdDecompressChip;
 use crate::syscall::precompiles::fptower::{Fp2AddSubSyscall, Fp2MulAssignChip, FpOpSyscall};
 use crate::syscall::precompiles::keccak256::KeccakPermuteChip;
 use crate::syscall::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
-use crate::syscall::precompiles::uint256::Uint256MulChip;
+use crate::syscall::precompiles::uint256::Uint256OpSyscall;
 use crate::syscall::precompiles::weierstrass::WeierstrassAddAssignChip;
 use crate::syscall::precompiles::weierstrass::WeierstrassDecompressChip;
 use crate::syscall::precompiles::weierstrass::WeierstrassDoubleAssignChip;
@@ -97,6 +97,12 @@ pub enum SyscallCode {
     /// Executes the `HINT_READ` precompile.
     HINT_READ = 0x00_00_00_F1,
 
+    /// Executes the `UINT256_ADD` precompile.
+    UINT256_ADD = 0x00_01_01_1B,
+
+    /// Executes the `UINT256_SUB` precompile.
+    UINT256_SUB = 0x00_01_01_1C,
+
     /// Executes the `UINT256_MUL` precompile.
     UINT256_MUL = 0x00_01_01_1D,
 
@@ -168,6 +174,8 @@ impl SyscallCode {
             0x00_00_00_1B => SyscallCode::VERIFY_SP1_PROOF,
             0x00_00_00_F0 => SyscallCode::HINT_LEN,
             0x00_00_00_F1 => SyscallCode::HINT_READ,
+            0x00_01_01_1B => SyscallCode::UINT256_ADD,
+            0x00_01_01_1C => SyscallCode::UINT256_SUB,
             0x00_01_01_1D => SyscallCode::UINT256_MUL,
             0x00_01_01_20 => SyscallCode::BLS12381_FP_ADD,
             0x00_01_01_21 => SyscallCode::BLS12381_FP_SUB,
@@ -376,7 +384,18 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Arc<dyn Syscall>> {
         SyscallCode::BLS12381_DOUBLE,
         Arc::new(WeierstrassDoubleAssignChip::<Bls12381>::new()),
     );
-    syscall_map.insert(SyscallCode::UINT256_MUL, Arc::new(Uint256MulChip::new()));
+    syscall_map.insert(
+        SyscallCode::UINT256_ADD,
+        Arc::new(Uint256OpSyscall::new(FieldOperation::Add)),
+    );
+    syscall_map.insert(
+        SyscallCode::UINT256_SUB,
+        Arc::new(Uint256OpSyscall::new(FieldOperation::Sub)),
+    );
+    syscall_map.insert(
+        SyscallCode::UINT256_MUL,
+        Arc::new(Uint256OpSyscall::new(FieldOperation::Mul)),
+    );
     syscall_map.insert(
         SyscallCode::BLS12381_FP_ADD,
         Arc::new(FpOpSyscall::<Bls12381BaseField>::new(FieldOperation::Add)),
@@ -453,7 +472,18 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Arc<dyn Syscall>> {
         SyscallCode::BLS12381_DECOMPRESS,
         Arc::new(WeierstrassDecompressChip::<Bls12381>::with_lexicographic_rule()),
     );
-    syscall_map.insert(SyscallCode::UINT256_MUL, Arc::new(Uint256MulChip::new()));
+    syscall_map.insert(
+        SyscallCode::UINT256_ADD,
+        Arc::new(Uint256OpSyscall::new(FieldOperation::Add)),
+    );
+    syscall_map.insert(
+        SyscallCode::UINT256_SUB,
+        Arc::new(Uint256OpSyscall::new(FieldOperation::Sub)),
+    );
+    syscall_map.insert(
+        SyscallCode::UINT256_MUL,
+        Arc::new(Uint256OpSyscall::new(FieldOperation::Mul)),
+    );
 
     syscall_map
 }
@@ -528,6 +558,12 @@ mod tests {
                 SyscallCode::BN254_ADD => assert_eq!(code as u32, sp1_zkvm::syscalls::BN254_ADD),
                 SyscallCode::BN254_DOUBLE => {
                     assert_eq!(code as u32, sp1_zkvm::syscalls::BN254_DOUBLE)
+                }
+                SyscallCode::UINT256_ADD => {
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::UINT256_ADD)
+                }
+                SyscallCode::UINT256_SUB => {
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::UINT256_SUB)
                 }
                 SyscallCode::UINT256_MUL => {
                     assert_eq!(code as u32, sp1_zkvm::syscalls::UINT256_MUL)

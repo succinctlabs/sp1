@@ -97,6 +97,12 @@ pub const HINT_READ: u32 = 0x00_00_00_F1;
 /// Executes `BLS12381_DECOMPRESS`.
 pub const BLS12381_DECOMPRESS: u32 = 0x00_00_01_1C;
 
+/// Executes the `UINT256_ADD` precompile.
+pub const UINT256_ADD: u32 = 0x00_01_01_1B;
+
+/// Executes the `UINT256_SUB` precompile.
+pub const UINT256_SUB: u32 = 0x00_01_01_1C;
+
 /// Executes the `UINT256_MUL` precompile.
 pub const UINT256_MUL: u32 = 0x00_01_01_1D;
 

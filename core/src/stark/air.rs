@@ -31,7 +31,7 @@ pub(crate) mod riscv_chips {
     pub use crate::syscall::precompiles::keccak256::KeccakPermuteChip;
     pub use crate::syscall::precompiles::sha256::ShaCompressChip;
     pub use crate::syscall::precompiles::sha256::ShaExtendChip;
-    pub use crate::syscall::precompiles::uint256::Uint256MulChip;
+    pub use crate::syscall::precompiles::uint256::Uint256OpChip;
     pub use crate::syscall::precompiles::weierstrass::WeierstrassAddAssignChip;
     pub use crate::syscall::precompiles::weierstrass::WeierstrassDecompressChip;
     pub use crate::syscall::precompiles::weierstrass::WeierstrassDoubleAssignChip;
@@ -101,7 +101,7 @@ pub enum RiscvAir<F: PrimeField32> {
     /// A precompile for doubling a point on the Elliptic curve bls12_381.
     Bls12381Double(WeierstrassDoubleAssignChip<SwCurve<Bls12381Parameters>>),
     /// A precompile for uint256 mul.
-    Uint256Mul(Uint256MulChip),
+    Uint256Op(Uint256OpChip),
     /// A precompile for decompressing a point on the BLS12-381 curve.
     Bls12381Decompress(WeierstrassDecompressChip<SwCurve<Bls12381Parameters>>),
     /// A precompile for BLS12-381 fp operation.
@@ -163,8 +163,8 @@ impl<F: PrimeField32> RiscvAir<F> {
         chips.push(RiscvAir::Bls12381Add(bls12381_add));
         let bls12381_double = WeierstrassDoubleAssignChip::<SwCurve<Bls12381Parameters>>::new();
         chips.push(RiscvAir::Bls12381Double(bls12381_double));
-        let uint256_mul = Uint256MulChip::default();
-        chips.push(RiscvAir::Uint256Mul(uint256_mul));
+        let uint256_mul = Uint256OpChip::default();
+        chips.push(RiscvAir::Uint256Op(uint256_mul));
         let bls12381_fp = FpOpChip::<Bls12381BaseField>::new();
         chips.push(RiscvAir::Bls12381Fp(bls12381_fp));
         let bls12381_fp2_addsub = Fp2AddSubAssignChip::<Bls12381BaseField>::new();
