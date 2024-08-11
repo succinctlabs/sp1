@@ -66,6 +66,7 @@ pub struct CompressRequestPayload {
 /// The payload for the [sp1_prover::SP1Prover::shrink] method.
 ///
 /// We use this object to serialize and deserialize the payload from the client to the server.
+#[derive(Serialize, Deserialize)]
 pub struct ShrinkRequestPayload {
     pub reduced_proof: SP1ReduceProof<InnerSC>,
 }
@@ -73,6 +74,7 @@ pub struct ShrinkRequestPayload {
 /// The payload for the [sp1_prover::SP1Prover::wrap_bn254] method.
 ///
 /// We use this object to serialize and deserialize the payload from the client to the server.
+#[derive(Serialize, Deserialize)]
 pub struct WrapRequestPayload {
     pub reduced_proof: SP1ReduceProof<InnerSC>,
 }
