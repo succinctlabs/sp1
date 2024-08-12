@@ -314,6 +314,7 @@ fn cleanup_container(container_name: &str) {
     }
 }
 
+#[ignore]
 #[cfg(test)]
 mod tests {
     use sp1_core::runtime::SP1Context;
@@ -328,7 +329,6 @@ mod tests {
     use crate::{proto::api::ProverServiceClient, ProveCoreRequestPayload};
     use crate::{CompressRequestPayload, SP1CudaProver};
 
-    #[ignore]
     #[test]
     fn test_client() {
         utils::setup_logger();
@@ -362,7 +362,6 @@ mod tests {
         prover.verify_wrap_bn254(&proof, &vk).unwrap();
     }
 
-    #[ignore]
     #[tokio::test]
     async fn test_prove_core() {
         let client =
