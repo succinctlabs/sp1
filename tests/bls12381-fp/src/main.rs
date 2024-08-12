@@ -76,21 +76,19 @@ pub fn main() {
     for _ in 0..10 {
         let a = random_u32_12();
         let b = random_u32_12();
-        let a_reduced = reduce_modulo(&a, &modulus);
-        let b_reduced = reduce_modulo(&b, &modulus);
-        let a_bigint = u32_12_to_biguint(&a_reduced);
-        let b_bigint = u32_12_to_biguint(&b_reduced);
+        let a_bigint = u32_12_to_biguint(&a) % &modulus;
+        let b_bigint = u32_12_to_biguint(&b) % &modulus;
 
         // Test addition
         assert_eq!(
             (a_bigint.clone() + b_bigint.clone()) % &modulus,
-            u32_12_to_biguint(&add(&a_reduced, &b_reduced)) % &modulus
+            u32_12_to_biguint(&add(&a, &b)) % &modulus
         );
 
         // Test addition with zero
         assert_eq!(
             (&a_bigint + &zero_bigint) % &modulus,
-            u32_12_to_biguint(&add(&a_reduced, &zero)) % &modulus
+            u32_12_to_biguint(&add(&a, &zero)) % &modulus
         );
 
         // Test subtraction
@@ -99,33 +97,30 @@ pub fn main() {
         } else {
             (a_bigint.clone() - b_bigint.clone()) % &modulus
         };
-        assert_eq!(
-            expected_sub,
-            u32_12_to_biguint(&sub(&a_reduced, &b_reduced)) % &modulus
-        );
+        assert_eq!(expected_sub, u32_12_to_biguint(&sub(&a, &b)) % &modulus);
 
         // Test subtraction with zero
         assert_eq!(
             (&a_bigint + &modulus - &zero_bigint) % &modulus,
-            u32_12_to_biguint(&sub(&a_reduced, &zero)) % &modulus
+            u32_12_to_biguint(&sub(&a, &zero)) % &modulus
         );
 
         // Test multiplication
         assert_eq!(
             (a_bigint.clone() * b_bigint.clone()) % &modulus,
-            u32_12_to_biguint(&mul(&a_reduced, &b_reduced)) % &modulus
+            u32_12_to_biguint(&mul(&a, &b)) % &modulus
         );
 
         // Test multiplication with one
         assert_eq!(
             (&a_bigint * &one_bigint) % &modulus,
-            u32_12_to_biguint(&mul(&a_reduced, &one)) % &modulus
+            u32_12_to_biguint(&mul(&a, &one)) % &modulus
         );
 
         // Test multiplication with zero
         assert_eq!(
             (&a_bigint * &zero_bigint) % &modulus,
-            u32_12_to_biguint(&mul(&a_reduced, &zero)) % &modulus
+            u32_12_to_biguint(&mul(&a, &zero)) % &modulus
         );
     }
     println!("All tests passed!");

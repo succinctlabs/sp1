@@ -136,7 +136,6 @@ pub extern "C" fn syscall_bn254_fp_addmod(x: *mut u32, y: *const u32) {
             in("a1") y,
         );
     }
-
     #[cfg(not(target_os = "zkvm"))]
     unreachable!()
 }
