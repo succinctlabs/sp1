@@ -22,6 +22,7 @@ bincode = "1.3.3"
 sp1-sdk = { workspace = true }
 sp1-prover = { workspace = true }
 sp1-core = { workspace = true }
+sp1-recursion-core = { workspace = true }
 p3-baby-bear = { version = "0.1.3-succinct", features = ["nightly-features"] }
 p3-symmetric = "0.1.3-succinct"
 p3-challenger = "0.1.3-succinct"

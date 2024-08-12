@@ -1809,6 +1809,7 @@ dependencies = [
  "sp1-core",
  "sp1-helper",
  "sp1-prover",
+ "sp1-recursion-core",
  "sp1-sdk",
  "sysinfo",
  "tempfile",

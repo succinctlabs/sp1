@@ -1,4 +1,5 @@
 pub mod types;
+pub mod memory_layouts;
 
 use anyhow::Result;
 use sp1_core::{
