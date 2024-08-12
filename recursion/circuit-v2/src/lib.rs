@@ -116,8 +116,6 @@ pub trait BabyBearFriConfig:
     fn fri_config(&self) -> &FriConfig<FriMmcs<Self>>;
 }
 
-// TODO write subtrait that enables use of the Variable variants
-// consider merging this into the above trait
 pub trait BabyBearFriConfigVariable: BabyBearFriConfig {
     // Is this is the best place to put this?
     type C: Config<F = Self::Val, EF = Self::Challenge>;
@@ -126,7 +124,6 @@ pub trait BabyBearFriConfigVariable: BabyBearFriConfig {
 
 impl BabyBearFriConfig for BabyBearPoseidon2 {
     type ValMmcs = sp1_core::utils::baby_bear_poseidon2::ValMmcs;
-    // type RowMajorProverData = PcsProverData<Self>;
     type FriChallenger = <Self as StarkGenericConfig>::Challenger;
 
     fn fri_config(&self) -> &FriConfig<FriMmcs<Self>> {
@@ -142,7 +139,6 @@ impl BabyBearFriConfigVariable for BabyBearPoseidon2 {
 
 impl BabyBearFriConfig for BabyBearPoseidon2Outer {
     type ValMmcs = OuterValMmcs;
-    // type RowMajorProverData = PcsProverData<Self>;
     type FriChallenger = <Self as StarkGenericConfig>::Challenger;
 
     fn fri_config(&self) -> &FriConfig<FriMmcs<Self>> {
