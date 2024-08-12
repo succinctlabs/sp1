@@ -4,6 +4,7 @@ use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use sp1_core::air::AirInteraction;
+use sp1_core::air::InteractionScope;
 use sp1_core::air::MachineAir;
 use sp1_core::lookup::InteractionKind;
 use sp1_core::utils::next_power_of_two;
@@ -194,30 +195,36 @@ where
             local.is_finalize,
         );
 
-        builder.send(AirInteraction::new(
-            vec![
-                local.timestamp.into(),
-                local.addr.into(),
-                local.value[0].into(),
-                local.value[1].into(),
-                local.value[2].into(),
-                local.value[3].into(),
-            ],
-            local.is_initialize.into(),
-            InteractionKind::Memory,
-        ));
-        builder.receive(AirInteraction::new(
-            vec![
-                local.timestamp.into(),
-                local.addr.into(),
-                local.value[0].into(),
-                local.value[1].into(),
-                local.value[2].into(),
-                local.value[3].into(),
-            ],
-            local.is_finalize.into(),
-            InteractionKind::Memory,
-        ));
+        builder.send(
+            AirInteraction::new(
+                vec![
+                    local.timestamp.into(),
+                    local.addr.into(),
+                    local.value[0].into(),
+                    local.value[1].into(),
+                    local.value[2].into(),
+                    local.value[3].into(),
+                ],
+                local.is_initialize.into(),
+                InteractionKind::Memory,
+            ),
+            InteractionScope::Global,
+        );
+        builder.receive(
+            AirInteraction::new(
+                vec![
+                    local.timestamp.into(),
+                    local.addr.into(),
+                    local.value[0].into(),
+                    local.value[1].into(),
+                    local.value[2].into(),
+                    local.value[3].into(),
+                ],
+                local.is_finalize.into(),
+                InteractionKind::Memory,
+            ),
+            InteractionScope::Global,
+        );
     }
 }
 

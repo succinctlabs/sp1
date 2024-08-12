@@ -1,8 +1,8 @@
 use p3_air::{
     AirBuilder, AirBuilderWithPublicValues, ExtensionBuilder, FilteredAirBuilder,
-    PermutationAirBuilder,
+    PermutationAirBuilder, PermutationError,
 };
-use sp1_core::air::MessageBuilder;
+use sp1_core::air::{InteractionScope, MessageBuilder};
 
 /// The MultiBuilder is used for the multi table.  It is used to create a virtual builder for one of
 /// the sub tables in the multi table.
@@ -75,27 +75,32 @@ impl<'a, AB: ExtensionBuilder> ExtensionBuilder for MultiBuilder<'a, AB> {
     }
 }
 
-impl<'a, AB: PermutationAirBuilder> PermutationAirBuilder for MultiBuilder<'a, AB> {
+impl<'a, AB: PermutationAirBuilder<InteractionScope>> PermutationAirBuilder<InteractionScope>
+    for MultiBuilder<'a, AB>
+{
     type MP = AB::MP;
 
     type RandomVar = AB::RandomVar;
 
-    fn permutation(&self) -> Self::MP {
-        self.inner.permutation()
+    fn permutation(&self, perm_type: InteractionScope) -> Result<Self::MP, PermutationError> {
+        self.inner.permutation(perm_type)
     }
 
-    fn permutation_randomness(&self) -> &[Self::RandomVar] {
-        self.inner.permutation_randomness()
+    fn permutation_randomness(
+        &self,
+        perm_type: InteractionScope,
+    ) -> Result<&[Self::RandomVar], PermutationError> {
+        self.inner.permutation_randomness(perm_type)
     }
 }
 
 impl<'a, AB: AirBuilder + MessageBuilder<M>, M> MessageBuilder<M> for MultiBuilder<'a, AB> {
-    fn send(&mut self, message: M) {
-        self.inner.send(message);
+    fn send(&mut self, message: M, scope: InteractionScope) {
+        self.inner.send(message, scope);
     }
 
-    fn receive(&mut self, message: M) {
-        self.inner.receive(message);
+    fn receive(&mut self, message: M, scope: InteractionScope) {
+        self.inner.receive(message, scope);
     }
 }
 
