@@ -1,9 +1,15 @@
-mod local;
+mod cpu;
+#[cfg(feature = "cuda")]
+mod cuda;
 mod mock;
+mod utils;
+
+pub use cpu::CpuProver;
+#[cfg(feature = "cuda")]
+pub use cuda::CudaProver;
+pub use mock::MockProver;
 
 use anyhow::Result;
-pub use local::LocalProver;
-pub use mock::MockProver;
 use sp1_core::runtime::SP1Context;
 use sp1_core::stark::MachineVerificationError;
 use sp1_core::utils::SP1ProverOpts;
@@ -27,7 +33,8 @@ use crate::SP1ProofWithPublicValues;
 /// The type of prover.
 #[derive(Debug, PartialEq, EnumString)]
 pub enum ProverType {
-    Local,
+    Cpu,
+    Cuda,
     Mock,
     Network,
 }

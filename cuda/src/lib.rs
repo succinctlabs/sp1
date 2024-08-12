@@ -307,13 +307,13 @@ impl Drop for SP1CudaProver {
 fn cleanup_container(container_name: &str) {
     if let Err(e) = Command::new("sudo")
         .args(["docker", "rm", "-f", container_name])
-        .stdin(Stdio::null())
-        .status()
+        .output()
     {
         eprintln!("failed to remove container: {}", e);
     }
 }
 
+#[allow(unused_imports)]
 #[cfg(feature = "protobuf")]
 #[cfg(test)]
 mod tests {
