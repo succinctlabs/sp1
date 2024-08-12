@@ -726,8 +726,5 @@ mod tests {
         verify_two_adic_pcs(&mut builder, &config, &proof, &mut challenger, rounds);
 
         run_test_recursion(builder.operations, std::iter::empty());
-        // let mut backend = ConstraintCompiler::<InnerConfig>::default();
-        // let constraints = backend.emit(builder.operations);
-        // PlonkBn254Prover::test::<InnerConfig>(constraints.clone(), Witness::default());
     }
 }
