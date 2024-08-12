@@ -1,5 +1,7 @@
 use super::core_prove::mpc_prove_core;
-use crate::{operator::operator_prepare_compress_inputs, ProveArgs};
+use crate::{
+    operator::operator_prepare_compress_inputs, worker::worker_compress_proofs, ProveArgs,
+};
 use anyhow::Result;
 
 pub fn mpc_prove_compress(args: ProveArgs) -> Result<Vec<u8>> {
@@ -16,6 +18,24 @@ pub fn mpc_prove_compress(args: ProveArgs) -> Result<Vec<u8>> {
         &mut def_layouts,
         &mut last_proof_public_values,
     );
+
+    let mut compressed_proofs = Vec::new();
+    for layout in rec_layouts {
+        let mut compressed_proof = Vec::new();
+        worker_compress_proofs(
+            &serialize_args,
+            &layout,
+            0,
+            Some(&last_proof_public_values),
+            &mut compressed_proof,
+        );
+        compressed_proofs.push(compressed_proof);
+    }
+    for layout in def_layouts {
+        let mut compressed_proof = Vec::new();
+        worker_compress_proofs(&serialize_args, &layout, 1, None, &mut compressed_proof);
+        compressed_proofs.push(compressed_proof);
+    }
 
     Ok(Vec::new())
 }

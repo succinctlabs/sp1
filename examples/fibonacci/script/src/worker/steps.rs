@@ -1,13 +1,20 @@
 use crate::common;
-use crate::common::types::{ChallengerType, CommitmentType, RecordType};
+use crate::common::memory_layouts::{SerializableDeferredLayout, SerializableRecursionLayout};
+use crate::common::types::{
+    ChallengerType, CommitmentType, DeferredLayout, RecordType, RecursionLayout,
+};
 use crate::ProveArgs;
 use anyhow::Result;
+use p3_baby_bear::BabyBear;
+use p3_field::AbstractField;
+use sp1_core::air::Word;
 use sp1_core::{
     air::PublicValues,
     runtime::ExecutionRecord,
     stark::{MachineProver, MachineRecord, ShardProof},
     utils::{reset_seek, trace_checkpoint, BabyBearPoseidon2},
 };
+use sp1_prover::ReduceProgramType;
 use sp1_sdk::ExecutionReport;
 use std::fs::File;
 
@@ -123,4 +130,93 @@ pub fn worker_prove_checkpoint_impl(
     }
 
     Ok(shard_proofs)
+}
+
+pub fn worker_compress_proofs_for_recursion(
+    args: ProveArgs,
+    mut layout: SerializableRecursionLayout,
+) -> Result<(ShardProof<BabyBearPoseidon2>, ReduceProgramType)> {
+    let (client, stdin, pk, _) = common::init_client(args.clone());
+    let (program, opts, context) = common::bootstrap(&client, &pk).unwrap();
+    let runtime = common::build_runtime(program, &stdin, opts, context);
+    let (_, stark_vk) = client
+        .prover
+        .sp1_prover()
+        .core_prover
+        .setup(runtime.program.as_ref());
+
+    let sp1_prover = client.prover.sp1_prover();
+    let leaf_challenger = layout
+        .leaf_challenger
+        .to_challenger(&sp1_prover.core_prover.config().perm);
+    let initial_reconstruct_challenger = layout
+        .initial_reconstruct_challenger
+        .to_challenger(&sp1_prover.core_prover.config().perm);
+
+    let input = RecursionLayout {
+        vk: &stark_vk,
+        machine: sp1_prover.core_prover.machine(),
+        shard_proofs: layout.shard_proofs,
+        leaf_challenger: &leaf_challenger,
+        initial_reconstruct_challenger,
+        is_complete: layout.is_complete,
+    };
+
+    sp1_prover
+        .compress_machine_proof(
+            input,
+            &sp1_prover.recursion_program,
+            &sp1_prover.rec_pk,
+            opts,
+        )
+        .map(|p| (p, ReduceProgramType::Core))
+        .map_err(|e| anyhow::anyhow!("failed to compress machine proof: {:?}", e))
+}
+
+pub fn worker_compress_proofs_for_deferred(
+    args: ProveArgs,
+    mut layout: SerializableDeferredLayout,
+    last_proof_pv: PublicValues<Word<BabyBear>, BabyBear>,
+) -> Result<(ShardProof<BabyBearPoseidon2>, ReduceProgramType)> {
+    let (client, stdin, pk, _) = common::init_client(args.clone());
+    let (program, opts, context) = common::bootstrap(&client, &pk).unwrap();
+    let runtime = common::build_runtime(program, &stdin, opts, context);
+    let (_, stark_vk) = client
+        .prover
+        .sp1_prover()
+        .core_prover
+        .setup(runtime.program.as_ref());
+
+    let sp1_prover = client.prover.sp1_prover();
+
+    let leaf_challenger = layout
+        .leaf_challenger
+        .to_challenger(&sp1_prover.core_prover.config().perm);
+    let input = DeferredLayout {
+        compress_vk: &sp1_prover.compress_vk,
+        machine: sp1_prover.compress_prover.machine(),
+        proofs: layout.proofs,
+        start_reconstruct_deferred_digest: layout.start_reconstruct_deferred_digest,
+        is_complete: false,
+        sp1_vk: &stark_vk,
+        sp1_machine: sp1_prover.core_prover.machine(),
+        end_pc: BabyBear::zero(),
+        end_shard: last_proof_pv.shard + BabyBear::one(),
+        end_execution_shard: last_proof_pv.execution_shard,
+        init_addr_bits: last_proof_pv.last_init_addr_bits,
+        finalize_addr_bits: last_proof_pv.last_finalize_addr_bits,
+        leaf_challenger: leaf_challenger,
+        committed_value_digest: last_proof_pv.committed_value_digest.to_vec(),
+        deferred_proofs_digest: last_proof_pv.deferred_proofs_digest.to_vec(),
+    };
+
+    sp1_prover
+        .compress_machine_proof(
+            input,
+            &sp1_prover.recursion_program,
+            &sp1_prover.rec_pk,
+            opts,
+        )
+        .map(|p| (p, ReduceProgramType::Deferred))
+        .map_err(|e| anyhow::anyhow!("failed to compress machine proof: {:?}", e))
 }

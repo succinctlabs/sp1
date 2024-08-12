@@ -26,3 +26,25 @@ pub type RecordType = ExecutionRecord;
 pub type RecursionLayout<'a> = SP1RecursionMemoryLayout<'a, BabyBearPoseidon2, RiscvAir<BabyBear>>;
 pub type DeferredLayout<'a> =
     SP1DeferredMemoryLayout<'a, BabyBearPoseidon2, RecursionAir<BabyBear, 3>>;
+
+pub enum LayoutType {
+    Recursion,
+    Deferred,
+}
+
+impl LayoutType {
+    pub fn from_usize(num: usize) -> Self {
+        match num {
+            0 => LayoutType::Recursion,
+            1 => LayoutType::Deferred,
+            _ => panic!("Invalid layout type"),
+        }
+    }
+
+    pub fn to_usize(&self) -> usize {
+        match self {
+            LayoutType::Recursion => 0,
+            LayoutType::Deferred => 1,
+        }
+    }
+}
