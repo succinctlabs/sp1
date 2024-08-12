@@ -54,7 +54,7 @@ impl Prover<DefaultProverComponents> for CudaProver {
     ) -> Result<SP1ProofWithPublicValues> {
         tracing::warn!("opts and context are ignored for the cuda prover");
 
-        if kind == SP1ProofKind::Plonk && enough_ram_for_plonk() {
+        if kind == SP1ProofKind::Plonk && !enough_ram_for_plonk() {
             return Err(anyhow::anyhow!(format!(
                 "not enough memory to generate plonk proof. at least {}GB is required.",
                 PLONK_MEMORY_GB_REQUIREMENT
