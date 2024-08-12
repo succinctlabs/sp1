@@ -98,6 +98,11 @@ impl<P: FpOpField> Syscall for Fp2MulAssignChip<P> {
         let bc1 = &BigUint::from_slice(bc1);
         let modulus = &BigUint::from_bytes_le(P::MODULUS);
 
+        assert!(ac0 < modulus, "Invalid input: lhs.c0 >= modulus");
+        assert!(ac1 < modulus, "Invalid input: lhs.c1 >= modulus");
+        assert!(bc0 < modulus, "Invalid input: rhs.c0 >= modulus");
+        assert!(bc1 < modulus, "Invalid input: rhs.c1 >= modulus");
+
         let c0 = match (ac0 * bc0) % modulus < (ac1 * bc1) % modulus {
             true => ((modulus + (ac0 * bc0) % modulus) - (ac1 * bc1) % modulus) % modulus,
             false => ((ac0 * bc0) % modulus - (ac1 * bc1) % modulus) % modulus,
