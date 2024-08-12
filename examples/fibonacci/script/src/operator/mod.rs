@@ -1,14 +1,21 @@
 pub mod steps;
 pub mod utils;
 
-use crate::{
-    common::types::{CommitmentType, RecordType},
-    ProveArgs,
+use crate::common;
+use crate::common::{
+    memory_layouts::{SerializableDeferredLayout, SerializableRecursionLayout},
+    types::{CommitmentType, RecordType},
 };
+use crate::ProveArgs;
+use p3_baby_bear::BabyBear;
+use sp1_core::air::{PublicValues, Word};
+use sp1_core::stark::{MachineProver, StarkGenericConfig};
 use sp1_core::{stark::ShardProof, utils::BabyBearPoseidon2};
+use sp1_prover::SP1CoreProof;
+use std::borrow::Borrow;
 use steps::{
     construct_sp1_core_proof_impl, operator_absorb_commits_impl,
-    operator_split_into_checkpoints_impl,
+    operator_prepare_compress_inputs_impl, operator_split_into_checkpoints_impl,
 };
 use utils::{read_bin_file_to_vec, ChallengerState};
 
@@ -72,4 +79,47 @@ pub fn operator_construct_sp1_core_proof(
     )
     .unwrap();
     *o_proof = bincode::serialize(&proof).unwrap();
+}
+
+pub fn operator_prepare_compress_inputs(
+    args: &Vec<u8>,
+    core_proof: &[u8],
+    o_rec_layouts: &mut Vec<Vec<u8>>,
+    o_def_layouts: &mut Vec<Vec<u8>>,
+    o_last_proof_public_values: &mut Vec<u8>,
+) {
+    let args_obj = ProveArgs::from_slice(args.as_slice());
+    let core_proof_obj: SP1CoreProof = bincode::deserialize(&core_proof).unwrap();
+
+    let (client, stdin, _, vk) = common::init_client(args_obj);
+
+    let mut leaf_challenger = client.prover.sp1_prover().core_prover.config().challenger();
+    let (core_inputs, deferred_inputs) = operator_prepare_compress_inputs_impl(
+        &stdin,
+        &vk,
+        &mut leaf_challenger,
+        client.prover.sp1_prover(),
+        &core_proof_obj,
+    )
+    .unwrap();
+
+    *o_rec_layouts = core_inputs
+        .into_iter()
+        .map(|input| bincode::serialize(&SerializableRecursionLayout::from_layout(input)).unwrap())
+        .collect();
+    *o_def_layouts = deferred_inputs
+        .into_iter()
+        .map(|input| bincode::serialize(&SerializableDeferredLayout::from_layout(input)).unwrap())
+        .collect();
+
+    let last_public_values: &PublicValues<Word<BabyBear>, BabyBear> = &core_proof_obj
+        .proof
+        .0
+        .last()
+        .unwrap()
+        .public_values
+        .as_slice()
+        .borrow();
+
+    *o_last_proof_public_values = bincode::serialize(last_public_values).unwrap();
 }

@@ -6,14 +6,19 @@ use crate::common::types::{
 use crate::ProveArgs;
 use anyhow::Result;
 use p3_baby_bear::BabyBear;
-use sp1_core::stark::MachineRecord;
+use p3_challenger::CanObserve;
+use sp1_core::stark::{MachineRecord, RiscvAir};
 use sp1_core::{
     runtime::Runtime,
     stark::{MachineProof, MachineProver, ShardProof, StarkGenericConfig},
     utils::{BabyBearPoseidon2, SP1CoreProverError},
 };
-use sp1_prover::{SP1CoreProof, SP1CoreProofData, SP1ProofWithMetadata};
-use sp1_sdk::SP1PublicValues;
+use sp1_prover::{
+    SP1CoreProof, SP1CoreProofData, SP1DeferredMemoryLayout, SP1ProofWithMetadata,
+    SP1RecursionMemoryLayout,
+};
+use sp1_recursion_core::stark::RecursionAir;
+use sp1_sdk::{SP1Prover, SP1PublicValues, SP1Stdin, SP1VerifyingKey};
 
 fn operator_split_into_checkpoints(
     runtime: &mut Runtime,
@@ -150,4 +155,40 @@ pub fn construct_sp1_core_proof_impl(
     };
 
     Ok(sp1_core_proof)
+}
+
+pub fn operator_prepare_compress_inputs_impl<'a>(
+    stdin: &'a SP1Stdin,
+    vk: &'a SP1VerifyingKey,
+    mut leaf_challenger: &'a mut ChallengerType,
+    sp1_prover: &'a SP1Prover,
+    core_proof: &'a SP1CoreProof,
+) -> Result<(
+    Vec<SP1RecursionMemoryLayout<'a, BabyBearPoseidon2, RiscvAir<BabyBear>>>,
+    Vec<SP1DeferredMemoryLayout<'a, BabyBearPoseidon2, RecursionAir<BabyBear, 3>>>,
+)> {
+    let deferred_proofs: Vec<ShardProof<BabyBearPoseidon2>> =
+        stdin.proofs.iter().map(|p| p.0.clone()).collect();
+    let batch_size = 2;
+
+    let shard_proofs = &core_proof.proof.0;
+
+    // Get the leaf challenger.
+    vk.vk.observe_into(&mut leaf_challenger);
+    shard_proofs.iter().for_each(|proof| {
+        leaf_challenger.observe(proof.commitment.main_commit);
+        leaf_challenger
+            .observe_slice(&proof.public_values[0..sp1_prover.core_prover.num_pv_elts()]);
+    });
+
+    // Run the recursion and reduce programs.
+    let (core_inputs, deferred_inputs) = sp1_prover.get_first_layer_inputs(
+        vk,
+        leaf_challenger,
+        shard_proofs,
+        deferred_proofs.as_slice(),
+        batch_size,
+    );
+
+    Ok((core_inputs, deferred_inputs))
 }
