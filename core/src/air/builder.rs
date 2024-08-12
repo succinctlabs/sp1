@@ -2,7 +2,7 @@ use std::array;
 use std::iter::once;
 
 use itertools::Itertools;
-use p3_air::{AirBuilder, FilteredAirBuilder};
+use p3_air::{AirBuilder, FilteredAirBuilder, PermutationError};
 use p3_air::{AirBuilderWithPublicValues, PermutationAirBuilder};
 use p3_field::{AbstractField, Field};
 use p3_uni_stark::StarkGenericConfig;
@@ -18,10 +18,10 @@ use crate::memory::MemoryAccessCols;
 use crate::{bytes::ByteOpcode, memory::MemoryCols};
 
 /// The scope of an interaction.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum InteractionScope {
+    Global = 0,
     Local,
-    Global,
 }
 
 /// A Builder with the ability to encode the existance of interactions with other AIRs by sending
@@ -703,10 +703,10 @@ pub trait ExtensionAirBuilder: BaseAirBuilder {
     }
 }
 
-pub trait MultiTableAirBuilder: PermutationAirBuilder {
-    type Sum: Into<Self::ExprEF>;
+pub trait MultiTableAirBuilder: PermutationAirBuilder<InteractionScope> {
+    type Sum: Into<Self::ExprEF> + Copy;
 
-    fn cumulative_sum(&self, scope: InteractionScope) -> Self::Sum;
+    fn cumulative_sum(&self, perm_type: InteractionScope) -> Result<Self::Sum, PermutationError>;
 }
 
 /// A trait that contains the common helper methods for building `SP1 recursion` and SP1 machine AIRs.

@@ -3,6 +3,7 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::marker::PhantomData;
 
+use hashbrown::HashMap;
 use itertools::Itertools;
 use p3_air::Air;
 use p3_air::BaseAir;
@@ -222,7 +223,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
                 qc_domains,
                 zeta,
                 alpha,
-                &global_permutation_challenges,
+                global_permutation_challenges,
                 &local_permutation_challenges,
                 public_values,
             )
@@ -379,12 +380,24 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             next: unflatten(&opening.local_permutation.next),
         };
 
+        let mut perms = HashMap::new();
+        perms.insert(InteractionScope::Global, global_perm_opening.view());
+        perms.insert(InteractionScope::Local, local_perm_opening.view());
+
+        let mut perm_challenges = HashMap::new();
+        perm_challenges.insert(InteractionScope::Global, global_permutation_challenges);
+        perm_challenges.insert(InteractionScope::Local, local_permutation_challenges);
+
+        let mut cumulative_sums = HashMap::new();
+        cumulative_sums.insert(InteractionScope::Global, opening.global_cumulative_sum);
+        cumulative_sums.insert(InteractionScope::Local, opening.local_cumulative_sum);
+
         let mut folder = VerifierConstraintFolder::<SC> {
             preprocessed: opening.preprocessed.view(),
             main: opening.main.view(),
-            perms: [global_perm_opening.view(), local_perm_opening.view()],
-            perm_challenges: [global_permutation_challenges, local_permutation_challenges],
-            cumulative_sums: [opening.global_cumulative_sum, opening.local_cumulative_sum],
+            perms,
+            perm_challenges,
+            cumulative_sums,
             is_first_row: selectors.is_first_row,
             is_last_row: selectors.is_last_row,
             is_transition: selectors.is_transition,

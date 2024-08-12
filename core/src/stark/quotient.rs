@@ -1,3 +1,4 @@
+use hashbrown::HashMap;
 use p3_air::Air;
 use p3_commit::PolynomialSpace;
 use p3_field::AbstractExtensionField;
@@ -9,6 +10,7 @@ use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::*;
 use p3_util::log2_strict_usize;
 
+use crate::air::InteractionScope;
 use crate::air::MachineAir;
 
 use super::folder::ProverConstraintFolder;
@@ -22,7 +24,8 @@ use super::Val;
 #[allow(clippy::too_many_arguments)]
 pub fn quotient_values<SC, A, Mat>(
     chip: &Chip<Val<SC>, A>,
-    cumulative_sums: [SC::Challenge; 2],
+    global_cumulative_sum: SC::Challenge,
+    local_cumulative_sum: SC::Challenge,
     trace_domain: Domain<SC>,
     quotient_domain: Domain<SC>,
     preprocessed_trace_on_quotient_domain: Mat,
@@ -160,6 +163,18 @@ where
                 RowMajorMatrixView::new_row(&local_perm_next),
             );
 
+            let mut perms = HashMap::new();
+            perms.insert(InteractionScope::Global, global_perm);
+            perms.insert(InteractionScope::Local, local_perm);
+
+            let mut perm_challenges = HashMap::new();
+            perm_challenges.insert(InteractionScope::Global, global_perm_challenges);
+            perm_challenges.insert(InteractionScope::Local, local_perm_challenges);
+
+            let mut cumulative_sums = HashMap::new();
+            cumulative_sums.insert(InteractionScope::Global, global_cumulative_sum);
+            cumulative_sums.insert(InteractionScope::Local, local_cumulative_sum);
+
             let mut folder = ProverConstraintFolder {
                 preprocessed: VerticalPair::new(
                     RowMajorMatrixView::new_row(&prep_local),
@@ -169,8 +184,8 @@ where
                     RowMajorMatrixView::new_row(&local),
                     RowMajorMatrixView::new_row(&next),
                 ),
-                perms: [global_perm, local_perm],
-                perm_challenges: [global_perm_challenges, local_perm_challenges],
+                perms,
+                perm_challenges,
                 cumulative_sums,
                 is_first_row,
                 is_last_row,

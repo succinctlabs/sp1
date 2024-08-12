@@ -2,9 +2,10 @@ use std::borrow::Borrow;
 use std::panic::{self, AssertUnwindSafe};
 use std::process::exit;
 
+use hashbrown::HashMap;
 use p3_air::{
     Air, AirBuilder, AirBuilderWithPublicValues, ExtensionBuilder, PairBuilder,
-    PermutationAirBuilder,
+    PermutationAirBuilder, PermutationError,
 };
 use p3_field::{AbstractField, PrimeField32};
 use p3_field::{ExtensionField, Field};
@@ -18,6 +19,7 @@ use crate::air::{EmptyMessageBuilder, InteractionScope, MachineAir, MultiTableAi
 /// Checks that the constraints of the given AIR are satisfied, including the permutation trace.
 ///
 /// Note that this does not actually verify the proof.
+#[allow(clippy::too_many_arguments)]
 pub fn debug_constraints<SC, A>(
     chip: &MachineChip<SC, A>,
     preprocessed: Option<&RowMajorMatrix<Val<SC>>>,
@@ -78,6 +80,30 @@ pub fn debug_constraints<SC, A>(
         let (local_perm_local, local_perm_next) = (&(*local_perm_local), &(*local_perm_next));
 
         let public_values = public_values.to_vec();
+
+        let mut perms = HashMap::new();
+        perms.insert(
+            InteractionScope::Global,
+            VerticalPair::new(
+                RowMajorMatrixView::new_row(global_perm_local),
+                RowMajorMatrixView::new_row(global_perm_next),
+            ),
+        );
+        perms.insert(
+            InteractionScope::Local,
+            VerticalPair::new(
+                RowMajorMatrixView::new_row(local_perm_local),
+                RowMajorMatrixView::new_row(local_perm_next),
+            ),
+        );
+        let mut perm_challenges = HashMap::new();
+        perm_challenges.insert(InteractionScope::Global, global_perm_challenges);
+        perm_challenges.insert(InteractionScope::Local, local_perm_challenges);
+
+        let mut cumulative_sums = HashMap::new();
+        cumulative_sums.insert(InteractionScope::Global, global_cumulative_sum);
+        cumulative_sums.insert(InteractionScope::Local, local_cumulative_sum);
+
         let mut builder = DebugConstraintBuilder {
             preprocessed: VerticalPair::new(
                 RowMajorMatrixView::new_row(&preprocessed_local),
@@ -87,18 +113,9 @@ pub fn debug_constraints<SC, A>(
                 RowMajorMatrixView::new_row(main_local),
                 RowMajorMatrixView::new_row(main_next),
             ),
-            perms: [
-                VerticalPair::new(
-                    RowMajorMatrixView::new_row(global_perm_local),
-                    RowMajorMatrixView::new_row(global_perm_next),
-                ),
-                VerticalPair::new(
-                    RowMajorMatrixView::new_row(local_perm_local),
-                    RowMajorMatrixView::new_row(local_perm_next),
-                ),
-            ],
-            perm_challenges: [global_perm_challenges, local_perm_challenges],
-            cumulative_sums: [global_cumulative_sum, local_cumulative_sum],
+            perms,
+            perm_challenges,
+            cumulative_sums,
             is_first_row: Val::<SC>::zero(),
             is_last_row: Val::<SC>::zero(),
             is_transition: Val::<SC>::one(),
@@ -146,9 +163,12 @@ pub fn debug_cumulative_sums<F: Field, EF: ExtensionField<F>>(perms: &[RowMajorM
 pub struct DebugConstraintBuilder<'a, F: Field, EF: ExtensionField<F>> {
     pub(crate) preprocessed: VerticalPair<RowMajorMatrixView<'a, F>, RowMajorMatrixView<'a, F>>,
     pub(crate) main: VerticalPair<RowMajorMatrixView<'a, F>, RowMajorMatrixView<'a, F>>,
-    pub(crate) perms: [VerticalPair<RowMajorMatrixView<'a, EF>, RowMajorMatrixView<'a, EF>>; 2],
-    pub(crate) cumulative_sums: [EF; 2],
-    pub(crate) perm_challenges: [&'a [EF]; 2],
+    pub(crate) perms: HashMap<
+        InteractionScope,
+        VerticalPair<RowMajorMatrixView<'a, EF>, RowMajorMatrixView<'a, EF>>,
+    >,
+    pub(crate) cumulative_sums: HashMap<InteractionScope, EF>,
+    pub(crate) perm_challenges: HashMap<InteractionScope, &'a [EF]>,
     pub(crate) is_first_row: F,
     pub(crate) is_last_row: F,
     pub(crate) is_transition: F,
@@ -172,7 +192,7 @@ where
     }
 }
 
-impl<'a, F, EF> PermutationAirBuilder for DebugConstraintBuilder<'a, F, EF>
+impl<'a, F, EF> PermutationAirBuilder<InteractionScope> for DebugConstraintBuilder<'a, F, EF>
 where
     F: Field,
     EF: ExtensionField<F>,
@@ -181,12 +201,21 @@ where
 
     type RandomVar = EF;
 
-    fn permutation(&self) -> &[Self::MP] {
-        self.perms.as_slice()
+    fn permutation(&self, perm_type: InteractionScope) -> Result<Self::MP, PermutationError> {
+        match self.perms.get(&perm_type) {
+            Some(perms) => Ok(*perms),
+            None => Err(PermutationError::InvalidVariant),
+        }
     }
 
-    fn permutation_randomness(&self) -> &[&[Self::EF]] {
-        self.perm_challenges.as_slice()
+    fn permutation_randomness(
+        &self,
+        perm_type: InteractionScope,
+    ) -> Result<&[Self::EF], PermutationError> {
+        match self.perm_challenges.get(&perm_type) {
+            Some(randomness) => Ok(randomness),
+            None => Err(PermutationError::InvalidVariant),
+        }
     }
 }
 
@@ -275,10 +304,10 @@ where
 {
     type Sum = EF;
 
-    fn cumulative_sum(&self, scope: InteractionScope) -> Self::Sum {
-        match scope {
-            InteractionScope::Global => self.cumulative_sums[0],
-            InteractionScope::Local => self.cumulative_sums[1],
+    fn cumulative_sum(&self, perm_type: InteractionScope) -> Result<Self::Sum, PermutationError> {
+        match self.cumulative_sums.get(&perm_type) {
+            Some(sum) => Ok(*sum),
+            None => Err(PermutationError::InvalidVariant),
         }
     }
 }

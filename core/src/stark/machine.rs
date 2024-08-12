@@ -377,7 +377,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                             .generate_permutation_trace(
                                 *pre_trace,
                                 main_trace,
-                                &global_permutation_challenges,
+                                global_permutation_challenges,
                                 &local_permutation_challenges,
                             );
                         let [global_cumulative_sums, local_cumulative_sums] =
@@ -436,7 +436,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                         &traces[i].0,
                         &global_permutation_traces[i],
                         &local_permutation_traces[i],
-                        &global_permutation_challenges,
+                        global_permutation_challenges,
                         &local_permutation_challenges,
                         shard.public_values(),
                     );

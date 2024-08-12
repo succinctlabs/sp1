@@ -297,7 +297,7 @@ where
                     let (global_perm_trace, local_perm_trace) = chip.generate_permutation_trace(
                         preprocessed_trace,
                         main_trace,
-                        &global_permutation_challenges,
+                        global_permutation_challenges,
                         &local_permutation_challenges,
                     );
                     let [global_cumulative_sums, local_cumulative_sums] =
@@ -318,6 +318,8 @@ where
 
         let (global_permutation_traces, local_permutation_traces): (Vec<_>, Vec<_>) =
             permutation_traces.into_iter().unzip();
+        let (global_cumulative_sums, local_cumulative_sums): (Vec<_>, Vec<_>) =
+            cumulative_sums.into_iter().unzip();
 
         // Compute some statistics.
         for i in 0..chips.len() {
@@ -415,7 +417,8 @@ where
                                 .to_row_major_matrix();
                             quotient_values(
                                 chips[i],
-                                cumulative_sums[i].into(),
+                                global_cumulative_sums[i],
+                                local_cumulative_sums[i],
                                 trace_domains[i],
                                 *quotient_domain,
                                 preprocessed_trace_on_quotient_domains,
@@ -535,7 +538,8 @@ where
             .zip_eq(global_permutation_opened_values)
             .zip_eq(local_permutation_opened_values)
             .zip_eq(quotient_opened_values)
-            .zip_eq(cumulative_sums)
+            .zip_eq(global_cumulative_sums)
+            .zip_eq(local_cumulative_sums)
             .zip_eq(log_degrees.iter())
             .enumerate()
             .map(
@@ -543,8 +547,11 @@ where
                     i,
                     (
                         (
-                            (((main, global_permutation), local_permutation), quotient),
-                            cumulative_sum,
+                            (
+                                (((main, global_permutation), local_permutation), quotient),
+                                global_cumulative_sum,
+                            ),
+                            local_cumulative_sum,
                         ),
                         log_degree,
                     ),
@@ -563,8 +570,8 @@ where
                         global_permutation,
                         local_permutation,
                         quotient,
-                        global_cumulative_sum: cumulative_sum.0,
-                        local_cumulative_sum: cumulative_sum.1,
+                        global_cumulative_sum,
+                        local_cumulative_sum,
                         log_degree: *log_degree,
                     }
                 },
