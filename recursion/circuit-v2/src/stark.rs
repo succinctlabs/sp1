@@ -5,18 +5,15 @@ use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::TwoAdicField;
 
 use sp1_core::air::MachineAir;
-use sp1_core::stark::Com;
 use sp1_core::stark::ShardProof;
 use sp1_core::stark::StarkGenericConfig;
 use sp1_core::stark::StarkMachine;
+use sp1_core::stark::Val;
 use sp1_core::stark::{AirOpenedValues, ChipOpenedValues};
 
 use sp1_core::stark::StarkVerifyingKey;
-use sp1_core::utils::inner_fri_config;
 use sp1_recursion_compiler::ir::{Builder, Config, Ext, ExtConst, FromConstant, Usize};
 use sp1_recursion_compiler::prelude::Felt;
-
-use sp1_recursion_core::runtime::DIGEST_SIZE;
 
 use sp1_recursion_program::{
     commit::PolynomialSpaceVariable, stark::RecursiveVerifierConstraintFolder,
@@ -27,6 +24,7 @@ use utils::get_sorted_indices;
 
 use crate::challenger::*;
 use crate::domain::*;
+use crate::fri::verify_two_adic_pcs;
 use crate::*;
 // use crate::commit::PolynomialSpaceVariable;
 // use crate::fri::types::TwoAdicPcsMatsVariable;
@@ -152,26 +150,20 @@ impl<'a, SC: StarkGenericConfig, A: MachineAir<SC::Val>> VerifyingKeyHint<'a, SC
     }
 }
 
-impl<C: Config, SC: StarkGenericConfig> StarkVerifier<C, SC>
+impl<C: Config, SC> StarkVerifier<C, SC>
 where
     C::F: TwoAdicField,
-    SC: StarkGenericConfig<
-        Val = C::F,
-        Challenge = C::EF,
-        Domain = TwoAdicMultiplicativeCoset<C::F>,
-    >,
+    SC: BabyBearFriConfigVariable<C = C>,
 {
     pub fn verify_shard<A>(
         builder: &mut Builder<C>,
         vk: &VerifyingKeyVariable<C>,
         machine: &StarkMachine<SC, A>,
-        challenger: &mut DuplexChallengerVariable<C>,
+        challenger: &mut SC::FriChallengerVariable,
         proof: &ShardProofVariable<C>,
     ) where
-        A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
-        C::F: TwoAdicField,
-        C::EF: TwoAdicField,
-        Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
+        A: MachineAir<Val<SC>> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
+        <SC::ValMmcs as Mmcs<BabyBear>>::ProverData<RowMajorMatrix<BabyBear>>: Clone,
     {
         builder.cycle_tracker("stage-c-verify-shard-setup");
         let ShardProofVariable {
@@ -191,11 +183,11 @@ where
             .map(|_| challenger.sample_ext(builder))
             .collect::<Vec<_>>();
 
-        challenger.observe_commitment(builder, *permutation_commit);
+        challenger.observe_slice(builder, *permutation_commit);
 
         let _alpha = challenger.sample_ext(builder);
 
-        challenger.observe_commitment(builder, *quotient_commit);
+        challenger.observe_slice(builder, *quotient_commit);
 
         let zeta = challenger.sample_ext(builder);
 
@@ -215,8 +207,8 @@ where
         let prep_mats: Vec<TwoAdicPcsMatsVariable<_>> = {
             let mut ms = zip(
                 &vk.preprocessed_sorted_idxs,
-                zip(&vk.prep_domains, machine.preprocessed_chip_ids()).map(|(&domain, chip_id)| {
-                    {
+                zip(&vk.prep_domains, machine.preprocessed_chip_ids()).map(
+                    |(&domain, chip_id): (&TwoAdicMultiplicativeCoset<_>, usize)| {
                         // Get index within all sorted chips.
                         let chip_sorted_id = proof.sorted_idxs[chip_id];
                         // Get opening from proof.
@@ -238,8 +230,8 @@ where
                             values: prep_values,
                             points: trace_points,
                         }
-                    }
-                }),
+                    },
+                ),
             )
             .collect::<Vec<_>>();
             // Invert the `vk.preprocessed_sorted_idxs` permutation.
@@ -328,8 +320,8 @@ where
 
         // Verify the pcs proof
         // builder.cycle_tracker("stage-d-verify-pcs");
-        let config = inner_fri_config();
-        crate::fri::verify_two_adic_pcs(builder, &config, opening_proof, challenger, rounds);
+        let config = machine.config().fri_config();
+        verify_two_adic_pcs::<C, SC>(builder, config, opening_proof, challenger, rounds);
         // builder.cycle_tracker("stage-d-verify-pcs");
 
         // builder.cycle_tracker("stage-e-verify-constraints");
