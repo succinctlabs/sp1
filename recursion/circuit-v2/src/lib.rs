@@ -79,10 +79,7 @@ use p3_matrix::dense::RowMajorMatrix;
 use sp1_recursion_core::stark::config::{BabyBearPoseidon2Outer, OuterValMmcs};
 
 use p3_baby_bear::BabyBear;
-use sp1_core::{
-    stark::{PcsProverData, StarkGenericConfig},
-    utils::BabyBearPoseidon2,
-};
+use sp1_core::{stark::StarkGenericConfig, utils::BabyBearPoseidon2};
 
 type EF = <BabyBearPoseidon2 as StarkGenericConfig>::Challenge;
 
@@ -115,13 +112,15 @@ pub trait BabyBearFriConfig:
         + CanSample<EF>
         + GrindingChallenger<Witness = BabyBear>
         + FieldChallenger<BabyBear>;
+
+    fn fri_config(&self) -> &FriConfig<FriMmcs<Self>>;
 }
 
 // TODO write subtrait that enables use of the Variable variants
 // consider merging this into the above trait
 pub trait BabyBearFriConfigVariable: BabyBearFriConfig {
     // Is this is the best place to put this?
-    type C: Config;
+    type C: Config<F = Self::Val, EF = Self::Challenge>;
     type FriChallengerVariable: FeltChallenger<Self::C>;
 }
 
@@ -129,6 +128,10 @@ impl BabyBearFriConfig for BabyBearPoseidon2 {
     type ValMmcs = sp1_core::utils::baby_bear_poseidon2::ValMmcs;
     // type RowMajorProverData = PcsProverData<Self>;
     type FriChallenger = <Self as StarkGenericConfig>::Challenger;
+
+    fn fri_config(&self) -> &FriConfig<FriMmcs<Self>> {
+        self.pcs().fri_config()
+    }
 }
 
 impl BabyBearFriConfigVariable for BabyBearPoseidon2 {
@@ -141,4 +144,8 @@ impl BabyBearFriConfig for BabyBearPoseidon2Outer {
     type ValMmcs = OuterValMmcs;
     // type RowMajorProverData = PcsProverData<Self>;
     type FriChallenger = <Self as StarkGenericConfig>::Challenger;
+
+    fn fri_config(&self) -> &FriConfig<FriMmcs<Self>> {
+        self.pcs().fri_config()
+    }
 }
