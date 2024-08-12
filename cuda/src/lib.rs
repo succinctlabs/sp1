@@ -314,8 +314,7 @@ fn cleanup_container(container_name: &str) {
     }
 }
 
-#[ignore]
-#[cfg(test)]
+#[cfg(feature = "protobuf")]
 mod tests {
     use sp1_core::runtime::SP1Context;
     use sp1_core::utils::tests::FIBONACCI_ELF;
