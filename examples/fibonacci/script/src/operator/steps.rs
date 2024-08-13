@@ -1,4 +1,5 @@
 use crate::common;
+use crate::common::memory_layouts::SerializableReduceLayout;
 use crate::common::types::{
     ChallengerType, CheckpointType, CommitmentType, PublicValueStreamType, PublicValuesType,
     RecordType,
@@ -6,16 +7,21 @@ use crate::common::types::{
 use crate::ProveArgs;
 use anyhow::Result;
 use p3_baby_bear::BabyBear;
-use sp1_core::stark::MachineRecord;
+use p3_challenger::CanObserve;
+use sp1_core::stark::{MachineRecord, RiscvAir};
 use sp1_core::{
     runtime::Runtime,
     stark::{MachineProof, MachineProver, ShardProof, StarkGenericConfig},
     utils::{BabyBearPoseidon2, SP1CoreProverError},
 };
-use sp1_prover::{SP1CoreProof, SP1CoreProofData};
-use sp1_sdk::{SP1Proof, SP1ProofWithPublicValues, SP1PublicValues};
+use sp1_prover::{
+    ReduceProgramType, SP1CoreProof, SP1CoreProofData, SP1DeferredMemoryLayout,
+    SP1ProofWithMetadata, SP1RecursionMemoryLayout,
+};
+use sp1_recursion_core::stark::RecursionAir;
+use sp1_sdk::{SP1Prover, SP1PublicValues, SP1Stdin, SP1VerifyingKey};
 
-fn generate_checkpoints(
+fn operator_split_into_checkpoints(
     runtime: &mut Runtime,
 ) -> Result<(PublicValueStreamType, PublicValuesType, Vec<CheckpointType>), SP1CoreProverError> {
     // Execute the program, saving checkpoints at the start of every `shard_batch_size` cycle range.
@@ -51,7 +57,7 @@ fn generate_checkpoints(
     Ok((public_values_stream, public_values, checkpoints))
 }
 
-pub fn prove_begin_impl(
+pub fn operator_split_into_checkpoints_impl(
     args: ProveArgs,
 ) -> Result<(
     PublicValueStreamType,
@@ -60,14 +66,14 @@ pub fn prove_begin_impl(
     u64,
 )> {
     let (client, stdin, pk, _) = common::init_client(args.clone());
-    let (program, core_opts, context) = common::bootstrap(&client, &pk).unwrap();
+    let (program, opts, context) = common::bootstrap(&client, &pk).unwrap();
     tracing::info!("Program size = {}", program.instructions.len());
 
     // Execute the program.
-    let mut runtime = common::build_runtime(program, &stdin, core_opts, context);
+    let mut runtime = common::build_runtime(program, &stdin, opts, context);
 
     let (public_values_stream, public_values, checkpoints) =
-        generate_checkpoints(&mut runtime).unwrap();
+        operator_split_into_checkpoints(&mut runtime).unwrap();
 
     Ok((
         public_values_stream,
@@ -77,7 +83,7 @@ pub fn prove_begin_impl(
     ))
 }
 
-pub fn operator_phase1_impl(
+pub fn operator_absorb_commits_impl(
     args: ProveArgs,
     commitments_vec: Vec<Vec<CommitmentType>>,
     records_vec: Vec<Vec<RecordType>>,
@@ -88,10 +94,10 @@ pub fn operator_phase1_impl(
         ));
     }
     let (client, stdin, pk, _) = common::init_client(args.clone());
-    let (program, core_opts, context) = common::bootstrap(&client, &pk).unwrap();
+    let (program, opts, context) = common::bootstrap(&client, &pk).unwrap();
 
     // Execute the program.
-    let runtime = common::build_runtime(program, &stdin, core_opts, context);
+    let runtime = common::build_runtime(program, &stdin, opts, context);
 
     // Setup the machine.
     let (_, stark_vk) = client
@@ -121,13 +127,13 @@ pub fn operator_phase1_impl(
     Ok(challenger)
 }
 
-pub fn operator_phase2_impl(
+pub fn construct_sp1_core_proof_impl(
     args: ProveArgs,
     shard_proofs_vec: Vec<Vec<ShardProof<BabyBearPoseidon2>>>,
     public_values_stream: PublicValueStreamType,
     cycles: u64,
-) -> Result<SP1ProofWithPublicValues> {
-    let (client, stdin, _, vk) = common::init_client(args.clone());
+) -> Result<SP1ProofWithMetadata<SP1CoreProofData>> {
+    let (_, stdin, _, _) = common::init_client(args.clone());
 
     let shard_proofs = shard_proofs_vec
         .into_iter()
@@ -149,15 +155,70 @@ pub fn operator_phase2_impl(
         cycles,
     };
 
-    let proof = SP1ProofWithPublicValues {
-        proof: SP1Proof::Core(sp1_core_proof.proof.0),
-        stdin: sp1_core_proof.stdin,
-        public_values: sp1_core_proof.public_values,
-        sp1_version: client.prover.version().to_string(),
-    };
+    Ok(sp1_core_proof)
+}
 
-    client.verify(&proof, &vk).expect("failed to verify proof");
-    tracing::info!("Successfully verified shard proofs!");
+pub fn operator_prepare_compress_inputs_impl<'a>(
+    stdin: &'a SP1Stdin,
+    vk: &'a SP1VerifyingKey,
+    mut leaf_challenger: &'a mut ChallengerType,
+    sp1_prover: &'a SP1Prover,
+    core_proof: &'a SP1CoreProof,
+) -> Result<(
+    Vec<SP1RecursionMemoryLayout<'a, BabyBearPoseidon2, RiscvAir<BabyBear>>>,
+    Vec<SP1DeferredMemoryLayout<'a, BabyBearPoseidon2, RecursionAir<BabyBear, 3>>>,
+)> {
+    let deferred_proofs: Vec<ShardProof<BabyBearPoseidon2>> =
+        stdin.proofs.iter().map(|p| p.0.clone()).collect();
+    let batch_size = 2;
 
-    Ok(proof)
+    let shard_proofs = &core_proof.proof.0;
+
+    // Get the leaf challenger.
+    vk.vk.observe_into(&mut leaf_challenger);
+    shard_proofs.iter().for_each(|proof| {
+        leaf_challenger.observe(proof.commitment.main_commit);
+        leaf_challenger
+            .observe_slice(&proof.public_values[0..sp1_prover.core_prover.num_pv_elts()]);
+    });
+
+    // Run the recursion and reduce programs.
+    let (core_inputs, deferred_inputs) = sp1_prover.get_first_layer_inputs(
+        vk,
+        leaf_challenger,
+        shard_proofs,
+        deferred_proofs.as_slice(),
+        batch_size,
+    );
+
+    Ok((core_inputs, deferred_inputs))
+}
+
+pub fn operator_prepare_compress_input_chunks_impl(
+    compressed_shard_proofs: Vec<(ShardProof<BabyBearPoseidon2>, ReduceProgramType)>,
+    batch_size: usize,
+) -> Result<Vec<SerializableReduceLayout>> {
+    tracing::debug!(
+        "Recursive proof layer size: {}",
+        compressed_shard_proofs.len()
+    );
+    let is_complete = compressed_shard_proofs.len() <= batch_size;
+
+    let batched_compressed_proofs = compressed_shard_proofs
+        .chunks(batch_size)
+        .map(|chunk| chunk.to_vec())
+        .collect::<Vec<_>>();
+
+    let result = batched_compressed_proofs
+        .into_iter()
+        .map(|chunk| {
+            let (shard_proofs, kinds): (Vec<_>, Vec<_>) = chunk.into_iter().unzip();
+            SerializableReduceLayout {
+                shard_proofs,
+                kinds,
+                is_complete,
+            }
+        })
+        .collect::<Vec<SerializableReduceLayout>>();
+    Ok(result)
 }

@@ -1,14 +1,23 @@
 pub mod steps;
 
+use crate::common;
+use crate::common::memory_layouts::SerializableReduceLayout;
 use crate::{
-    common::{self, types::RecordType},
+    common::{
+        memory_layouts::{SerializableDeferredLayout, SerializableRecursionLayout},
+        types::{LayoutType, RecordType},
+    },
     operator::utils::ChallengerState,
     ProveArgs,
 };
 use sp1_core::{runtime::ExecutionState, stark::MachineProver};
-use steps::{worker_phase1_impl, worker_phase2_impl};
+use steps::{
+    worker_commit_checkpoint_impl, worker_compress_proofs_for_deferred,
+    worker_compress_proofs_for_recursion, worker_compress_proofs_for_reduce,
+    worker_prove_checkpoint_impl,
+};
 
-pub fn worker_phase1(
+pub fn worker_commit_checkpoint(
     args: &Vec<u8>,
     idx: u32,
     checkpoint: &Vec<u8>,
@@ -23,7 +32,7 @@ pub fn worker_phase1(
     execution_state.save(&mut checkpoint_file).unwrap();
     let public_values_obj = bincode::deserialize(public_values).unwrap();
 
-    let (commitments, records) = worker_phase1_impl(
+    let (commitments, records) = worker_commit_checkpoint_impl(
         args_obj,
         idx,
         &mut checkpoint_file,
@@ -36,7 +45,7 @@ pub fn worker_phase1(
     *o_records = bincode::serialize(&records).unwrap();
 }
 
-pub fn worker_phase2(
+pub fn worker_prove_checkpoint(
     args: &Vec<u8>,
     challenger_state: &Vec<u8>,
     records: &[u8],
@@ -48,7 +57,34 @@ pub fn worker_phase2(
         .to_challenger(&client.prover.sp1_prover().core_prover.config().perm);
     let records: Vec<RecordType> = bincode::deserialize(records).unwrap();
 
-    let shard_proofs = worker_phase2_impl(args_obj, challenger, records).unwrap();
+    let shard_proofs = worker_prove_checkpoint_impl(args_obj, challenger, records).unwrap();
     let result = bincode::serialize(&shard_proofs.as_slice()).unwrap();
     *o_shard_proofs = result;
+}
+
+pub fn worker_compress_proofs(
+    args: &Vec<u8>,
+    layout: &Vec<u8>,
+    layout_type: usize,
+    last_proof_public_values: Option<&Vec<u8>>,
+    o_proof: &mut Vec<u8>,
+) {
+    let args_obj = ProveArgs::from_slice(args.as_slice());
+    let compressed_shard_proof = match LayoutType::from_usize(layout_type) {
+        LayoutType::Recursion => {
+            let layout: SerializableRecursionLayout = bincode::deserialize(layout).unwrap();
+            worker_compress_proofs_for_recursion(args_obj, layout).unwrap()
+        }
+        LayoutType::Deferred => {
+            let layout: SerializableDeferredLayout = bincode::deserialize(layout).unwrap();
+            let last_public_values =
+                bincode::deserialize(last_proof_public_values.unwrap()).unwrap();
+            worker_compress_proofs_for_deferred(args_obj, layout, last_public_values).unwrap()
+        }
+        LayoutType::Reduce => {
+            let layout: SerializableReduceLayout = bincode::deserialize(layout).unwrap();
+            worker_compress_proofs_for_reduce(args_obj, layout).unwrap()
+        }
+    };
+    *o_proof = bincode::serialize(&compressed_shard_proof).unwrap();
 }

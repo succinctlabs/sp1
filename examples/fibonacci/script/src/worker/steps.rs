@@ -1,17 +1,26 @@
 use crate::common;
-use crate::common::types::{ChallengerType, CommitmentType, RecordType};
+use crate::common::memory_layouts::{
+    SerializableDeferredLayout, SerializableRecursionLayout, SerializableReduceLayout,
+};
+use crate::common::types::{
+    ChallengerType, CommitmentType, DeferredLayout, RecordType, RecursionLayout, ReduceLayout,
+};
 use crate::ProveArgs;
 use anyhow::Result;
+use p3_baby_bear::BabyBear;
+use p3_field::AbstractField;
+use sp1_core::air::Word;
 use sp1_core::{
     air::PublicValues,
     runtime::ExecutionRecord,
     stark::{MachineProver, MachineRecord, ShardProof},
     utils::{reset_seek, trace_checkpoint, BabyBearPoseidon2},
 };
+use sp1_prover::ReduceProgramType;
 use sp1_sdk::ExecutionReport;
 use std::fs::File;
 
-pub fn worker_phase1_impl(
+pub fn worker_commit_checkpoint_impl(
     args: ProveArgs,
     idx: u32,
     checkpoint: &mut File,
@@ -19,15 +28,15 @@ pub fn worker_phase1_impl(
     public_values: PublicValues<u32, u32>,
 ) -> Result<(Vec<CommitmentType>, Vec<RecordType>)> {
     let (client, _, pk, _) = common::init_client(args);
-    let (program, core_opts, _) = common::bootstrap(&client, &pk).unwrap();
+    let (program, opts, _) = common::bootstrap(&client, &pk).unwrap();
 
     let mut deferred = ExecutionRecord::new(program.clone().into());
     let mut state = public_values.reset();
-    let shards_in_checkpoint = core_opts.shard_batch_size as u32;
+    let shards_in_checkpoint = opts.core_opts.shard_batch_size as u32;
     state.shard = idx * shards_in_checkpoint;
 
     // Trace the checkpoint and reconstruct the execution records.
-    let (mut records, report) = trace_checkpoint(program.clone(), checkpoint, core_opts);
+    let (mut records, report) = trace_checkpoint(program.clone(), checkpoint, opts.core_opts);
     // Log some of the `ExecutionReport` information.
     tracing::info!(
         "execution report (totals): total_cycles={}, total_syscall_cycles={}",
@@ -59,7 +68,7 @@ pub fn worker_phase1_impl(
         .sp1_prover()
         .core_prover
         .machine()
-        .generate_dependencies(&mut records, &core_opts);
+        .generate_dependencies(&mut records, &opts.core_opts);
 
     // Defer events that are too expensive to include in every shard.
     for record in records.iter_mut() {
@@ -67,7 +76,7 @@ pub fn worker_phase1_impl(
     }
 
     // See if any deferred shards are ready to be committed to.
-    let mut deferred = deferred.split(is_last_checkpoint, core_opts.split_opts);
+    let mut deferred = deferred.split(is_last_checkpoint, opts.core_opts.split_opts);
 
     // Update the public values & prover state for the shards which do not contain "cpu events"
     // before committing to them.
@@ -95,15 +104,15 @@ pub fn worker_phase1_impl(
     Ok((commitments, records))
 }
 
-pub fn worker_phase2_impl(
+pub fn worker_prove_checkpoint_impl(
     args: ProveArgs,
     challenger: ChallengerType,
     records: Vec<RecordType>,
 ) -> Result<Vec<ShardProof<BabyBearPoseidon2>>> {
     let (client, stdin, pk, _) = common::init_client(args.clone());
-    let (program, core_opts, context) = common::bootstrap(&client, &pk).unwrap();
+    let (program, opts, context) = common::bootstrap(&client, &pk).unwrap();
     // Execute the program.
-    let runtime = common::build_runtime(program, &stdin, core_opts, context);
+    let runtime = common::build_runtime(program, &stdin, opts, context);
 
     let (stark_pk, _) = client
         .prover
@@ -123,4 +132,121 @@ pub fn worker_phase2_impl(
     }
 
     Ok(shard_proofs)
+}
+
+pub fn worker_compress_proofs_for_recursion(
+    args: ProveArgs,
+    mut layout: SerializableRecursionLayout,
+) -> Result<(ShardProof<BabyBearPoseidon2>, ReduceProgramType)> {
+    let (client, stdin, pk, _) = common::init_client(args.clone());
+    let (program, opts, context) = common::bootstrap(&client, &pk).unwrap();
+    let runtime = common::build_runtime(program, &stdin, opts, context);
+    let (_, stark_vk) = client
+        .prover
+        .sp1_prover()
+        .core_prover
+        .setup(runtime.program.as_ref());
+
+    let sp1_prover = client.prover.sp1_prover();
+    let leaf_challenger = layout
+        .leaf_challenger
+        .to_challenger(&sp1_prover.core_prover.config().perm);
+    let initial_reconstruct_challenger = layout
+        .initial_reconstruct_challenger
+        .to_challenger(&sp1_prover.core_prover.config().perm);
+
+    let input = RecursionLayout {
+        vk: &stark_vk,
+        machine: sp1_prover.core_prover.machine(),
+        shard_proofs: layout.shard_proofs,
+        leaf_challenger: &leaf_challenger,
+        initial_reconstruct_challenger,
+        is_complete: layout.is_complete,
+    };
+
+    sp1_prover
+        .compress_machine_proof(
+            input,
+            &sp1_prover.recursion_program,
+            &sp1_prover.rec_pk,
+            opts,
+        )
+        .map(|p| (p, ReduceProgramType::Core))
+        .map_err(|e| anyhow::anyhow!("failed to compress machine proof: {:?}", e))
+}
+
+pub fn worker_compress_proofs_for_deferred(
+    args: ProveArgs,
+    mut layout: SerializableDeferredLayout,
+    last_proof_pv: PublicValues<Word<BabyBear>, BabyBear>,
+) -> Result<(ShardProof<BabyBearPoseidon2>, ReduceProgramType)> {
+    let (client, stdin, pk, _) = common::init_client(args.clone());
+    let (program, opts, context) = common::bootstrap(&client, &pk).unwrap();
+    let runtime = common::build_runtime(program, &stdin, opts, context);
+    let (_, stark_vk) = client
+        .prover
+        .sp1_prover()
+        .core_prover
+        .setup(runtime.program.as_ref());
+
+    let sp1_prover = client.prover.sp1_prover();
+
+    let leaf_challenger = layout
+        .leaf_challenger
+        .to_challenger(&sp1_prover.core_prover.config().perm);
+    let input = DeferredLayout {
+        compress_vk: &sp1_prover.compress_vk,
+        machine: sp1_prover.compress_prover.machine(),
+        proofs: layout.proofs,
+        start_reconstruct_deferred_digest: layout.start_reconstruct_deferred_digest,
+        is_complete: false,
+        sp1_vk: &stark_vk,
+        sp1_machine: sp1_prover.core_prover.machine(),
+        end_pc: BabyBear::zero(),
+        end_shard: last_proof_pv.shard + BabyBear::one(),
+        end_execution_shard: last_proof_pv.execution_shard,
+        init_addr_bits: last_proof_pv.last_init_addr_bits,
+        finalize_addr_bits: last_proof_pv.last_finalize_addr_bits,
+        leaf_challenger: leaf_challenger,
+        committed_value_digest: last_proof_pv.committed_value_digest.to_vec(),
+        deferred_proofs_digest: last_proof_pv.deferred_proofs_digest.to_vec(),
+    };
+
+    sp1_prover
+        .compress_machine_proof(
+            input,
+            &sp1_prover.recursion_program,
+            &sp1_prover.rec_pk,
+            opts,
+        )
+        .map(|p| (p, ReduceProgramType::Deferred))
+        .map_err(|e| anyhow::anyhow!("failed to compress machine proof: {:?}", e))
+}
+
+pub fn worker_compress_proofs_for_reduce(
+    args: ProveArgs,
+    layout: SerializableReduceLayout,
+) -> Result<(ShardProof<BabyBearPoseidon2>, ReduceProgramType)> {
+    let (client, _, pk, _) = common::init_client(args.clone());
+    let (_, opts, _) = common::bootstrap(&client, &pk).unwrap();
+
+    let sp1_prover = client.prover.sp1_prover();
+
+    let input = ReduceLayout {
+        compress_vk: &sp1_prover.compress_vk,
+        recursive_machine: sp1_prover.compress_prover.machine(),
+        shard_proofs: layout.shard_proofs,
+        kinds: layout.kinds,
+        is_complete: layout.is_complete,
+    };
+
+    sp1_prover
+        .compress_machine_proof(
+            input,
+            &sp1_prover.compress_program,
+            &sp1_prover.compress_pk,
+            opts,
+        )
+        .map(|p| (p, ReduceProgramType::Reduce))
+        .map_err(|e| anyhow::anyhow!("failed to compress machine proof: {:?}", e))
 }
