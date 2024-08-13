@@ -12,13 +12,13 @@ use p3_field::TwoAdicField;
 
 use p3_commit::PolynomialSpace;
 use sp1_core::air::MachineAir;
+use sp1_core::stark::ShardOpenedValues;
 use sp1_core::stark::StarkGenericConfig;
 use sp1_core::stark::StarkMachine;
 use sp1_core::stark::Val;
-use sp1_core::stark::{AirOpenedValues, ChipOpenedValues};
 
 use sp1_core::stark::StarkVerifyingKey;
-use sp1_recursion_compiler::ir::{Builder, Config, Ext, ExtConst, FromConstant};
+use sp1_recursion_compiler::ir::{Builder, Config, Ext};
 use sp1_recursion_compiler::prelude::Felt;
 
 use crate::BabyBearFriConfigVariable;
@@ -38,7 +38,7 @@ use crate::VerifyingKeyVariable;
 #[derive(Clone)]
 pub struct ShardProofVariable<C: Config> {
     pub commitment: ShardCommitmentVariable<C>,
-    pub opened_values: ShardOpenedValuesVariable<C>,
+    pub opened_values: ShardOpenedValues<Ext<C::F, C::EF>>,
     pub opening_proof: TwoAdicPcsProofVariable<C>,
     pub chip_ordering: HashMap<String, usize>,
     pub public_values: Vec<Felt<C::F>>,
@@ -50,58 +50,6 @@ pub struct ShardCommitmentVariable<C: Config> {
     pub main_commit: DigestVariable<C>,
     pub permutation_commit: DigestVariable<C>,
     pub quotient_commit: DigestVariable<C>,
-}
-
-/// Reference: [sp1_core::stark::ShardOpenedValues]
-#[derive(Debug, Clone)]
-pub struct ShardOpenedValuesVariable<C: Config> {
-    pub chips: Vec<ChipOpenedValuesVariable<C>>,
-}
-
-#[derive(Debug, Clone)]
-pub struct ChipOpenedValuesVariable<C: Config> {
-    pub preprocessed: AirOpenedValuesVariable<C>,
-    pub main: AirOpenedValuesVariable<C>,
-    pub permutation: AirOpenedValuesVariable<C>,
-    pub quotient: Vec<Vec<Ext<C::F, C::EF>>>,
-    pub cumulative_sum: Ext<C::F, C::EF>,
-    pub log_degree: usize,
-}
-
-#[derive(Debug, Clone)]
-pub struct AirOpenedValuesVariable<C: Config> {
-    pub local: Vec<Ext<C::F, C::EF>>,
-    pub next: Vec<Ext<C::F, C::EF>>,
-}
-
-impl<C: Config> FromConstant<C> for AirOpenedValuesVariable<C> {
-    type Constant = AirOpenedValues<C::EF>;
-
-    fn constant(value: Self::Constant, builder: &mut Builder<C>) -> Self {
-        AirOpenedValuesVariable {
-            local: value.local.iter().map(|x| builder.constant(*x)).collect(),
-            next: value.next.iter().map(|x| builder.constant(*x)).collect(),
-        }
-    }
-}
-
-impl<C: Config> FromConstant<C> for ChipOpenedValuesVariable<C> {
-    type Constant = ChipOpenedValues<C::EF>;
-
-    fn constant(value: Self::Constant, builder: &mut Builder<C>) -> Self {
-        ChipOpenedValuesVariable {
-            preprocessed: builder.constant(value.preprocessed),
-            main: builder.constant(value.main),
-            permutation: builder.constant(value.permutation),
-            quotient: value
-                .quotient
-                .iter()
-                .map(|x| x.iter().map(|y| builder.constant(*y)).collect())
-                .collect(),
-            cumulative_sum: builder.eval(value.cumulative_sum.cons()),
-            log_degree: value.log_degree,
-        }
-    }
 }
 
 pub const EMPTY: usize = 0x_1111_1111;
@@ -159,7 +107,7 @@ where
             opened_values,
             opening_proof,
             chip_ordering,
-            public_values: _,
+            public_values,
         } = proof;
 
         let log_degrees = opened_values
@@ -184,13 +132,13 @@ where
             quotient_commit,
         } = commitment;
 
-        let _permutation_challenges = (0..2)
+        let permutation_challenges = (0..2)
             .map(|_| challenger.sample_ext(builder))
             .collect::<Vec<_>>();
 
         challenger.observe_slice(builder, *permutation_commit);
 
-        let _alpha = challenger.sample_ext(builder);
+        let alpha = challenger.sample_ext(builder);
 
         challenger.observe_slice(builder, *quotient_commit);
 
@@ -291,7 +239,7 @@ where
         builder.cycle_tracker("stage-d-verify-pcs");
 
         // Verify the constrtaint evaluations.
-        // builder.cycle_tracker("stage-e-verify-constraints");
+        builder.cycle_tracker("stage-e-verify-constraints");
         for (chip, trace_domain, qc_domains, values) in izip!(
             chips.iter(),
             trace_domains,
@@ -299,22 +247,21 @@ where
             opened_values.chips.iter(),
         ) {
             // Verify the shape of the opening arguments matches the expected values.
-            // Self::verify_opening_shape(builder, chip, values);
+            Self::verify_opening_shape(chip, values).unwrap();
             // Verify the constraint evaluation.
-            // Self::verify_constraints(
-            //     chip,
-            //     values,
-            //     trace_domain,
-            //     qc_domains,
-            //     zeta,
-            //     alpha,
-            //     &permutation_challenges,
-            //     public_values,
-            // );
+            Self::verify_constraints(
+                builder,
+                chip,
+                values,
+                trace_domain,
+                qc_domains,
+                zeta,
+                alpha,
+                &permutation_challenges,
+                public_values,
+            );
         }
         builder.cycle_tracker("stage-e-verify-constraints");
-
-        // // builder.cycle_tracker("stage-e-verify-constraints");
 
         // // let num_shard_chips_enabled: Var<_> = builder.eval(C::N::zero());
         // // for (i, chip) in machine.chips().iter().enumerate() {
@@ -369,18 +316,6 @@ where
         // Assert that the number of chips in `opened_values` matches the number of shard chips enabled.
         // builder.assert_var_eq(num_shard_chips_enabled, num_shard_chips);
 
-        // // If we're checking the cumulative sum, assert that the sum of the cumulative sums is zero.
-        // if check_cumulative_sum {
-        //     let sum: Ext<_, _> = builder.eval(C::EF::zero().cons());
-        //     builder
-        //         .range(0, proof.opened_values.chips.len())
-        //         .for_each(|i, builder| {
-        //             let cumulative_sum = builder.get(&proof.opened_values.chips, i).cumulative_sum;
-        //             builder.assign(sum, sum + cumulative_sum);
-        //         });
-        //     builder.assert_ext_eq(sum, C::EF::zero().cons());
-        // }
-
         // builder.cycle_tracker("stage-e-verify-constraints");
     }
 }
@@ -395,6 +330,7 @@ pub(crate) mod tests {
     use sp1_core::io::SP1Stdin;
     use sp1_core::runtime::Program;
     use sp1_core::stark::CpuProver;
+    use sp1_core::utils::tests::FIBONACCI_ELF;
     use sp1_core::utils::InnerChallenge;
     use sp1_core::utils::InnerVal;
     use sp1_core::utils::SP1CoreOpts;
@@ -451,9 +387,6 @@ pub(crate) mod tests {
         let mut builder = Builder::<InnerConfig>::default();
 
         // Add a hash invocation, since the poseidon2 table expects that it's in the first row.
-        // let hash_input = vec![builder.constant(F::one())];
-        // builder.poseidon2_hash_v2(&hash_input);
-
         let mut challenger = DuplexChallengerVariable::new(&mut builder);
 
         let preprocessed_commit_val: [F; DIGEST_SIZE] = vk.commit.into();
@@ -462,7 +395,7 @@ pub(crate) mod tests {
 
         let mut witness_stream = VecDeque::<Witness<C>>::new();
         for proof in proofs {
-            witness_stream.extend(proof.write());
+            witness_stream.extend(Witnessable::<C>::write(&proof));
             let proof = proof.read(&mut builder);
             let ShardCommitmentVariable { main_commit, .. } = proof.commitment;
             challenger.observe_commitment(&mut builder, main_commit);
@@ -485,92 +418,6 @@ pub(crate) mod tests {
         run_test_recursion(builder.operations, witness_stream);
     }
 
-    // fn test_public_values_program() -> RecursionProgram<InnerVal> {
-    //     let mut builder = Builder::<InnerConfig>::default();
-
-    //     // Add a hash invocation, since the poseidon2 table expects that it's in the first row.
-    //     let hash_input = builder.constant(vec![vec![F::one()]]);
-    //     builder.poseidon2_hash_x(&hash_input);
-
-    //     let mut public_values_stream: Vec<Felt<_>> = (0..RECURSIVE_PROOF_NUM_PV_ELTS)
-    //         .map(|_| builder.uninit())
-    //         .collect();
-
-    //     let public_values: &mut RecursionPublicValues<_> =
-    //         public_values_stream.as_mut_slice().borrow_mut();
-
-    //     public_values.sp1_vk_digest = [builder.constant(<C as Config>::F::zero()); DIGEST_SIZE];
-    //     public_values.next_pc = builder.constant(<C as Config>::F::one());
-    //     public_values.next_execution_shard = builder.constant(<C as Config>::F::two());
-    //     public_values.end_reconstruct_deferred_digest =
-    //         [builder.constant(<C as Config>::F::from_canonical_usize(3)); POSEIDON_NUM_WORDS];
-
-    //     public_values.deferred_proofs_digest =
-    //         [builder.constant(<C as Config>::F::from_canonical_usize(4)); POSEIDON_NUM_WORDS];
-
-    //     public_values.cumulative_sum =
-    //         [builder.constant(<C as Config>::F::from_canonical_usize(5)); 4];
-
-    //     commit_public_values(&mut builder, public_values);
-    //     builder.halt();
-
-    //     builder.compile_program()
-    // }
-
-    // #[test]
-    // fn test_public_values_failure() {
-    //     let program = test_public_values_program();
-
-    //     let config = SC::default();
-
-    //     let mut runtime = Runtime::<InnerVal, Challenge, _>::new(&program, config.perm.clone());
-    //     runtime.run().unwrap();
-
-    //     let machine = RecursionAir::<_, 3>::machine(SC::default());
-    //     let prover = CpuProver::new(machine);
-    //     let (pk, vk) = prover.setup(&program);
-    //     let record = runtime.record.clone();
-
-    //     let mut challenger = prover.config().challenger();
-    //     let mut proof = prover
-    //         .prove(&pk, vec![record], &mut challenger, SP1CoreOpts::recursion())
-    //         .unwrap();
-
-    //     let mut challenger = prover.config().challenger();
-    //     let verification_result = prover.machine().verify(&vk, &proof, &mut challenger);
-    //     if verification_result.is_err() {
-    //         panic!("Proof should verify successfully");
-    //     }
-
-    //     // Corrupt the public values.
-    //     proof.shard_proofs[0].public_values[RECURSION_PUBLIC_VALUES_COL_MAP.digest[0]] =
-    //         InnerVal::zero();
-    //     let verification_result = prover.machine().verify(&vk, &proof, &mut challenger);
-    //     if verification_result.is_ok() {
-    //         panic!("Proof should not verify successfully");
-    //     }
-    // }
-
-    // #[test]
-    // #[ignore]
-    // fn test_kitchen_sink() {
-    //     setup_logger();
-
-    //     let mut builder = AsmBuilder::<F, EF>::default();
-
-    //     let a: Felt<_> = builder.eval(F::from_canonical_u32(23));
-    //     let b: Felt<_> = builder.eval(F::from_canonical_u32(17));
-    //     let a_plus_b = builder.eval(a + b);
-    //     let mut rng = rand::thread_rng();
-    //     let a_ext_val = rng.gen::<EF>();
-    //     let b_ext_val = rng.gen::<EF>();
-    //     let a_ext: Ext<_, _> = builder.eval(a_ext_val.cons());
-    //     let b_ext: Ext<_, _> = builder.eval(b_ext_val.cons());
-    //     let a_plus_b_ext = builder.eval(a_ext + b_ext);
-    //     builder.print_f(a_plus_b);
-    //     builder.print_e(a_plus_b_ext);
-    //     builder.halt();
-
-    //     run_test_recursion(builder.operations, None);
-    // }
+    #[test]
+    fn test_verify_shard() {}
 }
