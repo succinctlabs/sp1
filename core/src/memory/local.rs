@@ -1,8 +1,11 @@
-use std::{borrow::BorrowMut, mem::size_of};
+use std::{
+    borrow::{Borrow, BorrowMut},
+    mem::size_of,
+};
 
 use p3_air::{Air, BaseAir};
 use p3_field::PrimeField32;
-use p3_matrix::dense::RowMajorMatrix;
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_derive::AlignedBorrow;
 
 use crate::{
@@ -116,13 +119,26 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
             MemoryChipType::Finalize => !shard.local_memory_finalize_access.is_empty(),
         }
     }
+
+    fn included_phase1(&self) -> bool {
+        true
+    }
 }
 
 impl<AB> Air<AB> for MemoryLocalChip
 where
     AB: SP1AirBuilder,
 {
-    fn eval(&self, builder: &mut AB) {}
+    fn eval(&self, builder: &mut AB) {
+        let main = builder.main();
+        let local = main.row_slice(0);
+        let local: &MemoryLocalInitCols<AB::Var> = (*local).borrow();
+
+        builder.assert_eq(
+            local.is_real * local.is_real * local.is_real,
+            local.is_real * local.is_real * local.is_real,
+        );
+    }
 }
 
 #[cfg(test)]

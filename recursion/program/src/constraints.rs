@@ -222,7 +222,6 @@ mod tests {
 
         let ShardCommitment {
             global_permutation_commit,
-            local_permutation_commit,
             quotient_commit,
             ..
         } = commitment;

@@ -1,4 +1,5 @@
 use p3_matrix::Matrix;
+use std::borrow::Borrow;
 use std::collections::VecDeque;
 use std::fs::File;
 use std::io::Seek;
@@ -20,12 +21,11 @@ pub use baby_bear_blake3::BabyBearBlake3;
 use p3_baby_bear::BabyBear;
 use p3_field::PrimeField32;
 
-use crate::air::{MachineAir, PublicValues};
+use crate::air::{MachineAir, PublicValues, Word};
 use crate::io::{SP1PublicValues, SP1Stdin};
 use crate::lookup::InteractionBuilder;
 use crate::runtime::{ExecutionError, NoOpSubproofVerifier, SP1Context};
 use crate::runtime::{ExecutionRecord, ExecutionReport};
-use crate::stark::DebugConstraintBuilder;
 use crate::stark::MachineProof;
 use crate::stark::MachineProver;
 use crate::stark::ProverConstraintFolder;
@@ -33,6 +33,7 @@ use crate::stark::StarkVerifyingKey;
 use crate::stark::Val;
 use crate::stark::VerifierConstraintFolder;
 use crate::stark::{Com, PcsProverData, RiscvAir, StarkProvingKey, UniConfig};
+use crate::stark::{DebugConstraintBuilder, ProvePhase};
 use crate::stark::{MachineRecord, StarkMachine};
 use crate::utils::chunk_vec;
 use crate::utils::concurrency::TurnBasedSync;
@@ -295,7 +296,7 @@ where
                             // Generate the traces.
                             let traces = records
                                 .par_iter()
-                                .map(|record| prover.generate_traces(record))
+                                .map(|record| prover.generate_traces(record, ProvePhase::Phase1))
                                 .collect::<Vec<_>>();
 
                             // Wait for our turn.
@@ -329,6 +330,7 @@ where
         let mut challenger = prover.config().challenger();
         challenger.observe(pk.commit.clone());
         challenger.observe(pk.pc_start);
+        let mut phase1_commitments = Vec::new();
 
         // Spawn the phase 1 prover thread.
         let phase_1_prover_span = tracing::Span::current().clone();
@@ -369,24 +371,28 @@ where
 
                                 }
 
-                                let data = prover.commit(record, traces);
-                                let main_commit = data.main_commit.clone();
+                                let data = prover.commit(&record, traces);
+                                let phase1_main_commit = data.main_commit.clone();
                                 drop(data);
-                                main_commit
+                                phase1_main_commit
                             })
                             .collect::<Vec<_>>();
 
                         // Observe the commitments.
                         for (commit, public_values) in
-                            commitments.into_iter().zip(public_values.into_iter())
+                            commitments.iter().zip(public_values.into_iter())
                         {
-                            prover.observe(&mut challenger, commit, &public_values);
-                        }
+                            prover.observe(&mut challenger, commit.clone(), &public_values);
+                            phase1_commitments.push(commit.clone());
+
+                            let pv: &PublicValues<Word<SC::Val>, SC::Val> = public_values.as_slice().borrow();
+                            assert!(pv.shard.as_canonical_u32() == phase1_commitments.len() as u32);
+                        }                        
                     });
                 }
             });
 
-            challenger
+            (challenger, phase1_commitments)
         });
 
         // Wait until the checkpoint generator handle has fully finished.
@@ -398,7 +404,7 @@ where
             .for_each(|handle| handle.join().unwrap());
 
         // Wait until the phase 1 prover has completely finished.
-        let mut challenger = phase_1_prover_handle.join().unwrap();
+        let (mut challenger, phase1_commitments) = phase_1_prover_handle.join().unwrap();
 
         // Sample for the global permutation challenges.
         // Obtain the challenges used for the global permutation argument.
@@ -504,7 +510,7 @@ where
                             // Generate the traces.
                             let traces = records
                                 .par_iter()
-                                .map(|record| prover.generate_traces(record))
+                                .map(|record| prover.generate_traces(record, ProvePhase::Phase2))
                                 .collect::<Vec<_>>();
 
                             trace_gen_sync.wait_for_turn(index);
@@ -546,12 +552,13 @@ where
                             records.into_par_iter().zip(traces.into_par_iter()).map(
                                 |(record, traces)| {
                                     let _span = span.enter();
-                                    let data = prover.commit(record, traces);
+                                    let data = prover.commit(&record, traces);
                                     prover
                                         .open(
                                             pk,
                                             data,
                                             &mut challenger.clone(),
+                                            phase1_commitments[record.public_values.shard as usize].clone(),
                                             &global_permutation_challenges,
                                         )
                                         .unwrap()
@@ -564,7 +571,7 @@ where
             shard_proofs
         });
 
-        // Wait until the records and traces have been fully generated for phase 2.
+        // Wait until the proofs have been fully generated for phase 2.
         p2_record_and_trace_gen_handles
             .into_iter()
             .for_each(|handle| handle.join().unwrap());

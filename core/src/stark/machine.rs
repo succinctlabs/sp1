@@ -110,6 +110,13 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         &self.chips
     }
 
+    pub fn phase1_chips(&self) -> Vec<&MachineChip<SC, A>> {
+        self.chips
+            .iter()
+            .filter(|chip| chip.included_phase1())
+            .collect_vec()
+    }
+
     pub const fn num_pv_elts(&self) -> usize {
         self.num_pv_elts
     }
@@ -124,14 +131,11 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             .collect()
     }
 
-    pub fn shard_chips<'a, 'b>(
-        &'a self,
-        shard: &'b A::Record,
-    ) -> impl Iterator<Item = &'b MachineChip<SC, A>>
-    where
-        'a: 'b,
-    {
-        self.chips.iter().filter(|chip| chip.included(shard))
+    pub fn shard_chips(&self, shard: &A::Record) -> Vec<&MachineChip<SC, A>> {
+        self.chips
+            .iter()
+            .filter(|chip| chip.included(shard))
+            .collect_vec()
     }
 
     pub fn shard_chips_ordered<'a, 'b>(
@@ -275,7 +279,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         vk.observe_into(challenger);
         tracing::debug_span!("observe challenges for all shards").in_scope(|| {
             proof.shard_proofs.iter().for_each(|proof| {
-                challenger.observe(proof.commitment.main_commit.clone());
+                challenger.observe(proof.commitment.phase1_main_commit.clone());
                 challenger.observe_slice(&proof.public_values[0..self.num_pv_elts()]);
             });
         });
@@ -348,7 +352,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         let mut cumulative_sum = SC::Challenge::zero();
         for shard in records.iter() {
             // Filter the chips based on what is used.
-            let chips = self.shard_chips(shard).collect::<Vec<_>>();
+            let chips = self.shard_chips(shard);
 
             // Generate the main trace for each chip.
             let pre_traces = chips

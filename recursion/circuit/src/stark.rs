@@ -69,9 +69,10 @@ where
         } = proof;
 
         let ShardCommitment {
+            phase1_main_commit: _,
             main_commit,
             global_permutation_commit,
-            local_permutation_commit,
+            local_permutation_commit: _,
             quotient_commit,
         } = commitment;
 

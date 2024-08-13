@@ -32,9 +32,9 @@ use p3_matrix::dense::RowMajorMatrix;
 use sp1_core::air::{PublicValues, Word};
 pub use sp1_core::io::{SP1PublicValues, SP1Stdin};
 use sp1_core::runtime::{ExecutionError, ExecutionReport, Runtime, SP1Context};
-use sp1_core::stark::MachineProver;
 use sp1_core::stark::{Challenge, StarkProvingKey};
 use sp1_core::stark::{Challenger, MachineVerificationError};
+use sp1_core::stark::{MachineProver, ProvePhase};
 use sp1_core::utils::concurrency::TurnBasedSync;
 use sp1_core::utils::{SP1CoreOpts, SP1ProverOpts, DIGEST_SIZE};
 use sp1_core::{
@@ -534,8 +534,10 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
                             // Generate the traces.
                             let record = records.into_iter().next().unwrap();
-                            let traces = tracing::debug_span!("generate traces")
-                                .in_scope(|| self.compress_prover.generate_traces(&record));
+                            let traces = tracing::debug_span!("generate traces").in_scope(|| {
+                                self.compress_prover
+                                    .generate_traces(&record, ProvePhase::Phase2)
+                            });
 
                             // Wait for our turn to update the state.
                             record_and_trace_sync.wait_for_turn(index);
@@ -595,7 +597,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
                                 // Commit to the record and traces.
                                 let data = tracing::debug_span!("commit")
-                                    .in_scope(|| self.compress_prover.commit(record, traces));
+                                    .in_scope(|| self.compress_prover.commit(&record, traces));
 
                                 // Observe the commitment.
                                 tracing::debug_span!("observe commitment").in_scope(|| {
@@ -608,7 +610,13 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                 // Generate the proof.
                                 let proof = tracing::debug_span!("open").in_scope(|| {
                                     self.compress_prover
-                                        .open(pk, data, &mut challenger, &[])
+                                        .open(
+                                            pk,
+                                            data.clone(),
+                                            &mut challenger,
+                                            data.main_commit,
+                                            &[],
+                                        )
                                         .unwrap()
                                 });
 

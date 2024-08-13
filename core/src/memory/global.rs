@@ -149,6 +149,10 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip {
             MemoryChipType::Finalize => !shard.global_memory_finalize_events.is_empty(),
         }
     }
+
+    fn included_phase1(&self) -> bool {
+        true
+    }
 }
 
 #[derive(AlignedBorrow, Debug, Clone, Copy)]

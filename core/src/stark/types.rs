@@ -39,6 +39,7 @@ impl<SC: StarkGenericConfig, M, P> ShardMainData<SC, M, P> {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShardCommitment<C> {
+    pub phase1_main_commit: C,
     pub main_commit: C,
     pub global_permutation_commit: C,
     pub local_permutation_commit: C,

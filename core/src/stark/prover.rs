@@ -31,6 +31,10 @@ use crate::stark::ProverConstraintFolder;
 use crate::stark::StarkVerifyingKey;
 use crate::utils::SP1CoreOpts;
 
+pub enum ProvePhase {
+    Phase1,
+    Phase2,
+}
 pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
     'static + Send + Sync
 {
@@ -55,14 +59,20 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
     }
 
     /// Generate the main traces.
-    fn generate_traces(&self, record: &A::Record) -> Vec<(String, RowMajorMatrix<Val<SC>>)> {
-        // Filter the chips based on what is used.
-        let shard_chips = self.shard_chips(record).collect::<Vec<_>>();
+    fn generate_traces(
+        &self,
+        record: &A::Record,
+        phase: ProvePhase,
+    ) -> Vec<(String, RowMajorMatrix<Val<SC>>)> {
+        let chips = match phase {
+            ProvePhase::Phase1 => self.phase1_chips(),
+            ProvePhase::Phase2 => self.shard_chips(record),
+        };
 
         // For each chip, generate the trace.
         let parent_span = tracing::debug_span!("generate traces for shard");
         parent_span.in_scope(|| {
-               shard_chips
+               chips
                    .par_iter()
                    .map(|chip| {
                        let chip_name = chip.name();
@@ -77,7 +87,7 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
     /// Commit to the main traces.
     fn commit(
         &self,
-        record: A::Record,
+        record: &A::Record,
         traces: Vec<(String, RowMajorMatrix<Val<SC>>)>,
     ) -> ShardMainData<SC, Self::DeviceMatrix, Self::DeviceProverData>;
 
@@ -101,6 +111,7 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
         pk: &StarkProvingKey<SC>,
         data: ShardMainData<SC, Self::DeviceMatrix, Self::DeviceProverData>,
         challenger: &mut SC::Challenger,
+        phase1_main_commit: Com<SC>,
         global_permutation_challenges: &[SC::Challenge],
     ) -> Result<ShardProof<SC>, Self::Error>;
 
@@ -126,15 +137,13 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
     }
 
     /// The chips that will be necessary to prove this record.
-    fn shard_chips<'a, 'b>(
-        &'a self,
-        record: &'b A::Record,
-    ) -> impl Iterator<Item = &'b MachineChip<SC, A>>
-    where
-        'a: 'b,
-        SC: 'b,
-    {
+    fn shard_chips(&self, record: &A::Record) -> Vec<&MachineChip<SC, A>> {
         self.machine().shard_chips(record)
+    }
+
+    /// The chips that will be used for the Phase 1 commit.
+    fn phase1_chips(&self) -> Vec<&MachineChip<SC, A>> {
+        self.machine().phase1_chips()
     }
 
     /// Debug the constraints for the given inputs.
@@ -188,7 +197,7 @@ where
 
     fn commit(
         &self,
-        record: A::Record,
+        record: &A::Record,
         mut named_traces: Vec<(String, RowMajorMatrix<Val<SC>>)>,
     ) -> ShardMainData<SC, Self::DeviceMatrix, Self::DeviceProverData> {
         // Order the chips and traces by trace size (biggest first), and get the ordering map.
@@ -234,6 +243,7 @@ where
         pk: &StarkProvingKey<SC>,
         mut data: ShardMainData<SC, Self::DeviceMatrix, Self::DeviceProverData>,
         challenger: &mut <SC as StarkGenericConfig>::Challenger,
+        phase1_main_commit: Com<SC>,
         global_permutation_challenges: &[SC::Challenge],
     ) -> Result<ShardProof<SC>, Self::Error> {
         let chips = self
@@ -581,6 +591,7 @@ where
         Ok(ShardProof::<SC> {
             commitment: ShardCommitment {
                 main_commit: data.main_commit.clone(),
+                phase1_main_commit,
                 global_permutation_commit,
                 local_permutation_commit,
                 quotient_commit,
@@ -615,17 +626,17 @@ where
         pk.observe_into(challenger);
 
         // Generate and commit the traces for each shard.
-        let shard_data = records
-            .into_par_iter()
+        let phase1_shard_data = records
+            .par_iter()
             .map(|record| {
-                let named_traces = self.generate_traces(&record);
+                let named_traces = self.generate_traces(record, ProvePhase::Phase1);
                 self.commit(record, named_traces)
             })
             .collect::<Vec<_>>();
 
         // Observe the challenges for each segment.
         tracing::debug_span!("observing all challenges").in_scope(|| {
-            shard_data.iter().for_each(|data| {
+            phase1_shard_data.iter().for_each(|data| {
                 challenger.observe(data.main_commit.clone());
                 challenger.observe_slice(&data.public_values[0..self.num_pv_elts()]);
             });
@@ -637,14 +648,20 @@ where
             global_permutation_challenges.push(challenger.sample_ext_element());
         }
 
+        // records.into_par_iter().zip(traces.into_par_iter())
+
         let shard_proofs = tracing::info_span!("prove_shards").in_scope(|| {
-            shard_data
-                .into_par_iter()
-                .map(|data| {
+            records
+                .par_iter()
+                .zip(phase1_shard_data.into_par_iter())
+                .map(|(record, phase1_data)| {
+                    let traces = self.generate_traces(record, ProvePhase::Phase2);
+                    let phase2_data = self.commit(record, traces);
                     self.open(
                         pk,
-                        data,
+                        phase2_data,
                         &mut challenger.clone(),
+                        phase1_data.main_commit,
                         &global_permutation_challenges,
                     )
                 })

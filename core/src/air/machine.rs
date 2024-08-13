@@ -40,6 +40,11 @@ pub trait MachineAir<F: Field>: BaseAir<F> + 'static + Send + Sync {
     fn generate_preprocessed_trace(&self, _program: &Self::Program) -> Option<RowMajorMatrix<F>> {
         None
     }
+
+    /// Is included for the Phase 1 commit.
+    fn included_phase1(&self) -> bool {
+        false
+    }
 }
 
 pub trait MachineProgram<F>: Send + Sync {

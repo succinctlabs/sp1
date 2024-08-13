@@ -104,6 +104,7 @@ impl Witnessable<C> for ShardCommitment<OuterDigest> {
         let global_permutation_commit = self.global_permutation_commit.read(builder);
         let quotient_commit = self.quotient_commit.read(builder);
         ShardCommitment {
+            phase1_main_commit: main_commit,
             main_commit,
             global_permutation_commit,
             local_permutation_commit: global_permutation_commit,
@@ -296,6 +297,7 @@ impl Witnessable<C> for ShardProof<BabyBearPoseidon2Outer> {
         let permutation_commit: OuterDigest = self.commitment.global_permutation_commit.into();
         let quotient_commit: OuterDigest = self.commitment.quotient_commit.into();
         let commitment = ShardCommitment {
+            phase1_main_commit: main_commit.read(builder),
             main_commit: main_commit.read(builder),
             global_permutation_commit: permutation_commit.read(builder),
             local_permutation_commit: permutation_commit.read(builder),
