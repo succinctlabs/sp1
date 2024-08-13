@@ -141,47 +141,6 @@ impl Witnessable<C> for ShardProof<BabyBearPoseidon2> {
     }
 }
 
-// impl<'a, SC, A> Witnessable<C> for ShardProofHint<'a, SC, A>
-// where
-//     SC: StarkGenericConfig<
-//         Pcs = <BabyBearPoseidon2 as StarkGenericConfig>::Pcs,
-//         Challenge = <BabyBearPoseidon2 as StarkGenericConfig>::Challenge,
-//         Challenger = <BabyBearPoseidon2 as StarkGenericConfig>::Challenger,
-//     >,
-//     ShardCommitment<sp1_core::stark::Com<SC>>: Witnessable<C>,
-//     A: MachineAir<<SC as StarkGenericConfig>::Val>,
-// {
-//     type WitnessVariable = ShardProofVariable<C>;
-
-//     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
-//         let commitment = self.proof.commitment.read(builder);
-//         let opened_values = self.proof.opened_values.read(builder);
-//         let opening_proof = self.proof.opening_proof.read(builder);
-//         let public_values = self.proof.public_values.read(builder);
-//         // Hopefully these clones are cheap...
-//         let quotient_data = self.chip_.clone();
-//         let sorted_idxs = self.sorted_idxs.clone();
-//         ShardProofVariable {
-//             commitment,
-//             opened_values,
-//             opening_proof,
-//             public_values,
-//             quotient_data,
-//             sorted_idxs,
-//         }
-//     }
-
-//     fn write(&self) -> Vec<Witness<C>> {
-//         [
-//             self.proof.commitment.write(),
-//             self.proof.opened_values.write(),
-//             self.proof.opening_proof.write(),
-//             Witnessable::<C>::write(&self.proof.public_values),
-//         ]
-//         .concat()
-//     }
-// }
-
 impl Witnessable<C> for ShardCommitment<InnerDigestHash> {
     type WitnessVariable = ShardCommitmentVariable<C>;
 
