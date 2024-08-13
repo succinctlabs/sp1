@@ -158,7 +158,7 @@ where
             opened_values,
             opening_proof,
             chip_ordering,
-            public_values,
+            public_values: _,
         } = proof;
 
         let log_degrees = opened_values
@@ -206,59 +206,29 @@ where
                     points: vec![zeta, domain.next_point_variable(builder, zeta)],
                     values: vec![values.local, values.next],
                 }
-                // (
-                //     *domain,
-                //     vec![
-                //         (zeta, values.local),
-                //         (domain.next_point_variable(builder, zeta), values.next),
-                //     ],
-                // )
             })
             .collect::<Vec<_>>();
 
         let main_domains_points_and_opens = trace_domains
             .iter()
             .zip_eq(opened_values.chips.iter())
-            .map(|(domain, values)| {
-                TwoAdicPcsMatsVariable::<C> {
-                    domain: *domain,
-                    points: vec![zeta, domain.next_point_variable(builder, zeta)],
-                    values: vec![values.main.local.clone(), values.main.next.clone()],
-                }
-                //     *domain,
-                //     vec![
-                //         (zeta, values.main.local.clone()),
-                //         (
-                //             domain.next_point_variable(builder, zeta),
-                //             values.main.next.clone(),
-                //         ),
-                //     ],
-                // )
+            .map(|(domain, values)| TwoAdicPcsMatsVariable::<C> {
+                domain: *domain,
+                points: vec![zeta, domain.next_point_variable(builder, zeta)],
+                values: vec![values.main.local.clone(), values.main.next.clone()],
             })
             .collect::<Vec<_>>();
 
         let perm_domains_points_and_opens = trace_domains
             .iter()
             .zip_eq(opened_values.chips.iter())
-            .map(|(domain, values)| {
-                TwoAdicPcsMatsVariable::<C> {
-                    domain: *domain,
-                    points: vec![zeta, domain.next_point_variable(builder, zeta)],
-                    values: vec![
-                        values.permutation.local.clone(),
-                        values.permutation.next.clone(),
-                    ],
-                }
-                // (
-                //     *domain,
-                //     vec![
-                //         (zeta, values.permutation.local.clone()),
-                //         (
-                //             domain.next_point_variable(builder, zeta),
-                //             values.permutation.next.clone(),
-                //         ),
-                //     ],
-                // )
+            .map(|(domain, values)| TwoAdicPcsMatsVariable::<C> {
+                domain: *domain,
+                points: vec![zeta, domain.next_point_variable(builder, zeta)],
+                values: vec![
+                    values.permutation.local.clone(),
+                    values.permutation.next.clone(),
+                ],
             })
             .collect::<Vec<_>>();
 
@@ -280,14 +250,15 @@ where
             .iter()
             .zip_eq(quotient_chunk_domains.iter())
             .flat_map(|(values, qc_domains)| {
-                values.quotient.iter().zip_eq(qc_domains).map(
-                    move |(values, q_domain)| TwoAdicPcsMatsVariable::<C> {
+                values
+                    .quotient
+                    .iter()
+                    .zip_eq(qc_domains)
+                    .map(move |(values, q_domain)| TwoAdicPcsMatsVariable::<C> {
                         domain: *q_domain,
                         points: vec![zeta],
                         values: vec![values.clone()],
-                    },
-                    // (*q_domain, vec![(zeta, values.clone())])
-                )
+                    })
             })
             .collect::<Vec<_>>();
 
