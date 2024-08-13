@@ -80,7 +80,7 @@ pub fn verify_two_adic_pcs<C: Config, SC: BabyBearFriConfigVariable<C = C>>(
 
             for (batch_opening, round) in zip(query_opening, rounds.iter().cloned()) {
                 let batch_commit = round.batch_commit;
-                let mats = round.mats;
+                let mats = round.domains_points_and_opens;
                 let batch_heights = mats
                     .iter()
                     .map(|mat| mat.domain.size() << config.log_blowup)
@@ -471,7 +471,7 @@ mod tests {
     ) {
         let commit: DigestVariable<InnerConfig> = commit.map(|x| builder.eval(x));
 
-        let mut mats = Vec::new();
+        let mut domains_points_and_opens = Vec::new();
         for (domain, poly) in os.into_iter() {
             let points: Vec<Ext<InnerVal, InnerChallenge>> = poly
                 .iter()
@@ -486,19 +486,19 @@ mod tests {
                         .collect::<Vec<_>>()
                 })
                 .collect::<Vec<_>>();
-            let mat = TwoAdicPcsMatsVariable {
+            let domain_points_and_values = TwoAdicPcsMatsVariable {
                 domain,
                 points,
                 values,
             };
-            mats.push(mat);
+            domains_points_and_opens.push(domain_points_and_values);
         }
 
         (
             commit,
             vec![TwoAdicPcsRoundVariable {
                 batch_commit: commit,
-                mats,
+                domains_points_and_opens,
             }],
         )
     }

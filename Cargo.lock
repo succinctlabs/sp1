@@ -5115,6 +5115,7 @@ version = "1.1.1"
 dependencies = [
  "bincode",
  "ff 0.13.0",
+ "hashbrown 0.14.5",
  "itertools 0.13.0",
  "p3-air",
  "p3-baby-bear",
@@ -5141,7 +5142,6 @@ dependencies = [
  "sp1-recursion-core-v2",
  "sp1-recursion-derive",
  "sp1-recursion-gnark-ffi",
- "sp1-recursion-program",
  "stacker",
  "tracing",
  "zkhash",

@@ -8,13 +8,17 @@ use sp1_recursion_compiler::{
 };
 use sp1_recursion_core_v2::DIGEST_SIZE;
 
+mod types;
+
 pub mod build_wrap_v2;
 pub mod challenger;
+pub mod constraints;
 pub mod domain;
 pub mod fri;
 pub mod stark;
-pub mod utils;
 pub mod witness;
+
+pub use types::*;
 
 pub type DigestVariable<C> = [Felt<<C as Config>::F>; DIGEST_SIZE];
 
@@ -61,7 +65,7 @@ pub struct BatchOpeningVariable<C: Config> {
 #[derive(Clone)]
 pub struct TwoAdicPcsRoundVariable<C: Config> {
     pub batch_commit: DigestVariable<C>,
-    pub mats: Vec<TwoAdicPcsMatsVariable<C>>,
+    pub domains_points_and_opens: Vec<TwoAdicPcsMatsVariable<C>>,
 }
 
 #[derive(Clone)]
@@ -75,7 +79,6 @@ use p3_challenger::{CanObserve, CanSample, FieldChallenger, GrindingChallenger};
 use p3_commit::{ExtensionMmcs, Mmcs};
 use p3_dft::Radix2DitParallel;
 use p3_fri::{FriConfig, TwoAdicFriPcs};
-use p3_matrix::dense::RowMajorMatrix;
 use sp1_recursion_core::stark::config::{BabyBearPoseidon2Outer, OuterValMmcs};
 
 use p3_baby_bear::BabyBear;
