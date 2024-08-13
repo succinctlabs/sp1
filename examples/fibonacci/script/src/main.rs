@@ -19,6 +19,7 @@ fn main() {
     // Parse the command line arguments.
     let args = ProveArgs::parse();
 
-    let raw_core_proof = scenario::core_prove::mpc_prove_core(args.clone()).unwrap();
-    let _ = scenario::core_prove::scenario_end(args, &raw_core_proof);
+    let (core_proof, compress_proof) =
+        scenario::compress_prove::mpc_prove_compress(args.clone()).unwrap();
+    scenario::compress_prove::scenario_end(args, &core_proof, &compress_proof)
 }

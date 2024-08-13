@@ -1,7 +1,9 @@
 use crate::common;
-use crate::common::memory_layouts::{SerializableDeferredLayout, SerializableRecursionLayout};
+use crate::common::memory_layouts::{
+    SerializableDeferredLayout, SerializableRecursionLayout, SerializableReduceLayout,
+};
 use crate::common::types::{
-    ChallengerType, CommitmentType, DeferredLayout, RecordType, RecursionLayout,
+    ChallengerType, CommitmentType, DeferredLayout, RecordType, RecursionLayout, ReduceLayout,
 };
 use crate::ProveArgs;
 use anyhow::Result;
@@ -218,5 +220,33 @@ pub fn worker_compress_proofs_for_deferred(
             opts,
         )
         .map(|p| (p, ReduceProgramType::Deferred))
+        .map_err(|e| anyhow::anyhow!("failed to compress machine proof: {:?}", e))
+}
+
+pub fn worker_compress_proofs_for_reduce(
+    args: ProveArgs,
+    layout: SerializableReduceLayout,
+) -> Result<(ShardProof<BabyBearPoseidon2>, ReduceProgramType)> {
+    let (client, _, pk, _) = common::init_client(args.clone());
+    let (_, opts, _) = common::bootstrap(&client, &pk).unwrap();
+
+    let sp1_prover = client.prover.sp1_prover();
+
+    let input = ReduceLayout {
+        compress_vk: &sp1_prover.compress_vk,
+        recursive_machine: sp1_prover.compress_prover.machine(),
+        shard_proofs: layout.shard_proofs,
+        kinds: layout.kinds,
+        is_complete: layout.is_complete,
+    };
+
+    sp1_prover
+        .compress_machine_proof(
+            input,
+            &sp1_prover.compress_program,
+            &sp1_prover.compress_pk,
+            opts,
+        )
+        .map(|p| (p, ReduceProgramType::Reduce))
         .map_err(|e| anyhow::anyhow!("failed to compress machine proof: {:?}", e))
 }

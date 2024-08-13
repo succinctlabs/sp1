@@ -1,6 +1,7 @@
 pub mod steps;
 
 use crate::common;
+use crate::common::memory_layouts::SerializableReduceLayout;
 use crate::{
     common::{
         memory_layouts::{SerializableDeferredLayout, SerializableRecursionLayout},
@@ -12,7 +13,8 @@ use crate::{
 use sp1_core::{runtime::ExecutionState, stark::MachineProver};
 use steps::{
     worker_commit_checkpoint_impl, worker_compress_proofs_for_deferred,
-    worker_compress_proofs_for_recursion, worker_prove_checkpoint_impl,
+    worker_compress_proofs_for_recursion, worker_compress_proofs_for_reduce,
+    worker_prove_checkpoint_impl,
 };
 
 pub fn worker_commit_checkpoint(
@@ -79,7 +81,10 @@ pub fn worker_compress_proofs(
                 bincode::deserialize(last_proof_public_values.unwrap()).unwrap();
             worker_compress_proofs_for_deferred(args_obj, layout, last_public_values).unwrap()
         }
-        LayoutType::Reduce => panic!("Reduce layout is not supported"),
+        LayoutType::Reduce => {
+            let layout: SerializableReduceLayout = bincode::deserialize(layout).unwrap();
+            worker_compress_proofs_for_reduce(args_obj, layout).unwrap()
+        }
     };
     *o_proof = bincode::serialize(&compressed_shard_proof).unwrap();
 }
