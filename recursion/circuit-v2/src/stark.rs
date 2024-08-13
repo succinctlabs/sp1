@@ -26,7 +26,7 @@ use crate::TwoAdicPcsMatsVariable;
 use crate::TwoAdicPcsProofVariable;
 
 use crate::challenger::CanObserveVariable;
-use crate::challenger::FeltChallenger;
+use crate::challenger::FieldChallengerVariable;
 use crate::constraints::RecursiveVerifierConstraintFolder;
 use crate::domain::PolynomialSpaceVariable;
 use crate::fri::verify_two_adic_pcs;

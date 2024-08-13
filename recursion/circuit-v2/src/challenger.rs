@@ -4,7 +4,7 @@ use sp1_recursion_compiler::prelude::{Builder, Config, Ext, Felt};
 use sp1_recursion_core_v2::runtime::{HASH_RATE, PERMUTATION_WIDTH};
 use sp1_recursion_core_v2::NUM_BITS;
 
-use crate::{DigestVariable, VerifyingKeyVariable};
+// use crate::{DigestVariable, VerifyingKeyVariable};
 
 /// Reference: [p3_challenger::CanObserve].
 pub trait CanObserveVariable<C: Config, V> {
@@ -18,8 +18,8 @@ pub trait CanSampleVariable<C: Config, V> {
 }
 
 /// Reference: [p3_challenger::FieldChallenger].
-pub trait FeltChallenger<C: Config>:
-    CanObserveVariable<C, Felt<C::F>> + CanSampleVariable<C, Felt<C::F>> + CanSampleBitsVariable<C>
+pub trait FieldChallengerVariable<C: Config, Bit>:
+    CanObserveVariable<C, Felt<C::F>> + CanSampleVariable<C, Felt<C::F>> + CanSampleBitsVariable<C, Bit>
 {
     fn sample_ext(&mut self, builder: &mut Builder<C>) -> Ext<C::F, C::EF>;
 
@@ -28,8 +28,8 @@ pub trait FeltChallenger<C: Config>:
     fn duplexing(&mut self, builder: &mut Builder<C>);
 }
 
-pub trait CanSampleBitsVariable<C: Config> {
-    fn sample_bits(&mut self, builder: &mut Builder<C>, nb_bits: usize) -> Vec<Felt<C::F>>;
+pub trait CanSampleBitsVariable<C: Config, V> {
+    fn sample_bits(&mut self, builder: &mut Builder<C>, nb_bits: usize) -> Vec<V>;
 }
 
 /// Reference: [p3_challenger::DuplexChallenger]
@@ -92,11 +92,11 @@ impl<C: Config> DuplexChallengerVariable<C> {
         }
     }
 
-    fn observe_commitment(&mut self, builder: &mut Builder<C>, commitment: DigestVariable<C>) {
-        for element in commitment {
-            self.observe(builder, element);
-        }
-    }
+    // fn observe_commitment(&mut self, builder: &mut Builder<C>, commitment: DigestVariable<C>) {
+    //     for element in commitment {
+    //         self.observe(builder, element);
+    //     }
+    // }
 
     fn sample(&mut self, builder: &mut Builder<C>) -> Felt<C::F> {
         if !self.input_buffer.is_empty() || self.output_buffer.is_empty() {
@@ -139,42 +139,42 @@ impl<C: Config> CanSampleVariable<C, Felt<C::F>> for DuplexChallengerVariable<C>
     }
 }
 
-impl<C: Config> CanSampleBitsVariable<C> for DuplexChallengerVariable<C> {
+impl<C: Config> CanSampleBitsVariable<C, Felt<C::F>> for DuplexChallengerVariable<C> {
     fn sample_bits(&mut self, builder: &mut Builder<C>, nb_bits: usize) -> Vec<Felt<C::F>> {
         DuplexChallengerVariable::sample_bits(self, builder, nb_bits)
     }
 }
 
-impl<C: Config> CanObserveVariable<C, DigestVariable<C>> for DuplexChallengerVariable<C> {
-    fn observe(&mut self, builder: &mut Builder<C>, commitment: DigestVariable<C>) {
-        DuplexChallengerVariable::observe_commitment(self, builder, commitment);
-    }
+// impl<C: Config> CanObserveVariable<C, DigestVariable<C>> for DuplexChallengerVariable<C> {
+//     fn observe(&mut self, builder: &mut Builder<C>, commitment: DigestVariable<C>) {
+//         DuplexChallengerVariable::observe_commitment(self, builder, commitment);
+//     }
 
-    fn observe_slice(
-        &mut self,
-        _builder: &mut Builder<C>,
-        _values: impl IntoIterator<Item = DigestVariable<C>>,
-    ) {
-        todo!()
-    }
-}
+//     fn observe_slice(
+//         &mut self,
+//         _builder: &mut Builder<C>,
+//         _values: impl IntoIterator<Item = DigestVariable<C>>,
+//     ) {
+//         todo!()
+//     }
+// }
 
-impl<C: Config> CanObserveVariable<C, VerifyingKeyVariable<C>> for DuplexChallengerVariable<C> {
-    fn observe(&mut self, builder: &mut Builder<C>, value: VerifyingKeyVariable<C>) {
-        self.observe_commitment(builder, value.commitment);
-        self.observe(builder, value.pc_start)
-    }
+// impl<C: Config> CanObserveVariable<C, VerifyingKeyVariable<C>> for DuplexChallengerVariable<C> {
+//     fn observe(&mut self, builder: &mut Builder<C>, value: VerifyingKeyVariable<C>) {
+//         self.observe_commitment(builder, value.commitment);
+//         self.observe(builder, value.pc_start)
+//     }
 
-    fn observe_slice(
-        &mut self,
-        _builder: &mut Builder<C>,
-        _values: impl IntoIterator<Item = VerifyingKeyVariable<C>>,
-    ) {
-        todo!()
-    }
-}
+//     fn observe_slice(
+//         &mut self,
+//         _builder: &mut Builder<C>,
+//         _values: impl IntoIterator<Item = VerifyingKeyVariable<C>>,
+//     ) {
+//         todo!()
+//     }
+// }
 
-impl<C: Config> FeltChallenger<C> for DuplexChallengerVariable<C> {
+impl<C: Config> FieldChallengerVariable<C, Felt<C::F>> for DuplexChallengerVariable<C> {
     fn sample_ext(&mut self, builder: &mut Builder<C>) -> Ext<C::F, C::EF> {
         let a = self.sample(builder);
         let b = self.sample(builder);
@@ -231,7 +231,7 @@ pub(crate) mod tests {
     use sp1_recursion_core_v2::Runtime;
 
     use crate::challenger::DuplexChallengerVariable;
-    use crate::challenger::FeltChallenger;
+    use crate::challenger::FieldChallengerVariable;
     use crate::witness::Witness;
 
     use sp1_core::utils::run_test_machine;

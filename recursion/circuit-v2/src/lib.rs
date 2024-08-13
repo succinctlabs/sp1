@@ -5,7 +5,7 @@ use std::{
     ops::{Add, Mul},
 };
 
-use challenger::{CanObserveVariable, DuplexChallengerVariable, FeltChallenger};
+use challenger::{CanObserveVariable, DuplexChallengerVariable, FieldChallengerVariable};
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::AbstractField;
 
@@ -20,6 +20,7 @@ mod types;
 
 pub mod build_wrap_v2;
 pub mod challenger;
+pub mod challenger_gnark;
 pub mod constraints;
 pub mod domain;
 pub mod fri;
@@ -53,8 +54,8 @@ pub struct FriQueryProofVariable<C: Config> {
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/verifier.rs#L22
 #[derive(Clone)]
-pub struct FriChallenges<C: Config> {
-    pub query_indices: Vec<Vec<Felt<C::F>>>,
+pub struct FriChallenges<C: Config, Bit> {
+    pub query_indices: Vec<Vec<Bit>>,
     pub betas: Vec<Ext<C::F, C::EF>>,
 }
 
@@ -130,7 +131,8 @@ pub trait BabyBearFriConfig:
 pub trait BabyBearFriConfigVariable: BabyBearFriConfig {
     // Is this is the best place to put this?
     type C: Config<F = Self::Val, EF = Self::Challenge>;
-    type FriChallengerVariable: FeltChallenger<Self::C>;
+    type Bit;
+    type FriChallengerVariable: FieldChallengerVariable<Self::C, Self::Bit>;
 
     // Move these to their own traits later, perhaps.
     // TODO change these to be more generic (e.g. for Vars)
@@ -178,7 +180,7 @@ impl BabyBearFriConfig for BabyBearPoseidon2 {
 
 impl BabyBearFriConfigVariable for BabyBearPoseidon2 {
     type C = InnerConfig;
-
+    type Bit = Felt<<Self::C as Config>::F>;
     type FriChallengerVariable = DuplexChallengerVariable<Self::C>;
 
     fn poseidon2_hash(

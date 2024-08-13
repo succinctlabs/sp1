@@ -11,7 +11,7 @@ use std::{
 };
 
 use crate::challenger::CanSampleBitsVariable;
-use crate::challenger::FeltChallenger;
+use crate::challenger::FieldChallengerVariable;
 use crate::{
     select_chain, BabyBearFriConfigVariable, CanObserveVariable, DigestVariable, Ext,
     FriChallenges, FriMmcs, FriProofVariable, FriQueryProofVariable, TwoAdicPcsProofVariable,
