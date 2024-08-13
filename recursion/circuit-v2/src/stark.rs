@@ -486,8 +486,8 @@ pub(crate) mod tests {
         let mut challenger = DuplexChallengerVariable::new(&mut builder);
 
         let preprocessed_commit_val: [F; DIGEST_SIZE] = vk.commit.into();
-        let preprocessed_commit = builder.constant(preprocessed_commit_val);
-        challenger.observe_commitment(&mut builder, preprocessed_commit);
+        let preprocessed_commit: [Felt<F>; DIGEST_SIZE] = builder.constant(preprocessed_commit_val);
+        challenger.observe_slice(&mut builder, preprocessed_commit);
 
         let mut witness_stream = VecDeque::<Witness<C>>::new();
         for proof in proofs {
@@ -495,7 +495,7 @@ pub(crate) mod tests {
             witness_stream.extend(proof_hint.write());
             let proof = proof_hint.read(&mut builder);
             let ShardCommitmentVariable { main_commit, .. } = proof.commitment;
-            challenger.observe_commitment(&mut builder, main_commit);
+            challenger.observe_slice(&mut builder, main_commit);
             let pv_slice = &proof.public_values[..machine.num_pv_elts()];
             challenger.observe_slice(&mut builder, pv_slice.iter().cloned());
         }

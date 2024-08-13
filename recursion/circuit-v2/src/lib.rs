@@ -1,12 +1,20 @@
 //! Copied from [`sp1_recursion_program`].
 
+use std::{
+    iter::{repeat, zip},
+    ops::{Add, Mul},
+};
+
 use challenger::{CanObserveVariable, DuplexChallengerVariable, FeltChallenger};
 use p3_commit::TwoAdicMultiplicativeCoset;
+use p3_field::AbstractField;
+
 use sp1_recursion_compiler::{
+    circuit::CircuitV2Builder,
     config::InnerConfig,
-    ir::{Config, Ext, Felt},
+    ir::{Builder, Config, Ext, Felt, Variable},
 };
-use sp1_recursion_core_v2::DIGEST_SIZE;
+use sp1_recursion_core_v2::{D, DIGEST_SIZE};
 
 pub mod build_wrap_v2;
 pub mod challenger;
@@ -120,6 +128,40 @@ pub trait BabyBearFriConfigVariable: BabyBearFriConfig {
     // Is this is the best place to put this?
     type C: Config<F = Self::Val, EF = Self::Challenge>;
     type FriChallengerVariable: FeltChallenger<Self::C>;
+
+    // Move these to their own traits later, perhaps.
+    // TODO change these to be more generic (e.g. for Vars)
+    fn poseidon2_hash(
+        builder: &mut Builder<Self::C>,
+        input: &[Felt<<Self::C as Config>::F>],
+    ) -> [Felt<<Self::C as Config>::F>; DIGEST_SIZE];
+
+    fn poseidon2_compress(
+        builder: &mut Builder<Self::C>,
+        input: impl IntoIterator<Item = Felt<<Self::C as Config>::F>>,
+    ) -> [Felt<<Self::C as Config>::F>; DIGEST_SIZE];
+
+    fn ext2felt(
+        builder: &mut Builder<Self::C>,
+        ext: Ext<<Self::C as Config>::F, <Self::C as Config>::EF>,
+    ) -> [Felt<<Self::C as Config>::F>; D];
+
+    fn exp_reverse_bits(
+        builder: &mut Builder<Self::C>,
+        input: Felt<<Self::C as Config>::F>,
+        power_bits: Vec<Felt<<Self::C as Config>::F>>,
+    ) -> Felt<<Self::C as Config>::F>;
+
+    fn num2bits(
+        builder: &mut Builder<Self::C>,
+        num: Felt<<Self::C as Config>::F>,
+        num_bits: usize,
+    ) -> Vec<Felt<<Self::C as Config>::F>>;
+
+    fn bits2num(
+        builder: &mut Builder<Self::C>,
+        bits: impl IntoIterator<Item = Felt<<Self::C as Config>::F>>,
+    ) -> Felt<<Self::C as Config>::F>;
 }
 
 impl BabyBearFriConfig for BabyBearPoseidon2 {
@@ -135,6 +177,50 @@ impl BabyBearFriConfigVariable for BabyBearPoseidon2 {
     type C = InnerConfig;
 
     type FriChallengerVariable = DuplexChallengerVariable<Self::C>;
+
+    fn poseidon2_hash(
+        builder: &mut Builder<Self::C>,
+        input: &[Felt<<Self::C as Config>::F>],
+    ) -> [Felt<<Self::C as Config>::F>; DIGEST_SIZE] {
+        builder.poseidon2_hash_v2(input)
+    }
+
+    fn poseidon2_compress(
+        builder: &mut Builder<Self::C>,
+        input: impl IntoIterator<Item = Felt<<Self::C as Config>::F>>,
+    ) -> [Felt<<Self::C as Config>::F>; DIGEST_SIZE] {
+        builder.poseidon2_compress_v2(input)
+    }
+
+    fn ext2felt(
+        builder: &mut Builder<Self::C>,
+        ext: Ext<<Self::C as Config>::F, <Self::C as Config>::EF>,
+    ) -> [Felt<<Self::C as Config>::F>; D] {
+        builder.ext2felt_v2(ext)
+    }
+
+    fn exp_reverse_bits(
+        builder: &mut Builder<Self::C>,
+        input: Felt<<Self::C as Config>::F>,
+        power_bits: Vec<Felt<<Self::C as Config>::F>>,
+    ) -> Felt<<Self::C as Config>::F> {
+        builder.exp_reverse_bits_v2(input, power_bits)
+    }
+
+    fn num2bits(
+        builder: &mut Builder<Self::C>,
+        num: Felt<<Self::C as Config>::F>,
+        num_bits: usize,
+    ) -> Vec<Felt<<Self::C as Config>::F>> {
+        builder.num2bits_v2_f(num, num_bits)
+    }
+
+    fn bits2num(
+        builder: &mut Builder<Self::C>,
+        bits: impl IntoIterator<Item = Felt<<Self::C as Config>::F>>,
+    ) -> Felt<<Self::C as Config>::F> {
+        builder.bits2num_v2_f(bits)
+    }
 }
 
 impl BabyBearFriConfig for BabyBearPoseidon2Outer {
@@ -144,4 +230,38 @@ impl BabyBearFriConfig for BabyBearPoseidon2Outer {
     fn fri_config(&self) -> &FriConfig<FriMmcs<Self>> {
         self.pcs().fri_config()
     }
+}
+
+pub fn select_chain<'a, C, R, S>(
+    builder: &'a mut Builder<C>,
+    should_swap: R,
+    first: impl IntoIterator<Item = S> + Clone + 'a,
+    second: impl IntoIterator<Item = S> + Clone + 'a,
+) -> impl Iterator<Item = S> + 'a
+where
+    C: Config,
+    R: Variable<C> + Into<<R as Variable<C>>::Expression> + 'a,
+    S: Variable<C> + Into<<S as Variable<C>>::Expression> + 'a,
+    <R as Variable<C>>::Expression: AbstractField,
+    <S as Variable<C>>::Expression: Add<Output = <S as Variable<C>>::Expression>
+        + Mul<<R as Variable<C>>::Expression, Output = <S as Variable<C>>::Expression>,
+{
+    let should_swap: <R as Variable<C>>::Expression = should_swap.into();
+    let one = <R as Variable<C>>::Expression::one();
+    let shouldnt_swap = one - should_swap.clone();
+
+    let id_branch = first
+        .clone()
+        .into_iter()
+        .chain(second.clone())
+        .map(<S as Variable<C>>::Expression::from);
+    let swap_branch = second
+        .into_iter()
+        .chain(first)
+        .map(<S as Variable<C>>::Expression::from);
+    zip(
+        zip(id_branch, swap_branch),
+        zip(repeat(shouldnt_swap), repeat(should_swap)),
+    )
+    .map(|((id_v, sw_v), (id_c, sw_c))| builder.eval(id_v * id_c + sw_v * sw_c))
 }

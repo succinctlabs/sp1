@@ -1,5 +1,3 @@
-use std::iter::zip;
-
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::AbstractField;
 use sp1_recursion_compiler::circuit::CircuitV2Builder;
@@ -36,6 +34,8 @@ pub trait FeltChallenger<C: Config>:
     fn sample_ext(&mut self, builder: &mut Builder<C>) -> Ext<C::F, C::EF>;
 
     fn check_witness(&mut self, builder: &mut Builder<C>, nb_bits: usize, witness: Felt<C::F>);
+
+    fn duplexing(&mut self, builder: &mut Builder<C>);
 }
 
 pub trait CanSampleBitsVariable<C: Config> {
@@ -60,51 +60,39 @@ impl<C: Config> DuplexChallengerVariable<C> {
         }
     }
 
-    /// Creates a new challenger with the same state as an existing challenger.
-    pub fn copy(&self, builder: &mut Builder<C>) -> Self {
-        let DuplexChallengerVariable {
-            sponge_state,
-            input_buffer,
-            output_buffer,
-        } = self;
-        let sponge_state = sponge_state.map(|x| builder.eval(x));
-        let mut copy_vec = |v: &Vec<Felt<C::F>>| v.iter().map(|x| builder.eval(*x)).collect();
-        DuplexChallengerVariable::<C> {
-            sponge_state,
-            input_buffer: copy_vec(input_buffer),
-            output_buffer: copy_vec(output_buffer),
-        }
-    }
+    // /// Creates a new challenger with the same state as an existing challenger.
+    // fn copy(&self, builder: &mut Builder<C>) -> Self {
+    //     let DuplexChallengerVariable {
+    //         sponge_state,
+    //         input_buffer,
+    //         output_buffer,
+    //     } = self;
+    //     let sponge_state = sponge_state.map(|x| builder.eval(x));
+    //     let mut copy_vec = |v: &Vec<Felt<C::F>>| v.iter().map(|x| builder.eval(*x)).collect();
+    //     DuplexChallengerVariable::<C> {
+    //         sponge_state,
+    //         input_buffer: copy_vec(input_buffer),
+    //         output_buffer: copy_vec(output_buffer),
+    //     }
+    // }
 
-    /// Asserts that the state of this challenger is equal to the state of another challenger.
-    pub fn assert_eq(&self, builder: &mut Builder<C>, other: &Self) {
-        zip(&self.sponge_state, &other.sponge_state)
-            .chain(zip(&self.input_buffer, &other.input_buffer))
-            .chain(zip(&self.output_buffer, &other.output_buffer))
-            .for_each(|(&element, &other_element)| {
-                builder.assert_felt_eq(element, other_element);
-            });
-    }
+    // /// Asserts that the state of this challenger is equal to the state of another challenger.
+    // fn assert_eq(&self, builder: &mut Builder<C>, other: &Self) {
+    //     zip(&self.sponge_state, &other.sponge_state)
+    //         .chain(zip(&self.input_buffer, &other.input_buffer))
+    //         .chain(zip(&self.output_buffer, &other.output_buffer))
+    //         .for_each(|(&element, &other_element)| {
+    //             builder.assert_felt_eq(element, other_element);
+    //         });
+    // }
 
-    pub fn reset(&mut self, builder: &mut Builder<C>) {
-        self.sponge_state.fill(builder.eval(C::F::zero()));
-        self.input_buffer.clear();
-        self.output_buffer.clear();
-    }
+    // fn reset(&mut self, builder: &mut Builder<C>) {
+    //     self.sponge_state.fill(builder.eval(C::F::zero()));
+    //     self.input_buffer.clear();
+    //     self.output_buffer.clear();
+    // }
 
-    pub fn duplexing(&mut self, builder: &mut Builder<C>) {
-        assert!(self.input_buffer.len() <= HASH_RATE);
-
-        self.sponge_state[0..self.input_buffer.len()].copy_from_slice(self.input_buffer.as_slice());
-        self.input_buffer.clear();
-
-        self.sponge_state = builder.poseidon2_permute_v2(self.sponge_state);
-
-        self.output_buffer.clear();
-        self.output_buffer.extend_from_slice(&self.sponge_state);
-    }
-
-    pub fn observe(&mut self, builder: &mut Builder<C>, value: Felt<C::F>) {
+    fn observe(&mut self, builder: &mut Builder<C>, value: Felt<C::F>) {
         self.output_buffer.clear();
 
         self.input_buffer.push(value);
@@ -114,13 +102,13 @@ impl<C: Config> DuplexChallengerVariable<C> {
         }
     }
 
-    pub fn observe_commitment(&mut self, builder: &mut Builder<C>, commitment: DigestVariable<C>) {
+    fn observe_commitment(&mut self, builder: &mut Builder<C>, commitment: DigestVariable<C>) {
         for element in commitment {
             self.observe(builder, element);
         }
     }
 
-    pub fn sample(&mut self, builder: &mut Builder<C>) -> Felt<C::F> {
+    fn sample(&mut self, builder: &mut Builder<C>) -> Felt<C::F> {
         if !self.input_buffer.is_empty() || self.output_buffer.is_empty() {
             self.duplexing(builder);
         }
@@ -130,7 +118,7 @@ impl<C: Config> DuplexChallengerVariable<C> {
             .expect("output buffer should be non-empty")
     }
 
-    pub fn sample_bits(&mut self, builder: &mut Builder<C>, nb_bits: usize) -> Vec<Felt<C::F>> {
+    fn sample_bits(&mut self, builder: &mut Builder<C>, nb_bits: usize) -> Vec<Felt<C::F>> {
         assert!(nb_bits <= NUM_BITS);
         let rand_f = self.sample(builder);
         let mut rand_f_bits = builder.num2bits_v2_f(rand_f, NUM_BITS);
@@ -216,6 +204,18 @@ impl<C: Config> FeltChallenger<C> for DuplexChallengerVariable<C> {
         for bit in element_bits {
             builder.assert_felt_eq(bit, C::F::zero());
         }
+    }
+
+    fn duplexing(&mut self, builder: &mut Builder<C>) {
+        assert!(self.input_buffer.len() <= HASH_RATE);
+
+        self.sponge_state[0..self.input_buffer.len()].copy_from_slice(self.input_buffer.as_slice());
+        self.input_buffer.clear();
+
+        self.sponge_state = builder.poseidon2_permute_v2(self.sponge_state);
+
+        self.output_buffer.clear();
+        self.output_buffer.extend_from_slice(&self.sponge_state);
     }
 }
 
