@@ -51,6 +51,10 @@ impl<F: PrimeField32, A: MachineAir<F>> Chip<F, A> {
     pub fn included(&self, shard: &A::Record) -> bool {
         self.air.included(shard)
     }
+
+    pub fn included_phase1(&self) -> bool {
+        self.air.included_phase1()
+    }
 }
 
 impl<F, A> Chip<F, A>
@@ -205,6 +209,10 @@ where
 
     fn included(&self, shard: &Self::Record) -> bool {
         self.air.included(shard)
+    }
+
+    fn included_phase1(&self) -> bool {
+        self.air.included_phase1()
     }
 }
 

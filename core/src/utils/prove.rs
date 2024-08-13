@@ -296,7 +296,11 @@ where
                             // Generate the traces.
                             let traces = records
                                 .par_iter()
-                                .map(|record| prover.generate_traces(record, ProvePhase::Phase1))
+                                .map(|record| {
+                                    let traces = prover.generate_traces(record, ProvePhase::Phase1);
+                                    println!("traces is {:?}", traces);
+                                    traces
+                                })
                                 .collect::<Vec<_>>();
 
                             // Wait for our turn.
@@ -558,7 +562,7 @@ where
                                             pk,
                                             data,
                                             &mut challenger.clone(),
-                                            phase1_commitments[record.public_values.shard as usize].clone(),
+                                            phase1_commitments[record.public_values.shard as usize - 1].clone(),
                                             &global_permutation_challenges,
                                         )
                                         .unwrap()
