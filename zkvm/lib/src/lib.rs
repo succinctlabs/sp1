@@ -69,7 +69,7 @@ extern "C" {
     pub fn syscall_exit_unconstrained();
 
     /// Defers the verification of a valid SP1 zkVM proof.
-    pub fn syscall_verify_sp1_proof(vkey: &[u32; 8], pv_digest: &[u8; 32]);
+    pub fn syscall_verify_sp1_proof(vk_digest: &[u32; 8], pv_digest: &[u8; 32]);
 
     /// Returns the length of the next element in the hint stream.
     pub fn syscall_hint_len() -> usize;
