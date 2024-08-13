@@ -4,10 +4,7 @@ use p3_field::AbstractExtensionField;
 
 use p3_fri::{CommitPhaseProofStep, QueryProof};
 use sp1_core::{
-    air::MachineAir,
-    stark::{
-        AirOpenedValues, ChipOpenedValues, ShardCommitment, ShardOpenedValues, StarkGenericConfig,
-    },
+    stark::{AirOpenedValues, ChipOpenedValues, ShardCommitment, ShardOpenedValues, ShardProof},
     utils::{
         BabyBearPoseidon2, InnerBatchOpening, InnerChallenge, InnerChallengeMmcs, InnerDigest,
         InnerDigestHash, InnerFriProof, InnerPcsProof, InnerVal,
@@ -23,7 +20,7 @@ use sp1_recursion_core::air::Block;
 use crate::{
     stark::{
         AirOpenedValuesVariable, ChipOpenedValuesVariable, ShardCommitmentVariable,
-        ShardOpenedValuesVariable, ShardProofHint, ShardProofVariable,
+        ShardOpenedValuesVariable, ShardProofVariable,
     },
     BatchOpeningVariable, FriCommitPhaseProofStepVariable, FriProofVariable, FriQueryProofVariable,
     TwoAdicPcsProofVariable,
@@ -114,42 +111,31 @@ impl<C: Config, T: Witnessable<C>> Witnessable<C> for Vec<T> {
 
 type C = InnerConfig;
 
-impl<'a, SC, A> Witnessable<C> for ShardProofHint<'a, SC, A>
-where
-    SC: StarkGenericConfig<
-        Pcs = <BabyBearPoseidon2 as StarkGenericConfig>::Pcs,
-        Challenge = <BabyBearPoseidon2 as StarkGenericConfig>::Challenge,
-        Challenger = <BabyBearPoseidon2 as StarkGenericConfig>::Challenger,
-    >,
-    ShardCommitment<sp1_core::stark::Com<SC>>: Witnessable<C>,
-    A: MachineAir<<SC as StarkGenericConfig>::Val>,
-{
+impl Witnessable<C> for ShardProof<BabyBearPoseidon2> {
     type WitnessVariable = ShardProofVariable<C>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
-        let commitment = self.proof.commitment.read(builder);
-        let opened_values = self.proof.opened_values.read(builder);
-        let opening_proof = self.proof.opening_proof.read(builder);
-        let public_values = self.proof.public_values.read(builder);
-        // Hopefully these clones are cheap...
-        let quotient_data = self.quotient_data.clone();
-        let sorted_idxs = self.sorted_idxs.clone();
+        let commitment = self.commitment.read(builder);
+        let opened_values = self.opened_values.read(builder);
+        let opening_proof = self.opening_proof.read(builder);
+        let public_values = self.public_values.read(builder);
+        let chip_ordering = self.chip_ordering.clone();
+
         ShardProofVariable {
             commitment,
             opened_values,
             opening_proof,
             public_values,
-            quotient_data,
-            sorted_idxs,
+            chip_ordering,
         }
     }
 
     fn write(&self) -> Vec<Witness<C>> {
         [
-            self.proof.commitment.write(),
-            self.proof.opened_values.write(),
-            self.proof.opening_proof.write(),
-            Witnessable::<C>::write(&self.proof.public_values),
+            self.commitment.write(),
+            self.opened_values.write(),
+            self.opening_proof.write(),
+            Witnessable::<C>::write(&self.public_values),
         ]
         .concat()
     }

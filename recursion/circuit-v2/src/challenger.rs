@@ -1,20 +1,10 @@
-use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::AbstractField;
 use sp1_recursion_compiler::circuit::CircuitV2Builder;
 use sp1_recursion_compiler::prelude::{Builder, Config, Ext, Felt};
 use sp1_recursion_core_v2::runtime::{HASH_RATE, PERMUTATION_WIDTH};
 use sp1_recursion_core_v2::NUM_BITS;
 
-use crate::DigestVariable;
-
-/// Reference: [sp1_core::stark::VerifyingKey]
-#[derive(Clone)]
-pub struct VerifyingKeyVariable<C: Config> {
-    pub commitment: DigestVariable<C>,
-    pub pc_start: Felt<C::F>,
-    pub preprocessed_sorted_idxs: Vec<usize>,
-    pub prep_domains: Vec<TwoAdicMultiplicativeCoset<C::F>>,
-}
+use crate::{DigestVariable, VerifyingKeyVariable};
 
 /// Reference: [p3_challenger::CanObserve].
 pub trait CanObserveVariable<C: Config, V> {
