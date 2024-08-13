@@ -1,6 +1,7 @@
 //! Copied from [`sp1_recursion_program`].
 
 use challenger::{CanObserveVariable, DuplexChallengerVariable, FeltChallenger};
+use p3_matrix::dense::RowMajorMatrix;
 use sp1_recursion_compiler::{
     config::InnerConfig,
     ir::{Config, Ext},
@@ -53,8 +54,8 @@ pub trait BabyBearFriConfig:
     >,
 >
 {
-    type ValMmcs: Mmcs<BabyBear>;
-    // type RowMajorProverData: Clone;
+    type ValMmcs: Mmcs<BabyBear, ProverData<RowMajorMatrix<BabyBear>> = Self::RowMajorProverData>;
+    type RowMajorProverData: Clone;
     type FriChallenger: CanObserve<<Self::ValMmcs as Mmcs<BabyBear>>::Commitment>
         + CanSample<EF>
         + GrindingChallenger<Witness = BabyBear>
@@ -72,6 +73,10 @@ pub trait BabyBearFriConfigVariable: BabyBearFriConfig {
 impl BabyBearFriConfig for BabyBearPoseidon2 {
     type ValMmcs = sp1_core::utils::baby_bear_poseidon2::ValMmcs;
     type FriChallenger = <Self as StarkGenericConfig>::Challenger;
+    type RowMajorProverData =
+        <sp1_core::utils::baby_bear_poseidon2::ValMmcs as Mmcs<BabyBear>>::ProverData<
+            RowMajorMatrix<BabyBear>,
+        >;
 
     fn fri_config(&self) -> &FriConfig<FriMmcs<Self>> {
         self.pcs().fri_config()
@@ -87,6 +92,9 @@ impl BabyBearFriConfigVariable for BabyBearPoseidon2 {
 impl BabyBearFriConfig for BabyBearPoseidon2Outer {
     type ValMmcs = OuterValMmcs;
     type FriChallenger = <Self as StarkGenericConfig>::Challenger;
+
+    type RowMajorProverData =
+        <OuterValMmcs as Mmcs<BabyBear>>::ProverData<RowMajorMatrix<BabyBear>>;
 
     fn fri_config(&self) -> &FriConfig<FriMmcs<Self>> {
         self.pcs().fri_config()

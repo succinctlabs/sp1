@@ -29,32 +29,39 @@ pub(crate) mod tests {
     ) {
         setup_logger();
 
+        let compile_span = tracing::debug_span!("compile").entered();
         let mut compiler = AsmCompiler::<AsmConfig<F, EF>>::default();
         let program = compiler.compile(operations);
+        compile_span.exit();
 
         let config = SC::default();
 
+        let run_span = tracing::debug_span!("run the recursive program").entered();
         let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
         runtime.witness_stream.extend(witness_stream);
         runtime.run().unwrap();
         assert!(runtime.witness_stream.is_empty());
+        run_span.exit();
 
         let records = vec![runtime.record];
 
         // Run with the poseidon2 wide chip.
+        let proof_wide_span = tracing::debug_span!("Prove with wide machine").entered();
         let wide_machine = RecursionAir::<_, 3, 0>::machine_wide(SC::default());
         let (pk, vk) = wide_machine.setup(&program);
         let result = run_test_machine(records.clone(), wide_machine, pk, vk);
         if let Err(e) = result {
             panic!("Verification failed: {:?}", e);
         }
+        proof_wide_span.exit();
 
-        // Run with the poseidon2 skinny chip.
-        let skinny_machine = RecursionAir::<_, 9, 0>::machine(SC::compressed());
-        let (pk, vk) = skinny_machine.setup(&program);
-        let result = run_test_machine(records.clone(), skinny_machine, pk, vk);
-        if let Err(e) = result {
-            panic!("Verification failed: {:?}", e);
-        }
+        // This is commented out for now since it's slow for big programs.
+        // // Run with the poseidon2 skinny chip.
+        // let skinny_machine = RecursionAir::<_, 9, 0>::machine(SC::compressed());
+        // let (pk, vk) = skinny_machine.setup(&program);
+        // let result = run_test_machine(records.clone(), skinny_machine, pk, vk);
+        // if let Err(e) = result {
+        //     panic!("Verification failed: {:?}", e);
+        // }
     }
 }

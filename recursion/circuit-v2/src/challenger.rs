@@ -12,7 +12,11 @@ use crate::{DigestVariable, VerifyingKeyVariable};
 pub trait CanObserveVariable<C: Config, V> {
     fn observe(&mut self, builder: &mut Builder<C>, value: V);
 
-    fn observe_slice(&mut self, builder: &mut Builder<C>, values: impl IntoIterator<Item = V>);
+    fn observe_slice(&mut self, builder: &mut Builder<C>, values: impl IntoIterator<Item = V>) {
+        for value in values {
+            self.observe(builder, value);
+        }
+    }
 }
 
 pub trait CanSampleVariable<C: Config, V> {
@@ -94,7 +98,7 @@ impl<C: Config> DuplexChallengerVariable<C> {
         self.output_buffer.extend_from_slice(&self.sponge_state);
     }
 
-    pub fn observe(&mut self, builder: &mut Builder<C>, value: Felt<C::F>) {
+    pub fn observe_felt(&mut self, builder: &mut Builder<C>, value: Felt<C::F>) {
         self.output_buffer.clear();
 
         self.input_buffer.push(value);
@@ -106,7 +110,7 @@ impl<C: Config> DuplexChallengerVariable<C> {
 
     pub fn observe_commitment(&mut self, builder: &mut Builder<C>, commitment: DigestVariable<C>) {
         for element in commitment {
-            self.observe(builder, element);
+            self.observe_felt(builder, element);
         }
     }
 
@@ -131,7 +135,7 @@ impl<C: Config> DuplexChallengerVariable<C> {
 
 impl<C: Config> CanObserveVariable<C, Felt<C::F>> for DuplexChallengerVariable<C> {
     fn observe(&mut self, builder: &mut Builder<C>, value: Felt<C::F>) {
-        DuplexChallengerVariable::observe(self, builder, value);
+        DuplexChallengerVariable::observe_felt(self, builder, value);
     }
 
     fn observe_slice(
@@ -140,7 +144,7 @@ impl<C: Config> CanObserveVariable<C, Felt<C::F>> for DuplexChallengerVariable<C
         values: impl IntoIterator<Item = Felt<C::F>>,
     ) {
         for value in values {
-            self.observe(builder, value);
+            self.observe_felt(builder, value);
         }
     }
 }
@@ -161,28 +165,12 @@ impl<C: Config> CanObserveVariable<C, DigestVariable<C>> for DuplexChallengerVar
     fn observe(&mut self, builder: &mut Builder<C>, commitment: DigestVariable<C>) {
         DuplexChallengerVariable::observe_commitment(self, builder, commitment);
     }
-
-    fn observe_slice(
-        &mut self,
-        _builder: &mut Builder<C>,
-        _values: impl IntoIterator<Item = DigestVariable<C>>,
-    ) {
-        todo!()
-    }
 }
 
 impl<C: Config> CanObserveVariable<C, VerifyingKeyVariable<C>> for DuplexChallengerVariable<C> {
     fn observe(&mut self, builder: &mut Builder<C>, value: VerifyingKeyVariable<C>) {
         self.observe_commitment(builder, value.commitment);
-        self.observe(builder, value.pc_start)
-    }
-
-    fn observe_slice(
-        &mut self,
-        _builder: &mut Builder<C>,
-        _values: impl IntoIterator<Item = VerifyingKeyVariable<C>>,
-    ) {
-        todo!()
+        self.observe_felt(builder, value.pc_start)
     }
 }
 
@@ -201,7 +189,7 @@ impl<C: Config> FeltChallenger<C> for DuplexChallengerVariable<C> {
         nb_bits: usize,
         witness: Felt<<C as Config>::F>,
     ) {
-        self.observe(builder, witness);
+        self.observe_felt(builder, witness);
         let element_bits = self.sample_bits(builder, nb_bits);
         for bit in element_bits {
             builder.assert_felt_eq(bit, C::F::zero());
@@ -255,10 +243,10 @@ pub(crate) mod tests {
         let one: Felt<_> = builder.eval(F::one());
         let two: Felt<_> = builder.eval(F::two());
         // builder.halt();
-        challenger.observe(&mut builder, one);
-        challenger.observe(&mut builder, two);
-        challenger.observe(&mut builder, two);
-        challenger.observe(&mut builder, two);
+        challenger.observe_felt(&mut builder, one);
+        challenger.observe_felt(&mut builder, two);
+        challenger.observe_felt(&mut builder, two);
+        challenger.observe_felt(&mut builder, two);
         let element = challenger.sample(&mut builder);
         let element_ef = challenger.sample_ext(&mut builder);
 

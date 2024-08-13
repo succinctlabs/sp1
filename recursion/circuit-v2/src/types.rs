@@ -1,9 +1,13 @@
 use hashbrown::HashMap;
+use p3_baby_bear::BabyBear;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_matrix::Dimensions;
-use sp1_recursion_compiler::ir::{Config, Ext, Felt};
+use sp1_core::{stark::StarkVerifyingKey, utils::BabyBearPoseidon2};
+use sp1_recursion_compiler::ir::{Builder, Config, Ext, Felt};
 
 use sp1_recursion_core_v2::DIGEST_SIZE;
+
+use crate::challenger::CanObserveVariable;
 
 pub type DigestVariable<C> = [Felt<<C as Config>::F>; DIGEST_SIZE];
 
@@ -67,4 +71,35 @@ pub struct TwoAdicPcsMatsVariable<C: Config> {
     pub domain: TwoAdicMultiplicativeCoset<C::F>,
     pub points: Vec<Ext<C::F, C::EF>>,
     pub values: Vec<Vec<Ext<C::F, C::EF>>>,
+}
+
+impl<C: Config> VerifyingKeyVariable<C> {
+    pub fn from_constant_key_babybear(
+        builder: &mut Builder<C>,
+        vk: &StarkVerifyingKey<BabyBearPoseidon2>,
+    ) -> Self
+    where
+        C: Config<F = BabyBear>,
+    {
+        let commitment_array: [_; DIGEST_SIZE] = vk.commit.into();
+        let commitment = commitment_array.map(|x| builder.eval(x));
+        let pc_start = builder.eval(vk.pc_start);
+
+        Self {
+            commitment,
+            pc_start,
+            chip_information: vk.chip_information.clone(),
+            chip_ordering: vk.chip_ordering.clone(),
+        }
+    }
+
+    pub fn observe_into<Challenger>(&self, builder: &mut Builder<C>, challenger: &mut Challenger)
+    where
+        Challenger: CanObserveVariable<C, Felt<C::F>> + CanObserveVariable<C, DigestVariable<C>>,
+    {
+        // Observe the commitment.
+        challenger.observe(builder, self.commitment);
+        // Observe the pc_start.
+        challenger.observe(builder, self.pc_start);
+    }
 }

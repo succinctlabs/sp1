@@ -18,6 +18,7 @@ use sp1_core::stark::StarkMachine;
 use sp1_core::stark::Val;
 
 use sp1_core::stark::StarkVerifyingKey;
+use sp1_recursion_compiler::circuit::CircuitV2Builder;
 use sp1_recursion_compiler::ir::{Builder, Config, Ext};
 use sp1_recursion_compiler::prelude::Felt;
 
@@ -96,8 +97,6 @@ where
     ) where
         A: MachineAir<Val<SC>> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
     {
-        builder.cycle_tracker("stage-c-verify-shard-setup");
-
         let chips = machine
             .shard_chips_ordered(&proof.chip_ordering)
             .collect::<Vec<_>>();
@@ -230,16 +229,15 @@ where
             domains_points_and_opens: quotient_domains_points_and_opens,
         };
         let rounds = vec![prep_round, main_round, perm_round, quotient_round];
-        // builder.cycle_tracker("stage-c-verify-shard-setup");
 
         // Verify the pcs proof
-        builder.cycle_tracker("stage-d-verify-pcs");
+        builder.cycle_tracker_v2_enter("stage-d-verify-pcs".to_string());
         let config = machine.config().fri_config();
         verify_two_adic_pcs::<C, SC>(builder, config, opening_proof, challenger, rounds);
-        builder.cycle_tracker("stage-d-verify-pcs");
+        builder.cycle_tracker_v2_exit();
 
         // Verify the constrtaint evaluations.
-        builder.cycle_tracker("stage-e-verify-constraints");
+        builder.cycle_tracker_v2_enter("stage-e-verify-constraints".to_string());
         for (chip, trace_domain, qc_domains, values) in izip!(
             chips.iter(),
             trace_domains,
@@ -261,62 +259,7 @@ where
                 public_values,
             );
         }
-        builder.cycle_tracker("stage-e-verify-constraints");
-
-        // // let num_shard_chips_enabled: Var<_> = builder.eval(C::N::zero());
-        // // for (i, chip) in machine.chips().iter().enumerate() {
-        // //     tracing::debug!("verifying constraints for chip: {}", chip.name());
-        // //     let index = proof.sorted_idxs[i];
-        // //     builder
-        // //         .if_ne(index, C::N::from_canonical_usize(EMPTY))
-        // //         .then(|builder| {
-        // //             let values = builder.get(&opened_values.chips, index);
-        // //             let trace_domain = builder.get(&trace_domains, index);
-        // //             let quotient_domain: TwoAdicMultiplicativeCosetVariable<_> =
-        // //                 builder.get(&quotient_domains, index);
-
-        // //             // Check that the quotient data matches the chip's data.
-        // //             let log_quotient_degree = chip.log_quotient_degree();
-
-        // //             let quotient_size = 1 << log_quotient_degree;
-        // //             let chip_quotient_data = builder.get(&proof.quotient_data, index);
-        // //             builder.assert_usize_eq(
-        // //                 chip_quotient_data.log_quotient_degree,
-        // //                 log_quotient_degree,
-        // //             );
-        // //             builder.assert_usize_eq(chip_quotient_data.quotient_size, quotient_size);
-
-        // //             // Get the domains from the chip itself.
-        // //             let qc_domains =
-        // //                 quotient_domain.split_domains_const(builder, log_quotient_degree);
-
-        // //             // Verify the constraints.
-        // //             stacker::maybe_grow(16 * 1024 * 1024, 16 * 1024 * 1024, || {
-        // //                 Self::verify_constraints(
-        // //                     builder,
-        // //                     chip,
-        // //                     &values,
-        // //                     proof.public_values.clone(),
-        // //                     trace_domain,
-        // //                     qc_domains,
-        // //                     zeta,
-        // //                     alpha,
-        // //                     &permutation_challenges,
-        // //                 );
-        //             });
-
-        //             // Increment the number of shard chips that are enabled.
-        //             builder.assign(
-        //                 num_shard_chips_enabled,
-        //                 num_shard_chips_enabled + C::N::one(),
-        //             );
-        //         });
-        // }
-
-        // Assert that the number of chips in `opened_values` matches the number of shard chips enabled.
-        // builder.assert_var_eq(num_shard_chips_enabled, num_shard_chips);
-
-        // builder.cycle_tracker("stage-e-verify-constraints");
+        builder.cycle_tracker_v2_exit();
     }
 }
 
@@ -427,7 +370,6 @@ pub(crate) mod tests {
 
         let machine = A::machine(SC::default());
         let (_, vk) = machine.setup(&Program::from(elf));
-        let mut challenger_val = machine.config().challenger();
         let (proof, _, _) = sp1_core::utils::prove::<_, CpuProver<_, _>>(
             Program::from(elf),
             &SP1Stdin::new(),
@@ -435,49 +377,43 @@ pub(crate) mod tests {
             SP1CoreOpts::default(),
         )
         .unwrap();
-        let proofs = proof.shard_proofs;
+        let mut challenger = machine.config().challenger();
+        machine.verify(&vk, &proof, &mut challenger).unwrap();
         println!("Proof generated successfully");
-
-        challenger_val.observe(vk.commit);
-
-        proofs.iter().for_each(|proof| {
-            challenger_val.observe(proof.commitment.main_commit);
-            challenger_val.observe_slice(&proof.public_values[0..machine.num_pv_elts()]);
-        });
-
-        let permutation_challenges = (0..2)
-            .map(|_| challenger_val.sample_ext_element::<EF>())
-            .collect::<Vec<_>>();
 
         // Observe all the commitments.
         let mut builder = Builder::<InnerConfig>::default();
 
         // Add a hash invocation, since the poseidon2 table expects that it's in the first row.
         let mut challenger = DuplexChallengerVariable::new(&mut builder);
-
-        let preprocessed_commit_val: [F; DIGEST_SIZE] = vk.commit.into();
-        let preprocessed_commit = builder.constant(preprocessed_commit_val);
-        challenger.observe_commitment(&mut builder, preprocessed_commit);
+        let vk = VerifyingKeyVariable::from_constant_key_babybear(&mut builder, &vk);
+        vk.observe_into(&mut builder, &mut challenger);
 
         let mut witness_stream = VecDeque::<Witness<C>>::new();
-        for proof in proofs {
-            witness_stream.extend(Witnessable::<C>::write(&proof));
-            let proof = proof.read(&mut builder);
+        let proofs = proof
+            .shard_proofs
+            .into_iter()
+            .map(|proof| {
+                witness_stream.extend(Witnessable::<C>::write(&proof));
+                proof.read(&mut builder)
+            })
+            .collect::<Vec<_>>();
+        // Observe all the commitments, and put the proofs into the witness stream.
+        for proof in proofs.iter() {
             let ShardCommitmentVariable { main_commit, .. } = proof.commitment;
-            challenger.observe_commitment(&mut builder, main_commit);
+            challenger.observe(&mut builder, main_commit);
             let pv_slice = &proof.public_values[..machine.num_pv_elts()];
             challenger.observe_slice(&mut builder, pv_slice.iter().cloned());
         }
-
-        // Sample the permutation challenges.
-        let permutation_challenges_var = (0..2)
-            .map(|_| challenger.sample_ext(&mut builder))
-            .collect::<Vec<_>>();
-
-        for i in 0..2 {
-            builder.assert_ext_eq(
-                permutation_challenges_var[i],
-                permutation_challenges[i].cons(),
+        // Verify the first proof.
+        for proof in proofs.into_iter() {
+            let mut challenger = challenger.copy(&mut builder);
+            StarkVerifier::<C, SC>::verify_shard::<A>(
+                &mut builder,
+                &vk,
+                &machine,
+                &mut challenger,
+                &proof,
             );
         }
 
