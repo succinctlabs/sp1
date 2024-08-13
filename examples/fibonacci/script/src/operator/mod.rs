@@ -15,7 +15,8 @@ use sp1_prover::SP1CoreProof;
 use std::borrow::Borrow;
 use steps::{
     construct_sp1_core_proof_impl, operator_absorb_commits_impl,
-    operator_prepare_compress_inputs_impl, operator_split_into_checkpoints_impl,
+    operator_prepare_compress_input_chunks_impl, operator_prepare_compress_inputs_impl,
+    operator_split_into_checkpoints_impl,
 };
 use utils::{read_bin_file_to_vec, ChallengerState};
 
@@ -122,4 +123,22 @@ pub fn operator_prepare_compress_inputs(
         .borrow();
 
     *o_last_proof_public_values = bincode::serialize(last_public_values).unwrap();
+}
+
+pub fn operator_prepare_compress_input_chunks(
+    compressed_shard_proofs: &Vec<Vec<u8>>,
+    o_red_layout: &mut Vec<Vec<u8>>,
+) {
+    let compressed_shard_proofs_obj = compressed_shard_proofs
+        .iter()
+        .map(|proof| bincode::deserialize(proof).unwrap())
+        .collect();
+
+    let layouts =
+        operator_prepare_compress_input_chunks_impl(compressed_shard_proofs_obj, 2).unwrap();
+
+    *o_red_layout = layouts
+        .into_iter()
+        .map(|layout| bincode::serialize(&layout).unwrap())
+        .collect();
 }

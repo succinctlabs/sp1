@@ -1,4 +1,5 @@
 use crate::common;
+use crate::common::memory_layouts::SerializableReduceLayout;
 use crate::common::types::{
     ChallengerType, CheckpointType, CommitmentType, PublicValueStreamType, PublicValuesType,
     RecordType,
@@ -14,8 +15,8 @@ use sp1_core::{
     utils::{BabyBearPoseidon2, SP1CoreProverError},
 };
 use sp1_prover::{
-    SP1CoreProof, SP1CoreProofData, SP1DeferredMemoryLayout, SP1ProofWithMetadata,
-    SP1RecursionMemoryLayout,
+    ReduceProgramType, SP1CoreProof, SP1CoreProofData, SP1DeferredMemoryLayout,
+    SP1ProofWithMetadata, SP1RecursionMemoryLayout,
 };
 use sp1_recursion_core::stark::RecursionAir;
 use sp1_sdk::{SP1Prover, SP1PublicValues, SP1Stdin, SP1VerifyingKey};
@@ -191,4 +192,33 @@ pub fn operator_prepare_compress_inputs_impl<'a>(
     );
 
     Ok((core_inputs, deferred_inputs))
+}
+
+pub fn operator_prepare_compress_input_chunks_impl(
+    compressed_shard_proofs: Vec<(ShardProof<BabyBearPoseidon2>, ReduceProgramType)>,
+    batch_size: usize,
+) -> Result<Vec<SerializableReduceLayout>> {
+    tracing::debug!(
+        "Recursive proof layer size: {}",
+        compressed_shard_proofs.len()
+    );
+    let is_complete = compressed_shard_proofs.len() <= batch_size;
+
+    let batched_compressed_proofs = compressed_shard_proofs
+        .chunks(batch_size)
+        .map(|chunk| chunk.to_vec())
+        .collect::<Vec<_>>();
+
+    let result = batched_compressed_proofs
+        .into_iter()
+        .map(|chunk| {
+            let (shard_proofs, kinds): (Vec<_>, Vec<_>) = chunk.into_iter().unzip();
+            SerializableReduceLayout {
+                shard_proofs,
+                kinds,
+                is_complete,
+            }
+        })
+        .collect::<Vec<SerializableReduceLayout>>();
+    Ok(result)
 }

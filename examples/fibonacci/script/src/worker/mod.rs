@@ -79,6 +79,7 @@ pub fn worker_compress_proofs(
                 bincode::deserialize(last_proof_public_values.unwrap()).unwrap();
             worker_compress_proofs_for_deferred(args_obj, layout, last_public_values).unwrap()
         }
+        LayoutType::Reduce => panic!("Reduce layout is not supported"),
     };
     *o_proof = bincode::serialize(&compressed_shard_proof).unwrap();
 }

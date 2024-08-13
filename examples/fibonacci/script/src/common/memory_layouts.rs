@@ -1,8 +1,9 @@
-use super::types::{DeferredLayout, RecursionLayout};
+use super::types::{DeferredLayout, RecursionLayout, ReduceLayout};
 use crate::operator::utils::ChallengerState;
 use p3_baby_bear::BabyBear;
 use serde::{Deserialize, Serialize};
 use sp1_core::{air::Word, stark::ShardProof, utils::BabyBearPoseidon2};
+use sp1_prover::ReduceProgramType;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SerializableRecursionLayout {
@@ -59,6 +60,23 @@ impl SerializableDeferredLayout {
             end_execution_shard: layout.end_execution_shard,
             init_addr_bits: layout.init_addr_bits,
             finalize_addr_bits: layout.finalize_addr_bits,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SerializableReduceLayout {
+    pub shard_proofs: Vec<ShardProof<BabyBearPoseidon2>>,
+    pub is_complete: bool,
+    pub kinds: Vec<ReduceProgramType>,
+}
+
+impl SerializableReduceLayout {
+    pub fn from_layout(mut layout: ReduceLayout) -> Self {
+        Self {
+            shard_proofs: layout.shard_proofs.drain(..).collect(),
+            is_complete: layout.is_complete,
+            kinds: layout.kinds.drain(..).collect(),
         }
     }
 }
