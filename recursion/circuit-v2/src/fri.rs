@@ -340,8 +340,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::challenger::tests::run_test_recursion;
     use crate::challenger::DuplexChallengerVariable;
+    use crate::utils::tests::run_test_recursion;
     use crate::{
         BatchOpeningVariable, DigestVariable, FriCommitPhaseProofStepVariable, FriProofVariable,
         FriQueryProofVariable, TwoAdicPcsMatsVariable, TwoAdicPcsProofVariable,

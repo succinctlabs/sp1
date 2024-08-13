@@ -327,6 +327,7 @@ pub(crate) mod tests {
     use crate::challenger::CanObserveVariable;
     use crate::challenger::DuplexChallengerVariable;
     use p3_challenger::{CanObserve, FieldChallenger};
+
     use sp1_core::io::SP1Stdin;
     use sp1_core::runtime::Program;
     use sp1_core::stark::CpuProver;
@@ -344,7 +345,7 @@ pub(crate) mod tests {
     use sp1_recursion_core::runtime::DIGEST_SIZE;
 
     use super::*;
-    use crate::challenger::tests::run_test_recursion;
+    use crate::utils::tests::run_test_recursion;
     use crate::witness::*;
 
     type SC = BabyBearPoseidon2;
@@ -357,7 +358,7 @@ pub(crate) mod tests {
     fn test_permutation_challenges() {
         // Generate a dummy proof.
         sp1_core::utils::setup_logger();
-        let elf = include_bytes!("../../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
+        let elf = FIBONACCI_ELF;
 
         let machine = A::machine(SC::default());
         let (_, vk) = machine.setup(&Program::from(elf));
@@ -419,5 +420,67 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn test_verify_shard() {}
+    fn test_verify_shard() {
+        // Generate a dummy proof.
+        sp1_core::utils::setup_logger();
+        let elf = FIBONACCI_ELF;
+
+        let machine = A::machine(SC::default());
+        let (_, vk) = machine.setup(&Program::from(elf));
+        let mut challenger_val = machine.config().challenger();
+        let (proof, _, _) = sp1_core::utils::prove::<_, CpuProver<_, _>>(
+            Program::from(elf),
+            &SP1Stdin::new(),
+            SC::default(),
+            SP1CoreOpts::default(),
+        )
+        .unwrap();
+        let proofs = proof.shard_proofs;
+        println!("Proof generated successfully");
+
+        challenger_val.observe(vk.commit);
+
+        proofs.iter().for_each(|proof| {
+            challenger_val.observe(proof.commitment.main_commit);
+            challenger_val.observe_slice(&proof.public_values[0..machine.num_pv_elts()]);
+        });
+
+        let permutation_challenges = (0..2)
+            .map(|_| challenger_val.sample_ext_element::<EF>())
+            .collect::<Vec<_>>();
+
+        // Observe all the commitments.
+        let mut builder = Builder::<InnerConfig>::default();
+
+        // Add a hash invocation, since the poseidon2 table expects that it's in the first row.
+        let mut challenger = DuplexChallengerVariable::new(&mut builder);
+
+        let preprocessed_commit_val: [F; DIGEST_SIZE] = vk.commit.into();
+        let preprocessed_commit = builder.constant(preprocessed_commit_val);
+        challenger.observe_commitment(&mut builder, preprocessed_commit);
+
+        let mut witness_stream = VecDeque::<Witness<C>>::new();
+        for proof in proofs {
+            witness_stream.extend(Witnessable::<C>::write(&proof));
+            let proof = proof.read(&mut builder);
+            let ShardCommitmentVariable { main_commit, .. } = proof.commitment;
+            challenger.observe_commitment(&mut builder, main_commit);
+            let pv_slice = &proof.public_values[..machine.num_pv_elts()];
+            challenger.observe_slice(&mut builder, pv_slice.iter().cloned());
+        }
+
+        // Sample the permutation challenges.
+        let permutation_challenges_var = (0..2)
+            .map(|_| challenger.sample_ext(&mut builder))
+            .collect::<Vec<_>>();
+
+        for i in 0..2 {
+            builder.assert_ext_eq(
+                permutation_challenges_var[i],
+                permutation_challenges[i].cons(),
+            );
+        }
+
+        run_test_recursion(builder.operations, witness_stream);
+    }
 }

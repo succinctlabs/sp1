@@ -14,6 +14,7 @@ pub mod constraints;
 pub mod domain;
 pub mod fri;
 pub mod stark;
+pub(crate) mod utils;
 pub mod witness;
 
 pub use types::*;
