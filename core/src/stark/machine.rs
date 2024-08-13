@@ -422,7 +422,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                 &records,
                 InteractionKind::all_kinds(),
             );
-            // panic!("Cumulative sum is not zero");
+            panic!("Cumulative sum is not zero");
         }
     }
 }
