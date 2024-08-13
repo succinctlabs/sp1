@@ -991,21 +991,21 @@ pub mod tests {
 
         tracing::info!("wrap bn254");
         let wrapped_bn254_proof = prover.wrap_bn254(shrink_proof, opts)?;
-        let bytes = bincode::serialize(&wrapped_bn254_proof).unwrap();
+        let bytes = bincode::serialize(&wrapped_bn254_proof)?;
 
         // Save the proof.
-        let mut file = File::create("proof-with-pis.bin").unwrap();
-        file.write_all(bytes.as_slice()).unwrap();
+        let mut file = File::create("proof-with-pis.bin")?;
+        file.write_all(bytes.as_slice())?;
 
         // Load the proof.
-        let mut file = File::open("proof-with-pis.bin").unwrap();
+        let mut file = File::open("proof-with-pis.bin")?;
         let mut bytes = Vec::new();
-        file.read_to_end(&mut bytes).unwrap();
+        file.read_to_end(&mut bytes)?;
 
-        let wrapped_bn254_proof = bincode::deserialize(&bytes).unwrap();
+        let wrapped_bn254_proof = bincode::deserialize(&bytes)?;
 
         tracing::info!("verify wrap bn254");
-        prover.verify_wrap_bn254(&wrapped_bn254_proof, &vk).unwrap();
+        prover.verify_wrap_bn254(&wrapped_bn254_proof, &vk)?;
 
         if test_kind == Test::Wrap {
             return Ok(());
