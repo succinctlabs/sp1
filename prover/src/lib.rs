@@ -608,7 +608,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                 // Generate the proof.
                                 let proof = tracing::debug_span!("open").in_scope(|| {
                                     self.compress_prover
-                                        .open(pk, data, &mut challenger)
+                                        .open(pk, data, &mut challenger, &[])
                                         .unwrap()
                                 });
 

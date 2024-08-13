@@ -1,8 +1,10 @@
+use hashbrown::HashMap;
 use p3_air::Air;
 use p3_commit::LagrangeSelectors;
 use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
 use p3_field::TwoAdicField;
+use sp1_core::air::InteractionScope;
 use sp1_core::air::MachineAir;
 use sp1_core::stark::AirOpenedValues;
 use sp1_core::stark::PROOF_MAX_NUM_PVS;
@@ -63,12 +65,24 @@ where
             folder_pv.push(builder.get(&public_values, i));
         }
 
+        let mut perms = HashMap::new();
+        perms.insert(InteractionScope::Global, perm_opening.view());
+        perms.insert(InteractionScope::Local, perm_opening.view());
+
+        let mut perm_challenges = HashMap::new();
+        perm_challenges.insert(InteractionScope::Global, permutation_challenges);
+        perm_challenges.insert(InteractionScope::Local, permutation_challenges);
+
+        let mut cumulative_sums = HashMap::new();
+        cumulative_sums.insert(InteractionScope::Global, opening.cumulative_sum);
+        cumulative_sums.insert(InteractionScope::Local, opening.cumulative_sum);
+
         let mut folder = RecursiveVerifierConstraintFolder::<C> {
             preprocessed: opening.preprocessed.view(),
             main: opening.main.view(),
-            perm: perm_opening.view(),
-            perm_challenges: permutation_challenges,
-            cumulative_sum: opening.cumulative_sum,
+            perms,
+            perm_challenges,
+            cumulative_sums,
             public_values: &folder_pv,
             is_first_row: selectors.is_first_row,
             is_last_row: selectors.is_last_row,
@@ -218,7 +232,8 @@ mod tests {
         } = proof;
 
         let ShardCommitment {
-            permutation_commit,
+            global_permutation_commit,
+            local_permutation_commit,
             quotient_commit,
             ..
         } = commitment;
@@ -230,7 +245,7 @@ mod tests {
             .map(|_| challenger.sample_ext_element::<SC::Challenge>())
             .collect::<Vec<_>>();
 
-        challenger.observe(permutation_commit.clone());
+        challenger.observe(global_permutation_commit.clone());
 
         let alpha = challenger.sample_ext_element::<SC::Challenge>();
 

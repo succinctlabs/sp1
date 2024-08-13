@@ -70,7 +70,8 @@ where
 
         let ShardCommitment {
             main_commit,
-            permutation_commit,
+            global_permutation_commit,
+            local_permutation_commit,
             quotient_commit,
         } = commitment;
 
@@ -78,7 +79,7 @@ where
             .map(|_| challenger.sample_ext(builder))
             .collect::<Vec<_>>();
 
-        challenger.observe_commitment(builder, *permutation_commit);
+        challenger.observe_commitment(builder, *global_permutation_commit);
 
         let alpha = challenger.sample_ext(builder);
 
@@ -196,7 +197,7 @@ where
             mats: main_mats,
         };
         let perm_round = TwoAdicPcsRoundVariable {
-            batch_commit: *permutation_commit,
+            batch_commit: *global_permutation_commit,
             mats: perm_mats,
         };
         let quotient_round = TwoAdicPcsRoundVariable {

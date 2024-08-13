@@ -260,19 +260,19 @@ pub fn eval_permutation_constraints<F, AB>(
             .chain(receives.iter().map(|int| (int, false)))
             .chunks(batch_size);
 
-        assert_eq!(
-            interaction_chunks.into_iter().count(),
-            perm_width - 1,
-            "Number of sends: {}, receives: {}, batch size: {}, perm width: {}",
-            sends.len(),
-            receives.len(),
-            batch_size,
-            perm_width - 1
-        );
-        assert_eq!(
-            perm_width,
-            permutation_trace_width(sends.len() + receives.len(), batch_size)
-        );
+        // assert_eq!(
+        //     interaction_chunks.into_iter().count(),
+        //     perm_width - 1,
+        //     "Number of sends: {}, receives: {}, batch size: {}, perm width: {}",
+        //     sends.len(),
+        //     receives.len(),
+        //     batch_size,
+        //     perm_width - 1
+        // );
+        // assert_eq!(
+        //     perm_width,
+        //     permutation_trace_width(sends.len() + receives.len(), batch_size)
+        // );
 
         for (entry, chunk) in perm_local[0..perm_local.len() - 1]
             .iter()

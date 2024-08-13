@@ -101,18 +101,19 @@ impl Witnessable<C> for ShardCommitment<OuterDigest> {
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let main_commit = self.main_commit.read(builder);
-        let permutation_commit = self.permutation_commit.read(builder);
+        let global_permutation_commit = self.global_permutation_commit.read(builder);
         let quotient_commit = self.quotient_commit.read(builder);
         ShardCommitment {
             main_commit,
-            permutation_commit,
+            global_permutation_commit,
+            local_permutation_commit: global_permutation_commit,
             quotient_commit,
         }
     }
 
     fn write(&self, witness: &mut Witness<C>) {
         self.main_commit.write(witness);
-        self.permutation_commit.write(witness);
+        self.global_permutation_commit.write(witness);
         self.quotient_commit.write(witness);
     }
 }
@@ -138,9 +139,9 @@ impl Witnessable<C> for ChipOpenedValues<OuterChallenge> {
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let preprocessed = self.preprocessed.read(builder);
         let main = self.main.read(builder);
-        let permutation = self.permutation.read(builder);
+        let permutation = self.global_permutation.read(builder);
         let quotient = self.quotient.read(builder);
-        let cumulative_sum = self.cumulative_sum.read(builder);
+        let cumulative_sum = self.global_cumulative_sum.read(builder);
         let log_degree = self.log_degree;
         ChipOpenedValuesVariable {
             preprocessed,
@@ -155,9 +156,9 @@ impl Witnessable<C> for ChipOpenedValues<OuterChallenge> {
     fn write(&self, witness: &mut Witness<C>) {
         self.preprocessed.write(witness);
         self.main.write(witness);
-        self.permutation.write(witness);
+        self.global_permutation.write(witness);
         self.quotient.write(witness);
-        self.cumulative_sum.write(witness);
+        self.global_cumulative_sum.write(witness);
     }
 }
 impl VectorWitnessable<C> for ChipOpenedValues<OuterChallenge> {}
@@ -292,11 +293,12 @@ impl Witnessable<C> for ShardProof<BabyBearPoseidon2Outer> {
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let main_commit: OuterDigest = self.commitment.main_commit.into();
-        let permutation_commit: OuterDigest = self.commitment.permutation_commit.into();
+        let permutation_commit: OuterDigest = self.commitment.global_permutation_commit.into();
         let quotient_commit: OuterDigest = self.commitment.quotient_commit.into();
         let commitment = ShardCommitment {
             main_commit: main_commit.read(builder),
-            permutation_commit: permutation_commit.read(builder),
+            global_permutation_commit: permutation_commit.read(builder),
+            local_permutation_commit: permutation_commit.read(builder),
             quotient_commit: quotient_commit.read(builder),
         };
         let opened_values = self.opened_values.read(builder);
@@ -314,7 +316,7 @@ impl Witnessable<C> for ShardProof<BabyBearPoseidon2Outer> {
 
     fn write(&self, witness: &mut Witness<C>) {
         let main_commit: OuterDigest = self.commitment.main_commit.into();
-        let permutation_commit: OuterDigest = self.commitment.permutation_commit.into();
+        let permutation_commit: OuterDigest = self.commitment.global_permutation_commit.into();
         let quotient_commit: OuterDigest = self.commitment.quotient_commit.into();
         main_commit.write(witness);
         permutation_commit.write(witness);

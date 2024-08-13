@@ -11,21 +11,22 @@ categories = { workspace = true }
 
 [dependencies]
 p3-air = { workspace = true }
-p3-field = { workspace = true }
+p3-bn254-fr = { workspace = true }
+p3-baby-bear = { workspace = true }
 p3-commit = { workspace = true }
+p3-field = { workspace = true }
 p3-fri = { workspace = true }
 p3-matrix = { workspace = true }
 p3-util = { workspace = true }
-sp1-recursion-core = { workspace = true }
 sp1-core = { workspace = true }
-itertools = "0.13.0"
-serde = { version = "1.0.204", features = ["derive"] }
 sp1-recursion-derive = { workspace = true }
 sp1-recursion-compiler = { workspace = true }
 sp1-recursion-program = { workspace = true }
-p3-bn254-fr = { workspace = true }
-p3-baby-bear = { workspace = true }
+sp1-recursion-core = { workspace = true }
 bincode = "1.3.3"
+hashbrown = { version = "0.14.5" }
+itertools = "0.13.0"
+serde = { version = "1.0.204", features = ["derive"] }
 
 [dev-dependencies]
 ff = { version = "0.13", features = ["derive", "derive_bits"] }
