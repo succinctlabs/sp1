@@ -7,16 +7,22 @@ use crate::{
 use anyhow::Result;
 use sp1_prover::SP1CoreProof;
 use sp1_sdk::{PlonkBn254Proof, SP1Proof, SP1ProofWithPublicValues};
+use tracing::info_span;
 
 pub fn mpc_prove_plonk(args: ProveArgs) -> Result<(Vec<u8>, Vec<u8>, Vec<u8>)> {
+    let span = info_span!("kroma_core");
+    let _guard = span.entered();
+
     let (core_proof, compress_proof) = mpc_prove_compress(args.clone()).unwrap();
     let serialize_args = bincode::serialize(&args).unwrap();
 
     let mut shrink_proof = Vec::new();
-    operator_prove_shrink(&serialize_args, &compress_proof, &mut shrink_proof);
+    info_span!("o_shrink_proof")
+        .in_scope(|| operator_prove_shrink(&serialize_args, &compress_proof, &mut shrink_proof));
 
     let mut plonk_proof = Vec::new();
-    operator_prove_plonk(&serialize_args, &shrink_proof, &mut plonk_proof);
+    info_span!("o_plonk_proof")
+        .in_scope(|| operator_prove_plonk(&serialize_args, &shrink_proof, &mut plonk_proof));
 
     Ok((core_proof, compress_proof, plonk_proof))
 }

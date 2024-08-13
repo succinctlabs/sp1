@@ -21,6 +21,7 @@ use sp1_prover::{
 use sp1_recursion_core::stark::RecursionAir;
 use sp1_sdk::install::try_install_plonk_bn254_artifacts;
 use sp1_sdk::{PlonkBn254Proof, SP1Prover, SP1PublicValues, SP1Stdin, SP1VerifyingKey};
+use tracing::info_span;
 
 fn operator_split_into_checkpoints(
     runtime: &mut Runtime,
@@ -68,7 +69,7 @@ pub fn operator_split_into_checkpoints_impl(
 )> {
     let (client, stdin, pk, _) = common::init_client(args.clone());
     let (program, opts, context) = common::bootstrap(&client, &pk).unwrap();
-    tracing::info!("Program size = {}", program.instructions.len());
+    tracing::info!("program size = {}", program.instructions.len());
 
     // Execute the program.
     let mut runtime = common::build_runtime(program, &stdin, opts, context);
@@ -248,12 +249,14 @@ pub fn operator_prove_plonk_impl(
     let outer_proof = sp1_prover.wrap_bn254(shrink_proof, opts).unwrap();
 
     let plonk_bn254_aritfacts = if sp1_prover::build::sp1_dev_mode() {
-        sp1_prover::build::try_build_plonk_bn254_artifacts_dev(
-            &sp1_prover.wrap_vk,
-            &outer_proof.proof,
-        )
+        info_span!("build_plonk_artifacts").in_scope(|| {
+            sp1_prover::build::try_build_plonk_bn254_artifacts_dev(
+                &sp1_prover.wrap_vk,
+                &outer_proof.proof,
+            )
+        })
     } else {
-        try_install_plonk_bn254_artifacts()
+        info_span!("install_plonk_artifacts").in_scope(|| try_install_plonk_bn254_artifacts())
     };
     Ok(sp1_prover.wrap_plonk_bn254(outer_proof, &plonk_bn254_aritfacts))
 }

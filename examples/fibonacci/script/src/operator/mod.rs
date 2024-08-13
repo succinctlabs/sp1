@@ -55,6 +55,13 @@ pub fn operator_absorb_commits(
         .iter()
         .map(|records| bincode::deserialize(records).unwrap())
         .collect();
+    tracing::info!(
+        "collected commitments: {:?}",
+        commitments_vec
+            .iter()
+            .map(|commitments| commitments.len())
+            .sum::<usize>()
+    );
 
     let challenger = operator_absorb_commits_impl(args_obj, commitments_vec, records_vec).unwrap();
     *o_challenger_state = ChallengerState::from(&challenger).to_bytes();
@@ -103,6 +110,11 @@ pub fn operator_prepare_compress_inputs(
         &core_proof_obj,
     )
     .unwrap();
+    tracing::info!(
+        "core_inputs: {}, deferred_inputs: {}",
+        core_inputs.len(),
+        deferred_inputs.len()
+    );
 
     *o_rec_layouts = core_inputs
         .into_iter()
@@ -136,6 +148,7 @@ pub fn operator_prepare_compress_input_chunks(
 
     let layouts =
         operator_prepare_compress_input_chunks_impl(compressed_shard_proofs_obj, 2).unwrap();
+    tracing::info!("{:?} input chunk were generated", layouts.len());
 
     *o_red_layout = layouts
         .into_iter()
