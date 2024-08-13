@@ -45,8 +45,8 @@ use sp1_recursion_core::{
     runtime::{ExecutionRecord, RecursionProgram, Runtime as RecursionRuntime},
     stark::{config::BabyBearPoseidon2Outer, RecursionAir},
 };
-pub use sp1_recursion_gnark_ffi::plonk_bn254::PlonkBn254Proof;
 use sp1_recursion_gnark_ffi::plonk_bn254::PlonkBn254Prover;
+pub use sp1_recursion_gnark_ffi::proof::PlonkBn254Proof;
 use sp1_recursion_program::hints::Hintable;
 pub use sp1_recursion_program::machine::{
     ReduceProgramType, SP1CompressMemoryLayout, SP1DeferredMemoryLayout, SP1RecursionMemoryLayout,

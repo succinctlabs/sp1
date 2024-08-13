@@ -1,15 +1,18 @@
 all:
-	make build-plonk-bn254
-	make release-plonk-bn254
+	make build-circuits
+	make release-circuits
 
-build-plonk-bn254:
+build-circuits:
 	rm -rf build && \
 	mkdir -p build && \
 	RUSTFLAGS='-C target-cpu=native' \
 	cargo run -p sp1-prover --release --bin build_plonk_bn254 --features native-gnark -- \
+	--build-dir=./build && \
+	RUSTFLAGS='-C target-cpu=native' \
+	cargo run -p sp1-prover --release --bin build_groth16_bn254 --features native-gnark -- \
 	--build-dir=./build
 
-release-plonk-bn254:
+release-circuits:
 	@read -p "Release version (ex. v1.0.0-testnet)? " version; \
 	bash release.sh $$version
 

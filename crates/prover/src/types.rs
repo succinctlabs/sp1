@@ -12,7 +12,7 @@ use sp1_core_machine::{
 };
 use sp1_primitives::poseidon2_hash;
 use sp1_recursion_core::{air::RecursionPublicValues, stark::config::BabyBearPoseidon2Outer};
-use sp1_recursion_gnark_ffi::plonk_bn254::PlonkBn254Proof;
+use sp1_recursion_gnark_ffi::proof::PlonkBn254Proof;
 use sp1_recursion_program::machine::{
     SP1CompressMemoryLayout, SP1DeferredMemoryLayout, SP1RecursionMemoryLayout,
 };

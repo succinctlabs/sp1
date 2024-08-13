@@ -14,10 +14,14 @@ import (
 var srsFile string = "srs.bin"
 var srsLagrangeFile string = "srs_lagrange.bin"
 var constraintsJsonFile string = "constraints.json"
-var verifierContractPath string = "PlonkVerifier.sol"
-var circuitPath string = "circuit.bin"
-var vkPath string = "vk.bin"
-var pkPath string = "pk.bin"
+var plonkVerifierContractPath string = "PlonkVerifier.sol"
+var groth16VerifierContractPath string = "Groth16Verifier.sol"
+var plonkCircuitPath string = "plonk_circuit.bin"
+var groth16CircuitPath string = "groth16_circuit.bin"
+var plonkVkPath string = "plonk_vk.bin"
+var groth16VkPath string = "groth16_vk.bin"
+var plonkPkPath string = "plonk_pk.bin"
+var groth16PkPath string = "groth16_pk.bin"
 
 type Circuit struct {
 	VkeyHash             frontend.Variable `gnark:",public"`
