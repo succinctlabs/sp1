@@ -11,12 +11,12 @@ use p3_baby_bear::BabyBear;
 use sp1_core::air::{PublicValues, Word};
 use sp1_core::stark::{MachineProver, StarkGenericConfig};
 use sp1_core::{stark::ShardProof, utils::BabyBearPoseidon2};
-use sp1_prover::SP1CoreProof;
+use sp1_prover::{SP1CoreProof, SP1ReduceProof};
 use std::borrow::Borrow;
 use steps::{
     construct_sp1_core_proof_impl, operator_absorb_commits_impl,
     operator_prepare_compress_input_chunks_impl, operator_prepare_compress_inputs_impl,
-    operator_split_into_checkpoints_impl,
+    operator_prove_plonk_impl, operator_prove_shrink_impl, operator_split_into_checkpoints_impl,
 };
 use utils::{read_bin_file_to_vec, ChallengerState};
 
@@ -141,4 +141,28 @@ pub fn operator_prepare_compress_input_chunks(
         .into_iter()
         .map(|layout| bincode::serialize(&layout).unwrap())
         .collect();
+}
+
+pub fn operator_prove_shrink(
+    args: &Vec<u8>,
+    compressed_proof: &[u8],
+    o_shrink_proof: &mut Vec<u8>,
+) {
+    let args_obj = ProveArgs::from_slice(args.as_slice());
+    let compressed_proof_obj: SP1ReduceProof<BabyBearPoseidon2> =
+        bincode::deserialize(compressed_proof).unwrap();
+
+    let shrink_proof = operator_prove_shrink_impl(args_obj, compressed_proof_obj).unwrap();
+
+    *o_shrink_proof = bincode::serialize(&shrink_proof).unwrap();
+}
+
+pub fn operator_prove_plonk(args: &Vec<u8>, shrink_proof: &[u8], o_plonk_proof: &mut Vec<u8>) {
+    let args_obj = ProveArgs::from_slice(args.as_slice());
+    let shrink_proof_obj: SP1ReduceProof<BabyBearPoseidon2> =
+        bincode::deserialize(shrink_proof).unwrap();
+
+    let plonk_proof = operator_prove_plonk_impl(args_obj, shrink_proof_obj).unwrap();
+
+    *o_plonk_proof = bincode::serialize(&plonk_proof).unwrap();
 }

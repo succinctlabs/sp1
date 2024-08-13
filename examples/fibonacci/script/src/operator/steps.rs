@@ -16,10 +16,11 @@ use sp1_core::{
 };
 use sp1_prover::{
     ReduceProgramType, SP1CoreProof, SP1CoreProofData, SP1DeferredMemoryLayout,
-    SP1ProofWithMetadata, SP1RecursionMemoryLayout,
+    SP1ProofWithMetadata, SP1RecursionMemoryLayout, SP1ReduceProof,
 };
 use sp1_recursion_core::stark::RecursionAir;
-use sp1_sdk::{SP1Prover, SP1PublicValues, SP1Stdin, SP1VerifyingKey};
+use sp1_sdk::install::try_install_plonk_bn254_artifacts;
+use sp1_sdk::{PlonkBn254Proof, SP1Prover, SP1PublicValues, SP1Stdin, SP1VerifyingKey};
 
 fn operator_split_into_checkpoints(
     runtime: &mut Runtime,
@@ -221,4 +222,38 @@ pub fn operator_prepare_compress_input_chunks_impl(
         })
         .collect::<Vec<SerializableReduceLayout>>();
     Ok(result)
+}
+
+pub fn operator_prove_shrink_impl(
+    args: ProveArgs,
+    compress_proof: SP1ReduceProof<BabyBearPoseidon2>,
+) -> Result<SP1ReduceProof<BabyBearPoseidon2>> {
+    let (client, _, pk, _) = common::init_client(args);
+    let (_, opts, _) = common::bootstrap(&client, &pk).unwrap();
+    let sp1_prover = client.prover.sp1_prover();
+
+    sp1_prover
+        .shrink(compress_proof, opts)
+        .map_err(|e| anyhow::anyhow!(e))
+}
+
+pub fn operator_prove_plonk_impl(
+    args: ProveArgs,
+    shrink_proof: SP1ReduceProof<BabyBearPoseidon2>,
+) -> Result<PlonkBn254Proof> {
+    let (client, _, pk, _) = common::init_client(args);
+    let (_, opts, _) = common::bootstrap(&client, &pk).unwrap();
+    let sp1_prover = client.prover.sp1_prover();
+
+    let outer_proof = sp1_prover.wrap_bn254(shrink_proof, opts).unwrap();
+
+    let plonk_bn254_aritfacts = if sp1_prover::build::sp1_dev_mode() {
+        sp1_prover::build::try_build_plonk_bn254_artifacts_dev(
+            &sp1_prover.wrap_vk,
+            &outer_proof.proof,
+        )
+    } else {
+        try_install_plonk_bn254_artifacts()
+    };
+    Ok(sp1_prover.wrap_plonk_bn254(outer_proof, &plonk_bn254_aritfacts))
 }

@@ -19,7 +19,7 @@ fn main() {
     // Parse the command line arguments.
     let args = ProveArgs::parse();
 
-    let (core_proof, compress_proof) =
-        scenario::compress_prove::mpc_prove_compress(args.clone()).unwrap();
-    scenario::compress_prove::scenario_end(args, &core_proof, &compress_proof)
+    let (core_proof, _, plonk_proof) =
+        scenario::plonk_prove::mpc_prove_plonk(args.clone()).unwrap();
+    scenario::plonk_prove::scenario_end(args, &core_proof, &plonk_proof)
 }

@@ -1,12 +1,13 @@
 use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
 use p3_challenger::DuplexChallenger;
+use p3_field::extension::BinomialExtensionField;
 use p3_poseidon2::{Poseidon2, Poseidon2ExternalMatrixGeneral};
 use p3_symmetric::Hash;
 use sp1_core::{
     air::PublicValues, runtime::ExecutionRecord, stark::RiscvAir, utils::BabyBearPoseidon2,
 };
 use sp1_prover::{SP1DeferredMemoryLayout, SP1RecursionMemoryLayout, SP1ReduceMemoryLayout};
-use sp1_recursion_core::stark::RecursionAir;
+use sp1_recursion_core::{runtime::Runtime, stark::RecursionAir};
 use std::fs::File;
 
 pub type PublicValueStreamType = Vec<u8>;
@@ -19,6 +20,8 @@ pub type ChallengerType = DuplexChallenger<
     16,
     8,
 >;
+pub type ChallengeType =
+    Runtime<BabyBear, BinomialExtensionField<BabyBear, 4>, DiffusionMatrixBabyBear>;
 
 pub type CommitmentType = Hash<BabyBear, BabyBear, 8>;
 pub type RecordType = ExecutionRecord;
