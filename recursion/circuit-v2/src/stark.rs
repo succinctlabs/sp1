@@ -1,4 +1,5 @@
 use hashbrown::HashMap;
+use itertools::izip;
 use itertools::Itertools;
 use p3_commit::Mmcs;
 use p3_matrix::dense::RowMajorMatrix;
@@ -262,110 +263,6 @@ where
             })
             .collect::<Vec<_>>();
 
-        // let num_shard_chips = opened_values.chips.len();
-        // let mut trace_domains = Vec::new();
-        // let mut quotient_domains = Vec::new();
-
-        // let mut main_mats: Vec<TwoAdicPcsMatsVariable<_>> = Vec::new();
-        // let mut perm_mats: Vec<TwoAdicPcsMatsVariable<_>> = Vec::new();
-
-        // let mut quotient_mats = Vec::new();
-
-        // let qc_points = vec![zeta];
-
-        // // Iterate through machine.chips filtered for preprocessed chips.
-        // let prep_mats: Vec<TwoAdicPcsMatsVariable<_>> = {
-        //     let mut ms = zip(
-        //         &vk.preprocessed_sorted_idxs,
-        //         zip(&vk.prep_domains, machine.preprocessed_chip_ids()).map(
-        //             |(&domain, chip_id): (&TwoAdicMultiplicativeCoset<_>, usize)| {
-        //                 // Get index within all sorted chips.
-        //                 let chip_sorted_id = proof.sorted_idxs[chip_id];
-        //                 // Get opening from proof.
-        //                 let opening = &opened_values.chips[chip_sorted_id];
-
-        //                 let domain_var: TwoAdicMultiplicativeCosetVariable<_> =
-        //                     builder.constant(domain);
-
-        //                 let zeta_next = domain_var.next_point(builder, zeta);
-        //                 let trace_points = vec![zeta, zeta_next];
-
-        //                 let prep_values = vec![
-        //                     opening.preprocessed.local.clone(),
-        //                     opening.preprocessed.next.clone(),
-        //                 ];
-
-        //                 TwoAdicPcsMatsVariable::<C> {
-        //                     domain,
-        //                     values: prep_values,
-        //                     points: trace_points,
-        //                 }
-        //             },
-        //         ),
-        //     )
-        //     .collect::<Vec<_>>();
-        //     // Invert the `vk.preprocessed_sorted_idxs` permutation.
-        //     ms.sort_unstable_by_key(|(x, _)| *x);
-        //     ms.into_iter().map(|(_, y)| y).collect::<Vec<_>>()
-        // };
-
-        // (0..num_shard_chips).for_each(|i| {
-        //     let opening = &opened_values.chips[i];
-        //     let log_quotient_degree = proof.quotient_data[i].log_quotient_degree;
-        //     let domain = new_coset(builder, opening.log_degree);
-
-        //     let log_quotient_size = opening.log_degree + log_quotient_degree;
-        //     let quotient_domain =
-        //         domain.create_disjoint_domain(builder, Usize::Const(log_quotient_size), None);
-
-        //     let mut trace_points = Vec::new();
-        //     let zeta_next = domain.next_point(builder, zeta);
-        //     trace_points.push(zeta);
-        //     trace_points.push(zeta_next);
-
-        //     let main_values = vec![opening.main.local.clone(), opening.main.next.clone()];
-        //     let main_mat = TwoAdicPcsMatsVariable::<C> {
-        //         domain: TwoAdicMultiplicativeCoset {
-        //             log_n: domain.log_n,
-        //             shift: domain.shift,
-        //         },
-        //         values: main_values,
-        //         points: trace_points.clone(),
-        //     };
-
-        //     let perm_values = vec![
-        //         opening.permutation.local.clone(),
-        //         opening.permutation.next.clone(),
-        //     ];
-        //     let perm_mat = TwoAdicPcsMatsVariable::<C> {
-        //         domain: TwoAdicMultiplicativeCoset {
-        //             log_n: domain.clone().log_n,
-        //             shift: domain.clone().shift,
-        //         },
-        //         values: perm_values,
-        //         points: trace_points,
-        //     };
-
-        //     let qc_mats = quotient_domain
-        //         .split_domains_const(builder, log_quotient_degree)
-        //         .into_iter()
-        //         .enumerate()
-        //         .map(|(j, qc_dom)| TwoAdicPcsMatsVariable::<C> {
-        //             domain: TwoAdicMultiplicativeCoset {
-        //                 log_n: qc_dom.clone().log_n,
-        //                 shift: qc_dom.clone().shift,
-        //             },
-        //             values: vec![opening.quotient[j].clone()],
-        //             points: qc_points.clone(),
-        //         });
-
-        //     trace_domains.push(domain.clone());
-        //     quotient_domains.push(quotient_domain.clone());
-        //     main_mats.push(main_mat);
-        //     perm_mats.push(perm_mat);
-        //     quotient_mats.extend(qc_mats);
-        // });
-
         // Create the pcs rounds.
         let prep_commit = vk.commitment;
         let prep_round = TwoAdicPcsRoundVariable {
@@ -393,28 +290,32 @@ where
         verify_two_adic_pcs::<C, SC>(builder, config, opening_proof, challenger, rounds);
         builder.cycle_tracker("stage-d-verify-pcs");
 
+        // Verify the constrtaint evaluations.
+        // builder.cycle_tracker("stage-e-verify-constraints");
+        for (chip, trace_domain, qc_domains, values) in izip!(
+            chips.iter(),
+            trace_domains,
+            quotient_chunk_domains,
+            opened_values.chips.iter(),
+        ) {
+            // Verify the shape of the opening arguments matches the expected values.
+            // Self::verify_opening_shape(builder, chip, values);
+            // Verify the constraint evaluation.
+            // Self::verify_constraints(
+            //     chip,
+            //     values,
+            //     trace_domain,
+            //     qc_domains,
+            //     zeta,
+            //     alpha,
+            //     &permutation_challenges,
+            //     public_values,
+            // );
+        }
+        builder.cycle_tracker("stage-e-verify-constraints");
+
         // // builder.cycle_tracker("stage-e-verify-constraints");
 
-        // // for chip in machine.chips() {
-        // //     if chip.name() == *sorted_chip {
-        // //         let values = &opened_values.chips[i];
-        // //         let trace_domain = &trace_domains[i];
-        // //         let quotient_domain = &quotient_domains[i];
-        // //         let qc_domains =
-        // //             quotient_domain.split_domains_const(builder, chip.log_quotient_degree());
-        // //         Self::verify_constraints(
-        // //             builder,
-        // //             chip,
-        // //             values,
-        // //             proof.public_values.clone(),
-        // //             trace_domain.clone(),
-        // //             qc_domains,
-        // //             zeta,
-        // //             alpha,
-        // //             &permutation_challenges,
-        // //         );
-        // //     }
-        // // }
         // // let num_shard_chips_enabled: Var<_> = builder.eval(C::N::zero());
         // // for (i, chip) in machine.chips().iter().enumerate() {
         // //     tracing::debug!("verifying constraints for chip: {}", chip.name());
