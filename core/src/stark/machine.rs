@@ -157,7 +157,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
     ///
     /// Given a program, this function generates the proving and verifying keys. The keys correspond
     /// to the program code and other preprocessed colunms such as lookup tables.
-    #[instrument("setup machine", level = "info", skip_all)]
+    #[instrument("setup machine", level = "debug", skip_all)]
     pub fn setup(&self, program: &A::Program) -> (StarkProvingKey<SC>, StarkVerifyingKey<SC>) {
         let mut named_preprocessed_traces = tracing::debug_span!("generate preprocessed traces")
             .in_scope(|| {
