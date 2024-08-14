@@ -857,10 +857,14 @@ impl<'a> Runtime<'a> {
                 }
 
                 // `hint_slice` is allowed in unconstrained mode since it is used to write the hint.
-                // Other syscalls are not allowed because they can lead to non-deterministic behavior.
+                // Other syscalls are not allowed because they can lead to non-deterministic behavior,
+                // especially since many syscalls modify memory in place, which is not permitted in
+                // unconstrained mode. This will result in non-zero memory interactions when generating a proof.
+
                 if self.unconstrained
                     && (syscall != SyscallCode::EXIT_UNCONSTRAINED && syscall != SyscallCode::WRITE)
                 {
+                    println!("Invalid syscall usage in unconstrained mode: {:?}", syscall);
                     return Err(ExecutionError::InvalidSyscallUsage(syscall_id as u64));
                 }
 
