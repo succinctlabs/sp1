@@ -855,6 +855,7 @@ impl<'a> Runtime<'a> {
                         .and_modify(|c| *c += 1)
                         .or_insert(1);
                 }
+
                 if self.unconstrained && syscall != SyscallCode::EXIT_UNCONSTRAINED {
                     return Err(ExecutionError::InvalidSyscallUsage(syscall_id as u64));
                 }
