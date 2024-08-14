@@ -21,7 +21,6 @@ use sp1_recursion_compiler::ir::{Builder, Config, Ext, ExtConst, FromConstant};
 use sp1_recursion_compiler::prelude::Felt;
 
 use crate::BabyBearFriConfigVariable;
-use crate::DigestVariable;
 use crate::TwoAdicPcsMatsVariable;
 use crate::TwoAdicPcsProofVariable;
 
@@ -35,20 +34,20 @@ use crate::VerifyingKeyVariable;
 
 /// Reference: [sp1_core::stark::ShardProof]
 #[derive(Clone)]
-pub struct ShardProofVariable<C: Config> {
-    pub commitment: ShardCommitmentVariable<C>,
+pub struct ShardProofVariable<C: Config, SC: BabyBearFriConfigVariable<C = C>> {
+    pub commitment: ShardCommitmentVariable<C, SC>,
     pub opened_values: ShardOpenedValuesVariable<C>,
-    pub opening_proof: TwoAdicPcsProofVariable<C>,
+    pub opening_proof: TwoAdicPcsProofVariable<C, SC>,
     pub chip_ordering: HashMap<String, usize>,
     pub public_values: Vec<Felt<C::F>>,
 }
 
 /// Reference: [sp1_core::stark::ShardCommitment]
 #[derive(Debug, Clone)]
-pub struct ShardCommitmentVariable<C: Config> {
-    pub main_commit: DigestVariable<C>,
-    pub permutation_commit: DigestVariable<C>,
-    pub quotient_commit: DigestVariable<C>,
+pub struct ShardCommitmentVariable<C: Config, SC: BabyBearFriConfigVariable<C = C>> {
+    pub main_commit: SC::Digest,
+    pub permutation_commit: SC::Digest,
+    pub quotient_commit: SC::Digest,
 }
 
 /// Reference: [sp1_core::stark::ShardOpenedValues]
@@ -140,10 +139,10 @@ where
 
     pub fn verify_shard<A>(
         builder: &mut Builder<C>,
-        vk: &VerifyingKeyVariable<C>,
+        vk: &VerifyingKeyVariable<C, SC>,
         machine: &StarkMachine<SC, A>,
         challenger: &mut SC::FriChallengerVariable,
-        proof: &ShardProofVariable<C>,
+        proof: &ShardProofVariable<C, SC>,
     ) where
         A: MachineAir<Val<SC>> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
     {
@@ -187,11 +186,11 @@ where
             .map(|_| challenger.sample_ext(builder))
             .collect::<Vec<_>>();
 
-        challenger.observe_slice(builder, *permutation_commit);
+        SC::observe_digest(builder, challenger, permutation_commit.clone());
 
         let _alpha = challenger.sample_ext(builder);
 
-        challenger.observe_slice(builder, *quotient_commit);
+        SC::observe_digest(builder, challenger, quotient_commit.clone());
 
         let zeta = challenger.sample_ext(builder);
 
@@ -367,21 +366,21 @@ where
         // });
 
         // Create the pcs rounds.
-        let prep_commit = vk.commitment;
+        let prep_commit = vk.commitment.clone();
         let prep_round = TwoAdicPcsRoundVariable {
             batch_commit: prep_commit,
             domains_points_and_opens: preprocessed_domains_points_and_opens,
         };
         let main_round = TwoAdicPcsRoundVariable {
-            batch_commit: *main_commit,
+            batch_commit: main_commit.clone(),
             domains_points_and_opens: main_domains_points_and_opens,
         };
         let perm_round = TwoAdicPcsRoundVariable {
-            batch_commit: *permutation_commit,
+            batch_commit: permutation_commit.clone(),
             domains_points_and_opens: perm_domains_points_and_opens,
         };
         let quotient_round = TwoAdicPcsRoundVariable {
-            batch_commit: *quotient_commit,
+            batch_commit: quotient_commit.clone(),
             domains_points_and_opens: quotient_domains_points_and_opens,
         };
         let rounds = vec![prep_round, main_round, perm_round, quotient_round];

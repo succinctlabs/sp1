@@ -32,24 +32,24 @@ pub use types::*;
 pub type DigestVariable<C> = [Felt<<C as Config>::F>; DIGEST_SIZE];
 
 #[derive(Clone)]
-pub struct FriProofVariable<C: Config> {
-    pub commit_phase_commits: Vec<DigestVariable<C>>,
-    pub query_proofs: Vec<FriQueryProofVariable<C>>,
+pub struct FriProofVariable<C: Config, SC: BabyBearFriConfigVariable<C = C>> {
+    pub commit_phase_commits: Vec<SC::Digest>,
+    pub query_proofs: Vec<FriQueryProofVariable<C, SC>>,
     pub final_poly: Ext<C::F, C::EF>,
     pub pow_witness: Felt<C::F>,
 }
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/proof.rs#L32
 #[derive(Clone)]
-pub struct FriCommitPhaseProofStepVariable<C: Config> {
+pub struct FriCommitPhaseProofStepVariable<C: Config, SC: BabyBearFriConfigVariable<C = C>> {
     pub sibling_value: Ext<C::F, C::EF>,
-    pub opening_proof: Vec<DigestVariable<C>>,
+    pub opening_proof: Vec<SC::Digest>,
 }
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/proof.rs#L23
 #[derive(Clone)]
-pub struct FriQueryProofVariable<C: Config> {
-    pub commit_phase_openings: Vec<FriCommitPhaseProofStepVariable<C>>,
+pub struct FriQueryProofVariable<C: Config, SC: BabyBearFriConfigVariable<C = C>> {
+    pub commit_phase_openings: Vec<FriCommitPhaseProofStepVariable<C, SC>>,
 }
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/verifier.rs#L22
@@ -60,20 +60,20 @@ pub struct FriChallenges<C: Config, Bit> {
 }
 
 #[derive(Clone)]
-pub struct TwoAdicPcsProofVariable<C: Config> {
-    pub fri_proof: FriProofVariable<C>,
-    pub query_openings: Vec<Vec<BatchOpeningVariable<C>>>,
+pub struct TwoAdicPcsProofVariable<C: Config, SC: BabyBearFriConfigVariable<C = C>> {
+    pub fri_proof: FriProofVariable<C, SC>,
+    pub query_openings: Vec<Vec<BatchOpeningVariable<C, SC>>>,
 }
 
 #[derive(Clone)]
-pub struct BatchOpeningVariable<C: Config> {
+pub struct BatchOpeningVariable<C: Config, SC: BabyBearFriConfigVariable<C = C>> {
     pub opened_values: Vec<Vec<Vec<Felt<C::F>>>>,
-    pub opening_proof: Vec<DigestVariable<C>>,
+    pub opening_proof: Vec<SC::Digest>,
 }
 
 #[derive(Clone)]
-pub struct TwoAdicPcsRoundVariable<C: Config> {
-    pub batch_commit: DigestVariable<C>,
+pub struct TwoAdicPcsRoundVariable<C: Config, SC: BabyBearFriConfigVariable<C = C>> {
+    pub batch_commit: SC::Digest,
     pub domains_points_and_opens: Vec<TwoAdicPcsMatsVariable<C>>,
 }
 
@@ -192,6 +192,12 @@ pub trait BabyBearFriConfigVariable: BabyBearFriConfig {
     ) -> Vec<Ext<<Self::C as Config>::F, <Self::C as Config>::EF>>;
 
     fn assert_digest_eq(builder: &mut Builder<Self::C>, a: Self::Digest, b: Self::Digest);
+
+    fn observe_digest(
+        builder: &mut Builder<Self::C>,
+        challenger: &mut Self::FriChallengerVariable,
+        digest: Self::Digest,
+    );
 }
 
 impl BabyBearFriConfig for BabyBearPoseidon2 {
@@ -290,6 +296,14 @@ impl BabyBearFriConfigVariable for BabyBearPoseidon2 {
 
     fn assert_digest_eq(builder: &mut Builder<Self::C>, a: Self::Digest, b: Self::Digest) {
         zip(a, b).for_each(|(e1, e2)| builder.assert_felt_eq(e1, e2));
+    }
+
+    fn observe_digest(
+        builder: &mut Builder<Self::C>,
+        challenger: &mut Self::FriChallengerVariable,
+        digest: Self::Digest,
+    ) {
+        challenger.observe_slice(builder, digest);
     }
 }
 

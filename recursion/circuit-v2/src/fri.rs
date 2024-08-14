@@ -13,22 +13,21 @@ use std::{
 use crate::challenger::CanSampleBitsVariable;
 use crate::challenger::FieldChallengerVariable;
 use crate::{
-    select_chain, BabyBearFriConfigVariable, CanObserveVariable, DigestVariable, Ext,
-    FriChallenges, FriMmcs, FriProofVariable, FriQueryProofVariable, TwoAdicPcsProofVariable,
-    TwoAdicPcsRoundVariable,
+    BabyBearFriConfigVariable, CanObserveVariable, Ext, FriChallenges, FriMmcs, FriProofVariable,
+    FriQueryProofVariable, TwoAdicPcsProofVariable, TwoAdicPcsRoundVariable,
 };
 
 pub fn verify_shape_and_sample_challenges<C: Config, SC: BabyBearFriConfigVariable<C = C>>(
     builder: &mut Builder<C>,
     config: &FriConfig<FriMmcs<SC>>,
-    proof: &FriProofVariable<C>,
+    proof: &FriProofVariable<C, SC>,
     challenger: &mut SC::FriChallengerVariable,
 ) -> FriChallenges<C, SC::Bit> {
     let betas = proof
         .commit_phase_commits
         .iter()
-        .map(|&commitment| {
-            challenger.observe_slice(builder, commitment);
+        .map(|commitment| {
+            SC::observe_digest(builder, challenger, commitment.clone());
             challenger.sample_ext(builder)
         })
         .collect();
@@ -57,9 +56,9 @@ pub fn verify_shape_and_sample_challenges<C: Config, SC: BabyBearFriConfigVariab
 pub fn verify_two_adic_pcs<C: Config, SC: BabyBearFriConfigVariable<C = C>>(
     builder: &mut Builder<C>,
     config: &FriConfig<FriMmcs<SC>>,
-    proof: &TwoAdicPcsProofVariable<C>,
+    proof: &TwoAdicPcsProofVariable<C, SC>,
     challenger: &mut SC::FriChallengerVariable,
-    rounds: Vec<TwoAdicPcsRoundVariable<C>>,
+    rounds: Vec<TwoAdicPcsRoundVariable<C, SC>>,
 ) {
     let alpha = challenger.sample_ext(builder);
 
@@ -150,7 +149,7 @@ pub fn verify_two_adic_pcs<C: Config, SC: BabyBearFriConfigVariable<C = C>>(
 pub fn verify_challenges<C: Config, SC: BabyBearFriConfigVariable<C = C>>(
     builder: &mut Builder<C>,
     config: &FriConfig<FriMmcs<SC>>,
-    proof: &FriProofVariable<C>,
+    proof: &FriProofVariable<C, SC>,
     challenges: &FriChallenges<C, SC::Bit>,
     reduced_openings: Vec<[Ext<C::F, C::EF>; 32]>,
 ) {
@@ -179,7 +178,7 @@ pub fn verify_query<C: Config, SC: BabyBearFriConfigVariable<C = C>>(
     builder: &mut Builder<C>,
     commit_phase_commits: Vec<SC::Digest>,
     index_bits: &[SC::Bit],
-    proof: FriQueryProofVariable<C>,
+    proof: FriQueryProofVariable<C, SC>,
     betas: Vec<Ext<C::F, C::EF>>,
     reduced_openings: [Ext<C::F, C::EF>; 32],
     log_max_height: usize,
@@ -339,7 +338,7 @@ mod tests {
     pub fn const_fri_proof(
         builder: &mut AsmBuilder<F, EF>,
         fri_proof: InnerFriProof,
-    ) -> FriProofVariable<InnerConfig> {
+    ) -> FriProofVariable<InnerConfig, BabyBearPoseidon2> {
         // Set the commit phase commits.
         let commit_phase_commits = fri_proof
             .commit_phase_commits
@@ -390,7 +389,7 @@ mod tests {
     pub fn const_two_adic_pcs_proof(
         builder: &mut Builder<InnerConfig>,
         proof: TwoAdicFriPcsProof<InnerVal, InnerChallenge, InnerValMmcs, InnerChallengeMmcs>,
-    ) -> TwoAdicPcsProofVariable<InnerConfig> {
+    ) -> TwoAdicPcsProofVariable<InnerConfig, BabyBearPoseidon2> {
         let fri_proof = const_fri_proof(builder, proof.fri_proof);
         let query_openings = proof
             .query_openings
@@ -434,7 +433,7 @@ mod tests {
         )>,
     ) -> (
         DigestVariable<InnerConfig>,
-        Vec<TwoAdicPcsRoundVariable<InnerConfig>>,
+        Vec<TwoAdicPcsRoundVariable<InnerConfig, BabyBearPoseidon2>>,
     ) {
         let commit: DigestVariable<InnerConfig> = commit.map(|x| builder.eval(x));
 
