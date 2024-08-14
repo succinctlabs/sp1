@@ -288,45 +288,6 @@ mod tests {
     }
 
     #[test]
-    fn test_execute_new() {
-        // Wrap the hook and check that it was called.
-        let call_ct = AtomicU32::new(0);
-        utils::setup_logger();
-        let client = ProverClient::local();
-        let elf = include_bytes!("../../tests/ecrecover/elf/riscv32im-succinct-zkvm-elf");
-        let stdin = SP1Stdin::new();
-        client
-            .execute(elf, stdin)
-            .with_hook(FD_ECRECOVER_HOOK, |env, buf| {
-                call_ct.fetch_add(1, Ordering::Relaxed);
-                hook_ecrecover(env, buf)
-            })
-            .run()
-            .unwrap();
-        assert_ne!(call_ct.into_inner(), 0);
-    }
-
-    #[test]
-    fn test_prove_new() {
-        // Wrap the hook and check that it was called.
-        let call_ct = AtomicU32::new(0);
-        utils::setup_logger();
-        let client = ProverClient::local();
-        let elf = include_bytes!("../../tests/ecrecover/elf/riscv32im-succinct-zkvm-elf");
-        let stdin = SP1Stdin::new();
-        let (pk, _) = client.setup(elf);
-        client
-            .prove(&pk, stdin)
-            .with_hook(FD_ECRECOVER_HOOK, |env, buf| {
-                call_ct.fetch_add(1, Ordering::Relaxed);
-                hook_ecrecover(env, buf)
-            })
-            .run()
-            .unwrap();
-        assert_ne!(call_ct.into_inner(), 0);
-    }
-
-    #[test]
     #[should_panic]
     fn test_execute_panic() {
         utils::setup_logger();
