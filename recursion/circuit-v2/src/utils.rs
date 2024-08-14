@@ -24,6 +24,9 @@ pub fn commit_recursion_public_values<C: Config>(
 
     // Hash the public values.
     let pv_digest = builder.poseidon2_hash_v2(&pv_elements[0..NUM_PV_ELMS_TO_HASH]);
+    for element in pv_digest {
+        builder.commit_public_value(element);
+    }
 }
 
 #[cfg(test)]
