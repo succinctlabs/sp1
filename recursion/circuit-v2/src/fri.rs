@@ -272,10 +272,10 @@ pub fn verify_batch<C: Config, SC: BabyBearFriConfigVariable<C = C>, const D: us
         .flat_map(|ext| ext.as_slice())
         .cloned()
         .collect::<Vec<_>>();
-    let mut root: [Felt<C::F>; 8] = SC::poseidon2_hash(builder, &felt_slice);
+    let mut root: [SC::HashVal; 8] = SC::poseidon2_hash(builder, &felt_slice);
 
-    zip(index_bits, proof).for_each(|(bit, sibling): (SC::Bit, [Felt<C::F>; 8])| {
-        let pre_root = select_chain(builder, bit, root, sibling);
+    zip(index_bits, proof).for_each(|(bit, sibling): (SC::Bit, [SC::HashVal; 8])| {
+        let pre_root = SC::select_chain_hv(builder, bit, root, sibling);
 
         root = SC::poseidon2_compress(builder, pre_root);
         curr_height_padded >>= 1;
