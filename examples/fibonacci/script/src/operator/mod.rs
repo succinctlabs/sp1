@@ -4,7 +4,7 @@ pub mod utils;
 use crate::common;
 use crate::common::{
     memory_layouts::{SerializableDeferredLayout, SerializableRecursionLayout},
-    types::{CommitmentType, RecordType},
+    types::{CommitmentType, PublicValueStreamType, RecordType},
 };
 use crate::ProveArgs;
 use p3_baby_bear::BabyBear;
@@ -79,10 +79,13 @@ pub fn operator_construct_sp1_core_proof(
         .iter()
         .map(|shard_proofs| bincode::deserialize(shard_proofs).unwrap())
         .collect();
+    let public_values_stream_obj: PublicValueStreamType =
+        bincode::deserialize(public_values_stream).unwrap();
+
     let proof = construct_sp1_core_proof_impl(
         args_obj,
         shard_proofs_vec_obj,
-        public_values_stream.to_vec(),
+        public_values_stream_obj,
         cycles,
     )
     .unwrap();
