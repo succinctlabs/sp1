@@ -13,6 +13,7 @@ use p3_field::TwoAdicField;
 use p3_commit::PolynomialSpace;
 use sp1_core::air::MachineAir;
 use sp1_core::stark::ShardOpenedValues;
+use sp1_core::stark::ShardProof;
 use sp1_core::stark::StarkGenericConfig;
 use sp1_core::stark::StarkMachine;
 use sp1_core::stark::Val;
@@ -413,5 +414,19 @@ pub(crate) mod tests {
         }
 
         run_test_recursion(builder.operations, witness_stream);
+    }
+}
+
+impl<C: Config> ShardProofVariable<C> {
+    pub fn contains_cpu(&self) -> bool {
+        self.chip_ordering.contains_key("CPU")
+    }
+
+    pub fn contains_memory_init(&self) -> bool {
+        self.chip_ordering.contains_key("MemoryInit")
+    }
+
+    pub fn contains_memory_finalize(&self) -> bool {
+        self.chip_ordering.contains_key("MemoryFinalize")
     }
 }

@@ -3,6 +3,7 @@ use std::iter::zip;
 use p3_field::AbstractField;
 use sp1_recursion_compiler::circuit::CircuitV2Builder;
 use sp1_recursion_compiler::prelude::{Builder, Config, Ext, Felt};
+use sp1_recursion_core_v2::air::ChallengerPublicValues;
 use sp1_recursion_core_v2::runtime::{HASH_RATE, PERMUTATION_WIDTH};
 use sp1_recursion_core_v2::NUM_BITS;
 
@@ -130,6 +131,43 @@ impl<C: Config> DuplexChallengerVariable<C> {
         let mut rand_f_bits = builder.num2bits_v2_f(rand_f, NUM_BITS);
         rand_f_bits.truncate(nb_bits);
         rand_f_bits
+    }
+
+    pub fn public_values(&self, builder: &mut Builder<C>) -> ChallengerPublicValues<Felt<C::F>> {
+        assert!(self.input_buffer.len() <= PERMUTATION_WIDTH);
+        assert!(self.output_buffer.len() <= PERMUTATION_WIDTH);
+
+        let sponge_state = self.sponge_state;
+        let num_inputs = builder.eval(C::F::from_canonical_usize(self.input_buffer.len()));
+        let num_outputs = builder.eval(C::F::from_canonical_usize(self.output_buffer.len()));
+
+        let input_buffer: [_; PERMUTATION_WIDTH] = self
+            .input_buffer
+            .iter()
+            .copied()
+            .chain((self.input_buffer.len()..PERMUTATION_WIDTH).map(|_| builder.eval(C::F::zero())))
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap();
+
+        let output_buffer: [_; PERMUTATION_WIDTH] = self
+            .output_buffer
+            .iter()
+            .copied()
+            .chain(
+                (self.output_buffer.len()..PERMUTATION_WIDTH).map(|_| builder.eval(C::F::zero())),
+            )
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap();
+
+        ChallengerPublicValues {
+            sponge_state,
+            num_inputs,
+            input_buffer,
+            num_outputs,
+            output_buffer,
+        }
     }
 }
 
