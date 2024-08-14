@@ -1056,9 +1056,7 @@ impl<'a> Runtime<'a> {
             self.state.clk = 0;
             self.state.channel = 0;
 
-            if self.emit_events {
-                self.bump_record();
-            }
+            self.bump_record();
         }
 
         // If the cycle limit is exceeded, return an error.
