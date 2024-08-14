@@ -38,18 +38,18 @@ pub fn worker_commit_checkpoint_impl(
     // Trace the checkpoint and reconstruct the execution records.
     let (mut records, report) = trace_checkpoint(program.clone(), checkpoint, opts.core_opts);
     // Log some of the `ExecutionReport` information.
-    tracing::info!(
+    tracing::debug!(
         "execution report (totals): total_cycles={}, total_syscall_cycles={}",
         report.total_instruction_count(),
         report.total_syscall_count()
     );
-    tracing::info!("execution report (opcode counts):");
+    tracing::debug!("execution report (opcode counts):");
     for line in ExecutionReport::sorted_table_lines(&report.opcode_counts) {
-        tracing::info!("  {line}");
+        tracing::debug!("  {line}");
     }
-    tracing::info!("execution report (syscall counts):");
+    tracing::debug!("execution report (syscall counts):");
     for line in ExecutionReport::sorted_table_lines(&report.syscall_counts) {
-        tracing::info!("  {line}");
+        tracing::debug!("  {line}");
     }
     reset_seek(checkpoint);
 

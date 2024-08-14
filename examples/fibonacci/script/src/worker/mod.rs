@@ -40,6 +40,7 @@ pub fn worker_commit_checkpoint(
         public_values_obj,
     )
     .unwrap();
+    tracing::info!("{:?} commitments were generated", commitments.len());
 
     *o_commitments = bincode::serialize(&commitments).unwrap();
     *o_records = bincode::serialize(&records).unwrap();
@@ -58,6 +59,8 @@ pub fn worker_prove_checkpoint(
     let records: Vec<RecordType> = bincode::deserialize(records).unwrap();
 
     let shard_proofs = worker_prove_checkpoint_impl(args_obj, challenger, records).unwrap();
+    tracing::info!("{:?} shard proofs were generated", shard_proofs.len());
+
     let result = bincode::serialize(&shard_proofs.as_slice()).unwrap();
     *o_shard_proofs = result;
 }
@@ -73,18 +76,22 @@ pub fn worker_compress_proofs(
     let compressed_shard_proof = match LayoutType::from_usize(layout_type) {
         LayoutType::Recursion => {
             let layout: SerializableRecursionLayout = bincode::deserialize(layout).unwrap();
+            tracing::info!("recursion program proof generation was requested");
             worker_compress_proofs_for_recursion(args_obj, layout).unwrap()
         }
         LayoutType::Deferred => {
             let layout: SerializableDeferredLayout = bincode::deserialize(layout).unwrap();
             let last_public_values =
                 bincode::deserialize(last_proof_public_values.unwrap()).unwrap();
+            tracing::info!("deferred program proof generation was requested");
             worker_compress_proofs_for_deferred(args_obj, layout, last_public_values).unwrap()
         }
         LayoutType::Reduce => {
             let layout: SerializableReduceLayout = bincode::deserialize(layout).unwrap();
+            tracing::info!("reduce program proof generation was requested");
             worker_compress_proofs_for_reduce(args_obj, layout).unwrap()
         }
     };
+
     *o_proof = bincode::serialize(&compressed_shard_proof).unwrap();
 }
