@@ -1,5 +1,7 @@
 use std::io::Write;
 
+use crate::runtime::ExecutionReport;
+
 use super::{Instruction, Runtime};
 
 pub const fn align(addr: u32) -> u32 {
@@ -74,6 +76,8 @@ impl<'a> Runtime<'a> {
                 self.state.global_clk,
                 self.state.pc
             );
+            println!("{}", self.report_single);
+            self.report_single = ExecutionReport::default();
         }
     }
 }

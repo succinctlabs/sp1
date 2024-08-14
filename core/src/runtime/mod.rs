@@ -21,6 +21,8 @@ pub use instruction::*;
 pub use memory::*;
 use nohash_hasher::BuildNoHashHasher;
 pub use opcode::*;
+use p3_maybe_rayon::prelude::ParallelBridge;
+use p3_maybe_rayon::prelude::ParallelIterator;
 pub use program::*;
 pub use record::*;
 pub use register::*;
@@ -32,11 +34,13 @@ pub use utils::*;
 
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::collections::VecDeque;
 use std::fs::File;
 use std::io::BufWriter;
 use std::io::Write;
 use std::sync::Arc;
 
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -123,6 +127,8 @@ pub struct Runtime<'a> {
     /// Memory addresses that were touched in this batch of shards. Used to minimize the size of
     /// checkpoints.
     pub touched_memory: HashSet<u32, BuildNoHashHasher<u32>>,
+
+    pub report_single: ExecutionReport,
 }
 
 #[derive(Error, Debug, Serialize, Deserialize)]
@@ -196,6 +202,7 @@ impl<'a> Runtime<'a> {
             emit_events: true,
             max_syscall_cycles,
             report: ExecutionReport::default(),
+            report_single: ExecutionReport::default(),
             print_report: false,
             subproof_verifier,
             hook_registry,
@@ -630,6 +637,11 @@ impl<'a> Runtime<'a> {
                 .entry(instruction.opcode)
                 .and_modify(|c| *c += 1)
                 .or_insert(1);
+            self.report_single
+                .opcode_counts
+                .entry(instruction.opcode)
+                .and_modify(|c| *c += 1)
+                .or_insert(1);
         }
 
         match instruction.opcode {
@@ -848,6 +860,11 @@ impl<'a> Runtime<'a> {
 
                 if self.print_report && !self.unconstrained {
                     self.report
+                        .syscall_counts
+                        .entry(syscall)
+                        .and_modify(|c| *c += 1)
+                        .or_insert(1);
+                    self.report_single
                         .syscall_counts
                         .entry(syscall)
                         .and_modify(|c| *c += 1)

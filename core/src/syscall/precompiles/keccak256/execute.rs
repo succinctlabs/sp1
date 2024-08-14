@@ -1,4 +1,5 @@
 use p3_keccak_air::{NUM_ROUNDS, RC};
+use tiny_keccak::keccakf;
 
 use super::{KeccakPermuteChip, STATE_NUM_WORDS, STATE_SIZE};
 use crate::{
@@ -42,46 +43,49 @@ impl Syscall for KeccakPermuteChip {
 
         let saved_state = state.clone();
 
-        for i in 0..NUM_ROUNDS {
-            let mut array: [u64; 5 * 5] = [0; 5 * 5];
+        let mut state = state.try_into().unwrap();
+        keccakf(&mut state);
 
-            // Theta
-            for x in 0..5 {
-                for y_count in 0..5 {
-                    let y = y_count * 5;
-                    array[x] ^= state[x + y];
-                }
-            }
+        // for i in 0..NUM_ROUNDS {
+        //     let mut array: [u64; 5 * 5] = [0; 5 * 5];
 
-            for x in 0..5 {
-                for y_count in 0..5 {
-                    let y = y_count * 5;
-                    state[y + x] ^= array[(x + 4) % 5] ^ array[(x + 1) % 5].rotate_left(1);
-                }
-            }
+        //     // Theta
+        //     for x in 0..5 {
+        //         for y_count in 0..5 {
+        //             let y = y_count * 5;
+        //             array[x] ^= state[x + y];
+        //         }
+        //     }
 
-            // Rho and pi
-            let mut last = state[1];
-            for x in 0..24 {
-                array[0] = state[PI[x]];
-                state[PI[x]] = last.rotate_left(RHO[x]);
-                last = array[0];
-            }
+        //     for x in 0..5 {
+        //         for y_count in 0..5 {
+        //             let y = y_count * 5;
+        //             state[y + x] ^= array[(x + 4) % 5] ^ array[(x + 1) % 5].rotate_left(1);
+        //         }
+        //     }
 
-            // Chi
-            for y_step in 0..5 {
-                let y = y_step * 5;
+        //     // Rho and pi
+        //     let mut last = state[1];
+        //     for x in 0..24 {
+        //         array[0] = state[PI[x]];
+        //         state[PI[x]] = last.rotate_left(RHO[x]);
+        //         last = array[0];
+        //     }
 
-                array[..5].copy_from_slice(&state[y..(5 + y)]);
+        //     // Chi
+        //     for y_step in 0..5 {
+        //         let y = y_step * 5;
 
-                for x in 0..5 {
-                    state[y + x] = array[x] ^ ((!array[(x + 1) % 5]) & (array[(x + 2) % 5]));
-                }
-            }
+        //         array[..5].copy_from_slice(&state[y..(5 + y)]);
 
-            // Iota
-            state[0] ^= RC[i];
-        }
+        //         for x in 0..5 {
+        //             state[y + x] = array[x] ^ ((!array[(x + 1) % 5]) & (array[(x + 2) % 5]));
+        //         }
+        //     }
+
+        //     // Iota
+        //     state[0] ^= RC[i];
+        // }
 
         // Increment the clk by 1 before writing because we read from memory at start_clk.
         rt.clk += 1;

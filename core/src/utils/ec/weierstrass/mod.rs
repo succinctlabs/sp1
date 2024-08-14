@@ -134,37 +134,88 @@ impl<E: WeierstrassParameters> AffinePoint<SwCurve<E>> {
     }
 }
 
+pub fn biguint_to_dashu(integer: &BigUint) -> dashu::integer::UBig {
+    dashu::integer::UBig::from_le_bytes(integer.to_bytes_le().as_slice())
+}
+
+pub fn dashu_to_biguint(integer: &dashu::integer::UBig) -> BigUint {
+    BigUint::from_bytes_le(&integer.to_le_bytes())
+}
+
+pub fn dashu_modpow(
+    base: &dashu::integer::UBig,
+    exponent: &dashu::integer::UBig,
+    modulus: &dashu::integer::UBig,
+) -> dashu::integer::UBig {
+    if modulus == &dashu::integer::UBig::from(1u32) {
+        return dashu::integer::UBig::from(0u32);
+    }
+
+    let mut result = dashu::integer::UBig::from(1u32);
+    let mut base = base.clone() % modulus;
+    let mut exp = exponent.clone();
+
+    while exp > dashu::integer::UBig::from(0u32) {
+        if &exp % dashu::integer::UBig::from(1u32) == dashu::integer::UBig::from(1u32) {
+            result = (result * &base) % modulus;
+        }
+        exp >>= 1;
+        base = (&base * &base) % modulus;
+    }
+
+    result
+}
+
 impl<E: WeierstrassParameters> AffinePoint<SwCurve<E>> {
     pub fn sw_add(&self, other: &AffinePoint<SwCurve<E>>) -> AffinePoint<SwCurve<E>> {
         if self.x == other.x && self.y == other.y {
             panic!("Error: Points are the same. Use sw_double instead.");
         }
-        let p = E::BaseField::modulus();
-        let slope_numerator = (&p + &other.y - &self.y) % &p;
-        let slope_denominator = (&p + &other.x - &self.x) % &p;
-        let slope_denom_inverse = slope_denominator.modpow(&(&p - 2u32), &p);
+
+        let p = biguint_to_dashu(&E::BaseField::modulus());
+        let self_x = biguint_to_dashu(&self.x);
+        let self_y = biguint_to_dashu(&self.y);
+        let other_x = biguint_to_dashu(&other.x);
+        let other_y = biguint_to_dashu(&other.y);
+
+        let slope_numerator = (&p + &other_y - &self_y) % &p;
+        let slope_denominator = (&p + &other_x - &self_x) % &p;
+        let slope_denom_inverse = dashu_modpow(
+            &slope_denominator,
+            &(&p - &dashu::integer::UBig::from(2u32)),
+            &p,
+        );
         let slope = (slope_numerator * &slope_denom_inverse) % &p;
 
-        let x_3n = (&slope * &slope + &p + &p - &self.x - &other.x) % &p;
-        let y_3n = (&slope * &(&p + &self.x - &x_3n) + &p - &self.y) % &p;
+        let x_3n = (&slope * &slope + &p + &p - &self_x - &other_x) % &p;
+        let y_3n = (&slope * &(&p + &self_x - &x_3n) + &p - &self_y) % &p;
 
-        AffinePoint::new(x_3n, y_3n)
+        AffinePoint::new(dashu_to_biguint(&x_3n), dashu_to_biguint(&y_3n))
     }
 
     pub fn sw_double(&self) -> AffinePoint<SwCurve<E>> {
-        let p = E::BaseField::modulus();
-        let a = E::a_int();
-        let slope_numerator = (&a + &(&self.x * &self.x) * 3u32) % &p;
+        let p = biguint_to_dashu(&E::BaseField::modulus());
+        let a = biguint_to_dashu(&E::a_int());
 
-        let slope_denominator = (&self.y * 2u32) % &p;
-        let slope_denom_inverse = slope_denominator.modpow(&(&p - 2u32), &p);
+        let self_x = biguint_to_dashu(&self.x);
+        let self_y = biguint_to_dashu(&self.y);
+
+        let slope_numerator = (&a + &(&self_x * &self_x) * 3u32) % &p;
+
+        let slope_denominator = (&self_y * 2u32) % &p;
+        let slope_denom_inverse = dashu_modpow(
+            &slope_denominator,
+            &(&p - &dashu::integer::UBig::from(2u32)),
+            &p,
+        );
+        // let slope_denom_inverse = slope_denominator.modpow(&(&p - 2u32), &p);
         let slope = (slope_numerator * &slope_denom_inverse) % &p;
 
-        let x_3n = (&slope * &slope + &p + &p - &self.x - &self.x) % &p;
+        let x_3n = (&slope * &slope + &p + &p - &self_x - &self_x) % &p;
 
-        let y_3n = (&slope * &(&p + &self.x - &x_3n) + &p - &self.y) % &p;
+        let y_3n = (&slope * &(&p + &self_x - &x_3n) + &p - &self_y) % &p;
 
-        AffinePoint::new(x_3n, y_3n)
+        AffinePoint::new(dashu_to_biguint(&x_3n), dashu_to_biguint(&y_3n))
     }
 }
 
