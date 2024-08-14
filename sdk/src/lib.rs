@@ -270,10 +270,6 @@ impl Default for ProverClient {
 #[cfg(test)]
 mod tests {
 
-    use std::sync::atomic::{AtomicU32, Ordering};
-
-    use sp1_core::runtime::{hook_ecrecover, FD_ECRECOVER_HOOK};
-
     use crate::{utils, ProverClient, SP1Stdin};
 
     #[test]
