@@ -6,7 +6,6 @@ use std::{
 };
 
 use challenger::{CanObserveVariable, DuplexChallengerVariable, FieldChallengerVariable};
-use itertools::WhileSome;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::AbstractField;
 
@@ -129,14 +128,12 @@ pub trait BabyBearFriConfig:
     fn fri_config(&self) -> &FriConfig<FriMmcs<Self>>;
 }
 
-type DigestVariableNew<SC> = [<SC as BabyBearFriConfigVariable>::HashVal; 8];
-
 pub trait BabyBearFriConfigVariable: BabyBearFriConfig {
     // Is this is the best place to put this?
     type C: Config<F = Self::Val, EF = Self::Challenge>;
     type Bit: Clone;
     type HashVal: Clone;
-    const DIGEST_SIZE: usize = 8;
+    type Digest: IntoIterator<Item = Self::HashVal> + Clone;
 
     // If you try to simplify by removing this, rustc will complain about some static lifetime
     // bound not being satisfied at the call site of `select_chain`. Where? Nobody knows.
@@ -149,13 +146,13 @@ pub trait BabyBearFriConfigVariable: BabyBearFriConfig {
     // TODO change these to be more generic (e.g. for Vars)
     fn poseidon2_hash(
         builder: &mut Builder<Self::C>,
-        input: &[Self::HashVal],
-    ) -> [Self::HashVal; DIGEST_SIZE];
+        input: &[Felt<<Self::C as Config>::F>],
+    ) -> Self::Digest;
 
     fn poseidon2_compress(
         builder: &mut Builder<Self::C>,
         input: impl IntoIterator<Item = Self::HashVal>,
-    ) -> [Self::HashVal; DIGEST_SIZE];
+    ) -> Self::Digest;
 
     fn ext2felt(
         builder: &mut Builder<Self::C>,
@@ -193,6 +190,8 @@ pub trait BabyBearFriConfigVariable: BabyBearFriConfig {
         first: impl IntoIterator<Item = Ext<<Self::C as Config>::F, <Self::C as Config>::EF>> + Clone,
         second: impl IntoIterator<Item = Ext<<Self::C as Config>::F, <Self::C as Config>::EF>> + Clone,
     ) -> Vec<Ext<<Self::C as Config>::F, <Self::C as Config>::EF>>;
+
+    fn assert_hv_eq(builder: &mut Builder<Self::C>, a: Self::HashVal, b: Self::HashVal);
 }
 
 impl BabyBearFriConfig for BabyBearPoseidon2 {
@@ -208,19 +207,20 @@ impl BabyBearFriConfigVariable for BabyBearPoseidon2 {
     type C = InnerConfig;
     type Bit = Felt<<Self::C as Config>::F>;
     type HashVal = Felt<<Self::C as Config>::F>;
+    type Digest = [Self::HashVal; 8];
     type FriChallengerVariable = DuplexChallengerVariable<Self::C>;
 
     fn poseidon2_hash(
         builder: &mut Builder<Self::C>,
         input: &[Felt<<Self::C as Config>::F>],
-    ) -> [Felt<<Self::C as Config>::F>; DIGEST_SIZE] {
+    ) -> Self::Digest {
         builder.poseidon2_hash_v2(input)
     }
 
     fn poseidon2_compress(
         builder: &mut Builder<Self::C>,
-        input: impl IntoIterator<Item = Felt<<Self::C as Config>::F>>,
-    ) -> [Felt<<Self::C as Config>::F>; DIGEST_SIZE] {
+        input: impl IntoIterator<Item = Self::HashVal>,
+    ) -> Self::Digest {
         builder.poseidon2_compress_v2(input)
     }
 
@@ -254,12 +254,6 @@ impl BabyBearFriConfigVariable for BabyBearPoseidon2 {
         builder.bits2num_v2_f(bits)
     }
 
-    /// TODO Try to remove this and instead tighten the bounds on `Bit` in the trait.
-    // fn complement(builder: &mut Builder<Self::C>, bit: Self::Bit) -> Self::Bit {
-    //     let one: Self::Bit = builder.constant(AbstractField::one());
-    //     builder.eval(one - bit)
-    // }
-
     fn select_chain_hv(
         builder: &mut Builder<Self::C>,
         should_swap: Self::Bit,
@@ -276,6 +270,10 @@ impl BabyBearFriConfigVariable for BabyBearPoseidon2 {
         second: impl IntoIterator<Item = Ext<<Self::C as Config>::F, <Self::C as Config>::EF>> + Clone,
     ) -> Vec<Ext<<Self::C as Config>::F, <Self::C as Config>::EF>> {
         select_chain(builder, should_swap, first, second)
+    }
+
+    fn assert_hv_eq(builder: &mut Builder<Self::C>, a: Self::HashVal, b: Self::HashVal) {
+        builder.assert_felt_eq(a, b)
     }
 
     // fn select_chain<S>(
