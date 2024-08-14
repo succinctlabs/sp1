@@ -137,6 +137,8 @@ pub enum ExecutionError {
     Breakpoint(),
     #[error("exceeded cycle limit of {0}")]
     ExceededCycleLimit(u64),
+    #[error("syscall called in unconstrained mode")]
+    InvalidSyscallUsage(u64),
     #[error("got unimplemented as opcode")]
     Unimplemented(),
 }
@@ -852,6 +854,9 @@ impl<'a> Runtime<'a> {
                         .entry(syscall)
                         .and_modify(|c| *c += 1)
                         .or_insert(1);
+                }
+                if self.unconstrained && syscall != SyscallCode::EXIT_UNCONSTRAINED {
+                    return Err(ExecutionError::InvalidSyscallUsage(syscall_id as u64));
                 }
 
                 let syscall_impl = self.get_syscall(syscall).cloned();
