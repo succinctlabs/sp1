@@ -49,9 +49,7 @@ fn fp2_mul(
     let rhs_transmuted: [u32; 24] =
         unsafe { transmute::<[u64; 12], [u32; 24]>(rhs.try_into().unwrap()) };
 
-    unsafe {
-        syscall_bls12381_fp2_mulmod(lhs_transmuted.as_mut_ptr(), rhs_transmuted.as_ptr());
-    }
+    syscall_bls12381_fp2_mulmod(lhs_transmuted.as_mut_ptr(), rhs_transmuted.as_ptr());
 
     let result_c0: [u64; 6] =
         unsafe { transmute::<[u32; 12], [u64; 6]>(lhs_transmuted[0..12].try_into().unwrap()) };
