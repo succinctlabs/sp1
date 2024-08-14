@@ -408,7 +408,7 @@ impl<'a> Runtime<'a> {
         let record = self.mw(addr, value, self.shard(), self.timestamp(&position));
 
         // If we're not in unconstrained mode, record the access for the current cycle.
-        if !self.unconstrained && self.emit_events {
+        if !self.unconstrained {
             match position {
                 MemoryAccessPosition::A => {
                     assert!(self.memory_accesses.a.is_none());
@@ -633,9 +633,7 @@ impl<'a> Runtime<'a> {
         let (addr, memory_read_value): (u32, u32);
         let mut memory_store_value: Option<u32> = None;
 
-        if self.emit_events {
-            self.memory_accesses = MemoryAccessRecord::default();
-        }
+        self.memory_accesses = MemoryAccessRecord::default();
 
         let lookup_id = create_alu_lookup_id();
         let syscall_lookup_id = create_alu_lookup_id();
