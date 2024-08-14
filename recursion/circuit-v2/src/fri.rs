@@ -275,9 +275,9 @@ pub fn verify_batch<C: Config, SC: BabyBearFriConfigVariable<C = C>, const D: us
     let mut root: SC::Digest = SC::poseidon2_hash(builder, &felt_slice[..]);
 
     zip(index_bits, proof).for_each(|(bit, sibling): (SC::Bit, SC::Digest)| {
-        let pre_root = SC::select_chain_hv(builder, bit, root.clone(), sibling);
+        let (left, right) = SC::select_chain_hv(builder, bit, root.clone(), sibling);
 
-        root = SC::poseidon2_compress(builder, pre_root);
+        root = SC::poseidon2_compress(builder, left, right);
         curr_height_padded >>= 1;
 
         let next_height = heights_tallest_first
@@ -297,14 +297,11 @@ pub fn verify_batch<C: Config, SC: BabyBearFriConfigVariable<C = C>, const D: us
                 .cloned()
                 .collect::<Vec<_>>();
             let next_height_openings_digest: SC::Digest = SC::poseidon2_hash(builder, &felt_slice);
-            root = SC::poseidon2_compress(
-                builder,
-                root.clone().into_iter().chain(next_height_openings_digest),
-            );
+            root = SC::poseidon2_compress(builder, root.clone(), next_height_openings_digest);
         }
     });
 
-    zip(root, commit).for_each(|(e1, e2)| SC::assert_hv_eq(builder, e1, e2));
+    SC::assert_digest_eq(builder, root, commit);
 }
 
 #[cfg(test)]

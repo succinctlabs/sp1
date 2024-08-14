@@ -132,8 +132,7 @@ pub trait BabyBearFriConfigVariable: BabyBearFriConfig {
     // Is this is the best place to put this?
     type C: Config<F = Self::Val, EF = Self::Challenge>;
     type Bit: Clone;
-    type HashVal: Clone;
-    type Digest: IntoIterator<Item = Self::HashVal> + Clone;
+    type Digest: IntoIterator + Clone;
 
     // If you try to simplify by removing this, rustc will complain about some static lifetime
     // bound not being satisfied at the call site of `select_chain`. Where? Nobody knows.
@@ -151,7 +150,8 @@ pub trait BabyBearFriConfigVariable: BabyBearFriConfig {
 
     fn poseidon2_compress(
         builder: &mut Builder<Self::C>,
-        input: impl IntoIterator<Item = Self::HashVal>,
+        left: Self::Digest,
+        right: Self::Digest,
     ) -> Self::Digest;
 
     fn ext2felt(
@@ -180,9 +180,9 @@ pub trait BabyBearFriConfigVariable: BabyBearFriConfig {
     fn select_chain_hv(
         builder: &mut Builder<Self::C>,
         should_swap: Self::Bit,
-        first: impl IntoIterator<Item = Self::HashVal> + Clone,
-        second: impl IntoIterator<Item = Self::HashVal> + Clone,
-    ) -> Vec<Self::HashVal>;
+        first: Self::Digest,
+        second: Self::Digest,
+    ) -> (Self::Digest, Self::Digest);
 
     fn select_chain_ef(
         builder: &mut Builder<Self::C>,
@@ -191,7 +191,7 @@ pub trait BabyBearFriConfigVariable: BabyBearFriConfig {
         second: impl IntoIterator<Item = Ext<<Self::C as Config>::F, <Self::C as Config>::EF>> + Clone,
     ) -> Vec<Ext<<Self::C as Config>::F, <Self::C as Config>::EF>>;
 
-    fn assert_hv_eq(builder: &mut Builder<Self::C>, a: Self::HashVal, b: Self::HashVal);
+    fn assert_digest_eq(builder: &mut Builder<Self::C>, a: Self::Digest, b: Self::Digest);
 }
 
 impl BabyBearFriConfig for BabyBearPoseidon2 {
@@ -203,11 +203,19 @@ impl BabyBearFriConfig for BabyBearPoseidon2 {
     }
 }
 
+/// Hack to get the length of an array.
+trait Length {
+    const LEN: usize;
+}
+
+impl<T, const LENGTH: usize> Length for [T; LENGTH] {
+    const LEN: usize = LENGTH;
+}
+
 impl BabyBearFriConfigVariable for BabyBearPoseidon2 {
     type C = InnerConfig;
     type Bit = Felt<<Self::C as Config>::F>;
-    type HashVal = Felt<<Self::C as Config>::F>;
-    type Digest = [Self::HashVal; 8];
+    type Digest = [Felt<<Self::C as Config>::F>; 8];
     type FriChallengerVariable = DuplexChallengerVariable<Self::C>;
 
     fn poseidon2_hash(
@@ -219,9 +227,10 @@ impl BabyBearFriConfigVariable for BabyBearPoseidon2 {
 
     fn poseidon2_compress(
         builder: &mut Builder<Self::C>,
-        input: impl IntoIterator<Item = Self::HashVal>,
+        left: Self::Digest,
+        right: Self::Digest,
     ) -> Self::Digest {
-        builder.poseidon2_compress_v2(input)
+        builder.poseidon2_compress_v2(left.into_iter().chain(right))
     }
 
     fn ext2felt(
@@ -257,10 +266,17 @@ impl BabyBearFriConfigVariable for BabyBearPoseidon2 {
     fn select_chain_hv(
         builder: &mut Builder<Self::C>,
         should_swap: Self::Bit,
-        first: impl IntoIterator<Item = Self::HashVal> + Clone,
-        second: impl IntoIterator<Item = Self::HashVal> + Clone,
-    ) -> Vec<Self::HashVal> {
-        select_chain(builder, should_swap, first, second)
+        first: Self::Digest,
+        second: Self::Digest,
+    ) -> (Self::Digest, Self::Digest) {
+        let err_msg = "select_chain's return value should have length the sum of its inputs";
+        let mut selected = select_chain(builder, should_swap, first, second);
+        let ret = (
+            core::array::from_fn(|_| selected.next().expect(err_msg)),
+            core::array::from_fn(|_| selected.next().expect(err_msg)),
+        );
+        assert_eq!(selected.next(), None, "{}", err_msg);
+        ret
     }
 
     fn select_chain_ef(
@@ -269,73 +285,12 @@ impl BabyBearFriConfigVariable for BabyBearPoseidon2 {
         first: impl IntoIterator<Item = Ext<<Self::C as Config>::F, <Self::C as Config>::EF>> + Clone,
         second: impl IntoIterator<Item = Ext<<Self::C as Config>::F, <Self::C as Config>::EF>> + Clone,
     ) -> Vec<Ext<<Self::C as Config>::F, <Self::C as Config>::EF>> {
-        select_chain(builder, should_swap, first, second)
+        select_chain(builder, should_swap, first, second).collect::<Vec<_>>()
     }
 
-    fn assert_hv_eq(builder: &mut Builder<Self::C>, a: Self::HashVal, b: Self::HashVal) {
-        builder.assert_felt_eq(a, b)
+    fn assert_digest_eq(builder: &mut Builder<Self::C>, a: Self::Digest, b: Self::Digest) {
+        zip(a, b).for_each(|(e1, e2)| builder.assert_felt_eq(e1, e2));
     }
-
-    // fn select_chain<S>(
-    //     builder: &mut Builder<Self::C>,
-    //     should_swap: Self::Bit,
-    //     first: impl IntoIterator<Item = S> + Clone,
-    //     second: impl IntoIterator<Item = S> + Clone,
-    // ) -> Vec<S>
-    // where
-    //     S: Variable<Self::C>,
-    //     <S as Variable<Self::C>>::Expression: Add<Output = <S as Variable<Self::C>>::Expression>
-    //         + Mul<
-    //             <Self::Bit as Variable<Self::C>>::Expression,
-    //             Output = <S as Variable<Self::C>>::Expression,
-    //         >, // where
-    //            //     S: Variable<Self::C>,
-    //            //     <S as Variable<Self::C>>::Expression: Add<Output = <S as Variable<Self::C>>::Expression>
-    //            //         + Mul<
-    //            //             <Self::Bit as Variable<Self::C>>::Expression,
-    //            //             Output = <S as Variable<Self::C>>::Expression,
-    //            //         >,
-    // {
-    //     let should_swap: <Self::Bit as Variable<Self::C>>::Expression = should_swap.into();
-    //     let one = <Self::Bit as Variable<Self::C>>::Expression::one();
-    //     let shouldnt_swap = one - should_swap.clone();
-
-    //     let id_branch = first
-    //         .clone()
-    //         .into_iter()
-    //         .chain(second.clone())
-    //         .map(<S as Variable<Self::C>>::Expression::from);
-    //     let swap_branch = second
-    //         .into_iter()
-    //         .chain(first)
-    //         .map(<S as Variable<Self::C>>::Expression::from);
-    //     zip(
-    //         zip(id_branch, swap_branch),
-    //         zip(repeat(shouldnt_swap), repeat(should_swap)),
-    //     )
-    //     .map(|((id_v, sw_v), (id_c, sw_c))| builder.eval(id_v * id_c + sw_v * sw_c))
-    //     .collect()
-    // }
-
-    // fn select_chain<S>(
-    //     builder: &mut Builder<Self::C>,
-    //     should_swap: Self::Bit,
-    //     first: Vec<S>,
-    //     second: Vec<S>,
-    // ) -> Vec<S>
-    // where
-    //     S: Variable<Self::C> + AbstractField + Mul<Self::Bit, Output = S>,
-    // {
-    //     let shouldnt_swap = Self::complement(builder, should_swap);
-    //     let id_branch = first.clone().into_iter().chain(second.clone());
-    //     let swap_branch = second.into_iter().chain(first);
-    //     zip(
-    //         zip(id_branch, swap_branch),
-    //         zip(repeat(shouldnt_swap), repeat(should_swap)),
-    //     )
-    //     .map(|((id_v, sw_v), (id_c, sw_c))| builder.eval(id_v * id_c + sw_v * sw_c))
-    //     .collect()
-    // }
 }
 
 impl BabyBearFriConfig for BabyBearPoseidon2Outer {
@@ -347,16 +302,16 @@ impl BabyBearFriConfig for BabyBearPoseidon2Outer {
     }
 }
 
-pub fn select_chain<C, R, S>(
-    builder: &mut Builder<C>,
+pub fn select_chain<'a, C, R, S>(
+    builder: &'a mut Builder<C>,
     should_swap: R,
-    first: impl IntoIterator<Item = S> + Clone,
-    second: impl IntoIterator<Item = S> + Clone,
-) -> Vec<S>
+    first: impl IntoIterator<Item = S> + Clone + 'a,
+    second: impl IntoIterator<Item = S> + Clone + 'a,
+) -> impl Iterator<Item = S> + 'a
 where
     C: Config,
-    R: Variable<C>,
-    S: Variable<C>,
+    R: Variable<C> + 'a,
+    S: Variable<C> + 'a,
     <R as Variable<C>>::Expression: AbstractField,
     <S as Variable<C>>::Expression: Add<Output = <S as Variable<C>>::Expression>
         + Mul<<R as Variable<C>>::Expression, Output = <S as Variable<C>>::Expression>,
@@ -379,5 +334,4 @@ where
         zip(repeat(shouldnt_swap), repeat(should_swap)),
     )
     .map(|((id_v, sw_v), (id_c, sw_c))| builder.eval(id_v * id_c + sw_v * sw_c))
-    .collect()
 }
