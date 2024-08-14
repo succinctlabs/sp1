@@ -12,7 +12,11 @@ use crate::{DigestVariable, VerifyingKeyVariable};
 pub trait CanObserveVariable<C: Config, V> {
     fn observe(&mut self, builder: &mut Builder<C>, value: V);
 
-    fn observe_slice(&mut self, builder: &mut Builder<C>, values: impl IntoIterator<Item = V>);
+    fn observe_slice(&mut self, builder: &mut Builder<C>, values: impl IntoIterator<Item = V>) {
+        for value in values {
+            self.observe(builder, value);
+        }
+    }
 }
 
 pub trait CanSampleVariable<C: Config, V> {
@@ -94,7 +98,7 @@ impl<C: Config> DuplexChallengerVariable<C> {
         self.output_buffer.extend_from_slice(&self.sponge_state);
     }
 
-    pub fn observe(&mut self, builder: &mut Builder<C>, value: Felt<C::F>) {
+    pub fn observe_felt(&mut self, builder: &mut Builder<C>, value: Felt<C::F>) {
         self.output_buffer.clear();
 
         self.input_buffer.push(value);
@@ -106,7 +110,7 @@ impl<C: Config> DuplexChallengerVariable<C> {
 
     pub fn observe_commitment(&mut self, builder: &mut Builder<C>, commitment: DigestVariable<C>) {
         for element in commitment {
-            self.observe(builder, element);
+            self.observe_felt(builder, element);
         }
     }
 
@@ -131,7 +135,7 @@ impl<C: Config> DuplexChallengerVariable<C> {
 
 impl<C: Config> CanObserveVariable<C, Felt<C::F>> for DuplexChallengerVariable<C> {
     fn observe(&mut self, builder: &mut Builder<C>, value: Felt<C::F>) {
-        DuplexChallengerVariable::observe(self, builder, value);
+        DuplexChallengerVariable::observe_felt(self, builder, value);
     }
 
     fn observe_slice(
@@ -140,7 +144,7 @@ impl<C: Config> CanObserveVariable<C, Felt<C::F>> for DuplexChallengerVariable<C
         values: impl IntoIterator<Item = Felt<C::F>>,
     ) {
         for value in values {
-            self.observe(builder, value);
+            self.observe_felt(builder, value);
         }
     }
 }
@@ -161,28 +165,12 @@ impl<C: Config> CanObserveVariable<C, DigestVariable<C>> for DuplexChallengerVar
     fn observe(&mut self, builder: &mut Builder<C>, commitment: DigestVariable<C>) {
         DuplexChallengerVariable::observe_commitment(self, builder, commitment);
     }
-
-    fn observe_slice(
-        &mut self,
-        _builder: &mut Builder<C>,
-        _values: impl IntoIterator<Item = DigestVariable<C>>,
-    ) {
-        todo!()
-    }
 }
 
 impl<C: Config> CanObserveVariable<C, VerifyingKeyVariable<C>> for DuplexChallengerVariable<C> {
     fn observe(&mut self, builder: &mut Builder<C>, value: VerifyingKeyVariable<C>) {
         self.observe_commitment(builder, value.commitment);
-        self.observe(builder, value.pc_start)
-    }
-
-    fn observe_slice(
-        &mut self,
-        _builder: &mut Builder<C>,
-        _values: impl IntoIterator<Item = VerifyingKeyVariable<C>>,
-    ) {
-        todo!()
+        self.observe_felt(builder, value.pc_start)
     }
 }
 
@@ -201,7 +189,7 @@ impl<C: Config> FeltChallenger<C> for DuplexChallengerVariable<C> {
         nb_bits: usize,
         witness: Felt<<C as Config>::F>,
     ) {
-        self.observe(builder, witness);
+        self.observe_felt(builder, witness);
         let element_bits = self.sample_bits(builder, nb_bits);
         for bit in element_bits {
             builder.assert_felt_eq(bit, C::F::zero());
@@ -211,72 +199,25 @@ impl<C: Config> FeltChallenger<C> for DuplexChallengerVariable<C> {
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use crate::utils::tests::run_test_recursion;
     use p3_challenger::CanObserve;
     use p3_challenger::CanSample;
     use p3_challenger::FieldChallenger;
     use p3_field::AbstractField;
     use sp1_core::stark::StarkGenericConfig;
-    use sp1_core::utils::setup_logger;
     use sp1_core::utils::BabyBearPoseidon2;
     use sp1_recursion_compiler::asm::AsmBuilder;
     use sp1_recursion_compiler::asm::AsmConfig;
-    use sp1_recursion_compiler::circuit::AsmCompiler;
-    use sp1_recursion_compiler::ir::DslIr;
     use sp1_recursion_compiler::ir::Ext;
     use sp1_recursion_compiler::ir::ExtConst;
     use sp1_recursion_compiler::ir::Felt;
 
-    use sp1_recursion_compiler::ir::TracedVec;
-    use sp1_recursion_core_v2::machine::RecursionAir;
-    use sp1_recursion_core_v2::Runtime;
-
     use crate::challenger::DuplexChallengerVariable;
     use crate::challenger::FeltChallenger;
-    use crate::witness::Witness;
-
-    use sp1_core::utils::run_test_machine;
 
     type SC = BabyBearPoseidon2;
     type F = <SC as StarkGenericConfig>::Val;
     type EF = <SC as StarkGenericConfig>::Challenge;
-
-    /// A simplified version of some code from `recursion/core/src/stark/mod.rs`.
-    /// Takes in a program and runs it with the given witness and generates a proof with a variety of
-    /// machines depending on the provided test_config.
-    pub(crate) fn run_test_recursion(
-        operations: TracedVec<DslIr<AsmConfig<F, EF>>>,
-        witness_stream: impl IntoIterator<Item = Witness<AsmConfig<F, EF>>>,
-    ) {
-        setup_logger();
-
-        let mut compiler = AsmCompiler::<AsmConfig<F, EF>>::default();
-        let program = compiler.compile(operations);
-
-        let config = SC::default();
-
-        let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
-        runtime.witness_stream.extend(witness_stream);
-        runtime.run().unwrap();
-        assert!(runtime.witness_stream.is_empty());
-
-        let records = vec![runtime.record];
-
-        // Run with the poseidon2 wide chip.
-        let wide_machine = RecursionAir::<_, 3, 0>::machine_wide(SC::default());
-        let (pk, vk) = wide_machine.setup(&program);
-        let result = run_test_machine(records.clone(), wide_machine, pk, vk);
-        if let Err(e) = result {
-            panic!("Verification failed: {:?}", e);
-        }
-
-        // Run with the poseidon2 skinny chip.
-        let skinny_machine = RecursionAir::<_, 9, 0>::machine(SC::compressed());
-        let (pk, vk) = skinny_machine.setup(&program);
-        let result = run_test_machine(records.clone(), skinny_machine, pk, vk);
-        if let Err(e) = result {
-            panic!("Verification failed: {:?}", e);
-        }
-    }
 
     #[test]
     fn test_compiler_challenger() {
@@ -302,10 +243,10 @@ pub(crate) mod tests {
         let one: Felt<_> = builder.eval(F::one());
         let two: Felt<_> = builder.eval(F::two());
         // builder.halt();
-        challenger.observe(&mut builder, one);
-        challenger.observe(&mut builder, two);
-        challenger.observe(&mut builder, two);
-        challenger.observe(&mut builder, two);
+        challenger.observe_felt(&mut builder, one);
+        challenger.observe_felt(&mut builder, two);
+        challenger.observe_felt(&mut builder, two);
+        challenger.observe_felt(&mut builder, two);
         let element = challenger.sample(&mut builder);
         let element_ef = challenger.sample_ext(&mut builder);
 

@@ -12,16 +12,12 @@ use sp1_core::{
 };
 use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
-    config::InnerConfig,
     ir::{Builder, Config, Ext, Felt},
 };
 use sp1_recursion_core::air::Block;
 
 use crate::{
-    stark::{
-        AirOpenedValuesVariable, ChipOpenedValuesVariable, ShardCommitmentVariable,
-        ShardOpenedValuesVariable, ShardProofVariable,
-    },
+    stark::{ShardCommitmentVariable, ShardProofVariable},
     BatchOpeningVariable, FriCommitPhaseProofStepVariable, FriProofVariable, FriQueryProofVariable,
     TwoAdicPcsProofVariable,
 };
@@ -109,9 +105,9 @@ impl<C: Config, T: Witnessable<C>> Witnessable<C> for Vec<T> {
     }
 }
 
-type C = InnerConfig;
-
-impl Witnessable<C> for ShardProof<BabyBearPoseidon2> {
+impl<C: Config<F = InnerVal, EF = InnerChallenge>> Witnessable<C>
+    for ShardProof<BabyBearPoseidon2>
+{
     type WitnessVariable = ShardProofVariable<C>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
@@ -132,16 +128,18 @@ impl Witnessable<C> for ShardProof<BabyBearPoseidon2> {
 
     fn write(&self) -> Vec<Witness<C>> {
         [
-            self.commitment.write(),
-            self.opened_values.write(),
-            self.opening_proof.write(),
+            Witnessable::<C>::write(&self.commitment),
+            Witnessable::<C>::write(&self.opened_values),
+            Witnessable::<C>::write(&self.opening_proof),
             Witnessable::<C>::write(&self.public_values),
         ]
         .concat()
     }
 }
 
-impl Witnessable<C> for ShardCommitment<InnerDigestHash> {
+impl<C: Config<F = InnerVal, EF = InnerChallenge>> Witnessable<C>
+    for ShardCommitment<InnerDigestHash>
+{
     type WitnessVariable = ShardCommitmentVariable<C>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
@@ -165,8 +163,10 @@ impl Witnessable<C> for ShardCommitment<InnerDigestHash> {
     }
 }
 
-impl Witnessable<C> for ShardOpenedValues<InnerChallenge> {
-    type WitnessVariable = ShardOpenedValuesVariable<C>;
+impl<C: Config<F = InnerVal, EF = InnerChallenge>> Witnessable<C>
+    for ShardOpenedValues<InnerChallenge>
+{
+    type WitnessVariable = ShardOpenedValues<Ext<C::F, C::EF>>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let chips = self.chips.read(builder);
@@ -174,12 +174,14 @@ impl Witnessable<C> for ShardOpenedValues<InnerChallenge> {
     }
 
     fn write(&self) -> Vec<Witness<C>> {
-        self.chips.write()
+        Witnessable::<C>::write(&self.chips)
     }
 }
 
-impl Witnessable<C> for ChipOpenedValues<InnerChallenge> {
-    type WitnessVariable = ChipOpenedValuesVariable<C>;
+impl<C: Config<F = InnerVal, EF = InnerChallenge>> Witnessable<C>
+    for ChipOpenedValues<InnerChallenge>
+{
+    type WitnessVariable = ChipOpenedValues<Ext<C::F, C::EF>>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let preprocessed = self.preprocessed.read(builder);
@@ -200,9 +202,9 @@ impl Witnessable<C> for ChipOpenedValues<InnerChallenge> {
 
     fn write(&self) -> Vec<Witness<C>> {
         [
-            self.preprocessed.write(),
-            self.main.write(),
-            self.permutation.write(),
+            Witnessable::<C>::write(&self.preprocessed),
+            Witnessable::<C>::write(&self.main),
+            Witnessable::<C>::write(&self.permutation),
             Witnessable::<C>::write(&self.quotient),
             Witnessable::<C>::write(&self.cumulative_sum),
         ]
@@ -210,8 +212,10 @@ impl Witnessable<C> for ChipOpenedValues<InnerChallenge> {
     }
 }
 
-impl Witnessable<C> for AirOpenedValues<InnerChallenge> {
-    type WitnessVariable = AirOpenedValuesVariable<C>;
+impl<C: Config<F = InnerVal, EF = InnerChallenge>> Witnessable<C>
+    for AirOpenedValues<InnerChallenge>
+{
+    type WitnessVariable = AirOpenedValues<Ext<C::F, C::EF>>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let local = self.local.read(builder);
@@ -227,7 +231,7 @@ impl Witnessable<C> for AirOpenedValues<InnerChallenge> {
     }
 }
 
-impl Witnessable<C> for InnerPcsProof {
+impl<C: Config<F = InnerVal, EF = InnerChallenge>> Witnessable<C> for InnerPcsProof {
     type WitnessVariable = TwoAdicPcsProofVariable<C>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
@@ -240,11 +244,15 @@ impl Witnessable<C> for InnerPcsProof {
     }
 
     fn write(&self) -> Vec<Witness<C>> {
-        [self.fri_proof.write(), self.query_openings.write()].concat()
+        [
+            Witnessable::<C>::write(&self.fri_proof),
+            Witnessable::<C>::write(&self.query_openings),
+        ]
+        .concat()
     }
 }
 
-impl Witnessable<C> for InnerBatchOpening {
+impl<C: Config<F = InnerVal, EF = InnerChallenge>> Witnessable<C> for InnerBatchOpening {
     type WitnessVariable = BatchOpeningVariable<C>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
@@ -270,7 +278,7 @@ impl Witnessable<C> for InnerBatchOpening {
     }
 }
 
-impl Witnessable<C> for InnerFriProof {
+impl<C: Config<F = InnerVal, EF = InnerChallenge>> Witnessable<C> for InnerFriProof {
     type WitnessVariable = FriProofVariable<C>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
@@ -302,7 +310,7 @@ impl Witnessable<C> for InnerFriProof {
                     Witnessable::<C>::write(commit)
                 })
                 .collect(),
-            self.query_proofs.write(),
+            Witnessable::<C>::write(&self.query_proofs),
             Witnessable::<C>::write(&self.final_poly),
             Witnessable::<C>::write(&self.pow_witness),
         ]
@@ -310,7 +318,9 @@ impl Witnessable<C> for InnerFriProof {
     }
 }
 
-impl Witnessable<C> for QueryProof<InnerChallenge, InnerChallengeMmcs> {
+impl<C: Config<F = InnerVal, EF = InnerChallenge>> Witnessable<C>
+    for QueryProof<InnerChallenge, InnerChallengeMmcs>
+{
     type WitnessVariable = FriQueryProofVariable<C>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
@@ -321,11 +331,13 @@ impl Witnessable<C> for QueryProof<InnerChallenge, InnerChallengeMmcs> {
     }
 
     fn write(&self) -> Vec<Witness<C>> {
-        self.commit_phase_openings.write()
+        Witnessable::<C>::write(&self.commit_phase_openings)
     }
 }
 
-impl Witnessable<C> for CommitPhaseProofStep<InnerChallenge, InnerChallengeMmcs> {
+impl<C: Config<F = InnerVal, EF = InnerChallenge>> Witnessable<C>
+    for CommitPhaseProofStep<InnerChallenge, InnerChallengeMmcs>
+{
     type WitnessVariable = FriCommitPhaseProofStepVariable<C>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {

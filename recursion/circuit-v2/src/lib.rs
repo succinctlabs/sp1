@@ -1,12 +1,11 @@
 //! Copied from [`sp1_recursion_program`].
 
 use challenger::{CanObserveVariable, DuplexChallengerVariable, FeltChallenger};
-use p3_commit::TwoAdicMultiplicativeCoset;
+use p3_matrix::dense::RowMajorMatrix;
 use sp1_recursion_compiler::{
     config::InnerConfig,
-    ir::{Config, Ext, Felt},
+    ir::{Config, Ext},
 };
-use sp1_recursion_core_v2::DIGEST_SIZE;
 
 mod types;
 
@@ -16,64 +15,10 @@ pub mod constraints;
 pub mod domain;
 pub mod fri;
 pub mod stark;
+pub(crate) mod utils;
 pub mod witness;
 
 pub use types::*;
-
-pub type DigestVariable<C> = [Felt<<C as Config>::F>; DIGEST_SIZE];
-
-#[derive(Clone)]
-pub struct FriProofVariable<C: Config> {
-    pub commit_phase_commits: Vec<DigestVariable<C>>,
-    pub query_proofs: Vec<FriQueryProofVariable<C>>,
-    pub final_poly: Ext<C::F, C::EF>,
-    pub pow_witness: Felt<C::F>,
-}
-
-/// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/proof.rs#L32
-#[derive(Clone)]
-pub struct FriCommitPhaseProofStepVariable<C: Config> {
-    pub sibling_value: Ext<C::F, C::EF>,
-    pub opening_proof: Vec<DigestVariable<C>>,
-}
-
-/// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/proof.rs#L23
-#[derive(Clone)]
-pub struct FriQueryProofVariable<C: Config> {
-    pub commit_phase_openings: Vec<FriCommitPhaseProofStepVariable<C>>,
-}
-
-/// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/verifier.rs#L22
-#[derive(Clone)]
-pub struct FriChallenges<C: Config> {
-    pub query_indices: Vec<Vec<Felt<C::F>>>,
-    pub betas: Vec<Ext<C::F, C::EF>>,
-}
-
-#[derive(Clone)]
-pub struct TwoAdicPcsProofVariable<C: Config> {
-    pub fri_proof: FriProofVariable<C>,
-    pub query_openings: Vec<Vec<BatchOpeningVariable<C>>>,
-}
-
-#[derive(Clone)]
-pub struct BatchOpeningVariable<C: Config> {
-    pub opened_values: Vec<Vec<Vec<Felt<C::F>>>>,
-    pub opening_proof: Vec<DigestVariable<C>>,
-}
-
-#[derive(Clone)]
-pub struct TwoAdicPcsRoundVariable<C: Config> {
-    pub batch_commit: DigestVariable<C>,
-    pub domains_points_and_opens: Vec<TwoAdicPcsMatsVariable<C>>,
-}
-
-#[derive(Clone)]
-pub struct TwoAdicPcsMatsVariable<C: Config> {
-    pub domain: TwoAdicMultiplicativeCoset<C::F>,
-    pub points: Vec<Ext<C::F, C::EF>>,
-    pub values: Vec<Vec<Ext<C::F, C::EF>>>,
-}
 
 use p3_challenger::{CanObserve, CanSample, FieldChallenger, GrindingChallenger};
 use p3_commit::{ExtensionMmcs, Mmcs};
@@ -109,8 +54,8 @@ pub trait BabyBearFriConfig:
     >,
 >
 {
-    type ValMmcs: Mmcs<BabyBear>;
-    // type RowMajorProverData: Clone;
+    type ValMmcs: Mmcs<BabyBear, ProverData<RowMajorMatrix<BabyBear>> = Self::RowMajorProverData>;
+    type RowMajorProverData: Clone;
     type FriChallenger: CanObserve<<Self::ValMmcs as Mmcs<BabyBear>>::Commitment>
         + CanSample<EF>
         + GrindingChallenger<Witness = BabyBear>
@@ -128,6 +73,10 @@ pub trait BabyBearFriConfigVariable: BabyBearFriConfig {
 impl BabyBearFriConfig for BabyBearPoseidon2 {
     type ValMmcs = sp1_core::utils::baby_bear_poseidon2::ValMmcs;
     type FriChallenger = <Self as StarkGenericConfig>::Challenger;
+    type RowMajorProverData =
+        <sp1_core::utils::baby_bear_poseidon2::ValMmcs as Mmcs<BabyBear>>::ProverData<
+            RowMajorMatrix<BabyBear>,
+        >;
 
     fn fri_config(&self) -> &FriConfig<FriMmcs<Self>> {
         self.pcs().fri_config()
@@ -143,6 +92,9 @@ impl BabyBearFriConfigVariable for BabyBearPoseidon2 {
 impl BabyBearFriConfig for BabyBearPoseidon2Outer {
     type ValMmcs = OuterValMmcs;
     type FriChallenger = <Self as StarkGenericConfig>::Challenger;
+
+    type RowMajorProverData =
+        <OuterValMmcs as Mmcs<BabyBear>>::ProverData<RowMajorMatrix<BabyBear>>;
 
     fn fri_config(&self) -> &FriConfig<FriMmcs<Self>> {
         self.pcs().fri_config()
