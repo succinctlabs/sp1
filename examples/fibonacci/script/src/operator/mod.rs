@@ -42,18 +42,28 @@ pub fn operator_split_into_checkpoints(
 
 pub fn operator_absorb_commits(
     args: &Vec<u8>,
-    commitments_vec: &[Vec<u8>],
-    records_vec: &[Vec<u8>],
+    commitments_vec: &[Vec<Vec<u8>>],
+    records_vec: &[Vec<Vec<u8>>],
     o_challenger_state: &mut Vec<u8>,
 ) {
     let args_obj = ProveArgs::from_slice(args.as_slice());
     let commitments_vec: Vec<Vec<CommitmentType>> = commitments_vec
         .iter()
-        .map(|commitments| bincode::deserialize(commitments).unwrap())
+        .map(|commitments| {
+            commitments
+                .iter()
+                .map(|commitment| bincode::deserialize(commitment.as_slice()).unwrap())
+                .collect()
+        })
         .collect();
-    let records_vec: Vec<Vec<RecordType>> = records_vec
+    let records_vec = records_vec
         .iter()
-        .map(|records| bincode::deserialize(records).unwrap())
+        .map(|records| {
+            records
+                .iter()
+                .map(|record| bincode::deserialize(record).unwrap())
+                .collect()
+        })
         .collect();
     tracing::info!(
         "collected commitments: {:?}",
@@ -69,15 +79,20 @@ pub fn operator_absorb_commits(
 
 pub fn operator_construct_sp1_core_proof(
     args: &Vec<u8>,
-    shard_proofs_vec: &[Vec<u8>],
+    shard_proofs_vec: &[Vec<Vec<u8>>],
     public_values_stream: &[u8],
     cycles: u64,
     o_proof: &mut Vec<u8>,
 ) {
     let args_obj = ProveArgs::from_slice(args.as_slice());
-    let shard_proofs_vec_obj: Vec<Vec<ShardProof<BabyBearPoseidon2>>> = shard_proofs_vec
+    let shard_proofs_vec_obj = shard_proofs_vec
         .iter()
-        .map(|shard_proofs| bincode::deserialize(shard_proofs).unwrap())
+        .map(|proofs| {
+            proofs
+                .iter()
+                .map(|proof| bincode::deserialize(proof).unwrap())
+                .collect()
+        })
         .collect();
     let public_values_stream_obj: PublicValueStreamType =
         bincode::deserialize(public_values_stream).unwrap();
