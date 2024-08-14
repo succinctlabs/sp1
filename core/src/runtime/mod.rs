@@ -655,24 +655,6 @@ impl<'a> Runtime<'a> {
                 a = b.wrapping_add(c);
                 self.alu_rw(instruction, rd, a, b, c, lookup_id);
             }
-            Opcode::LW => {
-                (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
-                if addr % 4 != 0 {
-                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::LW, addr));
-                }
-                a = memory_read_value;
-                memory_store_value = Some(memory_read_value);
-                self.rw(rd, a);
-            }
-            Opcode::SW => {
-                (a, b, c, addr, _) = self.store_rr(instruction);
-                if addr % 4 != 0 {
-                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::SW, addr));
-                }
-                let value = a;
-                memory_store_value = Some(value);
-                self.mw_cpu(align(addr), value, MemoryAccessPosition::Memory);
-            }
             Opcode::SUB => {
                 (rd, b, c) = self.alu_rr(instruction);
                 a = b.wrapping_sub(c);
@@ -763,6 +745,15 @@ impl<'a> Runtime<'a> {
                 memory_store_value = Some(memory_read_value);
                 self.rw(rd, a);
             }
+            Opcode::LW => {
+                (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
+                if addr % 4 != 0 {
+                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::LW, addr));
+                }
+                a = memory_read_value;
+                memory_store_value = Some(memory_read_value);
+                self.rw(rd, a);
+            }
 
             // Store instructions.
             Opcode::SB => {
@@ -787,6 +778,15 @@ impl<'a> Runtime<'a> {
                     1 => ((a & 0x0000FFFF) << 16) + (memory_read_value & 0x0000FFFF),
                     _ => unreachable!(),
                 };
+                memory_store_value = Some(value);
+                self.mw_cpu(align(addr), value, MemoryAccessPosition::Memory);
+            }
+            Opcode::SW => {
+                (a, b, c, addr, _) = self.store_rr(instruction);
+                if addr % 4 != 0 {
+                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::SW, addr));
+                }
+                let value = a;
                 memory_store_value = Some(value);
                 self.mw_cpu(align(addr), value, MemoryAccessPosition::Memory);
             }
