@@ -274,9 +274,9 @@ pub fn verify_batch<C: CircuitConfig, SC: BabyBearFriConfig, const D: usize>(
     let mut root: C::Digest = C::poseidon2_hash(builder, &felt_slice[..]);
 
     zip(index_bits, proof).for_each(|(bit, sibling): (C::Bit, C::Digest)| {
-        let (left, right) = C::select_chain_hv(builder, bit, root.clone(), sibling);
+        let compress_args = C::select_chain_hv(builder, bit, [root.clone(), sibling]);
 
-        root = C::poseidon2_compress(builder, left, right);
+        root = C::poseidon2_compress(builder, compress_args);
         curr_height_padded >>= 1;
 
         let next_height = heights_tallest_first
@@ -296,7 +296,7 @@ pub fn verify_batch<C: CircuitConfig, SC: BabyBearFriConfig, const D: usize>(
                 .cloned()
                 .collect::<Vec<_>>();
             let next_height_openings_digest: C::Digest = C::poseidon2_hash(builder, &felt_slice);
-            root = C::poseidon2_compress(builder, root.clone(), next_height_openings_digest);
+            root = C::poseidon2_compress(builder, [root.clone(), next_height_openings_digest]);
         }
     });
 

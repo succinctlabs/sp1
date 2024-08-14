@@ -140,11 +140,7 @@ pub trait CircuitConfig: Config {
         input: &[Felt<<Self as Config>::F>],
     ) -> Self::Digest;
 
-    fn poseidon2_compress(
-        builder: &mut Builder<Self>,
-        left: Self::Digest,
-        right: Self::Digest,
-    ) -> Self::Digest;
+    fn poseidon2_compress(builder: &mut Builder<Self>, input: [Self::Digest; 2]) -> Self::Digest;
 
     fn ext2felt(
         builder: &mut Builder<Self>,
@@ -172,9 +168,8 @@ pub trait CircuitConfig: Config {
     fn select_chain_hv(
         builder: &mut Builder<Self>,
         should_swap: Self::Bit,
-        first: Self::Digest,
-        second: Self::Digest,
-    ) -> (Self::Digest, Self::Digest);
+        input: [Self::Digest; 2],
+    ) -> [Self::Digest; 2];
 
     #[allow(clippy::type_complexity)]
     fn select_chain_ef(
@@ -214,12 +209,8 @@ impl CircuitConfig for InnerConfig {
         builder.poseidon2_hash_v2(input)
     }
 
-    fn poseidon2_compress(
-        builder: &mut Builder<Self>,
-        left: Self::Digest,
-        right: Self::Digest,
-    ) -> Self::Digest {
-        builder.poseidon2_compress_v2(left.into_iter().chain(right))
+    fn poseidon2_compress(builder: &mut Builder<Self>, input: [Self::Digest; 2]) -> Self::Digest {
+        builder.poseidon2_compress_v2(input.into_iter().flatten())
     }
 
     fn ext2felt(
@@ -255,15 +246,14 @@ impl CircuitConfig for InnerConfig {
     fn select_chain_hv(
         builder: &mut Builder<Self>,
         should_swap: Self::Bit,
-        first: Self::Digest,
-        second: Self::Digest,
-    ) -> (Self::Digest, Self::Digest) {
+        input: [Self::Digest; 2],
+    ) -> [Self::Digest; 2] {
         let err_msg = "select_chain's return value should have length the sum of its inputs";
-        let mut selected = select_chain(builder, should_swap, first, second);
-        let ret = (
+        let mut selected = select_chain(builder, should_swap, input[0], input[1]);
+        let ret = [
             core::array::from_fn(|_| selected.next().expect(err_msg)),
             core::array::from_fn(|_| selected.next().expect(err_msg)),
-        );
+        ];
         assert_eq!(selected.next(), None, "{}", err_msg);
         ret
     }
