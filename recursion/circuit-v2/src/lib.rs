@@ -32,24 +32,24 @@ pub use types::*;
 pub type DigestVariable<C> = [Felt<<C as Config>::F>; DIGEST_SIZE];
 
 #[derive(Clone)]
-pub struct FriProofVariable<C: Config, SC: BabyBearFriConfigVariable<C = C>> {
-    pub commit_phase_commits: Vec<SC::Digest>,
-    pub query_proofs: Vec<FriQueryProofVariable<C, SC>>,
+pub struct FriProofVariable<C: CircuitConfig> {
+    pub commit_phase_commits: Vec<C::Digest>,
+    pub query_proofs: Vec<FriQueryProofVariable<C>>,
     pub final_poly: Ext<C::F, C::EF>,
     pub pow_witness: Felt<C::F>,
 }
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/proof.rs#L32
 #[derive(Clone)]
-pub struct FriCommitPhaseProofStepVariable<C: Config, SC: BabyBearFriConfigVariable<C = C>> {
+pub struct FriCommitPhaseProofStepVariable<C: CircuitConfig> {
     pub sibling_value: Ext<C::F, C::EF>,
-    pub opening_proof: Vec<SC::Digest>,
+    pub opening_proof: Vec<C::Digest>,
 }
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/proof.rs#L23
 #[derive(Clone)]
-pub struct FriQueryProofVariable<C: Config, SC: BabyBearFriConfigVariable<C = C>> {
-    pub commit_phase_openings: Vec<FriCommitPhaseProofStepVariable<C, SC>>,
+pub struct FriQueryProofVariable<C: CircuitConfig> {
+    pub commit_phase_openings: Vec<FriCommitPhaseProofStepVariable<C>>,
 }
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/verifier.rs#L22
@@ -60,20 +60,20 @@ pub struct FriChallenges<C: Config, Bit> {
 }
 
 #[derive(Clone)]
-pub struct TwoAdicPcsProofVariable<C: Config, SC: BabyBearFriConfigVariable<C = C>> {
-    pub fri_proof: FriProofVariable<C, SC>,
-    pub query_openings: Vec<Vec<BatchOpeningVariable<C, SC>>>,
+pub struct TwoAdicPcsProofVariable<C: CircuitConfig> {
+    pub fri_proof: FriProofVariable<C>,
+    pub query_openings: Vec<Vec<BatchOpeningVariable<C>>>,
 }
 
 #[derive(Clone)]
-pub struct BatchOpeningVariable<C: Config, SC: BabyBearFriConfigVariable<C = C>> {
+pub struct BatchOpeningVariable<C: CircuitConfig> {
     pub opened_values: Vec<Vec<Vec<Felt<C::F>>>>,
-    pub opening_proof: Vec<SC::Digest>,
+    pub opening_proof: Vec<C::Digest>,
 }
 
 #[derive(Clone)]
-pub struct TwoAdicPcsRoundVariable<C: Config, SC: BabyBearFriConfigVariable<C = C>> {
-    pub batch_commit: SC::Digest,
+pub struct TwoAdicPcsRoundVariable<C: CircuitConfig> {
+    pub batch_commit: C::Digest,
     pub domains_points_and_opens: Vec<TwoAdicPcsMatsVariable<C>>,
 }
 
@@ -95,15 +95,15 @@ use sp1_core::{stark::StarkGenericConfig, utils::BabyBearPoseidon2};
 
 type EF = <BabyBearPoseidon2 as StarkGenericConfig>::Challenge;
 
-pub type PcsConfig<SC> = FriConfig<
+pub type PcsConfig<C> = FriConfig<
     ExtensionMmcs<
-        <SC as StarkGenericConfig>::Val,
-        <SC as StarkGenericConfig>::Challenge,
-        <SC as BabyBearFriConfig>::ValMmcs,
+        <C as StarkGenericConfig>::Val,
+        <C as StarkGenericConfig>::Challenge,
+        <C as BabyBearFriConfig>::ValMmcs,
     >,
 >;
 
-pub type FriMmcs<SC> = ExtensionMmcs<BabyBear, EF, <SC as BabyBearFriConfig>::ValMmcs>;
+pub type FriMmcs<C> = ExtensionMmcs<BabyBear, EF, <C as BabyBearFriConfig>::ValMmcs>;
 
 pub trait BabyBearFriConfig:
     StarkGenericConfig<
@@ -128,57 +128,49 @@ pub trait BabyBearFriConfig:
     fn fri_config(&self) -> &FriConfig<FriMmcs<Self>>;
 }
 
-pub trait BabyBearFriConfigVariable: BabyBearFriConfig {
-    // Is this is the best place to put this?
-    type C: Config<F = Self::Val, EF = Self::Challenge>;
+pub trait CircuitConfig: Config {
     type Bit: Clone;
     type Digest: IntoIterator + Clone;
-
-    // If you try to simplify by removing this, rustc will complain about some static lifetime
-    // bound not being satisfied at the call site of `select_chain`. Where? Nobody knows.
-    // type BitExpression: AbstractField;
-    // where
-    //     <Self::Bit as Variable<Self::C>>::Expression: AbstractField;
-    type FriChallengerVariable: FieldChallengerVariable<Self::C, Self::Bit>;
+    type FriChallengerVariable: FieldChallengerVariable<Self, Self::Bit>;
 
     // Move these to their own traits later, perhaps.
     // TODO change these to be more generic (e.g. for Vars)
     fn poseidon2_hash(
-        builder: &mut Builder<Self::C>,
-        input: &[Felt<<Self::C as Config>::F>],
+        builder: &mut Builder<Self>,
+        input: &[Felt<<Self as Config>::F>],
     ) -> Self::Digest;
 
     fn poseidon2_compress(
-        builder: &mut Builder<Self::C>,
+        builder: &mut Builder<Self>,
         left: Self::Digest,
         right: Self::Digest,
     ) -> Self::Digest;
 
     fn ext2felt(
-        builder: &mut Builder<Self::C>,
-        ext: Ext<<Self::C as Config>::F, <Self::C as Config>::EF>,
-    ) -> [Felt<<Self::C as Config>::F>; D];
+        builder: &mut Builder<Self>,
+        ext: Ext<<Self as Config>::F, <Self as Config>::EF>,
+    ) -> [Felt<<Self as Config>::F>; D];
 
     fn exp_reverse_bits(
-        builder: &mut Builder<Self::C>,
-        input: Felt<<Self::C as Config>::F>,
+        builder: &mut Builder<Self>,
+        input: Felt<<Self as Config>::F>,
         power_bits: Vec<Self::Bit>,
-    ) -> Felt<<Self::C as Config>::F>;
+    ) -> Felt<<Self as Config>::F>;
 
     fn num2bits(
-        builder: &mut Builder<Self::C>,
-        num: Felt<<Self::C as Config>::F>,
+        builder: &mut Builder<Self>,
+        num: Felt<<Self as Config>::F>,
         num_bits: usize,
     ) -> Vec<Self::Bit>;
 
     fn bits2num(
-        builder: &mut Builder<Self::C>,
+        builder: &mut Builder<Self>,
         bits: impl IntoIterator<Item = Self::Bit>,
-    ) -> Felt<<Self::C as Config>::F>;
+    ) -> Felt<<Self as Config>::F>;
 
     // Encountered many issues trying to make the following two parametrically polymorphic.
     fn select_chain_hv(
-        builder: &mut Builder<Self::C>,
+        builder: &mut Builder<Self>,
         should_swap: Self::Bit,
         first: Self::Digest,
         second: Self::Digest,
@@ -186,16 +178,16 @@ pub trait BabyBearFriConfigVariable: BabyBearFriConfig {
 
     #[allow(clippy::type_complexity)]
     fn select_chain_ef(
-        builder: &mut Builder<Self::C>,
+        builder: &mut Builder<Self>,
         should_swap: Self::Bit,
-        first: impl IntoIterator<Item = Ext<<Self::C as Config>::F, <Self::C as Config>::EF>> + Clone,
-        second: impl IntoIterator<Item = Ext<<Self::C as Config>::F, <Self::C as Config>::EF>> + Clone,
-    ) -> Vec<Ext<<Self::C as Config>::F, <Self::C as Config>::EF>>;
+        first: impl IntoIterator<Item = Ext<<Self as Config>::F, <Self as Config>::EF>> + Clone,
+        second: impl IntoIterator<Item = Ext<<Self as Config>::F, <Self as Config>::EF>> + Clone,
+    ) -> Vec<Ext<<Self as Config>::F, <Self as Config>::EF>>;
 
-    fn assert_digest_eq(builder: &mut Builder<Self::C>, a: Self::Digest, b: Self::Digest);
+    fn assert_digest_eq(builder: &mut Builder<Self>, a: Self::Digest, b: Self::Digest);
 
     fn observe_digest(
-        builder: &mut Builder<Self::C>,
+        builder: &mut Builder<Self>,
         challenger: &mut Self::FriChallengerVariable,
         digest: Self::Digest,
     );
@@ -210,21 +202,20 @@ impl BabyBearFriConfig for BabyBearPoseidon2 {
     }
 }
 
-impl BabyBearFriConfigVariable for BabyBearPoseidon2 {
-    type C = InnerConfig;
-    type Bit = Felt<<Self::C as Config>::F>;
-    type Digest = [Felt<<Self::C as Config>::F>; 8];
-    type FriChallengerVariable = DuplexChallengerVariable<Self::C>;
+impl CircuitConfig for InnerConfig {
+    type Bit = Felt<<Self as Config>::F>;
+    type Digest = [Felt<<Self as Config>::F>; 8];
+    type FriChallengerVariable = DuplexChallengerVariable<Self>;
 
     fn poseidon2_hash(
-        builder: &mut Builder<Self::C>,
-        input: &[Felt<<Self::C as Config>::F>],
+        builder: &mut Builder<Self>,
+        input: &[Felt<<Self as Config>::F>],
     ) -> Self::Digest {
         builder.poseidon2_hash_v2(input)
     }
 
     fn poseidon2_compress(
-        builder: &mut Builder<Self::C>,
+        builder: &mut Builder<Self>,
         left: Self::Digest,
         right: Self::Digest,
     ) -> Self::Digest {
@@ -232,37 +223,37 @@ impl BabyBearFriConfigVariable for BabyBearPoseidon2 {
     }
 
     fn ext2felt(
-        builder: &mut Builder<Self::C>,
-        ext: Ext<<Self::C as Config>::F, <Self::C as Config>::EF>,
-    ) -> [Felt<<Self::C as Config>::F>; D] {
+        builder: &mut Builder<Self>,
+        ext: Ext<<Self as Config>::F, <Self as Config>::EF>,
+    ) -> [Felt<<Self as Config>::F>; D] {
         builder.ext2felt_v2(ext)
     }
 
     fn exp_reverse_bits(
-        builder: &mut Builder<Self::C>,
-        input: Felt<<Self::C as Config>::F>,
-        power_bits: Vec<Felt<<Self::C as Config>::F>>,
-    ) -> Felt<<Self::C as Config>::F> {
+        builder: &mut Builder<Self>,
+        input: Felt<<Self as Config>::F>,
+        power_bits: Vec<Felt<<Self as Config>::F>>,
+    ) -> Felt<<Self as Config>::F> {
         builder.exp_reverse_bits_v2(input, power_bits)
     }
 
     fn num2bits(
-        builder: &mut Builder<Self::C>,
-        num: Felt<<Self::C as Config>::F>,
+        builder: &mut Builder<Self>,
+        num: Felt<<Self as Config>::F>,
         num_bits: usize,
-    ) -> Vec<Felt<<Self::C as Config>::F>> {
+    ) -> Vec<Felt<<Self as Config>::F>> {
         builder.num2bits_v2_f(num, num_bits)
     }
 
     fn bits2num(
-        builder: &mut Builder<Self::C>,
-        bits: impl IntoIterator<Item = Felt<<Self::C as Config>::F>>,
-    ) -> Felt<<Self::C as Config>::F> {
+        builder: &mut Builder<Self>,
+        bits: impl IntoIterator<Item = Felt<<Self as Config>::F>>,
+    ) -> Felt<<Self as Config>::F> {
         builder.bits2num_v2_f(bits)
     }
 
     fn select_chain_hv(
-        builder: &mut Builder<Self::C>,
+        builder: &mut Builder<Self>,
         should_swap: Self::Bit,
         first: Self::Digest,
         second: Self::Digest,
@@ -278,20 +269,20 @@ impl BabyBearFriConfigVariable for BabyBearPoseidon2 {
     }
 
     fn select_chain_ef(
-        builder: &mut Builder<Self::C>,
+        builder: &mut Builder<Self>,
         should_swap: Self::Bit,
-        first: impl IntoIterator<Item = Ext<<Self::C as Config>::F, <Self::C as Config>::EF>> + Clone,
-        second: impl IntoIterator<Item = Ext<<Self::C as Config>::F, <Self::C as Config>::EF>> + Clone,
-    ) -> Vec<Ext<<Self::C as Config>::F, <Self::C as Config>::EF>> {
+        first: impl IntoIterator<Item = Ext<<Self as Config>::F, <Self as Config>::EF>> + Clone,
+        second: impl IntoIterator<Item = Ext<<Self as Config>::F, <Self as Config>::EF>> + Clone,
+    ) -> Vec<Ext<<Self as Config>::F, <Self as Config>::EF>> {
         select_chain(builder, should_swap, first, second).collect::<Vec<_>>()
     }
 
-    fn assert_digest_eq(builder: &mut Builder<Self::C>, a: Self::Digest, b: Self::Digest) {
+    fn assert_digest_eq(builder: &mut Builder<Self>, a: Self::Digest, b: Self::Digest) {
         zip(a, b).for_each(|(e1, e2)| builder.assert_felt_eq(e1, e2));
     }
 
     fn observe_digest(
-        builder: &mut Builder<Self::C>,
+        builder: &mut Builder<Self>,
         challenger: &mut Self::FriChallengerVariable,
         digest: Self::Digest,
     ) {

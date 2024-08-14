@@ -20,7 +20,8 @@ use sp1_core::stark::StarkVerifyingKey;
 use sp1_recursion_compiler::ir::{Builder, Config, Ext, ExtConst, FromConstant};
 use sp1_recursion_compiler::prelude::Felt;
 
-use crate::BabyBearFriConfigVariable;
+use crate::BabyBearFriConfig;
+use crate::CircuitConfig;
 use crate::TwoAdicPcsMatsVariable;
 use crate::TwoAdicPcsProofVariable;
 
@@ -33,20 +34,20 @@ use crate::VerifyingKeyVariable;
 
 /// Reference: [sp1_core::stark::ShardProof]
 #[derive(Clone)]
-pub struct ShardProofVariable<C: Config, SC: BabyBearFriConfigVariable<C = C>> {
-    pub commitment: ShardCommitmentVariable<C, SC>,
+pub struct ShardProofVariable<C: CircuitConfig> {
+    pub commitment: ShardCommitmentVariable<C>,
     pub opened_values: ShardOpenedValuesVariable<C>,
-    pub opening_proof: TwoAdicPcsProofVariable<C, SC>,
+    pub opening_proof: TwoAdicPcsProofVariable<C>,
     pub chip_ordering: HashMap<String, usize>,
     pub public_values: Vec<Felt<C::F>>,
 }
 
 /// Reference: [sp1_core::stark::ShardCommitment]
 #[derive(Debug, Clone)]
-pub struct ShardCommitmentVariable<C: Config, SC: BabyBearFriConfigVariable<C = C>> {
-    pub main_commit: SC::Digest,
-    pub permutation_commit: SC::Digest,
-    pub quotient_commit: SC::Digest,
+pub struct ShardCommitmentVariable<C: CircuitConfig> {
+    pub main_commit: C::Digest,
+    pub permutation_commit: C::Digest,
+    pub quotient_commit: C::Digest,
 }
 
 /// Reference: [sp1_core::stark::ShardOpenedValues]
@@ -122,8 +123,8 @@ impl<'a, SC: StarkGenericConfig, A: MachineAir<SC::Val>> VerifyingKeyHint<'a, SC
 impl<C, SC> StarkVerifier<C, SC>
 where
     C::F: TwoAdicField,
-    SC: BabyBearFriConfigVariable<C = C>,
-    C: Config<F = SC::Val>,
+    C: CircuitConfig<F = SC::Val>,
+    SC: BabyBearFriConfig,
     <SC::ValMmcs as Mmcs<BabyBear>>::ProverData<RowMajorMatrix<BabyBear>>: Clone,
 {
     pub fn natural_domain_for_degree(
@@ -138,10 +139,10 @@ where
 
     pub fn verify_shard<A>(
         builder: &mut Builder<C>,
-        vk: &VerifyingKeyVariable<C, SC>,
+        vk: &VerifyingKeyVariable<C>,
         machine: &StarkMachine<SC, A>,
-        challenger: &mut SC::FriChallengerVariable,
-        proof: &ShardProofVariable<C, SC>,
+        challenger: &mut C::FriChallengerVariable,
+        proof: &ShardProofVariable<C>,
     ) where
         A: MachineAir<Val<SC>> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
     {
@@ -185,11 +186,11 @@ where
             .map(|_| challenger.sample_ext(builder))
             .collect::<Vec<_>>();
 
-        SC::observe_digest(builder, challenger, permutation_commit.clone());
+        C::observe_digest(builder, challenger, permutation_commit.clone());
 
         let _alpha = challenger.sample_ext(builder);
 
-        SC::observe_digest(builder, challenger, quotient_commit.clone());
+        C::observe_digest(builder, challenger, quotient_commit.clone());
 
         let zeta = challenger.sample_ext(builder);
 
