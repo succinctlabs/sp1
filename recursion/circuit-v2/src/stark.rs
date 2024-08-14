@@ -24,7 +24,6 @@ use crate::BabyBearFriConfigVariable;
 use crate::TwoAdicPcsMatsVariable;
 use crate::TwoAdicPcsProofVariable;
 
-use crate::challenger::CanObserveVariable;
 use crate::challenger::FieldChallengerVariable;
 use crate::constraints::RecursiveVerifierConstraintFolder;
 use crate::domain::PolynomialSpaceVariable;

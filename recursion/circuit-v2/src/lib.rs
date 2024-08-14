@@ -20,7 +20,7 @@ mod types;
 
 pub mod build_wrap_v2;
 pub mod challenger;
-pub mod challenger_gnark;
+// pub mod challenger_gnark;
 pub mod constraints;
 pub mod domain;
 pub mod fri;
@@ -184,6 +184,7 @@ pub trait BabyBearFriConfigVariable: BabyBearFriConfig {
         second: Self::Digest,
     ) -> (Self::Digest, Self::Digest);
 
+    #[allow(clippy::type_complexity)]
     fn select_chain_ef(
         builder: &mut Builder<Self::C>,
         should_swap: Self::Bit,
@@ -207,15 +208,6 @@ impl BabyBearFriConfig for BabyBearPoseidon2 {
     fn fri_config(&self) -> &FriConfig<FriMmcs<Self>> {
         self.pcs().fri_config()
     }
-}
-
-/// Hack to get the length of an array.
-trait Length {
-    const LEN: usize;
-}
-
-impl<T, const LENGTH: usize> Length for [T; LENGTH] {
-    const LEN: usize = LENGTH;
 }
 
 impl BabyBearFriConfigVariable for BabyBearPoseidon2 {

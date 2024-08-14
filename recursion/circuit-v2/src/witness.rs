@@ -12,7 +12,6 @@ use sp1_core::{
 };
 use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
-    config::InnerConfig,
     ir::{Builder, Config, Ext, Felt},
 };
 use sp1_recursion_core::air::Block;
@@ -22,8 +21,8 @@ use crate::{
         AirOpenedValuesVariable, ChipOpenedValuesVariable, ShardCommitmentVariable,
         ShardOpenedValuesVariable, ShardProofVariable,
     },
-    BatchOpeningVariable, FriCommitPhaseProofStepVariable, FriProofVariable, FriQueryProofVariable,
-    TwoAdicPcsProofVariable,
+    BabyBearFriConfigVariable, BatchOpeningVariable, FriCommitPhaseProofStepVariable,
+    FriProofVariable, FriQueryProofVariable, TwoAdicPcsProofVariable,
 };
 
 pub type Witness<C> = Block<<C as Config>::F>;
@@ -109,10 +108,11 @@ impl<C: Config, T: Witnessable<C>> Witnessable<C> for Vec<T> {
     }
 }
 
-type C = InnerConfig;
+type C = <SC as BabyBearFriConfigVariable>::C;
+type SC = BabyBearPoseidon2;
 
 impl Witnessable<C> for ShardProof<BabyBearPoseidon2> {
-    type WitnessVariable = ShardProofVariable<C>;
+    type WitnessVariable = ShardProofVariable<C, SC>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let commitment = self.commitment.read(builder);
@@ -142,7 +142,7 @@ impl Witnessable<C> for ShardProof<BabyBearPoseidon2> {
 }
 
 impl Witnessable<C> for ShardCommitment<InnerDigestHash> {
-    type WitnessVariable = ShardCommitmentVariable<C>;
+    type WitnessVariable = ShardCommitmentVariable<C, SC>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let main_commit = InnerDigest::from(self.main_commit).read(builder);
@@ -228,7 +228,7 @@ impl Witnessable<C> for AirOpenedValues<InnerChallenge> {
 }
 
 impl Witnessable<C> for InnerPcsProof {
-    type WitnessVariable = TwoAdicPcsProofVariable<C>;
+    type WitnessVariable = TwoAdicPcsProofVariable<C, SC>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let fri_proof = self.fri_proof.read(builder);
@@ -245,7 +245,7 @@ impl Witnessable<C> for InnerPcsProof {
 }
 
 impl Witnessable<C> for InnerBatchOpening {
-    type WitnessVariable = BatchOpeningVariable<C>;
+    type WitnessVariable = BatchOpeningVariable<C, SC>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let opened_values = self
@@ -271,7 +271,7 @@ impl Witnessable<C> for InnerBatchOpening {
 }
 
 impl Witnessable<C> for InnerFriProof {
-    type WitnessVariable = FriProofVariable<C>;
+    type WitnessVariable = FriProofVariable<C, SC>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let commit_phase_commits = self
@@ -311,7 +311,7 @@ impl Witnessable<C> for InnerFriProof {
 }
 
 impl Witnessable<C> for QueryProof<InnerChallenge, InnerChallengeMmcs> {
-    type WitnessVariable = FriQueryProofVariable<C>;
+    type WitnessVariable = FriQueryProofVariable<C, SC>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let commit_phase_openings = self.commit_phase_openings.read(builder);
@@ -326,7 +326,7 @@ impl Witnessable<C> for QueryProof<InnerChallenge, InnerChallengeMmcs> {
 }
 
 impl Witnessable<C> for CommitPhaseProofStep<InnerChallenge, InnerChallengeMmcs> {
-    type WitnessVariable = FriCommitPhaseProofStepVariable<C>;
+    type WitnessVariable = FriCommitPhaseProofStepVariable<C, SC>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let sibling_value = self.sibling_value.read(builder);
