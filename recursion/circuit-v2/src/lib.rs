@@ -24,7 +24,7 @@ use p3_challenger::{CanObserve, CanSample, FieldChallenger, GrindingChallenger};
 use p3_commit::{ExtensionMmcs, Mmcs};
 use p3_dft::Radix2DitParallel;
 use p3_fri::{FriConfig, TwoAdicFriPcs};
-use sp1_recursion_core::stark::config::{BabyBearPoseidon2Outer, OuterValMmcs};
+use sp1_recursion_core_v2::stark::config::{BabyBearPoseidon2Outer, OuterValMmcs};
 
 use p3_baby_bear::BabyBear;
 use sp1_core::{stark::StarkGenericConfig, utils::BabyBearPoseidon2};

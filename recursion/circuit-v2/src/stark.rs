@@ -285,7 +285,7 @@ pub(crate) mod tests {
     use sp1_recursion_compiler::config::InnerConfig;
     use sp1_recursion_compiler::ir::{Builder, ExtConst};
 
-    use sp1_recursion_core::runtime::DIGEST_SIZE;
+    use sp1_recursion_core_v2::runtime::DIGEST_SIZE;
 
     use super::*;
     use crate::utils::tests::run_test_recursion;
