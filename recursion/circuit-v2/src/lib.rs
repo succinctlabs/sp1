@@ -6,6 +6,7 @@ use std::{
 };
 
 use challenger::{CanObserveVariable, DuplexChallengerVariable, FieldChallengerVariable};
+use itertools::WhileSome;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::AbstractField;
 
@@ -131,7 +132,12 @@ pub trait BabyBearFriConfig:
 pub trait BabyBearFriConfigVariable: BabyBearFriConfig {
     // Is this is the best place to put this?
     type C: Config<F = Self::Val, EF = Self::Challenge>;
-    type Bit;
+    type Bit: Variable<Self::C, Expression = Self::BitExpression> + Clone + 'static;
+    // If you try to simplify by removing this, rustc will complain about some static lifetime
+    // bound not being satisfied at the call site of `select_chain`. Where? Nobody knows.
+    type BitExpression: AbstractField;
+    // where
+    //     <Self::Bit as Variable<Self::C>>::Expression: AbstractField;
     type FriChallengerVariable: FieldChallengerVariable<Self::C, Self::Bit>;
 
     // Move these to their own traits later, perhaps.
@@ -154,19 +160,75 @@ pub trait BabyBearFriConfigVariable: BabyBearFriConfig {
     fn exp_reverse_bits(
         builder: &mut Builder<Self::C>,
         input: Felt<<Self::C as Config>::F>,
-        power_bits: Vec<Felt<<Self::C as Config>::F>>,
+        power_bits: Vec<Self::Bit>,
     ) -> Felt<<Self::C as Config>::F>;
 
     fn num2bits(
         builder: &mut Builder<Self::C>,
         num: Felt<<Self::C as Config>::F>,
         num_bits: usize,
-    ) -> Vec<Felt<<Self::C as Config>::F>>;
+    ) -> Vec<Self::Bit>;
 
     fn bits2num(
         builder: &mut Builder<Self::C>,
-        bits: impl IntoIterator<Item = Felt<<Self::C as Config>::F>>,
+        bits: impl IntoIterator<Item = Self::Bit>,
     ) -> Felt<<Self::C as Config>::F>;
+
+    fn complement(builder: &mut Builder<Self::C>, bit: Self::Bit) -> Self::Bit;
+
+    // fn select_chain<S>(
+    //     builder: &mut Builder<Self::C>,
+    //     should_swap: Self::Bit,
+    //     first: Vec<S>,
+    //     second: Vec<S>,
+    // ) -> Vec<S>
+    // where
+    //     S: Variable<Self::C> + AbstractField + Mul<Self::Bit, Output = S>;
+    // S: Variable<Self::C>,
+    // <S as Variable<Self::C>>::Expression: Add<Output = <S as Variable<Self::C>>::Expression>
+    //     + Mul<
+    //         <Self::Bit as Variable<Self::C>>::Expression,
+    //         Output = <S as Variable<Self::C>>::Expression,
+    //     >;
+    // where
+    //     S: Variable<Self::C> + Into<<S as Variable<Self::C>>::Expression>,
+    //     <S as Variable<Self::C>>::Expression: Add<Output = <S as Variable<Self::C>>::Expression>
+    //         + Mul<
+    //             <Self::Bit as Variable<Self::C>>::Expression,
+    //             Output = <S as Variable<Self::C>>::Expression,
+    //         >
+    // fn select_chain<'a, S>(
+    //     builder: &'a mut Builder<Self::C>,
+    //     should_swap: Self::Bit,
+    //     first: impl IntoIterator<Item = S>,
+    //     second: impl IntoIterator<Item = S>,
+    // ) -> Vec<S>
+    // where
+    //     S: Variable<Self::C>,
+    //     <S as Variable<Self::C>>::Expression: Add<Output = <S as Variable<Self::C>>::Expression>
+    //         + Mul<Self::BitExpression, Output = <S as Variable<Self::C>>::Expression>,
+    // {
+    //     // let should_swap: <Self::Bit as Variable<Self::C>>::Expression = should_swap.into();
+    //     // let one = <Self::Bit as Variable<Self::C>>::Expression::one();
+    //     // let shouldnt_swap = one - should_swap.clone();
+
+    //     // let id_branch = first
+    //     //     .clone()
+    //     //     .into_iter()
+    //     //     .chain(second.clone())
+    //     //     .map(<S as Variable<Self::C>>::Expression::from);
+    //     // let swap_branch = second
+    //     //     .into_iter()
+    //     //     .chain(first)
+    //     //     .map(<S as Variable<Self::C>>::Expression::from);
+    //     // zip(
+    //     //     zip(id_branch, swap_branch),
+    //     //     zip(repeat(shouldnt_swap), repeat(should_swap)),
+    //     // )
+    //     // .map(|((id_v, sw_v), (id_c, sw_c))| builder.eval(id_v * id_c + sw_v * sw_c))
+    //     // .collect()
+    //     vec![]
+    // }
 }
 
 impl BabyBearFriConfig for BabyBearPoseidon2 {
@@ -181,6 +243,7 @@ impl BabyBearFriConfig for BabyBearPoseidon2 {
 impl BabyBearFriConfigVariable for BabyBearPoseidon2 {
     type C = InnerConfig;
     type Bit = Felt<<Self::C as Config>::F>;
+    type BitExpression = <Self::Bit as Variable<Self::C>>::Expression;
     type FriChallengerVariable = DuplexChallengerVariable<Self::C>;
 
     fn poseidon2_hash(
@@ -226,6 +289,73 @@ impl BabyBearFriConfigVariable for BabyBearPoseidon2 {
     ) -> Felt<<Self::C as Config>::F> {
         builder.bits2num_v2_f(bits)
     }
+
+    /// TODO Try to remove this and instead tighten the bounds on `Bit` in the trait.
+    fn complement(builder: &mut Builder<Self::C>, bit: Self::Bit) -> Self::Bit {
+        let one: Self::Bit = builder.constant(AbstractField::one());
+        builder.eval(one - bit)
+    }
+
+    // fn select_chain<S>(
+    //     builder: &mut Builder<Self::C>,
+    //     should_swap: Self::Bit,
+    //     first: impl IntoIterator<Item = S> + Clone,
+    //     second: impl IntoIterator<Item = S> + Clone,
+    // ) -> Vec<S>
+    // where
+    //     S: Variable<Self::C>,
+    //     <S as Variable<Self::C>>::Expression: Add<Output = <S as Variable<Self::C>>::Expression>
+    //         + Mul<
+    //             <Self::Bit as Variable<Self::C>>::Expression,
+    //             Output = <S as Variable<Self::C>>::Expression,
+    //         >, // where
+    //            //     S: Variable<Self::C>,
+    //            //     <S as Variable<Self::C>>::Expression: Add<Output = <S as Variable<Self::C>>::Expression>
+    //            //         + Mul<
+    //            //             <Self::Bit as Variable<Self::C>>::Expression,
+    //            //             Output = <S as Variable<Self::C>>::Expression,
+    //            //         >,
+    // {
+    //     let should_swap: <Self::Bit as Variable<Self::C>>::Expression = should_swap.into();
+    //     let one = <Self::Bit as Variable<Self::C>>::Expression::one();
+    //     let shouldnt_swap = one - should_swap.clone();
+
+    //     let id_branch = first
+    //         .clone()
+    //         .into_iter()
+    //         .chain(second.clone())
+    //         .map(<S as Variable<Self::C>>::Expression::from);
+    //     let swap_branch = second
+    //         .into_iter()
+    //         .chain(first)
+    //         .map(<S as Variable<Self::C>>::Expression::from);
+    //     zip(
+    //         zip(id_branch, swap_branch),
+    //         zip(repeat(shouldnt_swap), repeat(should_swap)),
+    //     )
+    //     .map(|((id_v, sw_v), (id_c, sw_c))| builder.eval(id_v * id_c + sw_v * sw_c))
+    //     .collect()
+    // }
+
+    // fn select_chain<S>(
+    //     builder: &mut Builder<Self::C>,
+    //     should_swap: Self::Bit,
+    //     first: Vec<S>,
+    //     second: Vec<S>,
+    // ) -> Vec<S>
+    // where
+    //     S: Variable<Self::C> + AbstractField + Mul<Self::Bit, Output = S>,
+    // {
+    //     let shouldnt_swap = Self::complement(builder, should_swap);
+    //     let id_branch = first.clone().into_iter().chain(second.clone());
+    //     let swap_branch = second.into_iter().chain(first);
+    //     zip(
+    //         zip(id_branch, swap_branch),
+    //         zip(repeat(shouldnt_swap), repeat(should_swap)),
+    //     )
+    //     .map(|((id_v, sw_v), (id_c, sw_c))| builder.eval(id_v * id_c + sw_v * sw_c))
+    //     .collect()
+    // }
 }
 
 impl BabyBearFriConfig for BabyBearPoseidon2Outer {
@@ -237,16 +367,16 @@ impl BabyBearFriConfig for BabyBearPoseidon2Outer {
     }
 }
 
-pub fn select_chain<'a, C, R, S>(
-    builder: &'a mut Builder<C>,
+pub fn select_chain<C, R, S>(
+    builder: &mut Builder<C>,
     should_swap: R,
-    first: impl IntoIterator<Item = S> + Clone + 'a,
-    second: impl IntoIterator<Item = S> + Clone + 'a,
-) -> impl Iterator<Item = S> + 'a
+    first: impl IntoIterator<Item = S> + Clone,
+    second: impl IntoIterator<Item = S> + Clone,
+) -> Vec<S>
 where
     C: Config,
-    R: Variable<C> + Into<<R as Variable<C>>::Expression> + 'a,
-    S: Variable<C> + Into<<S as Variable<C>>::Expression> + 'a,
+    R: Variable<C>,
+    S: Variable<C>,
     <R as Variable<C>>::Expression: AbstractField,
     <S as Variable<C>>::Expression: Add<Output = <S as Variable<C>>::Expression>
         + Mul<<R as Variable<C>>::Expression, Output = <S as Variable<C>>::Expression>,
@@ -269,4 +399,5 @@ where
         zip(repeat(shouldnt_swap), repeat(should_swap)),
     )
     .map(|((id_v, sw_v), (id_c, sw_c))| builder.eval(id_v * id_c + sw_v * sw_c))
+    .collect()
 }

@@ -23,7 +23,7 @@ pub fn verify_shape_and_sample_challenges<C: Config, SC: BabyBearFriConfigVariab
     config: &FriConfig<FriMmcs<SC>>,
     proof: &FriProofVariable<C>,
     challenger: &mut SC::FriChallengerVariable,
-) -> FriChallenges<C> {
+) -> FriChallenges<C, SC::Bit> {
     let betas = proof
         .commit_phase_commits
         .iter()
@@ -43,7 +43,7 @@ pub fn verify_shape_and_sample_challenges<C: Config, SC: BabyBearFriConfigVariab
     challenger.check_witness(builder, config.proof_of_work_bits, proof.pow_witness);
 
     let log_max_height = proof.commit_phase_commits.len() + config.log_blowup;
-    let query_indices: Vec<Vec<Felt<_>>> =
+    let query_indices: Vec<Vec<SC::Bit>> =
         repeat_with(|| challenger.sample_bits(builder, log_max_height))
             .take(config.num_queries)
             .collect();
@@ -151,7 +151,7 @@ pub fn verify_challenges<C: Config, SC: BabyBearFriConfigVariable<C = C>>(
     builder: &mut Builder<C>,
     config: &FriConfig<FriMmcs<SC>>,
     proof: &FriProofVariable<C>,
-    challenges: &FriChallenges<C>,
+    challenges: &FriChallenges<C, SC::Bit>,
     reduced_openings: Vec<[Ext<C::F, C::EF>; 32]>,
 ) {
     let log_max_height = proof.commit_phase_commits.len() + config.log_blowup;
@@ -178,7 +178,7 @@ pub fn verify_challenges<C: Config, SC: BabyBearFriConfigVariable<C = C>>(
 pub fn verify_query<C: Config, SC: BabyBearFriConfigVariable<C = C>>(
     builder: &mut Builder<C>,
     commit_phase_commits: Vec<DigestVariable<C>>,
-    index_bits: &[Felt<C::F>],
+    index_bits: &[SC::Bit],
     proof: FriQueryProofVariable<C>,
     betas: Vec<Ext<C::F, C::EF>>,
     reduced_openings: [Ext<C::F, C::EF>; 32],
@@ -203,17 +203,16 @@ pub fn verify_query<C: Config, SC: BabyBearFriConfigVariable<C = C>>(
     ) {
         folded_eval = builder.eval(folded_eval + reduced_openings[log_folded_height + 1]);
 
-        let one: Felt<_> = builder.constant(C::F::one());
-        let index_sibling: Felt<_> = builder.eval(one - index_bits[offset]);
+        let index_sibling_complement: SC::Bit = index_bits[offset].clone();
+        // let index_sibling_complement: Felt<_> = builder.constant(C::F::one());
         let index_pair = &index_bits[(offset + 1)..];
 
-        let evals_ext = select_chain(
+        let evals_ext = SC::select_chain::<Ext<_, _>>(
             builder,
-            index_sibling,
-            once(step.sibling_value),
+            index_sibling_complement.clone(),
             once(folded_eval),
-        )
-        .collect::<Vec<_>>();
+            once(step.sibling_value),
+        );
         let evals_felt = vec![
             SC::ext2felt(builder, evals_ext[0]).to_vec(),
             SC::ext2felt(builder, evals_ext[1]).to_vec(),
@@ -233,7 +232,7 @@ pub fn verify_query<C: Config, SC: BabyBearFriConfigVariable<C = C>>(
         );
 
         let xs_new: Ext<_, _> = builder.eval(x * C::EF::two_adic_generator(1));
-        let xs = select_chain(builder, index_sibling, once(xs_new), once(x)).collect::<Vec<_>>();
+        let xs = select_chain(builder, index_sibling_complement, once(x), once(xs_new));
         folded_eval = builder
             .eval(evals_ext[0] + (beta - xs[0]) * (evals_ext[1] - evals_ext[0]) / (xs[1] - xs[0]));
         x = builder.eval(x * x);
@@ -246,7 +245,7 @@ pub fn verify_batch<C: Config, SC: BabyBearFriConfigVariable<C = C>, const D: us
     builder: &mut Builder<C>,
     commit: DigestVariable<C>,
     dimensions: Vec<Dimensions>,
-    index_bits: Vec<Felt<C::F>>,
+    index_bits: Vec<SC::Bit>,
     opened_values: Vec<Vec<Vec<Felt<C::F>>>>,
     proof: Vec<DigestVariable<C>>,
 ) {
@@ -275,8 +274,8 @@ pub fn verify_batch<C: Config, SC: BabyBearFriConfigVariable<C = C>, const D: us
         .collect::<Vec<_>>();
     let mut root: [Felt<C::F>; 8] = SC::poseidon2_hash(builder, &felt_slice);
 
-    for (bit, sibling) in zip(index_bits, proof) {
-        let pre_root = select_chain(builder, bit, root, sibling).collect::<Vec<_>>();
+    zip(index_bits, proof).for_each(|(bit, sibling): (SC::Bit, [Felt<C::F>; 8])| {
+        let pre_root = select_chain(builder, bit, root, sibling);
 
         root = SC::poseidon2_compress(builder, pre_root);
         curr_height_padded >>= 1;
@@ -304,7 +303,7 @@ pub fn verify_batch<C: Config, SC: BabyBearFriConfigVariable<C = C>, const D: us
                 root.into_iter().chain(next_height_openings_digest),
             );
         }
-    }
+    });
 
     zip(root, commit).for_each(|(e1, e2)| builder.assert_felt_eq(e1, e2));
 }
