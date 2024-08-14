@@ -864,7 +864,6 @@ impl<'a> Runtime<'a> {
                 if self.unconstrained
                     && (syscall != SyscallCode::EXIT_UNCONSTRAINED && syscall != SyscallCode::WRITE)
                 {
-                    println!("Invalid syscall usage in unconstrained mode: {:?}", syscall);
                     return Err(ExecutionError::InvalidSyscallUsage(syscall_id as u64));
                 }
 
