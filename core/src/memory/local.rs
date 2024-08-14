@@ -6,11 +6,12 @@ use std::{
 use p3_air::{Air, BaseAir};
 use p3_field::PrimeField32;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
+use serde::{Deserialize, Serialize};
 use sp1_derive::AlignedBorrow;
 
 use crate::{
     air::{AirInteraction, InteractionScope, MachineAir, Word},
-    runtime::{ExecutionRecord, Program},
+    runtime::{ExecutionRecord, MemoryRecord, Program},
     stark::SP1AirBuilder,
     utils::pad_to_power_of_two,
 };
@@ -71,33 +72,21 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
         input: &ExecutionRecord,
         _output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        let local_memory_accesses = match self.kind {
-            MemoryChipType::Initialize => {
-                println!(
-                    "Local memory initialize table: {:?}",
-                    input.local_memory_initialize_access.len()
-                );
-                &input.local_memory_initialize_access
-            }
-            MemoryChipType::Finalize => {
-                println!(
-                    "Local memory finalize table: {:?}",
-                    input.local_memory_finalize_access.len()
-                );
-                &input.local_memory_finalize_access
-            }
-        };
-
         let mut rows =
-            Vec::<[F; NUM_MEMORY_LOCAL_INIT_COLS]>::with_capacity(local_memory_accesses.len());
+            Vec::<[F; NUM_MEMORY_LOCAL_INIT_COLS]>::with_capacity(input.local_memory_access.len());
 
-        for (addr, mem_access) in local_memory_accesses.iter() {
+        for local_mem_event in input.local_memory_access.iter() {
             let mut row = [F::zero(); NUM_MEMORY_LOCAL_INIT_COLS];
             let cols: &mut MemoryLocalInitCols<F> = row.as_mut_slice().borrow_mut();
 
+            let mem_access = match self.kind {
+                MemoryChipType::Initialize => local_mem_event.initial_mem_access,
+                MemoryChipType::Finalize => local_mem_event.final_mem_access,
+            };
+
             cols.shard = F::from_canonical_u32(mem_access.shard);
             cols.clk = F::from_canonical_u32(mem_access.clk);
-            cols.addr = F::from_canonical_u32(*addr);
+            cols.addr = F::from_canonical_u32(local_mem_event.addr);
             cols.value = mem_access.value.into();
             cols.is_real = F::one();
 
@@ -114,10 +103,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        match self.kind {
-            MemoryChipType::Initialize => !shard.local_memory_initialize_access.is_empty(),
-            MemoryChipType::Finalize => !shard.local_memory_finalize_access.is_empty(),
-        }
+        !shard.local_memory_access.is_empty()
     }
 
     fn included_phase1(&self) -> bool {
@@ -179,6 +165,13 @@ where
             );
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MemoryLocalEvent {
+    pub addr: u32,
+    pub initial_mem_access: MemoryRecord,
+    pub final_mem_access: MemoryRecord,
 }
 
 #[cfg(test)]

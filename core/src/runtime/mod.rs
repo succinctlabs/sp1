@@ -44,6 +44,7 @@ use crate::alu::create_alu_lookup_id;
 use crate::alu::create_alu_lookups;
 use crate::bytes::NUM_BYTE_LOOKUP_CHANNELS;
 use crate::memory::MemoryInitializeFinalizeEvent;
+use crate::memory::MemoryLocalEvent;
 use crate::utils::SP1CoreOpts;
 use crate::{alu::AluEvent, cpu::CpuEvent};
 
@@ -123,6 +124,8 @@ pub struct Runtime<'a> {
     /// Memory addresses that were touched in this batch of shards. Used to minimize the size of
     /// checkpoints.
     pub touched_memory: HashSet<u32, BuildNoHashHasher<u32>>,
+
+    pub local_memory_access: HashMap<u32, MemoryLocalEvent>,
 }
 
 #[derive(Error, Debug, Serialize, Deserialize)]
@@ -202,6 +205,7 @@ impl<'a> Runtime<'a> {
             opts,
             max_cycles: context.max_cycles,
             touched_memory: Default::default(),
+            local_memory_access: Default::default(),
         }
     }
 
@@ -310,31 +314,32 @@ impl<'a> Runtime<'a> {
                 })
             }
         };
-        let value = record.value;
-        let prev_shard = record.shard;
-        let prev_timestamp = record.clk;
 
-        // Insert into local_memory_initialize_access for this shard's first access of this address.
-        if !self.unconstrained {
-            self.record
-                .local_memory_initialize_access
-                .entry(addr)
-                .or_insert(*record);
-        }
-
+        let prev_record = *record;
         record.shard = shard;
         record.clk = timestamp;
 
-        // Update the local_memory_finalize_access.
         if !self.unconstrained {
-            self.record
-                .local_memory_finalize_access
+            self.local_memory_access
                 .entry(addr)
-                .insert(*record);
+                .and_modify(|e| {
+                    e.final_mem_access = *record;
+                })
+                .or_insert(MemoryLocalEvent {
+                    addr,
+                    initial_mem_access: prev_record,
+                    final_mem_access: *record,
+                });
         }
 
         // Construct the memory read record.
-        MemoryReadRecord::new(value, shard, timestamp, prev_shard, prev_timestamp)
+        MemoryReadRecord::new(
+            record.value,
+            record.shard,
+            record.clk,
+            prev_record.shard,
+            prev_record.clk,
+        )
     }
 
     /// Write a word to memory and create an access record.
@@ -370,38 +375,33 @@ impl<'a> Runtime<'a> {
                 })
             }
         };
-        let prev_value = record.value;
-        let prev_shard = record.shard;
-        let prev_timestamp = record.clk;
 
-        // Insert into local_memory_initialize_access for this shard's first access of this address.
-        if !self.unconstrained {
-            self.record
-                .local_memory_initialize_access
-                .entry(addr)
-                .or_insert(*record);
-        }
-
+        let prev_record = *record;
         record.value = value;
         record.shard = shard;
         record.clk = timestamp;
 
-        // Update the local_memory_finalize_access.
         if !self.unconstrained {
-            self.record
-                .local_memory_finalize_access
+            self.local_memory_access
                 .entry(addr)
-                .insert(*record);
+                .and_modify(|e| {
+                    e.final_mem_access = *record;
+                })
+                .or_insert(MemoryLocalEvent {
+                    addr,
+                    initial_mem_access: prev_record,
+                    final_mem_access: *record,
+                });
         }
 
         // Construct the memory write record.
         MemoryWriteRecord::new(
-            value,
-            shard,
-            timestamp,
-            prev_value,
-            prev_shard,
-            prev_timestamp,
+            record.value,
+            record.shard,
+            record.clk,
+            prev_record.value,
+            prev_record.shard,
+            prev_record.clk,
         )
     }
 
@@ -536,6 +536,7 @@ impl<'a> Runtime<'a> {
             c,
             sub_lookups: create_alu_lookups(),
         };
+
         match opcode {
             Opcode::ADD => {
                 self.record.add_events.push(event);
@@ -713,6 +714,7 @@ impl<'a> Runtime<'a> {
             Opcode::SLTU => {
                 (rd, b, c) = self.alu_rr(instruction);
                 a = if b < c { 1 } else { 0 };
+
                 self.alu_rw(instruction, rd, a, b, c, lookup_id);
             }
 
@@ -1082,6 +1084,11 @@ impl<'a> Runtime<'a> {
     }
 
     pub fn bump_record(&mut self) {
+        // Copy all of the existing local memory accesses to the record's local_memory_access vec.
+        for (_, event) in self.local_memory_access.drain() {
+            self.record.local_memory_access.push(event);
+        }
+
         let removed_record =
             std::mem::replace(&mut self.record, ExecutionRecord::new(self.program.clone()));
         let public_values = removed_record.public_values;

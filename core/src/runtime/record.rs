@@ -7,7 +7,6 @@ use p3_field::AbstractField;
 use serde::{Deserialize, Serialize};
 
 use super::program::Program;
-use super::MemoryRecord;
 use super::Opcode;
 use crate::air::PublicValues;
 use crate::alu::AluEvent;
@@ -15,6 +14,7 @@ use crate::bytes::event::add_sharded_byte_lookup_events;
 use crate::bytes::event::ByteRecord;
 use crate::bytes::ByteLookupEvent;
 use crate::cpu::CpuEvent;
+use crate::memory::MemoryLocalEvent;
 use crate::runtime::MemoryInitializeFinalizeEvent;
 use crate::runtime::MemoryRecordEnum;
 use crate::stark::MachineRecord;
@@ -97,9 +97,7 @@ pub struct ExecutionRecord {
 
     pub global_memory_finalize_events: Vec<MemoryInitializeFinalizeEvent>,
 
-    pub local_memory_initialize_access: HashMap<u32, MemoryRecord>,
-
-    pub local_memory_finalize_access: HashMap<u32, MemoryRecord>,
+    pub local_memory_access: Vec<MemoryLocalEvent>,
 
     pub bls12381_decompress_events: Vec<ECDecompressEvent>,
 
