@@ -856,6 +856,8 @@ impl<'a> Runtime<'a> {
                         .or_insert(1);
                 }
 
+                // `hint_slice` is allowed in unconstrained mode since it is used to write the hint.
+                // Other syscalls are not allowed because they can lead to non-deterministic behavior.
                 if self.unconstrained
                     && (syscall != SyscallCode::EXIT_UNCONSTRAINED && syscall != SyscallCode::WRITE)
                 {
