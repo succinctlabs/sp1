@@ -156,7 +156,7 @@ pub fn dashu_modpow(
     let mut exp = exponent.clone();
 
     while exp > dashu::integer::UBig::from(0u32) {
-        if &exp % dashu::integer::UBig::from(1u32) == dashu::integer::UBig::from(1u32) {
+        if &exp % dashu::integer::UBig::from(2u32) == dashu::integer::UBig::from(1u32) {
             result = (result * &base) % modulus;
         }
         exp >>= 1;
