@@ -21,8 +21,6 @@ pub use instruction::*;
 pub use memory::*;
 use nohash_hasher::BuildNoHashHasher;
 pub use opcode::*;
-use p3_maybe_rayon::prelude::ParallelBridge;
-use p3_maybe_rayon::prelude::ParallelIterator;
 pub use program::*;
 pub use record::*;
 pub use register::*;
@@ -34,13 +32,11 @@ pub use utils::*;
 
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use std::collections::VecDeque;
 use std::fs::File;
 use std::io::BufWriter;
 use std::io::Write;
 use std::sync::Arc;
 
-use rand::Rng;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -127,8 +123,6 @@ pub struct Runtime<'a> {
     /// Memory addresses that were touched in this batch of shards. Used to minimize the size of
     /// checkpoints.
     pub touched_memory: HashSet<u32, BuildNoHashHasher<u32>>,
-
-    pub report_single: ExecutionReport,
 }
 
 #[derive(Error, Debug, Serialize, Deserialize)]
@@ -202,7 +196,6 @@ impl<'a> Runtime<'a> {
             emit_events: true,
             max_syscall_cycles,
             report: ExecutionReport::default(),
-            report_single: ExecutionReport::default(),
             print_report: false,
             subproof_verifier,
             hook_registry,
@@ -273,6 +266,7 @@ impl<'a> Runtime<'a> {
     }
 
     /// Get the current timestamp for a given memory access position.
+    #[inline]
     pub const fn timestamp(&self, position: &MemoryAccessPosition) -> u32 {
         self.state.clk + *position as u32
     }
@@ -289,6 +283,7 @@ impl<'a> Runtime<'a> {
     }
 
     /// Read a word from memory and create an access record.
+    #[inline]
     pub fn mr(&mut self, addr: u32, shard: u32, timestamp: u32) -> MemoryReadRecord {
         // Get the memory record entry.
         self.touched_memory.insert(addr);
@@ -331,6 +326,7 @@ impl<'a> Runtime<'a> {
     }
 
     /// Write a word to memory and create an access record.
+    #[inline]
     pub fn mw(&mut self, addr: u32, value: u32, shard: u32, timestamp: u32) -> MemoryWriteRecord {
         // Get the memory record entry.
         self.touched_memory.insert(addr);
@@ -382,6 +378,7 @@ impl<'a> Runtime<'a> {
     }
 
     /// Read from memory, assuming that all addresses are aligned.
+    #[inline]
     pub fn mr_cpu(&mut self, addr: u32, position: MemoryAccessPosition) -> u32 {
         // Assert that the address is aligned.
         assert_valid_memory_access!(addr, position);
@@ -402,6 +399,7 @@ impl<'a> Runtime<'a> {
     }
 
     /// Write to memory.
+    #[inline]
     pub fn mw_cpu(&mut self, addr: u32, value: u32, position: MemoryAccessPosition) {
         // Assert that the address is aligned.
         assert_valid_memory_access!(addr, position);
@@ -410,7 +408,7 @@ impl<'a> Runtime<'a> {
         let record = self.mw(addr, value, self.shard(), self.timestamp(&position));
 
         // If we're not in unconstrained mode, record the access for the current cycle.
-        if !self.unconstrained {
+        if !self.unconstrained && self.emit_events {
             match position {
                 MemoryAccessPosition::A => {
                     assert!(self.memory_accesses.a.is_none());
@@ -433,11 +431,13 @@ impl<'a> Runtime<'a> {
     }
 
     /// Read from a register.
+    #[inline]
     pub fn rr(&mut self, register: Register, position: MemoryAccessPosition) -> u32 {
         self.mr_cpu(register as u32, position)
     }
 
     /// Write to a register.
+    #[inline]
     pub fn rw(&mut self, register: Register, value: u32) {
         // The only time we are writing to a register is when it is in operand A.
         // Register %x0 should always be 0. See 2.6 Load and Store Instruction on
@@ -542,7 +542,8 @@ impl<'a> Runtime<'a> {
     }
 
     /// Fetch the destination register and input operand values for an ALU instruction.
-    fn alu_rr(&mut self, instruction: Instruction) -> (Register, u32, u32) {
+    #[inline]
+    fn alu_rr(&mut self, instruction: &Instruction) -> (Register, u32, u32) {
         if !instruction.imm_c {
             let (rd, rs1, rs2) = instruction.r_type();
             let c = self.rr(rs2, MemoryAccessPosition::C);
@@ -564,9 +565,10 @@ impl<'a> Runtime<'a> {
     }
 
     /// Set the destination register with the result and emit an ALU event.
+    #[inline]
     fn alu_rw(
         &mut self,
-        instruction: Instruction,
+        instruction: &Instruction,
         rd: Register,
         a: u32,
         b: u32,
@@ -580,7 +582,8 @@ impl<'a> Runtime<'a> {
     }
 
     /// Fetch the input operand values for a load instruction.
-    fn load_rr(&mut self, instruction: Instruction) -> (Register, u32, u32, u32, u32) {
+    #[inline]
+    fn load_rr(&mut self, instruction: &Instruction) -> (Register, u32, u32, u32, u32) {
         let (rd, rs1, imm) = instruction.i_type();
         let (b, c) = (self.rr(rs1, MemoryAccessPosition::B), imm);
         let addr = b.wrapping_add(c);
@@ -589,7 +592,8 @@ impl<'a> Runtime<'a> {
     }
 
     /// Fetch the input operand values for a store instruction.
-    fn store_rr(&mut self, instruction: Instruction) -> (u32, u32, u32, u32, u32) {
+    #[inline]
+    fn store_rr(&mut self, instruction: &Instruction) -> (u32, u32, u32, u32, u32) {
         let (rs1, rs2, imm) = instruction.s_type();
         let c = imm;
         let b = self.rr(rs2, MemoryAccessPosition::B);
@@ -600,7 +604,8 @@ impl<'a> Runtime<'a> {
     }
 
     /// Fetch the input operand values for a branch instruction.
-    fn branch_rr(&mut self, instruction: Instruction) -> (u32, u32, u32) {
+    #[inline]
+    fn branch_rr(&mut self, instruction: &Instruction) -> (u32, u32, u32) {
         let (rs1, rs2, imm) = instruction.b_type();
         let c = imm;
         let b = self.rr(rs2, MemoryAccessPosition::B);
@@ -609,13 +614,14 @@ impl<'a> Runtime<'a> {
     }
 
     /// Fetch the instruction at the current program counter.
+    #[inline]
     fn fetch(&self) -> Instruction {
         let idx = ((self.state.pc - self.program.pc_base) / 4) as usize;
         self.program.instructions[idx]
     }
 
     /// Execute the given instruction over the current state of the runtime.
-    fn execute_instruction(&mut self, instruction: Instruction) -> Result<(), ExecutionError> {
+    fn execute_instruction(&mut self, instruction: &Instruction) -> Result<(), ExecutionError> {
         let mut pc = self.state.pc;
         let mut clk = self.state.clk;
         let mut exit_code = 0u32;
@@ -626,18 +632,16 @@ impl<'a> Runtime<'a> {
         let (a, b, c): (u32, u32, u32);
         let (addr, memory_read_value): (u32, u32);
         let mut memory_store_value: Option<u32> = None;
-        self.memory_accesses = MemoryAccessRecord::default();
+
+        if self.emit_events {
+            self.memory_accesses = MemoryAccessRecord::default();
+        }
 
         let lookup_id = create_alu_lookup_id();
         let syscall_lookup_id = create_alu_lookup_id();
 
         if self.print_report && !self.unconstrained {
             self.report
-                .opcode_counts
-                .entry(instruction.opcode)
-                .and_modify(|c| *c += 1)
-                .or_insert(1);
-            self.report_single
                 .opcode_counts
                 .entry(instruction.opcode)
                 .and_modify(|c| *c += 1)
@@ -650,6 +654,24 @@ impl<'a> Runtime<'a> {
                 (rd, b, c) = self.alu_rr(instruction);
                 a = b.wrapping_add(c);
                 self.alu_rw(instruction, rd, a, b, c, lookup_id);
+            }
+            Opcode::LW => {
+                (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
+                if addr % 4 != 0 {
+                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::LW, addr));
+                }
+                a = memory_read_value;
+                memory_store_value = Some(memory_read_value);
+                self.rw(rd, a);
+            }
+            Opcode::SW => {
+                (a, b, c, addr, _) = self.store_rr(instruction);
+                if addr % 4 != 0 {
+                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::SW, addr));
+                }
+                let value = a;
+                memory_store_value = Some(value);
+                self.mw_cpu(align(addr), value, MemoryAccessPosition::Memory);
             }
             Opcode::SUB => {
                 (rd, b, c) = self.alu_rr(instruction);
@@ -719,15 +741,7 @@ impl<'a> Runtime<'a> {
                 memory_store_value = Some(memory_read_value);
                 self.rw(rd, a);
             }
-            Opcode::LW => {
-                (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
-                if addr % 4 != 0 {
-                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::LW, addr));
-                }
-                a = memory_read_value;
-                memory_store_value = Some(memory_read_value);
-                self.rw(rd, a);
-            }
+
             Opcode::LBU => {
                 (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
                 let value = (memory_read_value).to_le_bytes()[(addr % 4) as usize];
@@ -773,15 +787,6 @@ impl<'a> Runtime<'a> {
                     1 => ((a & 0x0000FFFF) << 16) + (memory_read_value & 0x0000FFFF),
                     _ => unreachable!(),
                 };
-                memory_store_value = Some(value);
-                self.mw_cpu(align(addr), value, MemoryAccessPosition::Memory);
-            }
-            Opcode::SW => {
-                (a, b, c, addr, _) = self.store_rr(instruction);
-                if addr % 4 != 0 {
-                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::SW, addr));
-                }
-                let value = a;
                 memory_store_value = Some(value);
                 self.mw_cpu(align(addr), value, MemoryAccessPosition::Memory);
             }
@@ -860,11 +865,6 @@ impl<'a> Runtime<'a> {
 
                 if self.print_report && !self.unconstrained {
                     self.report
-                        .syscall_counts
-                        .entry(syscall)
-                        .and_modify(|c| *c += 1)
-                        .or_insert(1);
-                    self.report_single
                         .syscall_counts
                         .entry(syscall)
                         .and_modify(|c| *c += 1)
@@ -1022,7 +1022,7 @@ impl<'a> Runtime<'a> {
                 clk,
                 pc,
                 next_pc,
-                instruction,
+                *instruction,
                 a,
                 b,
                 c,
@@ -1046,7 +1046,7 @@ impl<'a> Runtime<'a> {
         self.log(&instruction);
 
         // Execute the instruction.
-        self.execute_instruction(instruction)?;
+        self.execute_instruction(&instruction)?;
 
         // Increment the clock.
         self.state.global_clk += 1;
@@ -1058,7 +1058,9 @@ impl<'a> Runtime<'a> {
             self.state.clk = 0;
             self.state.channel = 0;
 
-            self.bump_record();
+            if self.emit_events {
+                self.bump_record();
+            }
         }
 
         // If the cycle limit is exceeded, return an error.

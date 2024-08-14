@@ -1,9 +1,8 @@
 use std::io::Write;
 
-use crate::runtime::ExecutionReport;
-
 use super::{Instruction, Runtime};
 
+#[inline]
 pub const fn align(addr: u32) -> u32 {
     addr - addr % 4
 }
@@ -33,7 +32,7 @@ macro_rules! assert_valid_memory_access {
 
 impl<'a> Runtime<'a> {
     #[inline]
-    pub fn log(&mut self, instruction: &Instruction) {
+    pub fn log(&mut self, _: &Instruction) {
         // Write the current program counter to the trace buffer for the cycle tracer.
         if let Some(ref mut buf) = self.trace_buf {
             if !self.unconstrained {
@@ -47,8 +46,6 @@ impl<'a> Runtime<'a> {
                 self.state.global_clk,
                 self.state.pc
             );
-            println!("{}", self.report_single);
-            self.report_single = ExecutionReport::default();
         }
     }
 }
