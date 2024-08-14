@@ -5141,6 +5141,7 @@ dependencies = [
  "sp1-recursion-core-v2",
  "sp1-recursion-derive",
  "sp1-recursion-gnark-ffi",
+ "sp1-recursion-program",
  "stacker",
  "tracing",
  "zkhash",

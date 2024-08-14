@@ -22,15 +22,16 @@ pub type RecursiveVerifierConstraintFolder<'a, C> = GenericVerifierConstraintFol
     SymbolicExt<<C as Config>::F, <C as Config>::EF>,
 >;
 
-impl<C, SC> StarkVerifier<C, SC>
+impl<C, SC, A> StarkVerifier<C, SC, A>
 where
     C::F: TwoAdicField,
     SC: BabyBearFriConfigVariable<C = C>,
     C: Config<F = SC::Val>,
     <SC::ValMmcs as Mmcs<BabyBear>>::ProverData<RowMajorMatrix<BabyBear>>: Clone,
+    A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
 {
     #[allow(clippy::too_many_arguments)]
-    pub fn verify_constraints<A>(
+    pub fn verify_constraints(
         builder: &mut Builder<C>,
         chip: &MachineChip<SC, A>,
         opening: &ChipOpenedValues<Ext<C::F, C::EF>>,
@@ -40,9 +41,7 @@ where
         alpha: Ext<C::F, C::EF>,
         permutation_challenges: &[Ext<C::F, C::EF>],
         public_values: &[Felt<C::F>],
-    ) where
-        A: for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
-    {
+    ) {
         let sels = trace_domain.selectors_at_point_variable(builder, zeta);
 
         // Recompute the quotient at zeta from the chunks.
@@ -63,7 +62,7 @@ where
         builder.assert_ext_eq(folded_constraints * sels.inv_zeroifier, quotient);
     }
 
-    pub fn eval_constraints<A>(
+    pub fn eval_constraints(
         builder: &mut Builder<C>,
         chip: &MachineChip<SC, A>,
         opening: &ChipOpenedValues<Ext<C::F, C::EF>>,
@@ -71,10 +70,7 @@ where
         alpha: Ext<C::F, C::EF>,
         permutation_challenges: &[Ext<C::F, C::EF>],
         public_values: &[Felt<C::F>],
-    ) -> Ext<C::F, C::EF>
-    where
-        A: for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
-    {
+    ) -> Ext<C::F, C::EF> {
         let mut unflatten = |v: &[Ext<C::F, C::EF>]| {
             v.chunks_exact(<SC::Challenge as AbstractExtensionField<C::F>>::D)
                 .map(|chunk| {
@@ -160,13 +156,10 @@ where
         )
     }
 
-    pub fn verify_opening_shape<A>(
+    pub fn verify_opening_shape(
         chip: &MachineChip<SC, A>,
         opening: &ChipOpenedValues<Ext<C::F, C::EF>>,
-    ) -> Result<(), OpeningShapeError>
-    where
-        A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
-    {
+    ) -> Result<(), OpeningShapeError> {
         // Verify that the preprocessed width matches the expected value for the chip.
         if opening.preprocessed.local.len() != chip.preprocessed_width() {
             return Err(OpeningShapeError::PreprocessedWidthMismatch(

@@ -56,8 +56,8 @@ pub struct ShardCommitmentVariable<C: Config> {
 pub const EMPTY: usize = 0x_1111_1111;
 
 #[derive(Debug, Clone, Copy)]
-pub struct StarkVerifier<C: Config, SC: StarkGenericConfig> {
-    _phantom: std::marker::PhantomData<(C, SC)>,
+pub struct StarkVerifier<C: Config, SC: StarkGenericConfig, A> {
+    _phantom: std::marker::PhantomData<(C, SC, A)>,
 }
 
 pub struct VerifyingKeyHint<'a, SC: StarkGenericConfig, A> {
@@ -71,12 +71,13 @@ impl<'a, SC: StarkGenericConfig, A: MachineAir<SC::Val>> VerifyingKeyHint<'a, SC
     }
 }
 
-impl<C, SC> StarkVerifier<C, SC>
+impl<C, SC, A> StarkVerifier<C, SC, A>
 where
     C::F: TwoAdicField,
     SC: BabyBearFriConfigVariable<C = C>,
     C: Config<F = SC::Val>,
     <SC::ValMmcs as Mmcs<BabyBear>>::ProverData<RowMajorMatrix<BabyBear>>: Clone,
+    A: MachineAir<Val<SC>>,
 {
     pub fn natural_domain_for_degree(
         config: &SC,
@@ -88,14 +89,14 @@ where
         )
     }
 
-    pub fn verify_shard<A>(
+    pub fn verify_shard(
         builder: &mut Builder<C>,
         vk: &VerifyingKeyVariable<C>,
         machine: &StarkMachine<SC, A>,
         challenger: &mut SC::FriChallengerVariable,
         proof: &ShardProofVariable<C>,
     ) where
-        A: MachineAir<Val<SC>> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
+        A: for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
     {
         let chips = machine
             .shard_chips_ordered(&proof.chip_ordering)
@@ -408,13 +409,7 @@ pub(crate) mod tests {
         // Verify the first proof.
         for proof in proofs.into_iter() {
             let mut challenger = challenger.copy(&mut builder);
-            StarkVerifier::<C, SC>::verify_shard::<A>(
-                &mut builder,
-                &vk,
-                &machine,
-                &mut challenger,
-                &proof,
-            );
+            StarkVerifier::verify_shard(&mut builder, &vk, &machine, &mut challenger, &proof);
         }
 
         run_test_recursion(builder.operations, witness_stream);

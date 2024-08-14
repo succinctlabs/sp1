@@ -14,6 +14,7 @@ pub mod challenger;
 pub mod constraints;
 pub mod domain;
 pub mod fri;
+pub mod machine;
 pub mod stark;
 pub(crate) mod utils;
 pub mod witness;
