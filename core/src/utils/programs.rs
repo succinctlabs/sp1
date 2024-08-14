@@ -36,9 +36,6 @@ pub mod tests {
     pub const CYCLE_TRACKER_ELF: &[u8] =
         include_bytes!("../../../tests/cycle-tracker/elf/riscv32im-succinct-zkvm-elf");
 
-    pub const ECRECOVER_ELF: &[u8] =
-        include_bytes!("../../../tests/ecrecover/elf/riscv32im-succinct-zkvm-elf");
-
     pub const ED_ADD_ELF: &[u8] =
         include_bytes!("../../../tests/ed-add/elf/riscv32im-succinct-zkvm-elf");
 

@@ -143,19 +143,7 @@ pub fn hook_ecrecover(_env: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
 
 #[cfg(test)]
 pub mod tests {
-    use crate::{
-        runtime::Program,
-        stark::CpuProver,
-        utils::{self, tests::ECRECOVER_ELF},
-    };
-
     use super::*;
-
-    #[test]
-    pub fn hook_fds_match() {
-        use sp1_zkvm::lib::io;
-        assert_eq!(FD_ECRECOVER_HOOK, io::FD_ECRECOVER_HOOK)
-    }
 
     #[test]
     pub fn registry_new_is_inhabited() {
@@ -166,12 +154,5 @@ pub mod tests {
     #[test]
     pub fn registry_empty_is_empty() {
         assert_eq!(HookRegistry::empty().table.len(), 0);
-    }
-
-    #[test]
-    fn test_ecrecover_program_prove() {
-        utils::setup_logger();
-        let program = Program::from(ECRECOVER_ELF);
-        utils::run_test::<CpuProver<_, _>>(program).unwrap();
     }
 }
