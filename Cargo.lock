@@ -4974,6 +4974,7 @@ dependencies = [
  "serde",
  "serde_with",
  "size",
+ "snowbridge-amcl",
  "sp1-derive",
  "sp1-primitives",
  "sp1-zkvm",
