@@ -20,7 +20,6 @@ mod types;
 
 pub mod build_wrap_v2;
 pub mod challenger;
-// pub mod challenger_gnark;
 pub mod constraints;
 pub mod domain;
 pub mod fri;
