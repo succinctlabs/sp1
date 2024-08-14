@@ -306,13 +306,13 @@ impl<'a> Runtime<'a> {
                 entry.insert(MemoryRecord {
                     value: *value,
                     shard: 0,
-                    timestamp: 0,
+                    clk: 0,
                 })
             }
         };
         let value = record.value;
         let prev_shard = record.shard;
-        let prev_timestamp = record.timestamp;
+        let prev_timestamp = record.clk;
 
         // Insert into local_memory_initialize_access for this shard's first access of this address.
         if !self.unconstrained {
@@ -323,7 +323,7 @@ impl<'a> Runtime<'a> {
         }
 
         record.shard = shard;
-        record.timestamp = timestamp;
+        record.clk = timestamp;
 
         // Update the local_memory_finalize_access.
         if !self.unconstrained {
@@ -366,13 +366,13 @@ impl<'a> Runtime<'a> {
                 entry.insert(MemoryRecord {
                     value: *value,
                     shard: 0,
-                    timestamp: 0,
+                    clk: 0,
                 })
             }
         };
         let prev_value = record.value;
         let prev_shard = record.shard;
-        let prev_timestamp = record.timestamp;
+        let prev_timestamp = record.clk;
 
         // Insert into local_memory_initialize_access for this shard's first access of this address.
         if !self.unconstrained {
@@ -384,7 +384,7 @@ impl<'a> Runtime<'a> {
 
         record.value = value;
         record.shard = shard;
-        record.timestamp = timestamp;
+        record.clk = timestamp;
 
         // Update the local_memory_finalize_access.
         if !self.unconstrained {
@@ -1138,7 +1138,7 @@ impl<'a> Runtime<'a> {
                 MemoryRecord {
                     value: *value,
                     shard: 0,
-                    timestamp: 0,
+                    clk: 0,
                 },
             );
         }
@@ -1278,7 +1278,7 @@ impl<'a> Runtime<'a> {
             None => &MemoryRecord {
                 value: 0,
                 shard: 0,
-                timestamp: 1,
+                clk: 1,
             },
         };
         memory_finalize_events.push(MemoryInitializeFinalizeEvent::finalize_from_record(

@@ -4,7 +4,7 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_uni_stark::{Entry, SymbolicExpression, SymbolicVariable};
 
 use crate::{
-    air::{AirInteraction, MessageBuilder, InteractionScope},
+    air::{AirInteraction, InteractionScope, MessageBuilder},
     stark::PROOF_MAX_NUM_PVS,
 };
 
@@ -256,7 +256,7 @@ mod tests {
                     AB::F::from_canonical_u32(3).into(),
                     InteractionKind::Alu,
                 ),
-                InteractionScope::Global,
+                InteractionScope::Local,
             );
             builder.send(
                 AirInteraction::new(
@@ -264,12 +264,12 @@ mod tests {
                     AB::F::from_canonical_u32(5).into(),
                     InteractionKind::Alu,
                 ),
-                InteractionScope::Global,
+                InteractionScope::Local,
             );
 
             builder.receive(
                 AirInteraction::new(vec![x.into()], y.into(), InteractionKind::Byte),
-                InteractionScope::Global,
+                InteractionScope::Local,
             );
         }
     }

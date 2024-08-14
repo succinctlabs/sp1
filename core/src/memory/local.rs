@@ -9,7 +9,7 @@ use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_derive::AlignedBorrow;
 
 use crate::{
-    air::{MachineAir, Word},
+    air::{AirInteraction, InteractionScope, MachineAir, Word},
     runtime::{ExecutionRecord, Program},
     stark::SP1AirBuilder,
     utils::pad_to_power_of_two,
@@ -25,8 +25,8 @@ pub struct MemoryLocalInitCols<T> {
     /// The shard number of the memory access.
     pub shard: T,
 
-    /// The timestamp of the memory access.
-    pub timestamp: T,
+    /// The clk of the memory access.
+    pub clk: T,
 
     /// The address of the memory access.
     pub addr: T,
@@ -96,7 +96,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
             let cols: &mut MemoryLocalInitCols<F> = row.as_mut_slice().borrow_mut();
 
             cols.shard = F::from_canonical_u32(mem_access.shard);
-            cols.timestamp = F::from_canonical_u32(mem_access.timestamp);
+            cols.clk = F::from_canonical_u32(mem_access.clk);
             cols.addr = F::from_canonical_u32(*addr);
             cols.value = mem_access.value.into();
             cols.is_real = F::one();
@@ -138,6 +138,46 @@ where
             local.is_real * local.is_real * local.is_real,
             local.is_real * local.is_real * local.is_real,
         );
+
+        if self.kind == MemoryChipType::Initialize {
+            let mut values = vec![local.shard.into(), local.clk.into(), local.addr.into()];
+            values.extend(local.value.map(Into::into));
+            builder.send(
+                AirInteraction::new(
+                    values.clone(),
+                    local.is_real.into(),
+                    crate::lookup::InteractionKind::Memory,
+                ),
+                InteractionScope::Global,
+            );
+            builder.receive(
+                AirInteraction::new(
+                    values,
+                    local.is_real.into(),
+                    crate::lookup::InteractionKind::Memory,
+                ),
+                InteractionScope::Local,
+            );
+        } else {
+            let mut values = vec![local.shard.into(), local.clk.into(), local.addr.into()];
+            values.extend(local.value.map(Into::into));
+            builder.receive(
+                AirInteraction::new(
+                    values.clone(),
+                    local.is_real.into(),
+                    crate::lookup::InteractionKind::Memory,
+                ),
+                InteractionScope::Global,
+            );
+            builder.send(
+                AirInteraction::new(
+                    values,
+                    local.is_real.into(),
+                    crate::lookup::InteractionKind::Memory,
+                ),
+                InteractionScope::Local,
+            );
+        }
     }
 }
 
@@ -176,48 +216,48 @@ mod tests {
         }
     }
 
-    // #[test]
-    // fn test_memory_lookup_interactions() {
-    //     setup_logger();
-    //     let program = sha_extend_program();
-    //     let program_clone = program.clone();
-    //     let mut runtime = Runtime::new(program, SP1CoreOpts::default());
-    //     runtime.run().unwrap();
-    //     let machine: crate::stark::StarkMachine<BabyBearPoseidon2, RiscvAir<BabyBear>> =
-    //         RiscvAir::machine(BabyBearPoseidon2::new());
-    //     let (pkey, _) = machine.setup(&program_clone);
-    //     let opts = SP1CoreOpts::default();
-    //     machine.generate_dependencies(&mut runtime.records, &opts);
+    #[test]
+    fn test_memory_lookup_interactions() {
+        setup_logger();
+        let program = sha_extend_program();
+        let program_clone = program.clone();
+        let mut runtime = Runtime::new(program, SP1CoreOpts::default());
+        runtime.run().unwrap();
+        let machine: crate::stark::StarkMachine<BabyBearPoseidon2, RiscvAir<BabyBear>> =
+            RiscvAir::machine(BabyBearPoseidon2::new());
+        let (pkey, _) = machine.setup(&program_clone);
+        let opts = SP1CoreOpts::default();
+        machine.generate_dependencies(&mut runtime.records, &opts);
 
-    //     let shards = runtime.records;
-    //     assert_eq!(shards.len(), 2);
-    //     debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
-    //         &machine,
-    //         &pkey,
-    //         &shards,
-    //         vec![InteractionKind::Memory],
-    //     );
-    // }
+        let shards = runtime.records;
+        assert_eq!(shards.len(), 2);
+        debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
+            &machine,
+            &pkey,
+            &shards,
+            vec![InteractionKind::Memory],
+        );
+    }
 
-    // #[test]
-    // fn test_byte_lookup_interactions() {
-    //     setup_logger();
-    //     let program = sha_extend_program();
-    //     let program_clone = program.clone();
-    //     let mut runtime = Runtime::new(program, SP1CoreOpts::default());
-    //     runtime.run().unwrap();
-    //     let machine = RiscvAir::machine(BabyBearPoseidon2::new());
-    //     let (pkey, _) = machine.setup(&program_clone);
-    //     let opts = SP1CoreOpts::default();
-    //     machine.generate_dependencies(&mut runtime.records, &opts);
+    #[test]
+    fn test_byte_lookup_interactions() {
+        setup_logger();
+        let program = sha_extend_program();
+        let program_clone = program.clone();
+        let mut runtime = Runtime::new(program, SP1CoreOpts::default());
+        runtime.run().unwrap();
+        let machine = RiscvAir::machine(BabyBearPoseidon2::new());
+        let (pkey, _) = machine.setup(&program_clone);
+        let opts = SP1CoreOpts::default();
+        machine.generate_dependencies(&mut runtime.records, &opts);
 
-    //     let shards = runtime.records;
-    //     assert_eq!(shards.len(), 2);
-    //     debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
-    //         &machine,
-    //         &pkey,
-    //         &shards,
-    //         vec![InteractionKind::Byte],
-    //     );
-    // }
+        let shards = runtime.records;
+        assert_eq!(shards.len(), 2);
+        debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
+            &machine,
+            &pkey,
+            &shards,
+            vec![InteractionKind::Byte],
+        );
+    }
 }

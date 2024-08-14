@@ -69,7 +69,7 @@ where
     <SC as StarkGenericConfig>::Val: PrimeField32,
 {
     // Setup the machine.
-    let machine = RiscvAir::machine(config);
+    let machine = RiscvAir::machine(config.clone());
     let prover = P::new(machine);
     let (pk, _) = prover.setup(runtime.program.as_ref());
 
@@ -82,13 +82,17 @@ where
             shard.public_values.shard = (i + 1) as u32;
         });
 
+    // Debug constraints.
+    let mut challenger = prover.config().challenger();
+    prover.debug_constraints(&pk, runtime.records.clone(), &mut challenger);
+
     // Prove the program.
     let mut challenger = prover.config().challenger();
     let proving_start = Instant::now();
     let proof = prover
         .prove(
             &pk,
-            runtime.records,
+            runtime.records.clone(),
             &mut challenger,
             SP1CoreOpts::default(),
         )
@@ -297,9 +301,7 @@ where
                             let traces = records
                                 .par_iter()
                                 .map(|record| {
-                                    let traces = prover.generate_traces(record, ProvePhase::Phase1);
-                                    println!("traces is {:?}", traces);
-                                    traces
+                                    prover.generate_traces(record, ProvePhase::Phase1)
                                 })
                                 .collect::<Vec<_>>();
 
@@ -556,6 +558,13 @@ where
                             records.into_par_iter().zip(traces.into_par_iter()).map(
                                 |(record, traces)| {
                                     let _span = span.enter();
+
+                                    for trace in traces.clone() {
+                                        println!(
+                                            "shard {} has chip {}", record.public_values.shard, trace.0
+                                        );
+                                    }
+
                                     let data = prover.commit(&record, traces);
                                     prover
                                         .open(
@@ -661,6 +670,7 @@ pub fn run_test_core<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
     let machine = RiscvAir::machine(config);
     let prover = P::new(machine);
     let (pk, _) = prover.setup(runtime.program.as_ref());
+
     let (proof, output, _) = prove_with_context(
         &prover,
         &pk,

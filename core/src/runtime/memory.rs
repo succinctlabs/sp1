@@ -10,7 +10,7 @@ pub struct MemoryRecord {
     pub shard: u32,
 
     /// The timestamp at which the memory address was last written to.
-    pub timestamp: u32,
+    pub clk: u32,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]

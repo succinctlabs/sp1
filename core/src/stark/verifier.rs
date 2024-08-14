@@ -1,4 +1,5 @@
 use core::fmt::Display;
+use std::borrow::Borrow;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::marker::PhantomData;
@@ -24,6 +25,8 @@ use super::StarkVerifyingKey;
 use super::Val;
 use crate::air::InteractionScope;
 use crate::air::MachineAir;
+use crate::air::PublicValues;
+use crate::air::Word;
 use crate::stark::MachineChip;
 
 pub struct Verifier<SC, A>(PhantomData<SC>, PhantomData<A>);
@@ -87,6 +90,12 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         let local_permutation_challenges = (0..2)
             .map(|_| challenger.sample_ext_element::<SC::Challenge>())
             .collect::<Vec<_>>();
+
+        let pv: &PublicValues<Word<SC::Val>, SC::Val> = proof.public_values.as_slice().borrow();
+        println!(
+            "in verifier, local permutation challenges for shard {}: {:?}",
+            pv.shard, local_permutation_challenges
+        );
 
         challenger.observe(global_permutation_commit.clone());
         challenger.observe(local_permutation_commit.clone());

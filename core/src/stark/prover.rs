@@ -1,6 +1,7 @@
 use core::fmt::Display;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use std::borrow::Borrow;
 use std::cmp::Reverse;
 use std::error::Error;
 
@@ -21,6 +22,8 @@ use super::{types::*, StarkGenericConfig};
 use super::{Com, OpeningProof};
 use super::{StarkProvingKey, VerifierConstraintFolder};
 use crate::air::MachineAir;
+use crate::air::PublicValues;
+use crate::air::Word;
 use crate::lookup::InteractionBuilder;
 use crate::stark::record::MachineRecord;
 use crate::stark::DebugConstraintBuilder;
@@ -152,13 +155,11 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
         pk: &StarkProvingKey<SC>,
         records: Vec<A::Record>,
         challenger: &mut SC::Challenger,
-        global_permutation_challenges: &[SC::Challenge],
     ) where
         SC::Val: PrimeField32,
         A: for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
     {
-        self.machine()
-            .debug_constraints(pk, records, challenger, global_permutation_challenges)
+        self.machine().debug_constraints(pk, records, challenger)
     }
 }
 
@@ -283,6 +284,12 @@ where
         for _ in 0..2 {
             local_permutation_challenges.push(challenger.sample_ext_element());
         }
+
+        let pv: &PublicValues<Word<SC::Val>, SC::Val> = data.public_values.as_slice().borrow();
+        println!(
+            "in prover, local permutation challenges for shard {}: {:?}",
+            pv.shard, local_permutation_challenges
+        );
 
         let [packed_global_perm_challenges, packed_local_perm_challenges] =
             [global_permutation_challenges, &local_permutation_challenges].map(|challenges| {
@@ -647,8 +654,6 @@ where
         for _ in 0..2 {
             global_permutation_challenges.push(challenger.sample_ext_element());
         }
-
-        // records.into_par_iter().zip(traces.into_par_iter())
 
         let shard_proofs = tracing::info_span!("prove_shards").in_scope(|| {
             records

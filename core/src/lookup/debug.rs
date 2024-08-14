@@ -95,7 +95,8 @@ pub fn debug_interactions<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
                     values.push(expr);
                 }
                 let key = format!(
-                    "{} {}",
+                    "{} {} {}",
+                    &interaction.scope.to_string(),
                     &interaction.kind.to_string(),
                     vec_to_string(values)
                 );

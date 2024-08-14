@@ -14,12 +14,12 @@ impl<F: PrimeField32> MemoryWriteCols<F> {
         let current_record = MemoryRecord {
             value: record.value,
             shard: record.shard,
-            timestamp: record.timestamp,
+            clk: record.timestamp,
         };
         let prev_record = MemoryRecord {
             value: record.prev_value,
             shard: record.prev_shard,
-            timestamp: record.prev_timestamp,
+            clk: record.prev_timestamp,
         };
         self.prev_value = prev_record.value.into();
         self.access
@@ -37,12 +37,12 @@ impl<F: PrimeField32> MemoryReadCols<F> {
         let current_record = MemoryRecord {
             value: record.value,
             shard: record.shard,
-            timestamp: record.timestamp,
+            clk: record.timestamp,
         };
         let prev_record = MemoryRecord {
             value: record.value,
             shard: record.prev_shard,
-            timestamp: record.prev_timestamp,
+            clk: record.prev_timestamp,
         };
         self.access
             .populate_access(channel, current_record, prev_record, output);
@@ -73,12 +73,12 @@ impl<F: PrimeField32> MemoryReadWriteCols<F> {
         let current_record = MemoryRecord {
             value: record.value,
             shard: record.shard,
-            timestamp: record.timestamp,
+            clk: record.timestamp,
         };
         let prev_record = MemoryRecord {
             value: record.prev_value,
             shard: record.prev_shard,
-            timestamp: record.prev_timestamp,
+            clk: record.prev_timestamp,
         };
         self.prev_value = prev_record.value.into();
         self.access
@@ -94,12 +94,12 @@ impl<F: PrimeField32> MemoryReadWriteCols<F> {
         let current_record = MemoryRecord {
             value: record.value,
             shard: record.shard,
-            timestamp: record.timestamp,
+            clk: record.timestamp,
         };
         let prev_record = MemoryRecord {
             value: record.value,
             shard: record.prev_shard,
-            timestamp: record.prev_timestamp,
+            clk: record.prev_timestamp,
         };
         self.prev_value = prev_record.value.into();
         self.access
@@ -118,18 +118,18 @@ impl<F: PrimeField32> MemoryAccessCols<F> {
         self.value = current_record.value.into();
 
         self.prev_shard = F::from_canonical_u32(prev_record.shard);
-        self.prev_clk = F::from_canonical_u32(prev_record.timestamp);
+        self.prev_clk = F::from_canonical_u32(prev_record.clk);
 
         // Fill columns used for verifying current memory access time value is greater than previous's.
         let use_clk_comparison = prev_record.shard == current_record.shard;
         self.compare_clk = F::from_bool(use_clk_comparison);
         let prev_time_value = if use_clk_comparison {
-            prev_record.timestamp
+            prev_record.clk
         } else {
             prev_record.shard
         };
         let current_time_value = if use_clk_comparison {
-            current_record.timestamp
+            current_record.clk
         } else {
             current_record.shard
         };

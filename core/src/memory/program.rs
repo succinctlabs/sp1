@@ -201,7 +201,7 @@ where
                 mult_local.multiplicity.into(),
                 crate::lookup::InteractionKind::Memory,
             ),
-            InteractionScope::Global,
+            InteractionScope::Local,
         );
     }
 }

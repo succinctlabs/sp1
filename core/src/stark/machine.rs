@@ -318,15 +318,27 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
 
         // Verify the cumulative sum is 0.
         tracing::debug_span!("verify cumulative sum is 0").in_scope(|| {
-            let mut sum = SC::Challenge::zero();
+            let mut global_sum = SC::Challenge::zero();
             for proof in proof.shard_proofs.iter() {
-                sum += proof.cumulative_sum(InteractionScope::Global);
-                sum += proof.cumulative_sum(InteractionScope::Local);
+                global_sum += proof.cumulative_sum(InteractionScope::Global);
             }
-            match sum.is_zero() {
-                true => Ok(()),
-                false => Err(MachineVerificationError::NonZeroCumulativeSum),
+            if !global_sum.is_zero() {
+                println!("Global sum is not zero");
+                return Err(MachineVerificationError::NonZeroCumulativeSum);
+            } else {
+                println!("Global sum is zero");
             }
+
+            for proof in proof.shard_proofs.iter() {
+                if !proof.cumulative_sum(InteractionScope::Local).is_zero() {
+                    println!("Local sum is not zero");
+                    return Err(MachineVerificationError::NonZeroCumulativeSum);
+                } else {
+                    println!("Local sum is zero");
+                }
+            }
+
+            Ok(())
         })
     }
 
@@ -336,12 +348,17 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         pk: &StarkProvingKey<SC>,
         records: Vec<A::Record>,
         challenger: &mut SC::Challenger,
-        global_permutation_challenges: &[SC::Challenge],
     ) where
         SC::Val: PrimeField32,
         A: for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
     {
         tracing::debug!("checking constraints for each shard");
+
+        // Obtain the challenges used for the global permutation argument.
+        let mut global_permutation_challenges: Vec<SC::Challenge> = Vec::new();
+        for _ in 0..2 {
+            global_permutation_challenges.push(challenger.sample_ext_element());
+        }
 
         // Obtain the challenges used for the local permutation argument.
         let mut local_permutation_challenges: Vec<SC::Challenge> = Vec::new();
@@ -349,7 +366,8 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             local_permutation_challenges.push(challenger.sample_ext_element());
         }
 
-        let mut cumulative_sum = SC::Challenge::zero();
+        let mut global_cumulative_sum = SC::Challenge::zero();
+        let mut local_cumulative_sum_is_zero = true;
         for shard in records.iter() {
             // Filter the chips based on what is used.
             let chips = self.shard_chips(shard);
@@ -381,7 +399,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                             .generate_permutation_trace(
                                 *pre_trace,
                                 main_trace,
-                                global_permutation_challenges,
+                                &global_permutation_challenges,
                                 &local_permutation_challenges,
                             );
                         let [global_cumulative_sums, local_cumulative_sums] =
@@ -405,11 +423,15 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             let (global_cumulative_sums, local_cumulative_sums): (Vec<_>, Vec<_>) =
                 cumulative_sums.into_iter().unzip();
 
-            cumulative_sum += global_cumulative_sums
+            global_cumulative_sum += global_cumulative_sums
                 .iter()
                 .copied()
-                .sum::<SC::Challenge>()
-                + local_cumulative_sums.iter().copied().sum::<SC::Challenge>();
+                .sum::<SC::Challenge>();
+
+            let local_cumulative_sum = local_cumulative_sums.iter().copied().sum::<SC::Challenge>();
+            if !local_cumulative_sum.is_zero() {
+                local_cumulative_sum_is_zero = false;
+            }
 
             // Compute some statistics.
             for i in 0..chips.len() {
@@ -440,7 +462,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                         &traces[i].0,
                         &global_permutation_traces[i],
                         &local_permutation_traces[i],
-                        global_permutation_challenges,
+                        &global_permutation_challenges,
                         &local_permutation_challenges,
                         shard.public_values(),
                     );
@@ -449,7 +471,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         }
 
         // If the cumulative sum is not zero, debug the interactions.
-        if !cumulative_sum.is_zero() {
+        if !global_cumulative_sum.is_zero() || !local_cumulative_sum_is_zero {
             debug_interactions_with_all_chips::<SC, A>(
                 self,
                 pk,
@@ -535,12 +557,14 @@ pub mod tests {
     use crate::runtime::Instruction;
     use crate::runtime::Opcode;
     use crate::runtime::Program;
+    use crate::runtime::Runtime;
     use crate::stark::CpuProver;
     use crate::stark::RiscvAir;
     use crate::stark::StarkProvingKey;
     use crate::stark::StarkVerifyingKey;
     use crate::utils;
     use crate::utils::prove;
+    use crate::utils::prove_simple;
     use crate::utils::run_test;
     use crate::utils::setup_logger;
     use crate::utils::BabyBearPoseidon2;
@@ -598,7 +622,17 @@ pub mod tests {
             Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
         ];
         let program = Program::new(instructions, 0, 0);
-        run_test::<CpuProver<_, _>>(program).unwrap();
+
+        let runtime = tracing::debug_span!("runtime.run(...)").in_scope(|| {
+            let mut runtime = Runtime::new(program, SP1CoreOpts::default());
+            runtime.run().unwrap();
+            runtime
+        });
+
+        let config = BabyBearPoseidon2::new();
+        prove_simple::<_, CpuProver<_, _>>(config, runtime).unwrap();
+
+        // run_test::<CpuProver<_, _>>(program).unwrap();
     }
 
     #[test]

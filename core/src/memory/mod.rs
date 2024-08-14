@@ -46,7 +46,7 @@ impl MemoryInitializeFinalizeEvent {
             addr,
             value: record.value,
             shard: record.shard,
-            timestamp: record.timestamp,
+            timestamp: record.clk,
             used: 1,
         }
     }

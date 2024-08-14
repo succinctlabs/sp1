@@ -7,6 +7,7 @@ use p3_air::{AirBuilderWithPublicValues, PermutationAirBuilder};
 use p3_field::{AbstractField, Field};
 use p3_uni_stark::StarkGenericConfig;
 use p3_uni_stark::{ProverConstraintFolder, SymbolicAirBuilder, VerifierConstraintFolder};
+use strum_macros::Display;
 
 use super::interaction::AirInteraction;
 use super::word::Word;
@@ -18,7 +19,7 @@ use crate::memory::MemoryAccessCols;
 use crate::{bytes::ByteOpcode, memory::MemoryCols};
 
 /// The scope of an interaction.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display)]
 pub enum InteractionScope {
     Global = 0,
     Local,
@@ -146,7 +147,7 @@ pub trait ByteAirBuilder: BaseAirBuilder {
                 multiplicity.into(),
                 InteractionKind::Byte,
             ),
-            InteractionScope::Global,
+            InteractionScope::Local,
         );
     }
 
@@ -201,7 +202,7 @@ pub trait ByteAirBuilder: BaseAirBuilder {
                 multiplicity.into(),
                 InteractionKind::Byte,
             ),
-            InteractionScope::Global,
+            InteractionScope::Local,
         );
     }
 }
@@ -340,7 +341,7 @@ pub trait AluAirBuilder: BaseAirBuilder {
 
         self.send(
             AirInteraction::new(values, multiplicity.into(), InteractionKind::Alu),
-            InteractionScope::Global,
+            InteractionScope::Local,
         );
     }
 
@@ -368,7 +369,7 @@ pub trait AluAirBuilder: BaseAirBuilder {
 
         self.receive(
             AirInteraction::new(values, multiplicity.into(), InteractionKind::Alu),
-            InteractionScope::Global,
+            InteractionScope::Local,
         );
     }
 
@@ -485,13 +486,13 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
         // The previous values get sent with multiplicity = 1, for "read".
         self.send(
             AirInteraction::new(prev_values, do_check.clone(), InteractionKind::Memory),
-            InteractionScope::Global,
+            InteractionScope::Local,
         );
 
         // The current values get "received", i.e. multiplicity = -1
         self.receive(
             AirInteraction::new(current_values, do_check.clone(), InteractionKind::Memory),
-            InteractionScope::Global,
+            InteractionScope::Local,
         );
     }
 
@@ -639,7 +640,7 @@ pub trait ProgramAirBuilder: BaseAirBuilder {
 
         self.send(
             AirInteraction::new(values, multiplicity.into(), InteractionKind::Program),
-            InteractionScope::Global,
+            InteractionScope::Local,
         );
     }
 
@@ -661,7 +662,7 @@ pub trait ProgramAirBuilder: BaseAirBuilder {
 
         self.receive(
             AirInteraction::new(values, multiplicity.into(), InteractionKind::Program),
-            InteractionScope::Global,
+            InteractionScope::Local,
         );
     }
 }
