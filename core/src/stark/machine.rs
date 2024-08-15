@@ -15,6 +15,7 @@ use p3_maybe_rayon::prelude::*;
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use serde::Serialize;
+use std::borrow::Borrow;
 use std::cmp::Reverse;
 use std::fmt::Debug;
 use tracing::instrument;
@@ -24,6 +25,8 @@ use super::Dom;
 use crate::air::InteractionScope;
 use crate::air::MachineAir;
 use crate::air::MachineProgram;
+use crate::air::PublicValues;
+use crate::air::Word;
 use crate::lookup::debug_interactions_with_all_chips;
 use crate::lookup::InteractionKind;
 use crate::stark::record::MachineRecord;
@@ -324,18 +327,28 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             }
             if !global_sum.is_zero() {
                 println!("Global sum is not zero");
-                return Err(MachineVerificationError::NonZeroCumulativeSum);
             } else {
                 println!("Global sum is zero");
             }
 
+            let mut local_bus_fail = false;
             for proof in proof.shard_proofs.iter() {
+                let pv: &PublicValues<Word<SC::Val>, SC::Val> =
+                    proof.public_values.as_slice().borrow();
                 if !proof.cumulative_sum(InteractionScope::Local).is_zero() {
-                    println!("Local sum is not zero");
-                    return Err(MachineVerificationError::NonZeroCumulativeSum);
+                    local_bus_fail = true;
+                    println!("Local sum is not zero for shard {}", pv.shard);
                 } else {
-                    println!("Local sum is zero");
+                    println!("Local sum is zero for shard {}", pv.shard);
                 }
+            }
+
+            if !global_sum.is_zero() {
+                return Err(MachineVerificationError::NonZeroCumulativeSum);
+            }
+
+            if local_bus_fail {
+                return Err(MachineVerificationError::NonZeroCumulativeSum);
             }
 
             Ok(())
@@ -557,14 +570,12 @@ pub mod tests {
     use crate::runtime::Instruction;
     use crate::runtime::Opcode;
     use crate::runtime::Program;
-    use crate::runtime::Runtime;
     use crate::stark::CpuProver;
     use crate::stark::RiscvAir;
     use crate::stark::StarkProvingKey;
     use crate::stark::StarkVerifyingKey;
     use crate::utils;
     use crate::utils::prove;
-    use crate::utils::prove_simple;
     use crate::utils::run_test;
     use crate::utils::setup_logger;
     use crate::utils::BabyBearPoseidon2;
@@ -622,17 +633,7 @@ pub mod tests {
             Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
         ];
         let program = Program::new(instructions, 0, 0);
-
-        let runtime = tracing::debug_span!("runtime.run(...)").in_scope(|| {
-            let mut runtime = Runtime::new(program, SP1CoreOpts::default());
-            runtime.run().unwrap();
-            runtime
-        });
-
-        let config = BabyBearPoseidon2::new();
-        prove_simple::<_, CpuProver<_, _>>(config, runtime).unwrap();
-
-        // run_test::<CpuProver<_, _>>(program).unwrap();
+        run_test::<CpuProver<_, _>>(program).unwrap();
     }
 
     #[test]

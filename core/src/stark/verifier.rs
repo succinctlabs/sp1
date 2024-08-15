@@ -91,11 +91,11 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             .map(|_| challenger.sample_ext_element::<SC::Challenge>())
             .collect::<Vec<_>>();
 
-        let pv: &PublicValues<Word<SC::Val>, SC::Val> = proof.public_values.as_slice().borrow();
-        println!(
-            "in verifier, local permutation challenges for shard {}: {:?}",
-            pv.shard, local_permutation_challenges
-        );
+        // let pv: &PublicValues<Word<SC::Val>, SC::Val> = proof.public_values.as_slice().borrow();
+        // println!(
+        //     "in verifier, local permutation challenges for shard {}: {:?}",
+        //     pv.shard, local_permutation_challenges
+        // );
 
         challenger.observe(global_permutation_commit.clone());
         challenger.observe(local_permutation_commit.clone());

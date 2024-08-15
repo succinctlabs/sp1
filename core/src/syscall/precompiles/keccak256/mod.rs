@@ -6,7 +6,10 @@ mod trace;
 use p3_keccak_air::KeccakAir;
 use serde::{Deserialize, Serialize};
 
-use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
+use crate::{
+    memory::MemoryLocalEvent,
+    runtime::{MemoryReadRecord, MemoryWriteRecord},
+};
 
 pub(crate) const STATE_SIZE: usize = 25;
 
@@ -24,6 +27,7 @@ pub struct KeccakPermuteEvent {
     pub state_read_records: Vec<MemoryReadRecord>,
     pub state_write_records: Vec<MemoryWriteRecord>,
     pub state_addr: u32,
+    pub local_mem_access: Vec<MemoryLocalEvent>,
 }
 
 pub struct KeccakPermuteChip {

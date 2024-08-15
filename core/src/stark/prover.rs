@@ -285,11 +285,11 @@ where
             local_permutation_challenges.push(challenger.sample_ext_element());
         }
 
-        let pv: &PublicValues<Word<SC::Val>, SC::Val> = data.public_values.as_slice().borrow();
-        println!(
-            "in prover, local permutation challenges for shard {}: {:?}",
-            pv.shard, local_permutation_challenges
-        );
+        // let pv: &PublicValues<Word<SC::Val>, SC::Val> = data.public_values.as_slice().borrow();
+        // println!(
+        //     "in prover, local permutation challenges for shard {}: {:?}",
+        //     pv.shard, local_permutation_challenges
+        // );
 
         let [packed_global_perm_challenges, packed_local_perm_challenges] =
             [global_permutation_challenges, &local_permutation_challenges].map(|challenges| {

@@ -3,6 +3,7 @@ use std::{
     mem::size_of,
 };
 
+use itertools::Itertools;
 use p3_air::{Air, BaseAir};
 use p3_field::PrimeField32;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
@@ -75,7 +76,16 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
         let mut rows =
             Vec::<[F; NUM_MEMORY_LOCAL_INIT_COLS]>::with_capacity(input.local_memory_access.len());
 
-        for local_mem_event in input.local_memory_access.iter() {
+        let keccak_local_mem_events = input
+            .keccak_permute_events
+            .iter()
+            .flat_map(|x| x.local_mem_access.iter());
+
+        for local_mem_event in input
+            .local_memory_access
+            .iter()
+            .chain(keccak_local_mem_events)
+        {
             let mut row = [F::zero(); NUM_MEMORY_LOCAL_INIT_COLS];
             let cols: &mut MemoryLocalInitCols<F> = row.as_mut_slice().borrow_mut();
 
@@ -103,7 +113,13 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        !shard.local_memory_access.is_empty()
+        let keccak_local_mem_events = shard
+            .keccak_permute_events
+            .iter()
+            .flat_map(|x| x.local_mem_access.iter())
+            .collect_vec();
+
+        !keccak_local_mem_events.is_empty() || !shard.local_memory_access.is_empty()
     }
 
     fn included_phase1(&self) -> bool {
