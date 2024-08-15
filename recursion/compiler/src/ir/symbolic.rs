@@ -1123,6 +1123,14 @@ impl<F: Field, EF: ExtensionField<F>, E: Any> DivAssign<E> for SymbolicExt<F, EF
     }
 }
 
+impl<F: Field, EF: ExtensionField<F>> Mul<SymbolicExt<F, EF>> for SymbolicFelt<F> {
+    type Output = SymbolicExt<F, EF>;
+
+    fn mul(self, rhs: SymbolicExt<F, EF>) -> Self::Output {
+        rhs * self
+    }
+}
+
 impl<F: Field, EF: ExtensionField<F>, E: Any> ExtensionOperand<F, EF> for E {
     fn to_operand(self) -> ExtOperand<F, EF> {
         match self.type_id() {

@@ -12,6 +12,7 @@ use p3_field::TwoAdicField;
 
 use p3_commit::PolynomialSpace;
 use sp1_core::air::MachineAir;
+use sp1_core::stark::ShardCommitment;
 use sp1_core::stark::ShardOpenedValues;
 use sp1_core::stark::StarkGenericConfig;
 use sp1_core::stark::StarkMachine;
@@ -22,7 +23,7 @@ use sp1_recursion_compiler::circuit::CircuitV2Builder;
 use sp1_recursion_compiler::ir::{Builder, Config, Ext};
 use sp1_recursion_compiler::prelude::Felt;
 
-use crate::BabyBearFriConfig;
+use crate::challenger::CanObserveVariable;
 use crate::CircuitConfig;
 use crate::TwoAdicPcsMatsVariable;
 use crate::TwoAdicPcsProofVariable;
@@ -31,25 +32,18 @@ use crate::challenger::FieldChallengerVariable;
 use crate::constraints::RecursiveVerifierConstraintFolder;
 use crate::domain::PolynomialSpaceVariable;
 use crate::fri::verify_two_adic_pcs;
+use crate::BabyBearFriConfigVariable;
 use crate::TwoAdicPcsRoundVariable;
 use crate::VerifyingKeyVariable;
 
 /// Reference: [sp1_core::stark::ShardProof]
 #[derive(Clone)]
-pub struct ShardProofVariable<C: CircuitConfig> {
-    pub commitment: ShardCommitmentVariable<C>,
+pub struct ShardProofVariable<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable<C>> {
+    pub commitment: ShardCommitment<SC::Digest>,
     pub opened_values: ShardOpenedValues<Ext<C::F, C::EF>>,
-    pub opening_proof: TwoAdicPcsProofVariable<C>,
+    pub opening_proof: TwoAdicPcsProofVariable<C, SC>,
     pub chip_ordering: HashMap<String, usize>,
     pub public_values: Vec<Felt<C::F>>,
-}
-
-/// Reference: [sp1_core::stark::ShardCommitment]
-#[derive(Debug, Clone)]
-pub struct ShardCommitmentVariable<C: CircuitConfig> {
-    pub main_commit: C::Digest,
-    pub permutation_commit: C::Digest,
-    pub quotient_commit: C::Digest,
 }
 
 pub const EMPTY: usize = 0x_1111_1111;
@@ -74,7 +68,7 @@ impl<C, SC, A> StarkVerifier<C, SC, A>
 where
     C::F: TwoAdicField,
     C: CircuitConfig<F = SC::Val>,
-    SC: BabyBearFriConfig,
+    SC: BabyBearFriConfigVariable<C>,
     <SC::ValMmcs as Mmcs<BabyBear>>::ProverData<RowMajorMatrix<BabyBear>>: Clone,
     A: MachineAir<Val<SC>>,
 {
@@ -90,10 +84,10 @@ where
 
     pub fn verify_shard(
         builder: &mut Builder<C>,
-        vk: &VerifyingKeyVariable<C>,
+        vk: &VerifyingKeyVariable<C, SC>,
         machine: &StarkMachine<SC, A>,
-        challenger: &mut C::FriChallengerVariable,
-        proof: &ShardProofVariable<C>,
+        challenger: &mut SC::FriChallengerVariable,
+        proof: &ShardProofVariable<C, SC>,
     ) where
         A: for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
     {
@@ -125,21 +119,21 @@ where
             .map(|log_degree| Self::natural_domain_for_degree(machine.config(), 1 << log_degree))
             .collect::<Vec<_>>();
 
-        let ShardCommitmentVariable {
+        let ShardCommitment {
             main_commit,
             permutation_commit,
             quotient_commit,
-        } = commitment;
+        } = *commitment;
 
         let permutation_challenges = (0..2)
             .map(|_| challenger.sample_ext(builder))
             .collect::<Vec<_>>();
 
-        C::observe_digest(builder, challenger, permutation_commit.clone());
+        challenger.observe(builder, permutation_commit);
 
         let alpha = challenger.sample_ext(builder);
 
-        C::observe_digest(builder, challenger, quotient_commit.clone());
+        challenger.observe(builder, quotient_commit);
 
         let zeta = challenger.sample_ext(builder);
 
@@ -211,21 +205,21 @@ where
             .collect::<Vec<_>>();
 
         // Create the pcs rounds.
-        let prep_commit = vk.commitment.clone();
+        let prep_commit = vk.commitment;
         let prep_round = TwoAdicPcsRoundVariable {
             batch_commit: prep_commit,
             domains_points_and_opens: preprocessed_domains_points_and_opens,
         };
         let main_round = TwoAdicPcsRoundVariable {
-            batch_commit: main_commit.clone(),
+            batch_commit: main_commit,
             domains_points_and_opens: main_domains_points_and_opens,
         };
         let perm_round = TwoAdicPcsRoundVariable {
-            batch_commit: permutation_commit.clone(),
+            batch_commit: permutation_commit,
             domains_points_and_opens: perm_domains_points_and_opens,
         };
         let quotient_round = TwoAdicPcsRoundVariable {
-            batch_commit: quotient_commit.clone(),
+            batch_commit: quotient_commit,
             domains_points_and_opens: quotient_domains_points_and_opens,
         };
         let rounds = vec![prep_round, main_round, perm_round, quotient_round];
@@ -263,7 +257,7 @@ where
     }
 }
 
-impl<C: Config> ShardProofVariable<C> {
+impl<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable<C>> ShardProofVariable<C, SC> {
     pub fn contains_cpu(&self) -> bool {
         self.chip_ordering.contains_key("CPU")
     }
@@ -283,7 +277,6 @@ pub(crate) mod tests {
 
     use crate::challenger::CanObserveVariable;
     use crate::challenger::DuplexChallengerVariable;
-    use p3_challenger::{CanObserve, FieldChallenger};
 
     use sp1_core::io::SP1Stdin;
     use sp1_core::runtime::Program;
@@ -297,9 +290,7 @@ pub(crate) mod tests {
         utils::BabyBearPoseidon2,
     };
     use sp1_recursion_compiler::config::InnerConfig;
-    use sp1_recursion_compiler::ir::{Builder, ExtConst};
-
-    use sp1_recursion_core_v2::runtime::DIGEST_SIZE;
+    use sp1_recursion_compiler::ir::Builder;
 
     use super::*;
     use crate::utils::tests::run_test_recursion;
@@ -307,74 +298,8 @@ pub(crate) mod tests {
 
     type SC = BabyBearPoseidon2;
     type F = InnerVal;
-    type EF = InnerChallenge;
     type C = InnerConfig;
     type A = RiscvAir<F>;
-
-    #[test]
-    fn test_permutation_challenges() {
-        // Generate a dummy proof.
-        sp1_core::utils::setup_logger();
-        let elf = FIBONACCI_ELF;
-
-        let machine = A::machine(SC::default());
-        let (_, vk) = machine.setup(&Program::from(elf));
-        let mut challenger_val = machine.config().challenger();
-        let (proof, _, _) = sp1_core::utils::prove::<_, CpuProver<_, _>>(
-            Program::from(elf),
-            &SP1Stdin::new(),
-            SC::default(),
-            SP1CoreOpts::default(),
-        )
-        .unwrap();
-        let proofs = proof.shard_proofs;
-        println!("Proof generated successfully");
-
-        challenger_val.observe(vk.commit);
-
-        proofs.iter().for_each(|proof| {
-            challenger_val.observe(proof.commitment.main_commit);
-            challenger_val.observe_slice(&proof.public_values[0..machine.num_pv_elts()]);
-        });
-
-        let permutation_challenges = (0..2)
-            .map(|_| challenger_val.sample_ext_element::<EF>())
-            .collect::<Vec<_>>();
-
-        // Observe all the commitments.
-        let mut builder = Builder::<InnerConfig>::default();
-
-        // Add a hash invocation, since the poseidon2 table expects that it's in the first row.
-        let mut challenger = DuplexChallengerVariable::new(&mut builder);
-
-        let preprocessed_commit_val: [F; DIGEST_SIZE] = vk.commit.into();
-        let preprocessed_commit: [Felt<F>; DIGEST_SIZE] = builder.constant(preprocessed_commit_val);
-        challenger.observe_slice(&mut builder, preprocessed_commit);
-
-        let mut witness_stream = VecDeque::<Witness<C>>::new();
-        for proof in proofs {
-            witness_stream.extend(Witnessable::<C>::write(&proof));
-            let proof = proof.read(&mut builder);
-            let ShardCommitmentVariable { main_commit, .. } = proof.commitment;
-            challenger.observe_slice(&mut builder, main_commit);
-            let pv_slice = &proof.public_values[..machine.num_pv_elts()];
-            challenger.observe_slice(&mut builder, pv_slice.iter().cloned());
-        }
-
-        // Sample the permutation challenges.
-        let permutation_challenges_var = (0..2)
-            .map(|_| challenger.sample_ext(&mut builder))
-            .collect::<Vec<_>>();
-
-        for i in 0..2 {
-            builder.assert_ext_eq(
-                permutation_challenges_var[i],
-                permutation_challenges[i].cons(),
-            );
-        }
-
-        run_test_recursion(builder.operations, witness_stream);
-    }
 
     #[test]
     fn test_verify_shard() {
@@ -398,12 +323,15 @@ pub(crate) mod tests {
         // Observe all the commitments.
         let mut builder = Builder::<InnerConfig>::default();
 
+        let mut witness_stream = VecDeque::<Witness<C>>::new();
+
         // Add a hash invocation, since the poseidon2 table expects that it's in the first row.
         let mut challenger = DuplexChallengerVariable::new(&mut builder);
-        let vk = VerifyingKeyVariable::from_constant_key_babybear(&mut builder, &vk);
+        // let vk = VerifyingKeyVariable::from_constant_key_babybear(&mut builder, &vk);
+        witness_stream.extend(Witnessable::<C>::write(&vk));
+        let vk = vk.read(&mut builder);
         vk.observe_into(&mut builder, &mut challenger);
 
-        let mut witness_stream = VecDeque::<Witness<C>>::new();
         let proofs = proof
             .shard_proofs
             .into_iter()
@@ -414,7 +342,7 @@ pub(crate) mod tests {
             .collect::<Vec<_>>();
         // Observe all the commitments, and put the proofs into the witness stream.
         for proof in proofs.iter() {
-            let ShardCommitmentVariable { main_commit, .. } = proof.commitment;
+            let ShardCommitment { main_commit, .. } = proof.commitment;
             challenger.observe(&mut builder, main_commit);
             let pv_slice = &proof.public_values[..machine.num_pv_elts()];
             challenger.observe_slice(&mut builder, pv_slice.iter().cloned());

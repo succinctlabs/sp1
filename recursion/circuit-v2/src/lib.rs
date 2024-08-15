@@ -5,16 +5,15 @@ use std::{
     ops::{Add, Mul},
 };
 
-use challenger::{
-    CanObserveVariable, DuplexChallengerVariable, FeltChallenger, FieldChallengerVariable,
-};
+use challenger::{CanObserveVariable, DuplexChallengerVariable, FieldChallengerVariable};
+use hash::FieldHasherVariable;
 use p3_field::AbstractField;
 use p3_matrix::dense::RowMajorMatrix;
 use sp1_recursion_compiler::{
+    circuit::CircuitV2Builder,
     config::InnerConfig,
-    ir::{Builder, Config, Ext, Felt, Variable},
+    ir::{Builder, Config, Ext, Felt, SymbolicFelt, Variable},
 };
-use sp1_recursion_core_v2::{D, DIGEST_SIZE};
 
 mod types;
 
@@ -23,6 +22,7 @@ pub mod challenger;
 pub mod constraints;
 pub mod domain;
 pub mod fri;
+pub mod hash;
 pub mod machine;
 pub mod stark;
 pub(crate) mod utils;
@@ -34,7 +34,10 @@ use p3_challenger::{CanObserve, CanSample, FieldChallenger, GrindingChallenger};
 use p3_commit::{ExtensionMmcs, Mmcs};
 use p3_dft::Radix2DitParallel;
 use p3_fri::{FriConfig, TwoAdicFriPcs};
-use sp1_recursion_core_v2::stark::config::{BabyBearPoseidon2Outer, OuterValMmcs};
+use sp1_recursion_core_v2::{
+    stark::config::{BabyBearPoseidon2Outer, OuterValMmcs},
+    D,
+};
 
 use p3_baby_bear::BabyBear;
 use sp1_core::{stark::StarkGenericConfig, utils::BabyBearPoseidon2};
@@ -48,6 +51,8 @@ pub type PcsConfig<C> = FriConfig<
         <C as BabyBearFriConfig>::ValMmcs,
     >,
 >;
+
+pub type Digest<C, SC> = <SC as FieldHasherVariable<C>>::Digest;
 
 pub type FriMmcs<C> = ExtensionMmcs<BabyBear, EF, <C as BabyBearFriConfig>::ValMmcs>;
 
@@ -74,19 +79,26 @@ pub trait BabyBearFriConfig:
     fn fri_config(&self) -> &FriConfig<FriMmcs<Self>>;
 }
 
+pub trait BabyBearFriConfigVariable<C: CircuitConfig<F = BabyBear>>:
+    BabyBearFriConfig + FieldHasherVariable<C>
+{
+    type FriChallengerVariable: FieldChallengerVariable<C, <C as CircuitConfig>::Bit>
+        + CanObserveVariable<C, <Self as FieldHasherVariable<C>>::Digest>;
+
+    /// Get a new challenger corresponding to the given config.
+    fn challenger_variable(&self, builder: &mut Builder<C>) -> Self::FriChallengerVariable;
+}
+
 pub trait CircuitConfig: Config {
-    type Bit: Clone;
-    type Digest: IntoIterator + Clone;
-    type FriChallengerVariable: FieldChallengerVariable<Self, Self::Bit>;
-
-    // Move these to their own traits later, perhaps.
-    // TODO change these to be more generic (e.g. for Vars)
-    fn poseidon2_hash(
-        builder: &mut Builder<Self>,
-        input: &[Felt<<Self as Config>::F>],
-    ) -> Self::Digest;
-
-    fn poseidon2_compress(builder: &mut Builder<Self>, input: [Self::Digest; 2]) -> Self::Digest;
+    type Bit: Clone + Variable<Self, Expression = Self::BitExpression>;
+    type BitExpression: AbstractField
+        + Mul<
+            <Felt<Self::F> as Variable<Self>>::Expression,
+            Output = <Felt<Self::F> as Variable<Self>>::Expression,
+        > + Mul<
+            <Ext<Self::F, Self::EF> as Variable<Self>>::Expression,
+            Output = <Ext<Self::F, Self::EF> as Variable<Self>>::Expression,
+        >;
 
     fn ext2felt(
         builder: &mut Builder<Self>,
@@ -110,58 +122,20 @@ pub trait CircuitConfig: Config {
         bits: impl IntoIterator<Item = Self::Bit>,
     ) -> Felt<<Self as Config>::F>;
 
-    // Encountered many issues trying to make the following two parametrically polymorphic.
-    fn select_chain_hv(
-        builder: &mut Builder<Self>,
-        should_swap: Self::Bit,
-        input: [Self::Digest; 2],
-    ) -> [Self::Digest; 2];
-
     #[allow(clippy::type_complexity)]
     fn select_chain_ef(
         builder: &mut Builder<Self>,
         should_swap: Self::Bit,
         first: impl IntoIterator<Item = Ext<<Self as Config>::F, <Self as Config>::EF>> + Clone,
         second: impl IntoIterator<Item = Ext<<Self as Config>::F, <Self as Config>::EF>> + Clone,
-    ) -> Vec<Ext<<Self as Config>::F, <Self as Config>::EF>>;
-
-    fn assert_digest_eq(builder: &mut Builder<Self>, a: Self::Digest, b: Self::Digest);
-
-    fn observe_digest(
-        builder: &mut Builder<Self>,
-        challenger: &mut Self::FriChallengerVariable,
-        digest: Self::Digest,
-    );
-}
-
-impl BabyBearFriConfig for BabyBearPoseidon2 {
-    type ValMmcs = sp1_core::utils::baby_bear_poseidon2::ValMmcs;
-    type FriChallenger = <Self as StarkGenericConfig>::Challenger;
-    type RowMajorProverData =
-        <sp1_core::utils::baby_bear_poseidon2::ValMmcs as Mmcs<BabyBear>>::ProverData<
-            RowMajorMatrix<BabyBear>,
-        >;
-
-    fn fri_config(&self) -> &FriConfig<FriMmcs<Self>> {
-        self.pcs().fri_config()
+    ) -> Vec<Ext<<Self as Config>::F, <Self as Config>::EF>> {
+        select_chain(builder, should_swap, first, second).collect::<Vec<_>>()
     }
 }
 
 impl CircuitConfig for InnerConfig {
     type Bit = Felt<<Self as Config>::F>;
-    type Digest = [Felt<<Self as Config>::F>; 8];
-    type FriChallengerVariable = DuplexChallengerVariable<Self>;
-
-    fn poseidon2_hash(
-        builder: &mut Builder<Self>,
-        input: &[Felt<<Self as Config>::F>],
-    ) -> Self::Digest {
-        builder.poseidon2_hash_v2(input)
-    }
-
-    fn poseidon2_compress(builder: &mut Builder<Self>, input: [Self::Digest; 2]) -> Self::Digest {
-        builder.poseidon2_compress_v2(input.into_iter().flatten())
-    }
+    type BitExpression = SymbolicFelt<<Self as Config>::F>;
 
     fn ext2felt(
         builder: &mut Builder<Self>,
@@ -192,42 +166,6 @@ impl CircuitConfig for InnerConfig {
     ) -> Felt<<Self as Config>::F> {
         builder.bits2num_v2_f(bits)
     }
-
-    fn select_chain_hv(
-        builder: &mut Builder<Self>,
-        should_swap: Self::Bit,
-        input: [Self::Digest; 2],
-    ) -> [Self::Digest; 2] {
-        let err_msg = "select_chain's return value should have length the sum of its inputs";
-        let mut selected = select_chain(builder, should_swap, input[0], input[1]);
-        let ret = [
-            core::array::from_fn(|_| selected.next().expect(err_msg)),
-            core::array::from_fn(|_| selected.next().expect(err_msg)),
-        ];
-        assert_eq!(selected.next(), None, "{}", err_msg);
-        ret
-    }
-
-    fn select_chain_ef(
-        builder: &mut Builder<Self>,
-        should_swap: Self::Bit,
-        first: impl IntoIterator<Item = Ext<<Self as Config>::F, <Self as Config>::EF>> + Clone,
-        second: impl IntoIterator<Item = Ext<<Self as Config>::F, <Self as Config>::EF>> + Clone,
-    ) -> Vec<Ext<<Self as Config>::F, <Self as Config>::EF>> {
-        select_chain(builder, should_swap, first, second).collect::<Vec<_>>()
-    }
-
-    fn assert_digest_eq(builder: &mut Builder<Self>, a: Self::Digest, b: Self::Digest) {
-        zip(a, b).for_each(|(e1, e2)| builder.assert_felt_eq(e1, e2));
-    }
-
-    fn observe_digest(
-        builder: &mut Builder<Self>,
-        challenger: &mut Self::FriChallengerVariable,
-        digest: Self::Digest,
-    ) {
-        challenger.observe_slice(builder, digest);
-    }
 }
 
 impl BabyBearFriConfig for BabyBearPoseidon2Outer {
@@ -242,6 +180,29 @@ impl BabyBearFriConfig for BabyBearPoseidon2Outer {
     }
 }
 
+impl BabyBearFriConfig for BabyBearPoseidon2 {
+    type ValMmcs = sp1_core::utils::baby_bear_poseidon2::ValMmcs;
+    type FriChallenger = <Self as StarkGenericConfig>::Challenger;
+    type RowMajorProverData =
+        <sp1_core::utils::baby_bear_poseidon2::ValMmcs as Mmcs<BabyBear>>::ProverData<
+            RowMajorMatrix<BabyBear>,
+        >;
+
+    fn fri_config(&self) -> &FriConfig<FriMmcs<Self>> {
+        self.pcs().fri_config()
+    }
+}
+
+impl<C: CircuitConfig<F = BabyBear, Bit = Felt<BabyBear>>> BabyBearFriConfigVariable<C>
+    for BabyBearPoseidon2
+{
+    type FriChallengerVariable = DuplexChallengerVariable<C>;
+
+    fn challenger_variable(&self, builder: &mut Builder<C>) -> Self::FriChallengerVariable {
+        DuplexChallengerVariable::new(builder)
+    }
+}
+
 pub fn select_chain<'a, C, R, S>(
     builder: &'a mut Builder<C>,
     should_swap: R,
@@ -252,9 +213,9 @@ where
     C: Config,
     R: Variable<C> + 'a,
     S: Variable<C> + 'a,
-    <R as Variable<C>>::Expression: AbstractField,
-    <S as Variable<C>>::Expression: Add<Output = <S as Variable<C>>::Expression>
-        + Mul<<R as Variable<C>>::Expression, Output = <S as Variable<C>>::Expression>,
+    <R as Variable<C>>::Expression: AbstractField
+        + Mul<<S as Variable<C>>::Expression, Output = <S as Variable<C>>::Expression>,
+    <S as Variable<C>>::Expression: Add<Output = <S as Variable<C>>::Expression>,
 {
     let should_swap: <R as Variable<C>>::Expression = should_swap.into();
     let one = <R as Variable<C>>::Expression::one();
@@ -273,5 +234,5 @@ where
         zip(id_branch, swap_branch),
         zip(repeat(shouldnt_swap), repeat(should_swap)),
     )
-    .map(|((id_v, sw_v), (id_c, sw_c))| builder.eval(id_v * id_c + sw_v * sw_c))
+    .map(|((id_v, sw_v), (id_c, sw_c))| builder.eval(id_c * id_v + sw_c * sw_v))
 }

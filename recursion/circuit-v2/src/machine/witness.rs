@@ -14,9 +14,11 @@ use sp1_core::utils::InnerVal;
 
 use sp1_recursion_compiler::ir::Builder;
 use sp1_recursion_compiler::ir::Config;
+use sp1_recursion_compiler::ir::Felt;
 
 use crate::challenger::DuplexChallengerVariable;
 use crate::witness::Witnessable;
+use crate::CircuitConfig;
 use crate::VerifyingKeyVariable;
 
 use super::SP1RecursionMemoryLayout;
@@ -69,9 +71,9 @@ where
 
 impl<C> Witnessable<C> for StarkVerifyingKey<BabyBearPoseidon2>
 where
-    C: Config<F = InnerVal, EF = InnerChallenge>,
+    C: CircuitConfig<F = InnerVal, EF = InnerChallenge, Bit = Felt<InnerVal>>,
 {
-    type WitnessVariable = VerifyingKeyVariable<C>;
+    type WitnessVariable = VerifyingKeyVariable<C, BabyBearPoseidon2>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let commitment = self.commit.read(builder);
@@ -97,10 +99,10 @@ where
 
 impl<'a, C, A> Witnessable<C> for SP1RecursionMemoryLayout<'a, BabyBearPoseidon2, A>
 where
-    C: Config<F = InnerVal, EF = InnerChallenge>,
+    C: CircuitConfig<F = InnerVal, EF = InnerChallenge, Bit = Felt<InnerVal>>,
     A: MachineAir<BabyBear>,
 {
-    type WitnessVariable = SP1RecursionWitnessVariable<C>;
+    type WitnessVariable = SP1RecursionWitnessVariable<C, BabyBearPoseidon2>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let vk = self.vk.read(builder);
