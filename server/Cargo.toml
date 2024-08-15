@@ -10,7 +10,7 @@ keywords = { workspace = true }
 categories = { workspace = true }
 
 [dependencies]
-sp1-core = { workspace = true }
+sp1-core-machine = { workspace = true }
 sp1-prover = { workspace = true }
 sp1-stark = { workspace = true }
 prost = "0.12"
@@ -29,7 +29,7 @@ prost-build = { version = "0.12", optional = true }
 twirp-build = { package = "twirp-build-rs", version = "0.3.0-succinct", optional = true }
 
 [dev-dependencies]
-sp1-core = { workspace = true, features = ["programs"] }
+sp1-core-machine = { workspace = true, features = ["programs"] }
 
 [features]
 default = []

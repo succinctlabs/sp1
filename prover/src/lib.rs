@@ -30,15 +30,15 @@ use p3_baby_bear::BabyBear;
 use p3_challenger::CanObserve;
 use p3_field::{AbstractField, PrimeField};
 use p3_matrix::dense::RowMajorMatrix;
-use sp1_core::io::SP1Stdin;
-use sp1_core::riscv::RiscvAir;
-use sp1_core::utils::concurrency::TurnBasedSync;
-use sp1_core::utils::SP1CoreProverError;
-use sp1_executor::ExecutionError;
-use sp1_executor::ExecutionReport;
-use sp1_executor::Program;
-use sp1_executor::Executor;
-use sp1_executor::SP1Context;
+use sp1_core_executor::ExecutionError;
+use sp1_core_executor::ExecutionReport;
+use sp1_core_executor::Executor;
+use sp1_core_executor::Program;
+use sp1_core_executor::SP1Context;
+use sp1_core_machine::io::SP1Stdin;
+use sp1_core_machine::riscv::RiscvAir;
+use sp1_core_machine::utils::concurrency::TurnBasedSync;
+use sp1_core_machine::utils::SP1CoreProverError;
 use sp1_primitives::hash_deferred_proof;
 use sp1_recursion_circuit::witness::Witnessable;
 use sp1_recursion_compiler::config::InnerConfig;
@@ -75,7 +75,7 @@ use tracing::instrument;
 pub use types::*;
 use utils::words_to_bytes;
 
-pub use sp1_core::SP1_CIRCUIT_VERSION;
+pub use sp1_core_machine::SP1_CIRCUIT_VERSION;
 
 /// The configuration for the core prover.
 pub type CoreSC = BabyBearPoseidon2;
@@ -256,7 +256,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         context.subproof_verifier.replace(Arc::new(self));
         let program = Program::from(&pk.elf).unwrap();
         let (proof, public_values_stream, cycles) =
-            sp1_core::utils::prove_with_context::<_, C::CoreProver>(
+            sp1_core_machine::utils::prove_with_context::<_, C::CoreProver>(
                 &self.core_prover,
                 &pk.pk,
                 program,
@@ -971,12 +971,12 @@ pub mod tests {
     use anyhow::Result;
     use build::try_build_plonk_bn254_artifacts_dev;
     use p3_field::PrimeField32;
-    use sp1_core::io::SP1Stdin;
+    use sp1_core_machine::io::SP1Stdin;
 
     #[cfg(test)]
     use serial_test::serial;
     #[cfg(test)]
-    use sp1_core::utils::setup_logger;
+    use sp1_core_machine::utils::setup_logger;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum Test {

@@ -1,6 +1,6 @@
 use crate::components::SP1ProverComponents;
 use p3_baby_bear::BabyBear;
-pub use sp1_core::io::{SP1PublicValues, SP1Stdin};
+pub use sp1_core_machine::io::{SP1PublicValues, SP1Stdin};
 use sp1_primitives::types::RecursionProgramType;
 use sp1_recursion_compiler::config::InnerConfig;
 use sp1_recursion_core::runtime::RecursionProgram;

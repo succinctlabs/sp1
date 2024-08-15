@@ -343,7 +343,7 @@ fn find_execution_record_path(attrs: &[syn::Attribute]) -> syn::Path {
             }
         }
     }
-    parse_quote!(sp1_executor::ExecutionRecord)
+    parse_quote!(sp1_core_executor::ExecutionRecord)
 }
 
 fn find_program_path(attrs: &[syn::Attribute]) -> syn::Path {
@@ -358,7 +358,7 @@ fn find_program_path(attrs: &[syn::Attribute]) -> syn::Path {
             }
         }
     }
-    parse_quote!(sp1_executor::Program)
+    parse_quote!(sp1_core_executor::Program)
 }
 
 fn find_builder_path(attrs: &[syn::Attribute]) -> syn::Path {

@@ -1,6 +1,6 @@
 use std::mem::{size_of, transmute};
 
-use sp1_core::utils::indices_arr;
+use sp1_core_machine::utils::indices_arr;
 use sp1_derive::AlignedBorrow;
 
 use self::{

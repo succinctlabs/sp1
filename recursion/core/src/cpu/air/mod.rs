@@ -264,7 +264,7 @@ mod tests {
     use p3_matrix::{dense::RowMajorMatrix, Matrix};
     use p3_poseidon2::Poseidon2;
     use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
-    use sp1_core::utils::{uni_stark_prove, uni_stark_verify};
+    use sp1_core_machine::utils::{uni_stark_prove, uni_stark_verify};
     use sp1_stark::air::MachineAir;
 
     use crate::air::Block;

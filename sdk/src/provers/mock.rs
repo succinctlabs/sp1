@@ -1,7 +1,7 @@
 #![allow(unused_variables)]
 use hashbrown::HashMap;
-use sp1_core::io::SP1Stdin;
-use sp1_executor::SP1Context;
+use sp1_core_machine::io::SP1Stdin;
+use sp1_core_executor::SP1Context;
 use sp1_stark::{ShardCommitment, ShardOpenedValues, ShardProof};
 
 use crate::{

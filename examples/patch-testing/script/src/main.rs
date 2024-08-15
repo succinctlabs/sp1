@@ -17,34 +17,34 @@ fn main() {
     // Confirm there was at least 1 SHA_COMPUTE syscall.
     assert!(report
         .syscall_counts
-        .contains_key(&sp1_core::runtime::SyscallCode::SHA_COMPRESS));
+        .contains_key(&sp1_core_machine::runtime::SyscallCode::SHA_COMPRESS));
     assert!(report
         .syscall_counts
-        .contains_key(&sp1_core::runtime::SyscallCode::SHA_EXTEND));
+        .contains_key(&sp1_core_machine::runtime::SyscallCode::SHA_EXTEND));
 
     // Confirm there was at least 1 of each ED25519 syscall.
     assert!(report
         .syscall_counts
-        .contains_key(&sp1_core::runtime::SyscallCode::ED_ADD));
+        .contains_key(&sp1_core_machine::runtime::SyscallCode::ED_ADD));
     assert!(report
         .syscall_counts
-        .contains_key(&sp1_core::runtime::SyscallCode::ED_DECOMPRESS));
+        .contains_key(&sp1_core_machine::runtime::SyscallCode::ED_DECOMPRESS));
 
     // Confirm there was at least 1 KECCAK_PERMUTE syscall.
     assert!(report
         .syscall_counts
-        .contains_key(&sp1_core::runtime::SyscallCode::KECCAK_PERMUTE));
+        .contains_key(&sp1_core_machine::runtime::SyscallCode::KECCAK_PERMUTE));
 
     // Confirm there was at least 1 SECP256K1_ADD, SECP256K1_DOUBLE and SECP256K1_DECOMPRESS syscall.
     assert!(report
         .syscall_counts
-        .contains_key(&sp1_core::runtime::SyscallCode::SECP256K1_ADD));
+        .contains_key(&sp1_core_machine::runtime::SyscallCode::SECP256K1_ADD));
     assert!(report
         .syscall_counts
-        .contains_key(&sp1_core::runtime::SyscallCode::SECP256K1_DOUBLE));
+        .contains_key(&sp1_core_machine::runtime::SyscallCode::SECP256K1_DOUBLE));
     assert!(report
         .syscall_counts
-        .contains_key(&sp1_core::runtime::SyscallCode::SECP256K1_DECOMPRESS));
+        .contains_key(&sp1_core_machine::runtime::SyscallCode::SECP256K1_DECOMPRESS));
 
     println!("Total instructions: {:?}", report.total_instruction_count());
     println!("Successfully executed the program & confirmed syscalls.");

@@ -1,4 +1,4 @@
-use sp1_core::riscv::RiscvAir;
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_stark::{CpuProver, MachineProver, StarkGenericConfig};
 
 use crate::{CompressAir, CoreSC, InnerSC, OuterSC, ShrinkAir, WrapAir};

@@ -2,7 +2,7 @@ use std::{fmt::Debug, fs::File, path::Path};
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use sp1_core::io::{SP1PublicValues, SP1Stdin};
+use sp1_core_machine::io::{SP1PublicValues, SP1Stdin};
 use strum_macros::{EnumDiscriminants, EnumTryAs};
 
 use sp1_prover::{CoreSC, InnerSC, PlonkBn254Proof};

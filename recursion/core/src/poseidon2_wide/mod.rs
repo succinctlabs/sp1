@@ -131,7 +131,7 @@ pub(crate) mod tests {
     use p3_symmetric::Permutation;
     use rand::random;
 
-    use sp1_core::utils::{uni_stark_prove, uni_stark_verify};
+    use sp1_core_machine::utils::{uni_stark_prove, uni_stark_verify};
     use sp1_stark::air::MachineAir;
     use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
     use sp1_stark::{inner_perm, StarkGenericConfig};

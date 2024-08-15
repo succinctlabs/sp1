@@ -9,7 +9,7 @@ use crate::fri::types::TwoAdicPcsProofVariable;
 use crate::fri::types::{DigestVariable, FriConfigVariable};
 use crate::fri::TwoAdicMultiplicativeCosetVariable;
 
-/// Reference: [sp1_core::stark::ShardProof]
+/// Reference: [sp1_core_machine::stark::ShardProof]
 #[derive(DslVariable, Clone)]
 pub struct ShardProofVariable<C: Config> {
     pub commitment: ShardCommitmentVariable<C>,
@@ -32,7 +32,7 @@ pub struct QuotientDataValues {
     pub quotient_size: usize,
 }
 
-/// Reference: [sp1_core::stark::VerifyingKey]
+/// Reference: [sp1_core_machine::stark::VerifyingKey]
 #[derive(DslVariable, Clone)]
 pub struct VerifyingKeyVariable<C: Config> {
     pub commitment: DigestVariable<C>,
@@ -41,7 +41,7 @@ pub struct VerifyingKeyVariable<C: Config> {
     pub prep_domains: Array<C, TwoAdicMultiplicativeCosetVariable<C>>,
 }
 
-/// Reference: [sp1_core::stark::ShardCommitment]
+/// Reference: [sp1_core_machine::stark::ShardCommitment]
 #[derive(DslVariable, Clone)]
 pub struct ShardCommitmentVariable<C: Config> {
     pub main_commit: DigestVariable<C>,
@@ -49,13 +49,13 @@ pub struct ShardCommitmentVariable<C: Config> {
     pub quotient_commit: DigestVariable<C>,
 }
 
-/// Reference: [sp1_core::stark::ShardOpenedValues]
+/// Reference: [sp1_core_machine::stark::ShardOpenedValues]
 #[derive(DslVariable, Debug, Clone)]
 pub struct ShardOpenedValuesVariable<C: Config> {
     pub chips: Array<C, ChipOpenedValuesVariable<C>>,
 }
 
-/// Reference: [sp1_core::stark::ChipOpenedValues]
+/// Reference: [sp1_core_machine::stark::ChipOpenedValues]
 #[derive(Debug, Clone)]
 pub struct ChipOpening<C: Config> {
     pub preprocessed: AirOpenedValues<Ext<C::F, C::EF>>,
@@ -66,7 +66,7 @@ pub struct ChipOpening<C: Config> {
     pub log_degree: Var<C::N>,
 }
 
-/// Reference: [sp1_core::stark::ChipOpenedValues]
+/// Reference: [sp1_core_machine::stark::ChipOpenedValues]
 #[derive(DslVariable, Debug, Clone)]
 pub struct ChipOpenedValuesVariable<C: Config> {
     pub preprocessed: AirOpenedValuesVariable<C>,
@@ -77,7 +77,7 @@ pub struct ChipOpenedValuesVariable<C: Config> {
     pub log_degree: Var<C::N>,
 }
 
-/// Reference: [sp1_core::stark::AirOpenedValues]
+/// Reference: [sp1_core_machine::stark::AirOpenedValues]
 #[derive(DslVariable, Debug, Clone)]
 pub struct AirOpenedValuesVariable<C: Config> {
     pub local: Array<C, Ext<C::F, C::EF>>,

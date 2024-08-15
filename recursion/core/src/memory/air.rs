@@ -3,8 +3,8 @@ use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
-use sp1_core::utils::next_power_of_two;
-use sp1_core::utils::par_for_each_row;
+use sp1_core_machine::utils::next_power_of_two;
+use sp1_core_machine::utils::par_for_each_row;
 use sp1_stark::air::AirInteraction;
 use sp1_stark::air::MachineAir;
 use sp1_stark::InteractionKind;
@@ -235,7 +235,7 @@ mod tests {
     use p3_matrix::{dense::RowMajorMatrix, Matrix};
     use p3_poseidon2::Poseidon2;
     use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
-    use sp1_core::utils::{uni_stark_prove, uni_stark_verify};
+    use sp1_core_machine::utils::{uni_stark_prove, uni_stark_verify};
 
     use crate::air::Block;
     use crate::memory::MemoryGlobalChip;

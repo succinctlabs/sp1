@@ -1,6 +1,6 @@
 use p3_air::AirBuilder;
 use p3_field::AbstractField;
-use sp1_core::operations::IsZeroOperation;
+use sp1_core_machine::operations::IsZeroOperation;
 use sp1_stark::air::BaseAirBuilder;
 
 use crate::{

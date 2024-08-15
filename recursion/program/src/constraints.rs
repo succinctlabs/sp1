@@ -123,7 +123,7 @@ where
         )
     }
 
-    /// Reference: [sp1_core::stark::Verifier::verify_constraints]
+    /// Reference: [sp1_core_machine::stark::Verifier::verify_constraints]
     pub fn verify_constraints<A>(
         builder: &mut Builder<C>,
         chip: &MachineChip<SC, A>,
@@ -162,8 +162,8 @@ mod tests {
     use itertools::{izip, Itertools};
     use rand::{thread_rng, Rng};
 
-    use sp1_core::{io::SP1Stdin, riscv::RiscvAir};
-    use sp1_executor::Program;
+    use sp1_core_executor::Program;
+    use sp1_core_machine::{io::SP1Stdin, riscv::RiscvAir};
     use sp1_recursion_core::stark::utils::{run_test_recursion, TestConfig};
 
     use p3_challenger::{CanObserve, FieldChallenger};
@@ -276,13 +276,13 @@ mod tests {
         type A = RiscvAir<F>;
 
         // Generate a dummy proof.
-        sp1_core::utils::setup_logger();
+        sp1_core_machine::utils::setup_logger();
         let elf = include_bytes!("../../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
 
         let machine = A::machine(SC::default());
         let (_, vk) = machine.setup(&Program::from(elf).unwrap());
         let mut challenger = machine.config().challenger();
-        let (proof, _, _) = sp1_core::utils::prove::<_, CpuProver<_, _>>(
+        let (proof, _, _) = sp1_core_machine::utils::prove::<_, CpuProver<_, _>>(
             Program::from(elf).unwrap(),
             &SP1Stdin::new(),
             SC::default(),

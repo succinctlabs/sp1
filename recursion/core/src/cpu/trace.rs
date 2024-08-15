@@ -13,7 +13,7 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_maybe_rayon::prelude::IndexedParallelIterator;
 use p3_maybe_rayon::prelude::ParallelIterator;
 use p3_maybe_rayon::prelude::ParallelSliceMut;
-use sp1_core::utils::{next_power_of_two, par_for_each_row};
+use sp1_core_machine::utils::{next_power_of_two, par_for_each_row};
 use sp1_stark::air::{BinomialExtension, MachineAir};
 use tracing::instrument;
 

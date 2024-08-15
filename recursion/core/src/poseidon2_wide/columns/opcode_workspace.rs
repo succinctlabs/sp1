@@ -1,5 +1,5 @@
 use p3_field::AbstractField;
-use sp1_core::operations::IsZeroOperation;
+use sp1_core_machine::operations::IsZeroOperation;
 use sp1_derive::AlignedBorrow;
 
 use crate::{

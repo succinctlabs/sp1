@@ -20,7 +20,7 @@ pub use crate::network::prover::NetworkProver;
 pub mod proof;
 pub mod provers;
 pub mod utils {
-    pub use sp1_core::utils::setup_logger;
+    pub use sp1_core_machine::utils::setup_logger;
 }
 
 use cfg_if::cfg_if;
@@ -31,8 +31,8 @@ use std::env;
 
 pub use provers::{LocalProver, MockProver, Prover};
 
-use sp1_core::{io::SP1Stdin, SP1_CIRCUIT_VERSION};
-pub use sp1_executor::{ExecutionReport, SP1Context, SP1ContextBuilder};
+use sp1_core_machine::{io::SP1Stdin, SP1_CIRCUIT_VERSION};
+pub use sp1_core_executor::{ExecutionReport, SP1Context, SP1ContextBuilder};
 pub use sp1_prover::{
     CoreSC, HashableKey, InnerSC, OuterSC, PlonkBn254Proof, SP1Prover, SP1ProvingKey,
     SP1VerifyingKey,
@@ -273,8 +273,8 @@ mod tests {
     use std::sync::atomic::{AtomicU32, Ordering};
 
     use crate::{utils, ProverClient, SP1Stdin};
-    use sp1_executor::hook_ecrecover;
-    use sp1_executor::FD_ECRECOVER_HOOK;
+    use sp1_core_executor::hook_ecrecover;
+    use sp1_core_executor::FD_ECRECOVER_HOOK;
 
     #[test]
     fn test_execute() {

@@ -23,7 +23,7 @@ reqwest = { version = "0.12.4", features = [
 ] }
 anyhow = "1.0.83"
 sp1-prover = { workspace = true }
-sp1-core = { workspace = true }
+sp1-core-machine = { workspace = true }
 futures = "0.3.30"
 bincode = "1.3.3"
 tokio = { version = "1.39.2", features = ["full"] }
@@ -49,12 +49,12 @@ strum = "0.26.3"
 thiserror = "1.0.63"
 hashbrown = "0.14.5"
 sysinfo = "0.30.13"
-sp1-executor = { workspace = true }
+sp1-core-executor = { workspace = true }
 sp1-stark = { workspace = true }
 
 [features]
 default = ["network"]
-neon = ["sp1-core/neon"]
+neon = ["sp1-core-machine/neon"]
 native-gnark = ["sp1-prover/native-gnark"]
 # TODO: Once alloy has a 1.* release, we can likely remove this feature flag, as there will be less 
 # dependency resolution issues.

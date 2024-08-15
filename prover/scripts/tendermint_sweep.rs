@@ -3,7 +3,7 @@
 use std::{fs::File, io::BufWriter, io::Write, time::Instant};
 
 use itertools::iproduct;
-use sp1_core::{
+use sp1_core_machine::{
     io::SP1Stdin,
     utils::{SP1ProverOpts, SP1ProverOpts},
 };

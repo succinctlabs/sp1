@@ -2,7 +2,8 @@
 members = [
   "build",
   "cli",
-  "core",
+  "core/executor",
+  "core/machine",
   "curves",
   "derive",
   "helper",
@@ -15,7 +16,6 @@ members = [
   "recursion/gnark-cli",
   "recursion/gnark-ffi",
   "recursion/program",
-  "executor",
   "server",
   "stark",
   "sdk",
@@ -45,12 +45,13 @@ debug-assertions = true
 
 [workspace.dependencies]
 sp1-build = { path = "build", version = "1.1.1" }
+sp1-core-machine = { path = "core/machine", version = "1.1.1" }
+sp1-core-executor = { path = "core/executor", version = "1.1.1" }
 sp1-derive = { path = "derive", version = "1.1.1" }
-sp1-core = { path = "core", version = "1.1.1" }
+
 sp1-cli = { path = "cli", version = "1.1.1", default-features = false }
 sp1-curves = { path = "curves", version = "1.1.1" }
 sp1-eval = { path = "eval", version = "1.1.0", default-features = false }
-sp1-executor = { path = "executor", version = "1.1.1", default-features = false }
 sp1-helper = { path = "helper", version = "1.1.1", default-features = false }
 sp1-primitives = { path = "primitives", version = "1.1.1" }
 sp1-prover = { path = "prover", version = "1.1.1" }

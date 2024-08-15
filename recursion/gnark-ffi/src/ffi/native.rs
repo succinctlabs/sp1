@@ -7,7 +7,7 @@
 
 use crate::PlonkBn254Proof;
 use cfg_if::cfg_if;
-use sp1_core::SP1_CIRCUIT_VERSION;
+use sp1_core_machine::SP1_CIRCUIT_VERSION;
 use std::ffi::{c_char, CString};
 
 #[allow(warnings, clippy::all)]

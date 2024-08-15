@@ -4,7 +4,7 @@ use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::TwoAdicField;
 use p3_field::{AbstractExtensionField, AbstractField};
 
-use sp1_core::riscv::RiscvAir;
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_recursion_compiler::{
     config::InnerConfig,
     ir::{Array, Builder, Config, Ext, Felt, MemVariable, Var},

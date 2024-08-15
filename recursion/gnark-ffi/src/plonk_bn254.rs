@@ -11,7 +11,7 @@ use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
 use sha2::Sha256;
-use sp1_core::SP1_CIRCUIT_VERSION;
+use sp1_core_machine::SP1_CIRCUIT_VERSION;
 use sp1_recursion_compiler::{
     constraints::Constraint,
     ir::{Config, Witness},

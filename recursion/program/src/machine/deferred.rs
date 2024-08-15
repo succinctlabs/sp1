@@ -6,7 +6,7 @@ use p3_air::Air;
 use p3_baby_bear::BabyBear;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::{AbstractField, PrimeField32, TwoAdicField};
-use sp1_core::riscv::RiscvAir;
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_primitives::consts::WORD_SIZE;
 use sp1_primitives::types::RecursionProgramType;
 use sp1_recursion_compiler::config::InnerConfig;

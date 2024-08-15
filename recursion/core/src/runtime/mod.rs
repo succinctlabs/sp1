@@ -18,7 +18,7 @@ use p3_symmetric::CryptographicPermutation;
 use p3_symmetric::Permutation;
 pub use program::*;
 pub use record::*;
-use sp1_executor::events::MemoryAccessPosition;
+use sp1_core_executor::events::MemoryAccessPosition;
 pub use utils::*;
 
 use crate::air::{Block, RECURSION_PUBLIC_VALUES_COL_MAP, RECURSIVE_PROOF_NUM_PV_ELTS};
@@ -1111,7 +1111,7 @@ where
 #[cfg(test)]
 mod tests {
     use p3_field::AbstractField;
-    use sp1_core::riscv::RiscvAir;
+    use sp1_core_machine::riscv::RiscvAir;
     use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, StarkGenericConfig};
 
     use super::{Instruction, Opcode, RecursionProgram, Runtime, RuntimeError};

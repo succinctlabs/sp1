@@ -11,7 +11,7 @@ use crate::{
 use crate::{SP1Context, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey};
 use anyhow::Result;
 use serde::de::DeserializeOwned;
-use sp1_core::io::SP1Stdin;
+use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::components::DefaultProverComponents;
 use sp1_prover::{SP1Prover, SP1_CIRCUIT_VERSION};
 use sp1_stark::SP1ProverOpts;

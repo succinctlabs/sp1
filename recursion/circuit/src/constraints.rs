@@ -285,7 +285,7 @@ mod tests {
         type EF = <SC as StarkGenericConfig>::Challenge;
         type A = RecursionAirWideDeg3<F>;
 
-        sp1_core::utils::setup_logger();
+        sp1_core_machine::utils::setup_logger();
         let program = basic_program::<F>();
         let config = SC::new();
         let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new_no_perm(&program);

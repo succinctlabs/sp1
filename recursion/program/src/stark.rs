@@ -387,10 +387,10 @@ pub(crate) mod tests {
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_field::AbstractField;
     use rand::Rng;
-    use sp1_core::io::SP1Stdin;
-    use sp1_core::riscv::RiscvAir;
-    use sp1_core::utils::setup_logger;
-    use sp1_executor::Program;
+    use sp1_core_executor::Program;
+    use sp1_core_machine::io::SP1Stdin;
+    use sp1_core_machine::riscv::RiscvAir;
+    use sp1_core_machine::utils::setup_logger;
     use sp1_recursion_compiler::asm::AsmBuilder;
     use sp1_recursion_compiler::config::InnerConfig;
     use sp1_recursion_compiler::ir::Array;
@@ -427,13 +427,13 @@ pub(crate) mod tests {
     #[test]
     fn test_permutation_challenges() {
         // Generate a dummy proof.
-        sp1_core::utils::setup_logger();
+        sp1_core_machine::utils::setup_logger();
         let elf = include_bytes!("../../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
 
         let machine = A::machine(SC::default());
         let (_, vk) = machine.setup(&Program::from(elf).unwrap());
         let mut challenger_val = machine.config().challenger();
-        let (proof, _, _) = sp1_core::utils::prove::<_, CpuProver<_, _>>(
+        let (proof, _, _) = sp1_core_machine::utils::prove::<_, CpuProver<_, _>>(
             Program::from(elf).unwrap(),
             &SP1Stdin::new(),
             SC::default(),

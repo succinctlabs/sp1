@@ -3,7 +3,7 @@ use p3_field::PrimeField32;
 use p3_symmetric::Permutation;
 use rand::thread_rng;
 use rand::Rng;
-use sp1_core::utils::setup_logger;
+use sp1_core_machine::utils::setup_logger;
 use sp1_recursion_compiler::asm::AsmBuilder;
 use sp1_recursion_compiler::ir::Array;
 use sp1_recursion_compiler::ir::Var;

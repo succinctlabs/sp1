@@ -12,8 +12,8 @@ use std::sync::Arc;
 use crate::proto::api::ProverServiceClient;
 
 use serde::{Deserialize, Serialize};
-use sp1_core::io::SP1Stdin;
-use sp1_core::utils::SP1CoreProverError;
+use sp1_core_machine::io::SP1Stdin;
+use sp1_core_machine::utils::SP1CoreProverError;
 use sp1_prover::types::SP1ProvingKey;
 use sp1_prover::InnerSC;
 use sp1_prover::SP1CoreProof;
@@ -205,8 +205,8 @@ fn cleanup_container(container_name: &str) {
 
 #[cfg(test)]
 mod tests {
-    use sp1_core::utils;
-    use sp1_core::utils::tests::FIBONACCI_ELF;
+    use sp1_core_machine::utils;
+    use sp1_core_machine::utils::tests::FIBONACCI_ELF;
     use sp1_prover::components::DefaultProverComponents;
     use sp1_prover::{InnerSC, SP1CoreProof, SP1Prover, SP1ReduceProof};
     use twirp::url::Url;

@@ -1,5 +1,5 @@
-use sp1_core::io::{SP1PublicValues, SP1Stdin};
-use sp1_executor::{ExecutionReport, HookEnv, SP1ContextBuilder};
+use sp1_core_machine::io::{SP1PublicValues, SP1Stdin};
+use sp1_core_executor::{ExecutionReport, HookEnv, SP1ContextBuilder};
 use sp1_prover::{components::DefaultProverComponents, SP1ProvingKey};
 
 use anyhow::{Ok, Result};
@@ -72,7 +72,7 @@ impl<'a> Execute<'a> {
 
     /// Set the maximum number of cpu cycles to use for execution.
     ///
-    /// If the cycle limit is exceeded, execution will return [sp1_core::runtime::ExecutionError::ExceededCycleLimit].
+    /// If the cycle limit is exceeded, execution will return [sp1_core_machine::runtime::ExecutionError::ExceededCycleLimit].
     pub fn max_cycles(mut self, max_cycles: u64) -> Self {
         self.context_builder.max_cycles(max_cycles);
         self
@@ -200,7 +200,7 @@ impl<'a> Prove<'a> {
 
     /// Set the maximum number of cpu cycles to use for execution.
     ///
-    /// If the cycle limit is exceeded, execution will return [sp1_core::runtime::ExecutionError::ExceededCycleLimit].
+    /// If the cycle limit is exceeded, execution will return [sp1_core_machine::runtime::ExecutionError::ExceededCycleLimit].
     pub fn cycle_limit(mut self, cycle_limit: u64) -> Self {
         self.context_builder.max_cycles(cycle_limit);
         self
