@@ -137,6 +137,8 @@ pub enum ExecutionError {
     Breakpoint(),
     #[error("exceeded cycle limit of {0}")]
     ExceededCycleLimit(u64),
+    #[error("syscall called in unconstrained mode")]
+    InvalidSyscallUsage(u64),
     #[error("got unimplemented as opcode")]
     Unimplemented(),
 }
@@ -227,7 +229,7 @@ impl<'a> Runtime<'a> {
     }
 
     /// Get the current values of the registers.
-    pub fn registers(&self) -> [u32; 32] {
+    pub fn registers(&mut self) -> [u32; 32] {
         let mut registers = [0; 32];
         for i in 0..32 {
             let addr = Register::from_u32(i as u32) as u32;
@@ -235,13 +237,15 @@ impl<'a> Runtime<'a> {
                 Some(record) => record.value,
                 None => 0,
             };
+            self.touched_memory.insert(addr);
         }
         registers
     }
 
     /// Get the current value of a register.
-    pub fn register(&self, register: Register) -> u32 {
+    pub fn register(&mut self, register: Register) -> u32 {
         let addr = register as u32;
+        self.touched_memory.insert(addr);
         match self.state.memory.get(&addr) {
             Some(record) => record.value,
             None => 0,
@@ -249,7 +253,8 @@ impl<'a> Runtime<'a> {
     }
 
     /// Get the current value of a word.
-    pub fn word(&self, addr: u32) -> u32 {
+    pub fn word(&mut self, addr: u32) -> u32 {
+        self.touched_memory.insert(addr);
         match self.state.memory.get(&addr) {
             Some(record) => record.value,
             None => 0,
@@ -257,7 +262,7 @@ impl<'a> Runtime<'a> {
     }
 
     /// Get the current value of a byte.
-    pub fn byte(&self, addr: u32) -> u8 {
+    pub fn byte(&mut self, addr: u32) -> u8 {
         let word = self.word(addr - addr % 4);
         (word >> ((addr % 4) * 8)) as u8
     }
@@ -849,6 +854,17 @@ impl<'a> Runtime<'a> {
                         .entry(syscall)
                         .and_modify(|c| *c += 1)
                         .or_insert(1);
+                }
+
+                // `hint_slice` is allowed in unconstrained mode since it is used to write the hint.
+                // Other syscalls are not allowed because they can lead to non-deterministic behavior,
+                // especially since many syscalls modify memory in place, which is not permitted in
+                // unconstrained mode. This will result in non-zero memory interactions when generating a proof.
+
+                if self.unconstrained
+                    && (syscall != SyscallCode::EXIT_UNCONSTRAINED && syscall != SyscallCode::WRITE)
+                {
+                    return Err(ExecutionError::InvalidSyscallUsage(syscall_id as u64));
                 }
 
                 let syscall_impl = self.get_syscall(syscall).cloned();

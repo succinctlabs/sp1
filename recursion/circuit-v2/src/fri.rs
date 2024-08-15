@@ -306,11 +306,11 @@ pub fn verify_batch<C: CircuitConfig, SC: BabyBearFriConfig, const D: usize>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::challenger::tests::run_test_recursion;
     use crate::challenger::DuplexChallengerVariable;
+    use crate::utils::tests::run_test_recursion;
     use crate::{
         BatchOpeningVariable, DigestVariable, FriCommitPhaseProofStepVariable, FriProofVariable,
-        FriQueryProofVariable, TwoAdicPcsMatsVariable, TwoAdicPcsProofVariable, DIGEST_SIZE,
+        FriQueryProofVariable, TwoAdicPcsMatsVariable, TwoAdicPcsProofVariable,
     };
     use p3_challenger::FieldChallenger;
     use p3_challenger::{CanObserve, CanSample};
@@ -330,6 +330,8 @@ mod tests {
     use sp1_recursion_compiler::config::InnerConfig;
     use sp1_recursion_compiler::ir::Ext;
     use sp1_recursion_compiler::ir::{Builder, SymbolicExt};
+
+    use sp1_recursion_core_v2::DIGEST_SIZE;
 
     type C = InnerConfig;
     type SC = BabyBearPoseidon2;

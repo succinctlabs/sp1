@@ -1,7 +1,6 @@
 use std::io::Write;
 
 use super::{Instruction, Runtime};
-use crate::runtime::Register;
 
 pub const fn align(addr: u32) -> u32 {
     addr - addr % 4
@@ -42,30 +41,31 @@ impl<'a> Runtime<'a> {
 
         // If RUST_LOG is set to "trace", then log the current state of the runtime every cycle.
         let width = 12;
+        let registers = self.registers();
         log::trace!(
             "clk={} [pc=0x{:x?}] {:<width$?} |         x0={:<width$} x1={:<width$} x2={:<width$} x3={:<width$} x4={:<width$} x5={:<width$} x6={:<width$} x7={:<width$} x8={:<width$} x9={:<width$} x10={:<width$} x11={:<width$} x12={:<width$} x13={:<width$} x14={:<width$} x15={:<width$} x16={:<width$} x17={:<width$} x18={:<width$}",
             self.state.global_clk,
             self.state.pc,
             instruction,
-            self.register(Register::X0),
-            self.register(Register::X1),
-            self.register(Register::X2),
-            self.register(Register::X3),
-            self.register(Register::X4),
-            self.register(Register::X5),
-            self.register(Register::X6),
-            self.register(Register::X7),
-            self.register(Register::X8),
-            self.register(Register::X9),
-            self.register(Register::X10),
-            self.register(Register::X11),
-            self.register(Register::X12),
-            self.register(Register::X13),
-            self.register(Register::X14),
-            self.register(Register::X15),
-            self.register(Register::X16),
-            self.register(Register::X17),
-            self.register(Register::X18),
+            registers[0],
+            registers[1],
+            registers[2],
+            registers[3],
+            registers[4],
+            registers[5],
+            registers[6],
+            registers[7],
+            registers[8],
+            registers[9],
+            registers[10],
+            registers[11],
+            registers[12],
+            registers[13],
+            registers[14],
+            registers[15],
+            registers[16],
+            registers[17],
+            registers[18],
         );
 
         if !self.unconstrained && self.state.global_clk % 10_000_000 == 0 {

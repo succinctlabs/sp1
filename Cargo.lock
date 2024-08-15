@@ -5027,7 +5027,9 @@ dependencies = [
  "anyhow",
  "bincode",
  "cfg-if",
+ "hex",
  "serde",
+ "snowbridge-amcl",
 ]
 
 [[package]]
@@ -5138,10 +5140,10 @@ dependencies = [
  "sp1-prover",
  "sp1-recursion-circuit",
  "sp1-recursion-compiler",
- "sp1-recursion-core",
  "sp1-recursion-core-v2",
  "sp1-recursion-derive",
  "sp1-recursion-gnark-ffi",
+ "sp1-recursion-program",
  "stacker",
  "tracing",
  "zkhash",

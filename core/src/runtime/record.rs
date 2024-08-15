@@ -431,6 +431,7 @@ impl ExecutionRecord {
             k256_decompress_events: std::mem::take(&mut self.k256_decompress_events),
             uint256_mul_events: std::mem::take(&mut self.uint256_mul_events),
             bls12381_fp_events: std::mem::take(&mut self.bls12381_fp_events),
+            bls12381_fp2_addsub_events: std::mem::take(&mut self.bls12381_fp2_addsub_events),
             bls12381_fp2_mul_events: std::mem::take(&mut self.bls12381_fp2_mul_events),
             bls12381_decompress_events: std::mem::take(&mut self.bls12381_decompress_events),
             memory_initialize_events: std::mem::take(&mut self.memory_initialize_events),
