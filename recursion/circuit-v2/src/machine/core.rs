@@ -130,14 +130,14 @@ where
         // Verify proofs.
         for (i, shard_proof) in shard_proofs.into_iter().enumerate() {
             let contains_cpu = shard_proof.contains_cpu();
-            let contains_memory_init = shard_proof.contains_memory_init();
-            let contains_memory_finalize = shard_proof.contains_memory_finalize();
+            let _contains_memory_init = shard_proof.contains_memory_init();
+            let _contains_memory_finalize = shard_proof.contains_memory_finalize();
 
             // Get the public values.
             let public_values: &PublicValues<Word<Felt<_>>, Felt<_>> =
                 shard_proof.public_values.as_slice().borrow();
 
-            let shard = public_values.shard;
+            let _shard = public_values.shard;
 
             // If this is the first proof in the batch, initialize the variables.
             if i == 0 {
