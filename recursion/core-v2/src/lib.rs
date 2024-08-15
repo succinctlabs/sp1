@@ -4,12 +4,16 @@ use serde::{Deserialize, Serialize};
 use sp1_derive::AlignedBorrow;
 use sp1_recursion_core::air::{Block, RecursionPublicValues};
 
+pub mod air;
 pub mod builder;
 pub mod chips;
 pub mod machine;
 pub mod runtime;
 
 pub use runtime::*;
+
+// Re-export the stark stuff from `sp1_recursion_core` for now, until we will migrate it here.
+pub use sp1_recursion_core::stark;
 
 use crate::chips::poseidon2_skinny::WIDTH;
 

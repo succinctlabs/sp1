@@ -26,7 +26,10 @@ p3-baby-bear = { workspace = true }
 
 
 sp1-core = { workspace = true }
-sp1-recursion-core = { workspace = true }
+
+# todo: remove this dependency once everything is migrated.
+sp1-recursion-program = { workspace = true }
+
 sp1-recursion-core-v2 = { workspace = true }
 sp1-recursion-derive = { workspace = true }
 sp1-recursion-compiler = { workspace = true }

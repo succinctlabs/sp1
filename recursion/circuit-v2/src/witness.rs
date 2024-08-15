@@ -14,7 +14,7 @@ use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
     ir::{Builder, Config, Ext, Felt},
 };
-use sp1_recursion_core::air::Block;
+use sp1_recursion_core_v2::air::Block;
 
 use crate::{
     stark::{ShardCommitmentVariable, ShardProofVariable},

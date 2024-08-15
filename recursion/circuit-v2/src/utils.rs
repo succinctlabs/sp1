@@ -1,3 +1,34 @@
+use std::borrow::BorrowMut;
+
+use sp1_recursion_compiler::{
+    circuit::CircuitV2Builder,
+    ir::{Builder, Config, Felt},
+};
+use sp1_recursion_core_v2::air::{
+    RecursionPublicValues, NUM_PV_ELMS_TO_HASH, RECURSIVE_PROOF_NUM_PV_ELTS,
+};
+
+/// Register and commits the recursion public values.
+pub fn commit_recursion_public_values<C: Config>(
+    builder: &mut Builder<C>,
+    public_values: &RecursionPublicValues<Felt<C::F>>,
+) {
+    let mut pv_elements: [Felt<_>; RECURSIVE_PROOF_NUM_PV_ELTS] =
+        core::array::from_fn(|_| builder.uninit());
+    *pv_elements.as_mut_slice().borrow_mut() = *public_values;
+    let pv_elms_no_digest = &pv_elements[0..NUM_PV_ELMS_TO_HASH];
+
+    for value in pv_elms_no_digest.iter() {
+        builder.register_public_value(*value);
+    }
+
+    // Hash the public values.
+    let pv_digest = builder.poseidon2_hash_v2(&pv_elements[0..NUM_PV_ELMS_TO_HASH]);
+    for element in pv_digest {
+        builder.commit_public_value(element);
+    }
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use sp1_core::utils::setup_logger;

@@ -1,9 +1,14 @@
 use hashbrown::HashMap;
 use p3_baby_bear::BabyBear;
 use p3_commit::TwoAdicMultiplicativeCoset;
+use p3_field::{AbstractField, TwoAdicField};
 use p3_matrix::Dimensions;
+
 use sp1_core::{stark::StarkVerifyingKey, utils::BabyBearPoseidon2};
-use sp1_recursion_compiler::ir::{Builder, Config, Ext, Felt};
+use sp1_recursion_compiler::{
+    circuit::CircuitV2Builder,
+    ir::{Builder, Config, Ext, Felt},
+};
 
 use sp1_recursion_core_v2::DIGEST_SIZE;
 
@@ -101,5 +106,28 @@ impl<C: Config> VerifyingKeyVariable<C> {
         challenger.observe(builder, self.commitment);
         // Observe the pc_start.
         challenger.observe(builder, self.pc_start);
+    }
+
+    /// Hash the verifying key + prep domains into a single digest.
+    /// poseidon2( commit[0..8] || pc_start || prep_domains[N].{log_n, .size, .shift, .g})
+    pub fn hash(&self, builder: &mut Builder<C>) -> DigestVariable<C>
+    where
+        C::F: TwoAdicField,
+    {
+        let prep_domains = self.chip_information.iter().map(|(_, domain, _)| domain);
+        let num_inputs = DIGEST_SIZE + 1 + (4 * prep_domains.len());
+        let mut inputs = Vec::with_capacity(num_inputs);
+        inputs.extend(self.commitment);
+        inputs.push(self.pc_start);
+        for domain in prep_domains {
+            inputs.push(builder.eval(C::F::from_canonical_usize(domain.log_n)));
+            let size = 1 << domain.log_n;
+            inputs.push(builder.eval(C::F::from_canonical_usize(size)));
+            let g = C::F::two_adic_generator(domain.log_n);
+            inputs.push(builder.eval(domain.shift));
+            inputs.push(builder.eval(g));
+        }
+
+        builder.poseidon2_hash_v2(&inputs)
     }
 }
