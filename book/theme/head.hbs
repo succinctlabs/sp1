@@ -4,3 +4,30 @@
 A performant, 100% open-source, contributor-friendly zkVM." />
 <meta name="twitter:image:src" content="https://raw.githubusercontent.com/succinctlabs/sp1/main/assets/sp1.png" />
 <meta property="og:image" content="https://raw.githubusercontent.com/succinctlabs/sp1/main/assets/sp1.png" />
+
+<!-- Cookbook Onboard Integration -->
+<script>
+(function() {
+  // Cookbook Onboard (AI Assistant). API key is public so it's fine to just hardcode it here.
+  var COOKBOOK_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2NmJlNGQ4OTZkMjk4YjBkZjY5OWNlOTgiLCJpYXQiOjE3MjM3NDc3MjEsImV4cCI6MjAzOTMyMzcyMX0.n0AzjgjzCTvb4DAabXhFN7f4DxpjTd9fjAiNw8pTVRg";
+
+  document.addEventListener('DOMContentLoaded', function() {
+    var element = document.getElementById('__cookbook');
+    if (!element) {
+      element = document.createElement('div');
+      element.id = '__cookbook';
+      element.dataset.apiKey = COOKBOOK_API_KEY;
+      document.body.appendChild(element);
+    }
+
+    var script = document.getElementById('__cookbook-script');
+    if (!script) {
+      script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/@cookbookdev/docsbot/dist/standalone/index.cjs.js';
+      script.id = '__cookbook-script';
+      script.async = true;
+      document.body.appendChild(script);
+    }
+  });
+})();
+</script>
