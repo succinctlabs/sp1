@@ -32,7 +32,7 @@ use std::env;
 pub use provers::{LocalProver, MockProver, Prover};
 
 pub use sp1_core_executor::{ExecutionReport, SP1Context, SP1ContextBuilder};
-use sp1_core_machine::{io::SP1Stdin, SP1_CIRCUIT_VERSION};
+pub use sp1_core_machine::{io::SP1Stdin, SP1_CIRCUIT_VERSION};
 pub use sp1_prover::{
     CoreSC, HashableKey, InnerSC, OuterSC, PlonkBn254Proof, SP1Prover, SP1ProvingKey,
     SP1VerifyingKey,
@@ -149,7 +149,7 @@ impl ProverClient {
     /// use sp1_sdk::{ProverClient, SP1Context, SP1Stdin};
     ///
     /// // Load the program.
-    /// let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+    /// let elf = include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
     ///
     /// // Initialize the prover client.
     /// let client = ProverClient::new();
@@ -179,7 +179,7 @@ impl ProverClient {
     /// use sp1_sdk::{ProverClient, SP1Context, SP1Stdin};
     ///
     /// // Load the program.
-    /// let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+    /// let elf = include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
     ///
     /// // Initialize the prover client.
     /// let client = ProverClient::new();
@@ -205,7 +205,7 @@ impl ProverClient {
     /// ```no_run
     /// use sp1_sdk::{ProverClient, SP1Stdin};
     ///
-    /// let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+    /// let elf = include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
     /// let client = ProverClient::new();
     /// let (pk, vk) = client.setup(elf);
     /// let mut stdin = SP1Stdin::new();
@@ -238,7 +238,7 @@ impl ProverClient {
     /// ```no_run
     /// use sp1_sdk::{ProverClient, SP1Stdin};
     ///
-    /// let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+    /// let elf = include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
     /// let client = ProverClient::new();
     /// let mut stdin = SP1Stdin::new();
     /// stdin.write(&10usize);
