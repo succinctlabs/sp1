@@ -20,7 +20,7 @@ vergen = { version = "8", default-features = false, features = [
 
 anyhow = { version = "1.0.83", features = ["backtrace"] }
 cargo_metadata = "0.18.1"
-clap = { version = "4.5.9", features = ["derive", "env"] }
+clap = { version = "4.5.15", features = ["derive", "env"] }
 sp1-build = { workspace = true }
 sp1-prover = { workspace = true }
 sp1-sdk = { workspace = true }
