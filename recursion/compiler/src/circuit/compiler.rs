@@ -488,114 +488,133 @@ impl<C: Config> AsmCompiler<C> {
     {
         // Compile each IR instruction into a list of ASM instructions, then combine them.
         // This step also counts the number of times each address is read from.
-        let annotated_instrs = operations
-            .into_iter()
-            .flat_map(|(ir_instr, trace)| {
-                zip(
-                    self.compile_one(ir_instr).unwrap_or_else(|instr| {
-                        panic!("unsupported instruction: {instr:?}\nbacktrace: {trace:?}")
-                    }),
-                    repeat(trace),
-                )
-            })
-            .collect::<Vec<_>>();
+        let annotated_instrs = tracing::debug_span!("compile_one loop").in_scope(|| {
+            operations
+                .into_iter()
+                .flat_map(|(ir_instr, trace)| {
+                    zip(
+                        self.compile_one(ir_instr).unwrap_or_else(|instr| {
+                            panic!("unsupported instruction: {instr:?}\nbacktrace: {trace:?}")
+                        }),
+                        repeat(trace),
+                    )
+                })
+                .collect::<Vec<_>>()
+        });
 
         // Cycle tracking logic.
-        let (mut instrs, cycle_tracker_root_span) = {
-            let mut span_builder = SpanBuilder::<_, &'static str>::new("cycle_tracker".to_string());
-            let instrs = annotated_instrs
-                .into_iter()
-                .filter_map(|(item, trace)| match item {
-                    CompileOneItem::Instr(instr) => {
-                        span_builder.item(instr_name(&instr));
-                        Some((instr, trace))
-                    }
-                    CompileOneItem::CycleTrackerEnter(name) => {
-                        span_builder.enter(name);
-                        None
-                    }
-                    CompileOneItem::CycleTrackerExit => {
-                        span_builder.exit().unwrap();
-                        None
-                    }
-                })
-                .collect::<Vec<_>>();
-            (instrs, span_builder.finish().unwrap())
-        };
+        let (mut instrs, cycle_tracker_root_span) = tracing::debug_span!("cycle_tracking")
+            .in_scope(|| {
+                let mut span_builder =
+                    SpanBuilder::<_, &'static str>::new("cycle_tracker".to_string());
+                let instrs = annotated_instrs
+                    .into_iter()
+                    .filter_map(|(item, trace)| match item {
+                        CompileOneItem::Instr(instr) => {
+                            span_builder.item(instr_name(&instr));
+                            Some((instr, trace))
+                        }
+                        CompileOneItem::CycleTrackerEnter(name) => {
+                            span_builder.enter(name);
+                            None
+                        }
+                        CompileOneItem::CycleTrackerExit => {
+                            span_builder.exit().unwrap();
+                            None
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                (instrs, span_builder.finish().unwrap())
+            });
         for line in cycle_tracker_root_span.lines() {
             tracing::info!("{}", line);
         }
 
         // Replace the mults using the address count data gathered in this previous.
         // Exhaustive match for refactoring purposes.
-        instrs
-            .iter_mut()
-            .flat_map(|(asm_instr, _)| match asm_instr {
-                Instruction::BaseAlu(BaseAluInstr {
-                    mult,
-                    addrs: BaseAluIo { ref out, .. },
-                    ..
-                }) => vec![(mult, out)],
-                Instruction::ExtAlu(ExtAluInstr {
-                    mult,
-                    addrs: ExtAluIo { ref out, .. },
-                    ..
-                }) => vec![(mult, out)],
-                Instruction::Mem(MemInstr {
-                    addrs: MemIo { ref inner },
-                    mult,
-                    kind: MemAccessKind::Write,
-                    ..
-                }) => vec![(mult, inner)],
-                Instruction::Poseidon2(Poseidon2SkinnyInstr {
-                    addrs: Poseidon2Io { ref output, .. },
-                    mults,
-                }) => mults.iter_mut().zip(output).collect(),
-                Instruction::ExpReverseBitsLen(ExpReverseBitsInstr {
-                    addrs: ExpReverseBitsIo { ref result, .. },
-                    mult,
-                }) => vec![(mult, result)],
-                Instruction::HintBits(HintBitsInstr {
-                    output_addrs_mults, ..
-                })
-                | Instruction::Hint(HintInstr {
-                    output_addrs_mults, ..
-                }) => output_addrs_mults
-                    .iter_mut()
-                    .map(|(ref addr, mult)| (mult, addr))
-                    .collect(),
-                Instruction::FriFold(FriFoldInstr {
-                    ext_vec_addrs:
-                        FriFoldExtVecIo {
-                            ref alpha_pow_output,
-                            ref ro_output,
-                            ..
-                        },
-                    alpha_pow_mults,
-                    ro_mults,
-                    ..
-                }) => alpha_pow_mults
-                    .iter_mut()
-                    .zip(alpha_pow_output)
-                    .chain(ro_mults.iter_mut().zip(ro_output))
-                    .collect(),
-                Instruction::HintExt2Felts(HintExt2FeltsInstr {
-                    output_addrs_mults, ..
-                }) => output_addrs_mults
-                    .iter_mut()
-                    .map(|(ref addr, mult)| (mult, addr))
-                    .collect(),
-                // Instructions that do not write to memory.
-                Instruction::Mem(MemInstr {
-                    kind: MemAccessKind::Read,
-                    ..
-                })
-                | Instruction::CommitPublicValues(_)
-                | Instruction::Print(_) => vec![],
-            })
-            .for_each(|(mult, addr): (&mut C::F, &Address<C::F>)| {
-                *mult = self.addr_to_mult.remove(addr).unwrap()
-            });
+        // let addr_to_mult = &mut self.addr_to_mult;
+        tracing::debug_span!("backfill mult").in_scope(|| {
+            for (asm_instr, _) in instrs.iter_mut() {
+                match asm_instr {
+                    Instruction::BaseAlu(BaseAluInstr {
+                        mult,
+                        addrs: BaseAluIo { out: ref addr, .. },
+                        ..
+                    }) => *mult = self.addr_to_mult.remove(addr).unwrap(),
+                    Instruction::ExtAlu(ExtAluInstr {
+                        mult,
+                        addrs: ExtAluIo { out: ref addr, .. },
+                        ..
+                    }) => *mult = self.addr_to_mult.remove(addr).unwrap(),
+                    Instruction::Mem(MemInstr {
+                        addrs: MemIo { inner: ref addr },
+                        mult,
+                        kind: MemAccessKind::Write,
+                        ..
+                    }) => *mult = self.addr_to_mult.remove(addr).unwrap(),
+                    Instruction::Poseidon2(Poseidon2SkinnyInstr {
+                        addrs:
+                            Poseidon2Io {
+                                output: ref addrs, ..
+                            },
+                        mults,
+                    }) => {
+                        for (mult, addr) in mults.iter_mut().zip(addrs) {
+                            *mult = self.addr_to_mult.remove(addr).unwrap()
+                        }
+                    }
+                    Instruction::ExpReverseBitsLen(ExpReverseBitsInstr {
+                        addrs:
+                            ExpReverseBitsIo {
+                                result: ref addr, ..
+                            },
+                        mult,
+                    }) => *mult = self.addr_to_mult.remove(addr).unwrap(),
+                    Instruction::HintBits(HintBitsInstr {
+                        output_addrs_mults, ..
+                    })
+                    | Instruction::Hint(HintInstr {
+                        output_addrs_mults, ..
+                    }) => {
+                        for (addr, mult) in output_addrs_mults.iter_mut() {
+                            *mult = self.addr_to_mult.remove(addr).unwrap()
+                        }
+                    }
+                    Instruction::FriFold(FriFoldInstr {
+                        ext_vec_addrs:
+                            FriFoldExtVecIo {
+                                ref alpha_pow_output,
+                                ref ro_output,
+                                ..
+                            },
+                        alpha_pow_mults,
+                        ro_mults,
+                        ..
+                    }) => {
+                        for (mult, addr) in alpha_pow_mults.iter_mut().zip(alpha_pow_output) {
+                            *mult = self.addr_to_mult.remove(addr).unwrap()
+                        }
+                        for (mult, addr) in ro_mults.iter_mut().zip(ro_output) {
+                            *mult = self.addr_to_mult.remove(addr).unwrap()
+                        }
+                    }
+                    Instruction::HintExt2Felts(HintExt2FeltsInstr {
+                        output_addrs_mults, ..
+                    }) => {
+                        for (addr, mult) in output_addrs_mults.iter_mut() {
+                            *mult = self.addr_to_mult.remove(addr).unwrap()
+                        }
+                    }
+                    // Instructions that do not write to memory.
+                    Instruction::Mem(MemInstr {
+                        kind: MemAccessKind::Read,
+                        ..
+                    })
+                    | Instruction::CommitPublicValues(_)
+                    | Instruction::Print(_) => (),
+                }
+            }
+        });
         debug_assert!(self.addr_to_mult.is_empty());
         // Initialize constants.
         let instrs_consts = self.consts.drain().map(|(imm, (addr, mult))| {
@@ -608,11 +627,16 @@ impl<C: Config> AsmCompiler<C> {
                 kind: MemAccessKind::Write,
             })
         });
+        tracing::debug!("number of consts to initialize: {}", instrs_consts.len());
         // Reset the other fields.
         self.next_addr = Default::default();
         self.fp_to_addr.clear();
         // Place constant-initializing instructions at the top.
-        let (instructions, traces) = zip(instrs_consts, repeat(None)).chain(instrs).unzip();
+        let (instructions, traces) = tracing::debug_span!("construct program").in_scope(|| {
+            zip(instrs_consts, std::iter::repeat(None))
+                .chain(instrs)
+                .unzip()
+        });
         RecursionProgram {
             instructions,
             traces,
