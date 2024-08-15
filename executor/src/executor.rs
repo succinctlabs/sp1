@@ -236,7 +236,7 @@ impl<'a> Executor<'a> {
 
     /// Get the current values of the registers.
     #[must_use]
-    pub fn registers(&self) -> [u32; 32] {
+    pub fn registers(&mut self) -> [u32; 32] {
         let mut registers = [0; 32];
         for i in 0..32 {
             let addr = Register::from_u32(i as u32) as u32;
@@ -244,14 +244,16 @@ impl<'a> Executor<'a> {
                 Some(record) => record.value,
                 None => 0,
             };
+            self.touched_memory.insert(addr);
         }
         registers
     }
 
     /// Get the current value of a register.
     #[must_use]
-    pub fn register(&self, register: Register) -> u32 {
+    pub fn register(&mut self, register: Register) -> u32 {
         let addr = register as u32;
+        self.touched_memory.insert(addr);
         match self.state.memory.get(&addr) {
             Some(record) => record.value,
             None => 0,
@@ -260,7 +262,8 @@ impl<'a> Executor<'a> {
 
     /// Get the current value of a word.
     #[must_use]
-    pub fn word(&self, addr: u32) -> u32 {
+    pub fn word(&mut self, addr: u32) -> u32 {
+        self.touched_memory.insert(addr);
         match self.state.memory.get(&addr) {
             Some(record) => record.value,
             None => 0,
@@ -269,7 +272,7 @@ impl<'a> Executor<'a> {
 
     /// Get the current value of a byte.
     #[must_use]
-    pub fn byte(&self, addr: u32) -> u8 {
+    pub fn byte(&mut self, addr: u32) -> u8 {
         let word = self.word(addr - addr % 4);
         (word >> ((addr % 4) * 8)) as u8
     }
@@ -1034,7 +1037,7 @@ impl<'a> Executor<'a> {
         let instruction = self.fetch();
 
         // Log the current state of the runtime.
-        // self.log(&instruction);
+        self.log(&instruction);
 
         // Execute the instruction.
         self.execute_instruction(&instruction)?;
@@ -1323,6 +1326,24 @@ impl<'a> Executor<'a> {
 
     fn get_syscall(&mut self, code: SyscallCode) -> Option<&Arc<dyn Syscall>> {
         self.syscall_map.get(&code)
+    }
+
+    #[inline]
+    fn log(&mut self, _: &Instruction) {
+        // Write the current program counter to the trace buffer for the cycle tracer.
+        if let Some(ref mut buf) = self.trace_buf {
+            if !self.unconstrained {
+                buf.write_all(&u32::to_be_bytes(self.state.pc)).unwrap();
+            }
+        }
+
+        if !self.unconstrained && self.state.global_clk % 10_000_000 == 0 {
+            log::info!(
+                "clk = {} pc = 0x{:x?}",
+                self.state.global_clk,
+                self.state.pc
+            );
+        }
     }
 }
 

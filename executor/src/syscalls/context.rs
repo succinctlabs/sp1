@@ -89,25 +89,25 @@ impl<'a, 'b> SyscallContext<'a, 'b> {
     /// Get the current value of a register, but doesn't use a memory record.
     /// This is generally unconstrained, so you must be careful using it.
     #[must_use]
-    pub fn register_unsafe(&self, register: Register) -> u32 {
+    pub fn register_unsafe(&mut self, register: Register) -> u32 {
         self.rt.register(register)
     }
 
     /// Get the current value of a byte, but doesn't use a memory record.
     #[must_use]
-    pub fn byte_unsafe(&self, addr: u32) -> u8 {
+    pub fn byte_unsafe(&mut self, addr: u32) -> u8 {
         self.rt.byte(addr)
     }
 
     /// Get the current value of a word, but doesn't use a memory record.
     #[must_use]
-    pub fn word_unsafe(&self, addr: u32) -> u32 {
+    pub fn word_unsafe(&mut self, addr: u32) -> u32 {
         self.rt.word(addr)
     }
 
     /// Get a slice of words, but doesn't use a memory record.
     #[must_use]
-    pub fn slice_unsafe(&self, addr: u32, len: usize) -> Vec<u32> {
+    pub fn slice_unsafe(&mut self, addr: u32, len: usize) -> Vec<u32> {
         let mut values = Vec::new();
         for i in 0..len {
             values.push(self.rt.word(addr + i as u32 * 4));
