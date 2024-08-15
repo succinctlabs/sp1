@@ -11,7 +11,8 @@ use sp1_core::stark::{AirOpenedValues, GenericVerifierConstraintFolder, MachineC
 use sp1_core::stark::{ChipOpenedValues, OpeningShapeError};
 use sp1_recursion_compiler::ir::{Builder, Config, Ext, Felt, SymbolicExt};
 
-use crate::{domain::PolynomialSpaceVariable, stark::StarkVerifier, BabyBearFriConfigVariable};
+use crate::{domain::PolynomialSpaceVariable, stark::StarkVerifier};
+use crate::{BabyBearFriConfigVariable, CircuitConfig};
 
 pub type RecursiveVerifierConstraintFolder<'a, C> = GenericVerifierConstraintFolder<
     'a,
@@ -25,8 +26,8 @@ pub type RecursiveVerifierConstraintFolder<'a, C> = GenericVerifierConstraintFol
 impl<C, SC, A> StarkVerifier<C, SC, A>
 where
     C::F: TwoAdicField,
-    SC: BabyBearFriConfigVariable<C = C>,
-    C: Config<F = SC::Val>,
+    SC: BabyBearFriConfigVariable<C>,
+    C: CircuitConfig<F = SC::Val>,
     <SC::ValMmcs as Mmcs<BabyBear>>::ProverData<RowMajorMatrix<BabyBear>>: Clone,
     A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
 {

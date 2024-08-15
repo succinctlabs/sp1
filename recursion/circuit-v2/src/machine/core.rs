@@ -10,6 +10,7 @@ use p3_field::AbstractField;
 use p3_matrix::dense::RowMajorMatrix;
 
 use crate::utils::commit_recursion_public_values;
+use crate::CircuitConfig;
 use sp1_core::air::{PublicValues, Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS, WORD_SIZE};
 use sp1_core::stark::{RiscvAir, StarkMachine};
 
@@ -18,6 +19,7 @@ use sp1_recursion_compiler::ir::{Builder, Config, Ext, ExtConst, Felt};
 
 use sp1_recursion_core_v2::air::RecursionPublicValues;
 use sp1_recursion_core_v2::air::RECURSIVE_PROOF_NUM_PV_ELTS;
+use sp1_recursion_core_v2::DIGEST_SIZE;
 
 use crate::challenger::CanObserveVariable;
 use crate::stark::StarkVerifier;
@@ -26,10 +28,13 @@ use crate::{
 };
 use crate::{BabyBearFriConfig, BabyBearFriConfigVariable};
 
-pub struct SP1RecursionWitnessVariable<C: Config> {
-    pub vk: VerifyingKeyVariable<C>,
-    pub shard_proofs: Vec<ShardProofVariable<C>>,
-    pub leaf_challenger: DuplexChallengerVariable<C>,
+pub struct SP1RecursionWitnessVariable<
+    C: CircuitConfig<F = BabyBear>,
+    SC: BabyBearFriConfigVariable<C>,
+> {
+    pub vk: VerifyingKeyVariable<C, SC>,
+    pub shard_proofs: Vec<ShardProofVariable<C, SC>>,
+    pub leaf_challenger: SC::FriChallengerVariable,
     pub initial_reconstruct_challenger: DuplexChallengerVariable<C>,
     pub is_complete: Felt<C::F>,
 }
@@ -42,8 +47,12 @@ pub struct SP1RecursiveVerifier<C: Config, SC: BabyBearFriConfig> {
 
 impl<C, SC> SP1RecursiveVerifier<C, SC>
 where
-    SC: BabyBearFriConfigVariable<C = C, FriChallengerVariable = DuplexChallengerVariable<C>>,
-    C: Config<F = SC::Val, EF = SC::Challenge>,
+    SC: BabyBearFriConfigVariable<
+        C,
+        FriChallengerVariable = DuplexChallengerVariable<C>,
+        Digest = [Felt<BabyBear>; DIGEST_SIZE],
+    >,
+    C: CircuitConfig<F = SC::Val, EF = SC::Challenge, Bit = Felt<BabyBear>>,
     <SC::ValMmcs as Mmcs<BabyBear>>::ProverData<RowMajorMatrix<BabyBear>>: Clone,
 {
     /// Verify a batch of SP1 shard proofs and aggregate their public values.
@@ -75,7 +84,7 @@ where
     pub fn verify(
         builder: &mut Builder<C>,
         machine: &StarkMachine<SC, RiscvAir<SC::Val>>,
-        input: SP1RecursionWitnessVariable<C>,
+        input: SP1RecursionWitnessVariable<C, SC>,
     ) {
         // Read input.
         let SP1RecursionWitnessVariable {
