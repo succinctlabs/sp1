@@ -40,17 +40,12 @@ pub fn try_build_groth16_bn254_artifacts_dev(
 
 /// Gets the directory where the PLONK artifacts are installed in development mode.
 pub fn plonk_bn254_artifacts_dev_dir() -> PathBuf {
-    dirs::home_dir().unwrap().join(".sp1").join("circuits").join("plonk_bn254").join("dev")
+    dirs::home_dir().unwrap().join(".sp1").join("circuits").join("dev")
 }
 
 /// Gets the directory where the groth16 artifacts are installed in development mode.
 pub fn groth16_bn254_artifacts_dev_dir() -> PathBuf {
-    dirs::home_dir().unwrap().join(".sp1").join("circuits").join("groth16_bn254").join("dev")
-}
-
-/// Gets the directory where the groth16 artifacts are installed in development mode.
-pub fn groth16_bn254_artifacts_dev_dir() -> PathBuf {
-    dirs::home_dir().unwrap().join(".sp1").join("circuits").join("groth16_bn254").join("dev")
+    dirs::home_dir().unwrap().join(".sp1").join("circuits").join("dev")
 }
 
 /// Build the plonk bn254 artifacts to the given directory for the given verification key and
