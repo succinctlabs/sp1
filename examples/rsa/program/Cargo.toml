@@ -6,7 +6,7 @@ edition = "2021"
 publish = false
 
 [dependencies]
-sp1-zkvm = { path = "../../../zkvm/entrypoint" }
+sp1-zkvm = { path = "../../../crates/zkvm/entrypoint" }
 digest = "0.10.7"
 rand = "0.8.5"
 rsa = "0.6"                                      # Check for the latest version

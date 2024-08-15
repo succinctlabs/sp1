@@ -233,7 +233,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "anyhow",
  "bincode",
@@ -243,7 +243,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "bincode",
  "cfg-if",
