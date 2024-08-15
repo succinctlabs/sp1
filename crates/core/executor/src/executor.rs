@@ -1029,8 +1029,8 @@ impl<'a> Executor<'a> {
             }
         }
 
-        Ok(self.state.pc.wrapping_sub(self.program.pc_base) >=
-            (self.program.instructions.len() * 4) as u32)
+        Ok(self.state.pc.wrapping_sub(self.program.pc_base)
+            >= (self.program.instructions.len() * 4) as u32)
     }
 
     /// Bump the record.

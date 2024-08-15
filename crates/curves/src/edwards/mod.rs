@@ -174,8 +174,8 @@ mod tests {
             assert_eq!(y_x_base, xy_base);
         }
 
-        let order = BigUint::from(2u32).pow(252) +
-            BigUint::from(27742317777372353535851937790883648493u128);
+        let order = BigUint::from(2u32).pow(252)
+            + BigUint::from(27742317777372353535851937790883648493u128);
         assert_eq!(base, &base + &(&base * &order));
     }
 }

@@ -314,8 +314,8 @@ where
         // Check bit_shift_result = b * bit_shift_multiplier by using bit_shift_result_carry to
         // carry-propagate.
         for i in 0..WORD_SIZE {
-            let mut v = local.b[i] * local.bit_shift_multiplier -
-                local.bit_shift_result_carry[i] * base.clone();
+            let mut v = local.b[i] * local.bit_shift_multiplier
+                - local.bit_shift_result_carry[i] * base.clone();
             if i > 0 {
                 v += local.bit_shift_result_carry[i - 1].into();
             }

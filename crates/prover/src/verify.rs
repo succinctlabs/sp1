@@ -186,15 +186,15 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 return Err(MachineVerificationError::InvalidPublicValues(
                     "last_init_addr_bits != last_finalize_addr_bits_prev",
                 ));
-            } else if !shard_proof.contains_memory_init() &&
-                public_values.previous_init_addr_bits != public_values.last_init_addr_bits
+            } else if !shard_proof.contains_memory_init()
+                && public_values.previous_init_addr_bits != public_values.last_init_addr_bits
             {
                 return Err(MachineVerificationError::InvalidPublicValues(
                     "previous_init_addr_bits != last_init_addr_bits",
                 ));
-            } else if !shard_proof.contains_memory_finalize() &&
-                public_values.previous_finalize_addr_bits !=
-                    public_values.last_finalize_addr_bits
+            } else if !shard_proof.contains_memory_finalize()
+                && public_values.previous_finalize_addr_bits
+                    != public_values.last_finalize_addr_bits
             {
                 return Err(MachineVerificationError::InvalidPublicValues(
                     "previous_finalize_addr_bits != last_finalize_addr_bits",
@@ -228,26 +228,26 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         for shard_proof in proof.0.iter() {
             let public_values: &PublicValues<Word<_>, _> =
                 shard_proof.public_values.as_slice().borrow();
-            if commited_value_digest_prev != zero_commited_value_digest &&
-                public_values.committed_value_digest != commited_value_digest_prev
+            if commited_value_digest_prev != zero_commited_value_digest
+                && public_values.committed_value_digest != commited_value_digest_prev
             {
                 return Err(MachineVerificationError::InvalidPublicValues(
                     "committed_value_digest != commited_value_digest_prev",
                 ));
-            } else if deferred_proofs_digest_prev != zero_deferred_proofs_digest &&
-                public_values.deferred_proofs_digest != deferred_proofs_digest_prev
+            } else if deferred_proofs_digest_prev != zero_deferred_proofs_digest
+                && public_values.deferred_proofs_digest != deferred_proofs_digest_prev
             {
                 return Err(MachineVerificationError::InvalidPublicValues(
                     "deferred_proofs_digest != deferred_proofs_digest_prev",
                 ));
-            } else if !shard_proof.contains_cpu() &&
-                public_values.committed_value_digest != commited_value_digest_prev
+            } else if !shard_proof.contains_cpu()
+                && public_values.committed_value_digest != commited_value_digest_prev
             {
                 return Err(MachineVerificationError::InvalidPublicValues(
                     "committed_value_digest != commited_value_digest_prev",
                 ));
-            } else if !shard_proof.contains_cpu() &&
-                public_values.deferred_proofs_digest != deferred_proofs_digest_prev
+            } else if !shard_proof.contains_cpu()
+                && public_values.deferred_proofs_digest != deferred_proofs_digest_prev
             {
                 return Err(MachineVerificationError::InvalidPublicValues(
                     "deferred_proofs_digest != deferred_proofs_digest_prev",
@@ -303,7 +303,9 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         // Verify that the reduce program is the one we are expecting.
         let recursion_vkey_hash = self.compress_vk().hash_babybear();
         if public_values.compress_vk_digest != recursion_vkey_hash {
-            return Err(MachineVerificationError::InvalidPublicValues("recursion vk hash mismatch"));
+            return Err(MachineVerificationError::InvalidPublicValues(
+                "recursion vk hash mismatch",
+            ));
         }
 
         Ok(())

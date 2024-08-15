@@ -300,10 +300,10 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                 // the syscall row. For absorb calls that are only one row,
                 // last_row_num_consumed = absorb_event.input_len.
                 if is_syscall_row {
-                    last_row_ending_cursor = (absorb_iter.state_cursor +
-                        absorb_event.input_len.as_canonical_u32() as usize -
-                        1) %
-                        RATE;
+                    last_row_ending_cursor = (absorb_iter.state_cursor
+                        + absorb_event.input_len.as_canonical_u32() as usize
+                        - 1)
+                        % RATE;
                 }
 
                 absorb_workspace.last_row_ending_cursor =

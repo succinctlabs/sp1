@@ -186,9 +186,9 @@ impl CpuChip {
         let is_halt = self.populate_ecall(cols, event, nonce_lookup);
 
         cols.is_sequential_instr = F::from_bool(
-            !event.instruction.is_branch_instruction() &&
-                !event.instruction.is_jump_instruction() &&
-                !is_halt,
+            !event.instruction.is_branch_instruction()
+                && !event.instruction.is_jump_instruction()
+                && !is_halt,
         );
 
         // Assert that the instruction is not a no-op.
@@ -255,14 +255,14 @@ impl CpuChip {
     ) {
         if !matches!(
             event.instruction.opcode,
-            Opcode::LB |
-                Opcode::LH |
-                Opcode::LW |
-                Opcode::LBU |
-                Opcode::LHU |
-                Opcode::SB |
-                Opcode::SH |
-                Opcode::SW
+            Opcode::LB
+                | Opcode::LH
+                | Opcode::LW
+                | Opcode::LBU
+                | Opcode::LHU
+                | Opcode::SB
+                | Opcode::SH
+                | Opcode::SW
         ) {
             return;
         }
@@ -656,15 +656,15 @@ impl CpuChip {
 
             // Populate `is_commit_deferred_proofs`.
             ecall_cols.is_commit_deferred_proofs.populate_from_field_element(
-                syscall_id -
-                    F::from_canonical_u32(SyscallCode::COMMIT_DEFERRED_PROOFS.syscall_id()),
+                syscall_id
+                    - F::from_canonical_u32(SyscallCode::COMMIT_DEFERRED_PROOFS.syscall_id()),
             );
 
             // If the syscall is `COMMIT` or `COMMIT_DEFERRED_PROOFS`, set the index bitmap and
             // digest word.
-            if syscall_id == F::from_canonical_u32(SyscallCode::COMMIT.syscall_id()) ||
-                syscall_id ==
-                    F::from_canonical_u32(SyscallCode::COMMIT_DEFERRED_PROOFS.syscall_id())
+            if syscall_id == F::from_canonical_u32(SyscallCode::COMMIT.syscall_id())
+                || syscall_id
+                    == F::from_canonical_u32(SyscallCode::COMMIT_DEFERRED_PROOFS.syscall_id())
             {
                 let digest_idx = cols.op_b_access.value().to_u32() as usize;
                 ecall_cols.index_bitmap[digest_idx] = F::one();

@@ -963,9 +963,9 @@ where
                         let current_x_val = x_record.value[0];
 
                         let prev_accum = accum;
-                        accum = prev_accum *
-                            prev_accum *
-                            if current_bit == F::one() { current_x_val } else { F::one() };
+                        accum = prev_accum
+                            * prev_accum
+                            * if current_bit == F::one() { current_x_val } else { F::one() };
 
                         // On the last iteration, write accum to the address pointed to in `base`.
                         if m == len - F::one() {
@@ -1018,9 +1018,9 @@ where
             self.timestamp += 1;
             self.access = CpuRecord::default();
 
-            if self.timestamp >= early_exit_ts ||
-                instruction.opcode == Opcode::HALT ||
-                instruction.opcode == Opcode::TRAP
+            if self.timestamp >= early_exit_ts
+                || instruction.opcode == Opcode::HALT
+                || instruction.opcode == Opcode::TRAP
             {
                 break;
             }

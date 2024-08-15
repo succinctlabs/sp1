@@ -405,8 +405,8 @@ where
 
             // The 2-bit number represented by the 3rd and 4th least significant bits of c is the
             // number of bytes to shift.
-            let num_bytes_to_shift = local.c_least_sig_byte[3] +
-                local.c_least_sig_byte[4] * AB::F::from_canonical_u32(2);
+            let num_bytes_to_shift = local.c_least_sig_byte[3]
+                + local.c_least_sig_byte[4] * AB::F::from_canonical_u32(2);
 
             // If shift_by_n_bytes[i] = 1, then i = num_bytes_to_shift.
             for i in 0..WORD_SIZE {
@@ -534,8 +534,8 @@ where
 
         // Receive the arguments.
         builder.receive_alu(
-            local.is_srl * AB::F::from_canonical_u32(Opcode::SRL as u32) +
-                local.is_sra * AB::F::from_canonical_u32(Opcode::SRA as u32),
+            local.is_srl * AB::F::from_canonical_u32(Opcode::SRL as u32)
+                + local.is_sra * AB::F::from_canonical_u32(Opcode::SRA as u32),
             local.a,
             local.b,
             local.c,

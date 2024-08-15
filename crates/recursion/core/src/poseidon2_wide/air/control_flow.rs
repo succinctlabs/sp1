@@ -29,12 +29,12 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         let local_control_flow = local_row.control_flow();
         let next_control_flow = next_row.control_flow();
 
-        let local_is_real = local_control_flow.is_compress +
-            local_control_flow.is_absorb +
-            local_control_flow.is_finalize;
-        let next_is_real = next_control_flow.is_compress +
-            next_control_flow.is_absorb +
-            next_control_flow.is_finalize;
+        let local_is_real = local_control_flow.is_compress
+            + local_control_flow.is_absorb
+            + local_control_flow.is_finalize;
+        let next_is_real = next_control_flow.is_compress
+            + next_control_flow.is_absorb
+            + next_control_flow.is_finalize;
 
         builder.assert_bool(local_control_flow.is_compress);
         builder.assert_bool(local_control_flow.is_compress_output);
@@ -165,8 +165,8 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         {
             builder.assert_eq(
                 local_control_flow.is_compress_output,
-                local_control_flow.is_compress *
-                    (AB::Expr::one() - local_control_flow.is_syscall_row),
+                local_control_flow.is_compress
+                    * (AB::Expr::one() - local_control_flow.is_syscall_row),
             );
 
             let mut transition_builder = builder.when_transition();
@@ -179,8 +179,8 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             // When we are at a compress output row, then ensure next row is either not real or is a
             // compress syscall row.
             transition_builder.when(local_control_flow.is_compress_output).assert_one(
-                (AB::Expr::one() - next_is_real.clone()) +
-                    next_control_flow.is_compress * next_control_flow.is_syscall_row,
+                (AB::Expr::one() - next_is_real.clone())
+                    + next_control_flow.is_compress * next_control_flow.is_syscall_row,
             );
         }
 
@@ -226,8 +226,8 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             let mut absorb_builder = builder.when(local_control_flow.is_absorb);
 
             absorb_builder.assert_eq(
-                local_hash_workspace.hash_num * AB::Expr::from_canonical_u32(1 << 12) +
-                    local_hash_workspace.absorb_num,
+                local_hash_workspace.hash_num * AB::Expr::from_canonical_u32(1 << 12)
+                    + local_hash_workspace.absorb_num,
                 local_syscall_params.absorb().hash_and_absorb_num,
             );
             builder.send_range_check(
@@ -248,13 +248,13 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
 
             absorb_builder.assert_eq(
                 local_hash_workspace.is_syscall_not_last_row,
-                local_control_flow.is_syscall_row *
-                    (AB::Expr::one() - local_hash_workspace.is_last_row::<AB>()),
+                local_control_flow.is_syscall_row
+                    * (AB::Expr::one() - local_hash_workspace.is_last_row::<AB>()),
             );
             absorb_builder.assert_eq(
                 local_hash_workspace.not_syscall_not_last_row,
-                (AB::Expr::one() - local_control_flow.is_syscall_row) *
-                    (AB::Expr::one() - local_hash_workspace.is_last_row::<AB>()),
+                (AB::Expr::one() - local_control_flow.is_syscall_row)
+                    * (AB::Expr::one() - local_hash_workspace.is_last_row::<AB>()),
             );
             absorb_builder.assert_eq(
                 local_hash_workspace.is_syscall_is_last_row,
@@ -262,8 +262,8 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             );
             absorb_builder.assert_eq(
                 local_hash_workspace.not_syscall_is_last_row,
-                (AB::Expr::one() - local_control_flow.is_syscall_row) *
-                    local_hash_workspace.is_last_row::<AB>(),
+                (AB::Expr::one() - local_control_flow.is_syscall_row)
+                    * local_hash_workspace.is_last_row::<AB>(),
             );
             absorb_builder.assert_eq(
                 local_hash_workspace.is_last_row_ending_cursor_is_seven,
@@ -271,14 +271,14 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             );
             absorb_builder.assert_eq(
                 local_hash_workspace.is_last_row_ending_cursor_not_seven,
-                local_hash_workspace.is_last_row::<AB>() *
-                    (AB::Expr::one() - last_row_ending_cursor_is_seven),
+                local_hash_workspace.is_last_row::<AB>()
+                    * (AB::Expr::one() - last_row_ending_cursor_is_seven),
             );
 
             builder.assert_eq(
                 local_control_flow.is_absorb_not_last_row,
-                local_control_flow.is_absorb *
-                    (AB::Expr::one() - local_hash_workspace.is_last_row::<AB>()),
+                local_control_flow.is_absorb
+                    * (AB::Expr::one() - local_hash_workspace.is_last_row::<AB>()),
             );
             builder.assert_eq(
                 local_control_flow.is_absorb_last_row,
@@ -287,8 +287,8 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
 
             builder.assert_eq(
                 local_control_flow.is_absorb_no_perm,
-                local_control_flow.is_absorb *
-                    (AB::Expr::one() - local_hash_workspace.do_perm::<AB>()),
+                local_control_flow.is_absorb
+                    * (AB::Expr::one() - local_hash_workspace.do_perm::<AB>()),
             );
         }
 
@@ -302,10 +302,10 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             // `last_row_ending_cursor` is inclusive of the last element,
             // while state_cursor + syscall input_len is not.
             absorb_builder.when(local_control_flow.is_syscall_row).assert_eq(
-                local_hash_workspace.state_cursor + local_syscall_params.absorb().input_len -
-                    AB::Expr::one(),
-                local_hash_workspace.num_remaining_rows * AB::Expr::from_canonical_usize(RATE) +
-                    local_hash_workspace.last_row_ending_cursor,
+                local_hash_workspace.state_cursor + local_syscall_params.absorb().input_len
+                    - AB::Expr::one(),
+                local_hash_workspace.num_remaining_rows * AB::Expr::from_canonical_usize(RATE)
+                    + local_hash_workspace.last_row_ending_cursor,
             );
 
             // Range check that last_row_ending_cursor is between [0, 7].

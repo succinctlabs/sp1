@@ -323,11 +323,11 @@ impl CpuChip {
         let is_halt = self.get_is_halt_syscall::<AB>(builder, local);
         builder.when(local.is_real).assert_eq(
             local.is_sequential_instr,
-            AB::Expr::one() -
-                (is_branch_instruction +
-                    local.selectors.is_jal +
-                    local.selectors.is_jalr +
-                    is_halt),
+            AB::Expr::one()
+                - (is_branch_instruction
+                    + local.selectors.is_jal
+                    + local.selectors.is_jalr
+                    + is_halt),
         );
 
         // Verify that the pc increments by 4 for all instructions except branch, jump and halt

@@ -63,8 +63,8 @@ impl CpuChip {
         let is_enter_unconstrained = {
             IsZeroOperation::<AB::F>::eval(
                 builder,
-                syscall_id -
-                    AB::Expr::from_canonical_u32(SyscallCode::ENTER_UNCONSTRAINED.syscall_id()),
+                syscall_id
+                    - AB::Expr::from_canonical_u32(SyscallCode::ENTER_UNCONSTRAINED.syscall_id()),
                 ecall_cols.is_enter_unconstrained,
                 is_ecall_instruction.clone(),
             );
@@ -97,8 +97,8 @@ impl CpuChip {
         // Verify value of ecall_range_check_operand column.
         builder.assert_eq(
             local.ecall_range_check_operand,
-            is_ecall_instruction *
-                (ecall_cols.is_halt.result + ecall_cols.is_commit_deferred_proofs.result),
+            is_ecall_instruction
+                * (ecall_cols.is_halt.result + ecall_cols.is_commit_deferred_proofs.result),
         );
 
         // Babybear range check the operand_to_check word.
@@ -140,8 +140,8 @@ impl CpuChip {
         // When it's some other syscall, there should be no set bits.
         builder
             .when(
-                local.selectors.is_ecall *
-                    (AB::Expr::one() - (is_commit.clone() + is_commit_deferred_proofs.clone())),
+                local.selectors.is_ecall
+                    * (AB::Expr::one() - (is_commit.clone() + is_commit_deferred_proofs.clone())),
             )
             .assert_zero(bitmap_sum);
 
@@ -156,8 +156,8 @@ impl CpuChip {
         for i in 0..3 {
             builder
                 .when(
-                    local.selectors.is_ecall *
-                        (is_commit.clone() + is_commit_deferred_proofs.clone()),
+                    local.selectors.is_ecall
+                        * (is_commit.clone() + is_commit_deferred_proofs.clone()),
                 )
                 .assert_eq(local.op_b_access.prev_value()[i + 1], AB::Expr::from_canonical_u32(0));
         }
@@ -278,8 +278,8 @@ impl CpuChip {
         let is_commit_deferred_proofs = {
             IsZeroOperation::<AB::F>::eval(
                 builder,
-                syscall_id -
-                    AB::Expr::from_canonical_u32(
+                syscall_id
+                    - AB::Expr::from_canonical_u32(
                         SyscallCode::COMMIT_DEFERRED_PROOFS.syscall_id(),
                     ),
                 ecall_cols.is_commit_deferred_proofs,
