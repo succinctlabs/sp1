@@ -663,6 +663,41 @@ pub fn run_test_core<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
 }
 
 #[allow(unused_variables)]
+pub fn run_test_machine_with_prover<SC, A, P: MachineProver<SC, A>>(
+    records: Vec<A::Record>,
+    machine: StarkMachine<SC, A>,
+    pk: StarkProvingKey<SC>,
+    vk: StarkVerifyingKey<SC>,
+) -> Result<crate::stark::MachineProof<SC>, crate::stark::MachineVerificationError<SC>>
+where
+    A: MachineAir<SC::Val>
+        + Air<InteractionBuilder<Val<SC>>>
+        + for<'a> Air<VerifierConstraintFolder<'a, SC>>
+        + for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
+    A::Record: MachineRecord<Config = SP1CoreOpts>,
+    SC: StarkGenericConfig,
+    SC::Val: p3_field::PrimeField32,
+    SC::Challenger: Clone,
+    Com<SC>: Send + Sync,
+    PcsProverData<SC>: Send + Sync + Serialize + DeserializeOwned,
+    OpeningProof<SC>: Send + Sync,
+{
+    let start = Instant::now();
+    let prover = P::new(machine);
+    let mut challenger = prover.config().challenger();
+    let proof = prover
+        .prove(&pk, records, &mut challenger, SP1CoreOpts::default())
+        .unwrap();
+    let time = start.elapsed().as_millis();
+    let nb_bytes = bincode::serialize(&proof).unwrap().len();
+
+    let mut challenger = prover.config().challenger();
+    prover.machine().verify(&vk, &proof, &mut challenger)?;
+
+    Ok(proof)
+}
+
+#[allow(unused_variables)]
 pub fn run_test_machine<SC, A>(
     records: Vec<A::Record>,
     machine: StarkMachine<SC, A>,
@@ -683,19 +718,7 @@ where
     PcsProverData<SC>: Send + Sync + Serialize + DeserializeOwned,
     OpeningProof<SC>: Send + Sync,
 {
-    let start = Instant::now();
-    let prover = CpuProver::new(machine);
-    let mut challenger = prover.config().challenger();
-    let proof = prover
-        .prove(&pk, records, &mut challenger, SP1CoreOpts::default())
-        .unwrap();
-    let time = start.elapsed().as_millis();
-    let nb_bytes = bincode::serialize(&proof).unwrap().len();
-
-    let mut challenger = prover.config().challenger();
-    prover.machine().verify(&vk, &proof, &mut challenger)?;
-
-    Ok(proof)
+    run_test_machine_with_prover::<SC, A, CpuProver<_, _>>(records, machine, pk, vk)
 }
 
 fn trace_checkpoint(

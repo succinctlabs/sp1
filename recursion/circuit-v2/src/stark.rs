@@ -271,12 +271,14 @@ impl<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable<C>> ShardProof
     }
 }
 
-#[cfg(test)]
-pub(crate) mod tests {
+#[cfg(any(test, feature = "export-tests"))]
+pub mod tests {
     use std::collections::VecDeque;
 
     use crate::challenger::CanObserveVariable;
     use crate::challenger::DuplexChallengerVariable;
+    use crate::utils::tests::run_test_recursion_with_prover;
+    use sp1_core::stark::MachineProver;
 
     use sp1_core::io::SP1Stdin;
     use sp1_core::runtime::Program;
@@ -291,8 +293,9 @@ pub(crate) mod tests {
     use sp1_recursion_compiler::config::InnerConfig;
     use sp1_recursion_compiler::ir::Builder;
 
+    use sp1_recursion_core_v2::machine::RecursionAir;
+
     use super::*;
-    use crate::utils::tests::run_test_recursion;
     use crate::witness::*;
 
     type SC = BabyBearPoseidon2;
@@ -300,8 +303,9 @@ pub(crate) mod tests {
     type C = InnerConfig;
     type A = RiscvAir<F>;
 
-    #[test]
-    fn test_verify_shard() {
+    pub fn test_verify_shard_with_prover<P: MachineProver<SC, RecursionAir<F, 3, 0>>>(
+        num_shards_in_batch: Option<usize>,
+    ) {
         // Generate a dummy proof.
         sp1_core::utils::setup_logger();
         let elf = FIBONACCI_ELF;
@@ -347,11 +351,17 @@ pub(crate) mod tests {
             challenger.observe_slice(&mut builder, pv_slice.iter().cloned());
         }
         // Verify the first proof.
-        for proof in proofs.into_iter() {
+        let num_shards = num_shards_in_batch.unwrap_or(proofs.len());
+        for proof in proofs.into_iter().take(num_shards) {
             let mut challenger = challenger.copy(&mut builder);
             StarkVerifier::verify_shard(&mut builder, &vk, &machine, &mut challenger, &proof);
         }
 
-        run_test_recursion(builder.operations, witness_stream);
+        run_test_recursion_with_prover::<P>(builder.operations, witness_stream);
+    }
+
+    #[test]
+    fn test_verify_shard() {
+        test_verify_shard_with_prover::<CpuProver<_, _>>(Some(2));
     }
 }
