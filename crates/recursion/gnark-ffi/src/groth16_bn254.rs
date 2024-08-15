@@ -4,16 +4,15 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::witness::GnarkWitness;
 use crate::{
     ffi::{build_groth16_bn254, prove_groth16_bn254, test_groth16_bn254, verify_groth16_bn254},
+    witness::GnarkWitness,
     Groth16Bn254Proof,
 };
 
 use num_bigint::BigUint;
-use sha2::Digest;
-use sha2::Sha256;
-use sp1_core::SP1_CIRCUIT_VERSION;
+use sha2::{Digest, Sha256};
+use sp1_core_machine::SP1_CIRCUIT_VERSION;
 use sp1_recursion_compiler::{
     constraints::Constraint,
     ir::{Config, Witness},
@@ -79,14 +78,9 @@ impl Groth16Bn254Prover {
         let vkey_hash = Self::get_vkey_hash(&build_dir);
         let sp1_verifier_str = include_str!("../assets/SP1Verifier.txt")
             .replace("{SP1_CIRCUIT_VERSION}", SP1_CIRCUIT_VERSION)
-            .replace(
-                "{VERIFIER_HASH}",
-                format!("0x{}", hex::encode(vkey_hash)).as_str(),
-            );
+            .replace("{VERIFIER_HASH}", format!("0x{}", hex::encode(vkey_hash)).as_str());
         let mut sp1_verifier_file = File::create(sp1_verifier_path).unwrap();
-        sp1_verifier_file
-            .write_all(sp1_verifier_str.as_bytes())
-            .unwrap();
+        sp1_verifier_file.write_all(sp1_verifier_str.as_bytes()).unwrap();
     }
 
     /// Generates a Groth16 proof given a witness.
@@ -97,10 +91,8 @@ impl Groth16Bn254Prover {
         let serialized = serde_json::to_string(&gnark_witness).unwrap();
         witness_file.write_all(serialized.as_bytes()).unwrap();
 
-        let mut proof = prove_groth16_bn254(
-            build_dir.to_str().unwrap(),
-            witness_file.path().to_str().unwrap(),
-        );
+        let mut proof =
+            prove_groth16_bn254(build_dir.to_str().unwrap(), witness_file.path().to_str().unwrap());
         proof.groth16_vkey_hash = Self::get_vkey_hash(&build_dir);
         proof
     }
