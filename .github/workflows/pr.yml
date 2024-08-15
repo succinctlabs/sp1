@@ -147,7 +147,7 @@ jobs:
 
       - name: Install SP1 CLI
         run: |
-          cd cli
+          cd crates/cli
           cargo install --force --locked --path .
           ~/.sp1/bin/cargo-prove prove install-toolchain
           cd ~
@@ -177,7 +177,7 @@ jobs:
 
       - name: Install SP1 CLI
         run: |
-          cd cli
+          cd crates/cli
           cargo install --force --locked --path .
           cd ~
 
