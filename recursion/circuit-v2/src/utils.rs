@@ -4,12 +4,9 @@ use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
     ir::{Builder, Config, Felt},
 };
-use sp1_recursion_core_v2::{
-    air::{RecursionPublicValues, NUM_PV_ELMS_TO_HASH, RECURSIVE_PROOF_NUM_PV_ELTS},
-    DIGEST_SIZE,
+use sp1_recursion_core_v2::air::{
+    RecursionPublicValues, NUM_PV_ELMS_TO_HASH, RECURSIVE_PROOF_NUM_PV_ELTS,
 };
-
-use crate::{DigestVariable, VerifyingKeyVariable};
 
 /// Register and commits the recursion public values.
 pub fn commit_recursion_public_values<C: Config>(
