@@ -335,7 +335,6 @@ mod tests {
         client.execute(elf, stdin).max_cycles(1).run().unwrap();
     }
 
-    #[ignore]
     #[test]
     fn test_e2e_prove_plonk() {
         utils::setup_logger();

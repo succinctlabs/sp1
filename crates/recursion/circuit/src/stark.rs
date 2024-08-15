@@ -23,6 +23,7 @@ use sp1_recursion_core::{
     air::{RecursionPublicValues, NUM_PV_ELMS_TO_HASH},
     stark::{
         config::{outer_fri_config, BabyBearPoseidon2Outer},
+        utils::sp1_dev_mode,
         RecursionAirWideDeg17,
     },
 };
@@ -188,25 +189,27 @@ where
         let config = outer_fri_config();
         verify_two_adic_pcs(builder, &config, &proof.opening_proof, challenger, rounds);
 
-        for (i, sorted_chip) in sorted_chips.iter().enumerate() {
-            for chip in machine.chips() {
-                if chip.name() == *sorted_chip {
-                    let values = &opened_values.chips[i];
-                    let trace_domain = &trace_domains[i];
-                    let quotient_domain = &quotient_domains[i];
-                    let qc_domains =
-                        quotient_domain.split_domains_const(builder, chip.log_quotient_degree());
-                    Self::verify_constraints(
-                        builder,
-                        chip,
-                        values,
-                        proof.public_values.clone(),
-                        trace_domain.clone(),
-                        qc_domains,
-                        zeta,
-                        alpha,
-                        &permutation_challenges,
-                    );
+        if !sp1_dev_mode() {
+            for (i, sorted_chip) in sorted_chips.iter().enumerate() {
+                for chip in machine.chips() {
+                    if chip.name() == *sorted_chip {
+                        let values = &opened_values.chips[i];
+                        let trace_domain = &trace_domains[i];
+                        let quotient_domain = &quotient_domains[i];
+                        let qc_domains = quotient_domain
+                            .split_domains_const(builder, chip.log_quotient_degree());
+                        Self::verify_constraints(
+                            builder,
+                            chip,
+                            values,
+                            proof.public_values.clone(),
+                            trace_domain.clone(),
+                            qc_domains,
+                            zeta,
+                            alpha,
+                            &permutation_challenges,
+                        );
+                    }
                 }
             }
         }
