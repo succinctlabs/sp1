@@ -31,8 +31,8 @@ use std::env;
 
 pub use provers::{LocalProver, MockProver, Prover};
 
-use sp1_core_machine::{io::SP1Stdin, SP1_CIRCUIT_VERSION};
 pub use sp1_core_executor::{ExecutionReport, SP1Context, SP1ContextBuilder};
+use sp1_core_machine::{io::SP1Stdin, SP1_CIRCUIT_VERSION};
 pub use sp1_prover::{
     CoreSC, HashableKey, InnerSC, OuterSC, PlonkBn254Proof, SP1Prover, SP1ProvingKey,
     SP1VerifyingKey,

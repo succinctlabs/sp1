@@ -1,6 +1,6 @@
 use p3_field::PrimeField;
-use sp1_derive::AlignedBorrow;
 use sp1_core_executor::{Instruction, Register};
+use sp1_derive::AlignedBorrow;
 use sp1_stark::Word;
 use std::mem::size_of;
 use std::{iter::once, vec::IntoIter};

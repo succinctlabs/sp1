@@ -7,8 +7,8 @@ use p3_air::{Air, AirBuilder};
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
-use sp1_derive::AlignedBorrow;
 use sp1_core_executor::{events::MemoryInitializeFinalizeEvent, ExecutionRecord, Program};
+use sp1_derive::AlignedBorrow;
 use sp1_stark::air::{
     AirInteraction, BaseAirBuilder, MachineAir, PublicValues, SP1AirBuilder, SP1_PROOF_NUM_PV_ELTS,
 };

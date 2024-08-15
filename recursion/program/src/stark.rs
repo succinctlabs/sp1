@@ -106,7 +106,11 @@ pub type RecursiveVerifierConstraintFolder<'a, C> = GenericVerifierConstraintFol
 impl<C: Config, SC: StarkGenericConfig> StarkVerifier<C, SC>
 where
     C::F: TwoAdicField,
-    SC: StarkGenericConfig<Val = C::F, Challenge = C::EF, Domain = TwoAdicMultiplicativeCoset<C::F>>,
+    SC: StarkGenericConfig<
+        Val = C::F,
+        Challenge = C::EF,
+        Domain = TwoAdicMultiplicativeCoset<C::F>,
+    >,
 {
     pub fn verify_shard<A>(
         builder: &mut Builder<C>,

@@ -15,12 +15,12 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::ParallelIterator;
 use p3_maybe_rayon::prelude::ParallelSlice;
+use sp1_core_executor::events::ByteRecord;
+use sp1_core_executor::{events::ByteLookupEvent, syscalls::SyscallCode, ExecutionRecord, Program};
 use sp1_curves::params::{FieldParameters, Limbs, NumLimbs, NumWords};
 use sp1_curves::weierstrass::WeierstrassParameters;
 use sp1_curves::{AffinePoint, CurveType, EllipticCurve};
 use sp1_derive::AlignedBorrow;
-use sp1_core_executor::events::ByteRecord;
-use sp1_core_executor::{events::ByteLookupEvent, syscalls::SyscallCode, ExecutionRecord, Program};
 use sp1_stark::air::{MachineAir, SP1AirBuilder};
 use sp1_stark::MachineRecord;
 

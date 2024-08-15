@@ -2,8 +2,8 @@ use std::borrow::Borrow;
 use std::path::PathBuf;
 
 use p3_baby_bear::BabyBear;
-use sp1_core_machine::io::SP1Stdin;
 use sp1_core_executor::SP1Context;
+use sp1_core_machine::io::SP1Stdin;
 pub use sp1_recursion_circuit::stark::build_wrap_circuit;
 pub use sp1_recursion_circuit::witness::Witnessable;
 pub use sp1_recursion_compiler::ir::Witness;

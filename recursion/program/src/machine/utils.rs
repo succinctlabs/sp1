@@ -84,7 +84,11 @@ pub(crate) fn proof_data_from_vk<C: Config, SC, A>(
     machine: &StarkMachine<SC, A>,
 ) -> VerifyingKeyVariable<C>
 where
-    SC: StarkGenericConfig<Val = C::F, Challenge = C::EF, Domain = TwoAdicMultiplicativeCoset<C::F>>,
+    SC: StarkGenericConfig<
+        Val = C::F,
+        Challenge = C::EF,
+        Domain = TwoAdicMultiplicativeCoset<C::F>,
+    >,
     A: MachineAir<SC::Val>,
     Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
 {

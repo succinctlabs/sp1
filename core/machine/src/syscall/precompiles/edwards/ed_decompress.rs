@@ -12,13 +12,13 @@ use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
+use sp1_core_executor::events::{ByteLookupEvent, ByteRecord, EdDecompressEvent};
+use sp1_core_executor::syscalls::SyscallCode;
+use sp1_core_executor::{ExecutionRecord, Program};
 use sp1_curves::edwards::ed25519::{ed25519_sqrt, Ed25519BaseField};
 use sp1_curves::edwards::{EdwardsParameters, WordsFieldElement};
 use sp1_curves::params::{limbs_from_vec, FieldParameters, Limbs};
 use sp1_derive::AlignedBorrow;
-use sp1_core_executor::events::{ByteLookupEvent, ByteRecord, EdDecompressEvent};
-use sp1_core_executor::syscalls::SyscallCode;
-use sp1_core_executor::{ExecutionRecord, Program};
 use sp1_stark::air::{BaseAirBuilder, MachineAir, SP1AirBuilder};
 use typenum::U32;
 

@@ -4,8 +4,8 @@ use crate::air::WordAirBuilder;
 use num::{BigUint, Zero};
 use p3_air::AirBuilder;
 use p3_field::PrimeField32;
-use sp1_derive::AlignedBorrow;
 use sp1_core_executor::events::ByteRecord;
+use sp1_derive::AlignedBorrow;
 use sp1_stark::air::Polynomial;
 use sp1_stark::air::SP1AirBuilder;
 
@@ -271,8 +271,8 @@ mod tests {
     use num::BigUint;
     use p3_air::BaseAir;
     use p3_field::{Field, PrimeField32};
-    use sp1_curves::params::FieldParameters;
     use sp1_core_executor::{ExecutionRecord, Program};
+    use sp1_curves::params::FieldParameters;
     use sp1_stark::air::{MachineAir, SP1AirBuilder};
     use sp1_stark::StarkGenericConfig;
 
@@ -287,10 +287,10 @@ mod tests {
     use p3_matrix::dense::RowMajorMatrix;
     use p3_matrix::Matrix;
     use rand::thread_rng;
+    use sp1_core_executor::events::ByteRecord;
     use sp1_curves::edwards::ed25519::Ed25519BaseField;
     use sp1_curves::weierstrass::secp256k1::Secp256k1BaseField;
     use sp1_derive::AlignedBorrow;
-    use sp1_core_executor::events::ByteRecord;
     use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
     use std::mem::size_of;
 

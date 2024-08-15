@@ -5,9 +5,9 @@ use anyhow::Result;
 pub use local::LocalProver;
 pub use mock::MockProver;
 
+use sp1_core_executor::SP1Context;
 use sp1_core_machine::io::SP1Stdin;
 use sp1_core_machine::SP1_CIRCUIT_VERSION;
-use sp1_core_executor::SP1Context;
 use sp1_prover::components::SP1ProverComponents;
 use sp1_prover::CoreSC;
 use sp1_prover::InnerSC;

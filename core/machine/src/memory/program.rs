@@ -6,8 +6,8 @@ use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 
-use sp1_derive::AlignedBorrow;
 use sp1_core_executor::{ExecutionRecord, Program};
+use sp1_derive::AlignedBorrow;
 use sp1_stark::air::{
     AirInteraction, MachineAir, PublicValues, SP1AirBuilder, SP1_PROOF_NUM_PV_ELTS,
 };
