@@ -8,7 +8,7 @@ use sp1_core::{
     stark::{AirOpenedValues, ChipOpenedValues, ShardCommitment, ShardOpenedValues, ShardProof},
     utils::{
         BabyBearPoseidon2, InnerBatchOpening, InnerChallenge, InnerChallengeMmcs, InnerDigest,
-        InnerDigestHash, InnerFriProof, InnerPcsProof, InnerVal,
+        InnerFriProof, InnerPcsProof, InnerVal,
     },
 };
 use sp1_recursion_compiler::{

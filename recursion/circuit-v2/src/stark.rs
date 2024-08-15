@@ -282,7 +282,6 @@ pub(crate) mod tests {
     use sp1_core::runtime::Program;
     use sp1_core::stark::CpuProver;
     use sp1_core::utils::tests::FIBONACCI_ELF;
-    use sp1_core::utils::InnerChallenge;
     use sp1_core::utils::InnerVal;
     use sp1_core::utils::SP1CoreOpts;
     use sp1_core::{

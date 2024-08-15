@@ -3,7 +3,7 @@ use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::{AbstractField, TwoAdicField};
 use p3_matrix::Dimensions;
 
-use sp1_recursion_compiler::ir::{Builder, Config, Ext, Felt};
+use sp1_recursion_compiler::ir::{Builder, Ext, Felt};
 
 use sp1_recursion_core_v2::DIGEST_SIZE;
 

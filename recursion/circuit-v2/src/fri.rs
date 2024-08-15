@@ -11,7 +11,7 @@ use std::{
     iter::{once, repeat_with, zip},
 };
 
-use crate::{challenger::CanSampleBitsVariable, BabyBearFriConfig};
+use crate::challenger::CanSampleBitsVariable;
 use crate::{challenger::FieldChallengerVariable, BabyBearFriConfigVariable};
 use crate::{
     CanObserveVariable, CircuitConfig, Ext, FriChallenges, FriMmcs, FriProofVariable,
@@ -31,7 +31,7 @@ pub fn verify_shape_and_sample_challenges<
         .commit_phase_commits
         .iter()
         .map(|commitment| {
-            challenger.observe(builder, commitment.clone());
+            challenger.observe(builder, *commitment);
             challenger.sample_ext(builder)
         })
         .collect();
@@ -278,7 +278,7 @@ pub fn verify_batch<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable
     let mut root: SC::Digest = SC::hash(builder, &felt_slice[..]);
 
     zip(index_bits, proof).for_each(|(bit, sibling): (C::Bit, SC::Digest)| {
-        let compress_args = SC::select_chain_digest(builder, bit, [root.clone(), sibling]);
+        let compress_args = SC::select_chain_digest(builder, bit, [root, sibling]);
 
         root = SC::compress(builder, compress_args);
         curr_height_padded >>= 1;
@@ -300,7 +300,7 @@ pub fn verify_batch<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable
                 .cloned()
                 .collect::<Vec<_>>();
             let next_height_openings_digest = SC::hash(builder, &felt_slice);
-            root = SC::compress(builder, [root.clone(), next_height_openings_digest]);
+            root = SC::compress(builder, [root, next_height_openings_digest]);
         }
     });
 
