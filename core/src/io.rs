@@ -1,10 +1,8 @@
-use crate::{
-    stark::{ShardProof, StarkVerifyingKey},
-    utils::{BabyBearPoseidon2, Buffer},
-};
+use crate::utils::Buffer;
 use k256::sha2::{Digest, Sha256};
 use num_bigint::BigUint;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, ShardProof, StarkVerifyingKey};
 
 /// Standard input for the prover.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -159,8 +157,7 @@ impl AsRef<[u8]> for SP1PublicValues {
 
 pub mod proof_serde {
     use serde::{de::DeserializeOwned, Deserialize, Deserializer, Serialize};
-
-    use crate::stark::{MachineProof, StarkGenericConfig};
+    use sp1_stark::{MachineProof, StarkGenericConfig};
 
     pub fn serialize<S, SC: StarkGenericConfig + Serialize>(
         proof: &MachineProof<SC>,

@@ -3,15 +3,17 @@ use p3_commit::LagrangeSelectors;
 use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
 use p3_field::TwoAdicField;
-use sp1_core::air::MachineAir;
-use sp1_core::stark::AirOpenedValues;
-use sp1_core::stark::PROOF_MAX_NUM_PVS;
-use sp1_core::stark::{MachineChip, StarkGenericConfig};
+
 use sp1_recursion_compiler::ir::Array;
 use sp1_recursion_compiler::ir::Felt;
 use sp1_recursion_compiler::prelude::Config;
 use sp1_recursion_compiler::prelude::ExtConst;
 use sp1_recursion_compiler::prelude::{Builder, Ext, SymbolicExt};
+use sp1_stark::air::MachineAir;
+use sp1_stark::AirOpenedValues;
+use sp1_stark::MachineChip;
+use sp1_stark::StarkGenericConfig;
+use sp1_stark::PROOF_MAX_NUM_PVS;
 
 use crate::commit::PolynomialSpaceVariable;
 use crate::fri::TwoAdicMultiplicativeCosetVariable;
@@ -159,23 +161,19 @@ where
 mod tests {
     use itertools::{izip, Itertools};
     use rand::{thread_rng, Rng};
-    use sp1_core::stark::CpuProver;
-    use sp1_core::{
-        io::SP1Stdin,
-        runtime::Program,
-        stark::{
-            Chip, Com, Dom, OpeningProof, PcsProverData, RiscvAir, ShardCommitment, ShardProof,
-            StarkGenericConfig, StarkMachine,
-        },
-        utils::{BabyBearPoseidon2, SP1CoreOpts},
-    };
 
+    use sp1_core::{io::SP1Stdin, riscv::RiscvAir};
+    use sp1_executor::Program;
     use sp1_recursion_core::stark::utils::{run_test_recursion, TestConfig};
 
     use p3_challenger::{CanObserve, FieldChallenger};
     use sp1_recursion_compiler::{asm::AsmBuilder, ir::Felt, prelude::ExtConst};
 
     use p3_commit::{Pcs, PolynomialSpace};
+    use sp1_stark::{
+        baby_bear_poseidon2::BabyBearPoseidon2, Chip, Com, CpuProver, Dom, OpeningProof,
+        PcsProverData, SP1CoreOpts, ShardCommitment, ShardProof, StarkGenericConfig, StarkMachine,
+    };
 
     use crate::stark::StarkVerifier;
 
@@ -282,10 +280,10 @@ mod tests {
         let elf = include_bytes!("../../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
 
         let machine = A::machine(SC::default());
-        let (_, vk) = machine.setup(&Program::from(elf));
+        let (_, vk) = machine.setup(&Program::from(elf).unwrap());
         let mut challenger = machine.config().challenger();
         let (proof, _, _) = sp1_core::utils::prove::<_, CpuProver<_, _>>(
-            Program::from(elf),
+            Program::from(elf).unwrap(),
             &SP1Stdin::new(),
             SC::default(),
             SP1CoreOpts::default(),

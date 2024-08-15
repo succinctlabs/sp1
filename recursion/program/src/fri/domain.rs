@@ -159,17 +159,17 @@ where
 #[cfg(test)]
 pub(crate) mod tests {
 
-    use sp1_core::utils::inner_fri_config;
     use sp1_recursion_compiler::asm::AsmBuilder;
     use sp1_recursion_core::stark::utils::{run_test_recursion, TestConfig};
+    use sp1_stark::{
+        baby_bear_poseidon2::BabyBearPoseidon2, inner_fri_config, Dom, StarkGenericConfig,
+    };
 
     use crate::utils::const_fri_config;
 
     use super::*;
     use p3_commit::{Pcs, PolynomialSpace};
     use rand::{thread_rng, Rng};
-    use sp1_core::stark::Dom;
-    use sp1_core::{stark::StarkGenericConfig, utils::BabyBearPoseidon2};
 
     pub(crate) fn domain_assertions<F: TwoAdicField, C: Config<N = F, F = F>>(
         builder: &mut Builder<C>,

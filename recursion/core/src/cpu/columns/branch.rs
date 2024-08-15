@@ -1,5 +1,5 @@
-use sp1_core::air::BinomialExtension;
 use sp1_derive::AlignedBorrow;
+use sp1_stark::air::BinomialExtension;
 use std::mem::size_of;
 
 use crate::air::IsExtZeroOperation;

@@ -1,10 +1,14 @@
 use p3_air::AirBuilder;
 use p3_field::AbstractField;
+use sp1_stark::air::{BaseAirBuilder, SP1AirBuilder};
+use sp1_stark::Word;
 
-use crate::air::{BaseAirBuilder, SP1AirBuilder, Word, WordAirBuilder};
+use crate::air::WordAirBuilder;
 use crate::cpu::columns::{CpuCols, OpcodeSelectorCols};
+use crate::cpu::CpuChip;
 use crate::operations::BabyBearWordRangeChecker;
-use crate::{cpu::CpuChip, runtime::Opcode};
+
+use sp1_executor::Opcode;
 
 impl CpuChip {
     /// Computes whether the opcode is a branch instruction.

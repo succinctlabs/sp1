@@ -1,20 +1,13 @@
-use crate::air::{BaseAirBuilder, MachineAir, Polynomial, SP1AirBuilder, WORD_SIZE};
-use crate::bytes::event::ByteRecord;
 use crate::memory::{value_as_limbs, MemoryReadCols, MemoryWriteCols};
 use crate::operations::field::field_op::{FieldOpCols, FieldOperation};
-use crate::operations::field::params::NumWords;
-use crate::operations::field::params::{Limbs, NumLimbs};
+
+use crate::air::MemoryAirBuilder;
 use crate::operations::field::range::FieldLtCols;
 use crate::operations::IsZeroOperation;
-use crate::runtime::{ExecutionRecord, Program, Syscall, SyscallCode};
-use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
-use crate::stark::MachineRecord;
-use crate::syscall::precompiles::SyscallContext;
-use crate::utils::ec::uint256::U256Field;
 use crate::utils::{
-    bytes_to_words_le, limbs_from_access, limbs_from_prev_access, pad_rows, words_to_bytes_le,
-    words_to_bytes_le_vec,
+    limbs_from_access, limbs_from_prev_access, pad_rows, words_to_bytes_le, words_to_bytes_le_vec,
 };
+
 use generic_array::GenericArray;
 use num::{BigUint, One, Zero};
 use p3_air::AirBuilder;
@@ -23,30 +16,18 @@ use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
-use serde::{Deserialize, Serialize};
+use sp1_curves::params::{Limbs, NumLimbs, NumWords};
+use sp1_curves::uint256::U256Field;
 use sp1_derive::AlignedBorrow;
+use sp1_executor::{events::ByteRecord, syscalls::SyscallCode, ExecutionRecord, Program};
+use sp1_stark::air::{BaseAirBuilder, MachineAir, Polynomial, SP1AirBuilder};
+use sp1_stark::MachineRecord;
 use std::borrow::{Borrow, BorrowMut};
 use std::mem::size_of;
 use typenum::Unsigned;
 
 /// The number of columns in the Uint256MulCols.
 const NUM_COLS: usize = size_of::<Uint256MulCols<u8>>();
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Uint256MulEvent {
-    pub lookup_id: u128,
-    pub shard: u32,
-    pub channel: u8,
-    pub clk: u32,
-    pub x_ptr: u32,
-    pub x: Vec<u32>,
-    pub y_ptr: u32,
-    pub y: Vec<u32>,
-    pub modulus: Vec<u32>,
-    pub x_memory_records: Vec<MemoryWriteRecord>,
-    pub y_memory_records: Vec<MemoryReadRecord>,
-    pub modulus_memory_records: Vec<MemoryReadRecord>,
-}
 
 #[derive(Default)]
 pub struct Uint256MulChip;
@@ -237,80 +218,6 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
 
     fn included(&self, shard: &Self::Record) -> bool {
         !shard.uint256_mul_events.is_empty()
-    }
-}
-
-impl Syscall for Uint256MulChip {
-    fn num_extra_cycles(&self) -> u32 {
-        1
-    }
-
-    fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
-        let clk = rt.clk;
-
-        let x_ptr = arg1;
-        if x_ptr % 4 != 0 {
-            panic!();
-        }
-        let y_ptr = arg2;
-        if y_ptr % 4 != 0 {
-            panic!();
-        }
-
-        // First read the words for the x value. We can read a slice_unsafe here because we write
-        // the computed result to x later.
-        let x = rt.slice_unsafe(x_ptr, WORDS_FIELD_ELEMENT);
-
-        // Read the y value.
-        let (y_memory_records, y) = rt.mr_slice(y_ptr, WORDS_FIELD_ELEMENT);
-
-        // The modulus is stored after the y value. We increment the pointer by the number of words.
-        let modulus_ptr = y_ptr + WORDS_FIELD_ELEMENT as u32 * WORD_SIZE as u32;
-        let (modulus_memory_records, modulus) = rt.mr_slice(modulus_ptr, WORDS_FIELD_ELEMENT);
-
-        // Get the BigUint values for x, y, and the modulus.
-        let uint256_x = BigUint::from_bytes_le(&words_to_bytes_le_vec(&x));
-        let uint256_y = BigUint::from_bytes_le(&words_to_bytes_le_vec(&y));
-        let uint256_modulus = BigUint::from_bytes_le(&words_to_bytes_le_vec(&modulus));
-
-        // Perform the multiplication and take the result modulo the modulus.
-        let result: BigUint = if uint256_modulus.is_zero() {
-            let modulus = BigUint::one() << 256;
-            (uint256_x * uint256_y) % modulus
-        } else {
-            (uint256_x * uint256_y) % uint256_modulus
-        };
-
-        let mut result_bytes = result.to_bytes_le();
-        result_bytes.resize(32, 0u8); // Pad the result to 32 bytes.
-
-        // Convert the result to little endian u32 words.
-        let result = bytes_to_words_le::<8>(&result_bytes);
-
-        // Increment clk so that the write is not at the same cycle as the read.
-        rt.clk += 1;
-        // Write the result to x and keep track of the memory records.
-        let x_memory_records = rt.mw_slice(x_ptr, &result);
-
-        let lookup_id = rt.syscall_lookup_id;
-        let shard = rt.current_shard();
-        let channel = rt.current_channel();
-        rt.record_mut().uint256_mul_events.push(Uint256MulEvent {
-            lookup_id,
-            shard,
-            channel,
-            clk,
-            x_ptr,
-            x,
-            y_ptr,
-            y,
-            modulus,
-            x_memory_records,
-            y_memory_records,
-            modulus_memory_records,
-        });
-
-        None
     }
 }
 

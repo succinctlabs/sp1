@@ -3,16 +3,20 @@ use core::borrow::Borrow;
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_matrix::Matrix;
+use sp1_executor::syscalls::SyscallCode;
+use sp1_stark::air::SP1AirBuilder;
+use sp1_stark::Word;
 
 use super::columns::{ShaCompressCols, NUM_SHA_COMPRESS_COLS};
 use super::{ShaCompressChip, SHA_COMPRESS_K};
-use crate::air::{BaseAirBuilder, SP1AirBuilder, Word, WordAirBuilder};
+use crate::air::MemoryAirBuilder;
+use crate::air::WordAirBuilder;
 use crate::memory::MemoryCols;
 use crate::operations::{
     Add5Operation, AddOperation, AndOperation, FixedRotateRightOperation, NotOperation,
     XorOperation,
 };
-use crate::runtime::SyscallCode;
+use sp1_stark::air::BaseAirBuilder;
 
 impl<F> BaseAir<F> for ShaCompressChip {
     fn width(&self) -> usize {

@@ -1,7 +1,7 @@
 use p3_field::AbstractField;
-use sp1_core::air::Word;
 use sp1_recursion_compiler::ir::{Builder, Config, Felt, Var};
 use sp1_recursion_core::runtime::DIGEST_SIZE;
+use sp1_stark::Word;
 
 pub fn felt2var<C: Config>(builder: &mut Builder<C>, felt: Felt<C::F>) -> Var<C::N> {
     let bits = builder.num2bits_f(felt);

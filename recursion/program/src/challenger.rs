@@ -299,8 +299,7 @@ mod tests {
     use p3_challenger::CanObserve;
     use p3_challenger::CanSample;
     use p3_field::AbstractField;
-    use sp1_core::stark::StarkGenericConfig;
-    use sp1_core::utils::BabyBearPoseidon2;
+
     use sp1_recursion_compiler::asm::AsmBuilder;
     use sp1_recursion_compiler::asm::AsmConfig;
     use sp1_recursion_compiler::ir::Felt;
@@ -310,6 +309,8 @@ mod tests {
     use sp1_recursion_core::runtime::PERMUTATION_WIDTH;
     use sp1_recursion_core::stark::utils::run_test_recursion;
     use sp1_recursion_core::stark::utils::TestConfig;
+    use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
+    use sp1_stark::StarkGenericConfig;
 
     use crate::challenger::DuplexChallengerVariable;
 

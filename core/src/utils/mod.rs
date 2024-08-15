@@ -1,9 +1,6 @@
 mod buffer;
 pub mod concurrency;
-mod config;
-pub mod ec;
 mod logger;
-mod options;
 #[cfg(any(test, feature = "programs"))]
 mod programs;
 mod prove;
@@ -11,17 +8,16 @@ mod serde;
 mod tracer;
 
 pub use buffer::*;
-pub use config::*;
 pub use logger::*;
-pub use options::*;
 pub use prove::*;
 pub use serde::*;
+use sp1_curves::params::Limbs;
 pub use tracer::*;
 
 #[cfg(any(test, feature = "programs"))]
 pub use programs::*;
 
-use crate::{memory::MemoryCols, operations::field::params::Limbs};
+use crate::memory::MemoryCols;
 use generic_array::ArrayLength;
 use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
 

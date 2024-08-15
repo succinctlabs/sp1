@@ -6,17 +6,17 @@ use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::{ParallelIterator, ParallelSlice};
+use sp1_executor::{
+    events::ByteLookupEvent, events::ByteRecord, events::ShaCompressEvent, ExecutionRecord, Program,
+};
+use sp1_stark::air::MachineAir;
+use sp1_stark::Word;
 
 use super::{
     columns::{ShaCompressCols, NUM_SHA_COMPRESS_COLS},
-    ShaCompressChip, ShaCompressEvent, SHA_COMPRESS_K,
+    ShaCompressChip, SHA_COMPRESS_K,
 };
-use crate::{
-    air::{MachineAir, Word},
-    bytes::{event::ByteRecord, ByteLookupEvent},
-    runtime::{ExecutionRecord, Program},
-    utils::pad_rows,
-};
+use crate::utils::pad_rows;
 
 impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
     type Record = ExecutionRecord;

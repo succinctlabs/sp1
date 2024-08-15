@@ -1,27 +1,9 @@
 mod air;
 mod columns;
-mod execute;
 mod flags;
 mod trace;
 
 pub use columns::*;
-
-use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
-use serde::{Deserialize, Serialize};
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ShaExtendEvent {
-    pub lookup_id: u128,
-    pub shard: u32,
-    pub channel: u8,
-    pub clk: u32,
-    pub w_ptr: u32,
-    pub w_i_minus_15_reads: Vec<MemoryReadRecord>,
-    pub w_i_minus_2_reads: Vec<MemoryReadRecord>,
-    pub w_i_minus_16_reads: Vec<MemoryReadRecord>,
-    pub w_i_minus_7_reads: Vec<MemoryReadRecord>,
-    pub w_i_writes: Vec<MemoryWriteRecord>,
-}
 
 /// Implements the SHA extension operation which loops over i = [16, 63] and modifies w[i] in each
 /// iteration. The only input to the syscall is the 4byte-aligned pointer to the w array.
@@ -51,16 +33,14 @@ pub mod extend_tests {
     use p3_baby_bear::BabyBear;
 
     use p3_matrix::dense::RowMajorMatrix;
+    use sp1_executor::{
+        events::AluEvent, syscalls::SyscallCode, ExecutionRecord, Instruction, Opcode, Program,
+    };
+    use sp1_stark::{air::MachineAir, CpuProver};
 
-    use crate::{
-        air::MachineAir,
-        alu::AluEvent,
-        runtime::{ExecutionRecord, Instruction, Opcode, Program, SyscallCode},
-        stark::CpuProver,
-        utils::{
-            self, run_test,
-            tests::{SHA2_ELF, SHA_EXTEND_ELF},
-        },
+    use crate::utils::{
+        self, run_test,
+        tests::{SHA2_ELF, SHA_EXTEND_ELF},
     };
 
     use super::ShaExtendChip;
@@ -110,14 +90,14 @@ pub mod extend_tests {
     #[test]
     fn test_sha256_program() {
         utils::setup_logger();
-        let program = Program::from(SHA2_ELF);
+        let program = Program::from(SHA2_ELF).unwrap();
         run_test::<CpuProver<_, _>>(program).unwrap();
     }
 
     #[test]
     fn test_sha_extend_program() {
         utils::setup_logger();
-        let program = Program::from(SHA_EXTEND_ELF);
+        let program = Program::from(SHA_EXTEND_ELF).unwrap();
         run_test::<CpuProver<_, _>>(program).unwrap();
     }
 }

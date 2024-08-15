@@ -1,10 +1,9 @@
 use hashbrown::HashMap;
-use sp1_core::utils::SP1CoreOpts;
 use std::array;
 use std::sync::Arc;
 
 use p3_field::{AbstractField, PrimeField32};
-use sp1_core::stark::{MachineRecord, PROOF_MAX_NUM_PVS};
+use sp1_stark::{MachineRecord, SP1CoreOpts, PROOF_MAX_NUM_PVS};
 
 use super::RecursionProgram;
 use crate::air::Block;

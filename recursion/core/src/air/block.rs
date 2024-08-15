@@ -3,9 +3,10 @@ use p3_field::AbstractField;
 use p3_field::ExtensionField;
 use p3_field::Field;
 use serde::{Deserialize, Serialize};
-use sp1_core::air::ExtensionAirBuilder;
-use sp1_core::air::{BinomialExtension, SP1AirBuilder};
 use sp1_derive::AlignedBorrow;
+use sp1_stark::air::BinomialExtension;
+use sp1_stark::air::ExtensionAirBuilder;
+use sp1_stark::air::SP1AirBuilder;
 
 use std::ops::Index;
 use std::ops::IndexMut;

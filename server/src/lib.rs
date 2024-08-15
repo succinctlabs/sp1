@@ -13,7 +13,6 @@ use crate::proto::api::ProverServiceClient;
 
 use serde::{Deserialize, Serialize};
 use sp1_core::io::SP1Stdin;
-use sp1_core::stark::ShardProof;
 use sp1_core::utils::SP1CoreProverError;
 use sp1_prover::types::SP1ProvingKey;
 use sp1_prover::InnerSC;
@@ -21,6 +20,7 @@ use sp1_prover::SP1CoreProof;
 use sp1_prover::SP1RecursionProverError;
 use sp1_prover::SP1ReduceProof;
 use sp1_prover::SP1VerifyingKey;
+use sp1_stark::ShardProof;
 use tokio::runtime::Runtime;
 use twirp::url::Url;
 use twirp::Client;

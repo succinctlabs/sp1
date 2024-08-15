@@ -5,8 +5,7 @@ use clap::Parser;
 use p3_baby_bear::BabyBear;
 use p3_field::PrimeField;
 use sp1_core::io::SP1Stdin;
-use sp1_core::runtime::SP1Context;
-use sp1_core::utils::SP1ProverOpts;
+use sp1_executor::SP1Context;
 use sp1_prover::utils::{babybear_bytes_to_bn254, babybears_to_bn254, words_to_bytes};
 use sp1_prover::SP1Prover;
 use sp1_recursion_circuit::stark::build_wrap_circuit;
@@ -14,6 +13,7 @@ use sp1_recursion_circuit::witness::Witnessable;
 use sp1_recursion_compiler::ir::Witness;
 use sp1_recursion_core::air::RecursionPublicValues;
 use sp1_recursion_gnark_ffi::PlonkBn254Prover;
+use sp1_stark::SP1ProverOpts;
 use subtle_encoding::hex;
 
 #[derive(Parser, Debug)]

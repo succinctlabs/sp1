@@ -4,18 +4,17 @@ use anyhow::Result;
 use num_bigint::BigUint;
 use p3_baby_bear::BabyBear;
 use p3_field::{AbstractField, PrimeField};
-use sp1_core::air::{Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS, WORD_SIZE};
 use sp1_core::cpu::MAX_CPU_LOG_DEGREE;
-use sp1_core::runtime::SubproofVerifier;
-use sp1_core::stark::MachineProver;
-use sp1_core::{
-    air::PublicValues,
-    io::SP1PublicValues,
-    stark::{MachineProof, MachineVerificationError, StarkGenericConfig},
-    utils::BabyBearPoseidon2,
-};
+use sp1_core::io::SP1PublicValues;
+use sp1_executor::subproof::SubproofVerifier;
+use sp1_primitives::consts::WORD_SIZE;
 use sp1_recursion_core::{air::RecursionPublicValues, stark::config::BabyBearPoseidon2Outer};
 use sp1_recursion_gnark_ffi::{PlonkBn254Proof, PlonkBn254Prover};
+use sp1_stark::air::{PublicValues, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS};
+use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
+use sp1_stark::MachineProof;
+use sp1_stark::StarkGenericConfig;
+use sp1_stark::{MachineProver, MachineVerificationError, Word};
 use thiserror::Error;
 
 use crate::components::SP1ProverComponents;
@@ -437,8 +436,8 @@ pub fn verify_plonk_bn254_public_inputs(
 impl<C: SP1ProverComponents> SubproofVerifier for &SP1Prover<C> {
     fn verify_deferred_proof(
         &self,
-        proof: &sp1_core::stark::ShardProof<BabyBearPoseidon2>,
-        vk: &sp1_core::stark::StarkVerifyingKey<BabyBearPoseidon2>,
+        proof: &sp1_stark::ShardProof<BabyBearPoseidon2>,
+        vk: &sp1_stark::StarkVerifyingKey<BabyBearPoseidon2>,
         vk_hash: [u32; 8],
         committed_value_digest: [u32; 8],
     ) -> Result<(), MachineVerificationError<BabyBearPoseidon2>> {

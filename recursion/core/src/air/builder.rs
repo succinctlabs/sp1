@@ -4,10 +4,8 @@ use crate::range_check::RangeCheckOpcode;
 use core::iter::{once, repeat};
 use p3_air::{AirBuilder, AirBuilderWithPublicValues};
 use p3_field::AbstractField;
-use sp1_core::{
-    air::{AirInteraction, BaseAirBuilder, MachineAirBuilder},
-    lookup::InteractionKind,
-};
+use sp1_stark::air::{AirInteraction, BaseAirBuilder, MachineAirBuilder};
+use sp1_stark::InteractionKind;
 
 use super::Block;
 

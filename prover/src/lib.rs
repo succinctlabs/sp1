@@ -24,24 +24,21 @@ use std::sync::mpsc::sync_channel;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
 
+use crate::init::SP1PublicValues;
 use components::{DefaultProverComponents, SP1ProverComponents};
 use p3_baby_bear::BabyBear;
 use p3_challenger::CanObserve;
 use p3_field::{AbstractField, PrimeField};
 use p3_matrix::dense::RowMajorMatrix;
-use sp1_core::air::{PublicValues, Word};
-pub use sp1_core::io::{SP1PublicValues, SP1Stdin};
-use sp1_core::runtime::{ExecutionError, ExecutionReport, Runtime, SP1Context};
-use sp1_core::stark::MachineProver;
-use sp1_core::stark::{Challenge, StarkProvingKey};
-use sp1_core::stark::{Challenger, MachineVerificationError};
+use sp1_core::io::SP1Stdin;
+use sp1_core::riscv::RiscvAir;
 use sp1_core::utils::concurrency::TurnBasedSync;
-use sp1_core::utils::{SP1CoreOpts, SP1ProverOpts, DIGEST_SIZE};
-use sp1_core::{
-    runtime::Program,
-    stark::{RiscvAir, ShardProof, StarkGenericConfig, StarkVerifyingKey, Val},
-    utils::{BabyBearPoseidon2, SP1CoreProverError},
-};
+use sp1_core::utils::SP1CoreProverError;
+use sp1_executor::ExecutionError;
+use sp1_executor::ExecutionReport;
+use sp1_executor::Program;
+use sp1_executor::Executor;
+use sp1_executor::SP1Context;
 use sp1_primitives::hash_deferred_proof;
 use sp1_recursion_circuit::witness::Witnessable;
 use sp1_recursion_compiler::config::InnerConfig;
@@ -59,6 +56,21 @@ pub use sp1_recursion_program::machine::ReduceProgramType;
 pub use sp1_recursion_program::machine::{
     SP1CompressMemoryLayout, SP1DeferredMemoryLayout, SP1RecursionMemoryLayout, SP1RootMemoryLayout,
 };
+use sp1_stark::air::PublicValues;
+use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
+use sp1_stark::Challenger;
+use sp1_stark::MachineProver;
+use sp1_stark::SP1CoreOpts;
+use sp1_stark::SP1ProverOpts;
+use sp1_stark::ShardProof;
+use sp1_stark::StarkGenericConfig;
+use sp1_stark::StarkProvingKey;
+use sp1_stark::StarkVerifyingKey;
+use sp1_stark::Val;
+use sp1_stark::Word;
+use sp1_stark::DIGEST_SIZE;
+use sp1_stark::{Challenge, MachineVerificationError};
+
 use tracing::instrument;
 pub use types::*;
 use utils::words_to_bytes;
@@ -196,11 +208,12 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     /// Creates a proving key and a verifying key for a given RISC-V ELF.
     #[instrument(name = "setup", level = "debug", skip_all)]
     pub fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
-        let program = Program::from(elf);
+        let program = Program::from(elf).unwrap();
         let (pk, vk) = self.core_prover.setup(&program);
         let vk = SP1VerifyingKey { vk };
         let pk = SP1ProvingKey {
             pk,
+
             elf: elf.to_vec(),
             vk: vk.clone(),
         };
@@ -216,9 +229,9 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         mut context: SP1Context<'a>,
     ) -> Result<(SP1PublicValues, ExecutionReport), ExecutionError> {
         context.subproof_verifier.replace(Arc::new(self));
-        let program = Program::from(elf);
+        let program = Program::from(elf).unwrap();
         let opts = SP1CoreOpts::default();
-        let mut runtime = Runtime::with_context(program, opts, context);
+        let mut runtime = Executor::with_context(program, opts, context);
         runtime.write_vecs(&stdin.buffer);
         for (proof, vkey) in stdin.proofs.iter() {
             runtime.write_proof(proof.clone(), vkey.clone());
@@ -241,7 +254,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         mut context: SP1Context<'a>,
     ) -> Result<SP1CoreProof, SP1CoreProverError> {
         context.subproof_verifier.replace(Arc::new(self));
-        let program = Program::from(&pk.elf);
+        let program = Program::from(&pk.elf).unwrap();
         let (proof, public_values_stream, cycles) =
             sp1_core::utils::prove_with_context::<_, C::CoreProver>(
                 &self.core_prover,

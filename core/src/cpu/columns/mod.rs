@@ -20,12 +20,10 @@ pub use opcode_specific::*;
 
 use p3_util::indices_arr;
 use sp1_derive::AlignedBorrow;
+use sp1_stark::Word;
 use std::mem::{size_of, transmute};
 
-use crate::{
-    air::Word,
-    memory::{MemoryCols, MemoryReadCols, MemoryReadWriteCols},
-};
+use crate::memory::{MemoryCols, MemoryReadCols, MemoryReadWriteCols};
 
 pub const NUM_CPU_COLS: usize = size_of::<CpuCols<u8>>();
 

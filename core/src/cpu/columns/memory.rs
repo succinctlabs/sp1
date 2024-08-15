@@ -1,7 +1,8 @@
 use sp1_derive::AlignedBorrow;
+use sp1_stark::Word;
 use std::mem::size_of;
 
-use crate::{air::Word, memory::MemoryReadWriteCols, operations::BabyBearWordRangeChecker};
+use crate::{memory::MemoryReadWriteCols, operations::BabyBearWordRangeChecker};
 
 pub const NUM_MEMORY_COLUMNS: usize = size_of::<MemoryColumns<u8>>();
 

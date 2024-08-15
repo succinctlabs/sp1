@@ -291,17 +291,7 @@ pub mod tests {
     use p3_field::AbstractField;
     use p3_matrix::dense::RowMajorMatrix;
     use rand::rngs::OsRng;
-    use sp1_core::utils::baby_bear_poseidon2::compressed_fri_config;
-    use sp1_core::utils::inner_perm;
-    use sp1_core::utils::InnerChallenge;
-    use sp1_core::utils::InnerChallenger;
-    use sp1_core::utils::InnerCompress;
-    use sp1_core::utils::InnerDft;
-    use sp1_core::utils::InnerHash;
-    use sp1_core::utils::InnerPcs;
-    use sp1_core::utils::InnerPcsProof;
-    use sp1_core::utils::InnerVal;
-    use sp1_core::utils::InnerValMmcs;
+
     use sp1_recursion_compiler::config::InnerConfig;
     use sp1_recursion_compiler::ir::Array;
     use sp1_recursion_compiler::ir::Builder;
@@ -310,6 +300,17 @@ pub mod tests {
     use sp1_recursion_core::air::Block;
     use sp1_recursion_core::runtime::RecursionProgram;
     use sp1_recursion_core::runtime::DIGEST_SIZE;
+    use sp1_stark::baby_bear_poseidon2::compressed_fri_config;
+    use sp1_stark::inner_perm;
+    use sp1_stark::InnerChallenge;
+    use sp1_stark::InnerChallenger;
+    use sp1_stark::InnerCompress;
+    use sp1_stark::InnerDft;
+    use sp1_stark::InnerHash;
+    use sp1_stark::InnerPcs;
+    use sp1_stark::InnerPcsProof;
+    use sp1_stark::InnerVal;
+    use sp1_stark::InnerValMmcs;
 
     pub fn build_test_fri_with_cols_and_log2_rows(
         nb_cols: usize,

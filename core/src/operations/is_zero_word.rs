@@ -5,11 +5,11 @@
 use p3_air::AirBuilder;
 use p3_field::Field;
 use sp1_derive::AlignedBorrow;
+use sp1_primitives::consts::WORD_SIZE;
+use sp1_stark::air::SP1AirBuilder;
+use sp1_stark::Word;
 
 use super::IsZeroOperation;
-use crate::air::SP1AirBuilder;
-use crate::air::Word;
-use crate::disassembler::WORD_SIZE;
 
 /// A set of columns needed to compute whether the given word is 0.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]

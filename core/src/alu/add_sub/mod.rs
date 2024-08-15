@@ -10,16 +10,13 @@ use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::ParallelSlice;
 use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
 use sp1_derive::AlignedBorrow;
+use sp1_executor::events::{AluEvent, ByteLookupEvent, ByteRecord};
+use sp1_executor::{ExecutionRecord, Opcode, Program};
+use sp1_stark::air::{MachineAir, SP1AirBuilder};
+use sp1_stark::Word;
 
-use crate::air::MachineAir;
-use crate::air::{SP1AirBuilder, Word};
-use crate::bytes::event::ByteRecord;
-use crate::bytes::ByteLookupEvent;
 use crate::operations::AddOperation;
-use crate::runtime::{ExecutionRecord, Opcode, Program};
 use crate::utils::pad_to_power_of_two;
-
-use super::AluEvent;
 
 /// The number of main trace columns for `AddSubChip`.
 pub const NUM_ADD_SUB_COLS: usize = size_of::<AddSubCols<u8>>();
@@ -255,20 +252,12 @@ where
 mod tests {
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
-
-    use crate::{
-        air::MachineAir,
-        stark::StarkGenericConfig,
-        utils::{uni_stark_prove as prove, uni_stark_verify as verify},
-    };
     use rand::{thread_rng, Rng};
+    use sp1_executor::{events::AluEvent, ExecutionRecord, Opcode};
+    use sp1_stark::{air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, StarkGenericConfig};
 
     use super::AddSubChip;
-    use crate::{
-        alu::AluEvent,
-        runtime::{ExecutionRecord, Opcode},
-        utils::BabyBearPoseidon2,
-    };
+    use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
 
     #[test]
     fn generate_trace() {

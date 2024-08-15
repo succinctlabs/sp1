@@ -3,8 +3,7 @@ use core::mem::size_of;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
-use typenum::Unsigned;
-
+use crate::air::MemoryAirBuilder;
 use generic_array::GenericArray;
 use num::BigUint;
 use num::Zero;
@@ -14,28 +13,21 @@ use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
+use sp1_curves::params::{FieldParameters, Limbs, NumLimbs, NumWords};
+use sp1_curves::weierstrass::WeierstrassParameters;
+use sp1_curves::{AffinePoint, CurveType, EllipticCurve};
 use sp1_derive::AlignedBorrow;
+use sp1_executor::{
+    events::ByteLookupEvent, events::ByteRecord, syscalls::SyscallCode, ExecutionRecord, Program,
+};
+use sp1_stark::air::{MachineAir, SP1AirBuilder};
+use typenum::Unsigned;
 
-use crate::air::MachineAir;
-use crate::air::SP1AirBuilder;
-use crate::bytes::event::ByteRecord;
-use crate::bytes::ByteLookupEvent;
 use crate::memory::MemoryCols;
 use crate::memory::MemoryReadCols;
 use crate::memory::MemoryWriteCols;
 use crate::operations::field::field_op::FieldOpCols;
 use crate::operations::field::field_op::FieldOperation;
-use crate::operations::field::params::{FieldParameters, Limbs, NumLimbs, NumWords};
-use crate::runtime::ExecutionRecord;
-use crate::runtime::Program;
-use crate::runtime::Syscall;
-use crate::runtime::SyscallCode;
-use crate::syscall::precompiles::create_ec_add_event;
-use crate::syscall::precompiles::SyscallContext;
-use crate::utils::ec::weierstrass::WeierstrassParameters;
-use crate::utils::ec::AffinePoint;
-use crate::utils::ec::CurveType;
-use crate::utils::ec::EllipticCurve;
 use crate::utils::{limbs_from_prev_access, pad_rows};
 
 pub const fn num_weierstrass_add_cols<P: FieldParameters + NumWords>() -> usize {
@@ -72,23 +64,6 @@ pub struct WeierstrassAddAssignCols<T, P: FieldParameters + NumWords> {
 #[derive(Default)]
 pub struct WeierstrassAddAssignChip<E> {
     _marker: PhantomData<E>,
-}
-
-impl<E: EllipticCurve> Syscall for WeierstrassAddAssignChip<E> {
-    fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
-        let event = create_ec_add_event::<E>(rt, arg1, arg2);
-        match E::CURVE_TYPE {
-            CurveType::Secp256k1 => rt.record_mut().secp256k1_add_events.push(event),
-            CurveType::Bn254 => rt.record_mut().bn254_add_events.push(event),
-            CurveType::Bls12381 => rt.record_mut().bls12381_add_events.push(event),
-            _ => panic!("Unsupported curve"),
-        }
-        None
-    }
-
-    fn num_extra_cycles(&self) -> u32 {
-        1
-    }
 }
 
 impl<E: EllipticCurve> WeierstrassAddAssignChip<E> {
@@ -522,64 +497,63 @@ where
 #[cfg(test)]
 mod tests {
 
-    use crate::{
-        runtime::Program,
-        stark::CpuProver,
-        utils::{
-            run_test, setup_logger,
-            tests::{
-                BLS12381_ADD_ELF, BLS12381_DOUBLE_ELF, BLS12381_MUL_ELF, BN254_ADD_ELF,
-                BN254_MUL_ELF, SECP256K1_ADD_ELF, SECP256K1_MUL_ELF,
-            },
+    use sp1_executor::Program;
+    use sp1_stark::CpuProver;
+
+    use crate::utils::{
+        run_test, setup_logger,
+        tests::{
+            BLS12381_ADD_ELF, BLS12381_DOUBLE_ELF, BLS12381_MUL_ELF, BN254_ADD_ELF, BN254_MUL_ELF,
+            SECP256K1_ADD_ELF, SECP256K1_MUL_ELF,
         },
     };
 
     #[test]
     fn test_secp256k1_add_simple() {
         setup_logger();
-        let program = Program::from(SECP256K1_ADD_ELF);
+        let program = Program::from(SECP256K1_ADD_ELF).unwrap();
         run_test::<CpuProver<_, _>>(program).unwrap();
     }
 
     #[test]
     fn test_bn254_add_simple() {
         setup_logger();
-        let program = Program::from(BN254_ADD_ELF);
+        let program = Program::from(BN254_ADD_ELF).unwrap();
         run_test::<CpuProver<_, _>>(program).unwrap();
     }
 
     #[test]
     fn test_bn254_mul_simple() {
         setup_logger();
-        let program = Program::from(BN254_MUL_ELF);
+        let program = Program::from(BN254_MUL_ELF).unwrap();
         run_test::<CpuProver<_, _>>(program).unwrap();
     }
 
     #[test]
     fn test_secp256k1_mul_simple() {
         setup_logger();
-        let program = Program::from(SECP256K1_MUL_ELF);
+        let program = Program::from(SECP256K1_MUL_ELF).unwrap();
         run_test::<CpuProver<_, _>>(program).unwrap();
     }
 
     #[test]
     fn test_bls12381_add_simple() {
         setup_logger();
-        let program = Program::from(BLS12381_ADD_ELF);
+        let program = Program::from(BLS12381_ADD_ELF).unwrap();
         run_test::<CpuProver<_, _>>(program).unwrap();
     }
 
     #[test]
     fn test_bls12381_double_simple() {
         setup_logger();
-        let program = Program::from(BLS12381_DOUBLE_ELF);
+        let program = Program::from(BLS12381_DOUBLE_ELF).unwrap();
         run_test::<CpuProver<_, _>>(program).unwrap();
     }
 
     #[test]
     fn test_bls12381_mul_simple() {
         setup_logger();
-        let program = Program::from(BLS12381_MUL_ELF);
+        let program = Program::from(BLS12381_MUL_ELF).unwrap();
         run_test::<CpuProver<_, _>>(program).unwrap();
     }
 }

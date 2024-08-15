@@ -3,15 +3,12 @@ use std::borrow::BorrowMut;
 use hashbrown::HashMap;
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
+use sp1_executor::{ByteOpcode, ExecutionRecord, Program};
+use sp1_stark::air::MachineAir;
 
 use super::{
     columns::{ByteMultCols, NUM_BYTE_MULT_COLS, NUM_BYTE_PREPROCESSED_COLS},
     ByteChip,
-};
-use crate::{
-    air::MachineAir,
-    bytes::ByteOpcode,
-    runtime::{ExecutionRecord, Program},
 };
 
 pub const NUM_ROWS: usize = 1 << 16;

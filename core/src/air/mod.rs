@@ -1,17 +1,21 @@
-mod builder;
-mod extension;
-mod interaction;
-mod machine;
-mod polynomial;
-mod public_values;
-mod sub_builder;
+mod memory;
+mod program;
 mod word;
 
-pub use builder::*;
-pub use extension::*;
-pub use interaction::*;
-pub use machine::*;
-pub use polynomial::*;
-pub use public_values::*;
-pub use sub_builder::*;
+pub use memory::*;
+pub use program::*;
 pub use word::*;
+
+use sp1_stark::air::{BaseAirBuilder, SP1AirBuilder};
+
+/// A trait which contains methods related to memory interactions in an AIR.
+
+pub trait SP1CoreAirBuilder:
+    SP1AirBuilder + WordAirBuilder + MemoryAirBuilder + ProgramAirBuilder
+{
+}
+
+impl<AB: BaseAirBuilder> MemoryAirBuilder for AB {}
+impl<AB: BaseAirBuilder> ProgramAirBuilder for AB {}
+impl<AB: BaseAirBuilder> WordAirBuilder for AB {}
+impl<AB: BaseAirBuilder + SP1AirBuilder> SP1CoreAirBuilder for AB {}

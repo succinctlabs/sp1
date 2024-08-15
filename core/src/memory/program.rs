@@ -7,11 +7,14 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 
 use sp1_derive::AlignedBorrow;
+use sp1_executor::{ExecutionRecord, Program};
+use sp1_stark::air::{
+    AirInteraction, MachineAir, PublicValues, SP1AirBuilder, SP1_PROOF_NUM_PV_ELTS,
+};
+use sp1_stark::InteractionKind;
+use sp1_stark::Word;
 
-use crate::air::{AirInteraction, PublicValues, SP1AirBuilder, SP1_PROOF_NUM_PV_ELTS};
-use crate::air::{MachineAir, Word};
 use crate::operations::IsZeroOperation;
-use crate::runtime::{ExecutionRecord, Program};
 use crate::utils::pad_to_power_of_two;
 
 pub const NUM_MEMORY_PROGRAM_PREPROCESSED_COLS: usize =
@@ -196,7 +199,7 @@ where
         builder.receive(AirInteraction::new(
             values,
             mult_local.multiplicity.into(),
-            crate::lookup::InteractionKind::Memory,
+            InteractionKind::Memory,
         ));
     }
 }

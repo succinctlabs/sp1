@@ -1,13 +1,13 @@
 use p3_baby_bear::BabyBear;
 use p3_field::AbstractField;
-use sp1_core::stark::StarkGenericConfig;
-use sp1_core::utils::BabyBearPoseidon2;
 use sp1_recursion_compiler::asm::AsmBuilder;
 use sp1_recursion_compiler::asm::AsmConfig;
 use sp1_recursion_compiler::ir::Array;
 use sp1_recursion_compiler::ir::SymbolicVar;
 use sp1_recursion_compiler::ir::Var;
 use sp1_recursion_core::runtime::Runtime;
+use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
+use sp1_stark::StarkGenericConfig;
 
 #[test]
 fn test_compiler_for_loops() {

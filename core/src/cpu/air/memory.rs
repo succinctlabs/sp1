@@ -1,12 +1,14 @@
 use p3_air::AirBuilder;
 use p3_field::AbstractField;
+use sp1_stark::air::{BaseAirBuilder, SP1AirBuilder};
+use sp1_stark::Word;
 
-use crate::air::{BaseAirBuilder, SP1AirBuilder, Word, WordAirBuilder};
+use crate::air::{SP1CoreAirBuilder, WordAirBuilder};
 use crate::cpu::columns::{CpuCols, MemoryColumns, OpcodeSelectorCols};
 use crate::cpu::CpuChip;
 use crate::memory::MemoryCols;
 use crate::operations::BabyBearWordRangeChecker;
-use crate::runtime::{MemoryAccessPosition, Opcode};
+use sp1_executor::{events::MemoryAccessPosition, Opcode};
 
 impl CpuChip {
     /// Computes whether the opcode is a memory instruction.
@@ -50,7 +52,7 @@ impl CpuChip {
     /// 1. Calculate that the unaligned address is correctly computed to be op_b.value + op_c.value.
     /// 2. Calculate that the address offset is address % 4.
     /// 3. Assert the validity of the aligned address given the address offset and the unaligned address.
-    pub(crate) fn eval_memory_address_and_access<AB: SP1AirBuilder>(
+    pub(crate) fn eval_memory_address_and_access<AB: SP1CoreAirBuilder>(
         &self,
         builder: &mut AB,
         local: &CpuCols<AB::Var>,

@@ -49,6 +49,8 @@ strum = "0.26.3"
 thiserror = "1.0.63"
 hashbrown = "0.14.5"
 sysinfo = "0.30.13"
+sp1-executor = { workspace = true }
+sp1-stark = { workspace = true }
 
 [features]
 default = ["network"]

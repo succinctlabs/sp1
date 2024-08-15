@@ -1,13 +1,16 @@
 use p3_air::AirBuilder;
 use p3_field::AbstractField;
+use sp1_executor::syscalls::SyscallCode;
+use sp1_stark::air::{
+    BaseAirBuilder, PublicValues, SP1AirBuilder, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS,
+};
+use sp1_stark::Word;
 
-use crate::air::{BaseAirBuilder, PublicValues, WordAirBuilder};
-use crate::cpu::air::{Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS};
+use crate::air::WordAirBuilder;
 use crate::cpu::columns::{CpuCols, OpcodeSelectorCols};
+use crate::cpu::CpuChip;
 use crate::memory::MemoryCols;
 use crate::operations::{BabyBearWordRangeChecker, IsZeroOperation};
-use crate::runtime::SyscallCode;
-use crate::stark::{CpuChip, SP1AirBuilder};
 
 impl CpuChip {
     /// Whether the instruction is an ECALL instruction.

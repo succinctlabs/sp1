@@ -2,7 +2,7 @@ use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use std::marker::PhantomData;
 
-use curve25519_dalek::edwards::CompressedEdwardsY;
+use crate::air::MemoryAirBuilder;
 use generic_array::GenericArray;
 use num::BigUint;
 use num::One;
@@ -12,58 +12,25 @@ use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
-use serde::Deserialize;
-use serde::Serialize;
+use sp1_curves::edwards::ed25519::{ed25519_sqrt, Ed25519BaseField};
+use sp1_curves::edwards::{EdwardsParameters, WordsFieldElement};
+use sp1_curves::params::{limbs_from_vec, FieldParameters, Limbs};
 use sp1_derive::AlignedBorrow;
+use sp1_executor::events::{ByteLookupEvent, ByteRecord, EdDecompressEvent};
+use sp1_executor::syscalls::SyscallCode;
+use sp1_executor::{ExecutionRecord, Program};
+use sp1_stark::air::{BaseAirBuilder, MachineAir, SP1AirBuilder};
 use typenum::U32;
 
-use crate::air::BaseAirBuilder;
-use crate::air::MachineAir;
-use crate::air::SP1AirBuilder;
-use crate::bytes::event::ByteRecord;
-use crate::bytes::ByteLookupEvent;
 use crate::memory::MemoryReadCols;
 use crate::memory::MemoryWriteCols;
 use crate::operations::field::field_op::FieldOpCols;
 use crate::operations::field::field_op::FieldOperation;
 use crate::operations::field::field_sqrt::FieldSqrtCols;
-use crate::operations::field::params::Limbs;
-use crate::operations::field::params::{limbs_from_vec, FieldParameters};
 use crate::operations::field::range::FieldLtCols;
-use crate::runtime::ExecutionRecord;
-use crate::runtime::MemoryReadRecord;
-use crate::runtime::MemoryWriteRecord;
-use crate::runtime::Program;
-use crate::runtime::Syscall;
-use crate::runtime::SyscallCode;
-use crate::syscall::precompiles::SyscallContext;
-use crate::utils::bytes_to_words_le;
-use crate::utils::ec::edwards::ed25519::decompress;
-use crate::utils::ec::edwards::ed25519::ed25519_sqrt;
-use crate::utils::ec::edwards::ed25519::Ed25519BaseField;
-use crate::utils::ec::edwards::EdwardsParameters;
-use crate::utils::ec::COMPRESSED_POINT_BYTES;
-use crate::utils::ec::NUM_BYTES_FIELD_ELEMENT;
 use crate::utils::limbs_from_access;
 use crate::utils::limbs_from_prev_access;
 use crate::utils::pad_rows;
-use crate::utils::words_to_bytes_le;
-
-use super::{WordsFieldElement, WORDS_FIELD_ELEMENT};
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EdDecompressEvent {
-    pub lookup_id: u128,
-    pub shard: u32,
-    pub channel: u8,
-    pub clk: u32,
-    pub ptr: u32,
-    pub sign: bool,
-    pub y_bytes: [u8; COMPRESSED_POINT_BYTES],
-    pub decompressed_x_bytes: [u8; NUM_BYTES_FIELD_ELEMENT],
-    pub x_memory_records: [MemoryWriteRecord; WORDS_FIELD_ELEMENT],
-    pub y_memory_records: [MemoryReadRecord; WORDS_FIELD_ELEMENT],
-}
 
 pub const NUM_ED_DECOMPRESS_COLS: usize = size_of::<EdDecompressCols<u8>>();
 
@@ -307,68 +274,6 @@ pub struct EdDecompressChip<E> {
     _phantom: PhantomData<E>,
 }
 
-impl<E: EdwardsParameters> Syscall for EdDecompressChip<E> {
-    fn execute(&self, rt: &mut SyscallContext, arg1: u32, sign: u32) -> Option<u32> {
-        let start_clk = rt.clk;
-        let slice_ptr = arg1;
-        assert!(slice_ptr % 4 == 0, "Pointer must be 4-byte aligned.");
-        assert!(sign <= 1, "Sign bit must be 0 or 1.");
-
-        let (y_memory_records_vec, y_vec) = rt.mr_slice(
-            slice_ptr + (COMPRESSED_POINT_BYTES as u32),
-            WORDS_FIELD_ELEMENT,
-        );
-        let y_memory_records: [MemoryReadRecord; 8] = y_memory_records_vec.try_into().unwrap();
-
-        let sign_bool = sign != 0;
-
-        let y_bytes: [u8; COMPRESSED_POINT_BYTES] = words_to_bytes_le(&y_vec);
-
-        // Copy bytes into another array so we can modify the last byte and make CompressedEdwardsY,
-        // which we'll use to compute the expected X.
-        // Re-insert sign bit into last bit of Y for CompressedEdwardsY format
-        let mut compressed_edwards_y: [u8; COMPRESSED_POINT_BYTES] = y_bytes;
-        compressed_edwards_y[compressed_edwards_y.len() - 1] &= 0b0111_1111;
-        compressed_edwards_y[compressed_edwards_y.len() - 1] |= (sign as u8) << 7;
-
-        // Compute actual decompressed X
-        let compressed_y = CompressedEdwardsY(compressed_edwards_y);
-        let decompressed = decompress(&compressed_y);
-
-        let mut decompressed_x_bytes = decompressed.x.to_bytes_le();
-        decompressed_x_bytes.resize(32, 0u8);
-        let decompressed_x_words: [u32; WORDS_FIELD_ELEMENT] =
-            bytes_to_words_le(&decompressed_x_bytes);
-
-        // Write decompressed X into slice
-        let x_memory_records_vec = rt.mw_slice(slice_ptr, &decompressed_x_words);
-        let x_memory_records: [MemoryWriteRecord; 8] = x_memory_records_vec.try_into().unwrap();
-
-        let lookup_id = rt.syscall_lookup_id;
-        let shard = rt.current_shard();
-        let channel = rt.current_channel();
-        rt.record_mut()
-            .ed_decompress_events
-            .push(EdDecompressEvent {
-                lookup_id,
-                shard,
-                channel,
-                clk: start_clk,
-                ptr: slice_ptr,
-                sign: sign_bool,
-                y_bytes,
-                decompressed_x_bytes: decompressed_x_bytes.try_into().unwrap(),
-                x_memory_records,
-                y_memory_records,
-            });
-        None
-    }
-
-    fn num_extra_cycles(&self) -> u32 {
-        0
-    }
-}
-
 impl<E: EdwardsParameters> EdDecompressChip<E> {
     pub const fn new() -> Self {
         Self {
@@ -460,16 +365,15 @@ where
 
 #[cfg(test)]
 pub mod tests {
-    use crate::{
-        runtime::Program,
-        stark::CpuProver,
-        utils::{self, tests::ED_DECOMPRESS_ELF},
-    };
+    use sp1_executor::Program;
+    use sp1_stark::CpuProver;
+
+    use crate::utils::{self, tests::ED_DECOMPRESS_ELF};
 
     #[test]
     fn test_ed_decompress() {
         utils::setup_logger();
-        let program = Program::from(ED_DECOMPRESS_ELF);
+        let program = Program::from(ED_DECOMPRESS_ELF).unwrap();
         utils::run_test::<CpuProver<_, _>>(program).unwrap();
     }
 }

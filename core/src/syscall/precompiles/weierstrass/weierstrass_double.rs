@@ -3,6 +3,7 @@ use core::mem::size_of;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
+use crate::air::MemoryAirBuilder;
 use generic_array::GenericArray;
 use num::BigUint;
 use num::Zero;
@@ -14,29 +15,19 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::ParallelIterator;
 use p3_maybe_rayon::prelude::ParallelSlice;
+use sp1_curves::params::{FieldParameters, Limbs, NumLimbs, NumWords};
+use sp1_curves::weierstrass::WeierstrassParameters;
+use sp1_curves::{AffinePoint, CurveType, EllipticCurve};
 use sp1_derive::AlignedBorrow;
+use sp1_executor::events::ByteRecord;
+use sp1_executor::{events::ByteLookupEvent, syscalls::SyscallCode, ExecutionRecord, Program};
+use sp1_stark::air::{MachineAir, SP1AirBuilder};
+use sp1_stark::MachineRecord;
 
-use crate::air::MachineAir;
-use crate::air::SP1AirBuilder;
-use crate::bytes::event::ByteRecord;
-use crate::bytes::ByteLookupEvent;
 use crate::memory::MemoryCols;
 use crate::memory::MemoryWriteCols;
 use crate::operations::field::field_op::FieldOpCols;
 use crate::operations::field::field_op::FieldOperation;
-use crate::operations::field::params::{FieldParameters, NumWords};
-use crate::operations::field::params::{Limbs, NumLimbs};
-use crate::runtime::ExecutionRecord;
-use crate::runtime::Program;
-use crate::runtime::Syscall;
-use crate::runtime::SyscallCode;
-use crate::stark::MachineRecord;
-use crate::syscall::precompiles::create_ec_double_event;
-use crate::syscall::precompiles::SyscallContext;
-use crate::utils::ec::weierstrass::WeierstrassParameters;
-use crate::utils::ec::AffinePoint;
-use crate::utils::ec::CurveType;
-use crate::utils::ec::EllipticCurve;
 use crate::utils::{limbs_from_prev_access, pad_rows};
 
 pub const fn num_weierstrass_double_cols<P: FieldParameters + NumWords>() -> usize {
@@ -73,23 +64,6 @@ pub struct WeierstrassDoubleAssignCols<T, P: FieldParameters + NumWords> {
 #[derive(Default)]
 pub struct WeierstrassDoubleAssignChip<E> {
     _marker: PhantomData<E>,
-}
-
-impl<E: EllipticCurve + WeierstrassParameters> Syscall for WeierstrassDoubleAssignChip<E> {
-    fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
-        let event = create_ec_double_event::<E>(rt, arg1, arg2);
-        match E::CURVE_TYPE {
-            CurveType::Secp256k1 => rt.record_mut().secp256k1_double_events.push(event),
-            CurveType::Bn254 => rt.record_mut().bn254_double_events.push(event),
-            CurveType::Bls12381 => rt.record_mut().bls12381_double_events.push(event),
-            _ => panic!("Unsupported curve"),
-        }
-        None
-    }
-
-    fn num_extra_cycles(&self) -> u32 {
-        0
-    }
 }
 
 impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDoubleAssignChip<E> {
@@ -547,33 +521,32 @@ where
 #[cfg(test)]
 pub mod tests {
 
-    use crate::{
-        runtime::Program,
-        stark::CpuProver,
-        utils::{
-            run_test, setup_logger,
-            tests::{BLS12381_DOUBLE_ELF, BN254_DOUBLE_ELF, SECP256K1_DOUBLE_ELF},
-        },
+    use sp1_executor::Program;
+    use sp1_stark::CpuProver;
+
+    use crate::utils::{
+        run_test, setup_logger,
+        tests::{BLS12381_DOUBLE_ELF, BN254_DOUBLE_ELF, SECP256K1_DOUBLE_ELF},
     };
 
     #[test]
     fn test_secp256k1_double_simple() {
         setup_logger();
-        let program = Program::from(SECP256K1_DOUBLE_ELF);
+        let program = Program::from(SECP256K1_DOUBLE_ELF).unwrap();
         run_test::<CpuProver<_, _>>(program).unwrap();
     }
 
     #[test]
     fn test_bn254_double_simple() {
         setup_logger();
-        let program = Program::from(BN254_DOUBLE_ELF);
+        let program = Program::from(BN254_DOUBLE_ELF).unwrap();
         run_test::<CpuProver<_, _>>(program).unwrap();
     }
 
     #[test]
     fn test_bls12381_double_simple() {
         setup_logger();
-        let program = Program::from(BLS12381_DOUBLE_ELF);
+        let program = Program::from(BLS12381_DOUBLE_ELF).unwrap();
         run_test::<CpuProver<_, _>>(program).unwrap();
     }
 }

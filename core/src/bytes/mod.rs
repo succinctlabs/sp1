@@ -1,12 +1,12 @@
 pub mod air;
 pub mod columns;
-pub mod event;
-pub mod opcode;
+// pub mod event;
+// pub mod opcode;
 pub mod trace;
 pub mod utils;
 
-pub use event::ByteLookupEvent;
-pub use opcode::*;
+use sp1_executor::events::ByteLookupEvent;
+use sp1_executor::ByteOpcode;
 
 use core::borrow::BorrowMut;
 use std::marker::PhantomData;

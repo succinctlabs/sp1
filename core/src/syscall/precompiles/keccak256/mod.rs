@@ -1,30 +1,13 @@
 mod air;
 pub mod columns;
-mod execute;
 mod trace;
 
 use p3_keccak_air::KeccakAir;
-use serde::{Deserialize, Serialize};
-
-use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
 
 pub(crate) const STATE_SIZE: usize = 25;
 
 // The permutation state is 25 u64's.  Our word size is 32 bits, so it is 50 words.
-const STATE_NUM_WORDS: usize = STATE_SIZE * 2;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct KeccakPermuteEvent {
-    pub lookup_id: u128,
-    pub shard: u32,
-    pub channel: u8,
-    pub clk: u32,
-    pub pre_state: [u64; STATE_SIZE],
-    pub post_state: [u64; STATE_SIZE],
-    pub state_read_records: Vec<MemoryReadRecord>,
-    pub state_write_records: Vec<MemoryWriteRecord>,
-    pub state_addr: u32,
-}
+pub const STATE_NUM_WORDS: usize = STATE_SIZE * 2;
 
 pub struct KeccakPermuteChip {
     p3_keccak: KeccakAir,
@@ -40,13 +23,12 @@ impl KeccakPermuteChip {
 
 #[cfg(test)]
 pub mod permute_tests {
-    use crate::runtime::SyscallCode;
-    use crate::stark::CpuProver;
-    use crate::utils::{run_test, SP1CoreOpts};
-    use crate::{
-        runtime::{Instruction, Opcode, Program, Runtime},
-        utils::{self, tests::KECCAK_PERMUTE_ELF},
-    };
+    use sp1_executor::syscalls::SyscallCode;
+    use sp1_executor::{Executor, Instruction, Opcode, Program};
+    use sp1_stark::{CpuProver, SP1CoreOpts};
+
+    use crate::utils::run_test;
+    use crate::utils::{self, tests::KECCAK_PERMUTE_ELF};
 
     pub fn keccak_permute_program() -> Program {
         let digest_ptr = 100;
@@ -77,7 +59,7 @@ pub mod permute_tests {
     pub fn test_keccak_permute_program_execute() {
         utils::setup_logger();
         let program = keccak_permute_program();
-        let mut runtime = Runtime::new(program, SP1CoreOpts::default());
+        let mut runtime = Executor::new(program, SP1CoreOpts::default());
         runtime.run().unwrap();
     }
 
@@ -92,7 +74,7 @@ pub mod permute_tests {
     #[test]
     fn test_keccak_permute_program_prove() {
         utils::setup_logger();
-        let program = Program::from(KECCAK_PERMUTE_ELF);
+        let program = Program::from(KECCAK_PERMUTE_ELF).unwrap();
         run_test::<CpuProver<_, _>>(program).unwrap();
     }
 }

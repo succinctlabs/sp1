@@ -69,21 +69,22 @@ bytemuck = "1.16.0"
 hashbrown = { version = "0.14.5", features = ["serde", "inline-more"] }
 static_assertions = "1.1.0"
 
+sp1-stark = { workspace = true }
+sp1-executor = { workspace = true }
+sp1-curves = { workspace = true }
+
 [dev-dependencies]
 tiny-keccak = { version = "2.0.2", features = ["keccak"] }
 criterion = "0.5.1"
 num = { version = "0.4.3", features = ["rand"] }
 rand = "0.8.5"
 sp1-zkvm = { workspace = true }
+sp1-executor = { workspace = true, features = ["programs"] }
 
 [features]
 neon = ["p3-blake3/neon"]
 programs = []
 debug = []
-
-[[bench]]
-harness = false
-name = "main"
 
 [lib]
 bench = false

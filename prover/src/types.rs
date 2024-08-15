@@ -8,18 +8,15 @@ use p3_commit::{Pcs, TwoAdicMultiplicativeCoset};
 use p3_field::PrimeField;
 use p3_field::{AbstractField, PrimeField32, TwoAdicField};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use sp1_core::stark::RiscvAir;
-use sp1_core::{
-    io::{SP1PublicValues, SP1Stdin},
-    stark::{ShardProof, StarkGenericConfig, StarkProvingKey, StarkVerifyingKey},
-    utils::DIGEST_SIZE,
-};
+use sp1_core::io::{SP1PublicValues, SP1Stdin};
+use sp1_core::riscv::RiscvAir;
 use sp1_primitives::poseidon2_hash;
 use sp1_recursion_core::{air::RecursionPublicValues, stark::config::BabyBearPoseidon2Outer};
 use sp1_recursion_gnark_ffi::plonk_bn254::PlonkBn254Proof;
 use sp1_recursion_program::machine::{
     SP1CompressMemoryLayout, SP1DeferredMemoryLayout, SP1RecursionMemoryLayout,
 };
+use sp1_stark::{ShardProof, StarkGenericConfig, StarkProvingKey, StarkVerifyingKey, DIGEST_SIZE};
 use thiserror::Error;
 
 use crate::utils::words_to_bytes_be;

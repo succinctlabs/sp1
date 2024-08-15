@@ -1,6 +1,6 @@
 use p3_air::AirBuilder;
 use p3_field::Field;
-use sp1_core::air::BaseAirBuilder;
+use sp1_stark::air::BaseAirBuilder;
 
 use crate::{
     air::{RecursionPublicValues, SP1RecursionAirBuilder},

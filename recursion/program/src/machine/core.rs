@@ -6,12 +6,9 @@ use itertools::Itertools;
 use p3_baby_bear::BabyBear;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::{AbstractField, PrimeField32, TwoAdicField};
-use sp1_core::air::{MachineAir, PublicValues, WORD_SIZE};
-use sp1_core::air::{Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS};
 use sp1_core::cpu::MAX_CPU_LOG_DEGREE;
-use sp1_core::stark::StarkMachine;
-use sp1_core::stark::{Com, RiscvAir, ShardProof, StarkGenericConfig, StarkVerifyingKey};
-use sp1_core::utils::BabyBearPoseidon2;
+use sp1_core::riscv::RiscvAir;
+use sp1_primitives::consts::WORD_SIZE;
 use sp1_primitives::types::RecursionProgramType;
 use sp1_recursion_compiler::config::InnerConfig;
 use sp1_recursion_compiler::ir::{Array, Builder, Config, Ext, ExtConst, Felt, Var};
@@ -19,6 +16,9 @@ use sp1_recursion_compiler::prelude::DslVariable;
 use sp1_recursion_compiler::prelude::*;
 use sp1_recursion_core::air::{RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS};
 use sp1_recursion_core::runtime::{RecursionProgram, DIGEST_SIZE};
+use sp1_stark::air::{MachineAir, PublicValues, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS};
+use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
+use sp1_stark::{Com, ShardProof, StarkGenericConfig, StarkMachine, StarkVerifyingKey, Word};
 
 use crate::challenger::{CanObserveVariable, DuplexChallengerVariable};
 use crate::fri::TwoAdicFriPcsVariable;
@@ -78,11 +78,7 @@ impl SP1RecursiveVerifier<InnerConfig, BabyBearPoseidon2> {
 impl<C: Config, SC: StarkGenericConfig> SP1RecursiveVerifier<C, SC>
 where
     C::F: PrimeField32 + TwoAdicField,
-    SC: StarkGenericConfig<
-        Val = C::F,
-        Challenge = C::EF,
-        Domain = TwoAdicMultiplicativeCoset<C::F>,
-    >,
+    SC: StarkGenericConfig<Val = C::F, Challenge = C::EF, Domain = TwoAdicMultiplicativeCoset<C::F>>,
     Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
 {
     /// Verify a batch of SP1 shard proofs and aggregate their public values.

@@ -4,15 +4,13 @@ use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::{ParallelIterator, ParallelSlice};
+use sp1_executor::{
+    events::ByteLookupEvent, events::ByteRecord, events::ShaExtendEvent, ExecutionRecord, Program,
+};
+use sp1_stark::air::MachineAir;
 use std::borrow::BorrowMut;
 
-use crate::{
-    air::MachineAir,
-    bytes::{event::ByteRecord, ByteLookupEvent},
-    runtime::{ExecutionRecord, Program},
-};
-
-use super::{ShaExtendChip, ShaExtendCols, ShaExtendEvent, NUM_SHA_EXTEND_COLS};
+use super::{ShaExtendChip, ShaExtendCols, NUM_SHA_EXTEND_COLS};
 
 impl<F: PrimeField32> MachineAir<F> for ShaExtendChip {
     type Record = ExecutionRecord;

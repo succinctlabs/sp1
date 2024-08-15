@@ -271,10 +271,10 @@ mod tests {
     use p3_field::PrimeField32;
     use p3_util::reverse_bits_len;
     use rand::{thread_rng, Rng};
-    use sp1_core::{stark::StarkGenericConfig, utils::BabyBearPoseidon2};
     use sp1_recursion_core::runtime::{Runtime, NUM_BITS};
 
     use p3_field::AbstractField;
+    use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, StarkGenericConfig};
 
     use crate::{
         asm::AsmBuilder,

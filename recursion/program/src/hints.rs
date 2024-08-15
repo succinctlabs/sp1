@@ -3,21 +3,21 @@ use p3_challenger::DuplexChallenger;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::TwoAdicField;
 use p3_field::{AbstractExtensionField, AbstractField};
-use sp1_core::air::{MachineAir, Word, PV_DIGEST_NUM_WORDS};
-use sp1_core::stark::StarkGenericConfig;
-use sp1_core::stark::{
-    AirOpenedValues, ChipOpenedValues, Com, RiscvAir, ShardCommitment, ShardOpenedValues,
-};
-use sp1_core::utils::{
-    BabyBearPoseidon2, InnerChallenge, InnerDigest, InnerDigestHash, InnerPcsProof, InnerPerm,
-    InnerVal,
-};
+
+use sp1_core::riscv::RiscvAir;
 use sp1_recursion_compiler::{
     config::InnerConfig,
     ir::{Array, Builder, Config, Ext, Felt, MemVariable, Var},
 };
 use sp1_recursion_core::air::Block;
 use sp1_recursion_core::runtime::PERMUTATION_WIDTH;
+use sp1_stark::air::{MachineAir, PV_DIGEST_NUM_WORDS};
+use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
+use sp1_stark::{
+    AirOpenedValues, ChipOpenedValues, Com, InnerChallenge, InnerDigest, InnerDigestHash,
+    InnerPcsProof, InnerPerm, InnerVal, ShardCommitment, ShardOpenedValues, StarkGenericConfig,
+    Word,
+};
 
 use crate::challenger::DuplexChallengerVariable;
 use crate::fri::TwoAdicMultiplicativeCosetVariable;
@@ -90,10 +90,11 @@ impl Hintable<C> for [Word<BabyBear>; PV_DIGEST_NUM_WORDS] {
     }
 
     fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
-        vec![self
-            .iter()
-            .flat_map(|w| w.0.iter().map(|f| Block::from(*f)))
-            .collect::<Vec<_>>()]
+        vec![
+            self.iter()
+                .flat_map(|w| w.0.iter().map(|f| Block::from(*f)))
+                .collect::<Vec<_>>(),
+        ]
     }
 }
 
@@ -206,10 +207,11 @@ impl Hintable<C> for Vec<usize> {
     }
 
     fn write(&self) -> Vec<Vec<Block<InnerVal>>> {
-        vec![self
-            .iter()
-            .map(|x| Block::from(InnerVal::from_canonical_usize(*x)))
-            .collect()]
+        vec![
+            self.iter()
+                .map(|x| Block::from(InnerVal::from_canonical_usize(*x)))
+                .collect(),
+        ]
     }
 }
 
@@ -233,10 +235,11 @@ impl Hintable<C> for Vec<InnerChallenge> {
     }
 
     fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
-        vec![self
-            .iter()
-            .map(|x| Block::from((*x).as_base_slice()))
-            .collect()]
+        vec![
+            self.iter()
+                .map(|x| Block::from((*x).as_base_slice()))
+                .collect(),
+        ]
     }
 }
 
@@ -420,14 +423,14 @@ impl Hintable<C> for DuplexChallenger<InnerVal, InnerPerm, 16, 8> {
 }
 
 impl<
-        'a,
-        SC: StarkGenericConfig<
+    'a,
+    SC: StarkGenericConfig<
             Pcs = <BabyBearPoseidon2 as StarkGenericConfig>::Pcs,
             Challenge = <BabyBearPoseidon2 as StarkGenericConfig>::Challenge,
             Challenger = <BabyBearPoseidon2 as StarkGenericConfig>::Challenger,
         >,
-        A: MachineAir<SC::Val>,
-    > Hintable<C> for VerifyingKeyHint<'a, SC, A>
+    A: MachineAir<SC::Val>,
+> Hintable<C> for VerifyingKeyHint<'a, SC, A>
 {
     type HintVariable = VerifyingKeyVariable<C>;
 
@@ -459,14 +462,14 @@ impl<
 
 // Implement Hintable<C> for ShardProof where SC is equivalent to BabyBearPoseidon2
 impl<
-        'a,
-        SC: StarkGenericConfig<
+    'a,
+    SC: StarkGenericConfig<
             Pcs = <BabyBearPoseidon2 as StarkGenericConfig>::Pcs,
             Challenge = <BabyBearPoseidon2 as StarkGenericConfig>::Challenge,
             Challenger = <BabyBearPoseidon2 as StarkGenericConfig>::Challenger,
         >,
-        A: MachineAir<SC::Val>,
-    > Hintable<C> for ShardProofHint<'a, SC, A>
+    A: MachineAir<SC::Val>,
+> Hintable<C> for ShardProofHint<'a, SC, A>
 where
     ShardCommitment<Com<SC>>: Hintable<C>,
 {

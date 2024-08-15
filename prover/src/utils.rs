@@ -7,12 +7,9 @@ use p3_baby_bear::BabyBear;
 use p3_bn254_fr::Bn254Fr;
 use p3_field::AbstractField;
 use p3_field::PrimeField32;
-use sp1_core::{
-    air::Word,
-    io::SP1Stdin,
-    runtime::{Program, Runtime},
-    utils::SP1CoreOpts,
-};
+use sp1_core::io::SP1Stdin;
+use sp1_executor::{Program, Executor};
+use sp1_stark::{SP1CoreOpts, Word};
 
 use crate::SP1CoreProofData;
 
@@ -26,8 +23,8 @@ impl SP1CoreProofData {
 
 /// Get the number of cycles for a given program.
 pub fn get_cycles(elf: &[u8], stdin: &SP1Stdin) -> u64 {
-    let program = Program::from(elf);
-    let mut runtime = Runtime::new(program, SP1CoreOpts::default());
+    let program = Program::from(elf).unwrap();
+    let mut runtime = Executor::new(program, SP1CoreOpts::default());
     runtime.write_vecs(&stdin.buffer);
     runtime.dry_run();
     runtime.state.global_clk

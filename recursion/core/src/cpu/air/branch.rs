@@ -1,6 +1,6 @@
 use p3_air::AirBuilder;
 use p3_field::{AbstractField, Field};
-use sp1_core::air::{BinomialExtension, ExtensionAirBuilder};
+use sp1_stark::air::{BinomialExtension, ExtensionAirBuilder};
 
 use crate::{
     air::{

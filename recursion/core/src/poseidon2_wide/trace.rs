@@ -6,10 +6,10 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_maybe_rayon::prelude::IndexedParallelIterator;
 use p3_maybe_rayon::prelude::ParallelIterator;
 use p3_maybe_rayon::prelude::ParallelSliceMut;
-use sp1_core::air::MachineAir;
 use sp1_core::utils::next_power_of_two;
 use sp1_core::utils::par_for_each_row;
 use sp1_primitives::RC_16_30_U32;
+use sp1_stark::air::MachineAir;
 use tracing::instrument;
 
 use crate::poseidon2_wide::columns::permutation::permutation_mut;

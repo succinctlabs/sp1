@@ -1,5 +1,20 @@
 use hashbrown::HashMap;
 use itertools::Itertools;
+use sp1_executor::events::create_alu_lookups;
+use sp1_executor::events::AluEvent;
+use sp1_executor::events::ByteLookupEvent;
+use sp1_executor::events::ByteRecord;
+use sp1_executor::events::CpuEvent;
+use sp1_executor::events::MemoryRecordEnum;
+use sp1_executor::syscalls::SyscallCode;
+use sp1_executor::ByteOpcode;
+use sp1_executor::ByteOpcode::U16Range;
+use sp1_executor::ExecutionRecord;
+use sp1_executor::Opcode;
+use sp1_executor::Program;
+use sp1_primitives::consts::WORD_SIZE;
+use sp1_stark::air::MachineAir;
+use sp1_stark::Word;
 use std::array;
 use std::borrow::BorrowMut;
 
@@ -12,19 +27,9 @@ use p3_maybe_rayon::prelude::ParallelSlice;
 use tracing::instrument;
 
 use super::columns::{CPU_COL_MAP, NUM_CPU_COLS};
-use super::{CpuChip, CpuEvent};
-use crate::air::MachineAir;
-use crate::air::Word;
-use crate::alu::create_alu_lookups;
-use crate::alu::{self, AluEvent};
-use crate::bytes::event::ByteRecord;
-use crate::bytes::{ByteLookupEvent, ByteOpcode};
+use super::CpuChip;
 use crate::cpu::columns::CpuCols;
-use crate::cpu::trace::ByteOpcode::{U16Range, U8Range};
-use crate::disassembler::WORD_SIZE;
 use crate::memory::MemoryCols;
-use crate::runtime::{ExecutionRecord, Opcode, Program};
-use crate::runtime::{MemoryRecordEnum, SyscallCode};
 
 impl<F: PrimeField32> MachineAir<F> for CpuChip {
     type Record = ExecutionRecord;
@@ -116,7 +121,7 @@ impl CpuChip {
         nonce_lookup: &HashMap<u128, u32>,
         cols: &mut CpuCols<F>,
         blu_events: &mut impl ByteRecord,
-    ) -> HashMap<Opcode, Vec<alu::AluEvent>> {
+    ) -> HashMap<Opcode, Vec<AluEvent>> {
         let mut new_alu_events = HashMap::new();
 
         // Populate shard and clk columns.
@@ -245,7 +250,7 @@ impl CpuChip {
         blu_events.add_byte_lookup_event(ByteLookupEvent::new(
             event.shard,
             event.channel,
-            U8Range,
+            ByteOpcode::U8Range,
             0,
             0,
             0,
@@ -258,7 +263,7 @@ impl CpuChip {
         &self,
         cols: &mut CpuCols<F>,
         event: &CpuEvent,
-        new_alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
+        new_alu_events: &mut HashMap<Opcode, Vec<AluEvent>>,
         blu_events: &mut impl ByteRecord,
         nonce_lookup: &HashMap<u128, u32>,
     ) {
@@ -410,7 +415,7 @@ impl CpuChip {
         &self,
         cols: &mut CpuCols<F>,
         event: &CpuEvent,
-        alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
+        alu_events: &mut HashMap<Opcode, Vec<AluEvent>>,
         nonce_lookup: &HashMap<u128, u32>,
     ) {
         if event.instruction.is_branch_instruction() {
@@ -539,7 +544,7 @@ impl CpuChip {
         &self,
         cols: &mut CpuCols<F>,
         event: &CpuEvent,
-        alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
+        alu_events: &mut HashMap<Opcode, Vec<AluEvent>>,
         nonce_lookup: &HashMap<u128, u32>,
     ) {
         if event.instruction.is_jump_instruction() {
@@ -616,7 +621,7 @@ impl CpuChip {
         &self,
         cols: &mut CpuCols<F>,
         event: &CpuEvent,
-        alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
+        alu_events: &mut HashMap<Opcode, Vec<AluEvent>>,
         nonce_lookup: &HashMap<u128, u32>,
     ) {
         if matches!(event.instruction.opcode, Opcode::AUIPC) {
@@ -760,81 +765,5 @@ impl CpuChip {
             padded_row[CPU_COL_MAP.selectors.imm_b] = F::one();
             padded_row[CPU_COL_MAP.selectors.imm_c] = F::one();
         });
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use p3_baby_bear::BabyBear;
-
-    use std::time::Instant;
-
-    use super::*;
-
-    use crate::runtime::tests::ssz_withdrawals_program;
-    use crate::runtime::{tests::simple_program, Runtime};
-    use crate::stark::CpuProver;
-    use crate::utils::{run_test, setup_logger, SP1CoreOpts};
-
-    // #[test]
-    // fn generate_trace() {
-    //     let mut shard = ExecutionRecord::default();
-    //     shard.cpu_events = vec![CpuEvent {
-    //         shard: 1,
-    //         channel: 0,
-    //         clk: 6,
-    //         pc: 1,
-    //         next_pc: 5,
-    //         instruction: Instruction {
-    //             opcode: Opcode::ADD,
-    //             op_a: 0,
-    //             op_b: 1,
-    //             op_c: 2,
-    //             imm_b: false,
-    //             imm_c: false,
-    //         },
-    //         a: 1,
-    //         a_record: None,
-    //         b: 2,
-    //         b_record: None,
-    //         c: 3,
-    //         c_record: None,
-    //         memory: None,
-    //         memory_record: None,
-    //         exit_code: 0,
-    //     }];
-    //     let chip = CpuChip::default();
-    //     let trace: RowMajorMatrix<BabyBear> =
-    //         chip.generate_trace(&shard, &mut ExecutionRecord::default());
-    //     println!("{:?}", trace.values);
-    // }
-
-    #[test]
-    fn generate_trace_simple_program() {
-        let program = ssz_withdrawals_program();
-        let mut runtime = Runtime::new(program, SP1CoreOpts::default());
-        runtime.run().unwrap();
-        println!("runtime: {:?}", runtime.state.global_clk);
-        let chip = CpuChip::default();
-
-        let start = Instant::now();
-        <CpuChip as MachineAir<BabyBear>>::generate_dependencies(
-            &chip,
-            &runtime.record,
-            &mut ExecutionRecord::default(),
-        );
-        println!("generate dependencies: {:?}", start.elapsed());
-
-        let start = Instant::now();
-        let _: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&runtime.record, &mut ExecutionRecord::default());
-        println!("generate trace: {:?}", start.elapsed());
-    }
-
-    #[test]
-    fn prove_trace() {
-        setup_logger();
-        let program = simple_program();
-        run_test::<CpuProver<_, _>>(program).unwrap();
     }
 }

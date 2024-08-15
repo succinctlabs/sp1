@@ -3,14 +3,14 @@ use p3_field::PrimeField32;
 use p3_symmetric::Permutation;
 use rand::thread_rng;
 use rand::Rng;
-use sp1_core::stark::StarkGenericConfig;
 use sp1_core::utils::setup_logger;
-use sp1_core::utils::BabyBearPoseidon2;
 use sp1_recursion_compiler::asm::AsmBuilder;
 use sp1_recursion_compiler::ir::Array;
 use sp1_recursion_compiler::ir::Var;
 use sp1_recursion_core::runtime::Runtime;
 use sp1_recursion_core::runtime::PERMUTATION_WIDTH;
+use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
+use sp1_stark::StarkGenericConfig;
 
 #[test]
 fn test_compiler_poseidon2_permute() {

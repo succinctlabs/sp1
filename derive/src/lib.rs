@@ -328,7 +328,7 @@ fn find_sp1_core_path(attrs: &[syn::Attribute]) -> syn::Ident {
             }
         }
     }
-    syn::Ident::new("crate", proc_macro2::Span::call_site())
+    syn::Ident::new("sp1_stark", proc_macro2::Span::call_site())
 }
 
 fn find_execution_record_path(attrs: &[syn::Attribute]) -> syn::Path {
@@ -343,7 +343,7 @@ fn find_execution_record_path(attrs: &[syn::Attribute]) -> syn::Path {
             }
         }
     }
-    parse_quote!(crate::runtime::ExecutionRecord)
+    parse_quote!(sp1_executor::ExecutionRecord)
 }
 
 fn find_program_path(attrs: &[syn::Attribute]) -> syn::Path {
@@ -358,7 +358,7 @@ fn find_program_path(attrs: &[syn::Attribute]) -> syn::Path {
             }
         }
     }
-    parse_quote!(crate::runtime::Program)
+    parse_quote!(sp1_executor::Program)
 }
 
 fn find_builder_path(attrs: &[syn::Attribute]) -> syn::Path {
@@ -373,7 +373,7 @@ fn find_builder_path(attrs: &[syn::Attribute]) -> syn::Path {
             }
         }
     }
-    parse_quote!(crate::air::SP1AirBuilder<F = F>)
+    parse_quote!(crate::air::SP1CoreAirBuilder<F = F>)
 }
 
 fn find_eval_trait_bound(attrs: &[syn::Attribute]) -> Option<String> {

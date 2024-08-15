@@ -41,16 +41,14 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::{ParallelIterator, ParallelSlice};
 use sp1_derive::AlignedBorrow;
+use sp1_executor::events::{AluEvent, ByteLookupEvent, ByteRecord};
+use sp1_executor::{ExecutionRecord, Opcode, Program};
+use sp1_primitives::consts::WORD_SIZE;
+use sp1_stark::air::MachineAir;
+use sp1_stark::Word;
 
-use crate::air::MachineAir;
-use crate::air::{SP1AirBuilder, Word};
-use crate::bytes::event::ByteRecord;
-use crate::bytes::ByteLookupEvent;
-use crate::disassembler::WORD_SIZE;
-use crate::runtime::{ExecutionRecord, Opcode, Program};
+use crate::air::SP1CoreAirBuilder;
 use crate::utils::pad_to_power_of_two;
-
-use super::AluEvent;
 
 /// The number of main trace columns for `ShiftLeft`.
 pub const NUM_SHIFT_LEFT_COLS: usize = size_of::<ShiftLeftCols<u8>>();
@@ -261,7 +259,7 @@ impl<F> BaseAir<F> for ShiftLeft {
 
 impl<AB> Air<AB> for ShiftLeft
 where
-    AB: SP1AirBuilder,
+    AB: SP1CoreAirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
@@ -417,19 +415,11 @@ where
 #[cfg(test)]
 mod tests {
 
-    use crate::{
-        air::MachineAir,
-        stark::StarkGenericConfig,
-        utils::{uni_stark_prove as prove, uni_stark_verify as verify},
-    };
+    use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
-
-    use crate::{
-        alu::AluEvent,
-        runtime::{ExecutionRecord, Opcode},
-        utils::BabyBearPoseidon2,
-    };
+    use sp1_executor::{events::AluEvent, ExecutionRecord, Opcode};
+    use sp1_stark::{air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, StarkGenericConfig};
 
     use super::ShiftLeft;
 

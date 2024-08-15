@@ -84,12 +84,12 @@ pub mod tests {
     use p3_symmetric::{CryptographicHasher, Permutation, PseudoCompressionFunction};
     use rand::thread_rng;
     use rand::Rng;
-    use sp1_core::utils::{inner_perm, InnerHash};
     use sp1_recursion_compiler::config::OuterConfig;
     use sp1_recursion_compiler::constraints::ConstraintCompiler;
     use sp1_recursion_compiler::ir::{Builder, Felt, Var, Witness};
     use sp1_recursion_core::stark::config::{outer_perm, OuterCompress, OuterHash};
     use sp1_recursion_gnark_ffi::PlonkBn254Prover;
+    use sp1_stark::{inner_perm, InnerHash};
 
     use crate::poseidon2::Poseidon2CircuitBuilder;
     use crate::types::OuterDigestVariable;

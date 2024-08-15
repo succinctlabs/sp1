@@ -9,7 +9,7 @@ use futures::{future::join_all, Future};
 use reqwest::{Client as HttpClient, Url};
 use reqwest_middleware::ClientWithMiddleware as HttpClientWithMiddleware;
 use serde::de::DeserializeOwned;
-use sp1_prover::SP1Stdin;
+use sp1_core::io::SP1Stdin;
 use std::result::Result::Ok as StdOk;
 use std::time::{SystemTime, UNIX_EPOCH};
 use twirp::{Client as TwirpClient, ClientError};

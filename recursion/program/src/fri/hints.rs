@@ -1,15 +1,20 @@
 use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
-use sp1_core::utils::{
-    InnerBatchOpening, InnerChallenge, InnerCommitPhaseStep, InnerDigest, InnerFriProof,
-    InnerPcsProof, InnerQueryProof, InnerVal,
-};
+
 use sp1_recursion_compiler::config::InnerConfig;
 use sp1_recursion_compiler::{
     asm::AsmConfig,
     ir::{Array, Builder, Config},
 };
 use sp1_recursion_core::{air::Block, runtime::DIGEST_SIZE};
+use sp1_stark::InnerBatchOpening;
+use sp1_stark::InnerChallenge;
+use sp1_stark::InnerCommitPhaseStep;
+use sp1_stark::InnerDigest;
+use sp1_stark::InnerFriProof;
+use sp1_stark::InnerPcsProof;
+use sp1_stark::InnerQueryProof;
+use sp1_stark::InnerVal;
 
 use super::types::{BatchOpeningVariable, TwoAdicPcsProofVariable};
 use crate::fri::types::{

@@ -1,5 +1,5 @@
 use p3_field::{AbstractField, Field};
-use sp1_core::runtime::MemoryAccessPosition;
+use sp1_executor::events::MemoryAccessPosition;
 
 use crate::{
     air::{BlockBuilder, SP1RecursionAirBuilder},

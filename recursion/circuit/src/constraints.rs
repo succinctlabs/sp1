@@ -3,10 +3,6 @@ use p3_commit::LagrangeSelectors;
 use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
 use p3_field::TwoAdicField;
-use sp1_core::air::MachineAir;
-use sp1_core::stark::AirOpenedValues;
-use sp1_core::stark::PROOF_MAX_NUM_PVS;
-use sp1_core::stark::{MachineChip, StarkGenericConfig};
 use sp1_recursion_compiler::ir::Array;
 use sp1_recursion_compiler::ir::ExtensionOperand;
 use sp1_recursion_compiler::ir::Felt;
@@ -15,6 +11,11 @@ use sp1_recursion_compiler::prelude::SymbolicExt;
 use sp1_recursion_program::commit::PolynomialSpaceVariable;
 
 use sp1_recursion_program::stark::RecursiveVerifierConstraintFolder;
+use sp1_stark::air::MachineAir;
+use sp1_stark::AirOpenedValues;
+use sp1_stark::MachineChip;
+use sp1_stark::StarkGenericConfig;
+use sp1_stark::PROOF_MAX_NUM_PVS;
 
 use crate::domain::TwoAdicMultiplicativeCosetVariable;
 use crate::stark::StarkVerifierCircuit;
@@ -167,13 +168,6 @@ mod tests {
     use p3_baby_bear::DiffusionMatrixBabyBear;
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_commit::{Pcs, PolynomialSpace};
-    use sp1_core::{
-        stark::{
-            Chip, Com, CpuProver, Dom, MachineProver, OpeningProof, PcsProverData, ShardCommitment,
-            ShardProof, StarkGenericConfig, StarkMachine,
-        },
-        utils::SP1CoreOpts,
-    };
     use sp1_recursion_compiler::{
         config::OuterConfig,
         constraints::ConstraintCompiler,
@@ -185,6 +179,10 @@ mod tests {
         stark::{config::BabyBearPoseidon2Outer, RecursionAirWideDeg3},
     };
     use sp1_recursion_gnark_ffi::PlonkBn254Prover;
+    use sp1_stark::{
+        Chip, Com, CpuProver, Dom, MachineProver, OpeningProof, PcsProverData, SP1CoreOpts,
+        ShardCommitment, ShardProof, StarkGenericConfig, StarkMachine,
+    };
 
     use crate::stark::{tests::basic_program, StarkVerifierCircuit};
 
@@ -208,8 +206,7 @@ mod tests {
         Com<SC>: Send + Sync,
         PcsProverData<SC>: Send + Sync,
         SC::Val: p3_field::PrimeField32,
-        <SC as sp1_core::stark::StarkGenericConfig>::Val:
-            p3_field::extension::BinomiallyExtendable<4>,
+        <SC as sp1_stark::StarkGenericConfig>::Val: p3_field::extension::BinomiallyExtendable<4>,
     {
         let ShardProof {
             commitment,

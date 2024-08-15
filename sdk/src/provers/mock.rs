@@ -1,5 +1,8 @@
 #![allow(unused_variables)]
 use hashbrown::HashMap;
+use sp1_core::io::SP1Stdin;
+use sp1_executor::SP1Context;
+use sp1_stark::{ShardCommitment, ShardOpenedValues, ShardProof};
 
 use crate::{
     Prover, SP1Proof, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerificationError,
@@ -9,13 +12,9 @@ use anyhow::Result;
 use p3_baby_bear::BabyBear;
 use p3_field::{AbstractField, PrimeField};
 use p3_fri::{FriProof, TwoAdicFriPcsProof};
-use sp1_core::{
-    runtime::SP1Context,
-    stark::{ShardCommitment, ShardOpenedValues, ShardProof},
-};
 use sp1_prover::{
     components::DefaultProverComponents, verify::verify_plonk_bn254_public_inputs, HashableKey,
-    PlonkBn254Proof, SP1Prover, SP1Stdin,
+    PlonkBn254Proof, SP1Prover,
 };
 
 use super::{ProofOpts, ProverType};

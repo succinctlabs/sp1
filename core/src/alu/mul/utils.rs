@@ -1,4 +1,4 @@
-use crate::air::WORD_SIZE;
+use sp1_primitives::consts::WORD_SIZE;
 
 use super::BYTE_SIZE;
 

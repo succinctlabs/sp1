@@ -1,7 +1,7 @@
 use std::array;
 
 use p3_air::AirBuilder;
-use sp1_core::{air::BaseAirBuilder, utils::DIGEST_SIZE};
+use sp1_stark::air::BaseAirBuilder;
 
 use crate::{
     air::SP1RecursionAirBuilder,
@@ -13,6 +13,7 @@ use crate::{
         },
         Poseidon2WideChip, WIDTH,
     },
+    runtime::DIGEST_SIZE,
 };
 
 impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {

@@ -1,5 +1,5 @@
 use p3_air::AirBuilder;
-use sp1_core::air::BaseAirBuilder;
+use sp1_stark::air::BaseAirBuilder;
 
 use crate::{
     air::SP1RecursionAirBuilder,

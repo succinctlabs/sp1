@@ -5,12 +5,11 @@ use p3_field::AbstractField;
 use p3_field::PrimeField32;
 
 use sp1_derive::AlignedBorrow;
-
-use crate::air::BaseAirBuilder;
-use crate::{
-    bytes::{event::ByteRecord, ByteLookupEvent, ByteOpcode},
-    stark::SP1AirBuilder,
-};
+use sp1_executor::events::ByteLookupEvent;
+use sp1_executor::events::ByteRecord;
+use sp1_executor::ByteOpcode;
+use sp1_stark::air::BaseAirBuilder;
+use sp1_stark::air::SP1AirBuilder;
 
 /// Operation columns for verifying that an element is within the range `[0, modulus)`.
 #[derive(Debug, Clone, Copy, AlignedBorrow)]

@@ -1,9 +1,6 @@
 use crate::components::SP1ProverComponents;
 use p3_baby_bear::BabyBear;
 pub use sp1_core::io::{SP1PublicValues, SP1Stdin};
-use sp1_core::stark::MachineProver;
-use sp1_core::stark::StarkProvingKey;
-use sp1_core::stark::StarkVerifyingKey;
 use sp1_primitives::types::RecursionProgramType;
 use sp1_recursion_compiler::config::InnerConfig;
 use sp1_recursion_core::runtime::RecursionProgram;
@@ -15,6 +12,9 @@ pub use sp1_recursion_program::machine::{
 use sp1_recursion_program::machine::{
     SP1CompressVerifier, SP1DeferredVerifier, SP1RecursiveVerifier, SP1RootVerifier,
 };
+use sp1_stark::MachineProver;
+use sp1_stark::StarkProvingKey;
+use sp1_stark::StarkVerifyingKey;
 use tracing::debug_span;
 
 use crate::{InnerSC, OuterSC, SP1Prover};

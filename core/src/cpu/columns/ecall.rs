@@ -1,10 +1,8 @@
 use sp1_derive::AlignedBorrow;
+use sp1_stark::{air::PV_DIGEST_NUM_WORDS, Word};
 use std::mem::size_of;
 
-use crate::{
-    air::{Word, PV_DIGEST_NUM_WORDS},
-    operations::{BabyBearWordRangeChecker, IsZeroOperation},
-};
+use crate::operations::{BabyBearWordRangeChecker, IsZeroOperation};
 
 pub const NUM_ECALL_COLS: usize = size_of::<EcallCols<u8>>();
 

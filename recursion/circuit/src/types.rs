@@ -1,11 +1,8 @@
 use p3_air::BaseAir;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::AbstractExtensionField;
-use sp1_core::{
-    air::MachineAir,
-    stark::{AirOpenedValues, Chip, ChipOpenedValues, ShardCommitment},
-};
 use sp1_recursion_compiler::ir::{Array, Builder, Config, Ext, ExtConst, Felt, FromConstant, Var};
+use sp1_stark::{air::MachineAir, AirOpenedValues, Chip, ChipOpenedValues, ShardCommitment};
 
 use crate::DIGEST_SIZE;
 

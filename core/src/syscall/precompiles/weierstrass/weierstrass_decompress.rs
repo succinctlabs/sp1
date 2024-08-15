@@ -2,6 +2,7 @@ use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use std::fmt::Debug;
 
+use crate::air::MemoryAirBuilder;
 use generic_array::GenericArray;
 use num::{BigUint, Zero};
 use p3_air::{Air, AirBuilder, BaseAir};
@@ -9,31 +10,24 @@ use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
+use sp1_curves::params::{limbs_from_vec, FieldParameters, Limbs, NumLimbs, NumWords};
+use sp1_curves::weierstrass::bls12_381::bls12381_sqrt;
+use sp1_curves::weierstrass::secp256k1::secp256k1_sqrt;
+use sp1_curves::weierstrass::WeierstrassParameters;
+use sp1_curves::{CurveType, EllipticCurve};
 use sp1_derive::AlignedBorrow;
+use sp1_executor::{events::ByteRecord, syscalls::SyscallCode, ExecutionRecord, Program};
+use sp1_stark::air::BaseAirBuilder;
+use sp1_stark::air::{MachineAir, SP1AirBuilder};
 use std::marker::PhantomData;
 use typenum::Unsigned;
 
-use crate::air::{BaseAirBuilder, MachineAir, SP1AirBuilder};
-use crate::bytes::event::ByteRecord;
 use crate::memory::MemoryReadCols;
 use crate::memory::MemoryReadWriteCols;
 use crate::operations::field::field_op::FieldOpCols;
 use crate::operations::field::field_op::FieldOperation;
 use crate::operations::field::field_sqrt::FieldSqrtCols;
-use crate::operations::field::params::{limbs_from_vec, FieldParameters, NumWords};
-use crate::operations::field::params::{Limbs, NumLimbs};
 use crate::operations::field::range::FieldLtCols;
-use crate::runtime::ExecutionRecord;
-use crate::runtime::Program;
-use crate::runtime::Syscall;
-use crate::runtime::SyscallCode;
-use crate::syscall::precompiles::create_ec_decompress_event;
-use crate::syscall::precompiles::SyscallContext;
-use crate::utils::ec::weierstrass::bls12_381::bls12381_sqrt;
-use crate::utils::ec::weierstrass::secp256k1::secp256k1_sqrt;
-use crate::utils::ec::weierstrass::WeierstrassParameters;
-use crate::utils::ec::CurveType;
-use crate::utils::ec::EllipticCurve;
 use crate::utils::limbs_from_access;
 use crate::utils::limbs_from_prev_access;
 use crate::utils::{bytes_to_words_le_vec, pad_rows};
@@ -94,22 +88,6 @@ pub enum SignChoiceRule {
 pub struct WeierstrassDecompressChip<E> {
     sign_rule: SignChoiceRule,
     _marker: PhantomData<E>,
-}
-
-impl<E: EllipticCurve> Syscall for WeierstrassDecompressChip<E> {
-    fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
-        let event = create_ec_decompress_event::<E>(rt, arg1, arg2);
-        match E::CURVE_TYPE {
-            CurveType::Secp256k1 => rt.record_mut().k256_decompress_events.push(event),
-            CurveType::Bls12381 => rt.record_mut().bls12381_decompress_events.push(event),
-            _ => panic!("Unsupported curve"),
-        }
-        None
-    }
-
-    fn num_extra_cycles(&self) -> u32 {
-        0
-    }
 }
 
 impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDecompressChip<E> {
@@ -611,14 +589,14 @@ where
 #[cfg(test)]
 mod tests {
     use crate::io::SP1Stdin;
-    use crate::stark::CpuProver;
     use crate::utils::{self, tests::BLS12381_DECOMPRESS_ELF};
-    use crate::Program;
     use amcl::bls381::bls381::basic::key_pair_generate_g2;
     use amcl::bls381::bls381::utils::deserialize_g1;
     use amcl::rand::RAND;
     use elliptic_curve::sec1::ToEncodedPoint;
     use rand::{thread_rng, Rng};
+    use sp1_executor::Program;
+    use sp1_stark::CpuProver;
 
     use crate::utils::run_test_io;
     use crate::utils::tests::SECP256K1_DECOMPRESS_ELF;
@@ -638,9 +616,11 @@ mod tests {
             let (_, compressed) = key_pair_generate_g2(&mut rand);
 
             let stdin = SP1Stdin::from(&compressed);
-            let mut public_values =
-                run_test_io::<CpuProver<_, _>>(Program::from(BLS12381_DECOMPRESS_ELF), stdin)
-                    .unwrap();
+            let mut public_values = run_test_io::<CpuProver<_, _>>(
+                Program::from(BLS12381_DECOMPRESS_ELF).unwrap(),
+                stdin,
+            )
+            .unwrap();
 
             let mut result = [0; 96];
             public_values.read_slice(&mut result);
@@ -670,9 +650,11 @@ mod tests {
 
             let inputs = SP1Stdin::from(&compressed);
 
-            let mut public_values =
-                run_test_io::<CpuProver<_, _>>(Program::from(SECP256K1_DECOMPRESS_ELF), inputs)
-                    .unwrap();
+            let mut public_values = run_test_io::<CpuProver<_, _>>(
+                Program::from(SECP256K1_DECOMPRESS_ELF).unwrap(),
+                inputs,
+            )
+            .unwrap();
             let mut result = [0; 65];
             public_values.read_slice(&mut result);
             assert_eq!(result, decompressed);

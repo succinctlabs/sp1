@@ -3,8 +3,7 @@ use std::array;
 use p3_air::AirBuilder;
 use p3_field::{AbstractField, Field};
 use sp1_derive::AlignedBorrow;
-
-use crate::stark::SP1AirBuilder;
+use sp1_stark::air::SP1AirBuilder;
 
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]

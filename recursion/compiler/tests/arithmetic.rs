@@ -1,12 +1,12 @@
 use rand::{thread_rng, Rng};
 
 use p3_field::AbstractField;
-use sp1_core::stark::StarkGenericConfig;
-use sp1_core::utils::BabyBearPoseidon2;
 use sp1_recursion_compiler::asm::AsmBuilder;
 use sp1_recursion_compiler::ir::{Ext, Felt, SymbolicExt};
 use sp1_recursion_compiler::ir::{ExtConst, Var};
 use sp1_recursion_core::runtime::Runtime;
+use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
+use sp1_stark::StarkGenericConfig;
 
 #[test]
 fn test_compiler_arithmetic() {

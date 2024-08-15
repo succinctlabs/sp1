@@ -17,20 +17,13 @@ pub mod air;
 pub mod alu;
 pub mod bytes;
 pub mod cpu;
-pub mod disassembler;
 pub mod io;
-pub mod lookup;
 pub mod memory;
 pub mod operations;
 pub mod program;
-pub mod runtime;
-pub mod stark;
+pub mod riscv;
 pub mod syscall;
 pub mod utils;
-
-#[allow(unused_imports)]
-use runtime::{Program, Runtime};
-use stark::StarkGenericConfig;
 
 /// The global version for all components of SP1.
 ///

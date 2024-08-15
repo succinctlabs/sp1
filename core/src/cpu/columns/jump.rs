@@ -1,7 +1,8 @@
 use sp1_derive::AlignedBorrow;
+use sp1_stark::Word;
 use std::mem::size_of;
 
-use crate::{air::Word, operations::BabyBearWordRangeChecker};
+use crate::operations::BabyBearWordRangeChecker;
 
 pub const NUM_JUMP_COLS: usize = size_of::<JumpCols<u8>>();
 

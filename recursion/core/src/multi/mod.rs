@@ -8,9 +8,9 @@ use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
-use sp1_core::air::{BaseAirBuilder, MachineAir};
 use sp1_core::utils::pad_rows_fixed;
 use sp1_derive::AlignedBorrow;
+use sp1_stark::air::{BaseAirBuilder, MachineAir};
 
 use crate::air::{MultiBuilder, SP1RecursionAirBuilder};
 use crate::fri_fold::{FriFoldChip, FriFoldCols};
@@ -354,11 +354,10 @@ mod tests {
     use p3_matrix::{dense::RowMajorMatrix, Matrix};
     use p3_poseidon2::Poseidon2;
     use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
-    use sp1_core::stark::StarkGenericConfig;
-    use sp1_core::{
-        air::MachineAir,
-        utils::{uni_stark_prove, uni_stark_verify, BabyBearPoseidon2},
-    };
+    use sp1_core::utils::{uni_stark_prove, uni_stark_verify};
+    use sp1_stark::air::MachineAir;
+    use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
+    use sp1_stark::StarkGenericConfig;
 
     use crate::multi::MultiChip;
     use crate::poseidon2_wide::tests::generate_test_execution_record;

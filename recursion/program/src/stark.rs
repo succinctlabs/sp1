@@ -2,14 +2,7 @@ use p3_air::Air;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::AbstractField;
 use p3_field::TwoAdicField;
-use sp1_core::air::MachineAir;
-use sp1_core::stark::Com;
-use sp1_core::stark::GenericVerifierConstraintFolder;
-use sp1_core::stark::ShardProof;
-use sp1_core::stark::StarkGenericConfig;
-use sp1_core::stark::StarkMachine;
 
-use sp1_core::stark::StarkVerifyingKey;
 use sp1_recursion_compiler::ir::Array;
 use sp1_recursion_compiler::ir::Ext;
 use sp1_recursion_compiler::ir::ExtConst;
@@ -20,6 +13,13 @@ use sp1_recursion_compiler::ir::{Builder, Config, Usize};
 use sp1_recursion_compiler::prelude::Felt;
 
 use sp1_recursion_core::runtime::DIGEST_SIZE;
+use sp1_stark::air::MachineAir;
+use sp1_stark::Com;
+use sp1_stark::GenericVerifierConstraintFolder;
+use sp1_stark::ShardProof;
+use sp1_stark::StarkGenericConfig;
+use sp1_stark::StarkMachine;
+use sp1_stark::StarkVerifyingKey;
 
 use crate::challenger::CanObserveVariable;
 use crate::challenger::DuplexChallengerVariable;
@@ -106,11 +106,7 @@ pub type RecursiveVerifierConstraintFolder<'a, C> = GenericVerifierConstraintFol
 impl<C: Config, SC: StarkGenericConfig> StarkVerifier<C, SC>
 where
     C::F: TwoAdicField,
-    SC: StarkGenericConfig<
-        Val = C::F,
-        Challenge = C::EF,
-        Domain = TwoAdicMultiplicativeCoset<C::F>,
-    >,
+    SC: StarkGenericConfig<Val = C::F, Challenge = C::EF, Domain = TwoAdicMultiplicativeCoset<C::F>>,
 {
     pub fn verify_shard<A>(
         builder: &mut Builder<C>,
@@ -391,39 +387,35 @@ pub(crate) mod tests {
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_field::AbstractField;
     use rand::Rng;
-    use sp1_core::air::POSEIDON_NUM_WORDS;
     use sp1_core::io::SP1Stdin;
-    use sp1_core::runtime::Program;
-    use sp1_core::stark::CpuProver;
-    use sp1_core::stark::MachineProver;
+    use sp1_core::riscv::RiscvAir;
     use sp1_core::utils::setup_logger;
-    use sp1_core::utils::InnerChallenge;
-    use sp1_core::utils::InnerVal;
-    use sp1_core::utils::SP1CoreOpts;
-    use sp1_core::{
-        stark::{RiscvAir, StarkGenericConfig},
-        utils::BabyBearPoseidon2,
-    };
+    use sp1_executor::Program;
+    use sp1_recursion_compiler::asm::AsmBuilder;
     use sp1_recursion_compiler::config::InnerConfig;
     use sp1_recursion_compiler::ir::Array;
+    use sp1_recursion_compiler::ir::Builder;
     use sp1_recursion_compiler::ir::Config;
+    use sp1_recursion_compiler::ir::ExtConst;
     use sp1_recursion_compiler::ir::Felt;
-    use sp1_recursion_compiler::prelude::Usize;
-    use sp1_recursion_compiler::{
-        asm::AsmBuilder,
-        ir::{Builder, ExtConst},
-    };
-
+    use sp1_recursion_compiler::ir::Usize;
     use sp1_recursion_core::air::RecursionPublicValues;
     use sp1_recursion_core::air::RECURSION_PUBLIC_VALUES_COL_MAP;
     use sp1_recursion_core::air::RECURSIVE_PROOF_NUM_PV_ELTS;
     use sp1_recursion_core::runtime::RecursionProgram;
     use sp1_recursion_core::runtime::Runtime;
     use sp1_recursion_core::runtime::DIGEST_SIZE;
-
     use sp1_recursion_core::stark::utils::run_test_recursion;
     use sp1_recursion_core::stark::utils::TestConfig;
     use sp1_recursion_core::stark::RecursionAir;
+    use sp1_stark::air::POSEIDON_NUM_WORDS;
+    use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
+    use sp1_stark::CpuProver;
+    use sp1_stark::InnerChallenge;
+    use sp1_stark::InnerVal;
+    use sp1_stark::MachineProver;
+    use sp1_stark::SP1CoreOpts;
+    use sp1_stark::StarkGenericConfig;
 
     type SC = BabyBearPoseidon2;
     type Challenge = <SC as StarkGenericConfig>::Challenge;
@@ -439,10 +431,10 @@ pub(crate) mod tests {
         let elf = include_bytes!("../../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
 
         let machine = A::machine(SC::default());
-        let (_, vk) = machine.setup(&Program::from(elf));
+        let (_, vk) = machine.setup(&Program::from(elf).unwrap());
         let mut challenger_val = machine.config().challenger();
         let (proof, _, _) = sp1_core::utils::prove::<_, CpuProver<_, _>>(
-            Program::from(elf),
+            Program::from(elf).unwrap(),
             &SP1Stdin::new(),
             SC::default(),
             SP1CoreOpts::default(),

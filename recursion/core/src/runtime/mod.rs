@@ -18,6 +18,7 @@ use p3_symmetric::CryptographicPermutation;
 use p3_symmetric::Permutation;
 pub use program::*;
 pub use record::*;
+use sp1_executor::events::MemoryAccessPosition;
 pub use utils::*;
 
 use crate::air::{Block, RECURSION_PUBLIC_VALUES_COL_MAP, RECURSIVE_PROOF_NUM_PV_ELTS};
@@ -31,7 +32,6 @@ use crate::poseidon2_wide::events::{
 use crate::range_check::{RangeCheckEvent, RangeCheckOpcode};
 
 use p3_field::{ExtensionField, PrimeField32};
-use sp1_core::runtime::MemoryAccessPosition;
 
 /// The heap pointer address.
 pub const HEAP_PTR: i32 = -4;
@@ -694,8 +694,8 @@ where
                         let f_i = F::from_canonical_u32(i as u32);
                         let left_val = self.mr(left + f_i, timestamp);
                         let right_val = self.mr(right + f_i, timestamp);
-                        left_array[i] = left_val.1 .0[0];
-                        right_array[i] = right_val.1 .0[0];
+                        left_array[i] = left_val.1.0[0];
+                        right_array[i] = right_val.1.0[0];
                         left_records.push(left_val.0);
                         right_records.push(right_val.0);
                     }
@@ -1111,10 +1111,8 @@ where
 #[cfg(test)]
 mod tests {
     use p3_field::AbstractField;
-    use sp1_core::{
-        stark::{RiscvAir, StarkGenericConfig},
-        utils::BabyBearPoseidon2,
-    };
+    use sp1_core::riscv::RiscvAir;
+    use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, StarkGenericConfig};
 
     use super::{Instruction, Opcode, RecursionProgram, Runtime, RuntimeError};
 

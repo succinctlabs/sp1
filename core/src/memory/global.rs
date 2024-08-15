@@ -8,12 +8,14 @@ use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use sp1_derive::AlignedBorrow;
+use sp1_executor::{events::MemoryInitializeFinalizeEvent, ExecutionRecord, Program};
+use sp1_stark::air::{
+    AirInteraction, BaseAirBuilder, MachineAir, PublicValues, SP1AirBuilder, SP1_PROOF_NUM_PV_ELTS,
+};
+use sp1_stark::InteractionKind;
+use sp1_stark::Word;
 
-use super::MemoryInitializeFinalizeEvent;
-use crate::air::{AirInteraction, BaseAirBuilder, PublicValues, SP1AirBuilder, Word};
-use crate::air::{MachineAir, SP1_PROOF_NUM_PV_ELTS};
 use crate::operations::{AssertLtColsBits, BabyBearBitDecomposition, IsZeroOperation};
-use crate::runtime::{ExecutionRecord, Program};
 use crate::utils::pad_to_power_of_two;
 
 /// The type of memory chip that is being initialized.
@@ -217,7 +219,7 @@ where
             builder.receive(AirInteraction::new(
                 values,
                 local.is_real.into(),
-                crate::lookup::InteractionKind::Memory,
+                InteractionKind::Memory,
             ));
         } else {
             let mut values = vec![
@@ -229,7 +231,7 @@ where
             builder.send(AirInteraction::new(
                 values,
                 local.is_real.into(),
-                crate::lookup::InteractionKind::Memory,
+                InteractionKind::Memory,
             ));
         }
 
@@ -399,18 +401,19 @@ where
 mod tests {
 
     use super::*;
-    use crate::lookup::{debug_interactions_with_all_chips, InteractionKind};
-    use crate::runtime::tests::simple_program;
-    use crate::runtime::Runtime;
-    use crate::stark::RiscvAir;
     use crate::syscall::precompiles::sha256::extend_tests::sha_extend_program;
-    use crate::utils::{setup_logger, BabyBearPoseidon2, SP1CoreOpts};
+    use crate::{riscv::RiscvAir, utils::setup_logger};
     use p3_baby_bear::BabyBear;
+    use sp1_executor::{programs::tests::simple_program, Executor};
+    use sp1_stark::{
+        baby_bear_poseidon2::BabyBearPoseidon2, debug_interactions_with_all_chips, SP1CoreOpts,
+        StarkMachine,
+    };
 
     #[test]
     fn test_memory_generate_trace() {
         let program = simple_program();
-        let mut runtime = Runtime::new(program, SP1CoreOpts::default());
+        let mut runtime = Executor::new(program, SP1CoreOpts::default());
         runtime.run().unwrap();
         let shard = runtime.record.clone();
 
@@ -435,9 +438,9 @@ mod tests {
         setup_logger();
         let program = sha_extend_program();
         let program_clone = program.clone();
-        let mut runtime = Runtime::new(program, SP1CoreOpts::default());
+        let mut runtime = Executor::new(program, SP1CoreOpts::default());
         runtime.run().unwrap();
-        let machine: crate::stark::StarkMachine<BabyBearPoseidon2, RiscvAir<BabyBear>> =
+        let machine: StarkMachine<BabyBearPoseidon2, RiscvAir<BabyBear>> =
             RiscvAir::machine(BabyBearPoseidon2::new());
         let (pkey, _) = machine.setup(&program_clone);
         let opts = SP1CoreOpts::default();
@@ -458,7 +461,7 @@ mod tests {
         setup_logger();
         let program = sha_extend_program();
         let program_clone = program.clone();
-        let mut runtime = Runtime::new(program, SP1CoreOpts::default());
+        let mut runtime = Executor::new(program, SP1CoreOpts::default());
         runtime.run().unwrap();
         let machine = RiscvAir::machine(BabyBearPoseidon2::new());
         let (pkey, _) = machine.setup(&program_clone);

@@ -5,10 +5,11 @@ use p3_air::{Air, BaseAir};
 use p3_field::AbstractField;
 use p3_field::Field;
 use p3_matrix::Matrix;
+use sp1_executor::ByteOpcode;
+use sp1_stark::air::SP1AirBuilder;
 
 use super::columns::{ByteMultCols, BytePreprocessedCols, NUM_BYTE_MULT_COLS};
-use super::{ByteChip, ByteOpcode, NUM_BYTE_LOOKUP_CHANNELS};
-use crate::air::SP1AirBuilder;
+use super::{ByteChip, NUM_BYTE_LOOKUP_CHANNELS};
 
 impl<F: Field> BaseAir<F> for ByteChip<F> {
     fn width(&self) -> usize {

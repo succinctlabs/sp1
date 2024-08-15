@@ -4,16 +4,15 @@ use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_keccak_air::{KeccakAir, NUM_KECCAK_COLS, NUM_ROUNDS, U64_LIMBS};
 use p3_matrix::Matrix;
+use sp1_executor::syscalls::SyscallCode;
+use sp1_stark::air::{SP1AirBuilder, SubAirBuilder};
 
 use super::{
     columns::{KeccakMemCols, NUM_KECCAK_MEM_COLS},
     KeccakPermuteChip, STATE_NUM_WORDS, STATE_SIZE,
 };
-use crate::{
-    air::{SP1AirBuilder, SubAirBuilder, WordAirBuilder},
-    memory::MemoryCols,
-    runtime::SyscallCode,
-};
+use crate::air::MemoryAirBuilder;
+use crate::{air::WordAirBuilder, memory::MemoryCols};
 
 impl<F> BaseAir<F> for KeccakPermuteChip {
     fn width(&self) -> usize {
@@ -152,13 +151,15 @@ where
 #[cfg(test)]
 mod test {
     use crate::io::{SP1PublicValues, SP1Stdin};
-    use crate::runtime::Program;
-    use crate::stark::{CpuProver, RiscvAir, StarkGenericConfig};
-    use crate::utils::SP1CoreOpts;
-    use crate::utils::{prove, setup_logger, tests::KECCAK256_ELF, BabyBearPoseidon2};
+    use crate::riscv::RiscvAir;
+    use crate::utils::{prove, setup_logger, tests::KECCAK256_ELF};
 
     use rand::Rng;
     use rand::SeedableRng;
+    use sp1_executor::Program;
+    use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
+    use sp1_stark::SP1CoreOpts;
+    use sp1_stark::{CpuProver, StarkGenericConfig};
     use tiny_keccak::Hasher;
 
     const NUM_TEST_CASES: usize = 45;
@@ -189,7 +190,7 @@ mod test {
 
         let config = BabyBearPoseidon2::new();
 
-        let program = Program::from(KECCAK256_ELF);
+        let program = Program::from(KECCAK256_ELF).unwrap();
         let (proof, public_values, _) =
             prove::<_, CpuProver<_, _>>(program, &stdin, config, SP1CoreOpts::default()).unwrap();
         let mut public_values = SP1PublicValues::from(&public_values);
@@ -197,7 +198,7 @@ mod test {
         let config = BabyBearPoseidon2::new();
         let mut challenger = config.challenger();
         let machine = RiscvAir::machine(config);
-        let (_, vk) = machine.setup(&Program::from(KECCAK256_ELF));
+        let (_, vk) = machine.setup(&Program::from(KECCAK256_ELF).unwrap());
         let _ =
             tracing::info_span!("verify").in_scope(|| machine.verify(&vk, &proof, &mut challenger));
 

@@ -1,6 +1,7 @@
 use p3_air::AirBuilder;
 use p3_field::AbstractField;
-use sp1_core::{air::BaseAirBuilder, operations::IsZeroOperation};
+use sp1_core::operations::IsZeroOperation;
+use sp1_stark::air::BaseAirBuilder;
 
 use crate::{
     air::SP1RecursionAirBuilder,

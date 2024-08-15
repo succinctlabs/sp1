@@ -1,8 +1,8 @@
 use std::mem::size_of;
 
 use sp1_derive::AlignedBorrow;
+use sp1_stark::Word;
 
-use crate::air::Word;
 use crate::memory::MemoryReadWriteCols;
 use crate::operations::Add5Operation;
 use crate::operations::AddOperation;

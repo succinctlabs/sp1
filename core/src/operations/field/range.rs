@@ -1,4 +1,10 @@
 use itertools::izip;
+use sp1_executor::events::ByteLookupEvent;
+use sp1_executor::events::ByteRecord;
+use sp1_executor::ByteOpcode;
+use sp1_stark::air::BaseAirBuilder;
+use sp1_stark::air::Polynomial;
+use sp1_stark::air::SP1AirBuilder;
 use std::fmt::Debug;
 
 use num::BigUint;
@@ -6,18 +12,10 @@ use num::BigUint;
 use p3_air::AirBuilder;
 use p3_field::AbstractField;
 use p3_field::PrimeField32;
+use sp1_curves::params::FieldParameters;
+use sp1_curves::params::Limbs;
 
 use sp1_derive::AlignedBorrow;
-
-use crate::air::BaseAirBuilder;
-use crate::{
-    air::Polynomial,
-    bytes::{event::ByteRecord, ByteLookupEvent, ByteOpcode},
-    stark::SP1AirBuilder,
-};
-
-use super::params::FieldParameters;
-use super::params::Limbs;
 
 /// Operation columns for verifying that `lhs < rhs`.
 #[derive(Debug, Clone, AlignedBorrow)]

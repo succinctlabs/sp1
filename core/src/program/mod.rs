@@ -2,17 +2,17 @@ use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use std::collections::HashMap;
 
+use crate::air::ProgramAirBuilder;
 use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use sp1_derive::AlignedBorrow;
+use sp1_executor::{ExecutionRecord, Program};
+use sp1_stark::air::{MachineAir, SP1AirBuilder};
 
-use crate::air::MachineAir;
-use crate::air::SP1AirBuilder;
 use crate::cpu::columns::InstructionCols;
 use crate::cpu::columns::OpcodeSelectorCols;
-use crate::runtime::{ExecutionRecord, Program};
 use crate::utils::pad_to_power_of_two;
 
 /// The number of preprocessed program columns.
@@ -186,12 +186,10 @@ mod tests {
     use p3_baby_bear::BabyBear;
 
     use p3_matrix::dense::RowMajorMatrix;
+    use sp1_executor::{ExecutionRecord, Instruction, Opcode, Program};
+    use sp1_stark::air::MachineAir;
 
-    use crate::{
-        air::MachineAir,
-        program::ProgramChip,
-        runtime::{ExecutionRecord, Instruction, Opcode, Program},
-    };
+    use crate::program::ProgramChip;
 
     #[test]
     fn generate_trace() {

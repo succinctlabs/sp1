@@ -1,7 +1,4 @@
 use p3_bn254_fr::Bn254Fr;
-use sp1_core::stark::{
-    AirOpenedValues, ChipOpenedValues, ShardCommitment, ShardOpenedValues, ShardProof,
-};
 use sp1_recursion_compiler::{
     config::OuterConfig,
     ir::{Builder, Config, Ext, Felt, Var, Witness},
@@ -9,6 +6,9 @@ use sp1_recursion_compiler::{
 use sp1_recursion_core::stark::config::{
     BabyBearPoseidon2Outer, OuterBatchOpening, OuterChallenge, OuterCommitPhaseStep, OuterDigest,
     OuterFriProof, OuterPcsProof, OuterQueryProof, OuterVal,
+};
+use sp1_stark::{
+    AirOpenedValues, ChipOpenedValues, ShardCommitment, ShardOpenedValues, ShardProof,
 };
 
 use crate::types::{

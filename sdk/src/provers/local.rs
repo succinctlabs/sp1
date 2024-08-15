@@ -1,6 +1,7 @@
 use anyhow::Result;
-use sp1_core::runtime::SP1Context;
-use sp1_prover::{components::SP1ProverComponents, SP1Prover, SP1Stdin};
+use sp1_core::io::SP1Stdin;
+use sp1_executor::SP1Context;
+use sp1_prover::{components::SP1ProverComponents, SP1Prover};
 use sysinfo::System;
 
 use crate::{

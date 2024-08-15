@@ -8,8 +8,7 @@ use p3_air::AirBuilder;
 use p3_field::AbstractField;
 use p3_field::Field;
 use sp1_derive::AlignedBorrow;
-
-use sp1_core::air::SP1AirBuilder;
+use sp1_stark::air::SP1AirBuilder;
 
 /// A set of columns needed to compute whether the given word is 0.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]

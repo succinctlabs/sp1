@@ -1,10 +1,12 @@
 use p3_field::AbstractField;
+use sp1_stark::air::SP1AirBuilder;
 
+use crate::air::MemoryAirBuilder;
 use crate::air::WordAirBuilder;
 use crate::cpu::columns::CpuCols;
+use crate::cpu::CpuChip;
 use crate::memory::MemoryCols;
-use crate::runtime::MemoryAccessPosition;
-use crate::stark::{CpuChip, SP1AirBuilder};
+use sp1_executor::events::MemoryAccessPosition;
 
 impl CpuChip {
     /// Computes whether the opcode is a branch instruction.

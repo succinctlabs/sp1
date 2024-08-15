@@ -2,10 +2,11 @@ use std::{fmt::Debug, fs::File, path::Path};
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use sp1_core::io::{SP1PublicValues, SP1Stdin};
 use strum_macros::{EnumDiscriminants, EnumTryAs};
 
-use sp1_core::stark::{MachineVerificationError, ShardProof};
-use sp1_prover::{CoreSC, InnerSC, PlonkBn254Proof, SP1PublicValues, SP1Stdin};
+use sp1_prover::{CoreSC, InnerSC, PlonkBn254Proof};
+use sp1_stark::{MachineVerificationError, ShardProof};
 
 /// A proof generated with SP1 of a particular proof mode.
 #[derive(Debug, Clone, Serialize, Deserialize, EnumDiscriminants, EnumTryAs)]

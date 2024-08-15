@@ -5,16 +5,15 @@ use p3_keccak_air::{generate_trace_rows, NUM_KECCAK_COLS, NUM_ROUNDS};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::{ParallelIterator, ParallelSlice};
-
-use crate::bytes::event::ByteRecord;
-use crate::{runtime::Program, stark::MachineRecord};
-
-use crate::{air::MachineAir, runtime::ExecutionRecord};
+use sp1_executor::{ExecutionRecord, Program};
+use sp1_stark::air::MachineAir;
+use sp1_stark::MachineRecord;
 
 use super::{
     columns::{KeccakMemCols, NUM_KECCAK_MEM_COLS},
     KeccakPermuteChip, STATE_SIZE,
 };
+use sp1_executor::events::ByteRecord;
 
 impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
     type Record = ExecutionRecord;

@@ -1,4 +1,4 @@
-use crate::runtime::Opcode;
+use sp1_executor::Opcode;
 
 /// Returns `true` if the given `opcode` is a signed operation.
 pub fn is_signed_operation(opcode: Opcode) -> bool {

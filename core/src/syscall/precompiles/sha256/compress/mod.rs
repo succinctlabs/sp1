@@ -1,11 +1,6 @@
 mod air;
 mod columns;
-mod execute;
 mod trace;
-
-use serde::{Deserialize, Serialize};
-
-use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
 
 pub const SHA_COMPRESS_K: [u32; 64] = [
     0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
@@ -17,21 +12,6 @@ pub const SHA_COMPRESS_K: [u32; 64] = [
     0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
     0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
 ];
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ShaCompressEvent {
-    pub lookup_id: u128,
-    pub shard: u32,
-    pub channel: u8,
-    pub clk: u32,
-    pub w_ptr: u32,
-    pub h_ptr: u32,
-    pub w: Vec<u32>,
-    pub h: [u32; 8],
-    pub h_read_records: [MemoryReadRecord; 8],
-    pub w_i_read_records: Vec<MemoryReadRecord>,
-    pub h_write_records: [MemoryWriteRecord; 8],
-}
 
 /// Implements the SHA compress operation which loops over 0 = [0, 63] and modifies A-H in each
 /// iteration. The inputs to the syscall are a pointer to the 64 word array W and a pointer to the 8
@@ -52,11 +32,10 @@ impl ShaCompressChip {
 #[cfg(test)]
 pub mod compress_tests {
 
-    use crate::{
-        runtime::{Instruction, Opcode, Program, SyscallCode},
-        stark::CpuProver,
-        utils::{run_test, setup_logger, tests::SHA_COMPRESS_ELF},
-    };
+    use sp1_executor::{syscalls::SyscallCode, Instruction, Opcode, Program};
+    use sp1_stark::CpuProver;
+
+    use crate::utils::{run_test, setup_logger, tests::SHA_COMPRESS_ELF};
 
     pub fn sha_compress_program() -> Program {
         let w_ptr = 100;
@@ -100,7 +79,7 @@ pub mod compress_tests {
     #[test]
     fn test_sha_compress_program() {
         setup_logger();
-        let program = Program::from(SHA_COMPRESS_ELF);
+        let program = Program::from(SHA_COMPRESS_ELF).unwrap();
         run_test::<CpuProver<_, _>>(program).unwrap();
     }
 }

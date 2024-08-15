@@ -18,6 +18,7 @@ p3-matrix = { workspace = true }
 p3-util = { workspace = true }
 sp1-recursion-core = { workspace = true }
 sp1-core = { workspace = true }
+sp1-stark = { workspace = true }
 itertools = "0.13.0"
 serde = { version = "1.0.204", features = ["derive"] }
 sp1-recursion-derive = { workspace = true }

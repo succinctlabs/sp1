@@ -2,8 +2,9 @@ use p3_air::AirBuilder;
 use p3_field::AbstractField;
 use p3_field::Field;
 use sp1_derive::AlignedBorrow;
+use sp1_stark::air::SP1AirBuilder;
 
-use crate::{bytes::NUM_BYTE_LOOKUP_CHANNELS, stark::SP1AirBuilder};
+use crate::bytes::NUM_BYTE_LOOKUP_CHANNELS;
 
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]

@@ -3,8 +3,8 @@ use std::array;
 use p3_air::AirBuilder;
 use p3_field::{AbstractField, Field};
 use sp1_derive::AlignedBorrow;
-
-use crate::{air::Word, stark::SP1AirBuilder};
+use sp1_stark::air::SP1AirBuilder;
+use sp1_stark::Word;
 
 /// A set of columns needed to compute the add of two words.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]

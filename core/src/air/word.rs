@@ -1,121 +1,114 @@
-use core::fmt::Debug;
-use std::array::IntoIter;
-use std::ops::{Index, IndexMut};
+use std::array;
 
-use arrayref::array_ref;
 use itertools::Itertools;
-use p3_air::AirBuilder;
 use p3_field::AbstractField;
-use p3_field::Field;
-use serde::{Deserialize, Serialize};
-use sp1_derive::AlignedBorrow;
+use sp1_executor::ByteOpcode;
+use sp1_primitives::consts::WORD_SIZE;
+use sp1_stark::{air::ByteAirBuilder, Word};
 
-use super::SP1AirBuilder;
-
-/// The size of a word in bytes.
-pub const WORD_SIZE: usize = 4;
-
-/// A word is a 32-bit value represented in an AIR.
-#[derive(
-    AlignedBorrow, Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize,
-)]
-#[repr(C)]
-pub struct Word<T>(pub [T; WORD_SIZE]);
-
-impl<T> Word<T> {
-    /// Applies `f` to each element of the word.
-    pub fn map<F, S>(self, f: F) -> Word<S>
-    where
-        F: FnMut(T) -> S,
-    {
-        Word(self.0.map(f))
+pub trait WordAirBuilder: ByteAirBuilder {
+    /// Asserts that the two words are equal.
+    fn assert_word_eq(
+        &mut self,
+        left: Word<impl Into<Self::Expr>>,
+        right: Word<impl Into<Self::Expr>>,
+    ) {
+        for (left, right) in left.0.into_iter().zip(right.0) {
+            self.assert_eq(left, right);
+        }
     }
 
-    /// Extends a variable to a word.
-    pub fn extend_var<AB: SP1AirBuilder<Var = T>>(var: T) -> Word<AB::Expr> {
-        Word([
-            AB::Expr::zero() + var,
-            AB::Expr::zero(),
-            AB::Expr::zero(),
-            AB::Expr::zero(),
-        ])
-    }
-}
-
-impl<T: AbstractField> Word<T> {
-    /// Extends a variable to a word.
-    pub fn extend_expr<AB: SP1AirBuilder<Expr = T>>(expr: T) -> Word<AB::Expr> {
-        Word([
-            AB::Expr::zero() + expr,
-            AB::Expr::zero(),
-            AB::Expr::zero(),
-            AB::Expr::zero(),
-        ])
+    /// Asserts that the word is zero.
+    fn assert_word_zero(&mut self, word: Word<impl Into<Self::Expr>>) {
+        for limb in word.0 {
+            self.assert_zero(limb);
+        }
     }
 
-    /// Returns a word with all zero expressions.
-    pub fn zero<AB: SP1AirBuilder<Expr = T>>() -> Word<T> {
-        Word([
-            AB::Expr::zero(),
-            AB::Expr::zero(),
-            AB::Expr::zero(),
-            AB::Expr::zero(),
-        ])
+    /// Index an array of words using an index bitmap.
+    fn index_word_array(
+        &mut self,
+        array: &[Word<impl Into<Self::Expr> + Clone>],
+        index_bitmap: &[impl Into<Self::Expr> + Clone],
+    ) -> Word<Self::Expr> {
+        let mut result = Word::default();
+        for i in 0..WORD_SIZE {
+            result[i] = self.index_array(
+                array
+                    .iter()
+                    .map(|word| word[i].clone())
+                    .collect_vec()
+                    .as_slice(),
+                index_bitmap,
+            );
+        }
+        result
     }
-}
 
-impl<F: Field> Word<F> {
-    /// Converts a word to a u32.
-    pub fn to_u32(&self) -> u32 {
-        u32::from_le_bytes(self.0.map(|x| x.to_string().parse::<u8>().unwrap()))
+    /// Same as `if_else` above, but arguments are `Word` instead of individual expressions.
+    fn select_word(
+        &mut self,
+        condition: impl Into<Self::Expr> + Clone,
+        a: Word<impl Into<Self::Expr> + Clone>,
+        b: Word<impl Into<Self::Expr> + Clone>,
+    ) -> Word<Self::Expr> {
+        Word(array::from_fn(|i| {
+            self.if_else(condition.clone(), a[i].clone(), b[i].clone())
+        }))
     }
-}
 
-impl<V: Copy> Word<V> {
-    /// Reduces a word to a single variable.
-    pub fn reduce<AB: AirBuilder<Var = V>>(&self) -> AB::Expr {
-        let base = [1, 1 << 8, 1 << 16, 1 << 24].map(AB::Expr::from_canonical_u32);
-        self.0
-            .iter()
-            .enumerate()
-            .map(|(i, x)| base[i].clone() * *x)
-            .sum()
+    /// Check that each limb of the given slice is a u8.
+    fn slice_range_check_u8(
+        &mut self,
+        input: &[impl Into<Self::Expr> + Clone],
+        shard: impl Into<Self::Expr> + Clone,
+        channel: impl Into<Self::Expr> + Clone,
+        mult: impl Into<Self::Expr> + Clone,
+    ) {
+        let mut index = 0;
+        while index + 1 < input.len() {
+            self.send_byte(
+                Self::Expr::from_canonical_u8(ByteOpcode::U8Range as u8),
+                Self::Expr::zero(),
+                input[index].clone(),
+                input[index + 1].clone(),
+                shard.clone(),
+                channel.clone(),
+                mult.clone(),
+            );
+            index += 2;
+        }
+        if index < input.len() {
+            self.send_byte(
+                Self::Expr::from_canonical_u8(ByteOpcode::U8Range as u8),
+                Self::Expr::zero(),
+                input[index].clone(),
+                Self::Expr::zero(),
+                shard.clone(),
+                channel.clone(),
+                mult.clone(),
+            );
+        }
     }
-}
 
-impl<T> Index<usize> for Word<T> {
-    type Output = T;
-
-    fn index(&self, index: usize) -> &Self::Output {
-        &self.0[index]
-    }
-}
-
-impl<T> IndexMut<usize> for Word<T> {
-    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        &mut self.0[index]
-    }
-}
-
-impl<F: AbstractField> From<u32> for Word<F> {
-    fn from(value: u32) -> Self {
-        Word(value.to_le_bytes().map(F::from_canonical_u8))
-    }
-}
-
-impl<T> IntoIterator for Word<T> {
-    type Item = T;
-    type IntoIter = IntoIter<T, WORD_SIZE>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
-    }
-}
-
-impl<T: Clone> FromIterator<T> for Word<T> {
-    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
-        let elements = iter.into_iter().take(WORD_SIZE).collect_vec();
-
-        Word(array_ref![elements, 0, WORD_SIZE].clone())
+    /// Check that each limb of the given slice is a u16.
+    fn slice_range_check_u16(
+        &mut self,
+        input: &[impl Into<Self::Expr> + Copy],
+        shard: impl Into<Self::Expr> + Clone,
+        channel: impl Into<Self::Expr> + Clone,
+        mult: impl Into<Self::Expr> + Clone,
+    ) {
+        input.iter().for_each(|limb| {
+            self.send_byte(
+                Self::Expr::from_canonical_u8(ByteOpcode::U16Range as u8),
+                *limb,
+                Self::Expr::zero(),
+                Self::Expr::zero(),
+                shard.clone(),
+                channel.clone(),
+                mult.clone(),
+            );
+        });
     }
 }

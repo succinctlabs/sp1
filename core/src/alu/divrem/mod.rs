@@ -72,16 +72,16 @@ use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use sp1_derive::AlignedBorrow;
+use sp1_executor::events::ByteRecord;
+use sp1_executor::events::{create_alu_lookups, AluEvent, ByteLookupEvent};
+use sp1_executor::{ByteOpcode, ExecutionRecord, Opcode, Program};
+use sp1_primitives::consts::WORD_SIZE;
+use sp1_stark::air::MachineAir;
+use sp1_stark::Word;
 
-use crate::air::MachineAir;
-use crate::air::{SP1AirBuilder, Word};
+use crate::air::SP1CoreAirBuilder;
 use crate::alu::divrem::utils::{get_msb, get_quotient_and_remainder, is_signed_operation};
-use crate::alu::{create_alu_lookups, AluEvent};
-use crate::bytes::event::ByteRecord;
-use crate::bytes::{ByteLookupEvent, ByteOpcode};
-use crate::disassembler::WORD_SIZE;
 use crate::operations::{IsEqualWordOperation, IsZeroWordOperation};
-use crate::runtime::{ExecutionRecord, Opcode, Program};
 use crate::utils::pad_to_power_of_two;
 
 /// The number of main trace columns for `DivRemChip`.
@@ -560,7 +560,7 @@ impl<F> BaseAir<F> for DivRemChip {
 
 impl<AB> Air<AB> for DivRemChip
 where
-    AB: SP1AirBuilder,
+    AB: SP1CoreAirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
@@ -974,19 +974,11 @@ where
 #[cfg(test)]
 mod tests {
 
-    use crate::{
-        air::MachineAir,
-        stark::StarkGenericConfig,
-        utils::{uni_stark_prove as prove, uni_stark_verify as verify},
-    };
+    use crate::utils::{uni_stark_prove, uni_stark_verify};
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
-
-    use crate::{
-        alu::AluEvent,
-        runtime::{ExecutionRecord, Opcode},
-        utils::BabyBearPoseidon2,
-    };
+    use sp1_executor::{events::AluEvent, ExecutionRecord, Opcode};
+    use sp1_stark::{air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, StarkGenericConfig};
 
     use super::DivRemChip;
 
@@ -1059,9 +1051,9 @@ mod tests {
         let chip = DivRemChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
-        let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
+        let proof = uni_stark_prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();
-        verify(&config, &chip, &mut challenger, &proof).unwrap();
+        uni_stark_verify(&config, &chip, &mut challenger, &proof).unwrap();
     }
 }

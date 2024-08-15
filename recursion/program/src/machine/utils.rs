@@ -4,15 +4,12 @@ use itertools::Itertools;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::AbstractField;
 
-use sp1_core::{
-    air::MachineAir,
-    stark::{Com, StarkGenericConfig, StarkMachine, StarkVerifyingKey},
-};
 use sp1_recursion_compiler::ir::{Array, Builder, Config, Felt, Var};
 use sp1_recursion_core::{
     air::{RecursionPublicValues, NUM_PV_ELMS_TO_HASH, RECURSIVE_PROOF_NUM_PV_ELTS},
     runtime::DIGEST_SIZE,
 };
+use sp1_stark::{air::MachineAir, Com, StarkGenericConfig, StarkMachine, StarkVerifyingKey};
 
 use crate::{
     challenger::DuplexChallengerVariable,
@@ -87,11 +84,7 @@ pub(crate) fn proof_data_from_vk<C: Config, SC, A>(
     machine: &StarkMachine<SC, A>,
 ) -> VerifyingKeyVariable<C>
 where
-    SC: StarkGenericConfig<
-        Val = C::F,
-        Challenge = C::EF,
-        Domain = TwoAdicMultiplicativeCoset<C::F>,
-    >,
+    SC: StarkGenericConfig<Val = C::F, Challenge = C::EF, Domain = TwoAdicMultiplicativeCoset<C::F>>,
     A: MachineAir<SC::Val>,
     Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
 {

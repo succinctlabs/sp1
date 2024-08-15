@@ -41,15 +41,15 @@ use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::ParallelIterator;
 use p3_maybe_rayon::prelude::ParallelSlice;
 use sp1_derive::AlignedBorrow;
+use sp1_executor::events::{ByteLookupEvent, ByteRecord};
+use sp1_executor::{ByteOpcode, ExecutionRecord, Opcode, Program};
+use sp1_primitives::consts::WORD_SIZE;
+use sp1_stark::air::MachineAir;
+use sp1_stark::MachineRecord;
+use sp1_stark::Word;
 
-use crate::air::MachineAir;
-use crate::air::{SP1AirBuilder, Word};
+use crate::air::SP1CoreAirBuilder;
 use crate::alu::mul::utils::get_msb;
-use crate::bytes::event::ByteRecord;
-use crate::bytes::{ByteLookupEvent, ByteOpcode};
-use crate::disassembler::WORD_SIZE;
-use crate::runtime::{ExecutionRecord, Opcode, Program};
-use crate::stark::MachineRecord;
 use crate::utils::pad_to_power_of_two;
 
 /// The number of main trace columns for `MulChip`.
@@ -300,7 +300,7 @@ impl<F> BaseAir<F> for MulChip {
 
 impl<AB> Air<AB> for MulChip
 where
-    AB: SP1AirBuilder,
+    AB: SP1CoreAirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
@@ -478,19 +478,11 @@ where
 #[cfg(test)]
 mod tests {
 
-    use crate::{
-        air::MachineAir,
-        stark::StarkGenericConfig,
-        utils::{uni_stark_prove as prove, uni_stark_verify as verify},
-    };
+    use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
-
-    use crate::{
-        alu::AluEvent,
-        runtime::{ExecutionRecord, Opcode},
-        utils::BabyBearPoseidon2,
-    };
+    use sp1_executor::{events::AluEvent, ExecutionRecord, Opcode};
+    use sp1_stark::{air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, StarkGenericConfig};
 
     use super::MulChip;
 

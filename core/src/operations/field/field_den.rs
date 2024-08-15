@@ -2,14 +2,16 @@ use std::fmt::Debug;
 
 use num::BigUint;
 use p3_field::PrimeField32;
+use sp1_curves::params::FieldParameters;
+use sp1_curves::params::Limbs;
 use sp1_derive::AlignedBorrow;
+use sp1_executor::events::ByteRecord;
+use sp1_stark::air::Polynomial;
+use sp1_stark::air::SP1AirBuilder;
 
-use super::params::{FieldParameters, Limbs};
 use super::util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs};
 use super::util_air::eval_field_operation;
-use crate::air::Polynomial;
-use crate::air::SP1AirBuilder;
-use crate::bytes::event::ByteRecord;
+use crate::air::WordAirBuilder;
 
 /// A set of columns to compute `FieldDen(a, b)` where `a`, `b` are field elements.
 ///
@@ -165,18 +167,15 @@ mod tests {
     use num::BigUint;
     use p3_air::BaseAir;
     use p3_field::{Field, PrimeField32};
+    use sp1_curves::params::FieldParameters;
+    use sp1_executor::{ExecutionRecord, Program};
+    use sp1_stark::air::{MachineAir, SP1AirBuilder};
+    use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
+    use sp1_stark::StarkGenericConfig;
 
     use super::{FieldDenCols, Limbs};
 
-    use crate::air::MachineAir;
-
-    use crate::operations::field::params::FieldParameters;
-    use crate::runtime::Program;
-    use crate::stark::StarkGenericConfig;
-    use crate::utils::ec::edwards::ed25519::Ed25519BaseField;
-    use crate::utils::BabyBearPoseidon2;
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
-    use crate::{air::SP1AirBuilder, runtime::ExecutionRecord};
     use core::borrow::{Borrow, BorrowMut};
     use core::mem::size_of;
     use num::bigint::RandBigInt;
@@ -186,6 +185,7 @@ mod tests {
     use p3_matrix::dense::RowMajorMatrix;
     use p3_matrix::Matrix;
     use rand::thread_rng;
+    use sp1_curves::edwards::ed25519::Ed25519BaseField;
     use sp1_derive::AlignedBorrow;
 
     #[derive(Debug, Clone, AlignedBorrow)]

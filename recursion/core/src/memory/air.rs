@@ -3,11 +3,11 @@ use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
-use sp1_core::air::AirInteraction;
-use sp1_core::air::MachineAir;
-use sp1_core::lookup::InteractionKind;
 use sp1_core::utils::next_power_of_two;
 use sp1_core::utils::par_for_each_row;
+use sp1_stark::air::AirInteraction;
+use sp1_stark::air::MachineAir;
+use sp1_stark::InteractionKind;
 use std::borrow::{Borrow, BorrowMut};
 use tracing::instrument;
 
@@ -224,6 +224,9 @@ where
 #[cfg(test)]
 mod tests {
     use itertools::Itertools;
+    use sp1_stark::air::MachineAir;
+    use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
+    use sp1_stark::StarkGenericConfig;
     use std::time::Instant;
 
     use p3_baby_bear::BabyBear;
@@ -232,11 +235,7 @@ mod tests {
     use p3_matrix::{dense::RowMajorMatrix, Matrix};
     use p3_poseidon2::Poseidon2;
     use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
-    use sp1_core::stark::StarkGenericConfig;
-    use sp1_core::{
-        air::MachineAir,
-        utils::{uni_stark_prove, uni_stark_verify, BabyBearPoseidon2},
-    };
+    use sp1_core::utils::{uni_stark_prove, uni_stark_verify};
 
     use crate::air::Block;
     use crate::memory::MemoryGlobalChip;

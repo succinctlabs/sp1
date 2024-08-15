@@ -8,9 +8,9 @@ use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
-use sp1_core::air::{BaseAirBuilder, BinomialExtension, MachineAir};
 use sp1_core::utils::{next_power_of_two, par_for_each_row};
 use sp1_derive::AlignedBorrow;
+use sp1_stark::air::{BaseAirBuilder, BinomialExtension, MachineAir};
 use std::borrow::BorrowMut;
 use tracing::instrument;
 

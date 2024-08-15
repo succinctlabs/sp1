@@ -6,13 +6,13 @@ use p3_fri::FriConfig;
 use p3_merkle_tree::FieldMerkleTreeMmcs;
 use p3_poseidon2::{Poseidon2, Poseidon2ExternalMatrixGeneral};
 use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
-use sp1_core::air::MachineAir;
-use sp1_core::stark::{Dom, ShardProof, StarkGenericConfig, StarkMachine, StarkVerifyingKey};
-use sp1_core::utils::BabyBearPoseidon2;
 use sp1_recursion_compiler::asm::AsmConfig;
 use sp1_recursion_compiler::ir::{Array, Builder, Config, Felt, MemVariable, Var};
 use sp1_recursion_core::air::ChallengerPublicValues;
 use sp1_recursion_core::runtime::{DIGEST_SIZE, PERMUTATION_WIDTH};
+use sp1_stark::air::MachineAir;
+use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
+use sp1_stark::{Dom, ShardProof, StarkGenericConfig, StarkMachine, StarkVerifyingKey};
 
 use crate::challenger::DuplexChallengerVariable;
 use crate::fri::types::FriConfigVariable;

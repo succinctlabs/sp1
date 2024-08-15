@@ -1,8 +1,9 @@
 use p3_field::PrimeField32;
+use sp1_executor::events::{
+    ByteRecord, MemoryReadRecord, MemoryRecord, MemoryRecordEnum, MemoryWriteRecord,
+};
 
 use super::{MemoryAccessCols, MemoryReadCols, MemoryReadWriteCols, MemoryWriteCols};
-use crate::bytes::event::ByteRecord;
-use crate::runtime::{MemoryReadRecord, MemoryRecord, MemoryRecordEnum, MemoryWriteRecord};
 
 impl<F: PrimeField32> MemoryWriteCols<F> {
     pub fn populate(

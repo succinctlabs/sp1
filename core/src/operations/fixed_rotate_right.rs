@@ -1,14 +1,14 @@
 use p3_field::AbstractField;
 use p3_field::Field;
 use sp1_derive::AlignedBorrow;
+use sp1_executor::events::ByteLookupEvent;
+use sp1_executor::events::ByteRecord;
+use sp1_executor::ByteOpcode;
+use sp1_primitives::consts::WORD_SIZE;
+use sp1_stark::air::SP1AirBuilder;
+use sp1_stark::Word;
 
-use crate::air::SP1AirBuilder;
-use crate::air::Word;
-use crate::bytes::event::ByteRecord;
 use crate::bytes::utils::shr_carry;
-use crate::bytes::ByteLookupEvent;
-use crate::bytes::ByteOpcode;
-use crate::disassembler::WORD_SIZE;
 
 /// A set of columns needed to compute `rotateright` of a word with a fixed offset R.
 ///

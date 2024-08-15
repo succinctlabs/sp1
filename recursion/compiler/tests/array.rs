@@ -1,8 +1,6 @@
 use rand::{thread_rng, Rng};
 
 use p3_field::AbstractField;
-use sp1_core::stark::StarkGenericConfig;
-use sp1_core::utils::BabyBearPoseidon2;
 use sp1_recursion_compiler::asm::AsmBuilder;
 use sp1_recursion_compiler::ir::Array;
 use sp1_recursion_compiler::ir::Builder;
@@ -14,6 +12,8 @@ use sp1_recursion_compiler::ir::Variable;
 use sp1_recursion_compiler::ir::{Config, Ext, Felt, Var};
 use sp1_recursion_core::runtime::Runtime;
 use sp1_recursion_derive::DslVariable;
+use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
+use sp1_stark::StarkGenericConfig;
 
 #[derive(DslVariable, Clone, Debug)]
 pub struct Point<C: Config> {

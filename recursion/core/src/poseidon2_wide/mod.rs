@@ -130,9 +130,11 @@ pub(crate) mod tests {
     use p3_poseidon2::{Poseidon2, Poseidon2ExternalMatrixGeneral};
     use p3_symmetric::Permutation;
     use rand::random;
-    use sp1_core::air::MachineAir;
-    use sp1_core::stark::StarkGenericConfig;
-    use sp1_core::utils::{inner_perm, uni_stark_prove, uni_stark_verify, BabyBearPoseidon2};
+
+    use sp1_core::utils::{uni_stark_prove, uni_stark_verify};
+    use sp1_stark::air::MachineAir;
+    use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
+    use sp1_stark::{inner_perm, StarkGenericConfig};
     use zkhash::ark_ff::UniformRand;
 
     use super::events::{Poseidon2AbsorbEvent, Poseidon2CompressEvent, Poseidon2FinalizeEvent};

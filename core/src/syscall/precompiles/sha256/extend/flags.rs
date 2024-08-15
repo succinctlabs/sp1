@@ -6,9 +6,9 @@ use p3_field::Field;
 use p3_field::PrimeField32;
 use p3_field::TwoAdicField;
 use p3_matrix::Matrix;
+use sp1_stark::air::BaseAirBuilder;
+use sp1_stark::air::SP1AirBuilder;
 
-use crate::air::BaseAirBuilder;
-use crate::air::SP1AirBuilder;
 use crate::operations::IsZeroOperation;
 
 use super::ShaExtendChip;

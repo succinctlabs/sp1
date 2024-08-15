@@ -1,15 +1,19 @@
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_matrix::Matrix;
+use sp1_executor::syscalls::SyscallCode;
+use sp1_stark::air::SP1AirBuilder;
 
 use super::{ShaExtendChip, ShaExtendCols, NUM_SHA_EXTEND_COLS};
-use crate::air::{BaseAirBuilder, SP1AirBuilder};
+use crate::air::MemoryAirBuilder;
+use crate::air::WordAirBuilder;
 use crate::memory::MemoryCols;
 use crate::operations::{
     Add4Operation, FixedRotateRightOperation, FixedShiftRightOperation, XorOperation,
 };
-use crate::runtime::SyscallCode;
+
 use core::borrow::Borrow;
+use sp1_stark::air::BaseAirBuilder;
 
 impl<F> BaseAir<F> for ShaExtendChip {
     fn width(&self) -> usize {

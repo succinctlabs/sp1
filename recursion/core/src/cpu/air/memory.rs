@@ -1,6 +1,6 @@
 use p3_air::AirBuilder;
 use p3_field::Field;
-use sp1_core::runtime::MemoryAccessPosition;
+use sp1_executor::events::MemoryAccessPosition;
 
 use crate::{
     air::{BlockBuilder, SP1RecursionAirBuilder},

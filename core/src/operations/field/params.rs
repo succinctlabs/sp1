@@ -5,6 +5,7 @@ use std::slice::Iter;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
+use sp1_stark::air::Polynomial;
 use typenum::Unsigned;
 use typenum::{U2, U4};
 
@@ -14,8 +15,7 @@ use num::BigUint;
 
 use p3_field::Field;
 
-use crate::air::Polynomial;
-use crate::utils::ec::utils::biguint_from_limbs;
+use sp1_curves::utils::biguint_from_limbs;
 
 pub const NB_BITS_PER_LIMB: usize = 8;
 
@@ -154,12 +154,6 @@ impl<Var: Into<Expr> + Clone, N: ArrayLength, Expr: Clone> From<Limbs<Var, N>>
 {
     fn from(value: Limbs<Var, N>) -> Self {
         Polynomial::from_coefficients(&value.0.into_iter().map(|x| x.into()).collect::<Vec<_>>())
-    }
-}
-
-impl<'a, Var: Into<Expr> + Clone, Expr: Clone> From<Iter<'a, Var>> for Polynomial<Expr> {
-    fn from(value: Iter<'a, Var>) -> Self {
-        Polynomial::from_coefficients(&value.map(|x| (*x).clone().into()).collect::<Vec<_>>())
     }
 }
 

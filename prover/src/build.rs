@@ -2,10 +2,8 @@ use std::borrow::Borrow;
 use std::path::PathBuf;
 
 use p3_baby_bear::BabyBear;
-use sp1_core::runtime::SP1Context;
-use sp1_core::stark::StarkVerifyingKey;
-use sp1_core::utils::SP1ProverOpts;
-use sp1_core::{io::SP1Stdin, stark::ShardProof};
+use sp1_core::io::SP1Stdin;
+use sp1_executor::SP1Context;
 pub use sp1_recursion_circuit::stark::build_wrap_circuit;
 pub use sp1_recursion_circuit::witness::Witnessable;
 pub use sp1_recursion_compiler::ir::Witness;
@@ -13,6 +11,9 @@ use sp1_recursion_compiler::{config::OuterConfig, constraints::Constraint};
 use sp1_recursion_core::air::RecursionPublicValues;
 pub use sp1_recursion_core::stark::utils::sp1_dev_mode;
 use sp1_recursion_gnark_ffi::PlonkBn254Prover;
+use sp1_stark::SP1ProverOpts;
+use sp1_stark::ShardProof;
+use sp1_stark::StarkVerifyingKey;
 
 use crate::utils::{babybear_bytes_to_bn254, babybears_to_bn254, words_to_bytes};
 use crate::{OuterSC, SP1Prover};

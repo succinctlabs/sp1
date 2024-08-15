@@ -9,8 +9,7 @@ use crate::{
 };
 use core::iter::once;
 use p3_field::{extension::BinomiallyExtendable, PrimeField32};
-use sp1_core::stark::{Chip, StarkGenericConfig, StarkMachine, PROOF_MAX_NUM_PVS};
-use sp1_derive::MachineAir;
+use sp1_stark::{Chip, StarkGenericConfig, StarkMachine, PROOF_MAX_NUM_PVS};
 use std::marker::PhantomData;
 
 use crate::runtime::D;
@@ -19,8 +18,8 @@ pub type RecursionAirWideDeg3<F> = RecursionAir<F, 3>;
 pub type RecursionAirWideDeg9<F> = RecursionAir<F, 9>;
 pub type RecursionAirWideDeg17<F> = RecursionAir<F, 17>;
 
-#[derive(MachineAir)]
-#[sp1_core_path = "sp1_core"]
+#[derive(sp1_derive::MachineAir)]
+#[sp1_core_path = "sp1_stark"]
 #[execution_record_path = "crate::runtime::ExecutionRecord<F>"]
 #[program_path = "crate::runtime::RecursionProgram<F>"]
 #[builder_path = "crate::air::SP1RecursionAirBuilder<F = F>"]

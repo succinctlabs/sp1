@@ -8,6 +8,7 @@ use itertools::Itertools;
 use num::BigUint;
 use num::Zero;
 
+use crate::air::MemoryAirBuilder;
 use p3_air::AirBuilder;
 use p3_air::{Air, BaseAir};
 use p3_field::AbstractField;
@@ -17,14 +18,19 @@ use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::IntoParallelRefIterator;
 use p3_maybe_rayon::prelude::ParallelIterator;
 use p3_maybe_rayon::prelude::ParallelSlice;
+use sp1_curves::edwards::ed25519::Ed25519BaseField;
+use sp1_curves::edwards::EdwardsParameters;
+use sp1_curves::edwards::NUM_LIMBS;
+use sp1_curves::edwards::WORDS_CURVE_POINT;
+use sp1_curves::params::FieldParameters;
+use sp1_curves::{AffinePoint, EllipticCurve};
 use sp1_derive::AlignedBorrow;
+use sp1_executor::events::EllipticCurveAddEvent;
+use sp1_executor::events::{ByteLookupEvent, ByteRecord};
+use sp1_executor::syscalls::SyscallCode;
+use sp1_executor::{ExecutionRecord, Program};
+use sp1_stark::air::{BaseAirBuilder, MachineAir, SP1AirBuilder};
 
-use super::{NUM_LIMBS, WORDS_CURVE_POINT};
-use crate::air::BaseAirBuilder;
-use crate::air::MachineAir;
-use crate::air::SP1AirBuilder;
-use crate::bytes::event::ByteRecord;
-use crate::bytes::ByteLookupEvent;
 use crate::memory::value_as_limbs;
 use crate::memory::MemoryReadCols;
 use crate::memory::MemoryWriteCols;
@@ -32,17 +38,6 @@ use crate::operations::field::field_den::FieldDenCols;
 use crate::operations::field::field_inner_product::FieldInnerProductCols;
 use crate::operations::field::field_op::FieldOpCols;
 use crate::operations::field::field_op::FieldOperation;
-use crate::operations::field::params::FieldParameters;
-use crate::runtime::ExecutionRecord;
-use crate::runtime::Program;
-use crate::runtime::Syscall;
-use crate::runtime::SyscallCode;
-use crate::syscall::precompiles::SyscallContext;
-use crate::syscall::precompiles::{create_ec_add_event, ECAddEvent};
-use crate::utils::ec::edwards::ed25519::Ed25519BaseField;
-use crate::utils::ec::edwards::EdwardsParameters;
-use crate::utils::ec::AffinePoint;
-use crate::utils::ec::EllipticCurve;
 use crate::utils::limbs_from_prev_access;
 use crate::utils::pad_rows;
 
@@ -137,18 +132,6 @@ impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
     }
 }
 
-impl<E: EllipticCurve + EdwardsParameters> Syscall for EdAddAssignChip<E> {
-    fn num_extra_cycles(&self) -> u32 {
-        1
-    }
-
-    fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
-        let event = create_ec_add_event::<E>(rt, arg1, arg2);
-        rt.record_mut().ed_add_events.push(event);
-        None
-    }
-}
-
 impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for EdAddAssignChip<E> {
     type Record = ExecutionRecord;
 
@@ -237,7 +220,7 @@ impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
     /// Create a row from an event.
     fn event_to_row<F: PrimeField32>(
         &self,
-        event: &ECAddEvent,
+        event: &EllipticCurveAddEvent,
         cols: &mut EdAddAssignCols<F>,
         blu: &mut impl ByteRecord,
     ) {
@@ -431,22 +414,23 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::stark::CpuProver;
+    use sp1_executor::Program;
+    use sp1_stark::CpuProver;
+
     use crate::utils;
     use crate::utils::tests::{ED25519_ELF, ED_ADD_ELF};
-    use crate::Program;
 
     #[test]
     fn test_ed_add_simple() {
         utils::setup_logger();
-        let program = Program::from(ED_ADD_ELF);
+        let program = Program::from(ED_ADD_ELF).unwrap();
         utils::run_test::<CpuProver<_, _>>(program).unwrap();
     }
 
     #[test]
     fn test_ed25519_program() {
         utils::setup_logger();
-        let program = Program::from(ED25519_ELF);
+        let program = Program::from(ED25519_ELF).unwrap();
         utils::run_test::<CpuProver<_, _>>(program).unwrap();
     }
 }

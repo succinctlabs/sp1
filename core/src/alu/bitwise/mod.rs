@@ -10,15 +10,12 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::{IntoParallelRefIterator, ParallelIterator, ParallelSlice};
 use sp1_derive::AlignedBorrow;
+use sp1_executor::events::{AluEvent, ByteLookupEvent, ByteRecord};
+use sp1_executor::{ByteOpcode, ExecutionRecord, Opcode, Program};
+use sp1_stark::air::{MachineAir, SP1AirBuilder};
+use sp1_stark::Word;
 
-use crate::air::MachineAir;
-use crate::air::{SP1AirBuilder, Word};
-use crate::bytes::event::ByteRecord;
-use crate::bytes::{ByteLookupEvent, ByteOpcode};
-use crate::runtime::{ExecutionRecord, Opcode, Program};
 use crate::utils::pad_to_power_of_two;
-
-use super::AluEvent;
 
 /// The number of main trace columns for `BitwiseChip`.
 pub const NUM_BITWISE_COLS: usize = size_of::<BitwiseCols<u8>>();
@@ -236,15 +233,12 @@ where
 mod tests {
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
+    use sp1_executor::{events::AluEvent, ExecutionRecord, Opcode};
+    use sp1_stark::{air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, StarkGenericConfig};
 
-    use crate::air::MachineAir;
-    use crate::stark::StarkGenericConfig;
-    use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
+    use crate::utils::{uni_stark_prove, uni_stark_verify};
 
     use super::BitwiseChip;
-    use crate::alu::AluEvent;
-    use crate::runtime::{ExecutionRecord, Opcode};
-    use crate::utils::BabyBearPoseidon2;
 
     #[test]
     fn generate_trace() {
@@ -271,9 +265,9 @@ mod tests {
         let chip = BitwiseChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
-        let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
+        let proof = uni_stark_prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();
-        verify(&config, &chip, &mut challenger, &proof).unwrap();
+        uni_stark_verify(&config, &chip, &mut challenger, &proof).unwrap();
     }
 }

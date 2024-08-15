@@ -10,27 +10,27 @@ use p3_air::AirBuilderWithPublicValues;
 use p3_air::BaseAir;
 use p3_field::AbstractField;
 use p3_matrix::Matrix;
+use sp1_executor::ByteOpcode;
+use sp1_stark::air::BaseAirBuilder;
+use sp1_stark::air::PublicValues;
+use sp1_stark::air::SP1AirBuilder;
+use sp1_stark::air::SP1_PROOF_NUM_PV_ELTS;
+use sp1_stark::Word;
 
-use crate::air::BaseAirBuilder;
-use crate::air::PublicValues;
-use crate::air::SP1AirBuilder;
-use crate::air::Word;
-use crate::air::POSEIDON_NUM_WORDS;
-use crate::air::PV_DIGEST_NUM_WORDS;
-use crate::air::SP1_PROOF_NUM_PV_ELTS;
-use crate::bytes::ByteOpcode;
+use crate::air::MemoryAirBuilder;
+use crate::air::SP1CoreAirBuilder;
 use crate::cpu::columns::OpcodeSelectorCols;
 use crate::cpu::columns::{CpuCols, NUM_CPU_COLS};
 use crate::cpu::CpuChip;
 use crate::operations::BabyBearWordRangeChecker;
-use crate::runtime::Opcode;
+use sp1_executor::Opcode;
 
 use super::columns::eval_channel_selectors;
 use super::columns::OPCODE_SELECTORS_COL_MAP;
 
 impl<AB> Air<AB> for CpuChip
 where
-    AB: SP1AirBuilder + AirBuilderWithPublicValues,
+    AB: SP1CoreAirBuilder + AirBuilderWithPublicValues,
     AB::Var: Sized,
 {
     #[inline(never)]

@@ -15,7 +15,7 @@ use p3_symmetric::Hash;
 use p3_symmetric::{MultiField32PaddingFreeSponge, TruncatedPermutation};
 use serde::Deserialize;
 use serde::Serialize;
-use sp1_core::stark::StarkGenericConfig;
+use sp1_stark::StarkGenericConfig;
 
 use super::poseidon2::bn254_poseidon2_rc3;
 use super::utils;

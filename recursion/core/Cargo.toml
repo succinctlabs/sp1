@@ -22,6 +22,8 @@ sp1-derive = { workspace = true }
 sp1-primitives = { workspace = true }
 tracing = "0.1.40"
 sp1-core = { workspace = true }
+sp1-stark = { workspace = true }
+sp1-executor = { workspace = true }
 hashbrown = { version = "0.14.5", features = ["serde"] }
 itertools = "0.13.0"
 p3-bn254-fr = { workspace = true }

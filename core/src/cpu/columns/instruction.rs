@@ -1,10 +1,9 @@
 use p3_field::PrimeField;
 use sp1_derive::AlignedBorrow;
+use sp1_executor::{Instruction, Register};
+use sp1_stark::Word;
 use std::mem::size_of;
 use std::{iter::once, vec::IntoIter};
-
-use crate::runtime::Register;
-use crate::{air::Word, runtime::Instruction};
 
 pub const NUM_INSTRUCTION_COLS: usize = size_of::<InstructionCols<u8>>();
 

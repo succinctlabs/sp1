@@ -31,11 +31,11 @@ use std::env;
 
 pub use provers::{LocalProver, MockProver, Prover};
 
-pub use sp1_core::runtime::{ExecutionReport, Hook, HookEnv, SP1Context, SP1ContextBuilder};
-use sp1_core::SP1_CIRCUIT_VERSION;
+use sp1_core::{io::SP1Stdin, SP1_CIRCUIT_VERSION};
+pub use sp1_executor::{ExecutionReport, SP1Context, SP1ContextBuilder};
 pub use sp1_prover::{
     CoreSC, HashableKey, InnerSC, OuterSC, PlonkBn254Proof, SP1Prover, SP1ProvingKey,
-    SP1PublicValues, SP1Stdin, SP1VerifyingKey,
+    SP1VerifyingKey,
 };
 
 /// A client for interacting with SP1.
@@ -272,9 +272,9 @@ mod tests {
 
     use std::sync::atomic::{AtomicU32, Ordering};
 
-    use sp1_core::runtime::{hook_ecrecover, FD_ECRECOVER_HOOK};
-
     use crate::{utils, ProverClient, SP1Stdin};
+    use sp1_executor::hook_ecrecover;
+    use sp1_executor::FD_ECRECOVER_HOOK;
 
     #[test]
     fn test_execute() {

@@ -3,15 +3,16 @@ use std::fmt::Debug;
 use num::BigUint;
 use p3_air::AirBuilder;
 use p3_field::PrimeField32;
+use sp1_curves::params::{limbs_from_vec, FieldParameters, Limbs};
 use sp1_derive::AlignedBorrow;
 
+use sp1_executor::events::{ByteLookupEvent, ByteRecord};
+use sp1_executor::ByteOpcode;
+use sp1_stark::air::SP1AirBuilder;
+
 use super::field_op::FieldOpCols;
-use super::params::{limbs_from_vec, Limbs};
 use super::range::FieldLtCols;
-use crate::air::SP1AirBuilder;
-use crate::bytes::event::ByteRecord;
-use crate::bytes::{ByteLookupEvent, ByteOpcode};
-use crate::operations::field::params::FieldParameters;
+use crate::air::WordAirBuilder;
 use p3_field::AbstractField;
 
 /// A set of columns to compute the square root in emulated arithmetic.
@@ -174,19 +175,12 @@ mod tests {
     use num::{BigUint, One, Zero};
     use p3_air::BaseAir;
     use p3_field::{Field, PrimeField32};
+    use sp1_curves::params::{FieldParameters, Limbs};
+    use sp1_executor::{ExecutionRecord, Program};
+    use sp1_stark::air::{MachineAir, SP1AirBuilder};
 
-    use super::{FieldSqrtCols, Limbs};
-
-    use crate::air::MachineAir;
-
-    use crate::bytes::event::ByteRecord;
-    use crate::operations::field::params::FieldParameters;
-    use crate::runtime::Program;
-    use crate::stark::StarkGenericConfig;
-    use crate::utils::ec::edwards::ed25519::{ed25519_sqrt, Ed25519BaseField};
-    use crate::utils::{pad_to_power_of_two, BabyBearPoseidon2};
+    use crate::utils::pad_to_power_of_two;
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
-    use crate::{air::SP1AirBuilder, runtime::ExecutionRecord};
     use core::borrow::{Borrow, BorrowMut};
     use core::mem::size_of;
     use num::bigint::RandBigInt;
@@ -196,7 +190,13 @@ mod tests {
     use p3_matrix::dense::RowMajorMatrix;
     use p3_matrix::Matrix;
     use rand::thread_rng;
+    use sp1_curves::edwards::ed25519::{ed25519_sqrt, Ed25519BaseField};
     use sp1_derive::AlignedBorrow;
+    use sp1_executor::events::ByteRecord;
+    use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
+    use sp1_stark::StarkGenericConfig;
+
+    use super::FieldSqrtCols;
 
     #[derive(AlignedBorrow, Debug)]
     pub struct TestCols<T, P: FieldParameters> {

@@ -10,15 +10,13 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::*;
 use sp1_derive::AlignedBorrow;
+use sp1_executor::events::{AluEvent, ByteLookupEvent, ByteRecord};
+use sp1_executor::{ByteOpcode, ExecutionRecord, Opcode, Program};
+use sp1_stark::air::BaseAirBuilder;
+use sp1_stark::air::{MachineAir, SP1AirBuilder};
+use sp1_stark::Word;
 
-use crate::air::{BaseAirBuilder, MachineAir};
-use crate::air::{SP1AirBuilder, Word};
-use crate::bytes::event::ByteRecord;
-use crate::bytes::{ByteLookupEvent, ByteOpcode};
-use crate::runtime::{ExecutionRecord, Opcode, Program};
 use crate::utils::pad_to_power_of_two;
-
-use super::AluEvent;
 
 /// The number of main trace columns for `LtChip`.
 pub const NUM_LT_COLS: usize = size_of::<LtCols<u8>>();
@@ -489,19 +487,13 @@ where
 #[cfg(test)]
 mod tests {
 
-    use crate::{
-        air::MachineAir,
-        stark::StarkGenericConfig,
-        utils::{uni_stark_prove as prove, uni_stark_verify as verify},
-    };
+    use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
-
-    use crate::{
-        alu::AluEvent,
-        runtime::{ExecutionRecord, Opcode},
-        utils::BabyBearPoseidon2,
-    };
+    use sp1_executor::{events::AluEvent, ExecutionRecord, Opcode};
+    use sp1_stark::air::MachineAir;
+    use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
+    use sp1_stark::StarkGenericConfig;
 
     use super::LtChip;
 
@@ -510,8 +502,8 @@ mod tests {
         let mut shard = ExecutionRecord::default();
         shard.lt_events = vec![AluEvent::new(0, 1, 0, Opcode::SLT, 0, 3, 2)];
         let chip = LtChip::default();
-        let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&shard, &mut ExecutionRecord::default());
+        let generate_trace = chip.generate_trace(&shard, &mut ExecutionRecord::default());
+        let trace: RowMajorMatrix<BabyBear> = generate_trace;
         println!("{:?}", trace.values)
     }
 

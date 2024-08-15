@@ -1,7 +1,7 @@
 use p3_baby_bear::BabyBear;
-use sp1_core::stark::StarkGenericConfig;
 use sp1_core::utils;
-use sp1_core::utils::BabyBearPoseidon2;
+use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
+use sp1_stark::StarkGenericConfig;
 
 use crate::air::Block;
 use crate::runtime::RecursionProgram;

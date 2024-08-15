@@ -1,6 +1,5 @@
 use sp1_derive::AlignedBorrow;
-
-use crate::air::Word;
+use sp1_stark::Word;
 
 /// Memory read access.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]

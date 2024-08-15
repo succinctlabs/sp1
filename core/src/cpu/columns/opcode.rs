@@ -1,12 +1,10 @@
 use p3_field::PrimeField;
 use sp1_derive::AlignedBorrow;
+use sp1_executor::{Instruction, Opcode};
 use std::mem::{size_of, transmute};
 use std::vec::IntoIter;
 
-use crate::{
-    runtime::{Instruction, Opcode},
-    utils::indices_arr,
-};
+use crate::utils::indices_arr;
 
 pub const NUM_OPCODE_SELECTOR_COLS: usize = size_of::<OpcodeSelectorCols<u8>>();
 pub const OPCODE_SELECTORS_COL_MAP: OpcodeSelectorCols<usize> = make_selectors_col_map();

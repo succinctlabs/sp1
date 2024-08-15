@@ -4,10 +4,6 @@ use p3_air::Air;
 use p3_baby_bear::BabyBear;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::{AbstractField, PrimeField32, TwoAdicField};
-use sp1_core::air::MachineAir;
-use sp1_core::stark::StarkMachine;
-use sp1_core::stark::{Com, ShardProof, StarkGenericConfig, StarkVerifyingKey};
-use sp1_core::utils::BabyBearPoseidon2;
 use sp1_primitives::types::RecursionProgramType;
 use sp1_recursion_compiler::config::InnerConfig;
 use sp1_recursion_compiler::ir::{Builder, Config, Felt, Var};
@@ -16,6 +12,10 @@ use sp1_recursion_core::air::{RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS
 use sp1_recursion_core::runtime::{RecursionProgram, DIGEST_SIZE};
 
 use sp1_recursion_compiler::prelude::*;
+use sp1_stark::air::MachineAir;
+use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
+use sp1_stark::{Com, StarkVerifyingKey};
+use sp1_stark::{ShardProof, StarkGenericConfig, StarkMachine};
 
 use crate::challenger::{CanObserveVariable, DuplexChallengerVariable};
 use crate::fri::TwoAdicFriPcsVariable;
@@ -78,11 +78,7 @@ where
 impl<C: Config, SC, A> SP1RootVerifier<C, SC, A>
 where
     C::F: PrimeField32 + TwoAdicField,
-    SC: StarkGenericConfig<
-        Val = C::F,
-        Challenge = C::EF,
-        Domain = TwoAdicMultiplicativeCoset<C::F>,
-    >,
+    SC: StarkGenericConfig<Val = C::F, Challenge = C::EF, Domain = TwoAdicMultiplicativeCoset<C::F>>,
     A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
     Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
 {

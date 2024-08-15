@@ -5,23 +5,19 @@ pub use air::*;
 #[cfg(test)]
 mod tests {
 
-    use crate::operations::field::params::FieldParameters;
-    use crate::stark::CpuProver;
+    use sp1_curves::{params::FieldParameters, uint256::U256Field, utils::biguint_from_limbs};
+    use sp1_executor::Program;
+    use sp1_stark::CpuProver;
+
     use crate::{
         io::SP1Stdin,
-        runtime::Program,
-        utils::{
-            self,
-            ec::{uint256::U256Field, utils::biguint_from_limbs},
-            run_test_io,
-            tests::UINT256_MUL_ELF,
-        },
+        utils::{self, run_test_io, tests::UINT256_MUL_ELF},
     };
 
     #[test]
     fn test_uint256_mul() {
         utils::setup_logger();
-        let program = Program::from(UINT256_MUL_ELF);
+        let program = Program::from(UINT256_MUL_ELF).unwrap();
         run_test_io::<CpuProver<_, _>>(program, SP1Stdin::new()).unwrap();
     }
 

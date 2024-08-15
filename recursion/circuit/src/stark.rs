@@ -11,11 +11,7 @@ use p3_baby_bear::BabyBear;
 use p3_bn254_fr::Bn254Fr;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::{AbstractField, TwoAdicField};
-use sp1_core::stark::{Com, ShardProof, PROOF_MAX_NUM_PVS};
-use sp1_core::{
-    air::MachineAir,
-    stark::{ShardCommitment, StarkGenericConfig, StarkMachine, StarkVerifyingKey},
-};
+
 use sp1_recursion_compiler::config::OuterConfig;
 use sp1_recursion_compiler::constraints::{Constraint, ConstraintCompiler};
 use sp1_recursion_compiler::ir::{Builder, Config, Ext, Felt, Var};
@@ -27,6 +23,11 @@ use sp1_recursion_core::stark::RecursionAirWideDeg17;
 use sp1_recursion_program::commit::PolynomialSpaceVariable;
 use sp1_recursion_program::stark::RecursiveVerifierConstraintFolder;
 use sp1_recursion_program::types::QuotientDataValues;
+use sp1_stark::air::MachineAir;
+use sp1_stark::ShardProof;
+use sp1_stark::{Com, StarkVerifyingKey};
+use sp1_stark::{ShardCommitment, PROOF_MAX_NUM_PVS};
+use sp1_stark::{StarkGenericConfig, StarkMachine};
 
 use crate::domain::{new_coset, TwoAdicMultiplicativeCosetVariable};
 use crate::types::TwoAdicPcsMatsVariable;
@@ -40,11 +41,7 @@ pub struct StarkVerifierCircuit<C: Config, SC: StarkGenericConfig> {
 
 impl<C: Config, SC: StarkGenericConfig> StarkVerifierCircuit<C, SC>
 where
-    SC: StarkGenericConfig<
-        Val = C::F,
-        Challenge = C::EF,
-        Domain = TwoAdicMultiplicativeCoset<C::F>,
-    >,
+    SC: StarkGenericConfig<Val = C::F, Challenge = C::EF, Domain = TwoAdicMultiplicativeCoset<C::F>>,
 {
     pub fn verify_shard<A>(
         builder: &mut Builder<C>,
