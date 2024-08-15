@@ -217,7 +217,7 @@ impl<'a> Executor<'a> {
     /// Prepare a `HookEnv` for use by hooks.
     #[must_use]
     pub fn hook_env<'b>(&'b self) -> HookEnv<'b, 'a> {
-        todo!()
+        HookEnv { runtime: self }
     }
 
     /// Recover runtime state from a program and existing execution state.

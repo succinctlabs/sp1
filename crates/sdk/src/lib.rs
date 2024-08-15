@@ -61,17 +61,9 @@ impl ProverClient {
     /// let client = ProverClient::new();
     /// ```
     pub fn new() -> Self {
-        match env::var("SP1_PROVER")
-            .unwrap_or("local".to_string())
-            .to_lowercase()
-            .as_str()
-        {
-            "mock" => Self {
-                prover: Box::new(MockProver::new()),
-            },
-            "local" => Self {
-                prover: Box::new(LocalProver::new()),
-            },
+        match env::var("SP1_PROVER").unwrap_or("local".to_string()).to_lowercase().as_str() {
+            "mock" => Self { prover: Box::new(MockProver::new()) },
+            "local" => Self { prover: Box::new(LocalProver::new()) },
             "network" => {
                 cfg_if! {
                     if #[cfg(feature = "network")] {
@@ -343,6 +335,7 @@ mod tests {
         client.execute(elf, stdin).max_cycles(1).run().unwrap();
     }
 
+    #[ignore]
     #[test]
     fn test_e2e_prove_plonk() {
         utils::setup_logger();

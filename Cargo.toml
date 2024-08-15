@@ -24,9 +24,9 @@ members = [
   "crates/recursion/gnark-cli",
   "crates/recursion/gnark-ffi",
   "crates/recursion/program",
+  "crates/sdk",
   "crates/server",
   "crates/stark",
-  "crates/sdk",
   "crates/zkvm/*",
 ]
 exclude = ["examples/target"]
