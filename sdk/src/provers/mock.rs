@@ -69,6 +69,7 @@ impl Prover<DefaultProverComponents> for MockProver {
                 Ok(SP1ProofWithPublicValues {
                     proof: SP1Proof::Compressed(ShardProof {
                         commitment: ShardCommitment {
+                            phase1_main_commit: [BabyBear::zero(); 8].into(),
                             main_commit: [BabyBear::zero(); 8].into(),
                             global_permutation_commit: [BabyBear::zero(); 8].into(),
                             local_permutation_commit: [BabyBear::zero(); 8].into(),

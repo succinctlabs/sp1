@@ -607,16 +607,12 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                     );
                                 });
 
+                                let main_commit = data.main_commit;
+
                                 // Generate the proof.
                                 let proof = tracing::debug_span!("open").in_scope(|| {
                                     self.compress_prover
-                                        .open(
-                                            pk,
-                                            data.clone(),
-                                            &mut challenger,
-                                            data.main_commit,
-                                            &[],
-                                        )
+                                        .open(pk, data, &mut challenger, main_commit, &[])
                                         .unwrap()
                                 });
 
