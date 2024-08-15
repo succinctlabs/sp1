@@ -3,9 +3,8 @@ use std::iter::once;
 use p3_air::AirBuilder;
 use p3_field::AbstractField;
 use sp1_core_executor::ByteOpcode;
-use sp1_stark::air::ByteAirBuilder;
 use sp1_stark::{
-    air::{AirInteraction, BaseAirBuilder},
+    air::{AirInteraction, BaseAirBuilder, ByteAirBuilder},
     InteractionKind,
 };
 
@@ -163,8 +162,8 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
         // Verify that value = limb_16 + limb_8 * 2^16.
         self.when(do_check.clone()).assert_eq(
             value,
-            limb_16.clone().into()
-                + limb_8.clone().into() * Self::Expr::from_canonical_u32(1 << 16),
+            limb_16.clone().into() +
+                limb_8.clone().into() * Self::Expr::from_canonical_u32(1 << 16),
         );
 
         // Send the range checks for the limbs.

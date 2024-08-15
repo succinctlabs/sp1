@@ -1,5 +1,4 @@
-use crate::syscall_ed_add;
-use crate::utils::AffinePoint;
+use crate::{syscall_ed_add, utils::AffinePoint};
 
 /// The number of limbs in [Ed25519AffinePoint].
 pub const N: usize = 16;

@@ -4,10 +4,10 @@ use serde::{Deserialize, Serialize};
 use typenum::{U32, U62};
 
 use super::{SwCurve, WeierstrassParameters};
-use crate::params::FieldParameters;
-use crate::params::NumLimbs;
-use crate::CurveType;
-use crate::EllipticCurveParameters;
+use crate::{
+    params::{FieldParameters, NumLimbs},
+    CurveType, EllipticCurveParameters,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 /// Bn254 curve parameter

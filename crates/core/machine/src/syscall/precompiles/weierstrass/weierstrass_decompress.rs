@@ -1,36 +1,35 @@
-use core::borrow::{Borrow, BorrowMut};
-use core::mem::size_of;
+use core::{
+    borrow::{Borrow, BorrowMut},
+    mem::size_of,
+};
 use std::fmt::Debug;
 
 use crate::air::MemoryAirBuilder;
 use generic_array::GenericArray;
 use num::{BigUint, Zero};
 use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::AbstractField;
-use p3_field::PrimeField32;
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
+use p3_field::{AbstractField, PrimeField32};
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_executor::{events::ByteRecord, syscalls::SyscallCode, ExecutionRecord, Program};
-use sp1_curves::params::{limbs_from_vec, FieldParameters, Limbs, NumLimbs, NumWords};
-use sp1_curves::weierstrass::bls12_381::bls12381_sqrt;
-use sp1_curves::weierstrass::secp256k1::secp256k1_sqrt;
-use sp1_curves::weierstrass::WeierstrassParameters;
-use sp1_curves::{CurveType, EllipticCurve};
+use sp1_curves::{
+    params::{limbs_from_vec, FieldParameters, Limbs, NumLimbs, NumWords},
+    weierstrass::{bls12_381::bls12381_sqrt, secp256k1::secp256k1_sqrt, WeierstrassParameters},
+    CurveType, EllipticCurve,
+};
 use sp1_derive::AlignedBorrow;
-use sp1_stark::air::BaseAirBuilder;
-use sp1_stark::air::{MachineAir, SP1AirBuilder};
+use sp1_stark::air::{BaseAirBuilder, MachineAir, SP1AirBuilder};
 use std::marker::PhantomData;
 use typenum::Unsigned;
 
-use crate::memory::MemoryReadCols;
-use crate::memory::MemoryReadWriteCols;
-use crate::operations::field::field_op::FieldOpCols;
-use crate::operations::field::field_op::FieldOperation;
-use crate::operations::field::field_sqrt::FieldSqrtCols;
-use crate::operations::field::range::FieldLtCols;
-use crate::utils::limbs_from_access;
-use crate::utils::limbs_from_prev_access;
-use crate::utils::{bytes_to_words_le_vec, pad_rows};
+use crate::{
+    memory::{MemoryReadCols, MemoryReadWriteCols},
+    operations::field::{
+        field_op::{FieldOpCols, FieldOperation},
+        field_sqrt::FieldSqrtCols,
+        range::FieldLtCols,
+    },
+    utils::{bytes_to_words_le_vec, limbs_from_access, limbs_from_prev_access, pad_rows},
+};
 
 pub const fn num_weierstrass_decompress_cols<P: FieldParameters + NumWords>() -> usize {
     size_of::<WeierstrassDecompressCols<u8, P>>()
@@ -300,8 +299,8 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
 impl<F, E: EllipticCurve> BaseAir<F> for WeierstrassDecompressChip<E> {
     fn width(&self) -> usize {
-        num_weierstrass_decompress_cols::<E::BaseField>()
-            + match self.sign_rule {
+        num_weierstrass_decompress_cols::<E::BaseField>() +
+            match self.sign_rule {
                 SignChoiceRule::LeastSignificantBit => 0,
                 SignChoiceRule::Lexicographic => {
                     size_of::<LexicographicChoiceCols<u8, E::BaseField>>()
@@ -424,9 +423,8 @@ where
 
                 // Get the choice columns from the row slice
                 let choice_cols: &LexicographicChoiceCols<AB::Var, E::BaseField> = (*local_slice)
-                    [weierstrass_cols
-                        ..weierstrass_cols
-                            + size_of::<LexicographicChoiceCols<u8, E::BaseField>>()]
+                    [weierstrass_cols..
+                        weierstrass_cols + size_of::<LexicographicChoiceCols<u8, E::BaseField>>()]
                     .borrow();
 
                 // Range check the neg_y value since we are now using a lexicographic comparison.
@@ -557,18 +555,20 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::io::SP1Stdin;
-    use crate::utils::{self, tests::BLS12381_DECOMPRESS_ELF};
-    use amcl::bls381::bls381::basic::key_pair_generate_g2;
-    use amcl::bls381::bls381::utils::deserialize_g1;
-    use amcl::rand::RAND;
+    use crate::{
+        io::SP1Stdin,
+        utils::{self, tests::BLS12381_DECOMPRESS_ELF},
+    };
+    use amcl::{
+        bls381::bls381::{basic::key_pair_generate_g2, utils::deserialize_g1},
+        rand::RAND,
+    };
     use elliptic_curve::sec1::ToEncodedPoint;
     use rand::{thread_rng, Rng};
     use sp1_core_executor::Program;
     use sp1_stark::CpuProver;
 
-    use crate::utils::run_test_io;
-    use crate::utils::tests::SECP256K1_DECOMPRESS_ELF;
+    use crate::utils::{run_test_io, tests::SECP256K1_DECOMPRESS_ELF};
 
     #[test]
     fn test_weierstrass_bls_decompress() {

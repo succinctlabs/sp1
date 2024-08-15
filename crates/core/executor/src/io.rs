@@ -1,9 +1,7 @@
 use std::io::Read;
 
-use serde::de::DeserializeOwned;
-use serde::Serialize;
-use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
-use sp1_stark::{ShardProof, StarkVerifyingKey};
+use serde::{de::DeserializeOwned, Serialize};
+use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, ShardProof, StarkVerifyingKey};
 
 use super::Executor;
 

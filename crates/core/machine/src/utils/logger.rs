@@ -1,10 +1,9 @@
 use std::sync::Once;
 
 use tracing_forest::ForestLayer;
-use tracing_subscriber::fmt::format::FmtSpan;
-use tracing_subscriber::layer::SubscriberExt;
-use tracing_subscriber::util::SubscriberInitExt;
-use tracing_subscriber::{EnvFilter, Registry};
+use tracing_subscriber::{
+    fmt::format::FmtSpan, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Registry,
+};
 
 static INIT: Once = Once::new();
 
@@ -21,8 +20,8 @@ pub fn setup_logger() {
             .add_directive("p3_dft=off".parse().unwrap())
             .add_directive("p3_challenger=off".parse().unwrap());
 
-        // if the RUST_LOGGER environment variable is set, use it to determine which logger to configure
-        // (tracing_forest or tracing_subscriber)
+        // if the RUST_LOGGER environment variable is set, use it to determine which logger to
+        // configure (tracing_forest or tracing_subscriber)
         // otherwise, default to 'forest'
         let logger_type = std::env::var("RUST_LOGGER").unwrap_or_else(|_| "flat".to_string());
         match logger_type.as_str() {

@@ -1,8 +1,7 @@
 use sp1_core_machine::SP1_CIRCUIT_VERSION;
 
 use crate::PlonkBn254Proof;
-use std::io::Write;
-use std::process::Command;
+use std::{io::Write, process::Command};
 
 /// Checks that docker is installed and running.
 fn check_docker() -> bool {

@@ -1,19 +1,16 @@
 use itertools::izip;
-use sp1_core_executor::events::ByteLookupEvent;
-use sp1_core_executor::events::ByteRecord;
-use sp1_core_executor::ByteOpcode;
-use sp1_stark::air::BaseAirBuilder;
-use sp1_stark::air::Polynomial;
-use sp1_stark::air::SP1AirBuilder;
+use sp1_core_executor::{
+    events::{ByteLookupEvent, ByteRecord},
+    ByteOpcode,
+};
+use sp1_stark::air::{BaseAirBuilder, Polynomial, SP1AirBuilder};
 use std::fmt::Debug;
 
 use num::BigUint;
 
 use p3_air::AirBuilder;
-use p3_field::AbstractField;
-use p3_field::PrimeField32;
-use sp1_curves::params::FieldParameters;
-use sp1_curves::params::Limbs;
+use p3_field::{AbstractField, PrimeField32};
+use sp1_curves::params::{FieldParameters, Limbs};
 
 use sp1_derive::AlignedBorrow;
 

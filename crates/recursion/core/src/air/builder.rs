@@ -1,11 +1,15 @@
-use crate::cpu::{InstructionCols, OpcodeSelectorCols};
-use crate::memory::{MemoryAccessTimestampCols, MemoryCols};
-use crate::range_check::RangeCheckOpcode;
+use crate::{
+    cpu::{InstructionCols, OpcodeSelectorCols},
+    memory::{MemoryAccessTimestampCols, MemoryCols},
+    range_check::RangeCheckOpcode,
+};
 use core::iter::{once, repeat};
 use p3_air::{AirBuilder, AirBuilderWithPublicValues};
 use p3_field::AbstractField;
-use sp1_stark::air::{AirInteraction, BaseAirBuilder, MachineAirBuilder};
-use sp1_stark::InteractionKind;
+use sp1_stark::{
+    air::{AirInteraction, BaseAirBuilder, MachineAirBuilder},
+    InteractionKind,
+};
 
 use super::Block;
 
@@ -107,8 +111,8 @@ pub trait RecursionMemoryAirBuilder: RecursionInteractionAirBuilder {
     ///
     /// This method verifies that the inputted is less than 2^24 by doing a 16 bit and 12 bit range
     /// check on it's limbs.  It will also verify that the limbs are correct.  This method is needed
-    /// since the memory access timestamp check (see [Self::eval_memory_access_timestamp]) needs to assume
-    /// the clk is within 28 bits.
+    /// since the memory access timestamp check (see [Self::eval_memory_access_timestamp]) needs to
+    /// assume the clk is within 28 bits.
     fn eval_range_check_28bits(
         &mut self,
         value: impl Into<Self::Expr>,
@@ -119,8 +123,8 @@ pub trait RecursionMemoryAirBuilder: RecursionInteractionAirBuilder {
         // Verify that value = limb_16 + limb_12 * 2^16.
         self.when(is_real.clone()).assert_eq(
             value,
-            limb_16.clone().into()
-                + limb_12.clone().into() * Self::Expr::from_canonical_u32(1 << 16),
+            limb_16.clone().into() +
+                limb_12.clone().into() * Self::Expr::from_canonical_u32(1 << 16),
         );
 
         // Send the range checks for the limbs.

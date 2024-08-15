@@ -59,7 +59,8 @@ pub fn create_docker_command(
     );
 
     // When executing the Docker command:
-    // 1. Set the target directory to a subdirectory of the program's target directory to avoid build
+    // 1. Set the target directory to a subdirectory of the program's target directory to avoid
+    //    build
     // conflicts with the parent process. Source: https://github.com/rust-lang/cargo/issues/6412
     // 2. Set the rustup toolchain to succinct.
     // 3. Set the encoded rust flags.

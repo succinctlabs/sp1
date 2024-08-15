@@ -1,11 +1,10 @@
 #![allow(unused_unsafe)]
-use crate::syscall_write;
-use crate::{syscall_hint_len, syscall_hint_read};
-use serde::de::DeserializeOwned;
-use serde::Serialize;
-use std::alloc::Layout;
-use std::io::Result;
-use std::io::Write;
+use crate::{syscall_hint_len, syscall_hint_read, syscall_write};
+use serde::{de::DeserializeOwned, Serialize};
+use std::{
+    alloc::Layout,
+    io::{Result, Write},
+};
 
 /// The file descriptor for public values.
 pub const FD_PUBLIC_VALUES: u32 = 3;

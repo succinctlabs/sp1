@@ -4,17 +4,19 @@ use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_matrix::Matrix;
 use sp1_core_executor::syscalls::SyscallCode;
-use sp1_stark::air::SP1AirBuilder;
-use sp1_stark::Word;
+use sp1_stark::{air::SP1AirBuilder, Word};
 
-use super::columns::{ShaCompressCols, NUM_SHA_COMPRESS_COLS};
-use super::{ShaCompressChip, SHA_COMPRESS_K};
-use crate::air::MemoryAirBuilder;
-use crate::air::WordAirBuilder;
-use crate::memory::MemoryCols;
-use crate::operations::{
-    Add5Operation, AddOperation, AndOperation, FixedRotateRightOperation, NotOperation,
-    XorOperation,
+use super::{
+    columns::{ShaCompressCols, NUM_SHA_COMPRESS_COLS},
+    ShaCompressChip, SHA_COMPRESS_K,
+};
+use crate::{
+    air::{MemoryAirBuilder, WordAirBuilder},
+    memory::MemoryCols,
+    operations::{
+        Add5Operation, AddOperation, AndOperation, FixedRotateRightOperation, NotOperation,
+        XorOperation,
+    },
 };
 use sp1_stark::air::BaseAirBuilder;
 
@@ -102,7 +104,8 @@ impl ShaCompressChip {
         // The first row should have octet_num[0] = 1 if it's real.
         builder.when_first_row().assert_one(local.octet_num[0]);
 
-        // If current row is not last of an octet and next row is real, octet_num should be the same.
+        // If current row is not last of an octet and next row is real, octet_num should be the
+        // same.
         for i in 0..10 {
             builder
                 .when_transition()
@@ -142,15 +145,15 @@ impl ShaCompressChip {
         // Assert that the is_compression flag is correct.
         builder.assert_eq(
             local.is_compression,
-            (local.octet_num[1]
-                + local.octet_num[2]
-                + local.octet_num[3]
-                + local.octet_num[4]
-                + local.octet_num[5]
-                + local.octet_num[6]
-                + local.octet_num[7]
-                + local.octet_num[8])
-                * local.is_real,
+            (local.octet_num[1] +
+                local.octet_num[2] +
+                local.octet_num[3] +
+                local.octet_num[4] +
+                local.octet_num[5] +
+                local.octet_num[6] +
+                local.octet_num[7] +
+                local.octet_num[8]) *
+                local.is_real,
         );
 
         // Assert that the is_finalize flag is correct.
@@ -234,10 +237,10 @@ impl ShaCompressChip {
         // Verify correct mem address for compression phase
         builder.when(local.is_compression).assert_eq(
             local.mem_addr,
-            local.w_ptr
-                + (((cycle_num - AB::Expr::one()) * AB::Expr::from_canonical_u32(8))
-                    + cycle_step.clone())
-                    * AB::Expr::from_canonical_u32(4),
+            local.w_ptr +
+                (((cycle_num - AB::Expr::one()) * AB::Expr::from_canonical_u32(8)) +
+                    cycle_step.clone()) *
+                    AB::Expr::from_canonical_u32(4),
         );
 
         // Verify correct mem address for finalize phase

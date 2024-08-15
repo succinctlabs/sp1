@@ -1,10 +1,11 @@
-use alloc::collections::BTreeMap;
-use alloc::format;
+use alloc::{collections::BTreeMap, format};
 use core::fmt;
 
 use p3_field::{ExtensionField, PrimeField32};
-use sp1_recursion_core::cpu::Instruction;
-use sp1_recursion_core::runtime::{canonical_i32_to_field, Opcode, PERMUTATION_WIDTH};
+use sp1_recursion_core::{
+    cpu::Instruction,
+    runtime::{canonical_i32_to_field, Opcode, PERMUTATION_WIDTH},
+};
 
 use super::A0;
 
@@ -188,10 +189,11 @@ pub enum AsmInstruction<F, EF> {
 
     CycleTracker(String),
 
-    /// ExpReverseBitsLen instruction: (mathematical description) given `x`, `exp`, `len`, bit-reverse the last `len` bits of
-    /// `exp` and raise `x` to the power of the resulting value. The arguments are a pointer to the
-    /// addresss at which `x` is located (will be written to with the result), a pointer to the
-    /// address containing the bits of `exp` stored as a little-endian bit array, and `len`.
+    /// ExpReverseBitsLen instruction: (mathematical description) given `x`, `exp`, `len`,
+    /// bit-reverse the last `len` bits of `exp` and raise `x` to the power of the resulting
+    /// value. The arguments are a pointer to the addresss at which `x` is located (will be
+    /// written to with the result), a pointer to the address containing the bits of `exp`
+    /// stored as a little-endian bit array, and `len`.
     ExpReverseBitsLen(i32, i32, i32),
 }
 

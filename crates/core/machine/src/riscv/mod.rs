@@ -1,38 +1,37 @@
 use crate::memory::{MemoryChipType, MemoryProgramChip};
 use p3_field::PrimeField32;
 pub use riscv_chips::*;
-use sp1_stark::air::MachineAir;
-use sp1_stark::{air::SP1_PROOF_NUM_PV_ELTS, Chip, StarkGenericConfig, StarkMachine};
+use sp1_stark::{
+    air::{MachineAir, SP1_PROOF_NUM_PV_ELTS},
+    Chip, StarkGenericConfig, StarkMachine,
+};
 use tracing::instrument;
 
 /// A module for importing all the different RISC-V chips.
 pub(crate) mod riscv_chips {
-    pub use crate::alu::AddSubChip;
-    pub use crate::alu::BitwiseChip;
-    pub use crate::alu::DivRemChip;
-    pub use crate::alu::LtChip;
-    pub use crate::alu::MulChip;
-    pub use crate::alu::ShiftLeft;
-    pub use crate::alu::ShiftRightChip;
-    pub use crate::bytes::ByteChip;
-    pub use crate::cpu::CpuChip;
-    pub use crate::memory::MemoryChip;
-    pub use crate::program::ProgramChip;
-    pub use crate::syscall::precompiles::edwards::EdAddAssignChip;
-    pub use crate::syscall::precompiles::edwards::EdDecompressChip;
-    pub use crate::syscall::precompiles::keccak256::KeccakPermuteChip;
-    pub use crate::syscall::precompiles::sha256::ShaCompressChip;
-    pub use crate::syscall::precompiles::sha256::ShaExtendChip;
-    pub use crate::syscall::precompiles::uint256::Uint256MulChip;
-    pub use crate::syscall::precompiles::weierstrass::WeierstrassAddAssignChip;
-    pub use crate::syscall::precompiles::weierstrass::WeierstrassDecompressChip;
-    pub use crate::syscall::precompiles::weierstrass::WeierstrassDoubleAssignChip;
-    pub use sp1_curves::edwards::ed25519::Ed25519Parameters;
-    pub use sp1_curves::edwards::EdwardsCurve;
-    pub use sp1_curves::weierstrass::bls12_381::Bls12381Parameters;
-    pub use sp1_curves::weierstrass::bn254::Bn254Parameters;
-    pub use sp1_curves::weierstrass::secp256k1::Secp256k1Parameters;
-    pub use sp1_curves::weierstrass::SwCurve;
+    pub use crate::{
+        alu::{AddSubChip, BitwiseChip, DivRemChip, LtChip, MulChip, ShiftLeft, ShiftRightChip},
+        bytes::ByteChip,
+        cpu::CpuChip,
+        memory::MemoryChip,
+        program::ProgramChip,
+        syscall::precompiles::{
+            edwards::{EdAddAssignChip, EdDecompressChip},
+            keccak256::KeccakPermuteChip,
+            sha256::{ShaCompressChip, ShaExtendChip},
+            uint256::Uint256MulChip,
+            weierstrass::{
+                WeierstrassAddAssignChip, WeierstrassDecompressChip, WeierstrassDoubleAssignChip,
+            },
+        },
+    };
+    pub use sp1_curves::{
+        edwards::{ed25519::Ed25519Parameters, EdwardsCurve},
+        weierstrass::{
+            bls12_381::Bls12381Parameters, bn254::Bn254Parameters, secp256k1::Secp256k1Parameters,
+            SwCurve,
+        },
+    };
 }
 
 /// An AIR for encoding RISC-V execution.
@@ -190,24 +189,23 @@ impl<F: PrimeField32> core::hash::Hash for RiscvAir<F> {
 #[allow(non_snake_case)]
 pub mod tests {
 
-    use crate::io::SP1Stdin;
-    use crate::riscv::RiscvAir;
-    use crate::utils;
-    use crate::utils::prove;
-    use crate::utils::run_test;
-    use crate::utils::setup_logger;
+    use crate::{
+        io::SP1Stdin,
+        riscv::RiscvAir,
+        utils,
+        utils::{prove, run_test, setup_logger},
+    };
 
-    use sp1_core_executor::programs::tests::fibonacci_program;
-    use sp1_core_executor::programs::tests::simple_memory_program;
-    use sp1_core_executor::programs::tests::{simple_program, ssz_withdrawals_program};
-    use sp1_core_executor::Instruction;
-    use sp1_core_executor::Opcode;
-    use sp1_core_executor::Program;
-    use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
-    use sp1_stark::CpuProver;
-    use sp1_stark::SP1CoreOpts;
-    use sp1_stark::StarkProvingKey;
-    use sp1_stark::StarkVerifyingKey;
+    use sp1_core_executor::{
+        programs::tests::{
+            fibonacci_program, simple_memory_program, simple_program, ssz_withdrawals_program,
+        },
+        Instruction, Opcode, Program,
+    };
+    use sp1_stark::{
+        baby_bear_poseidon2::BabyBearPoseidon2, CpuProver, SP1CoreOpts, StarkProvingKey,
+        StarkVerifyingKey,
+    };
 
     #[test]
     fn test_simple_prove() {

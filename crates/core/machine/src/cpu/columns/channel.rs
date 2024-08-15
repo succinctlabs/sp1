@@ -1,6 +1,5 @@
 use p3_air::AirBuilder;
-use p3_field::AbstractField;
-use p3_field::Field;
+use p3_field::{AbstractField, Field};
 use sp1_derive::AlignedBorrow;
 use sp1_stark::air::SP1AirBuilder;
 

@@ -1,5 +1,6 @@
 //! RISC-V tracer for SP1 traces. This tool can be used to analyze function call graphs and
-//! instruction counts from a trace file from SP1 execution by setting the `TRACE_FILE` env variable.
+//! instruction counts from a trace file from SP1 execution by setting the `TRACE_FILE` env
+//! variable.
 //
 // Adapted from Sovereign's RISC-V tracer tool: https://github.com/Sovereign-Labs/riscv-cycle-tracer.
 //
@@ -24,13 +25,14 @@ use indicatif::{ProgressBar, ProgressStyle};
 use prettytable::{format, Cell, Row, Table};
 use regex::Regex;
 use rustc_demangle::demangle;
-use std::cmp::Ordering;
-use std::collections::HashMap;
-use std::io::Read;
-use std::process::Command;
-use std::str;
-use std::sync::atomic::AtomicBool;
-use std::sync::Arc;
+use std::{
+    cmp::Ordering,
+    collections::HashMap,
+    io::Read,
+    process::Command,
+    str,
+    sync::{atomic::AtomicBool, Arc},
+};
 use textwrap::wrap;
 
 #[derive(Parser, Debug)]

@@ -36,7 +36,8 @@ impl<F: Field, const L: usize> CpuChip<F, L> {
         builder
             .when(local.selectors.is_load)
             .assert_block_eq(*memory_cols.memory.prev_value(), *memory_cols.memory.value());
-        // When there is a store, we ensure that we are writing the value of the a operand to the memory.
+        // When there is a store, we ensure that we are writing the value of the a operand to the
+        // memory.
         builder
             .when(is_memory_instr)
             .assert_block_eq(*local.a.value(), *memory_cols.memory.value());

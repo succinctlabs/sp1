@@ -1,34 +1,37 @@
-use core::borrow::{Borrow, BorrowMut};
-use core::mem::size_of;
-use std::fmt::Debug;
-use std::marker::PhantomData;
+use core::{
+    borrow::{Borrow, BorrowMut},
+    mem::size_of,
+};
+use std::{fmt::Debug, marker::PhantomData};
 
 use crate::air::MemoryAirBuilder;
 use generic_array::GenericArray;
-use num::BigUint;
-use num::Zero;
-use p3_air::AirBuilder;
-use p3_air::{Air, BaseAir};
-use p3_field::AbstractField;
-use p3_field::PrimeField32;
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
-use p3_maybe_rayon::prelude::ParallelIterator;
-use p3_maybe_rayon::prelude::ParallelSlice;
-use sp1_core_executor::events::ByteRecord;
-use sp1_core_executor::{events::ByteLookupEvent, syscalls::SyscallCode, ExecutionRecord, Program};
-use sp1_curves::params::{FieldParameters, Limbs, NumLimbs, NumWords};
-use sp1_curves::weierstrass::WeierstrassParameters;
-use sp1_curves::{AffinePoint, CurveType, EllipticCurve};
+use num::{BigUint, Zero};
+use p3_air::{Air, AirBuilder, BaseAir};
+use p3_field::{AbstractField, PrimeField32};
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
+use p3_maybe_rayon::prelude::{ParallelIterator, ParallelSlice};
+use sp1_core_executor::{
+    events::{ByteLookupEvent, ByteRecord},
+    syscalls::SyscallCode,
+    ExecutionRecord, Program,
+};
+use sp1_curves::{
+    params::{FieldParameters, Limbs, NumLimbs, NumWords},
+    weierstrass::WeierstrassParameters,
+    AffinePoint, CurveType, EllipticCurve,
+};
 use sp1_derive::AlignedBorrow;
-use sp1_stark::air::{MachineAir, SP1AirBuilder};
-use sp1_stark::MachineRecord;
+use sp1_stark::{
+    air::{MachineAir, SP1AirBuilder},
+    MachineRecord,
+};
 
-use crate::memory::MemoryCols;
-use crate::memory::MemoryWriteCols;
-use crate::operations::field::field_op::FieldOpCols;
-use crate::operations::field::field_op::FieldOperation;
-use crate::utils::{limbs_from_prev_access, pad_rows};
+use crate::{
+    memory::{MemoryCols, MemoryWriteCols},
+    operations::field::field_op::{FieldOpCols, FieldOperation},
+    utils::{limbs_from_prev_access, pad_rows},
+};
 
 pub const fn num_weierstrass_double_cols<P: FieldParameters + NumWords>() -> usize {
     size_of::<WeierstrassDoubleAssignCols<u8, P>>()
@@ -297,9 +300,9 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
         // Write the nonces to the trace.
         for i in 0..trace.height() {
-            let cols: &mut WeierstrassDoubleAssignCols<F, E::BaseField> = trace.values[i
-                * num_weierstrass_double_cols::<E::BaseField>()
-                ..(i + 1) * num_weierstrass_double_cols::<E::BaseField>()]
+            let cols: &mut WeierstrassDoubleAssignCols<F, E::BaseField> = trace.values[i *
+                num_weierstrass_double_cols::<E::BaseField>()..
+                (i + 1) * num_weierstrass_double_cols::<E::BaseField>()]
                 .borrow_mut();
             cols.nonce = F::from_canonical_usize(i);
         }

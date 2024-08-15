@@ -4,26 +4,25 @@ pub mod proto {
 }
 
 use core::time::Duration;
-use std::process::Command;
-use std::process::Stdio;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::{
+    process::{Command, Stdio},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+};
 
 use crate::proto::api::ProverServiceClient;
 
 use serde::{Deserialize, Serialize};
-use sp1_core_machine::io::SP1Stdin;
-use sp1_core_machine::utils::SP1CoreProverError;
-use sp1_prover::types::SP1ProvingKey;
-use sp1_prover::InnerSC;
-use sp1_prover::SP1CoreProof;
-use sp1_prover::SP1RecursionProverError;
-use sp1_prover::SP1ReduceProof;
-use sp1_prover::SP1VerifyingKey;
+use sp1_core_machine::{io::SP1Stdin, utils::SP1CoreProverError};
+use sp1_prover::{
+    types::SP1ProvingKey, InnerSC, SP1CoreProof, SP1RecursionProverError, SP1ReduceProof,
+    SP1VerifyingKey,
+};
 use sp1_stark::ShardProof;
 use tokio::runtime::Runtime;
-use twirp::url::Url;
-use twirp::Client;
+use twirp::{url::Url, Client};
 
 /// A remote client to [sp1_prover::SP1Prover] that runs inside a container.
 ///
@@ -189,16 +188,16 @@ fn cleanup_container(container_name: &str) {
 
 #[cfg(test)]
 mod tests {
-    use sp1_core_machine::utils;
-    use sp1_core_machine::utils::tests::FIBONACCI_ELF;
-    use sp1_prover::components::DefaultProverComponents;
-    use sp1_prover::{InnerSC, SP1CoreProof, SP1Prover, SP1ReduceProof};
-    use twirp::url::Url;
-    use twirp::Client;
+    use sp1_core_machine::{utils, utils::tests::FIBONACCI_ELF};
+    use sp1_prover::{
+        components::DefaultProverComponents, InnerSC, SP1CoreProof, SP1Prover, SP1ReduceProof,
+    };
+    use twirp::{url::Url, Client};
 
-    use crate::SP1Stdin;
-    use crate::{proto::api::ProverServiceClient, ProveCoreRequestPayload};
-    use crate::{CompressRequestPayload, SP1ProverServer};
+    use crate::{
+        proto::api::ProverServiceClient, CompressRequestPayload, ProveCoreRequestPayload,
+        SP1ProverServer, SP1Stdin,
+    };
 
     #[ignore]
     #[test]

@@ -1,13 +1,8 @@
-use std::fs::File;
-use std::io::Write;
+use std::{fs::File, io::Write};
 
-use p3_field::AbstractExtensionField;
-use p3_field::AbstractField;
-use p3_field::PrimeField;
-use serde::Deserialize;
-use serde::Serialize;
-use sp1_recursion_compiler::ir::Config;
-use sp1_recursion_compiler::ir::Witness;
+use p3_field::{AbstractExtensionField, AbstractField, PrimeField};
+use serde::{Deserialize, Serialize};
+use sp1_recursion_compiler::ir::{Config, Witness};
 
 /// A witness that can be used to initialize values for witness generation inside Gnark.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

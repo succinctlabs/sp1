@@ -46,7 +46,8 @@ pub(crate) fn assert_complete<C: Config>(
     // Assert that start shard is equal to 1.
     builder.assert_felt_eq(*start_shard, C::F::one());
 
-    // Assert that the next shard is not equal to one. This guarantees that there is at least one shard.
+    // Assert that the next shard is not equal to one. This guarantees that there is at least one
+    // shard.
     builder.assert_felt_ne(*next_shard, C::F::one());
 
     // Assert that the start execution shard is equal to 1.

@@ -1,11 +1,11 @@
 use p3_field::AbstractField;
 use sp1_stark::air::SP1AirBuilder;
 
-use crate::air::MemoryAirBuilder;
-use crate::air::WordAirBuilder;
-use crate::cpu::columns::CpuCols;
-use crate::cpu::CpuChip;
-use crate::memory::MemoryCols;
+use crate::{
+    air::{MemoryAirBuilder, WordAirBuilder},
+    cpu::{columns::CpuCols, CpuChip},
+    memory::MemoryCols,
+};
 use sp1_core_executor::events::MemoryAccessPosition;
 
 impl CpuChip {

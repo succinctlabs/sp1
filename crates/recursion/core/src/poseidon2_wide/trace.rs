@@ -3,26 +3,25 @@ use std::borrow::Borrow;
 use p3_air::BaseAir;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
-use p3_maybe_rayon::prelude::IndexedParallelIterator;
-use p3_maybe_rayon::prelude::ParallelIterator;
-use p3_maybe_rayon::prelude::ParallelSliceMut;
-use sp1_core_machine::utils::next_power_of_two;
-use sp1_core_machine::utils::par_for_each_row;
+use p3_maybe_rayon::prelude::{IndexedParallelIterator, ParallelIterator, ParallelSliceMut};
+use sp1_core_machine::utils::{next_power_of_two, par_for_each_row};
 use sp1_primitives::RC_16_30_U32;
 use sp1_stark::air::MachineAir;
 use tracing::instrument;
 
-use crate::poseidon2_wide::columns::permutation::permutation_mut;
-use crate::poseidon2_wide::events::Poseidon2HashEvent;
-use crate::range_check::{RangeCheckEvent, RangeCheckOpcode};
 use crate::{
-    poseidon2_wide::{external_linear_layer, NUM_EXTERNAL_ROUNDS, WIDTH},
+    poseidon2_wide::{
+        columns::permutation::permutation_mut, events::Poseidon2HashEvent, external_linear_layer,
+        NUM_EXTERNAL_ROUNDS, WIDTH,
+    },
+    range_check::{RangeCheckEvent, RangeCheckOpcode},
     runtime::{ExecutionRecord, RecursionProgram},
 };
 
-use super::events::{Poseidon2AbsorbEvent, Poseidon2CompressEvent, Poseidon2FinalizeEvent};
-use super::RATE;
-use super::{internal_linear_layer, Poseidon2WideChip, NUM_INTERNAL_ROUNDS};
+use super::{
+    events::{Poseidon2AbsorbEvent, Poseidon2CompressEvent, Poseidon2FinalizeEvent},
+    internal_linear_layer, Poseidon2WideChip, NUM_INTERNAL_ROUNDS, RATE,
+};
 
 impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<DEGREE> {
     type Record = ExecutionRecord<F>;
@@ -59,8 +58,9 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
         let num_columns = <Poseidon2WideChip<DEGREE> as BaseAir<F>>::width(self);
         let mut rows = vec![F::zero(); nb_padded_rows * num_columns];
 
-        // Populate the hash events.  We do this serially, since each absorb event could populate a different
-        // number of rows.  Also, most of the rows are populated by the compress events.
+        // Populate the hash events.  We do this serially, since each absorb event could populate a
+        // different number of rows.  Also, most of the rows are populated by the compress
+        // events.
         let mut row_cursor = 0;
         for event in &input.poseidon2_hash_events {
             match event {
@@ -219,7 +219,8 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         num_columns: usize,
         output: &mut ExecutionRecord<F>,
     ) {
-        // We currently don't support an input_len of 0, since it will need special logic in the AIR.
+        // We currently don't support an input_len of 0, since it will need special logic in the
+        // AIR.
         assert!(absorb_event.input_len > F::zero());
 
         let mut last_row_ending_cursor = 0;
@@ -294,14 +295,15 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                 )]);
 
                 // Calculate last_row_num_consumed.
-                // For absorb calls that span multiple rows (e.g. the last row is not the syscall row),
-                // last_row_num_consumed = (input_len + state_cursor) % 8 at the syscall row.
-                // For absorb calls that are only one row, last_row_num_consumed = absorb_event.input_len.
+                // For absorb calls that span multiple rows (e.g. the last row is not the syscall
+                // row), last_row_num_consumed = (input_len + state_cursor) % 8 at
+                // the syscall row. For absorb calls that are only one row,
+                // last_row_num_consumed = absorb_event.input_len.
                 if is_syscall_row {
-                    last_row_ending_cursor = (absorb_iter.state_cursor
-                        + absorb_event.input_len.as_canonical_u32() as usize
-                        - 1)
-                        % RATE;
+                    last_row_ending_cursor = (absorb_iter.state_cursor +
+                        absorb_event.input_len.as_canonical_u32() as usize -
+                        1) %
+                        RATE;
                 }
 
                 absorb_workspace.last_row_ending_cursor =
@@ -475,7 +477,8 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             // Add round constants.
             //
             // Optimization: Since adding a constant is a degree 1 operation, we can avoid adding
-            // columns for it, and instead include it in the constraint for the x^3 part of the sbox.
+            // columns for it, and instead include it in the constraint for the x^3 part of the
+            // sbox.
             let round = if r < NUM_EXTERNAL_ROUNDS / 2 { r } else { r + NUM_INTERNAL_ROUNDS };
             let mut add_rc = *round_state;
             for i in 0..WIDTH {

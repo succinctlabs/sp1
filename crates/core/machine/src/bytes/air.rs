@@ -1,15 +1,15 @@
 use core::borrow::Borrow;
 
-use p3_air::PairBuilder;
-use p3_air::{Air, BaseAir};
-use p3_field::AbstractField;
-use p3_field::Field;
+use p3_air::{Air, BaseAir, PairBuilder};
+use p3_field::{AbstractField, Field};
 use p3_matrix::Matrix;
 use sp1_core_executor::ByteOpcode;
 use sp1_stark::air::SP1AirBuilder;
 
-use super::columns::{ByteMultCols, BytePreprocessedCols, NUM_BYTE_MULT_COLS};
-use super::{ByteChip, NUM_BYTE_LOOKUP_CHANNELS};
+use super::{
+    columns::{ByteMultCols, BytePreprocessedCols, NUM_BYTE_MULT_COLS},
+    ByteChip, NUM_BYTE_LOOKUP_CHANNELS,
+};
 
 impl<F: Field> BaseAir<F> for ByteChip<F> {
     fn width(&self) -> usize {

@@ -6,11 +6,12 @@ use p3_air::AirBuilder;
 use p3_field::PrimeField32;
 use sp1_core_executor::events::ByteRecord;
 use sp1_derive::AlignedBorrow;
-use sp1_stark::air::Polynomial;
-use sp1_stark::air::SP1AirBuilder;
+use sp1_stark::air::{Polynomial, SP1AirBuilder};
 
-use super::util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs};
-use super::util_air::eval_field_operation;
+use super::{
+    util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs},
+    util_air::eval_field_operation,
+};
 use sp1_curves::params::{FieldParameters, Limbs};
 
 use typenum::Unsigned;
@@ -71,7 +72,8 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
         }
 
         // Here we have special logic for p_modulus because to_limbs_field only works for numbers in
-        // the field, but modulus can == the field modulus so it can have 1 extra limb (ex. uint256).
+        // the field, but modulus can == the field modulus so it can have 1 extra limb (ex.
+        // uint256).
         let p_modulus_limbs =
             modulus.to_bytes_le().iter().map(|x| F::from_canonical_u8(*x)).collect::<Vec<F>>();
         let p_modulus: Polynomial<F> = p_modulus_limbs.iter().into();
@@ -127,11 +129,11 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
             // If doing the subtraction operation, a - b = result, equivalent to a = result + b.
             FieldOperation::Sub => {
                 let result = (modulus.clone() + a - b) % modulus;
-                // We populate the carry, witness_low, witness_high as if we were doing an addition with result + b.
-                // But we populate `result` with the actual result of the subtraction because those columns are expected
-                // to contain the result by the user.
-                // Note that this reversal means we have to flip result, a correspondingly in
-                // the `eval` function.
+                // We populate the carry, witness_low, witness_high as if we were doing an addition
+                // with result + b. But we populate `result` with the actual result
+                // of the subtraction because those columns are expected to contain
+                // the result by the user. Note that this reversal means we have to
+                // flip result, a correspondingly in the `eval` function.
                 self.populate_carry_and_witness(&result, b, FieldOperation::Add, modulus);
                 self.result = P::to_limbs_field::<F, _>(&result);
                 result
@@ -143,10 +145,11 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
                 let result =
                     (a * b.modpow(&(modulus.clone() - 2u32), &modulus.clone())) % modulus.clone();
 
-                // We populate the carry, witness_low, witness_high as if we were doing a multiplication
-                // with result * b. But we populate `result` with the actual result of the
-                // multiplication because those columns are expected to contain the result by the user.
-                // Note that this reversal means we have to flip result, a correspondingly in the `eval`
+                // We populate the carry, witness_low, witness_high as if we were doing a
+                // multiplication with result * b. But we populate `result` with the
+                // actual result of the multiplication because those columns are
+                // expected to contain the result by the user. Note that this
+                // reversal means we have to flip result, a correspondingly in the `eval`
                 // function.
                 self.populate_carry_and_witness(&result, b, FieldOperation::Mul, modulus);
                 self.result = P::to_limbs_field::<F, _>(&result);
@@ -164,7 +167,8 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
         result
     }
 
-    /// Populate these columns without a specified modulus (will use the modulus of the field parameters).
+    /// Populate these columns without a specified modulus (will use the modulus of the field
+    /// parameters).
     pub fn populate(
         &mut self,
         record: &mut impl ByteRecord,
@@ -266,8 +270,10 @@ mod tests {
     use p3_field::{Field, PrimeField32};
     use sp1_core_executor::{ExecutionRecord, Program};
     use sp1_curves::params::FieldParameters;
-    use sp1_stark::air::{MachineAir, SP1AirBuilder};
-    use sp1_stark::StarkGenericConfig;
+    use sp1_stark::{
+        air::{MachineAir, SP1AirBuilder},
+        StarkGenericConfig,
+    };
 
     use super::{FieldOpCols, FieldOperation, Limbs};
 
@@ -277,12 +283,12 @@ mod tests {
     use p3_air::Air;
     use p3_baby_bear::BabyBear;
     use p3_field::AbstractField;
-    use p3_matrix::dense::RowMajorMatrix;
-    use p3_matrix::Matrix;
+    use p3_matrix::{dense::RowMajorMatrix, Matrix};
     use rand::thread_rng;
     use sp1_core_executor::events::ByteRecord;
-    use sp1_curves::edwards::ed25519::Ed25519BaseField;
-    use sp1_curves::weierstrass::secp256k1::Secp256k1BaseField;
+    use sp1_curves::{
+        edwards::ed25519::Ed25519BaseField, weierstrass::secp256k1::Secp256k1BaseField,
+    };
     use sp1_derive::AlignedBorrow;
     use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
     use std::mem::size_of;

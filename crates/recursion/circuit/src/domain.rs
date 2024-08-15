@@ -1,10 +1,7 @@
 use p3_commit::{LagrangeSelectors, TwoAdicMultiplicativeCoset};
-use p3_field::AbstractExtensionField;
-use p3_field::Field;
-use p3_field::{AbstractField, TwoAdicField};
+use p3_field::{AbstractExtensionField, AbstractField, Field, TwoAdicField};
 use sp1_recursion_compiler::prelude::*;
-use sp1_recursion_program::commit::PolynomialSpaceVariable;
-use sp1_recursion_program::fri::types::FriConfigVariable;
+use sp1_recursion_program::{commit::PolynomialSpaceVariable, fri::types::FriConfigVariable};
 
 #[derive(Clone, Copy)]
 pub struct TwoAdicMultiplicativeCosetVariable<C: Config> {
@@ -82,8 +79,8 @@ where
     ) -> LagrangeSelectors<Ext<<C as Config>::F, <C as Config>::EF>> {
         let unshifted_point: Ext<_, _> = builder.eval(point * self.shift.inverse());
         let z_h_expr = builder
-            .exp_power_of_2_v::<Ext<_, _>>(unshifted_point, Usize::Const(self.log_n))
-            - C::EF::one();
+            .exp_power_of_2_v::<Ext<_, _>>(unshifted_point, Usize::Const(self.log_n)) -
+            C::EF::one();
         let z_h: Ext<_, _> = builder.eval(z_h_expr);
         let ginv = self.geninv(builder);
         LagrangeSelectors {
@@ -100,8 +97,8 @@ where
         point: Ext<<C as Config>::F, <C as Config>::EF>,
     ) -> Ext<<C as Config>::F, <C as Config>::EF> {
         let unshifted_power = builder.exp_power_of_2_v::<Ext<_, _>>(
-            point
-                * C::EF::from_base_slice(&[self.shift, C::F::zero(), C::F::zero(), C::F::zero()])
+            point *
+                C::EF::from_base_slice(&[self.shift, C::F::zero(), C::F::zero(), C::F::zero()])
                     .inverse()
                     .cons(),
             Usize::Const(self.log_n),

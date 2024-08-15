@@ -27,8 +27,8 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
     ) {
         // Construct the input array of the permutation.  That array is dependent on the row type.
         // For compress_syscall rows, the input is from the memory access values.  For absorb, the
-        // input is the previous state, with select elements being read from the memory access values.
-        // For finalize, the input is the previous state.
+        // input is the previous state, with select elements being read from the memory access
+        // values. For finalize, the input is the previous state.
         let input: [AB::Expr; WIDTH] = array::from_fn(|i| {
             let previous_state = opcode_workspace.absorb().previous_state[i];
 
@@ -50,9 +50,9 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                 (compress_input, absorb_input, finalize_input)
             };
 
-            control_flow.is_compress * compress_input
-                + control_flow.is_absorb * absorb_input
-                + control_flow.is_finalize * finalize_input
+            control_flow.is_compress * compress_input +
+                control_flow.is_absorb * absorb_input +
+                control_flow.is_finalize * finalize_input
         });
 
         // Apply the initial round.
@@ -140,8 +140,8 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         for r in 0..NUM_INTERNAL_ROUNDS {
             // Add the round constant.
             let round = r + NUM_EXTERNAL_ROUNDS / 2;
-            let add_rc = if r == 0 { state[0].clone() } else { s0[r - 1].into() }
-                + AB::Expr::from_wrapped_u32(RC_16_30_U32[round][0]);
+            let add_rc = if r == 0 { state[0].clone() } else { s0[r - 1].into() } +
+                AB::Expr::from_wrapped_u32(RC_16_30_U32[round][0]);
 
             let mut sbox_deg_3 = add_rc.clone() * add_rc.clone() * add_rc.clone();
             if let Some(internal_sbox) = perm_cols.internal_rounds_sbox() {
@@ -149,7 +149,8 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                 sbox_deg_3 = internal_sbox[r].into();
             }
 
-            // See `populate_internal_rounds` for why we don't have columns for the sbox output here.
+            // See `populate_internal_rounds` for why we don't have columns for the sbox output
+            // here.
             let sbox_deg_7 = sbox_deg_3.clone() * sbox_deg_3.clone() * add_rc.clone();
 
             // Apply the linear layer.

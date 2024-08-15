@@ -89,8 +89,9 @@ pub struct EllipticCurveDecompressEvent {
 
 /// Create an elliptic curve add event. It takes two pointers to memory locations, reads the points
 /// from memory, adds them together, and writes the result back to the first memory location.
-/// The generic parameter `N` is the number of u32 words in the point representation. For example, for
-/// the secp256k1 curve, `N` would be 16 (64 bytes) because the x and y coordinates are 32 bytes each.
+/// The generic parameter `N` is the number of u32 words in the point representation. For example,
+/// for the secp256k1 curve, `N` would be 16 (64 bytes) because the x and y coordinates are 32 bytes
+/// each.
 pub fn create_ec_add_event<E: EllipticCurve>(
     rt: &mut SyscallContext,
     arg1: u32,

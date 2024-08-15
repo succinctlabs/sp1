@@ -1,11 +1,11 @@
 use hashbrown::HashMap;
 use itertools::Itertools;
 use p3_field::PrimeField32;
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{ParallelIterator, ParallelSlice};
 use sp1_core_executor::{
-    events::ByteLookupEvent, events::ByteRecord, events::ShaExtendEvent, ExecutionRecord, Program,
+    events::{ByteLookupEvent, ByteRecord, ShaExtendEvent},
+    ExecutionRecord, Program,
 };
 use sp1_stark::air::MachineAir;
 use std::borrow::BorrowMut;
@@ -113,7 +113,8 @@ impl ShaExtendChip {
             cols.w_i_minus_16.populate(event.channel, event.w_i_minus_16_reads[j], blu);
             cols.w_i_minus_7.populate(event.channel, event.w_i_minus_7_reads[j], blu);
 
-            // `s0 := (w[i-15] rightrotate 7) xor (w[i-15] rightrotate 18) xor (w[i-15] rightshift 3)`.
+            // `s0 := (w[i-15] rightrotate 7) xor (w[i-15] rightrotate 18) xor (w[i-15] rightshift
+            // 3)`.
             let w_i_minus_15 = event.w_i_minus_15_reads[j].value;
             let w_i_minus_15_rr_7 =
                 cols.w_i_minus_15_rr_7.populate(blu, shard, event.channel, w_i_minus_15, 7);
@@ -131,7 +132,8 @@ impl ShaExtendChip {
             let s0 =
                 cols.s0.populate(blu, shard, event.channel, s0_intermediate, w_i_minus_15_rs_3);
 
-            // `s1 := (w[i-2] rightrotate 17) xor (w[i-2] rightrotate 19) xor (w[i-2] rightshift 10)`.
+            // `s1 := (w[i-2] rightrotate 17) xor (w[i-2] rightrotate 19) xor (w[i-2] rightshift
+            // 10)`.
             let w_i_minus_2 = event.w_i_minus_2_reads[j].value;
             let w_i_minus_2_rr_17 =
                 cols.w_i_minus_2_rr_17.populate(blu, shard, event.channel, w_i_minus_2, 17);

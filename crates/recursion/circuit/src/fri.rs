@@ -1,22 +1,24 @@
 use itertools::{izip, Itertools};
 use p3_commit::PolynomialSpace;
-use p3_field::AbstractField;
-use p3_field::TwoAdicField;
+use p3_field::{AbstractField, TwoAdicField};
 use p3_fri::FriConfig;
 use p3_matrix::Dimensions;
 use p3_util::log2_strict_usize;
-use sp1_recursion_compiler::ir::{Builder, Config, Felt};
-use sp1_recursion_compiler::prelude::*;
+use sp1_recursion_compiler::{
+    ir::{Builder, Config, Felt},
+    prelude::*,
+};
 use sp1_recursion_core::stark::config::OuterChallengeMmcs;
 
-use crate::mmcs::verify_batch;
-use crate::types::FriChallenges;
-use crate::types::FriProofVariable;
-use crate::types::FriQueryProofVariable;
-use crate::types::OuterDigestVariable;
-use crate::types::TwoAdicPcsProofVariable;
-use crate::types::TwoAdicPcsRoundVariable;
-use crate::{challenger::MultiField32ChallengerVariable, DIGEST_SIZE};
+use crate::{
+    challenger::MultiField32ChallengerVariable,
+    mmcs::verify_batch,
+    types::{
+        FriChallenges, FriProofVariable, FriQueryProofVariable, OuterDigestVariable,
+        TwoAdicPcsProofVariable, TwoAdicPcsRoundVariable,
+    },
+    DIGEST_SIZE,
+};
 
 pub fn verify_shape_and_sample_challenges<C: Config>(
     builder: &mut Builder<C>,

@@ -1,14 +1,11 @@
-use core::fmt::Debug;
-use core::mem::size_of;
-use std::borrow::Borrow;
-use std::borrow::BorrowMut;
+use core::{fmt::Debug, mem::size_of};
+use std::borrow::{Borrow, BorrowMut};
 
 use itertools::Itertools;
 use p3_field::{AbstractField, PrimeField32};
 use serde::{Deserialize, Serialize};
 
-use crate::Word;
-use crate::PROOF_MAX_NUM_PVS;
+use crate::{Word, PROOF_MAX_NUM_PVS};
 
 /// The number of non padded elements in the SP1 proofs public values vec.
 pub const SP1_PROOF_NUM_PV_ELTS: usize = size_of::<PublicValues<Word<u8>, u8>>();
@@ -60,8 +57,8 @@ pub struct PublicValues<W, T> {
 }
 
 impl PublicValues<u32, u32> {
-    /// Convert the public values into a vector of field elements.  This function will pad the vector
-    /// to the maximum number of public values.
+    /// Convert the public values into a vector of field elements.  This function will pad the
+    /// vector to the maximum number of public values.
     #[must_use]
     pub fn to_vec<F: AbstractField>(&self) -> Vec<F> {
         let mut ret = vec![F::zero(); PROOF_MAX_NUM_PVS];

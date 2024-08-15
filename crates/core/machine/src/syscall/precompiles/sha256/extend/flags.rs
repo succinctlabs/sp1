@@ -1,18 +1,13 @@
 use core::borrow::Borrow;
 use p3_air::AirBuilder;
 use p3_baby_bear::BabyBear;
-use p3_field::AbstractField;
-use p3_field::Field;
-use p3_field::PrimeField32;
-use p3_field::TwoAdicField;
+use p3_field::{AbstractField, Field, PrimeField32, TwoAdicField};
 use p3_matrix::Matrix;
-use sp1_stark::air::BaseAirBuilder;
-use sp1_stark::air::SP1AirBuilder;
+use sp1_stark::air::{BaseAirBuilder, SP1AirBuilder};
 
 use crate::operations::IsZeroOperation;
 
-use super::ShaExtendChip;
-use super::ShaExtendCols;
+use super::{ShaExtendChip, ShaExtendCols};
 
 impl<F: Field> ShaExtendCols<F> {
     pub fn populate_flags(&mut self, i: usize) {
@@ -81,7 +76,8 @@ impl ShaExtendChip {
         builder.when_first_row().assert_eq(local.cycle_48[1], AB::F::zero());
         builder.when_first_row().assert_eq(local.cycle_48[2], AB::F::zero());
 
-        // Shift the indices of `cycles_48` at the end of each 16 rows. Otherwise, keep them the same.
+        // Shift the indices of `cycles_48` at the end of each 16 rows. Otherwise, keep them the
+        // same.
         for i in 0..3 {
             builder
                 .when_transition()

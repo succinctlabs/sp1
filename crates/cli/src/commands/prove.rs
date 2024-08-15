@@ -2,11 +2,12 @@ use anstyle::*;
 use anyhow::Result;
 use clap::Parser;
 use sp1_build::{build_program, BuildArgs};
-use sp1_core_machine::io::SP1Stdin;
-use sp1_core_machine::utils::{setup_logger, setup_tracer};
+use sp1_core_machine::{
+    io::SP1Stdin,
+    utils::{setup_logger, setup_tracer},
+};
 use sp1_sdk::ProverClient;
-use std::time::Instant;
-use std::{env, fs::File, io::Read, path::PathBuf, str::FromStr};
+use std::{env, fs::File, io::Read, path::PathBuf, str::FromStr, time::Instant};
 
 use crate::util::{elapsed, write_status};
 
@@ -21,8 +22,8 @@ fn is_valid_hex_string(s: &str) -> bool {
         return false;
     }
     // All hex digits with optional 0x prefix
-    s.starts_with("0x") && s[2..].chars().all(|c| c.is_ascii_hexdigit())
-        || s.chars().all(|c| c.is_ascii_hexdigit())
+    s.starts_with("0x") && s[2..].chars().all(|c| c.is_ascii_hexdigit()) ||
+        s.chars().all(|c| c.is_ascii_hexdigit())
 }
 
 impl FromStr for Input {

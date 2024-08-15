@@ -30,8 +30,8 @@ pub struct MemoryColumns<T> {
     pub offset_is_two: T,
     pub offset_is_three: T,
 
-    // LE bit decomposition for the most significant byte of memory value.  This is used to determine
-    // the sign for that value (used for LB and LH).
+    // LE bit decomposition for the most significant byte of memory value.  This is used to
+    // determine the sign for that value (used for LB and LH).
     pub most_sig_byte_decomp: [T; 8],
 
     pub addr_word_nonce: T,

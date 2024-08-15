@@ -13,9 +13,9 @@ use strum_macros::EnumIter;
 /// where:
 /// - Byte 0: The system call identifier.
 /// - Byte 1: Whether the handler of the system call has its own table. This is used in the CPU
-///           table to determine whether to lookup the syscall using the syscall interaction.
+///   table to determine whether to lookup the syscall using the syscall interaction.
 /// - Byte 2: The number of additional cycles the syscall uses. This is used to make sure the # of
-///           memory accesses is bounded.
+///   memory accesses is bounded.
 /// - Byte 3: Currently unused.
 #[derive(
     Debug, Copy, Clone, PartialEq, Eq, Hash, EnumIter, Ord, PartialOrd, Serialize, Deserialize,

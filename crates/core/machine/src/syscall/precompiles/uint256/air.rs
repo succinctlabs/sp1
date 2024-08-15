@@ -1,29 +1,36 @@
-use crate::memory::{value_as_limbs, MemoryReadCols, MemoryWriteCols};
-use crate::operations::field::field_op::{FieldOpCols, FieldOperation};
+use crate::{
+    memory::{value_as_limbs, MemoryReadCols, MemoryWriteCols},
+    operations::field::field_op::{FieldOpCols, FieldOperation},
+};
 
-use crate::air::MemoryAirBuilder;
-use crate::operations::field::range::FieldLtCols;
-use crate::operations::IsZeroOperation;
-use crate::utils::{
-    limbs_from_access, limbs_from_prev_access, pad_rows, words_to_bytes_le, words_to_bytes_le_vec,
+use crate::{
+    air::MemoryAirBuilder,
+    operations::{field::range::FieldLtCols, IsZeroOperation},
+    utils::{
+        limbs_from_access, limbs_from_prev_access, pad_rows, words_to_bytes_le,
+        words_to_bytes_le_vec,
+    },
 };
 
 use generic_array::GenericArray;
 use num::{BigUint, One, Zero};
-use p3_air::AirBuilder;
-use p3_air::{Air, BaseAir};
-use p3_field::AbstractField;
-use p3_field::PrimeField32;
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
+use p3_air::{Air, AirBuilder, BaseAir};
+use p3_field::{AbstractField, PrimeField32};
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_executor::{events::ByteRecord, syscalls::SyscallCode, ExecutionRecord, Program};
-use sp1_curves::params::{Limbs, NumLimbs, NumWords};
-use sp1_curves::uint256::U256Field;
+use sp1_curves::{
+    params::{Limbs, NumLimbs, NumWords},
+    uint256::U256Field,
+};
 use sp1_derive::AlignedBorrow;
-use sp1_stark::air::{BaseAirBuilder, MachineAir, Polynomial, SP1AirBuilder};
-use sp1_stark::MachineRecord;
-use std::borrow::{Borrow, BorrowMut};
-use std::mem::size_of;
+use sp1_stark::{
+    air::{BaseAirBuilder, MachineAir, Polynomial, SP1AirBuilder},
+    MachineRecord,
+};
+use std::{
+    borrow::{Borrow, BorrowMut},
+    mem::size_of,
+};
 use typenum::Unsigned;
 
 /// The number of columns in the Uint256MulCols.
@@ -69,7 +76,8 @@ pub struct Uint256MulCols<T> {
     pub y_memory: GenericArray<MemoryReadCols<T>, WordsFieldElement>,
     pub modulus_memory: GenericArray<MemoryReadCols<T>, WordsFieldElement>,
 
-    /// Columns for checking if modulus is zero. If it's zero, then use 2^256 as the effective modulus.
+    /// Columns for checking if modulus is zero. If it's zero, then use 2^256 as the effective
+    /// modulus.
     pub modulus_is_zero: IsZeroOperation<T>,
 
     /// Column that is equal to is_real * (1 - modulus_is_zero.result).
@@ -264,9 +272,9 @@ where
         coeff_2_256.resize(32, AB::Expr::zero());
         coeff_2_256.push(AB::Expr::one());
         let modulus_polynomial: Polynomial<AB::Expr> = modulus_limbs.into();
-        let p_modulus: Polynomial<AB::Expr> = modulus_polynomial
-            * (AB::Expr::one() - modulus_is_zero.into())
-            + Polynomial::from_coefficients(&coeff_2_256) * modulus_is_zero.into();
+        let p_modulus: Polynomial<AB::Expr> = modulus_polynomial *
+            (AB::Expr::one() - modulus_is_zero.into()) +
+            Polynomial::from_coefficients(&coeff_2_256) * modulus_is_zero.into();
 
         // Evaluate the uint256 multiplication
         local.output.eval_with_modulus(

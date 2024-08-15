@@ -1,36 +1,27 @@
 use p3_air::Air;
 use p3_commit::TwoAdicMultiplicativeCoset;
-use p3_field::AbstractField;
-use p3_field::TwoAdicField;
+use p3_field::{AbstractField, TwoAdicField};
 
-use sp1_recursion_compiler::ir::Array;
-use sp1_recursion_compiler::ir::Ext;
-use sp1_recursion_compiler::ir::ExtConst;
-use sp1_recursion_compiler::ir::SymbolicExt;
-use sp1_recursion_compiler::ir::SymbolicVar;
-use sp1_recursion_compiler::ir::Var;
-use sp1_recursion_compiler::ir::{Builder, Config, Usize};
-use sp1_recursion_compiler::prelude::Felt;
+use sp1_recursion_compiler::{
+    ir::{Array, Builder, Config, Ext, ExtConst, SymbolicExt, SymbolicVar, Usize, Var},
+    prelude::Felt,
+};
 
 use sp1_recursion_core::runtime::DIGEST_SIZE;
-use sp1_stark::air::MachineAir;
-use sp1_stark::Com;
-use sp1_stark::GenericVerifierConstraintFolder;
-use sp1_stark::ShardProof;
-use sp1_stark::StarkGenericConfig;
-use sp1_stark::StarkMachine;
-use sp1_stark::StarkVerifyingKey;
+use sp1_stark::{
+    air::MachineAir, Com, GenericVerifierConstraintFolder, ShardProof, StarkGenericConfig,
+    StarkMachine, StarkVerifyingKey,
+};
 
-use crate::challenger::CanObserveVariable;
-use crate::challenger::DuplexChallengerVariable;
-use crate::challenger::FeltChallenger;
-use crate::commit::PolynomialSpaceVariable;
-use crate::fri::types::TwoAdicPcsMatsVariable;
-use crate::fri::types::TwoAdicPcsRoundVariable;
-use crate::fri::TwoAdicMultiplicativeCosetVariable;
-use crate::types::ShardCommitmentVariable;
-use crate::types::VerifyingKeyVariable;
-use crate::{commit::PcsVariable, fri::TwoAdicFriPcsVariable, types::ShardProofVariable};
+use crate::{
+    challenger::{CanObserveVariable, DuplexChallengerVariable, FeltChallenger},
+    commit::{PcsVariable, PolynomialSpaceVariable},
+    fri::{
+        types::{TwoAdicPcsMatsVariable, TwoAdicPcsRoundVariable},
+        TwoAdicFriPcsVariable, TwoAdicMultiplicativeCosetVariable,
+    },
+    types::{ShardCommitmentVariable, ShardProofVariable, VerifyingKeyVariable},
+};
 
 use crate::types::QuotientData;
 
@@ -328,7 +319,8 @@ where
             });
         }
 
-        // Assert that the number of chips in `opened_values` matches the number of shard chips enabled.
+        // Assert that the number of chips in `opened_values` matches the number of shard chips
+        // enabled.
         builder.assert_var_eq(num_shard_chips_enabled, num_shard_chips);
 
         // If we're checking the cumulative sum, assert that the sum of the cumulative sums is zero.
@@ -347,49 +339,39 @@ where
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::borrow::BorrowMut;
-    use std::time::Instant;
+    use std::{borrow::BorrowMut, time::Instant};
 
-    use crate::challenger::CanObserveVariable;
-    use crate::challenger::FeltChallenger;
-    use crate::hints::Hintable;
-    use crate::machine::commit_public_values;
-    use crate::stark::DuplexChallengerVariable;
-    use crate::stark::Ext;
-    use crate::stark::ShardProofHint;
-    use crate::types::ShardCommitmentVariable;
+    use crate::{
+        challenger::{CanObserveVariable, FeltChallenger},
+        hints::Hintable,
+        machine::commit_public_values,
+        stark::{DuplexChallengerVariable, Ext, ShardProofHint},
+        types::ShardCommitmentVariable,
+    };
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_field::AbstractField;
     use rand::Rng;
     use sp1_core_executor::Program;
-    use sp1_core_machine::io::SP1Stdin;
-    use sp1_core_machine::riscv::RiscvAir;
-    use sp1_core_machine::utils::setup_logger;
-    use sp1_recursion_compiler::asm::AsmBuilder;
-    use sp1_recursion_compiler::config::InnerConfig;
-    use sp1_recursion_compiler::ir::Array;
-    use sp1_recursion_compiler::ir::Builder;
-    use sp1_recursion_compiler::ir::Config;
-    use sp1_recursion_compiler::ir::ExtConst;
-    use sp1_recursion_compiler::ir::Felt;
-    use sp1_recursion_compiler::ir::Usize;
-    use sp1_recursion_core::air::RecursionPublicValues;
-    use sp1_recursion_core::air::RECURSION_PUBLIC_VALUES_COL_MAP;
-    use sp1_recursion_core::air::RECURSIVE_PROOF_NUM_PV_ELTS;
-    use sp1_recursion_core::runtime::RecursionProgram;
-    use sp1_recursion_core::runtime::Runtime;
-    use sp1_recursion_core::runtime::DIGEST_SIZE;
-    use sp1_recursion_core::stark::utils::run_test_recursion;
-    use sp1_recursion_core::stark::utils::TestConfig;
-    use sp1_recursion_core::stark::RecursionAir;
-    use sp1_stark::air::POSEIDON_NUM_WORDS;
-    use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
-    use sp1_stark::CpuProver;
-    use sp1_stark::InnerChallenge;
-    use sp1_stark::InnerVal;
-    use sp1_stark::MachineProver;
-    use sp1_stark::SP1CoreOpts;
-    use sp1_stark::StarkGenericConfig;
+    use sp1_core_machine::{io::SP1Stdin, riscv::RiscvAir, utils::setup_logger};
+    use sp1_recursion_compiler::{
+        asm::AsmBuilder,
+        config::InnerConfig,
+        ir::{Array, Builder, Config, ExtConst, Felt, Usize},
+    };
+    use sp1_recursion_core::{
+        air::{
+            RecursionPublicValues, RECURSION_PUBLIC_VALUES_COL_MAP, RECURSIVE_PROOF_NUM_PV_ELTS,
+        },
+        runtime::{RecursionProgram, Runtime, DIGEST_SIZE},
+        stark::{
+            utils::{run_test_recursion, TestConfig},
+            RecursionAir,
+        },
+    };
+    use sp1_stark::{
+        air::POSEIDON_NUM_WORDS, baby_bear_poseidon2::BabyBearPoseidon2, CpuProver, InnerChallenge,
+        InnerVal, MachineProver, SP1CoreOpts, StarkGenericConfig,
+    };
 
     type SC = BabyBearPoseidon2;
     type Challenge = <SC as StarkGenericConfig>::Challenge;

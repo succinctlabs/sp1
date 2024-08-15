@@ -1,24 +1,22 @@
 use p3_commit::TwoAdicMultiplicativeCoset;
-use p3_field::AbstractField;
-use p3_field::TwoAdicField;
+use p3_field::{AbstractField, TwoAdicField};
 use p3_symmetric::Hash;
 use sp1_primitives::types::RecursionProgramType;
 use sp1_recursion_compiler::prelude::*;
 use sp1_recursion_core::runtime::DIGEST_SIZE;
 
-use super::types::DigestVariable;
-use super::types::DimensionsVariable;
-use super::types::FriConfigVariable;
-use super::types::TwoAdicPcsMatsVariable;
-use super::types::TwoAdicPcsProofVariable;
-use super::types::TwoAdicPcsRoundVariable;
 use super::{
+    types::{
+        DigestVariable, DimensionsVariable, FriConfigVariable, TwoAdicPcsMatsVariable,
+        TwoAdicPcsProofVariable, TwoAdicPcsRoundVariable,
+    },
     verify_batch, verify_challenges, verify_shape_and_sample_challenges,
     TwoAdicMultiplicativeCosetVariable,
 };
-use crate::challenger::DuplexChallengerVariable;
-use crate::challenger::FeltChallenger;
-use crate::commit::PcsVariable;
+use crate::{
+    challenger::{DuplexChallengerVariable, FeltChallenger},
+    commit::PcsVariable,
+};
 
 pub fn verify_two_adic_pcs<C: Config>(
     builder: &mut Builder<C>,
@@ -246,47 +244,38 @@ where
 
 pub mod tests {
 
-    use std::cmp::Reverse;
-    use std::collections::VecDeque;
+    use std::{cmp::Reverse, collections::VecDeque};
 
-    use crate::challenger::CanObserveVariable;
-    use crate::challenger::DuplexChallengerVariable;
-    use crate::challenger::FeltChallenger;
-    use crate::commit::PcsVariable;
-    use crate::fri::types::TwoAdicPcsRoundVariable;
-    use crate::fri::TwoAdicFriPcsVariable;
-    use crate::fri::TwoAdicMultiplicativeCosetVariable;
-    use crate::hints::Hintable;
-    use crate::utils::const_fri_config;
+    use crate::{
+        challenger::{CanObserveVariable, DuplexChallengerVariable, FeltChallenger},
+        commit::PcsVariable,
+        fri::{
+            types::TwoAdicPcsRoundVariable, TwoAdicFriPcsVariable,
+            TwoAdicMultiplicativeCosetVariable,
+        },
+        hints::Hintable,
+        utils::const_fri_config,
+    };
     use itertools::Itertools;
     use p3_baby_bear::BabyBear;
-    use p3_challenger::CanObserve;
-    use p3_challenger::FieldChallenger;
-    use p3_commit::Pcs;
-    use p3_commit::TwoAdicMultiplicativeCoset;
+    use p3_challenger::{CanObserve, FieldChallenger};
+    use p3_commit::{Pcs, TwoAdicMultiplicativeCoset};
     use p3_field::AbstractField;
     use p3_matrix::dense::RowMajorMatrix;
     use rand::rngs::OsRng;
 
-    use sp1_recursion_compiler::config::InnerConfig;
-    use sp1_recursion_compiler::ir::Array;
-    use sp1_recursion_compiler::ir::Builder;
-    use sp1_recursion_compiler::ir::Usize;
-    use sp1_recursion_compiler::ir::Var;
-    use sp1_recursion_core::air::Block;
-    use sp1_recursion_core::runtime::RecursionProgram;
-    use sp1_recursion_core::runtime::DIGEST_SIZE;
-    use sp1_stark::baby_bear_poseidon2::compressed_fri_config;
-    use sp1_stark::inner_perm;
-    use sp1_stark::InnerChallenge;
-    use sp1_stark::InnerChallenger;
-    use sp1_stark::InnerCompress;
-    use sp1_stark::InnerDft;
-    use sp1_stark::InnerHash;
-    use sp1_stark::InnerPcs;
-    use sp1_stark::InnerPcsProof;
-    use sp1_stark::InnerVal;
-    use sp1_stark::InnerValMmcs;
+    use sp1_recursion_compiler::{
+        config::InnerConfig,
+        ir::{Array, Builder, Usize, Var},
+    };
+    use sp1_recursion_core::{
+        air::Block,
+        runtime::{RecursionProgram, DIGEST_SIZE},
+    };
+    use sp1_stark::{
+        baby_bear_poseidon2::compressed_fri_config, inner_perm, InnerChallenge, InnerChallenger,
+        InnerCompress, InnerDft, InnerHash, InnerPcs, InnerPcsProof, InnerVal, InnerValMmcs,
+    };
 
     pub fn build_test_fri_with_cols_and_log2_rows(
         nb_cols: usize,

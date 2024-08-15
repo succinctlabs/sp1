@@ -3,8 +3,7 @@ use std::array;
 use p3_air::AirBuilder;
 use p3_field::{AbstractField, Field};
 use sp1_derive::AlignedBorrow;
-use sp1_stark::air::SP1AirBuilder;
-use sp1_stark::Word;
+use sp1_stark::{air::SP1AirBuilder, Word};
 
 /// A set of columns needed to compute the add of two words.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
@@ -50,8 +49,9 @@ impl<F: Field> BabyBearWordRangeChecker<F> {
         builder.when(is_real.clone()).assert_eq(recomposed_byte, value[3]);
 
         // Range check that value is less than baby bear modulus.  To do this, it is sufficient
-        // to just do comparisons for the most significant byte. BabyBear's modulus is (in big endian binary)
-        // 01111000_00000000_00000000_00000001.  So we need to check the following conditions:
+        // to just do comparisons for the most significant byte. BabyBear's modulus is (in big
+        // endian binary) 01111000_00000000_00000000_00000001.  So we need to check the
+        // following conditions:
         // 1) if most_sig_byte > 01111000, then fail.
         // 2) if most_sig_byte == 01111000, then value's lower sig bytes must all be 0.
         // 3) if most_sig_byte < 01111000, then pass.

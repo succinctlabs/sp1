@@ -2,12 +2,15 @@ use p3_air::BaseAir;
 use p3_field::{AbstractExtensionField, AbstractField};
 use sp1_primitives::consts::WORD_SIZE;
 use sp1_recursion_compiler::prelude::*;
-use sp1_stark::air::{MachineAir, PV_DIGEST_NUM_WORDS};
-use sp1_stark::{AirOpenedValues, Chip, ChipOpenedValues, Word};
+use sp1_stark::{
+    air::{MachineAir, PV_DIGEST_NUM_WORDS},
+    AirOpenedValues, Chip, ChipOpenedValues, Word,
+};
 
-use crate::fri::types::TwoAdicPcsProofVariable;
-use crate::fri::types::{DigestVariable, FriConfigVariable};
-use crate::fri::TwoAdicMultiplicativeCosetVariable;
+use crate::fri::{
+    types::{DigestVariable, FriConfigVariable, TwoAdicPcsProofVariable},
+    TwoAdicMultiplicativeCosetVariable,
+};
 
 /// Reference: [sp1_core_machine::stark::ShardProof]
 #[derive(DslVariable, Clone)]

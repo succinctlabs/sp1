@@ -1,16 +1,14 @@
-use amcl::bls381::big::Big;
-use amcl::bls381::bls381::utils::deserialize_g1;
-use amcl::bls381::fp::FP;
+use amcl::bls381::{big::Big, bls381::utils::deserialize_g1, fp::FP};
 use generic_array::GenericArray;
 use num::{BigUint, Num, Zero};
 use serde::{Deserialize, Serialize};
 use typenum::{U48, U94};
 
 use super::{SwCurve, WeierstrassParameters};
-use crate::params::FieldParameters;
-use crate::params::NumLimbs;
-use crate::CurveType;
-use crate::EllipticCurveParameters;
+use crate::{
+    params::{FieldParameters, NumLimbs},
+    CurveType, EllipticCurveParameters,
+};
 
 /// Bls12-381 curve parameter
 use crate::{AffinePoint, EllipticCurve};

@@ -105,8 +105,8 @@ pub struct CpuCols<T: Copy> {
     /// The result of selectors.is_ecall * (is_halt || is_commit_deferred_proofs)
     pub ecall_range_check_operand: T,
 
-    /// This is true for all instructions that are not jumps, branches, and halt.  Those instructions
-    /// may move the program counter to a non sequential instruction.
+    /// This is true for all instructions that are not jumps, branches, and halt.  Those
+    /// instructions may move the program counter to a non sequential instruction.
     pub is_sequential_instr: T,
 }
 

@@ -1,34 +1,34 @@
-use std::io::Write;
-use std::{fs::File, io::BufWriter, sync::Arc};
+use std::{
+    fs::File,
+    io::{BufWriter, Write},
+    sync::Arc,
+};
 
-use hashbrown::hash_map::Entry;
-use hashbrown::{HashMap, HashSet};
+use hashbrown::{hash_map::Entry, HashMap, HashSet};
 use nohash_hasher::BuildNoHashHasher;
 use serde::{Deserialize, Serialize};
 use sp1_stark::SP1CoreOpts;
 use thiserror::Error;
 
-use crate::context::SP1Context;
-use crate::events::{
-    create_alu_lookup_id, create_alu_lookups, AluEvent, CpuEvent, MemoryInitializeFinalizeEvent,
-};
-use crate::hook::{HookEnv, HookRegistry};
-use crate::record::MemoryAccessRecord;
-use crate::report::ExecutionReport;
-use crate::state::{ExecutionState, ForkState};
-use crate::subproof::{DefaultSubproofVerifier, SubproofVerifier};
-use crate::syscalls::{default_syscall_map, Syscall, SyscallCode, SyscallContext};
-use crate::Instruction;
 use crate::{
-    events::{MemoryAccessPosition, MemoryReadRecord, MemoryRecord, MemoryWriteRecord},
-    record::ExecutionRecord,
-    Opcode, Program, Register,
+    context::SP1Context,
+    events::{
+        create_alu_lookup_id, create_alu_lookups, AluEvent, CpuEvent, MemoryAccessPosition,
+        MemoryInitializeFinalizeEvent, MemoryReadRecord, MemoryRecord, MemoryWriteRecord,
+    },
+    hook::{HookEnv, HookRegistry},
+    record::{ExecutionRecord, MemoryAccessRecord},
+    report::ExecutionReport,
+    state::{ExecutionState, ForkState},
+    subproof::{DefaultSubproofVerifier, SubproofVerifier},
+    syscalls::{default_syscall_map, Syscall, SyscallCode, SyscallContext},
+    Instruction, Opcode, Program, Register,
 };
 
 /// An executor for the SP1 RISC-V zkVM.
 ///
-/// The exeuctor is responsible for executing a user program and tracing important events which occur
-/// during execution (i.e., memory reads, alu operations, etc).
+/// The exeuctor is responsible for executing a user program and tracing important events which
+/// occur during execution (i.e., memory reads, alu operations, etc).
 pub struct Executor<'a> {
     /// The program.
     pub program: Arc<Program>,
@@ -62,8 +62,9 @@ pub struct Executor<'a> {
 
     /// Whether the runtime is in constrained mode or not.
     ///
-    /// In unconstrained mode, any events, clock, register, or memory changes are reset after leaving
-    /// the unconstrained block. The only thing preserved is writes to the input stream.
+    /// In unconstrained mode, any events, clock, register, or memory changes are reset after
+    /// leaving the unconstrained block. The only thing preserved is writes to the input
+    /// stream.
     pub unconstrained: bool,
 
     /// The state of the runtime when in unconstrained mode.
@@ -846,8 +847,9 @@ impl<'a> Executor<'a> {
                 precompile_rt.syscall_lookup_id = syscall_lookup_id;
                 let (precompile_next_pc, precompile_cycles, returned_exit_code) =
                     if let Some(syscall_impl) = syscall_impl {
-                        // Executing a syscall optionally returns a value to write to the t0 register.
-                        // If it returns None, we just keep the syscall_id in t0.
+                        // Executing a syscall optionally returns a value to write to the t0
+                        // register. If it returns None, we just keep the
+                        // syscall_id in t0.
                         let res = syscall_impl.execute(&mut precompile_rt, b, c);
                         if let Some(val) = res {
                             a = val;
@@ -1027,8 +1029,8 @@ impl<'a> Executor<'a> {
             }
         }
 
-        Ok(self.state.pc.wrapping_sub(self.program.pc_base)
-            >= (self.program.instructions.len() * 4) as u32)
+        Ok(self.state.pc.wrapping_sub(self.program.pc_base) >=
+            (self.program.instructions.len() * 4) as u32)
     }
 
     /// Bump the record.
@@ -1040,7 +1042,8 @@ impl<'a> Executor<'a> {
         self.records.push(removed_record);
     }
 
-    /// Execute up to `self.shard_batch_size` cycles, returning the events emitted and whether the program ended.
+    /// Execute up to `self.shard_batch_size` cycles, returning the events emitted and whether the
+    /// program ended.
     ///
     /// # Errors
     ///
@@ -1127,7 +1130,8 @@ impl<'a> Executor<'a> {
         while !self.execute().unwrap() {}
     }
 
-    /// Executes up to `self.shard_batch_size` cycles of the program, returning whether the program has finished.
+    /// Executes up to `self.shard_batch_size` cycles of the program, returning whether the program
+    /// has finished.
     fn execute(&mut self) -> Result<bool, ExecutionError> {
         // Get the program.
         let program = self.program.clone();
@@ -1140,7 +1144,8 @@ impl<'a> Executor<'a> {
             self.initialize();
         }
 
-        // Loop until we've executed `self.shard_batch_size` shards if `self.shard_batch_size` is set.
+        // Loop until we've executed `self.shard_batch_size` shards if `self.shard_batch_size` is
+        // set.
         let mut done = false;
         let mut current_shard = self.state.current_shard;
         let mut num_shards_executed = 0;
@@ -1223,8 +1228,8 @@ impl<'a> Executor<'a> {
         // Ensure that all proofs and input bytes were read, otherwise warn the user.
         // if self.state.proof_stream_ptr != self.state.proof_stream.len() {
         //     panic!(
-        //         "Not all proofs were read. Proving will fail during recursion. Did you pass too many proofs in or forget to call verify_sp1_proof?"
-        //     );
+        //         "Not all proofs were read. Proving will fail during recursion. Did you pass too
+        // many proofs in or forget to call verify_sp1_proof?"     );
         // }
         if self.state.input_stream_ptr != self.state.input_stream.len() {
             tracing::warn!("Not all input bytes were read.");
@@ -1255,8 +1260,8 @@ impl<'a> Executor<'a> {
                 continue;
             }
 
-            // Program memory is initialized in the MemoryProgram chip and doesn't require any events,
-            // so we only send init events for other memory addresses.
+            // Program memory is initialized in the MemoryProgram chip and doesn't require any
+            // events, so we only send init events for other memory addresses.
             if !self.record.program.memory_image.contains_key(addr) {
                 let initial_value = self.state.uninitialized_memory.get(addr).unwrap_or(&0);
                 memory_initialize_events.push(MemoryInitializeFinalizeEvent::initialize(

@@ -1,36 +1,40 @@
-use core::borrow::{Borrow, BorrowMut};
-use core::mem::size_of;
+use core::{
+    borrow::{Borrow, BorrowMut},
+    mem::size_of,
+};
 use std::marker::PhantomData;
 
 use crate::air::MemoryAirBuilder;
 use generic_array::GenericArray;
-use num::BigUint;
-use num::One;
-use num::Zero;
+use num::{BigUint, One, Zero};
 use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::AbstractField;
-use p3_field::PrimeField32;
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
-use sp1_core_executor::events::{ByteLookupEvent, ByteRecord, EdDecompressEvent};
-use sp1_core_executor::syscalls::SyscallCode;
-use sp1_core_executor::{ExecutionRecord, Program};
-use sp1_curves::edwards::ed25519::{ed25519_sqrt, Ed25519BaseField};
-use sp1_curves::edwards::{EdwardsParameters, WordsFieldElement};
-use sp1_curves::params::{limbs_from_vec, FieldParameters, Limbs};
+use p3_field::{AbstractField, PrimeField32};
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
+use sp1_core_executor::{
+    events::{ByteLookupEvent, ByteRecord, EdDecompressEvent},
+    syscalls::SyscallCode,
+    ExecutionRecord, Program,
+};
+use sp1_curves::{
+    edwards::{
+        ed25519::{ed25519_sqrt, Ed25519BaseField},
+        EdwardsParameters, WordsFieldElement,
+    },
+    params::{limbs_from_vec, FieldParameters, Limbs},
+};
 use sp1_derive::AlignedBorrow;
 use sp1_stark::air::{BaseAirBuilder, MachineAir, SP1AirBuilder};
 use typenum::U32;
 
-use crate::memory::MemoryReadCols;
-use crate::memory::MemoryWriteCols;
-use crate::operations::field::field_op::FieldOpCols;
-use crate::operations::field::field_op::FieldOperation;
-use crate::operations::field::field_sqrt::FieldSqrtCols;
-use crate::operations::field::range::FieldLtCols;
-use crate::utils::limbs_from_access;
-use crate::utils::limbs_from_prev_access;
-use crate::utils::pad_rows;
+use crate::{
+    memory::{MemoryReadCols, MemoryWriteCols},
+    operations::field::{
+        field_op::{FieldOpCols, FieldOperation},
+        field_sqrt::FieldSqrtCols,
+        range::FieldLtCols,
+    },
+    utils::{limbs_from_access, limbs_from_prev_access, pad_rows},
+};
 
 pub const NUM_ED_DECOMPRESS_COLS: usize = size_of::<EdDecompressCols<u8>>();
 

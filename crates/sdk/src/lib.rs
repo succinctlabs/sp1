@@ -154,7 +154,7 @@ impl ProverClient {
     ///
     /// ### Examples
     /// ```no_run
-    /// use sp1_sdk::{ProverClient, SP1Stdin, SP1Context};
+    /// use sp1_sdk::{ProverClient, SP1Context, SP1Stdin};
     ///
     /// // Load the program.
     /// let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
@@ -173,8 +173,8 @@ impl ProverClient {
         action::Execute::new(self.prover.as_ref(), elf, stdin)
     }
 
-    /// Prepare to prove the execution of the given program with the given input in the default mode.
-    /// The returned [action::Prove] may be configured via its methods before running.
+    /// Prepare to prove the execution of the given program with the given input in the default
+    /// mode. The returned [action::Prove] may be configured via its methods before running.
     /// For example, calling [action::Prove::compress] sets the mode to compressed mode.
     ///
     /// To prove, call [action::Prove::run], which returns a proof of the program's execution.
@@ -184,7 +184,7 @@ impl ProverClient {
     ///
     /// ### Examples
     /// ```no_run
-    /// use sp1_sdk::{ProverClient, SP1Stdin, SP1Context};
+    /// use sp1_sdk::{ProverClient, SP1Context, SP1Stdin};
     ///
     /// // Load the program.
     /// let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
@@ -269,8 +269,7 @@ mod tests {
     use std::sync::atomic::{AtomicU32, Ordering};
 
     use crate::{utils, ProverClient, SP1Stdin};
-    use sp1_core_executor::hook_ecrecover;
-    use sp1_core_executor::FD_ECRECOVER_HOOK;
+    use sp1_core_executor::{hook_ecrecover, FD_ECRECOVER_HOOK};
 
     #[test]
     fn test_execute() {

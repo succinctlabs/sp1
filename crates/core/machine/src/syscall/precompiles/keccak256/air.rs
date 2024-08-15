@@ -11,8 +11,10 @@ use super::{
     columns::{KeccakMemCols, NUM_KECCAK_MEM_COLS},
     KeccakPermuteChip, STATE_NUM_WORDS, STATE_SIZE,
 };
-use crate::air::MemoryAirBuilder;
-use crate::{air::WordAirBuilder, memory::MemoryCols};
+use crate::{
+    air::{MemoryAirBuilder, WordAirBuilder},
+    memory::MemoryCols,
+};
 
 impl<F> BaseAir<F> for KeccakPermuteChip {
     fn width(&self) -> usize {
@@ -86,8 +88,8 @@ where
         // ensures that the table does not end abruptly.
         builder.when_last_row().assert_zero(local.is_real);
 
-        // Verify that local.a values are equal to the memory values in the 0 and 23rd rows of each cycle
-        // Memory values are 32 bit values (encoded as 4 8-bit columns).
+        // Verify that local.a values are equal to the memory values in the 0 and 23rd rows of each
+        // cycle Memory values are 32 bit values (encoded as 4 8-bit columns).
         // local.a values are 64 bit values (encoded as 4 16-bit columns).
         let expr_2_pow_8 = AB::Expr::from_canonical_u32(2u32.pow(8));
         for i in 0..STATE_SIZE as u32 {
@@ -112,7 +114,8 @@ where
                     .assert_eq(memory_limbs[i].clone(), a_value_limbs[i]);
             }
 
-            // On a final step row, verify memory matches with local.p3_keccak_cols.a_prime_prime_prime
+            // On a final step row, verify memory matches with
+            // local.p3_keccak_cols.a_prime_prime_prime
             for i in 0..U64_LIMBS {
                 builder.when(final_step * local.is_real).assert_eq(
                     memory_limbs[i].clone(),
@@ -141,16 +144,17 @@ where
 
 #[cfg(test)]
 mod test {
-    use crate::io::{SP1PublicValues, SP1Stdin};
-    use crate::riscv::RiscvAir;
-    use crate::utils::{prove, setup_logger, tests::KECCAK256_ELF};
+    use crate::{
+        io::{SP1PublicValues, SP1Stdin},
+        riscv::RiscvAir,
+        utils::{prove, setup_logger, tests::KECCAK256_ELF},
+    };
 
-    use rand::Rng;
-    use rand::SeedableRng;
+    use rand::{Rng, SeedableRng};
     use sp1_core_executor::Program;
-    use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
-    use sp1_stark::SP1CoreOpts;
-    use sp1_stark::{CpuProver, StarkGenericConfig};
+    use sp1_stark::{
+        baby_bear_poseidon2::BabyBearPoseidon2, CpuProver, SP1CoreOpts, StarkGenericConfig,
+    };
     use tiny_keccak::Hasher;
 
     const NUM_TEST_CASES: usize = 45;

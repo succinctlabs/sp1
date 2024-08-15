@@ -3,14 +3,14 @@ use std::fmt::Debug;
 use num::BigUint;
 use p3_field::PrimeField32;
 use sp1_core_executor::events::ByteRecord;
-use sp1_curves::params::FieldParameters;
-use sp1_curves::params::Limbs;
+use sp1_curves::params::{FieldParameters, Limbs};
 use sp1_derive::AlignedBorrow;
-use sp1_stark::air::Polynomial;
-use sp1_stark::air::SP1AirBuilder;
+use sp1_stark::air::{Polynomial, SP1AirBuilder};
 
-use super::util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs};
-use super::util_air::eval_field_operation;
+use super::{
+    util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs},
+    util_air::eval_field_operation,
+};
 use crate::air::WordAirBuilder;
 
 /// A set of columns to compute `FieldDen(a, b)` where `a`, `b` are field elements.
@@ -115,8 +115,8 @@ where
         let p_carry = self.carry.into();
 
         // Compute the vanishing polynomial:
-        //      lhs(x) = sign * (b(x) * result(x) + result(x)) + (1 - sign) * (b(x) * result(x) + a(x))
-        //      rhs(x) = sign * a(x) + (1 - sign) * result(x)
+        //      lhs(x) = sign * (b(x) * result(x) + result(x)) + (1 - sign) * (b(x) * result(x) +
+        // a(x))      rhs(x) = sign * a(x) + (1 - sign) * result(x)
         //      lhs(x) - rhs(x) - carry(x) * p(x)
         let p_equation_lhs =
             if sign { &p_b * &p_result + &p_result } else { &p_b * &p_result + &p_a };
@@ -162,21 +162,24 @@ mod tests {
     use p3_field::{Field, PrimeField32};
     use sp1_core_executor::{ExecutionRecord, Program};
     use sp1_curves::params::FieldParameters;
-    use sp1_stark::air::{MachineAir, SP1AirBuilder};
-    use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
-    use sp1_stark::StarkGenericConfig;
+    use sp1_stark::{
+        air::{MachineAir, SP1AirBuilder},
+        baby_bear_poseidon2::BabyBearPoseidon2,
+        StarkGenericConfig,
+    };
 
     use super::{FieldDenCols, Limbs};
 
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
-    use core::borrow::{Borrow, BorrowMut};
-    use core::mem::size_of;
+    use core::{
+        borrow::{Borrow, BorrowMut},
+        mem::size_of,
+    };
     use num::bigint::RandBigInt;
     use p3_air::Air;
     use p3_baby_bear::BabyBear;
     use p3_field::AbstractField;
-    use p3_matrix::dense::RowMajorMatrix;
-    use p3_matrix::Matrix;
+    use p3_matrix::{dense::RowMajorMatrix, Matrix};
     use rand::thread_rng;
     use sp1_curves::edwards::ed25519::Ed25519BaseField;
     use sp1_derive::AlignedBorrow;

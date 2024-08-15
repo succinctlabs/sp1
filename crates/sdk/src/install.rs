@@ -42,8 +42,8 @@ pub fn try_install_plonk_bn254_artifacts() -> PathBuf {
 
 /// Install the latest plonk bn254 artifacts.
 ///
-/// This function will download the latest plonk bn254 artifacts from the S3 bucket and extract them to
-/// the directory specified by [plonk_bn254_artifacts_dir()].
+/// This function will download the latest plonk bn254 artifacts from the S3 bucket and extract them
+/// to the directory specified by [plonk_bn254_artifacts_dir()].
 pub fn install_plonk_bn254_artifacts(build_dir: PathBuf) {
     // Create the build directory.
     std::fs::create_dir_all(&build_dir).expect("failed to create build directory");
@@ -71,8 +71,8 @@ pub fn install_plonk_bn254_artifacts(build_dir: PathBuf) {
     println!("[sp1] downloaded {} to {:?}", download_url, build_dir.to_str().unwrap(),);
 }
 
-/// The directory where the plonk bn254 artifacts will be stored based on [PLONK_BN254_ARTIFACTS_VERSION]
-/// and [PLONK_BN254_ARTIFACTS_URL_BASE].
+/// The directory where the plonk bn254 artifacts will be stored based on
+/// [PLONK_BN254_ARTIFACTS_VERSION] and [PLONK_BN254_ARTIFACTS_URL_BASE].
 pub fn install_plonk_bn254_artifacts_dir() -> PathBuf {
     dirs::home_dir().unwrap().join(".sp1").join("circuits").join(SP1_CIRCUIT_VERSION)
 }

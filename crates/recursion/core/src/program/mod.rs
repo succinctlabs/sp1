@@ -1,10 +1,11 @@
 use crate::air::SP1RecursionAirBuilder;
-use core::borrow::{Borrow, BorrowMut};
-use core::mem::size_of;
+use core::{
+    borrow::{Borrow, BorrowMut},
+    mem::size_of,
+};
 use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::PrimeField32;
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_machine::utils::pad_rows_fixed;
 use sp1_stark::air::MachineAir;
 use std::collections::HashMap;
@@ -12,9 +13,10 @@ use tracing::instrument;
 
 use sp1_derive::AlignedBorrow;
 
-use crate::cpu::columns::InstructionCols;
-use crate::cpu::columns::OpcodeSelectorCols;
-use crate::runtime::{ExecutionRecord, RecursionProgram};
+use crate::{
+    cpu::columns::{InstructionCols, OpcodeSelectorCols},
+    runtime::{ExecutionRecord, RecursionProgram},
+};
 
 pub const NUM_PROGRAM_PREPROCESSED_COLS: usize = size_of::<ProgramPreprocessedCols<u8>>();
 pub const NUM_PROGRAM_MULT_COLS: usize = size_of::<ProgramMultiplicityCols<u8>>();

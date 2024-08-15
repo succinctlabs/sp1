@@ -30,27 +30,24 @@
 
 mod utils;
 
-use core::borrow::{Borrow, BorrowMut};
-use core::mem::size_of;
+use core::{
+    borrow::{Borrow, BorrowMut},
+    mem::size_of,
+};
 
 use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::AbstractField;
-use p3_field::PrimeField;
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
-use p3_maybe_rayon::prelude::ParallelIterator;
-use p3_maybe_rayon::prelude::ParallelSlice;
-use sp1_core_executor::events::{ByteLookupEvent, ByteRecord};
-use sp1_core_executor::{ByteOpcode, ExecutionRecord, Opcode, Program};
+use p3_field::{AbstractField, PrimeField};
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
+use p3_maybe_rayon::prelude::{ParallelIterator, ParallelSlice};
+use sp1_core_executor::{
+    events::{ByteLookupEvent, ByteRecord},
+    ByteOpcode, ExecutionRecord, Opcode, Program,
+};
 use sp1_derive::AlignedBorrow;
 use sp1_primitives::consts::WORD_SIZE;
-use sp1_stark::air::MachineAir;
-use sp1_stark::MachineRecord;
-use sp1_stark::Word;
+use sp1_stark::{air::MachineAir, MachineRecord, Word};
 
-use crate::air::SP1CoreAirBuilder;
-use crate::alu::mul::utils::get_msb;
-use crate::utils::pad_to_power_of_two;
+use crate::{air::SP1CoreAirBuilder, alu::mul::utils::get_msb, utils::pad_to_power_of_two};
 
 /// The number of main trace columns for `MulChip`.
 pub const NUM_MUL_COLS: usize = size_of::<MulCols<u8>>();
@@ -153,10 +150,10 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
                     .map(|event| {
                         // Ensure that the opcode is MUL, MULHU, MULH, or MULHSU.
                         assert!(
-                            event.opcode == Opcode::MUL
-                                || event.opcode == Opcode::MULHU
-                                || event.opcode == Opcode::MULH
-                                || event.opcode == Opcode::MULHSU
+                            event.opcode == Opcode::MUL ||
+                                event.opcode == Opcode::MULHU ||
+                                event.opcode == Opcode::MULH ||
+                                event.opcode == Opcode::MULHSU
                         );
                         let mut row = [F::zero(); NUM_MUL_COLS];
                         let cols: &mut MulCols<F> = row.as_mut_slice().borrow_mut();
@@ -176,8 +173,8 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
                             cols.c_msb = F::from_canonical_u8(c_msb);
 
                             // If b is signed and it is negative, sign extend b.
-                            if (event.opcode == Opcode::MULH || event.opcode == Opcode::MULHSU)
-                                && b_msb == 1
+                            if (event.opcode == Opcode::MULH || event.opcode == Opcode::MULHSU) &&
+                                b_msb == 1
                             {
                                 cols.b_sign_extend = F::one();
                                 b.resize(PRODUCT_SIZE, BYTE_MASK);
@@ -218,8 +215,8 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
                             }
                         }
 
-                        // Calculate the correct product using the `product` array. We store the correct carry
-                        // value for verification.
+                        // Calculate the correct product using the `product` array. We store the
+                        // correct carry value for verification.
                         let base = (1 << BYTE_SIZE) as u32;
                         let mut carry = [0u32; PRODUCT_SIZE];
                         for i in 0..PRODUCT_SIZE {
@@ -435,10 +432,10 @@ where
             let mulh: AB::Expr = AB::F::from_canonical_u32(Opcode::MULH as u32).into();
             let mulhu: AB::Expr = AB::F::from_canonical_u32(Opcode::MULHU as u32).into();
             let mulhsu: AB::Expr = AB::F::from_canonical_u32(Opcode::MULHSU as u32).into();
-            local.is_mul * mul
-                + local.is_mulh * mulh
-                + local.is_mulhu * mulhu
-                + local.is_mulhsu * mulhsu
+            local.is_mul * mul +
+                local.is_mulh * mulh +
+                local.is_mulhu * mulhu +
+                local.is_mulhsu * mulhsu
         };
 
         // Range check.

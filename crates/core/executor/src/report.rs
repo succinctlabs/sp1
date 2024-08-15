@@ -1,11 +1,11 @@
-use std::collections::hash_map::Entry;
-use std::collections::HashMap;
-use std::fmt::{Display, Formatter, Result as FmtResult};
-use std::hash::Hash;
-use std::ops::{Add, AddAssign};
+use std::{
+    collections::{hash_map::Entry, HashMap},
+    fmt::{Display, Formatter, Result as FmtResult},
+    hash::Hash,
+    ops::{Add, AddAssign},
+};
 
-use crate::syscalls::SyscallCode;
-use crate::Opcode;
+use crate::{syscalls::SyscallCode, Opcode};
 
 /// An execution report.
 #[derive(Default, Debug, Clone, PartialEq, Eq)]

@@ -1,35 +1,30 @@
 use hashbrown::HashMap;
 use itertools::Itertools;
-use sp1_core_executor::events::create_alu_lookups;
-use sp1_core_executor::events::AluEvent;
-use sp1_core_executor::events::ByteLookupEvent;
-use sp1_core_executor::events::ByteRecord;
-use sp1_core_executor::events::CpuEvent;
-use sp1_core_executor::events::MemoryRecordEnum;
-use sp1_core_executor::syscalls::SyscallCode;
-use sp1_core_executor::ByteOpcode;
-use sp1_core_executor::ByteOpcode::U16Range;
-use sp1_core_executor::ExecutionRecord;
-use sp1_core_executor::Opcode;
-use sp1_core_executor::Program;
+use sp1_core_executor::{
+    events::{
+        create_alu_lookups, AluEvent, ByteLookupEvent, ByteRecord, CpuEvent, MemoryRecordEnum,
+    },
+    syscalls::SyscallCode,
+    ByteOpcode,
+    ByteOpcode::U16Range,
+    ExecutionRecord, Opcode, Program,
+};
 use sp1_primitives::consts::WORD_SIZE;
-use sp1_stark::air::MachineAir;
-use sp1_stark::Word;
-use std::array;
-use std::borrow::BorrowMut;
+use sp1_stark::{air::MachineAir, Word};
+use std::{array, borrow::BorrowMut};
 
 use p3_field::{PrimeField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
-use p3_maybe_rayon::prelude::IntoParallelRefMutIterator;
-use p3_maybe_rayon::prelude::ParallelBridge;
-use p3_maybe_rayon::prelude::ParallelIterator;
-use p3_maybe_rayon::prelude::ParallelSlice;
+use p3_maybe_rayon::prelude::{
+    IntoParallelRefMutIterator, ParallelBridge, ParallelIterator, ParallelSlice,
+};
 use tracing::instrument;
 
-use super::columns::{CPU_COL_MAP, NUM_CPU_COLS};
-use super::CpuChip;
-use crate::cpu::columns::CpuCols;
-use crate::memory::MemoryCols;
+use super::{
+    columns::{CPU_COL_MAP, NUM_CPU_COLS},
+    CpuChip,
+};
+use crate::{cpu::columns::CpuCols, memory::MemoryCols};
 
 impl<F: PrimeField32> MachineAir<F> for CpuChip {
     type Record = ExecutionRecord;
@@ -191,9 +186,9 @@ impl CpuChip {
         let is_halt = self.populate_ecall(cols, event, nonce_lookup);
 
         cols.is_sequential_instr = F::from_bool(
-            !event.instruction.is_branch_instruction()
-                && !event.instruction.is_jump_instruction()
-                && !is_halt,
+            !event.instruction.is_branch_instruction() &&
+                !event.instruction.is_jump_instruction() &&
+                !is_halt,
         );
 
         // Assert that the instruction is not a no-op.
@@ -260,14 +255,14 @@ impl CpuChip {
     ) {
         if !matches!(
             event.instruction.opcode,
-            Opcode::LB
-                | Opcode::LH
-                | Opcode::LW
-                | Opcode::LBU
-                | Opcode::LHU
-                | Opcode::SB
-                | Opcode::SH
-                | Opcode::SW
+            Opcode::LB |
+                Opcode::LH |
+                Opcode::LW |
+                Opcode::LBU |
+                Opcode::LHU |
+                Opcode::SB |
+                Opcode::SH |
+                Opcode::SW
         ) {
             return;
         }
@@ -629,7 +624,8 @@ impl CpuChip {
 
         if cols.selectors.is_ecall == F::one() {
             // The send_to_table column is the 1st entry of the op_a_access column prev_value field.
-            // Look at `ecall_eval` in cpu/air/mod.rs for the corresponding constraint and explanation.
+            // Look at `ecall_eval` in cpu/air/mod.rs for the corresponding constraint and
+            // explanation.
             let ecall_cols = cols.opcode_specific_columns.ecall_mut();
 
             cols.ecall_mul_send_to_table = cols.selectors.is_ecall * cols.op_a_access.prev_value[1];
@@ -660,14 +656,15 @@ impl CpuChip {
 
             // Populate `is_commit_deferred_proofs`.
             ecall_cols.is_commit_deferred_proofs.populate_from_field_element(
-                syscall_id
-                    - F::from_canonical_u32(SyscallCode::COMMIT_DEFERRED_PROOFS.syscall_id()),
+                syscall_id -
+                    F::from_canonical_u32(SyscallCode::COMMIT_DEFERRED_PROOFS.syscall_id()),
             );
 
-            // If the syscall is `COMMIT` or `COMMIT_DEFERRED_PROOFS`, set the index bitmap and digest word.
-            if syscall_id == F::from_canonical_u32(SyscallCode::COMMIT.syscall_id())
-                || syscall_id
-                    == F::from_canonical_u32(SyscallCode::COMMIT_DEFERRED_PROOFS.syscall_id())
+            // If the syscall is `COMMIT` or `COMMIT_DEFERRED_PROOFS`, set the index bitmap and
+            // digest word.
+            if syscall_id == F::from_canonical_u32(SyscallCode::COMMIT.syscall_id()) ||
+                syscall_id ==
+                    F::from_canonical_u32(SyscallCode::COMMIT_DEFERRED_PROOFS.syscall_id())
             {
                 let digest_idx = cols.op_b_access.value().to_u32() as usize;
                 ecall_cols.index_bitmap[digest_idx] = F::one();

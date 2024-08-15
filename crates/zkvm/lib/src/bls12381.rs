@@ -1,5 +1,4 @@
-use crate::utils::AffinePoint;
-use crate::{syscall_bls12381_add, syscall_bls12381_double};
+use crate::{syscall_bls12381_add, syscall_bls12381_double, utils::AffinePoint};
 
 /// The number of limbs in [Bls12381AffinePoint].
 pub const N: usize = 24;

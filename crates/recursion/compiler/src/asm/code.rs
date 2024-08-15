@@ -1,8 +1,6 @@
-use alloc::collections::BTreeMap;
-use alloc::format;
+use alloc::{collections::BTreeMap, format};
 use backtrace::Backtrace;
-use core::fmt;
-use core::fmt::Display;
+use core::{fmt, fmt::Display};
 
 use p3_field::{ExtensionField, PrimeField32};
 use sp1_recursion_core::runtime::RecursionProgram;

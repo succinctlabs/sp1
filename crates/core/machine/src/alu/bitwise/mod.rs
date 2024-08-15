@@ -1,19 +1,23 @@
-use core::borrow::{Borrow, BorrowMut};
-use core::mem::size_of;
+use core::{
+    borrow::{Borrow, BorrowMut},
+    mem::size_of,
+};
 
 use hashbrown::HashMap;
 use itertools::Itertools;
-use p3_air::AirBuilder;
-use p3_air::{Air, BaseAir};
+use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField};
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{IntoParallelRefIterator, ParallelIterator, ParallelSlice};
-use sp1_core_executor::events::{AluEvent, ByteLookupEvent, ByteRecord};
-use sp1_core_executor::{ByteOpcode, ExecutionRecord, Opcode, Program};
+use sp1_core_executor::{
+    events::{AluEvent, ByteLookupEvent, ByteRecord},
+    ByteOpcode, ExecutionRecord, Opcode, Program,
+};
 use sp1_derive::AlignedBorrow;
-use sp1_stark::air::{MachineAir, SP1AirBuilder};
-use sp1_stark::Word;
+use sp1_stark::{
+    air::{MachineAir, SP1AirBuilder},
+    Word,
+};
 
 use crate::utils::pad_to_power_of_two;
 
@@ -182,9 +186,9 @@ where
         builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         // Get the opcode for the operation.
-        let opcode = local.is_xor * ByteOpcode::XOR.as_field::<AB::F>()
-            + local.is_or * ByteOpcode::OR.as_field::<AB::F>()
-            + local.is_and * ByteOpcode::AND.as_field::<AB::F>();
+        let opcode = local.is_xor * ByteOpcode::XOR.as_field::<AB::F>() +
+            local.is_or * ByteOpcode::OR.as_field::<AB::F>() +
+            local.is_and * ByteOpcode::AND.as_field::<AB::F>();
 
         // Get a multiplicity of `1` only for a true row.
         let mult = local.is_xor + local.is_or + local.is_and;
@@ -193,9 +197,9 @@ where
         }
 
         // Get the cpu opcode, which corresponds to the opcode being sent in the CPU table.
-        let cpu_opcode = local.is_xor * Opcode::XOR.as_field::<AB::F>()
-            + local.is_or * Opcode::OR.as_field::<AB::F>()
-            + local.is_and * Opcode::AND.as_field::<AB::F>();
+        let cpu_opcode = local.is_xor * Opcode::XOR.as_field::<AB::F>() +
+            local.is_or * Opcode::OR.as_field::<AB::F>() +
+            local.is_and * Opcode::AND.as_field::<AB::F>();
 
         // Receive the arguments.
         builder.receive_alu(

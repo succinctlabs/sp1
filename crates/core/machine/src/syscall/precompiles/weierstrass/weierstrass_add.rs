@@ -1,34 +1,34 @@
-use core::borrow::{Borrow, BorrowMut};
-use core::mem::size_of;
-use std::fmt::Debug;
-use std::marker::PhantomData;
+use core::{
+    borrow::{Borrow, BorrowMut},
+    mem::size_of,
+};
+use std::{fmt::Debug, marker::PhantomData};
 
 use crate::air::MemoryAirBuilder;
 use generic_array::GenericArray;
-use num::BigUint;
-use num::Zero;
-use p3_air::AirBuilder;
-use p3_air::{Air, BaseAir};
-use p3_field::AbstractField;
-use p3_field::PrimeField32;
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
+use num::{BigUint, Zero};
+use p3_air::{Air, AirBuilder, BaseAir};
+use p3_field::{AbstractField, PrimeField32};
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_executor::{
-    events::ByteLookupEvent, events::ByteRecord, syscalls::SyscallCode, ExecutionRecord, Program,
+    events::{ByteLookupEvent, ByteRecord},
+    syscalls::SyscallCode,
+    ExecutionRecord, Program,
 };
-use sp1_curves::params::{FieldParameters, Limbs, NumLimbs, NumWords};
-use sp1_curves::weierstrass::WeierstrassParameters;
-use sp1_curves::{AffinePoint, CurveType, EllipticCurve};
+use sp1_curves::{
+    params::{FieldParameters, Limbs, NumLimbs, NumWords},
+    weierstrass::WeierstrassParameters,
+    AffinePoint, CurveType, EllipticCurve,
+};
 use sp1_derive::AlignedBorrow;
 use sp1_stark::air::{MachineAir, SP1AirBuilder};
 use typenum::Unsigned;
 
-use crate::memory::MemoryCols;
-use crate::memory::MemoryReadCols;
-use crate::memory::MemoryWriteCols;
-use crate::operations::field::field_op::FieldOpCols;
-use crate::operations::field::field_op::FieldOperation;
-use crate::utils::{limbs_from_prev_access, pad_rows};
+use crate::{
+    memory::{MemoryCols, MemoryReadCols, MemoryWriteCols},
+    operations::field::field_op::{FieldOpCols, FieldOperation},
+    utils::{limbs_from_prev_access, pad_rows},
+};
 
 pub const fn num_weierstrass_add_cols<P: FieldParameters + NumWords>() -> usize {
     size_of::<WeierstrassAddAssignCols<u8, P>>()
@@ -283,9 +283,9 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
         // Write the nonces to the trace.
         for i in 0..trace.height() {
-            let cols: &mut WeierstrassAddAssignCols<F, E::BaseField> = trace.values[i
-                * num_weierstrass_add_cols::<E::BaseField>()
-                ..(i + 1) * num_weierstrass_add_cols::<E::BaseField>()]
+            let cols: &mut WeierstrassAddAssignCols<F, E::BaseField> = trace.values[i *
+                num_weierstrass_add_cols::<E::BaseField>()..
+                (i + 1) * num_weierstrass_add_cols::<E::BaseField>()]
                 .borrow_mut();
             cols.nonce = F::from_canonical_usize(i);
         }
@@ -459,7 +459,8 @@ where
         builder.eval_memory_access_slice(
             local.shard,
             local.channel,
-            local.clk + AB::F::from_canonical_u32(1), // We read p at +1 since p, q could be the same.
+            local.clk + AB::F::from_canonical_u32(1), /* We read p at +1 since p, q could be the
+                                                       * same. */
             local.p_ptr,
             &local.p_access,
             local.is_real,

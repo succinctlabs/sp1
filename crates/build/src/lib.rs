@@ -19,8 +19,9 @@ const HELPER_TARGET_SUBDIR: &str = "elf-compilation";
 
 /// Compile an SP1 program.
 ///
-/// Additional arguments are useful for configuring the build process, including options for using Docker,
-/// specifying binary and ELF names, ignoring Rust version checks, and enabling specific features.
+/// Additional arguments are useful for configuring the build process, including options for using
+/// Docker, specifying binary and ELF names, ignoring Rust version checks, and enabling specific
+/// features.
 #[derive(Clone, Parser, Debug)]
 pub struct BuildArgs {
     #[clap(
@@ -154,12 +155,14 @@ fn create_local_command(
     }
 
     // When executing the local command:
-    // 1. Set the target directory to a subdirectory of the program's target directory to avoid build
+    // 1. Set the target directory to a subdirectory of the program's target directory to avoid
+    //    build
     // conflicts with the parent process. Source: https://github.com/rust-lang/cargo/issues/6412
     // 2. Set the rustup toolchain to succinct.
     // 3. Set the encoded rust flags.
     // 4. Remove the rustc configuration, otherwise in a build script it will attempt to compile the
-    //    program with the toolchain of the normal build process, rather than the Succinct toolchain.
+    //    program with the toolchain of the normal build process, rather than the Succinct
+    //    toolchain.
     command
         .current_dir(canonicalized_program_dir)
         .env("RUSTUP_TOOLCHAIN", "succinct")
@@ -215,8 +218,8 @@ fn copy_elf_to_output_dir(
     let root_package = program_metadata.root_package();
     let root_package_name = root_package.as_ref().map(|p| &p.name);
 
-    // The ELF is written to a target folder specified by the program's package. If built with Docker,
-    // includes /docker after HELPER_TARGET_SUBDIR.
+    // The ELF is written to a target folder specified by the program's package. If built with
+    // Docker, includes /docker after HELPER_TARGET_SUBDIR.
     let mut target_dir_suffix = HELPER_TARGET_SUBDIR.to_string();
     if args.docker {
         target_dir_suffix = format!("{}/{}", HELPER_TARGET_SUBDIR, "docker");
@@ -260,17 +263,19 @@ fn copy_elf_to_output_dir(
     Ok(result_elf_path)
 }
 
-/// Build a program with the specified [`BuildArgs`]. The `program_dir` is specified as an argument when
-/// the program is built via `build_program` in sp1-helper.
+/// Build a program with the specified [`BuildArgs`]. The `program_dir` is specified as an argument
+/// when the program is built via `build_program` in sp1-helper.
 ///
 /// # Arguments
 ///
-/// * `args` - A reference to a `BuildArgs` struct that holds various arguments used for building the program.
+/// * `args` - A reference to a `BuildArgs` struct that holds various arguments used for building
+///   the program.
 /// * `program_dir` - An optional `PathBuf` specifying the directory of the program to be built.
 ///
 /// # Returns
 ///
-/// * `Result<Utf8PathBuf>` - The path to the built program as a `Utf8PathBuf` on success, or an error on failure.
+/// * `Result<Utf8PathBuf>` - The path to the built program as a `Utf8PathBuf` on success, or an
+///   error on failure.
 pub fn build_program(args: &BuildArgs, program_dir: Option<PathBuf>) -> Result<Utf8PathBuf> {
     // If the program directory is not specified, use the current directory.
     let program_dir = program_dir

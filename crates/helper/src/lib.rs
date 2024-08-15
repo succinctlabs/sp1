@@ -44,8 +44,9 @@ fn execute_build_cmd(
     program_dir: &impl AsRef<std::path::Path>,
     args: Option<BuildArgs>,
 ) -> Result<std::process::ExitStatus, std::io::Error> {
-    // Check if RUSTC_WORKSPACE_WRAPPER is set to clippy-driver (i.e. if `cargo clippy` is the current
-    // compiler). If so, don't execute `cargo prove build` because it breaks rust-analyzer's `cargo clippy` feature.
+    // Check if RUSTC_WORKSPACE_WRAPPER is set to clippy-driver (i.e. if `cargo clippy` is the
+    // current compiler). If so, don't execute `cargo prove build` because it breaks
+    // rust-analyzer's `cargo clippy` feature.
     let is_clippy_driver = std::env::var("RUSTC_WORKSPACE_WRAPPER")
         .map(|val| val.contains("clippy-driver"))
         .unwrap_or(false);
@@ -68,8 +69,8 @@ fn execute_build_cmd(
 
 /// Builds the program if the program at the specified path, or one of its dependencies, changes.
 ///
-/// This function monitors the program and its dependencies for changes. If any changes are detected,
-/// it triggers a rebuild of the program.
+/// This function monitors the program and its dependencies for changes. If any changes are
+/// detected, it triggers a rebuild of the program.
 ///
 /// # Arguments
 ///

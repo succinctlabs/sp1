@@ -29,6 +29,7 @@ impl FieldParameters for U256Field {
 
 impl NumLimbs for U256Field {
     type Limbs = U32;
-    // Note we use one more limb than usual because for mulmod with mod 1<<256, we need an extra limb.
+    // Note we use one more limb than usual because for mulmod with mod 1<<256, we need an extra
+    // limb.
     type Witness = U63;
 }

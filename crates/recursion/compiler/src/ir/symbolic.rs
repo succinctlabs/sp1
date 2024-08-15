@@ -1,17 +1,19 @@
 use alloc::rc::Rc;
-use core::any::Any;
-use core::ops::{Add, Div, Mul, Neg, Sub};
-use std::any::TypeId;
-use std::hash::Hash;
-use std::iter::{Product, Sum};
-use std::mem;
-use std::ops::{AddAssign, DivAssign, MulAssign, SubAssign};
+use core::{
+    any::Any,
+    ops::{Add, Div, Mul, Neg, Sub},
+};
+use std::{
+    any::TypeId,
+    hash::Hash,
+    iter::{Product, Sum},
+    mem,
+    ops::{AddAssign, DivAssign, MulAssign, SubAssign},
+};
 
-use p3_field::{AbstractField, ExtensionField};
-use p3_field::{Field, FieldArray};
+use p3_field::{AbstractField, ExtensionField, Field, FieldArray};
 
-use super::Usize;
-use super::{Ext, Felt, Var};
+use super::{Ext, Felt, Usize, Var};
 
 const NUM_RANDOM_ELEMENTS: usize = 4;
 
@@ -639,7 +641,8 @@ impl<F: Field, EF: ExtensionField<F>> Neg for SymbolicExt<F, EF> {
     }
 }
 
-// Implement all operations between N, F, EF, and SymbolicVar<N>, SymbolicFelt<F>, SymbolicExt<F, EF>
+// Implement all operations between N, F, EF, and SymbolicVar<N>, SymbolicFelt<F>, SymbolicExt<F,
+// EF>
 
 impl<N: Field> Add<N> for SymbolicVar<N> {
     type Output = Self;

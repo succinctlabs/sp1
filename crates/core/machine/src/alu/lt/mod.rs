@@ -1,20 +1,23 @@
-use core::borrow::{Borrow, BorrowMut};
-use core::mem::size_of;
+use core::{
+    borrow::{Borrow, BorrowMut},
+    mem::size_of,
+};
 
 use hashbrown::HashMap;
 use itertools::{izip, Itertools};
 use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::Field;
-use p3_field::{AbstractField, PrimeField32};
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
+use p3_field::{AbstractField, Field, PrimeField32};
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::*;
-use sp1_core_executor::events::{AluEvent, ByteLookupEvent, ByteRecord};
-use sp1_core_executor::{ByteOpcode, ExecutionRecord, Opcode, Program};
+use sp1_core_executor::{
+    events::{AluEvent, ByteLookupEvent, ByteRecord},
+    ByteOpcode, ExecutionRecord, Opcode, Program,
+};
 use sp1_derive::AlignedBorrow;
-use sp1_stark::air::BaseAirBuilder;
-use sp1_stark::air::{MachineAir, SP1AirBuilder};
-use sp1_stark::Word;
+use sp1_stark::{
+    air::{BaseAirBuilder, MachineAir, SP1AirBuilder},
+    Word,
+};
 
 use crate::utils::pad_to_power_of_two;
 
@@ -451,8 +454,8 @@ where
 
         // Receive the arguments.
         builder.receive_alu(
-            local.is_slt * AB::F::from_canonical_u32(Opcode::SLT as u32)
-                + local.is_sltu * AB::F::from_canonical_u32(Opcode::SLTU as u32),
+            local.is_slt * AB::F::from_canonical_u32(Opcode::SLT as u32) +
+                local.is_sltu * AB::F::from_canonical_u32(Opcode::SLTU as u32),
             local.a,
             local.b,
             local.c,
@@ -471,9 +474,7 @@ mod tests {
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
     use sp1_core_executor::{events::AluEvent, ExecutionRecord, Opcode};
-    use sp1_stark::air::MachineAir;
-    use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
-    use sp1_stark::StarkGenericConfig;
+    use sp1_stark::{air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, StarkGenericConfig};
 
     use super::LtChip;
 

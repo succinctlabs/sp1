@@ -1,5 +1,4 @@
-use super::{Array, FriFoldInput, MemIndex, Ptr, TracedVec};
-use super::{Config, Ext, Felt, Usize, Var};
+use super::{Array, Config, Ext, Felt, FriFoldInput, MemIndex, Ptr, TracedVec, Usize, Var};
 
 /// An intermeddiate instruction set for implementing programs.
 ///
@@ -50,9 +49,11 @@ pub enum DslIr<C: Config> {
     SubFIN(Felt<C::F>, C::F, Felt<C::F>),
     /// Subtracts two extension field elements (ext = ext - ext).
     SubE(Ext<C::F, C::EF>, Ext<C::F, C::EF>, Ext<C::F, C::EF>),
-    /// Subtrancts an extension field element and an extension field immediate (ext = ext - ext field imm).
+    /// Subtrancts an extension field element and an extension field immediate (ext = ext - ext
+    /// field imm).
     SubEI(Ext<C::F, C::EF>, Ext<C::F, C::EF>, C::EF),
-    /// Subtracts an extension field immediate and an extension field element (ext = ext field imm - ext).
+    /// Subtracts an extension field immediate and an extension field element (ext = ext field imm
+    /// - ext).
     SubEIN(Ext<C::F, C::EF>, C::EF, Ext<C::F, C::EF>),
     /// Subtracts an extension field element and a field immediate (ext = ext - field imm).
     SubEFI(Ext<C::F, C::EF>, Ext<C::F, C::EF>, C::F),
@@ -70,7 +71,8 @@ pub enum DslIr<C: Config> {
     MulFI(Felt<C::F>, Felt<C::F>, C::F),
     /// Multiplies two extension field elements (ext = ext * ext).
     MulE(Ext<C::F, C::EF>, Ext<C::F, C::EF>, Ext<C::F, C::EF>),
-    /// Multiplies an extension field element and an extension field immediate (ext = ext * ext field imm).
+    /// Multiplies an extension field element and an extension field immediate (ext = ext * ext
+    /// field imm).
     MulEI(Ext<C::F, C::EF>, Ext<C::F, C::EF>, C::EF),
     /// Multiplies an extension field element and a field immediate (ext = ext * field imm).
     MulEFI(Ext<C::F, C::EF>, Ext<C::F, C::EF>, C::F),
@@ -86,9 +88,11 @@ pub enum DslIr<C: Config> {
     DivFIN(Felt<C::F>, C::F, Felt<C::F>),
     /// Divides two extension field elements (ext = ext / ext).
     DivE(Ext<C::F, C::EF>, Ext<C::F, C::EF>, Ext<C::F, C::EF>),
-    /// Divides an extension field element and an extension field immediate (ext = ext / ext field imm).
+    /// Divides an extension field element and an extension field immediate (ext = ext / ext field
+    /// imm).
     DivEI(Ext<C::F, C::EF>, Ext<C::F, C::EF>, C::EF),
-    /// Divides and extension field immediate and an extension field element (ext = ext field imm / ext).
+    /// Divides and extension field immediate and an extension field element (ext = ext field imm /
+    /// ext).
     DivEIN(Ext<C::F, C::EF>, C::EF, Ext<C::F, C::EF>),
     /// Divides an extension field element and a field immediate (ext = ext / field imm).
     DivEFI(Ext<C::F, C::EF>, Ext<C::F, C::EF>, C::F),
@@ -112,15 +116,20 @@ pub enum DslIr<C: Config> {
     InvE(Ext<C::F, C::EF>, Ext<C::F, C::EF>),
 
     // Control flow.
-    /// Executes a for loop with the parameters (start step value, end step value, step size, step variable, body).
+    /// Executes a for loop with the parameters (start step value, end step value, step size, step
+    /// variable, body).
     For(Usize<C::N>, Usize<C::N>, C::N, Var<C::N>, TracedVec<DslIr<C>>),
-    /// Executes an equal conditional branch with the parameters (lhs var, rhs var, then body, else body).
+    /// Executes an equal conditional branch with the parameters (lhs var, rhs var, then body, else
+    /// body).
     IfEq(Var<C::N>, Var<C::N>, TracedVec<DslIr<C>>, TracedVec<DslIr<C>>),
-    /// Executes a not equal conditional branch with the parameters (lhs var, rhs var, then body, else body).
+    /// Executes a not equal conditional branch with the parameters (lhs var, rhs var, then body,
+    /// else body).
     IfNe(Var<C::N>, Var<C::N>, TracedVec<DslIr<C>>, TracedVec<DslIr<C>>),
-    /// Executes an equal conditional branch with the parameters (lhs var, rhs imm, then body, else body).
+    /// Executes an equal conditional branch with the parameters (lhs var, rhs imm, then body, else
+    /// body).
     IfEqI(Var<C::N>, C::N, TracedVec<DslIr<C>>, TracedVec<DslIr<C>>),
-    /// Executes a not equal conditional branch with the parameters (lhs var, rhs imm, then body, else body).
+    /// Executes a not equal conditional branch with the parameters (lhs var, rhs imm, then body,
+    /// else body).
     IfNeI(Var<C::N>, C::N, TracedVec<DslIr<C>>, TracedVec<DslIr<C>>),
     /// Break out of a for loop.
     Break,
@@ -146,9 +155,11 @@ pub enum DslIr<C: Config> {
     AssertEqFI(Felt<C::F>, C::F),
     /// Assert that a field element is not equal to a field immediate (felt != field imm).
     AssertNeFI(Felt<C::F>, C::F),
-    /// Assert that an extension field element is equal to an extension field immediate (ext == ext field imm).
+    /// Assert that an extension field element is equal to an extension field immediate (ext == ext
+    /// field imm).
     AssertEqEI(Ext<C::F, C::EF>, C::EF),
-    /// Assert that an extension field element is not equal to an extension field immediate (ext != ext field imm).
+    /// Assert that an extension field element is not equal to an extension field immediate (ext !=
+    /// ext field imm).
     AssertNeEI(Ext<C::F, C::EF>, C::EF),
 
     // Memory instructions.
@@ -171,22 +182,25 @@ pub enum DslIr<C: Config> {
     ReduceE(Ext<C::F, C::EF>),
 
     // Bits.
-    /// Decompose a variable into size bits (bits = num2bits(var, size)). Should only be used when target is a gnark circuit.
+    /// Decompose a variable into size bits (bits = num2bits(var, size)). Should only be used when
+    /// target is a gnark circuit.
     CircuitNum2BitsV(Var<C::N>, usize, Vec<Var<C::N>>),
-    /// Decompose a field element into bits (bits = num2bits(felt)). Should only be used when target is a gnark circuit.
+    /// Decompose a field element into bits (bits = num2bits(felt)). Should only be used when
+    /// target is a gnark circuit.
     CircuitNum2BitsF(Felt<C::F>, Vec<Var<C::N>>),
 
     // Hashing.
     /// Permutes an array of baby bear elements using Poseidon2 (output = p2_permute(array)).
     Poseidon2PermuteBabyBear(Array<C, Felt<C::F>>, Array<C, Felt<C::F>>),
-    /// Compresses two baby bear element arrays using Poseidon2 (output = p2_compress(array1, array2)).
+    /// Compresses two baby bear element arrays using Poseidon2 (output = p2_compress(array1,
+    /// array2)).
     Poseidon2CompressBabyBear(Array<C, Felt<C::F>>, Array<C, Felt<C::F>>, Array<C, Felt<C::F>>),
     /// Absorb an array of baby bear elements for a specified hash instance.
     Poseidon2AbsorbBabyBear(Var<C::N>, Array<C, Felt<C::F>>),
     /// Finalize and return the hash digest of a specified hash instance.
     Poseidon2FinalizeBabyBear(Var<C::N>, Array<C, Felt<C::F>>),
-    /// Permutes an array of Bn254 elements using Poseidon2 (output = p2_permute(array)). Should only
-    /// be used when target is a gnark circuit.
+    /// Permutes an array of Bn254 elements using Poseidon2 (output = p2_permute(array)). Should
+    /// only be used when target is a gnark circuit.
     CircuitPoseidon2Permute([Var<C::N>; 3]),
     /// Permutates an array of BabyBear elements in the circuit.
     CircuitPoseidon2PermuteBabyBear([Felt<C::F>; 16]),
@@ -234,22 +248,22 @@ pub enum DslIr<C: Config> {
     /// Asserts that the inputted var is equal the circuit's vkey hash public input. Should only be
     /// used when target is a gnark circuit.
     CircuitCommitVkeyHash(Var<C::N>),
-    /// Asserts that the inputted var is equal the circuit's commited values digest public input. Should
-    /// only be used when target is a gnark circuit.
+    /// Asserts that the inputted var is equal the circuit's commited values digest public input.
+    /// Should only be used when target is a gnark circuit.
     CircuitCommitCommitedValuesDigest(Var<C::N>),
 
     // FRI specific instructions.
-    /// Executes a FRI fold operation. 1st field is the size of the fri fold input array.  2nd field
-    /// is the fri fold input array.  See [`FriFoldInput`] for more details.
+    /// Executes a FRI fold operation. 1st field is the size of the fri fold input array.  2nd
+    /// field is the fri fold input array.  See [`FriFoldInput`] for more details.
     FriFold(Var<C::N>, Array<C, FriFoldInput<C>>),
     /// Select's a variable based on a condition. (select(cond, true_val, false_val) => output).
     /// Should only be used when target is a gnark circuit.
     CircuitSelectV(Var<C::N>, Var<C::N>, Var<C::N>, Var<C::N>),
-    /// Select's a field element based on a condition. (select(cond, true_val, false_val) => output).
-    /// Should only be used when target is a gnark circuit.
+    /// Select's a field element based on a condition. (select(cond, true_val, false_val) =>
+    /// output). Should only be used when target is a gnark circuit.
     CircuitSelectF(Var<C::N>, Felt<C::F>, Felt<C::F>, Felt<C::F>),
-    /// Select's an extension field element based on a condition. (select(cond, true_val, false_val) => output).
-    /// Should only be used when target is a gnark circuit.
+    /// Select's an extension field element based on a condition. (select(cond, true_val,
+    /// false_val) => output). Should only be used when target is a gnark circuit.
     CircuitSelectE(Var<C::N>, Ext<C::F, C::EF>, Ext<C::F, C::EF>, Ext<C::F, C::EF>),
     /// Converts an ext to a slice of felts. Should only be used when target is a gnark circuit.
     CircuitExt2Felt([Felt<C::F>; 4], Ext<C::F, C::EF>),

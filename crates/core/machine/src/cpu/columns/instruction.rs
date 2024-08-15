@@ -2,8 +2,7 @@ use p3_field::PrimeField;
 use sp1_core_executor::{Instruction, Register};
 use sp1_derive::AlignedBorrow;
 use sp1_stark::Word;
-use std::mem::size_of;
-use std::{iter::once, vec::IntoIter};
+use std::{iter::once, mem::size_of, vec::IntoIter};
 
 pub const NUM_INSTRUCTION_COLS: usize = size_of::<InstructionCols<u8>>();
 

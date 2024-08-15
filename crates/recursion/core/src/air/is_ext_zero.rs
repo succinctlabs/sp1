@@ -6,13 +6,12 @@
 //! is 0.
 use crate::air::Block;
 use p3_air::AirBuilder;
-use p3_field::extension::BinomialExtensionField;
-use p3_field::extension::BinomiallyExtendable;
-use p3_field::AbstractField;
-use p3_field::Field;
+use p3_field::{
+    extension::{BinomialExtensionField, BinomiallyExtendable},
+    AbstractField, Field,
+};
 use sp1_derive::AlignedBorrow;
-use sp1_stark::air::BinomialExtension;
-use sp1_stark::air::SP1AirBuilder;
+use sp1_stark::air::{BinomialExtension, SP1AirBuilder};
 
 use crate::air::extension::BinomialExtensionUtils;
 

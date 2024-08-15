@@ -22,22 +22,23 @@
 //! # Absorb rows
 //!
 //! For absorb rows, the AIR needs to ensure that all of the input is written into the hash state
-//! and that its written into the correct parts of that state.  To do this, the AIR will first ensure
-//! the correct values for num_remaining_rows (e.g. total number of rows of an absorb syscall) and
-//! the last_row_ending_cursor.  It does this by checking the following:
+//! and that its written into the correct parts of that state.  To do this, the AIR will first
+//! ensure the correct values for num_remaining_rows (e.g. total number of rows of an absorb
+//! syscall) and the last_row_ending_cursor.  It does this by checking the following:
 //!
 //! 1. start_state_cursor + syscall_input_len == num_remaining_rows * RATE + last_row_ending_cursor
 //! 2. range check syscall_input_len to be [0, 2^16 - 1]
 //! 3. range check last_row_ending_cursor to be [0, RATE]
 //!
 //! For all subsequent absorb rows, the num_remaining_rows will be decremented by 1, and the
-//! last_row_ending_cursor will be copied down to all of the rows.  Also, for the next absorb/finalize
-//! syscall, its state_cursor is set to (last_row_ending_cursor + 1) % RATE.
+//! last_row_ending_cursor will be copied down to all of the rows.  Also, for the next
+//! absorb/finalize syscall, its state_cursor is set to (last_row_ending_cursor + 1) % RATE.
 //!
 //! From num_remaining_rows and syscall column, we know the absorb's first row and last row.
 //! From that fact, we can then enforce the following state writes.
 //!
-//! 1. is_first_row && is_last_row -> state writes are [state_cursor..state_cursor + last_row_ending_cursor]
+//! 1. is_first_row && is_last_row -> state writes are [state_cursor..state_cursor +
+//!    last_row_ending_cursor]
 //! 2. is_first_row && !is_last_row -> state writes are [state_cursor..RATE - 1]
 //! 3. !is_first_row && !is_last_row -> state writes are [0..RATE - 1]
 //! 4. !is_first_row && is_last_row -> state writes are [0..last_row_ending_cursor]

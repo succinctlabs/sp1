@@ -24,8 +24,8 @@ pub struct EcallCols<T> {
     /// Whether the current ecall is a COMMIT_DEFERRED_PROOFS.
     pub is_commit_deferred_proofs: IsZeroOperation<T>,
 
-    /// Field to store the word index passed into the COMMIT ecall.  index_bitmap[word index] should
-    /// be set to 1 and everything else set to 0.
+    /// Field to store the word index passed into the COMMIT ecall.  index_bitmap[word index]
+    /// should be set to 1 and everything else set to 0.
     pub index_bitmap: [T; PV_DIGEST_NUM_WORDS],
 
     /// The nonce of the syscall operation.

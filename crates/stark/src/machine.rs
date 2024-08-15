@@ -1,43 +1,26 @@
 use hashbrown::HashMap;
 use itertools::Itertools;
 use p3_air::Air;
-use p3_challenger::CanObserve;
-use p3_challenger::FieldChallenger;
+use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::Pcs;
-use p3_field::AbstractExtensionField;
-use p3_field::AbstractField;
-use p3_field::Field;
-use p3_field::PrimeField32;
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Dimensions;
-use p3_matrix::Matrix;
+use p3_field::{AbstractExtensionField, AbstractField, Field, PrimeField32};
+use p3_matrix::{dense::RowMajorMatrix, Dimensions, Matrix};
 use p3_maybe_rayon::prelude::*;
-use serde::de::DeserializeOwned;
-use serde::Deserialize;
-use serde::Serialize;
-use std::cmp::Reverse;
-use std::fmt::Debug;
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use std::{cmp::Reverse, fmt::Debug};
 use tracing::instrument;
 
-use super::debug_constraints;
-use super::Dom;
-use crate::air::MachineAir;
-use crate::air::MachineProgram;
-use crate::lookup::debug_interactions_with_all_chips;
-use crate::lookup::InteractionKind;
-use crate::record::MachineRecord;
-use crate::DebugConstraintBuilder;
-use crate::ShardProof;
-use crate::VerifierConstraintFolder;
+use super::{debug_constraints, Dom};
+use crate::{
+    air::{MachineAir, MachineProgram},
+    lookup::{debug_interactions_with_all_chips, InteractionKind},
+    record::MachineRecord,
+    DebugConstraintBuilder, ShardProof, VerifierConstraintFolder,
+};
 
-use super::Chip;
-use super::Com;
-use super::MachineProof;
-use super::PcsProverData;
-use super::StarkGenericConfig;
-use super::Val;
-use super::VerificationError;
-use super::Verifier;
+use super::{
+    Chip, Com, MachineProof, PcsProverData, StarkGenericConfig, Val, VerificationError, Verifier,
+};
 
 /// A chip in a machine.
 pub type MachineChip<SC, A> = Chip<Val<SC>, A>;
@@ -384,8 +367,8 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             // Compute some statistics.
             for i in 0..chips.len() {
                 let trace_width = traces[i].0.width();
-                let permutation_width = permutation_traces[i].width()
-                    * <SC::Challenge as AbstractExtensionField<SC::Val>>::D;
+                let permutation_width = permutation_traces[i].width() *
+                    <SC::Challenge as AbstractExtensionField<SC::Val>>::D;
                 let total_width = trace_width + permutation_width;
                 tracing::debug!(
                     "{:<11} | Main Cols = {:<5} | Perm Cols = {:<5} | Rows = {:<10} | Cells = {:<10}",

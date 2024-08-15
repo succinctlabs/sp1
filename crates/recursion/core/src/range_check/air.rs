@@ -1,12 +1,13 @@
 use core::borrow::Borrow;
 
-use p3_air::PairBuilder;
-use p3_air::{Air, AirBuilder, BaseAir};
+use p3_air::{Air, AirBuilder, BaseAir, PairBuilder};
 use p3_field::Field;
 use p3_matrix::Matrix;
 
-use super::columns::{RangeCheckMultCols, RangeCheckPreprocessedCols, NUM_RANGE_CHECK_MULT_COLS};
-use super::{RangeCheckChip, RangeCheckOpcode};
+use super::{
+    columns::{RangeCheckMultCols, RangeCheckPreprocessedCols, NUM_RANGE_CHECK_MULT_COLS},
+    RangeCheckChip, RangeCheckOpcode,
+};
 use crate::air::SP1RecursionAirBuilder;
 
 impl<F: Field> BaseAir<F> for RangeCheckChip<F> {

@@ -1,9 +1,7 @@
 #![allow(unused)]
 
 use cfg_if::cfg_if;
-use std::env;
-use std::path::PathBuf;
-use std::process::Command;
+use std::{env, path::PathBuf, process::Command};
 
 #[allow(deprecated)]
 use bindgen::CargoCallbacks;

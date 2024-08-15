@@ -10,7 +10,8 @@ impl Syscall for WriteSyscall {
     /// Handle writes to file descriptors during execution.
     ///
     /// If stdout (fd = 1):
-    /// - If the stream is a cycle tracker, either log the cycle tracker or accumulate it in the report.
+    /// - If the stream is a cycle tracker, either log the cycle tracker or accumulate it in the
+    ///   report.
     /// - Else, print the stream to stdout.
     ///
     /// If stderr (fd = 2):
@@ -78,7 +79,8 @@ enum CycleTrackerCommand {
     ReportEnd(String),
 }
 
-/// Parse a cycle tracker command from a string. If the string does not match any known command, returns None.
+/// Parse a cycle tracker command from a string. If the string does not match any known command,
+/// returns None.
 fn parse_cycle_tracker_command(s: &str) -> Option<CycleTrackerCommand> {
     let (command, fn_name) = s.split_once(':')?;
     let trimmed_name = fn_name.trim().to_string();
@@ -123,8 +125,8 @@ fn start_cycle_tracker(rt: &mut Executor, name: &str) {
     log::info!("{}┌╴{}", padding, name);
 }
 
-/// End tracking cycles for the given name, print out the log, and return the total number of cycles in the span.
-/// If the name is not found in the cycle tracker cache, returns None.
+/// End tracking cycles for the given name, print out the log, and return the total number of cycles
+/// in the span. If the name is not found in the cycle tracker cache, returns None.
 fn end_cycle_tracker(rt: &mut Executor, name: &str) -> Option<u64> {
     if let Some((start, depth)) = rt.cycle_tracker.remove(name) {
         let padding = "│ ".repeat(depth as usize);

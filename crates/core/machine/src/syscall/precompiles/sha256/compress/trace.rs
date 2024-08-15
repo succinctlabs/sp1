@@ -3,14 +3,13 @@ use std::borrow::BorrowMut;
 use hashbrown::HashMap;
 use itertools::Itertools;
 use p3_field::PrimeField32;
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{ParallelIterator, ParallelSlice};
 use sp1_core_executor::{
-    events::ByteLookupEvent, events::ByteRecord, events::ShaCompressEvent, ExecutionRecord, Program,
+    events::{ByteLookupEvent, ByteRecord, ShaCompressEvent},
+    ExecutionRecord, Program,
 };
-use sp1_stark::air::MachineAir;
-use sp1_stark::Word;
+use sp1_stark::{air::MachineAir, Word};
 
 use super::{
     columns::{ShaCompressCols, NUM_SHA_COMPRESS_COLS},

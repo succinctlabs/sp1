@@ -6,25 +6,19 @@ pub use local::LocalProver;
 pub use mock::MockProver;
 
 use sp1_core_executor::SP1Context;
-use sp1_core_machine::io::SP1Stdin;
-use sp1_core_machine::SP1_CIRCUIT_VERSION;
-use sp1_prover::components::SP1ProverComponents;
-use sp1_prover::CoreSC;
-use sp1_prover::InnerSC;
-use sp1_prover::SP1CoreProofData;
-use sp1_prover::SP1Prover;
-use sp1_prover::SP1ReduceProof;
-use sp1_prover::{SP1ProvingKey, SP1VerifyingKey};
-use sp1_stark::MachineVerificationError;
-use sp1_stark::SP1ProverOpts;
+use sp1_core_machine::{io::SP1Stdin, SP1_CIRCUIT_VERSION};
+use sp1_prover::{
+    components::SP1ProverComponents, CoreSC, InnerSC, SP1CoreProofData, SP1Prover, SP1ProvingKey,
+    SP1ReduceProof, SP1VerifyingKey,
+};
+use sp1_stark::{MachineVerificationError, SP1ProverOpts};
 use std::time::Duration;
 use strum_macros::EnumString;
 use thiserror::Error;
 
-use crate::install::try_install_plonk_bn254_artifacts;
-use crate::SP1Proof;
-use crate::SP1ProofKind;
-use crate::SP1ProofWithPublicValues;
+use crate::{
+    install::try_install_plonk_bn254_artifacts, SP1Proof, SP1ProofKind, SP1ProofWithPublicValues,
+};
 
 /// The type of prover.
 #[derive(Debug, PartialEq, EnumString)]

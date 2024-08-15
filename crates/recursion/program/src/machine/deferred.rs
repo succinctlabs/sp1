@@ -1,32 +1,40 @@
-use std::array;
-use std::borrow::{Borrow, BorrowMut};
-use std::marker::PhantomData;
+use std::{
+    array,
+    borrow::{Borrow, BorrowMut},
+    marker::PhantomData,
+};
 
 use p3_air::Air;
 use p3_baby_bear::BabyBear;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::{AbstractField, PrimeField32, TwoAdicField};
 use sp1_core_machine::riscv::RiscvAir;
-use sp1_primitives::consts::WORD_SIZE;
-use sp1_primitives::types::RecursionProgramType;
-use sp1_recursion_compiler::config::InnerConfig;
-use sp1_recursion_compiler::ir::{Array, Builder, Config, Felt, Var};
-use sp1_recursion_compiler::prelude::DslVariable;
-use sp1_recursion_core::air::{RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS};
-use sp1_recursion_core::runtime::{RecursionProgram, DIGEST_SIZE};
+use sp1_primitives::{consts::WORD_SIZE, types::RecursionProgramType};
+use sp1_recursion_compiler::{
+    config::InnerConfig,
+    ir::{Array, Builder, Config, Felt, Var},
+    prelude::DslVariable,
+};
+use sp1_recursion_core::{
+    air::{RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS},
+    runtime::{RecursionProgram, DIGEST_SIZE},
+};
 
 use sp1_recursion_compiler::prelude::*;
-use sp1_stark::air::{MachineAir, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS};
-use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
-use sp1_stark::{Com, ShardProof, StarkGenericConfig, StarkMachine, StarkVerifyingKey, Word};
+use sp1_stark::{
+    air::{MachineAir, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS},
+    baby_bear_poseidon2::BabyBearPoseidon2,
+    Com, ShardProof, StarkGenericConfig, StarkMachine, StarkVerifyingKey, Word,
+};
 
-use crate::challenger::{CanObserveVariable, DuplexChallengerVariable};
-use crate::fri::TwoAdicFriPcsVariable;
-use crate::hints::Hintable;
-use crate::stark::{RecursiveVerifierConstraintFolder, StarkVerifier};
-use crate::types::ShardProofVariable;
-use crate::types::VerifyingKeyVariable;
-use crate::utils::{const_fri_config, get_challenger_public_values, hash_vkey, var2felt};
+use crate::{
+    challenger::{CanObserveVariable, DuplexChallengerVariable},
+    fri::TwoAdicFriPcsVariable,
+    hints::Hintable,
+    stark::{RecursiveVerifierConstraintFolder, StarkVerifier},
+    types::{ShardProofVariable, VerifyingKeyVariable},
+    utils::{const_fri_config, get_challenger_public_values, hash_vkey, var2felt},
+};
 
 use super::utils::{commit_public_values, verify_public_values_hash};
 
@@ -229,7 +237,8 @@ where
             }
 
             // Update deferred proof digest
-            // poseidon2( current_digest[..8] || pv.sp1_vk_digest[..8] || pv.committed_value_digest[..32] )
+            // poseidon2( current_digest[..8] || pv.sp1_vk_digest[..8] ||
+            // pv.committed_value_digest[..32] )
             let mut poseidon_inputs = builder.array(48);
             for j in 0..DIGEST_SIZE {
                 let current_digest_element = builder.get(&reconstruct_deferred_digest, j);

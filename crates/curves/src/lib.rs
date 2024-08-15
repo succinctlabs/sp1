@@ -11,14 +11,18 @@ pub mod curve25519_dalek {
 }
 
 pub mod k256 {
-    pub use k256::ecdsa::{RecoveryId, Signature, VerifyingKey};
-    pub use k256::elliptic_curve::ops::Invert;
+    pub use k256::{
+        ecdsa::{RecoveryId, Signature, VerifyingKey},
+        elliptic_curve::ops::Invert,
+    };
 }
 
 use params::{FieldParameters, NumWords};
 use sp1_primitives::consts::WORD_SIZE;
-use std::fmt::{Debug, Display, Formatter, Result};
-use std::ops::{Add, Neg};
+use std::{
+    fmt::{Debug, Display, Formatter, Result},
+    ops::{Add, Neg},
+};
 use typenum::Unsigned;
 
 use num::BigUint;

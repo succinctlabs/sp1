@@ -1,46 +1,40 @@
-use std::collections::VecDeque;
-use std::fs::File;
-use std::io::Seek;
-use std::io::{self};
-use std::sync::mpsc::sync_channel;
-use std::sync::Arc;
-use std::sync::Mutex;
+use std::{
+    collections::VecDeque,
+    fs::File,
+    io::{
+        Seek, {self},
+    },
+    sync::{mpsc::sync_channel, Arc, Mutex},
+};
 use web_time::Instant;
 
 use p3_challenger::CanObserve;
 use p3_maybe_rayon::prelude::*;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
+use serde::{de::DeserializeOwned, Serialize};
 use size::Size;
-use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
-use sp1_stark::MachineVerificationError;
+use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, MachineVerificationError};
 use std::thread::ScopedJoinHandle;
 use thiserror::Error;
 
 use p3_baby_bear::BabyBear;
 use p3_field::PrimeField32;
 
-use crate::io::{SP1PublicValues, SP1Stdin};
-use crate::riscv::RiscvAir;
-use crate::utils::chunk_vec;
-use crate::utils::concurrency::TurnBasedSync;
-use sp1_core_executor::{subproof::NoOpSubproofVerifier, ExecutionError, SP1Context};
-use sp1_core_executor::{ExecutionRecord, ExecutionReport};
-use sp1_core_executor::{Executor, Program};
-use sp1_stark::air::{MachineAir, PublicValues};
-use sp1_stark::DebugConstraintBuilder;
-use sp1_stark::InteractionBuilder;
-use sp1_stark::MachineProof;
-use sp1_stark::MachineProver;
-use sp1_stark::ProverConstraintFolder;
-use sp1_stark::SP1CoreOpts;
-use sp1_stark::StarkGenericConfig;
-use sp1_stark::StarkVerifyingKey;
-use sp1_stark::Val;
-use sp1_stark::VerifierConstraintFolder;
-use sp1_stark::{Com, PcsProverData, StarkProvingKey, UniConfig};
-use sp1_stark::{CpuProver, OpeningProof};
-use sp1_stark::{MachineRecord, StarkMachine};
+use crate::{
+    io::{SP1PublicValues, SP1Stdin},
+    riscv::RiscvAir,
+    utils::{chunk_vec, concurrency::TurnBasedSync},
+};
+use sp1_core_executor::{
+    subproof::NoOpSubproofVerifier, ExecutionError, ExecutionRecord, ExecutionReport, Executor,
+    Program, SP1Context,
+};
+use sp1_stark::{
+    air::{MachineAir, PublicValues},
+    Com, CpuProver, DebugConstraintBuilder, InteractionBuilder, MachineProof, MachineProver,
+    MachineRecord, OpeningProof, PcsProverData, ProverConstraintFolder, SP1CoreOpts,
+    StarkGenericConfig, StarkMachine, StarkProvingKey, StarkVerifyingKey, UniConfig, Val,
+    VerifierConstraintFolder,
+};
 
 #[derive(Error, Debug)]
 pub enum SP1CoreProverError {
@@ -531,8 +525,8 @@ where
             report_aggregate.total_syscall_count()
         );
 
-        // Print the opcode and syscall count tables like `du`: sorted by count (descending) and with
-        // the count in the first column.
+        // Print the opcode and syscall count tables like `du`: sorted by count (descending) and
+        // with the count in the first column.
         tracing::info!("execution report (opcode counts):");
         for line in ExecutionReport::sorted_table_lines(&report_aggregate.opcode_counts) {
             tracing::info!("  {line}");

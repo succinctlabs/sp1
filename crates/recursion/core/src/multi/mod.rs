@@ -1,22 +1,24 @@
-use std::array;
-use std::borrow::{Borrow, BorrowMut};
-use std::cmp::max;
-use std::ops::Deref;
+use std::{
+    array,
+    borrow::{Borrow, BorrowMut},
+    cmp::max,
+    ops::Deref,
+};
 
 use itertools::Itertools;
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_machine::utils::pad_rows_fixed;
 use sp1_derive::AlignedBorrow;
 use sp1_stark::air::{BaseAirBuilder, MachineAir};
 
-use crate::air::{MultiBuilder, SP1RecursionAirBuilder};
-use crate::fri_fold::{FriFoldChip, FriFoldCols};
-use crate::poseidon2_wide::columns::Poseidon2;
-use crate::poseidon2_wide::{Poseidon2WideChip, WIDTH};
-use crate::runtime::{ExecutionRecord, RecursionProgram};
+use crate::{
+    air::{MultiBuilder, SP1RecursionAirBuilder},
+    fri_fold::{FriFoldChip, FriFoldCols},
+    poseidon2_wide::{columns::Poseidon2, Poseidon2WideChip, WIDTH},
+    runtime::{ExecutionRecord, RecursionProgram},
+};
 
 pub const NUM_MULTI_COLS: usize = core::mem::size_of::<MultiCols<u8>>();
 
@@ -47,7 +49,8 @@ pub struct MultiCols<T: Copy> {
 
     /// Rows that needs to receive a poseidon2 syscall.
     pub poseidon2_receive_table: T,
-    /// Hash/Permute state entries that needs to access memory.  This is for the the first half of the permute state.
+    /// Hash/Permute state entries that needs to access memory.  This is for the the first half of
+    /// the permute state.
     pub poseidon2_1st_half_memory_access: [T; WIDTH / 2],
     /// Flag to indicate if all of the second half of a compress state needs to access memory.
     pub poseidon2_2nd_half_memory_access: T,
@@ -202,14 +205,16 @@ where
             .when_last_row()
             .assert_eq(local_multi_cols.is_poseidon2, local_multi_cols.poseidon2_last_row);
 
-        // Fri fold requires that it's rows are contiguous, since each invocation spans multiple rows
-        // and it's AIR checks for consistencies among them.  The following constraints enforce that
-        // all the fri fold rows are first, then the posiedon2 rows, and finally any padded (non-real) rows.
+        // Fri fold requires that it's rows are contiguous, since each invocation spans multiple
+        // rows and it's AIR checks for consistencies among them.  The following constraints
+        // enforce that all the fri fold rows are first, then the posiedon2 rows, and
+        // finally any padded (non-real) rows.
 
         // First verify that all real rows are contiguous.
         builder.when_transition().when_not(local_is_real.clone()).assert_zero(next_is_real.clone());
 
-        // Next, verify that all fri fold rows are before the poseidon2 rows within the real rows section.
+        // Next, verify that all fri fold rows are before the poseidon2 rows within the real rows
+        // section.
         builder
             .when_transition()
             .when(next_is_real)
@@ -228,13 +233,13 @@ where
         let next_fri_fold_cols = Self::fri_fold(&next);
 
         sub_builder.assert_eq(
-            local_multi_cols.is_fri_fold
-                * FriFoldChip::<DEGREE>::do_memory_access::<AB::Var>(&local_fri_fold_cols),
+            local_multi_cols.is_fri_fold *
+                FriFoldChip::<DEGREE>::do_memory_access::<AB::Var>(&local_fri_fold_cols),
             local_multi_cols.fri_fold_memory_access,
         );
         sub_builder.assert_eq(
-            local_multi_cols.is_fri_fold
-                * FriFoldChip::<DEGREE>::do_receive_table::<AB::Var>(&local_fri_fold_cols),
+            local_multi_cols.is_fri_fold *
+                FriFoldChip::<DEGREE>::do_receive_table::<AB::Var>(&local_fri_fold_cols),
             local_multi_cols.fri_fold_receive_table,
         );
 
@@ -327,19 +332,16 @@ impl<const DEGREE: usize> MultiChip<DEGREE> {
 mod tests {
     use std::time::Instant;
 
-    use p3_baby_bear::BabyBear;
-    use p3_baby_bear::DiffusionMatrixBabyBear;
+    use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
     use p3_matrix::{dense::RowMajorMatrix, Matrix};
-    use p3_poseidon2::Poseidon2;
-    use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
+    use p3_poseidon2::{Poseidon2, Poseidon2ExternalMatrixGeneral};
     use sp1_core_machine::utils::{uni_stark_prove, uni_stark_verify};
-    use sp1_stark::air::MachineAir;
-    use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
-    use sp1_stark::StarkGenericConfig;
+    use sp1_stark::{air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, StarkGenericConfig};
 
-    use crate::multi::MultiChip;
-    use crate::poseidon2_wide::tests::generate_test_execution_record;
-    use crate::runtime::ExecutionRecord;
+    use crate::{
+        multi::MultiChip, poseidon2_wide::tests::generate_test_execution_record,
+        runtime::ExecutionRecord,
+    };
 
     #[test]
     fn prove_babybear() {

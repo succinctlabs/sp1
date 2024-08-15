@@ -5,11 +5,12 @@ use num::{BigUint, Zero};
 use serde::{Deserialize, Serialize};
 
 use super::CurveType;
-use crate::params::{FieldParameters, NumLimbs};
-use crate::{AffinePoint, EllipticCurve, EllipticCurveParameters};
+use crate::{
+    params::{FieldParameters, NumLimbs},
+    AffinePoint, EllipticCurve, EllipticCurveParameters,
+};
 
-use crate::edwards::ed25519::Ed25519BaseField;
-use crate::params::NumWords;
+use crate::{edwards::ed25519::Ed25519BaseField, params::NumWords};
 use typenum::Unsigned;
 
 pub type Limbs = <Ed25519BaseField as NumLimbs>::Limbs;
@@ -173,8 +174,8 @@ mod tests {
             assert_eq!(y_x_base, xy_base);
         }
 
-        let order = BigUint::from(2u32).pow(252)
-            + BigUint::from(27742317777372353535851937790883648493u128);
+        let order = BigUint::from(2u32).pow(252) +
+            BigUint::from(27742317777372353535851937790883648493u128);
         assert_eq!(base, &base + &(&base * &order));
     }
 }

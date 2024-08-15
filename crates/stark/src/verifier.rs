@@ -1,28 +1,21 @@
 use core::fmt::Display;
-use std::fmt::Debug;
-use std::fmt::Formatter;
-use std::marker::PhantomData;
+use std::{
+    fmt::{Debug, Formatter},
+    marker::PhantomData,
+};
 
 use itertools::Itertools;
-use p3_air::Air;
-use p3_air::BaseAir;
-use p3_challenger::CanObserve;
-use p3_challenger::FieldChallenger;
-use p3_commit::LagrangeSelectors;
-use p3_commit::Pcs;
-use p3_commit::PolynomialSpace;
-use p3_field::AbstractExtensionField;
-use p3_field::AbstractField;
+use p3_air::{Air, BaseAir};
+use p3_challenger::{CanObserve, FieldChallenger};
+use p3_commit::{LagrangeSelectors, Pcs, PolynomialSpace};
+use p3_field::{AbstractExtensionField, AbstractField};
 
-use super::folder::VerifierConstraintFolder;
-use super::types::{AirOpenedValues, ChipOpenedValues, ShardCommitment, ShardProof};
-use super::Domain;
-use super::OpeningError;
-use super::StarkGenericConfig;
-use super::StarkVerifyingKey;
-use super::Val;
-use crate::air::MachineAir;
-use crate::MachineChip;
+use super::{
+    folder::VerifierConstraintFolder,
+    types::{AirOpenedValues, ChipOpenedValues, ShardCommitment, ShardProof},
+    Domain, OpeningError, StarkGenericConfig, StarkVerifyingKey, Val,
+};
+use crate::{air::MachineAir, MachineChip};
 
 /// A verifier for a collection of air chips.
 pub struct Verifier<SC, A>(PhantomData<SC>, PhantomData<A>);
@@ -212,10 +205,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             ));
         }
         if opening.main.next.len() != chip.width() {
-            return Err(OpeningShapeError::MainWidthMismatch(
-                chip.width(),
-                opening.main.next.len(),
-            ));
+            return Err(OpeningShapeError::MainWidthMismatch(chip.width(), opening.main.next.len()));
         }
 
         // Verify that the permutation width matches the expected value for the chip.
@@ -354,8 +344,8 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
                     .enumerate()
                     .filter(|(j, _)| *j != i)
                     .map(|(_, other_domain)| {
-                        other_domain.zp_at_point(zeta)
-                            * other_domain.zp_at_point(domain.first_point()).inverse()
+                        other_domain.zp_at_point(zeta) *
+                            other_domain.zp_at_point(domain.first_point()).inverse()
                     })
                     .product::<SC::Challenge>()
             })

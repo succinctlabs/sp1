@@ -1,17 +1,18 @@
 use hashbrown::HashMap;
-use std::array;
-use std::sync::Arc;
+use std::{array, sync::Arc};
 
 use p3_field::{AbstractField, PrimeField32};
 use sp1_stark::{MachineRecord, SP1CoreOpts, PROOF_MAX_NUM_PVS};
 
 use super::RecursionProgram;
-use crate::air::Block;
-use crate::cpu::CpuEvent;
-use crate::exp_reverse_bits::ExpReverseBitsLenEvent;
-use crate::fri_fold::FriFoldEvent;
-use crate::poseidon2_wide::events::{Poseidon2CompressEvent, Poseidon2HashEvent};
-use crate::range_check::RangeCheckEvent;
+use crate::{
+    air::Block,
+    cpu::CpuEvent,
+    exp_reverse_bits::ExpReverseBitsLenEvent,
+    fri_fold::FriFoldEvent,
+    poseidon2_wide::events::{Poseidon2CompressEvent, Poseidon2HashEvent},
+    range_check::RangeCheckEvent,
+};
 
 #[derive(Default, Debug, Clone)]
 pub struct ExecutionRecord<F: Default> {

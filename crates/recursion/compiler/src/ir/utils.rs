@@ -155,7 +155,8 @@ impl<C: Config> Builder<C> {
             _ => panic!("Expected a dynamic array"),
         };
 
-        // Call the DslIR instruction ExpReverseBitsLen, which modifies the memory pointed to by `x_copy_arr_ptr`.
+        // Call the DslIR instruction ExpReverseBitsLen, which modifies the memory pointed to by
+        // `x_copy_arr_ptr`.
         self.push(DslIr::ExpReverseBitsLen(x_copy_arr_ptr, ptr.address, bit_len_var));
 
         // Return the value stored at the address pointed to by `x_copy_arr_ptr`.

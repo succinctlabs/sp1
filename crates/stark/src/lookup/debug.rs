@@ -1,13 +1,11 @@
 use std::collections::BTreeMap;
 
 use p3_baby_bear::BabyBear;
-use p3_field::{AbstractField, PrimeField32};
-use p3_field::{Field, PrimeField64};
+use p3_field::{AbstractField, Field, PrimeField32, PrimeField64};
 use p3_matrix::Matrix;
 
 use super::InteractionKind;
-use crate::air::MachineAir;
-use crate::{MachineChip, StarkGenericConfig, StarkMachine, StarkProvingKey, Val};
+use crate::{air::MachineAir, MachineChip, StarkGenericConfig, StarkMachine, StarkProvingKey, Val};
 
 /// The data for an interaction.
 #[derive(Debug)]

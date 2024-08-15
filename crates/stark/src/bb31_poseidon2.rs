@@ -6,17 +6,14 @@ use p3_challenger::DuplexChallenger;
 use p3_commit::ExtensionMmcs;
 use p3_dft::Radix2DitParallel;
 use p3_field::{extension::BinomialExtensionField, Field};
-use p3_fri::BatchOpening;
-use p3_fri::CommitPhaseProofStep;
-use p3_fri::QueryProof;
-use p3_fri::{FriConfig, FriProof, TwoAdicFriPcs, TwoAdicFriPcsProof};
+use p3_fri::{
+    BatchOpening, CommitPhaseProofStep, FriConfig, FriProof, QueryProof, TwoAdicFriPcs,
+    TwoAdicFriPcsProof,
+};
 use p3_merkle_tree::FieldMerkleTreeMmcs;
-use p3_poseidon2::Poseidon2;
-use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
-use p3_symmetric::Hash;
-use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
-use serde::Deserialize;
-use serde::Serialize;
+use p3_poseidon2::{Poseidon2, Poseidon2ExternalMatrixGeneral};
+use p3_symmetric::{Hash, PaddingFreeSponge, TruncatedPermutation};
+use serde::{Deserialize, Serialize};
 use sp1_primitives::poseidon2_init;
 
 pub const DIGEST_SIZE: usize = 8;
@@ -156,8 +153,7 @@ pub mod baby_bear_poseidon2 {
     use p3_field::{extension::BinomialExtensionField, Field};
     use p3_fri::{FriConfig, TwoAdicFriPcs};
     use p3_merkle_tree::FieldMerkleTreeMmcs;
-    use p3_poseidon2::Poseidon2;
-    use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
+    use p3_poseidon2::{Poseidon2, Poseidon2ExternalMatrixGeneral};
     use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
     use serde::{Deserialize, Serialize};
     use sp1_primitives::RC_16_30;

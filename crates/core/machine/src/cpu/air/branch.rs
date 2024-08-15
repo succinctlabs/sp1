@@ -1,12 +1,18 @@
 use p3_air::AirBuilder;
 use p3_field::AbstractField;
-use sp1_stark::air::{BaseAirBuilder, SP1AirBuilder};
-use sp1_stark::Word;
+use sp1_stark::{
+    air::{BaseAirBuilder, SP1AirBuilder},
+    Word,
+};
 
-use crate::air::WordAirBuilder;
-use crate::cpu::columns::{CpuCols, OpcodeSelectorCols};
-use crate::cpu::CpuChip;
-use crate::operations::BabyBearWordRangeChecker;
+use crate::{
+    air::WordAirBuilder,
+    cpu::{
+        columns::{CpuCols, OpcodeSelectorCols},
+        CpuChip,
+    },
+    operations::BabyBearWordRangeChecker,
+};
 
 use sp1_core_executor::Opcode;
 
@@ -16,19 +22,19 @@ impl CpuChip {
         &self,
         opcode_selectors: &OpcodeSelectorCols<AB::Var>,
     ) -> AB::Expr {
-        opcode_selectors.is_beq
-            + opcode_selectors.is_bne
-            + opcode_selectors.is_blt
-            + opcode_selectors.is_bge
-            + opcode_selectors.is_bltu
-            + opcode_selectors.is_bgeu
+        opcode_selectors.is_beq +
+            opcode_selectors.is_bne +
+            opcode_selectors.is_blt +
+            opcode_selectors.is_bge +
+            opcode_selectors.is_bltu +
+            opcode_selectors.is_bgeu
     }
 
     /// Verifies all the branching related columns.
     ///
     /// It does this in few parts:
-    /// 1. It verifies that the next pc is correct based on the branching column.  That column
-    ///    is a boolean that indicates whether the branch condition is true.
+    /// 1. It verifies that the next pc is correct based on the branching column.  That column is a
+    ///    boolean that indicates whether the branch condition is true.
     /// 2. It verifies the correct value of branching based on the helper bool columns (a_eq_b,
     ///    a_gt_b, a_lt_b).
     /// 3. It verifier the correct values of the helper bool columns based on op_a and op_b.
@@ -54,7 +60,8 @@ impl CpuChip {
                 .when(local.branching)
                 .assert_eq(branch_cols.next_pc.reduce::<AB>(), next.pc);
 
-            // When the current row is real and local.branching, assert that local.next_pc <==> branch_columns.next_pc as Word.
+            // When the current row is real and local.branching, assert that local.next_pc <==>
+            // branch_columns.next_pc as Word.
             builder
                 .when(local.is_real)
                 .when(local.branching)
@@ -96,13 +103,15 @@ impl CpuChip {
             // When local.not_branching is true, assert that local.is_real is true.
             builder.when(local.not_branching).assert_one(local.is_real);
 
-            // When the last row is real and local.not_branching, assert that local.pc + 4 <==> local.next_pc.
+            // When the last row is real and local.not_branching, assert that local.pc + 4 <==>
+            // local.next_pc.
             builder
                 .when(local.is_real)
                 .when(local.not_branching)
                 .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), local.next_pc);
 
-            // Assert that either we are branching or not branching when the instruction is a branch.
+            // Assert that either we are branching or not branching when the instruction is a
+            // branch.
             builder
                 .when(is_branch_instruction.clone())
                 .assert_one(local.branching + local.not_branching);
@@ -170,9 +179,9 @@ impl CpuChip {
         // Calculate a_lt_b <==> a < b (using appropriate signedness).
         let use_signed_comparison = local.selectors.is_blt + local.selectors.is_bge;
         builder.send_alu(
-            use_signed_comparison.clone() * Opcode::SLT.as_field::<AB::F>()
-                + (AB::Expr::one() - use_signed_comparison.clone())
-                    * Opcode::SLTU.as_field::<AB::F>(),
+            use_signed_comparison.clone() * Opcode::SLT.as_field::<AB::F>() +
+                (AB::Expr::one() - use_signed_comparison.clone()) *
+                    Opcode::SLTU.as_field::<AB::F>(),
             Word::extend_var::<AB>(branch_cols.a_lt_b),
             local.op_a_val(),
             local.op_b_val(),
@@ -184,8 +193,8 @@ impl CpuChip {
 
         // Calculate a_gt_b <==> a > b (using appropriate signedness).
         builder.send_alu(
-            use_signed_comparison.clone() * Opcode::SLT.as_field::<AB::F>()
-                + (AB::Expr::one() - use_signed_comparison) * Opcode::SLTU.as_field::<AB::F>(),
+            use_signed_comparison.clone() * Opcode::SLT.as_field::<AB::F>() +
+                (AB::Expr::one() - use_signed_comparison) * Opcode::SLTU.as_field::<AB::F>(),
             Word::extend_var::<AB>(branch_cols.a_gt_b),
             local.op_b_val(),
             local.op_a_val(),

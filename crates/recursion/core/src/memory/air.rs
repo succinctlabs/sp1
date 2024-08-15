@@ -1,21 +1,21 @@
 use core::mem::size_of;
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
-use sp1_core_machine::utils::next_power_of_two;
-use sp1_core_machine::utils::par_for_each_row;
-use sp1_stark::air::AirInteraction;
-use sp1_stark::air::MachineAir;
-use sp1_stark::InteractionKind;
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
+use sp1_core_machine::utils::{next_power_of_two, par_for_each_row};
+use sp1_stark::{
+    air::{AirInteraction, MachineAir},
+    InteractionKind,
+};
 use std::borrow::{Borrow, BorrowMut};
 use tracing::instrument;
 
 use super::columns::MemoryInitCols;
-use crate::air::Block;
-use crate::air::SP1RecursionAirBuilder;
-use crate::memory::MemoryGlobalChip;
-use crate::runtime::{ExecutionRecord, RecursionProgram};
+use crate::{
+    air::{Block, SP1RecursionAirBuilder},
+    memory::MemoryGlobalChip,
+    runtime::{ExecutionRecord, RecursionProgram},
+};
 
 pub(crate) const NUM_MEMORY_INIT_COLS: usize = size_of::<MemoryInitCols<u8>>();
 
@@ -102,12 +102,12 @@ impl<F> BaseAir<F> for MemoryGlobalChip {
     }
 }
 
-/// Computes the difference between the `addr` and `prev_addr` and returns the 16-bit limb and 12-bit
-/// limbs of the difference.
+/// Computes the difference between the `addr` and `prev_addr` and returns the 16-bit limb and
+/// 12-bit limbs of the difference.
 ///
-/// The parameter `subtract_one` is expected to be `true` when `addr` and `prev_addr` are consecutive
-/// addresses in the global memory table (we don't allow repeated addresses), and `false` when this
-/// function is used to perform the 28-bit range check on the `addr` field.
+/// The parameter `subtract_one` is expected to be `true` when `addr` and `prev_addr` are
+/// consecutive addresses in the global memory table (we don't allow repeated addresses), and
+/// `false` when this function is used to perform the 28-bit range check on the `addr` field.
 pub fn compute_addr_diff<F: PrimeField32>(addr: F, prev_addr: F, subtract_one: bool) -> (F, F) {
     let diff = addr.as_canonical_u32() - prev_addr.as_canonical_u32() - subtract_one as u32;
     let diff_16bit_limb = diff & 0xffff;
@@ -160,7 +160,8 @@ where
         builder.when_last_row().assert_one(local.is_finalize + AB::Expr::one() - local.is_real);
 
         // Ensure that the is_range_check column is properly computed.
-        // The flag column `is_range_check` is set iff is_finalize is set AND next.is_finalize is set.
+        // The flag column `is_range_check` is set iff is_finalize is set AND next.is_finalize is
+        // set.
         builder.when(local.is_range_check).assert_one(local.is_finalize * next.is_finalize);
         builder.when_not(local.is_range_check).assert_zero(local.is_finalize * next.is_finalize);
 
@@ -210,22 +211,16 @@ where
 #[cfg(test)]
 mod tests {
     use itertools::Itertools;
-    use sp1_stark::air::MachineAir;
-    use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
-    use sp1_stark::StarkGenericConfig;
+    use sp1_stark::{air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, StarkGenericConfig};
     use std::time::Instant;
 
-    use p3_baby_bear::BabyBear;
-    use p3_baby_bear::DiffusionMatrixBabyBear;
+    use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
     use p3_field::AbstractField;
     use p3_matrix::{dense::RowMajorMatrix, Matrix};
-    use p3_poseidon2::Poseidon2;
-    use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
+    use p3_poseidon2::{Poseidon2, Poseidon2ExternalMatrixGeneral};
     use sp1_core_machine::utils::{uni_stark_prove, uni_stark_verify};
 
-    use crate::air::Block;
-    use crate::memory::MemoryGlobalChip;
-    use crate::runtime::ExecutionRecord;
+    use crate::{air::Block, memory::MemoryGlobalChip, runtime::ExecutionRecord};
 
     #[test]
     fn prove_babybear() {

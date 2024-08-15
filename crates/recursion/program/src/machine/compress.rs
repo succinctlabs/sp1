@@ -1,6 +1,8 @@
-use std::array;
-use std::borrow::{Borrow, BorrowMut};
-use std::marker::PhantomData;
+use std::{
+    array,
+    borrow::{Borrow, BorrowMut},
+    marker::PhantomData,
+};
 
 use crate::machine::utils::assert_complete;
 use itertools::{izip, Itertools};
@@ -9,32 +11,36 @@ use p3_baby_bear::BabyBear;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::{AbstractField, PrimeField32, TwoAdicField};
 use serde::{Deserialize, Serialize};
-use sp1_primitives::consts::WORD_SIZE;
-use sp1_primitives::types::RecursionProgramType;
-use sp1_recursion_compiler::config::InnerConfig;
-use sp1_recursion_compiler::ir::{Array, Builder, Config, Felt, Var};
-use sp1_recursion_compiler::prelude::DslVariable;
-use sp1_recursion_core::air::{RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS};
-use sp1_recursion_core::runtime::{RecursionProgram, D, DIGEST_SIZE};
-use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
-use sp1_stark::ShardProof;
-use sp1_stark::StarkMachine;
-use sp1_stark::StarkVerifyingKey;
-use sp1_stark::{Com, Word};
+use sp1_primitives::{consts::WORD_SIZE, types::RecursionProgramType};
+use sp1_recursion_compiler::{
+    config::InnerConfig,
+    ir::{Array, Builder, Config, Felt, Var},
+    prelude::DslVariable,
+};
+use sp1_recursion_core::{
+    air::{RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS},
+    runtime::{RecursionProgram, D, DIGEST_SIZE},
+};
+use sp1_stark::{
+    baby_bear_poseidon2::BabyBearPoseidon2, Com, ShardProof, StarkMachine, StarkVerifyingKey, Word,
+};
 
 use sp1_recursion_compiler::prelude::*;
-use sp1_stark::air::{MachineAir, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS};
-use sp1_stark::StarkGenericConfig;
+use sp1_stark::{
+    air::{MachineAir, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS},
+    StarkGenericConfig,
+};
 
-use crate::challenger::{CanObserveVariable, DuplexChallengerVariable};
-use crate::fri::TwoAdicFriPcsVariable;
-use crate::hints::Hintable;
-use crate::stark::{RecursiveVerifierConstraintFolder, StarkVerifier};
-use crate::types::ShardProofVariable;
-use crate::types::VerifyingKeyVariable;
-use crate::utils::{
-    assert_challenger_eq_pv, assign_challenger_from_pv, const_fri_config, felt2var,
-    get_challenger_public_values, hash_vkey,
+use crate::{
+    challenger::{CanObserveVariable, DuplexChallengerVariable},
+    fri::TwoAdicFriPcsVariable,
+    hints::Hintable,
+    stark::{RecursiveVerifierConstraintFolder, StarkVerifier},
+    types::{ShardProofVariable, VerifyingKeyVariable},
+    utils::{
+        assert_challenger_eq_pv, assign_challenger_from_pv, const_fri_config, felt2var,
+        get_challenger_public_values, hash_vkey,
+    },
 };
 
 use super::utils::{commit_public_values, proof_data_from_vk, verify_public_values_hash};
@@ -117,11 +123,11 @@ where
     ///   implementation in this function assumes a fixed recursive verifier speicified by
     ///   `recursive_vk`.
     /// - Deferred proofs: proofs which are recursive proof of a batch of deferred proofs. The
-    ///   implementation in this function assumes a fixed deferred verification program specified
-    ///   by `deferred_vk`.
-    /// - Compress proofs: these are proofs which refer to a prove of this program. The key for
-    ///   it is part of public values will be propagated accross all levels of recursion and will
-    ///   be checked against itself as in [sp1_prover::Prover] or as in [super::SP1RootVerifier].
+    ///   implementation in this function assumes a fixed deferred verification program specified by
+    ///   `deferred_vk`.
+    /// - Compress proofs: these are proofs which refer to a prove of this program. The key for it
+    ///   is part of public values will be propagated accross all levels of recursion and will be
+    ///   checked against itself as in [sp1_prover::Prover] or as in [super::SP1RootVerifier].
     pub fn verify(
         builder: &mut Builder<C>,
         pcs: &TwoAdicFriPcsVariable<C>,
@@ -443,8 +449,9 @@ where
                     }
                 }
 
-                // If `deferred_proofs_digest` is not zero, then `public_values.deferred_proofs_digest
-                // should be the current value.
+                // If `deferred_proofs_digest` is not zero, then
+                // `public_values.deferred_proofs_digest should be the current
+                // value.
                 let is_zero: Var<_> = builder.eval(C::N::one());
                 #[allow(clippy::needless_range_loop)]
                 for i in 0..deferred_proofs_digest.len() {

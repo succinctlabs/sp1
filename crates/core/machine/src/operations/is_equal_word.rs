@@ -1,7 +1,6 @@
 use p3_field::Field;
 use sp1_derive::AlignedBorrow;
-use sp1_stark::air::SP1AirBuilder;
-use sp1_stark::Word;
+use sp1_stark::{air::SP1AirBuilder, Word};
 
 use super::IsZeroWordOperation;
 

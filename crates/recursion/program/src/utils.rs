@@ -1,24 +1,29 @@
 use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
 use p3_commit::{ExtensionMmcs, TwoAdicMultiplicativeCoset};
-use p3_field::extension::BinomialExtensionField;
-use p3_field::{AbstractField, Field, TwoAdicField};
+use p3_field::{extension::BinomialExtensionField, AbstractField, Field, TwoAdicField};
 use p3_fri::FriConfig;
 use p3_merkle_tree::FieldMerkleTreeMmcs;
 use p3_poseidon2::{Poseidon2, Poseidon2ExternalMatrixGeneral};
 use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
-use sp1_recursion_compiler::asm::AsmConfig;
-use sp1_recursion_compiler::ir::{Array, Builder, Config, Felt, MemVariable, Var};
-use sp1_recursion_core::air::ChallengerPublicValues;
-use sp1_recursion_core::runtime::{DIGEST_SIZE, PERMUTATION_WIDTH};
-use sp1_stark::air::MachineAir;
-use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
-use sp1_stark::{Dom, ShardProof, StarkGenericConfig, StarkMachine, StarkVerifyingKey};
+use sp1_recursion_compiler::{
+    asm::AsmConfig,
+    ir::{Array, Builder, Config, Felt, MemVariable, Var},
+};
+use sp1_recursion_core::{
+    air::ChallengerPublicValues,
+    runtime::{DIGEST_SIZE, PERMUTATION_WIDTH},
+};
+use sp1_stark::{
+    air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, Dom, ShardProof, StarkGenericConfig,
+    StarkMachine, StarkVerifyingKey,
+};
 
-use crate::challenger::DuplexChallengerVariable;
-use crate::fri::types::FriConfigVariable;
-use crate::fri::TwoAdicMultiplicativeCosetVariable;
-use crate::stark::EMPTY;
-use crate::types::{QuotientDataValues, VerifyingKeyVariable};
+use crate::{
+    challenger::DuplexChallengerVariable,
+    fri::{types::FriConfigVariable, TwoAdicMultiplicativeCosetVariable},
+    stark::EMPTY,
+    types::{QuotientDataValues, VerifyingKeyVariable},
+};
 
 type SC = BabyBearPoseidon2;
 type F = <SC as StarkGenericConfig>::Val;

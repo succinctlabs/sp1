@@ -26,13 +26,9 @@ extern crate proc_macro;
 
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::parse_macro_input;
-use syn::parse_quote;
-use syn::Data;
-use syn::DeriveInput;
-use syn::GenericParam;
-use syn::ItemFn;
-use syn::WherePredicate;
+use syn::{
+    parse_macro_input, parse_quote, Data, DeriveInput, GenericParam, ItemFn, WherePredicate,
+};
 
 #[proc_macro_derive(AlignedBorrow)]
 pub fn aligned_borrow_derive(input: TokenStream) -> TokenStream {
@@ -65,7 +61,8 @@ pub fn aligned_borrow_derive(input: TokenStream) -> TokenStream {
         })
         .collect::<Vec<_>>();
 
-    // Get impl generics (`<T, N: NumLimbs, const M: usize>`), type generics (`<T, N>`), where clause (`where T: Clone`)
+    // Get impl generics (`<T, N: NumLimbs, const M: usize>`), type generics (`<T, N>`), where
+    // clause (`where T: Clone`)
     let (impl_generics, type_generics, where_clause) = ast.generics.split_for_impl();
 
     let methods = quote! {

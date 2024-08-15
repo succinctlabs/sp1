@@ -1,38 +1,45 @@
-use std::borrow::Borrow;
-use std::marker::PhantomData;
+use std::{borrow::Borrow, marker::PhantomData};
 
-use crate::fri::verify_two_adic_pcs;
-use crate::poseidon2::Poseidon2CircuitBuilder;
-use crate::types::OuterDigestVariable;
-use crate::utils::{babybear_bytes_to_bn254, babybears_to_bn254, words_to_bytes};
-use crate::witness::Witnessable;
+use crate::{
+    fri::verify_two_adic_pcs,
+    poseidon2::Poseidon2CircuitBuilder,
+    types::OuterDigestVariable,
+    utils::{babybear_bytes_to_bn254, babybears_to_bn254, words_to_bytes},
+    witness::Witnessable,
+};
 use p3_air::Air;
 use p3_baby_bear::BabyBear;
 use p3_bn254_fr::Bn254Fr;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::{AbstractField, TwoAdicField};
 
-use sp1_recursion_compiler::config::OuterConfig;
-use sp1_recursion_compiler::constraints::{Constraint, ConstraintCompiler};
-use sp1_recursion_compiler::ir::{Builder, Config, Ext, Felt, Var};
-use sp1_recursion_compiler::ir::{Usize, Witness};
-use sp1_recursion_compiler::prelude::SymbolicVar;
-use sp1_recursion_core::air::{RecursionPublicValues, NUM_PV_ELMS_TO_HASH};
-use sp1_recursion_core::stark::config::{outer_fri_config, BabyBearPoseidon2Outer};
-use sp1_recursion_core::stark::RecursionAirWideDeg17;
-use sp1_recursion_program::commit::PolynomialSpaceVariable;
-use sp1_recursion_program::stark::RecursiveVerifierConstraintFolder;
-use sp1_recursion_program::types::QuotientDataValues;
-use sp1_stark::air::MachineAir;
-use sp1_stark::ShardProof;
-use sp1_stark::{Com, StarkVerifyingKey};
-use sp1_stark::{ShardCommitment, PROOF_MAX_NUM_PVS};
-use sp1_stark::{StarkGenericConfig, StarkMachine};
+use sp1_recursion_compiler::{
+    config::OuterConfig,
+    constraints::{Constraint, ConstraintCompiler},
+    ir::{Builder, Config, Ext, Felt, Usize, Var, Witness},
+    prelude::SymbolicVar,
+};
+use sp1_recursion_core::{
+    air::{RecursionPublicValues, NUM_PV_ELMS_TO_HASH},
+    stark::{
+        config::{outer_fri_config, BabyBearPoseidon2Outer},
+        RecursionAirWideDeg17,
+    },
+};
+use sp1_recursion_program::{
+    commit::PolynomialSpaceVariable, stark::RecursiveVerifierConstraintFolder,
+    types::QuotientDataValues,
+};
+use sp1_stark::{
+    air::MachineAir, Com, ShardCommitment, ShardProof, StarkGenericConfig, StarkMachine,
+    StarkVerifyingKey, PROOF_MAX_NUM_PVS,
+};
 
-use crate::domain::{new_coset, TwoAdicMultiplicativeCosetVariable};
-use crate::types::TwoAdicPcsMatsVariable;
-use crate::types::TwoAdicPcsRoundVariable;
-use crate::{challenger::MultiField32ChallengerVariable, types::RecursionShardProofVariable};
+use crate::{
+    challenger::MultiField32ChallengerVariable,
+    domain::{new_coset, TwoAdicMultiplicativeCosetVariable},
+    types::{RecursionShardProofVariable, TwoAdicPcsMatsVariable, TwoAdicPcsRoundVariable},
+};
 
 #[derive(Debug, Clone, Copy)]
 pub struct StarkVerifierCircuit<C: Config, SC: StarkGenericConfig> {

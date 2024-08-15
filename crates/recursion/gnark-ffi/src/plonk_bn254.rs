@@ -4,13 +4,14 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::ffi::{build_plonk_bn254, prove_plonk_bn254, test_plonk_bn254, verify_plonk_bn254};
-use crate::witness::GnarkWitness;
+use crate::{
+    ffi::{build_plonk_bn254, prove_plonk_bn254, test_plonk_bn254, verify_plonk_bn254},
+    witness::GnarkWitness,
+};
 
 use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
-use sha2::Digest;
-use sha2::Sha256;
+use sha2::{Digest, Sha256};
 use sp1_core_machine::SP1_CIRCUIT_VERSION;
 use sp1_recursion_compiler::{
     constraints::Constraint,
@@ -104,7 +105,8 @@ impl PlonkBn254Prover {
         proof
     }
 
-    /// Verify a PLONK proof and verify that the supplied vkey_hash and committed_values_digest match.
+    /// Verify a PLONK proof and verify that the supplied vkey_hash and committed_values_digest
+    /// match.
     pub fn verify(
         &self,
         proof: &PlonkBn254Proof,

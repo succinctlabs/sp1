@@ -1,5 +1,4 @@
-use num::Zero;
-use num::{BigUint, One};
+use num::{BigUint, One, Zero};
 
 use sp1_curves::edwards::WORDS_FIELD_ELEMENT;
 use sp1_primitives::consts::{bytes_to_words_le, words_to_bytes_le_vec, WORD_SIZE};

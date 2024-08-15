@@ -3,24 +3,21 @@
 
 use std::str::FromStr;
 
-use elliptic_curve::sec1::ToEncodedPoint;
-use elliptic_curve::subtle::Choice;
+use elliptic_curve::{sec1::ToEncodedPoint, subtle::Choice};
 use generic_array::GenericArray;
-use k256::elliptic_curve::point::DecompressPoint;
-use k256::FieldElement;
-use num::traits::FromBytes;
-use num::traits::ToBytes;
-use num::{BigUint, Zero};
+use k256::{elliptic_curve::point::DecompressPoint, FieldElement};
+use num::{
+    traits::{FromBytes, ToBytes},
+    BigUint, Zero,
+};
 use serde::{Deserialize, Serialize};
 use typenum::{U32, U62};
 
 use super::{SwCurve, WeierstrassParameters};
-use crate::params::FieldParameters;
-use crate::params::NumLimbs;
-use crate::AffinePoint;
-use crate::CurveType;
-use crate::EllipticCurve;
-use crate::EllipticCurveParameters;
+use crate::{
+    params::{FieldParameters, NumLimbs},
+    AffinePoint, CurveType, EllipticCurve, EllipticCurveParameters,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 /// Secp256k1 curve parameter

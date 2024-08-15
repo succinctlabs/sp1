@@ -24,12 +24,11 @@ mod tests {
     use p3_baby_bear::BabyBear;
     use p3_bn254_fr::Bn254Fr;
     use p3_field::AbstractField;
-    use sp1_recursion_compiler::config::OuterConfig;
-    use sp1_recursion_compiler::constraints::ConstraintCompiler;
-    use sp1_recursion_compiler::ir::Config;
-    use sp1_recursion_compiler::ir::Ext;
-    use sp1_recursion_compiler::ir::ExtConst;
-    use sp1_recursion_compiler::ir::{Builder, Felt, Witness};
+    use sp1_recursion_compiler::{
+        config::OuterConfig,
+        constraints::ConstraintCompiler,
+        ir::{Builder, Config, Ext, ExtConst, Felt, Witness},
+    };
     use sp1_recursion_gnark_ffi::PlonkBn254Prover;
 
     #[test]

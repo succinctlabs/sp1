@@ -1,22 +1,24 @@
 #![allow(clippy::needless_range_loop)]
 
-use crate::memory::{MemoryReadCols, MemoryReadSingleCols, MemoryReadWriteCols};
-use crate::runtime::Opcode;
+use crate::{
+    memory::{MemoryReadCols, MemoryReadSingleCols, MemoryReadWriteCols},
+    runtime::Opcode,
+};
 use core::borrow::Borrow;
 use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::AbstractField;
-use p3_field::PrimeField32;
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
+use p3_field::{AbstractField, PrimeField32};
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_machine::utils::{next_power_of_two, par_for_each_row};
 use sp1_derive::AlignedBorrow;
 use sp1_stark::air::{BaseAirBuilder, BinomialExtension, MachineAir};
 use std::borrow::BorrowMut;
 use tracing::instrument;
 
-use crate::air::SP1RecursionAirBuilder;
-use crate::memory::MemoryRecord;
-use crate::runtime::{ExecutionRecord, RecursionProgram};
+use crate::{
+    air::SP1RecursionAirBuilder,
+    memory::MemoryRecord,
+    runtime::{ExecutionRecord, RecursionProgram},
+};
 
 pub const NUM_FRI_FOLD_COLS: usize = core::mem::size_of::<FriFoldCols<u8>>();
 
@@ -193,7 +195,8 @@ impl<const DEGREE: usize> FriFoldChip<DEGREE> {
             .when(next.is_real)
             .assert_zero(next.m);
 
-        // Ensure that all rows for a FRI FOLD invocation have the same input_ptr and sequential clk and m values.
+        // Ensure that all rows for a FRI FOLD invocation have the same input_ptr and sequential clk
+        // and m values.
         builder
             .when_transition()
             .when_not(local.is_last_iteration)

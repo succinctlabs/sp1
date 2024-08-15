@@ -1,22 +1,26 @@
-use core::borrow::{Borrow, BorrowMut};
-use core::mem::size_of;
+use core::{
+    borrow::{Borrow, BorrowMut},
+    mem::size_of,
+};
 use std::array;
 
-use p3_air::BaseAir;
-use p3_air::{Air, AirBuilder};
+use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_executor::{events::MemoryInitializeFinalizeEvent, ExecutionRecord, Program};
 use sp1_derive::AlignedBorrow;
-use sp1_stark::air::{
-    AirInteraction, BaseAirBuilder, MachineAir, PublicValues, SP1AirBuilder, SP1_PROOF_NUM_PV_ELTS,
+use sp1_stark::{
+    air::{
+        AirInteraction, BaseAirBuilder, MachineAir, PublicValues, SP1AirBuilder,
+        SP1_PROOF_NUM_PV_ELTS,
+    },
+    InteractionKind, Word,
 };
-use sp1_stark::InteractionKind;
-use sp1_stark::Word;
 
-use crate::operations::{AssertLtColsBits, BabyBearBitDecomposition, IsZeroOperation};
-use crate::utils::pad_to_power_of_two;
+use crate::{
+    operations::{AssertLtColsBits, BabyBearBitDecomposition, IsZeroOperation},
+    utils::pad_to_power_of_two,
+};
 
 /// The type of memory chip that is being initialized.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -358,8 +362,10 @@ where
 mod tests {
 
     use super::*;
-    use crate::syscall::precompiles::sha256::extend_tests::sha_extend_program;
-    use crate::{riscv::RiscvAir, utils::setup_logger};
+    use crate::{
+        riscv::RiscvAir, syscall::precompiles::sha256::extend_tests::sha_extend_program,
+        utils::setup_logger,
+    };
     use p3_baby_bear::BabyBear;
     use sp1_core_executor::{programs::tests::simple_program, Executor};
     use sp1_stark::{

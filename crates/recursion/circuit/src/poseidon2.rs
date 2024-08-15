@@ -3,16 +3,10 @@
 use std::array;
 
 use itertools::Itertools;
-use p3_field::AbstractField;
-use p3_field::Field;
-use sp1_recursion_compiler::ir::Felt;
-use sp1_recursion_compiler::ir::{Builder, Config, DslIr, Var};
+use p3_field::{AbstractField, Field};
+use sp1_recursion_compiler::ir::{Builder, Config, DslIr, Felt, Var};
 
-use crate::challenger::reduce_32;
-use crate::types::OuterDigestVariable;
-use crate::DIGEST_SIZE;
-use crate::RATE;
-use crate::SPONGE_SIZE;
+use crate::{challenger::reduce_32, types::OuterDigestVariable, DIGEST_SIZE, RATE, SPONGE_SIZE};
 
 pub trait Poseidon2CircuitBuilder<C: Config> {
     fn p2_permute_mut(&mut self, state: [Var<C::N>; SPONGE_SIZE]);
@@ -73,17 +67,17 @@ pub mod tests {
     use p3_bn254_fr::Bn254Fr;
     use p3_field::AbstractField;
     use p3_symmetric::{CryptographicHasher, Permutation, PseudoCompressionFunction};
-    use rand::thread_rng;
-    use rand::Rng;
-    use sp1_recursion_compiler::config::OuterConfig;
-    use sp1_recursion_compiler::constraints::ConstraintCompiler;
-    use sp1_recursion_compiler::ir::{Builder, Felt, Var, Witness};
+    use rand::{thread_rng, Rng};
+    use sp1_recursion_compiler::{
+        config::OuterConfig,
+        constraints::ConstraintCompiler,
+        ir::{Builder, Felt, Var, Witness},
+    };
     use sp1_recursion_core::stark::config::{outer_perm, OuterCompress, OuterHash};
     use sp1_recursion_gnark_ffi::PlonkBn254Prover;
     use sp1_stark::{inner_perm, InnerHash};
 
-    use crate::poseidon2::Poseidon2CircuitBuilder;
-    use crate::types::OuterDigestVariable;
+    use crate::{poseidon2::Poseidon2CircuitBuilder, types::OuterDigestVariable};
 
     #[test]
     fn test_p2_permute_mut() {

@@ -5,11 +5,12 @@ use sp1_core_executor::syscalls::SyscallCode;
 use sp1_stark::air::SP1AirBuilder;
 
 use super::{ShaExtendChip, ShaExtendCols, NUM_SHA_EXTEND_COLS};
-use crate::air::MemoryAirBuilder;
-use crate::air::WordAirBuilder;
-use crate::memory::MemoryCols;
-use crate::operations::{
-    Add4Operation, FixedRotateRightOperation, FixedShiftRightOperation, XorOperation,
+use crate::{
+    air::{MemoryAirBuilder, WordAirBuilder},
+    memory::MemoryCols,
+    operations::{
+        Add4Operation, FixedRotateRightOperation, FixedShiftRightOperation, XorOperation,
+    },
 };
 
 use core::borrow::Borrow;

@@ -29,7 +29,8 @@ impl<F: Field, const L: usize> CpuChip<F, L> {
             &local.a,
             local.is_real.into(),
         );
-        // If the instruction only reads from operand A, then verify that previous and current values are equal.
+        // If the instruction only reads from operand A, then verify that previous and current
+        // values are equal.
         let is_op_a_read_only = self.is_op_a_read_only_instruction::<AB>(local);
         builder.when(is_op_a_read_only).assert_block_eq(*local.a.prev_value(), *local.a.value());
 

@@ -1,15 +1,10 @@
 use p3_air::AirBuilder;
-use p3_field::AbstractField;
-use p3_field::ExtensionField;
-use p3_field::Field;
+use p3_field::{AbstractField, ExtensionField, Field};
 use serde::{Deserialize, Serialize};
 use sp1_derive::AlignedBorrow;
-use sp1_stark::air::BinomialExtension;
-use sp1_stark::air::ExtensionAirBuilder;
-use sp1_stark::air::SP1AirBuilder;
+use sp1_stark::air::{BinomialExtension, ExtensionAirBuilder, SP1AirBuilder};
 
-use std::ops::Index;
-use std::ops::IndexMut;
+use std::ops::{Index, IndexMut};
 
 use crate::runtime::D;
 

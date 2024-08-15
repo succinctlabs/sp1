@@ -1,26 +1,21 @@
 use p3_air::Air;
 use p3_commit::LagrangeSelectors;
-use p3_field::AbstractExtensionField;
-use p3_field::AbstractField;
-use p3_field::TwoAdicField;
+use p3_field::{AbstractExtensionField, AbstractField, TwoAdicField};
 
-use sp1_recursion_compiler::ir::Array;
-use sp1_recursion_compiler::ir::Felt;
-use sp1_recursion_compiler::prelude::Config;
-use sp1_recursion_compiler::prelude::ExtConst;
-use sp1_recursion_compiler::prelude::{Builder, Ext, SymbolicExt};
-use sp1_stark::air::MachineAir;
-use sp1_stark::AirOpenedValues;
-use sp1_stark::MachineChip;
-use sp1_stark::StarkGenericConfig;
-use sp1_stark::PROOF_MAX_NUM_PVS;
+use sp1_recursion_compiler::{
+    ir::{Array, Felt},
+    prelude::{Builder, Config, Ext, ExtConst, SymbolicExt},
+};
+use sp1_stark::{
+    air::MachineAir, AirOpenedValues, MachineChip, StarkGenericConfig, PROOF_MAX_NUM_PVS,
+};
 
-use crate::commit::PolynomialSpaceVariable;
-use crate::fri::TwoAdicMultiplicativeCosetVariable;
-use crate::stark::RecursiveVerifierConstraintFolder;
-use crate::stark::StarkVerifier;
-use crate::types::ChipOpenedValuesVariable;
-use crate::types::ChipOpening;
+use crate::{
+    commit::PolynomialSpaceVariable,
+    fri::TwoAdicMultiplicativeCosetVariable,
+    stark::{RecursiveVerifierConstraintFolder, StarkVerifier},
+    types::{ChipOpenedValuesVariable, ChipOpening},
+};
 
 impl<C: Config, SC: StarkGenericConfig> StarkVerifier<C, SC>
 where
@@ -97,8 +92,8 @@ where
                     .filter(|(j, _)| *j != i)
                     .map(|(_, other_domain)| {
                         let first_point: Ext<_, _> = builder.eval(domain.first_point());
-                        other_domain.zp_at_point(builder, zeta)
-                            * other_domain.zp_at_point(builder, first_point).inverse()
+                        other_domain.zp_at_point(builder, zeta) *
+                            other_domain.zp_at_point(builder, first_point).inverse()
                     })
                     .product::<SymbolicExt<_, _>>()
             })

@@ -1,32 +1,38 @@
-use std::array;
-use std::borrow::{Borrow, BorrowMut};
-use std::marker::PhantomData;
+use std::{
+    array,
+    borrow::{Borrow, BorrowMut},
+    marker::PhantomData,
+};
 
 use itertools::Itertools;
 use p3_baby_bear::BabyBear;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::{AbstractField, PrimeField32, TwoAdicField};
-use sp1_core_machine::cpu::MAX_CPU_LOG_DEGREE;
-use sp1_core_machine::riscv::RiscvAir;
-use sp1_primitives::consts::WORD_SIZE;
-use sp1_primitives::types::RecursionProgramType;
-use sp1_recursion_compiler::config::InnerConfig;
-use sp1_recursion_compiler::ir::{Array, Builder, Config, Ext, ExtConst, Felt, Var};
-use sp1_recursion_compiler::prelude::DslVariable;
-use sp1_recursion_compiler::prelude::*;
-use sp1_recursion_core::air::{RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS};
-use sp1_recursion_core::runtime::{RecursionProgram, DIGEST_SIZE};
-use sp1_stark::air::{MachineAir, PublicValues, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS};
-use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
-use sp1_stark::{Com, ShardProof, StarkGenericConfig, StarkMachine, StarkVerifyingKey, Word};
+use sp1_core_machine::{cpu::MAX_CPU_LOG_DEGREE, riscv::RiscvAir};
+use sp1_primitives::{consts::WORD_SIZE, types::RecursionProgramType};
+use sp1_recursion_compiler::{
+    config::InnerConfig,
+    ir::{Array, Builder, Config, Ext, ExtConst, Felt, Var},
+    prelude::{DslVariable, *},
+};
+use sp1_recursion_core::{
+    air::{RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS},
+    runtime::{RecursionProgram, DIGEST_SIZE},
+};
+use sp1_stark::{
+    air::{MachineAir, PublicValues, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS},
+    baby_bear_poseidon2::BabyBearPoseidon2,
+    Com, ShardProof, StarkGenericConfig, StarkMachine, StarkVerifyingKey, Word,
+};
 
-use crate::challenger::{CanObserveVariable, DuplexChallengerVariable};
-use crate::fri::TwoAdicFriPcsVariable;
-use crate::hints::Hintable;
-use crate::stark::{StarkVerifier, EMPTY};
-use crate::types::ShardProofVariable;
-use crate::types::VerifyingKeyVariable;
-use crate::utils::{const_fri_config, felt2var, get_challenger_public_values, hash_vkey, var2felt};
+use crate::{
+    challenger::{CanObserveVariable, DuplexChallengerVariable},
+    fri::TwoAdicFriPcsVariable,
+    hints::Hintable,
+    stark::{StarkVerifier, EMPTY},
+    types::{ShardProofVariable, VerifyingKeyVariable},
+    utils::{const_fri_config, felt2var, get_challenger_public_values, hash_vkey, var2felt},
+};
 
 use super::utils::{assert_complete, commit_public_values};
 
@@ -325,7 +331,8 @@ where
                     builder.assert_felt_eq(current_execution_shard, public_values.execution_shard);
                 });
 
-                // If the shard has a "CPU" chip, then the execution shard should be incremented by 1.
+                // If the shard has a "CPU" chip, then the execution shard should be incremented by
+                // 1.
                 builder.if_eq(contains_cpu, C::N::one()).then(|builder| {
                     builder.assign(current_execution_shard, current_execution_shard + C::F::one());
                 });
@@ -364,7 +371,8 @@ where
 
             // Memory initialization & finalization constraints.
             {
-                // Assert that `init_addr_bits` and `finalize_addr_bits` are zero for the first execution shard.
+                // Assert that `init_addr_bits` and `finalize_addr_bits` are zero for the first
+                // execution shard.
                 builder.if_eq(execution_shard, C::N::one()).then(|builder| {
                     // Assert that the MemoryInitialize address bits are zero.
                     for bit in current_init_addr_bits.iter() {
@@ -457,7 +465,8 @@ where
                     }
                 });
 
-                // If it's not a shard with "CPU", then the committed value digest should not change.
+                // If it's not a shard with "CPU", then the committed value digest should not
+                // change.
                 builder.if_ne(contains_cpu, C::N::one()).then(|builder| {
                     #[allow(clippy::needless_range_loop)]
                     for i in 0..committed_value_digest.len() {
@@ -481,8 +490,9 @@ where
                     }
                 }
 
-                // If `deferred_proofs_digest` is not zero, then `public_values.deferred_proofs_digest
-                // should be the current value.
+                // If `deferred_proofs_digest` is not zero, then
+                // `public_values.deferred_proofs_digest should be the current
+                // value.
                 let is_zero: Var<_> = builder.eval(C::N::one());
                 #[allow(clippy::needless_range_loop)]
                 for i in 0..deferred_proofs_digest.len() {
@@ -501,7 +511,8 @@ where
                     }
                 });
 
-                // If it's not a shard with "CPU", then the deferred proofs digest should not change.
+                // If it's not a shard with "CPU", then the deferred proofs digest should not
+                // change.
                 builder.if_ne(contains_cpu, C::N::one()).then(|builder| {
                     #[allow(clippy::needless_range_loop)]
                     for i in 0..deferred_proofs_digest.len() {
@@ -592,9 +603,9 @@ where
 
             // If the proof represents a complete proof, make completeness assertions.
             //
-            // *Remark*: In this program, this only happends if there is one shard and the program has
-            // no deferred proofs to verify. However, the completeness check is independent of these
-            // facts.
+            // *Remark*: In this program, this only happends if there is one shard and the program
+            // has no deferred proofs to verify. However, the completeness check is
+            // independent of these facts.
             builder.if_eq(is_complete, C::N::one()).then(|builder| {
                 assert_complete(builder, recursion_public_values, &reconstruct_challenger)
             });

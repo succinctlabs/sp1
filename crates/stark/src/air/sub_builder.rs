@@ -1,5 +1,7 @@
-use std::iter::{Skip, Take};
-use std::ops::{Deref, Range};
+use std::{
+    iter::{Skip, Take},
+    ops::{Deref, Range},
+};
 
 use p3_air::{AirBuilder, BaseAir};
 use p3_matrix::Matrix;

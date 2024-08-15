@@ -1,5 +1,7 @@
-use p3_field::extension::{BinomialExtensionField, BinomiallyExtendable};
-use p3_field::{AbstractExtensionField, Field};
+use p3_field::{
+    extension::{BinomialExtensionField, BinomiallyExtendable},
+    AbstractExtensionField, Field,
+};
 use sp1_stark::air::BinomialExtension;
 
 use super::Block;

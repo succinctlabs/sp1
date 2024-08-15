@@ -3,10 +3,11 @@ use num::{BigUint, Zero};
 use serde::{Deserialize, Serialize};
 
 use super::CurveType;
-use crate::params::FieldParameters;
-use crate::params::NumLimbs;
-use crate::utils::biguint_to_bits_le;
-use crate::{AffinePoint, EllipticCurve, EllipticCurveParameters};
+use crate::{
+    params::{FieldParameters, NumLimbs},
+    utils::biguint_to_bits_le,
+    AffinePoint, EllipticCurve, EllipticCurveParameters,
+};
 
 pub mod bls12_381;
 pub mod bn254;

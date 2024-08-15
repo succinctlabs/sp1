@@ -1,15 +1,14 @@
-use std::fmt::Debug;
-use std::ops::{Div, Index, IndexMut};
-use std::slice::Iter;
+use std::{
+    fmt::Debug,
+    ops::{Div, Index, IndexMut},
+    slice::Iter,
+};
 
-use serde::de::DeserializeOwned;
-use serde::Serialize;
+use serde::{de::DeserializeOwned, Serialize};
 
-use typenum::Unsigned;
-use typenum::{U2, U4};
+use typenum::{Unsigned, U2, U4};
 
-use generic_array::sequence::GenericSequence;
-use generic_array::{ArrayLength, GenericArray};
+use generic_array::{sequence::GenericSequence, ArrayLength, GenericArray};
 use num::BigUint;
 use sp1_stark::air::Polynomial;
 

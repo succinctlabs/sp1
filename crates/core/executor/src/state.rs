@@ -67,7 +67,8 @@ pub struct ExecutionState {
     /// A stream of public values from the program (global to entire program).
     pub public_values_stream: Vec<u8>,
 
-    /// A ptr to the current position in the public values stream, incremented when reading from public_values_stream.
+    /// A ptr to the current position in the public values stream, incremented when reading from
+    /// public_values_stream.
     pub public_values_stream_ptr: usize,
 
     /// Keeps track of how many times a certain syscall has been called.

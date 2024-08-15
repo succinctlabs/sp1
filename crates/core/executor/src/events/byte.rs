@@ -2,16 +2,13 @@ use std::hash::Hash;
 
 use hashbrown::HashMap;
 use itertools::Itertools;
-use p3_field::Field;
-use p3_field::PrimeField32;
-use p3_maybe_rayon::prelude::IndexedParallelIterator;
-use p3_maybe_rayon::prelude::IntoParallelRefIterator;
-use p3_maybe_rayon::prelude::IntoParallelRefMutIterator;
-use p3_maybe_rayon::prelude::ParallelIterator;
+use p3_field::{Field, PrimeField32};
+use p3_maybe_rayon::prelude::{
+    IndexedParallelIterator, IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator,
+};
 use serde::{Deserialize, Serialize};
 
-use crate::ByteOpcode;
-use crate::Opcode;
+use crate::{ByteOpcode, Opcode};
 
 /// The number of different byte operations.
 pub const NUM_BYTE_OPS: usize = 9;

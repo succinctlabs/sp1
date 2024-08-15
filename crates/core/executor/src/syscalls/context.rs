@@ -4,7 +4,8 @@ use crate::{
     Executor, Register,
 };
 
-/// A runtime for syscalls that is protected so that developers cannot arbitrarily modify the runtime.
+/// A runtime for syscalls that is protected so that developers cannot arbitrarily modify the
+/// runtime.
 #[allow(dead_code)]
 pub struct SyscallContext<'a, 'b: 'a> {
     /// The current shard.

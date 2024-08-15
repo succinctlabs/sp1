@@ -5,34 +5,21 @@ pub mod types;
 
 pub use domain::*;
 use sp1_primitives::types::RecursionProgramType;
-use sp1_recursion_compiler::ir::ExtensionOperand;
-use sp1_recursion_compiler::ir::Ptr;
+use sp1_recursion_compiler::ir::{ExtensionOperand, Ptr};
 use sp1_recursion_core::runtime::DIGEST_SIZE;
 pub use two_adic_pcs::*;
 
-use p3_field::AbstractField;
-use p3_field::Field;
-use p3_field::TwoAdicField;
+use p3_field::{AbstractField, Field, TwoAdicField};
 
-use sp1_recursion_compiler::ir::Array;
-use sp1_recursion_compiler::ir::Builder;
-use sp1_recursion_compiler::ir::Config;
-use sp1_recursion_compiler::ir::Ext;
-use sp1_recursion_compiler::ir::Felt;
-use sp1_recursion_compiler::ir::SymbolicVar;
-use sp1_recursion_compiler::ir::Usize;
-use sp1_recursion_compiler::ir::Var;
+use sp1_recursion_compiler::ir::{Array, Builder, Config, Ext, Felt, SymbolicVar, Usize, Var};
 
-use self::types::DigestVariable;
-use self::types::DimensionsVariable;
-use self::types::FriChallengesVariable;
-use self::types::FriConfigVariable;
-use self::types::FriProofVariable;
-use self::types::FriQueryProofVariable;
-use crate::challenger::CanObserveVariable;
-use crate::challenger::CanSampleBitsVariable;
-use crate::challenger::DuplexChallengerVariable;
-use crate::challenger::FeltChallenger;
+use self::types::{
+    DigestVariable, DimensionsVariable, FriChallengesVariable, FriConfigVariable, FriProofVariable,
+    FriQueryProofVariable,
+};
+use crate::challenger::{
+    CanObserveVariable, CanSampleBitsVariable, DuplexChallengerVariable, FeltChallenger,
+};
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/verifier.rs#L27
 pub fn verify_shape_and_sample_challenges<C: Config>(

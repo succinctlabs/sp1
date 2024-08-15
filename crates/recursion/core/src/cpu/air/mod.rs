@@ -68,8 +68,8 @@ where
 
         // Constrain branches and jumps and constrain the next pc.
         {
-            // Expression for the expected next_pc.  This will be added to in `eval_branch` and `eval_jump`
-            // to account for possible jumps and branches.
+            // Expression for the expected next_pc.  This will be added to in `eval_branch` and
+            // `eval_jump` to account for possible jumps and branches.
             let mut next_pc = zero;
 
             self.eval_branch(builder, local, &mut next_pc);
@@ -77,18 +77,18 @@ where
             self.eval_jump(builder, local, next, &mut next_pc);
 
             // If the instruction is not a jump or branch instruction, then next pc = pc + 1.
-            let not_branch_or_jump = one.clone()
-                - self.is_branch_instruction::<AB>(local)
-                - self.is_jump_instruction::<AB>(local);
+            let not_branch_or_jump = one.clone() -
+                self.is_branch_instruction::<AB>(local) -
+                self.is_jump_instruction::<AB>(local);
             next_pc += not_branch_or_jump.clone() * (local.pc + one);
 
             builder.when_transition().when(next.is_real).assert_eq(next_pc, next.pc);
         }
 
         // Constrain the syscalls.
-        let send_syscall = local.selectors.is_poseidon
-            + local.selectors.is_fri_fold
-            + local.selectors.is_exp_reverse_bits_len;
+        let send_syscall = local.selectors.is_poseidon +
+            local.selectors.is_fri_fold +
+            local.selectors.is_exp_reverse_bits_len;
 
         let operands = [
             local.clk.into(),
@@ -174,10 +174,10 @@ impl<F: Field, const L: usize> CpuChip<F, L> {
     where
         AB: SP1RecursionAirBuilder<F = F>,
     {
-        local.selectors.is_add
-            + local.selectors.is_sub
-            + local.selectors.is_mul
-            + local.selectors.is_div
+        local.selectors.is_add +
+            local.selectors.is_sub +
+            local.selectors.is_mul +
+            local.selectors.is_div
     }
 
     /// Expr to check for branch instructions.
@@ -209,17 +209,17 @@ impl<F: Field, const L: usize> CpuChip<F, L> {
     where
         AB: SP1RecursionAirBuilder<F = F>,
     {
-        local.selectors.is_beq
-            + local.selectors.is_bne
-            + local.selectors.is_fri_fold
-            + local.selectors.is_poseidon
-            + local.selectors.is_store
-            + local.selectors.is_noop
-            + local.selectors.is_ext_to_felt
-            + local.selectors.is_commit
-            + local.selectors.is_trap
-            + local.selectors.is_halt
-            + local.selectors.is_exp_reverse_bits_len
+        local.selectors.is_beq +
+            local.selectors.is_bne +
+            local.selectors.is_fri_fold +
+            local.selectors.is_poseidon +
+            local.selectors.is_store +
+            local.selectors.is_noop +
+            local.selectors.is_ext_to_felt +
+            local.selectors.is_commit +
+            local.selectors.is_trap +
+            local.selectors.is_halt +
+            local.selectors.is_exp_reverse_bits_len
     }
 
     /// Expr to check for instructions that are commit instructions.
@@ -242,22 +242,17 @@ impl<F: Field, const L: usize> CpuChip<F, L> {
 #[cfg(test)]
 mod tests {
     use itertools::Itertools;
-    use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
-    use sp1_stark::StarkGenericConfig;
+    use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, StarkGenericConfig};
     use std::time::Instant;
 
-    use p3_baby_bear::BabyBear;
-    use p3_baby_bear::DiffusionMatrixBabyBear;
+    use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
     use p3_field::AbstractField;
     use p3_matrix::{dense::RowMajorMatrix, Matrix};
-    use p3_poseidon2::Poseidon2;
-    use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
+    use p3_poseidon2::{Poseidon2, Poseidon2ExternalMatrixGeneral};
     use sp1_core_machine::utils::{uni_stark_prove, uni_stark_verify};
     use sp1_stark::air::MachineAir;
 
-    use crate::air::Block;
-    use crate::memory::MemoryGlobalChip;
-    use crate::runtime::ExecutionRecord;
+    use crate::{air::Block, memory::MemoryGlobalChip, runtime::ExecutionRecord};
 
     #[test]
     fn test_cpu_unistark() {

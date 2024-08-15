@@ -105,7 +105,8 @@ impl<F: PrimeField32> MemoryAccessCols<F> {
         self.prev_shard = F::from_canonical_u32(prev_record.shard);
         self.prev_clk = F::from_canonical_u32(prev_record.timestamp);
 
-        // Fill columns used for verifying current memory access time value is greater than previous's.
+        // Fill columns used for verifying current memory access time value is greater than
+        // previous's.
         let use_clk_comparison = prev_record.shard == current_record.shard;
         self.compare_clk = F::from_bool(use_clk_comparison);
         let prev_time_value =

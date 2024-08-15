@@ -1,17 +1,14 @@
-use std::array;
-use std::iter::once;
+use std::{array, iter::once};
 
 use itertools::Itertools;
-use p3_air::{AirBuilder, FilteredAirBuilder};
-use p3_air::{AirBuilderWithPublicValues, PermutationAirBuilder};
+use p3_air::{AirBuilder, AirBuilderWithPublicValues, FilteredAirBuilder, PermutationAirBuilder};
 use p3_field::{AbstractField, Field};
-use p3_uni_stark::StarkGenericConfig;
-use p3_uni_stark::{ProverConstraintFolder, SymbolicAirBuilder, VerifierConstraintFolder};
+use p3_uni_stark::{
+    ProverConstraintFolder, StarkGenericConfig, SymbolicAirBuilder, VerifierConstraintFolder,
+};
 
-use super::interaction::AirInteraction;
-use super::BinomialExtension;
-use crate::lookup::InteractionKind;
-use crate::Word;
+use super::{interaction::AirInteraction, BinomialExtension};
+use crate::{lookup::InteractionKind, Word};
 
 /// A builder that can send and receive messages (or interactions) with other AIRs.
 pub trait MessageBuilder<M> {
@@ -66,8 +63,8 @@ pub trait BaseAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr>
         condition.clone().into() * a.into() + (Self::Expr::one() - condition.into()) * b.into()
     }
 
-    /// Index an array of expressions using an index bitmap.  This function assumes that the `EIndex`
-    /// type is a boolean and that `index_bitmap`'s entries sum to 1.
+    /// Index an array of expressions using an index bitmap.  This function assumes that the
+    /// `EIndex` type is a boolean and that `index_bitmap`'s entries sum to 1.
     fn index_array(
         &mut self,
         array: &[impl Into<Self::Expr> + Clone],
@@ -328,7 +325,8 @@ pub trait MultiTableAirBuilder: PermutationAirBuilder {
     fn cumulative_sum(&self) -> Self::Sum;
 }
 
-/// A trait that contains the common helper methods for building `SP1 recursion` and SP1 machine AIRs.
+/// A trait that contains the common helper methods for building `SP1 recursion` and SP1 machine
+/// AIRs.
 pub trait MachineAirBuilder:
     BaseAirBuilder + ExtensionAirBuilder + AirBuilderWithPublicValues
 {

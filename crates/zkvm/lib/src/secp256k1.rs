@@ -1,5 +1,4 @@
-use crate::utils::AffinePoint;
-use crate::{syscall_secp256k1_add, syscall_secp256k1_double};
+use crate::{syscall_secp256k1_add, syscall_secp256k1_double, utils::AffinePoint};
 
 /// The number of limbs in [Secp256k1AffinePoint].
 pub const N: usize = 16;

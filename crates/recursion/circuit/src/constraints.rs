@@ -1,26 +1,22 @@
 use p3_air::Air;
 use p3_commit::LagrangeSelectors;
-use p3_field::AbstractExtensionField;
-use p3_field::AbstractField;
-use p3_field::TwoAdicField;
-use sp1_recursion_compiler::ir::Array;
-use sp1_recursion_compiler::ir::ExtensionOperand;
-use sp1_recursion_compiler::ir::Felt;
-use sp1_recursion_compiler::ir::{Builder, Config, Ext};
-use sp1_recursion_compiler::prelude::SymbolicExt;
+use p3_field::{AbstractExtensionField, AbstractField, TwoAdicField};
+use sp1_recursion_compiler::{
+    ir::{Array, Builder, Config, Ext, ExtensionOperand, Felt},
+    prelude::SymbolicExt,
+};
 use sp1_recursion_program::commit::PolynomialSpaceVariable;
 
 use sp1_recursion_program::stark::RecursiveVerifierConstraintFolder;
-use sp1_stark::air::MachineAir;
-use sp1_stark::AirOpenedValues;
-use sp1_stark::MachineChip;
-use sp1_stark::StarkGenericConfig;
-use sp1_stark::PROOF_MAX_NUM_PVS;
+use sp1_stark::{
+    air::MachineAir, AirOpenedValues, MachineChip, StarkGenericConfig, PROOF_MAX_NUM_PVS,
+};
 
-use crate::domain::TwoAdicMultiplicativeCosetVariable;
-use crate::stark::StarkVerifierCircuit;
-use crate::types::ChipOpenedValuesVariable;
-use crate::types::ChipOpening;
+use crate::{
+    domain::TwoAdicMultiplicativeCosetVariable,
+    stark::StarkVerifierCircuit,
+    types::{ChipOpenedValuesVariable, ChipOpening},
+};
 
 impl<C: Config, SC: StarkGenericConfig> StarkVerifierCircuit<C, SC>
 where

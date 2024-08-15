@@ -1,9 +1,8 @@
 use std::marker::PhantomData;
 
-use sp1_curves::curve25519_dalek::CompressedEdwardsY;
-use sp1_curves::edwards::ed25519::decompress;
 use sp1_curves::{
-    edwards::{EdwardsParameters, WORDS_FIELD_ELEMENT},
+    curve25519_dalek::CompressedEdwardsY,
+    edwards::{ed25519::decompress, EdwardsParameters, WORDS_FIELD_ELEMENT},
     COMPRESSED_POINT_BYTES,
 };
 use sp1_primitives::consts::{bytes_to_words_le, words_to_bytes_le};

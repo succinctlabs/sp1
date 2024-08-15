@@ -4,32 +4,30 @@ mod program;
 mod record;
 mod utils;
 
-use std::collections::VecDeque;
-use std::{array, fmt};
-use std::{marker::PhantomData, sync::Arc};
+use std::{array, collections::VecDeque, fmt, marker::PhantomData, sync::Arc};
 
 use hashbrown::HashMap;
 pub use instruction::*;
 use itertools::Itertools;
 pub use opcode::*;
-use p3_poseidon2::Poseidon2;
-use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
-use p3_symmetric::CryptographicPermutation;
-use p3_symmetric::Permutation;
+use p3_poseidon2::{Poseidon2, Poseidon2ExternalMatrixGeneral};
+use p3_symmetric::{CryptographicPermutation, Permutation};
 pub use program::*;
 pub use record::*;
 use sp1_core_executor::events::MemoryAccessPosition;
 pub use utils::*;
 
-use crate::air::{Block, RECURSION_PUBLIC_VALUES_COL_MAP, RECURSIVE_PROOF_NUM_PV_ELTS};
-use crate::cpu::CpuEvent;
-use crate::exp_reverse_bits::ExpReverseBitsLenEvent;
-use crate::fri_fold::FriFoldEvent;
-use crate::memory::{compute_addr_diff, MemoryRecord};
-use crate::poseidon2_wide::events::{
-    Poseidon2AbsorbEvent, Poseidon2CompressEvent, Poseidon2FinalizeEvent, Poseidon2HashEvent,
+use crate::{
+    air::{Block, RECURSION_PUBLIC_VALUES_COL_MAP, RECURSIVE_PROOF_NUM_PV_ELTS},
+    cpu::CpuEvent,
+    exp_reverse_bits::ExpReverseBitsLenEvent,
+    fri_fold::FriFoldEvent,
+    memory::{compute_addr_diff, MemoryRecord},
+    poseidon2_wide::events::{
+        Poseidon2AbsorbEvent, Poseidon2CompressEvent, Poseidon2FinalizeEvent, Poseidon2HashEvent,
+    },
+    range_check::{RangeCheckEvent, RangeCheckOpcode},
 };
-use crate::range_check::{RangeCheckEvent, RangeCheckOpcode};
 
 use p3_field::{ExtensionField, PrimeField32};
 
@@ -45,7 +43,8 @@ pub const PERMUTATION_WIDTH: usize = 16;
 pub const POSEIDON2_SBOX_DEGREE: u64 = 7;
 pub const HASH_RATE: usize = 8;
 
-/// The current verifier implementation assumes that we are using a 256-bit hash with 32-bit elements.
+/// The current verifier implementation assumes that we are using a 256-bit hash with 32-bit
+/// elements.
 pub const DIGEST_SIZE: usize = 8;
 
 pub const NUM_BITS: usize = 31;
@@ -717,12 +716,13 @@ where
                     let hash_num = F::from_canonical_u32(hash_and_absorb_num_u32 / two_pow_12);
                     let absorb_num = F::from_canonical_u32(hash_and_absorb_num_u32 % two_pow_12);
 
-                    // Double check that hash_num is [0, 2^16 - 1] and absorb_num is [0, 2^12 - 1] since
-                    // that is what the AIR will enforce.
+                    // Double check that hash_num is [0, 2^16 - 1] and absorb_num is [0, 2^12 - 1]
+                    // since that is what the AIR will enforce.
                     assert!(hash_num.as_canonical_u32() < 1 << 16);
                     assert!(absorb_num.as_canonical_u32() < 1 << 12);
 
-                    // We currently don't support an input_len of 0, since it will need special logic in the AIR.
+                    // We currently don't support an input_len of 0, since it will need special
+                    // logic in the AIR.
                     assert!(input_len > F::zero());
 
                     let mut absorb_event = Poseidon2AbsorbEvent::new(
@@ -829,7 +829,8 @@ where
                 Opcode::FRIFold => {
                     let (a_val, b_val, c_val) = self.all_rr(&instruction);
 
-                    // The timestamp for the memory reads for all of these operations will be self.clk
+                    // The timestamp for the memory reads for all of these operations will be
+                    // self.clk
 
                     let ps_at_z_len = a_val[0];
                     let input_ptr = b_val[0];
@@ -962,9 +963,9 @@ where
                         let current_x_val = x_record.value[0];
 
                         let prev_accum = accum;
-                        accum = prev_accum
-                            * prev_accum
-                            * if current_bit == F::one() { current_x_val } else { F::one() };
+                        accum = prev_accum *
+                            prev_accum *
+                            if current_bit == F::one() { current_x_val } else { F::one() };
 
                         // On the last iteration, write accum to the address pointed to in `base`.
                         if m == len - F::one() {
@@ -1017,9 +1018,9 @@ where
             self.timestamp += 1;
             self.access = CpuRecord::default();
 
-            if self.timestamp >= early_exit_ts
-                || instruction.opcode == Opcode::HALT
-                || instruction.opcode == Opcode::TRAP
+            if self.timestamp >= early_exit_ts ||
+                instruction.opcode == Opcode::HALT ||
+                instruction.opcode == Opcode::TRAP
             {
                 break;
             }
@@ -1042,8 +1043,8 @@ where
         self.record.last_memory_record.sort_by_key(|(addr, _, _)| *addr);
 
         // For all the records but the last, need to check that the next address is greater than the
-        // current address, and that the difference is bounded by 2^28. We also track that the current
-        // address is bounded by 2^28.
+        // current address, and that the difference is bounded by 2^28. We also track that the
+        // current address is bounded by 2^28.
         for i in 0..self.record.last_memory_record.len() - 1 {
             self.track_addr_range_check(
                 self.record.last_memory_record[i].0,

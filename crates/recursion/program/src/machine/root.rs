@@ -5,25 +5,31 @@ use p3_baby_bear::BabyBear;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::{AbstractField, PrimeField32, TwoAdicField};
 use sp1_primitives::types::RecursionProgramType;
-use sp1_recursion_compiler::config::InnerConfig;
-use sp1_recursion_compiler::ir::{Builder, Config, Felt, Var};
-use sp1_recursion_compiler::prelude::DslVariable;
-use sp1_recursion_core::air::{RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS};
-use sp1_recursion_core::runtime::{RecursionProgram, DIGEST_SIZE};
+use sp1_recursion_compiler::{
+    config::InnerConfig,
+    ir::{Builder, Config, Felt, Var},
+    prelude::DslVariable,
+};
+use sp1_recursion_core::{
+    air::{RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS},
+    runtime::{RecursionProgram, DIGEST_SIZE},
+};
 
 use sp1_recursion_compiler::prelude::*;
-use sp1_stark::air::MachineAir;
-use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
-use sp1_stark::{Com, StarkVerifyingKey};
-use sp1_stark::{ShardProof, StarkGenericConfig, StarkMachine};
+use sp1_stark::{
+    air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, Com, ShardProof, StarkGenericConfig,
+    StarkMachine, StarkVerifyingKey,
+};
 
-use crate::challenger::{CanObserveVariable, DuplexChallengerVariable};
-use crate::fri::TwoAdicFriPcsVariable;
-use crate::hints::Hintable;
-use crate::machine::utils::proof_data_from_vk;
-use crate::stark::{RecursiveVerifierConstraintFolder, ShardProofHint, StarkVerifier};
-use crate::types::ShardProofVariable;
-use crate::utils::{const_fri_config, hash_vkey};
+use crate::{
+    challenger::{CanObserveVariable, DuplexChallengerVariable},
+    fri::TwoAdicFriPcsVariable,
+    hints::Hintable,
+    machine::utils::proof_data_from_vk,
+    stark::{RecursiveVerifierConstraintFolder, ShardProofHint, StarkVerifier},
+    types::ShardProofVariable,
+    utils::{const_fri_config, hash_vkey},
+};
 
 use super::utils::{commit_public_values, verify_public_values_hash};
 

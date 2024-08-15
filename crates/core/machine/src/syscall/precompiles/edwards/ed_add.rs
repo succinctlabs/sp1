@@ -1,45 +1,40 @@
-use core::borrow::{Borrow, BorrowMut};
-use core::mem::size_of;
-use std::fmt::Debug;
-use std::marker::PhantomData;
+use core::{
+    borrow::{Borrow, BorrowMut},
+    mem::size_of,
+};
+use std::{fmt::Debug, marker::PhantomData};
 
 use hashbrown::HashMap;
 use itertools::Itertools;
-use num::BigUint;
-use num::Zero;
+use num::{BigUint, Zero};
 
 use crate::air::MemoryAirBuilder;
-use p3_air::AirBuilder;
-use p3_air::{Air, BaseAir};
-use p3_field::AbstractField;
-use p3_field::PrimeField32;
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
-use p3_maybe_rayon::prelude::IntoParallelRefIterator;
-use p3_maybe_rayon::prelude::ParallelIterator;
-use p3_maybe_rayon::prelude::ParallelSlice;
-use sp1_core_executor::events::EllipticCurveAddEvent;
-use sp1_core_executor::events::{ByteLookupEvent, ByteRecord};
-use sp1_core_executor::syscalls::SyscallCode;
-use sp1_core_executor::{ExecutionRecord, Program};
-use sp1_curves::edwards::ed25519::Ed25519BaseField;
-use sp1_curves::edwards::EdwardsParameters;
-use sp1_curves::edwards::NUM_LIMBS;
-use sp1_curves::edwards::WORDS_CURVE_POINT;
-use sp1_curves::params::FieldParameters;
-use sp1_curves::{AffinePoint, EllipticCurve};
+use p3_air::{Air, AirBuilder, BaseAir};
+use p3_field::{AbstractField, PrimeField32};
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
+use p3_maybe_rayon::prelude::{IntoParallelRefIterator, ParallelIterator, ParallelSlice};
+use sp1_core_executor::{
+    events::{ByteLookupEvent, ByteRecord, EllipticCurveAddEvent},
+    syscalls::SyscallCode,
+    ExecutionRecord, Program,
+};
+use sp1_curves::{
+    edwards::{ed25519::Ed25519BaseField, EdwardsParameters, NUM_LIMBS, WORDS_CURVE_POINT},
+    params::FieldParameters,
+    AffinePoint, EllipticCurve,
+};
 use sp1_derive::AlignedBorrow;
 use sp1_stark::air::{BaseAirBuilder, MachineAir, SP1AirBuilder};
 
-use crate::memory::value_as_limbs;
-use crate::memory::MemoryReadCols;
-use crate::memory::MemoryWriteCols;
-use crate::operations::field::field_den::FieldDenCols;
-use crate::operations::field::field_inner_product::FieldInnerProductCols;
-use crate::operations::field::field_op::FieldOpCols;
-use crate::operations::field::field_op::FieldOperation;
-use crate::utils::limbs_from_prev_access;
-use crate::utils::pad_rows;
+use crate::{
+    memory::{value_as_limbs, MemoryReadCols, MemoryWriteCols},
+    operations::field::{
+        field_den::FieldDenCols,
+        field_inner_product::FieldInnerProductCols,
+        field_op::{FieldOpCols, FieldOperation},
+    },
+    utils::{limbs_from_prev_access, pad_rows},
+};
 
 pub const NUM_ED_ADD_COLS: usize = size_of::<EdAddAssignCols<u8>>();
 
@@ -398,8 +393,10 @@ mod tests {
     use sp1_core_executor::Program;
     use sp1_stark::CpuProver;
 
-    use crate::utils;
-    use crate::utils::tests::{ED25519_ELF, ED_ADD_ELF};
+    use crate::{
+        utils,
+        utils::tests::{ED25519_ELF, ED_ADD_ELF},
+    };
 
     #[test]
     fn test_ed_add_simple() {

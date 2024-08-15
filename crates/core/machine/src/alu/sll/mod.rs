@@ -30,25 +30,26 @@
 //! - Ideally, we would calculate b * pow(2, c), but pow(2, c) could overflow in F.
 //! - Shifting by a multiple of 8 bits is easy (=num_bytes_to_shift) since we just shift words.
 
-use core::borrow::{Borrow, BorrowMut};
-use core::mem::size_of;
+use core::{
+    borrow::{Borrow, BorrowMut},
+    mem::size_of,
+};
 
 use hashbrown::HashMap;
 use itertools::Itertools;
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField};
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{ParallelIterator, ParallelSlice};
-use sp1_core_executor::events::{AluEvent, ByteLookupEvent, ByteRecord};
-use sp1_core_executor::{ExecutionRecord, Opcode, Program};
+use sp1_core_executor::{
+    events::{AluEvent, ByteLookupEvent, ByteRecord},
+    ExecutionRecord, Opcode, Program,
+};
 use sp1_derive::AlignedBorrow;
 use sp1_primitives::consts::WORD_SIZE;
-use sp1_stark::air::MachineAir;
-use sp1_stark::Word;
+use sp1_stark::{air::MachineAir, Word};
 
-use crate::air::SP1CoreAirBuilder;
-use crate::utils::pad_to_power_of_two;
+use crate::{air::SP1CoreAirBuilder, utils::pad_to_power_of_two};
 
 /// The number of main trace columns for `ShiftLeft`.
 pub const NUM_SHIFT_LEFT_COLS: usize = size_of::<ShiftLeftCols<u8>>();
@@ -313,8 +314,8 @@ where
         // Check bit_shift_result = b * bit_shift_multiplier by using bit_shift_result_carry to
         // carry-propagate.
         for i in 0..WORD_SIZE {
-            let mut v = local.b[i] * local.bit_shift_multiplier
-                - local.bit_shift_result_carry[i] * base.clone();
+            let mut v = local.b[i] * local.bit_shift_multiplier -
+                local.bit_shift_result_carry[i] * base.clone();
             if i > 0 {
                 v += local.bit_shift_result_carry[i - 1].into();
             }

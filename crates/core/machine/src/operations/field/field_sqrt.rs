@@ -6,12 +6,13 @@ use p3_field::PrimeField32;
 use sp1_curves::params::{limbs_from_vec, FieldParameters, Limbs};
 use sp1_derive::AlignedBorrow;
 
-use sp1_core_executor::events::{ByteLookupEvent, ByteRecord};
-use sp1_core_executor::ByteOpcode;
+use sp1_core_executor::{
+    events::{ByteLookupEvent, ByteRecord},
+    ByteOpcode,
+};
 use sp1_stark::air::SP1AirBuilder;
 
-use super::field_op::FieldOpCols;
-use super::range::FieldLtCols;
+use super::{field_op::FieldOpCols, range::FieldLtCols};
 use crate::air::WordAirBuilder;
 use p3_field::AbstractField;
 
@@ -63,8 +64,8 @@ impl<F: PrimeField32, P: FieldParameters> FieldSqrtCols<F, P> {
         // If the result is indeed the square root of a, then result * result = a.
         assert_eq!(sqrt_squared, a.clone());
 
-        // This is a hack to save a column in FieldSqrtCols. We will receive the value a again in the
-        // eval function, so we'll overwrite it with the sqrt.
+        // This is a hack to save a column in FieldSqrtCols. We will receive the value a again in
+        // the eval function, so we'll overwrite it with the sqrt.
         self.multiplication.result = P::to_limbs_field::<F, _>(&sqrt);
 
         // Populate the range columns.
@@ -179,22 +180,21 @@ mod tests {
     use sp1_curves::params::{FieldParameters, Limbs};
     use sp1_stark::air::{MachineAir, SP1AirBuilder};
 
-    use crate::utils::pad_to_power_of_two;
-    use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
-    use core::borrow::{Borrow, BorrowMut};
-    use core::mem::size_of;
+    use crate::utils::{pad_to_power_of_two, uni_stark_prove as prove, uni_stark_verify as verify};
+    use core::{
+        borrow::{Borrow, BorrowMut},
+        mem::size_of,
+    };
     use num::bigint::RandBigInt;
     use p3_air::Air;
     use p3_baby_bear::BabyBear;
     use p3_field::AbstractField;
-    use p3_matrix::dense::RowMajorMatrix;
-    use p3_matrix::Matrix;
+    use p3_matrix::{dense::RowMajorMatrix, Matrix};
     use rand::thread_rng;
     use sp1_core_executor::events::ByteRecord;
     use sp1_curves::edwards::ed25519::{ed25519_sqrt, Ed25519BaseField};
     use sp1_derive::AlignedBorrow;
-    use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
-    use sp1_stark::StarkGenericConfig;
+    use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, StarkGenericConfig};
 
     use super::FieldSqrtCols;
 

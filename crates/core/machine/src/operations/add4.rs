@@ -1,12 +1,10 @@
 use p3_air::AirBuilder;
-use p3_field::AbstractField;
-use p3_field::Field;
+use p3_field::{AbstractField, Field};
 use sp1_derive::AlignedBorrow;
 
 use sp1_core_executor::events::ByteRecord;
 use sp1_primitives::consts::WORD_SIZE;
-use sp1_stark::air::SP1AirBuilder;
-use sp1_stark::Word;
+use sp1_stark::{air::SP1AirBuilder, Word};
 
 use crate::air::WordAirBuilder;
 
@@ -26,7 +24,8 @@ pub struct Add4Operation<T> {
     /// Indicates if the carry for the `i`th digit is 2.
     pub is_carry_2: Word<T>,
 
-    /// Indicates if the carry for the `i`th digit is 3. The carry when adding 4 words is at most 3.
+    /// Indicates if the carry for the `i`th digit is 3. The carry when adding 4 words is at most
+    /// 3.
     pub is_carry_3: Word<T>,
 
     /// The carry for the `i`th digit.
@@ -112,10 +111,10 @@ impl<F: Field> Add4Operation<F> {
                 builder_is_real.assert_bool(cols.is_carry_2[i]);
                 builder_is_real.assert_bool(cols.is_carry_3[i]);
                 builder_is_real.assert_eq(
-                    cols.is_carry_0[i]
-                        + cols.is_carry_1[i]
-                        + cols.is_carry_2[i]
-                        + cols.is_carry_3[i],
+                    cols.is_carry_0[i] +
+                        cols.is_carry_1[i] +
+                        cols.is_carry_2[i] +
+                        cols.is_carry_3[i],
                     AB::Expr::one(),
                 );
             }
@@ -130,9 +129,9 @@ impl<F: Field> Add4Operation<F> {
             for i in 0..WORD_SIZE {
                 builder_is_real.assert_eq(
                     cols.carry[i],
-                    cols.is_carry_1[i] * one.clone()
-                        + cols.is_carry_2[i] * two
-                        + cols.is_carry_3[i] * three,
+                    cols.is_carry_1[i] * one.clone() +
+                        cols.is_carry_2[i] * two +
+                        cols.is_carry_3[i] * three,
                 );
             }
         }

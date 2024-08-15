@@ -1,6 +1,8 @@
 use crate::cpu::columns::{AuipcCols, BranchCols, JumpCols, MemoryColumns};
-use std::fmt::{Debug, Formatter};
-use std::mem::{size_of, transmute};
+use std::{
+    fmt::{Debug, Formatter},
+    mem::{size_of, transmute},
+};
 
 use static_assertions::const_assert;
 

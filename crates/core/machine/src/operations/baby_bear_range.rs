@@ -48,8 +48,9 @@ impl<F: Field> BabyBearBitDecomposition<F> {
         builder.when(is_real.clone()).assert_eq(reconstructed_value, value);
 
         // Range check that value is less than baby bear modulus.  To do this, it is sufficient
-        // to just do comparisons for the most significant byte. BabyBear's modulus is (in big endian binary)
-        // 01111000_00000000_00000000_00000001.  So we need to check the following conditions:
+        // to just do comparisons for the most significant byte. BabyBear's modulus is (in big
+        // endian binary) 01111000_00000000_00000000_00000001.  So we need to check the
+        // following conditions:
         // 1) if most_sig_byte > 01111000, then fail.
         // 2) if most_sig_byte == 01111000, then value's lower sig bytes must all be 0.
         // 3) if most_sig_byte < 01111000, then pass.

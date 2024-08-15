@@ -5,8 +5,7 @@ use std::{
 
 use p3_baby_bear::BabyBear;
 use p3_bn254_fr::Bn254Fr;
-use p3_field::AbstractField;
-use p3_field::PrimeField32;
+use p3_field::{AbstractField, PrimeField32};
 use sp1_core_executor::{Executor, Program};
 use sp1_core_machine::io::SP1Stdin;
 use sp1_stark::{SP1CoreOpts, Word};

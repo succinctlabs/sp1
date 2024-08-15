@@ -62,27 +62,29 @@
 
 mod utils;
 
-use core::borrow::{Borrow, BorrowMut};
-use core::mem::size_of;
+use core::{
+    borrow::{Borrow, BorrowMut},
+    mem::size_of,
+};
 use hashbrown::HashMap;
 
 use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::AbstractField;
-use p3_field::PrimeField;
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
-use sp1_core_executor::events::ByteRecord;
-use sp1_core_executor::events::{create_alu_lookups, AluEvent, ByteLookupEvent};
-use sp1_core_executor::{ByteOpcode, ExecutionRecord, Opcode, Program};
+use p3_field::{AbstractField, PrimeField};
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
+use sp1_core_executor::{
+    events::{create_alu_lookups, AluEvent, ByteLookupEvent, ByteRecord},
+    ByteOpcode, ExecutionRecord, Opcode, Program,
+};
 use sp1_derive::AlignedBorrow;
 use sp1_primitives::consts::WORD_SIZE;
-use sp1_stark::air::MachineAir;
-use sp1_stark::Word;
+use sp1_stark::{air::MachineAir, Word};
 
-use crate::air::SP1CoreAirBuilder;
-use crate::alu::divrem::utils::{get_msb, get_quotient_and_remainder, is_signed_operation};
-use crate::operations::{IsEqualWordOperation, IsZeroWordOperation};
-use crate::utils::pad_to_power_of_two;
+use crate::{
+    air::SP1CoreAirBuilder,
+    alu::divrem::utils::{get_msb, get_quotient_and_remainder, is_signed_operation},
+    operations::{IsEqualWordOperation, IsZeroWordOperation},
+    utils::pad_to_power_of_two,
+};
 
 /// The number of main trace columns for `DivRemChip`.
 pub const NUM_DIVREM_COLS: usize = size_of::<DivRemCols<u8>>();
@@ -158,15 +160,17 @@ pub struct DivRemCols<T> {
     /// Flag to indicate whether the division operation overflows.
     ///
     /// Overflow occurs in a specific case of signed 32-bit integer division: when `b` is the
-    /// minimum representable value (`-2^31`, the smallest negative number) and `c` is `-1`. In this
-    /// case, the division result exceeds the maximum positive value representable by a 32-bit
-    /// signed integer.
+    /// minimum representable value (`-2^31`, the smallest negative number) and `c` is `-1`. In
+    /// this case, the division result exceeds the maximum positive value representable by a
+    /// 32-bit signed integer.
     pub is_overflow: T,
 
-    /// Flag for whether the value of `b` matches the unique overflow case `b = -2^31` and `c = -1`.
+    /// Flag for whether the value of `b` matches the unique overflow case `b = -2^31` and `c =
+    /// -1`.
     pub is_overflow_b: IsEqualWordOperation<T>,
 
-    /// Flag for whether the value of `c` matches the unique overflow case `b = -2^31` and `c = -1`.
+    /// Flag for whether the value of `c` matches the unique overflow case `b = -2^31` and `c =
+    /// -1`.
     pub is_overflow_c: IsEqualWordOperation<T>,
 
     /// The most significant bit of `b`.
@@ -230,10 +234,10 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
         let divrem_events = input.divrem_events.clone();
         for event in divrem_events.iter() {
             assert!(
-                event.opcode == Opcode::DIVU
-                    || event.opcode == Opcode::REMU
-                    || event.opcode == Opcode::REM
-                    || event.opcode == Opcode::DIV
+                event.opcode == Opcode::DIVU ||
+                    event.opcode == Opcode::REMU ||
+                    event.opcode == Opcode::REM ||
+                    event.opcode == Opcode::DIV
             );
             let mut row = [F::zero(); NUM_DIVREM_COLS];
             let cols: &mut DivRemCols<F> = row.as_mut_slice().borrow_mut();
@@ -645,9 +649,9 @@ where
 
             builder.assert_eq(
                 local.is_overflow,
-                local.is_overflow_b.is_diff_zero.result
-                    * local.is_overflow_c.is_diff_zero.result
-                    * is_signed,
+                local.is_overflow_b.is_diff_zero.result *
+                    local.is_overflow_c.is_diff_zero.result *
+                    is_signed,
             );
         }
 
@@ -756,8 +760,8 @@ where
 
         // Range check remainder. (i.e., |remainder| < |c| when not is_c_0)
         {
-            // For each of `c` and `rem`, assert that the absolute value is equal to the original value,
-            // if the original value is non-negative or the minimum i32.
+            // For each of `c` and `rem`, assert that the absolute value is equal to the original
+            // value, if the original value is non-negative or the minimum i32.
             for i in 0..WORD_SIZE {
                 builder.when_not(local.c_neg).assert_eq(local.c[i], local.abs_c[i]);
                 builder
@@ -792,8 +796,8 @@ where
                 let mut v = vec![zero.clone(); WORD_SIZE];
 
                 // Set the least significant byte to 1 if is_c_0 is true.
-                v[0] = local.is_c_0.result * one.clone()
-                    + (one.clone() - local.is_c_0.result) * local.abs_c[0];
+                v[0] = local.is_c_0.result * one.clone() +
+                    (one.clone() - local.is_c_0.result) * local.abs_c[0];
 
                 // Set the remaining bytes to 0 if is_c_0 is true.
                 for i in 1..WORD_SIZE {
@@ -814,7 +818,8 @@ where
                 local.remainder_check_multiplicity,
             );
 
-            // the cleaner idea is simply remainder_check_multiplicity == (1 - is_c_0_result) * is_real
+            // the cleaner idea is simply remainder_check_multiplicity == (1 - is_c_0_result) *
+            // is_real
 
             // Check that the absolute value selector columns are computed correctly.
             builder.assert_eq(local.abs_c_alu_event, local.c_neg * local.is_real);
@@ -922,10 +927,10 @@ where
                 let div: AB::Expr = AB::F::from_canonical_u32(Opcode::DIV as u32).into();
                 let rem: AB::Expr = AB::F::from_canonical_u32(Opcode::REM as u32).into();
 
-                local.is_divu * divu
-                    + local.is_remu * remu
-                    + local.is_div * div
-                    + local.is_rem * rem
+                local.is_divu * divu +
+                    local.is_remu * remu +
+                    local.is_div * div +
+                    local.is_rem * rem
             };
 
             builder.receive_alu(

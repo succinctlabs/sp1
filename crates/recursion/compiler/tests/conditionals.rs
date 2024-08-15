@@ -1,8 +1,6 @@
 use p3_baby_bear::BabyBear;
-use p3_field::extension::BinomialExtensionField;
-use p3_field::AbstractField;
-use sp1_recursion_compiler::asm::AsmBuilder;
-use sp1_recursion_compiler::ir::Var;
+use p3_field::{extension::BinomialExtensionField, AbstractField};
+use sp1_recursion_compiler::{asm::AsmBuilder, ir::Var};
 use sp1_recursion_core::runtime::Runtime;
 use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
 

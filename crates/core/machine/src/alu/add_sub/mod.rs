@@ -1,22 +1,25 @@
-use core::borrow::{Borrow, BorrowMut};
-use core::mem::size_of;
+use core::{
+    borrow::{Borrow, BorrowMut},
+    mem::size_of,
+};
 
 use hashbrown::HashMap;
 use itertools::Itertools;
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField};
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
-use p3_maybe_rayon::prelude::ParallelSlice;
-use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
-use sp1_core_executor::events::{AluEvent, ByteLookupEvent, ByteRecord};
-use sp1_core_executor::{ExecutionRecord, Opcode, Program};
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
+use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator, ParallelSlice};
+use sp1_core_executor::{
+    events::{AluEvent, ByteLookupEvent, ByteRecord},
+    ExecutionRecord, Opcode, Program,
+};
 use sp1_derive::AlignedBorrow;
-use sp1_stark::air::{MachineAir, SP1AirBuilder};
-use sp1_stark::Word;
+use sp1_stark::{
+    air::{MachineAir, SP1AirBuilder},
+    Word,
+};
 
-use crate::operations::AddOperation;
-use crate::utils::pad_to_power_of_two;
+use crate::{operations::AddOperation, utils::pad_to_power_of_two};
 
 /// The number of main trace columns for `AddSubChip`.
 pub const NUM_ADD_SUB_COLS: usize = size_of::<AddSubCols<u8>>();

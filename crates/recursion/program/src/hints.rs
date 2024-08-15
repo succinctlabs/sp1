@@ -1,34 +1,34 @@
 use p3_baby_bear::BabyBear;
 use p3_challenger::DuplexChallenger;
 use p3_commit::TwoAdicMultiplicativeCoset;
-use p3_field::TwoAdicField;
-use p3_field::{AbstractExtensionField, AbstractField};
+use p3_field::{AbstractExtensionField, AbstractField, TwoAdicField};
 
 use sp1_core_machine::riscv::RiscvAir;
 use sp1_recursion_compiler::{
     config::InnerConfig,
     ir::{Array, Builder, Config, Ext, Felt, MemVariable, Var},
 };
-use sp1_recursion_core::air::Block;
-use sp1_recursion_core::runtime::PERMUTATION_WIDTH;
-use sp1_stark::air::{MachineAir, PV_DIGEST_NUM_WORDS};
-use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
+use sp1_recursion_core::{air::Block, runtime::PERMUTATION_WIDTH};
 use sp1_stark::{
+    air::{MachineAir, PV_DIGEST_NUM_WORDS},
+    baby_bear_poseidon2::BabyBearPoseidon2,
     AirOpenedValues, ChipOpenedValues, Com, InnerChallenge, InnerDigest, InnerDigestHash,
     InnerPcsProof, InnerPerm, InnerVal, ShardCommitment, ShardOpenedValues, StarkGenericConfig,
     Word,
 };
 
-use crate::challenger::DuplexChallengerVariable;
-use crate::fri::TwoAdicMultiplicativeCosetVariable;
-use crate::machine::*;
-use crate::stark::{ShardProofHint, VerifyingKeyHint};
-use crate::types::{
-    AirOpenedValuesVariable, ChipOpenedValuesVariable, Sha256DigestVariable,
-    ShardCommitmentVariable, ShardOpenedValuesVariable, ShardProofVariable, VerifyingKeyVariable,
+use crate::{
+    challenger::DuplexChallengerVariable,
+    fri::TwoAdicMultiplicativeCosetVariable,
+    machine::*,
+    stark::{ShardProofHint, VerifyingKeyHint},
+    types::{
+        AirOpenedValuesVariable, ChipOpenedValuesVariable, QuotientData, QuotientDataValues,
+        Sha256DigestVariable, ShardCommitmentVariable, ShardOpenedValuesVariable,
+        ShardProofVariable, VerifyingKeyVariable,
+    },
+    utils::{get_chip_quotient_data, get_preprocessed_data, get_sorted_indices},
 };
-use crate::types::{QuotientData, QuotientDataValues};
-use crate::utils::{get_chip_quotient_data, get_preprocessed_data, get_sorted_indices};
 
 pub trait Hintable<C: Config> {
     type HintVariable: MemVariable<C>;

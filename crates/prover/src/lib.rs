@@ -18,11 +18,12 @@ pub mod types;
 pub mod utils;
 pub mod verify;
 
-use std::borrow::Borrow;
-use std::path::Path;
-use std::sync::mpsc::sync_channel;
-use std::sync::{Arc, Mutex, OnceLock};
-use std::thread;
+use std::{
+    borrow::Borrow,
+    path::Path,
+    sync::{mpsc::sync_channel, Arc, Mutex, OnceLock},
+    thread,
+};
 
 use crate::init::SP1PublicValues;
 use components::{DefaultProverComponents, SP1ProverComponents};
@@ -30,46 +31,32 @@ use p3_baby_bear::BabyBear;
 use p3_challenger::CanObserve;
 use p3_field::{AbstractField, PrimeField};
 use p3_matrix::dense::RowMajorMatrix;
-use sp1_core_executor::ExecutionError;
-use sp1_core_executor::ExecutionReport;
-use sp1_core_executor::Executor;
-use sp1_core_executor::Program;
-use sp1_core_executor::SP1Context;
-use sp1_core_machine::io::SP1Stdin;
-use sp1_core_machine::riscv::RiscvAir;
-use sp1_core_machine::utils::concurrency::TurnBasedSync;
-use sp1_core_machine::utils::SP1CoreProverError;
+use sp1_core_executor::{ExecutionError, ExecutionReport, Executor, Program, SP1Context};
+use sp1_core_machine::{
+    io::SP1Stdin,
+    riscv::RiscvAir,
+    utils::{concurrency::TurnBasedSync, SP1CoreProverError},
+};
 use sp1_primitives::hash_deferred_proof;
 use sp1_recursion_circuit::witness::Witnessable;
-use sp1_recursion_compiler::config::InnerConfig;
-use sp1_recursion_compiler::ir::Witness;
-use sp1_recursion_core::runtime::ExecutionRecord;
+use sp1_recursion_compiler::{config::InnerConfig, ir::Witness};
 use sp1_recursion_core::{
     air::RecursionPublicValues,
-    runtime::{RecursionProgram, Runtime as RecursionRuntime},
+    runtime::{ExecutionRecord, RecursionProgram, Runtime as RecursionRuntime},
     stark::{config::BabyBearPoseidon2Outer, RecursionAir},
 };
 pub use sp1_recursion_gnark_ffi::plonk_bn254::PlonkBn254Proof;
 use sp1_recursion_gnark_ffi::plonk_bn254::PlonkBn254Prover;
 use sp1_recursion_program::hints::Hintable;
-pub use sp1_recursion_program::machine::ReduceProgramType;
 pub use sp1_recursion_program::machine::{
-    SP1CompressMemoryLayout, SP1DeferredMemoryLayout, SP1RecursionMemoryLayout, SP1RootMemoryLayout,
+    ReduceProgramType, SP1CompressMemoryLayout, SP1DeferredMemoryLayout, SP1RecursionMemoryLayout,
+    SP1RootMemoryLayout,
 };
-use sp1_stark::air::PublicValues;
-use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
-use sp1_stark::Challenger;
-use sp1_stark::MachineProver;
-use sp1_stark::SP1CoreOpts;
-use sp1_stark::SP1ProverOpts;
-use sp1_stark::ShardProof;
-use sp1_stark::StarkGenericConfig;
-use sp1_stark::StarkProvingKey;
-use sp1_stark::StarkVerifyingKey;
-use sp1_stark::Val;
-use sp1_stark::Word;
-use sp1_stark::DIGEST_SIZE;
-use sp1_stark::{Challenge, MachineVerificationError};
+use sp1_stark::{
+    air::PublicValues, baby_bear_poseidon2::BabyBearPoseidon2, Challenge, Challenger,
+    MachineProver, MachineVerificationError, SP1CoreOpts, SP1ProverOpts, ShardProof,
+    StarkGenericConfig, StarkProvingKey, StarkVerifyingKey, Val, Word, DIGEST_SIZE,
+};
 
 use tracing::instrument;
 pub use types::*;
@@ -638,7 +625,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                             // Compute whether we've reached the root of the tree.
                             let is_complete = height == expected_height;
 
-                            // If it's not complete, and we haven't reached the batch size, continue.
+                            // If it's not complete, and we haven't reached the batch size,
+                            // continue.
                             if !is_complete && batch.len() < batch_size {
                                 continue;
                             }
@@ -902,8 +890,10 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 #[cfg(any(test, feature = "export-tests"))]
 pub mod tests {
 
-    use std::fs::File;
-    use std::io::{Read, Write};
+    use std::{
+        fs::File,
+        io::{Read, Write},
+    };
 
     use super::*;
 
@@ -1095,8 +1085,8 @@ pub mod tests {
     /// pipeline.
     ///
     /// Add `FRI_QUERIES`=1 to your environment for faster execution. Should only take a few minutes
-    /// on a Mac M2. Note: This test always re-builds the plonk bn254 artifacts, so setting SP1_DEV is
-    /// not needed.
+    /// on a Mac M2. Note: This test always re-builds the plonk bn254 artifacts, so setting SP1_DEV
+    /// is not needed.
     #[test]
     #[serial]
     fn test_e2e() -> Result<()> {

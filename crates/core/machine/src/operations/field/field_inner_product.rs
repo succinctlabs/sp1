@@ -1,17 +1,16 @@
 use std::fmt::Debug;
 
-use num::BigUint;
-use num::Zero;
+use num::{BigUint, Zero};
 use p3_field::{AbstractField, PrimeField32};
 use sp1_core_executor::events::ByteRecord;
-use sp1_curves::params::FieldParameters;
-use sp1_curves::params::Limbs;
+use sp1_curves::params::{FieldParameters, Limbs};
 use sp1_derive::AlignedBorrow;
-use sp1_stark::air::Polynomial;
-use sp1_stark::air::SP1AirBuilder;
+use sp1_stark::air::{Polynomial, SP1AirBuilder};
 
-use super::util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs};
-use super::util_air::eval_field_operation;
+use super::{
+    util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs},
+    util_air::eval_field_operation,
+};
 use crate::air::WordAirBuilder;
 
 /// A set of columns to compute `InnerProduct([a], [b])` where a, b are emulated elements.
@@ -161,21 +160,20 @@ mod tests {
 
     use super::{FieldInnerProductCols, Limbs};
 
-    use crate::utils::pad_to_power_of_two;
-    use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
-    use core::borrow::{Borrow, BorrowMut};
-    use core::mem::size_of;
+    use crate::utils::{pad_to_power_of_two, uni_stark_prove as prove, uni_stark_verify as verify};
+    use core::{
+        borrow::{Borrow, BorrowMut},
+        mem::size_of,
+    };
     use num::bigint::RandBigInt;
     use p3_air::Air;
     use p3_baby_bear::BabyBear;
     use p3_field::AbstractField;
-    use p3_matrix::dense::RowMajorMatrix;
-    use p3_matrix::Matrix;
+    use p3_matrix::{dense::RowMajorMatrix, Matrix};
     use rand::thread_rng;
     use sp1_curves::edwards::ed25519::Ed25519BaseField;
     use sp1_derive::AlignedBorrow;
-    use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
-    use sp1_stark::StarkGenericConfig;
+    use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, StarkGenericConfig};
 
     #[derive(AlignedBorrow, Debug, Clone)]
     pub struct TestCols<T, P: FieldParameters> {

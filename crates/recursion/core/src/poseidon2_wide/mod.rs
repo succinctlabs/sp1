@@ -1,12 +1,12 @@
 #![allow(clippy::needless_range_loop)]
 
-use std::borrow::Borrow;
-use std::borrow::BorrowMut;
-use std::ops::Deref;
+use std::{
+    borrow::{Borrow, BorrowMut},
+    ops::Deref,
+};
 
 use p3_baby_bear::{MONTY_INVERSE, POSEIDON2_INTERNAL_MATRIX_DIAG_16_BABYBEAR_MONTY};
-use p3_field::AbstractField;
-use p3_field::PrimeField32;
+use p3_field::{AbstractField, PrimeField32};
 
 pub mod air;
 pub mod columns;
@@ -15,10 +15,7 @@ pub mod trace;
 
 use p3_poseidon2::matmul_internal;
 
-use self::columns::Poseidon2;
-use self::columns::Poseidon2Degree3;
-use self::columns::Poseidon2Degree9;
-use self::columns::Poseidon2Mut;
+use self::columns::{Poseidon2, Poseidon2Degree3, Poseidon2Degree9, Poseidon2Mut};
 
 /// The width of the permutation.
 pub const WIDTH: usize = 16;
@@ -112,13 +109,14 @@ pub(crate) fn internal_linear_layer<F: AbstractField>(state: &mut [F; WIDTH]) {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::array;
-    use std::time::Instant;
+    use std::{array, time::Instant};
 
-    use crate::air::Block;
-    use crate::memory::MemoryRecord;
-    use crate::poseidon2_wide::events::Poseidon2HashEvent;
-    use crate::runtime::{ExecutionRecord, DIGEST_SIZE};
+    use crate::{
+        air::Block,
+        memory::MemoryRecord,
+        poseidon2_wide::events::Poseidon2HashEvent,
+        runtime::{ExecutionRecord, DIGEST_SIZE},
+    };
     use itertools::Itertools;
     use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
     use p3_field::AbstractField;
@@ -128,13 +126,15 @@ pub(crate) mod tests {
     use rand::random;
 
     use sp1_core_machine::utils::{uni_stark_prove, uni_stark_verify};
-    use sp1_stark::air::MachineAir;
-    use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
-    use sp1_stark::{inner_perm, StarkGenericConfig};
+    use sp1_stark::{
+        air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, inner_perm, StarkGenericConfig,
+    };
     use zkhash::ark_ff::UniformRand;
 
-    use super::events::{Poseidon2AbsorbEvent, Poseidon2CompressEvent, Poseidon2FinalizeEvent};
-    use super::{Poseidon2WideChip, WIDTH};
+    use super::{
+        events::{Poseidon2AbsorbEvent, Poseidon2CompressEvent, Poseidon2FinalizeEvent},
+        Poseidon2WideChip, WIDTH,
+    };
 
     fn poseidon2_wide_prove_babybear_degree<const DEGREE: usize>(
         input_exec: ExecutionRecord<BabyBear>,

@@ -1,33 +1,19 @@
 use hashbrown::HashMap;
-use itertools::EitherOrBoth;
-use itertools::Itertools;
+use itertools::{EitherOrBoth, Itertools};
 use p3_field::AbstractField;
-use sp1_stark::air::PublicValues;
-use sp1_stark::MachineRecord;
-use sp1_stark::SP1CoreOpts;
-use sp1_stark::SplitOpts;
+use sp1_stark::{air::PublicValues, MachineRecord, SP1CoreOpts, SplitOpts};
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
-use crate::events::add_sharded_byte_lookup_events;
-use crate::events::AluEvent;
-use crate::events::ByteLookupEvent;
-use crate::events::ByteRecord;
-use crate::events::CpuEvent;
-use crate::events::EdDecompressEvent;
-use crate::events::EllipticCurveAddEvent;
-use crate::events::EllipticCurveDecompressEvent;
-use crate::events::EllipticCurveDoubleEvent;
-use crate::events::KeccakPermuteEvent;
-use crate::events::MemoryInitializeFinalizeEvent;
-use crate::events::MemoryRecordEnum;
-use crate::events::ShaCompressEvent;
-use crate::events::ShaExtendEvent;
-use crate::events::Uint256MulEvent;
+use crate::events::{
+    add_sharded_byte_lookup_events, AluEvent, ByteLookupEvent, ByteRecord, CpuEvent,
+    EdDecompressEvent, EllipticCurveAddEvent, EllipticCurveDecompressEvent,
+    EllipticCurveDoubleEvent, KeccakPermuteEvent, MemoryInitializeFinalizeEvent, MemoryRecordEnum,
+    ShaCompressEvent, ShaExtendEvent, Uint256MulEvent,
+};
 
-use super::Opcode;
-use super::Program;
+use super::{Opcode, Program};
 
 /// A record of the execution of a program.
 ///
@@ -170,8 +156,8 @@ impl ExecutionRecord {
         }
     }
 
-    /// Splits the deferred [`ExecutionRecord`] into multiple [`ExecutionRecord`]s, each which contain
-    /// a "reasonable" number of deferred events.
+    /// Splits the deferred [`ExecutionRecord`] into multiple [`ExecutionRecord`]s, each which
+    /// contain a "reasonable" number of deferred events.
     pub fn split(&mut self, last: bool, opts: SplitOpts) -> Vec<ExecutionRecord> {
         let mut shards = Vec::new();
 

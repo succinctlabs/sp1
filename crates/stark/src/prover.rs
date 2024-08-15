@@ -1,42 +1,26 @@
 use core::fmt::Display;
 use itertools::Itertools;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
-use std::cmp::Reverse;
-use std::error::Error;
+use serde::{de::DeserializeOwned, Serialize};
+use std::{cmp::Reverse, error::Error};
 
-use crate::AirOpenedValues;
-use crate::ChipOpenedValues;
-use crate::ShardOpenedValues;
+use crate::{AirOpenedValues, ChipOpenedValues, ShardOpenedValues};
 use p3_air::Air;
 use p3_challenger::{CanObserve, FieldChallenger};
-use p3_commit::Pcs;
-use p3_commit::PolynomialSpace;
-use p3_field::PrimeField32;
-use p3_field::{AbstractExtensionField, AbstractField};
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
+use p3_commit::{Pcs, PolynomialSpace};
+use p3_field::{AbstractExtensionField, AbstractField, PrimeField32};
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::*;
 use p3_util::log2_strict_usize;
 
-use super::StarkGenericConfig;
-use super::{quotient_values, StarkMachine, Val};
-use super::{Com, OpeningProof};
-use super::{StarkProvingKey, VerifierConstraintFolder};
-use crate::air::MachineAir;
-use crate::lookup::InteractionBuilder;
-use crate::opts::SP1CoreOpts;
-use crate::record::MachineRecord;
-use crate::DebugConstraintBuilder;
-use crate::MachineChip;
-use crate::MachineProof;
-use crate::PackedChallenge;
-use crate::PcsProverData;
-use crate::ProverConstraintFolder;
-use crate::ShardCommitment;
-use crate::ShardMainData;
-use crate::ShardProof;
-use crate::StarkVerifyingKey;
+use super::{
+    quotient_values, Com, OpeningProof, StarkGenericConfig, StarkMachine, StarkProvingKey, Val,
+    VerifierConstraintFolder,
+};
+use crate::{
+    air::MachineAir, lookup::InteractionBuilder, opts::SP1CoreOpts, record::MachineRecord,
+    DebugConstraintBuilder, MachineChip, MachineProof, PackedChallenge, PcsProverData,
+    ProverConstraintFolder, ShardCommitment, ShardMainData, ShardProof, StarkVerifyingKey,
+};
 
 /// An algorithmic & hardware independent prover implementation for any [`MachineAir`].
 pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
@@ -292,8 +276,8 @@ where
         for i in 0..chips.len() {
             let trace_width = traces[i].width();
             let permutation_width = permutation_traces[i].width();
-            let total_width = trace_width
-                + permutation_width * <SC::Challenge as AbstractExtensionField<SC::Val>>::D;
+            let total_width = trace_width +
+                permutation_width * <SC::Challenge as AbstractExtensionField<SC::Val>>::D;
             tracing::debug!(
                 "{:<15} | Main Cols = {:<5} | Perm Cols = {:<5} | Rows = {:<5} | Cells = {:<10}",
                 chips[i].name(),

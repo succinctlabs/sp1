@@ -1,10 +1,11 @@
-use std::cmp::min;
-use std::collections::BTreeMap;
+use std::{cmp::min, collections::BTreeMap};
 
-use elf::abi::{EM_RISCV, ET_EXEC, PF_X, PT_LOAD};
-use elf::endian::LittleEndian;
-use elf::file::Class;
-use elf::ElfBytes;
+use elf::{
+    abi::{EM_RISCV, ET_EXEC, PF_X, PT_LOAD},
+    endian::LittleEndian,
+    file::Class,
+    ElfBytes,
+};
 use sp1_primitives::consts::{MAXIMUM_MEMORY_SIZE, WORD_SIZE};
 
 /// RISC-V 32IM ELF (Executable and Linkable Format) File.
@@ -40,7 +41,8 @@ impl Elf {
         Self { instructions, pc_start, pc_base, memory_image }
     }
 
-    /// Parse the ELF file into a vector of 32-bit encoded instructions and the first memory address.
+    /// Parse the ELF file into a vector of 32-bit encoded instructions and the first memory
+    /// address.
     ///
     /// # Errors
     ///

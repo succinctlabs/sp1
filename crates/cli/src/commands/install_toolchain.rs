@@ -4,9 +4,11 @@ use dirs::home_dir;
 use rand::{distributions::Alphanumeric, Rng};
 use reqwest::Client;
 use sp1_sdk::artifacts::download_file;
-use std::fs::{self};
-use std::io::Read;
-use std::process::Command;
+use std::{
+    fs::{self},
+    io::Read,
+    process::Command,
+};
 
 #[cfg(target_family = "unix")]
 use std::os::unix::fs::PermissionsExt;
@@ -65,10 +67,10 @@ impl InstallToolchainCmd {
                     if let Ok(entry) = entry {
                         let entry_path = entry.path();
                         let entry_name = entry_path.file_name().unwrap();
-                        if entry_path.is_dir()
-                            && entry_name != "bin"
-                            && entry_name != "circuits"
-                            && entry_name != "toolchains"
+                        if entry_path.is_dir() &&
+                            entry_name != "bin" &&
+                            entry_name != "circuits" &&
+                            entry_name != "toolchains"
                         {
                             if let Err(err) = fs::remove_dir_all(&entry_path) {
                                 println!("Failed to remove directory {:?}: {}", entry_path, err);

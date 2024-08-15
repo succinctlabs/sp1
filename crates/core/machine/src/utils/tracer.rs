@@ -2,9 +2,7 @@ use std::env;
 
 use tracing::level_filters::LevelFilter;
 use tracing_forest::ForestLayer;
-use tracing_subscriber::layer::SubscriberExt;
-use tracing_subscriber::util::SubscriberInitExt;
-use tracing_subscriber::{EnvFilter, Registry};
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Registry};
 
 /// A tracer to benchmark the performance of the vm.
 ///

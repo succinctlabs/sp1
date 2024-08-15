@@ -1,15 +1,15 @@
-use std::borrow::Borrow;
-use std::{fs::File, path::Path};
+use std::{borrow::Borrow, fs::File, path::Path};
 
 use anyhow::Result;
 use p3_baby_bear::BabyBear;
 use p3_bn254_fr::Bn254Fr;
 use p3_commit::{Pcs, TwoAdicMultiplicativeCoset};
-use p3_field::PrimeField;
-use p3_field::{AbstractField, PrimeField32, TwoAdicField};
+use p3_field::{AbstractField, PrimeField, PrimeField32, TwoAdicField};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use sp1_core_machine::io::{SP1PublicValues, SP1Stdin};
-use sp1_core_machine::riscv::RiscvAir;
+use sp1_core_machine::{
+    io::{SP1PublicValues, SP1Stdin},
+    riscv::RiscvAir,
+};
 use sp1_primitives::poseidon2_hash;
 use sp1_recursion_core::{air::RecursionPublicValues, stark::config::BabyBearPoseidon2Outer};
 use sp1_recursion_gnark_ffi::plonk_bn254::PlonkBn254Proof;
@@ -19,10 +19,10 @@ use sp1_recursion_program::machine::{
 use sp1_stark::{ShardProof, StarkGenericConfig, StarkProvingKey, StarkVerifyingKey, DIGEST_SIZE};
 use thiserror::Error;
 
-use crate::utils::words_to_bytes_be;
-use crate::CompressAir;
-use crate::{utils::babybear_bytes_to_bn254, words_to_bytes};
-use crate::{utils::babybears_to_bn254, CoreSC, InnerSC};
+use crate::{
+    utils::{babybear_bytes_to_bn254, babybears_to_bn254, words_to_bytes_be},
+    words_to_bytes, CompressAir, CoreSC, InnerSC,
+};
 
 /// The information necessary to generate a proof for a given RISC-V program.
 #[derive(Clone, Serialize, Deserialize)]

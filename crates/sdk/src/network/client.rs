@@ -10,8 +10,10 @@ use reqwest::{Client as HttpClient, Url};
 use reqwest_middleware::ClientWithMiddleware as HttpClientWithMiddleware;
 use serde::de::DeserializeOwned;
 use sp1_core_machine::io::SP1Stdin;
-use std::result::Result::Ok as StdOk;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{
+    result::Result::Ok as StdOk,
+    time::{SystemTime, UNIX_EPOCH},
+};
 use twirp::{Client as TwirpClient, ClientError};
 
 use crate::proto::network::{
@@ -78,7 +80,8 @@ impl NetworkClient {
         Ok(())
     }
 
-    /// Get the status of a given proof. If the status is ProofFulfilled, the proof is also returned.
+    /// Get the status of a given proof. If the status is ProofFulfilled, the proof is also
+    /// returned.
     pub async fn get_proof_status<P: DeserializeOwned>(
         &self,
         proof_id: &str,
@@ -186,8 +189,8 @@ impl NetworkClient {
     }
 
     /// Unclaim a proof that was claimed. This should only be called if the proof has not been
-    /// fulfilled yet. Returns an error if the proof is not in a PROOF_CLAIMED state or if the caller
-    /// is not the claimer.
+    /// fulfilled yet. Returns an error if the proof is not in a PROOF_CLAIMED state or if the
+    /// caller is not the claimer.
     pub async fn unclaim_proof(
         &self,
         proof_id: String,

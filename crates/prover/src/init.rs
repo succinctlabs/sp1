@@ -5,16 +5,14 @@ use sp1_primitives::types::RecursionProgramType;
 use sp1_recursion_compiler::config::InnerConfig;
 use sp1_recursion_core::runtime::RecursionProgram;
 pub use sp1_recursion_gnark_ffi::plonk_bn254::PlonkBn254Proof;
-pub use sp1_recursion_program::machine::ReduceProgramType;
 pub use sp1_recursion_program::machine::{
-    SP1CompressMemoryLayout, SP1DeferredMemoryLayout, SP1RecursionMemoryLayout, SP1RootMemoryLayout,
+    ReduceProgramType, SP1CompressMemoryLayout, SP1DeferredMemoryLayout, SP1RecursionMemoryLayout,
+    SP1RootMemoryLayout,
 };
 use sp1_recursion_program::machine::{
     SP1CompressVerifier, SP1DeferredVerifier, SP1RecursiveVerifier, SP1RootVerifier,
 };
-use sp1_stark::MachineProver;
-use sp1_stark::StarkProvingKey;
-use sp1_stark::StarkVerifyingKey;
+use sp1_stark::{MachineProver, StarkProvingKey, StarkVerifyingKey};
 use tracing::debug_span;
 
 use crate::{InnerSC, OuterSC, SP1Prover};
