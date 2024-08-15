@@ -15,7 +15,6 @@ mod utils;
 mod subproof;
 
 pub use context::*;
-use hashbrown::HashSet;
 pub use hooks::*;
 pub use instruction::*;
 pub use memory::*;
@@ -122,7 +121,7 @@ pub struct Runtime<'a> {
 
     /// Memory addresses that were touched in this batch of shards. Used to minimize the size of
     /// checkpoints.
-    pub touched_memory: HashSet<u32, BuildNoHashHasher<u32>>,
+    pub memory_checkpoint: HashMap<u32, Option<MemoryRecord>, BuildNoHashHasher<u32>>,
 }
 
 #[derive(Error, Debug, Serialize, Deserialize)]
@@ -201,7 +200,7 @@ impl<'a> Runtime<'a> {
             hook_registry,
             opts,
             max_cycles: context.max_cycles,
-            touched_memory: Default::default(),
+            memory_checkpoint: Default::default(),
         }
     }
 
@@ -232,10 +231,15 @@ impl<'a> Runtime<'a> {
         for i in 0..32 {
             let addr = Register::from_u32(i as u32) as u32;
             registers[i] = match self.state.memory.get(&addr) {
-                Some(record) => record.value,
-                None => 0,
+                Some(record) => {
+                    self.memory_checkpoint.entry(addr).or_insert(Some(*record));
+                    record.value
+                }
+                None => {
+                    self.memory_checkpoint.entry(addr).or_insert(None);
+                    0
+                }
             };
-            self.touched_memory.insert(addr);
         }
         registers
     }
@@ -243,19 +247,29 @@ impl<'a> Runtime<'a> {
     /// Get the current value of a register.
     pub fn register(&mut self, register: Register) -> u32 {
         let addr = register as u32;
-        self.touched_memory.insert(addr);
         match self.state.memory.get(&addr) {
-            Some(record) => record.value,
-            None => 0,
+            Some(record) => {
+                self.memory_checkpoint.entry(addr).or_insert(Some(*record));
+                record.value
+            }
+            None => {
+                self.memory_checkpoint.entry(addr).or_insert(None);
+                0
+            }
         }
     }
 
     /// Get the current value of a word.
     pub fn word(&mut self, addr: u32) -> u32 {
-        self.touched_memory.insert(addr);
         match self.state.memory.get(&addr) {
-            Some(record) => record.value,
-            None => 0,
+            Some(record) => {
+                self.memory_checkpoint.entry(addr).or_insert(Some(*record));
+                record.value
+            }
+            None => {
+                self.memory_checkpoint.entry(addr).or_insert(None);
+                0
+            }
         }
     }
 
@@ -286,8 +300,16 @@ impl<'a> Runtime<'a> {
     #[inline]
     pub fn mr(&mut self, addr: u32, shard: u32, timestamp: u32) -> MemoryReadRecord {
         // Get the memory record entry.
-        self.touched_memory.insert(addr);
         let entry = self.state.memory.entry(addr);
+        match entry {
+            Entry::Occupied(ref entry) => {
+                let record = entry.get();
+                self.memory_checkpoint.entry(addr).or_insert(Some(*record));
+            }
+            Entry::Vacant(_) => {
+                self.memory_checkpoint.entry(addr).or_insert(None);
+            }
+        }
 
         // If we're in unconstrained mode, we don't want to modify state, so we'll save the
         // original state if it's the first time modifying it.
@@ -329,8 +351,16 @@ impl<'a> Runtime<'a> {
     #[inline]
     pub fn mw(&mut self, addr: u32, value: u32, shard: u32, timestamp: u32) -> MemoryWriteRecord {
         // Get the memory record entry.
-        self.touched_memory.insert(addr);
         let entry = self.state.memory.entry(addr);
+        match entry {
+            Entry::Occupied(ref entry) => {
+                let record = entry.get();
+                self.memory_checkpoint.entry(addr).or_insert(Some(*record));
+            }
+            Entry::Vacant(_) => {
+                self.memory_checkpoint.entry(addr).or_insert(None);
+            }
+        }
 
         // If we're in unconstrained mode, we don't want to modify state, so we'll save the
         // original state if it's the first time modifying it.
@@ -1089,31 +1119,39 @@ impl<'a> Runtime<'a> {
     /// Execute up to `self.shard_batch_size` cycles, returning the checkpoint from before execution
     /// and whether the program ended.
     pub fn execute_state(&mut self) -> Result<(ExecutionState, bool), ExecutionError> {
-        self.touched_memory.clear();
+        self.memory_checkpoint.clear();
         self.emit_events = false;
-        self.print_report = false;
-        let mut state = self.state.clone();
-        let done = self.execute()?;
-        // Remove the untouched addresses from the checkpoint. Skip if `done` since we need all of
-        // `state.memory` for MemoryFinalize
-        let touched_memory = std::mem::take(&mut self.touched_memory);
-        if !done {
-            state.memory = touched_memory
-                .iter()
-                .filter_map(|addr| state.memory.get(addr).map(|record| (*addr, *record)))
-                .collect();
+        self.print_report = true;
 
-            state.uninitialized_memory = touched_memory
-                .into_iter()
-                .filter_map(|addr| {
-                    state
-                        .uninitialized_memory
-                        .get(&addr)
-                        .map(|record| (addr, *record))
-                })
-                .collect();
-        }
-        Ok((state, done))
+        // Take memory out and then clone so that memory is not cloned.
+        let memory = std::mem::take(&mut self.state.memory);
+        let mut checkpoint = tracing::info_span!("clone").in_scope(|| self.state.clone());
+        self.state.memory = memory;
+
+        let done = tracing::info_span!("execute").in_scope(|| self.execute())?;
+        // Create a checkpoint using `memory_checkpoint`. Just include all memory if `done` since we
+        // need it all for MemoryFinalize.
+        tracing::info_span!("create memory checkpoint").in_scope(|| {
+            let memory_checkpoint = std::mem::take(&mut self.memory_checkpoint);
+            if done {
+                // If we're done, we need to include all memory. But we need to reset any modified
+                // memory to as it was before the execution.
+                checkpoint.memory.clone_from(&self.state.memory);
+                memory_checkpoint.into_iter().for_each(|(addr, record)| {
+                    if let Some(record) = record {
+                        checkpoint.memory.insert(addr, record);
+                    } else {
+                        checkpoint.memory.remove(&addr);
+                    }
+                });
+            } else {
+                checkpoint.memory = memory_checkpoint
+                    .into_iter()
+                    .filter_map(|(addr, record)| record.map(|record| (addr, record)))
+                    .collect();
+            }
+        });
+        Ok((checkpoint, done))
     }
 
     fn initialize(&mut self) {
