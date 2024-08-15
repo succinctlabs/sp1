@@ -6,7 +6,7 @@ edition = "2021"
 publish = false
 
 [dependencies]
-sp1-zkvm = { path = "../../../zkvm/entrypoint" }
+sp1-zkvm = { path = "../../../crates/zkvm/entrypoint" }
 serde_json = "1.0.113"
 serde = "1.0.197"
 lib = { path = "../lib" }
