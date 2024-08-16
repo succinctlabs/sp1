@@ -1,18 +1,18 @@
 use super::core_prove::mpc_prove_core;
-use crate::{
-    common,
+use crate::multi_prover::common;
+use crate::multi_prover::{
+    common::ProveArgs,
     operator::{operator_prepare_compress_input_chunks, operator_prepare_compress_inputs},
     scenario,
     worker::worker_compress_proofs,
-    ProveArgs,
 };
+use crate::{SP1Proof, SP1ProofWithPublicValues};
 use anyhow::Result;
 use sp1_core::{stark::ShardProof, utils::BabyBearPoseidon2};
 use sp1_prover::SP1ReduceProof;
-use sp1_sdk::{SP1Proof, SP1ProofWithPublicValues};
 use tracing::info_span;
 
-pub fn mpc_prove_compress(args: ProveArgs) -> Result<(Vec<u8>, Vec<u8>)> {
+pub fn mpc_prove_compress(args: &ProveArgs) -> Result<(Vec<u8>, Vec<u8>)> {
     let span = info_span!("kroma_core");
     let _guard = span.entered();
 
@@ -84,11 +84,11 @@ pub fn mpc_prove_compress(args: ProveArgs) -> Result<(Vec<u8>, Vec<u8>)> {
     Ok((core_proof, proof))
 }
 
-pub fn scenario_end(args: ProveArgs, core_proof: &Vec<u8>, compress_proof: &Vec<u8>) {
+pub fn scenario_end(args: &ProveArgs, core_proof: &Vec<u8>, compress_proof: &Vec<u8>) {
     let compress_proof_obj: SP1ReduceProof<BabyBearPoseidon2> =
         bincode::deserialize(compress_proof).unwrap();
 
-    let (client, _, _, vk) = common::init_client(args.clone());
+    let (client, _, _, vk) = common::init_client(args);
     let core_proof = scenario::core_prove::scenario_end(args, &core_proof).unwrap();
 
     let proof = SP1ProofWithPublicValues {

@@ -1,15 +1,14 @@
-use crate::{
-    common,
+use crate::multi_prover::common;
+use crate::multi_prover::{
+    common::ProveArgs,
     operator::{
         operator_absorb_commits, operator_construct_sp1_core_proof, operator_split_into_checkpoints,
     },
     worker::{worker_commit_checkpoint, worker_prove_checkpoint},
-    ProveArgs, PublicValuesTuple,
 };
-use alloy_sol_types::SolType;
+use crate::{SP1Proof, SP1ProofWithPublicValues};
 use anyhow::Result;
 use sp1_prover::SP1CoreProof;
-use sp1_sdk::{SP1Proof, SP1ProofWithPublicValues};
 use tracing::info_span;
 
 pub fn mpc_prove_core(args: ProveArgs) -> Result<Vec<u8>> {
@@ -94,7 +93,7 @@ pub fn mpc_prove_core(args: ProveArgs) -> Result<Vec<u8>> {
     Ok(proof)
 }
 
-pub fn scenario_end(args: ProveArgs, core_proof: &Vec<u8>) -> Result<SP1ProofWithPublicValues> {
+pub fn scenario_end(args: &ProveArgs, core_proof: &Vec<u8>) -> Result<SP1ProofWithPublicValues> {
     let core_proof_obj: SP1CoreProof = bincode::deserialize(core_proof).unwrap();
 
     let (client, _, _, vk) = common::init_client(args);
@@ -108,10 +107,6 @@ pub fn scenario_end(args: ProveArgs, core_proof: &Vec<u8>) -> Result<SP1ProofWit
 
     client.verify(&proof, &vk).expect("failed to verify proof");
     tracing::info!("Successfully generated core-proof(verified)");
-
-    let (_, _, fib_n) =
-        PublicValuesTuple::abi_decode(proof.public_values.as_slice(), false).unwrap();
-    tracing::info!("Public Input: {}", fib_n);
 
     Ok(proof)
 }
