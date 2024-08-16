@@ -24,5 +24,5 @@ fn main() {
     };
 
     let (core_proof, _, plonk_proof) = scenario::plonk_prove::mpc_prove_plonk(&args).unwrap();
-    scenario::plonk_prove::scenario_end(&args, &core_proof, &plonk_proof)
+    let _ = scenario::plonk_prove::scenario_end(&args, &core_proof, &plonk_proof);
 }
