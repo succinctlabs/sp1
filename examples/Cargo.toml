@@ -21,20 +21,21 @@ version = "1.1.0"
 edition = "2021"
 
 [workspace.dependencies]
-sp1-build = { path = "../build" }
-sp1-derive = { path = "../derive" }
-sp1-core = { path = "../core" }
-sp1-cli = { path = "../cli", default-features = false }
-sp1-eval = { path = "../eval", default-features = false }
-sp1-helper = { path = "../helper", default-features = false }
-sp1-primitives = { path = "../primitives" }
-sp1-prover = { path = "../prover" }
-sp1-recursion-compiler = { path = "../recursion/compiler" }
-sp1-recursion-core = { path = "../recursion/core", default-features = false }
-sp1-recursion-derive = { path = "../recursion/derive", default-features = false }
-sp1-recursion-gnark-ffi = { path = "../recursion/gnark-ffi", default-features = false }
-sp1-recursion-program = { path = "../recursion/program", default-features = false }
-sp1-recursion-circuit = { path = "../recursion/circuit", default-features = false }
-sp1-sdk = { path = "../sdk" }
-sp1-lib = { path = "../zkvm/lib", default-features = false }
-sp1-zkvm = { path = "../zkvm/entrypoint", default-features = false }
+sp1-build = { path = "../crates/build" }
+sp1-derive = { path = "../crates/derive" }
+sp1-core-executor = { path = "../crates/core/executor" }
+sp1-core-machine = { path = "../crates/core/machine" }
+sp1-cli = { path = "../crates/cli", default-features = false }
+sp1-eval = { path = "../crates/eval", default-features = false }
+sp1-helper = { path = "../crates/helper", default-features = false }
+sp1-primitives = { path = "../crates/primitives" }
+sp1-prover = { path = "../crates/prover" }
+sp1-recursion-compiler = { path = "../crates/recursion/compiler" }
+sp1-recursion-core = { path = "../crates/recursion/core", default-features = false }
+sp1-recursion-derive = { path = "../crates/recursion/derive", default-features = false }
+sp1-recursion-gnark-ffi = { path = "../crates/recursion/gnark-ffi", default-features = false }
+sp1-recursion-program = { path = "../crates/recursion/program", default-features = false }
+sp1-recursion-circuit = { path = "../crates/recursion/circuit", default-features = false }
+sp1-sdk = { path = "../crates/sdk" }
+sp1-lib = { path = "../crates/zkvm/lib", default-features = false }
+sp1-zkvm = { path = "../crates/zkvm/entrypoint", default-features = false }
