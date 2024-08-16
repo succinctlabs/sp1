@@ -1,15 +1,18 @@
-use crate::common;
-use crate::common::memory_layouts::{
+use crate::multi_prover::common;
+use crate::multi_prover::common::memory_layouts::{
     SerializableDeferredLayout, SerializableRecursionLayout, SerializableReduceLayout,
 };
-use crate::common::types::{
+use crate::multi_prover::common::types::{
     ChallengerType, CommitmentType, DeferredLayout, RecordType, RecursionLayout, ReduceLayout,
 };
-use crate::ProveArgs;
+use crate::multi_prover::common::ProveArgs;
 use anyhow::Result;
 use p3_baby_bear::BabyBear;
 use p3_field::AbstractField;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 use sp1_core::air::Word;
+use sp1_core::runtime::ExecutionReport;
 use sp1_core::{
     air::PublicValues,
     runtime::ExecutionRecord,
@@ -17,11 +20,10 @@ use sp1_core::{
     utils::{reset_seek, trace_checkpoint, BabyBearPoseidon2},
 };
 use sp1_prover::ReduceProgramType;
-use sp1_sdk::ExecutionReport;
 use std::fs::File;
 
-pub fn worker_commit_checkpoint_impl(
-    args: ProveArgs,
+pub fn worker_commit_checkpoint_impl<T: Serialize + DeserializeOwned>(
+    args: &ProveArgs<T>,
     idx: u32,
     checkpoint: &mut File,
     is_last_checkpoint: bool,
@@ -104,12 +106,12 @@ pub fn worker_commit_checkpoint_impl(
     Ok((commitments, records))
 }
 
-pub fn worker_prove_checkpoint_impl(
-    args: ProveArgs,
+pub fn worker_prove_checkpoint_impl<T: Serialize + DeserializeOwned>(
+    args: &ProveArgs<T>,
     challenger: ChallengerType,
     records: Vec<RecordType>,
 ) -> Result<Vec<ShardProof<BabyBearPoseidon2>>> {
-    let (client, stdin, pk, _) = common::init_client(args.clone());
+    let (client, stdin, pk, _) = common::init_client(&args);
     let (program, opts, context) = common::bootstrap(&client, &pk).unwrap();
     // Execute the program.
     let runtime = common::build_runtime(program, &stdin, opts, context);
@@ -134,11 +136,11 @@ pub fn worker_prove_checkpoint_impl(
     Ok(shard_proofs)
 }
 
-pub fn worker_compress_proofs_for_recursion(
-    args: ProveArgs,
+pub fn worker_compress_proofs_for_recursion<T: Serialize + DeserializeOwned>(
+    args: &ProveArgs<T>,
     mut layout: SerializableRecursionLayout,
 ) -> Result<(ShardProof<BabyBearPoseidon2>, ReduceProgramType)> {
-    let (client, stdin, pk, _) = common::init_client(args.clone());
+    let (client, stdin, pk, _) = common::init_client(&args);
     let (program, opts, context) = common::bootstrap(&client, &pk).unwrap();
     let runtime = common::build_runtime(program, &stdin, opts, context);
     let (_, stark_vk) = client
@@ -175,12 +177,12 @@ pub fn worker_compress_proofs_for_recursion(
         .map_err(|e| anyhow::anyhow!("failed to compress machine proof: {:?}", e))
 }
 
-pub fn worker_compress_proofs_for_deferred(
-    args: ProveArgs,
+pub fn worker_compress_proofs_for_deferred<T: Serialize + DeserializeOwned>(
+    args: &ProveArgs<T>,
     mut layout: SerializableDeferredLayout,
     last_proof_pv: PublicValues<Word<BabyBear>, BabyBear>,
 ) -> Result<(ShardProof<BabyBearPoseidon2>, ReduceProgramType)> {
-    let (client, stdin, pk, _) = common::init_client(args.clone());
+    let (client, stdin, pk, _) = common::init_client(&args);
     let (program, opts, context) = common::bootstrap(&client, &pk).unwrap();
     let runtime = common::build_runtime(program, &stdin, opts, context);
     let (_, stark_vk) = client
@@ -223,11 +225,11 @@ pub fn worker_compress_proofs_for_deferred(
         .map_err(|e| anyhow::anyhow!("failed to compress machine proof: {:?}", e))
 }
 
-pub fn worker_compress_proofs_for_reduce(
-    args: ProveArgs,
+pub fn worker_compress_proofs_for_reduce<T: Serialize + DeserializeOwned>(
+    args: &ProveArgs<T>,
     layout: SerializableReduceLayout,
 ) -> Result<(ShardProof<BabyBearPoseidon2>, ReduceProgramType)> {
-    let (client, _, pk, _) = common::init_client(args.clone());
+    let (client, _, pk, _) = common::init_client(&args);
     let (_, opts, _) = common::bootstrap(&client, &pk).unwrap();
 
     let sp1_prover = client.prover.sp1_prover();

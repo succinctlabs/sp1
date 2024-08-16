@@ -1,8 +1,9 @@
-use crate::common::types::ChallengerType;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use sp1_core::utils::baby_bear_poseidon2::Perm;
 use std::{fs::File, io::Read};
+
+use crate::multi_prover::common::types::ChallengerType;
 
 pub fn read_bin_file_to_vec(mut file: File) -> Result<Vec<u8>> {
     let metadata = file.metadata()?;

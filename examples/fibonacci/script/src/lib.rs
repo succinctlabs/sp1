@@ -1,25 +1,12 @@
-pub mod common;
-pub mod operator;
-pub mod scenario;
-pub mod worker;
-
 use alloy_sol_types::{sol, SolType};
-use clap::{ArgEnum, Parser};
+use clap::Parser;
 use serde::{Deserialize, Serialize};
 use sp1_sdk::{HashableKey, SP1ProofWithPublicValues, SP1VerifyingKey};
 use std::path::PathBuf;
 
-#[derive(ArgEnum, Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[clap(rename_all = "kebab_case")]
-pub enum ProofType {
-    CORE,
-    COMPRESS,
-    PLONK,
-}
-
 /// The arguments for the prove command.
 #[derive(Parser, Debug, Clone, Serialize, Deserialize)]
-pub struct ProveArgs {
+pub struct FibonacciArgs {
     #[clap(long, default_value = "20")]
     pub n: u32,
 
@@ -27,22 +14,11 @@ pub struct ProveArgs {
     pub evm: bool,
 }
 
-impl ProveArgs {
-    pub fn to_bytes(&self) -> Vec<u8> {
-        bincode::serialize(self).unwrap()
-    }
-
-    pub fn from_slice(args: &[u8]) -> Self {
-        bincode::deserialize(args).unwrap()
-    }
-}
-
 /// The public values encoded as a tuple that can be easily deserialized inside Solidity.
 pub type PublicValuesTuple = sol! {
     tuple(uint32, uint32, uint32)
 };
-
-/// A fixture that can be used to test the verification of SP1 zkVM proofs inside Solidity.
+// A fixture that can be used to test the verification of SP1 zkVM proofs inside Solidity.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct SP1FibonacciProofFixture {

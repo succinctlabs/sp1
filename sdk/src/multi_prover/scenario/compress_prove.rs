@@ -1,29 +1,33 @@
 use super::core_prove::mpc_prove_core;
-use crate::{
-    common,
+use crate::multi_prover::common;
+use crate::multi_prover::{
+    common::ProveArgs,
     operator::{operator_prepare_compress_input_chunks, operator_prepare_compress_inputs},
     scenario,
     worker::worker_compress_proofs,
-    ProveArgs,
 };
+use crate::{SP1Proof, SP1ProofWithPublicValues};
 use anyhow::Result;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 use sp1_core::{stark::ShardProof, utils::BabyBearPoseidon2};
 use sp1_prover::SP1ReduceProof;
-use sp1_sdk::{SP1Proof, SP1ProofWithPublicValues};
 use tracing::info_span;
 
-pub fn mpc_prove_compress(args: ProveArgs) -> Result<(Vec<u8>, Vec<u8>)> {
+pub fn mpc_prove_compress<T: Serialize + DeserializeOwned>(
+    args: &ProveArgs<T>,
+) -> Result<(Vec<u8>, Vec<u8>)> {
     let span = info_span!("kroma_core");
     let _guard = span.entered();
 
-    let core_proof = mpc_prove_core(args.clone()).unwrap();
+    let core_proof = mpc_prove_core::<T>(args).unwrap();
     let serialize_args = bincode::serialize(&args).unwrap();
 
     let mut rec_layouts: Vec<Vec<u8>> = Vec::new();
     let mut def_layouts: Vec<Vec<u8>> = Vec::new();
     let mut last_proof_public_values = Vec::new();
     info_span!("o_prepare_compress_inputs").in_scope(|| {
-        operator_prepare_compress_inputs(
+        operator_prepare_compress_inputs::<T>(
             &serialize_args,
             &core_proof,
             &mut rec_layouts,
@@ -36,7 +40,7 @@ pub fn mpc_prove_compress(args: ProveArgs) -> Result<(Vec<u8>, Vec<u8>)> {
     info_span!("w_compress_proofs_leaf").in_scope(|| {
         for layout in rec_layouts {
             let mut compressed_proof = Vec::new();
-            worker_compress_proofs(
+            worker_compress_proofs::<T>(
                 &serialize_args,
                 &layout,
                 0,
@@ -47,7 +51,7 @@ pub fn mpc_prove_compress(args: ProveArgs) -> Result<(Vec<u8>, Vec<u8>)> {
         }
         for layout in def_layouts {
             let mut compressed_proof = Vec::new();
-            worker_compress_proofs(&serialize_args, &layout, 1, None, &mut compressed_proof);
+            worker_compress_proofs::<T>(&serialize_args, &layout, 1, None, &mut compressed_proof);
             compressed_proofs.push(compressed_proof);
         }
     });
@@ -65,7 +69,13 @@ pub fn mpc_prove_compress(args: ProveArgs) -> Result<(Vec<u8>, Vec<u8>)> {
         info_span!("w_compress_proofs").in_scope(|| {
             for (worker_idx, layout) in red_layout.iter().enumerate() {
                 let mut compressed_proof = Vec::new();
-                worker_compress_proofs(&serialize_args, &layout, 2, None, &mut compressed_proof);
+                worker_compress_proofs::<T>(
+                    &serialize_args,
+                    &layout,
+                    2,
+                    None,
+                    &mut compressed_proof,
+                );
                 compress_layer_proofs.push(compressed_proof);
                 tracing::info!("{:?}/{:?} worker done", worker_idx + 1, red_layout.len());
             }
@@ -84,11 +94,15 @@ pub fn mpc_prove_compress(args: ProveArgs) -> Result<(Vec<u8>, Vec<u8>)> {
     Ok((core_proof, proof))
 }
 
-pub fn scenario_end(args: ProveArgs, core_proof: &Vec<u8>, compress_proof: &Vec<u8>) {
+pub fn scenario_end<T: Serialize + DeserializeOwned>(
+    args: &ProveArgs<T>,
+    core_proof: &Vec<u8>,
+    compress_proof: &Vec<u8>,
+) -> Result<SP1ProofWithPublicValues> {
     let compress_proof_obj: SP1ReduceProof<BabyBearPoseidon2> =
         bincode::deserialize(compress_proof).unwrap();
 
-    let (client, _, _, vk) = common::init_client(args.clone());
+    let (client, _, _, vk) = common::init_client(args);
     let core_proof = scenario::core_prove::scenario_end(args, &core_proof).unwrap();
 
     let proof = SP1ProofWithPublicValues {
@@ -100,4 +114,6 @@ pub fn scenario_end(args: ProveArgs, core_proof: &Vec<u8>, compress_proof: &Vec<
 
     client.verify(&proof, &vk).unwrap();
     tracing::info!("Successfully verified compress proof");
+
+    Ok(proof)
 }

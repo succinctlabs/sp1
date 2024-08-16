@@ -1,5 +1,5 @@
 use super::types::{DeferredLayout, RecursionLayout, ReduceLayout};
-use crate::operator::utils::ChallengerState;
+use crate::multi_prover::operator::utils::ChallengerState;
 use p3_baby_bear::BabyBear;
 use serde::{Deserialize, Serialize};
 use sp1_core::{air::Word, stark::ShardProof, utils::BabyBearPoseidon2};

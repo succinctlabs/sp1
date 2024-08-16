@@ -1,13 +1,14 @@
-use crate::common;
-use crate::common::memory_layouts::SerializableReduceLayout;
-use crate::common::types::{
+use crate::install::try_install_plonk_bn254_artifacts;
+use crate::multi_prover::common::memory_layouts::SerializableReduceLayout;
+use crate::multi_prover::common::types::{
     ChallengerType, CheckpointType, CommitmentType, PublicValueStreamType, PublicValuesType,
     RecordType,
 };
-use crate::ProveArgs;
+use crate::multi_prover::common::{self, ProveArgs};
 use anyhow::Result;
 use p3_baby_bear::BabyBear;
 use p3_challenger::CanObserve;
+use serde::Serialize;
 use sp1_core::stark::{MachineRecord, RiscvAir};
 use sp1_core::{
     runtime::Runtime,
@@ -15,12 +16,11 @@ use sp1_core::{
     utils::{BabyBearPoseidon2, SP1CoreProverError},
 };
 use sp1_prover::{
-    ReduceProgramType, SP1CoreProof, SP1CoreProofData, SP1DeferredMemoryLayout,
-    SP1ProofWithMetadata, SP1RecursionMemoryLayout, SP1ReduceProof,
+    PlonkBn254Proof, ReduceProgramType, SP1CoreProof, SP1CoreProofData, SP1DeferredMemoryLayout,
+    SP1ProofWithMetadata, SP1Prover, SP1PublicValues, SP1RecursionMemoryLayout, SP1ReduceProof,
+    SP1Stdin, SP1VerifyingKey,
 };
 use sp1_recursion_core::stark::RecursionAir;
-use sp1_sdk::install::try_install_plonk_bn254_artifacts;
-use sp1_sdk::{PlonkBn254Proof, SP1Prover, SP1PublicValues, SP1Stdin, SP1VerifyingKey};
 use tracing::info_span;
 
 fn operator_split_into_checkpoints(
@@ -59,15 +59,15 @@ fn operator_split_into_checkpoints(
     Ok((public_values_stream, public_values, checkpoints))
 }
 
-pub fn operator_split_into_checkpoints_impl(
-    args: ProveArgs,
+pub fn operator_split_into_checkpoints_impl<T: Serialize>(
+    args: &ProveArgs<T>,
 ) -> Result<(
     PublicValueStreamType,
     PublicValuesType,
     Vec<CheckpointType>,
     u64,
 )> {
-    let (client, stdin, pk, _) = common::init_client(args.clone());
+    let (client, stdin, pk, _) = common::init_client(args);
     let (program, opts, context) = common::bootstrap(&client, &pk).unwrap();
     tracing::info!("program size = {}", program.instructions.len());
 
@@ -85,8 +85,8 @@ pub fn operator_split_into_checkpoints_impl(
     ))
 }
 
-pub fn operator_absorb_commits_impl(
-    args: ProveArgs,
+pub fn operator_absorb_commits_impl<T: Serialize>(
+    args: &ProveArgs<T>,
     commitments_vec: Vec<Vec<CommitmentType>>,
     records_vec: Vec<Vec<RecordType>>,
 ) -> Result<ChallengerType> {
@@ -95,7 +95,7 @@ pub fn operator_absorb_commits_impl(
             "commitments_vec and records_vec must have the same length"
         ));
     }
-    let (client, stdin, pk, _) = common::init_client(args.clone());
+    let (client, stdin, pk, _) = common::init_client(args);
     let (program, opts, context) = common::bootstrap(&client, &pk).unwrap();
 
     // Execute the program.
@@ -129,13 +129,13 @@ pub fn operator_absorb_commits_impl(
     Ok(challenger)
 }
 
-pub fn construct_sp1_core_proof_impl(
-    args: ProveArgs,
+pub fn construct_sp1_core_proof_impl<T: Serialize>(
+    args: &ProveArgs<T>,
     shard_proofs_vec: Vec<Vec<ShardProof<BabyBearPoseidon2>>>,
     public_values_stream: PublicValueStreamType,
     cycles: u64,
 ) -> Result<SP1ProofWithMetadata<SP1CoreProofData>> {
-    let (_, stdin, _, _) = common::init_client(args.clone());
+    let (_, stdin, _, _) = common::init_client(args);
 
     let shard_proofs = shard_proofs_vec
         .into_iter()
@@ -225,8 +225,8 @@ pub fn operator_prepare_compress_input_chunks_impl(
     Ok(result)
 }
 
-pub fn operator_prove_shrink_impl(
-    args: ProveArgs,
+pub fn operator_prove_shrink_impl<T: Serialize>(
+    args: &ProveArgs<T>,
     compress_proof: SP1ReduceProof<BabyBearPoseidon2>,
 ) -> Result<SP1ReduceProof<BabyBearPoseidon2>> {
     let (client, _, pk, _) = common::init_client(args);
@@ -238,8 +238,8 @@ pub fn operator_prove_shrink_impl(
         .map_err(|e| anyhow::anyhow!(e))
 }
 
-pub fn operator_prove_plonk_impl(
-    args: ProveArgs,
+pub fn operator_prove_plonk_impl<T: Serialize>(
+    args: &ProveArgs<T>,
     shrink_proof: SP1ReduceProof<BabyBearPoseidon2>,
 ) -> Result<PlonkBn254Proof> {
     let (client, _, pk, _) = common::init_client(args);
