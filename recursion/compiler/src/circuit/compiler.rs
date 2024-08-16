@@ -352,7 +352,7 @@ impl<C: Config> AsmCompiler<C> {
 
         let public_values_a: &RecursionPublicValues<Address<C::F>> = pv_addrs.as_slice().borrow();
         Instruction::CommitPublicValues(CommitPublicValuesInstr {
-            pv_addrs: *public_values_a,
+            pv_addrs: Box::new(*public_values_a),
         })
         .into()
     }
