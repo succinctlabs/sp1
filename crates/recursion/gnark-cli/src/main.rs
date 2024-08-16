@@ -32,7 +32,7 @@ enum Command {
 #[derive(Debug, Args)]
 struct BuildArgs {
     data_dir: String,
-    #[arg(short, long, default_value = "plonk")]
+    #[arg(short, long)]
     system: String,
 }
 
@@ -41,7 +41,7 @@ struct ProveArgs {
     data_dir: String,
     witness_path: String,
     output_path: String,
-    #[arg(short, long, default_value = "plonk")]
+    #[arg(short, long)]
     system: String,
 }
 
@@ -52,7 +52,7 @@ struct VerifyArgs {
     vkey_hash: String,
     committed_values_digest: String,
     output_path: String,
-    #[arg(short, long, default_value = "plonk")]
+    #[arg(short, long)]
     system: String,
 }
 
@@ -60,7 +60,7 @@ struct VerifyArgs {
 struct TestArgs {
     witness_json: String,
     constraints_json: String,
-    #[arg(short, long, default_value = "plonk")]
+    #[arg(short, long)]
     system: String,
 }
 
@@ -83,17 +83,11 @@ fn run_prove(args: ProveArgs) {
 }
 
 fn prove_plonk_bn254(data_dir: &str, witness_path: &str) -> ProofBn254 {
-    ProofBn254::Plonk(sp1_recursion_gnark_ffi::ffi::prove_plonk_bn254(
-        data_dir,
-        witness_path,
-    ))
+    ProofBn254::Plonk(sp1_recursion_gnark_ffi::ffi::prove_plonk_bn254(data_dir, witness_path))
 }
 
 fn prove_groth16_bn254(data_dir: &str, witness_path: &str) -> ProofBn254 {
-    ProofBn254::Groth16(sp1_recursion_gnark_ffi::ffi::prove_groth16_bn254(
-        data_dir,
-        witness_path,
-    ))
+    ProofBn254::Groth16(sp1_recursion_gnark_ffi::ffi::prove_groth16_bn254(data_dir, witness_path))
 }
 
 fn run_verify(args: VerifyArgs) {

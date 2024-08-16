@@ -22,7 +22,7 @@ use subtle_encoding::hex;
 struct Args {
     #[clap(short, long)]
     build_dir: String,
-    #[arg(short, long, default_value = "plonk")]
+    #[arg(short, long)]
     system: String,
 }
 

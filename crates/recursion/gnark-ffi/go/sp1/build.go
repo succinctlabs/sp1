@@ -26,7 +26,7 @@ func BuildPlonk(dataDir string) {
 	os.Setenv("CONSTRAINTS_JSON", dataDir+"/"+constraintsJsonFile)
 
 	// Read the file.
-	witnessInputPath := dataDir + "/plonk_witness.json"
+	witnessInputPath := dataDir + "/" + plonkWitnessPath
 	data, err := os.ReadFile(witnessInputPath)
 	if err != nil {
 		panic(err)
@@ -194,12 +194,13 @@ func BuildPlonk(dataDir string) {
 		panic(err)
 	}
 }
+
 func BuildGroth16(dataDir string) {
 	// Set the environment variable for the constraints file.
 	os.Setenv("CONSTRAINTS_JSON", dataDir+"/"+constraintsJsonFile)
 
 	// Read the file.
-	witnessInputPath := dataDir + "/groth16_witness.json"
+	witnessInputPath := dataDir + "/" + groth16WitnessPath
 	data, err := os.ReadFile(witnessInputPath)
 	if err != nil {
 		panic(err)

@@ -1,5 +1,10 @@
 #![allow(unused)]
 
+//! FFI bindings for the Go code. The functions exported in this module are safe to call from Rust.
+//! All C strings and other C memory should be freed in Rust, including C Strings returned by Go.
+//! Although we cast to *mut c_char because the Go signatures can't be immutable, the Go functions
+//! should not modify the strings.
+
 use crate::{Groth16Bn254Proof, PlonkBn254Proof};
 use cfg_if::cfg_if;
 use sp1_core_machine::SP1_CIRCUIT_VERSION;
