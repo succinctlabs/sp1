@@ -30,7 +30,7 @@ impl Groth16Bn254Prover {
     }
 
     pub fn get_vkey_hash(build_dir: &Path) -> [u8; 32] {
-        let vkey_path = build_dir.join("vk.bin");
+        let vkey_path = build_dir.join("groth16_vk.bin");
         let vk_bin_bytes = std::fs::read(vkey_path).unwrap();
         Sha256::digest(vk_bin_bytes).into()
     }
