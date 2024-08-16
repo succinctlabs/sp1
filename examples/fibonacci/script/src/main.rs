@@ -8,7 +8,7 @@
 
 use clap::Parser;
 use fibonacci_script::FibonacciArgs;
-use sp1_sdk::multi_prover::{common::ProveArgs, scenario};
+use sp1_sdk::mmp::{common::ProveArgs, scenario};
 
 pub const FIBONACCI_ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
 

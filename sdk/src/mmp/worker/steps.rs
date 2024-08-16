@@ -1,11 +1,11 @@
-use crate::multi_prover::common;
-use crate::multi_prover::common::memory_layouts::{
+use crate::mmp::common;
+use crate::mmp::common::memory_layouts::{
     SerializableDeferredLayout, SerializableRecursionLayout, SerializableReduceLayout,
 };
-use crate::multi_prover::common::types::{
+use crate::mmp::common::types::{
     ChallengerType, CommitmentType, DeferredLayout, RecordType, RecursionLayout, ReduceLayout,
 };
-use crate::multi_prover::common::ProveArgs;
+use crate::mmp::common::ProveArgs;
 use anyhow::Result;
 use p3_baby_bear::BabyBear;
 use p3_field::AbstractField;

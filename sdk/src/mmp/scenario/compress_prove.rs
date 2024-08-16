@@ -1,6 +1,6 @@
 use super::core_prove::mpc_prove_core;
-use crate::multi_prover::common;
-use crate::multi_prover::{
+use crate::mmp::common;
+use crate::mmp::{
     common::ProveArgs,
     operator::{operator_prepare_compress_input_chunks, operator_prepare_compress_inputs},
     scenario,

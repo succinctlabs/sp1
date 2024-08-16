@@ -1,10 +1,10 @@
 use crate::install::try_install_plonk_bn254_artifacts;
-use crate::multi_prover::common::memory_layouts::SerializableReduceLayout;
-use crate::multi_prover::common::types::{
+use crate::mmp::common::memory_layouts::SerializableReduceLayout;
+use crate::mmp::common::types::{
     ChallengerType, CheckpointType, CommitmentType, PublicValueStreamType, PublicValuesType,
     RecordType,
 };
-use crate::multi_prover::common::{self, ProveArgs};
+use crate::mmp::common::{self, ProveArgs};
 use anyhow::Result;
 use p3_baby_bear::BabyBear;
 use p3_challenger::CanObserve;

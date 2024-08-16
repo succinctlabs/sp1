@@ -1,5 +1,5 @@
 use super::compress_prove::mpc_prove_compress;
-use crate::multi_prover::{
+use crate::mmp::{
     common::{self, ProveArgs},
     operator::{operator_prove_plonk, operator_prove_shrink},
 };

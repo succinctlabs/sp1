@@ -1,8 +1,8 @@
 pub mod steps;
 pub mod utils;
 
-use crate::multi_prover::common::{self, ProveArgs};
-use crate::multi_prover::common::{
+use crate::mmp::common::{self, ProveArgs};
+use crate::mmp::common::{
     memory_layouts::{SerializableDeferredLayout, SerializableRecursionLayout},
     types::{CommitmentType, PublicValueStreamType},
 };

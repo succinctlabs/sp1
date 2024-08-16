@@ -12,7 +12,7 @@ pub mod proto {
 pub mod action;
 pub mod artifacts;
 pub mod install;
-pub mod multi_prover;
+pub mod mmp;
 #[cfg(feature = "network")]
 pub mod network;
 #[cfg(feature = "network")]

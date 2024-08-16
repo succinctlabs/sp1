@@ -1,8 +1,8 @@
 pub mod steps;
 
-use crate::multi_prover::common;
-use crate::multi_prover::common::memory_layouts::SerializableReduceLayout;
-use crate::multi_prover::{
+use crate::mmp::common;
+use crate::mmp::common::memory_layouts::SerializableReduceLayout;
+use crate::mmp::{
     common::{
         memory_layouts::{SerializableDeferredLayout, SerializableRecursionLayout},
         types::LayoutType,

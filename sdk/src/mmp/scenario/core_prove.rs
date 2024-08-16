@@ -1,5 +1,5 @@
-use crate::multi_prover::common;
-use crate::multi_prover::{
+use crate::mmp::common;
+use crate::mmp::{
     common::ProveArgs,
     operator::{
         operator_absorb_commits, operator_construct_sp1_core_proof, operator_split_into_checkpoints,
