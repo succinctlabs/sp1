@@ -11,5 +11,5 @@ categories = { workspace = true }
 [dependencies]
 cargo_metadata = "0.18.1"
 anyhow = { version = "1.0.83" }
-clap = { version = "4.5.9", features = ["derive", "env"] }
+clap = { version = "4.5.16", features = ["derive", "env"] }
 dirs = "5.0.1"
