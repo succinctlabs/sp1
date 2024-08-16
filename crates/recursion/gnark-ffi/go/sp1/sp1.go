@@ -161,10 +161,10 @@ func (circuit *Circuit) Define(api frontend.API) error {
 		case "PrintV":
 			api.Println(vars[cs.Args[0][0]])
 		case "PrintF":
-			f := felts[cs.Args[0][0]]
+			f := fieldAPI.ReduceSlow(felts[cs.Args[0][0]])
 			api.Println(f.Value)
 		case "PrintE":
-			e := exts[cs.Args[0][0]]
+			e := fieldAPI.ReduceE(exts[cs.Args[0][0]])
 			api.Println(e.Value[0].Value)
 			api.Println(e.Value[1].Value)
 			api.Println(e.Value[2].Value)
